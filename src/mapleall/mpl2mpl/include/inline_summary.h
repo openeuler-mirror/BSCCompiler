@@ -16,7 +16,7 @@
 #define MAPLE_MPL2MPL_INCLUDE_INLINE_SUMMARY_H
 #include "me_function.h"
 #include "cast_opt.h"
-#include "inline_analyzer.h"
+#include "stmt_cost_analyzer.h"
 #include "me_loop_analysis.h"
 #include "me_predict.h"
 
@@ -36,7 +36,73 @@ enum ExprBoolResult {
   kExprResFalse
 };
 
-constexpr double kColdFreqPercent = 0.05;
+constexpr double kColdFreqPercent = 0.01;
+constexpr int32 kCallFreqBase = 1000;
+constexpr int32 kCallFreqMax = 100000;
+constexpr int32 kCallFreqDefault = 1;   // based on kCallFreqBase
+
+inline double CallFreqPercent(int32 callFreq) {
+  return static_cast<double>(callFreq) / static_cast<double>(kCallFreqBase);
+}
+
+using NumInsns = int32;
+using NumCycles = double;
+class InlineCost {
+ public:
+  InlineCost() = default;
+  InlineCost(NumInsns numInsns, NumCycles numCycles) : insns(numInsns), cycles(numCycles) {}
+
+  void Reset(NumInsns numInsns, NumCycles numCycles) {
+    insns = numInsns;
+    cycles = numCycles;
+  }
+
+  NumInsns GetInsns() const {
+    return insns;
+  }
+
+  NumCycles GetCycles() const {
+    return cycles;
+  }
+
+  void AddInsns(NumInsns detInsns) {
+    insns += detInsns;
+  }
+
+  void AddCycles(NumCycles detCycles) {
+    cycles += detCycles;
+  }
+
+  void Add(NumInsns detInsns, NumCycles detCycles) {
+    insns += detInsns;
+    cycles += detCycles;
+  }
+
+  void Add(const InlineCost &rhs) {
+    insns += rhs.insns;
+    cycles += rhs.cycles;
+  }
+
+  void Add(const InlineCost &rhs, int32 frequency) {
+    insns += rhs.insns;
+    auto detTime = rhs.cycles;
+    if (frequency > 0) {
+      detTime *= CallFreqPercent(frequency);
+    }
+    cycles += detTime;
+  }
+
+  InlineCost Scale(int32 frequency) const {
+    InlineCost cost(0, 0);
+    cost.Add(*this, frequency);
+    return cost;
+  }
+
+ private:
+  NumInsns insns = 0;     // The dimension is number of instructions
+  NumCycles cycles = 0;   // The dimension is cycles
+};
+
 ExprBoolResult GetReverseExprBoolResult(ExprBoolResult res);
 void DumpStmtSafe(const StmtNode &stmtNode, MIRFunction &func);
 std::pair<PrimType, int64> TryFoldConst(BaseNode &expr);
@@ -46,7 +112,7 @@ bool IsExprOnlyComposedOf(const MeExpr &expr, uint32 kinds, MeFunction &func);
 MIRConst *EvaluateMeExpr(MeExpr &meExpr, MeFunction &func, MapleAllocator &alloc);
 InlineSummary *GetSummaryByPuIdx(uint32 puIdx);
 int32 CostSize2NumInsn(int32 costSize);
-int32 GetCondInlineCost(const MIRFunction &caller, MIRFunction &callee, const CallNode &callStmt);
+InlineCost GetCondInlineCost(const MIRFunction &caller, MIRFunction &callee, const CallNode &callStmt);
 
 // Real argument info of a callsite, including the following info:
 // (1) real argument value range: [lower, upper], it is a single value if lower == upper. lower and upper
@@ -322,12 +388,15 @@ using Assert = uint64;
 constexpr Assert kAssertOne = 1;
 constexpr uint32 kNumBitsPerByte = 8;
 constexpr uint32 kMaxNumCondition = sizeof(Assert) * kNumBitsPerByte;
+constexpr uint32 kCondIdxNotInline = 1;
+constexpr uint32 kCondIdxRealBegin = 2;
 constexpr uint32 kCondIdxOverflow = kMaxNumCondition;
 
 class Predicate {
  public:
   static const Predicate *TruePredicate();
   static const Predicate *FalsePredicate();
+  static const Predicate *NotInlinePredicate();
   static const Predicate *And(const Predicate &a, const Predicate &b, MapleAllocator &alloc);
   static const Predicate *Or(const Predicate &a, const Predicate &b, const MapleVector<Condition*> &conditions,
       MapleAllocator &alloc);
@@ -370,6 +439,12 @@ class Predicate {
   // False predicate asserts: { 1 }
   bool IsFalsePredicate() const {
     return asserts.size() == 1 && *asserts.begin() == 1;
+  }
+
+  // NotInline predicate asserts: { 2 }
+  bool IsNotInlinePredicate() const {
+    const Assert notInlineAssertVal = 2;
+    return asserts.size() == 1 && *asserts.begin() == notInlineAssertVal;
   }
 
   MapleSet<Assert> &GetAsserts() {
@@ -442,8 +517,9 @@ class Predicate {
   uint32 GetParamsUsed(const MapleVector<Condition*> &conditions) const {
     uint32 paramsUsed = 0;
     for (auto assert : asserts) {
-      // Skip the first element that is a placeholder for falsePredicate
-      for (uint32 i = 1; i < kMaxNumCondition; ++i) {
+      // Skip the first element that is a placeholder for falsePredicate and the second
+      // element for notInline
+      for (uint32 i = kCondIdxRealBegin; i < kMaxNumCondition; ++i) {
         if ((assert & (kAssertOne << i)) == 0) {
           continue;
         }
@@ -481,25 +557,12 @@ class Predicate {
   MapleSet<Assert> asserts;
 };
 
-struct InlineCost {
-  int32 size = 0;
-  int32 time = 0;
-
-  void Add(int32 detSize, int32 detTime) {
-    size += detSize;
-    time += detTime;
-  }
-
-  void Add(const InlineCost &rhs) {
-    size += rhs.size;
-    time += rhs.time;
-  }
-};
-
 struct InlineEdgeSummary {
-  InlineEdgeSummary(const Predicate *pred, int64 freq) : predicate(pred), frequency(freq) {}
+  InlineEdgeSummary(const Predicate *pred, int32 freq, int32 stmtSz, int32 stmtTm)
+      : predicate(pred), frequency(freq), callCost(stmtSz, stmtTm) {}
   const Predicate *predicate = nullptr;  // predicate of the bb that contains the callStmt
-  int64 frequency = -1;   // frequency of the bb that contains the callStmt, -1 means invalid frequency
+  int32 frequency = -1;   // frequency of the bb that contains the callStmt, -1 means invalid frequency
+  InlineCost callCost;
 };
 
 class InlineSummary {
@@ -507,8 +570,8 @@ class InlineSummary {
   InlineSummary(MapleAllocator &allocater, MIRFunction *f)
       : summaryAlloc(allocater),
         func(f),
-        conditions(1, nullptr, summaryAlloc.Adapter()),  // The first element is a placeholder for falsePredicate
-        costTable(summaryAlloc.Adapter()),
+        conditions(kCondIdxRealBegin, nullptr, summaryAlloc.Adapter()), // The 1st is a placeholder for falsePredicate
+        costTable(summaryAlloc.Adapter()),                              // The 2ed is a placeholder for notInline
         edgeSummaryMap(summaryAlloc.Adapter()),
         argInfosMap(summaryAlloc.Adapter()) {
     // Init the first cost item: truePredicate
@@ -525,33 +588,33 @@ class InlineSummary {
     return summaryAlloc;
   }
 
-  int32 NumInsns() const {
-    return static_cast<int32>(size * static_cast<int64>(kInsn2Threshold) / static_cast<int64>(kSizeScale));
+  NumInsns GetStaticInsns() const {
+    return staticCost.GetInsns();
   }
 
-  int32 GetStaticSize() const {
-    return size;
+  NumCycles GetStaticCycles() const {
+    return staticCost.GetCycles();
   }
 
-  int32 GetStaticTime() const {
-    return time;
+  void AddStaticInsns(NumInsns detInsns) {
+    staticCost.AddInsns(detInsns);
   }
 
-  void SetStaticSize(int32 sz) {
-    size = sz;
+  void AddStaticCycles(NumCycles detCycles) {
+    staticCost.AddCycles(detCycles);
   }
 
-  void SetStaticTime(int32 t) {
-    time = t;
+  void SetStaticCost(int32 insns, double cycles) {
+    staticCost.Reset(insns, cycles);
   }
 
-  const MapleVector<Condition*> GetConditions() const {
+  const MapleVector<Condition*> &GetConditions() const {
     return conditions;
   }
 
   // Given arguments info, evalutate all conditions. The result will be saved in `condResultVec` indexed by condIdx
   void EvaluateConditions(MapleAllocator &alloc, const ArgInfoVec *argInfoVec,
-      std::vector<ExprBoolResult> &condResultVec) const {
+      std::vector<ExprBoolResult> &condResultVec, bool willInline) const {
     condResultVec.resize(conditions.size(), kExprResUnknown);
     for (uint32 i = 0; i < conditions.size(); ++i) {
       auto *cond = conditions[i];
@@ -563,6 +626,7 @@ class InlineSummary {
         condResultVec[i] = res;
       }
     }
+    condResultVec[kCondIdxNotInline] = !willInline ? kExprResTrue : kExprResFalse;
   }
 
   // Return a predicate with single condition spcified by `liteExpr` and `reverse`
@@ -606,16 +670,26 @@ class InlineSummary {
     }
   }
 
-  void AddCondCostItem(const Predicate &predicate, int32 costSize, int32 costTime) {
+  void AddCondCostItem(const Predicate &predicate, maple::NumInsns insns, NumCycles cycles, bool debug) {
     if (predicate.IsFalsePredicate()) {
       return;  // Adding false predicate make no sense
     }
+    if (debug) {
+      LogInfo::MapleLogger() << "  Accounting insns: " << insns << ", cycles: " << cycles << " on predicate: ";
+      predicate.Dump(conditions);
+    }
     ASSERT(costTable[0].first->IsTruePredicate(), "The first item of costTable must be truePredicate");
     if (predicate.IsTruePredicate()) {
-      costTable[0].second.Add(costSize, costTime);
+      costTable[0].second.Add(insns, cycles);
       return;
     }
-    (void)costTable.emplace_back(&predicate, InlineCost{ costSize, costTime });
+    for (size_t i = costTable.size() - 1; i > 0; --i) {  // look from back to front, skip the first item
+      if (costTable[i].first == &predicate) {
+        costTable[i].second.Add(insns, cycles);
+        return;
+      }
+    }
+    (void)costTable.emplace_back(&predicate, InlineCost{ insns, cycles });
   }
 
   void AddArgInfo(uint32 callStmtId, uint32 argIndex, ArgInfo *argInfo) {
@@ -630,10 +704,11 @@ class InlineSummary {
     argInfoVec[argIndex] = argInfo;
   }
 
-  void AddEdgeSummary(uint32 callStmtId, const Predicate *bbPredicate, int64 frequency) {
+  void AddEdgeSummary(uint32 callStmtId, const Predicate *bbPredicate, int32 frequency,
+                      int32 insns, int32 cycles) {
     const auto &res = edgeSummaryMap.try_emplace(callStmtId, nullptr);
     if (res.second) {
-      res.first->second = summaryAlloc.New<InlineEdgeSummary>(bbPredicate, frequency);
+      res.first->second = summaryAlloc.New<InlineEdgeSummary>(bbPredicate, frequency, insns, cycles);
     }
   }
 
@@ -641,16 +716,24 @@ class InlineSummary {
     (void)edgeSummaryMap.erase(callStmtId);
   }
 
-  bool IsColdCallsite(uint32 callStmtId) const {
+  InlineEdgeSummary *GetEdgeSummary(uint32 callStmtId) const {
+    if (edgeSummaryMap.find(callStmtId) == edgeSummaryMap.end()) {
+      return nullptr;
+    }
+    return edgeSummaryMap.at(callStmtId);
+  }
+
+  bool IsUnlikelyCallsite(uint32 callStmtId) const {
     auto it = edgeSummaryMap.find(callStmtId);
     if (it == edgeSummaryMap.end()) {
       return false;
     }
-    auto freq = it->second->frequency;
-    if (freq == -1) {
+    auto callFreq = it->second->frequency;
+    // Attention: sometimes freq 0 is also invalid
+    if (callFreq == -1 || callFreq == 0) {
       return false;
     }
-    double freqPercent = static_cast<double>(freq) / static_cast<double>(kFreqBase);
+    double freqPercent = static_cast<double>(callFreq) / static_cast<double>(kCallFreqBase);
     return freqPercent <= kColdFreqPercent;
   }
 
@@ -676,6 +759,30 @@ class InlineSummary {
 
   void SetArgInfoCollected(bool flag) {
     argInfoCollected = flag;
+  }
+
+  const char *GetMustNotInlineReason() const {
+    return mustNotInlineReason;
+  }
+
+  void SetMustNotInlineReason(const char *reason) {
+    mustNotInlineReason = reason;
+  }
+
+  InlineFailedCode GetInlineFailedCode() const {
+    return inlineFailedCode;
+  }
+
+  void SetInlineFailedCode(InlineFailedCode code) {
+    inlineFailedCode = code;
+  }
+
+  bool HasBigSwitch() const {
+    return hasBigSwitch;
+  }
+
+  void SetHasBigSwitch(bool val) {
+    hasBigSwitch = val;
   }
 
   void GetParamMappingForCallsite(uint32 callStmtId, std::vector<int32> &paramMapping) const {
@@ -751,13 +858,13 @@ class InlineSummary {
 
   // Return condIdx bitMap that need be copied to toSummary
   Assert SpecializeCostTable(const std::vector<ExprBoolResult> &condResultVec, const std::vector<int32> &paramMapping,
-      std::vector<std::pair<const Predicate*, InlineCost>> &spCostTable, InlineCost &unnecessaryCost) const;
+      int32 callFrequency, std::vector<std::pair<const Predicate*, InlineCost>> &spCostTable,
+      InlineCost &unnecessaryCost) const;
 
   // Do not add too many unnecessary fields unless you want to MergeSummary more and more complicated
   MapleAllocator &summaryAlloc;
   MIRFunction *func = nullptr;
-  int32 size = 0;  // callsite-insensitive static size
-  int32 time = 0;  // callsite-insensitive static time
+  InlineCost staticCost;  // callsite-insensitive static cost
 
   MapleVector<Condition*> conditions;
   MapleVector<std::pair<const Predicate*, InlineCost>> costTable;  // The first element is always truePredicate
@@ -767,6 +874,9 @@ class InlineSummary {
 
   // key: callStmtId, value: argInfoVec for current callsite, see `ArgInfo` for details
   MapleMap<uint32, ArgInfoVec*> argInfosMap;
+  const char *mustNotInlineReason = nullptr;  // If not null, the function must not be inlined
+  InlineFailedCode inlineFailedCode = kIFC_NeedFurtherAnalysis;
+  bool hasBigSwitch = false;
   bool argInfoCollected = false;
   bool keyRefreshed = false;
   bool trustworthy = true;
@@ -777,7 +887,8 @@ void MergeInlineSummary(MIRFunction &caller, MIRFunction &callee, const StmtNode
 
 struct BBPredicate {
   const Predicate *predicate = nullptr;
-  std::vector<const Predicate*> succEdgePredicates;
+  MapleVector<const Predicate*> succEdgePredicates;
+  explicit BBPredicate(MapleAllocator &alloc) : succEdgePredicates(alloc.Adapter()) {}
 };
 
 // Function level inline summary collector
@@ -785,13 +896,16 @@ class InlineSummaryCollector {
  public:
   static void CollectArgInfo(MeFunction &meFunc);
 
-  InlineSummaryCollector(MapleAllocator &allocator, MeFunction &meFunc, Dominance &dominance, IdentifyLoops &loop)
+  InlineSummaryCollector(MapleAllocator &allocator, MeFunction &meFunc, Dominance &dominance, Dominance &postDominance,
+                         IdentifyLoops &loop)
       : summaryAlloc(allocator),
         tmpAlloc(memPoolCtrler.NewMemPool("tmp alloc", true)),
         func(&meFunc),
-        inlineAnalyzer(tmpAlloc.GetMemPool(), func->GetMirFunc()),
+        stmtCostAnalyzer(tmpAlloc.GetMemPool(), func->GetMirFunc()),
         dom(dominance),
-        meLoop(loop) {}
+        pdom(postDominance),
+        meLoop(loop),
+        allBBPred(tmpAlloc.Adapter()) {}
 
   ~InlineSummaryCollector() {
     memPoolCtrler.DeleteMemPool(tmpAlloc.GetMemPool());
@@ -815,21 +929,33 @@ class InlineSummaryCollector {
   void PreparePredicateForBB(BB &bb) {
     auto bbId = bb.GetBBId().get();
     if (allBBPred[bbId] == nullptr) {
-      allBBPred[bbId] = tmpAlloc.New<BBPredicate>();
+      allBBPred[bbId] = tmpAlloc.New<BBPredicate>(tmpAlloc);
     }
   }
 
   void ComputeEdgePredicate();
   void PropBBPredicate();
   void ComputeConditionalCost();
+  std::pair<int32, double> AnalyzeCondCostForStmt(MeStmt &stmt, int32 callFrequency, const Predicate *bbPredClone,
+      const BBPredicate &bbPredicate);
 
   void CollectInlineSummary() {
     InlineSummaryCollector::CollectArgInfo(*func);
-    MePrediction::RebuildFreq(*func, dom, meLoop);
+    BuiltinExpectInfo savedExpectInfo;
+    if (!Options::profileUse) {  // If there is real profile, no need to predict freq
+      MePrediction::RebuildFreq(*func, dom, pdom, meLoop, &savedExpectInfo);  // ipa prepare should rebuild freq before
+    }
     PrepareSummary();
+    if (debug) {
+      LogInfo::MapleLogger() << "Collect inline summary for function: " << func->GetName() << "/" <<
+          func->GetMirFunc()->GetPuidx() << std::endl;
+    }
     ComputeEdgePredicate();
     PropBBPredicate();
     ComputeConditionalCost();
+    if (!Options::profileUse) {
+      MePrediction::RecoverBuiltinExpectInfo(savedExpectInfo);
+    }
     if (IsDebug()) {
       inlineSummary->Dump();
     }
@@ -856,12 +982,13 @@ class InlineSummaryCollector {
   MapleAllocator &summaryAlloc; // summaryAlloc will not be released util ipa-inlining finish
   MapleAllocator tmpAlloc;      // tmpAlloc will be released once inlineSummaryCollector is destructed
   MeFunction *func = nullptr;
-  InlineAnalyzer inlineAnalyzer;
+  StmtCostAnalyzer stmtCostAnalyzer;
   Dominance &dom;
+  Dominance &pdom;
   IdentifyLoops &meLoop;
   InlineSummary *inlineSummary = nullptr;
   // All bb predicates are allocated in tmpAlloc, necessary predicates will be cloned into summaryAlloc
-  std::vector<BBPredicate*> allBBPred;
+  MapleVector<BBPredicate*> allBBPred;
   // We use `exprCache` to avoid build multiple different liteExpr for a single meExpr
   // key: meExpr, value: liteExpr and paramsUsed
   std::unordered_map<MeExpr*, std::pair<LiteExpr*, uint32>> exprCache;
