@@ -4357,20 +4357,21 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
     }
     auto *valueRangeInPred = FindValueRangeAndInitNumOfRecursion(*pred, *predOpnd);
     std::unique_ptr<ValueRange> valueRangeInPredPtr = nullptr;
+    auto dummyRightRange = rightRange;
     if (valueRangeInPred == nullptr) {
       valueRangeInPredPtr = GetValueRangeOfLHS(*pred, bb, *predOpnd);
       valueRangeInPred = valueRangeInPredPtr.get();
     }
-    if (rightRange == nullptr || valueRangeInPred == nullptr) {
+    if (dummyRightRange == nullptr || valueRangeInPred == nullptr) {
       // If the vr of versionOpnd0InPred is equal to the vr of versionOpnd1InPred in pred.
       if (opnd0 != nullptr && FindPairOfExprs(*predOpnd, *opnd0, *pred) &&
           TowCompareOperandsAreInSameIterOfLoop(currOpnd, *opnd0)) {
         valueRangeInPredPtr = CreateValueRangeOfEqualZero(predOpnd->GetPrimType());
         valueRangeInPred = valueRangeInPredPtr.get();
-        rightRange = valueRangeInPredPtr.get();
+        dummyRightRange = valueRangeInPredPtr.get();
       }
     }
-    if (ConditionEdgeCanBeDeleted(*pred, bb, valueRangeInPred, rightRange, falseBranch, trueBranch, opndType, op,
+    if (ConditionEdgeCanBeDeleted(*pred, bb, valueRangeInPred, dummyRightRange, falseBranch, trueBranch, opndType, op,
         updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr)) {
       if (updateSSAExceptTheScalarExpr != nullptr && phi != nullptr) {
         if (updateSSAExceptTheScalarExpr->GetDefBy() == kDefByStmt) {
@@ -4393,7 +4394,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
            pred->GetBBId() != falseBranch.GetBBId() && pred->GetBBId() != trueBranch.GetBBId() &&
            (opnd0 == nullptr || TowCompareOperandsAreInSameIterOfLoop(currOpnd, *opnd0))) {
         opt |= AnalysisValueRangeInPredsOfCondGotoBB(
-            *pred, opnd0, *predOpnd, rightRange, falseBranch, trueBranch, opndType, op, condGoto);
+            *pred, opnd0, *predOpnd, dummyRightRange, falseBranch, trueBranch, opndType, op, condGoto);
       }
     }
     if (bb.GetPred().size() == predSize) {
