@@ -20,10 +20,8 @@
 #include "securec.h"
 #include "reg_alloc_basic.h"
 #include "reg_alloc_lsra.h"
+#include "reg_alloc_color_ra.h"
 #include "cg.h"
-#if TARGAARCH64
-#include "aarch64_color_ra.h"
-#endif
 
 namespace maplebe {
 
@@ -63,7 +61,6 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
   }
 
-#if TARGAARCH64
   /* dom Analysis */
   DomAnalysis *dom = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0 &&
@@ -73,7 +70,6 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     dom = static_cast<CgDomAnalysis*>(it)->GetResult();
     CHECK_FATAL(dom != nullptr, "null ptr check");
   }
-#endif
 
 #ifdef RA_PERF_ANALYSIS
   auto end = std::chrono::system_clock::now();
@@ -116,7 +112,6 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
       maple::LogInfo::MapleLogger(kLlErr) << "Error: -LiteCG option is unsupported for aarch64.\n";
 #endif
     } else {
-#if TARGAARCH64
       if (f.GetCG()->GetCGOptions().DoLinearScanRegisterAllocation()) {
         regAllocator = phaseMp->New<LSRALinearScanRegAllocator>(f, *phaseMp);
       } else if (f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
@@ -126,11 +121,6 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
         maple::LogInfo::MapleLogger(kLlErr) <<
             "Warning: We only support Linear Scan and GraphColor register allocation\n";
       }
-#endif
-#if TARGX86_64
-      maple::LogInfo::MapleLogger(kLlErr) <<
-          "Error: We only support -O0, and -LiteCG for x64.\n";
-#endif
     }
 #ifdef RA_PERF_ANALYSIS
     end = std::chrono::system_clock::now();

@@ -14,9 +14,10 @@
  */
 
 #include "aarch64_rematerialize.h"
-#include "aarch64_color_ra.h"
 #include "aarch64_insn.h"
 #include "aarch64_cgfunc.h"
+#include "reg_alloc_color_ra.h"
+
 
 namespace maplebe {
 bool AArch64Rematerializer::IsRematerializableForConstval(int64 val, uint32 bitLen) const {

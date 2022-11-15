@@ -24,7 +24,7 @@ bool CgOccur::IsDominate(DomAnalysis &dom, CgOccur &occ) {
 
 /* compute bucket index for the work candidate in workCandHashTable */
 uint32 PreWorkCandHashTable::ComputeWorkCandHashIndex(const Operand &opnd) {
-  uint32 hashIdx = static_cast<uint32>(reinterpret_cast<uint64>(&opnd) >> k4ByteSize);
+  auto hashIdx = std::hash<std::string>{}(opnd.GetHashContent());
   return hashIdx % workCandHashLength;
 }
 

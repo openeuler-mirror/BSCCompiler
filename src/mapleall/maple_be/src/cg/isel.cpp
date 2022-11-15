@@ -736,7 +736,7 @@ void MPISel::SelectIassignoff(const IassignoffNode &stmt) {
   PrimType primType = stmt.GetPrimType();
   uint32 bitSize = GetPrimTypeBitSize(primType);
   RegOperand &addrReg = SelectCopy2Reg(*addr, PTY_a64);
-  RegOperand &rhsReg = SelectCopy2Reg(*rhs, primType);
+  RegOperand &rhsReg = SelectCopy2Reg(*rhs, primType, stmt.Opnd(1)->GetPrimType());
 
   MemOperand &memOpnd = cgFunc->GetOpndBuilder()->CreateMem(addrReg, offset, bitSize);
   SelectCopy(memOpnd, rhsReg, primType);

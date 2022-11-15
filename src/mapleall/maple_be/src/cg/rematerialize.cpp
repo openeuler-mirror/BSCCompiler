@@ -14,12 +14,9 @@
  */
 
 #include "rematerialize.h"
-#if TARGAARCH64
-#include "aarch64_color_ra.h"
-#endif
+#include "reg_alloc_color_ra.h"
 
 namespace maplebe {
-
 bool Rematerializer::IsRematerializableForAddrof(CGFunc &cgFunc, const LiveRange &lr) const {
   const MIRSymbol *symbol = rematInfo.sym;
   if (symbol->IsDeleted()) {

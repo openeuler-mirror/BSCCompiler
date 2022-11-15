@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,7 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "aarch64_color_ra.h"
+#include "reg_alloc_color_ra.h"
 #include "cg.h"
 #include "mir_lower.h"
 #include "securec.h"
@@ -55,6 +55,18 @@ constexpr uint32 kPriorityBBThreashold = 1000;
 constexpr float  kPriorityRatioThreashold = 0.9;
 
 #define GCRA_DUMP CG_DEBUG_FUNC(*cgFunc)
+
+static inline PrimType GetPrimTypeFromRegTyAndRegSize(RegType regTy, uint32 regSize) {
+  PrimType primType;
+  if (regTy == kRegTyInt) {
+    primType = (regSize <= k8BitSize) ? PTY_i8 :
+               (regSize <= k16BitSize) ? PTY_i16 :
+               (regSize <= k32BitSize) ? PTY_i32 : PTY_i64;
+  } else {
+    primType = (regSize <= k32BitSize) ? PTY_f32 : PTY_f64;
+  }
+  return primType;
+}
 
 void LiveUnit::PrintLiveUnit() const {
   LogInfo::MapleLogger() << "[" << begin << "," << end << "]"
@@ -157,7 +169,11 @@ void GraphColorRegAllocator::PrintLiveRange(const LiveRange &lr, const std::stri
   } else {
     LogInfo::MapleLogger() << "(U)";
   }
-  if (lr.GetSpillSize() == k32BitSize) {
+  if (lr.GetSpillSize() == k8BitSize) {
+    LogInfo::MapleLogger() << "S8";
+  } else if (lr.GetSpillSize() == k16BitSize) {
+    LogInfo::MapleLogger() << "S16";
+  } else if (lr.GetSpillSize() == k32BitSize) {
     LogInfo::MapleLogger() << "S32";
   } else if (lr.GetSpillSize() == k64BitSize) {
     LogInfo::MapleLogger() << "S64";
@@ -459,9 +475,6 @@ LiveRange *GraphColorRegAllocator::NewLiveRange() {
   }
   lr->SetBBBuckets(bbBuckets);
   lr->InitBBMember(*memPool, bbBuckets);
-  if (regBuckets == 0) {
-    regBuckets = (cgFunc->GetMaxRegNum() / kU64) + 1;
-  }
   lr->SetRegBuckets(regBuckets);
   lr->InitBBConflict(*memPool, regBuckets);
   lr->InitPregveto();
@@ -655,9 +668,7 @@ void GraphColorRegAllocator::SetupLiveRangeByOp(Operand &op, Insn &insn, bool is
 
   LiveRange *lr = GetLiveRange(regNO);
   ASSERT(lr != nullptr, "lr should not be nullptr");
-  if (isDef) {
-    lr->SetSpillSize((regOpnd.GetSize() <= k32BitSize) ? k32BitSize : k64BitSize);
-  }
+  lr->SetSpillSize(regOpnd.GetSize());
   if (lr->GetRegType() == kRegTyUndef) {
     lr->SetRegType(regOpnd.GetRegisterType());
   }
@@ -886,7 +897,7 @@ void GraphColorRegAllocator::ComputeLiveRangesUpdateIfInsnIsCall(const Insn &ins
   for (uint32 i = 0; i < regInfo->GetIntRetRegsNum(); ++i) {
     pregLive.erase(regInfo->GetIntRetReg(i));
   }
-  for (uint32 i = 0; i < regInfo->GetFloatRegsParmsNum(); ++i) {
+  for (uint32 i = 0; i < regInfo->GetFpRetRegsNum(); ++i) {
     pregLive.erase(regInfo->GetFpRetReg(i));
   }
 
@@ -2622,7 +2633,8 @@ MemOperand *GraphColorRegAllocator::GetConsistentReuseMem(const uint64 *conflict
   }
 
   for (auto *noConflictLr : sconflict) {
-    if (noConflictLr == nullptr || noConflictLr->GetRegType() != regType || noConflictLr->GetSpillSize() != size) {
+    if (noConflictLr == nullptr || noConflictLr->GetRegType() != regType ||
+        noConflictLr->GetSpillSize() != size) {
       continue;
     }
     if (usedMemOpnd.find(noConflictLr->GetSpillMem()) == usedMemOpnd.end()) {
@@ -2645,7 +2657,8 @@ MemOperand *GraphColorRegAllocator::GetCommonReuseMem(const uint64 *conflict, co
         break;
       }
       LiveRange *noConflictLr = GetLiveRange(regNO);
-      if (noConflictLr == nullptr || noConflictLr->GetRegType() != regType || noConflictLr->GetSpillSize() != size) {
+      if (noConflictLr == nullptr || noConflictLr->GetRegType() != regType ||
+          noConflictLr->GetSpillSize() != size) {
         continue;
       }
       if (usedMemOpnd.find(noConflictLr->GetSpillMem()) == usedMemOpnd.end()) {
@@ -2657,24 +2670,20 @@ MemOperand *GraphColorRegAllocator::GetCommonReuseMem(const uint64 *conflict, co
 }
 
 /* See if any of the non-conflict LR is spilled and use its memOpnd. */
-MemOperand *GraphColorRegAllocator::GetReuseMem(uint32 vregNO, uint32 size, RegType regType) {
+MemOperand *GraphColorRegAllocator::GetReuseMem(const LiveRange &lr) {
   if (cgFunc->GetMirModule().GetSrcLang() != kSrcLangC) {
     return nullptr;
   }
-  if (IsLocalReg(vregNO)) {
+  if (IsLocalReg(lr.GetRegNO())) {
     return nullptr;
   }
 
-  LiveRange *lr = lrMap[vregNO];
-  const uint64 *conflict;
-  if (lr->GetSplitLr() != nullptr) {
+  if (lr.GetSplitLr() != nullptr) {
     /*
      * For split LR, the vreg liveness is optimized, but for spill location
      * the stack location needs to be maintained for the entire LR.
      */
     return nullptr;
-  } else {
-    conflict = lr->GetBBConflict();
   }
 
   std::set<MemOperand*> usedMemOpnd;
@@ -2687,22 +2696,22 @@ MemOperand *GraphColorRegAllocator::GetReuseMem(uint32 vregNO, uint32 size, RegT
       (void)usedMemOpnd.insert(lrInner->GetSpillMem());
     }
   };
+  const uint64 *conflict = lr.GetBBConflict();
   ForEachRegArrElem(conflict, updateMemOpnd);
-  uint32 regSize = (size <= k32BitSize) ? k32BitSize : k64BitSize;
   /*
    * This is to order the search so memOpnd given out is consistent.
    * When vreg#s do not change going through VtableImpl.mpl file
    * then this can be simplified.
    */
 #ifdef CONSISTENT_MEMOPND
-  return GetConsistentReuseMem(conflict, usedMemOpnd, regSize, regType);
+  return GetConsistentReuseMem(conflict, usedMemOpnd, lr.GetSpillSize(), lr.GetRegType());
 #else   /* CONSISTENT_MEMOPND */
-  return GetCommonReuseMem(conflict, usedMemOpnd, regSize, regType);
+  return GetCommonReuseMem(conflict, usedMemOpnd, lr.GetSpillSize(), lr.GetRegType());
 #endif  /* CONSISTENT_MEMOPNDi */
 }
 
 MemOperand *GraphColorRegAllocator::GetSpillMem(uint32 vregNO, bool isDest, Insn &insn,
-    regno_t regNO, bool &isOutOfRange) {
+                                                regno_t regNO, bool &isOutOfRange) {
   MemOperand *memOpnd = cgFunc->GetOrCreatSpillMem(vregNO);
   if (cgFunc->GetCG()->IsLmbc() && cgFunc->GetSpSaveReg()) {
     LiveRange *lr = lrMap[cgFunc->GetSpSaveReg()];
@@ -2744,14 +2753,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   MemOperand *spillMem = CreateSpillMem(spillIdx, kSpillMemPre);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
 
-  uint32 regSize = regOpnd.GetSize();
-  PrimType stype;
-  RegType regType = regOpnd.GetRegisterType();
-  if (regType == kRegTyInt) {
-    stype = (regSize <= k32BitSize) ? PTY_i32 : PTY_i64;
-  } else {
-    stype = (regSize <= k32BitSize) ? PTY_f32 : PTY_f64;
-  }
+  PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), regOpnd.GetSize());
   bool isOutOfRange = false;
   spillMem = regInfo->AdjustMemOperandIfOffsetOutOfRange(spillMem, regOpnd.GetRegisterNumber(),
       false, insn, regInfo->GetReservedSpillReg(), isOutOfRange);
@@ -2800,15 +2802,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
   MemOperand *spillMem = CreateSpillMem(spillIdx, kSpillMemPost);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
 
-  uint32 regSize = regOpnd.GetSize();
-  PrimType stype;
-  RegType regType = regOpnd.GetRegisterType();
-  if (regType == kRegTyInt) {
-    stype = (regSize <= k32BitSize) ? PTY_i32 : PTY_i64;
-  } else {
-    stype = (regSize <= k32BitSize) ? PTY_f32 : PTY_f64;
-  }
-
+  PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), regOpnd.GetSize());
   bool isOutOfRange = false;
   Insn *nextInsn = insn.GetNextMachineInsn();
   spillMem = regInfo->AdjustMemOperandIfOffsetOutOfRange(spillMem, regOpnd.GetRegisterNumber(),
@@ -2836,18 +2830,17 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
   }
 }
 
-MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, uint32 regSize, bool &isOutOfRange, Insn &insn,
-                                                       bool isDef) {
+MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, bool &isOutOfRange,
+                                                       Insn &insn, bool isDef) {
   MemOperand *memOpnd = nullptr;
   if (lr.GetSpillMem() != nullptr) {
     /* the saved memOpnd cannot be out-of-range */
     memOpnd = lr.GetSpillMem();
   } else {
 #ifdef REUSE_SPILLMEM
-    memOpnd = GetReuseMem(lr.GetRegNO(), regSize, lr.GetRegType());
+    memOpnd = GetReuseMem(lr);
     if (memOpnd != nullptr) {
       lr.SetSpillMem(*memOpnd);
-      lr.SetSpillSize((regSize <= k32BitSize) ? k32BitSize : k64BitSize);
     } else {
 #endif  /* REUSE_SPILLMEM */
       regno_t baseRegNO = 0;
@@ -2879,7 +2872,6 @@ MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, uint32 reg
 #ifdef REUSE_SPILLMEM
       if (!isOutOfRange) {
         lr.SetSpillMem(*memOpnd);
-        lr.SetSpillSize((regSize <= k32BitSize) ? k32BitSize : k64BitSize);
       }
     }
 #endif  /* REUSE_SPILLMEM */
@@ -2904,21 +2896,14 @@ Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool
   LiveRange *lr = lrMap[regNO];
   bool isForCallerSave = lr->GetSplitLr() == nullptr && (lr->GetNumCall() > 0) && !isCalleeReg;
   uint32 regSize = regOpnd.GetSize();
+  PrimType stype = GetPrimTypeFromRegTyAndRegSize(lr->GetRegType(), regSize);
   bool isOutOfRange = false;
-  PrimType stype;
-  RegType regType = regOpnd.GetRegisterType();
-  if (regType == kRegTyInt) {
-    stype = (regSize <= k32BitSize) ? PTY_i32 : PTY_i64;
-  } else {
-    stype = (regSize <= k32BitSize) ? PTY_f32 : PTY_f64;
-  }
-
   if (isDef) {
     Insn *spillDefInsn = nullptr;
     if (lr->GetRematLevel() == kRematOff) {
       lr->SetSpillReg(pregNO);
       Insn *nextInsn = insn.GetNextMachineInsn();
-      MemOperand *memOpnd = GetSpillOrReuseMem(*lr, regSize, isOutOfRange, insn, forCall ? false : true);
+      MemOperand *memOpnd = GetSpillOrReuseMem(*lr, isOutOfRange, insn, !forCall);
       spillDefInsn = regInfo->BuildStrInsn(regSize, stype, phyOpnd, *memOpnd);
       spillDefInsn->SetIsSpill();
       std::string comment = " SPILL vreg: " + std::to_string(regNO) + " op:" +
@@ -2950,8 +2935,7 @@ Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool
     spillUseInsns = lr->Rematerialize(*cgFunc, phyOpnd);
     comment = " REMATERIALIZE vreg: " + std::to_string(regNO);
   } else {
-    MemOperand *memOpnd = GetSpillOrReuseMem(*lr, regSize, isOutOfRange, insn,
-                                             forCall ? true : false);
+    MemOperand *memOpnd = GetSpillOrReuseMem(*lr, isOutOfRange, insn, forCall);
     Insn &spillUseInsn = *regInfo->BuildLdrInsn(regSize, stype, phyOpnd, *memOpnd);
     spillUseInsn.SetIsReload();
     spillUseInsns.push_back(&spillUseInsn);
@@ -3086,14 +3070,13 @@ bool GraphColorRegAllocator::SetRegForSpill(LiveRange &lr, Insn &insn, uint32 sp
 
   bool needSpillLr = false;
   if (lr.GetAssignedRegNO() == 0) {
-  /*
-   * All regs are assigned and none are free.
-   * Pick a reg to spill and reuse for this spill.
-   * Need to make sure the reg picked is not assigned to this insn,
-   * else there will be conflict.
-   */
-    RegType regType = lr.GetRegType();
-    regno_t spillReg = PickRegForSpill(usedRegMask, regType, spillIdx, needSpillLr);
+    /*
+     * All regs are assigned and none are free.
+     * Pick a reg to spill and reuse for this spill.
+     * Need to make sure the reg picked is not assigned to this insn,
+     * else there will be conflict.
+     */
+    regno_t spillReg = PickRegForSpill(usedRegMask, lr.GetRegType(), spillIdx, needSpillLr);
     lr.SetAssignedRegNO(spillReg);
   }
   return needSpillLr;
@@ -3793,13 +3776,6 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(const RegOperand &opnd, 
   regno_t vregno = opnd.GetRegisterNumber();
   LiveRange *lr = GetLiveRange(vregno);
   if (lr != nullptr && lr->IsSpilled()) {
-    uint32 bits = opnd.GetSize();
-    if (bits < k32BitSize) {
-      bits = k32BitSize;
-    }
-    if (cgFunc->IsExtendReg(vregno)) {
-      bits = k64BitSize;
-    }
     regno_t spreg = 0;
     RegType rtype = lr->GetRegType();
     spreg = lr->GetSpillReg();
@@ -3822,15 +3798,18 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(const RegOperand &opnd, 
 
     bool isOutOfRange = false;
     Insn *nextInsn = insn.GetNextMachineInsn();
-    MemOperand *loadmem = GetSpillOrReuseMem(*lr, opnd.GetSize(), isOutOfRange,
-                                             insn, isdef);
-    PrimType pty =
-        (lr->GetRegType() == kRegTyInt) ? ((bits > k32BitSize) ? PTY_i64 : PTY_i32)
-                                        : ((bits > k32BitSize) ? PTY_f64 : PTY_f32);
+    MemOperand *loadmem = GetSpillOrReuseMem(*lr, isOutOfRange, insn, isdef);
+
+    uint32 regSize = opnd.GetSize();
+    if (cgFunc->IsExtendReg(vregno)) {
+      regSize = k64BitSize;
+    }
+
+    PrimType primType = GetPrimTypeFromRegTyAndRegSize(lr->GetRegType(), regSize);
     CHECK_FATAL(spillCnt < kSpillMemOpndNum, "spill count exceeded");
     Insn *memInsn;
     if (isdef) {
-      memInsn = regInfo->BuildStrInsn(bits, pty, *regopnd, *loadmem);
+      memInsn = regInfo->BuildStrInsn(regSize, primType, *regopnd, *loadmem);
       memInsn->SetIsSpill();
       std::string comment = " SPILLcolor vreg: " + std::to_string(vregno) +
                             " op:" + kOpcodeInfo.GetName(lr->GetOp());
@@ -3841,7 +3820,7 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(const RegOperand &opnd, 
         insn.GetBB()->InsertInsnBefore(*nextInsn, *memInsn);
       }
     } else {
-      memInsn = regInfo->BuildLdrInsn(bits, pty, *regopnd, *loadmem);
+      memInsn = regInfo->BuildLdrInsn(regSize, primType, *regopnd, *loadmem);
       memInsn->SetIsReload();
       std::string comment = " RELOADcolor vreg: " + std::to_string(vregno) +
                             " op:" + kOpcodeInfo.GetName(lr->GetOp());
@@ -3858,11 +3837,10 @@ bool GraphColorRegAllocator::SpillLiveRangeForSpills() {
   for (uint32_t bbIdx = 0; bbIdx < bfs->sortedBBs.size(); bbIdx++) {
     BB *bb = bfs->sortedBBs[bbIdx];
     FOR_BB_INSNS(insn, bb) {
-      uint32 spillCnt;
       if (insn->IsImmaterialInsn() || !insn->IsMachineInstruction() || insn->GetId() == 0) {
         continue;
       }
-      spillCnt = 0;
+      uint32 spillCnt = 0;
       const InsnDesc *md = insn->GetDesc();
       uint32 opndNum = insn->GetOperandSize();
       GenerateSpillFillRegs(*insn);
@@ -4357,7 +4335,8 @@ void CallerSavePre::BuildWorkList() {
     }
     for (auto lr: callSaveLrs) {
       LiveUnit *lu = lr->GetLiveUnitFromLuMap(bb->GetId());
-      RegOperand &opnd = func->GetOrCreateVirtualRegisterOperand(lr->GetRegNO());
+      RegOperand &opnd = func->GetOpndBuilder()->CreateVReg(lr->GetRegNO(), lr->GetSpillSize(),
+          lr->GetRegType());
       if (lu != nullptr && ((lu->GetDefNum() > 0) || (lu->GetUseNum() > 0) || lu->HasCall())) {
         const MapleMap<uint32, uint32> &refs = lr->GetRefs(bb->GetId());
         for (auto it = refs.begin(); it != refs.end(); ++it) {
@@ -4466,19 +4445,20 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const CGFuncLoops &loop, const 
     }
     if (!hasRef) {
       splitCount++;
-      RegOperand *ropnd = &cgFunc->GetOrCreateVirtualRegisterOperand(lr->GetRegNO());
+      RegOperand &ropnd = cgFunc->GetOpndBuilder()->CreateVReg(lr->GetRegNO(),
+          lr->GetSpillSize(), lr->GetRegType());
       RegOperand &phyOpnd = cgFunc->GetOpndBuilder()->CreatePReg(lr->GetAssignedRegNO(),
-          ropnd->GetSize(), lr->GetRegType());
+          lr->GetSpillSize(), lr->GetRegType());
 
       auto &headerCom = cgFunc->GetOpndBuilder()->CreateComment("split around loop begin");
       headerPred.AppendInsn(cgFunc->GetInsnBuilder()->BuildCommentInsn(headerCom));
       Insn *last = headerPred.GetLastInsn();
-      (void)SpillOperand(*last, *ropnd, true, static_cast<RegOperand&>(phyOpnd));
+      (void)SpillOperand(*last, ropnd, true, static_cast<RegOperand&>(phyOpnd));
 
       auto &exitCom = cgFunc->GetOpndBuilder()->CreateComment("split around loop end");
       exitSucc.InsertInsnBegin(cgFunc->GetInsnBuilder()->BuildCommentInsn(exitCom));
       Insn *first = exitSucc.GetFirstInsn();
-      (void)SpillOperand(*first, *ropnd, false, static_cast<RegOperand&>(phyOpnd));
+      (void)SpillOperand(*first, ropnd, false, static_cast<RegOperand&>(phyOpnd));
 
       LiveRange *replacedLr = lrMap[*it];
       replacedLr->SetAssignedRegNO(lr->GetAssignedRegNO());

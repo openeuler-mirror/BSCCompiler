@@ -224,13 +224,11 @@ uint32 Insn::GetBothDefUseOpnd() const {
   for (uint32 i = 0; i < opndNum; ++i) {
     auto *opndProp = md->GetOpndDes(i);
     if (opndProp->IsRegUse() && opndProp->IsDef()) {
-      ASSERT(opndIdx == kInsnMaxOpnd, "Do not support yet");
       opndIdx = i;
     }
     if (opnds[i]->IsMemoryAccessOperand()) {
       auto *MemOpnd = static_cast<MemOperand*>(opnds[i]);
       if (!MemOpnd->IsIntactIndexed()) {
-        ASSERT(opndIdx == kInsnMaxOpnd, "Do not support yet");
         opndIdx = i;
       }
     }

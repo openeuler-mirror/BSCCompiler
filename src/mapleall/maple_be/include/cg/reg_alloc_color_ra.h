@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,8 +12,8 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_COLOR_RA_H
-#define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_COLOR_RA_H
+#ifndef MAPLEBE_INCLUDE_CG_REG_ALLOC_COLOR_RA_H
+#define MAPLEBE_INCLUDE_CG_REG_ALLOC_COLOR_RA_H
 
 #include "reg_alloc.h"
 #include "operand.h"
@@ -720,7 +720,7 @@ class LiveRange {
 #endif                                /* OPTIMIZE_FOR_PROLOG */
   MemOperand *spillMem = nullptr;     /* memory operand used for spill, if any */
   regno_t spillReg = 0;               /* register operand for spill at current point */
-  uint32 spillSize = 0;               /* 32 or 64 bit spill */
+  uint32 spillSize = 0;
   bool spilled = false;               /* color assigned */
   bool hasDefUse = false;               /* has regDS */
   bool proccessed = false;
@@ -903,8 +903,8 @@ class LocalRegAllocator {
         pregs(allocator.Adapter()),
         useInfo(allocator.Adapter()),
         defInfo(allocator.Adapter()) {
-    regAssigned.resize(cgFunc.GetMaxRegNum(), false);
-    regSpilled.resize(cgFunc.GetMaxRegNum(), false);
+    regAssigned.resize(cgFunc.GetMaxVReg(), false);
+    regSpilled.resize(cgFunc.GetMaxVReg(), false);
     pregUsed.resize(regInfo->GetAllRegNum(), false);
     pregs.resize(regInfo->GetAllRegNum(), false);
   }
@@ -1118,6 +1118,7 @@ class GraphColorRegAllocator : public RegAllocator {
         fpCalleeUsed(alloc.Adapter()) {
     constexpr uint32 kNumInsnThreashold = 30000;
     numVregs = cgFunc.GetMaxVReg();
+    regBuckets = (numVregs / kU64) + 1;
     localRegVec.resize(cgFunc.NumBBs());
     bbRegInfo.resize(cgFunc.NumBBs());
     if (CGOptions::DoMultiPassColorRA() && cgFunc.GetMirModule().IsCModule()) {
@@ -1250,7 +1251,7 @@ class GraphColorRegAllocator : public RegAllocator {
   void LocalRaFinalAssignment(const LocalRegAllocator &localRa, BBAssignInfo &bbInfo);
   void LocalRaDebug(const BB &bb, const LocalRegAllocator &localRa) const;
   void LocalRegisterAllocator(bool doAllocate);
-  MemOperand *GetSpillOrReuseMem(LiveRange &lr, uint32 regSize, bool &isOutOfRange, Insn &insn, bool isDef);
+  MemOperand *GetSpillOrReuseMem(LiveRange &lr, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
   void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, RegOperand &phyOpnd,
                                 uint32 spillIdx, bool needSpill);
@@ -1258,7 +1259,7 @@ class GraphColorRegAllocator : public RegAllocator {
                                     RegType regType);
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                 RegType regType);
-  MemOperand *GetReuseMem(uint32 vregNO, uint32 size, RegType regType);
+  MemOperand *GetReuseMem(const LiveRange &lr);
   MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, regno_t regNO,
                           bool &isOutOfRange);
   bool SetAvailableSpillReg(std::unordered_set<regno_t> &cannotUseReg, LiveRange &lr,
@@ -1444,4 +1445,4 @@ class CallerSavePre : public CGPre {
 };
 }  /* namespace maplebe */
 
-#endif  /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_COLOR_RA_H */
+#endif  /* MAPLEBE_INCLUDE_CG_REG_ALLOC_COLOR_RA_H */

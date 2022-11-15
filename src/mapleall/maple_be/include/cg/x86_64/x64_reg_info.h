@@ -123,10 +123,10 @@ class X64RegInfo : public RegisterInfo {
     return regno > x64::kAllRegNum;
   }
   regno_t GetReservedSpillReg() override {
-    return x64::kRinvalid;
+    return x64::R10;
   }
   regno_t GetSecondReservedSpillReg() override {
-    return x64::kRinvalid;
+    return x64::R11;
   }
   regno_t GetYieldPointReg() const override {
     return x64::kRinvalid;
@@ -139,12 +139,12 @@ class X64RegInfo : public RegisterInfo {
   }
 
   regno_t GetIntSpillFillReg(size_t idx) const override {
-    static regno_t intRegs[kSpillMemOpndNum] = { 0 };
+    static regno_t intRegs[kSpillMemOpndNum] = { x64::R10, x64::R11, 0, 0 };
     ASSERT(idx < kSpillMemOpndNum, "index out of range");
     return intRegs[idx];
   }
   regno_t GetFpSpillFillReg(size_t idx) const override {
-    static regno_t fpRegs[kSpillMemOpndNum] = { 0 };
+    static regno_t fpRegs[kSpillMemOpndNum] = { x64::V8, x64::V9, 0, 0 };
     ASSERT(idx < kSpillMemOpndNum, "index out of range");
     return fpRegs[idx];
   }

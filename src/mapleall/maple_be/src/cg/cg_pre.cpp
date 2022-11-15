@@ -14,7 +14,7 @@
  */
 #include "cg_pre.h"
 #include "cg_dominance.h"
-#include "aarch64_cg.h"
+#include "cg.h"
 
 namespace maplebe {
 /* Implement PRE in cgir */
@@ -181,9 +181,9 @@ CgOccur *CGPre::CreateRealOcc(Insn &insn, Operand &opnd, OccType occType) {
   uint64 hashIdx = PreWorkCandHashTable::ComputeWorkCandHashIndex(opnd);
   PreWorkCand *wkCand = preWorkCandHashTable.GetWorkcandFromIndex(hashIdx);
   while (wkCand != nullptr) {
-    Operand *currOpnd = wkCand->GetTheOperand();
-    ASSERT(currOpnd != nullptr, "CreateRealOcc: found workcand with theMeExpr as nullptr");
-    if (currOpnd == &opnd) {
+    Operand *curOpnd = wkCand->GetTheOperand();
+    ASSERT(curOpnd != nullptr, "CreateRealOcc: found workcand with theMeExpr as nullptr");
+    if (curOpnd->Equals(opnd)) {
       break;
     }
     wkCand = static_cast<PreWorkCand*>(wkCand->GetNext());

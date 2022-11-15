@@ -109,7 +109,7 @@ class CGOptions {
    * function at each function entry.
    */
   static const OptionFlag kDefaultOptions = OptionFlag(
-#if TARGAARCH64 || TARGARM32 || TARGRISCV64
+#if TARGAARCH64 || TARGARM32 || TARGRISCV64 || TARGX86_64
     kDoCg | kGenPie | kDoColorRegAlloc
 #else
     kDoCg
@@ -249,16 +249,8 @@ class CGOptions {
     return (options & kWithAsm) != 0;
   }
 
-  bool NeedInsertInstrumentationFunction() const {
-    return (options & kGenInsertCall) != 0;
-  }
-
   bool InstrumentWithDebugTraceCall() const {
     return (options & kAddDebugTrace) != 0;
-  }
-
-  bool InstrumentWithProfile() const {
-    return (options & kAddFuncProfile) != 0;
   }
 
   bool DoPatchLongBranch() const {
@@ -300,14 +292,6 @@ class CGOptions {
     runCGFlag = cgFlag;
   }
 
-  bool IsInsertCall() const {
-    return insertCall;
-  }
-
-  void SetInsertCall(bool insertFlag) {
-    insertCall = insertFlag;
-  }
-
   bool IsGenerateObjectMap() const {
     return generateObjectMap;
   }
@@ -342,14 +326,6 @@ class CGOptions {
 
   void ClearOption(OptionFlag opFlag) {
     options &= ~opFlag;
-  }
-
-  const std::string &GetInstrumentationFunction() const {
-    return instrumentationFunction;
-  }
-
-  void SetInstrumentationFunction(const std::string &function) {
-    instrumentationFunction = function;
   }
 
   const std::string &GetClassListFile() const {
@@ -1294,10 +1270,52 @@ class CGOptions {
     return funcAlignPow;
   }
 
+  static bool DoLiteProfGen() {
+    return liteProfGen;
+  }
+
+  static void EnableLiteProfGen() {
+    liteProfGen = true;
+  }
+
+  static void DisableLiteProfGen() {
+    liteProfGen = false;
+  }
+
+  static bool DoLiteProfUse() {
+    return liteProfUse;
+  }
+
+  static void EnableLiteProfUse() {
+    liteProfUse = true;
+  }
+
+  static void SetLiteProfile(std::string pgofile) {
+    liteProfile = pgofile;
+  }
+
+  static std::string GetLiteProfile() {
+    return liteProfile;
+  }
+
+  static void SetLitePgoOutputFunction(std::string iofile) {
+    litePgoOutputFunction = iofile;
+  }
+
+  static std::string& GetLitePgoOutputFunction() {
+    return litePgoOutputFunction;
+  }
+
+  static void SetInstrumentationWhiteList(std::string pgoWhiteList) {
+    instrumentationWhiteList = pgoWhiteList;
+  }
+
+  static std::string& GetInstrumentationWhiteList() {
+    return instrumentationWhiteList;
+  }
+
  private:
   std::vector<std::string> phaseSequence;
-
-  bool insertCall = false;
   bool runCGFlag = true;
   bool generateObjectMap = true;
   uint32 parserOption = 0;
@@ -1305,7 +1323,6 @@ class CGOptions {
 
   GenerateFlag generateFlag = 0;
   OptionFlag options = kUndefined;
-  std::string instrumentationFunction;
 
   std::string classListFile;
   std::string ehExclusiveFile;
@@ -1395,7 +1412,6 @@ class CGOptions {
   static bool doCalleeToSpill;
   static bool replaceASM;
   static bool generalRegOnly;
-  static std::string literalProfile;
   static bool fastMath;
   static bool noCommon;
   static bool flavorLmbc;
@@ -1404,6 +1420,11 @@ class CGOptions {
   static uint32 loopAlignPow;
   static uint32 jumpAlignPow;
   static uint32 funcAlignPow;
+  static bool liteProfGen;
+  static bool liteProfUse;
+  static std::string litePgoOutputFunction;
+  static std::string instrumentationWhiteList;
+  static std::string liteProfile;
 };
 }  /* namespace maplebe */
 

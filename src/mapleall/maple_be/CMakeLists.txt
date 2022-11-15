@@ -76,7 +76,6 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/aarch64/aarch64_global.cpp
         src/cg/aarch64/aarch64_proepilog.cpp
         src/cg/aarch64/aarch64_operand.cpp
-        src/cg/aarch64/aarch64_color_ra.cpp
         src/cg/aarch64/aarch64_reg_info.cpp
         src/cg/aarch64/aarch64_ssa.cpp
         src/cg/aarch64/aarch64_prop.cpp
@@ -138,7 +137,6 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/alignment.cpp
         src/cg/cg_validbit_opt.cpp
         src/cg/cg_rce.cpp
-        src/cg/rematerialize.cpp
         src/cg/control_dep_analysis.cpp
         src/cg/data_dep_base.cpp
         src/cg/data_dep_analysis.cpp
@@ -170,11 +168,15 @@ if(${TARGET} STREQUAL "x86_64")
         src/cg/x86_64/x64_cfgo.cpp
         src/cg/x86_64/x64_isa.cpp
         src/cg/x86_64/x64_optimize_common.cpp
+        src/cg/x86_64/x64_rematerialize.cpp
         src/cg/peep.cpp
         src/cg/alignment.cpp
         src/cg/reaching.cpp
         src/cg/local_opt.cpp
         src/cg/cfgo.cpp
+        src/cg/cg_dominance.cpp
+        src/cg/cg_pre.cpp
+        src/cg/cg_occur.cpp
     )
 endif()
 
@@ -262,8 +264,10 @@ set(src_libcg
     src/cg/reg_alloc.cpp
     src/cg/reg_alloc_basic.cpp
     src/cg/reg_alloc_lsra.cpp
+    src/cg/reg_alloc_color_ra.cpp
     src/cg/proepilog.cpp
     src/cg/isolate_fastpath.cpp
+    src/cg/rematerialize.cpp
     src/cg/cg.cpp
     src/cg/isa.cpp
     src/cg/insn.cpp
