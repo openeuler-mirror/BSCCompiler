@@ -1612,7 +1612,7 @@ void AsmNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << " }\n";
 }
 
-// Start of type verification for Maple IR nodes.
+// Start of primtype verification for Maple IR nodes.
 //
 // General rules:
 //
@@ -1628,7 +1628,7 @@ void AsmNode::Dump(int32 indent) const {
 // 4. u1, i8, u8, i16, u16 must not be types of arithmetic operations, because
 // many machines do not provide instructions for such types as they lack such
 // register sizes.  Similarly, these types must not be used as result types for
-// any read instructions: dread/iread/regread/ireadoff/ireadfpoff.
+// any read instructions: dread/iread/regread.
 //
 // 5. When an opcode only specifies one type (which is called the result type),
 // it expects both operands and results to be of this same type.  Thus, the
@@ -1660,7 +1660,7 @@ void AsmNode::Dump(int32 indent) const {
 // this operand-type and the types of their two operands must be compatible.
 //
 // 14. The opcodes ashr, band, bior, bxor, depositbits, land, lior, lshr, shl,
-// rem must have  result-type in [i32, u32, i64, u64].
+// rem must have result-type in [i32, u32, i64, u64].
 //
 // 15. select's result-type and the types of its second and third operands must
 // be compatible; its first operand must be of integer type.

@@ -24,7 +24,6 @@
 
 using namespace maple;
 
-namespace maple {
 enum TargetIdEnum { kArm32, kAarch64, kX86, kAmd64, kVm, kRiscV64, kLastTargetId };
 
 typedef struct {
@@ -34,16 +33,19 @@ typedef struct {
 } target_descr_t;
 
 target_descr_t targetDescrs[kLastTargetId] = {
-  { "aarch64", 7, kAarch64 }, { "arm", 3, kArm32 }, { "vm", 2, kVm }, { "x86_64", 6, kAmd64 }, { "x86", 3, kX86 },
+  { "aarch64", 7, kAarch64 },
+  { "arm", 3, kArm32 },
+  { "vm", 2, kVm },
+  { "x86_64", 6, kAmd64 },
+  { "x86", 3, kX86 },
   {"riscv64", 7, kRiscV64 },
 };
 
 TargetIdEnum target;
-
 MIRModule *theModule = nullptr;
 bool dumpit;
 
-bool VerifyModule(MIRModule *module) {
+static bool VerifyModule(MIRModule *module) {
   bool res = true;
   MapleList<MIRFunction *> &funcList = module->GetFunctionList();
   for (MapleList<MIRFunction *>::iterator it = funcList.begin(); it != funcList.end(); it++) {
@@ -62,8 +64,6 @@ bool VerifyModule(MIRModule *module) {
   }
   return res;
 }
-
-}  // namespace maple
 
 static void usage(const char *pgm) {
   INFO(kLncInfo, "usage: %s <maple-file> [--dump] [--target=<target>]\n", pgm);
