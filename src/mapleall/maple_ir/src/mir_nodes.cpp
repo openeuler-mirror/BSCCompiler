@@ -1612,6 +1612,100 @@ void AsmNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << " }\n";
 }
 
+// Start of type verification for Maple IR nodes.
+//
+// General rules:
+//
+// 1. For binary operations, the types of the two operands must be compatible.
+//
+// 2. In checking type compatibility, other than identical types, the types in
+// each of the following group are compatible with each other:
+//            [i32, u32, ptr, ref, a32]
+//            [i64, u64, ptr, ref, a64]
+//
+// 3. dynany is compatiable with any dyn* type.
+//
+// 4. u1, i8, u8, i16, u16 must not be types of arithmetic operations, because
+// many machines do not provide instructions for such types as they lack such
+// register sizes.  Similarly, these types must not be used as result types for
+// any read instructions: dread/iread/regread/ireadoff/ireadfpoff.
+//
+// 5. When an opcode only specifies one type (which is called the result type),
+// it expects both operands and results to be of this same type.  Thus, the
+// types among the operands and this result type must be compatible.
+//
+// 6. When an opcode specifies two types, the additional (second) type is
+// the operand type.  The types of the operands and the operand type must be
+// compatible.
+//
+// 7. The opcodes addrof, addroflabel, addroffunc and iaddrof form addresses.
+// Thus, their result type must be in [ptr,ref,a32,a64].
+//
+// 8. The opcodes bnot, extractbits, sext, zext, lnot must have result type in
+// [i32, u32, i64, u64].
+//
+// 9. The opcodes abs, neg must have result type in
+// [i32, u32, i64, u64, f32, f64].
+//
+// 10. The opcodes recip, sqrt must have result type in [f32, f64].
+//
+// 11. The opcodes ceil, floor, round, trunc must have result-type in
+// [i32, u32, i64, u64] and operand-type in [f32, f64].
+//
+// 12. The opcodes add, div, sub, mpy, max, min must have result-type in
+// [i32, u32, i64, u64, f32, f64].
+//
+// 13. The opcodes eq, ge, gt, le, lt, ne must have result-type in
+// any signed or unsigned integer type; they also specifies operand-type, and
+// this operand-type and the types of their two operands must be compatible.
+//
+// 14. The opcodes ashr, band, bior, bxor, depositbits, land, lior, lshr, shl,
+// rem must have  result-type in [i32, u32, i64, u64].
+//
+// 15. select's result-type and the types of its second and third operands must
+// be compatible; its first operand must be of integer type.
+//
+// 16. array's result-type must be in [ptr,ref,a32,a64]; the type of <opnd0> must
+// also be in [ptr,ref,a32,a64]; the types of the rest of the operands must be in
+// [i32, u32, i64, u64].
+//
+// 17. The operand of brfalse, trfalse must be of integer type.
+//
+// 18. The operand of switch, rangegoto must be in [i32, u32, i64, u64].
+
+inline bool ExcludeSmallIntTypeVerify(const BaseNode &opnd) {
+  switch (opnd.GetPrimType()) {
+    case PTY_u1:
+    case PTY_i8:
+    case PTY_u8:
+    case PTY_i16:
+    case PTY_u16:
+      return false;
+    default:
+      break;
+  }
+  return true;
+}
+
+inline bool ArithTypeVerify(const BaseNode &opnd) {
+  bool verifyResult = ExcludeSmallIntTypeVerify(opnd);
+  if (!verifyResult) {
+    LogInfo::MapleLogger() << "\n#Error:u1,i8,u8,i16,u16 should not be used as types of arithmetic operations\n";
+    opnd.Dump();
+  }
+  return verifyResult;
+}
+
+inline bool ReadTypeVerify(const BaseNode &opnd) {
+  bool verifyResult = ExcludeSmallIntTypeVerify(opnd);
+  if (!verifyResult) {
+    LogInfo::MapleLogger()
+        << "\n#Error:u1,i8,u8,i16,u16 should not be used as result types for dread/iread/regread/ireadoff/ireadfpoff\n";
+    opnd.Dump();
+  }
+  return verifyResult;
+}
+
 inline bool IntTypeVerify(PrimType pTyp) {
   return pTyp == PTY_i32 || pTyp == PTY_u32 || pTyp == PTY_i64 || pTyp == PTY_u64;
 }
@@ -1670,7 +1764,7 @@ inline bool BinaryTypeVerify(PrimType pType) {
 }
 
 inline bool BinaryGenericVerify(const BaseNode &bOpnd0, const BaseNode &bOpnd1) {
-  return bOpnd0.Verify() && bOpnd1.Verify();
+  return bOpnd0.Verify() && bOpnd1.Verify() && ArithTypeVerify(bOpnd0) && ArithTypeVerify(bOpnd1);
 }
 
 inline bool CompareTypeVerify(PrimType pType) {
@@ -1870,7 +1964,10 @@ bool UnaryNode::Verify() const {
   } else if (GetOpCode() == OP_recip || GetOpCode() == OP_sqrt) {
     resTypeVerf = UnaryTypeVerify2(GetPrimType());
   }
-
+  bool opndTypeVerf = true;
+  if (op != OP_lnot) {
+    opndTypeVerf = ArithTypeVerify(*uOpnd);
+  }
   // When an opcode only specifies one type, check for compatibility
   // between the operands and the result-type.
   bool compVerf = true;
@@ -1879,7 +1976,7 @@ bool UnaryNode::Verify() const {
     compVerf = CompatibleTypeVerify(*uOpnd, *this);
   }
   bool opndExprVerf = uOpnd->Verify();
-  return resTypeVerf && compVerf && opndExprVerf;
+  return resTypeVerf && opndTypeVerf && compVerf && opndExprVerf;
 }
 
 bool TypeCvtNode::Verify() const {
@@ -2130,7 +2227,7 @@ bool IntrinsicopNode::VerifyJArrayLength(VerifyResult &verifyResult) const {
 
 bool IreadNode::Verify() const {
   bool addrExprVerf = Opnd(0)->Verify();
-  bool pTypeVerf = true;
+  bool pTypeVerf = ReadTypeVerify(*this);
   bool structVerf = true;
   if (GetTypeKind(tyIdx) != kTypePointer) {
     LogInfo::MapleLogger() << "\n#Error:<type> must be a pointer type\n";
@@ -2171,7 +2268,7 @@ bool IreadNode::Verify() const {
 }
 
 bool RegreadNode::Verify() const {
-  return true;
+  return ReadTypeVerify(*this);
 }
 
 bool IreadoffNode::Verify() const {
@@ -2184,6 +2281,7 @@ bool IreadFPoffNode::Verify() const {
 
 bool ExtractbitsNode::Verify() const {
   bool opndExprVerf = Opnd(0)->Verify();
+  bool opndTypeVerf = ArithTypeVerify(*Opnd(0));
   bool compVerf = CompatibleTypeVerify(*Opnd(0), *this);
   bool resTypeVerf = UnaryTypeVerify0(GetPrimType());
   constexpr int numBitsInByte = 8;
@@ -2192,7 +2290,7 @@ bool ExtractbitsNode::Verify() const {
     LogInfo::MapleLogger()
         << "\n#Error: The operand of extractbits must be large enough to contain the specified bitfield\n";
   }
-  return opndExprVerf && compVerf && resTypeVerf && opnd0SizeVerf;
+  return opndExprVerf && opndTypeVerf && compVerf && resTypeVerf && opnd0SizeVerf;
 }
 
 bool BinaryNode::Verify() const {
@@ -2317,6 +2415,7 @@ bool AddrofNode::Verify() const {
   bool pTypeVerf = true;
   bool structVerf = IsStructureVerify(fieldID, GetStIdx());
   if (GetOpCode() == OP_dread) {
+    pTypeVerf = ReadTypeVerify(*this);
     if (fieldID == 0 && IsStructureTypeKind(GetTypeKind(GetStIdx()))) {
       if (GetPrimType() != PTY_agg) {
         pTypeVerf = false;
@@ -2433,12 +2532,13 @@ bool RangeGotoNode::Verify() const {
 }
 
 bool BlockNode::Verify() const {
+  bool passing = true;
   for (auto &stmt : GetStmtNodes()) {
     if (!stmt.Verify()) {
-      return false;
+      passing = false;
     }
   }
-  return true;
+  return passing;
 }
 
 bool BlockNode::Verify(VerifyResult &verifyResult) const {

@@ -99,6 +99,10 @@ irbuild: install_patch
 mpldbg:
 	$(call build_gn, $(GN_OPTIONS), mpldbg)
 
+.PHONY: mplverf
+mplverf: install_patch
+	$(call build_gn, $(GN_OPTIONS), mplverf)
+
 .PHONY: ast2mpl
 ast2mpl:
 	$(call build_gn, $(GN_OPTIONS), ast2mpl)
@@ -137,7 +141,7 @@ java-core-def: install
 	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG)
 
 .PHONY: install
-install: maple dex2mpl_install irbuild hir2mpl
+install: maple dex2mpl_install irbuild hir2mpl mplverf
 	$(shell mkdir -p $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MRT_ROOT)/maplert/linker/maplelld.so.lds $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin; \
