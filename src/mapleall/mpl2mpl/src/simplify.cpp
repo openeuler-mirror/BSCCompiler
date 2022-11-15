@@ -619,7 +619,7 @@ BaseNode *Simplify::ReplaceExprWithConst(DreadNode &dread) {
     return &dread;
   }
   if (fieldId != 0) {
-    symbolConst = GetElementConstFromFieldId(fieldId, symbolConst);
+    symbolConst = GetElementConstFromFieldId(fieldId, *symbolConst);
   }
   if (!symbolConst || !IsConstRepalceable(*symbolConst)) {
     return &dread;
@@ -645,22 +645,22 @@ bool Simplify::IsConstRepalceable(const MIRConst &mirConst) const {
   }
 }
 
-MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst *mirConst) {
+MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirConst) {
   FieldID currFieldId = 1;
   MIRConst *resultConst = nullptr;
-  auto originAggConst = static_cast<MIRAggConst *>(mirConst);
-  auto originAggType = static_cast<MIRStructType &>(originAggConst->GetType());
+  auto originAggConst = static_cast<MIRAggConst &>(mirConst);
+  auto originAggType = static_cast<MIRStructType &>(originAggConst.GetType());
   bool reached = false;
   bool isUpperLayerUnion = false;
-  std::function<void(MIRConst *)> traverseAgg = [&] (MIRConst *currConst) {
+  std::function<void(MIRConst *, MIRType *)> traverseAgg = [&] (MIRConst *currConst, MIRType *currType) {
     if (isUpperLayerUnion && (!currConst || currConst->GetKind() != kConstAggConst)) {
       reached = currFieldId == fieldId;
       resultConst = reached ? currConst : resultConst;
       return;
     }
     auto *currAggConst = safe_cast<MIRAggConst>(currConst);
+    auto *currAggType = safe_cast<MIRStructType>(currType);
     ASSERT_NOT_NULL(currAggConst);
-    auto *currAggType = safe_cast<MIRStructType>(currAggConst->GetType());
     ASSERT_NOT_NULL(currAggType);
     for (size_t iter = 0; iter < currAggType->GetFieldsSize() && !reached; ++iter) {
       size_t constIdx = currAggType->GetKind() == kTypeUnion ? 1 : iter + 1;
@@ -681,12 +681,12 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst *mirCon
       if (fieldType->GetKind() == kTypeUnion || fieldType->GetKind() == kTypeStruct) {
         bool isPrevUpperLayerUnion = isUpperLayerUnion;
         isUpperLayerUnion = currAggType->GetKind() == kTypeUnion;
-        traverseAgg(fieldConst);
+        traverseAgg(fieldConst, fieldType);
         isUpperLayerUnion = isPrevUpperLayerUnion;
       }
     }
   };
-  traverseAgg(mirConst);
+  traverseAgg(&mirConst, &mirConst.GetType());
   if (!reached) {
     auto fieldPrimType = originAggType.GetFieldType(fieldId)->GetPrimType();
     auto resultPrimType = IsPrimitiveInteger(fieldPrimType) ? fieldPrimType :

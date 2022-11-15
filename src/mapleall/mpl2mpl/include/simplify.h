@@ -224,7 +224,7 @@ class Simplify : public FuncOptimizeImpl {
   StmtNode *SimplifyToSelect(MIRFunction *func, IfStmtNode *ifNode, BlockNode *block);
   BaseNode *SimplifyExpr(BaseNode &expr);
   BaseNode *ReplaceExprWithConst(DreadNode &dread);
-  MIRConst *GetElementConstFromFieldId(FieldID fieldId, MIRConst *mirConst);
+  MIRConst *GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirConst);
 };
 
 MAPLE_MODULE_PHASE_DECLARE(M2MSimplify)
