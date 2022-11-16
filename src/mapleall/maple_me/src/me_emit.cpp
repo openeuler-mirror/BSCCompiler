@@ -167,7 +167,7 @@ bool ProfileGenEmit::PhaseRun(maple::MeFunction &f) {
         sym->SetIsDeleted();
       }
     }
-    if (Options::profileGen ) {
+    if (Options::profileGen) {
       std::unordered_map<BB*, bool> visitedBBs;
       std::stack<BB*> listBBs;
       std::vector<BB*> predDep(f.GetCfg()->GetAllBBs().size(), nullptr);
@@ -208,9 +208,9 @@ bool ProfileGenEmit::PhaseRun(maple::MeFunction &f) {
             bb->EmitBB(*mirFunction->GetBody(), false);
             visitedBBs[bb] = true;
             // Make sure default target BB to emit first
-            for (int32 idx = bb->GetSucc().size() - 1; idx >= 0; idx--) {
-              if (!visitedBBs[bb->GetSucc()[idx]]) {
-                listBBs.push(bb->GetSucc()[idx]);
+            for (int32 idx = static_cast<int32>(bb->GetSucc().size() - 1); idx >= 0; idx--) {
+              if (!visitedBBs[bb->GetSucc()[static_cast<uint32>(idx)]]) {
+                listBBs.push(bb->GetSucc()[static_cast<uint32>(idx)]);
               }
             }
           }
