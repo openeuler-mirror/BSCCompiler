@@ -101,9 +101,10 @@ class ASTParser {
   ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
   bool HasLabelStmt(const clang::Stmt *expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
-  void SaveVLASizeExpr(MapleAllocator &allocator, const clang::QualType &qualType, std::list<ASTExpr*> &vlaSizeExprs);
+  void SaveVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, std::list<ASTExpr*> &vlaSizeExprs);
   ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo) const;
-  ASTExpr *ProcessExprCastExpr(MapleAllocator &allocator, const clang::CastExpr &expr);
+  ASTExpr *ProcessExprCastExpr(MapleAllocator &allocator, const clang::CastExpr &expr,
+                               const clang::Type **vlaType = nullptr);
   ASTExpr *SolvePointerOffsetOperation(MapleAllocator &allocator, const clang::BinaryOperator &bo,
                                        ASTBinaryOperatorExpr &astBinOpExpr, ASTExpr &astRExpr, ASTExpr &astLExpr);
   ASTExpr *SolvePointerSubPointerOperation(MapleAllocator &allocator, const clang::BinaryOperator &bo,
@@ -229,7 +230,7 @@ class ASTParser {
   uint32_t GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind) const;
   ASTExpr *BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
-
+  void CheckVarNameValid(std::string varName);
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
                                                    std::stringstream &ss) const;
 static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();

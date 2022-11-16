@@ -151,7 +151,7 @@ MIRType *LibAstFile::CvtSourceType(const clang::QualType qualType) {
   return CvtType(qualType, true);
 }
 
-MIRType *LibAstFile::CvtType(const clang::QualType qualType, bool isSourceType) {
+MIRType *LibAstFile::CvtType(const clang::QualType qualType, bool isSourceType, const clang::Type **vlaType) {
   clang::QualType srcType = qualType.getCanonicalType();
   if (isSourceType) {
     MIRType *nameType = CvtTypedef(qualType);
@@ -172,7 +172,7 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType, bool isSourceType) 
   // handle pointer types
   const clang::QualType srcPteType = srcType->getPointeeType();
   if (!srcPteType.isNull()) {
-    MIRType *mirPointeeType = CvtType(srcPteType, isSourceType);
+    MIRType *mirPointeeType = CvtType(srcPteType, isSourceType, vlaType);
     if (mirPointeeType == nullptr) {
       return nullptr;
     }
@@ -211,13 +211,13 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType, bool isSourceType) 
     return prtType;
   }
 
-  return CvtOtherType(srcType, isSourceType);
+  return CvtOtherType(srcType, isSourceType, vlaType);
 }
 
-MIRType *LibAstFile::CvtOtherType(const clang::QualType srcType, bool isSourceType) {
+MIRType *LibAstFile::CvtOtherType(const clang::QualType srcType, bool isSourceType, const clang::Type **vlaType) {
   MIRType *destType = nullptr;
   if (srcType->isArrayType()) {
-    destType = CvtArrayType(srcType, isSourceType);
+    destType = CvtArrayType(srcType, isSourceType, vlaType);
   } else if (srcType->isRecordType()) {
     destType = CvtRecordType(srcType);
   // isComplexType() does not include complex integers (a GCC extension)
@@ -288,7 +288,7 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType qualType) {
   return recordDecl->isLambda() ? GlobalTables::GetTypeTable().GetOrCreatePointerType(*type) : type;
 }
 
-MIRType *LibAstFile::CvtArrayType(const clang::QualType &srcType, bool isSourceType) {
+MIRType *LibAstFile::CvtArrayType(const clang::QualType &srcType, bool isSourceType, const clang::Type **vlaType) {
   MIRType *elemType = nullptr;
   TypeAttrs elemAttrs;
   std::vector<uint32_t> operands;
@@ -313,7 +313,6 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType &srcType, bool isSourceT
   } else {
     NOTYETHANDLED(srcType.getAsString().c_str());
   }
-  uint32_t *sizeArray = nullptr;
   uint32_t tempSizeArray[kMaxArrayDim];
   MIRType *retType = nullptr;
   if (dim > 0) {
@@ -322,10 +321,13 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType &srcType, bool isSourceT
       for (uint8_t k = 0; k < dim; ++k) {
         tempSizeArray[k] = operands[k];
       }
-      sizeArray = tempSizeArray;
+      uint32_t *sizeArray = tempSizeArray;
       retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, dim, sizeArray, elemAttrs);
     } else {
       retType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*elemType, PTY_ptr, elemAttrs);
+      if (vlaType != nullptr) {
+        *vlaType = srcType.getCanonicalType().getTypePtr();
+      }
     }
   } else {
     bool asFlag = srcType->isIncompleteArrayType();

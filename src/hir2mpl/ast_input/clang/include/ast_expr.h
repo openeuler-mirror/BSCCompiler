@@ -249,6 +249,10 @@ class ASTCastExpr : public ASTExpr {
     isVectorSplat = flag;
   }
 
+  void SetVLASizeExprs(ASTExpr *astExpr) {
+    (void)vlaExprInfos.emplace_back(astExpr);
+  }
+
  protected:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -279,6 +283,7 @@ class ASTCastExpr : public ASTExpr {
   bool isBuilinFunc = false;
   bool isUnoinCast = false;
   bool isVectorSplat = false;
+  std::list<ASTExpr*> vlaExprInfos;
 };
 
 class ASTDeclRefExpr : public ASTExpr {

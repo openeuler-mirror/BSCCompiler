@@ -655,10 +655,10 @@ ASTStmt *ASTParser::ProcessStmtDeclStmt(MapleAllocator &allocator, const clang::
     std::list<ASTExpr*> astExprs;
     if (decl->getKind() == clang::Decl::Var) {
       const clang::VarDecl *varDecl = llvm::cast<clang::VarDecl>(decl);
-      SaveVLASizeExpr(allocator, varDecl->getType(), astExprs);
+      SaveVLASizeExpr(allocator, *(varDecl->getType().getCanonicalType().getTypePtr()), astExprs);
     } else if (decl->getKind() == clang::Decl::Typedef) {
       clang::QualType underType = llvm::cast<clang::TypedefNameDecl>(decl)->getUnderlyingType();
-      SaveVLASizeExpr(allocator, underType, astExprs);
+      SaveVLASizeExpr(allocator, *(underType.getCanonicalType().getTypePtr()), astExprs);
     }
     for (auto expr : std::as_const(astExprs)) {
       astStmt->SetVLASizeExpr(expr);
@@ -1067,16 +1067,16 @@ ASTExpr *ASTParser::ProcessExpr(MapleAllocator &allocator, const clang::Expr *ex
   }
 }
 
-void ASTParser::SaveVLASizeExpr(MapleAllocator &allocator, const clang::QualType &qualType,
+void ASTParser::SaveVLASizeExpr(MapleAllocator &allocator, const clang::Type &type,
                                 std::list<ASTExpr*> &vlaSizeExprs) {
-  const clang::Type *type = qualType.getCanonicalType().getTypePtr();
-  if (!type->isVariableArrayType()) {
+  if (!type.isVariableArrayType()) {
     return;
   }
-  const clang::VariableArrayType *vlaType = llvm::cast<clang::VariableArrayType>(type);
+  const clang::VariableArrayType *vlaType = llvm::cast<clang::VariableArrayType>(&type);
   if (vlaSizeMap.find(vlaType->getSizeExpr()) != vlaSizeMap.cend()) {
     return;  // vla size expr already exists
   }
+  const clang::QualType qualType = type.getCanonicalTypeInternal();
   ASTExpr *vlaSizeExpr = BuildExprToComputeSizeFromVLA(allocator, qualType.getCanonicalType());
   if (vlaSizeExpr == nullptr) {
     return;
@@ -1093,7 +1093,7 @@ void ASTParser::SaveVLASizeExpr(MapleAllocator &allocator, const clang::QualType
   expr->SetRightExpr(vlaSizeExpr);
   vlaSizeMap[vlaType->getSizeExpr()] = vlaSizeVarExpr;
   (void)vlaSizeExprs.emplace_back(expr);
-  SaveVLASizeExpr(allocator, vlaType->getElementType(), vlaSizeExprs);
+  SaveVLASizeExpr(allocator, *(vlaType->getElementType().getCanonicalType().getTypePtr()), vlaSizeExprs);
 }
 
 ASTUnaryOperatorExpr *ASTParser::AllocUnaryOperatorExpr(MapleAllocator &allocator,
@@ -1199,6 +1199,7 @@ ASTExpr *ASTParser::ProcessExprUnaryOperator(MapleAllocator &allocator, const cl
     }
   }
   if (clangOpCode == clang::UO_Imag || clangOpCode == clang::UO_Real) {
+    CHECK_FATAL(uo.getSubExpr()->getType().getCanonicalType()->isAnyComplexType(), "Unsupported complex value in MIR");
     clang::QualType elementType = llvm::cast<clang::ComplexType>(
         uo.getSubExpr()->getType().getCanonicalType())->getElementType();
     MIRType *elementMirType = astFile->CvtType(elementType);
@@ -1490,6 +1491,9 @@ ASTExpr *ASTParser::ProcessExprArraySubscriptExpr(MapleAllocator &allocator, con
       !static_cast<const clang::ImplicitCastExpr*>(base)->isPartOfExplicitCast()) {
     arrayQualType = static_cast<const clang::ImplicitCastExpr*>(base)->getSubExpr()->getType().getCanonicalType();
   }
+
+  CHECK_FATAL(!arrayQualType->isVectorType(), "Unsupported vector type in astArraySubscriptExpr");
+
   auto arrayMirType = astFile->CvtType(arrayQualType);
   astArraySubscriptExpr->SetArrayType(arrayMirType);
 
@@ -1987,14 +1991,18 @@ ASTExpr *ASTParser::ProcessExprFloatingLiteral(MapleAllocator &allocator, const 
   return astFloatingLiteral;
 }
 
-ASTExpr *ASTParser::ProcessExprCastExpr(MapleAllocator &allocator, const clang::CastExpr &expr) {
+ASTExpr *ASTParser::ProcessExprCastExpr(MapleAllocator &allocator, const clang::CastExpr &expr,
+                                        const clang::Type **vlaType) {
   ASTCastExpr *astCastExpr = ASTDeclsBuilder::ASTExprBuilder<ASTCastExpr>(allocator);
   CHECK_FATAL(astCastExpr != nullptr, "astCastExpr is nullptr");
-  MIRType *srcType = astFile->CvtType(expr.getSubExpr()->getType());
+  const clang::Type *type = nullptr;
+  MIRType *srcType = astFile->CvtType(expr.getSubExpr()->getType(), false, &type);
+  if (vlaType != nullptr) {
+    *vlaType = type;
+  }
   MIRType *toType = astFile->CvtType(expr.getType());
   astCastExpr->SetSrcType(srcType);
   astCastExpr->SetDstType(toType);
-
   switch (expr.getCastKind()) {
     case clang::CK_NoOp:
     case clang::CK_ToVoid:
@@ -2267,7 +2275,18 @@ ASTDecl *ASTParser::GetAstDeclOfDeclRefExpr(MapleAllocator &allocator, const cla
 }
 
 ASTExpr *ASTParser::ProcessExprCStyleCastExpr(MapleAllocator &allocator, const clang::CStyleCastExpr &castExpr) {
-  return ProcessExprCastExpr(allocator, castExpr);
+  ASTCastExpr *astCastExpr = ASTDeclsBuilder::ASTExprBuilder<ASTCastExpr>(allocator);
+  CHECK_FATAL(astCastExpr != nullptr, "astCastExpr is nullptr");
+  const clang::Type *type = nullptr;
+  astCastExpr = static_cast<ASTCastExpr*>(ProcessExprCastExpr(allocator, castExpr, &type));
+  if (type != nullptr) {
+    std::list<ASTExpr*> vlaExprs;
+    SaveVLASizeExpr(allocator, *type, vlaExprs);
+    for (auto vlaExpr : std::as_const(vlaExprs)) {
+      astCastExpr->SetVLASizeExprs(vlaExpr);
+    }
+  }
+  return astCastExpr;
 }
 
 ASTExpr *ASTParser::ProcessExprArrayInitLoopExpr(MapleAllocator &allocator,
@@ -2518,7 +2537,7 @@ MapleVector<ASTDecl*> ASTParser::SolveFuncParameterDecls(MapleAllocator &allocat
   for (uint32_t i = 0; i < numParam; ++i) {
     const clang::ParmVarDecl *parmDecl = funcDecl.getParamDecl(i);
     std::list<ASTExpr*> astExprs;
-    SaveVLASizeExpr(allocator, parmDecl->getOriginalType(), astExprs);
+    SaveVLASizeExpr(allocator, *(parmDecl->getOriginalType().getTypePtr()), astExprs);
     ASTStmtDummy *stmt = ASTDeclsBuilder::ASTStmtBuilder<ASTStmtDummy>(allocator);
     for (auto expr : std::as_const(astExprs)) {
       stmt->SetASTExpr(expr);
@@ -2727,6 +2746,16 @@ void ASTParser::SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &ast
   }
 }
 
+void ASTParser::CheckVarNameValid(std::string varName) {
+  CHECK_FATAL(isalpha(varName[0]) || varName[0] == '_', "%s' varName is invalid", varName.c_str());
+  for (size_t i = 1; i < varName.size(); i++) {
+    /* check valid varName in C, but unsupport Unicode */
+    if (varName[i] == '\\') {
+      CHECK_FATAL(varName[i + 1] != 'u' && varName[i + 1] != 'U', "%s' varName is invalid", varName.c_str());
+    }
+  }
+}
+
 ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::VarDecl &varDecl) {
   ASTVar *astVar = static_cast<ASTVar*>(ASTDeclsBuilder::GetASTDecl(varDecl.getID()));
   if (astVar != nullptr) {
@@ -2736,8 +2765,10 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   if (varName.empty()) {
     return nullptr;
   }
+  CheckVarNameValid(varName);
   clang::QualType qualType = varDecl.getType();
-  MIRType *varType = astFile->CvtType(qualType);
+  const clang::Type *type = nullptr;
+  MIRType *varType = astFile->CvtType(qualType, false, &type);
   if (varType == nullptr) {
     return nullptr;
   }
@@ -2776,6 +2807,23 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   }
   if (!varDecl.getType()->isIncompleteType()) {
     SetAlignmentForASTVar(varDecl, *astVar);
+  }
+  if (qualType.getTypePtr()->getTypeClass() == clang::Type::TypeOfExpr) {
+    const clang::TypeOfExprType *typeofType = llvm::cast<clang::TypeOfExprType>(qualType);
+    if (typeofType->isArrayType() || typeofType->isPointerType()) {
+      ASTExpr *astExpr = ProcessExpr(allocator, typeofType->getUnderlyingExpr());
+      if (astExpr == nullptr) {
+        return nullptr;
+      }
+      astVar->SetVariableArrayExpr(astExpr);
+    }
+  }
+  if (type != nullptr) {
+    std::list<ASTExpr*> vlaExprs;
+    SaveVLASizeExpr(allocator, *type, vlaExprs);
+    for (auto vlaExpr : std::as_const(vlaExprs)) {
+      astVar->SetVariableArrayExpr(vlaExpr);
+    }
   }
   const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&varDecl);
   if (valueDecl != nullptr) {

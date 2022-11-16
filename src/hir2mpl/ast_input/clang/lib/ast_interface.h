@@ -83,9 +83,9 @@ class LibAstFile {
   PrimType CvtPrimType(const clang::BuiltinType::Kind kind, bool isSourceType) const;
   MIRType *CvtPrimType2SourceType(const clang::BuiltinType::Kind kind) const;
   MIRType *CvtSourceType(const clang::QualType qualType);
-  MIRType *CvtType(const clang::QualType qualType, bool isSourceType = false);
-  MIRType *CvtOtherType(const clang::QualType srcType, bool isSourceType);
-  MIRType *CvtArrayType(const clang::QualType &srcType, bool isSourceType);
+  MIRType *CvtType(const clang::QualType qualType, bool isSourceType = false, const clang::Type **vlaType = nullptr);
+  MIRType *CvtOtherType(const clang::QualType srcType, bool isSourceType, const clang::Type **vlaType);
+  MIRType *CvtArrayType(const clang::QualType &srcType, bool isSourceType, const clang::Type **vlaType);
   MIRType *CvtFunctionType(const clang::QualType srcType, bool isSourceType);
   MIRType *CvtEnumType(const clang::QualType &qualType, bool isSourceType);
   MIRType *CvtRecordType(const clang::QualType qualType);

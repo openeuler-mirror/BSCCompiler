@@ -631,6 +631,9 @@ UniqueFEIRExpr ASTCastExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) co
   if (isArrayToPointerDecay || isFunctionToPointerDecay) {
     return Emit2FEExprForFunctionOrArray2Pointer(stmts);
   }
+  for (auto expr : vlaExprInfos) {
+    (void)expr->Emit2FEExpr(stmts);
+  }
   UniqueFEIRExpr subExpr = childExpr->Emit2FEExpr(stmts);
   if (isUnoinCast && dst->GetKind() == kTypeUnion) {
     std::string varName = FEUtils::GetSequentialName("anon.union.");
