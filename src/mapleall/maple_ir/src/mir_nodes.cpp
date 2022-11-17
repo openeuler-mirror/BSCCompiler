@@ -1612,66 +1612,67 @@ void AsmNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << " }\n";
 }
 
-// Start of primtype verification for Maple IR nodes.
-//
-// General rules:
-//
-// 1. For binary operations, the types of the two operands must be compatible.
-//
-// 2. In checking type compatibility, other than identical types, the types in
-// each of the following group are compatible with each other:
-//            [i32, u32, ptr, ref, a32]
-//            [i64, u64, ptr, ref, a64]
-//
-// 3. dynany is compatiable with any dyn* type.
-//
-// 4. u1, i8, u8, i16, u16 must not be types of arithmetic operations, because
-// many machines do not provide instructions for such types as they lack such
-// register sizes.  Similarly, these types must not be used as result types for
-// any read instructions: dread/iread/regread.
-//
-// 5. When an opcode only specifies one type (which is called the result type),
-// it expects both operands and results to be of this same type.  Thus, the
-// types among the operands and this result type must be compatible.
-//
-// 6. When an opcode specifies two types, the additional (second) type is
-// the operand type.  The types of the operands and the operand type must be
-// compatible.
-//
-// 7. The opcodes addrof, addroflabel, addroffunc and iaddrof form addresses.
-// Thus, their result type must be in [ptr,ref,a32,a64].
-//
-// 8. The opcodes bnot, extractbits, sext, zext, lnot must have result type in
-// [i32, u32, i64, u64].
-//
-// 9. The opcodes abs, neg must have result type in
-// [i32, u32, i64, u64, f32, f64].
-//
-// 10. The opcodes recip, sqrt must have result type in [f32, f64].
-//
-// 11. The opcodes ceil, floor, round, trunc must have result-type in
-// [i32, u32, i64, u64] and operand-type in [f32, f64].
-//
-// 12. The opcodes add, div, sub, mpy, max, min must have result-type in
-// [i32, u32, i64, u64, f32, f64].
-//
-// 13. The opcodes eq, ge, gt, le, lt, ne must have result-type in
-// any signed or unsigned integer type; they also specifies operand-type, and
-// this operand-type and the types of their two operands must be compatible.
-//
-// 14. The opcodes ashr, band, bior, bxor, depositbits, land, lior, lshr, shl,
-// rem must have result-type in [i32, u32, i64, u64].
-//
-// 15. select's result-type and the types of its second and third operands must
-// be compatible; its first operand must be of integer type.
-//
-// 16. array's result-type must be in [ptr,ref,a32,a64]; the type of <opnd0> must
-// also be in [ptr,ref,a32,a64]; the types of the rest of the operands must be in
-// [i32, u32, i64, u64].
-//
-// 17. The operand of brfalse, trfalse must be of integer type.
-//
-// 18. The operand of switch, rangegoto must be in [i32, u32, i64, u64].
+/* Start of primtype verification for Maple IR nodes.
+  
+   General rules:
+  
+   1. For binary operations, the types of the two operands must be compatible.
+  
+   2. In checking type compatibility, other than identical types, the types in
+   each of the following group are compatible with each other:
+              [i32, u32, ptr, ref, a32]
+              [i64, u64, ptr, ref, a64]
+  
+   3. dynany is compatiable with any dyn* type.
+  
+   4. u1, i8, u8, i16, u16 must not be types of arithmetic operations, because
+   many machines do not provide instructions for such types as they lack such
+   register sizes.  Similarly, these types must not be used as result types for
+   any read instructions: dread/iread/regread.
+  
+   5. When an opcode only specifies one type (which is called the result type),
+   it expects both operands and results to be of this same type.  Thus, the
+   types among the operands and this result type must be compatible.
+  
+   6. When an opcode specifies two types, the additional (second) type is
+   the operand type.  The types of the operands and the operand type must be
+   compatible.
+  
+   7. The opcodes addrof, addroflabel, addroffunc and iaddrof form addresses.
+   Thus, their result type must be in [ptr,ref,a32,a64].
+  
+   8. The opcodes bnot, extractbits, sext, zext, lnot must have result type in
+   [i32, u32, i64, u64].
+  
+   9. The opcodes abs, neg must have result type in
+   [i32, u32, i64, u64, f32, f64].
+  
+   10. The opcodes recip, sqrt must have result type in [f32, f64].
+  
+   11. The opcodes ceil, floor, round, trunc must have result-type in
+   [i32, u32, i64, u64] and operand-type in [f32, f64].
+  
+   12. The opcodes add, div, sub, mpy, max, min must have result-type in
+   [i32, u32, i64, u64, f32, f64].
+  
+   13. The opcodes eq, ge, gt, le, lt, ne must have result-type in
+   any signed or unsigned integer type; they also specifies operand-type, and
+   this operand-type and the types of their two operands must be compatible.
+  
+   14. The opcodes ashr, band, bior, bxor, depositbits, land, lior, lshr, shl,
+   rem must have result-type in [i32, u32, i64, u64].
+  
+   15. select's result-type and the types of its second and third operands must
+   be compatible; its first operand must be of integer type.
+  
+   16. array's result-type must be in [ptr,ref,a32,a64]; the type of <opnd0> must
+   also be in [ptr,ref,a32,a64]; the types of the rest of the operands must be in
+   [i32, u32, i64, u64].
+  
+   17. The operand of brfalse, trfalse must be of integer type.
+  
+   18. The operand of switch, rangegoto must be in [i32, u32, i64, u64].
+*/
 
 inline bool ExcludeSmallIntTypeVerify(const BaseNode &opnd) {
   switch (opnd.GetPrimType()) {
