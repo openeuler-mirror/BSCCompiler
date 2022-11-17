@@ -1864,6 +1864,40 @@ void MeCFG::SwapBBId(BB &bb1, BB &bb2) {
   bb2.SetBBId(tmp);
 }
 
+// bb must have 2 successors; construct the edge frequencies for the 2 edges
+inline void ConstructEdgeFreqForBBWith2Succs(BB *bb) {
+  BB *fallthru = bb->GetSucc(0);
+  BB *targetBB = bb->GetSucc(1);
+  if (fallthru->GetPred().size() == 1) {
+    uint64 succ0Freq = fallthru->GetFrequency();
+    bb->PushBackSuccFreq(succ0Freq);
+    if (bb->GetFrequency() > succ0Freq) {
+      bb->PushBackSuccFreq(bb->GetFrequency() - succ0Freq);
+    } else {
+      bb->PushBackSuccFreq(0);
+    }
+  } else if (targetBB->GetPred().size() == 1) {
+    uint64 succ1Freq = targetBB->GetFrequency();
+    if (bb->GetAttributes(kBBAttrWontExit) && bb->GetSuccFreq().size() == 1) {
+      // special case: WontExitAnalysis() has pushed 0 to bb->succFreq
+      bb->GetSuccFreq()[0] = bb->GetFrequency();
+      bb->PushBackSuccFreq(0);
+    } else if (bb->GetFrequency() >= succ1Freq) {  // tolerate inaccuracy
+      bb->PushBackSuccFreq(0);
+      bb->PushBackSuccFreq(bb->GetFrequency());
+    } else {
+      bb->PushBackSuccFreq(bb->GetFrequency() - succ1Freq);
+      bb->PushBackSuccFreq(succ1Freq);
+    }
+  } else if (fallthru->GetFrequency() > targetBB->GetFrequency()) {
+    bb->PushBackSuccFreq(bb->GetFrequency());
+    bb->PushBackSuccFreq(0);
+  } else {
+    bb->PushBackSuccFreq(0);
+    bb->PushBackSuccFreq(bb->GetFrequency());
+  }
+}
+
 // set bb succ frequency from bb freq
 // no critical edge is expected
 void MeCFG::ConstructEdgeFreqFromBBFreq() {
@@ -1877,36 +1911,7 @@ void MeCFG::ConstructEdgeFreqFromBBFreq() {
     if (bb->GetSucc().size() == 1) {
       bb->PushBackSuccFreq(bb->GetFrequency());
     } else if (bb->GetSucc().size() == 2) {
-      auto *fallthru = bb->GetSucc(0);
-      auto *targetBB = bb->GetSucc(1);
-      if (fallthru->GetPred().size() == 1) {
-        auto succ0Freq = fallthru->GetFrequency();
-        bb->PushBackSuccFreq(succ0Freq);
-        if (bb->GetFrequency() > succ0Freq) {
-          bb->PushBackSuccFreq(bb->GetFrequency() - succ0Freq);
-        } else {
-          bb->PushBackSuccFreq(0);
-        }
-      } else if (targetBB->GetPred().size() == 1) {
-        auto succ1Freq = targetBB->GetFrequency();
-        if (bb->GetAttributes(kBBAttrWontExit) && bb->GetSuccFreq().size() == 1) {
-          // special case: WontExitAnalysis() has pushed 0 to bb->succFreq
-          bb->GetSuccFreq()[0] = bb->GetFrequency();
-          bb->PushBackSuccFreq(0);
-        } else if (bb->GetFrequency() >= succ1Freq) {  // tolerate inaccuracy
-          bb->PushBackSuccFreq(0);
-          bb->PushBackSuccFreq(bb->GetFrequency());
-        } else {
-          bb->PushBackSuccFreq(bb->GetFrequency() - succ1Freq);
-          bb->PushBackSuccFreq(succ1Freq);
-        }
-      } else if (fallthru->GetFrequency() > targetBB->GetFrequency()) {
-        bb->PushBackSuccFreq(bb->GetFrequency());
-        bb->PushBackSuccFreq(0);
-      } else {
-        bb->PushBackSuccFreq(0);
-        bb->PushBackSuccFreq(bb->GetFrequency());
-      }
+      ConstructEdgeFreqForBBWith2Succs(bb);
     } else if (bb->GetSucc().size() > 2) {
       // switch case, no critical edge is supposted
       for (size_t i = 0; i < bb->GetSucc().size(); ++i) {
