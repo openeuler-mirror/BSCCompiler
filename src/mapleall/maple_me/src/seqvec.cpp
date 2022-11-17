@@ -572,7 +572,10 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
       blockParent->InsertBefore(iassign, dupScalarStmt);
       iassign->SetRHS(regreadNode);
       if (Options::profileUse && mirFunc->GetFuncProfData()) {
-        mirFunc->GetFuncProfData()->CopyStmtFreq(dupScalarStmt->GetStmtID(), iassign->GetStmtID());
+        std::unordered_map<uint32_t, uint64_t> &stmtFreqs = mirFunc->GetFuncProfData()->stmtFreqs;
+        if (stmtFreqs.find(iassign->GetStmtID()) != stmtFreqs.end()) {
+          mirFunc->GetFuncProfData()->CopyStmtFreq(dupScalarStmt->GetStmtID(), iassign->GetStmtID());
+        }
       }
     } else if (iassign->GetRHS()->GetOpCode() == OP_iread) {
       // rhs is iread
