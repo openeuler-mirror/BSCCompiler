@@ -39,7 +39,7 @@ GC_O0 = {
                 "mplcg": "--O2 --quiet --no-pie --fpic --verbose-asm --maplelinker --gconly"
             },
             global_option="",
-            infile="${APP}.mpl"
+            infiles=["${APP}.mpl"]
         ),
         Linker(
             lib="host-x86_64-GC_O0",

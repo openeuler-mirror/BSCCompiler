@@ -40,10 +40,10 @@ CO0 = {
                 "mplcg": "--quiet"
             },
             global_option="",
-            infile="${APP}.mpl"
+            infiles=["${APP}.mpl"]
         ),
         CLinker(
-            infile="${APP}.s",
+            infiles=["${APP}.s"],
             front_option="",
             outfile="${APP}.out",
             back_option="-lm"

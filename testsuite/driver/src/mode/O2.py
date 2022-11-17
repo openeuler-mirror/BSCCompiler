@@ -39,7 +39,7 @@ O2 = {
                 "mplcg": "--O2 --quiet --no-pie --fpic --verbose-asm --maplelinker"
             },
             global_option="",
-            infile="${APP}.mpl"
+            infiles=["${APP}.mpl"]
         ),
         Linker(
             lib="host-x86_64-O2",

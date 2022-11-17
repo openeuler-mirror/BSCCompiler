@@ -17,14 +17,14 @@ from api.shell_operator import ShellOperator
 
 class CLinker(ShellOperator):
 
-    def __init__(self, infile, front_option, outfile, back_option, mid_opt="",return_value_list=None, redirection=None):
+    def __init__(self, infiles, front_option, outfile, back_option, mid_opt="",return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
-        self.infile = infile
+        self.infiles = infiles
         self.front_option = front_option
         self.outfile = outfile
         self.back_option = back_option
         self.mid_opt = mid_opt
 
     def get_command(self, variables):
-        self.command = "${OUT_ROOT}/tools/bin/aarch64-linux-gnu-gcc " + self.front_option + " -o " + self.outfile + " " + self.mid_opt + " " +  self.infile + " " + self.back_option
+        self.command = "${OUT_ROOT}/tools/bin/aarch64-linux-gnu-gcc " + self.front_option + " -o " + self.outfile + " " + self.mid_opt + " " +  " ".join(self.infiles) + " " + self.back_option
         return super().get_final_command(variables)
