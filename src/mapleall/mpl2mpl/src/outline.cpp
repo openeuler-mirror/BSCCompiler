@@ -481,8 +481,9 @@ void OutlineGroup::ReplaceOutlineCandidateWithCall() {
     auto *block = region->GetStart()->GetCurrBlock();
     auto hasReturnvalue = !candidate.GetRegionCandidate()->GetRegionOutPuts().empty();
     auto op = hasReturnvalue ? OP_callassigned : OP_call;
-    auto &alloc = outlineFunc->GetCodeMempoolAllocator();
-    auto *stmt = outlineFunc->GetCodeMemPool()->New<CallNode>(alloc, op, outlineFunc->GetPuidx());
+    auto callerFunc = region->GetFunction();
+    auto &alloc = callerFunc->GetCodeMempoolAllocator();
+    auto *stmt = callerFunc->GetCodeMemPool()->New<CallNode>(alloc, op, outlineFunc->GetPuidx());
     stmt->SetNumOpnds(static_cast<uint8>(candidate.GetParameters().size()));
     if (hasReturnvalue) {
       auto symbolRegPair = candidate.GetRegionCandidate()->GetRegionOutPuts().begin();
