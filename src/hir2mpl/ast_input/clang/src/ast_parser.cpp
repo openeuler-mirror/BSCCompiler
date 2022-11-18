@@ -1643,6 +1643,52 @@ ASTExpr *ASTParser::BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, con
   return integerExpr;
 }
 
+ASTExpr *ASTParser::GetSizeOfExpr(MapleAllocator &allocator, const clang::UnaryExprOrTypeTraitExpr &expr,
+                                  clang::QualType qualType) {
+  auto *astExprUnaryExprOrTypeTraitExpr = ASTDeclsBuilder::ASTExprBuilder<ASTExprUnaryExprOrTypeTraitExpr>(allocator);
+  CHECK_FATAL(astExprUnaryExprOrTypeTraitExpr != nullptr, "astExprUnaryExprOrTypeTraitExpr is nullptr");
+  ASTExpr *astExpr = ProcessExpr(allocator, expr.getArgumentExpr());
+  if (astExpr == nullptr) {
+    return nullptr;
+  }
+  astExprUnaryExprOrTypeTraitExpr->SetIdxExpr(astExpr);
+  ASTExpr *rhs = nullptr;
+  ASTExpr *lhs = BuildExprToComputeSizeFromVLA(allocator, llvm::cast<clang::ArrayType>(qualType)->getElementType());
+  clang::Expr *sizeExpr = llvm::cast<clang::VariableArrayType>(qualType)->getSizeExpr();
+  if (sizeExpr == nullptr) {
+    return nullptr;
+  }
+  MapleMap<clang::Expr*, ASTExpr*>::const_iterator iter = vlaSizeMap.find(sizeExpr);
+  if (iter != vlaSizeMap.cend()) {
+    astExprUnaryExprOrTypeTraitExpr->SetSizeExpr(iter->second);
+    return astExprUnaryExprOrTypeTraitExpr;
+  }
+  rhs = ProcessExpr(allocator, sizeExpr);
+  auto *astBOExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
+  astBOExpr->SetRetType(GlobalTables::GetTypeTable().GetPrimType(PTY_u64));
+  astBOExpr->SetOpcode(OP_mul);
+  astBOExpr->SetLeftExpr(lhs);
+  astBOExpr->SetRightExpr(rhs);
+  astExprUnaryExprOrTypeTraitExpr->SetSizeExpr(astBOExpr);
+  return astExprUnaryExprOrTypeTraitExpr;
+}
+
+ASTExpr *ASTParser::GetSizeOfType(MapleAllocator &allocator, const clang::QualType &qualType) {
+  auto *astExprUnaryExprOrTypeTraitExpr = ASTDeclsBuilder::ASTExprBuilder<ASTExprUnaryExprOrTypeTraitExpr>(allocator);
+  CHECK_FATAL(astExprUnaryExprOrTypeTraitExpr != nullptr, "astExprUnaryExprOrTypeTraitExpr is nullptr");
+  if (llvm::isa<clang::VariableArrayType>(qualType)) {
+    ASTExpr *vlaSizeExpr = BuildExprToComputeSizeFromVLA(allocator, qualType);
+    astExprUnaryExprOrTypeTraitExpr->SetSizeExpr(vlaSizeExpr);
+    return astExprUnaryExprOrTypeTraitExpr;
+  }
+  uint32 size = GetSizeFromQualType(qualType);
+  auto sizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
+  sizeExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
+  sizeExpr->SetVal(size);
+  astExprUnaryExprOrTypeTraitExpr->SetSizeExpr(sizeExpr);
+  return astExprUnaryExprOrTypeTraitExpr;
+}
+
 ASTExpr *ASTParser::ProcessExprUnaryExprOrTypeTraitExpr(MapleAllocator &allocator,
                                                         const clang::UnaryExprOrTypeTraitExpr &expr) {
   auto *astExprUnaryExprOrTypeTraitExpr = ASTDeclsBuilder::ASTExprBuilder<ASTExprUnaryExprOrTypeTraitExpr>(allocator);
@@ -1651,14 +1697,11 @@ ASTExpr *ASTParser::ProcessExprUnaryExprOrTypeTraitExpr(MapleAllocator &allocato
     case clang::UETT_SizeOf: {
       clang::QualType qualType = expr.isArgumentType() ? expr.getArgumentType().getCanonicalType()
                                                        : expr.getArgumentExpr()->getType().getCanonicalType();
-      if (llvm::isa<clang::VariableArrayType>(qualType)) {
-        return BuildExprToComputeSizeFromVLA(allocator, qualType);
+      if (expr.isArgumentType()) {
+        return GetSizeOfType(allocator, qualType);
+      } else {
+        return GetSizeOfExpr(allocator, expr, qualType);
       }
-      uint32 size = GetSizeFromQualType(qualType);
-      auto integerExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-      integerExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
-      integerExpr->SetVal(size);
-      return integerExpr;
     }
     case clang::UETT_PreferredAlignOf:
     case clang::UETT_AlignOf: {

@@ -1968,9 +1968,11 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
 }
 
 UniqueFEIRExpr ASTExprUnaryExprOrTypeTraitExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
-  (void)stmts;
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
+  CHECK_NULL_FATAL(sizeExpr);
+  if (idxExpr != nullptr) {
+    (void)idxExpr->Emit2FEExpr(stmts);
+  }
+  return sizeExpr->Emit2FEExpr(stmts);
 }
 
 MIRConst *ASTMemberExpr::GenerateMIRConstImpl() const {

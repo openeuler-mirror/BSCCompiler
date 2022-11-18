@@ -225,6 +225,9 @@ class ASTParser {
   void TraverseDecl(const clang::Decl *decl, std::function<void (clang::Decl*)> const &functor) const;
   ASTDecl *GetAstDeclOfDeclRefExpr(MapleAllocator &allocator, const clang::Expr &expr);
   uint32 GetSizeFromQualType(const clang::QualType qualType) const;
+  ASTExpr *GetSizeOfExpr(MapleAllocator &allocator, const clang::UnaryExprOrTypeTraitExpr &expr,
+                         clang::QualType qualType);
+  ASTExpr *GetSizeOfType(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *GetTypeSizeFromQualType(MapleAllocator &allocator, const clang::QualType qualType);
   uint32_t GetAlignOfType(const clang::QualType currQualType, clang::UnaryExprOrTypeTrait exprKind) const;
   uint32_t GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind) const;

@@ -982,23 +982,17 @@ class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {
   }
   ~ASTExprUnaryExprOrTypeTraitExpr() = default;
 
-  void SetIsType(bool type) {
-    isType = type;
+  void SetIdxExpr(ASTExpr *astExpr) {
+    idxExpr = astExpr;
   }
-
-  void SetArgType(MIRType *type) {
-    argType = type;
-  }
-
-  void SetArgExpr(ASTExpr *astExpr) {
-    argExpr = astExpr;
+  void SetSizeExpr(ASTExpr *expr) {
+    sizeExpr = expr;
   }
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  bool isType = false;
-  MIRType *argType = nullptr;
-  ASTExpr *argExpr = nullptr;
+  ASTExpr *sizeExpr = nullptr;
+  ASTExpr *idxExpr = nullptr;
 };
 
 class ASTMemberExpr : public ASTExpr {
