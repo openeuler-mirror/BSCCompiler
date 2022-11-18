@@ -3440,6 +3440,42 @@ bool ValueRangePropagation::IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(
          leftRange.GetLower().GetConstant() < leftRange.GetUpper().GetConstant() && lowerOrUpperIsEqual;
 }
 
+// case 1:
+// cond: if mx1 != mx2
+// mx1 vr: (kNotEqual 0)
+// mx2 vr: (kEqual 1)
+// trueBranch mx1 vr: [2, max]
+// case 2:
+// cond: if mx1 != mx2
+// mx1 vr: (kNotEqual 1)
+// mx2 vr: (kEqual 0)
+// trueBranch mx1 vr: [2, max]
+void ValueRangePropagation::MergeNotEqualRanges(
+    const MeExpr &opnd, const ValueRange *leftRange, ValueRange &rightRange, const BB &trueBranch) {
+  if (leftRange == nullptr) {
+    return;
+  }
+  auto primType = leftRange->GetPrimType();
+  if (primType != rightRange.GetPrimType() || !IsPrimitiveUnsigned(primType)) {
+    return;
+  }
+  if (leftRange->GetRangeType() != kNotEqual || !leftRange->IsConstant()) {
+    return;
+  }
+  if (rightRange.GetRangeType() != kEqual || !rightRange.IsConstant()) {
+    return;
+  }
+  auto leftBound = leftRange->GetBound();
+  auto rightBound = rightRange.GetBound();
+  auto constZeroBound = Bound(nullptr, 0, primType);
+  auto constOneBound = Bound(nullptr, 1, primType);
+  if ((leftBound.IsEqual(constZeroBound, primType) && rightBound.IsEqual(constOneBound, primType)) ||
+      (leftBound.IsEqual(constOneBound, primType) && rightBound.IsEqual(constZeroBound, primType))) {
+    (void)Insert2Caches(trueBranch.GetBBId(), opnd.GetExprID(),
+        std::make_unique<ValueRange>(Bound(2, primType), Bound(GetMaxNumber(primType), primType), kLowerAndUpper));
+  }
+}
+
 void ValueRangePropagation::CreateValueRangeForNeOrEq(
     const MeExpr &opnd, const ValueRange *leftRange, ValueRange &rightRange, const BB &trueBranch,
     const BB &falseBranch) {
@@ -4573,8 +4609,10 @@ void ValueRangePropagation::CreateValueRangeForCondGoto(const MeExpr &opnd, Opco
   CHECK_FATAL(IsEqualPrimType(newRightUpper.GetPrimType(), newRightLower.GetPrimType()), "must be equal");
   if (op == OP_eq) {
     CreateValueRangeForNeOrEq(opnd, leftRange, rightRange, trueBranch, falseBranch);
+    MergeNotEqualRanges(opnd, leftRange, rightRange, falseBranch);
   } else if (op == OP_ne) {
     CreateValueRangeForNeOrEq(opnd, leftRange, rightRange, falseBranch, trueBranch);
+    MergeNotEqualRanges(opnd, leftRange, rightRange, trueBranch);
   }
   if (rightRange.GetRangeType() == kNotEqual) {
     return;

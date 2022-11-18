@@ -869,6 +869,8 @@ class ValueRangePropagation {
       ValueRange &resTrueBranchVR, ValueRange &resFalseBranchVR);
   ValueRange *DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr, const MeExpr *preExpr,
       uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs);
+  void MergeNotEqualRanges(const MeExpr &opnd, const ValueRange *leftRange, ValueRange &rightRange,
+      const BB &trueBranch);
 
   MeFunction &func;
   MeIRMap &irMap;
