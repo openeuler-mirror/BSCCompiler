@@ -1745,7 +1745,7 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
   return false;
 }
 
-bool CopyRegProp::IsNotSpecialOptimizedInsn(const Insn &insn) {
+bool CopyRegProp::CanBePropagated(const Insn &insn) {
   MOperator curMop = insn.GetMachineOpcode();
   if (curMop != MOP_wbfirri5i5 && curMop != MOP_xbfirri6i6) {
     return true;
@@ -1754,31 +1754,34 @@ bool CopyRegProp::IsNotSpecialOptimizedInsn(const Insn &insn) {
   VRegVersion *version = optSsaInfo->FindSSAVersion(useOpnd.GetRegisterNumber());
   CHECK_FATAL(version != nullptr, "get SSAVersion failed");
   Insn *defInsn = FindDefInsn(version);
-  if (defInsn == nullptr) {
-    return true;
-  }
-  MOperator defMop = defInsn->GetMachineOpcode();
-  if (defMop == MOP_wmovri32 || defMop == MOP_xmovri64) {
-    return false;
+  if (defInsn != nullptr) {
+    MOperator defMop = defInsn->GetMachineOpcode();
+    // If constProp to bfi can be optimized, copyProp can be performed
+    if (defMop == MOP_wmovri32 || defMop == MOP_xmovri64) {
+      auto &widthOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
+      auto width = static_cast<uint64>(widthOpnd.GetValue());
+      auto &constOpnd = static_cast<ImmOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
+      auto val = static_cast<uint64>(constOpnd.GetValue());
+      val = val & ((1U << width) - 1U);
+      if (__builtin_popcountl(val) == static_cast<int64>(width)) {
+        return true;
+      }
+    }
   }
 
+  // If srcVersion use after both def&use insn, the mov cannot be propagated
   bool hasCrossDUUse = false;
-  int32 bothDUId = -1;
   for (auto duInfoIt : srcVersion->GetAllUseInsns()) {
     CHECK_FATAL(duInfoIt.second != nullptr, "get DUInsnInfo failed");
     Insn *useInsn = duInfoIt.second->GetInsn();
     MOperator useMop = useInsn->GetMachineOpcode();
-    if (useInsn->GetSSAImpDefOpnd() != nullptr) {
-      bothDUId = static_cast<int32>(useInsn->GetId());
-    }
     if (useInsn->GetSSAImpDefOpnd() == nullptr && useMop != MOP_xmovrr && useMop != MOP_wmovrr &&
-        useMop != MOP_xvmovs && useMop != MOP_xvmovd && bothDUId > -1 &&
-        useInsn->GetId() > static_cast<uint32>(bothDUId)) {
+        useMop != MOP_xvmovs && useMop != MOP_xvmovd && useInsn->GetId() > insn.GetId()) {
       hasCrossDUUse = true;
       break;
     }
   }
-  return hasCrossDUUse;
+  return !hasCrossDUUse;
 }
 
 void CopyRegProp::ReplaceAllUseForCopyProp() {
@@ -1788,7 +1791,7 @@ void CopyRegProp::ReplaceAllUseForCopyProp() {
     Insn *useInsn = it->second->GetInsn();
     if (srcRegDefInsn != nullptr && srcRegDefInsn->GetSSAImpDefOpnd() != nullptr &&
         useInsn->GetSSAImpDefOpnd() != nullptr) {
-      if (IsNotSpecialOptimizedInsn(*useInsn)) {
+      if (!CanBePropagated(*useInsn)) {
         ++it;
         continue;
       }
