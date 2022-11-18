@@ -531,7 +531,7 @@ void MInline::InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bo
   CallInfo *callInfo  = cgNode->GetCallInfo(callStmt);
   std::pair<bool, InlineFailedCode> canInlineRet =
       InlineAnalyzer::CanInlineImpl({&func, callee}, callStmt, *cg, currInlineDepth, true);  // earlyInline: true
-  bool canInline = canInlineRet.first;
+  bool canInline = canInlineRet.first && callStmt.GetEnclosingBlock();
   InlineFailedCode failCode = canInlineRet.second;
   if (callInfo != nullptr) {  // cache result to avoid recompute
     callInfo->SetInlineFailedCode(failCode);
