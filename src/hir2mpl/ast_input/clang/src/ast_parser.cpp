@@ -747,15 +747,9 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           astValue->pty = PTY_i64;
           break;
         case PTY_i128:
-          astValue->val.i64 = static_cast<int64>(result.Val.getInt().getSExtValue());
-          astValue->pty = PTY_i128;
-          static bool i128Warning = true;
-          if (i128Warning) {
-            WARN(kLncWarn, "%s:%d PTY_i128 is not fully supported",
-                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).fileIdx).c_str(),
-                 astFile->GetExprLOC(*expr).line);
-            i128Warning = false;
-          }
+          CHECK_FATAL(false, "%s:%d PTY_i128 is not fully supported",
+                      FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).fileIdx).c_str(),
+                      astFile->GetExprLOC(*expr).line);
           break;
         case PTY_u8:
           astValue->val.u8 = static_cast<uint8>(result.Val.getInt().getExtValue());
@@ -778,15 +772,9 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           astValue->pty = PTY_u64;
           break;
         case PTY_u128:
-          astValue->val.u64 = static_cast<uint64>(result.Val.getInt().getZExtValue());
-          astValue->pty = PTY_u128;
-          static bool u128Warning = true;
-          if (u128Warning) {
-            WARN(kLncWarn, "%s:%d PTY_u128 is not fully supported",
-                 FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).fileIdx).c_str(),
-                 astFile->GetExprLOC(*expr).line);
-            u128Warning = false;
-          }
+          CHECK_FATAL(false, "%s:%d PTY_u128 is not fully supported",
+                      FEManager::GetModule().GetFileNameFromFileNum(astFile->GetExprLOC(*expr).fileIdx).c_str(),
+                      astFile->GetExprLOC(*expr).line);
           break;
         case PTY_u1:
           astValue->val.u8 = (result.Val.getInt().getExtValue() == 0 ? 0 : 1);
@@ -2750,7 +2738,7 @@ void ASTParser::CheckVarNameValid(std::string varName) {
   CHECK_FATAL(isalpha(varName[0]) || varName[0] == '_', "%s' varName is invalid", varName.c_str());
   for (size_t i = 1; i < varName.size(); i++) {
     /* check valid varName in C, but unsupport Unicode */
-    if (varName[i] == '\\') {
+    if (varName[i] == '\\' && i + 1 != varName.size()) {
       CHECK_FATAL(varName[i + 1] != 'u' && varName[i + 1] != 'U', "%s' varName is invalid", varName.c_str());
     }
   }
