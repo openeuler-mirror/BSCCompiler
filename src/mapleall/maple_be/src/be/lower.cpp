@@ -1876,7 +1876,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
           newLabelIdx = GetLabelIdx(*mirModule.CurFunction());
           defaultLabel = mirBuilder->CreateStmtLabel(newLabelIdx);
         }
-        SwitchLowerer switchLowerer(mirModule, static_cast<SwitchNode&>(*stmt), switchAllocator);
+        SwitchLowerer switchLowerer(mirModule, static_cast<SwitchNode&>(*stmt), this, switchAllocator);
         BlockNode *blk = switchLowerer.LowerSwitch(newLabelIdx);
         if (blk->GetFirst() != nullptr && defaultLabel != nullptr && IsSwitchToRangeGoto(*blk)) {
           blk->AddStatement(defaultLabel);

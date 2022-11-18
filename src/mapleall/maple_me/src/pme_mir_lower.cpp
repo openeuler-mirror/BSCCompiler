@@ -120,7 +120,7 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     if (GetFuncProfData()) {
       GetFuncProfData()->CopyStmtFreq(evalstmt->GetStmtID(), ifstmt.GetStmtID());
     }
-  } else if (elseempty && !GetFuncProfData()) {
+  } else if (elseempty && !Options::profileUse && !Options::profileGen) {
     // brfalse <cond> <endlabel>
     // <thenPart>
     // label <endlabel>
@@ -157,7 +157,7 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
                         GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID());
       GetFuncProfData()->SetStmtFreq(labstmt->GetStmtID(), freq);
     }
-  } else if (thenempty && !GetFuncProfData()) {
+  } else if (thenempty && !Options::profileUse && !Options::profileGen) {
     // brtrue <cond> <endlabel>
     // <elsePart>
     // label <endlabel>
@@ -286,14 +286,16 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     }
     ifInfo->endLabel = endlabelidx;
   }
-  if (GetFuncProfData()) {
+  if (Options::profileUse || Options::profileGen) {
     // generate extra label to avoid critical edge
     LabelIdx extraLabelIdx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('x');
     preMeFunc->SetIfLabelCreatedByPreMe(extraLabelIdx);
     LabelNode *extraLabelNode = mirbuilder->CreateStmtLabel(extraLabelIdx);
     blk->AddStatement(extraLabelNode);
-    // set stmtfreqs
-    GetFuncProfData()->CopyStmtFreq(extraLabelNode->GetStmtID(), ifstmt.GetStmtID());
+    if (GetFuncProfData()) {
+      // set stmtfreqs
+      GetFuncProfData()->CopyStmtFreq(extraLabelNode->GetStmtID(), ifstmt.GetStmtID());
+    }
   }
   return blk;
 }
