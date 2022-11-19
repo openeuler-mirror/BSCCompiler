@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "driver_runner.h"
-#include <iostream>
 #include "compiler.h"
 #include "mpl_timer.h"
 #include "mir_function.h"
@@ -164,16 +163,21 @@ void DriverRunner::SolveCrossModuleInJava(MIRParser &parser) const {
   }
 }
 
+static std::string GetSingleFileName(const std::string input) {
+  size_t pos = input.find_last_of('/');
+  if (pos == std::string::npos) {
+    return input;
+  }
+  return input.substr(pos + 1);
+}
+
 void DriverRunner::SolveCrossModuleInC(MIRParser &parser) const {
   if (MeOption::optLevel < kLevelO2 || !Options::useInline ||
       !Options::useCrossModuleInline || Options::skipPhase == "inline" ||
       Options::importFileList == "") {
     return;
   }
-  char absPath[PATH_MAX];
-  if (theModule->GetFileName().size() > PATH_MAX || realpath(theModule->GetFileName().c_str(), absPath) == nullptr) {
-    CHECK_FATAL(false, "invalid file path");
-  }
+  std::string fileName = GetSingleFileName(theModule->GetFileName());
   std::ifstream infile(Options::importFileList);
   if (!infile.is_open()) {
     LogInfo::MapleLogger(kLlErr) << "Cannot open importfilelist file " << Options::importFileList << '\n';
@@ -182,7 +186,8 @@ void DriverRunner::SolveCrossModuleInC(MIRParser &parser) const {
   std::string input;
   while (getline(infile, input)) {
     TrimString(input);
-    if (input.empty() || input.find(absPath) != std::string::npos) {
+    // skip the mplt_inline file of this mirmodule to avoid duplicate definition.
+    if (input.empty() || GetSingleFileName(input).find(fileName) != std::string::npos) {
       continue;
     }
     std::ifstream optFile(input);
