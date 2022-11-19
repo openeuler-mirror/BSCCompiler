@@ -226,6 +226,7 @@ src_libcgphases = [
   "src/cg/cg_ssa_pre.cpp",
   "src/cg/cg_pgo_gen.cpp",
   "src/cg/cg_pgo_use.cpp",
+  "src/cg/cg_profile_use.cpp",
   "src/cg/regsaves.cpp",
   "src/cg/cg_critical_edge.cpp",
   "src/cg/alignment.cpp",

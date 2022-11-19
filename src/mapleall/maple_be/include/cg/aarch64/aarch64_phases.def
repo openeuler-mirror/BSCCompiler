@@ -16,6 +16,7 @@
  ADDTARGETPHASE("createstartendlabel", true);
  ADDTARGETPHASE("buildehfunc", !GetMIRModule()->IsCModule());
  ADDTARGETPHASE("handlefunction", true);
+ ADDTARGETPHASE("cgprofuse", Options::profileUse);
  ADDTARGETPHASE("moveargs", true);
  /* SSA PHASES */
  ADDTARGETPHASE("cgssaconstruct", CGOptions::DoCGSSA());
