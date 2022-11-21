@@ -246,9 +246,6 @@ class RegionIdentify {
   bool CheckCompatibilifyAmongRegionComponents(BaseNode &lhs, BaseNode& rhs);
   bool CheckCompatibilifyBetweenSrcs(BaseNode &lhs, BaseNode& rhs);
   bool HasSameStructure(RegionCandidate &lhs, RegionCandidate &rhs);
-  bool CompareSymbolStructure(const StIdx leftIdx, const StIdx rightIdx);
-  bool CompareRegStructure(const PregIdx leftIdx, const PregIdx rightIdx);
-  bool CompareConstStructure(const MIRConst *leftConst, const MIRConst *rightConst);
   StmtInfo *GetNearestNonnullStmtInfo(StmtInfoId index, bool forward);
 
   CollectIpaInfo *ipaInfo;
@@ -256,8 +253,10 @@ class RegionIdentify {
   std::unordered_map<StIdx, StIdx> symMap;
   std::unordered_map<PregIdx, PregIdx> leftRegMap;
   std::unordered_map<PregIdx, PregIdx> rightRegMap;
-  std::unordered_map<const MIRConst*, const MIRConst*> leftConstMap;
-  std::unordered_map<const MIRConst*, const MIRConst*> rightConstMap;
+  std::unordered_map<uint32, uint32> leftStrMap;
+  std::unordered_map<uint32, uint32> rightStrMap;
+  std::unordered_map<const MIRConst *, const MIRConst *> leftConstMap;
+  std::unordered_map<const MIRConst *, const MIRConst *> rightConstMap;
 };
 }
 #endif  // MAPLE_IPA_INCLUDE_REGION_IDENTIFY_H

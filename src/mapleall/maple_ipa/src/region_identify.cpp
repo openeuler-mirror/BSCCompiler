@@ -36,18 +36,17 @@ const bool RegionCandidate::HasDefinitionOutofRegion(DefUsePositions &defUse) co
 }
 
 void RegionCandidate::CollectRegionInputAndOutput(StmtInfo &stmtInfo, CollectIpaInfo &ipaInfo) {
-  for (auto defUsePositions : stmtInfo.GetRegDefUse()) {
+  for (auto &defUsePositions : stmtInfo.GetRegDefUse()) {
     auto &regIdx = defUsePositions.first;
-    auto src = SymbolRegPair(StIdx(0), defUsePositions.first);
-    for (auto usePos : defUsePositions.second.usePositions) {
+    auto src = SymbolRegPair(StIdx(0), regIdx);
+    for (const auto &usePos : defUsePositions.second.usePositions) {
       if (usePos >= startId && usePos <= endId) {
         continue;
       }
       (void)regionOutputs.insert(src);
       auto &useStmtInfo = ipaInfo.GetStmtInfo()[usePos];
       auto iter = useStmtInfo.GetRegDefUse().find(regIdx);
-      if (iter != useStmtInfo.GetRegDefUse().end() &&
-          HasDefinitionOutofRegion(iter->second)) {
+      if (iter != useStmtInfo.GetRegDefUse().end() && HasDefinitionOutofRegion(iter->second)) {
         (void)regionInputs.insert(src);
       }
     }
@@ -55,18 +54,17 @@ void RegionCandidate::CollectRegionInputAndOutput(StmtInfo &stmtInfo, CollectIpa
       (void)regionInputs.insert(src);
     }
   }
-  for (auto defUsePositions : stmtInfo.GetSymbolDefUse()) {
+  for (auto &defUsePositions : stmtInfo.GetSymbolDefUse()) {
     auto &stIdx = defUsePositions.first;
     auto src = SymbolRegPair(stIdx, PregIdx(0));
-    for (auto usePos : defUsePositions.second.usePositions) {
+    for (const auto &usePos : defUsePositions.second.usePositions) {
       if (usePos >= startId && usePos <= endId) {
         continue;
       }
       (void)regionOutputs.insert(src);
       auto &useStmtInfo = ipaInfo.GetStmtInfo()[usePos];
       auto iter = useStmtInfo.GetSymbolDefUse().find(stIdx);
-      if (iter != useStmtInfo.GetSymbolDefUse().end() &&
-          HasDefinitionOutofRegion(iter->second)) {
+      if (iter != useStmtInfo.GetSymbolDefUse().end() && HasDefinitionOutofRegion(iter->second)) {
         (void)regionInputs.insert(src);
       }
     }
@@ -146,7 +144,7 @@ void RegionIdentify::RegionInit() {
 void RegionIdentify::CreateRegionCandidates(SuffixArray &sa) {
   for (auto *subStrings : sa.GetRepeatedSubStrings()) {
     std::vector<RegionCandidate> candidates;
-    for (auto occurrence : subStrings->GetOccurrences()) {
+    for (auto &occurrence : subStrings->GetOccurrences()) {
       auto startPosition = occurrence.first;
       auto endPosition = occurrence.second;
       auto *startStmtInfo = GetNearestNonnullStmtInfo(startPosition, true);
@@ -220,39 +218,57 @@ bool RegionIdentify::CheckOverlapAmongGroupRegions(RegionGroup &group, RegionCan
   return false;
 }
 
+template <typename T, typename Map>
+static bool CompareStructure(const T &leftElement, const T &rightElement, Map &container) {
+  auto iter = container.find(leftElement);
+  if (iter != container.end()) {
+    if (iter->second != rightElement) {
+      return false;
+    }
+  } else {
+    container[leftElement] = rightElement;
+  }
+  return true;
+}
+
 bool RegionIdentify::CheckCompatibilifyBetweenSrcs(BaseNode &lhs, BaseNode &rhs) {
   switch (lhs.GetOpCode()) {
     case OP_dassign: {
-      auto leftStIdx = static_cast<DassignNode&>(lhs).GetStIdx();
-      auto rightStIdx = static_cast<DassignNode&>(rhs).GetStIdx();
-      if (!CompareSymbolStructure(leftStIdx, rightStIdx)) {
+      auto leftIdx = static_cast<DassignNode&>(lhs).GetStIdx();
+      auto rightIdx = static_cast<DassignNode&>(rhs).GetStIdx();
+      if (!CompareStructure(leftIdx, rightIdx, symMap) || !CompareStructure(rightIdx, leftIdx, symMap)) {
         return false;
       }
       break;
     }
     case OP_regassign: {
-      auto leftRegIdx = static_cast<RegassignNode&>(lhs).GetRegIdx();
-      auto rightRegIdx = static_cast<RegassignNode&>(rhs).GetRegIdx();
-      if (!CompareRegStructure(leftRegIdx, rightRegIdx)) {
+      auto leftIdx = static_cast<RegassignNode&>(lhs).GetRegIdx();
+      auto rightIdx = static_cast<RegassignNode&>(rhs).GetRegIdx();
+      if (!CompareStructure(leftIdx, rightIdx, leftRegMap) || !CompareStructure(rightIdx, leftIdx, rightRegMap)) {
         return false;
       }
       break;
     }
     case OP_addrof:
     case OP_dread: {
-      auto leftStIdx = static_cast<DreadNode&>(lhs).GetStIdx();
-      auto rightStIdx = static_cast<DreadNode&>(rhs).GetStIdx();
-      return CompareSymbolStructure(leftStIdx, rightStIdx);
+      auto leftIdx = static_cast<DreadNode&>(lhs).GetStIdx();
+      auto rightIdx = static_cast<DreadNode&>(rhs).GetStIdx();
+      return CompareStructure(leftIdx, rightIdx, symMap) && CompareStructure(rightIdx, leftIdx, symMap);
     }
     case OP_regread: {
-      auto leftRegIdx = static_cast<RegreadNode&>(lhs).GetRegIdx();
-      auto rightRegIdx = static_cast<RegreadNode&>(rhs).GetRegIdx();
-      return CompareRegStructure(leftRegIdx, rightRegIdx);
+      auto leftIdx = static_cast<RegreadNode&>(lhs).GetRegIdx();
+      auto rightIdx = static_cast<RegreadNode&>(rhs).GetRegIdx();
+      return CompareStructure(leftIdx, rightIdx, leftRegMap) && CompareStructure(rightIdx, leftIdx, rightRegMap);
     }
     case OP_constval: {
       auto *leftVal = static_cast<ConstvalNode&>(lhs).GetConstVal();
       auto *rightVal = static_cast<ConstvalNode&>(rhs).GetConstVal();
-      return CompareConstStructure(leftVal, rightVal);
+      return CompareStructure(leftVal, rightVal, leftConstMap) && CompareStructure(rightVal, leftVal, rightConstMap);
+    }
+    case OP_conststr: {
+      auto leftIdx = static_cast<ConststrNode&>(lhs).GetStrIdx().get();
+      auto rightIdx = static_cast<ConststrNode&>(rhs).GetStrIdx().get();
+      return CompareStructure(leftIdx, rightIdx, leftStrMap) && CompareStructure(rightIdx, leftIdx, rightStrMap);
     }
     default: {
       break;
@@ -291,66 +307,6 @@ bool RegionIdentify::CheckCompatibilifyAmongRegionComponents(BaseNode &lhs, Base
     if (!CheckCompatibilifyAmongRegionComponents(*lhs.Opnd(i), *rhs.Opnd(i))) {
       return false;
     }
-  }
-  return true;
-}
-
-bool RegionIdentify::CompareConstStructure(const MIRConst *leftConst, const MIRConst *rightConst) {
-  if (leftConstMap.find(leftConst) != leftConstMap.end()) {
-    if (leftConstMap[leftConst] != rightConst) {
-      return false;
-    }
-  } else {
-    leftConstMap[leftConst] = rightConst;
-  }
-  if (rightConstMap.find(rightConst) != rightConstMap.end()) {
-    if (rightConstMap[rightConst] != leftConst) {
-      return false;
-    }
-  } else {
-    rightConstMap[rightConst] = leftConst;
-  }
-  return true;
-}
-
-bool RegionIdentify::CompareRegStructure(const PregIdx leftIdx, const PregIdx rightIdx) {
-  if (leftRegMap.find(leftIdx) != leftRegMap.end()) {
-    if (leftRegMap[leftIdx] != rightIdx) {
-      return false;
-    }
-  } else {
-    leftRegMap[leftIdx] = rightIdx;
-  }
-  if (rightRegMap.find(rightIdx) != rightRegMap.end()) {
-    if (rightRegMap[rightIdx] != leftIdx) {
-      return false;
-    }
-  } else {
-    rightRegMap[rightIdx] = leftIdx;
-  }
-  return true;
-}
-
-bool RegionIdentify::CompareSymbolStructure(const StIdx leftIdx, const StIdx rightIdx) {
-  if (leftIdx.IsGlobal() != rightIdx.IsGlobal()) {
-    return false;
-  }
-  if (leftIdx.IsGlobal() && rightIdx.IsGlobal()) {
-    return leftIdx == rightIdx;
-  }
-  if (symMap.find(leftIdx) != symMap.end()) {
-    if (symMap[leftIdx] != rightIdx) {
-      return false;
-    }
-  } else {
-    symMap[leftIdx] = rightIdx;
-  }
-  if (symMap.find(rightIdx) != symMap.end()) {
-    if (symMap[rightIdx] != leftIdx) {
-      return false;
-    }
-  } else {
-    symMap[rightIdx] = leftIdx;
   }
   return true;
 }
