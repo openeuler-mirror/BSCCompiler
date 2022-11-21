@@ -1553,9 +1553,9 @@ void MeCFG::CreateBasicBlocks() {
         curBB->SetBBLabel(labelIdx);
         // label node is not real node in bb, get frequency information to bb
         if (Options::profileUse && func.GetMirFunc()->GetFuncProfData()) {
-          auto freq = func.GetMirFunc()->GetFuncProfData()->GetStmtFreq(stmt->GetStmtID());
+          int64 freq = func.GetMirFunc()->GetFuncProfData()->GetStmtFreq(stmt->GetStmtID());
           if (freq >= 0) {
-            curBB->SetFrequency(freq);
+            curBB->SetFrequency(static_cast<uint64>(freq));
           }
         }
         break;
@@ -1625,6 +1625,10 @@ void MeCFG::CreateBasicBlocks() {
     lastBB->SetFirst(func.GetMIRModule().GetMIRBuilder()->CreateStmtReturn(nullptr));
     lastBB->SetLast(lastBB->GetStmtNodes().begin().d());
     lastBB->SetKindReturn();
+    if (updateFreq) {
+      FuncProfInfo *funcData = func.GetMirFunc()->GetFuncProfData();
+      funcData->stmtFreqs[lastBB->GetLast().GetStmtID()] = 0;
+    }
   } else if (lastBB->GetKind() == kBBUnknown) {
     lastBB->SetKindReturn();
     lastBB->SetAttributes(kBBAttrIsExit);
@@ -1860,6 +1864,40 @@ void MeCFG::SwapBBId(BB &bb1, BB &bb2) {
   bb2.SetBBId(tmp);
 }
 
+// bb must have 2 successors; construct the edge frequencies for the 2 edges
+inline void ConstructEdgeFreqForBBWith2Succs(BB *bb) {
+  BB *fallthru = bb->GetSucc(0);
+  BB *targetBB = bb->GetSucc(1);
+  if (fallthru->GetPred().size() == 1) {
+    uint64 succ0Freq = fallthru->GetFrequency();
+    bb->PushBackSuccFreq(succ0Freq);
+    if (bb->GetFrequency() > succ0Freq) {
+      bb->PushBackSuccFreq(bb->GetFrequency() - succ0Freq);
+    } else {
+      bb->PushBackSuccFreq(0);
+    }
+  } else if (targetBB->GetPred().size() == 1) {
+    uint64 succ1Freq = targetBB->GetFrequency();
+    if (bb->GetAttributes(kBBAttrWontExit) && bb->GetSuccFreq().size() == 1) {
+      // special case: WontExitAnalysis() has pushed 0 to bb->succFreq
+      bb->GetSuccFreq()[0] = bb->GetFrequency();
+      bb->PushBackSuccFreq(0);
+    } else if (bb->GetFrequency() >= succ1Freq) {  // tolerate inaccuracy
+      bb->PushBackSuccFreq(0);
+      bb->PushBackSuccFreq(bb->GetFrequency());
+    } else {
+      bb->PushBackSuccFreq(bb->GetFrequency() - succ1Freq);
+      bb->PushBackSuccFreq(succ1Freq);
+    }
+  } else if (fallthru->GetFrequency() > targetBB->GetFrequency()) {
+    bb->PushBackSuccFreq(bb->GetFrequency());
+    bb->PushBackSuccFreq(0);
+  } else {
+    bb->PushBackSuccFreq(0);
+    bb->PushBackSuccFreq(bb->GetFrequency());
+  }
+}
+
 // set bb succ frequency from bb freq
 // no critical edge is expected
 void MeCFG::ConstructEdgeFreqFromBBFreq() {
@@ -1873,21 +1911,7 @@ void MeCFG::ConstructEdgeFreqFromBBFreq() {
     if (bb->GetSucc().size() == 1) {
       bb->PushBackSuccFreq(bb->GetFrequency());
     } else if (bb->GetSucc().size() == 2) {
-      auto *fallthru = bb->GetSucc(0);
-      auto *targetBB = bb->GetSucc(1);
-      if (fallthru->GetPred().size() == 1) {
-        auto succ0Freq = fallthru->GetFrequency();
-        bb->PushBackSuccFreq(succ0Freq);
-        ASSERT(bb->GetFrequency() >= succ0Freq, "sanity check");
-        bb->PushBackSuccFreq(bb->GetFrequency() - succ0Freq);
-      } else if (targetBB->GetPred().size() == 1) {
-        auto succ1Freq = targetBB->GetFrequency();
-        ASSERT(bb->GetFrequency() >= succ1Freq, "sanity check");
-        bb->PushBackSuccFreq(bb->GetFrequency() - succ1Freq);
-        bb->PushBackSuccFreq(succ1Freq);
-      } else {
-        CHECK_FATAL(false, "ConstructEdgeFreqFromBBFreq::NYI critical edge");
-      }
+      ConstructEdgeFreqForBBWith2Succs(bb);
     } else if (bb->GetSucc().size() > 2) {
       // switch case, no critical edge is supposted
       for (size_t i = 0; i < bb->GetSucc().size(); ++i) {
@@ -1910,14 +1934,24 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     if ((*bIt)->IsEmpty()) continue;
     StmtNode &first = (*bIt)->GetFirst();
+    StmtNode &last = (*bIt)->GetLast();
     if (funcData->stmtFreqs.count(first.GetStmtID()) > 0) {
       (*bIt)->SetFrequency(funcData->stmtFreqs[first.GetStmtID()]);
-    } else if (funcData->stmtFreqs.count((*bIt)->GetLast().GetStmtID()) > 0) {
-      (*bIt)->SetFrequency(funcData->stmtFreqs[(*bIt)->GetLast().GetStmtID()]);
+    } else if (funcData->stmtFreqs.count(last.GetStmtID()) > 0) {
+      (*bIt)->SetFrequency(funcData->stmtFreqs[last.GetStmtID()]);
     } else {
-      LogInfo::MapleLogger() << "ERROR::  bb " << (*bIt)->GetBBId() << "frequency is not set"
-                             << "\n";
-      ASSERT(0, "no freq set");
+      bool foundFreq = false;
+      for (StmtNode &stmt : (*bIt)->GetStmtNodes()) {
+        if (funcData->stmtFreqs.count(stmt.GetStmtID()) > 0) {
+          (*bIt)->SetFrequency(funcData->stmtFreqs[stmt.GetStmtID()]);
+          foundFreq = true;
+          break;
+        }
+      }
+      if (not foundFreq) {
+        LogInfo::MapleLogger() << "ERROR::  bb " << (*bIt)->GetBBId() << " has not stmt with set freq" << "\n";
+        CHECK_FATAL(0, "MeCFG::ConstructBBFreqFromStmtFreq: cannot set BB freq");
+      }
     }
   }
   // add common entry and common exit
@@ -1937,9 +1971,6 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   ConstructEdgeFreqFromBBFreq();
   // clear stmtFreqs since cfg frequency is create
   funcData->stmtFreqs.clear();
-
-  // set updateFrequency with true
-  updateFreq = true;
 }
 
 void MeCFG::ConstructStmtFreq() {
@@ -2086,6 +2117,10 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
   MemPool *meCfgMp = GetPhaseMemPool();
   theCFG = meCfgMp->New<MeCFG>(meCfgMp, f);
   f.SetTheCfg(theCFG);
+
+  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
+    theCFG->SetUpdateCFGFreq(true);
+  }
   theCFG->CreateBasicBlocks();
   if (theCFG->NumBBs() == 0) {
     /* there's no basicblock generated */
@@ -2104,7 +2139,7 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
   }
   theCFG->Verify();
   // construct bb freq from stmt freq
-  if (Options::profileUse && f.GetMirFunc()->GetFuncProfData()) {
+  if (theCFG->UpdateCFGFreq()) {
     theCFG->ConstructBBFreqFromStmtFreq();
     if (theCFG->DumpIRProfileFile()) {
       std::string fileName = "after-mecfgbuild";

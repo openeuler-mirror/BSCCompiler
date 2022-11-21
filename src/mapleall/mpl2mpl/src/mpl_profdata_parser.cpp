@@ -87,6 +87,7 @@ int MplProfDataParser::ReadMapleProfileData() {
   std::string mprofDataFile = Options::profile;
   if (mprofDataFile.empty()) {
     if (const char *envGcovprefix = std::getenv("GCOV_PREFIX")) {
+      std::string fileNameWithPath = m.GetFileNameWithPath();
       static_cast<void>(mprofDataFile.append(envGcovprefix));
       if (mprofDataFile.back() != '/') {
         static_cast<void>(mprofDataFile.append("/"));
@@ -102,33 +103,30 @@ int MplProfDataParser::ReadMapleProfileData() {
           LogInfo::MapleLogger() << "set env GCOV_PREFIX_STRIP=" << strip << std::endl;
         }
       }
-      std::string profDataFileName = m.GetProfileDataFileName();
-      if (dumpDetail) {
-        LogInfo::MapleLogger() << "profdata file stem before strip: " << profDataFileName << std::endl;
-      }
-      // reduce path in profDataFileName
-      while (stripnum > 0 && profDataFileName.size() > 1) {
-        size_t pos = profDataFileName.find_first_of("/", 1);
+      // strip path in fileNameWithPath according to stripnum
+      while (stripnum > 0 && fileNameWithPath.size() > 1) {
+        size_t pos = fileNameWithPath.find_first_of("/", 1);
         if (pos == std::string::npos) {
           break;
         }
-        profDataFileName = profDataFileName.substr(pos);
+        fileNameWithPath= fileNameWithPath.substr(pos);
         stripnum--;
       }
       if (dumpDetail) {
-        LogInfo::MapleLogger() << "profdata file stem after strip: " << profDataFileName << std::endl;
+        LogInfo::MapleLogger() << "profdata file stem after strip: " << fileNameWithPath<< std::endl;
       }
-      CHECK_FATAL(profDataFileName.size() > 0, "sanity check");
-      static_cast<void>(mprofDataFile.append(profDataFileName));
+      CHECK_FATAL(fileNameWithPath.size() > 0, "sanity check");
+      static_cast<void>(mprofDataFile.append(fileNameWithPath));
     } else {
-      // if gcov_prefix is not set, find .mprofdata according to m.profiledata
-      mprofDataFile = m.GetProfileDataFileName();
-      if (dumpDetail) {
-        LogInfo::MapleLogger() << "NO ENV, profdata file stem: " << mprofDataFile << std::endl;
+      mprofDataFile = m.GetFileName();
+      // strip path in mprofDataFile
+      size_t pos = mprofDataFile.find_last_of("/");
+      if (pos != std::string::npos) {
+        mprofDataFile = mprofDataFile.substr(pos + 1);
       }
     }
-    // add .mprofdata
-    static_cast<void>(mprofDataFile.append(namemangler::kMplProfFileNameExt));
+    // change the suffix to .mprofdata
+    mprofDataFile = mprofDataFile.substr(0, mprofDataFile.find_last_of(".")) + namemangler::kMplProfFileNameExt;
   }
   ASSERT(!mprofDataFile.empty(), "null check");
   LogInfo::MapleLogger() << "profileUse will open " << mprofDataFile << std::endl;
@@ -136,13 +134,18 @@ int MplProfDataParser::ReadMapleProfileData() {
   profData = mempool->New<MplProfileData>(mempool, &alloc);
   // read .mprofdata
   std::ifstream inputStream(mprofDataFile, (std::ios::in | std::ios::binary));
-  CHECK_FATAL(inputStream, "Could not open the file %s, quit\n", mprofDataFile.c_str());
+  if (!inputStream) {
+    if (opts::missingProfDataIsError) {
+      CHECK_FATAL(inputStream, "Could not open profile data file %s, quit\n", mprofDataFile.c_str());
+    } else {
+      WARN(kLncWarn, "Could not open profile data file %s\n", mprofDataFile.c_str());
+    }
+    return 1;
+  }
   // get length of file
   static_cast<void>(inputStream.seekg(0, std::ios::end));
   uint32_t length = static_cast<uint32>(inputStream.tellg());
   static_cast<void>(inputStream.seekg(0, std::ios::beg));
-  const uint32_t sizeThreshold = 1024 * 10;
-  CHECK_FATAL(length <= sizeThreshold, "NYI::large .mprofdata file size is larger than threashold, do chunk memory\n");
 
   std::unique_ptr<char[]> buffer = std::make_unique<char[]>(length);
   static_cast<void>(inputStream.read(buffer.get(), length));
@@ -175,6 +178,9 @@ void MMplProfDataParser::GetAnalysisDependence(AnalysisDep &aDep) const {
 bool MMplProfDataParser::PhaseRun(maple::MIRModule &m) {
   MemPool *memPool = m.GetMemPool();  // use global pool to store profile data
   bool enableDebug = false;            // true to dump trace
+  if (m.GetFunctionList().empty()) {
+    return false;       // there is no executable code
+  }
   MplProfDataParser parser(m, memPool, enableDebug);
   int res = parser.ReadMapleProfileData();
   if (res) {
