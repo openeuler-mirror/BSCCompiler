@@ -23,18 +23,27 @@ using namespace maple;
 
 class AArch64FPLROffsetAdjustment : public FrameFinalize {
  public:
-  explicit AArch64FPLROffsetAdjustment(CGFunc &func) : FrameFinalize(func) {}
+  explicit AArch64FPLROffsetAdjustment(CGFunc &func)
+    : FrameFinalize(func),
+      aarchCGFunc(static_cast<AArch64CGFunc*>(&func)),
+      isLmbc(aarchCGFunc->GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc),
+      stackBaseReg((isLmbc || aarchCGFunc->UseFP()) ? R29 : RSP) {}
 
   ~AArch64FPLROffsetAdjustment() override = default;
 
   void Run() override;
 
  private:
-  void AdjustmentOffsetForOpnd(Insn &insn, AArch64CGFunc &aarchCGFunc) const;
-  void AdjustmentOffsetForImmOpnd(Insn &insn, uint32 index, AArch64CGFunc &aarchCGFunc) const;
-  void AdjustmentOffsetForFPLR();
+  void AdjustmentOffsetForOpnd(Insn &insn);
+  void AdjustmentOffsetForImmOpnd(Insn &insn, uint32 index) const;
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */
-  void AdjustmentStackPointer(Insn &insn, AArch64CGFunc &aarchCGFunc) const;
+  void AdjustmentStackPointer(Insn &insn) const;
+  void AdjustMemBaseReg(Insn &insn, uint32 i, bool &replaceFP);
+  void AdjustMemOfstVary(Insn &insn, uint32 i);
+
+  AArch64CGFunc *aarchCGFunc;
+  bool isLmbc;
+  AArch64reg stackBaseReg;
 };
 } /* namespace maplebe */
 

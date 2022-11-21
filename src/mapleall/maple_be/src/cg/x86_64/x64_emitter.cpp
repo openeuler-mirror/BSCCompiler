@@ -47,32 +47,158 @@ void X64Emitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std::string
   }
 }
 
-void X64OpndEmitVisitor::Visit(maplebe::CGRegOperand *v) {
+void X64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
+  ASSERT(v->IsRegister(), "NIY");
+  /* check legality of register operand: reg no. should not be larger than 100 or equal to 0 */
+  ASSERT(v->IsPhysicalRegister(), "register is still virtual");
+  ASSERT(v->GetRegisterNumber() > 0, "register no. is 0: ERR");
   /* Mapping with physical register after register allocation is done
    * try table-driven register mapping ? */
-  bool r32 = (v->GetSize() == k32BitSize);
-  emitter.Emit("%").Emit(X64CG::intRegNames[(r32 ? X64CG::kR32List : X64CG::kR64List)][v->GetRegisterNumber()]);
+  uint8 regType = -1;
+  switch (v->GetSize()) {
+    case k8BitSize:
+      regType = v->IsHigh8Bit() ? X64CG::kR8HighList : X64CG::kR8LowList;
+      break;
+    case k16BitSize:
+      regType = X64CG::kR16List;
+      break;
+    case k32BitSize:
+      regType = X64CG::kR32List;
+      break;
+    case k64BitSize:
+      regType = X64CG::kR64List;
+      break;
+    default:
+      CHECK_FATAL(false, "unkown reg size");
+      break;
+  }
+  emitter.Emit("%").Emit(X64CG::intRegNames[regType][v->GetRegisterNumber()]);
 }
-void X64OpndEmitVisitor::Visit(maplebe::CGImmOperand *v) {
+
+void X64OpndEmitVisitor::Visit(maplebe::ImmOperand *v) {
+  ASSERT(v->IsImmediate(), "NIY");
   emitter.Emit("$");
-  emitter.Emit(v->GetValue());
+  if (v->GetKind() == maplebe::Operand::kOpdStImmediate) {
+    /* symbol form imm */
+    emitter.Emit(v->GetName());
+  } else {
+    /* general imm */
+    emitter.Emit(v->GetValue());
+  }
+  return;
 }
-void X64OpndEmitVisitor::Visit(maplebe::CGMemOperand *v) {
-  if (v->GetBaseOfst() != nullptr) {
-    emitter.Emit(v->GetBaseOfst()->GetValue());
+
+void X64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
+  if (v->GetOffsetOperand() != nullptr) {
+    if (v->GetSymbol() != nullptr || v->GetOffsetOperand()->IsStImmediate()) {
+      /* symbol form offset */
+      const MIRSymbol *symbol = v->GetSymbol() ? v->GetSymbol() : v->GetOffsetOperand()->GetSymbol();
+      CHECK_NULL_FATAL(symbol);
+      emitter.Emit(symbol->GetName());
+      MIRStorageClass storageClass = symbol->GetStorageClass();
+      bool isLocalVar = symbol->IsLocal();
+      if (storageClass == kScPstatic && isLocalVar) {
+        PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+        emitter.Emit(pIdx);
+      }
+      if (v->GetOffsetOperand()->GetValue() != 0) {
+        emitter.Emit("+").Emit(v->GetOffsetOperand()->GetValue());
+      }
+
+    } else {
+      /* general offset */
+      emitter.Emit(v->GetOffsetOperand()->GetValue());
+    }
   }
+  emitter.Emit("(");
   if (v->GetBaseRegister() != nullptr) {
-    emitter.Emit("(");
-    Visit(v->GetBaseRegister());
-    emitter.Emit(")");
+    /* Emit RBP or EBP only when index register doesn't exist */
+    if ((v->GetIndexRegister() != nullptr && v->GetBaseRegister()->GetRegisterNumber() != x64::RBP) ||
+        v->GetIndexRegister() == nullptr) {
+      Visit(v->GetBaseRegister());
+    }
   }
+  if (v->GetIndexRegister() != nullptr) {
+    emitter.Emit(", ");
+    Visit(v->GetIndexRegister());
+    emitter.Emit(", ").Emit(v->GetScaleOperand()->GetValue());
+  }
+  emitter.Emit(")");
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::LabelOperand *v) {
+  ASSERT(v->IsLabel(), "NIY");
+  const MapleString &labelName = v->GetParentFunc();
+  /* If this label indicates a bb's addr (named as: ".L." + UniqueID + "__" + Offset),
+   * prefix "$" is not required. */
+  if (!labelName.empty() && labelName[0] != '.') {
+    emitter.Emit("$");
+  }
+  emitter.Emit(labelName);
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::FuncNameOperand *v) {
+  emitter.Emit(v->GetName());
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::ListOperand *v) {
+  CHECK_FATAL(false, "do not run here");
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::StImmOperand *v) {
+  CHECK_FATAL(false, "do not run here");
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::CondOperand *v) {
+  CHECK_FATAL(false, "do not run here");
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::BitShiftOperand *v) {
+  CHECK_FATAL(false, "do not run here");
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::ExtendShiftOperand *v) {
+  CHECK_FATAL(false, "do not run here");
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::CommentOperand *v) {
+  CHECK_FATAL(false, "do not run here");
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::OfstOperand *v) {
+  CHECK_FATAL(false, "do not run here");
 }
 
 void DumpTargetASM(Emitter &emitter, Insn &insn) {
   emitter.Emit("\t");
-  const InsnDescription &curMd = X64CG::kMd[insn.GetMachineOpcode()];
+  const InsnDesc &curMd = X64CG::kMd[insn.GetMachineOpcode()];
+
+  /* Get Operands Number */
+  size_t size = 0;
+  std::string format(curMd.format);
+  for (char c : format) {
+    if (c != ',') {
+      size = size + 1;
+    }
+  }
+
+#if DEBUG
+  insn.Check();
+#endif
+
   emitter.Emit(curMd.GetName()).Emit("\t");
-  size_t size = insn.GetOperandSize();
+  /* In AT&T assembly syntax, Indirect jump/call operands are indicated
+   * with asterisk "*" (as opposed to direct).
+   * Direct jump/call: jmp .L.xxx__x or callq funcName
+   * Indirect jump/call: jmp *%rax; jmp *(%rax) or callq *%rax; callq *(%rax)
+   */
+  if (curMd.IsCall() || curMd.IsUnCondBranch()) {
+    const OpndDesc* opndDesc = curMd.GetOpndDes(0);
+    if (opndDesc->IsRegister() || opndDesc->IsMem()) {
+      emitter.Emit("*");
+    }
+  }
+
   for (int i = 0; i < size; i++) {
     Operand *opnd = &insn.GetOperand(i);
     X64OpndEmitVisitor visitor(emitter);
@@ -91,25 +217,51 @@ void EmitFunctionHeader(FuncEmitInfo &funcEmitInfo) {
   Emitter &emitter = *currCG->GetEmitter();
 
   if (cgFunc.GetFunction().GetAttr(FUNCATTR_section)) {
-    emitter.EmitSymbolsWithPrefixSection(*funcSymbol);
+    const std::string &sectionName = cgFunc.GetFunction().GetAttrs().GetPrefixSectionName();
+    (void)emitter.Emit("\t.section  " + sectionName).Emit(",\"ax\",@progbits\n");
   } else {
     emitter.EmitAsmLabel(kAsmText);
   }
-  emitter.EmitAsmLabel(*funcSymbol,kAsmAlign);
+  emitter.EmitAsmLabel(*funcSymbol, kAsmAlign);
 
   if (funcSymbol->GetFunction()->GetAttr(FUNCATTR_weak)) {
     emitter.EmitAsmLabel(*funcSymbol, kAsmWeak);
     emitter.EmitAsmLabel(*funcSymbol, kAsmHidden);
   } else if (funcSymbol->GetFunction()->GetAttr(FUNCATTR_local)) {
     emitter.EmitAsmLabel(*funcSymbol, kAsmLocal);
-  } else {
+  } else if (!funcSymbol->GetFunction()->GetAttr(FUNCATTR_static)) {
     emitter.EmitAsmLabel(*funcSymbol, kAsmGlbl);
     if (!currCG->GetMIRModule()->IsCModule()) {
       emitter.EmitAsmLabel(*funcSymbol, kAsmHidden);
     }
   }
-  emitter.EmitAsmLabel(*funcSymbol, kAsmType);
+  emitter.EmitAsmLabel(kAsmType);
+  emitter.Emit(funcSymbol->GetName()).Emit(", %function\n");
   emitter.EmitAsmLabel(*funcSymbol, kAsmSyname);
+}
+
+/* Specially, emit switch table here */
+void EmitJmpTable(Emitter &emitter, CGFunc &cgFunc) {
+  const MIRSymbol *funcSymbol = cgFunc.GetFunction().GetFuncSymbol();
+  for (auto &it : cgFunc.GetEmitStVec()) {
+    MIRSymbol *st = it.second;
+    ASSERT(st->IsReadOnly(), "NYI");
+    emitter.Emit("\n");
+    emitter.EmitAsmLabel(*funcSymbol, kAsmAlign);
+    emitter.Emit(st->GetName() + ":\n");
+    MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
+    CHECK_FATAL(arrayConst != nullptr, "null ptr check");
+    PUIdx pIdx = cgFunc.GetMirModule().CurFunction()->GetPuidx();
+    const std::string &idx = strdup(std::to_string(pIdx).c_str());
+    for (size_t i = 0; i < arrayConst->GetConstVec().size(); i++) {
+      MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
+      CHECK_FATAL(lblConst != nullptr, "null ptr check");
+      emitter.EmitAsmLabel(kAsmQuad);
+      (void)emitter.Emit(".L." + idx).Emit("__").Emit(lblConst->GetValue());
+      (void)emitter.Emit("\n");
+    }
+    (void)emitter.Emit("\n");
+  }
 }
 
 void X64Emitter::Run(FuncEmitInfo &funcEmitInfo) {
@@ -139,6 +291,9 @@ void X64Emitter::Run(FuncEmitInfo &funcEmitInfo) {
       DumpTargetASM(emitter, *insn);
     }
   }
+
+  EmitJmpTable(emitter, cgFunc);
+
   emitter.EmitAsmLabel(*funcSymbol, kAsmSize);
 }
 

@@ -490,9 +490,7 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
 
   OfstOperand *offsetOpnd =
       &aarchCGFunc->CreateOfstOpnd(offset + k16BitSize, k64BitSize);
-  MemOperand *throwMem = aarchCGFunc->CreateMemOperand(
-      MemOperand::kAddrModeBOi, k64BitSize, baseOpnd, static_cast<RegOperand*>(nullptr), offsetOpnd,
-      nullptr);
+  MemOperand *throwMem = aarchCGFunc->CreateMemOperand(k64BitSize, baseOpnd, *offsetOpnd);
   aarchCGFunc->SetCatchOpnd(*throwMem);
   if (CGOptions::IsArm64ilp32()) {
     segLocals.SetSize(segLocals.GetSize() + k8ByteSize);

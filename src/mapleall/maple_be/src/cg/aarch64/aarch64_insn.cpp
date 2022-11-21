@@ -120,129 +120,162 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
   MemOperand::AArch64AddressingMode addressMode = a64v->GetAddrMode();
 #if DEBUG
   const InsnDesc *md = &AArch64CG::kMd[emitter.GetCurrentMOP()];
-  bool isLDSTpair = md->IsLoadStorePair();
   ASSERT(md->Is64Bit() || md->GetOperandSize() <= k32BitSize || md->GetOperandSize() == k128BitSize,
          "unexpected opnd size");
 #endif
-  if (addressMode == MemOperand::kAddrModeBOi) {
-    (void)emitter.Emit("[");
-    auto *baseReg = v->GetBaseRegister();
-    ASSERT(baseReg != nullptr, "expect an RegOperand here");
-    uint32 baseSize = baseReg->GetSize();
-    if (baseSize != k64BitSize) {
-      baseReg->SetSize(k64BitSize);
-    }
-    EmitIntReg(*baseReg);
-    baseReg->SetSize(baseSize);
-    OfstOperand *offset = a64v->GetOffsetImmediate();
-    if (offset != nullptr) {
-#ifndef USE_32BIT_REF  /* can be load a ref here */
-      /*
-       * Cortex-A57 Software Optimization Guide:
-       * The ARMv8-A architecture allows many types of load and store accesses to be arbitrarily aligned.
-       * The Cortex- A57 processor handles most unaligned accesses without performance penalties.
-       */
-#if DEBUG
-      if (a64v->IsOffsetMisaligned(md->GetOperandSize())) {
-        INFO(kLncInfo, "The Memory operand's offset is misaligned:", "");
-
+  switch (addressMode) {
+    case MemOperand::kAddrModeUndef: CHECK_FATAL(false, "addressmode undef!");
+    case MemOperand::kScale: CHECK_FATAL(false, "undef mode in aarch64!");
+    case MemOperand::kBOI: {
+      (void)emitter.Emit("[");
+      auto *baseReg = v->GetBaseRegister();
+      if (baseReg->GetSize() != k64BitSize) {
+        baseReg->SetSize(k64BitSize);
       }
-#endif
-#endif  /* USE_32BIT_REF */
-      if (a64v->IsPostIndexed()) {
-        ASSERT(!a64v->IsSIMMOffsetOutOfRange(offset->GetOffsetValue(), md->Is64Bit(), isLDSTpair),
-               "should not be SIMMOffsetOutOfRange");
-        (void)emitter.Emit("]");
-        if (!offset->IsZero()) {
-          (void)emitter.Emit(", ");
-          Visit(offset);
-        }
-      } else if (a64v->IsPreIndexed()) {
-        ASSERT(!a64v->IsSIMMOffsetOutOfRange(offset->GetOffsetValue(), md->Is64Bit(), isLDSTpair),
-               "should not be SIMMOffsetOutOfRange");
-        if (!offset->IsZero()) {
-          (void)emitter.Emit(",");
-          Visit(offset);
-        }
-        (void)emitter.Emit("]!");
-      } else {
-        if (CGOptions::IsPIC() && (offset->IsSymOffset() || offset->IsSymAndImmOffset()) &&
-            (offset->GetSymbol()->NeedPIC() || offset->GetSymbol()->IsThreadLocal())) {
-          std::string gotEntry = offset->GetSymbol()->IsThreadLocal() ? ", #:tlsdesc_lo12:" : ", #:got_lo12:";
-          std::string symbolName = offset->GetSymbolName();
-          symbolName += offset->GetSymbol()->GetStorageClass() == kScPstatic && !offset->GetSymbol()->IsConst() ?
-              std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()) : "";
-          (void)emitter.Emit(gotEntry + symbolName);
-        } else {
-          if (!offset->IsZero()) {
-            (void)emitter.Emit(",");
-            Visit(offset);
-          }
-        }
-        (void)emitter.Emit("]");
+      EmitIntReg(*baseReg);
+      ImmOperand *offset = a64v->GetOffsetImmediate();
+      if (offset != nullptr && !offset->IsZero()) {
+        (void)emitter.Emit(",");
+        Visit(offset);
       }
-    } else {
       (void)emitter.Emit("]");
+      break;
     }
-  } else if (addressMode == MemOperand::kAddrModeBOrX) {
-    /*
-     * Base plus offset   | [base{, #imm}]  [base, Xm{, LSL #imm}]   [base, Wm, (S|U)XTW {#imm}]
-     *                      offset_opnds=nullptr
-     *                                      offset_opnds=64          offset_opnds=32
-     *                                      imm=0 or 3               imm=0 or 2, s/u
-     */
-    (void)emitter.Emit("[");
-    auto *baseReg = v->GetBaseRegister();
-    // After ssa version support different size, the value is changed back
-    baseReg->SetSize(k64BitSize);
-
-    EmitIntReg(*baseReg);
-    (void)emitter.Emit(",");
-    EmitIntReg(*a64v->GetIndexRegister());
-    if (a64v->ShouldEmitExtend() || v->GetBaseRegister()->GetSize() > a64v->GetIndexRegister()->GetSize()) {
+    case MemOperand::kBOR: {
+      (void)emitter.Emit("[");
+      auto *baseReg = v->GetBaseRegister();
+      if (baseReg->GetSize() != k64BitSize) {
+        baseReg->SetSize(k64BitSize);
+      }
+      EmitIntReg(*baseReg);
       (void)emitter.Emit(",");
-      /* extend, #0, of #3/#2 */
+      EmitIntReg(*a64v->GetIndexRegister());
+      if (a64v->NeedFixIndex()) {
+        (void)emitter.Emit(", UXTW");
+      }
+      (void)emitter.Emit("]");
+      break;
+    }
+    case MemOperand::kBOE: {
+      (void)emitter.Emit("[");
+      auto *baseReg = v->GetBaseRegister();
+      if (baseReg->GetSize() != k64BitSize) {
+        baseReg->SetSize(k64BitSize);
+      }
+      EmitIntReg(*baseReg);
+      (void)emitter.Emit(",");
+      if (a64v->NeedFixIndex()) {
+        (void)emitter.Emit(AArch64CG::intRegNames[AArch64CG::kR32List][a64v->GetIndexRegister()->GetRegisterNumber()]);
+      } else {
+        EmitIntReg(*a64v->GetIndexRegister());
+      }
+      (void)emitter.Emit(",");
       (void)emitter.Emit(a64v->GetExtendAsString());
-      if (a64v->GetExtendAsString() == "LSL" || a64v->ShiftAmount() != 0) {
+      CHECK_FATAL(a64v->CheckAmount(), "check amount!");
+      if (a64v->ShiftAmount() != 0) {
         (void)emitter.Emit(" #");
         (void)emitter.Emit(a64v->ShiftAmount());
       }
+      (void)emitter.Emit("]");
+      break;
     }
-    (void)emitter.Emit("]");
-  } else if (addressMode == MemOperand::kAddrModeLiteral) {
-    CHECK_FATAL(opndProp != nullptr, "prop is nullptr in  MemOperand::Emit");
-    if (opndProp->IsMemLow12()) {
-      (void)emitter.Emit("#:lo12:");
-    }
-    PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
-    (void)emitter.Emit(v->GetSymbol()->GetName() + std::to_string(pIdx));
-  } else if (addressMode == MemOperand::kAddrModeLo12Li) {
-    (void)emitter.Emit("[");
-    EmitIntReg(*v->GetBaseRegister());
-
-    OfstOperand *offset = a64v->GetOffsetImmediate();
-    ASSERT(offset != nullptr, "nullptr check");
-
-    (void)emitter.Emit(", #:lo12:");
-    if (v->GetSymbol()->GetAsmAttr() != UStrIdx(0) &&
-        (v->GetSymbol()->GetStorageClass() == kScPstatic || v->GetSymbol()->GetStorageClass() == kScPstatic)) {
-      std::string asmSection = GlobalTables::GetUStrTable().GetStringFromStrIdx(v->GetSymbol()->GetAsmAttr());
-      (void)emitter.Emit(asmSection);
-    } else {
-      if (v->GetSymbol()->GetStorageClass() == kScPstatic && v->GetSymbol()->IsLocal()) {
-        PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
-        (void)emitter.Emit(a64v->GetSymbolName() + std::to_string(pIdx));
-      } else {
-        (void)emitter.Emit(a64v->GetSymbolName());
+    case MemOperand::kBOL: {
+      (void)emitter.Emit("[");
+      auto *baseReg = v->GetBaseRegister();
+      if (baseReg->GetSize() != k64BitSize) {
+        baseReg->SetSize(k64BitSize);
       }
+      EmitIntReg(*baseReg);
+      (void)emitter.Emit(",");
+      EmitIntReg(*a64v->GetIndexRegister());
+      if (a64v->ShiftAmount() != 0) {
+        CHECK_FATAL(a64v->GetExtendAsString() == "LSL", "must be lsl!");
+        CHECK_FATAL(a64v->CheckAmount(), "check amount!");
+        (void)emitter.Emit(",LSL #");
+        (void)emitter.Emit(a64v->ShiftAmount());
+      }
+      (void)emitter.Emit("]");
+      break;
     }
-    if (!offset->IsZero()) {
-      (void)emitter.Emit("+");
-      (void)emitter.Emit(std::to_string(offset->GetOffsetValue()));
+    case MemOperand::kLo12Li: {
+      (void)emitter.Emit("[");
+      RegOperand *baseReg = v->GetBaseRegister();
+      if (baseReg->GetSize() != k64BitSize) {
+        baseReg->SetSize(k64BitSize);
+      }
+      EmitIntReg(*baseReg);
+      CHECK_NULL_FATAL(v->GetSymbol());
+      if (CGOptions::IsPIC()  && (v->GetSymbol()->NeedPIC() || v->GetSymbol()->IsThreadLocal())) {
+        std::string gotEntry = v->GetSymbol()->IsThreadLocal() ? ", #:tlsdesc_lo12:" : ", #:got_lo12:";
+        std::string symbolName = v->GetSymbolName();
+        symbolName += (v->GetSymbol()->GetStorageClass() == kScPstatic && !v->GetSymbol()->IsConst()) ?
+            std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()) : "";
+        (void)emitter.Emit(gotEntry + symbolName);
+        (void)emitter.Emit("]");
+        break;
+      }
+      (void)emitter.Emit(", #:lo12:");
+      if (v->GetSymbol()->GetAsmAttr() != UStrIdx(0) &&
+          (v->GetSymbol()->GetStorageClass() == kScPstatic || v->GetSymbol()->GetStorageClass() == kScPstatic)) {
+        std::string asmSection = GlobalTables::GetUStrTable().GetStringFromStrIdx(v->GetSymbol()->GetAsmAttr());
+        (void)emitter.Emit(asmSection);
+      } else {
+        if (v->GetSymbol()->GetStorageClass() == kScPstatic && v->GetSymbol()->IsLocal()) {
+          PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+          (void)emitter.Emit(a64v->GetSymbolName() + std::to_string(pIdx));
+        } else {
+          (void)emitter.Emit(a64v->GetSymbolName());
+        }
+      }
+      OfstOperand *offset = a64v->GetOffsetImmediate();
+      if (!offset->IsZero()) {
+        (void)emitter.Emit("+");
+        (void)emitter.Emit(std::to_string(offset->GetOffsetValue()));
+      }
+      (void)emitter.Emit("]");
+      break;
     }
-    (void)emitter.Emit("]");
-  } else {
-    ASSERT(false, "nyi");
+    case MemOperand::kPreIndex: {
+      (void)emitter.Emit("[");
+      auto *baseReg = v->GetBaseRegister();
+      if (baseReg->GetSize() != k64BitSize) {
+        baseReg->SetSize(k64BitSize);
+      }
+      EmitIntReg(*baseReg);
+      ImmOperand *offset = a64v->GetOffsetImmediate();
+      CHECK_NULL_FATAL(offset);
+      if (!offset->IsZero()) {
+        (void)emitter.Emit(",");
+        Visit(offset);
+      }
+      (void)emitter.Emit("]!");
+      break;
+    }
+    case MemOperand::kPostIndex: {
+      (void)emitter.Emit("[");
+      auto *baseReg = v->GetBaseRegister();
+      if (baseReg->GetSize() != k64BitSize) {
+        baseReg->SetSize(k64BitSize);
+      }
+      EmitIntReg(*baseReg);
+      (void)emitter.Emit("]");
+      ImmOperand *offset = a64v->GetOffsetImmediate();
+      CHECK_NULL_FATAL(offset);
+      if (!offset->IsZero()) {
+        (void)emitter.Emit(", ");
+        Visit(offset);
+      }
+      break;
+    }
+    case MemOperand::kLiteral: {
+      CHECK_NULL_FATAL(opndProp);
+      if (opndProp->IsMemLow12()) {
+        (void)emitter.Emit("#:lo12:");
+      }
+      CHECK_NULL_FATAL(v->GetSymbol());
+      PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+      (void)emitter.Emit(v->GetSymbol()->GetName() + std::to_string(pIdx));
+    }
   }
 }
 
@@ -467,8 +500,11 @@ void A64OpndDumpVisitor::Visit(MemOperand *a64v) {
   LogInfo::MapleLogger() << "Mem:";
   LogInfo::MapleLogger() << " size:" << a64v->GetSize() << " ";
   LogInfo::MapleLogger() << " isStack:" << a64v->IsStackMem() << "-" << a64v->IsStackArgMem() << " ";
-  switch (a64v->GetAddrMode()) {
-    case MemOperand::kAddrModeBOi: {
+  MemOperand::AArch64AddressingMode mode = a64v->GetAddrMode();
+  switch (mode) {
+    case MemOperand::kPreIndex:
+    case MemOperand::kPostIndex:
+    case MemOperand::kBOI: {
       LogInfo::MapleLogger() << "base:";
       ASSERT(a64v->GetBaseRegister(), " lack of base register");
       Visit(a64v->GetBaseRegister());
@@ -476,35 +512,35 @@ void A64OpndDumpVisitor::Visit(MemOperand *a64v) {
       if (a64v->GetOffsetOperand()) {
         Visit(a64v->GetOffsetOperand());
       }
-      switch (a64v->GetIndexOpt()) {
-        case MemOperand::kIntact:
-          LogInfo::MapleLogger() << "  intact";
-          break;
-        case MemOperand::kPreIndex:
-          LogInfo::MapleLogger() << "  pre-index";
-          break;
-        case MemOperand::kPostIndex:
-          LogInfo::MapleLogger() << "  post-index";
-          break;
-        default:
-          break;
+      if (mode == MemOperand::kPreIndex) {
+        LogInfo::MapleLogger() << "  pre-index";
+      } else if (mode == MemOperand::kPostIndex) {
+        LogInfo::MapleLogger() << "  post-index";
+      } else {
+        LogInfo::MapleLogger() << "  intact";
       }
       break;
     }
-    case MemOperand::kAddrModeBOrX: {
+    case MemOperand::kBOE:
+    case MemOperand::kBOL:
+    case MemOperand::kBOR: {
       LogInfo::MapleLogger() << "base:";
       Visit(a64v->GetBaseRegister());
+      if (!a64v->GetIndexRegister()) {
+        break;
+      }
       LogInfo::MapleLogger() << "offset:";
       Visit(a64v->GetIndexRegister());
-      LogInfo::MapleLogger() << " " << a64v->GetExtendAsString();
-      LogInfo::MapleLogger() << " shift: " << a64v->ShiftAmount();
-      LogInfo::MapleLogger() << " extend: " << a64v->GetExtendAsString();
+      if (mode == MemOperand::kBOE || mode == MemOperand::kBOL) {
+        LogInfo::MapleLogger() << " " << a64v->GetExtendAsString();
+        LogInfo::MapleLogger() << " shiftAmount: " << a64v->ShiftAmount();
+      }
       break;
     }
-    case MemOperand::kAddrModeLiteral:
+    case MemOperand::kLiteral:
       LogInfo::MapleLogger() << "literal: " << a64v->GetSymbolName();
       break;
-    case MemOperand::kAddrModeLo12Li: {
+    case MemOperand::kLo12Li: {
       LogInfo::MapleLogger() << "base:";
       Visit(a64v->GetBaseRegister());
       LogInfo::MapleLogger() << "offset:";

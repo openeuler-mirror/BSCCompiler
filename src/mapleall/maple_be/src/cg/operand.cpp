@@ -86,16 +86,15 @@ bool RegOperand::operator<(const RegOperand &o) const {
 
 Operand *MemOperand::GetOffset() const {
   switch (addrMode) {
-    case kAddrModeBOi:
+    case kPreIndex:
+    case kPostIndex:
+    case kBOI:
       return GetOffsetOperand();
-    case kAddrModeBOrX:
+    case kBOE:
+    case kBOL:
+    case kBOR:
       return GetIndexRegister();
-    case kAddrModeLiteral:
-      break;
-    case kAddrModeLo12Li:
-      break;
     default:
-      ASSERT(false, "error memoperand dump");
       break;
   }
   return nullptr;
@@ -115,20 +114,26 @@ bool MemOperand::Equals(const MemOperand &op) const {
 
   if (addrMode == op.GetAddrMode()) {
     switch (addrMode) {
-      case kAddrModeBOi:
-        return (GetBaseRegister()->Equals(*op.GetBaseRegister()) &&
-                GetOffsetImmediate()->Equals(*op.GetOffsetImmediate()));
-      case kAddrModeBOrX:
-        return (GetBaseRegister()->Equals(*op.GetBaseRegister()) &&
-                GetIndexRegister()->Equals(*op.GetIndexRegister()) &&
-                GetExtendAsString() == op.GetExtendAsString() &&
-                ShiftAmount() == op.ShiftAmount());
-      case kAddrModeLiteral:
+      case kPreIndex:
+      case kPostIndex:
+      case kBOI:
+        return GetBaseRegister()->Equals(*op.GetBaseRegister()) &&
+               GetOffsetImmediate()->Equals(*op.GetOffsetImmediate());
+      case kBOR:
+        return GetBaseRegister()->Equals(*op.GetBaseRegister()) &&
+               GetIndexRegister()->Equals(*op.GetIndexRegister());
+      case kBOL:
+      case kBOE:
+        return GetBaseRegister()->Equals(*op.GetBaseRegister()) &&
+               GetIndexRegister()->Equals(*op.GetIndexRegister()) &&
+               GetExtendAsString() == op.GetExtendAsString() &&
+               ShiftAmount() == op.ShiftAmount();
+      case kLiteral:
         return GetSymbolName() == op.GetSymbolName();
-      case kAddrModeLo12Li:
-        return (GetBaseRegister()->Equals(*op.GetBaseRegister()) &&
-                GetSymbolName() == op.GetSymbolName() &&
-                GetOffsetImmediate()->Equals(*op.GetOffsetImmediate()));
+      case kLo12Li:
+        return GetBaseRegister()->Equals(*op.GetBaseRegister()) &&
+               GetSymbolName() == op.GetSymbolName() &&
+               GetOffsetImmediate()->Equals(*op.GetOffsetImmediate());
       default:
         ASSERT(false, "error memoperand");
         break;
@@ -153,9 +158,7 @@ bool MemOperand::Less(const Operand &right) const {
   }
 
   switch (addrMode) {
-    case kAddrModeBOi: {
-      ASSERT(idxOpt == kIntact, "Should not compare pre/post index addressing.");
-
+    case kBOI: {
       RegOperand *baseReg = GetBaseRegister();
       RegOperand *rbaseReg = rightOpnd->GetBaseRegister();
       int32 nRet = baseReg->RegCompare(*rbaseReg);
@@ -166,21 +169,15 @@ bool MemOperand::Less(const Operand &right) const {
       }
       return nRet < 0;
     }
-    case kAddrModeBOrX: {
-      if (noExtend != rightOpnd->noExtend) {
-        return noExtend;
-      }
-      if (!noExtend && extend != rightOpnd->extend) {
-        return extend < rightOpnd->extend;
-      }
+    case kBOR: {
       RegOperand *indexReg = GetIndexRegister();
       const RegOperand *rindexReg = rightOpnd->GetIndexRegister();
       return indexReg->Less(*rindexReg);
     }
-    case kAddrModeLiteral: {
+    case kLiteral: {
       return static_cast<const void*>(GetSymbol()) < static_cast<const void*>(rightOpnd->GetSymbol());
     }
-    case kAddrModeLo12Li: {
+    case kLo12Li: {
       if (GetSymbol() != rightOpnd->GetSymbol()) {
         return static_cast<const void*>(GetSymbol()) < static_cast<const void*>(rightOpnd->GetSymbol());
       }
@@ -192,5 +189,51 @@ bool MemOperand::Less(const Operand &right) const {
       ASSERT(false, "Internal error.");
       return false;
   }
+}
+
+const char *CondOperand::ccStrs[kCcLast] = {
+  "EQ", "NE", "CS", "HS", "CC", "LO", "MI", "PL", "VS", "VC", "HI", "LS", "GE", "LT", "GT", "LE", "AL"
+};
+
+bool CondOperand::Less(const Operand &right) const {
+  if (&right == this) {
+    return false;
+  }
+
+  /* For different type. */
+  if (GetKind() != right.GetKind()) {
+    return GetKind() < right.GetKind();
+  }
+
+  const CondOperand *rightOpnd = static_cast<const CondOperand*>(&right);
+
+  /* The same type. */
+  if (cc == CC_AL || rightOpnd->cc == CC_AL) {
+    return false;
+  }
+  return cc < rightOpnd->cc;
+}
+
+uint32 PhiOperand::GetLeastCommonValidBit() const{
+  uint32 leastCommonVb = 0;
+  for (auto phiOpnd : phiList) {
+    uint32 curVb = phiOpnd.second->GetValidBitsNum();
+    if (curVb > leastCommonVb) {
+      leastCommonVb = curVb;
+    }
+  }
+  return leastCommonVb;
+}
+bool PhiOperand::IsRedundancy() const {
+  uint32 srcSsaIdx = 0;
+  for (auto phiOpnd : phiList) {
+    if (srcSsaIdx == 0) {
+      srcSsaIdx = phiOpnd.second->GetRegisterNumber();
+    }
+    if (srcSsaIdx != phiOpnd.second->GetRegisterNumber()) {
+      return false;
+    }
+  }
+  return true;
 }
 }  /* namespace maplebe */

@@ -129,9 +129,8 @@ void AArch64GenProEpilog::GenStackGuard() {
     aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte, kRegTyInt);
   aarchCGFunc.SelectAddrof(stAddrOpnd, stOpnd);
 
-  MemOperand *guardMemOp =
-    aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOi, GetPointerSize() * kBitsPerByte,
-        stAddrOpnd, nullptr, &aarchCGFunc.GetOrCreateOfstOpnd(0, k32BitSize), stkGuardSym);
+  MemOperand *guardMemOp = aarchCGFunc.CreateMemOperand(GetPointerSize() * kBitsPerByte, stAddrOpnd,
+                                                        aarchCGFunc.GetOrCreateOfstOpnd(0, k32BitSize), *stkGuardSym);
   MOperator mOp = aarchCGFunc.PickLdInsn(k64BitSize, PTY_u64);
   Insn &insn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *guardMemOp);
   insn.SetDoNotRemove(true);
@@ -212,7 +211,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
 MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstruction(CGFunc &cgFunc,
     const MemOperand &mo, uint32 bitLen, AArch64reg baseRegNum) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  CHECK_FATAL(mo.GetAddrMode() == MemOperand::kAddrModeBOi, "mode should be kAddrModeBOi");
+  CHECK_FATAL(mo.GetAddrMode() == MemOperand::kBOI, "mode should be kBOI");
   OfstOperand *ofstOp = mo.GetOffsetImmediate();
   int32 offsetVal = static_cast<int32>(ofstOp->GetOffsetValue());
   CHECK_FATAL(offsetVal > 0, "offsetVal should be greater than 0");
@@ -300,15 +299,13 @@ Insn &AArch64GenProEpilog::AppendInstructionForAllocateOrDeallocateCallFrame(int
     aarchCGFunc.SelectCopyImm(oo, io1, PTY_i64);
     RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, size * kBitsPerByte, rty);
     RegOperand &rsp = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, size * kBitsPerByte, kRegTyInt);
-    MemOperand *mo = aarchCGFunc.CreateMemOperand(
-        MemOperand::kAddrModeBOrX, size * kBitsPerByte, rsp, oo, 0);
+    MemOperand *mo = aarchCGFunc.CreateMemOperand(size * kBitsPerByte, rsp, oo);
     Insn &insn1 = cgFunc.GetInsnBuilder()->BuildInsn(isAllocate ? MOP_xstr : MOP_xldr, o0, *mo);
     AppendInstructionTo(insn1, cgFunc);
     ImmOperand &io2 = aarchCGFunc.CreateImmOperand(size, k64BitSize, true);
     aarchCGFunc.SelectAdd(oo, oo, io2, PTY_i64);
     RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, size * kBitsPerByte, rty);
-    mo = aarchCGFunc.CreateMemOperand(MemOperand::kAddrModeBOrX,
-                                      size * kBitsPerByte, rsp, oo, 0);
+    mo = aarchCGFunc.CreateMemOperand(size * kBitsPerByte, rsp, oo);
     Insn &insn2 = cgFunc.GetInsnBuilder()->BuildInsn(isAllocate ? MOP_xstr : MOP_xldr, o1, *mo);
     AppendInstructionTo(insn2, cgFunc);
     return insn2;

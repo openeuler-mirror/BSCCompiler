@@ -764,103 +764,253 @@ class OfstOperand : public ImmOperand {
   int32 relocs;
 };
 
+class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
+ public:
+  /* if and only if at least one register is WSP, ARM Recommends use of the LSL operator name rathe than UXTW */
+  enum ExtendOp : uint8 {
+    kUndef,
+    kUXTB,
+    kUXTH,
+    kUXTW, /* equal to lsl in 32bits */
+    kUXTX, /* equal to lsl in 64bits */
+    kSXTB,
+    kSXTH,
+    kSXTW,
+    kSXTX,
+  };
+
+  ExtendShiftOperand(ExtendOp op, uint32 amt, uint32 bitLen)
+      : OperandVisitable(Operand::kOpdExtend, bitLen), extendOp(op), shiftAmount(amt) {}
+
+  ~ExtendShiftOperand() override = default;
+  using OperandVisitable<ExtendShiftOperand>::OperandVisitable;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<ExtendShiftOperand>(*this);
+  }
+
+  uint32 GetShiftAmount() const {
+    return shiftAmount;
+  }
+
+  ExtendOp GetExtendOp() const {
+    return extendOp;
+  }
+
+  bool Less(const Operand &right) const override;
+
+  void Dump() const override {
+    CHECK_FATAL(false, "dont run here");
+  }
+
+  bool Equals(Operand &operand) const override {
+    if (!operand.IsOpdExtend()) {
+      return false;
+    }
+    auto &op = static_cast<ExtendShiftOperand&>(operand);
+    return ((&op == this) || (op.GetExtendOp() == extendOp && op.GetShiftAmount() == shiftAmount));
+  }
+
+  std::string GetHashContent() const override {
+    return std::to_string(opndKind) + std::to_string(extendOp) + std::to_string(shiftAmount);
+  }
+
+  std::string GetExtendOpString() const {
+    switch (extendOp) {
+      case kUXTX: return "UXTX";
+      case kUXTB: return "UXTB";
+      case kUXTH: return "UXTH";
+      case kUXTW: return "UXTW";
+      case kSXTB: return "SXTB";
+      case kSXTH: return "SXTH";
+      case kSXTW: return "SXTW";
+      case kSXTX: return "SXTX";
+      case kUndef: return "UNDEF";
+    }
+  }
+
+ private:
+  ExtendOp extendOp;
+  uint32 shiftAmount;
+};
+
+class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
+ public:
+  enum ShiftOp : uint8 {
+    kUndef,
+    kLSL, /* logical shift left */
+    kLSR, /* logical shift right */
+    kASR, /* arithmetic shift right */
+    kROR, /* rotate shift right */
+  };
+
+  /* bitlength is equal to 5 or 6 */
+  BitShiftOperand(ShiftOp op, uint32 amt, uint32 bitLen)
+      : OperandVisitable(Operand::kOpdShift, bitLen), shiftOp(op), shiftAmount(amt) {}
+
+  ~BitShiftOperand() override = default;
+  using OperandVisitable<BitShiftOperand>::OperandVisitable;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<BitShiftOperand>(*this);
+  }
+
+  bool Less(const Operand &right) const override {
+    if (&right == this) {
+      return false;
+    }
+
+    /* For different type. */
+    if (GetKind() != right.GetKind()) {
+      return GetKind() < right.GetKind();
+    }
+
+    const BitShiftOperand *rightOpnd = static_cast<const BitShiftOperand*>(&right);
+
+    /* The same type. */
+    if (shiftOp != rightOpnd->shiftOp) {
+      return shiftOp < rightOpnd->shiftOp;
+    }
+    return shiftAmount < rightOpnd->shiftAmount;
+  }
+
+  uint32 GetShiftAmount() const {
+    return shiftAmount;
+  }
+
+  ShiftOp GetShiftOp() const {
+    return shiftOp;
+  }
+
+  void Dump() const override {
+    CHECK_FATAL(false, "dont run here");
+  }
+
+  bool Equals(Operand &operand) const override {
+    if (!operand.IsOpdShift()) {
+      return false;
+    }
+    auto &op = static_cast<BitShiftOperand&>(operand);
+    return ((&op == this) || (op.GetShiftOp() == shiftOp && op.GetShiftAmount() == shiftAmount));
+  }
+
+  std::string GetHashContent() const override {
+    return std::to_string(opndKind) + std::to_string(shiftOp) + std::to_string(shiftAmount);
+  }
+
+ private:
+  ShiftOp shiftOp;
+  uint32 shiftAmount;
+};
+
 /*
- * Table C1-6 A64 Load/Store addressing modes
- * |         Offset
- * Addressing Mode    | Immediate     | Register             | Extended Register
+ * ARMv8-A A64 ISA Overview by Matteo Franchin @ ARM
+ * (presented at 64-bit Android on ARM. Sep. 2015) p.14
+ * o Address to load from/store to is a 64-bit base register + an optional offset
+ *   LDR X0, [X1] ; Load from address held in X1
+ *   STR X0, [X1] ; Store to address held in X1
  *
- * Base register only | [base{,#0}]   | -                    | -
- * (no offset)        | B_OI_NONE     |                      |
- *                   imm=0
+ * o Offset can be an immediate or a register
+ *   LDR X0, [X1, #8]  ; Load from address [X1 + 8 bytes]
+ *   LDR X0, [X1, #-8] ; Load with negative offset
+ *   LDR X0, [X1, X2]  ; Load from address [X1 + X2]
  *
- * Base plus offset   | [base{,#imm}] | [base,Xm{,LSL #imm}] | [base,Wm,(S|U)XTW {#imm}]
- *                  B_OI_NONE     | B_OR_X               | B_OR_X
- *                                   imm=0,1 (0,3)        | imm=00,01,10,11 (0/2,s/u)
+ * o A Wn register offset needs to be extended to 64 bits
+ *  LDR X0, [X1, W2, SXTW] ; Sign-extend offset in W2
+ *   LDR X0, [X1, W2, UXTW] ; Zero-extend offset in W2
  *
- * Pre-indexed        | [base, #imm]! | -                    | -
+ * o Both Xn and Wn register offsets can include an optional left-shift
+ *   LDR X0, [X1, W2, UXTW #2] ; Zero-extend offset in W2 & left-shift by 2
+ *   LDR X0, [X1, X2, LSL #2]  ; Left-shift offset in X2 by 2
  *
- * Post-indexed       | [base], #imm  | [base], Xm(a)        | -
- *
- * Literal            | label         | -                    | -
- * (PC-relative)
- *
- * a) The post-indexed by register offset mode can be used with the SIMD Load/Store
- * structure instructions described in Load/Store Vector on page C3-154. Otherwise
- * the post-indexed by register offset mode is not available.
+ * p.15
+ * Addressing Modes                       Analogous C Code
+ *                                       int *intptr = ... // X1
+ *                                       int out; // W0
+ * o Simple: X1 is not changed
+ *   LDR W0, [X1]                        out = *intptr;
+ * o Offset: X1 is not changed
+ *   LDR W0, [X1, #4]                    out = intptr[1];
+ * o Pre-indexed: X1 changed before load
+ *   LDR W0, [X1, #4]! =|ADD X1,X1,#4    out = *(++intptr);
+ * |LDR W0,[X1]
+ * o Post-indexed: X1 changed after load
+ *   LDR W0, [X1], #4  =|LDR W0,[X1]     out = *(intptr++);
+ * |ADD X1,X1,#4
  */
 class MemOperand : public OperandVisitable<MemOperand> {
  public:
   enum AArch64AddressingMode : uint8 {
-    kAddrModeUndef,
-    /* AddrMode_BO, base, offset. EA = [base] + offset; */
-    kAddrModeBOi,  /* INTACT: EA = [base]+immediate */
-    /*
-     * PRE: base += immediate, EA = [base]
-     * POST: EA = [base], base += immediate
-     */
-    kAddrModeBOrX,  /* EA = [base]+Extend([offreg/idxreg]), OR=Wn/Xn */
-    kAddrModeLiteral,  /* AArch64 insruction LDR takes literal and */
-    /*
-     * "calculates an address from the PC value and an immediate offset,
-     * loads a word from memory, and writes it to a register."
-     */
-    kAddrModeLo12Li  // EA = [base] + #:lo12:Label+immediate. (Example: [x0, #:lo12:__Label300+456]
-  };
-  /*
-   * ARMv8-A A64 ISA Overview by Matteo Franchin @ ARM
-   * (presented at 64-bit Android on ARM. Sep. 2015) p.14
-   * o Address to load from/store to is a 64-bit base register + an optional offset
-   *   LDR X0, [X1] ; Load from address held in X1
-   *   STR X0, [X1] ; Store to address held in X1
-   *
-   * o Offset can be an immediate or a register
-   *   LDR X0, [X1, #8]  ; Load from address [X1 + 8 bytes]
-   *   LDR X0, [X1, #-8] ; Load with negative offset
-   *   LDR X0, [X1, X2]  ; Load from address [X1 + X2]
-   *
-   * o A Wn register offset needs to be extended to 64 bits
-   *  LDR X0, [X1, W2, SXTW] ; Sign-extend offset in W2
-   *   LDR X0, [X1, W2, UXTW] ; Zero-extend offset in W2
-   *
-   * o Both Xn and Wn register offsets can include an optional left-shift
-   *   LDR X0, [X1, W2, UXTW #2] ; Zero-extend offset in W2 & left-shift by 2
-   *   LDR X0, [X1, X2, LSL #2]  ; Left-shift offset in X2 by 2
-   *
-   * p.15
-   * Addressing Modes                       Analogous C Code
-   *                                       int *intptr = ... // X1
-   *                                       int out; // W0
-   * o Simple: X1 is not changed
-   *   LDR W0, [X1]                        out = *intptr;
-   * o Offset: X1 is not changed
-   *   LDR W0, [X1, #4]                    out = intptr[1];
-   * o Pre-indexed: X1 changed before load
-   *   LDR W0, [X1, #4]! =|ADD X1,X1,#4    out = *(++intptr);
-   * |LDR W0,[X1]
-   * o Post-indexed: X1 changed after load
-   *   LDR W0, [X1], #4  =|LDR W0,[X1]     out = *(intptr++);
-   * |ADD X1,X1,#4
-   */
-  enum ExtendInfo : uint8 {
-    kShiftZero = 0x1,
-    kShiftOne = 0x2,
-    kShiftTwo = 0x4,
-    kShiftThree = 0x8,
-    kUnsignedExtend = 0x10,
-    kSignExtend = 0x20
+      kAddrModeUndef,
+      kBOI,       /* xxx_ri mode: [baseReg, #imm] */
+      kBOR,       /* xxx_rr mode : [baseReg, offReg] */
+      kBOE,       /* xxx_rex mode : [baseReg, offReg, sxt/uxt #0/#2/#3] */
+      kBOL,       /* xxx_rls mode: [baseReg, offReg, lsl #0/#2/#3] */
+      kLo12Li,    /* xxx_rlo mode : [baseReg, #:lo12:label+offset] */
+      kPreIndex,  /* xxx_pri mode : [baseReg, #imm]! */
+      kPostIndex, /* xxx_poi mode : [baseReg], #imm */
+      kLiteral,   /* xxx_l mode: label */
+      // X86 scale Type
+      kScale,
   };
 
-  enum IndexingOption : uint8 {
-    kIntact,     /* base register stays the same */
-    kPreIndex,   /* base register gets changed before load */
-    kPostIndex,  /* base register gets changed after load */
-  };
+  MemOperand(uint32 size)
+      : OperandVisitable(Operand::kOpdMem, size),
+        symbol(nullptr),
+        addrMode(kAddrModeUndef) {}
 
-  MemOperand(uint32 size) :
-      OperandVisitable(Operand::kOpdMem, size) {}
-  MemOperand(uint32 size, const MIRSymbol &mirSymbol) : OperandVisitable(Operand::kOpdMem, size), symbol(&mirSymbol) {}
+  MemOperand(uint32 size, const MIRSymbol &mirSymbol)
+      : OperandVisitable(Operand::kOpdMem, size),
+        symbol(&mirSymbol),
+        addrMode(kLiteral) {}
 
-  MemOperand(uint32 size, RegOperand *baseOp, RegOperand *indexOp, ImmOperand *ofstOp, const MIRSymbol *mirSymbol,
+  MemOperand(uint32 size, RegOperand &baseOp, ImmOperand &ofstOp, AArch64AddressingMode mode = kBOI)
+      : OperandVisitable(Operand::kOpdMem, size),
+        baseOpnd(&baseOp),
+        offsetOpnd(&ofstOp),
+        symbol(nullptr),
+        addrMode(mode) {
+    ASSERT((mode == kBOI) || (mode == kPreIndex) || (mode == kPostIndex), "check mode!");
+  }
+
+  MemOperand(uint32 size, RegOperand &baseOp, RegOperand &indexOp)
+      : OperandVisitable(Operand::kOpdMem, size),
+        baseOpnd(&baseOp),
+        indexOpnd(&indexOp),
+        symbol(nullptr),
+        addrMode(kBOR) {
+    ASSERT(baseOp.GetSize() == indexOp.GetSize(), "check size!");
+  }
+
+  MemOperand(uint32 size, RegOperand &baseOp, RegOperand &indexOp, ExtendShiftOperand &exOp)
+      : OperandVisitable(Operand::kOpdMem, size),
+        baseOpnd(&baseOp),
+        indexOpnd(&indexOp),
+        exOpnd(&exOp),
+        symbol(nullptr),
+        addrMode(kBOE) {
+          CHECK_FATAL(CheckAmount(), "check amount");
+        }
+
+  MemOperand(uint32 size, RegOperand &baseOp, RegOperand &indexOp, BitShiftOperand &lsOp)
+      : OperandVisitable(Operand::kOpdMem, size),
+        baseOpnd(&baseOp),
+        indexOpnd(&indexOp),
+        lsOpnd(&lsOp),
+        symbol(nullptr),
+        addrMode(kBOL) {
+          CHECK_FATAL(indexOp.GetSize() == baseOp.GetSize(), "check size!");
+          CHECK_FATAL(CheckAmount(), "check amount!");
+        }
+
+  MemOperand(uint32 size, RegOperand &baseOp, ImmOperand &ofstOp, const MIRSymbol &mirSymbol)
+      : OperandVisitable(Operand::kOpdMem, size),
+        baseOpnd(&baseOp),
+        offsetOpnd(&ofstOp),
+        symbol(&mirSymbol),
+        addrMode(kLo12Li) {}
+
+  MemOperand(uint32 size, RegOperand *baseOp, RegOperand *indexOp, ImmOperand *ofstOp, MIRSymbol *mirSymbol,
              ImmOperand *scaleOp = nullptr)
       : OperandVisitable(Operand::kOpdMem, size),
         baseOpnd(baseOp),
@@ -869,84 +1019,18 @@ class MemOperand : public OperandVisitable<MemOperand> {
         scaleOpnd(scaleOp),
         symbol(mirSymbol) {}
 
-  MemOperand(RegOperand *base, OfstOperand *offset, uint32 size, IndexingOption idxOpt = kIntact)
-      : OperandVisitable(Operand::kOpdMem, size),
-        baseOpnd(base),
-        indexOpnd(nullptr),
-        offsetOpnd(offset),
-        symbol(nullptr),
-        addrMode(kAddrModeBOi),
-        extend(0),
-        idxOpt(idxOpt),
-        noExtend(false),
-        isStackMem(false) {}
-
-  MemOperand(AArch64AddressingMode mode, uint32 size, RegOperand &base, RegOperand *index,
-             ImmOperand *offset, const MIRSymbol *sym)
-      : OperandVisitable(Operand::kOpdMem, size),
-        baseOpnd(&base),
-        indexOpnd(index),
-        offsetOpnd(offset),
-        symbol(sym),
-        addrMode(mode),
-        extend(0),
-        idxOpt(kIntact),
-        noExtend(false),
-        isStackMem(false) {}
-
-  MemOperand(AArch64AddressingMode mode, uint32 size, RegOperand &base, RegOperand &index,
-             ImmOperand *offset, const MIRSymbol &sym, bool noExtend)
-      : OperandVisitable(Operand::kOpdMem, size),
-        baseOpnd(&base),
-        indexOpnd(&index),
-        offsetOpnd(offset),
-        symbol(&sym),
-        addrMode(mode),
-        extend(0),
-        idxOpt(kIntact),
-        noExtend(noExtend),
-        isStackMem(false) {}
-
-  MemOperand(AArch64AddressingMode mode, uint32 dSize, RegOperand &baseOpnd, RegOperand &indexOpnd,
-             uint32 shift, bool isSigned = false)
-      : OperandVisitable(Operand::kOpdMem, dSize),
-        baseOpnd(&baseOpnd),
-        indexOpnd(&indexOpnd),
-        offsetOpnd(nullptr),
-        symbol(nullptr),
-        addrMode(mode),
-        extend((isSigned ? kSignExtend : kUnsignedExtend) | (1U << shift)),
-        idxOpt(kIntact),
-        noExtend(false),
-        isStackMem(false) {}
-
-  MemOperand(AArch64AddressingMode mode, uint32 dSize, const MIRSymbol &sym)
-      : OperandVisitable(Operand::kOpdMem, dSize),
-        baseOpnd(nullptr),
-        indexOpnd(nullptr),
-        offsetOpnd(nullptr),
-        symbol(&sym),
-        addrMode(mode),
-        extend(0),
-        idxOpt(kIntact),
-        noExtend(false),
-        isStackMem(false) {
-    ASSERT(mode == kAddrModeLiteral, "This constructor version is supposed to be used with AddrMode_Literal only");
-  }
-
   /* Copy constructor */
-  explicit MemOperand(const MemOperand &memOpnd)
+  MemOperand(const MemOperand &memOpnd)
       : OperandVisitable(Operand::kOpdMem, memOpnd.GetSize()),
         baseOpnd(memOpnd.baseOpnd),
         indexOpnd(memOpnd.indexOpnd),
         offsetOpnd(memOpnd.offsetOpnd),
         scaleOpnd(memOpnd.scaleOpnd),
+        exOpnd(memOpnd.exOpnd),
+        lsOpnd(memOpnd.lsOpnd),
         symbol(memOpnd.symbol),
         memoryOrder(memOpnd.memoryOrder),
         addrMode(memOpnd.addrMode),
-        extend(memOpnd.extend),
-        idxOpt(memOpnd.idxOpt),
-        noExtend(memOpnd.noExtend),
         isStackMem(memOpnd.isStackMem),
         isStackArgMem(memOpnd.isStackArgMem) {}
 
@@ -1087,13 +1171,13 @@ class MemOperand : public OperandVisitable<MemOperand> {
       return false;
     }
     int64 ofstVal = ofstOpnd->GetOffsetValue();
-    if (addrMode == kAddrModeBOi) {
+    if (addrMode == kBOI) {
       if (ofstVal >= kMinSimm32 && ofstVal <= kMaxSimm32) {
         return false;
       }
       return ((static_cast<uint32>(ofstOpnd->GetOffsetValue()) &
               static_cast<uint32>((1U << static_cast<uint32>(GetImmediateOffsetAlignment(dSize))) - 1)) != 0);
-    } else if (addrMode == kAddrModeLo12Li) {
+    } else if (addrMode == kLo12Li) {
       uint32 alignByte = (dSize / k8BitSize);
       return ((ofstVal % alignByte) != k0BitSize);
     }
@@ -1117,30 +1201,11 @@ class MemOperand : public OperandVisitable<MemOperand> {
     return (offset < 0 || offset > GetMaxPIMM(dSize));
   }
 
-  bool operator<(const MemOperand &opnd) const {
-    return addrMode < opnd.addrMode ||
-           (addrMode == opnd.addrMode && GetBaseRegister() < opnd.GetBaseRegister()) ||
-           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
-            GetIndexRegister() < opnd.GetIndexRegister()) ||
-           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
-            GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() < opnd.GetOffsetOperand()) ||
-           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
-            GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() == opnd.GetOffsetOperand() &&
-            GetSymbol() < opnd.GetSymbol()) ||
-           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
-            GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() == opnd.GetOffsetOperand() &&
-            GetSymbol() == opnd.GetSymbol() && GetSize() < opnd.GetSize()) ||
-           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
-            GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() == opnd.GetOffsetOperand() &&
-            GetSymbol() == opnd.GetSymbol() && GetSize() == opnd.GetSize() && extend < opnd.extend);
-  }
-
   bool operator==(const MemOperand &opnd) const {
-    return  (GetSize() == opnd.GetSize()) && (addrMode == opnd.addrMode) && (extend == opnd.extend) &&
-            (GetBaseRegister() == opnd.GetBaseRegister()) &&
-            (GetIndexRegister() == opnd.GetIndexRegister()) &&
-            (GetSymbol() == opnd.GetSymbol()) &&
-            (GetOffsetOperand() == opnd.GetOffsetOperand()) ;
+    return (GetSize() == opnd.GetSize()) && (addrMode == opnd.addrMode) && (exOpnd == opnd.exOpnd) &&
+           (lsOpnd == opnd.lsOpnd) && (GetBaseRegister() == opnd.GetBaseRegister()) &&
+           (GetIndexRegister() == opnd.GetIndexRegister()) && (GetSymbol() == opnd.GetSymbol()) &&
+           (GetOffsetOperand() == opnd.GetOffsetOperand()) ;
   }
 
   VaryType GetMemVaryType() const {
@@ -1156,73 +1221,100 @@ class MemOperand : public OperandVisitable<MemOperand> {
     addrMode = val;
   }
 
-  bool IsExtendedRegisterMode() const {
-    return addrMode == kAddrModeBOrX;
+  void SetExtendOperand(ExtendShiftOperand *ex) {
+    exOpnd = ex;
   }
 
-  void UpdateExtend(ExtendInfo flag) {
-    extend = flag | (1U << ShiftAmount());
+  void SetBitOperand(BitShiftOperand *bi) {
+    lsOpnd = bi;
+  }
+
+  bool IsExtendedRegisterMode() const {
+    return addrMode == kBOE;
   }
 
   bool SignedExtend() const {
-    return IsExtendedRegisterMode() && ((extend & kSignExtend) != 0);
+    if (addrMode != kBOE) {
+      return false;
+    }
+    CHECK_NULL_FATAL(exOpnd);
+    return exOpnd->GetExtendOp() > ExtendShiftOperand::kUXTX;
   }
 
   bool UnsignedExtend() const {
-    return IsExtendedRegisterMode() && !SignedExtend();
+    if (addrMode != kBOE) {
+      return false;
+    }
+    CHECK_NULL_FATAL(exOpnd);
+    return exOpnd->GetExtendOp() <= ExtendShiftOperand::kUXTX;
   }
 
   uint32 ShiftAmount() const {
-    uint32 scale = extend & 0xF;
-    /* 8 is 1 << 3, 4 is 1 << 2, 2 is 1 << 1, 1 is 1 << 0; */
-    return (scale == 8) ? 3 : ((scale == 4) ? 2 : ((scale == 2) ? 1 : 0));
-  }
-
-  bool ShouldEmitExtend() const {
-    return !noExtend && ((extend & 0x3F) != 0);
-  }
-
-  IndexingOption GetIndexOpt() const {
-    return idxOpt;
-  }
-
-  void SetIndexOpt(IndexingOption newidxOpt) {
-    idxOpt = newidxOpt;
-  }
-
-  bool GetNoExtend() const {
-    return noExtend;
-  }
-
-  void SetNoExtend(bool val) {
-    noExtend = val;
-  }
-
-  uint32 GetExtend() const {
-    return extend;
-  }
-
-  void SetExtend(uint32 val) {
-    extend = val;
+    if (addrMode == kBOE) {
+      CHECK_NULL_FATAL(exOpnd);
+      return exOpnd->GetShiftAmount();
+    } else if (addrMode == kBOL) {
+      CHECK_NULL_FATAL(lsOpnd);
+      return lsOpnd->GetShiftAmount();
+    }
+    return 0;
   }
 
   bool IsIntactIndexed() const {
-    return idxOpt == kIntact;
+    return addrMode != kPreIndex && addrMode != kPostIndex;
   }
 
   bool IsPostIndexed() const {
-    return idxOpt == kPostIndex;
+    return addrMode == kPostIndex;
   }
 
   bool IsPreIndexed() const {
-    return idxOpt == kPreIndex;
+    return addrMode == kPreIndex;
   }
 
   std::string GetExtendAsString() const {
-    if (GetIndexRegister()->GetSize() == k64BitSize) {
-      return std::string("LSL");
+    if (addrMode == kBOL) {
+      CHECK_NULL_FATAL(lsOpnd);
+      CHECK_FATAL(lsOpnd->GetShiftOp() == BitShiftOperand::kLSL, "check bitshiftop!");
+      return "LSL";
+    } else if (addrMode == kBOE) {
+      CHECK_NULL_FATAL(exOpnd);
+      return exOpnd->GetExtendOpString();
     }
-    return ((extend & kSignExtend) != 0) ? std::string("SXTW") : std::string("UXTW");
+    return "unsupport Extend op!";
+  }
+
+  bool CheckAmount() const {
+    CHECK_NULL_FATAL(indexOpnd);
+    uint32 amount = ShiftAmount();
+    if (amount == 0) {
+      return true;
+    }
+    if (size == k16BitSize) {
+      return amount == k1BitSize;
+    } else if (size == k32BitSize) {
+      return amount == k2BitSize;
+    } else if (size == k64BitSize) {
+      return amount == k3BitSize;
+    } else {
+      return false;
+    }
+    return true;
+  }
+
+  bool NeedFixIndex() const {
+    if (indexOpnd->GetSize() == k64BitSize) {
+      std::string str = GetExtendAsString();
+      /* check extend op only */
+      if (str == "SXTW" || str == "SXTH" || str == "SXTB" ||
+          str == "UXTW" || str == "UXTH" || str == "UXTB") {
+        return true;
+      }
+    }
+    if (indexOpnd->GetSize() == k32BitSize && addrMode == kBOR) {
+      return true;
+    }
+    return false;
   }
 
   /* Return true if given operand has the same base reg and offset with this. */
@@ -1235,13 +1327,12 @@ class MemOperand : public OperandVisitable<MemOperand> {
   RegOperand *indexOpnd = nullptr;   /* index register */
   ImmOperand *offsetOpnd = nullptr; /* offset immediate */
   ImmOperand *scaleOpnd = nullptr;
+  ExtendShiftOperand *exOpnd = nullptr; /* AddrMode_Extend */
+  BitShiftOperand *lsOpnd = nullptr; /* AddrMode_LSL */
   const MIRSymbol *symbol; /* AddrMode_Literal */
   uint32 memoryOrder = 0;
   uint8 accessSize = 0; /* temp, must be set right before use everytime. */
-  AArch64AddressingMode addrMode = kAddrModeBOi;
-  uint32 extend = false;        /* used with offset register ; AddrMode_B_OR_X */
-  IndexingOption idxOpt = kIntact;  /* used with offset immediate ; AddrMode_B_OI */
-  bool noExtend = false;
+  AArch64AddressingMode addrMode = kAddrModeUndef;
   bool isStackMem = false;
   bool isStackArgMem = false;
 };
@@ -1424,131 +1515,6 @@ class StImmOperand : public OperandVisitable<StImmOperand> {
   const MIRSymbol *symbol;
   int64 offset;
   int32 relocs;
-};
-
-class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
- public:
-  /* if and only if at least one register is WSP, ARM Recommends use of the LSL operator name rathe than UXTW */
-  enum ExtendOp : uint8 {
-    kUndef,
-    kUXTB,
-    kUXTH,
-    kUXTW, /* equal to lsl in 32bits */
-    kUXTX, /* equal to lsl in 64bits */
-    kSXTB,
-    kSXTH,
-    kSXTW,
-    kSXTX,
-  };
-
-  ExtendShiftOperand(ExtendOp op, uint32 amt, int32 bitLen)
-      : OperandVisitable(Operand::kOpdExtend, bitLen), extendOp(op), shiftAmount(amt) {}
-
-  ~ExtendShiftOperand() override = default;
-  using OperandVisitable<ExtendShiftOperand>::OperandVisitable;
-
-  Operand *Clone(MemPool &memPool) const override {
-    return memPool.Clone<ExtendShiftOperand>(*this);
-  }
-
-  uint32 GetShiftAmount() const {
-    return shiftAmount;
-  }
-
-  ExtendOp GetExtendOp() const {
-    return extendOp;
-  }
-
-  bool Less(const Operand &right) const override;
-
-  void Dump() const override {
-    CHECK_FATAL(false, "dont run here");
-  }
-
-  bool Equals(Operand &operand) const override {
-    if (!operand.IsOpdExtend()) {
-      return false;
-    }
-    auto &op = static_cast<ExtendShiftOperand&>(operand);
-    return ((&op == this) || (op.GetExtendOp() == extendOp && op.GetShiftAmount() == shiftAmount));
-  }
-
-  std::string GetHashContent() const override {
-    return std::to_string(opndKind) + std::to_string(extendOp) + std::to_string(shiftAmount);
-  }
-
- private:
-  ExtendOp extendOp;
-  uint32 shiftAmount;
-};
-
-class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
- public:
-  enum ShiftOp : uint8 {
-    kUndef,
-    kLSL, /* logical shift left */
-    kLSR, /* logical shift right */
-    kASR, /* arithmetic shift right */
-    kROR, /* rotate shift right */
-  };
-
-  /* bitlength is equal to 5 or 6 */
-  BitShiftOperand(ShiftOp op, uint32 amt, int32 bitLen)
-      : OperandVisitable(Operand::kOpdShift, bitLen), shiftOp(op), shiftAmount(amt) {}
-
-  ~BitShiftOperand() override = default;
-  using OperandVisitable<BitShiftOperand>::OperandVisitable;
-
-  Operand *Clone(MemPool &memPool) const override {
-    return memPool.Clone<BitShiftOperand>(*this);
-  }
-
-  bool Less(const Operand &right) const override {
-    if (&right == this) {
-      return false;
-    }
-
-    /* For different type. */
-    if (GetKind() != right.GetKind()) {
-      return GetKind() < right.GetKind();
-    }
-
-    const BitShiftOperand *rightOpnd = static_cast<const BitShiftOperand*>(&right);
-
-    /* The same type. */
-    if (shiftOp != rightOpnd->shiftOp) {
-      return shiftOp < rightOpnd->shiftOp;
-    }
-    return shiftAmount < rightOpnd->shiftAmount;
-  }
-
-  uint32 GetShiftAmount() const {
-    return shiftAmount;
-  }
-
-  ShiftOp GetShiftOp() const {
-    return shiftOp;
-  }
-
-  void Dump() const override {
-    CHECK_FATAL(false, "dont run here");
-  }
-
-  bool Equals(Operand &operand) const override {
-    if (!operand.IsOpdShift()) {
-      return false;
-    }
-    auto &op = static_cast<BitShiftOperand&>(operand);
-    return ((&op == this) || (op.GetShiftOp() == shiftOp && op.GetShiftAmount() == shiftAmount));
-  }
-
-  std::string GetHashContent() const override {
-    return std::to_string(opndKind) + std::to_string(shiftOp) + std::to_string(shiftAmount);
-  }
-
- private:
-  ShiftOp shiftOp;
-  uint32 shiftAmount;
 };
 
 class CommentOperand : public OperandVisitable<CommentOperand> {
@@ -1824,6 +1790,10 @@ class OpndDesc {
 
   bool IsVectorOperand() const {
     return (property & operand::kIsVector);
+  }
+
+  bool IsIntOperand() const {
+    return (property & operand::kInt);
   }
 
 #define DEFINE_MOP(op, ...) static const OpndDesc op;

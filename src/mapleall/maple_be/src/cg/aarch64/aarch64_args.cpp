@@ -190,23 +190,19 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
       lastSegment = firstArgInfo.symLoc->GetMemSegment();
       aarchCGFunc->SelectAdd(*baseReg, *baseOpnd, immOpnd, GetLoweredPtrType());
     }
-    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(firstArgInfo.symLoc->GetOffset()),
-        k32BitSize);
+    uint64 offVal = static_cast<uint64>(firstArgInfo.symLoc->GetOffset());
+    OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(offVal, k32BitSize);
     if (firstArgInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
-    memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
-                                            firstArgInfo.stkSize * kBitsPerByte,
-                                            *baseReg, nullptr, &offsetOpnd, firstArgInfo.sym);
+    memOpnd = aarchCGFunc->CreateMemOperand(firstArgInfo.stkSize * kBitsPerByte, *baseReg, offsetOpnd);
   } else {
     OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(stOffset)),
-        k32BitSize);
+                                                          k32BitSize);
     if (firstArgInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
-    memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
-                                            firstArgInfo.stkSize * kBitsPerByte,
-                                            *baseOpnd, nullptr, &offsetOpnd, firstArgInfo.sym);
+    memOpnd = aarchCGFunc->CreateMemOperand(firstArgInfo.stkSize * kBitsPerByte, *baseOpnd, offsetOpnd);
   }
   Insn &pushInsn = aarchCGFunc->GetInsnBuilder()->BuildInsn(mOp, regOpnd, *regOpnd2, *memOpnd);
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
@@ -226,8 +222,7 @@ void AArch64MoveRegArgs::GenOneInsn(const ArgInfo &argInfo, RegOperand &baseOpnd
   if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
     offsetOpnd.SetVary(kUnAdjustVary);
   }
-  MemOperand *memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
-                        stBitSize, baseOpnd, nullptr, &offsetOpnd, argInfo.sym);
+  MemOperand *memOpnd = aarchCGFunc->CreateMemOperand(stBitSize, baseOpnd, offsetOpnd);
   Insn &insn = aarchCGFunc->GetInsnBuilder()->BuildInsn(mOp, regOpnd, *memOpnd);
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
     insn.SetComment(std::string("store param: ").append(argInfo.sym->GetName()));
@@ -255,18 +250,14 @@ void AArch64MoveRegArgs::GenerateStrInsn(const ArgInfo &argInfo, AArch64reg reg2
     if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
-    memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
-                                            argInfo.symSize * kBitsPerByte, *baseReg,
-                                            nullptr, &offsetOpnd, argInfo.sym);
+    memOpnd = aarchCGFunc->CreateMemOperand(argInfo.symSize * kBitsPerByte, *baseReg, offsetOpnd);
   } else {
     OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(stOffset)),
         k32BitSize);
     if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
       offsetOpnd.SetVary(kUnAdjustVary);
     }
-    memOpnd = aarchCGFunc->CreateMemOperand(MemOperand::kAddrModeBOi,
-                                            argInfo.symSize * kBitsPerByte, *baseOpnd,
-                                            nullptr, &offsetOpnd, argInfo.sym);
+    memOpnd = aarchCGFunc->CreateMemOperand(argInfo.symSize * kBitsPerByte, *baseOpnd, offsetOpnd);
   }
 
   MOperator mOp = aarchCGFunc->PickStInsn(argInfo.symSize * kBitsPerByte, argInfo.mirTy->GetPrimType());

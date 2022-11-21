@@ -166,7 +166,7 @@ std::set<uint32> Insn::GetDefRegs() const {
       auto &memOpnd = static_cast<MemOperand&>(opnd);
       RegOperand *base = memOpnd.GetBaseRegister();
       if (base != nullptr) {
-        if (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
+        if (memOpnd.GetAddrMode() == MemOperand::kBOI &&
             (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed())) {
           ASSERT(!defRegNOs.count(base->GetRegisterNumber()), "duplicate def in one insn");
           defRegNOs.emplace(base->GetRegisterNumber());

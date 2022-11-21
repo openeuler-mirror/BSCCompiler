@@ -95,7 +95,7 @@ bool AArch64Schedule::CanCombine(const Insn &insn) const {
   ASSERT(insn.GetOperand(1).IsMemoryAccessOperand(), "expects mem operands");
   auto &memOpnd = static_cast<MemOperand&>(insn.GetOperand(1));
   MemOperand::AArch64AddressingMode addrMode = memOpnd.GetAddrMode();
-  if ((addrMode != MemOperand::kAddrModeBOi) || !memOpnd.IsIntactIndexed()) {
+  if (addrMode != MemOperand::kBOI) {
     return false;
   }
 

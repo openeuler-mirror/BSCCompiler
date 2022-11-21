@@ -20,12 +20,15 @@
 #include "aarch64_peep.h"
 #elif TARGRISCV64
 #include "riscv64_peep.h"
+#elif defined TARGX86_64
+#include "x64_peep.h"
 #endif
 #if TARGARM32
 #include "arm32_peep.h"
 #endif
 
 namespace maplebe {
+#if TARGAARCH64
 bool CGPeepPattern::IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, const RegOperand &ccReg) const {
   if (startInsn.GetBB() != endInsn.GetBB()) {
     return true;
@@ -39,7 +42,7 @@ bool CGPeepPattern::IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, const Re
     if (curInsn->IsCall()) {
       return true;
     }
-    uint32 opndNum = curInsn->GetOpndNum();
+    uint32 opndNum = curInsn->GetOperandSize();
     for (uint32 i = 0; i < opndNum; ++i) {
       Operand &opnd = curInsn->GetOperand(i);
       if (!opnd.IsRegister()) {
@@ -160,14 +163,8 @@ bool CGPeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &in
       if (opnd.IsRegister() && tmpRegOpnd.GetRegisterNumber() != regOpnd.GetRegisterNumber()) {
         continue;
       }
-#if TARGAARCH64 || TARGRISCV64
-      const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = (md->operand[static_cast<uint32>(i)]);
-#endif
-#if TARGARM32
-      const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
-#endif
+      const InsnDesc *md = nextInsn->GetDesc();
+      auto *regProp = (md->opndMD[static_cast<uint64>(i)]);
       bool isUse = regProp->IsUse();
       /* if noUse Redefined, no need to check live-out. */
       return isUse;
@@ -268,21 +265,11 @@ ReturnType CGPeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb
     if (!insn->IsMachineInstruction()) {
       continue;
     }
-#if TARGAARCH64 || TARGRISCV64
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<const AArch64Insn*>(insn)->GetMachineOpcode()];
-#endif
-#if TARGARM32
-    const Arm32MD *md = &Arm32CG::kMd[static_cast<const Arm32Insn*>(insn)->GetMachineOpcode()];
-#endif
+    const InsnDesc *md = insn->GetDesc();
     int32 lastOpndId = static_cast<int32>(insn->GetOperandSize() - 1);
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
-#if TARGAARCH64 || TARGRISCV64
-      auto *regProp = (md->operand[static_cast<uint32>(i)]);
-#endif
-#if TARGARM32
-      auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
-#endif
+      auto *regProp = (md->opndMD[static_cast<uint64>(i)]);
       if (opnd.IsConditionCode()) {
         if (regOpnd.GetRegisterNumber() == kRFLAG) {
           bool isUse = regProp->IsUse();
@@ -390,14 +377,8 @@ bool PeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn
       if (opnd.IsRegister() && tmpRegOpnd.GetRegisterNumber() != regOpnd.GetRegisterNumber()) {
         continue;
       }
-#if TARGAARCH64 || TARGRISCV64
-      const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = (md->operand[static_cast<uint32>(i)]);
-#endif
-#if TARGARM32
-      const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
-#endif
+      const InsnDesc *md = nextInsn->GetDesc();
+      auto *regProp = (md->opndMD[static_cast<uint64>(i)]);
       bool isUse = regProp->IsUse();
       /* if noUse Redefined, no need to check live-out. */
       return isUse;
@@ -498,21 +479,11 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
     if (!insn->IsMachineInstruction()) {
       continue;
     }
-#if TARGAARCH64 || TARGRISCV64
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<const AArch64Insn*>(insn)->GetMachineOpcode()];
-#endif
-#if TARGARM32
-    const Arm32MD *md = &Arm32CG::kMd[static_cast<const Arm32Insn*>(insn)->GetMachineOpcode()];
-#endif
+    const InsnDesc *md = insn->GetDesc();
     int32 lastOpndId = static_cast<int32>(insn->GetOperandSize() - 1);
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
-#if TARGAARCH64 || TARGRISCV64
-      auto *regProp = (md->operand[static_cast<uint32>(i)]);
-#endif
-#if TARGARM32
-      auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
-#endif
+      auto *regProp = (md->opndMD[static_cast<uint64>(i)]);
       if (opnd.IsConditionCode()) {
         if (regOpnd.GetRegisterNumber() == kRFLAG) {
           bool isUse = regProp->IsUse();
@@ -578,25 +549,12 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
 
 bool PeepPattern::IsMemOperandOptPattern(const Insn &insn, Insn &nextInsn) {
   /* Check if base register of nextInsn and the dest operand of insn are identical. */
-#if TARGAARCH64 || TARGRISCV64
-  MemOperand *memOpnd = static_cast<MemOperand*>(nextInsn.GetMemOpnd());
+  auto *memOpnd = static_cast<MemOperand*>(nextInsn.GetMemOpnd());
   ASSERT(memOpnd != nullptr, "null ptr check");
   /* Only for AddrMode_B_OI addressing mode. */
-  if (memOpnd->GetAddrMode() != MemOperand::kAddrModeBOi) {
+  if (memOpnd->GetAddrMode() != MemOperand::kBOI) {
     return false;
   }
-#endif
-#if TARGARM32
-  Arm32MemOperand *memOpnd = static_cast<Arm32MemOperand*>(nextInsn.GetMemOpnd());
-  ASSERT(memOpnd != nullptr, "null ptr check");
-  if (static_cast<const Arm32Insn*>(&insn)->GetCondExe() != static_cast<Arm32Insn*>(&nextInsn)->GetCondExe()) {
-    return false;
-  }
-  /* Only for AddrMode_B_OI addressing mode. */
-  if (memOpnd->GetAddrMode() != Arm32MemOperand::kAddrModeBOi) {
-    return false;
-  }
-#endif
   /* Only for immediate is  0. */
   if (memOpnd->GetOffsetImmediate()->GetOffsetValue() != 0) {
     return false;
@@ -700,11 +658,15 @@ void CgPeepHole::GetAnalysisDependence(AnalysisDep &aDep) const {
   aDep.AddPreserved<CgSSAConstruct>();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole, cgpeephole)
-
+#endif
 /* === Physical Pre Form === */
 bool CgPrePeepHole::PhaseRun(maplebe::CGFunc &f) {
   MemPool *mp = GetPhaseMemPool();
+  #if defined TARGAARCH64
   auto *cgpeep = mp->New<AArch64CGPeepHole>(f, mp);
+  #elif defined TARGX86_64
+  auto *cgpeep = mp->New<X64CGPeepHole>(f, mp);
+  #endif
   CHECK_FATAL(cgpeep != nullptr, "PeepHoleOptimizer instance create failure");
   cgpeep->Run();
   return false;
@@ -714,13 +676,18 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole, cgprepeephole)
 /* === Physical Post Form === */
 bool CgPostPeepHole::PhaseRun(maplebe::CGFunc &f) {
   MemPool *mp = GetPhaseMemPool();
+  #if defined TARGAARCH64
   auto *cgpeep = mp->New<AArch64CGPeepHole>(f, mp);
+  #elif defined TARGX86_64
+  auto *cgpeep = mp->New<X64CGPeepHole>(f, mp);
+  #endif
   CHECK_FATAL(cgpeep != nullptr, "PeepHoleOptimizer instance create failure");
   cgpeep->Run();
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPostPeepHole, cgpostpeephole)
 
+#if TARGAARCH64
 bool CgPrePeepHole0::PhaseRun(maplebe::CGFunc &f) {
   auto *peep = GetPhaseMemPool()->New<PeepHoleOptimizer>(&f);
   CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
@@ -752,4 +719,6 @@ bool CgPeepHole1::PhaseRun(maplebe::CGFunc &f) {
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole1, peephole)
+#endif
+
 }  /* namespace maplebe */

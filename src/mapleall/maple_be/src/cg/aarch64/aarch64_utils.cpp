@@ -17,27 +17,26 @@
 
 namespace maplebe {
 
-AArch64MemOperand *GetOrCreateMemOperandForNewMOP(CGFunc &cgFunc,
-                                                  const Insn &loadIns,
-                                                  MOperator newLoadMop) {
+MemOperand *GetOrCreateMemOperandForNewMOP(CGFunc &cgFunc,
+                                           const Insn &loadIns,
+                                           MOperator newLoadMop) {
   MemPool &memPool = *cgFunc.GetMemoryPool();
-  auto *memOp = static_cast<AArch64MemOperand *>(loadIns.GetMemOpnd());
+  auto *memOp = static_cast<MemOperand *>(loadIns.GetMemOpnd());
   MOperator loadMop = loadIns.GetMachineOpcode();
 
   ASSERT(loadIns.IsLoad() && AArch64CG::kMd[newLoadMop].IsLoad(),
          "ins and Mop must be load");
 
-  AArch64MemOperand *newMemOp = memOp;
+  MemOperand *newMemOp = memOp;
 
   uint32 memSize = AArch64CG::kMd[loadMop].GetOperandSize();
   uint32 newMemSize = AArch64CG::kMd[newLoadMop].GetOperandSize();
-
   if (newMemSize == memSize) {
     // if sizes are the same just return old memory operand
     return newMemOp;
   }
 
-  newMemOp = static_cast<AArch64MemOperand *>(memOp->Clone(memPool));
+  newMemOp = memOp->Clone(memPool);
   newMemOp->SetSize(newMemSize);
 
   if (!CGOptions::IsBigEndian()) {
@@ -45,18 +44,18 @@ AArch64MemOperand *GetOrCreateMemOperandForNewMOP(CGFunc &cgFunc,
   }
 
   // for big-endian it's necessary to adjust offset if it's present
-  if (memOp->GetAddrMode() != AArch64MemOperand::kAddrModeBOi ||
+  if (memOp->GetAddrMode() != MemOperand::kBOI ||
       newMemSize > memSize) {
     // currently, it's possible to adjust an offset only for immediate offset
     // operand if new size is less than the original one
     return nullptr;
   }
 
-  auto *newOffOp = static_cast<AArch64OfstOperand *>(
+  auto *newOffOp = static_cast<OfstOperand *>(
       memOp->GetOffsetImmediate()->Clone(memPool));
 
-  newOffOp->AdjustOffset((memSize - newMemSize) >> kLog2BitsPerByte);
-  newMemOp->SetOffsetImmediate(*newOffOp);
+  newOffOp->AdjustOffset(static_cast<int32>((memSize - newMemSize) >> kLog2BitsPerByte));
+  newMemOp->SetOffsetOperand(*newOffOp);
 
   ASSERT(memOp->IsOffsetMisaligned(memSize) ||
          !newMemOp->IsOffsetMisaligned(newMemSize),

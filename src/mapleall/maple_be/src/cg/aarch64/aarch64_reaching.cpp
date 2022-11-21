@@ -173,10 +173,8 @@ void AArch64ReachingDefinition::AddRetPseudoInsn(BB &bb) {
 void AArch64ReachingDefinition::AddRetPseudoInsns() {
   uint32 exitBBSize = cgFunc->GetExitBBsVec().size();
   if (exitBBSize == 0) {
-    if (cgFunc->GetCleanupLabel() != nullptr &&
-        cgFunc->GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc->GetCleanupLabel() &&
-        cgFunc->GetLastBB()->GetPrev()->GetPrev()) {
-      AddRetPseudoInsn(*cgFunc->GetLastBB()->GetPrev()->GetPrev());
+    if (cgFunc->GetCleanupBB() != nullptr && cgFunc->GetCleanupBB()->GetPrev() != nullptr) {
+      AddRetPseudoInsn(*cgFunc->GetCleanupBB()->GetPrev());
     } else {
       AddRetPseudoInsn(*cgFunc->GetLastBB()->GetPrev());
     }
@@ -860,7 +858,7 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
         auto &memOpnd = static_cast<MemOperand&>(opnd);
         RegOperand *baseOpnd = memOpnd.GetBaseRegister();
         if (baseOpnd != nullptr &&
-            (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi) &&
+            (memOpnd.GetAddrMode() == MemOperand::kBOI) &&
             (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed()) &&
             baseOpnd->GetRegisterNumber() == regNO) {
           findFinish = true;
@@ -1196,7 +1194,7 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
     if (index != nullptr) {
       regUse[insn.GetBB()->GetId()]->SetBit(index->GetRegisterNumber());
     }
-    if (memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
+    if (memOpnd.GetAddrMode() == MemOperand::kBOI &&
         (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed())) {
       /* Base operand has changed. */
       regGen[insn.GetBB()->GetId()]->SetBit(base->GetRegisterNumber());

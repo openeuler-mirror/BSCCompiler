@@ -121,13 +121,16 @@ bool AArch64DataDepBase::IsFrameReg(const RegOperand &opnd) const {
 }
 
 MemOperand *AArch64DataDepBase::BuildNextMemOperandByByteSize(const MemOperand &aarchMemOpnd, uint32 byteSize) const {
-  MemOperand *nextMemOpnd = aarchMemOpnd.Clone(memPool);
-  Operand *nextOfstOpnd = nextMemOpnd->GetOffsetImmediate()->Clone(memPool);
-  auto *aarchNextOfstOpnd = static_cast<OfstOperand*>(nextOfstOpnd);
-  CHECK_NULL_FATAL(aarchNextOfstOpnd);
-  auto offsetVal = static_cast<int32>(aarchNextOfstOpnd->GetOffsetValue());
-  aarchNextOfstOpnd->SetOffsetValue(offsetVal + static_cast<int32>(byteSize));
-  nextMemOpnd->SetOffsetOperand(*aarchNextOfstOpnd);
+  MemOperand *nextMemOpnd = nullptr;
+  RegOperand *nextBaseReg = aarchMemOpnd.GetBaseRegister();
+  CHECK_NULL_FATAL(nextBaseReg);
+  ImmOperand *offsetOperand = static_cast<ImmOperand*>(aarchMemOpnd.GetOffset());
+  int32 offsetVal = offsetOperand ? static_cast<int32>(offsetOperand->GetValue()) : 0;
+  int32 nextOffVal = offsetVal + static_cast<int32>(byteSize);
+  ImmOperand *nextOffOperand = memPool.New<ImmOperand>(nextOffVal, k32BitSize, true);
+  CHECK_NULL_FATAL(nextOffOperand);
+  nextMemOpnd = memPool.New<MemOperand>(aarchMemOpnd.GetSize(), *nextBaseReg,
+                                        *nextOffOperand, aarchMemOpnd.GetAddrMode());
   return nextMemOpnd;
 }
 
@@ -291,9 +294,7 @@ void AArch64DataDepBase::BuildDepsDefMem(Insn &insn, MemOperand &aarchMemOpnd) {
 }
 
 static bool NoAlias(const MemOperand &leftOpnd, const MemOperand &rightOpnd) {
-  if (leftOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
-      rightOpnd.GetAddrMode() == MemOperand::kAddrModeBOi && leftOpnd.GetIndexOpt() == MemOperand::kIntact &&
-      rightOpnd.GetIndexOpt() == MemOperand::kIntact) {
+  if (leftOpnd.GetAddrMode() == MemOperand::kBOI && rightOpnd.GetAddrMode() == MemOperand::kBOI) {
     if (leftOpnd.GetBaseRegister()->GetRegisterNumber() == RFP ||
         rightOpnd.GetBaseRegister()->GetRegisterNumber() == RFP) {
       Operand *ofstOpnd = leftOpnd.GetOffsetOperand();
@@ -311,10 +312,8 @@ static bool NoAlias(const MemOperand &leftOpnd, const MemOperand &rightOpnd) {
 }
 
 static bool NoOverlap(const MemOperand &leftOpnd, const MemOperand &rightOpnd) {
-  if (leftOpnd.GetAddrMode() != MemOperand::kAddrModeBOi ||
-      rightOpnd.GetAddrMode() != MemOperand::kAddrModeBOi ||
-      leftOpnd.GetIndexOpt() != MemOperand::kIntact ||
-      rightOpnd.GetIndexOpt() != MemOperand::kIntact) {
+  if (leftOpnd.GetAddrMode() != MemOperand::kBOI || rightOpnd.GetAddrMode() != MemOperand::kBOI ||
+      !leftOpnd.IsIntactIndexed() || !rightOpnd.IsIntactIndexed()) {
     return false;
   }
   if (leftOpnd.GetBaseRegister()->GetRegisterNumber() != RFP ||
@@ -491,8 +490,7 @@ void AArch64DataDepBase::BuildMemOpndDependency(Insn &insn, Operand &opnd, const
   if (baseRegister != nullptr) {
     regno_t regNO = baseRegister->GetRegisterNumber();
     BuildDepsUseReg(insn, regNO);
-    if ((memOpnd->GetAddrMode() == MemOperand::kAddrModeBOi) &&
-        (memOpnd->IsPostIndexed() || memOpnd->IsPreIndexed())) {
+    if (memOpnd->IsPostIndexed() || memOpnd->IsPreIndexed()) {
       /* Base operand has changed. */
       BuildDepsDefReg(insn, regNO);
     }

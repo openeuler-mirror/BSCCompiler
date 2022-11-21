@@ -3641,8 +3641,8 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(const Insn &insn) {
       // call parameters
     } else if (opnd->IsMemoryAccessOperand()) {
       auto *memopnd = static_cast<MemOperand*>(opnd);
-      if (memopnd->GetIndexOpt() == MemOperand::kPreIndex ||
-          memopnd->GetIndexOpt() == MemOperand::kPostIndex) {
+      if (memopnd->GetAddrMode() == MemOperand::kPreIndex ||
+          memopnd->GetAddrMode() == MemOperand::kPostIndex) {
         isIndexedMemOp = true;
       }
       auto *base = static_cast<RegOperand*>(memopnd->GetBaseRegister());

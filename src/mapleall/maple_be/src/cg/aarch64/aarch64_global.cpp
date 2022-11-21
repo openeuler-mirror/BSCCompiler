@@ -273,7 +273,7 @@ void OptimizePattern::ReplaceAllUsedOpndWithNewOpnd(const InsnSet &useInsnSet, u
           CHECK_FATAL(newMem != nullptr, "null ptr check");
           newMem->SetIndexRegister(*static_cast<RegOperand*>(&newOpnd));
           if (static_cast<RegOperand&>(newOpnd).GetValidBitsNum() != index->GetValidBitsNum()) {
-            newMem->UpdateExtend(MemOperand::kSignExtend);
+            continue;
           }
           useInsn->SetOperand(i, *newMem);
           if (updateInfo) {
@@ -390,7 +390,7 @@ void ForwardPropPattern::Optimize(Insn &insn) {
           CHECK_FATAL(newMem != nullptr, "null ptr check");
           newMem->SetIndexRegister(static_cast<RegOperand&>(secondOpnd));
           if (static_cast<RegOperand&>(secondOpnd).GetValidBitsNum() != index->GetValidBitsNum()) {
-            newMem->UpdateExtend(MemOperand::kSignExtend);
+            continue;
           }
           useInsn->SetOperand(i, *newMem);
           cgFunc.GetRD()->InitGenUse(*useInsn->GetBB(), false);
@@ -664,8 +664,7 @@ bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
       return true;
     };
     /* ensure that the use insns to be replaced is defined by defInsnForSecondOpnd only */
-    if (useInsn->IsMemAccess() && static_cast<MemOperand *>(
-        useInsn->GetMemOpnd())->GetIndexOpt() != MemOperand::kIntact) {
+    if (useInsn->IsMemAccess() && !static_cast<MemOperand*>(useInsn->GetMemOpnd())->IsIntactIndexed()) {
       return false;
     }
     InsnSet defInsnVecOfSrcOpnd = cgFunc.GetRD()->FindDefForRegOpnd(*useInsn, secondRegNO, true);
@@ -771,7 +770,7 @@ void BackPropPattern::Optimize(Insn &insn) {
     } else if (opnd.IsMemoryAccessOperand()) {
       MemOperand &memOpnd = static_cast<MemOperand&>(opnd);
       RegOperand *base = memOpnd.GetBaseRegister();
-      if (base != nullptr && memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
+      if (base != nullptr && memOpnd.GetAddrMode() == MemOperand::kBOI &&
           (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed()) && base->GetRegisterNumber() == secondRegNO) {
         MemOperand *newMem = static_cast<MemOperand*>(opnd.Clone(*cgFunc.GetMemoryPool()));
         CHECK_FATAL(newMem != nullptr, "null ptr check");
@@ -2292,7 +2291,7 @@ bool ContinuousLdrPattern::IsUsedBySameCall(Insn &insn1, Insn &insn2, Insn &insn
 }
 
 bool ContinuousLdrPattern::IsMemValid(const MemOperand &memopnd) {
-  return memopnd.GetAddrMode() == MemOperand::kAddrModeBOi && memopnd.GetIndexOpt() == MemOperand::kIntact;
+  return memopnd.GetAddrMode() == MemOperand::kBOI;
 }
 
 bool ContinuousLdrPattern::IsImmValid(MOperator mop, const ImmOperand &imm) {

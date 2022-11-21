@@ -19,21 +19,20 @@
 namespace maplebe {
 void AArch64CGSSAInfo::RenameInsn(Insn &insn) {
   auto opndNum = static_cast<int32>(insn.GetOperandSize());
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(insn).GetMachineOpcode()];
+  const InsnDesc *md = insn.GetDesc();
   if (md->IsPhi()) {
     return;
   }
   for (int i = opndNum - 1; i >= 0; --i) {
     Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
-    auto *opndProp = (md->operand[static_cast<uint32>(i)]);
+    auto *opndProp = (md->opndMD[static_cast<uint32>(i)]);
     A64SSAOperandRenameVisitor renameVisitor(*this, insn, *opndProp, i);
     opnd.Accept(renameVisitor);
   }
 }
 
 MemOperand *AArch64CGSSAInfo::CreateMemOperand(MemOperand &memOpnd, bool isOnSSA) const {
-  return isOnSSA ? memOpnd.Clone(*memPool) :
-      &static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(memOpnd);
+  return isOnSSA ? memOpnd.Clone(*cgFunc->GetMemoryPool()) : &memOpnd;
 }
 
 RegOperand *AArch64CGSSAInfo::GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn, uint32 idx) {
@@ -84,10 +83,10 @@ RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
 void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
   A64OpndSSAUpdateVsitor ssaUpdator(*this);
   auto updateInsnSSAInfo = [&ssaUpdator](Insn &curInsn, bool isDelete) {
-    const AArch64MD *md = &AArch64CG::kMd[curInsn.GetMachineOpcode()];
+    const InsnDesc *md = curInsn.GetDesc();
     for (uint32 i = 0; i < curInsn.GetOperandSize(); ++i) {
       Operand &opnd = curInsn.GetOperand(i);
-      auto *opndProp = md->operand[i];
+      auto *opndProp = md->opndMD[i];
       if (isDelete) {
         ssaUpdator.MarkDecrease();
       } else {
@@ -139,8 +138,7 @@ void AArch64CGSSAInfo::CreateNewInsnSSAInfo(Insn &newInsn) {
   MarkInsnsInSSA(newInsn);
   for (uint32 i = 0; i < opndNum; i++) {
     Operand &opnd = newInsn.GetOperand(i);
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(newInsn).GetMachineOpcode()];
-    auto *opndProp = md->operand[i];
+    auto *opndProp = newInsn.GetDesc()->opndMD[i];
     if (opndProp->IsDef() && opndProp->IsUse()) {
       CHECK_FATAL(false, "do not support both def and use");
     }
@@ -157,6 +155,8 @@ void AArch64CGSSAInfo::CreateNewInsnSSAInfo(Insn &newInsn) {
       if (!IncreaseSSAOperand(defSSAOpnd->GetRegisterNumber(), defVersion)) {
         CHECK_FATAL(false, "insert ssa operand failed");
       }
+      uint32 curSSAVregCount = cgFunc->GetSSAvRegCount();
+      cgFunc->SetSSAvRegCount(++curSSAVregCount);
     } else if (opndProp->IsUse()) {
       A64OpndSSAUpdateVsitor ssaUpdator(*this);
       ssaUpdator.MarkIncrease();
@@ -167,27 +167,26 @@ void AArch64CGSSAInfo::CreateNewInsnSSAInfo(Insn &newInsn) {
 }
 
 void AArch64CGSSAInfo::DumpInsnInSSAForm(const Insn &insn) const {
-  auto &a64Insn = static_cast<const AArch64Insn&>(insn);
-  MOperator mOp = a64Insn.GetMachineOpcode();
-  const AArch64MD *md = &AArch64CG::kMd[mOp];
+  MOperator mOp = insn.GetMachineOpcode();
+  const InsnDesc *md = insn.GetDesc();
   ASSERT(md != nullptr, "md should not be nullptr");
 
-  LogInfo::MapleLogger() << "< " << a64Insn.GetId() << " > ";
+  LogInfo::MapleLogger() << "< " << insn.GetId() << " > ";
   LogInfo::MapleLogger() << md->name << "(" << mOp << ")";
 
-  for (uint32 i = 0; i < a64Insn.GetOperandSize(); ++i) {
-    Operand &opnd = a64Insn.GetOperand(i);
+  for (uint32 i = 0; i < insn.GetOperandSize(); ++i) {
+    Operand &opnd = insn.GetOperand(i);
     LogInfo::MapleLogger() << " (opnd" << i << ": ";
     A64SSAOperandDumpVisitor a64OpVisitor(GetAllSSAOperands());
     opnd.Accept(a64OpVisitor);
     if (!a64OpVisitor.HasDumped()) {
-      A64OpndDumpVisitor dumpVisitor;
+      A64OpndDumpVisitor dumpVisitor(*md->GetOpndDes(i));
       opnd.Accept(dumpVisitor);
       LogInfo::MapleLogger() << ")";
     }
   }
-  if (a64Insn.IsVectorOp()) {
-    auto &vInsn = static_cast<const AArch64VectorInsn&>(insn);
+  if (insn.IsVectorOp()) {
+    auto &vInsn = static_cast<const VectorInsn&>(insn);
     if (vInsn.GetNumOfRegSpec() != 0) {
       LogInfo::MapleLogger() << " (vecSpec: " << vInsn.GetNumOfRegSpec() << ")";
     }
@@ -196,14 +195,13 @@ void AArch64CGSSAInfo::DumpInsnInSSAForm(const Insn &insn) const {
 }
 
 void A64SSAOperandRenameVisitor::Visit(RegOperand *v) {
-  auto *regOpnd = static_cast<RegOperand*>(v);
-  if (regOpnd->IsVirtualRegister()) {
-    if (opndProp->IsRegDef() && opndProp->IsRegUse()) {        /* both def use */
-      insn->SetOperand(idx, *ssaInfo->GetRenamedOperand(*regOpnd, false, *insn, idx));
-      RegOperand *ssaDefOpnd = ssaInfo->GetRenamedOperand(*regOpnd, true, *insn, idx);
+  if (v->IsVirtualRegister()) {
+    if (opndDes->IsRegDef() && opndDes->IsRegUse()) {        /* both def use */
+      insn->SetOperand(idx, *ssaInfo->GetRenamedOperand(*v, false, *insn, idx));
+      RegOperand *ssaDefOpnd = ssaInfo->GetRenamedOperand(*v, true, *insn, idx);
       insn->SetSSAImpDefOpnd(ssaDefOpnd);
     } else {
-      insn->SetOperand(idx, *ssaInfo->GetRenamedOperand(*regOpnd, opndProp->IsRegDef(), *insn, idx));
+      insn->SetOperand(idx, *ssaInfo->GetRenamedOperand(*v, opndDes->IsRegDef(), *insn, idx));
     }
   }
 }
@@ -250,14 +248,14 @@ void A64SSAOperandRenameVisitor::Visit(ListOperand *v) {
 
 void A64OpndSSAUpdateVsitor::Visit(RegOperand *v) {
   if (v->IsSSAForm()) {
-    if (opndProp->IsRegDef() && opndProp->IsRegUse()) {
+    if (opndDes->IsRegDef() && opndDes->IsRegUse()) {
       UpdateRegUse(v->GetRegisterNumber());
       ASSERT(insn->GetSSAImpDefOpnd(), "must be");
       UpdateRegDef(insn->GetSSAImpDefOpnd()->GetRegisterNumber());
     } else {
-      if (opndProp->IsRegDef()) {
+      if (opndDes->IsRegDef()) {
         UpdateRegDef(v->GetRegisterNumber());
-      } else if (opndProp->IsRegUse()) {
+      } else if (opndDes->IsRegUse()) {
         UpdateRegUse(v->GetRegisterNumber());
       } else if (IsPhi()) {
         UpdateRegUse(v->GetRegisterNumber());
@@ -363,13 +361,13 @@ void A64SSAOperandDumpVisitor::Visit(MemOperand *v) {
   if (v->GetBaseRegister() != nullptr && v->GetBaseRegister()->IsSSAForm()) {
     LogInfo::MapleLogger() << "Mem: ";
     Visit(v->GetBaseRegister());
-    if (v->GetAddrMode() == MemOperand::kAddrModeBOi) {
+    if (v->GetAddrMode() == MemOperand::kBOI) {
       LogInfo::MapleLogger() << "offset:";
       v->GetOffsetOperand()->Dump();
     }
   }
   if (v->GetIndexRegister() != nullptr && v->GetIndexRegister()->IsSSAForm()) {
-    ASSERT(v->GetAddrMode() == MemOperand::kAddrModeBOrX, "mem mode false");
+    ASSERT(v->GetAddrMode() == MemOperand::kBOR, "mem mode false");
     LogInfo::MapleLogger() << "offset:";
     Visit(v->GetIndexRegister());
   }

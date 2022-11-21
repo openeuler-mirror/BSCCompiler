@@ -547,7 +547,7 @@ bool LdrCmpPattern::MemOffet4Bit(const MemOperand &m1, const MemOperand &m2) con
   if (m1.GetAddrMode() != m2.GetAddrMode()) {
     return false;
   }
-  if (m1.GetAddrMode() != MemOperand::kAddrModeBOi) {
+  if (m1.GetAddrMode() != MemOperand::kBOI) {
     return false;
   }
   if (m1.GetBaseRegister()->GetRegisterNumber() != m2.GetBaseRegister()->GetRegisterNumber()) {
@@ -1889,7 +1889,7 @@ bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(MOperator oldMop, MOper
   auto *memOpnd = static_cast<MemOperand*>(prevInsn->GetMemOpnd());
   ASSERT(!prevInsn->IsStorePair(), "do not do ElimSpecificExtensionPattern for str pair");
   ASSERT(!prevInsn->IsLoadPair(), "do not do ElimSpecificExtensionPattern for ldr pair");
-  if (memOpnd->GetAddrMode() == MemOperand::kAddrModeBOi &&
+  if (memOpnd->GetAddrMode() == MemOperand::kBOI &&
       !aarFunc->IsOperandImmValid(newMop, memOpnd, kInsnSecondOpnd)) {
     return false;
   }
@@ -2473,11 +2473,11 @@ bool RemoveIdenticalLoadAndStorePattern::IsMemOperandsIdentical(const Insn &insn
   }
   /* Match only [base + offset] */
   auto &memOpnd1 = static_cast<MemOperand&>(insn1.GetOperand(kInsnSecondOpnd));
-  if (memOpnd1.GetAddrMode() != MemOperand::kAddrModeBOi || !memOpnd1.IsIntactIndexed()) {
+  if (memOpnd1.GetAddrMode() != MemOperand::kBOI) {
     return false;
   }
   auto &memOpnd2 = static_cast<MemOperand&>(insn2.GetOperand(kInsnSecondOpnd));
-  if (memOpnd2.GetAddrMode() != MemOperand::kAddrModeBOi || !memOpnd1.IsIntactIndexed()) {
+  if (memOpnd2.GetAddrMode() != MemOperand::kBOI) {
     return false;
   }
   Operand *base1 = memOpnd1.GetBaseRegister();
@@ -2544,7 +2544,7 @@ void EnhanceStrLdrAArch64::Run(BB &bb, Insn &insn) {
   auto &a64MemOpnd = static_cast<MemOperand&>(memOpnd);
   RegOperand *baseOpnd = a64MemOpnd.GetBaseRegister();
   MOperator prevMop = prevInsn->GetMachineOpcode();
-  if (IsEnhanceAddImm(prevMop) && a64MemOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
+  if (IsEnhanceAddImm(prevMop) && a64MemOpnd.GetAddrMode() == MemOperand::kBOI &&
       a64MemOpnd.GetOffsetImmediate()->GetValue() == 0) {
     auto &addDestOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
     if (baseOpnd == &addDestOpnd && !IfOperandIsLiveAfterInsn(addDestOpnd, insn)) {
@@ -2606,7 +2606,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
       if (!sameMemAccess && base != nullptr) {
         regno_t curBaseRegNO = base->GetRegisterNumber();
         int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k16BitSize : k8BitSize);
-        if (!(curBaseRegNO == regNO && memOperand.GetAddrMode() == MemOperand::kAddrModeBOi &&
+        if (!(curBaseRegNO == regNO && memOperand.GetAddrMode() == MemOperand::kBOI &&
             memOperand.GetOffsetImmediate() != nullptr &&
             (memOperand.GetOffsetImmediate()->GetOffsetValue() <= (baseOfst - memBarrierRange) ||
             memOperand.GetOffsetImmediate()->GetOffsetValue() >= (baseOfst + memBarrierRange)))) {
@@ -2623,7 +2623,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
         return true;
       }
       if (isStore && base != nullptr && base->GetRegisterNumber() == regNO) {
-        if (memOperand.GetAddrMode() == MemOperand::kAddrModeBOi && memOperand.GetOffsetImmediate() != nullptr) {
+        if (memOperand.GetAddrMode() == MemOperand::kBOI && memOperand.GetOffsetImmediate() != nullptr) {
           int64 curOffset = memOperand.GetOffsetImmediate()->GetOffsetValue();
           if (memOperand.GetSize() == k64BitSize) {
             uint32 memBarrierRange = insn.IsLoadStorePair() ? k16BitSize : k8BitSize;
@@ -2675,7 +2675,7 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
         auto *baseRegOpnd = static_cast<RegOperand*>(memOperand->GetBaseRegister());
         ASSERT(baseRegOpnd == nullptr || !baseRegOpnd->IsVirtualRegister(),
             "physical register has not been allocated?");
-        if (memOperand->GetAddrMode() == MemOperand::kAddrModeBOi &&
+        if ((memOperand->GetAddrMode() == MemOperand::kBOI) &&
             baseRegOpnd->GetRegisterNumber() == memBaseRegNO) {
           prevContiInsns.emplace_back(curInsn);
         }
@@ -2808,7 +2808,7 @@ bool CombineContiLoadAndStorePattern::PlaceSplitAddInsn(const Insn &curInsn, Ins
     if (cursor->GetMachineOpcode() == mop && (cursor->IsLoad() || cursor->IsStore())) {
       auto &curMemOpnd = static_cast<MemOperand&>(cursor->GetOperand(kInsnSecondOpnd));
       RegOperand *curBaseOpnd = curMemOpnd.GetBaseRegister();
-      if (curMemOpnd.GetAddrMode() == MemOperand::kAddrModeBOi && RegOperand::IsSameReg(baseOpnd, *curBaseOpnd)) {
+      if (curMemOpnd.GetAddrMode() == MemOperand::kBOI && RegOperand::IsSameReg(baseOpnd, *curBaseOpnd)) {
         OfstOperand *curOfstOpnd = curMemOpnd.GetOffsetImmediate();
         CHECK_FATAL(curOfstOpnd != nullptr, "invalid OfstOperand");
         if (curOfstOpnd->GetOffsetValue() > ofstVal &&
@@ -2888,8 +2888,12 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curI
     }
     auto *newOfstOpnd = &aarFunc.CreateOfstOpnd(static_cast<uint64>(ofstOpnd->GetOffsetValue() - addVal),
         ofstOpnd->GetSize());
-    auto *newMemOpnd = aarFunc.CreateMemOperand(MemOperand::kAddrModeBOi, opndProp->GetSize(),
-        newBaseReg, nullptr, newOfstOpnd, memOperand.GetSymbol());
+    MemOperand *newMemOpnd = nullptr;
+    if (memOperand.GetSymbol()) {
+      newMemOpnd = aarFunc.CreateMemOperand(opndProp->GetSize(), newBaseReg, *newOfstOpnd, *memOperand.GetSymbol());
+    } else {
+      newMemOpnd = aarFunc.CreateMemOperand(opndProp->GetSize(), newBaseReg, *newOfstOpnd);
+    }
     if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(combineInsn.GetMachineOpcode(), newMemOpnd,
                                                                  kInsnThirdOpnd))) {
       return PlaceSplitAddInsn(curInsn, combineInsn, memOperand, *baseRegOpnd, opndProp->GetSize());
@@ -2902,13 +2906,10 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curI
 bool CombineContiLoadAndStorePattern::CheckCondition(Insn &insn) {
   memOpnd = static_cast<MemOperand*>(insn.GetMemOpnd());
   ASSERT(memOpnd != nullptr, "get mem operand failed");
-  if (memOpnd->GetAddrMode() != MemOperand::kAddrModeBOi) {
-    return false;
-  }
   if (!doAggressiveCombine) {
     return false;
   }
-  return true;
+  return memOpnd->GetAddrMode() == MemOperand::kBOI;
 }
 
 /* Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp */
@@ -2921,26 +2922,24 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
   auto &destOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto *baseRegOpnd = static_cast<RegOperand*>(memOpnd->GetBaseRegister());
   OfstOperand *offsetOpnd = memOpnd->GetOffsetImmediate();
-  CHECK_FATAL(offsetOpnd != nullptr, "offset opnd lost");
+  int64 offsetVal = offsetOpnd ? offsetOpnd->GetOffsetValue() : 0;
   ASSERT(baseRegOpnd == nullptr || !baseRegOpnd->IsVirtualRegister(), "physical register has not been allocated?");
   std::vector<Insn*> prevContiInsnVec = FindPrevStrLdr(
-      insn, destOpnd.GetRegisterNumber(), baseRegOpnd->GetRegisterNumber(), offsetOpnd->GetOffsetValue());
+      insn, destOpnd.GetRegisterNumber(), baseRegOpnd->GetRegisterNumber(), offsetVal);
   for (auto prevContiInsn : prevContiInsnVec) {
     ASSERT(prevContiInsn != nullptr, "get previous consecutive instructions failed");
     auto *prevMemOpnd = static_cast<MemOperand*>(prevContiInsn->GetMemOpnd());
-    if (memOpnd->GetIndexOpt() != prevMemOpnd->GetIndexOpt()) {
+    if (prevMemOpnd->GetAddrMode() != MemOperand::kBOI) {
       continue;
     }
-    OfstOperand *prevOffsetOpnd = prevMemOpnd->GetOffsetImmediate();
-    CHECK_FATAL(offsetOpnd != nullptr && prevOffsetOpnd != nullptr, "both conti str/ldr have no offset");
     auto &prevDestOpnd = static_cast<RegOperand&>(prevContiInsn->GetOperand(kInsnFirstOpnd));
     uint32 memSize = insn.GetMemoryByteSize();
     uint32 prevMemSize = prevContiInsn->GetMemoryByteSize();
     if (prevDestOpnd.GetRegisterType() != destOpnd.GetRegisterType()) {
       continue;
     }
-    int64 offsetVal = offsetOpnd->GetOffsetValue();
-    int64 prevOffsetVal = prevOffsetOpnd->GetOffsetValue();
+    OfstOperand *prevOffsetOpnd = prevMemOpnd->GetOffsetImmediate();
+    int64 prevOffsetVal = prevOffsetOpnd ? prevOffsetOpnd->GetOffsetValue() : 0;
     auto diffVal = std::abs(offsetVal - prevOffsetVal);
     regno_t destRegNO = destOpnd.GetRegisterNumber();
     regno_t prevDestRegNO = prevDestOpnd.GetRegisterNumber();
@@ -3489,7 +3488,7 @@ void ContiLDRorSTRToSameMEMPattern::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   auto &memOpnd1 = static_cast<MemOperand&>(insn.GetOperand(kInsnSecondOpnd));
   MemOperand::AArch64AddressingMode addrMode1 = memOpnd1.GetAddrMode();
-  if (addrMode1 != MemOperand::kAddrModeBOi || (!memOpnd1.IsIntactIndexed())) {
+  if (addrMode1 != MemOperand::kBOI) {
     return;
   }
 
@@ -3499,7 +3498,7 @@ void ContiLDRorSTRToSameMEMPattern::Run(BB &bb, Insn &insn) {
 
   auto &memOpnd2 = static_cast<MemOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
   MemOperand::AArch64AddressingMode addrMode2 = memOpnd2.GetAddrMode();
-  if (addrMode2 != MemOperand::kAddrModeBOi || (!memOpnd2.IsIntactIndexed())) {
+  if (addrMode2 != MemOperand::kBOI) {
     return;
   }
 
@@ -3965,7 +3964,7 @@ bool DeleteMovAfterCbzOrCbnzAArch64::NoPreDefine(Insn &testInsn) const {
         ASSERT(base != nullptr, "nullptr check");
         ASSERT(base->IsRegister(), "expects RegOperand");
         if (RegOperand::IsSameRegNO(*base, testInsn.GetOperand(kInsnFirstOpnd)) &&
-            memOpnd.GetAddrMode() == MemOperand::kAddrModeBOi &&
+            memOpnd.GetAddrMode() == MemOperand::kBOI &&
             (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed())) {
           return false;
         }
@@ -4359,12 +4358,7 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
     ASSERT(memOpnd != nullptr, "memOpnd is null in AArch64Peep::ComplexMemOperandAArch64");
 
     /* Only for AddrMode_B_OI addressing mode. */
-    if (memOpnd->GetAddrMode() != MemOperand::kAddrModeBOi) {
-      return;
-    }
-
-    /* Only for intact memory addressing. */
-    if (!memOpnd->IsIntactIndexed()) {
+    if (memOpnd->GetAddrMode() != MemOperand::kBOI) {
       return;
     }
 
@@ -4415,11 +4409,9 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
       }
     }
     auto &newBaseOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-    MemOperand &newMemOpnd =
-        aarch64CGFunc->GetOrCreateMemOpnd(MemOperand::kAddrModeLo12Li, memOpnd->GetSize(),
-                                          &newBaseOpnd, nullptr, &offOpnd, stImmOpnd.GetSymbol());
-
-    nextInsn->SetMemOpnd(&newMemOpnd);
+    MemOperand *newMemOpnd =
+        aarch64CGFunc->CreateMemOperand(memOpnd->GetSize(), newBaseOpnd, offOpnd, *stImmOpnd.GetSymbol());
+    nextInsn->SetMemOpnd(newMemOpnd);
     bb.RemoveInsn(insn);
     CHECK_FATAL(!CGOptions::IsLazyBinding() || cgFunc.GetCG()->IsLibcore(),
         "this pattern can't be found in this phase");
@@ -4449,16 +4441,12 @@ void ComplexMemOperandPreAddAArch64::Run(BB &bb, Insn &insn) {
     }
     auto &newIndexOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
     if (newIndexOpnd.GetSize() <= k32BitSize) {
-      MemOperand &newMemOpnd =
-          aarch64CGFunc->GetOrCreateMemOpnd(MemOperand::kAddrModeBOrX, memOpnd->GetSize(), &newBaseOpnd,
-                                            &newIndexOpnd, 0, false);
-      nextInsn->SetOperand(kInsnSecondOpnd, newMemOpnd);
+      ExtendShiftOperand &exOp = aarch64CGFunc->CreateExtendShiftOperand(ExtendShiftOperand::kUXTW, 0, k32BitSize);
+      MemOperand *newMemOpnd = aarch64CGFunc->CreateMemOperand(memOpnd->GetSize(), newBaseOpnd, newIndexOpnd, exOp);
+      nextInsn->SetOperand(kInsnSecondOpnd, *newMemOpnd);
     } else {
-      auto *newOfstOpnd = &aarch64CGFunc->GetOrCreateOfstOpnd(0, k32BitSize);
-      MemOperand &newMemOpnd =
-          aarch64CGFunc->GetOrCreateMemOpnd(MemOperand::kAddrModeBOrX, memOpnd->GetSize(), &newBaseOpnd,
-                                            &newIndexOpnd, newOfstOpnd, nullptr);
-      nextInsn->SetOperand(kInsnSecondOpnd, newMemOpnd);
+      MemOperand *newMemOpnd = aarch64CGFunc->CreateMemOperand(memOpnd->GetSize(), newBaseOpnd, newIndexOpnd);
+      nextInsn->SetOperand(kInsnSecondOpnd, *newMemOpnd);
     }
     bb.RemoveInsn(insn);
   }

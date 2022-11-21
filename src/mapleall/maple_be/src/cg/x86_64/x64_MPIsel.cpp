@@ -48,20 +48,16 @@ MemOperand &X64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uin
     stackBaseReg = static_cast<X64CGFunc*>(cgFunc)->GetBaseReg(*symloc);
     int stOfst = cgFunc->GetBaseOffset(*symloc);
     /* Create field symbols in aggregate structure */
-    result = &GetCurFunc()->GetOpndBuilder()->CreateMem(opndSize);
-    result->SetBaseRegister(*stackBaseReg);
-    result->SetOffsetOperand(GetCurFunc()->GetOpndBuilder()->CreateImm(
-        k64BitSize, stOfst + offset));
+    ImmOperand &ofstOperand = GetCurFunc()->GetOpndBuilder()->CreateImm(k64BitSize, stOfst + offset);
+    result = &GetCurFunc()->GetOpndBuilder()->CreateMem(opndSize, *stackBaseReg, ofstOperand);
     CHECK_FATAL(result != nullptr, "NIY");
     return *result;
   }
   if ((storageClass == kScGlobal) || (storageClass == kScExtern) ||
       (storageClass == kScPstatic) || (storageClass == kScFstatic)) {
     stackBaseReg = &GetCurFunc()->GetOpndBuilder()->CreatePReg(x64::RIP, k64BitSize, kRegTyInt);
-    result = &GetCurFunc()->GetOpndBuilder()->CreateMem(opndSize);
-    ImmOperand &stOfstOpnd = GetCurFunc()->GetOpndBuilder()->CreateImm(symbol, offset, 0);
-    result->SetBaseRegister(*stackBaseReg);
-    result->SetOffsetOperand(stOfstOpnd);
+    ImmOperand &ofstOpnd = GetCurFunc()->GetOpndBuilder()->CreateImm(symbol, offset, 0);
+    result = &GetCurFunc()->GetOpndBuilder()->CreateMem(opndSize, *stackBaseReg, ofstOpnd, symbol);
     CHECK_FATAL(result != nullptr, "NIY");
     return *result;
   }
@@ -98,9 +94,8 @@ void X64MPIsel::SelectReturn(NaryStmtNode &retNode, Operand &opnd) {
     ASSERT(retReg0 != kRinvalid, "NIY");
     RegOperand &retOpnd0 = cgFunc->GetOpndBuilder()->CreatePReg(retReg0, GetPrimTypeBitSize(oriPrimType0),
         cgFunc->GetRegTyFromPrimTy(oriPrimType0));
-    MemOperand &rhsMemOpnd0 = cgFunc->GetOpndBuilder()->CreateMem(GetPrimTypeBitSize(oriPrimType0));
-    rhsMemOpnd0.SetBaseRegister(*baseOpnd);
-    rhsMemOpnd0.SetOffsetOperand(*offsetOpnd);
+    MemOperand &rhsMemOpnd0 = cgFunc->GetOpndBuilder()->CreateMem(GetPrimTypeBitSize(oriPrimType0),
+                                                                  *baseOpnd, *offsetOpnd);
     retRegs.push_back(&retOpnd0);
     SelectCopy(retOpnd0, rhsMemOpnd0, oriPrimType0);
 
@@ -109,11 +104,10 @@ void X64MPIsel::SelectReturn(NaryStmtNode &retNode, Operand &opnd) {
       PrimType oriPrimType1 = retMech.GetPrimTypeOfReg1();
       RegOperand &retOpnd1 = cgFunc->GetOpndBuilder()->CreatePReg(retReg1, GetPrimTypeBitSize(oriPrimType1),
           cgFunc->GetRegTyFromPrimTy(oriPrimType1));
-      MemOperand &rhsMemOpnd1 = cgFunc->GetOpndBuilder()->CreateMem(GetPrimTypeBitSize(oriPrimType1));
       ImmOperand &newOffsetOpnd = static_cast<ImmOperand&>(*offsetOpnd->Clone(*cgFunc->GetMemoryPool()));
       newOffsetOpnd.SetValue(newOffsetOpnd.GetValue() + GetPrimTypeSize(oriPrimType0));
-      rhsMemOpnd1.SetBaseRegister(*baseOpnd);
-      rhsMemOpnd1.SetOffsetOperand(newOffsetOpnd);
+      MemOperand &rhsMemOpnd1 = cgFunc->GetOpndBuilder()->CreateMem(GetPrimTypeBitSize(oriPrimType1),
+                                                                    *baseOpnd, newOffsetOpnd);
       retRegs.push_back(&retOpnd1);
       SelectCopy(retOpnd1, rhsMemOpnd1, oriPrimType1);
     }
@@ -146,11 +140,9 @@ void X64MPIsel::SelectReturn() {
 void X64MPIsel::CreateCallStructParamPassByStack(MemOperand &memOpnd, int32 symSize, int32 baseOffset) {
   int32 copyTime = RoundUp(symSize, GetPointerSize()) / GetPointerSize();
   for (int32 i = 0; i < copyTime; ++i) {
-    MemOperand &addrMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize);
-    addrMemOpnd.SetBaseRegister(*memOpnd.GetBaseRegister());
     ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*memOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));
     newImmOpnd.SetValue(newImmOpnd.GetValue() + i * GetPointerSize());
-    addrMemOpnd.SetOffsetOperand(newImmOpnd);
+    MemOperand &addrMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize, *memOpnd.GetBaseRegister(), newImmOpnd);
     RegOperand &spOpnd = cgFunc->GetOpndBuilder()->CreatePReg(x64::RSP, k64BitSize, kRegTyInt);
     Operand &stMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(spOpnd,
         (baseOffset + i * GetPointerSize()), k64BitSize);
@@ -161,11 +153,9 @@ void X64MPIsel::CreateCallStructParamPassByStack(MemOperand &memOpnd, int32 symS
 void X64MPIsel::CreateCallStructParamPassByReg(MemOperand &memOpnd, regno_t regNo, uint32 parmNum) {
   CHECK_FATAL(parmNum < kMaxStructParamByReg, "Exceeded maximum allowed fp parameter registers for struct passing");
   RegOperand &parmOpnd = cgFunc->GetOpndBuilder()->CreatePReg(regNo, k64BitSize, kRegTyInt);
-  MemOperand &addrMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize);
-  addrMemOpnd.SetBaseRegister(*memOpnd.GetBaseRegister());
   ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*memOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));
   newImmOpnd.SetValue(newImmOpnd.GetValue() + parmNum * GetPointerSize());
-  addrMemOpnd.SetOffsetOperand(newImmOpnd);
+  MemOperand &addrMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize, *memOpnd.GetBaseRegister(), newImmOpnd);
   paramPassByReg.push_back({&parmOpnd, &addrMemOpnd, PTY_a64});
 }
 
@@ -344,17 +334,13 @@ void X64MPIsel::SelectAggCopy(MemOperand &lhs, MemOperand &rhs, uint32 copySize)
   if (copySize < 40U) {
     for (int32 i = 0; i < copyTimes; ++i) {
       /* prepare dest addr */
-      MemOperand &memOpndLhs = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize);
-      memOpndLhs.SetBaseRegister(*baseLhs);
       ImmOperand &newStOfstLhs = static_cast<ImmOperand&>(*stOfstLhs->Clone(*cgFunc->GetMemoryPool()));
       newStOfstLhs.SetValue(newStOfstLhs.GetValue() + i * k8ByteSize);
-      memOpndLhs.SetOffsetOperand(newStOfstLhs);
+      MemOperand &memOpndLhs = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize, *baseLhs, newStOfstLhs);
       /* prepare src addr */
-      MemOperand &memOpndRhs = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize);
-      memOpndRhs.SetBaseRegister(*baseRhs);
       ImmOperand &newStOfstRhs = static_cast<ImmOperand&>(*stOfstRhs->Clone(*cgFunc->GetMemoryPool()));
       newStOfstRhs.SetValue(newStOfstRhs.GetValue() + i * k8ByteSize);
-      memOpndRhs.SetOffsetOperand(newStOfstRhs);
+      MemOperand &memOpndRhs = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize, *baseRhs, newStOfstRhs);
       /* copy data */
       SelectCopy(memOpndLhs, memOpndRhs, PTY_a64);
     }
@@ -373,16 +359,13 @@ void X64MPIsel::SelectAggCopy(MemOperand &lhs, MemOperand &rhs, uint32 copySize)
   }
   extraCopySize = ((extraCopySize <= k4ByteSize) ? k4ByteSize : k8ByteSize) * kBitsPerByte;
   PrimType extraTy = GetIntegerPrimTypeFromSize(false, extraCopySize);
-  MemOperand &memOpndLhs = cgFunc->GetOpndBuilder()->CreateMem(extraCopySize);
-  memOpndLhs.SetBaseRegister(*baseLhs);
+
   ImmOperand &newStOfstLhs = static_cast<ImmOperand&>(*stOfstLhs->Clone(*cgFunc->GetMemoryPool()));
   newStOfstLhs.SetValue(newStOfstLhs.GetValue() + copyTimes * k8ByteSize);
-  memOpndLhs.SetOffsetOperand(newStOfstLhs);
-  MemOperand &memOpndRhs = cgFunc->GetOpndBuilder()->CreateMem(extraCopySize);
-  memOpndRhs.SetBaseRegister(*baseRhs);
+  MemOperand &memOpndLhs = cgFunc->GetOpndBuilder()->CreateMem(extraCopySize, *baseLhs, newStOfstLhs);
   ImmOperand &newStOfstRhs = static_cast<ImmOperand&>(*stOfstRhs->Clone(*cgFunc->GetMemoryPool()));
   newStOfstRhs.SetValue(newStOfstRhs.GetValue() + copyTimes * k8ByteSize);
-  memOpndRhs.SetOffsetOperand(newStOfstRhs);
+  MemOperand &memOpndRhs = cgFunc->GetOpndBuilder()->CreateMem(extraCopySize, *baseRhs, newStOfstRhs);
   SelectCopy(memOpndLhs, memOpndRhs, extraTy);
 }
 
@@ -499,11 +482,10 @@ void X64MPIsel::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd, Operand &
     uint32 numRegs = (symbolInfo.size <= k8ByteSize) ? kOneRegister : kTwoRegister;
     PrimType retPrimType = (symbolInfo.size <= k4ByteSize) ? PTY_u32 : PTY_u64;
     for (int i = 0; i < numRegs; i++) {
-      MemOperand &rhsMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(GetPrimTypeBitSize(retPrimType));
-      rhsMemOpnd.SetBaseRegister(*baseSrc);
       ImmOperand &newStOfstSrc = static_cast<ImmOperand&>(*stOfstSrc->Clone(*cgFunc->GetMemoryPool()));
       newStOfstSrc.SetValue(newStOfstSrc.GetValue() + i * k8ByteSize);
-      rhsMemOpnd.SetOffsetOperand(newStOfstSrc);
+      MemOperand &rhsMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(GetPrimTypeBitSize(retPrimType),
+                                                                   *baseSrc, newStOfstSrc);
       regno_t regNo = (i == 0) ? x64::RAX : x64::RDX;
       result[i] = &cgFunc->GetOpndBuilder()->CreatePReg(regNo, GetPrimTypeBitSize(retPrimType),
           cgFunc->GetRegTyFromPrimTy(retPrimType));
@@ -781,12 +763,11 @@ void X64MPIsel::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) 
 
   /* load the displacement into a register by accessing memory at base + index * 8 */
   /* mov .L_xxx_LOCAL_CONST.x(%baseReg, %indexOpnd, 8), %dstRegOpnd */
-  MemOperand &dstMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(GetPrimTypeBitSize(PTY_a64));
   RegOperand &baseReg = cgFunc->GetOpndBuilder()->CreatePReg(x64::RBP, GetPrimTypeBitSize(PTY_i64), kRegTyInt);
-  dstMemOpnd.SetBaseRegister(baseReg);
+  MemOperand &dstMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(GetPrimTypeBitSize(PTY_a64), baseReg, stOpnd, *lblSt);
   dstMemOpnd.SetIndexRegister(indexOpnd);
-  dstMemOpnd.SetOffsetOperand(stOpnd);
   dstMemOpnd.SetScaleOperand(cgFunc->GetOpndBuilder()->CreateImm(baseReg.GetSize(), k8ByteSize));
+  dstMemOpnd.SetAddrMode(MemOperand::kScale);
 
   /* jumping to the absolute address which is stored in dstRegOpnd */
   MOperator mOp = x64::MOP_jmpq_m;
@@ -861,10 +842,7 @@ Operand *X64MPIsel::SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &par
   ASSERT(labelConst != nullptr, "null ptr check");
   labelSym->SetKonst(labelConst);
   ImmOperand &stOpnd = cgFunc->GetOpndBuilder()->CreateImm(*labelSym, 0, 0);
-
-  MemOperand &memOpnd = cgFunc->GetOpndBuilder()->CreateMem(bitSize);
-  memOpnd.SetBaseRegister(baseOpnd);
-  memOpnd.SetOffsetOperand(stOpnd);
+  MemOperand &memOpnd = cgFunc->GetOpndBuilder()->CreateMem(bitSize, baseOpnd, stOpnd, *labelSym);
 
   X64MOP_t mOp = x64::MOP_begin;
   if (bitSize <= k32BitSize) {

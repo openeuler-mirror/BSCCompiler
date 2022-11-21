@@ -834,7 +834,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
      * Check the second operand, if it's [AArch64MemOperand::kAddrModeLo12Li]
      */
     auto *memOpnd = static_cast<MemOperand*>(&insn.GetOperand(static_cast<uint32>(seq[1])));
-    if (memOpnd == nullptr || memOpnd->GetAddrMode() != MemOperand::kAddrModeLo12Li) {
+    if (memOpnd == nullptr || memOpnd->GetAddrMode() != MemOperand::kLo12Li) {
       continue;
     }
     const MIRSymbol *sym = memOpnd->GetSymbol();
