@@ -38,6 +38,7 @@ endif
 HOST_ARCH := 64
 MIR_JAVA := 1
 GN := $(MAPLE_ROOT)/tools/gn/gn
+CMAKE := $(shell ls $(MAPLE_ROOT)/tools/cmake*/bin/cmake | tail -1)
 NINJA := $(shell ls $(MAPLE_ROOT)/tools/ninja*/ninja | tail -1)
 ifneq ($(findstring GC,$(OPT)),)
   GCONLY := 1
@@ -64,6 +65,34 @@ GN_OPTIONS := \
   COV=$(COV) \
   GPROF=$(GPROF)
 
+CMAKE_OPTIONS := \
+  -DCMAKE_INSTALL_PREFIX="$(MAPLE_ROOT)" \
+  -DCMAKE_BUILD_TYPE="$(BUILD_TYPE)" \
+  -DHOST_ARCH=$(HOST_ARCH) \
+  -DMIR_JAVA=$(MIR_JAVA) \
+  -DOPT="$(OPT)" \
+  -DGCONLY=$(GCONLY) \
+  -DTARGET="$(TARGET_PROCESSOR)" \
+  -DMAJOR_VERSION="$(MAJOR_VERSION)" \
+  -DMINOR_VERSION="$(MINOR_VERSION)" \
+  -DRELEASE_VERSION="$(RELEASE_VERSION)" \
+  -DBUILD_VERSION="$(BUILD_VERSION)" \
+  -DGIT_REVISION="$(GIT_REVISION)" \
+  -DMAST=$(MAST) \
+  -DASAN=$(ASAN) \
+  -DONLY_C=$(ONLY_C) \
+  -DCOV=$(COV) \
+  -DGPROF=$(GPROF)
+
+
+TOOLS := cmake
+BUILD := build_cmake
+OPTIONS := $(CMAKE_OPTIONS)
+ifeq ($(TOOLS),gn)
+  BUILD := build_gn
+  OPTIONS := $(GN_OPTIONS)
+endif
+
 .PHONY: default
 default: install
 
@@ -81,39 +110,43 @@ uninstall_patch:
 
 .PHONY: maplegen
 maplegen:install_patch
-	$(call build_gn, $(GN_OPTIONS), maplegen)
+	$(call $(BUILD), $(OPTIONS), maplegen)
 
 .PHONY: maplegendef
 maplegendef: maplegen
+ifeq ($(TOOLS),gn)
 	$(call build_gn, $(GN_OPTIONS), maplegendef)
+else
+	@python3  src/mapleall/maple_be/mdgen/gendef.py -e ${MAPLE_BUILD_OUTPUT}/bin/maplegen -m ${MAPLE_ROOT}/src/mapleall/maple_be/include/ad/cortex_a55 -o ${MAPLE_BUILD_OUTPUT}/common/target
+endif
 
 .PHONY: maple
 maple: maplegendef
-	$(call build_gn, $(GN_OPTIONS), maple)
+	$(call $(BUILD), $(OPTIONS), maple)
 
 .PHONY: irbuild
 irbuild: install_patch
-	$(call build_gn, $(GN_OPTIONS), irbuild)
+	$(call $(BUILD), $(OPTIONS), irbuild)
 
 .PHONY: mpldbg
 mpldbg:
-	$(call build_gn, $(GN_OPTIONS), mpldbg)
+	$(call $(BUILD), $(OPTIONS), mpldbg)
 
 .PHONY: ast2mpl
 ast2mpl:
-	$(call build_gn, $(GN_OPTIONS), ast2mpl)
+	$(call $(BUILD), $(OPTIONS), ast2mpl)
 
 .PHONY: hir2mpl
 hir2mpl: install_patch
-	$(call build_gn, $(GN_OPTIONS), hir2mpl)
+	$(call $(BUILD), $(OPTIONS), hir2mpl)
 
 .PHONY: clang2mpl
 clang2mpl: maple
 	(cd tools/clang2mpl; make setup; make; make install)
 
 .PHONY: hir2mplUT
-hir2mplUT:
-	$(call build_gn, $(GN_OPTIONS) COV_CHECK=1, hir2mplUT)
+hir2mplUT:install_patch
+	$(call $(BUILD), $(OPTIONS) COV_CHECK=1, hir2mplUT)
 
 .PHONY: libcore
 libcore: maple-rt
@@ -122,11 +155,18 @@ libcore: maple-rt
 
 .PHONY: maple-rt
 maple-rt: java-core-def
+ifeq ($(TOOLS),gn)
 	$(call build_gn, $(GN_OPTIONS), maple-rt)
+else
+	$(call build_cmake, $(CMAKE_OPTIONS), libmplcompiler-rt)
+	$(call build_cmake, $(CMAKE_OPTIONS), libcore-static-binding-jni)
+	$(call build_cmake, $(CMAKE_OPTIONS), libmaplert)
+	$(call build_cmake, $(CMAKE_OPTIONS), libhuawei_secure_c)
+endif
 
 .PHONY: mapleallUT
 mapleallUT: install_patch
-	$(call build_gn, $(GN_OPTIONS), mapleallUT)
+	$(call $(BUILD), $(OPTIONS), mapleallUT)
 
 .PHONY: java-core-def
 java-core-def: install
@@ -199,9 +239,26 @@ clean: cleanrsd
 clobber: cleanrsd
 	@rm -rf output
 
+# ----------------------debug---------------------
+DEBUG_TARGET := libhuawei_secure_c
+.PHONY: cmk
+cmk:install_patch
+	$(call build_cmake, $(CMAKE_OPTIONS), ${DEBUG_TARGET})
+.PHONY: gn
+gn:install_patch
+	$(call build_gn, $(GN_OPTIONS), ${DEBUG_TARGET})
+# ----------------------debug---------------------
 define build_gn
     mkdir -p $(INSTALL_DIR); \
     $(GN) gen $(INSTALL_DIR) --args='$(1)' --export-compile-commands; \
     cd $(INSTALL_DIR); \
     $(NINJA) -v $(2);
 endef
+
+define build_cmake
+    mkdir -p $(INSTALL_DIR); \
+	$(CMAKE) -B $(INSTALL_DIR) $(CMAKE_OPTIONS) -G Ninja; \
+    cd $(INSTALL_DIR); \
+    $(NINJA) -v $(2);
+endef
+

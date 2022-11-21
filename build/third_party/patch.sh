@@ -49,6 +49,9 @@ function install_patch {
     cp -f $AOSP_GN_PATH/art/libdexfile/BUILD.gn $MODIFIED_AOSP_PATH/art/libdexfile/
     cp -f $AOSP_GN_PATH/system/core/libziparchive/BUILD.gn $MODIFIED_AOSP_PATH/system/core/libziparchive/
     cp -f $AOSP_GN_PATH/system/core/base/BUILD.gn $MODIFIED_AOSP_PATH/system/core/base/
+    cp -f $AOSP_GN_PATH/art/libdexfile/CMakeLists.txt $MODIFIED_AOSP_PATH/art/libdexfile/
+    cp -f $AOSP_GN_PATH/system/core/libziparchive/CMakeLists.txt $MODIFIED_AOSP_PATH/system/core/libziparchive/
+    cp -f $AOSP_GN_PATH/system/core/base/CMakeLists.txt $MODIFIED_AOSP_PATH/system/core/base/
 }
 
 

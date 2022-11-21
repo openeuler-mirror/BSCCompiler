@@ -12,6 +12,7 @@ tools/bin*
 tools/android*
 tools/aosp*
 tools/clang*
+tools/cmake*
 tools/gcc*
 tools/gn*
 tools/icu*

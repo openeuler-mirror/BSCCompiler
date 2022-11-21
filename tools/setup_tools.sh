@@ -66,6 +66,15 @@ if [ ! -f $TOOLS/ninja/ninja ]; then
   echo Downloaded ninja.
 fi
 
+#if [ ! -f $TOOLS/cmake/bin/cmake ]; then
+#  cd $TOOLS
+#  echo Start wget cmake ...
+#  wget https://github.com/Kitware/CMake/releases/download/v3.24.0/cmake-3.24.0-linux-x86_64.tar.gz --no-check-certificate
+#  tar -zxf cmake-3.24.0-linux-x86_64.tar.gz
+#  mv cmake-3.24.0-linux-x86_64 cmake
+#  echo Downloaded cmake.
+#fi
+
 if [ ! -f $TOOLS/gn/gn ]; then
   cd $TOOLS
   echo Start clone gn ...
