@@ -245,6 +245,7 @@ class RegionIdentify {
   bool IsRegionLegal(uint startPosition, uint endPosition);
   bool CheckCompatibilifyAmongRegionComponents(BaseNode &lhs, BaseNode& rhs);
   bool CheckCompatibilifyBetweenSrcs(BaseNode &lhs, BaseNode& rhs);
+  bool CompareSymbolStructure(const StIdx leftIdx, const StIdx rightIdx);
   bool HasSameStructure(RegionCandidate &lhs, RegionCandidate &rhs);
   StmtInfo *GetNearestNonnullStmtInfo(StmtInfoId index, bool forward);
 

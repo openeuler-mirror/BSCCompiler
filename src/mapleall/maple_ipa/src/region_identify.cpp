@@ -231,12 +231,22 @@ static bool CompareStructure(const T &leftElement, const T &rightElement, Map &c
   return true;
 }
 
+bool RegionIdentify::CompareSymbolStructure(const StIdx leftIdx, const StIdx rightIdx) {
+  if (leftIdx.IsGlobal() != rightIdx.IsGlobal()) {
+    return false;
+  }
+  if (leftIdx.IsGlobal() && rightIdx.IsGlobal()) {
+    return leftIdx == rightIdx;
+  }
+  return CompareStructure(leftIdx, rightIdx, symMap) && CompareStructure(rightIdx, leftIdx, symMap);
+}
+
 bool RegionIdentify::CheckCompatibilifyBetweenSrcs(BaseNode &lhs, BaseNode &rhs) {
   switch (lhs.GetOpCode()) {
     case OP_dassign: {
       auto leftIdx = static_cast<DassignNode&>(lhs).GetStIdx();
       auto rightIdx = static_cast<DassignNode&>(rhs).GetStIdx();
-      if (!CompareStructure(leftIdx, rightIdx, symMap) || !CompareStructure(rightIdx, leftIdx, symMap)) {
+      if (!CompareSymbolStructure(leftIdx, rightIdx)) {
         return false;
       }
       break;
@@ -253,7 +263,7 @@ bool RegionIdentify::CheckCompatibilifyBetweenSrcs(BaseNode &lhs, BaseNode &rhs)
     case OP_dread: {
       auto leftIdx = static_cast<DreadNode&>(lhs).GetStIdx();
       auto rightIdx = static_cast<DreadNode&>(rhs).GetStIdx();
-      return CompareStructure(leftIdx, rightIdx, symMap) && CompareStructure(rightIdx, leftIdx, symMap);
+      return CompareSymbolStructure(leftIdx, rightIdx);
     }
     case OP_regread: {
       auto leftIdx = static_cast<RegreadNode&>(lhs).GetRegIdx();
