@@ -2287,6 +2287,12 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
       manager->NormalPatternOpt<EliminateSpecifcSXTPattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
+    case MOP_xuxtb32:
+    case MOP_xuxth32:
+    case MOP_xuxtw64: {
+      manager->NormalPatternOpt<EliminateSpecifcUXTPattern>(cgFunc->IsAfterRegAlloc());
+      break;
+    }
     case MOP_wsdivrrr: {
       manager->NormalPatternOpt<ReplaceDivToMultiPattern>(cgFunc->IsAfterRegAlloc());
       break;
@@ -2321,7 +2327,6 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
 
 void AArch64PeepHole::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
-  optimizations[kEliminateSpecifcUXTOpt] = optOwnMemPool->New<EliminateSpecifcUXTAArch64>(cgFunc);
   optimizations[kAndCmpBranchesToCsetOpt] = optOwnMemPool->New<AndCmpBranchesToCsetAArch64>(cgFunc);
   optimizations[kAndCbzBranchesToTstOpt] = optOwnMemPool->New<AndCbzBranchesToTstAArch64>(cgFunc);
 }
@@ -2329,12 +2334,6 @@ void AArch64PeepHole::InitOpts() {
 void AArch64PeepHole::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   switch (thisMop) {
-    case MOP_xuxtb32:
-    case MOP_xuxth32:
-    case MOP_xuxtw64: {
-      (static_cast<EliminateSpecifcUXTAArch64*>(optimizations[kEliminateSpecifcUXTOpt]))->Run(bb, insn);
-      break;
-    }
     case MOP_wcsetrc:
     case MOP_xcsetrc: {
       (static_cast<AndCmpBranchesToCsetAArch64*>(optimizations[kAndCmpBranchesToCsetOpt]))->Run(bb, insn);
@@ -3114,12 +3113,26 @@ void EliminateSpecifcSXTPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
-  MOperator thisMop = insn.GetMachineOpcode();
-  Insn *prevInsn = insn.GetPreviousMachineInsn();
+bool EliminateSpecifcUXTPattern::CheckCondition(Insn &insn) {
+  BB *bb = insn.GetBB();
+  if (bb->GetFirstMachineInsn() == &insn) {
+    BB *prevBB = bb->GetPrev();
+    if (prevBB != nullptr && (bb->GetPreds().size() == 1) && (*(bb->GetPreds().cbegin()) == prevBB)) {
+      prevInsn = prevBB->GetLastMachineInsn();
+    }
+  } else {
+    prevInsn = insn.GetPreviousMachineInsn();
+  }
   if (prevInsn == nullptr) {
+    return false;
+  }
+  return true;
+}
+void EliminateSpecifcUXTPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
+  MOperator thisMop = insn.GetMachineOpcode();
   auto &regOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto &regOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   if (prevInsn->IsCall() &&
@@ -3139,7 +3152,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
       !prevInsn->IsMachineInstruction()) {
     return;
   }
-  if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC && prevInsn->IsCall() && prevInsn->GetIsCallReturnSigned()) {
+  if (cgFunc->GetMirModule().GetSrcLang() == kSrcLangC && prevInsn->IsCall() && prevInsn->GetIsCallReturnSigned()) {
     return;
   }
   if (thisMop == MOP_xuxtb32) {

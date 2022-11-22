@@ -1055,11 +1055,20 @@ class EliminateSpecifcSXTPattern : public CGPeepPattern {
  * ii) mov w0, R0(Is return value of call and return size is not of range)
  * iii)w0 is defined and used by special load insn and uxt[] pattern
  */
-class EliminateSpecifcUXTAArch64 : public PeepPattern {
+class EliminateSpecifcUXTPattern : public CGPeepPattern {
  public:
-  explicit EliminateSpecifcUXTAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~EliminateSpecifcUXTAArch64() override = default;
+  EliminateSpecifcUXTPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~EliminateSpecifcUXTPattern() override {
+    prevInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "EliminateSpecifcUXTPattern";
+  }
+ private:
+  Insn *prevInsn = nullptr;
 };
 
 /* fmov ireg1 <- freg1   previous insn
