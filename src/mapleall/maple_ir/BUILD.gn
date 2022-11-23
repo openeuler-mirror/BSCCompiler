@@ -107,3 +107,17 @@ executable("mpldbg") {
     "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
   ]
 }
+
+src_mplverf = [ "src/mpl_verify.cpp" ]
+
+executable("mplverf") {
+  sources = src_mplverf
+  include_dirs = include_directories
+  deps = [
+    ":libmplir",
+    "${MAPLEALL_ROOT}/mempool:libmempool",
+    "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
+    "${MAPLEALL_ROOT}/maple_driver:libmaple_driver",
+  ]
+}

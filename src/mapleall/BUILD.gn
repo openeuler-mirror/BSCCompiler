@@ -121,3 +121,7 @@ group("irbuild") {
 group("maplegen") {
   deps = [ "${MAPLEALL_ROOT}/maple_be:maplegen" ]
 }
+
+group("mplverf") {
+  deps = [ "${MAPLEALL_ROOT}/maple_ir:mplverf" ]
+}

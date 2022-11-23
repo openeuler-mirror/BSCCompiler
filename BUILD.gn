@@ -20,6 +20,10 @@ group("irbuild") {
   deps = [ "${MAPLEALL_ROOT}:irbuild" ]
 }
 
+group("mplverf") {
+  deps = [ "${MAPLEALL_ROOT}:mplverf" ]
+}
+
 group("hir2mpl") {
   deps = [ "${HIR2MPL_ROOT}:hir2mpl" ]
 }

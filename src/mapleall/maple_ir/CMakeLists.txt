@@ -65,6 +65,8 @@ set(src_irbuild "src/driver.cpp")
 
 set(src_mpldbg "src/mpl_dbg.cpp")
 
+set(src_mplverf "src/mpl_verify.cpp")
+
 set(deps_libmplir
     libdriver_option
     libmplphase
@@ -92,7 +94,7 @@ set_target_properties(libmplir PROPERTIES
     COMPILE_FLAGS ""
     INCLUDE_DIRECTORIES "${inc_libmplir}"
     LINK_LIBRARIES "${deps_libmplir}"
-    ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
+    ARCHIVE_OUTPUT_DIRECTORY "${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}"
 )
 
 #irbuild
@@ -107,6 +109,15 @@ set_target_properties(irbuild PROPERTIES
 #mpldbg
 add_executable(mpldbg "${src_mpldbg}")
 set_target_properties(mpldbg PROPERTIES
+    COMPILE_FLAGS ""
+    INCLUDE_DIRECTORIES "${inc_libmplir}"
+    LINK_LIBRARIES "${deps_irbuild}"
+    RUNTIME_OUTPUT_DIRECTORY "${MAPLE_BUILD_OUTPUT}/bin"
+)
+
+#mplverf
+add_executable(mplverf "${src_mplverf}")
+set_target_properties(mplverf PROPERTIES
     COMPILE_FLAGS ""
     INCLUDE_DIRECTORIES "${inc_libmplir}"
     LINK_LIBRARIES "${deps_irbuild}"
