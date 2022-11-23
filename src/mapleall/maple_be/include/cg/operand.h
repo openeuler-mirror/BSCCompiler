@@ -1201,6 +1201,17 @@ class MemOperand : public OperandVisitable<MemOperand> {
     return (offset < 0 || offset > GetMaxPIMM(dSize));
   }
 
+  static bool CheckNewAmount(const uint32 size, const uint32 newAmount) {
+    if (size == k16BitSize) {
+      return newAmount == 0 || newAmount == k1BitSize;
+    } else if (size == k32BitSize) {
+      return newAmount == 0 || newAmount == k2BitSize;
+    } else if (size == k64BitSize) {
+      return newAmount == 0 || newAmount == k3BitSize;
+    }
+    return newAmount == 0;
+  }
+
   bool operator==(const MemOperand &opnd) const {
     return (GetSize() == opnd.GetSize()) && (addrMode == opnd.addrMode) && (exOpnd == opnd.exOpnd) &&
            (lsOpnd == opnd.lsOpnd) && (GetBaseRegister() == opnd.GetBaseRegister()) &&

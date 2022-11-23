@@ -24,10 +24,10 @@ using namespace maple;
 class AArch64FPLROffsetAdjustment : public FrameFinalize {
  public:
   explicit AArch64FPLROffsetAdjustment(CGFunc &func)
-    : FrameFinalize(func),
-      aarchCGFunc(static_cast<AArch64CGFunc*>(&func)),
-      isLmbc(aarchCGFunc->GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc),
-      stackBaseReg((isLmbc || aarchCGFunc->UseFP()) ? R29 : RSP) {}
+      : FrameFinalize(func),
+        aarchCGFunc(static_cast<AArch64CGFunc*>(&func)),
+        isLmbc(aarchCGFunc->GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc),
+        stackBaseReg((isLmbc || aarchCGFunc->UseFP()) ? R29 : RSP) {}
 
   ~AArch64FPLROffsetAdjustment() override = default;
 

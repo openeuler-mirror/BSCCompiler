@@ -880,7 +880,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const MemOperand &currMemOpnd) {
           break;
         }
         if (newBaseOpnd != nullptr && newIndexOpnd != nullptr &&
-            CheckNewAmount(currMemOpnd.GetSize(), shift.GetShiftAmount())) {
+            MemOperand::CheckNewAmount(currMemOpnd.GetSize(), shift.GetShiftAmount())) {
           newMemOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(
               currMemOpnd.GetSize(), *newBaseOpnd, *newIndexOpnd, shift);
         }
@@ -939,7 +939,7 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const MemOperand &currMemOpnd) {
       shift += currMemOpnd.ShiftAmount();
       if (newOfst->GetSize() == base->GetSize()) {
         if ((memPropMode == kPropOffset || memPropMode == kPropShift) &&
-            CheckNewAmount(currMemOpnd.GetSize(), shift)) {
+            MemOperand::CheckNewAmount(currMemOpnd.GetSize(), shift)) {
           BitShiftOperand &shiftOperand =
               static_cast<AArch64CGFunc*>(cgFunc)->CreateBitShiftOperand(BitShiftOperand::kLSL, shift, k8BitSize);
           newMemOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(
@@ -1006,7 +1006,7 @@ MemOperand *A64StrLdrProp::SelectReplaceExt(RegOperand &base, uint32 amount, boo
   if (newOfst == nullptr) {
     return nullptr;
   }
-  if (!CheckNewAmount(memSize, amount)) {
+  if (!MemOperand::CheckNewAmount(memSize, amount)) {
     return nullptr;
   }
   /* defInsn is extend, currMemOpnd is same extend or shift */

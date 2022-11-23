@@ -42,19 +42,6 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
   void DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
                             short memSeq, const InsnSet &memUseInsnSet);
   bool CheckStoreOpCode(MOperator opCode) const;
-  bool CheckNewAmount(const uint32 size, const uint32 newAmount) const {
-    if (size == k8BitSize) {
-      return newAmount == 0;
-    } else if (size == k16BitSize) {
-      return newAmount == 0 || newAmount == k1BitSize;
-    } else if (size == k32BitSize) {
-      return newAmount == 0 || newAmount == k2BitSize;
-    } else if (size == k64BitSize) {
-      return newAmount == 0 || newAmount == k3BitSize;
-    }
-    return false;
-  }
-  static bool CheckNewAmount(const Insn &insn, uint32 newAmount);
 
  private:
   void StrLdrIndexModeOpt(Insn &currInsn);

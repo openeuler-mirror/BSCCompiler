@@ -74,17 +74,6 @@ class A64StrLdrProp {
   bool IsPhiInsnValid(const Insn &phiInsn);
   bool CheckSameReplace(const RegOperand &replacedReg, const MemOperand *memOpnd) const;
 
-  bool CheckNewAmount(const uint32 size, const uint32 newAmount) const {
-    if (size == k16BitSize) {
-      return newAmount == 0 || newAmount == k1BitSize;
-    } else if (size == k32BitSize) {
-      return newAmount == 0 || newAmount == k2BitSize;
-    } else if (size == k64BitSize) {
-      return newAmount == 0 || newAmount == k3BitSize;
-    }
-    return newAmount == 0;
-  }
-
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
   Insn *curInsn;

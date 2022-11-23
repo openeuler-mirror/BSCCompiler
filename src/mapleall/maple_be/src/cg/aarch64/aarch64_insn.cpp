@@ -191,7 +191,9 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
       if (a64v->ShiftAmount() != 0) {
         CHECK_FATAL(a64v->GetExtendAsString() == "LSL", "must be lsl!");
         CHECK_FATAL(a64v->CheckAmount(), "check amount!");
-        (void)emitter.Emit(",LSL #");
+        /* ImplicitCvt! eliminate in the future! */
+        std::string shiftString = a64v->GetIndexRegister()->GetSize() == k32BitSize ? ",UXTW #" : ",LSL #";
+        (void)emitter.Emit(shiftString);
         (void)emitter.Emit(a64v->ShiftAmount());
       }
       (void)emitter.Emit("]");

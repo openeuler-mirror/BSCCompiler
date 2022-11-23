@@ -410,38 +410,6 @@ bool AArch64StoreLoadOpt::CheckDefInsn(Insn &defInsn, Insn &currInsn) {
   return true;
 }
 
-bool AArch64StoreLoadOpt::CheckNewAmount(const Insn &insn, uint32 newAmount) {
-  MOperator mOp = insn.GetMachineOpcode();
-  switch (mOp) {
-    case MOP_wstrb:
-    case MOP_wldrsb:
-    case MOP_xldrsb:
-    case MOP_wldrb: {
-      return newAmount == 0;
-    }
-    case MOP_wstrh:
-    case MOP_wldrsh:
-    case MOP_xldrsh:
-    case MOP_wldrh: {
-      return (newAmount == 0) || (newAmount == k1BitSize);
-    }
-    case MOP_wstr:
-    case MOP_sstr:
-    case MOP_wldr:
-    case MOP_sldr:
-    case MOP_xldrsw: {
-      return (newAmount == 0) || (newAmount == k2BitSize);
-    }
-    case MOP_qstr:
-    case MOP_qldr: {
-      return (newAmount == 0) || (newAmount == k4BitSize);
-    }
-    default: {
-      return (newAmount == 0) || (newAmount == k3ByteSize);
-    }
-  }
-}
-
 bool AArch64StoreLoadOpt::CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx) {
   AArch64CGFunc &a64CgFunc = static_cast<AArch64CGFunc&>(cgFunc);
   if ((newMemOpnd->GetOffsetImmediate() != nullptr) &&
@@ -462,15 +430,15 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceExt(const Insn &defInsn, RegOperan
   /* defInsn is extend, currMemOpnd is same extend or shift */
   if (propMode == kPropOffset) {
     newMemOpnd = static_cast<AArch64CGFunc&>(cgFunc).CreateMemOperand(memSize, base, *newOffset);
-  } else if ((propMode == kPropSignedExtend) && isSigned && CheckNewAmount(memSize, amount)) {
+  } else if ((propMode == kPropSignedExtend) && isSigned && MemOperand::CheckNewAmount(memSize, amount)) {
     ExtendShiftOperand &extendOperand =
         static_cast<AArch64CGFunc&>(cgFunc).CreateExtendShiftOperand(ExtendShiftOperand::kSXTW, amount, k32BitSize);
     newMemOpnd = static_cast<AArch64CGFunc&>(cgFunc).CreateMemOperand(memSize, base, *newOffset, extendOperand);
-  } else if ((propMode == kPropUnsignedExtend) && !isSigned && CheckNewAmount(memSize, amount)) {
+  } else if ((propMode == kPropUnsignedExtend) && !isSigned && MemOperand::CheckNewAmount(memSize, amount)) {
     ExtendShiftOperand &extendOperand =
         static_cast<AArch64CGFunc&>(cgFunc).CreateExtendShiftOperand(ExtendShiftOperand::kUXTW, amount, k32BitSize);
     newMemOpnd = static_cast<AArch64CGFunc&>(cgFunc).CreateMemOperand(memSize, base, *newOffset, extendOperand);
-  } else if (propMode == kPropShift && CheckNewAmount(memSize, amount)) {
+  } else if (propMode == kPropShift && MemOperand::CheckNewAmount(memSize, amount)) {
     BitShiftOperand &bitOperand =
         static_cast<AArch64CGFunc&>(cgFunc).CreateBitShiftOperand(BitShiftOperand::kLSL, amount, k32BitSize);
     newMemOpnd = static_cast<AArch64CGFunc&>(cgFunc).CreateMemOperand(memSize, base, *newOffset, bitOperand);
@@ -645,7 +613,7 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
       uint32 shift = static_cast<uint32>(imm->GetValue());
       /* lsl has Implicit Conversion, use uxtw instead. */
       if (opCode == MOP_xlslrri6 && newOffset->GetSize() == k32BitSize && propMode == kPropOffset &&
-          CheckNewAmount(memSize, shift)) {
+          MemOperand::CheckNewAmount(memSize, shift)) {
         propMode = kPropUnsignedExtend;
         ExtendShiftOperand &exOpnd =
             static_cast<AArch64CGFunc&>(cgFunc).CreateExtendShiftOperand(ExtendShiftOperand::kUXTW, shift, k8BitSize);
@@ -653,7 +621,7 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
         break;
       }
       if (propMode == kPropOffset) {
-        if (CheckNewAmount(memSize, shift)) {
+        if (MemOperand::CheckNewAmount(memSize, shift)) {
           BitShiftOperand &shiftOperand =
               static_cast<AArch64CGFunc&>(cgFunc).CreateBitShiftOperand(BitShiftOperand::kLSL, shift, k8BitSize);
           newMemOpnd =
@@ -661,7 +629,7 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
         }
       } else if (propMode == kPropShift) {
         shift += amount;
-        if (CheckNewAmount(memSize, shift)) {
+        if (MemOperand::CheckNewAmount(memSize, shift)) {
           BitShiftOperand &shiftOperand =
               static_cast<AArch64CGFunc&>(cgFunc).CreateBitShiftOperand(BitShiftOperand::kLSL, shift, k8BitSize);
           newMemOpnd =

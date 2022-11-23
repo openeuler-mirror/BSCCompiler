@@ -130,7 +130,7 @@ void AArch64GenProEpilog::GenStackGuard() {
   aarchCGFunc.SelectAddrof(stAddrOpnd, stOpnd);
 
   MemOperand *guardMemOp = aarchCGFunc.CreateMemOperand(GetPointerSize() * kBitsPerByte, stAddrOpnd,
-                                                        aarchCGFunc.GetOrCreateOfstOpnd(0, k32BitSize), *stkGuardSym);
+                                                        aarchCGFunc.CreateImmOperand(0, k32BitSize, false));
   MOperator mOp = aarchCGFunc.PickLdInsn(k64BitSize, PTY_u64);
   Insn &insn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *guardMemOp);
   insn.SetDoNotRemove(true);
