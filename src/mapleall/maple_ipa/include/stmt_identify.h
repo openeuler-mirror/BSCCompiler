@@ -26,18 +26,32 @@
 #include "opcodes.h"
 #include "types_def.h"
 namespace maple {
+using StmtIndex = size_t;
+using StmtInfoId = size_t;
+
 constexpr PUIdx kInvalidPuIdx = std::numeric_limits<PUIdx>::max();
 constexpr size_t kInvalidIndex = std::numeric_limits<size_t>::max();
 constexpr LabelIdx kInvalidLabelIdx = std::numeric_limits<LabelIdx>::max();
 
 struct DefUsePositions {
-  std::vector<size_t> definePositions;
-  std::vector<size_t> usePositions;
+  MapleVector<size_t> definePositions;
+  MapleVector<size_t> usePositions;
+  explicit DefUsePositions(MapleAllocator &alloc)
+      : definePositions(alloc.Adapter()),
+        usePositions(alloc.Adapter()) {}
 };
 
 class StmtInfo {
  public:
-  StmtInfo(MeStmt *stmt, PUIdx puIdx) : meStmt(stmt), puIdx(puIdx) {
+  StmtInfo(MeStmt *stmt, PUIdx puIdx, MapleAllocator &alloc)
+      : allocator(alloc),
+        meStmt(stmt),
+        puIdx(puIdx),
+        hashCandidate(allocator.Adapter()),
+        symbolDefUse(allocator.Adapter()),
+        regDefUse(allocator.Adapter()),
+        locationsJumpFrom(allocator.Adapter()),
+        locationsJumpTo(allocator.Adapter()) {
     if (stmt) {
       CreateHashCandidate();
     }
@@ -74,6 +88,11 @@ class StmtInfo {
     hashCandidate.emplace_back(meStmt->GetOp());
     if (meStmt->GetOp() == OP_call || meStmt->GetOp() == OP_callassigned) {
       hashCandidate.emplace_back(static_cast<CallMeStmt *>(meStmt)->GetPUIdx());
+    }
+    if (meStmt->GetOp() == OP_intrinsiccall ||
+        meStmt->GetOp() == OP_intrinsiccallassigned ||
+        meStmt->GetOp() == OP_intrinsiccallwithtypeassigned) {
+      hashCandidate.emplace_back(static_cast<IntrinsiccallMeStmt *>(meStmt)->GetIntrinsic());
     }
     if (meStmt->GetVarLHS() != nullptr) {
       GetExprHashCandidate(*meStmt->GetVarLHS());
@@ -177,50 +196,52 @@ class StmtInfo {
     return puIdx;
   }
 
-  const uint32 GetFrequency() const {
+  const uint64 GetFrequency() const {
     return frequency;
   }
 
-  void SetFrequency(uint32 freq) {
+  void SetFrequency(uint64 freq) {
     frequency = freq;
   }
 
   DefUsePositions &GetDefUsePositions(OriginalSt &ost) {
     if (ost.IsPregOst()) {
-      return regDefUse[ost.GetPregIdx()];
+      return regDefUse.insert({ost.GetPregIdx(), DefUsePositions(allocator)}).first->second;
     } else {
-      return symbolDefUse[ost.GetMIRSymbol()->GetStIdx()];
+      return symbolDefUse.insert(
+          {ost.GetMIRSymbol()->GetStIdx(), DefUsePositions(allocator)}).first->second;
     }
   }
 
-  std::unordered_map<StIdx, DefUsePositions> &GetSymbolDefUse() {
+  MapleUnorderedMap<StIdx, DefUsePositions> &GetSymbolDefUse() {
     return symbolDefUse;
   }
 
-  std::unordered_map<PregIdx, DefUsePositions> &GetRegDefUse() {
+  MapleUnorderedMap<PregIdx, DefUsePositions> &GetRegDefUse() {
     return regDefUse;
   }
 
-  std::vector<uint32> &GetLocationsJumpFrom() {
+  MapleVector<uint32> &GetLocationsJumpFrom() {
     return locationsJumpFrom;
   }
 
-  std::vector<uint32> &GetLocationsJumpTo() {
+  MapleVector<uint32> &GetLocationsJumpTo() {
     return locationsJumpTo;
   }
 
  private:
+  MapleAllocator &allocator;
   StmtNode *stmt = nullptr;
   BlockNode *currBlock = nullptr;
   MeStmt *meStmt = nullptr;
   PUIdx puIdx = kInvalidPuIdx;
-  uint32 frequency = 0;
+  uint64 frequency = 0;
   bool valid = true;
-  std::vector<uint32> hashCandidate;
-  std::unordered_map<StIdx, DefUsePositions> symbolDefUse;
-  std::unordered_map<PregIdx, DefUsePositions> regDefUse;
-  std::vector<uint32> locationsJumpFrom;
-  std::vector<uint32> locationsJumpTo;
+  MapleVector<uint32> hashCandidate;
+  MapleUnorderedMap<StIdx, DefUsePositions> symbolDefUse;
+  MapleUnorderedMap<PregIdx, DefUsePositions> regDefUse;
+  MapleVector<uint32> locationsJumpFrom;
+  MapleVector<uint32> locationsJumpTo;
 };
 
 class StmtInfoHash {

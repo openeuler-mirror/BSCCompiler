@@ -26,9 +26,6 @@
 #include "stmt_identify.h"
 #include "maple_phase_manager.h"
 namespace maple {
-using StmtIndex = size_t;
-using StmtInfoId = size_t;
-
 union ParamValue {
   bool valueBool;
   int64_t valueInt;
@@ -62,15 +59,19 @@ class CollectIpaInfo {
   void UpdateCaleeParaAboutInt(MeStmt &meStmt, int64_t paramValue, uint32 index, CallerSummary &summary);
   bool IsConstKindValue(MeExpr *expr) const;
   bool CheckImpExprStmt(const MeStmt &meStmt) const;
-  bool CollectImportantExpression(const MeStmt &meStmt, uint32 &index) const;
+  bool CollectBrImportantExpression(const MeStmt &meStmt, uint32 &index) const;
   void TransformStmtToIntegerSeries(MeStmt &meStmt);
   DefUsePositions &GetDefUsePositions(OriginalSt &ost, StmtInfoId position);
-  void CollectDefUsePosition(ScalarMeExpr &var, StmtInfoId position);
+  void CollectDefUsePosition(ScalarMeExpr &var, StmtInfoId position,
+      std::unordered_set<ScalarMeExpr*> &cycleCheck);
   void CollectJumpInfo(MeStmt &meStmt);
   void SetLabel(size_t currStmtInfoId, LabelIdx label);
   StmtInfoId GetRealFirstStmtInfoId(BB &bb);
-  void TraverseMeExpr(MeExpr &meExpr, StmtInfoId position);
+  void TraverseMeExpr(MeExpr &meExpr, StmtInfoId position,
+      std::unordered_set<ScalarMeExpr*> &cycleCheck);
   void TraverseMeStmt(MeStmt &meStmt);
+  bool CollectSwitchImportantExpression(const MeStmt &meStmt, uint32 &index) const;
+  bool CollectImportantExpression(const MeStmt &meStmt, uint32 &index) const;
   bool IsParameterOrUseParameter(const VarMeExpr *varExpr, uint32 &index) const;
   void ReplaceMeStmtWithStmtNode(StmtNode *stmt, StmtInfoId position);
   void Perform(MeFunction &func);
@@ -78,7 +79,7 @@ class CollectIpaInfo {
 
   void PushInvalidKeyBack(uint invalidKey) {
     integerString.emplace_back(invalidKey);
-    stmtInfoVector.emplace_back(StmtInfo(nullptr, -1u));
+    stmtInfoVector.emplace_back(StmtInfo(nullptr, -1u, allocator));
   }
 
   MapleVector<size_t> &GetIntegerString() {
@@ -100,6 +101,10 @@ class CollectIpaInfo {
   void SetDataMap(AnalysisDataManager *map) {
     dataMap = map;
   }
+
+  MapleAllocator &GetAllocator() {
+    return allocator;
+  }
  private:
   MIRModule &module;
   MIRBuilder &builder;
@@ -109,8 +114,9 @@ class CollectIpaInfo {
   MapleUnorderedMap<StmtInfo, StmtIndex, StmtInfoHash> stmtInfoToIntegerMap;
   MapleVector<StmtIndex> integerString;
   MapleVector<StmtInfo> stmtInfoVector;
-  std::unordered_set<ScalarMeExpr *> *cycleCheck;
   StmtIndex currNewStmtIndex = 0;
+  StmtIndex prevInteger = kInvalidIndex;
+  size_t continuousSequenceCount = 0;
 };
 MAPLE_SCC_PHASE_DECLARE_BEGIN(SCCCollectIpaInfo, maple::SCCNode<CGNode>)
 OVERRIDE_DEPENDENCE

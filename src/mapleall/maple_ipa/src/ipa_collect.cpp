@@ -23,6 +23,8 @@
 #include "ipa_phase_manager.h"
 
 namespace maple {
+constexpr size_t kMaxContinuousSequenceLength = 100;
+
 void CollectIpaInfo::UpdateCaleeParaAboutFloat(MeStmt &meStmt, float paramValue, uint32 index, CallerSummary &summary) {
   auto *callMeStmt = static_cast<CallMeStmt*>(&meStmt);
   MIRFunction &called = callMeStmt->GetTargetFunction();
@@ -183,6 +185,12 @@ void CollectIpaInfo::TransformStmtToIntegerSeries(MeStmt &meStmt) {
   meStmt.SetStmtInfoId(stmtInfoVector.size());
   (void)integerString.emplace_back(integerValue);
   (void)stmtInfoVector.emplace_back(std::move(stmtInfo));
+  continuousSequenceCount = integerValue == prevInteger ? continuousSequenceCount + 1 : 0;
+  prevInteger = integerValue;
+  if (continuousSequenceCount >= kMaxContinuousSequenceLength) {
+    continuousSequenceCount = 0;
+    PushInvalidKeyBack(GetCurrNewStmtIndex());
+  }
 }
 
 void CollectIpaInfo::Perform(MeFunction &func) {

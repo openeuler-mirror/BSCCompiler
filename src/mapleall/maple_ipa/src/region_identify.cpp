@@ -22,7 +22,8 @@
 namespace {
   constexpr size_t kRegionInputLimit = 8;
   constexpr size_t kRegionOutputLimit = 1;
-  constexpr size_t kRegionMinInvalidStmtNumber = 4;
+  constexpr size_t kRegionMinValidStmtNumber = 4;
+  constexpr size_t kRegionMaxStmtNumber = 512;
 }
 
 namespace maple {
@@ -123,7 +124,7 @@ bool RegionCandidate::IsLegal(CollectIpaInfo &ipaInfo) {
       return false;
     }
   }
-  return stmtTypes.size() > 1 && (validStmts > kRegionMinInvalidStmtNumber && hasCall);
+  return stmtTypes.size() > 1 && (validStmts > kRegionMinValidStmtNumber && hasCall);
 }
 
 void RegionIdentify::RegionInit() {
@@ -143,6 +144,10 @@ void RegionIdentify::RegionInit() {
 
 void RegionIdentify::CreateRegionCandidates(SuffixArray &sa) {
   for (auto *subStrings : sa.GetRepeatedSubStrings()) {
+    if (subStrings->GetLength() > kRegionMaxStmtNumber) {
+      delete subStrings;
+      continue;
+    }
     std::vector<RegionCandidate> candidates;
     for (auto &occurrence : subStrings->GetOccurrences()) {
       auto startPosition = occurrence.first;
