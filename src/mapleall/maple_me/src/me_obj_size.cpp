@@ -247,8 +247,8 @@ void OBJSize::ReplaceStmt(CallMeStmt &callMeStmt, const std::string &str) {
   for (auto &mu : *callMeStmt.GetMuList()) {
     (void)newCallMeStmt->GetMuList()->emplace(mu.first, mu.second);
   }
-  newCallMeStmt->SetMustDefList(*callMeStmt.GetMustDefList());
-  newCallMeStmt->SetChiList(*callMeStmt.GetChiList());
+  newCallMeStmt->SetMustDefListAndUpdateBase(*callMeStmt.GetMustDefList());
+  newCallMeStmt->SetChiListAndUpdateBase(*callMeStmt.GetChiList());
   callMeStmt.GetBB()->ReplaceMeStmt(&callMeStmt, newCallMeStmt);
 }
 

@@ -2303,8 +2303,11 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return &chiList;
   }
 
-  void SetChiList(MapleMap<OStIdx, ChiMeNode *> &list) {
+  void SetChiListAndUpdateBase(MapleMap<OStIdx, ChiMeNode *> &list) {
     chiList = list;
+    for (auto &chiNode : chiList) {
+      chiNode.second->SetBase(this);
+    }
   }
 
   MapleVector<MustDefMeNode> *GetMustDefList() override {
@@ -2315,8 +2318,11 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return mustDefList;
   }
 
-  void SetMustDefList(MapleVector<MustDefMeNode> &list) {
+  void SetMustDefListAndUpdateBase(MapleVector<MustDefMeNode> &list) {
     mustDefList = list;
+    for (auto &mustDef : mustDefList) {
+      mustDef.SetBase(this);
+    }
   }
 
   MustDefMeNode &GetMustDefListItem(int i) {
