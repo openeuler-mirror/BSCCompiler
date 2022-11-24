@@ -82,6 +82,7 @@ src_libmplme = [
   "src/me_stmt_fre.cpp",
   "src/me_stmt_pre.cpp",
   "src/me_store_pre.cpp",
+  "src/me_stack_protect.cpp",
   "src/me_ssa_epre.cpp",
   "src/me_ssa_lpre.cpp",
   "src/me_ssu_pre.cpp",
@@ -117,6 +118,7 @@ src_libmplme = [
   "src/lfo_loop_vec.cpp",
   "src/me_value_range_prop.cpp",
   "src/me_jump_threading.cpp",
+  "src/me_obj_size.cpp",
   "src/cfg_opt.cpp",
   "src/optimizeCFG.cpp",
   "src/me_ivopts.cpp",
@@ -128,6 +130,7 @@ src_libmplme = [
   "src/me_slp.cpp",
   "src/lmbc_memlayout.cpp",
   "src/lmbc_lower.cpp",
+  "src/mc_ssa_pre.cpp",
 ]
 
 src_libmplmewpo = [
@@ -135,7 +138,6 @@ src_libmplmewpo = [
   "src/demand_driven_alias_analysis.cpp",
   "src/type_based_alias_analysis.cpp",
   "src/bb.cpp",
-  "src/dominance.cpp",
   "src/func_emit.cpp",
   "src/irmap.cpp",
   "src/irmap_build.cpp",

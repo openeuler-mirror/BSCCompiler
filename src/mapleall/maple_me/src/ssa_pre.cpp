@@ -165,7 +165,7 @@ void SSAPre::GenerateSavePhiOcc(MePhiOcc &phiOcc) {
 void SSAPre::UpdateInsertedPhiOccOpnd() {
   for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
     MePhiOcc *phiOcc = *it;
-    if (!phiOcc->IsWillBeAvail() || phiOcc->IsRemoved()) {
+    if (!WillBeAvail(phiOcc) || phiOcc->IsRemoved()) {
       continue;
     }
     if (phiOcc->GetRegPhi()) {
@@ -237,7 +237,7 @@ void SSAPre::CodeMotion() {
         }
         case kOccPhiopnd: {
           MePhiOpndOcc *phiopnd = static_cast<MePhiOpndOcc *>(occ);
-          if (phiopnd->GetDefPhiOcc()->IsRemoved() || !phiopnd->GetDefPhiOcc()->IsWillBeAvail()) {
+          if (phiopnd->GetDefPhiOcc()->IsRemoved() || !WillBeAvail(phiopnd->GetDefPhiOcc())) {
             break;
           }
           if (phiopnd->GetDef()->GetOccType() == kOccInserted) {
@@ -285,7 +285,7 @@ void SSAPre::CodeMotion() {
       }
       case kOccPhiopnd: {
         auto *phiOpnd = static_cast<MePhiOpndOcc*>(occ);
-        if (phiOpnd->GetDefPhiOcc()->IsRemoved() || !phiOpnd->GetDefPhiOcc()->IsWillBeAvail()) {
+        if (phiOpnd->GetDefPhiOcc()->IsRemoved() || !WillBeAvail(phiOpnd->GetDefPhiOcc())) {
           break;
         }
         MeOccur *defOcc = phiOpnd->GetDef();
@@ -313,7 +313,7 @@ void SSAPre::CodeMotion() {
       }
       case kOccPhiocc: {
         auto *phiOcc = static_cast<MePhiOcc*>(occ);
-        if (phiOcc->IsRemoved() || !phiOcc->IsWillBeAvail()) {
+        if (phiOcc->IsRemoved() || !WillBeAvail(phiOcc)) {
           break;
         }
         GenerateSavePhiOcc(*phiOcc);
@@ -331,7 +331,7 @@ void SSAPre::CodeMotion() {
           }
         } else {
           MePhiOcc *phiOcc = static_cast<MePhiOcc*>(compOcc->GetDef());
-          if (phiOcc->IsRemoved() || !phiOcc->IsWillBeAvail() || !phiOcc->IsDownSafe()) {
+          if (phiOcc->IsRemoved() || !WillBeAvail(phiOcc) || !phiOcc->IsDownSafe()) {
             break;
           }
         }
@@ -366,6 +366,24 @@ void SSAPre::CodeMotion() {
 }
 
 // ================ Step 5: Finalize =================
+
+// return true if either:
+// operand is nullptr (def is null), or
+// hasRealUse is false and defined by a PHI not will be avail
+bool SSAPre::OKToInsert(MePhiOpndOcc *phiOpnd) {
+  if (phiOpnd->GetDef() == nullptr) {
+    return true;
+  }
+  if (!phiOpnd->HasRealUse()) {
+    MeOccur *defOcc = phiOpnd->GetDef();
+    if (defOcc->GetOccType() == kOccPhiocc &&
+        !WillBeAvail(static_cast<MePhiOcc*>(defOcc))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void SSAPre::Finalize1() {
   std::vector<MeOccur*> availDefVec(classCount, nullptr);
   // traversal in preoder DT
@@ -374,7 +392,7 @@ void SSAPre::Finalize1() {
     switch (occ->GetOccType()) {
       case kOccPhiocc: {
         auto *phiOcc = static_cast<MePhiOcc*>(occ);
-        if (phiOcc->IsWillBeAvail()) {
+        if (WillBeAvail(phiOcc)) {
           availDefVec[classX] = phiOcc;
         }
         break;
@@ -418,10 +436,10 @@ void SSAPre::Finalize1() {
         // we assume one phiOpnd has only one phiOcc use because critical edge split the blocks
         auto *phiOpnd = static_cast<MePhiOpndOcc*>(occ);
         MePhiOcc *phiOcc = phiOpnd->GetDefPhiOcc();
-        if (!phiOcc->IsWillBeAvail()) {
+        if (!WillBeAvail(phiOcc)) {
           break;
         }
-        if (phiOpnd->IsOkToInsert()) {
+        if (OKToInsert(phiOpnd)) {
           // insert the current expression at the end of the block containing phiOpnd
           if (phiOpnd->GetBB()->GetSucc().size() > 1) {
             CHECK_FATAL(!workCand->Redo2HandleCritEdges(), "Finalize1: insertion at critical edge, aborting");
@@ -466,7 +484,7 @@ void SSAPre::Finalize1() {
       " after Finalize1===================\n";
   for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
     MePhiOcc *phiOcc = *it;
-    if (!phiOcc->IsWillBeAvail()) {
+    if (!WillBeAvail(phiOcc)) {
       continue;
     }
     for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
@@ -501,10 +519,10 @@ void SSAPre::SetSave(MeOccur &defX) {
   if (defX.GetOccType() == kOccReal || defX.GetOccType() == kOccInserted) {
     BB *fromBb = defX.GetBB();
     MapleSet<uint32> itFrontier(perCandAllocator.Adapter());
-    CHECK_FATAL(!dom->IsBBVecEmpty(), "the size to be allocated is 0");
+    CHECK_FATAL(!dom->IsNodeVecEmpty(), "the size to be allocated is 0");
     GetIterDomFrontier(fromBb, &itFrontier);
     for (MePhiOcc *phiOcc : phiOccs) {
-      if (!phiOcc->IsWillBeAvail()) {
+      if (!WillBeAvail(phiOcc)) {
         continue;
       }
       if (itFrontier.find(dom->GetDtDfnItem(phiOcc->GetBB()->GetBBId())) == itFrontier.end()) {
@@ -551,7 +569,7 @@ void SSAPre::Finalize2() {
     MePhiOcc *phiOcc = *it;
     // initialize extraneouse for each MePhiOcc
     if (!workCand->isSRCand) {
-      phiOcc->SetIsExtraneous(phiOcc->IsWillBeAvail());
+      phiOcc->SetIsExtraneous(WillBeAvail(phiOcc));
     }
 
     // initialize each operand of phiOcc
@@ -571,7 +589,7 @@ void SSAPre::Finalize2() {
       if (phiOcc->IsRemoved() || !phiOcc->IsExtraneous()) {
         continue;
       }
-      if (!phiOcc->IsWillBeAvail()) {
+      if (!WillBeAvail(phiOcc)) {
         phiOcc->SetIsRemoved(true);
         continue;
       }
@@ -1153,13 +1171,15 @@ void SSAPre::SetVarPhis(MeExpr *meExpr) {
   }
   if (scalar->IsDefByPhi()) {
     MePhiNode *phiMeNode = scalar->GetMePhiDef();
-    BBId defBBId = phiMeNode->GetDefBB()->GetBBId();
-    CHECK(defBBId < dom->GetDtDfnSize(), "defBBId.idx out of range in SSAPre::SetVarPhis");
-    if (varPhiDfns.find(dom->GetDtDfnItem(defBBId)) == varPhiDfns.end() && ScreenPhiBB(defBBId)) {
-      (void)varPhiDfns.insert(dom->GetDtDfnItem(defBBId));
-      for (auto opndIt = phiMeNode->GetOpnds().begin(); opndIt != phiMeNode->GetOpnds().end(); ++opndIt) {
-        ScalarMeExpr *opnd = *opndIt;
-        SetVarPhis(opnd);
+    if (phiMeNode->GetOpnds().size() > 1) {
+      BBId defBBId = phiMeNode->GetDefBB()->GetBBId();
+      CHECK(defBBId < dom->GetDtDfnSize(), "defBBId.idx out of range in SSAPre::SetVarPhis");
+      if (varPhiDfns.find(dom->GetDtDfnItem(defBBId)) == varPhiDfns.end() && ScreenPhiBB(defBBId)) {
+        (void)varPhiDfns.insert(dom->GetDtDfnItem(defBBId));
+        for (auto opndIt = phiMeNode->GetOpnds().begin(); opndIt != phiMeNode->GetOpnds().end(); ++opndIt) {
+          ScalarMeExpr *opnd = *opndIt;
+          SetVarPhis(opnd);
+        }
       }
     }
   }
@@ -1175,7 +1195,7 @@ void SSAPre::CreateSortedOccs() {
   // form phiOpnd_dfns
   std::multiset<uint32> phiOpndDfns;
   for (uint32 dfn : dfPhiDfns) {
-    BBId bbId = dom->GetDtPreOrderItem(dfn);
+    auto bbId = BBId(dom->GetDtPreOrderItem(dfn));
     BB *bb = GetBB(bbId);
     ASSERT(bb != nullptr, "GetBB return null in SSAPre::CreateSortedOccs");
     for (BB *pred : bb->GetPred()) {
@@ -1201,16 +1221,16 @@ void SSAPre::CreateSortedOccs() {
   }
   MePhiOcc *nextPhiOcc = nullptr;
   if (phiDfnIt != dfPhiDfns.end()) {
-    nextPhiOcc = perCandMemPool->New<MePhiOcc>(*GetBB(dom->GetDtPreOrderItem(*phiDfnIt)), perCandAllocator);
+    nextPhiOcc = perCandMemPool->New<MePhiOcc>(*GetBB(BBId(dom->GetDtPreOrderItem(*phiDfnIt))), perCandAllocator);
   }
   MePhiOpndOcc *nextPhiOpndOcc = nullptr;
   if (phiOpndDfnIt != phiOpndDfns.end()) {
-    nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(*GetBB(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
-    auto it = bb2PhiOpndMap.find(dom->GetDtPreOrderItem(*phiOpndDfnIt));
+    nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(*GetBB(BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt))));
+    auto it = bb2PhiOpndMap.find(BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
     if (it == bb2PhiOpndMap.end()) {
       std::forward_list<MePhiOpndOcc*> newlist = { nextPhiOpndOcc };
       CHECK(*phiOpndDfnIt < dom->GetDtPreOrderSize(), "index out of range in SSAPre::CreateSortedOccs");
-      bb2PhiOpndMap[dom->GetDtPreOrderItem(*phiOpndDfnIt)] = newlist;
+      bb2PhiOpndMap[BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt))] = newlist;
     } else {
       it->second.push_front(nextPhiOpndOcc);
     }
@@ -1262,7 +1282,8 @@ void SSAPre::CreateSortedOccs() {
           phiOccs.push_back(static_cast<MePhiOcc*>(pickedOcc));
           ++phiDfnIt;
           if (phiDfnIt != dfPhiDfns.end()) {
-            nextPhiOcc = perCandMemPool->New<MePhiOcc>(*GetBB(dom->GetDtPreOrderItem(*phiDfnIt)), perCandAllocator);
+            nextPhiOcc = perCandMemPool->New<MePhiOcc>(
+                *GetBB(BBId(dom->GetDtPreOrderItem(*phiDfnIt))), perCandAllocator);
           } else {
             nextPhiOcc = nullptr;
           }
@@ -1270,11 +1291,11 @@ void SSAPre::CreateSortedOccs() {
         case kOccPhiopnd:
           ++phiOpndDfnIt;
           if (phiOpndDfnIt != phiOpndDfns.end()) {
-            nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(*GetBB(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
-            auto it = bb2PhiOpndMap.find(dom->GetDtPreOrderItem(*phiOpndDfnIt));
+            nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(*GetBB(BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt))));
+            auto it = bb2PhiOpndMap.find(BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
             if (it == bb2PhiOpndMap.end()) {
               std::forward_list<MePhiOpndOcc*> newList = { nextPhiOpndOcc };
-              bb2PhiOpndMap[dom->GetDtPreOrderItem(*phiOpndDfnIt)] = newList;
+              bb2PhiOpndMap[BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt))] = newList;
             } else {
               it->second.push_front(nextPhiOpndOcc);
             }

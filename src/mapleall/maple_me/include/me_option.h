@@ -185,6 +185,7 @@ class MeOption {
   static bool layoutWithPredict;
   static bool unifyRets;
   static bool dumpCfgOfPhases;
+  static bool epreUseProfile;
 // safety check option begin
   static SafetyCheckMode npeCheckMode;
   static bool isNpeCheckAll;
