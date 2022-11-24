@@ -215,6 +215,8 @@ class MeRealOcc : public MeOccur {
   bool isLHS;
   bool isFormalAtEntry;  // the fake lhs occurrence at entry for formals
   bool isHoisted = false;  // the hoisted occ used for hoisting
+ public:
+  bool rgExcluded = false; // reduced graph excluded, used only by McSSAPre
 };
 
 class MeInsertedOcc : public MeOccur {
@@ -275,13 +277,13 @@ class MePhiOpndOcc : public MeOccur {
         hasRealUse(false),
         isInsertedOcc(false),
         isPhiOpndReload(false),
+        isMCInsert(false),
         defPhiOcc(nullptr),
         phiOpnd4Temp(nullptr) {
     currentExpr.meStmt = nullptr;
   }
 
   ~MePhiOpndOcc() = default;
-  bool IsOkToInsert() const;
   void Dump(const IRMap &irMap) const override;
   bool IsProcessed() const {
     return isProcessed;
@@ -313,6 +315,14 @@ class MePhiOpndOcc : public MeOccur {
 
   void SetIsPhiOpndReload(bool phiOpndReload) {
     isPhiOpndReload = phiOpndReload;
+  }
+
+  bool IsMCInsert() const {
+    return isMCInsert;;
+  }
+
+  void SetIsMCInsert(bool mcInsert) {
+    isMCInsert = mcInsert;
   }
 
   const MePhiOcc *GetDefPhiOcc() const {
@@ -356,6 +366,7 @@ class MePhiOpndOcc : public MeOccur {
   bool hasRealUse;
   bool isInsertedOcc;    // the phi operand was inserted by inserted occ
   bool isPhiOpndReload;  // if insertedocc and redefined the def, set this flag
+  bool isMCInsert;       // used only in mc-ssapre
   MePhiOcc *defPhiOcc;   // its lhs
   union {
     MeExpr *meExpr;  // the current expression at the end of the block containing this PhiOpnd
@@ -375,6 +386,8 @@ class MePhiOcc : public MeOccur {
         isLater(true),
         isExtraneous(false),
         isRemoved(false),
+        isPartialAnt(false),
+        isMCWillBeAvail(true),
         phiOpnds(alloc.Adapter()),
         regPhi(nullptr),
         varPhi(nullptr) {}
@@ -408,6 +421,14 @@ class MePhiOcc : public MeOccur {
     isCanBeAvail = canBeAvail;
   }
 
+  bool IsFullyAvail() const {
+    return isCanBeAvail;
+  }
+
+  void SetIsFullyAvail(bool fullyAvail) {
+    isCanBeAvail = fullyAvail;
+  }
+
   bool IsLater() const {
     return isLater;
   }
@@ -430,6 +451,22 @@ class MePhiOcc : public MeOccur {
 
   void SetIsRemoved(bool removed) {
     isRemoved = removed;
+  }
+
+  bool IsPartialAnt() const {
+    return isPartialAnt;
+  }
+
+  void SetIsPartialAnt(bool pant) {
+    isPartialAnt = pant;
+  }
+
+  bool IsMCWillBeAvail() const {
+    return isMCWillBeAvail;
+  }
+
+  void SetIsMCWillBeAvail(bool wba) {
+    isMCWillBeAvail = wba;
   }
 
   const MapleVector<MePhiOpndOcc*> &GetPhiOpnds() const {
@@ -488,6 +525,8 @@ class MePhiOcc : public MeOccur {
   bool isLater;
   bool isExtraneous;
   bool isRemoved;  // during finalize2, marked this phiocc is removed or not
+  bool isPartialAnt;        // used only in mc-ssapre
+  bool isMCWillBeAvail;     // used only in mc-ssapre
   MapleVector<MePhiOpndOcc*> phiOpnds;
   MePhiNode *regPhi;  // the reg phi being inserted, maybe can delete it later
   MePhiNode *varPhi;  // the Var phi being inserted, maybe can delete it later

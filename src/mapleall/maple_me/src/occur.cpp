@@ -107,22 +107,6 @@ MeExpr *MeOccur::GetSavedExpr() {
   }
 }
 
-// return true if either:
-// operand is nullptr (def is null), or
-// hasRealUse is false and defined by a PHI not will be avail
-bool MePhiOpndOcc::IsOkToInsert() const {
-  if (GetDef() == nullptr) {
-    return true;
-  }
-  if (!hasRealUse) {
-    const MeOccur *defOcc = GetDef();
-    if (defOcc->GetOccType() == kOccPhiocc && !static_cast<const MePhiOcc*>(defOcc)->IsWillBeAvail()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 bool MePhiOcc::IsOpndDefByRealOrInserted() const {
   for (MePhiOpndOcc *phiOpnd : phiOpnds) {
     MeOccur *defOcc = phiOpnd->GetDef();
@@ -151,6 +135,9 @@ void MeRealOcc::Dump(const IRMap &irMap) const {
       mod->GetOut() << "RealOcc ";
     } else {
       mod->GetOut() << "RealOcc(LHS) ";
+    }
+    if (rgExcluded) {
+      mod->GetOut() << "rgexcluded ";
     }
     if (meExpr != nullptr) {
       meExpr->Dump(&irMap);
