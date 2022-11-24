@@ -19,6 +19,7 @@
 #include "me_placement_rc.h"
 #include "me_loop_analysis.h"
 #include "me_hdse.h"
+#include "me_stack_protect.h"
 
 namespace {
 const std::set<std::string> propWhiteList {
@@ -33,7 +34,7 @@ const std::set<std::string> propWhiteList {
 namespace maple {
 void MeSSAEPre::BuildWorkList() {
   auto cfg = func->GetCfg();
-  const MapleVector<BBId> &preOrderDt = dom->GetDtPreOrder();
+  const auto &preOrderDt = dom->GetDtPreOrder();
   for (auto &bbID : preOrderDt) {
     BB *bb = cfg->GetAllBBs().at(bbID);
     BuildWorkListBB(bb);
@@ -70,8 +71,17 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
   // make irmapbuild first because previous phase may invalid all analysis results
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "irMap phase has problem");
-  auto *dom = GET_ANALYSIS(MEDominance, f);
-  ASSERT(dom != nullptr, "dominance phase has problem");
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
+  ASSERT(dom != nullptr, "dominance construction has problem");
+  auto pdom = dominancePhase->GetPdomResult();
+  ASSERT(pdom != nullptr, "postdominance construction has problem");
+
+  // checking the need for stack protection
+  if (Options::stackProtectorStrong) {
+    MeStackProtect checker(f);
+    checker.CheckAddrofStack();
+  }
 
   KlassHierarchy *kh = nullptr;
   if (f.GetMIRModule().IsJavaModule()) {
@@ -91,8 +101,11 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
   if (!MeOption::gcOnly && propWhiteList.find(f.GetName()) != propWhiteList.end()) {
     epreIncludeRef = false;
   }
-  MeSSAEPre ssaPre(f, *irMap, *dom, kh, *ssaPreMemPool, *ApplyTempMemPool(), epreLimitUsed, epreIncludeRef,
+  MeSSAEPre ssaPre(f, *irMap, *dom, *pdom, kh, *ssaPreMemPool, *ApplyTempMemPool(), epreLimitUsed, epreIncludeRef,
                    MeOption::epreLocalRefVar, MeOption::epreLHSIvar);
+  if (f.GetMirFunc()->GetFuncProfData() && MeOption::epreUseProfile) {
+    ssaPre.doMinCut = true;
+  }
   ssaPre.SetSpillAtCatch(MeOption::spillAtCatch);
   if (MeOption::strengthReduction && !f.GetMIRModule().IsJavaModule()) {
     ssaPre.strengthReduction = true;
@@ -110,19 +123,23 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
   if (DEBUGFUNC_NEWPM(f)) {
     ssaPre.SetSSAPreDebug(true);
   }
-  ssaPre.ApplySSAPRE();
+  if (!ssaPre.doMinCut) {
+    ssaPre.ApplySSAPRE();
+  } else {
+    ssaPre.ApplyMCSSAPRE();
+  }
   if (!ssaPre.GetCandsForSSAUpdate().empty()) {
     MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate());
     ssaUpdate.Run();
   }
   if ((f.GetHints() & kPlacementRCed) && ssaPre.GetAddedNewLocalRefVars()) {
-    PlacementRC placeRC(f, *dom, *ssaPreMemPool, DEBUGFUNC_NEWPM(f));
+    PlacementRC placeRC(f, *dom, *pdom, *ssaPreMemPool, DEBUGFUNC_NEWPM(f));
     placeRC.preKind = MeSSUPre::kSecondDecrefPre;
     placeRC.ApplySSUPre();
   }
   if (ssaPre.strengthReduction && !MeOption::ivopts) { // for deleting redundant injury repairs
     auto *aliasClass = FORCE_GET(MEAliasClass);
-    MeHDSE hdse(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
+    MeHDSE hdse(f, *dom, *pdom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
     }

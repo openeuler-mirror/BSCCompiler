@@ -178,7 +178,7 @@ void MeStmtPre::Finalize1() {
         auto *phiOpnd = static_cast<MePhiOpndOcc*>(occ);
         MePhiOcc *phiOcc = phiOpnd->GetDefPhiOcc();
         if (phiOcc->IsWillBeAvail()) {
-          if (phiOpnd->IsOkToInsert()) {
+          if (OKToInsert(phiOpnd)) {
             // insert the current expression at the end of the block containing phiOpnd
             if (phiOpnd->GetBB()->GetSucc().size() > 1) {
               CHECK_FATAL(!workCand->Redo2HandleCritEdges(), "Finalize1: insertion at critical edge; aborting");
@@ -527,7 +527,7 @@ void MeStmtPre::ComputeVarAndDfPhis() {
   dfPhiDfns.clear();
   PreWorkCand *workCand = GetWorkCand();
   const MapleVector<MeRealOcc*> &realOccList = workCand->GetRealOccs();
-  CHECK_FATAL(!dom->IsBBVecEmpty(), "size to be allocated is 0");
+  CHECK_FATAL(!dom->IsNodeVecEmpty(), "size to be allocated is 0");
   for (auto it = realOccList.begin(); it != realOccList.end(); ++it) {
     MeRealOcc *realOcc = *it;
     if (realOcc->GetOccType() == kOccMembar) {
@@ -605,7 +605,7 @@ void MeStmtPre::CreateSortedOccs() {
   // form phiopnd_dfns
   std::multiset<uint32> phiOpndDfns;
   for (uint32 dfn : dfPhiDfns) {
-    BBId bbId = dom->GetDtPreOrderItem(dfn);
+    auto bbId = dom->GetDtPreOrderItem(dfn);
     BB *bb = GetBB(bbId);
     CHECK_FATAL(bb != nullptr, "GetBB error");
     for (BB *pred : bb->GetPred()) {
@@ -638,11 +638,11 @@ void MeStmtPre::CreateSortedOccs() {
   if (phiOpndDfnIt != phiOpndDfns.end()) {
     nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(*GetBB(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
     std::unordered_map<BBId, std::forward_list<MePhiOpndOcc*>>::iterator it =
-        bb2PhiOpndMap.find(dom->GetDtPreOrderItem(*phiOpndDfnIt));
+        bb2PhiOpndMap.find(BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
     if (it == bb2PhiOpndMap.end()) {
       std::forward_list<MePhiOpndOcc*> newList = { nextPhiOpndOcc };
       CHECK(*phiOpndDfnIt < dom->GetDtPreOrderSize(), "index out of range in SSAPre::CreateSortedOccs");
-      bb2PhiOpndMap[dom->GetDtPreOrderItem(*phiOpndDfnIt)] = newList;
+      bb2PhiOpndMap[BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt))] = newList;
     } else {
       it->second.push_front(nextPhiOpndOcc);
     }
@@ -724,10 +724,10 @@ void MeStmtPre::CreateSortedOccs() {
           if (phiOpndDfnIt != phiOpndDfns.end()) {
             nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(*GetBB(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
             std::unordered_map<BBId, std::forward_list<MePhiOpndOcc*>>::iterator it =
-                bb2PhiOpndMap.find(dom->GetDtPreOrderItem(*phiOpndDfnIt));
+                bb2PhiOpndMap.find(BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
             if (it == bb2PhiOpndMap.end()) {
               std::forward_list<MePhiOpndOcc*> newList = { nextPhiOpndOcc };
-              bb2PhiOpndMap[dom->GetDtPreOrderItem(*phiOpndDfnIt)] = newList;
+              bb2PhiOpndMap[BBId(dom->GetDtPreOrderItem(*phiOpndDfnIt))] = newList;
             } else {
               it->second.push_front(nextPhiOpndOcc);
             }
@@ -801,7 +801,7 @@ void MeStmtPre::ConstructUseOccurMap() {
     }
   }
   // do a pass over the program
-  const MapleVector<BBId> &preOrderDt = dom->GetDtPreOrder();
+  const auto &preOrderDt = dom->GetDtPreOrder();
   auto cfg = func->GetCfg();
   for (size_t i = 0; i < preOrderDt.size(); ++i) {
     BB *bb = cfg->GetAllBBs().at(preOrderDt[i]);
@@ -1142,9 +1142,9 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
     CreateExitOcc(*bb);
   }
   // recurse on child BBs in dominator tree
-  const auto &domChildren = dom->GetDomChildren(bb->GetBBId());
+  const auto &domChildren = dom->GetDomChildren(bb->GetID());
   for (auto bbIt = domChildren.begin(); bbIt != domChildren.end(); ++bbIt) {
-    BBId childBBId = *bbIt;
+    auto childBBId = *bbIt;
     BuildWorkListBB(GetBB(childBBId));
   }
   // pop the stacks back to their levels on entry
@@ -1200,11 +1200,14 @@ void MEStmtPre::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MEStmtPre::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
-  ASSERT(dom != nullptr, "dominance phase has problem");
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
+  ASSERT(dom != nullptr, "dominance construction has problem");
+  auto pdom = dominancePhase->GetPdomResult();
+  ASSERT(pdom != nullptr, "postdominance construction has problem");
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "irMap phase has problem");
-  MeStmtPre ssaPre(f, *irMap, *dom, *ApplyTempMemPool(), *ApplyTempMemPool(), MeOption::stmtprePULimit);
+  MeStmtPre ssaPre(f, *irMap, *dom, *pdom, *ApplyTempMemPool(), *ApplyTempMemPool(), MeOption::stmtprePULimit);
   if (DEBUGFUNC_NEWPM(f)) {
     ssaPre.SetSSAPreDebug(true);
   }

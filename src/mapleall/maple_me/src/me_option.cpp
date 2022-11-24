@@ -132,6 +132,7 @@ SafetyCheckMode MeOption::boundaryCheckMode = SafetyCheckMode::kNoCheck;
 bool MeOption::safeRegionMode = false;
 bool MeOption::unifyRets = false;
 bool MeOption::dumpCfgOfPhases = false;
+bool MeOption::epreUseProfile = true;
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -315,6 +316,7 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(lessThrowAlias, opts::me::lessthrowalias);
   maplecl::CopyIfEnabled(propBase, opts::me::propbase);
   maplecl::CopyIfEnabled(dumpCfgOfPhases, opts::me::dumpCfgOfPhases);
+  maplecl::CopyIfEnabled(epreUseProfile, opts::me::epreUseProfile);
 
   if (opts::me::propiloadref.IsEnabledByUser()) {
     propIloadRef = opts::me::propiloadref;
