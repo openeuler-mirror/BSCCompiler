@@ -286,7 +286,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
     if (Options::profileUse && freqPriority) {
       for (std::pair<uint64, int32> f2c : freq2case) {
         uint32 idx = static_cast<uint32>(f2c.second);
-        cGoto = BuildCondGotoNode(switchItems[idx].first, OP_brtrue, *BuildCmpNode(OP_eq, switchItems[idx].first));
+        cGoto = BuildCondGotoNode(idx, OP_brtrue, *BuildCmpNode(OP_eq, idx));
         if (cGoto != nullptr) {
           localBlk->AddStatement(cGoto);
         }
