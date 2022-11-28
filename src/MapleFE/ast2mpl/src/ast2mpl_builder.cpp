@@ -18,7 +18,6 @@
 #include "mir_module.h"
 #include "mir_function.h"
 #include "maplefe_mir_builder.h"
-#include "cvt_block.h"
 
 namespace maplefe {
 
@@ -77,10 +76,6 @@ void Ast2MplBuilder::Build() {
       std::cout << "============= in ProcessAST ===========" << std::endl;
       std::cout << "srcLang : " << module->GetSrcLangString() << std::endl;
     }
-    // pass 0: convert to use BlockNode for if-then-else and loop bodies
-    CvtToBlockVisitor visitor(module);
-    visitor.CvtToBlock();
-
     // pass 1: collect class/interface/function decl
     for (unsigned i = 0; i < module->GetTreesNum(); i++) {
       TreeNode *tnode = module->GetTree(i);
