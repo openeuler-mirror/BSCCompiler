@@ -136,7 +136,7 @@ FieldLiteralNode *BuildIdDirectFieldVisitor::VisitFieldLiteralNode(FieldLiteralN
   IdentifierNode *field = static_cast<IdentifierNode *>(name);
   TreeNode *decl = mHandler->FindDecl(field);
   TreeNode *vtype = GetParentVarClass(decl);
-  if (vtype && !mHandler->GetINFO()->IsBuiltInType(vtype)) {
+  if (vtype && !gTypeTable.IsBuiltInType(vtype)) {
     // check if decl is a field of vtype
     // note: vtype could be in different module
     Module_Handler *h = mHandler->GetModuleHandler(vtype);

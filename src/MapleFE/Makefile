@@ -24,7 +24,7 @@ ifeq ($(SRCLANG),java)
 else ifeq ($(SRCLANG),typescript)
   TARGET := ts2ast ast2cpp obfuscate
 else ifeq ($(SRCLANG),c)
-  TARGET := c2ast
+  TARGET := c2ast ast2mpl
 endif
 
 all: $(TARGET)
@@ -44,7 +44,7 @@ recdetect: autogen shared ladetect
 ladetect: autogen shared
 	$(MAKE) LANG=$(SRCLANG) -C ladetect
 
-ast2mpl: astopt java2ast
+ast2mpl: astopt
 	$(MAKE) -C ast2mpl
 
 astopt: shared recdetect ladetect

@@ -48,7 +48,7 @@ INCLUDEGEN := -I $(MAPLEFE_ROOT)/shared/include -I $(BUILDDIR)/gen -I $(BUILDAST
 
 TARGET=ast2mpl
 SHAREDLIB = $(BUILDDIR)/astopt/astopt.a $(BUILDDIR)/shared/shared.a $(BUILDASTGEN)/genast.a
-LANGSPEC=$(BUILDDIR)/java/lang_spec.o
+LANGSPEC=$(BUILDDIR)/$(SRCLANG)/lang_spec.o
 
 .PHONY: all
 all: $(BUILDBIN)/$(TARGET)

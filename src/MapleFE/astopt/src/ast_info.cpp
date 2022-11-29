@@ -32,8 +32,6 @@ void AST_INFO::CollectInfo() {
     it->SetParent(module);
   }
 
-  AddBuiltInTypes();
-
   // collect import/export info
   MSGNOLOC0("============== XXport info ==============");
   mHandler->GetASTXXport()->CollectXXportInfo(mHandler->GetHidx());
@@ -71,44 +69,6 @@ void AST_INFO::CollectInfo() {
   // collect function types
   FunctionVisitor func_visitor(mHandler, mFlags, true);
   func_visitor.Visit(module);
-}
-
-void AST_INFO::AddBuiltInTypes() {
-  unsigned size = gTypeTable.size();
-  for (unsigned idx = 1; idx < size; idx++) {
-    TreeNode *node = gTypeTable.GetTypeFromTypeIdx(idx);
-    if (node->IsUserType()) {
-      mStrIdx2TypeIdxMap[node->GetStrIdx()] = node->GetTypeIdx();
-    }
-  }
-
-  // add language builtin types
-  TreeNode *node = NULL;
-  unsigned stridx = 0;
-#define BUILTIN(T) \
-  stridx = gStringPool.GetStrIdx(#T);\
-  if (mStrIdx2TypeIdxMap.find(stridx) == mStrIdx2TypeIdxMap.end()) {\
-    node = gTypeTable.CreateBuiltinType(#T, TY_Class);\
-    gTypeTable.AddType(node);\
-    mStrIdx2TypeIdxMap[stridx] = node->GetTypeIdx();\
-  }
-#include "lang_builtin.def"
-}
-
-bool AST_INFO::IsBuiltInType(TreeNode *node) {
-  return mStrIdx2TypeIdxMap.find(node->GetStrIdx()) != mStrIdx2TypeIdxMap.end();
-}
-
-unsigned AST_INFO::GetBuiltInTypeIdx(unsigned stridx) {
-  if (mStrIdx2TypeIdxMap.find(stridx) != mStrIdx2TypeIdxMap.end()) {
-    return mStrIdx2TypeIdxMap[stridx];
-  }
-  return 0;
-}
-
-unsigned AST_INFO::GetBuiltInTypeIdx(TreeNode *node) {
-  unsigned stridx = node->GetStrIdx();
-  return GetBuiltInTypeIdx(stridx);
 }
 
 TypeId AST_INFO::GetTypeId(TreeNode *node) {
@@ -438,7 +398,7 @@ IdentifierNode *AST_INFO::CreateIdentifierNode(unsigned stridx) {
 }
 
 UserTypeNode *AST_INFO::CreateUserTypeNode(unsigned stridx, ASTScope *scope) {
-  unsigned tidx = GetBuiltInTypeIdx(stridx);
+  unsigned tidx = gTypeTable.GetBuiltInTypeIdx(stridx);
   IdentifierNode *node = CreateIdentifierNode(stridx);
   SetTypeId(node, TY_Class);
   SetTypeIdx(node, tidx);
@@ -692,7 +652,7 @@ FunctionNode *FillNodeInfoVisitor::VisitFunctionNode(FunctionNode *node) {
     mInfo->SetTypeIdx(node, type->GetTypeIdx());
   } else if (node->IsGenerator()) {
     unsigned stridx = gStringPool.GetStrIdx("Generator");
-    unsigned tidx = mInfo->GetBuiltInTypeIdx(stridx);
+    unsigned tidx = gTypeTable.GetBuiltInTypeIdx(stridx);
     UserTypeNode *ut = mInfo->CreateUserTypeNode(stridx);
     node->SetRetType(ut);
   }
@@ -766,7 +726,7 @@ UserTypeNode *FillNodeInfoVisitor::VisitUserTypeNode(UserTypeNode *node) {
   (void) AstVisitor::VisitUserTypeNode(node);
   TreeNode *id = node->GetId();
   if (id) {
-    unsigned tidx = mInfo->GetBuiltInTypeIdx(id);
+    unsigned tidx = gTypeTable.GetBuiltInTypeIdx(id);
     if (tidx) {
       mInfo->SetTypeIdx(id, tidx);
     }

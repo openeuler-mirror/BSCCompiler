@@ -76,8 +76,8 @@ mssetup:
 	@cat -n $(build)/$@.mpl
 	@echo "========================================================\n"
 	@echo gdb --args ../output/java/java/java2mpl $(build)/$@.java $(FLAGS)
-	$(MAPLEALL_ROOT)/output/aarch64-clang-debug/bin/irbuild $(build)/$@.mpl
-	$(MAPLEALL_ROOT)/output/aarch64-clang-debug/bin/irbuild $(build)/$@.irb.mpl
+	$(MAPLE_ROOT)/output/aarch64-clang-debug/bin/irbuild $(build)/$@.mpl
+	$(MAPLE_ROOT)/output/aarch64-clang-debug/bin/irbuild $(build)/$@.irb.mpl
 	diff -uwb $(build)/$@.irb.mpl $(build)/$@.irb.irb.mpl
 
 else ifeq ($(SRCLANG),typescript)

@@ -40,23 +40,30 @@ sudo npm install -g typescript@latest
 
 [How to build]
 
-1. source envsetup.sh [java|typescript]
+typescript
+1. source envsetup.sh typescript
+2. make
+3. outputs:
+    output/typescript/bin/ts2ast  - executable frontend
+    output/typescript/bin/ast2cpp - translate AST to cpp source code.
+
+java
+1. source envsetup.sh java
 2. make mapleall
    This step is to build mapleall (Maple IR related libraries). If you have done it once,
    you dont need do it again unless you changed the code in mapleall.
 3. make
-4. If you are working at Java frontend, you will see output/java/java/java2mpl. This is the executable
-   frontend.
-4. If you are working at Typescript frontend, you will see output/typescript/bin/ts2ast. This is the executable
-   frontend. You can also see output/typescript/bin/ast2cpp, which translate AST to cpp source code.
+4. outputs:
+    output/java/bin/java2ast - executable frontend
+    output/java/bin/ast2mpl  - translate AST to mpl
 
 [How to test]
 
 1. make test
 
-run a single test, say t1.java:
+run a single test, say add.ts:
 1. cd test
-2. make t1
+2. make add
 
 You can find all Java test cases in test/java.
 You can find all Typescript test cases in test/typescript.
