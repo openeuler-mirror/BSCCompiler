@@ -2644,6 +2644,11 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
   if (sa != nullptr && !sa->isImplicit()) {
     astFunc->SetSectionAttr(sa->getName().str());
   }
+  /* create typealias for func return type */
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    MIRType *sourceType = astFile->CvtSourceType(qualType);
+    astFunc->SetSourceType(sourceType);
+  }
   // collect EnhanceC func attr
   ProcessNonnullFuncAttrs(funcDecl, *astFunc);
   ProcessBoundaryFuncAttrs(allocator, funcDecl, *astFunc);

@@ -228,6 +228,17 @@ void LibAstFile::GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &gen
     case clang::Decl::Var: {
       const auto *varDecl = llvm::cast<clang::VarDecl>(&decl);
       const clang::StorageClass storageClass = varDecl->getStorageClass();
+      if (storageClass == clang::SC_Extern) {
+        varDecl = varDecl->getPreviousDecl();
+        while (varDecl != nullptr) {
+          auto preClass = varDecl->getStorageClass();
+          if (preClass == clang::SC_Static) {
+            GetSClassAttrs(preClass, genAttrs);
+            break;
+          }
+          varDecl = varDecl->getPreviousDecl();
+        }
+      }
       GetSClassAttrs(storageClass, genAttrs);
       break;
     }

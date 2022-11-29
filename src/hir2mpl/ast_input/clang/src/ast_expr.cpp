@@ -545,6 +545,7 @@ MIRConst *ASTCastExpr::GenerateMIRIntConst() const {
           static_cast<int64>(static_cast<MIRStrConst*>(childConst)->GetValue()),
           *GlobalTables::GetTypeTable().GetPrimType(PTY_a64));
     }
+    case kConstAddrofFunc:
     case kConstAddrof: {
       return FEManager::GetModule().GetMemPool()->New<MIRIntConst>(
           static_cast<int64>(static_cast<MIRAddrofConst*>(childConst)->GetOffset()),
