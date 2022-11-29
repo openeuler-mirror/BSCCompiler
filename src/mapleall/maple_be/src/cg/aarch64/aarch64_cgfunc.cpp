@@ -5208,7 +5208,7 @@ Operand *AArch64CGFunc::SelectAbsSub(Insn &lastInsn, const UnaryNode &node, Oper
   uint32 mopCsneg = is64Bits ? MOP_xcnegrrrc : MOP_wcnegrrrc;
   /* ABS requires the operand be interpreted as a signed integer */
   CondOperand &condOpnd = GetCondOperand(CC_MI);
-  MOperator newMop = lastInsn.GetMachineOpcode() + 1;
+  MOperator newMop = AArch64isa::GetMopSub2Subs(lastInsn);
   Operand &rflag = GetOrCreateRflag();
   std::vector<Operand *> opndVec;
   opndVec.push_back(&rflag);
@@ -5239,9 +5239,14 @@ Operand *AArch64CGFunc::SelectAbs(UnaryNode &node, Operand &opnd0) {
     PrimType primType = is64Bits ? (PTY_i64) : (PTY_i32);
     Operand &newOpnd0 = LoadIntoRegister(opnd0, primType);
     Insn *lastInsn = GetCurBB()->GetLastInsn();
-    if (lastInsn != nullptr && lastInsn->GetMachineOpcode() >= MOP_xsubrrr &&
-      lastInsn->GetMachineOpcode() <= MOP_wsubrri12) {
-      return SelectAbsSub(*lastInsn, node, newOpnd0);
+    if (lastInsn != nullptr && AArch64isa::IsSub(*lastInsn)) {
+      Operand &opd1 = lastInsn->GetOperand(kInsnSecondOpnd);
+      Operand &opd2 = lastInsn->GetOperand(kInsnThirdOpnd);
+      regno_t absReg = static_cast<RegOperand&>(newOpnd0).GetRegisterNumber();
+      if ((opd1.IsRegister() && static_cast<RegOperand&>(opd1).GetRegisterNumber() == absReg) ||
+          (opd2.IsRegister() && static_cast<RegOperand&>(opd2).GetRegisterNumber() == absReg)) {
+        return SelectAbsSub(*lastInsn, node, newOpnd0);
+      }
     }
     RegOperand &resOpnd = CreateRegisterOperandOfType(primType);
     SelectAArch64Cmp(newOpnd0, CreateImmOperand(0, is64Bits ? PTY_u64 : PTY_u32, false),
