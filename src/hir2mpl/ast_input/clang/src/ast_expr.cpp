@@ -794,8 +794,15 @@ UniqueFEIRExpr ASTUnaryOperatorExpr::ASTUOSideEffectExpr(Opcode op, std::list<Un
   PrimType subPrimType = subType->GetPrimType();
   UniqueFEIRExpr subExpr = (subPrimType == PTY_ptr) ? std::make_unique<FEIRExprConst>(pointeeLen, PTY_i32) :
       FEIRBuilder::CreateExprConstAnyScalar(subPrimType, 1);
-  UniqueFEIRExpr sideEffectExpr = FEIRBuilder::CreateExprMathBinary(op, childFEIRExpr->Clone(), std::move(subExpr));
+  UniqueFEIRExpr sideEffectExpr = FEIRBuilder::CreateExprMathBinary(op, childFEIRExpr->Clone(), subExpr->Clone());
   UniqueFEIRStmt sideEffectStmt = FEIRBuilder::AssginStmtField(childFEIRExpr->Clone(), std::move(sideEffectExpr), 0);
+  /* deal this case: bool u, u++/++u, u value always is 1; if u--/--u, u value always is ~u */
+  if (uoType == GlobalTables::GetTypeTable().GetPrimType(PTY_u1) && op == OP_add) {
+    sideEffectStmt = FEIRBuilder::AssginStmtField(childFEIRExpr->Clone(), std::move(subExpr), 0);
+  } else if (uoType == GlobalTables::GetTypeTable().GetPrimType(PTY_u1) && op == OP_sub) {
+    UniqueFEIRExpr notExpr = std::make_unique<FEIRExprUnary>(OP_lnot, childFEIRExpr->Clone());
+    sideEffectStmt = FEIRBuilder::AssginStmtField(childFEIRExpr->Clone(), std::move(notExpr), 0);
+  }
   stmts.emplace_back(std::move(sideEffectStmt));
 
   if (post) {
