@@ -2354,7 +2354,6 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
 void AArch64PeepHole0::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
   optimizations[kDeleteMovAfterCbzOrCbnzOpt] = optOwnMemPool->New<DeleteMovAfterCbzOrCbnzAArch64>(cgFunc);
-  optimizations[kRemoveMovingtoSameRegOpt] = optOwnMemPool->New<RemoveMovingtoSameRegAArch64>(cgFunc);
 }
 
 void AArch64PeepHole0::Run(BB &bb, Insn &insn) {
@@ -2365,15 +2364,6 @@ void AArch64PeepHole0::Run(BB &bb, Insn &insn) {
     case MOP_wcbnz:
     case MOP_xcbnz: {
       (static_cast<DeleteMovAfterCbzOrCbnzAArch64*>(optimizations[kDeleteMovAfterCbzOrCbnzOpt]))->Run(bb, insn);
-      break;
-    }
-    case MOP_wmovrr:
-    case MOP_xmovrr:
-    case MOP_xvmovs:
-    case MOP_xvmovd:
-    case MOP_vmovuu:
-    case MOP_vmovvv: {
-      (static_cast<RemoveMovingtoSameRegAArch64*>(optimizations[kRemoveMovingtoSameRegOpt]))->Run(bb, insn);
       break;
     }
     default:
@@ -2514,17 +2504,6 @@ bool RemoveMovingtoSameRegPattern::CheckCondition(Insn &insn) {
 void RemoveMovingtoSameRegPattern::Run(BB &bb, Insn &insn) {
   /* remove mov x0,x0 when it cast i32 to i64 */
   if (CheckCondition(insn)) {
-    bb.RemoveInsn(insn);
-  }
-}
-
-void RemoveMovingtoSameRegAArch64::Run(BB &bb, Insn &insn) {
-  ASSERT(insn.GetOperand(kInsnFirstOpnd).IsRegister(), "expects registers");
-  ASSERT(insn.GetOperand(kInsnSecondOpnd).IsRegister(), "expects registers");
-  auto &reg1 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  auto &reg2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  /* remove mov x0,x0 when it cast i32 to i64 */
-  if ((reg1.GetRegisterNumber() == reg2.GetRegisterNumber()) && (reg1.GetSize() >= reg2.GetSize())) {
     bb.RemoveInsn(insn);
   }
 }

@@ -963,14 +963,6 @@ class RemoveMovingtoSameRegPattern : public CGPeepPattern {
   }
 };
 
-/* Remove redundant mov which src and dest opnd is exactly same */
-class RemoveMovingtoSameRegAArch64 : public PeepPattern {
- public:
-  explicit RemoveMovingtoSameRegAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~RemoveMovingtoSameRegAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-};
-
 /*
  * Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp, when they are
  * back to back and the [MEM] they access is conjointed.

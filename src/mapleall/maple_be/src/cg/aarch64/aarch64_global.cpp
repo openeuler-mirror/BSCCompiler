@@ -2242,6 +2242,14 @@ void SameRHSPropPattern::Optimize(Insn &insn) {
   MOperator mOp = (bitSize == k64BitSize ? MOP_xmovrr : MOP_wmovrr);
   Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, destOpnd, prevInsn->GetOperand(kInsnFirstOpnd));
   newInsn.SetId(insn.GetId());
+  if (RegOperand::IsSameReg(newInsn.GetOperand(kInsnFirstOpnd), newInsn.GetOperand(kInsnSecondOpnd))) {
+    bb->RemoveInsn(insn);
+    if (GLOBAL_DUMP) {
+      LogInfo::MapleLogger() << ">>>>>>> RemoveInsn: <<<<<<<\n";
+      insn.Dump();
+    }
+    return;
+  }
   bb->ReplaceInsn(insn, newInsn);
   if (GLOBAL_DUMP) {
     LogInfo::MapleLogger() << ">>>>>>> In SameRHSPropPattern : <<<<<<<\n";

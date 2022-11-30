@@ -513,11 +513,15 @@ void OutlineGroup::CompleteOutlineFunction() {
     outlineFunc->GetBody()->AddStatement(newStmt);
     region->GetStart()->GetCurrBlock()->RemoveStmt(replacedStmt);
   });
+  candidate.SetCleared();
   extractor.DealWithReturn();
 }
 
 void OutlineGroup::EraseOutlineRegion() {
   for (auto &candidate : regionGroup) {
+    if (candidate.IsCleared()) {
+      continue;
+    }
     auto *region = candidate.GetRegionCandidate();
     auto *block = region->GetStart()->GetCurrBlock();
     region->TraverseRegion([block] (const StmtIterator &it) {
