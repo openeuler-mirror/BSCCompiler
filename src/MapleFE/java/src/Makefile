@@ -13,11 +13,8 @@
 #
 
 include ../../Makefile.in
-BUILDBIN=$(BUILDDIR)/bin
 BUILD=$(BUILDDIR)/java
-BUILDGEN=$(BUILDDIR)/gen
-BUILDASTGEN=$(BUILDDIR)/ast_gen/shared
-$(shell $(MKDIR_P) $(BUILD) $(BUILDGEN))
+$(shell $(MKDIR_P) $(BUILD) $(BUILDLIB) $(BUILDGEN))
 
 SRC=$(wildcard *.cpp)
 OBJ :=$(patsubst %.cpp,%.o,$(SRC))
@@ -33,17 +30,18 @@ DEPS :=$(foreach dep,$(DEP), $(BUILD)/$(dep)) $(DEPG)
 INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
             -I $(MAPLEFE_ROOT)/java/include \
             -I $(MAPLEFE_ROOT)/autogen/include \
-						-I ${BUILDDIR}/ast_gen/shared \
-            -I $(BUILDGEN) $(MAPLEALL_INC)
+            -I ${BUILDASTGEN} \
+            -I $(BUILDGEN) \
+            $(MAPLEALL_INC)
 
 INCLUDEGEN := -I $(BUILDGEN) -I $(MAPLEFE_ROOT)/shared/include
 
 TARGET=java2ast
 
-SHAREDLIB = $(BUILDDIR)/shared/shared.a $(BUILDASTGEN)/genast.a
+SHAREDLIB = -L $(BUILDLIB) -lshared -lgenast
 
 .PHONY: all
-all: $(BUILD)/$(TARGET)
+all: $(BUILDBIN)/$(TARGET)
 
 -include $(DEPS)
 .PHONY: clean
@@ -72,7 +70,7 @@ $(BUILDGEN)/%.d : $(BUILDGEN)/%.cpp
 
 # TARGET depends on OBJS and shared OBJS from shared directory
 # as well as mapleall libraries
-$(BUILD)/$(TARGET): $(OBJS) $(SHAREDLIB)
+$(BUILDBIN)/$(TARGET): $(OBJS)
 	@mkdir -p $(BUILDBIN)
 	$(LD) -o $(BUILDBIN)/$(TARGET) $(OBJS) $(SHAREDLIB) $(MAPLELIBS)
 

@@ -16,8 +16,7 @@ include ../Makefile.in
 
 # create build first
 BUILD=$(BUILDDIR)/recdetect
-BUILDGEN=$(BUILDDIR)/gen
-$(shell $(MKDIR_P) $(BUILD) $(BUILDGEN)) 
+$(shell $(MKDIR_P) $(BUILD) $(BUILDLIB) $(BUILDGEN)) 
 
 SRCG := $(wildcard $(BUILDGEN)/gen_*.cpp)
 OBJG := $(patsubst %.cpp, %.o, $(SRCG))
@@ -36,7 +35,7 @@ INCLUDES := -I $(MAPLEFE_ROOT)/recdetect \
             -I $(MAPLEFE_ROOT)/shared/include \
             -I $(BUILDGEN)
 
-SHAREDLIB = $(BUILDDIR)/shared/shared.a
+SHAREDLIB = -L $(BUILDLIB) -lshared
 
 TARGET = recdetect
 
@@ -44,7 +43,7 @@ TARGET = recdetect
 
 all: $(BUILD)/$(TARGET)
 
-$(BUILD)/$(TARGET) : $(OBJS) $(SHAREDLIB)
+$(BUILD)/$(TARGET) : $(OBJS)
 	$(LD) -o $(BUILD)/$(TARGET) $(OBJS) $(SHAREDLIB)
 	(cd $(BUILD); ./$(TARGET))
 

@@ -1,4 +1,4 @@
-# Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+# Copyright (C) [2022] Futurewei Technologies, Inc. All rights reverved.
 # 
 # OpenArkFE is licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,9 +12,9 @@
 # See the Mulan PSL v2 for more details.
 # 
 
-include ../../Makefile.in
-BUILD=$(BUILDDIR)/ast2cpp
-$(shell $(MKDIR_P) $(BUILD) $(BUILDLIB))
+include ../../../Makefile.in
+BUILD=$(BUILDDIR)/tools/obfuscate
+$(shell $(MKDIR_P) $(BUILD))
 
 SRC=$(wildcard *.cpp)
 OBJ :=$(patsubst %.cpp,%.o,$(SRC))
@@ -24,26 +24,29 @@ SRCG := $(wildcard $(BUILDGEN)/gen*.cpp)
 OBJG := $(patsubst %.cpp, %.o, $(SRCG))
 DEPG := $(patsubst %.cpp, %.d, $(SRCG))
 
-OBJS :=$(foreach obj,$(OBJ), $(BUILD)/$(obj)) $(OBJG)
-DEPS :=$(foreach dep,$(DEP), $(BUILD)/$(dep)) $(DEPG)
+LOCALOBJS :=$(foreach obj,$(OBJ), $(BUILD)/$(obj))
+LOCALDEPS :=$(foreach dep,$(DEP), $(BUILD)/$(dep))
+OBJS :=$(LOCALOBJS) $(OBJG)
+DEPS :=$(LOCALDEPS) $(DEPG)
 
-LIBOBJS :=$(patsubst $(BUILD)/main.o,,$(OBJS))
+LIBOBJS :=$(patsubst $(BUILD)/main.o,,$(LOCALOBJS))
+
+GENDIR:=${BUILDDIR}/ast_gen/shared
 
 INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
             -I $(MAPLEFE_ROOT)/astopt/include \
+            -I $(MAPLEFE_ROOT)/tools/obfuscate/include \
             -I $(MAPLEFE_ROOT)/ast2cpp/include \
             -I $(MAPLEFE_ROOT)/autogen/include \
             -I $(MAPLEFE_ROOT)/shared/include \
             -I $(MAPLEFE_ROOT)/$(SRCLANG)/include \
-            -I ${BUILDASTGEN} \
-            $(MAPLEALL_INC)
+            -I ${GENDIR}
 
 INCLUDEGEN := -I $(MAPLEFE_ROOT)/shared/include -I $(BUILDDIR)/gen -I $(BUILDASTGEN)
 
-TARGET=ast2cpp
-TARGET_A=libast2cpp.a
+TARGET=obfuscate
 
-SHAREDLIB = -L $(BUILDLIB) -lastopt -lshared -lgenast
+SHAREDLIB = -L $(BUILDLIB) -last2cpp -lastopt -lshared -lgenast
 
 .PHONY: all
 all: $(BUILDBIN)/$(TARGET)
@@ -75,12 +78,9 @@ $(BUILDGEN)/%.d : $(BUILDGEN)/%.cpp
 
 # TARGET depends on OBJS and shared OBJS from shared directory
 # as well as mapleall libraries
-$(BUILDLIB)/$(TARGET_A): $(LIBOBJS)
-	/usr/bin/ar rcs $(BUILDLIB)/$(TARGET_A) $(LIBOBJS)
-
-$(BUILDBIN)/$(TARGET): $(BUILDLIB)/$(TARGET_A) $(OBJS)
+$(BUILDBIN)/$(TARGET): $(OBJS)
 	@mkdir -p $(BUILDBIN)
-	$(LD) -o $(BUILDBIN)/$(TARGET) $(BUILD)/main.o $(BUILDLIB)/$(TARGET_A) $(OBJG) $(LANGSPEC) $(SHAREDLIB)
+	$(LD) -o $(BUILDBIN)/$(TARGET) $(LOCALOBJS) $(OBJG) $(LANGSPEC) $(SHAREDLIB)
 
 clean:
 	rm -rf $(BUILD)

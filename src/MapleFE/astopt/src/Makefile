@@ -14,7 +14,7 @@
 
 include ../../Makefile.in
 BUILD=$(BUILDDIR)/astopt
-$(shell $(MKDIR_P) $(BUILD))
+$(shell $(MKDIR_P) $(BUILD) $(BUILDLIB))
 
 SRC=$(wildcard *.cpp)
 OBJ :=$(patsubst %.cpp,%.o,$(SRC))
@@ -29,12 +29,12 @@ LIBOBJS :=$(patsubst $(BUILD)/main.o,,$(OBJS))
 INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
             -I $(MAPLEFE_ROOT)/astopt/include \
             -I $(MAPLEFE_ROOT)/$(SRCLANG)/include \
-            -I ${BUILDDIR}/ast_gen/shared
+            -I ${BUILDASTGEN}
 
-TARGET=astopt.a
+TARGET=libastopt.a
 
 .PHONY: all
-all: $(BUILD)/$(TARGET)
+all: $(BUILDLIB)/$(TARGET)
 
 -include $(DEPS)
 .PHONY: clean
@@ -54,8 +54,8 @@ $(BUILD)/%.d : %.cpp
 
 # TARGET depends on OBJS and shared OBJS from shared directory
 # as well as mapleall libraries
-$(BUILD)/$(TARGET): $(OBJS)
-	/usr/bin/ar rcs $(BUILD)/$(TARGET) $(OBJS)
+$(BUILDLIB)/$(TARGET): $(OBJS)
+	/usr/bin/ar rcs $(BUILDLIB)/$(TARGET) $(OBJS)
 
 clean:
 	rm -rf $(BUILD)

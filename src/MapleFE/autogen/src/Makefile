@@ -16,7 +16,7 @@ include ../../Makefile.in
 
 # create build first
 BUILD=$(BUILDDIR)/autogen
-$(shell $(MKDIR_P) $(BUILD) $(BUILDDIR)/$(SRCLANG) $(BUILDDIR)/gen)
+$(shell $(MKDIR_P) $(BUILD) $(BUILDLIB) $(BUILDDIR)/$(SRCLANG) $(BUILDDIR)/gen)
 
 SHAREDSRC := token.cpp mempool.cpp stringmap.cpp stringpool.cpp write2file.cpp
 SRC := $(wildcard *.cpp) $(SHAREDSRC)
@@ -35,18 +35,18 @@ SPECS := $(wildcard $(MAPLEFE_ROOT)/$(SRCLANG)/*.spec)
 
 TARGET = autogen
 
-AUTOGENLIB = autogen.a
+AUTOGENLIB = libautogen.a
 
 .PHONY: all
 all: $(BUILD)/$(TARGET)
 
-$(BUILD)/$(TARGET) : $(BUILD)/$(AUTOGENLIB)
-	$(LD) -o $(BUILD)/$(TARGET) $(BUILD)/main.o $(BUILD)/$(AUTOGENLIB)
+$(BUILD)/$(TARGET) : $(BUILDLIB)/$(AUTOGENLIB)
+	$(LD) -o $(BUILD)/$(TARGET) $(BUILD)/main.o $(BUILDLIB)/$(AUTOGENLIB)
 	(cd $(BUILD); ./$(TARGET) $(SRCLANG))
 	(cd $(MAPLEFE_ROOT); ./scripts/maplefe-autogen.py)
 
-$(BUILD)/$(AUTOGENLIB) : $(OBJS)
-	/usr/bin/ar rcs $(BUILD)/$(AUTOGENLIB) $(LIBOBJS)
+$(BUILDLIB)/$(AUTOGENLIB) : $(OBJS)
+	/usr/bin/ar rcs $(BUILDLIB)/$(AUTOGENLIB) $(LIBOBJS)
 
 -include $(DEPS)
 .PHONY: clean
