@@ -20,20 +20,20 @@
 
 namespace maplebe {
 class CgProfUse {
-  public:
+ public:
 
   struct Edge {
-  BB *src;
-  BB *dst;
-  Edge *next = nullptr;  // the edge with the same src
-  uint64 frequency = 0;  // later uint64_t
-  bool status = false;   // True value indicates the edge's freq is determined
-  Edge(BB *bb1, BB *bb2) : src(bb1), dst(bb2) {}
+    BB *src;
+    BB *dst;
+    Edge *next = nullptr;  // the edge with the same src
+    uint64 frequency = 0;  // later int64_t
+    bool status = false;   // True value indicates the edge's freq is determined
+    Edge(BB *bb1, BB *bb2) : src(bb1), dst(bb2) {}
   };
 
-  CgProfUse(CGFunc &f, MemPool &mp)
-      : cgFunc(&f), memPool(&mp), alloc(&mp), allEdges(alloc.Adapter()),
-        BB2InEdges(alloc.Adapter()), BB2OutEdges(alloc.Adapter()) {}
+  CgProfUse(CGFunc &f, MemPool &mp) :
+      cgFunc(&f), memPool(&mp), alloc(&mp), allEdges(alloc.Adapter()),
+      BB2InEdges(alloc.Adapter()), BB2OutEdges(alloc.Adapter()) {}
 
   virtual ~CgProfUse() = default;
 
@@ -95,7 +95,7 @@ class CgProfUse {
       Edge * unknownEdge1 = nullptr;
       MapleMap<BB*, MapleVector<Edge*>>::iterator iit = BB2InEdges.find(bb);
       if ((iit != BB2InEdges.end()) && (iit->second.size() != 0)) {
-        for (Edge *e : iit->second ) {
+        for (Edge *e : iit->second) {
             if (e->status) {
               knownEdges1++;
               freqSum1 += e->frequency;
@@ -119,7 +119,7 @@ class CgProfUse {
       Edge * unknownEdge2 = nullptr;
       MapleMap<BB*, MapleVector<Edge*>>::iterator oit = BB2OutEdges.find(bb);
       if ((oit != BB2OutEdges.end()) && (oit->second.size() != 0)) {
-        for (Edge *e : oit->second ) {
+        for (Edge *e : oit->second) {
             if (e->status) {
               knownEdges2++;
               freqSum2 += e->frequency;
@@ -161,18 +161,17 @@ class CgProfUse {
           bbQueue.push(unknownEdge2->dst);
         }
       }
-
     }
   }
 
-  protected:
+ protected:
   CGFunc *cgFunc;
   MemPool *memPool;
   MapleAllocator alloc;
   MapleSet<Edge*> allEdges;
   MapleMap<BB*, MapleVector<Edge*>> BB2InEdges;
   MapleMap<BB*, MapleVector<Edge*>> BB2OutEdges;
-  private:
+ private:
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CGProfUse, maplebe::CGFunc)
