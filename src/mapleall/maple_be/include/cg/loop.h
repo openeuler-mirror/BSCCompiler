@@ -252,7 +252,7 @@ class CGFuncLoops {
   void AddBackedge(BB &bb) {
     backedge.emplace_back(&bb);
   }
-  void AddBackBBEdge(BB &backBB, BB &headerBB) {
+  void AddBackBBEdge(const BB &backBB, const BB &headerBB) {
     auto backIt = backBBEdges.find(backBB.GetId());
     if (backIt == backBBEdges.end()) {
       MapleSet<uint32> toBBs(loopMemPool.Adapter());

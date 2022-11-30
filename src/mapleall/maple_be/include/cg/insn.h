@@ -21,6 +21,7 @@
 #include <list>
 #include "operand.h"
 #include "mpl_logging.h"
+#include "isa.h"
 
 /* Maple IR header */
 #include "types_def.h"  /* for uint32 */
@@ -32,7 +33,6 @@ class BB;
 class CG;
 class Emitter;
 class DepNode;
-struct InsnDesc;
 class Insn {
  public:
   enum RetType : uint8 {
@@ -306,6 +306,21 @@ class Insn {
     return ((flags & kOpAccessRefField) != 0);
   }
 
+  bool IsIntRegisterMov() const {
+    if (md == nullptr || !md->IsPhysicalInsn() || !md->IsMove() ||
+        md->opndMD.size() != kOperandNumBinary) {
+      return false;
+    }
+    auto firstMD = md->GetOpndDes(kFirstOpnd);
+    auto secondMD = md->GetOpndDes(kSecondOpnd);
+    if (!firstMD->IsRegister() || !secondMD->IsRegister() ||
+        !firstMD->IsIntOperand() || !secondMD->IsIntOperand() ||
+        firstMD->GetSize() != secondMD->GetSize()) {
+      return false;
+    }
+    return true;
+  }
+
   Insn *GetPreviousMachineInsn() const {
     for (Insn *returnInsn = prev; returnInsn != nullptr; returnInsn = returnInsn->prev) {
       ASSERT(returnInsn->bb == bb, "insn and it's prev insn must have same bb");
@@ -486,7 +501,7 @@ class Insn {
     return isPhiMovInsn;
   }
 
-  Insn *Clone(MemPool &memPool) const;
+  Insn *Clone(const MemPool &memPool) const;
 
   void SetInsnDescrption(const InsnDesc &newMD) {
     md = &newMD;
@@ -591,7 +606,7 @@ class Insn {
 struct VectorRegSpec {
   VectorRegSpec() : vecLane(-1), vecLaneMax(0), vecElementSize(0), compositeOpnds(0) {}
 
-  VectorRegSpec(PrimType type, int16 lane = -1, uint16 compositeOpnds = 0) :
+  explicit VectorRegSpec(PrimType type, int16 lane = -1, uint16 compositeOpnds = 0) :
       vecLane(lane),
       vecLaneMax(GetVecLanes(type)),
       vecElementSize(GetVecEleSize(type)),

@@ -405,7 +405,7 @@ class RegOperand : public OperandVisitable<RegOperand> {
     isHigh8Bit = true;
   }
 
-  bool IsHigh8Bit() {
+  bool IsHigh8Bit() const{
     return isHigh8Bit;
   }
 
@@ -713,7 +713,7 @@ class OfstOperand : public ImmOperand {
   bool IsSymAndImmOffset() const {
     return offsetType == kSymbolImmediateOffset;
   }
-
+  using maplebe::ImmOperand::GetSymbol;
   const MIRSymbol *GetSymbol() const {
     return symbol;
   }
@@ -1721,7 +1721,6 @@ enum CommOpndDescProp : maple::uint64 {
   kIsDef = 1ULL,
   kIsUse = (1ULL << 1),
   kIsVector = (1ULL << 2)
-
 };
 
 /* bit 8-15 for reg */
@@ -1734,7 +1733,6 @@ enum RegOpndDescProp : maple::uint64 {
 
 /* bit 16-23 for imm */
 enum ImmOpndDescProp : maple::uint64 {
-
 };
 
 /* bit 24-31 for mem */
@@ -1742,7 +1740,6 @@ enum MemOpndDescProp : maple::uint64 {
   kMemLow12 = (1ULL << 24),
   kLiteralLow12 = kMemLow12,
   kIsLoadLiteral = (1ULL << 25)
-
 };
 }
 
@@ -1800,16 +1797,19 @@ class OpndDesc {
   }
 
   bool IsVectorOperand() const {
-    return (property & operand::kIsVector);
+    return (property & operand::kIsVector) != 0;
   }
 
   bool IsIntOperand() const {
-    return (property & operand::kInt);
+    return (property & operand::kInt) != 0;
   }
 
 #define DEFINE_MOP(op, ...) static const OpndDesc op;
 #include "operand.def"
 #undef DEFINE_MOP
+
+  bool operator==(const OpndDesc &o) const;
+  bool operator<(const OpndDesc &o) const;
 
  private:
   Operand::OperandType opndType;

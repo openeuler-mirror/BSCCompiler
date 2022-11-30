@@ -206,7 +206,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
     }
 
     void HolesPushBack(uint32 pair1, uint32 pair2) {
-      holes.push_back(std::pair<uint32, uint32>(pair1, pair2));
+      holes.emplace_back(std::pair<uint32, uint32>(pair1, pair2));
     }
 
     void UsePositionsInsert(uint32 insertId) {
@@ -427,8 +427,8 @@ class LSRALinearScanRegAllocator : public RegAllocator {
     for (int32 i = 0; i < regInfo->GetFloatRegsParmsNum(); ++i) {
       fpParamQueue.push_back(initialQue);
     }
-    firstIntReg = *regInfo->GetIntRegs().begin();
-    firstFpReg = *regInfo->GetFpRegs().begin();
+    firstIntReg = *regInfo->GetRegsFromType(kRegTyInt).begin();
+    firstFpReg = *regInfo->GetRegsFromType(kRegTyFloat).begin();
   }
   ~LSRALinearScanRegAllocator() override = default;
 

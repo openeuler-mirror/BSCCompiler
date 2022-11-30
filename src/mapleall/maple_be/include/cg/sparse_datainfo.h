@@ -29,12 +29,12 @@ class SparseDataInfo {
   * vreg num range is 10k while in each bb, the max num of is 30+
   */
  public:
-  SparseDataInfo(uint32 bitNum, MapleAllocator &alloc)
+  SparseDataInfo(uint32 bitNum, const MapleAllocator &alloc)
       : allocator(alloc),
         info(allocator),
         maxRegNum(bitNum) {}
 
-  SparseDataInfo(const SparseDataInfo &other, MapleAllocator &alloc)
+  SparseDataInfo(const SparseDataInfo &other, const MapleAllocator &alloc)
       : allocator(alloc),
         info(other.info, allocator),
         maxRegNum(other.maxRegNum) {}
@@ -118,7 +118,7 @@ class SparseDataInfo {
     info.Clear();
   }
 
-  void EnlargeCapacityToAdaptSize(uint32 bitNO) {
+  void EnlargeCapacityToAdaptSize(uint32 bitNO) const {
     /* add one more size for each enlarge action */
   }
 

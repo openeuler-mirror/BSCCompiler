@@ -90,13 +90,12 @@ class ReachingDefinition : public AnalysisResult {
   bool IsUseOrDefInAllPathBB(uint32 regNO, const BB &startBB, const BB &endBB, std::vector<bool> &visitedBB) const;
   bool IsUseOrDefBetweenInsn(uint32 regNO, const BB &curBB, const Insn &startInsn, Insn &endInsn) const;
   bool HasCallBetweenDefUse(const Insn &defInsn, const Insn &useInsn) const;
-
+  std::vector<Insn*> FindRegDefBetweenInsn(
+      uint32 regNO, Insn *startInsn, Insn *endInsn, bool findAll = false, bool analysisDone = true) const;
   virtual void InitGenUse(BB &bb, bool firstTime = true) = 0;
   virtual InsnSet FindDefForMemOpnd(Insn &insn, uint32 indexOrOffset, bool isOffset = false) const = 0;
   virtual InsnSet FindUseForMemOpnd(Insn &insn, uint8 index, bool secondMem = false) const = 0;
   virtual std::vector<Insn*> FindMemDefBetweenInsn(uint32 offset, const Insn *startInsn, Insn *endInsn) const = 0;
-  virtual std::vector<Insn*> FindRegDefBetweenInsn(
-      uint32 regNO, Insn *startInsn, Insn *endInsn, bool findAll = false) const = 0;
   virtual std::vector<Insn*> FindRegDefBetweenInsnGlobal(uint32 regNO, Insn *startInsn, Insn *endInsn) const = 0;
   virtual bool FindRegUseBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn, InsnSet &useInsnSet) const = 0;
   virtual bool FindRegUseBetweenInsnGlobal(uint32 regNO, Insn *startInsn, Insn *endInsn, BB* movBB) const = 0;
@@ -124,6 +123,7 @@ class ReachingDefinition : public AnalysisResult {
   virtual bool IsCallerSavedReg(uint32 regNO) const = 0;
   virtual void FindRegDefInBB(uint32 regNO, BB &bb, InsnSet &defInsnSet) const = 0;
   virtual void FindMemDefInBB(uint32 offset, BB &bb, InsnSet &defInsnSet) const = 0;
+  virtual bool IsRegKilledByCallInsn(const Insn &insn, regno_t regNO) const = 0;
   virtual void DFSFindDefForRegOpnd(const BB &startBB, uint32 regNO, std::vector<VisitStatus> &visitedBB,
                                     InsnSet &defInsnSet) const = 0;
   virtual void DFSFindDefForMemOpnd(const BB &startBB, uint32 offset, std::vector<VisitStatus> &visitedBB,
@@ -169,6 +169,8 @@ class ReachingDefinition : public AnalysisResult {
 
   bool HasCallInPath(const BB &startBB, const BB &endBB, std::vector<bool> &visitedBB) const;
   bool RegIsUsedInCleanUpBB(uint32 regNO) const;
+  void BuildInOutForFuncBodyBFS();
+  void GenerateIn(const BB &bb, std::queue<BB*> &worklist, std::vector<bool> &inQueued);
 
   MapleSet<BB*, BBIdCmp> normalBBSet;
   MapleSet<BB*, BBIdCmp> cleanUpBBSet;

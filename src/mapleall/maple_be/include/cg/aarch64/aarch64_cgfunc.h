@@ -826,11 +826,12 @@ class AArch64CGFunc : public CGFunc {
     return (o.IsRegister() ? static_cast<RegOperand&>(o) : SelectCopy(o, sty, dty));
   }
 
-  void CreateCallStructParamPassByStack(int32 symSize, MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
+  void SelectCopySmallAggToReg(uint32 symSize, RegOperand &parmOpnd, const MemOperand &memOpnd);
+  void CreateCallStructParamPassByStack(uint32 symSize, MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
   RegOperand *SelectParmListDreadAccessField(const MIRSymbol &sym, FieldID fieldID, const CCLocInfo &ploc,
                                              int32 offset, uint32 parmNum);
   void CreateCallStructParamPassByReg(regno_t regno, MemOperand &memOpnd, ListOperand &srcOpnds,
-                                      FpParamState state);
+                                      FpParamState state, uint32 symSize);
   void CreateCallStructParamMemcpy(const MIRSymbol &sym, uint32 structSize, int32 copyOffset, int32 fromOffset);
   void CreateCallStructParamMemcpy(RegOperand &addropnd, uint32 structSize, int32 copyOffset, int32 fromOffset);
   RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addrOpd,

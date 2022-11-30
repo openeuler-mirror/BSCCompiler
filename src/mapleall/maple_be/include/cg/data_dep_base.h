@@ -54,10 +54,10 @@ class DataDepBase {
   CDGNode *GetCDGNode() {
     return curCDGNode;
   }
-  void SetLastFrameDefInsn(Insn *insn) {
+  void SetLastFrameDefInsn(Insn *insn) const {
     curCDGNode->SetLastFrameDefInsn(insn);
   }
-  void CopyAndClearComments(MapleVector<Insn*> &comments) {
+  void CopyAndClearComments(MapleVector<Insn*> &comments) const {
     curCDGNode->CopyAndClearComments(comments);
   }
   MapleVector<Insn*> &GetLastComments() const {

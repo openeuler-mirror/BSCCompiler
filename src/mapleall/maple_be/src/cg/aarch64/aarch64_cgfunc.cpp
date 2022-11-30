@@ -7598,7 +7598,7 @@ void AArch64CGFunc::SelectParmListDreadSmallAggregate(MIRSymbol &sym, MIRType &s
    *  struct is passed on the stack.
    *  x7 is not used, as the following param will go onto the stack also.
    */
-  int32 symSize = GetBecommon().GetTypeSize(structType.GetTypeIndex().GetIdx());
+  uint32 symSize = GetBecommon().GetTypeSize(structType.GetTypeIndex().GetIdx());
   CCLocInfo ploc;
   parmLocator.LocateNextParm(structType, ploc);
   if (ploc.reg0 == 0) {
@@ -7648,7 +7648,8 @@ RegOperand *AArch64CGFunc::LoadIreadAddrForSamllAgg(BaseNode &iread) {
 void AArch64CGFunc::SelectParmListIreadSmallAggregate(BaseNode &iread, MIRType &structType,
                                                       ListOperand &srcOpnds, int32 offset,
                                                       AArch64CallConvImpl &parmLocator) {
-  int32 symSize = GetBecommon().GetTypeSize(structType.GetTypeIndex().GetIdx());
+  uint32 symSize = GetBecommon().GetTypeSize(structType.GetTypeIndex().GetIdx());
+  uint32 passSize = 0;
   RegOperand *addrOpnd1 = LoadIreadAddrForSamllAgg(iread);
   CCLocInfo ploc;
   parmLocator.LocateNextParm(structType, ploc);
@@ -7675,27 +7676,29 @@ void AArch64CGFunc::SelectParmListIreadSmallAggregate(BaseNode &iread, MIRType &
       default:
         break;
     }
+    passSize = symSize / k8ByteSize > 0 ? k8ByteSize : symSize;
     ImmOperand &offOpnd0 = CreateImmOperand(static_cast<int64>(offset), k32BitSize, false);
     MemOperand *mopnd = CreateMemOperand(memSize, *addrOpnd1, offOpnd0);
-    CreateCallStructParamPassByReg(ploc.reg0, *mopnd, srcOpnds, state);
+    CreateCallStructParamPassByReg(ploc.reg0, *mopnd, srcOpnds, state, passSize);
     if (ploc.reg1 > 0) {
+      passSize = symSize / k8ByteSize > 1 ? k8ByteSize : symSize % k8ByteSize;
       OfstOperand *offOpnd1 = &GetOrCreateOfstOpnd((((ploc.fpSize > 0) ? ploc.fpSize : GetPointerSize()) +
           static_cast<uint32>(offset)), k32BitSize);
       mopnd = CreateMemOperand(memSize, *addrOpnd1, *offOpnd1);
-      CreateCallStructParamPassByReg(ploc.reg1, *mopnd, srcOpnds, state);
+      CreateCallStructParamPassByReg(ploc.reg1, *mopnd, srcOpnds, state, passSize);
     }
     if (ploc.reg2 > 0) {
       OfstOperand *offOpnd2 =
           &GetOrCreateOfstOpnd(((ploc.fpSize ? (ploc.fpSize * k4BitShift) : GetPointerSize()) + static_cast<uint32>(offset)),
                                k32BitSize);
       mopnd = CreateMemOperand(memSize, *addrOpnd1, *offOpnd2);
-      CreateCallStructParamPassByReg(ploc.reg2, *mopnd, srcOpnds, state);
+      CreateCallStructParamPassByReg(ploc.reg2, *mopnd, srcOpnds, state, passSize);
     }
     if (ploc.reg3 > 0) {
       OfstOperand *offOpnd3 = &GetOrCreateOfstOpnd((((ploc.fpSize > 0) ? (ploc.fpSize * k8BitShift) : GetPointerSize()) +
           static_cast<uint32>(offset)), k32BitSize);
       mopnd = CreateMemOperand(memSize, *addrOpnd1, *offOpnd3);
-      CreateCallStructParamPassByReg(ploc.reg3, *mopnd, srcOpnds, state);
+      CreateCallStructParamPassByReg(ploc.reg3, *mopnd, srcOpnds, state, passSize);
     }
   }
 }
@@ -7753,7 +7756,7 @@ void AArch64CGFunc::SelectParmListIreadLargeAggregate(const IreadNode &iread, MI
   }
 }
 
-void AArch64CGFunc::CreateCallStructParamPassByStack(int32 symSize, MIRSymbol *sym,
+void AArch64CGFunc::CreateCallStructParamPassByStack(uint32 symSize, MIRSymbol *sym,
                                                      RegOperand *addrOpnd, int32 baseOffset) {
   if (symSize == 0) {
     return;
@@ -7855,8 +7858,53 @@ RegOperand *AArch64CGFunc::SelectParmListDreadAccessField(const MIRSymbol &sym, 
   return parmOpnd;
 }
 
+/*
+ * generate ldr and orr for small agg copy in parm pass
+ * ldr exact size of mem to reg based on agg size
+*/
+void AArch64CGFunc::SelectCopySmallAggToReg(uint32 passSize, RegOperand &parmOpnd, const MemOperand &memOpnd) {
+  CHECK_FATAL(0 < passSize && passSize <= k8ByteSize, "small agg is less or equal to 64 bit");
+  std::vector<RegOperand*> tmpRegs(passSize + 1);
+  std::vector<RegOperand*> tmpRegs2(passSize + 1);
+  uint32 bitSize = 0;
+  PrimType pty =  PTY_begin;
+  if (passSize % k8ByteSize == 0) {
+    bitSize = k64BitSize;
+    pty = PTY_u64;
+  } else if (passSize % k4ByteSize == 0) {
+    bitSize = k32BitSize;
+    pty = PTY_u32;
+  } else {
+    bitSize = k8BitSize;
+    pty = PTY_u8;
+  }
+  RegOperand *base = memOpnd.GetBaseRegister();
+  uint64 offset = memOpnd.GetOffsetOperand()->GetValue();
+  MOperator selectedMop = PickLdInsn(bitSize, pty);
+  // generate ldr mem -> reg
+  size_t lastPos = passSize / (bitSize / kBitsPerByte);
+  for (size_t i = 0; i < lastPos; i++) {
+    tmpRegs[i] = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, bitSize));
+    MemOperand *mOpnd = CreateMemOperand(bitSize, *base,
+        GetOrCreateOfstOpnd(static_cast<uint64>(offset + (i * bitSize / kBitsPerByte)), k32BitSize));
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(selectedMop, *tmpRegs[i], *mOpnd));
+    tmpRegs2[i] = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+    SelectCopyRegOpnd(*tmpRegs2[i], PTY_i64, Operand::kOpdRegister, k64BitSize, *tmpRegs[i], pty);
+  }
+  // use orr to reconstruct the original agg
+  for (size_t i = 0; i < lastPos - 1; i++) {
+    MOperator xorMop = MOP_xiorrrrs;
+    Operand &shiftOpnd = CreateBitShiftOperand(BitShiftOperand::kLSL,
+        static_cast<uint32>(bitSize * (i + 1)), static_cast<uint32>(8));
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(xorMop, *tmpRegs2[i + 1],
+        *tmpRegs2[i], *tmpRegs2[i + 1], shiftOpnd));
+  }
+  SelectCopyRegOpnd(parmOpnd, PTY_i64, Operand::kOpdRegister, k64BitSize,
+      *tmpRegs2[lastPos - 1], PTY_i64);
+}
+
 void AArch64CGFunc::CreateCallStructParamPassByReg(regno_t regno, MemOperand &memOpnd, ListOperand &srcOpnds,
-                                                   FpParamState state) {
+                                                   FpParamState state, uint32 symSize) {
   RegOperand *parmOpnd;
   uint32 dataSizeBits = 0;
   PrimType pType = PTY_void;
@@ -7878,12 +7926,17 @@ void AArch64CGFunc::CreateCallStructParamPassByReg(regno_t regno, MemOperand &me
     ASSERT(0, "CreateCallStructParamPassByReg: Unknown state");
   }
 
-  MOperator selectedMop = PickLdInsn(dataSizeBits, pType);
-  if (!IsOperandImmValid(selectedMop, &memOpnd, kInsnSecondOpnd)) {
-    memOpnd = SplitOffsetWithAddInstruction(memOpnd, dataSizeBits);
+  if (state == kNotFp && !CGOptions::IsBigEndian()) {
+    /* load exact size agg (BigEndian not support yet) */
+    SelectCopySmallAggToReg(symSize, *parmOpnd, memOpnd);
+  } else {
+    MOperator selectedMop = PickLdInsn(dataSizeBits, pType);
+    if (!IsOperandImmValid(selectedMop, &memOpnd, kInsnSecondOpnd)) {
+      memOpnd = SplitOffsetWithAddInstruction(memOpnd, dataSizeBits);
+    }
+    ASSERT(parmOpnd != nullptr, "parmOpnd should not be nullptr");
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(selectedMop, *parmOpnd, memOpnd));
   }
-  ASSERT(parmOpnd != nullptr, "parmOpnd should not be nullptr");
-  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(selectedMop, *parmOpnd, memOpnd));
   srcOpnds.PushOpnd(*parmOpnd);
 }
 

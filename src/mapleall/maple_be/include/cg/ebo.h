@@ -166,7 +166,7 @@ class Ebo {
   OpndInfo *OperandInfoUse(BB &currentBB, Operand &localOpnd);
   InsnInfo *GetNewInsnInfo(Insn &insn);
   int32 ComputeOpndHash(const Operand &opnd) const;
-  uint32 ComputeHashVal(const Insn &insn, const MapleVector<OpndInfo*> &opndInfos) const;
+  uint32 ComputeHashVal(Insn &insn, const MapleVector<OpndInfo*> &opndInfos) const;
   void MarkOpndLiveIntoBB(const Operand &opnd, BB &into, BB &def) const;
   void RemoveInsn(InsnInfo &info) const;
   void RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo) const;
@@ -192,6 +192,7 @@ class Ebo {
   virtual OpndInfo *OperandInfoDef(BB &currentBB, Insn &currentInsn, Operand &localOpnd) = 0;
   virtual const RegOperand &GetRegOperand(const Operand &opnd) const = 0;
   virtual bool IsGlobalNeeded(Insn &insn) const = 0;
+  virtual bool IsDecoupleStaticOp(Insn &insn) const = 0;
   virtual bool IsFmov(const Insn &insn) const = 0;
   virtual bool SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origInfos) = 0;
   virtual bool DoConstProp(Insn &insn, uint32 i, Operand &opnd) = 0;

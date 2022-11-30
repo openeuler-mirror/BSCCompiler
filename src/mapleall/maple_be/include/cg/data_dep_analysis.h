@@ -66,7 +66,7 @@ class InterDataDepAnalysis {
       (void)readyNodes.erase(it);
     }
   }
-  void InitRestNodes(MapleVector<CDGNode*> &nodes) {
+  void InitRestNodes(const MapleVector<CDGNode*> &nodes) {
     restNodes = nodes;
   }
   void RemoveRestNode(CDGNode *node) {

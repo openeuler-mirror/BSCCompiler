@@ -193,7 +193,7 @@ void Insn::Check() const {
 }
 #endif
 
-Insn *Insn::Clone(MemPool &memPool) const {
+Insn *Insn::Clone(const MemPool &memPool) const {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }

@@ -637,7 +637,7 @@ class LiveRange {
     this->isNonLocal = isNonLocalVal;
   }
 
-  void SetRematLevel(RematLevel val) {
+  void SetRematLevel(RematLevel val) const {
     rematerializer->SetRematLevel(val);
   }
 
@@ -649,15 +649,15 @@ class LiveRange {
     return rematerializer->GetOp();
   }
 
-  void SetRematerializable(const MIRConst *c) {
+  void SetRematerializable(const MIRConst *c) const {
     rematerializer->SetRematerializable(c);
   }
 
-  void SetRematerializable(Opcode opcode, const MIRSymbol *symbol, FieldID fieldId, bool addrUp) {
+  void SetRematerializable(Opcode opcode, const MIRSymbol *symbol, FieldID fieldId, bool addrUp) const {
     rematerializer->SetRematerializable(opcode, symbol, fieldId, addrUp);
   }
 
-  void CopyRematerialization(const LiveRange &lr) {
+  void CopyRematerialization(const LiveRange &lr) const {
     *rematerializer = *lr.GetRematerializer();
   }
 
@@ -672,7 +672,7 @@ class LiveRange {
   bool IsRematerializable(CGFunc &cgFunc, RematLevel rematLev) const {
     return rematerializer->IsRematerializable(cgFunc, rematLev, *this);
   }
-  std::vector<Insn*> Rematerialize(CGFunc &cgFunc, RegOperand &regOp) {
+  std::vector<Insn*> Rematerialize(CGFunc &cgFunc, RegOperand &regOp) const {
     return rematerializer->Rematerialize(cgFunc, regOp, *this);
   }
 
@@ -861,7 +861,7 @@ class FinalizeRegisterInfo {
   }
 
   int32 GetMemOperandIdx() const {
-    return memOperandIdx;
+    return static_cast<int32>(memOperandIdx);
   }
 
   const Operand *GetBaseOperand() const {

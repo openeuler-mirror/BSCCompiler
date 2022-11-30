@@ -27,7 +27,7 @@ struct MirTypeInfo {
 /* macro expansion instruction selection */
 class MPISel {
  public:
-  MPISel(MemPool &mp, CGFunc &f) : isMp(&mp), cgFunc(&f) {}
+  MPISel(MemPool &mp, AbstractIRBuilder &aIRBuilder, CGFunc &f) : isMp(&mp), cgFunc(&f), aIRBuilder(aIRBuilder) {}
 
   virtual ~MPISel() {
     isMp = nullptr;
@@ -71,7 +71,7 @@ class MPISel {
   virtual void SelectReturn(NaryStmtNode &retNode, Operand &opnd) = 0;
   virtual void SelectReturn() = 0;
   virtual void SelectIntAggCopyReturn(MemOperand &symbolMem, uint64 aggSize) = 0;
-  virtual void SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd, Operand &opndRhs) = 0;
+  virtual void SelectAggIassign(IassignNode &stmt, Operand &addrOpnd, Operand &opndRhs) = 0;
   virtual void SelectAggCopy(MemOperand &lhs, MemOperand &rhs, uint32 copySize) = 0;
   virtual void SelectGoto(GotoNode &stmt) = 0;
   virtual void SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) = 0;
@@ -144,8 +144,15 @@ class MPISel {
   void SelectMin(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectMax(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   virtual void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
+
+  AbstractIRBuilder &aIRBuilder;
 };
-MAPLE_FUNC_PHASE_DECLARE_BEGIN(InstructionSelector, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE(InstructionSelector, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(AbstractBuilder, maplebe::CGFunc)
+  AbstractIRBuilder *GetResult() {
+    return aIRBuilder;
+  }
+  AbstractIRBuilder  *aIRBuilder = nullptr;
 MAPLE_FUNC_PHASE_DECLARE_END
 }
 #endif  /* MAPLEBE_INCLUDE_CG_ISEL_H */

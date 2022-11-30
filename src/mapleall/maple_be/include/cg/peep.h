@@ -53,7 +53,7 @@ class PeepOptimizeManager {
     }
   }
   template<typename OptimizePattern>
-  void NormalPatternOpt(bool patternEnable = false) {
+  void NormalPatternOpt(bool patternEnable = false) const {
     if (!patternEnable) {
       return;
     }

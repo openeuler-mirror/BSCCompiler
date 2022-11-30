@@ -45,7 +45,7 @@ class OptimizationPattern {
 
   bool IsLabelInLSDAOrSwitchTable(LabelIdx label) const {
     EHFunc *ehFunc = cgFunc->GetEHFunc();
-    return (ehFunc != nullptr && cgFunc->GetTheCFG()->InLSDA(label, ehFunc)) ||
+    return (ehFunc != nullptr && maplebe::CGCFG::InLSDA(label, ehFunc)) ||
             cgFunc->GetTheCFG()->InSwitchTable(label, *cgFunc);
   }
 

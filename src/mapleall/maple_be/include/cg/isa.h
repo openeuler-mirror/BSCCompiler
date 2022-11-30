@@ -30,9 +30,8 @@ enum MopProperty : maple::uint8 {
   kInsnIsLoadAddress,
   kInsnIsAtomic,
   kInsnIsCall,
+  kInsnIsTailCall,
   kInsnIsConversion,
-  kInsnIsConditionalSet,
-  kInsnUseSpecReg,
   kInsnIsCondDef,
   kInsnHasAcqure,
   kInsnHasAcqureRCpc,
@@ -40,7 +39,6 @@ enum MopProperty : maple::uint8 {
   kInsnHasRelease,
   kInsnHasLORelease,
   kInsnCanThrow,
-  kInsnIsPartDefine,
   kInsnIsDMB,
   kInsnIsUnCondBr,
   kInsnIsCondBr,
@@ -50,6 +48,8 @@ enum MopProperty : maple::uint8 {
   kInsnIsPhi,
   kInsnIsUnaryOp,
   kInsnIsShift,
+  kInsnInlineAsm,
+  kInsnSpecialIntrisic,
   kInsnIsNop,
 };
 using regno_t = uint32_t;
@@ -62,9 +62,8 @@ using regno_t = uint32_t;
 #define ISLOADADDR (1ULL << kInsnIsLoadAddress)
 #define ISATOMIC (1ULL << kInsnIsAtomic)
 #define ISCALL (1ULL << kInsnIsCall)
+#define ISTAILCALL (1ULL << kInsnIsTailCall)
 #define ISCONVERSION (1ULL << kInsnIsConversion)
-#define ISCONDSET (1ULL << kInsnIsConditionalSet)
-#define USESPECREG (1ULL << kInsnUseSpecReg)
 #define ISCONDDEF (1ULL << kInsnIsCondDef)
 #define HASACQUIRE (1ULL << kInsnHasAcqure)
 #define HASACQUIRERCPC (1ULL << kInsnHasAcqureRCpc)
@@ -72,7 +71,6 @@ using regno_t = uint32_t;
 #define HASRELEASE (1ULL << kInsnHasRelease)
 #define HASLORELEASE (1ULL << kInsnHasLORelease)
 #define CANTHROW (1ULL << kInsnCanThrow)
-#define ISPARTDEF (1ULL << kInsnIsPartDefine)
 #define ISDMB (1ULL << kInsnIsDMB)
 #define ISUNCONDBRANCH (1ULL << kInsnIsUnCondBr)
 #define ISCONDBRANCH (1ULL << kInsnIsCondBr)
@@ -82,6 +80,8 @@ using regno_t = uint32_t;
 #define ISPHI (1ULL << kInsnIsPhi)
 #define ISUNARYOP (1ULL << kInsnIsUnaryOp)
 #define ISSHIFT (1ULL << kInsnIsShift)
+#define INLINEASM (1ULL << kInsnInlineAsm)
+#define SPINTRINSIC (1ULL << kInsnSpecialIntrisic)
 #define ISNOP (1ULL << kInsnIsNop)
 constexpr maplebe::regno_t kInvalidRegNO = 0;
 
@@ -118,23 +118,66 @@ enum AbstractMOP_t : maple::uint32 {
   kMopLast
 };
 #undef DEFINE_MOP
+
+enum AbstractMOP : MOperator {
+  /* copy between register */
+  MOP_MOVE,
+  /* integer extension & truncation */
+  MOP_SEXT,
+  MOP_ZEXT,
+  MOP_TRUNC,
+  /* scalar arithmetic operation */
+  MOP_ADD,
+  MOP_SUB,
+  /* memory access operation */
+  MOP_STORE,
+  MOP_LOAD,
+  MOP_UNDEF,
+};
 }
 
-struct InsnDescription {
+struct InsnDesc {
+  InsnDesc(MOperator op, const std::string &inName, const std::string &inFormat)
+      : opc(op),
+        name(inName),
+        format(inFormat) {
+    /* insnDesc created by this constructor must be abstract insnDesc */
+    properties = ISABSTRACT;
+    latencyType = 0;
+    atomicNum = 1;
+  };
+
+  /* for hard-coded machine description */
+  InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
+      const std::string &inName, const std::string &inFormat, uint32 anum,
+      std::function<bool(int64)> vFunc = nullptr)
+      : opc(op),
+        opndMD(opndmd),
+        properties(props),
+        latencyType(ltype),
+        name(inName),
+        format(inFormat),
+        atomicNum(anum),
+        validFunc(vFunc) {
+  };
+
   MOperator opc;
-  std::vector<const OpndDescription*> opndMD;
+  std::vector<const OpndDesc*> opndMD;
   uint64 properties;
   uint32 latencyType;
-  const std::string &name;
-  const std::string &format;
+  const std::string name;
+  const std::string format;
   uint32 atomicNum; /* indicate how many asm instructions it will emit. */
   std::function<bool(int64)> validFunc = nullptr; /* If insn has immOperand, this function needs to be implemented. */
 
-  bool IsSame(const InsnDescription &left,
-      std::function<bool (const InsnDescription &left, const InsnDescription &right)> cmp) const;
+  bool IsSame(const InsnDesc &left,
+      std::function<bool (const InsnDesc &left, const InsnDesc &right)> cmp) const;
 
   bool IsCall() const {
     return (properties & ISCALL) != 0;
+  }
+  bool IsTailCall() const {
+    return (properties & ISTAILCALL) != 0;
   }
   bool IsPhi() const {
     return (properties & ISPHI) != 0;
@@ -184,9 +227,6 @@ struct InsnDescription {
   bool IsCondDef() const {
     return (properties & ISCONDDEF) != 0;
   }
-  bool IsPartDef() const {
-    return (properties & ISPARTDEF) != 0;
-  }
   bool IsVectorOp() const {
     return (properties & ISVECTOR) != 0;
   }
@@ -208,11 +248,34 @@ struct InsnDescription {
   bool CanThrow() const {
     return (properties & CANTHROW) != 0;
   }
+  bool IsInlineAsm() const {
+    return (properties & INLINEASM) != 0;
+  }
+  bool IsSpecialIntrinsic() const {
+    return (properties & SPINTRINSIC) != 0;
+  }
   MOperator GetOpc() const {
     return opc;
   }
-  const OpndDescription *GetOpndDes(size_t index) const {
+  const OpndDesc *GetOpndDes(size_t index) const {
     return opndMD[index];
+  }
+  uint32 GetOperandSize() const {
+    if ((properties & (ISLOAD | ISSTORE)) != 0) {
+      /* use memory operand */
+      return GetOpndDes(1)->GetSize();
+    }
+    /* use dest operand */
+    return GetOpndDes(0)->GetSize();
+  }
+  bool Is64Bit() const {
+    return GetOperandSize() == k64BitSize;
+  }
+  bool IsValidImmOpnd(int64 val) const {
+    if (!validFunc) {
+      return true;
+    }
+    return validFunc(val);
   }
   uint32 GetLatencyType() const {
     return latencyType;
@@ -232,18 +295,18 @@ struct InsnDescription {
   uint32 GetAtomicNum() const {
     return atomicNum;
   }
-  static const InsnDescription &GetAbstractId(MOperator mOperator) {
+
+  bool operator==(const InsnDesc &o) const;
+
+  bool operator<(const InsnDesc &o) const;
+
+  static const InsnDesc &GetAbstractId(MOperator mOperator) {
     ASSERT(mOperator < abstract::kMopLast, "op must be lower than kMopLast");
     return abstractId[mOperator];
   }
-  static const InsnDescription abstractId[abstract::kMopLast];
+  static const InsnDesc abstractId[abstract::kMopLast];
 };
 
-enum RegPropState : uint32 {
-  kRegPropUndef = 0,
-  kRegPropDef = 0x1,
-  kRegPropUse = 0x2
-};
 enum RegAddress : uint32 {
   kRegHigh = 0x4,
   kRegLow = 0x8
@@ -253,123 +316,29 @@ constexpr uint32 kLiteralLow12 = kMemLow12;
 constexpr uint32 kPreInc = 0x20;
 constexpr uint32 kPostInc = 0x40;
 constexpr uint32 kLoadLiteral = 0x80;
-constexpr uint32 kVector = 0x100;
 
-class RegProp {
- public:
-  RegProp(RegType t, regno_t r, uint32 d) : regType(t), physicalReg(r), defUse(d) {}
-  virtual ~RegProp() = default;
-  const RegType &GetRegType() const {
-    return regType;
-  }
-  const regno_t &GetPhysicalReg() const {
-    return physicalReg;
-  }
-  uint32 GetDefUse() const {
-    return defUse;
-  }
-
- private:
-  RegType regType;
-  regno_t physicalReg;
-  uint32 defUse; /* used for register use/define and other properties of other operand */
+enum BitIndex : maple::uint8 {
+  k8BitIndex = 0,
+  k16BitIndex,
+  k32BitIndex,
+  k64BitIndex,
+  kBitIndexEnd,
 };
 
-class OpndProp {
- public:
-  OpndProp(Operand::OperandType t, const RegProp &p, uint8 s) : opndType(t), regProp(p), size(s) {}
-  virtual ~OpndProp() = default;
-  Operand::OperandType GetOperandType() const {
-    return opndType;
+static inline BitIndex GetBitIndex(uint32 bitSize) {
+  switch (bitSize) {
+    case k8BitSize:
+      return k8BitIndex;
+    case k16BitSize:
+      return k16BitIndex;
+    case k32BitSize:
+      return k32BitIndex;
+    case k64BitSize:
+      return k64BitIndex;
+    default:
+      CHECK_FATAL(false, "NIY, Not support size");
   }
-
-  const RegProp &GetRegProp() const {
-    return regProp;
-  }
-
-  bool IsRegister() const {
-    return opndType == Operand::kOpdRegister;
-  }
-
-  bool IsRegDef() const {
-    return opndType == Operand::kOpdRegister && ((regProp.GetDefUse() & kRegPropDef) != 0);
-  }
-
-  bool IsRegUse() const {
-    return opndType == Operand::kOpdRegister && ((regProp.GetDefUse() & kRegPropUse) != 0);
-  }
-
-  bool IsMemLow12() const {
-    return opndType == Operand::kOpdMem && ((regProp.GetDefUse() & kMemLow12) != 0);
-  }
-
-  bool IsLiteralLow12() const {
-    return opndType == Operand::kOpdStImmediate && ((regProp.GetDefUse() & kLiteralLow12) != 0);
-  }
-
-  bool IsDef() const {
-    return (regProp.GetDefUse() & kRegPropDef) != 0;
-  }
-
-  bool IsUse() const {
-    return (regProp.GetDefUse() & kRegPropUse) != 0;
-  }
-
-  bool IsLoadLiteral() const {
-    return (regProp.GetDefUse() & kLoadLiteral) != 0;
-  }
-
-  uint8 GetSize() const {
-    return size;
-  }
-
-  uint32 GetOperandSize() const {
-    return static_cast<uint32>(size);
-  }
-
-  bool IsVectorOperand() const {
-    return (regProp.GetDefUse() & kVector) != 0;
-  }
-
-  void SetContainImm() {
-    isContainImm = true;
-  }
-
-  bool IsContainImm() const {
-    return isContainImm;
-  }
-
- protected:
-  bool isContainImm = false;
-
- private:
-  Operand::OperandType opndType;
-  RegProp regProp;
-  uint8 size;
-};
-
-/*
- * Operand which might include immediate value.
- * function ptr returns whether a immediate is legal in specific target
- */
-class ImmOpndProp : public OpndProp {
- public:
-  ImmOpndProp(Operand::OperandType t, const RegProp &p, uint8 s, const std::function<bool(int64)> f)
-      : OpndProp(t, p, s),
-        validFunc(f) {
-    SetContainImm();
-  }
-  virtual ~ImmOpndProp() = default;
-
-  bool IsValidImmOpnd(int64 value) const {
-    CHECK_FATAL(validFunc, " Have not set valid function yet in ImmOpndProp");
-    return validFunc(value);
-  }
-
- private:
-  std::function<bool(int64)> validFunc;
-};
-
+}
 } /* namespace maplebe */
 
 #endif /* MAPLEBE_INCLUDE_CG_ISA_H */
