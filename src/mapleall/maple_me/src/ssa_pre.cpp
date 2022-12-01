@@ -625,13 +625,13 @@ void SSAPre::Finalize2() {
         mirModule->GetOut() << std::endl;
       } else if (occ->GetOccType() == kOccReal) {
         auto *realOcc = static_cast<MeRealOcc*>(occ);
+        realOcc->Dump(*irMap);
         if (realOcc->IsReload()) {
-          realOcc->Dump(*irMap);
           mirModule->GetOut() << " isReload\n";
-        }
-        if (realOcc->IsSave()) {
-          realOcc->Dump(*irMap);
+        } else if (realOcc->IsSave()) {
           mirModule->GetOut() << " isSave\n";
+        } else {
+          mirModule->GetOut() << "\n";
         }
       } else if (occ->GetOccType() == kOccPhiopnd) {
         auto *phiOpndOcc = static_cast<MePhiOpndOcc*>(occ);

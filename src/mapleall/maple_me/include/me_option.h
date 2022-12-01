@@ -37,6 +37,7 @@ class MeOption {
     SplitPhases(str, skipPhases);
   }
   bool GetRange(const std::string &str) const;
+  bool GetPgoRange(const std::string &str) const;
 
   const std::unordered_set<std::string> &GetSkipPhases() const {
     return skipPhases;
@@ -85,6 +86,8 @@ class MeOption {
   static constexpr int kRangeArrayLen = 2;
   static unsigned long range[kRangeArrayLen];
   static bool useRange;
+  static unsigned long pgoRange[kRangeArrayLen];
+  static bool usePgoRange;
   static std::string dumpFunc;
   static std::string skipFrom;
   static std::string skipAfter;
