@@ -1259,13 +1259,17 @@ class ReplaceDivToMultiPattern : public CGPeepPattern {
  *  and  w0, w0, #imm  ====> tst  w0, #imm
  *  cbz/cbnz  .label         beq/bne  .label
  */
-class AndCbzBranchesToTstAArch64 : public PeepPattern {
+class AndCbzBranchesToTstPattern : public CGPeepPattern {
  public:
-  explicit AndCbzBranchesToTstAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~AndCbzBranchesToTstAArch64() override = default;
+  AndCbzBranchesToTstPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~AndCbzBranchesToTstPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "AndCbzBranchesToTstPattern";
+  }
 };
-
 /*
  * Optimize the following patterns:
  *  and  w0, w0, #1  ====> and  w0, w0, #1

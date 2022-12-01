@@ -2271,6 +2271,13 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
       manager->NormalPatternOpt<SbfxOptPattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
+    case MOP_xandrrr:
+    case MOP_wandrrr:
+    case MOP_wandrri12:
+    case MOP_xandrri13: {
+      manager->NormalPatternOpt<AndCbzBranchesToTstPattern>(cgFunc->IsAfterRegAlloc());
+      break;
+    }
     case MOP_wcbz:
     case MOP_xcbz:
     case MOP_wcbnz:
@@ -2328,7 +2335,6 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
 void AArch64PeepHole::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
   optimizations[kAndCmpBranchesToCsetOpt] = optOwnMemPool->New<AndCmpBranchesToCsetAArch64>(cgFunc);
-  optimizations[kAndCbzBranchesToTstOpt] = optOwnMemPool->New<AndCbzBranchesToTstAArch64>(cgFunc);
 }
 
 void AArch64PeepHole::Run(BB &bb, Insn &insn) {
@@ -2337,13 +2343,6 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
     case MOP_wcsetrc:
     case MOP_xcsetrc: {
       (static_cast<AndCmpBranchesToCsetAArch64*>(optimizations[kAndCmpBranchesToCsetOpt]))->Run(bb, insn);
-      break;
-    }
-    case MOP_xandrrr:
-    case MOP_wandrrr:
-    case MOP_wandrri12:
-    case MOP_xandrri13: {
-      (static_cast<AndCbzBranchesToTstAArch64*>(optimizations[kAndCbzBranchesToTstOpt]))->Run(bb, insn);
       break;
     }
     default:
@@ -3833,24 +3832,32 @@ void AndCmpBranchesToCsetAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-void AndCbzBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
+bool AndCbzBranchesToTstPattern::CheckCondition(Insn &insn) {
   /* nextInsn must be "cbz" or "cbnz" insn */
   Insn *nextInsn = insn.GetNextMachineInsn();
   if (nextInsn == nullptr ||
       (nextInsn->GetMachineOpcode() != MOP_wcbz && nextInsn->GetMachineOpcode() != MOP_xcbz)) {
-    return;
+    return false;
   }
   auto &andRegOp = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   regno_t andRegNO1 = andRegOp.GetRegisterNumber();
   auto &cbzRegOp2 = static_cast<RegOperand&>(nextInsn->GetOperand(kInsnFirstOpnd));
   regno_t cbzRegNO2 = cbzRegOp2.GetRegisterNumber();
   if (andRegNO1 != cbzRegNO2) {
-    return;
+    return false;
   }
   /* If the reg will be used later, we shouldn't optimize the and insn here */
   if (IfOperandIsLiveAfterInsn(andRegOp, *nextInsn)) {
+    return false;
+  }
+  return true;
+}
+void AndCbzBranchesToTstPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
+  Insn *nextInsn = insn.GetNextMachineInsn();
+  CHECK_NULL_FATAL(nextInsn);
   /* build tst insn */
   Operand &andOpnd3 = insn.GetOperand(kInsnThirdOpnd);
   auto &andRegOp2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
@@ -3861,8 +3868,8 @@ void AndCbzBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
   } else {
     newTstOp = (andRegOp2.GetSize() <= k32BitSize && andRegOp3.GetSize() <= k32BitSize) ? MOP_wtstri32 : MOP_xtstri64;
   }
-  Operand &rflag = static_cast<AArch64CGFunc*>(&cgFunc)->GetOrCreateRflag();
-  Insn &newInsnTst = cgFunc.GetInsnBuilder()->BuildInsn(newTstOp, rflag, andRegOp2, andOpnd3);
+  Operand &rflag = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateRflag();
+  Insn &newInsnTst = cgFunc->GetInsnBuilder()->BuildInsn(newTstOp, rflag, andRegOp2, andOpnd3);
   if (andOpnd3.IsImmediate()) {
     if (!static_cast<ImmOperand&>(andOpnd3).IsBitmaskImmediate(andRegOp2.GetSize())) {
       return;
@@ -3873,7 +3880,7 @@ void AndCbzBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
   bool reverse = (opCode == MOP_xcbz || opCode == MOP_wcbz);
   auto &label = static_cast<LabelOperand&>(nextInsn->GetOperand(kInsnSecondOpnd));
   MOperator jmpOperator = reverse ? MOP_beq : MOP_bne;
-  Insn &newInsnJmp = cgFunc.GetInsnBuilder()->BuildInsn(jmpOperator, rflag, label);
+  Insn &newInsnJmp = cgFunc->GetInsnBuilder()->BuildInsn(jmpOperator, rflag, label);
   bb.ReplaceInsn(insn, newInsnTst);
   bb.ReplaceInsn(*nextInsn, newInsnJmp);
 }
