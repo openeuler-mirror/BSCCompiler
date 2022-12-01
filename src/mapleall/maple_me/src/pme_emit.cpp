@@ -833,7 +833,9 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
     if (setLastFreq) {
       GetFuncProfData()->SetStmtFreq(curBlk->GetLast()->GetStmtID(), bb->GetFrequency());
     } else if (bbIsEmpty) {
-      LogInfo::MapleLogger() << " bb " << bb->GetBBId() << ": no stmt used to add frequency; added comment node\n";
+      if (!MeOption::quiet) {
+        LogInfo::MapleLogger() << " bb " << bb->GetBBId() << ": no stmt used to add frequency; added comment node\n";
+      }
       CommentNode *commentNode = codeMP->New<CommentNode>(*(mirFunc->GetModule()));
       commentNode->SetComment("freqStmt"+std::to_string(commentNode->GetStmtID()));
       GetFuncProfData()->SetStmtFreq(commentNode->GetStmtID(), bb->GetFrequency());
