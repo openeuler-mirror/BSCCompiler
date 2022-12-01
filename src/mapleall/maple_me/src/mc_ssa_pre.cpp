@@ -63,8 +63,9 @@ void McSSAPre::ComputeMCWillBeAvail() const {
   // set insert in phi operands
   for (Visit *visit : minCut) {
     MeOccur *occ = visit->node->occ;
-    if (occ->GetOccType() == kOccPhiopnd) {
-      MePhiOpndOcc *phiOpndOcc = static_cast<MePhiOpndOcc*>(occ);
+    if (occ->GetOccType() == kOccPhiocc) {
+      MePhiOcc *phiOcc = static_cast<MePhiOcc*>(occ);
+      MePhiOpndOcc *phiOpndOcc = phiOcc->GetPhiOpnd(visit->predIdx);
       phiOpndOcc->SetIsMCInsert(true);
     }
   }
@@ -307,7 +308,7 @@ void McSSAPre::DetermineMinCut() {
   minCut.push_back(cut[0]);
   size_t duplicatedVisits = 0;
   for (uint32 i = 1; i < maxFlowRoutes.size(); i++) {
-    if (cut[i] == cut[i-1]) {
+    if (cut[i] != cut[i-1]) {
       minCut.push_back(cut[i]);
     } else {
       duplicatedVisits++;

@@ -32,6 +32,7 @@ extern maplecl::Option<bool> os;
 extern maplecl::Option<bool> o3;
 extern maplecl::Option<std::string> refusedcheck;
 extern maplecl::Option<std::string> range;
+extern maplecl::Option<std::string> pgoRange;
 extern maplecl::Option<std::string> dumpPhases;
 extern maplecl::Option<std::string> skipPhases;
 extern maplecl::Option<std::string> dumpFunc;

@@ -51,6 +51,11 @@ maplecl::Option<std::string> range({"--range"},
                               "                              \t--range=NUM0,NUM1\n",
                               {meCategory});
 
+maplecl::Option<std::string> pgoRange({"--pgorange"},
+                              "  --pglrange                  \tUse profile-guided optimizations only for funcid in the range [NUM0, NUM1]\n"
+                              "                              \t--pgorange=NUM0,NUM1\n",
+                              {meCategory});
+
 maplecl::Option<std::string> dumpPhases({"--dump-phases"},
                                    "  --dump-phases               \tEnable debug trace for specified phases"
                                    " in the comma separated list\n"

@@ -104,7 +104,14 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
   MeSSAEPre ssaPre(f, *irMap, *dom, *pdom, kh, *ssaPreMemPool, *ApplyTempMemPool(), epreLimitUsed, epreIncludeRef,
                    MeOption::epreLocalRefVar, MeOption::epreLHSIvar);
   if (f.GetMirFunc()->GetFuncProfData() && MeOption::epreUseProfile) {
-    ssaPre.doMinCut = true;
+    if (MeOption::usePgoRange) {
+      if (f.GetMirFunc()->GetPuidxOrigin() >= MeOption::pgoRange[0] &&
+          f.GetMirFunc()->GetPuidxOrigin() <= MeOption::pgoRange[1]) {
+        ssaPre.doMinCut = true;
+      }
+    } else {
+      ssaPre.doMinCut = true;
+    }
   }
   ssaPre.SetSpillAtCatch(MeOption::spillAtCatch);
   if (MeOption::strengthReduction && !f.GetMIRModule().IsJavaModule()) {
