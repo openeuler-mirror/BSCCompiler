@@ -11,10 +11,18 @@ LANG=java
 MKDIR_P = mkdir -p
 
 MAPLELIBPATH:=$(MAPLE_ROOT)/output/aarch64-clang-debug/lib/64
-MAPLELIBS := -L $(MAPLELIBPATH) -lmplir -loption_parser -lmplphase -lmplutil -lmempool -lmpl2mpl -lHWSecureC -ldriver_option -lmplir -loption_parser -ldriver_option
+MAPLELIBS := -L $(MAPLELIBPATH) -lmplir -lmplphase -lmplutil -lcommandline -lmempool -lmpl2mpl -lHWSecureC -ldriver_option
 
 MAPLEALL_INC = -I $(MAPLEALL_SRC)/maple_ir/include \
 							 -I $(MAPLEALL_SRC)/mempool/include \
 							 -I $(MAPLEALL_SRC)/maple_util/include \
 							 -I $(MAPLEALL_SRC)/maple_driver/include \
 							 -I $(MAPLE_ROOT)/third_party/bounds_checking_function/include
+
+BUILDBIN=$(BUILDDIR)/bin
+BUILDGEN=$(BUILDDIR)/gen
+BUILDLIB=$(BUILDDIR)/lib
+BUILDASTGEN=$(BUILDDIR)/ast_gen/shared
+
+LANGSPEC=$(BUILDDIR)/$(SRCLANG)/lang_spec.o
+

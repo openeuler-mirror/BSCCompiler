@@ -13,11 +13,8 @@
 #
 
 include ../../Makefile.in
-BUILDBIN=$(BUILDDIR)/bin
 BUILD=$(BUILDDIR)/typescript
-BUILDGEN=$(BUILDDIR)/gen
-BUILDASTGEN=$(BUILDDIR)/ast_gen/shared
-$(shell $(MKDIR_P) $(BUILD) $(BUILDGEN))
+$(shell $(MKDIR_P) $(BUILD) $(BUILDLIB) $(BUILDGEN))
 
 SRC=$(wildcard *.cpp)
 OBJ :=$(patsubst %.cpp,%.o,$(SRC))
@@ -31,16 +28,16 @@ OBJS :=$(foreach obj,$(OBJ), $(BUILD)/$(obj)) $(OBJG)
 DEPS :=$(foreach dep,$(DEP), $(BUILD)/$(dep)) $(DEPG)
 
 INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
-            -I $(MAPLEFE_ROOT)/typescript/include \
             -I $(MAPLEFE_ROOT)/autogen/include \
-	    -I ${BUILDDIR}/ast_gen/shared \
+            -I $(MAPLEFE_ROOT)/$(SRCLANG)/include \
+            -I ${BUILDASTGEN} \
             -I $(BUILDGEN)
 
 INCLUDEGEN := -I $(BUILDGEN) -I $(MAPLEFE_ROOT)/shared/include
 
 TARGET=ts2ast
 
-SHAREDLIB = $(BUILDDIR)/shared/shared.a $(BUILDASTGEN)/genast.a
+SHAREDLIB = -L $(BUILDLIB) -lshared -lgenast
 
 .PHONY: all
 all: $(BUILDBIN)/$(TARGET)
@@ -72,7 +69,7 @@ $(BUILDGEN)/%.d : $(BUILDGEN)/%.cpp
 
 # TARGET depends on OBJS and shared OBJS from shared directory
 # as well as mapleall libraries
-$(BUILDBIN)/$(TARGET): $(OBJS) $(SHAREDLIB)
+$(BUILDBIN)/$(TARGET): $(OBJS)
 	@mkdir -p $(BUILDBIN)
 	$(LD) -o $(BUILDBIN)/$(TARGET) $(OBJS) $(SHAREDLIB)
 

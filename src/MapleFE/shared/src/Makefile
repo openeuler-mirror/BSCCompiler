@@ -14,7 +14,7 @@
 
 include ../../Makefile.in
 BUILD=$(BUILDDIR)/shared
-$(shell $(MKDIR_P) $(BUILD))
+$(shell $(MKDIR_P) $(BUILD) $(BUILDLIB))
 
 SRC=$(wildcard *.cpp)
 OBJ :=$(patsubst %.cpp,%.o,$(SRC))
@@ -38,13 +38,13 @@ ASTDEPG:=$(patsubst %.cpp,%.d,$(ASTSRCG))
 
 INCLUDES := -I $(MAPLEFE_ROOT)/shared/include -I ${GENASTDIR} -I ${GENDIR} -I $(MAPLEFE_ROOT)/$(SRCLANG)/include
 
-SHAREDLIB := shared.a
-GENASTLIB := genast.a
-GENLIB    := gen.a
+SHAREDLIB := libshared.a
+GENASTLIB := libgenast.a
+GENLIB    := libgen.a
 
 .PHONY: all gen_doc clean
 
-all: $(BUILD)/$(SHAREDLIB) $(GENASTDIR)/$(GENASTLIB) $(GENDIR)/$(GENLIB)
+all: $(BUILDLIB)/$(SHAREDLIB) $(BUILDLIB)/$(GENASTLIB) $(BUILDLIB)/$(GENLIB)
 
 -include $(DEPS)
 
@@ -78,14 +78,14 @@ $(GENDIR)/%.o : $(GENDIR)/%.cpp
 $(GENDIR)/%.d : $(GENDIR)/%.cpp
 	@$(CXX) $(CXXFLAGS) -std=c++11 -MM $(INCLUDES) $< > $@
 
-$(BUILD)/$(SHAREDLIB) : $(LIBOBJS)
-	/usr/bin/ar rcs $(BUILD)/$(SHAREDLIB) $(LIBOBJS)
+$(BUILDLIB)/$(SHAREDLIB) : $(LIBOBJS)
+	/usr/bin/ar rcs $(BUILDLIB)/$(SHAREDLIB) $(LIBOBJS)
 
-$(GENASTDIR)/$(GENASTLIB) : $(ASTOBJG)
-	/usr/bin/ar rcs $(GENASTDIR)/$(GENASTLIB) $(ASTOBJG)
+$(BUILDLIB)/$(GENASTLIB) : $(ASTOBJG)
+	/usr/bin/ar rcs $(BUILDLIB)/$(GENASTLIB) $(ASTOBJG)
 
-$(GENDIR)/$(GENLIB) : $(OBJG)
-	/usr/bin/ar rcs $(GENDIR)/$(GENLIB) $(OBJG)
+$(BUILDLIB)/$(GENLIB) : $(OBJG)
+	/usr/bin/ar rcs $(BUILDLIB)/$(GENLIB) $(OBJG)
 
 clean:
 	rm -rf $(BUILD)

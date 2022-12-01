@@ -13,11 +13,8 @@
 # 
 
 include ../../Makefile.in
-BUILDBIN=$(BUILDDIR)/bin
 BUILD=$(BUILDDIR)/ast2mpl
-BUILDGEN=$(BUILDDIR)/gen
-BUILDASTGEN=$(BUILDDIR)/ast_gen/shared
-$(shell $(MKDIR_P) $(BUILD))
+$(shell $(MKDIR_P) $(BUILD) $(BUILDLIB))
 
 SRC=$(wildcard *.cpp)
 OBJ :=$(patsubst %.cpp,%.o,$(SRC))
@@ -32,23 +29,21 @@ DEPS :=$(foreach dep,$(DEP), $(BUILD)/$(dep)) $(DEPG)
 
 LIBOBJS :=$(patsubst $(BUILD)/main.o,,$(OBJS))
 
-GENDIR:=${BUILDDIR}/ast_gen/shared
-
 INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
             -I $(MAPLEFE_ROOT)/astopt/include \
             -I $(MAPLEFE_ROOT)/ast2mpl/include \
             -I $(MAPLEFE_ROOT)/autogen/include \
             -I $(MAPLEFE_ROOT)/shared/include \
-            -I $(MAPLEFE_ROOT)/java/include \
-            $(MAPLEALL_INC) -I ${GENDIR}
-
-AST2MPLLIB = ast2mpl.a
+            -I $(MAPLEFE_ROOT)/$(SRCLANG)/include \
+            -I ${BUILDASTGEN} \
+            $(MAPLEALL_INC)
 
 INCLUDEGEN := -I $(MAPLEFE_ROOT)/shared/include -I $(BUILDDIR)/gen -I $(BUILDASTGEN)
 
 TARGET=ast2mpl
-SHAREDLIB = $(BUILDDIR)/astopt/astopt.a $(BUILDDIR)/shared/shared.a $(BUILDASTGEN)/genast.a
-LANGSPEC=$(BUILDDIR)/$(SRCLANG)/lang_spec.o
+TARGET_A=libast2mpl.a
+
+SHAREDLIB = -L $(BUILDLIB) -lastopt -lshared -lgenast
 
 .PHONY: all
 all: $(BUILDBIN)/$(TARGET)
@@ -80,9 +75,12 @@ $(BUILDGEN)/%.d : $(BUILDGEN)/%.cpp
 
 # TARGET depends on OBJS and shared OBJS from shared directory
 # as well as mapleall libraries
-$(BUILDBIN)/$(TARGET): $(OBJS) $(SHAREDLIB)
+$(BUILDLIB)/$(TARGET_A): $(LIBOBJS)
+	/usr/bin/ar rcs $(BUILDLIB)/$(TARGET_A) $(LIBOBJS)
+
+$(BUILDBIN)/$(TARGET): $(BUILDLIB)/$(TARGET_A) $(OBJS)
 	@mkdir -p $(BUILDBIN)
-	$(LD) -o $(BUILDBIN)/$(TARGET) $(OBJS) $(LANGSPEC) $(SHAREDLIB) $(MAPLELIBS)
+	$(LD) -o $(BUILDBIN)/$(TARGET) $(BUILD)/main.o $(BUILDLIB)/$(TARGET_A) $(OBJG) $(LANGSPEC) $(SHAREDLIB) $(MAPLELIBS)
 
 clean:
 	rm -rf $(BUILD)
