@@ -328,6 +328,14 @@ ASTStmt *ASTParser::ProcessStmtCStyleCastExpr(MapleAllocator &allocator, const c
 ASTStmt *ASTParser::ProcessStmtStmtExpr(MapleAllocator &allocator, const clang::StmtExpr &stmtExpr) {
   ASTStmtExprStmt *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTStmtExprStmt>(allocator);
   const clang::CompoundStmt *cpdStmt = stmtExpr.getSubStmt();
+  clang::CompoundStmt::const_body_iterator it;
+  for (it = cpdStmt->body_begin(); it != cpdStmt->body_end(); ++it) {
+    const auto *bodyStmt = llvm::dyn_cast<const clang::Stmt>(*it);
+    if (bodyStmt->getStmtClass() == clang::Stmt::CaseStmtClass ||
+        bodyStmt->getStmtClass() == clang::Stmt::DefaultStmtClass) {
+      FE_ERR(kLncErr, astFile->GetLOC(bodyStmt->getBeginLoc()), "Unsupported StmtExpr in switch-case");
+    }
+  }
   ASTStmt *astCompoundStmt = ProcessStmt(allocator, *cpdStmt);
   astStmt->SetBodyStmt(astCompoundStmt);
   return astStmt;
