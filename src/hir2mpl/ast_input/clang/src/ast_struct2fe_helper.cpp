@@ -270,6 +270,9 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   mirFunc->SetSrcPosition(FEUtils::CvtLoc2SrcPosition(func.GetSrcLoc()));
   MIRSymbol *funSym = mirFunc->GetFuncSymbol();
   ASSERT_NOT_NULL(funSym);
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    FEUtils::AddAliasInMIRScope(*mirFunc->GetScope(), mirFunc->GetName(), *funSym, func.GetSourceType());
+  }
   if (!func.GetSectionAttr().empty()) {
     funSym->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(func.GetSectionAttr());
   }
