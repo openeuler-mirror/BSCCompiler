@@ -158,8 +158,10 @@ void OBJSize::DealWithBuiltinObjectSize(BB &bb, MeStmt &meStmt) {
   auto *opnd0 = intrinsiccall.GetOpnd(0);
   auto size = ComputeObjectSizeWithType(*opnd0, type);
   if (IsInvalidSize(size)) {
-    bool getMaxSizeOfObjs = (type == kTypeZero || type == kTypeOne);
-    size = InvalidSize(getMaxSizeOfObjs);
+    // __builtin_object_size
+    // inputType = 0 or 1 return -1
+    // inputType = 2 or 3 return 0
+    size = (type == kTypeZero || type == kTypeOne) ? -1 : 0;
   }
   // Replace callstmt ___builtin_object_size with dassign:
   // ||MEIR|| intrinsiccallassigned TYIDX:0C___builtin_object_size
@@ -333,7 +335,14 @@ size_t OBJSize::DealWithIaddrof(const MeExpr &opnd, int64 type, bool getSizeOfWh
     return kInvalidDestSize;
   }
   if (!getSizeOfWholeVar) {
-    return static_cast<MIRStructType*>(typeOfBase)->GetFieldType(fieldIDOfIaddrof)->GetSize();
+    // When an array is the last field of a struct, when calculating the size,
+    // you cannot only calculate the length of the array, but use the array as a pointer to calculate the size
+    // between the start address of the array and the end address of the struct object.
+    if (fieldIDOfIaddrof != static_cast<FieldID>(static_cast<MIRStructType*>(typeOfBase)->GetFieldsSize()) ||
+        static_cast<MIRStructType*>(typeOfBase)->GetFieldType(fieldIDOfIaddrof)->GetKind() != kTypeArray ||
+        !iaddrofMeExpr.GetOpnd(0)->IsLeaf()) {
+      return static_cast<MIRStructType*>(typeOfBase)->GetFieldType(fieldIDOfIaddrof)->GetSize();
+    }
   }
   if (iaddrofMeExpr.GetNumOpnds() != 1) {
     return kInvalidDestSize;
