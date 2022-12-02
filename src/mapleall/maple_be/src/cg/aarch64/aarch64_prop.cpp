@@ -2522,6 +2522,28 @@ bool A64PregCopyPattern::CheckMultiUsePoints(const Insn *defInsn) const {
   return true;
 }
 
+bool A64PregCopyPattern::HasValidDefInsnDependency() {
+  /* Look for reg dependency between validDefInsns */
+  for (auto *ti : validDefInsns) {
+    const auto *md = &AArch64CG::kMd[ti->GetMachineOpcode()];
+    for (uint32 i = 0; i < ti->GetOperandSize(); i++) {
+      if (ti->GetOperand(i).IsRegister() && md->GetOpndDes(i)->IsRegUse() &&
+          static_cast<RegOperand&>(ti->GetOperand(i)).IsVirtualRegister()) {
+        regno_t regno = static_cast<RegOperand&>(ti->GetOperand(i)).GetRegisterNumber();
+        VRegVersion *useVersion = optSsaInfo->FindSSAVersion(regno);
+        Insn *def = FindDefInsn(useVersion);
+        if (def) {
+          auto it = find(validDefInsns.begin(), validDefInsns.end(), def);
+          if (it != validDefInsns.end()) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
 bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
   std::unordered_map<uint32, bool> visited;
   std::vector<regno_t> visitedPhiDefs;
@@ -2581,6 +2603,9 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
     }
   }
   if (differIdx == -1) {
+    return false;
+  }
+  if (HasValidDefInsnDependency()) {
     return false;
   }
   return true;
