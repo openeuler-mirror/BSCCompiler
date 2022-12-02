@@ -660,6 +660,9 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C_rev16_2:
     case INTRN_C_rev_4:
     case INTRN_C_rev_8:
+    case INTRN_C_bswap64:
+    case INTRN_C_bswap32:
+    case INTRN_C_bswap16:
       return cgFunc.SelectBswap(intrinsicopNode, *cgFunc.HandleExpr(expr, *expr.Opnd(0)), parent);
     case INTRN_C_clz32:
     case INTRN_C_clz64:
@@ -979,7 +982,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_mov_narrow_v8i16: case INTRN_vector_mov_narrow_v8u16:
       return HandleVectorMovNarrow(intrinsicopNode, cgFunc);
     default:
-      ASSERT(false, "Should not reach here.");
+      CHECK_FATAL(false, "Unsupported intrinsicop.");
       return nullptr;
   }
 }
@@ -1450,6 +1453,15 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       scpIdSet(allocator.Adapter()),
       shortFuncName(cg.ExtractFuncName(mirFunc.GetName()) + "." + std::to_string(funcId), &memPool) {
   mirModule.SetCurFunction(&func);
+  SetMemlayout(*GetCG()->CreateMemLayout(memPool, beCommon, func, allocator));
+  GetMemlayout()->SetCurrFunction(*this);
+  SetTargetRegInfo(*GetCG()->CreateRegisterInfo(memPool, allocator));
+  GetTargetRegInfo()->SetCurrFunction(*this);
+  if (func.GetAttr(FUNCATTR_varargs) || func.HasVlaOrAlloca()) {
+    SetHasVLAOrAlloca(true);
+  }
+  SetHasAlloca(func.HasVlaOrAlloca());
+
   dummyBB = CreateNewBB();
   vRegCount = firstMapleIrVRegNO + func.GetPregTab()->Size();
   firstNonPregVRegNO = vRegCount;
