@@ -44,16 +44,27 @@ MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType, bool isSourceTy
 }
 
 MIRType *LibAstFile::CvtPrimType2SourceType(const clang::BuiltinType::Kind kind) const {
-  switch (kind) {
-    case clang::BuiltinType::ULong:
-      return FEManager::GetTypeManager().GetOrCreateTypeByNameType(kDbgULong);
-    case clang::BuiltinType::Long:
-      return FEManager::GetTypeManager().GetOrCreateTypeByNameType(kDbgLong);
-    case clang::BuiltinType::LongDouble:
-      return FEManager::GetTypeManager().GetOrCreateTypeByNameType(kDbgLongDouble);
-    default:
-      return nullptr;
+  static const std::unordered_map<clang::BuiltinType::Kind, const std::string> kPrimType2SourceTypeMap = {
+      {clang::BuiltinType::ULong, kDbgULong},
+      {clang::BuiltinType::Long, kDbgLong},
+      {clang::BuiltinType::LongDouble, kDbgLongDouble},
+      {clang::BuiltinType::SChar, kDbgSignedChar},
+      {clang::BuiltinType::Char_U, kDbgChar},
+      {clang::BuiltinType::UChar, kDbgUnsignedChar},
+      {clang::BuiltinType::UInt, kDbgUnsignedInt},
+      {clang::BuiltinType::Short, kDbgShort},
+      {clang::BuiltinType::Int, kDbgInt},
+      {clang::BuiltinType::LongLong, kDbgLongLong},
+      {clang::BuiltinType::Int128, kDbgInt128},
+      {clang::BuiltinType::UShort, kDbgUnsignedShort},
+      {clang::BuiltinType::ULongLong, kDbgUnsignedLongLong},
+      {clang::BuiltinType::UInt128, kDbgUnsignedInt128}
+  };
+  auto it = kPrimType2SourceTypeMap.find(kind);
+  if (it != kPrimType2SourceTypeMap.end()) {
+    return FEManager::GetTypeManager().GetOrCreateTypeByNameType(it->second);
   }
+  return nullptr;
 }
 
 PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSourceType) const {
