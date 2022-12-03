@@ -20,7 +20,6 @@
 
 #include <unistd.h>
 #include <sys/syscall.h>
-#define gettid() syscall(SYS_gettid)
 
 #include "mir_nodes.h"
 #include "mvalue.h"
@@ -35,17 +34,11 @@ class  LmbcMod;
 class  LmbcFunc;
 struct ParmInf;
 
-//using ffi_fp_t = void(*const)();
 using ffi_fp_t = void(*)();
 
-// For x86 valist setup, gp_offset and fp_offset are set to values
-// to force va arg access from stack pointed to by overflow_arg_area
-// instead of reg_save_area (ref. x86_64 ABI), e.g.
-//   VaListX86_64 *vaList = (maple::VaListX86_64*)addrofAP.x.a64;
-//   vaList->gp_offset = 48;
-//   vaList->fp_offset = 304;
-//   vaList->overflow_arg_area = caller.caller->vaArgs;
-//   vaList->reg_save_area = nullptr;
+// For x86 valist setup, to force va arg acess from stack pointed to
+// by overflow_arg_area, set gp_offset to 48, fp_offset to 304, 
+// reg_save_rea to null, and overflow_arg_arg to location for vaArgs.
 typedef struct {
   uint gp_offset;
   uint fp_offset;
@@ -63,9 +56,9 @@ typedef struct {
 
 using VaList = VaListAarch64;
 
-// State of executing Maple function 
+// State of executing Maple function
 class MFunction {
-  public:
+ public:
     // state of an executing function
     LmbcFunc*   info;          // current func
     MFunction*  caller;        // caller of current func

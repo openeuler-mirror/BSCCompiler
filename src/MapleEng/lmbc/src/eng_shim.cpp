@@ -18,8 +18,7 @@
 
 namespace maple {
 
-extern "C" int64
-__engineShim(LmbcFunc* fn, ...) {
+extern "C" int64 MplEngShim(LmbcFunc* fn, ...) {
   uint8   frame[fn->frameSize];
   MValue  pregs[fn->numPregs];
   MValue  formalVars[fn->formalsNumVars+1];
@@ -35,7 +34,7 @@ __engineShim(LmbcFunc* fn, ...) {
     while (argIdx < fn->formalsNum) {
       // convert argv args to interpreter types and push on operand stack
       val.ptyp = fn->pos2Parm[argIdx]->ptyp;
-      switch(val.ptyp) {
+      switch (val.ptyp) {
         case PTY_i8:
             val.x.i8 = va_arg(args, int);
             break;

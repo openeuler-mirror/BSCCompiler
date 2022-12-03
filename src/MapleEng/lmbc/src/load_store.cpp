@@ -20,7 +20,7 @@ namespace maple {
 
 void mload(uint8* addr, PrimType ptyp, MValue& res, size_t aggSize) {
   res.ptyp = ptyp;
-  switch(ptyp) {
+  switch (ptyp) {
     case PTY_i8:
       res.x.i64 = *(int8 *)addr;
       return;
@@ -68,10 +68,10 @@ void mstore(uint8* addr, PrimType ptyp, MValue& val, bool toVarArgStack) {
   if (!IsPrimitiveInteger(ptyp) || !IsPrimitiveInteger(val.ptyp)) {
     MASSERT(ptyp == val.ptyp ||
             ptyp == PTY_a64 && val.ptyp == PTY_u64 ||
-            ptyp == PTY_u64 && val.ptyp == PTY_a64, 
-      "mstore type mismatch: %d and %d", ptyp, val.ptyp);
+            ptyp == PTY_u64 && val.ptyp == PTY_a64,
+        "mstore type mismatch: %d and %d", ptyp, val.ptyp);
   }
-  switch(ptyp) {
+  switch (ptyp) {
     case PTY_i8:
       *(int8 *)addr  = val.x.i8;
       return;
@@ -107,15 +107,15 @@ void mstore(uint8* addr, PrimType ptyp, MValue& val, bool toVarArgStack) {
       return;
     case PTY_agg:
       if (toVarArgStack) {
-        if (val.aggSize > 16) {
+        if (val.aggSize > maplebe::k16ByteSize) {
           *(uint8 **)addr = val.x.a64;
         } else {
-          memcpy(addr, val.x.a64, val.aggSize);
+          memcpy_s(addr, val.aggSize, val.x.a64, val.aggSize);
         }
       } else {
         // val holds aggr data (regassign agg of <= 16 bytes to %%retval0) instead of ptr to aggr data
         MASSERT(val.aggSize <= 16, "mstore agg > 16");
-        memcpy(addr, &(val.x.u64), val.aggSize);
+        memcpy_s(addr, val.aggSize, &(val.x.u64), val.aggSize);
       }
       return;
     default:

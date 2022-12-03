@@ -20,7 +20,7 @@
 
 namespace maple {
 
-extern "C" int64_t __engineShim(LmbcFunc*, ...);
+extern "C" int64_t MplEngShim(LmbcFunc*, ...);
 
 }
 

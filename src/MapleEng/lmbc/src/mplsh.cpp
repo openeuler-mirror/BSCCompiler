@@ -56,8 +56,7 @@ void *LmbcMod::FindExtSym(StIdx stidx) {
   return(var);
 }
 
-maple::MIRModule*
-LmbcMod::Import(std::string path) {
+maple::MIRModule *LmbcMod::Import(std::string path) {
   maple::MIRModule* mod = new maple::MIRModule(path.c_str());
   mod->SetSrcLang(kSrcLangC);
   std::string::size_type lastdot = mod->GetFileName().find_last_of(".");
@@ -79,47 +78,45 @@ LmbcMod::Import(std::string path) {
   return mod;
 }
 
-// C runtime libs to preload
-// - add to list as needed or change to read list dynamically at runtime 
+// C runtime libs to preload.
+// Add to list as needed or change to read list dynamically at runtime.
 std::vector<std::string> preLoadLibs = {
-  LIBC_SO,
-  LIBM_SO
+    LIBC_SO,
+    LIBM_SO
 };
 
 void LmbcMod::LoadDefLibs() {
-   for (auto it : preLoadLibs) {
+  for (auto it : preLoadLibs) {
     void *handle = dlopen(it.c_str(), RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE);
     MASSERT(handle, "dlopen %s failed", it.c_str());
     libHandles.push_back(handle);
   }
 }
 
-LmbcMod::LmbcMod(char* path) : lmbcPath(path) {
+LmbcMod::LmbcMod(std::string path) : lmbcPath(path) {
   LoadDefLibs();
   mirMod = Import(path);
   // In Lmbc GlobalMemSize is the mem segment size for un-init
-  // PU static variables, and is referenced through %%GP register. 
+  // PU static variables, and is referenced through %%GP register.
   unInitPUStaticsSize = mirMod->GetGlobalMemSize();
 }
 
-int
-RunLmbc(int argc, char** argv) {
+int RunLmbc(int argc, char** argv) {
   int rc = 1;
   const int skipArgsNum = 1;
   LmbcMod* mod = new LmbcMod(argv[skipArgsNum]);
-  ASSERT(mod, "Create Lmbc module failed");
-  ASSERT(mod->mirMod, "Import Lmbc module failed");
+  MASSERT(mod, "Create Lmbc module failed");
+  MASSERT(mod->mirMod, "Import Lmbc module failed");
   mod->InitModule();
   if (mod->mainFn) {
-    rc = __engineShim(mod->mainFn, argc-skipArgsNum, argv+skipArgsNum);
+    rc = MplEngShim(mod->mainFn, argc-skipArgsNum, argv+skipArgsNum);
   }
   return rc;
 }
 
 } // namespace maple
 
-int
-main(int argc, char **argv) {
+int main(int argc, char **argv) {
   if (argc == 1) {
     std::string path(argv[0]);
     (void)MIR_PRINTF("usage: %s <file>.lmbc\n", path.substr(path.find_last_of("/\\") + 1).c_str());

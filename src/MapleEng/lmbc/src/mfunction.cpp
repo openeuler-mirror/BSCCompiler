@@ -19,19 +19,17 @@
 
 namespace maple {
 
-MFunction::MFunction(LmbcFunc  *funcInfo,
-                     MFunction *funcCaller,
-                     uint8     *autoVars,
-                     MValue    *pregs,
-                     MValue    *formalvars) :
-    info(funcInfo),
-    caller(funcCaller),
-    frame(autoVars),
-    pRegs(pregs),
-    formalVars(formalvars),
-    callArgs(nullptr),
-    aggrArgsBuf(nullptr)
-{
+MFunction::MFunction(LmbcFunc *funcInfo,
+    MFunction *funcCaller,
+    uint8 *autoVars,
+    MValue *pregs,
+    MValue *formalvars) : info(funcInfo),
+        caller(funcCaller),
+        frame(autoVars),
+        pRegs(pregs),
+        formalVars(formalvars),
+        callArgs(nullptr),
+        aggrArgsBuf(nullptr) {
   numCallArgs = 0;
   nextStmt = info->mirFunc->GetBody();
   fp = (uint8*)frame + info->frameSize;
@@ -90,7 +88,7 @@ size_t GetIReadAggrSize(BaseNode* expr) {
     sz = fdType->GetSize();
     (void)fdOffset;
   }
-  return ((sz + 7) >> 3) << 3;
+  return ((sz + maplebe::k8ByteSize-1) >> maplebe::k8BitShift) << maplebe::k8BitShift;
 }
 
 // Get total buffer size needed for all arguments of type PTY_agg in a call.
@@ -110,19 +108,18 @@ size_t GetAggCallArgsSize(LmbcFunc *callee, CallNode *call) {
 
 // Caller passes arguments to callees using MValues which is a union of Maple
 // prim types. For PTY_agg, MValue holds ptr to the aggregate data.
-//
 // Memory allocation scenarios for call arguments:
-// 1. Non-varidiac callee:
-//    - Caller alloca array of MValue to pass call operands to callee
-//    - If any call arg is PTY_agg
-//      - Caller alloca agg buffer to hold data for all args of type PTY_agg
-//      - MValues for all args of type PTY_agg  points to offsets in agg buffer
-// 2. Varidiac callee:
-//    - Caller alloca array of MValue to pass call operands including va-arg ones to callee
-//    - If any call arg is PTY_agg
-//      - Caller alloca agg buffer to hold data for all args (formals+va_args) of type PTY_agg
-//      - MValues of all args of type PTY_agg points to offsets in agg buffer
-//    - Caller alloca arg stack per AARCH64 ABI for va-args and copy va-args to this arg stack
+// 1. Non-varidiac callee
+//   - Caller alloca array of MValue to pass call operands to callee
+//   - If any call arg is PTY_agg
+//     - Caller alloca agg buffer to hold data for all args of type PTY_agg
+//     - MValues for all args of type PTY_agg  points to offsets in agg buffer
+// 2. Varidiac callee
+//   - Caller alloca array of MValue to pass call operands including va-arg ones to callee
+//   - If any call arg is PTY_agg
+//     - Caller alloca agg buffer to hold data for all args (formals+va_args) of type PTY_agg
+//     - MValues of all args of type PTY_agg points to offsets in agg buffer
+//   - Caller alloca arg stack per AARCH64 ABI for va-args and copy va-args to this arg stack
 void MFunction::CallMapleFuncDirect(CallNode *call) {
   LmbcFunc *callee = info->lmbcMod->LkupLmbcFunc(call->GetPUIdx());
   if (!callee->formalsNum) {    // ignore args if callee takes no params
@@ -131,7 +128,8 @@ void MFunction::CallMapleFuncDirect(CallNode *call) {
   }
   // alloca stack space for aggr args before evaluating operands
   size_t totalAggCallArgsSize = GetAggCallArgsSize(callee, call);
-  aggrArgsBuf = static_cast<uint8*>(alloca(totalAggCallArgsSize)); // stack alloc for aggr args
+  uint8 buf[totalAggCallArgsSize];
+  aggrArgsBuf = buf; // stack alloc for aggr args
   for (int i = 0, sz = 0, offset = callee->formalsAggSize; i < call->NumOpnds(); i++) {
     // a non-aggregate arg
     if (call->Opnd(i)->ptyp != PTY_agg) {
@@ -163,8 +161,9 @@ void MFunction::CallMapleFuncIndirect(IcallNode *icall, LmbcFunc *callInfo) {
   }
 
   // Set up call args - skip over 1st arg, which is addr of func to call
-  aggrArgsBuf = static_cast<uint8*>(alloca(callInfo->formalsAggSize)); // stack alloc for aggr args
-  for (int i=0; i < icall->NumOpnds()-1; i++) {
+  uint8 buf[callInfo->formalsAggSize];
+  aggrArgsBuf = buf;
+  for (int i = 0; i < icall->NumOpnds() - 1; i++) {
     callArgs[i] = (icall->Opnd(i+1)->ptyp == PTY_agg) ?
         EvalExpr(*this, icall->Opnd(i+1), callInfo->pos2Parm[i]) :
         EvalExpr(*this, icall->Opnd(i+1));
@@ -190,21 +189,22 @@ void MFunction::CallMapleFuncIndirect(IcallNode *icall, LmbcFunc *callInfo) {
 void MFunction::CallVaArgFunc(int numArgs, LmbcFunc *callInfo) {
   uint32 vArgsSz = 0;
   for (int i = callInfo->formalsNum; i < numArgs; ++i) {
-    if (callArgs[i].ptyp != PTY_agg || callArgs[i].aggSize > 16 ) {
-      vArgsSz += 8;
+    if (callArgs[i].ptyp != PTY_agg || callArgs[i].aggSize > maplebe::k16ByteSize) {
+      vArgsSz += maplebe::k8ByteSize;
     } else {
       vArgsSz += callArgs[i].aggSize;
-    } 
+    }
   }
   vaArgsSize = vArgsSz;
-  vaArgs = static_cast<uint8*>(alloca(vaArgsSize));
+  uint8 buf[vaArgsSize];
+  vaArgs = buf;
   for (int i = callInfo->formalsNum, offset = 0; i < numArgs; ++i) {
     mstore(vaArgs + offset, callArgs[i].ptyp, callArgs[i], true);
-    if (callArgs[i].ptyp != PTY_agg || callArgs[i].aggSize > 16 ) {
-      offset += 8;
+    if (callArgs[i].ptyp != PTY_agg || callArgs[i].aggSize > maplebe::k16ByteSize) {
+      offset += maplebe::k8ByteSize;
     } else {
       offset += callArgs[i].aggSize;
-    } 
+    }
   }
   InvokeFunc(callInfo, this);
 }
@@ -218,12 +218,12 @@ void MFunction::CallExtFuncDirect(CallNode* call) {
 
   for (int i = formalDefVec.size(); i < call->NumOpnds(); i++) {
     if (call->Opnd(i)->ptyp == PTY_agg) {
-      // TODO: Handle type PTY_agg va-args for external calls
       MASSERT(false, "extern func: va-arg of agg type NYI");
     }
   }
   // alloca stack space for aggr args before evaluating operands
-  aggrArgsBuf = static_cast<uint8*>(alloca(faddr.formalsAggSize));
+  uint8 buf[faddr.formalsAggSize];
+  aggrArgsBuf = buf;
   for (int i = 0, offset = 0; i < call->NumOpnds(); i++) {
     // a non-aggregate arg
     if (call->Opnd(i)->ptyp != PTY_agg) {
@@ -239,14 +239,12 @@ void MFunction::CallExtFuncDirect(CallNode* call) {
       callArgs[i] = EvalExpr(*this, call->Opnd(i), &parmInf);
       continue;
     }
-    // TODO: Handle aggregate var-arg here. See CallMapleFuncDirect
   }
   CallWithFFI(func->GetReturnType()->GetPrimType(), fp);
 }
 
 void MFunction::CallExtFuncIndirect(IcallNode *icallproto, void* fp) {
-  // TODO: handle aggregate args for ext funcs
-  for (int i=0; i < icallproto->NumOpnds()-1; i++) {
+  for (int i = 0; i < icallproto->NumOpnds() - 1; i++) {
     callArgs[i]= EvalExpr(*this, icallproto->Opnd(i+1));
   }
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallproto->GetRetTyIdx());
@@ -257,7 +255,7 @@ void MFunction::CallExtFuncIndirect(IcallNode *icallproto, void* fp) {
 
 void MFunction::CallIntrinsic(IntrinsiccallNode &intrn) {
   MIRIntrinsicID callId = intrn.GetIntrinsic();
-  switch(callId) {
+  switch (callId) {
     case INTRN_C_va_start: {
       MValue addrofAP = EvalExpr(*this, intrn.Opnd(0));
       // setup VaList for Aarch64
@@ -274,33 +272,33 @@ void MFunction::CallIntrinsic(IntrinsiccallNode &intrn) {
 
 // Maple PrimType to libffi type conversion table
 static ffi_type ffi_type_table[] = {
-        ffi_type_void, // kPtyInvalid
+    ffi_type_void, // kPtyInvalid
 #define EXPANDFFI1(x) x,
 #define EXPANDFFI2(x) EXPANDFFI1(x)
 #define PRIMTYPE(P) EXPANDFFI2(FFITYPE_##P)
 #define LOAD_ALGO_PRIMARY_TYPE
 #include "prim_types.def"
 #undef PRIMTYPE
-        ffi_type_void // kPtyDerived
-    };
+    ffi_type_void // kPtyDerived
+};
 
 // FFI type def for Arm64 VaList struct fields
 ffi_type *vaListObjAarch64 [] = {
-  ffi_type_table + PTY_ptr,
-  ffi_type_table + PTY_ptr,
-  ffi_type_table + PTY_ptr,
-  ffi_type_table + PTY_i32,
-  ffi_type_table + PTY_i32,
-  nullptr
+    ffi_type_table + PTY_ptr,
+    ffi_type_table + PTY_ptr,
+    ffi_type_table + PTY_ptr,
+    ffi_type_table + PTY_i32,
+    ffi_type_table + PTY_i32,
+    nullptr
 };
 
 // FFI type def for X86_64 VaList struct fields
 ffi_type *vaListObjX86_64 [] = {
-  ffi_type_table + PTY_u32,
-  ffi_type_table + PTY_u32,
-  ffi_type_table + PTY_ptr,
-  ffi_type_table + PTY_ptr,
-  nullptr
+    ffi_type_table + PTY_u32,
+    ffi_type_table + PTY_u32,
+    ffi_type_table + PTY_ptr,
+    ffi_type_table + PTY_ptr,
+    nullptr
 };
 
 // currently only support ARM64 va_list
@@ -321,7 +319,7 @@ void MFunction::CallWithFFI(PrimType ret_ptyp, ffi_fp_t fp) {
   void* args[numCallArgs];
 
   // gather args and arg types
-  for (int i=0; i < numCallArgs; ++i) {
+  for (int i = 0; i < numCallArgs; ++i) {
     args[i] = &callArgs[i].x;
     if (callArgs[i].ptyp == PTY_agg) {
       arg_types[i] = &vaList_ffi_type;
@@ -331,7 +329,7 @@ void MFunction::CallWithFFI(PrimType ret_ptyp, ffi_fp_t fp) {
   }
 
   ffi_status status = ffi_prep_cif(&cif, FFI_DEFAULT_ABI, numCallArgs, &ffi_ret_type, arg_types);
-  if(status == FFI_OK) {
+  if (status == FFI_OK) {
     ffi_call(&cif, fp, &retVal0.x, args);
     retVal0.ptyp = ret_ptyp;
   } else {

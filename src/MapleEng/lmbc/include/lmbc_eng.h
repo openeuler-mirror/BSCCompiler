@@ -28,15 +28,10 @@
 #include "mvalue.h"
 #include "global_tables.h"
 #include "mfunction.h"
+#include "common_utils.h"
 
 namespace maple {
-class MFunction;
 class LmbcMod;
-class LmbcFunc;
-
-using LabelMap = std::unordered_map<LabelIdx, StmtNode*>;
-using FuncMap = std::unordered_map<PUIdx, LmbcFunc*>;
-using VarInf = struct ParmInf;
 
 // Parameter and variable info
 struct ParmInf {
@@ -53,13 +48,15 @@ struct ParmInf {
   int32 storeIdx;
   MIRSymbol *sym;  // VarInf only - for global and PUStatic var
   PUIdx puIdx;     // VarInf only - for PUStatic var
-  ParmInf(PrimType type, size_t sz, bool ispreg, int32_t storageIdx)
-      : ptyp(type), size(sz), isPreg(ispreg), storeIdx(storageIdx) {} 
-  ParmInf(PrimType type, size_t sz, bool ispreg, int32_t storageIdx, MIRSymbol *psym)
-      : ptyp(type), size(sz), isPreg(ispreg), storeIdx(storageIdx), sym(psym) {}
-  ParmInf(PrimType type, size_t sz, bool ispreg, int32_t storageIdx, MIRSymbol *psym, PUIdx puidx)
-      : ptyp(type), size(sz), isPreg(ispreg), storeIdx(storageIdx), sym(psym), puIdx(puidx) {}
+  ParmInf(PrimType type, size_t sz, bool ispreg, int32_t storageIdx) : ptyp(type),
+      size(sz), isPreg(ispreg), storeIdx(storageIdx) {}
+  ParmInf(PrimType type, size_t sz, bool ispreg, int32_t storageIdx, MIRSymbol *psym) : ptyp(type),
+      size(sz), isPreg(ispreg), storeIdx(storageIdx), sym(psym) {}
+  ParmInf(PrimType type, size_t sz, bool ispreg, int32_t storageIdx, MIRSymbol *psym, PUIdx puidx) : ptyp(type),
+      size(sz), isPreg(ispreg), storeIdx(storageIdx), sym(psym), puIdx(puidx) {}
 };
+
+using LabelMap = std::unordered_map<LabelIdx, StmtNode*>;
 
 class LmbcFunc {
  public:
@@ -93,8 +90,11 @@ class FuncAddr {
   FuncAddr(bool lmbcFunc, void *func, std::string funcName, uint32 formalsAggSz = 0);
 };
 
+using VarInf = struct ParmInf;
+using FuncMap = std::unordered_map<PUIdx, LmbcFunc*>;
+
 class LmbcMod {
-public:
+ public:
   std::string lmbcPath;
   MIRModule*  mirMod {nullptr};
   FuncMap     funcMap;
@@ -103,10 +103,10 @@ public:
   std::unordered_map<uint32, std::string> globalStrTbl;
   int         unInitPUStaticsSize {0};    // uninitalized PUStatic vars
   uint8*      unInitPUStatics{nullptr};
-  int         globalsSize {0};            // global vars and initialized PUStatic 
+  int         globalsSize {0};            // global vars and initialized PUStatic
   uint8*      globals {nullptr};
   uint32      aggrInitOffset {0};
-public:
+
   void InitGlobalVars(void);
   void InitGlobalVariable(VarInf *pInf);
   void InitIntConst(VarInf *pInf, MIRIntConst &intConst, uint8 *dst);
@@ -120,7 +120,7 @@ public:
   void UpdateGlobalVarInitAddr(VarInf* pInf, uint32 size);
   void CheckUnamedBitField(MIRStructType &stType, uint32 &prevInitFd, uint32 curFd, int32 &allocdBits);
 
-  LmbcMod(char* path);
+  LmbcMod(std::string path);
   MIRModule*  Import(std::string path);
   void        InitModule(void);
   void        CalcGlobalAndStaticVarSize(void);

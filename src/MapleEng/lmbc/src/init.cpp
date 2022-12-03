@@ -24,7 +24,7 @@ inline void AlignOffset(uint32 &offset, uint32 align) {
 }
 
 LmbcFunc::LmbcFunc(LmbcMod *mod, MIRFunction *func) : lmbcMod(mod), mirFunc(func) {
-  frameSize = ((func->GetFrameSize()+7)>>3)<<3;  // round up to nearest 8
+  frameSize = ((func->GetFrameSize()+maplebe::k8ByteSize-1) >> maplebe::k8BitShift) << maplebe::k8BitShift;  // round up to nearest 8
   isVarArgs = func->GetMIRFuncType()->IsVarargs();
   numPregs  = func->GetPregTab()->Size();
 }
@@ -34,7 +34,7 @@ void LmbcMod::InitModule(void) {
   for (MIRFunction *mirFunc : mirMod->GetFunctionList()) {
     if (auto node = mirFunc->GetBody()) {
       LmbcFunc* fn = new LmbcFunc(this, mirFunc);
-      ASSERT(fn, "Create Lmbc function failed");
+      MASSERT(fn, "Create Lmbc function failed");
       fn->ScanFormals();
       fn->ScanLabels(node);
       funcMap[mirFunc->GetPuidx()] = fn;
@@ -93,7 +93,6 @@ void LmbcFunc::ScanLabels(StmtNode* stmt) {
 // Check for initialized flex array struct member and return size. The number
 // of elements is not specified in the array type declaration but determined
 // by array initializer.
-// Note::
 // - Flex array must be last field of a top level struct
 // - Only 1st dim of multi-dim array can be unspecified. Other dims must have bounds.
 // - In Maple AST, array with unspecified num elements is defined with 1 element in
@@ -128,7 +127,7 @@ void LmbcMod::CalcGlobalAndStaticVarSize() {
     MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
     if (!sym ||
         !(sym->GetSKind() == kStVar) ||
-        !(sym->GetStorageClass() == kScGlobal || sym->GetStorageClass() == kScFstatic)) { 
+        !(sym->GetStorageClass() == kScGlobal || sym->GetStorageClass() == kScFstatic)) {
       continue;
     }
     if (MIRType *ty = sym->GetType()) {
@@ -161,7 +160,7 @@ void LmbcMod::ScanPUStatic(MIRFunction *func) {
       VarInf* pInf = new VarInf(ty->GetPrimType(), ty->GetSize(), false, globalsSize, sym, func->GetPuidx());
       AddPUStaticVar(func->GetPuidx(), *sym, pInf);  // add var to lookup table
       globalsSize += ty->GetSize();
-    } 
+    }
   }
 }
 
@@ -189,12 +188,10 @@ inline void LmbcMod::UpdateGlobalVarInitAddr(VarInf* pInf, uint32 size) {
 // bit fields appears as gaps in field id between initialized struct fields
 // of a global var.
 void LmbcMod::CheckUnamedBitField(MIRStructType &stType, uint32 &prevInitFd, uint32 curFd, int32 &allocdBits) {
-
   if (curFd - 1 == prevInitFd) {
     prevInitFd = curFd;
     return;
   }
-
   for (auto i = prevInitFd; i < curFd -1; ++i)  {  // struct fd idx 0 based; agg const fd 1 based
     TyIdxFieldAttrPair tfap = stType.GetTyidxFieldAttrPair(i);
     MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first); // type of struct fd
@@ -210,7 +207,7 @@ void LmbcMod::CheckUnamedBitField(MIRStructType &stType, uint32 &prevInitFd, uin
     uint32 align = allocdBits ? 1 : baseFdSz;        // align with base fd if no bits have been allocated
     AlignOffset(aggrInitOffset, align);
 
-    if (allocdBits + bitFdWidth > (baseFdSz * 8)) {  // alloc bits will cross align boundary of base type
+    if (allocdBits + bitFdWidth > (baseFdSz * maplebe::k8BitSize)) {  // alloc bits will cross align boundary of base type
       aggrInitOffset+= baseFdSz;
       allocdBits = bitFdWidth;                       // alloc bits at new boundary
     } else {
@@ -245,7 +242,7 @@ void LmbcMod::InitLblConst(VarInf *pInf, MIRLblConst &labelConst, uint8 *dst) {
 
 void LmbcMod::InitIntConst(VarInf* pInf, MIRIntConst &intConst, uint8* dst) {
   int64 val = intConst.GetExtValue();
-  switch(intConst.GetType().GetPrimType()) {
+  switch (intConst.GetType().GetPrimType()) {
     case PTY_i64:
       *(int64*)dst = (int64)val;
       break;
@@ -277,7 +274,7 @@ void LmbcMod::InitIntConst(VarInf* pInf, MIRIntConst &intConst, uint8* dst) {
 
 void LmbcMod::InitPointerConst(VarInf *pInf, MIRConst &mirConst) {
   uint8 *dst = GetGlobalVarInitAddr(pInf, mirConst.GetType().GetAlign());
-  switch(mirConst.GetKind()) {
+  switch (mirConst.GetKind()) {
     case kConstAddrof:
       InitAddrofConst(pInf, static_cast<MIRAddrofConst&>(mirConst), dst);
       break;
@@ -297,39 +294,39 @@ void LmbcMod::InitPointerConst(VarInf *pInf, MIRConst &mirConst) {
 }
 
 void SetBitFieldConst(uint8* baseFdAddr, uint32 baseFdSz, uint32 bitsOffset, uint8 bitsSize, MIRConst &elemConst) {
-  MIRIntConst &intConst = static_cast<MIRIntConst&>(elemConst); (void)intConst;
+  MIRIntConst &intConst = static_cast<MIRIntConst&>(elemConst);
   int64  val = intConst.GetExtValue();
   uint64 mask = ~(0xffffffffffffffff << bitsSize);
   uint64 from = (val & mask) << bitsOffset;
   mask = mask << bitsOffset;
-  switch(elemConst.GetType().GetPrimType()) {
-   case PTY_i64:
-     *(int64*)baseFdAddr  = ((*(int64*)baseFdAddr) & ~(mask))  | from;
-     break;
-   case PTY_i32:
-     *(int32*)baseFdAddr  = ((*(int32*)baseFdAddr) & ~(mask))  | from;
-     break;
-   case PTY_i16:
-     *(int16*)baseFdAddr  = ((*(int16*)baseFdAddr) & ~(mask))  | from;
-     break;
-   case PTY_i8:
-     *(int8*)baseFdAddr   = ((*(int8*)baseFdAddr) & ~(mask))   | from;
-     break;
-   case PTY_u64:
-     *(uint64*)baseFdAddr = ((*(uint64*)baseFdAddr) & ~(mask)) | from;
-     break;
-   case PTY_u32:
-     *(uint32*)baseFdAddr = ((*(uint32*)baseFdAddr) & ~(mask)) | from;
-     break;
-   case PTY_u16:
-     *(uint16*)baseFdAddr = ((*(uint16*)baseFdAddr) & ~(mask)) | from;
-     break;
-   case PTY_u8:
-     *(uint8*)baseFdAddr  = ((*(uint8*)baseFdAddr) & ~(mask))  | from;
-     break;
-   default:
-     MASSERT(false, "Unexpected primary type");
-     break;
+  switch (elemConst.GetType().GetPrimType()) {
+    case PTY_i64:
+      *(int64*)baseFdAddr  = ((*(int64*)baseFdAddr) & ~(mask))  | from;
+      break;
+    case PTY_i32:
+      *(int32*)baseFdAddr  = ((*(int32*)baseFdAddr) & ~(mask))  | from;
+      break;
+    case PTY_i16:
+      *(int16*)baseFdAddr  = ((*(int16*)baseFdAddr) & ~(mask))  | from;
+      break;
+    case PTY_i8:
+      *(int8*)baseFdAddr   = ((*(int8*)baseFdAddr) & ~(mask))   | from;
+      break;
+    case PTY_u64:
+      *(uint64*)baseFdAddr = ((*(uint64*)baseFdAddr) & ~(mask)) | from;
+      break;
+    case PTY_u32:
+      *(uint32*)baseFdAddr = ((*(uint32*)baseFdAddr) & ~(mask)) | from;
+      break;
+    case PTY_u16:
+      *(uint16*)baseFdAddr = ((*(uint16*)baseFdAddr) & ~(mask)) | from;
+      break;
+    case PTY_u8:
+      *(uint8*)baseFdAddr  = ((*(uint8*)baseFdAddr) & ~(mask))  | from;
+      break;
+    default:
+      MASSERT(false, "Unexpected primary type");
+      break;
   }
 }
 
@@ -340,14 +337,14 @@ void LmbcMod::InitBitFieldConst(VarInf *pInf, MIRConst &elemConst, int32 &allocd
     return;
   }
   if (forceAlign) {   // align to next boundary
-    aggrInitOffset += (allocdBits + 7) >> 3;
+    aggrInitOffset += (allocdBits + maplebe::k8ByteSize-1) >> maplebe::k8BitShift;
     forceAlign = false;
   }
   uint32 baseFdSz  = GetPrimTypeSize(elemConst.GetType().GetPrimType());
   uint32 align = allocdBits ? 1 : baseFdSz;        // align with base fd if no bits have been allocated
   uint8* baseFdAddr = GetGlobalVarInitAddr(pInf, align);
 
-  if (allocdBits + bitFdWidth > (baseFdSz * 8)) {  // alloc bits will cross align boundary of base type
+  if (allocdBits + bitFdWidth > (baseFdSz * maplebe::k8BitSize)) {  // alloc bits will cross align boundary of base type
     baseFdAddr = baseFdAddr + baseFdSz;            // inc addr & offset by size of base type
     SetBitFieldConst(baseFdAddr, baseFdSz, 0, bitFdWidth, elemConst);
     aggrInitOffset+= baseFdSz;
@@ -375,7 +372,7 @@ void LmbcMod::InitAggConst(VarInf *pInf, MIRConst &mirConst) {
     if (prevElemKind == kTypeBitField && elemType.GetKind() != kTypeBitField) {
       forceAlign = false;
       if (allocdBits) {
-        aggrInitOffset += (allocdBits + 7) >> 3; // pad preceding bit fd to byte boundary
+        aggrInitOffset += (allocdBits + maplebe::k8ByteSize-1) >> maplebe::k8BitShift; // pad preceding bit fd to byte boundary
         allocdBits = 0;
       }
     }
@@ -384,7 +381,7 @@ void LmbcMod::InitAggConst(VarInf *pInf, MIRConst &mirConst) {
     if (stType.GetKind() != kTypeArray) {
       CheckUnamedBitField(stType, prevInitFd, aggConst.GetFieldIdItem(i), allocdBits);
     }
-    switch(elemType.GetKind()) {
+    switch (elemType.GetKind()) {
       case kTypeScalar:
         InitScalarConst(pInf, elemConst);
         break;
@@ -405,7 +402,7 @@ void LmbcMod::InitAggConst(VarInf *pInf, MIRConst &mirConst) {
       default: {
         MASSERT(false, "init struct type %d NYI", elemType.GetKind());
         break;
-      }    
+      }
     }
     prevElemKind = elemType.GetKind();
   }
@@ -463,24 +460,15 @@ void LmbcMod::InitArrayConst(VarInf *pInf, MIRConst &mirConst) {
     if (IsPrimitiveVector(subTy->GetPrimType())) {
       MASSERT(false, "Unexpected primitive vector");
     } else if (IsPrimitiveScalar(elemConst->GetType().GetPrimType())) {
-      bool strLiteral = false;
-      if (arrayType.GetDim() == 1) {
-        MIRType *ety = arrayType.GetElemType();
-        if (ety->GetPrimType() == PTY_i8 || ety->GetPrimType() == PTY_u8) {
-          strLiteral = true;
-        }
-      }
       InitScalarConst(pInf, *elemConst);
     } else if (elemConst->GetType().GetKind() == kTypeArray) {
       InitArrayConst(pInf, *elemConst);
-    } else if (elemConst->GetType().GetKind() == kTypeStruct || 
+    } else if (elemConst->GetType().GetKind() == kTypeStruct ||
                elemConst->GetType().GetKind() == kTypeClass  ||
                elemConst->GetType().GetKind() == kTypeUnion) {
       InitAggConst(pInf, *elemConst);
-//  } else if (elemConst->GetKind() == kConstAddrofFunc) {
-//    InitScalarConstant(pInf, *elemConst);
     } else {
-      ASSERT(false, "should not run here");
+      MASSERT(false, "InitArrayConst unexpected error");
     }
   }
 }
@@ -496,7 +484,7 @@ void LmbcMod::InitGlobalVariable(VarInf *pInf) {
   MIRConst *mirConst = pInf->sym->GetKonst();
   uint8 *dst = GetGlobalVarInitAddr(pInf, mirConst->GetType().GetAlign());
 
-  switch(mirConst->GetKind()) {
+  switch (mirConst->GetKind()) {
     case kConstAggConst:
       aggrInitOffset = 0;
       InitAggConst(pInf, *mirConst);
@@ -524,11 +512,11 @@ void LmbcMod::InitGlobalVariable(VarInf *pInf) {
 }
 
 void LmbcMod::InitGlobalVars(void) {
-  // alloc mem for global vars 
+  // alloc mem for global vars
   this->globals = (uint8*)malloc(this->globalsSize);
   this->unInitPUStatics = (uint8*)malloc(this->unInitPUStaticsSize);
-  memset(this->globals, 0, this->globalsSize);
-  memset(this->unInitPUStatics, 0, this->unInitPUStaticsSize);
+  memset_s(this->globals, this->globalsSize, 0, this->globalsSize);
+  memset_s(this->unInitPUStatics, this->unInitPUStaticsSize, 0, this->unInitPUStaticsSize);
 
   // init global vars and static vars
   for (const auto it : globalAndStaticVars) {
@@ -544,25 +532,24 @@ inline void LmbcMod::AddGlobalVar(MIRSymbol &sym, VarInf *pInf) {
 }
 
 inline void LmbcMod::AddPUStaticVar(PUIdx puIdx, MIRSymbol &sym, VarInf *pInf) {
-  globalAndStaticVars[(uint64)puIdx << 32 | sym.GetStIdx().FullIdx()] = pInf;
+  globalAndStaticVars[((uint64)puIdx << maplebe::k32BitSize) | sym.GetStIdx().FullIdx()] = pInf;
 }
 
 // global var
 uint8 *LmbcMod::GetVarAddr(StIdx stIdx) {
   auto it = globalAndStaticVars.find(stIdx.FullIdx());
   MASSERT(it != globalAndStaticVars.end(), "global var not found");
-  return globals + it->second->storeIdx; 
+  return globals + it->second->storeIdx;
 }
 
 // PUStatic var
 uint8 *LmbcMod::GetVarAddr(PUIdx puIdx, StIdx stIdx) {
-  auto it = globalAndStaticVars.find((long)puIdx << 32 | stIdx.FullIdx());
+  auto it = globalAndStaticVars.find(((long)puIdx << maplebe::k32BitSize) | stIdx.FullIdx());
   MASSERT(it != globalAndStaticVars.end(), "PUStatic var not found");
-  return globals + it->second->storeIdx; 
+  return globals + it->second->storeIdx;
 }
 
-LmbcFunc*
-LmbcMod::LkupLmbcFunc(PUIdx puIdx) {
+LmbcFunc *LmbcMod::LkupLmbcFunc(PUIdx puIdx) {
   auto it = funcMap.find(puIdx);
   return it == funcMap.end()? nullptr: it->second;
 }

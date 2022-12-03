@@ -27,7 +27,7 @@
 namespace maple {
 
 int64 MVal2Int64(MValue &val) {
-  switch(val.ptyp) {
+  switch (val.ptyp) {
     case PTY_i64:
       return val.x.i64;
     case PTY_i32:
@@ -58,9 +58,9 @@ bool IsZero(MValue& cond) {
 }
 
 bool RegAssignZextOrSext(MValue& from, PrimType toTyp, MValue& to) {
-  switch(toTyp) {
+  switch (toTyp) {
     case PTY_u8:
-      switch(from.ptyp) {
+      switch (from.ptyp) {
         case PTY_u32: to.x.u8 = from.x.u32; break;  // special case as needed
         default: return false;
       }
@@ -129,8 +129,8 @@ bool RegAssignZextOrSext(MValue& from, PrimType toTyp, MValue& to) {
 
 MValue CvtType(MValue &opnd, PrimType toPtyp, PrimType fromPtyp) {
   MValue res;
-  int64  fromInt;
-  uint64 fromUint;
+  intptr_t fromInt;
+  uintptr_t fromUint;
   float  fromFloat;
   double fromDouble;
   bool cvtInt  = false;
@@ -141,7 +141,7 @@ MValue CvtType(MValue &opnd, PrimType toPtyp, PrimType fromPtyp) {
   if (opnd.ptyp == toPtyp) {
     return opnd;
   } 
-  switch(fromPtyp) {
+  switch (fromPtyp) {
     case PTY_i8:  fromInt  = opnd.x.i8;   cvtInt = true; break;
     case PTY_i16: fromInt  = opnd.x.i16;  cvtInt = true; break;
     case PTY_i32: fromInt  = opnd.x.i32;  cvtInt = true; break;
@@ -156,7 +156,7 @@ MValue CvtType(MValue &opnd, PrimType toPtyp, PrimType fromPtyp) {
     case PTY_f64: fromDouble= opnd.x.f64; cvtf64 = true; break;
     default: MASSERT(false, "OP_cvt from ptyp %d NYI", fromPtyp); break;
   }
-  switch(toPtyp) {
+  switch (toPtyp) {
     CASE_TOPTYP(i8,  int8)
     CASE_TOPTYP(i16, int16)
     CASE_TOPTYP(i32, int32)
@@ -198,7 +198,7 @@ inline bool CompareDouble(double x, double y, double epsilon = 0.000000000000000
 
 void HandleFloatEq(Opcode op, PrimType opndType, MValue &res, MValue &op1, MValue &op2) {
   MASSERT(opndType == op1.ptyp && op1.ptyp == op2.ptyp, "Operand type mismatch %d %d", op1.ptyp, op2.ptyp);
-  switch(op) {
+  switch (op) {
     case OP_ne:
       if (opndType == PTY_f32) {
         res.x.i64 = !CompareFloat(op1.x.f32, op2.x.f32);
@@ -232,12 +232,28 @@ void LoadArgs(MFunction& func) {
   }
 }
 
+// Handle regassign agg %%retval0
+// Return agg <= 16 bytes in %%retval0 and %%retval1
+void HandleAggrRetval(MValue &rhs, MFunction *caller) { 
+  MASSERT(rhs.aggSize <= 16, "regassign of agg >16 bytes to %%retval0");
+  uint64 retval[2] = {0, 0};
+  memcpy_s(retval, sizeof(retval), rhs.x.a64, rhs.aggSize);
+  caller->retVal0.x.u64 = retval[0];
+  caller->retVal0.ptyp  = PTY_agg;  // treat as PTY_u64 if aggSize <= 16
+  caller->retVal0.aggSize = rhs.aggSize;
+  if (rhs.aggSize > maplebe::k8ByteSize) {
+    caller->retVal1.x.u64 = retval[1];
+    caller->retVal1.ptyp  = PTY_agg;
+    caller->retVal1.aggSize= rhs.aggSize;
+  }
+}
+
 // Walk the Maple LMBC IR tree of a function and execute its statements.
 MValue InvokeFunc(LmbcFunc* fn, MFunction *caller) {
   MValue retVal;
   MValue pregs[fn->numPregs];                 // func pregs (incl. func formals that are pregs)
   MValue formalVars[fn->formalsNumVars+1];    // func formals that are named vars
-  alignas(8) uint8 frame[fn->frameSize];      // func autovars
+  alignas(maplebe::k8ByteSize) uint8 frame[fn->frameSize];      // func autovars
   MFunction mfunc(fn, caller, frame, pregs, formalVars);  // init func execution state
 
   static void* const labels[] = {
@@ -249,8 +265,9 @@ MValue InvokeFunc(LmbcFunc* fn, MFunction *caller) {
   };
 
   LoadArgs(mfunc);
-  mfunc.allocaMem = static_cast<uint8*>(alloca(ALLOCA_MEMMAX));
-  //memset(mfunc.allocaMem, 0, ALLOCA_MEMMAX);  // for debug only
+  uint8 buf[ALLOCA_MEMMAX];
+  mfunc.allocaMem = buf;
+//  mfunc.allocaMem = static_cast<uint8*>(alloca(ALLOCA_MEMMAX));
   StmtNode *stmt = mfunc.nextStmt;
   goto *(labels[stmt->op]);
 
@@ -302,19 +319,7 @@ label_OP_regassign:
         if (node->ptyp != PTY_agg) {
           caller->retVal0 = rhs;
         } else {
-          // handle regassign agg %%retval0
-          // - return agg <= 16 bytes in %retval0 and %retval1 as type PTY_u64
-          MASSERT(rhs.aggSize <= 16, "regassign of agg >16 bytes to %%retval0");
-          uint64 retval[2] = {0, 0};
-          memcpy(retval, rhs.x.a64, rhs.aggSize);
-          caller->retVal0.x.u64 = retval[0];
-          caller->retVal0.ptyp  = PTY_agg;  // treat as PTY_u64 if aggSize <= 16
-          caller->retVal0.aggSize = rhs.aggSize;
-          if (rhs.aggSize > 8) {
-            caller->retVal1.x.u64 = retval[1];
-            caller->retVal1.ptyp  = PTY_agg;
-            caller->retVal1.aggSize= rhs.aggSize;
-          }
+          HandleAggrRetval(rhs, caller);
         }
       } else {
         MASSERT(regIdx < fn->numPregs, "regassign regIdx %d out of bound", regIdx);
@@ -336,7 +341,6 @@ label_OP_regassign:
           mfunc.pRegs[regIdx] = rhs;
           mfunc.pRegs[regIdx].ptyp = node->ptyp;
         } else {
-          // MASSERT(false, "regassign type mismatch: %d and %d", node->ptyp, rhs.ptyp);
           mfunc.pRegs[regIdx] = CvtType(rhs, node->ptyp, rhs.ptyp);
         }
       }
@@ -388,12 +392,11 @@ label_OP_iassignoff:
 label_OP_blkassignoff:
   {
     BlkassignoffNode* node = static_cast<BlkassignoffNode*>(stmt);
-    //uint32 align = node->GetAlign();
     int32 dstOffset = node->offset;
     int32 blkSize = node->blockSize;
     MValue dstAddr = EvalExpr(mfunc, node->Opnd(0));
     MValue srcAddr = EvalExpr(mfunc, node->Opnd(1));
-    memcpy(dstAddr.x.a64 + dstOffset, srcAddr.x.a64, blkSize);
+    memcpy_s(dstAddr.x.a64 + dstOffset, blkSize, srcAddr.x.a64, blkSize);
   }
   stmt = stmt->GetNext();
   mfunc.nextStmt = stmt;
@@ -640,7 +643,7 @@ label_OP_constval:
      int64  constInt = 0;
      float  constFloat = 0;
      double constDouble = 0;
-     switch(constval->GetKind()) {
+     switch (constval->GetKind()) {
        case kConstInt:
          constInt = static_cast<MIRIntConst *>(constval)->GetExtValue();
          break;
@@ -655,7 +658,7 @@ label_OP_constval:
          break;
      }
      PrimType ptyp = expr->ptyp;
-     switch(ptyp) {
+     switch (ptyp) {
        case PTY_i8:
        case PTY_i16:
        case PTY_i32:
@@ -694,7 +697,7 @@ label_OP_add:
   {
     MValue op0 = EvalExpr(func, expr->Opnd(0));
     MValue op1 = EvalExpr(func, expr->Opnd(1));
-    switch(expr->ptyp) {
+    switch (expr->ptyp) {
         case PTY_i8:  res.x.i8  = op0.x.i8  + op1.x.i8;  break;
         case PTY_i16: res.x.i16 = op0.x.i16 + op1.x.i16; break;
         case PTY_i32: res.x.i32 = (int64)op0.x.i32 + (int64)op1.x.i32; break;
@@ -709,7 +712,6 @@ label_OP_add:
         default: MIR_FATAL("Unsupported PrimType %d for binary operator %s", expr->ptyp, "+");
     }
     res.ptyp = expr->ptyp;
-//  EXPRBINOP(+, res, opnd0, opnd1, expr->ptyp);
     goto _exit;
   }
 label_OP_sub:
@@ -736,7 +738,7 @@ label_OP_div:
 label_OP_regread:
   {
     PregIdx regIdx = static_cast<RegreadNode*>(expr)->GetRegIdx();
-    switch(regIdx) {
+    switch (regIdx) {
       case -(kSregFp):
         MASSERT(expr->ptyp == PTY_a64, "regread %%FP with wrong ptyp %d", expr->ptyp);
         res.x.a64 = func.fp;
@@ -762,7 +764,6 @@ label_OP_regread:
         break;
       default:
         MASSERT(regIdx < func.info->numPregs, "regread regIdx %d out of bound", regIdx);
-        // MASSERT(expr->ptyp == func.pRegs[regIdx].ptyp, "regread primtype mismatch: %d and %d", expr->ptyp, func.pRegs[regIdx].ptyp);
         res = func.pRegs[regIdx];
         break;
     }
@@ -796,7 +797,7 @@ label_OP_ireadfpoff:
     if (func.nextStmt->op == OP_call) { // caller
       // check if calling external func:
       MASSERT(func.aggrArgsBuf != nullptr, "aggrArgsBuf is null");
-      memcpy(func.aggrArgsBuf+parm->storeIdx, func.fp+offset, parm->size);
+      memcpy_s(func.aggrArgsBuf+parm->storeIdx, parm->size, func.fp+offset, parm->size);
       mload(func.aggrArgsBuf+parm->storeIdx, expr->ptyp, res, parm->size);
     } else {          // callee
       mload(func.fp+offset, expr->ptyp, res, func.info->retSize);
@@ -814,7 +815,7 @@ label_OP_ireadoff:
       MASSERT(rhs.ptyp == PTY_a64, "ireadoff agg RHS not PTY_agg");
       if (func.nextStmt->op == OP_call) {
         MASSERT(func.aggrArgsBuf != nullptr, "aggrArgsBuf is null");
-        memcpy(func.aggrArgsBuf+parm->storeIdx, rhs.x.a64 + offset, parm->size);
+        memcpy_s(func.aggrArgsBuf+parm->storeIdx, parm->size, rhs.x.a64 + offset, parm->size);
         mload(func.aggrArgsBuf+parm->storeIdx, expr->ptyp, res, parm->size);
       } else {
         MASSERT(func.nextStmt->op == OP_regassign, "ireadoff agg not used as regassign agg opnd");
@@ -832,7 +833,7 @@ label_OP_iread:
     MASSERT(func.nextStmt->op == OP_call && expr->ptyp == PTY_agg, "iread unexpected outside call");
     MValue addr = EvalExpr(func, expr->Opnd(0));
     MASSERT(func.aggrArgsBuf != nullptr, "aggrArgsBuf is null");
-    memcpy(func.aggrArgsBuf+parm->storeIdx, addr.x.a64, parm->size);
+    memcpy_s(func.aggrArgsBuf+parm->storeIdx, parm->size, addr.x.a64, parm->size);
     mload(func.aggrArgsBuf+parm->storeIdx, expr->ptyp, res, parm->size);
     goto _exit;
   }
@@ -959,10 +960,9 @@ label_OP_lnot:
 label_OP_neg:
   {
     MValue opnd0 = EvalExpr(func, expr->Opnd(0));
-    switch(expr->ptyp) {
+    switch (expr->ptyp) {
       case PTY_i8:  res.x.i8  = -opnd0.x.i8;  break;
       case PTY_i16: res.x.i16 = -opnd0.x.i16; break;
-      //case PTY_i32: res.x.i32 = -opnd0.x.i32; break;
       case PTY_i32: res.x.i32 = ~(uint32)opnd0.x.i32+1; break;
       case PTY_i64: res.x.i64 = -opnd0.x.i64; break;
       case PTY_u8:  res.x.u8  = -opnd0.x.u8;  break;
@@ -974,15 +974,12 @@ label_OP_neg:
       default: MIR_FATAL("Unsupported PrimType %d for unary operator %s", expr->ptyp, "OP_neg");
     }
     res.ptyp = expr->ptyp;
-#if 0
-    EXPRUNROP(-, res, opnd0, expr->ptyp);
-#endif
     goto _exit;
   }
 label_OP_abs:
   {
     MValue op0 = EvalExpr(func, expr->Opnd(0));
-    switch(expr->ptyp) {
+    switch (expr->ptyp) {
       // abs operand must be signed
       case PTY_i8:  res.x.i8  = abs(op0.x.i8);  break;
       case PTY_i16: res.x.i16 = abs(op0.x.i16); break;
@@ -1040,7 +1037,7 @@ label_OP_addrofoff:
     } else {
       MASSERT(stidx.IsGlobal(), "addrofoff: symbol neither local nor global");
       MIRSymbol* var = GlobalTables::GetGsymTable().GetSymbolFromStidx(stidx.Idx());
-      switch(var->GetStorageClass()) {
+      switch (var->GetStorageClass()) {
         case kScExtern:
           addr = (uint8 *)(func.info->lmbcMod->FindExtSym(stidx));
           break;
@@ -1092,9 +1089,9 @@ label_OP_sext:
     uint8 bOffset = ext->GetBitsOffset();
     uint8 bSize   = ext->GetBitsSize();
     MASSERT(bOffset == 0, "sext unexpected offset");
-    uint64 mask = bSize < 64 ? (1ull << bSize) - 1 : ~0ull;
+    uint64 mask = bSize < k64BitSize ? (1ull << bSize) - 1 : ~0ull;
     res = EvalExpr(func, expr->Opnd(0));
-    res.x.i64 = ((uint64)res.x.i64 >> (bSize - 1) & 1ull) ? res.x.i64 | ~mask : res.x.i64 & mask;
+    res.x.i64 = (((uint64)res.x.i64 >> (bSize - 1)) & 1ull) ? res.x.i64 | ~mask : res.x.i64 & mask;
     res.ptyp = expr->ptyp;
     goto _exit;
   }
@@ -1104,7 +1101,7 @@ label_OP_zext:
     uint8 bOffset = ext->GetBitsOffset();
     uint8 bSize   = ext->GetBitsSize();
     MASSERT(bOffset == 0, "zext unexpected offset");
-    uint64 mask = bSize < 64 ? (1ull << bSize) - 1 : ~0ull;
+    uint64 mask = bSize < k64BitSize ? (1ull << bSize) - 1 : ~0ull;
     res = EvalExpr(func, expr->Opnd(0));
     res.x.i64 &= mask;
     res.ptyp = expr->ptyp;
@@ -1120,7 +1117,7 @@ label_OP_extractbits:
     res.x.i64 = (uint64)(res.x.i64 & mask) >> bOffset;
     if (IsSignedInteger(expr->ptyp)) {
       mask = (1ull << bSize) - 1;
-      res.x.i64 = ((uint64)res.x.i64 >> (bSize - 1) & 1ull) ? res.x.i64 | ~mask : res.x.i64 & mask;
+      res.x.i64 = (((uint64)res.x.i64 >> (bSize - 1)) & 1ull) ? res.x.i64 | ~mask : res.x.i64 & mask;
     }
     res.ptyp = expr->ptyp;
     goto _exit;
@@ -1142,8 +1139,7 @@ label_OP_intrinsicop:
     auto *intrnop = static_cast<IntrinsicopNode*>(expr);
     MValue op0 = EvalExpr(func, expr->Opnd(0));
     res.ptyp = expr->ptyp;
-    // MASSERT(expr->ptyp == op0.ptyp, "intrinsicop type mismatch %d and %d", expr->ptyp, op0.ptyp);
-    switch(intrnop->GetIntrinsic()) {
+    switch (intrnop->GetIntrinsic()) {
       case INTRN_C_sin:
         if (expr->ptyp == PTY_f32) {
           res.x.f32 = sin(op0.x.f32);
