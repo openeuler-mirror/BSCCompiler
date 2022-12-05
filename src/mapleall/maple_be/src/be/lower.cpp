@@ -83,6 +83,8 @@ const std::string kOpAssertlt = "OP_assertlt";
 const std::string kOpCallAssertle = "OP_callassertle";
 const std::string kOpReturnAssertle = "OP_returnassertle";
 const std::string kOpAssignAssertle = "OP_assignassertle";
+const std::string kOpCalcAssertge = "OP_calcassertge";
+const std::string kOpCalcAssertlt = "OP_calcassertlt";
 const std::string kFileSymbolNamePrefix = "symname";
 }
 
@@ -1356,7 +1358,7 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
       if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
         BlockNode *blkLowered = LowerMemop(stmt);
         if (blkLowered != nullptr) {
-          return blkLowered;
+          return LowerBlock(*blkLowered);
         }
       }
       auto &origCall = static_cast<CallNode&>(stmt);
@@ -1749,6 +1751,18 @@ bool CGLowerer::IsSwitchToRangeGoto(const BlockNode &blk) const {
   return false;
 }
 
+StmtNode *CGLowerer::CreateFflushStmt(StmtNode &stmt) {
+  MIRFunction *fflush = mirBuilder->GetOrCreateFunction("fflush", TyIdx(PTY_i32));
+  fflush->GetFuncSymbol()->SetAppearsInCode(true);
+  MapleVector<BaseNode*> argsFflush(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+  auto *u64Type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u64));
+  auto *stdoutSym = mirBuilder->GetOrCreateGlobalDecl("stdout", *u64Type);
+  argsFflush.push_back(mirBuilder->CreateExprDread(*stdoutSym));
+  StmtNode *callFflush = mirBuilder->CreateStmtCall(fflush->GetPuidx(), argsFflush);
+  callFflush->SetSrcPos(stmt.GetSrcPos());
+  return callFflush;
+}
+
 void CGLowerer::SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode *> &argsPrintf) {
   MIRSymbol *errMsg;
   MIRSymbol *fileNameSym;
@@ -1760,8 +1774,13 @@ void CGLowerer::SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode *> &ar
       AssertBoundaryGetFileName(stmt));
   lineNum = mirBuilder->CreateIntConst(stmt.GetSrcPos().LineNum(), PTY_u32);
   if (kOpcodeInfo.IsAssertLowerBoundary(stmt.GetOpCode())) {
-    errMsg = mirBuilder->CreateConstStringSymbol(kOpAssertge,
-        "%s:%d error: the pointer < the lower bounds when accessing the memory!\n");
+    if (stmt.GetOpCode() == OP_assertge) {
+      errMsg = mirBuilder->CreateConstStringSymbol(kOpAssertge,
+          "%s:%d error: the pointer < the lower bounds when accessing the memory!\n");
+    } else {
+      errMsg = mirBuilder->CreateConstStringSymbol(kOpCalcAssertge,
+          "%s:%d error: the offset < lower bounds after pointer arithmetic!\n");
+    }
     AddElemToPrintf(argsPrintf, otherElemNum, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
                     mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum);
   } else {
@@ -1798,8 +1817,13 @@ void CGLowerer::SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode *> &ar
                         mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum);
       }
     } else {
-      errMsg = mirBuilder->CreateConstStringSymbol(kOpAssertlt,
-          "%s:%d error: the pointer >= the upper bounds when accessing the memory!\n");
+      if (stmt.GetOpCode() == OP_assertlt) {
+        errMsg = mirBuilder->CreateConstStringSymbol(kOpAssertlt,
+            "%s:%d error: the pointer >= the upper bounds when accessing the memory!\n");
+      } else {
+        errMsg = mirBuilder->CreateConstStringSymbol(kOpCalcAssertlt,
+            "%s:%d error: the offset >= the upper bounds after pointer arithmetic!\n");
+      }
       AddElemToPrintf(argsPrintf, otherElemNum, mirBuilder->CreateAddrof(*errMsg, PTY_a64),
                       mirBuilder->CreateAddrof(*fileNameSym, PTY_a64), lineNum);
     }
@@ -1843,6 +1867,10 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   newBlk.AddStatement(brFalseNode);
   abortNode.emplace_back(labelBC);
   abortNode.emplace_back(callPrintf);
+  if (opts::enableCallFflush) {
+    StmtNode *callFflush = CreateFflushStmt(stmt);
+    abortNode.emplace_back(callFflush);
+  }
   abortNode.emplace_back(abortModeNode);
 }
 

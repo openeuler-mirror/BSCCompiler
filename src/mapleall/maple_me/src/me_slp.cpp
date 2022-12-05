@@ -2217,8 +2217,8 @@ class SLPVectorizer {
 void SLPVectorizer::Run() {
   SLP_DEBUG(os << "Before processing func " << func.GetName() << std::endl);
   const auto &rpo = dom.GetReversePostOrder();
-  for (BB *bb : rpo) {
-    ProcessBB(*bb);
+  for (auto *bb : rpo) {
+    ProcessBB(*func.GetCfg()->GetBBFromID(BBId(bb->GetID())));
   }
   if (localSymOffsetTab != nullptr) {
     delete localSymOffsetTab;
@@ -2497,6 +2497,32 @@ void SLPVectorizer::CodeMotionVectorize() {
   }
 }
 
+static MeStmt *TryReuseRepeatedOutStmts(const std::vector<MeStmt*> &existingNewStmts,
+    const std::vector<MeStmt*> &newStmts, IRMap &irMap) {
+  if (existingNewStmts.size() != 1 || newStmts.size() != 1) {
+    return nullptr;
+  }
+  auto *existingStmt = existingNewStmts[0];
+  auto *repeatedStmt = newStmts[0];
+  if (existingStmt->GetOp() != OP_regassign || repeatedStmt->GetOp() != OP_regassign) {
+    return nullptr;
+  }
+  CHECK_FATAL(existingStmt->GetRHS() == repeatedStmt->GetRHS(), "expect same rhs");
+  auto *reuseStmt =
+      irMap.CreateAssignMeStmt(*repeatedStmt->GetLHS(), *existingStmt->GetLHS(), *existingStmt->GetBB());
+  return reuseStmt;
+}
+
+static void HandleRepeatedOutStmts(std::vector<MeStmt*> &existingNewStmts,
+    std::vector<MeStmt*> &newStmts, IRMap &irMap) {
+  auto *reuseStmt = TryReuseRepeatedOutStmts(existingNewStmts, newStmts, irMap);
+  if (reuseStmt != nullptr) {
+    existingNewStmts.push_back(reuseStmt);
+  } else {
+    existingNewStmts.insert(existingNewStmts.end(), newStmts.begin(), newStmts.end());
+  }
+}
+
 // The output newStmtList must have no repeated elements
 void SLPVectorizer::ReplaceStmts(const std::vector<MeStmt*> &origStmtVec, std::list<MeStmt*> &newStmtList) {
   bool keepStmtsExceptIassign = true;
@@ -2529,7 +2555,12 @@ void SLPVectorizer::ReplaceStmts(const std::vector<MeStmt*> &origStmtVec, std::l
     newStmts.insert(newStmts.end(), treeNode->GetOutStmts().begin(), treeNode->GetOutStmts().end());
     if (pos != 0 && !newStmts.empty()) {
       insertPositions.insert(pos);
-      pos2newStmts.emplace(pos, newStmts);
+      auto ret = pos2newStmts.try_emplace(pos, newStmts);
+      if (!ret.second) {
+        // insert failure, indicating there are same treeNodes
+        auto &existingNewStmts = ret.first->second;
+        HandleRepeatedOutStmts(existingNewStmts, newStmts, irMap);
+      }
     }
   }
 
@@ -2641,6 +2672,16 @@ void SLPVectorizer::AddSeedStore(MeStmt *stmt, MemLoc *memLoc) {
   }
 }
 
+static bool CanSlpForStoreType(PrimType type) {
+  if (PrimitiveType(type).IsVector()) {
+    return false;
+  }
+  if (type == PTY_agg || type == PTY_u1) {
+    return false;
+  }
+  return true;
+}
+
 // Currently we only collect store, it may be enhanced in the future.
 void SLPVectorizer::CollectSeedStmts() {
   // Clear old seed stmts first
@@ -2652,9 +2693,9 @@ void SLPVectorizer::CollectSeedStmts() {
     if (stmt->GetOp() == OP_iassign) {
       auto *lhsIvar = static_cast<IassignMeStmt*>(stmt)->GetLHSVal();
       auto *lhsIvarType = lhsIvar->GetType();
-      // Skip volatile store, vector store, agg store, bitfield store
-      if (lhsIvar->IsVolatile() || PrimitiveType(lhsIvarType->GetPrimType()).IsVector() ||
-          lhsIvar->GetPrimType() == PTY_agg || lhsIvarType->GetKind() == kTypeBitField) {
+      // Skip volatile store, vector store, agg store, u1 store, bitfield store
+      if (lhsIvar->IsVolatile() || !CanSlpForStoreType(lhsIvar->GetPrimType()) ||
+          lhsIvarType->GetKind() == kTypeBitField) {
         stmt = next;
         continue;
       }
@@ -2662,8 +2703,7 @@ void SLPVectorizer::CollectSeedStmts() {
       AddSeedStore(stmt, memLoc);
     } else if (stmt->GetOp() == OP_dassign) {
       auto *lhs = static_cast<DassignMeStmt*>(stmt)->GetLHS();
-      if (lhs->GetOp() != OP_dread || lhs->IsVolatile() || PrimitiveType(lhs->GetPrimType()).IsVector() ||
-          lhs->GetPrimType() == PTY_agg) {
+      if (lhs->GetOp() != OP_dread || lhs->IsVolatile() || !CanSlpForStoreType(lhs->GetPrimType())) {
         stmt = next;
         continue;
       }
@@ -3399,7 +3439,7 @@ void MESLPVectorizer::GetAnalysisDependence(AnalysisDep &aDep) const {
 }
 
 bool MESLPVectorizer::PhaseRun(MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   CHECK_NULL_FATAL(dom);
   MemPool *memPool = GetPhaseMemPool();
   bool debug = DEBUGFUNC_NEWPM(f);
