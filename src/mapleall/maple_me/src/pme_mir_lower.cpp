@@ -263,7 +263,7 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     labstmt->SetSrcPos(pos);
     blk->AddStatement(labstmt);
     if (GetFuncProfData()) {
-       GetFuncProfData()->CopyStmtFreq(labstmt->GetStmtID(), ifstmt.GetElsePart()->GetStmtID());
+      GetFuncProfData()->CopyStmtFreq(labstmt->GetStmtID(), ifstmt.GetElsePart()->GetStmtID());
     }
     if (!elseempty) {
       blk->AppendStatementsFromBlock(*ifstmt.GetElsePart());
