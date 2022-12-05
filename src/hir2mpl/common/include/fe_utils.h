@@ -362,10 +362,14 @@ class AstLoopUtil {
   std::string GetCurrentBreak();
   void PopCurrentBreak();
   bool IsBreakLabelsEmpty() const;
+  bool IsNestContinueLabelsEmpty() const;
   void PushContinue(std::string label);
+  void PushNestContinue(std::string label);
   std::string GetCurrentContinue();
+  std::string GetNestContinue();
   bool IsContinueLabelsEmpty() const;
   void PopCurrentContinue();
+  void PopNestContinue();
 
   bool IsCurrentBreakLabelUsed() {
     return breakLabels.top().second;
@@ -375,10 +379,14 @@ class AstLoopUtil {
     return continueLabels.top().second;
   }
 
+  bool IsNestContinueLabelUsed() {
+    return nestContinueLabels.top().second;
+  }
  private:
   AstLoopUtil() = default;
   std::stack<std::pair<std::string, bool>> breakLabels = std::stack<std::pair<std::string, bool>>();
   std::stack<std::pair<std::string, bool>> continueLabels = std::stack<std::pair<std::string, bool>>();
+  std::stack<std::pair<std::string, bool>> nestContinueLabels = std::stack<std::pair<std::string, bool>>();
 };
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_FE_UTILS_H

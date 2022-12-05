@@ -233,6 +233,7 @@ class ASTParser {
   uint32_t GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind) const;
   ASTExpr *BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
+  bool CheckIncContinueStmtExpr(const clang::Stmt &bodyStmt) const;
   void CheckVarNameValid(std::string varName);
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
                                                    std::stringstream &ss) const;

@@ -198,12 +198,17 @@ std::list<UniqueFEIRStmt> ASTWhileStmt::Emit2FEStmtImpl() const {
   if (!hasEmitted2MIRScope) {
     feFunction.PushStmtScope(true);
   }
+  if (!AstLoopUtil::Instance().IsCurrentContinueLabelUsed() && hasNestContinueLabel) {
+    AstLoopUtil::Instance().PushNestContinue(loopBodyEndLabelName);
+  }
   std::list<UniqueFEIRStmt> bodyFEStmts = bodyStmt->Emit2FEStmt();
   std::list<UniqueFEIRStmt> condStmts;
   std::list<UniqueFEIRStmt> condPreStmts;
   UniqueFEIRExpr condFEExpr = condExpr->Emit2FEExpr(condStmts);
   (void)condExpr->Emit2FEExpr(condPreStmts);
   if (AstLoopUtil::Instance().IsCurrentContinueLabelUsed()) {
+    bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
+  } else if (hasNestContinueLabel) {
     bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
   }
   bodyFEStmts.splice(bodyFEStmts.end(), condPreStmts);
@@ -217,6 +222,9 @@ std::list<UniqueFEIRStmt> ASTWhileStmt::Emit2FEStmtImpl() const {
   }
   AstLoopUtil::Instance().PopCurrentBreak();
   AstLoopUtil::Instance().PopCurrentContinue();
+  if (hasNestContinueLabel) {
+    AstLoopUtil::Instance().PopNestContinue();
+  }
   if (!hasEmitted2MIRScope) {
     (void)feFunction.PopTopScope();
     hasEmitted2MIRScope = true;
@@ -298,6 +306,9 @@ std::list<UniqueFEIRStmt> ASTLabelStmt::Emit2FEStmtImpl() const {
 
 std::list<UniqueFEIRStmt> ASTContinueStmt::Emit2FEStmtImpl() const {
   std::string continueName = AstLoopUtil::Instance().GetCurrentContinue();
+  if (!AstLoopUtil::Instance().IsNestContinueLabelsEmpty() && !AstLoopUtil::Instance().IsNestContinueLabelUsed()) {
+    continueName = AstLoopUtil::Instance().GetNestContinue();
+  }
   std::string vlaLabelName = FEIRBuilder::EmitVLACleanupStmts(FEManager::GetCurrentFEFunction(), continueName, loc);
   if (!vlaLabelName.empty()) {
     continueName = vlaLabelName;

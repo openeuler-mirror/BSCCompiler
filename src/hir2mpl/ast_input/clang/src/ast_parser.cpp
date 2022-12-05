@@ -325,6 +325,27 @@ ASTStmt *ASTParser::ProcessStmtCStyleCastExpr(MapleAllocator &allocator, const c
   return astCStyleCastExprStmt;
 }
 
+bool ASTParser::CheckIncContinueStmtExpr(const clang::Stmt &bodyStmt) const {
+  bool hasNestContinueLabel = false;
+  if (bodyStmt.getStmtClass() == clang::Stmt::ForStmtClass) {
+    const auto *subExpr = llvm::cast<const clang::ForStmt>(bodyStmt).getInc();
+    if (subExpr == nullptr || subExpr->getStmtClass() != clang::Expr::StmtExprClass) {
+      return hasNestContinueLabel;
+    }
+    const auto *subStmtExpr = llvm::cast<const clang::StmtExpr>(subExpr);
+    const clang::CompoundStmt *cpdStmt = llvm::dyn_cast<const clang::CompoundStmt>(subStmtExpr->getSubStmt());
+    clang::CompoundStmt::const_body_iterator it;
+    for (it = cpdStmt->body_begin(); it != cpdStmt->body_end(); ++it) {
+      const auto *subStmt = llvm::dyn_cast<const clang::Stmt>(*it);
+      if (subStmt->getStmtClass() == clang::Stmt::ContinueStmtClass) {
+        hasNestContinueLabel = true;
+        break;
+      }
+    }
+  }
+  return hasNestContinueLabel;
+}
+
 ASTStmt *ASTParser::ProcessStmtStmtExpr(MapleAllocator &allocator, const clang::StmtExpr &stmtExpr) {
   ASTStmtExprStmt *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTStmtExprStmt>(allocator);
   const clang::CompoundStmt *cpdStmt = stmtExpr.getSubStmt();
@@ -446,6 +467,22 @@ ASTStmt *ASTParser::ProcessStmtWhileStmt(MapleAllocator &allocator, const clang:
     return nullptr;
   }
   astStmt->SetCondExpr(condExpr);
+  const clang::CompoundStmt *cpdStmt = llvm::dyn_cast<const clang::CompoundStmt>(whileStmt.getBody());
+  if (cpdStmt != nullptr) {
+    clang::CompoundStmt::const_body_iterator it;
+    for (it = cpdStmt->body_begin(); it != cpdStmt->body_end(); ++it) {
+      const auto *subStmt = llvm::dyn_cast<const clang::Stmt>(*it);
+      if (CheckIncContinueStmtExpr(*subStmt)) {
+        astStmt->SetNestContinueLabel(true);
+        break;
+      }
+    }
+  } else {
+    const auto *subStmt = whileStmt.getBody();
+    if (CheckIncContinueStmtExpr(*subStmt)) {
+      astStmt->SetNestContinueLabel(true);
+    }
+  }
   ASTStmt *bodyStmt = ProcessStmt(allocator, *whileStmt.getBody());
   astStmt->SetBodyStmt(bodyStmt);
   return astStmt;

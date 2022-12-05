@@ -596,6 +596,10 @@ bool AstLoopUtil::IsBreakLabelsEmpty() const {
   return breakLabels.empty();
 }
 
+bool AstLoopUtil::IsNestContinueLabelsEmpty() const {
+  return nestContinueLabels.empty();
+}
+
 void AstLoopUtil::PopCurrentBreak() {
   breakLabels.pop();
 }
@@ -604,9 +608,18 @@ void AstLoopUtil::PushContinue(std::string label) {
   continueLabels.push(std::make_pair(label, false));
 }
 
+void AstLoopUtil::PushNestContinue(std::string label) {
+  nestContinueLabels.push(std::make_pair(label, false));
+}
+
 std::string AstLoopUtil::GetCurrentContinue() {
   continueLabels.top().second = true;
   return continueLabels.top().first;
+}
+
+std::string AstLoopUtil::GetNestContinue() {
+  nestContinueLabels.top().second = true;
+  return nestContinueLabels.top().first;
 }
 
 bool AstLoopUtil::IsContinueLabelsEmpty() const {
@@ -615,5 +628,9 @@ bool AstLoopUtil::IsContinueLabelsEmpty() const {
 
 void AstLoopUtil::PopCurrentContinue() {
   continueLabels.pop();
+}
+
+void AstLoopUtil::PopNestContinue() {
+  nestContinueLabels.pop();
 }
 }  // namespace maple

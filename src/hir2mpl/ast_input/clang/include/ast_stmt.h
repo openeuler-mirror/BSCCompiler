@@ -210,10 +210,15 @@ class ASTWhileStmt : public ASTStmt {
     bodyStmt = astStmt;
   }
 
+  void SetNestContinueLabel(bool isContinueLabel) {
+    hasNestContinueLabel = isContinueLabel;
+  }
+
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
   ASTExpr *condExpr = nullptr;
   ASTStmt *bodyStmt = nullptr;
+  bool hasNestContinueLabel = false;
   mutable bool hasEmitted2MIRScope = false;
 };
 
