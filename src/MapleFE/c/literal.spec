@@ -11,108 +11,172 @@
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
 # FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+#
+# A literal is the source code representation of a value of a primitive type, the
+# String type, or the null type.
+#
+# NOTE : Make sure there is a 'rule Literal'. This is the official rule recognized
+#       by autogen.
 
-#########################################################################
-##                          Integer                                    ##
-#########################################################################
+# based on C11 specification A.1 Lexical grammar
 
-### Decimal rules
+rule UniversalCharacterName : ONEOF(
+  '\' + 'u' + HexQuad
+  '\' + 'U' + HexQuad + HexQuad)
 
-rule NonZeroDigit   : ONEOF('1', '2', '3', '4', '5', '6', '7', '8', '9')
-rule Digit          : ONEOF('0', NonZeroDigit)
-rule DecimalNumeral : ONEOF('0', NonZeroDigit + ZEROORONE(Digit))
+rule HexQuad : ONEOF(
+   HexadecimalDigit + HexadecimalDigit + HexadecimalDigit + HexadecimalDigit)
 
-### Hexadecimal rules
+rule Constant : ONEOF(
+   IntegerConstant
+   FloatingConstant
+   EnumerationConstant
+   CharacterConstant)
 
-rule HexDigit   : ONEOF('0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-                        'a', 'b', 'c', 'd', 'e', 'f',
-                        'A', 'B', 'C', 'D', 'E', 'F')
-rule HexNumeral : ONEOF("0x" + HexDigit, "0X" + HexDigit)
+rule IntegerConstant : ONEOF(
+   DecimalConstant + ZEROORONE(IntegerSuffix)
+   OctalConstant + ZEROORONE(IntegerSuffix)
+   HexadecimalConstant + ZEROORONE(IntegerSuffix))
 
-### Octal rules
+rule DecimalConstant : ONEOF(
+   NonzeroDigit
+   DecimalConstant + Digit)
 
-rule OctalDigit   : ONEOF('0', '1', '2', '3', '4', '5', '6', '7')
-rule OctalNumeral : ONEOF('0' + OctalDigit)
+rule OctalConstant : ONEOF(
+  '0'
+   OctalConstant + OctalDigit)
 
-rule IntegerTypeSuffix : ONEOF('L', 'l')
-rule DecimalIntegerLiteral: DecimalNumeral + ZEROORONE(IntegerTypeSuffix)
-rule HexIntegerLiteral    : HexNumeral + ZEROORONE(IntegerTypeSuffix)
-rule OctalIntegerLiteral  : OctalNumeral + ZEROORONE(IntegerTypeSuffix)
+rule HexadecimalConstant : ONEOF(
+   HexadecimalPrefix + HexadecimalDigit
+   HexadecimalConstant + HexadecimalDigit)
 
-rule IntegerLiteral: ONEOF(DecimalIntegerLiteral,
-                           HexIntegerLiteral,
-                           OctalIntegerLiteral)
+rule HexadecimalPrefix : ONEOF("0x", "0X")
 
-#########################################################################
-##                       Floating Point                                ##
-#########################################################################
+rule NonzeroDigit : ONEOF('1', '2', '3', '4', '5', '6', '7', '8', '9')
 
-##### Decimal floating point literal
+rule OctalDigit : ONEOF('0', '1', '2', '3', '4', '5', '6', '7')
+
+rule HexadecimalDigit : ONEOF('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F')
+
+rule IntegerSuffix : ONEOF(
+   UnsignedSuffix + ZEROORONE(LongSuffix)
+   UnsignedSuffix + LongLongSuffix
+   LongSuffix + ZEROORONE(UnsignedSuffix)
+   LongLongSuffix + ZEROORONE(UnsignedSuffix))
+
+rule UnsignedSuffix : ONEOF('u', 'U')
+
+rule LongSuffix : ONEOF('l', 'L')
+
+rule LongLongSuffix : ONEOF("ll", "LL")
+
+rule FloatingConstant : ONEOF(
+   DecimalFloatingConstant
+   HexadecimalFloatingConstant)
+
+rule DecimalFloatingConstant : ONEOF(
+   FractionalConstant + ZEROORONE(ExponentPart) + ZEROORONE(FloatingSuffix)
+   DigitSequence + ExponentPart + ZEROORONE(FloatingSuffix))
+
+rule HexadecimalFloatingConstant : ONEOF(
+   HexadecimalPrefix + HexadecimalFractionalConstant
+   BinaryExponentPart + ZEROORONE(FloatingSuffix)
+   HexadecimalPrefix + HexadecimalDigitSequence
+   BinaryExponentPart + ZEROORONE(FloatingSuffix))
+
+rule FractionalConstant : ONEOF(
+  ZEROORONE(DigitSequence) + '.' + DigitSequence
+   DigitSequence '.')
+
+rule ExponentPart : ONEOF(
+  'e' + ZEROORONE(Sign) + DigitSequence
+  'E' + ZEROORONE(Sign) + DigitSequence)
 
 rule Sign : ONEOF('+', '-')
-rule FloatTypeSuffix : ONEOF('f', 'F')
-rule ExponentIndicator : ONEOF('e', 'E')
-rule SignedInteger : ZEROORONE(Sign) + Digit
-rule ExponentPart : ExponentIndicator + SignedInteger
 
-rule DecFPLiteral : ONEOF(Digit + '.' + ZEROORONE(Digit) + ZEROORONE(ExponentPart) + ZEROORONE(FloatTypeSuffix),
-                    '.'+Digit + ZEROORONE(ExponentPart) + ZEROORONE(FloatTypeSuffix),
-                    Digit + ExponentPart + ZEROORONE(FloatTypeSuffix),
-                    Digit + ZEROORONE(ExponentPart))
+rule DigitSequence : ONEOF(
+   Digit
+   DigitSequence + Digit)
 
-####### Hex floating point literal
+rule HexadecimalFractionalConstant : ONEOF(
+  ZEROORONE(HexadecimalDigitSequence) '.'
+   HexadecimalDigitSequence
+   HexadecimalDigitSequence '.')
 
-rule BinaryExponentIndicator : ONEOF('p', 'P')
-rule BinaryExponent : BinaryExponentIndicator + SignedInteger
-rule HexSignificand : ONEOF(HexNumeral + ZEROORONE('.'),
-                            "0x" + ZEROORONE(HexDigit) + '.' + HexDigit,
-                            "0X" + ZEROORONE(HexDigit) + '.' + HexDigit)
-rule HexFPLiteral: HexSignificand + BinaryExponent + ZEROORONE(FloatTypeSuffix)
+rule BinaryExponentPart : ONEOF(
+  'p' + ZEROORONE(Sign) + DigitSequence
+  'P' + ZEROORONE(Sign) + DigitSequence)
 
-######  Floating Point Literal
+rule HexadecimalDigitSequence : ONEOF(
+   HexadecimalDigit
+   HexadecimalDigitSequence + HexadecimalDigit)
 
-rule FPLiteral : ONEOF(DecFPLiteral, HexFPLiteral)
+rule FloatingSuffix : ONEOF('f', 'l', 'F', 'L')
 
-#########################################################################
-##                           Boolean                                   ##
-#########################################################################
+rule EnumerationConstant : Identifier
 
-rule BooleanLiteral : ONEOF ("true", "false")
+rule CharacterConstant : ONEOF(
+  ''' + CCharSequence '''
+  'L' + ''' + CCharSequence + '''
+  'U' + ''' + CCharSequence + '''
+  'U' + ''' + CCharSequence + ''')
 
-#########################################################################
-##                           Character                                 ##
-## ESCAPE is a reserved rule in reserved.spec.                         ##
-#########################################################################
+rule CCharSequence : ONEOF(
+   CChar
+   CCharSequence + CChar)
 
-rule UnicodeEscape: '\' + 'u' + HEXDIGIT + HEXDIGIT + HEXDIGIT + HEXDIGIT
-rule RawInputCharacter : ONEOF(ASCII, ''', ESCAPE)
-rule SingleCharacter: ONEOF(UnicodeEscape, RawInputCharacter)
+rule EscapeSequence : ONEOF(
+   SimpleEscapeSequence
+   OctalEscapeSequence
+   HexadecimalEscapeSequence
+   UniversalCharacterName)
 
-rule OctalEscape : ONEOF('\' + '0', '\' + '1')
-rule EscapeSequence : ONEOF(ESCAPE, OctalEscape)
-rule CharacterLiteral : ''' + ONEOF(SingleCharacter, EscapeSequence) + '''
+rule SimpleEscapeSequence : ONEOF(
+  '\' + ''', '\' + '"', '\' + '?', '\' + '\',
+  '\' + 'a', '\' + 'b', '\' + 'f', '\' + 'n', '\' + 'r', '\' + 't', '\' + 'v')
 
-#########################################################################
-##                           String                                    ##
-#########################################################################
-# The UnicodeEscape is limited from \u0000 to \u00ff.
-rule StringUnicodeEscape: '\' + 'u' + '0' + '0' + HEXDIGIT + HEXDIGIT
-rule StringCharater: ONEOF(StringUnicodeEscape, RawInputCharacter)
-rule StringLiteral : '"' + ZEROORMORE(StringCharater) + '"'
+rule OctalEscapeSequence : ONEOF(
+  '\' + OctalDigit
+  '\' + OctalDigit + OctalDigit
+  '\' + OctalDigit + OctalDigit + OctalDigit)
 
-#########################################################################
-##                           Null                                      ##
-#########################################################################
+rule HexadecimalEscapeSequence : ONEOF(
+  '\' + 'x' + HexadecimalDigit
+  HexadecimalEscapeSequence + HexadecimalDigit)
+
+rule StringLiteral : ONEOF(
+  ZEROORONE(EncodingPrefix) + '"' + ZEROORONE(SCharSequence) + '"')
+
+rule EncodingPrefix : ONEOF (
+  "u8", 'u', 'U', 'L')
+
+rule SCharSequence : ONEOF(
+  SChar
+  SCharSequence + SChar)
+
+rule SChar : ONEOF(
+  CChar
+  EscapeSequence)
+
+#######################################
+#rule CChar : ONEOF(
+#   CHAR
+#   '_'
+#   EscapeSequence)
+
+rule Digit : ONEOF(DIGIT)
 
 rule NullLiteral : "NULL"
+rule FPLiteral : FloatingConstant
+rule BooleanLiteral : ONEOF ("true", "false")
+rule CharacterLiteral : CharacterConstant
+rule IntegerLiteral : IntegerConstant
 
-#########################################################################
-##                           Literal                                   ##
-#########################################################################
+rule Literal : ONEOF(
+   IntegerLiteral
+   FPLiteral
+   EnumerationConstant
+   CharacterLiteral
+   StringLiteral
+   NullLiteral)
 
-rule Literal : ONEOF(IntegerLiteral,
-                     FPLiteral,
-                     BooleanLiteral,
-                     CharacterLiteral,
-                     StringLiteral,
-                     NullLiteral)
