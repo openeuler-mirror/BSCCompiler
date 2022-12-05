@@ -71,9 +71,11 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   endlblstmt->SetSrcPos(pos);
   blk->AddStatement(endlblstmt);
   if (GetFuncProfData()) {
+    CHECK_FATAL(GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) >=
+        GetFuncProfData()->GetStmtFreq(whilegotonode->GetStmtID()), "inconsistent profiling on while stmt");
     int64_t freq = GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) -
                    GetFuncProfData()->GetStmtFreq(whilegotonode->GetStmtID());
-    GetFuncProfData()->SetStmtFreq(endlblstmt->GetStmtID(), freq > 0 ? freq : 0);
+    GetFuncProfData()->SetStmtFreq(endlblstmt->GetStmtID(), freq);
   }
   return blk;
 }
@@ -240,7 +242,15 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       // set stmtfreqs
       if (GetFuncProfData()) {
         if (!thenempty) {
-          GetFuncProfData()->CopyStmtFreq(gotostmt->GetStmtID(), ifstmt.GetThenPart()->GetStmtID());
+          if (ifstmt.GetThenPart()->GetLast()->IsCondBr()) {
+            // Estimate a freq within [0, ifstmt-freq] without going after further
+            uint64 ifFreq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID());
+            uint64 ifElseFreq = GetFuncProfData()->GetStmtFreq(ifstmt.GetElsePart()->GetStmtID());
+            uint64 freqDiff = (ifFreq >= ifElseFreq) ? (ifFreq - ifElseFreq) : 0;
+            GetFuncProfData()->SetStmtFreq(gotostmt->GetStmtID(), freqDiff);
+          } else {
+            GetFuncProfData()->CopyStmtFreq(gotostmt->GetStmtID(), ifstmt.GetThenPart()->GetStmtID());
+          }
         } else {
           GetFuncProfData()->SetStmtFreq(gotostmt->GetStmtID(), 0);
         }
@@ -252,7 +262,9 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     SrcPosition pos = func->GetMirFunc()->GetScope()->GetScopeEndPos(ifstmt.GetThenPart()->GetSrcPos());
     labstmt->SetSrcPos(pos);
     blk->AddStatement(labstmt);
-
+    if (GetFuncProfData()) {
+       GetFuncProfData()->CopyStmtFreq(labstmt->GetStmtID(), ifstmt.GetElsePart()->GetStmtID());
+    }
     if (!elseempty) {
       blk->AppendStatementsFromBlock(*ifstmt.GetElsePart());
     }
