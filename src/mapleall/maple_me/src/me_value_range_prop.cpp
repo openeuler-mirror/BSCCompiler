@@ -483,14 +483,10 @@ MeExpr *GetCmpExprFromBound(Bound b, MeExpr &expr, MeIRMap *irmap, Opcode op) {
   } else {
     if (val == 0) {
       resExpr = irmap->CreateMeExprBinary(op, PTY_u1, expr, *var);
-    } else if (val > 0) {
+    } else {
       MeExpr *addExpr = irmap->CreateMeExprBinary(OP_add, ptyp, *var, *constExpr);
       static_cast<OpMeExpr*>(addExpr)->SetOpndType(ptyp);
       resExpr = irmap->CreateMeExprBinary(op, PTY_u1, expr, *addExpr);
-    } else {
-      MeExpr *subExpr = irmap->CreateMeExprBinary(OP_sub, ptyp, *var, *constExpr);
-      static_cast<OpMeExpr*>(subExpr)->SetOpndType(ptyp);
-      resExpr = irmap->CreateMeExprBinary(op, PTY_u1, expr, *subExpr);
     }
   }
   static_cast<OpMeExpr*>(resExpr)->SetOpndType(ptyp);
@@ -1192,7 +1188,7 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
                "the pointer < the lower bounds after calculation when inlined to %s", func->GetName().c_str());
         }
       }
-      return true;
+      return !opts::enableArithCheck;
     }
     case OP_assignassertnonnull:
     case OP_assertnonnull:
