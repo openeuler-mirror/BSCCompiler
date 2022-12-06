@@ -196,7 +196,14 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
   switch (arithMop) {
     case MOP_waddrrr:
     case MOP_xaddrrr: {
-      newVal = constVal + constVal;
+      // If overflow, assign the overflowed value to newVal
+      if (constVal < 0 && constVal < INT64_MIN - constVal) {
+        newVal = 2 * (INT64_MAX + constVal + 1);
+      } else if (constVal > 0 && constVal > INT64_MAX - constVal) {
+        newVal = 2 * (INT64_MIN + constVal);
+      } else {
+        newVal = constVal + constVal;
+      }
       newMop = (arithMop == MOP_waddrrr) ? MOP_wmovri32 : MOP_xmovri64;
       break;
     }
