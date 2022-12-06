@@ -58,6 +58,9 @@ Operand *HandleConstVal(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
   } else if (mirConst->GetKind() == kConstDoubleConst) {
     auto *mirDoubleConst = safe_cast<MIRDoubleConst>(mirConst);
     return cgFunc.SelectDoubleConst(*mirDoubleConst, parent);
+  } else if (mirConst->GetKind() == kConstFloat128Const) {
+    auto *mirFloat128Const = safe_cast<MIRFloat128Const>(mirConst);
+    return cgFunc.SelectFloat128Const(*mirFloat128Const);
   } else {
     CHECK_FATAL(false, "NYI");
   }
@@ -641,6 +644,8 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "logf");
     case INTRN_C_log10f:
       return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "log10f");
+    case INTRN_C_fabsl:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "fabsl");
     // int
     case INTRN_C_ffs:
       return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "ffs");
@@ -1569,6 +1574,22 @@ void CGFunc::RemoveUnreachableBB() {
   }
 }
 
+Insn& CGFunc::BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum) {
+  Operand *o0 = CreateDbgImmOperand(fileNum);
+  Operand *o1 = CreateDbgImmOperand(lineNum);
+  Operand *o2 = CreateDbgImmOperand(columnNum);
+  Insn &loc =
+      GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
+  return loc;
+}
+
+Insn& CGFunc::BuildScopeInsn(int64 id, bool isEnd) {
+  Operand *o0 = CreateDbgImmOperand(id);
+  Operand *o1 = CreateDbgImmOperand(isEnd ? 1 : 0);
+  Insn &scope = GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_scope).AddOpndChain(*o0).AddOpndChain(*o1);
+  return scope;
+}
+
 void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) {
   /* insert Insn for .loc before cg for the stmt */
   if (cg->GetCGOptions().WithLoc() && stmt->op != OP_label && stmt->op != OP_comment) {
@@ -1583,23 +1604,13 @@ void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &l
 
     if (cg->GetCGOptions().WithSrc() && !lastSrcPos.IsEq(newSrcPos)) {
       /* .loc for original src file */
-      Operand *o0 = CreateDbgImmOperand(newSrcPos.FileNum());
-      Operand *o1 = CreateDbgImmOperand(newSrcPos.LineNum());
-      Operand *o2 = CreateDbgImmOperand(newSrcPos.Column());
-      Insn &loc =
-          GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
-      curBB->AppendInsn(loc);
+      curBB->AppendInsn(BuildLocInsn(newSrcPos.FileNum(), newSrcPos.LineNum(), newSrcPos.Column()));
       lastSrcPos.UpdateWith(newSrcPos);
       hasLoc = true;
     }
     /* .loc for mpl file, skip if already has .loc from src for this stmt */
     if (cg->GetCGOptions().WithMpl() && !hasLoc && !lastMplPos.IsEqMpl(newSrcPos)) {
-      Operand *o0 = CreateDbgImmOperand(1);
-      Operand *o1 = CreateDbgImmOperand(newSrcPos.MplLineNum());
-      Operand *o2 = CreateDbgImmOperand(0);
-      Insn &loc =
-          GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
-      curBB->AppendInsn(loc);
+      curBB->AppendInsn(BuildLocInsn(1, newSrcPos.MplLineNum(), 0));
       lastMplPos.UpdateWith(newSrcPos);
     }
   }
@@ -1629,10 +1640,7 @@ void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &p
       if (scpIdSet.find(id) == scpIdSet.end()) {
         continue;
       }
-      Operand *o0 = CreateDbgImmOperand(id);
-      Operand *o1 = CreateDbgImmOperand(1);
-      Insn &scope = GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_scope).AddOpndChain(*o0).AddOpndChain(*o1);
-      curBB->AppendInsn(scope);
+      curBB->AppendInsn(BuildScopeInsn(id, true));
       (void)scpIdSet.erase(id);
     }
     for (auto id : idSetB) {
@@ -1640,10 +1648,7 @@ void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &p
       if (scpIdSet.find(id) != scpIdSet.end()) {
         continue;
       }
-      Operand *o0 = CreateDbgImmOperand(id);
-      Operand *o1 = CreateDbgImmOperand(0);
-      Insn &scope = GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_scope).AddOpndChain(*o0).AddOpndChain(*o1);
-      curBB->AppendInsn(scope);
+      curBB->AppendInsn(BuildScopeInsn(id, false));
       (void)scpIdSet.insert(id);
     }
     lastSrcPos.UpdateWith(newSrcPos);
@@ -2044,10 +2049,7 @@ void CGFunc::MakeupScopeLabels(BB &bb) {
   if (!scpIdSet.empty()) {
     std::set<uint32>::reverse_iterator rit;
     for (rit=scpIdSet.rbegin(); rit != scpIdSet.rend(); ++rit) {
-      Operand *o0 = CreateDbgImmOperand(*rit);
-      Operand *o1 = CreateDbgImmOperand(1);
-      Insn &scope = GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_scope).AddOpndChain(*o0).AddOpndChain(*o1);
-      bb.AppendInsn(scope);
+      bb.AppendInsn(BuildScopeInsn(*rit, true));
     }
   }
 }

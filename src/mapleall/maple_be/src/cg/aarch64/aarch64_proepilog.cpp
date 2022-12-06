@@ -703,7 +703,6 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
       uint32 tempmaxsize = static_cast<uint32>(currCG->GetMIRModule()->GetSrcFileInfo().size());
       uint32 endfilenum = currCG->GetMIRModule()->GetSrcFileInfo()[tempmaxsize - 1].second;
       if (fSym->GetSrcPosition().FileNum() != 0 && fSym->GetSrcPosition().FileNum() <= endfilenum) {
-        Operand *o0 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().FileNum());
         int64_t lineNum = fSym->GetSrcPosition().LineNum();
         if (lineNum == 0) {
           if (cgFunc.GetFunction().GetAttr(FUNCATTR_native)) {
@@ -712,19 +711,11 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
             lineNum = 0xffffd;
           }
         }
-        Operand *o1 = cgFunc.CreateDbgImmOperand(lineNum);
-        Operand *o2 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().Column());
-        Insn &loc = cgFunc.GetInsnBuilder()->BuildDbgInsn(
-            mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
+        Insn &loc = cgFunc.BuildLocInsn(fSym->GetSrcPosition().FileNum(), lineNum, fSym->GetSrcPosition().Column());
         cgFunc.GetCurBB()->AppendInsn(loc);
       }
     } else {
-      Operand *o0 = cgFunc.CreateDbgImmOperand(1);
-      Operand *o1 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().MplLineNum());
-      Operand *o2 = cgFunc.CreateDbgImmOperand(0);
-      Insn &loc = cgFunc.GetInsnBuilder()->BuildDbgInsn(
-          mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
-      cgFunc.GetCurBB()->AppendInsn(loc);
+      cgFunc.GetCurBB()->AppendInsn(cgFunc.BuildLocInsn(1, fSym->GetSrcPosition().MplLineNum(), 0));
     }
   }
 
@@ -1141,12 +1132,7 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
      so that the breakpoint can break at the end of the method's reverse parenthesis line. */
   if (currCG->GetCGOptions().WithDwarf() && cgFunc.GetMirModule().IsCModule()) {
     SrcPosition pos = cgFunc.GetFunction().GetScope()->GetRangeHigh();
-    Operand *o0 = cgFunc.CreateDbgImmOperand(pos.FileNum());
-    Operand *o1 = cgFunc.CreateDbgImmOperand(pos.LineNum());
-    Operand *o2 = cgFunc.CreateDbgImmOperand(pos.Column());
-    Insn &loc = cgFunc.GetInsnBuilder()->BuildDbgInsn(
-        mpldbg::OP_DBG_loc).AddOpndChain(*o0).AddOpndChain(*o1).AddOpndChain(*o2);
-    cgFunc.GetCurBB()->AppendInsn(loc);
+    cgFunc.GetCurBB()->AppendInsn(cgFunc.BuildLocInsn(pos.FileNum(), pos.LineNum(), pos.Column()));
   }
 
   GenerateRet(*(cgFunc.GetCurBB()));

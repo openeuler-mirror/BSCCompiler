@@ -21,11 +21,11 @@
 
 namespace maplebe {
 Insn &GenCfi::FindStackDefNextInsn(BB &bb) const {
-  auto &a64CgFunc = static_cast<AArch64CGFunc&>(cgFunc);
   FOR_BB_INSNS(insn, &bb) {
     if (insn->IsStackDef()) {
       if (insn->GetNext() == nullptr) {
-        bb.AppendInsn(a64CgFunc.CreateCommentInsn("stack alloc end"));
+        auto &comment = cgFunc.GetOpndBuilder()->CreateComment("stack alloc end");
+        bb.AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
       }
       return *(insn->GetNext());
     }
@@ -101,12 +101,7 @@ void GenCfi::InsertFirstLocation(BB &bb) {
   uint32 fileNum = fSym->GetSrcPosition().FileNum();
   uint32 lineNum = fSym->GetSrcPosition().LineNum();
   uint32 columnNum = fSym->GetSrcPosition().Column();
-  Operand *fileNumOpnd = cgFunc.CreateDbgImmOperand(fileNum);
-  Operand *lineNumOpnd = cgFunc.CreateDbgImmOperand(lineNum);
-  Operand *columnNumOpnd = cgFunc.CreateDbgImmOperand(columnNum);
-  Insn &loc = cgFunc.GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_loc).AddOpndChain(
-      *fileNumOpnd).AddOpndChain(*lineNumOpnd).AddOpndChain(*columnNumOpnd);
-  (void)(bb.InsertInsnBefore(*bb.GetFirstInsn(), loc));
+  (void)(bb.InsertInsnBefore(*bb.GetFirstInsn(), cgFunc.BuildLocInsn(fileNum, lineNum, columnNum)));
 }
 
 void GenCfi::Run() {

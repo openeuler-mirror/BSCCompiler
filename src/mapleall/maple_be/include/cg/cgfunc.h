@@ -192,6 +192,8 @@ class CGFunc {
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   virtual void LmbcGenSaveSpForAlloca() = 0;
   void RemoveUnreachableBB();
+  Insn& BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum);
+  Insn& BuildScopeInsn(int64 id, bool isEnd);
   void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
   void GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone);
   int32 GetFreqFromStmt(uint32 stmtId);
@@ -265,6 +267,7 @@ class CGFunc {
   virtual Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) = 0;
   virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
   virtual void HandleCatch() = 0;
@@ -283,6 +286,7 @@ class CGFunc {
   virtual Operand *SelectIntConst(MIRIntConst &intConst) = 0;
   virtual Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) = 0;
   virtual Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) = 0;
+  virtual Operand *SelectFloat128Const(MIRFloat128Const &ldoubleConst) = 0;
   virtual Operand *SelectStrConst(MIRStrConst &strConst) = 0;
   virtual Operand *SelectStr16Const(MIRStr16Const &strConst) = 0;
   virtual void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
@@ -493,6 +497,7 @@ class CGFunc {
         return kRegTyInt;
       case PTY_f32:
       case PTY_f64:
+      case PTY_f128:
       case PTY_v2i32:
       case PTY_v2u32:
       case PTY_v2i64:
@@ -1278,19 +1283,14 @@ class CGFunc {
     return GetFunction().GetPregTab()->PregFromPregIdx(pri);
   }
 
-  Insn &CreateCommentInsn(const std::string &comment) {
-    Insn &insn = GetInsnBuilder()->BuildInsn(abstract::MOP_comment,
-        InsnDesc::GetAbstractId(abstract::MOP_comment));
-    insn.AddOperand(GetOpndBuilder()->CreateComment(comment));
-    return insn;
+  void SetPriority(uint32 funcPriority) {
+    priority = funcPriority;
   }
 
-  Insn &CreateCommentInsn(const MapleString &comment) {
-    Insn &insn = GetInsnBuilder()->BuildInsn(abstract::MOP_comment,
-        InsnDesc::GetAbstractId(abstract::MOP_comment));
-    insn.AddOperand(GetOpndBuilder()->CreateComment(comment));
-    return insn;
+  uint32 GetPriority() const {
+    return priority;
   }
+
  protected:
   uint32 firstMapleIrVRegNO = 200;        /* positioned after physical regs */
   uint32 firstNonPregVRegNO;
@@ -1453,6 +1453,7 @@ class CGFunc {
   /* save stack protect kinds which can trigger stack protect */
   uint8 stackProtectInfo = 0;
   bool needStackProtect = false;
+  uint32 priority = 0;
 };  /* class CGFunc */
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLayoutFrame, maplebe::CGFunc)
