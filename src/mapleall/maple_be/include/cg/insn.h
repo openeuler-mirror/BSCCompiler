@@ -118,6 +118,12 @@ class Insn {
     opnds[index] = &opnd;
   }
 
+  uint32 GetOperandSize(uint32 index) const {
+    CHECK_FATAL(index < opnds.size(), "index out of range!");
+    const OpndDesc *opndMD = md->GetOpndDes(index);
+    return opndMD->GetSize();
+  }
+
   void SetRetSize(uint32 size) {
     ASSERT(IsCall(), "Insn should be a call.");
     retSize = size;

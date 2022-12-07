@@ -1417,14 +1417,20 @@ void AArch64AsmEmitter::EmitGetAndAddInt(Emitter &emitter, const Insn &insn) con
   Operand *offsetOpnd = &insn.GetOperand(kInsnSixthOpnd);
   Operand *deltaOpnd = &insn.GetOperand(kInsnSeventhOpnd);
   Operand *labelOpnd = &insn.GetOperand(kInsnEighthOpnd);
+  const InsnDesc *insnDesc = insn.GetDesc();
   A64OpndEmitVisitor visitor(emitter, nullptr);
+  A64OpndEmitVisitor visitor1(emitter, insnDesc->GetOpndDes(kInsnSecondOpnd));
+  A64OpndEmitVisitor visitor3(emitter, insnDesc->GetOpndDes(kInsnFourthOpnd));
+  A64OpndEmitVisitor visitor4(emitter, insnDesc->GetOpndDes(kInsnFifthOpnd));
+  A64OpndEmitVisitor visitor5(emitter, insnDesc->GetOpndDes(kInsnSixthOpnd));
+
   /* emit add. */
   (void)emitter.Emit("\t").Emit("add").Emit("\t");
-  tempOpnd0->Accept(visitor);
+  tempOpnd0->Accept(visitor1);
   (void)emitter.Emit(", ");
-  objOpnd->Accept(visitor);
+  objOpnd->Accept(visitor4);
   (void)emitter.Emit(", ");
-  offsetOpnd->Accept(visitor);
+  offsetOpnd->Accept(visitor5);
   (void)emitter.Emit("\n");
   /* emit label. */
   labelOpnd->Accept(visitor);
@@ -1438,7 +1444,7 @@ void AArch64AsmEmitter::EmitGetAndAddInt(Emitter &emitter, const Insn &insn) con
   (void)emitter.Emit("\t").Emit("ldaxr").Emit("\t");
   retVal->Accept(retVisitor);
   (void)emitter.Emit(", [");
-  tempOpnd0->Accept(visitor);
+  tempOpnd0->Accept(visitor1);
   (void)emitter.Emit("]\n");
   /* emit add. */
   (void)emitter.Emit("\t").Emit("add").Emit("\t");
@@ -1450,15 +1456,15 @@ void AArch64AsmEmitter::EmitGetAndAddInt(Emitter &emitter, const Insn &insn) con
   (void)emitter.Emit("\n");
   /* emit stlxr. */
   (void)emitter.Emit("\t").Emit("stlxr").Emit("\t");
-  tempOpnd2->Accept(visitor);
+  tempOpnd2->Accept(visitor3);
   (void)emitter.Emit(", ");
   tempOpnd1->Accept(retVisitor);
   (void)emitter.Emit(", [");
-  tempOpnd0->Accept(visitor);
+  tempOpnd0->Accept(visitor1);
   (void)emitter.Emit("]\n");
   /* emit cbnz. */
   (void)emitter.Emit("\t").Emit("cbnz").Emit("\t");
-  tempOpnd2->Accept(visitor);
+  tempOpnd2->Accept(visitor3);
   (void)emitter.Emit(", ");
   labelOpnd->Accept(visitor);
   (void)emitter.Emit("\n");
@@ -1481,13 +1487,20 @@ void AArch64AsmEmitter::EmitGetAndSetInt(Emitter &emitter, const Insn &insn) con
   Operand *objOpnd = &insn.GetOperand(kInsnFourthOpnd);
   Operand *offsetOpnd = &insn.GetOperand(kInsnFifthOpnd);
   A64OpndEmitVisitor visitor(emitter, nullptr);
+  A64OpndEmitVisitor visitor0(emitter, insn.GetDesc()->GetOpndDes(kInsnFirstOpnd));
+  A64OpndEmitVisitor visitor1(emitter, insn.GetDesc()->GetOpndDes(kInsnSecondOpnd));
+  A64OpndEmitVisitor visitor2(emitter, insn.GetDesc()->GetOpndDes(kInsnThirdOpnd));
+  A64OpndEmitVisitor visitor3(emitter, insn.GetDesc()->GetOpndDes(kInsnFourthOpnd));
+  A64OpndEmitVisitor visitor4(emitter, insn.GetDesc()->GetOpndDes(kInsnFifthOpnd));
+  A64OpndEmitVisitor visitor5(emitter, insn.GetDesc()->GetOpndDes(kInsnSixthOpnd));
+
   /* add    x1, x1, x2 */
   (void)emitter.Emit("\tadd\t");
-  tempOpnd0->Accept(visitor);
+  tempOpnd0->Accept(visitor1);
   (void)emitter.Emit(", ");
-  objOpnd->Accept(visitor);
+  objOpnd->Accept(visitor3);
   (void)emitter.Emit(", ");
-  offsetOpnd->Accept(visitor);
+  offsetOpnd->Accept(visitor4);
   (void)emitter.Emit("\n");
   Operand *labelOpnd = &insn.GetOperand(kInsnSeventhOpnd);
   /* label: */
@@ -1496,22 +1509,22 @@ void AArch64AsmEmitter::EmitGetAndSetInt(Emitter &emitter, const Insn &insn) con
   Operand *retVal = &insn.GetOperand(kInsnFirstOpnd);
   /* ldaxr  w0, [xt] */
   (void)emitter.Emit("\tldaxr\t");
-  retVal->Accept(visitor);
+  retVal->Accept(visitor0);
   (void)emitter.Emit(", [");
-  tempOpnd0->Accept(visitor);
+  tempOpnd0->Accept(visitor1);
   (void)emitter.Emit("]\n");
   Operand *newValueOpnd = &insn.GetOperand(kInsnSixthOpnd);
   /* stlxr  ws, w3, [xt] */
   (void)emitter.Emit("\tstlxr\t");
-  tempOpnd1->Accept(visitor);
+  tempOpnd1->Accept(visitor2);
   (void)emitter.Emit(", ");
-  newValueOpnd->Accept(visitor);
+  newValueOpnd->Accept(visitor5);
   (void)emitter.Emit(", [");
-  tempOpnd0->Accept(visitor);
+  tempOpnd0->Accept(visitor1);
   (void)emitter.Emit("]\n");
   /* cbnz   w2, label */
   (void)emitter.Emit("\tcbnz\t");
-  tempOpnd1->Accept(visitor);
+  tempOpnd1->Accept(visitor2);
   (void)emitter.Emit(", ");
   labelOpnd->Accept(visitor);
   (void)emitter.Emit("\n");
@@ -1570,16 +1583,19 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) co
   ASSERT(insn.GetOperandSize() == 18, "ensure the operands number");
   Operand *patternLengthOpnd = &insn.GetOperand(kInsnFifthOpnd);
   Operand *srcLengthOpnd = &insn.GetOperand(kInsnThirdOpnd);
+  const InsnDesc *insnDesc = insn.GetDesc();
   const std::string patternLengthReg =
       AArch64CG::intRegNames[AArch64CG::kR64List][static_cast<RegOperand*>(patternLengthOpnd)->GetRegisterNumber()];
   const std::string srcLengthReg =
       AArch64CG::intRegNames[AArch64CG::kR64List][static_cast<RegOperand*>(srcLengthOpnd)->GetRegisterNumber()];
   A64OpndEmitVisitor visitor(emitter, nullptr);
+  A64OpndEmitVisitor visitor4(emitter, insnDesc->GetOpndDes(kInsnFifthOpnd));
   /* cmp       w4, w2 */
   (void)emitter.Emit("\tcmp\t");
-  patternLengthOpnd->Accept(visitor);
+  patternLengthOpnd->Accept(visitor4);
   (void)emitter.Emit(", ");
-  srcLengthOpnd->Accept(visitor);
+  A64OpndEmitVisitor visitor2(emitter, insnDesc->GetOpndDes(kInsnThirdOpnd));
+  srcLengthOpnd->Accept(visitor2);
   (void)emitter.Emit("\n");
   /* the 16th operand of MOP_string_indexof is Label.NOMATCH */
   Operand *labelNoMatch = &insn.GetOperand(16);
@@ -1589,50 +1605,53 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) co
   (void)emitter.Emit("\n");
   /* sub       w2, w2, w4 */
   (void)emitter.Emit("\tsub\t");
-  srcLengthOpnd->Accept(visitor);
+  srcLengthOpnd->Accept(visitor2);
   (void)emitter.Emit(", ");
-  srcLengthOpnd->Accept(visitor);
+  srcLengthOpnd->Accept(visitor2);
   (void)emitter.Emit(", ");
-  patternLengthOpnd->Accept(visitor);
+  patternLengthOpnd->Accept(visitor4);
   (void)emitter.Emit("\n");
   /* sub       w4, w4, #8 */
   (void)emitter.Emit("\tsub\t");
-  patternLengthOpnd->Accept(visitor);
+  patternLengthOpnd->Accept(visitor4);
   (void)emitter.Emit(", ");
-  patternLengthOpnd->Accept(visitor);
+  patternLengthOpnd->Accept(visitor4);
   (void)emitter.Emit(", #8\n");
   /* the 10th operand of MOP_string_indexof is w10 */
   Operand *resultTmp = &insn.GetOperand(10);
+  A64OpndEmitVisitor visitor10(emitter, insnDesc->GetOpndDes(kEARetTempNameSize));
   /* mov       w10, w2 */
   (void)emitter.Emit("\tmov\t");
-  resultTmp->Accept(visitor);
+  resultTmp->Accept(visitor10);
   (void)emitter.Emit(", ");
-  srcLengthOpnd->Accept(visitor);
+  srcLengthOpnd->Accept(visitor2);
   (void)emitter.Emit("\n");
   /* uxtw      x4, w4 */
   (void)emitter.Emit("\tuxtw\t").Emit(patternLengthReg);
   (void)emitter.Emit(", ");
-  patternLengthOpnd->Accept(visitor);
+  patternLengthOpnd->Accept(visitor4);
   (void)emitter.Emit("\n");
   /* uxtw      x2, w2 */
   (void)emitter.Emit("\tuxtw\t").Emit(srcLengthReg);
   (void)emitter.Emit(", ");
-  srcLengthOpnd->Accept(visitor);
+  srcLengthOpnd->Accept(visitor2);
   (void)emitter.Emit("\n");
   Operand *patternStringBaseOpnd = &insn.GetOperand(kInsnFourthOpnd);
+  A64OpndEmitVisitor visitor3(emitter, insnDesc->GetOpndDes(kInsnFourthOpnd));
   /* add       x3, x3, x4 */
   (void)emitter.Emit("\tadd\t");
-  patternStringBaseOpnd->Accept(visitor);
+  patternStringBaseOpnd->Accept(visitor3);
   (void)emitter.Emit(", ");
-  patternStringBaseOpnd->Accept(visitor);
+  patternStringBaseOpnd->Accept(visitor3);
   (void)emitter.Emit(", ").Emit(patternLengthReg);
   (void)emitter.Emit("\n");
   Operand *srcStringBaseOpnd = &insn.GetOperand(kInsnSecondOpnd);
+  A64OpndEmitVisitor visitor1(emitter, insnDesc->GetOpndDes(kInsnSecondOpnd));
   /* add       x1, x1, x2 */
   (void)emitter.Emit("\tadd\t");
-  srcStringBaseOpnd->Accept(visitor);
+  srcStringBaseOpnd->Accept(visitor1);
   (void)emitter.Emit(", ");
-  srcStringBaseOpnd->Accept(visitor);
+  srcStringBaseOpnd->Accept(visitor1);
   (void)emitter.Emit(", ").Emit(srcLengthReg);
   (void)emitter.Emit("\n");
   /* neg       x4, x4 */
@@ -1644,11 +1663,12 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) co
   (void)emitter.Emit(", ").Emit(srcLengthReg);
   (void)emitter.Emit("\n");
   Operand *first = &insn.GetOperand(kInsnSixthOpnd);
+  A64OpndEmitVisitor visitor5(emitter, insnDesc->GetOpndDes(kInsnSixthOpnd));
   /* ldr       x5, [x3,x4] */
   (void)emitter.Emit("\tldr\t");
-  first->Accept(visitor);
+  first->Accept(visitor5);
   (void)emitter.Emit(", [");
-  patternStringBaseOpnd->Accept(visitor);
+  patternStringBaseOpnd->Accept(visitor3);
   (void)emitter.Emit(",").Emit(patternLengthReg);
   (void)emitter.Emit("]\n");
   /* the 11th operand of MOP_string_indexof is Label.FIRST_LOOP */
@@ -1658,18 +1678,19 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) co
   (void)emitter.Emit(":\n");
   /* the 7th operand of MOP_string_indexof is x7 */
   Operand *ch2 = &insn.GetOperand(7);
+  A64OpndEmitVisitor visitor7(emitter, insnDesc->GetOpndDes(kInsnEighthOpnd));
   /* ldr       x7, [x1,x2] */
   (void)emitter.Emit("\tldr\t");
-  ch2->Accept(visitor);
+  ch2->Accept(visitor7);
   (void)emitter.Emit(", [");
-  srcStringBaseOpnd->Accept(visitor);
+  srcStringBaseOpnd->Accept(visitor1);
   (void)emitter.Emit(",").Emit(srcLengthReg);
   (void)emitter.Emit("]\n");
   /* cmp       x5, x7 */
   (void)emitter.Emit("\tcmp\t");
-  first->Accept(visitor);
+  first->Accept(visitor5);
   (void)emitter.Emit(", ");
-  ch2->Accept(visitor);
+  ch2->Accept(visitor7);
   (void)emitter.Emit("\n");
   /* the 13th operand of MOP_string_indexof is Label.STR1_LOOP */
   Operand *labelStr1Loop = &insn.GetOperand(13);
@@ -1701,14 +1722,15 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) co
   Operand *tmp1 = &insn.GetOperand(kInsnEighthOpnd);
   /* adds      x8, x4, #8 */
   (void)emitter.Emit("\tadds\t");
-  tmp1->Accept(visitor);
+  tmp1->Accept(visitor7);
   (void)emitter.Emit(", ").Emit(patternLengthReg);
   (void)emitter.Emit(", #8\n");
   /* the 9th operand of MOP_string_indexof is x9 */
   Operand *tmp2 = &insn.GetOperand(9);
+  A64OpndEmitVisitor visitor9(emitter, insnDesc->GetOpndDes(k9ByteSize));
   /* add       x9, x2, #8 */
   (void)emitter.Emit("\tadd\t");
-  tmp2->Accept(visitor);
+  tmp2->Accept(visitor9);
   (void)emitter.Emit(", ").Emit(srcLengthReg);
   (void)emitter.Emit(", #8\n");
   /* the 15th operand of MOP_string_indexof is Label.LAST_WORD */
@@ -1724,27 +1746,28 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) co
   (void)emitter.Emit(":\n");
   /* the 6th operand of MOP_string_indexof is x6 */
   Operand *ch1 = &insn.GetOperand(6);
+  A64OpndEmitVisitor visitor6(emitter, insnDesc->GetOpndDes(kInsnSeventhOpnd));
   /* ldr       x6, [x3,x8] */
   (void)emitter.Emit("\tldr\t");
-  ch1->Accept(visitor);
+  ch1->Accept(visitor6);
   (void)emitter.Emit(", [");
-  patternStringBaseOpnd->Accept(visitor);
+  patternStringBaseOpnd->Accept(visitor3);
   (void)emitter.Emit(",");
-  tmp1->Accept(visitor);
+  tmp1->Accept(visitor7);
   (void)emitter.Emit("]\n");
   /* ldr       x7, [x1,x9] */
   (void)emitter.Emit("\tldr\t");
-  ch2->Accept(visitor);
+  ch2->Accept(visitor7);
   (void)emitter.Emit(", [");
-  srcStringBaseOpnd->Accept(visitor);
+  srcStringBaseOpnd->Accept(visitor1);
   (void)emitter.Emit(",");
-  tmp2->Accept(visitor);
+  tmp2->Accept(visitor9);
   (void)emitter.Emit("]\n");
   /* cmp       x6, x7 */
   (void)emitter.Emit("\tcmp\t");
-  ch1->Accept(visitor);
+  ch1->Accept(visitor6);
   (void)emitter.Emit(", ");
-  ch2->Accept(visitor);
+  ch2->Accept(visitor7);
   (void)emitter.Emit("\n");
   /* b.ne      .Label.STR2_NEXT */
   (void)emitter.Emit("\tb.ne\t");
@@ -1752,15 +1775,15 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) co
   (void)emitter.Emit("\n");
   /* adds      x8, x8, #8 */
   (void)emitter.Emit("\tadds\t");
-  tmp1->Accept(visitor);
+  tmp1->Accept(visitor7);
   (void)emitter.Emit(", ");
-  tmp1->Accept(visitor);
+  tmp1->Accept(visitor7);
   (void)emitter.Emit(", #8\n");
   /* add       x9, x9, #8 */
   (void)emitter.Emit("\tadd\t");
-  tmp2->Accept(visitor);
+  tmp2->Accept(visitor9);
   (void)emitter.Emit(", ");
-  tmp2->Accept(visitor);
+  tmp2->Accept(visitor9);
   (void)emitter.Emit(", #8\n");
   /* b.lt      .Label.STR1_NEXT */
   (void)emitter.Emit("\tb.lt\t");
@@ -1771,42 +1794,43 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) co
   (void)emitter.Emit(":\n");
   /* ldr       x6, [x3] */
   (void)emitter.Emit("\tldr\t");
-  ch1->Accept(visitor);
+  ch1->Accept(visitor6);
   (void)emitter.Emit(", [");
-  patternStringBaseOpnd->Accept(visitor);
+  patternStringBaseOpnd->Accept(visitor3);
   (void)emitter.Emit("]\n");
   /* sub       x9, x1, x4 */
   (void)emitter.Emit("\tsub\t");
-  tmp2->Accept(visitor);
+  tmp2->Accept(visitor9);
   (void)emitter.Emit(", ");
-  srcStringBaseOpnd->Accept(visitor);
+  srcStringBaseOpnd->Accept(visitor1);
   (void)emitter.Emit(", ").Emit(patternLengthReg);
   (void)emitter.Emit("\n");
   /* ldr       x7, [x9,x2] */
   (void)emitter.Emit("\tldr\t");
-  ch2->Accept(visitor);
+  ch2->Accept(visitor7);
   (void)emitter.Emit(", [");
-  tmp2->Accept(visitor);
+  tmp2->Accept(visitor9);
   (void)emitter.Emit(", ").Emit(srcLengthReg);
   (void)emitter.Emit("]\n");
   /* cmp       x6, x7 */
   (void)emitter.Emit("\tcmp\t");
-  ch1->Accept(visitor);
+  ch1->Accept(visitor6);
   (void)emitter.Emit(", ");
-  ch2->Accept(visitor);
+  ch2->Accept(visitor7);
   (void)emitter.Emit("\n");
   /* b.ne      .Label.STR2_NEXT */
   (void)emitter.Emit("\tb.ne\t");
   labelStr2Next->Accept(visitor);
   (void)emitter.Emit("\n");
   Operand *retVal = &insn.GetOperand(kInsnFirstOpnd);
+  A64OpndEmitVisitor visitor0(emitter, insnDesc->GetOpndDes(kInsnFirstOpnd));
   /* add       w0, w10, w2 */
   (void)emitter.Emit("\tadd\t");
-  retVal->Accept(visitor);
+  retVal->Accept(visitor0);
   (void)emitter.Emit(", ");
-  resultTmp->Accept(visitor);
+  resultTmp->Accept(visitor10);
   (void)emitter.Emit(", ");
-  srcLengthOpnd->Accept(visitor);
+  srcLengthOpnd->Accept(visitor2);
   (void)emitter.Emit("\n");
   /* the 17th operand of MOP_string_indexof Label.ret */
   Operand *labelRet = &insn.GetOperand(17);
@@ -1819,7 +1843,7 @@ void AArch64AsmEmitter::EmitStringIndexOf(Emitter &emitter, const Insn &insn) co
   (void)emitter.Emit(":\n");
   /* mov       w0, #-1 */
   (void)emitter.Emit("\tmov\t");
-  retVal->Accept(visitor);
+  retVal->Accept(visitor0);
   (void)emitter.Emit(", #-1\n");
   /* .Label.ret: */
   labelRet->Accept(visitor);
@@ -1848,13 +1872,19 @@ void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, const Insn &insn
   Operand *obj = &insn.GetOperand(kInsnFourthOpnd);
   Operand *offset = &insn.GetOperand(kInsnFifthOpnd);
   A64OpndEmitVisitor visitor(emitter, nullptr);
+  A64OpndEmitVisitor visitor1(emitter, md->GetOpndDes(kInsnSecondOpnd));
+  A64OpndEmitVisitor visitor2(emitter, md->GetOpndDes(kInsnThirdOpnd));
+  A64OpndEmitVisitor visitor3(emitter, md->GetOpndDes(kInsnFourthOpnd));
+  A64OpndEmitVisitor visitor4(emitter, md->GetOpndDes(kInsnFifthOpnd));
+  A64OpndEmitVisitor visitor6(emitter, md->GetOpndDes(kInsnSeventhOpnd));
+
   /* add       xt, x1, x2 */
   (void)emitter.Emit("\tadd\t");
-  temp0->Accept(visitor);
+  temp0->Accept(visitor1);
   (void)emitter.Emit(", ");
-  obj->Accept(visitor);
+  obj->Accept(visitor3);
   (void)emitter.Emit(", ");
-  offset->Accept(visitor);
+  offset->Accept(visitor4);
   (void)emitter.Emit("\n");
   Operand *label1 = &insn.GetOperand(kInsnEighthOpnd);
   /* label1: */
@@ -1862,15 +1892,15 @@ void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, const Insn &insn
   (void)emitter.Emit(":\n");
   /* ldaxr     ws, [xt] */
   (void)emitter.Emit("\tldaxr\t");
-  temp1->Accept(visitor);
+  temp1->Accept(visitor2);
   (void)emitter.Emit(", [");
-  temp0->Accept(visitor);
+  temp0->Accept(visitor1);
   (void)emitter.Emit("]\n");
   Operand *expectedValue = &insn.GetOperand(kInsnSixthOpnd);
   const OpndDesc *expectedValueProp = md->opndMD[kInsnSixthOpnd];
   /* cmp       ws, w3 */
   (void)emitter.Emit("\tcmp\t");
-  temp1->Accept(visitor);
+  temp1->Accept(visitor2);
   (void)emitter.Emit(", ");
   A64OpndEmitVisitor visitorExpect(emitter, expectedValueProp);
   expectedValue->Accept(visitorExpect);
@@ -1886,9 +1916,9 @@ void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, const Insn &insn
   (void)emitter.Emit("\tstlxr\t");
   (void)emitter.Emit(AArch64CG::intRegNames[AArch64CG::kR32List][static_cast<RegOperand*>(temp1)->GetRegisterNumber()]);
   (void)emitter.Emit(", ");
-  newValue->Accept(visitor);
+  newValue->Accept(visitor6);
   (void)emitter.Emit(", [");
-  temp0->Accept(visitor);
+  temp0->Accept(visitor1);
   (void)emitter.Emit("]\n");
   /* cbnz      ws, label1 */
   (void)emitter.Emit("\tcbnz\t");
@@ -1900,9 +1930,10 @@ void AArch64AsmEmitter::EmitCompareAndSwapInt(Emitter &emitter, const Insn &insn
   label2->Accept(visitor);
   (void)emitter.Emit(":\n");
   Operand *retVal = &insn.GetOperand(kInsnFirstOpnd);
+  A64OpndEmitVisitor visitor0(emitter, md->GetOpndDes(kInsnFirstOpnd));
   /* cset      x0, eq */
   (void)emitter.Emit("\tcset\t");
-  retVal->Accept(visitor);
+  retVal->Accept(visitor0);
   (void)emitter.Emit(", EQ\n");
 }
 
