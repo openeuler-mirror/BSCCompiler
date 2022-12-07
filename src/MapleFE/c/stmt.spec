@@ -1,5 +1,5 @@
 #
-# Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+# Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
 #
 # OpenArkCompiler is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,152 +12,563 @@
 # FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-######################################################################
-#                        Expression                                  #
-######################################################################
+# based "on" C11 specification A.2 Phrase structure grammar
 
 rule PrimaryExpression : ONEOF(
-  Literal,
-  Identifier
+   Identifier
+   Constant
+   StringLiteral
+   '(' + Expression + ')'
+   GenericSelection
 )
 
-rule DimExprs : DimExpr + ZEROORMORE(DimExpr)
+rule GenericSelection : ONEOF(
+   "_Generic" + '(' + AssignmentExpression + ',' + GenericAssocList + ')'
+)
 
-rule DimExpr :  '[' + Expression + ']'
+rule GenericAssocList : ONEOF(
+   GenericAssociation
+   GenericAssocList + ',' + GenericAssociation
+)
 
-rule Expression : ONEOF(
-  PrimaryExpression,
-  UnaryExpression)
+rule GenericAssociation : ONEOF(
+   TypeName + ':' + AssignmentExpression
+   "default" + ':' + AssignmentExpression
+)
+
+rule PostfixExpression : ONEOF(
+   PrimaryExpression
+   PostfixExpression + '[' + Expression + ']'
+   PostfixExpression + '(' + ZEROORONE(ArgumentExpressionList)+ ')'
+   PostfixExpression + '.' + Identifier
+   PostfixExpression + "->" + Identifier
+   PostfixExpression + "++"
+   PostfixExpression + "--"
+   '(' + TypeName + ')' + '{' + InitializerList + '}'
+   '(' + TypeName + ')' + '{' + InitializerList + ',' + '}'
+)
+
+rule ArgumentExpressionList : ONEOF(
+   AssignmentExpression
+   ArgumentExpressionList + ',' + AssignmentExpression
+)
 
 rule UnaryExpression : ONEOF(
-  PreIncrementExpression,
-  PreDecrementExpression,
-  PostIncrementExpression,
-  PostDecrementExpression)
+   PostfixExpression
+   "++" + UnaryExpression
+   "--" + UnaryExpression
+   UnaryOperator + CastExpression
+   "sizeof" + UnaryExpression
+   "sizeof" + '(' + TypeName + ')'
+   "_Alignof" + '(' + TypeName + ')'
+)
 
-rule PreIncrementExpression : "++" + PrimaryExpression
-  attr.action : BuildUnaryOperation(%1, %2)
+rule UnaryOperator: ONEOF(
+   '&', '*', '+', '-', '~', '!'
+)
 
-rule PreDecrementExpression : "--" + PrimaryExpression
-  attr.action : BuildUnaryOperation(%1, %2)
+rule CastExpression : ONEOF(
+   UnaryExpression
+   '(' + TypeName + ')' + CastExpression
+)
 
-rule PostIncrementExpression : PrimaryExpression + "++"
-  attr.action : BuildPostfixOperation(%2, %1)
+rule MultiplicativeExpression : ONEOF(
+   CastExpression
+   MultiplicativeExpression + '*' + CastExpression
+   MultiplicativeExpression + '/' + CastExpression
+   MultiplicativeExpression + '%' + CastExpression
+)
 
-rule PostDecrementExpression : PrimaryExpression + "--"
-  attr.action : BuildPostfixOperation(%2, %1)
+rule AdditiveExpression : ONEOF(
+   MultiplicativeExpression
+   AdditiveExpression + '+' + MultiplicativeExpression
+   AdditiveExpression + '-' + MultiplicativeExpression
+)
 
-######################################################################
-#                         Variable                                   #
-######################################################################
+rule ShiftExpression : ONEOF(
+   AdditiveExpression
+   ShiftExpression + "<<" + AdditiveExpression
+   ShiftExpression + ">>" + AdditiveExpression
+)
 
-rule GlobalVariableDeclarationStatement : VariableDeclaration + ';'
-  attr.property : Top
+rule RelationalExpression : ONEOF(
+   ShiftExpression
+   RelationalExpression + '<' + ShiftExpression
+   RelationalExpression + '>' + ShiftExpression
+   RelationalExpression + "<=" + ShiftExpression
+   RelationalExpression + ">=" + ShiftExpression
+)
 
-rule LocalVariableDeclarationStatement : VariableDeclaration + ';'
+rule EqualityExpression : ONEOF(
+   RelationalExpression
+   EqualityExpression + "==" + RelationalExpression
+   EqualityExpression + "!=" + RelationalExpression
+)
 
-rule VariableDeclaration : ZEROORMORE(VariableModifier) + Type + VariableDeclaratorList
-  attr.action: BuildDecl(%2, %3)
-  attr.action: AddModifier(%1)
+rule ANDExpression : ONEOF(
+   EqualityExpression
+   ANDExpression + '&' + EqualityExpression
+)
 
-rule VariableModifier : ONEOF(
-  "static",
-  "const",
-  "volatile",
-  "restrict")
+rule ExclusiveORExpression : ONEOF(
+   ANDExpression
+   ExclusiveORExpression + '^' + ANDExpression
+)
 
-rule VariableDeclaratorList : VariableDeclarator + ZEROORMORE(',' + VariableDeclarator)
-  attr.action: BuildVarList(%1, %2)
+rule InclusiveORExpression : ONEOF(
+   ExclusiveORExpression
+   InclusiveORExpression + '|' + ExclusiveORExpression
+)
 
-rule VariableDeclarator : VariableDeclaratorId + ZEROORONE('=' + VariableInitializer)
-  attr.action: AddInitTo(%1, %2)
+rule LogicalANDExpression : ONEOF(
+   InclusiveORExpression
+   LogicalANDExpression + "&&" + InclusiveORExpression
+)
 
-rule VariableDeclaratorId : Identifier + ZEROORONE(Dims)
-  attr.action: AddDimsTo(%1, %2)
+rule LogicalORExpression : ONEOF(
+   LogicalANDExpression
+   LogicalORExpression + "||" + LogicalANDExpression
+)
 
-rule VariableInitializer : ONEOF(
-  Expression,
-  ArrayInitializer)
+rule ConditionalExpression : ONEOF(
+   LogicalORExpression
+   LogicalORExpression + '?' + Expression + ':' + ConditionalExpression
+)
 
-rule ArrayInitializer : '{' + ZEROORONE(VariableInitializerList) + ZEROORONE(',') + '}'
+rule AssignmentExpression : ONEOF(
+   ConditionalExpression
+   UnaryExpression + AssignmentOperator + AssignmentExpression
+)
 
-rule VariableInitializerList: VariableInitializer + ZEROORMORE(',' + VariableInitializer)
+rule AssignmentOperator: ONEOF(
+   '=', "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|="
+)
 
-rule Dims : Dim + ZEROORMORE(Dim)
- attr.action: BuildDims(%1, %2)
+rule Expression : ONEOF(
+   AssignmentExpression
+   Expression + ',' + AssignmentExpression
+)
 
-rule Dim  :  '[' + ']'
- attr.action: BuildDim(%1)
+rule ConstantExpression : ONEOF(
+   ConditionalExpression
+)
 
-######################################################################
-#                         statement                                  #
-######################################################################
+rule Declaration : ONEOF(
+   DeclarationSpecifiers + ZEROORONE(InitDeclaratorList)+ ';'
+   Static_assertDeclaration
+)
 
-rule Statement : ONEOF(LocalVariableDeclarationStatement,
-                       ExpressionStatement,
-                       ReturnStatement)
-  attr.property: Single
+rule DeclarationSpecifiers : ONEOF(
+   StorageClassSpecifier + ZEROORONE(DeclarationSpecifiers)
+   TypeSpecifier + ZEROORONE(DeclarationSpecifiers)
+   TypeQualifier + ZEROORONE(DeclarationSpecifiers)
+   FunctionSpecifier + ZEROORONE(DeclarationSpecifiers)
+   AlignmentSpecifier + ZEROORONE(DeclarationSpecifiers)
+)
 
-rule ExpressionStatement : StatementExpression + ';'
+rule InitDeclaratorList : ONEOF(
+   InitDeclarator
+   InitDeclaratorList + ',' + InitDeclarator
+)
 
-rule StatementExpression : ONEOF(
-  PreIncrementExpression,
-  PreDecrementExpression,
-  PostIncrementExpression,
-  PostDecrementExpression,
-  )
-  attr.property: Single
+rule InitDeclarator : ONEOF(
+   Declarator
+   Declarator + '=' + Initializer
+)
 
-rule ReturnStatement : "return" + ZEROORONE(Expression) + ';'
-  attr.action : BuildReturn(%2)
+rule StorageClassSpecifier : ONEOF(
+   "typedef"
+   "extern"
+   "static"
+   "_Thread_local"
+   "auto"
+   "register"
+)
 
+rule TypeSpecifier : ONEOF(
+   "void"
+   "char"
+   "short"
+   "int"
+   "long"
+   "float"
+   "double"
+   "signed"
+   "unsigned"
+   "_Bool"
+   "_Complex"
+   AtomicTypeSpecifier
+   StructOrUnionSpecifier
+   EnumSpecifier
+   TypedefName
+)
 
-######################################################################
-#                         Function                                   #
-######################################################################
+rule StructOrUnionSpecifier : ONEOF(
+   StructOrUnion + ZEROORONE(Identifier)+ '{' + StructDeclarationList + '}'
+   StructOrUnion + Identifier
+)
 
-rule GlobalFuncDeclaration : FuncDeclaration
-  attr.property : Top
+rule StructOrUnion : ONEOF(
+   "struct"
+   "union"
+)
 
-rule FuncDeclaration : ZEROORMORE(FuncModifier) + FuncHeader + FuncBody
-  attr.action: AddModifierTo(%2, %1)
-  attr.action: AddFunctionBodyTo(%2, %3)
+rule StructDeclarationList : ONEOF(
+   StructDeclaration
+   StructDeclarationList + StructDeclaration
+)
 
-rule FuncBody        : ONEOF(Block, ';')
-  attr.property : Single
+rule StructDeclaration : ONEOF(
+   SpecifierQualifierList + ZEROORONE(StructDeclaratorList)+ ';'
+   Static_assertDeclaration
+)
 
-rule FuncHeader      : ONEOF(Result + FuncDeclarator)
-  attr.action.%1: AddType(%2, %1)
-  attr.property : Single
+rule SpecifierQualifierList : ONEOF(
+   TypeSpecifier + ZEROORONE(SpecifierQualifierList)
+   TypeQualifier + ZEROORONE(SpecifierQualifierList)
+)
 
-rule Result            : ONEOF(Type, "void")
-  attr.property : Single
+rule StructDeclaratorList : ONEOF(
+   StructDeclarator
+   StructDeclaratorList + ',' + StructDeclarator
+)
 
-rule FuncDeclarator  : Identifier + '(' + ZEROORONE(FormalParameters) + ')'
-  attr.action: BuildFunction(%1)
-  attr.action: AddParams(%3)
+rule StructDeclarator : ONEOF(
+   Declarator
+   ZEROORONE(Declarator)+ ':' + ConstantExpression
+)
 
-rule FuncAttr : ONEOF("const", "static")
-  attr.property : Single
+rule EnumSpecifier : ONEOF(
+   "enum" + ZEROORONE(Identifier)+ '{' + EnumeratorList + '}'
+   "enum" + ZEROORONE(Identifier)+ '{' + EnumeratorList + ',' + '}'
+   "enum" + Identifier
+)
 
-rule FuncModifier : ONEOF(FuncAttr)
-  attr.property : Single
+rule EnumeratorList : ONEOF(
+   Enumerator
+   EnumeratorList + ',' + Enumerator
+)
 
-rule FormalParameters  : ONEOF(FormalParameter + ZEROORMORE(',' + FormalParameter))
-  attr.property : Single
+rule Enumerator : ONEOF(
+   EnumerationConstant
+   EnumerationConstant + '=' + ConstantExpression
+)
 
-rule FormalParameter   : ZEROORMORE(VariableModifier) + Type + VariableDeclaratorId
-  attr.action: BuildDecl(%2, %3)
-  attr.action: AddModifier(%1)
+rule AtomicTypeSpecifier : ONEOF(
+   "_Atomic" + '(' + TypeName + ')'
+)
 
-######################################################################
-#                        Block                                       #
-######################################################################
+rule TypeQualifier : ONEOF(
+   "const"
+   "restrict"
+   "volatile"
+   "_Atomic"
+)
 
-rule BlockStatement  : ONEOF(LocalVariableDeclarationStatement, Statement)
-  attr.property : Single
+rule FunctionSpecifier : ONEOF(
+   "inline"
+   "_Noreturn"
+)
 
-rule BlockStatements : BlockStatement + ZEROORMORE(BlockStatement)
+rule AlignmentSpecifier : ONEOF(
+   "_Alignas" + '(' + TypeName + ')'
+   "_Alignas" + '(' + ConstantExpression + ')'
+)
 
-rule Block           : '{' + ZEROORONE(BlockStatements) + '}'
-  attr.action: BuildBlock(%2)
+rule Declarator : ONEOF(
+   ZEROORONE(Pointer)+ DirectDeclarator
+)
+
+rule DirectDeclarator : ONEOF(
+   Identifier
+   '(' + Declarator + ')'
+   DirectDeclarator + '[' + ZEROORONE(TypeQualifierList)+ ZEROORONE(AssignmentExpression)+ ']'
+   DirectDeclarator + '[' + "static" + ZEROORONE(TypeQualifierList)+ AssignmentExpression + ']'
+   DirectDeclarator + '[' + TypeQualifierList + "static" + AssignmentExpression + ']'
+   DirectDeclarator + '[' + ZEROORONE(TypeQualifierList)+ '*' + ']'
+   DirectDeclarator + '(' + ParameterTypeList + ')'
+   DirectDeclarator + '(' + ZEROORONE(IdentifierList)+ ')'
+)
+
+rule Pointer : ONEOF(
+   '*' + ZEROORONE(TypeQualifierList)
+   '*' + ZEROORONE(TypeQualifierList)+ Pointer
+)
+
+rule TypeQualifierList : ONEOF(
+   TypeQualifier
+   TypeQualifierList + TypeQualifier
+)
+
+rule ParameterTypeList : ONEOF(
+   ParameterList
+   ParameterList + ',' + "..."
+)
+
+rule ParameterList : ONEOF(
+   ParameterDeclaration
+   ParameterList + ',' + ParameterDeclaration
+)
+
+rule ParameterDeclaration : ONEOF(
+   DeclarationSpecifiers + Declarator
+   DeclarationSpecifiers + ZEROORONE(AbstractDeclarator)
+)
+
+rule IdentifierList : ONEOF(
+   Identifier
+   IdentifierList + ',' + Identifier
+)
+
+rule TypeName : ONEOF(
+   SpecifierQualifierList + ZEROORONE(AbstractDeclarator)
+)
+
+rule AbstractDeclarator : ONEOF(
+   Pointer
+   ZEROORONE(Pointer)+ DirectAbstractDeclarator
+)
+
+rule DirectAbstractDeclarator : ONEOF(
+   '(' + AbstractDeclarator + ')'
+   ZEROORONE(DirectAbstractDeclarator)+ '[' + ZEROORONE(TypeQualifierList)
+   ZEROORONE(AssignmentExpression)+ ']'
+   ZEROORONE(DirectAbstractDeclarator)+ '[' + "static" + ZEROORONE(TypeQualifierList)
+   AssignmentExpression + ']'
+   ZEROORONE(DirectAbstractDeclarator)+ '[' + TypeQualifierList + "static"
+   AssignmentExpression + ']'
+   ZEROORONE(DirectAbstractDeclarator)+ '[' + '*' + ']'
+   ZEROORONE(DirectAbstractDeclarator)+ '(' + ZEROORONE(ParameterTypeList)+ ')'
+)
+
+rule TypedefName : ONEOF(
+   Identifier
+)
+
+rule Initializer : ONEOF(
+   AssignmentExpression
+   '{' + InitializerList + '}'
+   '{' + InitializerList + ',' + '}'
+)
+
+rule InitializerList : ONEOF(
+   ZEROORONE(Designation)+ Initializer
+   InitializerList + ',' + ZEROORONE(Designation)+ Initializer
+)
+
+rule Designation : ONEOF(
+   DesignatorList + '='
+)
+
+rule DesignatorList : ONEOF(
+   Designator
+   DesignatorList + Designator
+)
+
+rule Designator : ONEOF(
+   '[' + ConstantExpression + ']'
+   '.' + Identifier
+)
+
+rule Static_assertDeclaration : ONEOF(
+   "_Static_assert" + '(' + ConstantExpression + ',' + StringLiteral + ')' + ';'
+)
+
+rule Statement : ONEOF(
+   LabeledStatement
+   CompoundStatement
+   ExpressionStatement
+   SelectionStatement
+   IterationStatement
+   JumpStatement
+)
+
+rule LabeledStatement : ONEOF(
+   Identifier + ':' + Statement
+   "case" + ConstantExpression + ':' + Statement
+   "default" + ':' + Statement
+)
+
+rule CompoundStatement : ONEOF(
+   '{' + ZEROORONE(BlockItemList)+ '}'
+)
+
+rule BlockItemList : ONEOF(
+   BlockItem
+   BlockItemList + BlockItem
+)
+
+rule BlockItem : ONEOF(
+   Declaration
+   Statement
+)
+
+rule ExpressionStatement : ONEOF(
+   ZEROORONE(Expression)+ ';'
+)
+
+rule SelectionStatement : ONEOF(
+   "if" + '(' + Expression + ')' + Statement
+   "if" + '(' + Expression + ')' + Statement + "else" + Statement
+   "switch" + '(' + Expression + ')' + Statement
+)
+
+rule IterationStatement : ONEOF(
+   "while" + '(' + Expression + ')' + Statement
+   "do" + Statement + "while" + '(' + Expression + ')' + ';'
+   "for" + '(' + ZEROORONE(Expression)+ ';' + ZEROORONE(Expression)+ ';' + ZEROORONE(Expression)+ ')' + Statement
+   "for" + '(' + Declaration + ZEROORONE(Expression)+ ';' + ZEROORONE(Expression)+ ')' + Statement
+)
+
+rule JumpStatement : ONEOF(
+   "goto" + Identifier + ';'
+   "continue" + ';'
+   "break" + ';'
+   "return" + ZEROORONE(Expression)+ ';'
+)
+
+rule TranslationUnit : ONEOF(
+   ExternalDeclaration
+   TranslationUnit + ExternalDeclaration
+)
+
+rule ExternalDeclaration : ONEOF(
+   FunctionDefinition
+   Declaration
+)
+
+rule FunctionDefinition : ONEOF(
+   DeclarationSpecifiers + Declarator + ZEROORONE(DeclarationList)+ CompoundStatement
+)
+
+rule DeclarationList : ONEOF(
+   Declaration
+   DeclarationList + Declaration
+)
+
+rule preprocessingFile: ONEOF(
+  ZEROORONE(Group)
+)
+
+rule Group: ONEOF(
+  GroupPart
+  Group + GroupPart
+)
+
+rule GroupPart: ONEOF(
+  IfSection
+  ControlLine
+  TextLine
+  '#' + NonDirective
+)
+
+rule IfSection: ONEOF(
+  IfGroup + ZEROORONE(ElifGroups) + ZEROORONE(ElseGroup) + EndifLine
+)
+
+rule IfGroup: ONEOF(
+  '#' + "if" + ConstantExpression + NewLine + ZEROORONE(Group)
+  '#' + "ifdef" + Identifier + NewLine + ZEROORONE(Group)
+  '#' + "ifndef" + Identifier + NewLine + ZEROORONE(Group)
+)
+
+rule ElifGroups: ONEOF(
+  ElifGroup
+  ElifGroups + ElifGroup
+)
+
+rule ElifGroup: ONEOF(
+  '#' + "elif" + ConstantExpression + NewLine + ZEROORONE(Group)
+)
+
+rule ElseGroup: ONEOF(
+  '#' + "else" + NewLine + ZEROORONE(Group)
+)
+
+rule EndifLine: ONEOF(
+  '#' + "endif" + NewLine
+)
+
+rule ControlLine: ONEOF(
+  '#' + "include" + PpTokens + NewLine
+  '#' + "define" + Identifier + ReplacementList + NewLine
+  '#' + "define" + Identifier + Lparen + ZEROORONE(IdentifierList) + ')' + ReplacementList + NewLine
+  '#' + "define" + Identifier + Lparen + "..." + ')' + ReplacementList + NewLine
+  '#' + "define" + Identifier + Lparen + IdentifierList + ',' + "..." + ')' + ReplacementList + NewLine
+  '#' + "undef" + Identifier + NewLine
+  '#' + "line" + PpTokens + NewLine
+  '#' + "error" + ZEROORONE(PpTokens) + NewLine
+  '#' + "pragma" + ZEROORONE(PpTokens) + NewLine
+  '#' + NewLine
+)
+
+rule TextLine: ONEOF(
+  ZEROORONE(PpTokens) + NewLine
+)
+
+rule NonDirective: ONEOF(
+  PpTokens + NewLine
+)
+
+rule Lparen: ONEOF(
+  '('
+)
+
+rule ReplacementList: ONEOF(
+  ZEROORONE(PpTokens)
+)
+
+rule PpTokens: ONEOF(
+  PreprocessingToken
+  PpTokens + PreprocessingToken
+)
+
+rule NewLine: ONEOF(
+  "\n"
+)
+
+rule PreprocessingToken: ONEOF(
+  HeaderName
+  Identifier
+  PpNumber
+  CharacterConstant
+  StringLiteral
+  Punctuator
+  #Each nonWhiteSpace character that cannot be one of the above
+)
+
+rule Punctuator: ONEOF('[', ']', '(', ')', '{', '}', '.', "->" "++", "--", '&', '*', '+', '-', '~', '!', '/', '%', "<<", ">>", '<', '>', "<=", ">=", "==", "!=", '^', '|', "&&", "||", '?', ':', ';', "...", '=', "*=", "/=", "%=", "+=", "-=", "<<=", ">>=", "&=", "^=", "|=", ',', '#', "##", "<:", ":>", "<%", "%>", "%:", "%:%:")
+
+rule HeaderName: ONEOF(
+  '<' + HCharSequence + '>'
+  '"' + QCharSequence + '"'
+)
+
+rule HCharSequence: ONEOF(
+  HChar
+  HCharSequence + HChar
+)
+
+rule HChar: ONEOF(CHAR, DIGIT, '-', '_')
+
+rule QCharSequence: ONEOF(
+  QChar
+  QCharSequence + QChar
+)
+
+rule QChar: ONEOF(CHAR, DIGIT, '-', '_')
+
+rule PpNumber: ONEOF(
+  DIGIT
+  '.' + DIGIT
+  PpNumber + DIGIT
+  PpNumber + ONEOF(CHAR, '_')
+  PpNumber + 'e' + Sign0
+  PpNumber + 'E' + Sign0
+  PpNumber + 'p' + Sign0
+  PpNumber + 'P' + Sign0
+  PpNumber + '.'
+)
+
+rule Sign0 : ONEOF('+', '-')
+
