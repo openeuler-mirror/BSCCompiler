@@ -449,13 +449,21 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     (void)emitter.Emit("\t.section  ." + sectionName + ",\"ax\"\n");
   } else if (cgFunc.GetFunction().GetAttr(FUNCATTR_section)) {
     const std::string &sectionName = cgFunc.GetFunction().GetAttrs().GetPrefixSectionName();
-    (void)emitter.Emit("\t.section  " + sectionName).Emit(",\"ax\",@progbits\n");
+    (void)emitter.Emit("\t.section  " + sectionName);
+    if (cgFunc.GetPriority() != 0) {
+      (void)Emit(".").Emit(cgFunc.GetPriority());
+    }
+    (void)Emit(",\"ax\",@progbits\n");
   } else if (CGOptions::IsFunctionSections()) {
     (void)emitter.Emit("\t.section  .text.").Emit(cgFunc.GetName()).Emit(",\"ax\",@progbits\n");
   } else if (cgFunc.GetFunction().GetAttr(FUNCATTR_constructor_priority)) {
     (void)emitter.Emit("\t.section\t.text.startup").Emit(",\"ax\",@progbits\n");
   } else {
-    (void)emitter.Emit("\t.text\n");
+    if (cgFunc.GetPriority() != 0) {
+      (void)emitter.Emit("\t.section\tperf_hot.").Emit(cgFunc.GetPriority()).Emit(",\"ax\",@progbits\n");
+    } else {
+      (void)emitter.Emit("\t.text\n");
+    }
   }
   if (CGOptions::GetFuncAlignPow() != 0) {
     (void)emitter.Emit("\t.align ").Emit(CGOptions::GetFuncAlignPow()).Emit("\n");
@@ -2130,7 +2138,7 @@ void AArch64AsmEmitter::EmitAArch64DbgInsn(FuncEmitInfo &funcEmitInfo, Emitter &
         (void)emitter.Emit(" ");
         Operand &curOperand = insn.GetOperand(i);
         mpldbg::DBGOpndEmitVisitor dbgOpndEmitVisitor(emitter);
-    curOperand.Accept(dbgOpndEmitVisitor);
+        curOperand.Accept(dbgOpndEmitVisitor);
       }
       break;
     }

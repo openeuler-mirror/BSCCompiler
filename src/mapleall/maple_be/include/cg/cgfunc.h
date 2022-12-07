@@ -192,8 +192,8 @@ class CGFunc {
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   virtual void LmbcGenSaveSpForAlloca() = 0;
   void RemoveUnreachableBB();
-  Insn& BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum);
-  Insn& BuildScopeInsn(int64 id, bool isEnd);
+  Insn &BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum);
+  Insn &BuildScopeInsn(int64 id, bool isEnd);
   void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
   void GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone);
   int32 GetFreqFromStmt(uint32 stmtId);

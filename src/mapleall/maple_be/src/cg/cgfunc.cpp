@@ -1574,7 +1574,7 @@ void CGFunc::RemoveUnreachableBB() {
   }
 }
 
-Insn& CGFunc::BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum) {
+Insn &CGFunc::BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum) {
   Operand *o0 = CreateDbgImmOperand(fileNum);
   Operand *o1 = CreateDbgImmOperand(lineNum);
   Operand *o2 = CreateDbgImmOperand(columnNum);
@@ -1583,7 +1583,7 @@ Insn& CGFunc::BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum) {
   return loc;
 }
 
-Insn& CGFunc::BuildScopeInsn(int64 id, bool isEnd) {
+Insn &CGFunc::BuildScopeInsn(int64 id, bool isEnd) {
   Operand *o0 = CreateDbgImmOperand(id);
   Operand *o1 = CreateDbgImmOperand(isEnd ? 1 : 0);
   Insn &scope = GetInsnBuilder()->BuildDbgInsn(mpldbg::OP_DBG_scope).AddOpndChain(*o0).AddOpndChain(*o1);

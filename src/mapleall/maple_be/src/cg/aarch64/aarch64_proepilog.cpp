@@ -776,6 +776,12 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
 }
 
 void AArch64GenProEpilog::GenerateRet(BB &bb) {
+  /* Insert the loc insn before ret insn
+     so that the breakpoint can break at the end of the block's reverse parenthesis line. */
+  SrcPosition pos = cgFunc.GetFunction().GetScope()->GetRangeHigh();
+  if (cgFunc.GetCG()->GetCGOptions().WithDwarf() && cgFunc.GetMirModule().IsCModule() && pos.FileNum() != 0) {
+    bb.AppendInsn(cgFunc.BuildLocInsn(pos.FileNum(), pos.LineNum(), pos.Column()));
+  }
   bb.AppendInsn(cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_xret));
 }
 
@@ -1126,13 +1132,6 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
 
   if (currCG->InstrumentWithDebugTraceCall()) {
     AppendJump(*(currCG->GetDebugTraceExitFunction()));
-  }
-
-  /* Insert the loc insn before ret insn
-     so that the breakpoint can break at the end of the method's reverse parenthesis line. */
-  if (currCG->GetCGOptions().WithDwarf() && cgFunc.GetMirModule().IsCModule()) {
-    SrcPosition pos = cgFunc.GetFunction().GetScope()->GetRangeHigh();
-    cgFunc.GetCurBB()->AppendInsn(cgFunc.BuildLocInsn(pos.FileNum(), pos.LineNum(), pos.Column()));
   }
 
   GenerateRet(*(cgFunc.GetCurBB()));
