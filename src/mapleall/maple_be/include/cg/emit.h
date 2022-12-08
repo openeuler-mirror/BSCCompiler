@@ -396,8 +396,27 @@ class OpndEmitVisitor : public OperandVisitorBase,
  public:
   explicit OpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
   virtual ~OpndEmitVisitor() = default;
+  uint8 GetSlot() {
+    return slot;
+  }
+  void SetSlot(uint8 startIndex) {
+    slot = startIndex;
+  }
  protected:
   Emitter &emitter;
+  /* start index of InsnDesc.opndMD[],used for memOperand and listOperand.
+   * if Opnd is memOperand:
+   * (arm64)
+   * str x0, [x1, x2]        ----> slot = 1
+   * stp x1, x0, [sp, #8]    ----> slot = 2
+   * (x64)
+   * leaq 8(%rip), %rax      ----> slot = 0
+   *
+   * if opnd is listOperand:
+   * asm {destReg, {srcReg0, srcReg1, srcReg2 ...}}  -----> slot = 1
+   * asm {{destReg0, destReg2 ...}, srcReg}          -----> slot = 0
+   */
+  uint8 slot = 255;
 };
 }  /* namespace maplebe */
 

@@ -261,7 +261,8 @@ MOperator AArch64CGFunc::PickMovBetweenRegs(PrimType destType, PrimType srcType)
     return GetPrimTypeSize(srcType) <= k4ByteSize ? MOP_wmovrr : MOP_xmovrr;
   }
   if (IsPrimitiveFloat(destType) && IsPrimitiveFloat(srcType)) {
-    return GetPrimTypeSize(srcType) <= k4ByteSize ? MOP_xvmovs : MOP_xvmovd;
+    auto primTypeSize = GetPrimTypeSize(srcType);
+    return primTypeSize <= k4ByteSize ? MOP_xvmovs : ((primTypeSize < k16ByteSize) ?  MOP_xvmovd: MOP_vmovvv);
   }
   if (IsPrimitiveInteger(destType) && IsPrimitiveFloat(srcType)) {
     return GetPrimTypeSize(srcType) <= k4ByteSize ? MOP_xvmovrs : MOP_xvmovrd;
@@ -3516,6 +3517,7 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
           case PTY_i32:
             mOp = MOP_xsxtw64;
             break;
+          case PTY_u1:
           case PTY_u8:
             mOp = MOP_xuxtb32;
             break;
@@ -3527,6 +3529,10 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
             break;
           default:
             break;
+        }
+        if (destType == PTY_u1) {
+          GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(
+              MOP_wandrri12, insn.GetOperand(0), insn.GetOperand(0), CreateImmOperand(1, kMaxImmVal5Bits, false)));
         }
         GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(
             mOp, insn.GetOperand(0), insn.GetOperand(0)));
@@ -3553,7 +3559,7 @@ Operand *SelectLiteral(T *c, MIRFunction *func, uint32 labelIdx, AArch64CGFunc *
   std::string lblStr(".LB_");
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetStIdx().Idx());
   std::string funcName = funcSt->GetName();
-  lblStr.append(funcName).append(std::to_string(labelIdx));
+  lblStr = lblStr.append(funcName).append(std::to_string(labelIdx));
   st->SetNameStrIdx(lblStr);
   st->SetStorageClass(kScPstatic);
   st->SetSKind(kStConst);
@@ -3581,7 +3587,26 @@ Operand *SelectLiteral(T *c, MIRFunction *func, uint32 labelIdx, AArch64CGFunc *
   return nullptr;
 }
 
+template <>
+Operand *SelectLiteral<MIRFloat128Const>(MIRFloat128Const *c, MIRFunction *func, uint32 labelIdx,
+                                         AArch64CGFunc *cgFunc) {
+  MIRSymbol *st = func->GetSymTab()->CreateSymbol(kScopeLocal);
+  std::string lblStr(".LB_");
+  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetStIdx().Idx());
+  std::string funcName = funcSt->GetName();
+  lblStr.append(funcName).append(std::to_string(labelIdx));
+  st->SetNameStrIdx(lblStr);
+  st->SetStorageClass(kScPstatic);
+  st->SetSKind(kStConst);
+  st->SetKonst(c);
+  PrimType primType = c->GetType().GetPrimType();
+  st->SetTyIdx(TyIdx(primType));
+  uint32 typeBitSize = GetPrimTypeBitSize(primType);
+  return static_cast<Operand *>(&cgFunc->GetOrCreateMemOpnd(*st, 0, typeBitSize));
+}
+
 Operand *AArch64CGFunc::HandleFmovImm(PrimType stype, int64 val, MIRConst &mirConst, const BaseNode &parent) {
+  CHECK_FATAL(GetPrimTypeBitSize(stype) != k128BitSize, "Couldn't process Float128 at HandleFmovImm method");
   Operand *result;
   bool is64Bits = (GetPrimTypeBitSize(stype) == k64BitSize);
   uint64 canRepreset = is64Bits ? (val & 0xffffffffffff) : (val & 0x7ffff);
@@ -3623,6 +3648,19 @@ Operand *AArch64CGFunc::SelectFloatConst(MIRFloatConst &floatConst, const BaseNo
 Operand *AArch64CGFunc::SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) {
   /* according to aarch64 encoding format, convert int to float expression */
   return HandleFmovImm(doubleConst.GetType().GetPrimType(), doubleConst.GetIntValue(), doubleConst, parent);
+}
+
+Operand *AArch64CGFunc::SelectFloat128Const(MIRFloat128Const &float128Const) {
+  PrimType stype = float128Const.GetType().GetPrimType();
+  Operand *result = nullptr;
+  if (stype != PTY_f128)
+    CHECK_FATAL(false, "SelectFloat128 for ARM: should be float128");
+  else {
+    uint32 labelIdxTmp = GetLabelIdx();
+    result = SelectLiteral(static_cast<MIRFloat128Const*>(&float128Const), &GetFunction(), labelIdxTmp++, this);
+    SetLabelIdx(labelIdxTmp);
+  }
+  return result;
 }
 
 template <typename T>
@@ -5517,6 +5555,8 @@ Operand *AArch64CGFunc::SelectSqrt(UnaryNode &node, Operand &src, const BaseNode
 }
 
 void AArch64CGFunc::SelectCvtFloat2Int(Operand &resOpnd, Operand &srcOpnd, PrimType itype, PrimType ftype) {
+  ASSERT(!(ftype == PTY_f128), "wrong from type");
+
   bool is64BitsFloat = (ftype == PTY_f64);
   MOperator mOp = 0;
 
@@ -5562,6 +5602,8 @@ void AArch64CGFunc::SelectCvtInt2Float(Operand &resOpnd, Operand &origOpnd0, Pri
     mOp = (fsize == k8BitSize) ? MOP_xsxtb32 : MOP_xsxth32;
     GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, *srcOpnd, *opnd0));
   }
+
+  ASSERT(!(toType == PTY_f128), "unexpected type");
 
   switch (itype) {
     case PTY_i32:
@@ -5794,15 +5836,16 @@ void AArch64CGFunc::SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, Pri
       mOp = MOP_xvcvtfd;
       break;
     }
+    case PTY_f128:
+      break;
     case PTY_f64: {
-      CHECK_FATAL(fromType == PTY_f32, "unexpected cvt from type");
+      CHECK_FATAL(fromType == PTY_f32 || fromType == PTY_f128, "unexpected cvt from type");
       mOp = MOP_xvcvtdf;
       break;
     }
     default:
       CHECK_FATAL(false, "unexpected cvt to type");
   }
-
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, resOpnd, opnd0));
 }
 
@@ -7001,7 +7044,7 @@ RegOperand &AArch64CGFunc::CreateRegisterOperandOfType(PrimType primType) {
 
 RegOperand &AArch64CGFunc::CreateRegisterOperandOfType(RegType regType, uint32 byteLen) {
   /* BUG: if half-precision floating point operations are supported? */
-  /* AArch64 has 32-bit and 64-bit registers only */
+  /* AArch64 has 32-bit and 64-bit GP registers and 128-bit q-registers */
   if (byteLen < k4ByteSize) {
     byteLen = k4ByteSize;
   }

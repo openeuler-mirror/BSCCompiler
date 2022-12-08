@@ -21,27 +21,25 @@
 
 namespace maplebe {
 
-void A64OpndEmitVisitor::EmitIntReg(const RegOperand &v, int32 opndSz) {
+void A64OpndEmitVisitor::EmitIntReg(const RegOperand &v, uint32 opndSz) {
   CHECK_FATAL(v.GetRegisterType() == kRegTyInt, "wrong Type");
-  int32 opndSize = (opndSz == kMaxSimm32) ? static_cast<int32>(v.GetSize()) : opndSz;
-  ASSERT((opndSize == k32BitSizeInt || opndSize == k64BitSizeInt), "illegal register size");
+  ASSERT((opndSz == k32BitSizeInt || opndSz == k64BitSizeInt), "illegal register size");
 #ifdef USE_32BIT_REF
-  bool r32 = (opndSize == k32BitSizeInt) || isRefField;
+  bool r32 = (opndSz == k32BitSizeInt) || isRefField;
 #else
-  bool r32 = (opndSize == k32BitSizeInt);
+  bool r32 = (opndSz == k32BitSizeInt);
 #endif  /* USE_32BIT_REF */
   (void)emitter.Emit(AArch64CG::intRegNames[(r32 ? AArch64CG::kR32List : AArch64CG::kR64List)][v.GetRegisterNumber()]);
 }
 
 void A64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
-  ASSERT(opndProp == nullptr || opndProp->IsRegister(),
-         "operand type doesn't match");
-  uint32 size = v->GetSize();
+  CHECK_NULL_FATAL(opndProp);
+  CHECK_FATAL(opndProp->IsRegister(), "opnd is not register!");
   regno_t regNO = v->GetRegisterNumber();
-  uint32 opndSize = (opndProp != nullptr) ? opndProp->GetSize() : size;
+  uint32 opndSize = opndProp->GetSize();
   switch (v->GetRegisterType()) {
     case kRegTyInt: {
-      EmitIntReg(*v, static_cast<int32>(opndSize));
+      EmitIntReg(*v, opndSize);
       break;
     }
     case kRegTyFloat: {
@@ -124,15 +122,12 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
          "unexpected opnd size");
 #endif
   switch (addressMode) {
-    case MemOperand::kAddrModeUndef: CHECK_FATAL(false, "addressmode undef!");
+    case MemOperand::kAddrModeUndef:
     case MemOperand::kScale: CHECK_FATAL(false, "undef mode in aarch64!");
     case MemOperand::kBOI: {
       (void)emitter.Emit("[");
       auto *baseReg = v->GetBaseRegister();
-      if (baseReg->GetSize() != k64BitSize) {
-        baseReg->SetSize(k64BitSize);
-      }
-      EmitIntReg(*baseReg);
+      EmitIntReg(*baseReg, k64BitSize);
       ImmOperand *offset = a64v->GetOffsetImmediate();
       if (offset != nullptr && !offset->IsZero()) {
         (void)emitter.Emit(",");
@@ -144,12 +139,9 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
     case MemOperand::kBOR: {
       (void)emitter.Emit("[");
       auto *baseReg = v->GetBaseRegister();
-      if (baseReg->GetSize() != k64BitSize) {
-        baseReg->SetSize(k64BitSize);
-      }
-      EmitIntReg(*baseReg);
+      EmitIntReg(*baseReg, k64BitSize);
       (void)emitter.Emit(",");
-      EmitIntReg(*a64v->GetIndexRegister());
+      EmitIntReg(*a64v->GetIndexRegister(), a64v->GetIndexRegister()->GetSize());
       if (a64v->NeedFixIndex()) {
         (void)emitter.Emit(", UXTW");
       }
@@ -159,15 +151,12 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
     case MemOperand::kBOE: {
       (void)emitter.Emit("[");
       auto *baseReg = v->GetBaseRegister();
-      if (baseReg->GetSize() != k64BitSize) {
-        baseReg->SetSize(k64BitSize);
-      }
-      EmitIntReg(*baseReg);
+      EmitIntReg(*baseReg, k64BitSize);
       (void)emitter.Emit(",");
       if (a64v->NeedFixIndex()) {
-        (void)emitter.Emit(AArch64CG::intRegNames[AArch64CG::kR32List][a64v->GetIndexRegister()->GetRegisterNumber()]);
+        EmitIntReg(*a64v->GetIndexRegister(), k32BitSize);
       } else {
-        EmitIntReg(*a64v->GetIndexRegister());
+        EmitIntReg(*a64v->GetIndexRegister(), a64v->GetIndexRegister()->GetSize());
       }
       (void)emitter.Emit(",");
       (void)emitter.Emit(a64v->GetExtendAsString());
@@ -182,12 +171,9 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
     case MemOperand::kBOL: {
       (void)emitter.Emit("[");
       auto *baseReg = v->GetBaseRegister();
-      if (baseReg->GetSize() != k64BitSize) {
-        baseReg->SetSize(k64BitSize);
-      }
-      EmitIntReg(*baseReg);
+      EmitIntReg(*baseReg, k64BitSize);
       (void)emitter.Emit(",");
-      EmitIntReg(*a64v->GetIndexRegister());
+      EmitIntReg(*a64v->GetIndexRegister(), a64v->GetIndexRegister()->GetSize());
       if (a64v->ShiftAmount() != 0) {
         CHECK_FATAL(a64v->GetExtendAsString() == "LSL", "must be lsl!");
         CHECK_FATAL(a64v->CheckAmount(), "check amount!");
@@ -202,10 +188,7 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
     case MemOperand::kLo12Li: {
       (void)emitter.Emit("[");
       RegOperand *baseReg = v->GetBaseRegister();
-      if (baseReg->GetSize() != k64BitSize) {
-        baseReg->SetSize(k64BitSize);
-      }
-      EmitIntReg(*baseReg);
+      EmitIntReg(*baseReg, k64BitSize);
       CHECK_NULL_FATAL(v->GetSymbol());
       if (CGOptions::IsPIC()  && (v->GetSymbol()->NeedPIC() || v->GetSymbol()->IsThreadLocal())) {
         std::string gotEntry = v->GetSymbol()->IsThreadLocal() ? ", #:tlsdesc_lo12:" : ", #:got_lo12:";
@@ -240,10 +223,7 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
     case MemOperand::kPreIndex: {
       (void)emitter.Emit("[");
       auto *baseReg = v->GetBaseRegister();
-      if (baseReg->GetSize() != k64BitSize) {
-        baseReg->SetSize(k64BitSize);
-      }
-      EmitIntReg(*baseReg);
+      EmitIntReg(*baseReg, k64BitSize);
       ImmOperand *offset = a64v->GetOffsetImmediate();
       CHECK_NULL_FATAL(offset);
       if (!offset->IsZero()) {
@@ -256,10 +236,7 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
     case MemOperand::kPostIndex: {
       (void)emitter.Emit("[");
       auto *baseReg = v->GetBaseRegister();
-      if (baseReg->GetSize() != k64BitSize) {
-        baseReg->SetSize(k64BitSize);
-      }
-      EmitIntReg(*baseReg);
+      EmitIntReg(*baseReg, k64BitSize);
       (void)emitter.Emit("]");
       ImmOperand *offset = a64v->GetOffsetImmediate();
       CHECK_NULL_FATAL(offset);
