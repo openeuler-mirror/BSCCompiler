@@ -689,10 +689,11 @@ bool EmptyBBPattern::Optimize(BB &curBB) {
   if (curBB.IsUnreachable()) {
     return false;
   }
-  /* Empty bb but do not have cleanup label. */
-  if (curBB.GetPrev() != nullptr &&
-      (cgFunc->GetCleanupLabel() == nullptr || curBB.GetFirstStmt() != cgFunc->GetCleanupLabel()) &&
-      curBB.GetFirstInsn() == nullptr && curBB.GetLastInsn() == nullptr && &curBB != cgFunc->GetLastBB() &&
+  /* Empty bb and it's not a cleanupBB/returnBB/lastBB/catchBB. */
+  if (curBB.GetPrev() != nullptr && !curBB.IsCleanup() &&
+      ((curBB.GetFirstInsn() == nullptr && curBB.GetLastInsn() == nullptr) ||
+      (curBB.GetFirstInsn()->IsDbgInsn() && curBB.GetLastInsn() == curBB.GetFirstInsn())) &&
+      &curBB != cgFunc->GetLastBB() &&
       curBB.GetKind() != BB::kBBReturn && !IsLabelInLSDAOrSwitchTable(curBB.GetLabIdx())) {
     Log(curBB.GetId());
     if (checkOnly) {
@@ -700,8 +701,7 @@ bool EmptyBBPattern::Optimize(BB &curBB) {
     }
 
     BB *sucBB = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
-    if (sucBB == nullptr ||
-        (cgFunc->GetCleanupLabel() != nullptr && sucBB->GetFirstStmt() == cgFunc->GetCleanupLabel())) {
+    if (sucBB == nullptr || sucBB->IsCleanup()) {
       return false;
     }
     cgFunc->GetTheCFG()->RemoveBB(curBB);
@@ -754,6 +754,9 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
 
       ehFunc->GetLSDACallSiteTable()->UpdateCallSite(curBB, *nextReachableBB);
     }
+
+   /* Indicates whether the curBB is removed. */
+    bool isRemoved = true;
     if (curBB.GetPrev() != nullptr) {
       curBB.GetPrev()->SetNext(curBB.GetNext());
     }
@@ -762,7 +765,9 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     } else {
       cgFunc->SetLastBB(*(curBB.GetPrev()));
     }
-
+    if (cgFunc->GetFirstBB() == cgFunc->GetLastBB() && cgFunc->GetFirstBB() != nullptr) {
+      isRemoved = false;
+    }
     /* flush after remove; */
     for (BB *bb : curBB.GetSuccs()) {
       bb->RemovePreds(curBB);
@@ -775,6 +780,22 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     curBB.ClearSuccs();
     curBB.ClearEhSuccs();
     /* return always be false */
+    if (!isRemoved) {
+      return false;
+    }
+    if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
+      DebugInfo *di = cgFunc->GetCG()->GetMIRModule()->GetDbgInfo();
+      DBGDie *fdie = di->GetFuncDie(&cgFunc->GetFunction());
+      for (auto attr : fdie->GetAttrVec()) {
+        if (!attr->GetKeep()) {
+          continue;
+        }
+        if ((attr->GetDwAt() == DW_AT_high_pc || attr->GetDwAt() == DW_AT_low_pc) &&
+            attr->GetId() == curBB.GetLabIdx()) {
+          attr->SetKeep(false);
+        }
+      }
+    }
   }
   return false;
 }
