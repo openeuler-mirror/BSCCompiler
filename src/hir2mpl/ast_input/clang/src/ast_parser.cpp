@@ -563,6 +563,14 @@ bool ASTParser::HasDefault(const clang::Stmt &stmt) {
     if (HasDefault(*labelStmt->getSubStmt())) {
       return true;
     }
+  } else if (llvm::isa<const clang::IfStmt>(stmt)) {
+    const auto *ifStmt = llvm::cast<const clang::IfStmt>(&stmt);
+    if (HasDefault(*ifStmt->getThen())) {
+      return true;
+    }
+    if (ifStmt->hasElseStorage() && HasDefault(*ifStmt->getElse())) {
+      return true;
+    }
   }
   return false;
 }

@@ -307,32 +307,42 @@ bool IsProfitableToMergeCond(MeExpr *predCond, MeExpr *succCond) {
   return false;
 }
 
-// simple cmp expr is "scalarExpr cmp constExpr/scalarExpr"
-std::unique_ptr<ValueRange> GetVRForSimpleCmpExpr(const MeExpr &expr) {
+bool GetBoundOfOpnd(const MeExpr &expr, Bound &bound) {
   Opcode op = expr.GetOp();
   if (!IsCompareHasReverseOp(op)) {
-    return nullptr;
+    return false;
   }
   // only deal with "scalarExpr cmp constExpr"
   MeExpr *opnd0 = expr.GetOpnd(0);
   if (!opnd0->IsScalar()) {
-    return nullptr;
+    return false;
   }
   PrimType opndType = static_cast<const OpMeExpr&>(expr).GetOpndType();
   if (!IsPrimitiveInteger(opndType)) {
-    return nullptr;
+    return false;
   }
-  Bound opnd1Bound(nullptr, 0, opndType);  // bound of expr's opnd1
+  bound.SetPrimType(opndType); // bound of expr's opnd1
   if (expr.GetOpnd(1)->GetMeOp() == kMeOpConst) {
     MIRConst *constVal = static_cast<ConstMeExpr*>(expr.GetOpnd(1))->GetConstVal();
     if (constVal->GetKind() != kConstInt) {
-      return nullptr;
+      return false;
     }
     int64 val = static_cast<MIRIntConst*>(constVal)->GetExtValue();
-    opnd1Bound.SetConstant(val);
+    bound.SetConstant(val);
   } else if (expr.GetOpnd(1)->IsScalar()) {
-    opnd1Bound.SetVar(expr.GetOpnd(1));
+    bound.SetVar(expr.GetOpnd(1));
   } else {
+    return false;
+  }
+  return true;
+}
+
+// simple cmp expr is "scalarExpr cmp constExpr/scalarExpr"
+std::unique_ptr<ValueRange> GetVRForSimpleCmpExpr(const MeExpr &expr) {
+  Opcode op = expr.GetOp();
+  PrimType opndType = static_cast<const OpMeExpr&>(expr).GetOpndType();
+  Bound bound;
+  if (!GetBoundOfOpnd(expr, bound)) {
     return nullptr;
   }
   Bound maxBound = Bound::MaxBound(opndType);
@@ -340,22 +350,38 @@ std::unique_ptr<ValueRange> GetVRForSimpleCmpExpr(const MeExpr &expr) {
 
   switch (op) {
     case OP_gt: {
-      return std::make_unique<ValueRange>(++opnd1Bound, maxBound, kLowerAndUpper);
+      if (bound == Bound::MaxBound(bound.GetPrimType())) {
+        return nullptr;
+      }
+      if (bound.IsConstantBound()) {
+        ++bound;
+      } else {
+        bound.SetClosedInterval(false);
+      }
+      return std::make_unique<ValueRange>(bound, maxBound, kLowerAndUpper);
     }
     case OP_ge: {
-      return std::make_unique<ValueRange>(opnd1Bound, maxBound, kLowerAndUpper);
+      return std::make_unique<ValueRange>(bound, maxBound, kLowerAndUpper);
     }
     case OP_lt: {
-      return std::make_unique<ValueRange>(minBound, --opnd1Bound, kLowerAndUpper);
+      if (bound == Bound::MinBound(bound.GetPrimType())) {
+        return nullptr;
+      }
+      if (bound.IsConstantBound()) {
+        --bound;
+      } else {
+        bound.SetClosedInterval(false);
+      }
+      return std::make_unique<ValueRange>(minBound, bound, kLowerAndUpper);
     }
     case OP_le: {
-      return std::make_unique<ValueRange>(minBound, opnd1Bound, kLowerAndUpper);
+      return std::make_unique<ValueRange>(minBound, bound, kLowerAndUpper);
     }
     case OP_eq: {
-      return std::make_unique<ValueRange>(opnd1Bound, kEqual);
+      return std::make_unique<ValueRange>(bound, kEqual);
     }
     case OP_ne: {
-      return std::make_unique<ValueRange>(opnd1Bound, kNotEqual);
+      return std::make_unique<ValueRange>(bound, kNotEqual);
     }
     default: {
       return nullptr;
@@ -1258,6 +1284,11 @@ BB *OptimizeBB::MergeDistinctBBPair(BB *pred, BB *succ) {
   if (succ != pred->GetUniqueSucc() || succ == cfg->GetCommonExitBB() || succ->IsSuccBB(*cfg->GetCommonEntryBB())) {
     return nullptr;
   }
+  auto &addrTaken = f.GetMirFunc()->GetLabelTab()->GetAddrTakenLabels();
+  if (addrTaken.find(succ->GetBBLabel()) != addrTaken.end()) {
+    // need keep address taken label to maintain jump address
+    return nullptr;
+  }
   // start merging currBB and predBB
   return MergeSuccIntoPred(pred, succ);
 }
@@ -1903,9 +1934,9 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
       BB *affectedBB = (tfBranch == kBrTrue) ? stfSucc.first : stfSucc.second;
       idx = succ.GetSuccIndex(*affectedBB);
       ASSERT(idx >= 0 && idx < succ.GetSucc().size(), "sanity check");
-      int64_t oldedgeFreq = static_cast<int64_t>(succ.GetSuccFreq()[static_cast<uint32>(idx)]);
+      uint64_t oldedgeFreq = succ.GetSuccFreq()[static_cast<uint32>(idx)];
       if (oldedgeFreq >= freq) {
-        succ.SetSuccFreq(idx, static_cast<uint64>(oldedgeFreq) - freq);
+        succ.SetSuccFreq(idx, oldedgeFreq - freq);
       } else {
         succ.SetSuccFreq(idx, 0);
       }

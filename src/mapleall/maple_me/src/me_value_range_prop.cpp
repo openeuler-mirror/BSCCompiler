@@ -36,10 +36,20 @@ bool Bound::CanBeComparedWith(const Bound &bound) const {
     return false;
   }
   if (var == bound.GetVar()) {
-    return true;
+    return var == nullptr ||
+        // If the var of bounds are equal, but one of them is open and the other is not open,
+        // the bounds can not be compared.
+        // Such as:
+        // condition1: a < b      => VR(a): [min, b - 1]
+        // condition2: a <= b - 1 => VR(a): [min, b - 1]
+        isClosedInterval == bound.IsClosedInterval();
   }
-  return (*this == MinBound(primType) || *this == MaxBound(primType) ||
-          bound == MinBound(primType) || bound == MaxBound(primType));
+  // If a bound is min or max and the other bound is not closed, the bounds can not be compared.
+  // Such as:(the prim types of var a and var b are unsigned)
+  // condition1: a == 0   => VR(a): [0, 0]
+  // condition2: a < b    => VR(a): [0, b - 1]
+  return (((*this == MinBound(primType) || *this == MaxBound(primType)) && bound.IsClosedInterval()) ||
+      ((bound == MinBound(primType) || bound == MaxBound(primType)) && this->IsClosedInterval()));
 }
 
 bool Bound::operator<(const Bound &bound) const {
@@ -503,27 +513,33 @@ MeExpr *GetCmpExprFromVR(const ValueRange *vr, MeExpr &expr, MeIRMap *irmap) {
       Bound lower = vr->GetLower();
       Bound upper = vr->GetUpper();
       if (lower == Bound::MinBound(lower.GetPrimType())) {
-        // expr <= upper
-        return GetCmpExprFromBound(upper, expr, irmap, OP_le);
+        // expr < upper || expr <= upper
+        return upper.IsClosedInterval() ? GetCmpExprFromBound(upper, expr, irmap, OP_le) :
+            GetCmpExprFromBound(upper, expr, irmap, OP_lt);
       } else if (upper == Bound::MaxBound(upper.GetPrimType())) {
-        // lower <= expr
-        return GetCmpExprFromBound(lower, expr, irmap, OP_ge);
+        // lower < expr || lower <= expr
+        return lower.IsClosedInterval() ? GetCmpExprFromBound(lower, expr, irmap, OP_ge) :
+            GetCmpExprFromBound(lower, expr, irmap, OP_gt);
       } else {
-        // lower <= expr <= upper
-        MeExpr *upperExpr = GetCmpExprFromBound(upper, expr, irmap, OP_le);
-        MeExpr *lowerExpr = GetCmpExprFromBound(lower, expr, irmap, OP_ge);
+        // lower <=(<) expr <=(<) upper
+        MeExpr *upperExpr = upper.IsClosedInterval() ? GetCmpExprFromBound(upper, expr, irmap, OP_le) :
+            GetCmpExprFromBound(upper, expr, irmap, OP_lt);
+        MeExpr *lowerExpr = lower.IsClosedInterval() ? GetCmpExprFromBound(lower, expr, irmap, OP_ge) :
+            GetCmpExprFromBound(lower, expr, irmap, OP_gt);
         return irmap->CreateMeExprBinary(OP_land, PTY_u1, *upperExpr, *lowerExpr);
       }
     }
     case kOnlyHasLowerBound: {
-      // expr >= val
       Bound lower = vr->GetLower();
-      return GetCmpExprFromBound(lower, expr, irmap, OP_ge);
+      // expr > val || expr >= val
+      return lower.IsClosedInterval() ? GetCmpExprFromBound(lower, expr, irmap, OP_ge) :
+          GetCmpExprFromBound(lower, expr, irmap, OP_gt);
     }
     case kOnlyHasUpperBound: {
-      // expr <= val
       Bound upper = vr->GetUpper();
-      return GetCmpExprFromBound(upper, expr, irmap, OP_le);
+      // expr < val || expr <= val
+      return upper.IsClosedInterval() ? GetCmpExprFromBound(upper, expr, irmap, OP_le) :
+          GetCmpExprFromBound(upper, expr, irmap, OP_lt);
     }
     case kNotEqual: {
       // expr != val

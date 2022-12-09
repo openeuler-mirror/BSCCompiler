@@ -190,6 +190,12 @@ class Bound {
             IsSignedInteger(primType) == IsSignedInteger(bound.GetPrimType()));
   }
 
+  bool operator!=(const Bound &bound) const {
+    return var != bound.GetVar() || constant != bound.GetConstant() ||
+        (GetPrimTypeActualBitSize(primType) != GetPrimTypeActualBitSize(bound.GetPrimType()) ||
+        IsSignedInteger(primType) == IsSignedInteger(bound.GetPrimType()));
+  }
+
   bool operator<(const Bound &bound) const;
 
   bool operator<=(const Bound &bound) const;
@@ -215,10 +221,19 @@ class Bound {
     return var == nullptr;
   }
 
+  bool IsClosedInterval() const {
+    return isClosedInterval;
+  }
+
+  void SetClosedInterval(bool isClose) {
+    isClosedInterval = isClose;
+  }
+
  private:
   MeExpr *var = nullptr;
   int64 constant = 0;
   PrimType primType = PTY_begin;
+  bool isClosedInterval = true; // The bound of is an closed interval.
 };
 
 enum RangeType {

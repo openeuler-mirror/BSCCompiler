@@ -1757,13 +1757,18 @@ class ASTDependentScopeDeclRefExpr : public ASTExpr {
 
 class ASTAtomicExpr : public ASTExpr {
  public:
-  explicit ASTAtomicExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpAtomic) {
+  explicit ASTAtomicExpr(MapleAllocator &allocatorIn) : ASTExpr(kASTOpAtomic),
+      varName(FEUtils::GetSequentialName("ret.var.")) {
     (void)allocatorIn;
   }
   ~ASTAtomicExpr() = default;
 
   void SetRefType(MIRType *ref) {
     refType = ref;
+  }
+
+  const std::string GetRetVarName() const {
+    return varName.c_str();
   }
 
   void SetAtomicOp(ASTAtomicOp op) {
@@ -1837,6 +1842,7 @@ class ASTAtomicExpr : public ASTExpr {
   ASTExpr *orderExpr = nullptr;
   ASTAtomicOp atomicOp = kAtomicOpUndefined;
   bool isFromStmt = false;
+  const std::string varName;
 };
 
 class ASTExprStmtExpr : public ASTExpr {

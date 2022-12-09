@@ -364,6 +364,9 @@ UniqueFEIRExpr FEIRBuilder::CreateExprCastPrim(UniqueFEIRExpr srcExpr, PrimType 
   // Handle the case separately for future optimization and deletion.
   // bool u1
   if (srcExpr->GetPrimType() == PTY_u1) {
+    if (FEUtils::IsInteger(dstType)) {
+      return CreateExprCvtPrim(std::move(srcExpr), dstType);
+    }
     if (IsPrimitiveFloat(dstType)) {
       return CreateExprCvtPrim(std::move(srcExpr), PTY_u32, dstType);
     }
