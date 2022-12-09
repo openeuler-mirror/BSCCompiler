@@ -707,6 +707,12 @@ void EliminateEmptyConnectingBB(const BB *predBB, BB *emptyBB, const BB *stopBB,
       int succIdx = pred->GetSuccIndex(*emptyBB);
       pred->SetSucc(static_cast<size_t>(succIdx), succ);
     }
+    if (emptyBB->GetAttributes(kBBAttrIsEntry)) {
+      cfg.GetCommonEntryBB()->RemoveEntry(*emptyBB);
+      cfg.GetCommonEntryBB()->AddEntry(*succ);
+      succ->SetAttributes(kBBAttrIsEntry);
+      emptyBB->ClearAttributes(kBBAttrIsEntry);
+    }
     cfg.DeleteBasicBlock(*emptyBB);
     emptyBB = succ;
   }
