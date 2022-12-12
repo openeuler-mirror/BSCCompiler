@@ -26,6 +26,9 @@ if [ "$#" -lt 2 ]; then
 fi
 
 curdir=$(pwd)
+# force to use local cmake and ninja
+export PATH=${curdir}/tools/cmake/bin:${curdir}/tools/ninja:$PATH
+
 export MAPLE_ROOT=${curdir}
 export SPEC=${MAPLE_ROOT}/testsuite/c_test/spec_test
 export LD_LIBRARY_PATH=${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib:${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib:${LD_LIBRARY_PATH}
