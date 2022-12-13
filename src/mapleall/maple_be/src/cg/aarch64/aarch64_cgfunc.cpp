@@ -9501,7 +9501,8 @@ MemOperand &AArch64CGFunc::CreateMemOpndForStatic(const MIRSymbol &symbol, int64
       /* adrp    x1, _PTR__cinf_Ljava_2Flang_2FSystem_3B */
       Insn &insn = GetInsnBuilder()->BuildInsn(MOP_xadrp, stAddrOpnd, stOpnd);
       GetCurBB()->AppendInsn(insn);
-      if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
+      if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0 ||
+        ((size == k64BitSize) && (offset % static_cast<int64>(k8BitSizeInt) != 0))) {
         GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xadrpl12, stAddrOpnd, stAddrOpnd, stOpnd));
         return *CreateMemOperand(size, stAddrOpnd, CreateImmOperand(0, k32BitSize, false));
       }
