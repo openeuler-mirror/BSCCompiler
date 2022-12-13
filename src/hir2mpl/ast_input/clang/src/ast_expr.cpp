@@ -632,9 +632,7 @@ UniqueFEIRExpr ASTCastExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) co
   if (isArrayToPointerDecay || isFunctionToPointerDecay) {
     return Emit2FEExprForFunctionOrArray2Pointer(stmts);
   }
-  for (auto expr : vlaExprInfos) {
-    (void)expr->Emit2FEExpr(stmts);
-  }
+  EmitVLASizeExprs(stmts);
   UniqueFEIRExpr subExpr = childExpr->Emit2FEExpr(stmts);
   if (isUnoinCast && dst->GetKind() == kTypeUnion) {
     std::string varName = FEUtils::GetSequentialName("anon.union.");
@@ -1216,6 +1214,7 @@ MIRConst *ASTInitListExpr::GenerateMIRConstForStruct() const {
 
 UniqueFEIRExpr ASTInitListExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   UniqueFEIRVar feirVar = FEIRBuilder::CreateVarNameForC(GetInitListVarName(), *initListType);
+  EmitVLASizeExprs(stmts);
   if (initListType->GetKind() == MIRTypeKind::kTypeArray) {
     UniqueFEIRExpr arrayExpr = FEIRBuilder::CreateExprAddrofVar(feirVar->Clone());
     auto base = std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr>(arrayExpr->Clone());

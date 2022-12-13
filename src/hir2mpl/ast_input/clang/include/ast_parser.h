@@ -18,6 +18,7 @@
 #include <functional>
 #include "mempool_allocator.h"
 #include "ast_decl.h"
+#include "ast_decl_builder.h"
 #include "ast_interface.h"
 
 namespace maple {
@@ -101,7 +102,34 @@ class ASTParser {
   ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
   bool HasLabelStmt(const clang::Stmt *expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
-  void SaveVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, std::list<ASTExpr*> &vlaSizeExprs);
+  template <typename Container>
+  void SaveVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, Container &vlaSizeExprs) {
+    if (!type.isVariableArrayType()) {
+      return;
+    }
+    const clang::VariableArrayType *vlaType = llvm::cast<clang::VariableArrayType>(&type);
+    if (vlaSizeMap.find(vlaType->getSizeExpr()) != vlaSizeMap.cend()) {
+      return;  // vla size expr already exists
+    }
+    const clang::QualType qualType = type.getCanonicalTypeInternal();
+    ASTExpr *vlaSizeExpr = BuildExprToComputeSizeFromVLA(allocator, qualType.getCanonicalType());
+    if (vlaSizeExpr == nullptr) {
+      return;
+    }
+    ASTDeclRefExpr *vlaSizeVarExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
+    MIRType *vlaSizeType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
+    ASTDecl *vlaSizeVar = ASTDeclsBuilder::ASTDeclBuilder(
+        allocator, MapleString("", allocator.GetMemPool()), FEUtils::GetSequentialName("vla_size."),
+        MapleVector<MIRType*>({vlaSizeType}, allocator.Adapter()));
+    vlaSizeVar->SetIsParam(true);
+    vlaSizeVarExpr->SetASTDecl(vlaSizeVar);
+    ASTAssignExpr *expr = ASTDeclsBuilder::ASTStmtBuilder<ASTAssignExpr>(allocator);
+    expr->SetLeftExpr(vlaSizeVarExpr);
+    expr->SetRightExpr(vlaSizeExpr);
+    vlaSizeMap[vlaType->getSizeExpr()] = vlaSizeVarExpr;
+    (void)vlaSizeExprs.emplace_back(expr);
+    SaveVLASizeExpr(allocator, *(vlaType->getElementType().getCanonicalType().getTypePtr()), vlaSizeExprs);
+  }
   ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo) const;
   ASTExpr *ProcessExprCastExpr(MapleAllocator &allocator, const clang::CastExpr &expr,
                                const clang::Type **vlaType = nullptr);
@@ -235,6 +263,8 @@ class ASTParser {
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
   bool CheckIncContinueStmtExpr(const clang::Stmt &bodyStmt) const;
   void CheckVarNameValid(std::string varName);
+  void ParserExprVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, ASTExpr &expr);
+  void ParserStmtVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, std::list<ASTStmt*> &stmts);
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
                                                    std::stringstream &ss) const;
 static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();

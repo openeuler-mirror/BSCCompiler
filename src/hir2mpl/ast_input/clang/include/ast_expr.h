@@ -148,6 +148,10 @@ class ASTExpr {
     return IgnoreParensImpl();
   }
 
+  void SetVLASizeExprs(std::list<ASTExpr*> astExprs) {
+    vlaExprInfos = std::move(astExprs);
+  }
+
  protected:
   virtual ASTValue *GetConstantValueImpl() const {
     return value;
@@ -160,6 +164,12 @@ class ASTExpr {
     return refedDecl;
   }
 
+  void EmitVLASizeExprs(std::list<UniqueFEIRStmt> &stmts) const {
+    for (auto &vlaSizeExpr : vlaExprInfos) {
+      (void)vlaSizeExpr->Emit2FEExpr(stmts);
+    }
+  }
+
   ASTOp op;
   MIRType *mirType = nullptr;
   ASTDecl *refedDecl = nullptr;
@@ -168,6 +178,7 @@ class ASTExpr {
   Loc loc = {0, 0, 0};
   EvaluatedFlag evaluatedflag = kNotEvaluated;
   bool isRValue = false;
+  std::list<ASTExpr*> vlaExprInfos;
 };
 
 class ASTCastExpr : public ASTExpr {
@@ -249,10 +260,6 @@ class ASTCastExpr : public ASTExpr {
     isVectorSplat = flag;
   }
 
-  void SetVLASizeExprs(ASTExpr *astExpr) {
-    (void)vlaExprInfos.emplace_back(astExpr);
-  }
-
  protected:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -283,7 +290,6 @@ class ASTCastExpr : public ASTExpr {
   bool isBuilinFunc = false;
   bool isUnoinCast = false;
   bool isVectorSplat = false;
-  std::list<ASTExpr*> vlaExprInfos;
 };
 
 class ASTDeclRefExpr : public ASTExpr {

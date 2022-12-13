@@ -705,7 +705,7 @@ ASTStmt *ASTParser::ProcessStmtDeclStmt(MapleAllocator &allocator, const clang::
   }
   for (auto decl : std::as_const(decls)) {
     // save vla size expr
-    std::list<ASTExpr*> astExprs;
+    MapleList<ASTExpr*> astExprs(allocator.Adapter());
     if (decl->getKind() == clang::Decl::Var) {
       const clang::VarDecl *varDecl = llvm::cast<clang::VarDecl>(decl);
       SaveVLASizeExpr(allocator, *(varDecl->getType().getCanonicalType().getTypePtr()), astExprs);
@@ -1108,35 +1108,6 @@ ASTExpr *ASTParser::ProcessExpr(MapleAllocator &allocator, const clang::Expr *ex
   }
 }
 
-void ASTParser::SaveVLASizeExpr(MapleAllocator &allocator, const clang::Type &type,
-                                std::list<ASTExpr*> &vlaSizeExprs) {
-  if (!type.isVariableArrayType()) {
-    return;
-  }
-  const clang::VariableArrayType *vlaType = llvm::cast<clang::VariableArrayType>(&type);
-  if (vlaSizeMap.find(vlaType->getSizeExpr()) != vlaSizeMap.cend()) {
-    return;  // vla size expr already exists
-  }
-  const clang::QualType qualType = type.getCanonicalTypeInternal();
-  ASTExpr *vlaSizeExpr = BuildExprToComputeSizeFromVLA(allocator, qualType.getCanonicalType());
-  if (vlaSizeExpr == nullptr) {
-    return;
-  }
-  ASTDeclRefExpr *vlaSizeVarExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
-  MIRType *vlaSizeType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
-  ASTDecl *vlaSizeVar = ASTDeclsBuilder::ASTDeclBuilder(
-      allocator, MapleString("", allocator.GetMemPool()), FEUtils::GetSequentialName("vla_size."),
-      MapleVector<MIRType*>({vlaSizeType}, allocator.Adapter()));
-  vlaSizeVar->SetIsParam(true);
-  vlaSizeVarExpr->SetASTDecl(vlaSizeVar);
-  ASTAssignExpr *expr = ASTDeclsBuilder::ASTStmtBuilder<ASTAssignExpr>(allocator);
-  expr->SetLeftExpr(vlaSizeVarExpr);
-  expr->SetRightExpr(vlaSizeExpr);
-  vlaSizeMap[vlaType->getSizeExpr()] = vlaSizeVarExpr;
-  (void)vlaSizeExprs.emplace_back(expr);
-  SaveVLASizeExpr(allocator, *(vlaType->getElementType().getCanonicalType().getTypePtr()), vlaSizeExprs);
-}
-
 ASTUnaryOperatorExpr *ASTParser::AllocUnaryOperatorExpr(MapleAllocator &allocator,
                                                         const clang::UnaryOperator &expr) const {
   clang::UnaryOperator::Opcode clangOpCode = expr.getOpcode();
@@ -1339,10 +1310,20 @@ ASTExpr *ASTParser::ProcessExprCompoundLiteralExpr(MapleAllocator &allocator,
   return astCompoundLiteralExpr;
 }
 
+void ASTParser::ParserExprVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, ASTExpr &expr) {
+  std::list<ASTExpr*> vlaExprs;
+  SaveVLASizeExpr(allocator, type, vlaExprs);
+  expr.SetVLASizeExprs(std::move(vlaExprs));
+}
+
 ASTExpr *ASTParser::ProcessExprInitListExpr(MapleAllocator &allocator, const clang::InitListExpr &expr) {
   ASTInitListExpr *astInitListExpr = ASTDeclsBuilder::ASTExprBuilder<ASTInitListExpr>(allocator);
   CHECK_FATAL(astInitListExpr != nullptr, "ASTInitListExpr is nullptr");
-  MIRType *initListType = astFile->CvtType(expr.getType());
+  const clang::Type *type = nullptr;
+  MIRType *initListType = astFile->CvtType(expr.getType(), false, &type);
+  if (type != nullptr) {
+    ParserExprVLASizeExpr(allocator, *type, *astInitListExpr);
+  }
   clang::QualType aggType = expr.getType().getCanonicalType();
   astInitListExpr->SetInitListType(initListType);
   const clang::FieldDecl *fieldDecl = expr.getInitializedFieldInUnion();
@@ -2081,10 +2062,10 @@ ASTExpr *ASTParser::ProcessExprCastExpr(MapleAllocator &allocator, const clang::
   CHECK_FATAL(astCastExpr != nullptr, "astCastExpr is nullptr");
   const clang::Type *type = nullptr;
   MIRType *srcType = astFile->CvtType(expr.getSubExpr()->getType(), false, &type);
+  MIRType *toType = astFile->CvtType(expr.getType(), false, &type);
   if (vlaType != nullptr) {
     *vlaType = type;
   }
-  MIRType *toType = astFile->CvtType(expr.getType());
   astCastExpr->SetSrcType(srcType);
   astCastExpr->SetDstType(toType);
   switch (expr.getCastKind()) {
@@ -2364,11 +2345,7 @@ ASTExpr *ASTParser::ProcessExprCStyleCastExpr(MapleAllocator &allocator, const c
   const clang::Type *type = nullptr;
   astCastExpr = static_cast<ASTCastExpr*>(ProcessExprCastExpr(allocator, castExpr, &type));
   if (type != nullptr) {
-    std::list<ASTExpr*> vlaExprs;
-    SaveVLASizeExpr(allocator, *type, vlaExprs);
-    for (auto vlaExpr : std::as_const(vlaExprs)) {
-      astCastExpr->SetVLASizeExprs(vlaExpr);
-    }
+    ParserExprVLASizeExpr(allocator, *type, *astCastExpr);
   }
   return astCastExpr;
 }
@@ -2612,6 +2589,14 @@ ASTDecl *ASTParser::ProcessDeclRecordDecl(MapleAllocator &allocator, const clang
   return curStructOrUnion;
 }
 
+void ASTParser::ParserStmtVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, std::list<ASTStmt*> &stmts) {
+  MapleList<ASTExpr*> vlaExprs(allocator.Adapter());
+  SaveVLASizeExpr(allocator, type, vlaExprs);
+  ASTStmtDummy *stmt = ASTDeclsBuilder::ASTStmtBuilder<ASTStmtDummy>(allocator);
+  stmt->SetVLASizeExprs(std::move(vlaExprs));
+  (void)stmts.emplace_back(stmt);
+}
+
 MapleVector<ASTDecl*> ASTParser::SolveFuncParameterDecls(MapleAllocator &allocator,
                                                          const clang::FunctionDecl &funcDecl,
                                                          MapleVector<MIRType*> &typeDescIn,
@@ -2620,13 +2605,7 @@ MapleVector<ASTDecl*> ASTParser::SolveFuncParameterDecls(MapleAllocator &allocat
   unsigned int numParam = funcDecl.getNumParams();
   for (uint32_t i = 0; i < numParam; ++i) {
     const clang::ParmVarDecl *parmDecl = funcDecl.getParamDecl(i);
-    std::list<ASTExpr*> astExprs;
-    SaveVLASizeExpr(allocator, *(parmDecl->getOriginalType().getTypePtr()), astExprs);
-    ASTStmtDummy *stmt = ASTDeclsBuilder::ASTStmtBuilder<ASTStmtDummy>(allocator);
-    for (auto expr : std::as_const(astExprs)) {
-      stmt->SetASTExpr(expr);
-    }
-    (void)stmts.emplace_back(stmt);
+    ParserStmtVLASizeExpr(allocator, *(parmDecl->getOriginalType().getTypePtr()), stmts);
     ASTDecl *parmVarDecl = ProcessDecl(allocator, *parmDecl);
     ASSERT_NOT_NULL(parmVarDecl);
     paramDecls.push_back(parmVarDecl);
@@ -2856,8 +2835,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   }
   CheckVarNameValid(varName);
   clang::QualType qualType = varDecl.getType();
-  const clang::Type *type = nullptr;
-  MIRType *varType = astFile->CvtType(qualType, false, &type);
+  MIRType *varType = astFile->CvtType(qualType);
   if (varType == nullptr) {
     return nullptr;
   }
@@ -2889,30 +2867,22 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   if (varDecl.hasInit()) {
     SetInitExprForASTVar(allocator, varDecl, attrs, *astVar);
   }
+  ASTExpr *astExpr = nullptr;
   if (llvm::isa<clang::VariableArrayType>(qualType.getCanonicalType())) {
-    ASTExpr *lenExpr = BuildExprToComputeSizeFromVLA(allocator, qualType.getCanonicalType());
-    astVar->SetVariableArrayExpr(lenExpr);
-    astVar->SetBoundaryLenExpr(lenExpr);
-  }
-  if (!varDecl.getType()->isIncompleteType()) {
-    SetAlignmentForASTVar(varDecl, *astVar);
+    astExpr = BuildExprToComputeSizeFromVLA(allocator, qualType.getCanonicalType());
   }
   if (qualType.getTypePtr()->getTypeClass() == clang::Type::TypeOfExpr) {
     const clang::TypeOfExprType *typeofType = llvm::cast<clang::TypeOfExprType>(qualType);
     if (typeofType->isArrayType() || typeofType->isPointerType()) {
-      ASTExpr *astExpr = ProcessExpr(allocator, typeofType->getUnderlyingExpr());
-      if (astExpr == nullptr) {
-        return nullptr;
-      }
-      astVar->SetVariableArrayExpr(astExpr);
+      astExpr = ProcessExpr(allocator, typeofType->getUnderlyingExpr());
     }
   }
-  if (type != nullptr) {
-    std::list<ASTExpr*> vlaExprs;
-    SaveVLASizeExpr(allocator, *type, vlaExprs);
-    for (auto vlaExpr : std::as_const(vlaExprs)) {
-      astVar->SetVariableArrayExpr(vlaExpr);
-    }
+  if (astExpr != nullptr) {
+    astVar->SetBoundaryLenExpr(astExpr);
+    astVar->SetVariableArrayExpr(astExpr);
+  }
+  if (!varDecl.getType()->isIncompleteType()) {
+    SetAlignmentForASTVar(varDecl, *astVar);
   }
   const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&varDecl);
   if (valueDecl != nullptr) {

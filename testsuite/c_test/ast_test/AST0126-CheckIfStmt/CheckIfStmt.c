@@ -8,20 +8,20 @@ static void kb_wait_1(void)
   do {
       /* Here the else arm is a statement expression that's supposed
          to be suppressed.  The label inside the while would unsuppress
-	 code generation again if not handled correctly.  And that
-	 would wreak havoc to the cond-expression because there's no
-	 jump-around emitted, the whole statement expression really
-	 needs to not generate code (perhaps except useless forward jumps).  */
+         code generation again if not handled correctly.  And that
+         would wreak havoc to the cond-expression because there's no
+         jump-around emitted, the whole statement expression really
+         needs to not generate code (perhaps except useless forward jumps).  */
       (1 ?
        printf("timeout=%ld\n", timeout) :
        ({
-	int i = 1;
-	while (1)
-	  while (i--)
-	    some_label:
-	      printf("error\n");
-	goto some_label;
-	})
+        int i = 1;
+        while (1)
+          while (i--)
+            some_label:
+              printf("error\n");
+        goto some_label;
+        })
       );
       timeout--;
   } while (timeout);
@@ -46,9 +46,9 @@ static void dowhile(void)
   do {
       foo(1);
       if (global == 1) {
-	  continue;
+          continue;
       } else if (global == 2) {
-	  continue;
+          continue;
       }
       /* The following break shouldn't disable the check() call,
          as it's reachable by the continues above.  */
@@ -76,9 +76,9 @@ yeah:
   i = 1;
   if (0) {
       while (i--) {
-	  printf ("once\n");
+          printf ("once\n");
 enterloop:
-	  printf ("twice\n");
+          printf ("twice\n");
       }
   }
   if (i >= 0)
@@ -91,23 +91,23 @@ enterloop:
   i = ({
       int j = 1;
       if (0) {
-	  while (j--) {
-	      printf ("SEonce\n");
+        while (j--) {
+            printf ("SEonce\n");
     enterexprloop:
-	      printf ("SEtwice\n");
-	  }
+            printf ("SEtwice\n");
+    }
       }
       if (j >= 0)
-	goto enterexprloop;
+          goto enterexprloop;
       j; });
 
   /* The other two loop forms: */
   i = 1;
   if (0) {
       for (i = 1; i--;) {
-	  printf ("once2\n");
+          printf ("once2\n");
 enterloop2:
-	  printf ("twice2\n");
+          printf ("twice2\n");
       }
   }
   if (i > 0)
@@ -116,9 +116,9 @@ enterloop2:
   i = 1;
   if (0) {
       do {
-	  printf ("once3\n");
+          printf ("once3\n");
 enterloop3:
-	  printf ("twice3\n");
+          printf ("twice3\n");
       } while (i--);
   }
   if (i > 0)
@@ -129,23 +129,23 @@ enterloop3:
   i = 41;
   switch (i) {
       if (0) {
-	  printf ("error\n");
+          printf ("error\n");
       case 42:
-	  printf ("error2\n");
+          printf ("error2\n");
       case 41:
-	  printf ("caseok\n");
+          printf ("caseok\n");
       }
   }
 
   i = 41;
   switch (i) {
       if (0) {
-	  printf ("error3\n");
+          printf ("error3\n");
       default:
-	  printf ("caseok2\n");
-	  break;
+          printf ("caseok2\n");
+          break;
       case 42:
-	  printf ("error4\n");
+          printf ("error4\n");
       }
   }
 

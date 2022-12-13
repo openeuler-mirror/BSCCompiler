@@ -29,7 +29,8 @@ enum class SafeSS {
 
 class ASTStmt {
  public:
-  explicit ASTStmt(MapleAllocator &allocatorIn, ASTStmtOp o = kASTStmtNone) : exprs(allocatorIn.Adapter()), op(o) {}
+  explicit ASTStmt(MapleAllocator &allocatorIn, ASTStmtOp o = kASTStmtNone) : exprs(allocatorIn.Adapter()), op(o),
+                                                                              vlaExprInfos(allocatorIn.Adapter()) {}
   virtual ~ASTStmt() = default;
   void SetASTExpr(ASTExpr* astExpr);
 
@@ -66,12 +67,24 @@ class ASTStmt {
   uint32 GetSrcFileLineNum() const {
     return loc.line;
   }
+  void SetVLASizeExprs(MapleList<ASTExpr*> astExprs) {
+    if (!astExprs.empty()) {
+      vlaExprInfos = std::move(astExprs);
+    }
+  }
+
+  void EmitVLASizeExprs(std::list<UniqueFEIRStmt> &stmts) const {
+    for (auto &vlaSizeExpr : vlaExprInfos) {
+      (void)vlaSizeExpr->Emit2FEExpr(stmts);
+    }
+  }
 
  protected:
   virtual std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const = 0;
   MapleVector<ASTExpr*> exprs;
   ASTStmtOp op;
   Loc loc = {0, 0, 0};
+  MapleList<ASTExpr*> vlaExprInfos;
 };
 
 class ASTStmtDummy : public ASTStmt {

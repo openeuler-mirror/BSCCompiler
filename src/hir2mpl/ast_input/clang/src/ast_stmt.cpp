@@ -33,6 +33,7 @@ void ASTStmt::SetASTExpr(ASTExpr *astExpr) {
 // ---------- ASTStmtDummy ----------
 std::list<UniqueFEIRStmt> ASTStmtDummy::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
+  EmitVLASizeExprs(stmts);
   for (auto expr : exprs) {
     (void)expr->Emit2FEExpr(stmts);
   }
