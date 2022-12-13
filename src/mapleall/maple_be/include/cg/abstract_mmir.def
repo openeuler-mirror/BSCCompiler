@@ -108,14 +108,18 @@
  DEFINE_MOP(MOP_and_64, {&OpndDesc::Reg64ID,&OpndDesc::Reg64IS, &OpndDesc::Reg64IS},ISABSTRACT|ISBASICOP,0,"and_64","",1)
 
  /* Support three address basic operations (Floating point) */
- DEFINE_MOP(MOP_add_f_8, {&OpndDesc::Reg8FD,&OpndDesc::Reg8FS, &OpndDesc::Reg8FS},ISABSTRACT|ISBASICOP,0,"add_8","",1)
- DEFINE_MOP(MOP_add_f_16, {&OpndDesc::Reg16FD,&OpndDesc::Reg16FS, &OpndDesc::Reg16FS},ISABSTRACT|ISBASICOP,0,"add_16","",1)
- DEFINE_MOP(MOP_add_f_32, {&OpndDesc::Reg32FD,&OpndDesc::Reg32FS, &OpndDesc::Reg32FS},ISABSTRACT|ISBASICOP,0,"add_32","",1)
- DEFINE_MOP(MOP_add_f_64, {&OpndDesc::Reg64FD,&OpndDesc::Reg64FS, &OpndDesc::Reg64FS},ISABSTRACT|ISBASICOP,0,"add_64","",1)
- DEFINE_MOP(MOP_sub_f_8, {&OpndDesc::Reg8FD,&OpndDesc::Reg8FS, &OpndDesc::Reg8FS},ISABSTRACT|ISBASICOP,0,"sub_8","",1)
- DEFINE_MOP(MOP_sub_f_16, {&OpndDesc::Reg16FD,&OpndDesc::Reg16FS, &OpndDesc::Reg16FS},ISABSTRACT|ISBASICOP,0,"sub_16","",1)
- DEFINE_MOP(MOP_sub_f_32, {&OpndDesc::Reg32FD,&OpndDesc::Reg32FS, &OpndDesc::Reg32FS},ISABSTRACT|ISBASICOP,0,"sub_32","",1)
- DEFINE_MOP(MOP_sub_f_64, {&OpndDesc::Reg64FD,&OpndDesc::Reg64FS, &OpndDesc::Reg64FS},ISABSTRACT|ISBASICOP,0,"sub_64","",1)
+ DEFINE_MOP(MOP_and_f_8, {&OpndDesc::Reg8FD,&OpndDesc::Reg8FS, &OpndDesc::Reg8FS},ISABSTRACT|ISBASICOP,0,"and_f_8","",1)
+ DEFINE_MOP(MOP_and_f_16, {&OpndDesc::Reg16FD,&OpndDesc::Reg16FS, &OpndDesc::Reg16FS},ISABSTRACT|ISBASICOP,0,"and_f_16","",1)
+ DEFINE_MOP(MOP_and_f_32, {&OpndDesc::Reg32FD,&OpndDesc::Reg32FS, &OpndDesc::Reg32FS},ISABSTRACT|ISBASICOP,0,"and_f_32","",1)
+ DEFINE_MOP(MOP_and_f_64, {&OpndDesc::Reg64FD,&OpndDesc::Reg64FS, &OpndDesc::Reg64FS},ISABSTRACT|ISBASICOP,0,"and_f_64","",1)
+ DEFINE_MOP(MOP_add_f_8, {&OpndDesc::Reg8FD,&OpndDesc::Reg8FS, &OpndDesc::Reg8FS},ISABSTRACT|ISBASICOP,0,"add_f_8","",1)
+ DEFINE_MOP(MOP_add_f_16, {&OpndDesc::Reg16FD,&OpndDesc::Reg16FS, &OpndDesc::Reg16FS},ISABSTRACT|ISBASICOP,0,"add_f_16","",1)
+ DEFINE_MOP(MOP_add_f_32, {&OpndDesc::Reg32FD,&OpndDesc::Reg32FS, &OpndDesc::Reg32FS},ISABSTRACT|ISBASICOP,0,"add_f_32","",1)
+ DEFINE_MOP(MOP_add_f_64, {&OpndDesc::Reg64FD,&OpndDesc::Reg64FS, &OpndDesc::Reg64FS},ISABSTRACT|ISBASICOP,0,"add_f_64","",1)
+ DEFINE_MOP(MOP_sub_f_8, {&OpndDesc::Reg8FD,&OpndDesc::Reg8FS, &OpndDesc::Reg8FS},ISABSTRACT|ISBASICOP,0,"sub_f_8","",1)
+ DEFINE_MOP(MOP_sub_f_16, {&OpndDesc::Reg16FD,&OpndDesc::Reg16FS, &OpndDesc::Reg16FS},ISABSTRACT|ISBASICOP,0,"sub_f_16","",1)
+ DEFINE_MOP(MOP_sub_f_32, {&OpndDesc::Reg32FD,&OpndDesc::Reg32FS, &OpndDesc::Reg32FS},ISABSTRACT|ISBASICOP,0,"sub_f_32","",1)
+ DEFINE_MOP(MOP_sub_f_64, {&OpndDesc::Reg64FD,&OpndDesc::Reg64FS, &OpndDesc::Reg64FS},ISABSTRACT|ISBASICOP,0,"sub_f_64","",1)
 
  /* shift -- shl/ashr/lshr */
  DEFINE_MOP(MOP_shl_8, {&OpndDesc::Reg8ID,&OpndDesc::Reg8IS, &OpndDesc::Reg8IS},ISABSTRACT|ISSHIFT,0,"shl_8","",1)

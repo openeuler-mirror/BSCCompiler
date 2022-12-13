@@ -56,11 +56,10 @@ class MPISel {
   Operand* SelectCvt(const BaseNode &parent, const TypeCvtNode &node, Operand &opnd0);
   Operand* SelectExtractbits(const BaseNode &parent, const ExtractbitsNode &node, Operand &opnd0);
   Operand *SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  Operand *SelectAbs(UnaryNode &node, Operand &opnd0);
+  virtual Operand *SelectAbs(UnaryNode &node, Operand &opnd0);
   Operand *SelectAlloca(UnaryNode &node, Operand &opnd0);
   Operand *SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent);
   ImmOperand *SelectIntConst(MIRIntConst &intConst, PrimType primType) const;
-  Operand *SelectLiteral(MIRDoubleConst &c, MIRFunction &func, uint32 labelIdx) const;
   void SelectCallCommon(StmtNode &stmt, const MPISel &iSel);
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
@@ -79,7 +78,8 @@ class MPISel {
   virtual void SelectCall(CallNode &callNode) = 0;
   virtual void SelectIcall(IcallNode &icallNode, Operand &opnd0) = 0;
   virtual void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) = 0;
-  virtual Operand *SelectDoubleConst(MIRDoubleConst &intConst, PrimType primType) const = 0;
+  virtual Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectFloatingConst(MIRConst &floatingConst, PrimType primType) const = 0;
   virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) = 0;
   virtual Operand *SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) = 0;
   virtual Operand *SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) = 0;
@@ -96,13 +96,37 @@ class MPISel {
   virtual Operand *SelectSelect(TernaryNode &expr, Operand &cond, Operand &trueOpnd, Operand &falseOpnd,
                                 const BaseNode &parent) = 0;
   virtual Operand *SelectStrLiteral(ConststrNode &constStr) = 0;
-  virtual Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCclz(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCctz(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCexp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual void SelectAsm(AsmNode &node) = 0;
   virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRhs) = 0;
   Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
   Operand *SelectMin(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand *SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand *SelectRetype(TypeCvtNode &node, Operand &opnd0);
+
+  template <typename T>
+  Operand *SelectLiteral(T &c, MIRFunction &func, uint32 labelIdx) const {
+    MIRSymbol *st = func.GetSymTab()->CreateSymbol(kScopeLocal);
+    std::string lblStr(".LB_");
+    MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
+    std::string funcName = funcSt->GetName();
+    (void)lblStr.append(funcName).append(std::to_string(labelIdx));
+    st->SetNameStrIdx(lblStr);
+    st->SetStorageClass(kScPstatic);
+    st->SetSKind(kStConst);
+    st->SetKonst(&c);
+    PrimType primType = c.GetType().GetPrimType();
+    st->SetTyIdx(TyIdx(primType));
+    uint32 typeBitSize = GetPrimTypeBitSize(primType);
+
+    if (cgFunc->GetMirModule().IsCModule() && (T::GetPrimType() == PTY_f32 || T::GetPrimType() == PTY_f64)) {
+      return &GetOrCreateMemOpndFromSymbol(*st, typeBitSize, 0);
+    }
+    CHECK_FATAL(false, "NIY");
+    return nullptr;
+  }
  protected:
   MemPool *isMp;
   CGFunc *cgFunc;

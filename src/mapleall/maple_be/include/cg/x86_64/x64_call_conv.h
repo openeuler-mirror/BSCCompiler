@@ -25,6 +25,8 @@ namespace maplebe {
 using namespace maple;
 using namespace x64;
 
+constexpr const uint32 kMaxStructParamByReg = 4;
+
 class X64CallConvImpl {
  public:
   explicit X64CallConvImpl(BECommon &be) : beCommon(be) {}
@@ -54,6 +56,11 @@ class X64CallConvImpl {
     }
   }
 
+  X64reg AllocateSIMDFPRegister() {
+    return (nextFloatRegNO < kNumFloatParmRegs) ?
+        kFloatParmRegs[nextFloatRegNO++] : kRinvalid;
+  }
+
   X64reg AllocateGPReturnRegister() {
     return (nextGeneralReturnRegNO < kNumIntReturnRegs) ?
         kIntReturnRegs[nextGeneralReturnRegNO++] : kRinvalid;
@@ -68,11 +75,18 @@ class X64CallConvImpl {
     }
   }
 
+  X64reg AllocateSIMDFPReturnRegister() {
+    return (nextFloatRetRegNO < kNumFloatReturnRegs) ?
+        kFloatReturnRegs[nextFloatRetRegNO++] : kRinvalid;
+  }
+
   BECommon &beCommon;
-  uint64 paramNum = 0;  /* number of all types of parameters processed so far */
+uint64 paramNum = 0;  /* number of all types of parameters processed so far */
   int32 nextGeneralParmRegNO = 0;  /* number of integer parameters processed so far */
   int32 nextGeneralReturnRegNO = 0;  /* number of integer return processed so far */
   int32 nextStackArgAdress = 0;
+  uint32 nextFloatRegNO = 0;
+  uint32 nextFloatRetRegNO = 0;
 };
 }  /* namespace maplebe */
 

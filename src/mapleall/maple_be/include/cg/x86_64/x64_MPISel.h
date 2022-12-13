@@ -22,7 +22,7 @@
 namespace maplebe {
 class X64MPIsel : public MPISel {
  public:
-  X64MPIsel(MemPool &mp, CGFunc &f) : MPISel(mp, f) {}
+  X64MPIsel(MemPool &mp, AbstractIRBuilder &aIRBuilder, CGFunc &f) : MPISel(mp, aIRBuilder, f) {}
   ~X64MPIsel() override = default;
   void SelectReturn(NaryStmtNode &retNode, Operand &opnd) override;
   void SelectReturn() override;
@@ -33,6 +33,7 @@ class X64MPIsel : public MPISel {
   Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) override;
   Operand *SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;
   Operand *SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) override;
+  Operand *SelectFloatingConst(MIRConst &floatingConst, PrimType primType) const override;
   void SelectGoto(GotoNode &stmt) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) override;
   void SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd, Operand &opndRhs) override;
@@ -52,10 +53,13 @@ class X64MPIsel : public MPISel {
   /* Create the operand interface directly */
   MemOperand &CreateMemOpndOrNull(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset = 0);
   Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
+  Operand *SelectCclz(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
+  Operand *SelectCctz(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
+  Operand *SelectCexp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
   void SelectAsm(AsmNode &node) override;
  private:
-  MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId = 0) override;
-  MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) override;
+  MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId = 0) const override;
+  MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) const override;
   Insn &AppendCall(x64::X64MOP_t mOp, Operand &targetOpnd,
       ListOperand &paramOpnds, ListOperand &retOpnds);
   void SelectCalleeReturn(MIRType *retType, ListOperand &retOpnds);
@@ -65,7 +69,7 @@ class X64MPIsel : public MPISel {
 
   /* Subclass private instruction selector function */
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);
-  void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds);
+  void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, uint32 &fpNum);
   void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectCmpResult(RegOperand &resOpnd, Opcode opCode, PrimType primType, PrimType primOpndType);
@@ -82,9 +86,10 @@ class X64MPIsel : public MPISel {
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
   bool IsParamStructCopy(const MIRSymbol &symbol);
   void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
-  void SelectLibCallNoReturn(const std::string &funcName, std::vector<Operand*> &opndVec, PrimType primType);
+  void SelectLibCall(const std::string &funcName, std::vector<Operand*> &opndVec,
+                     PrimType primType, Operand* retOpnd, PrimType retType);
   void SelectLibCallNArg(const std::string &funcName, std::vector<Operand*> &opndVec,
-                         std::vector<PrimType> pt);
+                         std::vector<PrimType> pt, Operand* retOpnd, PrimType retType);
   void SelectPseduoForReturn(std::vector<RegOperand*> &retRegs);
   RegOperand *PrepareMemcpyParm(MemOperand &memOperand,  MOperator mOp);
   RegOperand *PrepareMemcpyParm(uint64 copySize);

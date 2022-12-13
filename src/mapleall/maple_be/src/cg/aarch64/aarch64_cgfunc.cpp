@@ -7719,12 +7719,12 @@ void AArch64CGFunc::SelectParmListIreadSmallAggregate(BaseNode &iread, MIRType &
       default:
         break;
     }
-    passSize = symSize / k8ByteSize > 0 ? k8ByteSize : symSize;
+    passSize = (symSize / k8ByteSize) > 0 ? k8ByteSize : symSize;
     ImmOperand &offOpnd0 = CreateImmOperand(static_cast<int64>(offset), k32BitSize, false);
     MemOperand *mopnd = CreateMemOperand(memSize, *addrOpnd1, offOpnd0);
     CreateCallStructParamPassByReg(ploc.reg0, *mopnd, srcOpnds, state, passSize);
     if (ploc.reg1 > 0) {
-      passSize = symSize / k8ByteSize > 1 ? k8ByteSize : symSize % k8ByteSize;
+      passSize = (symSize / k8ByteSize) > 1 ? k8ByteSize : symSize % k8ByteSize;
       OfstOperand *offOpnd1 = &GetOrCreateOfstOpnd((((ploc.fpSize > 0) ? ploc.fpSize : GetPointerSize()) +
           static_cast<uint32>(offset)), k32BitSize);
       mopnd = CreateMemOperand(memSize, *addrOpnd1, *offOpnd1);

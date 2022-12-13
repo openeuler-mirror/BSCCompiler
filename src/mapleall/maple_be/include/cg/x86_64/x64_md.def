@@ -60,7 +60,7 @@ DEFINE_MOP(MOP_movq_r_fr, {&OpndDesc::Reg64IS,&OpndDesc::Reg128FD},ISSTORE,kLtAl
 DEFINE_MOP(MOP_movfs_m_r, {&OpndDesc::Mem32S,&OpndDesc::Reg128FD},ISLOAD,kLtAlu,"movss","0,1",1)
 DEFINE_MOP(MOP_movfs_r_m, {&OpndDesc::Reg32FS,&OpndDesc::Mem128D},ISSTORE,kLtAlu,"movss","0,1",1)
 DEFINE_MOP(MOP_movfd_m_r, {&OpndDesc::Mem64S,&OpndDesc::Reg128FD},ISLOAD,kLtAlu,"movsd","0,1",1)
-DEFINE_MOP(MOP_movfd_r_m, {&OpndDesc::Reg64IS,&OpndDesc::Mem128D},ISSTORE,kLtAlu,"movsd","0,1",1)
+DEFINE_MOP(MOP_movfd_r_m, {&OpndDesc::Reg64FS,&OpndDesc::Mem128D},ISSTORE,kLtAlu,"movsd","0,1",1)
 
 /* movabs */
 //The movabs instruction to load arbitrary 64-bit constant into register and to load/store integer register from/to arbitrary constant 64-bit address is available
@@ -227,6 +227,11 @@ DEFINE_MOP(MOP_xorw_i_m, {&OpndDesc::Imm16,&OpndDesc::Mem16D},ISBASICOP,kLtAlu,"
 DEFINE_MOP(MOP_xorl_i_m, {&OpndDesc::Imm32,&OpndDesc::Mem32D},ISBASICOP,kLtAlu,"xorl","0,1",1)
 DEFINE_MOP(MOP_xorq_i_m, {&OpndDesc::Imm32,&OpndDesc::Mem64D},ISBASICOP,kLtAlu,"xorq","0,1",1)
 
+DEFINE_MOP(MOP_bsrq_r_r, {&OpndDesc::Reg64IS,&OpndDesc::Reg64ID},ISBASICOP,kLtAlu,"bsrq","0,1",1)
+DEFINE_MOP(MOP_bsrl_r_r, {&OpndDesc::Reg32IS,&OpndDesc::Reg32ID},ISBASICOP,kLtAlu,"bsrl","0,1",1)
+
+DEFINE_MOP(MOP_bsfq_r_r, {&OpndDesc::Reg64IS,&OpndDesc::Reg64ID},ISBASICOP,kLtAlu,"bsfq","0,1",1)
+DEFINE_MOP(MOP_bsfl_r_r, {&OpndDesc::Reg32IS,&OpndDesc::Reg32ID},ISBASICOP,kLtAlu,"bsfl","0,1",1)
 /* UnaryOp */
 /* neg */
 DEFINE_MOP(MOP_negb_r, {&OpndDesc::Reg8IDS},ISUNARYOP,kLtAlu,"negb","0",1)
@@ -496,6 +501,10 @@ DEFINE_MOP(MOP_movfq_m_r, {&OpndDesc::Mem64S,&OpndDesc::Reg64FD},ISLOAD,kLtAlu,"
 DEFINE_MOP(MOP_movfq_r_m, {&OpndDesc::Reg64FS,&OpndDesc::Mem64D},ISSTORE,kLtAlu,"movsd","0,1",1)
 DEFINE_MOP(MOP_movfq_r_r, {&OpndDesc::Reg64FS,&OpndDesc::Reg64FS},ISSTORE,kLtAlu,"movsd","0,1",1)
 
+/* floating point and */
+DEFINE_MOP(MOP_andd_r_r, {&OpndDesc::Reg128FS, &OpndDesc::Reg128FDS},0,kLtAlu,"andps","0,1",1)
+DEFINE_MOP(MOP_ands_r_r, {&OpndDesc::Reg128FS, &OpndDesc::Reg128FDS},0,kLtAlu,"andps","0,1",1)
+
 /* floating div */
 DEFINE_MOP(MOP_divsd_r, {&OpndDesc::Reg64FS, &OpndDesc::Reg64FDS},0,kLtAlu,"divsd","0,1",1)
 DEFINE_MOP(MOP_divsd_m, {&OpndDesc::Mem64S, &OpndDesc::Reg64FDS},0,kLtAlu,"divsd","0,1",1)
@@ -517,6 +526,5 @@ DEFINE_MOP(MOP_cvtss2sd_r, {&OpndDesc::Reg128FS, &OpndDesc::Reg128FD},0,kLtAlu,"
 DEFINE_MOP(MOP_cvtsd2ss_r, {&OpndDesc::Reg128FS, &OpndDesc::Reg128FD},0,kLtAlu,"cvtsd2ss","0,1",1)
 
 DEFINE_MOP(MOP_ucomisd_r_r, {&OpndDesc::Reg128FS,&OpndDesc::Reg128FS},0,kLtAlu,"ucomisd","0,1",1)
-
 /* pseudo operation */
 DEFINE_MOP(MOP_pseudo_ret_int, {&OpndDesc::Reg64IS},0,kLtUndef,"//MOP_pseudo_ret_int","", 0)
