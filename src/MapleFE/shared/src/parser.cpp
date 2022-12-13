@@ -32,6 +32,12 @@
 
 namespace maplefe {
 
+#define RESET "\x1B[0m"
+#define BOLD  "\x1B[1m"
+#define RED   "\x1B[31m"
+#define GRN   "\x1B[32m"
+#define YEL   "\x1B[33m"
+
 SmallVector<TemplateLiteralNode*> gTemplateLiteralNodes;
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -781,22 +787,28 @@ void Parser::DumpExitTable(const char *table_name, unsigned indent,
                            AppealStatus reason, AppealNode *appeal) {
   for (unsigned i = 0; i < indent; i++)
     std::cout << " ";
+  if (reason == SuccWasSucc ||
+      reason == SuccStillWasSucc ||
+      reason == Succ ||
+      reason == SuccASI) {
+    std::cout << GRN;
+  }
   std::cout << "Exit  " << table_name << "@" << mCurToken;
   if (reason == SuccWasSucc) {
     std::cout << " succ@WasSucc" << "}";
     DumpSuccTokens(appeal);
-    std::cout << std::endl;
+    std::cout << RESET << std::endl;
   } else if (reason == SuccStillWasSucc) {
     std::cout << " succ@StillWasSucc" << "}";
     DumpSuccTokens(appeal);
-    std::cout << std::endl;
+    std::cout << RESET << std::endl;
   } else if (reason == Succ) {
     std::cout << " succ" << "}";
     DumpSuccTokens(appeal);
-    std::cout << std::endl;
+    std::cout << RESET << std::endl;
   } else if (reason == SuccASI) {
     std::cout << " succASI" << "}";
-    std::cout << std::endl;
+    std::cout << RESET << std::endl;
   } else if (reason == FailWasFailed)
     std::cout << " fail@WasFailed" << "}" << std::endl;
   else if (reason == FailNotRightToken)
