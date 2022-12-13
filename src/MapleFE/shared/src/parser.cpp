@@ -66,7 +66,7 @@ SmallVector<TemplateLiteralNode*> gTemplateLiteralNodes;
 // 3. Left Recursion
 //
 // MapleFE is an LL parser, and left recursion has to be handled if we allow language
-// designer to write left recursion. I personally believe left recursion is a much
+// designer to write left recursion. We believe left recursion is a much
 // simpler, more human friendly and stronger way to describe language spec. To
 // provide this juicy feature, parser has to do extra job.
 //
@@ -361,6 +361,9 @@ unsigned Parser::LexOneLine() {
     return mActiveTokens.GetNum() - mCurToken;
 
   while (!token_num) {
+    if (mLexer->GetTrace() && !mLexer->EndOfLine() && line_begin) {
+      std::cout << "\n" << mLexer->GetLine() + mLexer->GetCuridx() << std::endl;
+    }
     // read until end of line
     while (!mLexer->EndOfLine() && !mLexer->EndOfFile()) {
       t = mLexer->LexToken();
@@ -960,7 +963,7 @@ bool Parser::TraverseRuleTable(RuleTable *rule_table, AppealNode *parent, Appeal
       // The affected can be succ later. So there is possibility both succ and fail
       // exist at the same time.
       //
-      // I still keep this assertion. We will see. Maybe we'll remove it.
+      // We still keep this assertion. We will see. Maybe we'll remove it.
       MASSERT(!WasFailed(rule_table, mCurToken));
 
       // set the apppeal node
@@ -996,7 +999,7 @@ bool Parser::TraverseRuleTable(RuleTable *rule_table, AppealNode *parent, Appeal
   bool in_group = FindRecursionGroup(rule_table, group_id);
 
   // 1. In a recursion, a rule could fail in the first a few instances,
-  //    but could match in a later instance. So I need check is_done.
+  //    but could match in a later instance. So We need check is_done.
   //    Here is an example. Node A is one of the circle node.
   //    (a) In the first recursion instance, A is failed, but luckly it
   //        gets appealed due to lead node is 2ndOf1st.
@@ -1139,7 +1142,7 @@ bool Parser::TraverseRuleTable(RuleTable *rule_table, AppealNode *parent, Appeal
   // It's a regular (non leadnode) table, either inside or outside of a
   // recursion, we just need do the regular traversal.
   // If it's inside a Left Recursion, it will finally goes to that
-  // recursion. I don't need take care here.
+  // recursion. We don't need take care here.
 
   bool matched = TraverseRuleTableRegular(rule_table, appeal);
   if (rec_tra)
