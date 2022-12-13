@@ -6449,7 +6449,7 @@ void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, I
       auto &regOpnd = static_cast<RegOperand&>(opnd);
       if (regOpnd.GetRegisterNumber() == destNO) {
         ASSERT(regOpnd.GetRegisterNumber() != kRFLAG, "both condi and reg");
-        if (regDest.GetSize() != regSrc.GetSize()) {
+        if (regOpnd.GetSize() != regSrc.GetSize()) {
           regOpnd.SetRegisterNumber(regSrc.GetRegisterNumber());
         } else {
           insn.SetOperand(static_cast<uint32>(i), regSrc);
