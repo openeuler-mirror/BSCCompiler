@@ -826,7 +826,7 @@ class BB {
 
   FreqType GetEdgeProfFreq(const BB &bb) const {
     auto iter = std::find(succs.begin(), succs.end(), &bb);
-    if (succs.size() > succsProfFreq.size() || iter == std::end(succs)) {
+    if (iter == std::end(succs) || succs.size() > succsProfFreq.size()) {
       return 0;
     }
     CHECK_FATAL(iter != std::end(succs), "%d is not the successor of %d", bb.GetId(), this->GetId());
