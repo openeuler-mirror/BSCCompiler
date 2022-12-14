@@ -21,162 +21,195 @@
 # based on C11 specification A.1 Lexical grammar
 
 rule UniversalCharacterName : ONEOF(
-  '\' + 'u' + HexQuad
-  '\' + 'U' + HexQuad + HexQuad)
+  '\' + 'u' + HexQuad,
+  '\' + 'U' + HexQuad + HexQuad
+)
 
 rule HexQuad : ONEOF(
-   HexadecimalDigit + HexadecimalDigit + HexadecimalDigit + HexadecimalDigit)
+  HexadecimalDigit + HexadecimalDigit + HexadecimalDigit + HexadecimalDigit
+)
 
-rule Constant : ONEOF(
-   IntegerConstant
-   FloatingConstant
-   EnumerationConstant
-   CharacterConstant)
-
-rule IntegerConstant : ONEOF(
-   DecimalConstant + ZEROORONE(IntegerSuffix)
-   OctalConstant + ZEROORONE(IntegerSuffix)
-   HexadecimalConstant + ZEROORONE(IntegerSuffix))
+rule IntegerLiteral : ONEOF(
+  DecimalConstant + ZEROORONE(IntegerSuffix),
+#  OctalConstant + ZEROORONE(IntegerSuffix),
+#  HexadecimalConstant + ZEROORONE(IntegerSuffix)
+)
 
 rule DecimalConstant : ONEOF(
-   NonzeroDigit
-   DecimalConstant + Digit)
+  '0', NonzeroDigit + ZEROORMORE(DIGIT)
+)
 
 rule OctalConstant : ONEOF(
-  '0'
-   OctalConstant + OctalDigit)
+  '0',
+  OctalConstant + OctalDigit
+)
 
 rule HexadecimalConstant : ONEOF(
-   HexadecimalPrefix + HexadecimalDigit
-   HexadecimalConstant + HexadecimalDigit)
+  HexadecimalPrefix + HexadecimalDigit,
+  HexadecimalConstant + HexadecimalDigit
+)
 
-rule HexadecimalPrefix : ONEOF("0x", "0X")
+rule HexadecimalPrefix : ONEOF(
+  '0' + 'x', '0' + 'X'
+)
 
-rule NonzeroDigit : ONEOF('1', '2', '3', '4', '5', '6', '7', '8', '9')
+rule NonzeroDigit : ONEOF(
+  '1', '2', '3', '4', '5', '6', '7', '8', '9'
+)
 
-rule OctalDigit : ONEOF('0', '1', '2', '3', '4', '5', '6', '7')
+rule OctalDigit : ONEOF(
+  '0', '1', '2', '3', '4', '5', '6', '7'
+)
 
-rule HexadecimalDigit : ONEOF('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F')
+rule HexadecimalDigit : ONEOF(
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F'
+)
 
 rule IntegerSuffix : ONEOF(
-   UnsignedSuffix + ZEROORONE(LongSuffix)
-   UnsignedSuffix + LongLongSuffix
-   LongSuffix + ZEROORONE(UnsignedSuffix)
-   LongLongSuffix + ZEROORONE(UnsignedSuffix))
+  UnsignedSuffix + ZEROORONE(LongSuffix),
+  UnsignedSuffix + LongLongSuffix,
+  LongSuffix + ZEROORONE(UnsignedSuffix),
+  LongLongSuffix + ZEROORONE(UnsignedSuffix)
+)
 
-rule UnsignedSuffix : ONEOF('u', 'U')
+rule UnsignedSuffix : ONEOF(
+  'u', 'U'
+)
 
-rule LongSuffix : ONEOF('l', 'L')
+rule LongSuffix : ONEOF(
+  'l', 'L'
+)
 
-rule LongLongSuffix : ONEOF("ll", "LL")
+rule LongLongSuffix : ONEOF(
+  'l' + 'l', 'L' + 'L'
+)
 
 rule FloatingConstant : ONEOF(
-   DecimalFloatingConstant
-   HexadecimalFloatingConstant)
+  DecimalFloatingConstant,
+  HexadecimalFloatingConstant
+)
 
 rule DecimalFloatingConstant : ONEOF(
-   FractionalConstant + ZEROORONE(ExponentPart) + ZEROORONE(FloatingSuffix)
-   DigitSequence + ExponentPart + ZEROORONE(FloatingSuffix))
+  FractionalConstant + ZEROORONE(ExponentPart) + ZEROORONE(FloatingSuffix),
+  DigitSequence + ExponentPart + ZEROORONE(FloatingSuffix)
+)
 
 rule HexadecimalFloatingConstant : ONEOF(
-   HexadecimalPrefix + HexadecimalFractionalConstant
-   BinaryExponentPart + ZEROORONE(FloatingSuffix)
-   HexadecimalPrefix + HexadecimalDigitSequence
-   BinaryExponentPart + ZEROORONE(FloatingSuffix))
+  HexadecimalPrefix + HexadecimalFractionalConstant,
+  BinaryExponentPart + ZEROORONE(FloatingSuffix),
+  HexadecimalPrefix + HexadecimalDigitSequence,
+  BinaryExponentPart + ZEROORONE(FloatingSuffix)
+)
 
 rule FractionalConstant : ONEOF(
-  ZEROORONE(DigitSequence) + '.' + DigitSequence
-   DigitSequence '.')
+  ZEROORONE(DigitSequence) + '.' + DigitSequence,
+  DigitSequence '.'
+)
 
 rule ExponentPart : ONEOF(
-  'e' + ZEROORONE(Sign) + DigitSequence
-  'E' + ZEROORONE(Sign) + DigitSequence)
+  'e' + ZEROORONE(Sign) + DigitSequence,
+  'E' + ZEROORONE(Sign) + DigitSequence
+)
 
-rule Sign : ONEOF('+', '-')
+rule Sign : ONEOF(
+  '+', '-'
+)
 
 rule DigitSequence : ONEOF(
-   Digit
-   DigitSequence + Digit)
+  Digit,
+  DigitSequence + Digit
+)
 
 rule HexadecimalFractionalConstant : ONEOF(
-  ZEROORONE(HexadecimalDigitSequence) '.'
-   HexadecimalDigitSequence
-   HexadecimalDigitSequence '.')
+  ZEROORONE(HexadecimalDigitSequence) + '.',
+  HexadecimalDigitSequence,
+  HexadecimalDigitSequence + '.'
+)
 
 rule BinaryExponentPart : ONEOF(
-  'p' + ZEROORONE(Sign) + DigitSequence
-  'P' + ZEROORONE(Sign) + DigitSequence)
+  'p' + ZEROORONE(Sign) + DigitSequence,
+  'P' + ZEROORONE(Sign) + DigitSequence
+)
 
 rule HexadecimalDigitSequence : ONEOF(
-   HexadecimalDigit
-   HexadecimalDigitSequence + HexadecimalDigit)
+  HexadecimalDigit,
+  HexadecimalDigitSequence + HexadecimalDigit
+)
 
-rule FloatingSuffix : ONEOF('f', 'l', 'F', 'L')
+rule FloatingSuffix : ONEOF(
+  'f', 'l', 'F', 'L'
+)
 
 rule EnumerationConstant : Identifier
 
 rule CharacterConstant : ONEOF(
-  ''' + CCharSequence '''
-  'L' + ''' + CCharSequence + '''
-  'U' + ''' + CCharSequence + '''
-  'U' + ''' + CCharSequence + ''')
+  ''' + SCharSequence + ''',
+  'L' + ''' + SCharSequence + ''',
+  'U' + ''' + SCharSequence + ''',
+  'U' + ''' + SCharSequence + '''
+)
 
 rule CCharSequence : ONEOF(
-   CChar
-   CCharSequence + CChar)
+  CChar,
+  CCharSequence + CChar
+)
 
 rule EscapeSequence : ONEOF(
-   SimpleEscapeSequence
-   OctalEscapeSequence
-   HexadecimalEscapeSequence
-   UniversalCharacterName)
-
-rule SimpleEscapeSequence : ONEOF(
-  '\' + ''', '\' + '"', '\' + '?', '\' + '\',
-  '\' + 'a', '\' + 'b', '\' + 'f', '\' + 'n', '\' + 'r', '\' + 't', '\' + 'v')
+  ESCAPE,
+  OctalEscapeSequence,
+  HexadecimalEscapeSequence,
+  UniversalCharacterName
+)
 
 rule OctalEscapeSequence : ONEOF(
-  '\' + OctalDigit
-  '\' + OctalDigit + OctalDigit
-  '\' + OctalDigit + OctalDigit + OctalDigit)
+  '\' + OctalDigit,
+  '\' + OctalDigit + OctalDigit,
+  '\' + OctalDigit + OctalDigit + OctalDigit
+)
 
 rule HexadecimalEscapeSequence : ONEOF(
-  '\' + 'x' + HexadecimalDigit
-  HexadecimalEscapeSequence + HexadecimalDigit)
+  '\' + 'x' + HexadecimalDigit,
+  HexadecimalEscapeSequence + HexadecimalDigit
+)
 
 rule StringLiteral : ONEOF(
-  ZEROORONE(EncodingPrefix) + '"' + ZEROORONE(SCharSequence) + '"')
+  ZEROORONE(EncodingPrefix) + '"' + ZEROORONE(SCharSequence) + '"'
+)
 
-rule EncodingPrefix : ONEOF (
-  "u8", 'u', 'U', 'L')
+rule EncodingPrefix : ONEOF(
+  'u' + '8', 'u', 'U', 'L'
+)
 
 rule SCharSequence : ONEOF(
-  SChar
-  SCharSequence + SChar)
+  SChar,
+  SCharSequence + SChar
+)
 
 rule SChar : ONEOF(
-  CChar
-  EscapeSequence)
+  CChar,
+  EscapeSequence
+)
 
 #######################################
 #rule CChar : ONEOF(
 #   CHAR
 #   '_'
-#   EscapeSequence)
+#   EscapeSequence
+#)
 
-rule Digit : ONEOF(DIGIT)
+rule Digit : DIGIT
 
 rule NullLiteral : "NULL"
 rule FPLiteral : FloatingConstant
-rule BooleanLiteral : ONEOF ("true", "false")
+rule BooleanLiteral : ONEOF("true", "false")
 rule CharacterLiteral : CharacterConstant
-rule IntegerLiteral : IntegerConstant
 
 rule Literal : ONEOF(
-   IntegerLiteral
-   FPLiteral
-   EnumerationConstant
-   CharacterLiteral
-   StringLiteral
-   NullLiteral)
+  IntegerLiteral,
+  FPLiteral,
+  EnumerationConstant,
+  CharacterLiteral,
+  StringLiteral,
+  NullLiteral
+)
 
