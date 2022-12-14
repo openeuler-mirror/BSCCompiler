@@ -82,7 +82,7 @@ class PreMeEmitter : public AnalysisResult {
   MapleMap<BaseNode *, PreMeMIRExtension *> *GetPreMeExprExtensionMap() { return &preMeExprExtensionMap; }
   FuncProfInfo *GetFuncProfData() { return mirFunc->GetFuncProfData(); }
   void SetIpaInfo(CollectIpaInfo *info) { ipaInfo = info; }
-  void UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt, BlockNode &currBlock, uint32 frequency);
+  void UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt, BlockNode &currBlock, FreqType frequency);
   void UpdateStmtInfoForLabelNode(LabelNode &label, BB &bb);
  private:
   ArrayNode *ConvertToArray(BaseNode *x, TyIdx ptrTyIdx);

@@ -250,12 +250,11 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
         }
         bb.SetKind(kBBFallthru);
         if (UpdateFreq()) {
-          int64_t succ0Freq = static_cast<int64_t>(bb.GetSuccFreq()[0]);
+          FreqType succ0Freq = bb.GetSuccFreq()[0];
           bb.GetSuccFreq().resize(1);
           bb.SetSuccFreq(0, bb.GetFrequency());
           ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
-          bb.GetSucc(0)->SetFrequency(static_cast<uint32>(bb.GetSucc(0)->GetFrequency() +
-            (bb.GetFrequency() - succ0Freq)));
+          bb.GetSucc(0)->SetFrequency(bb.GetSucc(0)->GetFrequency() + (bb.GetFrequency() - succ0Freq));
         }
       }
       // A ivar contained in stmt
@@ -281,7 +280,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
       bool isPme = mirModule.CurFunction()->GetMeFunc()->GetPreMeFunc() != nullptr;
       if (mestmt->IsCondBr() && !isPme) {  // see if foldable to unconditional branch
         CondGotoMeStmt *condbr = static_cast<CondGotoMeStmt*>(mestmt);
-        int64_t removedFreq = 0;
+        FreqType removedFreq = 0;
         if (!mirModule.IsJavaModule() && condbr->GetOpnd()->GetMeOp() == kMeOpConst) {
           CHECK_FATAL(IsPrimitiveInteger(condbr->GetOpnd()->GetPrimType()),
                       "MeHDSE::DseProcess: branch condition must be integer type");
@@ -290,7 +289,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             // delete the conditional branch
             BB *succbb = bb.GetSucc().back();
             if (UpdateFreq()) {
-              removedFreq = static_cast<int64_t>(bb.GetSuccFreq().back());
+              removedFreq = bb.GetSuccFreq().back();
             }
             succbb->RemoveBBFromPred(bb, false);
             if (succbb->GetPred().empty()) {
@@ -303,7 +302,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             // change to unconditional branch
             BB *succbb = bb.GetSucc().front();
             if (UpdateFreq()) {
-              removedFreq = static_cast<int64_t>(bb.GetSuccFreq().front());
+              removedFreq = bb.GetSuccFreq().front();
             }
             succbb->RemoveBBFromPred(bb, false);
             if (succbb->GetPred().empty()) {
@@ -317,7 +316,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           if (UpdateFreq()) {
             bb.GetSuccFreq().resize(1);
             bb.SetSuccFreq(0, bb.GetFrequency());
-            bb.GetSucc(0)->SetFrequency(static_cast<uint32>(bb.GetSucc(0)->GetFrequency() + removedFreq));
+            bb.GetSucc(0)->SetFrequency(bb.GetSucc(0)->GetFrequency() + removedFreq);
           }
         } else {
           DetermineUseCounts(condbr->GetOpnd());
@@ -364,7 +363,7 @@ bool HDSE::NeedNotNullCheck(MeExpr &meExpr, const BB &bb) {
     if (!stmt->GetIsLive()) {
       continue;
     }
-    if (postDom.Dominate(*(stmt->GetBB()), bb)) {
+    if (dom.Dominate(*(stmt->GetBB()), bb)) {
       return false;
     }
   }
@@ -686,8 +685,8 @@ void HDSE::MarkLastBranchStmtInPredBBRequired(const BB &bb) {
 }
 
 void HDSE::MarkLastStmtInPDomBBRequired(const BB &bb) {
-  CHECK(bb.GetBBId() < postDom.GetPdomFrontierSize(), "index out of range in HDSE::MarkLastStmtInPDomBBRequired");
-  for (BBId cdBBId : postDom.GetPdomFrontierItem(bb.GetBBId())) {
+  CHECK(bb.GetBBId() < postDom.GetDomFrontierSize(), "index out of range in HDSE::MarkLastStmtInPDomBBRequired");
+  for (auto cdBBId : postDom.GetDomFrontier(bb.GetID())) {
     BB *cdBB = bbVec[cdBBId];
     CHECK_FATAL(cdBB != nullptr, "cdBB is null in HDSE::MarkLastStmtInPDomBBRequired");
     if (cdBB == &bb) {

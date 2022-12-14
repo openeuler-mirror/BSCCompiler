@@ -14,18 +14,20 @@
  */
 #ifndef MAPLE_IR_INCLUDE_MIR_NODES_H
 #define MAPLE_IR_INCLUDE_MIR_NODES_H
+#include <atomic>
 #include <sstream>
 #include <utility>
-#include <atomic>
-#include "opcodes.h"
-#include "opcode_info.h"
-#include "mir_type.h"
+
 #include "cmpl.h"
-#include "mir_module.h"
-#include "mir_const.h"
 #include "maple_string.h"
-#include "src_position.h"
+#include "mir_const.h"
+#include "mir_module.h"
+#include "mir_type.h"
+#include "opcode_info.h"
+#include "opcodes.h"
 #include "ptr_list_ref.h"
+#include "src_position.h"
+#include "types_def.h"
 
 namespace maple {
 constexpr size_t kFirstOpnd = 0;
@@ -36,8 +38,9 @@ extern MIRModule *theMIRModule;
 extern void EmitStr(const MapleString &mplStr);
 
 class MIRPregTable;  // circular dependency exists, no other choice
-class TypeTable;  // circular dependency exists, no other choice
+class TypeTable;     // circular dependency exists, no other choice
 class VerifyResult;  // circular dependency exists, no other choice
+class CallNode;
 
 struct RegFieldPair {
  public:
@@ -178,7 +181,7 @@ class BaseNode : public BaseNodeT {
     return true;
   }
 
-  virtual bool Verify(VerifyResult &) const {
+  virtual bool Verify(VerifyResult&) const {
     return Verify();
   }
 
@@ -206,7 +209,7 @@ class UnaryNode : public BaseNode {
   void Dump(int32 indent) const override;
   bool Verify() const override;
 
-  bool Verify(VerifyResult &) const override {
+  bool Verify(VerifyResult&) const override {
     return Verify();
   }
 
@@ -256,7 +259,7 @@ class TypeCvtNode : public UnaryNode {
   void Dump(int32 indent) const override;
   bool Verify() const override;
 
-  bool Verify(VerifyResult &) const override {
+  bool Verify(VerifyResult&) const override {
     return Verify();
   }
 
@@ -569,7 +572,6 @@ class IreadFPoffNode : public BaseNode {
 
 class IreadPCoffNode : public IreadFPoffNode {
  public:
-
   IreadPCoffNode(Opcode o, PrimType typ, uint8 numopns) {
     op = o;
     ptyp = typ;
@@ -834,7 +836,7 @@ class TernaryNode : public BaseNode {
   }
 
  private:
-  BaseNode *topnd[kOperandNumTernary] = { nullptr, nullptr, nullptr };
+  BaseNode *topnd[kOperandNumTernary] = {nullptr, nullptr, nullptr};
 };
 
 class NaryOpnds {
@@ -1026,6 +1028,7 @@ class ConstvalNode : public BaseNode {
   }
 
   bool IsSameContent(const BaseNode *node) const override;
+
  private:
   MIRConst *constVal = nullptr;
 };
@@ -1170,8 +1173,7 @@ class ArrayNode : public NaryNode {
 
   explicit ArrayNode(const MIRModule &mod) : ArrayNode(mod.GetCurFuncCodeMPAllocator()) {}
 
-  ArrayNode(MapleAllocator &allocator, PrimType typ, TyIdx idx)
-      : NaryNode(allocator, OP_array, typ), tyIdx(idx) {}
+  ArrayNode(MapleAllocator &allocator, PrimType typ, TyIdx idx) : NaryNode(allocator, OP_array, typ), tyIdx(idx) {}
 
   ArrayNode(const MIRModule &mod, PrimType typ, TyIdx idx) : ArrayNode(mod.GetCurFuncCodeMPAllocator(), typ, idx) {}
 
@@ -1286,7 +1288,7 @@ class AddrofNode : public BaseNode {
 
   bool IsSameContent(const BaseNode *node) const override;
 
-  bool AccessSameMemory(const BaseNode *node) const;
+  bool MayAccessSameMemory(const BaseNode *node) const;
  private:
   StIdx stIdx;
   FieldID fieldID = 0;
@@ -1299,7 +1301,7 @@ class DreadoffNode : public BaseNode {
  public:
   explicit DreadoffNode(Opcode o) : BaseNode(o), stIdx() {}
 
-  DreadoffNode(Opcode o, PrimType typ) : BaseNode(o, typ, 0),  stIdx() {}
+  DreadoffNode(Opcode o, PrimType typ) : BaseNode(o, typ, 0), stIdx() {}
 
   virtual ~DreadoffNode() = default;
 
@@ -1348,6 +1350,7 @@ class RegreadNode : public BaseNode {
   }
 
   bool IsSameContent(const BaseNode *node) const override;
+
  private:
   PregIdx regIdx = 0;  // 32bit, negative if special register
 };
@@ -1376,6 +1379,7 @@ class AddroffuncNode : public BaseNode {
   }
 
   bool IsSameContent(const BaseNode *node) const override;
+
  private:
   PUIdx puIdx = 0;  // 32bit now
 };
@@ -1404,6 +1408,7 @@ class AddroflabelNode : public BaseNode {
   }
 
   bool IsSameContent(const BaseNode *node) const override;
+
  private:
   LabelIdx offset = 0;
 };
@@ -1432,8 +1437,12 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
 
   // used for NaryStmtNode when clone
   StmtNode(Opcode o, PrimType typ, uint8 numOpr, const SrcPosition &srcPosition, uint32 stmtOriginalID, StmtAttrs attrs)
-      : BaseNode(o, typ, numOpr), PtrListNodeBase(), srcPosition(srcPosition), stmtID(stmtIDNext),
-        stmtOriginalID(stmtOriginalID), stmtAttrs(attrs) {
+      : BaseNode(o, typ, numOpr),
+        PtrListNodeBase(),
+        srcPosition(srcPosition),
+        stmtID(stmtIDNext),
+        stmtOriginalID(stmtOriginalID),
+        stmtAttrs(attrs) {
     ++stmtIDNext;
   }
 
@@ -1456,7 +1465,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     return true;
   }
 
-  bool Verify(VerifyResult &) const override {
+  bool Verify(VerifyResult&) const override {
     return Verify();
   }
   // ISO/IEC 9899:1999 7.21
@@ -1477,6 +1486,12 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
 
   void SetSrcPos(SrcPosition pos) {
     srcPosition = pos;
+  }
+
+  void SetInlinedSrcPos(uint32 lineNum, uint32 fileNum, const GStrIdx &idx) {
+    srcPosition.SetInlinedFuncStrIdx(idx);
+    srcPosition.SetInlinedLineNum(lineNum);
+    srcPosition.SetInlinedFileNum(fileNum);
   }
 
   uint32 GetStmtID() const {
@@ -1549,9 +1564,9 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   SrcPosition srcPosition;
 
  private:
-  uint32 stmtID;  // a unique ID assigned to it
-  uint32 stmtOriginalID; // first define id, no change when clone, need copy when emit from MeStmt
-  uint32 meStmtID = 0; // Need copy when emit from MeStmt, attention:this just for two stmt(if && call)
+  uint32 stmtID;          // a unique ID assigned to it
+  uint32 stmtOriginalID;  // first define id, no change when clone, need copy when emit from MeStmt
+  uint32 meStmtID = 0;    // Need copy when emit from MeStmt, attention:this just for two stmt(if && call)
   uint32 stmtInfoId = -1u;
   mutable bool isLive = false;  // only used for dse to save compile time
                                 // mutable to keep const-ness at most situation
@@ -1652,7 +1667,7 @@ class IassignNode : public StmtNode {
  private:
   TyIdx tyIdx;
   FieldID fieldID;
-  bool fromAoCFunc = false; // Array of char func, defined in <string.h>
+  bool fromAoCFunc = false;  // Array of char func, defined in <string.h>
  public:
   BaseNode *addrExpr;
   BaseNode *rhs;
@@ -1803,8 +1818,7 @@ class CatchNode : public StmtNode {
  public:
   explicit CatchNode(MapleAllocator &allocator) : StmtNode(OP_catch), exceptionTyIdxVec(allocator.Adapter()) {}
 
-  explicit CatchNode(const MapleVector<TyIdx> &tyIdxVec)
-      : StmtNode(OP_catch), exceptionTyIdxVec(tyIdxVec) {}
+  explicit CatchNode(const MapleVector<TyIdx> &tyIdxVec) : StmtNode(OP_catch), exceptionTyIdxVec(tyIdxVec) {}
 
   explicit CatchNode(const MIRModule &mod) : CatchNode(mod.GetCurFuncCodeMPAllocator()) {}
 
@@ -1876,6 +1890,7 @@ class CppCatchNode : public StmtNode {
   CppCatchNode *CloneTree(const MIRModule &mod) const {
     return CppCatchNode::CloneTree(*mod.CurFuncCodeMemPoolAllocator());
   }
+
  public:
   TyIdx exceptionTyIdx;
 };
@@ -2061,7 +2076,7 @@ class UnaryStmtNode : public StmtNode {
   void DumpOpnd(const MIRModule &mod, int32 indent) const;
   void DumpOpnd(int32 indent) const;
 
-  bool Verify() const  override {
+  bool Verify() const override {
     return uOpnd->Verify();
   }
 
@@ -2322,9 +2337,7 @@ class RangeGotoNode : public UnaryStmtNode {
   explicit RangeGotoNode(const MIRModule &mod) : RangeGotoNode(mod.GetCurFuncCodeMPAllocator()) {}
 
   RangeGotoNode(MapleAllocator &allocator, const RangeGotoNode &node)
-      : UnaryStmtNode(node),
-        tagOffset(node.tagOffset),
-        rangegotoTable(allocator.Adapter()) {}
+      : UnaryStmtNode(node), tagOffset(node.tagOffset), rangegotoTable(allocator.Adapter()) {}
 
   RangeGotoNode(const MIRModule &mod, const RangeGotoNode &node)
       : RangeGotoNode(mod.GetCurFuncCodeMPAllocator(), node) {}
@@ -2395,8 +2408,8 @@ class BlockNode : public StmtNode {
   void InsertAfter(const StmtNode *stmtNode1, StmtNode *stmtNode2);   // Insert ss2 after ss1 in current block.
   // insert all the stmts in inblock to the current block after stmt1
   void InsertBlockAfter(BlockNode &inblock, const StmtNode *stmt1);
-  void Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab,
-            bool withInfo, bool isFuncbody, MIRFlavor flavor) const;
+  void Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab, bool withInfo, bool isFuncbody,
+            MIRFlavor flavor) const;
   bool Verify() const override;
   bool Verify(VerifyResult &verifyResult) const override;
 
@@ -2404,39 +2417,14 @@ class BlockNode : public StmtNode {
     Dump(indent, nullptr, nullptr, false, false, kFlavorUnknown);
   }
 
-  BlockNode *CloneTree(MapleAllocator &allocator) const override {
-    auto *blk = allocator.GetMemPool()->New<BlockNode>();
-    blk->SetStmtID(stmtIDNext++);
-    for (auto &stmt : stmtNodeList) {
-      StmtNode *newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
-      ASSERT(newStmt != nullptr, "null ptr check");
-      newStmt->SetMeStmtID(stmt.GetMeStmtID());
-      newStmt->SetPrev(nullptr);
-      newStmt->SetNext(nullptr);
-      blk->AddStatement(newStmt);
-    }
-    return blk;
-  }
+  BlockNode *CloneTree(MapleAllocator &allocator) const override;
 
-  BlockNode *CloneTreeWithSrcPosition(const MIRModule &mod) {
-    MapleAllocator &allocator = mod.GetCurFuncCodeMPAllocator();
-    auto *blk = allocator.GetMemPool()->New<BlockNode>();
-    blk->SetStmtID(stmtIDNext++);
-    for (auto &stmt : stmtNodeList) {
-      StmtNode *newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
-      ASSERT(newStmt != nullptr, "null ptr check");
-      newStmt->SetSrcPos(stmt.GetSrcPos());
-      newStmt->SetPrev(nullptr);
-      newStmt->SetNext(nullptr);
-      blk->AddStatement(newStmt);
-    }
-    return blk;
-  }
+  BlockNode *CloneTreeWithSrcPosition(const MIRModule &mod, const GStrIdx &idx = GStrIdx(), bool setInlinedPos = false,
+                                      const SrcPosition &inlinedPosition = SrcPosition());
 
-  BlockNode *CloneTreeWithFreqs(MapleAllocator &allocator,
-      std::unordered_map<uint32_t, uint64_t>& toFreqs,
-      std::unordered_map<uint32_t, uint64_t>& fromFreqs,
-      uint64_t numer, uint64_t denom, uint32_t updateOp);
+  BlockNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
+                                std::unordered_map<uint32_t, FreqType> &fromFreqs, uint64_t numer, uint64_t denom,
+                                uint32_t updateOp);
 
   bool IsEmpty() const {
     return stmtNodeList.empty();
@@ -2482,6 +2470,77 @@ class BlockNode : public StmtNode {
   StmtNodes stmtNodeList;
 };
 
+struct CallBackData {
+ public:
+  virtual ~CallBackData() {}
+  virtual void Free() {}
+};
+
+using CallBack = void (*)(const BlockNode &oldBlock, BlockNode &newBlock,
+                          const StmtNode &oldStmt, StmtNode &newStmt, CallBackData *data);
+
+class BlockCallBack {
+ public:
+  BlockCallBack(CallBack hook, CallBackData *callBackData) : callBack(hook), data(callBackData) {}
+
+  ~BlockCallBack() {
+    if (data != nullptr) {
+      data->Free();
+    }
+  }
+
+  void Invoke(const BlockNode &oldBlock, BlockNode &newBlock,
+      const StmtNode &oldStmt, StmtNode &newStmt) {
+    if (callBack != nullptr) {
+      callBack(oldBlock, newBlock, oldStmt, newStmt, data);
+    }
+  }
+
+  CallBack GetCallBack() const {
+    return callBack;
+  }
+
+ private:
+  CallBack callBack;
+  CallBackData *data = nullptr;
+};
+
+class BlockCallBackMgr {
+ public:
+  static void AddCallBack(CallBack hook, CallBackData *data) {
+    auto *node = new BlockCallBack(hook, data);
+    callBackList.push_back(node);
+  }
+
+  static void RemoveCallBack(CallBack hook) {
+    for (auto it = callBackList.begin(); it != callBackList.end(); ++it) {
+      auto *node = *it;
+      if (node->GetCallBack() == hook) {
+        delete node;
+        callBackList.erase(it);
+        return;
+      }
+    }
+  }
+
+  static void ClearCallBacks() {
+    for (auto *node : callBackList) {
+      delete node;
+    }
+    callBackList.clear();
+  }
+
+  static void InvokeCallBacks(const BlockNode &oldBlock, BlockNode &newBlock,
+      const StmtNode &oldStmt, StmtNode &newStmt) {
+    for (auto *node : callBackList) {
+      node->Invoke(oldBlock, newBlock, oldStmt, newStmt);
+    }
+  }
+
+ private:
+  static std::list<BlockCallBack*> callBackList;
+};
+
 class IfStmtNode : public UnaryStmtNode {
  public:
   IfStmtNode() : UnaryStmtNode(OP_if) {
@@ -2505,19 +2564,18 @@ class IfStmtNode : public UnaryStmtNode {
     return node;
   }
 
-  IfStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator,
-      std::unordered_map<uint32_t, uint64_t>& toFreqs,
-      std::unordered_map<uint32_t, uint64_t>& fromFreqs,
-      uint64_t numer, uint64_t denom, uint32_t updateOp) {
+  IfStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
+                                 std::unordered_map<uint32_t, FreqType> &fromFreqs, uint64_t numer, uint64_t denom,
+                                 uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<IfStmtNode>(*this);
     node->SetStmtID(stmtIDNext++);
     node->SetOpnd(Opnd()->CloneTree(allocator), 0);
     if (fromFreqs.count(GetStmtID()) > 0) {
-      uint64_t oldFreq = fromFreqs[GetStmtID()];
-      uint64_t newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
+      FreqType oldFreq = fromFreqs[GetStmtID()];
+      FreqType newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
       if (updateOp & kUpdateOrigFreq) {
-        uint64_t left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
+        FreqType left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
       }
     }
@@ -2591,19 +2649,18 @@ class WhileStmtNode : public UnaryStmtNode {
     return node;
   }
 
-  WhileStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator,
-      std::unordered_map<uint32_t, uint64_t>& toFreqs,
-      std::unordered_map<uint32_t, uint64_t>& fromFreqs,
-      uint64_t numer, uint64_t denom, uint32_t updateOp) {
+  WhileStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
+                                    std::unordered_map<uint32_t, FreqType> &fromFreqs, uint64_t numer, uint64_t denom,
+                                    uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<WhileStmtNode>(*this);
     node->SetStmtID(stmtIDNext++);
     if (fromFreqs.count(GetStmtID()) > 0) {
-      int64_t oldFreq = fromFreqs[GetStmtID()];
-      int64_t newFreq = numer == 0 ? 0 : (denom > 0 ?
-          static_cast<int64_t>(static_cast<uint64_t>(oldFreq) * numer / denom) : oldFreq);
+      FreqType oldFreq = fromFreqs[GetStmtID()];
+      FreqType newFreq =
+          numer == 0 ? 0 : (denom > 0 ? static_cast<int64_t>(static_cast<uint64_t>(oldFreq) * numer / denom) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? static_cast<uint64_t>(newFreq) : 1;
       if (updateOp & kUpdateOrigFreq) {
-        int64_t left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
+        FreqType left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = static_cast<uint64_t>(left);
       }
     }
@@ -2663,28 +2720,27 @@ class DoloopNode : public StmtNode {
     return node;
   }
 
-  DoloopNode *CloneTreeWithFreqs(MapleAllocator &allocator,
-      std::unordered_map<uint32_t, uint64_t>& toFreqs,
-      std::unordered_map<uint32_t, uint64_t>& fromFreqs,
-      uint64_t numer, uint64_t denom, uint32_t updateOp) {
+  DoloopNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
+                                 std::unordered_map<uint32_t, FreqType> &fromFreqs, uint64_t numer, uint64_t denom,
+                                 uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<DoloopNode>(*this);
     node->SetStmtID(stmtIDNext++);
     if (fromFreqs.count(GetStmtID()) > 0) {
-      uint64_t oldFreq = fromFreqs[GetStmtID()];
-      uint64_t newFreq = oldFreq;
-      if ((updateOp & kUpdateFreqbyScale) != 0) { // used in inline/clone
+      FreqType oldFreq = fromFreqs[GetStmtID()];
+      FreqType newFreq = oldFreq;
+      if ((updateOp & kUpdateFreqbyScale) != 0) {  // used in inline/clone
         newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
       } else if ((updateOp & kUpdateUnrolledFreq) != 0) {  // used in unrolled part
-        uint64_t bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
+        FreqType bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
         newFreq = denom > 0 ? (bodyFreq * numer / denom + (oldFreq - bodyFreq)) : oldFreq;
       } else if ((updateOp & kUpdateUnrollRemainderFreq) != 0) {  // used in unrolled remainder
-        uint64_t bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
+        FreqType bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
         newFreq = denom > 0 ? (((bodyFreq * numer) % denom) + (oldFreq - bodyFreq)) : oldFreq;
       }
       toFreqs[node->GetStmtID()] = static_cast<uint64_t>(newFreq);
       ASSERT(oldFreq >= newFreq, "sanity check");
       if ((updateOp & kUpdateOrigFreq) != 0) {
-        uint64_t left = oldFreq - newFreq;
+        FreqType left = oldFreq - newFreq;
         fromFreqs[GetStmtID()] = left;
       }
     }
@@ -2889,8 +2945,7 @@ class IassignoffNode : public BinaryStmtNode {
 
   explicit IassignoffNode(int32 ofst) : BinaryStmtNode(OP_iassignoff), offset(ofst) {}
 
-  IassignoffNode(PrimType primType, int32 offset, BaseNode *addrOpnd, BaseNode *srcOpnd)
-      : IassignoffNode(offset) {
+  IassignoffNode(PrimType primType, int32 offset, BaseNode *addrOpnd, BaseNode *srcOpnd) : IassignoffNode(offset) {
     BaseNodeT::SetPrimType(primType);
     SetBOpnd(addrOpnd, 0);
     SetBOpnd(srcOpnd, 1);
@@ -2928,8 +2983,7 @@ class IassignFPoffNode : public UnaryStmtNode {
 
   explicit IassignFPoffNode(Opcode o, int32 ofst) : UnaryStmtNode(o), offset(ofst) {}
 
-  IassignFPoffNode(Opcode o, PrimType primType, int32 offset, BaseNode *src)
-      : IassignFPoffNode(o, offset) {
+  IassignFPoffNode(Opcode o, PrimType primType, int32 offset, BaseNode *src) : IassignFPoffNode(o, offset) {
     BaseNodeT::SetPrimType(primType);
     UnaryStmtNode::SetOpnd(src, 0);
   }
@@ -2968,8 +3022,7 @@ class BlkassignoffNode : public BinaryStmtNode {
     alignLog2 = 0;
     offset = 0;
   }
-  explicit BlkassignoffNode(int32 ofst, int32 bsize)
-      : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
+  explicit BlkassignoffNode(int32 ofst, int32 bsize) : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
     ptyp = PTY_agg;
     alignLog2 = 0;
   }
@@ -2985,7 +3038,7 @@ class BlkassignoffNode : public BinaryStmtNode {
   void Dump(int32 indent) const override;
 
   BlkassignoffNode *CloneTree(MapleAllocator &allocator) const override {
-      BlkassignoffNode *node = allocator.GetMemPool()->New<BlkassignoffNode>(offset, blockSize);
+    BlkassignoffNode *node = allocator.GetMemPool()->New<BlkassignoffNode>(offset, blockSize);
     node->SetStmtID(stmtIDNext++);
     node->SetBOpnd(GetBOpnd(0)->CloneTree(allocator), 0);
     node->SetBOpnd(GetBOpnd(1)->CloneTree(allocator), 1);
@@ -3032,8 +3085,7 @@ class NaryStmtNode : public StmtNode, public NaryOpnds {
                  node.GetStmtAttrs()),
         NaryOpnds(allocator) {}
 
-  NaryStmtNode(const MIRModule &mod, const NaryStmtNode &node)
-      : NaryStmtNode(mod.GetCurFuncCodeMPAllocator(), node) {}
+  NaryStmtNode(const MIRModule &mod, const NaryStmtNode &node) : NaryStmtNode(mod.GetCurFuncCodeMPAllocator(), node) {}
 
   explicit NaryStmtNode(const NaryStmtNode &node) = delete;
   NaryStmtNode &operator=(const NaryStmtNode &node) = delete;
@@ -3092,11 +3144,9 @@ class NaryStmtNode : public StmtNode, public NaryOpnds {
 
 class SafetyCheckStmtNode {
  public:
-  explicit SafetyCheckStmtNode(GStrIdx funcNameIdx)
-      : funcNameIdx(funcNameIdx) {}
-  SafetyCheckStmtNode(const SafetyCheckStmtNode& stmtNode)
-      : funcNameIdx(stmtNode.GetFuncNameIdx()) {}
-  SafetyCheckStmtNode& operator=(const SafetyCheckStmtNode& stmtNode) {
+  explicit SafetyCheckStmtNode(GStrIdx funcNameIdx) : funcNameIdx(funcNameIdx) {}
+  SafetyCheckStmtNode(const SafetyCheckStmtNode &stmtNode) : funcNameIdx(stmtNode.GetFuncNameIdx()) {}
+  SafetyCheckStmtNode &operator=(const SafetyCheckStmtNode &stmtNode) {
     funcNameIdx = stmtNode.GetFuncNameIdx();
     return *this;
   }
@@ -3122,8 +3172,9 @@ class SafetyCallCheckStmtNode {
  public:
   SafetyCallCheckStmtNode(GStrIdx callFuncNameIdx, size_t paramIndex, GStrIdx stmtFuncNameIdx)
       : callFuncNameIdx(callFuncNameIdx), paramIndex(paramIndex), stmtFuncNameIdx(stmtFuncNameIdx) {}
-  explicit SafetyCallCheckStmtNode(const SafetyCallCheckStmtNode& stmtNode)
-      : callFuncNameIdx(stmtNode.GetFuncNameIdx()), paramIndex(stmtNode.GetParamIndex()),
+  explicit SafetyCallCheckStmtNode(const SafetyCallCheckStmtNode &stmtNode)
+      : callFuncNameIdx(stmtNode.GetFuncNameIdx()),
+        paramIndex(stmtNode.GetParamIndex()),
         stmtFuncNameIdx(stmtNode.GetStmtFuncNameIdx()) {}
 
   virtual ~SafetyCallCheckStmtNode() = default;
@@ -3171,8 +3222,7 @@ class CallAssertNonnullStmtNode : public UnaryStmtNode, public SafetyCallCheckSt
 // used by assertnonnull
 class AssertNonnullStmtNode : public UnaryStmtNode, public SafetyCheckStmtNode {
  public:
-  AssertNonnullStmtNode(Opcode o, GStrIdx funcNameIdx)
-      : UnaryStmtNode(o), SafetyCheckStmtNode(funcNameIdx) {}
+  AssertNonnullStmtNode(Opcode o, GStrIdx funcNameIdx) : UnaryStmtNode(o), SafetyCheckStmtNode(funcNameIdx) {}
   ~AssertNonnullStmtNode() override {}
 
   void Dump(int32 indent) const override;
@@ -3192,7 +3242,7 @@ class AssertBoundaryStmtNode : public NaryStmtNode, public SafetyCheckStmtNode {
       : NaryStmtNode(allocator, o), SafetyCheckStmtNode(funcNameIdx) {}
   ~AssertBoundaryStmtNode() override {}
 
-  AssertBoundaryStmtNode(MapleAllocator &allocator, const AssertBoundaryStmtNode& stmtNode)
+  AssertBoundaryStmtNode(MapleAllocator &allocator, const AssertBoundaryStmtNode &stmtNode)
       : NaryStmtNode(allocator, stmtNode), SafetyCheckStmtNode(stmtNode) {}
 
   AssertBoundaryStmtNode(const MIRModule &mod, Opcode o, GStrIdx funcNameIdx)
@@ -3219,7 +3269,7 @@ class CallAssertBoundaryStmtNode : public NaryStmtNode, public SafetyCallCheckSt
       : NaryStmtNode(allocator, o), SafetyCallCheckStmtNode(funcNameIdx, paramIndex, stmtFuncNameIdx) {}
   ~CallAssertBoundaryStmtNode() override {}
 
-  CallAssertBoundaryStmtNode(MapleAllocator &allocator, const CallAssertBoundaryStmtNode& stmtNode)
+  CallAssertBoundaryStmtNode(MapleAllocator &allocator, const CallAssertBoundaryStmtNode &stmtNode)
       : NaryStmtNode(allocator, stmtNode), SafetyCallCheckStmtNode(stmtNode) {}
 
   CallAssertBoundaryStmtNode(const MIRModule &mod, Opcode o, GStrIdx funcNameIdx, size_t paramIndex,
@@ -3261,10 +3311,7 @@ class CallNode : public NaryStmtNode {
       : CallNode(mod.GetCurFuncCodeMPAllocator(), o, idx, tdx) {}
 
   CallNode(MapleAllocator &allocator, const CallNode &node)
-      : NaryStmtNode(allocator, node),
-        puIdx(node.GetPUIdx()),
-        tyIdx(node.tyIdx),
-        returnValues(allocator.Adapter()) {}
+      : NaryStmtNode(allocator, node), puIdx(node.GetPUIdx()), tyIdx(node.tyIdx), returnValues(allocator.Adapter()) {}
 
   CallNode(const MIRModule &mod, const CallNode &node) : CallNode(mod.GetCurFuncCodeMPAllocator(), node) {}
 
@@ -3273,7 +3320,7 @@ class CallNode : public NaryStmtNode {
   virtual ~CallNode() = default;
   virtual void Dump(int32 indent, bool newline) const;
   bool Verify() const override;
-  MIRType *GetCallReturnType() override ;
+  MIRType *GetCallReturnType() override;
   const MIRSymbol *GetCallReturnSymbol(const MIRModule &mod) const;
 
   CallNode *CloneTree(MapleAllocator &allocator) const override {
@@ -3285,8 +3332,6 @@ class CallNode : public NaryStmtNode {
       node->GetReturnVec().push_back(returnValues[i]);
     }
     node->SetNumOpnds(GetNopndSize());
-    // we save old stmtId in meStmtId, this is a workaround, we will fix it after CloneTree enhance
-    node->SetMeStmtID(GetStmtID());
     return node;
   }
 
@@ -3350,10 +3395,19 @@ class CallNode : public NaryStmtNode {
     returnValues = value;
   }
 
+  void SetEnclosingBlock(BlockNode *value) {
+    enclosingBlk = value;
+  }
+
+  BlockNode *GetEnclosingBlock() {
+    return enclosingBlk;
+  }
+
  private:
   PUIdx puIdx = 0;
   TyIdx tyIdx = TyIdx(0);
   CallReturnVector returnValues;
+  BlockNode *enclosingBlk = nullptr;
 };
 
 // icall, icallassigned, icallproto and icallprotoassigned
@@ -3384,7 +3438,7 @@ class IcallNode : public NaryStmtNode {
 
   virtual void Dump(int32 indent, bool newline) const;
   bool Verify() const override;
-  MIRType *GetCallReturnType() override ;
+  MIRType *GetCallReturnType() override;
   const MIRSymbol *GetCallReturnSymbol(const MIRModule &mod) const;
   IcallNode *CloneTree(MapleAllocator &allocator) const override {
     auto *node = allocator.GetMemPool()->New<IcallNode>(allocator, *this);
@@ -3619,8 +3673,7 @@ class CommentNode : public StmtNode {
   CommentNode(const MIRModule &mod, const std::string &cmt) : CommentNode(mod.GetCurFuncCodeMPAllocator(), cmt) {}
 
   CommentNode(const MapleAllocator &allocator, const CommentNode &node)
-      : StmtNode(node.GetOpCode(), node.GetPrimType()),
-        comment(node.comment, allocator.GetMemPool()) {}
+      : StmtNode(node.GetOpCode(), node.GetPrimType()), comment(node.comment, allocator.GetMemPool()) {}
 
   CommentNode(const MIRModule &mod, const CommentNode &node) : CommentNode(mod.GetCurFuncCodeMPAllocator(), node) {}
 
@@ -3669,15 +3722,23 @@ class AsmNode : public NaryStmtNode {
  public:
   explicit AsmNode(MapleAllocator *alloc)
       : NaryStmtNode(*alloc, OP_asm),
-        asmString(alloc->GetMemPool()), inputConstraints(alloc->Adapter()),
-        asmOutputs(alloc->Adapter()), outputConstraints(alloc->Adapter()),
-        clobberList(alloc->Adapter()), gotoLabels(alloc->Adapter()), qualifiers(0) {}
+        asmString(alloc->GetMemPool()),
+        inputConstraints(alloc->Adapter()),
+        asmOutputs(alloc->Adapter()),
+        outputConstraints(alloc->Adapter()),
+        clobberList(alloc->Adapter()),
+        gotoLabels(alloc->Adapter()),
+        qualifiers(0) {}
 
   AsmNode(MapleAllocator &allocator, const AsmNode &node)
-      : NaryStmtNode(allocator, node), asmString(node.asmString, allocator.GetMemPool()),
-        inputConstraints(allocator.Adapter()), asmOutputs(allocator.Adapter()),
-        outputConstraints(allocator.Adapter()), clobberList(allocator.Adapter()),
-        gotoLabels(allocator.Adapter()), qualifiers(node.qualifiers) {}
+      : NaryStmtNode(allocator, node),
+        asmString(node.asmString, allocator.GetMemPool()),
+        inputConstraints(allocator.Adapter()),
+        asmOutputs(allocator.Adapter()),
+        outputConstraints(allocator.Adapter()),
+        clobberList(allocator.Adapter()),
+        gotoLabels(allocator.Adapter()),
+        qualifiers(node.qualifiers) {}
 
   virtual ~AsmNode() = default;
 
@@ -3711,7 +3772,7 @@ class AsmNode : public NaryStmtNode {
   MapleString asmString;
   MapleVector<UStrIdx> inputConstraints;  // length is numOpnds
   CallReturnVector asmOutputs;
-  MapleVector<UStrIdx> outputConstraints; // length is returnValues.size()
+  MapleVector<UStrIdx> outputConstraints;  // length is returnValues.size()
   MapleVector<UStrIdx> clobberList;
   MapleVector<LabelIdx> gotoLabels;
   uint32 qualifiers;

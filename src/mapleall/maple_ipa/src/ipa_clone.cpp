@@ -129,7 +129,7 @@ MIRFunction *IpaClone::IpaCloneFunction(MIRFunction &originalFunction, const std
 }
 
 MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
-                                                const std::string &fullName, uint64_t callSiteFreq) const {
+                                                const std::string &fullName, FreqType callSiteFreq) const {
   MapleAllocator cgAlloc(originalFunction.GetDataMemPool());
   ArgVector argument(cgAlloc.Adapter());
   IpaCloneArgument(originalFunction, argument);
@@ -386,7 +386,7 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
     InlineTransformer::ConvertPStaticToFStatic(*curFunc);
     MIRFunction *newFunc = nullptr;
     if (Options::profileUse && curFunc->GetFuncProfData()) {
-      uint64_t clonedSiteFreqs = 0;
+      FreqType clonedSiteFreqs = 0;
       for (auto &value: calleeValue) {
         for (auto &callSite : calleeInfo[keyPair][value]) {
           MIRFunction *callerFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callSite.GetPuidx());
@@ -398,7 +398,7 @@ void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramInd
           if (callerFunc->GetFuncProfData() == nullptr) {
             continue;
           }
-          uint64_t callsiteFreq = callerFunc->GetFuncProfData()->GetStmtFreq(stmtId);
+          FreqType callsiteFreq = callerFunc->GetFuncProfData()->GetStmtFreq(stmtId);
           clonedSiteFreqs += callsiteFreq;
         }
       }
@@ -540,7 +540,7 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
   InlineTransformer::ConvertPStaticToFStatic(*func);
   MIRFunction *newFunc = nullptr;
   if (Options::profileUse && func->GetFuncProfData()) {
-    uint64_t clonedSiteFreqs = 0;
+    FreqType clonedSiteFreqs = 0;
     int64_t value = calleeInfo[keyPair].cbegin()->first;
     for (auto &callSite : std::as_const(calleeInfo[keyPair][value])) {
       MIRFunction *callerFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callSite.GetPuidx());
@@ -552,7 +552,7 @@ void IpaClone::CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIn
       if (callerFunc->GetFuncProfData() == nullptr) {
         continue;
       }
-      uint64_t callsiteFreq = callerFunc->GetFuncProfData()->GetStmtFreq(stmtId);
+      FreqType callsiteFreq = callerFunc->GetFuncProfData()->GetStmtFreq(stmtId);
       clonedSiteFreqs += callsiteFreq;
     }
     newFunc = IpaCloneFunctionWithFreq(*func, newFuncName, clonedSiteFreqs);

@@ -23,7 +23,7 @@ namespace maple {
 // The base value for branch probability notes and edge probabilities.
 constexpr int kProbBase = 10000;
 // The base value for BB frequency.
-constexpr int kFreqBase = 100000;
+constexpr uint64 kFreqBase = 100000;
 
 // Information about each branch predictor.
 struct PredictorInfo {
@@ -45,7 +45,7 @@ struct Edge {
   BB &dest;
   Edge *next = nullptr;  // the edge with the same src
   uint32 probability = 0;
-  uint32 frequency = 0;
+  FreqType frequency = 0;
   Edge(BB &bb1, BB &bb2) : src(bb1), dest(bb2) {}
   void Dump(bool dumpNext = false) const;
 };
@@ -59,20 +59,25 @@ struct EdgePrediction {
   explicit EdgePrediction(Edge &edge) : epEdge(edge) {}
 };
 
+using BuiltinExpectInfo = std::vector<std::pair<CondGotoMeStmt*, int32>>;
+
 // Emistimate frequency for MeFunction.
 class MePrediction : public AnalysisResult {
  public:
   static const PredictorInfo predictorInfo[kEndPrediction + 1];
   static void VerifyFreq(const MeFunction &meFunc);
-  static void RebuildFreq(MeFunction &meFunc, Dominance &dom, IdentifyLoops &meLoop);
-  MePrediction(MemPool &memPool, MemPool &tmpPool, MeFunction &mf, Dominance &dom, IdentifyLoops &loops,
-               MeIRMap &map)
+  static void RebuildFreq(MeFunction &meFunc, Dominance &newDom, Dominance &newPdom, IdentifyLoops &newMeLoop,
+      BuiltinExpectInfo *expectInfo = nullptr);
+  static void RecoverBuiltinExpectInfo(const BuiltinExpectInfo &expectInfo);
+  MePrediction(MemPool &memPool, MemPool &tmpPool, MeFunction &mf, Dominance &dom, Dominance &pdom,
+               IdentifyLoops &loops, MeIRMap &map)
       : AnalysisResult(&memPool),
         mePredAlloc(&memPool),
         tmpAlloc(&tmpPool),
         func(&mf),
         cfg(mf.GetCfg()),
         dom(&dom),
+        pdom(&pdom),
         meLoop(&loops),
         sccVec(tmpAlloc.Adapter()),
         hMap(&map),
@@ -96,7 +101,7 @@ class MePrediction : public AnalysisResult {
   bool PredictedByLoopHeuristic(const BB &bb) const;
   void SortLoops();
   void PredictLoops();
-  void PredictByOpcode(const BB *bb);
+  void PredictByOpcode(BB *bb);
   void EstimateBBProb(BB &bb);
   void ClearBBPredictions(const BB &bb);
   void CombinePredForBB(const BB &bb);
@@ -112,12 +117,21 @@ class MePrediction : public AnalysisResult {
   void BuildSCC();
   void FindSCCHeaders(const SCCOfBBs &scc, std::vector<BB*> &headers);
 
+  void SetBuiltinExpectInfo(BuiltinExpectInfo &expectInfo) {
+    builtinExpectInfo = &expectInfo;
+  }
+
+  const BuiltinExpectInfo *GetBuiltinExpectInfo() const {
+    return builtinExpectInfo;
+  }
+
  protected:
   MapleAllocator mePredAlloc;
   MapleAllocator tmpAlloc;
   MeFunction *func;
   MeCFG      *cfg;
   Dominance *dom;
+  Dominance *pdom;
   IdentifyLoops *meLoop;
   MapleVector<SCCOfBBs*> sccVec;
   MapleVector<std::pair<bool, uint32>> *inSCCPtr = nullptr;   // entry format: <isInSucc, rpoIdx>
@@ -127,6 +141,8 @@ class MePrediction : public AnalysisResult {
   MapleMap<Edge*, double> backEdgeProb;  // used in EstimateBBFrequency
   MapleVector<bool> bbVisited;
   MapleVector<Edge*> backEdges;  // all backedges of loops
+  // used to save and recover builtin expect branchProb of condgoto stmt
+  BuiltinExpectInfo *builtinExpectInfo = nullptr;
   bool predictDebug;
 };
 

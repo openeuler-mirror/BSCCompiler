@@ -17,6 +17,7 @@
 #include "option.h"
 #include "retype.h"
 #include "string_utils.h"
+#include "inline_summary.h"
 
 //                   Call Graph Analysis
 // This phase is a foundation phase of compilation. This phase build
@@ -69,8 +70,14 @@ const std::string CallInfo::GetCallTypeName() const {
 }
 
 void CallInfo::Dump() const {
-  LogInfo::MapleLogger() << caller->GetName() << "->" << callee->GetName() << " (id: " << id << ", callStmtId: "
-      << callStmt->GetStmtID() << ")" << std::endl;
+  if (caller->GetInlineSummary()) {
+    LogInfo::MapleLogger() << "<" << caller->GetInlineSummary()->GetStaticInsns() << ">";
+  }
+  LogInfo::MapleLogger() << caller->GetName() << "->" << callee->GetName();
+  if (callee->GetInlineSummary()) {
+    LogInfo::MapleLogger() << "<" << callee->GetInlineSummary()->GetStaticInsns() << ">";
+  }
+  LogInfo::MapleLogger() << "/id:" << id;
 }
 
 const char *GetInlineFailedStr(InlineFailedCode code) {
@@ -238,7 +245,7 @@ bool CGNode::IsCalleeOf(CGNode *func) const {
   return callers.find(func) != callers.end();
 }
 
-uint64_t CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
+FreqType CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
   FuncProfInfo *funcInfo = mirFunc->GetFuncProfData();
   if (funcInfo->stmtFreqs.count(callstmt->GetStmtID()) > 0) {
     return funcInfo->stmtFreqs[callstmt->GetStmtID()];
@@ -247,7 +254,7 @@ uint64_t CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
   return UINT64_MAX;
 }
 
-uint64_t CGNode::GetFuncFrequency() const {
+FreqType CGNode::GetFuncFrequency() const {
   FuncProfInfo *funcInfo = mirFunc->GetFuncProfData();
   if (funcInfo) {
     return funcInfo->GetFuncRealFrequency();
@@ -1791,7 +1798,9 @@ void CallGraph::FindRootNodes() {
   }
   for (auto &it : std::as_const(nodesMap)) {
     CGNode *node = it.second;
-    if (!node->HasCaller()) {
+    // once early inline finished, extern gnu_inline has no use anymore, we should remove it
+    bool unusedExternGnuInline = !mirModule->firstInline && IsExternGnuInline(*node->GetMIRFunction());
+    if (!node->HasCaller() || unusedExternGnuInline) {
       rootNodes.push_back(node);
     }
   }
@@ -1799,14 +1808,17 @@ void CallGraph::FindRootNodes() {
 
 void CallGraph::RemoveFileStaticRootNodes() {
   std::vector<CGNode*> staticRoots;
+  bool firstInline = mirModule->firstInline;
   std::copy_if(rootNodes.begin(), rootNodes.end(), std::inserter(staticRoots, staticRoots.begin()),
-               [](const CGNode *root) {
+               [firstInline](const CGNode *root) {
     // root means no caller, we should also make sure that root is not be used in addroffunc
     auto mirFunc = root->GetMIRFunction();
+    bool unusedExternGnuInline = !firstInline && IsExternGnuInline(*mirFunc);
     return root != nullptr && mirFunc != nullptr && // remove before
     // if static functions or inline but not extern modified functions are not used anymore,
     // they can be removed safely.
-    !root->IsAddrTaken() && (mirFunc->IsStatic() || (mirFunc->IsInline() && mirFunc->IsExtern()));
+    ((!root->IsAddrTaken() && (mirFunc->IsStatic() || (mirFunc->IsInline() && !mirFunc->IsExtern()))) ||
+     unusedExternGnuInline);
   });
   for (auto *root : staticRoots) {
     // DFS delete root and its callee that is static and have no caller after root is deleted
@@ -1931,6 +1943,8 @@ static bool CGNodeCompare(CGNode *left, CGNode *right) {
 // is always compiled before caller. This benifits thoses optimizations
 // need interprocedure information like escape analysis.
 void CallGraph::SetCompilationFunclist() const {
+  std::set<MIRFunction*> unusedFuncSet(mirModule->GetFunctionList().begin(),
+      mirModule->GetFunctionList().end());
   mirModule->GetFunctionList().clear();
   const MapleVector<SCCNode<CGNode>*> &sccTopVec = GetSCCTopVec();
   for (MapleVector<SCCNode<CGNode>*>::const_reverse_iterator it = sccTopVec.rbegin(); it != sccTopVec.rend(); ++it) {
@@ -1941,8 +1955,13 @@ void CallGraph::SetCompilationFunclist() const {
       MIRFunction *func = node->GetMIRFunction();
       if ((func != nullptr && func->GetBody() != nullptr && !IsInIPA()) || (func != nullptr && !func->IsNative())) {
         mirModule->GetFunctionList().push_back(func);
+        (void)unusedFuncSet.erase(func);
       }
     }
+  }
+  for (auto unusedFunc : unusedFuncSet) {
+    unusedFunc->ReleaseCodeMemory();
+    unusedFunc->ReleaseMemory();
   }
 }
 

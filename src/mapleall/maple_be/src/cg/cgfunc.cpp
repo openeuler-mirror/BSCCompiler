@@ -1656,14 +1656,13 @@ void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &p
   }
 }
 
-int32 CGFunc::GetFreqFromStmt(uint32 stmtId) {
-  int32 freq = GetFunction().GetFreqFromLastStmt(stmtId);
+FreqType CGFunc::GetFreqFromStmt(uint32 stmtId) {
+  FreqType freq = GetFunction().GetFreqFromLastStmt(stmtId);
   if (freq != -1) {
     return freq;
   }
   return GetFunction().GetFreqFromFirstStmt(stmtId);
 }
-
 LmbcFormalParamInfo *CGFunc::GetLmbcFormalParamInfo(uint32 offset) {
   MapleVector<LmbcFormalParamInfo*> &paramVec = GetLmbcParamVec();
   for (auto *param : paramVec) {

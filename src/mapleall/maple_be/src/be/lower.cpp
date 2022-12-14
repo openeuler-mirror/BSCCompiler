@@ -47,7 +47,34 @@ using namespace maple;
 #define JAVALANG (mirModule.IsJavaModule())
 #define TARGARM32 0
 
-enum ExtFuncT : uint8 { kFmodDouble, kFmodFloat };
+enum ExtFuncT : uint8 {
+  kFmodDouble,
+  kFmodFloat,
+  kfloatsitf,
+  kfloatunsitf,
+  kfloatditf,
+  kfloatunditf,
+  kextendsftf2,
+  lextenddftf2,
+  kfixtfsi,
+  kfixunstfsi,
+  kfixtfdi,
+  kfixunstfdi,
+  ktrunctfsf2,
+  ktrunctfdf2,
+  kaddtf3,
+  ksubtf3,
+  kmultf3,
+  kdivtf3,
+  knegtf3,
+  kcmptf2,
+  kletf2,
+  kgetf2,
+  klttf2,
+  kgttf2,
+  knetf2,
+  keqtf2
+};
 
 struct ExtFuncDescrT {
   ExtFuncT fid;
@@ -75,6 +102,33 @@ std::pair<MIRIntrinsicID, const std::string> cgBuiltins[] = {
 ExtFuncDescrT extFnDescrs[] = {
   { kFmodDouble, "fmod", PTY_f64, { PTY_f64, PTY_f64, kPtyInvalid } },
   { kFmodFloat, "fmodf", PTY_f32, { PTY_f32, PTY_f32, kPtyInvalid } },
+
+  { kfloatsitf, "__floatsitf", PTY_f128, { PTY_i32, kPtyInvalid } },
+  { kfloatunsitf, "__floatunsitf", PTY_f128, { PTY_u32, kPtyInvalid } },
+  { kfloatditf, "__floatditf", PTY_f128, { PTY_i64, kPtyInvalid } },
+  { kfloatunditf, "__floatunditf", PTY_f128, { PTY_i64, kPtyInvalid } },
+  { kextendsftf2, "__extendsftf2", PTY_f128, { PTY_f32, kPtyInvalid } },
+  { lextenddftf2, "__extenddftf2", PTY_f128, { PTY_f64, kPtyInvalid } },
+
+  { kfixtfsi, "__fixtfsi", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { kfixunstfsi, "__fixunstfsi", PTY_u32, { PTY_f128, kPtyInvalid } },
+  { kfixtfdi, "__fixtfdi", PTY_i64, { PTY_f128, kPtyInvalid } },
+  { kfixunstfdi, "__fixunstfdi", PTY_u64, { PTY_f128, kPtyInvalid } },
+  { ktrunctfsf2, "__trunctfsf2", PTY_f32, { PTY_f128, kPtyInvalid } },
+  { ktrunctfdf2, "__trunctfdf2", PTY_f64, { PTY_f128, kPtyInvalid } },
+
+  { kaddtf3, "__addtf3", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { ksubtf3, "__subtf3", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { kmultf3, "__multf3", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { kdivtf3, "__divtf3", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { knegtf3, "__negtf2", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { kcmptf2, "__cmptf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { kletf2, "__letf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { kgetf2, "__getf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { klttf2, "__lttf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { kgttf2, "__gttf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { knetf2, "__netf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { keqtf2, "__eqtf2", PTY_i32, { PTY_f128, kPtyInvalid } },
 };
 
 std::vector<std::pair<ExtFuncT, PUIdx>> extFuncs;
@@ -273,9 +327,9 @@ bool CGLowerer::IsComplexSelect(const TernaryNode &tNode) const {
   return false;
 }
 
-int32 CGLowerer::FindTheCurrentStmtFreq(const StmtNode *stmt) const {
+FreqType CGLowerer::FindTheCurrentStmtFreq(const StmtNode *stmt) const {
   while (stmt != nullptr) {
-    int32 freq = mirModule.CurFunction()->GetFreqFromLastStmt(stmt->GetStmtID());
+    FreqType freq = mirModule.CurFunction()->GetFreqFromLastStmt(stmt->GetStmtID());
     if (freq != -1) {
       return freq;
     }
@@ -324,18 +378,18 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(targetIdx);
   brTargetStmt->SetOffset(targetIdx);
   // Update the current stmt frequence
-  int32 currentStmtFreq = 0;
+  FreqType currentStmtFreq = 0;
   if (kOpcodeInfo.IsStmt(parent.GetOpCode())) {
     currentStmtFreq = FindTheCurrentStmtFreq(static_cast<StmtNode*>(&parent));
   }
   currentStmtFreq = currentStmtFreq == -1 ? 0 : currentStmtFreq;
-  func->SetLastFreqMap(brTargetStmt->GetStmtID(), static_cast<uint32>(currentStmtFreq));
+  func->SetLastFreqMap(brTargetStmt->GetStmtID(), currentStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), brTargetStmt);
   union {
     MIRSymbol *resSym;
     PregIdx resPreg;
   } cplxSelRes; // complex select result
-  uint32 fallthruStmtFreq = static_cast<uint32>((currentStmtFreq + 1) / 2);
+  FreqType fallthruStmtFreq = (currentStmtFreq + 1) / 2;
   if (tNode.GetPrimType() == PTY_agg) {
     static uint32 val = 0;
     std::string name("ComplexSelectTmp");
@@ -384,7 +438,7 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   lableStmt->SetLabelIdx(endIdx);
   // Update the frequence third opnd
-  func->SetFirstFreqMap(lableStmt->GetStmtID(), static_cast<uint32>(currentStmtFreq));
+  func->SetFirstFreqMap(lableStmt->GetStmtID(), currentStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
 
   BaseNode *exprNode = (tNode.GetPrimType() == PTY_agg) ?
@@ -1367,7 +1421,7 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
       static_cast<CallNode *>(newCall)->SetReturnVec(*p2nRets);
       MIRFunction *curFunc = mirModule.CurFunction();
       curFunc->SetLastFreqMap(newCall->GetStmtID(),
-          static_cast<uint32>(curFunc->GetFreqFromLastStmt(stmt.GetStmtID())));
+          curFunc->GetFreqFromLastStmt(stmt.GetStmtID()));
       break;
     }
     case OP_intrinsiccallassigned:
@@ -1715,7 +1769,7 @@ void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
     RegassignNode *regAss = mirBuilder->CreateStmtRegassign(ptyp, pIdx, opnd);
     newBlk.AddStatement(regAss);
     GetCurrentFunc()->SetLastFreqMap(regAss->GetStmtID(),
-        static_cast<uint32>(GetCurrentFunc()->GetFreqFromLastStmt(stmt.GetStmtID())));
+        GetCurrentFunc()->GetFreqFromLastStmt(stmt.GetStmtID()));
     stmt.SetOpnd(mirBuilder->CreateExprRegread(ptyp, pIdx), 0);
   } else {
     stmt.SetOpnd(LowerExpr(stmt, *stmt.Opnd(0), newBlk), 0);
@@ -4002,6 +4056,7 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const
     case INTRN_C_clz64:
     case INTRN_C_ctz32:
     case INTRN_C_ctz64:
+    case INTRN_C_fabsl:
     case INTRN_C_popcount32:
     case INTRN_C_popcount64:
     case INTRN_C_parity32:
