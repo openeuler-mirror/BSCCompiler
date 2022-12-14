@@ -770,10 +770,15 @@ void MeCFG::WontExitAnalysis() {
     }
     if (bb->GetKind() == kBBFallthru) {
       // Change fallthru bb to goto bb.
-      if (func.GetIRMap() == nullptr || bb->GetSucc().empty()) {
+      if (bb->GetSucc().empty()) {
         continue;
       }
-      bb->AddMeStmtLast(func.GetIRMap()->New<GotoMeStmt>(func.GetOrCreateBBLabel(*bb->GetSucc(0))));
+      LabelIdx label = func.GetOrCreateBBLabel(*bb->GetSucc(0));
+      if (func.GetIRMap() == nullptr) {
+        bb->AddStmtNode(func.GetMirFunc()->GetCodeMempool()->New<GotoNode>(OP_goto, label));
+      } else {
+        bb->AddMeStmtLast(func.GetIRMap()->New<GotoMeStmt>(label));
+      }
       bb->SetKind(kBBGoto);
     }
     // create artificial BB to transition to common_exit_bb

@@ -242,7 +242,7 @@ void VerifyGlobalTypeTable() {
   }
 }
 
-void MeVerify::VerifyPhiNode(const BB &bb, Dominance &dom) const {
+void MeVerify::VerifyPhiNode(const BB &bb, const Dominance &dom) const {
   if (enableDebug) {
     meFunc.GetCfg()->DumpToFile("meverify");
   }
@@ -271,7 +271,7 @@ void MeVerify::VerifyPhiNode(const BB &bb, Dominance &dom) const {
         continue;
       }
       MeStmt *stmt = nullptr;
-      BB *defBB = opnd->GetDefByBBMeStmt(dom, stmt);
+      BB *defBB = opnd->GetDefByBBMeStmt(*meFunc.GetCfg(), stmt);
       if (bb.GetPred(i) != defBB && !dom.Dominate(*defBB, *bb.GetPred(i))) {
         CHECK_FATAL(false, "the defBB of opnd must be the predBB or dominate the current bb");
       }
@@ -366,7 +366,7 @@ void MeVerify::VerifyAttrTryBB(BB &tryBB, uint64 index) {
   int i = 0;
   for (auto offsetIt = tryStmt.GetOffsets().rbegin(), offsetEIt = tryStmt.GetOffsets().rend();
        offsetIt != offsetEIt; ++offsetIt) {
-    auto offsetBBId = meFunc.GetCfg()->GetLabelBBAt(*offsetIt)->GetBBId();
+    auto offsetBB = meFunc.GetCfg()->GetLabelBBAt(*offsetIt);
     bool needExit = false;
     for (size_t j = index; j < meFunc.GetLaidOutBBs().size() && !needExit; ++j) {
       auto currBB = meFunc.GetLaidOutBBs().at(j);
@@ -396,21 +396,8 @@ void MeVerify::VerifyAttrTryBB(BB &tryBB, uint64 index) {
       if (currBB->GetAttributes(kBBAttrIsCatch) && currBB->GetAttributes(kBBAttrIsJavaFinally)) {
         continue;
       }
-      // When the size of gotoBB's succs is more than two, one is targetBB, one is  wontExitBB and the other is catchBB.
-      if (currBB->GetKind() == kBBGoto && currBB->GetAttributes(kBBAttrWontExit)) {
-        bool isEqual = false;
-        if ((*(currBB->GetSucc().rbegin() + i + 1)) != nullptr &&
-            offsetBBId == (*(currBB->GetSucc().rbegin() + i + 1))->GetBBId()) {
-          isEqual = true;
-        }
-        if ((*(currBB->GetSucc().rbegin() + i)) != nullptr &&
-            offsetBBId == (*(currBB->GetSucc().rbegin() + i))->GetBBId()) {
-          isEqual = true;
-        }
-        CHECK_FATAL(isEqual, "must be equal");
-      } else {
-        CHECK_FATAL(offsetBBId == (*(currBB->GetSucc().rbegin() + i))->GetBBId(), "must be equal");
-      }
+      CHECK_FATAL(std::count(currBB->GetSucc().begin(), currBB->GetSucc().end(), offsetBB) != 0, "must find catch");
+
       if (enableDebug) {
         LogInfo::MapleLogger() << currBB->GetBBId() << " " <<  (*(currBB->GetSucc().rbegin() + i))->GetBBId() << "\n";
       }

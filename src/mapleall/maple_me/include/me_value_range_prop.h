@@ -233,7 +233,7 @@ class Bound {
   MeExpr *var = nullptr;
   int64 constant = 0;
   PrimType primType = PTY_begin;
-  bool isClosedInterval = true; // The bound of is an closed interval.
+  bool isClosedInterval = true; // The upper or lower bound of value range is an closed interval.
 };
 
 enum RangeType {
