@@ -500,8 +500,8 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
   if (updateFreq) {
     auto *callerProfData = caller.GetFuncProfData();
     auto *calleeProfData = callee.GetFuncProfData();
-    uint64_t callsiteFreq = callerProfData->GetStmtFreq(callStmt.GetStmtID());
-    uint64_t calleeEntryFreq = calleeProfData->GetFuncFrequency();
+    FreqType callsiteFreq = callerProfData->GetStmtFreq(callStmt.GetStmtID());
+    FreqType calleeEntryFreq = calleeProfData->GetFuncFrequency();
     uint32_t updateOp = (kKeepOrigFreq | kUpdateFreqbyScale);
     BlockNode *blockNode;
     if (recursiveFirstClone) {

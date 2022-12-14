@@ -20,7 +20,7 @@
 #include "ssa.h"
 #include "utils.h"
 #include "ver_symbol.h"
-
+#include "base_graph_node.h"
 namespace maple {
 class MeStmt;          // circular dependency exists, no other choice
 class MePhiNode;       // circular dependency exists, no other choice
@@ -59,12 +59,12 @@ constexpr uint32 kBBVectorInitialSize = 2;
 using StmtNodes = PtrListRef<StmtNode>;
 using MeStmts = PtrListRef<MeStmt>;
 
-class BB {
+class BB : public BaseGraphNode {
  public:
   using BBId = utils::Index<BB>;
 
   BB(MapleAllocator *alloc, MapleAllocator *versAlloc, BBId id)
-      : id(id),
+      : BaseGraphNode(id.GetIdx()),
         pred(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succ(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succFreq(alloc->Adapter()),
@@ -79,7 +79,7 @@ class BB {
   }
 
   BB(MapleAllocator *alloc, MapleAllocator *versAlloc, BBId id, StmtNode *firstStmt, StmtNode *lastStmt)
-      : id(id),
+      : BaseGraphNode(id.GetIdx()),
         pred(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succ(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succFreq(alloc->Adapter()),
@@ -95,6 +95,34 @@ class BB {
   }
 
   virtual ~BB() = default;
+
+  const std::string GetIdentity() final {
+    return "BBId: " + std::to_string(GetID());
+  }
+
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) final {
+    for (auto &bb : succ) {
+      outNodes.emplace_back(bb);
+    }
+  }
+
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) const final {
+    for (auto &bb : succ) {
+      outNodes.emplace_back(bb);
+    }
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &outNodes) final {
+    for (auto &bb : pred) {
+      outNodes.emplace_back(bb);
+    }
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &outNodes) const final {
+    for (auto &bb : pred) {
+      outNodes.emplace_back(bb);
+    }
+  }
 
   bool GetAttributes(uint32 attrKind) const {
     return (attributes & attrKind) != 0;
@@ -149,8 +177,8 @@ class BB {
   void AddPred(BB &predBB, size_t pos = UINT32_MAX) {
     ASSERT((pos <= pred.size() || pos == UINT32_MAX), "Invalid position.");
     ASSERT((!predBB.IsInList(pred) && !IsInList(predBB.succ)), "BB already has been Added.");
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonEntry should not be here.");
-    ASSERT((predBB.id != 0 && predBB.id != 1), "CommonEntry or CommonEntry should not be here.");
+    ASSERT((GetBBId() != 0 && GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((predBB.GetBBId() != 0 && predBB.GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
     if (pos == UINT32_MAX) {
       pred.push_back(&predBB);
     } else {
@@ -162,8 +190,8 @@ class BB {
   void AddSucc(BB &succBB, size_t pos = UINT32_MAX) {
     ASSERT((pos <= succ.size() || pos == UINT32_MAX), "Invalid position.");
     ASSERT((!succBB.IsInList(succ) && !IsInList(succBB.pred)), "BB already has been Added.");
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonEntry should not be here.");
-    ASSERT((succBB.id != 0 && succBB.id != 1), "CommonEntry or CommonEntry should not be here.");
+    ASSERT((GetBBId() != 0 && GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((succBB.GetBBId() != 0 && succBB.GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
     if (pos == UINT32_MAX) {
       succ.push_back(&succBB);
     } else {
@@ -181,15 +209,15 @@ class BB {
   }
 
   BBId GetBBId() const {
-    return id;
+    return BBId(GetID());
   }
 
   void SetBBId(BBId idx) {
-    id = idx;
+    SetID(idx.GetIdx());
   }
 
   uint32 UintID() const {
-    return static_cast<uint32>(id);
+    return GetID();
   }
 
   StmtNode *GetTheOnlyStmtNode();
@@ -251,15 +279,15 @@ class BB {
   void ReplaceStmt(StmtNode *stmt, StmtNode *newStmt);
 
   void RemovePred(BB &predBB, bool updatePhi = true) {
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonExit should not be here.");
-    ASSERT((predBB.id != 0 && predBB.id != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((GetBBId() != 0 && GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((predBB.GetBBId() != 0 && predBB.GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
     RemoveBBFromPred(predBB, updatePhi);
     predBB.RemoveBBFromSucc(*this);
   }
 
   void RemoveSucc(BB &succBB, bool updatePhi = true) {
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonExit should not be here.");
-    ASSERT((succBB.id != 0 && succBB.id != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((GetBBId() != 0 && GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((succBB.GetBBId() != 0 && succBB.GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
     succBB.RemoveBBFromPred(*this, updatePhi);
     RemoveBBFromSucc(succBB);
   }
@@ -337,11 +365,11 @@ class BB {
     bbLabel = idx;
   }
 
-  uint32 GetFrequency() const {
+  FreqType GetFrequency() const {
     return frequency;
   }
 
-  void SetFrequency(uint32 f) {
+  void SetFrequency(FreqType f) {
     frequency = f;
   }
 
@@ -396,18 +424,20 @@ class BB {
     pred[cnt] = pp;
   }
 
-  void PushBackSuccFreq(uint64 freq) {
+  void PushBackSuccFreq(FreqType freq) {
     return succFreq.push_back(freq);
   }
 
-  MapleVector<uint64> &GetSuccFreq() {
+  MapleVector<FreqType> &GetSuccFreq() {
     return succFreq;
   }
-  void SetSuccFreq(int idx, uint64 freq) {
+
+  void SetSuccFreq(int idx, FreqType freq) {
     ASSERT(idx >= 0 && idx <= succFreq.size(), "sanity check");
     succFreq[static_cast<size_t>(idx)] = freq;
   }
-  void AddSuccFreq(uint64 freq, size_t pos = UINT32_MAX) {
+
+  void AddSuccFreq(FreqType freq, size_t pos = UINT32_MAX) {
     ASSERT((pos <= succFreq.size() || pos == UINT32_MAX), "Invalid position.");
     if (pos == UINT32_MAX) {
       succFreq.push_back(freq);
@@ -415,7 +445,6 @@ class BB {
       succFreq.insert(succFreq.begin() + pos, freq);
     }
   }
-
   // update edge frequency
   void UpdateEdgeFreqs(bool updateSuccFreq = true);
 
@@ -479,7 +508,7 @@ class BB {
     mePhiList.clear();
   }
 
-  uint64 GetEdgeFreq(const BB *bb) const {
+  FreqType GetEdgeFreq(const BB *bb) const {
     auto iter = std::find(succ.begin(), succ.end(), bb);
     CHECK_FATAL(iter != std::end(succ), "%d is not the successor of %d", bb->UintID(), this->UintID());
     CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size doesn't match succ size");
@@ -487,13 +516,13 @@ class BB {
     return succFreq[idx];
   }
 
-  uint64 GetEdgeFreq(size_t idx) const {
+  FreqType GetEdgeFreq(size_t idx) const {
     CHECK_FATAL(idx < succFreq.size(), "out of range in BB::GetEdgeFreq");
     CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size doesn't match succ size");
     return succFreq[idx];
   }
 
-  void SetEdgeFreq(const BB *bb, uint64 freq) {
+  void SetEdgeFreq(const BB *bb, FreqType freq) {
     auto iter = std::find(succ.begin(), succ.end(), bb);
     CHECK_FATAL(iter != std::end(succ), "%d is not the successor of %d", bb->UintID(), this->UintID());
     CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size %d doesn't match succ size %d", succFreq.size(),
@@ -539,16 +568,15 @@ class BB {
   bool IsInList(const MapleVector<BB*> &bbList) const;
   int RemoveBBFromVector(MapleVector<BB*> &bbVec) const;
 
-  BBId id;
   LabelIdx bbLabel = 0;    // the BB's label
   MapleVector<BB*> pred;  // predecessor list
   MapleVector<BB*> succ;  // successor list
   // record the edge freq from curBB to succ BB
-  MapleVector<uint64> succFreq;
+  MapleVector<FreqType> succFreq;
   MapleMap<OStIdx, PhiNode> phiList;
   MapleMap<OStIdx, MePhiNode*> mePhiList;
   MapleMap<BB*, std::vector<PiassignMeStmt*>> meVarPiList;
-  uint32 frequency = 0;
+  FreqType frequency = 0;
   BBKind kind = kBBUnknown;
   uint32 attributes = 0;
 

@@ -772,7 +772,7 @@ void PreMeEmitter::UpdateStmtInfoForLabelNode(LabelNode &label, BB &bb) {
   label.SetStmtInfoId(ipaInfo->GetRealFirstStmtInfoId(bb));
 }
 
-void PreMeEmitter::UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt, BlockNode &currBlock, uint64 frequency) {
+void PreMeEmitter::UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt, BlockNode &currBlock, FreqType frequency) {
   if (ipaInfo == nullptr || meStmt.GetStmtInfoId() == kInvalidIndex) {
     return;
   }
@@ -951,7 +951,7 @@ uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curJ, BlockNode *curBlk) {
   }
   // set dobody freq
   if (GetFuncProfData()) {
-    int64_t freq = (endlblbb == suc0) ? suc1->GetFrequency() : suc0->GetFrequency();
+    FreqType freq = (endlblbb == suc0) ? suc1->GetFrequency() : suc0->GetFrequency();
     GetFuncProfData()->SetStmtFreq(dobody->GetStmtID(), static_cast<uint64>(freq));
   }
   return curJ;
@@ -1077,8 +1077,8 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode *curBlk) {
     CHECK_FATAL(j < bbvec.size(), "");
     if (GetFuncProfData()) {
       // set then part/else part frequency
-      uint64 ifFreq = GetFuncProfData()->GetStmtFreq(ifStmtNode->GetStmtID());
-      uint64 branchFreq = bbvec[curJ + 1]->GetFrequency();
+      FreqType ifFreq = GetFuncProfData()->GetStmtFreq(ifStmtNode->GetStmtID());
+      FreqType branchFreq = bbvec[curJ + 1]->GetFrequency();
       GetFuncProfData()->SetStmtFreq(branchBlock->GetStmtID(), branchFreq);
       GetFuncProfData()->SetStmtFreq(emptyBlock->GetStmtID(), ifFreq - branchFreq);
     }

@@ -39,7 +39,8 @@ class IpaClone : public AnalysisResult {
   static void IpaClonePregTable(MIRFunction &newFunc, const MIRFunction &oldFunc);
   MIRFunction *IpaCloneFunction(MIRFunction &originalFunction, const std::string &fullName) const;
   MIRFunction *IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
-                                        const std::string &fullName, uint64_t callSiteFreq) const;
+                                        const std::string &fullName, FreqType callSiteFreq) const;
+  bool IsBrCondOrIf(Opcode op) const;
   void DoIpaClone();
   void InitParams();
   void CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const;
@@ -48,10 +49,14 @@ class IpaClone : public AnalysisResult {
   void DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramIndex, std::map<uint32,
                            std::vector<int64_t>> &evalMap) const;
   void ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &result, uint64_t res) const;
+  void RemoveSwitchCase(MIRFunction &newFunc, SwitchNode &switchStmt, std::vector<int64_t> &calleeValue) const;
+  void RemoveUnneedSwitchCase(MIRFunction &newFunc, std::vector<ImpExpr> &result,
+                              std::vector<int64_t> &calleeValue) const;
+  bool CheckImportantExprHasBr(const std::vector<ImpExpr> &exprVec) const;
   void EvalCompareResult(std::vector<ImpExpr> &result, std::map<uint32, std::vector<int64_t>> &evalMap,
                          std::map<int64_t, std::vector<CallerSummary>> &summary, uint32 index) const;
   void EvalImportantExpression(MIRFunction *func, std::vector<ImpExpr> &result);
-  bool CheckCostModel(uint32 paramIndex, std::vector<int64_t> &calleeValue, uint32 impSize) const;
+  bool CheckCostModel(uint32 paramIndex, std::vector<int64_t> &calleeValue, std::vector<ImpExpr> &result) const;
   void ComupteValue(const IntVal& value, const IntVal& paramValue, const CompareNode &cond, uint64_t &bitRes) const;
   void CloneNoImportantExpressFunction(MIRFunction *func, uint32 paramIndex) const;
   void ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex) const;

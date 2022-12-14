@@ -2264,7 +2264,7 @@ StmtNode *ConstantFold::SimplifyCondGoto(CondGotoNode *node) {
     ASSERT_NOT_NULL(intConst);
     if ((node->GetOpCode() == OP_brtrue && !intConst->IsZero()) ||
         (node->GetOpCode() == OP_brfalse && intConst->IsZero())) {
-      uint32 freq = mirModule->CurFunction()->GetFreqFromLastStmt(node->GetStmtID());
+      FreqType freq = mirModule->CurFunction()->GetFreqFromLastStmt(node->GetStmtID());
       GotoNode *gotoNode = mirModule->CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
       gotoNode->SetOffset(node->GetOffset());
       if (Options::profileUse && mirModule->CurFunction()->GetFuncProfData()) {

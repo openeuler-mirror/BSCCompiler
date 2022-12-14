@@ -138,7 +138,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
   if (func.GetCfg()->UpdateCFGFreq()) {
     int idx = pred.GetSuccIndex(bb);
     ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
-    uint64_t freq = pred.GetEdgeFreq(idx);
+    FreqType freq = pred.GetEdgeFreq(idx);
     latchBB->SetFrequency(freq);
     // update bb frequency: remove pred frequency since pred is deleted
     ASSERT(bb.GetFrequency() >= freq, "sanity check");
@@ -247,7 +247,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
         latchBB->PushBackSuccFreq(0);
       }
     } else if (latchBB->GetKind() == kBBFallthru || latchBB->GetKind() == kBBGoto) {
-      int64_t newsuccFreq = (latchBB->GetFrequency() == 0) ? 0 : latchBB->GetSuccFreq()[0] - 1;
+      FreqType newsuccFreq = (latchBB->GetFrequency() == 0) ? 0 : latchBB->GetSuccFreq()[0] - 1;
       latchBB->SetSuccFreq(0, newsuccFreq);  // loop is changed to do-while format
       bb.SetSuccFreq(0, bb.GetFrequency());
     } else {

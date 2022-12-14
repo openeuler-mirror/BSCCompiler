@@ -282,14 +282,14 @@ BlockNode *BlockNode::CloneTreeWithSrcPosition(const MIRModule &mod, const GStrI
 }
 
 BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
-    std::unordered_map<uint32_t, uint64_t>& toFreqs,
-    std::unordered_map<uint32_t, uint64_t>& fromFreqs,
+    std::unordered_map<uint32_t, FreqType>& toFreqs,
+    std::unordered_map<uint32_t, FreqType>& fromFreqs,
     uint64_t numer, uint64_t denom, uint32_t updateOp) {
   auto *nnode = allocator.GetMemPool()->New<BlockNode>();
   nnode->SetStmtID(stmtIDNext++);
   if (fromFreqs.count(GetStmtID()) > 0) {
-    uint64_t oldFreq = fromFreqs[GetStmtID()];
-    uint64_t newFreq;
+    FreqType oldFreq = fromFreqs[GetStmtID()];
+    FreqType newFreq;
     if (updateOp & kUpdateUnrollRemainderFreq) {
       newFreq = denom > 0 ? (oldFreq * numer % denom) : oldFreq;
     } else {
@@ -319,8 +319,8 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     } else {
       newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
       if (fromFreqs.count(stmt.GetStmtID()) > 0) {
-        uint64_t oldFreq = fromFreqs[stmt.GetStmtID()];
-        uint64_t newFreq;
+        FreqType oldFreq = fromFreqs[stmt.GetStmtID()];
+        FreqType newFreq;
         if ((updateOp & kUpdateUnrollRemainderFreq) != 0) {
           newFreq = denom > 0 ? (oldFreq * numer % denom) : oldFreq;
         } else {
@@ -329,7 +329,7 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
         toFreqs[newStmt->GetStmtID()] =
             (newFreq > 0 || oldFreq == 0 || numer == 0) ? static_cast<uint64_t>(newFreq) : 1;
         if ((updateOp & kUpdateOrigFreq) != 0) {
-          int64_t left = static_cast<int64_t>(((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1);
+          FreqType left = static_cast<int64_t>(((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1);
           fromFreqs[stmt.GetStmtID()] = static_cast<uint64_t>(left);
         }
       }
@@ -727,7 +727,7 @@ void StmtNode::DumpBase(int32 indent) const {
   srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
+    FreqType freq = theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID());
     if (freq >= 0) {
       LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " << freq << "\n";
     }
@@ -1368,7 +1368,7 @@ void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable
   srcPosition.DumpLoc(lastPrintedLineNum, lastPrintedColumnNum);
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
+    FreqType freq = theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID());
     if (freq >= 0) {
       LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " << freq << "\n";
     }
@@ -1386,7 +1386,7 @@ void LabelNode::Dump(int32 indent [[maybe_unused]]) const {
   }
   // dump stmtFreqs
   if (Options::profileUse && theMIRModule->CurFunction()->GetFuncProfData()) {
-    int64_t freq = static_cast<int64_t>(theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID()));
+    FreqType freq = theMIRModule->CurFunction()->GetFuncProfData()->GetStmtFreq(GetStmtID());
     if (freq >= 0) {
       LogInfo::MapleLogger() << "stmtID " << GetStmtID() << "  freq " << freq << "\n";
     }
@@ -1613,64 +1613,62 @@ void AsmNode::Dump(int32 indent) const {
 }
 
 /* Start of primtype verification for Maple IR nodes.
-  
    General rules:
-  
    1. For binary operations, the types of the two operands must be compatible.
-  
+
    2. In checking type compatibility, other than identical types, the types in
    each of the following group are compatible with each other:
               [i32, u32, ptr, ref, a32]
               [i64, u64, ptr, ref, a64]
-  
+
    3. dynany is compatiable with any dyn* type.
-  
+
    4. u1, i8, u8, i16, u16 must not be types of arithmetic operations, because
    many machines do not provide instructions for such types as they lack such
    register sizes.  Similarly, these types must not be used as result types for
    any read instructions: dread/iread/regread.
-  
+
    5. When an opcode only specifies one type (which is called the result type),
    it expects both operands and results to be of this same type.  Thus, the
    types among the operands and this result type must be compatible.
-  
+
    6. When an opcode specifies two types, the additional (second) type is
    the operand type.  The types of the operands and the operand type must be
    compatible.
-  
+
    7. The opcodes addrof, addroflabel, addroffunc and iaddrof form addresses.
    Thus, their result type must be in [ptr,ref,a32,a64].
-  
+
    8. The opcodes bnot, extractbits, sext, zext, lnot must have result type in
    [i32, u32, i64, u64].
-  
+
    9. The opcodes abs, neg must have result type in
    [i32, u32, i64, u64, f32, f64].
-  
+
    10. The opcodes recip, sqrt must have result type in [f32, f64].
-  
+
    11. The opcodes ceil, floor, round, trunc must have result-type in
    [i32, u32, i64, u64] and operand-type in [f32, f64].
-  
+
    12. The opcodes add, div, sub, mpy, max, min must have result-type in
    [i32, u32, i64, u64, f32, f64].
-  
+
    13. The opcodes eq, ge, gt, le, lt, ne must have result-type in
    any signed or unsigned integer type; they also specifies operand-type, and
    this operand-type and the types of their two operands must be compatible.
-  
+
    14. The opcodes ashr, band, bior, bxor, depositbits, land, lior, lshr, shl,
    rem must have result-type in [i32, u32, i64, u64].
-  
+
    15. select's result-type and the types of its second and third operands must
    be compatible; its first operand must be of integer type.
-  
+
    16. array's result-type must be in [ptr,ref,a32,a64]; the type of <opnd0> must
    also be in [ptr,ref,a32,a64]; the types of the rest of the operands must be in
    [i32, u32, i64, u64].
-  
+
    17. The operand of brfalse, trfalse must be of integer type.
-  
+
    18. The operand of switch, rangegoto must be in [i32, u32, i64, u64].
 */
 

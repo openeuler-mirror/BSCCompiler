@@ -165,7 +165,7 @@ void MeSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const
   if (cfg->UpdateCFGFreq() && (!(func.IsPme() || func.IsLfo()))) {
     int idx = pred.GetSuccIndex(*newBB);
     ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
-    uint64_t freq = pred.GetEdgeFreq(idx);
+    FreqType freq = pred.GetEdgeFreq(idx);
     newBB->SetFrequency(freq);
     newBB->PushBackSuccFreq(freq);
   }

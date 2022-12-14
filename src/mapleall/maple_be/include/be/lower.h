@@ -142,6 +142,7 @@ class CGLowerer {
   std::string GetFileNameSymbolName(const std::string &fileName) const;
 
   void SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode*> &argsPrintf);
+  StmtNode *CreateFflushStmt(StmtNode &stmt);
 
   void LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode &newBlk, std::vector<StmtNode *> &abortNode);
 
@@ -161,7 +162,7 @@ class CGLowerer {
   BaseNode *SplitBinaryNodeOpnd1(BinaryNode &bNode, BlockNode &blkNode);
   BaseNode *SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   bool IsComplexSelect(const TernaryNode &tNode) const;
-  int32 FindTheCurrentStmtFreq(const StmtNode *stmt) const;
+  FreqType FindTheCurrentStmtFreq(const StmtNode *stmt) const;
   BaseNode *LowerComplexSelect(const TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   BaseNode *LowerFarray(ArrayNode &array);
   BaseNode *LowerArrayDim(ArrayNode &array, int32 dim);
@@ -267,7 +268,7 @@ class CGLowerer {
 
   void BuildLabel2FreqMap();
 
-  std::unordered_map<LabelIdx, uint64> &GetLabel2Freq() {
+  std::unordered_map<LabelIdx, FreqType> &GetLabel2Freq() {
     return l2fMap;
   }
 
@@ -340,7 +341,7 @@ class CGLowerer {
   uint32 labelIdx = 0;
   static std::unordered_map<IntrinDesc*, PUIdx> intrinFuncIDs;
   static std::unordered_map<std::string, size_t> arrayClassCacheIndex;
-  std::unordered_map<LabelIdx, uint64> l2fMap; // Map label to frequency on profileUse
+  std::unordered_map<LabelIdx, FreqType> l2fMap; // Map label to frequency on profileUse
 };
 }  /* namespace maplebe */
 

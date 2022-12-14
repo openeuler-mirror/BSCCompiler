@@ -153,7 +153,7 @@ class MIRLower {
     if (newStmt == oldStmt) {
       return;
     }
-    uint64_t freq = GetFuncProfData()->GetStmtFreq(oldStmt->GetStmtID());
+    FreqType freq = GetFuncProfData()->GetStmtFreq(oldStmt->GetStmtID());
     GetFuncProfData()->SetStmtFreq(newStmt->GetStmtID(), freq);
   }
 

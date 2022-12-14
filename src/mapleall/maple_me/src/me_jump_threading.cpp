@@ -35,13 +35,14 @@ constexpr size_t kLimitOfModulePathSize = 25;
 
 void JumpThreading::Execute() {
   for (auto bIt = dom.GetReversePostOrder().begin(); bIt != dom.GetReversePostOrder().end(); ++bIt) {
-    switch ((*bIt)->GetKind()) {
+    auto bb = func.GetCfg()->GetBBFromID(BBId((*bIt)->GetID()));
+    switch (bb->GetKind()) {
       case kBBCondGoto: {
-        DealWithCondGoto(**bIt);
+        DealWithCondGoto(*bb);
         break;
       }
       case kBBSwitch: {
-        DealWithSwitch(**bIt);
+        DealWithSwitch(*bb);
         break;
       }
       default:
@@ -72,7 +73,7 @@ void JumpThreading::InsertOstOfPhi2Cands(BB &bb, size_t i) {
     }
     auto *opnd = it.second->GetOpnd(i);
     MeStmt *stmt = nullptr;
-    auto *defBB = opnd->GetDefByBBMeStmt(dom, stmt);
+    auto *defBB = opnd->GetDefByBBMeStmt(*func.GetCfg(), stmt);
     // At the time of optimizing redundant branches, when the all preds of condgoto BB can jump directly to
     // the successors of condgoto BB and the conditional expr is only used for conditional stmt, after opt,
     // the ssa of expr not need to be updated, otherwise the ssa of epr still needs to be updated.
@@ -88,7 +89,10 @@ void JumpThreading::PrepareForSSAUpdateWhenPredBBIsRemoved(const BB &pred, BB &b
 }
 
 BB *JumpThreading::CopyBB(BB &bb, bool copyWithoutLastStmt) {
-  if (bb.GetMeStmts().empty()) {
+  // Each wont exit bb corresponds to an wont exit return bb,
+  // so when the bb to be copied is an wont exit bb, copy the bb.
+  bool isWontExitReturnBB = bb.GetAttributes(kBBAttrWontExit | kBBAttrIsExit) && bb.GetKind() == kBBReturn;
+  if (!isWontExitReturnBB && bb.GetMeStmts().empty()) {
     return nullptr;
   }
   size_t numOfStmts = 0;
@@ -99,7 +103,7 @@ BB *JumpThreading::CopyBB(BB &bb, bool copyWithoutLastStmt) {
     numOfStmts++;
   }
   // Need not copy the condition stmt which would be jumped after opt.
-  if (numOfStmts == 0 || (copyWithoutLastStmt && numOfStmts == 1)) {
+  if (!isWontExitReturnBB && (numOfStmts == 0 || (copyWithoutLastStmt && (numOfStmts == 1)))) {
     return nullptr;
   }
   BB *newBB = func.GetCfg()->NewBasicBlock();
@@ -164,9 +168,9 @@ void JumpThreading::ConnectNewPath(std::vector<BB*> &currPath, std::vector<std::
     if (idxOfCurrBB == thePosOfSec2LastBB) {
       old2NewBB[idxOfCurrBB].second->AddSucc(*newSuccBB);
       if (func.GetCfg()->UpdateCFGFreq()) {
-        uint64 freqUsed = old2NewBB[idxOfCurrBB].second->GetFrequency();
+        FreqType freqUsed = old2NewBB[idxOfCurrBB].second->GetFrequency();
         old2NewBB[idxOfCurrBB].second->PushBackSuccFreq(freqUsed);
-        newSuccBB->SetFrequency(static_cast<uint32>(freqUsed));
+        newSuccBB->SetFrequency(freqUsed);
       }
       break;
     }
@@ -205,7 +209,14 @@ void JumpThreading::ConnectNewPath(std::vector<BB*> &currPath, std::vector<std::
           InsertOstOfPhi2Cands(*newTemp, idx);
         }
         // Push the temp to the succ of new copied bb of currentBB.
-        old2NewBB[idxOfCurrBB].second->AddSucc(*newTemp);
+        if (currentBB->GetKind() == kBBGoto && currentBB->GetAttributes(kBBAttrWontExit) &&
+            currentBB->GetSuccIndex(*newTemp) == 1 && newTemp->GetAttributes(kBBAttrIsExit)) {
+          BB *newWontExitBB = CopyBB(*newTemp);
+          old2NewBB[idxOfCurrBB].second->AddSucc(*newWontExitBB);
+          func.GetCfg()->GetCommonExitBB()->GetPred().push_back(newWontExitBB);
+        } else {
+          old2NewBB[idxOfCurrBB].second->AddSucc(*newTemp);
+        }
         if (func.GetCfg()->UpdateCFGFreq()) {
           old2NewBB[idxOfCurrBB].second->PushBackSuccFreq(newTemp->GetFrequency());
         }
@@ -279,7 +290,7 @@ bool JumpThreading::TraverseBBsOfPath(std::vector<BB*> &currPath, int64 &currSiz
       if (stmt.GetOp() == OP_comment) {
         continue;
       }
-      currSize += inlineAnalyzer.GetMeStmtCost(&stmt) / static_cast<int64>(kSizeScale);
+      currSize += stmtCostAnalyzer.GetMeStmtCost(&stmt) / static_cast<int64>(kSizeScale);
       if (JumpThreading::isDebug) {
         stmt.Dump(func.GetIRMap());
       }
@@ -584,8 +595,8 @@ void JumpThreading::FindPathFromUse2DefWhenOneOpndIsDefByPhi(BB &bb, BB &pred, C
   if (opnd0 != nullptr && opnd1 != nullptr && opnd0->IsScalar() && opnd1->IsScalar()) {
     MeStmt *defStmt0 = nullptr;
     MeStmt *defStmt1 = nullptr;
-    auto *defBB0 = static_cast<ScalarMeExpr*>(opnd0)->GetDefByBBMeStmt(dom, defStmt0);
-    auto *defBB1 = static_cast<ScalarMeExpr*>(opnd1)->GetDefByBBMeStmt(dom, defStmt1);
+    auto *defBB0 = static_cast<ScalarMeExpr*>(opnd0)->GetDefByBBMeStmt(*func.GetCfg(), defStmt0);
+    auto *defBB1 = static_cast<ScalarMeExpr*>(opnd1)->GetDefByBBMeStmt(*func.GetCfg(), defStmt1);
     if ((theFirstCmpOpndIsDefByPhi && !dom.Dominate(*defBB1, *defBB0)) ||
         (!theFirstCmpOpndIsDefByPhi && !dom.Dominate(*defBB0, *defBB1))) {
       // When recursively searching for the version of the value, the def points of two opnds must be dom each other.
@@ -609,8 +620,8 @@ void JumpThreading::FindPathWithTwoOperandsAreScalarMeExpr(BB &bb, BB &pred, Com
   auto *scalar1 = static_cast<ScalarMeExpr*>(cmpOpnds.second);
   MeStmt *defStmt0 = nullptr;
   MeStmt *defStmt1 = nullptr;
-  auto *defBB0 = scalar0->GetDefByBBMeStmt(dom, defStmt0);
-  auto *defBB1 = scalar1->GetDefByBBMeStmt(dom, defStmt1);
+  auto *defBB0 = scalar0->GetDefByBBMeStmt(*func.GetCfg(), defStmt0);
+  auto *defBB1 = scalar1->GetDefByBBMeStmt(*func.GetCfg(), defStmt1);
   if (scalar0->GetDefBy() == kDefByPhi && scalar1->GetDefBy() == kDefByPhi) {
     auto *defPhi0 = &scalar0->GetDefPhi();
     auto *defPhi1 = &scalar1->GetDefPhi();
@@ -752,7 +763,7 @@ bool MEJumpThreading::PhaseRun(maple::MeFunction &f) {
   JumpThreading::isDebug = DEBUGFUNC_NEWPM(f);
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_FATAL(irMap != nullptr, "irMap phase has problem");
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
   auto *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
   if (JumpThreading::isDebug) {
@@ -764,9 +775,9 @@ bool MEJumpThreading::PhaseRun(maple::MeFunction &f) {
   LoopScalarAnalysisResult sa(*irMap, nullptr);
   sa.SetComputeTripCountForLoopUnroll(false);
   auto *memPool = GetPhaseMemPool();
-  InlineAnalyzer inlineAnalyzer(memPool, f.GetMirFunc());
+  StmtCostAnalyzer stmtCostAnalyzer(memPool, f.GetMirFunc());
   ValueRangePropagation valueRangePropagation(f, *irMap, *dom, meLoop, *memPool, cands, sa, false, true);
-  JumpThreading jumpThreading(f, *dom, meLoop, valueRangePropagation, inlineAnalyzer, cands);
+  JumpThreading jumpThreading(f, *dom, meLoop, valueRangePropagation, stmtCostAnalyzer, cands);
   valueRangePropagation.Execute();
   jumpThreading.Execute();
   if (jumpThreading.IsCFGChange()) {
@@ -774,7 +785,7 @@ bool MEJumpThreading::PhaseRun(maple::MeFunction &f) {
     f.GetCfg()->WontExitAnalysis();
     (void)MeSplitCEdge(false).SplitCriticalEdgeForMeFunc(f);
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
-    dom = FORCE_GET(MEDominance);
+    dom = FORCE_EXEC(MEDominance)->GetDomResult();
     MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
     ssaUpdate.Run();
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);

@@ -18,6 +18,7 @@
 #include "mir_builder.h"
 #include "mir_nodes.h"
 #include "scc.h"
+#include "base_graph_node.h"
 namespace maple {
 enum CallType {
   kCallTypeInvalid,
@@ -40,18 +41,64 @@ struct NodeComparator {
   }
 };
 
+#define DEF_IF(code, type, desc) code,
+enum InlineFailedCode {
+#include "inline_failed.def"
+  kIFC_End
+};
+#undef DEF_IF
+
+enum InlineFailedType {
+  kIFT_Mutable,
+  kIFT_FinalFail,
+  kIFT_FinalOk,
+};
+
+const char *GetInlineFailedStr(InlineFailedCode code);
+InlineFailedType GetInlineFailedType(InlineFailedCode code);
+
+struct InlineResult {  // isInlinable result
+  bool canInline = false;
+  std::string reason;
+  bool wantToInline = false;
+
+  InlineResult() = default;
+  InlineResult(bool canInline, const std::string &reason, bool wantToInline = false)
+      : canInline(canInline), reason(reason), wantToInline(wantToInline) {}
+  ~InlineResult() = default;
+};
+
+inline bool IsExternGnuInline(const MIRFunction &func) {
+  return func.IsExtern() && func.GetAttr(FUNCATTR_gnu_inline);
+}
+
 template <typename T>
 struct Comparator {
   bool operator()(const T *lhs, const T *rhs) const {
     return lhs->GetID() < rhs->GetID();
   }
 };
+template <>
+struct Comparator<StmtNode> {
+  bool operator()(const StmtNode *lhs, const StmtNode *rhs) const {
+    return lhs->GetStmtID() < rhs->GetStmtID();
+  }
+};
 
 // Information description of each callsite
 class CallInfo {
  public:
-  CallInfo(CallType type, MIRFunction *call, StmtNode *node, uint32 ld, uint32 stmtId, bool local = false)
-      : areAllArgsLocal(local), cType(type), mirFunc(call), callStmt(node), loopDepth(ld), id(stmtId) {}
+  CallInfo(CallType type, MIRFunction *callee, StmtNode *node, uint32 ld, uint32 stmtId, bool local = false)
+      : areAllArgsLocal(local), cType(type), callee(callee), callStmt(node), loopDepth(ld), id(stmtId) {}
+  CallInfo(CallType type, MIRFunction &caller, MIRFunction &callee, StmtNode *node, uint32 ld, uint32 stmtId,
+           bool local = false)
+      : areAllArgsLocal(local),
+        cType(type),
+        caller(&caller),
+        callee(&callee),
+        callStmt(node),
+        loopDepth(ld),
+        id(stmtId) {}
   // For fake callInfo, only id needed
   explicit CallInfo(uint32 stmtId) : id(stmtId) {}
   ~CallInfo() = default;
@@ -82,7 +129,15 @@ class CallInfo {
   }
 
   MIRFunction *GetFunc() {
-    return mirFunc;
+    return callee;
+  }
+
+  MIRFunction *GetCaller() const {
+    return caller;
+  }
+
+  MIRFunction *GetCallee() const {
+    return callee;
   }
 
   bool AreAllArgsLocal() const {
@@ -93,27 +148,32 @@ class CallInfo {
     areAllArgsLocal = true;
   }
 
+  InlineFailedCode GetInlineFailedCode() const {
+    return inlineFailedCode;
+  }
+
+  void SetInlineFailedCode(InlineFailedCode code) {
+    inlineFailedCode = code;
+  }
+
+  void Dump() const;
+
  private:
   bool areAllArgsLocal = false;
-  CallType cType = kCallTypeInvalid;        // Call type
-  MIRFunction *mirFunc = nullptr;  // Used to get signature
-  StmtNode *callStmt = nullptr;    // Call statement
+  InlineFailedCode inlineFailedCode = kIFC_NeedFurtherAnalysis;
+  CallType cType = kCallTypeInvalid;  // Call type
+  MIRFunction *caller = nullptr;
+  MIRFunction *callee = nullptr;
+  StmtNode *callStmt = nullptr;  // Call statement
   uint32 loopDepth = 0;
-  uint32 id;
-};
-
-class BaseGraphNode {
- public:
-  virtual void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) = 0;
-  virtual void GetInNodes(std::vector<BaseGraphNode*> &outNodes) = 0;
-  virtual const std::string GetIdentity() = 0;
-  virtual uint32 GetID() const = 0;
-  virtual ~BaseGraphNode() = default;
+  uint32 id = 0;
 };
 
 // Node in callgraph
 class CGNode : public BaseGraphNode {
  public:
+  using CallStmtsType = MapleSet<StmtNode*, Comparator<StmtNode>>;
+
   void AddNumRefs() {
     ++numReferences;
   }
@@ -127,8 +187,8 @@ class CGNode : public BaseGraphNode {
   }
 
   CGNode(MIRFunction *func, MapleAllocator &allocater, uint32 index)
-      : alloc(&allocater),
-        id(index),
+      : BaseGraphNode(index),
+        alloc(&allocater),
         sccNode(nullptr),
         mirFunc(func),
         callees(alloc->Adapter()),
@@ -159,11 +219,8 @@ class CGNode : public BaseGraphNode {
 
   void AddCallsite(CallInfo&, CGNode*);
   void AddCallsite(CallInfo*, MapleSet<CGNode*, Comparator<CGNode>>*);
-  void RemoveCallsite(const CallInfo*, CGNode*);
-
-  uint32 GetID() const override {
-    return id;
-  }
+  void RemoveCallsite(const CallInfo*);
+  void RemoveCallsite(uint32);
 
   uint32 GetInlinedTimes() const {
     return inlinedTimes;
@@ -230,7 +287,7 @@ class CGNode : public BaseGraphNode {
   // add caller to CGNode
   void AddCaller(CGNode *caller, StmtNode *stmt) {
     if (callers.find(caller) == callers.end()) {
-      auto *callStmts = alloc->New<MapleSet<StmtNode*>>(alloc->Adapter());
+      auto *callStmts = alloc->New<CallStmtsType>(alloc->Adapter());
       callers.emplace(caller, callStmts);
     }
     callers[caller]->emplace(stmt);
@@ -291,12 +348,37 @@ class CGNode : public BaseGraphNode {
     return callees;
   }
 
-  const MapleMap<CGNode*, MapleSet<StmtNode*>*, Comparator<CGNode>> &GetCaller() const {
+  const MapleMap<CGNode*, CallStmtsType*, Comparator<CGNode>> &GetCaller() const {
     return callers;
   }
 
-  MapleMap<CGNode*, MapleSet<StmtNode*>*, Comparator<CGNode>> &GetCaller() {
+  MapleMap<CGNode*, CallStmtsType*, Comparator<CGNode>> &GetCaller() {
     return callers;
+  }
+
+  void GetCaller(std::vector<CallInfo*> &callInfos) {
+    for (auto &pair : callers) {
+      auto *callerNode = pair.first;
+      auto *callStmts = pair.second;
+      for (auto *callStmt : *callStmts) {
+        auto *callInfo = callerNode->GetCallInfo(*callStmt);
+        CHECK_NULL_FATAL(callInfo);
+        callInfos.push_back(callInfo);
+      }
+    }
+  }
+
+  CallInfo *GetCallInfo(StmtNode &stmtNode) {
+    return GetCallInfoByStmtId(stmtNode.GetStmtID());
+  }
+
+  CallInfo *GetCallInfoByStmtId(uint32 stmtId) {
+    for (auto calleeIt = callees.begin(); calleeIt != callees.end(); ++calleeIt) {
+      if ((*calleeIt).first->GetCallStmt()->GetStmtID() == stmtId) {
+        return (*calleeIt).first;
+      }
+    }
+    return nullptr;
   }
 
   const SCCNode<CGNode> *GetSCCNode() const {
@@ -360,7 +442,23 @@ class CGNode : public BaseGraphNode {
     }
   }
 
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) const final {
+    for (auto &callSite : std::as_const(GetCallee())) {
+      for (auto &cgIt : *callSite.second) {
+        CGNode *calleeNode = cgIt;
+        outNodes.emplace_back(calleeNode);
+      }
+    }
+  }
+
   void GetInNodes(std::vector<BaseGraphNode*> &inNodes) final {
+    for (auto pair : std::as_const(GetCaller())) {
+      CGNode *callerNode = pair.first;
+      inNodes.emplace_back(callerNode);
+    }
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) const final {
     for (auto pair : std::as_const(GetCaller())) {
       CGNode *callerNode = pair.first;
       inNodes.emplace_back(callerNode);
@@ -377,13 +475,13 @@ class CGNode : public BaseGraphNode {
     return sccIdentity;
   }
   // check frequency
-  uint64_t GetFuncFrequency() const;
-  uint64_t GetCallsiteFrequency(const StmtNode *callstmt) const;
+  FreqType GetFuncFrequency() const;
+  FreqType GetCallsiteFrequency(const StmtNode *callstmt) const;
+
  private:
   // mirFunc is generated from callStmt's puIdx from mpl instruction
   // mirFunc will be nullptr if CGNode represents an external/intrinsic call
   MapleAllocator *alloc;
-  uint32 id;
   SCCNode<CGNode> *sccNode;  // the id of the scc where this cgnode belongs to
   MIRFunction *mirFunc;
   // Each callsite corresponds to one element
@@ -396,7 +494,7 @@ class CGNode : public BaseGraphNode {
   // function candidate for virtual call
   // now the candidates would be same function name from base class to subclass
   // with type inference, the candidates would be reduced
-  MapleMap<CGNode*, MapleSet<StmtNode *>*, Comparator<CGNode>> callers;
+  MapleMap<CGNode*, CallStmtsType*, Comparator<CGNode>> callers;
   uint32 stmtCount;  // count number of statements in the function, reuse this as callsite id
   uint32 nodeCount;  // count number of MIR nodes in the function/
   // this flag is used to mark the function which will read the current method invocation stack or something else,
@@ -404,7 +502,7 @@ class CGNode : public BaseGraphNode {
   bool mustNotBeInlined;
   MapleVector<MIRFunction*> vcallCands;
   uint32 inlinedTimes = 0;
-  uint32 recursiveLevel = 0;  // the inlined level when this func is a self-recursive func.
+  uint32 recursiveLevel = 0;        // the inlined level when this func is a self-recursive func.
   BlockNode *originBody = nullptr;  // the originnal body of the func when it's a self-recursive func.
 
   bool addrTaken = false;  // whether this function is taken address
@@ -449,7 +547,7 @@ class CallGraph : public AnalysisResult {
   }
 
   void HandleBody(MIRFunction&, BlockNode&, CGNode&, uint32);
-  void HandleCall(CGNode&, StmtNode*, uint32);
+  void HandleCall(BlockNode&, CGNode&, StmtNode*, uint32);
   void HandleICall(BlockNode&, CGNode&, StmtNode*, uint32);
   MIRType *GetFuncTypeFromFuncAddr(const BaseNode*);
   void RecordLocalConstValue(const StmtNode *stmt);
@@ -468,6 +566,7 @@ class CallGraph : public AnalysisResult {
   bool IsRootNode(MIRFunction *func) const;
   void UpdateCallGraphNode(CGNode &node);
   void RecomputeSCC();
+  CallInfo *AddCallsite(CallType, CGNode&, CGNode&, CallNode&);
   MIRFunction *CurFunction() const {
     return mirModule->CurFunction();
   }
@@ -478,12 +577,21 @@ class CallGraph : public AnalysisResult {
 
   // iterator
   using iterator = MapleMap<MIRFunction*, CGNode*>::iterator;
+  using iterator_const = MapleMap<MIRFunction*, CGNode*>::const_iterator;
   iterator Begin() {
     return nodesMap.begin();
   }
 
+  iterator_const CBegin() {
+    return nodesMap.cbegin();
+  }
+
   iterator End() {
     return nodesMap.end();
+  }
+
+  iterator_const CEnd() {
+    return nodesMap.cend();
   }
 
   MIRFunction *GetMIRFunction(const iterator &it) const {
@@ -524,7 +632,12 @@ class CallGraph : public AnalysisResult {
   void IncrNodesCount(CGNode *cgNode, BaseNode *bn);
 
   CallInfo *GenCallInfo(CallType type, MIRFunction *call, StmtNode *s, uint32 loopDepth, uint32 callsiteID) {
-    return cgAlloc.GetMemPool()->New<CallInfo>(type, call, s, loopDepth, callsiteID);
+    MIRFunction *caller = mirModule->CurFunction();
+    return cgAlloc.GetMemPool()->New<CallInfo>(type, *caller, *call, s, loopDepth, callsiteID);
+  }
+
+  CallInfo *GenCallInfo(CallType type, MIRFunction &caller, MIRFunction &callee, StmtNode &s) {
+    return cgAlloc.GetMemPool()->New<CallInfo>(type, caller, callee, &s, 0, s.GetStmtID());
   }
 
   bool debugFlag = false;

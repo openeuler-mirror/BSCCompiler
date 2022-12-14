@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <string>
 #include "mempool_allocator.h"
-
+#include "types_def.h"
 namespace maple {
 constexpr uint32_t HOTCALLSITEFREQ = 100;
 enum UpdateFreqOp {
@@ -106,31 +106,31 @@ class FuncProfInfo {
         counts(alloc->Adapter()){};
   ~FuncProfInfo() = default;
 
-  uint64_t GetFuncFrequency() const {
+  FreqType GetFuncFrequency() const {
     return entryFreq;
   }
-  void SetFuncFrequency(uint64_t freq) {
+  void SetFuncFrequency(FreqType freq) {
     entryFreq = freq;
   }
 
-  uint64_t GetFuncRealFrequency() const {
+  FreqType GetFuncRealFrequency() const {
     return realEntryfreq;
   }
-  void SetFuncRealFrequency(uint64_t freq) {
+  void SetFuncRealFrequency(FreqType freq) {
     realEntryfreq = freq;
   }
 
-  std::unordered_map<uint32_t, uint64_t> &GetStmtFreqs() {
+  std::unordered_map<uint32_t, FreqType> &GetStmtFreqs() {
     return stmtFreqs;
   }
-  uint64_t GetStmtFreq(uint32_t stmtID) {
+  FreqType GetStmtFreq(uint32_t stmtID) {
     if (stmtFreqs.count(stmtID) > 0) {
       return stmtFreqs[stmtID];
     }
     return -1;  // unstored
   }
-  void SetStmtFreq(uint32_t stmtID, uint64_t freq) {
-    if (static_cast<int64_t>(freq) == -1) {
+  void SetStmtFreq(uint32_t stmtID, FreqType freq) {
+    if (freq == -1) {
       return;
     }
     stmtFreqs[stmtID] = freq;
@@ -147,7 +147,7 @@ class FuncProfInfo {
   }
   bool IsHotCallSite(uint32_t stmtID) {
     if (stmtFreqs.count(stmtID) > 0) {
-      uint64_t freq = stmtFreqs[stmtID];
+      FreqType freq = stmtFreqs[stmtID];
       return (freq >= HOTCALLSITEFREQ);
     }
     ASSERT(0, "should not be here");
@@ -161,10 +161,10 @@ class FuncProfInfo {
 
   // Raw arc coverage counts.
   unsigned edgeCounts;
-  MapleVector<uint64_t> counts;
-  uint64_t entryFreq;                               // record entry bb frequence
-  std::unordered_map<uint32_t, uint64_t> stmtFreqs;  // stmt_id is key, counter value
-  uint64_t realEntryfreq;                           // function prof data may be modified after clone/inline
+  MapleVector<FreqType> counts;
+  FreqType entryFreq;                                // record entry bb frequence
+  std::unordered_map<uint32_t, FreqType> stmtFreqs;  // stmt_id is key, counter value
+  FreqType realEntryfreq;                            // function prof data may be modified after clone/inline
 };
 
 class MplProfileData {

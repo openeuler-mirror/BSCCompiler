@@ -298,7 +298,7 @@ bool MInline::IsHotCallSite(const MIRFunction &caller, const MIRFunction &callee
   // use maple instrument profile
   if (Options::profileUse) {
     if (!caller.GetFuncProfData()) {return false;}
-    int64_t freq = static_cast<int64_t>(caller.GetFuncProfData()->GetStmtFreq(callStmt.GetStmtID()));
+    FreqType freq = caller.GetFuncProfData()->GetStmtFreq(callStmt.GetStmtID());
     ASSERT(freq > 0, "sanity check");
     return module.GetMapleProfile()->IsHotCallSite(static_cast<uint64_t>(freq));
   }

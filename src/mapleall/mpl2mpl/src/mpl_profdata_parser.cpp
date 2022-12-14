@@ -77,7 +77,7 @@ int FunctionProfileImport::ReadFuncProfile(MplProfileData *profData) {
     CHECK_FATAL(funcProf != nullptr, "nullptr check");
     funcProf->counts.resize(countNum);
     for (uint32_t j = 0; j < countNum; j++) {
-      funcProf->counts[j] = ReadNum<uint64_t>();
+      funcProf->counts[j] = static_cast<FreqType>(ReadNum<uint64_t>());
     }
   }
   return 0;

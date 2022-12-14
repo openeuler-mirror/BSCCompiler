@@ -234,7 +234,7 @@ void DSE::OnRemoveBranchStmt(BB &bb, const StmtNode &stmt) {
     }
     bb.SetKind(kBBFallthru);
     if (Options::profileUse && !bb.GetSuccFreq().empty()) {
-      int64_t succ0Freq = bb.GetSuccFreq()[0];
+      FreqType succ0Freq = bb.GetSuccFreq()[0];
       bb.GetSuccFreq().resize(1);
       bb.SetSuccFreq(0, bb.GetFrequency());
       ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
@@ -258,7 +258,7 @@ void DSE::OnRemoveBranchStmt(BB &bb, const StmtNode &stmt) {
     }
     // merge all frequency of condition goto bb to fallthru succ
     if (Options::profileUse && !bb.GetSuccFreq().empty()) {
-      int64_t succ0Freq = bb.GetSuccFreq()[0];
+      FreqType succ0Freq = bb.GetSuccFreq()[0];
       bb.GetSuccFreq().resize(1);
       bb.SetSuccFreq(0, bb.GetFrequency());
       ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
@@ -313,7 +313,7 @@ bool DSE::NeedNotNullCheck(BaseNode &node, const BB &bb) {
     if (!IsStmtRequired(*(item.first))) {
       continue;
     }
-    if (postDom.Dominate(*(item.second), bb)) {
+    if (dom.Dominate(*(item.second), bb)) {
       return false;
     }
   }
@@ -380,8 +380,8 @@ void DSE::MarkLastBranchStmtInPredBBRequired(const BB &bb) {
 }
 
 void DSE::MarkLastBranchStmtInPDomBBRequired(const BB &bb) {
-  ASSERT(bb.GetBBId() < postDom.GetPdomFrontierSize(), "index out of range in DSE::MarkBBLive ");
-  for (BBId pdomBBID : postDom.GetPdomFrontierItem(bb.GetBBId())) {
+  ASSERT(bb.GetBBId() < postDom.GetDomFrontierSize(), "index out of range in DSE::MarkBBLive ");
+  for (auto pdomBBID : postDom.GetDomFrontier(bb.GetID())) {
     const BB *cdBB = bbVec[pdomBBID];
     CHECK_FATAL(cdBB != nullptr, "cd_bb is null in DSE::MarkLastBranchStmtInPDomBBRequired");
     if (cdBB == &bb || cdBB->IsEmpty()) {

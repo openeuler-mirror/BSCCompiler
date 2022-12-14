@@ -309,7 +309,7 @@ void LoopUnrolling::CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &ol
 
 // Update frequency of old BB.
 void LoopUnrolling::ResetFrequency(BB &bb) {
-  uint64 freq = bb.GetFrequency() / replicatedLoopNum;
+  FreqType freq = bb.GetFrequency() / replicatedLoopNum;
   if ((!instrumentProf) && freq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
     freq = 1;
   }
@@ -328,13 +328,13 @@ void LoopUnrolling::ResetFrequency() {
   auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   auto latchBB = loop->latch;
   if (isUnrollWithVar) {
-    uint64 latchFreq = loop->head->GetFrequency() % replicatedLoopNum - loop->preheader->GetFrequency();
+    FreqType latchFreq = loop->head->GetFrequency() % replicatedLoopNum - loop->preheader->GetFrequency();
     exitBB->SetFrequency(loop->head->GetFrequency() % replicatedLoopNum - latchFreq);
     exitBB->SetEdgeFreq(latchBB, latchFreq);
     latchBB->SetFrequency(latchFreq);
     latchBB->SetEdgeFreq(loop->head, latchFreq);
   } else {
-    uint64 exitFreq = exitBB->GetFrequency() / replicatedLoopNum;
+    FreqType exitFreq = exitBB->GetFrequency() / replicatedLoopNum;
     if (exitFreq == 0 && exitBB->GetFrequency() != 0) {
       exitFreq = 1;
     }
@@ -538,7 +538,7 @@ LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(int64 trip
   return kCanFullyUnroll;
 }
 
-void LoopUnrolling::ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, uint64 headFreq) {
+void LoopUnrolling::ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, FreqType headFreq) {
   if (profValid) {
     newCondGotoBB.SetFrequency(headFreq);
     exitingBB.SetEdgeFreq(&exitedBB, 0);
@@ -550,7 +550,7 @@ void LoopUnrolling::InsertCondGotoBB() {
   BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   BB *exitedBB = *(loop->inloopBB2exitBBs.cbegin()->second->cbegin());
   BB *newCondGotoBB = CopyBB(*exitingBB, true);
-  uint64 headFreq = loop->head->GetFrequency();
+  FreqType headFreq = loop->head->GetFrequency();
   ResetFrequency(*newCondGotoBB, *exitingBB, *exitedBB, headFreq);
   MeStmt *lastMeStmt = newCondGotoBB->GetLastMe();
   CHECK_FATAL(lastMeStmt != nullptr, "last meStmt must not be nullptr");
@@ -632,7 +632,7 @@ void LoopUnrolling::AddPreHeader(BB *oldPreHeader, BB *head) {
   auto *preheader = cfg->NewBasicBlock();
   preheader->SetAttributes(kBBAttrArtificial);
   preheader->SetKind(kBBFallthru);
-  uint64 preheaderFreq = 0;
+  FreqType preheaderFreq = 0;
   if (profValid) {
     preheaderFreq = oldPreHeader->GetEdgeFreq(head);
   }

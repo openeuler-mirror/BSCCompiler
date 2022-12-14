@@ -281,6 +281,12 @@ class BB {
   void SetFrequency(uint32 arg) {
     frequency = arg;
   }
+  FreqType GetProfFreq() const {
+    return profFreq;
+  }
+  void SetProfFreq(FreqType arg) {
+    profFreq = arg;
+  }
   BB *GetNext() {
     return next;
   }
@@ -804,11 +810,45 @@ class BB {
     succsFreq[idx] = freq;
   }
 
+  void InitEdgeProfFreq() {
+    succsProfFreq.resize(succs.size(), 0);
+  }
+
+  FreqType GetEdgeProfFreq(const BB &bb) const {
+    auto iter = std::find(succs.begin(), succs.end(), &bb);
+    if (iter == std::end(succs) || succs.size() > succsProfFreq.size()) {
+      return 0;
+    }
+    CHECK_FATAL(iter != std::end(succs), "%d is not the successor of %d", bb.GetId(), this->GetId());
+    CHECK_FATAL(succs.size() == succsProfFreq.size(), "succProfFreq size doesn't match succ size");
+    const size_t idx = static_cast<size_t>(std::distance(succs.begin(), iter));
+    return succsProfFreq[idx];
+  }
+
+  FreqType GetEdgeProfFreq(size_t idx) const {
+    if (idx >= succsProfFreq.size()) {
+      return 0;
+    }
+    CHECK_FATAL(idx < succsProfFreq.size(), "out of range in BB::GetEdgeProfFreq");
+    CHECK_FATAL(succs.size() == succsProfFreq.size(), "succProfFreq size doesn't match succ size");
+    return succsProfFreq[idx];
+  }
+
+  void SetEdgeProfFreq(BB *bb, FreqType freq) {
+    auto iter = std::find(succs.begin(), succs.end(), bb);
+    CHECK_FATAL(iter != std::end(succs), "%d is not the successor of %d", bb->GetId(), this->GetId());
+    CHECK_FATAL(succs.size() == succsProfFreq.size(),
+        "succProfFreq size %d doesn't match succ size %d", succsProfFreq.size(), succs.size());
+    const size_t idx = static_cast<size_t>(std::distance(succs.begin(), iter));
+    succsProfFreq[idx] = freq;
+  }
+
  private:
   static const std::string bbNames[kBBLast];
   uint32 id;
   uint32 level = 0;
   uint32 frequency = 0;
+  FreqType profFreq = 0; // profileUse
   BB *prev = nullptr;  /* Doubly linked list of BBs; */
   BB *next = nullptr;
   /* They represent the order in which blocks are to be emitted. */
@@ -827,7 +867,7 @@ class BB {
   MapleList<BB*> loopSuccs;
 
   MapleVector<uint64> succsFreq;
-
+  MapleVector<FreqType> succsProfFreq;
   /* this is for live in out analysis */
   MapleSet<regno_t> liveInRegNO;
   MapleSet<regno_t> liveOutRegNO;

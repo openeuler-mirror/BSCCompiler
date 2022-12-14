@@ -302,11 +302,11 @@ class MeFunction : public FuncEmit {
     profValid = val;
   }
 
-  uint32 GetFrequency() const {
+  FreqType GetFrequency() const {
     return frequency;
   }
 
-  void SetFrequency(uint32 f) {
+  void SetFrequency(FreqType f) {
     frequency = f;
   }
 
@@ -399,7 +399,7 @@ class MeFunction : public FuncEmit {
   bool hasWriteInputAsmNode = false; /* set when ssa tab build */
   bool profValid = false;
   IRProfileDesc *profileDesc = nullptr;
-  uint32 frequency = 0;
+  FreqType frequency = 0;
   // lfo
   bool isLfo = false;
   // during pme processing
