@@ -26,6 +26,7 @@ void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
     }
     case MOP_xuxtb32:
     case MOP_xuxth32:
+    case MOP_xuxtw64:
     case MOP_xsxtw64:
     case MOP_wubfxrri5i5:
     case MOP_xubfxrri6i6:
@@ -145,6 +146,14 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       newVB = (mop == MOP_xuxtb32) ? ((srcVB < k8BitSize) ? srcVB : k8BitSize) : newVB;
       newVB = (mop == MOP_xuxth32) ? ((srcVB < k16BitSize) ? srcVB : k16BitSize) : newVB;
       dstOpnd.SetValidBitsNum(newVB);
+      break;
+    }
+    case MOP_xuxtw64: {
+      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+      auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      if (srcOpnd.GetValidBitsNum() == k32BitSize) {
+        dstOpnd.SetValidBitsNum(k32BitSize);
+      }
       break;
     }
     case MOP_wubfxrri5i5:
@@ -326,6 +335,13 @@ bool ExtValidBitPattern::CheckCondition(Insn &insn) {
       newMop = MOP_wmovrr;
       break;
     }
+    case MOP_xuxtw64: {
+      if (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() > k32BitSize) {
+        return false;
+      }
+      newMop = MOP_wmovrr;
+      break;
+    }
     case MOP_xsxtw64: {
       if (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() >= k32BitSize) {
         return false;
@@ -373,6 +389,7 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
   switch (mOp) {
     case MOP_xuxtb32:
     case MOP_xuxth32:
+    case MOP_xuxtw64:
     case MOP_xsxtw64: {
       insn.SetMOP(AArch64CG::kMd[newMop]);
       if (newDstOpnd->GetSize() > newSrcOpnd->GetSize()) {
