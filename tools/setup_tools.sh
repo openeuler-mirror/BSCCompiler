@@ -158,12 +158,12 @@ if [ ! -f $TOOLS/qemu/usr/bin/qemu-aarch64 ]; then
   rm -rf qemu
   mkdir -p qemu
   if [ "$OLD_OS" == "1" ];then
-    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.40_amd64.deb --no-check-certificate
-    dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.40_amd64.deb qemu
+    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.41_amd64.deb --no-check-certificate
+    dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.41_amd64.deb qemu
   else
     # we will use QEMU 2.11 for now, and will upgrade it to a new version after further investigations
-    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.40_amd64.deb --no-check-certificate
-    dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.40_amd64.deb qemu
+    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.41_amd64.deb --no-check-certificate
+    dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.41_amd64.deb qemu
   fi
   echo Installed qemu-aarch64
 fi
