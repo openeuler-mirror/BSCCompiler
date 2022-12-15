@@ -20,9 +20,9 @@
 #include "pressure.h"
 namespace maplebe {
 #define PRINT_STR_VAL(STR, VAL) \
-  LogInfo::MapleLogger() << std::left << std::setw(12) << STR << VAL << " | ";
+  (LogInfo::MapleLogger() << std::left << std::setw(12) << STR << VAL << " | ");
 #define PRINT_VAL(VAL) \
-  LogInfo::MapleLogger() << std::left << std::setw(12) << VAL << " | ";
+  (LogInfo::MapleLogger() << std::left << std::setw(12) << VAL << " | ");
 
 enum DepType : uint8 {
   kDependenceTypeTrue,

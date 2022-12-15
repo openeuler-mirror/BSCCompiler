@@ -52,7 +52,7 @@ struct OpndInfo {
   bool redefinedInBB = false;  /* A following definition exisit in bb. */
   bool redefined = false;  /* A following definition exisit. */
   Insn *redefinedInsn = nullptr; /* Next defined insn if redefinedInBB is true */
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   bool mayReDef = false;
 #endif
   OpndInfo *same = nullptr;  /* Other definitions of the same operand. */

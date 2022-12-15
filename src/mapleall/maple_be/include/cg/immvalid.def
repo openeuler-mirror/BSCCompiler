@@ -68,7 +68,7 @@ bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
 
   uint32 logDiff = static_cast<uint32>(__builtin_ctzll(static_cast<uint64>(diff)));
   uint64 pattern = val & ((1ULL << static_cast<uint64>(diff)) - 1);
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   bool ret = (val == pattern * kBitmaskImmMultTable[kMaxBitTableSize - logDiff]);
   ASSERT(expectedOutcome == ret, "incorrect implementation: return value does not match expected outcome");
   return ret;
@@ -86,7 +86,7 @@ bool Imm12BitValid(int64 value) {
 
 bool Imm12BitMaskValid(int64 value) {
   if (value == 0 || static_cast<int64>(value) == -1) {
-    return true;
+    return false;
   }
   return IsBitmaskImmediate(static_cast<uint64>(value), k32BitSize);
 }
@@ -100,7 +100,7 @@ bool Imm13BitValid(int64 value) {
 
 bool Imm13BitMaskValid(int64 value) {
   if (value == 0 || static_cast<int64>(value) == -1) {
-    return true;
+    return false;
   }
   return IsBitmaskImmediate(static_cast<uint64>(value), k64BitSize);
 }

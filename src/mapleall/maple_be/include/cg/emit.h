@@ -41,7 +41,7 @@ const char *GetDwAtName(unsigned n);
 const char *GetDwOpName(unsigned n);
 }  /* namespace maple */
 
-#if TARGRISCV64
+#if defined(TARGRISCV64) && TARGRISCV64
 #define CMNT "\t# "
 #else
 #define CMNT "\t// "

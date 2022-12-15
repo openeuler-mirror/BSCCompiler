@@ -1481,6 +1481,7 @@ class StImmOperand : public OperandVisitable<StImmOperand> {
       : OperandVisitable(kOpdStImmediate, 0), symbol(&symbol), offset(offset), relocs(relocs) {}
 
   ~StImmOperand() override = default;
+
   using OperandVisitable<StImmOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
@@ -1665,8 +1666,9 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
 /* Use StImmOperand instead? */
 class FuncNameOperand : public OperandVisitable<FuncNameOperand> {
  public:
-  explicit FuncNameOperand(const MIRSymbol &fsym) : OperandVisitable(kOpdBBAddress, 0),
-      symbol(&fsym) {}
+  explicit FuncNameOperand(const MIRSymbol &fsym)
+      : OperandVisitable(kOpdBBAddress, 0),
+        symbol(&fsym) {}
 
   ~FuncNameOperand() override {
     symbol = nullptr;
@@ -1804,7 +1806,8 @@ class OpndDesc {
     return (property & operand::kInt) != 0;
   }
 
-#define DEFINE_MOP(op, ...) static const OpndDesc op;
+#define DEFINE_MOP(op, ...) \
+  static const OpndDesc op;
 #include "operand.def"
 #undef DEFINE_MOP
 

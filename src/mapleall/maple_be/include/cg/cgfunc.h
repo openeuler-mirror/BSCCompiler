@@ -104,7 +104,7 @@ class SpillMemOperandSet {
   MapleSet<MemOperand*, MemOpndCmp> reuseSpillLocMem;
 };
 
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
 class LiveRange;
 #endif  /* TARGARM32 */
 constexpr uint32 kVRegisterNumber = 80;
@@ -528,7 +528,7 @@ class CGFunc {
     return vRegTable[rNum].GetType();
   }
 
-#if TARGX86_64
+#if defined(TARGX86_64) && TARGX86_64
   uint32 GetMaxVReg() const {
     return vRegCount + opndBuilder->GetCurrentVRegNum();
   }
@@ -575,7 +575,7 @@ class CGFunc {
     return bbCnt;
   }
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   StIdx GetLocalVarReplacedByPreg(PregIdx reg) {
     auto it = pregsToVarsMap->find(reg);
     return it != pregsToVarsMap->end() ? it->second : StIdx();
@@ -1061,7 +1061,7 @@ class CGFunc {
     bbVec[id] = nullptr;
   }
 
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   MapleVector<BB*> &GetSortedBBs() {
     return sortedBBs;
   }
@@ -1306,7 +1306,7 @@ class CGFunc {
   MapleUnorderedMap<uint32, SpillMemOperandSet*> reuseSpillLocMem;
   LabelIdx firstCGGenLabelIdx;
   MapleMap<LabelIdx, uint64> labelMap;
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   MapleMap<PregIdx, StIdx> *pregsToVarsMap = nullptr;
 #endif
   MapleMap<regno_t, PregIdx> vregsToPregsMap;
@@ -1431,7 +1431,7 @@ class CGFunc {
   MapleAllocator *funcScopeAllocator;
   MapleMap<uint32, MIRSymbol*> emitStVec;  /* symbol that needs to be emit as a local symbol. i.e, switch table */
   MapleUnorderedMap<LabelIdx, int32> switchLabelCnt;  /* label in switch table */
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   MapleVector<BB*> sortedBBs;
   MapleVector<LiveRange*> lrVec;
 #endif  /* TARGARM32 */

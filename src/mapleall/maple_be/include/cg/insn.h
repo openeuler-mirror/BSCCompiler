@@ -274,7 +274,7 @@ class Insn {
 
   virtual void Dump() const;
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   virtual void Check() const;
 #endif
 

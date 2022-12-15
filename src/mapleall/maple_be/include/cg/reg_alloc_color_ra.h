@@ -311,7 +311,7 @@ class LiveRange {
     return bbMember;
   }
 
-  uint64 GetBBMemberElem(int32 index) const {
+  uint64 GetBBMemberElem(uint32 index) const {
     return bbMember[index];
   }
 
@@ -459,7 +459,7 @@ class LiveRange {
     return bbConflict[index];
   }
 
-  void SetBBConflictElem(int32 index, uint64 elem) const {
+  void SetBBConflictElem(uint32 index, uint64 elem) const {
     ASSERT(index < regBuckets, "out of bbConflict");
     bbConflict[index] = elem;
   }
@@ -1138,7 +1138,6 @@ class GraphColorRegAllocator : public RegAllocator {
   }
 
   ~GraphColorRegAllocator() override = default;
-
   bool AllocateRegisters() override;
 
   enum SpillMemCheck : uint8 {
@@ -1410,7 +1409,6 @@ class CallerSavePre : public CGPre {
         loopHeadBBs(ssaPreAllocator.Adapter()) {}
 
   ~CallerSavePre() = default;
-
   void ApplySSAPRE();
   void SetDump(bool val) {
     dump = val;

@@ -48,22 +48,19 @@ class DbgInsn : public maplebe::Insn {
       maplebe::Operand &opnd2)
       : Insn(memPool, op, opnd0, opnd1, opnd2) {}
 
-  DbgInsn(const DbgInsn &originalInsn, MemPool &memPool) : Insn(memPool, originalInsn.mOp) {
-    InitWithOriginalInsn(originalInsn, memPool);
-  }
-
   ~DbgInsn() = default;
 
   bool IsMachineInstruction() const override {
     return false;
   }
 
-#if TARGAARCH64 || TARGRISCV64
   void Dump() const override;
 
-  bool Check() const override;
+#if defined(DEBUG) && DEBUG
+  void Check() const override;
+#endif
 
-  bool IsDefinition() const override {
+  bool IsTargetInsn() const override{
     return false;
   }
 
@@ -80,7 +77,10 @@ class DbgInsn : public maplebe::Insn {
     CHECK_FATAL(false, "dbg insn do not def regs");
     return std::set<uint32>();
   }
-#endif
+
+  uint32 GetBothDefUseOpnd() const override {
+    return maplebe::kInsnMaxOpnd;
+  }
 
   uint32 GetLoc() const;
 
@@ -100,8 +100,6 @@ class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
     return opnd;
   }
 
-  void Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const override;
-
   void Dump() const override;
 
   bool Less(const Operand &right) const override {
@@ -117,6 +115,17 @@ class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
   int64 val;
 };
 
-}  /* namespace cfi */
+class DBGOpndEmitVisitor : public maplebe::OperandVisitorBase,
+                           public maplebe::OperandVisitor<ImmOperand> {
+ public:
+  explicit DBGOpndEmitVisitor(maplebe::Emitter &asmEmitter): emitter(asmEmitter) {}
+  virtual ~DBGOpndEmitVisitor() = default;
+ protected:
+  maplebe::Emitter &emitter;
+ private:
+  void Visit(ImmOperand *v) final;
+};
+
+}  /* namespace mpldbg */
 
 #endif  /* MAPLEBE_INCLUDE_CG_DBG_H */
