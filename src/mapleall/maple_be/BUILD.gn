@@ -29,7 +29,6 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ipa/include/old",
   "${MAPLEALL_ROOT}/maple_phase/include",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-  "${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat",
 ]
 
 deps_libcg = [ "${MAPLEALL_ROOT}/maple_pgo:libmplpgo" ]
@@ -226,6 +225,7 @@ src_libcgphases = [
   "src/cg/cg_ssa_pre.cpp",
   "src/cg/cg_pgo_gen.cpp",
   "src/cg/cg_pgo_use.cpp",
+  "src/cg/cg_profile_use.cpp",
   "src/cg/regsaves.cpp",
   "src/cg/cg_critical_edge.cpp",
   "src/cg/alignment.cpp",

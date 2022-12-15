@@ -67,7 +67,7 @@ void OptimizationPattern::Search2Op(bool noOptimize) {
   BB *curBB = cgFunc->GetFirstBB();
   while (curBB != nullptr) {
     bool changed = false;
-    do{
+    do {
       changed = Optimize(*curBB);
     } while (changed);
     if (keepPosition) {
@@ -137,10 +137,18 @@ void DotGenerator::DumpEdge(const CGFunc &cgFunction, std::ofstream &cfgFileOfSt
       cfgFileOfStream << "BB" << bb->GetId();
       cfgFileOfStream << " -> "
               << "BB" << succBB->GetId();
-      if (IsBackEdge(cgFunction, *bb, *succBB)) {
-        cfgFileOfStream << " [color=red]";
+      if (Options::profileUse) {
+        if (IsBackEdge(cgFunction, *bb, *succBB)) {
+          cfgFileOfStream << " [color=red,label=" << bb->GetEdgeProfFreq(*succBB) << "]";
+        } else {
+          cfgFileOfStream << " [color=green,label=" << bb->GetEdgeProfFreq(*succBB) << "]";
+        }
       } else {
-        cfgFileOfStream << " [color=green]";
+        if (IsBackEdge(cgFunction, *bb, *succBB)) {
+          cfgFileOfStream << " [color=red]";
+        } else {
+          cfgFileOfStream << " [color=green]";
+        }
       }
       cfgFileOfStream << ";\n";
     }
@@ -232,10 +240,18 @@ void DotGenerator::DumpBBInstructions(const CGFunc &cgFunction, regno_t vReg, st
     if (it != coloringMap.end()) {
       cfgFile << "style=filled,fillcolor=" << it->second << ",";
     }
-    if (bb->GetKind() == BB::kBBIf) {
-      cfgFile << "shape=diamond,label= \" BB" << bb->GetId() << ":\n";
+    if (Options::profileUse) {
+      if (bb->GetKind() == BB::kBBIf) {
+        cfgFile << "shape=diamond,label= \" BB" << bb->GetId() << "_freq_" << bb->GetProfFreq() << ":\n";
+      } else {
+        cfgFile << "shape=box,label= \" BB" << bb->GetId() << "_freq_" << bb->GetProfFreq() << ":\n";
+      }
     } else {
-      cfgFile << "shape=box,label= \" BB" << bb->GetId() << ":\n";
+      if (bb->GetKind() == BB::kBBIf) {
+        cfgFile << "shape=diamond,label= \" BB" << bb->GetId() << ":\n";
+      } else {
+        cfgFile << "shape=box,label= \" BB" << bb->GetId() << ":\n";
+      }
     }
     cfgFile << "{ ";
     cfgFile << bb->GetKindName() << "\n";

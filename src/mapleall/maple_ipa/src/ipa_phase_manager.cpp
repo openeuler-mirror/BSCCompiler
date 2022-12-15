@@ -103,7 +103,9 @@ void IpaSccPM::DoPhasesPopulate(const MIRModule &mirModule) {
     AddPhase("sccprepare", true);
     AddPhase("prop_param_type",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
     AddPhase("prop_return_attr",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
-    AddPhase("collect_ipa_info", true);
+    if (!Options::profileUse) {
+      AddPhase("collect_ipa_info", true);
+    }
     AddPhase("sccsideeffect", Options::sideEffect);
     AddPhase("sccemit", true);
   }
