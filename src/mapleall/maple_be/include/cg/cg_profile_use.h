@@ -96,12 +96,12 @@ class CgProfUse {
       MapleMap<BB*, MapleVector<Edge*>>::iterator iit = BB2InEdges.find(bb);
       if ((iit != BB2InEdges.end()) && (iit->second.size() != 0)) {
         for (Edge *e : iit->second) {
-            if (e->status) {
-              knownEdges1++;
-              freqSum1 += e->frequency;
-            } else {
-              unknownEdge1 = e;
-            }
+          if (e->status) {
+            knownEdges1++;
+            freqSum1 += e->frequency;
+          } else {
+            unknownEdge1 = e;
+          }
         }
         if ((knownEdges1 == iit->second.size() - 1) && (bb->GetProfFreq() != 0)) {
           if (bb->GetProfFreq() >= freqSum1) {
@@ -120,12 +120,12 @@ class CgProfUse {
       MapleMap<BB*, MapleVector<Edge*>>::iterator oit = BB2OutEdges.find(bb);
       if ((oit != BB2OutEdges.end()) && (oit->second.size() != 0)) {
         for (Edge *e : oit->second) {
-            if (e->status) {
-              knownEdges2++;
-              freqSum2 += e->frequency;
-            } else {
-              unknownEdge2 = e;
-            }
+          if (e->status) {
+            knownEdges2++;
+            freqSum2 += e->frequency;
+          } else {
+            unknownEdge2 = e;
+          }
         }
         if ((knownEdges2 == oit->second.size() - 1) && (bb->GetProfFreq() != 0)) {
           if (bb->GetProfFreq() >= freqSum2) {
