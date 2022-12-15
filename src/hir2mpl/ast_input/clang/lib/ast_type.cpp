@@ -17,6 +17,7 @@
 #include "ast_util.h"
 #include "fe_manager.h"
 #include "fe_options.h"
+#include "fe_macros.h"
 #include "driver_options.h"
 #include "triple.h"
 
@@ -244,7 +245,7 @@ MIRType *LibAstFile::CvtOtherType(const clang::QualType srcType, bool isSourceTy
   } else if (srcType->isVectorType()) {
     destType = CvtVectorType(srcType);
   }
-  CHECK_FATAL(destType != nullptr, "unsuport type %s", srcType.getAsString().c_str());
+  CHECK_FATAL(destType != nullptr, "unsupport type %s", srcType.getAsString().c_str());
   return destType;
 }
 
@@ -255,7 +256,7 @@ MIRType *LibAstFile::CvtEnumType(const clang::QualType &qualType, bool isSourceT
   if (enumDecl->getDefinition() != nullptr) {
     enumDecl = enumDecl->getDefinition();
   }
-  MIRType *type;
+  MIRType *type = nullptr;
   if (isSourceType) {
     auto itor = std::find(enumDecles.cbegin(), enumDecles.cend(), enumDecl);
     if (itor == enumDecles.end()) {
@@ -265,8 +266,12 @@ MIRType *LibAstFile::CvtEnumType(const clang::QualType &qualType, bool isSourceT
     MIRTypeByName *typdefType = FEManager::GetTypeManager().GetOrCreateTypeByNameType(enumName);
     type = typdefType;
   } else {
-    clang::QualType qt = enumDecl->getIntegerType();
-    type = CvtType(qt, isSourceType);
+    if (enumDecl->getIntegerType().isNull()) {
+      FE_ERR(kLncErr, GetLOC(enumDecl->getLocation()), "Incomplete Enums Type is not support.");
+    } else {
+      clang::QualType qt = enumDecl->getIntegerType();
+      type = CvtType(qt, isSourceType);
+    }
   }
   return type;
 }
