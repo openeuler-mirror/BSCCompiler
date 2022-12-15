@@ -1940,14 +1940,14 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
     if ((*bIt)->IsEmpty()) continue;
     StmtNode &first = (*bIt)->GetFirst();
     StmtNode &last = (*bIt)->GetLast();
-    if (funcData->stmtFreqs.count(first.GetStmtID()) > 0) {
+    if (funcData->stmtFreqs.count(first.GetStmtID()) >= 0) {
       (*bIt)->SetFrequency(funcData->stmtFreqs[first.GetStmtID()]);
-    } else if (funcData->stmtFreqs.count(last.GetStmtID()) > 0) {
+    } else if (funcData->stmtFreqs.count(last.GetStmtID()) >= 0) {
       (*bIt)->SetFrequency(funcData->stmtFreqs[last.GetStmtID()]);
     } else {
       bool foundFreq = false;
       for (StmtNode &stmt : (*bIt)->GetStmtNodes()) {
-        if (funcData->stmtFreqs.count(stmt.GetStmtID()) > 0) {
+        if (funcData->stmtFreqs.count(stmt.GetStmtID()) >= 0) {
           (*bIt)->SetFrequency(funcData->stmtFreqs[stmt.GetStmtID()]);
           foundFreq = true;
           break;
