@@ -2870,6 +2870,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   ASTExpr *astExpr = nullptr;
   if (llvm::isa<clang::VariableArrayType>(qualType.getCanonicalType())) {
     astExpr = BuildExprToComputeSizeFromVLA(allocator, qualType.getCanonicalType());
+    astVar->SetBoundaryLenExpr(astExpr);
   }
   if (qualType.getTypePtr()->getTypeClass() == clang::Type::TypeOfExpr) {
     const clang::TypeOfExprType *typeofType = llvm::cast<clang::TypeOfExprType>(qualType);
@@ -2878,7 +2879,6 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     }
   }
   if (astExpr != nullptr) {
-    astVar->SetBoundaryLenExpr(astExpr);
     astVar->SetVariableArrayExpr(astExpr);
   }
   if (!varDecl.getType()->isIncompleteType()) {
