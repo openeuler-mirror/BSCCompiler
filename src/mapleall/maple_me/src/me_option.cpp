@@ -57,6 +57,7 @@ uint32 MeOption::delRcPULimit = UINT32_MAX;
 uint32 MeOption::stmtprePULimit = UINT32_MAX;
 uint32 MeOption::epreLimit = UINT32_MAX;
 uint32 MeOption::eprePULimit = UINT32_MAX;
+uint32 MeOption::epreUseProfileLimit = UINT32_MAX;
 uint32 MeOption::lpreLimit = UINT32_MAX;
 uint32 MeOption::lprePULimit = UINT32_MAX;
 uint32 MeOption::pregRenameLimit = UINT32_MAX;
@@ -304,6 +305,7 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(warnNativeFunc, opts::me::warnemptynative);
   maplecl::CopyIfEnabled(epreLimit, opts::me::eprelimit);
   maplecl::CopyIfEnabled(eprePULimit, opts::me::eprepulimit);
+  maplecl::CopyIfEnabled(epreUseProfileLimit, opts::me::epreuseprofilelimit);
   maplecl::CopyIfEnabled(stmtprePULimit, opts::me::stmtprepulimit);
   maplecl::CopyIfEnabled(lpreLimit, opts::me::lprelimit);
   maplecl::CopyIfEnabled(lprePULimit, opts::me::lprepulimit);

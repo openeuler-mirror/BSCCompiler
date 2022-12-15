@@ -521,7 +521,7 @@ class MePhiOcc : public MeOccur {
  private:
   bool isDownSafe;           // default is true
   bool speculativeDownSafe;  // is downsafe due to speculation
-  bool isCanBeAvail;
+  bool isCanBeAvail;         // used for fullyAvail in mc-ssapre
   bool isLater;
   bool isExtraneous;
   bool isRemoved;  // during finalize2, marked this phiocc is removed or not
@@ -545,7 +545,8 @@ class PreWorkCand {
         needLocalRefVar(false),
         isSRCand(false),
         onlyInvariantOpnds(false),
-        deletedFromWorkList(false) {
+        deletedFromWorkList(false),
+        applyMinCut(false)  {
     ASSERT(pIdx != 0, "PreWorkCand: initial puIdx cannot be 0");
   }
 
@@ -678,6 +679,7 @@ class PreWorkCand {
   bool isSRCand : 1;                // is a strength reduction candidate
   bool onlyInvariantOpnds : 1;      // all operands have only 1 SSA version
   bool deletedFromWorkList : 1;     // processed by SSAPRE already
+  bool applyMinCut : 1;             // if using mc-ssapre for this candidate
 };
 
 class PreStmtWorkCand : public PreWorkCand {

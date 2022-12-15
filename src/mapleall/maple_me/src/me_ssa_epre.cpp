@@ -112,6 +112,9 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
     } else {
       ssaPre.doMinCut = true;
     }
+    if (ssaPre.doMinCut) {
+      ssaPre.SetPreUseProfileLimit(MeOption::epreUseProfileLimit);
+    }
   }
   ssaPre.SetSpillAtCatch(MeOption::spillAtCatch);
   if (MeOption::strengthReduction && !f.GetMIRModule().IsJavaModule()) {

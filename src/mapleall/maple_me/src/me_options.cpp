@@ -213,6 +213,11 @@ maplecl::Option<uint32_t> eprepulimit({"--eprepulimit"},
                                  "                              \t--eprepulimit=NUM\n",
                                  {meCategory});
 
+maplecl::Option<uint32_t> epreuseprofilelimit({"--epreuseprofilelimit"},
+                                 "  --epreuseprofilelimit       \tMake EPRE take advantage of profile data only for the first NUM expressions\n"
+                                 "                              \t--epreuseprofilelimit=NUM\n",
+                                 {meCategory});
+
 maplecl::Option<uint32_t> stmtprepulimit({"--stmtprepulimit"},
                                     "  --stmtprepulimit            \tApply STMTPRE optimization only for"
                                     " the first NUM PUs\n"

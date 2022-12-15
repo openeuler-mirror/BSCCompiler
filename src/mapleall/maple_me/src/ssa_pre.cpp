@@ -850,6 +850,7 @@ void SSAPre::Rename1() {
             } else {
               realOcc->SetDef(realTopOccur);
             }
+            realOcc->rgExcluded = true;  // relevant only to mc-ssapre
           } else {
             // assign new class
             occ->SetClassID(classCount++);
@@ -874,24 +875,24 @@ void SSAPre::Rename1() {
               }
             }
           }
+          MePhiOcc *phiTopOccur = static_cast<MePhiOcc*>(topOccur);
           if (isAllDom) {
             realOcc->SetClassID(topOccur->GetClassID());
             realOcc->SetDef(topOccur);
             (void)rename2Set.insert(realOcc->GetPosition());
-            occStack.push(realOcc);
-            if (IsLoopHeadBB(topOccur->GetBB()->GetBBId())) {
+            phiTopOccur->SetIsPartialAnt(true);
+            if (!doMinCut && IsLoopHeadBB(topOccur->GetBB()->GetBBId())) {
               static_cast<MePhiOcc*>(topOccur)->SetSpeculativeDownSafe(true);
               static_cast<MePhiOcc*>(topOccur)->SetIsDownSafe(true);
             }
           } else {
-            auto *phiTopOccur = static_cast<MePhiOcc*>(topOccur);
             if (!phiTopOccur->SpeculativeDownSafe()) {
               phiTopOccur->SetIsDownSafe(false);
             }
             // assign new class
             occ->SetClassID(classCount++);
-            occStack.push(occ);
           }
+          occStack.push(occ);
         }
         break;
       }
@@ -1171,15 +1172,13 @@ void SSAPre::SetVarPhis(MeExpr *meExpr) {
   }
   if (scalar->IsDefByPhi()) {
     MePhiNode *phiMeNode = scalar->GetMePhiDef();
-    if (phiMeNode->GetOpnds().size() > 1) {
-      BBId defBBId = phiMeNode->GetDefBB()->GetBBId();
-      CHECK(defBBId < dom->GetDtDfnSize(), "defBBId.idx out of range in SSAPre::SetVarPhis");
-      if (varPhiDfns.find(dom->GetDtDfnItem(defBBId)) == varPhiDfns.end() && ScreenPhiBB(defBBId)) {
-        (void)varPhiDfns.insert(dom->GetDtDfnItem(defBBId));
-        for (auto opndIt = phiMeNode->GetOpnds().begin(); opndIt != phiMeNode->GetOpnds().end(); ++opndIt) {
-          ScalarMeExpr *opnd = *opndIt;
-          SetVarPhis(opnd);
-        }
+    BBId defBBId = phiMeNode->GetDefBB()->GetBBId();
+    CHECK(defBBId < dom->GetDtDfnSize(), "defBBId.idx out of range in SSAPre::SetVarPhis");
+    if (varPhiDfns.find(dom->GetDtDfnItem(defBBId)) == varPhiDfns.end() && ScreenPhiBB(defBBId)) {
+      (void)varPhiDfns.insert(dom->GetDtDfnItem(defBBId));
+      for (auto opndIt = phiMeNode->GetOpnds().begin(); opndIt != phiMeNode->GetOpnds().end(); ++opndIt) {
+        ScalarMeExpr *opnd = *opndIt;
+        SetVarPhis(opnd);
       }
     }
   }

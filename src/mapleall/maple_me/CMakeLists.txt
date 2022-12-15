@@ -1,5 +1,5 @@
 #
-# Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+# Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
 #
 # OpenArkCompiler is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -29,7 +29,6 @@ set(inc_dir
   ${MAPLEALL_ROOT}/maple_be/include/ad
   ${MAPLEALL_ROOT}/maple_be/include/ad/target
   ${MAPLE_BUILD_OUTPUT}/common/target
-  ${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat
 )
 
 set(src_libmplme
@@ -131,6 +130,7 @@ set(src_libmplme
   src/me_slp.cpp
   src/lmbc_memlayout.cpp
   src/lmbc_lower.cpp
+  src/mc_ssa_pre.cpp
 )
 
 set(src_libmplmewpo

@@ -116,6 +116,7 @@ class MeOption {
   static uint32 stmtprePULimit;
   static uint32 epreLimit;
   static uint32 eprePULimit;
+  static uint32 epreUseProfileLimit;
   static uint32 lpreLimit;
   static uint32 lprePULimit;
   static uint32 parserOpt;

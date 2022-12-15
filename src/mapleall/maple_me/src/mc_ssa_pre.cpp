@@ -697,207 +697,6 @@ void McSSAPre::ComputeFullAvail() const {
   }
 }
 
-// ================ Step 2: Renaming =================
-void McSSAPre::Rename1() {
-  std::stack<MeOccur*> occStack;
-  rename2Set.clear();
-  classCount = 1;
-  // iterate the occurrence according to its preorder dominator tree
-  for (MeOccur *occ : allOccs) {
-    while (!occStack.empty() && !occStack.top()->IsDominate(*dom, *occ)) {
-      occStack.pop();
-    }
-    switch (occ->GetOccType()) {
-      case kOccReal: {
-        if (occStack.empty()) {
-          // assign new class
-          occ->SetClassID(classCount++);
-          occStack.push(occ);
-          break;
-        }
-        MeOccur *topOccur = occStack.top();
-        if (topOccur->GetOccType() == kOccUse || topOccur->GetOccType() == kOccMembar) {
-          occ->SetClassID(classCount++);
-          occStack.push(occ);
-          break;
-        }
-        auto *realOcc = static_cast<MeRealOcc*>(occ);
-        if (topOccur->GetOccType() == kOccReal) {
-          auto *realTopOccur = static_cast<MeRealOcc*>(topOccur);
-          if (AllVarsSameVersion(*realTopOccur, *realOcc)) {
-            // all corresponding variables are the same
-            realOcc->SetClassID(realTopOccur->GetClassID());
-            if (realTopOccur->GetDef() != nullptr) {
-              realOcc->SetDef(realTopOccur->GetDef());
-            } else {
-              realOcc->SetDef(realTopOccur);
-            }
-            realOcc->rgExcluded = true;
-          } else {
-            // assign new class
-            occ->SetClassID(classCount++);
-            occStack.push(occ);
-          }
-        } else {
-          // top of stack is a PHI occurrence
-          ASSERT(topOccur->GetOccType() == kOccPhiocc, "invalid kOccPhiocc");
-          std::vector<MeExpr*> varVec;
-          CollectVarForCand(*realOcc, varVec);
-          bool isAllDom = true;
-          if (realOcc->IsLHS()) {
-            isAllDom = false;
-          } else {
-            for (auto varIt = varVec.begin(); varIt != varVec.end(); ++varIt) {
-              MeExpr *varMeExpr = *varIt;
-              if (workCand->isSRCand) {
-                varMeExpr = ResolveAllInjuringDefs(varMeExpr);
-              }
-              if (!DefVarDominateOcc(varMeExpr, *topOccur)) {
-                isAllDom = false;
-              }
-            }
-          }
-          MePhiOcc *phiTopOccur = static_cast<MePhiOcc*>(topOccur);
-          if (isAllDom) {
-            realOcc->SetClassID(topOccur->GetClassID());
-            realOcc->SetDef(topOccur);
-            (void)rename2Set.insert(realOcc->GetPosition());
-            phiTopOccur->SetIsPartialAnt(true);
-          } else {
-            // assign new class
-            occ->SetClassID(classCount++);
-          }
-          occStack.push(occ);
-        }
-        break;
-      }
-      case kOccCompare: {
-        if (occStack.empty()) {
-          break;
-        }
-        MeOccur *topOccur = occStack.top();
-        if (topOccur->GetOccType() == kOccUse || topOccur->GetOccType() == kOccMembar) {
-          break;
-        }
-        MeRealOcc *realOcc = static_cast<MeRealOcc *>(occ);
-        ScalarMeExpr *scalarOpnd0 = dynamic_cast<ScalarMeExpr *>(workCand->GetTheMeExpr()->GetOpnd(0));
-        ScalarMeExpr *scalarOpnd1 = dynamic_cast<ScalarMeExpr *>(workCand->GetTheMeExpr()->GetOpnd(1));
-        ScalarMeExpr *compareOpnd0 = dynamic_cast<ScalarMeExpr *>(realOcc->GetMeExpr()->GetOpnd(0));
-        ScalarMeExpr *compareOpnd1 = dynamic_cast<ScalarMeExpr *>(realOcc->GetMeExpr()->GetOpnd(1));
-        // set compareOpnd to be the scalar operand that is common to
-        // workCand->theMeExpr and realOcc->meExpr
-        ScalarMeExpr *compareOpnd = nullptr;
-        uint32 scalarOpndNo = 0;
-        if (scalarOpnd0 != nullptr) {
-          if (compareOpnd0 != nullptr && scalarOpnd0->GetOst() == compareOpnd0->GetOst()) {
-            compareOpnd = compareOpnd0;
-            scalarOpndNo = 0;
-          } else if (compareOpnd1 != nullptr && scalarOpnd0->GetOst() == compareOpnd1->GetOst()) {
-            compareOpnd = compareOpnd1;
-            scalarOpndNo = 0;
-          }
-        }
-        if (scalarOpnd1 != nullptr) {
-          if (compareOpnd0 != nullptr && scalarOpnd1->GetOst() == compareOpnd0->GetOst()) {
-            compareOpnd = compareOpnd0;
-            scalarOpndNo = 1;
-          } else if (compareOpnd1 != nullptr && scalarOpnd1->GetOst() == compareOpnd1->GetOst()) {
-            compareOpnd = compareOpnd1;
-            scalarOpndNo = 1;
-          }
-        }
-        CHECK_FATAL(compareOpnd != nullptr, "Rename1: compOcc does not correspond to realOcc");
-        ScalarMeExpr *resolvedCompareOpnd = ResolveAllInjuringDefs(compareOpnd);
-        if (topOccur->GetOccType() == kOccReal) {
-          MeRealOcc *realTopOccur = static_cast<MeRealOcc *>(topOccur);
-          ScalarMeExpr *topOccurOpnd = static_cast<ScalarMeExpr *>(realTopOccur->GetMeExpr()->GetOpnd(scalarOpndNo));
-          if (compareOpnd == topOccurOpnd || resolvedCompareOpnd == topOccurOpnd) {
-            realOcc->SetClassID(realTopOccur->GetClassID());
-            if (realTopOccur->GetDef() != nullptr) {
-              realOcc->SetDef(realTopOccur->GetDef());
-            } else {
-              realOcc->SetDef(realTopOccur);
-            }
-          }
-          break;
-        }
-        // top of stack is a PHI occurrence
-        ASSERT(topOccur->GetOccType() == kOccPhiocc, "invalid kOccPhiocc");
-        if (DefVarDominateOcc(compareOpnd, *topOccur)) {
-          realOcc->SetClassID(topOccur->GetClassID());
-          realOcc->SetDef(topOccur);
-        }
-        break;
-      }
-      case kOccPhiocc: {
-        // assign new class
-        occ->SetClassID(classCount++);
-        occStack.push(occ);
-        break;
-      }
-      case kOccPhiopnd: {
-        // stow away the use occurrences at the stack top
-        MeOccur *stowedUseOcc = nullptr;
-        if (!occStack.empty() && occStack.top()->GetOccType() == kOccUse) {
-          stowedUseOcc = occStack.top();
-          occStack.pop();
-          CHECK_FATAL(occStack.empty() || occStack.top()->GetOccType() != kOccUse,
-                      "Rename1: cannot have 2 consecutive use occurs on stack");
-        }
-        if (occStack.empty() || occStack.top()->GetOccType() == kOccMembar) {
-          occ->SetDef(nullptr);
-        } else {
-          MeOccur *topOccur = occStack.top();
-          occ->SetDef(topOccur);
-          occ->SetClassID(topOccur->GetClassID());
-          if (topOccur->GetOccType() == kOccReal) {
-            static_cast<MePhiOpndOcc*>(occ)->SetHasRealUse(true);
-          }
-        }
-        // push stowed use_occ back
-        if (stowedUseOcc != nullptr) {
-          occStack.push(stowedUseOcc);
-        }
-        break;
-      }
-      case kOccExit:
-        break;
-      case kOccMembar: {
-        if (!occStack.empty()) {
-          MeOccur *topOccur = occStack.top();
-          if (topOccur->GetOccType() == kOccPhiocc) {
-          } else if (topOccur->GetOccType() != occ->GetOccType()) {
-            occStack.push(occ);
-          }
-        } else {
-          occStack.push(occ);
-        }
-        break;
-      }
-      default:
-        ASSERT(false, "should not be here");
-        break;
-    }
-  }
-  if (GetSSAPreDebug()) {
-    PreWorkCand *curCand = workCand;
-    mirModule->GetOut() << "++++ ssapre candidate " << curCand->GetIndex() << " after rename1\n";
-    for (MeOccur *occ : allOccs) {
-      occ->Dump(*irMap);
-      mirModule->GetOut() << '\n';
-    }
-    mirModule->GetOut() << "\n" << "rename2 set:\n";
-    for (uint32 pos : rename2Set) {
-      MeRealOcc *occur = workCand->GetRealOcc(pos);
-      occur->Dump(*irMap);
-      mirModule->GetOut() << " with def at\n";
-      occur->GetDef()->Dump(*irMap);
-      mirModule->GetOut() << "\n";
-    }
-    mirModule->GetOut() << "\n";
-  }
-}
-
 void McSSAPre::ApplyMCSSAPRE() {
   // #0 build worklist
   BuildWorkList();
@@ -913,6 +712,7 @@ void McSSAPre::ApplyMCSSAPRE() {
     }
     workCand = workList.front();
     workCand->SetIndex(static_cast<int32>(cnt));
+    workCand->applyMinCut = !(preKind == kExprPre && workCand->GetTheMeExpr()->GetMeOp() == kMeOpIvar) && cnt <= preUseProfileLimit;
     workList.pop_front();
     if (workCand->GetRealOccs().empty()) {
       workCand->deletedFromWorkList = true;
@@ -942,6 +742,9 @@ void McSSAPre::ApplyMCSSAPRE() {
       if (workCand->onlyInvariantOpnds) {
         mirModule->GetOut() << " onlyInvairantOpnds";
       }
+      if (workCand->applyMinCut) {
+        mirModule->GetOut() << " applyMinCut";
+      }
       mirModule->GetOut() << '\n';
     }
     allOccs.clear();
@@ -969,24 +772,33 @@ void McSSAPre::ApplyMCSSAPRE() {
     Rename2();
     if (!phiOccs.empty()) {
       // if no PHI inserted, no need to perform these steps
-      // #3 data flow methods
-      ComputeFullAvail();
-      ComputePartialAnt();
-      // #4 graph reduction
-      GraphReduction();
-      // #5 single source
-      AddSingleSource();
-      // #6 single sink
-      AddSingleSink();
-      // step 7 max flow/min cut
-      FindMaxFlow();
-      DetermineMinCut();
-      // step 8 willbeavail
-      ComputeMCWillBeAvail();
+      if (!workCand->applyMinCut) {
+        // #3 DownSafty
+        ComputeDS();
+        // #4 WillBeAvail
+        ComputeCanBeAvail();
+        ComputeLater();
+      } else {
+        // #3 data flow methods
+        ComputeFullAvail();
+        ComputePartialAnt();
+        // #4 graph reduction
+        GraphReduction();
+        // #5 single source
+        AddSingleSource();
+        // #6 single sink
+        AddSingleSink();
+        // step 7 max flow/min cut
+        FindMaxFlow();
+        DetermineMinCut();
+        // step 8 willbeavail
+        ComputeMCWillBeAvail();
+      }
     }
     // #5 Finalize
     Finalize1();
     if (workCand->Redo2HandleCritEdges()) {
+      workCand->applyMinCut = false;
       // reinitialize def field to nullptr
       for (MeOccur *occ : allOccs) {
         occ->SetDef(nullptr);
@@ -997,15 +809,10 @@ void McSSAPre::ApplyMCSSAPRE() {
       }
       Rename1();
       Rename2();
-      ComputeFullAvail();
-      ComputePartialAnt();
-      GraphReduction();
-      AddSingleSource();
-      AddSingleSink();
+      ComputeDS();
+      ComputeCanBeAvail();
+      ComputeLater();
       Finalize1();
-      FindMaxFlow();
-      DetermineMinCut();
-      ComputeMCWillBeAvail();
     }
     Finalize2();
     workCand->deletedFromWorkList = true;

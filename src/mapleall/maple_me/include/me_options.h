@@ -58,6 +58,7 @@ extern maplecl::Option<bool> dumpAfter;
 extern maplecl::Option<bool> realcheckcast;
 extern maplecl::Option<uint32_t> eprelimit;
 extern maplecl::Option<uint32_t> eprepulimit;
+extern maplecl::Option<uint32_t> epreuseprofilelimit;
 extern maplecl::Option<uint32_t> stmtprepulimit;
 extern maplecl::Option<uint32_t> lprelimit;
 extern maplecl::Option<uint32_t> lprepulimit;

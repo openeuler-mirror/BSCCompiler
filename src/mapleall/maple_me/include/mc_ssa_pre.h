@@ -68,6 +68,7 @@ class McSSAPre : public SSAPre {
   virtual ~McSSAPre() = default;
 
   void ApplyMCSSAPRE();
+  void SetPreUseProfileLimit(uint32 n) { preUseProfileLimit = n; }
  private:
   // step 8 willbeavail
   void ResetMCWillBeAvail(MePhiOcc *phiOcc) const;
@@ -94,8 +95,6 @@ class McSSAPre : public SSAPre {
   void ComputePartialAnt() const;
   void ResetFullAvail(MePhiOcc *occ) const;
   void ComputeFullAvail() const;
-  // step 2 renaming methods
-  void Rename1();
 
   MapleUnorderedMap<MeOccur*, RGNode*> occ2RGNodeMap;
   RGNode *source;
@@ -106,6 +105,7 @@ class McSSAPre : public SSAPre {
   uint64 maxFlowValue;
   uint64 relaxedMaxFlowValue;  // relax maxFlowValue to avoid excessive mincut search time when number of routes is large
   MapleVector<Visit*> minCut;   // an array of Visits* to represent the minCut
+  uint32 preUseProfileLimit = UINT32_MAX;
 };
 
 }  // namespace maple
