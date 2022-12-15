@@ -18,8 +18,8 @@
 #include "insn.h"
 #include "mempool_allocator.h"
 #include "mir_symbol.h"
-
 #include "operand.h"
+#include "common_utils.h"
 
 /*
  * Reference:
@@ -69,26 +69,24 @@ class CfiInsn : public maplebe::Insn {
       maplebe::Operand &opnd2)
       : Insn(memPool, op, opnd0, opnd1, opnd2) {}
 
-  CfiInsn(const CfiInsn &originalInsn, MemPool &memPool) : Insn(memPool, originalInsn.mOp) {
-    InitWithOriginalInsn(originalInsn, memPool);
-  }
-
   ~CfiInsn() = default;
 
   bool IsMachineInstruction() const override {
     return false;
   }
-#if TARGAARCH64 || TARGRISCV64
+
   void Dump() const override;
 
-  bool Check() const override;
-
-  bool IsDefinition() const override {
-    return false;
-  }
+#if DEBUG
+  void Check() const override;
+#endif
 
   bool IsCfiInsn() const override {
     return true;
+  }
+
+  bool IsTargetInsn() const override {
+    return false;
   }
 
   bool IsRegDefined(maplebe::regno_t regNO) const override {
@@ -100,7 +98,10 @@ class CfiInsn : public maplebe::Insn {
     CHECK_FATAL(false, "cfi do not def regs");
     return std::set<uint32>();
   }
-#endif
+
+  uint32 GetBothDefUseOpnd() const override {
+    return maplebe::kInsnMaxOpnd;
+  }
 
  private:
   CfiInsn &operator=(const CfiInsn&);
@@ -113,12 +114,13 @@ class RegOperand : public maplebe::OperandVisitable<RegOperand> {
   ~RegOperand() = default;
   using OperandVisitable<RegOperand>::OperandVisitable;
 
+  uint32 GetRegisterNO() const {
+    return regNO;
+  }
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd = memPool.Clone<RegOperand>(*this);
     return opnd;
   }
-
-  void Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const override;
 
   void Dump() const override;
 
@@ -142,8 +144,9 @@ class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
     Operand *opnd =  memPool.Clone<ImmOperand>(*this);
     return opnd;
   }
-
-  void Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const override;
+  int64 GetValue() const {
+    return val;
+  }
 
   void Dump() const override;
 
@@ -169,14 +172,14 @@ class SymbolOperand : public maplebe::OperandVisitable<SymbolOperand> {
     return opnd;
   }
 
-  void Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop) const override;
-
   bool Less(const Operand &right) const override {
     (void)right;
     return false;
   }
 
-  void Dump() const override {}
+  void Dump() const override {
+    LogInfo::MapleLogger() << "symbol is  : " << symbol->GetName();
+  }
 
  private:
   const maple::MIRSymbol *symbol;
@@ -194,11 +197,13 @@ class StrOperand : public maplebe::OperandVisitable<StrOperand> {
     return opnd;
   }
 
-  void Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *opndProp) const override;
-
   bool Less(const Operand &right) const override {
     (void)right;
     return false;
+  }
+
+  const MapleString &GetStr() const {
+    return str;
   }
 
   void Dump() const override;
@@ -220,8 +225,6 @@ class LabelOperand : public maplebe::OperandVisitable<LabelOperand> {
     return opnd;
   }
 
-  void Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *opndProp) const override;
-
   bool Less(const Operand &right) const override {
     (void)right;
     return false;
@@ -229,9 +232,35 @@ class LabelOperand : public maplebe::OperandVisitable<LabelOperand> {
 
   void Dump() const override;
 
+  const MapleString &GetParentFunc() const {
+    return parentFunc;
+  }
+  LabelIdx GetIabelIdx() const {
+    return labelIndex;
+  };
+
  private:
   const MapleString parentFunc;
   LabelIdx labelIndex;
+};
+
+class CFIOpndEmitVisitor : public maplebe::OperandVisitorBase,
+                           public maplebe::OperandVisitors<RegOperand,
+                                                           ImmOperand,
+                                                           SymbolOperand,
+                                                           StrOperand,
+                                                           LabelOperand> {
+ public:
+  explicit CFIOpndEmitVisitor(maplebe::Emitter &asmEmitter) : emitter(asmEmitter) {}
+  virtual ~CFIOpndEmitVisitor() = default;
+ protected:
+  maplebe::Emitter &emitter;
+ private:
+  void Visit(RegOperand *v) final;
+  void Visit(ImmOperand *v) final;
+  void Visit(SymbolOperand *v) final;
+  void Visit(StrOperand *v) final;
+  void Visit(LabelOperand *v) final;
 };
 }  /* namespace cfi */
 #endif  /* MAPLEBE_INCLUDE_CG_CFI_H */

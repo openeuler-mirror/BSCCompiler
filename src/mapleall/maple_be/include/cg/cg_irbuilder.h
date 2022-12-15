@@ -44,7 +44,7 @@ class InsnBuilder {
   Insn &BuildCommentInsn(CommentOperand &comment);
   VectorInsn &BuildVectorInsn(MOperator opCode, const InsnDesc &idesc);
 
-  uint32 GetCreatedInsnNum () const {
+  uint32 GetCreatedInsnNum() const {
     return createdInsnNum;
   }
  protected:
@@ -59,8 +59,7 @@ class InsnBuilder {
 constexpr uint32 kBaseVirtualRegNO = 200; /* avoid conflicts between virtual and physical */
 class OperandBuilder {
  public:
-  explicit OperandBuilder(MemPool &mp, uint32 mirPregNum = 0)
-      : alloc(&mp), virtualRegNum(mirPregNum) {}
+  explicit OperandBuilder(MemPool &mp, uint32 mirPregNum = 0) : alloc(&mp), virtualRegNum(mirPregNum) {}
 
   /* create an operand in cgfunc when no mempool is supplied */
   ImmOperand &CreateImm(uint32 size, int64 value, MemPool *mp = nullptr);
@@ -89,6 +88,32 @@ class OperandBuilder {
  private:
   uint32 virtualRegNum = 0;
   /* reg bank for multiple use */
+};
+
+class AbstractIRBuilder {
+ public:
+  explicit AbstractIRBuilder(MemPool &inMp)
+      : mp(&inMp),
+        alloc(&inMp),
+        insnDescSet(alloc.Adapter()) {};
+  enum defUseProp : uint32 {
+    kDef = 0,
+    kUse,
+    kDefUse
+  };
+
+  InsnDesc &GetOrCreateInsnDesc(MOperator mop, const std::vector<const OpndDesc*> &opndDescList);
+  const OpndDesc *GetRegOpndDesc(PrimType pTy, defUseProp duProp) const;
+  const OpndDesc *GetMemOpndDesc(PrimType pTy, defUseProp duProp) const;
+  const OpndDesc *GetImmOpndDesc(PrimType pTy) const;
+  const MapleSet<InsnDesc> &GetInsnDescSet() const {
+    return insnDescSet;
+  }
+ private:
+  MemPool *mp;
+  MapleAllocator alloc;
+  /* most of the insndesc can be reused */
+  MapleSet<InsnDesc> insnDescSet;
 };
 }
 #endif // MAPLEBE_INCLUDE_CG_IRBUILDER_H

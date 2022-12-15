@@ -18,6 +18,7 @@
 #include "types_def.h"
 #include "becommon.h"
 #include "call_conv.h"
+#include "aarch64_isa.h"
 
 namespace maplebe {
 using namespace maple;

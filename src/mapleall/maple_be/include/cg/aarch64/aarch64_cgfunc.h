@@ -182,6 +182,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *HandleFmovImm(PrimType stype, int64 val, MIRConst &mirConst, const BaseNode &parent);
   Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) override;
   Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) override;
+  Operand *SelectFloat128Const(MIRFloat128Const &ldoubleConst) override;
   Operand *SelectStrConst(MIRStrConst &strConst) override;
   Operand *SelectStr16Const(MIRStr16Const &str16Const) override;
 
@@ -368,7 +369,6 @@ class AArch64CGFunc : public CGFunc {
     }
     return CreateImmOperand(val, GetPrimTypeBitSize(ptyp), IsSignedInteger(ptyp));
   }
-
 
   const Operand *GetFloatRflag() const override {
     return nullptr;
@@ -804,7 +804,7 @@ class AArch64CGFunc : public CGFunc {
   PrimType GetOperandTy(bool isIntty, uint32 dsize, bool isSigned) const {
     ASSERT(!isSigned || isIntty, "");
     return (isIntty ? ((dsize == k64BitSize) ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32))
-                    : ((dsize == k64BitSize) ? PTY_f64 : PTY_f32));
+                    : ((dsize == k128BitSize) ? PTY_f128 : ((dsize == k64BitSize) ? PTY_f64 : PTY_f32)));
   }
 
   RegOperand &LoadIntoRegister(Operand &o, bool isIntty, uint32 dsize, bool asSigned = false) {

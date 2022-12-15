@@ -1027,8 +1027,7 @@ class EnhanceStrLdrAArch64 : public PeepPattern {
  */
 class EliminateSpecifcSXTPattern : public CGPeepPattern {
  public:
-  EliminateSpecifcSXTPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
-      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  EliminateSpecifcSXTPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~EliminateSpecifcSXTPattern() override {
     prevInsn = nullptr;
   }
@@ -1049,8 +1048,7 @@ class EliminateSpecifcSXTPattern : public CGPeepPattern {
  */
 class EliminateSpecifcUXTPattern : public CGPeepPattern {
  public:
-  EliminateSpecifcUXTPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
-      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  EliminateSpecifcUXTPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~EliminateSpecifcUXTPattern() override {
     prevInsn = nullptr;
   }
@@ -1261,8 +1259,7 @@ class ReplaceDivToMultiPattern : public CGPeepPattern {
  */
 class AndCbzBranchesToTstPattern : public CGPeepPattern {
  public:
-  AndCbzBranchesToTstPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
-      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  AndCbzBranchesToTstPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~AndCbzBranchesToTstPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;

@@ -34,8 +34,9 @@ using InsnPtr = Insn*;
  */
 class AArch64RedundantComputeElim : public RedundantComputeElim {
  public:
-  AArch64RedundantComputeElim(CGFunc &f, CGSSAInfo &info, MemPool &mp) :
-      RedundantComputeElim(f, info, mp), candidates(rceAlloc.Adapter()) {}
+  AArch64RedundantComputeElim(CGFunc &f, CGSSAInfo &info, MemPool &mp)
+      : RedundantComputeElim(f, info, mp),
+        candidates(rceAlloc.Adapter()) {}
   ~AArch64RedundantComputeElim() override {}
 
   void Run() override;
@@ -57,8 +58,6 @@ class AArch64RedundantComputeElim : public RedundantComputeElim {
           hashS += static_cast<ImmOperand&>(opnd).GetHashContent();
         } else if (opndKind == Operand::kOpdExtend) {
           hashS += static_cast<ExtendShiftOperand&>(opnd).GetHashContent();
-        } else if (opnd.IsLogicLSLOpnd()) {
-          hashS += static_cast<LogicalShiftLeftOperand&>(opnd).GetHashContent();
         } else if (opndKind == Operand::kOpdShift) {
           hashS += static_cast<BitShiftOperand&>(opnd).GetHashContent();
         } else if (opnd.IsRegister() && insn->OpndIsDef(i) && insn->OpndIsUse(i)) {
@@ -112,10 +111,6 @@ class AArch64RedundantComputeElim : public RedundantComputeElim {
           }
         } else if (opk1 == Operand::kOpdExtend) {
           if (!static_cast<ExtendShiftOperand&>(opnd1).Equals(opnd2)) {
-            return false;
-          }
-        } else if (opnd1.IsLogicLSLOpnd()) {
-          if (!static_cast<LogicalShiftLeftOperand&>(opnd1).Equals(opnd2)) {
             return false;
           }
         } else if (opk1 == Operand::kOpdShift) {

@@ -66,6 +66,7 @@ bool CGOptions::liteProfUse = false;
 std::string CGOptions::liteProfile = "";
 std::string CGOptions::instrumentationWhiteList = "";
 std::string CGOptions::litePgoOutputFunction = "main";
+std::string CGOptions::functionProrityFile = "";
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -158,7 +159,11 @@ void CGOptions::DecideMplcgRealLevel(bool isDebug) {
     }
     EnableO2();
   }
-  if (opts::cg::olitecg) {
+  if (opts::cg::os) {
+    DisableAlignAnalysis();
+    SetFuncAlignPow(0);
+  }
+  if (opts::cg::oLitecg) {
     if (isDebug) {
       LogInfo::MapleLogger() << "Real Mplcg level: LiteCG\n";
     }
@@ -396,6 +401,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::ebo.IsEnabledByUser()) {
     opts::cg::ebo ? EnableEBO() : DisableEBO();
+  }
+
+  if (opts::cg::ipara.IsEnabledByUser()) {
+    opts::cg::ipara ? EnableIPARA() : DisableIPARA();
   }
 
   if (opts::cg::cfgo.IsEnabledByUser()) {
@@ -656,16 +665,15 @@ bool CGOptions::SolveOptions(bool isDebug) {
     }
   }
 
+  if (opts::cg::functionPriority.IsEnabledByUser()) {
+    SetFunctionPriority(opts::cg::functionPriority);
+  }
+
   /* override some options when loc, dwarf is generated */
   if (WithLoc()) {
-    DisableSchedule();
     SetOption(kWithSrc);
   }
   if (WithDwarf()) {
-    DisableEBO();
-    DisableCFGO();
-    DisableICO();
-    DisableSchedule();
     SetOption(kDebugFriendly);
     SetOption(kWithSrc);
     SetOption(kWithLoc);

@@ -26,8 +26,7 @@ using InsnSet = std::set<Insn*, InsnIdCmp>;
 static uint32 g_count = 0;
 class RedundantComputeElim {
  public:
-  RedundantComputeElim(CGFunc &f, CGSSAInfo &info, MemPool &mp) :
-      cgFunc(&f), ssaInfo(&info), rceAlloc(&mp) {}
+  RedundantComputeElim(CGFunc &f, CGSSAInfo &info, MemPool &mp) : cgFunc(&f), ssaInfo(&info), rceAlloc(&mp) {}
   virtual ~RedundantComputeElim() = default;
 
   std::string PhaseName() const {
