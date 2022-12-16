@@ -785,8 +785,6 @@ void PreMeEmitter::UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt, BlockNod
 
 void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
   CHECK_FATAL(curBlk != nullptr, "null ptr check");
-  bool setFirstFreq = (GetFuncProfData() != nullptr);
-  bool setLastFreq = false;
   bool bbIsEmpty = bb->GetMeStmts().empty();
   // emit head. label
   LabelIdx labidx = bb->GetBBLabel();
@@ -812,12 +810,7 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
     curBlk->AddStatement(stmt);
     // add <stmtID, freq> for first stmt in bb in curblk
     if (GetFuncProfData() != nullptr) {
-      if (setFirstFreq || (stmt->GetOpCode() == OP_call) || IsCallAssigned(stmt->GetOpCode())) {
-        GetFuncProfData()->SetStmtFreq(stmt->GetStmtID(), bb->GetFrequency());
-        setFirstFreq = false;
-      } else {
-        setLastFreq = true;
-      }
+      GetFuncProfData()->SetStmtFreq(stmt->GetStmtID(), bb->GetFrequency());
     }
   }
   if (bb->GetAttributes(kBBAttrIsTryEnd)) {
@@ -826,13 +819,10 @@ void PreMeEmitter::EmitBB(BB *bb, BlockNode *curBlk) {
     curBlk->AddStatement(endtry);
     PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(curBlk);
     preMeStmtExtensionMap[endtry->GetStmtID()] = pmeExt;
-    setLastFreq = true;
   }
   // add stmtnode to last
   if (GetFuncProfData()) {
-    if (setLastFreq) {
-      GetFuncProfData()->SetStmtFreq(curBlk->GetLast()->GetStmtID(), bb->GetFrequency());
-    } else if (bbIsEmpty) {
+    if (bbIsEmpty) {
       if (!MeOption::quiet) {
         LogInfo::MapleLogger() << " bb " << bb->GetBBId() << ": no stmt used to add frequency; added comment node\n";
       }

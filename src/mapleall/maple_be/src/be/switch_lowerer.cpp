@@ -442,6 +442,16 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
     if (ifStmt->GetElsePart()) {
       ifStmt->SetNumOpnds(kOperandNumTernary);
     }
+    if (Options::profileUse && funcProfData != nullptr) {
+      if ((funcProfData->GetStmtFreq(ifStmt->GetThenPart()->GetStmtID()) >= 0) &&
+          (funcProfData->GetStmtFreq(ifStmt->GetElsePart()->GetStmtID()) >= 0)) {
+          funcProfData->SetStmtFreq(ifStmt->GetStmtID(),
+              funcProfData->GetStmtFreq(ifStmt->GetThenPart()->GetStmtID()) +
+              funcProfData->GetStmtFreq(ifStmt->GetElsePart()->GetStmtID()));
+      } else {
+        funcProfData->SetStmtFreq(ifStmt->GetStmtID(), -1);
+      }
+    }
     localBlk->AppendStatementsFromBlock(*mirLowerer.LowerIfStmt(*ifStmt, false));
   }
   return localBlk;

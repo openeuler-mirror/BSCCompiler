@@ -95,7 +95,6 @@ class CgProfUse {
       Edge * unknownEdge1 = nullptr;
       MapleMap<BB*, MapleVector<Edge*>>::iterator iit = BB2InEdges.find(bb);
       if ((iit != BB2InEdges.end()) && (iit->second.size() != 0)) {
-<<<<<<< HEAD
         for (Edge *e : iit->second) {
           if (e->status) {
             knownEdges1++;
@@ -103,15 +102,6 @@ class CgProfUse {
           } else {
             unknownEdge1 = e;
           }
-=======
-        for (Edge *e : iit->second ) {
-            if (e->status) {
-              knownEdges1++;
-              freqSum1 += e->frequency;
-            } else {
-              unknownEdge1 = e;
-            }
->>>>>>> PGO: switch frequency type from uint64 to int64
         }
         if ((knownEdges1 == iit->second.size() - 1) && (bb->GetProfFreq() != 0)) {
           if (bb->GetProfFreq() >= freqSum1) {
@@ -129,7 +119,6 @@ class CgProfUse {
       Edge * unknownEdge2 = nullptr;
       MapleMap<BB*, MapleVector<Edge*>>::iterator oit = BB2OutEdges.find(bb);
       if ((oit != BB2OutEdges.end()) && (oit->second.size() != 0)) {
-<<<<<<< HEAD
         for (Edge *e : oit->second) {
           if (e->status) {
             knownEdges2++;
@@ -137,15 +126,6 @@ class CgProfUse {
           } else {
             unknownEdge2 = e;
           }
-=======
-        for (Edge *e : oit->second ) {
-            if (e->status) {
-              knownEdges2++;
-              freqSum2 += e->frequency;
-            } else {
-              unknownEdge2 = e;
-            }
->>>>>>> PGO: switch frequency type from uint64 to int64
         }
         if ((knownEdges2 == oit->second.size() - 1) && (bb->GetProfFreq() != 0)) {
           if (bb->GetProfFreq() >= freqSum2) {
@@ -181,29 +161,17 @@ class CgProfUse {
           bbQueue.push(unknownEdge2->dst);
         }
       }
-<<<<<<< HEAD
     }
   }
 
  protected:
-=======
-
-    }
-  }
-
-  protected:
->>>>>>> PGO: switch frequency type from uint64 to int64
   CGFunc *cgFunc;
   MemPool *memPool;
   MapleAllocator alloc;
   MapleSet<Edge*> allEdges;
   MapleMap<BB*, MapleVector<Edge*>> BB2InEdges;
   MapleMap<BB*, MapleVector<Edge*>> BB2OutEdges;
-<<<<<<< HEAD
  private:
-=======
-  private:
->>>>>>> PGO: switch frequency type from uint64 to int64
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CGProfUse, maplebe::CGFunc)
