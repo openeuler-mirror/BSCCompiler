@@ -176,7 +176,6 @@ class PeepHoleOptimizer {
   }
   ~PeepHoleOptimizer() = default;
   void Peephole0();
-  void PeepholeOpt();
   void PrePeepholeOpt();
   void PrePeepholeOpt1();
 

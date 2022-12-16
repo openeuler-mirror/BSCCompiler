@@ -1306,14 +1306,20 @@ class AndCbzBranchesToTstPattern : public CGPeepPattern {
  *  conditions:
  *  imm is pos power of 2 and w0 is not live after cset
  */
-class AndCmpBranchesToCsetAArch64 : public PeepPattern {
+class AndCmpBranchesToCsetPattern : public CGPeepPattern {
  public:
-  explicit AndCmpBranchesToCsetAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~AndCmpBranchesToCsetAArch64() override = default;
+  AndCmpBranchesToCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~AndCmpBranchesToCsetPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "AndCmpBranchesToCsetPattern";
+  }
 
  private:
-  Insn *FindPreviousCmp(Insn &insn) const;
+  Insn *prevAndInsn = nullptr;
+  Insn *prevCmpInsn = nullptr;
 };
 
 /*

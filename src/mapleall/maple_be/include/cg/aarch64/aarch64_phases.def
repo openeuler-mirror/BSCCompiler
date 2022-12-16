@@ -64,7 +64,6 @@
  ADDTARGETPHASE("postebo", CGOptions::DoEBO());
  ADDTARGETPHASE("postcfgo", CGOptions::DoCFGO());
  ADDTARGETPHASE("cgpostpeephole", CGOptions::DoPeephole())
- ADDTARGETPHASE("peephole", CGOptions::DoPeephole())
  ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule() || CGOptions::GetInstance().IsUnwindTables() || GetMIRModule()->IsWithDbgInfo());
  ADDTARGETPHASE("dbgfixcallframeoffsets", true);
  ADDTARGETPHASE("yieldpoint", GetMIRModule()->IsJavaModule() && CGOptions::IsInsertYieldPoint());

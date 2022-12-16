@@ -609,17 +609,6 @@ void PeepHoleOptimizer::Peephole0() {
 #endif
 }
 
-void PeepHoleOptimizer::PeepholeOpt() {
-  auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "peepholeOptObj");
-  PeepOptimizer peepOptimizer(*cgFunc, memPool.get());
-#if TARGAARCH64 || TARGRISCV64
-  peepOptimizer.Run<AArch64PeepHole>();
-#endif
-#if TARGARM32
-  peepOptimizer.Run<Arm32PeepHole>();
-#endif
-}
-
 void PeepHoleOptimizer::PrePeepholeOpt() {
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "peepholeOptObj");
   PeepOptimizer peepOptimizer(*cgFunc, memPool.get());
@@ -711,14 +700,6 @@ bool CgPeepHole0::PhaseRun(maplebe::CGFunc &f) {
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole0, peephole0)
-
-bool CgPeepHole1::PhaseRun(maplebe::CGFunc &f) {
-  auto *peep = GetPhaseMemPool()->New<PeepHoleOptimizer>(&f);
-  CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
-  peep->PeepholeOpt();
-  return false;
-}
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole1, peephole)
 #endif
 
 }  /* namespace maplebe */
