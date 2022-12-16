@@ -5240,10 +5240,12 @@ Operand *AArch64CGFunc::SelectAbs(UnaryNode &node, Operand &opnd0) {
     Operand &newOpnd0 = LoadIntoRegister(opnd0, primType);
     Insn *lastInsn = GetCurBB()->GetLastInsn();
     if (lastInsn != nullptr && AArch64isa::IsSub(*lastInsn)) {
+      Operand &dest = lastInsn->GetOperand(kInsnFirstOpnd);
       Operand &opd1 = lastInsn->GetOperand(kInsnSecondOpnd);
       Operand &opd2 = lastInsn->GetOperand(kInsnThirdOpnd);
       regno_t absReg = static_cast<RegOperand&>(newOpnd0).GetRegisterNumber();
-      if ((opd1.IsRegister() && static_cast<RegOperand&>(opd1).GetRegisterNumber() == absReg) ||
+      if ((dest.IsRegister() && static_cast<RegOperand&>(dest).GetRegisterNumber() == absReg) ||
+          (opd1.IsRegister() && static_cast<RegOperand&>(opd1).GetRegisterNumber() == absReg) ||
           (opd2.IsRegister() && static_cast<RegOperand&>(opd2).GetRegisterNumber() == absReg)) {
         return SelectAbsSub(*lastInsn, node, newOpnd0);
       }
