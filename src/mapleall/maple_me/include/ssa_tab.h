@@ -72,6 +72,17 @@ class SSATab : public AnalysisResult {
     return originalStTable.FindOrCreateSymbolOriginalSt(mirSt, puIdx, fld);
   }
 
+  // tyIdx is pointer type of memory type, field is the field of memory type,
+  // offset is the offset of base.
+  //     |-----offset------|---|---|-----|
+  // prevLevOst          tyIdx field
+  OriginalSt *FindOrCreateExtraLevOst(
+      const VersionSt *ptrVst, const TyIdx tyIdx, FieldID field, OffsetType offset, bool isFieldArrayType = false) {
+    auto *nextLevOst = originalStTable.FindOrCreateExtraLevOriginalSt(ptrVst, tyIdx, field, offset, isFieldArrayType);
+    versionStTable.CreateZeroVersionSt(nextLevOst);
+    return nextLevOst;
+  }
+
   OriginalSt *FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost) {
     CHECK_FATAL(ost, "ost is nullptr!");
     auto *addrofOst = ost->GetPrevLevelOst();

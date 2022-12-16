@@ -208,8 +208,6 @@ class AliasClass : public AnalysisResult {
   bool MayAlias(const OriginalSt *ostA, const OriginalSt *ostB) const;
 
   static OffsetType OffsetInBitOfArrayElement(const ArrayNode *arrayNode);
-  static OriginalSt *FindOrCreateExtraLevOst(SSATab *ssaTable, const VersionSt *pointerVst, const TyIdx &tyIdx,
-                                             FieldID fld, OffsetType offset);
 
   MapleAllocator &GetMapleAllocator() {
     return acAlloc;
@@ -254,7 +252,8 @@ class AliasClass : public AnalysisResult {
   const FuncDesc &GetFuncDescFromCallStmt(const CallNode &stmt) const;
   bool CallHasNoPrivateDefEffect(StmtNode *stmt) const;
   void RecordAliasAnalysisInfo(const VersionSt &vst);
-  VersionSt *FindOrCreateVstOfExtraLevOst(BaseNode &expr, const TyIdx &tyIdx, FieldID fieldId, bool typeHasBeenCasted);
+  VersionSt *FindOrCreateVstOfExtraLevOst(
+      BaseNode &expr, const TyIdx &tyIdx, FieldID fieldId, bool typeHasBeenCasted, bool isNextLevelArrayType);
   AliasInfo CreateAliasInfoExpr(BaseNode &expr);
   void SetNotAllDefsSeenForMustDefs(const StmtNode &callas);
   void SetPtrOpndNextLevNADS(const BaseNode &opnd, VersionSt *vst, bool hasNoPrivateDefEffect);

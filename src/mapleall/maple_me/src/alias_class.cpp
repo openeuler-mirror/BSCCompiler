@@ -193,8 +193,8 @@ void AliasClass::RecordAliasAnalysisInfo(const VersionSt &vst) {
 
 OffsetType AliasClass::OffsetInBitOfArrayElement(const ArrayNode *arrayNode) {
   ASSERT(arrayNode->GetOpCode() == OP_array, "must be arrayNode");
-  bool arrayAddrIsConst = arrayNode->Opnd(0)->GetOpCode() == OP_addrof;
-  if (!arrayAddrIsConst) {
+  auto arrayAddrOp = arrayNode->Opnd(0)->GetOpCode();
+  if (arrayAddrOp != OP_addrof && arrayAddrOp != OP_iaddrof) {
     return OffsetType::InvalidOffset();
   }
 
@@ -234,29 +234,18 @@ OffsetType AliasClass::OffsetInBitOfArrayElement(const ArrayNode *arrayNode) {
   }
 }
 
-// tyIdx is pointer type of memory type, fld is the field of memory type,
-// offset is the offset of base.
-//     |-----offset------|---|---|-----|
-// prevLevOst          tyIdx fld
-OriginalSt *AliasClass::FindOrCreateExtraLevOst(SSATab *ssaTable, const VersionSt *pointerVst, const TyIdx &tyIdx,
-                                                FieldID fld, OffsetType offset) {
-  auto nextLevOst = ssaTable->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(pointerVst, tyIdx, fld, offset);
-  ssaTable->GetVersionStTable().CreateZeroVersionSt(nextLevOst);
-  return nextLevOst;
-}
-
-static void UpdateFieldIdAndPtrType(const MIRType &baseType, FieldID baseFldId, OffsetType &offset,
-                                    TyIdx &memPtrTyIdx, FieldID &fld) {
+static void UpdateFieldIdAndPtrType(const MIRType &baseType, FieldID baseFieldId, OffsetType &offset,
+                                    TyIdx &memPtrTyIdx, FieldID &fieldId) {
   MIRType *memPtrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(memPtrTyIdx);
   ASSERT(memPtrType->IsMIRPtrType(), "tyIdx is TyIdx of iread/iassign, must be pointer type!");
   auto *memType = static_cast<MIRPtrType*>(memPtrType)->GetPointedType();
-  if (fld != 0) {
+  if (fieldId != 0) {
     CHECK_FATAL(memType->IsStructType(), "must be struct type");
-    // to be conservative, return for out-of-bound fld
-    if (static_cast<int32>(memType->NumberOfFieldIDs()) < fld) {
+    // to be conservative, return for out-of-bound field
+    if (static_cast<int32>(memType->NumberOfFieldIDs()) < fieldId) {
       return;
     }
-    offset += static_cast<MIRStructType*>(memType)->GetBitOffsetFromBaseAddr(fld);
+    offset += static_cast<MIRStructType*>(memType)->GetBitOffsetFromBaseAddr(fieldId);
   }
 
   if (offset.IsInvalid()) {
@@ -265,36 +254,34 @@ static void UpdateFieldIdAndPtrType(const MIRType &baseType, FieldID baseFldId, 
   if (!baseType.IsMIRPtrType()) {
     return;
   }
-  if (baseFldId != 0) {
-    return;
-  }
   MIRType *baseMemType = static_cast<const MIRPtrType&>(baseType).GetPointedType();
-  if (!baseMemType->IsStructType() ||
-      static_cast<int32>(baseMemType->NumberOfFieldIDs()) < baseFldId) {
+  if (baseMemType->GetKind() != kTypeStruct || !TypeBasedAliasAnalysis::IsFieldTypeOfAggType(baseMemType, memType)) {
     return;
   }
   auto *structType = static_cast<MIRStructType*>(baseMemType);
-  MIRType *fieldType = structType->GetFieldType(baseFldId);
+  MIRType *fieldType = structType->GetFieldType(baseFieldId);
+  if (!fieldType) {
+    return;
+  }
+  fieldType = fieldType->IsMIRArrayType() ? static_cast<MIRArrayType *>(fieldType)->GetElemType() : fieldType;
   if (fieldType->GetTypeIndex() != memType->GetTypeIndex()) {
     return;
   }
-
-  auto newFldId = baseFldId + fld;
-  auto offsetOfNewFld = structType->GetBitOffsetFromBaseAddr(newFldId);
-  if (offset.val != offsetOfNewFld) {
+  auto newFieldId = baseFieldId + fieldId;
+  auto offsetOfNewFieldId = structType->GetBitOffsetFromBaseAddr(newFieldId);
+  if (offset.val != offsetOfNewFieldId) {
     return;
   }
-
   memPtrTyIdx = baseType.GetTypeIndex();
-  fld = newFldId;
+  fieldId = baseFieldId + fieldId;
 }
 
 // return next level of baseAddress. Argument tyIdx specifies the pointer of the memory accessed.
 // fieldId represent offset from type of this memory.
-// Example: iread <*type> fld (base) or iassign <*type> fld (base):
-//   tyIdx is TyIdx of <*type>(notice not <type>), fieldId is fld
-VersionSt *AliasClass::FindOrCreateVstOfExtraLevOst(BaseNode &expr, const TyIdx &tyIdx,
-                                                    FieldID fieldId, bool typeHasBeenCasted) {
+// Example: iread <*type> field (base) or iassign <*type> field (base):
+//   tyIdx is TyIdx of <*type>(notice not <type>), fieldId is field
+VersionSt *AliasClass::FindOrCreateVstOfExtraLevOst(
+    BaseNode &expr, const TyIdx &tyIdx, FieldID fieldId, bool typeHasBeenCasted, bool isNextLevelArrayType) {
   auto *baseAddr = RemoveTypeConversionIfExist(&expr);
   AliasInfo aliasInfoOfBaseAddress = CreateAliasInfoExpr(*baseAddr);
   if (aliasInfoOfBaseAddress.vst == nullptr) {
@@ -307,14 +294,14 @@ VersionSt *AliasClass::FindOrCreateVstOfExtraLevOst(BaseNode &expr, const TyIdx 
   }
   // calculate the offset of extraLevOst (i.e. offset from baseAddr)
   OffsetType offset = typeHasBeenCasted ? OffsetType(kOffsetUnknown) : aliasInfoOfBaseAddress.offset;
-  // If base has a valid baseFld, check type of this baseFld. If it is the same as tyIdx,
-  // update tyIdx as base memory type (not fieldType now), update fieldId by merging fieldId and baseFld
+  // If base has a valid basefield, check type of this basefield. If it is the same as tyIdx,
+  // update tyIdx as base memory type (not fieldType now), update fieldId by merging fieldId and basefield
   TyIdx newTyIdx = tyIdx;
   MIRType *baseType = ostOfBaseAddress->GetType();
-  FieldID baseFld = aliasInfoOfBaseAddress.fieldID;
-  UpdateFieldIdAndPtrType(*baseType, baseFld, offset, newTyIdx, fieldId);
+  FieldID baseFieldId = aliasInfoOfBaseAddress.fieldID;
+  UpdateFieldIdAndPtrType(*baseType, baseFieldId, offset, newTyIdx, fieldId);
 
-  auto *nextLevOst = FindOrCreateExtraLevOst(&ssaTab, vstOfBaseAddress, newTyIdx, fieldId, offset);
+  auto *nextLevOst = ssaTab.FindOrCreateExtraLevOst(vstOfBaseAddress, newTyIdx, fieldId, offset, isNextLevelArrayType);
   ASSERT(nextLevOst != nullptr, "failed in creating next-level-ost");
   auto *zeroVersionOfNextLevOst = ssaTab.GetVerSt(nextLevOst->GetZeroVersionIndex());
   RecordAliasAnalysisInfo(*zeroVersionOfNextLevOst);
@@ -384,21 +371,23 @@ AliasInfo AliasClass::CreateAliasInfoExpr(BaseNode &expr) {
         typeOfField = static_cast<MIRStructType *>(typeOfField)->GetFieldType(iread.GetFieldID());
       }
       bool typeHasBeenCasted = IreadedMemInconsistentWithPointedType(iread.GetPrimType(), typeOfField->GetPrimType());
-      return AliasInfo(
-          FindOrCreateVstOfExtraLevOst(*iread.Opnd(0), iread.GetTyIdx(), iread.GetFieldID(), typeHasBeenCasted),
-          0, OffsetType(0));
+      bool isNextLevelArrayType = typeOfField->GetKind() == kTypeArray;
+      auto *extraLevelVst = FindOrCreateVstOfExtraLevOst(
+          *iread.Opnd(0), iread.GetTyIdx(), iread.GetFieldID(), typeHasBeenCasted, isNextLevelArrayType);
+      return AliasInfo(extraLevelVst, 0, OffsetType(0));
     }
     case OP_iaddrof: {
       auto &iread = static_cast<IreadNode&>(expr);
       const auto &aliasInfo = CreateAliasInfoExpr(*iread.Opnd(0));
       OffsetType offset = aliasInfo.offset;
-      if (iread.GetFieldID() != 0) {
+      auto fieldId = iread.GetFieldID();
+      if (fieldId != 0) {
         auto mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread.GetTyIdx());
         auto pointeeType = static_cast<MIRPtrType*>(mirType)->GetPointedType();
         OffsetType offsetOfField(pointeeType->GetBitOffsetFromBaseAddr(iread.GetFieldID()));
         offset = offset + offsetOfField;
       }
-      return AliasInfo(aliasInfo.vst, iread.GetFieldID(), offset);
+      return AliasInfo(aliasInfo.vst, fieldId, offset);
     }
     case OP_add:
     case OP_sub: {
@@ -422,7 +411,7 @@ AliasInfo AliasClass::CreateAliasInfoExpr(BaseNode &expr) {
         ASSERT(expr.GetOpCode() == OP_add, "Wrong operation!");
       }
       OffsetType newOffset = aliasInfo.offset + static_cast<uint64>(constVal) * static_cast<uint64>(bitsPerByte);
-      return AliasInfo(aliasInfo.vst, 0, newOffset);
+      return AliasInfo(aliasInfo.vst, aliasInfo.fieldID, newOffset);
     }
     case OP_array: {
       for (size_t i = 1; i < expr.NumOpnds(); ++i) {
@@ -432,7 +421,7 @@ AliasInfo AliasClass::CreateAliasInfoExpr(BaseNode &expr) {
       const auto &aliasInfo = CreateAliasInfoExpr(*expr.Opnd(0));
       OffsetType offset = OffsetInBitOfArrayElement(static_cast<const ArrayNode*>(&expr));
       OffsetType newOffset = offset + aliasInfo.offset;
-      return AliasInfo(aliasInfo.vst, 0, newOffset);
+      return AliasInfo(aliasInfo.vst, aliasInfo.fieldID, newOffset);
     }
     case OP_cvt:
     case OP_retype: {
@@ -707,10 +696,10 @@ void AliasClass::SetAggPtrFieldsNextLevNADS(const OriginalSt &ost) {
       }
       int64 bitOffset = structType->GetBitOffsetFromBaseAddr(fieldID);
       OffsetType offset(bitOffset);
-      OriginalSt *fldOst = ssaTab.GetOriginalStTable().FindSymbolOriginalSt(
+      OriginalSt *fieldOst = ssaTab.GetOriginalStTable().FindSymbolOriginalSt(
           *ost.GetMIRSymbol(), fieldID, fieldType->GetTypeIndex(), offset);
-      if (fldOst != nullptr) {
-        SetNextLevNotAllDefsSeen(fldOst->GetZeroVersionIndex());
+      if (fieldOst != nullptr) {
+        SetNextLevNotAllDefsSeen(fieldOst->GetZeroVersionIndex());
       }
     }
   }
@@ -992,8 +981,9 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     case OP_iassign: {
       auto &iassignNode = static_cast<IassignNode&>(stmt);
       AliasInfo rhsAinfo = CreateAliasInfoExpr(*iassignNode.Opnd(1));
-      auto *lhsVst =
-        FindOrCreateVstOfExtraLevOst(*iassignNode.Opnd(0), iassignNode.GetTyIdx(), iassignNode.GetFieldID(), false);
+      bool isNextLevelArrayType = iassignNode.GetLHSType()->GetKind() == kTypeArray;
+      auto *lhsVst = FindOrCreateVstOfExtraLevOst(
+          *iassignNode.Opnd(0), iassignNode.GetTyIdx(), iassignNode.GetFieldID(), false, isNextLevelArrayType);
       if (lhsVst != nullptr) {
         ApplyUnionForDassignCopy(*lhsVst, rhsAinfo.vst, *iassignNode.Opnd(1));
       }
@@ -1739,13 +1729,13 @@ bool AliasClass::AliasAccordingToFieldID(const OriginalSt &ostA, const OriginalS
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(ostB.GetPrevLevelOst()->GetTyIdx());
   TyIdx idxA = mirTypeA->GetTypeIndex();
   TyIdx idxB = mirTypeB->GetTypeIndex();
-  FieldID fldA = ostA.GetFieldID();
+  FieldID fieldA = ostA.GetFieldID();
   if (idxA != idxB) {
-    if (!(klassHierarchy->UpdateFieldID(idxA, idxB, fldA))) {
+    if (!(klassHierarchy->UpdateFieldID(idxA, idxB, fieldA))) {
       return false;
     }
   }
-  return fldA == ostB.GetFieldID();
+  return fieldA == ostB.GetFieldID();
 }
 
 void AliasClass::ProcessIdsAliasWithRoot(const std::set<uint32> &idsAliasWithRoot,
@@ -1916,7 +1906,7 @@ bool AliasClass::MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB)
   }
 
   // flow-insensitive basicAA cannot analysis alias relation of virtual-var.
-  // Pointer arithmetic may changed value of pointer, and result in aggPtr->fldA alias with aggPtr->fldB.
+  // Pointer arithmetic may changed value of pointer, and result in aggPtr->fieldA alias with aggPtr->fieldB.
   if (indirectLevA > 0 || indirectLevB > 0) {
     return true;
   }
@@ -2140,18 +2130,18 @@ void AliasClass::CollectMayDefForDassign(const StmtNode &stmt, OstPtrSet &mayDef
     return;
   }
 
-  FieldID fldIDA = ostOfLhs->GetFieldID();
+  FieldID fieldIDA = ostOfLhs->GetFieldID();
   for (uint aliasOstIdx : *aliasSet) {
     if (aliasOstIdx == ostOfLhs->GetIndex()) {
       continue;
     }
     OriginalSt *ostOfAliasAe = ssaTab.GetOriginalStFromID(OStIdx(aliasOstIdx));
-    FieldID fldIDB = ostOfAliasAe->GetFieldID();
+    FieldID fieldIDB = ostOfAliasAe->GetFieldID();
     if (!mirModule.IsCModule()) {
       if (ostOfAliasAe->GetTyIdx() != ostOfLhs->GetTyIdx()) {
         continue;
       }
-      if (fldIDA == fldIDB || fldIDA == 0 || fldIDB == 0) {
+      if (fieldIDA == fieldIDB || fieldIDA == 0 || fieldIDB == 0) {
         (void)mayDefOsts.insert(ostOfAliasAe);
       }
     } else {
@@ -2178,11 +2168,11 @@ void AliasClass::InsertMayDefDassign(StmtNode &stmt, BBId bbid) {
   InsertMayDefNode(mayDefOsts, ssaTab.GetStmtsSSAPart().SSAPartOf(stmt), stmt, bbid);
 }
 
-bool AliasClass::IsEquivalentField(TyIdx tyIdxA, FieldID fldA, TyIdx tyIdxB, FieldID fldB) const {
+bool AliasClass::IsEquivalentField(TyIdx tyIdxA, FieldID fieldA, TyIdx tyIdxB, FieldID fieldB) const {
   if (mirModule.IsJavaModule() && tyIdxA != tyIdxB) {
-    (void)klassHierarchy->UpdateFieldID(tyIdxA, tyIdxB, fldA);
+    (void)klassHierarchy->UpdateFieldID(tyIdxA, tyIdxB, fieldA);
   }
-  return fldA == fldB;
+  return fieldA == fieldB;
 }
 
 bool AliasClass::IsAliasInfoEquivalentToExpr(const AliasInfo &ai, const BaseNode *expr) {
@@ -2207,8 +2197,9 @@ bool AliasClass::IsAliasInfoEquivalentToExpr(const AliasInfo &ai, const BaseNode
 
 void AliasClass::CollectMayDefForIassign(StmtNode &stmt, OstPtrSet &mayDefOsts) {
   auto &iassignNode = static_cast<IassignNode&>(stmt);
-  VersionSt *lhsVst =
-      FindOrCreateVstOfExtraLevOst(*iassignNode.Opnd(0), iassignNode.GetTyIdx(), iassignNode.GetFieldID(), false);
+  bool isNextLevelArrayType = iassignNode.GetLHSType()->GetKind() == kTypeArray;
+  VersionSt *lhsVst = FindOrCreateVstOfExtraLevOst(
+      *iassignNode.Opnd(0), iassignNode.GetTyIdx(), iassignNode.GetFieldID(), false, isNextLevelArrayType);
 
   OriginalSt *ostOfLhs = lhsVst->GetOst();
   auto *aliasSet = GetAliasSet(*ostOfLhs);
@@ -2453,8 +2444,7 @@ void AliasClass::CollectMayUseForIntrnCallOpnd(const StmtNode &stmt,
     bool writeOpnd = intrinDesc->WriteNthOpnd(opndId);
     if (mayDefUseOsts.size() == 0 && writeOpnd) {
       // create next-level ost as it not seen before
-      auto nextLevOst = FindOrCreateExtraLevOst(
-          &ssaTab, vst, vst->GetOst()->GetTyIdx(), 0, OffsetType(0));
+      auto nextLevOst = ssaTab.FindOrCreateExtraLevOst(vst, vst->GetOst()->GetTyIdx(), 0, OffsetType(0));
       CHECK_FATAL(nextLevOst != nullptr, "Failed to create next-level ost");
       auto *zeroVersionOfNextLevOst = ssaTab.GetVerSt(nextLevOst->GetZeroVersionIndex());
       RecordAliasAnalysisInfo(*zeroVersionOfNextLevOst);

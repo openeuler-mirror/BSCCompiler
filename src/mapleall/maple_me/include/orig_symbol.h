@@ -478,23 +478,22 @@ class OriginalStTable {
     return originalStVector.end();
   }
 
-  void Dump();
+  MIRType *GetTypeFromBaseAddressAndFieldId(TyIdx tyIdx, FieldID fieldId, bool isFieldArrayType) const;
+  OriginalSt *FindOrCreateExtraLevOriginalSt(
+      const VersionSt *vst, TyIdx tyIdx, FieldID fieldId,
+      const OffsetType &offset = OffsetType(kOffsetUnknown), bool isFieldArrayType = false);
+  OriginalSt *FindExtraLevOriginalSt(
+      const MapleVector<OriginalSt*> &nextLevelOsts, const TyIdx &tyIdxOfPtr, const MIRType *type, FieldID fieldId,
+      const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
+  OriginalSt *FindExtraLevOriginalSt(
+      const VersionSt *vst, const TyIdx &tyIdxOfPtr, const MIRType *typeOfOst, FieldID fieldId,
+      const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
   OriginalSt *FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost);
-  OriginalSt *FindOrCreateExtraLevOriginalSt(const VersionSt *vst, const TyIdx &ptyIdx, FieldID fld,
-                                             const OffsetType &offset = OffsetType(kOffsetUnknown));
-  OriginalSt *FindOrCreateExtraLevSymOrRegOriginalSt(const VersionSt *vst, TyIdx tyIdx, FieldID fld,
-                                                     const OffsetType &offset = OffsetType(kOffsetUnknown),
-                                                     const KlassHierarchy *klassHierarchy = nullptr);
-  OriginalSt *FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts,
-                                     const TyIdx &tyIdxOfPtr, const MIRType *type, FieldID fld,
-                                     const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
-  OriginalSt *FindExtraLevOriginalSt(const VersionSt *vst, const TyIdx &tyIdxOfPtr,
-                                     const MIRType *typeOfOst, FieldID fld,
-                                     const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
   MapleVector<OriginalSt*> *GetNextLevelOstsOfVst(size_t vstIdx) const;
   MapleVector<OriginalSt*> *GetNextLevelOstsOfVst(const VersionSt *vst) const;
   void AddNextLevelOstOfVst(size_t vstIdx, OriginalSt *ost);
   void AddNextLevelOstOfVst(const VersionSt *vst, OriginalSt *ost);
+  void Dump();
  private:
   MapleAllocator alloc;
   MIRModule &mirModule;

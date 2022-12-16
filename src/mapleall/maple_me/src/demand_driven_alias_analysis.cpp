@@ -198,8 +198,7 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfIread(const IreadSSANode 
   offset = typeHasBeenCasted ? OffsetType::InvalidOffset() : offset;
 
   auto *vstOfBase = ptrNode.pegNode->vst;
-  auto *mayUsedOst =
-      AliasClass::FindOrCreateExtraLevOst(ssaTab, vstOfBase, iread->GetTyIdx(), iread->GetFieldID(), offset);
+  auto *mayUsedOst = ssaTab->FindOrCreateExtraLevOst(vstOfBase, iread->GetTyIdx(), iread->GetFieldID(), offset);
   auto *zeroVersionOfMayUsedOst = ssaTab->GetVersionStTable().GetZeroVersionSt(mayUsedOst);
   // build prevLev-nextLev relationship
   auto *pegNodeOfMayUsedOSt = peg->GetOrCreateNodeOf(zeroVersionOfMayUsedOst);
@@ -538,8 +537,8 @@ void PEGBuilder::BuildPEGNodeInIassign(const IassignNode *iassign) {
   }
 
   auto *vstOfBase = baseAddrValNode.pegNode->vst;
-  OriginalSt *defedOst = AliasClass::FindOrCreateExtraLevOst(
-      ssaTab, vstOfBase, iassign->GetTyIdx(), iassign->GetFieldID(), baseAddrValNode.offset);
+  OriginalSt *defedOst =
+      ssaTab->FindOrCreateExtraLevOst(vstOfBase, iassign->GetTyIdx(), iassign->GetFieldID(), baseAddrValNode.offset);
   CHECK_FATAL(defedOst, "defedOst is nullptr");
   auto zeroVersionSt = ssaTab->GetVerSt(defedOst->GetZeroVersionIndex());
   PEGNode *lhsNode = peg->GetOrCreateNodeOf(zeroVersionSt);

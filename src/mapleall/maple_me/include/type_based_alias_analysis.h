@@ -55,7 +55,7 @@ class TypeBasedAliasAnalysis {
     }
     return ptrValueTypeUnsafe[prevLevVstIdx];
   }
-
+  static bool IsFieldTypeOfAggType(MIRType *aggType, MIRType *checkedType);
  private:
   static std::vector<bool> ptrValueTypeUnsafe; // index is OStIdx
 };
