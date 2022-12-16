@@ -265,6 +265,9 @@ class ASTParser {
   void CheckVarNameValid(std::string varName);
   void ParserExprVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, ASTExpr &expr);
   void ParserStmtVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, std::list<ASTStmt*> &stmts);
+  void SetAtomExprValType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr, ASTAtomicExpr &astExpr);
+  void SetAtomExchangeType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr, ASTAtomicExpr &astExpr);
+  clang::Expr *GetAtomValExpr(clang::Expr *valExpr);
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
                                                    std::stringstream &ss) const;
 static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();

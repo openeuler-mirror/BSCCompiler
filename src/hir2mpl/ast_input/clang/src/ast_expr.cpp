@@ -26,6 +26,7 @@
 #include "enhance_c_checker.h"
 #include "ror.h"
 #include "conditional_operator.h"
+#include "fe_macros.h"
 
 #include <optional>
 
@@ -2930,14 +2931,40 @@ UniqueFEIRExpr ASTDependentScopeDeclRefExpr::Emit2FEExprImpl(std::list<UniqueFEI
   return nullptr;
 }
 
+static std::unordered_map<ASTAtomicOp, const std::string> astOpMap = {
+    {kAtomicOpLoadN, "__atomic_load_n"},
+    {kAtomicOpLoad, "__atomic_load"},
+    {kAtomicOpStoreN, "__atomic_store_n"},
+    {kAtomicOpStore, "__atomic_store"},
+    {kAtomicOpExchange, "__atomic_exchange"},
+    {kAtomicOpExchangeN, "__atomic_exchange_n"},
+    {kAtomicOpAddFetch, "__atomic_add_fetch"},
+    {kAtomicOpSubFetch, "__atomic_sub_fetch"},
+    {kAtomicOpAndFetch, "__atomic_and_fetch"},
+    {kAtomicOpXorFetch, "__atomic_xor_fetch"},
+    {kAtomicOpOrFetch, "__atomic_or_fetch"},
+    {kAtomicOpFetchAdd, "__atomic_fetch_add"},
+    {kAtomicOpFetchSub, "__atomic_fetch_sub"},
+    {kAtomicOpFetchAnd, "__atomic_fetch_and"},
+    {kAtomicOpFetchXor, "__atomic_fetch_xor"},
+    {kAtomicOpFetchOr, "__atomic_fetch_or"},
+};
+
 // ---------- ASTAtomicExpr ----------
 UniqueFEIRExpr ASTAtomicExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   auto atomicExpr = std::make_unique<FEIRExprAtomic>(mirType, refType, objExpr->Emit2FEExpr(stmts), atomicOp);
   if (atomicOp != kAtomicOpLoadN) {
+    if (firstType != nullptr && secondType != nullptr && firstType->GetSize() != secondType->GetSize()) {
+      FE_ERR(kLncErr, valExpr1->GetSrcLoc(), "size mismatch in argument 2 of '%s'", astOpMap[atomicOp].c_str());
+    }
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Expr(valExpr1->Emit2FEExpr(stmts));
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Type(val1Type);
   }
   if (atomicOp == kAtomicOpExchange) {
+    if (firstType != nullptr && secondType != nullptr &&
+        firstType->GetSize() == secondType->GetSize() && firstType->GetSize() != thirdType->GetSize()) {
+      FE_ERR(kLncErr, valExpr1->GetSrcLoc(), "size mismatch in argument 3 of '__atomic_exchange'");
+    }
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Expr(valExpr2->Emit2FEExpr(stmts));
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Type(val2Type);
   }

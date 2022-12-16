@@ -3833,6 +3833,18 @@ std::unique_ptr<FEIRExpr> FEIRExprAtomic::CloneImpl() const {
   return expr;
 }
 
+TyIdx FEIRExprAtomic::GetTyIdx(MIRBuilder &mirBuilder) const {
+  TyIdx typeIndex(0);
+  if (atomicOp != kAtomicOpLoadN) {
+    typeIndex = val1Type->GetTypeIndex();
+  }
+  if (atomicOp == kAtomicOpExchange) {
+    typeIndex = val2Type->GetTypeIndex();
+  }
+
+  return typeIndex;
+}
+
 BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   MIRSymbol *retVar = nullptr;
   if (atomicOp != kAtomicOpStore) {
@@ -3871,14 +3883,7 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   ASSERT(intrinsicIDMap.find(atomicOp) != intrinsicIDMap.end(), "atomic opcode not yet supported!");
   MIRIntrinsicID intrinsicID = intrinsicIDMap[atomicOp];
   args.emplace_back(orderExpr->GenMIRNode(mirBuilder));
-  TyIdx typeIndex(0);
-  if (atomicOp == kAtomicOpStoreN || atomicOp == kAtomicOpExchangeN) {
-    typeIndex = valExpr1->GetType()->GenerateMIRType()->GetTypeIndex();
-  }
-  if (atomicOp == kAtomicOpExchange || atomicOp == kAtomicOpLoad || atomicOp == kAtomicOpStore) {
-    UniqueFEIRVar var = static_cast<FEIRExprDRead*>(valExpr1.get())->GetVar()->Clone();
-    typeIndex = var->GenerateMIRSymbol(mirBuilder)->GetTyIdx();
-  }
+  TyIdx typeIndex = GetTyIdx(mirBuilder);
   return (!retVoid) ? mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicID, std::move(args), retVar, typeIndex)
                     : mirBuilder.CreateStmtIntrinsicCall(intrinsicID, std::move(args), typeIndex);
 }

@@ -1829,6 +1829,18 @@ class ASTAtomicExpr : public ASTExpr {
     val2Type = ty;
   }
 
+  void SetFirstParamType(MIRType *ty) {
+    firstType = ty;
+  }
+
+  void SetSecondParamType(MIRType *ty) {
+    secondType = ty;
+  }
+
+  void SetThirdParamType(MIRType *ty) {
+    thirdType = ty;
+  }
+
   void SetFromStmt(bool fromStmt) {
     isFromStmt = fromStmt;
   }
@@ -1842,6 +1854,9 @@ class ASTAtomicExpr : public ASTExpr {
   MIRType *refType = nullptr;
   MIRType *val1Type = nullptr;
   MIRType *val2Type = nullptr;
+  MIRType *firstType = nullptr;
+  MIRType *secondType = nullptr;
+  MIRType *thirdType = nullptr;
   ASTExpr *objExpr = nullptr;
   ASTExpr *valExpr1 = nullptr;
   ASTExpr *valExpr2 = nullptr;

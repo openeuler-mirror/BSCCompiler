@@ -2369,6 +2369,64 @@ ASTExpr *ASTParser::ProcessExprArrayInitIndexExpr(MapleAllocator &allocator,
   return astExpr;
 }
 
+clang::Expr *ASTParser::GetAtomValExpr(clang::Expr *valExpr) {
+  clang::Expr *atomValExpr = valExpr;
+  while (llvm::isa<clang::ImplicitCastExpr>(atomValExpr) || llvm::isa<clang::CStyleCastExpr>(atomValExpr) ||
+         llvm::isa<clang::ParenExpr>(atomValExpr)) {
+    if (llvm::isa<clang::ParenExpr>(atomValExpr)) {
+      auto expr = llvm::cast<clang::ParenExpr>(atomValExpr);
+      atomValExpr = expr->getSubExpr();
+    } else {
+      auto expr = llvm::cast<clang::CastExpr>(atomValExpr);
+      atomValExpr = expr->getSubExpr();
+    }
+  }
+  return atomValExpr;
+}
+
+void ASTParser::SetAtomExprValType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr,
+                                   ASTAtomicExpr &astExpr) {
+  auto val1Expr = atomicExpr.getVal1();
+  astExpr.SetValExpr1(ProcessExpr(allocator, val1Expr));
+  clang::QualType val1Type = val1Expr->getType().getCanonicalType();
+  if (val1Type->isPointerType() && !val1Type->getPointeeType()->isRecordType()) {
+    val1Type = val1Type->getPointeeType();
+  }
+  astExpr.SetVal1Type(astFile->CvtType(val1Type));
+  /* no need to save atomic_exchange_n and atomic_store_n's second param type, for second param type is not a pointer */
+  if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_exchange_n ||
+      atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_store_n) {
+    return;
+  }
+  auto firstType = val1Expr->getType();
+  val1Expr = GetAtomValExpr(val1Expr);
+  auto secondType = val1Expr->getType();
+
+  astExpr.SetFirstParamType(astFile->CvtType(firstType->isPointerType() ? firstType->getPointeeType() : firstType));
+  astExpr.SetSecondParamType(astFile->CvtType(secondType->isPointerType() ? secondType->getPointeeType() : secondType));
+}
+
+void ASTParser::SetAtomExchangeType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr,
+                                        ASTAtomicExpr &astExpr) {
+  auto val2Expr = atomicExpr.getVal2();
+  auto val1Expr = atomicExpr.getVal1();
+  astExpr.SetValExpr2(ProcessExpr(allocator, val2Expr));
+  clang::QualType val2Type = val2Expr->getType().getCanonicalType();
+  if (val2Type->isPointerType() && !val2Type->getPointeeType()->isRecordType()) {
+    val2Type = val2Type->getPointeeType();
+  }
+  astExpr.SetVal2Type(astFile->CvtType(val2Type));
+  auto firstType = val2Expr->getType();
+  val1Expr = GetAtomValExpr(val1Expr);
+  auto secondType = val1Expr->getType();
+  val2Expr = GetAtomValExpr(val2Expr);
+  auto thirdType = val2Expr->getType();
+
+  astExpr.SetFirstParamType(astFile->CvtType(firstType->isPointerType() ? firstType->getPointeeType() : firstType));
+  astExpr.SetSecondParamType(astFile->CvtType(secondType->isPointerType() ? secondType->getPointeeType() : secondType));
+  astExpr.SetThirdParamType(astFile->CvtType(thirdType->isPointerType() ? thirdType->getPointeeType() : thirdType));
+}
+
 ASTExpr *ASTParser::ProcessExprAtomicExpr(MapleAllocator &allocator,
                                           const clang::AtomicExpr &atomicExpr) {
   ASTAtomicExpr *astExpr = ASTDeclsBuilder::ASTExprBuilder<ASTAtomicExpr>(allocator);
@@ -2377,12 +2435,10 @@ ASTExpr *ASTParser::ProcessExprAtomicExpr(MapleAllocator &allocator,
   astExpr->SetType(astFile->CvtType(atomicExpr.getPtr()->getType()));
   astExpr->SetRefType(astFile->CvtType(atomicExpr.getPtr()->getType()->getPointeeType()));
   if (atomicExpr.getOp() != clang::AtomicExpr::AO__atomic_load_n) {
-    astExpr->SetValExpr1(ProcessExpr(allocator, atomicExpr.getVal1()));
-    astExpr->SetVal1Type(astFile->CvtType(atomicExpr.getVal1()->getType()));
+    SetAtomExprValType(allocator, atomicExpr, *astExpr);
   }
   if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_exchange) {
-    astExpr->SetValExpr2(ProcessExpr(allocator, atomicExpr.getVal2()));
-    astExpr->SetVal2Type(astFile->CvtType(atomicExpr.getVal2()->getType()));
+    SetAtomExchangeType(allocator, atomicExpr, *astExpr);
   }
   astExpr->SetOrderExpr(ProcessExpr(allocator, atomicExpr.getOrder()));
 
