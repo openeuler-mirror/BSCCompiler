@@ -87,7 +87,7 @@ class AArch64CGFunc : public CGFunc {
 
   MIRType *LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyIdx> **parmList) const;
   RegOperand &GetOrCreateResOperand(const BaseNode &parent, PrimType primType);
-  MIRStructType *GetLmbcStructArgType(BaseNode &stmt, size_t argNo);
+  MIRStructType *GetLmbcStructArgType(BaseNode &stmt, size_t argNo) const;
 
   void IntrinsifyGetAndAddInt(ListOperand &srcOpnds, PrimType pty);
   void IntrinsifyGetAndSetInt(ListOperand &srcOpnds, PrimType pty);
@@ -112,7 +112,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
   uint32 LmbcFindTotalStkUsed(std::vector<TyIdx> *paramList);
   uint32 LmbcTotalRegsUsed();
-  bool LmbcSmallAggForRet(const BaseNode &bNode, Operand *src, int32 offset = 0, bool skip1 = false);
+  bool LmbcSmallAggForRet(const BaseNode &bNode, const Operand *src, int32 offset = 0, bool skip1 = false);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
   bool GetNumReturnRegsForIassignfpoff(MIRType *rType, PrimType &primType, uint32 &numRegs);
   void GenIassignfpoffStore(Operand &srcOpnd, int32 offset, uint32 byteSize, PrimType primType);
@@ -911,6 +911,10 @@ class AArch64CGFunc : public CGFunc {
   void SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode);
   void SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, Opcode op);
 
+  Operand *GetOpndWithOneParam(const IntrinsicopNode &intrnNode);
+  Operand *GetOpndFromIntrnNode(const IntrinsicopNode &intrnNode);
+  bool IslhsSizeAligned(uint64 lhsSizeCovered, uint32 newAlignUsed, uint64 lhsSize);
+  RegOperand &GetRegOpnd(bool isAfterRegAlloc, PrimType primType);
   Operand *SelectAArch64CAtomicFetch(const IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore);
   Operand *SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore);
   /* Helper functions for translating complex Maple IR instructions/inrinsics */

@@ -1393,6 +1393,30 @@ class CGFunc {
     return false;
   }
 
+  PrimType GetPrimTypeFromSize(uint32 byteSize, PrimType defaultType) const {
+    switch (byteSize) {
+      case 1:
+        return PTY_i8;
+      case 2:
+        return PTY_i16;
+      case 4:
+        return PTY_i32;
+      default:
+        return defaultType;
+    }
+  }
+
+  BB *CreateAtomicBuiltinBB() {
+    LabelIdx atomicBBLabIdx = CreateLabel();
+    BB *atomicBB = CreateNewBB();
+    atomicBB->SetKind(BB::kBBIf);
+    atomicBB->SetAtomicBuiltIn();
+    atomicBB->AddLabel(atomicBBLabIdx);
+    SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);
+    GetCurBB()->AppendBB(*atomicBB);
+    return atomicBB;
+  }
+
  private:
   CGFunc &operator=(const CGFunc &cgFunc);
   CGFunc(const CGFunc&);
