@@ -32,7 +32,6 @@
 #include "mir_function.h"
 #include "debug_info.h"
 #include "maple_phase_manager.h"
-
 /* Maple MP header */
 #include "mempool_allocator.h"
 
@@ -48,33 +47,6 @@ struct MemOpndCmp {
     }
     return (lhs->Less(*rhs));
   }
-};
-
-class VirtualRegNode {
- public:
-  VirtualRegNode() = default;
-
-  VirtualRegNode(RegType type, uint32 size)
-      : regType(type), size(size), regNO(kInvalidRegNO) {}
-
-  virtual ~VirtualRegNode() = default;
-
-  void AssignPhysicalRegister(regno_t phyRegNO) {
-    regNO = phyRegNO;
-  }
-
-  RegType GetType() const {
-    return regType;
-  }
-
-  uint32 GetSize() const {
-    return size;
-  }
-
- private:
-  RegType regType = kRegTyUndef;
-  uint32 size     = 0;              /* size in bytes */
-  regno_t regNO   = kInvalidRegNO;  /* physical register assigned by register allocation */
 };
 
 class SpillMemOperandSet {
@@ -104,6 +76,8 @@ class SpillMemOperandSet {
   MapleSet<MemOperand*, MemOpndCmp> reuseSpillLocMem;
 };
 
+class MPISel;
+
 #if defined(TARGARM32) && TARGARM32
 class LiveRange;
 #endif  /* TARGARM32 */
@@ -120,6 +94,8 @@ class CGFunc {
   CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon, MemPool &memPool,
          StackMemPool &stackMp, MapleAllocator &allocator, uint32 funcId);
   virtual ~CGFunc();
+
+  void InitFactory();
 
   const std::string &GetName() const {
     return func.GetName();
@@ -211,8 +187,14 @@ class CGFunc {
   void SetCleanupLabel(BB &cleanupEntry);
   bool ExitbbNotInCleanupArea(const BB &bb) const;
   uint32 GetMaxRegNum() const {
-    return maxRegCount;
+    return vReg.GetMaxRegCount();
   };
+  void SetMaxRegNum(uint32 num) {
+    vReg.SetMaxRegCount(num);
+  }
+  void IncMaxRegNum(uint32 num) {
+    vReg.IncMaxRegCount(num);
+  }
   void DumpCFG() const;
   void DumpBBInfo(const BB *bb) const;
   void DumpCGIR() const;
@@ -230,7 +212,7 @@ class CGFunc {
   virtual void SelectAbort() = 0;
   virtual void SelectAssertNull(UnaryStmtNode &stmt) = 0;
   virtual void SelectAsm(AsmNode &node) = 0;
-  virtual void SelectAggDassign(DassignNode &stmt) = 0;
+  virtual void SelectAggDassign(const DassignNode &stmt) = 0;
   virtual void SelectIassign(IassignNode &stmt) = 0;
   virtual void SelectIassignoff(IassignoffNode &stmt) = 0;
   virtual void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) = 0;
@@ -417,6 +399,8 @@ class CGFunc {
   virtual RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
   virtual RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) = 0;
 
+  virtual void HandleFuncCfg(CGCFG *cfg) { AddCommonExitBB(); }
+
   /* For ebo issue. */
   virtual Operand *GetTrueOpnd() {
     return nullptr;
@@ -430,6 +414,7 @@ class CGFunc {
   LabelIdx CreateLabel();
 
   RegOperand *GetVirtualRegisterOperand(regno_t vRegNO) {
+    std::unordered_map<regno_t, RegOperand*> &vRegOperandTable = vReg.vRegOperandTable;
     auto it = vRegOperandTable.find(vRegNO);
     return it == vRegOperandTable.end() ? nullptr : it->second;
   }
@@ -450,27 +435,7 @@ class CGFunc {
     if (CGOptions::UseGeneralRegOnly()) {
       CHECK_FATAL(regType != kRegTyFloat, "cannot use float | SIMD register with --general-reg-only");
     }
-    /* when vRegCount reach to maxRegCount, maxRegCount limit adds 80 every time */
-    /* and vRegTable increases 80 elements. */
-    if (vRegCount >= maxRegCount) {
-      ASSERT(vRegCount < maxRegCount + 1, "MAINTIAN FAILED");
-      maxRegCount += kRegIncrStepLen;
-      vRegTable.resize(maxRegCount);
-    }
-#if TARGAARCH64 || TARGX86_64 || TARGRISCV64
-    if (size < k4ByteSize) {
-      size = k4ByteSize;
-    }
-#if TARGAARCH64
-    /* cannot handle 128 size register */
-    if (regType == kRegTyInt && size > k8ByteSize) {
-      size = k8ByteSize;
-    }
-#endif
-    ASSERT(size == k4ByteSize || size == k8ByteSize || size == k16ByteSize, "check size");
-#endif
-    new (&vRegTable[vRegCount]) VirtualRegNode(regType, size);
-    return vRegCount++;
+    return vReg.GetNextVregNO(regType, size);
   }
 
   virtual regno_t NewVRflag() {
@@ -524,17 +489,17 @@ class CGFunc {
 
   /* return Register Type */
   virtual RegType GetRegisterType(regno_t rNum) const {
-    CHECK(rNum < vRegTable.size(), "index out of range in GetVRegSize");
-    return vRegTable[rNum].GetType();
+    CHECK(rNum < vReg.VRegTableSize(), "index out of range in GetVRegSize");
+    return vReg.VRegTableGetType(rNum);
   }
 
 #if defined(TARGX86_64) && TARGX86_64
   uint32 GetMaxVReg() const {
-    return vRegCount + opndBuilder->GetCurrentVRegNum();
+    return vReg.GetCount() + opndBuilder->GetCurrentVRegNum();
   }
 #else
   uint32 GetMaxVReg() const {
-    return vRegCount;
+    return vReg.GetCount();
   }
 #endif
 
@@ -547,7 +512,7 @@ class CGFunc {
   }
 
   uint32 GetVRegSize(regno_t vregNum) {
-    CHECK(vregNum < vRegTable.size(), "index out of range in GetVRegSize");
+    CHECK(vregNum < vReg.VRegTableSize(), "index out of range in GetVRegSize");
     return GetOrCreateVirtualRegisterOperand(vregNum).GetSize() / kBitsPerByte;
   }
 
@@ -1100,7 +1065,7 @@ class CGFunc {
   }
 
   regno_t GetVirtualRegNOFromPseudoRegIdx(PregIdx idx) const {
-    return regno_t(idx + firstMapleIrVRegNO);
+    return regno_t(idx + kBaseVirtualRegNO);
   }
 
   bool GetHasProEpilogue() const {
@@ -1251,10 +1216,6 @@ class CGFunc {
     vregsToPregsMap[vRegNum] = pidx;
   }
 
-  uint32 GetFirstMapleIrVRegNO() const {
-    return firstMapleIrVRegNO;
-  }
-
   void SetHasAsm() {
     hasAsm = true;
   }
@@ -1275,6 +1236,18 @@ class CGFunc {
     return needStackProtect;
   }
 
+  virtual void Link2ISel(MPISel *p) {
+    (void)p;
+  }
+
+  void SetISel(MPISel *p) {
+    isel = p;
+  }
+
+  MPISel *GetISel() {
+    return isel;
+  }
+
   MIRPreg *GetPseudoRegFromVirtualRegNO(const regno_t vRegNO, bool afterSSA = false) const {
     PregIdx pri = afterSSA ? VRegNOToPRegIdx(vRegNO) : GetPseudoRegIdxFromVirtualRegNO(vRegNO);
     if (pri == -1) {
@@ -1292,15 +1265,11 @@ class CGFunc {
   }
 
  protected:
-  uint32 firstMapleIrVRegNO = 200;        /* positioned after physical regs */
   uint32 firstNonPregVRegNO;
-  uint32 vRegCount;                       /* for assigning a number for each CG virtual register */
+  VregInfo vReg;                          /* for assigning a number for each CG virtual register */
   uint32 ssaVRegCount = 0;                /* vreg  count in ssa */
-  uint32 maxRegCount;                     /* for the current virtual register number limit */
   size_t lSymSize;                        /* size of local symbol table imported */
-  MapleVector<VirtualRegNode> vRegTable;  /* table of CG's virtual registers indexed by v_reg no */
   MapleVector<BB*> bbVec;
-  MapleUnorderedMap<regno_t, RegOperand*> vRegOperandTable;
   MapleUnorderedMap<PregIdx, MemOperand*> pRegSpillMemOperands;
   MapleUnorderedMap<regno_t, MemOperand*> spillRegMemOperands;
   MapleUnorderedMap<uint32, SpillMemOperandSet*> reuseSpillLocMem;
@@ -1313,7 +1282,6 @@ class CGFunc {
   uint32 totalInsns = 0;
   int32 structCopySize = 0;
   int32 maxParamStackSize = 0;
-  static constexpr int kRegIncrStepLen = 80; /* reg number increate step length */
 
   bool hasVLAOrAlloca = false;
   bool hasAlloca = false;
@@ -1338,7 +1306,7 @@ class CGFunc {
 
   PregIdx GetPseudoRegIdxFromVirtualRegNO(const regno_t vRegNO) const {
     if (IsVRegNOForPseudoRegister(vRegNO)) {
-      return PregIdx(vRegNO - firstMapleIrVRegNO);
+      return PregIdx(vRegNO - kBaseVirtualRegNO);
     }
     return VRegNOToPRegIdx(vRegNO);
   }
@@ -1346,7 +1314,7 @@ class CGFunc {
   bool IsVRegNOForPseudoRegister(regno_t vRegNum) const {
     /* 0 is not allowed for preg index */
     uint32 n = static_cast<uint32>(vRegNum);
-    return (firstMapleIrVRegNO < n && n < firstNonPregVRegNO);
+    return (kBaseVirtualRegNO < n && n < firstNonPregVRegNO);
   }
 
   PregIdx VRegNOToPRegIdx(regno_t vRegNum) const {
@@ -1358,7 +1326,7 @@ class CGFunc {
   }
 
   VirtualRegNode &GetVirtualRegNodeFromPseudoRegIdx(PregIdx idx) {
-    return vRegTable.at(GetVirtualRegNOFromPseudoRegIdx(idx));
+    return vReg.VRegTableElementGet(GetVirtualRegNOFromPseudoRegIdx(idx));
   }
 
   PrimType GetTypeFromPseudoRegIdx(PregIdx idx) {
@@ -1478,11 +1446,16 @@ class CGFunc {
   uint8 stackProtectInfo = 0;
   bool needStackProtect = false;
   uint32 priority = 0;
+
+  /* cross reference isel class pointer */
+  MPISel *isel = nullptr;
 };  /* class CGFunc */
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLayoutFrame, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgHandleFunction, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPatchLongBranch, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgFixCFLocOsft, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END

@@ -123,7 +123,7 @@ void CGSSAInfo::RenameBB(BB &bb) {
   }
   AddRenamedBB(bb.GetId());
   /* record version stack size */
-  size_t tempSize = vRegStk.empty() ? allSSAOperands.size() + cgFunc->GetFirstMapleIrVRegNO() + 1 :
+  size_t tempSize = vRegStk.empty() ? allSSAOperands.size() + kBaseVirtualRegNO + 1 :
       vRegStk.rbegin()->first + 1;
   std::vector<int32> oriStackSize(tempSize, -1);
   for (auto it : vRegStk) {

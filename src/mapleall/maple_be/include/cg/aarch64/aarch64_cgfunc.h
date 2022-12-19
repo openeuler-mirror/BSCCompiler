@@ -67,6 +67,8 @@ class AArch64CGFunc : public CGFunc {
     return refCount;
   }
 
+  void Link2ISel(MPISel *p) override;
+
   int32 GetBeginOffset() const {
     return beginOffset;
   }
@@ -75,13 +77,13 @@ class AArch64CGFunc : public CGFunc {
   MOperator PickMovInsn(const RegOperand &lhs, const RegOperand &rhs) const;
 
   regno_t NewVRflag() override {
-    ASSERT(maxRegCount > kRFLAG, "CG internal error.");
+    ASSERT(GetMaxRegNum() > kRFLAG, "CG internal error.");
     constexpr uint8 size = 4;
-    if (maxRegCount <= kRFLAG) {
-      maxRegCount += (kRFLAG + kVRegisterNumber);
-      vRegTable.resize(maxRegCount);
+    if (GetMaxRegNum() <= kRFLAG) {
+      IncMaxRegNum(kRFLAG + kVRegisterNumber);
+      vReg.VRegTableResize(GetMaxRegNum());
     }
-    new (&vRegTable[kRFLAG]) VirtualRegNode(kRegTyCc, size);
+    vReg.VRegTableValuesSet(kRFLAG, kRegTyCc, size);
     return kRFLAG;
   }
 
@@ -89,6 +91,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand &GetOrCreateResOperand(const BaseNode &parent, PrimType primType);
   MIRStructType *GetLmbcStructArgType(BaseNode &stmt, size_t argNo) const;
 
+  void HandleFuncCfg(CGCFG *cfg) override;
   void IntrinsifyGetAndAddInt(ListOperand &srcOpnds, PrimType pty);
   void IntrinsifyGetAndSetInt(ListOperand &srcOpnds, PrimType pty);
   void IntrinsifyCompareAndSwapInt(ListOperand &srcOpnds, PrimType pty);
@@ -100,6 +103,7 @@ class AArch64CGFunc : public CGFunc {
   void HandleRetCleanup(NaryStmtNode &retNode) override;
   void MergeReturn() override;
   RegOperand *ExtractNewMemBase(const MemOperand &memOpnd);
+  Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
   void SelectDassign(DassignNode &stmt, Operand &opnd0) override;
   void SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) override;
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
@@ -116,7 +120,7 @@ class AArch64CGFunc : public CGFunc {
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
   bool GetNumReturnRegsForIassignfpoff(MIRType *rType, PrimType &primType, uint32 &numRegs);
   void GenIassignfpoffStore(Operand &srcOpnd, int32 offset, uint32 byteSize, PrimType primType);
-  void SelectAggDassign(DassignNode &stmt) override;
+  void SelectAggDassign(const DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectIassignoff(IassignoffNode &stmt) override;
   void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) override;
@@ -126,6 +130,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd0) override;
   void SelectIgoto(Operand *opnd0) override;
+  void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
   void SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &origOpnd0,
                       Operand &origOpnd1, PrimType primType, bool signedCond);
@@ -135,6 +140,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectCall(CallNode &callNode) override;
   void SelectIcall(IcallNode &icallNode, Operand &srcOpnd) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) override;
+  Operand *SelectAArch64ffs(Operand &argOpnd, PrimType argType);
   Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name) override;
   Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrnNode, PrimType retType, const std::string &name) override;
   Operand *SelectCclz(IntrinsicopNode &intrnNode) override;
@@ -302,7 +308,6 @@ class AArch64CGFunc : public CGFunc {
   LabelOperand &GetOrCreateLabelOperand(LabelIdx labIdx) override;
   LabelOperand &GetOrCreateLabelOperand(BB &bb) override;
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
-
   RegOperand *SelectVectorAddLong(PrimType rType, Operand *o1, Operand *o2, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorAddWiden(Operand *o1, PrimType otyp1, Operand *o2, PrimType otyp2, bool isLow) override;
   RegOperand *SelectVectorAbs(PrimType rType, Operand *o1) override;
@@ -345,10 +350,15 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) override;
 
+  void SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, PrimType fromType, PrimType toType);
+  void SelectCvtFloat2Int(Operand &resOpnd, Operand &srcOpnd, PrimType itype, PrimType ftype);
+  void SelectCvtInt2Float(Operand &resOpnd, Operand &origOpnd0, PrimType toType, PrimType fromType);
   void SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, PrimType oType);
   void SelectVectorZip(PrimType rType, Operand *o1, Operand *o2);
   void SelectStackSave();
   void SelectStackRestore(const IntrinsiccallNode &intrnNode);
+  void SelectCVaStart(const IntrinsiccallNode &intrnNode);
+  void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 
   void PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand **o2, PrimType &oty2);
   RegOperand *AdjustOneElementVectorOperand(PrimType oType, RegOperand *opnd);
@@ -867,15 +877,11 @@ class AArch64CGFunc : public CGFunc {
   void GenLargeStructCopyForIreadoff(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo);
   void SelectParmListPreprocessLargeStruct(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo);
   void SelectParmListPreprocess(StmtNode &naryNode, size_t start, std::set<size_t> &specialArgs);
-  void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
   void SelectClearStackCallParmList(const StmtNode &naryNode, ListOperand &srcOpnds,
                                     std::vector<int64> &stackPostion);
   void SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOpnd, PrimType primType, bool isSigned, bool is64Bits);
   void SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, Operand *opnd0, PrimType fromType, PrimType toType);
-  void SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, PrimType fromType, PrimType toType);
-  void SelectCvtFloat2Int(Operand &resOpnd, Operand &srcOpnd, PrimType itype, PrimType ftype);
-  void SelectCvtInt2Float(Operand &resOpnd, Operand &origOpnd0, PrimType toType, PrimType fromType);
   Operand *SelectRelationOperator(RelationOperator operatorCode, const BinaryNode &node, Operand &opnd0,
                                   Operand &opnd1, const BaseNode &parent);
   void SelectRelationOperator(RelationOperator operatorCode, Operand &resOpnd, Operand &opnd0, Operand &opnd1,
@@ -883,10 +889,8 @@ class AArch64CGFunc : public CGFunc {
   MOperator SelectRelationMop(RelationOperator operatorCode, RelationOperatorOpndPattern opndPattern, bool is64Bits,
                               bool isBitmaskImmediate, bool isBitNumLessThan16) const;
   Operand *SelectMinOrMax(bool isMin, const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   Operand *SelectRoundLibCall(RoundType roundType, const TypeCvtNode &node, Operand &opnd0);
   Operand *SelectRoundOperator(RoundType roundType, const TypeCvtNode &node, Operand &opnd0, const BaseNode &parent);
-  Operand *SelectAArch64ffs(Operand &argOpnd, PrimType argType);
   Operand *SelectAArch64align(const IntrinsicopNode &intrnNode, bool isUp /* false for align down */);
   int64 GetOrCreatSpillRegLocation(regno_t vrNum) {
     AArch64SymbolAlloc *symLoc = static_cast<AArch64SymbolAlloc*>(GetMemlayout()->GetLocOfSpillRegister(vrNum));
@@ -898,7 +902,6 @@ class AArch64CGFunc : public CGFunc {
   bool GenerateCompareWithZeroInstruction(Opcode jmpOp, Opcode cmpOp, bool is64Bits, PrimType primType,
                                           LabelOperand &targetOpnd, Operand &opnd0);
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);
-  void SelectCVaStart(const IntrinsiccallNode &intrnNode);
   void SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNode);
   void SelectCAtomicStore(const IntrinsiccallNode &intrinsiccall);
   void SelectCAtomicLoad(const IntrinsiccallNode &intrinsiccall);

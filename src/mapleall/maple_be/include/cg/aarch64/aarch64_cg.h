@@ -31,6 +31,9 @@
 #include "aarch64_tailcall.h"
 #include "aarch64_cfgo.h"
 #include "aarch64_rematerialize.h"
+#include "aarch64_pgo_gen.h"
+#include "aarch64_MPISel.h"
+#include "aarch64_standardize.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -141,6 +144,15 @@ class AArch64CG : public CG {
     return memPool.New<AArch64CGFunc>(mod, *this, mirFunc, bec, memPool, stackMp, mallocator, funcId);
   }
 
+  MemLayout *CreateMemLayout(MemPool &mp, BECommon &b, MIRFunction &f,
+                             MapleAllocator &mallocator) const override {
+    return mp.New<AArch64MemLayout>(b, f, mallocator);
+  }
+
+  RegisterInfo *CreateRegisterInfo(MemPool &mp, MapleAllocator &mallocator) const override {
+    return mp.New<AArch64RegInfo>(mallocator);
+  }
+
   void EnrollTargetPhases(MaplePhaseManager *pm) const override;
 
   const std::unordered_map<std::string, std::vector<std::string>> &GetCyclePatternMap() const {
@@ -203,6 +215,12 @@ class AArch64CG : public CG {
   Rematerializer *CreateRematerializer(MemPool &mp) const override {
     return mp.New<AArch64Rematerializer>();
   }
+  MPISel *CreateMPIsel(MemPool &mp, AbstractIRBuilder &aIRBuilder, CGFunc &f) const override {
+    return mp.New<AArch64MPIsel>(mp, aIRBuilder, f);
+  }
+  Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64Standardize>(f);
+  }
   /* Return the copy operand id of reg1 if it is an insn who just do copy from reg1 to reg2.
  * i. mov reg2, reg1
  * ii. add/sub reg2, reg1, 0/zero register
@@ -215,6 +233,9 @@ class AArch64CG : public CG {
   const InsnDesc &GetTargetMd(MOperator mOp) const final {
     return kMd[mOp];
   }
+  CGProfGen *CreateCGProfGen(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64ProfGen>(f, mp);
+  };
 
   static const InsnDesc kMd[kMopLast];
   enum : uint8 {

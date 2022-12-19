@@ -47,7 +47,34 @@ using namespace maple;
 #define JAVALANG (mirModule.IsJavaModule())
 #define TARGARM32 0
 
-enum ExtFuncT : uint8 { kFmodDouble, kFmodFloat };
+enum ExtFuncT : uint8 {
+  kFmodDouble,
+  kFmodFloat,
+  kfloatsitf,
+  kfloatunsitf,
+  kfloatditf,
+  kfloatunditf,
+  kextendsftf2,
+  lextenddftf2,
+  kfixtfsi,
+  kfixunstfsi,
+  kfixtfdi,
+  kfixunstfdi,
+  ktrunctfsf2,
+  ktrunctfdf2,
+  kaddtf3,
+  ksubtf3,
+  kmultf3,
+  kdivtf3,
+  knegtf3,
+  kcmptf2,
+  kletf2,
+  kgetf2,
+  klttf2,
+  kgttf2,
+  knetf2,
+  keqtf2
+};
 
 struct ExtFuncDescrT {
   ExtFuncT fid;
@@ -75,6 +102,33 @@ std::pair<MIRIntrinsicID, const std::string> cgBuiltins[] = {
 ExtFuncDescrT extFnDescrs[] = {
   { kFmodDouble, "fmod", PTY_f64, { PTY_f64, PTY_f64, kPtyInvalid } },
   { kFmodFloat, "fmodf", PTY_f32, { PTY_f32, PTY_f32, kPtyInvalid } },
+
+  { kfloatsitf, "__floatsitf", PTY_f128, { PTY_i32, kPtyInvalid } },
+  { kfloatunsitf, "__floatunsitf", PTY_f128, { PTY_u32, kPtyInvalid } },
+  { kfloatditf, "__floatditf", PTY_f128, { PTY_i64, kPtyInvalid } },
+  { kfloatunditf, "__floatunditf", PTY_f128, { PTY_i64, kPtyInvalid } },
+  { kextendsftf2, "__extendsftf2", PTY_f128, { PTY_f32, kPtyInvalid } },
+  { lextenddftf2, "__extenddftf2", PTY_f128, { PTY_f64, kPtyInvalid } },
+
+  { kfixtfsi, "__fixtfsi", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { kfixunstfsi, "__fixunstfsi", PTY_u32, { PTY_f128, kPtyInvalid } },
+  { kfixtfdi, "__fixtfdi", PTY_i64, { PTY_f128, kPtyInvalid } },
+  { kfixunstfdi, "__fixunstfdi", PTY_u64, { PTY_f128, kPtyInvalid } },
+  { ktrunctfsf2, "__trunctfsf2", PTY_f32, { PTY_f128, kPtyInvalid } },
+  { ktrunctfdf2, "__trunctfdf2", PTY_f64, { PTY_f128, kPtyInvalid } },
+
+  { kaddtf3, "__addtf3", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { ksubtf3, "__subtf3", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { kmultf3, "__multf3", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { kdivtf3, "__divtf3", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { knegtf3, "__negtf2", PTY_f128, { PTY_f128, kPtyInvalid } },
+  { kcmptf2, "__cmptf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { kletf2, "__letf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { kgetf2, "__getf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { klttf2, "__lttf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { kgttf2, "__gttf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { knetf2, "__netf2", PTY_i32, { PTY_f128, kPtyInvalid } },
+  { keqtf2, "__eqtf2", PTY_i32, { PTY_f128, kPtyInvalid } },
 };
 
 std::vector<std::pair<ExtFuncT, PUIdx>> extFuncs;
@@ -785,7 +839,7 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
 BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
     BaseNode *baseAddr) {
   auto bitSize = fieldType->GetFieldSize();
-  auto primType = fieldType->GetPrimType();
+  auto primType = GetRegPrimType(fieldType->GetPrimType());
   auto byteOffset = byteBitOffsets.first;
   auto bitOffset = byteBitOffsets.second;
   auto *builder = mirModule.GetMIRBuilder();
@@ -4002,6 +4056,7 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const
     case INTRN_C_clz64:
     case INTRN_C_ctz32:
     case INTRN_C_ctz64:
+    case INTRN_C_fabsl:
     case INTRN_C_popcount32:
     case INTRN_C_popcount64:
     case INTRN_C_parity32:

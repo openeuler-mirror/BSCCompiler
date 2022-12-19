@@ -73,7 +73,7 @@ void X64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
 void X64CGFunc::SelectAsm(AsmNode &node) {
   CHECK_FATAL(false, "NIY");
 }
-void X64CGFunc::SelectAggDassign(DassignNode &stmt) {
+void X64CGFunc::SelectAggDassign(const DassignNode &stmt) {
   CHECK_FATAL(false, "NIY");
 }
 void X64CGFunc::SelectIassign(IassignNode &stmt) {
@@ -200,6 +200,9 @@ Operand *X64CGFunc::SelectCReturnAddress(IntrinsicopNode &intrinopNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
+void X64CGFunc::SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) {
+  CHECK_FATAL(false, "NIY");
+}
 void X64CGFunc::SelectMembar(StmtNode &membar) {
   CHECK_FATAL(false, "NIY");
 }
@@ -258,6 +261,10 @@ Operand *X64CGFunc::SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &
   return nullptr;
 }
 Operand *X64CGFunc::SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+Operand *X64CGFunc::SelectFloat128Const(MIRFloat128Const &ldoubleConst) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }

@@ -616,6 +616,10 @@ class CGOptions {
     return doCGSSA && !flavorLmbc;
   }
 
+  static void EnableIPARA() {
+    doIPARA = true;
+  }
+
   static void DisableIPARA() {
     doIPARA = false;
   }
@@ -634,6 +638,22 @@ class CGOptions {
 
   static bool DoCFGO() {
     return doCFGO;
+  }
+
+  static void EnableNewCg() {
+    useNewCg = true;
+  }
+
+  static void DisableNewCg() {
+    useNewCg = false;
+  }
+
+  static bool UseNewCg() {
+    return useNewCg;
+  }
+
+  static bool DoFixLongBranch() {
+    return CGOptions::GetInstance().GetOptimizeLevel() == kLevel0;
   }
 
   static void EnableRegSavesOpt() {
@@ -659,6 +679,7 @@ class CGOptions {
   static bool UseSsaPreSave() {
     return useSsaPreSave;
   }
+
   static void EnableSsuPreRestore() {
     useSsuPreRestore = true;
   }
@@ -1298,6 +1319,14 @@ class CGOptions {
     return liteProfile;
   }
 
+  static void SetFunctionPriority(std::string funcPriorityfile) {
+    functionProrityFile = funcPriorityfile;
+  }
+
+  static std::string GetFunctionPriority() {
+    return functionProrityFile;
+  }
+
   static void SetLitePgoOutputFunction(std::string iofile) {
     litePgoOutputFunction = iofile;
   }
@@ -1363,6 +1392,7 @@ class CGOptions {
   static bool doRegSavesOpt;
   static bool useSsaPreSave;
   static bool useSsuPreRestore;
+  static bool useNewCg;
   static bool dumpOptimizeCommonLog;
   static bool checkArrayStore;
   static bool exclusiveEH;
@@ -1425,6 +1455,7 @@ class CGOptions {
   static std::string litePgoOutputFunction;
   static std::string instrumentationWhiteList;
   static std::string liteProfile;
+  static std::string functionProrityFile;
 };
 }  /* namespace maplebe */
 

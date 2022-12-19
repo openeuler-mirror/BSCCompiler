@@ -964,6 +964,29 @@ class RemoveMovingtoSameRegPattern : public CGPeepPattern {
 };
 
 /*
+ *  mov dest1, imm
+ *  mul dest2, reg1, dest1
+ *  ===> if imm is 2^n
+ *  mov        dest1, imm
+ *  lsl dest2, reg1, n
+ */
+class MulImmToShiftPattern : public CGPeepPattern {
+ public:
+  MulImmToShiftPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~MulImmToShiftPattern() override = default;
+  std::string GetPatternName() override {
+    return "MulImmToShiftPattern";
+  }
+  bool CheckCondition(Insn &insn) override;
+  void Run(BB &bb, Insn &insn) override;
+ private:
+  Insn *movInsn = nullptr;
+  uint32 shiftVal = 0;
+  MOperator newMop = MOP_undef;
+};
+
+/*
  * Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp, when they are
  * back to back and the [MEM] they access is conjointed.
  */

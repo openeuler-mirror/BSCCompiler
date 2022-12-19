@@ -51,7 +51,6 @@ set(inc_dirs
     ${MAPLEALL_ROOT}/maple_ipa/include/old
     ${MAPLEALL_ROOT}/maple_phase/include
     ${THIRD_PARTY_ROOT}/bounds_checking_function/include
-    ${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat
 )
 
 set(src_maple "")
@@ -107,6 +106,8 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/aarch64/aarch64_pgo_gen.cpp
         src/cg/aarch64/aarch64_isolate_fastpath.cpp
         src/cg/aarch64/aarch64_rematerialize.cpp
+        src/cg/aarch64/aarch64_MPISel.cpp
+        src/cg/aarch64/aarch64_standardize.cpp
         src/cg/cfi_generator.cpp
         src/cg/cfgo.cpp
         src/cg/local_opt.cpp
@@ -333,13 +334,21 @@ set_target_properties(libmplbe PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
 )
 
+#libmpl
+add_library(libmpl STATIC ${src_maple})
+set_target_properties(libmpl PROPERTIES
+    COMPILE_FLAGS ""
+    INCLUDE_DIRECTORIES "${inc_dirs}"
+    LINK_LIBRARIES "${src_maple}"
+    ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
+)
+
 # libcglowerer
 add_library(libcglowerer STATIC ${src_libcglowerer})
 set_target_properties(libcglowerer PROPERTIES
     INCLUDE_DIRECTORIES "${inc_dirs}"
     ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
 )
-
 
 #maple
 add_executable(maple "${src_maple}")
