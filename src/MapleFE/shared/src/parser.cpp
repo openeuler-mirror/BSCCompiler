@@ -367,9 +367,11 @@ unsigned Parser::LexOneLine() {
     return mActiveTokens.GetNum() - mCurToken;
 
   while (!token_num) {
-    if (mLexer->GetTrace() && !mLexer->EndOfLine() && line_begin) {
-      std::cout << "\n" << mLexer->GetLine() + mLexer->GetCuridx() << std::endl;
+    if (mLexer->GetTrace() && !mLexer->EndOfLine() && !mLexer->EndOfFile() && line_begin) {
+      std::cout << "line: " << mLexer->GetLineNum() << " : "
+        << mLexer->GetLine() + mLexer->GetCuridx() << std::endl;
     }
+
     // read until end of line
     while (!mLexer->EndOfLine() && !mLexer->EndOfFile()) {
       t = mLexer->LexToken();
@@ -400,8 +402,6 @@ unsigned Parser::LexOneLine() {
           if (line_begin) {
             t->mLineBegin = true;
             line_begin = false;
-            if (mLexer->GetTrace())
-              DUMP0("Set as Line First.");
           }
 
           mActiveTokens.PushBack(t);
@@ -426,7 +426,7 @@ unsigned Parser::LexOneLine() {
   if (token_num) {
     last_token->mLineEnd = true;
     if (mLexer->GetTrace())
-      DUMP0("Set as Line End.");
+      DUMP0("Set as Line End.\n");
   }
 
   return token_num;
