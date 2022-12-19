@@ -2641,19 +2641,12 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
         }
       }
     }
-    /* check insn that changes the data flow */
-    regno_t stackBaseRegNO = cgFunc->UseFP() ? R29 : RSP;
     /* ldr x8, [x21, #8]
      * call foo()
      * ldr x9, [x21, #16]
      * although x21 is a calleeSave register, there is no guarantee data in memory [x21] is not changed
      */
-    if (curInsn->IsCall() && (!AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(destRegNO)) ||
-        memBaseRegNO != stackBaseRegNO)) {
-      return prevContiInsns;
-    }
-    /* store opt should not cross call due to stack args */
-    if (curInsn->IsCall() && isStr) {
+    if (curInsn->IsCall()) {
       return prevContiInsns;
     }
     if (curInsn->GetMachineOpcode() == MOP_asm) {
