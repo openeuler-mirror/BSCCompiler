@@ -31,10 +31,11 @@ class X64Standardize : public Standardize {
   void StdzMov(Insn &insn) override;
   void StdzStrLdr(Insn &insn) override;
   void StdzBasicOp(Insn &insn) override;
-  void StdzUnaryOp(Insn &insn, CGFunc &cgFunc) override;
-  void StdzCvtOp(Insn &insn, CGFunc &cgFunc) override;
-  void StdzShiftOp(Insn &insn, CGFunc &cgFunc) override;
-  void StdzFloatingNeg(Insn &insn, CGFunc &cgFunc);
+  void StdzUnaryOp(Insn &insn) override;
+  void StdzCvtOp(Insn &insn) override;
+  void StdzShiftOp(Insn &insn) override;
+  void StdzFloatingNeg(Insn &insn);
+  void StdzCommentOp(Insn &insn) override;
 };
 }
 #endif  /* MAPLEBE_INCLUDEX_64_STANDARDIZE_H */

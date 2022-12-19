@@ -48,6 +48,7 @@ extern maplecl::Option<bool> lsraOptcallee;
 extern maplecl::Option<bool> calleeregsPlacement;
 extern maplecl::Option<bool> ssapreSave;
 extern maplecl::Option<bool> ssupreRestore;
+extern maplecl::Option<bool> newCg;
 extern maplecl::Option<bool> prepeep;
 extern maplecl::Option<bool> peep;
 extern maplecl::Option<bool> preschedule;

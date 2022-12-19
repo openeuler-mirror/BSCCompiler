@@ -51,6 +51,7 @@ enum MopProperty : maple::uint8 {
   kInsnInlineAsm,
   kInsnSpecialIntrisic,
   kInsnIsNop,
+  kInsnIsComment,
 };
 using regno_t = uint32_t;
 #define ISABSTRACT 1ULL
@@ -83,6 +84,7 @@ using regno_t = uint32_t;
 #define INLINEASM (1ULL << kInsnInlineAsm)
 #define SPINTRINSIC (1ULL << kInsnSpecialIntrisic)
 #define ISNOP (1ULL << kInsnIsNop)
+#define ISCOMMENT (1ULL << kInsnIsComment)
 constexpr maplebe::regno_t kInvalidRegNO = 0;
 
 /*
@@ -253,6 +255,9 @@ struct InsnDesc {
   }
   bool IsSpecialIntrinsic() const {
     return (properties & SPINTRINSIC) != 0;
+  }
+  bool IsComment() const {
+    return properties & ISCOMMENT;
   }
   MOperator GetOpc() const {
     return opc;

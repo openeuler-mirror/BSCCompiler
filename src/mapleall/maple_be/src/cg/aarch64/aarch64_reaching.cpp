@@ -154,6 +154,9 @@ void AArch64ReachingDefinition::AddRetPseudoInsn(BB &bb) {
   if (regNO == kInvalidRegNO) {
     return;
   }
+  if (bb.GetKind() == BB::kBBGoto) {
+    return;  /* a goto block should not have unreachable instr */
+  }
 
   if (regNO == R0) {
     RegOperand &regOpnd =

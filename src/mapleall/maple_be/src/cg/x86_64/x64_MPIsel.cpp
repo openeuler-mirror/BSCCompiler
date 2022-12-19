@@ -21,8 +21,20 @@
 #include "isel.h"
 
 namespace maplebe {
+
+void X64MPIsel::HandleFuncExit() const {
+  BlockNode *block = cgFunc->GetFunction().GetBody();
+  ASSERT(block != nullptr, "get func body block failed in CGFunc::GenerateInstruction");
+  cgFunc->GetCurBB()->SetLastStmt(*block->GetLast());
+  /* Set lastbb's frequency */
+  cgFunc->SetLastBB(*cgFunc->GetCurBB());
+  /* the last BB is return BB */
+  cgFunc->GetLastBB()->SetKind(BB::kBBReturn);
+  cgFunc->PushBackExitBBsVec(*cgFunc->GetLastBB());
+}
+
 /* Field-ID 0 is assigned to the top level structure. (Field-ID also defaults to 0 if it is not a structure.) */
-MemOperand &X64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId) const {
+MemOperand &X64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId, RegOperand *baseReg) {
   PrimType symType;
   int32 fieldOffset = 0;
   if (fieldId == 0) {
@@ -65,7 +77,8 @@ MemOperand &X64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uin
   return *result;
 }
 
-void X64MPIsel::SelectReturn(NaryStmtNode &retNode, Operand &opnd) {
+void X64MPIsel::SelectReturn(NaryStmtNode &retNode) {
+  Operand &opnd = *HandleExpr(retNode, *retNode.Opnd(0));
   MIRType *retType = cgFunc->GetFunction().GetReturnType();
   X64CallConvImpl retLocator(cgFunc->GetBecommon());
   CCLocInfo retMech;
@@ -125,7 +138,7 @@ void X64MPIsel::SelectPseduoForReturn(std::vector<RegOperand*> &retRegs) {
   }
 }
 
-void X64MPIsel::SelectReturn() {
+void X64MPIsel::SelectReturn(bool noOpnd [[maybe_unused]]) {
   /* jump to epilogue */
   MOperator mOp = x64::MOP_jmpq_l;
   LabelNode *endLabel = cgFunc->GetEndLabel();
@@ -137,7 +150,7 @@ void X64MPIsel::SelectReturn() {
   cgFunc->GetExitBBsVec().emplace_back(cgFunc->GetCurBB());
 }
 
-void X64MPIsel::CreateCallStructParamPassByStack(MemOperand &memOpnd, int32 symSize, int32 baseOffset) {
+void X64MPIsel::CreateCallStructParamPassByStack(const MemOperand &memOpnd, uint32 symSize, int32 baseOffset) {
   int32 copyTime = RoundUp(symSize, GetPointerSize()) / GetPointerSize();
   for (int32 i = 0; i < copyTime; ++i) {
     ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*memOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));
@@ -150,7 +163,7 @@ void X64MPIsel::CreateCallStructParamPassByStack(MemOperand &memOpnd, int32 symS
   }
 }
 
-void X64MPIsel::CreateCallStructParamPassByReg(MemOperand &memOpnd, regno_t regNo, uint32 parmNum) {
+void X64MPIsel::CreateCallStructParamPassByReg(const MemOperand &memOpnd, regno_t regNo, uint32 parmNum) {
   CHECK_FATAL(parmNum < kMaxStructParamByReg, "Exceeded maximum allowed fp parameter registers for struct passing");
   RegOperand &parmOpnd = cgFunc->GetOpndBuilder()->CreatePReg(regNo, k64BitSize, kRegTyInt);
   ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*memOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));
@@ -196,13 +209,13 @@ void X64MPIsel::SelectParmListForAggregate(BaseNode &argExpr, X64CallConvImpl &p
     CHECK_FATAL(ploc.fpSize == 0, "Unknown call parameter state");
     CreateCallStructParamPassByReg(memOpnd, ploc.reg0, 0);
     if (ploc.reg1 != kRinvalid) {
-      CreateCallStructParamPassByReg(memOpnd, ploc.reg1, 1);
+      CreateCallStructParamPassByReg(memOpnd, ploc.reg1, kSecondReg);
     }
     if (ploc.reg2 != kRinvalid) {
-      CreateCallStructParamPassByReg(memOpnd, ploc.reg2, 2);
+      CreateCallStructParamPassByReg(memOpnd, ploc.reg2, kThirdReg);
     }
     if (ploc.reg3 != kRinvalid) {
-      CreateCallStructParamPassByReg(memOpnd, ploc.reg3, 3);
+      CreateCallStructParamPassByReg(memOpnd, ploc.reg3, kFourthReg);
     }
   }
 }
@@ -452,7 +465,7 @@ void X64MPIsel::SelectLibCallNArg(const std::string &funcName, std::vector<Opera
   return;
 }
 
-Operand *X64MPIsel::SelectFloatingConst(MIRConst &floatingConst, PrimType primType) const {
+Operand *X64MPIsel::SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) const {
   CHECK_FATAL(primType == PTY_f64 || primType == PTY_f32, "wrong const");
   uint32 labelIdxTmp = cgFunc->GetLabelIdx();
   Operand *result = nullptr;
@@ -480,7 +493,8 @@ RegOperand *X64MPIsel::PrepareMemcpyParm(uint64 copySize) {
   return &regResult;
 }
 
-void X64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRhs) {
+void X64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRhs, const DassignNode &stmt) {
+  (void)stmt;
   /* rhs is Func Return, it must be from Regread */
   if (opndRhs.IsRegister()) {
     SelectIntAggCopyReturn(symbolMem, lhsInfo.size);
@@ -621,6 +635,7 @@ void X64MPIsel::SelectIgoto(Operand &opnd0) {
   Insn &jmpInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, X64CG::kMd[mOp]);
   jmpInsn.AddOpndChain(opnd0);
   cgFunc->GetCurBB()->AppendInsn(jmpInsn);
+  cgFunc->SetCurBBKind(BB::kBBGoto);
   return;
 }
 
@@ -801,6 +816,7 @@ void X64MPIsel::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) 
   Insn &jmpInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, X64CG::kMd[mOp]);
   jmpInsn.AddOpndChain(dstMemOpnd);
   cgFunc->GetCurBB()->AppendInsn(jmpInsn);
+  cgFunc->SetCurBBKind(BB::kBBIgoto);
 }
 
 Operand *X64MPIsel::SelectAddrof(AddrofNode &expr, const BaseNode &parent) {
@@ -912,7 +928,8 @@ static X64MOP_t PickJmpInsn(Opcode brOp, Opcode cmpOp, bool isFloat, bool isSign
  * handle brfalse/brtrue op, opnd0 can be a compare node or non-compare node
  * such as a dread for example
  */
-void X64MPIsel::SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode, Operand &opnd0) {
+void X64MPIsel::SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode) {
+  Operand &opnd0 = *HandleExpr(stmt, condNode);
   Opcode opcode = stmt.GetOpCode();
   X64MOP_t jmpOperator = x64::MOP_begin;
   if (opnd0.IsImmediate()) {
@@ -1335,4 +1352,139 @@ void X64MPIsel::SelectAsm(AsmNode &node) {
   cgFunc->SetHasAsm();
   CHECK_FATAL(false, "NIY");
 }
+
+Operand *X64MPIsel::SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &parent) {
+  PrimType primType = node.GetPrimType();
+  if (IsPrimitiveVector(primType)) {
+    CHECK_FATAL(false, "NIY");
+  } else if (IsPrimitiveFloat(primType)) {
+    CHECK_FATAL(false, "NIY");
+  } else if (IsUnsignedInteger(primType)) {
+    return &opnd0;
+  } else {
+    /*
+     * abs(x) = (x XOR y) - y
+     * y = x >>> (bitSize - 1)
+     */
+    uint32 bitSize = GetPrimTypeBitSize(primType);
+    CHECK_FATAL(bitSize == k64BitSize || bitSize == k32BitSize, "only support 32-bits or 64-bits");
+    RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, primType);
+    ImmOperand &immOpnd = cgFunc->GetOpndBuilder()->CreateImm(bitSize, bitSize - 1);
+    RegOperand &regOpndy = cgFunc->GetOpndBuilder()->CreateVReg(bitSize,
+        cgFunc->GetRegTyFromPrimTy(primType));
+    SelectShift(regOpndy, regOpnd0, immOpnd, OP_ashr, primType, primType);
+    RegOperand &tmpOpnd = cgFunc->GetOpndBuilder()->CreateVReg(bitSize,
+        cgFunc->GetRegTyFromPrimTy(primType));
+    SelectBxor(tmpOpnd, regOpnd0, regOpndy, primType);
+    RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(bitSize,
+        cgFunc->GetRegTyFromPrimTy(primType));
+    SelectSub(resOpnd, tmpOpnd, regOpndy, primType);
+    return &resOpnd;
+  }
+}
+
+Operand *X64MPIsel::SelectCsin(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCsinh(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCasin(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCcos(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCcosh(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCacos(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCatan(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectClog(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectClog10(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCsinf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCsinhf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCasinf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCcosf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCcoshf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCacosf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCatanf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCexpf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectClogf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectClog10f(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCffs(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCmemcmp(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCstrlen(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCstrcmp(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCstrncmp(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCstrchr(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
+Operand *X64MPIsel::SelectCstrrchr(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
+  CHECK_FATAL(false, "NIY");
+}
+
 }

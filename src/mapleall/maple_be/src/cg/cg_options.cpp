@@ -186,6 +186,12 @@ maplecl::Option<bool> ssupreRestore({"--ssupre-restore"},
                                     {cgCategory},
                                     maplecl::DisableWith("--no-ssupre-restore"));
 
+maplecl::Option<bool> newCg({"--newcg"},
+                            "  --newcg		  \tUse new CG infrastructure\n"
+                            "  --no-newcg\n",
+                            {cgCategory},
+                            maplecl::DisableWith("--no-newcg"));
+
 maplecl::Option<bool> prepeep({"--prepeep"},
                               "  --prepeep                   \tPerform peephole optimization before RA\n"
                               "  --no-prepeep\n",

@@ -25,6 +25,7 @@ const std::string BB::bbNames[BB::kBBLast] = {
     "BB_goto",
     "BB_igoto",
     "BB_ret",
+    "BB_noret",
     "BB_intrinsic",
     "BB_rangegoto",
     "BB_throw"
@@ -178,6 +179,33 @@ void BB::InsertAtBeginning(BB &bb) {
     firstInsn = bb.firstInsn;
   }
   bb.firstInsn = bb.lastInsn = nullptr;
+}
+
+void BB::InsertBeforeInsn(BB &fromBB, Insn &beforeInsn) {
+  if (fromBB.firstInsn == nullptr) { /* nothing to add */
+    return;
+  }
+
+  BB *toBB = beforeInsn.GetBB();
+  FOR_BB_INSNS(insn, &fromBB) {
+    insn->SetBB(toBB);
+  }
+
+  if (toBB->GetFirstInsn() == nullptr) {
+    toBB->SetFirstInsn(fromBB.GetFirstInsn());
+    toBB->SetLastInsn(fromBB.GetLastInsn());
+  } else {
+    if (beforeInsn.GetPrev()) {
+      beforeInsn.GetPrev()->SetNext(fromBB.GetFirstInsn());
+    } else {
+      toBB->SetFirstInsn(fromBB.GetFirstInsn());
+    }
+    fromBB.GetFirstInsn()->SetPrev(beforeInsn.GetPrev());
+    beforeInsn.SetPrev(fromBB.GetLastInsn());
+    fromBB.GetLastInsn()->SetNext(&beforeInsn);
+  }
+  fromBB.SetFirstInsn(nullptr);
+  fromBB.SetLastInsn(nullptr);
 }
 
 /* append all insns from bb into this bb */
@@ -510,14 +538,13 @@ void Bfs::ComputeBlockOrder() {
   FOR_ALL_BB(bb, cgfunc) {
     bb->SetInternalFlag1(0);
     bb->SetInternalFlag2(1);
-    if (cgfunc->GetCleanupLabel() != nullptr && bb->GetFirstStmt() == cgfunc->GetCleanupLabel()) {
+    if (bb->IsCleanup()) {
+      ASSERT(cleanupBB == nullptr, "one cleanupBB in the function only");
       cleanupBB = bb;
     }
   }
-  for (BB *bb = cleanupBB; bb != nullptr; bb = bb->GetNext()) {
-    if (bb->IsCleanup()) {
-      bb->SetInternalFlag1(1);
-    }
+  if (cleanupBB != nullptr) {
+    cleanupBB->SetInternalFlag1(1);
   }
 
   bool changed;
@@ -551,8 +578,8 @@ void Bfs::ComputeBlockOrder() {
     sortedCnt = sortedBBs.size();
   } while (changed);
 
-  for (BB *bb = cleanupBB; bb != nullptr; bb = bb->GetNext()) {
-    sortedBBs.push_back(bb);
+  if (cleanupBB != nullptr) {
+    sortedBBs.push_back(cleanupBB);
   }
 }
 }  /* namespace maplebe */

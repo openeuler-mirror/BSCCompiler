@@ -650,6 +650,22 @@ class CGOptions {
     return doCFGO;
   }
 
+  static void EnableNewCg() {
+    useNewCg = true;
+  }
+
+  static void DisableNewCg() {
+    useNewCg = false;
+  }
+
+  static bool UseNewCg() {
+    return useNewCg;
+  }
+
+  static bool DoFixLongBranch() {
+    return CGOptions::GetInstance().GetOptimizeLevel() == kLevel0;
+  }
+
   static void EnableRegSavesOpt() {
     doRegSavesOpt = true;
   }
@@ -673,6 +689,7 @@ class CGOptions {
   static bool UseSsaPreSave() {
     return useSsaPreSave;
   }
+
   static void EnableSsuPreRestore() {
     useSsuPreRestore = true;
   }
@@ -1421,6 +1438,7 @@ class CGOptions {
   static bool doRegSavesOpt;
   static bool useSsaPreSave;
   static bool useSsuPreRestore;
+  static bool useNewCg;
   static bool dumpOptimizeCommonLog;
   static bool checkArrayStore;
   static bool exclusiveEH;

@@ -51,6 +51,20 @@ CondOperand AArch64CGFunc::ccOperands[kCcLast] = {
     CondOperand(CC_AL),
 };
 
+Operand *AArch64CGFunc::HandleExpr(const BaseNode &parent, BaseNode &expr) {
+#ifdef NEWCG
+  Operand *opnd;
+  if (CGOptions::UseNewCg()) {
+    MPISel *isel = GetISel();
+    opnd = isel->HandleExpr(parent, expr);
+  } else {
+    opnd = CGFunc::HandleExpr(parent, expr);
+  }
+  return opnd;
+#endif
+  return CGFunc::HandleExpr(parent, expr);
+}
+
 namespace {
 constexpr int32 kSignedDimension = 2;        /* signed and unsigned */
 constexpr int32 kIntByteSizeDimension = 4;   /* 1 byte, 2 byte, 4 bytes, 8 bytes */
@@ -1700,7 +1714,7 @@ bool AArch64CGFunc::IslhsSizeAligned(uint64 lhsSizeCovered, uint32 newAlignUsed,
   return false;
 }
 
-void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
+void AArch64CGFunc::SelectAggDassign(const DassignNode &stmt) {
   MIRSymbol *lhsSymbol = GetFunction().GetLocalOrGlobalSymbol(stmt.GetStIdx());
   uint32 lhsOffset = 0;
   MIRType *lhsType = lhsSymbol->GetType();
@@ -7326,23 +7340,23 @@ RegOperand *AArch64CGFunc::CreateVirtualRegisterOperand(regno_t vRegNO, uint32 s
 }
 
 RegOperand &AArch64CGFunc::CreateVirtualRegisterOperand(regno_t vRegNO) {
-  ASSERT((vRegOperandTable.find(vRegNO) == vRegOperandTable.end()), "already exist");
-  ASSERT(vRegNO < vRegTable.size(), "index out of range");
-  uint8 bitSize = static_cast<uint8>((static_cast<uint32>(vRegTable[vRegNO].GetSize())) * kBitsPerByte);
-  RegOperand *res = CreateVirtualRegisterOperand(vRegNO, bitSize, vRegTable.at(vRegNO).GetType());
-  vRegOperandTable[vRegNO] = res;
+  ASSERT((vReg.vRegOperandTable.find(vRegNO) == vReg.vRegOperandTable.end()), "already exist");
+  ASSERT(vRegNO < vReg.VRegTableSize(), "index out of range");
+  uint8 bitSize = static_cast<uint8>((static_cast<uint32>(vReg.VRegTableGetSize(vRegNO))) * kBitsPerByte);
+  RegOperand *res = CreateVirtualRegisterOperand(vRegNO, bitSize, vReg.VRegTableGetType(vRegNO));
+  vReg.vRegOperandTable[vRegNO] = res;
   return *res;
 }
 
 RegOperand &AArch64CGFunc::GetOrCreateVirtualRegisterOperand(regno_t vRegNO) {
-  auto it = vRegOperandTable.find(vRegNO);
-  return (it != vRegOperandTable.end()) ? *(it->second) : CreateVirtualRegisterOperand(vRegNO);
+  auto it = vReg.vRegOperandTable.find(vRegNO);
+  return (it != vReg.vRegOperandTable.end()) ? *(it->second) : CreateVirtualRegisterOperand(vRegNO);
 }
 
 RegOperand &AArch64CGFunc::GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) {
   regno_t regNO = regOpnd.GetRegisterNumber();
-  auto it = vRegOperandTable.find(regNO);
-  if (it != vRegOperandTable.end()) {
+  auto it = vReg.vRegOperandTable.find(regNO);
+  if (it != vReg.vRegOperandTable.end()) {
     it->second->SetSize(regOpnd.GetSize());
     it->second->SetRegisterNumber(regNO);
     it->second->SetRegisterType(regOpnd.GetRegisterType());
@@ -7351,14 +7365,14 @@ RegOperand &AArch64CGFunc::GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd
   } else {
     auto *newRegOpnd = static_cast<RegOperand*>(regOpnd.Clone(*memPool));
     regno_t newRegNO = newRegOpnd->GetRegisterNumber();
-    if (newRegNO >= maxRegCount) {
-      maxRegCount = newRegNO + kRegIncrStepLen;
-      vRegTable.resize(maxRegCount);
+    if (newRegNO >= GetMaxRegNum()) {
+      SetMaxRegNum(newRegNO + kRegIncrStepLen);
+      vReg.VRegTableResize(GetMaxRegNum());
     }
-    vRegOperandTable[newRegNO] = newRegOpnd;
+    vReg.vRegOperandTable[newRegNO] = newRegOpnd;
     VirtualRegNode *vregNode = memPool->New<VirtualRegNode>(newRegOpnd->GetRegisterType(), newRegOpnd->GetSize());
-    vRegTable[newRegNO] = *vregNode;
-    vRegCount = maxRegCount;
+    vReg.VRegTableElementSet(newRegNO, vregNode);
+    vReg.SetCount(GetMaxRegNum());
     return *newRegOpnd;
   }
 }
@@ -9166,7 +9180,6 @@ void AArch64CGFunc::SelectReturn(Operand *opnd0) {
       CHECK_FATAL(false, "nyi");
     }
   }
-
   LabelOperand &targetOpnd = GetOrCreateLabelOperand(GetReturnLabel()->GetLabelIdx());
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd));
 }
@@ -10030,7 +10043,7 @@ void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand
 
 MemOperand *AArch64CGFunc::AdjustMemOperandIfOffsetOutOfRange(
     MemOperand *memOpnd, regno_t vrNum, bool isDest, Insn &insn, AArch64reg regNum, bool &isOutOfRange) {
-  if (vrNum >= vRegTable.size()) {
+  if (vrNum >= vReg.VRegTableSize()) {
     CHECK_FATAL(false, "index out of range in AArch64CGFunc::AdjustMemOperandIfOffsetOutOfRange");
   }
   uint32 dataSize = GetOrCreateVirtualRegisterOperand(vrNum).GetSize();
@@ -10086,7 +10099,7 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
 
   auto p = spillRegMemOperands.find(vrNum);
   if (p == spillRegMemOperands.end()) {
-    if (vrNum >= vRegTable.size()) {
+    if (vrNum >= vReg.VRegTableSize()) {
       CHECK_FATAL(false, "index out of range in AArch64CGFunc::FreeSpillRegMem");
     }
     uint32 memBitSize = k64BitSize;
@@ -12586,5 +12599,35 @@ bool AArch64CGFunc::DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targ
     return (tmp < kShortBRDistance);
   }
   CHECK_FATAL(false, "CFG error");
+}
+
+void AArch64CGFunc::Link2ISel(MPISel *p) {
+  SetISel(p);
+  CGFunc::InitFactory();
+}
+
+void AArch64CGFunc::HandleFuncCfg(CGCFG *cfg) {
+  RemoveUnreachableBB();
+  AddCommonExitBB();
+  if (GetMirModule().GetSrcLang() != kSrcLangC) {
+    MarkCatchBBs();
+  }
+  MarkCleanupBB();
+  DetermineReturnTypeofCall();
+  cfg->UnreachCodeAnalysis();
+  if (GetMirModule().GetSrcLang() != kSrcLangC) {
+    cfg->WontExitAnalysis();
+  }
+  CG *cg = GetCG();
+  if (cg->GetCGOptions().IsLazyBinding() && cg->IsLibcore()) {
+    ProcessLazyBinding();
+  }
+  if (cg->DoPatchLongBranch()) {
+    PatchLongBranch();
+  }
+  if (cg->GetCGOptions().DoEnableHotColdSplit()) {
+    cfg->CheckCFGFreq();
+  }
+  NeedStackProtect();
 }
 }  /* namespace maplebe */

@@ -20,6 +20,19 @@ using namespace maple;
 
 #define JAVALANG (mirModule->IsJavaModule())
 
+uint32 VregInfo::virtualRegCount = kBaseVirtualRegNO;
+uint32 VregInfo::maxRegCount = 0;
+std::vector<VirtualRegNode> VregInfo::vRegTable;
+std::unordered_map<regno_t, RegOperand*> VregInfo::vRegOperandTable;
+
+void Globals::SetTarget(CG &target) {
+  cg = &target;
+}
+const CG *Globals::GetTarget() const  {
+  ASSERT(cg, " set target info please ");
+  return cg;
+}
+
 CGFunc *CG::currentCGFunction = nullptr;
 std::map<MIRFunction*, std::pair<LabelIdx, LabelIdx>> CG::funcWrapLabels;
 
@@ -32,7 +45,6 @@ CG::~CG() {
   mirModule = nullptr;
   emitter = nullptr;
   currentCGFunction = nullptr;
-  instrumentationFunction = nullptr;
   dbgTraceEnter = nullptr;
   dbgTraceExit = nullptr;
   dbgFuncProfile = nullptr;
@@ -140,13 +152,6 @@ void CG::AddStackGuardvar() const {
   chkFunc->SetStorageClass(kScText);
   chkFunc->SetSKind(kStFunc);
   GlobalTables::GetGsymTable().AddToStringSymbolMap(*chkFunc);
-}
-
-void CG::SetInstrumentationFunction(const std::string &name) {
-  instrumentationFunction = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
-  instrumentationFunction->SetNameStrIdx(std::string("__").append(name).append("__"));
-  instrumentationFunction->SetStorageClass(kScText);
-  instrumentationFunction->SetSKind(kStFunc);
 }
 
 #define DBG_TRACE_ENTER MplDtEnter

@@ -299,7 +299,7 @@ void Insn::SetMOP(const InsnDesc &idesc) {
 }
 
 void Insn::Dump() const {
-ASSERT(md != nullptr, "md should not be nullptr");
+  ASSERT(md != nullptr, "md should not be nullptr");
   LogInfo::MapleLogger() << "< " << GetId() << " > ";
   LogInfo::MapleLogger() << md->name << "(" << mOp << ")";
 

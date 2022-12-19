@@ -20,6 +20,121 @@
 
 namespace maplebe {
 constexpr size_t kSpillMemOpndNum = 4;
+constexpr uint32 kBaseVirtualRegNO = 200; /* avoid conflicts between virtual and physical */
+constexpr uint32 kRegIncrStepLen = 80; /* reg number increate step length */
+
+class VirtualRegNode {
+ public:
+  VirtualRegNode() = default;
+
+  VirtualRegNode(RegType type, uint32 size)
+      : regType(type), size(size), regNO(kInvalidRegNO) {}
+
+  virtual ~VirtualRegNode() = default;
+
+  void AssignPhysicalRegister(regno_t phyRegNO) {
+    regNO = phyRegNO;
+  }
+
+  RegType GetType() const {
+    return regType;
+  }
+
+  uint32 GetSize() const {
+    return size;
+  }
+
+ private:
+  RegType regType = kRegTyUndef;
+  uint32 size     = 0;              /* size in bytes */
+  regno_t regNO   = kInvalidRegNO;  /* physical register assigned by register allocation */
+};
+
+class VregInfo {
+ public:
+  /* Only one place to allocate vreg within cg.
+     'static' can be removed and initialized here if only allocation is from only one source.  */
+  static uint32 virtualRegCount;
+  static uint32 maxRegCount;
+  static std::vector<VirtualRegNode> vRegTable;
+  static std::unordered_map<regno_t, RegOperand*> vRegOperandTable;
+
+  uint32 GetNextVregNO(RegType type, uint32 size) {
+    /* when vReg reach to maxRegCount, maxRegCount limit adds 80 every time */
+    /* and vRegTable increases 80 elements. */
+    if (virtualRegCount >= maxRegCount) {
+      ASSERT(virtualRegCount < maxRegCount + 1, "MAINTAIN FAILED");
+      maxRegCount += kRegIncrStepLen;
+      VRegTableResize(maxRegCount);
+    }
+#if TARGAARCH64 || TARGX86_64 || TARGRISCV64
+    if (size < k4ByteSize) {
+      size = k4ByteSize;
+    }
+#if TARGAARCH64
+    /* cannot handle 128 size register */
+    if (type == kRegTyInt && size > k8ByteSize) {
+      size = k8ByteSize;
+    }
+#endif
+    ASSERT(size == k4ByteSize || size == k8ByteSize || size == k16ByteSize, "check size");
+#endif
+    VRegTableValuesSet(virtualRegCount, type, size);
+
+    uint32 temp = virtualRegCount;
+    ++virtualRegCount;
+    return temp;
+  }
+  void Inc(uint32 v) {
+    virtualRegCount += v;
+  }
+  uint32 GetCount() const {
+    return virtualRegCount;
+  }
+  void SetCount(uint32 v) {
+    /* Vreg number can only increase. */
+    if (virtualRegCount < v) {
+      virtualRegCount = v;
+    }
+  }
+
+  /* maxRegCount related stuff */
+  uint32 GetMaxRegCount() const {
+    return maxRegCount;
+  }
+  void SetMaxRegCount(uint32 num) {
+    maxRegCount = num;
+  }
+  void IncMaxRegCount(uint32 num) {
+    maxRegCount += num;
+  }
+
+  /* vRegTable related stuff */
+  void VRegTableResize(uint32 sz) {
+    vRegTable.resize(sz);
+  }
+  uint32 VRegTableSize() const {
+    return vRegTable.size();
+  }
+  uint32 VRegTableGetSize(uint32 idx) const {
+    return vRegTable[idx].GetSize();
+  }
+  RegType VRegTableGetType(uint32 idx) const {
+    return vRegTable[idx].GetType();
+  }
+  VirtualRegNode &VRegTableElementGet(uint32 idx) {
+    return vRegTable[idx];
+  }
+  void VRegTableElementSet(uint32 idx, VirtualRegNode *node) {
+    vRegTable[idx] = *node;
+  }
+  void VRegTableValuesSet(uint32 idx, RegType rt, uint32 sz) {
+    new (&vRegTable[idx]) VirtualRegNode(rt, sz);
+  }
+  void VRegOperandTableSet(regno_t regNO, RegOperand *rp) {
+    vRegOperandTable[regNO] = rp;
+  }
+};
 
 class RegisterInfo {
  public:

@@ -41,6 +41,10 @@ class Standardize {
 
   void DoStandardize();
 
+  CGFunc *GetCgFunc() {
+    return cgFunc;
+  }
+
  protected:
   void SetAddressMapping(bool needMapping) {
     needAddrMapping = needMapping;
@@ -48,16 +52,17 @@ class Standardize {
   bool NeedAddressMapping(const Insn &insn) {
     /* Operand number for two addressing mode is 2 */
     /* and 3 for three addressing mode */
-    needAddrMapping = (insn.GetOperandSize() > 2) || (insn.IsUnaryOp());
-    return needAddrMapping;
+    return needAddrMapping && ((insn.GetOperandSize() > 2) || (insn.IsUnaryOp()));
   }
  private:
+  virtual void Legalize() {};
   virtual void StdzMov(Insn &insn) = 0;
   virtual void StdzStrLdr(Insn &insn) = 0;
   virtual void StdzBasicOp(Insn &insn) = 0;
-  virtual void StdzUnaryOp(Insn &insn, CGFunc &cgFunc) = 0;
-  virtual void StdzCvtOp(Insn &insn, CGFunc &cgFunc) = 0;
-  virtual void StdzShiftOp(Insn &insn, CGFunc &cgFunc) = 0;
+  virtual void StdzUnaryOp(Insn &insn) = 0;
+  virtual void StdzCvtOp(Insn &insn) = 0;
+  virtual void StdzShiftOp(Insn &insn) = 0;
+  virtual void StdzCommentOp(Insn &insn) = 0;
   CGFunc *cgFunc;
   bool needAddrMapping = false;
 };

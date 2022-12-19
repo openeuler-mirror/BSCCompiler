@@ -559,6 +559,21 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
   if (ehFunc != nullptr && ehFunc->GetLSDACallSiteTable() != nullptr) {
     ehFunc->GetLSDACallSiteTable()->RemoveCallSite(curBB);
   }
+
+  /* If bb is removed, the related die information needs to be updated. */
+  if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
+    DebugInfo *di = cgFunc->GetCG()->GetMIRModule()->GetDbgInfo();
+    DBGDie *fdie = di->GetFuncDie(&cgFunc->GetFunction());
+    for (auto attr : fdie->GetAttrVec()) {
+      if (!attr->GetKeep()) {
+        continue;
+      }
+      if ((attr->GetDwAt() == DW_AT_high_pc || attr->GetDwAt() == DW_AT_low_pc) &&
+          attr->GetId() == curBB.GetLabIdx()) {
+        attr->SetKeep(false);
+      }
+    }
+  }
 }
 
 void CGCFG::RetargetJump(BB &srcBB, BB &targetBB) const {
@@ -977,8 +992,10 @@ void CGCFG::ReverseCriticalEdge(BB &cbb) {
 bool CgHandleCFG::PhaseRun(maplebe::CGFunc &f) {
   CGCFG *cfg = f.GetMemoryPool()->New<CGCFG>(f);
   f.SetTheCFG(cfg);
+  cfg->MarkLabelTakenBB();
   /* build control flow graph */
   f.GetTheCFG()->BuildCFG();
+  f.HandleFuncCfg(cfg);
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleCFG, handlecfg)
