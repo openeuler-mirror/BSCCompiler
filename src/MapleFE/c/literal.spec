@@ -84,7 +84,7 @@ rule LongLongSuffix : ONEOF(
   'l' + 'l', 'L' + 'L'
 )
 
-rule FloatingConstant : ONEOF(
+rule FPLiteral : ONEOF(
   DecimalFloatingConstant,
   HexadecimalFloatingConstant
 )
@@ -116,9 +116,10 @@ rule Sign : ONEOF(
 )
 
 rule DigitSequence : ONEOF(
-  Digit,
-  DigitSequence + Digit
+  DIGIT,
+  DIGIT + ZEROORMORE(DIGIT) + DIGIT
 )
+  attr.property.%2 : SecondTry
 
 rule HexadecimalFractionalConstant : ONEOF(
   ZEROORONE(HexadecimalDigitSequence) + '.',
@@ -200,7 +201,6 @@ rule SChar : ONEOF(
 rule Digit : DIGIT
 
 rule NullLiteral : "NULL"
-rule FPLiteral : FloatingConstant
 rule BooleanLiteral : ONEOF("true", "false")
 rule CharacterLiteral : CharacterConstant
 
