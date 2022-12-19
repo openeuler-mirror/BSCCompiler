@@ -33,7 +33,12 @@ class ControlDepAnalysis {
   ControlDepAnalysis(CGFunc &func, MemPool &memPool)
       : cgFunc(func), cdgMemPool(memPool), cdgAlloc(&memPool), tmpAlloc(&memPool),
         nonPdomEdges(cdgAlloc.Adapter()), curCondNumOfBB(cdgAlloc.Adapter()) {}
-  virtual ~ControlDepAnalysis() = default;
+  virtual ~ControlDepAnalysis() {
+    fcdg = nullptr;
+    cfgMST = nullptr;
+    tmpMemPool = nullptr;
+    pdom = nullptr;
+  }
 
   /* The entry of analysis */
   void Run();

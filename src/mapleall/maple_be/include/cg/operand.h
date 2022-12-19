@@ -450,7 +450,9 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
   ImmOperand(const MIRSymbol &symbol, int64 val, int32 relocs, bool isSigned, VaryType isVar = kNotVary,
       bool isFloat = false) : OperandVisitable(kOpdStImmediate, 0), value(val), isSigned(isSigned), isVary(isVar),
       isFmov(isFloat), symbol(&symbol), relocs(relocs) {}
-  ~ImmOperand() override = default;
+  ~ImmOperand() override {
+    symbol = nullptr;
+  };
   using OperandVisitable<ImmOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
@@ -800,7 +802,7 @@ class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
   bool Less(const Operand &right) const override;
 
   void Dump() const override {
-    CHECK_FATAL(false, "dont run here");
+    CHECK_FATAL_FALSE("dont run here");
   }
 
   bool Equals(Operand &operand) const override {
@@ -883,7 +885,7 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
   }
 
   void Dump() const override {
-    CHECK_FATAL(false, "dont run here");
+    CHECK_FATAL_FALSE("dont run here");
   }
 
   bool Equals(Operand &operand) const override {
@@ -1480,7 +1482,9 @@ class StImmOperand : public OperandVisitable<StImmOperand> {
   StImmOperand(const MIRSymbol &symbol, int64 offset, int32 relocs)
       : OperandVisitable(kOpdStImmediate, 0), symbol(&symbol), offset(offset), relocs(relocs) {}
 
-  ~StImmOperand() override = default;
+  ~StImmOperand() override {
+    symbol = nullptr;
+  }
 
   using OperandVisitable<StImmOperand>::OperandVisitable;
 
@@ -1520,7 +1524,7 @@ class StImmOperand : public OperandVisitable<StImmOperand> {
   bool Less(const Operand &right) const override;
 
   void Dump() const override {
-    CHECK_FATAL(false, "dont run here");
+    CHECK_FATAL_FALSE("dont run here");
   }
 
  private:
@@ -1617,7 +1621,7 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
   }
 
   void Dump() const override {
-    CHECK_FATAL(false, "NIY");
+    CHECK_FATAL_FALSE("NIY");
   }
 
   void InsertOpnd(uint32 bbId, RegOperand &phiParam) {
@@ -1838,7 +1842,7 @@ class CondOperand : public OperandVisitable<CondOperand> {
   bool Less(const Operand &right) const override;
 
   void Dump() const override {
-    CHECK_FATAL(false, "dont run here");
+    CHECK_FATAL_FALSE("dont run here");
   }
 
   static const char *ccStrs[kCcLast];

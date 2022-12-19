@@ -27,7 +27,9 @@ class DataDepBase {
  public:
   DataDepBase(MemPool &memPool, CGFunc &func, MAD &mad)
       : memPool(memPool), alloc(&memPool), cgFunc(func), mad(mad), beforeRA(!cgFunc.IsAfterRegAlloc()) {}
-  virtual ~DataDepBase() = default;
+  virtual ~DataDepBase() {
+    curCDGNode = nullptr;
+  }
 
   enum DataFlowInfoType : uint8 {
     kDataFlowUndef,

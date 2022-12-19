@@ -47,7 +47,7 @@ class PeepOptimizeManager {
     }
     OptimizePattern optPattern(*cgFunc, *currBB, *currInsn, *ssaInfo);
     optPattern.Run(*currBB, *currInsn);
-    optSuccess |= optPattern.GetPatternRes();
+    optSuccess = optSuccess || optPattern.GetPatternRes();
     if (optSuccess && optPattern.GetCurrInsn() != nullptr) {
       currInsn = optPattern.GetCurrInsn();
     }

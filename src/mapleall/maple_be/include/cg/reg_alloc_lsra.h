@@ -48,7 +48,11 @@ class LSRALinearScanRegAllocator : public RegAllocator {
           usePositions(mallocator.Adapter()),
           overlapPhyRegSet(mallocator.Adapter()) {}
 
-    virtual ~LiveInterval() = default;
+    virtual ~LiveInterval() {
+      liveChild = nullptr;
+      isCall = nullptr;
+      liveParent = nullptr;
+    }
 
     void AddRange(uint32 from, uint32 to);
     void AddUsePos(uint32 pos);
@@ -430,7 +434,10 @@ class LSRALinearScanRegAllocator : public RegAllocator {
     firstIntReg = *regInfo->GetRegsFromType(kRegTyInt).begin();
     firstFpReg = *regInfo->GetRegsFromType(kRegTyFloat).begin();
   }
-  ~LSRALinearScanRegAllocator() override = default;
+  ~LSRALinearScanRegAllocator() override {
+    bfs = nullptr;
+    regUsedInBB = nullptr;
+  };
 
   bool AllocateRegisters() override;
   void PreWork();

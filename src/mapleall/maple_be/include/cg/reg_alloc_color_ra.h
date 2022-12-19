@@ -93,7 +93,7 @@ inline bool FindIn(const MapleList<T> &list, const T &item) {
 inline bool IsBitArrElemSet(const uint64 *vec, const uint32 num) {
   size_t index = num / kU64;
   uint64 bit = num % kU64;
-  return vec[index] & (1ULL << bit);
+  return (vec[index] & (1ULL << bit)) != 0;
 }
 
 inline bool IsBBsetOverlap(const uint64 *vec1, const uint64 *vec2, uint32 bbBuckets) {
@@ -315,7 +315,7 @@ class LiveRange {
     return bbMember[index];
   }
 
-  void SetBBMemberElem(int32 index, uint64 elem) const {
+  void SetBBMemberElem(int32 index, uint64 elem) {
     bbMember[index] = elem;
   }
 
@@ -459,7 +459,7 @@ class LiveRange {
     return bbConflict[index];
   }
 
-  void SetBBConflictElem(uint32 index, uint64 elem) const {
+  void SetBBConflictElem(uint32 index, uint64 elem) {
     ASSERT(index < regBuckets, "out of bbConflict");
     bbConflict[index] = elem;
   }
@@ -494,8 +494,8 @@ class LiveRange {
       (void)point->emplace(std::pair<uint32, uint32>(pos, mark));
       (void)refMap.emplace(std::pair<uint32, MapleMap<uint32, uint32>*>(bbId, point));
     } else {
-      auto &bbPoint = (refMap.find(bbId))->second;
-      if (bbPoint->find(pos) == bbPoint->end()) {
+      auto &bbPoint = (as_const(refMap).find(bbId))->second;
+      if (bbPoint->find(pos) == bbPoint->cend()) {
         (void)bbPoint->emplace(std::pair<uint32, uint32>(pos, mark));
       } else {
         auto posVal = bbPoint->find(pos)->second;
@@ -517,7 +517,7 @@ class LiveRange {
     return luMap.end();
   }
 
-  MapleMap<uint32, LiveUnit*>::const_iterator EraseLuMap(MapleMap<uint32, LiveUnit*>::const_iterator it) {
+  MapleMap<uint32, LiveUnit*>::const_iterator EraseLuMap(const MapleMap<uint32, LiveUnit*>::const_iterator it) {
     return luMap.erase(it);
   }
 
@@ -1137,7 +1137,9 @@ class GraphColorRegAllocator : public RegAllocator {
     }
   }
 
-  ~GraphColorRegAllocator() override = default;
+  ~GraphColorRegAllocator() override {
+    bfs = nullptr;
+  }
   bool AllocateRegisters() override;
 
   enum SpillMemCheck : uint8 {
@@ -1408,7 +1410,11 @@ class CallerSavePre : public CGPre {
         regAllocator(regAlloc),
         loopHeadBBs(ssaPreAllocator.Adapter()) {}
 
-  ~CallerSavePre() = default;
+  ~CallerSavePre() {
+    func = nullptr;
+    regAllocator = nullptr;
+    workLr = nullptr;
+  }
   void ApplySSAPRE();
   void SetDump(bool val) {
     dump = val;

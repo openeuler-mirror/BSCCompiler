@@ -34,7 +34,10 @@ class TailCallOpt {
     exitBB2CallSitesMap.clear();
   }
 
-  virtual ~TailCallOpt() = default;
+  virtual ~TailCallOpt() {
+    memPool = nullptr;
+    curTailcallExitBB = nullptr;
+  }
 
   void Run();
   bool DoTailCallOpt();
