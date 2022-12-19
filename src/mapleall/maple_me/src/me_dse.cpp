@@ -20,10 +20,10 @@
 
 namespace maple {
 
-MeDSE::MeDSE(MeFunction &func, Dominance *dom, const AliasClass *aliasClass, bool enabledDebug)
+MeDSE::MeDSE(MeFunction &func, Dominance *dom, Dominance *pdom, const AliasClass *aliasClass, bool enabledDebug)
     : DSE(std::vector<BB *>(func.GetCfg()->GetAllBBs().begin(), func.GetCfg()->GetAllBBs().end()),
-          *func.GetCfg()->GetCommonEntryBB(), *func.GetCfg()->GetCommonExitBB(), *func.GetMeSSATab(), *dom, aliasClass,
-          enabledDebug, MeOption::decoupleStatic, func.IsLfo()),
+          *func.GetCfg()->GetCommonEntryBB(), *func.GetCfg()->GetCommonExitBB(), *func.GetMeSSATab(), *dom, *pdom,
+          aliasClass, enabledDebug, MeOption::decoupleStatic, func.IsLfo()),
       func(func),
       cfg(func.GetCfg()) {}
 void MeDSE::VerifyPhi() const {
@@ -60,6 +60,9 @@ void MeDSE::RunDSE() {
 
   // remove unreached BB
   (void)cfg->UnreachCodeAnalysis(true);
+  if (UpdatedCfg()) {
+    cfg->WontExitAnalysis();
+  }
   VerifyPhi();
   if (enableDebug) {
     func.Dump(true);
@@ -72,11 +75,14 @@ bool MEDse::PhaseRun(maple::MeFunction &f) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " skipped\n";
     }
   } else {
-    auto *dom = GET_ANALYSIS(MEDominance, f);
+    auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+    auto dom = dominancePhase->GetDomResult();
     CHECK_NULL_FATAL(dom);
+    auto pdom = dominancePhase->GetPdomResult();
+    CHECK_NULL_FATAL(pdom);
     auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
     CHECK_NULL_FATAL(aliasClass);
-    MeDSE dse(f, dom, aliasClass, DEBUGFUNC_NEWPM(f));
+    MeDSE dse(f, dom, pdom, aliasClass, DEBUGFUNC_NEWPM(f));
     dse.RunDSE();
     f.Verify();
     // cfg change , invalid results in MeFuncResultMgr
