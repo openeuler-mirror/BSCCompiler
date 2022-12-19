@@ -448,14 +448,14 @@ bool MayAliasFieldsAndMem(MIRType *aggType, std::vector<FieldID> &fields, int64 
   if (aggType->GetKind() == kTypeArray) {
     aggType = static_cast<MIRArrayType *>(aggType)->GetElemType();
     // fields specify the id of first element of aggType, so we should make memStart to the first element
-    memStart %= GetTypeBitSize(aggType);
+    memStart %= GetTypeBitSize(*aggType);
   }
   ASSERT(aggType->IsStructType(), "Aggtype must be MIRStructType");
   auto *structType = static_cast<MIRStructType *>(aggType);
   for (auto fieldID : fields) {
     ASSERT(fieldID <= aggType->NumberOfFieldIDs(), "Field id is out of range of aggType's field number");
     MIRType *fieldType = GetFieldType(structType, fieldID);
-    size_t typeBitSize = static_cast<uint64>(GetTypeBitSize(fieldType));
+    size_t typeBitSize = static_cast<uint64>(GetTypeBitSize(*fieldType));
     int64 offsetA = structType->GetBitOffsetFromBaseAddr(fieldID);
     if (IsMemoryOverlap(OffsetType(offsetA), typeBitSize, OffsetType(memStart), memBitSize)) {
       return true;
@@ -487,11 +487,11 @@ bool MayAliasFieldsAndFields(MIRType *aggType, std::vector<FieldID> &fieldsA, st
     ASSERT(idA <= structType->NumberOfFieldIDs(), "Field id is out of range of aggType's field number");
     MIRType *fieldTypeA = GetFieldType(structType, idA);
     offsetSizeVecA[i].first = structType->GetBitOffsetFromBaseAddr(idA);
-    offsetSizeVecA[i].second = static_cast<uint64>(GetTypeBitSize(fieldTypeA));
+    offsetSizeVecA[i].second = static_cast<uint64>(GetTypeBitSize(*fieldTypeA));
   }
   for (auto idB : fieldsB) {
     MIRType *fieldTypeB = GetFieldType(structType, idB);
-    size_t typeBBitSize = static_cast<uint64>(GetTypeBitSize(fieldTypeB));
+    size_t typeBBitSize = static_cast<uint64>(GetTypeBitSize(*fieldTypeB));
     int64 offsetB = structType->GetBitOffsetFromBaseAddr(idB);
     for (const auto &offsetSizePair : offsetSizeVecA) {
       if (IsMemoryOverlap(OffsetType(offsetSizePair.first), offsetSizePair.second, OffsetType(offsetB), typeBBitSize)) {
@@ -509,7 +509,7 @@ bool MayAliasOstAndFields(const OriginalSt *ost, MIRType *aggType, std::vector<F
   }
   MIRType *type = ost->GetType();
   OffsetType offset = ost->GetOffset();
-  CanonicalizeOffset(offset, GetTypeBitSize(aggType));
+  CanonicalizeOffset(offset, GetTypeBitSize(*aggType));
   if (offset.IsInvalid() && ost->GetFieldID() != 0) { // if fieldID is valid, calculate offset from fieldID
     offset = OffsetType(aggType->GetBitOffsetFromBaseAddr(ost->GetFieldID()));
   }
@@ -518,7 +518,7 @@ bool MayAliasOstAndFields(const OriginalSt *ost, MIRType *aggType, std::vector<F
     GetPossibleFieldID(aggType, type, ostFields);
     return MayAliasFieldsAndFields(aggType, fields, ostFields);
   } else {
-    return MayAliasFieldsAndMem(aggType, fields, offset.val, GetTypeBitSize(type));
+    return MayAliasFieldsAndMem(aggType, fields, offset.val, GetTypeBitSize(*type));
   }
 }
 
@@ -683,15 +683,15 @@ static bool MayMemoryOverlap(
   auto getValidOffsetValue = [](const OriginalSt &ost, const MIRType *aggType) {
     auto fieldId = ost.GetFieldID();
     auto &offset = ost.GetOffset();
-    if (!aggType || (offset.val < static_cast<int32>(GetTypeBitSize(aggType)) && (!offset.IsInvalid() || fieldId))) {
+    if (!aggType || (offset.val < static_cast<int32>(GetTypeBitSize(*aggType)) && (!offset.IsInvalid() || fieldId))) {
       return static_cast<int64>(offset.val);
     }
     return aggType->GetBitOffsetFromBaseAddr(fieldId);
   };
   OffsetType offsetA(getValidOffsetValue(ostA, aggTypeA));
   OffsetType offsetB(getValidOffsetValue(ostB, aggTypeB));
-  auto bitSizeA = static_cast<int32>(GetTypeBitSize(ostA.GetType()));
-  auto bitSizeB = static_cast<int32>(GetTypeBitSize(ostB.GetType()));
+  auto bitSizeA = static_cast<int32>(GetTypeBitSize(*ostA.GetType()));
+  auto bitSizeB = static_cast<int32>(GetTypeBitSize(*ostB.GetType()));
   return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
 }
 
@@ -772,7 +772,7 @@ static bool MayAliasForVirtualOstOfVoidPtr(
   }
   OffsetType offsetA(typePairA.first->GetBitOffsetFromBaseAddr(typePairA.second));
   OffsetType offsetB(typePairB.first->GetBitOffsetFromBaseAddr(typePairB.second));
-  return IsMemoryOverlap(offsetA, GetTypeBitSize(ostA.GetType()), offsetB, GetTypeBitSize(ostB.GetType()));
+  return IsMemoryOverlap(offsetA, GetTypeBitSize(*ostA.GetType()), offsetB, GetTypeBitSize(*ostB.GetType()));
 }
 
 bool TypeBasedAliasAnalysis::IsFieldTypeOfAggType(MIRType *aggType, MIRType *checkedType) {

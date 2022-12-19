@@ -198,7 +198,7 @@ void CopyProp::CheckLiveRange(const MeExpr &expr, int32 &badPropCnt) {
       bool findLongerUse = false;
       for (auto &ui : *useInfo.GetUseSitesOfExpr(&scalar)) {
         const BB *useBB = ui.GetUseBB();
-        if (dom.Dominate(*curBB, *useBB) || dom.PostDominate(*useBB, *curBB)) {
+        if (dom.Dominate(*curBB, *useBB) || pdom.Dominate(*useBB, *curBB)) {
           findLongerUse = true;
           break;
         }
@@ -418,7 +418,7 @@ void CopyProp::TraversalMeStmt(MeStmt &meStmt) {
       auto *rhs = assignStmt.GetRHS();
       auto &propedRHS = PropMeExpr(utils::ToRef(rhs), subProped, false);
       if (rhs->GetMeOp() == kMeOpVar || rhs->GetMeOp() == kMeOpReg) {
-        if (PropagatableByCopyProp(&propedRHS)) {
+        if (PropagatableByCopyProp(&propedRHS) || CanPropSingleUse(static_cast<ScalarMeExpr&>(*rhs), propedRHS)) {
           assignStmt.SetRHS(&propedRHS);
         }
       } else {
@@ -482,7 +482,11 @@ void MECopyProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MECopyProp::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
+  CHECK_NULL_FATAL(dom);
+  auto pdom = dominancePhase->GetPdomResult();
+  CHECK_NULL_FATAL(pdom);
   auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
   auto *loops = GET_ANALYSIS(MELoopAnalysis, f);
 
@@ -494,7 +498,7 @@ bool MECopyProp::PhaseRun(maple::MeFunction &f) {
   if (useInfo.IsInvalid()) {
     useInfo.CollectUseInfoInFunc(hMap, dom, kUseInfoOfScalar);
   }
-  CopyProp copyProp(&f, useInfo, loops, *hMap, *dom, *ApplyTempMemPool(), f.GetCfg()->NumBBs(), propConfig);
+  CopyProp copyProp(&f, useInfo, loops, *hMap, *dom, *pdom, *ApplyTempMemPool(), f.GetCfg()->NumBBs(), propConfig);
   copyProp.ReplaceSelfAssign();
   copyProp.TraversalBB(*f.GetCfg()->GetCommonEntryBB());
   useInfo.InvalidUseInfo();

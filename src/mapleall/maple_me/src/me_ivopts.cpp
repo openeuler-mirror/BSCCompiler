@@ -189,7 +189,7 @@ class IVOptimizer {
   // step1: find basic iv (the minimal inc uint)
   MeExpr *ReplacePhiLhs(OpMeExpr *op, ScalarMeExpr *phiLhs, MeExpr *replace);
   MeExpr *ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr *phiLhs, MeExpr *replace);
-  bool CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet);
+  bool CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet, bool tryProp = false);
   bool FindBasicIVs();
   // step2: find all ivs that is the affine form of basic iv, collect iv uses the same time
   bool CreateIVFromAdd(OpMeExpr &op, MeStmt &stmt);
@@ -481,6 +481,12 @@ MeExpr *IVOptimizer::ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr 
     return nullptr;
   }
   auto *backRhs = backValue->GetDefStmt()->GetRHS();
+  while (backRhs->IsScalar()) {
+    if (static_cast<ScalarMeExpr*>(backRhs)->GetDefBy() != kDefByStmt) {
+      return nullptr;
+    }
+    backRhs = static_cast<ScalarMeExpr*>(backRhs)->GetDefStmt()->GetRHS();
+  }
   if (backRhs->GetMeOp() != kMeOpOp) {
     return nullptr;
   }
@@ -492,7 +498,7 @@ MeExpr *IVOptimizer::ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr 
 }
 
 // find if there are basic ivs
-bool IVOptimizer::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet) {
+bool IVOptimizer::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet, bool tryProp) {
   switch (solve->GetMeOp()) {
     case kMeOpVar:
     case kMeOpReg: {
@@ -508,12 +514,14 @@ bool IVOptimizer::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet) {
         if (scalar->IsDefByNo()) {  // parameter
           return true;
         }
-        return data->currLoop->loopBBs.count(scalar->DefByBB()->GetBBId()) == 0;
+        if (!tryProp) {
+          return data->currLoop->loopBBs.count(scalar->DefByBB()->GetBBId()) == 0;
+        }
       }
       if (scalar->GetDefBy() != kDefByStmt) {
         return false;
       }
-      return CheckBasicIV(scalar->GetDefStmt()->GetRHS(), phiLhs, meet);
+      return CheckBasicIV(scalar->GetDefStmt()->GetRHS(), phiLhs, meet, true);
     }
     case kMeOpConst:
       return IsPrimitiveInteger(solve->GetPrimType());
@@ -1113,8 +1121,8 @@ void IVOptimizer::TraversalLoopBB(BB &bb, std::vector<bool> &bbVisited) {
     FindGeneralIVInStmt(stmt);
   }
 
-  for (auto childID : dom->GetDomChildren(bb.GetBBId())) {
-    TraversalLoopBB(*cfg->GetBBFromID(childID), bbVisited);
+  for (auto childID : dom->GetDomChildren(bb.GetID())) {
+    TraversalLoopBB(*cfg->GetBBFromID(BBId(childID)), bbVisited);
   }
 }
 
@@ -2625,9 +2633,12 @@ bool MEIVOpts::PhaseRun(maple::MeFunction &f) {
   }
   MeCFG *cfg = GET_ANALYSIS(MEMeCfg, f);
   IdentifyLoops *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
+  CHECK_NULL_FATAL(dom);
+  auto *pdom = EXEC_ANALYSIS(MEDominance, f)->GetPdomResult();
+  CHECK_NULL_FATAL(pdom);
   auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
-  MeHDSE hdse(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
+  MeHDSE hdse(f, *dom, *pdom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
   // invoke hdse to update isLive only
   hdse.InvokeHDSEUpdateLive();
 
@@ -2640,7 +2651,7 @@ bool MEIVOpts::PhaseRun(maple::MeFunction &f) {
   if (ivOptimizer.LoopOptimized()) {
     // run hdse to remove unused exprs
     auto *aliasClass0 = FORCE_GET(MEAliasClass);
-    MeHDSE hdse0(f, *dom, *f.GetIRMap(), aliasClass0, DEBUGFUNC_NEWPM(f));
+    MeHDSE hdse0(f, *dom, *pdom, *f.GetIRMap(), aliasClass0, DEBUGFUNC_NEWPM(f));
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse0.PhaseName() << " ] ==\n";
     }

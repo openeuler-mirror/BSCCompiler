@@ -114,6 +114,7 @@ bool MeOption::strengthReduction = true;
 bool MeOption::srForAdd = false;
 bool MeOption::doLFTR = true;
 bool MeOption::ivopts = true;
+bool MeOption::gvn = false;
 std::string MeOption::inlineFuncList = "";
 bool MeOption::meVerify = false;
 uint32 MeOption::dseRunsLimit = 2;    // dse phase run at most 2 times each PU
@@ -396,6 +397,7 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(ignoreInferredRetType, opts::me::ignoreInferredRetType);
   maplecl::CopyIfEnabled(meVerify, opts::me::meverify);
   maplecl::CopyIfEnabled(dseRunsLimit, opts::me::dserunslimit);
+  maplecl::CopyIfEnabled(gvn, opts::me::gvn);
   maplecl::CopyIfEnabled(hdseRunsLimit, opts::me::hdserunslimit);
   maplecl::CopyIfEnabled(hpropRunsLimit, opts::me::hproprunslimit);
   maplecl::CopyIfEnabled(sinkLimit, opts::me::sinklimit);

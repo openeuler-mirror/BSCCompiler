@@ -14,8 +14,11 @@
  */
 
 #include "me_sink.h"
+#include <functional>
 #include "me_phase_manager.h"
+#include "me_ssa_update.h"
 #include "meexpr_use_info.h"
+#include "orig_symbol.h"
 
 namespace maple {
 struct DefUseInfoOfPhi {
@@ -36,8 +39,8 @@ using ScalarVec = std::set<ScalarMeExpr *, ScalarMeExprCmp>;
 
 class MeSink {
  public:
-  MeSink(MeFunction *meFunc, IRMap *irMap, Dominance *dom, IdentifyLoops *loops, bool debug)
-      : func(meFunc), irMap(irMap), domTree(dom), loopInfo(loops), debug(debug) {
+  MeSink(MeFunction *meFunc, IRMap *irMap, Dominance *dom, Dominance *pdom, IdentifyLoops *loops, bool debug)
+      : func(meFunc), irMap(irMap), domTree(dom), pdomTree(pdom), loopInfo(loops), debug(debug) {
     Init();
   }
 
@@ -85,11 +88,13 @@ class MeSink {
   MeFunction *func = nullptr;
   IRMap *irMap = nullptr;
   Dominance *domTree = nullptr;
+  Dominance *pdomTree = nullptr;
   IdentifyLoops *loopInfo = nullptr;
   MeExprUseInfo *useInfoOfExprs = nullptr;
   std::vector<std::unique_ptr<std::list<MeStmt*>>> defStmtsSinkToHeader; // index is bbId
   std::vector<std::unique_ptr<std::list<MeStmt*>>> defStmtsSinkToBottom; // index is bbId
   std::vector<std::unique_ptr<std::list<ScalarMeExpr*>>> versionStack; // index is ostIdx
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>, std::less<OStIdx>> cands;
   std::vector<uint16> defineCnt; // index is ostIdx
   std::vector<bool> scalarHasValidDef; // index is exprId, true if scalar is define by a valid stmt/phi
   uint32 sinkCnt = 0;
@@ -135,6 +140,7 @@ void MeSink::AddNewDefinedScalar(ScalarMeExpr *scalar) {
         bufferSize + static_cast<uint32>(scalar->GetExprID()) - scalarHasValidDef.size(), false);
   }
   scalarHasValidDef[static_cast<uint32>(scalar->GetExprID())] = true;
+  MeSSAUpdate::InsertOstToSSACands(ostIdx, *scalar->DefByBB(), &cands);
 }
 
 bool MeSink::MeExprSinkable(maple::MeExpr *expr) const {
@@ -424,7 +430,7 @@ bool MeSink::PhiCanBeReplacedWithDataFlowOfScalar(const ScalarMeExpr *scalar, co
   if (verStack != nullptr && !verStack->empty()) {
     topVer = verStack->front();
     MeStmt *defStmt = nullptr;
-    defBBOfTopVer = topVer->GetDefByBBMeStmt(*domTree, defStmt);
+    defBBOfTopVer = topVer->GetDefByBBMeStmt(*func->GetCfg(), defStmt);
     (void)defStmt;
   }
 
@@ -441,11 +447,11 @@ bool MeSink::PhiCanBeReplacedWithDataFlowOfScalar(const ScalarMeExpr *scalar, co
     if (defBBOfTopVer == bbOfDefStmt || !domTree->Dominate(*defBBOfTopVer, *bbOfDefStmt)) {
       return false;
     }
-    if (defBBOfScalar == bbOfDefStmt || !domTree->PostDominate(*defBBOfScalar, *bbOfDefStmt)) {
+    if (defBBOfScalar == bbOfDefStmt || !pdomTree->Dominate(*defBBOfScalar, *bbOfDefStmt)) {
       return false;
     }
     while (!domTree->Dominate(*domBBOfDefStmts, *bbOfDefStmt)) {
-      domBBOfDefStmts = domTree->GetDom(domBBOfDefStmts->GetBBId());
+      domBBOfDefStmts = func->GetCfg()->GetBBFromID(BBId(domTree->GetDom(domBBOfDefStmts->GetID())->GetID()));
     }
   }
   if (!domTree->Dominate(*defBBOfTopVer, *domBBOfDefStmts)) {
@@ -853,7 +859,7 @@ bool MeSink::MergePhiWithPrevAssign(MePhiNode *phi, BB *bb) {
   int domCnt = 0;
   int notDomCnt = 0;
   for (const auto &scalar2defStmt : std::as_const(defStmts)) {
-    if (!domTree->PostDominate(*bb, *scalar2defStmt.second->GetBB())) {
+    if (!pdomTree->Dominate(*bb, *scalar2defStmt.second->GetBB())) {
       ++notDomCnt;
     } else {
       ++domCnt;
@@ -968,7 +974,7 @@ bool MeSink::MergePhiWithPrevAssign(MePhiNode *phi, BB *bb) {
       continue;
     }
     auto *defStmt = opnd->GetDefStmt();
-    if (domTree->PostDominate(*bb, *defStmt->GetBB())) {
+    if (pdomTree->Dominate(*bb, *defStmt->GetBB())) {
       defStmt->GetBB()->RemoveMeStmt(defStmt);
       defStmt->SetIsLive(false);
     }
@@ -1051,9 +1057,9 @@ const BB *MeSink::BestSinkBB(const BB *fromBB, const BB *toBB) {
   auto *loopInner = loopInfo->GetBBLoopParent(toBB->GetBBId());
 
   while (loopOutter != loopInner || BBIsEmptyOrContainsSingleGoto(toBB)) {
-    auto domBB = domTree->GetDom(toBB->GetBBId());
-    loopInner = loopInfo->GetBBLoopParent(domBB->GetBBId());
-    toBB = domBB;
+    auto domBBId = BBId(domTree->GetDom(toBB->GetID())->GetID());
+    loopInner = loopInfo->GetBBLoopParent(domBBId);
+    toBB = func->GetCfg()->GetBBFromID(domBBId);
   }
 
   CHECK_FATAL(domTree->Dominate(*fromBB, *toBB), "fromBB must dom toBB");
@@ -1089,7 +1095,7 @@ std::pair<const BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *
         continue;
       }
       while (candSinkBB != useBB && !domTree->Dominate(*candSinkBB, *useBB)) {
-        candSinkBB = domTree->GetDom(candSinkBB->GetBBId());
+        candSinkBB = func->GetCfg()->GetBBFromID(BBId(domTree->GetDom(candSinkBB->GetID())->GetID()));
       }
     } else {
       auto *usePhi = it->GetPhi();
@@ -1104,7 +1110,7 @@ std::pair<const BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *
           continue;
         }
         while (candSinkBB != predBB && !domTree->Dominate(*candSinkBB, *predBB)) {
-          candSinkBB = domTree->GetDom(candSinkBB->GetBBId());
+          candSinkBB = func->GetCfg()->GetBBFromID(BBId(domTree->GetDom(candSinkBB->GetID())->GetID()));
         }
       }
     }
@@ -1365,9 +1371,9 @@ void MeSink::SinkStmtsInBB(BB *bb) {
   }
   SinkStmtsToBottomOfBB(bb);
 
-  auto &domChildren = domTree->GetDomChildren(bb->GetBBId());
-  for (const BBId &childbbid : domChildren) {
-    SinkStmtsInBB(func->GetCfg()->GetBBFromID(childbbid));
+  auto &domChildren = domTree->GetDomChildren(bb->GetID());
+  for (const auto &childbbid : domChildren) {
+    SinkStmtsInBB(func->GetCfg()->GetBBFromID(BBId(childbbid)));
   }
 
   for (size_t i = 1; i < versionStack.size(); ++i) {
@@ -1415,6 +1421,10 @@ void MeSink::Run() {
   auto *entryBB = func->GetCfg()->GetCommonEntryBB();
   SinkStmtsInBB(entryBB->GetSucc(0));
   useInfoOfExprs->InvalidUseInfo();
+  if (!cands.empty()) {
+    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *domTree, cands);
+    ssaUpdate.Run();
+  }
 }
 
 void MEMeSink::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
@@ -1429,9 +1439,11 @@ bool MEMeSink::PhaseRun(maple::MeFunction &f) {
     return false;
   }
   ++sinkedFuncCnt;
-
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto phase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = phase->GetDomResult();
   CHECK_FATAL(dom != nullptr, "failed to get dominace tree");
+  auto pdom = phase->GetPdomResult();
+  CHECK_FATAL(pdom != nullptr, "failed to get postdominace tree");
   auto *loopInfo = GET_ANALYSIS(MELoopAnalysis, f);
   CHECK_NULL_FATAL(loopInfo);
   auto *irMap = f.GetIRMap();
@@ -1440,7 +1452,7 @@ bool MEMeSink::PhaseRun(maple::MeFunction &f) {
     f.Dump();
   }
 
-  MeSink sink(&f, irMap, dom, loopInfo, DEBUGFUNC_NEWPM(f));
+  MeSink sink(&f, irMap, dom, pdom, loopInfo, DEBUGFUNC_NEWPM(f));
   sink.Run();
   return false;
 }

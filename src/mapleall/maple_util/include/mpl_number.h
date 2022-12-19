@@ -295,5 +295,15 @@ inline void hash_combine(std::size_t& seed, const T& v) {
   size_t rightShift = 2;
   seed ^= hasher(v) + hasecode + (seed << leftShift) + (seed >> rightShift);
 }
+
+template <typename T, typename... Rest>
+inline void hash_combine(std::size_t& seed, const T& v, Rest... rest) {
+  std::hash<T> hasher;
+  size_t hasecode = 0x9e3779b9;
+  size_t leftShift = 6;
+  size_t rightShift = 2;
+  seed ^= hasher(v) + hasecode + (seed << leftShift) + (seed >> rightShift);
+  hash_combine(seed, rest...);
+}
 }
 #endif // MAPLE_UTIL_INCLUDE_MPL_NUMBER_H

@@ -429,6 +429,12 @@ maplecl::Option<bool> ivopts({"--ivopts"},
                         {meCategory},
                         maplecl::DisableWith("--no-ivopts"));
 
+maplecl::Option<bool> gvn({"--gvn"},
+                          "  --gvn                   \tPerform Global Value Numbering(GVN), disabled by default\n"
+                          "  --no-gvn                \tDisable Global Value Numbering(GVN)\n",
+                          {meCategory},
+                          maplecl::DisableWith("--no-gvn"));
+
 maplecl::Option<bool> checkcastopt({"--checkcastopt"},
                               "  --checkcastopt             \tApply template--checkcast optimization \n"
                               "  --no-checkcastopt          \tDisable checkcastopt \n",

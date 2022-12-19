@@ -90,6 +90,7 @@ extern maplecl::Option<bool> strengthreduction;
 extern maplecl::Option<bool> sradd;
 extern maplecl::Option<bool> lftr;
 extern maplecl::Option<bool> ivopts;
+extern maplecl::Option<bool> gvn;
 extern maplecl::Option<bool> checkcastopt;
 extern maplecl::Option<bool> parmtoptr;
 extern maplecl::Option<bool> nullcheckpre;

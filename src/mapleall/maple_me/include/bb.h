@@ -14,13 +14,15 @@
  */
 #ifndef MAPLE_ME_INCLUDE_BB_H
 #define MAPLE_ME_INCLUDE_BB_H
+#include <algorithm>
 #include "mpl_number.h"
 #include "orig_symbol.h"
 #include "ptr_list_ref.h"
+#include "scc.h"
 #include "ssa.h"
 #include "utils.h"
 #include "ver_symbol.h"
-
+#include "base_graph_node.h"
 namespace maple {
 class MeStmt;          // circular dependency exists, no other choice
 class MePhiNode;       // circular dependency exists, no other choice
@@ -59,12 +61,12 @@ constexpr uint32 kBBVectorInitialSize = 2;
 using StmtNodes = PtrListRef<StmtNode>;
 using MeStmts = PtrListRef<MeStmt>;
 
-class BB {
+class BB : public BaseGraphNode {
  public:
   using BBId = utils::Index<BB>;
 
   BB(MapleAllocator *alloc, MapleAllocator *versAlloc, BBId id)
-      : id(id),
+      : BaseGraphNode(id.GetIdx()),
         pred(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succ(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succFreq(alloc->Adapter()),
@@ -79,7 +81,7 @@ class BB {
   }
 
   BB(MapleAllocator *alloc, MapleAllocator *versAlloc, BBId id, StmtNode *firstStmt, StmtNode *lastStmt)
-      : id(id),
+      : BaseGraphNode(id.GetIdx()),
         pred(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succ(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succFreq(alloc->Adapter()),
@@ -95,6 +97,34 @@ class BB {
   }
 
   virtual ~BB() = default;
+  SCCNode<BB> *GetSCCNode() {
+    return sccNode;
+  }
+  void SetSCCNode(SCCNode<BB> *scc) {
+    sccNode = scc;
+  }
+  // override interface of BaseGraphNode
+  const std::string GetIdentity() final {
+    return "BBId: " + std::to_string(GetID());
+  }
+
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) const final {
+    outNodes.resize(succ.size(), nullptr);
+    std::copy(succ.begin(), succ.end(), outNodes.begin());
+  }
+
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) final {
+    static_cast<const BB *>(this)->GetOutNodes(outNodes);
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) const final {
+    inNodes.resize(pred.size(), nullptr);
+    std::copy(pred.begin(), pred.end(), inNodes.begin());
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) final {
+    static_cast<const BB *>(this)->GetInNodes(inNodes);
+  }
 
   bool GetAttributes(uint32 attrKind) const {
     return (attributes & attrKind) != 0;
@@ -149,8 +179,8 @@ class BB {
   void AddPred(BB &predBB, size_t pos = UINT32_MAX) {
     ASSERT((pos <= pred.size() || pos == UINT32_MAX), "Invalid position.");
     ASSERT((!predBB.IsInList(pred) && !IsInList(predBB.succ)), "BB already has been Added.");
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonEntry should not be here.");
-    ASSERT((predBB.id != 0 && predBB.id != 1), "CommonEntry or CommonEntry should not be here.");
+    ASSERT((GetBBId() != 0 && GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((predBB.GetBBId() != 0 && predBB.GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
     if (pos == UINT32_MAX) {
       pred.push_back(&predBB);
     } else {
@@ -162,8 +192,8 @@ class BB {
   void AddSucc(BB &succBB, size_t pos = UINT32_MAX) {
     ASSERT((pos <= succ.size() || pos == UINT32_MAX), "Invalid position.");
     ASSERT((!succBB.IsInList(succ) && !IsInList(succBB.pred)), "BB already has been Added.");
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonEntry should not be here.");
-    ASSERT((succBB.id != 0 && succBB.id != 1), "CommonEntry or CommonEntry should not be here.");
+    ASSERT((GetBBId() != 0 && GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((succBB.GetBBId() != 0 && succBB.GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
     if (pos == UINT32_MAX) {
       succ.push_back(&succBB);
     } else {
@@ -181,15 +211,15 @@ class BB {
   }
 
   BBId GetBBId() const {
-    return id;
+    return BBId(GetID());
   }
 
   void SetBBId(BBId idx) {
-    id = idx;
+    SetID(idx.GetIdx());
   }
 
   uint32 UintID() const {
-    return static_cast<uint32>(id);
+    return GetID();
   }
 
   StmtNode *GetTheOnlyStmtNode();
@@ -251,15 +281,15 @@ class BB {
   void ReplaceStmt(StmtNode *stmt, StmtNode *newStmt);
 
   void RemovePred(BB &predBB, bool updatePhi = true) {
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonExit should not be here.");
-    ASSERT((predBB.id != 0 && predBB.id != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((GetBBId() != 0 && GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((predBB.GetBBId() != 0 && predBB.GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
     RemoveBBFromPred(predBB, updatePhi);
     predBB.RemoveBBFromSucc(*this);
   }
 
   void RemoveSucc(BB &succBB, bool updatePhi = true) {
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonExit should not be here.");
-    ASSERT((succBB.id != 0 && succBB.id != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((GetBBId() != 0 && GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((succBB.GetBBId() != 0 && succBB.GetBBId() != 1), "CommonEntry or CommonExit should not be here.");
     succBB.RemoveBBFromPred(*this, updatePhi);
     RemoveBBFromSucc(succBB);
   }
@@ -337,11 +367,11 @@ class BB {
     bbLabel = idx;
   }
 
-  uint32 GetFrequency() const {
+  uint64 GetFrequency() const {
     return frequency;
   }
 
-  void SetFrequency(uint32 f) {
+  void SetFrequency(uint64 f) {
     frequency = f;
   }
 
@@ -539,7 +569,6 @@ class BB {
   bool IsInList(const MapleVector<BB*> &bbList) const;
   int RemoveBBFromVector(MapleVector<BB*> &bbVec) const;
 
-  BBId id;
   LabelIdx bbLabel = 0;    // the BB's label
   MapleVector<BB*> pred;  // predecessor list
   MapleVector<BB*> succ;  // successor list
@@ -548,7 +577,7 @@ class BB {
   MapleMap<OStIdx, PhiNode> phiList;
   MapleMap<OStIdx, MePhiNode*> mePhiList;
   MapleMap<BB*, std::vector<PiassignMeStmt*>> meVarPiList;
-  uint32 frequency = 0;
+  uint64 frequency = 0;
   BBKind kind = kBBUnknown;
   uint32 attributes = 0;
 
@@ -558,6 +587,7 @@ class BB {
  private:
   MeStmts meStmtList;
   BB *group;
+  SCCNode<BB> *sccNode = nullptr;
 };
 
 using BBId = BB::BBId;

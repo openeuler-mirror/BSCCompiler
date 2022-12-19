@@ -1871,7 +1871,7 @@ bool AliasResultInNegtiveOffset(const OriginalSt *ostA, const OriginalSt *ostB) 
   OffsetType offsetB = ostB->GetOffset();
   auto typeA = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ostA->GetTyIdx());
   if (!offsetA.IsInvalid() && !offsetB.IsInvalid()) {
-    int32 bitSizeA = static_cast<int32>(GetTypeBitSize(typeA));
+    int32 bitSizeA = static_cast<int32>(GetTypeBitSize(*typeA));
     return (offsetA + bitSizeA) < offsetB;
   }
   return false;
@@ -1926,8 +1926,8 @@ bool AliasClass::MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB)
   // alias analysis based on offset.
   if (!offsetA.IsInvalid() && !offsetB.IsInvalid()) {
     // return if memory of ostA and ostB overlap
-    int32 bitSizeA = static_cast<int32>(GetTypeBitSize(ostA->GetType()));
-    int32 bitSizeB = static_cast<int32>(GetTypeBitSize(ostB->GetType()));
+    int32 bitSizeA = static_cast<int32>(GetTypeBitSize(*ostA->GetType()));
+    int32 bitSizeB = static_cast<int32>(GetTypeBitSize(*ostB->GetType()));
     return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
   }
   return true;

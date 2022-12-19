@@ -65,6 +65,21 @@ constexpr uint32 k16BitSize = 16;
 constexpr uint32 k32BitSize = 32;
 constexpr uint32 k64BitSize = 64;
 
+inline const std::string kDbgLong = "long.";
+inline const std::string kDbgULong = "Ulong.";
+inline const std::string kDbgLongDouble = "LongDouble.";
+inline const std::string kDbgSignedChar = "SignedChar.";
+inline const std::string kDbgChar = "Char.";
+inline const std::string kDbgUnsignedChar = "UnsignedChar.";
+inline const std::string kDbgUnsignedInt = "UnsignedInt.";
+inline const std::string kDbgShort = "short.";
+inline const std::string kDbgInt = "int.";
+inline const std::string kDbgLongLong = "LongLong.";
+inline const std::string kDbgInt128 = "__int128.";
+inline const std::string kDbgUnsignedShort = "UnsignedShort.";
+inline const std::string kDbgUnsignedLongLong = "UnsignedLonglong.";
+inline const std::string kDbgUnsignedInt128 = "Unsigned__int128.";
+
 inline uint32 GetPrimTypeBitSize(PrimType primType) {
   // 1 byte = 8 bits = 2^3 bits
   return GetPrimTypeSize(primType) << 3;
@@ -92,7 +107,8 @@ PrimType GetReg64PrimType(PrimType primType);
 PrimType GetNonDynType(PrimType primType);
 PrimType GetIntegerPrimTypeBySizeAndSign(size_t sizeBit, bool isSign);
 
-inline bool IsAddress(PrimitiveType primitiveType) {
+inline bool IsAddress(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsAddress();
 }
 
@@ -108,75 +124,95 @@ inline bool MustBeAddress(PrimType tp) {
   return (tp == PTY_ptr || tp == PTY_ref || tp == PTY_a64 || tp == PTY_a32);
 }
 
-inline bool IsPrimitivePureScalar(PrimitiveType primitiveType) {
+inline bool IsPrimitivePureScalar(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsInteger() && !primitiveType.IsAddress() &&
          !primitiveType.IsDynamic() && !primitiveType.IsVector();
 }
 
-inline bool IsPrimitiveUnsigned(PrimitiveType primitiveType) {
+inline bool IsPrimitiveUnsigned(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsUnsigned();
 }
 
-inline bool IsUnsignedInteger(PrimitiveType primitiveType) {
-  return IsPrimitiveUnsigned(primitiveType) && primitiveType.IsInteger() && !primitiveType.IsDynamic();
+inline bool IsUnsignedInteger(PrimType type) {
+  PrimitiveType primitiveType(type);
+  return IsPrimitiveUnsigned(type) && primitiveType.IsInteger() && !primitiveType.IsDynamic();
 }
 
-inline bool IsSignedInteger(PrimitiveType primitiveType) {
-  return !IsPrimitiveUnsigned(primitiveType) && primitiveType.IsInteger() && !primitiveType.IsDynamic();
+inline bool IsSignedInteger(PrimType type) {
+  PrimitiveType primitiveType(type);
+  return !primitiveType.IsUnsigned() && primitiveType.IsInteger() && !primitiveType.IsDynamic();
 }
 
-inline bool IsPrimitiveInteger(PrimitiveType primitiveType) {
+inline bool IsPrimitiveInteger(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsInteger() && !primitiveType.IsDynamic() && !primitiveType.IsVector();
 }
 
-inline bool IsPrimitiveDynType(PrimitiveType primitiveType) {
+inline bool IsPrimitiveDynType(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsDynamic();
 }
 
-inline bool IsPrimitiveDynInteger(PrimitiveType primitiveType) {
+inline bool IsPrimitiveDynInteger(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsDynamic() && primitiveType.IsInteger();
 }
 
-inline bool IsPrimitiveDynFloat(PrimitiveType primitiveType) {
+inline bool IsPrimitiveDynFloat(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsDynamic() && primitiveType.IsFloat();
 }
 
-inline bool IsPrimitiveFloat(PrimitiveType primitiveType) {
+inline bool IsPrimitiveFloat(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsFloat() && !primitiveType.IsDynamic() && !primitiveType.IsVector();
 }
 
-inline bool IsPrimitiveScalar(PrimitiveType primitiveType) {
+inline bool IsPrimitiveScalar(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsInteger() || primitiveType.IsFloat() ||
          (primitiveType.IsDynamic() && !primitiveType.IsDynamicNone()) ||
          primitiveType.IsSimple();
 }
 
-inline bool IsPrimitiveValid(PrimitiveType primitiveType) {
-  return IsPrimitiveScalar(primitiveType) && !primitiveType.IsDynamicAny();
+inline bool IsPrimitiveValid(PrimType type) {
+  PrimitiveType primitiveType(type);
+  return IsPrimitiveScalar(type) && !primitiveType.IsDynamicAny();
 }
 
-inline bool IsPrimitivePoint(PrimitiveType primitiveType) {
+inline bool IsPrimitivePoint(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsPointer();
 }
 
-inline bool IsPrimitiveVector(PrimitiveType primitiveType) {
+inline bool IsPrimitiveVector(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsVector();
 }
 
-inline bool IsPrimitiveVectorFloat(PrimitiveType primitiveType) {
+inline bool IsPrimitiveVectorFloat(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsVector() && primitiveType.IsFloat();
 }
 
-inline bool IsPrimitiveVectorInteger(PrimitiveType primitiveType) {
+inline bool IsPrimitiveVectorInteger(PrimType type) {
+  PrimitiveType primitiveType(type);
   return primitiveType.IsVector() && primitiveType.IsInteger();
 }
 
-inline bool IsPrimitiveUnSignedVector(const PrimitiveType &primitiveType) {
-  return IsPrimitiveUnsigned(primitiveType) && primitiveType.IsVector();
+inline bool IsPrimitiveUnSignedVector(PrimType type) {
+  PrimitiveType primitiveType(type);
+  return primitiveType.IsUnsigned() && primitiveType.IsVector();
 }
 
 bool IsNoCvtNeeded(PrimType toType, PrimType fromType);
 bool NeedCvtOrRetype(PrimType origin, PrimType compared);
+
+uint8 GetPointerSize();
+uint8 GetP2Size();
+PrimType GetLoweredPtrType();
 
 inline bool IsRefOrPtrAssign(PrimType toType, PrimType fromType) {
   return (toType == PTY_ref && fromType == PTY_ptr) || (toType == PTY_ptr && fromType == PTY_ref);
@@ -773,6 +809,10 @@ class MIRType {
 
   bool IsMIRStructType() const {
     return (typeKind == kTypeStruct) || (typeKind == kTypeStructIncomplete);
+  }
+
+  bool IsMIRIncompleteStructType() const {
+    return typeKind == kTypeStructIncomplete;
   }
 
   bool IsMIRUnionType() const {
@@ -1482,8 +1522,12 @@ class MIRStructType : public MIRType {
 
   bool HasPadding() const;
 
-  void SetAlias(MIRAlias *a) { alias = a; }
-  MIRAlias *GetAlias() const { return alias; }
+  void SetAlias(MIRAlias *mirAlias) {
+    alias = mirAlias;
+  }
+  MIRAlias *GetAlias() const {
+    return alias;
+  }
 
  protected:
   FieldVector fields{};
@@ -1988,8 +2032,6 @@ class MIRFuncType : public MIRType {
     hIdx += (size != 0 ? (static_cast<size_t>(paramTypeList[0]) + size) : 0) << 4; // shift bit is 4
     return hIdx % kTypeHashLength;
   }
-
- public:
   FuncAttrs funcAttrs;
  private:
   TyIdx retTyIdx{ 0 };
@@ -2142,6 +2184,14 @@ class MIRGenericInstantType : public MIRInstantVectorType {
  private:
   TyIdx genericTyIdx;  // the generic type to be instantiated
 };
+
+inline size_t GetTypeBitSize(const MIRType &type) {
+  if (type.IsMIRBitFieldType()) {
+    return static_cast<const MIRBitFieldType &>(type).GetFieldSize();
+  }
+  // 1 byte = 8 bits = 2^3 bits
+  return type.GetSize() << 3;
+}
 
 MIRType *GetElemType(const MIRType &arrayType);
 #endif  // MIR_FEATURE_FULL

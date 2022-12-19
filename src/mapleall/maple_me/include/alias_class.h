@@ -22,15 +22,6 @@
 namespace maple {
 constexpr int64 bitsPerByte = 8;
 
-inline int64 GetTypeBitSize(const MIRType *type) {
-  ASSERT(type != nullptr, "type is wrong.");
-  if (type->GetKind() == kTypeBitField) {
-    return static_cast<const MIRBitFieldType*>(type)->GetFieldSize();
-  } else {
-    return static_cast<int64>(type->GetSize()) * bitsPerByte;
-  }
-}
-
 inline bool IsMemoryOverlap(OffsetType startA, int64 sizeA, OffsetType startB, int64 sizeB) {
   // A : |---------|
   // B :   |----------|
