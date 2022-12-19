@@ -1225,8 +1225,9 @@ ASTExpr *ASTParser::ProcessExprUnaryOperator(MapleAllocator &allocator, const cl
   if (astExpr == nullptr) {
     return nullptr;
   }
-  // vla as a pointer is not need to be addrof
-  if (clangOpCode == clang::UO_AddrOf && subExpr->getType()->isVariableArrayType()) {
+  /* vla as a pointer and typedef is no need to be addrof */
+  if (clangOpCode == clang::UO_AddrOf && subExpr->getType()->isVariableArrayType() &&
+      llvm::isa<clang::TypedefType>(subExpr->getType())) {
     return astExpr;
   }
   astUOExpr->SetASTDecl(astExpr->GetASTDecl());
