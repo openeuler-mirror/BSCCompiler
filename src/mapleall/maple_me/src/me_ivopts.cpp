@@ -1465,10 +1465,11 @@ void IVOptimizer::ComputeCandCost() {
 }
 
 static void FindScalarFactor(MeExpr &expr, std::unordered_map<int32, std::pair<MeExpr*, int64>> &record,
-                             int64 multiplier) {
+                             int64 multiplier, bool needSext) {
   switch (expr.GetMeOp()) {
     case kMeOpConst: {
-      int64 constVal = static_cast<ConstMeExpr&>(expr).GetExtIntValue();
+      int64 constVal = needSext ? static_cast<ConstMeExpr&>(expr).GetSXTIntValue() :
+                                  static_cast<ConstMeExpr&>(expr).GetExtIntValue();
       auto it = record.find(kInvalidExprID);
       if (it == record.end()) {
         record.emplace(kInvalidExprID, std::make_pair(nullptr, multiplier * constVal));
@@ -1490,11 +1491,11 @@ static void FindScalarFactor(MeExpr &expr, std::unordered_map<int32, std::pair<M
     case kMeOpOp: {
       auto &op = static_cast<OpMeExpr&>(expr);
       if (op.GetOp() == OP_add) {
-        FindScalarFactor(*op.GetOpnd(0), record, multiplier);
-        FindScalarFactor(*op.GetOpnd(1), record, multiplier);
+        FindScalarFactor(*op.GetOpnd(0), record, multiplier, needSext);
+        FindScalarFactor(*op.GetOpnd(1), record, multiplier, needSext);
       } else if (op.GetOp() == OP_sub) {
-        FindScalarFactor(*op.GetOpnd(0), record, multiplier);
-        FindScalarFactor(*op.GetOpnd(1), record, -multiplier);
+        FindScalarFactor(*op.GetOpnd(0), record, multiplier, needSext);
+        FindScalarFactor(*op.GetOpnd(1), record, -multiplier, needSext);
       } else if (op.GetOp() == OP_mul) {
         auto *opnd0 = op.GetOpnd(0);
         auto *opnd1 = op.GetOpnd(1);
@@ -1503,12 +1504,14 @@ static void FindScalarFactor(MeExpr &expr, std::unordered_map<int32, std::pair<M
           return;
         }
         if (opnd0->GetMeOp() == kMeOpConst) {
-          FindScalarFactor(*op.GetOpnd(1), record, multiplier * static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue());
+          FindScalarFactor(
+              *op.GetOpnd(1), record, multiplier * static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue(), needSext);
         } else {
-          FindScalarFactor(*op.GetOpnd(0), record, multiplier * static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue());
+          FindScalarFactor(
+              *op.GetOpnd(0), record, multiplier * static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue(), needSext);
         }
       } else if (op.GetOp() == OP_cvt) {
-        FindScalarFactor(*op.GetOpnd(0), record, multiplier);
+        FindScalarFactor(*op.GetOpnd(0), record, multiplier, IsSignedInteger(op.GetOpndType()));
       }
       return;
     }
@@ -1538,8 +1541,8 @@ int64 IVOptimizer::ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep) {
 
   std::unordered_map<int32, std::pair<MeExpr*, int64>> candMap;
   std::unordered_map<int32, std::pair<MeExpr*, int64>> groupMap;
-  FindScalarFactor(candStep, candMap, 1);
-  FindScalarFactor(groupStep, groupMap, 1);
+  FindScalarFactor(candStep, candMap, 1, false);
+  FindScalarFactor(groupStep, groupMap, 1, false);
   int64 commonRatio = 0;
   for (auto &itGroup : groupMap) {
     auto itCand = candMap.find(itGroup.first);
@@ -1578,8 +1581,8 @@ int64 IVOptimizer::ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep) {
 MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase, uint64 ratio, bool &replaced) {
   std::unordered_map<int32, std::pair<MeExpr*, int64>> candMap;
   std::unordered_map<int32, std::pair<MeExpr*, int64>> groupMap;
-  FindScalarFactor(candBase, candMap, 1);
-  FindScalarFactor(groupBase, groupMap, 1);
+  FindScalarFactor(candBase, candMap, 1, false);
+  FindScalarFactor(groupBase, groupMap, 1, false);
   MeExpr *extraExpr = nullptr;
   int64 candConst = 0;
   int64 groupConst = 0;
