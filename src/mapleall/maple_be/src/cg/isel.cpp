@@ -1662,6 +1662,18 @@ Operand *MPISel::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
   if (IsPrimitiveInteger(fromType) && IsPrimitiveInteger(toType)) {
     return &SelectCopy2Reg(opnd0, toType, fromType);
   }
+  if (IsPrimitiveInteger(fromType) && IsPrimitiveFloat(toType)) {
+    RegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
+      cgFunc->GetRegTyFromPrimTy(toType));
+    SelectCvtInt2Float(*resOpnd, opnd0, toType, fromType);
+    return resOpnd;
+  }
+  if (IsPrimitiveFloat(fromType) && IsPrimitiveInteger(toType)) {
+    RegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
+      cgFunc->GetRegTyFromPrimTy(toType));
+    SelectCvtFloat2Int(*resOpnd, opnd0, toType, fromType);
+    return resOpnd;
+  }
   CHECK_FATAL(false, "NIY, retype");
   return nullptr;
 }
