@@ -26,31 +26,6 @@ MeDSE::MeDSE(MeFunction &func, Dominance *dom, Dominance *pdom, const AliasClass
           aliasClass, enabledDebug, MeOption::decoupleStatic, func.IsLfo()),
       func(func),
       cfg(func.GetCfg()) {}
-void MeDSE::VerifyPhi() const {
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == cfg->common_exit()) {
-      continue;
-    }
-    auto *bb = *bIt;
-    if (bb->GetPhiList().empty()) {
-      continue;
-    }
-    size_t predBBNums = bb->GetPred().size();
-    for (auto &pair : std::as_const(bb->GetPhiList())) {
-      if (IsSymbolLived(*pair.second.GetResult())) {
-        if (predBBNums <= 1) {  // phi is live and non-virtual in bb with 0 or 1 pred
-          const OriginalSt *ost = func.GetMeSSATab()->GetOriginalStFromID(pair.first);
-          CHECK_FATAL(ost, "ost is nullptr!");
-          CHECK_FATAL(!ost->IsSymbolOst() || ost->GetIndirectLev() != 0,
-                      "phi is live and non-virtual in bb with zero or one pred");
-        } else if (pair.second.GetPhiOpnds().size() != predBBNums) {
-          ASSERT(false, "phi opnd num is not consistent with pred bb num(need update phi)");
-        }
-      }
-    }
-  }
-}
 
 void MeDSE::RunDSE() {
   if (enableDebug) {
@@ -63,7 +38,6 @@ void MeDSE::RunDSE() {
   if (UpdatedCfg()) {
     cfg->WontExitAnalysis();
   }
-  VerifyPhi();
   if (enableDebug) {
     func.Dump(true);
   }
