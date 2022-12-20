@@ -239,6 +239,7 @@ void HandleRangeGoto(StmtNode &stmt, MPISel &iSel) {
   Operand *srcOpnd = iSel.HandleExpr(rangeGotoNode, *srcNode);
   cgFunc->SetCurBBKind(BB::kBBRangeGoto);
   iSel.SelectRangeGoto(rangeGotoNode, *srcOpnd);
+  cgFunc->SetCurBB(*cgFunc->StartNewBB(rangeGotoNode));
 }
 
 void HandleIgoto(StmtNode &stmt, MPISel &iSel) {
