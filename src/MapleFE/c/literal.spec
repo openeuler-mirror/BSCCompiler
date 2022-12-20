@@ -143,16 +143,33 @@ rule FloatingSuffix : ONEOF(
 
 rule EnumerationConstant : Identifier
 
-rule CharacterConstant : ONEOF(
-  ''' + SCharSequence + ''',
-  'L' + ''' + SCharSequence + ''',
-  'U' + ''' + SCharSequence + ''',
-  'U' + ''' + SCharSequence + '''
+rule CharacterLiteral : ONEOF(
+  ''' + CCharSequence + ''',
+  'L' + ''' + CCharSequence + ''',
+  'U' + ''' + CCharSequence + ''',
+  'U' + ''' + CCharSequence + '''
 )
 
 rule CCharSequence : ONEOF(
-  CChar,
-  CCharSequence + CChar
+  CharChar,
+  CharChar + ZEROORMORE(CharChar) + CharChar
+)
+  attr.property.%2 : SecondTry
+
+rule CharChar : ONEOF( #except ' \ and \n
+  PrintableChar,
+  '"',
+  #EscapeSequence
+)
+
+# printalbe characters except ' and "
+rule PrintableChar : ONEOF(
+  CHAR,
+  DIGIT,
+  ' ', '!', '#', '$', '%', '&', '(', ')', '*', '+', ',', '-', '.', '/',
+  ':', ';', '<', '=', '>', '?', '@',
+  '[', ']', '^', '_', '`',
+  '{', '|', '}', '~'
 )
 
 rule EscapeSequence : ONEOF(
@@ -182,27 +199,19 @@ rule EncodingPrefix : ONEOF(
 )
 
 rule SCharSequence : ONEOF(
-  SChar,
-  SCharSequence + SChar
+  StringChar,
+  StringChar + ZEROORMORE(StringChar) + StringChar
 )
+  attr.property.%2 : SecondTry
 
-rule SChar : ONEOF(
-  CChar,
-  EscapeSequence
+rule StringChar : ONEOF( #except " \ and \n
+  PrintableChar,
+  ''',
+  #EscapeSequence
 )
-
-#######################################
-#rule CChar : ONEOF(
-#   CHAR
-#   '_'
-#   EscapeSequence
-#)
-
-rule Digit : DIGIT
 
 rule NullLiteral : "NULL"
 rule BooleanLiteral : ONEOF("true", "false")
-rule CharacterLiteral : CharacterConstant
 
 rule Literal : ONEOF(
   IntegerLiteral,
