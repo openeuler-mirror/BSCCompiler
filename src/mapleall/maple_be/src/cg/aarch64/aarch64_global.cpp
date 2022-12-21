@@ -2214,9 +2214,6 @@ bool SameRHSPropPattern::CheckCondition(Insn &insn) {
     return false;
   }
   CHECK_FATAL(prevInsn->GetOperand(kInsnFirstOpnd).IsRegister(), "prevInsn first operand must be register");
-  if (static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber() == R16) {
-    return false;
-  }
   if (prevInsn->GetOperand(kInsnSecondOpnd).IsRegister() &&
       RegOperand::IsSameReg(prevInsn->GetOperand(kInsnFirstOpnd), prevInsn->GetOperand(kInsnSecondOpnd))) {
     return false;
