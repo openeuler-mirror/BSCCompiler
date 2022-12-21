@@ -2355,7 +2355,7 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   uint32 falseLabelIdx = falseIdx;
   uint32 fallthrouLabelIdx, jumpToLabelIdx;
   uint32 rightCondLabelIdx = FEUtils::GetSequentialNumber();
-  MIRType *tempVarType = GlobalTables::GetTypeTable().GetUInt32();
+  MIRType *tempVarType = GlobalTables::GetTypeTable().GetInt32();
   UniqueFEIRVar shortCircuit = FEIRBuilder::CreateVarNameForC(GetVarName(), *tempVarType);
 
   // check short circuit boundary
