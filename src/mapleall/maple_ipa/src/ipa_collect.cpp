@@ -252,7 +252,7 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmt
     default: {
       auto defStmtInfoId = scalar.GetDefByMeStmt()->GetStmtInfoId();
       defUsePosition.definePositions.push_back(defStmtInfoId);
-      if (scalar.GetDefBy() != kDefByChi) {
+      if (scalar.GetDefBy() != kDefByChi && defStmtInfoId != kInvalidIndex) {
         auto &defUsePositionOfDefStmt = stmtInfoVector[defStmtInfoId].GetDefUsePositions(*ost);
         defUsePositionOfDefStmt.usePositions.push_back(stmtInfoId);
         break;

@@ -45,6 +45,7 @@ enum MeExprOp : uint8 {
 };  // cache the op to avoid dynamic cast
 
 constexpr int kInvalidExprID = -1;
+constexpr size_t kInvalidIndex = std::numeric_limits<size_t>::max();
 class MeExpr {
  public:
   MeExpr(int32 exprId, MeExprOp meop, Opcode op, PrimType t, size_t n)
@@ -1525,7 +1526,7 @@ class MeStmt {
  private:
   uint32 originalId = 0xdeadbeef;
   uint32 meStmtId = 0xdeadbeef;
-  size_t stmtInfoId = -1u;
+  size_t stmtInfoId = kInvalidIndex;
   Opcode op;
   bool isLive = true;
   BB *bb = nullptr;

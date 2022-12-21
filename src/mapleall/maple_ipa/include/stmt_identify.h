@@ -30,7 +30,6 @@ using StmtIndex = size_t;
 using StmtInfoId = size_t;
 
 constexpr PUIdx kInvalidPuIdx = std::numeric_limits<PUIdx>::max();
-constexpr size_t kInvalidIndex = std::numeric_limits<size_t>::max();
 constexpr LabelIdx kInvalidLabelIdx = std::numeric_limits<LabelIdx>::max();
 
 struct DefUsePositions {
