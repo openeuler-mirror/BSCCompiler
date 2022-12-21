@@ -54,6 +54,7 @@ enum MIRFlavor {
   kCmplV1,
   kCmpl,  // == CMPLv2
   kFlavorLmbc,
+  kFlavorMapleFE,
 };
 
 enum MIRSrcLang {
