@@ -569,6 +569,7 @@ class ASTNoInitExpr : public ASTExpr {
   void SetNoInitType(MIRType *type);
 
  private:
+  MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   MIRType *noInitType = nullptr;
 };
@@ -683,6 +684,14 @@ class ASTInitListExpr : public ASTExpr {
     return hasVectorType;
   }
 
+  void SetElemLen(size_t num) {
+    elemLen = num;
+  }
+
+  size_t GetElemLen() const {
+    return elemLen;
+  }
+
  private:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -702,7 +711,7 @@ class ASTInitListExpr : public ASTExpr {
   bool SolveInitListPartialOfZero(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                   FieldID fieldID, uint32 &index, const ASTInitListExpr &initList,
                                   std::list<UniqueFEIRStmt> &stmts) const;
-  void SolveInitListExprOrDesignatedInitUpdateExpr(FieldID fieldID, ASTExpr &initExpr,
+  void SolveInitListExprOrDesignatedInitUpdateExpr(std::tuple<FieldID, uint32, MIRType*> fieldInfo, ASTExpr &initExpr,
       const UniqueFEIRType &baseStructPtrType, std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
       std::list<UniqueFEIRStmt> &stmts) const;
   void SolveStructFieldOfArrayTypeInitWithStringLiteral(std::tuple<FieldID, uint32, MIRType*> fieldInfo,
@@ -721,6 +730,9 @@ class ASTInitListExpr : public ASTExpr {
                              const ASTInitListExpr &initList, std::list<UniqueFEIRStmt> &stmts) const;
   MIRIntrinsicID SetVectorSetLane(const MIRType &type) const;
   void ProcessDesignatedInitUpdater(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
+                                    const UniqueFEIRExpr &addrOfCharArray, ASTExpr *expr,
+                                    std::list<UniqueFEIRStmt> &stmts) const;
+  void ProcessNoBaseDesignatedInitUpdater(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                     ASTExpr *expr, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessStringLiteralInitList(const UniqueFEIRExpr &addrOfCharArray, const UniqueFEIRExpr &addrOfStringLiteral,
                                     size_t stringLength, std::list<UniqueFEIRStmt> &stmts) const;
@@ -734,6 +746,7 @@ class ASTInitListExpr : public ASTExpr {
   MapleString varName;
   ParentFlag parentFlag = ParentFlag::kNoParent;
   uint32 unionInitFieldIdx = UINT32_MAX;
+  size_t elemLen = 0;
   bool hasArrayFiller = false;
   bool isTransparent = false;
   bool hasVectorType = false;
@@ -1088,7 +1101,7 @@ class ASTDesignatedInitUpdateExpr : public ASTExpr {
     updaterExpr = astExpr;
   }
 
-  const ASTExpr *GetUpdaterExpr() const{
+  ASTExpr *GetUpdaterExpr() const{
     return updaterExpr;
   }
 
