@@ -321,6 +321,18 @@ Operand *AArch64ICOIfThenElsePattern::GetDestReg(const std::map<Operand*, std::v
   return dest;
 }
 
+bool AArch64ICOIfThenElsePattern::CheckHasSameDestSize(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn) const {
+  if (lInsn.size() == rInsn.size() && rInsn.size() == 1 && IsMovMOperator(*lInsn[0]) && IsMovMOperator(*rInsn[0])) {
+    RegOperand *rDestReg = static_cast<RegOperand*>(&rInsn[0]->GetOperand(0));
+    RegOperand *lDestReg = static_cast<RegOperand*>(&lInsn[0]->GetOperand(0));
+    if (lDestReg->GetRegisterNumber() == rDestReg->GetRegisterNumber() &&
+        rInsn[0]->GetOperandSize(0) != lInsn[0]->GetOperandSize(0)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool AArch64ICOIfThenElsePattern::BuildCondMovInsn(const BB &bb,
                                                    const std::map<Operand*, std::vector<Operand*>> &ifDestSrcMap,
                                                    const std::map<Operand*, std::vector<Operand*>> &elseDestSrcMap,
@@ -786,8 +798,8 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB *ifBB, BB *elseBB, BB &joinBB) {
                                            &insnInIfBBToBeRremovedOutOfCurrBB))) {
     return false;
   }
-
-  if (!CheckHasSameDest(ifSetInsn, elseSetInsn) || !CheckHasSameDest(elseSetInsn, ifSetInsn)) {
+  if (!CheckHasSameDest(ifSetInsn, elseSetInsn) || !CheckHasSameDest(elseSetInsn, ifSetInsn) ||
+      !CheckHasSameDestSize(ifSetInsn, elseSetInsn)) {
     return false;
   }
 

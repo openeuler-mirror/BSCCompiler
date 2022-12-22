@@ -66,6 +66,7 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
                           std::vector<Insn*> &generateInsn) const;
   RegOperand *GenerateRegAndTempInsn(Operand &dest, const RegOperand &destReg, std::vector<Insn*> &generateInsn) const;
   bool CheckHasSameDest(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn) const;
+  bool CheckHasSameDestSize(std::vector<Insn*> &lInsn, std::vector<Insn*> &rInsn) const;
   bool CheckModifiedRegister(Insn &insn, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
       std::vector<Operand*> &src, std::map<Operand*, Insn*> &dest2InsnMap, Insn **toBeRremovedOutOfCurrBB) const;
   bool CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
