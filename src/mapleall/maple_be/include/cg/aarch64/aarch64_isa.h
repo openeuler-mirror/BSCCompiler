@@ -19,6 +19,7 @@
 
 #define DEFINE_MOP(op, ...) op,
 enum AArch64MOP_t : maple::uint32 {
+#include "abstract_mmir.def"
 #include "aarch64_md.def"
 #include "aarch64_mem_md.def"
   kMopLast
@@ -159,6 +160,10 @@ static inline bool IsPseudoInstruction(MOperator mOp) {
  * However for special long range branch patch, the label is installed in this case.
  */
 uint32 GetJumpTargetIdx(const Insn &insn);
+
+bool IsSub(const Insn &insn);
+
+MOperator GetMopSub2Subs(const Insn &insn);
 
 MOperator FlipConditionOp(MOperator flippedOp);
 } /* namespace AArch64isa */
