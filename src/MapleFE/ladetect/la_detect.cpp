@@ -28,13 +28,8 @@ std::string GetLookAheadString(LookAhead la) {
   std::string str = "{";
   switch (la.mType) {
   case LA_Char:
-    str += "LA_Char, \'";
-    // need escape
-    if (la.mData.mChar == '\\' || la.mData.mChar == '\'') {
-      str += "\\";
-    }
+    str += "LA_Char, ";
     str += la.mData.mChar;
-    str += "\'";
     break;
   case LA_String:
     str += "LA_String, \"";

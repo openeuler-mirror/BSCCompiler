@@ -196,7 +196,9 @@ void CopyProp::CheckLiveRange(const MeExpr &expr, int32 &badPropCnt) {
     case kMeOpReg: {
       auto &scalar = static_cast<const ScalarMeExpr&>(expr);
       bool findLongerUse = false;
-      for (auto &ui : *useInfo.GetUseSitesOfExpr(&scalar)) {
+      auto *useSites = useInfo.GetUseSitesOfExpr(&scalar);
+      CHECK_NULL_FATAL(useSites);
+      for (auto &ui : *useSites) {
         const BB *useBB = ui.GetUseBB();
         if (dom.Dominate(*curBB, *useBB) || pdom.Dominate(*useBB, *curBB)) {
           findLongerUse = true;
@@ -313,6 +315,9 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
       }
 
       auto &propedIvar = PropIvar(*ivarMeExpr);
+      if (propedIvar.IsScalar() && !useInfo.GetUseSitesOfExpr(&propedIvar)) {
+        useInfo.AddUseSiteOfExpr(&propedIvar, static_cast<MeStmt *>(ivarMeExpr->GetDefStmt()));
+      }
       if (PropagatableByCopyProp(&propedIvar)) {
         return propedIvar;
       }

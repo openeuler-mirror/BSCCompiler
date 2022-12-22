@@ -355,6 +355,9 @@ inline bool CallStmtOpndEscape(const StmtNode *stmt) {
   }
 
   auto *mirFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(static_cast<const CallNode*>(stmt)->GetPUIdx());
+  if (!mirFunc->GetFuncDesc().IsReturnNoAlias()) {
+    return true;
+  }
   if (mirFunc->GetFuncDesc().IsPure() || mirFunc->GetFuncDesc().IsConst()) {
     return false;
   }
