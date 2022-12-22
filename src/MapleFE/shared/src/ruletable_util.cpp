@@ -239,7 +239,7 @@ bool LookAheadEqual(LookAhead la_a, LookAhead la_b) {
     size_t len_b = strlen(la_b.mData.mString);
     if (len_a != len_b)
       return false;
-    return strncmp(la_a.mData.mString, la_b.mData.mString, len_a);
+    return (strncmp(la_a.mData.mString, la_b.mData.mString, len_a) == 0);
   } else if (la_a.mType == LA_Identifier && la_b.mType == LA_Identifier) {
     return true;
   } else if (la_a.mType == LA_Literal && la_b.mType == LA_Literal) {

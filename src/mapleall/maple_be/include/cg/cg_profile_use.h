@@ -116,7 +116,7 @@ class CgProfUse {
       // Type 2 inference
       uint32 knownEdges2 = 0;
       uint64 freqSum2 = 0;
-      Edge * unknownEdge2 = nullptr;
+      Edge* unknownEdge2 = nullptr;
       MapleMap<BB*, MapleVector<Edge*>>::iterator oit = BB2OutEdges.find(bb);
       if ((oit != BB2OutEdges.end()) && (oit->second.size() != 0)) {
         for (Edge *e : oit->second) {
@@ -171,7 +171,6 @@ class CgProfUse {
   MapleSet<Edge*> allEdges;
   MapleMap<BB*, MapleVector<Edge*>> BB2InEdges;
   MapleMap<BB*, MapleVector<Edge*>> BB2OutEdges;
- private:
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CGProfUse, maplebe::CGFunc)
