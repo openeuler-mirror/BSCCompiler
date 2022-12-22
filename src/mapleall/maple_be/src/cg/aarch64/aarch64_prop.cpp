@@ -264,8 +264,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       break;
     }
     default:
-      ASSERT(false, "this case is not supported currently");
-      break;
+      return MOP_undef;
   }
   return newMop;
 }
@@ -362,6 +361,9 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &con
     /* only support add & sub now */
     int64 newValue = 0;
     MOperator newMop = GetFoldMopAndVal(newValue, constOpnd.GetValue(), *useInsn);
+    if (newMop == MOP_undef) {
+      return false;
+    }
     bool isSigned = (newValue < 0);
     auto *tempImm = static_cast<ImmOperand*>(constOpnd.Clone(*constPropMp));
     tempImm->SetValue(newValue);
