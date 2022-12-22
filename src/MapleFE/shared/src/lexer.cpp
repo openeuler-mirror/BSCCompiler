@@ -633,7 +633,7 @@ bool Lexer::TraverseTableData(TableData *data) {
 
   switch (data->mType) {
 
-  // The first thinking is I also want to check if the next text after 'curidx' is a separtor
+  // The first thought is to check if the next text after 'curidx' is a separtor
   // or operator.
   //
   // This is the case in parsing a DT_String. However, we have many rules handling DT_Char
@@ -815,7 +815,7 @@ bool Lexer::TraverseSecondTry(const RuleTable *rule_table) {
   //               3. We need find the longest match.
 
   // These four are the final result if success.
-  // [NOTE] The reason I use 'the one after' as xxx_end, is to check if TraverseTableData()
+  // [NOTE] The reason we use 'the one after' as xxx_end, is to check if TraverseTableData()
   // really moves the curidx. Or in another word, if it matches anything or nother.
   // If it matches something, xxx_end will be greater than xxx_start, or else they are equal.
   unsigned yyy_start = curidx;
