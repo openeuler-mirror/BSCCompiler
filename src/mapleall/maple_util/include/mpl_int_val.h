@@ -357,10 +357,7 @@ class IntVal {
 
   IntVal LShr(uint64 shift, PrimType pType) const {
     IntVal ret = TruncOrExtend(pType);
-
-    ASSERT(shift <= ret.width, "invalid shift value");
     ret.value >>= shift;
-
     return ret;
   }
 

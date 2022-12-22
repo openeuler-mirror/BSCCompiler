@@ -2243,12 +2243,8 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
     if (expr1->GetMeOp() != kMeOpConst) {
       return nullptr;
     }
-    auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetIntValue();
-    auto c2 = static_cast<ConstMeExpr *>(expr1)->GetIntValue();
-    if (c1.IsSigned() != c2.IsSigned()) {
-      c1.Assign(IntVal(c1, false));
-      c2.Assign(IntVal(c2, false));
-    }
+    auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetExtIntValue();
+    auto c2 = static_cast<ConstMeExpr *>(expr1)->GetExtIntValue();
     if ((c1 & c2) == 0) {
       auto newOpnd0 = CreateMeExprBinary(OP_bior, opmeexpr->GetPrimType(), *opnd0->GetOpnd(0), *opnd1);
       auto res = CreateMeExprBinary(OP_bxor, opnd0->GetPrimType(), *newOpnd0, *expr1);
@@ -2484,8 +2480,8 @@ MeExpr *IRMap::SimplifyXorMeExpr(OpMeExpr *opmeexpr) {
     if (constExpr1->GetMeOp() != kMeOpConst || constExpr2->GetMeOp() != kMeOpConst) {
       return nullptr;
     }
-    auto c1 = static_cast<ConstMeExpr *>(constExpr1)->GetIntValue();
-    auto c2 = static_cast<ConstMeExpr *>(constExpr2)->GetIntValue();
+    auto c1 = static_cast<ConstMeExpr *>(constExpr1)->GetExtIntValue();
+    auto c2 = static_cast<ConstMeExpr *>(constExpr2)->GetExtIntValue();
     if (c1 == c2) {
       auto xorExpr = CreateMeExprBinary(OP_bxor, opmeexpr->GetPrimType(), *opnd0->GetOpnd(0), *opnd1->GetOpnd(0));
       auto andExpr = CreateMeExprBinary(OP_band, opmeexpr->GetPrimType(), *xorExpr, *constExpr1);
@@ -2737,7 +2733,9 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
       auto *opnd = opmeexpr->GetOpnd(0);
       if (opnd->GetMeOp() == kMeOpConst && IsPrimitiveInteger(opnd->GetPrimType()) &&
           IsPrimitiveInteger(opmeexpr->GetPrimType())) {
-        return CreateIntConstMeExpr(-static_cast<ConstMeExpr*>(opnd)->GetExtIntValue(), opmeexpr->GetPrimType());
+        auto value = static_cast<ConstMeExpr *>(opnd)->GetExtIntValue();
+        // -INT64_MIN=INT64_MIN, to avoid overflow
+        return CreateIntConstMeExpr(value == INT64_MIN ? value : -value, opmeexpr->GetPrimType());
       }
       return nullptr;
     }

@@ -1824,7 +1824,21 @@ bool ValueRangePropagation::AddOrSubWithConstant(
         (static_cast<uint64>(lhsConstant) + static_cast<uint64>(rhsConstant)) :
         (static_cast<uint64>(lhsConstant) - static_cast<uint64>(rhsConstant));
   } else {
-    res = (op == OP_add) ? (lhsConstant + rhsConstant) : (lhsConstant - rhsConstant);
+    if (op == OP_add) {
+      if ((rhsConstant > 0 && lhsConstant > INT64_MAX - rhsConstant) ||
+          (rhsConstant < 0 && lhsConstant < INT64_MIN - rhsConstant)) {
+        return false;
+      } else {
+        res = lhsConstant + rhsConstant;
+      }
+    } else {
+      if ((rhsConstant < 0 && lhsConstant > INT64_MAX + rhsConstant) ||
+          (rhsConstant > 0 && lhsConstant < INT64_MIN + rhsConstant)) {
+        return false;
+      } else {
+        res = lhsConstant - rhsConstant;
+      }
+    }
   }
   return true;
 }
