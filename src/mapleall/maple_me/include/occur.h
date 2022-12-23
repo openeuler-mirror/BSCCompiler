@@ -204,6 +204,8 @@ class MeRealOcc : public MeOccur {
     isHoisted = val;
   }
 
+  bool rgExcluded = false; // reduced graph excluded, used only by McSSAPre
+
  private:
   MeStmt *meStmt;     // the stmt that has this occ
   MeExpr *meExpr;     // the expr it's corresponding to
@@ -215,8 +217,6 @@ class MeRealOcc : public MeOccur {
   bool isLHS;
   bool isFormalAtEntry;  // the fake lhs occurrence at entry for formals
   bool isHoisted = false;  // the hoisted occ used for hoisting
- public:
-  bool rgExcluded = false; // reduced graph excluded, used only by McSSAPre
 };
 
 class MeInsertedOcc : public MeOccur {

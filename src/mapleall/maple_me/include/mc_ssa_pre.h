@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -23,10 +23,10 @@ class RGNode {
   friend class McSSAPre;
   friend class Visit;
  public:
-  RGNode(MapleAllocator *alloc, uint32 idx, MeOccur *oc) : id(idx), occ(oc), 
-        pred(alloc->Adapter()),
-        inEdgesCap(alloc->Adapter()),
-        usedCap(alloc->Adapter()) {}
+  RGNode(MapleAllocator *alloc, uint32 idx, MeOccur *oc) : id(idx), occ(oc),
+      pred(alloc->Adapter()),
+      inEdgesCap(alloc->Adapter()),
+      usedCap(alloc->Adapter()) {}
  private:
   uint32 id;
   MeOccur *occ;
@@ -40,12 +40,12 @@ class Visit {
   friend class McSSAPre;
  private:
   Visit(RGNode *nd, uint32 idx) : node(nd), predIdx(idx) {}
-  RGNode *node;
-  uint32 predIdx;            // the index in node's pred
-
   uint64 AvailableCapacity() const { return node->inEdgesCap[predIdx] - node->usedCap[predIdx]; }
   void IncreUsedCapacity(uint64 val) { node->usedCap[predIdx] += val; }
   bool operator==(const Visit *rhs) const { return node == rhs->node && predIdx == rhs->predIdx; }
+
+  RGNode *node;
+  uint32 predIdx;          // the index in node's pred
 };
 
 // for representing a flow path from source to sink
@@ -60,7 +60,8 @@ class Route {
 
 class McSSAPre : public SSAPre {
  public:
-  McSSAPre(IRMap &hMap, Dominance &currDom, Dominance &currPdom, MemPool &memPool, MemPool &mp2, PreKind kind, uint32 limit) :
+  McSSAPre(IRMap &hMap, Dominance &currDom, Dominance &currPdom, MemPool &memPool, MemPool &mp2, PreKind kind,
+           uint32 limit) :
         SSAPre(hMap, currDom, currPdom, memPool, mp2, kind, limit),
         occ2RGNodeMap(ssaPreAllocator.Adapter()),
         maxFlowRoutes(ssaPreAllocator.Adapter()),
@@ -103,7 +104,8 @@ class McSSAPre : public SSAPre {
   MapleVector<Route*> maxFlowRoutes;
   uint32 nextRGNodeId;
   uint64 maxFlowValue;
-  uint64 relaxedMaxFlowValue;  // relax maxFlowValue to avoid excessive mincut search time when number of routes is large
+  // relax maxFlowValue to avoid excessive mincut search time when number of routes is large
+  uint64 relaxedMaxFlowValue;
   MapleVector<Visit*> minCut;   // an array of Visits* to represent the minCut
   uint32 preUseProfileLimit = UINT32_MAX;
 };

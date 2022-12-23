@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -171,7 +171,8 @@ void McSSAPre::RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSe
 }
 
 // find the cut closest to the sink whose total flow is relaxedMaxFlowValue
-bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet,  uint32 nextRouteIdx, uint64 flowSoFar) {
+bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet,
+                                   uint32 nextRouteIdx, uint64 flowSoFar) {
   Route *curRoute = maxFlowRoutes[nextRouteIdx];
   Visit *curVisit = nullptr;
 
@@ -217,7 +218,8 @@ bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> 
 }
 
 // find the cut closest to the sink whose total flow is maxFlowValue
-bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet,  uint32 nextRouteIdx, uint64 flowSoFar) {
+bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet,
+                            uint32 nextRouteIdx, uint64 flowSoFar) {
   Route *curRoute = maxFlowRoutes[nextRouteIdx];
   Visit *curVisit = nullptr;
 
@@ -279,7 +281,8 @@ void McSSAPre::DetermineMinCut() {
   }
   // maximum width of the min cut is the number of routes in maxFlowRoutes
   Visit* cut[maxFlowRoutes.size()];
-  std::unordered_multiset<uint32> cutSet;  // key is RGNode's id; must be kept in sync with cut[]; sink node is not entered
+  // key is RGNode's id; must be kept in sync with cut[]; sink node is not entered
+  std::unordered_multiset<uint32> cutSet;
   constexpr double defaultRelaxScaling = 1.25;
   relaxedMaxFlowValue = static_cast<uint64>(static_cast<double>(maxFlowValue) * defaultRelaxScaling);
   bool relaxedSearch = false;
@@ -489,7 +492,8 @@ void McSSAPre::AddSingleSink() {
   }
   ASSERT(numToSink != 0, "McSSAPre::AddSingleSink: found 0 edge to sink");
   if (GetSSAPreDebug()) {
-    mirModule->GetOut() << "++++ ssapre candidate " << workCand->GetIndex() << " has " << numToSink << " edges to sink\n";
+    mirModule->GetOut() << "++++ ssapre candidate " << workCand->GetIndex() << " has "
+                        << numToSink << " edges to sink\n";
   }
 }
 
@@ -588,7 +592,7 @@ void McSSAPre::GraphReduction() {
   }
   if (GetSSAPreDebug()) {
     mirModule->GetOut() << "++++ ssapre candidate " << workCand->GetIndex()
-                        << " after GraphReduction, phis: " << numPhis << " reals: " << numRealOccs 
+                        << " after GraphReduction, phis: " << numPhis << " reals: " << numRealOccs
                         << " type 1 edges: " << numType1Edges << " type 2 edges: " << numType2Edges << "\n";
   }
 }
@@ -712,7 +716,8 @@ void McSSAPre::ApplyMCSSAPRE() {
     }
     workCand = workList.front();
     workCand->SetIndex(static_cast<int32>(cnt));
-    workCand->applyMinCut = !(preKind == kExprPre && workCand->GetTheMeExpr()->GetMeOp() == kMeOpIvar) && cnt <= preUseProfileLimit;
+    workCand->applyMinCut = !(preKind == kExprPre && workCand->GetTheMeExpr()->GetMeOp() == kMeOpIvar) &&
+                            cnt <= preUseProfileLimit;
     workList.pop_front();
     if (workCand->GetRealOccs().empty()) {
       workCand->deletedFromWorkList = true;
