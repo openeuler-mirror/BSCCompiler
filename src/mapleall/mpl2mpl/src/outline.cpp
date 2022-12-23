@@ -24,9 +24,6 @@ static constexpr size_t kOneInsn = 100;
 static constexpr char kOutlinePhase[] = "outline";
 
 static bool ShareSameParameter(const BaseNode &lhs, const BaseNode &rhs) {
-  if (lhs.GetOpCode() != rhs.GetOpCode()) {
-    return false;
-  }
   if (lhs.GetOpCode() == OP_addrof) {
     return static_cast<const AddrofNode &>(lhs).MayAccessSameMemory(&rhs);
   }
@@ -34,6 +31,9 @@ static bool ShareSameParameter(const BaseNode &lhs, const BaseNode &rhs) {
     return static_cast<const AddrofNode &>(rhs).MayAccessSameMemory(&lhs);
   }
   if (lhs.GetOpCode() == OP_constval) {
+    if (lhs.GetOpCode() != rhs.GetOpCode()) {
+      return false;
+    }
     return static_cast<const ConstvalNode &>(lhs).GetConstVal() == static_cast<const ConstvalNode &>(rhs).GetConstVal();
   }
   return lhs.IsSameContent(&rhs);
