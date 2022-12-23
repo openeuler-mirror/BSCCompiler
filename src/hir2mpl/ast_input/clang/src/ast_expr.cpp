@@ -1074,6 +1074,9 @@ void ASTNoInitExpr::SetNoInitType(MIRType *type) {
 // ---------- ASTCompoundLiteralExpr ----------
 UniqueFEIRExpr ASTCompoundLiteralExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   UniqueFEIRExpr feirExpr;
+  if (variableArrayExpr != nullptr) {
+    (void)variableArrayExpr->Emit2FEExpr(stmts);
+  }
   if (!IsRValue() || child->GetASTOp() == kASTOpInitListExpr) { // other potential expr should concern
     std::string tmpName = FEUtils::GetSequentialName("clvar_");
     if (child->GetASTOp() == kASTOpInitListExpr) {
@@ -2719,6 +2722,7 @@ UniqueFEIRExpr ASTImaginaryLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &s
 // ---------- ASTVAArgExpr ----------
 UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   CHECK_NULL_FATAL(mirType);
+  EmitVLASizeExprs(stmts);
   VaArgInfo info = ProcessValistArgInfo(*mirType);
   UniqueFEIRExpr readVaList = child->Emit2FEExpr(stmts);
   // The va_arg_offset temp var is created and assigned from __gr_offs or __vr_offs of va_list

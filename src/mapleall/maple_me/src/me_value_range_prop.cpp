@@ -113,15 +113,24 @@ void ValueRangePropagation::Execute() {
       if (!onlyPropVR) {
         ReplaceOpndWithConstMeExpr(*curBB, *it);
       }
+      if (it->GetLHS() != nullptr && it->GetLHS()->ContainsVolatile()) {
+        ++it;
+        continue;
+      }
       bool isNotNeededPType = false;
+      bool hasVolatileOperand = false;
       for (size_t i = 0; i < it->NumMeStmtOpnds(); ++i) {
+        if (it->GetOpnd(i)->ContainsVolatile()) {
+          hasVolatileOperand = true;
+          break;
+        }
         if (!IsNeededPrimType(it->GetOpnd(i)->GetPrimType())) {
           isNotNeededPType = true;
-          continue;
+          break;
         }
         DealWithOperand(*curBB, *it, *it->GetOpnd(i));
       }
-      if (isNotNeededPType) {
+      if (isNotNeededPType || hasVolatileOperand) {
         ++it;
         continue;
       }
@@ -5124,9 +5133,6 @@ void ValueRangePropagation::DealWithCondGoto(BB &bb, MeStmt &stmt) {
   }
   MeExpr *opnd0 = opMeExpr->GetOpnd(0);
   MeExpr *opnd1 = opMeExpr->GetOpnd(1);
-  if (opnd0->IsVolatile() || opnd1->IsVolatile()) {
-    return;
-  }
   ValueRange *rightRange = nullptr;
   ValueRange *leftRange = nullptr;
   std::unique_ptr<ValueRange> rightRangePtr;

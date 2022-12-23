@@ -130,6 +130,7 @@ class ASTParser {
     (void)vlaSizeExprs.emplace_back(expr);
     SaveVLASizeExpr(allocator, *(vlaType->getElementType().getCanonicalType().getTypePtr()), vlaSizeExprs);
   }
+  ASTExpr *ProcessTypeofExpr(MapleAllocator &allocator, clang::QualType type);
   ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo) const;
   ASTExpr *ProcessExprCastExpr(MapleAllocator &allocator, const clang::CastExpr &expr,
                                const clang::Type **vlaType = nullptr);

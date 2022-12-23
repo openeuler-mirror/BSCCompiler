@@ -587,6 +587,10 @@ class ASTCompoundLiteralExpr : public ASTExpr {
     isAddrof = flag;
   }
 
+  void SetVariableArrayExpr(ASTExpr *expr) {
+    variableArrayExpr = expr;
+  }
+
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   MIRConst *GenerateMIRConstImpl() const override;
@@ -594,6 +598,7 @@ class ASTCompoundLiteralExpr : public ASTExpr {
   ASTExpr *child = nullptr;
   MIRType *compoundLiteralType = nullptr;
   bool isAddrof = false;
+  ASTExpr *variableArrayExpr = nullptr;
 };
 
 class ASTOffsetOfExpr : public ASTExpr {

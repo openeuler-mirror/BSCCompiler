@@ -1,5 +1,7 @@
 /* Test for typeof evaluation: should be at the appropriate point in
    the containing expression rather than just adding a statement.  */
+#include <stdarg.h>
+
 extern void exit (int);
 extern void abort (void);
 
@@ -53,13 +55,40 @@ f3 (void)
     abort ();
 }
 
+int a[10];
+int i = 9;
+
+void f4 (int n, ...) {
+  va_list ap;
+  void *p;
+  va_start (ap, n);
+  p = va_arg (ap, typeof (int (*)[++i]));
+  if (p != a) {
+    abort ();}
+  if (i != n){
+    abort ();}
+  va_end (ap);
+}
+
+void f5 (void)
+{
+  int i = 0;
+  int (**p)[1] = &(typeof (++i, (int (*)[i])a)){&a};
+  if (*p != &a)
+    abort ();
+  if (i != 1)
+    abort ();
+}
+
 int
 main (void)
 {
  int i = 1, k = 1;
-  f1 ();
-  f2 ();
-  f3 ();
+  f1();
+  f2();
+  f3();
+  f4(10, &a);
+  f5();
   exit (0);
 }
 
