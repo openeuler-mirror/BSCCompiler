@@ -1059,7 +1059,7 @@ void ASTBinaryConditionalOperator::SetFalseExpr(ASTExpr *expr) {
 
 // ---------- ASTNoInitExpr ----------
 MIRConst *ASTNoInitExpr::GenerateMIRConstImpl() const {
-  MIRIntConst *intConst = FEManager::GetModule().GetMemPool()->New<MIRIntConst>(0, *noInitType);
+  MIRIntConst *intConst = FEManager::GetModule().GetMemPool()->New<MIRIntConst>(*noInitType);
   return intConst;
 }
 
@@ -1730,6 +1730,9 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
       SolveArrayElementInitWithInitListExpr(addrOfArray, addrOfElemExpr, *elementType, *subExpr, i, stmts);
       continue;
     }
+    if (subExpr->GetASTOp() == kASTOpNoInitExpr) {
+      continue;
+    }
     UniqueFEIRExpr elemExpr = subExpr->Emit2FEExpr(stmts);
     if ((elementType->GetKind() == kTypeArray || arrayMirType->GetDim() == 1) &&
         subExpr->GetASTOp() == kASTStringLiteral) {
@@ -2135,7 +2138,9 @@ MIRConst *ASTDesignatedInitUpdateExpr::GenerateMIRConstImpl() const {
   auto *update = static_cast<MIRAggConst*>(updaterExpr->GenerateMIRConst());
   auto mirConsts = update->GetConstVec();
   for (int i = 0; i < mirConsts.size(); ++i) {
-    if (static_cast<MIRIntConst*>(mirConsts[i])->GetValue() != 0) {
+    if (mirConsts[i]->GetKind() == kConstInvalid) {
+      continue;
+    } else {
       base->SetConstVecItem(i, *mirConsts[i]);
     }
   }
