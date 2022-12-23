@@ -51,6 +51,11 @@ maplecl::Option<std::string> range({"--range"},
                               "                              \t--range=NUM0,NUM1\n",
                               {meCategory});
 
+maplecl::Option<std::string> pgoRange({"--pgorange"},
+                              "  --pglrange                  \tUse profile-guided optimizations only for funcid in the range [NUM0, NUM1]\n"
+                              "                              \t--pgorange=NUM0,NUM1\n",
+                              {meCategory});
+
 maplecl::Option<std::string> dumpPhases({"--dump-phases"},
                                    "  --dump-phases               \tEnable debug trace for specified phases"
                                    " in the comma separated list\n"
@@ -206,6 +211,11 @@ maplecl::Option<uint32_t> eprelimit({"--eprelimit"},
 maplecl::Option<uint32_t> eprepulimit({"--eprepulimit"},
                                  "  --eprepulimit               \tApply EPRE optimization only for the first NUM PUs\n"
                                  "                              \t--eprepulimit=NUM\n",
+                                 {meCategory});
+
+maplecl::Option<uint32_t> epreuseprofilelimit({"--epreuseprofilelimit"},
+                                 "  --epreuseprofilelimit       \tMake EPRE take advantage of profile data only for the first NUM expressions\n"
+                                 "                              \t--epreuseprofilelimit=NUM\n",
                                  {meCategory});
 
 maplecl::Option<uint32_t> stmtprepulimit({"--stmtprepulimit"},
@@ -704,5 +714,10 @@ maplecl::Option<bool> lfo({"--lfo"},
 maplecl::Option<bool> dumpCfgOfPhases({"--dumpcfgofphases"},
                      "  --dumpcfgofphases       \tDump CFG from various phases to .dot files\n",
                      {meCategory});
+maplecl::Option<bool> epreUseProfile({"--epreuseprofile"},
+                     "  --epreuseprofile        \tEnable profile-guided epre phase\n"
+                     "  --no-epreuseprofile     \tDisable profile-guided epre phase\n",
+                     {meCategory},
+                     maplecl::DisableWith("--no-epreuseprofile"));
 
 }

@@ -37,6 +37,7 @@ class MeOption {
     SplitPhases(str, skipPhases);
   }
   bool GetRange(const std::string &str) const;
+  bool GetPgoRange(const std::string &str) const;
 
   const std::unordered_set<std::string> &GetSkipPhases() const {
     return skipPhases;
@@ -85,6 +86,8 @@ class MeOption {
   static constexpr int kRangeArrayLen = 2;
   static unsigned long range[kRangeArrayLen];
   static bool useRange;
+  static unsigned long pgoRange[kRangeArrayLen];
+  static bool usePgoRange;
   static std::string dumpFunc;
   static std::string skipFrom;
   static std::string skipAfter;
@@ -113,6 +116,7 @@ class MeOption {
   static uint32 stmtprePULimit;
   static uint32 epreLimit;
   static uint32 eprePULimit;
+  static uint32 epreUseProfileLimit;
   static uint32 lpreLimit;
   static uint32 lprePULimit;
   static uint32 parserOpt;
@@ -186,6 +190,7 @@ class MeOption {
   static bool layoutWithPredict;
   static bool unifyRets;
   static bool dumpCfgOfPhases;
+  static bool epreUseProfile;
 // safety check option begin
   static SafetyCheckMode npeCheckMode;
   static bool isNpeCheckAll;

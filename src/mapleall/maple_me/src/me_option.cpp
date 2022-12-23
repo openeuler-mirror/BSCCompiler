@@ -28,7 +28,9 @@ bool MeOption::isBigEndian = false;
 bool MeOption::dumpAfter = false;
 std::string MeOption::dumpFunc = "*";
 unsigned long MeOption::range[kRangeArrayLen] = { 0, 0 };
+unsigned long MeOption::pgoRange[kRangeArrayLen] = { 0, 0 };
 bool MeOption::useRange = false;
+bool MeOption::usePgoRange = false;
 bool MeOption::quiet = false;
 bool MeOption::setCalleeHasSideEffect = false;
 bool MeOption::unionBasedAA = true;
@@ -55,6 +57,7 @@ uint32 MeOption::delRcPULimit = UINT32_MAX;
 uint32 MeOption::stmtprePULimit = UINT32_MAX;
 uint32 MeOption::epreLimit = UINT32_MAX;
 uint32 MeOption::eprePULimit = UINT32_MAX;
+uint32 MeOption::epreUseProfileLimit = UINT32_MAX;
 uint32 MeOption::lpreLimit = UINT32_MAX;
 uint32 MeOption::lprePULimit = UINT32_MAX;
 uint32 MeOption::pregRenameLimit = UINT32_MAX;
@@ -133,6 +136,7 @@ SafetyCheckMode MeOption::boundaryCheckMode = SafetyCheckMode::kNoCheck;
 bool MeOption::safeRegionMode = false;
 bool MeOption::unifyRets = false;
 bool MeOption::dumpCfgOfPhases = false;
+bool MeOption::epreUseProfile = true;
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -191,6 +195,14 @@ bool MeOption::SolveOptions(bool isDebug) {
   if (opts::me::range.IsEnabledByUser()) {
     useRange = true;
     bool ret = GetRange(opts::me::range);
+    if (!ret) {
+      return ret;
+    }
+  }
+
+  if (opts::me::pgoRange.IsEnabledByUser()) {
+    usePgoRange = true;
+    bool ret = GetPgoRange(opts::me::pgoRange);
     if (!ret) {
       return ret;
     }
@@ -294,6 +306,7 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(warnNativeFunc, opts::me::warnemptynative);
   maplecl::CopyIfEnabled(epreLimit, opts::me::eprelimit);
   maplecl::CopyIfEnabled(eprePULimit, opts::me::eprepulimit);
+  maplecl::CopyIfEnabled(epreUseProfileLimit, opts::me::epreuseprofilelimit);
   maplecl::CopyIfEnabled(stmtprePULimit, opts::me::stmtprepulimit);
   maplecl::CopyIfEnabled(lpreLimit, opts::me::lprelimit);
   maplecl::CopyIfEnabled(lprePULimit, opts::me::lprepulimit);
@@ -316,6 +329,7 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(lessThrowAlias, opts::me::lessthrowalias);
   maplecl::CopyIfEnabled(propBase, opts::me::propbase);
   maplecl::CopyIfEnabled(dumpCfgOfPhases, opts::me::dumpCfgOfPhases);
+  maplecl::CopyIfEnabled(epreUseProfile, opts::me::epreUseProfile);
 
   if (opts::me::propiloadref.IsEnabledByUser()) {
     propIloadRef = opts::me::propiloadref;
@@ -481,6 +495,20 @@ bool MeOption::GetRange(const std::string &str) const {
   }
   if (range[0] > range[1]) {
     LogInfo::MapleLogger(kLlErr) << "invalid values for --range=" << range[0] << "," << range[1] << '\n';
+    return false;
+  }
+  return true;
+}
+
+bool MeOption::GetPgoRange(const std::string &str) const {
+  std::string s{ str };
+  size_t comma = s.find_first_of(",", 0);
+  if (comma != std::string::npos) {
+    pgoRange[0] = std::stoul(s.substr(0, comma), nullptr);
+    pgoRange[1] = std::stoul(s.substr(comma + 1, std::string::npos - (comma + 1)), nullptr);
+  }
+  if (pgoRange[0] > pgoRange[1]) {
+    LogInfo::MapleLogger(kLlErr) << "invalid values for --pgorange=" << pgoRange[0] << "," << pgoRange[1] << '\n';
     return false;
   }
   return true;

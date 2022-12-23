@@ -131,6 +131,7 @@ set(src_libmplme
   src/me_slp.cpp
   src/lmbc_memlayout.cpp
   src/lmbc_lower.cpp
+  src/mc_ssa_pre.cpp
 )
 
 set(src_libmplmewpo

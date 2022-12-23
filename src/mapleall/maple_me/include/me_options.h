@@ -32,6 +32,7 @@ extern maplecl::Option<bool> os;
 extern maplecl::Option<bool> o3;
 extern maplecl::Option<std::string> refusedcheck;
 extern maplecl::Option<std::string> range;
+extern maplecl::Option<std::string> pgoRange;
 extern maplecl::Option<std::string> dumpPhases;
 extern maplecl::Option<std::string> skipPhases;
 extern maplecl::Option<std::string> dumpFunc;
@@ -57,6 +58,7 @@ extern maplecl::Option<bool> dumpAfter;
 extern maplecl::Option<bool> realcheckcast;
 extern maplecl::Option<uint32_t> eprelimit;
 extern maplecl::Option<uint32_t> eprepulimit;
+extern maplecl::Option<uint32_t> epreuseprofilelimit;
 extern maplecl::Option<uint32_t> stmtprepulimit;
 extern maplecl::Option<uint32_t> lprelimit;
 extern maplecl::Option<uint32_t> lprepulimit;
@@ -136,6 +138,7 @@ extern maplecl::Option<uint8_t> remat;
 extern maplecl::Option<bool> unifyrets;
 extern maplecl::Option<bool> lfo;
 extern maplecl::Option<bool> dumpCfgOfPhases;
+extern maplecl::Option<bool> epreUseProfile;
 
 }
 

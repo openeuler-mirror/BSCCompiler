@@ -17,7 +17,8 @@
 #include "me_cfg.h"
 
 namespace maple {
-static Dominance *fDom = nullptr;
+const static Dominance *fDom = nullptr;
+const static Dominance *fPdom = nullptr;
 static MeCFG *fCfg = nullptr;
 class ExprHoist;
 
@@ -56,11 +57,11 @@ class HoistSummary {
 void HoistSummary::Init(BB *curBB, MapleVector<HoistSummary> &summaries) {
   bb = curBB;
   succMask = (static_cast<uint32>(1) << bb->GetSucc().size()) - 1;
-  if (fDom->GetPdomFrontierItem(bb->GetBBId()).size() != 1) {
+  if (fPdom->GetDomFrontier(bb->GetID()).size() != 1) {
     return;
   }
   // init cd info
-  auto *cdBB = fCfg->GetBBFromID(*fDom->GetPdomFrontierItem(bb->GetBBId()).begin());
+  auto *cdBB = fCfg->GetBBFromID(BBId(*fPdom->GetDomFrontier(bb->GetID()).begin()));
   if (!fDom->Dominate(*cdBB, *bb)) {
     return;
   }
@@ -68,7 +69,7 @@ void HoistSummary::Init(BB *curBB, MapleVector<HoistSummary> &summaries) {
     return;
   }
   for (uint32 i = 0; i < cdBB->GetSucc().size(); ++i) {
-    if (fDom->PostDominate(*bb, *cdBB->GetSucc(i))) {
+    if (fPdom->Dominate(*bb, *cdBB->GetSucc(i))) {
       whichCDSucc = i;
       break;
     }
@@ -348,7 +349,7 @@ void ExprHoist::HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId) {
       }
       auto *phiOpndocc = static_cast<MePhiOpndOcc*>(occ);
       auto *phiOcc = phiOpndocc->GetDefPhiOcc();
-      if (phiOcc->IsWillBeAvail() && phiOpndocc->IsOkToInsert()) {
+      if (phiOcc->IsWillBeAvail() && parent->OKToInsert(phiOpndocc)) {
         if (hs->cdHS &&  // need a cd to hoist
             hs->occ == nullptr &&  // if not null, hs has been inserted
             hs->cdHS->occ != nullptr &&  // make sure there's at least one realocc at cd
@@ -463,6 +464,7 @@ void SSAPre::HoistExpr() {
 void SSAPre::ExprHoistPrepare() {
   fCfg = mirModule->CurFunction()->GetMeFunc()->GetCfg();
   fDom = dom;
+  fPdom = pdom;
   if (preKind == kStmtPre || strengthReduction) {
     // need add injuring occ processing
     return;
@@ -473,5 +475,6 @@ void SSAPre::ExprHoistPrepare() {
 void SSAPre::HoistClean() {
   fCfg = nullptr;
   fDom = nullptr;
+  fPdom = nullptr;
 }
 }

@@ -32,11 +32,13 @@ class HoistSummary;
 class SSAPre {
  public:
   friend class ExprHoist;
-  SSAPre(IRMap &hMap, Dominance &currDom, MemPool &memPool, MemPool &mp2, PreKind kind, uint32 limit)
+  SSAPre(IRMap &hMap, Dominance &currDom, Dominance &currPdom, MemPool &memPool, MemPool &mp2, PreKind kind,
+         uint32 limit)
       : irMap(&hMap),
         ssaTab(&hMap.GetSSATab()),
         mirModule(&hMap.GetSSATab().GetModule()),
         dom(&currDom),
+        pdom(&currPdom),
         ssaPreMemPool(&memPool),
         ssaPreAllocator(&memPool),
         perCandMemPool(&mp2),
@@ -78,7 +80,7 @@ class SSAPre {
   virtual void SetCurFunction(PUIdx) const {}
 
   void GetIterDomFrontier(const BB *bb, MapleSet<uint32> *dfset) const {
-    for (BBId bbid : dom->iterDomFrontier[bb->GetBBId()]) {
+    for (auto bbid : dom->GetIterDomFrontier(bb->GetID())) {
       (void)dfset->insert(dom->GetDtDfnItem(bbid));
     }
   }
@@ -135,6 +137,10 @@ class SSAPre {
     return regReadAtReturn;
   }
 
+  bool strengthReduction = false;
+  bool doLFTR = false;
+  bool doMinCut = false;
+
  protected:
   // step 6 codemotion methods
   ScalarMeExpr *CreateNewCurTemp(const MeExpr &meExpr);
@@ -151,6 +157,13 @@ class SSAPre {
   }
   virtual void CodeMotion();
   // step 5 Finalize methods
+  bool WillBeAvail(MePhiOcc *phiOcc) {
+    if (!workCand->applyMinCut) {
+      return phiOcc->IsWillBeAvail();
+    }
+    return phiOcc->IsMCWillBeAvail();
+  }
+  bool OKToInsert(MePhiOpndOcc *phiOpnd);
   virtual void Finalize1();
   void SetSave(MeOccur &defX);
   void SetReplacement(MePhiOcc &occ, MeOccur &repDef);
@@ -243,6 +256,7 @@ class SSAPre {
   SSATab *ssaTab;
   MIRModule *mirModule;
   Dominance *dom;
+  Dominance *pdom;
   MemPool *ssaPreMemPool;
   MapleAllocator ssaPreAllocator;
   MemPool *perCandMemPool;
@@ -279,7 +293,6 @@ class SSAPre {
   uint32 strIdxCount = 0;  // ssapre will create a lot of temp variables if using var to store redundances, start from 0
   PreWorkCandHashTable preWorkCandHashTable;
 
- private:
   virtual void DoSSAFRE() {};
 
   bool enableDebug = false;
@@ -288,9 +301,6 @@ class SSAPre {
   bool spillAtCatch = false;
   bool placementRCEnabled = false;
   bool addedNewLocalRefVars = false;
- public:
-  bool strengthReduction = false;
-  bool doLFTR = false;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSAPRE_H

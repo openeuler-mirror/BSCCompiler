@@ -14,14 +14,14 @@
  */
 #ifndef MAPLE_ME_INCLUDE_SSAEPRE_H
 #define MAPLE_ME_INCLUDE_SSAEPRE_H
-#include "ssa_pre.h"
+#include "mc_ssa_pre.h"
 
 namespace maple {
-class SSAEPre : public SSAPre {
+class SSAEPre : public McSSAPre {
  public:
-  SSAEPre(IRMap &map, Dominance &dom, MemPool &memPool, MemPool &mp2, PreKind kind,
+  SSAEPre(IRMap &map, Dominance &dom, Dominance &pdom, MemPool &memPool, MemPool &mp2, PreKind kind,
           uint32 limit, bool includeRef, bool lhsIvar)
-      : SSAPre(map, dom, memPool, mp2, kind, limit), epreIncludeRef(includeRef), enableLHSIvar(lhsIvar) {}
+      : McSSAPre(map, dom, pdom, memPool, mp2, kind, limit), epreIncludeRef(includeRef), enableLHSIvar(lhsIvar) {}
 
   virtual ~SSAEPre() = default;
 
