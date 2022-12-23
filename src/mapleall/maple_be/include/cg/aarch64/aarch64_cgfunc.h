@@ -833,7 +833,7 @@ class AArch64CGFunc : public CGFunc {
   void CreateCallStructParamPassByReg(regno_t regno, MemOperand &memOpnd, ListOperand &srcOpnds,
                                       FpParamState state, uint32 symSize);
   void CreateCallStructParamMemcpy(const MIRSymbol &sym, uint32 structSize, int32 copyOffset, int32 fromOffset);
-  void CreateCallStructParamMemcpy(RegOperand &addropnd, uint32 structSize, int32 copyOffset, int32 fromOffset);
+  void CreateCallStructParamMemcpy(RegOperand &addrOpnd, uint32 structSize, int32 copyOffset, int32 fromOffset);
   RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addrOpd,
                                                int32 copyOffset, int32 fromOffset, const CCLocInfo &ploc);
   RegOperand *LoadIreadAddrForSamllAgg(BaseNode &iread);
@@ -899,7 +899,7 @@ class AArch64CGFunc : public CGFunc {
                                           LabelOperand &targetOpnd, Operand &opnd0);
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);
-  void SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNode);
+  void SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccall);
   void SelectCAtomicStore(const IntrinsiccallNode &intrinsiccall);
   void SelectCAtomicLoad(const IntrinsiccallNode &intrinsiccall);
   void SelectCSyncLockRelease(const IntrinsiccallNode &intrinsiccall, PrimType primType);

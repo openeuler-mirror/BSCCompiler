@@ -986,16 +986,6 @@ bool AArch64Ebo::CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bit
   return false;
 }
 
-bool CheckInsnRefField(const Insn &insn, size_t opndIndex) {
-  if (insn.IsAccessRefField() && insn.AccessMem()) {
-    Operand &opnd0 = insn.GetOperand(opndIndex);
-    if (opnd0.IsRegister()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 bool AArch64Ebo::CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const {
   if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
     return false;

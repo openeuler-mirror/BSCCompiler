@@ -72,11 +72,11 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   bool CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
       std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn, Insn **toBeRremovedOutOfCurrBB) const;
   bool CheckModifiedInCmpInsn(const Insn &insn) const;
-  bool DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB);
+  bool DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB) const;
   void UpdateTemps(std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn,
-      std::map<Operand*, std::vector<Operand*>> &destSrcMap, const Insn &oldInsn, Insn *newInsn);
+      std::map<Operand*, std::vector<Operand*>> &destSrcMap, const Insn &oldInsn, Insn *newInsn) const;
   Insn *MoveSetInsn2CmpBB(Insn &toBeRremoved2CmpBB, BB &currBB,
-      std::vector<Operand *> &anotherBranchDestRegs, std::map<Operand *, std::vector<Operand *>> &destSrcMap);
+      std::vector<Operand *> &anotherBranchDestRegs, std::map<Operand *, std::vector<Operand *>> &destSrcMap) const;
   void RevertMoveInsns(BB *bb, Insn *prevInsnInBB, Insn *newInsnOfBB,
       Insn *insnInBBToBeRremovedOutOfCurrBB);
   bool IsExpansionMOperator(const Insn &insn) const;

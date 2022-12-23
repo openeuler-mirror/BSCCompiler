@@ -533,16 +533,16 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std
 bool AArch64ICOIfThenElsePattern::CheckModifiedInCmpInsn(const Insn &insn) const {
   /* add/sub insn's dest register does not exist in cmp insn. */
   if (Has2SrcOpndSetInsn(insn)) {
-    RegOperand &insnDestReg = static_cast<RegOperand&>(insn.GetOperand(0));
+    RegOperand &insnDestReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
     if (flagOpnd) {
-      RegOperand &cmpReg = static_cast<RegOperand&>(cmpInsn->GetOperand(0));
+      RegOperand &cmpReg = static_cast<RegOperand&>(cmpInsn->GetOperand(kInsnFirstOpnd));
       if (insnDestReg.GetRegisterNumber() == cmpReg.GetRegisterNumber()) {
         return false;
       }
     } else {
-      RegOperand &cmpReg1 = static_cast<RegOperand&>(cmpInsn->GetOperand(1));
-      if (cmpInsn->GetOperand(2).IsRegister()) {
-        RegOperand &cmpReg2 = static_cast<RegOperand&>(cmpInsn->GetOperand(2));
+      RegOperand &cmpReg1 = static_cast<RegOperand&>(cmpInsn->GetOperand(kInsnSecondOpnd));
+      if (cmpInsn->GetOperand(kInsnThirdOpnd).IsRegister()) {
+        RegOperand &cmpReg2 = static_cast<RegOperand&>(cmpInsn->GetOperand(kInsnThirdOpnd));
         if (insnDestReg.GetRegisterNumber() == cmpReg1.GetRegisterNumber() ||
             insnDestReg.GetRegisterNumber() == cmpReg2.GetRegisterNumber()) {
           return false;
@@ -568,7 +568,7 @@ bool AArch64ICOIfThenElsePattern::CheckModifiedInCmpInsn(const Insn &insn) const
 // else bb:                        else bb:
 //   lsr  w2, w0, #1 (change)
 //   mov  w4, w2                     mov  w4, w1 (change)
-bool AArch64ICOIfThenElsePattern::DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB) {
+bool AArch64ICOIfThenElsePattern::DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB) const {
   auto firstInsnOfIfBB = ifBB.GetFirstMachineInsn();
   auto firstInsnOfElseBB = elseBB.GetFirstMachineInsn();
   if (firstInsnOfIfBB == nullptr || firstInsnOfElseBB == nullptr) {
@@ -656,7 +656,7 @@ bool AArch64ICOIfThenElsePattern::DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB) {
 }
 
 void AArch64ICOIfThenElsePattern::UpdateTemps(std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn,
-    std::map<Operand*, std::vector<Operand*>> &destSrcMap, const Insn &oldInsn, Insn *newInsn) {
+    std::map<Operand*, std::vector<Operand*>> &destSrcMap, const Insn &oldInsn, Insn *newInsn) const {
   for (auto it = setInsn.begin(); it != setInsn.end(); ++it) {
     if (*it == &oldInsn) {
       (void)setInsn.erase(it);
@@ -678,7 +678,7 @@ void AArch64ICOIfThenElsePattern::UpdateTemps(std::vector<Operand*> &destRegs, s
     }
   }
 
-  for (auto it = destSrcMap.begin(); it != destSrcMap.end(); ++it) {
+  for (auto it = destSrcMap.cbegin(); it != destSrcMap.cend(); ++it) {
     if (opnd.Equals(*(it->first))) {
       (void)destSrcMap.erase(it);
       break;
@@ -703,7 +703,7 @@ void AArch64ICOIfThenElsePattern::RevertMoveInsns(BB *bb, Insn *prevInsnInBB, In
 }
 
 Insn *AArch64ICOIfThenElsePattern::MoveSetInsn2CmpBB(Insn &toBeRremoved2CmpBB, BB &currBB,
-    std::vector<Operand*> &anotherBranchDestRegs, std::map<Operand*, std::vector<Operand*>> &destSrcMap) {
+    std::vector<Operand*> &anotherBranchDestRegs, std::map<Operand*, std::vector<Operand*>> &destSrcMap) const {
   Insn *newInsn = nullptr;
   bool findInAnotherBB = false;
   for (auto *tempReg: anotherBranchDestRegs) {

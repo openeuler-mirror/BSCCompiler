@@ -13,7 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mpl_atomic.h"
-#include <cstdint>
+
 #include "mpl_logging.h"
 
 namespace maple {

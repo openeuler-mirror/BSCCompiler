@@ -328,7 +328,7 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
     GenerateStrInsn(firstArgInfo, pairReg[firstIndex], numFpRegs[firstIndex], fpSize[firstIndex]);
   }
 
-  if (cgFunc->GetCG()->IsLmbc() && cgFunc->GetSpSaveReg()) {
+  if (cgFunc->GetCG()->IsLmbc() && (cgFunc->GetSpSaveReg() != 0)) {
     /* lmbc uses vreg act as SP when alloca is present due to usage of FP for - offset */
     aarchCGFunc->GetFirstBB()->InsertAtEnd(*aarchCGFunc->GetDummyBB());
   } else {
@@ -463,7 +463,7 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() const {
     }
   }
 
-  if (cgFunc->GetCG()->IsLmbc() && cgFunc->GetSpSaveReg()) {
+  if (cgFunc->GetCG()->IsLmbc() && (cgFunc->GetSpSaveReg() != 0)) {
     /* lmbc uses vreg act as SP when alloca is present due to usage of FP for - offset */
     aarchCGFunc->GetFirstBB()->InsertAtEnd(*aarchCGFunc->GetDummyBB());
   } else {

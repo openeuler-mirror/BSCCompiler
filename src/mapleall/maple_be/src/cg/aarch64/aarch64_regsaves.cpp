@@ -308,11 +308,11 @@ int32 AArch64RegSavesOpt::CheckCriteria(BB *bb, regno_t reg) const {
 }
 
 /* Return true if reg is already to be saved in its dominator list */
-bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB *bb, regno_t reg) const {
-  BB *aBB = GetDomInfo()->GetDom(bb->GetId());
+bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB &bb, regno_t reg) const {
+  BB *aBB = GetDomInfo()->GetDom(bb.GetId());
 
 #if RS_DUMP
-  M_LOG << "Checking dom list starting " << bb->GetId() << " for saved R" << (reg - 1) << ":\n  ";
+  M_LOG << "Checking dom list starting " << bb.GetId() << " for saved R" << (reg - 1) << ":\n  ";
 #endif
   while (!aBB->GetPreds().empty()) {  /* can't go beyond prolog */
 #if RS_DUMP
@@ -346,7 +346,7 @@ BB* AArch64RegSavesOpt::FindLoopDominator(BB *bb, regno_t reg, bool *done) {
 
 /* If the newly found blk is a dominator of blk(s) in the current
    to be saved list, remove these blks from bbSavedRegs */
-void AArch64RegSavesOpt::CheckAndRemoveBlksFromCurSavedList(SavedBBInfo *sp, BB *bbDom, regno_t reg) {
+void AArch64RegSavesOpt::CheckAndRemoveBlksFromCurSavedList(SavedBBInfo *sp, const BB *bbDom, regno_t reg) {
   for (BB *sbb : sp->GetBBList()) {
     for (BB *abb = sbb; !abb->GetPreds().empty();) {
       if (abb->GetId() == bbDom->GetId()) {
@@ -392,7 +392,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
         }
 
         /* Check if a dominator of bbDom was already a location to save */
-        if (AlreadySavedInDominatorList(bbDom, reg)) {
+        if (AlreadySavedInDominatorList(*bbDom, reg)) {
           mask <<= 1;
           continue;    /* no need to save again, next reg */
         }

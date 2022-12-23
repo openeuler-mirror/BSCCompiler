@@ -283,7 +283,7 @@ void A64OpndSSAUpdateVsitor::Visit(maplebe::MemOperand *a64MemOpnd) {
 
 void A64OpndSSAUpdateVsitor::Visit(PhiOperand *v) {
   SetPhi(true);
-  for (auto phiListIt = v->GetOperands().begin(); phiListIt != v->GetOperands().end(); ++phiListIt) {
+  for (auto phiListIt = v->GetOperands().cbegin(); phiListIt != v->GetOperands().cend(); ++phiListIt) {
     Visit(phiListIt->second);
   }
   SetPhi(false);
@@ -374,7 +374,7 @@ void A64SSAOperandDumpVisitor::Visit(MemOperand *v) {
 }
 
 void A64SSAOperandDumpVisitor::Visit(PhiOperand *v) {
-  for (auto phiListIt = v->GetOperands().begin(); phiListIt != v->GetOperands().end();) {
+  for (auto phiListIt = v->GetOperands().cbegin(); phiListIt != v->GetOperands().cend();) {
     Visit(phiListIt->second);
     LogInfo::MapleLogger() << " fBB<" << phiListIt->first << ">";
     LogInfo::MapleLogger() << (++phiListIt == v->GetOperands().end() ? ")" : ", ");

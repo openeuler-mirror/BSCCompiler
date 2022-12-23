@@ -101,7 +101,8 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
     if (ploc.reg0 != 0) {
       continue;  /* passed in register, so no effect on actual area */
     }
-    sizeOfArgsToStkPass = RoundUp(ploc.memOffset + ploc.memSize, GetPointerSize());
+    sizeOfArgsToStkPass = RoundUp(static_cast<uint64>(ploc.memOffset + ploc.memSize),
+                                  static_cast<uint64>(GetPointerSize()));
   }
   return sizeOfArgsToStkPass;
 }

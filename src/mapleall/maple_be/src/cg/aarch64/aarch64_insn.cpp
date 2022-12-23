@@ -116,7 +116,7 @@ void A64OpndEmitVisitor::Visit(maplebe::ImmOperand *v) {
 void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
   auto a64v = static_cast<MemOperand*>(v);
   MemOperand::AArch64AddressingMode addressMode = a64v->GetAddrMode();
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   const InsnDesc *md = &AArch64CG::kMd[emitter.GetCurrentMOP()];
   ASSERT(md->Is64Bit() || md->GetOperandSize() <= k32BitSize || md->GetOperandSize() == k128BitSize,
          "unexpected opnd size");

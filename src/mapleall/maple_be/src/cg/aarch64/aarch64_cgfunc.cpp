@@ -455,7 +455,7 @@ void AArch64CGFunc::SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype
       return;
     } else {
       /* sign extend and let `dsize == 32` case take care of it */
-      srcVal = ((static_cast<int64>(srcVal)) << 48) >> 48;
+      srcVal = ((srcVal) << 48) >> 48;
       dsize = k32BitSize;
     }
   }
@@ -877,7 +877,8 @@ bool AArch64CGFunc::IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx)
     int64 offsetValue = ofStOpnd ? ofStOpnd->GetOffsetValue() : 0LL;
     if (md->IsLoadStorePair() || (memOpnd->GetAddrMode() == MemOperand::kBOI)) {
       if (ofStOpnd && ofStOpnd->GetVary() == kUnAdjustVary) {
-        offsetValue += static_cast<AArch64MemLayout*>(GetMemlayout())->RealStackFrameSize() + 0xffL;
+        offsetValue += static_cast<int32>(static_cast<AArch64MemLayout*>(GetMemlayout())->RealStackFrameSize() +
+            0xffL);
       }
       return md->IsValidImmOpnd(offsetValue);
     } else if (memOpnd->GetAddrMode() == MemOperand::kLo12Li) {
@@ -1725,9 +1726,9 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       ASSERT(structType != nullptr, "SelectAggDassign: non-zero fieldID for non-structure");
       rhsType = structType->GetFieldType(rhsDread->GetFieldID());
       rhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, rhsDread->GetFieldID()).first);
-      bothUnion &= (structType->GetKind() == kTypeUnion);
+      bothUnion = bothUnion && (structType->GetKind() == kTypeUnion);
     }
-    bothUnion &= (rhsSymbol == lhsSymbol);
+    bothUnion = bothUnion && (rhsSymbol == lhsSymbol);
     rhsAlign = GetBecommon().GetTypeAlign(rhsType->GetTypeIndex());
     alignUsed = std::min(lhsAlign, rhsAlign);
     ASSERT(alignUsed != 0, "expect non-zero");
@@ -2777,7 +2778,7 @@ void AArch64CGFunc::SelectReturnSendOfStructInRegs(BaseNode *x) {
       mirType = structType->GetFieldType(dread->GetFieldID());
       offset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, dread->GetFieldID()).first);
     }
-    uint32 typeSize = GetBecommon().GetTypeSize(mirType->GetTypeIndex());
+    uint32 typeSize = static_cast<uint32>(GetBecommon().GetTypeSize(mirType->GetTypeIndex()));
     /* generate move to regs for agg return */
     AArch64CallConvImpl parmlocator(GetBecommon());
     CCLocInfo pLoc;
@@ -3099,7 +3100,8 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
       OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
 
       auto size = GetPointerSize() * kBitsPerByte;
-      MemOperand *memOpnd = CreateMemOperand(size, static_cast<RegOperand&>(*srcOpnd), offset, *symbol);
+      MemOperand *memOpnd = CreateMemOperand(static_cast<uint32>(size), static_cast<RegOperand&>(*srcOpnd),
+                                             offset, *symbol);
       GetCurBB()->AppendInsn(
           GetInsnBuilder()->BuildInsn(size == k64BitSize ? MOP_xldr : MOP_wldr, result, *memOpnd));
 
@@ -3593,14 +3595,15 @@ Operand *AArch64CGFunc::HandleFmovImm(PrimType stype, int64 val, MIRConst &mirCo
   CHECK_FATAL(GetPrimTypeBitSize(stype) != k128BitSize, "Couldn't process Float128 at HandleFmovImm method");
   Operand *result;
   bool is64Bits = (GetPrimTypeBitSize(stype) == k64BitSize);
-  uint64 canRepreset = is64Bits ? (val & 0xffffffffffff) : (val & 0x7ffff);
-  uint32 val1 = is64Bits ? (val >> 61) & 0x3 : (val >> 29) & 0x3;
-  uint32 val2 = is64Bits ? (val >> 54) & 0xff : (val >> 25) & 0x1f;
+  uint64 val_unsigned = static_cast<uint64>(val);
+  uint64 canRepreset = is64Bits ? (val_unsigned & 0xffffffffffff) : (val_unsigned & 0x7ffff);
+  uint32 val1 = is64Bits ? (val_unsigned >> 61) & 0x3 : (val_unsigned >> 29) & 0x3;
+  uint32 val2 = is64Bits ? (val_unsigned >> 54) & 0xff : (val_unsigned >> 25) & 0x1f;
   bool isSame = is64Bits ? ((val2 == 0) || (val2 == 0xff)) : ((val2 == 0) || (val2 == 0x1f));
   canRepreset = (canRepreset == 0) && ((val1 & 0x1) ^ ((val1 & 0x2) >> 1)) && isSame;
   if (canRepreset > 0) {
-    uint64 temp1 = is64Bits ? (val >> 63) << 7 : (val >> 31) << 7;
-    uint64 temp2 = is64Bits ? val >> 48 : val >> 19;
+    uint64 temp1 = is64Bits ? (val_unsigned >> 63) << 7 : (val_unsigned >> 31) << 7;
+    uint64 temp2 = is64Bits ? val_unsigned >> 48 : val_unsigned >> 19;
     int64 imm8 = (temp2 & 0x7f) | temp1;
     Operand *newOpnd0 = &CreateImmOperand(imm8, k8BitSize, true, kNotVary, true);
     result = &GetOrCreateResOperand(parent, stype);
@@ -5798,7 +5801,7 @@ Operand *AArch64CGFunc::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
     bool isSame = is64Bits ? ((val2 == 0) || (val2 == 0xff)) : ((val2 == 0) || (val2 == 0x1f));
     canRepreset = (canRepreset == 0) && ((val1 & 0x1) ^ ((val1 & 0x2) >> 1)) && isSame;
     Operand *newOpnd0 = &opnd0;
-    if (IsPrimitiveInteger(fromType) && IsPrimitiveFloat(toType) && canRepreset) {
+    if (IsPrimitiveInteger(fromType) && IsPrimitiveFloat(toType) && (canRepreset != 0)) {
       uint64 temp1 = is64Bits ? (val >> 63) << 7 : (val >> 31) << 7;
       uint64 temp2 = is64Bits ? val >> 48 : val >> 19;
       int64 imm8 = (temp2 & 0x7f) | temp1;
@@ -7721,20 +7724,20 @@ void AArch64CGFunc::SelectParmListIreadSmallAggregate(BaseNode &iread, MIRType &
     if (ploc.reg1 > 0) {
       passSize = (symSize / k8ByteSize) > 1 ? k8ByteSize : symSize % k8ByteSize;
       OfstOperand *offOpnd1 = &GetOrCreateOfstOpnd((((ploc.fpSize > 0) ? ploc.fpSize : GetPointerSize()) +
-          static_cast<uint32>(offset)), k32BitSize);
+                                                   static_cast<uint32>(offset)), k32BitSize);
       mopnd = CreateMemOperand(memSize, *addrOpnd1, *offOpnd1);
       CreateCallStructParamPassByReg(ploc.reg1, *mopnd, srcOpnds, state, passSize);
     }
     if (ploc.reg2 > 0) {
       OfstOperand *offOpnd2 =
-          &GetOrCreateOfstOpnd(((ploc.fpSize ? (ploc.fpSize * k4BitShift) : GetPointerSize()) + static_cast<uint32>(offset)),
-                               k32BitSize);
+          &GetOrCreateOfstOpnd((((ploc.fpSize > 0) ? (ploc.fpSize * k4BitShift) : GetPointerSize())
+          + static_cast<uint32>(offset)), k32BitSize);
       mopnd = CreateMemOperand(memSize, *addrOpnd1, *offOpnd2);
       CreateCallStructParamPassByReg(ploc.reg2, *mopnd, srcOpnds, state, passSize);
     }
     if (ploc.reg3 > 0) {
-      OfstOperand *offOpnd3 = &GetOrCreateOfstOpnd((((ploc.fpSize > 0) ? (ploc.fpSize * k8BitShift) : GetPointerSize()) +
-          static_cast<uint32>(offset)), k32BitSize);
+      OfstOperand *offOpnd3 = &GetOrCreateOfstOpnd((((ploc.fpSize > 0) ?
+          (ploc.fpSize * k8BitShift) : GetPointerSize()) + static_cast<uint32>(offset)), k32BitSize);
       mopnd = CreateMemOperand(memSize, *addrOpnd1, *offOpnd3);
       CreateCallStructParamPassByReg(ploc.reg3, *mopnd, srcOpnds, state, passSize);
     }
@@ -9658,7 +9661,7 @@ MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, const Bas
   PrimType fromType = typeCvtNode->FromType();
   PrimType toType = typeCvtNode->GetPrimType();
   if (isAggParamInReg) {
-    aggParamReg = &GenStructParamIndex(base, *indexExpr, shift, ptype);
+    aggParamReg = &GenStructParamIndex(base, *indexExpr, static_cast<int>(shift), ptype);
     return nullptr;
   }
   MemOperand *memOpnd = nullptr;
@@ -9883,8 +9886,8 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
       baseOffset = static_cast<int32>(symAlloc->GetOffset() + memLayout->GetSizeOfRefLocals() +
                    memLayout->SizeOfArgsToStackPass());   /* SP relative */
     } else {
-      baseOffset = static_cast<int32>(memLayout->GetSizeOfLocals() + symAlloc->GetOffset() +
-                   memLayout->GetSizeOfRefLocals());
+      baseOffset = static_cast<int32>(memLayout->GetSizeOfLocals()) + symAlloc->GetOffset() +
+                   static_cast<int32>(memLayout->GetSizeOfRefLocals());
     }
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsRefLocals) {
@@ -10566,11 +10569,11 @@ void AArch64CGFunc::SelectCVaStart(const IntrinsiccallNode &intrnNode) {
  * implement to asm: str/stlr x1, [x0]
  * a store-release would replace str if memorder is not 0
  */
-void AArch64CGFunc::SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNode) {
-  auto primType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(intrinsiccallNode.GetTyIdx())->GetPrimType();
-  auto *addr = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(0));
-  auto *value = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(1));
-  auto *memOrderOpnd = intrinsiccallNode.Opnd(kInsnThirdOpnd);
+void AArch64CGFunc::SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccall) {
+  auto primType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(intrinsiccall.GetTyIdx())->GetPrimType();
+  auto *addr = HandleExpr(intrinsiccall, *intrinsiccall.Opnd(0));
+  auto *value = HandleExpr(intrinsiccall, *intrinsiccall.Opnd(1));
+  auto *memOrderOpnd = intrinsiccall.Opnd(kInsnThirdOpnd);
   std::memory_order memOrder = std::memory_order_seq_cst;
   if (memOrderOpnd->IsConstval()) {
     auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
@@ -10590,12 +10593,12 @@ void AArch64CGFunc::SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNo
  * a load-acquire would replace ldr if acquire needed
  * a store-relase would replace str if release needed
  */
-void AArch64CGFunc::SelectCAtomicStore(const IntrinsiccallNode &intrinsiccallNode) {
+void AArch64CGFunc::SelectCAtomicStore(const IntrinsiccallNode &intrinsiccall) {
   auto primType = GlobalTables::GetTypeTable().
-      GetTypeFromTyIdx(intrinsiccallNode.GetTyIdx())->GetPrimType();
-  auto *addrOpnd = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(kInsnFirstOpnd));
-  auto *valueOpnd = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(kInsnSecondOpnd));
-  auto *memOrderOpnd = intrinsiccallNode.Opnd(kInsnThirdOpnd);
+      GetTypeFromTyIdx(intrinsiccall.GetTyIdx())->GetPrimType();
+  auto *addrOpnd = HandleExpr(intrinsiccall, *intrinsiccall.Opnd(kInsnFirstOpnd));
+  auto *valueOpnd = HandleExpr(intrinsiccall, *intrinsiccall.Opnd(kInsnSecondOpnd));
+  auto *memOrderOpnd = intrinsiccall.Opnd(kInsnThirdOpnd);
   std::memory_order memOrder = std::memory_order_seq_cst;
   if (memOrderOpnd->IsConstval()) {
     auto *memOrderConst = static_cast<MIRIntConst*>(
@@ -11183,12 +11186,12 @@ Operand *AArch64CGFunc::SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) {
  * a load-acquire would replace ldr if acquire needed
  * a store-relase would replace str if release needed
  */
-void AArch64CGFunc::SelectCAtomicLoad(const IntrinsiccallNode &intrinsiccallNode) {
+void AArch64CGFunc::SelectCAtomicLoad(const IntrinsiccallNode &intrinsiccall) {
   auto primType = GlobalTables::GetTypeTable().
-      GetTypeFromTyIdx(intrinsiccallNode.GetTyIdx())->GetPrimType();
-  auto *addrOpnd = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(kInsnFirstOpnd));
-  auto *retOpnd = HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(kInsnSecondOpnd));
-  auto *memOrderOpnd = intrinsiccallNode.Opnd(kInsnThirdOpnd);
+      GetTypeFromTyIdx(intrinsiccall.GetTyIdx())->GetPrimType();
+  auto *addrOpnd = HandleExpr(intrinsiccall, *intrinsiccall.Opnd(kInsnFirstOpnd));
+  auto *retOpnd = HandleExpr(intrinsiccall, *intrinsiccall.Opnd(kInsnSecondOpnd));
+  auto *memOrderOpnd = intrinsiccall.Opnd(kInsnThirdOpnd);
   std::memory_order memOrder = std::memory_order_seq_cst;
   if (memOrderOpnd->IsConstval()) {
     auto *memOrderConst = static_cast<MIRIntConst*>(

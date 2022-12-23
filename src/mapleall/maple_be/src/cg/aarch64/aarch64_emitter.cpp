@@ -775,7 +775,7 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
     }
   }
 
-  bool isRefField = (opndSize == 0) ? false : CheckInsnRefField(insn, static_cast<size_t>(static_cast<uint>(seq[0])));
+  bool isRefField = (opndSize == 0) ? false : CheckInsnRefField(insn, static_cast<uint32>(seq[0]));
   if (insn.IsComment()) {
     emitter.IncreaseJavaInsnCount();
   }
@@ -1028,7 +1028,7 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
           CHECK_FATAL(((c >= '0') && (c <= '9')), "Inline asm : invalid register constraint number");
           auto val = static_cast<uint32>(c - '0');
           if (asmStr[i + 1] >= '0' && asmStr[i + 1] <= '9') {
-            val = val * kDecimalMax + static_cast<uint32>(asmStr[++i] - '0');
+            val = val * kDecimalMax + static_cast<uint32>(char(asmStr[++i])) - static_cast<uint32>(char('0'));
           }
           regno_t regno;
           bool isAddr = false;
@@ -2177,7 +2177,7 @@ void AArch64AsmEmitter::EmitAArch64DbgInsn(FuncEmitInfo &funcEmitInfo, Emitter &
   (void)emitter.Emit("\n");
 }
 
-bool AArch64AsmEmitter::CheckInsnRefField(const Insn &insn, size_t opndIndex) const {
+bool AArch64AsmEmitter::CheckInsnRefField(const Insn &insn, uint32 opndIndex) const {
   if (insn.IsAccessRefField() && insn.AccessMem()) {
     Operand &opnd0 = insn.GetOperand(opndIndex);
     if (opnd0.IsRegister()) {

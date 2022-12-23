@@ -252,7 +252,8 @@ static bool IsZeroRegister(const Operand &opnd) {
 
 bool AndValidBitPattern::CheckImmValidBit(int64 andImm, uint32 andImmVB, int64 shiftImm) const {
   if ((__builtin_ffs(static_cast<int>(andImm)) - 1 == shiftImm) &&
-      ((andImm >> shiftImm) == ((1 << (andImmVB - shiftImm)) - 1))) {
+      ((static_cast<uint64>(andImm) >> static_cast<uint64>(shiftImm)) ==
+      ((1 << (andImmVB - static_cast<uint64>(shiftImm))) - 1))) {
     return true;
   }
   return false;

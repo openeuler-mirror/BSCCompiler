@@ -44,6 +44,7 @@ class AArch64AsmEmitter : public AsmEmitter {
   void EmitClinit(Emitter &emitter, const Insn &insn) const;
   void EmitAdrpLdr(Emitter &emitter, const Insn &insn) const;
   void EmitCounter(Emitter &emitter, const Insn &insn) const;
+  void EmitCCounter(Emitter &emitter, const Insn &insn) const;
   void EmitInlineAsm(Emitter &emitter, const Insn &insn) const;
   void EmitClinitTail(Emitter &emitter, const Insn &insn) const;
   void EmitLazyLoad(Emitter &emitter, const Insn &insn) const;
@@ -61,7 +62,7 @@ class AArch64AsmEmitter : public AsmEmitter {
   void EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) const;
 
   void PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds, Insn &insn) const;
-  bool CheckInsnRefField(const Insn &insn, size_t opndIndex) const;
+  bool CheckInsnRefField(const Insn &insn, uint32 opndIndex) const;
 };
 }  /* namespace maplebe */
 

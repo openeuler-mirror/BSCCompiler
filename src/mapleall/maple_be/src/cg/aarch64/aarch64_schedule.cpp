@@ -148,7 +148,7 @@ void AArch64Schedule::MemoryAccessPairOpt() {
         FindAndCombineMemoryAccessPair(memList);
       }
       readNode = memList[0];
-      memList.erase(memList.begin());
+      memList.erase(memList.cbegin());
     }
 
     /* schedule readNode */
@@ -260,9 +260,9 @@ uint32 AArch64Schedule::GetNextSepIndex() const {
                                                                : (nodes.size() - 1);
 }
 
-/* Do register pressure schduling. */
+/* Do register pressure scheduling. */
 void AArch64Schedule::RegPressureScheduling(BB &bb, MapleVector<DepNode*> &nodes) {
-  RegPressureSchedule *regSchedule = memPool.New<RegPressureSchedule>(cgFunc, alloc);
+  auto *regSchedule = memPool.New<RegPressureSchedule>(cgFunc, alloc);
   /*
    * Get physical register amount currently
    * undef, Int Reg, Float Reg, Flag Reg
@@ -298,7 +298,7 @@ uint32 AArch64Schedule::ComputeEstart(uint32 cycle) {
   ASSERT(nodes[maxIndex]->GetType() == kNodeTypeSeparator,
          "CG internal error, nodes[maxIndex] should be a separator node.");
 
-  (void)readyNodes.insert(readyNodes.begin(), readyList.begin(), readyList.end());
+  (void)readyNodes.insert(readyNodes.cbegin(), readyList.cbegin(), readyList.cend());
 
   uint32 maxEstart = cycle;
   for (uint32 i = lastSeparatorIndex; i <= maxIndex; ++i) {
@@ -315,7 +315,7 @@ uint32 AArch64Schedule::ComputeEstart(uint32 cycle) {
 
   while (!readyNodes.empty()) {
     DepNode *node = readyNodes.front();
-    readyNodes.erase(readyNodes.begin());
+    readyNodes.erase(readyNodes.cbegin());
 
     for (const auto *succLink : node->GetSuccs()) {
       DepNode &succNode = succLink->GetTo();
@@ -482,26 +482,26 @@ void AArch64Schedule::CountUnitKind(const DepNode &depNode, uint32 array[], cons
   (void)arraySize;
   ASSERT(arraySize >= kUnitKindLast, "CG internal error. unit kind number is not correct.");
   uint32 unitKind = depNode.GetUnitKind();
-  uint32 index = static_cast<uint32>(__builtin_ffs(unitKind));
+  uint32 index = static_cast<uint32>(__builtin_ffs(static_cast<int>(unitKind)));
   while (index != 0) {
     ASSERT(index < kUnitKindLast, "CG internal error. index error.");
     ++array[index];
     unitKind &= ~(1u << (index - 1u));
-    index = static_cast<uint32>(__builtin_ffs(unitKind));
+    index = static_cast<uint32>(__builtin_ffs(static_cast<int>(unitKind)));
   }
 }
 
 /* Check if a node use a specific unit kind. */
 bool AArch64Schedule::IfUseUnitKind(const DepNode &depNode, uint32 index) {
   uint32 unitKind = depNode.GetUnitKind();
-  uint32 idx = static_cast<uint32>(__builtin_ffs(unitKind));
+  uint32 idx = static_cast<uint32>(__builtin_ffs(static_cast<int>(unitKind)));
   while (idx != 0) {
     ASSERT(index < kUnitKindLast, "CG internal error. index error.");
     if (idx == index) {
       return true;
     }
     unitKind &= ~(1u << (idx - 1u));
-    idx = static_cast<uint32>(__builtin_ffs(unitKind));
+    idx = static_cast<uint32>(__builtin_ffs(static_cast<int>(unitKind)));
   }
 
   return false;
@@ -1096,6 +1096,7 @@ void AArch64Schedule::FinalizeScheduling(BB &bb, const DataDepBase &dataDepBase)
     bb.AppendInsn(*lastComment);
   }
   dataDepBase.ClearLastComments();
+  nodes.clear();
 }
 
 /* For every node of nodes, update it's bruteForceSchedCycle. */
@@ -1482,6 +1483,9 @@ void AArch64Schedule::ListScheduling(bool beforeRA) {
   ddb = memPool.New<AArch64DataDepBase>(memPool, cgFunc, *mad);
   intraDDA = memPool.New<IntraDataDepAnalysis>(memPool, cgFunc, *ddb);
   FOR_ALL_BB(bb, &cgFunc) {
+    if (bb->IsUnreachable()) {
+      continue;
+    }
     intraDDA->Run(*bb, nodes);
 
     if (LIST_SCHED_DUMP_REF) {

@@ -114,7 +114,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
   ++it;
   for (; it != memUseInsnSet.end(); ++it) {
     Insn *curInsn = *it;
-    if (insnState[curInsn] == false) {
+    if (!insnState[curInsn]) {
       continue;
     }
     if (!curInsn->IsLoad() || (curInsn->GetDefRegs().size() > 1) || curInsn->GetBB()->IsCleanup()) {
@@ -129,7 +129,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
     do {
       --prevIt;
       Insn *prevInsn = *prevIt;
-      if (insnState[prevInsn] == false) {
+      if (!insnState[prevInsn]) {
         continue;
       }
       if (prevInsn->GetBB() != curInsn->GetBB()) {

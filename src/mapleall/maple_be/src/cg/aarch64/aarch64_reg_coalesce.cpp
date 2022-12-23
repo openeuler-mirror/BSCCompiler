@@ -191,7 +191,7 @@ void AArch64LiveIntervalAnalysis::CollectCandidate() {
   }
 }
 
-bool AArch64LiveIntervalAnalysis::IsRegistersCopy(Insn &insn) {
+bool AArch64LiveIntervalAnalysis::IsRegistersCopy(const Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   if (mOp == MOP_xmovrr || mOp == MOP_wmovrr || mOp == MOP_xvmovs || mOp  == MOP_xvmovd) {
     return true;

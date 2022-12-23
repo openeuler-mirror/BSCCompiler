@@ -619,6 +619,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
     if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
       offset += size;  /* End of area should be aligned. Hole between VR and GR area */
     }
+    CHECK_FATAL(size != 0, "Divisor cannot be zero");
     uint32 startRegno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
     ASSERT(startRegno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
     for (uint32 i = startRegno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
@@ -926,7 +927,8 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
     }
   } else {
-    Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), GetPointerSize() * kBitsPerByte);
+    Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize),
+                                                 GetPointerSize() * kBitsPerByte);
     if (argsToStkPassSize > kStpLdpImm64UpperBound) {
       (void)AppendInstructionForAllocateOrDeallocateCallFrame(argsToStkPassSize, reg0, reg1, rty, false);
     } else {

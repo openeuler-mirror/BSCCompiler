@@ -1168,7 +1168,7 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
     ASSERT(memOpnd.GetOffsetImmediate(), "offset must be a immediate value");
     int64 offsetVal = memOpnd.GetOffsetImmediate()->GetOffsetValue();
     if (offsetVal < 0) {
-      offsetVal = stackSize + offsetVal;
+      offsetVal = static_cast<int64>(stackSize) + offsetVal;
     }
     if ((offsetVal % kMemZoomSize) != 0) {
       SetAnalysisMode(kRDRegAnalysis);

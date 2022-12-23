@@ -47,6 +47,7 @@ class AArch64LiveIntervalAnalysis : public LiveIntervalAnalysis {
   }
 
  private:
+  static bool IsRegistersCopy(const Insn &insn);
   MapleUnorderedSet<regno_t> vregLive;
   MapleSet<regno_t> candidates;
 };

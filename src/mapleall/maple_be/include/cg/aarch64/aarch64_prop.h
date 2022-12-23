@@ -66,11 +66,11 @@ class A64StrLdrProp {
   RegOperand *GetReplaceReg(RegOperand &a64Reg);
   MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal, uint32 memSize) const;
   MemOperand *SelectReplaceExt(RegOperand &base, uint32 amount, bool isSigned, uint32 memSize);
-  bool CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx) const;
+  bool CheckNewMemOffset(const Insn &insn, MemOperand &newMemOpnd, uint32 opndIdx) const;
   void DoMemReplace(const RegOperand &replacedReg, MemOperand &newMem, Insn &useInsn);
   uint32 GetMemOpndIdx(MemOperand *newMemOpnd, const Insn &insn) const;
   Insn *GetDefInsn(const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns);
-  bool IsSameOpndsOfInsn(const Insn &insn1, const Insn &insn2, uint32 opndIdx);
+  bool IsSameOpndsOfInsn(const Insn &insn1, const Insn &insn2, uint32 opndIdx) const;
   bool IsPhiInsnValid(const Insn &phiInsn);
   bool CheckSameReplace(const RegOperand &replacedReg, const MemOperand *memOpnd) const;
 
@@ -148,7 +148,7 @@ class CopyRegProp : public PropOptimizePattern {
  private:
   bool IsValidCopyProp(const RegOperand &dstReg, const RegOperand &srcReg) const;
   void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
-  bool CanBePropagated(const Insn &insn);
+  bool CanBePropagated(const Insn &insn) const;
   void ReplaceAllUseForCopyProp();
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;

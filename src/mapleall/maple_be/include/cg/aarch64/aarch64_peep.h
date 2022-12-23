@@ -445,7 +445,7 @@ class NormRevTbzToTbzPattern : public CGPeepPattern {
 
  private:
   void SetRev16Value(const uint32 &oldValue, uint32 &revValue);
-  void SetWrevValue(const uint32 &oldValue, uint32 &revValue);
+  void SetWrevValue(const uint32 &oldValue, uint32 &revValue) const;
   void SetXrevValue(const uint32 &oldValue, uint32 &revValue);
   Insn *tbzInsn = nullptr;
 };
@@ -841,8 +841,8 @@ class LslAndToUbfizPattern : public CGPeepPattern {
   ~LslAndToUbfizPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  Insn *BuildNewInsn(const Insn &andInsn, const Insn &lslInsn, const Insn &useInsn);
-  bool CheckUseInsnMop(const Insn &useInsn);
+  Insn *BuildNewInsn(const Insn &andInsn, const Insn &lslInsn, const Insn &useInsn) const;
+  bool CheckUseInsnMop(const Insn &useInsn) const;
   std::string GetPatternName() override {
     return "LslAndToUbfizPattern";
   }

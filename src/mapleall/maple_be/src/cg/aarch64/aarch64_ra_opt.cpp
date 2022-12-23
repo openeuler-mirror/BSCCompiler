@@ -36,12 +36,12 @@ bool RaX0Opt::PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const {
  * Replace replace_reg with rename_reg.
  * return true if there is a redefinition that needs to terminate the propagation.
  */
-bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) const {
+bool RaX0Opt::PropagateRenameReg(Insn &nInsn, const X0OptInfo &optVal) const {
   uint32 renameReg = static_cast<RegOperand*>(optVal.GetRenameOpnd())->GetRegisterNumber();
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nInsn)->GetMachineOpcode()];
-  int32 lastOpndId = static_cast<int32>(nInsn->GetOperandSize() - 1);
+  const InsnDesc *md = nInsn.GetDesc();
+  int32 lastOpndId = static_cast<int32>(nInsn.GetOperandSize() - 1);
   for (int32_t i = lastOpndId; i >= 0; i--) {
-    Operand &opnd = nInsn->GetOperand(static_cast<uint32>(i));
+    Operand &opnd = nInsn.GetOperand(static_cast<uint32>(i));
 
     if (opnd.IsList()) {
       /* call parameters */
@@ -56,7 +56,7 @@ bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) const {
         memopnd.SetIndexRegister(*renameOpnd);
       }
     } else if (opnd.IsRegister()) {
-      bool isdef = (md->GetOperand(static_cast<uint32>(i)))->IsRegDef();
+      bool isdef = (md->GetOpndDes(static_cast<uint32>(i)))->IsRegDef();
       RegOperand &regopnd = static_cast<RegOperand&>(opnd);
       regno_t regCandidate = regopnd.GetRegisterNumber();
       if (isdef) {
@@ -66,7 +66,7 @@ bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) const {
         }
       } else {
         if (regCandidate == optVal.GetReplaceReg()) {
-          nInsn->SetOperand(static_cast<uint32>(i), *optVal.GetRenameOpnd());
+          nInsn.SetOperand(static_cast<uint32>(i), *optVal.GetRenameOpnd());
         }
       }
     }
@@ -91,11 +91,11 @@ bool RaX0Opt::PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) const {
   return true;
 }
 
-bool RaX0Opt::PropagateX0DetectRedefine(const AArch64MD *md, const Insn *ninsn, const X0OptInfo &optVal,
+bool RaX0Opt::PropagateX0DetectRedefine(const InsnDesc &md, const Insn &ninsn, const X0OptInfo &optVal,
                                         uint32 index) const {
-  bool isdef = (md->GetOperand(index))->IsRegDef();
+  bool isdef = (md.GetOpndDes(static_cast<size_t>(index)))->IsRegDef();
   if (isdef) {
-    RegOperand &opnd = static_cast<RegOperand&>(ninsn->GetOperand(index));
+    RegOperand &opnd = static_cast<RegOperand&>(ninsn.GetOperand(index));
     if (opnd.GetRegisterNumber() == optVal.GetReplaceReg()) {
       return true;
     }
@@ -119,9 +119,9 @@ bool RaX0Opt::PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &opt
      * Does not need to check for x0 redefinition.  The mov instruction src
      * being replaced already defines x0 and will terminate this loop.
      */
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn *>(ninsn)->GetMachineOpcode()];
-    for (uint32 i = 0; i < ninsn->GetResultNum(); i++) {
-      redefined = PropagateX0DetectRedefine(md, ninsn, optVal, i);
+    const InsnDesc *md = ninsn->GetDesc();
+    for (uint32 i = 0; i < ninsn->GetDefRegs().size(); i++) {
+      redefined = PropagateX0DetectRedefine(*md, *ninsn, optVal, i);
       if (redefined) {
         break;
       }
@@ -178,7 +178,7 @@ bool RaX0Opt::PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal) const {
     if (!ninsn->IsMachineInstruction()) {
       continue;
     }
-    redefined = PropagateRenameReg(ninsn, optVal);
+    redefined = PropagateRenameReg(*ninsn, optVal);
     if (redefined) {
       break;
     }
@@ -200,7 +200,7 @@ void RaX0Opt::PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal) const {
     if (!ninsn->IsMachineInstruction()) {
       continue;
     }
-    redefined = PropagateRenameReg(ninsn, optVal);
+    redefined = PropagateRenameReg(*ninsn, optVal);
     if (redefined) {
       break;
     }
@@ -346,8 +346,7 @@ void VregRename::RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop
     MOperator mOp = (ropnd->GetRegisterType() == kRegTyInt) ?
         ((size == k8BitSize) ? MOP_xmovrr : MOP_wmovrr) :
         ((size == k8BitSize) ? MOP_xvmovd : MOP_xvmovs);
-    Insn &newInsn = static_cast<AArch64CGFunc*>(cgFunc)->GetCG()->BuildInstruction<AArch64Insn>(
-        mOp, *renameVreg, *ropnd);
+    Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, *renameVreg, *ropnd);
     Insn *last = pred->GetLastInsn();
     if (last) {
       if (last->IsBranch()) {
@@ -470,7 +469,7 @@ void VregRename::RenameGetFuncVregInfo() {
       if (insn->IsImmaterialInsn() || !insn->IsMachineInstruction()) {
         continue;
       }
-      const AArch64MD *md = &AArch64CG::kMd[static_cast<const AArch64Insn&>(*insn).GetMachineOpcode()];
+      const InsnDesc *md = insn->GetDesc();
       for (uint32 i = 0; i < insn->GetOperandSize(); ++i) {
         Operand *opnd = &insn->GetOperand(i);
         if (opnd->IsList()) {
@@ -489,7 +488,7 @@ void VregRename::RenameGetFuncVregInfo() {
           }
         } else if (opnd->IsRegister() && static_cast<RegOperand *>(opnd)->IsVirtualRegister() &&
                    static_cast<RegOperand *>(opnd)->GetRegisterNumber() != ccRegno) {
-          bool isdef = (md->operand[i])->IsRegDef();
+          bool isdef = (md->opndMD[i])->IsRegDef();
           regno_t vreg = static_cast<RegOperand *>(opnd)->GetRegisterNumber();
           UpdateVregInfo(vreg, bb, isInner, isdef);
         }
@@ -571,7 +570,7 @@ void ParamRegOpt::SplitAtDomBB(RegOperand &movDest, BB &domBB, Insn &posInsn) co
   MOperator mOp = (movDest.GetRegisterType() == kRegTyInt) ?
                   ((size == k8BitSize) ? MOP_xmovrr : MOP_wmovrr) :
                   ((size == k8BitSize) ? MOP_xvmovd : MOP_xvmovs);
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, movDest, *renameVreg);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, movDest, *renameVreg);
   domBB.InsertInsnBegin(newInsn);
   posInsn.SetOperand(kFirstOpnd, *renameVreg);
 }
@@ -589,8 +588,8 @@ void ParamRegOpt::CollectRefBBs(RegOperand &movDest, std::set<uint32> &refBBs) {
         continue;
       }
       bbHasCall = bbHasCall || insn->IsCall();
-      if (static_cast<AArch64Insn*>(insn)->IsRegDefOrUse(cand)) {
-        if (static_cast<AArch64Insn*>(insn)->IsRegDefined(cand)) {
+      if (insn->ScanReg(cand)) {
+        if (insn->IsRegDefined(cand)) {
           (void)defBBs.insert(bb->GetId());
           if (bbHasCall) {
             (void)crossCallBBs.insert(bb->GetId());

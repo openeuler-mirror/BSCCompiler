@@ -1181,7 +1181,7 @@ bool LslAndToUbfizPattern::CheckCondition(Insn &insn) {
   return false;
 }
 
-bool LslAndToUbfizPattern::CheckUseInsnMop(const Insn &useInsn) {
+bool LslAndToUbfizPattern::CheckUseInsnMop(const Insn &useInsn) const {
   if (useInsn.IsLoad() || useInsn.IsStore()) {
     return false;
   }
@@ -1262,7 +1262,7 @@ void LslAndToUbfizPattern::Run(BB &bb, Insn &insn) {
 }
 
 /* Build ubfiz insn or mov insn */
-Insn *LslAndToUbfizPattern::BuildNewInsn(const Insn &andInsn, const Insn &lslInsn, const Insn &useInsn) {
+Insn *LslAndToUbfizPattern::BuildNewInsn(const Insn &andInsn, const Insn &lslInsn, const Insn &useInsn) const {
   uint64 andImmValue = static_cast<uint64>(static_cast<ImmOperand&>(andInsn.GetOperand(kInsnThirdOpnd)).GetValue());
   /* Check whether the value of immValue is 2^n-1. */
   uint64 judgment = andImmValue & (andImmValue + 1);
@@ -2586,13 +2586,15 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
         if (memOperand.GetAddrMode() == MemOperand::kBOI && memOperand.GetOffsetImmediate() != nullptr) {
           int64 curOffset = memOperand.GetOffsetImmediate()->GetOffsetValue();
           if (memOperand.GetSize() == k64BitSize) {
-            uint32 memBarrierRange = insn.IsLoadStorePair() ? k16BitSize : k8BitSize;
-            if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - static_cast<int32>(memBarrierRange)) {
+            int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k16BitSize : k8BitSize);
+            if (curOffset < baseOfst + memBarrierRange &&
+                curOffset > baseOfst - memBarrierRange) {
               return true;
             }
           } else if (memOperand.GetSize() == k32BitSize) {
-            uint32 memBarrierRange = insn.IsLoadStorePair() ? k8BitSize : k4BitSize;
-            if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - memBarrierRange) {
+            int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k8BitSize : k4BitSize);
+            if (curOffset < baseOfst + memBarrierRange &&
+                curOffset > baseOfst - memBarrierRange) {
               return true;
             }
           }
@@ -4730,7 +4732,7 @@ void NormRevTbzToTbzPattern::SetRev16Value(const uint32 &oldValue, uint32 &revVa
   }
 }
 
-void NormRevTbzToTbzPattern::SetWrevValue(const uint32 &oldValue, uint32 &revValue) {
+void NormRevTbzToTbzPattern::SetWrevValue(const uint32 &oldValue, uint32 &revValue) const {
   switch (oldValue / k8BitSize) {
     case k0BitSize: {
       revValue = oldValue + k24BitSize;
