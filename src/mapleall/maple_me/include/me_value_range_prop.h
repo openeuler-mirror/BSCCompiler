@@ -886,6 +886,12 @@ class ValueRangePropagation {
       uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs);
   void MergeNotEqualRanges(const MeExpr &opnd, const ValueRange *leftRange, ValueRange &rightRange,
       const BB &trueBranch);
+  bool DealWithMulNode(const BB &bb, CRNode &opndOfCRNode,
+      std::unique_ptr<ValueRange> &resValueRange, PrimType pTypeOfArray);
+
+  template<typename T>
+  bool IsOverflowAfterMul(T lhs, T rhs, PrimType pty);
+
 
   MeFunction &func;
   MeIRMap &irMap;

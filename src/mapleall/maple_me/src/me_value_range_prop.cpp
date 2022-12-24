@@ -1025,6 +1025,63 @@ void ValueRangePropagation::GetValueRangeOfCRNode(
   }
 }
 
+template<typename T>
+bool ValueRangePropagation::IsOverflowAfterMul(T lhs, T rhs, PrimType pty) {
+  if (!IsNeededPrimType(pty)) {
+    return true;
+  }
+  if (lhs == 0 || rhs == 0) {
+    return false;
+  }
+  if (lhs >= 0 && rhs >= 0) {
+    return (GetMaxNumber(pty) / lhs) < rhs;
+  }
+  if (lhs < 0 && rhs < 0) {
+    return (GetMaxNumber(pty) / lhs) > rhs;
+  }
+  if (lhs * rhs == GetMinNumber(pty)) {
+    return false;
+  }
+  return (lhs > 0) ? (GetMinNumber(pty) / lhs) > rhs : (GetMinNumber(pty) / rhs) > lhs;
+}
+
+bool ValueRangePropagation::DealWithMulNode(const BB &bb, CRNode &opndOfCRNode,
+    std::unique_ptr<ValueRange> &resValueRange, PrimType pTypeOfArray) {
+  auto &mulCRNode = static_cast<CRMulNode&>(opndOfCRNode);
+  if (mulCRNode.GetOpndsSize() != kNumOperands) {
+    return false;
+  }
+  auto *lhs = mulCRNode.GetOpnd(0);
+  auto *rhs = mulCRNode.GetOpnd(1);
+  if (lhs->GetCRType() != kCRConstNode || rhs->GetCRType() != kCRVarNode || rhs->GetExpr() == nullptr) {
+    return false;
+  }
+  auto valueRangOfOpnd = FindValueRangeInCurrBBOrDominateBBs(bb, *rhs->GetExpr());
+  if (valueRangOfOpnd == nullptr || !valueRangOfOpnd->IsConstantLowerAndUpper() ||
+      !valueRangOfOpnd->IsAccurate()) {
+    return false;
+  }
+  int64 constant = static_cast<CRConstNode*>(lhs)->GetConstValue();
+  auto lowerConst = valueRangOfOpnd->GetLower().GetConstant();
+  auto upperConst = valueRangOfOpnd->GetUpper().GetConstant();
+  if (pTypeOfArray == PTY_u64) {
+    if (IsOverflowAfterMul<uint64>(lowerConst, constant, pTypeOfArray) ||
+        IsOverflowAfterMul<uint64>(upperConst, constant, pTypeOfArray)) {
+      return false;
+    }
+  } else {
+    if (IsOverflowAfterMul(lowerConst, constant, pTypeOfArray) ||
+        IsOverflowAfterMul(upperConst, constant, pTypeOfArray)) {
+      return false;
+    }
+  }
+  auto vrAfterMul = std::make_unique<ValueRange>(Bound(lowerConst * constant, pTypeOfArray),
+      Bound(upperConst * constant, pTypeOfArray), kLowerAndUpper, true);
+  resValueRange = (resValueRange == nullptr) ? std::move(vrAfterMul) :
+      AddOrSubWithValueRange(OP_add, *resValueRange, *vrAfterMul);
+  return true;
+}
+
 // Get the valueRange of index and bound, for example:
 // assertge(ptr, ptr + 8) -> the valueRange of index is 8
 // assertge(ptr, ptr + len * 4 - 8) -> the valueRange of index is len - 2
@@ -1036,20 +1093,30 @@ std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfCRNodes(
   std::unique_ptr<ValueRange> resValueRange = nullptr;
   for (size_t i = 0; i < crNodes.size(); ++i) {
     auto *opndOfCRNode = crNodes[i];
-    if (opndOfCRNode->GetCRType() != kCRConstNode && opndOfCRNode->GetCRType() != kCRVarNode &&
-        opndOfCRNode->GetCRType() != kCRAddNode) {
-      return nullptr;
-    }
-    if (opndOfCRNode->GetCRType() != kCRAddNode) {
-      GetValueRangeOfCRNode(bb, *opndOfCRNode, resValueRange, pTypeOfArray);
-    } else {
-      auto *addCRNOde = static_cast<CRAddNode*>(opndOfCRNode);
-      for (size_t addNodeIndex = 0; addNodeIndex < addCRNOde->GetOpndsSize(); ++addNodeIndex) {
-        GetValueRangeOfCRNode(bb, *addCRNOde->GetOpnd(addNodeIndex), resValueRange, pTypeOfArray);
-        if (resValueRange == nullptr) {
+    switch (opndOfCRNode->GetCRType()) {
+      case kCRVarNode:
+      case kCRConstNode: {
+        GetValueRangeOfCRNode(bb, *opndOfCRNode, resValueRange, pTypeOfArray);
+        break;
+      }
+      case kCRAddNode: {
+        auto *addCRNOde = static_cast<CRAddNode*>(opndOfCRNode);
+        for (size_t addNodeIndex = 0; addNodeIndex < addCRNOde->GetOpndsSize(); ++addNodeIndex) {
+          GetValueRangeOfCRNode(bb, *addCRNOde->GetOpnd(addNodeIndex), resValueRange, pTypeOfArray);
+          if (resValueRange == nullptr) {
+            return nullptr;
+          }
+        }
+        break;
+      }
+      case kCRMulNode: {
+        if (!DealWithMulNode(bb, *opndOfCRNode, resValueRange, pTypeOfArray)) {
           return nullptr;
         }
+        break;
       }
+      default:
+        return nullptr;
     }
     if (resValueRange == nullptr) {
       return nullptr;
@@ -1107,9 +1174,12 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   auto byteSizeFromBoundVector = sa.GetByteSize(boundVector);
   uint8 byteSize = (byteSizeFromIndexVector > 1) ? byteSizeFromIndexVector : byteSizeFromBoundVector;
   // If can not normalization the vector, return false.
-  if ((!sa.NormalizationWithByteCount(indexVector, byteSize) ||
-       !sa.NormalizationWithByteCount(boundVector, byteSize))) {
-    return false;
+  std::vector<CRNode*> tmpIndexVector(indexVector);
+  std::vector<CRNode*> tmpBoundVector(boundVector);
+  if (sa.NormalizationWithByteCount(tmpIndexVector, byteSize) &&
+      sa.NormalizationWithByteCount(tmpBoundVector, byteSize)) {
+    indexVector = tmpIndexVector;
+    boundVector = tmpBoundVector;
   }
   if (ValueRangePropagation::isDebug) {
     std::for_each(indexVector.begin(), indexVector.end(), [this](const CRNode *cr) {
