@@ -434,7 +434,8 @@ void AArch64MemLayout::LayoutStackFrame(int32 &structCopySize, int32 &maxParmSta
     segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), k8ByteSize + k8ByteSize));
   } else {
     segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), GetPointerSize()));
-    segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), GetPointerSize() + GetPointerSize()));
+    segArgsStkPassed.SetSize(static_cast<uint32>(RoundUp(segArgsStkPassed.GetSize(), GetPointerSize() +
+                                                                                     GetPointerSize())));
   }
   /* allocate the local variables in the stack */
   std::vector<MIRSymbol*> eaTempVar;
@@ -481,7 +482,7 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
    * segLocals need 8 bit align
    */
   if (CGOptions::IsArm64ilp32()) {
-    segLocals.SetSize(RoundUp(segLocals.GetSize(), k8ByteSize));
+    segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), k8ByteSize)));
   } else {
     segLocals.SetSize(RoundUp(segLocals.GetSize(), GetPointerSize()));
   }

@@ -266,11 +266,11 @@ void A64OpndSSAUpdateVsitor::Visit(RegOperand *v) {
   }
 }
 
-void A64OpndSSAUpdateVsitor::Visit(maplebe::MemOperand *a64MemOpnd) {
-  RegOperand *base = a64MemOpnd->GetBaseRegister();
-  RegOperand *index = a64MemOpnd->GetIndexRegister();
+void A64OpndSSAUpdateVsitor::Visit(maplebe::MemOperand *v) {
+  RegOperand *base = v->GetBaseRegister();
+  RegOperand *index = v->GetIndexRegister();
   if (base != nullptr && base->IsSSAForm()) {
-    if (a64MemOpnd->IsIntactIndexed()) {
+    if (v->IsIntactIndexed()) {
       UpdateRegUse(base->GetRegisterNumber());
     } else {
       UpdateRegDef(base->GetRegisterNumber());
@@ -302,7 +302,7 @@ void A64OpndSSAUpdateVsitor::Visit(ListOperand *v) {
   }
 }
 
-void A64OpndSSAUpdateVsitor::UpdateRegUse(uint32 ssaIdx) {
+void A64OpndSSAUpdateVsitor::UpdateRegUse(uint32 ssaIdx) const {
   VRegVersion *curVersion = ssaInfo->FindSSAVersion(ssaIdx);
   CHECK_NULL_FATAL(curVersion);
   if (isDecrease) {

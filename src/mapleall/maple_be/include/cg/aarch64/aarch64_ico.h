@@ -57,7 +57,7 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
  protected:
   bool BuildCondMovInsn(const BB &bb, const std::map<Operand*, std::vector<Operand*>> &ifDestSrcMap,
                         const std::map<Operand*, std::vector<Operand*>> &elseDestSrcMap, bool elseBBIsProcessed,
-                        std::vector<Insn*> &generateInsn);
+                        std::vector<Insn*> &generateInsn) const;
   bool DoOpt(BB *ifBB, BB *elseBB, BB &joinBB);
   void GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest, RegOperand &destReg,
                           std::vector<Insn*> &generateInsn) const;
@@ -106,7 +106,7 @@ class AArch64ICOSameCondPattern : public AArch64ICOPattern {
   ~AArch64ICOSameCondPattern() override = default;
   bool Optimize(BB &secondIfBB) override;
  protected:
-  bool DoOpt(BB *firstIfBB, BB &secondIfBB) const;
+  bool DoOpt(BB &firstIfBB, BB &secondIfBB) const;
 };
 
 /* If-Then MorePreds pattern

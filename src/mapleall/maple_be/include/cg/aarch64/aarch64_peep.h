@@ -444,7 +444,7 @@ class NormRevTbzToTbzPattern : public CGPeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
-  void SetRev16Value(const uint32 &oldValue, uint32 &revValue);
+  void SetRev16Value(const uint32 &oldValue, uint32 &revValue) const;
   void SetWrevValue(const uint32 &oldValue, uint32 &revValue) const;
   void SetXrevValue(const uint32 &oldValue, uint32 &revValue);
   Insn *tbzInsn = nullptr;

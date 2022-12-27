@@ -87,11 +87,11 @@ class RaX0Opt {
 
   bool PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const;
   bool PropagateRenameReg(Insn &nInsn, const X0OptInfo &optVal) const;
-  bool PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) const;
+  bool PropagateX0DetectX0(const Insn &insn, X0OptInfo &optVal) const;
   bool PropagateX0DetectRedefine(const InsnDesc &md, const Insn &ninsn, const X0OptInfo &optVal, uint32 index) const;
   bool PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &optVal) const;
-  bool PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal) const;
-  void PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal) const;
+  bool PropagateX0ForCurrBb(BB &bb, const X0OptInfo &optVal) const;
+  void PropagateX0ForNextBb(BB &nextBb, const X0OptInfo &optVal) const;
   void PropagateX0();
 
  private:
@@ -106,7 +106,7 @@ class ParamRegOpt {
   void HandleParamReg();
   void CollectRefBBs(RegOperand &movDest, std::set<uint32> &refBBs);
   void TryToSplitParamReg(RegOperand &movDest, Insn &posInsn);
-  BB* GetCommondDom(std::set<uint32> &refBBs);
+  BB* GetCommondDom(std::set<uint32> &refBBs) const;
   bool DominatorAll(uint32 domBB, std::set<uint32> &refBBs) const;
   void SplitAtDomBB(RegOperand &movDest, BB &domBB, Insn &posInsn) const;
   void SetDumpInfo(bool val) {

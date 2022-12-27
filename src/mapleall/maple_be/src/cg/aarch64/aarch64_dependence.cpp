@@ -775,7 +775,7 @@ bool AArch64DepAnalysis::IfInAmbiRegs(regno_t regNO) const {
   return false;
 }
 
-static bool IsYieldPoint(Insn &insn) {
+static bool IsYieldPoint(const Insn &insn) {
   /*
    * It is a yieldpoint if loading from a dedicated
    * register holding polling page address:

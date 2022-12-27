@@ -438,7 +438,7 @@ void AArch64CGFunc::SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype
       dtype = PTY_u16;
     } else {
       /* sign extend */
-      srcVal = ((static_cast<int64>(srcVal)) << 56) >> 56;
+      srcVal = (srcVal << 56) >> 56;
       dtype = PTY_i16;
     }
     dsize = k16BitSize;
@@ -501,7 +501,7 @@ void AArch64CGFunc::SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype
         continue;
       }
       ImmOperand &src16 = CreateImmOperand(static_cast<int64>(chunkVal), k16BitSize, false);
-      BitShiftOperand *lslOpnd = GetLogicalShiftLeftOperand(sa, true);
+      BitShiftOperand *lslOpnd = GetLogicalShiftLeftOperand(static_cast<uint32>(sa), true);
       if (!useMovk) {
         /* use movz or movn */
         if (!useMovz) {
@@ -656,7 +656,7 @@ void AArch64CGFunc::SplitMovImmOpndInstruction(int64 immVal, RegOperand &destReg
       continue;
     }
     ImmOperand &src16 = CreateImmOperand(static_cast<int64>(chunkVal), k16BitSize, false);
-    BitShiftOperand *lslOpnd = GetLogicalShiftLeftOperand(sa, true);
+    BitShiftOperand *lslOpnd = GetLogicalShiftLeftOperand(static_cast<uint32>(sa), true);
     Insn *newInsn = nullptr;
     if (!useMovk) {
       /* use movz or movn */
@@ -2142,12 +2142,12 @@ MemOperand *AArch64CGFunc::GenLmbcFpMemOperand(int32 offset, uint32 byteSize, AA
   return memOpnd;
 }
 
-bool AArch64CGFunc::GetNumReturnRegsForIassignfpoff(MIRType *rType, PrimType &primType, uint32 &numRegs) {
+bool AArch64CGFunc::GetNumReturnRegsForIassignfpoff(MIRType &rType, PrimType &primType, uint32 &numRegs) {
   bool isPureFp = false;
-  uint32 rSize = static_cast<uint32>(rType->GetSize());
+  uint32 rSize = static_cast<uint32>(rType.GetSize());
   CHECK_FATAL(rSize <= k16ByteSize, "SelectIassignfpoff invalid agg size");
   uint32 fpSize;
-  numRegs = FloatParamRegRequired(static_cast<MIRStructType*>(rType), fpSize);
+  numRegs = FloatParamRegRequired(static_cast<MIRStructType*>(&rType), fpSize);
   if (numRegs > 0) {
     primType = (fpSize == k4ByteSize) ? PTY_f32 : PTY_f64;
     isPureFp = true;
@@ -2176,7 +2176,7 @@ void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
   uint32 numRegs = 0;
   if (rType && rType->GetPrimType() == PTY_agg && opnd.IsRegister() &&
       static_cast<RegOperand&>(opnd).IsPhysicalRegister()) {
-    isPureFpStruct = GetNumReturnRegsForIassignfpoff(rType, primType, numRegs);
+    isPureFpStruct = GetNumReturnRegsForIassignfpoff(*rType, primType, numRegs);
   }
   uint32 byteSize = GetPrimTypeSize(primType);
   if (isPureFpStruct) {
@@ -2185,7 +2185,7 @@ void AArch64CGFunc::SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) {
           byteSize * kBitsPerByte, kRegTyFloat);
       GenIassignfpoffStore(srcOpnd, offset + static_cast<int32>(i * byteSize), byteSize, primType);
     }
-  } else if (numRegs) {
+  } else if (numRegs != 0) {
     for (uint32 i = 0 ; i < numRegs; ++i) {
       RegOperand &srcOpnd = GetOrCreatePhysicalRegisterOperand(AArch64reg(R0 + i), byteSize * kBitsPerByte, kRegTyInt);
       GenIassignfpoffStore(srcOpnd, offset + static_cast<int32>(i * byteSize), byteSize, primType);
@@ -2269,7 +2269,7 @@ bool AArch64CGFunc::LmbcSmallAggForRet(const BaseNode &bNode, const Operand *src
   uint32 numRegs = 0;
   if (static_cast<const StmtNode&>(bNode).GetNext()->GetOpCode() == OP_return) {
     MIRStructType *ty = static_cast<MIRStructType*>(func->GetReturnType());
-    uint32 tySize = GetBecommon().GetTypeSize(ty->GetTypeIndex());
+    uint32 tySize = static_cast<uint32>(GetBecommon().GetTypeSize(ty->GetTypeIndex()));
     uint32 fpregs = FloatParamRegRequired(ty, size);
     if (fpregs > 0) {
       /* pure floating point in agg */
@@ -2299,7 +2299,7 @@ bool AArch64CGFunc::LmbcSmallAggForRet(const BaseNode &bNode, const Operand *src
         RegOperand &res1 = GetOrCreatePhysicalRegisterOperand(R0, loadSize, kRegTyInt);
         SelectCopy(res1, pTy, mem, pTy);
       }
-      if (tySize > static_cast<int32>(k8ByteSize)) {
+      if (tySize > k8ByteSize) {
         int32 newOffset = offset + static_cast<int32>(k8ByteSize);
         MemOperand &newMem = CreateMemOpnd(regno, newOffset, size * kBitsPerByte);
         RegOperand &res2 = GetOrCreatePhysicalRegisterOperand(R1, loadSize, kRegTyInt);
@@ -2368,10 +2368,10 @@ bool AArch64CGFunc::LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *
 
 /* This function is incomplete and may be removed when Lmbc IR is changed
    to have the lowerer figures out the address of the large agg to reside */
-uint32 AArch64CGFunc::LmbcFindTotalStkUsed(std::vector<TyIdx> *paramList) {
+uint32 AArch64CGFunc::LmbcFindTotalStkUsed(std::vector<TyIdx> &paramList) {
   AArch64CallConvImpl parmlocator(GetBecommon());
   CCLocInfo pLoc;
-  for (TyIdx tyIdx : *paramList) {
+  for (TyIdx tyIdx : paramList) {
     MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
     (void)parmlocator.LocateNextParm(*ty, pLoc);
   }
@@ -2428,7 +2428,7 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) {
     if (offset < 0) {
       /* length of ALL stack based args for this call, this location is where the
          next large agg resides, its addr will then be passed */
-      offset = static_cast<int32>(LmbcFindTotalStkUsed(parmList) + LmbcTotalRegsUsed());
+      offset = static_cast<int32>(LmbcFindTotalStkUsed(*parmList) + LmbcTotalRegsUsed());
     }
     SetLmbcTotalStkUsed(offset + bNode.blockSize);  /* next use */
     SetLmbcArgInfo(regResult, PTY_i64, 0, 1); /* 1 reg for ptr */
@@ -2581,7 +2581,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
       return;
     }
     for (uint32 i = 0; i < (lhsSize / copySize); ++i) {
-      uint32 rhsBaseOffset = static_cast<uint32>(rhsOffsetVal + i * copySize);
+      uint32 rhsBaseOffset = static_cast<uint32>(static_cast<uint64>(rhsOffsetVal) + i * copySize);
       uint32 lhsBaseOffset = lhsOffset + i * copySize;
       uint32 memSize = copySize * k8BitSize;
       MIRSymbol *sym = rhsIsLo12 ? rhsSymbol : nullptr;
@@ -7213,7 +7213,8 @@ bool AArch64CGFunc::GenRetCleanup(const IntrinsiccallNode *cleanupNode, bool for
   if (minByteOffset < INT_MAX) {
     int32 refLocBase = memLayout->GetRefLocBaseLoc();
     uint32 refNum = memLayout->GetSizeOfRefLocals() / kOffsetAlign;
-    CHECK_FATAL((refLocBase + (refNum - 1) * kIntregBytelen) < std::numeric_limits<int32>::max(), "out of range");
+    CHECK_FATAL((refLocBase + static_cast<int32>((refNum - 1) * kIntregBytelen)) < std::numeric_limits<int32>::max(),
+        "out of range");
     int32 refLocEnd = refLocBase + static_cast<int32>((refNum - 1) * kIntregBytelen);
     int32 realMin = minByteOffset < refLocBase ? refLocBase : minByteOffset;
     int32 realMax = maxByteOffset > refLocEnd ? refLocEnd : maxByteOffset;
@@ -7903,16 +7904,16 @@ RegOperand *AArch64CGFunc::SelectParmListDreadAccessField(const MIRSymbol &sym, 
  * generate ldr and orr for small agg copy in parm pass
  * ldr exact size of mem to reg based on agg size
 */
-void AArch64CGFunc::SelectCopySmallAggToReg(uint32 passSize, RegOperand &parmOpnd, const MemOperand &memOpnd) {
-  CHECK_FATAL(0 < passSize && passSize <= k8ByteSize, "small agg is less or equal to 64 bit");
-  std::vector<RegOperand*> tmpRegs(passSize + 1);
-  std::vector<RegOperand*> tmpRegs2(passSize + 1);
+void AArch64CGFunc::SelectCopySmallAggToReg(uint32 symSize, RegOperand &parmOpnd, const MemOperand &memOpnd) {
+  CHECK_FATAL(0 < symSize && symSize <= k8ByteSize, "small agg is less or equal to 64 bit");
+  std::vector<RegOperand*> tmpRegs(symSize + 1);
+  std::vector<RegOperand*> tmpRegs2(symSize + 1);
   uint32 bitSize = 0;
   PrimType pty =  PTY_begin;
-  if (passSize % k8ByteSize == 0) {
+  if (symSize % k8ByteSize == 0) {
     bitSize = k64BitSize;
     pty = PTY_u64;
-  } else if (passSize % k4ByteSize == 0) {
+  } else if (symSize % k4ByteSize == 0) {
     bitSize = k32BitSize;
     pty = PTY_u32;
   } else {
@@ -7923,7 +7924,7 @@ void AArch64CGFunc::SelectCopySmallAggToReg(uint32 passSize, RegOperand &parmOpn
   uint64 offset = memOpnd.GetOffsetOperand()->GetValue();
   MOperator selectedMop = PickLdInsn(bitSize, pty);
   // generate ldr mem -> reg
-  size_t lastPos = passSize / (bitSize / kBitsPerByte);
+  size_t lastPos = symSize / (bitSize / kBitsPerByte);
   for (size_t i = 0; i < lastPos; i++) {
     tmpRegs[i] = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, bitSize));
     MemOperand *mOpnd = CreateMemOperand(bitSize, *base,
@@ -8048,7 +8049,7 @@ void AArch64CGFunc::CreateCallStructParamMemcpy(RegOperand &addrOpnd, uint32 str
   SelectAdd(*parmOpnd, *spReg, *offsetOpnd0, PTY_a64);
   opndVec.push_back(parmOpnd);  /* param 0 */
 
-  if (fromOffset) {
+  if (fromOffset != 0) {
     RegOperand &p1vreg = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
     ImmOperand &fromImm = CreateImmOperand(fromOffset, k64BitSize, true);
     GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xaddrri12, p1vreg, addrOpnd, fromImm));
@@ -8188,7 +8189,7 @@ void AArch64CGFunc::GenAggParmForIread(const BaseNode &parent, ListOperand &srcO
       regno_t vRegNO = NewVReg(kRegTyInt, k8ByteSize);
       RegOperand *result = &CreateVirtualRegisterOperand(vRegNO);
       GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xaddrri12, *result, *addrOpnd,
-                                                                    CreateImmOperand(rhsOffset, k64BitSize, false)));
+                                                         CreateImmOperand(rhsOffset, k64BitSize, false)));
     }
     CreateCallStructMemcpyToParamReg(*ty, structCopyOffset, parmLocator, srcOpnds);
     structCopyOffset += static_cast<int32>(RoundUp(symSize, GetPointerSize()));
@@ -8476,10 +8477,10 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
     }
     switch (argExpr->op) {
       case OP_dread: {
-        DreadNode *dNode = static_cast<DreadNode *>(argExpr);
+        auto *dNode = static_cast<DreadNode *>(argExpr);
         MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(dNode->GetStIdx());
         if (dNode->GetFieldID() != 0) {
-          MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
+          auto *structType = static_cast<MIRStructType*>(symbol->GetType());
           ASSERT(structType != nullptr, "SelectParmList: non-zero fieldID for non-structure");
           FieldAttrs fa = structType->GetFieldAttrs(dNode->GetFieldID());
           is64x1vec = fa.GetAttr(FLDATTR_oneelem_simd);
@@ -8489,13 +8490,13 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
         break;
       }
       case OP_iread: {
-        IreadNode *iNode = static_cast<IreadNode *>(argExpr);
+        auto *iNode = static_cast<IreadNode *>(argExpr);
         MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iNode->GetTyIdx());
-        MIRPtrType *ptrTyp = static_cast<MIRPtrType *>(type);
+        auto *ptrTyp = static_cast<MIRPtrType *>(type);
         ASSERT(ptrTyp != nullptr, "expect a pointer type at iread node");
         MIRType *pointedTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTyp->GetPointedTyIdx());
         if (iNode->GetFieldID() != 0) {
-          MIRStructType *structType = static_cast<MIRStructType *>(pointedTy);
+          auto *structType = static_cast<MIRStructType *>(pointedTy);
           FieldAttrs fa = structType->GetFieldAttrs(iNode->GetFieldID());
           is64x1vec = fa.GetAttr(FLDATTR_oneelem_simd);
         } else {
@@ -8558,7 +8559,12 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
       CHECK_FATAL(expRegOpnd != nullptr, "null ptr check");
       RegOperand &parmRegOpnd = GetOrCreatePhysicalRegisterOperand(
           static_cast<AArch64reg>(ploc.reg0), expRegOpnd->GetSize(), GetRegTyFromPrimTy(destPrimType));
-      SelectCopy(parmRegOpnd, destPrimType, *expRegOpnd, primType);
+      MOperator extMop = SelectExtMopForParmList(primType);
+      if (extMop != MOP_undef) {
+        GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(extMop, parmRegOpnd, *expRegOpnd));
+      } else {
+        SelectCopy(parmRegOpnd, destPrimType, *expRegOpnd, primType);
+      }
       srcOpnds.PushOpnd(parmRegOpnd);
     } else {  /* store to the memory segment for stack-passsed arguments. */
       if (CGOptions::IsBigEndian()) {
@@ -8586,6 +8592,21 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
   }
   for (auto &strInsn : insnForStackArgs) {
     GetCurBB()->AppendInsn(*strInsn);
+  }
+}
+
+MOperator AArch64CGFunc::SelectExtMopForParmList(PrimType primType) {
+  switch (primType) {
+    case PTY_i8:
+      return MOP_xsxtb32;
+    case PTY_u8:
+      return MOP_xuxtb32;
+    case PTY_i16:
+      return MOP_xsxth32;
+    case PTY_u16:
+      return MOP_xuxth32;
+    default:
+      return MOP_undef;
   }
 }
 
@@ -8945,7 +8966,7 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
   if (GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
     SetLmbcCallReturnType(nullptr);
     if (fn->IsFirstArgReturn()) {
-      MIRPtrType *ptrTy = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+      auto *ptrTy = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(
           fn->GetFormalDefVec()[0].formalTyIdx));
       MIRType *sTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTy->GetPointedTyIdx());
       SetLmbcCallReturnType(sTy);

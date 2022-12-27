@@ -337,7 +337,7 @@ bool AArch64ICOIfThenElsePattern::BuildCondMovInsn(const BB &bb,
                                                    const std::map<Operand*, std::vector<Operand*>> &ifDestSrcMap,
                                                    const std::map<Operand*, std::vector<Operand*>> &elseDestSrcMap,
                                                    bool elseBBIsProcessed,
-                                                   std::vector<Insn*> &generateInsn) {
+                                                   std::vector<Insn*> &generateInsn) const {
   Insn *branchInsn = cgFunc->GetTheCFG()->FindLastCondBrInsn(*cmpBB);
   FOR_BB_INSNS_CONST(insn, (&bb)) {
     if (!insn->IsMachineInstruction() || insn->IsBranch()) {
@@ -998,7 +998,7 @@ bool AArch64ICOSameCondPattern::Optimize(BB &secondIfBB) {
   if (firstIfBB == nullptr || firstIfBB->GetKind() != BB::kBBIf || nextBB->GetId() != secondIfBB.GetId()) {
     return false;
   }
-  return DoOpt(firstIfBB, secondIfBB);
+  return DoOpt(*firstIfBB, secondIfBB);
 }
 
 bool AArch64ICOPattern::CheckMop(MOperator mOperator) const {
@@ -1028,10 +1028,10 @@ bool AArch64ICOPattern::CheckMop(MOperator mOperator) const {
  *
  * Limitations: branchInsn1 is the same as branchInsn2
  * */
-bool AArch64ICOSameCondPattern::DoOpt(BB *firstIfBB, BB &secondIfBB) const {
-  Insn *branchInsn1 = cgFunc->GetTheCFG()->FindLastCondBrInsn(*firstIfBB);
+bool AArch64ICOSameCondPattern::DoOpt(BB &firstIfBB, BB &secondIfBB) const {
+  Insn *branchInsn1 = cgFunc->GetTheCFG()->FindLastCondBrInsn(firstIfBB);
   ASSERT(branchInsn1 != nullptr, "nullptr check");
-  Insn *cmpInsn1 = FindLastCmpInsn(*firstIfBB);
+  Insn *cmpInsn1 = FindLastCmpInsn(firstIfBB);
   MOperator mOperator1 = branchInsn1->GetMachineOpcode();
   Insn *branchInsn2 = cgFunc->GetTheCFG()->FindLastCondBrInsn(secondIfBB);
   ASSERT(branchInsn2 != nullptr, "nullptr check");
@@ -1073,13 +1073,13 @@ bool AArch64ICOSameCondPattern::DoOpt(BB *firstIfBB, BB &secondIfBB) const {
   }
 
   /* insert ccmp Insn */
-  firstIfBB->InsertInsnBefore(*branchInsn1, *ccmpInsn);
+  firstIfBB.InsertInsnBefore(*branchInsn1, *ccmpInsn);
 
   /* Remove secondIfBB */
   BB *nextBB = secondIfBB.GetNext();
   cgFunc->GetTheCFG()->RemoveBB(secondIfBB);
-  firstIfBB->PushFrontSuccs(*nextBB);
-  nextBB->PushFrontPreds(*firstIfBB);
+  firstIfBB.PushFrontSuccs(*nextBB);
+  nextBB->PushFrontPreds(firstIfBB);
   return true;
 }
 /*

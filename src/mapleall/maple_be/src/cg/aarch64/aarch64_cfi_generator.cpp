@@ -29,15 +29,16 @@ void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb) {
   if (useFP) {
     (void)bb.InsertInsnBefore(stackDefNextInsn, aarchCGFunc.CreateCfiOffsetInsn(stackBaseReg, -cfiOffset, k64BitSize));
   }
-  (void)bb.InsertInsnBefore(stackDefNextInsn, aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffset + kOffset8MemPos, k64BitSize));
+  (void)bb.InsertInsnBefore(stackDefNextInsn,
+                            aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffset + kOffset8MemPos, k64BitSize));
 
   /* change CFA register and offset */
   if (useFP) {
     bool isLmbc = cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc;
     if ((argsToStkPassSize > 0) || isLmbc) {
       (void)bb.InsertInsnBefore(stackDefNextInsn, aarchCGFunc.CreateCfiDefCfaInsn(stackBaseReg,
-          static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() - argsToStkPassSize,
-          k64BitSize));
+          static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
+          static_cast<uint32>(argsToStkPassSize), k64BitSize));
     } else {
       (void)bb.InsertInsnBefore(
           stackDefNextInsn, cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_def_cfa_register).AddOpndChain(

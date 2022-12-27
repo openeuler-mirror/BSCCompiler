@@ -40,6 +40,7 @@ class AArch64Ebo : public Ebo {
   OpndInfo *OperandInfoDef(BB &currentBB, Insn &currentInsn, Operand &localOpnd) override;
   const RegOperand &GetRegOperand(const Operand &opnd) const override;
   bool IsGlobalNeeded(Insn &insn) const override;
+  bool IsDecoupleStaticOp(Insn &insn) const override;
   bool OperandEqSpecial(const Operand &op1, const Operand &op2) const override;
   bool DoConstProp(Insn &insn, uint32 idx, Operand &opnd) override;
   bool Csel2Cset(Insn &insn, const MapleVector<Operand*> &opnds) override;
@@ -78,12 +79,12 @@ class AArch64Ebo : public Ebo {
   bool CheckCondCode(const CondOperand &cond) const;
   bool CombineMultiplyAdd(Insn *insn, const Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd,
                           bool is64bits, bool isFp) const;
-  bool CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp) const;
-  bool CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const;
+  bool CheckCanDoMadd(Insn &insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp) const;
+  bool CombineMultiplySub(Insn &insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const;
   bool CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const;
   bool SimplifyBothConst(BB &bb, Insn &insn, const ImmOperand &immOperand0, const ImmOperand &immOperand1,
                          uint32 opndSize) const;
-  AArch64CC_t GetReverseCond(const CondOperand &cond) const;
+  ConditionCode GetReverseCond(const CondOperand &cond) const;
   bool CombineLsrAnd(Insn &insn, const OpndInfo &opndInfo, bool is64bits, bool isFp) const;
   bool CombineExtAnd(Insn &insn, const OpndInfo &opndInfo, bool isFp, int64 immVal) const;
 };

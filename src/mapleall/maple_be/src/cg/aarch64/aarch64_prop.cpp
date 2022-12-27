@@ -249,11 +249,11 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
           break;
         }
         case BitShiftOperand::kLSR: {
-          newVal = constVal - (static_cast<unsigned>(constVal) >> amount);
+          newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal) >> amount));
           break;
         }
         case BitShiftOperand::kASR: {
-          newVal = constVal - (static_cast<unsigned>(constVal) >> amount);
+          newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal) >> amount));
           break;
         }
         default:
@@ -339,7 +339,7 @@ bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUI
     if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd)) {
       auto *cgImm = static_cast<ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool()));
       newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(
-        newMop, useInsn.GetOperand(kInsnFirstOpnd), useInsn.GetOperand(kInsnSecondOpnd), *cgImm);
+          newMop, useInsn.GetOperand(kInsnFirstOpnd), useInsn.GetOperand(kInsnSecondOpnd), *cgImm);
       if (useOpndIdx == kInsnSecondOpnd) { /* swap operand due to legality in aarch */
         newInsn->SetOperand(kInsnSecondOpnd, useInsn.GetOperand(kInsnThirdOpnd));
       }
@@ -402,7 +402,7 @@ bool A64ConstProp::ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &
   return false;
 }
 
-bool A64ConstProp::ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) {
+bool A64ConstProp::ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const {
   Insn *useInsn = useDUInfo.GetInsn();
   MOperator curMop = useInsn->GetMachineOpcode();
   if (useDUInfo.GetOperands().size() == 1) {
@@ -2239,7 +2239,7 @@ bool A64ConstFoldPattern::IsPhiInsnValid(const Insn &curInsn, const Insn &phiIns
   return true;
 }
 
-bool A64ConstFoldPattern::IsCompleteOptimization() {
+bool A64ConstFoldPattern::IsCompleteOptimization() const {
   VRegVersion *defDstVersion = optSsaInfo->FindSSAVersion(defDstOpnd->GetRegisterNumber());
   ASSERT(defDstVersion != nullptr, "get defDstVersion failed");
   /* check all uses of dstOpnd of defInsn to avoid spill */
@@ -2373,7 +2373,7 @@ int64 A64ConstFoldPattern::GetNewImmVal(const Insn &insn, const ImmOperand &defI
       newImmVal = static_cast<uint64>(defImmOpnd.GetValue()) & static_cast<uint64>(useImmOpnd.GetValue());
       break;
     case kLogicalOrr:
-      newImmVal = defImmOpnd.GetValue() | useImmOpnd.GetValue();
+      newImmVal = static_cast<uint64>(defImmOpnd.GetValue()) | static_cast<uint64>(useImmOpnd.GetValue());
       break;
     case kLogicalEor:
       newImmVal = defImmOpnd.GetValue() ^ useImmOpnd.GetValue();
@@ -2510,8 +2510,8 @@ bool A64PregCopyPattern::DFSFindValidDefInsns(Insn *curDefInsn, std::vector<regn
   return true;
 }
 
-bool A64PregCopyPattern::CheckMultiUsePoints(const Insn *defInsn) const {
-  Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
+bool A64PregCopyPattern::CheckMultiUsePoints(const Insn &defInsn) const {
+  Operand &dstOpnd = defInsn.GetOperand(kInsnFirstOpnd);
   CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
   VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
   ASSERT(defVersion != nullptr, "defVersion should not be nullptr");
@@ -2573,7 +2573,7 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
     if (defMop != validDefInsns[i]->GetMachineOpcode()) {
       return false;
     }
-    if (!CheckMultiUsePoints(validDefInsns[i])) {
+    if (!CheckMultiUsePoints(*validDefInsns[i])) {
       return false;
     }
     for (uint32 idx = 0; idx < defOpndNum; ++idx) {
@@ -2621,8 +2621,8 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
   return true;
 }
 
-bool A64PregCopyPattern::CheckUselessDefInsn(const Insn *defInsn) const {
-  Operand &dstOpnd = defInsn->GetOperand(kInsnFirstOpnd);
+bool A64PregCopyPattern::CheckUselessDefInsn(const Insn &defInsn) const {
+  Operand &dstOpnd = defInsn.GetOperand(kInsnFirstOpnd);
   CHECK_FATAL(dstOpnd.IsRegister(), "dstOpnd must be register");
   VRegVersion *defVersion = optSsaInfo->FindSSAVersion(static_cast<RegOperand&>(dstOpnd).GetRegisterNumber());
   ASSERT(defVersion != nullptr, "defVersion should not be nullptr");
@@ -2651,12 +2651,12 @@ bool A64PregCopyPattern::CheckUselessDefInsn(const Insn *defInsn) const {
     CHECK_FATAL(useInsn, "get useInsn failed");
     if (useInsn->IsPhi()) {
       auto &phiDefOpnd = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd));
-      uint32 opndNum = defInsn->GetOperandSize();
+      uint32 opndNum = defInsn.GetOperandSize();
       for (uint32 i = 0; i < opndNum; ++i) {
-        if (defInsn->OpndIsDef(i)) {
+        if (defInsn.OpndIsDef(i)) {
           continue;
         }
-        Operand &opnd = defInsn->GetOperand(i);
+        Operand &opnd = defInsn.GetOperand(i);
         if (opnd.IsRegister() && static_cast<RegOperand&>(opnd).GetRegisterNumber() == phiDefOpnd.GetRegisterNumber()) {
           return false;
         }
@@ -2711,7 +2711,7 @@ bool A64PregCopyPattern::CheckCondition(Insn &insn) {
   if (!defDstOpnd.IsRegister()) {
     return false;
   }
-  if (!CheckMultiUsePoints(defInsn)) {
+  if (!CheckMultiUsePoints(*defInsn)) {
     return false;
   }
   if (defInsn->IsPhi()) {
@@ -2722,7 +2722,7 @@ bool A64PregCopyPattern::CheckCondition(Insn &insn) {
     if (!CheckValidDefInsn(defInsn)) {
       return false;
     }
-    if (!CheckUselessDefInsn(defInsn)) {
+    if (!CheckUselessDefInsn(*defInsn)) {
       return false;
     }
     (void)validDefInsns.emplace_back(defInsn);

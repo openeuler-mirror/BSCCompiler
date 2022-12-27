@@ -149,9 +149,9 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   bool CheckForUseBeforeDefPath();
   void PrintBBs() const;
   int CheckCriteria(BB *bb, regno_t reg) const;
-  void CheckCriticalEdge(BB *bb, AArch64reg reg);
+  void CheckCriticalEdge(const BB *bb, AArch64reg reg);
   bool AlreadySavedInDominatorList(const BB &bb, regno_t reg) const;
-  BB* FindLoopDominator(BB *bb, regno_t reg, bool *done);
+  BB* FindLoopDominator(BB *bb, regno_t reg, bool *done) const;
   void CheckAndRemoveBlksFromCurSavedList(SavedBBInfo *sp, const BB *bbDom, regno_t reg);
   void DetermineCalleeSaveLocationsDoms();
   void RevertToRestoreAtEpilog(AArch64reg reg);

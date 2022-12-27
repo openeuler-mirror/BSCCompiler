@@ -78,11 +78,11 @@ bool RaX0Opt::PropagateRenameReg(Insn &nInsn, const X0OptInfo &optVal) const {
  * This eliminates some local reloads under high register pressure, since
  * the use has been replaced by x0.
  */
-bool RaX0Opt::PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) const {
-  if (insn->GetMachineOpcode() != MOP_xmovrr && insn->GetMachineOpcode() != MOP_wmovrr) {
+bool RaX0Opt::PropagateX0DetectX0(const Insn &insn, X0OptInfo &optVal) const {
+  if (insn.GetMachineOpcode() != MOP_xmovrr && insn.GetMachineOpcode() != MOP_wmovrr) {
     return false;
   }
-  RegOperand &movSrc = static_cast<RegOperand&>(insn->GetOperand(1));
+  RegOperand &movSrc = static_cast<RegOperand&>(insn.GetOperand(1));
   if (movSrc.GetRegisterNumber() != R0) {
     return false;
   }
@@ -171,9 +171,9 @@ bool RaX0Opt::PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &opt
   return redefined;
 }
 
-bool RaX0Opt::PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal) const {
+bool RaX0Opt::PropagateX0ForCurrBb(BB &bb, const X0OptInfo &optVal) const {
   bool redefined = false;
-  for (Insn *ninsn = optVal.GetRenameInsn()->GetNext(); (ninsn != nullptr) && ninsn != bb->GetLastInsn()->GetNext();
+  for (Insn *ninsn = optVal.GetRenameInsn()->GetNext(); (ninsn != nullptr) && ninsn != bb.GetLastInsn()->GetNext();
        ninsn = ninsn->GetNext()) {
     if (!ninsn->IsMachineInstruction()) {
       continue;
@@ -184,19 +184,19 @@ bool RaX0Opt::PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal) const {
     }
   }
   if (!redefined) {
-    auto it = bb->GetLiveOutRegNO().find(optVal.GetReplaceReg());
-    if (it != bb->GetLiveOutRegNO().end()) {
-      bb->EraseLiveOutRegNO(it);
+    auto it = bb.GetLiveOutRegNO().find(optVal.GetReplaceReg());
+    if (it != bb.GetLiveOutRegNO().end()) {
+      bb.EraseLiveOutRegNO(it);
     }
     uint32 renameReg = static_cast<RegOperand*>(optVal.GetRenameOpnd())->GetRegisterNumber();
-    bb->InsertLiveOutRegNO(renameReg);
+    bb.InsertLiveOutRegNO(renameReg);
   }
   return redefined;
 }
 
-void RaX0Opt::PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal) const {
+void RaX0Opt::PropagateX0ForNextBb(BB &nextBb, const X0OptInfo &optVal) const {
   bool redefined = false;
-  for (Insn *ninsn = nextBb->GetFirstInsn(); ninsn != nextBb->GetLastInsn()->GetNext(); ninsn = ninsn->GetNext()) {
+  for (Insn *ninsn = nextBb.GetFirstInsn(); ninsn != nextBb.GetLastInsn()->GetNext(); ninsn = ninsn->GetNext()) {
     if (!ninsn->IsMachineInstruction()) {
       continue;
     }
@@ -206,12 +206,12 @@ void RaX0Opt::PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal) const {
     }
   }
   if (!redefined) {
-    auto it = nextBb->GetLiveOutRegNO().find(optVal.GetReplaceReg());
-    if (it != nextBb->GetLiveOutRegNO().end()) {
-      nextBb->EraseLiveOutRegNO(it);
+    auto it = nextBb.GetLiveOutRegNO().find(optVal.GetReplaceReg());
+    if (it != nextBb.GetLiveOutRegNO().end()) {
+      nextBb.EraseLiveOutRegNO(it);
     }
     uint32 renameReg = static_cast<RegOperand *>(optVal.GetRenameOpnd())->GetRegisterNumber();
-    nextBb->InsertLiveOutRegNO(renameReg);
+    nextBb.InsertLiveOutRegNO(renameReg);
   }
 }
 
@@ -232,7 +232,7 @@ void RaX0Opt::PropagateX0() {
     if (insn == nullptr) {
       continue;
     }
-    if (!PropagateX0DetectX0(insn, optVal)) {
+    if (!PropagateX0DetectX0(*insn, optVal)) {
       continue;
     }
 
@@ -279,11 +279,11 @@ void RaX0Opt::PropagateX0() {
       continue;
     }
     /* Replace replace_reg by rename_reg. */
-    redefined = PropagateX0ForCurrBb(bb, optVal);
+    redefined = PropagateX0ForCurrBb(*bb, optVal);
     if (redefined) {
       continue;
     }
-    PropagateX0ForNextBb(nextBb, optVal);
+    PropagateX0ForNextBb(*nextBb, optVal);
   }
 }
 
@@ -527,7 +527,7 @@ bool ParamRegOpt::DominatorAll(uint32 domBB, std::set<uint32> &refBBs) const {
   return true;
 }
 
-BB* ParamRegOpt::GetCommondDom(std::set<uint32> &refBBs) {
+BB* ParamRegOpt::GetCommondDom(std::set<uint32> &refBBs) const{
   MapleVector<uint32> &domOrder = domInfo->GetDtPreOrder();
   uint32 minId = static_cast<uint32>(domOrder.size());
   for (auto it = domOrder.crbegin(); it != domOrder.crend(); ++it) {

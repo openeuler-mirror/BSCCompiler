@@ -172,7 +172,7 @@ void AArch64RegSavesOpt::ProcessOperands(const Insn &insn, const BB &bb) {
   } /* for all operands */
 }
 
-static bool IsBackEdge(BB* bb, BB* targ) {
+static bool IsBackEdge(const BB* bb, BB* targ) {
   CGFuncLoops *loop = bb->GetLoop();
   if (loop != nullptr && loop->GetHeader() == bb) {
     if (find(loop->GetBackedge().begin(), loop->GetBackedge().end(), targ) != loop->GetBackedge().end()) {
@@ -331,7 +331,7 @@ bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB &bb, regno_t reg) 
   return false;                      /* not previously saved, to save at bb */
 }
 
-BB* AArch64RegSavesOpt::FindLoopDominator(BB *bb, regno_t reg, bool *done) {
+BB* AArch64RegSavesOpt::FindLoopDominator(BB *bb, regno_t reg, bool *done) const {
   BB *bbDom = bb;
   while (bbDom->GetLoop() != nullptr) {
     bbDom = GetDomInfo()->GetDom(bbDom->GetId());
@@ -502,7 +502,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
   }
 }
 
-void AArch64RegSavesOpt::CheckCriticalEdge(BB *bb, AArch64reg reg) {
+void AArch64RegSavesOpt::CheckCriticalEdge(const BB *bb, AArch64reg reg) {
   for (BB *sbb : bb->GetSuccs()) {
     if (sbb->GetPreds().size() > 1) {
       CHECK_FATAL(false, "critical edge detected");
@@ -608,9 +608,9 @@ void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
 
 int32 AArch64RegSavesOpt::FindCalleeBase() const {
   int32 offset = static_cast<int32>(
-      static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout())->RealStackFrameSize() -
+      (static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout())->RealStackFrameSize()) -
       (static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */) -
-      cgFunc->GetMemlayout()->SizeOfArgsToStackPass());
+      (cgFunc->GetMemlayout()->SizeOfArgsToStackPass()));
 
   if (cgFunc->GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
@@ -631,7 +631,7 @@ void AArch64RegSavesOpt::SetupRegOffsets() {
   int32 offset = FindCalleeBase();
   for (auto reg : callees) {
     SKIP_FPLR(reg);
-    if (std::count(proEpilogRegs.begin(), proEpilogRegs.end(), reg)) {
+    if (std::count(proEpilogRegs.begin(), proEpilogRegs.end(), reg) != 0) {
       continue;
     }
     if (regOffset.find(reg) == regOffset.end()) {

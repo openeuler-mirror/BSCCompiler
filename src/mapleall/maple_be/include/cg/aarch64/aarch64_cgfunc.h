@@ -110,11 +110,11 @@ class AArch64CGFunc : public CGFunc {
                                        bool needLow12 = false);
   MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
-  uint32 LmbcFindTotalStkUsed(std::vector<TyIdx> *paramList);
+  uint32 LmbcFindTotalStkUsed(std::vector<TyIdx> &paramList);
   uint32 LmbcTotalRegsUsed();
   bool LmbcSmallAggForRet(const BaseNode &bNode, const Operand *src, int32 offset = 0, bool skip1 = false);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
-  bool GetNumReturnRegsForIassignfpoff(MIRType *rType, PrimType &primType, uint32 &numRegs);
+  bool GetNumReturnRegsForIassignfpoff(MIRType &rType, PrimType &primType, uint32 &numRegs);
   void GenIassignfpoffStore(Operand &srcOpnd, int32 offset, uint32 byteSize, PrimType primType);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
@@ -868,6 +868,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectParmListPreprocessLargeStruct(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo);
   void SelectParmListPreprocess(StmtNode &naryNode, size_t start, std::set<size_t> &specialArgs);
   void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);
+  MOperator SelectExtMopForParmList(PrimType primType);
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
   void SelectClearStackCallParmList(const StmtNode &naryNode, ListOperand &srcOpnds,
                                     std::vector<int64> &stackPostion);

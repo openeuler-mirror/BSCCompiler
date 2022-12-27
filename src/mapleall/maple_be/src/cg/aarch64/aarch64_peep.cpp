@@ -2911,7 +2911,7 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
       MOperator mopPair = (destOpnd.GetRegisterType() == kRegTyInt) ? MOP_xstp : MOP_dstp;
       if ((static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, combineMemOpnd, kInsnThirdOpnd))) {
         Insn &combineInsn = (offsetVal < prevOffsetVal) ?
-                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newDest, newPrevDest, *combineMemOpnd):
+                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newDest, newPrevDest, *combineMemOpnd) :
                             cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newPrevDest, newDest, *combineMemOpnd);
         bb.InsertInsnAfter(*prevContiInsn, combineInsn);
         RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
@@ -4713,7 +4713,7 @@ bool NormRevTbzToTbzPattern::CheckCondition(Insn &insn) {
   return false;
 }
 
-void NormRevTbzToTbzPattern::SetRev16Value(const uint32 &oldValue, uint32 &revValue) {
+void NormRevTbzToTbzPattern::SetRev16Value(const uint32 &oldValue, uint32 &revValue) const {
   switch (oldValue / k8BitSize) {
     case k0BitSize:
     case k2BitSize:

@@ -78,7 +78,7 @@ class A64OpndSSAUpdateVsitor : public SSAOperandVisitor,
   }
 
  private:
-  void UpdateRegUse(uint32 ssaIdx);
+  void UpdateRegUse(uint32 ssaIdx) const;
   void UpdateRegDef(uint32 ssaIdx);
   AArch64CGSSAInfo *ssaInfo;
   bool isDecrease = false;
