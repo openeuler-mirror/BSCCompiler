@@ -548,13 +548,13 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
     // X + { Y, + , Z } -> { X + Y, + , Z }
     if (crIndex != 0) {
       std::vector<CRNode*> startOpnds(crAddOpnds.begin(), crAddOpnds.begin() + crIndex);
-      crAddOpnds.erase(crAddOpnds.cbegin(), crAddOpnds.cbegin() + crIndex);
       startOpnds.push_back(static_cast<CR*>(crAddOpnds[crIndex])->GetOpnd(0));
       CRNode *start = GetCRAddNode(nullptr, startOpnds);
       std::vector<CRNode*> newCROpnds{ start };
       newCROpnds.insert(newCROpnds.cend(), static_cast<CR*>(crAddOpnds[crIndex])->GetOpnds().cbegin() + 1,
                         static_cast<CR*>(crAddOpnds[crIndex])->GetOpnds().cend());
       CR *newCR = static_cast<CR*>(GetOrCreateCR(expr, newCROpnds));
+      crAddOpnds.erase(crAddOpnds.cbegin(), crAddOpnds.cbegin() + crIndex);
       if (crAddOpnds.size() == 1) {
         return static_cast<CRNode*>(newCR);
       }

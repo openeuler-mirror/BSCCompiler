@@ -190,6 +190,9 @@ bool BBLayout::IsCandidateSucc(const BB &bb, const BB &succ, const MapleVector<b
   if (!IsBBInCurrContext(succ, context)) {  // succ must be in the current context (current loop or current func)
     return false;
   }
+  if (succ.GetKind() == kBBNoReturn) {
+    return false;  // noreturn BB is unlikely taken
+  }
   if (bb2chain[succ.GetBBId()] == bb2chain[bb.GetBBId()]) {  // bb and succ should belong to different chains
     return false;
   }
@@ -206,15 +209,15 @@ bool BBLayout::HasBetterLayoutPred(const BB &bb, BB &succ) {
   if (predList.size() <= 1) {
     return false;
   }
-  uint32 sumEdgeFreq = succ.GetFrequency();
+  uint64 sumEdgeFreq = succ.GetFrequency();
   const double hotEdgeFreqPercent = 0.8;  // should further fine tuning
-  uint32 hotEdgeFreq = static_cast<uint32>(sumEdgeFreq * hotEdgeFreqPercent);
+  uint64 hotEdgeFreq = static_cast<uint64>(sumEdgeFreq * hotEdgeFreqPercent);
   // if edge freq(bb->succ) contribute more than 80% to succ block freq, no better layout pred than bb
   for (uint32 i = 0; i < predList.size(); ++i) {
     if (predList[i] == &bb) {
       continue;
     }
-    uint32 edgeFreq = static_cast<uint32>(predList[i]->GetEdgeFreq(&succ));
+    uint64 edgeFreq = predList[i]->GetEdgeFreq(&succ);
     if (edgeFreq > (sumEdgeFreq - hotEdgeFreq)) {
       return true;
     }
@@ -258,7 +261,7 @@ BB *BBLayout::GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> 
   }
 
   // (2) search in readyToLayoutChains
-  uint32 bestFreq = 0;
+  uint64 bestFreq = 0;
   for (auto it = readyToLayoutChains.begin(); it != readyToLayoutChains.end(); ++it) {
     BBChain *readyChain = *it;
     BB *header = readyChain->GetHeader();
@@ -301,7 +304,7 @@ BB *BBLayout::GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> 
   const auto &rpoVec = dom->GetReversePostOrder();
   bool searchedAgain = false;
   for (uint32 i = rpoSearchPos; i < rpoVec.size(); ++i) {
-    BB *candBB = rpoVec[i];
+    auto *candBB = cfg->GetBBFromID(BBId(rpoVec[i]->GetID()));
     if (IsBBInCurrContext(*candBB, context) && bb2chain[candBB->GetBBId()] != &chain) {
       rpoSearchPos = i;
       if (debugChainLayout) {
@@ -716,6 +719,9 @@ BB *BBLayout::GetFallThruBBSkippingEmpty(BB &bb) {
       if (!fallthru->IsEmpty()) {
         return fallthru;
       }
+    }
+    if (fallthru->GetKind() == kBBNoReturn) {
+      return fallthru;
     }
     // in case of duplicate succ
     if (fallthru->GetSucc().front() == bb.GetSucc().back()) {
@@ -1282,13 +1288,17 @@ void BBLayout::RebuildFreq() {
   auto *hook = phase->GetAnalysisInfoHook();
   hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MEDominance::id);
   hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MELoopAnalysis::id);
-  dom = static_cast<MEDominance*>(hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MEDominance::id, func))
-            ->GetResult();
+  auto dominancePhase = static_cast<MEDominance*>(
+      hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MEDominance::id, func));
+  dom = dominancePhase->GetDomResult();
+  CHECK_NULL_FATAL(dom);
+  auto pdom = dominancePhase->GetPdomResult();
+  CHECK_NULL_FATAL(pdom);
   meLoop = static_cast<MELoopAnalysis*>(
                hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MELoopAnalysis::id, func))
                ->GetResult();
   if (!cfg->UpdateCFGFreq()) {
-    MePrediction::RebuildFreq(func, *dom, *meLoop);
+    MePrediction::RebuildFreq(func, *dom, *pdom, *meLoop);
   }
 }
 
