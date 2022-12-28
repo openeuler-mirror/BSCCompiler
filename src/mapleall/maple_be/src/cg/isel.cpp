@@ -1548,6 +1548,14 @@ RegOperand &MPISel::SelectCopy2Reg(Operand &src, PrimType toType, PrimType fromT
     return static_cast<RegOperand&>(src);
   }
   RegOperand &dest = cgFunc->GetOpndBuilder()->CreateVReg(toSize, cgFunc->GetRegTyFromPrimTy(toType));
+  if (isReg && srcRegSize > toSize && IsPrimitiveInteger(toType)) {
+    /* truncate */
+    MOperator mOp = GetFastCvtMopI(srcRegSize, toSize, false);
+    Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));
+    (void)insn.AddOpndChain(dest).AddOpndChain(static_cast<RegOperand&>(src));
+    cgFunc->GetCurBB()->AppendInsn(insn);
+    return dest;
+  }
   if (fromType == PTY_unknown || fromSize == toSize) {
     SelectCopy(dest, src, toType);
   } else if (fromSize != toSize) {
