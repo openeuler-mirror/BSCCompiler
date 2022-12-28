@@ -121,7 +121,7 @@ void MeSink::Init() {
 }
 
 void MeSink::AddNewDefinedScalar(ScalarMeExpr *scalar) {
-  if (scalar == nullptr) {
+  if (scalar == nullptr || scalar->IsVolatile()) {
     return;
   }
 
