@@ -74,6 +74,15 @@ class ASTInput {
     return astEnums;
   }
 
+  void ClearASTMemberVariable() {
+    parserMap.clear();
+    astStructs.clear();
+    astFuncs.clear();
+    astVars.clear();
+    astFileScopeAsms.clear();
+    astEnums.clear();
+  }
+
  private:
   MIRModule &module;
   MapleAllocator &allocator;

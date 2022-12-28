@@ -311,7 +311,6 @@ void HIR2MPLCompiler::ProcessFunctions() {
     if (FEOptions::GetInstance().IsDumpPhaseTime()) {
       comp->DumpPhaseTimeTotal();
     }
-    comp->ReleaseMemPool();
   }
   FEManager::GetTypeManager().MarkExternStructType();
   module.SetNumFuncs(funcSize);

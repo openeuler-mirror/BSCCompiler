@@ -28,6 +28,8 @@ ASTCompilerComponent<T>::ASTCompilerComponent(MIRModule &module)
 
 template<class T>
 ASTCompilerComponent<T>::~ASTCompilerComponent() {
+  astInput.ClearASTMemberVariable();
+  ReleaseMemPool();
   mp = nullptr;
 }
 
