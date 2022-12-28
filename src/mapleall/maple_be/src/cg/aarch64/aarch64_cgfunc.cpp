@@ -3095,7 +3095,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
     } else {
       GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xadrp, result, stImm));
     }
-    if (CGOptions::IsPIC() && symbol->NeedPIC()) {
+    if (CGOptions::IsPIC() && symbol->NeedGOT(CGOptions::IsPIE())) {
       /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
       OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
 
@@ -9354,7 +9354,7 @@ void AArch64CGFunc::SelectAddrofAfterRa(Operand &result, StImmOperand &stImm, st
   ASSERT ((symbol->GetStorageClass() != kScAuto) || (symbol->GetStorageClass() != kScFormal), "");
   Operand *srcOpnd = &result;
   (void)rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(MOP_xadrp, result, stImm));
-  if (CGOptions::IsPIC() && symbol->NeedPIC()) {
+  if (CGOptions::IsPIC() && symbol->NeedGOT(CGOptions::IsPIE())) {
     /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
     OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
     MemOperand *memOpnd = CreateMemOperand(GetPointerSize() * kBitsPerByte, static_cast<RegOperand&>(*srcOpnd),
@@ -9521,7 +9521,8 @@ MemOperand &AArch64CGFunc::CreateMemOpndForStatic(const MIRSymbol &symbol, int64
       Insn &insn = GetInsnBuilder()->BuildInsn(MOP_xadrp, stAddrOpnd, stOpnd);
       GetCurBB()->AppendInsn(insn);
       if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0 ||
-        ((size == k64BitSize) && (offset % static_cast<int64>(k8BitSizeInt) != 0))) {
+         ((size == k64BitSize) && (offset % static_cast<int64>(k8BitSizeInt) != 0)) ||
+         ((size == k32BitSize) && (offset % static_cast<int64>(k4BitSizeInt) != 0))) {
         GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xadrpl12, stAddrOpnd, stAddrOpnd, stOpnd));
         return *CreateMemOperand(size, stAddrOpnd, CreateImmOperand(0, k32BitSize, false));
       }
