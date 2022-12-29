@@ -28,6 +28,7 @@ const std::string kMccLoadRefV = "MCC_LoadVolatileField";
 const std::string kMccLoadRefS = "MCC_LoadRefStatic";
 const std::string kMccLoadRefVS = "MCC_LoadVolatileStaticField";
 const std::string kMccDummy = "MCC_Dummy";
+#define NOMULOPT (true)
 
 const std::string GetReadBarrierName(const Insn &insn) {
   constexpr int32 totalBarrierNamesNum = 5;
@@ -2520,6 +2521,9 @@ bool MulImmToShiftPattern::CheckCondition(Insn &insn) {
 }
 
 void MulImmToShiftPattern::Run(BB &bb, Insn &insn) {
+  if (NOMULOPT) {
+    return;
+  }
   /* mov x0,imm and mul to shift */
   if (!CheckCondition(insn)) {
     return;
