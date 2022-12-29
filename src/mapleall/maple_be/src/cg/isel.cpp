@@ -1170,13 +1170,15 @@ void MPISel::SelectIntCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, 
    * It is redundancy to insert "nop" casts (unsigned 32 -> singed 32) in abstract CG IR
    * The signedness of operands would be shown in the expression.
    */
-  RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, fromType);
+  bool isSigned = !IsPrimitiveUnsigned(fromType);
+  uint32 bitSize = opnd0.GetSize();
+  PrimType opndType = GetIntegerPrimTypeFromSize(isSigned, bitSize);
+  RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, fromType, opndType);
   if (toSize == fromSize) {
     resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(regOpnd0.GetRegisterNumber(),
         GetPrimTypeBitSize(toType), cgFunc->GetRegTyFromPrimTy(toType));
     return;
   }
-  bool isSigned = !IsPrimitiveUnsigned(fromType);
   MOperator mOp = GetFastCvtMopI(fromSize, toSize, isSigned);
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));
   (void)insn.AddOpndChain(resOpnd).AddOpndChain(regOpnd0);
@@ -1548,14 +1550,6 @@ RegOperand &MPISel::SelectCopy2Reg(Operand &src, PrimType toType, PrimType fromT
     return static_cast<RegOperand&>(src);
   }
   RegOperand &dest = cgFunc->GetOpndBuilder()->CreateVReg(toSize, cgFunc->GetRegTyFromPrimTy(toType));
-  if (isReg && srcRegSize > toSize && IsPrimitiveInteger(toType)) {
-    /* truncate */
-    MOperator mOp = GetFastCvtMopI(srcRegSize, toSize, false);
-    Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));
-    (void)insn.AddOpndChain(dest).AddOpndChain(static_cast<RegOperand&>(src));
-    cgFunc->GetCurBB()->AppendInsn(insn);
-    return dest;
-  }
   if (fromType == PTY_unknown || fromSize == toSize) {
     SelectCopy(dest, src, toType);
   } else if (fromSize != toSize) {
