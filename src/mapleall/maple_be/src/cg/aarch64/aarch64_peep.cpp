@@ -71,7 +71,7 @@ void AArch64CGPeepHole::Run() {
         continue;
       }
       if (ssaInfo != nullptr) {
-        optSuccess |= DoSSAOptimize(*bb, *insn);
+        optSuccess = optSuccess || DoSSAOptimize(*bb, *insn);
       } else {
         DoNormalOptimize(*bb, *insn);
       }
@@ -4150,7 +4150,7 @@ void LoadFloatPointPattern::Run(BB &bb, Insn &insn) {
     LabelOperand &target = aarch64CGFunc->GetOrCreateLabelOperand(lableIdx);
     cgFunc->InsertLabelMap(lableIdx, value);
     Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_xldli, insn4->GetOperand(kInsnFirstOpnd),
-                                                                  target);
+                                                        target);
     bb.InsertInsnAfter(*insn4, newInsn);
     bb.RemoveInsn(*insn1);
     bb.RemoveInsn(*insn2);
@@ -4755,7 +4755,7 @@ void NormRevTbzToTbzPattern::SetWrevValue(const uint32 &oldValue, uint32 &revVal
   }
 }
 
-void NormRevTbzToTbzPattern::SetXrevValue(const uint32 &oldValue, uint32 &revValue) {
+void NormRevTbzToTbzPattern::SetXrevValue(const uint32 &oldValue, uint32 &revValue) const {
   switch (oldValue / k8BitSize) {
     case k0BitSize:
       revValue = oldValue + k56BitSize;

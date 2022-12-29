@@ -112,7 +112,7 @@ bool AArch64Ebo::IsDecoupleStaticOp(Insn &insn) const {
   return false;
 }
 
-static bool IsYieldPoint(Insn &insn) {
+static bool IsYieldPoint(const Insn &insn) {
   /*
    * It is a yieldpoint if loading from a dedicated
    * register holding polling page address:
@@ -986,15 +986,25 @@ bool AArch64Ebo::CombineMultiplySub(Insn &insn, OpndInfo *opndInfo, bool is64bit
   return false;
 }
 
-bool AArch64Ebo::CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const {
+bool CheckInsnRefField(const Insn &insn, size_t opndIndex) {
+  if (insn.IsAccessRefField() && insn.AccessMem()) {
+    Operand &opnd0 = insn.GetOperand(opndIndex);
+    if (opnd0.IsRegister()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool AArch64Ebo::CombineMultiplyNeg(Insn &insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const {
   if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
     return false;
   }
   if (!cgFunc->GetMirModule().IsCModule()) {
     return false;
   }
-  Operand &res = insn->GetOperand(kInsnFirstOpnd);
-  Operand &src = insn->GetOperand(kInsnSecondOpnd);
+  Operand &res = insn.GetOperand(kInsnFirstOpnd);
+  Operand &src = insn.GetOperand(kInsnSecondOpnd);
   if (res.GetSize() != src.GetSize()) {
     return false;
   }
@@ -1013,7 +1023,7 @@ bool AArch64Ebo::CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bit
     Operand &opnd1 = insn1->GetOperand(kInsnSecondOpnd);
     Operand &opnd2 = insn1->GetOperand(kInsnThirdOpnd);
     MOperator mOp = isFp ? (is64bits ? MOP_dnmul : MOP_snmul) : (is64bits ? MOP_xmnegrrr : MOP_wmnegrrr);
-    insn->GetBB()->ReplaceInsn(*insn, cgFunc->GetInsnBuilder()->BuildInsn(mOp, res, opnd1, opnd2));
+    insn.GetBB()->ReplaceInsn(insn, cgFunc->GetInsnBuilder()->BuildInsn(mOp, res, opnd1, opnd2));
     return true;
   }
   return false;
@@ -1311,7 +1321,7 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
     case MOP_winegrr: {
       bool is64bits = (insn.GetOperand(kInsnFirstOpnd).GetSize() == k64BitSize);
       OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
-      if (CombineMultiplyNeg(&insn, opndInfo, is64bits, false)) {
+      if (CombineMultiplyNeg(insn, opndInfo, is64bits, false)) {
         return true;
       }
       break;
@@ -1328,7 +1338,7 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
       }
       bool is64bits = (insn.GetOperand(kInsnFirstOpnd).GetSize() == k64BitSize);
       OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
-      if (CombineMultiplyNeg(&insn, opndInfo, is64bits, true)) {
+      if (CombineMultiplyNeg(insn, opndInfo, is64bits, true)) {
         return true;
       }
       break;

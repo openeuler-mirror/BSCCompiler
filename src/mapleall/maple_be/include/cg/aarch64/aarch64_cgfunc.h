@@ -121,7 +121,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectIassignoff(IassignoffNode &stmt) override;
   void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) override;
   void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) override;
-  void SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) override;
+  void SelectBlkassignoff(BlkassignoffNode &bNode, Operand &src) override;
   void SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) override;
   void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd0) override;
@@ -558,7 +558,7 @@ class AArch64CGFunc : public CGFunc {
                                MemOperand::AArch64AddressingMode mode = MemOperand::kBOI) const;
   MemOperand *CreateMemOperand(uint32 size, RegOperand &base, RegOperand &index) const;
   MemOperand *CreateMemOperand(uint32 size, RegOperand &base, RegOperand &index, ExtendShiftOperand &exOp) const;
-  MemOperand *CreateMemOperand(uint32 size, RegOperand &base, RegOperand &index, BitShiftOperand &exOp) const;
+  MemOperand *CreateMemOperand(uint32 size, RegOperand &base, RegOperand &index, BitShiftOperand &lsOp) const;
   MemOperand *CreateMemOperand(uint32 size, RegOperand &base, ImmOperand &ofstOp, const MIRSymbol &sym) const;
   MemOperand *CreateMemOperand(uint32 dSize, const MIRSymbol &sym) const;
 

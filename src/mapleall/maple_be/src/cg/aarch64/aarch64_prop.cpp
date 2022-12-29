@@ -298,7 +298,7 @@ bool A64ConstProp::MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd)
 }
 
 bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUInfo,
-                                               ImmOperand &constOpnd, ArithmeticType aT) {
+                                               ImmOperand &constOpnd, ArithmeticType aT) const {
   MOperator curMop = useInsn.GetMachineOpcode();
   MOperator newMop = GetRegImmMOP(curMop, false);
   auto useOpndInfoIt = useDUInfo.GetOperands().cbegin();
@@ -1815,7 +1815,7 @@ void CopyRegProp::ReplaceAllUseForCopyProp() {
       }
     }
     auto *a64SSAInfo = static_cast<AArch64CGSSAInfo*>(optSsaInfo);
-    a64SSAInfo->CheckAsmDUbinding(*useInsn, destVersion, srcVersion);
+    a64SSAInfo->CheckAsmDUbinding(*useInsn, *destVersion, *srcVersion);
     for (auto &opndIt : it->second->GetOperands()) {
       Operand &opnd = useInsn->GetOperand(opndIt.first);
       A64ReplaceRegOpndVisitor replaceRegOpndVisitor(cgFunc, *useInsn, opndIt.first,
@@ -2564,7 +2564,7 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
   if (!DFSFindValidDefInsns(&defInsn, visitedPhiDefs, visited)) {
     return false;
   }
-  if (!CheckValidDefInsn(validDefInsns[0])) {
+  if (!CheckValidDefInsn(*(validDefInsns[0]))) {
     return false;
   }
   MOperator defMop = validDefInsns[0]->GetMachineOpcode();
@@ -2666,17 +2666,17 @@ bool A64PregCopyPattern::CheckUselessDefInsn(const Insn &defInsn) const {
   return true;
 }
 
-bool A64PregCopyPattern::CheckValidDefInsn(const Insn *defInsn) {
-  const auto *md = defInsn->GetDesc();
+bool A64PregCopyPattern::CheckValidDefInsn(const Insn &defInsn) {
+  const auto *md = defInsn.GetDesc();
   CHECK_FATAL(md != nullptr, "expect valid AArch64MD");
   /* this pattern applies to all basicOps */
   if (md->IsMove() || md->IsStore() || md->IsLoad() || md->IsLoadStorePair() || md->IsLoadAddress() || md->IsCall() ||
       md->IsDMB() || md->IsVectorOp() || md->IsCondDef() || md->IsCondBranch() || md->IsUnCondBranch()) {
     return false;
   }
-  uint32 opndNum = defInsn->GetOperandSize();
+  uint32 opndNum = defInsn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
-    Operand &opnd = defInsn->GetOperand(i);
+    Operand &opnd = defInsn.GetOperand(i);
     if (!opnd.IsRegister() && !opnd.IsImmediate() && !opnd.IsOpdShift() && !opnd.IsOpdExtend()) {
       return false;
     }
@@ -2719,7 +2719,7 @@ bool A64PregCopyPattern::CheckCondition(Insn &insn) {
     firstPhiInsn = defInsn;
     return CheckPhiCaseCondition(*defInsn);
   } else {
-    if (!CheckValidDefInsn(defInsn)) {
+    if (!CheckValidDefInsn(*defInsn)) {
       return false;
     }
     if (!CheckUselessDefInsn(*defInsn)) {

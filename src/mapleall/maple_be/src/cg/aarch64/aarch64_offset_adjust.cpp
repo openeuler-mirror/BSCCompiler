@@ -91,7 +91,7 @@ void AArch64FPLROffsetAdjustment::AdjustMemBaseReg(Insn &insn, uint32 i, bool &r
   insn.SetOperand(i, *newMemOpnd);
 }
 
-void AArch64FPLROffsetAdjustment::AdjustMemOfstVary(Insn &insn, uint32 i) {
+void AArch64FPLROffsetAdjustment::AdjustMemOfstVary(Insn &insn, uint32 i) const {
   Operand &opnd = insn.GetOperand(i);
   auto &currMemOpnd = static_cast<MemOperand&>(opnd);
   if (currMemOpnd.GetAddrMode() != MemOperand::kBOI) {

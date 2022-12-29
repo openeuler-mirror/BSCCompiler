@@ -1320,7 +1320,7 @@ void HandleBlkassignoff(StmtNode &stmt, CGFunc &cgFunc) {
   ASSERT(stmt.GetOpCode() == OP_blkassignoff, "expect blkassignoff");
   auto &baseNode = static_cast<BlkassignoffNode&>(stmt);
   Operand *src = cgFunc.HandleExpr(baseNode, *baseNode.Opnd(1));
-  cgFunc.SelectBlkassignoff(baseNode, src);
+  cgFunc.SelectBlkassignoff(baseNode, *src);
 }
 
 void HandleEval(const StmtNode &stmt, CGFunc &cgFunc) {

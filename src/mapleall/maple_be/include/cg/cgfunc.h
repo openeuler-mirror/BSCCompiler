@@ -235,7 +235,7 @@ class CGFunc {
   virtual void SelectIassignoff(IassignoffNode &stmt) = 0;
   virtual void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) = 0;
   virtual void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) = 0;
-  virtual void SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) = 0;
+  virtual void SelectBlkassignoff(BlkassignoffNode &bNode, Operand &src) = 0;
   virtual void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) = 0;
   virtual void SelectReturnSendOfStructInRegs(BaseNode *x) = 0;
   virtual void SelectReturn(Operand *opnd) = 0;

@@ -356,7 +356,7 @@ void AArch64Schedule::ComputeLstart(uint32 maxEstart) {
   readyNodes.emplace_back(nodes[maxIndex]);
   while (!readyNodes.empty()) {
     DepNode *node = readyNodes.front();
-    readyNodes.erase(readyNodes.begin());
+    readyNodes.erase(readyNodes.cbegin());
     for (const auto *predLink : node->GetPreds()) {
       DepNode &predNode = predLink->GetFrom();
       if (predNode.GetState() == kScheduled) {

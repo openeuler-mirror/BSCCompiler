@@ -103,13 +103,13 @@ void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
 }
 
 /* do not break binding between input and output operands in asm */
-void AArch64CGSSAInfo::CheckAsmDUbinding(Insn &insn, const VRegVersion *toBeReplaced, VRegVersion *newVersion) {
+void AArch64CGSSAInfo::CheckAsmDUbinding(Insn &insn, const VRegVersion &toBeReplaced, VRegVersion &newVersion) {
   if (insn.GetMachineOpcode() == MOP_asm) {
     for (auto &opndIt : static_cast<ListOperand&>(insn.GetOperand(kAsmOutputListOpnd)).GetOperands()) {
       if (opndIt->IsSSAForm()) {
         VRegVersion *defVersion = FindSSAVersion(opndIt->GetRegisterNumber());
-        if (defVersion && defVersion->GetOriginalRegNO() == toBeReplaced->GetOriginalRegNO()) {
-          insn.AddRegBinding(defVersion->GetOriginalRegNO(), newVersion->GetSSAvRegOpnd()->GetRegisterNumber());
+        if (defVersion && defVersion->GetOriginalRegNO() == toBeReplaced.GetOriginalRegNO()) {
+          insn.AddRegBinding(defVersion->GetOriginalRegNO(), newVersion.GetSSAvRegOpnd()->GetRegisterNumber());
         }
       }
     }
@@ -120,7 +120,7 @@ void AArch64CGSSAInfo::ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *new
   MapleUnorderedMap<uint32, DUInsnInfo*> &useList = toBeReplaced->GetAllUseInsns();
   for (auto it = useList.begin(); it != useList.end();) {
     Insn *useInsn = it->second->GetInsn();
-    CheckAsmDUbinding(*useInsn, toBeReplaced, newVersion);
+    CheckAsmDUbinding(*useInsn, *toBeReplaced, *newVersion);
     for (auto &opndIt : it->second->GetOperands()) {
       Operand &opnd = useInsn->GetOperand(opndIt.first);
       A64ReplaceRegOpndVisitor replaceRegOpndVisitor(

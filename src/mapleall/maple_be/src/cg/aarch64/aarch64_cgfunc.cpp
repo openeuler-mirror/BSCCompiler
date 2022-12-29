@@ -2406,16 +2406,16 @@ uint32 AArch64CGFunc::LmbcTotalRegsUsed() {
    registers. Argument > 16-bytes are copied to preset space and ptr
    result is loaded into virtual register.
    If blassign is not for argument, this function simply memcpy */
-void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) {
-  CHECK_FATAL(src->GetKind() == Operand::kOpdRegister, "blkassign src type not in register");
+void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand &src) {
+  CHECK_FATAL(src.GetKind() == Operand::kOpdRegister, "blkassign src type not in register");
   std::vector<TyIdx> *parmList;
   if (GetLmbcArgInfo() == nullptr) {
     LmbcArgInfo *p = memPool->New<LmbcArgInfo>(*GetFuncScopeAllocator());
     SetLmbcArgInfo(p);
   }
-  if (LmbcSmallAggForRet(bNode, src)) {
+  if (LmbcSmallAggForRet(bNode, &src)) {
     return;
-  } else if (LmbcSmallAggForCall(bNode, src, &parmList)) {
+  } else if (LmbcSmallAggForCall(bNode, &src, &parmList)) {
     return;
   }
   Operand *dest = HandleExpr(bNode, *bNode.Opnd(0));
@@ -2437,13 +2437,13 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) {
     /* copy large agg arg to offset below */
   }
   RegOperand *param0 = PrepareMemcpyParamOpnd(offset, *dest);
-  RegOperand *param1 = static_cast<RegOperand *>(src);
+  RegOperand *param1 = static_cast<RegOperand *>(&src);
   RegOperand *param2 = PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize)));
   if (bNode.blockSize > static_cast<int32>(kParmMemcpySize)) {
     std::vector<Operand*> opndVec;
     opndVec.push_back(regResult); /* result */
     opndVec.push_back(param0);    /* param 0 */
-    opndVec.push_back(src);       /* param 1 */
+    opndVec.push_back(&src);       /* param 1 */
     opndVec.push_back(param2);    /* param 2 */
     SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
   } else {
@@ -3103,7 +3103,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
       MemOperand *memOpnd = CreateMemOperand(static_cast<uint32>(size), static_cast<RegOperand&>(*srcOpnd),
                                              offset, *symbol);
       GetCurBB()->AppendInsn(
-          GetInsnBuilder()->BuildInsn(size == k64BitSize ? MOP_xldr : MOP_wldr, result, *memOpnd));
+          GetInsnBuilder()->BuildInsn(static_cast<uint32>(size) == k64BitSize ? MOP_xldr : MOP_wldr, result, *memOpnd));
 
       if (stImm.GetOffset() > 0) {
         ImmOperand &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
@@ -4986,7 +4986,7 @@ void AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, Operan
       if (operatorCode == kAND) {
         uint32 mopMv = is64Bits ? MOP_xmovrr : MOP_wmovrr;
         GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopMv, resOpnd,
-                                                                      GetZeroOpnd(dsize)));
+                                                           GetZeroOpnd(dsize)));
       } else if ((operatorCode == kIOR) || (operatorCode == kEOR)) {
         SelectCopy(resOpnd, primType, opnd0, primType);
       }
@@ -5255,7 +5255,7 @@ Operand *AArch64CGFunc::SelectAbs(UnaryNode &node, Operand &opnd0) {
     Operand &newOpnd0 = LoadIntoRegister(opnd0, dtyp);
     RegOperand &resOpnd = CreateRegisterOperandOfType(dtyp);
     GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(is64Bits ? MOP_dabsrr : MOP_sabsrr,
-                                                                  resOpnd, newOpnd0));
+        resOpnd, newOpnd0));
     return &resOpnd;
   } else {
     bool is64Bits = (GetPrimTypeBitSize(dtyp) == k64BitSize);
@@ -7921,7 +7921,7 @@ void AArch64CGFunc::SelectCopySmallAggToReg(uint32 symSize, RegOperand &parmOpnd
     pty = PTY_u8;
   }
   RegOperand *base = memOpnd.GetBaseRegister();
-  uint64 offset = memOpnd.GetOffsetOperand()->GetValue();
+  uint64 offset = static_cast<uint64>(memOpnd.GetOffsetOperand()->GetValue());
   MOperator selectedMop = PickLdInsn(bitSize, pty);
   // generate ldr mem -> reg
   size_t lastPos = symSize / (bitSize / kBitsPerByte);
@@ -9322,8 +9322,8 @@ uint32 AArch64CGFunc::GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alig
   /* Generating a larger sized mem op than alignment if allowed by aggregate starting address */
   uint32 offsetAlign1 = (offset1 == 0) ? k8ByteSize : offset1;
   uint32 offsetAlign2 = (offset2 == 0) ? k8ByteSize : offset2;
-  uint32 alignOffset = 1U << (std::min(__builtin_ffs(static_cast<int>(offsetAlign1)),
-                                       __builtin_ffs(static_cast<int>(offsetAlign2))) - 1);
+  uint32 alignOffset = 1U << static_cast<uint>((std::min(__builtin_ffs(static_cast<int>(offsetAlign1)),
+                                       __builtin_ffs(static_cast<int>(offsetAlign2))) - 1));
   if (alignOffset == k8ByteSize || alignOffset == k4ByteSize || alignOffset == k2ByteSize) {
     return alignOffset;
   } else if (alignOffset > k8ByteSize) {

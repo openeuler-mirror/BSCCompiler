@@ -81,7 +81,7 @@ class AArch64Ebo : public Ebo {
                           bool is64bits, bool isFp) const;
   bool CheckCanDoMadd(Insn &insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp) const;
   bool CombineMultiplySub(Insn &insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const;
-  bool CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const;
+  bool CombineMultiplyNeg(Insn &insn, OpndInfo *opndInfo, bool is64bits, bool isFp) const;
   bool SimplifyBothConst(BB &bb, Insn &insn, const ImmOperand &immOperand0, const ImmOperand &immOperand1,
                          uint32 opndSize) const;
   ConditionCode GetReverseCond(const CondOperand &cond) const;

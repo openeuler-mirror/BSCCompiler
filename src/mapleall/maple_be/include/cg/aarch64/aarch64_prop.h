@@ -116,10 +116,10 @@ class A64ConstProp {
   /* optimization */
   bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const;
   bool ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUInfo,
-                                   ImmOperand &constOpnd, ArithmeticType aT);
+                                   ImmOperand &constOpnd, ArithmeticType aT) const;
   bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
   bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT) const;
-  bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd);
+  bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;
   bool BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;
 
   MemPool *constPropMp;
@@ -393,7 +393,7 @@ class A64ConstFoldPattern : public PropOptimizePattern {
   void ReplaceWithNewInsn(Insn &insn, const ImmOperand &immOpnd, int64 newImmVal);
   bool IsDefInsnValid(const Insn &curInsn, const Insn &validDefInsn);
   bool IsPhiInsnValid(const Insn &curInsn, const Insn &phiInsn);
-  bool IsCompleteOptimization();
+  bool IsCompleteOptimization() const;
   Insn *defInsn = nullptr;
   RegOperand *dstOpnd = nullptr;
   RegOperand *srcOpnd = nullptr;
@@ -464,9 +464,9 @@ class A64PregCopyPattern : public PropOptimizePattern {
   }
 
  private:
-  bool CheckUselessDefInsn(const Insn *defInsn) const;
-  bool CheckValidDefInsn(const Insn *defInsn);
-  bool CheckMultiUsePoints(const Insn *defInsn) const;
+  bool CheckUselessDefInsn(const Insn &defInsn) const;
+  bool CheckValidDefInsn(const Insn &defInsn);
+  bool CheckMultiUsePoints(const Insn &defInsn) const;
   bool CheckPhiCaseCondition(Insn &defInsn);
   bool HasValidDefInsnDependency();
   bool DFSFindValidDefInsns(Insn *curDefInsn, std::vector<regno_t> &visitedPhiDefs,

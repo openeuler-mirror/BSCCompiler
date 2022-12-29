@@ -39,7 +39,7 @@ class AArch64FPLROffsetAdjustment : public FrameFinalize {
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */
   void AdjustmentStackPointer(Insn &insn) const;
   void AdjustMemBaseReg(Insn &insn, uint32 i, bool &replaceFP);
-  void AdjustMemOfstVary(Insn &insn, uint32 i);
+  void AdjustMemOfstVary(Insn &insn, uint32 i) const;
 
   AArch64CGFunc *aarchCGFunc;
   bool isLmbc;

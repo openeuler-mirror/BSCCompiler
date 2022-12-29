@@ -27,12 +27,7 @@ class X64CGFunc : public CGFunc {
   X64CGFunc(MIRModule &mod, CG &c, MIRFunction &f, BECommon &b,
       MemPool &memPool, StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId)
       : CGFunc(mod, c, f, b, memPool, stackMp, mallocator, funcId),
-        calleeSavedRegs(mallocator.Adapter()) {
-    CGFunc::SetMemlayout(*memPool.New<X64MemLayout>(b, f, mallocator));
-    CGFunc::GetMemlayout()->SetCurrFunction(*this);
-    CGFunc::SetTargetRegInfo(*memPool.New<X64RegInfo>(mallocator));
-    CGFunc::GetTargetRegInfo()->SetCurrFunction(*this);
-  }
+        calleeSavedRegs(mallocator.Adapter()) { }
   /* null implementation yet */
   InsnVisitor *NewInsnModifier() override {
     return memPool->New<X64InsnVisitor>(*this);
@@ -59,7 +54,7 @@ class X64CGFunc : public CGFunc {
   void SelectIassignoff(IassignoffNode &stmt) override;
   void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) override;
   void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) override;
-  void SelectBlkassignoff(BlkassignoffNode &bNode, Operand *src) override;
+  void SelectBlkassignoff(BlkassignoffNode &bNode, Operand &src) override;
   void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
   void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd) override;
@@ -89,6 +84,7 @@ class X64CGFunc : public CGFunc {
   Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) override;
   Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
+  void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) override;
   void SelectMembar(StmtNode &membar) override;
   void SelectComment(CommentNode &comment) override;
   void HandleCatch() override;
@@ -105,6 +101,7 @@ class X64CGFunc : public CGFunc {
   Operand *SelectIntConst(MIRIntConst &intConst) override;
   Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) override;
   Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) override;
+  Operand *SelectFloat128Const(MIRFloat128Const &ldoubleConst) override;
   Operand *SelectStrConst(MIRStrConst &strConst) override;
   Operand *SelectStr16Const(MIRStr16Const &strConst) override;
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
@@ -231,11 +228,11 @@ class X64CGFunc : public CGFunc {
   int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) override;
 
   void AddtoCalleeSaved(regno_t reg) override {
-    const auto &[_, flag] = calleeSavedRegs.insert(static_cast<X64reg>(reg));
-    ASSERT((IsGPRegister(static_cast<X64reg>(reg)) ||
-        IsFPSIMDRegister(static_cast<X64reg>(reg))), "Int or FP registers are expected");
+    const auto &[_, flag] = calleeSavedRegs.insert(static_cast<x64::X64reg>(reg));
+    ASSERT((IsGPRegister(static_cast<x64::X64reg>(reg)) ||
+        IsFPSIMDRegister(static_cast<x64::X64reg>(reg))), "Int or FP registers are expected");
     if (flag) {
-      if (IsGPRegister(static_cast<X64reg>(reg))) {
+      if (IsGPRegister(static_cast<x64::X64reg>(reg))) {
         ++numIntregToCalleeSave;
       } else {
         ++numFpregToCalleeSave;

@@ -246,7 +246,7 @@ bool AArch64RegSavesOpt::CheckForUseBeforeDefPath() {
       break;
     }
   }
-  if (found) {
+  if (found != 0) {
 #if RS_DUMP
   CalleeBitsType mask = 1;
   for (uint32 i = 0; i < static_cast<uint32>(sizeof(CalleeBitsType) << k3BitSize); ++i) {
@@ -346,12 +346,12 @@ BB* AArch64RegSavesOpt::FindLoopDominator(BB *bb, regno_t reg, bool *done) const
 
 /* If the newly found blk is a dominator of blk(s) in the current
    to be saved list, remove these blks from bbSavedRegs */
-void AArch64RegSavesOpt::CheckAndRemoveBlksFromCurSavedList(SavedBBInfo *sp, const BB *bbDom, regno_t reg) {
-  for (BB *sbb : sp->GetBBList()) {
+void AArch64RegSavesOpt::CheckAndRemoveBlksFromCurSavedList(SavedBBInfo &sp, const BB &bbDom, regno_t reg) {
+  for (BB *sbb : sp.GetBBList()) {
     for (BB *abb = sbb; !abb->GetPreds().empty();) {
-      if (abb->GetId() == bbDom->GetId()) {
+      if (abb->GetId() == bbDom.GetId()) {
         /* Found! Don't plan to save in abb */
-        sp->RemoveBB(sbb);
+        sp.RemoveBB(sbb);
         bbSavedRegs[sbb->GetId()]->RemoveSaveReg(reg);
 #if RS_DUMP
         M_LOG << " --R" << (reg - 1) << " save removed from BB" << sbb->GetId() << "\n";
@@ -404,7 +404,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
         if (sp == nullptr) {
           regSavedBBs[creg] = memPool->New<SavedBBInfo>(alloc);
         } else {
-          CheckAndRemoveBlksFromCurSavedList(sp, bbDom, reg);
+          CheckAndRemoveBlksFromCurSavedList(*sp, *bbDom, reg);
         }
         regSavedBBs[creg]->InsertBB(bbDom);
 
