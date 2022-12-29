@@ -449,36 +449,6 @@ class SameRHSPropPattern : public OptimizePattern {
   Insn *prevInsn = nullptr;
   std::vector<MOperator> candidates;
 };
-
-/*
- * ldr  r0, [r19, 8]
- * ldrh r1, [r19, 16]
- * ldrh r2, [r19, 18]      (r0,r1,r2 are call parameters)
- * ====>
- * ldp  x0, x1 [r19, 8]
- * ubfx x2, x1, 16, 16
- *
- * we do this pattern because parameters can be passed without the unused high bit is cleared
- */
-class ContinuousLdrPattern : public OptimizePattern {
- public:
-  explicit ContinuousLdrPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  bool CheckCondition(Insn &insn) final;
-  void Optimize(Insn &insn) final;
-  void Run() final;
-
- protected:
-  void Init() final {}
-
- private:
-  static bool IsMopMatch(const Insn &insn);
-  bool IsUsedBySameCall(Insn &insn1, Insn &insn2, Insn &insn3) const;
-  static bool IsMemValid(const MemOperand &memopnd);
-  static bool IsImmValid(MOperator mop, const ImmOperand &imm);
-  static int64 GetMemOffsetValue(const Insn &insn);
-
-  std::vector<Insn *> insnList;
-};
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_GLOBAL_H */
