@@ -749,10 +749,13 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRMulNode(MeExpr *expr, const std::
 }
 
 CRNode *LoopScalarAnalysisResult::GetOrCreateCRDivNode(MeExpr *expr, CRNode &lhsCRNode, CRNode &rhsCRNode) {
+  if (rhsCRNode.GetCRType() == kCRConstNode && static_cast<CRConstNode*>(&rhsCRNode)->GetConstValue() == 0) {
+    // divide 0 is invalid
+    return nullptr;
+  }
   if (lhsCRNode.GetCRType() == kCRConstNode && rhsCRNode.GetCRType() == kCRConstNode) {
-    CRConstNode *lhsConst = static_cast<CRConstNode*>(&lhsCRNode);
     CRConstNode *rhsConst = static_cast<CRConstNode*>(&rhsCRNode);
-    CHECK_FATAL(rhsConst->GetConstValue() != 0, "rhs is zero");
+    CRConstNode *lhsConst = static_cast<CRConstNode*>(&lhsCRNode);
     if (lhsConst->GetConstValue() % rhsConst->GetConstValue() == 0) {
       std::unique_ptr<CRConstNode> constNode =
           std::make_unique<CRConstNode>(expr, lhsConst->GetConstValue() / rhsConst->GetConstValue());

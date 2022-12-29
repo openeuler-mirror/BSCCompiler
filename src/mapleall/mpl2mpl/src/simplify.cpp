@@ -624,6 +624,16 @@ BaseNode *Simplify::ReplaceExprWithConst(DreadNode &dread) {
   if (!symbolConst || !IsConstRepalceable(*symbolConst)) {
     return &dread;
   }
+  // bitfield need extension
+  if (fieldId != 0) {
+    MIRType *fldType = static_cast<MIRStructType*>(symbol->GetType())->GetFieldType(fieldId);
+    if (fldType->IsMIRBitFieldType()) {
+      IntVal v = static_cast<MIRIntConst*>(symbolConst)->GetValue();
+      uint8 fldSize = static_cast<MIRBitFieldType*>(fldType)->GetFieldSize();
+      symbolConst =
+          GlobalTables::GetIntConstTable().GetOrCreateIntConst(v.GetExtValue(fldSize), symbolConst->GetType());
+    }
+  }
   return currFunc->GetModule()->GetMIRBuilder()->CreateConstval(symbolConst);
 }
 
@@ -708,7 +718,9 @@ void Simplify::Finish() {
 //   0xff    8     0xffffffffffffffff
 static uint64 JoinBytes(int byte, uint32 num) {
   CHECK_FATAL(num <= 8, "not support");
-  uint64 realByte = static_cast<uint64>(byte % 256);
+  const uint8 firstByte = 0xff;
+
+  uint64 realByte = static_cast<uint64>(byte & firstByte);
   if (realByte == 0) {
     return 0;
   }
@@ -2244,6 +2256,11 @@ StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
 }
 
 bool SimplifyOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel) {
+  // do not expand memcpy on Os to reduce codesize
+  if (Options::optForSize) {
+    return false;
+  }
+
   OpKind memOpKind = ComputeOpKind(stmt);
   if (memOpKind != MEM_OP_memcpy && memOpKind != MEM_OP_memcpy_s) {
     return false;

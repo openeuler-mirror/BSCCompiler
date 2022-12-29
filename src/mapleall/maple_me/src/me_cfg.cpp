@@ -783,6 +783,7 @@ void MeCFG::WontExitAnalysis() {
     }
     // create artificial BB to transition to common_exit_bb
     BB *newBB = NewBasicBlock();
+    visitedBBs.push_back(true);
     // update bIt & eIt
     auto newBBIt = std::find(cbegin(), cend(), bb);
     bIt = build_filter_iterator(
