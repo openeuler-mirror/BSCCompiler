@@ -1058,6 +1058,11 @@ void ASTBinaryConditionalOperator::SetFalseExpr(ASTExpr *expr) {
 }
 
 // ---------- ASTNoInitExpr ----------
+MIRConst *ASTNoInitExpr::GenerateMIRConstImpl() const {
+  MIRIntConst *intConst = FEManager::GetModule().GetMemPool()->New<MIRIntConst>(*noInitType);
+  return intConst;
+}
+
 UniqueFEIRExpr ASTNoInitExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   return ImplicitInitFieldValue(*noInitType, stmts);
 }
@@ -1069,6 +1074,9 @@ void ASTNoInitExpr::SetNoInitType(MIRType *type) {
 // ---------- ASTCompoundLiteralExpr ----------
 UniqueFEIRExpr ASTCompoundLiteralExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   UniqueFEIRExpr feirExpr;
+  if (variableArrayExpr != nullptr) {
+    (void)variableArrayExpr->Emit2FEExpr(stmts);
+  }
   if (!IsRValue() || child->GetASTOp() == kASTOpInitListExpr) { // other potential expr should concern
     std::string tmpName = FEUtils::GetSequentialName("clvar_");
     if (child->GetASTOp() == kASTOpInitListExpr) {
@@ -1167,6 +1175,9 @@ MIRConst *ASTInitListExpr::GenerateMIRConstForArray() const {
     aggConst->AddItem(konst, 0);
   }
   if (HasArrayFiller()) {
+    if (arrayFillerExpr->GetASTOp() == kASTOpNoInitExpr) {
+      return aggConst;
+    }
     auto fillerConst = arrayFillerExpr->GenerateMIRConst();
     for (uint32 i = initExprs.size(); i < arrayMirType->GetSizeArrayItem(0); ++i) {
       aggConst->AddItem(fillerConst, 0);
@@ -1334,6 +1345,29 @@ void ASTInitListExpr::ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32
 }
 
 void ASTInitListExpr::ProcessDesignatedInitUpdater(
+    std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base, const UniqueFEIRExpr &addrOfCharArray,
+    ASTExpr *expr, std::list<UniqueFEIRStmt> &stmts) const {
+  auto designatedInitUpdateExpr = static_cast<ASTDesignatedInitUpdateExpr*>(expr);
+  const ASTExpr *baseExpr = designatedInitUpdateExpr->GetBaseExpr();
+  ASTExpr *updaterExpr = designatedInitUpdateExpr->GetUpdaterExpr();
+  auto feExpr = baseExpr->Emit2FEExpr(stmts);
+  size_t stringLength = static_cast<const ASTStringLiteral*>(baseExpr)->GetLength();
+  CHECK_FATAL(stringLength <= INT_MAX, "Too large length range");
+  if (std::holds_alternative<UniqueFEIRExpr>(base)) {
+    std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
+    argExprList->emplace_back(addrOfCharArray->Clone());
+    argExprList->emplace_back(feExpr->Clone());
+    argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(static_cast<int32>(stringLength)));
+    std::unique_ptr<FEIRStmtIntrinsicCallAssign> memcpyStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
+        INTRN_C_memcpy, nullptr, nullptr, std::move(argExprList));
+    memcpyStmt->SetSrcLoc(feExpr->GetLoc());
+    stmts.emplace_back(std::move(memcpyStmt));
+  }
+  static_cast<ASTInitListExpr*>(updaterExpr)->SetElemLen(stringLength);
+  ProcessInitList(base, *(static_cast<const ASTInitListExpr*>(updaterExpr)), stmts);
+}
+
+void ASTInitListExpr::ProcessNoBaseDesignatedInitUpdater(
     std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
     ASTExpr *expr, std::list<UniqueFEIRStmt> &stmts) const {
   auto designatedInitUpdateExpr = static_cast<ASTDesignatedInitUpdateExpr*>(expr);
@@ -1449,10 +1483,12 @@ bool ASTInitListExpr::SolveInitListPartialOfZero(std::variant<std::pair<UniqueFE
   }
 }
 
-void ASTInitListExpr::SolveInitListExprOrDesignatedInitUpdateExpr(FieldID fieldID, ASTExpr &initExpr,
-    const UniqueFEIRType &baseStructPtrType, std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
-    std::list<UniqueFEIRStmt> &stmts) const {
+void ASTInitListExpr::SolveInitListExprOrDesignatedInitUpdateExpr(std::tuple<FieldID, uint32, MIRType*> fieldInfo,
+    ASTExpr &initExpr, const UniqueFEIRType &baseStructPtrType, std::variant<std::pair<UniqueFEIRVar, FieldID>,
+    UniqueFEIRExpr> &base, std::list<UniqueFEIRStmt> &stmts) const {
   std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> subBase;
+  FieldID fieldID = std::get<0>(fieldInfo);
+  MIRType *fieldMirType = std::get<2>(fieldInfo);
   if (std::holds_alternative<UniqueFEIRExpr>(base)) {
     auto addrOfElemExpr = std::make_unique<FEIRExprIAddrof>(baseStructPtrType->Clone(), fieldID,
                                                             std::get<UniqueFEIRExpr>(base)->Clone());
@@ -1465,7 +1501,14 @@ void ASTInitListExpr::SolveInitListExprOrDesignatedInitUpdateExpr(FieldID fieldI
   if (initExpr.GetASTOp() == kASTOpInitListExpr) {
     ProcessInitList(subBase, *(static_cast<ASTInitListExpr*>(&initExpr)), stmts);
   } else {
-    ProcessDesignatedInitUpdater(subBase, static_cast<ASTInitListExpr*>(&initExpr), stmts);
+    if (base.index() == 0) {
+      ProcessNoBaseDesignatedInitUpdater(subBase, static_cast<ASTInitListExpr*>(&initExpr), stmts);
+    } else {
+      auto addrOfElement = std::make_unique<FEIRExprIAddrof>(baseStructPtrType->Clone(), fieldID,
+                                                             std::get<UniqueFEIRExpr>(base)->Clone());
+      auto addrOfArrayExpr = GetAddrofArrayFEExprByStructArrayField(*fieldMirType, addrOfElement->Clone());
+      ProcessDesignatedInitUpdater(subBase, addrOfArrayExpr->Clone(), &initExpr, stmts);
+    }
   }
 }
 
@@ -1481,14 +1524,14 @@ void ASTInitListExpr::SolveStructFieldOfArrayTypeInitWithStringLiteral(std::tupl
   if (std::holds_alternative<UniqueFEIRExpr>(base)) {
     auto addrOfElement = std::make_unique<FEIRExprIAddrof>(baseStructPtrType->Clone(), fieldID,
                                                            std::get<UniqueFEIRExpr>(base)->Clone());
-    auto addrOfArrayExpr =  GetAddrofArrayFEExprByStructArrayField(*fieldMirType, addrOfElement->Clone());
+    auto addrOfArrayExpr = GetAddrofArrayFEExprByStructArrayField(*fieldMirType, addrOfElement->Clone());
     ProcessStringLiteralInitList(addrOfArrayExpr->Clone(), elemExpr->Clone(),
                                  static_cast<const ASTStringLiteral*>(&initExpr)->GetLength(), stmts);
   } else {
     auto subVar = std::get<std::pair<UniqueFEIRVar, FieldID>>(base).first->Clone();
     auto addrOfElement = std::make_unique<FEIRExprAddrofVar>(subVar->Clone());
     addrOfElement->SetFieldID(fieldID);
-    auto addrOfArrayExpr =  GetAddrofArrayFEExprByStructArrayField(*fieldMirType, addrOfElement->Clone());
+    auto addrOfArrayExpr = GetAddrofArrayFEExprByStructArrayField(*fieldMirType, addrOfElement->Clone());
     ProcessStringLiteralInitList(addrOfArrayExpr->Clone(), elemExpr->Clone(),
                                  static_cast<const ASTStringLiteral*>(&initExpr)->GetLength(), stmts);
   }
@@ -1591,7 +1634,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
 
     if (initList.initExprs[i]->GetASTOp() == kASTOpInitListExpr ||
         initList.initExprs[i]->GetASTOp() == kASTASTDesignatedInitUpdateExpr) {
-      SolveInitListExprOrDesignatedInitUpdateExpr(fieldID, *(initList.initExprs[i]), baseStructFEPtrType, base, stmts);
+      SolveInitListExprOrDesignatedInitUpdateExpr(fieldInfo, *(initList.initExprs[i]), baseStructFEPtrType, base, stmts);
     } else if (fieldMirType->GetKind() == kTypeArray && initList.initExprs[i]->GetASTOp() == kASTStringLiteral) {
       SolveStructFieldOfArrayTypeInitWithStringLiteral(fieldInfo, *(initList.initExprs[i]),
                                                        baseStructFEPtrType, base, stmts);
@@ -1645,6 +1688,9 @@ void ASTInitListExpr::HandleImplicitInitSections(const UniqueFEIRExpr &addrOfArr
   auto arrayMirType = static_cast<MIRArrayType*>(initList.initListType);
   auto allSize = arrayMirType->GetSize();
   auto elemSize = elementType.GetSize();
+  if (initList.GetElemLen() != 0) {
+    elemSize = initList.GetElemLen();
+  }
   CHECK_FATAL(elemSize != 0, "elemSize should not 0");
   auto allElemCnt = allSize / elemSize;
   ProcessImplicitInit(addrOfArray->Clone(), static_cast<uint32>(initList.initExprs.size()), allElemCnt, elemSize, stmts,
@@ -1685,6 +1731,9 @@ void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, co
     }
     if (subExpr->GetASTOp() == kASTOpInitListExpr) {
       SolveArrayElementInitWithInitListExpr(addrOfArray, addrOfElemExpr, *elementType, *subExpr, i, stmts);
+      continue;
+    }
+    if (subExpr->GetASTOp() == kASTOpNoInitExpr) {
       continue;
     }
     UniqueFEIRExpr elemExpr = subExpr->Emit2FEExpr(stmts);
@@ -2088,7 +2137,17 @@ UniqueFEIRExpr ASTMemberExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
 
 // ---------- ASTDesignatedInitUpdateExpr ----------
 MIRConst *ASTDesignatedInitUpdateExpr::GenerateMIRConstImpl() const {
-  return FEManager::GetModule().GetMemPool()->New<MIRAggConst>(FEManager::GetModule(), *initListType);
+  auto *base = static_cast<MIRAggConst*>(baseExpr->GenerateMIRConst());
+  auto *update = static_cast<MIRAggConst*>(updaterExpr->GenerateMIRConst());
+  auto mirConsts = update->GetConstVec();
+  for (int i = 0; i < mirConsts.size(); ++i) {
+    if (mirConsts[i]->GetKind() == kConstInvalid) {
+      continue;
+    } else {
+      base->SetConstVecItem(i, *mirConsts[i]);
+    }
+  }
+  return base;
 }
 
 UniqueFEIRExpr ASTDesignatedInitUpdateExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
@@ -2304,7 +2363,7 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   uint32 falseLabelIdx = falseIdx;
   uint32 fallthrouLabelIdx, jumpToLabelIdx;
   uint32 rightCondLabelIdx = FEUtils::GetSequentialNumber();
-  MIRType *tempVarType = GlobalTables::GetTypeTable().GetUInt32();
+  MIRType *tempVarType = GlobalTables::GetTypeTable().GetInt32();
   UniqueFEIRVar shortCircuit = FEIRBuilder::CreateVarNameForC(GetVarName(), *tempVarType);
 
   // check short circuit boundary
@@ -2663,6 +2722,7 @@ UniqueFEIRExpr ASTImaginaryLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &s
 // ---------- ASTVAArgExpr ----------
 UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   CHECK_NULL_FATAL(mirType);
+  EmitVLASizeExprs(stmts);
   VaArgInfo info = ProcessValistArgInfo(*mirType);
   UniqueFEIRExpr readVaList = child->Emit2FEExpr(stmts);
   // The va_arg_offset temp var is created and assigned from __gr_offs or __vr_offs of va_list

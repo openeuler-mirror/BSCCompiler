@@ -330,10 +330,17 @@ MIRConst *FEUtils::CreateImplicitConst(MIRType *type) {
       if (type->IsStructType()) {
         auto structType = static_cast<MIRStructType*>(type);
         FieldID fieldID = 0;
-        for (auto &f:structType->GetFields()) {
+        if (type->GetKind() == kTypeUnion) {
           fieldID++;
+          auto &f = structType->GetFields().front();
           auto fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(f.second.first);
           aggConst->AddItem(CreateImplicitConst(fieldType), fieldID);
+        } else {
+          for (auto &f : structType->GetFields()) {
+            fieldID++;
+            auto fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(f.second.first);
+            aggConst->AddItem(CreateImplicitConst(fieldType), fieldID);
+          }
         }
       } else if (type->GetKind() == kTypeArray) {
         auto arrayType = static_cast<MIRArrayType*>(type);

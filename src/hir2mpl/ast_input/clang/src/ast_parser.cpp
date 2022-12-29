@@ -1295,15 +1295,32 @@ ASTExpr *ASTParser::ProcessExprBinaryConditionalOperator(MapleAllocator &allocat
   return astBinaryConditionalOperator;
 }
 
+ASTExpr *ASTParser::ProcessTypeofExpr(MapleAllocator &allocator, clang::QualType type) {
+  ASTExpr *astExpr = nullptr;
+  const clang::TypeOfExprType *typeofType = llvm::cast<clang::TypeOfExprType>(type);
+  if (typeofType->isArrayType() || typeofType->isPointerType()) {
+    astExpr = ProcessExpr(allocator, typeofType->getUnderlyingExpr());
+  }
+  return astExpr;
+}
+
 ASTExpr *ASTParser::ProcessExprCompoundLiteralExpr(MapleAllocator &allocator,
                                                    const clang::CompoundLiteralExpr &expr) {
   ASTCompoundLiteralExpr *astCompoundLiteralExpr = ASTDeclsBuilder::ASTExprBuilder<ASTCompoundLiteralExpr>(allocator);
   CHECK_FATAL(astCompoundLiteralExpr != nullptr, "astCompoundLiteralExpr is nullptr");
+  clang::QualType type = expr.getType();
+  ASTExpr *astExpr = nullptr;
+  if (type.getTypePtr()->getTypeClass() == clang::Type::TypeOfExpr) {
+    astExpr = ProcessTypeofExpr(allocator, type);
+  }
+  if (astExpr != nullptr) {
+    astCompoundLiteralExpr->SetVariableArrayExpr(astExpr);
+  }
   const clang::Expr *initExpr = expr.getInitializer();
   CHECK_FATAL(initExpr != nullptr, "initExpr is nullptr");
   clang::QualType qualType = initExpr->getType();
   astCompoundLiteralExpr->SetCompoundLiteralType(astFile->CvtType(qualType));
-  ASTExpr *astExpr = ProcessExpr(allocator, initExpr);
+  astExpr = ProcessExpr(allocator, initExpr);
   if (astExpr == nullptr) {
     return nullptr;
   }
@@ -1471,7 +1488,11 @@ ASTExpr *ASTParser::ProcessExprVAArgExpr(MapleAllocator &allocator, const clang:
     return nullptr;
   }
   astVAArgExpr->SetASTExpr(astExpr);
-  astVAArgExpr->SetType(astFile->CvtType(expr.getType()));
+  const clang::Type *type = nullptr;
+  astVAArgExpr->SetType(astFile->CvtType(expr.getType(), false, &type));
+  if (type != nullptr) {
+    ParserExprVLASizeExpr(allocator, *type, *astVAArgExpr);
+  }
   return astVAArgExpr;
 }
 
@@ -2930,10 +2951,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     astVar->SetBoundaryLenExpr(astExpr);
   }
   if (qualType.getTypePtr()->getTypeClass() == clang::Type::TypeOfExpr) {
-    const clang::TypeOfExprType *typeofType = llvm::cast<clang::TypeOfExprType>(qualType);
-    if (typeofType->isArrayType() || typeofType->isPointerType()) {
-      astExpr = ProcessExpr(allocator, typeofType->getUnderlyingExpr());
-    }
+    astExpr = ProcessTypeofExpr(allocator, qualType);
   }
   if (astExpr != nullptr) {
     astVar->SetVariableArrayExpr(astExpr);

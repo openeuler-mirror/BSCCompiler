@@ -32,6 +32,12 @@
 
 namespace maplefe {
 
+#define RESET "\x1B[0m"
+#define BOLD  "\x1B[1m"
+#define RED   "\x1B[31m"
+#define GRN   "\x1B[32m"
+#define YEL   "\x1B[33m"
+
 SmallVector<TemplateLiteralNode*> gTemplateLiteralNodes;
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +72,7 @@ SmallVector<TemplateLiteralNode*> gTemplateLiteralNodes;
 // 3. Left Recursion
 //
 // MapleFE is an LL parser, and left recursion has to be handled if we allow language
-// designer to write left recursion. I personally believe left recursion is a much
+// designer to write left recursion. We believe left recursion is a much
 // simpler, more human friendly and stronger way to describe language spec. To
 // provide this juicy feature, parser has to do extra job.
 //
@@ -361,6 +367,11 @@ unsigned Parser::LexOneLine() {
     return mActiveTokens.GetNum() - mCurToken;
 
   while (!token_num) {
+    if (mLexer->GetTrace() && !mLexer->EndOfLine() && !mLexer->EndOfFile() && line_begin) {
+      std::cout << "line: " << mLexer->GetLineNum() << " : "
+        << mLexer->GetLine() + mLexer->GetCuridx() << std::endl;
+    }
+
     // read until end of line
     while (!mLexer->EndOfLine() && !mLexer->EndOfFile()) {
       t = mLexer->LexToken();
@@ -391,8 +402,6 @@ unsigned Parser::LexOneLine() {
           if (line_begin) {
             t->mLineBegin = true;
             line_begin = false;
-            if (mLexer->GetTrace())
-              DUMP0("Set as Line First.");
           }
 
           mActiveTokens.PushBack(t);
@@ -417,7 +426,7 @@ unsigned Parser::LexOneLine() {
   if (token_num) {
     last_token->mLineEnd = true;
     if (mLexer->GetTrace())
-      DUMP0("Set as Line End.");
+      DUMP0("Set as Line End.\n");
   }
 
   return token_num;
@@ -778,22 +787,28 @@ void Parser::DumpExitTable(const char *table_name, unsigned indent,
                            AppealStatus reason, AppealNode *appeal) {
   for (unsigned i = 0; i < indent; i++)
     std::cout << " ";
+  if (reason == SuccWasSucc ||
+      reason == SuccStillWasSucc ||
+      reason == Succ ||
+      reason == SuccASI) {
+    std::cout << GRN;
+  }
   std::cout << "Exit  " << table_name << "@" << mCurToken;
   if (reason == SuccWasSucc) {
     std::cout << " succ@WasSucc" << "}";
     DumpSuccTokens(appeal);
-    std::cout << std::endl;
+    std::cout << RESET << std::endl;
   } else if (reason == SuccStillWasSucc) {
     std::cout << " succ@StillWasSucc" << "}";
     DumpSuccTokens(appeal);
-    std::cout << std::endl;
+    std::cout << RESET << std::endl;
   } else if (reason == Succ) {
     std::cout << " succ" << "}";
     DumpSuccTokens(appeal);
-    std::cout << std::endl;
+    std::cout << RESET << std::endl;
   } else if (reason == SuccASI) {
     std::cout << " succASI" << "}";
-    std::cout << std::endl;
+    std::cout << RESET << std::endl;
   } else if (reason == FailWasFailed)
     std::cout << " fail@WasFailed" << "}" << std::endl;
   else if (reason == FailNotRightToken)
@@ -960,7 +975,7 @@ bool Parser::TraverseRuleTable(RuleTable *rule_table, AppealNode *parent, Appeal
       // The affected can be succ later. So there is possibility both succ and fail
       // exist at the same time.
       //
-      // I still keep this assertion. We will see. Maybe we'll remove it.
+      // We still keep this assertion. We will see. Maybe we'll remove it.
       MASSERT(!WasFailed(rule_table, mCurToken));
 
       // set the apppeal node
@@ -996,7 +1011,7 @@ bool Parser::TraverseRuleTable(RuleTable *rule_table, AppealNode *parent, Appeal
   bool in_group = FindRecursionGroup(rule_table, group_id);
 
   // 1. In a recursion, a rule could fail in the first a few instances,
-  //    but could match in a later instance. So I need check is_done.
+  //    but could match in a later instance. So We need check is_done.
   //    Here is an example. Node A is one of the circle node.
   //    (a) In the first recursion instance, A is failed, but luckly it
   //        gets appealed due to lead node is 2ndOf1st.
@@ -1139,7 +1154,7 @@ bool Parser::TraverseRuleTable(RuleTable *rule_table, AppealNode *parent, Appeal
   // It's a regular (non leadnode) table, either inside or outside of a
   // recursion, we just need do the regular traversal.
   // If it's inside a Left Recursion, it will finally goes to that
-  // recursion. I don't need take care here.
+  // recursion. We don't need take care here.
 
   bool matched = TraverseRuleTableRegular(rule_table, appeal);
   if (rec_tra)

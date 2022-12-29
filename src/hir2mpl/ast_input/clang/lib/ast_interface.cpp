@@ -387,14 +387,22 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
       genAttrs.SetAttr(GENATTR_safed);
     }
   }
-  // If a non-static function defined with inline has non-static and non-inline function declaration, it should be
-  // an externally visible function.
-  if (decl.isThisDeclarationADefinition() && genAttrs.GetAttr(GENATTR_inline) && !genAttrs.GetAttr(GENATTR_static)) {
+  // If a non-static function defined with inline has the following 2 kinds function declaration, it should be
+  // an externally visible function:
+  // (1) non-inline func decl
+  // (2) inline explicit extern func decl
+  if (decl.isThisDeclarationADefinition() && genAttrs.GetAttr(GENATTR_inline) &&
+      !genAttrs.GetAttr(GENATTR_gnu_inline) && !genAttrs.GetAttr(GENATTR_static)) {
     bool isExternallyVisible = false;
-    for (const clang::FunctionDecl *funcDecl : decl.redecls()) {
-      if (!funcDecl->isThisDeclarationADefinition() && !funcDecl->isInlineSpecified()) {
-        isExternallyVisible = true;
-        break;
+    for (clang::FunctionDecl *funcDecl : decl.redecls()) {
+      // skip func definition and block scope func decl
+      if (!funcDecl->isThisDeclarationADefinition() && !funcDecl->isLocalExternDecl()) {
+        const bool declInline = funcDecl->isInlineSpecified();
+        const bool declExtern = funcDecl->getStorageClass() == clang::SC_Extern;
+        if (!declInline || (declInline && declExtern)) {
+          isExternallyVisible = true;
+          break;
+        }
       }
     }
     if (isExternallyVisible) {
@@ -403,10 +411,13 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
   }
   // If a function is defined with attrinute 'gnu_inline' but without 'extern', the 'extern' from function declarations
   // should be ignored.
-  if (decl.isThisDeclarationADefinition() && genAttrs.GetAttr(GENATTR_gnu_inline) &&
-      (decl.getStorageClass() != clang::SC_Extern) && (decl.getStorageClass() != clang::SC_PrivateExtern) &&
-      genAttrs.GetAttr(GENATTR_extern)) {
-    genAttrs.ResetAttr(GENATTR_extern);
+  if (decl.isThisDeclarationADefinition() && genAttrs.GetAttr(GENATTR_gnu_inline)) {
+    auto sc = decl.getStorageClass();
+    if (sc == clang::SC_Extern || sc == clang::SC_PrivateExtern) {
+      genAttrs.SetAttr(GENATTR_extern);
+    } else {
+      genAttrs.ResetAttr(GENATTR_extern);
+    }
   }
   CheckUnsupportedFuncAttrs(decl);
 }

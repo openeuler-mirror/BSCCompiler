@@ -80,7 +80,17 @@ FETypeManager::~FETypeManager() {
   funcMCCStaticFieldSetObject = nullptr;
 }
 
+void FETypeManager::ReleaseMIRFuncCodeMempool(std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> &map) {
+  for (auto it = map.begin(); it != map.end(); ++it) {
+    it->second->ReleaseCodeMemory();
+  }
+}
+
 void FETypeManager::ReleaseMemPool() {
+  ReleaseMIRFuncCodeMempool(nameFuncMap);
+  ReleaseMIRFuncCodeMempool(nameStaticFuncMap);
+  ReleaseMIRFuncCodeMempool(mpltNameFuncMap);
+  ReleaseMIRFuncCodeMempool(mpltNameStaticFuncMap);
   FEUtils::DeleteMempoolPtr(mp);
 }
 
