@@ -27,14 +27,16 @@ void CgProfUse::setupProf() {
   FOR_ALL_BB(bb, cgFunc) {
     bb->InitEdgeProfFreq();
     if (bb->GetFirstStmt() &&
-        (static_cast<int64_t>(funcProf->GetStmtFreq(bb->GetFirstStmt()->GetStmtID())) > 0)) {
+      (static_cast<int64_t>(funcProf->GetStmtFreq(bb->GetFirstStmt()->GetStmtID())) >= 0)) {
       bb->SetProfFreq(funcProf->GetStmtFreq(bb->GetFirstStmt()->GetStmtID()));
     } else if (bb->GetLastStmt() &&
-        (static_cast<int64_t>(funcProf->GetStmtFreq(bb->GetLastStmt()->GetStmtID())) > 0)) {
+      (static_cast<int64_t>(funcProf->GetStmtFreq(bb->GetLastStmt()->GetStmtID())) >= 0)) {
       bb->SetProfFreq(funcProf->GetStmtFreq(bb->GetLastStmt()->GetStmtID()));
     } else {
 #if DEBUG
-      LogInfo::MapleLogger() << "BB" << bb->GetId() << " is not in execution path\n";
+      if (!CGOptions::IsQuiet()) {
+        LogInfo::MapleLogger() << "BB" << bb->GetId() << " : frequency undetermined\n";
+      }
 #endif
     }
   }
@@ -70,10 +72,10 @@ bool CGProfUse::PhaseRun(maplebe::CGFunc &f) {
   cgprofuse.setupProf();
 
 #if DEBUG
-  LogInfo::MapleLogger() << "Setup CG ProfileUse : " << f.GetName() << "\n";
-  DotGenerator::GenerateDot("CGProfUse", f, f.GetMirModule(), false, f.GetName());
+  if (CGOptions::FuncFilter(f.GetName())) {
+    DotGenerator::GenerateDot("after-CGProfUse", f, f.GetMirModule(), false, f.GetName());
+  }
 #endif
-
   return false;
 }
 

@@ -342,6 +342,7 @@ class CGLowerer {
   static std::unordered_map<IntrinDesc*, PUIdx> intrinFuncIDs;
   static std::unordered_map<std::string, size_t> arrayClassCacheIndex;
   std::unordered_map<LabelIdx, FreqType> l2fMap; // Map label to frequency on profileUse
+  FuncProfInfo *funcProfData;
 };
 }  /* namespace maplebe */
 
