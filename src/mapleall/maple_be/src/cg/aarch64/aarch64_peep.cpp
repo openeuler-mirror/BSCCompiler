@@ -28,7 +28,6 @@ const std::string kMccLoadRefV = "MCC_LoadVolatileField";
 const std::string kMccLoadRefS = "MCC_LoadRefStatic";
 const std::string kMccLoadRefVS = "MCC_LoadVolatileStaticField";
 const std::string kMccDummy = "MCC_Dummy";
-#define NOMULOPT (true)
 
 const std::string GetReadBarrierName(const Insn &insn) {
   constexpr int32 totalBarrierNamesNum = 5;
@@ -72,7 +71,7 @@ void AArch64CGPeepHole::Run() {
         continue;
       }
       if (ssaInfo != nullptr) {
-        optSuccess |= DoSSAOptimize(*bb, *insn);
+        optSuccess = optSuccess || DoSSAOptimize(*bb, *insn);
       } else {
         DoNormalOptimize(*bb, *insn);
       }
@@ -1187,7 +1186,7 @@ bool LslAndToUbfizPattern::CheckCondition(Insn &insn) {
   return false;
 }
 
-bool LslAndToUbfizPattern::CheckUseInsnMop(const Insn &useInsn) {
+bool LslAndToUbfizPattern::CheckUseInsnMop(const Insn &useInsn) const {
   if (useInsn.IsLoad() || useInsn.IsStore()) {
     return false;
   }
@@ -1268,7 +1267,7 @@ void LslAndToUbfizPattern::Run(BB &bb, Insn &insn) {
 }
 
 /* Build ubfiz insn or mov insn */
-Insn *LslAndToUbfizPattern::BuildNewInsn(const Insn &andInsn, const Insn &lslInsn, const Insn &useInsn) {
+Insn *LslAndToUbfizPattern::BuildNewInsn(const Insn &andInsn, const Insn &lslInsn, const Insn &useInsn) const {
   uint64 andImmValue = static_cast<uint64>(static_cast<ImmOperand&>(andInsn.GetOperand(kInsnThirdOpnd)).GetValue());
   /* Check whether the value of immValue is 2^n-1. */
   uint64 judgment = andImmValue & (andImmValue + 1);
@@ -2510,8 +2509,13 @@ bool MulImmToShiftPattern::CheckCondition(Insn &insn) {
   if (immOpnd.IsNegative()) {
     return false;
   }
-  int64 immVal = immOpnd.GetValue();
-  /* 0 considered power of 2 */
+  uint64 immVal = immOpnd.GetValue();
+  if (immVal == 0) {
+    shiftVal = 0;
+    newMop = insn.GetMachineOpcode() == MOP_xmulrrr ? MOP_xmovri64 : MOP_wmovri32;
+    return true;
+  }
+  /* power of 2 */
   if ((immVal & (immVal - 1)) != 0) {
     return false;
   }
@@ -2521,26 +2525,28 @@ bool MulImmToShiftPattern::CheckCondition(Insn &insn) {
 }
 
 void MulImmToShiftPattern::Run(BB &bb, Insn &insn) {
-  if (NOMULOPT) {
-    return;
-  }
   /* mov x0,imm and mul to shift */
   if (!CheckCondition(insn)) {
     return;
   }
   auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  ImmOperand &shiftOpnd = aarch64CGFunc->CreateImmOperand(shiftVal, k32BitSize, false);
-  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd),
-                                                      insn.GetOperand(kInsnSecondOpnd), shiftOpnd);
-  bb.ReplaceInsn(insn, newInsn);
+  ImmOperand &immOpnd = aarch64CGFunc->CreateImmOperand(shiftVal, k32BitSize, false);
+  Insn *newInsn;
+  if (newMop == MOP_xmovri64 || newMop == MOP_wmovri32) {
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd), immOpnd);
+  } else {
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd),
+                                                   insn.GetOperand(kInsnSecondOpnd), immOpnd);
+  }
+  bb.ReplaceInsn(insn, *newInsn);
   /* update ssa info */
-  ssaInfo->ReplaceInsn(insn, newInsn);
+  ssaInfo->ReplaceInsn(insn, *newInsn);
   optSuccess = true;
-  SetCurrInsn(&newInsn);
+  SetCurrInsn(newInsn);
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
     prevs.emplace_back(movInsn);
-    DumpAfterPattern(prevs, &insn, &newInsn);
+    DumpAfterPattern(prevs, &insn, newInsn);
   }
 }
 
@@ -2640,13 +2646,15 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
         if (memOperand.GetAddrMode() == MemOperand::kBOI && memOperand.GetOffsetImmediate() != nullptr) {
           int64 curOffset = memOperand.GetOffsetImmediate()->GetOffsetValue();
           if (memOperand.GetSize() == k64BitSize) {
-            uint32 memBarrierRange = insn.IsLoadStorePair() ? k16BitSize : k8BitSize;
-            if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - static_cast<int32>(memBarrierRange)) {
+            int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k16BitSize : k8BitSize);
+            if (curOffset < baseOfst + memBarrierRange &&
+                curOffset > baseOfst - memBarrierRange) {
               return true;
             }
           } else if (memOperand.GetSize() == k32BitSize) {
-            uint32 memBarrierRange = insn.IsLoadStorePair() ? k8BitSize : k4BitSize;
-            if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - memBarrierRange) {
+            int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k8BitSize : k4BitSize);
+            if (curOffset < baseOfst + memBarrierRange &&
+                curOffset > baseOfst - memBarrierRange) {
               return true;
             }
           }
@@ -2963,7 +2971,7 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
       MOperator mopPair = (destOpnd.GetRegisterType() == kRegTyInt) ? MOP_xstp : MOP_dstp;
       if ((static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, combineMemOpnd, kInsnThirdOpnd))) {
         Insn &combineInsn = (offsetVal < prevOffsetVal) ?
-                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newDest, newPrevDest, *combineMemOpnd):
+                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newDest, newPrevDest, *combineMemOpnd) :
                             cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newPrevDest, newDest, *combineMemOpnd);
         bb.InsertInsnAfter(*prevContiInsn, combineInsn);
         RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
@@ -4202,7 +4210,7 @@ void LoadFloatPointPattern::Run(BB &bb, Insn &insn) {
     LabelOperand &target = aarch64CGFunc->GetOrCreateLabelOperand(lableIdx);
     cgFunc->InsertLabelMap(lableIdx, value);
     Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_xldli, insn4->GetOperand(kInsnFirstOpnd),
-                                                                  target);
+                                                        target);
     bb.InsertInsnAfter(*insn4, newInsn);
     bb.RemoveInsn(*insn1);
     bb.RemoveInsn(*insn2);
@@ -4765,7 +4773,7 @@ bool NormRevTbzToTbzPattern::CheckCondition(Insn &insn) {
   return false;
 }
 
-void NormRevTbzToTbzPattern::SetRev16Value(const uint32 &oldValue, uint32 &revValue) {
+void NormRevTbzToTbzPattern::SetRev16Value(const uint32 &oldValue, uint32 &revValue) const {
   switch (oldValue / k8BitSize) {
     case k0BitSize:
     case k2BitSize:
@@ -4784,7 +4792,7 @@ void NormRevTbzToTbzPattern::SetRev16Value(const uint32 &oldValue, uint32 &revVa
   }
 }
 
-void NormRevTbzToTbzPattern::SetWrevValue(const uint32 &oldValue, uint32 &revValue) {
+void NormRevTbzToTbzPattern::SetWrevValue(const uint32 &oldValue, uint32 &revValue) const {
   switch (oldValue / k8BitSize) {
     case k0BitSize: {
       revValue = oldValue + k24BitSize;
@@ -4807,7 +4815,7 @@ void NormRevTbzToTbzPattern::SetWrevValue(const uint32 &oldValue, uint32 &revVal
   }
 }
 
-void NormRevTbzToTbzPattern::SetXrevValue(const uint32 &oldValue, uint32 &revValue) {
+void NormRevTbzToTbzPattern::SetXrevValue(const uint32 &oldValue, uint32 &revValue) const {
   switch (oldValue / k8BitSize) {
     case k0BitSize:
       revValue = oldValue + k56BitSize;
