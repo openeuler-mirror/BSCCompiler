@@ -24,7 +24,9 @@
 namespace maple {
 constexpr size_t kFourByte = 4;
 constexpr size_t kEightByte = 8;
-constexpr uint32 kRecursionThreshold = 100;
+constexpr uint32 kRecursionThresholdOfFindVROfLoopVar = 10;
+constexpr uint32 kRecursionThresholdOfFindVROfPhi = 35;
+constexpr uint32 kRecursionThreshold = 50;
 
 class ValueRangePropagation;
 class ValueRange;
@@ -536,7 +538,7 @@ class ValueRangePropagation {
       BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts, bool &crossPhiNode);
   bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
   ValueRange *FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursions,
-      std::unordered_set<int32> &foundExprs);
+      std::unordered_set<int32> &foundExprs, uint32 maxThreshold);
   bool BrStmtInRange(const BB &bb, const ValueRange &leftRange, const ValueRange &rightRange, Opcode op,
                      PrimType opndType, bool judgeNotInRange = false);
   std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(PrimType pType) const {
@@ -559,10 +561,11 @@ class ValueRangePropagation {
   void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
   bool TowCompareOperandsAreInSameIterOfLoop(const MeExpr &lhs, const MeExpr &rhs) const;
 
-  ValueRange *FindValueRangeAndInitNumOfRecursion(const BB &bb, MeExpr &expr) {
+  ValueRange *FindValueRangeAndInitNumOfRecursion(
+      const BB &bb, MeExpr &expr, uint32 maxThreshold = kRecursionThreshold) {
     uint32 numOfRecursion = 0;
     std::unordered_set<int32> foundExprs{expr.GetExprID()};
-    return FindValueRange(bb, expr, numOfRecursion, foundExprs);
+    return FindValueRange(bb, expr, numOfRecursion, foundExprs, maxThreshold);
   }
 
  private:
@@ -590,8 +593,8 @@ class ValueRangePropagation {
     return it != caches.at(bbID).end() ? it->second.get() : nullptr;
   }
 
-  ValueRange *FindValueRangeInCaches(BBId bbID, int32 exprID, uint32 &numberOfRecursions) {
-    if (numberOfRecursions++ > kRecursionThreshold) {
+  ValueRange *FindValueRangeInCaches(BBId bbID, int32 exprID, uint32 &numberOfRecursions, uint32 maxThreshold) {
+    if (numberOfRecursions++ > maxThreshold) {
       return nullptr;
     }
     auto it = caches.at(bbID).find(exprID);
@@ -609,7 +612,7 @@ class ValueRangePropagation {
     }
     auto *domBB = dom.GetDom(bbID.GetIdx());
     return (domBB == nullptr || domBB->GetID() == 0) ?
-        nullptr : FindValueRangeInCaches(BBId(domBB->GetID()), exprID, numberOfRecursions);
+        nullptr : FindValueRangeInCaches(BBId(domBB->GetID()), exprID, numberOfRecursions, maxThreshold);
   }
 
   void Insert2AnalysisedArrayChecks(BBId bbID, MeExpr &array, MeExpr &index, Opcode op) {
@@ -707,7 +710,7 @@ class ValueRangePropagation {
   // The pairOfExprs map collects the exprs which have the same valueRange in bbs,
   // the pair of expr and preExpr is element of pairOfExprs.
   ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr, uint32 &numberOfRecursions,
-      std::unordered_set<int32> &foundExprs, MeExpr *preExpr = nullptr);
+      std::unordered_set<int32> &foundExprs, uint32 maxThreshold);
 
   void DealWithPhi(const BB &bb);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
@@ -882,8 +885,8 @@ class ValueRangePropagation {
   void CalculateVROfSubOpnd(BBId bbID, const MeExpr &opnd, ValueRange &valueRange);
   void CreateValueRangeForSubOpnd(const MeExpr &opnd, const BB &trueBranch, const BB &falseBranch,
       ValueRange &resTrueBranchVR, ValueRange &resFalseBranchVR);
-  ValueRange *DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr, const MeExpr *preExpr,
-      uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs);
+  ValueRange *DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr,
+      uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs, uint32 maxThreshold);
   void MergeNotEqualRanges(const MeExpr &opnd, const ValueRange *leftRange, ValueRange &rightRange,
       const BB &trueBranch);
   bool DealWithMulNode(const BB &bb, CRNode &opndOfCRNode,

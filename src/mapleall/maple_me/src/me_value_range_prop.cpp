@@ -2602,7 +2602,8 @@ void ValueRangePropagation::CreateVRForPhi(const LoopDesc &loop) {
 
 // Calculate the valuerange of def-operand according to the valuerange of each rhs operand.
 std::unique_ptr<ValueRange> ValueRangePropagation::MergeValueRangeOfPhiOperands(const BB &bb, MePhiNode &mePhiNode) {
-  auto *resValueRange = FindValueRangeAndInitNumOfRecursion(*bb.GetPred(0), *mePhiNode.GetOpnd(0));
+  auto *resValueRange = FindValueRangeAndInitNumOfRecursion(
+      *bb.GetPred(0), *mePhiNode.GetOpnd(0), kRecursionThresholdOfFindVROfPhi);
   if (resValueRange == nullptr || !resValueRange->IsConstant()) {
     return nullptr;
   }
@@ -2610,7 +2611,8 @@ std::unique_ptr<ValueRange> ValueRangePropagation::MergeValueRangeOfPhiOperands(
   auto resValueRangePtr = CopyValueRange(*resValueRange);
   for (size_t i = 1; i < mePhiNode.GetOpnds().size(); ++i) {
     auto *operand = mePhiNode.GetOpnd(i);
-    auto *valueRange = FindValueRangeAndInitNumOfRecursion(*bb.GetPred(i), *operand);
+    auto *valueRange =
+        FindValueRangeAndInitNumOfRecursion(*bb.GetPred(i), *operand, kRecursionThresholdOfFindVROfPhi);
     // If one valuerange is nullptr, the result is nullptr.
     if (valueRange == nullptr || !valueRange->IsConstant()) {
       return nullptr;
@@ -2874,7 +2876,7 @@ void ValueRangePropagation::JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueR
 
 std::unique_ptr<ValueRange> ValueRangePropagation::NegValueRange(
     const BB &bb, MeExpr &opnd, uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs) {
-  auto *valueRange = FindValueRange(bb, opnd, numberOfRecursions, foundExprs);
+  auto *valueRange = FindValueRange(bb, opnd, numberOfRecursions, foundExprs, kRecursionThreshold);
   if (valueRange == nullptr) {
     return nullptr;
   }
@@ -2890,12 +2892,9 @@ std::unique_ptr<ValueRange> ValueRangePropagation::NegValueRange(
 }
 
 ValueRange *ValueRangePropagation::DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr,
-    const MeExpr *preExpr, uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs) {
+    uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs, uint32 maxThreshold) {
   auto *opnd = expr.GetOpnd(0);
   if (!foundExprs.insert(opnd->GetExprID()).second) {
-    return nullptr;
-  }
-  if (opnd == preExpr) {
     return nullptr;
   }
   auto valueRangePtr = NegValueRange(bb, *opnd, numberOfRecursions, foundExprs);
@@ -2907,22 +2906,22 @@ ValueRange *ValueRangePropagation::DealWithNegWhenFindValueRange(const BB &bb, c
   return resValueRange;
 }
 
-ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(
-    const BB &bb, MeExpr &expr, uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs, MeExpr *preExpr) {
+ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr,
+    uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs, uint32 maxThreshold) {
   auto op = expr.GetOp();
   if (op == OP_neg) {
-    return DealWithNegWhenFindValueRange(bb, expr, preExpr, numberOfRecursions, foundExprs);
+    return DealWithNegWhenFindValueRange(bb, expr, numberOfRecursions, foundExprs, maxThreshold);
   }
   if (!IsCompareHasReverseOp(op) || expr.GetNumOpnds() != kNumOperands) {
     return nullptr;
   }
   auto *opnd0 = expr.GetOpnd(0);
   auto *opnd1 = expr.GetOpnd(1);
-  auto *valueRangeOfOpnd0 = FindValueRange(bb, *opnd0, numberOfRecursions, foundExprs);
+  auto *valueRangeOfOpnd0 = FindValueRange(bb, *opnd0, numberOfRecursions, foundExprs, maxThreshold);
   if (valueRangeOfOpnd0 == nullptr) {
     return nullptr;
   }
-  auto *valueRangeOfOpnd1 = FindValueRange(bb, *opnd1, numberOfRecursions, foundExprs);
+  auto *valueRangeOfOpnd1 = FindValueRange(bb, *opnd1, numberOfRecursions, foundExprs, maxThreshold);
   if (valueRangeOfOpnd1 == nullptr || !valueRangeOfOpnd0->IsConstantRange() || !valueRangeOfOpnd1->IsConstantRange()) {
     return nullptr;
   }
@@ -2974,16 +2973,16 @@ bool ValueRangePropagation::IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &su
 
 // When the valueRange of expr is not exist, need find the valueRange of the def point or use points.
 ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursionsArg,
-                                                  std::unordered_set<int32> &foundExprs) {
-  if (numberOfRecursionsArg++ > kRecursionThreshold) {
+                                                  std::unordered_set<int32> &foundExprs, uint32 maxThreshold) {
+  if (numberOfRecursionsArg++ > maxThreshold) {
     return nullptr;
   }
   uint32 recursions = 0;
-  auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), expr.GetExprID(), recursions);
+  auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), expr.GetExprID(), recursions, maxThreshold);
   if (valueRange != nullptr) {
     return valueRange;
   }
-  valueRange = FindValueRangeWithCompareOp(bb, expr, numberOfRecursionsArg, foundExprs);
+  valueRange = FindValueRangeWithCompareOp(bb, expr, numberOfRecursionsArg, foundExprs, maxThreshold);
   if (valueRange != nullptr) {
     return valueRange;
   }
@@ -3002,7 +3001,7 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, ui
         return nullptr;
       }
       recursions = 0;
-      valueRange = FindValueRangeInCaches(bb.GetBBId(), (*itOfExprs)->GetExprID(), recursions);
+      valueRange = FindValueRangeInCaches(bb.GetBBId(), (*itOfExprs)->GetExprID(), recursions, maxThreshold);
       if (valueRange != nullptr && valueRange->IsEqualAfterCVT(expr.GetPrimType(), (*itOfExprs)->GetPrimType())) {
         return valueRange;
       }
@@ -3016,7 +3015,7 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, ui
         //     opnd[1] = OP cvt i32 i64 mx553
         continue;
       }
-      valueRange = FindValueRangeWithCompareOp(bb, **itOfExprs, numberOfRecursionsArg, foundExprs, &expr);
+      valueRange = FindValueRangeWithCompareOp(bb, **itOfExprs, numberOfRecursionsArg, foundExprs, maxThreshold);
       if (valueRange != nullptr) {
         return valueRange;
       }
@@ -3028,7 +3027,7 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, ui
 std::unique_ptr<ValueRange> ValueRangePropagation::CreateInitVRForPhi(LoopDesc &loop,
     const BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge, const ScalarMeExpr &lhsOfPhi) {
   Bound initBound;
-  ValueRange *valueRangeOfInit = FindValueRangeAndInitNumOfRecursion(bb, init);
+  ValueRange *valueRangeOfInit = FindValueRangeAndInitNumOfRecursion(bb, init, kRecursionThresholdOfFindVROfLoopVar);
   if (valueRangeOfInit != nullptr && valueRangeOfInit->IsConstant() && valueRangeOfInit->GetRangeType() != kNotEqual) {
     auto bound = valueRangeOfInit->GetBound();
     initBound = Bound(GetRealValue(bound.GetConstant(), bound.GetPrimType()), bound.GetPrimType());
@@ -3107,11 +3106,8 @@ void ValueRangePropagation::DealWithPhi(const BB &bb) {
     return;
   }
   auto *loop = loops->GetBBLoopParent(bb.GetBBId());
-  std::set<ScalarMeExpr*> initExprsOfPhi;
-  std::set<ScalarMeExpr*> backExprOfPhi;
-  size_t indexOfInitExpr = -1;
+  size_t indexOfInitExpr = 0;
   std::vector<std::unique_ptr<ValueRange>> valueRangeOfInitExprs;
-  auto index = 0;
   // Collect the initial value and the back edge value of phi node.
   for (auto &pair : bb.GetMePhiList()) {
     if (!pair.second->GetIsLive()) {
@@ -3120,31 +3116,22 @@ void ValueRangePropagation::DealWithPhi(const BB &bb) {
     if (pair.second->GetOpnds().size() != kNumOperands) {
       return;
     }
-    for (size_t i = 0; i < pair.second->GetOpnds().size(); ++i) {
-      MeStmt *defStmt = nullptr;
-      auto *opnd = pair.second->GetOpnd(i);
-      BB *defBB = opnd->GetDefByBBMeStmt(*func.GetCfg(), defStmt);
-      if (!loop->Has(*defBB)) {
-        initExprsOfPhi.insert(opnd);
-        if (indexOfInitExpr == -1) {
-          indexOfInitExpr = i;
-        }
-      } else {
-        backExprOfPhi.insert(opnd);
-      }
+    auto *initExpr = pair.second->GetOpnd(0);
+    auto *backExpr = pair.second->GetOpnd(1);
+    MeStmt *defStmtOfInit = nullptr;
+    BB *defBBOfInit = initExpr->GetDefByBBMeStmt(*func.GetCfg(), defStmtOfInit);
+    MeStmt *defStmtOfBack = nullptr;
+    BB *defBBOfInitOfBack = backExpr->GetDefByBBMeStmt(*func.GetCfg(), defStmtOfBack);
+    bool defBBOfInitInLoop = loop->Has(*defBBOfInit);
+    bool defBBOfInitOfBackInLoop = loop->Has(*defBBOfInitOfBack);
+    std::unique_ptr<ValueRange> vrOfInitExpr = nullptr;
+    if (defBBOfInitInLoop && !defBBOfInitOfBackInLoop) {
+      indexOfInitExpr = 1;
+      vrOfInitExpr = CreateInitVRForPhi(*loop, bb, *backExpr, *initExpr, *pair.second->GetLHS());
+    } else if (!defBBOfInitInLoop && defBBOfInitOfBackInLoop) {
+      vrOfInitExpr = CreateInitVRForPhi(*loop, bb, *initExpr, *backExpr, *pair.second->GetLHS());
     }
-    if (backExprOfPhi.empty()) {
-      valueRangeOfInitExprs.emplace_back(nullptr);
-    } else if (initExprsOfPhi.size() == 1 && backExprOfPhi.size() == 1) { // Create vr for initial value of phi node.
-      auto vrOfInitExpr = CreateInitVRForPhi(
-          *loop, bb, **initExprsOfPhi.begin(), **backExprOfPhi.begin(), *pair.second->GetLHS());
-      valueRangeOfInitExprs.emplace_back(std::move(vrOfInitExpr));
-    } else {
-      valueRangeOfInitExprs.emplace_back(nullptr);
-    }
-    initExprsOfPhi.clear();
-    backExprOfPhi.clear();
-    index++;
+    valueRangeOfInitExprs.emplace_back(std::move(vrOfInitExpr));
   }
   // When the number of nested layers of the loop is too deep, do not continue to calculate vr of phi nodes.
   if (loop->nestDepth > kLimitOfLoopNestDepth || loop->loopBBs.size() > kLimitOfLoopBBs) {

@@ -1671,10 +1671,10 @@ RegOperand *AArch64CGFunc::PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpn
   return tgtAddr;
 }
 
-RegOperand *AArch64CGFunc::PrepareMemcpyParamOpnd(uint64 copySize) {
+RegOperand *AArch64CGFunc::PrepareMemcpyParamOpnd(uint64 copySize, PrimType dType) {
   RegOperand *vregMemcpySize = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
   ImmOperand *sizeOpnd = &CreateImmOperand(static_cast<int64>(copySize), k64BitSize, false);
-  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wmovri32, *vregMemcpySize, *sizeOpnd));
+  SelectCopyImm(*vregMemcpySize, *sizeOpnd, dType);
   return vregMemcpySize;
 }
 
@@ -1761,7 +1761,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
 
       opndVec.push_back(PrepareMemcpyParamOpnd(rhsIsLo12, *rhsSymbol, rhsOffsetVal, *rhsBaseReg));  /* param 1 */
 
-      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize));  /* param 2 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize, PTY_u64));  /* param 2 */
 
       SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 
@@ -1896,7 +1896,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
 
       opndVec.push_back(PrepareMemcpyParamOpnd(rhsOffset, *addrOpnd));  /* param 1 */
 
-      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize));  /* param 2 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize, PTY_u64));  /* param 2 */
 
       SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 
@@ -2438,7 +2438,7 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand &src) {
   }
   RegOperand *param0 = PrepareMemcpyParamOpnd(offset, *dest);
   RegOperand *param1 = static_cast<RegOperand *>(&src);
-  RegOperand *param2 = PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize)));
+  RegOperand *param2 = PrepareMemcpyParamOpnd(static_cast<uint64>(static_cast<int64>(bNode.blockSize)), PTY_u64);
   if (bNode.blockSize > static_cast<int32>(kParmMemcpySize)) {
     std::vector<Operand*> opndVec;
     opndVec.push_back(regResult); /* result */
@@ -2574,7 +2574,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
 
       opndVec.push_back(PrepareMemcpyParamOpnd(rhsOffsetVal, *rhsBaseReg));  /* param 1 */
 
-      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize));  /* param 2 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize, PTY_u64));  /* param 2 */
 
       SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 
@@ -2688,7 +2688,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
 
       opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<int64>(rhsOffset), *rhsAddrOpnd));  /* param 1 */
 
-      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize));  /* param 2 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize, PTY_u64));  /* param 2 */
 
       SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 

@@ -952,7 +952,7 @@ class AArch64CGFunc : public CGFunc {
   std::string GenerateMemOpndVerbose(const Operand &src) const;
   RegOperand *PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal, RegOperand &baseReg);
   RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd);
-  RegOperand *PrepareMemcpyParamOpnd(uint64 copySize);
+  RegOperand *PrepareMemcpyParamOpnd(uint64 copySize, PrimType dType);
   Insn *AggtStrLdrInsert(bool bothUnion, Insn *lastStrLdr, Insn &newStrLdr);
   MemOperand &CreateMemOpndForStatic(const MIRSymbol &symbol, int64 offset, uint32 size, bool needLow12,
                                      RegOperand *regOp);
