@@ -155,7 +155,7 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     if (GetFuncProfData()) {
       ASSERT(GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID()) >= 0, "sanity check");
       FreqType freq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID()) -
-                         GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID());
+                      GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID());
       GetFuncProfData()->SetStmtFreq(labstmt->GetStmtID(), freq);
     }
   } else if (thenempty && !Options::profileUse && !Options::profileGen) {

@@ -2355,7 +2355,6 @@ void AArch64PeepHole0::Run(BB &bb, Insn &insn) {
 
 void AArch64PrePeepHole::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
-  optimizations[kReplaceCmpToCmnOpt] = optOwnMemPool->New<ReplaceCmpToCmnAArch64>(cgFunc);
   optimizations[kComplexMemOperandOpt] = optOwnMemPool->New<ComplexMemOperandAArch64>(cgFunc);
   optimizations[kComplexMemOperandPreOptAdd] = optOwnMemPool->New<ComplexMemOperandPreAddAArch64>(cgFunc);
   optimizations[kEnhanceStrLdrAArch64Opt] = optOwnMemPool->New<EnhanceStrLdrAArch64>(cgFunc);
@@ -2364,11 +2363,6 @@ void AArch64PrePeepHole::InitOpts() {
 void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   switch (thisMop) {
-    case MOP_wmovri32:
-    case MOP_xmovri64: {
-      (static_cast<ReplaceCmpToCmnAArch64*>(optimizations[kReplaceCmpToCmnOpt]))->Run(bb, insn);
-      break;
-    }
     case MOP_xadrpl12: {
       (static_cast<ComplexMemOperandAArch64*>(optimizations[kComplexMemOperandOpt]))->Run(bb, insn);
       break;
@@ -4156,53 +4150,6 @@ void LoadFloatPointPattern::Run(BB &bb, Insn &insn) {
     bb.RemoveInsn(*insn2);
     bb.RemoveInsn(*insn3);
     bb.RemoveInsn(*insn4);
-  }
-}
-
-void ReplaceCmpToCmnAArch64::Run(BB &bb, Insn &insn) {
-  AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
-  MOperator thisMop = insn.GetMachineOpcode();
-  MOperator nextMop = MOP_undef;
-  MOperator newMop = MOP_undef;
-  uint64 negOne = UINT64_MAX;
-  switch (thisMop) {
-    case MOP_wmovri32: {
-      nextMop = MOP_wcmprr;
-      newMop = MOP_wcmnri;
-      negOne = UINT32_MAX;
-      break;
-    }
-    case MOP_xmovri64: {
-      nextMop = MOP_xcmprr;
-      newMop = MOP_xcmnri;
-      break;
-    }
-    default:
-      break;
-  }
-  Operand *opnd1OfMov = &(insn.GetOperand(kInsnFirstOpnd));
-  Operand *opnd2OfMov = &(insn.GetOperand(kInsnSecondOpnd));
-  if (opnd2OfMov->IsIntImmediate()) {
-    ImmOperand *immOpnd = static_cast<ImmOperand*>(opnd2OfMov);
-    int64 iVal = immOpnd->GetValue();
-    if ((kNegativeImmLowerLimit <= iVal && iVal < 0) || static_cast<uint64>(iVal) == negOne) {
-      Insn *nextInsn = insn.GetNextMachineInsn();  /* get the next insn to judge if it is a cmp instruction. */
-      if (nextInsn != nullptr) {
-        if (nextInsn->GetMachineOpcode() == nextMop) {
-          Operand *opndCmp2 = &(nextInsn->GetOperand(kInsnSecondOpnd));
-          Operand *opndCmp3 = &(nextInsn->GetOperand(kInsnThirdOpnd));  /* get the third operand of cmp */
-          /* if the first operand of mov equals the third operand of cmp, match the pattern. */
-          if (opnd1OfMov == opndCmp3) {
-            if (iVal == static_cast<int64>(negOne)) {
-              iVal = -1;
-            }
-            ImmOperand &newOpnd = aarch64CGFunc->CreateImmOperand(iVal * (-1), immOpnd->GetSize(), false);
-            Operand &regFlag = nextInsn->GetOperand(kInsnFirstOpnd);
-            bb.ReplaceInsn(*nextInsn, cgFunc.GetInsnBuilder()->BuildInsn(newMop, regFlag, *opndCmp2, newOpnd));
-          }
-        }
-      }
-    }
   }
 }
 

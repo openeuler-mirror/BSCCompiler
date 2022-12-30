@@ -482,12 +482,50 @@ bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
     case MOP_xbfirri6i6: {
       return BitInsertReplace(useDUInfo, constOpnd);
     }
+    case MOP_wcmprr:
+    case MOP_xcmprr: {
+      return ReplaceCmpToCmn(useDUInfo, constOpnd);
+    }
     default:
       break;
   }
   return false;
 }
 
+bool A64ConstProp::ReplaceCmpToCmn(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const {
+  Insn *useInsn = useDUInfo.GetInsn();
+  if (useDUInfo.GetOperands().size() != 1) {
+    return false;
+  }
+  auto &cmpFirstOpnd = static_cast<RegOperand &>(useInsn->GetOperand(kInsnSecondOpnd));
+  MOperator newMop = useInsn->GetMachineOpcode() == MOP_wcmprr ? MOP_wcmnri : MOP_xcmnri;
+  uint64 negOne = useInsn->GetMachineOpcode() == MOP_wcmprr ? UINT32_MAX : UINT64_MAX;
+  Operand &regFlag = useInsn->GetOperand(kInsnFirstOpnd);
+  auto useOpndInfoIt = useDUInfo.GetOperands().cbegin();
+  uint32 useOpndIdx = useOpndInfoIt->first;
+  Insn *newInsn = nullptr;
+  int64 iVal = constOpnd.GetValue();
+  if ((iVal < 0 && iVal >= kNegativeImmLowerLimit) || static_cast<uint64>(iVal) == negOne) {
+    if (iVal == static_cast<int64>(negOne)) {
+      iVal = -1;
+    }
+    iVal = iVal * (-1);
+    ImmOperand &newOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateImmOperand(iVal, constOpnd.GetSize(), false);
+    if (!static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &newOpnd, kInsnThirdOpnd)) {
+      return false;
+    }
+    if (useOpndIdx == kInsnSecondOpnd) {
+      return false;
+    } else if (useOpndIdx == kInsnThirdOpnd) {
+      newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, regFlag, cmpFirstOpnd, newOpnd);
+    } else {
+      CHECK_FATAL(false, "error");
+    }
+    ReplaceInsnAndUpdateSSA(*useInsn, *newInsn);
+    return true;
+  }
+  return false;
+}
 bool A64ConstProp::BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const {
   Insn *useInsn = useDUInfo.GetInsn();
   MOperator curMop = useInsn->GetMachineOpcode();

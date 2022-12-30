@@ -1382,19 +1382,6 @@ class LoadFloatPointPattern : public CGPeepPattern {
 };
 
 /*
- * Optimize the following patterns:
- *  ldr  w0, [x21,#68]        ldr  w0, [x21,#68]
- *  mov  w1, #-1              mov  w1, #-1
- *  cmp  w0, w1     ====>     cmn  w0, #-1
- */
-class ReplaceCmpToCmnAArch64 : public PeepPattern {
- public:
-  explicit ReplaceCmpToCmnAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ReplaceCmpToCmnAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-};
-
-/*
  * Remove following patterns:
  *   mov x0, XX
  *   mov x1, XX
