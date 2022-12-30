@@ -29,9 +29,6 @@ bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
     return false;
   }
 
-  /* Perform loop analysis, result to be obtained in CGFunc */
-  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
-
   /* Perform live analysis, result to be obtained in CGFunc */
   LiveAnalysis *live = nullptr;
   MaplePhase *it = GetAnalysisInfoHook()->
