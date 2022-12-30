@@ -33,13 +33,15 @@ using BBId = uint32;
 // caller by setting saveAtEntryBBs.
 class SsaPreWorkCand {
  public:
-  explicit SsaPreWorkCand(MapleAllocator *alloc) : occBBs(alloc->Adapter()), saveAtEntryBBs(alloc->Adapter()) {}
+  static uint32 workCandIDNext;  // for assigning ID starting from  1 (0 is reserved)
+  explicit SsaPreWorkCand(MapleAllocator *alloc) : occBBs(alloc->Adapter()), saveAtEntryBBs(alloc->Adapter()), workCandID(++workCandIDNext) {}
   // inputs
   MapleSet<BBId> occBBs; // Id's of BBs with appearances of the callee-saved reg
   // outputs
   MapleSet<BBId> saveAtEntryBBs; // Id's of BBs to insert saves of the register at BB entry
   bool saveAtProlog = false;    // if true, no shrinkwrapping can be done and
                                 // the other outputs can be ignored
+  uint32 workCandID;
 };
 
 extern void DoSavePlacementOpt(CGFunc *f, DomAnalysis *dom, SsaPreWorkCand *workCand);
@@ -79,6 +81,7 @@ class RealOcc : public Occ {
   }
 
   bool redundant = true;
+  bool rgExcluded = false;  // reduced-graph-excluded, used only by mc-ssapre
 };
 
 class PhiOcc;
@@ -95,6 +98,7 @@ class PhiOpndOcc : public Occ {
   PhiOcc *defPhiOcc = nullptr;  // its lhs definition
   bool hasRealUse = false;
   bool insertHere = false;
+  bool isMCInsert = false;     // used only in mc-ssapre
 };
 
 class PhiOcc : public Occ {
@@ -122,6 +126,9 @@ class PhiOcc : public Occ {
   bool speculativeDownsafe = false;  // true if set to downsafe via speculation
   bool isCanBeAvail = true;
   bool isLater = true;
+  bool isFullyAvail = true;          // used only in mc-ssapre
+  bool isPartialAnt = false;         // used only in mc-ssapre
+  bool isMCWillBeAvail = true;       // used only in mc-ssapre
   MapleVector<PhiOpndOcc*> phiOpnds;
 };
 
@@ -156,10 +163,16 @@ class SSAPre {
 
   void ApplySSAPre();
 
- private:
+ protected:
   // step 6 methods
   void CodeMotion();
   // step 5 methods
+  bool WillBeAvail(const PhiOcc *phiOcc) const {
+    if (!doMinCut) {
+      return phiOcc->WillBeAvail();
+    }
+    return phiOcc->isMCWillBeAvail;
+  }
   void Finalize();
   // step 4 methods
   void ResetCanBeAvail(PhiOcc *phi) const;
@@ -203,6 +216,7 @@ class SSAPre {
   MapleVector<ExitOcc*> exitOccs;
   bool asEarlyAsPossible;
   bool enabledDebug;
+  bool doMinCut = false;
 };
 
 };  // namespace maplabe

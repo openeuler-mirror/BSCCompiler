@@ -19,6 +19,7 @@
 #include "aarch64_proepilog.h"
 #include "cg_dominance.h"
 #include "cg_ssa_pre.h"
+#include "cg_mc_ssa_pre.h"
 #include "cg_ssu_pre.h"
 
 namespace maplebe {
@@ -460,7 +461,11 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
         }
       }
     }
-    DoSavePlacementOpt(cgFunc, GetDomInfo(), &wkCand);
+    if (cgFunc->GetFunction().GetFuncProfData() == nullptr) {
+      DoSavePlacementOpt(cgFunc, GetDomInfo(), &wkCand);
+    } else {
+      DoProfileGuidedSavePlacement(cgFunc, GetDomInfo(), &wkCand);
+    }
     if (wkCand.saveAtEntryBBs.empty()) {
       /* something gone wrong, skip this reg */
       wkCand.saveAtProlog = true;

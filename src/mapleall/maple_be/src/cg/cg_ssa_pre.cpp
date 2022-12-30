@@ -18,6 +18,8 @@
 
 namespace maplebe {
 
+uint32 SsaPreWorkCand::workCandIDNext = 0;
+
 // ================ Step 6: Code Motion ================
 void SSAPre::CodeMotion() {
   // pass 1 only doing insertion
@@ -27,7 +29,7 @@ void SSAPre::CodeMotion() {
     }
     PhiOpndOcc *phiOpndOcc = static_cast<PhiOpndOcc*>(occ);
     if (phiOpndOcc->insertHere) {
-      ASSERT(phiOpndOcc->cgbb->GetLoop() == nullptr, "cg_ssapre: save inserted inside loop");
+      ASSERT(doMinCut || phiOpndOcc->cgbb->GetLoop() == nullptr, "cg_ssapre: save inserted inside loop");
       workCand->saveAtEntryBBs.insert(phiOpndOcc->cgbb->GetId());
     }
   }
@@ -38,7 +40,7 @@ void SSAPre::CodeMotion() {
     }
     RealOcc *realOcc = static_cast<RealOcc*>(occ);
     if (!realOcc->redundant) {
-      ASSERT(realOcc->cgbb->GetLoop() == nullptr, "cg_ssapre: save in place inside loop");
+      ASSERT(doMinCut || realOcc->cgbb->GetLoop() == nullptr, "cg_ssapre: save in place inside loop");
       workCand->saveAtEntryBBs.insert(realOcc->cgbb->GetId());
     }
   }
@@ -62,7 +64,7 @@ void SSAPre::Finalize() {
     switch (occ->occTy) {
       case kAOccPhi: {
         PhiOcc *phiOcc = static_cast<PhiOcc*>(occ);
-        if (phiOcc->WillBeAvail()) {
+        if (WillBeAvail(phiOcc)) {
           availDefVec[classId] = phiOcc;
         }
         break;
@@ -80,10 +82,10 @@ void SSAPre::Finalize() {
       case kAOccPhiOpnd: {
         PhiOpndOcc *phiOpndOcc = static_cast<PhiOpndOcc*>(occ);
         const PhiOcc *phiOcc = phiOpndOcc->defPhiOcc;
-        if (phiOcc->WillBeAvail()) {
+        if (WillBeAvail(phiOcc)) {
           if (phiOpndOcc->def == nullptr || (!phiOpndOcc->hasRealUse &&
                                              phiOpndOcc->def->occTy == kAOccPhi &&
-                                             !static_cast<PhiOcc*>(phiOpndOcc->def)->WillBeAvail())) {
+                                             !WillBeAvail(static_cast<PhiOcc*>(phiOpndOcc->def)))) {
             // insert a store
             if (phiOpndOcc->cgbb->GetSuccs().size() != 1) {  // critical edge
               workCand->saveAtProlog = true;
@@ -311,12 +313,17 @@ void SSAPre::Rename() {
         }
         Occ *topOcc = occStack.top();
         occ->classId = topOcc->classId;
+        occ->def = topOcc;
         if (topOcc->occTy == kAOccPhi) {
           occStack.push(occ);
-          if (occ->cgbb->GetLoop() != nullptr) {
-            static_cast<PhiOcc *>(topOcc)->isDownsafe = true;
-            static_cast<PhiOcc *>(topOcc)->speculativeDownsafe = true;
+          PhiOcc *phiTopOcc = static_cast<PhiOcc *>(topOcc);
+          phiTopOcc->isPartialAnt = true;
+          if (!doMinCut && occ->cgbb->GetLoop() != nullptr) {
+            phiTopOcc->isDownsafe = true;
+            phiTopOcc->speculativeDownsafe = true;
           }
+        } else if (topOcc->occTy == kAOccReal) {
+          static_cast<RealOcc *>(occ)->rgExcluded = true;
         }
         break;
       }
@@ -339,13 +346,15 @@ void SSAPre::Rename() {
     }
   }
   // loop thru phiOccs to propagate speculativeDownsafe
-  for (PhiOcc *phiOcc : phiOccs) {
-    if (phiOcc->speculativeDownsafe) {
-      for (PhiOpndOcc *phiOpndOcc : phiOcc->phiOpnds) {
-        if (phiOpndOcc->def != nullptr && phiOpndOcc->def->occTy == kAOccPhi) {
-          PhiOcc *nextPhiOcc = static_cast<PhiOcc *>(phiOpndOcc->def);
-          if (nextPhiOcc->cgbb->GetLoop() != nullptr) {
-            PropagateSpeculativeDownsafe(nextPhiOcc);
+  if (!doMinCut) {
+    for (PhiOcc *phiOcc : phiOccs) {
+      if (phiOcc->speculativeDownsafe) {
+        for (PhiOpndOcc *phiOpndOcc : phiOcc->phiOpnds) {
+          if (phiOpndOcc->def != nullptr && phiOpndOcc->def->occTy == kAOccPhi) {
+            PhiOcc *nextPhiOcc = static_cast<PhiOcc *>(phiOpndOcc->def);
+            if (nextPhiOcc->cgbb->GetLoop() != nullptr) {
+              PropagateSpeculativeDownsafe(nextPhiOcc);
+            }
           }
         }
       }
@@ -358,7 +367,12 @@ void SSAPre::Rename() {
       if (occ->occTy == kAOccPhi) {
         PhiOcc *phiOcc = static_cast<PhiOcc *>(occ);
         if (phiOcc->speculativeDownsafe) {
-          LogInfo::MapleLogger() << " spec_downsafe /";
+          LogInfo::MapleLogger() << " spec_downsafe";
+        }
+      }
+      if (occ->occTy == kAOccReal) {
+        if (static_cast<RealOcc *>(occ)->rgExcluded) {
+          LogInfo::MapleLogger() << " rgexcluded";
         }
       }
       LogInfo::MapleLogger() << '\n';
