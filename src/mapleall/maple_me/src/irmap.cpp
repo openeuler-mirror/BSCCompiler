@@ -1197,7 +1197,7 @@ static MeExpr *PullOutZext(IRMap &irMap, const OpMeExpr &meExpr) {
     }
 
     // if c1 == zext(trunc(c1)), we can pull zext out
-    if (c1.GetZXTValue() == c1.Trunc(op0->GetBitsSize(), c1.IsSigned()).GetZXTValue()) {
+    if (c1.GetZXTValue() == c1.Trunc(subExpr1->GetPrimType()).GetZXTValue()) {
       auto newConst = irMap.CreateIntConstMeExpr(c1.Trunc(subExpr1->GetPrimType()), subExpr1->GetPrimType());
       auto newExpr = irMap.CreateMeExprBinary(meExpr.GetOp(), subExpr1->GetPrimType(), *subExpr1, *newConst);
       auto res = irMap.CreateMeExprUnary(OP_zext, meExpr.GetPrimType(), *newExpr);

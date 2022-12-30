@@ -28,10 +28,9 @@ using namespace namemangler;
 uint32 MIRSymbol::lastPrintedLineNum = 0;
 uint16 MIRSymbol::lastPrintedColumnNum = 0;
 
-bool MIRSymbol::NeedPIC() const {
-  return (storageClass == kScGlobal) ||
-         (storageClass == kScExtern) ||
-         (sKind == kStFunc && !GetFunction()->IsStatic());
+bool MIRSymbol::NeedGOT(bool doPIE) const {
+  return (storageClass == kScExtern) || (!doPIE && ((storageClass == kScGlobal) ||
+          (sKind == kStFunc && !GetFunction()->GetFuncAlias()->IsStatic())));
 }
 
 bool MIRSymbol::IsTypeVolatile(int fieldID) const {
@@ -318,7 +317,7 @@ void MIRSymbol::Dump(bool isLocal, int32 indent, bool suppressInit, const MIRSym
   }
   // exclude unused symbols, formal symbols and extern functions
   if (GetStorageClass() == kScUnused || GetStorageClass() == kScFormal ||
-      (GetStorageClass() == kScExtern && sKind == kStFunc)) {
+      (GetStorageClass() == kScExtern && sKind == kStFunc && !GetFunction()->GetAttr(FUNCATTR_used))) {
     return;
   }
   if (GetIsImported() && !GetAppearsInCode()) {

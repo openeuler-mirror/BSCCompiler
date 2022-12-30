@@ -89,7 +89,9 @@ bool CGOptions::doSchedule = false;
 bool CGOptions::doWriteRefFieldOpt = false;
 bool CGOptions::dumpOptimizeCommonLog = false;
 bool CGOptions::checkArrayStore = false;
-bool CGOptions::doPIC = false;
+uint8 CGOptions::picMode = 0;
+uint8 CGOptions::pieMode = 0;
+bool CGOptions::noSemanticInterposition = false;
 bool CGOptions::noDupBB = false;
 bool CGOptions::noCalleeCFI = true;
 bool CGOptions::emitCyclePattern = false;
@@ -192,17 +194,37 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetQuiet(false);
   }
 
-  if (opts::cg::pie.IsEnabledByUser()) {
-    opts::cg::pie ? SetOption(CGOptions::kGenPie) : ClearOption(CGOptions::kGenPie);
+  if (opts::cg::fpie.IsEnabledByUser() || opts::cg::fPIE.IsEnabledByUser()) {
+    if (opts::cg::fPIE) {
+      SetPIEOptionHelper(kLargeMode);
+    } else if (opts::cg::fpie) {
+      SetPIEOptionHelper(kSmallMode);
+    } else {
+      SetPIEMode(kClose);
+      ClearOption(CGOptions::kGenPie);
+    }
   }
 
-  if (opts::cg::fpic.IsEnabledByUser()) {
-    if (opts::cg::fpic) {
-      EnablePIC();
-      SetOption(CGOptions::kGenPic);
+  if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
+    /* To avoid fpie mode being modified twice, need to ensure fpie is not opened. */
+    if(!opts::cg::fpie && !opts::cg::fPIE) {
+      if (opts::cg::fPIC) {
+        SetPICOptionHelper(kLargeMode);
+      } else if (opts::cg::fpic) {
+        SetPICOptionHelper(kSmallMode);
+      } else {
+        SetPICMode(kClose);
+        ClearOption(CGOptions::kGenPic);
+      }
+    }
+  }
+
+  if (opts::cg::fnoSemanticInterposition.IsEnabledByUser()) {
+    if (opts::cg::fnoSemanticInterposition && ((GeneratePositionIndependentCode() &&
+        !GeneratePositionIndependentExecutable()) || GeneratePositionIndependentExecutable())) {
+      EnableNoSemanticInterposition();
     } else {
-      DisablePIC();
-      ClearOption(CGOptions::kGenPic);
+      DisableNoSemanticInterposition();
     }
   }
 

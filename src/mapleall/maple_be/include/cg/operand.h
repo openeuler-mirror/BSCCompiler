@@ -147,7 +147,7 @@ class Operand {
   }
 
   virtual bool IsFuncNameOpnd() const {
-    return false;
+    return opndKind == kOpdBBAddress;
   }
 
   virtual bool IsCommentOpnd() const {
@@ -546,7 +546,8 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
       return true;
     }
     int32 start = __builtin_ctzll(static_cast<uint64>(val));
-    int32 end = static_cast<int32>(sizeof(val) * kBitsPerByte - __builtin_clzll(static_cast<uint64>(val)) - 1);
+    int32 end = static_cast<int32>(sizeof(val) * kBitsPerByte -
+        static_cast<int64>(__builtin_clzll(static_cast<uint64>(val))) - 1);
     return (size >= end - start + 1);
 #else
     uint8 start = 0;
@@ -715,7 +716,7 @@ class OfstOperand : public ImmOperand {
   bool IsSymAndImmOffset() const {
     return offsetType == kSymbolImmediateOffset;
   }
-  using maplebe::ImmOperand::GetSymbol;
+
   const MIRSymbol *GetSymbol() const {
     return symbol;
   }
@@ -1092,7 +1093,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
   }
 
   void SetAccessSize(uint32 size) {
-    accessSize = size;
+    accessSize = static_cast<uint8>(size);
   }
 
   uint8 GetAccessSize() const {
@@ -1181,7 +1182,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
               static_cast<uint32>((1U << static_cast<uint32>(GetImmediateOffsetAlignment(dSize))) - 1)) != 0);
     } else if (addrMode == kLo12Li) {
       uint32 alignByte = (dSize / k8BitSize);
-      return ((ofstVal % alignByte) != k0BitSize);
+      return ((ofstVal % static_cast<int64>(alignByte)) != k0BitSize);
     }
     return false;
   }

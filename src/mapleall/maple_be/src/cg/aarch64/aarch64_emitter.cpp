@@ -422,6 +422,22 @@ static void InsertNopAfterLastCall(AArch64CGFunc &cgFunc) {
     }
 }
 
+void AArch64AsmEmitter::EmitCallWithLocalAlias(Emitter &emitter, FuncNameOperand &func, const std::string &mdName) const {
+  const MIRSymbol *funcSymbol = func.GetFunctionSymbol();
+  if (funcSymbol->IsGlobal()) {
+    std::string funcName = func.GetName();
+    std::string funcAliasName = funcName + ".localalias";
+    /* emit set alias instruction */
+    (void)emitter.Emit("\t.set\t");
+    (void)emitter.Emit(funcAliasName).Emit(", ");
+    (void)emitter.Emit(funcName).Emit("\n");
+
+    /* emit call instruction */
+    (void)emitter.Emit("\t").Emit(mdName).Emit("\t");
+    (void)emitter.Emit(funcAliasName).Emit("\n");
+  }
+}
+
 void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
   AArch64CGFunc &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
@@ -757,6 +773,11 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
       return;
     }
   }
+  /* if fno-semantic-interposition is enabled, print function alias instead */
+  if (md->IsCall() && insn.GetOperand(kInsnFirstOpnd).IsFuncNameOpnd() && CGOptions::IsNoSemanticInterposition()) {
+    EmitCallWithLocalAlias(emitter, static_cast<FuncNameOperand&>(insn.GetOperand(kInsnFirstOpnd)), md->GetName());
+    return;
+  }
 
   std::string format(md->format);
   (void)emitter.Emit("\t").Emit(md->name).Emit("\t");
@@ -1026,7 +1047,7 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
         } else if (c == '{') {
           c = asmStr[++i];
           CHECK_FATAL(((c >= '0') && (c <= '9')), "Inline asm : invalid register constraint number");
-          auto val = static_cast<uint32>(c - '0');
+          auto val = static_cast<uint32>(char(c)) - static_cast<uint32>(char('0'));
           if (asmStr[i + 1] >= '0' && asmStr[i + 1] <= '9') {
             val = val * kDecimalMax + static_cast<uint32>(char(asmStr[++i])) - static_cast<uint32>(char('0'));
           }

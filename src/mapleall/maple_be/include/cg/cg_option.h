@@ -84,6 +84,12 @@ class CGOptions {
     kLevel2 = 3,
   };
 
+  enum PICMode : uint8 {
+    kClose = 0,
+    kSmallMode = 1,
+    kLargeMode = 2,
+  };
+
   enum ABIType : uint8 {
     kABIHard,
     kABISoft,
@@ -199,6 +205,10 @@ class CGOptions {
 
   bool GeneratePositionIndependentExecutable() const {
     return (options & kGenPie) != 0;
+  }
+
+  bool GeneratePositionIndependentCode() const {
+    return (options & kGenPic) != 0;
   }
 
   bool GenerateVerboseAsm() const {
@@ -616,6 +626,10 @@ class CGOptions {
     return doCGSSA && !flavorLmbc;
   }
 
+  static void EnableIPARA() {
+    doIPARA = true;
+  }
+
   static void DisableIPARA() {
     doIPARA = false;
   }
@@ -938,16 +952,52 @@ class CGOptions {
     return exclusiveEH;
   }
 
-  static void EnablePIC() {
-    doPIC = true;
+  static uint8 GetPIEMode() {
+    return pieMode;
   }
 
-  static void DisablePIC() {
-    doPIC = false;
+  static void SetPIEMode(uint8 mode) {
+    pieMode = mode;
+  }
+
+  static bool IsPIE() {
+    return pieMode > kClose;
+  }
+
+  static uint8 GetPICMode() {
+    return picMode;
+  }
+
+  static void SetPICMode(uint8 mode) {
+    picMode = mode;
   }
 
   static bool IsPIC() {
-    return doPIC;
+    return picMode > kClose;
+  }
+
+  void SetPICOptionHelper(CGOptions::PICMode mode) {
+    SetPICMode(mode);
+    SetOption(CGOptions::kGenPic);
+  }
+
+  void SetPIEOptionHelper(CGOptions::PICMode mode) {
+    SetPIEMode(mode);
+    SetOption(CGOptions::kGenPie);
+    /* Enable fpie will also set fpic to be enabled. */
+    SetPICOptionHelper(mode);
+  }
+
+  static void EnableNoSemanticInterposition() {
+    noSemanticInterposition = true;
+  }
+
+  static void DisableNoSemanticInterposition() {
+    noSemanticInterposition = false;
+  }
+
+  static bool IsNoSemanticInterposition() {
+    return noSemanticInterposition;
   }
 
   static void EnableNoDupBB() {
@@ -1298,6 +1348,14 @@ class CGOptions {
     return liteProfile;
   }
 
+  static void SetFunctionPriority(std::string funcPriorityfile) {
+    functionProrityFile = funcPriorityfile;
+  }
+
+  static std::string GetFunctionPriority() {
+    return functionProrityFile;
+  }
+
   static void SetLitePgoOutputFunction(std::string iofile) {
     litePgoOutputFunction = iofile;
   }
@@ -1366,7 +1424,9 @@ class CGOptions {
   static bool dumpOptimizeCommonLog;
   static bool checkArrayStore;
   static bool exclusiveEH;
-  static bool doPIC;
+  static uint8 picMode;
+  static uint8 pieMode;
+  static bool noSemanticInterposition;
   static bool noDupBB;
   static bool noCalleeCFI;
   static bool emitCyclePattern;
@@ -1425,6 +1485,7 @@ class CGOptions {
   static std::string litePgoOutputFunction;
   static std::string instrumentationWhiteList;
   static std::string liteProfile;
+  static std::string functionProrityFile;
 };
 }  /* namespace maplebe */
 

@@ -21,7 +21,11 @@
 namespace opts::cg {
 
 extern maplecl::Option<bool> pie;
+extern maplecl::Option<bool> fpie;
 extern maplecl::Option<bool> fpic;
+extern maplecl::Option<bool> fPIE;
+extern maplecl::Option<bool> fPIC;
+extern maplecl::Option<bool> fnoSemanticInterposition;
 extern maplecl::Option<bool> verboseAsm;
 extern maplecl::Option<bool> verboseCg;
 extern maplecl::Option<bool> maplelinker;

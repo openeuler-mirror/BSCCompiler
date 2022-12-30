@@ -21,17 +21,37 @@
 
 namespace opts::cg {
 
-maplecl::Option<bool> pie({"-fPIE", "--pie", "-pie"},
-                          "  --pie                       \tGenerate position-independent executable\n"
+maplecl::Option<bool> fpie({"-fpie", "--fpie"},
+                          "  --fpie                          \tGenerate position-independent executable in small mode\n"
                           "  --no-pie\n",
                           {cgCategory, driverCategory, ldCategory},
                           maplecl::DisableWith("--no-pie"));
 
-maplecl::Option<bool> fpic({"-fPIC", "--fpic", "-fpic"},
-                           "  --fpic                      \tGenerate position-independent shared library\n"
-                           "  --no-fpic\n",
+maplecl::Option<bool> fPIE({"-fPIE", "--fPIE",},
+                          "  --fPIE                          \tGenerate position-independent executable in large mode\n"
+                          "  --no-pie\n",
+                          {cgCategory, driverCategory, ldCategory},
+                          maplecl::DisableWith("--no-pie"));
+
+maplecl::Option<bool> fpic({"-fpic", "--fpic"},
+                           "  --fpic                     \tGenerate position-independent shared library in small mode\n"
+                           "  --no-pic\n",
                            {cgCategory, driverCategory, ldCategory},
-                           maplecl::DisableWith("--no-fpic"));
+                           maplecl::DisableWith("--no-pic"));
+
+maplecl::Option<bool> fPIC({"-fPIC", "--fPIC"},
+                           "  --fPIC                     \tGenerate position-independent shared library in large mode\n"
+                           "  --no-pic\n",
+                           {cgCategory, driverCategory, ldCategory},
+                           maplecl::DisableWith("--no-pic"));
+
+maplecl::Option<bool> fnoSemanticInterposition({"-fno-semantic-interposition", "--fno-semantic-interposition"},
+                                               "  --fno-semantic-interposition  \tif interposition happens for "
+                                               "functions, the overwriting function will have precisely the same "
+                                               "semantics (and side effects)\n"
+                                               "  --fsemantic-interposition\n",
+                                               {cgCategory, driverCategory, ldCategory},
+                                               maplecl::DisableWith("--fsemantic-interposition"));
 
 maplecl::Option<bool> verboseAsm({"--verbose-asm"},
                                  "  --verbose-asm               \tAdd comments to asm output\n"
