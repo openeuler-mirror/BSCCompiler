@@ -28,7 +28,6 @@ const std::string kMccLoadRefV = "MCC_LoadVolatileField";
 const std::string kMccLoadRefS = "MCC_LoadRefStatic";
 const std::string kMccLoadRefVS = "MCC_LoadVolatileStaticField";
 const std::string kMccDummy = "MCC_Dummy";
-#define NOMULOPT (true)
 
 const std::string GetReadBarrierName(const Insn &insn) {
   constexpr int32 totalBarrierNamesNum = 5;
@@ -2506,8 +2505,13 @@ bool MulImmToShiftPattern::CheckCondition(Insn &insn) {
   if (immOpnd.IsNegative()) {
     return false;
   }
-  int64 immVal = immOpnd.GetValue();
-  /* 0 considered power of 2 */
+  uint64 immVal = immOpnd.GetValue();
+  if (immVal == 0) {
+    shiftVal = 0;
+    newMop = insn.GetMachineOpcode() == MOP_xmulrrr ? MOP_xmovri64 : MOP_wmovri32;
+    return true;
+  }
+  /* power of 2 */
   if ((immVal & (immVal - 1)) != 0) {
     return false;
   }
@@ -2517,26 +2521,28 @@ bool MulImmToShiftPattern::CheckCondition(Insn &insn) {
 }
 
 void MulImmToShiftPattern::Run(BB &bb, Insn &insn) {
-  if (NOMULOPT) {
-    return;
-  }
   /* mov x0,imm and mul to shift */
   if (!CheckCondition(insn)) {
     return;
   }
   auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  ImmOperand &shiftOpnd = aarch64CGFunc->CreateImmOperand(shiftVal, k32BitSize, false);
-  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd),
-                                                      insn.GetOperand(kInsnSecondOpnd), shiftOpnd);
-  bb.ReplaceInsn(insn, newInsn);
+  ImmOperand &immOpnd = aarch64CGFunc->CreateImmOperand(shiftVal, k32BitSize, false);
+  Insn *newInsn;
+  if (newMop == MOP_xmovri64 || newMop == MOP_wmovri32) {
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd), immOpnd);
+  } else {
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd),
+                                                   insn.GetOperand(kInsnSecondOpnd), immOpnd);
+  }
+  bb.ReplaceInsn(insn, *newInsn);
   /* update ssa info */
-  ssaInfo->ReplaceInsn(insn, newInsn);
+  ssaInfo->ReplaceInsn(insn, *newInsn);
   optSuccess = true;
-  SetCurrInsn(&newInsn);
+  SetCurrInsn(newInsn);
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
     prevs.emplace_back(movInsn);
-    DumpAfterPattern(prevs, &insn, &newInsn);
+    DumpAfterPattern(prevs, &insn, newInsn);
   }
 }
 
