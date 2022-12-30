@@ -30,9 +30,11 @@ static constexpr uint32 kMaxRegParamNum = 4;
 static constexpr uint32 kMaxRegParamNum = 8;
 #endif
 
-Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, const PropConfig &config, uint32 limit)
+Prop::Prop(IRMap &irMap, Dominance &dom, Dominance &pdom, MemPool &memPool, uint32 bbvecsize, const PropConfig &config,
+           uint32 limit)
     : propLimit(limit),
       dom(dom),
+      pdom(pdom),
       irMap(irMap),
       ssaTab(irMap.GetSSATab()),
       mirModule(irMap.GetSSATab().GetModule()),
@@ -513,7 +515,7 @@ MeExpr *Prop::RehashUsingInverse(MeExpr *x) {
           newopx.SetOpnd(1, opx->GetOpnd(1));
         }
         if (opx->GetNumOpnds() > 2) {
-          if (res1 != nullptr) {
+          if (res2 != nullptr) {
             newopx.SetOpnd(2, res2);
           } else {
             newopx.SetOpnd(2, opx->GetOpnd(2));
@@ -910,6 +912,18 @@ MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
     propsPerformed++;
     return *CheckTruncation(&ivarMeExpr, &rhs);
   }
+  if (!defStmt->GetIsLive()) {
+    // That means this iassign may be transformed to other forms like dassign,
+    // try to find such dassign and prop it's lhs
+    auto *prev = defStmt->GetPrev();
+    if (!prev || !prev->GetLHS() || prev->GetRHS() != &rhs) {
+      return ivarMeExpr;
+    }
+    if (Propagatable(prev->GetLHS(), prev->GetBB(), false) == kPropNo) {
+      return ivarMeExpr;
+    }
+    return *CheckTruncation(&ivarMeExpr, prev->GetLHS());
+  }
   if (!isLfo && mirModule.IsCModule() && ivarMeExpr.GetPrimType() != PTY_agg) {
     return *CreateTmpAssignForIassignRHS(ivarMeExpr, *defStmt);
   }
@@ -1149,8 +1163,8 @@ void Prop::PropEqualExpr(const MeExpr *replacedExpr, ConstMeExpr *constExpr, BB 
     }
   }
 
-  for (const auto &bbId : dom.GetDomChildren(fromBB->GetBBId())) {
-    PropEqualExpr(replacedExpr, constExpr, irMap.GetBB(bbId));
+  for (const auto &bbId : dom.GetDomChildren(fromBB->GetID())) {
+    PropEqualExpr(replacedExpr, constExpr, irMap.GetBB(BBId(bbId)));
   }
 }
 
@@ -1245,6 +1259,7 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
               newDassign->GetChiList()->erase(lhsVar->GetOstIdx());
               ivarStmt.GetBB()->InsertMeStmtBefore(&ivarStmt, newDassign);
               ivarStmt.GetBB()->RemoveMeStmt(&ivarStmt);
+              ivarStmt.SetIsLive(false);
               lhsExpr->SetDefStmt(nullptr);
               for (auto &ostIdx2Chi : std::as_const(*newDassign->GetChiList())) {
                 auto chi = ostIdx2Chi.second;
@@ -1375,9 +1390,9 @@ void Prop::TraversalBB(BB &bb) {
     TraversalMeStmt(meStmt);
   }
 
-  auto &domChildren = dom.GetDomChildren(bb.GetBBId());
+  auto &domChildren = dom.GetDomChildren(bb.GetID());
   for (auto &childbbid : std::as_const(domChildren)) {
-    TraversalBB(*GetBB(childbbid));
+    TraversalBB(*GetBB(BBId(childbbid)));
   }
   // every vstLiveStack pop one layer to recover as before when entering BB.
   RecoverVstLiveStack();
