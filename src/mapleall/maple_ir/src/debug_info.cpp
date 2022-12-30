@@ -279,6 +279,17 @@ void DebugInfo::InitBaseTypeMap() {
   InsertBaseTypeMap(kDbgULong, "unsigned long",
                     Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_u32 : PTY_u64);
   InsertBaseTypeMap(kDbgLongDouble, "long double", PTY_f64);
+  InsertBaseTypeMap(kDbgSignedChar, "signed char", PTY_i8);
+  InsertBaseTypeMap(kDbgChar, "char", PTY_i8);
+  InsertBaseTypeMap(kDbgUnsignedChar, "unsigned char", PTY_u8);
+  InsertBaseTypeMap(kDbgUnsignedInt, "unsigned int", PTY_u32);
+  InsertBaseTypeMap(kDbgShort, "short", PTY_i16);
+  InsertBaseTypeMap(kDbgInt, "int", PTY_i32);
+  InsertBaseTypeMap(kDbgLongLong, "long long", PTY_i64);
+  InsertBaseTypeMap(kDbgInt128, "__int128", PTY_i128);
+  InsertBaseTypeMap(kDbgUnsignedShort, "unsigned short", PTY_u16);
+  InsertBaseTypeMap(kDbgUnsignedLongLong, "unsigned long long", PTY_u64);
+  InsertBaseTypeMap(kDbgUnsignedInt128, "unsigned __int128", PTY_u128);
 }
 
 void DebugInfo::SetupCU() {
@@ -324,10 +335,10 @@ void DebugInfo::AddScopeDie(MIRScope *scope) {
   }
 
   // process type alias
-  HandleTypeAlias(scope);
+  HandleTypeAlias(*scope);
 
   // process alias
-  AddAliasDies(scope, isLocal);
+  AddAliasDies(*scope, isLocal);
 
   if (scope->GetSubScopes().size() > 0) {
     // process subScopes
@@ -385,13 +396,13 @@ DBGDie *DebugInfo::GetOrCreateTypeByNameDie(const MIRType &type) {
   return die;
 }
 
-void DebugInfo::HandleTypeAlias(MIRScope *scope) {
-  const MIRTypeAlias *typeAlias = scope->GetTypeAlias();
+void DebugInfo::HandleTypeAlias(MIRScope &scope) {
+  const MIRTypeAlias *typeAlias = scope.GetTypeAlias();
   if (typeAlias == nullptr) {
     return;
   }
 
-  if (scope->IsLocal()) {
+  if (scope.IsLocal()) {
     for (auto &i : typeAlias->GetTypeAliasMap()) {
       uint32 tid = i.second.GetIdx();
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tid);
@@ -429,13 +440,25 @@ void DebugInfo::HandleTypeAlias(MIRScope *scope) {
   }
 }
 
-void DebugInfo::AddAliasDies(MIRScope *scope, bool isLocal) {
+void DebugInfo::AddAliasDies(MIRScope &scope, bool isLocal) {
   MIRFunction *func = GetCurFunction();
-  for (auto &i : scope->GetAliasVarMap()) {
+  const std::string &funcName = func == nullptr ? "" : func->GetName();
+  GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
+  for (auto &i : scope.GetAliasVarMap()) {
     // maple var and die
     MIRSymbol *mplVar = nullptr;
     DBGDie *mplDie = nullptr;
     GStrIdx mplIdx = i.second.mplStrIdx;
+    /* Update return type with function alias type. */
+    if (!i.second.isLocal && mplIdx == strIdx) {
+      mplVar = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(mplIdx);
+      mplDie = GetFuncDie(func);
+      DBGDie *typeDie = mplVar == nullptr ? nullptr : GetAliasVarTypeDie(i.second, mplVar->GetTyIdx());
+      if (mplDie != nullptr && typeDie != nullptr) {
+        (void)mplDie->SetAttr(DW_AT_type, typeDie->GetId());
+      }
+      continue;
+    }
     if (i.second.isLocal) {
       mplVar = func->GetSymTab()->GetSymbolFromStrIdx(mplIdx);
       mplDie = GetLocalDie(mplIdx);
@@ -581,7 +604,7 @@ void DebugInfo::BuildDebugInfoGlobalSymbols() {
 void DebugInfo::BuildDebugInfoFunctions() {
   for (auto func : GlobalTables::GetFunctionTable().GetFuncTable()) {
     // the first one in funcTable is nullptr
-    if (!func) {
+    if (!func || func->GetAttr(FUNCATTR_delete)) {
       continue;
     }
     SetCurFunction(func);
@@ -612,7 +635,7 @@ void DebugInfo::BuildDebugInfo() {
   BuildDebugInfoEnums();
 
   // setup debug info for global type alias
-  HandleTypeAlias(module->GetScope());
+  HandleTypeAlias(*module->GetScope());
 
   // containner types
   BuildDebugInfoContainers();
@@ -1626,8 +1649,9 @@ void DebugInfo::BuildDieTree() {
   }
 }
 
-DBGDie *DebugInfo::GetDie(const MIRFunction *func) {
-  uint32 id = stridxDieIdMap[func->GetNameStrIdx().GetIdx()];
+DBGDie *DebugInfo::GetFuncDie(const MIRFunction *func, bool isDeclDie) {
+  uint32 id = isDeclDie ? stridxDieIdMap[func->GetNameStrIdx().GetIdx()] :
+                          funcDefStrIdxDieIdMap[func->GetNameStrIdx().GetIdx()];
   if (id != 0) {
     return idDieMap[id];
   }

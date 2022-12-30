@@ -21,6 +21,7 @@
 #include "mir_builder.h"
 #include "cfg_primitive_types.h"
 #include "string_utils.h"
+#include "triple.h"
 #if MIR_FEATURE_FULL
 
 namespace maple {
@@ -193,21 +194,53 @@ bool NeedCvtOrRetype(PrimType origin, PrimType compared) {
          IsSignedInteger(origin) != IsSignedInteger(compared);
 }
 
-#if TARGX86_64 || TARGAARCH64
-#if ILP32
-#define POINTER_SIZE 4
-#define POINTER_P2SIZE 2
+uint8 GetPointerSize() {
+#if TARGX86 || TARGARM32 || TARGVM
+  return 4;
+#elif TARGX86_64
+  return 8;
+#elif TARGAARCH64
+  ASSERT(Triple::GetTriple().GetEnvironment() != Triple::UnknownEnvironment,
+         "Triple must be initialized before using");
+  uint8 size = (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? 4 : 8;
+  return size;
 #else
-#define POINTER_SIZE 8
-#define POINTER_P2SIZE 3
+  #error "Unsupported target"
 #endif
-#elif TARGX86 || TARGARM32 || TARGVM
-#define POINTER_SIZE 4
-#define POINTER_P2SIZE 2
+}
+
+uint8 GetP2Size() {
+#if TARGX86 || TARGARM32 || TARGVM
+  return 2;
+#elif TARGX86_64
+  return 3;
+#elif TARGAARCH64
+  ASSERT(Triple::GetTriple().GetEnvironment() != Triple::UnknownEnvironment,
+         "Triple must be initialized before using");
+  uint8 size = (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? 2 : 3;
+  return size;
+#else
+  #error "Unsupported target"
 #endif
+}
+
+PrimType GetLoweredPtrType() {
+#if TARGX86 || TARGARM32 || TARGVM
+  return PTY_a32;
+#elif TARGX86_64
+  return PTY_a64;
+#elif TARGAARCH64
+  ASSERT(Triple::GetTriple().GetEnvironment() != Triple::UnknownEnvironment,
+         "Triple must be initialized before using");
+  auto pty = (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? PTY_a32 : PTY_a64;
+  return pty;
+#else
+  #error "Unsupported target"
+#endif
+}
 
 PrimType GetExactPtrPrimType() {
-  return (POINTER_SIZE == k8BitSize) ? PTY_a64 : PTY_a32;
+  return (GetPointerSize() == 8) ? PTY_a64 : PTY_a32;
 }
 
 // answer in bytes; 0 if unknown
@@ -218,7 +251,7 @@ uint32 GetPrimTypeSize(PrimType primType) {
       return k0BitSize;
     case PTY_ptr:
     case PTY_ref:
-      return POINTER_SIZE;
+      return GetPointerSize();
     case PTY_u1:
     case PTY_i8:
     case PTY_u8:
@@ -284,7 +317,7 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
   switch (primType) {
     case PTY_ptr:
     case PTY_ref:
-      return POINTER_P2SIZE;
+      return GetP2Size();
     case PTY_u1:
     case PTY_i8:
     case PTY_u8:
@@ -434,7 +467,6 @@ PrimType GetVecElemPrimType(PrimType primType) {
     default:
       return PTY_begin; // not a vector type
   }
-  return PTY_begin; // not a vector type
 }
 
 // return the signed version that has the same size
@@ -1265,6 +1297,7 @@ size_t MIRStructType::GetSize() const {
         size = fldSize;
       }
     }
+    size = RoundUp(size, GetAlign());
     return size;
   }
   // since there may be bitfields, perform a layout process for the fields
@@ -1278,7 +1311,12 @@ size_t MIRStructType::GetSize() const {
       if (byteOfst * k8BitSize < bitOfst) {
         byteOfst = (bitOfst >> shiftNum) + 1;
       }
-      byteOfst = RoundUp(byteOfst, std::max(fieldType->GetAlign(), tfap.second.GetAlign()));
+      uint32 fieldAlignBytes = std::max(fieldType->GetAlign(), tfap.second.GetAlign());
+      if (GetTypeAttrs().IsPacked() || tfap.second.IsPacked()) {
+        uint32 packBytes = tfap.second.IsPacked() ? 1 : GetTypeAttrs().GetPack();
+        fieldAlignBytes = std::min(fieldAlignBytes, packBytes);
+      }
+      byteOfst = RoundUp(byteOfst, fieldAlignBytes);
       byteOfst += fieldType->GetSize();
       bitOfst = byteOfst * k8BitSize;
     } else {
@@ -1287,10 +1325,12 @@ size_t MIRStructType::GetSize() const {
         bitOfst = RoundUp(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()));
         byteOfst = bitOfst >> shiftNum;
       } else {
-        if (RoundDown(bitOfst + bitfType->GetFieldSize() - 1, GetPrimTypeBitSize(bitfType->GetPrimType())) !=
-            RoundDown(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()))) {
+        // If current bitfield is packed, add bits of bitfield directly and finally consider to align by pack
+        // until when handling non-bitfield
+        if ((!GetTypeAttrs().IsPacked() && !tfap.second.IsPacked()) &&
+            (RoundDown(bitOfst + bitfType->GetFieldSize() - 1, GetPrimTypeBitSize(bitfType->GetPrimType())) !=
+            RoundDown(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType())))) {
           bitOfst = RoundUp(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()));
-          byteOfst = bitOfst >> shiftNum;
         }
         bitOfst += bitfType->GetFieldSize();
         byteOfst = bitOfst >> shiftNum;
@@ -1674,7 +1714,7 @@ bool MIRFuncType::EqualTo(const MIRType &type) const {
           pType.retAttrs == retAttrs);
 }
 
-static bool TypeCompatible(TyIdx typeIdx1, TyIdx typeIdx2) {
+static bool TypeCompatible(const TyIdx &typeIdx1, const TyIdx &typeIdx2) {
   if (typeIdx1 == typeIdx2) {
     return true;
   }
@@ -2007,7 +2047,8 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
     uint32 fieldBitSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
     size_t fieldTypeSize = fieldType->GetSize();
     uint32 fieldTypeSizeBits = static_cast<uint32>(fieldTypeSize) * bitsPerByte;
-    auto originAlign = fieldType->GetAlign();
+    auto originAlign =
+        fieldType->GetKind() == kTypeBitField ? GetPrimTypeSize(fieldType->GetPrimType()) : fieldType->GetAlign();
     uint32 fieldAlign = fieldAttr.IsPacked() ? 1 : std::min(GetTypeAttrs().GetPack(), originAlign);
     auto fieldAlignBits = fieldAlign * bitsPerByte;
     // case 1 : bitfield (including zero-width bitfield);
@@ -2245,11 +2286,11 @@ bool MIRPtrType::IsUnsafeType() const {
 }
 
 bool MIRPtrType::IsVoidPointer() const {
-  return GlobalTables::GetTypeTable().GetVoidPtr() == this;
+  return pointedTyIdx == PTY_void;
 }
 
-size_t MIRPtrType::GetSize() const { return POINTER_SIZE; }
-uint32 MIRPtrType::GetAlign() const { return POINTER_SIZE; }
+size_t MIRPtrType::GetSize() const { return GetPointerSize(); }
+uint32 MIRPtrType::GetAlign() const { return GetPointerSize(); }
 
 TyIdxFieldAttrPair MIRPtrType::GetPointedTyIdxFldAttrPairWithFieldID(FieldID fldId) const {
   if (fldId == 0) {

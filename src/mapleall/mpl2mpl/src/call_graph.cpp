@@ -17,6 +17,7 @@
 #include "option.h"
 #include "retype.h"
 #include "string_utils.h"
+#include "inline_summary.h"
 
 //                   Call Graph Analysis
 // This phase is a foundation phase of compilation. This phase build
@@ -69,8 +70,14 @@ const std::string CallInfo::GetCallTypeName() const {
 }
 
 void CallInfo::Dump() const {
-  LogInfo::MapleLogger() << caller->GetName() << "->" << callee->GetName() << " (id: " << id << ", callStmtId: "
-      << callStmt->GetStmtID() << ")" << std::endl;
+  if (caller->GetInlineSummary()) {
+    LogInfo::MapleLogger() << "<" << caller->GetInlineSummary()->GetStaticInsns() << ">";
+  }
+  LogInfo::MapleLogger() << caller->GetName() << "->" << callee->GetName();
+  if (callee->GetInlineSummary()) {
+    LogInfo::MapleLogger() << "<" << callee->GetInlineSummary()->GetStaticInsns() << ">";
+  }
+  LogInfo::MapleLogger() << "/id:" << id;
 }
 
 const char *GetInlineFailedStr(InlineFailedCode code) {
@@ -93,6 +100,37 @@ InlineFailedType GetInlineFailedType(InlineFailedCode code) {
 #undef DEF_IF
   ASSERT(static_cast<uint32>(code) < static_cast<uint32>(kIFC_End), "out of range");
   return inlineFailedTypeTable[code];
+}
+
+// Functions that is available externally are never emitted into the object file. They exist to allow
+// inlining and other optimizations to take place given knownledge of the definition.
+bool IsAvailableExternally(const MIRFunction &func) {
+  if (func.IsStatic()) {
+    return false;
+  }
+  // An inline non-static function without declaration dose not provide external definition
+  // for the function and does not forbid an external definition in another translation unit.
+  // So we should delete it from current translation unit.
+  if (func.IsInline() && !func.GetAttr(FUNCATTR_gnu_inline) && !func.IsExtern()) {
+    return true;
+  }
+  // If the function is declared extern gnu_inline, then this definition of the function is used only for inlining.
+  // In no case is the function compiled as a standalone function, not even if you take its address explicitly.
+  if (IsExternGnuInline(func)) {
+    return true;
+  }
+  return false;
+}
+
+bool FuncMustBeDeleted(const MIRFunction &func) {
+  return IsAvailableExternally(func);
+}
+
+bool FuncMustBeEmitted(const MIRFunction &func) {
+  if (func.GetAttr(FUNCATTR_gnu_inline)) {
+    return !func.IsExtern();  // Don't be surprised, this is semantics of the GNU legacy inlining extension to C89
+  }
+  return func.IsExtern();
 }
 
 const std::string CallInfo::GetCalleeName() const {
@@ -1803,10 +1841,11 @@ void CallGraph::RemoveFileStaticRootNodes() {
                [](const CGNode *root) {
     // root means no caller, we should also make sure that root is not be used in addroffunc
     auto mirFunc = root->GetMIRFunction();
-    return root != nullptr && mirFunc != nullptr && // remove before
-    // if static functions or inline but not extern modified functions are not used anymore,
-    // they can be removed safely.
-    !root->IsAddrTaken() && (mirFunc->IsStatic() || (mirFunc->IsInline() && mirFunc->IsExtern()));
+    return root != nullptr && mirFunc != nullptr && !mirFunc->CannotRemove() && !FuncMustBeEmitted(*mirFunc) &&
+        // remove before if static functions or inline but not extern modified functions
+        // are not used anymore, and functions attribute is not ConstructorPriority
+        // or DestructorPriority, they can be removed safely.
+        (!root->IsAddrTaken() && (mirFunc->IsStatic() || (mirFunc->IsInline() && !mirFunc->IsExtern())));
   });
   for (auto *root : staticRoots) {
     // DFS delete root and its callee that is static and have no caller after root is deleted
@@ -1830,7 +1869,8 @@ void CallGraph::RemoveFileStaticSCC() {
       // If the function is not static, it may be referred in other module;
       // If the function is taken address, we should deal with this situation conservatively,
       // because we are not sure whether the func pointer may escape from this SCC
-      if (!node->GetMIRFunction()->IsStatic() || node->IsAddrTaken()) {
+      auto mirFunc = node->GetMIRFunction();
+      if (!mirFunc->IsStatic() || node->IsAddrTaken() || mirFunc->CannotRemove()) {
         canBeDel = false;
         break;
       }
@@ -1931,6 +1971,8 @@ static bool CGNodeCompare(CGNode *left, CGNode *right) {
 // is always compiled before caller. This benifits thoses optimizations
 // need interprocedure information like escape analysis.
 void CallGraph::SetCompilationFunclist() const {
+  std::set<MIRFunction*> unusedFuncSet(mirModule->GetFunctionList().begin(),
+      mirModule->GetFunctionList().end());
   mirModule->GetFunctionList().clear();
   const MapleVector<SCCNode<CGNode>*> &sccTopVec = GetSCCTopVec();
   for (MapleVector<SCCNode<CGNode>*>::const_reverse_iterator it = sccTopVec.rbegin(); it != sccTopVec.rend(); ++it) {
@@ -1941,8 +1983,13 @@ void CallGraph::SetCompilationFunclist() const {
       MIRFunction *func = node->GetMIRFunction();
       if ((func != nullptr && func->GetBody() != nullptr && !IsInIPA()) || (func != nullptr && !func->IsNative())) {
         mirModule->GetFunctionList().push_back(func);
+        (void)unusedFuncSet.erase(func);
       }
     }
+  }
+  for (auto unusedFunc : unusedFuncSet) {
+    unusedFunc->ReleaseCodeMemory();
+    unusedFunc->ReleaseMemory();
   }
 }
 
@@ -2015,5 +2062,28 @@ bool M2MIPODevirtualize::PhaseRun(maple::MIRModule &m) {
 void M2MIPODevirtualize::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<M2MKlassHierarchy>();
   aDep.SetPreservedAll();
+}
+
+bool M2MFuncDeleter::PhaseRun(maple::MIRModule &m) {
+  auto &funcList = m.GetFunctionList();
+  auto iter = funcList.begin();
+  const bool debug = TRACE_MAPLE_PHASE;
+  while (iter != funcList.end()) {
+    auto *func = *iter;
+    if (func != nullptr && FuncMustBeDeleted(*func)) {
+      if (debug) {
+        LogInfo::MapleLogger() << "[funcdeleter] delete func: " << func->GetName() << std::endl;
+      }
+      func->SetAttr(FUNCATTR_delete);
+      iter = funcList.erase(iter);
+    } else {
+      ++iter;
+    }
+  }
+  return true;
+}
+
+void M2MFuncDeleter::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.PreservedAllExcept<M2MCallGraph>();
 }
 }  // namespace maple
