@@ -195,11 +195,11 @@ class StmtInfo {
     return puIdx;
   }
 
-  const uint64 GetFrequency() const {
+  const FreqType GetFrequency() const {
     return frequency;
   }
 
-  void SetFrequency(uint64 freq) {
+  void SetFrequency(FreqType freq) {
     frequency = freq;
   }
 
@@ -234,7 +234,7 @@ class StmtInfo {
   BlockNode *currBlock = nullptr;
   MeStmt *meStmt = nullptr;
   PUIdx puIdx = kInvalidPuIdx;
-  uint64 frequency = 0;
+  FreqType frequency = 0;
   bool valid = true;
   MapleVector<uint32> hashCandidate;
   MapleUnorderedMap<StIdx, DefUsePositions> symbolDefUse;

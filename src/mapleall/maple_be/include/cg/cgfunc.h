@@ -196,7 +196,7 @@ class CGFunc {
   Insn &BuildScopeInsn(int64 id, bool isEnd);
   void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
   void GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone);
-  int32 GetFreqFromStmt(uint32 stmtId);
+  FreqType GetFreqFromStmt(uint32 stmtId);
   void GenerateInstruction();
   bool MemBarOpt(const StmtNode &membar);
   void UpdateCallBBFrequency();

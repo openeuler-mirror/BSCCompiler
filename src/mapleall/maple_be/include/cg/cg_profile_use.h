@@ -20,20 +20,20 @@
 
 namespace maplebe {
 class CgProfUse {
- public:
+  public:
 
   struct Edge {
-    BB *src;
-    BB *dst;
-    Edge *next = nullptr;  // the edge with the same src
-    uint64 frequency = 0;  // later int64_t
-    bool status = false;   // True value indicates the edge's freq is determined
-    Edge(BB *bb1, BB *bb2) : src(bb1), dst(bb2) {}
+  BB *src;
+  BB *dst;
+  Edge *next = nullptr;  // the edge with the same src
+  FreqType frequency = -1;
+  bool status = false;   // True value indicates the edge's freq is determined
+  Edge(BB *bb1, BB *bb2) : src(bb1), dst(bb2) {}
   };
 
-  CgProfUse(CGFunc &f, MemPool &mp) :
-      cgFunc(&f), memPool(&mp), alloc(&mp), allEdges(alloc.Adapter()),
-      BB2InEdges(alloc.Adapter()), BB2OutEdges(alloc.Adapter()) {}
+  CgProfUse(CGFunc &f, MemPool &mp)
+      : cgFunc(&f), memPool(&mp), alloc(&mp), allEdges(alloc.Adapter()),
+        BB2InEdges(alloc.Adapter()), BB2OutEdges(alloc.Adapter()) {}
 
   virtual ~CgProfUse() = default;
 

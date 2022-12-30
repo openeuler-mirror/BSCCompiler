@@ -60,7 +60,7 @@ void MeLoopCanon::FindHeadBBs(Dominance &dom, const BB *bb, std::map<BBId, std::
       }
     }
   }
-  const auto &domChildren = dom.GetDomChildren(bb->GetBBId());
+  const auto &domChildren = dom.GetDomChildren(bb->GetID());
   for (auto bbit = domChildren.begin(); bbit != domChildren.end(); ++bbit) {
     FindHeadBBs(dom, func.GetCfg()->GetAllBBs().at(*bbit), heads);
   }
@@ -100,7 +100,7 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     if (updateFreqs) {
       int idx = pred->GetSuccIndex(*splittedBB);
       ASSERT(idx >= 0 && idx < pred->GetSucc().size(), "sanity check");
-      uint64_t freq = pred->GetEdgeFreq(static_cast<uint32>(idx));
+      FreqType freq = pred->GetEdgeFreq(static_cast<uint32>(idx));
       mergedBB->SetFrequency(freq);
       mergedBB->PushBackSuccFreq(freq);
     }
@@ -123,7 +123,7 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     mergedBB->GetMePhiList().emplace(latchLhs->GetOstIdx(), latchPhi);
     phiIter.second->GetOpnds().push_back(latchLhs);
   }
-  uint64_t freq = 0;
+  FreqType freq = 0;
   for (BB *pred : splitList) {
     auto pos = splittedBB->GetPredIndex(*pred);
     for (auto &phiIter : std::as_const(mergedBB->GetMePhiList())) {
@@ -268,7 +268,7 @@ void MeLoopCanon::InsertExitBB(LoopDesc &loop) {
         BB *newExitBB = cfg->NewBasicBlock();
         newExitBB->SetKind(kBBFallthru);
         auto pos = succ->GetPredIndex(*curBB);
-        uint64_t freq = 0;
+        FreqType freq = 0;
         if (updateFreqs) {
           int idx = curBB->GetSuccIndex(*succ);
           ASSERT(idx >= 0 && idx < curBB->GetSuccFreq().size(), "sanity check");
@@ -329,7 +329,7 @@ void MELoopCanon::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 bool MELoopCanon::PhaseRun(maple::MeFunction &f) {
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_FATAL(irMap != nullptr, "irMap phase has problem");
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   ASSERT(dom != nullptr, "dom is null in MeDoLoopCanon::Run");
   MemPool *loopCanonMp = GetPhaseMemPool();
   bool updateFrequency = (Options::profileUse && f.GetMirFunc()->GetFuncProfData());

@@ -1559,9 +1559,9 @@ void MeCFG::CreateBasicBlocks() {
         curBB->SetBBLabel(labelIdx);
         // label node is not real node in bb, get frequency information to bb
         if (Options::profileUse && func.GetMirFunc()->GetFuncProfData()) {
-          uint64 freq = func.GetMirFunc()->GetFuncProfData()->GetStmtFreq(stmt->GetStmtID());
+          FreqType freq = func.GetMirFunc()->GetFuncProfData()->GetStmtFreq(stmt->GetStmtID());
           if (freq >= 0) {
-            curBB->SetFrequency(static_cast<uint64>(freq));
+            curBB->SetFrequency(freq);
           }
         }
         break;
@@ -1875,7 +1875,7 @@ inline void ConstructEdgeFreqForBBWith2Succs(BB &bb) {
   BB *fallthru = bb.GetSucc(0);
   BB *targetBB = bb.GetSucc(1);
   if (fallthru->GetPred().size() == 1) {
-    uint64 succ0Freq = fallthru->GetFrequency();
+    FreqType succ0Freq = fallthru->GetFrequency();
     bb.PushBackSuccFreq(succ0Freq);
     if (bb.GetFrequency() > succ0Freq) {
       bb.PushBackSuccFreq(bb.GetFrequency() - succ0Freq);
@@ -1883,7 +1883,7 @@ inline void ConstructEdgeFreqForBBWith2Succs(BB &bb) {
       bb.PushBackSuccFreq(0);
     }
   } else if (targetBB->GetPred().size() == 1) {
-    uint64 succ1Freq = targetBB->GetFrequency();
+    FreqType succ1Freq = targetBB->GetFrequency();
     if (bb.GetAttributes(kBBAttrWontExit) && bb.GetSuccFreq().size() == 1) {
       // special case: WontExitAnalysis() has pushed 0 to bb->succFreq
       bb.GetSuccFreq()[0] = bb.GetFrequency();
@@ -1962,7 +1962,7 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   }
   // add common entry and common exit
   auto *bb = *common_entry();
-  uint64_t freq = 0;
+  FreqType freq = 0;
   for (size_t i = 0; i < bb->GetSucc().size(); ++i) {
     freq += bb->GetSucc(i)->GetFrequency();
   }
@@ -2023,11 +2023,11 @@ void MeCFG::UpdateEdgeFreqWithBBFreq() {
         }
         // collect pred total except entry
         if (!bb->GetAttributes(kBBAttrIsEntry)) {
-          int64_t inputFreq = 0;
+          FreqType inputFreq = 0;
           for (auto *pred : bb->GetPred()) {
             int idx = pred->GetSuccIndex(*bb);
             ASSERT(idx >= 0 && idx < pred->GetSuccFreq().size(), "sanity check");
-            inputFreq += static_cast<int64_t>(pred->GetSuccFreq()[static_cast<uint32>(idx)]);
+            inputFreq += pred->GetSuccFreq()[static_cast<uint32>(idx)];
           }
           bb->SetFrequency(static_cast<uint32>(inputFreq));
         }
@@ -2054,7 +2054,7 @@ void MeCFG::ClearFuncFreqInfo() {
 
 // return value is 0 means pass verification, else has problem
 int MeCFG::VerifyBBFreq(bool checkFatal) {
-  int64_t entryFreq = static_cast<int64_t>(func.GetMirFunc()->GetFuncProfData()->GetFuncFrequency());
+  FreqType entryFreq = func.GetMirFunc()->GetFuncProfData()->GetFuncFrequency();
   ASSERT(entryFreq >= 0, "sanity check");
   bool entryIsZero = entryFreq == 0 ? true : false;
   for (size_t i = 2; i < bbVec.size(); ++i) {  // skip common entry and common exit
@@ -2084,14 +2084,14 @@ int MeCFG::VerifyBBFreq(bool checkFatal) {
       }
     }
     // check case 3: bb freq == sum(out edge freq)
-    uint64 succSumFreq = 0;
+    FreqType succSumFreq = 0;
     for (auto succFreq : bb->GetSuccFreq()) {
       succSumFreq += succFreq;
     }
     if (succSumFreq == bb->GetFrequency()) {
       continue;
     }
-    int64 diff = static_cast<int64>(succSumFreq - bb->GetFrequency());
+    FreqType diff = succSumFreq - bb->GetFrequency();
     diff = diff >= 0 ? diff : -diff;
     if (diff > 1) {
       if (checkFatal) {

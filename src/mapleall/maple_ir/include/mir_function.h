@@ -283,6 +283,18 @@ class MIRFunction {
     return funcAttrs.GetAttr(FUNCATTR_local);
   }
 
+  bool IsConstructorPriority() const {
+    return funcAttrs.GetAttr(FUNCATTR_constructor_priority);
+  }
+
+  bool IsDestructorPriority() const {
+    return funcAttrs.GetAttr(FUNCATTR_destructor_priority);
+  }
+
+  bool CannotRemove() const {
+    return IsConstructorPriority() || IsDestructorPriority();
+  }
+
   bool IsNoDefArgEffect() const {
     return funcAttrs.GetAttr(FUNCATTR_nodefargeffect);
   }
@@ -771,22 +783,22 @@ class MIRFunction {
     return freqFirstMap != nullptr;
   }
 
-  const MapleMap<uint32, uint64> &GetFirstFreqMap() const {
+  const MapleMap<uint32, FreqType> &GetFirstFreqMap() const {
     return *freqFirstMap;
   }
 
-  void SetFirstFreqMap(uint32 stmtID, uint64 freq) {
+  void SetFirstFreqMap(uint32 stmtID, FreqType freq) {
     if (freqFirstMap == nullptr) {
-      freqFirstMap = module->GetMemPool()->New<MapleMap<uint32, uint64>>(module->GetMPAllocator().Adapter());
+      freqFirstMap = module->GetMemPool()->New<MapleMap<uint32, FreqType>>(module->GetMPAllocator().Adapter());
     }
     (*freqFirstMap)[stmtID] = freq;
   }
 
-  const MapleMap<uint32, uint64> &GetLastFreqMap() const {
+  const MapleMap<uint32, FreqType> &GetLastFreqMap() const {
     return *freqLastMap;
   }
 
-  int64 GetFreqFromLastStmt(uint32 stmtId) const {
+  FreqType GetFreqFromLastStmt(uint32 stmtId) const {
     if (freqLastMap == nullptr) {
       return -1;
     }
@@ -796,7 +808,7 @@ class MIRFunction {
     return (*freqLastMap)[stmtId];
   }
 
-  int64 GetFreqFromFirstStmt(uint32 stmtId) const {
+  FreqType GetFreqFromFirstStmt(uint32 stmtId) const {
     if (freqFirstMap == nullptr) {
       return -1;
     }
@@ -806,9 +818,9 @@ class MIRFunction {
     return (*freqFirstMap)[stmtId];
   }
 
-  void SetLastFreqMap(uint32 stmtID, uint64 freq) {
+  void SetLastFreqMap(uint32 stmtID, FreqType freq) {
     if (freqLastMap == nullptr) {
-      freqLastMap = module->GetMemPool()->New<MapleMap<uint32, uint64>>(module->GetMPAllocator().Adapter());
+      freqLastMap = module->GetMemPool()->New<MapleMap<uint32, FreqType>>(module->GetMPAllocator().Adapter());
     }
     (*freqLastMap)[stmtID] = freq;
   }
@@ -1284,9 +1296,9 @@ class MIRFunction {
   FuncProfInfo* GetFuncProfData() const {
     return funcProfData;
   }
-  void SetStmtFreq(uint32_t stmtID, uint64_t freq) {
+  void SetStmtFreq(uint32_t stmtID, FreqType freq) {
     ASSERT((funcProfData != nullptr && freq > 0), "nullptr check");
-    funcProfData->SetStmtFreq(stmtID, static_cast<int64_t>(freq));
+    funcProfData->SetStmtFreq(stmtID, freq);
   }
 
   void SetMayWriteToAddrofStack() {
@@ -1345,8 +1357,8 @@ class MIRFunction {
   MIRInfoVector info{module->GetMPAllocator().Adapter()};
   MapleVector<bool> infoIsString{module->GetMPAllocator().Adapter()};  // tells if an entry has string value
   MIRScope *scope = nullptr;
-  MapleMap<uint32, uint64> *freqFirstMap = nullptr;  // save bb frequency in its first_stmt, key is stmtId
-  MapleMap<uint32, uint64> *freqLastMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
+  MapleMap<uint32, FreqType> *freqFirstMap = nullptr;  // save bb frequency in its first_stmt, key is stmtId
+  MapleMap<uint32, FreqType> *freqLastMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
   MapleSet<uint32> referedPregs{module->GetMPAllocator().Adapter()};
   bool referedRegsValid = false;
   bool hasVlaOrAlloca = false;

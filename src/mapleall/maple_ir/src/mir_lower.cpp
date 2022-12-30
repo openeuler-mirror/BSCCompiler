@@ -157,9 +157,9 @@ void MIRLower::CreateBrFalseStmt(BlockNode &blk, const IfStmtNode &ifStmt) {
   // set stmtfreqs
   if (GetFuncProfData()) {
     ASSERT(GetFuncProfData()->GetStmtFreq(ifStmt.GetThenPart()->GetStmtID()) >= 0, "sanity check");
-    int64_t freq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(ifStmt.GetStmtID()) -
-        GetFuncProfData()->GetStmtFreq(ifStmt.GetThenPart()->GetStmtID()));
-    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), static_cast<uint64_t>(freq));
+    FreqType freq = GetFuncProfData()->GetStmtFreq(ifStmt.GetStmtID()) -
+        GetFuncProfData()->GetStmtFreq(ifStmt.GetThenPart()->GetStmtID());
+    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), freq);
   }
 }
 
@@ -171,9 +171,9 @@ void MIRLower::CreateBrTrueStmt(BlockNode &blk, const IfStmtNode &ifStmt) {
   // set stmtfreqs
   if (GetFuncProfData()) {
     ASSERT(GetFuncProfData()->GetStmtFreq(ifStmt.GetElsePart()->GetStmtID()) >= 0, "sanity check");
-    int64_t freq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(ifStmt.GetStmtID()) -
-        GetFuncProfData()->GetStmtFreq(ifStmt.GetElsePart()->GetStmtID()));
-    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), static_cast<uint64_t>(freq));
+    FreqType freq = GetFuncProfData()->GetStmtFreq(ifStmt.GetStmtID()) -
+        GetFuncProfData()->GetStmtFreq(ifStmt.GetElsePart()->GetStmtID());
+    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), freq);
   }
 }
 
@@ -383,10 +383,10 @@ BlockNode *MIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   lableStmt->SetLabelIdx(lalbeIdx);
   blk->AddStatement(lableStmt);
   if (GetFuncProfData()) {
-    int64_t freq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) -
-        GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID()));
+    FreqType freq = GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) -
+        GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID());
     ASSERT(freq >= 0, "sanity check");
-    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), static_cast<uint64_t>(freq));
+    GetFuncProfData()->SetStmtFreq(lableStmt->GetStmtID(), freq);
   }
   return blk;
 }
@@ -403,11 +403,11 @@ BlockNode *MIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
 BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   ASSERT(doloop.GetDoBody() != nullptr, "nullptr check");
   doloop.SetDoBody(LowerBlock(*doloop.GetDoBody()));
-  int64_t doloopnodeFreq = 0;
-  int64_t bodynodeFreq = 0;
+  FreqType doloopnodeFreq = 0;
+  FreqType bodynodeFreq = 0;
   if (GetFuncProfData()) {
-    doloopnodeFreq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(doloop.GetStmtID()));
-    bodynodeFreq = static_cast<int64_t>(GetFuncProfData()->GetStmtFreq(doloop.GetDoBody()->GetStmtID()));
+    doloopnodeFreq = GetFuncProfData()->GetStmtFreq(doloop.GetStmtID());
+    bodynodeFreq = GetFuncProfData()->GetStmtFreq(doloop.GetDoBody()->GetStmtID());
     if (doloopnodeFreq < bodynodeFreq) {
       doloopnodeFreq = bodynodeFreq;
     }
@@ -432,7 +432,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
     blk->AddStatement(startDassign);
   }
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(blk->GetLast()->GetStmtID(), static_cast<uint64_t>(doloopnodeFreq - bodynodeFreq));
+    GetFuncProfData()->SetStmtFreq(blk->GetLast()->GetStmtID(), doloopnodeFreq - bodynodeFreq);
   }
   auto *brFalseStmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
   brFalseStmt->SetOpnd(doloop.GetCondExpr(), 0);
@@ -442,7 +442,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   blk->AddStatement(brFalseStmt);
   // udpate stmtFreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(brFalseStmt->GetStmtID(), static_cast<uint64_t>(doloopnodeFreq - bodynodeFreq));
+    GetFuncProfData()->SetStmtFreq(brFalseStmt->GetStmtID(), doloopnodeFreq - bodynodeFreq);
   }
   LabelIdx bodyLabelIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(bodyLabelIdx);
@@ -451,7 +451,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   blk->AddStatement(labelStmt);
   // udpate stmtFreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(labelStmt->GetStmtID(), static_cast<uint64_t>(bodynodeFreq));
+    GetFuncProfData()->SetStmtFreq(labelStmt->GetStmtID(), bodynodeFreq);
   }
   blk->AppendStatementsFromBlock(*doloop.GetDoBody());
   if (doloop.IsPreg()) {
@@ -487,14 +487,14 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   blk->AddStatement(brTrueStmt);
   // udpate stmtFreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(brTrueStmt->GetStmtID(), static_cast<uint64_t>(bodynodeFreq));
+    GetFuncProfData()->SetStmtFreq(brTrueStmt->GetStmtID(), bodynodeFreq);
   }
   labelStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   labelStmt->SetLabelIdx(lIdx);
   blk->AddStatement(labelStmt);
   // udpate stmtFreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(labelStmt->GetStmtID(), static_cast<uint64_t>(doloopnodeFreq - bodynodeFreq));
+    GetFuncProfData()->SetStmtFreq(labelStmt->GetStmtID(), doloopnodeFreq - bodynodeFreq);
   }
   return blk;
 }

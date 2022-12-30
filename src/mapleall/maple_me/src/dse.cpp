@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "dse.h"
+#include "call_graph.h"
 #include "ssa_mir_nodes.h"
 #include "ver_symbol.h"
 #include "ssa.h"
@@ -234,7 +235,7 @@ void DSE::OnRemoveBranchStmt(BB &bb, const StmtNode &stmt) {
     }
     bb.SetKind(kBBFallthru);
     if (Options::profileUse && !bb.GetSuccFreq().empty()) {
-      int64_t succ0Freq = bb.GetSuccFreq()[0];
+      FreqType succ0Freq = bb.GetSuccFreq()[0];
       bb.GetSuccFreq().resize(1);
       bb.SetSuccFreq(0, bb.GetFrequency());
       ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
@@ -258,7 +259,7 @@ void DSE::OnRemoveBranchStmt(BB &bb, const StmtNode &stmt) {
     }
     // merge all frequency of condition goto bb to fallthru succ
     if (Options::profileUse && !bb.GetSuccFreq().empty()) {
-      int64_t succ0Freq = bb.GetSuccFreq()[0];
+      FreqType succ0Freq = bb.GetSuccFreq()[0];
       bb.GetSuccFreq().resize(1);
       bb.SetSuccFreq(0, bb.GetFrequency());
       ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
@@ -313,7 +314,7 @@ bool DSE::NeedNotNullCheck(BaseNode &node, const BB &bb) {
     if (!IsStmtRequired(*(item.first))) {
       continue;
     }
-    if (postDom.Dominate(*(item.second), bb)) {
+    if (dom.Dominate(*(item.second), bb)) {
       return false;
     }
   }
@@ -380,8 +381,8 @@ void DSE::MarkLastBranchStmtInPredBBRequired(const BB &bb) {
 }
 
 void DSE::MarkLastBranchStmtInPDomBBRequired(const BB &bb) {
-  ASSERT(bb.GetBBId() < postDom.GetPdomFrontierSize(), "index out of range in DSE::MarkBBLive ");
-  for (BBId pdomBBID : postDom.GetPdomFrontierItem(bb.GetBBId())) {
+  ASSERT(bb.GetBBId() < postDom.GetDomFrontierSize(), "index out of range in DSE::MarkBBLive ");
+  for (auto pdomBBID : postDom.GetDomFrontier(bb.GetID())) {
     const BB *cdBB = bbVec[pdomBBID];
     CHECK_FATAL(cdBB != nullptr, "cd_bb is null in DSE::MarkLastBranchStmtInPDomBBRequired");
     if (cdBB == &bb || cdBB->IsEmpty()) {
@@ -527,6 +528,22 @@ void DSE::CollectNotNullNode(StmtNode &stmt, BB &bb) {
   }
 }
 
+void DSE::MarkIrreducibleBrRequired() {
+  StackMemPool mp(memPoolCtrler, "scc mempool");
+  MapleAllocator localAlloc(&mp);
+  std::vector<BB*> allNodes;
+  std::copy_if(bbVec.begin() + 2, bbVec.end(), std::inserter(allNodes, allNodes.end()), [](const BB *bb) {
+    return bb != nullptr;
+  });
+  MapleVector<SCCNode<BB>*> sccs(localAlloc.Adapter());
+  (void)BuildSCC(localAlloc, bbVec.size(), allNodes, false, sccs);
+  for (auto *scc : sccs) {
+    for (BB *bb : scc->GetNodes()) {
+      MarkLastBranchStmtInPDomBBRequired(*bb);
+    }
+  }
+}
+
 void DSE::CollectNotNullNode(StmtNode &stmt, BaseNode &node, BB &bb, uint8 nodeType) {
   Opcode op = node.GetOpCode();
   switch (op) {
@@ -587,6 +604,7 @@ void DSE::Init() {
 void DSE::DoDSE() {
   Init();
   MarkSpecialStmtRequired();
+  MarkIrreducibleBrRequired();
   PropagateLive();
   RemoveNotRequiredStmts();
 }

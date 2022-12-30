@@ -367,11 +367,11 @@ class BB : public BaseGraphNode {
     bbLabel = idx;
   }
 
-  uint64 GetFrequency() const {
+  FreqType GetFrequency() const {
     return frequency;
   }
 
-  void SetFrequency(uint64 f) {
+  void SetFrequency(FreqType f) {
     frequency = f;
   }
 
@@ -426,18 +426,20 @@ class BB : public BaseGraphNode {
     pred[cnt] = pp;
   }
 
-  void PushBackSuccFreq(uint64 freq) {
+  void PushBackSuccFreq(FreqType freq) {
     return succFreq.push_back(freq);
   }
 
-  MapleVector<uint64> &GetSuccFreq() {
+  MapleVector<FreqType> &GetSuccFreq() {
     return succFreq;
   }
-  void SetSuccFreq(int idx, uint64 freq) {
+
+  void SetSuccFreq(int idx, FreqType freq) {
     ASSERT(idx >= 0 && idx <= succFreq.size(), "sanity check");
     succFreq[static_cast<size_t>(idx)] = freq;
   }
-  void AddSuccFreq(uint64 freq, size_t pos = UINT32_MAX) {
+
+  void AddSuccFreq(FreqType freq, size_t pos = UINT32_MAX) {
     ASSERT((pos <= succFreq.size() || pos == UINT32_MAX), "Invalid position.");
     if (pos == UINT32_MAX) {
       succFreq.push_back(freq);
@@ -445,7 +447,6 @@ class BB : public BaseGraphNode {
       succFreq.insert(succFreq.begin() + pos, freq);
     }
   }
-
   // update edge frequency
   void UpdateEdgeFreqs(bool updateSuccFreq = true);
 
@@ -509,7 +510,7 @@ class BB : public BaseGraphNode {
     mePhiList.clear();
   }
 
-  uint64 GetEdgeFreq(const BB *bb) const {
+  FreqType GetEdgeFreq(const BB *bb) const {
     auto iter = std::find(succ.begin(), succ.end(), bb);
     CHECK_FATAL(iter != std::end(succ), "%d is not the successor of %d", bb->UintID(), this->UintID());
     CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size doesn't match succ size");
@@ -517,13 +518,13 @@ class BB : public BaseGraphNode {
     return succFreq[idx];
   }
 
-  uint64 GetEdgeFreq(size_t idx) const {
+  FreqType GetEdgeFreq(size_t idx) const {
     CHECK_FATAL(idx < succFreq.size(), "out of range in BB::GetEdgeFreq");
     CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size doesn't match succ size");
     return succFreq[idx];
   }
 
-  void SetEdgeFreq(const BB *bb, uint64 freq) {
+  void SetEdgeFreq(const BB *bb, FreqType freq) {
     auto iter = std::find(succ.begin(), succ.end(), bb);
     CHECK_FATAL(iter != std::end(succ), "%d is not the successor of %d", bb->UintID(), this->UintID());
     CHECK_FATAL(succ.size() == succFreq.size(), "succfreq size %d doesn't match succ size %d", succFreq.size(),
@@ -573,11 +574,11 @@ class BB : public BaseGraphNode {
   MapleVector<BB*> pred;  // predecessor list
   MapleVector<BB*> succ;  // successor list
   // record the edge freq from curBB to succ BB
-  MapleVector<uint64> succFreq;
+  MapleVector<FreqType> succFreq;
   MapleMap<OStIdx, PhiNode> phiList;
   MapleMap<OStIdx, MePhiNode*> mePhiList;
   MapleMap<BB*, std::vector<PiassignMeStmt*>> meVarPiList;
-  uint64 frequency = 0;
+  FreqType frequency = 0;
   BBKind kind = kBBUnknown;
   uint32 attributes = 0;
 

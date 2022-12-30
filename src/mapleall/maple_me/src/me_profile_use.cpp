@@ -80,7 +80,7 @@ void MeProfUse::InitBBEdgeInfo() {
 
 // If all input edges or output edges determined, caculate BB freq
 void MeProfUse::ComputeBBFreq(BBUseInfo &bbInfo, bool &changed) {
-  uint64 count = 0;
+  FreqType count = 0;
   if (!bbInfo.GetStatus()) {
     if (bbInfo.GetUnknownOutEdges() == 0) {
       count = SumEdgesCount(bbInfo.GetOutEdges());
@@ -149,7 +149,7 @@ void MeProfUse::ComputeEdgeFreq() {
  * this used to set the edge count for the unknown edge
  * ensure only one unkown edge in the edges
  */
-void MeProfUse::SetEdgeCount(MapleVector<BBUseEdge*> &edges, uint64 value) {
+void MeProfUse::SetEdgeCount(MapleVector<BBUseEdge*> &edges, FreqType value) {
   for (const auto &e : edges) {
     if (!e->GetStatus()) {
       e->SetCount(value);
@@ -163,7 +163,7 @@ void MeProfUse::SetEdgeCount(MapleVector<BBUseEdge*> &edges, uint64 value) {
   CHECK(false, "can't find unkown edge");
 }
 
-void MeProfUse::SetEdgeCount(BBUseEdge &edge, size_t value) {
+void MeProfUse::SetEdgeCount(BBUseEdge &edge, FreqType value) {
   // edge counter already valid skip
   if (edge.GetStatus()) {
     return;

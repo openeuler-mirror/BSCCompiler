@@ -298,7 +298,7 @@ bool MInline::IsHotCallSite(const MIRFunction &caller, const MIRFunction &callee
   // use maple instrument profile
   if (Options::profileUse) {
     if (!caller.GetFuncProfData()) {return false;}
-    int64_t freq = static_cast<int64_t>(caller.GetFuncProfData()->GetStmtFreq(callStmt.GetStmtID()));
+    FreqType freq = caller.GetFuncProfData()->GetStmtFreq(callStmt.GetStmtID());
     ASSERT(freq > 0, "sanity check");
     return module.GetMapleProfile()->IsHotCallSite(static_cast<uint64_t>(freq));
   }
@@ -377,6 +377,10 @@ void MInline::InlineCallsBlock(MIRFunction &func, BlockNode &enclosingBlk, BaseN
              baseNode.GetOpCode() == OP_virtualcallassigned || baseNode.GetOpCode() == OP_superclasscallassigned ||
              baseNode.GetOpCode() == OP_interfacecallassigned) {
     CallNode &callStmt = static_cast<CallNode&>(baseNode);
+    if (onlyForAlwaysInline) {
+      AlwaysInlineCallsBlockInternal(func, baseNode, changed);
+      return;
+    }
     if (SuitableForTailCallOpt(prevStmt, static_cast<StmtNode&>(baseNode), callStmt)) {
       return;
     }
@@ -523,6 +527,25 @@ void MInline::PostInline(MIRFunction &caller) {
 static inline void DumpCallsiteAndLoc(const MIRFunction &caller, const MIRFunction &callee, const CallNode &callStmt) {
   auto lineNum = callStmt.GetSrcPos().LineNum();
   LogInfo::MapleLogger() << callee.GetName() << " to " << caller.GetName() << " (line " << lineNum << ")\n";
+}
+
+void MInline::AlwaysInlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bool &changed) {
+  CallNode &callStmt = static_cast<CallNode&>(baseNode);
+  MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
+  // For performance reasons, we only inline functions marked as always_inline that must be deleted.
+  if (callee->GetAttr(FUNCATTR_always_inline) && FuncMustBeDeleted(*callee)) {
+    module.SetCurFunction(&func);
+    if (dumpDetail && dumpFunc == func.GetName()) {
+      LogInfo::MapleLogger() << "[always_inline] ";
+      DumpCallsiteAndLoc(func, *callee, callStmt);
+    }
+    auto *transformer = alloc.New<InlineTransformer>(kEarlyInline, func, *callee, callStmt, dumpDetail, cg);
+    bool inlined = transformer->PerformInline();
+    if (inlined) {
+      PostInline(func);
+    }
+    changed = (inlined ? true : changed);
+  }
 }
 
 void MInline::InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bool &changed) {
@@ -798,10 +821,17 @@ void MInline::MarkUsedSymbols(const BaseNode *baseNode) const {
 
 // Unified interface to run inline module phase.
 bool M2MInline::PhaseRun(maple::MIRModule &m) {
+  // For languages other than C, do not enable inline if no optimization level was specified or use --no-inline.
+  // But for C language, we must consider always_inline.
+  const bool skipNormalInline = (!Options::O2 || !Options::useInline);
+  if (!m.IsCModule() && skipNormalInline) {
+    return false;
+  }
   MemPool *memPool = ApplyTempMemPool();
   CallGraph *cg = GET_ANALYSIS(M2MCallGraph, m);
   CHECK_FATAL(cg != nullptr, "Expecting a valid CallGraph, found nullptr");
-  MInline mInline(m, memPool, cg);
+  const bool onlyForAlwaysInline = m.IsCModule() && skipNormalInline;
+  MInline mInline(m, memPool, cg, onlyForAlwaysInline);
   mInline.Inline();
   if (m.firstInline) {
     m.firstInline = false;

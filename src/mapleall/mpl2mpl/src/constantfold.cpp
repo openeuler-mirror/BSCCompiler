@@ -2264,7 +2264,7 @@ StmtNode *ConstantFold::SimplifyCondGoto(CondGotoNode *node) {
     ASSERT_NOT_NULL(intConst);
     if ((node->GetOpCode() == OP_brtrue && !intConst->IsZero()) ||
         (node->GetOpCode() == OP_brfalse && intConst->IsZero())) {
-      uint32 freq = mirModule->CurFunction()->GetFreqFromLastStmt(node->GetStmtID());
+      FreqType freq = mirModule->CurFunction()->GetFreqFromLastStmt(node->GetStmtID());
       GotoNode *gotoNode = mirModule->CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
       gotoNode->SetOffset(node->GetOffset());
       if (Options::profileUse && mirModule->CurFunction()->GetFuncProfData()) {
@@ -2553,6 +2553,14 @@ class ConstIntSet {
     }
   }
 
+  bool EqMax() {
+    return lower == upper && upper.IsMaxValue();
+  }
+
+  bool operator==(const ConstIntSet &s2) {
+    return (isFull == s2.isFull) && (isEmpty == s2.isEmpty) && (lower == s2.lower) && (upper == s2.upper);
+  }
+
   IntVal lower;
   IntVal upper;
   bool isFull = false;
@@ -2620,6 +2628,9 @@ std::optional<ConstIntSet> GenerateIntSet(const OpMeExpr &meExpr, PrimType type)
 
 // calculate union of two interval
 std::optional<ConstIntSet> Union(ConstIntSet s1, ConstIntSet s2) {
+  if (s1 == s2) {
+    return s1;
+  }
   std::optional<ConstIntSet> s3 = std::make_optional<ConstIntSet>();
   if (s1.isFull || s2.isFull) {
     s3->isFull = true;
@@ -2631,10 +2642,13 @@ std::optional<ConstIntSet> Union(ConstIntSet s1, ConstIntSet s2) {
   }
 
   if (s2.lower > s2.upper || s1.upper.IsMaxValue()) {
-    std::swap(s1, s2);
+    if (!s2.EqMax()) {
+      std::swap(s1, s2);
+    }
   }
 
-  if (s2.lower == s2.upper && s2.upper.IsMaxValue()) {
+  if (s2.EqMax()) {
+    // s1: l----- || l-----int_max-1
     if (s1.upper == s2.upper || s1.upper + 1 == s2.upper) {
       s3->upper = s2.upper;
       s3->lower = s1.lower;
@@ -2714,17 +2728,17 @@ MeExpr *IntSet2MeExpr(IRMap &irMap, MeExpr &value, const ConstIntSet &s) {
   auto primType = value.GetPrimType();
   auto lowerValExpr = irMap.CreateIntConstMeExpr(s.lower, primType);
   auto upperValExpr = irMap.CreateIntConstMeExpr(s.upper, primType);
-  if (s.upper == s.lower + 1) {
-    return irMap.CreateMeExprCompare(OP_eq, PTY_u1, primType, value, *lowerValExpr);
-  }
-  if (s.lower == s.upper + 1) {
-    return irMap.CreateMeExprCompare(OP_ne, PTY_u1, primType, value, *upperValExpr);
-  }
   if (s.lower.IsMinValue()) {
     return irMap.CreateMeExprCompare(OP_lt, PTY_u1, primType, value, *upperValExpr);
   }
   if (s.upper.IsMaxValue()) {
     return irMap.CreateMeExprCompare(OP_ge, PTY_u1, primType, value, *lowerValExpr);
+  }
+  if (s.upper == s.lower + 1) {
+    return irMap.CreateMeExprCompare(OP_eq, PTY_u1, primType, value, *lowerValExpr);
+  }
+  if (s.lower == s.upper + 1) {
+    return irMap.CreateMeExprCompare(OP_ne, PTY_u1, primType, value, *upperValExpr);
   }
   MeExpr *newValue = nullptr;
   MeExpr *newConstVal = nullptr;

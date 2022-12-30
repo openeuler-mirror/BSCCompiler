@@ -29,10 +29,10 @@ void LoopVecInfo::UpdateDoloopProfData(MIRFunction *mirFunc, DoloopNode *doLoop,
   if (!profData) {
     return;
   }
-  int64_t doloopFreq = profData->GetStmtFreq(doLoop->GetStmtID());
-  int64_t tempFreq;
+  FreqType doloopFreq = profData->GetStmtFreq(doLoop->GetStmtID());
+  FreqType tempFreq;
   BlockNode *body = doLoop->GetDoBody();
-  int64_t bodyFreq = profData->GetStmtFreq(body->GetStmtID());
+  FreqType bodyFreq = profData->GetStmtFreq(body->GetStmtID());
   if (isRemainder) {
     // update doLoop node in remainder
     tempFreq = (bodyFreq % vecLanes) + (doloopFreq - bodyFreq);

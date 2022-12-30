@@ -26,12 +26,12 @@ class BBUseEdge : public BBEdge {
       : BBEdge(src, dest, w, isCritical, isFake) {}
   virtual ~BBUseEdge() = default;
 
-  void SetCount(uint64 value) {
+  void SetCount(FreqType value) {
     countValue = value;
     valid = true;
   }
 
-  uint64 GetCount() const {
+  FreqType GetCount() const {
     return countValue;
   }
 
@@ -40,7 +40,7 @@ class BBUseEdge : public BBEdge {
   }
  private:
   bool valid = false;
-  uint64 countValue = 0;
+  FreqType countValue = 0;
 };
 
 
@@ -50,11 +50,11 @@ class BBUseInfo {
       : tmpAlloc(&tmpPool), inEdges(tmpAlloc.Adapter()), outEdges(tmpAlloc.Adapter()) {}
   virtual ~BBUseInfo() = default;
 
-  void SetCount(uint64 value) {
+  void SetCount(FreqType value) {
     countValue = value;
     valid = true;
   }
-  uint64 GetCount() const {
+  FreqType GetCount() const {
     return countValue;
   }
 
@@ -118,7 +118,7 @@ class BBUseInfo {
 
  private:
   bool valid = false;
-  uint64 countValue = 0;
+  FreqType countValue = 0;
   uint32 unknownInEdges = 0;
   uint32 unknownOutEdges = 0;
   MapleAllocator tmpAlloc;
@@ -141,8 +141,8 @@ class MeProfUse : public PGOInstrument<BBUseEdge> {
   void CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag);
  private:
   bool IsAllZero(Profile::BBInfo &result) const;
-  void SetEdgeCount(BBUseEdge &edge, size_t value);
-  void SetEdgeCount(MapleVector<BBUseEdge*> &edges, uint64 value);
+  void SetEdgeCount(BBUseEdge &edge, FreqType value);
+  void SetEdgeCount(MapleVector<BBUseEdge*> &edges, FreqType value);
   void ComputeEdgeFreq();
   void InitBBEdgeInfo();
   void ComputeBBFreq(BBUseInfo &bbInfo, bool &changed);

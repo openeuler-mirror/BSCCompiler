@@ -51,10 +51,11 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   CHECK_FATAL(whileStmt.GetBody(), "null ptr check");
   blk->AppendStatementsFromBlock(*whileStmt.GetBody());
   GotoNode *whilegotonode = mirbuilder->CreateStmtGoto(OP_goto, whilelblidx);
-  if (GetFuncProfData() && blk->GetLast()) {
-    ASSERT(GetFuncProfData()->GetStmtFreq(blk->GetLast()->GetStmtID()) >= 0,
-        "last stmt of while body should has freq");
-    GetFuncProfData()->CopyStmtFreq(whilegotonode->GetStmtID(), blk->GetLast()->GetStmtID());
+  if (GetFuncProfData()) {
+    // The last stmt in body is not reliable as it could be an end stmt of an inner loop
+    ASSERT(GetFuncProfData()->GetStmtFreq(whileStmt.GetBody()->GetStmtID()) >= 0,
+        "while body should have freq set");
+    GetFuncProfData()->CopyStmtFreq(whilegotonode->GetStmtID(), whileStmt.GetBody()->GetStmtID());
   }
   blk->AddStatement(whilegotonode);
   // create endlabel
@@ -71,10 +72,8 @@ BlockNode *PreMeMIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   endlblstmt->SetSrcPos(pos);
   blk->AddStatement(endlblstmt);
   if (GetFuncProfData()) {
-    CHECK_FATAL(GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) >=
-        GetFuncProfData()->GetStmtFreq(whilegotonode->GetStmtID()), "inconsistent profiling on while stmt");
-    int64_t freq = GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) -
-                   GetFuncProfData()->GetStmtFreq(whilegotonode->GetStmtID());
+    CHECK_FATAL(GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID()) >= 0, "while stmt's freq is not set");
+    FreqType freq = GetFuncProfData()->GetStmtFreq(whileStmt.GetStmtID());
     GetFuncProfData()->SetStmtFreq(endlblstmt->GetStmtID(), freq);
   }
   return blk;
@@ -155,8 +154,8 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     // set stmtfreqs
     if (GetFuncProfData()) {
       ASSERT(GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID()) >= 0, "sanity check");
-      int64_t freq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID()) -
-                        GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID());
+      FreqType freq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID()) -
+                         GetFuncProfData()->GetStmtFreq(ifstmt.GetThenPart()->GetStmtID());
       GetFuncProfData()->SetStmtFreq(labstmt->GetStmtID(), freq);
     }
   } else if (thenempty && !Options::profileUse && !Options::profileGen) {
@@ -192,8 +191,8 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     // set stmtfreqs
     if (GetFuncProfData()) {
       ASSERT(GetFuncProfData()->GetStmtFreq(ifstmt.GetElsePart()->GetStmtID()) > 0, "sanity check");
-      int64_t freq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID()) -
-                        GetFuncProfData()->GetStmtFreq(ifstmt.GetElsePart()->GetStmtID());
+      FreqType freq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID()) -
+                         GetFuncProfData()->GetStmtFreq(ifstmt.GetElsePart()->GetStmtID());
       GetFuncProfData()->SetStmtFreq(labstmt->GetStmtID(), freq);
     }
   } else {
@@ -244,9 +243,9 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
         if (!thenempty) {
           if (ifstmt.GetThenPart()->GetLast()->IsCondBr()) {
             // Estimate a freq within [0, ifstmt-freq] without going after further
-            uint64 ifFreq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID());
-            uint64 ifElseFreq = GetFuncProfData()->GetStmtFreq(ifstmt.GetElsePart()->GetStmtID());
-            uint64 freqDiff = (ifFreq >= ifElseFreq) ? (ifFreq - ifElseFreq) : 0;
+            FreqType ifFreq = GetFuncProfData()->GetStmtFreq(ifstmt.GetStmtID());
+            FreqType ifElseFreq = GetFuncProfData()->GetStmtFreq(ifstmt.GetElsePart()->GetStmtID());
+            FreqType freqDiff = (ifFreq >= ifElseFreq) ? (ifFreq - ifElseFreq) : 0;
             GetFuncProfData()->SetStmtFreq(gotostmt->GetStmtID(), freqDiff);
           } else {
             GetFuncProfData()->CopyStmtFreq(gotostmt->GetStmtID(), ifstmt.GetThenPart()->GetStmtID());

@@ -158,15 +158,15 @@ void MePrediction::PredEdgeDef(Edge &edge, Predictor predictor, Prediction taken
 
 void MePrediction::PredictForPostDomFrontier(const BB &bb, Predictor predictor, Prediction direction) {
   // prediction for frontier condgoto BB
-  const auto &frontier = dom->GetPdomFrontierItem(bb.GetBBId());
+  const auto &frontier = pdom->GetDomFrontier(bb.GetID());
   for (auto bbId : frontier) {
-    BB *frontBB = cfg->GetBBFromID(bbId);
+    BB *frontBB = cfg->GetBBFromID(BBId(bbId));
     if (frontBB->GetSucc().size() != 2) {  // only consider 2-way branch BB
       continue;
     }
     // find succ that leading to target return BB
     uint32 leadingRetIdx = 0;
-    if (!dom->PostDominate(bb, *frontBB->GetSucc(0))) {
+    if (!pdom->Dominate(bb, *frontBB->GetSucc(0))) {
       leadingRetIdx = 1;
     }
     auto *targetEdge = FindEdge(*frontBB, *frontBB->GetSucc(leadingRetIdx));
@@ -346,11 +346,11 @@ void MePrediction::PredictLoops() {
 }
 
 // Predict using opcode of the last statement in basic block.
-void MePrediction::PredictByOpcode(const BB *bb) {
+void MePrediction::PredictByOpcode(BB *bb) {
   if (bb == nullptr || bb->GetMeStmts().empty() || !bb->GetMeStmts().back().IsCondBr()) {
     return;
   }
-  auto &condStmt = static_cast<const CondGotoMeStmt&>(bb->GetMeStmts().back());
+  auto &condStmt = static_cast<CondGotoMeStmt&>(bb->GetMeStmts().back());
   bool isTrueBr = condStmt.GetOp() == OP_brtrue;
   MeExpr *testExpr = condStmt.GetOpnd();
   MeExpr *op0 = nullptr;
@@ -370,10 +370,16 @@ void MePrediction::PredictByOpcode(const BB *bb) {
 
   // prediction for builtin_expect
   if (condStmt.GetBranchProb() == kProbLikely) {
+    if (builtinExpectInfo != nullptr) {
+      (void)builtinExpectInfo->emplace_back(&condStmt, condStmt.GetBranchProb());
+    }
     PredEdgeDef(*jumpEdge, kPredBuiltinExpect, kTaken);
     return;
   }
   if (condStmt.GetBranchProb() == kProbUnlikely) {
+    if (builtinExpectInfo != nullptr) {
+      (void)builtinExpectInfo->emplace_back(&condStmt, condStmt.GetBranchProb());
+    }
     PredEdgeDef(*jumpEdge, kPredBuiltinExpect, kNotTaken);
     return;
   }
@@ -471,7 +477,7 @@ void MePrediction::EstimateBBProb(BB &bb) {
       }
       PredEdgeDef(*currEdge, kPredEarlyReturn, kNotTaken);
     } else if (dest != cfg->GetCommonExitBB() && dest != &bb && dom->Dominate(bb, *dest) &&
-               !dom->PostDominate(*dest, bb)) {
+               !pdom->Dominate(*dest, bb)) {
       for (const MeStmt &stmt : sigSucc->GetMeStmts()) {
         if (stmt.GetOp() == OP_call || stmt.GetOp() == OP_callassigned) {
           auto &callMeStmt = static_cast<const CallMeStmt&>(stmt);
@@ -656,8 +662,8 @@ void MePrediction::FindSCCHeaders(const SCCOfBBs &scc, std::vector<BB*> &headers
 
   uint32 rpoIdx = 0;
   for (auto *bb : dom->GetReversePostOrder()) {
-    if (inSCC[bb->GetBBId()].first) {
-      inSCC[bb->GetBBId()].second = rpoIdx++;
+    if (inSCC[bb->GetID()].first) {
+      inSCC[bb->GetID()].second = rpoIdx++;
     }
   }
 
@@ -735,7 +741,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
         return false;
       }
     }
-    uint32 freq = 0;
+    FreqType freq = 0;
     double cyclicProb = 0;
     for (BB *pred : bb.GetPred()) {
       Edge *edge = FindEdge(*pred, bb);
@@ -750,7 +756,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
       cyclicProb = 1 - std::numeric_limits<double>::epsilon();
     }
     // Floating-point numbers have precision problems, consider using integers to represent backEdgeProb?
-    bb.SetFrequency(static_cast<uint32>(freq / (1 - cyclicProb)));
+    bb.SetFrequency(static_cast<uint64>(static_cast<uint32>(freq / (1 - cyclicProb))));
   }
   // 2. calculate frequencies of bb's out edges
   if (predictDebug) {
@@ -758,7 +764,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
   }
   bbVisited[bb.GetBBId()] = true;
   uint32 tmp = 0;
-  uint32 total = 0;
+  uint64 total = 0;
   Edge *bestEdge = nullptr;
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
     Edge *edge = FindEdge(bb, *bb.GetSucc(i));
@@ -782,7 +788,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
   }
   // To ensure that the sum of out edge frequency is equal to bb frequency
   if (bestEdge != nullptr && total != bb.GetFrequency()) {
-    bestEdge->frequency += bb.GetFrequency() - total;
+    bestEdge->frequency += static_cast<uint32>(bb.GetFrequency() - total);
   }
   return true;
 }
@@ -808,11 +814,11 @@ void MePrediction::PropFreqInIrreducibleSCCs() {
     }
     // prop other BBs in the SCC by topological orde
     for (auto *curBB : dom->GetReversePostOrder()) {
-      bool inSCC = (*inSCCPtr)[curBB->GetBBId()].first;
+      bool inSCC = (*inSCCPtr)[curBB->GetID()].first;
       if (!inSCC) {
         continue;
       }
-      bool result = DoPropFreq(nullptr, &headers, *curBB);
+      bool result = DoPropFreq(nullptr, &headers, *cfg->GetBBFromID(BBId(curBB->GetID())));
       CHECK_FATAL(result, "prop freq for irreducible SCC BB failed");
     }
   }
@@ -833,7 +839,8 @@ bool MePrediction::PropFreqInFunc() {
   }
   entryBB->SetFrequency(kFreqBase);
 
-  for (auto *bb : dom->GetReversePostOrder()) {
+  for (auto *node : dom->GetReversePostOrder()) {
+    auto bb = cfg->GetBBFromID(BBId(node->GetID()));
     if (bb == entryBB) {
       continue;
     }
@@ -1009,7 +1016,7 @@ void MePrediction::VerifyFreq(const MeFunction &meFunc) {
       continue;
     }
     // bb freq == sum(out edge freq)
-    uint64 succSumFreq = 0;
+    FreqType succSumFreq = 0;
     for (auto succFreq : bb->GetSuccFreq()) {
       succSumFreq += succFreq;
     }
@@ -1023,14 +1030,26 @@ void MePrediction::VerifyFreq(const MeFunction &meFunc) {
 }
 
 // Prediction will sort meLoop
-void MePrediction::RebuildFreq(MeFunction &meFunc, Dominance &dom, IdentifyLoops &meLoop) {
+void MePrediction::RebuildFreq(MeFunction &meFunc, Dominance &newDom, Dominance &newPdom, IdentifyLoops &newMeLoop,
+    BuiltinExpectInfo *expectInfo) {
   meFunc.SetProfValid(false);
   StackMemPool stackMp(memPoolCtrler, "");
-  MePrediction predict(stackMp, stackMp, meFunc, dom, meLoop, *meFunc.GetIRMap());
+  MePrediction predict(stackMp, stackMp, meFunc, newDom, newPdom, newMeLoop, *meFunc.GetIRMap());
   if (MeOption::dumpFunc == meFunc.GetName()) {
     predict.SetPredictDebug(true);
   }
+  if (expectInfo != nullptr) {
+    predict.SetBuiltinExpectInfo(*expectInfo);
+  }
   predict.Run();
+}
+
+void MePrediction::RecoverBuiltinExpectInfo(const BuiltinExpectInfo &expectInfo) {
+  for (auto &pair : expectInfo) {
+    CondGotoMeStmt *condStmt = pair.first;
+    int32 branchProb = pair.second;
+    condStmt->SetBranchProb(branchProb);
+  }
 }
 
 void Edge::Dump(bool dumpNext) const {
@@ -1051,13 +1070,16 @@ void MEPredict::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 bool MEPredict::PhaseRun(maple::MeFunction &f) {
   auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(hMap);
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
   CHECK_NULL_FATAL(dom);
+  auto pdom = dominancePhase->GetPdomResult();
+  CHECK_NULL_FATAL(pdom);
   auto *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
   CHECK_NULL_FATAL(meLoop);
 
   MemPool *mePredMp = GetPhaseMemPool();
-  auto *mePredict = mePredMp->New<MePrediction>(*mePredMp, *ApplyTempMemPool(), f, *dom, *meLoop, *hMap);
+  auto *mePredict = mePredMp->New<MePrediction>(*mePredMp, *ApplyTempMemPool(), f, *dom, *pdom, *meLoop, *hMap);
   if (DEBUGFUNC_NEWPM(f)) {
     mePredict->SetPredictDebug(true);
   }

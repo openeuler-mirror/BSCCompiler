@@ -276,7 +276,7 @@ bool CGNode::IsCalleeOf(CGNode *func) const {
   return callers.find(func) != callers.end();
 }
 
-uint64_t CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
+FreqType CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
   FuncProfInfo *funcInfo = mirFunc->GetFuncProfData();
   if (funcInfo->stmtFreqs.count(callstmt->GetStmtID()) > 0) {
     return funcInfo->stmtFreqs[callstmt->GetStmtID()];
@@ -285,7 +285,7 @@ uint64_t CGNode::GetCallsiteFrequency(const StmtNode *callstmt) const {
   return UINT64_MAX;
 }
 
-uint64_t CGNode::GetFuncFrequency() const {
+FreqType CGNode::GetFuncFrequency() const {
   FuncProfInfo *funcInfo = mirFunc->GetFuncProfData();
   if (funcInfo) {
     return funcInfo->GetFuncRealFrequency();
