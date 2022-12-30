@@ -533,7 +533,8 @@ void MInline::AlwaysInlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNo
   CallNode &callStmt = static_cast<CallNode&>(baseNode);
   MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
   // For performance reasons, we only inline functions marked as always_inline that must be deleted.
-  if (callee->GetAttr(FUNCATTR_always_inline) && FuncMustBeDeleted(*callee)) {
+  if (callee->GetAttr(FUNCATTR_always_inline) && FuncMustBeDeleted(*callee) &&
+      callee != &func) {  // "self-recursive always_inline" won't be performed
     module.SetCurFunction(&func);
     if (dumpDetail && dumpFunc == func.GetName()) {
       LogInfo::MapleLogger() << "[always_inline] ";

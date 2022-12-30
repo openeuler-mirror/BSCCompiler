@@ -575,8 +575,10 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
     }
   }
   // for always_inline
-  if (Options::respectAlwaysInline && callee.GetAttr(FUNCATTR_always_inline)) {
-    return {true, kIFC_DeclaredAlwaysInline};
+  if (callee.GetAttr(FUNCATTR_always_inline)) {
+    if (Options::respectAlwaysInline || (&caller != &callee && FuncMustBeDeleted(callee))) {
+      return {true, kIFC_DeclaredAlwaysInline};
+    }
   }
   CGNode *cgNode = cg.GetCGNode(&callee);
   if (cgNode == nullptr) {
