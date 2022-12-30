@@ -4148,6 +4148,10 @@ bool ValueRangePropagation::RemoveUnreachableEdge(
     return false;
   }
   if (bb.GetKind() == kBBFallthru || bb.GetKind() == kBBGoto) {
+    if (bb.GetSucc().size() != 1) {
+      // When bb is wont exit bb, there will be multiple succs, copying this type of bb is not supported.
+      return false;
+    }
     if (!CopyFallthruBBAndRemoveUnreachableEdge(
         pred, bb, trueBranch, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr)) {
       return false;
