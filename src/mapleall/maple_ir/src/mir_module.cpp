@@ -681,7 +681,7 @@ void MIRModule::OutputAsciiMpl(const char *phaseName, const char *suffix,
   ASSERT(!(emitStructureType && binaryform), "Cannot emit type info in .bpl");
   std::string fileStem;
   std::string::size_type lastDot = fileName.find_last_of('.');
-  if (lastDot == std::string::npos) {
+  if (lastDot == std::string::npos || GetFlavor() == kFlavorMapleFE) {
     fileStem = fileName.append(phaseName);
   } else {
     fileStem = fileName.substr(0, lastDot).append(phaseName);
