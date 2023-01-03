@@ -374,8 +374,6 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &con
           newMop, useInsn->GetOperand(kInsnFirstOpnd), *newImmOpnd);
       ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
       return true;
-    } else {
-      CHECK_FATAL(false, "invalid immediate");
     }
   } else {
     ASSERT(false, "invalid instruction in ssa form");
