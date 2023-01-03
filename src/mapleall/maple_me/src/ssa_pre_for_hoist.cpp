@@ -394,7 +394,7 @@ void ExprHoist::HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId) {
       do {
         occ->SetClassID(hoistedOccDef->GetClassID());
         occ->SetDef(hoistedOccDef);
-        occ = *(++iter);
+        occ = ((++iter) == occs->end()) ? nullptr : *iter;
         ++hoistedCount;
       } while (occ && occ->GetBB() == bb && occ->GetClassID() == classId);
     }
