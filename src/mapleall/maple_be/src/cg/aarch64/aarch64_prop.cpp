@@ -214,7 +214,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch (sOp) {
         case BitShiftOperand::kLSL: {
-          newVal = constVal + static_cast<int64>((static_cast<unsigned>(constVal) << amount));
+          newVal = constVal + static_cast<int64>((static_cast<unsigned>(constVal)) << amount);
           break;
         }
         case BitShiftOperand::kLSR: {
@@ -245,7 +245,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch (sOp) {
         case BitShiftOperand::kLSL: {
-          newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal) << amount));
+          newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal)) << amount);
           break;
         }
         case BitShiftOperand::kLSR: {
@@ -690,7 +690,7 @@ bool A64StrLdrProp::IsPhiInsnValid(const Insn &phiInsn) {
   return true;
 }
 
-Insn *A64StrLdrProp::GetDefInsn(const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns) {
+Insn *A64StrLdrProp::GetDefInsn(const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns) const {
   Insn *insn = nullptr;
   if (regOpnd.IsSSAForm()) {
     VRegVersion *replacedV = ssaInfo->FindSSAVersion(regOpnd.GetRegisterNumber());
@@ -2414,7 +2414,7 @@ int64 A64ConstFoldPattern::GetNewImmVal(const Insn &insn, const ImmOperand &defI
       newImmVal = static_cast<uint64>(defImmOpnd.GetValue()) | static_cast<uint64>(useImmOpnd.GetValue());
       break;
     case kLogicalEor:
-      newImmVal = defImmOpnd.GetValue() ^ useImmOpnd.GetValue();
+      newImmVal = static_cast<uint64>(defImmOpnd.GetValue()) ^ static_cast<uint64>(useImmOpnd.GetValue());
       break;
     default:
       CHECK_FATAL(false, "can not be here");

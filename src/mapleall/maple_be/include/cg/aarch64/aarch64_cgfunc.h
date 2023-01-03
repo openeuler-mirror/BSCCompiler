@@ -182,7 +182,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *HandleFmovImm(PrimType stype, int64 val, MIRConst &mirConst, const BaseNode &parent);
   Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) override;
   Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) override;
-  Operand *SelectFloat128Const(MIRFloat128Const &ldoubleConst) override;
+  Operand *SelectFloat128Const(MIRFloat128Const &float128Const) override;
   Operand *SelectStrConst(MIRStrConst &strConst) override;
   Operand *SelectStr16Const(MIRStr16Const &str16Const) override;
 

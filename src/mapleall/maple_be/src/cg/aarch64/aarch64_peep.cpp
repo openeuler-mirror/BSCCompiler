@@ -794,7 +794,7 @@ bool CsetToCincPattern::CheckDefInsn(const RegOperand &opnd, Insn &insn) {
 }
 
 /* If a new ConditionCode is generated after csetInsn, this optimization is not performed. */
-bool CsetToCincPattern::CheckRegTyCc(const Insn &tempDefInsn, Insn &insn) {
+bool CsetToCincPattern::CheckRegTyCc(const Insn &tempDefInsn, Insn &insn) const {
   bool betweenUseAndDef = false;
   FOR_BB_INSNS_REV(bbInsn, insn.GetBB()) {
     if (!bbInsn->IsMachineInstruction()) {
@@ -1888,12 +1888,14 @@ bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(MOperator oldMop, MOper
   }
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
   auto *memOpnd = static_cast<MemOperand*>(prevInsn->GetMemOpnd());
+
   ASSERT(!prevInsn->IsStorePair(), "do not do ElimSpecificExtensionPattern for str pair");
   ASSERT(!prevInsn->IsLoadPair(), "do not do ElimSpecificExtensionPattern for ldr pair");
   if (memOpnd->GetAddrMode() == MemOperand::kBOI &&
       !aarFunc->IsOperandImmValid(newMop, memOpnd, kInsnSecondOpnd)) {
     return false;
   }
+  CHECK_FATAL(memOpnd != nullptr, "invalid memOpnd");
   uint32 shiftAmount = memOpnd->ShiftAmount();
   if (shiftAmount == 0) {
     return true;

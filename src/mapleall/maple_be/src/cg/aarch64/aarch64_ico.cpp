@@ -32,10 +32,10 @@ void AArch64IfConversionOptimizer::InitOptimizePatterns() {
 }
 
 /* build ccmp Insn */
-Insn *AArch64ICOPattern::BuildCcmpInsn(ConditionCode ccCode, const Insn *cmpInsn) const {
-  Operand &opnd0 = cmpInsn->GetOperand(kInsnFirstOpnd);
-  Operand &opnd1 = cmpInsn->GetOperand(kInsnSecondOpnd);
-  Operand &opnd2 = cmpInsn->GetOperand(kInsnThirdOpnd);
+Insn *AArch64ICOPattern::BuildCcmpInsn(ConditionCode ccCode, const Insn &cmpInsn) const {
+  Operand &opnd0 = cmpInsn.GetOperand(kInsnFirstOpnd);
+  Operand &opnd1 = cmpInsn.GetOperand(kInsnSecondOpnd);
+  Operand &opnd2 = cmpInsn.GetOperand(kInsnThirdOpnd);
   /* ccmp has only int opnd */
   if (!static_cast<RegOperand&>(opnd1).IsOfIntClass()) {
     return nullptr;
@@ -472,7 +472,7 @@ bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Ope
 }
 
 bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
-    std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn, Insn **toBeRremovedOutOfCurrBB) const {
+    std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn, Insn *&toBeRremovedOutOfCurrBB) const {
   std::map<Operand*, Insn*> dest2InsnMap; // CheckModifiedRegister will ensure that dest is defined only once.
   if (bb == nullptr) {
     return false;
@@ -508,14 +508,14 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std
       }
     }
 
-    if (!CheckModifiedRegister(*insn, destSrcMap, src, dest2InsnMap, toBeRremovedOutOfCurrBB)) {
+    if (!CheckModifiedRegister(*insn, destSrcMap, src, dest2InsnMap, &toBeRremovedOutOfCurrBB)) {
       return false;
     }
 
-    if (insn != *toBeRremovedOutOfCurrBB) {
+    if (insn != toBeRremovedOutOfCurrBB) {
       if (IsExpansionMOperator(*insn)) {
-        if (*toBeRremovedOutOfCurrBB == nullptr && static_cast<RegOperand*>(dest)->IsVirtualRegister()) {
-          *toBeRremovedOutOfCurrBB = insn;
+        if (toBeRremovedOutOfCurrBB == nullptr && static_cast<RegOperand*>(dest)->IsVirtualRegister()) {
+          toBeRremovedOutOfCurrBB = insn;
         } else {
           return false;
         }
@@ -687,7 +687,7 @@ void AArch64ICOIfThenElsePattern::UpdateTemps(std::vector<Operand*> &destRegs, s
 }
 
 void AArch64ICOIfThenElsePattern::RevertMoveInsns(BB *bb, Insn *prevInsnInBB, Insn *newInsnOfBB,
-    Insn *insnInBBToBeRremovedOutOfCurrBB) {
+    Insn *insnInBBToBeRremovedOutOfCurrBB) const {
   if (bb == nullptr || insnInBBToBeRremovedOutOfCurrBB == nullptr) {
     return;
   }
@@ -793,9 +793,9 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB *ifBB, BB *elseBB, BB &joinBB) {
   Insn *insnInElseBBToBeRremovedOutOfCurrBB = nullptr;
   Insn *insnInIfBBToBeRremovedOutOfCurrBB = nullptr;
 
-  if (!CheckCondMoveBB(elseBB, elseDestSrcMap, elseDestRegs, elseSetInsn, &insnInElseBBToBeRremovedOutOfCurrBB) ||
+  if (!CheckCondMoveBB(elseBB, elseDestSrcMap, elseDestRegs, elseSetInsn, insnInElseBBToBeRremovedOutOfCurrBB) ||
       (ifBB != nullptr && !CheckCondMoveBB(ifBB, ifDestSrcMap, ifDestRegs, ifSetInsn,
-                                           &insnInIfBBToBeRremovedOutOfCurrBB))) {
+                                           insnInIfBBToBeRremovedOutOfCurrBB))) {
     return false;
   }
   if (!CheckHasSameDest(ifSetInsn, elseSetInsn) || !CheckHasSameDest(elseSetInsn, ifSetInsn) ||
@@ -1067,7 +1067,7 @@ bool AArch64ICOSameCondPattern::DoOpt(BB &firstIfBB, BB &secondIfBB) const {
   /* build ccmp Insn */
   ConditionCode ccCode = Encode(branchInsn1->GetMachineOpcode(), true);
   ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
-  Insn *ccmpInsn = BuildCcmpInsn(ccCode, cmpInsn2);
+  Insn *ccmpInsn = BuildCcmpInsn(ccCode, *cmpInsn2);
   if (ccmpInsn == nullptr) {
     return false;
   }

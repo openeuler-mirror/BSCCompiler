@@ -331,12 +331,12 @@ bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB &bb, regno_t reg) 
   return false;                      /* not previously saved, to save at bb */
 }
 
-BB* AArch64RegSavesOpt::FindLoopDominator(BB *bb, regno_t reg, bool *done) const {
+BB* AArch64RegSavesOpt::FindLoopDominator(BB *bb, regno_t reg, bool &done) const {
   BB *bbDom = bb;
   while (bbDom->GetLoop() != nullptr) {
     bbDom = GetDomInfo()->GetDom(bbDom->GetId());
     if (CheckCriteria(bbDom, reg) != 0) {
-      *done = true;
+      done = true;
       break;
     }
     ASSERT(bbDom, "Can't find dominator for save location");
@@ -385,7 +385,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
       if ((c & mask) != 0 && liveIn.find(reg) == liveIn.end()) { /* not livein */
         BB *bbDom = bb;  /* start from current BB */
         bool done = false;
-        bbDom = FindLoopDominator(bbDom, reg, &done);
+        bbDom = FindLoopDominator(bbDom, reg, done);
         if (done) {
           mask <<= 1;
           continue;
@@ -502,8 +502,8 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
   }
 }
 
-void AArch64RegSavesOpt::CheckCriticalEdge(const BB *bb, AArch64reg reg) {
-  for (BB *sbb : bb->GetSuccs()) {
+void AArch64RegSavesOpt::CheckCriticalEdge(const BB &bb, AArch64reg reg) {
+  for (BB *sbb : bb.GetSuccs()) {
     if (sbb->GetPreds().size() > 1) {
       CHECK_FATAL(false, "critical edge detected");
     }
@@ -592,7 +592,7 @@ void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
           sp->InsertExitReg(reg);
           sp->insertAtLastMinusOne = true;
         } else if (bb->GetSuccs().size() > 1) {
-          CheckCriticalEdge(bb, reg);
+          CheckCriticalEdge(*bb, reg);
         } else {
           /* otherwise, BB_FT etc */
           GetbbSavedRegsEntry(exitBB)->InsertExitReg(reg);

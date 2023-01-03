@@ -339,6 +339,7 @@ bool AArch64DataDepBase::NeedBuildDepsMem(const MemOperand &memOpnd,
     return true;
   }
   if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC && !memInsn.IsCall()) {
+    CHECK_FATAL(memInsn.GetMemOpnd() != nullptr, "invalid MemOpnd");
     static_cast<MemOperand*>(memInsn.GetMemOpnd())->SetAccessSize(memInsn.GetMemoryByteSize());
     return (!NoOverlap(memOpnd, *memOpndOfmemInsn));
   }

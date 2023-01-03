@@ -69,7 +69,7 @@ class A64StrLdrProp {
   bool CheckNewMemOffset(const Insn &insn, MemOperand &newMemOpnd, uint32 opndIdx) const;
   void DoMemReplace(const RegOperand &replacedReg, MemOperand &newMem, Insn &useInsn);
   uint32 GetMemOpndIdx(MemOperand *newMemOpnd, const Insn &insn) const;
-  Insn *GetDefInsn(const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns);
+  Insn *GetDefInsn(const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns) const;
   bool IsSameOpndsOfInsn(const Insn &insn1, const Insn &insn2, uint32 opndIdx) const;
   bool IsPhiInsnValid(const Insn &phiInsn);
   bool CheckSameReplace(const RegOperand &replacedReg, const MemOperand *memOpnd) const;

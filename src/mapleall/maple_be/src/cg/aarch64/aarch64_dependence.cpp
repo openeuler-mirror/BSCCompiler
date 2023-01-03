@@ -353,7 +353,7 @@ MemOperand *AArch64DepAnalysis::BuildNextMemOperandByByteSize(const MemOperand &
     aarchNextOfstOpnd = static_cast<ImmOperand *>(nextOfstOpnd);
   }
   int32 offsetVal = static_cast<int32>(aarchNextOfstOpnd->GetValue());
-  aarchNextOfstOpnd->SetValue(offsetVal + byteSize);
+  aarchNextOfstOpnd->SetValue(static_cast<uint32>(offsetVal) + byteSize);
   nextMemOpnd->SetOffsetOperand(*aarchNextOfstOpnd);
   return nextMemOpnd;
 }
@@ -640,6 +640,7 @@ void AArch64DepAnalysis::BuildStackPassArgsDeps(Insn &insn) {
     Operand *opnd = stackDefInsn->GetMemOpnd();
     ASSERT(opnd->IsMemoryAccessOperand(), "make sure opnd is memOpnd");
     MemOperand *memOpnd = static_cast<MemOperand *>(opnd);
+    CHECK_FATAL(memOpnd != nullptr, "invalid memOpnd");
     RegOperand *baseReg = memOpnd->GetBaseRegister();
     if ((baseReg != nullptr) && (baseReg->GetRegisterNumber() == RSP)) {
       AddDependence(*stackDefInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);

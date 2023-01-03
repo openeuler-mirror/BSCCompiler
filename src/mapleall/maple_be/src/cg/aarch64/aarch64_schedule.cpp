@@ -398,7 +398,7 @@ bool DepNode::CanBeScheduled() const {
 }
 
 /* Mark those unit that this node need occupy unit when it is being scheduled. */
-void DepNode::OccupyUnits() {
+void DepNode::OccupyUnits() const {
   for (uint32 i = 0; i < unitNum; ++i) {
     Unit *unit = units[i];
     if (unit != nullptr) {
@@ -745,7 +745,7 @@ uint32 AArch64Schedule::DoSchedule() {
   ASSERT(scheduleInfo.SizeOfScheduledNodes() == nodes.size(), "CG internal error, Not all nodes scheduled.");
 
   nodes.clear();
-  (void)nodes.insert(nodes.begin(), scheduleInfo.GetScheduledNodes().begin(), scheduleInfo.GetScheduledNodes().end());
+  (void)nodes.insert(nodes.cbegin(), scheduleInfo.GetScheduledNodes().cbegin(), scheduleInfo.GetScheduledNodes().cend());
   /* the second to last node is the true last node, because the last is kNodeTypeSeparator node */
   ASSERT(nodes.size() - 2 >= 0, "size of nodes should be greater than or equal 2");
   return (nodes[nodes.size() - 2]->GetSchedCycle());

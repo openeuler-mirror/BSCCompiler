@@ -103,9 +103,9 @@ bool RaX0Opt::PropagateX0DetectRedefine(const InsnDesc &md, const Insn &ninsn, c
   return false;
 }
 
-bool RaX0Opt::PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &optVal) const {
+bool RaX0Opt::PropagateX0Optimize(const BB &bb, const Insn &insn, X0OptInfo &optVal) const {
   bool redefined = false;
-  for (Insn *ninsn = insn->GetNext(); (ninsn != nullptr) && ninsn != bb->GetLastInsn()->GetNext();
+  for (Insn *ninsn = insn.GetNext(); (ninsn != nullptr) && ninsn != bb.GetLastInsn()->GetNext();
        ninsn = ninsn->GetNext()) {
     if (!ninsn->IsMachineInstruction()) {
       continue;
@@ -240,7 +240,7 @@ void RaX0Opt::PropagateX0() {
     RegOperand &movDst = static_cast<RegOperand&>(insn->GetOperand(0));
     optVal.SetReplaceReg(movDst.GetRegisterNumber());
     optVal.ResetRenameInsn();
-    bool redefined = PropagateX0Optimize(bb, insn, optVal);
+    bool redefined = PropagateX0Optimize(*bb, *insn, optVal);
     if (redefined || (optVal.GetRenameInsn() == nullptr)) {
       continue;
     }
@@ -527,7 +527,7 @@ bool ParamRegOpt::DominatorAll(uint32 domBB, std::set<uint32> &refBBs) const {
   return true;
 }
 
-BB* ParamRegOpt::GetCommondDom(std::set<uint32> &refBBs) const{
+BB* ParamRegOpt::GetCommondDom(std::set<uint32> &refBBs) const {
   MapleVector<uint32> &domOrder = domInfo->GetDtPreOrder();
   uint32 minId = static_cast<uint32>(domOrder.size());
   for (auto it = domOrder.crbegin(); it != domOrder.crend(); ++it) {

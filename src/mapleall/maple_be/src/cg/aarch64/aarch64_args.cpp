@@ -134,7 +134,7 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
   argInfo.symLoc =
       static_cast<const AArch64SymbolAlloc*>(aarchCGFunc->GetMemlayout()->GetSymAllocInfo(argInfo.sym->GetStIndex()));
   CHECK_NULL_FATAL(argInfo.symLoc);
-  if (argInfo.doMemPairOpt && (static_cast<uint32>(aarchCGFunc->GetBaseOffset(*(argInfo.symLoc))) & 0x7)) {
+  if (argInfo.doMemPairOpt && ((static_cast<uint32>(aarchCGFunc->GetBaseOffset(*(argInfo.symLoc))) & 0x7) != 0)) {
     /* Do not optimize for struct reg pair for unaligned access.
      * However, this symbol requires two parameter registers, separate stores must be generated.
      */

@@ -94,7 +94,7 @@ class DepLink {
 class DepNode {
  public:
   bool CanBeScheduled() const;
-  void OccupyUnits();
+  void OccupyUnits() const;
   uint32 GetUnitKind() const;
 
   DepNode(Insn &insn, MapleAllocator &alloc)

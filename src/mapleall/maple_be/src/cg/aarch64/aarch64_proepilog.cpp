@@ -616,7 +616,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       offset = static_cast<uint32>(memlayout->GetGRSaveAreaBaseLoc()) +
                memlayout->SizeOfArgsToStackPass();
     }
-    if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
+    if ((memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) != 0) {
       offset += size;  /* End of area should be aligned. Hole between VR and GR area */
     }
     CHECK_FATAL(size != 0, "Divisor cannot be zero");
@@ -1081,7 +1081,7 @@ void AArch64GenProEpilog::AppendBBtoEpilog(BB &epilogBB, BB &newBB) {
   } else {
     epilogBB.AppendBBInsns(newBB);
   }
-  epilogBB.SetNeedRestoreCfi(true);;
+  epilogBB.SetNeedRestoreCfi(true);
 }
 
 void AArch64GenProEpilog::GenerateEpilog(BB &bb) {

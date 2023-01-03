@@ -35,7 +35,7 @@ class AArch64ICOPattern : public ICOPattern {
  protected:
   ConditionCode Encode(MOperator mOp, bool inverse) const;
   Insn *BuildCmpInsn(const Insn &condBr) const;
-  Insn *BuildCcmpInsn(ConditionCode ccCode, const Insn *cmpInsn) const;
+  Insn *BuildCcmpInsn(ConditionCode ccCode, const Insn &cmpInsn) const;
   Insn *BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse) const;
   Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2) const;
   static uint32 GetNZCV(ConditionCode ccCode, bool inverse);
@@ -70,7 +70,7 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   bool CheckModifiedRegister(Insn &insn, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
       std::vector<Operand*> &src, std::map<Operand*, Insn*> &dest2InsnMap, Insn **toBeRremovedOutOfCurrBB) const;
   bool CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
-      std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn, Insn **toBeRremovedOutOfCurrBB) const;
+      std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn, Insn *&toBeRremovedOutOfCurrBB) const;
   bool CheckModifiedInCmpInsn(const Insn &insn) const;
   bool DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB) const;
   void UpdateTemps(std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn,
@@ -78,7 +78,7 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   Insn *MoveSetInsn2CmpBB(Insn &toBeRremoved2CmpBB, BB &currBB,
       std::vector<Operand *> &anotherBranchDestRegs, std::map<Operand *, std::vector<Operand *>> &destSrcMap) const;
   void RevertMoveInsns(BB *bb, Insn *prevInsnInBB, Insn *newInsnOfBB,
-      Insn *insnInBBToBeRremovedOutOfCurrBB);
+      Insn *insnInBBToBeRremovedOutOfCurrBB) const;
   bool IsExpansionMOperator(const Insn &insn) const;
   bool IsMovMOperator(const Insn &insn) const;
   bool IsEorMOperator(const Insn &insn) const;

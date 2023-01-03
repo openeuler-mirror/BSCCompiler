@@ -66,7 +66,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn) {
   }
 }
 
-void AArch64FPLROffsetAdjustment::AdjustMemBaseReg(Insn &insn, uint32 i, bool &replaceFP) {
+void AArch64FPLROffsetAdjustment::AdjustMemBaseReg(Insn &insn, uint32 i, bool &replaceFP) const {
   Operand &opnd = insn.GetOperand(i);
   auto &currMemOpnd = static_cast<MemOperand&>(opnd);
   MemOperand *newMemOpnd = currMemOpnd.Clone(*aarchCGFunc->GetMemoryPool());

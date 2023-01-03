@@ -193,6 +193,7 @@ MIRStructType *AArch64CGFunc::GetLmbcStructArgType(BaseNode &stmt, size_t argNo)
     } else {
       fType = static_cast<MIRFuncType*>(type);
     }
+    CHECK_FATAL(fType != nullptr, "invalid fType");
     if (fType->GetParamTypeList().size() < (argNo + 1UL)) {
       return nullptr;
     }
@@ -5799,7 +5800,7 @@ Operand *AArch64CGFunc::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
     uint32 val1 = is64Bits ? (val >> 61) & 0x3 : (val >> 29) & 0x3;
     uint32 val2 = is64Bits ? (val >> 54) & 0xff : (val >> 25) & 0x1f;
     bool isSame = is64Bits ? ((val2 == 0) || (val2 == 0xff)) : ((val2 == 0) || (val2 == 0x1f));
-    canRepreset = (canRepreset == 0) && ((val1 & 0x1) ^ ((val1 & 0x2) >> 1)) && isSame;
+    canRepreset = (canRepreset == 0) && (((val1 & 0x1) ^ ((val1 & 0x2) >> 1)) != 0) && isSame;
     Operand *newOpnd0 = &opnd0;
     if (IsPrimitiveInteger(fromType) && IsPrimitiveFloat(toType) && (canRepreset != 0)) {
       uint64 temp1 = is64Bits ? (val >> 63) << 7 : (val >> 31) << 7;
@@ -7282,7 +7283,7 @@ bool AArch64CGFunc::GenRetCleanup(const IntrinsiccallNode *cleanupNode, bool for
     MIRSymbol *funcSym = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
     if ((skipSym != nullptr) && (skipOffset >= realMin) && (skipOffset <= realMax)) {
       /* call cleanupskip */
-      uint32 stOffset = (skipOffset - realMin) / kOffsetAlign;
+      uint32 stOffset = static_cast<uint32>((skipOffset - realMin) / kOffsetAlign);
       ImmOperand &retLoc = CreateImmOperand(stOffset, k64BitSize, true);
 
       RegOperand &parmRegOpnd3 = GetOrCreatePhysicalRegisterOperand(R2, k64BitSize, GetRegTyFromPrimTy(PTY_a64));
@@ -7411,7 +7412,7 @@ void AArch64CGFunc::HandleRCCall(bool begin, const MIRSymbol *retRef) {
 
   AArch64MemLayout *memLayout = static_cast<AArch64MemLayout*>(this->GetMemlayout());
   int32 refNum = static_cast<int32>(memLayout->GetSizeOfRefLocals() / kOffsetAlign);
-  if (!refNum) {
+  if (refNum == 0) {
     if (begin) {
       GenerateYieldpoint(*GetCurBB());
       yieldPointInsn = GetCurBB()->GetLastInsn();
@@ -8073,7 +8074,7 @@ RegOperand *AArch64CGFunc::CreateCallStructParamCopyToStack(uint32 numMemOp, MIR
   MemOperand *ldMopnd = nullptr;
   MemOperand *stMopnd = nullptr;
   for (uint32 j = 0; j < numMemOp; j++) {
-    uint64 offVal = j * GetPointerSize() + static_cast<uint64>(fromOffset);
+    uint64 offVal = j * GetPointerSize() + static_cast<uint64>(static_cast<int64>(fromOffset));
     if (sym != nullptr) {
       if (sym->GetStorageClass() == kScFormal) {
         MemOperand &base = GetOrCreateMemOpnd(*sym, 0, k64BitSize);
@@ -9323,7 +9324,7 @@ uint32 AArch64CGFunc::GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alig
   uint32 offsetAlign1 = (offset1 == 0) ? k8ByteSize : offset1;
   uint32 offsetAlign2 = (offset2 == 0) ? k8ByteSize : offset2;
   uint32 alignOffset = 1U << static_cast<uint>((std::min(__builtin_ffs(static_cast<int>(offsetAlign1)),
-                                       __builtin_ffs(static_cast<int>(offsetAlign2))) - 1));
+      __builtin_ffs(static_cast<int>(offsetAlign2))) - 1));
   if (alignOffset == k8ByteSize || alignOffset == k4ByteSize || alignOffset == k2ByteSize) {
     return alignOffset;
   } else if (alignOffset > k8ByteSize) {
@@ -9929,7 +9930,7 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
                    memLayout->SizeOfArgsToStackPass());
     } else {
       baseOffset = static_cast<int32>(symAlloc->GetOffset() +
-                   memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfLocals() +
+                   static_cast<int32>(memLayout->SizeOfArgsRegisterPassed()) + memLayout->GetSizeOfLocals() +
                    memLayout->GetSizeOfRefLocals());
     }
     return baseOffset + sizeofFplr;

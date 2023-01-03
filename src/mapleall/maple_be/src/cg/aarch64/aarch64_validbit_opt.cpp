@@ -624,7 +624,7 @@ void CmpBranchesPattern::Run(BB &bb, Insn &insn) {
   auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   ImmOperand &newImmOpnd = aarFunc->CreateImmOperand(newImmVal, k8BitSize, false);
   Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, prevCmpInsn->GetOperand(kInsnSecondOpnd),
-                                                                 newImmOpnd, labelOpnd);
+                                                      newImmOpnd, labelOpnd);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
