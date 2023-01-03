@@ -126,9 +126,12 @@ class FEIRStmt : public FELinkListNode {
   }
 
   std::list<StmtNode*> GenMIRStmts(MIRBuilder &mirBuilder) const {
-    std::list<StmtNode*> stmts = GenMIRStmtsImpl(mirBuilder);
-    SetMIRStmtSrcPos(stmts);
-    return stmts;
+    if (isNeedGenMir) {
+      std::list<StmtNode*> stmts = GenMIRStmtsImpl(mirBuilder);
+      SetMIRStmtSrcPos(stmts);
+      return stmts;
+    }
+    return std::list<StmtNode*>();
   }
 
   FEIRNodeKind GetKind() const {
@@ -258,6 +261,10 @@ class FEIRStmt : public FELinkListNode {
     return DumpImpl(prefix);
   }
 
+  void SetIsNeedGenMir(bool needGen) {
+    isNeedGenMir = needGen;
+  }
+
  protected:
   virtual std::string DumpDotStringImpl() const;
   virtual void DumpImpl(const std::string &prefix) const;
@@ -317,6 +324,9 @@ class FEIRStmt : public FELinkListNode {
   bool isEnhancedChecking = true;
   std::vector<FEIRStmt*> extraPreds;
   std::vector<FEIRStmt*> extraSuccs;
+
+ private:
+  bool isNeedGenMir = true;
 };
 
 using UniqueFEIRStmt = std::unique_ptr<FEIRStmt>;

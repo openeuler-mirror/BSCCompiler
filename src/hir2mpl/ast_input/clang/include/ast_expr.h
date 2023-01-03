@@ -152,6 +152,14 @@ class ASTExpr {
     vlaExprInfos = std::move(astExprs);
   }
 
+  void SetCallAlloca(bool isAlloc) {
+    isCallAlloca = isAlloc;
+  }
+
+  bool IsCallAlloca() const {
+    return isCallAlloca;
+  }
+
  protected:
   virtual ASTValue *GetConstantValueImpl() const {
     return value;
@@ -178,7 +186,10 @@ class ASTExpr {
   Loc loc = {0, 0, 0};
   EvaluatedFlag evaluatedflag = kNotEvaluated;
   bool isRValue = false;
+
+ private:
   std::list<ASTExpr*> vlaExprInfos;
+  bool isCallAlloca = false;
 };
 
 class ASTCastExpr : public ASTExpr {

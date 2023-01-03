@@ -79,12 +79,23 @@ class ASTStmt {
     }
   }
 
+  void SetCallAlloca(bool isAlloc) {
+    isCallAlloca = isAlloc;
+  }
+
+  bool IsCallAlloca() const {
+    return isCallAlloca;
+  }
+
  protected:
   virtual std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const = 0;
   MapleVector<ASTExpr*> exprs;
   ASTStmtOp op;
   Loc loc = {0, 0, 0};
   MapleList<ASTExpr*> vlaExprInfos;
+
+ private:
+  bool isCallAlloca = false;
 };
 
 class ASTStmtDummy : public ASTStmt {

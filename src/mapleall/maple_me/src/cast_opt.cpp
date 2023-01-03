@@ -377,8 +377,9 @@ MeExpr *MeCastOpt::SimplifyCastSingle(IRMap &irMap, const MeExprCastInfo &castIn
     //   sext xx 1 <expr>
     bool excluded = (op == OP_sext && static_cast<OpMeExpr*>(castExpr)->GetBitsSize() == 1);
     if (!excluded) {
-      opnd->SetPtyp(castExpr->GetPrimType());
-      return irMap.HashMeExpr(*opnd);
+      OpMeExpr newCmp(static_cast<OpMeExpr&>(*opnd), kInvalidExprID);
+      newCmp.SetPtyp(castExpr->GetPrimType());
+      return irMap.HashMeExpr(newCmp);
     }
   }
   // cast + const  ==>  const

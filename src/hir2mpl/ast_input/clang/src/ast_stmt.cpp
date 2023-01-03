@@ -82,11 +82,7 @@ std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
   }
   if (!hasEmitted2MIRScope) {
     UniqueFEIRScope scope = feFunction.PopTopScope();
-    if (scope->GetVLASavedStackVar() != nullptr) {
-      auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
-      stackRestoreStmt->SetSrcLoc(endLoc);
-      (void)stmts.emplace_back(std::move(stackRestoreStmt));
-    }
+    scope->ProcessVLAStack(stmts, IsCallAlloca(), GetEndLoc());
     hasEmitted2MIRScope = true;
   }
   insertStmt(true);

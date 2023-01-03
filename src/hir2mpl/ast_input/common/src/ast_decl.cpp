@@ -157,6 +157,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
       (void)stmts.emplace_back(std::move(stackSaveStmt));
       // push saved stack var into scope
       feFunction.GetTopFEIRScopePtr()->SetVLASavedStackVar(std::move(stackVar));
+      feFunction.GetTopFEIRScopePtr()->SetVLASavedStackPtr(stmts.back().get());
     }
     // alloca
     UniqueFEIRExpr variableArrayFEIRExpr = variableArrayExpr->Emit2FEExpr(stmts);
@@ -270,11 +271,8 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
   UniqueFEIRScope scope = feFunction.PopTopScope();
   // fix int main() no return 0 and void func() no return. there are multiple branches, insert return at the end.
   if (stmts.size() == 0 || stmts.back()->GetKind() != kStmtReturn) {
-    if (scope->GetVLASavedStackVar() != nullptr) {
-      auto stackRestoreStmt = scope->GenVLAStackRestoreStmt();
-      stackRestoreStmt->SetSrcLoc(astCpdStmt->GetEndLoc());
-      (void)stmts.emplace_back(std::move(stackRestoreStmt));
-    }
+    Loc endLoc = astCpdStmt->GetEndLoc();
+    scope->ProcessVLAStack(stmts, astCpdStmt->IsCallAlloca(), endLoc);
     UniqueFEIRExpr retExpr = nullptr;
     PrimType retType = typeDesc[1]->GetPrimType();
     if (retType != PTY_void) {
@@ -284,7 +282,6 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
       retExpr = FEIRBuilder::CreateExprConstAnyScalar(retType, static_cast<int64>(0));
     }
     UniqueFEIRStmt retStmt = std::make_unique<FEIRStmtReturn>(std::move(retExpr));
-    Loc endLoc = astCpdStmt->GetEndLoc();
     endLoc.column = 0;
     retStmt->SetSrcLoc(endLoc);
     stmts.emplace_back(std::move(retStmt));

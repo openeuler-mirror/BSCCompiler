@@ -178,6 +178,14 @@ class ASTDecl {
     sourceType = type;
   }
 
+  void SetCallAlloca(bool isAlloc) {
+    isCallAlloca = isAlloc;
+  }
+
+  bool IsCallAlloca() const {
+    return isCallAlloca;
+  }
+
  protected:
   virtual MIRConst *Translate2MIRConstImpl() const {
     CHECK_FATAL(false, "Maybe implemented for other ASTDecls");
@@ -198,6 +206,9 @@ class ASTDecl {
   BoundaryInfo boundary;
   std::string sectionAttr;
   MIRType *sourceType = nullptr;
+
+ private:
+  bool isCallAlloca = false;
 };
 
 class ASTField : public ASTDecl {

@@ -55,6 +55,14 @@ class FEIRScope {
     return vlaSavedStackVar;
   }
 
+  void SetVLASavedStackPtr(FEIRStmt *stmt) {
+    feirStmt = stmt;
+  }
+
+  FEIRStmt *GetVLASavedStackPtr() const {
+    return feirStmt;
+  }
+
   void SetIsControllScope(bool flag) {
     isControllScope = flag;
   }
@@ -66,11 +74,25 @@ class FEIRScope {
   UniqueFEIRStmt GenVLAStackRestoreStmt() const;
   UniqueFEIRScope Clone() const;
 
+  void ProcessVLAStack(std::list<UniqueFEIRStmt> &stmts, bool isCallAlloca, Loc endLoc) {
+    FEIRStmt *feirStmt = GetVLASavedStackPtr();
+    if (feirStmt != nullptr) {
+      if (isCallAlloca) {
+        feirStmt->SetIsNeedGenMir(false);
+      } else {
+        auto stackRestoreStmt = GenVLAStackRestoreStmt();
+        stackRestoreStmt->SetSrcLoc(endLoc);
+        (void)stmts.emplace_back(std::move(stackRestoreStmt));
+      }
+    }
+  }
+
  private:
   uint32 id;
   MIRScope *mirScope = nullptr;  // one func, compoundstmt or forstmt scope includes decls
   UniqueFEIRVar vlaSavedStackVar = nullptr;
   bool isControllScope = false;  // The controlling scope in a if/switch/while/for statement
+  FEIRStmt *feirStmt = nullptr;
 };
 } // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_VAR_SCOPE_H
