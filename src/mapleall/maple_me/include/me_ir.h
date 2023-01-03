@@ -1331,15 +1331,15 @@ class MeStmt {
     return nullptr;
   }
 
-  const virtual MapleVector<MustDefMeNode> &GetMustDefList() const {
-    CHECK_FATAL(false, "should be implemented");
-  }
-
-  const virtual ScalarMeExpr *GetAssignedLHS() const {
+  const virtual MapleVector<MustDefMeNode> *GetMustDefList() const {
     return nullptr;
   }
 
   virtual ScalarMeExpr *GetAssignedLHS() {
+    return nullptr;
+  }
+
+  const virtual ScalarMeExpr *GetAssignedLHS() const {
     return nullptr;
   }
 
@@ -2315,8 +2315,8 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return &mustDefList;
   }
 
-  const MapleVector<MustDefMeNode> &GetMustDefList() const override {
-    return mustDefList;
+  const MapleVector<MustDefMeNode> *GetMustDefList() const override {
+    return &mustDefList;
   }
 
   void SetMustDefListAndUpdateBase(MapleVector<MustDefMeNode> &list) {
@@ -2440,8 +2440,8 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return &mustDefList;
   }
 
-  const MapleVector<MustDefMeNode> &GetMustDefList() const override {
-    return mustDefList;
+  const MapleVector<MustDefMeNode> *GetMustDefList() const override {
+    return &mustDefList;
   }
 
   const ScalarMeExpr *GetAssignedLHS() const override {
@@ -2571,8 +2571,8 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
     return &mustDefList;
   }
 
-  const MapleVector<MustDefMeNode> &GetMustDefList() const override {
-    return mustDefList;
+  const MapleVector<MustDefMeNode> *GetMustDefList() const override {
+    return &mustDefList;
   }
 
   MustDefMeNode &GetMustDefListItem(int i) {
@@ -2690,6 +2690,11 @@ class AsmMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   MapleVector<MustDefMeNode> *GetMustDefList() override {
     return &mustDefList;
   }
+
+  const MapleVector<MustDefMeNode> *GetMustDefList() const override {
+    return &mustDefList;
+  }
+
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
 
   MapleString asmString;

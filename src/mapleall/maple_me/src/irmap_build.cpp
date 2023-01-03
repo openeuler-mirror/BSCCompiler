@@ -706,7 +706,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
         OffsetType offset(static_cast<MIRStructType*>(type)->GetBitOffsetFromBaseAddr(fldId));
         auto *siblingOsts = ssaTab.GetNextLevelOsts(ost->GetPointerVstIdx());
         auto fieldOst = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(
-            *siblingOsts, fieldType, fldId, offset);
+            *siblingOsts, preLevType->GetTypeIndex(), fieldType, fldId, offset);
         if (fieldOst != nullptr) {
           ostIdx = fieldOst->GetIndex();
         }
@@ -963,8 +963,8 @@ void IRMapBuild::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
   // iterate phi list to update the definition by phi
   BuildPhiMeNode(bb);
   if (propagater) { // proper is not null that means we will do propragation during build meir.
+    propagater->GrowIsNewVstPushedStack();
     propagater->SetCurBB(&bb);
-    propagater->GrowVstLiveStack();
     // traversal phi nodes
     MapleMap<OStIdx, MePhiNode *> &mePhiList = bb.GetMePhiList();
     for (auto it = mePhiList.begin(); it != mePhiList.end(); ++it) {
@@ -981,9 +981,9 @@ void IRMapBuild::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
   }
   // travesal bb's dominated tree
   ASSERT(bbID < dominance.GetDomChildrenSize(), " index out of range in IRMapBuild::BuildBB");
-  const auto &domChildren = dominance.GetDomChildren(bbID);
+  const auto &domChildren = dominance.GetDomChildren(bbID.GetIdx());
   for (auto bbIt = domChildren.begin(); bbIt != domChildren.end(); ++bbIt) {
-    BBId childBBId = *bbIt;
+    BBId childBBId = BBId(*bbIt);
     BuildBB(*irMap->GetBB(childBBId), bbIRMapProcessed);
   }
   if (propagater) {

@@ -44,18 +44,23 @@ class Prop {
     bool propagateWithInverse;
   };
 
-  Prop(IRMap&, Dominance&, MemPool&, uint32 bbvecsize, const PropConfig &config, uint32 limit = UINT32_MAX);
+  Prop(IRMap &irMap, Dominance &dom, Dominance &pdom, MemPool &memPool, uint32 bbvecsize, const PropConfig &config,
+       uint32 limit = UINT32_MAX);
   virtual ~Prop() = default;
 
   MeExpr *CheckTruncation(MeExpr *lhs, MeExpr *rhs) const;
-  MeExpr &PropVar(VarMeExpr &varmeExpr, bool atParm, bool checkPhi);
-  MeExpr &PropReg(RegMeExpr &regmeExpr, bool atParm, bool checkPhi);
+  MeExpr &TryPropUnionVar(VarMeExpr &var);
+  MeExpr &PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi);
+  MeExpr &PropReg(RegMeExpr &regMeExpr, bool atParm, bool checkPhi);
+  MeExpr &TryPropUnionIvar(IvarMeExpr &ivar);
   MeExpr &PropIvar(IvarMeExpr &ivarMeExpr);
   void ReplaceVstLiveStackTop(size_t ostIdx, MeExpr &newTopExpr);
   void PropUpdateDef(MeExpr &meExpr);
   void PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList);
   void PropUpdateMustDefList(MeStmt *mestmt);
   void TraversalBB(BB &bb);
+  bool HasDefPointInBB(const BB &bb) const;
+
   size_t GetVstLiveStackVecSize() const {
     return vstLiveStackVec.size();
   }
@@ -78,6 +83,12 @@ class Prop {
     return candsForSSAUpdate;
   }
 
+  void GrowIsNewVstPushedStack() {
+    MapleVector<bool> *tempVec =
+        propMapAlloc.GetMemPool()->New<MapleVector<bool>>(vstLiveStackVec.size(), false, propMapAlloc.Adapter());
+    isNewVstPushedStack.push(tempVec);
+  }
+
   uint32 propLimit;
   uint32 propsPerformed = 0;    // count number of copy propagations performed
   bool isLfo = false;           // true during LFO phases
@@ -91,17 +102,20 @@ class Prop {
   }
 
   Dominance &dom;
+  Dominance &pdom;
 
-  virtual MeExpr &PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm);
+  virtual MeExpr &PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm);
 
   virtual BB *GetBB(BBId) {
     return nullptr;
   }
 
+  ScalarMeExpr *CreateTmpAssignForIassignRHS(IvarMeExpr &ivarMeExpr, IassignMeStmt &defStmt);
+
   void PropEqualExpr(const MeExpr *replacedExpr, ConstMeExpr *constExpr, BB *fromBB);
   void PropConditionBranchStmt(MeStmt *condBranchStmt);
   virtual void TraversalMeStmt(MeStmt &meStmt);
-  void CollectSubVarMeExpr(const MeExpr &expr, std::vector<const MeExpr*> &exprVec) const;
+  void CollectSubVarMeExpr(const MeExpr &meExpr, std::vector<const MeExpr*> &varVec) const;
   bool IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
                            const MapleVector<MapleStack<MeExpr *> *> &vstLiveStack) const;
   bool IvarIsFinalField(const IvarMeExpr &ivarMeExpr) const;
@@ -122,6 +136,7 @@ class Prop {
   MIRModule &mirModule;
   MapleAllocator propMapAlloc;
   MapleVector<MapleStack<MeExpr *> *> vstLiveStackVec;
+  MapleStack<MapleVector<bool> *> isNewVstPushedStack;
   std::vector<bool> bbVisited;  // needed because dominator tree is a DAG in wpo
   BB *curBB = nullptr;          // gives the bb of the traversal
   PropConfig config;

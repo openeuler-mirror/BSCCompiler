@@ -345,8 +345,8 @@ uint32 PreWorkCandHashTable::ComputeStmtWorkCandHashIndex(const MeStmt &stmt) {
       for (size_t i = 0; i < callAss.NumMeStmtOpnds(); ++i) {
         hIdx += ComputeWorkCandHashIndex(*callAss.GetOpnd(i)) << kOffsetNaryMeStmtOpnd;
       }
-      if (!callAss.GetMustDefList().empty()) {
-        const MeExpr *lhs = callAss.GetMustDefList().front().GetLHS();
+      if (!callAss.GetMustDefList()->empty()) {
+        const MeExpr *lhs = callAss.GetMustDefList()->front().GetLHS();
         auto *lhsVar = static_cast<const VarMeExpr*>(lhs);
         hIdx += static_cast<uint32>(lhsVar->GetOstIdx()) << 1;
       }

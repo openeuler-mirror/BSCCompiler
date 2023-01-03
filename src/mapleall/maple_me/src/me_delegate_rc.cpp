@@ -586,7 +586,7 @@ bool DelegateRC::CanOmitRC4LHSVar(const MeStmt &stmt, bool &onlyWithDecref) cons
     }
     default:
       if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
-        const MapleVector<MustDefMeNode> &mustdefList = stmt.GetMustDefList();
+        const MapleVector<MustDefMeNode> &mustdefList = *stmt.GetMustDefList();
         if (mustdefList.empty()) {
           return false;
         }
@@ -834,12 +834,16 @@ void MEDelegateRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 
 bool MEDelegateRC::PhaseRun(maple::MeFunction &f) {
   static uint32 puCount = 0;
-  auto *dom = GET_ANALYSIS(MEDominance, f);
-  ASSERT(dom != nullptr, "dominance phase has problem");
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto *dom = dominancePhase->GetDomResult();
+  ASSERT(dom != nullptr, "dominance construction has problem");
+  auto *pdom = dominancePhase->GetPdomResult();
+  ASSERT(pdom != nullptr, "postdominance construction has problem");
 
   {
     auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
-    auto *hdse = GetPhaseAllocator()->New<MeHDSE>(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
+    auto *hdse = GetPhaseAllocator()->New<MeHDSE>(
+        f, *dom, *pdom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
     // invoke hdse to update isLive only
     hdse->InvokeHDSEUpdateLive();
   }

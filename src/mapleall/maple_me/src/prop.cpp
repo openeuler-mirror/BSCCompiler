@@ -40,6 +40,7 @@ Prop::Prop(IRMap &irMap, Dominance &dom, Dominance &pdom, MemPool &memPool, uint
       mirModule(irMap.GetSSATab().GetModule()),
       propMapAlloc(&memPool),
       vstLiveStackVec(propMapAlloc.Adapter()),
+      isNewVstPushedStack(propMapAlloc.Adapter()),
       bbVisited(bbvecsize, false),
       config(config),
       candsForSSAUpdate() {
@@ -50,9 +51,7 @@ Prop::Prop(IRMap &irMap, Dominance &dom, Dominance &pdom, MemPool &memPool, uint
     ASSERT(ost->GetIndex() == i, "inconsistent originalst_table index");
     MapleStack<MeExpr *> *verstStack = propMapAlloc.GetMemPool()->New<MapleStack<MeExpr *>>(propMapAlloc.Adapter());
     MeExpr *expr = irMap.GetMeExpr(ost->GetZeroVersionIndex());
-    if (expr != nullptr) {
-      verstStack->push(expr);
-    }
+    verstStack->push((expr != nullptr) ? expr : nullptr);
     vstLiveStackVec[i] = verstStack;
   }
 }
@@ -60,8 +59,13 @@ Prop::Prop(IRMap &irMap, Dominance &dom, Dominance &pdom, MemPool &memPool, uint
 void Prop::ReplaceVstLiveStackTop(size_t ostIdx, MeExpr &newTopExpr) {
   auto &vstStack = vstLiveStackVec[ostIdx];
   ASSERT(!vstStack->empty(), "Cannot replace top element of an empty stack!");
-  vstStack->pop();
-  vstStack->push(&newTopExpr);
+  if (isNewVstPushedStack.top()->at(ostIdx)) {
+    vstStack->pop();
+    vstStack->push(&newTopExpr);
+  } else {
+    isNewVstPushedStack.top()->at(ostIdx) = true;
+    vstStack->push(&newTopExpr);
+  }
 }
 
 void Prop::PropUpdateDef(MeExpr &meExpr) {
@@ -837,6 +841,9 @@ ScalarMeExpr *Prop::CreateTmpAssignForIassignRHS(IvarMeExpr &ivarMeExpr, Iassign
   ASSERT(vstLiveStackVec.size() == tmpReg->GetOstIdx(), "there is prev created ost not tracked");
   auto *verstStack = propMapAlloc.GetMemPool()->New<MapleStack<MeExpr *>>(propMapAlloc.Adapter());
   vstLiveStackVec.push_back(verstStack);
+  for (auto it = isNewVstPushedStack.begin(); it != isNewVstPushedStack.end(); ++it) {
+    (*it)->push_back(false);
+  }
   verstStack->push(tmpReg);
   MeExpr *rhs = defStmt.GetRHS();
   auto newRHS = CheckTruncation(&ivarMeExpr, rhs);
@@ -1357,16 +1364,39 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
 // when update def, just replace the top element with new vst.
 void Prop::GrowVstLiveStack() {
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
-    vstLiveStackVec[i]->push(vstLiveStackVec[i]->empty() ? nullptr : vstLiveStackVec[i]->top());
+    vstLiveStackVec[i]->push(vstLiveStackVec[i]->top());
   }
 }
 // Exit BB : recover vstLiveStackVec as before when enter BB
 void Prop::RecoverVstLiveStack() {
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
-    if (!vstLiveStackVec[i]->empty()) {
+    if (isNewVstPushedStack.top()->at(i)) {
       vstLiveStackVec[i]->pop();
     }
   }
+  isNewVstPushedStack.pop();
+}
+
+// Judge whether there is a new definition point in bb.
+bool Prop::HasDefPointInBB(const BB &bb) const {
+  if (!bb.GetMePhiList().empty()) {
+    return true;
+  }
+  for (auto &meStmt : bb.GetMeStmts()) {
+    if (meStmt.IsAssign()) {
+      return true;
+    }
+    if (meStmt.GetLHS() != nullptr) {
+      return true;
+    }
+    if (meStmt.GetChiList() != nullptr) {
+      return true;
+    }
+    if (meStmt.GetMustDefList() != nullptr) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void Prop::TraversalBB(BB &bb) {
@@ -1377,12 +1407,15 @@ void Prop::TraversalBB(BB &bb) {
 
   SetCurBB(&bb);
 
-  // every vstLiveStack grows one layer, assuming that there would be new def later
-  GrowVstLiveStack();
-
-  // update var phi nodes
-  for (auto &it : std::as_const(bb.GetMePhiList())) {
-    PropUpdateDef(utils::ToRef(it.second->GetLHS()));
+  bool hasDefPoint = HasDefPointInBB(bb);
+  if (hasDefPoint) {
+    // When traversing a new bb, create a new vector and put it into isNewVstPushedStack to record
+    // whether the current bb has a new vst.
+    GrowIsNewVstPushedStack();
+    // update var phi nodes
+    for (auto &it : std::as_const(bb.GetMePhiList())) {
+      PropUpdateDef(utils::ToRef(it.second->GetLHS()));
+    }
   }
 
   // traversal on stmt
@@ -1394,7 +1427,10 @@ void Prop::TraversalBB(BB &bb) {
   for (auto &childbbid : std::as_const(domChildren)) {
     TraversalBB(*GetBB(BBId(childbbid)));
   }
-  // every vstLiveStack pop one layer to recover as before when entering BB.
-  RecoverVstLiveStack();
+  if (hasDefPoint) {
+    // If element of the top of isNewVstPushedStack is true,
+    // the vstLiveStack pop one layer to recover as before when entering BB.
+    RecoverVstLiveStack();
+  }
 }
 }  // namespace maple
