@@ -381,7 +381,9 @@ void MInline::InlineCallsBlock(MIRFunction &func, BlockNode &enclosingBlk, BaseN
       AlwaysInlineCallsBlockInternal(func, baseNode, changed);
       return;
     }
-    if (SuitableForTailCallOpt(prevStmt, static_cast<StmtNode&>(baseNode), callStmt)) {
+    MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
+    // tail call opt should not prevent inlinings that must be performed (such as extern gnu_inline).
+    if (!IsExternGnuInline(*callee) && SuitableForTailCallOpt(prevStmt, static_cast<StmtNode&>(baseNode), callStmt)) {
       return;
     }
     InlineCallsBlockInternal(func, baseNode, changed);
