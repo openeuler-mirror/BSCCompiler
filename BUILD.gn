@@ -70,3 +70,9 @@ group("maplegendef") {
                ])
  }
 }
+
+group("mplsh-lmbc") {
+  deps = [ "${MAPLEENG_ROOT}/lmbc:mplsh-lmbc" ]
+}
+
+

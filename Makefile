@@ -217,6 +217,11 @@ ctorture:
 ctorture2:
 	(cd third_party/ctorture; git checkout .; git pull; ./run.sh work.list hir2mpl)
 
+.PHONY: mplsh-lmbc
+mplsh-lmbc:
+	$(call build_gn, $(GN_OPTIONS), mplsh-lmbc)
+
+
 THREADS := 50
 ifneq ($(findstring test,$(MAKECMDGOALS)),)
 TESTTARGET := $(MAKECMDGOALS)
