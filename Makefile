@@ -134,7 +134,7 @@ mpldbg:
 
 .PHONY: mplverf
 mplverf: install_patch
-	$(call build_gn, $(GN_OPTIONS), mplverf)
+	$(call $(BUILD), $(GN_OPTIONS), mplverf)
 
 .PHONY: ast2mpl
 ast2mpl:
