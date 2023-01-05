@@ -64,7 +64,6 @@ class OperandBuilder {
     virtualReg.SetCount(mirPregNum);
   }
 
-
   /* create an operand in cgfunc when no mempool is supplied */
   ImmOperand &CreateImm(uint32 size, int64 value, MemPool *mp = nullptr);
   ImmOperand &CreateImm(const MIRSymbol &symbol, int64 offset, int32 relocs, MemPool *mp = nullptr);

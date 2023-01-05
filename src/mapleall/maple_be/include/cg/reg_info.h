@@ -58,6 +58,21 @@ class VregInfo {
   static uint32 maxRegCount;
   static std::vector<VirtualRegNode> vRegTable;
   static std::unordered_map<regno_t, RegOperand*> vRegOperandTable;
+  static bool initialized;
+
+  VregInfo() {
+    if (initialized) {
+      initialized = false;
+      return;
+    }
+    initialized = true;
+    virtualRegCount = kBaseVirtualRegNO;
+    maxRegCount = kBaseVirtualRegNO;
+    vRegTable.clear();
+    vRegOperandTable.clear();
+  }
+
+  ~VregInfo() = default;
 
   uint32 GetNextVregNO(RegType type, uint32 size) {
     /* when vReg reach to maxRegCount, maxRegCount limit adds 80 every time */
