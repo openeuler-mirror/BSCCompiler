@@ -118,7 +118,11 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
       if (opt->GetEqualType() == maplecl::EqualType::kWithEqual) {
         (void)finalOptions.emplace_back(opt->GetName() + "=" + val, "");
       } else {
-        (void)finalOptions.emplace_back(opt->GetName(), val);
+        if (opt->GetName() == "-Wl") {
+          (void)finalOptions.emplace_back(val, "");
+        } else {
+          (void)finalOptions.emplace_back(opt->GetName(), val);
+        }
       }
 
       if (isDebug) {

@@ -10034,10 +10034,9 @@ MemOperand *AArch64CGFunc::AdjustMemOperandIfOffsetOutOfRange(
     CHECK_FATAL(false, "index out of range in AArch64CGFunc::AdjustMemOperandIfOffsetOutOfRange");
   }
   uint32 dataSize = GetOrCreateVirtualRegisterOperand(vrNum).GetSize();
-  if (IsImmediateOffsetOutOfRange(*memOpnd, dataSize)) {
-    if (CheckIfSplitOffsetWithAdd(*memOpnd, dataSize)) {
-      isOutOfRange = true;
-    }
+  if (IsImmediateOffsetOutOfRange(*memOpnd, dataSize) &&
+      CheckIfSplitOffsetWithAdd(*memOpnd, dataSize)) {
+    isOutOfRange = true;
     memOpnd = &SplitOffsetWithAddInstruction(*memOpnd, dataSize, regNum, isDest, &insn);
   } else {
     isOutOfRange = false;

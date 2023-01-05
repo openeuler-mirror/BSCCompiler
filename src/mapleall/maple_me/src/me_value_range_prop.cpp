@@ -88,6 +88,62 @@ bool Bound::operator<=(const Bound &bound) const {
   return (var == bound.var && constant <= bound.GetConstant());
 }
 
+// When the value range is converted between different primtypes,
+// need to determine whether the range overflows or underflows after conversion.
+ValueRange *ValueRangePropagation::GetVRAfterCvt(ValueRange &vr, PrimType pty) const {
+  auto ptyOfVR = vr.GetPrimType();
+  if (pty == ptyOfVR) {
+    return &vr;
+  }
+  auto ptyIsUnsigned = IsUnsignedInteger(pty);
+  auto ptyOfVRIsUnsigned = IsUnsignedInteger(ptyOfVR);
+  auto sizeOfVRPty = GetPrimTypeSize(ptyOfVR);
+  auto sizeOfPty = GetPrimTypeSize(pty);
+  if (ptyIsUnsigned == ptyOfVRIsUnsigned) {
+    if (sizeOfVRPty <= sizeOfPty) {
+      return &vr;
+    }
+    if (vr.GetUpper().IsGreaterThan(Bound(GetMaxNumber(pty), pty), ptyOfVR) ||
+        vr.GetLower().IsLessThan(Bound(GetMinNumber(pty), pty), ptyOfVR)) {
+      // Overflows or underflows after conversion.
+      // for example:
+      // ptyOfVR: PTY_u64
+      // pty: PTY_u32
+      // vr(8, max)
+      return nullptr;
+    }
+    return &vr;
+  }
+  if (ptyOfVRIsUnsigned) {
+    if (sizeOfVRPty <= sizeOfPty) {
+      return &vr;
+    }
+    if (vr.GetUpper().IsGreaterThan(Bound(GetMaxNumber(pty), pty), ptyOfVR)) {
+      // Overflows or underflows after conversion.
+      // for example:
+      // ptyOfVR: PTY_u32
+      // pty: PTY_i16
+      // vr(0, max)
+      return nullptr;
+    }
+    return &vr;
+  }
+  if (ptyIsUnsigned) {
+    auto comparePty = (sizeOfPty >= sizeOfVRPty) ? pty : ptyOfVR;
+    if (vr.GetUpper().IsGreaterThan(Bound(GetMaxNumber(pty), pty), comparePty) ||
+        vr.GetLower().IsLessThan(Bound(GetMinNumber(pty), pty), comparePty)) {
+      // Overflows or underflows after conversion.
+      // for example:
+      // ptyOfVR: PTY_i32
+      // pty: PTY_u16
+      // vr(min, 8)
+      return nullptr;
+    }
+    return &vr;
+  }
+  return nullptr;
+}
+
 void ValueRangePropagation::Execute() {
   useInfo = &irMap.GetExprUseInfo();
   if (!useInfo->UseInfoOfAllIsValid()) {
@@ -2978,7 +3034,8 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, ui
     return nullptr;
   }
   uint32 recursions = 0;
-  auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), expr.GetExprID(), recursions, maxThreshold);
+  auto *valueRange = FindValueRangeInCaches(
+      bb.GetBBId(), expr.GetExprID(), recursions, maxThreshold, expr.GetPrimType());
   if (valueRange != nullptr) {
     return valueRange;
   }
@@ -3001,7 +3058,8 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr, ui
         return nullptr;
       }
       recursions = 0;
-      valueRange = FindValueRangeInCaches(bb.GetBBId(), (*itOfExprs)->GetExprID(), recursions, maxThreshold);
+      valueRange = FindValueRangeInCaches(
+          bb.GetBBId(), (*itOfExprs)->GetExprID(), recursions, maxThreshold, (*itOfExprs)->GetPrimType());
       if (valueRange != nullptr && valueRange->IsEqualAfterCVT(expr.GetPrimType(), (*itOfExprs)->GetPrimType())) {
         return valueRange;
       }

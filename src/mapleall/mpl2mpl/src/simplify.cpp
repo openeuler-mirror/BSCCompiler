@@ -61,7 +61,7 @@ constexpr std::string_view kVerticalLineStr = "__";
 // Truncate the constant field of 'union' if it's written as scalar type (e.g. int),
 // but accessed as bit-field type with smaller size.
 // Return the truncated constant or the original constant 'fieldCst' if the constant doesn't need to be truncated.
-MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldCst, const MIRType &unionFieldType) {
+MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldCst, MIRType &unionFieldType) {
   if (!fieldCst || unionType.GetKind() != kTypeUnion) {
     return fieldCst;
   }
@@ -69,7 +69,14 @@ MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldC
   auto *bitFieldType = safe_cast<MIRBitFieldType>(unionFieldType);
   auto *intCst = safe_cast<MIRIntConst>(fieldCst);
 
-  if (!bitFieldType || !intCst) {
+  if (!intCst) {
+    return fieldCst;
+  }
+
+  if (!bitFieldType) {
+    if (GetPrimTypeSize(unionFieldType.GetPrimType()) < GetPrimTypeSize(fieldCst->GetType().GetPrimType())) {
+      return GlobalTables::GetIntConstTable().GetOrCreateIntConst(intCst->GetValue(), unionFieldType);
+    }
     return fieldCst;
   }
 

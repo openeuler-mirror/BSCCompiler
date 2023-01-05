@@ -31,10 +31,18 @@ OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &
   for (auto joinedOption : optCategory.joinedOptions) {
     /* Joined Option (like -DMACRO) can be detected as substring (-D) in the option string */
     if (str.find(joinedOption.first) == 0) {
-      size_t keySize = joinedOption.first.size();
+      size_t keySize;
+      if (joinedOption.first != "-Wl") {
+        keySize = joinedOption.first.size();
+        keyArg.key = str.substr(0, keySize);
+      } else {
+        keySize = 0;
+        keyArg.key = "-Wl";
+      }
+      keyArg.val = str.substr(keySize);
 
       keyArg.val = str.substr(keySize);
-      keyArg.key = str.substr(0, keySize);
+      keyArg.isJoinedOpt = true;
       return joinedOption.second;
     }
   }
@@ -67,6 +75,16 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
                                  const std::deque<std::string_view> &args,
                                  KeyArg &keyArg, const OptionCategory &optCategory,
                                  OptionInterface *opt) {
+  if (args[argsIndex] == "--no-pie") {
+    auto item = optCategory.options.find("-fPIE");
+    item->second->SetEnabledByUser();
+  }
+
+  if (args[argsIndex] == "--no-pic") {
+    auto item = optCategory.options.find("-fPIC");
+    item->second->SetEnabledByUser();
+  }
+
   RetCode err = opt->Parse(argsIndex, args, keyArg);
   if (err != RetCode::noError) {
     return err;
@@ -207,10 +225,12 @@ void CommandLine::Register(const std::vector<std::string> &optNames,
     }
   }
 
-  auto disabledWith = opt.GetDisabledName();
+  auto &disabledWith = opt.GetDisabledName();
   if (!disabledWith.empty()) {
-    ASSERT(optCategory.options.count(disabledWith) == 0, "Duplicated options name %s", disabledWith.data());
-    optCategory.options.emplace(disabledWith, &opt);
+    for (auto &disabledName : disabledWith) {
+      ASSERT(optCategory.options.count(disabledName) == 0, "Duplicated options name %s", disabledName.data());
+      optCategory.options.emplace(disabledName, &opt);
+    }
   }
 
   optCategory.registredOptions.push_back(&opt);

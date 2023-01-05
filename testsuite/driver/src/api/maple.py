@@ -34,5 +34,5 @@ class Maple(ShellOperator):
           for cmd in self.run:
               option.append(self.option_dict[cmd])
           self.command += "--option=\"" + ":".join(option) + "\" "
-          self.command += self.global_option + " "
+        self.command += " " + self.global_option + " "
         return super().get_final_command(variables)

@@ -131,6 +131,7 @@ class OptionInterface {
   virtual void Clear() = 0;
   virtual std::vector<std::string> GetRawValues() = 0;
   virtual const OptionWrp GetCommonValue() const = 0;
+  virtual void SetEnabledByUser() = 0;
 
   void FinalizeInitialization(const std::vector<std::string> &optnames,
                               const std::string &descr,
@@ -303,6 +304,9 @@ class Option : public OptionInterface {
     value = val;
   }
 
+  void SetEnabledByUser() override {
+    isEnabledByUser = true;
+  }
  protected:
   RetCode ParseDigit(size_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
   RetCode ParseString(size_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
