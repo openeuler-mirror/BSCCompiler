@@ -2847,6 +2847,9 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curI
     }
     if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(combineInsn.GetMachineOpcode(), newMemOpnd,
                                                                  kInsnThirdOpnd))) {
+      if (FindTmpRegOnlyUseAfterCombineInsn(combineInsn)) {
+        return false;
+      }
       return PlaceSplitAddInsn(curInsn, combineInsn, memOperand, *baseRegOpnd, opndProp->GetSize());
     }
     combineInsn.SetOperand(kInsnThirdOpnd, *newMemOpnd);
