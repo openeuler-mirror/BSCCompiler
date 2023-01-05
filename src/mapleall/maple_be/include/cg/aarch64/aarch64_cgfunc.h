@@ -379,11 +379,11 @@ class AArch64CGFunc : public CGFunc {
     return *memPool->New<ImmOperand>(val, size, isSigned, varyType, isFmov);
   }
 
-  ImmOperand &CreateImmOperand(Operand::OperandType type, int64 val, uint32 size, bool isSigned) {
+  ImmOperand &CreateImmOperand(Operand::OperandType type, int64 val, uint32 size, bool isSigned) const {
     return *memPool->New<ImmOperand>(type, val, size, isSigned);
   }
 
-  ListOperand *CreateListOpnd(MapleAllocator &allocator) {
+  ListOperand *CreateListOpnd(MapleAllocator &allocator) const {
     return memPool->New<ListOperand>(allocator);
   }
 

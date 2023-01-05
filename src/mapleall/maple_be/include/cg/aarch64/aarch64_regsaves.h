@@ -193,18 +193,18 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     return data[bid];
   }
 
-  void SetCalleeBit(CalleeBitsType *dest, BBID bidD, CalleeBitsType src) {
+  void SetCalleeBit(CalleeBitsType *dest, BBID bidD, CalleeBitsType src) const {
     dest[bidD] = src;
   }
 
-  void SetCalleeBit(CalleeBitsType *data, BBID bid, regno_t reg) {
+  void SetCalleeBit(CalleeBitsType *data, BBID bid, regno_t reg) const {
     CalleeBitsType mask = 1ULL << RegBitMap(reg);
     if ((GetBBCalleeBits(data, bid) & mask) == 0) {
       data[bid] = GetBBCalleeBits(data, bid) | mask;
     }
   }
 
-  void ResetCalleeBit(CalleeBitsType * data, BBID bid, regno_t reg) {
+  void ResetCalleeBit(CalleeBitsType * data, BBID bid, regno_t reg) const {
     CalleeBitsType mask = 1ULL << RegBitMap(reg);
     data[bid] = GetBBCalleeBits(data, bid) & ~mask;
   }

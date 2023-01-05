@@ -1042,7 +1042,7 @@ class CGFunc {
     spSaveReg = reg;
   }
 
-  regno_t GetSpSaveReg() {
+  regno_t GetSpSaveReg() const {
     return spSaveReg;
   }
 
