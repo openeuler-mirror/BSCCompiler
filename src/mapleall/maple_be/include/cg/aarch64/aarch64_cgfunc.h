@@ -903,7 +903,7 @@ class AArch64CGFunc : public CGFunc {
   bool GenerateCompareWithZeroInstruction(Opcode jmpOp, Opcode cmpOp, bool is64Bits, PrimType primType,
                                           LabelOperand &targetOpnd, Operand &opnd0);
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);
-  void SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccallNode);
+  void SelectCAtomicStoreN(const IntrinsiccallNode &intrinsiccall);
   void SelectCAtomicStore(const IntrinsiccallNode &intrinsiccall);
   void SelectCAtomicLoad(const IntrinsiccallNode &intrinsiccall);
   void SelectCSyncLockRelease(const IntrinsiccallNode &intrinsiccall, PrimType primType);

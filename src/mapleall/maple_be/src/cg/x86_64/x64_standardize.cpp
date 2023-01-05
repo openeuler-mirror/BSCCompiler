@@ -75,7 +75,6 @@ void X64Standardize::StdzCvtOp(Insn &insn) {
   uint32 OpndSrcSize = insn.GetDesc()->GetOpndDes(kInsnSecondOpnd)->GetSize();
   uint32 srcSize = OpndSrcSize;
   switch (insn.GetMachineOpcode()) {
-    case abstract::MOP_zext_rr_64_16:
     case abstract::MOP_zext_rr_64_32:
       destSize = k32BitSize;
       break;
