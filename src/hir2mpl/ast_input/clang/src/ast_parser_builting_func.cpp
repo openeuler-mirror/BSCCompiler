@@ -40,6 +40,7 @@ std::unordered_map<std::string, ASTCallExpr::FuncPtrBuiltinFunc> ASTCallExpr::In
 #define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...)                                \
   ans["__builtin_mpl_"#STR] = &ASTCallExpr::EmitBuiltin##STR;
 #include "intrinsic_vector.def"
+#include "intrinsic_vector_new.def"
 #undef DEF_MIR_INTRINSIC
 
   return ans;
@@ -157,6 +158,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) c
   return std::make_unique<FEIRExprIntrinsicopForC>(std::move(feType), INTRN_##STR, argOpnds);      \
 }
 #include "intrinsic_vector.def"
+#include "intrinsic_vector_new.def"
 #undef DEF_MIR_INTRINSIC
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorLoad(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {

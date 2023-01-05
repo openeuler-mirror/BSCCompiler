@@ -1433,6 +1433,7 @@ class ASTCallExpr : public ASTExpr {
 #define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...)         \
 UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
 #include "intrinsic_vector.def"
+#include "intrinsic_vector_new.def"
 #undef DEF_MIR_INTRINSIC
 
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;

@@ -416,6 +416,7 @@ class CGFunc {
   virtual RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) = 0;
   virtual RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
   virtual RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) = 0;
+  virtual RegOperand *SelectVectorIntrinsics(const IntrinsicopNode &intrinsicNode) = 0;
 
   /* For ebo issue. */
   virtual Operand *GetTrueOpnd() {

@@ -218,6 +218,7 @@ class X64CGFunc : public CGFunc {
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) override;
+  RegOperand *SelectVectorIntrinsics(const IntrinsicopNode &intrinsicOp) override;
   Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType,
                                         const std::string &name) override;
   void ProcessLazyBinding() override;

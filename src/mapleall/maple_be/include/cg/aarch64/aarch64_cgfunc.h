@@ -344,6 +344,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) override;
+  RegOperand *SelectVectorIntrinsics(const IntrinsicopNode &intrinsicOp) override;
 
   void SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, PrimType oType);
   void SelectVectorZip(PrimType rType, Operand *o1, Operand *o2);

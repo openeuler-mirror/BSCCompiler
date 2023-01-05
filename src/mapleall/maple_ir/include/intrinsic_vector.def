@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Futurewei Technologies, Inc.
+ * Copyright (c) [2023] Futurewei Technologies, Inc.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the
@@ -54,6 +54,23 @@ DEF_MIR_INTRINSIC(vector_abs_v4f32, "vector_abs_v4f32",
 DEF_MIR_INTRINSIC(vector_abs_v2f64, "vector_abs_v2f64",
                   1, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2F64,
                   kArgTyV2F64)
+
+// vecTy vector_mov_narrow(vecTy src)
+//     copies each element of the operand vector to the corresponding element of the destination vector.
+//     The result element is half the width of the operand element, and values are saturated to the result width.
+//     The results are the same type as the operands.
+DEF_MIR_INTRINSIC(vector_mov_narrow_v8u16, "vector_mov_narrow_v8u16", 1,
+                  INTRNISVECTOR | INTRNISPURE |INTRNNOSIDEEFFECT, kArgTyV8U8, kArgTyV8U16)
+DEF_MIR_INTRINSIC(vector_mov_narrow_v4u32, "vector_mov_narrow_v4u32", 1,
+                  INTRNISVECTOR | INTRNISPURE |INTRNNOSIDEEFFECT, kArgTyV4U16, kArgTyV4U32)
+DEF_MIR_INTRINSIC(vector_mov_narrow_v2u64, "vector_mov_narrow_v2u64", 1,
+                  INTRNISVECTOR | INTRNISPURE |INTRNNOSIDEEFFECT, kArgTyV2U32, kArgTyV2U64)
+DEF_MIR_INTRINSIC(vector_mov_narrow_v8i16, "vector_mov_narrow_v8i16", 1,
+                  INTRNISVECTOR | INTRNISPURE |INTRNNOSIDEEFFECT, kArgTyV8I8, kArgTyV8I16)
+DEF_MIR_INTRINSIC(vector_mov_narrow_v4i32, "vector_mov_narrow_v4i32", 1,
+                  INTRNISVECTOR | INTRNISPURE |INTRNNOSIDEEFFECT, kArgTyV4I16, kArgTyV4I32)
+DEF_MIR_INTRINSIC(vector_mov_narrow_v2i64, "vector_mov_narrow_v2i64", 1,
+                  INTRNISVECTOR | INTRNISPURE |INTRNNOSIDEEFFECT, kArgTyV2I32, kArgTyV2I64)
 
 // vecTy vector_addl_low(vecTy src1, vecTy src2)
 //      Add each element of the source vector to second source

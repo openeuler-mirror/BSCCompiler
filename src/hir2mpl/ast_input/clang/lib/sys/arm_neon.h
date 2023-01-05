@@ -726,6 +726,8 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vaddq_f16(a, b) (a + b)
 #define vaddq_f32(a, b) (a + b)
 #define vaddq_f64(a, b) (a + b)
+#define vaddd_s64(a, b) (a + b)
+#define vaddd_u64(a, b) (a + b)
 
 // vand
 #define vand_s8(a, b) (a & b)
@@ -810,6 +812,32 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vceqq_f16(a, b) (a == b)
 #define vceqq_f32(a, b) (a == b)
 #define vceqq_f64(a, b) (a == b)
+#define vceqd_s64(a, b) (a == b)
+#define vceqd_u64(a, b) (a == b)
+
+// vceqz
+#define vceqz_s8(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_s8(a) ((a == 0) ? -1LL : 0LL)
+#define vceqz_s16(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_s16(a) ((a == 0) ? -1LL : 0LL)
+#define vceqz_s32(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_s32(a) ((a == 0) ? -1LL : 0LL)
+#define vceqz_u8(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_u8(a) ((a == 0) ? -1LL : 0LL)
+#define vceqz_u16(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_u16(a) ((a == 0) ? -1LL : 0LL)
+#define vceqz_u32(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_u32(a) ((a == 0) ? -1LL : 0LL)
+#define vceqz_p8(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_p8(a) ((a == 0) ? -1LL : 0LL)
+#define vceqz_s64(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_s64(a) ((a == 0) ? -1LL : 0LL)
+#define vceqz_u64(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_u64(a) ((a == 0) ? -1LL : 0LL)
+#define vceqz_p64(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzq_p64(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzd_s64(a) ((a == 0) ? -1LL : 0LL)
+#define vceqzd_u64(a) ((a == 0) ? -1LL : 0LL)
 
 // vcgt
 #define vcgt_s8(a, b) (a > b)
@@ -834,6 +862,19 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vcgtq_f16(a, b) (a > b)
 #define vcgtq_f32(a, b) (a > b)
 #define vcgtq_f64(a, b) (a > b)
+#define vcgtd_s64(a, b) (a > b)
+#define vcgtd_u64(a, b) (a > b)
+
+// vcgtz
+#define vcgtz_s8(a) (a > 0)
+#define vcgtzq_s8(a) (a > 0)
+#define vcgtz_s16(a) (a > 0)
+#define vcgtzq_s16(a) (a > 0)
+#define vcgtz_s32(a) (a > 0)
+#define vcgtzq_s32(a) (a > 0)
+#define vcgtz_s64(a) (a > 0)
+#define vcgtzq_s64(a) (a > 0)
+#define vcgtzd_s64(a) (a > 0)
 
 // vcge
 #define vcge_s8(a, b) (a >= b)
@@ -858,6 +899,19 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vcgeq_f16(a, b) (a >= b)
 #define vcgeq_f32(a, b) (a >= b)
 #define vcgeq_f64(a, b) (a >= b)
+#define vcged_s64(a, b) (a >= b)
+#define vcged_u64(a, b) (a >= b)
+
+// vcgez
+#define vcgez_s8(a) (a >= 0)
+#define vcgezq_s8(a) (a >= 0)
+#define vcgez_s16(a) (a >= 0)
+#define vcgezq_s16(a) (a >= 0)
+#define vcgez_s32(a) (a >= 0)
+#define vcgezq_s32(a) (a >= 0)
+#define vcgez_s64(a) (a >= 0)
+#define vcgezq_s64(a) (a >= 0)
+#define vcgezd_s64(a) (a >= 0)
 
 // vclt
 #define vclt_s8(a, b) (a < b)
@@ -882,6 +936,19 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vcltq_f16(a, b) (a < b)
 #define vcltq_f32(a, b) (a < b)
 #define vcltq_f64(a, b) (a < b)
+#define vcltd_s64(a, b) (a < b)
+#define vcltd_u64(a, b) (a < b)
+
+// vcltz
+#define vcltz_s8(a) (a < 0)
+#define vcltzq_s8(a) (a < 0)
+#define vcltz_s16(a) (a < 0)
+#define vcltzq_s16(a) (a < 0)
+#define vcltz_s32(a) (a < 0)
+#define vcltzq_s32(a) (a < 0)
+#define vcltz_s64(a) (a < 0)
+#define vcltzq_s64(a) (a < 0)
+#define vcltzd_s64(a) (a < 0)
 
 // vcle
 #define vcle_s8(a, b) (a <= b)
@@ -906,6 +973,19 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vcleq_f16(a, b) (a <= b)
 #define vcleq_f32(a, b) (a <= b)
 #define vcleq_f64(a, b) (a <= b)
+#define vcled_s64(a, b) (a <= b)
+#define vcled_u64(a, b) (a <= b)
+
+// vclez
+#define vclez_s8(a) (a <= 0)
+#define vclezq_s8(a) (a <= 0)
+#define vclez_s16(a) (a <= 0)
+#define vclezq_s16(a) (a <= 0)
+#define vclez_s32(a) (a <= 0)
+#define vclezq_s32(a) (a <= 0)
+#define vclez_s64(a) (a <= 0)
+#define vclezq_s64(a) (a <= 0)
+#define vclezd_s64(a) (a <= 0)
 
 // veor
 #define veor_s8(a, b) (a ^ b)
@@ -1062,6 +1142,20 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vmovn_high_u64(a, b) __builtin_mpl_vector_narrow_high_v2u64(a, b)
 #define vmovn_high_u32(a, b) __builtin_mpl_vector_narrow_high_v4u32(a, b)
 #define vmovn_high_u16(a, b) __builtin_mpl_vector_narrow_high_v8u16(a, b)
+
+// vmul
+#define vmul_s8(a, b) (a * b)
+#define vmulq_s8(a, b) (a * b)
+#define vmul_s16(a, b) (a * b)
+#define vmulq_s16(a, b) (a * b)
+#define vmul_s32(a, b) (a * b)
+#define vmulq_s32(a, b) (a * b)
+#define vmul_u8(a, b) (a * b)
+#define vmulq_u8(a, b) (a * b)
+#define vmul_u16(a, b) (a * b)
+#define vmulq_u16(a, b) (a * b)
+#define vmul_u32(a, b) (a * b)
+#define vmulq_u32(a, b) (a * b)
 
 // vmull
 #define vmull_s8(a, b)  __builtin_mpl_vector_mull_low_v8i8(a, b)
@@ -1396,6 +1490,8 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vsubq_f16(a, b) (a - b)
 #define vsubq_f32(a, b) (a - b)
 #define vsubq_f64(a, b) (a - b)
+#define vsubd_s64(a, b) (a - b)
+#define vsubd_u64(a, b) (a - b)
 
 // vsub[lw]
 #define vsubl_s8(a, b) __builtin_mpl_vector_subl_low_v8i8(a, b)
@@ -1431,5 +1527,691 @@ uint64x2_t __builtin_mpl_vector_subw_high_v2u32(uint64x2_t, uint32x4_t);
 #define vzip_u16(a, b) __builtin_mpl_vector_zip_v4u16(a, b)
 #define vzip_u32(a, b) __builtin_mpl_vector_zip_v2u32(a, b)
 #define vzip_f32(a, b) __builtin_mpl_vector_zip_v2f32(a, b)
+
+// vneg
+int8x8_t __builtin_mpl_vector_abd_v8i8(int8x8_t a, int8x8_t b);
+#define vabd_s8(a, b)  __builtin_mpl_vector_abd_v8i8(a, b)
+
+int8x16_t __builtin_mpl_vector_abdq_v16i8(int8x16_t a, int8x16_t b);
+#define vabdq_s8(a, b)  __builtin_mpl_vector_abdq_v16i8(a, b)
+
+int16x4_t __builtin_mpl_vector_abd_v4i16(int16x4_t a, int16x4_t b);
+#define vabd_s16(a, b)  __builtin_mpl_vector_abd_v4i16(a, b)
+
+int16x8_t __builtin_mpl_vector_abdq_v8i16(int16x8_t a, int16x8_t b);
+#define vabdq_s16(a, b)  __builtin_mpl_vector_abdq_v8i16(a, b)
+
+int32x2_t __builtin_mpl_vector_abd_v2i32(int32x2_t a, int32x2_t b);
+#define vabd_s32(a, b)  __builtin_mpl_vector_abd_v2i32(a, b)
+
+int32x4_t __builtin_mpl_vector_abdq_v4i32(int32x4_t a, int32x4_t b);
+#define vabdq_s32(a, b)  __builtin_mpl_vector_abdq_v4i32(a, b)
+
+uint8x8_t __builtin_mpl_vector_abd_v8u8(uint8x8_t a, uint8x8_t b);
+#define vabd_u8(a, b)  __builtin_mpl_vector_abd_v8u8(a, b)
+
+uint8x16_t __builtin_mpl_vector_abdq_v16u8(uint8x16_t a, uint8x16_t b);
+#define vabdq_u8(a, b)  __builtin_mpl_vector_abdq_v16u8(a, b)
+
+uint16x4_t __builtin_mpl_vector_abd_v4u16(uint16x4_t a, uint16x4_t b);
+#define vabd_u16(a, b)  __builtin_mpl_vector_abd_v4u16(a, b)
+
+uint16x8_t __builtin_mpl_vector_abdq_v8u16(uint16x8_t a, uint16x8_t b);
+#define vabdq_u16(a, b)  __builtin_mpl_vector_abdq_v8u16(a, b)
+
+uint32x2_t __builtin_mpl_vector_abd_v2u32(uint32x2_t a, uint32x2_t b);
+#define vabd_u32(a, b)  __builtin_mpl_vector_abd_v2u32(a, b)
+
+uint32x4_t __builtin_mpl_vector_abdq_v4u32(uint32x4_t a, uint32x4_t b);
+#define vabdq_u32(a, b)  __builtin_mpl_vector_abdq_v4u32(a, b)
+
+int8x8_t __builtin_mpl_vector_max_v8i8(int8x8_t a, int8x8_t b);
+#define vmax_s8(a, b)  __builtin_mpl_vector_max_v8i8(a, b)
+
+int8x16_t __builtin_mpl_vector_maxq_v16i8(int8x16_t a, int8x16_t b);
+#define vmaxq_s8(a, b)  __builtin_mpl_vector_maxq_v16i8(a, b)
+
+int16x4_t __builtin_mpl_vector_max_v4i16(int16x4_t a, int16x4_t b);
+#define vmax_s16(a, b)  __builtin_mpl_vector_max_v4i16(a, b)
+
+int16x8_t __builtin_mpl_vector_maxq_v8i16(int16x8_t a, int16x8_t b);
+#define vmaxq_s16(a, b)  __builtin_mpl_vector_maxq_v8i16(a, b)
+
+int32x2_t __builtin_mpl_vector_max_v2i32(int32x2_t a, int32x2_t b);
+#define vmax_s32(a, b)  __builtin_mpl_vector_max_v2i32(a, b)
+
+int32x4_t __builtin_mpl_vector_maxq_v4i32(int32x4_t a, int32x4_t b);
+#define vmaxq_s32(a, b)  __builtin_mpl_vector_maxq_v4i32(a, b)
+
+uint8x8_t __builtin_mpl_vector_max_v8u8(uint8x8_t a, uint8x8_t b);
+#define vmax_u8(a, b)  __builtin_mpl_vector_max_v8u8(a, b)
+
+uint8x16_t __builtin_mpl_vector_maxq_v16u8(uint8x16_t a, uint8x16_t b);
+#define vmaxq_u8(a, b)  __builtin_mpl_vector_maxq_v16u8(a, b)
+
+uint16x4_t __builtin_mpl_vector_max_v4u16(uint16x4_t a, uint16x4_t b);
+#define vmax_u16(a, b)  __builtin_mpl_vector_max_v4u16(a, b)
+
+uint16x8_t __builtin_mpl_vector_maxq_v8u16(uint16x8_t a, uint16x8_t b);
+#define vmaxq_u16(a, b)  __builtin_mpl_vector_maxq_v8u16(a, b)
+
+uint32x2_t __builtin_mpl_vector_max_v2u32(uint32x2_t a, uint32x2_t b);
+#define vmax_u32(a, b)  __builtin_mpl_vector_max_v2u32(a, b)
+
+uint32x4_t __builtin_mpl_vector_maxq_v4u32(uint32x4_t a, uint32x4_t b);
+#define vmaxq_u32(a, b)  __builtin_mpl_vector_maxq_v4u32(a, b)
+
+int8x8_t __builtin_mpl_vector_min_v8i8(int8x8_t a, int8x8_t b);
+#define vmin_s8(a, b)  __builtin_mpl_vector_min_v8i8(a, b)
+
+int8x16_t __builtin_mpl_vector_minq_v16i8(int8x16_t a, int8x16_t b);
+#define vminq_s8(a, b)  __builtin_mpl_vector_minq_v16i8(a, b)
+
+int16x4_t __builtin_mpl_vector_min_v4i16(int16x4_t a, int16x4_t b);
+#define vmin_s16(a, b)  __builtin_mpl_vector_min_v4i16(a, b)
+
+int16x8_t __builtin_mpl_vector_minq_v8i16(int16x8_t a, int16x8_t b);
+#define vminq_s16(a, b)  __builtin_mpl_vector_minq_v8i16(a, b)
+
+int32x2_t __builtin_mpl_vector_min_v2i32(int32x2_t a, int32x2_t b);
+#define vmin_s32(a, b)  __builtin_mpl_vector_min_v2i32(a, b)
+
+int32x4_t __builtin_mpl_vector_minq_v4i32(int32x4_t a, int32x4_t b);
+#define vminq_s32(a, b)  __builtin_mpl_vector_minq_v4i32(a, b)
+
+uint8x8_t __builtin_mpl_vector_min_v8u8(uint8x8_t a, uint8x8_t b);
+#define vmin_u8(a, b)  __builtin_mpl_vector_min_v8u8(a, b)
+
+uint8x16_t __builtin_mpl_vector_minq_v16u8(uint8x16_t a, uint8x16_t b);
+#define vminq_u8(a, b)  __builtin_mpl_vector_minq_v16u8(a, b)
+
+uint16x4_t __builtin_mpl_vector_min_v4u16(uint16x4_t a, uint16x4_t b);
+#define vmin_u16(a, b)  __builtin_mpl_vector_min_v4u16(a, b)
+
+uint16x8_t __builtin_mpl_vector_minq_v8u16(uint16x8_t a, uint16x8_t b);
+#define vminq_u16(a, b)  __builtin_mpl_vector_minq_v8u16(a, b)
+
+uint32x2_t __builtin_mpl_vector_min_v2u32(uint32x2_t a, uint32x2_t b);
+#define vmin_u32(a, b)  __builtin_mpl_vector_min_v2u32(a, b)
+
+uint32x4_t __builtin_mpl_vector_minq_v4u32(uint32x4_t a, uint32x4_t b);
+#define vminq_u32(a, b)  __builtin_mpl_vector_minq_v4u32(a, b)
+
+uint32x2_t __builtin_mpl_vector_recpe_v2u32(uint32x2_t a);
+#define vrecpe_u32(a)  __builtin_mpl_vector_recpe_v2u32(a)
+
+uint32x4_t __builtin_mpl_vector_recpeq_v4u32(uint32x4_t a);
+#define vrecpeq_u32(a)  __builtin_mpl_vector_recpeq_v4u32(a)
+
+int8x8_t __builtin_mpl_vector_padd_v8i8(int8x8_t a, int8x8_t b);
+#define vpadd_s8(a, b)  __builtin_mpl_vector_padd_v8i8(a, b)
+
+int16x4_t __builtin_mpl_vector_padd_v4i16(int16x4_t a, int16x4_t b);
+#define vpadd_s16(a, b)  __builtin_mpl_vector_padd_v4i16(a, b)
+
+int32x2_t __builtin_mpl_vector_padd_v2i32(int32x2_t a, int32x2_t b);
+#define vpadd_s32(a, b)  __builtin_mpl_vector_padd_v2i32(a, b)
+
+uint8x8_t __builtin_mpl_vector_padd_v8u8(uint8x8_t a, uint8x8_t b);
+#define vpadd_u8(a, b)  __builtin_mpl_vector_padd_v8u8(a, b)
+
+uint16x4_t __builtin_mpl_vector_padd_v4u16(uint16x4_t a, uint16x4_t b);
+#define vpadd_u16(a, b)  __builtin_mpl_vector_padd_v4u16(a, b)
+
+uint32x2_t __builtin_mpl_vector_padd_v2u32(uint32x2_t a, uint32x2_t b);
+#define vpadd_u32(a, b)  __builtin_mpl_vector_padd_v2u32(a, b)
+
+int8x16_t __builtin_mpl_vector_paddq_v16i8(int8x16_t a, int8x16_t b);
+#define vpaddq_s8(a, b)  __builtin_mpl_vector_paddq_v16i8(a, b)
+
+int16x8_t __builtin_mpl_vector_paddq_v8i16(int16x8_t a, int16x8_t b);
+#define vpaddq_s16(a, b)  __builtin_mpl_vector_paddq_v8i16(a, b)
+
+int32x4_t __builtin_mpl_vector_paddq_v4i32(int32x4_t a, int32x4_t b);
+#define vpaddq_s32(a, b)  __builtin_mpl_vector_paddq_v4i32(a, b)
+
+int64x2_t __builtin_mpl_vector_paddq_v2i64(int64x2_t a, int64x2_t b);
+#define vpaddq_s64(a, b)  __builtin_mpl_vector_paddq_v2i64(a, b)
+
+uint8x16_t __builtin_mpl_vector_paddq_v16u8(uint8x16_t a, uint8x16_t b);
+#define vpaddq_u8(a, b)  __builtin_mpl_vector_paddq_v16u8(a, b)
+
+uint16x8_t __builtin_mpl_vector_paddq_v8u16(uint16x8_t a, uint16x8_t b);
+#define vpaddq_u16(a, b)  __builtin_mpl_vector_paddq_v8u16(a, b)
+
+uint32x4_t __builtin_mpl_vector_paddq_v4u32(uint32x4_t a, uint32x4_t b);
+#define vpaddq_u32(a, b)  __builtin_mpl_vector_paddq_v4u32(a, b)
+
+uint64x2_t __builtin_mpl_vector_paddq_v2u64(uint64x2_t a, uint64x2_t b);
+#define vpaddq_u64(a, b)  __builtin_mpl_vector_paddq_v2u64(a, b)
+
+int64_t __builtin_mpl_vector_paddd_v1i64(int64x2_t a);
+#define vpaddd_s64(a)  __builtin_mpl_vector_paddd_v1i64(a)
+
+uint64_t __builtin_mpl_vector_paddd_v1u64(uint64x2_t a);
+#define vpaddd_u64(a)  __builtin_mpl_vector_paddd_v1u64(a)
+
+int8x8_t __builtin_mpl_vector_pmax_v8i8(int8x8_t a, int8x8_t b);
+#define vpmax_s8(a, b)  __builtin_mpl_vector_pmax_v8i8(a, b)
+
+int16x4_t __builtin_mpl_vector_pmax_v4i16(int16x4_t a, int16x4_t b);
+#define vpmax_s16(a, b)  __builtin_mpl_vector_pmax_v4i16(a, b)
+
+int32x2_t __builtin_mpl_vector_pmax_v2i32(int32x2_t a, int32x2_t b);
+#define vpmax_s32(a, b)  __builtin_mpl_vector_pmax_v2i32(a, b)
+
+uint8x8_t __builtin_mpl_vector_pmax_v8u8(uint8x8_t a, uint8x8_t b);
+#define vpmax_u8(a, b)  __builtin_mpl_vector_pmax_v8u8(a, b)
+
+uint16x4_t __builtin_mpl_vector_pmax_v4u16(uint16x4_t a, uint16x4_t b);
+#define vpmax_u16(a, b)  __builtin_mpl_vector_pmax_v4u16(a, b)
+
+uint32x2_t __builtin_mpl_vector_pmax_v2u32(uint32x2_t a, uint32x2_t b);
+#define vpmax_u32(a, b)  __builtin_mpl_vector_pmax_v2u32(a, b)
+
+int8x16_t __builtin_mpl_vector_pmaxq_v16i8(int8x16_t a, int8x16_t b);
+#define vpmaxq_s8(a, b)  __builtin_mpl_vector_pmaxq_v16i8(a, b)
+
+int16x8_t __builtin_mpl_vector_pmaxq_v8i16(int16x8_t a, int16x8_t b);
+#define vpmaxq_s16(a, b)  __builtin_mpl_vector_pmaxq_v8i16(a, b)
+
+int32x4_t __builtin_mpl_vector_pmaxq_v4i32(int32x4_t a, int32x4_t b);
+#define vpmaxq_s32(a, b)  __builtin_mpl_vector_pmaxq_v4i32(a, b)
+
+uint8x16_t __builtin_mpl_vector_pmaxq_v16u8(uint8x16_t a, uint8x16_t b);
+#define vpmaxq_u8(a, b)  __builtin_mpl_vector_pmaxq_v16u8(a, b)
+
+uint16x8_t __builtin_mpl_vector_pmaxq_v8u16(uint16x8_t a, uint16x8_t b);
+#define vpmaxq_u16(a, b)  __builtin_mpl_vector_pmaxq_v8u16(a, b)
+
+uint32x4_t __builtin_mpl_vector_pmaxq_v4u32(uint32x4_t a, uint32x4_t b);
+#define vpmaxq_u32(a, b)  __builtin_mpl_vector_pmaxq_v4u32(a, b)
+
+int8x8_t __builtin_mpl_vector_pmin_v8i8(int8x8_t a, int8x8_t b);
+#define vpmin_s8(a, b)  __builtin_mpl_vector_pmin_v8i8(a, b)
+
+int16x4_t __builtin_mpl_vector_pmin_v4i16(int16x4_t a, int16x4_t b);
+#define vpmin_s16(a, b)  __builtin_mpl_vector_pmin_v4i16(a, b)
+
+int32x2_t __builtin_mpl_vector_pmin_v2i32(int32x2_t a, int32x2_t b);
+#define vpmin_s32(a, b)  __builtin_mpl_vector_pmin_v2i32(a, b)
+
+uint8x8_t __builtin_mpl_vector_pmin_v8u8(uint8x8_t a, uint8x8_t b);
+#define vpmin_u8(a, b)  __builtin_mpl_vector_pmin_v8u8(a, b)
+
+uint16x4_t __builtin_mpl_vector_pmin_v4u16(uint16x4_t a, uint16x4_t b);
+#define vpmin_u16(a, b)  __builtin_mpl_vector_pmin_v4u16(a, b)
+
+uint32x2_t __builtin_mpl_vector_pmin_v2u32(uint32x2_t a, uint32x2_t b);
+#define vpmin_u32(a, b)  __builtin_mpl_vector_pmin_v2u32(a, b)
+
+int8x16_t __builtin_mpl_vector_pminq_v16i8(int8x16_t a, int8x16_t b);
+#define vpminq_s8(a, b)  __builtin_mpl_vector_pminq_v16i8(a, b)
+
+int16x8_t __builtin_mpl_vector_pminq_v8i16(int16x8_t a, int16x8_t b);
+#define vpminq_s16(a, b)  __builtin_mpl_vector_pminq_v8i16(a, b)
+
+int32x4_t __builtin_mpl_vector_pminq_v4i32(int32x4_t a, int32x4_t b);
+#define vpminq_s32(a, b)  __builtin_mpl_vector_pminq_v4i32(a, b)
+
+uint8x16_t __builtin_mpl_vector_pminq_v16u8(uint8x16_t a, uint8x16_t b);
+#define vpminq_u8(a, b)  __builtin_mpl_vector_pminq_v16u8(a, b)
+
+uint16x8_t __builtin_mpl_vector_pminq_v8u16(uint16x8_t a, uint16x8_t b);
+#define vpminq_u16(a, b)  __builtin_mpl_vector_pminq_v8u16(a, b)
+
+uint32x4_t __builtin_mpl_vector_pminq_v4u32(uint32x4_t a, uint32x4_t b);
+#define vpminq_u32(a, b)  __builtin_mpl_vector_pminq_v4u32(a, b)
+
+int8x8_t __builtin_mpl_vector_maxv_v8i8(int8x8_t a);
+#define vmaxv_s8(a)  __builtin_mpl_vector_get_element_v8i8(__builtin_mpl_vector_maxv_v8i8(a), 0)
+
+int8x16_t __builtin_mpl_vector_maxvq_v16i8(int8x16_t a);
+#define vmaxvq_s8(a)  __builtin_mpl_vector_get_element_v16i8(__builtin_mpl_vector_maxvq_v16i8(a), 0)
+
+int16x4_t __builtin_mpl_vector_maxv_v4i16(int16x4_t a);
+#define vmaxv_s16(a)  __builtin_mpl_vector_get_element_v4i16(__builtin_mpl_vector_maxv_v4i16(a), 0)
+
+int16x8_t __builtin_mpl_vector_maxvq_v8i16(int16x8_t a);
+#define vmaxvq_s16(a)  __builtin_mpl_vector_get_element_v8i16(__builtin_mpl_vector_maxvq_v8i16(a), 0)
+
+int32x2_t __builtin_mpl_vector_maxv_v2i32(int32x2_t a);
+#define vmaxv_s32(a)  __builtin_mpl_vector_get_element_v2i32(__builtin_mpl_vector_maxv_v2i32(a), 0)
+
+int32x4_t __builtin_mpl_vector_maxvq_v4i32(int32x4_t a);
+#define vmaxvq_s32(a)  __builtin_mpl_vector_get_element_v4i32(__builtin_mpl_vector_maxvq_v4i32(a), 0)
+
+uint8x8_t __builtin_mpl_vector_maxv_v8u8(uint8x8_t a);
+#define vmaxv_u8(a)  __builtin_mpl_vector_get_element_v8u8(__builtin_mpl_vector_maxv_v8u8(a), 0)
+
+uint8x16_t __builtin_mpl_vector_maxvq_v16u8(uint8x16_t a);
+#define vmaxvq_u8(a)  __builtin_mpl_vector_get_element_v16u8(__builtin_mpl_vector_maxvq_v16u8(a), 0)
+
+uint16x4_t __builtin_mpl_vector_maxv_v4u16(uint16x4_t a);
+#define vmaxv_u16(a)  __builtin_mpl_vector_get_element_v4u16(__builtin_mpl_vector_maxv_v4u16(a), 0)
+
+uint16x8_t __builtin_mpl_vector_maxvq_v8u16(uint16x8_t a);
+#define vmaxvq_u16(a)  __builtin_mpl_vector_get_element_v8u16(__builtin_mpl_vector_maxvq_v8u16(a), 0)
+
+uint32x2_t __builtin_mpl_vector_maxv_v2u32(uint32x2_t a);
+#define vmaxv_u32(a)  __builtin_mpl_vector_get_element_v2u32(__builtin_mpl_vector_maxv_v2u32(a), 0)
+
+uint32x4_t __builtin_mpl_vector_maxvq_v4u32(uint32x4_t a);
+#define vmaxvq_u32(a)  __builtin_mpl_vector_get_element_v4u32(__builtin_mpl_vector_maxvq_v4u32(a), 0)
+
+int8x8_t __builtin_mpl_vector_minv_v8i8(int8x8_t a);
+#define vminv_s8(a)  __builtin_mpl_vector_get_element_v8i8(__builtin_mpl_vector_minv_v8i8(a), 0)
+
+int8x16_t __builtin_mpl_vector_minvq_v16i8(int8x16_t a);
+#define vminvq_s8(a)  __builtin_mpl_vector_get_element_v16i8(__builtin_mpl_vector_minvq_v16i8(a), 0)
+
+int16x4_t __builtin_mpl_vector_minv_v4i16(int16x4_t a);
+#define vminv_s16(a)  __builtin_mpl_vector_get_element_v4i16(__builtin_mpl_vector_minv_v4i16(a), 0)
+
+int16x8_t __builtin_mpl_vector_minvq_v8i16(int16x8_t a);
+#define vminvq_s16(a)  __builtin_mpl_vector_get_element_v8i16(__builtin_mpl_vector_minvq_v8i16(a), 0)
+
+int32x2_t __builtin_mpl_vector_minv_v2i32(int32x2_t a);
+#define vminv_s32(a)  __builtin_mpl_vector_get_element_v2i32(__builtin_mpl_vector_minv_v2i32(a), 0)
+
+int32x4_t __builtin_mpl_vector_minvq_v4i32(int32x4_t a);
+#define vminvq_s32(a)  __builtin_mpl_vector_get_element_v4i32(__builtin_mpl_vector_minvq_v4i32(a), 0)
+
+uint8x8_t __builtin_mpl_vector_minv_v8u8(uint8x8_t a);
+#define vminv_u8(a)  __builtin_mpl_vector_get_element_v8u8(__builtin_mpl_vector_minv_v8u8(a), 0)
+
+uint8x16_t __builtin_mpl_vector_minvq_v16u8(uint8x16_t a);
+#define vminvq_u8(a)  __builtin_mpl_vector_get_element_v16u8(__builtin_mpl_vector_minvq_v16u8(a), 0)
+
+uint16x4_t __builtin_mpl_vector_minv_v4u16(uint16x4_t a);
+#define vminv_u16(a)  __builtin_mpl_vector_get_element_v4u16(__builtin_mpl_vector_minv_v4u16(a), 0)
+
+uint16x8_t __builtin_mpl_vector_minvq_v8u16(uint16x8_t a);
+#define vminvq_u16(a)  __builtin_mpl_vector_get_element_v8u16(__builtin_mpl_vector_minvq_v8u16(a), 0)
+
+uint32x2_t __builtin_mpl_vector_minv_v2u32(uint32x2_t a);
+#define vminv_u32(a)  __builtin_mpl_vector_get_element_v2u32(__builtin_mpl_vector_minv_v2u32(a), 0)
+
+uint32x4_t __builtin_mpl_vector_minvq_v4u32(uint32x4_t a);
+#define vminvq_u32(a)  __builtin_mpl_vector_get_element_v4u32(__builtin_mpl_vector_minvq_v4u32(a), 0)
+
+uint8x8_t __builtin_mpl_vector_tst_v8i8(int8x8_t a, int8x8_t b);
+#define vtst_s8(a, b)  __builtin_mpl_vector_tst_v8i8(a, b)
+
+uint8x16_t __builtin_mpl_vector_tstq_v16i8(int8x16_t a, int8x16_t b);
+#define vtstq_s8(a, b)  __builtin_mpl_vector_tstq_v16i8(a, b)
+
+uint16x4_t __builtin_mpl_vector_tst_v4i16(int16x4_t a, int16x4_t b);
+#define vtst_s16(a, b)  __builtin_mpl_vector_tst_v4i16(a, b)
+
+uint16x8_t __builtin_mpl_vector_tstq_v8i16(int16x8_t a, int16x8_t b);
+#define vtstq_s16(a, b)  __builtin_mpl_vector_tstq_v8i16(a, b)
+
+uint32x2_t __builtin_mpl_vector_tst_v2i32(int32x2_t a, int32x2_t b);
+#define vtst_s32(a, b)  __builtin_mpl_vector_tst_v2i32(a, b)
+
+uint32x4_t __builtin_mpl_vector_tstq_v4i32(int32x4_t a, int32x4_t b);
+#define vtstq_s32(a, b)  __builtin_mpl_vector_tstq_v4i32(a, b)
+
+uint8x8_t __builtin_mpl_vector_tst_v8u8(uint8x8_t a, uint8x8_t b);
+#define vtst_u8(a, b)  __builtin_mpl_vector_tst_v8u8(a, b)
+
+uint8x16_t __builtin_mpl_vector_tstq_v16u8(uint8x16_t a, uint8x16_t b);
+#define vtstq_u8(a, b)  __builtin_mpl_vector_tstq_v16u8(a, b)
+
+uint16x4_t __builtin_mpl_vector_tst_v4u16(uint16x4_t a, uint16x4_t b);
+#define vtst_u16(a, b)  __builtin_mpl_vector_tst_v4u16(a, b)
+
+uint16x8_t __builtin_mpl_vector_tstq_v8u16(uint16x8_t a, uint16x8_t b);
+#define vtstq_u16(a, b)  __builtin_mpl_vector_tstq_v8u16(a, b)
+
+uint32x2_t __builtin_mpl_vector_tst_v2u32(uint32x2_t a, uint32x2_t b);
+#define vtst_u32(a, b)  __builtin_mpl_vector_tst_v2u32(a, b)
+
+uint32x4_t __builtin_mpl_vector_tstq_v4u32(uint32x4_t a, uint32x4_t b);
+#define vtstq_u32(a, b)  __builtin_mpl_vector_tstq_v4u32(a, b)
+
+uint64x1_t __builtin_mpl_vector_tst_v1i64(int64x1_t a, int64x1_t b);
+#define vtst_s64(a, b)  __builtin_mpl_vector_tst_v1i64(a, b)
+
+uint64x2_t __builtin_mpl_vector_tstq_v2i64(int64x2_t a, int64x2_t b);
+#define vtstq_s64(a, b)  __builtin_mpl_vector_tstq_v2i64(a, b)
+
+uint64x1_t __builtin_mpl_vector_tst_v1u64(uint64x1_t a, uint64x1_t b);
+#define vtst_u64(a, b)  __builtin_mpl_vector_tst_v1u64(a, b)
+
+uint64x2_t __builtin_mpl_vector_tstq_v2u64(uint64x2_t a, uint64x2_t b);
+#define vtstq_u64(a, b)  __builtin_mpl_vector_tstq_v2u64(a, b)
+
+#define vtstd_s64(a, b) ((a & b) ? -1ll : 0ll)
+
+#define vtstd_u64(a, b) ((a & b) ? -1ll : 0ll)
+
+int8x8_t __builtin_mpl_vector_qmovnh_i16(int16x4_t a);
+#define vqmovnh_s16(a)  __builtin_mpl_vector_get_element_v8i8( \
+  __builtin_mpl_vector_qmovnh_i16(__builtin_mpl_vector_from_scalar_v4i16(a)), 0)
+
+int16x4_t __builtin_mpl_vector_qmovns_i32(int32x2_t a);
+#define vqmovns_s32(a)  __builtin_mpl_vector_get_element_v4i16( \
+  __builtin_mpl_vector_qmovns_i32(__builtin_mpl_vector_from_scalar_v2i32(a)), 0)
+
+int32x2_t __builtin_mpl_vector_qmovnd_i64(int64x1_t a);
+#define vqmovnd_s64(a)  __builtin_mpl_vector_get_element_v2i32( \
+  __builtin_mpl_vector_qmovnd_i64(__builtin_mpl_vector_from_scalar_v1i64(a)), 0)
+
+uint8x8_t __builtin_mpl_vector_qmovnh_u16(uint16x4_t a);
+#define vqmovnh_u16(a)  __builtin_mpl_vector_get_element_v8u8( \
+  __builtin_mpl_vector_qmovnh_u16(__builtin_mpl_vector_from_scalar_v4u16(a)), 0)
+
+uint16x4_t __builtin_mpl_vector_qmovns_u32(uint32x2_t a);
+#define vqmovns_u32(a)  __builtin_mpl_vector_get_element_v4u16( \
+  __builtin_mpl_vector_qmovns_u32(__builtin_mpl_vector_from_scalar_v2u32(a)), 0)
+
+uint32x2_t __builtin_mpl_vector_qmovnd_u64(uint64x1_t a);
+#define vqmovnd_u64(a)  __builtin_mpl_vector_get_element_v2u32( \
+  __builtin_mpl_vector_qmovnd_u64(__builtin_mpl_vector_from_scalar_v1u64(a)), 0)
+
+int8x16_t __builtin_mpl_vector_qmovn_high_v16i8(int8x8_t a, int16x8_t b);
+#define vqmovn_high_s16(a, b)  __builtin_mpl_vector_qmovn_high_v16i8(a, b)
+
+int16x8_t __builtin_mpl_vector_qmovn_high_v8i16(int16x4_t a, int32x4_t b);
+#define vqmovn_high_s32(a, b)  __builtin_mpl_vector_qmovn_high_v8i16(a, b)
+
+int32x4_t __builtin_mpl_vector_qmovn_high_v4i32(int32x2_t a, int64x2_t b);
+#define vqmovn_high_s64(a, b)  __builtin_mpl_vector_qmovn_high_v4i32(a, b)
+
+uint8x16_t __builtin_mpl_vector_qmovn_high_v16u8(uint8x8_t a, uint16x8_t b);
+#define vqmovn_high_u16(a, b)  __builtin_mpl_vector_qmovn_high_v16u8(a, b)
+
+uint16x8_t __builtin_mpl_vector_qmovn_high_v8u16(uint16x4_t a, uint32x4_t b);
+#define vqmovn_high_u32(a, b)  __builtin_mpl_vector_qmovn_high_v8u16(a, b)
+
+uint32x4_t __builtin_mpl_vector_qmovn_high_v4u32(uint32x2_t a, uint64x2_t b);
+#define vqmovn_high_u64(a, b)  __builtin_mpl_vector_qmovn_high_v4u32(a, b)
+
+uint8x8_t __builtin_mpl_vector_qmovun_v8u8(int16x8_t a);
+#define vqmovun_s16(a)  __builtin_mpl_vector_qmovun_v8u8(a)
+
+uint16x4_t __builtin_mpl_vector_qmovun_v4u16(int32x4_t a);
+#define vqmovun_s32(a)  __builtin_mpl_vector_qmovun_v4u16(a)
+
+uint32x2_t __builtin_mpl_vector_qmovun_v2u32(int64x2_t a);
+#define vqmovun_s64(a)  __builtin_mpl_vector_qmovun_v2u32(a)
+
+uint8x8_t __builtin_mpl_vector_qmovunh_i16(int16x4_t a);
+#define vqmovunh_s16(a)  __builtin_mpl_vector_get_element_v8i8( \
+  __builtin_mpl_vector_qmovunh_i16(__builtin_mpl_vector_from_scalar_v4i16(a)), 0)
+
+uint16x4_t __builtin_mpl_vector_qmovuns_i32(int32x2_t a);
+#define vqmovuns_s32(a)  __builtin_mpl_vector_get_element_v4i16( \
+  __builtin_mpl_vector_qmovuns_i32(__builtin_mpl_vector_from_scalar_v2i32(a)), 0)
+
+uint32x2_t __builtin_mpl_vector_qmovund_i64(int64x1_t a);
+#define vqmovund_s64(a)  __builtin_mpl_vector_get_element_v2i32( \
+  __builtin_mpl_vector_qmovund_i64(__builtin_mpl_vector_from_scalar_v1i64(a)), 0)
+
+uint8x16_t __builtin_mpl_vector_qmovun_high_v16u8(uint8x8_t a, int16x8_t b);
+#define vqmovun_high_s16(a, b)  __builtin_mpl_vector_qmovun_high_v16u8(a, b)
+
+uint16x8_t __builtin_mpl_vector_qmovun_high_v8u16(uint16x4_t a, int32x4_t b);
+#define vqmovun_high_s32(a, b)  __builtin_mpl_vector_qmovun_high_v8u16(a, b)
+
+uint32x4_t __builtin_mpl_vector_qmovun_high_v4u32(uint32x2_t a, int64x2_t b);
+#define vqmovun_high_s64(a, b)  __builtin_mpl_vector_qmovun_high_v4u32(a, b)
+
+int16x4_t __builtin_mpl_vector_mul_n_v4i16(int16x4_t a, int16_t b);
+#define vmul_n_s16(a, b)  __builtin_mpl_vector_mul_n_v4i16(a, b)
+
+int16x8_t __builtin_mpl_vector_mulq_n_v8i16(int16x8_t a, int16_t b);
+#define vmulq_n_s16(a, b)  __builtin_mpl_vector_mulq_n_v8i16(a, b)
+
+int32x2_t __builtin_mpl_vector_mul_n_v2i32(int32x2_t a, int32_t b);
+#define vmul_n_s32(a, b)  __builtin_mpl_vector_mul_n_v2i32(a, b)
+
+int32x4_t __builtin_mpl_vector_mulq_n_v4i32(int32x4_t a, int32_t b);
+#define vmulq_n_s32(a, b)  __builtin_mpl_vector_mulq_n_v4i32(a, b)
+
+uint16x4_t __builtin_mpl_vector_mul_n_v4u16(uint16x4_t a, uint16_t b);
+#define vmul_n_u16(a, b)  __builtin_mpl_vector_mul_n_v4u16(a, b)
+
+uint16x8_t __builtin_mpl_vector_mulq_n_v8u16(uint16x8_t a, uint16_t b);
+#define vmulq_n_u16(a, b)  __builtin_mpl_vector_mulq_n_v8u16(a, b)
+
+uint32x2_t __builtin_mpl_vector_mul_n_v2u32(uint32x2_t a, uint32_t b);
+#define vmul_n_u32(a, b)  __builtin_mpl_vector_mul_n_v2u32(a, b)
+
+uint32x4_t __builtin_mpl_vector_mulq_n_v4u32(uint32x4_t a, uint32_t b);
+#define vmulq_n_u32(a, b)  __builtin_mpl_vector_mulq_n_v4u32(a, b)
+
+int16x4_t __builtin_mpl_vector_mul_lane_v4i16(int16x4_t a, int16x4_t b, const int c);
+#define vmul_lane_s16(a, b, c)  __builtin_mpl_vector_mul_lane_v4i16(a, b, c)
+
+int16x8_t __builtin_mpl_vector_mulq_lane_v8i16(int16x8_t a, int16x4_t b, const int c);
+#define vmulq_lane_s16(a, b, c)  __builtin_mpl_vector_mulq_lane_v8i16(a, b, c)
+
+int32x2_t __builtin_mpl_vector_mul_lane_v2i32(int32x2_t a, int32x2_t b, const int c);
+#define vmul_lane_s32(a, b, c)  __builtin_mpl_vector_mul_lane_v2i32(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mulq_lane_v4i32(int32x4_t a, int32x2_t b, const int c);
+#define vmulq_lane_s32(a, b, c)  __builtin_mpl_vector_mulq_lane_v4i32(a, b, c)
+
+uint16x4_t __builtin_mpl_vector_mul_lane_v4u16(uint16x4_t a, uint16x4_t b, const int c);
+#define vmul_lane_u16(a, b, c)  __builtin_mpl_vector_mul_lane_v4u16(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_mulq_lane_v8u16(uint16x8_t a, uint16x4_t b, const int c);
+#define vmulq_lane_u16(a, b, c)  __builtin_mpl_vector_mulq_lane_v8u16(a, b, c)
+
+uint32x2_t __builtin_mpl_vector_mul_lane_v2u32(uint32x2_t a, uint32x2_t b, const int c);
+#define vmul_lane_u32(a, b, c)  __builtin_mpl_vector_mul_lane_v2u32(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mulq_lane_v4u32(uint32x4_t a, uint32x2_t b, const int c);
+#define vmulq_lane_u32(a, b, c)  __builtin_mpl_vector_mulq_lane_v4u32(a, b, c)
+
+int16x4_t __builtin_mpl_vector_mul_laneq_v4i16(int16x4_t a, int16x8_t b, const int c);
+#define vmul_laneq_s16(a, b, c)  __builtin_mpl_vector_mul_laneq_v4i16(a, b, c)
+
+int16x8_t __builtin_mpl_vector_mulq_laneq_v8i16(int16x8_t a, int16x8_t b, const int c);
+#define vmulq_laneq_s16(a, b, c)  __builtin_mpl_vector_mulq_laneq_v8i16(a, b, c)
+
+int32x2_t __builtin_mpl_vector_mul_laneq_v2i32(int32x2_t a, int32x4_t b, const int c);
+#define vmul_laneq_s32(a, b, c)  __builtin_mpl_vector_mul_laneq_v2i32(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mulq_laneq_v4i32(int32x4_t a, int32x4_t b, const int c);
+#define vmulq_laneq_s32(a, b, c)  __builtin_mpl_vector_mulq_laneq_v4i32(a, b, c)
+
+uint16x4_t __builtin_mpl_vector_mul_laneq_v4u16(uint16x4_t a, uint16x8_t b, const int c);
+#define vmul_laneq_u16(a, b, c)  __builtin_mpl_vector_mul_laneq_v4u16(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_mulq_laneq_v8u16(uint16x8_t a, uint16x8_t b, const int c);
+#define vmulq_laneq_u16(a, b, c)  __builtin_mpl_vector_mulq_laneq_v8u16(a, b, c)
+
+uint32x2_t __builtin_mpl_vector_mul_laneq_v2u32(uint32x2_t a, uint32x4_t b, const int c);
+#define vmul_laneq_u32(a, b, c)  __builtin_mpl_vector_mul_laneq_v2u32(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mulq_laneq_v4u32(uint32x4_t a, uint32x4_t b, const int c);
+#define vmulq_laneq_u32(a, b, c)  __builtin_mpl_vector_mulq_laneq_v4u32(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mull_n_v4i32(int16x4_t a, int16_t b);
+#define vmull_n_s16(a, b)  __builtin_mpl_vector_mull_n_v4i32(a, b)
+
+int64x2_t __builtin_mpl_vector_mull_n_v2i64(int32x2_t a, int32_t b);
+#define vmull_n_s32(a, b)  __builtin_mpl_vector_mull_n_v2i64(a, b)
+
+uint32x4_t __builtin_mpl_vector_mull_n_v4u32(uint16x4_t a, uint16_t b);
+#define vmull_n_u16(a, b)  __builtin_mpl_vector_mull_n_v4u32(a, b)
+
+uint64x2_t __builtin_mpl_vector_mull_n_v2u64(uint32x2_t a, uint32_t b);
+#define vmull_n_u32(a, b)  __builtin_mpl_vector_mull_n_v2u64(a, b)
+
+int32x4_t __builtin_mpl_vector_mull_high_n_v4i32(int16x8_t a, int16_t b);
+#define vmull_high_n_s16(a, b)  __builtin_mpl_vector_mull_high_n_v4i32(a, b)
+
+int64x2_t __builtin_mpl_vector_mull_high_n_v2i64(int32x4_t a, int32_t b);
+#define vmull_high_n_s32(a, b)  __builtin_mpl_vector_mull_high_n_v2i64(a, b)
+
+uint32x4_t __builtin_mpl_vector_mull_high_n_v4u32(uint16x8_t a, uint16_t b);
+#define vmull_high_n_u16(a, b)  __builtin_mpl_vector_mull_high_n_v4u32(a, b)
+
+uint64x2_t __builtin_mpl_vector_mull_high_n_v2u64(uint32x4_t a, uint32_t b);
+#define vmull_high_n_u32(a, b)  __builtin_mpl_vector_mull_high_n_v2u64(a, b)
+
+int32x4_t __builtin_mpl_vector_mull_lane_v4i32(int16x4_t a, int16x4_t b, const int c);
+#define vmull_lane_s16(a, b, c)  __builtin_mpl_vector_mull_lane_v4i32(a, b, c)
+
+int64x2_t __builtin_mpl_vector_mull_lane_v2i64(int32x2_t a, int32x2_t b, const int c);
+#define vmull_lane_s32(a, b, c)  __builtin_mpl_vector_mull_lane_v2i64(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mull_lane_v4u32(uint16x4_t a, uint16x4_t b, const int c);
+#define vmull_lane_u16(a, b, c)  __builtin_mpl_vector_mull_lane_v4u32(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_mull_lane_v2u64(uint32x2_t a, uint32x2_t b, const int c);
+#define vmull_lane_u32(a, b, c)  __builtin_mpl_vector_mull_lane_v2u64(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mull_high_lane_v4i32(int16x8_t a, int16x4_t b, const int c);
+#define vmull_high_lane_s16(a, b, c)  __builtin_mpl_vector_mull_high_lane_v4i32(a, b, c)
+
+int64x2_t __builtin_mpl_vector_mull_high_lane_v2i64(int32x4_t a, int32x2_t b, const int c);
+#define vmull_high_lane_s32(a, b, c)  __builtin_mpl_vector_mull_high_lane_v2i64(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mull_high_lane_v4u32(uint16x8_t a, uint16x4_t b, const int c);
+#define vmull_high_lane_u16(a, b, c)  __builtin_mpl_vector_mull_high_lane_v4u32(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_mull_high_lane_v2u64(uint32x4_t a, uint32x2_t b, const int c);
+#define vmull_high_lane_u32(a, b, c)  __builtin_mpl_vector_mull_high_lane_v2u64(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mull_laneq_v4i32(int16x4_t a, int16x8_t b, const int c);
+#define vmull_laneq_s16(a, b, c)  __builtin_mpl_vector_mull_laneq_v4i32(a, b, c)
+
+int64x2_t __builtin_mpl_vector_mull_laneq_v2i64(int32x2_t a, int32x4_t b, const int c);
+#define vmull_laneq_s32(a, b, c)  __builtin_mpl_vector_mull_laneq_v2i64(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mull_laneq_v4u32(uint16x4_t a, uint16x8_t b, const int c);
+#define vmull_laneq_u16(a, b, c)  __builtin_mpl_vector_mull_laneq_v4u32(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_mull_laneq_v2u64(uint32x2_t a, uint32x4_t b, const int c);
+#define vmull_laneq_u32(a, b, c)  __builtin_mpl_vector_mull_laneq_v2u64(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mull_high_laneq_v4i32(int16x8_t a, int16x8_t b, const int c);
+#define vmull_high_laneq_s16(a, b, c)  __builtin_mpl_vector_mull_high_laneq_v4i32(a, b, c)
+
+int64x2_t __builtin_mpl_vector_mull_high_laneq_v2i64(int32x4_t a, int32x4_t b, const int c);
+#define vmull_high_laneq_s32(a, b, c)  __builtin_mpl_vector_mull_high_laneq_v2i64(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mull_high_laneq_v4u32(uint16x8_t a, uint16x8_t b, const int c);
+#define vmull_high_laneq_u16(a, b, c)  __builtin_mpl_vector_mull_high_laneq_v4u32(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_mull_high_laneq_v2u64(uint32x4_t a, uint32x4_t b, const int c);
+#define vmull_high_laneq_u32(a, b, c)  __builtin_mpl_vector_mull_high_laneq_v2u64(a, b, c)
+
+int8x8_t __builtin_mpl_vector_neg_v8i8(int8x8_t a);
+#define vneg_s8(a)  __builtin_mpl_vector_neg_v8i8(a)
+
+int8x16_t __builtin_mpl_vector_negq_v16i8(int8x16_t a);
+#define vnegq_s8(a)  __builtin_mpl_vector_negq_v16i8(a)
+
+int16x4_t __builtin_mpl_vector_neg_v4i16(int16x4_t a);
+#define vneg_s16(a)  __builtin_mpl_vector_neg_v4i16(a)
+
+int16x8_t __builtin_mpl_vector_negq_v8i16(int16x8_t a);
+#define vnegq_s16(a)  __builtin_mpl_vector_negq_v8i16(a)
+
+int32x2_t __builtin_mpl_vector_neg_v2i32(int32x2_t a);
+#define vneg_s32(a)  __builtin_mpl_vector_neg_v2i32(a)
+
+int32x4_t __builtin_mpl_vector_negq_v4i32(int32x4_t a);
+#define vnegq_s32(a)  __builtin_mpl_vector_negq_v4i32(a)
+
+int64x1_t __builtin_mpl_vector_neg_v1i64(int64x1_t a);
+#define vneg_s64(a)  __builtin_mpl_vector_neg_v1i64(a)
+
+int64_t __builtin_mpl_vector_negd_v1i64(int64_t a);
+#define vnegd_s64(a)  __builtin_mpl_vector_negd_v1i64(a)
+
+int64x2_t __builtin_mpl_vector_negq_v2i64(int64x2_t a);
+#define vnegq_s64(a)  __builtin_mpl_vector_negq_v2i64(a)
+
+int8x8_t __builtin_mpl_vector_mvn_v8i8(int8x8_t a);
+#define vmvn_s8(a)  __builtin_mpl_vector_mvn_v8i8(a)
+
+int8x16_t __builtin_mpl_vector_mvnq_v16i8(int8x16_t a);
+#define vmvnq_s8(a)  __builtin_mpl_vector_mvnq_v16i8(a)
+
+int16x4_t __builtin_mpl_vector_mvn_v4i16(int16x4_t a);
+#define vmvn_s16(a)  __builtin_mpl_vector_mvn_v4i16(a)
+
+int16x8_t __builtin_mpl_vector_mvnq_v8i16(int16x8_t a);
+#define vmvnq_s16(a)  __builtin_mpl_vector_mvnq_v8i16(a)
+
+int32x2_t __builtin_mpl_vector_mvn_v2i32(int32x2_t a);
+#define vmvn_s32(a)  __builtin_mpl_vector_mvn_v2i32(a)
+
+int32x4_t __builtin_mpl_vector_mvnq_v4i32(int32x4_t a);
+#define vmvnq_s32(a)  __builtin_mpl_vector_mvnq_v4i32(a)
+
+uint8x8_t __builtin_mpl_vector_mvn_v8u8(uint8x8_t a);
+#define vmvn_u8(a)  __builtin_mpl_vector_mvn_v8u8(a)
+
+uint8x16_t __builtin_mpl_vector_mvnq_v16u8(uint8x16_t a);
+#define vmvnq_u8(a)  __builtin_mpl_vector_mvnq_v16u8(a)
+
+uint16x4_t __builtin_mpl_vector_mvn_v4u16(uint16x4_t a);
+#define vmvn_u16(a)  __builtin_mpl_vector_mvn_v4u16(a)
+
+uint16x8_t __builtin_mpl_vector_mvnq_v8u16(uint16x8_t a);
+#define vmvnq_u16(a)  __builtin_mpl_vector_mvnq_v8u16(a)
+
+uint32x2_t __builtin_mpl_vector_mvn_v2u32(uint32x2_t a);
+#define vmvn_u32(a)  __builtin_mpl_vector_mvn_v2u32(a)
+
+uint32x4_t __builtin_mpl_vector_mvnq_v4u32(uint32x4_t a);
+#define vmvnq_u32(a)  __builtin_mpl_vector_mvnq_v4u32(a)
+
+int8x8_t __builtin_mpl_vector_orn_v8i8(int8x8_t a, int8x8_t b);
+#define vorn_s8(a, b)  __builtin_mpl_vector_orn_v8i8(a, b)
+
+int8x16_t __builtin_mpl_vector_ornq_v16i8(int8x16_t a, int8x16_t b);
+#define vornq_s8(a, b)  __builtin_mpl_vector_ornq_v16i8(a, b)
+
+int16x4_t __builtin_mpl_vector_orn_v4i16(int16x4_t a, int16x4_t b);
+#define vorn_s16(a, b)  __builtin_mpl_vector_orn_v4i16(a, b)
+
+int16x8_t __builtin_mpl_vector_ornq_v8i16(int16x8_t a, int16x8_t b);
+#define vornq_s16(a, b)  __builtin_mpl_vector_ornq_v8i16(a, b)
+
+int32x2_t __builtin_mpl_vector_orn_v2i32(int32x2_t a, int32x2_t b);
+#define vorn_s32(a, b)  __builtin_mpl_vector_orn_v2i32(a, b)
+
+int32x4_t __builtin_mpl_vector_ornq_v4i32(int32x4_t a, int32x4_t b);
+#define vornq_s32(a, b)  __builtin_mpl_vector_ornq_v4i32(a, b)
+
+int64x1_t __builtin_mpl_vector_orn_v1i64(int64x1_t a, int64x1_t b);
+#define vorn_s64(a, b)  __builtin_mpl_vector_orn_v1i64(a, b)
+
+int64x2_t __builtin_mpl_vector_ornq_v2i64(int64x2_t a, int64x2_t b);
+#define vornq_s64(a, b)  __builtin_mpl_vector_ornq_v2i64(a, b)
+
+uint8x8_t __builtin_mpl_vector_orn_v8u8(uint8x8_t a, uint8x8_t b);
+#define vorn_u8(a, b)  __builtin_mpl_vector_orn_v8u8(a, b)
+
+uint8x16_t __builtin_mpl_vector_ornq_v16u8(uint8x16_t a, uint8x16_t b);
+#define vornq_u8(a, b)  __builtin_mpl_vector_ornq_v16u8(a, b)
+
+uint16x4_t __builtin_mpl_vector_orn_v4u16(uint16x4_t a, uint16x4_t b);
+#define vorn_u16(a, b)  __builtin_mpl_vector_orn_v4u16(a, b)
+
+uint16x8_t __builtin_mpl_vector_ornq_v8u16(uint16x8_t a, uint16x8_t b);
+#define vornq_u16(a, b)  __builtin_mpl_vector_ornq_v8u16(a, b)
+
+uint32x2_t __builtin_mpl_vector_orn_v2u32(uint32x2_t a, uint32x2_t b);
+#define vorn_u32(a, b)  __builtin_mpl_vector_orn_v2u32(a, b)
+
+uint32x4_t __builtin_mpl_vector_ornq_v4u32(uint32x4_t a, uint32x4_t b);
+#define vornq_u32(a, b)  __builtin_mpl_vector_ornq_v4u32(a, b)
+
+uint64x1_t __builtin_mpl_vector_orn_v1u64(uint64x1_t a, uint64x1_t b);
+#define vorn_u64(a, b)  __builtin_mpl_vector_orn_v1u64(a, b)
+
+uint64x2_t __builtin_mpl_vector_ornq_v2u64(uint64x2_t a, uint64x2_t b);
+#define vornq_u64(a, b)  __builtin_mpl_vector_ornq_v2u64(a, b)
 
 #endif /* __ARM_NEON_H */

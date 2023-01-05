@@ -579,9 +579,15 @@ Operand *HandleVectorMovNarrow(const IntrinsicopNode &intrinsicNode, CGFunc &cgF
   return cgFunc.SelectVectorMovNarrow(rType, opnd, intrinsicNode.Opnd(0)->GetPrimType());
 }
 
+Operand *HandleVectorIntrinsics(const IntrinsicopNode &intrinsicNode, CGFunc &cgFunc) {
+  return cgFunc.SelectVectorIntrinsics(intrinsicNode);
+}
+
 Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   auto &intrinsicopNode = static_cast<IntrinsicopNode&>(expr);
-  switch (intrinsicopNode.GetIntrinsic()) {
+  auto intrinsicId = intrinsicopNode.GetIntrinsic();
+  IntrinDesc &intrinsicDesc = IntrinDesc::intrinTable[intrinsicId];
+  switch (intrinsicId) {
     case INTRN_MPL_READ_OVTABLE_ENTRY_LAZY: {
       Operand *srcOpnd = cgFunc.HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(0));
       return cgFunc.SelectLazyLoad(*srcOpnd, intrinsicopNode.GetPrimType());
@@ -986,9 +992,13 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_mov_narrow_v4i32: case INTRN_vector_mov_narrow_v4u32:
     case INTRN_vector_mov_narrow_v8i16: case INTRN_vector_mov_narrow_v8u16:
       return HandleVectorMovNarrow(intrinsicopNode, cgFunc);
-    default:
-      CHECK_FATAL(false, "Unsupported intrinsicop.");
-      return nullptr;
+    default: {
+      if (!intrinsicDesc.IsVectorOp()) {
+        CHECK_FATAL(false, "Unsupported intrinsicop.");
+        return nullptr;
+      }
+      return HandleVectorIntrinsics(intrinsicopNode, cgFunc);
+    }
   }
 }
 

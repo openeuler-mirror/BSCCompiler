@@ -136,6 +136,41 @@ enum AbstractMOP : MOperator {
 };
 }
 
+#define DEF_MIR_INTRINSIC(op, ...) op,
+enum VectorIntrinsicID {
+  #include "intrinsic_vector_new.def"
+#undef DEF_MIR_INTRINSIC
+  kVectorIntrinsicLast
+};
+
+struct LaneNumberInfo {
+  LaneNumberInfo(size_t opndId, int16 laneNumber = -1) : opndId(opndId), laneNumber(laneNumber) {}
+  size_t opndId = -1;
+  int16 laneNumber = -1;
+};
+
+struct IntrinsicDesc {
+  IntrinsicDesc(VectorIntrinsicID id, MOperator mop, int64 returnOpndIndex, std::vector<size_t> opndOrder)
+      : id(id),
+        mop(mop),
+        returnOpndIndex(returnOpndIndex),
+        opndOrder(opndOrder) {}
+
+  IntrinsicDesc(VectorIntrinsicID id, MOperator mop, int64 returnOpndIndex, std::vector<size_t> opndOrder,
+      std::unordered_map<size_t, LaneNumberInfo> opndLaneNumberMap)
+      : id(id),
+        mop(mop),
+        returnOpndIndex(returnOpndIndex),
+        opndOrder(opndOrder),
+        opndLaneNumberMap(opndLaneNumberMap) {}
+
+  VectorIntrinsicID id;
+  MOperator mop;
+  int64 returnOpndIndex;
+  std::vector<size_t> opndOrder;
+  std::unordered_map<size_t, LaneNumberInfo> opndLaneNumberMap;
+};
+
 struct InsnDesc {
   InsnDesc(MOperator op, const std::string &inName, const std::string &inFormat)
       : opc(op),

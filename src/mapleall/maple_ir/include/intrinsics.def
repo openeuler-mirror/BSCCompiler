@@ -151,5 +151,6 @@ DEF_MIR_INTRINSIC(MCCSaveProf,\
 #include "dex2mpl/dexintrinsic.def"
 #include "intrinsic_dai.def"
 #include "intrinsic_vector.def"
+#include "intrinsic_vector_new.def"
 DEF_MIR_INTRINSIC(LAST,\
                   nullptr, DEFAULT_NUM_INSN, kIntrnUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef)

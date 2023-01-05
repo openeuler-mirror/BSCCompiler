@@ -696,6 +696,10 @@ RegOperand *X64CGFunc::SelectVectorMovNarrow(PrimType rType, Operand *opnd, Prim
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
+RegOperand *X64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrinsicOp) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
 Operand *X64CGFunc::SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType,
                                                  const std::string &name) {
   CHECK_FATAL(false, "NIY");
