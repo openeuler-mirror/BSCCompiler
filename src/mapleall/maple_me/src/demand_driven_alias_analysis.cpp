@@ -260,9 +260,12 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfAdd(const BinaryNode *bin
     ASSERT(constVal->GetKind() == kConstInt, "pointer cannot add/sub a non-integer value");
     int64 offsetInByte = static_cast<MIRIntConst *>(constVal)->GetExtValue();
     int64 offsetInBit = kOffsetUnknown;
-    if (offsetInByte < kOffsetMax && offsetInByte > kOffsetMin) {
-      constexpr int kBitNumInOneByte = 8;
+    constexpr int kBitNumInOneByte = 8;
+    if (offsetInByte < kOffsetMax / kBitNumInOneByte && offsetInByte > kOffsetMin / kBitNumInOneByte) {
       offsetInBit = offsetInByte * kBitNumInOneByte;
+    }
+    if (offsetInBit == kOffsetUnknown) {
+      return PtrValueRecorder(ptrNode.pegNode, 0, OffsetType::InvalidOffset());
     }
 
     OffsetType offset(kOffsetUnknown);

@@ -74,7 +74,7 @@ MIRType *GetAggTypeOstEmbedded(const OriginalSt *ost) {
       aggType = static_cast<MIRPtrType *>(prevTypeA)->GetPointedType();
       constexpr int32 bitNumPerByte = 8;
       // offset is out of current AggType, return nullptr
-      if (static_cast<int32>(aggType->GetSize()) * bitNumPerByte <= ost->GetOffset().val) {
+      if (aggType->GetSize() * bitNumPerByte <= ost->GetOffset().val) {
         return nullptr;
       }
     }

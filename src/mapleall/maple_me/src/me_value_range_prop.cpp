@@ -4075,7 +4075,11 @@ bool ValueRangePropagation::CopyFallthruBBAndRemoveUnreachableEdge(
   /* case1: the number of branches reaching to condBB > 1 */
   auto *tmpPred = &pred;
   do {
-    tmpPred = tmpPred->GetSucc(0);
+    if (tmpPred->GetSuccIndex(bb) != -1) {
+      tmpPred = &bb;
+    } else {
+      tmpPred = tmpPred->GetSucc(0);
+    }
     if (GetRealPredSize(*tmpPred) > 1) {
       return ChangeTheSuccOfPred2TrueBranch(
           pred, bb, trueBranch, updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr);
@@ -4578,7 +4582,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
       opt = true;
     } else {
       /* avoid infinite loop, pred->GetKind() maybe kBBUnknown */
-      if ((pred->GetKind() == kBBFallthru || pred->GetKind() == kBBGoto) &&
+      if (((pred->GetKind() == kBBFallthru || pred->GetKind() == kBBGoto) && pred->GetSucc().size() == 1) &&
            pred->GetBBId() != falseBranch.GetBBId() && pred->GetBBId() != trueBranch.GetBBId() &&
            (opnd0 == nullptr || TowCompareOperandsAreInSameIterOfLoop(currOpnd, *opnd0))) {
         opt |= AnalysisValueRangeInPredsOfCondGotoBB(

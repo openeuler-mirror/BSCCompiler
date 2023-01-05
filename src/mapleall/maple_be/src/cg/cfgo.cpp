@@ -69,8 +69,8 @@ bool ChainingPattern::DoSameThing(const BB &bb1, const Insn &last1, const BB &bb
         return false;
       }
     }
-    insn1 = insn1->GetNext();
-    insn2 = insn2->GetNext();
+    insn1 = insn1->GetNextMachineInsn();
+    insn2 = insn2->GetNextMachineInsn();
   }
   return (insn1 == last1.GetNext() && insn2 == last2.GetNext());
 }

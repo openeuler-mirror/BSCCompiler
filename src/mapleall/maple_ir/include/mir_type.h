@@ -644,9 +644,9 @@ class FuncAttrs {
 #if MIR_FEATURE_FULL
 constexpr size_t kShiftNumOfTypeKind = 8;
 constexpr size_t kShiftNumOfNameStrIdx = 6;
-constexpr int32 kOffsetUnknown = INT_MAX;
-constexpr int32 kOffsetMax = (INT_MAX - 1);
-constexpr int32 kOffsetMin = INT_MIN;
+constexpr int64 kOffsetUnknown = INT64_MAX;
+constexpr int64 kOffsetMax = (INT64_MAX - 1);
+constexpr int64 kOffsetMin = INT64_MIN;
 struct OffsetType {
   explicit OffsetType(int64 offset) {
     Set(offset);
@@ -657,8 +657,7 @@ struct OffsetType {
   ~OffsetType() = default;
 
   void Set(int64 offsetVal) {
-    val = (offsetVal >= kOffsetMin && offsetVal <= kOffsetMax) ? static_cast<int32>(offsetVal)
-                                                               : kOffsetUnknown;
+    val = (offsetVal >= kOffsetMin && offsetVal <= kOffsetMax) ? offsetVal : kOffsetUnknown;
   }
 
   bool IsInvalid() const {
@@ -716,7 +715,7 @@ struct OffsetType {
     return OffsetType(kOffsetUnknown);
   }
 
-  int32 val = kOffsetUnknown;
+  int64 val = kOffsetUnknown;
 };
 
 class MIRStructType; // circular dependency exists, no other choice

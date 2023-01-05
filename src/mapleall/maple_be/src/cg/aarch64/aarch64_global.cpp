@@ -2164,8 +2164,7 @@ bool SameRHSPropPattern::FindSameRHSInsnInBB(Insn &insn) {
   if (curRegOpnd == nullptr && curImmOpnd != nullptr && static_cast<ImmOperand*>(curImmOpnd)->IsZero()) {
     return false;
   }
-  BB *bb = insn.GetBB();
-  for (auto *cursor = insn.GetPrev(); cursor != nullptr && cursor != bb->GetFirstInsn(); cursor = cursor->GetPrev()) {
+  for (auto *cursor = insn.GetPrev(); cursor != nullptr; cursor = cursor->GetPrev()) {
     if (!cursor->IsMachineInstruction()) {
       continue;
     }
