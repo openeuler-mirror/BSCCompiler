@@ -790,7 +790,6 @@ class OptimizeBB {
 
   // for sub-pattern in OptimizeCondBB
   MeExpr *TryToSimplifyCombinedCond(const MeExpr &expr);
-  MeExpr *CombineCondByOffset(const MeExpr &expr);
   bool FoldBranchToCommonDest(BB *pred, BB *succ);
   bool FoldBranchToCommonDest();
   bool SkipRedundantCond();
@@ -2290,64 +2289,6 @@ bool OptimizeBB::OptimizeSwitchBB() {
   return true;
 }
 
-// deal with expr like:
-// lior ( le/lt (sameExpr, intval1), ge/gt (sameExpr, intval2))
-// We use an offset(i.e. intval1) to make the little num overflow (wrap around)
-// (x < val1 || x > val2) <==> ((unsigned)(x - val1) > (val2 - val1))
-MeExpr *OptimizeBB::CombineCondByOffset(const MeExpr &expr) {
-  if (expr.GetOp() != OP_lior) {
-    return nullptr;
-  }
-  MeExpr *leExpr = expr.GetOpnd(0);
-  MeExpr *geExpr = expr.GetOpnd(1);
-  Opcode leOp = leExpr->GetOp();
-  Opcode geOp = geExpr->GetOp();
-  if ((leOp != OP_le && leOp != OP_lt) || (geOp != OP_ge && geOp != OP_gt)) {
-    return nullptr;
-  }
-  PrimType opndPtyp = static_cast<OpMeExpr*>(leExpr)->GetOpndType();
-  if (opndPtyp != static_cast<OpMeExpr*>(geExpr)->GetOpndType()) {
-    return nullptr;
-  }
-  MeExpr *sameExpr = leExpr->GetOpnd(0);
-  if (sameExpr != geExpr->GetOpnd(0)) {
-    return nullptr;
-  }
-  MeExpr *leConst = leExpr->GetOpnd(1);
-  MeExpr *geConst = geExpr->GetOpnd(1);
-  PrimType lePtyp = leConst->GetPrimType();
-  PrimType gePtyp = geConst->GetPrimType();
-  if (leConst->GetOp() != OP_constval || geConst->GetOp() != OP_constval || lePtyp != gePtyp ||
-      !IsPrimitiveInteger(lePtyp)) {  // only allowed for integer, because float cannot wrap around
-    return nullptr;
-  }
-  int64 leVal = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(leConst)->GetConstVal())->GetExtValue();
-  int64 geVal = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(geConst)->GetConstVal())->GetExtValue();
-  if (leOp == OP_le) {
-    // (x <= val1) <==> (x < val1 + 1)
-    // if we still use (x <= val1) here, (x - val1) <= 0 may not overflow (if x == val1)
-    ++leVal;
-  }
-  // check if we can simplify it early
-  int64 newGeVal = geOp == OP_ge ? geVal - 1 : geVal;
-  if ((!IsPrimitiveUnsigned(lePtyp) && leVal > newGeVal) ||
-      (IsPrimitiveUnsigned(lePtyp) && static_cast<uint64>(leVal) > static_cast<uint64>(newGeVal))) {
-    // e.g. x < 3 || x > 2 <==> true
-    return irmap->CreateIntConstMeExpr(1, PTY_u1);
-  } else if (leVal == newGeVal) {  // e.g. x < 3 || x > 3 <==> x != 3
-    return irmap->CreateMeExprCompare(OP_ne, PTY_u1, opndPtyp, *sameExpr,
-                                      *irmap->CreateIntConstMeExpr(newGeVal, lePtyp));
-  }
-  // (x < val1 || x > val2) <==> ((unsigned)(x - val1) > (val2 - val1))
-  MeExpr *newLeConst = irmap->CreateIntConstMeExpr(leVal, opndPtyp);
-  PrimType unsignedPtyp = GetUnsignedPrimType(opndPtyp);
-  MeExpr *subExpr = irmap->CreateMeExprBinary(OP_sub, unsignedPtyp, *sameExpr, *newLeConst);
-  MeExpr *newGeConst = irmap->CreateIntConstMeExpr(geVal - leVal, opndPtyp);
-  OpMeExpr *cmpExpr = static_cast<OpMeExpr*>(irmap->CreateMeExprBinary(geOp, PTY_u1, *subExpr, *newGeConst));
-  cmpExpr->SetOpndType(unsignedPtyp);
-  return cmpExpr;
-}
-
 MeExpr *OptimizeBB::TryToSimplifyCombinedCond(const MeExpr &expr) {
   Opcode op = expr.GetOp();
   if (op != OP_land && op != OP_lior) {
@@ -2371,8 +2312,6 @@ MeExpr *OptimizeBB::TryToSimplifyCombinedCond(const MeExpr &expr) {
     if (!IsCompareHasReverseOp(resExpr->GetOp())) {
       return nullptr;
     }
-  } else {
-    resExpr = CombineCondByOffset(expr);
   }
   return resExpr;
 }
