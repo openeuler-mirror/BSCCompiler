@@ -2130,9 +2130,6 @@ void CGFunc::HandleFunction() {
   if (GetCG()->DoPatchLongBranch()) {
     PatchLongBranch();
   }
-  if (CGOptions::DoEnableHotColdSplit()) {
-    theCFG->CheckCFGFreq();
-  }
   NeedStackProtect();
 }
 

@@ -132,6 +132,7 @@ extern maplecl::Option<uint32_t> funcAlignPow;
 extern maplecl::Option<bool> litePgoGen;
 extern maplecl::Option<std::string> litePgoOutputFunc;
 extern maplecl::Option<std::string> instrumentationFile;
+extern maplecl::Option<std::string> instrumentationWhiteList;
 extern maplecl::Option<std::string> litePgoFile;
 extern maplecl::Option<std::string> functionPriority;
 }

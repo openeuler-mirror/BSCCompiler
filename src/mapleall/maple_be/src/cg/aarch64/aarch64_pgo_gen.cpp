@@ -15,110 +15,44 @@
 #include "aarch64_pgo_gen.h"
 #include "aarch64_cg.h"
 namespace maplebe {
-
-void AArch64ProfGen::CreateClearIcall(BB &bb, const std::string &symName) {
-  auto *mirBuilder = f->GetFunction().GetModule()->GetMIRBuilder();
-  auto *voidPtrType = GlobalTables::GetTypeTable().GetVoidPtr();
-  auto *funcPtrSym = mirBuilder->GetOrCreateGlobalDecl(symName, *voidPtrType);
-  funcPtrSym->SetAttr(ATTR_weak);  // weak symbol
-  CHECK_FATAL(!bb.IsEmpty() || bb.IsUnreachable(), "empty first BB?");
-
-  auto *a64Func = static_cast<AArch64CGFunc*>(f);
-  RegOperand &tempReg = a64Func->GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
-  StImmOperand &funcPtrSymOpnd = a64Func->CreateStImmOperand(*funcPtrSym, 0, 0);
-  auto &adrpInsn = f->GetInsnBuilder()->BuildInsn(MOP_xadrp, tempReg, funcPtrSymOpnd);
-
-  Insn *firstI = bb.GetFirstMachineInsn();
-
-  while (firstI && firstI->GetNextMachineInsn() && firstI->GetNextMachineInsn()->IsStore()) {
-    firstI = firstI->GetPreviousMachineInsn();
-  }
-
-  if (firstI) {
-    (void)bb.InsertInsnAfter(*firstI, adrpInsn);
-  } else {
-    bb.InsertInsnBegin(adrpInsn);
-  }
-
-  /* load func ptr */
-  OfstOperand &funcPtrSymOfst = a64Func->CreateOfstOpnd(*funcPtrSym, 0, 0);
-  MemOperand *ldrOpnd = a64Func->CreateMemOperand(k64BitSize, tempReg, funcPtrSymOfst, *funcPtrSym);
-  auto &ldrSymInsn = f->GetInsnBuilder()->BuildInsn(MOP_xldr, tempReg, *ldrOpnd);
-  (void)bb.InsertInsnAfter(adrpInsn, ldrSymInsn);
-
-  Insn *getAddressInsn = &ldrSymInsn;
-  if (CGOptions::IsPIC()) {
-    MemOperand *ldrOpndPic = a64Func->CreateMemOperand(k64BitSize, tempReg,
-                                                       a64Func->CreateImmOperand(0, maplebe::k32BitSize, false));
-    auto &ldrSymPicInsn = f->GetInsnBuilder()->BuildInsn(MOP_xldr, tempReg, *ldrOpndPic);
-    (void)bb.InsertInsnAfter(ldrSymInsn, ldrSymPicInsn);
-    getAddressInsn = &ldrSymPicInsn;
-  }
-  /* call weak symbol */
-  auto &bInsn = f->GetInsnBuilder()->BuildInsn(MOP_xblr, tempReg);
-  (void)bb.InsertInsnAfter(*getAddressInsn, bInsn);
-}
-
-void AArch64ProfGen::CreateIcallForWeakSymbol(BB &bb, const std::string &symName) {
-  auto *mirBuilder = f->GetFunction().GetModule()->GetMIRBuilder();
-  auto *voidPtrType = GlobalTables::GetTypeTable().GetVoidPtr();
-  auto *funcPtrSym = mirBuilder->GetOrCreateGlobalDecl(symName, *voidPtrType);
-  funcPtrSym->SetAttr(ATTR_weak);  // weak symbol
-
-  CHECK_FATAL(!bb.IsEmpty() || bb.IsUnreachable(), "empty exit BB?");
-
-  Insn *lastI = bb.GetLastMachineInsn();
-  if (lastI) {
-    CHECK_FATAL(lastI->GetMachineOpcode() == MOP_xret || lastI->GetMachineOpcode() == MOP_tail_call_opt_xbl,
-        "check this return bb");
-  }
-
-  while (lastI && lastI->GetPreviousMachineInsn() &&
-      (lastI->GetPreviousMachineInsn()->IsLoad() ||
-      lastI->GetMachineOpcode() == MOP_pseudo_ret_int || lastI->GetMachineOpcode() == MOP_pseudo_ret_float)) {
-    lastI = lastI->GetPreviousMachineInsn();
-  }
-
-  auto *a64Func = static_cast<AArch64CGFunc*>(f);
-  /* load func ptr page */
-  RegOperand &tempReg = a64Func->GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
-  StImmOperand &funcPtrSymOpnd = a64Func->CreateStImmOperand(*funcPtrSym, 0, 0);
-  auto &adrpInsn = f->GetInsnBuilder()->BuildInsn(MOP_xadrp, tempReg, funcPtrSymOpnd);
-
-  if (lastI) {
-    (void)bb.InsertInsnBefore(*lastI, adrpInsn);
-  } else {
-    bb.InsertInsnBegin(adrpInsn);
-  }
-
-  /* load func ptr */
-  OfstOperand &funcPtrSymOfst = a64Func->CreateOfstOpnd(*funcPtrSym, 0, 0);
-  MemOperand *ldrOpnd = a64Func->CreateMemOperand(k64BitSize, tempReg, funcPtrSymOfst, *funcPtrSym);
-  Insn &ldrSymInsn = f->GetInsnBuilder()->BuildInsn(MOP_xldr, tempReg, *ldrOpnd);
-  (void)bb.InsertInsnAfter(adrpInsn, ldrSymInsn);
-
-  Insn *getAddressInsn = &ldrSymInsn;
-  if (CGOptions::IsPIC()) {
-    MemOperand *ldrOpndPic = a64Func->CreateMemOperand(k64BitSize, tempReg,
-                                                       a64Func->CreateImmOperand(0, maplebe::k32BitSize, false));
-    CHECK_FATAL(ldrOpndPic != nullptr, "create mem failed");
-    Insn &ldrSymPicInsn = f->GetInsnBuilder()->BuildInsn(MOP_xldr, tempReg, *ldrOpndPic);
-    (void)bb.InsertInsnAfter(ldrSymInsn, ldrSymPicInsn);
-    getAddressInsn = &ldrSymPicInsn;
-  }
-  /* call weak symbol */
-  Insn &bInsn = f->GetInsnBuilder()->BuildInsn(MOP_xblr, tempReg);
-  (void)bb.InsertInsnAfter(*getAddressInsn, bInsn);
-}
-
 void AArch64ProfGen::InstrumentBB(BB &bb, MIRSymbol &countTab, uint32 offset) {
+  regno_t freeUseRegNo = R30;
+  for (regno_t reg = R8; reg < R29; ++reg) {
+    if (!bb.GetLiveInRegNO().count(reg) && reg != R16) {
+      freeUseRegNo = reg;
+      break;
+    }
+  }
   auto *a64Func = static_cast<AArch64CGFunc*>(f);
   StImmOperand &funcPtrSymOpnd = a64Func->CreateStImmOperand(countTab, 0, 0);
+  RegOperand &tempRegOpnd = a64Func->GetOrCreatePhysicalRegisterOperand(
+      static_cast<AArch64reg>(freeUseRegNo), k64BitSize, kRegTyInt);
   CHECK_FATAL(offset <= kMaxPimm8, "profile BB number out of range!!!");
   /* skip size */
-  uint32 ofStByteSize = (offset + 1U) << 3U;
+  uint32 ofStByteSize = offset << 3U;
   ImmOperand &countOfst = a64Func->CreateImmOperand(ofStByteSize, k64BitSize, false);
-  auto &counterInsn = f->GetInsnBuilder()->BuildInsn(MOP_c_counter, funcPtrSymOpnd, countOfst);
+  auto &counterInsn = f->GetInsnBuilder()->BuildInsn(MOP_c_counter, funcPtrSymOpnd, countOfst, tempRegOpnd);
   bb.InsertInsnBegin(counterInsn);
+}
+
+void AArch64ProfGen::CreateCallForDump(BB &bb, const MIRSymbol &dumpCall) {
+  Insn *fristI = bb.GetFirstInsn();
+  Operand &targetOpnd = static_cast<AArch64CGFunc*>(f)->GetOrCreateFuncNameOpnd(dumpCall);
+  Insn &callDumpInsn = f->GetInsnBuilder()->BuildInsn(MOP_xbl, targetOpnd);
+  if (fristI && fristI->GetMachineOpcode() == MOP_c_counter) {
+    bb.InsertInsnAfter(*fristI, callDumpInsn);
+  } else {
+    bb.InsertInsnBegin(callDumpInsn);
+  }
+}
+
+void AArch64ProfGen::CreateCallForAbort(maplebe::BB &bb) {
+  auto *mirBuilder = f->GetFunction().GetModule()->GetMIRBuilder();
+  auto *abortSym = mirBuilder->GetOrCreateFunction("abort", TyIdx(PTY_void));
+  Insn *fristI = bb.GetFirstInsn();
+  CHECK_FATAL(fristI, "bb is empty!");
+  Operand &targetOpnd = static_cast<AArch64CGFunc*>(f)->GetOrCreateFuncNameOpnd(*abortSym->GetFuncSymbol());
+  Insn &callDumpInsn = f->GetInsnBuilder()->BuildInsn(MOP_xbl, targetOpnd);
+  bb.InsertInsnBegin(callDumpInsn);
 }
 }

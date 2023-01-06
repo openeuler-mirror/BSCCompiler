@@ -61,7 +61,6 @@ class ProfileGen {
   void FixupDesc();
   void CreateInitProc();
   void CreateExitProc();
-  void GenFuncCtrTbl();
   void Run();
   std::vector<MIRFunction *> getValidFuncs() { return validFuncs; }
 

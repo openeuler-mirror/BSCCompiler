@@ -22,15 +22,26 @@
 namespace maplebe {
 class AArch64FixShortBranch {
  public:
-  explicit AArch64FixShortBranch(CGFunc *cf) : cgFunc(cf) {
-    cg = cgFunc->GetCG();
-  }
+  explicit AArch64FixShortBranch(CGFunc *cf) : cgFunc(cf) {}
   ~AArch64FixShortBranch() = default;
   void FixShortBranches() const;
+  void FixShortBranchesForSplitting();
 
  private:
   CGFunc *cgFunc = nullptr;
-  CG *cg = nullptr;
+  BB *boundaryBB = nullptr;
+  BB *lastBB = nullptr;
+  /* For long branch caused by cold-hot bb splitting ,
+   * insert an unconditional branch at the end section in order to minimize the negative impact
+   *   From                       To
+   *   cond_br target_label       cond_br new_label
+   *   fallthruBB                 fallthruBB
+   *                              [section end]
+   *                              new_label:
+   *                              unconditional br target_label
+   */
+  void InsertJmpPadAtSecEnd(Insn &insn, uint32 targetLabelIdx, BB &targetBB);
+  void InitSecEnd();
   uint32 CalculateAlignRange(const BB &bb, uint32 addr) const;
   void SetInsnId() const;
 };  /* class AArch64ShortBranch */

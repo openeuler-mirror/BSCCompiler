@@ -1060,7 +1060,7 @@ DEFINE_MOP(MOP_counter, {&OpndDesc::Reg64ID,&OpndDesc::LiteralSrc},ISATOMIC|CANT
  * str w30, [x16 + offset]
  * ldr x30, [sp], #16
  */
-DEFINE_MOP(MOP_c_counter, {&OpndDesc::LiteralSrc,&OpndDesc::Imm64},ISATOMIC|CANTHROW,kLtClinit,"intrinsic_counter","0,1", 8)
+DEFINE_MOP(MOP_c_counter, {&OpndDesc::LiteralSrc,&OpndDesc::Imm64, &OpndDesc::Reg64ID},ISATOMIC|CANTHROW,kLtClinit,"intrinsic_counter","0,1", 8)
 
 /*
  * will be emit to two instrunctions in a row:

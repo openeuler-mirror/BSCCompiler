@@ -15,18 +15,33 @@
 
 #include "instrument.h"
 #include "cgbb.h"
-#include "itab_util.h"
+
 #include "mir_builder.h"
 namespace maple {
-std::string GetProfCntSymbolName(const std::string &moduleName, const std::string &funcName) {
-  std::string moduleHashStr = std::to_string(DJBHash(moduleName.c_str()));
-  std::string joiner("$$");
-  return namemangler::kBBProfileTabPrefixStr + joiner + moduleHashStr + joiner + funcName;
+std::string GetProfCntSymbolName(const std::string &funcName, PUIdx idx) {
+  return funcName + "_" + std::to_string(idx) + "_counter";
 }
 
-MIRSymbol *GetOrCreateProfSymForFunc(MIRFunction *func, uint32 elemCnt) {
-  auto *mirModule = func->GetModule();
-  std::string name = GetProfCntSymbolName(mirModule->GetFileName(), func->GetName());
+static inline void RegisterInFuncInfo(MIRModule &m, PUIdx idx, const MIRSymbol &counter, uint32 elemCnt) {
+  if (elemCnt == 0) {
+    return;
+  }
+  auto funcStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(
+      namemangler::kprefixProfFuncDesc + std::to_string(idx));
+  MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(funcStrIdx);
+  CHECK_FATAL(sym, "function have not generated, please check in CreateFuncInfo");
+  auto *funcInfoMirConst = static_cast<MIRAggConst *>(sym->GetKonst());
+  MIRType *u64Ty = GlobalTables::GetTypeTable().GetUInt64();
+  MIRIntConst *eleCntMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(elemCnt, *u64Ty);
+  auto *counterConst = m.GetMemPool()->New<MIRAddrofConst>(
+      counter.GetStIdx(), 0, *GlobalTables::GetTypeTable().GetPtr());
+  funcInfoMirConst->SetItem(1, eleCntMirConst,2);
+  funcInfoMirConst->SetItem(2, counterConst, 3);
+}
+
+MIRSymbol *GetOrCreateFuncCounter(MIRFunction &func, uint32 elemCnt) {
+  auto *mirModule = func.GetModule();
+  std::string name = GetProfCntSymbolName(func.GetName(), func.GetPuidx());
   auto nameStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(name);
   MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(nameStrIdx);
   if (sym != nullptr) {
@@ -36,16 +51,15 @@ MIRSymbol *GetOrCreateProfSymForFunc(MIRFunction *func, uint32 elemCnt) {
   MIRArrayType &arrayType =
       *GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, elemCnt);
   sym = mirModule->GetMIRBuilder()->CreateGlobalDecl(name.c_str(), arrayType);
-  MIRAggConst *profTab = mirModule->GetMemPool()->New<MIRAggConst>(
-      *mirModule, *elemType);
+  auto *profTab = mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, arrayType);
   MIRIntConst *indexConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *elemType);
-  MIRIntConst *ibbSizeConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(elemCnt, *elemType);
-  profTab->AddItem(ibbSizeConst, 0);
-  for (uint32 i = 1; i < elemCnt; ++i) {
+  for (uint32 i = 0; i < elemCnt; ++i) {
     profTab->AddItem(indexConst, i);
   }
   sym->SetKonst(profTab);
-  sym->SetStorageClass(kScGlobal);
+  sym->SetStorageClass(kScFstatic);
+  sym->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName("mpl_counter");
+  RegisterInFuncInfo(*mirModule, func.GetPuidx(), *sym, elemCnt);
   return sym;
 }
 

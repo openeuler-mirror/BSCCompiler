@@ -114,12 +114,13 @@ void AArch64FixShortBranch::FixShortBranches() const {
             cbOp = MOP_xcbnz;
             break;
           default:
+            CHECK_FATAL_FALSE("must be");
             break;
         }
         RegOperand &tmp = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(
             R16, (ubfxOp == MOP_wubfxrri5i5) ? k32BitSize : k64BitSize, kRegTyInt);
-        (void)bb->InsertInsnAfter(*insn, cg->BuildInstruction<AArch64Insn>(cbOp, tmp, label));
-        (void)bb->InsertInsnAfter(*insn, cg->BuildInstruction<AArch64Insn>(ubfxOp, tmp, reg, bitPos, bitSize));
+        (void)bb->InsertInsnAfter(*insn, cgFunc->GetInsnBuilder()->BuildInsn(cbOp, tmp, label));
+        (void)bb->InsertInsnAfter(*insn, cgFunc->GetInsnBuilder()->BuildInsn(ubfxOp, tmp, reg, bitPos, bitSize));
         bb->RemoveInsn(*insn);
         change = true;
       }
@@ -127,10 +128,103 @@ void AArch64FixShortBranch::FixShortBranches() const {
   } while (change);
 }
 
-bool CgFixShortBranch::PhaseRun(maplebe::CGFunc &func) {
-  auto *fixShortBranch = GetPhaseAllocator()->New<AArch64FixShortBranch>(&func);
+uint32 GetLabelIdx(Insn &insn) {
+  uint32 res = 0;
+  uint32 foundCount = 0;
+  for (size_t i = 0; i < insn.GetOperandSize(); ++i) {
+    Operand &opnd = insn.GetOperand(i);
+    if (opnd.GetKind() == Operand::kOpdBBAddress) {
+      res = i;
+      foundCount++;
+    }
+  }
+  CHECK_FATAL(foundCount == 1, "check case");
+  return res;
+}
+
+void AArch64FixShortBranch::FixShortBranchesForSplitting() {
+  InitSecEnd();
+  FOR_ALL_BB(bb, cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      if (insn->IsCondBranch()) {
+        CHECK_FATAL(bb->GetKind() == BB::kBBIf, "CHECK bb TYPE");
+        uint32 targetLabelIdx = GetLabelIdx(*insn);
+        CHECK_FATAL(targetLabelIdx != 0, "get label failed in condition branch insn");
+        auto &targetLabelOpnd = dynamic_cast<LabelOperand&>(insn->GetOperand(targetLabelIdx));
+        BB *targetBB = cgFunc->GetBBFromLab2BBMap(targetLabelOpnd.GetLabelIndex());
+        CHECK_FATAL(targetBB, "get Target bb from lab2bb map failed");
+        bool crossBoundary = bb->IsInColdSection() != targetBB->IsInColdSection();
+        if (!crossBoundary) {
+          continue;
+        }
+        // std::cout << "insert jump pad for BB : " << bb->GetId()  << std::endl;
+        InsertJmpPadAtSecEnd(*insn, targetLabelIdx, *targetBB);
+      }
+    }
+  }
+}
+
+void AArch64FixShortBranch::InsertJmpPadAtSecEnd(Insn &insn, uint32 targetLabelIdx, BB &targetBB) {
+  BB *bb = insn.GetBB();
+  BB *padBB = cgFunc->CreateNewBB();
+  LabelIdx padBBLabel = cgFunc->CreateLabel();
+  padBB->SetLabIdx(padBBLabel);
+  cgFunc->SetLab2BBMap(padBBLabel, *padBB);
+
+  auto &targetLabelOpnd = dynamic_cast<LabelOperand&>(insn.GetOperand(targetLabelIdx));
+  padBB->AppendInsn(cgFunc->GetInsnBuilder()->BuildInsn(MOP_xuncond, targetLabelOpnd));
+
+  LabelOperand &padBBLabelOpnd = cgFunc->GetOrCreateLabelOperand(padBBLabel);
+  insn.SetOperand(targetLabelIdx, padBBLabelOpnd);
+
+  /* adjust CFG */
+  bb->RemoveSuccs(targetBB);
+  bb->PushBackSuccs(*padBB);
+  targetBB.RemovePreds(*bb);
+  targetBB.PushBackPreds(*padBB);
+  padBB->PushBackPreds(*bb);
+  padBB->PushBackSuccs(targetBB);
+  /* adjust layout
+   * hot section end -- boundary bb
+   * cold section end -- last bb */
+  if (!bb->IsInColdSection()) {
+    padBB->SetNext(boundaryBB);
+    padBB->SetPrev(boundaryBB->GetPrev());
+    boundaryBB->GetPrev()->SetNext(padBB);
+    boundaryBB->SetPrev(padBB);
+    boundaryBB = padBB;
+  } else {
+    CHECK_FATAL(lastBB->GetNext() == nullptr, "must be");
+    lastBB->SetNext(padBB);
+    padBB->SetNext(nullptr);
+    padBB->SetPrev(lastBB);
+    lastBB = padBB;
+    padBB->SetColdSection();
+  }
+}
+
+void AArch64FixShortBranch::InitSecEnd() {
+  FOR_ALL_BB(bb, cgFunc) {
+    if (bb->IsInColdSection() && boundaryBB == nullptr) {
+      boundaryBB = bb;
+    }
+    if (bb->GetNext() == nullptr) {
+      CHECK_FATAL(lastBB == nullptr, " last bb exist");
+      lastBB = bb;
+    }
+  }
+}
+
+bool CgFixShortBranch::PhaseRun(maplebe::CGFunc &f) {
+  auto *fixShortBranch = GetPhaseAllocator()->New<AArch64FixShortBranch>(&f);
   CHECK_FATAL(fixShortBranch != nullptr, "AArch64FixShortBranch instance create failure");
   fixShortBranch->FixShortBranches();
+  if (LiteProfile::IsInWhiteList(f.GetName()) && CGOptions::DoLiteProfUse()) {
+    fixShortBranch->FixShortBranchesForSplitting();
+  }
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFixShortBranch, fixshortbranch)

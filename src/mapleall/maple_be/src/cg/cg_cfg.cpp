@@ -160,11 +160,13 @@ void CGCFG::CheckCFG() {
             found = true;
           } else {
             LogInfo::MapleLogger() << "dup pred " << sucPred->GetId() << " for sucBB " << sucBB->GetId() << "\n";
+            CHECK_FATAL_FALSE("CG_CFG check failed !");
           }
         }
       }
       if (found == false) {
         LogInfo::MapleLogger() << "non pred for sucBB " << sucBB->GetId() << " for BB " << bb->GetId() << "\n";
+        CHECK_FATAL_FALSE("CG_CFG check failed !");
       }
     }
   }
@@ -177,11 +179,13 @@ void CGCFG::CheckCFG() {
             found = true;
           } else {
             LogInfo::MapleLogger() << "dup succ " << predSucc->GetId() << " for predBB " << predBB->GetId() << "\n";
+            CHECK_FATAL_FALSE("CG_CFG check failed !");
           }
         }
       }
       if (found == false) {
         LogInfo::MapleLogger() << "non succ for predBB " << predBB->GetId() << " for BB " << bb->GetId() << "\n";
+        CHECK_FATAL_FALSE("CG_CFG check failed !");
       }
     }
   }
@@ -559,6 +563,21 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
   if (ehFunc != nullptr && ehFunc->GetLSDACallSiteTable() != nullptr) {
     ehFunc->GetLSDACallSiteTable()->RemoveCallSite(curBB);
   }
+
+  /* If bb is removed, the related die information needs to be updated. */
+  if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
+    DebugInfo *di = cgFunc->GetCG()->GetMIRModule()->GetDbgInfo();
+    DBGDie *fdie = di->GetFuncDie(&cgFunc->GetFunction());
+    for (auto attr : fdie->GetAttrVec()) {
+      if (!attr->GetKeep()) {
+        continue;
+      }
+      if ((attr->GetDwAt() == DW_AT_high_pc || attr->GetDwAt() == DW_AT_low_pc) &&
+          attr->GetId() == curBB.GetLabIdx()) {
+        attr->SetKeep(false);
+      }
+    }
+  }
 }
 
 void CGCFG::RetargetJump(BB &srcBB, BB &targetBB) const {
@@ -926,7 +945,6 @@ BB *CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
 void CGCFG::ReverseCriticalEdge(BB &cbb) {
   CHECK_FATAL(cbb.GetPreds().size() == 1, "critical edge bb has more than 1 preds");
   CHECK_FATAL(cbb.GetSuccs().size() == 1, "critical edge bb has more than 1 succs");
-
   BB *pred = *cbb.GetPreds().begin();
   BB *succ = *cbb.GetSuccs().begin();
 
@@ -938,7 +956,9 @@ void CGCFG::ReverseCriticalEdge(BB &cbb) {
       CHECK_FATAL(succ->GetLabIdx() != MIRLabelTable::GetDummyLabel(), "unexpect label");
       brInsn->SetOperand(AArch64isa::GetJumpTargetIdx(*brInsn), cgFunc->GetOrCreateLabelOperand(succ->GetLabIdx()));
     } else {
-      CHECK_FATAL(false, "pred of critical edge bb do not goto cbb");
+      if (pred->GetNext() != &cbb) {
+        CHECK_FATAL(false, "pred of critical edge bb do not goto cbb");
+      }
     }
   } else if (pred->GetKind() == BB::kBBRangeGoto) {
     const MapleVector<LabelIdx> &labelVec = pred->GetRangeGotoLabelVec();

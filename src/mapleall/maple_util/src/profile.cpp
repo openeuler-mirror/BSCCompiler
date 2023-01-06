@@ -24,9 +24,11 @@
 #include <sys/types.h>
 #include <cerrno>
 #include <algorithm>
+#include <sstream>
 #include "namemangler.h"
 #include "file_layout.h"
 #include "types_def.h"
+#include "itab_util.h"
 
 namespace maple {
 constexpr uint8 Profile::stringEnd = 0x00;
@@ -588,4 +590,99 @@ void Profile::Dump() const {
   }
   outFile.close();
 }
+
+bool LiteProfile::loaded = false;
+LiteProfile::BBInfo *LiteProfile::GetFuncBBProf(const std::string &funcName) {
+  auto item = funcBBProfData.find(funcName);
+  if (item == funcBBProfData.end()) {
+    return nullptr;
+  }
+  return &item->second;
+}
+
+bool LiteProfile::HandleLitePGOFile(const std::string &fileName, const std::string &moduleName) {
+  if (loaded) {
+    LogInfo::MapleLogger() << "this Profile has been handled before" << '\n';
+    return false;
+  }
+  loaded = true;
+  std::ifstream in(fileName);
+  if (!in.is_open()) {
+    if (errno != ENOENT && errno != EACCES) {
+      LogInfo::MapleLogger() << "WARN: Open lite pgo file (" << "), failed to open " << fileName << '\n';
+    }
+    return false;
+  }
+  std::string line;
+  std::string curfile = "";
+  std::string moduleHashStr = std::to_string(DJBHash(moduleName.c_str()));
+  while (std::getline(in, line)) {
+    ParseFuncBBData(line, curfile, moduleHashStr);
+  }
+  return true;
+}
+
+bool LiteProfile::HandleInstrumentationWhiteList(const std::string &fileName) {
+  std::ifstream in(fileName);
+  if (!in.is_open()) {
+    if (errno != ENOENT && errno != EACCES) {
+      LogInfo::MapleLogger() << "WARN: instrumentation white list(" << "), failed to open " << fileName << '\n';
+    }
+    return false;
+  }
+  std::string line;
+  while (std::getline(in, line)) {
+    std::vector<std::string> context;
+    std::istringstream iss(line);
+    std::string word;
+    while (iss >> word) {
+      context.push_back(word);
+    }
+    if (context.size() == 1) {
+      (void)whiteList.insert(context[0]);
+    } else {
+      CHECK_FATAL(false, "unexpected format in instrumentation white list");
+    }
+  }
+  return true;
+}
+
+std::set<std::string> LiteProfile::whiteList = {};
+
+uint32 LiteProfile::bbNoThreshold = 100000;
+
+void LiteProfile::ParseFuncBBData(const std::string &line, std::string &curFile, const std::string &moduleHash) {
+  std::vector<std::string> context;
+  std::istringstream iss(line);
+  std::string word;
+  while (iss >> word) {
+    context.push_back(word);
+  }
+
+  int profileCallTime = std::stoi(context[0]);
+  CHECK_FATAL(profileCallTime <= 1, "have not support multiple profile");
+  /* profile file name */
+  std::string fileNameHash = context[1];
+  size_t pos = fileNameHash.find("$$");
+  std::string funcName = fileNameHash.substr(pos + 2);
+  std::string inputModuleHash = fileNameHash.substr(0, pos);
+
+  if (curFile != funcName) {
+    /* skip bb size */
+    curFile = funcName;
+  } else if (moduleHash == inputModuleHash) {
+    /* profile BB count */
+    uint32 bbcounter = static_cast<uint32>(std::stoul(context[2]));
+    if (funcBBProfData.find(funcName) != funcBBProfData.end()) {
+      (void)funcBBProfData.find(funcName)->second.counter.emplace_back(bbcounter);
+    } else {
+      std::vector<uint32> temp;
+      (void)temp.emplace_back(bbcounter);
+      int funcHash = 0x10; /* not implement function hash yet */
+      BBInfo bbInfo(funcHash, std::move(temp));
+      (void)funcBBProfData.emplace(funcName, bbInfo);
+    }
+  }
+}
+
 }  // namespace maple

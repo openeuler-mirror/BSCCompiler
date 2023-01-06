@@ -234,6 +234,42 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) const {
   }
 }
 
+void InitFunctionPriority(std::map<std::string, uint32> &prioritylist) {
+  if (CGOptions::GetFunctionPriority() != "") {
+    std::string fileName = CGOptions::GetFunctionPriority();
+    std::ifstream in(fileName);
+    if (!in.is_open()) {
+      if (errno != ENOENT && errno != EACCES) {
+        LogInfo::MapleLogger() << "WARN: instrumentation white list(" << "), failed to open " << fileName << '\n';
+      }
+      return;
+    }
+    std::string line;
+    while (std::getline(in, line)) {
+      std::vector<std::string> context;
+      std::istringstream iss(line);
+      std::string word;
+      while (iss >> word) {
+        context.push_back(word);
+      }
+      constexpr size_t priorityFormat = 2;
+      if (context.size() == priorityFormat) {
+        prioritylist.insert(std::make_pair(context[0], std::stoi(context[1])));
+      } else {
+        CHECK_FATAL(false, "unexpected format in Function Priority File");
+      }
+    }
+  }
+}
+
+void MarkFunctionPriority(std::map<std::string, uint32> &prioritylist, CGFunc &f) {
+  if (!prioritylist.empty()) {
+    if (prioritylist.count(f.GetName())) {
+      f.SetPriority(prioritylist[f.GetName()]);
+    }
+  }
+}
+
 /* =================== new phase manager ===================  */
 #ifdef RA_PERF_ANALYSIS
 extern void printLSRATime();
@@ -252,6 +288,8 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 
     /* Run the cg optimizations phases */
     PrepareLower(m);
+    std::map<std::string, uint32> priorityList;
+    InitFunctionPriority(priorityList);
 
     uint32 countFuncId = 0;
     unsigned long rangeNum = 0;
@@ -267,6 +305,7 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       if (mirFunc->GetBody() == nullptr) {
         continue;
       }
+
       if (userDefinedOptLevel == CGOptions::kLevel2 && m.HasPartO2List()) {
         if (m.IsInPartO2List(mirFunc->GetNameStrIdx())) {
           cgOptions->EnableO2();
@@ -302,7 +341,7 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       CGFunc *cgFunc = cg->CreateCGFunc(m, *mirFunc, *beCommon, *funcMp, *stackMp, funcScopeAllocator, countFuncId);
       CHECK_FATAL(cgFunc != nullptr, "Create CG Function failed in cg_phase_manager");
       CG::SetCurCGFunc(*cgFunc);
-
+      MarkFunctionPriority(priorityList, *cgFunc);
       if (cgOptions->WithDwarf()) {
         cgFunc->SetDebugInfo(m.GetDbgInfo());
       }
@@ -358,6 +397,21 @@ void CgFuncPM::InitProfile(MIRModule &m)  const {
       LogInfo::MapleLogger() << "WARN: DeCompress() " << CGOptions::GetProfileData() << "failed in mplcg()\n";
     }
   }
+  if (!CGOptions::GetInstrumentationWhiteList().empty()) {
+    bool handleSucc = m.GetLiteProfile().HandleInstrumentationWhiteList(CGOptions::GetInstrumentationWhiteList());
+    if (!handleSucc) {
+      LogInfo::MapleLogger() << "WARN: Handle instrumentation white list file " <<
+                                CGOptions::GetInstrumentationWhiteList() <<
+                                "failed in mplcg\n";
+    }
+  }
+  if (!CGOptions::GetLiteProfile().empty()) {
+    bool handleSucc = m.GetLiteProfile().HandleLitePGOFile(CGOptions::GetLiteProfile(), m.GetFileName());
+    if (!handleSucc) {
+      LogInfo::MapleLogger() << "WARN: Handle Lite PGO input file " << CGOptions::GetLiteProfile() <<
+                                "failed in mplcg\n";
+    }
+  }
 }
 
 void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
@@ -385,6 +439,11 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
    * All metadata generation passes which depend on the pointed-to type must be done here.
    */
   cg->GenPrimordialObjectList(m.GetBaseName());
+  if (CGOptions::DoLiteProfGen()) {
+    CGProfGen::CreateProfInitExitFunc(m);
+    CGProfGen::CreateProfFileSym(m, CGOptions::GetInstrumentationOutPutPath(), "__mpl_pgo_dump_filename");
+    CGProfGen::CreateChildTimeSym(m, "__mpl_pgo_sleep_time");
+  }
   /* We initialize a couple of BECommon's tables using the size information of GlobalTables.type_table_.
    * So, BECommon must be allocated after all the parsing is done and user-defined types are all acounted.
    */
@@ -395,10 +454,6 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
   /* If a metadata generation pass depends on object layout it must be done after creating BECommon. */
   cg->GenExtraTypeMetadata(cgOptions->GetClassListFile(), m.GetBaseName());
 
-  if (cg->NeedInsertInstrumentationFunction()) {
-    CHECK_FATAL(cgOptions->IsInsertCall(), "handling of --insert-call is not correct");
-    cg->SetInstrumentationFunction(cgOptions->GetInstrumentationFunction());
-  }
 #if TARGAARCH64
   if (!m.IsCModule()) {
     CGOptions::EnableFramePointer();
@@ -526,6 +581,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgFuncPM, cgFuncPhaseManager)
 /* register codegen common phases */
 MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgCreateLabel, createstartendlabel)
+MAPLE_ANALYSIS_PHASE_REGISTER(AbstractBuilder, abstarctbuilder)
 MAPLE_TRANSFORM_PHASE_REGISTER(InstructionSelector, instructionselector)
 MAPLE_TRANSFORM_PHASE_REGISTER(InstructionStandardize, instructionstandardize)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgMoveRegArgs, moveargs)

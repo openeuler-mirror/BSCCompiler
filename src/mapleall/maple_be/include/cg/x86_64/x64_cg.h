@@ -18,6 +18,7 @@
 #define MAPLEBE_INCLUDE_CG_X86_64_CG_H
 
 #include "cg.h"
+#include "cg_pgo_gen.h"
 #include "x64_reg_info.h"
 #include "x64_live.h"
 #include "x64_reaching.h"
@@ -60,8 +61,8 @@ class X64CG : public CG {
     return mp.New<X64MoveRegArgs>(f);
   }
 
-  MPISel *CreateMPIsel(MemPool &mp, CGFunc &f) const override {
-    return mp.New<X64MPIsel>(mp, f);
+  MPISel *CreateMPIsel(MemPool &mp, AbstractIRBuilder &aIRBuilder, CGFunc &f) const override {
+    return mp.New<X64MPIsel>(mp, aIRBuilder, f);
   }
 
   Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const override {

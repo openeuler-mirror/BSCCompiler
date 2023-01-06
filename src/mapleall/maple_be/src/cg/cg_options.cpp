@@ -629,13 +629,14 @@ maplecl::Option<bool> litePgoGen({"--lite-pgo-gen"},
                                  {cgCategory},
                                  maplecl::DisableWith("--no-lite-pgo-gen"));
 maplecl::Option<std::string> instrumentationFile ({"--instrumentation-file"},
-                                                  "--instrumentation-file=filepath \t instrumentation function white list\n",
+                                                  "--instrumentation-file=filepath \t instrumentation file output path\n",
                                                   {cgCategory});
-
+maplecl::Option<std::string> instrumentationWhiteList ({"--instrumentation-white-list"},
+                                                        "--instrumentation-white-list=filepath \t instrumentation function white list\n",
+                                                       {cgCategory});
 maplecl::Option<std::string> litePgoOutputFunc ({"--lite-pgo-output-func"},
-                                                 "--lite-pgo-output-func=function name \t generate lite profile at the exit of the output function[default main]\n",
+                                                 "--lite-pgo-output-func=function name \t generate lite profile at the exit of the output function[default none]\n",
                                                  {cgCategory});
-
 maplecl::Option<std::string> litePgoFile({"--lite-pgo-file"},
                                          " --lite-pgo-file=filepath          \t lite pgo guide file\n",
                                          {cgCategory});

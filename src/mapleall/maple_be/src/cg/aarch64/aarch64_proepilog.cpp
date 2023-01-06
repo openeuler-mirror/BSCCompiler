@@ -120,6 +120,7 @@ MemOperand *AArch64GenProEpilog::GetDownStack() {
 void AArch64GenProEpilog::GenStackGuard() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   aarchCGFunc.GetDummyBB()->ClearInsns();
+
   cgFunc.SetCurBB(*aarchCGFunc.GetDummyBB());
 
   MIRSymbol *stkGuardSym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
@@ -182,7 +183,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   bb.AppendBBInsns(*(cgFunc.GetCurBB()));
 
   LabelIdx nextBBLableIdx = aarchCGFunc.CreateLabel();
-  BB *nextBB = cgFunc.CreateNewBB(nextBBLableIdx, bb.IsUnreachable(), BB::kBBFallthru, bb.GetFrequency());
+  BB *nextBB = cgFunc.CreateNewBB(nextBBLableIdx, bb.IsUnreachable(), bb.GetKind(), bb.GetFrequency());
   bb.AppendBB(*nextBB);
   bb.PushBackSuccs(*nextBB);
   nextBB->PushBackPreds(bb);
@@ -190,18 +191,19 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
     cgFunc.SetLastBB(*nextBB);
   }
 
-  BB *newBB = aarchCGFunc.CreateNewBB(failLable, bb.IsUnreachable(), bb.GetKind(), bb.GetFrequency());
+  BB *newBB = aarchCGFunc.CreateNewBB(failLable, bb.IsUnreachable(), BB::kBBGoto, bb.GetFrequency());
   cgFunc.SetCurBB(*newBB);
   MIRSymbol *failFunc = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_fail")));
   ListOperand *srcOpnds = aarchCGFunc.CreateListOpnd(*cgFunc.GetFuncScopeAllocator());
   Insn &callInsn = aarchCGFunc.AppendCall(*failFunc, *srcOpnds);
   callInsn.SetDoNotRemove(true);
+  LabelOperand &targetOpnd = cgFunc.GetOrCreateLabelOperand(nextBB->GetLabIdx());
+  newBB->AppendInsn(cgFunc.GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd));
   nextBB->AppendBB(*newBB);
   bb.PushBackSuccs(*newBB);
-  nextBB->PushBackSuccs(*newBB);
-  newBB->PushBackPreds(*nextBB);
   newBB->PushBackPreds(bb);
+  newBB->PushBackSuccs(*nextBB);
 
   bb.SetKind(BB::kBBIf);
   cgFunc.SetCurBB(*formerCurBB);
@@ -1094,13 +1096,25 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
   /* generate stack protected instruction */
   BB &epilogBB = GenStackGuardCheckInsn(bb);
 
+  if (&bb != &epilogBB) {
+    auto curBBIt = std::find(cgFunc.GetExitBBsVec().begin(), cgFunc.GetExitBBsVec().end(), &bb);
+    CHECK_FATAL(curBBIt != cgFunc.GetExitBBsVec().end(), "check case in GenerateEpilog");
+    (void)cgFunc.GetExitBBsVec().erase(curBBIt);
+    cgFunc.GetExitBBsVec().push_back(&epilogBB);
+    BB *commonExit =  cgFunc.GetCommonExitBB();
+    auto exitPredIt = std::find(commonExit->GetPredsBegin(), commonExit->GetPredsEnd(), &bb);
+    if (exitPredIt != commonExit->GetPredsEnd()) {
+      commonExit->ErasePreds(exitPredIt);
+      commonExit->PushBackPreds(epilogBB);
+    }
+  }
+
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   BB *formerCurBB = cgFunc.GetCurBB();
   aarchCGFunc.GetDummyBB()->ClearInsns();
   aarchCGFunc.GetDummyBB()->SetIsProEpilog(true);
   cgFunc.SetCurBB(*aarchCGFunc.GetDummyBB());
-
   Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
   Operand &fpOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(stackBaseReg, k64BitSize, kRegTyInt);
 

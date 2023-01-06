@@ -560,7 +560,7 @@ class CGFunc {
     return INT_MAX;
   }
 
-  virtual void InsertJumpPad(Insn *) {
+  virtual void InsertJumpPad(Insn *insn) {
     return;
   }
 
