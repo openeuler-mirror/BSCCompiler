@@ -14,23 +14,25 @@
  */
 #ifndef MAPLE_ME_INCLUDE_HDSE_H
 #define MAPLE_ME_INCLUDE_HDSE_H
-#include "bb.h"
-#include "irmap.h"
-#include "dominance.h"
 #include "alias_class.h"
+#include "bb.h"
+#include "dominance.h"
+#include "irmap.h"
+#include "me_loop_analysis.h"
 
 namespace maple {
 class MeIRMap;
 class HDSE {
  public:
-  HDSE(MIRModule &mod, const MapleVector<BB*> &bbVec, BB &commonEntryBB, BB &commonExitBB,
-       Dominance &pDom, IRMap &map, const AliasClass *aliasClass, bool enabledDebug = false, bool decouple = false)
+  HDSE(MIRModule &mod, const MapleVector<BB*> &bbVec, BB &commonEntryBB, BB &commonExitBB, Dominance &dom,
+       Dominance &pdom, IRMap &map, const AliasClass *aliasClass, bool enabledDebug = false, bool decouple = false)
       : hdseDebug(enabledDebug),
         mirModule(mod),
         bbVec(bbVec),
         commonEntryBB(commonEntryBB),
         commonExitBB(commonExitBB),
-        postDom(pDom),
+        dom(dom),
+        postDom(pdom),
         irMap(map),
         aliasInfo(aliasClass),
         bbRequired(bbVec.size(), false, irMap.GetIRMapAlloc().Adapter()),
@@ -48,6 +50,15 @@ class HDSE {
   void SetRemoveRedefine(bool val) {
     removeRedefine = val;
   }
+  void SetLoops(IdentifyLoops *identifyLoops) {
+    loops = identifyLoops;
+  }
+  void SetUpdateFreq(bool update) {
+    updateFreq = update;
+  }
+  bool UpdateFreq() {
+    return updateFreq;
+  }
 
   bool hdseDebug;
   bool hdseKeepRef = false;
@@ -57,14 +68,18 @@ class HDSE {
   MapleVector<BB*> bbVec;
   BB &commonEntryBB;
   BB &commonExitBB;
+  Dominance &dom;
   Dominance &postDom;
   IRMap &irMap;
+  IdentifyLoops *loops = nullptr;
   const AliasClass *aliasInfo;
   MapleVector<bool> bbRequired;
   MapleVector<bool> exprLive;
   std::forward_list<MeExpr*> workList;
   std::unordered_map<MeStmt*, std::vector<MeExpr*>> stmt2NotNullExpr;
   std::unordered_map<MeExpr*, std::vector<MeStmt*>> notNullExpr2Stmt;
+  // All potentially infinite loops should not be removed, we collect related stmts in the set
+  std::unordered_set<const MeStmt*> irrBrRequiredStmts;
   // Initial type of all meExpr
   static const uint8 kExprTypeNormal = 0;
   // IreadMeExpr
@@ -73,14 +88,16 @@ class HDSE {
   // Or the meExpr is opnd of a same type meExpr
   static const uint8 kExprTypeNotNull = 2;
   bool decoupleStatic = false;
-  bool needUNClean = false;  // used to record if there's unreachable BB
+  bool needUNClean = false;     // used to record if there's unreachable BB
   bool removeRedefine = false;  // used to control if run ResolveContinuousRedefine()
-  MapleVector<uint32> verstUseCounts; // index is vstIdx
-  std::forward_list<DassignMeStmt *> backSubsCands; // backward substitution candidates
+  bool updateFreq = false;
+  MapleVector<uint32> verstUseCounts;                // index is vstIdx
+  std::forward_list<DassignMeStmt*> backSubsCands;  // backward substitution candidates
 
  private:
   void DseInit();
   void MarkSpecialStmtRequired();
+  void InitIrreducibleBrRequiredStmts();
   void PropagateUseLive(MeExpr &meExpr);
   void DetermineUseCounts(MeExpr *x);
   void CheckBackSubsCandidacy(DassignMeStmt *dass);

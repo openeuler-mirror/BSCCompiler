@@ -538,6 +538,9 @@ void DSE::MarkIrreducibleBrRequired() {
   MapleVector<SCCNode<BB>*> sccs(localAlloc.Adapter());
   (void)BuildSCC(localAlloc, bbVec.size(), allNodes, false, sccs, true);
   for (auto *scc : sccs) {
+    if (!scc->HasRecursion()) {
+      continue;
+    }
     for (BB *bb : scc->GetNodes()) {
       MarkLastBranchStmtInPDomBBRequired(*bb);
     }
