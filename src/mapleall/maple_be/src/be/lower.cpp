@@ -839,7 +839,7 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
 BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
     BaseNode *baseAddr) {
   auto bitSize = fieldType->GetFieldSize();
-  auto primType = GetRegPrimType(fieldType->GetPrimType());
+  auto primType = fieldType->GetPrimType();
   auto byteOffset = byteBitOffsets.first;
   auto bitOffset = byteBitOffsets.second;
   auto *builder = mirModule.GetMIRBuilder();
