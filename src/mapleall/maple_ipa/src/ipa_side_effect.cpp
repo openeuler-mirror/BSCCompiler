@@ -106,6 +106,34 @@ void SideEffect::PropAllInfoFromCallee(const MeStmt &call, MIRFunction &callee) 
   PropParamInfoFromCallee(call, callee);
 }
 
+void SideEffect::DealWithMayDef(MeStmt &stmt) {
+  if (!stmt.GetChiList()) {
+    return;
+  }
+  for (auto &chi : std::as_const(*stmt.GetChiList())) {
+    auto ostIdx = chi.first;
+    auto *ost = meFunc->GetMeSSATab()->GetSymbolOriginalStFromID(ostIdx);
+    if (!ost) {
+      continue;
+    }
+    DealWithOst(ost);
+    if (!ost->IsLocal()) {
+      curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+    }
+  }
+}
+
+void SideEffect::DealWithMayUse(MeStmt &stmt) {
+  if (!stmt.GetMuList()) {
+    return;
+  }
+  // this may cause some kWriteMemoryOnly regard as kReadWriteMemory.
+  // Example: {a.f = b} mulist in return stmt will regard param a as used.
+  for (auto &mu : std::as_const(*stmt.GetMuList())) {
+    DealWithOst(mu.first);
+  }
+}
+
 void SideEffect::DealWithStmt(MeStmt &stmt) {
   for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
     DealWithOperand(stmt.GetOpnd(i));
@@ -139,14 +167,8 @@ void SideEffect::DealWithStmt(MeStmt &stmt) {
       }
     }
   }
-  if (stmt.GetMuList() == nullptr) {
-    return;
-  }
-  // this may cause some kWriteMemoryOnly regard as kReadWriteMemory.
-  // Example: {a.f = b} mulist in return stmt will regard param a as used.
-  for (auto &mu : std::as_const(*stmt.GetMuList())) {
-    DealWithOst(mu.first);
-  }
+  DealWithMayUse(stmt);
+  DealWithMayDef(stmt);
 }
 
 void SideEffect::DealWithOst(OStIdx ostIdx) {
@@ -157,6 +179,9 @@ void SideEffect::DealWithOst(OStIdx ostIdx) {
 void SideEffect::DealWithOst(const OriginalSt *ost) {
   if (ost == nullptr) {
     return;
+  }
+  if (!ost->IsLocal()) {
+    curFuncDesc->SetFuncInfoNoBetterThan(FI::kPure);
   }
   for (auto &pair : analysisLater) {
     if (pair.first == ost) {
@@ -382,7 +407,8 @@ bool SideEffect::Perform(MeFunction &f) {
   SolveVarArgs(f);
   CollectFormalOst(f);
   AnalysisFormalOst();
-  for (auto *bb : dom->GetReversePostOrder()) {
+  for (auto *node : dom->GetReversePostOrder()) {
+    auto bb = f.GetCfg()->GetBBFromID(BBId(node->GetID()));
     for (auto &stmt : bb->GetMeStmts()) {
       DealWithStmt(stmt);
     }
@@ -415,7 +441,7 @@ bool SCCSideEffect::PhaseRun(SCCNode<CGNode> &scc) {
         continue;
       }
       auto *phase = map->GetVaildAnalysisPhase(meFunc->GetUniqueID(), &MEDominance::id);
-      Dominance *dom = static_cast<MEDominance*>(phase)->GetResult();
+      Dominance *dom = static_cast<MEDominance*>(phase)->GetDomResult();
       phase = map->GetVaildAnalysisPhase(meFunc->GetUniqueID(), &MEAliasClass::id);
       AliasClass *alias = static_cast<MEAliasClass*>(phase)->GetResult();
 
