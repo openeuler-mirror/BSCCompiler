@@ -78,7 +78,7 @@ class X64CGFunc : public CGFunc {
   Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
   Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) override;
+  Operand *SelectCAtomicExchangeN(const IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
   Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode) override;

@@ -387,6 +387,7 @@ void AArch64IsolateFastPath::IsolateFastPathOpt() {
     returnBB->RemoveInsn(*returnBB->GetLastInsn());
   }
   BB *tgtBB = returnBB->GetSuccs().front();
+  CHECK_FATAL(tgtBB->GetKind() == BB::kBBReturn, "check return bb of isolatefastpatch");
   CHECK_FATAL(tgtBB != nullptr, "null ptr check");
   FOR_BB_INSNS(insn, tgtBB) {
     returnBB->AppendInsn(*insn);  /* add the insns such as MOP_xret */
@@ -394,6 +395,25 @@ void AArch64IsolateFastPath::IsolateFastPathOpt() {
   returnBB->AppendInsn(cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_xret));
   /* bb is now a retbb and has no succ. */
   returnBB->SetKind(BB::kBBReturn);
+
+  // add to exitvec and common exitpreds
+  BB* commonExit = cgFunc.GetCommonExitBB();
+  auto cEpredtgt = std::find(commonExit->GetPredsBegin(), commonExit->GetPredsEnd(), tgtBB);
+  const auto cEpredreturn = std::find(commonExit->GetPredsBegin(), commonExit->GetPredsEnd(), returnBB);
+  if (cEpredtgt == commonExit->GetPredsEnd() || cEpredreturn != commonExit->GetPredsEnd()) {
+    CHECK_FATAL(false, "check case in isolatefast");
+  }
+  commonExit->RemovePreds(*tgtBB);
+  commonExit->PushBackPreds(*returnBB);
+
+  auto commonExitVecTgt = std::find(cgFunc.GetExitBBsVec().begin(), cgFunc.GetExitBBsVec().end(), tgtBB);
+  auto commonExitVecRet = std::find(cgFunc.GetExitBBsVec().begin(), cgFunc.GetExitBBsVec().end(), returnBB);
+  if (commonExitVecTgt == cgFunc.GetExitBBsVec().end() || commonExitVecRet != cgFunc.GetExitBBsVec().end()) {
+    CHECK_FATAL(false, "check case in isolatefast");
+  }
+  (void)cgFunc.GetExitBBsVec().erase(commonExitVecTgt);
+  cgFunc.GetExitBBsVec().push_back(returnBB);
+
   MapleList<BB*>::const_iterator predIt = std::find(tgtBB->GetPredsBegin(), tgtBB->GetPredsEnd(), returnBB);
   tgtBB->ErasePreds(predIt);
   tgtBB->ClearInsns();

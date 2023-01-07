@@ -788,6 +788,8 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bior, false);
     case INTRN_C___atomic_xor_fetch:
       return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bxor, false);
+    case INTRN_C___atomic_exchange_n:
+      return cgFunc.SelectCAtomicExchangeN(intrinsicopNode);
 
     case INTRN_C__builtin_return_address:
     case INTRN_C__builtin_extract_return_addr:

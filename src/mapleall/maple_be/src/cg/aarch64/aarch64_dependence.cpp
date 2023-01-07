@@ -476,6 +476,7 @@ bool AArch64DepAnalysis::NeedBuildDepsMem(const MemOperand &memOpnd, const MemOp
     return true;
   }
   if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC && !memInsn.IsCall()) {
+    CHECK_FATAL(memInsn.GetMemOpnd(), "MemOpnd should not be nullptr");
     static_cast<MemOperand *>(memInsn.GetMemOpnd())->SetAccessSize(memInsn.GetMemoryByteSize());
     return (!NoOverlap(memOpnd, *memOpndOfmemInsn));
   }

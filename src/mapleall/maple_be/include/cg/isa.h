@@ -16,7 +16,7 @@
 #define MAPLEBE_INCLUDE_CG_ISA_H
 
 #include <cstdint>
-#include "types_def.h"
+#include "mir_type.h"
 #include "operand.h"
 
 namespace maplebe {
@@ -145,7 +145,7 @@ enum VectorIntrinsicID {
 
 struct LaneNumberInfo {
   LaneNumberInfo(size_t opndId, int16 laneNumber = -1) : opndId(opndId), laneNumber(laneNumber) {}
-  size_t opndId = -1;
+  size_t opndId = kInvalidSize;
   int16 laneNumber = -1;
 };
 

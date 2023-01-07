@@ -696,3 +696,291 @@ DEF_MIR_INTRINSIC(vector_orn_v1u64, "vector_orn_v1u64", 1,
 DEF_MIR_INTRINSIC(vector_ornq_v2u64, "vector_ornq_v2u64", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
                   kArgTyV2U64, kArgTyV2U64)
+DEF_MIR_INTRINSIC(vector_copy_lane_v8i8, "vector_copy_lane_v8i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
+                  kArgTyV8I8, kArgTyI32, kArgTyV8I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_lane_v16i8, "vector_copyq_lane_v16i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16I8,
+                  kArgTyV16I8, kArgTyI32, kArgTyV8I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_lane_v4i16, "vector_copy_lane_v4i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I16,
+                  kArgTyV4I16, kArgTyI32, kArgTyV4I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_lane_v8i16, "vector_copyq_lane_v8i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV8I16, kArgTyI32, kArgTyV4I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_lane_v2i32, "vector_copy_lane_v2i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I32,
+                  kArgTyV2I32, kArgTyI32, kArgTyV2I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_lane_v4i32, "vector_copyq_lane_v4i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV4I32, kArgTyI32, kArgTyV2I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_lane_v1i64, "vector_copy_lane_v1i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1I64,
+                  kArgTyV1I64, kArgTyI32, kArgTyV1I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_lane_v2i64, "vector_copyq_lane_v2i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV2I64, kArgTyI32, kArgTyV1I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_lane_v8u8, "vector_copy_lane_v8u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U8,
+                  kArgTyV8U8, kArgTyI32, kArgTyV8U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_lane_v16u8, "vector_copyq_lane_v16u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16U8,
+                  kArgTyV16U8, kArgTyI32, kArgTyV8U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_lane_v4u16, "vector_copy_lane_v4u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U16,
+                  kArgTyV4U16, kArgTyI32, kArgTyV4U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_lane_v8u16, "vector_copyq_lane_v8u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U16, kArgTyI32, kArgTyV4U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_lane_v2u32, "vector_copy_lane_v2u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U32,
+                  kArgTyV2U32, kArgTyI32, kArgTyV2U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_lane_v4u32, "vector_copyq_lane_v4u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV4U32, kArgTyI32, kArgTyV2U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_lane_v1u64, "vector_copy_lane_v1u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1U64,
+                  kArgTyV1U64, kArgTyI32, kArgTyV1U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_lane_v2u64, "vector_copyq_lane_v2u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U64, kArgTyI32, kArgTyV1U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_laneq_v8i8, "vector_copy_laneq_v8i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
+                  kArgTyV8I8, kArgTyI32, kArgTyV16I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_laneq_v16i8, "vector_copyq_laneq_v16i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16I8,
+                  kArgTyV16I8, kArgTyI32, kArgTyV16I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_laneq_v4i16, "vector_copy_laneq_v4i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I16,
+                  kArgTyV4I16, kArgTyI32, kArgTyV8I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_laneq_v8i16, "vector_copyq_laneq_v8i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV8I16, kArgTyI32, kArgTyV8I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_laneq_v2i32, "vector_copy_laneq_v2i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I32,
+                  kArgTyV2I32, kArgTyI32, kArgTyV4I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_laneq_v4i32, "vector_copyq_laneq_v4i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV4I32, kArgTyI32, kArgTyV4I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_laneq_v1i64, "vector_copy_laneq_v1i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1I64,
+                  kArgTyV1I64, kArgTyI32, kArgTyV2I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_laneq_v2i64, "vector_copyq_laneq_v2i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV2I64, kArgTyI32, kArgTyV2I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_laneq_v8u8, "vector_copy_laneq_v8u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U8,
+                  kArgTyV8U8, kArgTyI32, kArgTyV16U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_laneq_v16u8, "vector_copyq_laneq_v16u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16U8,
+                  kArgTyV16U8, kArgTyI32, kArgTyV16U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_laneq_v4u16, "vector_copy_laneq_v4u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U16,
+                  kArgTyV4U16, kArgTyI32, kArgTyV8U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_laneq_v8u16, "vector_copyq_laneq_v8u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U16, kArgTyI32, kArgTyV8U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_laneq_v2u32, "vector_copy_laneq_v2u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U32,
+                  kArgTyV2U32, kArgTyI32, kArgTyV4U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_laneq_v4u32, "vector_copyq_laneq_v4u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV4U32, kArgTyI32, kArgTyV4U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copy_laneq_v1u64, "vector_copy_laneq_v1u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1U64,
+                  kArgTyV1U64, kArgTyI32, kArgTyV2U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_copyq_laneq_v2u64, "vector_copyq_laneq_v2u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U64, kArgTyI32, kArgTyV2U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_create_v8i8, "vector_create_v8i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
+                  kArgTyU64)
+DEF_MIR_INTRINSIC(vector_create_v4i16, "vector_create_v4i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I16,
+                  kArgTyU64)
+DEF_MIR_INTRINSIC(vector_create_v2i32, "vector_create_v2i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I32,
+                  kArgTyU64)
+DEF_MIR_INTRINSIC(vector_create_v1i64, "vector_create_v1i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1I64,
+                  kArgTyU64)
+DEF_MIR_INTRINSIC(vector_create_v8u8, "vector_create_v8u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U8,
+                  kArgTyU64)
+DEF_MIR_INTRINSIC(vector_create_v4u16, "vector_create_v4u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U16,
+                  kArgTyU64)
+DEF_MIR_INTRINSIC(vector_create_v2u32, "vector_create_v2u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U32,
+                  kArgTyU64)
+DEF_MIR_INTRINSIC(vector_create_v1u64, "vector_create_v1u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1U64,
+                  kArgTyU64)
+DEF_MIR_INTRINSIC(vector_dup_lane_v8i8, "vector_dup_lane_v8i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
+                  kArgTyV8I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_lane_v16i8, "vector_dupq_lane_v16i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16I8,
+                  kArgTyV8I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_lane_v4i16, "vector_dup_lane_v4i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I16,
+                  kArgTyV4I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_lane_v8i16, "vector_dupq_lane_v8i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV4I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_lane_v2i32, "vector_dup_lane_v2i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I32,
+                  kArgTyV2I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_lane_v4i32, "vector_dupq_lane_v4i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV2I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_lane_v1i64, "vector_dup_lane_v1i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1I64,
+                  kArgTyV1I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_lane_v2i64, "vector_dupq_lane_v2i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV1I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_lane_v8u8, "vector_dup_lane_v8u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U8,
+                  kArgTyV8U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_lane_v16u8, "vector_dupq_lane_v16u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16U8,
+                  kArgTyV8U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_lane_v4u16, "vector_dup_lane_v4u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U16,
+                  kArgTyV4U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_lane_v8u16, "vector_dupq_lane_v8u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV4U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_lane_v2u32, "vector_dup_lane_v2u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U32,
+                  kArgTyV2U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_lane_v4u32, "vector_dupq_lane_v4u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV2U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_lane_v1u64, "vector_dup_lane_v1u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1U64,
+                  kArgTyV1U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_lane_v2u64, "vector_dupq_lane_v2u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV1U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_laneq_v8i8, "vector_dup_laneq_v8i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
+                  kArgTyV16I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_laneq_v16i8, "vector_dupq_laneq_v16i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16I8,
+                  kArgTyV16I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_laneq_v4i16, "vector_dup_laneq_v4i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I16,
+                  kArgTyV8I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_laneq_v8i16, "vector_dupq_laneq_v8i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV8I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_laneq_v2i32, "vector_dup_laneq_v2i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I32,
+                  kArgTyV4I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_laneq_v4i32, "vector_dupq_laneq_v4i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV4I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_laneq_v1i64, "vector_dup_laneq_v1i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1I64,
+                  kArgTyV2I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_laneq_v2i64, "vector_dupq_laneq_v2i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV2I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_laneq_v8u8, "vector_dup_laneq_v8u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U8,
+                  kArgTyV16U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_laneq_v16u8, "vector_dupq_laneq_v16u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16U8,
+                  kArgTyV16U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_laneq_v4u16, "vector_dup_laneq_v4u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U16,
+                  kArgTyV8U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_laneq_v8u16, "vector_dupq_laneq_v8u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_laneq_v2u32, "vector_dup_laneq_v2u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U32,
+                  kArgTyV4U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_laneq_v4u32, "vector_dupq_laneq_v4u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV4U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dup_laneq_v1u64, "vector_dup_laneq_v1u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1U64,
+                  kArgTyV2U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupq_laneq_v2u64, "vector_dupq_laneq_v2u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_combine_v16i8, "vector_combine_v16i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16I8,
+                  kArgTyV8I8, kArgTyV8I8)
+DEF_MIR_INTRINSIC(vector_combine_v8i16, "vector_combine_v8i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV4I16, kArgTyV4I16)
+DEF_MIR_INTRINSIC(vector_combine_v4i32, "vector_combine_v4i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV2I32, kArgTyV2I32)
+DEF_MIR_INTRINSIC(vector_combine_v2i64, "vector_combine_v2i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV1I64, kArgTyV1I64)
+DEF_MIR_INTRINSIC(vector_combine_v16u8, "vector_combine_v16u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16U8,
+                  kArgTyV8U8, kArgTyV8U8)
+DEF_MIR_INTRINSIC(vector_combine_v8u16, "vector_combine_v8u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV4U16, kArgTyV4U16)
+DEF_MIR_INTRINSIC(vector_combine_v4u32, "vector_combine_v4u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV2U32, kArgTyV2U32)
+DEF_MIR_INTRINSIC(vector_combine_v2u64, "vector_combine_v2u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV1U64, kArgTyV1U64)
+DEF_MIR_INTRINSIC(vector_dupb_lane_v8i8, "vector_dupb_lane_v8i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI8,
+                  kArgTyV8I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_duph_lane_v4i16, "vector_duph_lane_v4i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI16,
+                  kArgTyV4I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dups_lane_v2i32, "vector_dups_lane_v2i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32,
+                  kArgTyV2I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupd_lane_v1i64, "vector_dupd_lane_v1i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
+                  kArgTyV1I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupb_lane_v8u8, "vector_dupb_lane_v8u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU8,
+                  kArgTyV8U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_duph_lane_v4u16, "vector_duph_lane_v4u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU16,
+                  kArgTyV4U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dups_lane_v2u32, "vector_dups_lane_v2u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU32,
+                  kArgTyV2U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupd_lane_v1u64, "vector_dupd_lane_v1u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
+                  kArgTyV1U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupb_laneq_v16i8, "vector_dupb_laneq_v16i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI8,
+                  kArgTyV16I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_duph_laneq_v8i16, "vector_duph_laneq_v8i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI16,
+                  kArgTyV8I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dups_laneq_v4i32, "vector_dups_laneq_v4i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32,
+                  kArgTyV4I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupd_laneq_v2i64, "vector_dupd_laneq_v2i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
+                  kArgTyV2I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupb_laneq_v16u8, "vector_dupb_laneq_v16u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU8,
+                  kArgTyV16U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_duph_laneq_v8u16, "vector_duph_laneq_v8u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU16,
+                  kArgTyV8U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dups_laneq_v4u32, "vector_dups_laneq_v4u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU32,
+                  kArgTyV4U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_dupd_laneq_v2u64, "vector_dupd_laneq_v2u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
+                  kArgTyV2U64, kArgTyI32)

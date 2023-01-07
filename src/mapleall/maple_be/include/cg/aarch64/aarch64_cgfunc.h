@@ -85,7 +85,7 @@ class AArch64CGFunc : public CGFunc {
     return kRFLAG;
   }
 
-  MIRType *LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyIdx> **parmList) const;
+  MIRType *LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyIdx> *&parmList) const;
   RegOperand &GetOrCreateResOperand(const BaseNode &parent, PrimType primType);
   MIRStructType *GetLmbcStructArgType(BaseNode &stmt, size_t argNo) const;
 
@@ -152,7 +152,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinopNode) override;
   AArch64isa::MemoryOrdering PickMemOrder(std::memory_order memOrder, bool isLdr) const;
   Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) override;
+  Operand *SelectCAtomicExchangeN(const IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectAtomicLoad(Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
   Operand *SelectCAtomicFetch(IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) override;
   Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;

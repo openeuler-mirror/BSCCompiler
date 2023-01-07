@@ -188,7 +188,7 @@ Operand *X64CGFunc::SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand *X64CGFunc::SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) {
+Operand *X64CGFunc::SelectCAtomicExchangeN(const IntrinsicopNode &intrinsiccallNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
