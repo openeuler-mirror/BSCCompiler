@@ -1280,7 +1280,6 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EmitBuiltinVectorShli(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   UniqueFEIRExpr EmitBuiltinVectorShri(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   UniqueFEIRExpr EmitBuiltinVectorShru(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
-  UniqueFEIRExpr EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   UniqueFEIRExpr EmitBuiltinRotate(std::list<UniqueFEIRStmt> &stmts, PrimType rotType, bool isLeft) const;
 #define EMIT_BUILTIIN_FUNC(FUNC) EmitBuiltin##FUNC(std::list<UniqueFEIRStmt> &stmts) const
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Ctz);

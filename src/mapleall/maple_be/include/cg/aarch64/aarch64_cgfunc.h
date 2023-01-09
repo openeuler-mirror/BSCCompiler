@@ -347,7 +347,6 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorIntrinsics(const IntrinsicopNode &intrinsicOp) override;
 
   void SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, PrimType oType);
-  void SelectVectorZip(PrimType rType, Operand *o1, Operand *o2);
   void SelectStackSave();
   void SelectStackRestore(const IntrinsiccallNode &intrnNode);
 

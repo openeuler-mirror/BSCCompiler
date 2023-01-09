@@ -10732,13 +10732,6 @@ void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) {
     case INTRN_C___atomic_load:
       SelectCAtomicLoad(intrinsicCallNode);
       return;
-    case INTRN_vector_zip_v8u8: case INTRN_vector_zip_v8i8:
-    case INTRN_vector_zip_v4u16: case INTRN_vector_zip_v4i16:
-    case INTRN_vector_zip_v2u32: case INTRN_vector_zip_v2i32:
-      SelectVectorZip(intrinsicCallNode.Opnd(0)->GetPrimType(),
-                      HandleExpr(intrinsicCallNode, *intrinsicCallNode.Opnd(0)),
-                      HandleExpr(intrinsicCallNode, *intrinsicCallNode.Opnd(1)));
-      return;
     case INTRN_C_stack_save:
       SelectStackSave();
       return;
@@ -12502,35 +12495,6 @@ RegOperand *AArch64CGFunc::SelectVectorSubWiden(PrimType resType, Operand *o1, P
   return res;
 }
 
-void AArch64CGFunc::SelectVectorZip(PrimType rType, Operand *o1, Operand *o2) {
-  RegOperand *res1 = &CreateRegisterOperandOfType(rType);                   /* result operand 1 */
-  RegOperand *res2 = &CreateRegisterOperandOfType(rType);                   /* result operand 2 */
-  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
-  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 1 */
-  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 2 */
-
-  VectorInsn &vInsn1 = GetInsnBuilder()->BuildVectorInsn(MOP_vzip1vvv, AArch64CG::kMd[MOP_vzip1vvv]);
-  (void)vInsn1.AddOpndChain(*res1).AddOpndChain(*o1).AddOpndChain(*o2);
-  (void)vInsn1.PushRegSpecEntry(vecSpecDest);
-  (void)vInsn1.PushRegSpecEntry(vecSpec1);
-  (void)vInsn1.PushRegSpecEntry(vecSpec2);
-  GetCurBB()->AppendInsn(vInsn1);
-
-  VectorInsn &vInsn2 = GetInsnBuilder()->BuildVectorInsn(MOP_vzip2vvv, AArch64CG::kMd[MOP_vzip2vvv]);
-  (void)vInsn2.AddOpndChain(*res2).AddOpndChain(*o1).AddOpndChain(*o2);
-  (void)vInsn2.PushRegSpecEntry(vecSpecDest);
-  (void)vInsn2.PushRegSpecEntry(vecSpec1);
-  (void)vInsn2.PushRegSpecEntry(vecSpec2);
-  GetCurBB()->AppendInsn(vInsn2);
-
-  if (GetPrimTypeSize(rType) <= k16ByteSize) {
-    Operand *preg1 = &GetOrCreatePhysicalRegisterOperand(V0, k64BitSize, kRegTyFloat);
-    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xvmovd, *preg1, *res1));
-    Operand *preg2 = &GetOrCreatePhysicalRegisterOperand(V1, k64BitSize, kRegTyFloat);
-    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xvmovd, *preg2, *res2));
-  }
-}
-
 RegOperand *AArch64CGFunc::SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) {
   RegOperand *res = &CreateRegisterOperandOfType(rType);                    /* result operand */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
@@ -12589,6 +12553,15 @@ static PrimType ConvertVectorPrimType(PrimType primType, IntrinArgType argType) 
   return primType;
 }
 
+static PrimType ConvertVectorPrimTypeWithSpecialMOP(PrimType ptype, MOperator mop) {
+  if (mop == MOP_vbicuuu || mop == MOP_vbsluuu) {
+    ptype = PTY_v8i8;
+  } else if (mop == MOP_vbicvvv || mop == MOP_vbslvvv) {
+    ptype = PTY_v16i8;
+  }
+  return ptype;
+}
+
 RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrinsicOp) {
   auto intrinsicId = intrinsicOp.GetIntrinsic();
   CHECK_FATAL(intrinsicId >= maple::INTRN_vector_abd_v8i8, "unexpected intrinsic");
@@ -12597,6 +12570,7 @@ RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrins
   auto &aarch64IntrinsicDesc = vectorIntrinsicMap[vectorIntrinsicIndex];
   auto resultType = ConvertVectorPrimType(intrinsicOp.GetPrimType(), intrinsicDesc.argTypes[0]);
   auto mop = aarch64IntrinsicDesc.mop;
+  resultType = ConvertVectorPrimTypeWithSpecialMOP(resultType, mop);
   auto &insnDesc = AArch64CG::kMd[mop];
   auto &insn = GetInsnBuilder()->BuildVectorInsn(mop, insnDesc);
   int16 resultLaneNumber = -1;
@@ -12618,6 +12592,7 @@ RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrins
     auto *opndExpr = intrinsicOp.Opnd(opndId);
     auto *opnd = HandleExpr(intrinsicOp, *opndExpr);
     auto opndType = opndExpr->GetPrimType();
+    opndType = ConvertVectorPrimTypeWithSpecialMOP(opndType, mop);
     (void)insn.AddOpndChain(*opnd);
     if (IsPrimitiveVector(opndType)) {
       auto laneNumber = ResolveLaneNumberInfo(intrinsicOp, aarch64IntrinsicDesc, opndId);

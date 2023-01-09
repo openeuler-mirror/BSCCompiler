@@ -110,10 +110,6 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
   if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
     return EmitBuiltinVectorStore(stmts, isFinish);
   }
-  prefix = "__builtin_mpl_vector_zip";
-  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    return EmitBuiltinVectorZip(stmts, isFinish);
-  }
   prefix = "__builtin_mpl_vector_shli";
   if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
     return EmitBuiltinVectorShli(stmts, isFinish);
@@ -203,36 +199,6 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShru(std::list<UniqueFEIRStmt> &stm
   auto arg1Expr = args[0]->Emit2FEExpr(stmts);
   auto arg2Expr = args[1]->Emit2FEExpr(stmts);
   return FEIRBuilder::CreateExprBinary(std::move(type), OP_lshr, std::move(arg1Expr), std::move(arg2Expr));
-}
-
-UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
-  std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
-  for (auto arg : args) {
-    UniqueFEIRExpr expr = arg->Emit2FEExpr(stmts);
-    argExprList->emplace_back(std::move(expr));
-  }
-  CHECK_NULL_FATAL(mirType);
-  std::string retName = FEUtils::GetSequentialName("vector_zip_retvar_");
-  UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(retName, *mirType);
-
-#define VECTOR_INTRINSICCALL_TYPE(OP_NAME, VECTY)                                                \
-  if (FEUtils::EndsWith(GetFuncName(), #VECTY)) {                                                \
-    stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(                                        \
-        INTRN_vector_##OP_NAME##_##VECTY, nullptr, retVar->Clone(), std::move(argExprList));     \
-  }
-  UniqueFEIRStmt stmt;
-
-  VECTOR_INTRINSICCALL_TYPE(zip, v2i32)
-  else VECTOR_INTRINSICCALL_TYPE(zip, v4i16)
-  else VECTOR_INTRINSICCALL_TYPE(zip, v8i8)
-  else VECTOR_INTRINSICCALL_TYPE(zip, v2u32)
-  else VECTOR_INTRINSICCALL_TYPE(zip, v4u16)
-  else VECTOR_INTRINSICCALL_TYPE(zip, v8u8)
-  else VECTOR_INTRINSICCALL_TYPE(zip, v2f32)
-
-  stmts.emplace_back(std::move(stmt));
-  isFinish = true;
-  return FEIRBuilder::CreateExprDRead(std::move(retVar));
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinVaStart(std::list<UniqueFEIRStmt> &stmts) const {

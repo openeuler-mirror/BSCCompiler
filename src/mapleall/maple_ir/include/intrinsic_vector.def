@@ -1024,31 +1024,6 @@ DEF_MIR_INTRINSIC(vector_table_lookup_v2f32, "vector_table_lookup_v2f32",
                   DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2F32,
                   kArgTyV2F32, kArgTyV2F32)
 
-// vecArrTy vector_zip(vecTy a, vecTy b)
-//     Interleave the upper half of elements from a and b into the destination
-//     vector.
-DEF_MIR_INTRINSIC(vector_zip_v2i32, "vector_zip_v2i32",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT | INTRNISSPECIAL,
-                  kArgTyAgg, kArgTyV2I32, kArgTyV2I32)
-DEF_MIR_INTRINSIC(vector_zip_v4i16, "vector_zip_v4i16",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT | INTRNISSPECIAL,
-                  kArgTyAgg, kArgTyV4I16, kArgTyV4I16)
-DEF_MIR_INTRINSIC(vector_zip_v8i8, "vector_zip_v8i8",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT | INTRNISSPECIAL,
-                  kArgTyAgg, kArgTyV8I8, kArgTyV8I8)
-DEF_MIR_INTRINSIC(vector_zip_v2u32, "vector_zip_v2u32",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT | INTRNISSPECIAL,
-                  kArgTyAgg, kArgTyV2U32, kArgTyV2U32)
-DEF_MIR_INTRINSIC(vector_zip_v4u16, "vector_zip_v4u16",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT | INTRNISSPECIAL,
-                  kArgTyAgg, kArgTyV4U16, kArgTyV4U16)
-DEF_MIR_INTRINSIC(vector_zip_v8u8, "vector_zip_v8u8",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT | INTRNISSPECIAL,
-                  kArgTyAgg, kArgTyV8U8, kArgTyV8U8)
-DEF_MIR_INTRINSIC(vector_zip_v2f32, "vector_zip_v2f32",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT | INTRNISSPECIAL,
-                  kArgTyAgg, kArgTyV2F32, kArgTyV2F32)
-
 // vecTy vector_load(scalarTy *ptr)
 //     Load the elements pointed to by ptr into a vector.
 DEF_MIR_INTRINSIC(vector_load_v2i64, "vector_load_v2i64",
