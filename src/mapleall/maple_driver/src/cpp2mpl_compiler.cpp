@@ -19,8 +19,11 @@
 
 namespace maple {
 std::string Cpp2MplCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const{
-  return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
+  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
+    return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
       FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
+  }
+  return mplOptions.GetExeFolder();
 }
 
 const std::string &Cpp2MplCompiler::GetBinName() const {

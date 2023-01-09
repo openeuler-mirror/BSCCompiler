@@ -65,7 +65,16 @@ DefaultOption ClangCompilerBeILP32::GetDefaultOptions(const MplOptions &options,
 }
 
 std::string ClangCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
-  return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
+  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
+    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
+  } else if (FileUtils::SafeGetenv(kClangPath) != "") {
+    return FileUtils::SafeGetenv(kClangPath);
+  }
+  std::string path = mplOptions.GetExeFolder();
+  // find the upper-level directory of bin/maple
+  int index = path.find_last_of('/') - 3;
+  std::string clangPath = path.substr(0, index);
+  return clangPath + "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/";
 }
 
 const std::string &ClangCompiler::GetBinName() const {

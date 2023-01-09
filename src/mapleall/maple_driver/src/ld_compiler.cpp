@@ -50,7 +50,20 @@ std::string LdCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
-  return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
+  if (FileUtils::SafeGetenv("LD_LIBRARY_PATH") == "") {
+    CHECK_FATAL(false, "Failed! Unable to find environment variable LD_LIBRARY_PATH \n");
+  }
+  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
+    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
+  } else if (FileUtils::SafeGetenv(kGccPath) != "") {
+    std::string gccPath = FileUtils::SafeGetenv(kGccPath) + "aarch64-linux-gnu-gcc -dumpversion";
+    FileUtils::checkGCCVersion(gccPath.c_str());
+    return FileUtils::SafeGetenv(kGccPath);
+  }
+  std::string gccPath = FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc") +
+                                                  "aarch64-linux-gnu-gcc -dumpversion";
+  FileUtils::checkGCCVersion(gccPath.c_str());
+  return FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc");
 #endif
 }
 

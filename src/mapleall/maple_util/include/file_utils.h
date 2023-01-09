@@ -21,10 +21,15 @@ extern const std::string kFileSeperatorStr;
 extern const char kFileSeperatorChar;
 // Use char[] since getenv receives char* as parameter
 constexpr char kMapleRoot[] = "MAPLE_ROOT";
+constexpr char kClangPath[] = "Clang_Path";
+constexpr char kAsPath[] = "AS_Path";
+constexpr char kGccPath[] = "GCC_Path";
 
 class FileUtils {
  public:
   static std::string SafeGetenv(const char *envVar);
+  static std::string SafeGetPath(const char *envVar, const char *name);
+  static void checkGCCVersion(const char *cmd);
   static std::string GetRealPath(const std::string &filePath);
   static std::string GetFileName(const std::string &filePath, bool isWithExtension);
   static std::string GetFileExtension(const std::string &filePath);

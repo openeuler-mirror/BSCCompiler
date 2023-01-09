@@ -81,8 +81,8 @@ class TailCallOpt {
   bool stackProtect = false;
   MapleMap<BB*, MapleSet<Insn*>> exitBB2CallSitesMap;
   BB *curTailcallExitBB = nullptr;
-  bool isTailCallOther = false;
-  bool isTailCallSelf = false;
+  bool isCallOther = false;
+  bool isCallSelf = false;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgTailCallOpt, maplebe::CGFunc)
