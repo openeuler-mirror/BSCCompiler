@@ -188,8 +188,8 @@ maplecl::Option<bool> missingProfDataIsError({"--missing-profdata-is-error"},
                           {driverCategory},
                           maplecl::DisableWith("--no-missing-profdata-is-error"),
                           maplecl::Init(true));
-maplecl::Option<bool> stackProtectorStrong({"--stack-protector-strong", "--fstack-protector-strong"},
-                                           "  --stack-protector-strong        \tadd stack guard for some function\n",
+maplecl::Option<bool> stackProtectorStrong({"--stack-protector-strong", "-fstack-protector-strong"},
+                                           "  -fstack-protector-strong        \tadd stack guard for some function\n",
                                            {driverCategory, meCategory, cgCategory});
 
 maplecl::Option<bool> stackProtectorAll({"--stack-protector-all"},
@@ -202,19 +202,19 @@ maplecl::Option<bool> inlineAsWeak({"-inline-as-weak", "--inline-as-weak"},
 
 maplecl::Option<bool> MD({"-MD"},
                     "  -MD                         \tWrite a depfile containing user and system headers\n",
-                    {driverCategory, clangCategory});
+                    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> unUsePlt({"-fno-plt"},
                     "  -fno-plt                \tDo not use the PLT to make function calls\n",
-                    {driverCategory});
+                    {driverCategory, unSupCategory});
 
-maplecl::Option<bool> usePipe({"-fpipe"},
+maplecl::Option<bool> usePipe({"-pipe"},
                     "  -pipe                   \tUse pipes between commands, when possible\n",
-                    {driverCategory});
+                    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> fDataSections({"-fdata-sections"},
                     "  -fdata-sections         \tPlace each data in its own section (ELF Only)\n",
-                    {driverCategory});
+                    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> fRegStructReturn({"-freg-struct-return"},
                     "  -freg-struct-return     \tOverride the default ABI to return small structs in registers\n",
@@ -222,16 +222,11 @@ maplecl::Option<bool> fRegStructReturn({"-freg-struct-return"},
 
 maplecl::Option<bool> fTreeVectorize({"-ftree-vectorize"},
                     "  -ftree-vectorize    \tEnable vectorization on trees\n",
-                    {driverCategory, cgCategory});
-
-maplecl::Option<bool> fNoStrictAliasing({"-fno-strict-aliasing"},
-                    "  -fno-strict-aliasing    \tAllow pointer operations that do "
-                    "not comply with strict aliasing rules\n",
-                    {driverCategory, cgCategory});
+                    {driverCategory});
 
 maplecl::Option<bool> fNoFatLtoObjects({"-fno-fat-lto-objects"},
                     "  -fno-fat-lto-objects    \tSpeeding up lto compilation\n",
-                    {driverCategory, cgCategory});
+                    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> gcSections({"--gc-sections"},
                     "  -gc-sections    \tDiscard all sections that are not accessed in the final elf\n",
@@ -244,7 +239,29 @@ maplecl::Option<bool> copyDtNeededEntries({"--copy-dt-needed-entries"},
 
 maplecl::Option<bool> sOpt({"-s"},
                     "  -s    \t\n",
-                    {driverCategory, cgCategory});
+                    {driverCategory, ldCategory});
+
+maplecl::Option<bool> noStdinc({"-nostdinc"},
+                    "  -s    \tDo not search standard system include directories"
+                    "(those specified with -isystem will still be used).\n",
+                    {driverCategory, clangCategory});
+
+maplecl::Option<bool> pie({"-pie"},
+                    "  -pie    \tCreate a position independent executable.\n",
+                    {driverCategory, ldCategory});
+
+maplecl::Option<bool> fStrongEvalOrder({"-fstrong-eval-order"},
+                            "  -fstrong-eval-order    \tFollow the C++17 evaluation order requirements"
+                            "for assignment expressions, shift, member function calls, etc.\n",
+                            {driverCategory, unSupCategory});
+
+maplecl::Option<bool> linkerTimeOpt({"-flto"},
+                            "  -flto                   \tEnable LTO in 'full' mode\n",
+                            {driverCategory, unSupCategory});
+
+maplecl::Option<bool> usesignedchar({"-fsigned-char"},
+                               "  -fsigned-char         : use signed char",
+                               {driverCategory, hir2mplCategory});
 
 /* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},
@@ -376,7 +393,7 @@ maplecl::Option<std::string> target({"--target", "-target"},
 
 maplecl::Option<std::string> MT({"-MT"},
                            "  -MT<args>                   \tSpecify name of main file output in depfile\n",
-                           {driverCategory, clangCategory}, maplecl::joinedValue);
+                           {driverCategory, unSupCategory}, maplecl::joinedValue);
 
 maplecl::Option<std::string> MF({"-MF"},
                            "  -MF<file>                   \tWrite depfile output from -MD, -M to <file>\n",
@@ -384,34 +401,34 @@ maplecl::Option<std::string> MF({"-MF"},
 
 
 maplecl::Option<std::string> std({"-std"},
-                            "  -std Ignonored\n",
-                            {driverCategory, clangCategory});
+                            "  -std \t\n",
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<std::string> Wl({"-Wl"},
                             "  -Wl,<arg>               \tPass the comma separated arguments in <arg> to the linker\n",
                             {driverCategory, ldCategory}, maplecl::joinedValue);
 
-maplecl::Option<std::string> linkerTimeOpt({"-flto"},
-                            "  -flto=<value>           \tSet LTO mode to either 'full' or 'thin'\n"
-                            "  -flto                   \tEnable LTO in 'full' mode\n",
-                            {driverCategory});
+maplecl::Option<std::string> linkerTimeOptE({"-flto="},
+                            "  -flto=<value>           \tSet LTO mode to either 'full' or 'thin'\n",
+                            {driverCategory, unSupCategory});
 
 maplecl::Option<std::string> setDefSymVisi({"-fvisibility"},
                             "  -fvisibility=<value>    \tSet the default symbol visibility for all global declarationse",
-                            {driverCategory});
+                            {driverCategory, unSupCategory});
 
-maplecl::Option<std::string> fStrongEvalOrder({"-fstrong-eval-order"},
+maplecl::Option<std::string> fStrongEvalOrderE({"-fstrong-eval-order="},
                             "  -fstrong-eval-order    \tFollow the C++17 evaluation order requirements"
                             "for assignment expressions, shift, member function calls, etc.\n",
-                            {driverCategory});
+                            {driverCategory, unSupCategory});
 
-maplecl::Option<std::string> march({"-march="},
+maplecl::Option<std::string> march({"-march"},
                             "  -march=    \tGenerate code for given CPU.\n",
-                            {driverCategory});
+                            {driverCategory, clangCategory});
 
 maplecl::Option<std::string> sysRoot({"--sysroot"},
-                            "  --sysroot    \tSet the root directory of the target platform.\n",
-                            {driverCategory});
+                            "  --sysroot <value>    \tSet the root directory of the target platform.\n"
+                            "  --sysroot=<value>    \tSet the root directory of the target platform.\n",
+                            {driverCategory, clangCategory});
 
 /* ##################### DIGITAL Options ############################################################### */
 

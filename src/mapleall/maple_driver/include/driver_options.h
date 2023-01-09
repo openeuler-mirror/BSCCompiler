@@ -33,6 +33,8 @@ static maplecl::OptionCategory &dex2mplCategory = maplecl::CommandLine::GetComma
 static maplecl::OptionCategory &jbc2mplCategory = maplecl::CommandLine::GetCommandLine().jbc2mplCategory;
 static maplecl::OptionCategory &ipaCategory = maplecl::CommandLine::GetCommandLine().ipaCategory;
 
+static maplecl::OptionCategory &unSupCategory = maplecl::CommandLine::GetCommandLine().unSupCategory;
+
 namespace opts {
 
 /* ##################### BOOL Options ############################################################### */
@@ -89,6 +91,11 @@ extern maplecl::Option<bool> fNoFatLtoObjects;
 extern maplecl::Option<bool> gcSections;
 extern maplecl::Option<bool> copyDtNeededEntries;
 extern maplecl::Option<bool> sOpt;
+extern maplecl::Option<bool> noStdinc;
+extern maplecl::Option<bool> pie;
+extern maplecl::Option<bool> fStrongEvalOrder;
+extern maplecl::Option<bool> linkerTimeOpt;
+extern maplecl::Option<bool> usesignedchar;
 
 /* ##################### STRING Options ############################################################### */
 
@@ -118,16 +125,14 @@ extern maplecl::List<std::string> includeSystem;
 extern maplecl::Option<std::string> output;
 extern maplecl::Option<std::string> saveTempOpt;
 extern maplecl::Option<std::string> target;
-extern maplecl::Option<std::string> linkerTimeOpt;
+extern maplecl::Option<std::string> linkerTimeOptE;
 extern maplecl::Option<std::string> setDefSymVisi ;
-extern maplecl::Option<std::string> fStrongEvalOrder ;
 extern maplecl::Option<std::string> MT;
 extern maplecl::Option<std::string> MF;
 extern maplecl::Option<std::string> std;
 extern maplecl::Option<std::string> Wl;
-extern maplecl::Option<std::string> linkerTimeOpt;
 extern maplecl::Option<std::string> setDefSymVisi;
-extern maplecl::Option<std::string> fStrongEvalOrder;
+extern maplecl::Option<std::string> fStrongEvalOrderE;
 extern maplecl::Option<std::string> march;
 extern maplecl::Option<std::string> sysRoot;
 

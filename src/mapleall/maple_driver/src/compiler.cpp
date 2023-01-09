@@ -45,7 +45,9 @@ std::string Compiler::GetBinPath(const MplOptions &mplOptions) const {
 ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
                             std::unique_ptr<MIRModule> &theModule [[maybe_unused]]) {
   MPLTimer timer = MPLTimer();
+#ifdef DEBUG
   LogInfo::MapleLogger() << "Starting " << GetName() << '\n';
+#endif
   timer.Start();
 
   std::vector<MplOption> generatedOptions = MakeOption(options, action);
@@ -56,7 +58,9 @@ ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
     return kErrorCompileFail;
   }
   timer.Stop();
+#ifdef DEBUG
   LogInfo::MapleLogger() << (GetName() + " consumed ") << timer.Elapsed() << "s\n";
+#endif
   return kErrorNoError;
 }
 
@@ -120,6 +124,8 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
       } else {
         if (opt->GetName() == "-Wl") {
           (void)finalOptions.emplace_back(val, "");
+        } else if (opt->GetName() == "-fsigned-char") {
+          (void)finalOptions.emplace_back("-usesignedchar", val);
         } else {
           (void)finalOptions.emplace_back(opt->GetName(), val);
         }

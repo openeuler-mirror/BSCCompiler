@@ -183,6 +183,12 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
     continue;
   }
 
+  if (&optCategory == &defaultCategory) {
+    for (const auto &opt : unSupCategory.GetEnabledOptions()) {
+      maple::LogInfo::MapleLogger() << "Warning: " << opt->GetName() << " has not been support!" << '\n';
+    }
+  }
+
   if (wasError) {
     return RetCode::parsingErr;
   }

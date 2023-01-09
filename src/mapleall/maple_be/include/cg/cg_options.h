@@ -20,7 +20,6 @@
 
 namespace opts::cg {
 
-extern maplecl::Option<bool> pie;
 extern maplecl::Option<bool> fpie;
 extern maplecl::Option<bool> fpic;
 extern maplecl::Option<bool> fPIE;

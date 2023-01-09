@@ -126,8 +126,8 @@ maplecl::Option<bool> ubaa({"--ubaa"},
 maplecl::Option<bool> tbaa({"--tbaa"},
                       "  --tbaa                      \tEnable type-based alias analysis\n"
                       "  --no-tbaa                   \tDisable type-based alias analysis\n",
-                      {meCategory},
-                      maplecl::DisableWith("--no-tbaa"));
+                      {driverCategory, meCategory},
+                      maplecl::DisableWith("-fno-strict-aliasing"));
 
 maplecl::Option<bool> ddaa({"--ddaa"},
                       "  --ddaa                      \tEnable demand driven alias analysis\n"

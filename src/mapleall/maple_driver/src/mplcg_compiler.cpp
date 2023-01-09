@@ -214,11 +214,15 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, const Action &action,
       }
     }
     timer.Stop();
+#ifdef DEBUG
     LogInfo::MapleLogger() << "Mplcg Parser consumed " << timer.ElapsedMilliseconds() << "ms\n";
+#endif
   }
   SetOutputFileName(options, action, *theModule);
   theModule->SetInputFileName(fileName);
+#ifdef DEBUG
   LogInfo::MapleLogger() << "Starting mplcg\n";
+#endif
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
                       opts::withDwarf, fileRead, opts::timePhase);
   if (opts::debug) {

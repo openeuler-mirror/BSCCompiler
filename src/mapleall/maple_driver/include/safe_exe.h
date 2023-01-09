@@ -27,7 +27,7 @@
 
 #include <unistd.h>
 #include <sys/types.h>
-#include <stdlib.h>
+#include <cstdlib>
 #include "error_code.h"
 #include "mpl_logging.h"
 #include "mpl_options.h"
@@ -90,11 +90,13 @@ class SafeExe {
     char **argv;
     std::tie(argv, argIndex) = GenerateUnixArguments(cmd, options);
 
+#ifdef DEBUG
     LogInfo::MapleLogger() << "Run: " << cmd;
     for (auto &opt : options) {
       LogInfo::MapleLogger() << " " << opt.GetKey() << " " << opt.GetValue();
     }
     LogInfo::MapleLogger() << "\n";
+#endif
 
     pid_t pid = fork();
     ErrorCode ret = kErrorNoError;
@@ -248,7 +250,7 @@ class SafeExe {
         ++iter;
       }
     }
-    (void)tmpArgs.insert(tmpArgs.begin(), cmd);
+    (void)tmpArgs.insert(tmpArgs.cbegin(), cmd);
     return tmpArgs;
   }
 

@@ -554,10 +554,10 @@ maplecl::Option<bool> longCalls({"--long-calls"},
                                 {cgCategory},
                                 maplecl::DisableWith("--no-long-calls"));
 
-maplecl::Option<bool> functionSections({"--function-sections", "--ffunction-sections"},
+maplecl::Option<bool> functionSections({"--function-sections", "-ffunction-sections"},
                                        " --function-sections           \t \n"
                                        "  --no-function-sections\n",
-                                       {cgCategory},
+                                       {cgCategory, driverCategory},
                                        maplecl::DisableWith("--no-function-sections"));
 
 maplecl::Option<bool> omitFramePointer({"--omit-frame-pointer", "-fomit-frame-pointer"},

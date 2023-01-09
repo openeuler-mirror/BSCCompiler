@@ -132,9 +132,9 @@ maplecl::Option<bool> nobarrier({"-nobarrier", "--nobarrier"},
                            "  -nobarrier             : no barrier",
                            {hir2mplCategory});
 
-maplecl::Option<bool> usesignedchar({"-usesignedchar", "--usesignedchar", "-fsigned-char"},
+maplecl::Option<bool> usesignedchar({"-usesignedchar", "--usesignedchar"},
                                "  -usesignedchar         : use signed char",
-                               {driverCategory, hir2mplCategory});
+                               {hir2mplCategory});
 
 maplecl::Option<bool> o2({"-O2", "--O2"},
                     "  -O2                    : enable hir2mpl O2 optimize",
