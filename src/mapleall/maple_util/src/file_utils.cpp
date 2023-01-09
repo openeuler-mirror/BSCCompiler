@@ -89,7 +89,7 @@ void FileUtils::checkGCCVersion(const char *cmd) {
     }
   }
   if (buf[2] != 0) {
-    if(buf[1] < 53) {
+    if(buf[2] < 53) {
       CHECK_FATAL(false, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
     }
   }

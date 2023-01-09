@@ -90,13 +90,13 @@ class SafeExe {
     char **argv;
     std::tie(argv, argIndex) = GenerateUnixArguments(cmd, options);
 
-#ifdef DEBUG
-    LogInfo::MapleLogger() << "Run: " << cmd;
-    for (auto &opt : options) {
-      LogInfo::MapleLogger() << " " << opt.GetKey() << " " << opt.GetValue();
+    if (opts::debug) {
+      LogInfo::MapleLogger() << "Run: " << cmd;
+      for (auto &opt : options) {
+        LogInfo::MapleLogger() << " " << opt.GetKey() << " " << opt.GetValue();
+      }
+      LogInfo::MapleLogger() << "\n";
     }
-    LogInfo::MapleLogger() << "\n";
-#endif
 
     pid_t pid = fork();
     ErrorCode ret = kErrorNoError;

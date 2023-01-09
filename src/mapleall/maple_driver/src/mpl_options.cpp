@@ -104,7 +104,7 @@ ErrorCode MplOptions::Parse(int argc, char **argv) {
 
 ErrorCode MplOptions::HandleOptions() {
   if (opts::output.IsEnabledByUser() && GetActions().size() > 1) {
-    LogInfo::MapleLogger(kLlErr) << "Cannot specify -o when generating multiple output\n";
+    LogInfo::MapleLogger(kLlErr) << "Cannot specify -o with -c, -S when generating multiple output\n";
     return kErrorInvalidParameter;
   }
 
@@ -508,7 +508,11 @@ std::string MplOptions::GetCommonOptionsStr() const {
     if (!(std::find(std::begin(extraExclude), std::end(extraExclude), opt) != std::end(extraExclude))) {
       for (const auto &val : opt->GetRawValues()) {
         if (!val.empty()) {
-          driverOptions += opt->GetName() + " " + val + " ";
+          if (opt->GetName() == "-Wl") {
+            driverOptions += val + " ";
+          } else {
+            driverOptions += opt->GetName() + " " + val + " ";
+          }
         } else {
           driverOptions += opt->GetName() + " ";
         }

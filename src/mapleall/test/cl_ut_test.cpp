@@ -141,7 +141,7 @@ namespace testopts {
   maplecl::List<uint32_t> vecDigDef({"--vecdigdef"}, "", maplecl::Init(100));
   maplecl::List<bool> vecBoolDef({"--vecbooldef"}, "", maplecl::DisableWith("--no-vecbooldef"), maplecl::Init(true));
 
-  maplecl::Option<std::string> common({"--common"}, "");
+  maplecl::Option<std::string> common({"--datacommon"}, "");
 } // namespace testopts
 
 /* ################# "Enable/Disable Boolean Options" Test ###############
@@ -632,7 +632,7 @@ TEST(clOptions, joinedEqualOpt) {
   ASSERT_EQ(err, maplecl::RetCode::noError);
 
   std::string joinOpt = testopts::macro;
-  ASSERT_EQ(joinOpt, "TEST=20");
+  ASSERT_EQ(joinOpt, "MACRO -JOIN TEST=20");
 }
 
 /* ################# Check Options with required Value ###################
@@ -1027,7 +1027,7 @@ TEST(clOptions, common) {
   // create command line
   const char *argv[] = {
     "CLTest", // program name
-    "--common", "datacommon",
+    "--datacommon", "datacommon",
     nullptr };
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 

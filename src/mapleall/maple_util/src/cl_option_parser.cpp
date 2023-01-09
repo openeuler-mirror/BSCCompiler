@@ -134,7 +134,16 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
     return RetCode::noError;
   }
 
-  SetValue(std::string(keyArg.val));
+  if (IsJoinedValPermitted() && (GetValue() != "")) {
+    if (keyArg.key == "-Wl") {
+      SetValue(GetValue() + " " + std::string(keyArg.val));
+    } else {
+      SetValue(GetValue() + " " + std::string(keyArg.key) + " " + std::string(keyArg.val));
+    }
+  } else {
+    SetValue(std::string(keyArg.val));
+  }
+
   if (keyArg.isEqualOpt && !keyArg.isJoinedOpt) {
     /* isJoinedOpt is used to prevent -DMACRO=VALUE.
      * -DMACRO=VALUE uses "=" sign but it's not the separator between Option and Value,

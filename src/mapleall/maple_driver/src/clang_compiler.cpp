@@ -94,16 +94,8 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   additionalLen += 3; // 3 options are filled below
   opt = std::make_unique<MplOption[]>(additionalLen);
 
-  opt[0].SetKey("-isystem");
-  opt[0].SetValue(FileUtils::SafeGetenv(kMapleRoot) +
-                  "/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include");
-
-  opt[1].SetKey("-isystem");
-  opt[1].SetValue(FileUtils::SafeGetenv(kMapleRoot) +
-                  "/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include");
-
-  opt[2].SetKey("-target");
-  opt[2].SetValue(triple.Str());
+  opt[0].SetKey("-target");
+  opt[0].SetValue(triple.Str());
 
   /* Set last option as -o option */
   opt[additionalLen - 1].SetKey("-o");

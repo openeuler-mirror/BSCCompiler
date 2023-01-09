@@ -226,10 +226,10 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
     theModule = std::make_unique<MIRModule>(fileName);
     fileParsed = false;
   }
-#ifdef DEBUG
-  options.PrintCommand(&action);
-  LogInfo::MapleLogger() << "Starting maplecomb\n";
-#endif
+  if (opts::debug) {
+    options.PrintCommand(&action);
+    LogInfo::MapleLogger() << "Starting maplecomb\n";
+  }
   theModule->InitPartO2List(opts::partO2);
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
                       fileName, fileName, opts::withDwarf, fileParsed,
