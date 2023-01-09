@@ -1384,107 +1384,133 @@ Operand *X64MPIsel::SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &p
 }
 
 Operand *X64MPIsel::SelectCsin(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCsinh(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCasin(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCcos(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCcosh(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCacos(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCatan(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectClog(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectClog10(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCsinf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCsinhf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCasinf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCcosf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCcoshf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCacosf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCatanf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCexpf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectClogf(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectClog10f(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCffs(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCmemcmp(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCstrlen(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCstrcmp(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCstrncmp(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCstrchr(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 Operand *X64MPIsel::SelectCstrrchr(IntrinsicopNode &node [[maybe_unused]], Operand &opnd0, const BaseNode &parent) {
-  CHECK_FATAL(false, "NIY");
+  ASSERT(false, "NIY");
+  return nullptr;
 }
 
 }
