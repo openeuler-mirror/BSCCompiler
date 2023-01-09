@@ -558,7 +558,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
     case INTRN_C_ctz64:
       return iSel.SelectCctz(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
     default:
-      CHECK_FATAL_FALSE("NIY, unsupported intrinsicop.");
+      ASSERT(false, "NIY, unsupported intrinsicop.");
       return nullptr;
   }
 }
