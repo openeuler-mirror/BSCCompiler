@@ -99,6 +99,9 @@ void HDSE::UpdateChiUse(MeStmt *stmt) {
 // If EXPR is defined by the same assign with ASSIGN, that means the previous
 // assign can not be removed because that's a real use.
 bool HDSE::RealUse(MeExpr &expr, MeStmt &assign) {
+  if (expr.IsVolatile()) {
+    return true;
+  }
   switch (expr.GetMeOp()) {
     case kMeOpVar: {
       auto *defStmt = static_cast<VarMeExpr&>(expr).GetDefByMeStmt();
