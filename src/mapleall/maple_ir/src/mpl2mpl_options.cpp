@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 
+#include <string>
 #include "driver_options.h"
 
 namespace opts::mpl2mpl {
@@ -82,6 +83,12 @@ maplecl::Option<bool> ipaClone({"--ipa-clone"},
                           {mpl2mplCategory},
                            maplecl::DisableWith("--no-ipa-clone"));
 
+maplecl::Option<bool> ginlineOpt({"--ginline"},
+                          "  --ginline                  \tEnable greedy inline\n"
+                          "  --no-ginline               \tDisable greedy inline\n",
+                          {mpl2mplCategory},
+                           maplecl::DisableWith("--no-ginline"));
+
 maplecl::Option<std::string> noInlineFunc({"--no-inlinefunclist"},
                                      "  --no-inlinefunclist=list    \tDo not inline function in this list\n",
                                      {mpl2mplCategory});
@@ -124,6 +131,60 @@ maplecl::Option<uint32_t> inlineColdFuncThresh({"--inline-cold-function-threshol
                                           "  --inline-cold-function-threshold=3"
                                           "              \tThreshold for inlining hot function\n",
                                           {mpl2mplCategory});
+
+maplecl::Option<bool> respectAlwaysInline({"--respect-always-inline"},
+                          "  --respect-always-inline                 \tEnable always_inline\n"
+                          "  --no-respect-always-inline              \tDisable always_inline\n",
+                          {mpl2mplCategory},
+                           maplecl::DisableWith("--no-respect-always-inline"));
+
+maplecl::Option<uint32_t> ginlineMaxNondeclaredInlineCallee({"--ginline-max-nondeclared-inline-callee"},
+                                      ""
+                                      "",
+                                     {mpl2mplCategory});
+
+maplecl::Option<uint32_t> ginlineMaxDepthIgnoreGrowthLimit({"--ginline-max-depth-ignore-growth-limit"},
+                                      ""
+                                      "",
+                                     {mpl2mplCategory});
+
+maplecl::Option<uint32_t> ginlineSmallFunc({"--ginline-small-func"},
+                                      ""
+                                      "",
+                                     {mpl2mplCategory});
+
+maplecl::Option<uint32_t> ginlineRelaxSmallFuncDecalredInline({"--ginline-relax-small-func-declared-inline"},
+                                      ""
+                                      "",
+                                     {mpl2mplCategory});
+
+maplecl::Option<uint32_t> ginlineRelaxSmallFuncCanbeRemoved({"--ginline-relax-small-func-canbe-removed"},
+                                      ""
+                                      "",
+                                     {mpl2mplCategory});
+
+maplecl::Option<std::string> callsiteProfilePath({"--callsite-profile-path"},
+                                      ""
+                                      "",
+                                     {mpl2mplCategory});
+
+maplecl::Option<bool> inlineToAllCallers({"--inline-to-all-callers"},
+                          "  --inline-to-all-callers                 \tEnable inline to all callers\n"
+                          "  --no-inline-to-all-callers              \tDisable inline to all callers\n",
+                          {mpl2mplCategory},
+                           maplecl::DisableWith("--no-inline-to-all-callers"));
+
+maplecl::Option<bool> ginlineAllowNondeclaredInlineSizeGrow({"--ginline-allow-nondeclared-inline-size-grow"},
+                          ""
+                          "",
+                          {mpl2mplCategory},
+                           maplecl::DisableWith("--no-ginline-allow-nondeclared-inline-size-grow"));
+
+maplecl::Option<bool> ginlineAllowIgnoreGrowthLimit({"--ginline-allow-ignore-growth-limit"},
+                          ""
+                          "",
+                          {mpl2mplCategory},
+                           maplecl::DisableWith("--no-ginline-allow-ignore-growth-limit"));
 
 maplecl::Option<uint32_t> profileHotCount({"--profile-hot-count"},
                                      "  --profile-hot-count=1000"
@@ -414,11 +475,17 @@ maplecl::Option<bool> rmNouseFunc({"--rmnousefunc"},
                              {mpl2mplCategory},
                              maplecl::DisableWith("--no-rmnousefunc"));
 
-maplecl::Option<bool> sideEffect({"--sideeffect"},
-                            "  --sideeffect      \tIPA: analysis sideeffect\n"
-                            "  --no-sideeffect          \n",
+maplecl::Option<bool> sideEffect({"--side-effect"},
+                            "  --side-effect      \tIPA: analysis side-effect\n"
+                            "  --no-side-effect          \n",
                             {mpl2mplCategory},
-                            maplecl::DisableWith("--no-sideeffect"));
+                            maplecl::DisableWith("--no-side-effect"));
+
+maplecl::Option<bool> sideEffectWhiteList({"--side-effect-white-list"},
+                            "  --side-effect-white-list      \tIPA side-effect: using function white list\n"
+                            "  --side-effect-no-white-list\n",
+                            {mpl2mplCategory},
+                            maplecl::DisableWith("--side-effect-no-white-list"));
 
 maplecl::Option<bool> dumpIPA({"--dump-ipa"},
                          "  --dump-ipa      \tIPA: dump\n"
@@ -456,4 +523,11 @@ maplecl::Option<uint32_t> numOfConstpropValue({"--num-of-ConstProp-value"},
                                          "  --num-of-CallSite-HighBound=3        \tnum of CallSite HighBound\n",
                                          {mpl2mplCategory});
 
+maplecl::Option<size_t> outlineThreshold({"--outline-threshold"},
+                                         "  --outline-threshold=128     \tminimal insn profit number for outline \n",
+                                         {mpl2mplCategory});
+
+maplecl::Option<size_t> outlineRegionMax({"--outline-max-region"},
+                                         "  --outline-max-region=128     \tmax region size for outline \n",
+                                         {mpl2mplCategory});
 }

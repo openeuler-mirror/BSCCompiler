@@ -714,10 +714,10 @@ maplecl::Option<bool> lfo({"--lfo"},
 maplecl::Option<bool> dumpCfgOfPhases({"--dumpcfgofphases"},
                      "  --dumpcfgofphases       \tDump CFG from various phases to .dot files\n",
                      {meCategory});
+
 maplecl::Option<bool> epreUseProfile({"--epreuseprofile"},
                      "  --epreuseprofile        \tEnable profile-guided epre phase\n"
                      "  --no-epreuseprofile     \tDisable profile-guided epre phase\n",
                      {meCategory},
                      maplecl::DisableWith("--no-epreuseprofile"));
-
 }

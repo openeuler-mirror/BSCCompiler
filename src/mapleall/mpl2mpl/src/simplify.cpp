@@ -680,8 +680,7 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirCon
     ASSERT_NOT_NULL(currAggConst);
     ASSERT_NOT_NULL(currAggType);
     for (size_t iter = 0; iter < currAggType->GetFieldsSize() && !reached; ++iter) {
-      size_t constIdx = currAggType->GetKind() == kTypeUnion ? 1 : iter + 1;
-      auto *fieldConst = currAggConst->GetAggConstElement(constIdx);
+      auto *fieldConst = currAggConst->GetAggConstElement(iter + 1);
       auto *fieldType = originAggType.GetFieldType(currFieldId);
 
       if (currFieldId == fieldId) {

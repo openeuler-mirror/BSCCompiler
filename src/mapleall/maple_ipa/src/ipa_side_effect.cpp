@@ -25,6 +25,9 @@ const FuncDesc &SideEffect::GetFuncDesc(MeFunction &f) {
 }
 
 const FuncDesc &SideEffect::GetFuncDesc(MIRFunction &f) {
+  if (!Options::sideEffectWhiteList) {
+    return f.GetFuncDesc();
+  }
   auto it = whiteList.find(f.GetName());
   if (it != whiteList.end()) {
     return it->second;

@@ -139,6 +139,7 @@ bool Options::checkArrayStore = false;
 bool Options::noComment = false;
 bool Options::rmNoUseFunc = true; // default remove no-used static function
 bool Options::sideEffect = true;
+bool Options::sideEffectWhiteList = false;
 bool Options::dumpIPA = false;
 bool Options::wpaa = false;  // whole program alias analysis
 bool Options::doOutline = false;
@@ -363,6 +364,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(noComment, opts::mpl2mpl::noComment);
   maplecl::CopyIfEnabled(rmNoUseFunc, opts::mpl2mpl::rmNouseFunc);
   maplecl::CopyIfEnabled(sideEffect, opts::mpl2mpl::sideEffect);
+  maplecl::CopyIfEnabled(sideEffectWhiteList, opts::mpl2mpl::sideEffectWhiteList);
   maplecl::CopyIfEnabled(dumpIPA, opts::mpl2mpl::dumpIPA);
   maplecl::CopyIfEnabled(wpaa, opts::mpl2mpl::wpaa);
 

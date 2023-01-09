@@ -17,23 +17,19 @@
 #include <string>
 #include <vector>
 
-#include "driver_option_common.h"
 #include "mempool.h"
 #include "mempool_allocator.h"
-#include "option_descriptor.h"
 #include "parser_opt.h"
 #include "types_def.h"
 
 namespace maple {
-class Options : public MapleDriverOptionBase {
+class Options {
  public:
   static Options &GetInstance();
 
-  Options();
-
   bool ParseOptions(int argc, char **argv, std::string &fileName) const;
 
-  bool SolveOptions(const std::deque<mapleOption::Option> &opts, bool isDebug) const;
+  bool SolveOptions(bool isDebug) const;
   ~Options() = default;
 
   void DumpOptions() const;
@@ -89,6 +85,7 @@ class Options : public MapleDriverOptionBase {
   static bool inlineWithProfile;
   static bool useInline;
   static bool enableIPAClone;
+  static bool enableGInline;
   static std::string noInlineFuncList;
   static std::string importFileList;
   static bool useCrossModuleInline;
@@ -104,6 +101,17 @@ class Options : public MapleDriverOptionBase {
   static uint32 inlineDepth;
   static uint32 inlineModuleGrowth;
   static uint32 inlineColdFunctionThreshold;
+  static bool respectAlwaysInline;
+  static bool inlineToAllCallers;
+  static uint32 ginlineMaxNondeclaredInlineCallee;
+  static bool ginlineAllowNondeclaredInlineSizeGrow;
+  static bool ginlineAllowIgnoreGrowthLimit;
+  static uint32 ginlineMaxDepthIgnoreGrowthLimit;
+  static uint32 ginlineSmallFunc;
+  static uint32 ginlineRelaxSmallFuncDecalredInline;
+  static uint32 ginlineRelaxSmallFuncCanbeRemoved;
+  static std::string callsiteProfilePath;
+
   static uint32 profileHotCount;
   static uint32 profileColdCount;
   static bool profileHotCountSeted;
@@ -155,6 +163,8 @@ class Options : public MapleDriverOptionBase {
   static std::string profile;
   static bool profileGen;
   static bool profileUse;
+  static bool stackProtectorStrong;
+  static bool stackProtectorAll;
   static std::string appPackageName;
   static std::string proFileData;
   static std::string proFileFuncData;
@@ -175,11 +185,16 @@ class Options : public MapleDriverOptionBase {
   static bool noComment;
   static bool rmNoUseFunc;
   static bool sideEffect;
+  static bool sideEffectWhiteList;
   static bool dumpIPA;
   static bool wpaa;
+  static bool genLMBC;
+  static bool doOutline;
+  static size_t outlineThreshold;
+  static size_t outlineRegionMax;
 
  private:
-  void DecideMpl2MplRealLevel(const std::deque<mapleOption::Option> &inputOptions) const;
+  void DecideMpl2MplRealLevel() const;
   std::vector<std::string> phaseSeq;
 };
 }  // namespace maple
