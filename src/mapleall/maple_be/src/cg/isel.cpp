@@ -1397,53 +1397,6 @@ Operand *MPISel::SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, 
   return &resOpnd;
 }
 
-Operand *MPISel::SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &parent) {
-  PrimType primType = node.GetPrimType();
-  if (IsPrimitiveVector(primType)) {
-    CHECK_FATAL(false, "NIY");
-  } else if (IsPrimitiveFloat(primType)) {
-    /*
-     * fabs(x) = x AND 0x7fffffff ffffffff [set sign bit to 0]
-     */
-    const static uint64 kNaN = 0x7fffffffffffffffUL;
-    const static double kNaNDouble = *(double*)(&kNaN);
-    const static uint64 kNaNf = 0x7fffffffUL;
-    const static double kNaNFloat = *(double*)(&kNaNf);
-    CHECK_FATAL(primType == PTY_f64 || primType == PTY_f32, "niy");
-
-    double mask = primType == PTY_f64 ? kNaNDouble : kNaNFloat;
-    MIRDoubleConst *c = cgFunc->GetMemoryPool()->New<MIRDoubleConst>(mask,
-        *GlobalTables::GetTypeTable().GetTypeTable().at(PTY_f64));
-    Operand *opnd1 = SelectFloatingConst(*c, PTY_f64, parent);
-
-    RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
-        cgFunc->GetRegTyFromPrimTy(primType));
-    SelectBand(resOpnd, opnd0, *opnd1, primType);
-    return &resOpnd;
-  } else if (IsUnsignedInteger(primType)) {
-    return &opnd0;
-  } else {
-    /*
-     * abs(x) = (x XOR y) - y
-     * y = x >>> (bitSize - 1)
-     */
-    uint32 bitSize = GetPrimTypeBitSize(primType);
-    CHECK_FATAL(bitSize == k64BitSize || bitSize == k32BitSize, "only support 32-bits or 64-bits");
-    RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, primType);
-    ImmOperand &immOpnd = cgFunc->GetOpndBuilder()->CreateImm(bitSize, bitSize - 1);
-    RegOperand &regOpndy = cgFunc->GetOpndBuilder()->CreateVReg(bitSize,
-        cgFunc->GetRegTyFromPrimTy(primType));
-    SelectShift(regOpndy, regOpnd0, immOpnd, OP_ashr, primType, primType);
-    RegOperand &tmpOpnd = cgFunc->GetOpndBuilder()->CreateVReg(bitSize,
-        cgFunc->GetRegTyFromPrimTy(primType));
-    SelectBxor(tmpOpnd, regOpnd0, regOpndy, primType);
-    RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(bitSize,
-        cgFunc->GetRegTyFromPrimTy(primType));
-    SelectSub(resOpnd, tmpOpnd, regOpndy, primType);
-    return &resOpnd;
-  }
-}
-
 Operand *MPISel::SelectAlloca(UnaryNode &node, Operand &opnd0) {
   ASSERT(node.GetPrimType() == PTY_a64, "wrong type");
   PrimType srcType = node.Opnd(0)->GetPrimType();

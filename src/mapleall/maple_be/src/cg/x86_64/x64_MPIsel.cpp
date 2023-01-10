@@ -1357,7 +1357,24 @@ Operand *X64MPIsel::SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &p
   if (IsPrimitiveVector(primType)) {
     CHECK_FATAL(false, "NIY");
   } else if (IsPrimitiveFloat(primType)) {
-    CHECK_FATAL(false, "NIY");
+    /*
+     * fabs(x) = x AND 0x7fffffff ffffffff [set sign bit to 0]
+     */
+    const static uint64 kNaN = 0x7fffffffffffffffUL;
+    const static double kNaNDouble = *(double*)(&kNaN);
+    const static uint64 kNaNf = 0x7fffffffUL;
+    const static double kNaNFloat = *(double*)(&kNaNf);
+    CHECK_FATAL(primType == PTY_f64 || primType == PTY_f32, "niy");
+
+    double mask = primType == PTY_f64 ? kNaNDouble : kNaNFloat;
+    MIRDoubleConst *c = cgFunc->GetMemoryPool()->New<MIRDoubleConst>(mask,
+        *GlobalTables::GetTypeTable().GetTypeTable().at(PTY_f64));
+    Operand *opnd1 = SelectFloatingConst(*c, PTY_f64, parent);
+
+    RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
+        cgFunc->GetRegTyFromPrimTy(primType));
+    SelectBand(resOpnd, opnd0, *opnd1, primType);
+    return &resOpnd;
   } else if (IsUnsignedInteger(primType)) {
     return &opnd0;
   } else {
