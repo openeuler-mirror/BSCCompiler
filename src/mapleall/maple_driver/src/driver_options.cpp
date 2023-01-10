@@ -265,7 +265,7 @@ maplecl::Option<bool> linkerTimeOpt({"-flto"},
                             {driverCategory, unSupCategory});
 
 maplecl::Option<bool> usesignedchar({"-fsigned-char"},
-                               "  -fsigned-char         : use signed char",
+                               "  -fsigned-char          \tuse signed char",
                                {driverCategory, hir2mplCategory});
 
 /* ##################### STRING Options ############################################################### */
@@ -373,7 +373,7 @@ maplecl::List<std::string> includeDir({"-I"},
                                  {driverCategory, clangCategory},
                                  maplecl::joinedValue);
 
-maplecl::List<std::string> includeSystem({"--isystem"},
+maplecl::List<std::string> includeSystem({"-isystem"},
                                     "  -isystem <dir>              \tAdd directory to SYSTEM include search path\n",
                                     {driverCategory, clangCategory},
                                     maplecl::joinedValue);
@@ -407,7 +407,7 @@ maplecl::Option<std::string> MF({"-MF"},
 
 maplecl::Option<std::string> std({"-std"},
                             "  -std \t\n",
-                            {driverCategory, clangCategory, unSupCategory});
+                            {driverCategory, clangCategory, ldCategory, unSupCategory});
 
 maplecl::Option<std::string> Wl({"-Wl"},
                             "  -Wl,<arg>               \tPass the comma separated arguments in <arg> to the linker\n",
