@@ -102,8 +102,7 @@ class ASTParser {
   ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
   bool HasLabelStmt(const clang::Stmt *expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
-  template <typename Container>
-  void SaveVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, Container &vlaSizeExprs) {
+  void SaveVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, MapleList<ASTExpr*> &vlaSizeExprs) {
     if (!type.isVariableArrayType()) {
       return;
     }

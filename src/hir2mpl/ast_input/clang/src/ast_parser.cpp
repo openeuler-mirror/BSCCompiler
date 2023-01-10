@@ -1375,7 +1375,7 @@ ASTExpr *ASTParser::ProcessExprCompoundLiteralExpr(MapleAllocator &allocator,
 }
 
 void ASTParser::ParserExprVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, ASTExpr &expr) {
-  std::list<ASTExpr*> vlaExprs;
+  MapleList<ASTExpr*> vlaExprs(allocator.Adapter());
   SaveVLASizeExpr(allocator, type, vlaExprs);
   expr.SetVLASizeExprs(std::move(vlaExprs));
 }
