@@ -816,7 +816,6 @@ void X64MPIsel::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) 
   Insn &jmpInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, X64CG::kMd[mOp]);
   jmpInsn.AddOpndChain(dstMemOpnd);
   cgFunc->GetCurBB()->AppendInsn(jmpInsn);
-  cgFunc->SetCurBBKind(BB::kBBIgoto);
 }
 
 Operand *X64MPIsel::SelectAddrof(AddrofNode &expr, const BaseNode &parent) {

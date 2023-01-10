@@ -93,13 +93,6 @@ std::map<fromToTy, std::function<MOperator (bool)>> fastCvtMappingTableI = {
     DEF_USE_EXTEND_MAPPING_TBL(16, 32),
     DEF_USE_EXTEND_MAPPING_TBL(16, 64),
     DEF_USE_EXTEND_MAPPING_TBL(32, 64),
-    DEF_USE_EXTEND_MAPPING_TBL(16, 8),      /* Truncate Mapping */
-    DEF_USE_EXTEND_MAPPING_TBL(32, 8),
-    DEF_USE_EXTEND_MAPPING_TBL(64, 8),
-    DEF_USE_EXTEND_MAPPING_TBL(32, 16),
-    DEF_USE_EXTEND_MAPPING_TBL(64, 16),
-    DEF_USE_EXTEND_MAPPING_TBL(64, 32),
-
 };
 #undef DEF_USE_EXTEND_MAPPING_TBL
 #undef DEF_EXTEND_MAPPING_TBL
@@ -1174,7 +1167,7 @@ void MPISel::SelectIntCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, 
   uint32 bitSize = opnd0.GetSize();
   PrimType opndType = GetIntegerPrimTypeFromSize(isSigned, bitSize);
   RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, fromType, opndType);
-  if (toSize == fromSize) {
+  if (toSize <= fromSize) {
     resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(regOpnd0.GetRegisterNumber(),
         GetPrimTypeBitSize(toType), cgFunc->GetRegTyFromPrimTy(toType));
     return;
