@@ -5114,6 +5114,11 @@ void AArch64CGFunc::SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1,
   SelectRelationOperator(kEOR, resOpnd, opnd0, opnd1, primType);
 }
 
+void AArch64CGFunc::SelectNand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
+  SelectBand(resOpnd, opnd0, opnd1, primType);
+  SelectMvn(resOpnd, resOpnd, primType);
+}
+
 Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
   bool isSigned = IsSignedInteger(dtype);
@@ -10962,22 +10967,25 @@ Operand *AArch64CGFunc::SelectCisaligned(IntrinsicopNode &intrnNode) {
 }
 
 void AArch64CGFunc::SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0, Operand &opnd1,
-                                               PrimType primType, Opcode op) {
+                                               PrimType primType, SyncAndAtomicOp op) {
   switch (op) {
-    case OP_add:
+    case kSyncAndAtomicOpAdd:
       SelectAdd(resOpnd, opnd0, opnd1, primType);
       break;
-    case OP_sub:
+    case kSyncAndAtomicOpSub:
       SelectSub(resOpnd, opnd0, opnd1, primType);
       break;
-    case OP_band:
+    case kSyncAndAtomicOpAnd:
       SelectBand(resOpnd, opnd0, opnd1, primType);
       break;
-    case OP_bior:
+    case kSyncAndAtomicOpOr:
       SelectBior(resOpnd, opnd0, opnd1, primType);
       break;
-    case OP_bxor:
+    case kSyncAndAtomicOpXor:
       SelectBxor(resOpnd, opnd0, opnd1, primType);
+      break;
+    case kSyncAndAtomicOpNand:
+      SelectNand(resOpnd, opnd0, opnd1, primType);
       break;
     default:
       CHECK_FATAL(false, "unconcerned opcode for arithmetical and logical insns");
@@ -10985,7 +10993,8 @@ void AArch64CGFunc::SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0,
   }
 }
 
-Operand *AArch64CGFunc::SelectAArch64CAtomicFetch(const IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) {
+Operand *AArch64CGFunc::SelectAArch64CAtomicFetch(const IntrinsicopNode &intrinopNode, SyncAndAtomicOp op,
+                                                  bool fetchBefore) {
   auto primType = intrinopNode.GetPrimType();
   /* Create BB which includes atomic built_in function */
   BB *atomicBB = CreateAtomicBuiltinBB();
@@ -11001,18 +11010,32 @@ Operand *AArch64CGFunc::SelectAArch64CAtomicFetch(const IntrinsicopNode &intrino
   if (GetCG()->GetOptimizeLevel() != CGOptions::kLevel0) {
     SetCurBB(*atomicBB);
   }
+  bool acquire = false;
+  bool release = true;
+  std::string opNodeName = intrinopNode.GetIntrinDesc().name;
+  if (opNodeName.find("atomic") != std::string::npos) {
+    auto *memOrderOpnd = intrinopNode.GetNopndAt(kInsnThirdOpnd);
+    std::memory_order memOrder = std::memory_order_seq_cst;
+    if (memOrderOpnd->IsConstval()) {
+      auto *memOrderConst = static_cast<MIRIntConst*>(
+          static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
+      memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
+    }
+    acquire = PickMemOrder(memOrder, true) == AArch64isa::kMoAcquire ? true : false;
+    release = PickMemOrder(memOrder, false) == AArch64isa::kMoRelease ? true : false;
+  }
   /* load from pointed address */
   auto primTypeP2Size = GetPrimTypeP2Size(primType);
   auto *regLoaded = &CreateRegisterOperandOfType(primType);
   auto &memOpnd = CreateMemOpnd(*static_cast<RegOperand*>(addrOpnd), 0, GetPrimTypeBitSize(primType));
-  auto mOpLoad = PickLoadStoreExclInsn(primTypeP2Size, false, false);
+  auto mOpLoad = PickLoadStoreExclInsn(primTypeP2Size, false, acquire);
   atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(mOpLoad, *regLoaded, memOpnd));
   /* update loaded value */
   auto *regOperated = &CreateRegisterOperandOfType(primType);
   SelectArithmeticAndLogical(*regOperated, *regLoaded, *valueOpnd, primType, op);
   /* store to pointed address */
   auto *accessStatus = &CreateRegisterOperandOfType(PTY_u32);
-  auto mOpStore = PickLoadStoreExclInsn(primTypeP2Size, true, true);
+  auto mOpStore = PickLoadStoreExclInsn(primTypeP2Size, true, release);
   atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(mOpStore, *accessStatus, *regOperated, memOpnd));
   /* check the exclusive accsess status */
   auto &atomicBBOpnd = GetOrCreateLabelOperand(*atomicBB);
@@ -11024,7 +11047,8 @@ Operand *AArch64CGFunc::SelectAArch64CAtomicFetch(const IntrinsicopNode &intrino
   return fetchBefore ? regLoaded : regOperated;
 }
 
-Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) {
+Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, SyncAndAtomicOp op,
+                                                bool fetchBefore) {
   auto *result = SelectAArch64CAtomicFetch(intrinopNode, op, fetchBefore);
   /* Data Memory Barrier */
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_dmb_ish));
@@ -11092,11 +11116,11 @@ Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, 
   return regLoaded;
 }
 
-Operand *AArch64CGFunc::SelectCAtomicFetch(IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) {
+Operand *AArch64CGFunc::SelectCAtomicFetch(IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore) {
   return SelectAArch64CAtomicFetch(intrinopNode, op, fetchBefore);
 }
 
-Operand *AArch64CGFunc::SelectCSyncFetch(IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) {
+Operand *AArch64CGFunc::SelectCSyncFetch(IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore) {
   return SelectAArch64CSyncFetch(intrinopNode, op, fetchBefore);
 }
 

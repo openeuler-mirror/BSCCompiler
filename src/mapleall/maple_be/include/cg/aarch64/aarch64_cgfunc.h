@@ -145,7 +145,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCisaligned(IntrinsicopNode &intrnNode) override;
   Operand *SelectCalignup(IntrinsicopNode &intrnNode) override;
   Operand *SelectCaligndown(IntrinsicopNode &intrnNode) override;
-  Operand *SelectCSyncFetch(IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) override;
+  Operand *SelectCSyncFetch(IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore) override;
   Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) override;
@@ -154,7 +154,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCAtomicExchangeN(const IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectAtomicLoad(Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
-  Operand *SelectCAtomicFetch(IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore) override;
+  Operand *SelectCAtomicFetch(IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore) override;
   Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
   void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) override;
   void SelectMembar(StmtNode &membar) override;
@@ -202,6 +202,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
+  void SelectNand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
 
   void SelectBxorShift(Operand &resOpnd, Operand *opnd0, Operand *opnd1, Operand &opnd2, PrimType primType);
   Operand *SelectLand(BinaryNode &node, Operand &lhsOpnd, Operand &rhsOpnd, const BaseNode &parent) override;
@@ -910,14 +911,15 @@ class AArch64CGFunc : public CGFunc {
   void SelectCTlsGlobalDesc(Operand &result, StImmOperand &stImm);
   void SelectMPLClinitCheck(const IntrinsiccallNode &intrnNode);
   void SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode);
-  void SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, Opcode op);
+  void SelectArithmeticAndLogical(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType,
+                                  SyncAndAtomicOp op);
 
   Operand *GetOpndWithOneParam(const IntrinsicopNode &intrnNode);
   Operand *GetOpndFromIntrnNode(const IntrinsicopNode &intrnNode);
   bool IslhsSizeAligned(uint64 lhsSizeCovered, uint32 newAlignUsed, uint64 lhsSize);
   RegOperand &GetRegOpnd(bool isAfterRegAlloc, PrimType primType);
-  Operand *SelectAArch64CAtomicFetch(const IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore);
-  Operand *SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, Opcode op, bool fetchBefore);
+  Operand *SelectAArch64CAtomicFetch(const IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore);
+  Operand *SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore);
   /* Helper functions for translating complex Maple IR instructions/inrinsics */
   void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opnd0);
   LabelIdx CreateLabeledBB(StmtNode &stmt);

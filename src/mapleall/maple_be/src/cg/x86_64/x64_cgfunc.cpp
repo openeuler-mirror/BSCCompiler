@@ -176,7 +176,7 @@ Operand *X64CGFunc::SelectBswap(IntrinsicopNode &node, Operand &opnd0, const Bas
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand *X64CGFunc::SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) {
+Operand *X64CGFunc::SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, SyncAndAtomicOp op, bool fetchBefore) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -192,7 +192,7 @@ Operand *X64CGFunc::SelectCAtomicExchangeN(const IntrinsicopNode &intrinsiccallN
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand *X64CGFunc::SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) {
+Operand *X64CGFunc::SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, SyncAndAtomicOp op, bool fetchBefore) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
@@ -375,6 +375,9 @@ Operand *X64CGFunc::SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1,
   return nullptr;
 }
 void X64CGFunc::SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
+  CHECK_FATAL(false, "NIY");
+}
+void X64CGFunc::SelectNand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
   CHECK_FATAL(false, "NIY");
 }
 Operand *X64CGFunc::SelectAbs(UnaryNode &node, Operand &opnd0) {
