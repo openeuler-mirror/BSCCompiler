@@ -127,6 +127,8 @@ class ConstantFold : public FuncOptimizeImpl {
   ConstvalNode *FoldConstUnary(Opcode opcode, PrimType resultType, ConstvalNode &constNode) const;
   template <typename T>
   ConstvalNode *FoldFPConstUnary(Opcode opcode, PrimType resultType, ConstvalNode *constNode) const;
+  template <>
+  ConstvalNode *FoldFPConstUnary<MIRFloat128Const>(Opcode opcode, PrimType resultType, ConstvalNode *constNode) const;
   BaseNode *NegateTree(BaseNode *node) const;
   BaseNode *Negate(BaseNode *node) const;
   BaseNode *Negate(UnaryNode *node) const;

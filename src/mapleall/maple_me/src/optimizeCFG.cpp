@@ -1323,6 +1323,10 @@ bool OptimizeBB::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeE
   if (trueExpr == falseExpr) {
     return true;
   }
+ /* Select for Float128 is not possible */
+  if (condExpr->GetPrimType() == PTY_f128 || falseExpr->GetPrimType() == PTY_f128) {
+    return false;
+  }
   ASSERT(IsSafeExpr(trueExpr), "[FUNC: %s]Please check for safety first", funcName.c_str());
   ASSERT(IsSafeExpr(falseExpr), "[FUNC: %s]Please check for safety first", funcName.c_str());
   // try to simplify select expr

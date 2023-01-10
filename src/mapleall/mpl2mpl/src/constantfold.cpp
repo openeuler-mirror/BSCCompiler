@@ -849,19 +849,17 @@ MIRIntConst *ConstantFold::FoldIntConstUnaryMIRConst(Opcode opcode, PrimType res
 template <typename T>
 ConstvalNode *ConstantFold::FoldFPConstUnary(Opcode opcode, PrimType resultType, ConstvalNode *constNode) const {
   CHECK_NULL_FATAL(constNode);
-  typename T::value_type constValue = 0.0;
+  double constValue = 0;
   T *fpCst = static_cast<T*>(constNode->GetConstVal());
   switch (opcode) {
     case OP_recip:
+      constValue = typename T::value_type(1.0L / fpCst->GetValue());
+      break;
     case OP_neg:
+      constValue = typename T::value_type(-fpCst->GetValue());
+      break;
     case OP_abs: {
-      if (opcode == OP_recip) {
-        constValue = typename T::value_type(1.0 / fpCst->GetValue());
-      } else if (opcode == OP_neg) {
-        constValue = typename T::value_type(-fpCst->GetValue());
-      } else if (opcode == OP_abs) {
-        constValue = typename T::value_type(fabs(fpCst->GetValue()));
-      }
+      constValue = typename T::value_type(fabs(fpCst->GetValue()));
       break;
     }
     case OP_sqrt: {
@@ -883,9 +881,54 @@ ConstvalNode *ConstantFold::FoldFPConstUnary(Opcode opcode, PrimType resultType,
   auto *resultConst = mirModule->CurFuncCodeMemPool()->New<ConstvalNode>();
   resultConst->SetPrimType(resultType);
   if (resultType == PTY_f32) {
-    resultConst->SetConstVal(GlobalTables::GetFpConstTable().GetOrCreateFloatConst(constValue));
-  } else {
+    resultConst->SetConstVal(GlobalTables::GetFpConstTable().GetOrCreateFloatConst(static_cast<float>(constValue)));
+  } else if (resultType == PTY_f64) {
     resultConst->SetConstVal(GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(constValue));
+  } else {
+    ASSERT(false, "PrimType for MIRFloatConst / MIRDoubleConst should be PTY_f32 / PTY_f64");
+  }
+  return resultConst;
+}
+
+template <>
+ConstvalNode *ConstantFold::FoldFPConstUnary<MIRFloat128Const>(Opcode opcode, PrimType resultType,
+                                                               ConstvalNode *constNode) const {
+  CHECK_NULL_FATAL(constNode);
+  MIRFloat128Const *fpCst = static_cast<MIRFloat128Const*>(constNode->GetConstVal());
+  const uint64_t *constValue = fpCst->GetIntValue();
+  uint64_t newValue[2] = {0, 0};
+  switch (opcode) {
+    case OP_recip:
+      ASSERT(false, "Unexpected opcode in FoldFPConstUnary");
+      break;
+    case OP_neg:
+      newValue[0] = constValue[0] ^ 0x8000000000000000;
+      newValue[1] = constValue[1];
+      break;
+    case OP_abs: {
+      newValue[0] = constValue[0] & 0x7fffffffffffffff;
+      newValue[1] = constValue[1];
+      break;
+    }
+    case OP_sqrt:
+    case OP_bnot:
+    case OP_lnot:
+    case OP_sext:
+    case OP_zext:
+    case OP_extractbits: {
+      ASSERT(false, "Unexpected opcode in FoldFPConstUnary");
+      break;
+    }
+    default:
+      ASSERT(false, "Unknown opcode for FoldFPConstUnary");
+      break;
+  }
+  auto *resultConst = mirModule->CurFuncCodeMemPool()->New<ConstvalNode>();
+  resultConst->SetPrimType(resultType);
+  if (resultType == PTY_f128) {
+    resultConst->SetConstVal(GlobalTables::GetFpConstTable().GetOrCreateFloat128Const(constValue));
+  } else {
+    ASSERT(false, "PrimType for MIRFloat128Const should be PTY_f128");
   }
   return resultConst;
 }
@@ -903,6 +946,7 @@ ConstvalNode *ConstantFold::FoldConstUnary(Opcode opcode, PrimType resultType, C
   } else if (resultType == PTY_f64) {
     returnValue = FoldFPConstUnary<MIRDoubleConst>(opcode, resultType, &constNode);
   } else if (resultType == PTY_f128) {
+    returnValue = FoldFPConstUnary<MIRFloat128Const>(opcode, resultType, &constNode);
   } else {
     ASSERT(false, "Unhandled case for FoldConstUnary");
   }
@@ -1116,6 +1160,11 @@ ConstvalNode *ConstantFold::FoldFloor(const ConstvalNode &cst, PrimType fromType
 }
 
 MIRConst *ConstantFold::FoldRoundMIRConst(const MIRConst &cst, PrimType fromType, PrimType toType) const {
+  if (fromType == PTY_f128 || toType == PTY_f128) {
+    LogInfo::MapleLogger() << "FoldRoundMIRConst is not supported for f128\n";
+    return nullptr;
+  }
+
   MIRType &resultType = *GlobalTables::GetTypeTable().GetPrimType(toType);
   if (fromType == PTY_f32) {
     const auto &constValue = static_cast<const MIRFloatConst&>(cst);
@@ -1234,14 +1283,54 @@ MIRConst *ConstantFold::FoldTypeCvtMIRConst(const MIRConst &cst, PrimType fromTy
   if (IsPrimitiveFloat(fromType) && IsPrimitiveFloat(toType)) {
     MIRConst *toConst = nullptr;
     if (GetPrimTypeBitSize(toType) < GetPrimTypeBitSize(fromType)) {
-      ASSERT(GetPrimTypeBitSize(toType) == 32, "We suppot F32 and F64");
-      const MIRDoubleConst *fromValue = safe_cast<MIRDoubleConst>(cst);
-      ASSERT_NOT_NULL(fromValue);
-      float floatValue = static_cast<float>(fromValue->GetValue());
-      MIRFloatConst *toValue = GlobalTables::GetFpConstTable().GetOrCreateFloatConst(floatValue);
-      toConst = toValue;
+      ASSERT(GetPrimTypeBitSize(toType) == 32 || GetPrimTypeBitSize(toType) == 64, "We support F32, F64, F128");
+      const MIRDoubleConst *fromValueDouble;
+      const MIRFloat128Const *fromValueFloat128;
+      double doubleValue;
+
+      if (GetPrimTypeBitSize(fromType) == 128) {
+        fromValueFloat128 = safe_cast<MIRFloat128Const>(cst);
+        ASSERT_NOT_NULL(fromValueFloat128);
+        doubleValue = fromValueFloat128->GetDoubleValue();
+      } else {
+        fromValueDouble = safe_cast<MIRDoubleConst>(cst);
+        ASSERT_NOT_NULL(fromValueDouble);
+        doubleValue = fromValueDouble->GetValue();
+      }
+
+      if (toType == PTY_f32) {
+        MIRFloatConst *toValue = GlobalTables::GetFpConstTable().GetOrCreateFloatConst(
+          static_cast<float>(doubleValue));
+        toConst = toValue;
+      } else if (toType == PTY_f64) {
+        MIRDoubleConst *toValue = GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(
+          static_cast<float>(doubleValue));
+        toConst = toValue;
+      }
     } else {
-      ASSERT(GetPrimTypeBitSize(toType) == 64, "We suppot F32 and F64");
+      if (GetPrimTypeBitSize(fromType) == 32) {
+        const MIRFloatConst *fromValue = safe_cast<MIRFloatConst>(cst);
+        ASSERT_NOT_NULL(fromValue);
+        if (GetPrimTypeBitSize(toType) == 64) {
+          double doubleValue = static_cast<double>(fromValue->GetValue());
+          MIRDoubleConst *toValue = GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(doubleValue);
+          return toValue;
+        } else {
+          std::pair<uint64, uint64> floatInt = fromValue->GetFloat128Value();
+          uint64 arr[2] = {floatInt.first, floatInt.second};
+          MIRFloat128Const *toValue = GlobalTables::GetFpConstTable().GetOrCreateFloat128Const(arr);
+          return toValue;
+        }
+      } else if (GetPrimTypeBitSize(fromType) == 64) {
+        const MIRDoubleConst *fromValue = safe_cast<MIRDoubleConst>(cst);
+        ASSERT_NOT_NULL(fromValue);
+        std::pair<uint64, uint64> floatInt = fromValue->GetFloat128Value();
+        uint64 arr[2] = {floatInt.first, floatInt.second};
+        MIRFloat128Const *toValue = GlobalTables::GetFpConstTable().GetOrCreateFloat128Const(arr);
+        return toValue;
+      }
+
+      ASSERT(GetPrimTypeBitSize(toType) == 64, "We support F32 and F64");
       const MIRFloatConst *fromValue = safe_cast<MIRFloatConst>(cst);
       ASSERT_NOT_NULL(fromValue);
       double doubleValue = static_cast<double>(fromValue->GetValue());
@@ -2276,6 +2365,7 @@ StmtNode *ConstantFold::SimplifyCondGoto(CondGotoNode *node) {
       return nullptr;
     }
   }
+  return node;
 }
 
 StmtNode *ConstantFold::SimplifyCondGotoSelect(CondGotoNode *node) const {

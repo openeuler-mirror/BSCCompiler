@@ -429,6 +429,7 @@ uint32 GetVecLanes(PrimType primType) {
       return k8BitSize;
     case PTY_v16i8:
     case PTY_v16u8:
+    case PTY_f128:
       return k16BitSize;
     default:
       return 0;

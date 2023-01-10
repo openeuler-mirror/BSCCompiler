@@ -2924,8 +2924,7 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
     /* do combination str/ldr -> stp/ldp */
     if ((insn.IsStore() || destRegNO != prevDestRegNO) || (destRegNO == RZR && prevDestRegNO == RZR)) {
       if ((memSize == k8ByteSize && diffVal == k8BitSize) ||
-          (memSize == k4ByteSize && diffVal == k4BitSize) ||
-          (memSize == k16ByteSize && diffVal == k16BitSize)) {
+          (memSize == k4ByteSize && diffVal == k4BitSize)) {
         MOperator mopPair = GetMopPair(thisMop);
         MemOperand *combineMemOpnd = (offsetVal < prevOffsetVal) ? memOpnd : prevMemOpnd;
         Insn &combineInsn = (offsetVal < prevOffsetVal) ?

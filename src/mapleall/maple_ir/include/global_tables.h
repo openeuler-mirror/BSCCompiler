@@ -588,6 +588,13 @@ class StringTable {
   mutable std::shared_timed_mutex mtx;
 };
 
+class Float128Hash {
+ public:
+  size_t operator()(const std::pair<uint64, uint64> &pair) const {
+    return std::hash<uint64>{}(pair.first) ^ std::hash<uint64>{}(pair.second);
+  }
+};
+
 class FPConstTable {
  public:
   FPConstTable(const FPConstTable &p) = delete;
@@ -598,6 +605,8 @@ class FPConstTable {
   MIRFloatConst *GetOrCreateFloatConst(float floatVal);
   // get the const from doubleConstTable or create a new one
   MIRDoubleConst *GetOrCreateDoubleConst(double doubleVal);
+  // get the const from longDoubleConstTable or create a new one
+  MIRFloat128Const *GetOrCreateFloat128Const(const uint64* fvalPtr);
 
   static std::unique_ptr<FPConstTable> Create() {
     auto p = std::unique_ptr<FPConstTable>(new FPConstTable());
@@ -610,12 +619,19 @@ class FPConstTable {
   void PostInit();
   MIRFloatConst *DoGetOrCreateFloatConst(float floatVal);
   MIRDoubleConst *DoGetOrCreateDoubleConst(double doubleVal);
+  MIRFloat128Const *DoGetOrCreateFloat128Const(const uint64_t*);
   MIRFloatConst *DoGetOrCreateFloatConstThreadSafe(float floatVal);
   MIRDoubleConst *DoGetOrCreateDoubleConstThreadSafe(double doubleVal);
+  MIRFloat128Const *DoGetOrCreateFloat128ConstThreadSafe(const uint64_t*);
   std::shared_timed_mutex floatMtx;
   std::shared_timed_mutex doubleMtx;
-  std::unordered_map<float, MIRFloatConst*> floatConstTable;     // map float const value to the table;
-  std::unordered_map<double, MIRDoubleConst*> doubleConstTable;  // map double const value to the table;
+  std::shared_timed_mutex ldoubleMtx;
+  // map float const value to the table;
+  std::unordered_map<float, MIRFloatConst*> floatConstTable;
+  // map double const value to the table;
+  std::unordered_map<double, MIRDoubleConst*> doubleConstTable;
+  // map float128 const value to the table;
+  std::unordered_map<std::pair<uint64, uint64>, MIRFloat128Const*, Float128Hash> float128ConstTable;
   MIRFloatConst *nanFloatConst = nullptr;
   MIRFloatConst *infFloatConst = nullptr;
   MIRFloatConst *minusInfFloatConst = nullptr;
@@ -624,6 +640,10 @@ class FPConstTable {
   MIRDoubleConst *infDoubleConst = nullptr;
   MIRDoubleConst *minusInfDoubleConst = nullptr;
   MIRDoubleConst *minusZeroDoubleConst = nullptr;
+  MIRFloat128Const *nanFloat128Const = nullptr;
+  MIRFloat128Const *infFloat128Const = nullptr;
+  MIRFloat128Const *minusInfFloat128Const = nullptr;
+  MIRFloat128Const *minusZeroFloat128Const = nullptr;
 };
 
 class IntConstTable {

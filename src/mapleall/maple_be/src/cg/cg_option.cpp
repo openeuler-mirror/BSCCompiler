@@ -854,6 +854,9 @@ void CGOptions::EnableO2() {
   SetOption(kProEpilogueOpt);
   SetOption(kTailCallOpt);
 #endif
+
+  /* O2 performs expand128Floats optimization on mpl2mpl (O0 does it on codegen) */
+  opts::expand128Floats.SetValue(false);
 }
 
 void CGOptions::EnableLiteCG() {

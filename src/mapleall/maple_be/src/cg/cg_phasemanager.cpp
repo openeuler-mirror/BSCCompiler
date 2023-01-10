@@ -18,6 +18,8 @@
 #include "cg_option.h"
 #include "args.h"
 #include "label_creation.h"
+#include "driver_options.h"
+#include "expand128floats.h"
 #include "isel.h"
 #include "offset_adjust.h"
 #include "alignment.h"
@@ -323,6 +325,13 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       }
       /* LowerIR. */
       m.SetCurFunction(mirFunc);
+
+      if (opts::expand128Floats) {
+        DumpMIRFunc(*mirFunc, "************* before Expand128Floats **************");
+        Expand128Floats expand128Floats(m);
+        expand128Floats.ProcessFunc(mirFunc);
+      }
+
       if (cg->DoConstFold()) {
         DumpMIRFunc(*mirFunc, "************* before ConstantFold **************");
         ConstantFold cf(m);

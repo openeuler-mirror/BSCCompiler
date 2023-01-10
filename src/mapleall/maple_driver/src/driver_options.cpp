@@ -199,6 +199,11 @@ maplecl::Option<bool> stackProtectorAll({"--stack-protector-all"},
 maplecl::Option<bool> inlineAsWeak({"-inline-as-weak", "--inline-as-weak"},
                                    "  --inline-as-weak              \tSet inline functions as weak symbols"
                                    " as it's in C++\n", {driverCategory, hir2mplCategory});
+maplecl::Option<bool> expand128Floats({"--expand128floats"},
+                                      "  --expand128floats        \tEnable expand128floats pass\n",
+                                      {driverCategory},
+                                      maplecl::DisableWith("--no-expand128floats"),
+                                      maplecl::hide, maplecl::Init(true));
 
 maplecl::Option<bool> MD({"-MD"},
                     "  -MD                         \tWrite a depfile containing user and system headers\n",

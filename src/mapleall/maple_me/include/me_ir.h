@@ -576,6 +576,11 @@ class ConstMeExpr : public MeExpr {
       CHECK_NULL_FATAL(doubleConst);
       return doubleConst->GetIntValue();
     }
+    if (constVal->GetKind() == kConstFloat128Const) {
+      auto *float128Const = safe_cast<MIRFloat128Const>(constVal);
+      CHECK_NULL_FATAL(float128Const);
+      return static_cast<uint32>(float128Const->GetDoubleValue());
+    }
     if (constVal->GetKind() == kConstLblConst) {
       auto *lblConst = safe_cast<MIRLblConst>(constVal);
       CHECK_NULL_FATAL(lblConst);

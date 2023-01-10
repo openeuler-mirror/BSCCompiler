@@ -802,9 +802,9 @@ void AArch64CGFunc::SelectCopy(Operand &dest, PrimType dtype, Operand &src, Prim
           dest, GetZeroOpnd(dsize)));
       break;
     case Operand::kOpdRegister: {
-      if (opnd0Type == Operand::kOpdRegister && IsPrimitiveVector(stype)) {
+      if (opnd0Type == Operand::kOpdRegister && ((IsPrimitiveVector(stype)) || (dsize == k128BitSize))) {
         /* check vector reg to vector reg move */
-        CHECK_FATAL(IsPrimitiveVector(dtype), "invalid vectreg to vectreg move");
+        CHECK_FATAL(IsPrimitiveVector(dtype) || (dsize == k128BitSize), "invalid vectreg to vectreg move");
         MOperator mop = (dsize <= k64BitSize) ? MOP_vmovuu : MOP_vmovvv;
         VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
         (void)vInsn.AddOpndChain(dest).AddOpndChain(src);

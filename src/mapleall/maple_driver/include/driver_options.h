@@ -96,6 +96,7 @@ extern maplecl::Option<bool> pie;
 extern maplecl::Option<bool> fStrongEvalOrder;
 extern maplecl::Option<bool> linkerTimeOpt;
 extern maplecl::Option<bool> usesignedchar;
+extern maplecl::Option<bool> expand128Floats;
 
 /* ##################### STRING Options ############################################################### */
 

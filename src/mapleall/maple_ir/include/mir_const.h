@@ -566,9 +566,9 @@ class MIRFloat128Const : public MIRConst {
 
   ~MIRFloat128Const() = default;
 
-  const int *GetWordPtr() const {
+  const unsigned int *GetWordPtr() const {
     union ValPtrs {
-      const int *intVal;
+      unsigned const int *intVal;
       const uint64 *srcVal;
     } data;
     data.srcVal = val;

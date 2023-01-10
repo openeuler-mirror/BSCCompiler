@@ -294,6 +294,11 @@ void FPConstTable::PostInit() {
   infDoubleConst = new MIRDoubleConst(INFINITY, typeDouble);
   minusInfDoubleConst = new MIRDoubleConst(-INFINITY, typeDouble);
   minusZeroDoubleConst = new MIRDoubleConst(-0.0, typeDouble);
+  MIRType &typeLongDouble = *GlobalTables::GetTypeTable().GetPrimType(PTY_f128);
+  nanFloat128Const = new MIRFloat128Const({0x7fff800000000000ULL, 0x0ULL}, typeLongDouble);
+  infFloat128Const = new MIRFloat128Const({0x7fff000000000000ULL, 0x0ULL}, typeLongDouble);
+  minusInfFloat128Const = new MIRFloat128Const({0xffff000000000000ULL, 0x0ULL}, typeLongDouble);
+  minusZeroFloat128Const = new MIRFloat128Const({0x8000000000000000ULL, 0x0ULL}, typeLongDouble);
 }
 
 MIRIntConst *IntConstTable::GetOrCreateIntConst(const IntVal &val, MIRType &type) {
@@ -426,6 +431,53 @@ MIRDoubleConst *FPConstTable::DoGetOrCreateDoubleConstThreadSafe(double doubleVa
   return doubleConst;
 }
 
+MIRFloat128Const *FPConstTable::GetOrCreateFloat128Const(const uint64 *fvalPtr) {
+  auto f128Const = MIRFloat128Const(fvalPtr, *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
+  if (f128Const.IsNan()) {
+    return nanFloat128Const;
+  }
+  if (f128Const.IsInf()) {
+    return (f128Const.GetSign()) ? minusInfFloat128Const : infFloat128Const;
+  }
+  if (f128Const.IsZero() && f128Const.GetSign()) {
+    return minusZeroFloat128Const;
+  }
+  if (ThreadEnv::IsMeParallel()) {
+    return DoGetOrCreateFloat128ConstThreadSafe(fvalPtr);
+  }
+  return DoGetOrCreateFloat128Const(fvalPtr);
+}
+
+MIRFloat128Const *FPConstTable::DoGetOrCreateFloat128Const(const uint64_t *v) {
+  std::pair<uint64, uint64> f128Pair = {v[0], v[1]};
+  const auto it = float128ConstTable.find(f128Pair);
+  if (it != float128ConstTable.cend()) {
+    return it->second;
+  }
+  // create a new one
+  auto *ldConst = new MIRFloat128Const(v,
+                                       *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_f128)));
+  float128ConstTable[f128Pair] = ldConst;
+  return ldConst;
+}
+
+MIRFloat128Const *FPConstTable::DoGetOrCreateFloat128ConstThreadSafe(const uint64_t *v) {
+  {
+    std::shared_lock<std::shared_timed_mutex> lock(ldoubleMtx);
+    const auto it = float128ConstTable.find({v[0], v[1]});
+    if (it != float128ConstTable.cend()) {
+      return it->second;
+    }
+  }
+  // create a new one
+  std::unique_lock<std::shared_timed_mutex> lock(ldoubleMtx);
+  std::pair<uint64, uint64> f128Pair = {v[0], v[1]};
+  auto *ldConst = new MIRFloat128Const(v,
+                                       *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_f128)));
+  float128ConstTable[f128Pair] = ldConst;
+  return ldConst;
+}
+
 FPConstTable::~FPConstTable() {
   delete nanFloatConst;
   delete infFloatConst;
@@ -435,11 +487,18 @@ FPConstTable::~FPConstTable() {
   delete infDoubleConst;
   delete minusInfDoubleConst;
   delete minusZeroDoubleConst;
+  delete nanFloat128Const;
+  delete infFloat128Const;
+  delete minusInfFloat128Const;
+  delete minusZeroFloat128Const;
   for (const auto &floatConst : floatConstTable) {
     delete floatConst.second;
   }
   for (const auto &doubleConst : doubleConstTable) {
     delete doubleConst.second;
+  }
+  for(const auto &float128Const : float128ConstTable) {
+    delete float128Const.second;
   }
 }
 

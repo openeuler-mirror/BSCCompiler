@@ -14,8 +14,8 @@
  */
 #ifndef MAPLE_IR_INCLUDE_LEXER_H
 #define MAPLE_IR_INCLUDE_LEXER_H
-#include "cstdio"
 #include <fstream>
+#include "cstdio"
 #include "types_def.h"
 #include "tokens.h"
 #include "mempool_allocator.h"
@@ -68,14 +68,19 @@ class MIRLexer {
     return theDoubleVal;
   }
 
+  const uint64 *GetTheLongDoubleVal() const {
+    return theLongDoubleVal;
+  }
+
   std::string GetTokenString() const;  // for error reporting purpose
 
  private:
   MIRModule &module;
   // for storing the different types of constant values
-  uint64 theIntVal = 0;  // also indicates preg number under TK_preg
+  int64 theIntVal = 0;  // also indicates preg number under TK_preg
   float theFloatVal = 0.0;
   double theDoubleVal = 0.0;
+  uint64 theLongDoubleVal[2] {0x0ULL, 0x0ULL};
   MapleVector<std::string> seenComments;
   std::ifstream *airFile = nullptr;
   std::ifstream airFileInternal;
@@ -88,15 +93,15 @@ class MIRLexer {
   std::string name = "";  // store the name token without the % or $ prefix
   MapleUnorderedMap<std::string, TokenKind> keywordMap;
 
-  void RemoveReturnInline(std::string &line) {
-    if (line.empty()) {
+  void RemoveReturnInline(std::string &removeLine) const {
+    if (removeLine.empty()) {
       return;
     }
-    if (line.back() == '\n') {
-      line.pop_back();
+    if (removeLine.back() == '\n') {
+      removeLine.pop_back();
     }
-    if (line.back() == '\r') {
-      line.pop_back();
+    if (removeLine.back() == '\r') {
+      removeLine.pop_back();
     }
   }
 
@@ -105,6 +110,7 @@ class MIRLexer {
   TokenKind GetConstVal();
   TokenKind GetSpecialFloatConst();
   TokenKind GetHexConst(uint32 valStart, bool negative);
+  TokenKind GetLongHexConst(uint32 valStart, bool negative);
   TokenKind GetIntConst(uint32 valStart, bool negative);
   TokenKind GetFloatConst(uint32 valStart, uint32 startIdx, bool negative);
   TokenKind GetSpecialTokenUsingOneCharacter(char c);

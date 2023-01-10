@@ -138,6 +138,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(M2MSimplify, simplify)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MUpdateMplt, updatemplt)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MReflectionAnalysis, reflectionanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MVtableImpl, VtableImpl)
+MAPLE_TRANSFORM_PHASE_REGISTER(M2MExpand128Floats, Expand128Floats)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MConstantFold, ConstantFold)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MVtableAnalysis, vtableanalysis)
 }  // namespace maple
