@@ -15,6 +15,8 @@
 #ifndef MAPLE_IR_INCLUDE_MIR_CONST_H
 #define MAPLE_IR_INCLUDE_MIR_CONST_H
 #include <math.h>
+#include <utility>
+#include <limits>
 #include "mir_type.h"
 #include "mpl_int_val.h"
 
@@ -102,6 +104,8 @@ class MIRIntConst : public MIRConst {
            "Constant is tried to be constructed with non-integral type or bit-width is not appropriate for it");
   }
 
+  MIRIntConst(MIRType &type) : MIRConst(type, kConstInvalid) {}
+
   /// @return number of used bits in the value
   uint8 GetActualBitWidth() const;
 
@@ -154,7 +158,7 @@ class MIRIntConst : public MIRConst {
 
   bool operator==(const MIRConst &rhs) const override;
 
-  MIRIntConst *Clone(MemPool &memPool) const override {
+  MIRIntConst *Clone(MemPool &memPool [[maybe_unused]]) const override {
     CHECK_FATAL(false, "Can't Use This Interface in This Object");
   }
 
@@ -316,6 +320,51 @@ class MIRFloatConst : public MIRConst {
 
   ~MIRFloatConst() = default;
 
+  std::pair<uint64, uint64> GetFloat128Value() const {
+    // check special values
+    if (std::isinf(value.floatValue) && ((value.intValue & (1ull << 31)) >> 31) == 0x0) {
+      return {0x7fff000000000000, 0x0};
+    } else if (std::isinf(value.floatValue) && ((value.intValue & (1ull << 31)) >> 31) == 0x1) {
+      return {0xffff000000000000, 0x0};
+    } else if ((value.intValue ^ (0x1 << 31)) == 0x0) {
+      return {0x8000000000000000, 0x0};
+    } else if ((value.intValue ^ 0x0) == 0x0) {
+      return {0x0, 0x0};
+    } else if (std::isnan(value.floatValue)) {
+      return {0x7fff800000000000, 0x0};
+    }
+
+    uint64 sign = (value.intValue & (1ull << 31)) >> 31;
+    uint64 exp = (value.intValue & (0x7f800000)) >> 23;
+    uint64 mantiss = value.intValue & (0x007fffff);
+
+    const int float_exp_offset = 0x7f;
+    const int float_min_exp = -0x7e;
+    const int float_mantiss_bits = 23;
+    const int ldouble_exp_offset = 0x3fff;
+
+    if (exp > 0x0 && exp < 0xff) {
+      uint64 ldouble_exp = static_cast<uint64>(static_cast<int>(exp) - float_exp_offset + ldouble_exp_offset);
+      uint64 ldouble_mantiss_first_bits = mantiss << 25;
+      uint64 low_byte = 0x0;
+      uint64 high_byte = (sign << 63) | (ldouble_exp << 48) | (ldouble_mantiss_first_bits);
+      return {high_byte, low_byte};
+    } else if (exp == 0x0) {
+      size_t num_pos = 0;
+      for (; ((mantiss >> (22 - num_pos)) & 0x1) != 1; ++num_pos) {};
+
+      uint64 ldouble_exp = float_min_exp - (num_pos + 1) + ldouble_exp_offset;
+      int num_ldouble_mantiss_bits = float_mantiss_bits - (num_pos + 1);
+      uint64 ldouble_mantiss_mask = (1 << num_ldouble_mantiss_bits) - 1;
+      uint64 ldouble_mantiss = mantiss & ldouble_mantiss_mask;
+      uint64 high_byte = (sign << 63 | (ldouble_exp << 48) | (ldouble_mantiss << (25 + num_pos + 1)));
+      uint64 low_byte = 0;
+      return {high_byte, low_byte};
+    } else {
+      CHECK_FATAL(false, "Unexpected exponent value in GetFloat128Value method of MIRFloatConst class");
+    }
+  }
+
   void SetFloatValue(float fvalue) {
     value.floatValue = fvalue;
   }
@@ -392,6 +441,66 @@ class MIRDoubleConst : public MIRConst {
     return static_cast<uint32>((unsignVal & 0xffffffff00000000) >> 32);
   }
 
+  std::pair<uint64, uint64> GetFloat128Value() const {
+    // check special values
+    if (std::isinf(value.dValue) && ((value.intValue & (1ull << 63)) >> 63) == 0x0) {
+      return {0x7fff000000000000, 0x0};
+    } else if (std::isinf(value.dValue) && ((value.intValue & (1ull << 63)) >> 63) == 0x1) {
+      return {0xffff000000000000, 0x0};
+    } else if ((value.intValue ^ (1ull << 63)) == 0x0) {
+      return {0x8000000000000000, 0x0};
+    } else if ((value.intValue ^ 0x0) == 0x0) {
+      return {0x0, 0x0};
+    } else if (std::isnan(value.dValue)) {
+      return {0x7fff800000000000, 0x0};
+    }
+
+    uint64 sign = (value.intValue & (1ull << 63)) >> 63;
+    uint64 exp = (value.intValue & (0x7ff0000000000000)) >> 52;
+    uint64 mantiss = value.intValue & (0x000fffffffffffff);
+
+    const int double_exp_offset = 0x3ff;
+    const int double_min_exp = -0x3fe;
+    const int double_mantiss_bits = 52;
+
+    const int ldouble_exp_offset = 0x3fff;
+
+    if (exp > 0x0 && exp < 0x7ff) {
+      uint64 ldouble_exp = static_cast<uint64>(static_cast<int>(exp) - double_exp_offset + ldouble_exp_offset);
+      uint64 ldouble_mantiss_first_bits = mantiss >> 4;
+      uint64 ldouble_mantiss_second_bits = (mantiss & 0xf) << 60;
+
+      uint64 low_byte = ldouble_mantiss_second_bits;
+      uint64 high_byte = (sign << 63) | (ldouble_exp << 48) | (ldouble_mantiss_first_bits);
+      return {high_byte, low_byte};
+    } else if (exp == 0x0) {
+      int num_pos = 0;
+      for (; ((mantiss >> (51 - num_pos)) & 0x1) != 1; ++num_pos) {};
+
+      uint64 ldouble_exp = double_min_exp - (num_pos + 1) + ldouble_exp_offset;
+
+      int num_ldouble_mantiss_bits = double_mantiss_bits - (num_pos + 1);
+      uint64 ldouble_mantiss_mask = (1ull << num_ldouble_mantiss_bits) - 1;
+      uint64 ldouble_mantiss = mantiss & ldouble_mantiss_mask;
+      uint64 ldouble_mantiss_high_bits = 0;
+      if (4 - (num_pos + 1) > 0) {
+        ldouble_mantiss_high_bits = ldouble_mantiss >> (4 - (num_pos + 1));
+      } else {
+        ldouble_mantiss_high_bits = ldouble_mantiss << std::abs(4 - (num_pos + 1));
+      }
+
+      uint64 high_byte = (sign << 63) | (ldouble_exp << 48) | ldouble_mantiss_high_bits;
+      uint64 low_byte = 0;
+      if ((64 - num_ldouble_mantiss_bits) + 48 < 64) {
+        low_byte = ldouble_mantiss << ((64 - num_ldouble_mantiss_bits) + 48);
+      }
+
+      return {high_byte, low_byte};
+    } else {
+      CHECK_FATAL(false, "Unexpected exponent value in GetFloat128Value method of MIRDoubleConst class");
+    }
+  }
+
   int64 GetIntValue() const {
     return value.intValue;
   }
@@ -443,32 +552,115 @@ class MIRDoubleConst : public MIRConst {
 
 class MIRFloat128Const : public MIRConst {
  public:
-  MIRFloat128Const(const uint64 &val, MIRType &type) : MIRConst(type, kConstFloat128Const) {
-    value = &val;
+  using value_type = const uint64 *;
+
+  MIRFloat128Const(const uint64 *val_, MIRType &type) : MIRConst(type, kConstFloat128Const) {
+    val[0] = val_[0];
+    val[1] = val_[1];
+  }
+
+  MIRFloat128Const(const uint64 (&val_)[2], MIRType &type) : MIRConst(type, kConstFloat128Const) {
+    val[0] = val_[0];
+    val[1] = val_[1];
   }
 
   ~MIRFloat128Const() = default;
 
-  const uint64 *GetIntValue() const {
-    return value;
+  const unsigned int *GetWordPtr() const {
+    union ValPtrs {
+      unsigned const int *intVal;
+      const uint64 *srcVal;
+    } data;
+    data.srcVal = val;
+    return data.intVal;
   }
 
   static PrimType GetPrimType() {
     return kPrimType;
   }
 
+  double GetDoubleValue() const {
+    // check special values: -0, +-inf, NaN
+    if (val[1] == 0x0 && val[0] == (1ull << 63)) {
+      return -0.0;
+    } else if (val[1] == 0x0 && val[0] == 0x0) {
+      return 0.0;
+    } else if (val[1] == 0x0 && val[0] == 0x7fff000000000000ull) {
+      return std::numeric_limits<double>::infinity();
+    } else if (val[1] == 0x0 && val[0] == 0xffff000000000000ull) {
+      return -std::numeric_limits<double>::infinity();
+    } else if ((val[0] >> 48) == 0x7fff && (val[0] << 16 != 0x0 || val[1] != 0x0)) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    const int double_exp_offset = 0x3ff;
+    const int double_max_exp = 0x3ff;
+    const int double_min_exp = -0x3fe;
+    const int double_mantissa_bits = 52;
+
+    const int ldouble_exp_offset = 0x3fff;
+    union HexVal {
+      double doubleVal;
+      uint64 doubleHex;
+    };
+    // if long double value is too huge to be represented in double, then return inf
+    if (GetExponent() - ldouble_exp_offset > double_max_exp) {
+      return GetSign() ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
+    }
+    // if long double value us too small to be represented in double, then return 0.0
+    else if (GetExponent() - ldouble_exp_offset < double_min_exp - double_mantissa_bits) {
+      return 0.0;
+    }
+    // if we can convert long double to normal double
+    else if (GetExponent() - ldouble_exp_offset >= double_min_exp) {
+      /*
+       * we take first 48 bits of double mantiss from first long double byte
+       * and then with '|' add remain 4 bits to get full double mantiss
+       */
+      uint64 double_mantiss = ((val[0] & 0x0000ffffffffffff) << 4) | (val[1] >> 60);
+      uint64 double_exp = static_cast<uint64>(GetExponent() - ldouble_exp_offset + double_exp_offset);
+      uint64 double_sign = GetSign();
+      union HexVal data;
+      data.doubleHex = (double_sign << (k64BitSize - 1)) | (double_exp << double_mantissa_bits) | double_mantiss;
+      return data.doubleVal;
+    }
+    // if we can convert long double to subnormal double
+    else {
+      uint64 double_mantiss = ((val[0] & 0x0000ffffffffffff) << 4) | (val[1] >> 60) | 0x0010000000000000;
+      double_mantiss = double_mantiss >> (double_min_exp - (GetExponent() - ldouble_exp_offset));
+      uint64 double_sign = GetSign();
+      union HexVal data;
+      data.doubleHex = (double_sign << (k64BitSize - 1)) | double_mantiss;
+      return data.doubleVal;
+    }
+  }
+
+  int GetExponent() const {
+    return (val[0] & 0x7fff000000000000) >> 48;
+  }
+
+  unsigned GetSign() const {
+    return (val[0] & (1ull << 63)) >> 63;
+  }
+
   bool IsZero() const override {
-    MIR_ASSERT(value && "value must not be nullptr!");
-    return value[0] == 0 && value[1] == 0;
+    return (val[0] == 0x0 && val[1] == 0x0) || (val[0] == (1ull << 63) && val[1] == 0x0);
   }
 
   bool IsOne() const override {
-    MIR_ASSERT(value && "value must not be nullptr!");
-    return value[0] == 0 && value[1] == 0x3FFF000000000000;
+    return val[1] == 0 && val[0] == 0x3FFF000000000000;
   };
+
+  bool IsNan() const {
+    return ((val[0] >> 48) == 0x7fff && (val[0] << 16 != 0x0 || val[1] != 0x0));
+  }
+
+  bool IsInf() const {
+    return (val[0] == 0x7fff000000000000ull && val[1] == 0x0) || (val[0] == 0xffff000000000000ull && val[1] == 0x0);
+  }
+
   bool IsAllBitsOne() const {
-    MIR_ASSERT(value && "value must not be nullptr!");
-    return (value[0] == 0xffffffffffffffff && value[1] == 0xffffffffffffffff);
+    return (val[0] == 0xffffffffffffffff && val[1] == 0xffffffffffffffff);
   };
   bool operator==(const MIRConst &rhs) const override;
 
@@ -479,10 +671,28 @@ class MIRFloat128Const : public MIRConst {
 
   void Dump(const MIRSymbolTable *localSymTab) const override;
 
+  long double GetValue() {
+    CHECK_FATAL(false, "Can't cast f128 to any standard type");
+    return *reinterpret_cast<long double*>(&val[0]);
+  }
+
+  std::pair<uint64, uint64> GetFloat128Value() const {
+    return std::pair<uint64, uint64>(val[0], val[1]);
+  }
+
+  value_type GetIntValue() const {
+    return static_cast<value_type>(val);
+  }
+
+  void SetValue(long double val) const {
+    (void)val;
+    CHECK_FATAL(false, "Cant't use This Interface with This Object");
+  }
+
  private:
   static const PrimType kPrimType = PTY_f128;
   // value[0]: Low 64 bits; value[1]: High 64 bits.
-  const uint64 *value;
+  uint64 val[2];
 };
 
 class MIRAggConst : public MIRConst {
@@ -496,6 +706,9 @@ class MIRAggConst : public MIRConst {
 
   MIRConst *GetAggConstElement(unsigned int fieldId) {
     for (size_t i = 0; i < fieldIdVec.size(); ++i) {
+      if (GetType().GetKind() == kTypeUnion && constVec[i]) {
+        return constVec[i];
+      }
       if (fieldId == fieldIdVec[i]) {
         return constVec[i];
       }

@@ -143,6 +143,7 @@ src_libcgx86phases = [
   "src/cg/cg_dominance.cpp",
   "src/cg/cg_pre.cpp",
   "src/cg/cg_occur.cpp",
+  "src/cg/cg_pgo_gen.cpp",
 ]
 
 src_libcgx8664 = [

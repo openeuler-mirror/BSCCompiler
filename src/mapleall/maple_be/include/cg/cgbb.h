@@ -291,6 +291,12 @@ class BB {
   void SetProfFreq(FreqType arg) {
     profFreq = arg;
   }
+  bool IsInColdSection() {
+    return inColdSection;
+  }
+  void SetColdSection() {
+    inColdSection = true;
+  }
   BB *GetNext() {
     return next;
   }
@@ -871,6 +877,7 @@ class BB {
   MapleList<BB*> loopSuccs;
   MapleVector<uint64> succsFreq;
   MapleVector<FreqType> succsProfFreq;
+  bool inColdSection = false; /* for bb splitting */
   /* this is for live in out analysis */
   MapleSet<regno_t> liveInRegNO;
   MapleSet<regno_t> liveOutRegNO;

@@ -24,6 +24,8 @@
 #include "verification.h"
 #include "verify_mark.h"
 #include "inline.h"
+#include "ginline.h"
+#include "outline.h"
 #include "method_replace.h"
 #include "gen_profile.h"
 #if MIR_JAVA
@@ -38,6 +40,7 @@
 #include "muid_replacement.h"
 #include "gen_check_cast.h"
 #include "coderelayout.h"
+#include "expand128floats.h"
 #include "constantfold.h"
 #include "preme.h"
 #include "scalarreplacement.h"

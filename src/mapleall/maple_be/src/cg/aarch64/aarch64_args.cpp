@@ -38,7 +38,7 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
   CCLocInfo ploc;
   uint32 start = 0;
   if (numFormal > 0) {
-    MIRFunction *func = const_cast<MIRFunction *>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
+    MIRFunction *func = aarchCGFunc->GetBecommon().GetMIRModule().CurFunction();
     if (func->IsReturnStruct() && func->IsFirstArgReturn()) {
       TyIdx tyIdx = func->GetFuncRetStructTyIdx();
       if (aarchCGFunc->GetBecommon().GetTypeSize(tyIdx) <= k16ByteSize) {
@@ -433,7 +433,7 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() const {
   uint32 formalCount = static_cast<uint32>(aarchCGFunc->GetFunction().GetFormalCount());
   uint32 start = 0;
   if (formalCount > 0) {
-    MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
+    MIRFunction *func = aarchCGFunc->GetBecommon().GetMIRModule().CurFunction();
     if (func->IsReturnStruct() && func->IsFirstArgReturn()) {
       TyIdx tyIdx = func->GetFuncRetStructTyIdx();
       if (aarchCGFunc->GetBecommon().GetTypeSize(tyIdx) <= k16BitSize) {

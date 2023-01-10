@@ -65,7 +65,8 @@ bool CGOptions::liteProfGen = false;
 bool CGOptions::liteProfUse = false;
 std::string CGOptions::liteProfile = "";
 std::string CGOptions::instrumentationWhiteList = "";
-std::string CGOptions::litePgoOutputFunction = "main";
+std::string CGOptions::instrumentationOutPutPath = "";
+std::string CGOptions::litePgoOutputFunction = "";
 std::string CGOptions::functionProrityFile = "";
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
@@ -138,31 +139,31 @@ CGOptions &CGOptions::GetInstance() {
 }
 
 void CGOptions::DecideMplcgRealLevel(bool isDebug) {
-  if (opts::cg::o0) {
+  if (opts::cg::o0 || opts::o0) {
     if (isDebug) {
       LogInfo::MapleLogger() << "Real Mplcg level: O0\n";
     }
     EnableO0();
   }
 
-  if (opts::cg::o1) {
+  if (opts::cg::o1 || opts::o1) {
     if (isDebug) {
       LogInfo::MapleLogger() << "Real Mplcg level: O1\n";
     }
     EnableO1();
   }
 
-  if (opts::cg::o2 || opts::cg::os) {
-    if (opts::cg::os) {
+  if ((opts::cg::o2 || opts::o2) || (opts::cg::os || opts::os)) {
+    if (opts::cg::os || opts::os) {
       optForSize = true;
     }
     if (isDebug) {
-      std::string oLog = (opts::cg::os == true) ? "Os" : "O2";
+      std::string oLog = ((opts::cg::os == true) || (opts::os == true)) ? "Os" : "O2";
       LogInfo::MapleLogger() << "Real Mplcg level: " << oLog << "\n";
     }
     EnableO2();
   }
-  if (opts::cg::os) {
+  if (opts::cg::os || opts::os) {
     DisableAlignAnalysis();
     SetFuncAlignPow(0);
   }
@@ -678,8 +679,15 @@ bool CGOptions::SolveOptions(bool isDebug) {
     }
   }
 
+  if (opts::cg::instrumentationWhiteList.IsEnabledByUser()) {
+    SetInstrumentationWhiteList(opts::cg::instrumentationWhiteList);
+    if (!opts::cg::instrumentationWhiteList.GetValue().empty()) {
+      EnableLiteProfGen();
+    }
+  }
+
   if (opts::cg::instrumentationFile.IsEnabledByUser()) {
-    SetInstrumentationWhiteList(opts::cg::instrumentationFile);
+    SetInstrumentationOutPutPath(opts::cg::instrumentationFile);
     if (!opts::cg::instrumentationFile.GetValue().empty()) {
       EnableLiteProfGen();
     }
@@ -851,6 +859,9 @@ void CGOptions::EnableO2() {
   SetOption(kProEpilogueOpt);
   SetOption(kTailCallOpt);
 #endif
+
+  /* O2 performs expand128Floats optimization on mpl2mpl (O0 does it on codegen) */
+  opts::expand128Floats.SetValue(false);
 }
 
 void CGOptions::EnableLiteCG() {

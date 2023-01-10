@@ -178,6 +178,7 @@ if(${TARGET} STREQUAL "x86_64")
         src/cg/cg_dominance.cpp
         src/cg/cg_pre.cpp
         src/cg/cg_occur.cpp
+        src/cg/cg_pgo_gen.cpp
     )
 endif()
 

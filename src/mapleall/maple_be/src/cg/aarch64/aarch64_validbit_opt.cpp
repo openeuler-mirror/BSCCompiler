@@ -229,7 +229,7 @@ bool AArch64ValidBitOpt::SetPhiValidBits(Insn &insn) {
   ASSERT(phiOpnd.IsPhi(), "expect phiList");
   auto &phiList = static_cast<PhiOperand&>(phiOpnd);
   int32 maxVB = -1;
-  for (auto phiOpndIt : phiList.GetOperands()) {
+  for (const auto phiOpndIt : phiList.GetOperands()) {
     if (phiOpndIt.second != nullptr) {
       maxVB = (maxVB < static_cast<int32>(phiOpndIt.second->GetValidBitsNum())) ?
               static_cast<int32>(phiOpndIt.second->GetValidBitsNum()) : maxVB;

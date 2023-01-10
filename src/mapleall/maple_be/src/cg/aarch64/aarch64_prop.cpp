@@ -653,7 +653,7 @@ bool A64StrLdrProp::IsSameOpndsOfInsn(const Insn &insn1, const Insn &insn2, uint
 bool A64StrLdrProp::IsPhiInsnValid(const Insn &phiInsn) {
   std::vector<Insn*> validDefInsns;
   auto &phiOpnd = static_cast<PhiOperand&>(phiInsn.GetOperand(kInsnSecondOpnd));
-  for (auto useIt : phiOpnd.GetOperands()) {
+  for (const auto useIt : phiOpnd.GetOperands()) {
     ASSERT(useIt.second != nullptr, "get phiUseOpnd failed");
     Insn *defPhiInsn = ssaInfo->GetDefInsn(*useIt.second);
     /* check only one layer of phi */
@@ -692,6 +692,7 @@ Insn *A64StrLdrProp::GetDefInsn(const RegOperand &regOpnd, std::vector<Insn*> &a
   Insn *insn = nullptr;
   if (regOpnd.IsSSAForm()) {
     VRegVersion *replacedV = ssaInfo->FindSSAVersion(regOpnd.GetRegisterNumber());
+    CHECK_FATAL(replacedV != nullptr, "replacedV should not be nullptr");
     if (replacedV->GetDefInsnInfo() != nullptr) {
       for (auto it : replacedV->GetAllUseInsns()) {
         (void)allUseInsns.emplace_back(it.second->GetInsn());
@@ -2088,6 +2089,7 @@ void FpSpConstProp::PropInMem(DUInsnInfo &useDUInfo, Insn &useInsn) {
       if (useOpndIt->first == kInsnSecondOpnd || useOpndIt->first == kInsnThirdOpnd) {
         ASSERT(useOpndIt->second == 1, "multiple use in memory opnd");
         auto *a64memOpnd = static_cast<MemOperand*>(useInsn.GetMemOpnd());
+        CHECK_FATAL(a64memOpnd != nullptr, "a64memOpnd should not be nullptr");
         if (a64memOpnd->GetAddrMode() == MemOperand::kBOI) {
           auto *ofstOpnd = static_cast<OfstOperand*>(a64memOpnd->GetOffsetImmediate());
           CHECK_NULL_FATAL(ofstOpnd);
@@ -2234,7 +2236,7 @@ bool A64ConstFoldPattern::IsDefInsnValid(const Insn &curInsn, const Insn &validD
 bool A64ConstFoldPattern::IsPhiInsnValid(const Insn &curInsn, const Insn &phiInsn) {
   std::vector<Insn*> validDefInsns;
   auto &phiOpnd = static_cast<PhiOperand&>(phiInsn.GetOperand(kInsnSecondOpnd));
-  for (auto useIt : phiOpnd.GetOperands()) {
+  for (const auto useIt : phiOpnd.GetOperands()) {
     ASSERT(useIt.second != nullptr, "get phiUseOpnd failed");
     Insn *defPhiInsn = optSsaInfo->GetDefInsn(*useIt.second);
     /* check only one layer of phi */

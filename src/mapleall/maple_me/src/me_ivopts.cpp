@@ -189,7 +189,6 @@ class IVOptimizer {
   // step1: find basic iv (the minimal inc uint)
   MeExpr *ReplacePhiLhs(OpMeExpr *op, ScalarMeExpr *phiLhs, MeExpr *replace);
   MeExpr *ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr *phiLhs, MeExpr *replace);
-  bool CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet, bool tryProp = false);
   bool FindBasicIVs();
   // step2: find all ivs that is the affine form of basic iv, collect iv uses the same time
   bool CreateIVFromAdd(OpMeExpr &op, MeStmt &stmt);
@@ -497,53 +496,6 @@ MeExpr *IVOptimizer::ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr 
   return replaced;
 }
 
-// find if there are basic ivs
-bool IVOptimizer::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet, bool tryProp) {
-  switch (solve->GetMeOp()) {
-    case kMeOpVar:
-    case kMeOpReg: {
-      if (solve->IsVolatile()) {
-        return false;
-      }
-      if (solve == phiLhs) {
-        ++meet;
-        return true;
-      }
-      auto *scalar = static_cast<ScalarMeExpr*>(solve);
-      if (phiLhs == nullptr || scalar->GetOstIdx() != phiLhs->GetOstIdx()) {
-        if (scalar->IsDefByNo()) {  // parameter
-          return true;
-        }
-        if (!tryProp) {
-          return data->currLoop->loopBBs.count(scalar->DefByBB()->GetBBId()) == 0;
-        }
-      }
-      if (scalar->GetDefBy() != kDefByStmt) {
-        return false;
-      }
-      return CheckBasicIV(scalar->GetDefStmt()->GetRHS(), phiLhs, meet, true);
-    }
-    case kMeOpConst:
-      return IsPrimitiveInteger(solve->GetPrimType());
-    case kMeOpOp: {
-      if (solve->GetOp() == OP_add) {
-        auto *opMeExpr = static_cast<OpMeExpr*>(solve);
-        return CheckBasicIV(opMeExpr->GetOpnd(0), phiLhs, meet) &&
-               CheckBasicIV(opMeExpr->GetOpnd(1), phiLhs, meet);
-      }
-      if (solve->GetOp() == OP_sub) {
-        auto *opMeExpr = static_cast<OpMeExpr*>(solve);
-        return CheckBasicIV(opMeExpr->GetOpnd(0), phiLhs, meet) &&
-               CheckBasicIV(opMeExpr->GetOpnd(1), nullptr, meet);
-      }
-      return false;
-    }
-    default:
-      break;
-  }
-  return false;
-}
-
 // check if there are basic ivs in loop, return true if found and created one
 bool IVOptimizer::FindBasicIVs() {
   bool find = false;
@@ -565,8 +517,7 @@ bool IVOptimizer::FindBasicIVs() {
       initValue = phi.second->GetOpnd(1);
       backValue = phi.second->GetOpnd(0);
     }
-    int meet = 0;
-    if (!CheckBasicIV(backValue, phiLhs, meet) || meet != 1) {
+    if (!data->currLoop->CheckBasicIV(backValue, phiLhs)) {
       continue;
     }
     auto *step = ResolveBasicIV(backValue, phiLhs, irMap->CreateIntConstMeExpr(0, phiLhs->GetPrimType()));

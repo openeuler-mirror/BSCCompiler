@@ -42,6 +42,8 @@ class SideEffect {
   void DealWithOperand(MeExpr *expr);
   void DealWithOst(OStIdx ostIdx);
   void DealWithStmt(MeStmt &stmt);
+  void DealWithMayUse(MeStmt &stmt);
+  void DealWithMayDef(MeStmt &stmt);
   void PropAllInfoFromCallee(const MeStmt &call, MIRFunction &callee);
   void PropParamInfoFromCallee(const MeStmt &call, MIRFunction &callee);
   void PropInfoFromOpnd(MeExpr &opnd, const PI &calleeParamInfo);

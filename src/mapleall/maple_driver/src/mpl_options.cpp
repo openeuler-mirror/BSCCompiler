@@ -104,7 +104,7 @@ ErrorCode MplOptions::Parse(int argc, char **argv) {
 
 ErrorCode MplOptions::HandleOptions() {
   if (opts::output.IsEnabledByUser() && GetActions().size() > 1) {
-    LogInfo::MapleLogger(kLlErr) << "Cannot specify -o when generating multiple output\n";
+    LogInfo::MapleLogger(kLlErr) << "Cannot specify -o with -c, -S when generating multiple output\n";
     return kErrorInvalidParameter;
   }
 
@@ -120,46 +120,28 @@ ErrorCode MplOptions::HandleOptions() {
     Triple::GetTriple().Init();
   }
 
-  if (!opts::safeRegionOption) {
-    if (opts::npeNoCheck) {
-      npeCheckMode = SafetyCheckMode::kNoCheck;
-    }
-
-    if (opts::npeStaticCheck) {
-      npeCheckMode = SafetyCheckMode::kStaticCheck;
-    }
-
-    if (opts::boundaryNoCheck) {
-      boundaryCheckMode = SafetyCheckMode::kNoCheck;
-    }
-
-    if (opts::boundaryStaticCheck) {
-      boundaryCheckMode = SafetyCheckMode::kStaticCheck;
-    }
-  } else { /* safeRegionOption is eanbled */
-    npeCheckMode = SafetyCheckMode::kDynamicCheck;
-    boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
-  }
-
-  if (opts::npeDynamicCheck) {
-    npeCheckMode = SafetyCheckMode::kDynamicCheck;
-  }
-
-  if (opts::npeDynamicCheckSilent) {
-    npeCheckMode = SafetyCheckMode::kDynamicCheckSilent;
-  }
-
-  if (opts::boundaryDynamicCheck) {
-    boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
-  }
-
-  if (opts::boundaryDynamicCheckSilent) {
-    boundaryCheckMode = SafetyCheckMode::kDynamicCheckSilent;
-  }
-
+  HandleSafeOptions();
   HandleExtraOptions();
 
   return kErrorNoError;
+}
+
+void MplOptions::HandleSafeOptions() {
+  if (!opts::safeRegionOption) {
+    npeCheckMode = opts::npeDynamicCheck ? SafetyCheckMode::kDynamicCheck :
+      (opts::npeStaticCheck ? SafetyCheckMode::kStaticCheck : npeCheckMode);
+    boundaryCheckMode = opts::boundaryDynamicCheck ? SafetyCheckMode::kDynamicCheck :
+      (opts::boundaryStaticCheck ? SafetyCheckMode::kStaticCheck : boundaryCheckMode);
+  } else { /* safeRegionOption is enabled, do not allowed to disable dynamic check */
+    npeCheckMode = SafetyCheckMode::kDynamicCheck;
+    boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
+  }
+  if (opts::npeDynamicCheckSilent) {
+    npeCheckMode = SafetyCheckMode::kDynamicCheckSilent;
+  }
+  if (opts::boundaryDynamicCheckSilent) {
+    boundaryCheckMode = SafetyCheckMode::kDynamicCheckSilent;
+  }
 }
 
 ErrorCode MplOptions::HandleEarlyOptions() {
@@ -335,10 +317,6 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       return nullptr;
   }
 
-  if (opts::maplePhase == true) {
-    isNeedAs = false;
-  }
-
   if (isNeedMapleComb) {
     if (isMultipleFiles) {
       selectedExes.push_back(kBinNameMapleCombWrp);
@@ -357,13 +335,13 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
     currentAction = std::move(newAction);
   }
 
-  if (isNeedAs) {
+  if (isNeedAs && !opts::onlyCompile.IsEnabledByUser()) {
     UpdateRunningExe(kAsFlag);
     newAction = std::make_unique<Action>(kAsFlag, inputInfo, currentAction);
     currentAction = std::move(newAction);
   }
 
-  if (!opts::compileWOLink) {
+  if (!opts::onlyCompile.IsEnabledByUser() && !opts::compileWOLink) {
     UpdateRunningExe(kLdFlag);
     /* "Linking step" Action can have several inputActions.
      * Each inputAction links to previous Actions to create the action tree.
@@ -530,7 +508,11 @@ std::string MplOptions::GetCommonOptionsStr() const {
     if (!(std::find(std::begin(extraExclude), std::end(extraExclude), opt) != std::end(extraExclude))) {
       for (const auto &val : opt->GetRawValues()) {
         if (!val.empty()) {
-          driverOptions += opt->GetName() + " " + val + " ";
+          if (opt->GetName() == "-Wl") {
+            driverOptions += val + " ";
+          } else {
+            driverOptions += opt->GetName() + " " + val + " ";
+          }
         } else {
           driverOptions += opt->GetName() + " ";
         }
@@ -722,11 +704,22 @@ ErrorCode MplOptions::AppendDefaultOptions(const std::string &exeName,
     auto &key = mplOptions[i].GetKey();
     auto &val = mplOptions[i].GetValue();
 
-    if (!val.empty()) {
-      exeOptions[exeName].push_front(val);
+    maplecl::OptionCategory category;
+    if (exeName == "me") {
+      category = meCategory;
+    } else if (exeName == "mpl2mpl") {
+      category = mpl2mplCategory;
+    } else if (exeName == "mplcg") {
+      category = cgCategory;
     }
-    if (!key.empty()) {
-      exeOptions[exeName].push_front(key);
+    auto item = category.options.find(std::string(key));
+    if (item != category.options.end() && !item->second->IsEnabledByUser()) {
+      if (!val.empty()) {
+        exeOptions[exeName].push_front(val);
+      }
+      if (!key.empty()) {
+        exeOptions[exeName].push_front(key);
+      }
     }
   }
 

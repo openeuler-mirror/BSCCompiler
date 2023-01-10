@@ -657,8 +657,7 @@ struct OffsetType {
   ~OffsetType() = default;
 
   void Set(int64 offsetVal) {
-    val = (offsetVal >= kOffsetMin && offsetVal <= kOffsetMax) ? static_cast<int32>(offsetVal)
-                                                               : kOffsetUnknown;
+    val = (offsetVal >= kOffsetMin && offsetVal <= kOffsetMax) ? static_cast<int32>(offsetVal) : kOffsetUnknown;
   }
 
   bool IsInvalid() const {

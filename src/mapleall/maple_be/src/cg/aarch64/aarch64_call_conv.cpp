@@ -103,9 +103,9 @@ PrimType TraverseStructFieldsForFp(MIRType *ty, uint32 &numRegs) {
 int32 ClassifyAggregate(const BECommon &be, MIRType &mirType, AArch64ArgumentClass classes[kMaxRegCount],
                         size_t classesLength, uint32 &fpSize);
 
-uint32 ProcessStructWhenClassifyAggregate(const BECommon &be, MIRStructType &structType,
-                                          AArch64ArgumentClass classes[kMaxRegCount],
-                                          size_t classesLength, uint32 &fpSize) {
+uint32 ProcessStructAndUnionWhenClassifyAggregate(const BECommon &be, MIRStructType &structType,
+                                                  AArch64ArgumentClass classes[kMaxRegCount],
+                                                  size_t classesLength, uint32 &fpSize) {
   CHECK_FATAL(classesLength > 0, "classLength must > 0");
   uint32 sizeOfTyInDwords = static_cast<uint32>(
       RoundUp(be.GetTypeSize(structType.GetTypeIndex()), k8ByteSize) >> k8BitShift);
@@ -141,7 +141,12 @@ uint32 ProcessStructWhenClassifyAggregate(const BECommon &be, MIRStructType &str
     for (uint32 i = 0; i < numRegs; ++i) {
       classes[i] = kAArch64FloatClass;
     }
+
     fpSize = isF32 ? k4ByteSize : k8ByteSize;
+    if (structType.GetKind() == kTypeUnion) {
+      /* For Union, numRegs is calculated for the maximum size element in this Union */
+      return sizeOfTyInDwords;
+    }
     return numRegs;
   }
 
@@ -188,9 +193,10 @@ int32 ClassifyAggregate(const BECommon &be, MIRType &mirType, AArch64ArgumentCla
   if ((mirType.GetKind() != kTypeStruct) && (mirType.GetKind() != kTypeArray) && (mirType.GetKind() != kTypeUnion)) {
     return ProcessNonStructAndNonArrayWhenClassifyAggregate(mirType, classes, classesLength);
   }
-  if (mirType.GetKind() == kTypeStruct) {
+  if (mirType.GetKind() == kTypeStruct || mirType.GetKind() == kTypeUnion) {
     MIRStructType &structType = static_cast<MIRStructType&>(mirType);
-    return static_cast<int32>(ProcessStructWhenClassifyAggregate(be, structType, classes, classesLength, fpSize));
+    return static_cast<int32>(ProcessStructAndUnionWhenClassifyAggregate(be, structType, classes,
+                                                                         classesLength, fpSize));
   }
   /* post merger clean-up */
   for (i = 0; i < sizeOfTyInDwords; ++i) {
@@ -208,14 +214,14 @@ uint32 AArch64CallConvImpl::FloatParamRegRequired(MIRStructType &structType, uin
     return 0;
   }
   AArch64ArgumentClass classes[kMaxRegCount];
-  uint32 numRegs = ProcessStructWhenClassifyAggregate(beCommon, structType, classes, kMaxRegCount, fpSize);
+  uint32 numRegs = ProcessStructAndUnionWhenClassifyAggregate(beCommon, structType, classes, kMaxRegCount, fpSize);
   if (numRegs == 0) {
     return 0;
   }
 
   bool isPure = true;
   for (uint i = 0; i < numRegs; ++i) {
-    ASSERT(i < kMaxRegCount, "i should be lower than kMaxRegCount");
+    CHECK_FATAL(i < kMaxRegCount, "i should be lower than kMaxRegCount");
     if (classes[i] != kAArch64FloatClass) {
       isPure = false;
       break;
@@ -267,7 +273,7 @@ int32 AArch64CallConvImpl::LocateRetVal(MIRType &retType, CCLocInfo &pLoc) {
   } else {
     /* For return struct size > 16 bytes the pointer returns in x8. */
     pLoc.reg0 = R8;
-    return kSizeOfPtr;
+    return GetPointerSize();
   }
 }
 
@@ -300,7 +306,7 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
   }
 
   if (isFirst) {
-    MIRFunction *func = tFunc != nullptr ? tFunc : const_cast<MIRFunction *>(beCommon.GetMIRModule().CurFunction());
+    MIRFunction *func = tFunc != nullptr ? tFunc : beCommon.GetMIRModule().CurFunction();
     if (func->IsFirstArgReturn()) {
       TyIdx tyIdx = func->GetFuncRetStructTyIdx();
       size_t size = beCommon.GetTypeSize(tyIdx);
@@ -310,7 +316,7 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
       }
       /* For return struct size > 16 bytes the pointer returns in x8. */
       pLoc.reg0 = R8;
-      return kSizeOfPtr;
+      return GetPointerSize();
     }
   }
   uint64 typeSize = beCommon.GetTypeSize(mirType.GetTypeIndex());
@@ -324,7 +330,8 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
    * We do the rounding up at the end of LocateNextParm(),
    * so we want to make sure our rounding up is correct.
    */
-  ASSERT((nextStackArgAdress & (std::max(typeAlign, static_cast<int32>(k8ByteSize)) - 1)) == 0,
+  ASSERT((nextStackArgAdress & (std::max(typeAlign, static_cast<int32>(k8ByteSize)) - 1)) == 0 ||
+         (typeAlign == k16ByteSize && ((nextStackArgAdress & (static_cast<int32>(k16ByteSize) - 1)) % k8ByteSize == 0)),
          "C.12 alignment requirement is violated");
   pLoc.memSize = static_cast<int32>(typeSize);
   ++paramNum;
@@ -376,6 +383,7 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
      * - callers marshall the two f64 numbers into one f128 register
      * - callees de-marshall one f128 value into the real and the imaginery part
      */
+    case PTY_f128:
     case PTY_c128:
     case PTY_v2i64:
     case PTY_v4i32:
@@ -429,7 +437,7 @@ int32 AArch64CallConvImpl::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, CCL
   typeSize = beCommon.GetTypeSize(mirType.GetTypeIndex().GetIdx());
   int32 aggCopySize = 0;
   if (typeSize > k16ByteSize) {
-    aggCopySize = static_cast<int32>(RoundUp(typeSize, kSizeOfPtr));
+    aggCopySize = static_cast<int32>(RoundUp(typeSize, GetPointerSize()));
   }
   /*
    * alignment requirement
@@ -564,6 +572,7 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
      * - callers marshall the two f64 numbers into one f128 register
      * - callees de-marshall one f128 value into the real and the imaginery part
      */
+    case PTY_f128:
     case PTY_c128:
     case PTY_v2i64:
     case PTY_v4i32:

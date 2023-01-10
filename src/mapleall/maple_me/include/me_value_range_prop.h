@@ -138,6 +138,12 @@ class Bound {
         GetRealValue(constant, pType) <= GetRealValue(rightBound.GetConstant(), pType);
   }
 
+  bool IsLessThan(const Bound rightBound, PrimType pType) const {
+    CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) < static_cast<uint64>(rightBound.GetConstant()) :
+        GetRealValue(constant, pType) < GetRealValue(rightBound.GetConstant(), pType);
+  }
+
   bool IsGreaterThanOrEqualTo(const Bound rightBound, PrimType pType) const {
     CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
     return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) >= static_cast<uint64>(rightBound.GetConstant()):
@@ -203,11 +209,19 @@ class Bound {
   bool operator<=(const Bound &bound) const;
 
   Bound &operator++() { // prefix inc
-    ++constant;
+    if (primType == PTY_u64) {
+      constant = static_cast<int64>(static_cast<uint64>(constant) + 1);
+    } else {
+      ++constant;
+    }
     return *this;
   }
   Bound &operator--() { // prefix dec
-    --constant;
+    if (primType == PTY_u64) {
+      constant = static_cast<int64>(static_cast<uint64>(constant) - 1);
+    } else {
+      --constant;
+    }
     return *this;
   }
 
@@ -593,13 +607,17 @@ class ValueRangePropagation {
     return it != caches.at(bbID).end() ? it->second.get() : nullptr;
   }
 
-  ValueRange *FindValueRangeInCaches(BBId bbID, int32 exprID, uint32 &numberOfRecursions, uint32 maxThreshold) {
+  ValueRange *GetVRAfterCvt(ValueRange &vr, PrimType pty) const;
+
+  ValueRange *FindValueRangeInCaches(
+      BBId bbID, int32 exprID, uint32 &numberOfRecursions, uint32 maxThreshold, PrimType pty) {
     if (numberOfRecursions++ > maxThreshold) {
       return nullptr;
     }
     auto it = caches.at(bbID).find(exprID);
     if (it != caches.at(bbID).end()) {
-      return it->second.get();
+      auto vr = it->second.get();
+      return (vr == nullptr) ? nullptr : GetVRAfterCvt(*vr, pty);
     }
     if (onlyRecordValueRangeInTempCache.top()) {
       auto itOfTemp = tempCaches.find(bbID);
@@ -612,7 +630,7 @@ class ValueRangePropagation {
     }
     auto *domBB = dom.GetDom(bbID.GetIdx());
     return (domBB == nullptr || domBB->GetID() == 0) ?
-        nullptr : FindValueRangeInCaches(BBId(domBB->GetID()), exprID, numberOfRecursions, maxThreshold);
+        nullptr : FindValueRangeInCaches(BBId(domBB->GetID()), exprID, numberOfRecursions, maxThreshold, pty);
   }
 
   void Insert2AnalysisedArrayChecks(BBId bbID, MeExpr &array, MeExpr &index, Opcode op) {

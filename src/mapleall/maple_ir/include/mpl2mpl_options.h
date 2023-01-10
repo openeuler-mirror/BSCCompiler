@@ -20,7 +20,7 @@
 #include "cl_parser.h"
 
 #include <bits/stdint-uintn.h>
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 
 namespace opts::mpl2mpl {
@@ -33,9 +33,11 @@ extern maplecl::Option<std::string> dumpFunc;
 extern maplecl::Option<bool> quiet;
 extern maplecl::Option<bool> mapleLinker;
 extern maplecl::Option<bool> regNativeFunc;
+
 extern maplecl::Option<bool> inlineWithProfile;
 extern maplecl::Option<bool> inlineOpt;
 extern maplecl::Option<bool> ipaClone;
+extern maplecl::Option<bool> ginlineOpt;
 extern maplecl::Option<std::string> noInlineFunc;
 extern maplecl::Option<std::string> importFileList;
 extern maplecl::Option<bool> crossModuleInline;
@@ -45,6 +47,17 @@ extern maplecl::Option<uint32_t> inlineRecursiveFunctionThreshold;
 extern maplecl::Option<uint32_t> inlineDepth;
 extern maplecl::Option<uint32_t> inlineModuleGrow;
 extern maplecl::Option<uint32_t> inlineColdFuncThresh;
+extern maplecl::Option<bool> respectAlwaysInline;
+extern maplecl::Option<uint32_t> ginlineMaxNondeclaredInlineCallee;
+extern maplecl::Option<uint32_t> ginlineMaxDepthIgnoreGrowthLimit;
+extern maplecl::Option<uint32_t> ginlineSmallFunc;
+extern maplecl::Option<uint32_t> ginlineRelaxSmallFuncDecalredInline;
+extern maplecl::Option<uint32_t> ginlineRelaxSmallFuncCanbeRemoved;
+extern maplecl::Option<std::string> callsiteProfilePath;
+extern maplecl::Option<bool> inlineToAllCallers;
+extern maplecl::Option<bool> ginlineAllowNondeclaredInlineSizeGrow;
+extern maplecl::Option<bool> ginlineAllowIgnoreGrowthLimit;
+
 extern maplecl::Option<uint32_t> profileHotCount;
 extern maplecl::Option<uint32_t> profileColdCount;
 extern maplecl::Option<uint32_t> profileHotRate;
@@ -100,6 +113,7 @@ extern maplecl::Option<uint32_t> inlineCache;
 extern maplecl::Option<bool> noComment;
 extern maplecl::Option<bool> rmNouseFunc;
 extern maplecl::Option<bool> sideEffect;
+extern maplecl::Option<bool> sideEffectWhiteList;
 extern maplecl::Option<bool> dumpIPA;
 extern maplecl::Option<bool> wpaa;
 extern maplecl::Option<uint32_t> numOfCloneVersions;
@@ -108,7 +122,8 @@ extern maplecl::Option<uint32_t> numOfImpExprHighBound;
 extern maplecl::Option<uint32_t> numOfCallSiteLowBound;
 extern maplecl::Option<uint32_t> numOfCallSiteUpBound;
 extern maplecl::Option<uint32_t> numOfConstpropValue;
-
+extern maplecl::Option<size_t> outlineThreshold;
+extern maplecl::Option<size_t> outlineRegionMax;
 }
 
 #endif /* MAPLE_IR_INCLUDE_MPL2MPL_OPTION_H */

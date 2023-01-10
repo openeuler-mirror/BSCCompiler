@@ -614,7 +614,7 @@ std::list<UniqueFEIRStmt> ASTGCCAsmStmt::Emit2FEStmtImpl() const {
   for (uint32 i = 0; i < inputs.size(); ++i) {
     UniqueFEIRExpr expr;
     if (inputs[i].second == "m") {
-      std::unique_ptr<ASTUOAddrOfExpr> addrOf = std::make_unique<ASTUOAddrOfExpr>();
+      std::unique_ptr<ASTUOAddrOfExpr> addrOf = std::make_unique<ASTUOAddrOfExpr>(allocator);
       addrOf->SetUOExpr(exprs[i + outputs.size()]);
       expr = addrOf->Emit2FEExpr(stmts);
     } else {

@@ -3801,7 +3801,8 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(const RegOperand &opnd, 
     MemOperand *loadmem = GetSpillOrReuseMem(*lr, isOutOfRange, insn, isdef);
 
     uint32 regSize = opnd.GetSize();
-    if (cgFunc->IsExtendReg(vregno)) {
+    if (cgFunc->IsExtendReg(vregno) && isdef) {
+      // ExtendReg is def32 and use64, so def point needs str 64bit
       regSize = k64BitSize;
     }
 

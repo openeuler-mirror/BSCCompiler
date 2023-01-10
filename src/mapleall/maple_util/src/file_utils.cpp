@@ -17,9 +17,9 @@
 #include <climits>
 #include <fstream>
 #include <unistd.h>
-#include "file_utils.h"
 #include "string_utils.h"
 #include "mpl_logging.h"
+#include "file_utils.h"
 
 #ifdef _WIN32
 #include <shlwapi.h>
@@ -47,10 +47,52 @@ const std::string kFileSeperatorStr = kFileSeperatorLinuxStyleStr;
 
 std::string FileUtils::SafeGetenv(const char *envVar) {
   const char *tmpEnvPtr = std::getenv(envVar);
-  CHECK_FATAL((tmpEnvPtr != nullptr), "Failed! Unable to find environment variable %s \n", envVar);
-
+  if (tmpEnvPtr == nullptr) {
+    return "";
+  }
   std::string tmpStr(tmpEnvPtr);
   return tmpStr;
+}
+
+std::string FileUtils::SafeGetPath(const char *cmd, const char *name) {
+  int size = 1024;
+  FILE *fp = NULL;
+  char buf[size];
+  if( (fp = popen(cmd, "r")) != NULL) {
+    while (fgets(buf, size, fp) != NULL) {}
+    pclose(fp);
+    fp = NULL;
+  } else {
+    CHECK_FATAL(false, "Failed! Unable to find path of %s \n", name);
+  }
+  std::string path(buf);
+  int last = path.find_last_of('/') + 1; // 1 means include "/"
+  path = path.substr(0, last);
+  return path;
+}
+
+void FileUtils::checkGCCVersion(const char *cmd) {
+  int size = 1024;
+  FILE *fp = NULL;
+  char buf[size];
+  if( (fp = popen(cmd, "r")) != NULL) {
+    while (fgets(buf, size, fp) != NULL) {}
+    pclose(fp);
+    fp = NULL;
+  } else {
+    CHECK_FATAL(false, "Failed to obtain the aarch64-linux-gnu-gcc version number.\n");
+  }
+  if (buf[0] != 0) {
+    // 53 is ASCII of 5
+    if(buf[0] < 53) {
+      CHECK_FATAL(false, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
+    }
+  }
+  if (buf[2] != 0) {
+    if(buf[2] < 53) {
+      CHECK_FATAL(false, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
+    }
+  }
 }
 
 std::string FileUtils::GetRealPath(const std::string &filePath) {

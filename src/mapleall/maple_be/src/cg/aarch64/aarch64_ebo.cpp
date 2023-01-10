@@ -833,6 +833,7 @@ bool AArch64Ebo::ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *
   MemOperand *memOpnd = static_cast<MemOperand*>(prevInsn->GetMemOpnd());
   ASSERT(!prevInsn->IsStorePair(), "do not do this opt for str pair");
   ASSERT(!prevInsn->IsLoadPair(), "do not do this opt for ldr pair");
+  CHECK_FATAL(memOpnd != nullptr, "memOpnd should not be nullptr");
   if (memOpnd->GetAddrMode() == MemOperand::kBOI &&
       !a64CGFunc->IsOperandImmValid(newMop, prevInsn->GetMemOpnd(), kInsnSecondOpnd)) {
     return false;
@@ -866,8 +867,8 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
 
   MOperator prevMop = prevInsn->GetMachineOpcode();
   ASSERT(prevMop != MOP_undef, "Invalid opcode of instruction!");
-  PairMOperator *begin = &extInsnPairTable[idx][0];
-  PairMOperator *end = &extInsnPairTable[idx][kInsPairsNum];
+  PairMOperator *begin = &(extInsnPairTable[idx][0]);
+  PairMOperator *end = &(extInsnPairTable[idx][kInsPairsNum]);
   auto pairIt = std::find_if(begin, end, [prevMop](const PairMOperator insPair) {
     return prevMop == insPair[0];
   });

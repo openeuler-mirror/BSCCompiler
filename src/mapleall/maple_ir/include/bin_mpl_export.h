@@ -18,7 +18,7 @@
 #include "mir_nodes.h"
 #include "mir_function.h"
 #include "mir_preg.h"
-#include "mir_enumeration.h"
+#include "mir_enum.h"
 #include "parser_opt.h"
 #include "ea_connection_graph.h"
 
@@ -92,6 +92,7 @@ enum : uint8 {
   kBinLocalWordsRefCounter = 65,
   kBinKindConstAddrofLabel = 66,
   kBinKindConstAddrofLocal = 67,
+  kBinKindConstFloat128 = 68,
 };
 
 // this value is used to check wether a file is a binary mplt file
@@ -104,7 +105,7 @@ class BinaryMplExport {
   void Export(const std::string &fname, std::unordered_set<std::string> *dumpFuncSet);
   void WriteNum(int64 x);
   void Write(uint8 b);
-  void OutputType(TyIdx tyIdx);
+  void OutputType(const TyIdx &tyIdx);
   void WriteFunctionBodyField(uint64 contentIdx, std::unordered_set<std::string> *dumpFuncSet);
   void OutputConst(MIRConst *constVal);
   void OutputConstBase(const MIRConst &constVal);
@@ -177,7 +178,7 @@ class BinaryMplExport {
   int32 ReadInt();
   void WriteInt64(int64 x);
   void WriteAsciiStr(const std::string &str);
-  void Fixup(size_t i, int32 x);
+  void Fixup(size_t i, uint32 x);
   void DumpBuf(const std::string &name);
   void AppendAt(const std::string &name, int32 offset);
   void ExpandFourBuffSize();

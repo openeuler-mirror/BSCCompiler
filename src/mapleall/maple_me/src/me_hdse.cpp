@@ -17,6 +17,7 @@
 #include <iostream>
 
 #include "hdse.h"
+#include "me_phase_manager.h"
 #include "me_ssa.h"
 #include "ssa_mir_nodes.h"
 #include "ver_symbol.h"
@@ -170,6 +171,7 @@ void MEHdse::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEDominance>();
   aDep.AddRequired<MEAliasClass>();
   aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MELoopAnalysis>();
   aDep.PreservedAllExcept<MEDominance>();
   aDep.PreservedAllExcept<MELoopAnalysis>();
 }
@@ -182,16 +184,28 @@ bool MEHdse::PhaseRun(maple::MeFunction &f) {
     return false;
   }
   f.hdseRuns++;
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  IdentifyLoops *loops = nullptr;
+  if (f.hdseRuns > 2) {
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MELoopCanon::id, f);
+    loops = GET_ANALYSIS(MELoopAnalysis, f);
+    if (DEBUGFUNC_NEWPM(f)) {
+      loops->Dump();
+    }
+  }
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto *dom = dominancePhase->GetDomResult();
   CHECK_NULL_FATAL(dom);
+  auto *pdom = dominancePhase->GetPdomResult();
+  CHECK_NULL_FATAL(pdom);
   auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
   CHECK_NULL_FATAL(aliasClass);
   auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(hMap);
 
-  MeHDSE hdse = MeHDSE(f, *dom, *hMap, aliasClass, DEBUGFUNC_NEWPM(f));
+  MeHDSE hdse = MeHDSE(f, *dom, *pdom, *hMap, aliasClass, DEBUGFUNC_NEWPM(f));
   hdse.hdseKeepRef = MeOption::dseKeepRef;
   hdse.SetUpdateFreq(Options::profileUse && f.GetMirFunc()->GetFuncProfData());
+  hdse.SetLoops(loops);
   if (f.hdseRuns > 2) {
     hdse.SetRemoveRedefine(true);
   }

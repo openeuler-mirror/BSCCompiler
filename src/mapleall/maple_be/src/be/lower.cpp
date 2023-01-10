@@ -1447,6 +1447,11 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
       break;
     }
     case OP_intrinsiccallwithtypeassigned: {
+      IntrinsiccallNode &intrinCall = static_cast<IntrinsiccallNode&>(stmt);
+      auto intrinsicID = intrinCall.GetIntrinsic();
+      if (IntrinDesc::intrinTable[intrinsicID].IsAtomic()) {
+        return LowerIntrinsiccallAassignedToAssignStmt(intrinCall);
+      }
       auto &origCall = static_cast<IntrinsiccallNode&>(stmt);
       newCall = GenIntrinsiccallNode(stmt, funcCalled, handledAtLowerLevel, origCall);
       p2nRets = &origCall.GetReturnVec();

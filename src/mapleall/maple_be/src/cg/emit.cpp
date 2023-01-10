@@ -750,11 +750,15 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
     }
     case kConstFloat128Const: {
       MIRFloat128Const &ldoubleCt = static_cast<MIRFloat128Const&>(mirConst);
-      const int *wVal = ldoubleCt.GetWordPtr();
+      const unsigned int *wVal = ldoubleCt.GetWordPtr();
       const int mod = k16ByteFloat128Size / sizeof(int);
       for (int i = 0; i < mod; i++) {
         EmitAsmLabel(asmName);
-        Emit(std::to_string(wVal[(i + 2) % mod]) + ((i < mod - 1) ? "\n" : ""));
+        if (!CGOptions::IsBigEndian()) {
+          Emit(std::to_string(wVal[(i + 2) % mod]) + ((i < mod - 1) ? "\n" : ""));
+        } else {
+          Emit(std::to_string(wVal[mod - 1 - (i + 2) % mod]) + ((i < mod - 1) ? "\n" : ""));
+        }
       }
       if (isFlexibleArray) {
         arraySize += k16ByteFloat128Size;

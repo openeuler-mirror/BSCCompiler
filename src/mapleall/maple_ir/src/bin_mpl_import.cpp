@@ -108,7 +108,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
   ImportConstBase(kind, type);
   switch (tag) {
     case kBinKindConstInt:
-      return GlobalTables::GetIntConstTable().GetOrCreateIntConst(ReadNum(), *type);
+      return GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<uint64_t>(ReadNum()), *type);
     case kBinKindConstAddrof: {
       MIRSymbol *sym = InSymbol(func);
       CHECK_FATAL(sym != nullptr, "null ptr check");
@@ -176,6 +176,12 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
 
       value.ivalue = ReadNum();
       return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(value.dvalue);
+    }
+    case kBinKindConstFloat128: {
+      uint64 f128Pair[2];
+      f128Pair[0] = static_cast<uint64>(ReadNum());
+      f128Pair[1] = static_cast<uint64>(ReadNum());
+      return GlobalTables::GetFpConstTable().GetOrCreateFloat128Const(f128Pair);
     }
     case kBinKindConstAgg: {
       MIRAggConst *aggConst = mod.GetMemPool()->New<MIRAggConst>(mod, *type);
@@ -611,7 +617,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       size_t idx = typTab.size();
       typTab.push_back(TyIdx(0));
       type.SetRetTyIdx(ImportType());
-      type.funcAttrs.SetAttrFlag(ReadNum());
+      type.funcAttrs.SetAttrFlag(static_cast<uint64_t>(ReadNum()));
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         type.GetParamTypeList().push_back(ImportType());
@@ -771,7 +777,7 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
       MIRFuncType type(strIdx);
       type.SetNameIsLocal(nameIsLocal);
       type.SetRetTyIdx(ImportTypeNonJava());
-      type.funcAttrs.SetAttrFlag(ReadNum());
+      type.funcAttrs.SetAttrFlag(static_cast<uint64_t>(ReadNum()));
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         type.GetParamTypeList().push_back(ImportTypeNonJava());
@@ -1122,7 +1128,7 @@ void BinaryMplImport::ReadHeaderField() {
   mod.SetID(static_cast<uint16>(ReadNum()));
   if (mod.GetFlavor() == kFlavorLmbc) {
     mod.SetGlobalMemSize(static_cast<uint32>(ReadNum()));
-    mod.SetWithDbgInfo(static_cast<uint32>(ReadNum()));
+    mod.SetWithDbgInfo(ReadNum() != 0);
   }
   mod.SetNumFuncs(static_cast<uint32>(ReadNum()));
   std::string inStr;
@@ -1198,7 +1204,7 @@ void BinaryMplImport::ImportEnumeration() {
   PrimType ptyp = static_cast<PrimType>(Read());
   GStrIdx gStrIdx = ImportStr();
   MIREnum *mirEnum = new MIREnum(ptyp, gStrIdx);
-  size_t siz = ReadNum();
+  size_t siz = static_cast<size_t>(ReadNum());
   for (size_t i = 0; i < siz; i++) {
     gStrIdx = ImportStr();
     IntVal intVal(ReadNum(), ptyp);
@@ -1212,7 +1218,7 @@ void BinaryMplImport::ReadEnumField() {
 
   int32 size = ReadInt();
   for (int64 i = 0; i < size; ++i) {
-    (void)ImportEnumeration();
+    ImportEnumeration();
   }
   int64 tag = ReadNum();
   CHECK_FATAL(tag == ~kBinEnumStart, "pattern mismatch in Reading ENUM");

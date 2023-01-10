@@ -610,6 +610,8 @@ bool MIRParser::ParseStmtSwitch(StmtNodePtr &stmt) {
   }
   if (lexer.NextToken() == TK_label) {
     switchNode->SetDefaultLabel(mod.CurFunction()->GetOrCreateLableIdxFromName(lexer.GetName()));
+  } else if (lexer.GetTokenKind() == TK_intconst && lexer.GetTheIntVal() == 0) {
+    switchNode->SetDefaultLabel(0);
   } else {
     Error("expect label in switch but get ");
     return false;
@@ -3209,6 +3211,10 @@ bool MIRParser::ParseScalarValue(MIRConstPtr &stype, MIRType &type) {
     }
     MIRDoubleConst *dconst = GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(lexer.GetTheDoubleVal());
     stype = dconst;
+  } else if (ptp == PTY_f128) {
+    type.SetPrimType(PTY_f128);
+    MIRFloat128Const *ldconst = GlobalTables::GetFpConstTable().GetOrCreateFloat128Const(lexer.GetTheLongDoubleVal());
+    stype = ldconst;
   } else {
     return false;
   }

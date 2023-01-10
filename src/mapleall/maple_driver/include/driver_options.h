@@ -33,6 +33,8 @@ static maplecl::OptionCategory &dex2mplCategory = maplecl::CommandLine::GetComma
 static maplecl::OptionCategory &jbc2mplCategory = maplecl::CommandLine::GetCommandLine().jbc2mplCategory;
 static maplecl::OptionCategory &ipaCategory = maplecl::CommandLine::GetCommandLine().ipaCategory;
 
+static maplecl::OptionCategory &unSupCategory = maplecl::CommandLine::GetCommandLine().unSupCategory;
+
 namespace opts {
 
 /* ##################### BOOL Options ############################################################### */
@@ -76,6 +78,25 @@ extern maplecl::Option<bool> missingProfDataIsError;
 extern maplecl::Option<bool> stackProtectorStrong;
 extern maplecl::Option<bool> stackProtectorAll;
 extern maplecl::Option<bool> inlineAsWeak;
+extern maplecl::Option<bool> enableArithCheck;
+extern maplecl::Option<bool> enableCallFflush;
+extern maplecl::Option<bool> onlyCompile;
+extern maplecl::Option<bool> unUsePlt;
+extern maplecl::Option<bool> usePipe;
+extern maplecl::Option<bool> fDataSections;
+extern maplecl::Option<bool> fRegStructReturn;
+extern maplecl::Option<bool> fTreeVectorize;
+extern maplecl::Option<bool> fNoStrictAliasing;
+extern maplecl::Option<bool> fNoFatLtoObjects;
+extern maplecl::Option<bool> gcSections;
+extern maplecl::Option<bool> copyDtNeededEntries;
+extern maplecl::Option<bool> sOpt;
+extern maplecl::Option<bool> noStdinc;
+extern maplecl::Option<bool> pie;
+extern maplecl::Option<bool> fStrongEvalOrder;
+extern maplecl::Option<bool> linkerTimeOpt;
+extern maplecl::Option<bool> usesignedchar;
+extern maplecl::Option<bool> expand128Floats;
 
 /* ##################### STRING Options ############################################################### */
 
@@ -105,10 +126,46 @@ extern maplecl::List<std::string> includeSystem;
 extern maplecl::Option<std::string> output;
 extern maplecl::Option<std::string> saveTempOpt;
 extern maplecl::Option<std::string> target;
+extern maplecl::Option<std::string> linkerTimeOptE;
+extern maplecl::Option<std::string> setDefSymVisi ;
+extern maplecl::Option<std::string> MT;
+extern maplecl::Option<std::string> MF;
+extern maplecl::Option<std::string> std;
+extern maplecl::Option<std::string> Wl;
+extern maplecl::Option<std::string> setDefSymVisi;
+extern maplecl::Option<std::string> fStrongEvalOrderE;
+extern maplecl::Option<std::string> march;
+extern maplecl::Option<std::string> sysRoot;
 
 /* ##################### DIGITAL Options ############################################################### */
 
 extern maplecl::Option<uint32_t> helpLevel;
+
+/* ##################### Warnings Options ############################################################### */
+
+extern maplecl::Option<bool> wUnusedMacro;
+extern maplecl::Option<bool> wBadFunctionCast;
+extern maplecl::Option<bool> wStrictPrototypes;
+extern maplecl::Option<bool> wUndef;
+extern maplecl::Option<bool> wCastQual;
+extern maplecl::Option<bool> wMissingFieldInitializers;
+extern maplecl::Option<bool> wUnusedParameter;
+extern maplecl::Option<bool> wAll;
+extern maplecl::Option<bool> wExtra;
+extern maplecl::Option<bool> wWriteStrings;
+extern maplecl::Option<bool> wVla;
+extern maplecl::Option<bool> wFormatSecurity;
+extern maplecl::Option<bool> wShadow;
+extern maplecl::Option<bool> wTypeLimits;
+extern maplecl::Option<bool> wSignCompare;
+extern maplecl::Option<bool> wShiftNegativeValue;
+extern maplecl::Option<bool> wPointerArith;
+extern maplecl::Option<bool> wIgnoredQualifiers;
+extern maplecl::Option<bool> wFormat;
+extern maplecl::Option<bool> wFloatEqual;
+extern maplecl::Option<bool> wDateTime;
+extern maplecl::Option<bool> wImplicitFallthrough;
+extern maplecl::Option<bool> wShiftOverflow;
 
 /* #################################################################################################### */
 

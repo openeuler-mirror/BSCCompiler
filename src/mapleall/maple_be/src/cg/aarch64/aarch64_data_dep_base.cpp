@@ -396,6 +396,7 @@ void AArch64DataDepBase::BuildStackPassArgsDeps(Insn &insn) {
     Operand *opnd = stackDefInsn->GetMemOpnd();
     ASSERT(opnd->IsMemoryAccessOperand(), "make sure opnd is memOpnd");
     auto *memOpnd = static_cast<MemOperand*>(opnd);
+    CHECK_FATAL(memOpnd != nullptr, "memOpnd should not be nullptr");
     RegOperand *baseReg = memOpnd->GetBaseRegister();
     if ((baseReg != nullptr) && (baseReg->GetRegisterNumber() == RSP)) {
       AddDependence(*stackDefInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);

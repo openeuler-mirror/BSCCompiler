@@ -206,7 +206,9 @@ void DriverRunner::SolveCrossModuleInC(MIRParser &parser) const {
 
 ErrorCode DriverRunner::ParseInput() const {
   CHECK_MODULE(kErrorExit);
-  LogInfo::MapleLogger() << "Starting parse input" << '\n';
+  if (opts::debug) {
+    LogInfo::MapleLogger() << "Starting parse input" << '\n';
+  }
   MPLTimer timer;
   timer.Start();
   MIRParser parser(*theModule);
@@ -235,7 +237,9 @@ ErrorCode DriverRunner::ParseInput() const {
     SolveCrossModuleInC(parser);
   }
   timer.Stop();
-  LogInfo::MapleLogger() << "Parse consumed " << timer.Elapsed() << "s" << '\n';
+  if (opts::debug) {
+    LogInfo::MapleLogger() << "Parse consumed " << timer.Elapsed() << "s" << '\n';
+  }
   return ret;
 }
 
@@ -263,7 +267,9 @@ ErrorCode DriverRunner::ParseSrcLang(MIRSrcLang &srcLang) const {
 }
 
 void DriverRunner::RunNewPM(const std::string &output, const std::string &vtableImplFile) {
-  LogInfo::MapleLogger() << "Processing maplecomb in new phasemanager" << '\n';
+  if (opts::debug) {
+    LogInfo::MapleLogger() << "Processing maplecomb in new phasemanager" << '\n';
+  }
   auto pmMemPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "PM module mempool");
   const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(&MEBETopLevelManager::id);
   auto *topLevelPhaseManager = static_cast<MEBETopLevelManager*>(curPhase->GetConstructor()(pmMemPool.get()));
@@ -292,12 +298,14 @@ void DriverRunner::RunNewPM(const std::string &output, const std::string &vtable
   }
   pmMemPool.reset();
   timer.Stop();
-  LogInfo::MapleLogger() << "maplecomb consumed " << timer.Elapsed() << "s" << '\n';
-  // dump vectorized loop counter here
-  {
-    LogInfo::MapleLogger() << "\n" << LoopVectorization::vectorizedLoop << " loop vectorized\n";
-    LogInfo::MapleLogger() << "\n" << SeqVectorize::seqVecStores << " sequencestores vectorized\n";
-    LogInfo::MapleLogger() << "\n" << LfoUnrollOneLoop::countOfLoopsUnrolled << " loops unrolled\n";
+  if (opts::debug) {
+    LogInfo::MapleLogger() << "maplecomb consumed " << timer.Elapsed() << "s" << '\n';
+    // dump vectorized loop counter here
+    {
+      LogInfo::MapleLogger() << "\n" << LoopVectorization::vectorizedLoop << " loop vectorized\n";
+      LogInfo::MapleLogger() << "\n" << SeqVectorize::seqVecStores << " sequencestores vectorized\n";
+      LogInfo::MapleLogger() << "\n" << LfoUnrollOneLoop::countOfLoopsUnrolled << " loops unrolled\n";
+    }
   }
 }
 
@@ -327,7 +335,9 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
   if (cgOptions == nullptr) {
     return;
   }
-  LogInfo::MapleLogger() << "Processing mplcg in new phaseManager" << '\n';
+  if (opts::debug) {
+    LogInfo::MapleLogger() << "Processing mplcg in new phaseManager" << '\n';
+  }
   MPLTimer timer;
   timer.Start();
   theModule->SetBaseName(originBaseName);
@@ -358,7 +368,9 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
     theMIRModule->GetDbgInfo()->ClearDebugInfo();
   }
   theMIRModule->ReleasePragmaMemPool();
-  LogInfo::MapleLogger() << "Mplcg consumed " << timer.ElapsedMilliseconds() << "ms" << '\n';
+  if (opts::debug) {
+    LogInfo::MapleLogger() << "Mplcg consumed " << timer.ElapsedMilliseconds() << "ms" << '\n';
+  }
 }
 
 void DriverRunner::InitProfile() const {

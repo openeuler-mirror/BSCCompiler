@@ -73,7 +73,12 @@ std::string AsCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
-  return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
+  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
+    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
+  } else if (FileUtils::SafeGetenv(kAsPath) != "") {
+    return FileUtils::SafeGetenv(kAsPath);
+  }
+  return FileUtils::SafeGetPath("which aarch64-linux-gnu-as", "aarch64-linux-gnu-as");
 #endif
 }
 

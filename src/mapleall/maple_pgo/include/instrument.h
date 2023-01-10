@@ -20,7 +20,7 @@
 #include "mir_function.h"
 
 namespace maple {
-MIRSymbol *GetOrCreateProfSymForFunc(MIRFunction &func, uint32 elemCnt);
+MIRSymbol *GetOrCreateFuncCounter(MIRFunction &func, uint32 elemCnt);
 
 template<typename BB>
 class BBEdge {

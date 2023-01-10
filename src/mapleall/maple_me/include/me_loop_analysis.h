@@ -54,6 +54,10 @@ struct LoopDesc {
     return false;
   }
 
+  bool CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, bool onlyStepOne = false) const;
+  bool CheckStepOneIV(MeExpr *solve, ScalarMeExpr *phiLhs) const;
+  bool IsFiniteLoop() const;
+
   void InsertInloopBB2exitBBs(const BB &bb, BB &value) {
     BBId key = bb.GetBBId();
     if (inloopBB2exitBBs.find(key) == inloopBB2exitBBs.end()) {
@@ -108,6 +112,10 @@ struct LoopDesc {
     return IsCanonicalLoop() && inloopBB2exitBBs.size() == 1 && inloopBB2exitBBs.begin()->second != nullptr &&
         inloopBB2exitBBs.begin()->second->size() == 1;
   }
+
+ private:
+  bool DoCheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet, bool tryProp = false,
+      bool onlyStepOne = false) const;
 };
 
 // IdentifyLoop records all the loops in a MeFunction.

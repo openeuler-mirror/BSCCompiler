@@ -141,6 +141,17 @@ maplecl::Option<bool> safeRegionOption({"--safe-region"},
                                   "  --safe-region               \tEnable safe region\n",
                                   {driverCategory});
 
+maplecl::Option<bool> enableArithCheck({"--boundary-arith-check"},
+                                  "  --boundary-arith-check       \tEnable pointer arithmetic check\n",
+                                  {driverCategory});
+
+maplecl::Option<bool> enableCallFflush({"--boudary-dynamic-call-fflush"},
+                                  "  --boudary-dynamic-call-fflush    \tEnable call fflush function to flush "
+                                  "boundary-dynamic-check error message to the STDOUT\n",
+                                  {driverCategory});
+
+maplecl::Option<bool> onlyCompile({"-S"}, "Only run preprocess and compilation steps", {driverCategory});
+
 maplecl::Option<bool> printDriverPhases({"--print-driver-phases"},
                                    "  --print-driver-phases       \tPrint Driver Phases\n",
                                    {driverCategory});
@@ -177,8 +188,8 @@ maplecl::Option<bool> missingProfDataIsError({"--missing-profdata-is-error"},
                           {driverCategory},
                           maplecl::DisableWith("--no-missing-profdata-is-error"),
                           maplecl::Init(true));
-maplecl::Option<bool> stackProtectorStrong({"--stack-protector-strong"},
-                                           "  --stack-protector-strong        \tadd stack guard for some function\n",
+maplecl::Option<bool> stackProtectorStrong({"--stack-protector-strong", "-fstack-protector-strong"},
+                                           "  -fstack-protector-strong        \tadd stack guard for some function\n",
                                            {driverCategory, meCategory, cgCategory});
 
 maplecl::Option<bool> stackProtectorAll({"--stack-protector-all"},
@@ -188,6 +199,74 @@ maplecl::Option<bool> stackProtectorAll({"--stack-protector-all"},
 maplecl::Option<bool> inlineAsWeak({"-inline-as-weak", "--inline-as-weak"},
                                    "  --inline-as-weak              \tSet inline functions as weak symbols"
                                    " as it's in C++\n", {driverCategory, hir2mplCategory});
+maplecl::Option<bool> expand128Floats({"--expand128floats"},
+                                      "  --expand128floats        \tEnable expand128floats pass\n",
+                                      {driverCategory},
+                                      maplecl::DisableWith("--no-expand128floats"),
+                                      maplecl::hide, maplecl::Init(true));
+
+maplecl::Option<bool> MD({"-MD"},
+                    "  -MD                         \tWrite a depfile containing user and system headers\n",
+                    {driverCategory, unSupCategory});
+
+maplecl::Option<bool> unUsePlt({"-fno-plt"},
+                    "  -fno-plt                \tDo not use the PLT to make function calls\n",
+                    {driverCategory, unSupCategory});
+
+maplecl::Option<bool> usePipe({"-pipe"},
+                    "  -pipe                   \tUse pipes between commands, when possible\n",
+                    {driverCategory, unSupCategory});
+
+maplecl::Option<bool> fDataSections({"-fdata-sections"},
+                    "  -fdata-sections         \tPlace each data in its own section (ELF Only)\n",
+                    {driverCategory, unSupCategory});
+
+maplecl::Option<bool> fRegStructReturn({"-freg-struct-return"},
+                    "  -freg-struct-return     \tOverride the default ABI to return small structs in registers\n",
+                    {driverCategory});
+
+maplecl::Option<bool> fTreeVectorize({"-ftree-vectorize"},
+                    "  -ftree-vectorize    \tEnable vectorization on trees\n",
+                    {driverCategory});
+
+maplecl::Option<bool> fNoFatLtoObjects({"-fno-fat-lto-objects"},
+                    "  -fno-fat-lto-objects    \tSpeeding up lto compilation\n",
+                    {driverCategory, unSupCategory});
+
+maplecl::Option<bool> gcSections({"--gc-sections"},
+                    "  -gc-sections    \tDiscard all sections that are not accessed in the final elf\n",
+                    {driverCategory, ldCategory});
+
+maplecl::Option<bool> copyDtNeededEntries({"--copy-dt-needed-entries"},
+                    "  --copy-dt-needed-entries    \tGenerate a DT_NEEDED entry for each lib that is present in"
+                    " the link command.\n",
+                    {driverCategory, ldCategory});
+
+maplecl::Option<bool> sOpt({"-s"},
+                    "  -s    \t\n",
+                    {driverCategory, ldCategory});
+
+maplecl::Option<bool> noStdinc({"-nostdinc"},
+                    "  -s    \tDo not search standard system include directories"
+                    "(those specified with -isystem will still be used).\n",
+                    {driverCategory, clangCategory});
+
+maplecl::Option<bool> pie({"-pie"},
+                    "  -pie    \tCreate a position independent executable.\n",
+                    {driverCategory, ldCategory});
+
+maplecl::Option<bool> fStrongEvalOrder({"-fstrong-eval-order"},
+                            "  -fstrong-eval-order    \tFollow the C++17 evaluation order requirements"
+                            "for assignment expressions, shift, member function calls, etc.\n",
+                            {driverCategory, unSupCategory});
+
+maplecl::Option<bool> linkerTimeOpt({"-flto"},
+                            "  -flto                   \tEnable LTO in 'full' mode\n",
+                            {driverCategory, unSupCategory});
+
+maplecl::Option<bool> usesignedchar({"-fsigned-char"},
+                               "  -fsigned-char          \tuse signed char",
+                               {driverCategory, hir2mplCategory});
 
 /* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},
@@ -294,7 +373,7 @@ maplecl::List<std::string> includeDir({"-I"},
                                  {driverCategory, clangCategory},
                                  maplecl::joinedValue);
 
-maplecl::List<std::string> includeSystem({"--isystem"},
+maplecl::List<std::string> includeSystem({"-isystem"},
                                     "  -isystem <dir>              \tAdd directory to SYSTEM include search path\n",
                                     {driverCategory, clangCategory},
                                     maplecl::joinedValue);
@@ -317,6 +396,45 @@ maplecl::Option<std::string> target({"--target", "-target"},
                                "  \t\t\t\tExample: --target=aarch64-gnu or --target=aarch64_be-gnuilp32\n",
                                {driverCategory, hir2mplCategory, dex2mplCategory, ipaCategory});
 
+maplecl::Option<std::string> MT({"-MT"},
+                           "  -MT<args>                   \tSpecify name of main file output in depfile\n",
+                           {driverCategory, unSupCategory}, maplecl::joinedValue);
+
+maplecl::Option<std::string> MF({"-MF"},
+                           "  -MF<file>                   \tWrite depfile output from -MD, -M to <file>\n",
+                           {driverCategory, clangCategory}, maplecl::joinedValue);
+
+
+maplecl::Option<std::string> std({"-std"},
+                            "  -std \t\n",
+                            {driverCategory, clangCategory, ldCategory, unSupCategory});
+
+maplecl::Option<std::string> Wl({"-Wl"},
+                            "  -Wl,<arg>               \tPass the comma separated arguments in <arg> to the linker\n",
+                            {driverCategory, ldCategory}, maplecl::joinedValue);
+
+maplecl::Option<std::string> linkerTimeOptE({"-flto="},
+                            "  -flto=<value>           \tSet LTO mode to either 'full' or 'thin'\n",
+                            {driverCategory, unSupCategory});
+
+maplecl::Option<std::string> setDefSymVisi({"-fvisibility"},
+                            "  -fvisibility=<value>    \tSet the default symbol visibility for all global declarationse",
+                            {driverCategory, unSupCategory});
+
+maplecl::Option<std::string> fStrongEvalOrderE({"-fstrong-eval-order="},
+                            "  -fstrong-eval-order    \tFollow the C++17 evaluation order requirements"
+                            "for assignment expressions, shift, member function calls, etc.\n",
+                            {driverCategory, unSupCategory});
+
+maplecl::Option<std::string> march({"-march"},
+                            "  -march=    \tGenerate code for given CPU.\n",
+                            {driverCategory, clangCategory});
+
+maplecl::Option<std::string> sysRoot({"--sysroot"},
+                            "  --sysroot <value>    \tSet the root directory of the target platform.\n"
+                            "  --sysroot=<value>    \tSet the root directory of the target platform.\n",
+                            {driverCategory, clangCategory});
+
 /* ##################### DIGITAL Options ############################################################### */
 
 maplecl::Option<uint32_t> helpLevel({"--level"},
@@ -326,6 +444,126 @@ maplecl::Option<uint32_t> helpLevel({"--level"},
                                "                              \tNUM=2: Experimental options\n"
                                "                              \tNUM=3: Debug options\n",
                                {driverCategory});
+
+/* ##################### Warnings Options ############################################################### */
+
+maplecl::Option<bool> wUnusedMacro({"-Wunused-macros"},
+                              "  -Wunused-macros             \twarning: macro is not used\n",
+                              {driverCategory, clangCategory});
+
+maplecl::Option<bool> wBadFunctionCast({"-Wbad-function-cast"},
+                                  "  -Wbad-function-cast         \twarning: "
+                                  "cast from function call of type A to non-matching type B\n",
+                                  {driverCategory, clangCategory});
+
+maplecl::Option<bool> wStrictPrototypes({"-Wstrict-prototypes"},
+                                   "  -Wstrict-prototypes         \twarning: "
+                                   "Warn if a function is declared or defined without specifying the argument types\n",
+                                   {driverCategory, clangCategory});
+
+maplecl::Option<bool> wUndef({"-Wundef"},
+                        "  -Wundef                     \twarning: "
+                        "Warn if an undefined identifier is evaluated in an #if directive. "
+                        "Such identifiers are replaced with zero\n",
+                        {driverCategory, clangCategory});
+
+maplecl::Option<bool> wCastQual({"-Wcast-qual"},
+                           "  -Wcast-qual                 \twarning: "
+                           "Warn whenever a pointer is cast so as to remove a type qualifier from the target type. "
+                           "For example, warn if a const char * is cast to an ordinary char *\n",
+                           {driverCategory, clangCategory});
+
+maplecl::Option<bool> wMissingFieldInitializers({"-Wmissing-field-initializers"},
+                                           "  -Wmissing-field-initializers\twarning: "
+                                           "Warn if a structure’s initializer has some fields missing\n",
+                                           {driverCategory, clangCategory},
+                                           maplecl::DisableWith("-Wno-missing-field-initializers"));
+
+maplecl::Option<bool> wUnusedParameter({"-Wunused-parameter"},
+                                  "  -Wunused-parameter       \twarning: "
+                                  "Warn whenever a function parameter is unused aside from its declaration\n",
+                                  {driverCategory, clangCategory},
+                                  maplecl::DisableWith("-Wno-unused-parameter"));
+
+maplecl::Option<bool> wAll({"-Wall"},
+                      "  -Wall                    \tThis enables all the warnings about constructions "
+                      "that some users consider questionable\n",
+                      {driverCategory, clangCategory});
+
+maplecl::Option<bool> wExtra({"-Wextra"},
+                        "  -Wextra                  \tEnable some extra warning flags that are not enabled by -Wall\n",
+                        {driverCategory, clangCategory});
+
+maplecl::Option<bool> wWriteStrings({"-Wwrite-strings"},
+                               "  -Wwrite-strings          \tWhen compiling C, give string constants the type "
+                               "const char[length] so that copying the address of one into "
+                               "a non-const char * pointer produces a warning\n",
+                               {driverCategory, clangCategory});
+
+maplecl::Option<bool> wVla({"-Wvla"},
+                      "  -Wvla                    \tWarn if a variable-length array is used in the code\n",
+                      {driverCategory, clangCategory});
+
+maplecl::Option<bool> wFormatSecurity({"-Wformat-security"},
+                                 "  -Wformat-security                    \tWwarn about uses of format "
+                                 "functions that represent possible security problems\n",
+                                 {driverCategory, clangCategory});
+
+maplecl::Option<bool> wShadow({"-Wshadow"},
+                         "  -Wshadow                             \tWarn whenever a local variable "
+                         "or type declaration shadows another variable\n",
+                         {driverCategory, clangCategory});
+
+maplecl::Option<bool> wTypeLimits({"-Wtype-limits"},
+                             "  -Wtype-limits                         \tWarn if a comparison is always true or always "
+                             "false due to the limited range of the data type\n",
+                             {driverCategory, clangCategory});
+
+maplecl::Option<bool> wSignCompare({"-Wsign-compare"},
+                              "  -Wsign-compare                         \tWarn when a comparison between signed and "
+                              " unsigned values could produce an incorrect result when the signed value is converted "
+                              "to unsigned\n",
+                              {driverCategory, clangCategory});
+
+maplecl::Option<bool> wShiftNegativeValue({"-Wshift-negative-value"},
+                                     "  -Wshift-negative-value                 \tWarn if left "
+                                     "shifting a negative value\n",
+                                     {driverCategory, clangCategory});
+
+maplecl::Option<bool> wPointerArith({"-Wpointer-arith"},
+                                "  -Wpointer-arith                        \tWarn about anything that depends on the "
+                                "“size of” a function type or of void\n",
+                               {driverCategory, clangCategory});
+
+maplecl::Option<bool> wIgnoredQualifiers({"-Wignored-qualifiers"},
+                                    "  -Wignored-qualifiers                   \tWarn if the return type of a "
+                                    "function has a type qualifier such as const\n",
+                                    {driverCategory, clangCategory});
+
+maplecl::Option<bool> wFormat({"-Wformat"},
+                         "  -Wformat                     \tCheck calls to printf and scanf, etc., "
+                         "to make sure that the arguments supplied have types appropriate "
+                         "to the format string specified\n",
+                         {driverCategory, clangCategory});
+
+maplecl::Option<bool> wFloatEqual({"-Wfloat-equal"},
+                             "  -Wfloat-equal                \tWarn if floating-point values are used "
+                             "in equality comparisons\n",
+                             {driverCategory, clangCategory});
+
+maplecl::Option<bool> wDateTime({"-Wdate-time"},
+                           "  -Wdate-time                  \tWarn when macros __TIME__, __DATE__ or __TIMESTAMP__ "
+                           "are encountered as they might prevent bit-wise-identical reproducible compilations\n",
+                           {driverCategory, clangCategory});
+
+maplecl::Option<bool> wImplicitFallthrough({"-Wimplicit-fallthrough"},
+                                      "  -Wimplicit-fallthrough       \tWarn when a switch case falls through\n",
+                                      {driverCategory, clangCategory});
+
+maplecl::Option<bool> wShiftOverflow({"-Wshift-overflow"},
+                                "  -Wshift-overflow             \tWarn about left shift overflows\n",
+                                {driverCategory, clangCategory},
+                                maplecl::DisableWith("-Wno-shift-overflow"));
 
 /* #################################################################################################### */
 

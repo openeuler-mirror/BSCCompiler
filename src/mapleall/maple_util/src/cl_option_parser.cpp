@@ -33,6 +33,11 @@ bool IsPrefixDetected(const std::string_view &opt) {
     return true;
   }
 
+  /* -Wl is linker option */
+  if (opt.substr(0, 3) == "-Wl") {
+    return false;
+  }
+
   /* It should be "--" or "-" */
   return (opt[0] == '-');
 }
@@ -89,7 +94,9 @@ std::pair<RetCode, size_t> ExtractValue(size_t argsIndex,
 template <> RetCode Option<bool>::ParseBool(size_t &argsIndex,
                                             const std::deque<std::string_view> &args) {
   /* DisabledName should set it to false, like --fno-omit-framepointer vs --fomit-framepointer */
-  SetValue(GetDisabledName() != args[argsIndex]);
+  auto disabledNames = GetDisabledName();
+  auto it = std::find(disabledNames.begin(), disabledNames.end(), args[argsIndex]);
+  SetValue(it == disabledNames.end());
 
   ++argsIndex;
   return RetCode::noError;
@@ -127,7 +134,23 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
     return RetCode::noError;
   }
 
-  SetValue(std::string(keyArg.val));
+  if (IsJoinedValPermitted() && (GetValue() != "")) {
+    if (keyArg.key == "-Wl") {
+      SetValue(GetValue() + " " + std::string(keyArg.val));
+    } else {
+      SetValue(GetValue() + " " + std::string(keyArg.key) + " " + std::string(keyArg.val));
+    }
+  } else {
+    SetValue(std::string(keyArg.val));
+  }
+
+  if (keyArg.isEqualOpt && !keyArg.isJoinedOpt) {
+    /* isJoinedOpt is used to prevent -DMACRO=VALUE.
+     * -DMACRO=VALUE uses "=" sign but it's not the separator between Option and Value,
+     * In this case it's a part of Value.
+     */
+    SetEqualType(EqualType::kWithEqual);
+  }
 
   argsIndex += 1 + indexIncCnt; // 1 for key, indexIncCnt for Key Value from ExtractValue
   return RetCode::noError;
@@ -220,6 +243,13 @@ RetCode Option<T>::ParseDigit(size_t &argsIndex,
   }
 
   SetValue(resDig);
+  if (keyArg.isEqualOpt && !keyArg.isJoinedOpt) {
+    /* isJoinedOpt is used to prevent -DMACRO=VALUE.
+     * -DMACRO=VALUE uses "=" sign but it's not the separator between Option and Value,
+     * In this case it's a part of Value.
+     */
+    SetEqualType(EqualType::kWithEqual);
+  }
 
   argsIndex += 1 + indexIncCnt; // 1 for key, indexIncCnt for Key Value from ExtractValue
   return RetCode::noError;

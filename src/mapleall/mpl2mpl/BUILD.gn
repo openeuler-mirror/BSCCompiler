@@ -21,6 +21,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
   "${MAPLEALL_ROOT}/mpl2mpl/include",
+  "${MAPLEALL_ROOT}/mpl2mpl/include/aarch64",
   "${MAPLEALL_ROOT}/mempool/include",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
 ]
@@ -42,6 +43,8 @@ src_libmpl2mpl = [
   "src/class_hierarchy.cpp",
   "src/class_hierarchy_phase.cpp",
   "src/constantfold.cpp",
+  "src/expand128floats.cpp",
+
   "src/ext_constantfold.cpp",
   "src/coderelayout.cpp",
   "src/annotation_analysis.cpp",
@@ -54,10 +57,16 @@ src_libmpl2mpl = [
   "src/retype.cpp",
   "src/call_graph.cpp",
   "src/inline.cpp",
+  "src/ginline.cpp",
+  "src/stmt_cost_analyzer.cpp",
   "src/inline_analyzer.cpp",
   "src/inline_transformer.cpp",
+  "src/inline_mplt.cpp",
+  "src/outline.cpp",
   "src/method_replace.cpp",
-  "src/gcov_parser.cpp",
+  "src/mpl_profdata_parser.cpp",
+  "src/target_info.cpp",
+
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]

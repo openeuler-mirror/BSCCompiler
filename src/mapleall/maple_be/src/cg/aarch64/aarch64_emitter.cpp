@@ -540,6 +540,20 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
 
   RecordRegInfo(funcEmitInfo);
 
+  /* set hot-cold section boundary */
+  BB *boundaryBB = nullptr;
+  FOR_ALL_BB(bb, &aarchCGFunc) {
+    if (bb->IsInColdSection() && boundaryBB == nullptr) {
+      boundaryBB = bb;
+    }
+    if (boundaryBB && !bb->IsInColdSection()) {
+      LogInfo::MapleLogger() << " ==== in Func " << aarchCGFunc.GetName() << " ====\n";
+      LogInfo::MapleLogger() << " boundaryBB : " << boundaryBB->GetId() << "\n";
+      bb->Dump();
+      CHECK_FATAL_FALSE("cold section is not pure!");
+    }
+  }
+
   /* emit instructions */
   FOR_ALL_BB(bb, &aarchCGFunc) {
     if (bb->IsUnreachable()) {
@@ -569,12 +583,24 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
         EmitAArch64Insn(emitter, *insn);
       }
     }
+    if (boundaryBB && bb->GetNext() == boundaryBB) {
+      (void)emitter.Emit("\t.size\t" + funcStName + ", . - " + funcStName + "\n");
+      std::string sectionName = ".text.unlikely." + funcStName + ".cold";
+      (void)emitter.Emit("\t.section  " + sectionName + ",\"ax\"\n");
+      (void)emitter.Emit("\t.align 5\n");
+      (void)emitter.Emit(funcStName + ".cold:\n");
+    }
   }
   if (CGOptions::IsMapleLinker()) {
     /* Emit a label for calculating method size */
     (void)emitter.Emit(".Label.end." + funcStName + ":\n");
   }
-  (void)emitter.Emit("\t.size\t" + funcStName + ", .-").Emit(funcStName + "\n");
+  if (boundaryBB) {
+    (void)emitter.Emit("\t.size\t" + funcStName + ".cold, .-").Emit(funcStName + ".cold\n");
+  } else {
+    (void)emitter.Emit("\t.size\t" + funcStName + ", .-").Emit(funcStName + "\n");
+  }
+
 
   auto constructorAttr = funcSt->GetFunction()->GetAttrs().GetConstructorPriority();
   if (constructorAttr != -1) {
@@ -1202,43 +1228,63 @@ void AArch64AsmEmitter::EmitCCounter(Emitter &emitter, const Insn &insn) const {
 
   Operand *opnd0 = &insn.GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn.GetOperand(kInsnSecondOpnd);
+  Operand *opnd2 = &insn.GetOperand(kInsnThirdOpnd);
   const OpndDesc *prop1 = md->opndMD[kInsnSecondOpnd];
+  const OpndDesc *prop2 = md->opndMD[kInsnThirdOpnd];
+  bool hasFreeReg = static_cast<RegOperand*>(opnd2)->GetRegisterNumber() != R30;
+
+  CHECK_FATAL(static_cast<RegOperand*>(opnd2)->GetRegisterNumber() != R16, "check this case");
   auto *stImmOpnd = static_cast<StImmOperand*>(opnd0);
   CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitCounter");
   /* spill linker register */
-  (void)emitter.Emit("\tstr\tx30, [sp, #-16]!\n");
+  if (!hasFreeReg) {
+    (void)emitter.Emit("\tstr\tx30, [sp, #-16]!\n");
+  }
   /* get counter symbol address */
   (void)emitter.Emit("\tadrp\tx16, ");
-
-  if (CGOptions::IsPIC()) {
-    (void)emitter.Emit(":got:");
-  }
   (void)emitter.Emit(stImmOpnd->GetName()).Emit("\n");
 
-  if (CGOptions::IsPIC()) {
-    (void)emitter.Emit("\tldr\tx16, [x16, :got_lo12:");
-    (void)emitter.Emit(stImmOpnd->GetName());
-    (void)emitter.Emit("]\n");
-  } else {
-    (void)emitter.Emit("\tadd\tx16, x16, :lo12:\n");
-    (void)emitter.Emit(stImmOpnd->GetName());
-    (void)emitter.Emit("\n");
-  }
+  (void)emitter.Emit("\tadd\tx16, x16, :lo12:");
+  (void)emitter.Emit(stImmOpnd->GetName());
+  (void)emitter.Emit("\n");
 
   A64OpndEmitVisitor visitor(emitter, prop1);
+  A64OpndEmitVisitor visitor2(emitter, prop2);
   /* load current count */
-  (void)emitter.Emit("\tldr\tx30, [x16, ");
+  if (!hasFreeReg) {
+    (void)emitter.Emit("\tldr\tx30, [x16, ");
+  } else {
+    (void)emitter.Emit("\tldr\t");
+    opnd2->Accept(visitor2);
+    (void)emitter.Emit(", [x16, ");
+  }
   opnd1->Accept(visitor);
   (void)emitter.Emit("]\n");
   /* increment */
-  (void)emitter.Emit("\tadd\tx30, x30, #1\n");
+  if (!hasFreeReg) {
+    (void)emitter.Emit("\tadd\tx30, x30, #1\n");
+  } else {
+    (void)emitter.Emit("\tadd\t");
+    opnd2->Accept(visitor2);
+    (void)emitter.Emit(", ");
+    opnd2->Accept(visitor2);
+    (void)emitter.Emit(", #1\n");
+  }
   /* str new count */
-  (void)emitter.Emit("\tstr\tx30, [x16, ");
+  if (!hasFreeReg) {
+    (void)emitter.Emit("\tstr\tx30, [x16, ");
+  } else {
+    (void)emitter.Emit("\tstr\t");
+    opnd2->Accept(visitor2);
+    (void)emitter.Emit(", [x16, ");
+  }
   opnd1->Accept(visitor);
   (void)emitter.Emit("]\n");
 
   /* reload linker register */
-  (void)emitter.Emit("\tldr\tx30, [sp], #16\n");
+  if (!hasFreeReg) {
+    (void)emitter.Emit("\tldr\tx30, [sp], #16\n");
+  }
 }
 
 void AArch64AsmEmitter::EmitAdrpLabel(Emitter &emitter, const Insn &insn) const {

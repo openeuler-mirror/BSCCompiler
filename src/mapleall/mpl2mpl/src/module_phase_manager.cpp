@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,7 +16,7 @@
 #include "me_phase_manager.h"
 #include "ipa_phase_manager.h"
 #include "ipa_side_effect.h"
-#include "gcov_parser.h"
+#include "mpl_profdata_parser.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -51,6 +51,9 @@ void DumpModule(const MIRModule &mod, const std::string phaseName, bool isBefore
 }
 
 void MEBETopLevelManager::InitFuncDescWithWhiteList(const maple::MIRModule &mod) {
+  if (!Options::sideEffectWhiteList) {
+    return;
+  }
   for (auto &pair : SideEffect::GetWhiteList()) {
     auto *funcSymbol =
         GlobalTables::GetGsymTable().GetSymbolFromStrIdx(GlobalTables::GetStrTable().GetStrIdxFromName(pair.first));
@@ -74,6 +77,9 @@ void MEBETopLevelManager::InitFuncDescWithWhiteList(const maple::MIRModule &mod)
 }
 
 void MEBETopLevelManager::Run(maple::MIRModule &mod) {
+  if (mod.IsJavaModule()) {
+    Options::sideEffectWhiteList = true;
+  }
   InitFuncDescWithWhiteList(mod);
   auto admMempool = AllocateMemPoolInPhaseManager("MEBETopLevelManager's Analysis Data Manager mempool");
   auto *serialADM = GetManagerMemPool()->New<AnalysisDataManager>(*(admMempool.get()));
@@ -109,10 +115,13 @@ MAPLE_ANALYSIS_PHASE_REGISTER(M2MCallGraph, callgraph)
 MAPLE_ANALYSIS_PHASE_REGISTER(M2MKlassHierarchy, classhierarchy)
 MAPLE_ANALYSIS_PHASE_REGISTER(M2MAnnotationAnalysis, annotationanalysis)
 MAPLE_ANALYSIS_PHASE_REGISTER(ProfileGenPM, ProfileGenPM)
-MAPLE_ANALYSIS_PHASE_REGISTER(M2MGcovParser, gcovparser)
+MAPLE_ANALYSIS_PHASE_REGISTER(MMplProfDataParser, grofDataParser)
 
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MInline, inline)
+MAPLE_TRANSFORM_PHASE_REGISTER(M2MGInline, ginline)
+MAPLE_TRANSFORM_PHASE_REGISTER(M2MOutline, outline)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MIPODevirtualize, ipodevirtulize)
+MAPLE_TRANSFORM_PHASE_REGISTER(M2MFuncDeleter, funcdeleter)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MMethodReplace, methodreplace)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MScalarReplacement, ScalarReplacement)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MOpenprofile, openprofile)
@@ -129,6 +138,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(M2MSimplify, simplify)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MUpdateMplt, updatemplt)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MReflectionAnalysis, reflectionanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MVtableImpl, VtableImpl)
+MAPLE_TRANSFORM_PHASE_REGISTER(M2MExpand128Floats, Expand128Floats)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MConstantFold, ConstantFold)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MVtableAnalysis, vtableanalysis)
 }  // namespace maple

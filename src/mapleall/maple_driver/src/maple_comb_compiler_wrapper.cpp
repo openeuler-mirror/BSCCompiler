@@ -12,9 +12,9 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <vector>
 #include "compiler.h"
 #include "types_def.h"
-#include <vector>
 
 namespace maple {
 
@@ -25,12 +25,16 @@ const std::string &MapleCombCompilerWrp::GetBinName() const {
   return kTmpBin;
 }
 
-std::string MapleCombCompilerWrp::GetBinPath(const MplOptions &mplOptions) const {
-  return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
+std::string MapleCombCompilerWrp::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
+  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
+    return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
       FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
+  }
+  return mplOptions.GetExeFolder();
 }
 
-DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &options, const Action &action) const {
+DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &options [[maybe_unused]],
+                                                      const Action &action [[maybe_unused]]) const {
   /* need to add --maple-phase option to run only maple phase.
    * linker will be called as separated step (AsCompiler).
    */
@@ -40,11 +44,16 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &options,
    * Separated input file are set in Actions.
    */
   opts::infile.Clear();
+  uint32_t fullLen = 1;
+  DefaultOption defaultOptions = {std::make_unique<MplOption[]>(fullLen), fullLen};
+  defaultOptions.mplOptions[0].SetKey("-S");
+  defaultOptions.mplOptions[0].SetValue("");
 
-  return DefaultOption();
+  return defaultOptions;
 }
 
-std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &options, const Action &action) const {
+std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &options [[maybe_unused]],
+                                                   const Action &action) const {
   if (action.IsItFirstRealAction()) {
     return action.GetInputFile();
   }
@@ -60,12 +69,12 @@ std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &options, co
   return fullOutput + ".mpl";
 }
 
-void MapleCombCompilerWrp::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+void MapleCombCompilerWrp::GetTmpFilesToDelete(const MplOptions &mplOptions [[maybe_unused]], const Action &action,
                                                std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".s");
 }
 
-std::unordered_set<std::string> MapleCombCompilerWrp::GetFinalOutputs(const MplOptions &mplOptions,
+std::unordered_set<std::string> MapleCombCompilerWrp::GetFinalOutputs(const MplOptions &mplOptions [[maybe_unused]],
                                                                       const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".s");

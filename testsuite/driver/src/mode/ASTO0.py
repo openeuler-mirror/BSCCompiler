@@ -19,20 +19,21 @@ ASTO0 = {
         C2ast(
             clang="${OUT_ROOT}/tools/bin/clang",
             include_path=[
-                "${OUT_ROOT}/aarch64-clang-release/lib/include"
+                "${MAPLE_BUILD_OUTPUT}/lib/include"
             ],
             option="--target=aarch64",
             infile="${APP}.c",
             outfile="${APP}.ast"
         ),
         Hir2mpl(
-            hir2mpl="${OUT_ROOT}/aarch64-clang-release/bin/hir2mpl",
+            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
+            option="-g",
             infile="${APP}.ast",
             outfile="${APP}.mpl"
         ),
         SimpleMaple(
-            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
-            option="-O0",
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            option="-O0 -g -S",
             infile="${APP}.mpl"
         ),
         GenBin(

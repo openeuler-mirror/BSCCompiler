@@ -147,10 +147,10 @@ bool MeOption::skipVirtualMethod = false;
 #endif
 
 void MeOption::DecideMeRealLevel() const {
-  if (opts::me::o1) {
+  if (opts::me::o1 || opts::o1) {
     optLevel = kLevelOne;
-  } else if (opts::me::o2 || opts::me::os) {
-    if (opts::me::os) {
+  } else if ((opts::me::o2 || opts::o2) || (opts::me::os || opts::os)) {
+    if (opts::me::os || opts::os) {
       optForSize = true;
     }
     optLevel = kLevelTwo;

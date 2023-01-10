@@ -49,6 +49,16 @@ struct MemOpndCmp {
   }
 };
 
+/* use for sync and atomic func */
+enum SyncAndAtomicOp {
+  kSyncAndAtomicOpAdd,
+  kSyncAndAtomicOpSub,
+  kSyncAndAtomicOpAnd,
+  kSyncAndAtomicOpOr,
+  kSyncAndAtomicOpXor,
+  kSyncAndAtomicOpNand
+};
+
 class SpillMemOperandSet {
  public:
   explicit SpillMemOperandSet(MapleAllocator &mallocator) : reuseSpillLocMem(mallocator.Adapter()) {}
@@ -240,14 +250,14 @@ class CGFunc {
   virtual Operand *SelectCisaligned(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCalignup(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCaligndown(IntrinsicopNode &intrinsicopNode) = 0;
-  virtual Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) = 0;
+  virtual Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, SyncAndAtomicOp op, bool fetchBefore) = 0;
   virtual Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinsicopNode, PrimType pty) = 0;
   virtual Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) = 0;
-  virtual Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) = 0;
-  virtual Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) = 0;
+  virtual Operand *SelectCAtomicExchangeN(const IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, SyncAndAtomicOp op, bool fetchBefore) = 0;
   virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
@@ -300,6 +310,7 @@ class CGFunc {
   virtual void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
+  virtual void SelectNand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectAbs(UnaryNode &node, Operand &opnd0) = 0;
   virtual Operand *SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
@@ -398,6 +409,7 @@ class CGFunc {
   virtual RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) = 0;
   virtual RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
   virtual RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) = 0;
+  virtual RegOperand *SelectVectorIntrinsics(const IntrinsicopNode &intrinsicNode) = 0;
 
   virtual void HandleFuncCfg(CGCFG *cfg) { AddCommonExitBB(); }
 
@@ -524,7 +536,7 @@ class CGFunc {
     return INT_MAX;
   }
 
-  virtual void InsertJumpPad(Insn *) {
+  virtual void InsertJumpPad(Insn *insn) {
     return;
   }
 
@@ -1007,7 +1019,7 @@ class CGFunc {
     spSaveReg = reg;
   }
 
-  regno_t GetSpSaveReg() {
+  regno_t GetSpSaveReg() const {
     return spSaveReg;
   }
 

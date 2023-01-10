@@ -100,6 +100,15 @@ void OutputConstFloat(const MIRConst &constVal, BinaryMplExport &mplExport) {
   mplExport.WriteNum(newConst.GetIntValue());
 }
 
+void OutputConstFloat128(const MIRConst &constVal, BinaryMplExport &mplExport) {
+  mplExport.WriteNum(kBinKindConstFloat128);
+  mplExport.OutputConstBase(constVal);
+  const auto &newConst = static_cast<const MIRFloat128Const&>(constVal);
+  std::pair<uint64, uint64> f128Val = newConst.GetFloat128Value();
+  mplExport.WriteNum(static_cast<int64>(f128Val.first));
+  mplExport.WriteNum(static_cast<int64>(f128Val.second));
+}
+
 void OutputConstDouble(const MIRConst &constVal, BinaryMplExport &mplExport) {
   mplExport.WriteNum(kBinKindConstDouble);
   mplExport.OutputConstBase(constVal);
@@ -143,6 +152,7 @@ static bool InitOutputConstFactory() {
   RegisterFactoryFunction<OutputConstFactory>(kConstStrConst, OutputConstStr);
   RegisterFactoryFunction<OutputConstFactory>(kConstStr16Const, OutputConstStr16);
   RegisterFactoryFunction<OutputConstFactory>(kConstFloatConst, OutputConstFloat);
+  RegisterFactoryFunction<OutputConstFactory>(kConstFloat128Const, OutputConstFloat128);
   RegisterFactoryFunction<OutputConstFactory>(kConstDoubleConst, OutputConstDouble);
   RegisterFactoryFunction<OutputConstFactory>(kConstAggConst, OutputConstAgg);
   RegisterFactoryFunction<OutputConstFactory>(kConstStConst, OutputConstSt);
@@ -358,13 +368,13 @@ void BinaryMplExport::ExpandFourBuffSize() {
   WriteInt(0);
 }
 
-void BinaryMplExport::Fixup(size_t i, int32 x) {
+void BinaryMplExport::Fixup(size_t i, uint32 x) {
   constexpr int fixupCount = 4;
   CHECK(i <= buf.size() - fixupCount, "Index out of bound in BinaryMplImport::Fixup()");
-  buf[i] = static_cast<uint8>(static_cast<uint32>(x) & 0xFF);
-  buf[i + 1] = static_cast<uint8>((static_cast<uint32>(x) >> 8) & 0xFF);
-  buf[i + 2] = static_cast<uint8>((static_cast<uint32>(x) >> 16) & 0xFF);
-  buf[i + 3] = static_cast<uint8>((static_cast<uint32>(x) >> 24) & 0xFF);
+  buf[i] = static_cast<uint8>(x & 0xFF);
+  buf[i + 1] = static_cast<uint8>((x >> 8) & 0xFF);
+  buf[i + 2] = static_cast<uint8>((x >> 16) & 0xFF);
+  buf[i + 3] = static_cast<uint8>((x >> 24) & 0xFF);
 }
 
 void BinaryMplExport::WriteInt64(int64 x) {
@@ -737,7 +747,7 @@ void BinaryMplExport::WriteStrField(uint64 contentIdx) {
   size_t outStrSizeIdx = buf.size();
   ExpandFourBuffSize();  // size of OutputStr
 
-  int32 size = 0;
+  uint32 size = 0;
   for (const auto &entity : GlobalTables::GetConstPool().GetConstU16StringPool()) {
     MIRSymbol *sym = entity.second;
     if (sym->IsLiteral()) {
@@ -745,7 +755,7 @@ void BinaryMplExport::WriteStrField(uint64 contentIdx) {
       ++size;
     }
   }
-  Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
+  Fixup(totalSizeIdx, static_cast<uint32>(buf.size() - totalSizeIdx));
   Fixup(outStrSizeIdx, size);
   WriteNum(~kBinStrStart);
 }
@@ -800,7 +810,7 @@ void BinaryMplExport::WriteTypeField(uint64 contentIdx, bool useClassList) {
   ExpandFourBuffSize();  // total size of this field to ~BIN_TYPE_START
   size_t outTypeSizeIdx = buf.size();
   ExpandFourBuffSize();  // size of OutputType
-  int32 size = 0;
+  uint32 size = 0;
   if (useClassList) {
     for (uint32 tyIdx : mod.GetClassList()) {
       TyIdx curTyidx(tyIdx);
@@ -852,7 +862,7 @@ void BinaryMplExport::WriteCgField(uint64 contentIdx, const CallGraph *cg) {
   ExpandFourBuffSize();  // total size of this field to ~BIN_CG_START
   size_t outcgSizeIdx = buf.size();
   ExpandFourBuffSize();  // size of OutCG
-  int32 size = 0;
+  uint32 size = 0;
   if (cg != nullptr) {
     for (auto entry : cg->GetNodesMap()) {
       MIRSymbol *methodSym = entry.first->GetFuncSymbol();
@@ -867,14 +877,14 @@ void BinaryMplExport::WriteCgField(uint64 contentIdx, const CallGraph *cg) {
         OutputCallInfo(*(callSite.first));
         ++targSize;
       }
-      Fixup(targetTyIdx, targSize);
+      Fixup(targetTyIdx, static_cast<uint32>(targSize));
       WriteNum(~kStartMethod);
       ++size;
     }
   }
 
   ASSERT((buf.size() - totalSizeIdx) <= 0xffffffff, "Integer overflow.");
-  Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
+  Fixup(totalSizeIdx, static_cast<uint32>(buf.size() - totalSizeIdx));
   Fixup(outcgSizeIdx, size);
   WriteNum(~kBinCgStart);
 }
@@ -886,7 +896,7 @@ void BinaryMplExport::WriteSeField() {
   ExpandFourBuffSize();  // total size of this field to ~BIN_SYM_START
   size_t outseSizeIdx = buf.size();
   ExpandFourBuffSize();  // size of OutSym
-  int32 size = 0;
+  uint32 size = 0;
 
   for (const auto &func2SE : *func2SEMap) {
     uint8 se = func2SE.second;
@@ -974,7 +984,7 @@ void BinaryMplExport::OutEaCgRefNode(const EACGRefNode &ref) {
 
 void BinaryMplExport::OutEaCgFieldNode(EACGFieldNode &field) {
   WriteInt(field.GetFieldID());
-  int32 size = 0;
+  uint32 size = 0;
   size_t outFieldSizeIdx = buf.size();
   WriteInt(0);
   for (EACGBaseNode *obj : field.belongsTo) {
@@ -1028,7 +1038,7 @@ void BinaryMplExport::WriteEaField(const CallGraph &cg) {
   WriteInt(0);
   uint64 outeaSizeIdx = buf.size();
   WriteInt(0);
-  int32 size = 0;
+  uint32 size = 0;
   for (auto cgNodePair : cg.GetNodesMap()) {
     MIRFunction *func = cgNodePair.first;
     if (func->GetEACG() == nullptr) {
@@ -1102,13 +1112,13 @@ void BinaryMplExport::WriteEnumField(uint64 contentIdx) {
   if (GlobalTables::GetEnumTable().enumTable.empty()) {
     return;
   }
-  Fixup(contentIdx, static_cast<int32>(buf.size()));
+  Fixup(contentIdx, static_cast<uint32>(buf.size()));
   WriteNum(kBinEnumStart);
   uint64 totalSizeIdx = buf.size();
   ExpandFourBuffSize();  // total size of this field to ~BIN_SYM_START
   uint64 outEnumSizeIdx = buf.size();
   ExpandFourBuffSize();  // size of OutEnum
-  int32 size = 0;
+  uint32 size = 0;
   for (MIREnum *mirEnum : GlobalTables::GetEnumTable().enumTable) {
     OutputEnumeration(mirEnum);
     size++;
@@ -1126,7 +1136,7 @@ void BinaryMplExport::WriteSymField(uint64 contentIdx) {
   ExpandFourBuffSize();  // total size of this field to ~BIN_SYM_START
   uint64 outsymSizeIdx = buf.size();
   ExpandFourBuffSize();  // size of OutSym
-  int32 size = 0;
+  uint32 size = 0;
 
   if (not2mplt) {
     for (auto sit = GetMIRModule().GetSymbolDefOrder().begin();
@@ -1139,7 +1149,9 @@ void BinaryMplExport::WriteSymField(uint64 contentIdx) {
       MIRSymKind sKind = s->GetSKind();
       if (s->IsDeleted() || storageClass == kScUnused ||
           (s->GetIsImported() && !s->GetAppearsInCode()) ||
-          (sKind == kStFunc && (storageClass == kScExtern || !s->GetAppearsInCode()))) {
+          (sKind == kStFunc &&
+           ((storageClass == kScExtern && !s->GetFunction()->GetAttr(FUNCATTR_used)) ||
+            !s->GetAppearsInCode()))) {
         continue;
       }
       OutputSymbol(s);
@@ -1290,7 +1302,7 @@ void BinaryMplExport::OutputTypeAttrs(const TypeAttrs &ta) {
   WriteNum(ta.GetPack());
 }
 
-void BinaryMplExport::OutputType(TyIdx tyIdx) {
+void BinaryMplExport::OutputType(const TyIdx &tyIdx) {
   if (tyIdx == 0u) {
     WriteNum(0);
     return;
@@ -1319,12 +1331,12 @@ void BinaryMplExport::OutputType(TyIdx tyIdx) {
 
 void BinaryMplExport::OutputEnumeration(MIREnum *mirEnum) {
   WriteNum(kBinEnumeration);
-  Write(static_cast<uint8>(mirEnum->primType));
-  OutputStr(mirEnum->nameStrIdx);
-  WriteNum(static_cast<int64>(mirEnum->elements.size()));
-  for (size_t i = 0; i < mirEnum->elements.size(); ++i) {
-    OutputStr(mirEnum->elements[i].first);
-    WriteNum(mirEnum->elements[i].second.GetSXTValue());
+  Write(static_cast<uint8>(mirEnum->GetPrimType()));
+  OutputStr(mirEnum->GetNameIdx());
+  WriteNum(static_cast<int64>(mirEnum->GetElements().size()));
+  for (size_t i = 0; i < mirEnum->GetElements().size(); ++i) {
+    OutputStr(mirEnum->GetElements()[i].first);
+    WriteNum(mirEnum->GetElements()[i].second.GetSXTValue());
   }
 }
 

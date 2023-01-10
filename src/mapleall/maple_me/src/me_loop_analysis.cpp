@@ -14,6 +14,7 @@
  */
 #include "me_loop_analysis.h"
 #include "me_dominance.h"
+#include "cast_opt.h"
 
 // This phase analyses the CFG and identify the loops. The implementation is
 // based on the idea that, given two basic block a and b, if b is a's pred and
@@ -22,6 +23,151 @@
 // always detected before its nested loop(s). The building of the LoopDesc data
 // structure takes advantage of this ordering.
 namespace maple {
+// solve: back edge rhs of loop header phi
+// phiLhs: lhs of loop header phi
+// return true if the ost is basic iv
+bool LoopDesc::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, bool onlyStepOne) const {
+  if (solve == phiLhs) {
+    return false;
+  }
+  int meet = 0;
+  if (!DoCheckBasicIV(solve, phiLhs, meet) || meet != 1) {
+    return false;
+  }
+  return true;
+}
+
+bool LoopDesc::CheckStepOneIV(MeExpr *solve, ScalarMeExpr *phiLhs) const {
+  return CheckBasicIV(solve, phiLhs, true);
+}
+
+bool LoopDesc::DoCheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet, bool tryProp, bool onlyStepOne) const {
+  switch (solve->GetMeOp()) {
+    case kMeOpVar:
+    case kMeOpReg: {
+      if (solve->IsVolatile()) {
+        return false;
+      }
+      if (solve == phiLhs) {
+        ++meet;
+        return true;
+      }
+      auto *scalar = static_cast<ScalarMeExpr*>(solve);
+      if (phiLhs == nullptr || scalar->GetOstIdx() != phiLhs->GetOstIdx()) {
+        if (scalar->IsDefByNo()) {  // parameter
+          return true;
+        }
+        if (!tryProp) {
+          return loopBBs.count(scalar->DefByBB()->GetBBId()) == 0;
+        }
+      }
+      if (scalar->GetDefBy() != kDefByStmt) {
+        return false;
+      }
+      return DoCheckBasicIV(scalar->GetDefStmt()->GetRHS(), phiLhs, meet, true, onlyStepOne);
+    }
+    case kMeOpConst: {
+      if (onlyStepOne) {
+        auto *mirConst = static_cast<ConstMeExpr*>(solve)->GetConstVal();
+        return mirConst->GetKind() == kConstInt && mirConst->IsOne();
+      }
+      return IsPrimitiveInteger(solve->GetPrimType());
+    }
+    case kMeOpOp: {
+      if (solve->GetOp() == OP_add) {
+        auto *opMeExpr = static_cast<OpMeExpr*>(solve);
+        return DoCheckBasicIV(opMeExpr->GetOpnd(0), phiLhs, meet, tryProp, onlyStepOne) &&
+               DoCheckBasicIV(opMeExpr->GetOpnd(1), phiLhs, meet, tryProp, onlyStepOne);
+      }
+      if (solve->GetOp() == OP_sub) {
+        auto *opMeExpr = static_cast<OpMeExpr*>(solve);
+        return DoCheckBasicIV(opMeExpr->GetOpnd(0), phiLhs, meet, tryProp, onlyStepOne) &&
+               DoCheckBasicIV(opMeExpr->GetOpnd(1), nullptr, meet, tryProp, onlyStepOne);
+      }
+      return false;
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
+bool IsStepOneIV(MeExpr *expr, const LoopDesc &loop) {
+  if (!expr->IsScalar()) {
+    return false;
+  }
+  auto *scalarExpr = static_cast<ScalarMeExpr*>(expr);
+  auto *loopHeader = loop.head;
+  auto &phiList = loopHeader->GetMePhiList();
+  auto it = phiList.find(scalarExpr->GetOstIdx());
+  if (it == phiList.end()) {
+    return false;
+  }
+  auto *phi = it->second;
+  auto *phiLhs = phi->GetLHS();
+  auto *backValue = phi->GetOpnd(1);
+  if (loop.loopBBs.count(loopHeader->GetPred(0)->GetBBId()) != 0) {
+    backValue = phi->GetOpnd(0);
+  }
+  return loop.CheckStepOneIV(backValue, phiLhs);
+}
+
+// loop must be a Canonical Loop
+static bool IsExprIntConstOrDefOutOfLoop(MeExpr *expr, const LoopDesc &loop) {
+  if (expr->GetOp() == OP_constval && static_cast<ConstMeExpr*>(expr)->GetConstVal()->GetKind() == kConstInt) {
+    return true;
+  }
+  if (expr->IsScalar()) {
+    auto *scalarExpr = static_cast<ScalarMeExpr*>(expr);
+    auto *defStmt = scalarExpr->GetDefByMeStmt();
+    auto &loopBBs = loop.loopBBs;
+    if (defStmt != nullptr &&
+        std::find(loopBBs.begin(), loopBBs.end(), defStmt->GetBB()->GetID()) == loop.loopBBs.end()) {
+      return true;
+    }
+    if (scalarExpr->GetDefBy() == kDefByPhi) {
+      auto *phi = &scalarExpr->GetDefPhi();
+      auto *phiLhs = phi->GetLHS();
+      auto *backValue = phi->GetOpnd(1);
+      if (loop.loopBBs.count(loop.head->GetPred(0)->GetBBId()) != 0) {
+        backValue = phi->GetOpnd(0);
+      }
+      if (phiLhs == backValue) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Return true if the loop must have bounded number of iterations.
+bool LoopDesc::IsFiniteLoop() const {
+  if (!IsCanonicalLoop()) {
+    return false;
+  }
+  auto *lastStmt = head->GetLastMe();
+  if (lastStmt == nullptr || !lastStmt->IsCondBr()) {
+    return false;
+  }
+  auto *condExpr = static_cast<CondGotoMeStmt*>(lastStmt)->GetOpnd(0);
+  if (!CastOpt::IsCompareOp(condExpr->GetOp())) {
+    return false;
+  }
+  auto *opnd0 = condExpr->GetOpnd(0);
+  auto *opnd1 = condExpr->GetOpnd(1);
+  bool isIV0 = IsStepOneIV(opnd0, *this);
+  bool isIV1 = IsStepOneIV(opnd1, *this);
+  bool isConstOrDefOutOfLoop0 = IsExprIntConstOrDefOutOfLoop(opnd0, *this);
+  bool isConstOrDefOutOfLoop1 = IsExprIntConstOrDefOutOfLoop(opnd1, *this);
+  if (isConstOrDefOutOfLoop0 && isConstOrDefOutOfLoop1) {
+    return true;
+  }
+  if ((isIV0 && isConstOrDefOutOfLoop1) || (isConstOrDefOutOfLoop0 && isIV1)) {
+    return true;
+  }
+  return false;
+}
+
 LoopDesc *IdentifyLoops::CreateLoopDesc(BB &hd, BB &tail) {
   LoopDesc *newLoop = meLoopMemPool->New<LoopDesc>(meLoopAlloc, &hd, &tail);
   meLoops.push_back(newLoop);
@@ -104,7 +250,7 @@ void IdentifyLoops::ProcessBB(BB *bb) {
     }
   }
   // recursive call
-  const auto &domChildren = dominance->GetDomChildren(bb->GetBBId());
+  const auto &domChildren = dominance->GetDomChildren(bb->GetID());
   for (auto bbIt = domChildren.begin(); bbIt != domChildren.end(); ++bbIt) {
     ProcessBB(cfg->GetAllBBs().at(*bbIt));
   }
@@ -116,6 +262,7 @@ void IdentifyLoops::Dump() const {
     LogInfo::MapleLogger() << "nest depth: " << meLoop->nestDepth
                            << " loop head BB: " << meLoop->head->GetBBId()
                            << " HasTryBB: " << meLoop->HasTryBB()
+                           << " IsFiniteLoop: " << meLoop->IsFiniteLoop()
                            << " tail BB:" << meLoop->tail->GetBBId() << '\n';
     LogInfo::MapleLogger() << "loop body:";
     for (auto it = meLoop->loopBBs.begin(); it != meLoop->loopBBs.end(); ++it) {
@@ -178,7 +325,7 @@ void IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
 }
 
 bool MELoopAnalysis::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   ASSERT_NOT_NULL(dom);
   identLoops = GetPhaseAllocator()->New<IdentifyLoops>(GetPhaseMemPool(), f, dom);
   identLoops->ProcessBB(f.GetCfg()->GetCommonEntryBB());

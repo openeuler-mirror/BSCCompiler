@@ -105,7 +105,7 @@ void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
 /* do not break binding between input and output operands in asm */
 void AArch64CGSSAInfo::CheckAsmDUbinding(Insn &insn, const VRegVersion &toBeReplaced, VRegVersion &newVersion) {
   if (insn.GetMachineOpcode() == MOP_asm) {
-    for (auto &opndIt : static_cast<ListOperand&>(insn.GetOperand(kAsmOutputListOpnd)).GetOperands()) {
+    for (const auto &opndIt : static_cast<ListOperand&>(insn.GetOperand(kAsmOutputListOpnd)).GetOperands()) {
       if (opndIt->IsSSAForm()) {
         VRegVersion *defVersion = FindSSAVersion(opndIt->GetRegisterNumber());
         if (defVersion && defVersion->GetOriginalRegNO() == toBeReplaced.GetOriginalRegNO()) {
@@ -295,7 +295,7 @@ void A64OpndSSAUpdateVsitor::Visit(ListOperand *v) {
     ASSERT(false, "do not support asm yet");
     return;
   }
-  for (auto *op : v->GetOperands()) {
+  for (const auto *op : v->GetOperands()) {
     if (op->IsSSAForm()) {
       UpdateRegUse(op->GetRegisterNumber());
     }
@@ -349,7 +349,7 @@ void A64SSAOperandDumpVisitor::Visit(RegOperand *v) {
 }
 
 void A64SSAOperandDumpVisitor::Visit(ListOperand *v) {
-  for (auto regOpnd : v->GetOperands()) {
+  for (const auto regOpnd : v->GetOperands()) {
     if (regOpnd->IsSSAForm()) {
       Visit(regOpnd);
       continue;

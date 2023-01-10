@@ -137,6 +137,13 @@ bool TailCallOpt::DoTailCallOpt() {
         if (InsnIsCall(*insn) && IsFuncNeedFrame(*insn)) {
           hasGetStackClass = true;
         }
+        if (InsnIsCall(*insn)) {
+          auto &target = static_cast<FuncNameOperand&>(insn->GetOperand(0));
+          if (target.GetName() != cgFunc.GetName()) {
+            isCallOther = true;
+          }
+        }
+
         ++nCount;
       }
     }
@@ -170,6 +177,14 @@ bool TailCallOpt::DoTailCallOpt() {
     TailCallBBOpt(*exitBB, callInsns, *exitBB);
     if (callInsns.size() != 0) {
       optCount += callInsns.size();
+      for (Insn *callInsn : callInsns) {
+        if (InsnIsCall(*callInsn)) {
+          auto &target = static_cast<FuncNameOperand&>(callInsn->GetOperand(0));
+          if (target.GetName() == cgFunc.GetName()) {
+            isCallSelf = true;
+          }
+        }
+      }
       (void)exitBB2CallSitesMap.emplace(exitBB, callInsns);
     }
     if (i < exitBBSize) {
@@ -216,6 +231,14 @@ void TailCallOpt::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
       bb->SetKind(BB::kBBReturn);
       cgFunc.PushBackExitBBsVec(*bb);
       cgFunc.GetCommonExitBB()->PushBackPreds(*bb);
+        /* if next bb is exit BB */
+      if (sBB->GetKind() == BB::kBBReturn && sBB->GetPreds().empty() &&
+          !CGCFG::InSwitchTable(sBB->GetLabIdx(), cgFunc)) {
+        auto it = std::find(cgFunc.GetExitBBsVec().begin(), cgFunc.GetExitBBsVec().end(), sBB);
+        CHECK_FATAL(it != cgFunc.GetExitBBsVec().end(), "find unuse exit failed");
+        cgFunc.EraseExitBBsVec(it);
+        cgFunc.GetTheCFG()->RemoveBB(*sBB);
+      }
       break;
     }
   }
@@ -241,6 +264,9 @@ void TailCallOpt::Run() {
     (void)DoTailCallOpt(); // return value == "no call instr/only or 1 tailcall"
   }
   if (cgFunc.GetMirModule().IsCModule() && !exitBB2CallSitesMap.empty()) {
+    if (isCallSelf && isCallOther) {
+      return;
+    }
     cgFunc.GetTheCFG()->InitInsnVisitor(cgFunc);
     for (auto pair : exitBB2CallSitesMap) {
       BB *curExitBB = pair.first;

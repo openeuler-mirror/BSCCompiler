@@ -45,7 +45,9 @@ std::string Compiler::GetBinPath(const MplOptions &mplOptions) const {
 ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
                             std::unique_ptr<MIRModule> &theModule [[maybe_unused]]) {
   MPLTimer timer = MPLTimer();
-  LogInfo::MapleLogger() << "Starting " << GetName() << '\n';
+  if (opts::debug) {
+    LogInfo::MapleLogger() << "Starting " << GetName() << '\n';
+  }
   timer.Start();
 
   std::vector<MplOption> generatedOptions = MakeOption(options, action);
@@ -56,7 +58,9 @@ ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
     return kErrorCompileFail;
   }
   timer.Stop();
-  LogInfo::MapleLogger() << (GetName() + " consumed ") << timer.Elapsed() << "s\n";
+  if (opts::debug) {
+    LogInfo::MapleLogger() << (GetName() + " consumed ") << timer.Elapsed() << "s\n";
+  }
   return kErrorNoError;
 }
 
@@ -92,6 +96,7 @@ void Compiler::AppendDefaultOptions(std::vector<MplOption> &finalOptions,
 void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const MplOptions &options,
                                   bool isDebug, const Action &action) const {
   const std::string &binName = GetTool();
+  const std::string &toolName = action.GetTool();
 
   if (isDebug) {
     LogInfo::MapleLogger() << Compiler::GetName() << " Extra Options: ";
@@ -114,15 +119,28 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
 
   /* Append options setting directly for special category. Example: --verbose */
   for (const auto &opt : category->GetEnabledOptions()) {
+    if (toolName == "maplecombwrp" && (opt->GetName() == "-o")) {
+      continue;
+    }
     for (const auto &val : opt->GetRawValues()) {
       if (opt->GetEqualType() == maplecl::EqualType::kWithEqual) {
         (void)finalOptions.emplace_back(opt->GetName() + "=" + val, "");
       } else {
-        (void)finalOptions.emplace_back(opt->GetName(), val);
+        if (opt->GetName() == "-Wl") {
+          (void)finalOptions.emplace_back(val, "");
+        } else if (opt->GetName() == "-fsigned-char") {
+          (void)finalOptions.emplace_back("-usesignedchar", val);
+        } else {
+          (void)finalOptions.emplace_back(opt->GetName(), val);
+        }
       }
 
       if (isDebug) {
-        LogInfo::MapleLogger() << opt->GetName() << " " << val << " ";
+        if (opt->GetName() == "-Wl") {
+          LogInfo::MapleLogger() << val << " ";
+        } else {
+          LogInfo::MapleLogger() << opt->GetName() << " " << val << " ";
+        }
       }
     }
   }

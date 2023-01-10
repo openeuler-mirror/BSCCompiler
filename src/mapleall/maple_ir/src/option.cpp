@@ -20,6 +20,7 @@
 #include "file_utils.h"
 #include "mpl_logging.h"
 #include "mpl2mpl_options.h"
+#include "triple.h"
 
 namespace maple {
 
@@ -33,18 +34,33 @@ std::string Options::skipAfter;
 bool Options::quiet = false;
 bool Options::regNativeFunc = false;
 bool Options::nativeWrapper = true;         // Enabled by default
+bool Options::enableIPAClone = true;
+
+// Options for inlining (einline and ginline)
 bool Options::inlineWithProfile = false;
 bool Options::useInline = true;             // Enabled by default
-bool Options::enableIPAClone = true;
+bool Options::enableGInline = true;
 bool Options::useCrossModuleInline = true;  // Enabled by default
 std::string Options::noInlineFuncList = "";
 std::string Options::importFileList = "";
+// These two thresholds will be scaled down if new cost module was used
 uint32 Options::inlineSmallFunctionThreshold = 80;  // Only for srcLangC, value will be reset later for other srcLang
 uint32 Options::inlineHotFunctionThreshold = 100;   // Only for srcLangC, value will be reset later for other srcLang
 uint32 Options::inlineRecursiveFunctionThreshold = 15;
 uint32 Options::inlineDepth = 8;
 uint32 Options::inlineModuleGrowth = 10;
 uint32 Options::inlineColdFunctionThreshold = 3;
+bool Options::respectAlwaysInline = false;
+bool Options::inlineToAllCallers = true;
+uint32 Options::ginlineMaxNondeclaredInlineCallee = 400;
+bool Options::ginlineAllowNondeclaredInlineSizeGrow = false;
+bool Options::ginlineAllowIgnoreGrowthLimit = true;
+uint32 Options::ginlineMaxDepthIgnoreGrowthLimit = 3;
+uint32 Options::ginlineSmallFunc = 29;
+uint32 Options::ginlineRelaxSmallFuncDecalredInline = 4;
+uint32 Options::ginlineRelaxSmallFuncCanbeRemoved = 32;
+std::string Options::callsiteProfilePath = "";
+
 uint32 Options::profileHotCount = 1000;
 uint32 Options::profileColdCount = 10;
 uint32 Options::numOfCloneVersions = 2;
@@ -68,6 +84,8 @@ bool Options::skipVirtualMethod = false;
 #endif
 bool Options::profileGen = false;
 bool Options::profileUse = false;
+bool Options::stackProtectorStrong = false;
+bool Options::stackProtectorAll = false;
 bool Options::genLMBC = false;
 
 // Ready to be deleted.
@@ -121,8 +139,12 @@ bool Options::checkArrayStore = false;
 bool Options::noComment = false;
 bool Options::rmNoUseFunc = true; // default remove no-used static function
 bool Options::sideEffect = true;
+bool Options::sideEffectWhiteList = false;
 bool Options::dumpIPA = false;
 bool Options::wpaa = false;  // whole program alias analysis
+bool Options::doOutline = false;
+size_t Options::outlineThreshold = 12800;
+size_t Options::outlineRegionMax = 512;
 
 Options &Options::GetInstance() {
   static Options instance;
@@ -130,9 +152,15 @@ Options &Options::GetInstance() {
 }
 
 void Options::DecideMpl2MplRealLevel() const {
-  if (opts::mpl2mpl::o2 || opts::mpl2mpl::os) {
-    if (opts::mpl2mpl::os) {
+  if ((opts::mpl2mpl::o2 || opts::o2) || (opts::mpl2mpl::os || opts::os)) {
+    if (opts::mpl2mpl::os || opts::os) {
       optForSize = true;
+      doOutline = true;
+
+      // optimize ginline for Os codesize
+      inlineDepth = 1;
+      inlineModuleGrowth = 1;
+      ginlineAllowIgnoreGrowthLimit = false;
     }
     O2 = true;
     usePreg = true;
@@ -171,6 +199,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(inlineWithProfile, opts::mpl2mpl::inlineWithProfile);
   maplecl::CopyIfEnabled(useInline, opts::mpl2mpl::inlineOpt);
   maplecl::CopyIfEnabled(enableIPAClone, opts::mpl2mpl::ipaClone);
+  maplecl::CopyIfEnabled(enableGInline, opts::mpl2mpl::ginlineOpt);
   maplecl::CopyIfEnabled(noInlineFuncList, opts::mpl2mpl::noInlineFunc);
   maplecl::CopyIfEnabled(importFileList, opts::mpl2mpl::importFileList);
   maplecl::CopyIfEnabled(numOfCloneVersions, opts::mpl2mpl::numOfCloneVersions);
@@ -186,10 +215,24 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(inlineDepth, opts::mpl2mpl::inlineDepth);
   maplecl::CopyIfEnabled(inlineModuleGrowth, opts::mpl2mpl::inlineModuleGrow);
   maplecl::CopyIfEnabled(inlineColdFunctionThreshold, opts::mpl2mpl::inlineColdFuncThresh);
+  maplecl::CopyIfEnabled(respectAlwaysInline, opts::mpl2mpl::respectAlwaysInline);
+
+  maplecl::CopyIfEnabled(inlineToAllCallers, opts::mpl2mpl::inlineToAllCallers);
+  maplecl::CopyIfEnabled(ginlineMaxNondeclaredInlineCallee, opts::mpl2mpl::ginlineMaxNondeclaredInlineCallee);
+  maplecl::CopyIfEnabled(ginlineAllowNondeclaredInlineSizeGrow, opts::mpl2mpl::ginlineAllowNondeclaredInlineSizeGrow);
+  maplecl::CopyIfEnabled(ginlineAllowIgnoreGrowthLimit, opts::mpl2mpl::ginlineAllowIgnoreGrowthLimit);
+  maplecl::CopyIfEnabled(ginlineMaxDepthIgnoreGrowthLimit, opts::mpl2mpl::ginlineMaxDepthIgnoreGrowthLimit);
+  maplecl::CopyIfEnabled(ginlineSmallFunc, opts::mpl2mpl::ginlineSmallFunc);
+  maplecl::CopyIfEnabled(ginlineRelaxSmallFuncDecalredInline, opts::mpl2mpl::ginlineRelaxSmallFuncDecalredInline);
+  maplecl::CopyIfEnabled(ginlineRelaxSmallFuncCanbeRemoved, opts::mpl2mpl::ginlineRelaxSmallFuncCanbeRemoved);
+  maplecl::CopyIfEnabled(callsiteProfilePath, opts::mpl2mpl::callsiteProfilePath);
+
   maplecl::CopyIfEnabled(profileHotCount, opts::mpl2mpl::profileHotCount);
   maplecl::CopyIfEnabled(profileColdCount, opts::mpl2mpl::profileColdCount);
   maplecl::CopyIfEnabled(profileHotRate, opts::mpl2mpl::profileHotRate);
   maplecl::CopyIfEnabled(profileColdRate, opts::mpl2mpl::profileColdRate);
+  maplecl::CopyIfEnabled(outlineThreshold, opts::mpl2mpl::outlineThreshold);
+  maplecl::CopyIfEnabled(outlineRegionMax, opts::mpl2mpl::outlineRegionMax);
 
   if (opts::mpl2mpl::mapleLinker) {
     mapleLinker = opts::mpl2mpl::mapleLinker;
@@ -209,7 +252,13 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(noRC, !opts::mpl2mpl::userc, opts::mpl2mpl::userc);
   maplecl::CopyIfEnabled(strictNaiveRC, opts::mpl2mpl::strictNaiveRc);
   maplecl::CopyIfEnabled(gcOnly, opts::gcOnly);
-  maplecl::CopyIfEnabled(bigEndian, opts::bigEndian);
+
+  /* big endian can be set with several options: --target, -Be.
+   * Triple takes to account all these options and allows to detect big endian with IsBigEndian() interface */
+  if (Triple::GetTriple().IsBigEndian()) {
+    bigEndian = true;
+  }
+
   maplecl::CopyIfEnabled(rcOpt1, opts::mpl2mpl::rcOpt1);
   maplecl::CopyIfEnabled(nativeOpt, opts::mpl2mpl::nativeOpt);
   maplecl::CopyIfEnabled(criticalNativeFile, opts::mpl2mpl::criticalNative);
@@ -287,6 +336,8 @@ bool Options::SolveOptions(bool isDebug) const {
   }
 
   maplecl::CopyIfEnabled(profileUse, opts::profileUse);
+  maplecl::CopyIfEnabled(stackProtectorStrong, opts::stackProtectorStrong);
+  maplecl::CopyIfEnabled(stackProtectorAll, opts::stackProtectorAll);
   maplecl::CopyIfEnabled(genLMBC, opts::genLMBC);
   maplecl::CopyIfEnabled(appPackageName, opts::mpl2mpl::appPackageName);
   maplecl::CopyIfEnabled(classLoaderInvocationList, opts::mpl2mpl::checkClInvocation);
@@ -313,6 +364,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(noComment, opts::mpl2mpl::noComment);
   maplecl::CopyIfEnabled(rmNoUseFunc, opts::mpl2mpl::rmNouseFunc);
   maplecl::CopyIfEnabled(sideEffect, opts::mpl2mpl::sideEffect);
+  maplecl::CopyIfEnabled(sideEffectWhiteList, opts::mpl2mpl::sideEffectWhiteList);
   maplecl::CopyIfEnabled(dumpIPA, opts::mpl2mpl::dumpIPA);
   maplecl::CopyIfEnabled(wpaa, opts::mpl2mpl::wpaa);
 

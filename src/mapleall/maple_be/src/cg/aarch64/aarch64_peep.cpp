@@ -2907,6 +2907,9 @@ bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curI
     }
     if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(combineInsn.GetMachineOpcode(), newMemOpnd,
                                                                  kInsnThirdOpnd))) {
+      if (FindTmpRegOnlyUseAfterCombineInsn(combineInsn)) {
+        return false;
+      }
       return PlaceSplitAddInsn(curInsn, combineInsn, memOperand, *baseRegOpnd, opndProp->GetSize());
     }
     combineInsn.SetOperand(kInsnThirdOpnd, *newMemOpnd);
@@ -2981,8 +2984,7 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
     /* do combination str/ldr -> stp/ldp */
     if ((insn.IsStore() || destRegNO != prevDestRegNO) || (destRegNO == RZR && prevDestRegNO == RZR)) {
       if ((memSize == k8ByteSize && diffVal == k8BitSize) ||
-          (memSize == k4ByteSize && diffVal == k4BitSize) ||
-          (memSize == k16ByteSize && diffVal == k16BitSize)) {
+          (memSize == k4ByteSize && diffVal == k4BitSize)) {
         MOperator mopPair = GetMopPair(thisMop);
         MemOperand *combineMemOpnd = (offsetVal < prevOffsetVal) ? memOpnd : prevMemOpnd;
         Insn &combineInsn = (offsetVal < prevOffsetVal) ?

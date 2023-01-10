@@ -112,7 +112,7 @@ class CDGNode {
     return inEdges.size();
   }
 
-  bool HasAmbiRegs() {
+  bool HasAmbiRegs() const {
     return hasAmbiRegs;
   }
 
@@ -214,19 +214,19 @@ class CDGNode {
     ambiInsns->clear();
   }
 
-  Insn *GetLatestDefInsn(regno_t regNO) {
+  Insn *GetLatestDefInsn(regno_t regNO) const {
     return (*regDefs)[regNO];
   }
 
-  void SetLatestDefInsn(regno_t regNO, Insn *defInsn) {
+  void SetLatestDefInsn(regno_t regNO, Insn *defInsn) const {
     (*regDefs)[regNO] = defInsn;
   }
 
-  RegList *GetUseInsnChain(regno_t regNO) {
+  RegList *GetUseInsnChain(regno_t regNO) const {
     return (*regUses)[regNO];
   }
 
-  void AppendUseInsnChain(regno_t regNO, Insn *useInsn, MemPool &mp, bool beforeRA) {
+  void AppendUseInsnChain(regno_t regNO, Insn *useInsn, MemPool &mp, bool beforeRA) const {
     CHECK_FATAL(useInsn != nullptr, "invalid useInsn");
     auto *newUse = mp.New<RegList>();
     newUse->insn = useInsn;
@@ -250,23 +250,23 @@ class CDGNode {
     }
   }
 
-  void ClearUseInsnChain(regno_t regNO) {
+  void ClearUseInsnChain(regno_t regNO) const {
     (*regUses)[regNO] = nullptr;
   }
 
-  MapleVector<Insn*> &GetStackUseInsns() {
+  MapleVector<Insn*> &GetStackUseInsns() const {
     return *stackUses;
   }
 
-  void AddStackUseInsn(Insn *stackInsn) {
+  void AddStackUseInsn(Insn *stackInsn) const {
     stackUses->emplace_back(stackInsn);
   }
 
-  MapleVector<Insn*> &GetStackDefInsns() {
+  MapleVector<Insn*> &GetStackDefInsns() const {
     return *stackDefs;
   }
 
-  void AddStackDefInsn(Insn *stackInsn) {
+  void AddStackDefInsn(Insn *stackInsn) const {
     stackDefs->emplace_back(stackInsn);
   }
 

@@ -75,12 +75,16 @@ std::string MplcgCompiler::GetInputFile(const MplOptions &options [[maybe_unused
 }
 
 void MplcgCompiler::SetOutputFileName(const MplOptions &options, const Action &action, const MIRModule &md) {
-  if (md.GetSrcLang() == kSrcLangC) {
-    baseName = action.GetFullOutputName();
+  if (opts::onlyCompile && opts::output.IsEnabledByUser()) {
+    outputFile = opts::output.GetValue();
   } else {
-    baseName = action.GetOutputFolder() + FileUtils::GetFileName(GetInputFile(options, action, &md), false);
+    if (md.GetSrcLang() == kSrcLangC) {
+      baseName = action.GetFullOutputName();
+    } else {
+      baseName = action.GetOutputFolder() + FileUtils::GetFileName(GetInputFile(options, action, &md), false);
+    }
+    outputFile = baseName + ".s";
   }
-  outputFile = baseName + ".s";
 }
 
 void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const Action &action,
@@ -214,11 +218,15 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, const Action &action,
       }
     }
     timer.Stop();
+  if (opts::debug) {
     LogInfo::MapleLogger() << "Mplcg Parser consumed " << timer.ElapsedMilliseconds() << "ms\n";
+  }
   }
   SetOutputFileName(options, action, *theModule);
   theModule->SetInputFileName(fileName);
-  LogInfo::MapleLogger() << "Starting mplcg\n";
+  if (opts::debug) {
+    LogInfo::MapleLogger() << "Starting mplcg\n";
+  }
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
                       opts::withDwarf, fileRead, opts::timePhase);
   if (opts::debug) {

@@ -99,6 +99,9 @@ void HDSE::UpdateChiUse(MeStmt *stmt) {
 // If EXPR is defined by the same assign with ASSIGN, that means the previous
 // assign can not be removed because that's a real use.
 bool HDSE::RealUse(MeExpr &expr, MeStmt &assign) {
+  if (expr.IsVolatile()) {
+    return true;
+  }
   switch (expr.GetMeOp()) {
     case kMeOpVar: {
       auto *defStmt = static_cast<VarMeExpr&>(expr).GetDefByMeStmt();
@@ -813,6 +816,9 @@ bool HDSE::StmtMustRequired(const MeStmt &meStmt, const BB &bb) const {
   if (HasNonDeletableExpr(meStmt)) {
     return true;
   }
+  if (meStmt.IsCondBr() && irrBrRequiredStmts.find(&meStmt) != irrBrRequiredStmts.end()) {
+    return true;
+  }
   return false;
 }
 
@@ -838,7 +844,7 @@ void HDSE::MarkSpecialStmtRequired() {
   }
 }
 
-void HDSE::MarkIrreducibleBrRequired() {
+void HDSE::InitIrreducibleBrRequiredStmts() {
   StackMemPool mp(memPoolCtrler, "scc mempool");
   MapleAllocator localAlloc(&mp);
   std::vector<BB*> allNodes;
@@ -846,10 +852,34 @@ void HDSE::MarkIrreducibleBrRequired() {
     return bb != nullptr;
   });
   MapleVector<SCCNode<BB>*> sccs(localAlloc.Adapter());
-  (void)BuildSCC(localAlloc, bbVec.size(), allNodes, false, sccs);
+  (void)BuildSCC(localAlloc, bbVec.size(), allNodes, false, sccs, true);
   for (auto *scc : sccs) {
+    if (!scc->HasRecursion()) {
+      continue;
+    }
     for (BB *bb : scc->GetNodes()) {
-      MarkLastStmtInPDomBBRequired(*bb);
+      for (auto cdBBId : postDom.GetDomFrontier(bb->GetID())) {
+        BB *cdBB = bbVec[cdBBId];
+        if (cdBB == bb || cdBB->IsMeStmtEmpty()) {
+          continue;
+        }
+        auto &lastStmt = cdBB->GetMeStmts().back();
+        if (lastStmt.IsCondBr()) {
+          (void)irrBrRequiredStmts.insert(&lastStmt);
+        }
+      }
+    }
+  }
+  if (loops == nullptr) {
+    return;
+  }
+  for (auto *loop : loops->GetMeLoops()) {
+    if (!loop->IsFiniteLoop()) {
+      continue;
+    }
+    auto *lastMe = loop->head->GetLastMe();
+    if (lastMe != nullptr && lastMe->IsCondBr()) {
+      irrBrRequiredStmts.erase(lastMe);  // erase required stmts for infinite loops
     }
   }
 }
@@ -893,6 +923,7 @@ void HDSE::DseInit() {
       }
     }
   }
+  InitIrreducibleBrRequiredStmts();
 }
 
 void HDSE::InvokeHDSEUpdateLive() {
@@ -904,7 +935,6 @@ void HDSE::InvokeHDSEUpdateLive() {
 void HDSE::DoHDSE() {
   DseInit();
   MarkSpecialStmtRequired();
-  MarkIrreducibleBrRequired();
   PropagateLive();
   if (removeRedefine) {
     ResolveContinuousRedefine();

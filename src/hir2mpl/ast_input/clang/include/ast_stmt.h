@@ -646,8 +646,8 @@ class ASTAtomicExprStmt : public ASTStmt {
 class ASTGCCAsmStmt : public ASTStmt {
  public:
   explicit ASTGCCAsmStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtGCCAsmStmt),
-      asmStr("", allocatorIn.GetMemPool()), outputs(allocatorIn.Adapter()), inputs(allocatorIn.Adapter()),
-      clobbers(allocatorIn.Adapter()), labels(allocatorIn.Adapter()) {}
+      allocator(allocatorIn), asmStr("", allocatorIn.GetMemPool()), outputs(allocatorIn.Adapter()),
+      inputs(allocatorIn.Adapter()), clobbers(allocatorIn.Adapter()), labels(allocatorIn.Adapter()) {}
   ~ASTGCCAsmStmt() override = default;
 
   void SetAsmStr(const std::string &str) {
@@ -684,6 +684,7 @@ class ASTGCCAsmStmt : public ASTStmt {
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+  MapleAllocator &allocator;
   MapleString asmStr;
   MapleVector<std::tuple<std::string, std::string, bool>> outputs;
   MapleVector<std::pair<std::string, std::string>> inputs;

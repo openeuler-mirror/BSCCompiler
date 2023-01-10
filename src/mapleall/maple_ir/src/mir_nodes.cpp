@@ -1923,6 +1923,7 @@ bool IsSignedType(const BaseNode *opnd) {
     case PTY_i64:
     case PTY_f32:
     case PTY_f64:
+    case PTY_f128:
     case PTY_dyni32:
     case PTY_dynf32:
     case PTY_dynf64:

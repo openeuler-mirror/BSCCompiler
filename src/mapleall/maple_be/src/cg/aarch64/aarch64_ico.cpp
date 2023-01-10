@@ -414,19 +414,19 @@ bool AArch64ICOIfThenElsePattern::CheckHasSameDest(std::vector<Insn*> &lInsn, st
 
 bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Operand*,
     std::vector<Operand*>> &destSrcMap, std::vector<Operand*> &src,
-    std::map<Operand*, Insn*> &dest2InsnMap, Insn **toBeRremovedOutOfCurrBB) const {
+    std::map<Operand*, Insn*> &dest2InsnMap, Insn *&toBeRremovedOutOfCurrBB) const {
   /* src was modified in this blcok earlier */
   for (auto srcOpnd : src) {
     if (srcOpnd->IsRegister()) {
       auto &srcReg = static_cast<const RegOperand&>(*srcOpnd);
-      for (auto &destSrcPair : destSrcMap) {
+      for (const auto &destSrcPair : destSrcMap) {
         ASSERT(destSrcPair.first->IsRegister(), "opnd must be register");
         RegOperand *mapSrcReg = static_cast<RegOperand*>(destSrcPair.first);
         if (mapSrcReg->GetRegisterNumber() == srcReg.GetRegisterNumber()) {
-          if (*toBeRremovedOutOfCurrBB == nullptr && mapSrcReg->IsVirtualRegister() &&
+          if (toBeRremovedOutOfCurrBB == nullptr && mapSrcReg->IsVirtualRegister() &&
               !insn.GetBB()->GetLiveOut()->TestBit(srcReg.GetRegisterNumber())) {
             ASSERT(dest2InsnMap.find(mapSrcReg) != dest2InsnMap.end(), "must find");
-            *toBeRremovedOutOfCurrBB = dest2InsnMap[mapSrcReg];
+            toBeRremovedOutOfCurrBB = dest2InsnMap[mapSrcReg];
             continue;
           }
           return false;
@@ -438,7 +438,7 @@ bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Ope
   /* dest register was modified earlier in this block */
   ASSERT(dest.IsRegister(), "opnd must be register");
   auto &destReg = static_cast<const RegOperand&>(dest);
-  for (auto &destSrcPair : destSrcMap) {
+  for (const auto &destSrcPair : destSrcMap) {
     ASSERT(destSrcPair.first->IsRegister(), "opnd must be register");
     RegOperand *mapSrcReg = static_cast<RegOperand*>(destSrcPair.first);
     if (mapSrcReg->GetRegisterNumber() == destReg.GetRegisterNumber()) {
@@ -508,7 +508,7 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std
       }
     }
 
-    if (!CheckModifiedRegister(*insn, destSrcMap, src, dest2InsnMap, &toBeRremovedOutOfCurrBB)) {
+    if (!CheckModifiedRegister(*insn, destSrcMap, src, dest2InsnMap, toBeRremovedOutOfCurrBB)) {
       return false;
     }
 

@@ -14,7 +14,7 @@
  */
 #ifndef MPL2MPL_INCLUDE_SCC_H
 #define MPL2MPL_INCLUDE_SCC_H
-#include "call_graph.h"
+#include "base_graph_node.h"
 namespace maple {
 class BaseGraphNode;
 
@@ -254,7 +254,8 @@ void VerifySCC(std::vector<T*> nodes) {
 
 template<typename T>
 uint32 BuildSCC(MapleAllocator &cgAlloc, uint32 numOfNodes,
-                std::vector<T*> &allNodes, bool debugScc, MapleVector<SCCNode<T>*> &topologicalVec) {
+                std::vector<T*> &allNodes, bool debugScc, MapleVector<SCCNode<T>*> &topologicalVec,
+                bool clearOld = false) {
   // This is the mapping between cg_id to node.
   std::vector<T*> id2NodeMap(numOfNodes, nullptr);
   std::vector<uint32> visitedOrder(numOfNodes, 0);
@@ -263,6 +264,12 @@ uint32 BuildSCC(MapleAllocator &cgAlloc, uint32 numOfNodes,
   std::vector<uint32> visitStack;
   uint32 visitIndex = 1;
   uint32 numOfSccs = 0;
+  if (clearOld) {
+    // clear old scc before computing
+    for (auto node : allNodes) {
+      node->SetSCCNode(nullptr);
+    }
+  }
   // However, not all SCC can be reached from roots.
   // E.g. foo()->foo(), foo is not considered as a root.
   for (auto node : allNodes) {

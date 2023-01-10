@@ -1389,6 +1389,14 @@ class CGOptions {
     return instrumentationWhiteList;
   }
 
+  static void SetInstrumentationOutPutPath(std::string pgoOutPutPath) {
+    instrumentationOutPutPath = pgoOutPutPath;
+  }
+
+  static std::string& GetInstrumentationOutPutPath() {
+    return instrumentationOutPutPath;
+  }
+
  private:
   std::vector<std::string> phaseSequence;
   bool runCGFlag = true;
@@ -1502,6 +1510,7 @@ class CGOptions {
   static bool liteProfUse;
   static std::string litePgoOutputFunction;
   static std::string instrumentationWhiteList;
+  static std::string instrumentationOutPutPath;
   static std::string liteProfile;
   static std::string functionProrityFile;
 };

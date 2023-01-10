@@ -30,8 +30,7 @@ maplecl::Option<bool> fpie({"-fpie", "--fpie"},
 maplecl::Option<bool> fPIE({"-fPIE", "--fPIE",},
                           "  --fPIE                          \tGenerate position-independent executable in large mode\n"
                           "  --no-pie\n",
-                          {cgCategory, driverCategory, ldCategory},
-                          maplecl::DisableWith("--no-pie"));
+                          {cgCategory, driverCategory, ldCategory});
 
 maplecl::Option<bool> fpic({"-fpic", "--fpic"},
                            "  --fpic                     \tGenerate position-independent shared library in small mode\n"
@@ -42,8 +41,7 @@ maplecl::Option<bool> fpic({"-fpic", "--fpic"},
 maplecl::Option<bool> fPIC({"-fPIC", "--fPIC"},
                            "  --fPIC                     \tGenerate position-independent shared library in large mode\n"
                            "  --no-pic\n",
-                           {cgCategory, driverCategory, ldCategory},
-                           maplecl::DisableWith("--no-pic"));
+                           {cgCategory, driverCategory, ldCategory});
 
 maplecl::Option<bool> fnoSemanticInterposition({"-fno-semantic-interposition", "--fno-semantic-interposition"},
                                                "  --fno-semantic-interposition  \tif interposition happens for "
@@ -429,7 +427,7 @@ maplecl::Option<std::string> dumpPhases({"--dump-phases"},
 maplecl::Option<std::string> skipPhases({"--skip-phases"},
                                         "  --skip-phases=PHASENAME,..."
                                         " \tSkip the phases specified in the comma separated list\n",
-                                        {cgCategory});
+                                        {cgCategory, driverCategory});
 
 maplecl::Option<std::string> skipFrom({"--skip-from"},
                                       "  --skip-from=PHASENAME       \tSkip the rest phases from PHASENAME(included)\n",
@@ -562,10 +560,10 @@ maplecl::Option<bool> longCalls({"--long-calls"},
                                 {cgCategory},
                                 maplecl::DisableWith("--no-long-calls"));
 
-maplecl::Option<bool> functionSections({"--function-sections"},
+maplecl::Option<bool> functionSections({"--function-sections", "-ffunction-sections"},
                                        " --function-sections           \t \n"
                                        "  --no-function-sections\n",
-                                       {cgCategory},
+                                       {cgCategory, driverCategory},
                                        maplecl::DisableWith("--no-function-sections"));
 
 maplecl::Option<bool> omitFramePointer({"--omit-frame-pointer", "-fomit-frame-pointer"},
@@ -637,13 +635,14 @@ maplecl::Option<bool> litePgoGen({"--lite-pgo-gen"},
                                  {cgCategory},
                                  maplecl::DisableWith("--no-lite-pgo-gen"));
 maplecl::Option<std::string> instrumentationFile ({"--instrumentation-file"},
-                                                  "--instrumentation-file=filepath \t instrumentation function white list\n",
+                                                  "--instrumentation-file=filepath \t instrumentation file output path\n",
                                                   {cgCategory});
-
+maplecl::Option<std::string> instrumentationWhiteList ({"--instrumentation-white-list"},
+                                                        "--instrumentation-white-list=filepath \t instrumentation function white list\n",
+                                                       {cgCategory});
 maplecl::Option<std::string> litePgoOutputFunc ({"--lite-pgo-output-func"},
-                                                 "--lite-pgo-output-func=function name \t generate lite profile at the exit of the output function[default main]\n",
+                                                 "--lite-pgo-output-func=function name \t generate lite profile at the exit of the output function[default none]\n",
                                                  {cgCategory});
-
 maplecl::Option<std::string> litePgoFile({"--lite-pgo-file"},
                                          " --lite-pgo-file=filepath          \t lite pgo guide file\n",
                                          {cgCategory});

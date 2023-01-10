@@ -128,8 +128,16 @@ TokenKind MIRLexer::GetConstVal() {
     negative = true;
   }
   const uint32 lenHexPrefix = 2;
+  if (line.compare(curIdx, lenHexPrefix + 1, "0xL") == 0) {
+    curIdx += lenHexPrefix + 1;
+    return GetLongHexConst(valStart, negative);
+  }
+
   if (line.compare(curIdx, lenHexPrefix, "0x") == 0) {
     curIdx += lenHexPrefix;
+    if (line.compare(curIdx, 1, "L") == 0) {
+      curIdx += lenHexPrefix;
+    }
     return GetHexConst(valStart, negative);
   }
   uint32 startIdx = curIdx;
@@ -203,22 +211,49 @@ TokenKind MIRLexer::GetHexConst(uint32 valStart, bool negative) {
   return TK_intconst;
 }
 
+TokenKind MIRLexer::GetLongHexConst(uint32 valStart, bool negative) {
+  char c = GetCharAtWithUpperCheck(curIdx);
+  if (!isxdigit(c)) {
+    name = line.substr(valStart, curIdx - valStart);
+    return TK_invalid;
+  }
+  __int128 tmp = 0;
+  while (isxdigit(c)) {
+    tmp = static_cast<uint32>(HexCharToDigit(c));
+    tmp = (static_cast<__int128>(theLongDoubleVal[1]) << 4) + tmp;
+    theLongDoubleVal[1] = tmp;
+    theLongDoubleVal[0] = (theLongDoubleVal[0] << 4) + (tmp >> 64);
+    c = GetNextCurrentCharWithUpperCheck();
+  }
+  theIntVal = static_cast<int64>(static_cast<uint64>(theLongDoubleVal[1]));
+  if (negative) {
+    theIntVal = -theIntVal;
+  }
+  theFloatVal = static_cast<float>(theIntVal);
+  theDoubleVal = static_cast<double>(theIntVal);
+  if (negative && theIntVal == 0) {
+    theFloatVal = -theFloatVal;
+    theDoubleVal = -theDoubleVal;
+  }
+  name = line.substr(valStart, curIdx - valStart);
+  return TK_intconst;
+}
+
 TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
   auto negOrSelf = [negative](uint64 val) { return negative ? ~val + 1 : val; };
 
-  theIntVal = HexCharToDigit(GetCharAtWithUpperCheck(curIdx));
+  theIntVal = static_cast<uint64_t>(HexCharToDigit(GetCharAtWithUpperCheck(curIdx)));
 
   uint64 radix = theIntVal == 0 ? 8 : 10;
 
   char c = GetNextCurrentCharWithUpperCheck();
 
   for (theIntVal = negOrSelf(theIntVal); isdigit(c); c = GetNextCurrentCharWithUpperCheck()) {
-    theIntVal = (theIntVal * radix) + negOrSelf(HexCharToDigit(c));
+    theIntVal = (theIntVal * radix) + negOrSelf(static_cast<uint64_t>(HexCharToDigit(c)));
   }
 
   if (c == 'u' || c == 'U') {  // skip 'u' or 'U'
     c = GetNextCurrentCharWithUpperCheck();
-
     if (c == 'l' || c == 'L') {
       c = GetNextCurrentCharWithUpperCheck();
     }
@@ -226,7 +261,6 @@ TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
 
   if (c == 'l' || c == 'L') {
     c = GetNextCurrentCharWithUpperCheck();
-
     if (c == 'l' || c == 'L' || c == 'u' || c == 'U') {
       ++curIdx;
     }
@@ -277,8 +311,7 @@ TokenKind MIRLexer::GetFloatConst(uint32 valStart, uint32 startIdx, bool negativ
     c = GetNextCurrentCharWithUpperCheck();
   }
   if (c == 'l' || c == 'L') {
-    MIR_ERROR("warning: not yet support long double\n");
-    ++curIdx;
+    c = GetNextCurrentCharWithUpperCheck();
   }
 
   std::string floatStr = line.substr(startIdx, curIdx - startIdx);
@@ -290,7 +323,7 @@ TokenKind MIRLexer::GetFloatConst(uint32 valStart, uint32 startIdx, bool negativ
     if (negative) {
       theFloatVal = -theFloatVal;
     }
-    theIntVal = static_cast<int>(theFloatVal);
+    theIntVal = static_cast<uint64>(theFloatVal);
     theDoubleVal = static_cast<double>(theFloatVal);
     if (negative && fabs(theFloatVal) <= 1e-6) {
       theDoubleVal = -theDoubleVal;
@@ -304,7 +337,7 @@ TokenKind MIRLexer::GetFloatConst(uint32 valStart, uint32 startIdx, bool negativ
     if (negative) {
       theDoubleVal = -theDoubleVal;
     }
-    theIntVal = static_cast<int>(theDoubleVal);
+    theIntVal = static_cast<uint64>(theDoubleVal);
     theFloatVal = static_cast<float>(theDoubleVal);
     if (negative && fabs(theDoubleVal) <= 1e-15) {
       theFloatVal = -theFloatVal;
@@ -333,10 +366,10 @@ TokenKind MIRLexer::GetTokenWithPrefixPercent() {
   char c = GetCharAtWithUpperCheck(curIdx);
   if (isdigit(c)) {
     int valStart = curIdx - 1;
-    theIntVal = HexCharToDigit(c);
+    theIntVal = static_cast<uint64_t>(HexCharToDigit(c));
     c = GetNextCurrentCharWithUpperCheck();
     while (isdigit(c)) {
-      theIntVal = (theIntVal * 10) + HexCharToDigit(c);
+      theIntVal = (theIntVal * 10) + static_cast<uint64_t>(HexCharToDigit(c));
       ASSERT(theIntVal >= 0, "int value overflow");
       c = GetNextCurrentCharWithUpperCheck();
     }
@@ -396,7 +429,7 @@ TokenKind MIRLexer::GetTokenWithPrefixExclamation() {
 
 TokenKind MIRLexer::GetTokenWithPrefixQuotation() {
   if (GetCharAtWithUpperCheck(curIdx + 1) == '\'') {
-    theIntVal = GetCharAtWithUpperCheck(curIdx);
+    theIntVal = static_cast<uint64_t>(GetCharAtWithUpperCheck(curIdx));
     curIdx += 2;
     return TK_intconst;
   }
@@ -448,7 +481,7 @@ TokenKind MIRLexer::GetTokenWithPrefixDoubleQuotation() {
           const uint32 hexLength = 2;
           uint8 c1 = Char2num(GetCharAtWithLowerCheck(curIdx + 1));
           uint8 c2 = Char2num(GetCharAtWithLowerCheck(curIdx + 2));
-          uint32 cNew = (c1 << hexShift) + c2;
+          uint32 cNew = static_cast<uint8_t>(c1 << hexShift) + c2;
           line[curIdx - shift] = cNew;
           curIdx += hexLength;
           shift += hexLength;
@@ -469,9 +502,10 @@ TokenKind MIRLexer::GetTokenWithPrefixDoubleQuotation() {
           const uint32 octShift2 = 6;
           const uint32 octLength = 3;
           ASSERT(curIdx + octLength < line.size(), "index out of range");
-          uint32 cNew = (static_cast<unsigned char>(GetCharAtWithLowerCheck(curIdx + 1) - '0') << octShift2) +
-                        (static_cast<unsigned char>(GetCharAtWithLowerCheck(curIdx + 2) - '0') << octShift1) +
-                        static_cast<unsigned char>(GetCharAtWithLowerCheck(curIdx + 3) - '0');
+          uint32 cNew =
+              static_cast<uint8>(static_cast<uint8>(GetCharAtWithLowerCheck(curIdx + 1) - '0') << octShift2) +
+              static_cast<uint8>(static_cast<uint8>(GetCharAtWithLowerCheck(curIdx + 2) - '0') << octShift1) +
+              static_cast<uint8>(GetCharAtWithLowerCheck(curIdx + 3) - '0');
           line[curIdx - shift] = cNew;
           curIdx += octLength;
           shift += octLength;

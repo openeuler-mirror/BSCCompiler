@@ -579,9 +579,15 @@ Operand *HandleVectorMovNarrow(const IntrinsicopNode &intrinsicNode, CGFunc &cgF
   return cgFunc.SelectVectorMovNarrow(rType, opnd, intrinsicNode.Opnd(0)->GetPrimType());
 }
 
+Operand *HandleVectorIntrinsics(const IntrinsicopNode &intrinsicNode, CGFunc &cgFunc) {
+  return cgFunc.SelectVectorIntrinsics(intrinsicNode);
+}
+
 Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   auto &intrinsicopNode = static_cast<IntrinsicopNode&>(expr);
-  switch (intrinsicopNode.GetIntrinsic()) {
+  auto intrinsicId = intrinsicopNode.GetIntrinsic();
+  IntrinDesc &intrinsicDesc = IntrinDesc::intrinTable[intrinsicId];
+  switch (intrinsicId) {
     case INTRN_MPL_READ_OVTABLE_ENTRY_LAZY: {
       Operand *srcOpnd = cgFunc.HandleExpr(intrinsicopNode, *intrinsicopNode.Opnd(0));
       return cgFunc.SelectLazyLoad(*srcOpnd, intrinsicopNode.GetPrimType());
@@ -694,22 +700,22 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C___sync_add_and_fetch_2:
     case INTRN_C___sync_add_and_fetch_4:
     case INTRN_C___sync_add_and_fetch_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_add, false);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpAdd, false);
     case INTRN_C___sync_sub_and_fetch_1:
     case INTRN_C___sync_sub_and_fetch_2:
     case INTRN_C___sync_sub_and_fetch_4:
     case INTRN_C___sync_sub_and_fetch_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_sub, false);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpSub, false);
     case INTRN_C___sync_fetch_and_add_1:
     case INTRN_C___sync_fetch_and_add_2:
     case INTRN_C___sync_fetch_and_add_4:
     case INTRN_C___sync_fetch_and_add_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_add, true);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpAdd, true);
     case INTRN_C___sync_fetch_and_sub_1:
     case INTRN_C___sync_fetch_and_sub_2:
     case INTRN_C___sync_fetch_and_sub_4:
     case INTRN_C___sync_fetch_and_sub_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_sub, true);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpSub, true);
     case INTRN_C___sync_bool_compare_and_swap_1:
     case INTRN_C___sync_bool_compare_and_swap_2:
     case INTRN_C___sync_bool_compare_and_swap_4:
@@ -732,56 +738,62 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C___sync_fetch_and_and_2:
     case INTRN_C___sync_fetch_and_and_4:
     case INTRN_C___sync_fetch_and_and_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_band, true);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpAnd, true);
     case INTRN_C___sync_and_and_fetch_1:
     case INTRN_C___sync_and_and_fetch_2:
     case INTRN_C___sync_and_and_fetch_4:
     case INTRN_C___sync_and_and_fetch_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_band, false);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpAnd, false);
     case INTRN_C___sync_fetch_and_or_1:
     case INTRN_C___sync_fetch_and_or_2:
     case INTRN_C___sync_fetch_and_or_4:
     case INTRN_C___sync_fetch_and_or_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_bior, true);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpOr, true);
     case INTRN_C___sync_or_and_fetch_1:
     case INTRN_C___sync_or_and_fetch_2:
     case INTRN_C___sync_or_and_fetch_4:
     case INTRN_C___sync_or_and_fetch_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_bior, false);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpOr, false);
     case INTRN_C___sync_fetch_and_xor_1:
     case INTRN_C___sync_fetch_and_xor_2:
     case INTRN_C___sync_fetch_and_xor_4:
     case INTRN_C___sync_fetch_and_xor_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_bxor, true);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpXor, true);
     case INTRN_C___sync_xor_and_fetch_1:
     case INTRN_C___sync_xor_and_fetch_2:
     case INTRN_C___sync_xor_and_fetch_4:
     case INTRN_C___sync_xor_and_fetch_8:
-      return cgFunc.SelectCSyncFetch(intrinsicopNode, OP_bxor, false);
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpXor, false);
     case INTRN_C___sync_synchronize:
       return cgFunc.SelectCSyncSynchronize(intrinsicopNode);
     case INTRN_C___atomic_load_n:
       return cgFunc.SelectCAtomicLoadN(intrinsicopNode);
     case INTRN_C___atomic_fetch_add:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_add, true);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpAdd, true);
     case INTRN_C___atomic_fetch_sub:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_sub, true);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpSub, true);
     case INTRN_C___atomic_fetch_and:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_band, true);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpAnd, true);
     case INTRN_C___atomic_fetch_or:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bior, true);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpOr, true);
     case INTRN_C___atomic_fetch_xor:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bxor, true);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpXor, true);
+    case INTRN_C___atomic_fetch_nand:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpNand, true);
     case INTRN_C___atomic_add_fetch:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_add, false);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpAdd, false);
     case INTRN_C___atomic_sub_fetch:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_sub, false);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpSub, false);
     case INTRN_C___atomic_and_fetch:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_band, false);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpAnd, false);
     case INTRN_C___atomic_or_fetch:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bior, false);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpOr, false);
     case INTRN_C___atomic_xor_fetch:
-      return cgFunc.SelectCAtomicFetch(intrinsicopNode, OP_bxor, false);
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpXor, false);
+    case INTRN_C___atomic_exchange_n:
+      return cgFunc.SelectCAtomicExchangeN(intrinsicopNode);
+    case INTRN_C___atomic_nand_fetch:
+      return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpNand, false);
 
     case INTRN_C__builtin_return_address:
     case INTRN_C__builtin_extract_return_addr:
@@ -986,9 +998,13 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_mov_narrow_v4i32: case INTRN_vector_mov_narrow_v4u32:
     case INTRN_vector_mov_narrow_v8i16: case INTRN_vector_mov_narrow_v8u16:
       return HandleVectorMovNarrow(intrinsicopNode, cgFunc);
-    default:
-      CHECK_FATAL(false, "Unsupported intrinsicop.");
-      return nullptr;
+    default: {
+      if (!intrinsicDesc.IsVectorOp()) {
+        CHECK_FATAL(false, "Unsupported intrinsicop.");
+        return nullptr;
+      }
+      return HandleVectorIntrinsics(intrinsicopNode, cgFunc);
+    }
   }
 }
 
@@ -2124,9 +2140,6 @@ void CGFunc::HandleFunction() {
   }
   if (GetCG()->DoPatchLongBranch()) {
     PatchLongBranch();
-  }
-  if (CGOptions::DoEnableHotColdSplit()) {
-    theCFG->CheckCFGFreq();
   }
   NeedStackProtect();
 }

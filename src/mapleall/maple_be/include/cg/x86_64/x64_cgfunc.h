@@ -75,11 +75,11 @@ class X64CGFunc : public CGFunc {
   Operand *SelectCisaligned(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCalignup(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCaligndown(IntrinsicopNode &intrinopNode) override;
-  Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
+  Operand *SelectCSyncFetch(IntrinsicopNode &intrinsicopNode, SyncAndAtomicOp op, bool fetchBefore) override;
   Operand *SelectCSyncSynchronize(IntrinsicopNode &intrinsicopNode) override;
   Operand *SelectCAtomicLoadN(IntrinsicopNode &intrinsicopNode) override;
-  Operand *SelectCAtomicExchangeN(const IntrinsiccallNode &intrinsiccallNode) override;
-  Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, Opcode op, bool fetchBefore) override;
+  Operand *SelectCAtomicExchangeN(const IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, SyncAndAtomicOp op, bool fetchBefore) override;
   Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) override;
@@ -133,6 +133,7 @@ class X64CGFunc : public CGFunc {
   void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
+  void SelectNand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   Operand *SelectAbs(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectExtractbits(ExtractbitsNode &node, Operand &opnd0, const BaseNode &parent) override;
@@ -218,6 +219,7 @@ class X64CGFunc : public CGFunc {
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) override;
+  RegOperand *SelectVectorIntrinsics(const IntrinsicopNode &intrinsicOp) override;
   Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinopNode, PrimType retType,
                                         const std::string &name) override;
   void ProcessLazyBinding() override;
