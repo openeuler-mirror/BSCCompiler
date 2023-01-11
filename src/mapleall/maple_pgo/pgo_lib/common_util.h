@@ -41,12 +41,6 @@ typedef long int		int64_t;
 #define MS_SYNC		4		/* Synchronous memory sync.  */
 #define MS_INVALIDATE	2		/* Invalidate the caches.  */
 
-
-struct timespec {
-  uint64_t tv_sec;  /* seconds */
-  uint64_t tv_nsec; /* nanoseconds */
-};
-
 /* implement in arm v8 */
 uint64_t __nanosleep(const struct timespec *req,  struct timespec *rem) {
   uint64_t ret;

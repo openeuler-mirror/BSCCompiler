@@ -43,7 +43,7 @@ ASTO0 = {
     ],
     "run": [
         Qemu(
-            qemu="qemu-aarch64",
+            qemu="${OUT_ROOT}/tools/bin/qemu-aarch64",
             infile="${APP}.exe",
             redirection="output.log"
         ),

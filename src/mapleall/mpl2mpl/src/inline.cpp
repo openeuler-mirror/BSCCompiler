@@ -565,7 +565,10 @@ void MInline::InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bo
   }
   InlineResult result;
   result.reason = GetInlineFailedStr(failCode);
-  if (canInline) {
+  InlineFailedType failedType = GetInlineFailedType(failCode);
+  // If failedType is final ok, no need to analyze callee cost because inlining must be performed
+  bool mustInline = (failedType == kIFT_FinalOk);
+  if (canInline && !mustInline) {
     if (Options::profileUse && callee->GetFuncProfData() == nullptr) {
       // callee is never executed according to profile data
       canInline = false;

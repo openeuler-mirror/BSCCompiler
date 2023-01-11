@@ -2,6 +2,8 @@
 #define MPLPGO_C_LIBRARY_H
 #include "common_util.h"
 
+#define BUFSIZE 50
+
 struct Mpl_Lite_Pgo_DumpInfo {
   char *pgoFormatStr;
   struct Mpl_Lite_Pgo_DumpInfo *next;

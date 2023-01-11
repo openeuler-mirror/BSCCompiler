@@ -1,9 +1,11 @@
 #include "mplpgo.h"
+#include <pthread.h>
 
 struct Mpl_Lite_Pgo_ProfileInfoRoot __mpl_pgo_info_root;
 extern uint32_t __mpl_pgo_sleep_time;
 extern char __mpl_pgo_wait_forks;
 extern char *__mpl_pgo_dump_filename;
+pthread_rwlock_t rwlock;
 
 static inline int CheckAllZero(const struct Mpl_Lite_Pgo_FuncInfo *funcPtr) {
   const uint64_t *cptr = funcPtr->counters;
@@ -34,83 +36,39 @@ static inline void DumpNodeTailInsert(struct Mpl_Lite_Pgo_DumpInfo *header, stru
 }
 
 static size_t AppendOneString(
-    unsigned int modHash, const char *funcName, struct Mpl_Lite_Pgo_DumpInfo **head, const uint64_t *value) {
-  size_t sizeOfALine = 8 + sizeof(modHash) + strlen(funcName) + sizeof(value);
-  char *tempStr = malloc(sizeOfALine);
-
-  sprintf(tempStr, "1 %u$$%s %lu\n\0", modHash, funcName, *value);
-  struct Mpl_Lite_Pgo_DumpInfo *dumpNode = CreateDumpNode(tempStr);
-  if (*head == NULL) {
-    *head = dumpNode;
-  } else {
-    DumpNodeTailInsert(*head, dumpNode);
-  }
+    unsigned int modHash, const char *funcName, struct Mpl_Lite_Pgo_DumpInfo **head, const uint64_t *value, int fd) {
+  char lineBuf[BUFSIZE];
+  sprintf(lineBuf, "1 %u$$%s %lu\n\0", modHash, funcName, *value);
+  size_t sizeOfALine = strlen(lineBuf);
+  write(fd, lineBuf,  sizeOfALine);
   return sizeOfALine;
 }
 
 static inline void WriteToFile(const struct Mpl_Lite_Pgo_ObjectFileInfo *fInfo) {
   size_t txtLen = 0;
   struct Mpl_Lite_Pgo_DumpInfo *head = NULL;
+  int fd = open(__mpl_pgo_dump_filename, O_RDWR | O_APPEND | O_CREAT, 0640);
+  if (fd == -1) {
+    perror("Error opening mpl_pgo_dump file");
+    return;
+  }
+  pthread_rwlock_wrlock(&rwlock);
   while (fInfo) {
     for (unsigned int i = 0; i != fInfo->funcNum; ++i) {
       const struct Mpl_Lite_Pgo_FuncInfo *funcPtr = fInfo->funcInfos[i];
       if (!CheckAllZero(funcPtr)) {
         const uint64_t *cptr = funcPtr->counters;
-        txtLen += AppendOneString(fInfo->modHash, funcPtr->funcName, &head, &funcPtr->counterNum);
+        txtLen += AppendOneString(fInfo->modHash, funcPtr->funcName, &head, &funcPtr->counterNum, fd);
         for (size_t i = 0; cptr && i < funcPtr->counterNum; ++i) {
-          txtLen += AppendOneString(fInfo->modHash, funcPtr->funcName, &head, cptr);
+          txtLen += AppendOneString(fInfo->modHash, funcPtr->funcName, &head, cptr, fd);
           cptr++;
         }
       }
     }
     fInfo = fInfo->next;
   }
-  if (txtLen == 0) {
-    return;
-  }
-  char *inputBuf = (char *)malloc(txtLen);
-  memset(inputBuf, 0, strlen(inputBuf));
-  const char *stop = "\0";
-  strncpy(inputBuf, stop, 1);
-  while(head) {
-    strcat(inputBuf, head->pgoFormatStr);
-    struct Mpl_Lite_Pgo_DumpInfo *prev = head;
-    head = head->next;
-    free(prev->pgoFormatStr);
-    free(prev);
-  }
-
-  // highest file in ct device cannot over 640
-  int fd = open(__mpl_pgo_dump_filename, O_RDWR | O_APPEND | O_CREAT, 0640);
-  if (fd == -1) {
-    perror("Error opening mpl_pgo_dump file");
-    return;
-  }
-  int result = lseek(fd, txtLen - 1, SEEK_SET);
-  if (result == -1)
-  {
-    close(fd);
-    perror("Error calling lseek() to 'stretch' the file");
-    return;
-  }
-  result = write(fd, "", 1);
-  if (result == -1)
-  {
-    close(fd);
-    perror("Error writing last byte of the file");
-    return;
-  }
-#if ENABLE_MMAP // stop using mmap until hpf ready
-  char *buffer = (char *)__mmap(NULL, txtLen, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  pthread_rwlock_unlock(&rwlock);
   close(fd);
-  memcpy(buffer, inputBuf, strlen(inputBuf));
-  msync(buffer, txtLen, MS_SYNC);
-  munmap(buffer, txtLen);
-#else
-  write(fd, inputBuf,  strlen(inputBuf));
-  close(fd);
-#endif
-  free(inputBuf);
 }
 
 void ChildDumpProcess() {
@@ -210,9 +168,11 @@ void __mpl_pgo_exit() {
 /* provide internal call for user */
 void __mpl_pgo_dump_wrapper() {
   asm volatile ( SAVE_ALL :::);
-  if (((unsigned int)(__mpl_pgo_info_root.dumpOnce) & 31ul) == 0) {
+  pthread_rwlock_init(&rwlock, NULL);
+  if (((unsigned int)(__mpl_pgo_info_root.dumpOnce) % 10000ul) == 0) {
     WriteToFile(__mpl_pgo_info_root.ofileInfoList);
   }
   __mpl_pgo_info_root.dumpOnce++;
+  pthread_rwlock_destroy(&rwlock);
   asm volatile ( RESTORE_ALL :::);
 }

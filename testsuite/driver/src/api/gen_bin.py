@@ -23,5 +23,5 @@ class GenBin(ShellOperator):
         self.outfile = outfile
 
     def get_command(self, variables):
-        self.command = "aarch64-linux-gnu-gcc -O2 -static -L../../lib/c -std=c89 -o " + self.outfile + " " + self.infile + " -lst -lm"
+        self.command = "${OUT_ROOT}/tools/bin/aarch64-linux-gnu-gcc -O2 -static -L../../lib/c -std=c89 -o " + self.outfile + " " + self.infile + " -lst -lm"
         return super().get_final_command(variables)

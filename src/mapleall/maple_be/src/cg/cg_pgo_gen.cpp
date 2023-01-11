@@ -30,11 +30,16 @@ std::string FlatenName(const std::string &name) {
   return filteredName;
 }
 
-static inline std::vector<MIRSymbol*> CreateFuncInfo(
-    MIRModule &m, MIRType *funcProfInfoTy, const std::vector<MIRFunction*>&validFuncs) {
+std::string AppendModSpecSuffix(MIRModule &m) {
+  std::string specSuffix = "_";
+  specSuffix = specSuffix + std::to_string(DJBHash(m.GetEntryFuncName().c_str()) + m.GetNumFuncs());
+  return specSuffix;
+}
+
+static inline void CreateFuncInfo(
+    MIRModule &m, MIRType *funcProfInfoTy, const std::vector<MIRFunction*> &validFuncs, std::vector<MIRSymbol*> &syms) {
   MIRType *voidPtrTy = GlobalTables::GetTypeTable().GetVoidPtr();
   MIRType *u64Ty = GlobalTables::GetTypeTable().GetUInt64();
-  std::vector<MIRSymbol *> allFuncInfoSym;
   for (MIRFunction *f : validFuncs) {
     auto *funcInfoMirConst = m.GetMemPool()->New<MIRAggConst>(m, *funcProfInfoTy);
 
@@ -51,9 +56,8 @@ static inline std::vector<MIRSymbol*> CreateFuncInfo(
     MIRSymbol *funcInfoSym = m.GetMIRBuilder()->CreateGlobalDecl(
         namemangler::kprefixProfFuncDesc + std::to_string(puID), *funcProfInfoTy, kScFstatic);
     funcInfoSym->SetKonst(funcInfoMirConst);
-    allFuncInfoSym.emplace_back(funcInfoSym);
+    syms.emplace_back(funcInfoSym);
   }
-  return allFuncInfoSym;
 };
 
 static inline MIRSymbol *GetOrCreateFuncInfoTbl(MIRModule &m, const std::vector<MIRFunction*> &validFuncs) {
@@ -82,7 +86,8 @@ static inline MIRSymbol *GetOrCreateFuncInfoTbl(MIRModule &m, const std::vector<
   MIRType *funcProfInfoTy =
       GlobalTables::GetTypeTable().GetOrCreateStructType("__mpl_func_info_ty", fields, parentFields, m);
 
-  std::vector<MIRSymbol *> allFuncInfoSym = CreateFuncInfo(m, funcProfInfoTy, validFuncs);
+  std::vector<MIRSymbol *> allFuncInfoSym;
+  CreateFuncInfo(m, funcProfInfoTy, validFuncs, allFuncInfoSym);
 
   MIRType *funcProfInfoPtrTy = GlobalTables::GetTypeTable().GetOrCreatePointerType(funcProfInfoTy->GetTypeIndex());
   MIRType *arrOfFuncInfoPtrTy = GlobalTables::GetTypeTable().GetOrCreateArrayType(
@@ -178,8 +183,8 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   for (MIRFunction *f : std::as_const(m.GetFunctionList())) {
     validFuncs.push_back(f);
   }
-  /* call entry in mplpgo.so */
-  auto profEntry = std::string("__" + FlatenName(m.GetFileName()) + "_init");
+  /* call entry in libmplpgo.so */
+  auto profEntry = std::string("__" + FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) + "_init");
   ArgVector formals(m.GetMPAllocator().Adapter());
   MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
   auto *newEntry  = m.GetMIRBuilder()->CreateFunction(profEntry, *voidTy, formals);
@@ -196,7 +201,7 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   m.AddFunction(newEntry);
 
   /* call setup in mplpgo.so if it needs mutex && dump in child process */
-  auto profSetup = std::string("__" + FlatenName(m.GetFileName()) + "_setup");
+  auto profSetup = std::string("__" + FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) +  "_setup");
   auto *newSetup = m.GetMIRBuilder()->CreateFunction(profSetup, *voidTy, formals);
   auto *setupInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_setup", TyIdx(PTY_void));
   auto *setupBody = newSetup->GetCodeMempool()->New<BlockNode>();
@@ -206,8 +211,8 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   newSetup->SetAttr(FUNCATTR_initialization);
   m.AddFunction(newSetup);
 
-  /* call exit in mplpgo.so */
-  auto profExit = std::string("__" + FlatenName(m.GetFileName()) + "_exit");
+  /* call exit in libmplpgo.so */
+  auto profExit = std::string("__" + FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) + "_exit");
   auto *newExit = m.GetMIRBuilder()->CreateFunction(profExit, *voidTy, formals);
   auto *exitInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_exit", TyIdx(PTY_void));
   auto *exitBody = newExit->GetCodeMempool()->New<BlockNode>();
@@ -226,8 +231,6 @@ void CGProfGen::InstrumentFunction() {
   /* skip large bb function currently due to offset in ldr/store */
   if (iBBs.size() > kMaxPimm8) {
     /* fixed by adding jumping label between large counter section */
-    /* fixed by adding jumping label between large counter section */
-    CHECK_FATAL_FALSE("due to offset in ldr/store. currently stop");
     return;
   }
 

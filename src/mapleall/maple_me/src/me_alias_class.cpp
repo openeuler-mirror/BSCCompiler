@@ -142,6 +142,7 @@ void MeAliasClass::DoAliasAnalysis() {
     }
   }
   ApplyUnionForFieldsInCopiedAgg();
+  ApplyUnionForElementsInCopiedArray();
   CreateAssignSets();
   PropagateTypeUnsafe();
   if (enabledDebug) {

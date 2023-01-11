@@ -476,6 +476,21 @@ void AliasClass::SetNotAllDefsSeenForMustDefs(const StmtNode &callas) {
   }
 }
 
+void AliasClass::ApplyUnionForElementsInCopiedArray() {
+  for (auto *ost : lhsWithUndefinedOffsets) {
+    auto *prevLevOfLHSOst = ssaTab.GetVerSt(ost->GetPointerVstIdx());
+    if (!prevLevOfLHSOst) {
+      continue;
+    }
+    auto *nextLevOsts = ssaTab.GetOriginalStTable().GetNextLevelOstsOfVst(prevLevOfLHSOst);
+    for (auto *otherOst : *nextLevOsts) {
+      if (otherOst->GetFieldID() == ost->GetFieldID()) {
+        unionFind.Union(ost->GetZeroVersionIndex(), otherOst->GetZeroVersionIndex());
+      }
+    }
+  }
+}
+
 // given a struct/union assignment, regard it as if the fields that appear
 // in the code are also assigned
 void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
@@ -599,6 +614,9 @@ void AliasClass::ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, 
       } else {
         aggsToUnion[rhsOst] = lhsOst;
       }
+    }
+    if (lhsOst->GetOffset().IsInvalid()) {
+      lhsWithUndefinedOffsets.push_back(lhsOst);
     }
   }
 
@@ -971,7 +989,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       auto *lhsVst = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt);
       OriginalSt *lhsOst = lhsVst->GetOst();
       if (lhsOst->GetFieldID() != 0) {
-        (void) FindOrCreateVstOfAddrofOSt(*lhsOst);
+        (void)FindOrCreateVstOfAddrofOSt(*lhsOst);
       }
       RecordAliasAnalysisInfo(*lhsVst);
       ApplyUnionForDassignCopy(*lhsVst, rhsAinfo.vst, *stmt.Opnd(0));

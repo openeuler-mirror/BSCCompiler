@@ -117,16 +117,27 @@ static bool IsExprIntConstOrDefOutOfLoop(MeExpr *expr, const LoopDesc &loop) {
   if (expr->GetOp() == OP_constval && static_cast<ConstMeExpr*>(expr)->GetConstVal()->GetKind() == kConstInt) {
     return true;
   }
-  if (expr->IsScalar()) {
-    auto *scalarExpr = static_cast<ScalarMeExpr*>(expr);
-    auto *defStmt = scalarExpr->GetDefByMeStmt();
-    auto &loopBBs = loop.loopBBs;
-    if (defStmt != nullptr &&
-        std::find(loopBBs.begin(), loopBBs.end(), defStmt->GetBB()->GetID()) == loop.loopBBs.end()) {
+  if (!expr->IsScalar()) {
+    return false;
+  }
+  auto *scalarExpr = static_cast<ScalarMeExpr*>(expr);
+  auto *defStmt = scalarExpr->GetDefByMeStmt();
+  auto &loopBBs = loop.loopBBs;
+  if (defStmt != nullptr &&
+      std::find(loopBBs.begin(), loopBBs.end(), defStmt->GetBB()->GetID()) == loop.loopBBs.end()) {
+    return true;
+  }
+  if (scalarExpr->GetDefBy() == kDefByPhi) {
+    auto *phi = &scalarExpr->GetDefPhi();
+    auto *defBB = phi->GetDefBB();
+    // defPhi is not in the loop
+    if (std::find(loopBBs.begin(), loopBBs.end(), defBB->GetID()) == loop.loopBBs.end()) {
       return true;
     }
-    if (scalarExpr->GetDefBy() == kDefByPhi) {
-      auto *phi = &scalarExpr->GetDefPhi();
+    if (phi->GetOpnds().size() == 1) {
+      return false;
+    }
+    if (defBB == loop.head) {
       auto *phiLhs = phi->GetLHS();
       auto *backValue = phi->GetOpnd(1);
       if (loop.loopBBs.count(loop.head->GetPred(0)->GetBBId()) != 0) {

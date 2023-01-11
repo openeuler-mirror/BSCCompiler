@@ -160,7 +160,6 @@ void AArch64FixShortBranch::FixShortBranchesForSplitting() {
         if (!crossBoundary) {
           continue;
         }
-        // std::cout << "insert jump pad for BB : " << bb->GetId()  << std::endl;
         InsertJmpPadAtSecEnd(*insn, targetLabelIdx, *targetBB);
       }
     }
