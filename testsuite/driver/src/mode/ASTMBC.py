@@ -14,7 +14,7 @@
 
 from api import *
 
-ASTO2 = {
+ASTMBC = {
     "compile": [
         C2ast(
             clang="${OUT_ROOT}/tools/bin/clang",
@@ -33,15 +33,24 @@ ASTO2 = {
         ),
         Maple(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
+            run=["me", "mpl2mpl"],
             option={
                 "me": "-O2 --quiet",
                 "mpl2mpl": "-O2",
+            },
+            global_option="--genmaplebc",
+            infiles=["${APP}.mpl"]
+        ),
+        MapleCg(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            run=["mplcg"],
+            option={
                 "mplcg": "-O2 --fpic --quiet"
             },
             global_option="",
-            infiles=["${APP}.mpl"]
+            infile="${APP}.mbc"
         ),
+
         GenBin(
             infile="${APP}.s",
             outfile="${APP}.exe"
