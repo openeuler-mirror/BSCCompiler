@@ -129,6 +129,7 @@ class AliasClass : public AnalysisResult {
         globalsMayAffectedByClinitCheck(acAlloc.Adapter()),
         aggsToUnion(acAlloc.Adapter()),
         nadsOsts(acAlloc.Adapter()),
+        lhsWithUndefinedOffsets(acAlloc.Adapter()),
         assignSetOfVst(acAlloc.Adapter()),
         aliasSetOfOst(acAlloc.Adapter()),
         vstNextLevNotAllDefsSeen(acAlloc.Adapter()),
@@ -167,6 +168,7 @@ class AliasClass : public AnalysisResult {
   void ApplyUnionForIntrinsicCall(const IntrinsiccallNode &intrinsicCall);
   void ApplyUnionForCopies(StmtNode &stmt);
   void ApplyUnionForFieldsInCopiedAgg();
+  void ApplyUnionForElementsInCopiedArray();
   bool IsGlobalOstTypeUnsafe(const OriginalSt &ost) const;
   void PropagateTypeUnsafe();
   void PropagateTypeUnsafeVertically(const VersionSt &vst) const;
@@ -350,6 +352,7 @@ class AliasClass : public AnalysisResult {
   MapleSet<OStIdx> globalsMayAffectedByClinitCheck;
   MapleMap<OriginalSt*, OriginalSt*> aggsToUnion; // aggs are copied, their fields should be unioned
   MapleSet<OriginalSt*, OriginalSt::OriginalStPtrComparator> nadsOsts;
+  MapleVector<OriginalSt*> lhsWithUndefinedOffsets;
   VstIdx2AssignSet assignSetOfVst;
   OstIdx2AliasSet aliasSetOfOst;
   AliasAttrVec vstNextLevNotAllDefsSeen;

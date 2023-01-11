@@ -5011,7 +5011,7 @@ void AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, Operan
       } else if (operatorCode == kEOR) {
         SelectMvn(resOpnd, opnd0, primType);
       }
-    } else if (immOpnd->IsBitmaskImmediate()) {
+    } else if (immOpnd->IsBitmaskImmediate(dsize)) {
       MOperator mOp = SelectRelationMop(operatorCode, kRegImm, is64Bits, true, false);
       GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, resOpnd, opnd0, opnd1));
     } else {
