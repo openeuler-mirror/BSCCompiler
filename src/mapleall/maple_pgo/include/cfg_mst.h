@@ -16,13 +16,13 @@
 #define MAPLE_PGO_INCLUDE_CFG_MST_H
 
 #include "types_def.h"
-#include "mempool.h"
+#include "mempool_allocator.h"
 
 namespace maple {
 template <class Edge, class BB>
 class CFGMST {
  public:
-  explicit CFGMST(MemPool &mp) : mp(&mp) {}
+  explicit CFGMST(MemPool &mp) : mp(&mp), alloc(&mp), allEdges(alloc.Adapter()), bbGroups(alloc.Adapter()) {}
   virtual ~CFGMST() = default;
   void ComputeMST(BB *commonEntry, BB *commonExit);
   void BuildEdges(BB *commonEntry, BB *commonExit);
@@ -31,7 +31,7 @@ class CFGMST {
   bool IsCritialEdge(const BB *src, const BB *dest) const {
     return src->GetSuccs().size() > 1 && dest->GetPreds().size() > 1;
   }
-  const std::vector<Edge*> &GetAllEdges() const {
+  const MapleVector<Edge*> &GetAllEdges() const {
     return allEdges;
   }
 
@@ -59,8 +59,9 @@ class CFGMST {
   static constexpr int fakeExitEdgeWeight = 4;
   static constexpr int criticalEdgeWeight = 4;
   MemPool *mp;
-  std::vector<Edge*> allEdges;
-  std::map<uint32, uint32> bbGroups; // bbId - gourpId
+  MapleAllocator alloc;
+  MapleVector<Edge*> allEdges;
+  MapleMap<uint32, uint32> bbGroups; // bbId - gourpId
   uint32 totalBB = 0;
 };
 } /* namespace maple */

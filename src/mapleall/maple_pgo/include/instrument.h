@@ -121,7 +121,7 @@ class PGOInstrumentTemplate {
   void PrepareInstrumentInfo(IRBB *commonEntry, IRBB* commmonExit) {
     mst.ComputeMST(commonEntry, commmonExit);
   }
-  const std::vector<Edge*> &GetAllEdges() {
+  const MapleVector<Edge*> &GetAllEdges() {
     return mst.GetAllEdges();
   }
  private:

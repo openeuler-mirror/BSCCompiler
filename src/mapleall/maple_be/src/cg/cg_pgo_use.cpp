@@ -56,7 +56,7 @@ bool CGProfUse::ApplyPGOData() {
 }
 
 void CGProfUse::InitBBEdgeInfo() {
-  const std::vector<maple::BBUseEdge<maplebe::BB> *> &allEdges = instrumenter.GetAllEdges();
+  const MapleVector<maple::BBUseEdge<maplebe::BB> *> &allEdges = instrumenter.GetAllEdges();
   for (auto &e : allEdges) {
     BB *src = e->GetSrcBB();
     BB *dest = e->GetDestBB();
