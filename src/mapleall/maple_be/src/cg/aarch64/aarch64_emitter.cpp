@@ -19,6 +19,7 @@
 #include "metadata_layout.h"
 #include "cfi.h"
 #include "dbg.h"
+#include "cg_irbuilder.h"
 
 namespace {
 using namespace maple;

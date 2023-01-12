@@ -42,7 +42,7 @@ bool CanBBThrow(const BB &bb) {
 }
 
 namespace maplebe {
-void CGCFG::BuildCFG() {
+void CGCFG::BuildCFG() const {
   /*
    * Second Pass:
    * Link preds/succs in the BBs
@@ -888,7 +888,7 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) const {
 }
 
 #if TARGAARCH64
-BB *CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
+BB *CGCFG::BreakCriticalEdge(BB &pred, BB &succ) const {
   LabelIdx newLblIdx = cgFunc->CreateLabel();
   BB *newBB = cgFunc->CreateNewBB(newLblIdx, false, BB::kBBGoto, pred.GetFrequency());
   newBB->SetCritical(true);

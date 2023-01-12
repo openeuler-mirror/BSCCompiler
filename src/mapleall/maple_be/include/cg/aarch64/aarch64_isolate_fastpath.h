@@ -27,7 +27,9 @@ class AArch64IsolateFastPath : public IsolateFastPath {
  public:
   explicit AArch64IsolateFastPath(CGFunc &func)
       : IsolateFastPath(func) {}
-  ~AArch64IsolateFastPath() override = default;
+  ~AArch64IsolateFastPath() override {
+    fastPathReturnBB = nullptr;
+  }
 
   void Run() override;
 

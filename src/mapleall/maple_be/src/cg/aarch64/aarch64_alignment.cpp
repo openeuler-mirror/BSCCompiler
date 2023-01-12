@@ -18,6 +18,7 @@
 #include "aarch64_cg.h"
 #include "cg_option.h"
 #include "aarch64_alignment.h"
+#include "cg_irbuilder.h"
 
 namespace maplebe {
 void AArch64AlignAnalysis::FindLoopHeader() {
@@ -275,7 +276,7 @@ bool AArch64AlignAnalysis::MarkShortBranchSplit() {
 void AArch64AlignAnalysis::AddNopAfterMark() {
   FOR_ALL_BB(bb, aarFunc) {
     FOR_BB_INSNS(insn, bb) {
-      if (!insn->IsCondBranch() || insn->GetNopNum() == 0) {
+      if (!insn->IsMachineInstruction() || !insn->IsCondBranch() || insn->GetNopNum() == 0) {
         continue;
       }
       /**
@@ -304,7 +305,7 @@ void AArch64AlignAnalysis::AddNopAfterMark() {
         if (region->IsBBNeedAlign()) {
           break;
         }
-        if (!detect->IsCondBranch() || detect->GetOperandSize() == 0) {
+        if (!detect->IsMachineInstruction() || !detect->IsCondBranch() || detect->GetOperandSize() == 0) {
           detect = detect->GetPrev();
           continue;
         }
@@ -326,11 +327,11 @@ void AArch64AlignAnalysis::AddNopAfterMark() {
       uint32 nopNum = insn->GetNopNum();
       if (findIsland) {
         for (uint32 i = 0; i < nopNum; i++) {
-          (void)bb->InsertInsnAfter(*detect, aarFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_nop));
+          (void)bb->InsertInsnAfter(*detect, aarFunc->GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_nop));
         }
       } else {
         for (uint32 i = 0; i < nopNum; i++) {
-          (void)bb->InsertInsnBefore(*insn, aarFunc->GetCG()->BuildInstruction<AArch64Insn>(MOP_nop));
+          (void)bb->InsertInsnBefore(*insn, aarFunc->GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_nop));
         }
       }
     }

@@ -56,7 +56,7 @@ RegType RegPressureSchedule::GetRegisterType(regno_t reg) const {
 }
 
 /* Get amount of every physical register */
-void RegPressureSchedule::BuildPhyRegInfo(const std::vector<int32> &regNumVec) {
+void RegPressureSchedule::BuildPhyRegInfo(const std::vector<int32> &regNumVec) const {
   FOR_ALL_REGCLASS(i) {
     physicalRegNum[i] = regNumVec[i];
   }
@@ -211,7 +211,7 @@ void RegPressureSchedule::CalculateMaxDepth(const MapleVector<DepNode*> &nodes) 
 }
 
 /* calculate the near of every successor of the node. */
-void RegPressureSchedule::CalculateNear(const DepNode &node) {
+void RegPressureSchedule::CalculateNear(const DepNode &node) const {
   for (auto succ : node.GetSuccs()) {
     DepNode &to = succ->GetTo();
     if (succ->GetDepType() == kDependenceTypeTrue && to.GetNear() < node.GetNear() + 1) {

@@ -16,6 +16,7 @@
 #include "aarch64_cg.h"
 #include "mpl_logging.h"
 #include "aarch64_utils.h"
+#include "string_utils.h"
 
 namespace maplebe {
 using namespace maple;

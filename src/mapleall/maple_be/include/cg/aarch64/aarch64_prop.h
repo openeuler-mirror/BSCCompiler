@@ -51,7 +51,13 @@ class A64StrLdrProp {
         a64StrLdrAlloc(&mp),
         replaceVersions(a64StrLdrAlloc.Adapter()),
         cgDce(&dce) {}
-  ~A64StrLdrProp() {}
+  ~A64StrLdrProp() {
+    defInsn = nullptr;
+    cgFunc = nullptr;
+    ssaInfo = nullptr;
+    curInsn = nullptr;
+    cgDce = nullptr;
+  }
 
   void Init() {
     defInsn = nullptr;
@@ -327,6 +333,7 @@ class A64ConstFoldPattern : public PropOptimizePattern {
     defInsn = nullptr;
     dstOpnd = nullptr;
     srcOpnd = nullptr;
+    defDstOpnd = nullptr;
   }
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;

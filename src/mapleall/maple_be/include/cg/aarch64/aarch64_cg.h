@@ -31,6 +31,7 @@
 #include "aarch64_tailcall.h"
 #include "aarch64_cfgo.h"
 #include "aarch64_rematerialize.h"
+#include "aarch64_pgo_gen.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -141,6 +142,15 @@ class AArch64CG : public CG {
     return memPool.New<AArch64CGFunc>(mod, *this, mirFunc, bec, memPool, stackMp, mallocator, funcId);
   }
 
+  MemLayout *CreateMemLayout(MemPool &mp, BECommon &b, MIRFunction &f,
+                             MapleAllocator &mallocator) const override {
+    return mp.New<AArch64MemLayout>(b, f, mallocator);
+  }
+
+  RegisterInfo *CreateRegisterInfo(MemPool &mp, MapleAllocator &mallocator) const override {
+    return mp.New<AArch64RegInfo>(mallocator);
+  }
+
   void EnrollTargetPhases(MaplePhaseManager *pm) const override;
 
   const std::unordered_map<std::string, std::vector<std::string>> &GetCyclePatternMap() const {
@@ -215,9 +225,12 @@ class AArch64CG : public CG {
   const InsnDesc &GetTargetMd(MOperator mOp) const final {
     return kMd[mOp];
   }
+  CGProfGen *CreateCGProfGen(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64ProfGen>(f, mp);
+  };
 
   static const InsnDesc kMd[kMopLast];
-  enum : uint8 {
+  enum RegListType: uint8 {
     kR8List,
     kR16List,
     kR32List,

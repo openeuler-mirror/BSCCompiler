@@ -17,7 +17,6 @@
 
 #include "aarch64_isa.h"
 #include "insn.h"
-#include "string_utils.h"
 #include "aarch64_operand.h"
 #include "common_utils.h"
 namespace maplebe {

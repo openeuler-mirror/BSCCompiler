@@ -38,7 +38,23 @@ class CDGNode {
   CDGNode(CDGNodeId nId, BB &bb, MapleAllocator &alloc)
       : id(nId), bb(&bb), outEdges(alloc.Adapter()), inEdges(alloc.Adapter()),
         topoPreds(alloc.Adapter()), lastComments(alloc.Adapter()), predCDGNodes(alloc.Adapter()) {}
-  virtual ~CDGNode() = default;
+  virtual ~CDGNode() {
+    lastFrameDef = nullptr;
+    bb = nullptr;
+    regUses = nullptr;
+    mayThrows = nullptr;
+    ehInRegs = nullptr;
+    heapDefs = nullptr;
+    ambiInsns = nullptr;
+    membarInsn = nullptr;
+    pseudoSepNodes = nullptr;
+    lastCallInsn = nullptr;
+    regDefs = nullptr;
+    stackDefs = nullptr;
+    region = nullptr;
+    heapUses = nullptr;
+    stackUses = nullptr;
+  }
 
   BB *GetBB() {
     return bb;

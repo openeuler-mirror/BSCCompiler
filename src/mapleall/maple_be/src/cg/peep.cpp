@@ -598,7 +598,7 @@ void PeepOptimizer::Run() {
 
 int32 PeepOptimizer::index = 0;
 
-void PeepHoleOptimizer::Peephole0() {
+void PeepHoleOptimizer::Peephole0() const {
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "peepholeOptObj");
   PeepOptimizer peepOptimizer(*cgFunc, memPool.get());
 #if TARGAARCH64 || TARGRISCV64
@@ -609,7 +609,7 @@ void PeepHoleOptimizer::Peephole0() {
 #endif
 }
 
-void PeepHoleOptimizer::PrePeepholeOpt() {
+void PeepHoleOptimizer::PrePeepholeOpt() const {
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "peepholeOptObj");
   PeepOptimizer peepOptimizer(*cgFunc, memPool.get());
 #if TARGAARCH64 || TARGRISCV64
@@ -620,7 +620,7 @@ void PeepHoleOptimizer::PrePeepholeOpt() {
 #endif
 }
 
-void PeepHoleOptimizer::PrePeepholeOpt1() {
+void PeepHoleOptimizer::PrePeepholeOpt1() const {
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "peepholeOptObj");
   PeepOptimizer peepOptimizer(*cgFunc, memPool.get());
 #if TARGAARCH64 || TARGRISCV64

@@ -60,7 +60,7 @@ class MPISel {
   Operand *SelectAlloca(UnaryNode &node, Operand &opnd0);
   Operand *SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent);
   ImmOperand *SelectIntConst(MIRIntConst &intConst, PrimType primType) const;
-  void SelectCallCommon(StmtNode &stmt, const MPISel &iSel);
+  void SelectCallCommon(StmtNode &stmt, const MPISel &iSel) const;
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   Operand *SelectShift(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
@@ -135,16 +135,16 @@ class MPISel {
   RegOperand &SelectCopy2Reg(Operand &src, PrimType toType, PrimType fromType);
   RegOperand &SelectCopy2Reg(Operand &src, PrimType toType);
   void SelectIntCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
-  void SelectCvtInt2Float(RegOperand &resOpnd, Operand &origOpnd0, PrimType toType, PrimType fromType);
+  void SelectCvtInt2Float(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
   void SelectFloatCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
-  void SelectCvtFloat2Int(RegOperand &resOpnd, Operand &origOpnd0, PrimType toType, PrimType fromType);
+  void SelectCvtFloat2Int(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
   PrimType GetIntegerPrimTypeFromSize(bool isSigned, uint32 bitSize) const;
   std::pair<FieldID, MIRType*> GetFieldIdAndMirTypeFromMirNode(const BaseNode &node);
   MirTypeInfo GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType *mirType);
   MirTypeInfo GetMirTypeInfoFromMirNode(const BaseNode &node);
   MemOperand *GetOrCreateMemOpndFromIreadNode(const IreadNode &expr, PrimType primType, int offset);
  private:
-  StmtNode *HandleFuncEntry();
+  StmtNode *HandleFuncEntry() const;
   void HandleFuncExit() const;
   void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opndRhs);
   void SelectDassignStruct(MIRSymbol &symbol, MemOperand &symbolMem, Operand &opndRhs);
@@ -159,7 +159,7 @@ class MPISel {
    */
   void SelectCopyInsn(Operand &dest, Operand &src, PrimType type);
   void SelectNeg(Operand &resOpnd, Operand &opnd0, PrimType primType) const;
-  void SelectBnot(Operand &resOpnd, Operand &opnd0, PrimType primType);
+  void SelectBnot(Operand &resOpnd, Operand &opnd0, PrimType primType) const;
   void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectExtractbits(RegOperand &resOpnd, RegOperand &opnd0, uint8 bitOffset, uint8 bitSize, PrimType primType);
   void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);

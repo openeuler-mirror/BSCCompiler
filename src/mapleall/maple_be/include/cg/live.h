@@ -41,7 +41,7 @@ class LiveAnalysis : public AnalysisResult {
   void ResetLiveSet();
   void ClearInOutDataInfo();
   void EnlargeSpaceForLiveAnalysis(BB &currBB);
-  void GetBBDefUse(BB &bb);
+  void GetBBDefUse(BB &bb) const;
   void ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) const;
   void ProcessListOpnd(BB &bb, Operand &opnd, bool isDef) const;
   void ProcessMemOpnd(BB &bb, Operand &opnd) const;

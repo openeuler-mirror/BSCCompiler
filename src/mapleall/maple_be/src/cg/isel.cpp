@@ -594,7 +594,7 @@ PrimType MPISel::GetIntegerPrimTypeFromSize(bool isSigned, uint32 bitSize) const
   return isSigned ? signedPrimType[index] : unsignedPrimType[index];
 }
 
-void MPISel::SelectCallCommon(StmtNode &stmt, const MPISel &iSel) {
+void MPISel::SelectCallCommon(StmtNode &stmt, const MPISel &iSel) const {
   CGFunc *cgFunc = iSel.GetCurFunc();
   if (cgFunc->GetCurBB()->GetKind() != BB::kBBFallthru) {
     cgFunc->SetCurBB(*cgFunc->StartNewBB(stmt));
@@ -1364,7 +1364,7 @@ Operand *MPISel::SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent) 
   }
 }
 
-StmtNode *MPISel::HandleFuncEntry() {
+StmtNode *MPISel::HandleFuncEntry() const {
   MIRFunction &mirFunc = cgFunc->GetFunction();
   BlockNode *block = mirFunc.GetBody();
 
@@ -1481,7 +1481,7 @@ Operand *MPISel::SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNod
   return resOpnd;
 }
 
-void MPISel::SelectBnot(Operand &resOpnd, Operand &opnd0, PrimType primType) {
+void MPISel::SelectBnot(Operand &resOpnd, Operand &opnd0, PrimType primType) const {
   const static auto fastBnotMappingFunc = DEF_MOPERATOR_MAPPING_FUNC(not);
   MOperator mOp = fastBnotMappingFunc(GetPrimTypeBitSize(primType));
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));

@@ -18,6 +18,7 @@
 #include "common_utils.h"
 #include "cg_option.h"
 #include "aarch64_utils.h"
+#include "cg_irbuilder.h"
 
 namespace maplebe {
 #define JAVALANG (cgFunc->GetMirModule().IsJavaModule())

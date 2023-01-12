@@ -167,7 +167,7 @@ bool ChainingPattern::ClearCurBBAndResetTargetBB(BB &curBB, BB &sucBB) {
   }
   Insn *brInsn = nullptr;
   for (brInsn = curBB.GetLastInsn(); brInsn != nullptr; brInsn = brInsn->GetPrev()) {
-    if (brInsn->IsUnCondBranch()){
+    if (brInsn->IsUnCondBranch()) {
       break;
     }
   }
@@ -178,7 +178,7 @@ bool ChainingPattern::ClearCurBBAndResetTargetBB(BB &curBB, BB &sucBB) {
   if (newTarget->GetKind() == BB::kBBGoto) {
     Insn *br = nullptr;
     for (br = newTarget->GetLastInsn(); br != newTarget->GetFirstInsn()->GetPrev(); br = br->GetPrev()) {
-      if (br->IsUnCondBranch()){
+      if (br->IsUnCondBranch()) {
         break;
       }
     }

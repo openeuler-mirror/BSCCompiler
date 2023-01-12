@@ -60,6 +60,10 @@ class InsnVisitor {
   virtual bool IsCompareAndBranchInsn(const Insn &insn) const = 0;
   virtual bool IsAddOrSubInsn(const Insn &insn) const = 0;
 
+  virtual void ReTargetSuccBB(BB &bb, LabelIdx newTarget) const = 0;
+  virtual void FlipIfBB(BB &bb, LabelIdx ftLabel) const = 0;
+  virtual BB *CreateGotoBBAfterCondBB(BB &bb, BB &fallthru, bool isTargetFallthru) const = 0;
+
  private:
   CGFunc *cgFunc;
 };  /* class InsnVisitor; */
@@ -70,7 +74,7 @@ class CGCFG {
 
   ~CGCFG() = default;
 
-  void BuildCFG();
+  void BuildCFG() const;
   void CheckCFG();
   void CheckCFGFreq();
 
@@ -116,7 +120,8 @@ class CGCFG {
   BB *FindLastRetBB();
 
   void UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) const;
-  void BreakCriticalEdge(BB &pred, BB &succ);
+  BB *BreakCriticalEdge(BB &pred, BB &succ) const;
+  void ReverseCriticalEdge(BB &cbb);
  /* cgcfgvisitor */
  private:
   CGFunc *cgFunc = nullptr;

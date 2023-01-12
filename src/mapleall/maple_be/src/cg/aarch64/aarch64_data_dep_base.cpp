@@ -16,6 +16,7 @@
 #include "aarch64_operand.h"
 #include "pressure.h"
 #include "aarch64_data_dep_base.h"
+#include "cg_irbuilder.h"
 
 /* For building dependence graph, The entry is AArch64DataDepBase::Run. */
 namespace maplebe {

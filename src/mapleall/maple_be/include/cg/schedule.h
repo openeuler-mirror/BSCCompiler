@@ -36,7 +36,7 @@ class RegPressureSchedule {
   virtual ~RegPressureSchedule() = default;
 
   void InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes);
-  void BuildPhyRegInfo(const std::vector<int32> &regNumVec);
+  void BuildPhyRegInfo(const std::vector<int32> &regNumVec) const;
   void InitPartialSplitters(const MapleVector<DepNode*> &nodes);
   void Init(const MapleVector<DepNode*> &nodes);
   void UpdateBBPressure(const DepNode &node);
@@ -51,7 +51,7 @@ class RegPressureSchedule {
   void RestoreReadyList(DepNode &node, std::vector<bool> &changedToReady);
   void UpdatePriority(DepNode &node);
   void CalculateMaxDepth(const MapleVector<DepNode*> &nodes) const;
-  void CalculateNear(const DepNode &node);
+  void CalculateNear(const DepNode &node) const;
   static bool DepNodePriorityCmp(const DepNode *node1, const DepNode *node2);
   DepNode *ChooseNode();
   void DoScheduling(MapleVector<DepNode*> &nodes);

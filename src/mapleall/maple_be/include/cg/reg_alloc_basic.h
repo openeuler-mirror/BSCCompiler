@@ -45,13 +45,11 @@ class DefaultO0RegAllocator : public RegAllocator {
   bool AllocatePhysicalRegister(const RegOperand &opnd);
   void ReleaseReg(regno_t reg);
   void ReleaseReg(const RegOperand &regOpnd);
-  void GetPhysicalRegisterBank(RegType regType, regno_t &start, regno_t &end) const;
   void AllocHandleDestList(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleDest(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleSrcList(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleSrc(Insn &insn, Operand &opnd, uint32 idx);
-  bool IsSpecialReg(regno_t reg) const;
-  void SaveCalleeSavedReg(const RegOperand &opnd);
+  void SaveCalleeSavedReg(const RegOperand &regOpnd);
 
  protected:
   Operand *HandleRegOpnd(Operand &opnd);

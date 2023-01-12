@@ -15,6 +15,7 @@
 #include "aarch64_isolate_fastpath.h"
 #include "aarch64_cg.h"
 #include "cgfunc.h"
+#include "cg_irbuilder.h"
 
 namespace maplebe {
 using namespace maple;

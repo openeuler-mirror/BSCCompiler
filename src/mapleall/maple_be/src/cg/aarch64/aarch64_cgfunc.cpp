@@ -29,6 +29,7 @@
 #include "emit.h"
 #include "simplify.h"
 #include "aarch64_cgfunc.h"
+#include "cg_irbuilder.h"
 
 namespace maplebe {
 using namespace maple;
