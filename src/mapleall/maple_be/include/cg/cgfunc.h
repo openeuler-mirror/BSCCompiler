@@ -382,7 +382,6 @@ class CGFunc {
   virtual RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1,  Operand *o2, PrimType oty2, Opcode opc) = 0;
   virtual RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) = 0;
   virtual RegOperand *SelectVectorDup(PrimType rType, Operand *src, bool getLow) = 0;
-  virtual RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) = 0;
   virtual RegOperand *SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand *o2, PrimType oTy, bool isLow) = 0;
   virtual RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
                                        PrimType oTyp3) = 0;

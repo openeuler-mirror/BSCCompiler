@@ -534,7 +534,7 @@ class ConstMeExpr : public MeExpr {
   ~ConstMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
-  BaseNode &EmitExpr(MapleAllocator&) override;
+  BaseNode &EmitExpr(MapleAllocator &alloc) override;
   bool GeZero() const;
   bool GtZero() const;
   bool IsZero() const override;
@@ -710,7 +710,7 @@ class AddrofMeExpr : public MeExpr {
 
   void Dump(const IRMap*, int32 indent = 0) const override;
   bool IsUseSameSymbol(const MeExpr&) const override;
-  BaseNode &EmitExpr(MapleAllocator&) override;
+  BaseNode &EmitExpr(MapleAllocator &alloc) override;
   MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
 
   OStIdx GetOstIdx() const {
@@ -744,7 +744,7 @@ class AddroffuncMeExpr : public MeExpr {
   ~AddroffuncMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
-  BaseNode &EmitExpr(MapleAllocator&) override;
+  BaseNode &EmitExpr(MapleAllocator &alloc) override;
   MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
 
   PUIdx GetPuIdx() const {

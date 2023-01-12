@@ -16,6 +16,7 @@
 #include "aarch64_cg.h"
 #include "cg_option.h"
 #include "cgfunc.h"
+#include "cg_irbuilder.h"
 
 namespace maplebe {
 using namespace maple;

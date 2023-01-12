@@ -46,7 +46,7 @@ class IRMap : public AnalysisResult {
   IvarMeExpr *BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx &tyIdx, FieldID fieldID);
   IvarMeExpr *BuildLHSIvar(MeExpr &baseAddr, IassignMeStmt &iassignMeStmt, FieldID fieldID);
   MeExpr *CreateAddrofMeExpr(MeExpr&);
-  MeExpr *CreateAddroffuncMeExpr(PUIdx);
+  MeExpr *CreateAddroffuncMeExpr(PUIdx PuIdx);
   MeExpr *CreateAddrofMeExprFromSymbol(MIRSymbol& sym, PUIdx  puIdx);
   MeExpr *CreateIaddrofMeExpr(FieldID fieldId, TyIdx tyIdx, MeExpr *base);
   MeExpr *CreateIvarMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base);

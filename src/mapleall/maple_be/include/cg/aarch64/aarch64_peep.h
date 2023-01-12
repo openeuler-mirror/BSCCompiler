@@ -110,7 +110,9 @@ class CsetToCincPattern : public CGPeepPattern {
  public:
   CsetToCincPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~CsetToCincPattern() override = default;
+  ~CsetToCincPattern() override {
+    defInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   bool CheckDefInsn(const RegOperand &opnd, Insn &insn);
@@ -436,7 +438,9 @@ class NormRevTbzToTbzPattern : public CGPeepPattern {
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   NormRevTbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~NormRevTbzToTbzPattern() override = default;
+  ~NormRevTbzToTbzPattern() override {
+    tbzInsn = nullptr;
+  }
   std::string GetPatternName() override {
     return "NormRevTbzToTbzPattern";
   }
@@ -838,7 +842,9 @@ class LslAndToUbfizPattern : public CGPeepPattern {
  public:
   LslAndToUbfizPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~LslAndToUbfizPattern() override = default;
+  ~LslAndToUbfizPattern() override {
+    defInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   Insn *BuildNewInsn(const Insn &andInsn, const Insn &lslInsn, const Insn &useInsn) const;

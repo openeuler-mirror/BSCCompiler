@@ -161,7 +161,7 @@ class LoopFinder : public AnalysisResult {
   void SeekCycles();
   void MarkExtraEntryAndEncl();
   bool HasSameHeader(const LoopHierarchy *lp1, const LoopHierarchy *lp2) const;
-  void MergeLoops();
+  void MergeLoops() const;
   void SortLoops();
   void UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer);
   void UpdateOuterLoop(const LoopHierarchy *loop);
@@ -198,7 +198,7 @@ class CGFuncLoops {
   void CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &iLoops,
                                   const MapleVector<BB*> &loopMem) const;
   void CheckLoops() const;
-  void PrintLoops(const CGFuncLoops &loops) const;
+  void PrintLoops(const CGFuncLoops &funcLoop) const;
   bool IsBBLoopMember(const BB *bb) const;
   bool IsBackEdge(const BB &fromBB, const BB &toBB) const {
     auto backIt = backBBEdges.find(fromBB.GetId());

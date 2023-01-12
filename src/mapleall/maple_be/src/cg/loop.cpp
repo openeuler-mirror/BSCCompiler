@@ -374,7 +374,7 @@ bool LoopFinder::HasSameHeader(const LoopHierarchy *lp1, const LoopHierarchy *lp
   return false;
 }
 
-void LoopFinder::MergeLoops() {
+void LoopFinder::MergeLoops() const {
   for (LoopHierarchy *loopHierarchy1 = loops; loopHierarchy1 != nullptr; loopHierarchy1 = loopHierarchy1->GetNext()) {
     for (LoopHierarchy *loopHierarchy2 = loopHierarchy1->GetNext(); loopHierarchy2 != nullptr;
          loopHierarchy2 = loopHierarchy2->GetNext()) {

@@ -17,7 +17,7 @@
 
 #if TARGAARCH64
 #include "aarch64/aarch64_isa.h"
-#elif TARGX86_64
+#elif defined(TARGX86_64) && TARGX86_64
 #include "isa.h"
 #endif
 #include "insn.h"
@@ -812,11 +812,11 @@ class BB {
   }
 
   void SetEdgeFreq(const BB &bb, uint64 freq) {
-    auto iter = std::find(succs.begin(), succs.end(), &bb);
+    auto iter = std::find(succs.cbegin(), succs.cend(), &bb);
     CHECK_FATAL(iter != std::end(succs), "%d is not the successor of %d", bb.GetId(), this->GetId());
     CHECK_FATAL(succs.size() == succsFreq.size(), "succfreq size %d doesn't match succ size %d", succsFreq.size(),
                 succs.size());
-    const size_t idx = static_cast<size_t>(std::distance(succs.begin(), iter));
+    const size_t idx = static_cast<size_t>(std::distance(succs.cbegin(), iter));
     succsFreq[idx] = freq;
   }
 

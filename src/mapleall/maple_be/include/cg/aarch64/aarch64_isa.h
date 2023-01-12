@@ -17,6 +17,8 @@
 
 #include "isa.h"
 
+namespace maplebe {
+
 #define DEFINE_MOP(op, ...) op,
 enum AArch64MOP_t : maple::uint32 {
 #include "abstract_mmir.def"
@@ -26,7 +28,6 @@ enum AArch64MOP_t : maple::uint32 {
 };
 #undef DEFINE_MOP
 
-namespace maplebe {
 /*
  * ARM Architecture Reference Manual (for ARMv8)
  * D1.8.2
@@ -116,19 +117,19 @@ enum AArch64reg : uint32 {
 class Insn;
 
 namespace AArch64isa {
-static inline bool IsGPRegister(AArch64reg r) {
+inline bool IsGPRegister(AArch64reg r) {
   return R0 <= r && r <= RZR;
 }
 
-static inline bool IsFPSIMDRegister(AArch64reg r) {
+inline bool IsFPSIMDRegister(AArch64reg r) {
   return V0 <= r && r <= V31;
 }
 
-static inline bool IsPhysicalRegister(regno_t r) {
+ inline bool IsPhysicalRegister(regno_t r) {
   return r < kMaxRegNum;
 }
 
-static inline RegType GetRegType(AArch64reg r) {
+inline RegType GetRegType(AArch64reg r) {
   if (IsGPRegister(r)) {
     return kRegTyInt;
   }
@@ -148,7 +149,7 @@ enum MemoryOrdering : uint32 {
   kMoLorelease = (1ULL << 4)    /* ARMv8.1 */
 };
 
-static inline bool IsPseudoInstruction(MOperator mOp) {
+inline bool IsPseudoInstruction(MOperator mOp) {
   return (mOp >= MOP_pseudo_param_def_x && mOp <= MOP_pseudo_eh_def_x);
 }
 

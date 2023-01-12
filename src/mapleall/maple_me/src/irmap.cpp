@@ -1410,6 +1410,9 @@ MeExpr *IRMap::SimplifyBandExpr(const OpMeExpr *bandExpr) {
 MeExpr *IRMap::SimplifySubExpr(const OpMeExpr *subExpr) {
   MeExpr *opnd0 = subExpr->GetOpnd(0);
   MeExpr *opnd1 = subExpr->GetOpnd(1);
+  if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr *>(opnd1)->IsZero()) {
+    return opnd0;
+  }
   auto subExprPrimType = subExpr->GetPrimType();
 
   // a - (a & b) == a & (~b)
@@ -1672,6 +1675,11 @@ MeExpr *IRMap::SimplifyMulExpr(const OpMeExpr *mulExpr) {
     auto *tmp = opnd1;
     opnd1 = opnd0;
     opnd0 = tmp;
+  }
+  if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr *>(opnd0)->IsZero()) {
+    return opnd0;
+  } else if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr *>(opnd1)->IsZero()) {
+    return opnd1;
   }
 
   if (opnd1->IsLeaf()) {
@@ -2452,7 +2460,7 @@ MeExpr *IRMap::SimplifyAshrMeExpr(OpMeExpr *opmeexpr) {
   }
 
   uint64 signBit = 1 << (bitWidth - shiftAmt - 1);
-  bool isSignBitZero = IsSignBitZero(opnd0, signBit, shiftAmt);
+  bool isSignBitZero = IsSignBitZero(opnd0, signBit, static_cast<uint64>(shiftAmt));
   // sign bit is known to be zero, we can replace ashr with lshr
   if (isSignBitZero) {
     auto lshrExpr = CreateMeExprBinary(OP_lshr, opmeexpr->GetPrimType(), *opnd0, *opnd1);

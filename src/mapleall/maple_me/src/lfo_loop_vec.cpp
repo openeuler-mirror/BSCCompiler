@@ -1181,7 +1181,7 @@ RegreadNode *LoopVectorization::GenVectorReductionVar(StmtNode *stmt, LoopTransP
     uint32_t lhstypesize = GetPrimTypeSize(lhsType) * 8;
     uint32_t lhsMaxLanes = ((maxVecSize / lhstypesize) < tp->vecFactor) ?
                             (maxVecSize / lhstypesize) : tp->vecFactor;
-    lhsLanes = lhsMaxLanes;
+    lhsLanes = static_cast<uint8>(lhsMaxLanes);
   } else {
     IassignNode *iassign = static_cast<IassignNode *>(stmt);
     MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
@@ -1854,8 +1854,8 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
         if (isvectorizable && (x->Opnd(1)->GetOpCode() == OP_constval)) {
           PrimType targetType;
           if (vecInfo->currentRHSTypeSize != 0 && vecInfo->currentRHSTypeSize < GetPrimTypeSize(opnd1Type)) {
-            targetType = vecInfo->currentRHSTypeSize == 32 ? PTY_i32 :
-                (vecInfo->currentRHSTypeSize == 16 ? PTY_i16 : PTY_i8);
+            targetType = vecInfo->currentRHSTypeSize == k32BitSize ? PTY_i32 :
+                (vecInfo->currentRHSTypeSize == k16BitSize ? PTY_i16 : PTY_i8);
           } else {
             targetType = x->Opnd(0)->GetPrimType();
           }

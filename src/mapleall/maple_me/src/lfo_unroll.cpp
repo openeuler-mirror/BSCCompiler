@@ -183,7 +183,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
         preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()) {
       auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
       nextIterBlk = doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                      stmtFreqs, stmtFreqs, 1/*numor*/, times/*denom*/, (kKeepOrigFreq | kUpdateUnrolledFreq));
+                    stmtFreqs, stmtFreqs, 1/*numor*/, times/*denom*/, (kKeepOrigFreq | kUpdateUnrolledFreq));
     } else {
       nextIterBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
     }

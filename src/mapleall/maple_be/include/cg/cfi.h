@@ -164,7 +164,9 @@ class SymbolOperand : public maplebe::OperandVisitable<SymbolOperand> {
   SymbolOperand(const maple::MIRSymbol &mirSymbol, uint8 size)
       : OperandVisitable(kOpdStImmediate, size),
         symbol(&mirSymbol) {}
-  ~SymbolOperand() = default;
+  ~SymbolOperand() {
+    symbol = nullptr;
+  }
   using OperandVisitable<SymbolOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {

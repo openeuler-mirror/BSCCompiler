@@ -448,7 +448,7 @@ class BB : public BaseGraphNode {
     }
   }
   // update edge frequency
-  void UpdateEdgeFreqs(bool updateSuccFreq = true);
+  void UpdateEdgeFreqs(bool updateBBFreqOfSucc = true);
 
   const MapleVector<BB*> &GetSucc() const {
     return succ;

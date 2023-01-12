@@ -464,60 +464,12 @@ DEF_MIR_INTRINSIC(vector_get_high_v4f32, "vector_get_high_v4f32",
 
 // scalarTy vector_get_element(vecTy src, int n)
 //     Get the nth element of the source vector.
-DEF_MIR_INTRINSIC(vector_get_element_v2i64, "vector_get_element_v2i64",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
-                  kArgTyV2I64, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v4i32, "vector_get_element_v4i32",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32,
-                  kArgTyV4I32, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v8i16, "vector_get_element_v8i16",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI16,
-                  kArgTyV8I16, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v16i8, "vector_get_element_v16i8",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI8,
-                  kArgTyV16I8, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v2u64, "vector_get_element_v2u64",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
-                  kArgTyV2U64, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v4u32, "vector_get_element_v4u32",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU32,
-                  kArgTyV4U32, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v8u16, "vector_get_element_v8u16",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU16,
-                  kArgTyV8U16, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v16u8, "vector_get_element_v16u8",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU8,
-                  kArgTyV16U8, kArgTyI32)
 DEF_MIR_INTRINSIC(vector_get_element_v2f64, "vector_get_element_v2f64",
                   DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyF64,
                   kArgTyV2F64, kArgTyI32)
 DEF_MIR_INTRINSIC(vector_get_element_v4f32, "vector_get_element_v4f32",
                   DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyF32,
                   kArgTyV4F32, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v1i64, "vector_get_element_v1i64",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
-                  kArgTyV1I64, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v2i32, "vector_get_element_v2i32",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32,
-                  kArgTyV2I32, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v4i16, "vector_get_element_v4i16",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI16,
-                  kArgTyV4I16, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v8i8, "vector_get_element_v8i8",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI8,
-                  kArgTyV8I8, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v1u64, "vector_get_element_v1u64",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
-                  kArgTyV1U64, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v2u32, "vector_get_element_v2u32",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU32,
-                  kArgTyV2U32, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v4u16, "vector_get_element_v4u16",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU16,
-                  kArgTyV4U16, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_get_element_v8u8, "vector_get_element_v8u8",
-                  DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU8,
-                  kArgTyV8U8, kArgTyI32)
 DEF_MIR_INTRINSIC(vector_get_element_v1f64, "vector_get_element_v1f64",
                   DEFAULT_NUM_INSN, INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyF64,
                   kArgTyV1F64, kArgTyI32)

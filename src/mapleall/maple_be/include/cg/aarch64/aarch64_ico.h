@@ -52,7 +52,9 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   };
 
   explicit AArch64ICOIfThenElsePattern(CGFunc &func) : AArch64ICOPattern(func) {}
-  ~AArch64ICOIfThenElsePattern() override = default;
+  ~AArch64ICOIfThenElsePattern() override {
+    cmpBB = nullptr;
+  }
   bool Optimize(BB &curBB) override;
  protected:
   bool BuildCondMovInsn(const BB &bb, const std::map<Operand*, std::vector<Operand*>> &ifDestSrcMap,

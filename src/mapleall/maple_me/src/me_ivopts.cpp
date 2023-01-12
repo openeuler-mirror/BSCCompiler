@@ -1141,6 +1141,17 @@ void IVOptimizer::CreateIVCandidateFromBasicIV(IV &iv) {
   cand = data->CreateCandidate(tmp, base, step, inc);
   cand->important = true;
   cand->origIV = &iv;
+
+  tmp = irMap->CreateRegMeExpr(addressPTY);
+  base = irMap->CreateMeExprTypeCvt(addressPTY, GetUnsignedPrimType(iv.base->GetPrimType()), *iv.base);
+  simplified = irMap->SimplifyMeExpr(base);
+  if (simplified != nullptr) {
+    base = simplified;
+  }
+  inc = irMap->CreateRegMeExprVersion(*tmp);
+  cand = data->CreateCandidate(tmp, base, step, inc);
+  cand->important = true;
+  cand->origIV = &iv;
 }
 
 MeExpr *IVOptimizer::StripConstantPart(MeExpr &expr, int64 &offset) {
@@ -1415,54 +1426,71 @@ void IVOptimizer::ComputeCandCost() {
   }
 }
 
-static void FindScalarFactor(MeExpr &expr, std::unordered_map<int32, std::pair<MeExpr*, int64>> &record,
-                             int64 multiplier, bool needSext) {
+struct ScalarPeel {
+  ScalarPeel(MeExpr *e, int64 m, PrimType t) {
+    expr = e;
+    multiplier = m;
+    expandType = t;
+  }
+
+  MeExpr *expr = nullptr;
+  int64 multiplier = 0;
+  PrimType expandType = PTY_unknown;
+};
+
+void FindScalarFactor(MeExpr &expr, OpMeExpr *parentCvt, std::unordered_map<int32, ScalarPeel> &record,
+    int64 multiplier, bool needSext) {
   switch (expr.GetMeOp()) {
     case kMeOpConst: {
       int64 constVal = needSext ? static_cast<ConstMeExpr&>(expr).GetSXTIntValue() :
                                   static_cast<ConstMeExpr&>(expr).GetExtIntValue();
       auto it = record.find(kInvalidExprID);
       if (it == record.end()) {
-        record.emplace(kInvalidExprID, std::make_pair(nullptr, multiplier * constVal));
+        record.emplace(kInvalidExprID, ScalarPeel(&expr, multiplier * constVal, PTY_unknown));
       } else {
-        it->second.second += (multiplier * constVal);
+        it->second.multiplier += (multiplier * constVal);
       }
       return;
     }
     case kMeOpReg:
     case kMeOpVar: {
+      PrimType expandType = parentCvt ? parentCvt->GetOpndType() : expr.GetPrimType();
       auto it = record.find(expr.GetExprID());
       if (it == record.end()) {
-        record.emplace(expr.GetExprID(), std::make_pair(&expr, multiplier));
+        record.emplace(expr.GetExprID(), ScalarPeel(&expr, multiplier, expandType));
       } else {
-        it->second.second += multiplier;
+        it->second.multiplier += multiplier;
       }
       return;
     }
     case kMeOpOp: {
       auto &op = static_cast<OpMeExpr&>(expr);
       if (op.GetOp() == OP_add) {
-        FindScalarFactor(*op.GetOpnd(0), record, multiplier, needSext);
-        FindScalarFactor(*op.GetOpnd(1), record, multiplier, needSext);
+        FindScalarFactor(*op.GetOpnd(0), parentCvt, record, multiplier, needSext);
+        FindScalarFactor(*op.GetOpnd(1), parentCvt, record, multiplier, needSext);
       } else if (op.GetOp() == OP_sub) {
-        FindScalarFactor(*op.GetOpnd(0), record, multiplier, needSext);
-        FindScalarFactor(*op.GetOpnd(1), record, -multiplier, needSext);
+        FindScalarFactor(*op.GetOpnd(0), parentCvt, record, multiplier, needSext);
+        FindScalarFactor(*op.GetOpnd(1), parentCvt, record, -multiplier, needSext);
       } else if (op.GetOp() == OP_mul) {
         auto *opnd0 = op.GetOpnd(0);
         auto *opnd1 = op.GetOpnd(1);
         if (opnd0->GetMeOp() != kMeOpConst && opnd1->GetMeOp() != kMeOpConst) {
-          record.emplace(expr.GetExprID(), std::make_pair(&expr, multiplier));
+          PrimType expandType = parentCvt ? parentCvt->GetOpndType() : expr.GetPrimType();
+          record.emplace(expr.GetExprID(), ScalarPeel(&expr, multiplier, expandType));
           return;
         }
         if (opnd0->GetMeOp() == kMeOpConst) {
-          FindScalarFactor(
-              *op.GetOpnd(1), record, multiplier * static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue(), needSext);
+          FindScalarFactor(*op.GetOpnd(1), parentCvt,
+              record, multiplier * static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue(), needSext);
         } else {
-          FindScalarFactor(
-              *op.GetOpnd(0), record, multiplier * static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue(), needSext);
+          FindScalarFactor(*op.GetOpnd(0), parentCvt,
+              record, multiplier * static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue(), needSext);
         }
       } else if (op.GetOp() == OP_cvt) {
-        FindScalarFactor(*op.GetOpnd(0), record, multiplier, IsSignedInteger(op.GetOpndType()));
+        if (GetPrimTypeSize(op.GetOpndType()) < GetPrimTypeSize(op.GetPrimType())) {
+          parentCvt = &op;
+        }
+        FindScalarFactor(*op.GetOpnd(0), parentCvt, record, multiplier, IsSignedInteger(op.GetOpndType()));
       }
       return;
     }
@@ -1490,10 +1518,10 @@ int64 IVOptimizer::ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep) {
     return remainder == 0 ? groupConst / candConst : 0;
   }
 
-  std::unordered_map<int32, std::pair<MeExpr*, int64>> candMap;
-  std::unordered_map<int32, std::pair<MeExpr*, int64>> groupMap;
-  FindScalarFactor(candStep, candMap, 1, false);
-  FindScalarFactor(groupStep, groupMap, 1, false);
+  std::unordered_map<int32, ScalarPeel> candMap;
+  std::unordered_map<int32, ScalarPeel> groupMap;
+  FindScalarFactor(candStep, nullptr, candMap, 1, false);
+  FindScalarFactor(groupStep, nullptr, groupMap, 1, false);
   int64 commonRatio = 0;
   for (auto &itGroup : groupMap) {
     auto itCand = candMap.find(itGroup.first);
@@ -1506,16 +1534,16 @@ int64 IVOptimizer::ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep) {
     if (itGroup == groupMap.end()) {
       return 0;
     }
-    if (itGroup->second.second == 0 && itCand.second.second == 0) {
+    if (itGroup->second.multiplier == 0 && itCand.second.multiplier == 0) {
       continue;
-    } else if (itCand.second.second == 0) {
+    } else if (itCand.second.multiplier == 0) {
       return kInfinityCost;
     }
-    int64 remainder = itGroup->second.second % itCand.second.second;
+    int64 remainder = itGroup->second.multiplier % itCand.second.multiplier;
     if (remainder != 0) {
       return 0;
     }
-    int64 ratio = itGroup->second.second / itCand.second.second;
+    int64 ratio = itGroup->second.multiplier / itCand.second.multiplier;
     if (ratio == 0) {
       return 0;
     }
@@ -1530,41 +1558,58 @@ int64 IVOptimizer::ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep) {
 }
 
 MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase, uint64 ratio, bool &replaced) {
-  std::unordered_map<int32, std::pair<MeExpr*, int64>> candMap;
-  std::unordered_map<int32, std::pair<MeExpr*, int64>> groupMap;
-  FindScalarFactor(candBase, candMap, 1, false);
-  FindScalarFactor(groupBase, groupMap, 1, false);
+  std::unordered_map<int32, ScalarPeel> candMap;
+  std::unordered_map<int32, ScalarPeel> groupMap;
+  FindScalarFactor(candBase, nullptr, candMap, 1, false);
+  FindScalarFactor(groupBase, nullptr, groupMap, 1, false);
   MeExpr *extraExpr = nullptr;
   int64 candConst = 0;
   int64 groupConst = 0;
   for (auto &itGroup : groupMap) {
     auto itCand = candMap.find(itGroup.first);
     if (itGroup.first == kInvalidExprID) {
-      candConst = itCand == candMap.end() ? 0 : itCand->second.second * ratio;
-      groupConst = itGroup.second.second;
+      candConst = itCand == candMap.end() ? 0 : itCand->second.multiplier * ratio;
+      groupConst = itGroup.second.multiplier;
       continue;
     }
-    if (itCand == candMap.end()) {
+    bool addCvt = (itCand == candMap.end() || itGroup.second.expandType != itCand->second.expandType);
+    if (itCand == candMap.end() || addCvt) {
       MeExpr *constExpr = nullptr;
-      MeExpr *expr = itGroup.second.first;
+      MeExpr *expr = itGroup.second.expr;
+      PrimType cvtType = addCvt ? itGroup.second.expandType : expr->GetPrimType();
       if (NeedCvtOrRetype(expr->GetPrimType(), groupBase.GetPrimType())) {
-        expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), expr->GetPrimType(), *expr);
+        if (IsUnsignedInteger(cvtType) && itGroup.second.multiplier < 0) {
+          constExpr = irMap->CreateIntConstMeExpr(itGroup.second.multiplier, cvtType);
+          expr = irMap->CreateMeExprBinary(OP_mul, cvtType, *expr, *constExpr);
+          expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), cvtType, *expr);
+          itGroup.second.multiplier = 1;
+        } else {
+          expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), cvtType, *expr);
+        }
       }
-      if (itGroup.second.second != 1) {
-        constExpr = irMap->CreateIntConstMeExpr(itGroup.second.second, groupBase.GetPrimType());
+      if (itGroup.second.multiplier != 1) {
+        constExpr = irMap->CreateIntConstMeExpr(itGroup.second.multiplier, groupBase.GetPrimType());
         expr = irMap->CreateMeExprBinary(OP_mul, groupBase.GetPrimType(), *expr, *constExpr);
       }
       extraExpr = extraExpr == nullptr ? expr
                                        : irMap->CreateMeExprBinary(OP_add, groupBase.GetPrimType(), *extraExpr, *expr);
     } else {
-      int64 newMultiplier = itGroup.second.second - (itCand->second.second * ratio);
+      int64 newMultiplier = itGroup.second.multiplier - (itCand->second.multiplier * ratio);
       if (newMultiplier == 0) {
         continue;
       }
       MeExpr *constExpr = nullptr;
-      MeExpr *expr = itGroup.second.first;
+      MeExpr *expr = itGroup.second.expr;
+      PrimType cvtType = addCvt ? itGroup.second.expandType : expr->GetPrimType();
       if (NeedCvtOrRetype(expr->GetPrimType(), groupBase.GetPrimType())) {
-        expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), expr->GetPrimType(), *expr);
+        if (IsUnsignedInteger(cvtType) && newMultiplier < 0) {
+          constExpr = irMap->CreateIntConstMeExpr(newMultiplier, cvtType);
+          expr = irMap->CreateMeExprBinary(OP_mul, cvtType, *expr, *constExpr);
+          expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), cvtType, *expr);
+          newMultiplier = 1;
+        } else {
+          expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), cvtType, *expr);
+        }
       }
       if (newMultiplier != 1) {
         constExpr = irMap->CreateIntConstMeExpr(newMultiplier, groupBase.GetPrimType());
@@ -1581,28 +1626,39 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
   for (auto &itCand : candMap) {
     auto itGroup = groupMap.find(itCand.first);
     if (itCand.first == kInvalidExprID) {
-      candConst = itCand.second.second * ratio;
-      groupConst = itGroup == groupMap.end() ? 0 : itGroup->second.second;
+      candConst = itCand.second.multiplier * ratio;
+      groupConst = itGroup == groupMap.end() ? 0 : itGroup->second.multiplier;
       continue;
     }
-    if (itGroup == groupMap.end()) {
-      if (itCand.second.first->GetPrimType() == PTY_ptr ||
-          itCand.second.first->GetPrimType() == PTY_a64 ||
-          itCand.second.first->GetPrimType() == PTY_a32) {  // it's not good to use one obj to form others
+    bool addCvt = (itGroup == groupMap.end() || itGroup->second.expandType != itCand.second.expandType);
+    if (itGroup == groupMap.end() || addCvt) {
+      if (itCand.second.expr->GetPrimType() == PTY_ptr ||
+          itCand.second.expr->GetPrimType() == PTY_a64 ||
+          itCand.second.expr->GetPrimType() == PTY_a32) {  // it's not good to use one obj to form others
         replaced = false;
         return nullptr;
       }
-      auto *constExpr = irMap->CreateIntConstMeExpr(-(itCand.second.second * ratio), ptyp);
-      auto *expr = itCand.second.first;
+      int64 multiplier = -(itCand.second.multiplier * ratio);
+      auto *constExpr = irMap->CreateIntConstMeExpr(multiplier, ptyp);
+      auto *expr = itCand.second.expr;
       if (extraExpr != nullptr) {
         if (NeedCvtOrRetype(extraExpr->GetPrimType(), ptyp)) {
           extraExpr = irMap->CreateMeExprTypeCvt(ptyp, extraExpr->GetPrimType(), *extraExpr);
         }
       }
       if (NeedCvtOrRetype(expr->GetPrimType(), ptyp)) {
-        expr = irMap->CreateMeExprTypeCvt(ptyp, expr->GetPrimType(), *expr);
+        PrimType cvtType = addCvt ? itCand.second.expandType : expr->GetPrimType();
+        if (IsUnsignedInteger(cvtType) && multiplier < 0) {
+          constExpr = irMap->CreateIntConstMeExpr(-(itCand.second.multiplier * ratio), cvtType);
+          expr = irMap->CreateMeExprBinary(OP_mul, cvtType, *expr, *constExpr);
+          expr = irMap->CreateMeExprTypeCvt(ptyp, cvtType, *expr);
+        } else {
+          expr = irMap->CreateMeExprTypeCvt(ptyp, cvtType, *expr);
+          expr = irMap->CreateMeExprBinary(OP_mul, ptyp, *expr, *constExpr);
+        }
+      } else {
+        expr = irMap->CreateMeExprBinary(OP_mul, ptyp, *expr, *constExpr);
       }
-      expr = irMap->CreateMeExprBinary(OP_mul, ptyp, *expr, *constExpr);
       extraExpr = extraExpr == nullptr ? expr
                                        : irMap->CreateMeExprBinary(OP_add, ptyp, *extraExpr, *expr);
     }

@@ -26,7 +26,7 @@ class LabelCreation {
 
   ~LabelCreation() = default;
 
-  void Run();
+  void Run() const;
 
   std::string PhaseName() const {
     return "createlabel";

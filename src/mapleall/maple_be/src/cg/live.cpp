@@ -197,7 +197,7 @@ void LiveAnalysis::InsertInOutOfCleanupBB() {
  * entry of get def/use of bb.
  * getting the def or use info of each regopnd as parameters of CollectLiveInfo().
 */
-void LiveAnalysis::GetBBDefUse(BB &bb) {
+void LiveAnalysis::GetBBDefUse(BB &bb) const {
   if (bb.GetKind() == BB::kBBReturn) {
     GenerateReturnBBDefUse(bb);
   }

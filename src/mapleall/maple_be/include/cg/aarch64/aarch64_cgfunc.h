@@ -322,7 +322,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorImmMov(PrimType rType, Operand *src, PrimType sType);
   RegOperand *SelectVectorRegMov(PrimType rType, Operand *src, PrimType sType);
   RegOperand *SelectVectorFromScalar(PrimType rType, Operand *src, PrimType sType) override;
-  RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
+  RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane);
   RegOperand *SelectVectorDup(PrimType rType, Operand *src, bool getLow) override;
   RegOperand *SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand *o2, PrimType oTy, bool isLow) override;
   RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2,

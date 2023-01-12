@@ -238,7 +238,7 @@ class AArch64CG : public CG {
   };
 
   static const InsnDesc kMd[kMopLast];
-  enum : uint8 {
+  enum RegListType: uint8 {
     kR8List,
     kR16List,
     kR32List,
