@@ -2460,7 +2460,7 @@ MeExpr *IRMap::SimplifyAshrMeExpr(OpMeExpr *opmeexpr) {
   }
 
   uint64 signBit = 1 << (bitWidth - shiftAmt - 1);
-  bool isSignBitZero = IsSignBitZero(opnd0, signBit, shiftAmt);
+  bool isSignBitZero = IsSignBitZero(opnd0, signBit, static_cast<uint64>(shiftAmt));
   // sign bit is known to be zero, we can replace ashr with lshr
   if (isSignBitZero) {
     auto lshrExpr = CreateMeExprBinary(OP_lshr, opmeexpr->GetPrimType(), *opnd0, *opnd1);

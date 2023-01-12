@@ -480,10 +480,10 @@ void BB::DumpMePhiList(const IRMap *irMap) {
 
 // update edge frequency by scaled value when bb frequency is changed
 void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
-  int len = GetSucc().size();
+  size_t len = GetSucc().size();
   ASSERT(len == GetSuccFreq().size(), "sanity check");
   FreqType succFreqs = 0;
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     succFreqs += GetSuccFreq()[i];
   }
   int64 diff = abs(succFreqs - static_cast<int64>(GetFrequency()));
@@ -492,13 +492,13 @@ void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
       (len > 1 && diff <= 1)) {
     return;
   }
-  for (int i = 0; i < len; ++i) {
+  for (size_t i = 0; i < len; ++i) {
     FreqType sfreq = GetSuccFreq()[i];
     FreqType scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));
-    SetSuccFreq(i, scalefreq);
+    SetSuccFreq(static_cast<int>(i), scalefreq);
     // update succ frequency with new difference if needed
     if (updateBBFreqOfSucc) {
-      auto *succBBLoc = GetSucc(static_cast<size_t>(static_cast<uint32>(i)));
+      auto *succBBLoc = GetSucc(i);
       FreqType diffFreq = scalefreq - sfreq;
       FreqType succBBnewFreq = static_cast<int64>(succBBLoc->GetFrequency()) + diffFreq;
       if (succBBnewFreq >= 0) {

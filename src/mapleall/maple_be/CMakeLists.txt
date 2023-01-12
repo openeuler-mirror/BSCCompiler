@@ -114,6 +114,7 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/tailcall.cpp
         src/cg/cg_pgo_gen.cpp
         src/cg/cg_pgo_use.cpp
+        src/cg/cg_profile_use.cpp
         src/cg/cg_ssa.cpp
         src/cg/cg_prop.cpp
         src/cg/cg_dce.cpp

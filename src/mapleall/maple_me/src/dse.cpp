@@ -532,11 +532,11 @@ void DSE::MarkIrreducibleBrRequired() {
   StackMemPool mp(memPoolCtrler, "scc mempool");
   MapleAllocator localAlloc(&mp);
   std::vector<BB*> allNodes;
-  std::copy_if(bbVec.begin() + 2, bbVec.end(), std::inserter(allNodes, allNodes.end()), [](const BB *bb) {
+  (void)std::copy_if(bbVec.begin() + 2, bbVec.end(), std::inserter(allNodes, allNodes.end()), [](const BB *bb) {
     return bb != nullptr;
   });
   MapleVector<SCCNode<BB>*> sccs(localAlloc.Adapter());
-  (void)BuildSCC(localAlloc, bbVec.size(), allNodes, false, sccs, true);
+  (void)BuildSCC(localAlloc, static_cast<uint32>(bbVec.size()), allNodes, false, sccs, true);
   for (auto *scc : sccs) {
     if (!scc->HasRecursion()) {
       continue;

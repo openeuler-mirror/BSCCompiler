@@ -234,7 +234,7 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
     LogInfo::MapleLogger() << std::dec;
   }
   GlobalTables::GetEnumTable().Dump();
-  if (flavor < kMmpl || flavor == kFlavorLmbc) {
+  if (flavor < kMmpl || flavor >= kFlavorLmbc) {
     for (auto it = typeDefOrder.begin(); it != typeDefOrder.end(); ++it) {
       TyIdx tyIdx = typeNameTab->GetTyIdxFromGStrIdx(*it);
       const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(*it);
