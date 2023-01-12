@@ -610,10 +610,6 @@ RegOperand *X64CGFunc::SelectVectorDup(PrimType rType, Operand *src, bool getLow
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-RegOperand *X64CGFunc::SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
 RegOperand *X64CGFunc::SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand *o2, PrimType oTy, bool isLow) {
   CHECK_FATAL(false, "NIY");
   return nullptr;

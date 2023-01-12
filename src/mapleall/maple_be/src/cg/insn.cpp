@@ -303,10 +303,16 @@ ASSERT(md != nullptr, "md should not be nullptr");
   LogInfo::MapleLogger() << "< " << GetId() << " > ";
   LogInfo::MapleLogger() << md->name << "(" << mOp << ")";
 
-  for (uint32 i = 0; i < GetOperandSize(); ++i) {
+  for (uint32 i = 0, vRegSpecNum = 0; i < GetOperandSize(); ++i) {
     Operand &opnd = GetOperand(i);
     LogInfo::MapleLogger() << " (opnd" << i << ": ";
     Globals::GetInstance()->GetTarget()->DumpTargetOperand(opnd, *md->GetOpndDes(i));
+    if (md->GetOpndDes(i)->IsVectorOperand() && IsVectorOp()) {
+      auto *vInsn = static_cast<const VectorInsn*>(this);
+      auto *vRegSpec = vInsn->GetRegSpecList()[vRegSpecNum++];
+      LogInfo::MapleLogger() << " ";
+      vRegSpec->Dump();
+    }
     LogInfo::MapleLogger() << ")";
   }
 

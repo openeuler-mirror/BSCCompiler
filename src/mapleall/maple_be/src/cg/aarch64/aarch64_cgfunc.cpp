@@ -12588,8 +12588,8 @@ static PrimType ConvertVectorPrimTypeWithSpecialMOP(PrimType ptype, MOperator mo
 
 RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrinsicOp) {
   auto intrinsicId = intrinsicOp.GetIntrinsic();
-  CHECK_FATAL(intrinsicId >= maple::INTRN_vector_abd_v8i8, "unexpected intrinsic");
-  size_t vectorIntrinsicIndex = intrinsicId - maple::INTRN_vector_abd_v8i8;
+  CHECK_FATAL(intrinsicId >= maple::INTRN_vector_get_lane_v8u8, "unexpected intrinsic");
+  size_t vectorIntrinsicIndex = intrinsicId - maple::INTRN_vector_get_lane_v8u8;
   auto &intrinsicDesc = IntrinDesc::intrinTable[intrinsicId];
   auto &aarch64IntrinsicDesc = vectorIntrinsicMap[vectorIntrinsicIndex];
   auto resultType = ConvertVectorPrimType(intrinsicOp.GetPrimType(), intrinsicDesc.argTypes[0]);
@@ -12615,7 +12615,13 @@ RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrins
     auto opndId = aarch64IntrinsicDesc.opndOrder[i];
     auto *opndExpr = intrinsicOp.Opnd(opndId);
     auto *opnd = HandleExpr(intrinsicOp, *opndExpr);
-    auto opndType = opndExpr->GetPrimType();
+    auto opndType =
+        ConvertVectorPrimType(opndExpr->GetPrimType(), intrinsicDesc.argTypes[opndId + 1]);
+    if (opndType != opndExpr->GetPrimType()) {
+      auto *newOpnd = &CreateRegisterOperandOfType(opndType);
+      SelectCopy(*newOpnd, opndType, *opnd, opndExpr->GetPrimType());
+      opnd = newOpnd;
+    }
     opndType = ConvertVectorPrimTypeWithSpecialMOP(opndType, mop);
     (void)insn.AddOpndChain(*opnd);
     if (IsPrimitiveVector(opndType)) {

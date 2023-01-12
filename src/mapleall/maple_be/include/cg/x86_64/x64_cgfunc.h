@@ -193,7 +193,6 @@ class X64CGFunc : public CGFunc {
   RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1,  Operand *o2, PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) override;
   RegOperand *SelectVectorDup(PrimType rType, Operand *src, bool getLow) override;
-  RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
   RegOperand *SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand *o2, PrimType oTy, bool isLow) override;
   RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
       PrimType oTyp3) override;

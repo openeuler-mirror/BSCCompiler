@@ -624,6 +624,25 @@ struct VectorRegSpec {
       vecElementSize(eleSize),
       compositeOpnds(compositeOpnds) {}
 
+  void Dump() {
+    if (vecElementSize == 0) {
+      return;
+    }
+    LogInfo::MapleLogger() << vecLaneMax;
+    if (vecElementSize == k8BitSize) {
+      LogInfo::MapleLogger() << "B";
+    } else if (vecElementSize == k16BitSize) {
+      LogInfo::MapleLogger() << "H";
+    } else if (vecElementSize == k32BitSize) {
+      LogInfo::MapleLogger() << "S";
+    } else {
+      LogInfo::MapleLogger() << "D";
+    }
+    if (vecLane >= 0) {
+      LogInfo::MapleLogger() << "[" << vecLane << "]";
+    }
+  }
+
   int16 vecLane;         /* -1 for whole reg, 0 to 15 to specify individual lane */
   uint16 vecLaneMax;     /* Maximum number of lanes for this vregister */
   uint16 vecElementSize; /* element size in each Lane */
@@ -653,7 +672,7 @@ class VectorInsn : public Insn {
     return 0;
   }
 
-  MapleVector<VectorRegSpec*> &GetRegSpecList() {
+  const MapleVector<VectorRegSpec*> &GetRegSpecList() const {
     return regSpecList;
   }
 

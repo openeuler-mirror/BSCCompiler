@@ -18,6 +18,54 @@
 
 // vecTy vector_abs(vecTy src)
 //     Create a vector by getting the absolute value of the elements in src.
+DEF_MIR_INTRINSIC(vector_get_lane_v8u8, "vector_get_lane_v8u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU8,
+                  kArgTyV8U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_get_lane_v4u16, "vector_get_lane_v4u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU16,
+                  kArgTyV4U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_get_lane_v2u32, "vector_get_lane_v2u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU32,
+                  kArgTyV2U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_get_lane_v1u64, "vector_get_lane_v1u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
+                  kArgTyV1U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_get_lane_v8i8, "vector_get_lane_v8i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI8,
+                  kArgTyV8I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_get_lane_v4i16, "vector_get_lane_v4i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI16,
+                  kArgTyV4I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_get_lane_v2i32, "vector_get_lane_v2i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32,
+                  kArgTyV2I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_get_lane_v1i64, "vector_get_lane_v1i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
+                  kArgTyV1I64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_getq_lane_v16u8, "vector_getq_lane_v16u8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU8,
+                  kArgTyV16U8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_getq_lane_v8u16, "vector_getq_lane_v8u16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU16,
+                  kArgTyV8U16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_getq_lane_v4u32, "vector_getq_lane_v4u32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU32,
+                  kArgTyV4U32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_getq_lane_v2u64, "vector_getq_lane_v2u64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
+                  kArgTyV2U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_getq_lane_v16i8, "vector_getq_lane_v16i8", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI8,
+                  kArgTyV16I8, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_getq_lane_v8i16, "vector_getq_lane_v8i16", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI16,
+                  kArgTyV8I16, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_getq_lane_v4i32, "vector_getq_lane_v4i32", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32,
+                  kArgTyV4I32, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_getq_lane_v2i64, "vector_getq_lane_v2i64", 1,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
+                  kArgTyV2I64, kArgTyI32)
 DEF_MIR_INTRINSIC(vector_abd_v8i8, "vector_abd_v8i8", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
                   kArgTyV8I8, kArgTyV8I8)
@@ -174,10 +222,10 @@ DEF_MIR_INTRINSIC(vector_paddq_v4u32, "vector_paddq_v4u32", 1,
 DEF_MIR_INTRINSIC(vector_paddq_v2u64, "vector_paddq_v2u64", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
                   kArgTyV2U64, kArgTyV2U64)
-DEF_MIR_INTRINSIC(vector_paddd_v1i64, "vector_paddd_v1i64", 1,
+DEF_MIR_INTRINSIC(vector_paddd_v2i64, "vector_paddd_v2i64", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
                   kArgTyV2I64)
-DEF_MIR_INTRINSIC(vector_paddd_v1u64, "vector_paddd_v1u64", 1,
+DEF_MIR_INTRINSIC(vector_paddd_v2u64, "vector_paddd_v2u64", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
                   kArgTyV2U64)
 DEF_MIR_INTRINSIC(vector_pmax_v8i8, "vector_pmax_v8i8", 1,

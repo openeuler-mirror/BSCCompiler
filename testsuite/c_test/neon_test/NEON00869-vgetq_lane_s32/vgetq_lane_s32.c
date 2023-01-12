@@ -1,0 +1,9 @@
+#include "neon.h"
+
+int main() {
+  print_int32_t(
+    vgetq_lane_s32(
+      set_int32x4_t(),
+      set_int()));
+  return 0;
+}

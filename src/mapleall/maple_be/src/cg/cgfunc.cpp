@@ -447,20 +447,6 @@ Operand *HandleVectorGetLow(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   return cgFunc.SelectVectorDup(rType, opnd1, true);
 }
 
-Operand *HandleVectorGetElement(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
-  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
-  PrimType o1Type = intrnNode.Opnd(0)->GetPrimType();
-  Operand *opndLane = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));
-  int32 laneNum = -1;
-  if (opndLane->IsConstImmediate()) {
-    MIRConst *mirConst = static_cast<ConstvalNode*>(intrnNode.Opnd(1))->GetConstVal();
-    laneNum = static_cast<int32>(safe_cast<MIRIntConst>(mirConst)->GetExtValue());
-  } else {
-    CHECK_FATAL(0, "VectorGetElement does not have lane const");
-  }
-  return cgFunc.SelectVectorGetElement(intrnNode.GetPrimType(), opnd1, o1Type, laneNum);
-}
-
 Operand *HandleVectorPairwiseAdd(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   Operand *src = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));     /* vector src operand */
   PrimType sType = intrnNode.Opnd(0)->GetPrimType();
@@ -885,16 +871,6 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_get_low_v4u32: case INTRN_vector_get_low_v4i32:
     case INTRN_vector_get_low_v2u64: case INTRN_vector_get_low_v2i64:
       return HandleVectorGetLow(intrinsicopNode, cgFunc);
-
-    case INTRN_vector_get_element_v8u8: case INTRN_vector_get_element_v8i8:
-    case INTRN_vector_get_element_v4u16: case INTRN_vector_get_element_v4i16:
-    case INTRN_vector_get_element_v2u32: case INTRN_vector_get_element_v2i32:
-    case INTRN_vector_get_element_v1u64: case INTRN_vector_get_element_v1i64:
-    case INTRN_vector_get_element_v16u8: case INTRN_vector_get_element_v16i8:
-    case INTRN_vector_get_element_v8u16: case INTRN_vector_get_element_v8i16:
-    case INTRN_vector_get_element_v4u32: case INTRN_vector_get_element_v4i32:
-    case INTRN_vector_get_element_v2u64: case INTRN_vector_get_element_v2i64:
-      return HandleVectorGetElement(intrinsicopNode, cgFunc);
 
     case INTRN_vector_pairwise_adalp_v8i8: case INTRN_vector_pairwise_adalp_v4i16:
     case INTRN_vector_pairwise_adalp_v2i32: case INTRN_vector_pairwise_adalp_v8u8:
