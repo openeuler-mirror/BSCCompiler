@@ -23,13 +23,15 @@ ASTO2 = {
             ],
             option="--target=aarch64",
             infile="${APP}.c",
-            outfile="${APP}.ast"
+            outfile="${APP}.ast",
+            redirection="compile.log"
         ),
         Hir2mpl(
             hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
             option="-O2 -func-inline-size 10",
             infile="${APP}.ast",
-            outfile="${APP}.mpl"
+            outfile="${APP}.mpl",
+            redirection="compile.log"
         ),
         Maple(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
@@ -40,7 +42,8 @@ ASTO2 = {
                 "mplcg": "-O2 --fpic --quiet"
             },
             global_option="",
-            infiles=["${APP}.mpl"]
+            infiles=["${APP}.mpl"],
+            redirection="compile.log"
         ),
         GenBin(
             infile="${APP}.s",

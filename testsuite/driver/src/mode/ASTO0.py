@@ -23,18 +23,21 @@ ASTO0 = {
             ],
             option="--target=aarch64",
             infile="${APP}.c",
-            outfile="${APP}.ast"
+            outfile="${APP}.ast",
+            redirection="compile.log"
         ),
         Hir2mpl(
             hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
             option="-g",
             infile="${APP}.ast",
-            outfile="${APP}.mpl"
+            outfile="${APP}.mpl",
+            redirection="compile.log"
         ),
         SimpleMaple(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             option="-O0 -g -S",
-            infile="${APP}.mpl"
+            infile="${APP}.mpl",
+            redirection="compile.log"
         ),
         GenBin(
             infile="${APP}.s",
