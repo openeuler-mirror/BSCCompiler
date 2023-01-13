@@ -138,7 +138,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
   if (func.GetCfg()->UpdateCFGFreq()) {
     int idx = pred.GetSuccIndex(bb);
     ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
-    FreqType freq = pred.GetEdgeFreq(idx);
+    FreqType freq = pred.GetEdgeFreq(static_cast<size_t>(idx));
     latchBB->SetFrequency(freq);
     // update bb frequency: remove pred frequency since pred is deleted
     ASSERT(bb.GetFrequency() >= freq, "sanity check");

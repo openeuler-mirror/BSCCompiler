@@ -14,6 +14,7 @@
  */
 #include "me_safety_warning.h"
 #include <sstream>
+#include "driver_options.h"
 #include "global_tables.h"
 #include "inline.h"
 #include "me_dominance.h"
@@ -74,7 +75,7 @@ inline static bool HandleReturnAssertNonnull(const MeStmt &stmt, const MIRModule
             returnStmt.GetFuncName().c_str(), func.GetName().c_str());
     } else {
       WARN_USER(kLncWarn, srcPosition, mod, "%s return nonnull but got nullable pointer when inlined to %s",
-           returnStmt.GetFuncName().c_str(), func.GetName().c_str());
+                returnStmt.GetFuncName().c_str(), func.GetName().c_str());
     }
   }
 
@@ -112,11 +113,11 @@ inline static bool HandleCallAssertNonnull(const MeStmt &stmt, const MIRModule &
   GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetStmtFuncName().c_str());
   if (curFuncNameIdx == stmtFuncNameIdx) {
     WARN_USER(kLncWarn, srcPosition, mod, "nullable pointer passed to %s that requires nonnull for %s argument",
-         callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+              callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
   } else {
     WARN_USER(kLncWarn, srcPosition, mod,
-         "nullable pointer passed to %s that requires nonnull for %s argument when inlined to %s",
-         callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func.GetName().c_str());
+              "nullable pointer passed to %s that requires nonnull for %s argument when inlined to %s",
+              callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func.GetName().c_str());
   }
   return MeOption::npeCheckMode == SafetyCheckMode::kStaticCheck;
 }
@@ -142,7 +143,7 @@ static bool HandleCalculationAssert(const MeStmt &stmt, const MIRModule &mod, co
     }
     WARN_USER(kLncWarn, srcPosition, mod, oss.str().c_str(), func.GetName().c_str());
   }
-  return true;
+  return !opts::enableArithCheck || MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;
 }
 
 static bool HandleMemoryAccessAssert(const MeStmt &stmt, const MIRModule &mod, const MeFunction &func) {
@@ -166,7 +167,7 @@ static bool HandleMemoryAccessAssert(const MeStmt &stmt, const MIRModule &mod, c
     }
     WARN_USER(kLncWarn, srcPosition, mod, oss.str().c_str(), func.GetName().c_str());
   }
-  return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;
+  return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck || opts::enableArithCheck;
 }
 
 static bool HandleBoundaryCheckAssertAssign(const MeStmt &stmt, const MIRModule &mod, const MeFunction &func) {
@@ -191,12 +192,12 @@ inline static bool HandleBoundaryCheckAssertCall(const MeStmt &stmt, const MIRMo
   GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetStmtFuncName().c_str());
   if (curFuncNameIdx == stmtFuncNameIdx) {
     WARN_USER(kLncWarn, srcPosition, mod,
-         "can't prove pointer's bounds match the function %s declaration for the %s argument",
-         callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+              "can't prove pointer's bounds match the function %s declaration for the %s argument",
+              callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
   } else {
     WARN_USER(kLncWarn, srcPosition, mod,
-         "can't prove pointer's bounds match the function %s declaration for the %s argument when inlined to %s",
-         callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func.GetName().c_str());
+              "can't prove pointer's bounds match the function %s declaration for the %s argument when inlined to %s",
+              callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func.GetName().c_str());
   }
   return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;
 }
@@ -208,11 +209,11 @@ inline static bool HandleBoundaryCheckAssertReturn(const MeStmt &stmt, const MIR
   GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(returnStmt.GetFuncName().c_str());
   if (curFuncNameIdx == stmtFuncNameIdx) {
     WARN_USER(kLncWarn, srcPosition, mod, "can't prove return value's bounds match the function declaration for %s",
-         returnStmt.GetFuncName().c_str());
+              returnStmt.GetFuncName().c_str());
   } else {
     WARN_USER(kLncWarn, srcPosition, mod,
-         "can't prove return value's bounds match the function declaration for %s when inlined to %s",
-         returnStmt.GetFuncName().c_str(), func.GetName().c_str());
+              "can't prove return value's bounds match the function declaration for %s when inlined to %s",
+              returnStmt.GetFuncName().c_str(), func.GetName().c_str());
   }
   return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;
 }
@@ -242,10 +243,10 @@ SafetyWarningHandlers MESafetyWarning::npeSilentHandleMap = {
 };
 
 SafetyWarningHandlers MESafetyWarning::boundarySilentHandleMap = {
-    { OP_assertlt, [](auto&, auto&, auto&) -> bool { return false; } },
-    { OP_assertge, [](auto&, auto&, auto&) -> bool { return false; } },
-    { OP_calcassertlt, [](auto&, auto&, auto&) -> bool { return true; } },
-    { OP_calcassertge, [](auto&, auto&, auto&) -> bool { return true; } },
+    { OP_assertlt, [](auto&, auto&, auto&) -> bool { return opts::enableArithCheck; } },
+    { OP_assertge, [](auto&, auto&, auto&) -> bool { return opts::enableArithCheck; } },
+    { OP_calcassertlt, [](auto&, auto&, auto&) -> bool { return !opts::enableArithCheck; } },
+    { OP_calcassertge, [](auto&, auto&, auto&) -> bool { return !opts::enableArithCheck; } },
     { OP_callassertle, [](auto&, auto&, auto&) -> bool { return false; } },
     { OP_returnassertle, [](auto&, auto&, auto&) -> bool { return false; } },
     { OP_assignassertle, [](auto&, auto&, auto&) -> bool { return false; } }
@@ -291,21 +292,22 @@ bool MESafetyWarning::PhaseRun(MeFunction &meFunction) {
     }
     for (auto &stmt : bb->GetMeStmts()) {
       auto *handle = FindHandler(stmt.GetOp());
-      if (handle != nullptr) {
-        // check has warned or not
-        if (mod.HasNotWarned(stmt.GetSrcPosition().LineNum(), stmt.GetOriginalId())) {
-          if ((*handle)(stmt, mod, meFunction)) {
-            // record stmt to delete
-            removeStmts.emplace_back(&stmt);
-          }
-        } else if (IsStaticModeForOp(stmt.GetOp()) ||
-                   // deref assert nonnull need to remove in all mode
-                   stmt.GetOp() == OP_assertnonnull ||
-                   // calcassert need to be removed in all mode
-                   kOpcodeInfo.IsCalcAssertBoundary(stmt.GetOp())) {
-          // remove inlined code
+      if (handle == nullptr) {
+        continue;
+      }
+      // check has warned or not
+      if (mod.HasNotWarned(stmt.GetSrcPosition().LineNum(), stmt.GetOriginalId())) {
+        if ((*handle)(stmt, mod, meFunction)) {
+          // record stmt to delete
           removeStmts.emplace_back(&stmt);
         }
+      } else if (IsStaticModeForOp(stmt.GetOp()) ||
+                 // deref assert nonnull need to remove in all mode
+                 stmt.GetOp() == OP_assertnonnull ||
+                 (!opts::enableArithCheck && kOpcodeInfo.IsCalcAssertBoundary(stmt.GetOp())) ||
+                 (opts::enableArithCheck && kOpcodeInfo.IsAccessAssertBoundary(stmt.GetOp()))) {
+        // remove inlined code
+        removeStmts.emplace_back(&stmt);
       }
     }
     // remove stmt

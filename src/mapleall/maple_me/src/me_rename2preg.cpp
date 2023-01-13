@@ -241,7 +241,7 @@ void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeex
       // if reading garbage, need to truncate the garbage value
       Opcode extOp = IsSignedInteger(varreg->GetPrimType()) ? OP_sext : OP_zext;
       varreg = meirmap->CreateMeExprUnary(extOp, GetRegPrimType(varreg->GetPrimType()), *varreg);
-      static_cast<OpMeExpr *>(varreg)->SetBitsSize(GetPrimTypeSize(varmeexpr->GetPrimType()) * 8);
+      static_cast<OpMeExpr *>(varreg)->SetBitsSize(static_cast<uint8>(GetPrimTypeSize(varmeexpr->GetPrimType()) * 8));
     }
     (void)meirmap->ReplaceMeExprStmt(*mestmt, *varmeexpr, *varreg);
   }
@@ -536,7 +536,7 @@ bool MESSARename2Preg::PhaseRun(maple::MeFunction &f) {
   }
   MeIRMap *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "irMap is wrong.");
-  Dominance *dom = GET_ANALYSIS(MEDominance, f);
+  Dominance *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   ASSERT(dom != nullptr, "domTree is wrong");
 
   MemPool *renamemp = ApplyTempMemPool();

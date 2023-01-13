@@ -106,7 +106,7 @@ void MeSink::Init() {
   defStmtsSinkToBottom.resize(func->GetCfg()->NumBBs());
   auto ostNum = func->GetMeSSATab()->GetOriginalStTableSize();
   versionStack.resize(ostNum);
-  defineCnt.insert(defineCnt.cend(), ostNum, 0);
+  (void)defineCnt.insert(defineCnt.cend(), ostNum, 0);
   for (size_t ostId = 0; ostId < ostNum; ++ostId) {
     versionStack[ostId] = std::make_unique<std::list<ScalarMeExpr*>>();
     auto *ost = func->GetMeSSATab()->GetOriginalStFromID(OStIdx(ostId));
@@ -136,7 +136,7 @@ void MeSink::AddNewDefinedScalar(ScalarMeExpr *scalar) {
 
   if (scalarHasValidDef.size() <= static_cast<uint32>(scalar->GetExprID())) {
     constexpr uint32 bufferSize = 10;
-    scalarHasValidDef.insert(scalarHasValidDef.cend(),
+    (void)scalarHasValidDef.insert(scalarHasValidDef.cend(),
         bufferSize + static_cast<uint32>(scalar->GetExprID()) - scalarHasValidDef.size(), false);
   }
   scalarHasValidDef[static_cast<uint32>(scalar->GetExprID())] = true;
