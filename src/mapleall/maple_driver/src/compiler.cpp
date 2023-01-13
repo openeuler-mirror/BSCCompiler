@@ -25,7 +25,7 @@ int Compiler::Exe(const MplOptions &mplOptions,
   std::ostringstream ostrStream;
   ostrStream << GetBinPath(mplOptions) << GetBinName();
   std::string binPath = ostrStream.str();
-  return SafeExe::Exe(binPath, options);
+  return SafeExe::Exe(binPath, mplOptions, options);
 }
 
 std::string Compiler::GetBinPath(const MplOptions &mplOptions) const {

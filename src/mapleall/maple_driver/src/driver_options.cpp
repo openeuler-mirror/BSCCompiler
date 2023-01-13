@@ -40,6 +40,10 @@ maplecl::Option<bool> o2({"--O2", "-O2"},
                     "  -O2                         \tDo more optimization.\n",
                     {driverCategory});
 
+maplecl::Option<bool> o3({"--O3", "-O3"},
+                    "  -O3                         \tDo more optimization.\n",
+                    {driverCategory});
+
 maplecl::Option<bool> os({"--Os", "-Os"},
                     "  -Os                         \tOptimize for size, based on O2.\n",
                     {driverCategory, hir2mplCategory});
@@ -265,8 +269,20 @@ maplecl::Option<bool> linkerTimeOpt({"-flto"},
                             {driverCategory, unSupCategory});
 
 maplecl::Option<bool> usesignedchar({"-fsigned-char"},
-                               "  -fsigned-char          \tuse signed char",
+                               "  -fsigned-char          \tuse signed char\n",
                                {driverCategory, hir2mplCategory});
+
+maplecl::Option<bool> shared({"-shared"},
+                               "  -shared          \tCreate a shared library.\n",
+                               {driverCategory, ldCategory});
+
+maplecl::Option<bool> rdynamic({"-rdynamic"},
+                               "  -rdynamic          \t\n",
+                               {driverCategory, ldCategory});
+
+maplecl::Option<bool> dndebug({"-DNDEBUG"},
+                               "  -DNDEBUG          \t\n",
+                               {driverCategory, ldCategory});
 
 /* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},
@@ -428,7 +444,7 @@ maplecl::Option<std::string> fStrongEvalOrderE({"-fstrong-eval-order="},
 
 maplecl::Option<std::string> march({"-march"},
                             "  -march=    \tGenerate code for given CPU.\n",
-                            {driverCategory, clangCategory});
+                            {driverCategory, clangCategory, asCategory, ldCategory});
 
 maplecl::Option<std::string> sysRoot({"--sysroot"},
                             "  --sysroot <value>    \tSet the root directory of the target platform.\n"

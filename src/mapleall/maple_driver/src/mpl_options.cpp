@@ -560,8 +560,14 @@ ErrorCode MplOptions::CheckInputFiles() {
   /* Set input files directly: maple file1 file2 */
   for (auto &arg : badArgs) {
     if (FileUtils::IsFileExists(arg.first)) {
-      inputFiles.push_back(arg.first);
-      inputInfos.push_back(std::make_unique<InputInfo>(arg.first));
+      int inedx = arg.first.find_last_of(".");
+      std::string tmp = arg.first.substr(inedx);
+      if (tmp == ".a" || tmp == ".so") {
+        linkInputFiles.push_back(arg.first);
+      } else {
+        inputFiles.push_back(arg.first);
+        inputInfos.push_back(std::make_unique<InputInfo>(arg.first));
+      }
     } else {
       LogInfo::MapleLogger(kLlErr) << "Unknown option or non-existent input file: " << arg.first << "\n";
       if (!opts::ignoreUnkOpt) {

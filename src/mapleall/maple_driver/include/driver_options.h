@@ -44,6 +44,7 @@ extern maplecl::Option<bool> ignoreUnkOpt;
 extern maplecl::Option<bool> o0;
 extern maplecl::Option<bool> o1;
 extern maplecl::Option<bool> o2;
+extern maplecl::Option<bool> o3;
 extern maplecl::Option<bool> os;
 extern maplecl::Option<bool> verify;
 extern maplecl::Option<bool> decoupleStatic;
@@ -97,6 +98,9 @@ extern maplecl::Option<bool> fStrongEvalOrder;
 extern maplecl::Option<bool> linkerTimeOpt;
 extern maplecl::Option<bool> usesignedchar;
 extern maplecl::Option<bool> expand128Floats;
+extern maplecl::Option<bool> shared;
+extern maplecl::Option<bool> rdynamic;
+extern maplecl::Option<bool> dndebug;
 
 /* ##################### STRING Options ############################################################### */
 
