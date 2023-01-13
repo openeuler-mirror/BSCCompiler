@@ -509,7 +509,7 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
       if (crAddOpnds.size() == kNumOpnds) {
         return crAddOpnds[0];
       }
-      crAddOpnds.erase(crAddOpnds.cbegin() + 1);
+      (void)crAddOpnds.erase(crAddOpnds.cbegin() + static_cast<int64_t>(1));
       constLHS = static_cast<CRConstNode*>(crAddOpnds[0]);
     }
     // After merge constCRNode, if crAddOpnds[0] is 0, delete it from crAddOpnds vector
@@ -534,7 +534,7 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
       crAddOpnds.insert(crAddOpnds.cend(),
                         static_cast<CRAddNode*>(crAddOpnds[addCRIndex])->GetOpnds().cbegin(),
                         static_cast<CRAddNode*>(crAddOpnds[addCRIndex])->GetOpnds().cend());
-      crAddOpnds.erase(crAddOpnds.cbegin() + addCRIndex);
+      crAddOpnds.erase(crAddOpnds.cbegin() + static_cast<int64_t>(addCRIndex));
     }
     return GetCRAddNode(expr, crAddOpnds);
   }
@@ -547,14 +547,14 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
   if (crIndex < crAddOpnds.size()) {
     // X + { Y, + , Z } -> { X + Y, + , Z }
     if (crIndex != 0) {
-      std::vector<CRNode*> startOpnds(crAddOpnds.begin(), crAddOpnds.begin() + crIndex);
+      std::vector<CRNode*> startOpnds(crAddOpnds.begin(), crAddOpnds.begin() + static_cast<int64_t>(crIndex));
       startOpnds.push_back(static_cast<CR*>(crAddOpnds[crIndex])->GetOpnd(0));
       CRNode *start = GetCRAddNode(nullptr, startOpnds);
       std::vector<CRNode*> newCROpnds{ start };
       newCROpnds.insert(newCROpnds.cend(), static_cast<CR*>(crAddOpnds[crIndex])->GetOpnds().cbegin() + 1,
                         static_cast<CR*>(crAddOpnds[crIndex])->GetOpnds().cend());
       CR *newCR = static_cast<CR*>(GetOrCreateCR(expr, newCROpnds));
-      crAddOpnds.erase(crAddOpnds.cbegin(), crAddOpnds.cbegin() + crIndex);
+      crAddOpnds.erase(crAddOpnds.cbegin(), crAddOpnds.cbegin() + static_cast<int64_t>(crIndex));
       if (crAddOpnds.size() == 1) {
         return static_cast<CRNode*>(newCR);
       }
@@ -575,7 +575,7 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
         }
         return crAddOpnds[0];
       }
-      crAddOpnds.erase(crAddOpnds.cbegin() + 1);
+      (void)crAddOpnds.erase(crAddOpnds.cbegin() + static_cast<int64_t>(1));
       crLHS = static_cast<CR*>(crAddOpnds[0]);
     }
     if (crAddOpnds.size() == 1) {
@@ -602,7 +602,7 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
       if (crMulOpnds.size() == kNumOpnds) {
         return crMulOpnds[0];
       }
-      crMulOpnds.erase(crMulOpnds.cbegin() + 1);
+      (void)crMulOpnds.erase(crMulOpnds.cbegin() + 1);
       constLHS = static_cast<CRConstNode*>(crMulOpnds[0]);
     }
     // After merge constCRNode, if crMulOpnds[0] is 1, delete it from crMulOpnds vector
@@ -629,10 +629,10 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
   }
   if (mulCRIndex < crMulOpnds.size()) {
     while (crMulOpnds[mulCRIndex]->GetCRType() == kCRMulNode) {
-      crMulOpnds.insert(crMulOpnds.cend(),
+      (void)crMulOpnds.insert(crMulOpnds.cend(),
                         static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().cbegin(),
                         static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().cend());
-      crMulOpnds.erase(crMulOpnds.cbegin() + mulCRIndex);
+      (void)crMulOpnds.erase(crMulOpnds.cbegin() + static_cast<int64_t>(mulCRIndex));
     }
     return GetCRMulNode(expr, crMulOpnds);
   }
@@ -665,9 +665,9 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
         auto constantOfMulOperand = static_cast<CRConstNode*>(crMulOpnds[0])->GetConstValue();
         if (constantOfMulOperand == constantOfDivOperand) {
           // 8 * (X / 8) -> X
-          crMulOpnds.insert(crMulOpnds.cend(), divCRNode->GetLHS());
-          crMulOpnds.erase(crMulOpnds.cbegin() + divCRIndex);
-          crMulOpnds.erase(crMulOpnds.cbegin());
+          (void)crMulOpnds.insert(crMulOpnds.cend(), divCRNode->GetLHS());
+          (void)crMulOpnds.erase(crMulOpnds.cbegin() + static_cast<int64_t>(divCRIndex));
+          (void)crMulOpnds.erase(crMulOpnds.cbegin());
           if (crMulOpnds.size() == 1) {
             return crMulOpnds[0];
           }
@@ -676,19 +676,19 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
           if (rem == 0) {
             // 8 * (X / 4) -> X * 2
             auto res = constantOfMulOperand / constantOfDivOperand;
-            crMulOpnds.insert(crMulOpnds.cend(), divCRNode->GetLHS());
-            crMulOpnds.erase(crMulOpnds.cbegin() + divCRIndex);
-            crMulOpnds.erase(crMulOpnds.cbegin());
-            crMulOpnds.insert(crMulOpnds.cend(), GetOrCreateCRConstNode(nullptr, res));
+            (void)crMulOpnds.insert(crMulOpnds.cend(), divCRNode->GetLHS());
+            (void)crMulOpnds.erase(crMulOpnds.cbegin() + static_cast<int64_t>(divCRIndex));
+            (void)crMulOpnds.erase(crMulOpnds.cbegin());
+            (void)crMulOpnds.insert(crMulOpnds.cend(), GetOrCreateCRConstNode(nullptr, res));
           }
         } else {
           auto rem = constantOfDivOperand % constantOfMulOperand;
           if (rem == 0) {
             // 4 * (X / 8) -> X / 2
             auto res = constantOfDivOperand / constantOfMulOperand;
-            crMulOpnds.erase(crMulOpnds.cbegin() + divCRIndex);
-            crMulOpnds.erase(crMulOpnds.cbegin());
-            crMulOpnds.insert(crMulOpnds.cend(),
+            (void)crMulOpnds.erase(crMulOpnds.cbegin() + static_cast<int64_t>(divCRIndex));
+            (void)crMulOpnds.erase(crMulOpnds.cbegin());
+            (void)crMulOpnds.insert(crMulOpnds.cend(),
                               GetOrCreateCRDivNode(nullptr,
                                                    *divCRNode->GetLHS(),
                                                    *GetOrCreateCRConstNode(nullptr, res)));
@@ -712,7 +712,7 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
       std::vector<CRNode*> newCROpnds;
       CR *currCR = static_cast<CR*>(crMulOpnds[crIndex]);
       std::vector<CRNode*> crOpnds(crMulOpnds.begin(), crMulOpnds.begin() + crIndex);
-      crMulOpnds.erase(crMulOpnds.cbegin(), crMulOpnds.cbegin() + crIndex);
+      crMulOpnds.erase(crMulOpnds.cbegin(), crMulOpnds.cbegin() + static_cast<int64_t>(crIndex));
       for (size_t i = 0; i < currCR->GetOpndsSize(); ++i) {
         std::vector<CRNode*> currOpnds(crOpnds);
         currOpnds.push_back(currCR->GetOpnd(i));
@@ -799,9 +799,9 @@ CR *LoopScalarAnalysisResult::AddCRWithCR(CR &lhsCR, CR &rhsCR) {
     crOpnds.push_back(tempCRNode);
   }
   if (i < lhsCR.GetOpndsSize()) {
-    crOpnds.insert(crOpnds.cend(), lhsCR.GetOpnds().begin() + i, lhsCR.GetOpnds().end());
+    crOpnds.insert(crOpnds.cend(), lhsCR.GetOpnds().begin() + static_cast<int64_t>(i), lhsCR.GetOpnds().end());
   } else if (i < rhsCR.GetOpndsSize()) {
-    crOpnds.insert(crOpnds.cend(), rhsCR.GetOpnds().begin() + i, rhsCR.GetOpnds().end());
+    crOpnds.insert(crOpnds.cend(), rhsCR.GetOpnds().begin() + static_cast<int64_t>(i), rhsCR.GetOpnds().end());
   }
   crPtr->SetOpnds(crOpnds);
   return crPtr;
@@ -1257,7 +1257,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
         // change to "i <= umax" to compute
         return ComputeTripCountWithSimpleConstCR(OP_le, false, -1, start, stride);
       }
-      return static_cast<uint64>(times + (remainder != 0));
+      return static_cast<uint64>(times + static_cast<int64>(remainder != 0));
     }
     case OP_le: {
       if (isSigned && start > value) { return 0; }
@@ -1432,6 +1432,7 @@ TripCountType LoopScalarAnalysisResult::ComputeTripCount(const MeFunction &func,
     } else {
       return kCouldNotComputeCR;
     }
+    CHECK_FATAL(constNode != nullptr, "constNode is nullptr");
     if (enableDebug) {
       DumpTripCount(*cr, static_cast<int32>(constNode->GetConstValue()), nullptr);
     }
@@ -1442,6 +1443,7 @@ TripCountType LoopScalarAnalysisResult::ComputeTripCount(const MeFunction &func,
         return kVarCR;
       }
     }
+    CHECK_FATAL(cr != nullptr, "nullptr check");
     CHECK_FATAL(cr->GetOpndsSize() > 1, "impossible");
     if (cr->GetOpndsSize() == 2) { // cr has two opnds like {1, + 1}
       if (crNode1->GetCRType() == kCRConstNode) {

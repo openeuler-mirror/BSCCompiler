@@ -31,8 +31,8 @@ int32 MergeStmts::GetStructFieldBitSize(const MIRStructType *structType, FieldID
 
 int32 MergeStmts::GetPointedTypeBitSize(TyIdx ptrTypeIdx) {
   MIRPtrType *ptrMirType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTypeIdx));
-  MIRType *PointedMirType = ptrMirType->GetPointedType();
-  return static_cast<int32>(PointedMirType->GetSize() * 8);
+  MIRType *pointedMirType = ptrMirType->GetPointedType();
+  return static_cast<int32>(pointedMirType->GetSize() * 8);
 }
 
 // Candidate stmts LHS must cover contiguous memory and RHS expr must be const
@@ -129,7 +129,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
         fieldVal = static_cast<uint64>(static_cast<ConstMeExpr*>(
             static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1))->GetExtIntValue());
         fieldVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
-        combinedVal = combinedVal << fieldBitSize | fieldVal;
+        combinedVal = (combinedVal << fieldBitSize) | fieldVal;
       };
 
       if (isBigEndian) {
@@ -295,9 +295,10 @@ IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr 
   return xIassignStmt;
 }
 
-void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
+void MergeStmts::GenShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
                              IntrinsiccallMeStmt* memsetCallStmt,
                              const MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi) {
+  CHECK_FATAL(memsetCallStmt != nullptr, "memsetCallStmt null ptr check");
   MIRType *uXTgtPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*uXTgtMirType, PTY_ptr);
   IvarMeExpr iVarBase(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, uXTgtMirType->GetPrimType(),
                       uXTgtPtrType->GetTypeIndex(), 0);
@@ -308,7 +309,17 @@ void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uX
   xIassignStmt->CopyInfo(*memsetCallStmt);
 }
 
-const int32 simdThreshold = 128;
+bool EnableSIMD(const int &length, bool needToBeMultiplyOfByte) {
+  constexpr int32 kSimdUpperThreshold = 128;
+  const int32 kSimdLowerThreshold = 64;
+  bool withinBound = length <= kSimdUpperThreshold && length >= kSimdLowerThreshold;
+  if (needToBeMultiplyOfByte) {
+    bool isAMultipleOfByte = length % 8 == 0;
+    return withinBound && isAMultipleOfByte;
+  } else {
+    return withinBound;
+  }
+}
 
 void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   ASSERT(memcpyCallStmt->GetIntrinsic() == INTRN_C_memcpy, "The stmt is NOT intrinsic memcpy");
@@ -319,7 +330,8 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
     return;
   }
   int32 copyLength = static_cast<int32>(lengthExpr->GetExtIntValue());
-  if (copyLength <= 0 || copyLength > simdThreshold || copyLength % 8 != 0) {
+  // No need to perform simd if the copyLength is too small
+  if (!EnableSIMD(copyLength, true)) {
     return;
   }
 
@@ -398,7 +410,7 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt *memsetCallStmt) {
   }
   int32 setLength = static_cast<int32>(numExpr->GetExtIntValue());
   // It seems unlikely that setLength is just a few bytes long
-  if (setLength <= 0 || setLength > simdThreshold) {
+  if (!EnableSIMD(setLength, false)) {
     return;
   }
   int32 numOf16Byte = setLength / 16;
@@ -461,22 +473,22 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt *memsetCallStmt) {
 
     if (numOf8Byte != 0) {
       MIRType *u64MirType = GlobalTables::GetTypeTable().GetUInt64();
-      genShortSet(dstMeExpr, static_cast<uint32>(offset8Byte), u64MirType, u64RegMeExpr, memsetCallStmt,
+      GenShortSet(dstMeExpr, static_cast<uint32>(offset8Byte), u64MirType, u64RegMeExpr, memsetCallStmt,
                   *memsetCallStmtChi);
     }
     if (numOf4Byte != 0) {
       MIRType *u32MirType = GlobalTables::GetTypeTable().GetUInt32();
-      genShortSet(dstMeExpr, static_cast<uint32>(offset4Byte), u32MirType, u64RegMeExpr, memsetCallStmt,
+      GenShortSet(dstMeExpr, static_cast<uint32>(offset4Byte), u32MirType, u64RegMeExpr, memsetCallStmt,
                   *memsetCallStmtChi);
     }
     if (numOf2Byte != 0) {
       MIRType *u16MirType = GlobalTables::GetTypeTable().GetUInt16();
-      genShortSet(dstMeExpr, static_cast<uint32>(offset2Byte), u16MirType, u64RegMeExpr, memsetCallStmt,
+      GenShortSet(dstMeExpr, static_cast<uint32>(offset2Byte), u16MirType, u64RegMeExpr, memsetCallStmt,
                   *memsetCallStmtChi);
     }
     if (numOf1Byte != 0) {
       MIRType *u8MirType = GlobalTables::GetTypeTable().GetUInt8();
-      genShortSet(dstMeExpr, static_cast<uint32>(offset1Byte), u8MirType, u64RegMeExpr, memsetCallStmt,
+      GenShortSet(dstMeExpr, static_cast<uint32>(offset1Byte), u8MirType, u64RegMeExpr, memsetCallStmt,
                   *memsetCallStmtChi);
     }
   }

@@ -107,7 +107,7 @@ void MeProfGen::InstrumentFunc() {
   if (Options::profileGen) {
     counterIdx = 0;
     MIRModule *mod = func->GetMirFunc()->GetModule();
-    uint32 nCtrs = instrumentBBs.size();
+    uint32 nCtrs = static_cast<uint32>(instrumentBBs.size());
     func->GetMirFunc()->SetNumCtrs(nCtrs);
     if (nCtrs != 0) {
       MIRType *arrOfInt64Ty =
@@ -133,7 +133,7 @@ void MeProfGen::InstrumentFunc() {
     std::string fileName = func->GetMIRModule().GetFileName();
     uint64 fileNameHash = DJBHash(fileName.c_str());
     std::string lineNo = std::to_string(func->GetMirFunc()->GetSrcPosition().LineNum());
-    uint64 linenoHash = fileNameHash << 32 | DJBHash(lineNo.c_str());
+    uint64 linenoHash = (fileNameHash << 32) | DJBHash(lineNo.c_str());
     func->GetMirFunc()->SetFileLineNoChksum(linenoHash);
 
     // Generate The function's CFG checksum

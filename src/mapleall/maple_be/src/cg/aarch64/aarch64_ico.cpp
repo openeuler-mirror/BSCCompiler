@@ -399,7 +399,8 @@ bool AArch64ICOIfThenElsePattern::CheckHasSameDest(std::vector<Insn*> &lInsn, st
       for (size_t j = 0; j < rInsn.size(); ++j) {
         RegOperand *rDestReg = static_cast<RegOperand*>(&rInsn[j]->GetOperand(0));
         RegOperand *lDestReg = static_cast<RegOperand*>(&lInsn[i]->GetOperand(0));
-        if (lDestReg->GetRegisterNumber() == rDestReg->GetRegisterNumber()) {
+        if (lDestReg->GetRegisterNumber() == rDestReg->GetRegisterNumber() &&
+            rInsn[j]->GetOperandSize(0) == lInsn[i]->GetOperandSize(0)) {
           hasSameDest = true;
           break;
         }

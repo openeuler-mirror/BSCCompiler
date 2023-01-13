@@ -136,7 +136,8 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
 
   if (IsJoinedValPermitted() && (GetValue() != "")) {
     if (keyArg.key == "-Wl") {
-      SetValue(GetValue() + " " + std::string(keyArg.val));
+      // 3 is length of -Wl
+      SetValue(GetValue() + std::string(keyArg.val).substr(3));
     } else {
       SetValue(GetValue() + " " + std::string(keyArg.key) + " " + std::string(keyArg.val));
     }

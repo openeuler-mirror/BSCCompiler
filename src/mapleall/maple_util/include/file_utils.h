@@ -24,6 +24,7 @@ constexpr char kMapleRoot[] = "MAPLE_ROOT";
 constexpr char kClangPath[] = "BiSheng_Clang_Path";
 constexpr char kAsPath[] = "BiSheng_AS_Path";
 constexpr char kGccPath[] = "BiSheng_GCC_Path";
+constexpr char kHpfGccPath[] = "BiSheng_Hpf_GCC_Path";
 
 class FileUtils {
  public:

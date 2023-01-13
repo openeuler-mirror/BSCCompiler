@@ -84,16 +84,26 @@ class SafeExe {
     return ret;
   }
 
-  static ErrorCode HandleCommand(const std::string &cmd,
+  static ErrorCode HandleCommand(const std::string &cmd, const MplOptions &mplOptions,
                                  const std::vector<MplOption> &options) {
     size_t argIndex;
     char **argv;
-    std::tie(argv, argIndex) = GenerateUnixArguments(cmd, options);
+    bool isGccCmd = false;
+    int index = cmd.find_last_of("-");
+    if (index > 0 && cmd.substr(index) == "-gcc") {
+      isGccCmd = true;
+    }
+    std::tie(argv, argIndex) = GenerateUnixArguments(cmd, mplOptions, options, isGccCmd);
 
     if (opts::debug) {
       LogInfo::MapleLogger() << "Run: " << cmd;
       for (auto &opt : options) {
         LogInfo::MapleLogger() << " " << opt.GetKey() << " " << opt.GetValue();
+      }
+      if (isGccCmd) {
+        for (auto &opt : mplOptions.GetLinkInputFiles()) {
+          LogInfo::MapleLogger() << " " << opt;
+        }
       }
       LogInfo::MapleLogger() << "\n";
     }
@@ -228,13 +238,13 @@ class SafeExe {
     return ret;
   }
 
-  static ErrorCode Exe(const std::string &cmd,
+  static ErrorCode Exe(const std::string &cmd, const MplOptions &mplOptions,
                        const std::vector<MplOption> &options) {
     if (StringUtils::HasCommandInjectionChar(cmd)) {
       LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << '\n';
       return kErrorCompileFail;
     }
-    ErrorCode ret = HandleCommand(cmd, options);
+    ErrorCode ret = HandleCommand(cmd, mplOptions, options);
     return ret;
   }
 
@@ -254,14 +264,17 @@ class SafeExe {
     return tmpArgs;
   }
 
-  static std::tuple<char **, size_t> GenerateUnixArguments(const std::string &cmd,
-                                                        const std::vector<MplOption> &options) {
+  static std::tuple<char **, size_t> GenerateUnixArguments(const std::string &cmd, const MplOptions &mplOptions,
+                                                        const std::vector<MplOption> &options, bool isGccCmd) {
     /* argSize=2, because we reserve 1st arg as exe binary, and another arg as last nullptr arg */
     size_t argSize = 2;
 
     /* Calculate how many args are needed.
      * (* 2) is needed, because we have key and value arguments in each option
      */
+    if (isGccCmd && mplOptions.GetLinkInputFiles().size() > 0) {
+      argSize += mplOptions.GetLinkInputFiles().size();
+    }
     argSize += options.size() * 2;
 
     /* extra space for exe name and args */
@@ -292,6 +305,18 @@ class SafeExe {
         argv[argIndex] = new char[valSize];
         strncpy_s(argv[argIndex], valSize, val.c_str(), valSize);
         ++argIndex;
+      }
+    }
+
+    if (isGccCmd) {
+      for (auto &opt : mplOptions.GetLinkInputFiles()) {
+        auto keySize = opt.size() + 1;
+
+        if (keySize != 1) {
+          argv[argIndex] = new char[keySize];
+          strncpy_s(argv[argIndex], keySize, opt.c_str(), keySize);
+          ++argIndex;
+        }
       }
     }
 

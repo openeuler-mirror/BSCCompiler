@@ -806,6 +806,11 @@ void AArch64CGFunc::SelectCopy(Operand &dest, PrimType dtype, Operand &src, Prim
   switch (opnd1Type) {
     case Operand::kOpdMem:
       SelectCopyMemOpnd(dest, dtype, dsize, src, stype);
+      /* when srcType is PTY_u1, using and 1 to reserve only the 1st bit, clear high bits */
+      if (stype == PTY_u1) {
+        GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn((dsize == k32BitSize) ? MOP_wandrri12 : MOP_xandrri13,
+            dest, dest, CreateImmOperand(static_cast<int64>(1), dsize, false)));
+      }
       break;
     case Operand::kOpdOffset:
     case Operand::kOpdImmediate:

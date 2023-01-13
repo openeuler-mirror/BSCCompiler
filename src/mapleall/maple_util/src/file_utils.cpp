@@ -82,16 +82,16 @@ void FileUtils::checkGCCVersion(const char *cmd) {
   } else {
     CHECK_FATAL(false, "Failed to obtain the aarch64-linux-gnu-gcc version number.\n");
   }
-  if (buf[0] != 0) {
-    // 53 is ASCII of 5
-    if(buf[0] < 53) {
-      CHECK_FATAL(false, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
-    }
+  std::vector<std::string> ver;
+  char *p;
+  p = strtok(buf, ".");
+  while (p) {
+    std::string tmp = p;
+    ver.push_back(tmp);
+    p = strtok(NULL, ".");
   }
-  if (buf[2] != 0) {
-    if(buf[2] < 53) {
-      CHECK_FATAL(false, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
-    }
+  if (atoi(ver[0].c_str()) < atoi("5") || (atoi(ver[0].c_str()) > atoi("5") && atoi(ver[1].c_str()) < atoi("5"))) {
+    CHECK_FATAL(false, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
   }
 }
 

@@ -310,6 +310,10 @@ class MplOptions {
     return inputFiles;
   }
 
+  const std::vector<std::string> &GetLinkInputFiles() const {
+    return linkInputFiles;
+  }
+
   const std::string &GetExeFolder() const {
     return exeFolder;
   }
@@ -361,6 +365,7 @@ class MplOptions {
  private:
   ErrorCode CheckInputFiles();
   ErrorCode HandleOptions();
+  void HandleSafeOptions();
   void HandleExtraOptions();
   ErrorCode HandleEarlyOptions();
   ErrorCode DecideRunningPhases();
@@ -381,6 +386,7 @@ class MplOptions {
   void DumpActionTree() const;
 
   std::vector<std::string> inputFiles;
+  std::vector<std::string> linkInputFiles;
   std::string exeFolder;
   RunMode runMode = RunMode::kUnkownRun;
   std::vector<std::string> saveFiles = {};

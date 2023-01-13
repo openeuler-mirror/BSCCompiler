@@ -439,7 +439,6 @@ void MePrediction::PredictByOpcode(BB *bb) {
 // preds: 2
 // succs: 4
 // =========================================
-//
 // case 2:
 // ============BB id:4 goto []==============
 // preds: 3
@@ -471,6 +470,7 @@ void MePrediction::EstimateBBProb(BB &bb) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredWontExit, kNotTaken);
     } else if (!sigSucc->GetMeStmts().empty() && sigSucc->GetMeStmts().back().GetOp() == OP_return) {
       Edge *currEdge = FindEdge(bb, *dest);
+      CHECK_NULL_FATAL(currEdge);
       if (HasEdgePredictedBy(*currEdge, kPredNullReturn) || HasEdgePredictedBy(*currEdge, kPredNegativeReturn) ||
           HasEdgePredictedBy(*currEdge, kPredConstReturn)) {
         continue;
@@ -756,7 +756,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
       cyclicProb = 1 - std::numeric_limits<double>::epsilon();
     }
     // Floating-point numbers have precision problems, consider using integers to represent backEdgeProb?
-    bb.SetFrequency(static_cast<uint64>(static_cast<uint32>(freq / (1 - cyclicProb))));
+    bb.SetFrequency(static_cast<int64_t>(static_cast<uint32>(freq / (1 - cyclicProb))));
   }
   // 2. calculate frequencies of bb's out edges
   if (predictDebug) {
@@ -787,7 +787,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
     }
   }
   // To ensure that the sum of out edge frequency is equal to bb frequency
-  if (bestEdge != nullptr && total != bb.GetFrequency()) {
+  if (bestEdge != nullptr && static_cast<int64_t>(total) != bb.GetFrequency()) {
     bestEdge->frequency += static_cast<uint32>(bb.GetFrequency() - total);
   }
   return true;
@@ -837,7 +837,7 @@ bool MePrediction::PropFreqInFunc() {
   if (cfg->GetCommonExitBB() != cfg->GetLastBB()) {
     bbVisited[cfg->GetCommonExitBB()->GetBBId()] = false;
   }
-  entryBB->SetFrequency(kFreqBase);
+  entryBB->SetFrequency(static_cast<int64_t>(kFreqBase));
 
   for (auto *node : dom->GetReversePostOrder()) {
     auto bb = cfg->GetBBFromID(BBId(node->GetID()));

@@ -37,7 +37,7 @@ class MergeStmts {
                                 const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
   IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr &valMeExpr,
                                 const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
-  void genShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
+  void GenShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
                    IntrinsiccallMeStmt* memsetCallStmt,
                    const MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi);
   void simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt);
