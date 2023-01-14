@@ -16,7 +16,7 @@
 #include "cgfunc.h"
 #if TARGAARCH64
 #include "aarch64_regsaves.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_regsaves.h"
 #endif
 

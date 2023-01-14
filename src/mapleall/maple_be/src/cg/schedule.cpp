@@ -14,7 +14,7 @@
  */
 #if TARGAARCH64
 #include "aarch64_schedule.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_schedule.h"
 #endif
 #if TARGARM32
@@ -716,7 +716,7 @@ int RegPressureSchedule::CalculateRegisterPressure(MapleVector<DepNode*> &nodes)
   }
   /* Restore the Schedule State */
   uint32 i = 0;
-  for (auto node : nodes){
+  for (auto node : nodes) {
     node->SetState(restoreStateSeries.at(i));
     ++i;
   }

@@ -15,7 +15,7 @@
 #if TARGAARCH64
 #include "aarch64_reaching.h"
 #include "aarch64_isa.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_reaching.h"
 #endif
 #if TARGARM32
@@ -574,9 +574,6 @@ void ReachingDefinition::Initialize() {
     InitOut(*bb);
 
     if (bb->IsCleanup()) {
-      if (cgFunc->GetCleanupLabel() != nullptr && bb->GetFirstStmt() == cgFunc->GetCleanupLabel()) {
-        firstCleanUpBB = bb;
-      }
       (void)cleanUpBBSet.insert(bb);
     } else {
       (void)normalBBSet.insert(bb);
@@ -627,6 +624,58 @@ void ReachingDefinition::BuildInOutForFuncBody() {
     }
   }
   ASSERT(normalBBSetBak.empty(), "CG internal error.");
+}
+
+void ReachingDefinition::BuildInOutForFuncBodyBFS() {
+  std::vector<bool> inQueued(kMaxBBNum, false);
+  std::vector<bool> firstVisited(kMaxBBNum, true);
+  std::queue<BB*> worklist;
+  for (auto *bb : normalBBSet) {
+    worklist.push(bb);
+    inQueued[bb->GetId()] = true;
+  }
+
+  while (!worklist.empty()) {
+    auto *curBB = worklist.front();
+    worklist.pop();
+    inQueued[curBB->GetId()] = false;
+    if (GenerateOut(*curBB) || firstVisited[curBB->GetId()]) {
+      firstVisited[curBB->GetId()] = false;
+      GenerateIn(*curBB, worklist, inQueued);
+    }
+  }
+}
+
+/* In[BB] = Union all of out[Parents(bb)]. add succ to worklist, if it is changed and not in worklist */
+void ReachingDefinition::GenerateIn(const BB &bb, std::queue<BB*> &worklist, std::vector<bool> &inQueued) {
+  if ((mode & kRDRegAnalysis) != 0) {
+    for (auto *succBB : bb.GetSuccs()) {
+      if (regIn[succBB->GetId()]->OrBitsCheck(*regOut[bb.GetId()]) && !inQueued[succBB->GetId()]) {
+        worklist.push(succBB);
+        inQueued[succBB->GetId()] = true;
+      }
+    }
+    for (auto succEhBB : bb.GetEhSuccs()) {
+      if (regIn[succEhBB->GetId()]->OrBitsCheck(*regOut[bb.GetId()]) && !inQueued[succEhBB->GetId()]) {
+        worklist.push(succEhBB);
+        inQueued[succEhBB->GetId()] = true;
+      }
+    }
+  }
+  if ((mode & kRDMemAnalysis) != 0) {
+    for (auto *succBB : bb.GetSuccs()) {
+      if (memIn[succBB->GetId()]->OrBitsCheck(*memOut[bb.GetId()]) && !inQueued[succBB->GetId()]) {
+        worklist.push(succBB);
+        inQueued[succBB->GetId()] = true;
+      }
+    }
+    for (auto succEhBB : bb.GetEhSuccs()) {
+      if (memIn[succEhBB->GetId()]->OrBitsCheck(*memOut[bb.GetId()]) && !inQueued[succEhBB->GetId()]) {
+        worklist.push(succEhBB);
+        inQueued[succEhBB->GetId()] = true;
+      }
+    }
+  }
 }
 
 /* if bb->out changed, update in and out */
@@ -783,7 +832,7 @@ void ReachingDefinition::AnalysisStart() {
   stackSize = static_cast<uint32>(GetStackSize());
   Initialize();
   /* Build in/out for function body first. (Except cleanup bb) */
-  BuildInOutForFuncBody();
+  BuildInOutForFuncBodyBFS();
   /* If cleanup bb exists, build in/out for cleanup bbs. firstCleanUpBB->in = Union all non-cleanup bb's out. */
   if (firstCleanUpBB != nullptr) {
     BuildInOutForCleanUpBB();
@@ -981,7 +1030,7 @@ bool ReachingDefinition::RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Ins
 }
 
 static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vector<Insn *> &defInsnVec) {
-  for (auto reg : static_cast<ListOperand&>(insn->GetOperand(index)).GetOperands()) {
+  for (const auto reg : static_cast<ListOperand&>(insn->GetOperand(index)).GetOperands()) {
     if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
       defInsnVec.emplace_back(insn);
       return true;
@@ -990,8 +1039,8 @@ static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vec
   return false;
 }
 
-std::vector<Insn*> ReachingDefinition::FindRegDefBetweenInsn(
-      uint32 regNO, Insn *startInsn, Insn *endInsn, bool findAll, bool analysisDone) const {
+std::vector<Insn*> ReachingDefinition::FindRegDefBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn,
+    bool findAll, bool analysisDone) const {
   std::vector<Insn*> defInsnVec;
   if (startInsn == nullptr || endInsn == nullptr) {
     return defInsnVec;

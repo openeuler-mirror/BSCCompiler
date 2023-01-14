@@ -50,7 +50,7 @@ void LiveIntervalAnalysis::ClearBFS() {
 }
 
 void LiveIntervalAnalysis::Dump() {
-  for (auto it : vregIntervals) {
+  for (const auto it : vregIntervals) {
     LiveInterval *li = it.second;
     li->Dump();
     li->DumpDefs();

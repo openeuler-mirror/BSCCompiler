@@ -15,7 +15,7 @@
 #include "proepilog.h"
 #if TARGAARCH64
 #include "aarch64_proepilog.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_proepilog.h"
 #endif
 #if TARGARM32

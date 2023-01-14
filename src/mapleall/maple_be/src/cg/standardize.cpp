@@ -13,8 +13,8 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "isel.h"
-#include "standardize.h"
 #include "cg.h"
+#include "standardize.h"
 
 namespace maplebe {
 

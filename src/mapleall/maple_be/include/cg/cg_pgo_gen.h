@@ -23,6 +23,7 @@ class CGProfGen {
   CGProfGen(CGFunc &curF, MemPool &mp)
       : f(&curF),
         instrumenter(mp) {}
+  virtual ~CGProfGen() = default;
 
   void InstrumentFunction();
   void CreateProfileCalls();

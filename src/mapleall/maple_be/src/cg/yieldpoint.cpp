@@ -13,9 +13,10 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "yieldpoint.h"
+#include "loop.h"
 #if TARGAARCH64
 #include "aarch64_yieldpoint.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_yieldpoint.h"
 #endif
 #if TARGARM32
@@ -28,6 +29,7 @@ using namespace maple;
 
 bool CgYieldPointInsertion::PhaseRun(maplebe::CGFunc &f) {
   YieldPointInsertion *yieldPoint = nullptr;
+  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
 #if TARGAARCH64 || TARGRISCV64
   yieldPoint = GetPhaseAllocator()->New<AArch64YieldPointInsertion>(f);
 #endif
@@ -37,5 +39,4 @@ bool CgYieldPointInsertion::PhaseRun(maplebe::CGFunc &f) {
   yieldPoint->Run();
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgYieldPointInsertion, yieldpoint)
 }  /* namespace maplebe */

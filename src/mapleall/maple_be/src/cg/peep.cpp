@@ -18,7 +18,7 @@
 #include "common_utils.h"
 #if TARGAARCH64
 #include "aarch64_peep.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_peep.h"
 #elif defined TARGX86_64
 #include "x64_peep.h"
@@ -283,7 +283,7 @@ ReturnType CGPeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb
         auto &listOpnd = static_cast<ListOperand&>(opnd);
         if (insn->GetMachineOpcode() == MOP_asm) {
           if (static_cast<uint32>(i) == kAsmOutputListOpnd || static_cast<uint32>(i) == kAsmClobberListOpnd) {
-            for (auto op : listOpnd.GetOperands()) {
+            for (const auto op : listOpnd.GetOperands()) {
               if (op->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
                 return kResDefFirst;
               }
@@ -294,7 +294,7 @@ ReturnType CGPeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb
           }
           /* fall thru for kAsmInputListOpnd */
         }
-        for (auto op : listOpnd.GetOperands()) {
+        for (const auto op : listOpnd.GetOperands()) {
           if (op->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
             return kResUseFirst;
           }
@@ -497,7 +497,7 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
         auto &listOpnd = static_cast<ListOperand&>(opnd);
         if (insn->GetMachineOpcode() == MOP_asm) {
           if (static_cast<uint32>(i) == kAsmOutputListOpnd || static_cast<uint32>(i) == kAsmClobberListOpnd) {
-            for (auto op : listOpnd.GetOperands()) {
+            for (const auto op : listOpnd.GetOperands()) {
               if (op->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
                 return kResDefFirst;
               }
@@ -508,7 +508,7 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
           }
           /* fall thru for kAsmInputListOpnd */
         }
-        for (auto op : listOpnd.GetOperands()) {
+        for (const auto op : listOpnd.GetOperands()) {
           if (op->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
             return kResUseFirst;
           }

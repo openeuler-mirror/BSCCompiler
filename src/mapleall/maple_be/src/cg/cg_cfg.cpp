@@ -15,7 +15,7 @@
 #include "cg_cfg.h"
 #if TARGAARCH64
 #include "aarch64_insn.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_insn.h"
 #endif
 #if TARGARM32
@@ -321,7 +321,7 @@ void CGCFG::MergeBB(BB &merger, BB &mergee, CGFunc &func) {
   }
   /* if mergee is infinite loop */
   BB *commonExit =  func.GetCommonExitBB();
-  auto exitPredIt = std::find(commonExit->GetPredsBegin(), commonExit->GetPredsEnd(), &mergee);
+  const auto exitPredIt = std::find(commonExit->GetPredsBegin(), commonExit->GetPredsEnd(), &mergee);
   if (exitPredIt != commonExit->GetPredsEnd()) {
     commonExit->ErasePreds(exitPredIt);
     commonExit->PushBackPreds(merger);
@@ -873,9 +873,9 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) const {
   }
 
   /* update phi */
-  for (auto phiInsnIt : succ.GetPhiInsns()) {
+  for (const auto phiInsnIt : succ.GetPhiInsns()) {
     auto &phiList = static_cast<PhiOperand&>(phiInsnIt.second->GetOperand(kInsnSecondOpnd));
-    for (auto phiOpndIt : phiList.GetOperands()) {
+    for (const auto phiOpndIt : phiList.GetOperands()) {
       uint32 fBBId = phiOpndIt.first;
       ASSERT(fBBId != 0, "GetFromBBID = 0");
       BB *predBB = cgFunc->GetBBFromID(fBBId);

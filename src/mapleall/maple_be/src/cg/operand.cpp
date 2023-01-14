@@ -192,7 +192,7 @@ bool MemOperand::Less(const Operand &right) const {
 }
 
 const char *CondOperand::ccStrs[kCcLast] = {
-  "EQ", "NE", "CS", "HS", "CC", "LO", "MI", "PL", "VS", "VC", "HI", "LS", "GE", "LT", "GT", "LE", "AL"
+    "EQ", "NE", "CS", "HS", "CC", "LO", "MI", "PL", "VS", "VC", "HI", "LS", "GE", "LT", "GT", "LE", "AL"
 };
 
 bool CondOperand::Less(const Operand &right) const {
@@ -235,5 +235,13 @@ bool PhiOperand::IsRedundancy() const {
     }
   }
   return true;
+}
+
+bool OpndDesc::operator==(const OpndDesc &o) const {
+  return opndType == o.opndType && property == o.property && size == o.property;
+}
+bool OpndDesc::operator<(const OpndDesc &o) const {
+  return opndType < o.opndType || (opndType == o.opndType && property < o.property) ||
+      (opndType == o.opndType && property == o.property && size < o.size);
 }
 }  /* namespace maplebe */
