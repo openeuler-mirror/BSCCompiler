@@ -2161,23 +2161,43 @@ void FEIRStmtIntrinsicCallAssign::RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckP
 }
 
 std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
-  std::list<StmtNode*> ans;
-  StmtNode *stmtCall = nullptr;
-  if (intrinsicId == INTRN_JAVA_CLINIT_CHECK) {
-    MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
-    if (FEOptions::GetInstance().IsAOT()) {
-      BaseNode *argNumExpr = mirBuilder.CreateIntConst(typeID, PTY_i32);
-      args.push_back(argNumExpr);
+  switch (intrinsicId) {
+    CASE_INTRN_C_SYNC: {
+      return GenMIRStmtsForIntrnC(mirBuilder, type->GenerateMIRType()->GetTypeIndex());
     }
-    stmtCall = mirBuilder.CreateStmtIntrinsicCall(INTRN_JAVA_CLINIT_CHECK, std::move(args),
-                                                  type->GenerateMIRType()->GetTypeIndex());
-  } else if (intrinsicId == INTRN_JAVA_FILL_NEW_ARRAY) {
-    return GenMIRStmtsForFillNewArray(mirBuilder);
-  } else if (intrinsicId == INTRN_JAVA_POLYMORPHIC_CALL) {
-    return GenMIRStmtsForInvokePolyMorphic(mirBuilder);
-  } else if (intrinsicId == INTRN_C_va_start || intrinsicId == INTRN_C_memcpy) {
-    MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
-    if (exprList != nullptr) {
+    case INTRN_JAVA_CLINIT_CHECK: {
+      return GenMIRStmtsForClintCheck(mirBuilder);
+    }
+    case INTRN_JAVA_FILL_NEW_ARRAY: {
+      return GenMIRStmtsForFillNewArray(mirBuilder);
+    }
+    case INTRN_JAVA_POLYMORPHIC_CALL: {
+      return GenMIRStmtsForInvokePolyMorphic(mirBuilder);
+    }
+    default: {
+      return GenMIRStmtsForIntrnC(mirBuilder);
+    }
+  }
+}
+
+std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsForClintCheck(MIRBuilder &mirBuilder) const {
+  std::list<StmtNode*> ans;
+  MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
+  if (FEOptions::GetInstance().IsAOT()) {
+    BaseNode *argNumExpr = mirBuilder.CreateIntConst(typeID, PTY_i32);
+    args.push_back(argNumExpr);
+  }
+  IntrinsiccallNode *stmtCall = mirBuilder.CreateStmtIntrinsicCall(INTRN_JAVA_CLINIT_CHECK, std::move(args),
+                                                                   type->GenerateMIRType()->GetTypeIndex());
+  (void)ans.emplace_back(stmtCall);
+  return ans;
+}
+
+std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsForIntrnC(MIRBuilder &mirBuilder, TyIdx returnTyIdx) const {
+  std::list<StmtNode*> ans;
+  MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
+  if (exprList != nullptr) {
+    if (intrinsicId == INTRN_C_va_start || intrinsicId == INTRN_C_memcpy) {
       for (const auto &expr : *exprList) {
         BaseNode *node = expr->GenMIRNode(mirBuilder);
         if (expr->IsAddrof()) {
@@ -2185,32 +2205,23 @@ std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsImpl(MIRBuilder &mi
         }
         args.push_back(node);
       }
-    }
-    MIRSymbol *retVarSym = nullptr;
-    if (var != nullptr) {
-      retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
-      stmtCall = mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicId, std::move(args), retVarSym);
     } else {
-      stmtCall = mirBuilder.CreateStmtIntrinsicCall(intrinsicId, std::move(args), TyIdx(0));
-    }
-  } else {
-    MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
-    if (exprList != nullptr) {
       for (const auto &expr : *exprList) {
         BaseNode *node = expr->GenMIRNode(mirBuilder);
         args.push_back(node);
       }
     }
-    MIRSymbol *retVarSym = nullptr;
-    if ((var != nullptr) && (var.get() != nullptr)) {
-      retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
-      stmtCall = mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicId, std::move(args), retVarSym);
-    } else {
-      stmtCall = mirBuilder.CreateStmtIntrinsicCall(intrinsicId, std::move(args), TyIdx(0));
-    }
   }
-  // other intrinsic call should be implemented
-  ans.emplace_back(stmtCall);
+  MIRSymbol *retVarSym = nullptr;
+  IntrinsiccallNode *stmtCall = nullptr;
+  if (var != nullptr) {
+    retVarSym = var->GenerateLocalMIRSymbol(mirBuilder);
+    stmtCall = mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicId, std::move(args), retVarSym, returnTyIdx);
+  } else {
+    stmtCall = mirBuilder.CreateStmtIntrinsicCall(intrinsicId, std::move(args), TyIdx(0));
+  }
+
+  (void)ans.emplace_back(stmtCall);
   return ans;
 }
 
@@ -3835,11 +3846,10 @@ std::unique_ptr<FEIRExpr> FEIRExprAtomic::CloneImpl() const {
 
 TyIdx FEIRExprAtomic::GetTyIdx(MIRBuilder &mirBuilder) const {
   TyIdx typeIndex(0);
-  if (atomicOp != kAtomicOpLoadN) {
-    typeIndex = val1Type->GetTypeIndex();
-  }
   if (atomicOp == kAtomicOpExchange) {
     typeIndex = val2Type->GetTypeIndex();
+  } else {
+    typeIndex = val1Type->GetTypeIndex();
   }
 
   return typeIndex;

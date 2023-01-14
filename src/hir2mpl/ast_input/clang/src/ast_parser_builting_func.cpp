@@ -85,9 +85,16 @@ UniqueFEIRExpr ASTCallExpr::CreateIntrinsicCallAssignedForC(std::list<UniqueFEIR
     stmts.emplace_back(std::move(stmt));
     return nullptr;
   }
+  std::unique_ptr<FEIRStmtIntrinsicCallAssign> stmt = nullptr;
   UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *mirType, false);
-  auto stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(argIntrinsicID, nullptr, retVar->Clone(),
-                                                            std::move(argExprList));
+  if (!args.empty()) {
+    UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
+    stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(argIntrinsicID, std::move(type), retVar->Clone(),
+                                                         std::move(argExprList));
+  } else {
+    stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(argIntrinsicID, nullptr, retVar->Clone(),
+                                                         std::move(argExprList));
+  }
   stmts.emplace_back(std::move(stmt));
   UniqueFEIRExpr dread = FEIRBuilder::CreateExprDRead(std::move(retVar));
   return dread;

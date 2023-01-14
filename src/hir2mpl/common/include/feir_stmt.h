@@ -2551,8 +2551,10 @@ class FEIRStmtIntrinsicCallAssign : public FEIRStmtAssign {
 
  private:
   void ConstructArgsForInvokePolyMorphic(MIRBuilder &mirBuilder, MapleVector<BaseNode*> &intrnCallargs) const;
+  std::list<StmtNode*> GenMIRStmtsForIntrnC(MIRBuilder &mirBuilder, TyIdx tyIdx = TyIdx(0)) const;
   std::list<StmtNode*> GenMIRStmtsForFillNewArray(MIRBuilder &mirBuilder) const;
   std::list<StmtNode*> GenMIRStmtsForInvokePolyMorphic(MIRBuilder &mirBuilder) const;
+  std::list<StmtNode*> GenMIRStmtsForClintCheck(MIRBuilder &mirBuilder) const;
 
   MIRIntrinsicID intrinsicId;
   UniqueFEIRType type;

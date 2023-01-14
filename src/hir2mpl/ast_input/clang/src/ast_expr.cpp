@@ -3019,14 +3019,16 @@ UniqueFEIRExpr ASTAtomicExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
     }
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Expr(valExpr1->Emit2FEExpr(stmts));
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Type(val1Type);
-  }
-  if (atomicOp == kAtomicOpExchange) {
-    if (firstType != nullptr && secondType != nullptr &&
-        firstType->GetSize() == secondType->GetSize() && firstType->GetSize() != thirdType->GetSize()) {
-      FE_ERR(kLncErr, valExpr1->GetSrcLoc(), "size mismatch in argument 3 of '__atomic_exchange'");
+    if (atomicOp == kAtomicOpExchange) {
+      if (firstType != nullptr && secondType != nullptr &&
+          firstType->GetSize() == secondType->GetSize() && firstType->GetSize() != thirdType->GetSize()) {
+        FE_ERR(kLncErr, valExpr1->GetSrcLoc(), "size mismatch in argument 3 of '__atomic_exchange'");
+      }
+      static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Expr(valExpr2->Emit2FEExpr(stmts));
+      static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Type(val2Type);
     }
-    static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Expr(valExpr2->Emit2FEExpr(stmts));
-    static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Type(val2Type);
+  } else {
+    static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Type(val1Type);
   }
   static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetOrderExpr(orderExpr->Emit2FEExpr(stmts));
   auto var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *refType, false, false);

@@ -2001,6 +2001,11 @@ ASTExpr *ASTParser::ProcessExprImaginaryLiteral(MapleAllocator &allocator, const
 std::map<std::string, ASTParser::FuncPtrBuiltinFunc> ASTParser::builtingFuncPtrMap =
      ASTParser::InitBuiltinFuncPtrMap();
 
+bool ASTParser::IsNeedGetPointeeType(const clang::FunctionDecl &funcDecl) const {
+  std::string funcNameStr = funcDecl.getNameAsString();
+  return (funcNameStr.find("__sync") != std::string::npos || funcNameStr.find("__atomic") != std::string::npos);
+}
+
 ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::CallExpr &expr) {
   ASTCallExpr *astCallExpr = ASTDeclsBuilder::ASTExprBuilder<ASTCallExpr>(allocator);
   ASSERT(astCallExpr != nullptr, "astCallExpr is nullptr");
@@ -2018,15 +2023,19 @@ ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::
   astCallExpr->SetReturnVarAttrs(returnVarAttrs);
   // args
   MapleVector<ASTExpr*> args(allocator.Adapter());
+  const clang::FunctionDecl *funcDecl = expr.getDirectCallee();
   for (uint32_t i = 0; i < expr.getNumArgs(); ++i) {
     const clang::Expr *subExpr = expr.getArg(i);
     ASTExpr *arg = ProcessExpr(allocator, subExpr);
-    arg->SetType(astFile->CvtType(subExpr->getType()));
+    clang::QualType type = subExpr->getType();
+    if (funcDecl != nullptr && IsNeedGetPointeeType(*funcDecl)) {
+      type = GetPointeeType(*subExpr);
+    }
+    arg->SetType(astFile->CvtType(type));
     args.push_back(arg);
   }
   astCallExpr->SetArgs(args);
   // Obtain the function name directly
-  const clang::FunctionDecl *funcDecl = expr.getDirectCallee();
   if (funcDecl != nullptr) {
     std::string funcName = astFile->GetMangledName(*funcDecl);
     funcName = astCallExpr->CvtBuiltInFuncName(funcName);
@@ -2486,14 +2495,19 @@ clang::Expr *ASTParser::GetAtomValExpr(clang::Expr *valExpr) {
   return atomValExpr;
 }
 
+clang::QualType ASTParser::GetPointeeType(const clang::Expr &expr) {
+  clang::QualType type = expr.getType().getCanonicalType();
+  if (type->isPointerType() && !type->getPointeeType()->isRecordType()) {
+    type = type->getPointeeType();
+  }
+  return type;
+}
+
 void ASTParser::SetAtomExprValType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr,
                                    ASTAtomicExpr &astExpr) {
   auto val1Expr = atomicExpr.getVal1();
   astExpr.SetValExpr1(ProcessExpr(allocator, val1Expr));
-  clang::QualType val1Type = val1Expr->getType().getCanonicalType();
-  if (val1Type->isPointerType() && !val1Type->getPointeeType()->isRecordType()) {
-    val1Type = val1Type->getPointeeType();
-  }
+  const clang::QualType val1Type = GetPointeeType(*val1Expr);
   astExpr.SetVal1Type(astFile->CvtType(val1Type));
   /* no need to save atomic_exchange_n and atomic_store_n's second param type, for second param type is not a pointer */
   if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_exchange_n ||
@@ -2509,14 +2523,11 @@ void ASTParser::SetAtomExprValType(MapleAllocator &allocator, const clang::Atomi
 }
 
 void ASTParser::SetAtomExchangeType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr,
-                                        ASTAtomicExpr &astExpr) {
+                                    ASTAtomicExpr &astExpr) {
   auto val2Expr = atomicExpr.getVal2();
   auto val1Expr = atomicExpr.getVal1();
   astExpr.SetValExpr2(ProcessExpr(allocator, val2Expr));
-  clang::QualType val2Type = val2Expr->getType().getCanonicalType();
-  if (val2Type->isPointerType() && !val2Type->getPointeeType()->isRecordType()) {
-    val2Type = val2Type->getPointeeType();
-  }
+  const clang::QualType val2Type = GetPointeeType(*val2Expr);
   astExpr.SetVal2Type(astFile->CvtType(val2Type));
   auto firstType = val2Expr->getType();
   val1Expr = GetAtomValExpr(val1Expr);
@@ -2538,9 +2549,12 @@ ASTExpr *ASTParser::ProcessExprAtomicExpr(MapleAllocator &allocator,
   astExpr->SetRefType(astFile->CvtType(atomicExpr.getPtr()->getType()->getPointeeType()));
   if (atomicExpr.getOp() != clang::AtomicExpr::AO__atomic_load_n) {
     SetAtomExprValType(allocator, atomicExpr, *astExpr);
-  }
-  if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_exchange) {
-    SetAtomExchangeType(allocator, atomicExpr, *astExpr);
+    if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_exchange) {
+      SetAtomExchangeType(allocator, atomicExpr, *astExpr);
+    }
+  } else {
+    const clang::QualType valType = GetPointeeType(atomicExpr);
+    astExpr->SetVal1Type(astFile->CvtType(valType));
   }
   astExpr->SetOrderExpr(ProcessExpr(allocator, atomicExpr.getOrder()));
 

@@ -1380,22 +1380,28 @@ BlockNode *CGLowerer::LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode 
   auto *block = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   auto intrinsicID = intrinsicCall.GetIntrinsic();
   auto &opndVector = intrinsicCall.GetNopnd();
-  auto returnPair = intrinsicCall.GetReturnVec().begin();
+  auto firstArgTypeIdx = intrinsicCall.GetTyIdx();
+  CHECK_FATAL(firstArgTypeIdx != 0, "firstArgTypeIdx should not be 0");
+  PrimType primType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(firstArgTypeIdx)->GetPrimType();
+  auto *intrinsicOp = builder->CreateExprIntrinsicop(intrinsicID, OP_intrinsicop, primType, firstArgTypeIdx, opndVector);
+  auto &returnVector = intrinsicCall.GetReturnVec();
+  StmtNode *newStmt = nullptr;
+  if (returnVector.size() == 0) {
+    newStmt = builder->GetCurrentFuncCodeMp()->New<UnaryStmtNode>(OP_eval, primType, intrinsicOp);
+    block->AddStatement(newStmt);
+    return LowerBlock(*block);
+  }
+  auto returnPair = returnVector.begin();
   auto regFieldPair = returnPair->second;
   if (regFieldPair.IsReg()) {
     auto regIdx = regFieldPair.GetPregIdx();
-    auto primType = mirModule.CurFunction()->GetPregItem(static_cast<PregIdx>(regIdx))->GetPrimType();
-    auto intrinsicOp = builder->CreateExprIntrinsicop(intrinsicID, OP_intrinsicop, primType, TyIdx(0), opndVector);
-    auto regAssign = builder->CreateStmtRegassign(primType, regIdx, intrinsicOp);
-    block->AddStatement(regAssign);
+    newStmt = builder->CreateStmtRegassign(primType, regIdx, intrinsicOp);
   } else {
     auto fieldID = regFieldPair.GetFieldID();
     auto stIdx = returnPair->first;
-    auto *type = mirModule.CurFunction()->GetLocalOrGlobalSymbol(stIdx)->GetType();
-    auto intrinsicOp = builder->CreateExprIntrinsicop(intrinsicID, OP_intrinsicop, *type, opndVector);
-    auto dAssign = builder->CreateStmtDassign(stIdx, fieldID, intrinsicOp);
-    block->AddStatement(dAssign);
+    newStmt = builder->CreateStmtDassign(stIdx, fieldID, intrinsicOp);
   }
+  block->AddStatement(newStmt);
   return LowerBlock(*block);
 }
 
