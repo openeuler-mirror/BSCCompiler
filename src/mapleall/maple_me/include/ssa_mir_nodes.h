@@ -212,7 +212,7 @@ class AccessSSANodes {
   inline void InsertMayUseNode(MayUseNode mayUseNode) {
     auto &mayUseNodes = GetMayUseNodes();
     OStIdx ostIdx = mayUseNode.GetOpnd()->GetOrigIdx();
-    (void)mayUseNodes.insert( { ostIdx, mayUseNode });
+    (void)mayUseNodes.insert({ ostIdx, mayUseNode });
   }
 
   virtual void InsertMustDefNode(VersionSt *sym, StmtNode *s) {
@@ -413,6 +413,19 @@ class StmtsSSAPart {
   }
   const AccessSSANodes *SSAPartOf(const StmtNode &stmt) const {
     return ssaPart.at(stmt.GetStmtID());
+  }
+
+  bool HasMayDefPart(const StmtNode &stmt) {
+    switch (stmt.GetOpCode()) {
+      case OP_maydassign:
+      case OP_dassign:
+      case OP_syncenter:
+      case OP_syncexit:
+      case OP_iassign:
+        return !GetMayDefNodesOf(stmt).empty();
+      default:
+        return kOpcodeInfo.IsCall(stmt.GetOpCode()) && !GetMayDefNodesOf(stmt).empty();
+    }
   }
 
   bool HasMayDef(const StmtNode &stmt) {

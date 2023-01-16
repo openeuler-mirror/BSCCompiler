@@ -638,41 +638,48 @@ bool HDSE::ExprNonDeletable(const MeExpr &meExpr) const {
 
 bool HDSE::HasNonDeletableExpr(const MeStmt &meStmt) const {
   Opcode op = meStmt.GetOp();
+  bool nonDeletable = false;
   switch (op) {
     case OP_dassign: {
       auto &dasgn = static_cast<const DassignMeStmt&>(meStmt);
       VarMeExpr *varMeExpr = static_cast<VarMeExpr*>(dasgn.GetVarLHS());
-      return (varMeExpr != nullptr && varMeExpr->IsVolatile()) || ExprNonDeletable(*dasgn.GetRHS()) ||
-             (hdseKeepRef && dasgn.Propagated()) || dasgn.GetWasMayDassign() ||
-             (decoupleStatic && varMeExpr != nullptr && varMeExpr->GetOst()->GetMIRSymbol()->IsGlobal());
+      nonDeletable = (varMeExpr != nullptr && varMeExpr->IsVolatile()) || ExprNonDeletable(*dasgn.GetRHS()) ||
+                     (hdseKeepRef && dasgn.Propagated()) || dasgn.GetWasMayDassign() ||
+                     (decoupleStatic && varMeExpr != nullptr && varMeExpr->GetOst()->GetMIRSymbol()->IsGlobal());
+      break;
     }
     case OP_regassign: {
       auto &rasgn = static_cast<const AssignMeStmt&>(meStmt);
-      return ExprNonDeletable(*rasgn.GetRHS());
+      nonDeletable = ExprNonDeletable(*rasgn.GetRHS());
+      break;
     }
     case OP_maydassign:
       return true;
     case OP_iassign: {
       auto &iasgn = static_cast<const IassignMeStmt&>(meStmt);
       auto &ivarMeExpr = static_cast<IvarMeExpr&>(*iasgn.GetLHSVal());
-      return ivarMeExpr.IsVolatile() || ivarMeExpr.IsFinal() || ExprNonDeletable(*iasgn.GetLHSVal()->GetBase()) ||
-             ExprNonDeletable(*iasgn.GetRHS());
+      nonDeletable = ivarMeExpr.IsVolatile() || ivarMeExpr.IsFinal() ||
+                     ExprNonDeletable(*iasgn.GetLHSVal()->GetBase()) || ExprNonDeletable(*iasgn.GetRHS());
+      break;
     }
     case OP_intrinsiccall: {
-      bool opndNonDeletable = false;
-      auto &intrinCall = static_cast<const IntrinsiccallMeStmt&>(meStmt);
-      auto *chiList = intrinCall.GetChiList();
-      for (auto &chi : *chiList) {
-        opndNonDeletable |= ExprNonDeletable(ToRef(chi.second->GetRHS()));
-      }
       for (size_t i = 0; i < meStmt.NumMeStmtOpnds(); ++i) {
-        opndNonDeletable |= ExprNonDeletable(ToRef(meStmt.GetOpnd(i)));
+        nonDeletable |= ExprNonDeletable(ToRef(meStmt.GetOpnd(i)));
       }
-      return opndNonDeletable;
+      break;
     }
     default:
-      return false;
+      break;
   }
+  if (nonDeletable || !meStmt.GetChiList()) {
+    return nonDeletable;
+  }
+  for (auto &chi : *meStmt.GetChiList()) {
+    if (ExprNonDeletable(*chi.second->GetRHS())) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void HDSE::MarkLastBranchStmtInPredBBRequired(const BB &bb) {

@@ -96,7 +96,7 @@ bool DSE::ExprNonDeletable(const BaseNode &expr) const {
 
 bool DSE::HasNonDeletableExpr(const StmtNode &stmt) const {
   Opcode op = stmt.GetOpCode();
-
+  bool nonDeletable = false;
   switch (op) {
     case OP_dassign: {
       auto &node = static_cast<const DassignNode&>(stmt);
@@ -113,8 +113,9 @@ bool DSE::HasNonDeletableExpr(const StmtNode &stmt) const {
           }
         }
       }
-      return (sym.IsVolatile() || sym.IsTypeVolatile(node.GetFieldID()) ||
-              ExprNonDeletable(ToRef(node.GetRHS())) || isInjectIV);
+      nonDeletable = (sym.IsVolatile() || sym.IsTypeVolatile(node.GetFieldID()) ||
+                     ExprNonDeletable(ToRef(node.GetRHS())) || isInjectIV);
+      break;
     }
     case OP_regassign: {
       if (isLfo) {
@@ -126,43 +127,46 @@ bool DSE::HasNonDeletableExpr(const StmtNode &stmt) const {
           }
         }
       }
-      return ExprNonDeletable(ToRef(stmt.Opnd(0)));
+      nonDeletable = ExprNonDeletable(ToRef(stmt.Opnd(0)));
+      break;
     }
     // possible to throw exception
     case OP_maydassign: {
       return true;
     }
     case OP_iassign: {
-      auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
-      auto &mayDefList = ssaPart->GetMayDefNodes();
-      for (auto &mayDefPair : std::as_const(mayDefList)) {
-        if (mayDefPair.second.GetResult()->GetOst()->IsVolatile()) {
-          return true;
-        }
-      }
       auto &node = static_cast<const IassignNode&>(stmt);
       auto &ty = static_cast<const MIRPtrType&>(GetTypeFromTyIdx(node.GetTyIdx()));
-      return (ty.IsPointedTypeVolatile(node.GetFieldID()) ||
-              ExprNonDeletable(ToRef(node.Opnd(0))) ||
-              ExprNonDeletable(ToRef(node.GetRHS())));
+      nonDeletable = (ty.IsPointedTypeVolatile(node.GetFieldID()) ||
+                     ExprNonDeletable(ToRef(node.Opnd(0))) ||
+                     ExprNonDeletable(ToRef(node.GetRHS())));
+      break;
     }
     case OP_intrinsiccall: {
-      auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
-      auto &mayDefList = ssaPart->GetMayDefNodes();
-      for (auto &mayDefPair: mayDefList) {
-        if (mayDefPair.second.GetResult()->GetOst()->IsVolatile()) {
-          return true;
-        }
-      }
-      bool opndNonDeletable = false;
       for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
-        opndNonDeletable |= ExprNonDeletable(ToRef(stmt.Opnd(i)));
+        nonDeletable |= ExprNonDeletable(ToRef(stmt.Opnd(i)));
       }
-      return opndNonDeletable;
+      break;
     }
     default:
-      return false;
+      break;
   }
+  if (nonDeletable || !ssaTab.GetStmtsSSAPart().HasMayDefPart(stmt)) {
+    return nonDeletable;
+  }
+  auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
+  auto &mayDefList = ssaPart->GetMayDefNodes();
+  for (auto &mayDefPair: mayDefList) {
+    auto *ost = mayDefPair.second.GetResult()->GetOst();
+    if (!ost->IsSymbolOst()) {
+      continue;
+    }
+    auto *sym = ost->GetMIRSymbol();
+    if (ost->IsVolatile() || (decoupleStatic && sym->IsGlobal())) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool DSE::StmtMustRequired(const StmtNode &stmt, const BB &bb) const {
