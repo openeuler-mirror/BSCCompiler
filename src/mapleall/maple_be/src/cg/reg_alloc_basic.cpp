@@ -91,34 +91,19 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
     return &opnd;
   }
   if (!regInfo->IsVirtualRegister(regOpnd)) {
-    auto reg = regOpnd.GetRegisterNumber();
-    availRegSet[reg] = true;
-    uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
-    if (id != 0 && id <= insn.GetId()) {
-      ReleaseReg(reg);
-    }
+    CheckLiveAndReleaseReg(regOpnd.GetRegisterNumber(), regOpnd.GetRegisterNumber(), insn);
     return &opnd;
   }
 
   auto regMapIt = regMap.find(regOpnd.GetRegisterNumber());
   if (regMapIt != regMap.end()) {
     regno_t reg = regMapIt->second;
-    if (!insn.IsCondDef()) {
-      uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
-      if (id != 0 && id <= insn.GetId()) {
-        ReleaseReg(reg);
-      }
-    }
+    CheckLiveAndReleaseReg(reg, regOpnd.GetRegisterNumber(), insn);
   } else {
     /* AllocatePhysicalRegister insert a mapping from vreg no to phy reg no into regMap */
     if (AllocatePhysicalRegister(regOpnd)) {
       regMapIt = regMap.find(regOpnd.GetRegisterNumber());
-      if (!insn.IsCondDef()) {
-        uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
-        if (id && (id <= insn.GetId())) {
-          ReleaseReg(regMapIt->second);
-        }
-      }
+      CheckLiveAndReleaseReg(regMapIt->second, regMapIt->first, insn);
     } else {
       /* For register spill. use 0 register as spill register */
       regno_t regNO = 0;
@@ -132,6 +117,17 @@ Operand *DefaultO0RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
 void DefaultO0RegAllocator::InitAvailReg() {
   for (auto it : regInfo->GetAllRegs()) {
     availRegSet[it] = true;
+  }
+}
+
+void DefaultO0RegAllocator::CheckLiveAndReleaseReg(regno_t preg, regno_t vreg , const Insn &cInsn) {
+  /* record defined register number in this insn */
+  multiDefForInsn.emplace(preg);
+  uint32 id = GetRegLivenessId(vreg);
+  if (!cInsn.IsCondDef()) {
+    if (id != 0 && id <= cInsn.GetId()) {
+      ReleaseReg(preg);
+    }
   }
 }
 
@@ -159,6 +155,9 @@ bool DefaultO0RegAllocator::AllocatePhysicalRegister(const RegOperand &opnd) {
   const auto opndRegIt = regLiveness.find(regNo);
   for (regno_t reg = regStart; reg <= regEnd; ++reg) {
     if (!availRegSet[reg]) {
+      continue;
+    }
+    if (multiDefForInsn.count(reg)) {
       continue;
     }
 
@@ -307,6 +306,7 @@ void DefaultO0RegAllocator::AllocHandleDestList(Insn &insn, Operand &opnd, uint3
     RegOperand *regOpnd = static_cast<RegOperand*>(AllocDestOpnd(*dstOpnd, insn));
     ASSERT(regOpnd != nullptr, "null ptr check");
     auto physRegno = regOpnd->GetRegisterNumber();
+    /* assume move to multiDefForInsn */
     availRegSet[physRegno] = false;
     (void)liveReg.insert(physRegno);
     listOpndsNew->PushOpnd(
@@ -330,11 +330,10 @@ void DefaultO0RegAllocator::AllocHandleDest(Insn &insn, Operand &opnd, uint32 id
       /* remember the physical machine register assigned */
       regno_t regNO = regOpnd.GetRegisterNumber();
       rememberRegs.push_back(regInfo->IsVirtualRegister(regOpnd) ? regMap[regNO] : regNO);
-    } else if (!insn.IsCondDef()) {
-      uint32 id = GetRegLivenessId(regOpnd.GetRegisterNumber());
-      if (id != 0 && id <= insn.GetId()) {
-        ReleaseReg(regOpnd);
-      }
+    } else {
+      auto regIt = regMap.find(regOpnd.GetRegisterNumber());
+      CHECK_FATAL(regIt != regMap.end(), "find allocated reg failed in AllocHandleDest");
+      CheckLiveAndReleaseReg(regIt->second, regIt->first, insn);
     }
     insn.SetOperand(idx, cgFunc->GetOpndBuilder()->CreatePReg(
         regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType()));
@@ -396,6 +395,7 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
 
     SetupRegLiveness(bb);
     FOR_BB_INSNS_REV(insn, bb) {
+      multiDefForInsn.clear();
       if (!insn->IsMachineInstruction()) {
         continue;
       }
@@ -420,6 +420,7 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
           AllocHandleDest(*insn, opnd, i);
         }
       }
+      multiDefForInsn.clear();
 
       for (uint32 i = 0; i < insn->GetOperandSize() && !insn->IsAsmInsn(); ++i) {  /* the src registers */
         Operand &opnd = insn->GetOperand(i);

@@ -30,7 +30,8 @@ class DefaultO0RegAllocator : public RegAllocator {
         liveReg(std::less<uint8>(), alloc.Adapter()),
         allocatedSet(std::less<Operand*>(), alloc.Adapter()),
         regLiveness(alloc.Adapter()),
-        rememberRegs(alloc.Adapter()) {
+        rememberRegs(alloc.Adapter()),
+        multiDefForInsn(alloc.Adapter()) {
     availRegSet.resize(regInfo->GetAllRegNum());
   }
 
@@ -71,6 +72,12 @@ class DefaultO0RegAllocator : public RegAllocator {
   MapleSet<Operand*> allocatedSet;      /* already allocated */
   MapleMap<regno_t, MapleVector<std::pair<uint32, uint32>>> regLiveness;
   MapleVector<regno_t> rememberRegs;
+  MapleSet<regno_t > multiDefForInsn;   /* record multiple def operands in one insn*/
+
+ private:
+  /* check live of physical and original vreg, release it if there is no overlap */
+  void CheckLiveAndReleaseReg(
+      regno_t preg /* regNum after alloc */, regno_t vreg /* regNum before alloc */, const Insn &cInsn);
 };
 }  /* namespace maplebe */
 
