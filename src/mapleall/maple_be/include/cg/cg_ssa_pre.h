@@ -34,7 +34,8 @@ using BBId = uint32;
 class SsaPreWorkCand {
  public:
   static uint32 workCandIDNext;  // for assigning ID starting from  1 (0 is reserved)
-  explicit SsaPreWorkCand(MapleAllocator *alloc) : occBBs(alloc->Adapter()), saveAtEntryBBs(alloc->Adapter()), workCandID(++workCandIDNext) {}
+  explicit SsaPreWorkCand(MapleAllocator *alloc)
+    : occBBs(alloc->Adapter()), saveAtEntryBBs(alloc->Adapter()), workCandID(++workCandIDNext) {}
   // inputs
   MapleSet<BBId> occBBs; // Id's of BBs with appearances of the callee-saved reg
   // outputs

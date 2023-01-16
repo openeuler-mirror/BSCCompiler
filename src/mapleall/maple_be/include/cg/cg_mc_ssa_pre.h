@@ -26,11 +26,13 @@ class RGNode {
   friend class McSSAPre;
   friend class Visit;
  public:
-  RGNode(MapleAllocator *alloc, uint32 idx, Occ *oc) : id(idx), occ(oc), 
-        pred(alloc->Adapter()),
-        phiOpndIndices(alloc->Adapter()),
-        inEdgesCap(alloc->Adapter()),
-        usedCap(alloc->Adapter()) {}
+  RGNode(MapleAllocator *alloc, uint32 idx, Occ *oc)
+    : id(idx),
+      occ(oc),
+      pred(alloc->Adapter()),
+      phiOpndIndices(alloc->Adapter()),
+      inEdgesCap(alloc->Adapter()),
+      usedCap(alloc->Adapter()) {}
  private:
   uint32 id;
   Occ *occ;
@@ -65,8 +67,8 @@ class Route {
 
 class McSSAPre : public SSAPre {
  public:
-  McSSAPre(CGFunc *cgfunc, DomAnalysis *dm, MemPool *memPool, SsaPreWorkCand *wkcand, bool aeap, bool enDebug) :
-      SSAPre(cgfunc, dm, memPool, wkcand, aeap, enDebug),
+  McSSAPre(CGFunc *cgfunc, DomAnalysis *dm, MemPool *memPool, SsaPreWorkCand *wkcand, bool aeap, bool enDebug)
+    : SSAPre(cgfunc, dm, memPool, wkcand, aeap, enDebug),
       occ2RGNodeMap(preAllocator.Adapter()),
       maxFlowRoutes(preAllocator.Adapter()),
       minCut(preAllocator.Adapter()) {}
@@ -82,7 +84,8 @@ class McSSAPre : public SSAPre {
   void DumpRGToFile();                  // dump reduced graph to dot file
   bool IncludedEarlier(Visit **cut, Visit *curVisit, uint32 nextRouteIdx);
   void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route);
-  bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
+  bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx,
+                           FreqType flowSoFar);
   bool SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
   void DetermineMinCut();
   bool VisitANode(RGNode *node, Route *route, std::vector<bool> &visitedNodes);
@@ -107,7 +110,8 @@ class McSSAPre : public SSAPre {
   MapleVector<Route*> maxFlowRoutes;
   uint32 nextRGNodeId = 1;  // 0 is reserved
   FreqType maxFlowValue;
-  FreqType relaxedMaxFlowValue;  // relax maxFlowValue to avoid excessive mincut search time when number of routes is large
+  // relax maxFlowValue to avoid excessive mincut search time when number of routes is large
+  FreqType relaxedMaxFlowValue;
   MapleVector<Visit*> minCut;   // an array of Visits* to represent the minCut
 };
 

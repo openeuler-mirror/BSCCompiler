@@ -161,7 +161,8 @@ void McSSAPre::RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSe
 }
 
 // find the cut closest to the sink whose total flow is relaxedMaxFlowValue
-bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet,  uint32 nextRouteIdx, FreqType flowSoFar) {
+bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx,
+                                   FreqType flowSoFar) {
   Route *curRoute = maxFlowRoutes[nextRouteIdx];
   Visit *curVisit = nullptr;
 
@@ -207,7 +208,8 @@ bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> 
 }
 
 // find the cut closest to the sink whose total flow is maxFlowValue
-bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet,  uint32 nextRouteIdx, FreqType flowSoFar) {
+bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet,  uint32 nextRouteIdx,
+                            FreqType flowSoFar) {
   Route *curRoute = maxFlowRoutes[nextRouteIdx];
   Visit *curVisit = nullptr;
 
@@ -269,7 +271,8 @@ void McSSAPre::DetermineMinCut() {
   }
   // maximum width of the min cut is the number of routes in maxFlowRoutes
   Visit* cut[maxFlowRoutes.size()];
-  std::unordered_multiset<uint32> cutSet;  // key is RGNode's id; must be kept in sync with cut[]; sink node is not entered
+  // key is RGNode's id; must be kept in sync with cut[]; sink node is not entered
+  std::unordered_multiset<uint32> cutSet;
   constexpr double defaultRelaxScaling = 1.25;
   relaxedMaxFlowValue = static_cast<FreqType>(static_cast<double>(maxFlowValue) * defaultRelaxScaling);
   bool relaxedSearch = false;
@@ -580,7 +583,7 @@ void McSSAPre::GraphReduction() {
     }
   }
   if (enabledDebug) {
-    LogInfo::MapleLogger() << " _______ after GraphReduction, phis: " << numPhis << " reals: " << numRealOccs 
+    LogInfo::MapleLogger() << " _______ after GraphReduction, phis: " << numPhis << " reals: " << numRealOccs
                         << " type 1 edges: " << numType1Edges << " type 2 edges: " << numType2Edges << "\n";
   }
 }
