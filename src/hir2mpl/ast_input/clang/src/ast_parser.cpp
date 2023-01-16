@@ -2509,17 +2509,16 @@ void ASTParser::SetAtomExprValType(MapleAllocator &allocator, const clang::Atomi
   astExpr.SetValExpr1(ProcessExpr(allocator, val1Expr));
   const clang::QualType val1Type = GetPointeeType(*val1Expr);
   astExpr.SetVal1Type(astFile->CvtType(val1Type));
-  /* no need to save atomic_exchange_n and atomic_store_n's second param type, for second param type is not a pointer */
-  if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_exchange_n ||
-      atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_store_n) {
-    return;
+  /* only atomic_load and atomic_store need to save second param type, for second param type is a pointer */
+  if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_load ||
+      atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_store) {
+    auto firstType = val1Expr->getType();
+    val1Expr = GetAtomValExpr(val1Expr);
+    auto secondType = val1Expr->getType();
+    astExpr.SetFirstParamType(astFile->CvtType(firstType->isPointerType() ? firstType->getPointeeType() : firstType));
+    astExpr.SetSecondParamType(astFile->CvtType(secondType->isPointerType() ?
+        secondType->getPointeeType() : secondType));
   }
-  auto firstType = val1Expr->getType();
-  val1Expr = GetAtomValExpr(val1Expr);
-  auto secondType = val1Expr->getType();
-
-  astExpr.SetFirstParamType(astFile->CvtType(firstType->isPointerType() ? firstType->getPointeeType() : firstType));
-  astExpr.SetSecondParamType(astFile->CvtType(secondType->isPointerType() ? secondType->getPointeeType() : secondType));
 }
 
 void ASTParser::SetAtomExchangeType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr,

@@ -19,5 +19,12 @@ int main() {
   if (__atomic_load_n(&v, order) != count) {
     abort();
   }
+  int x;
+  __atomic_store_n(&x, 10, 0);
+  int y = __atomic_load_n(&x, 0);
+  __atomic_add_fetch(&y, 1, 0);
+  if (y != 11) {
+    abort();
+  }
   return 0;
 }
