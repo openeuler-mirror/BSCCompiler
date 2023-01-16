@@ -33,7 +33,8 @@ void AArch64MPIsel::HandleFuncExit() const {
 }
 
 /* Field-ID 0 is assigned to the top level structure. (Field-ID also defaults to 0 if it is not a structure.) */
-MemOperand &AArch64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId, RegOperand *baseReg) {
+MemOperand &AArch64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId,
+    RegOperand *baseReg) {
   PrimType symType;
   uint64 fieldOffset = 0;
   bool isCopy = IsParamStructCopy(symbol);
@@ -285,7 +286,8 @@ RegOperand *AArch64MPIsel::PrepareMemcpyParm(uint64 copySize) {
   return &regResult;
 }
 
-void AArch64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRh, const DassignNode &stmt) {
+void AArch64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRh,
+    const DassignNode &stmt) {
   (void)lhsInfo;
   (void)symbolMem;
   (void)opndRh;
@@ -583,7 +585,8 @@ void AArch64MPIsel::SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0,
   a64func->SelectMinOrMax(isMin, resOpnd, opnd0, opnd1, primType);
 }
 
-Operand *AArch64MPIsel::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name, Operand &opnd0, const BaseNode &parent) {
+Operand *AArch64MPIsel::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name, Operand &opnd0,
+    const BaseNode &parent) {
   PrimType ptype = intrnNode.Opnd(0)->GetPrimType();
   Operand *opnd = &opnd0;
   AArch64CGFunc *a64func = static_cast<AArch64CGFunc*>(cgFunc);
@@ -593,7 +596,8 @@ Operand *AArch64MPIsel::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode
   }
   if (opnd->IsMemoryAccessOperand()) {
     RegOperand &ldDest = a64func->CreateRegisterOperandOfType(ptype);
-    Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(a64func->PickLdInsn(GetPrimTypeBitSize(ptype), ptype), ldDest, *opnd);
+    Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(a64func->PickLdInsn(GetPrimTypeBitSize(ptype), ptype),
+        ldDest, *opnd);
     cgFunc->GetCurBB()->AppendInsn(insn);
     opnd = &ldDest;
   }

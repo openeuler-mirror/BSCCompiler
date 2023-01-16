@@ -493,7 +493,8 @@ RegOperand *X64MPIsel::PrepareMemcpyParm(uint64 copySize) {
   return &regResult;
 }
 
-void X64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRhs, const DassignNode &stmt) {
+void X64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRhs,
+    const DassignNode &stmt) {
   (void)stmt;
   /* rhs is Func Return, it must be from Regread */
   if (opndRhs.IsRegister()) {

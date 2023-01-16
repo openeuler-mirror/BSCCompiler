@@ -142,7 +142,8 @@ class AArch64CGFunc : public CGFunc {
   void SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) override;
   Operand *SelectAArch64ffs(Operand &argOpnd, PrimType argType);
   Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name) override;
-  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrnNode, PrimType retType, const std::string &name) override;
+  Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrnNode, PrimType retType,
+      const std::string &name) override;
   Operand *SelectCclz(IntrinsicopNode &intrnNode) override;
   Operand *SelectCctz(IntrinsicopNode &intrnNode) override;
   Operand *SelectCpopcount(IntrinsicopNode &intrnNode) override;
@@ -236,7 +237,8 @@ class AArch64CGFunc : public CGFunc {
   /* method description contains method information which is metadata for reflection. */
   MemOperand *AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum, bool isDest, Insn &insn,
                                                  AArch64reg regNum, bool &isOutOfRange);
-  void SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, bool isDest, Insn &insn);
+  void SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, bool isDest,
+      Insn &insn);
   bool IsImmediateOffsetOutOfRange(const MemOperand &memOpnd, uint32 bitLen);
   bool IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx);
   Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;

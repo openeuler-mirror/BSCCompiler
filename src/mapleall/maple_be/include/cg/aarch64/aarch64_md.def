@@ -22,9 +22,11 @@ DEFINE_MOP(MOP_xmovrr, {&OpndDesc::Reg64ID,&OpndDesc::Reg64IS},ISMOVE,kLtAlu,"mo
 /* MOP_wmovrr */
 DEFINE_MOP(MOP_wmovrr, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS},ISMOVE,kLtAlu,"mov","0,1",1)
 /* MOP_wmovri32 */
-DEFINE_MOP(MOP_wmovri32, {&OpndDesc::Reg32ID,&OpndDesc::Imm32},ISMOVE,kLtAlu,"mov","0,1",1,IsSingleInstructionMovable32)
+DEFINE_MOP(MOP_wmovri32, {&OpndDesc::Reg32ID,&OpndDesc::Imm32},ISMOVE,kLtAlu,"mov","0,1",1,
+    IsSingleInstructionMovable32)
 /* MOP_xmovri64 */
-DEFINE_MOP(MOP_xmovri64, {&OpndDesc::Reg64ID,&OpndDesc::Imm64},ISMOVE,kLtAlu,"mov","0,1",1,IsSingleInstructionMovable64)
+DEFINE_MOP(MOP_xmovri64, {&OpndDesc::Reg64ID,&OpndDesc::Imm64},ISMOVE,kLtAlu,"mov","0,1",1,
+    IsSingleInstructionMovable64)
 /* MOP_xmovrr_uxtw -- Remove Redundant uxtw -- used in globalopt:UxtwMovPattern */
 DEFINE_MOP(MOP_xmovrr_uxtw, {&OpndDesc::Reg64ID,&OpndDesc::Reg32IS},ISMOVE,kLtAlu,"mov","0,1",1)
 
