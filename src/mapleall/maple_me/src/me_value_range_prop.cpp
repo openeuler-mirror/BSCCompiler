@@ -4392,7 +4392,7 @@ MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &
 //         |
 //       bb if (a3 - b3 > constant)
 std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfLHS(const BB &pred, const BB &bb,
-                                                                      MeExpr &expr) const {
+                                                                      MeExpr &expr) {
   if (expr.GetMeOp() != kMeOpOp || expr.GetOp() != OP_sub) {
     return nullptr;
   }
@@ -4403,6 +4403,14 @@ std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfLHS(const BB &
   auto &versionOpnd1InPred = GetVersionOfOpndInPred(pred, bb, *opnd1);
   // If the vr of versionOpnd0InPred is equal to the vr of versionOpnd1InPred in pred.
   if (FindPairOfExprs(versionOpnd0InPred, versionOpnd1InPred, pred)) {
+    return CreateValueRangeOfEqualZero(PTY_u1);
+  }
+  auto vrpOfOpnd0 = FindValueRangeInCurrBBOrDominateBBs(pred, versionOpnd0InPred);
+  auto vrpOfOpnd1 = FindValueRangeInCurrBBOrDominateBBs(pred, versionOpnd1InPred);
+  if (vrpOfOpnd0 == nullptr || vrpOfOpnd1 == nullptr) {
+    return nullptr;
+  }
+  if (vrpOfOpnd0->IsEqual(vrpOfOpnd1.get())) {
     return CreateValueRangeOfEqualZero(PTY_u1);
   }
   return nullptr;

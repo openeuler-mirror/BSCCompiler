@@ -687,7 +687,7 @@ class ValueRangePropagation {
   }
 
   void Insert2PairOfExprs(MeExpr &lhs, MeExpr &rhs, BB &bb) {
-    if (lhs.IsVolatile() || rhs.IsVolatile()) {
+    if (lhs.IsVolatile() || rhs.IsVolatile() || lhs.GetMeOp() == kMeOpConst || rhs.GetMeOp() == kMeOpConst) {
       return;
     }
     auto it = pairOfExprs.find(&lhs);
@@ -895,7 +895,7 @@ class ValueRangePropagation {
   void ReplaceUsePoints(MePhiNode *phi);
   void CreateVRWithBitsSize(const BB &bb, const OpMeExpr &opMeExpr);
   MeExpr &GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr) const;
-  std::unique_ptr<ValueRange> GetValueRangeOfLHS(const BB &pred, const BB &bb, MeExpr &expr) const;
+  std::unique_ptr<ValueRange> GetValueRangeOfLHS(const BB &pred, const BB &bb, MeExpr &expr);
   Opcode GetOpAfterSwapThePositionsOfTwoOperands(Opcode op) const;
   bool IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &subExpr) const;
   void UpdateProfile(BB &pred, BB &bb, const BB &targetBB) const;
