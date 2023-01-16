@@ -134,6 +134,7 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/cg_occur.cpp
         src/cg/cg_ssu_pre.cpp
         src/cg/cg_ssa_pre.cpp
+        src/cg/cg_mc_ssa_pre.cpp
         src/cg/regsaves.cpp
         src/cg/cg_critical_edge.cpp
         src/cg/alignment.cpp
