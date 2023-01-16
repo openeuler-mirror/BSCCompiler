@@ -16,6 +16,7 @@
 #ifndef MAPLEBE_INCLUDE_CG_IRBUILDER_H
 #define MAPLEBE_INCLUDE_CG_IRBUILDER_H
 
+#include "reg_info.h"
 #include "insn.h"
 #include "operand.h"
 
@@ -56,14 +57,17 @@ class InsnBuilder {
   uint32 createdInsnNum = 0;
 };
 
-constexpr uint32 kBaseVirtualRegNO = 200; /* avoid conflicts between virtual and physical */
 class OperandBuilder {
  public:
-  explicit OperandBuilder(MemPool &mp, uint32 mirPregNum = 0) : alloc(&mp), virtualRegNum(mirPregNum) {}
+  explicit OperandBuilder(MemPool &mp, uint32 mirPregNum = 0)
+      : alloc(&mp) {
+    virtualReg.SetCount(mirPregNum);
+  }
 
   /* create an operand in cgfunc when no mempool is supplied */
   ImmOperand &CreateImm(uint32 size, int64 value, MemPool *mp = nullptr);
   ImmOperand &CreateImm(const MIRSymbol &symbol, int64 offset, int32 relocs, MemPool *mp = nullptr);
+  OfstOperand &CreateOfst(int64 offset, uint32 size, MemPool *mp = nullptr);
   MemOperand &CreateMem(uint32 size, MemPool *mp = nullptr);
   MemOperand &CreateMem(RegOperand &baseOpnd, int64 offset, uint32 size, MemPool *mp = nullptr);
   MemOperand &CreateMem(uint32 size, RegOperand &baseOpnd, ImmOperand &offImm, MemPool *mp = nullptr);
@@ -79,14 +83,14 @@ class OperandBuilder {
   CommentOperand &CreateComment(const MapleString &s, MemPool *mp = nullptr);
 
   uint32 GetCurrentVRegNum() const {
-    return virtualRegNum;
+    return virtualReg.GetCount();
   }
 
  protected:
   MapleAllocator alloc;
 
  private:
-  uint32 virtualRegNum = 0;
+  VregInfo virtualReg;
   /* reg bank for multiple use */
 };
 

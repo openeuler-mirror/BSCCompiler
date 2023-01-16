@@ -106,6 +106,8 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/aarch64/aarch64_pgo_gen.cpp
         src/cg/aarch64/aarch64_isolate_fastpath.cpp
         src/cg/aarch64/aarch64_rematerialize.cpp
+        src/cg/aarch64/aarch64_MPISel.cpp
+        src/cg/aarch64/aarch64_standardize.cpp
         src/cg/cfi_generator.cpp
         src/cg/cfgo.cpp
         src/cg/local_opt.cpp

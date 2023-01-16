@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -123,7 +123,7 @@ void CGSSAInfo::RenameBB(BB &bb) {
   }
   AddRenamedBB(bb.GetId());
   /* record version stack size */
-  size_t tempSize = vRegStk.empty() ? allSSAOperands.size() + cgFunc->GetFirstMapleIrVRegNO() + 1 :
+  size_t tempSize = vRegStk.empty() ? allSSAOperands.size() + kBaseVirtualRegNO + 1 :
       vRegStk.rbegin()->first + 1;
   std::vector<int32> oriStackSize(tempSize, -1);
   for (auto it : vRegStk) {

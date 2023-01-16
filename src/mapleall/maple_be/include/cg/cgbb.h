@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -202,6 +202,9 @@ class BB {
   void RemoveInsnPair(Insn &insn, const Insn &nextInsn);
 
   void RemoveInsnSequence(Insn &insn, const Insn &nextInsn);
+
+  /* prepend all insns from bb before insn */
+  void InsertBeforeInsn(BB &fromBB, Insn &beforeInsn);
 
   /* append all insns from bb into this bb */
   void AppendBBInsns(BB &bb);

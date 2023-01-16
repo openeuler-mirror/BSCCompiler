@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -153,6 +153,9 @@ void AArch64ReachingDefinition::AddRetPseudoInsn(BB &bb) {
   AArch64reg regNO = static_cast<AArch64CGFunc*>(cgFunc)->GetReturnRegisterNumber();
   if (regNO == kInvalidRegNO) {
     return;
+  }
+  if (bb.GetKind() == BB::kBBGoto) {
+    return;  /* a goto block should not have unreachable instr */
   }
 
   if (regNO == R0) {

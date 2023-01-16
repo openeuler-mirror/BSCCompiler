@@ -54,9 +54,9 @@ class MPISel {
   Operand* SelectSub(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand* SelectNeg(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
   Operand* SelectCvt(const BaseNode &parent, const TypeCvtNode &node, Operand &opnd0);
-  Operand* SelectExtractbits(const BaseNode &parent, const ExtractbitsNode &node, Operand &opnd0);
   Operand *SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  virtual Operand *SelectAbs(UnaryNode &node, Operand &opnd0);
+  virtual Operand* SelectExtractbits(const BaseNode &parent, ExtractbitsNode &node, Operand &opnd0);
+  virtual Operand *SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   Operand *SelectAlloca(UnaryNode &node, Operand &opnd0);
   Operand *SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent);
   ImmOperand *SelectIntConst(MIRIntConst &intConst, PrimType primType) const;
@@ -67,8 +67,8 @@ class MPISel {
   void SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, Opcode shiftDirect,
                    PrimType opnd0Type, PrimType opnd1Type);
   void SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
-  virtual void SelectReturn(NaryStmtNode &retNode, Operand &opnd) = 0;
-  virtual void SelectReturn() = 0;
+  virtual void SelectReturn(NaryStmtNode &retNode) = 0;
+  virtual void SelectReturn(bool noOpnd) = 0;
   virtual void SelectIntAggCopyReturn(MemOperand &symbolMem, uint64 aggSize) = 0;
   virtual void SelectAggIassign(IassignNode &stmt, Operand &addrOpnd, Operand &opndRhs) = 0;
   virtual void SelectAggCopy(MemOperand &lhs, MemOperand &rhs, uint32 copySize) = 0;
@@ -78,13 +78,13 @@ class MPISel {
   virtual void SelectCall(CallNode &callNode) = 0;
   virtual void SelectIcall(IcallNode &icallNode, Operand &opnd0) = 0;
   virtual void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) = 0;
-  virtual Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
-  virtual Operand *SelectFloatingConst(MIRConst &floatingConst, PrimType primType) const = 0;
+  virtual Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd1, const BaseNode &parent) = 0;
+  virtual Operand *SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) const = 0;
   virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) = 0;
   virtual Operand *SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) = 0;
   virtual Operand *SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) = 0;
   virtual Operand &ProcessReturnReg(PrimType primType, int32 sReg) = 0 ;
-  virtual void SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode, Operand &opnd0) = 0;
+  virtual void SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode) = 0;
   Operand *SelectBior(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand *SelectBxor(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand *SelectIread(const BaseNode &parent, const IreadNode &expr, int extraOffset = 0);
@@ -98,13 +98,40 @@ class MPISel {
   virtual Operand *SelectStrLiteral(ConststrNode &constStr) = 0;
   virtual Operand *SelectCclz(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectCctz(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCsin(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCsinh(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCasin(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCcos(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCcosh(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCacos(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCatan(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectCexp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectClog(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectClog10(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCsinf(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCsinhf(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCasinf(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCcosf(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCcoshf(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCacosf(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCatanf(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCexpf(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectClogf(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectClog10f(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCffs(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCmemcmp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCstrlen(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCstrcmp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCstrncmp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCstrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCstrrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual void SelectAsm(AsmNode &node) = 0;
-  virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRhs) = 0;
+  virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &rOpnd, const DassignNode &s) = 0;
   Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
   Operand *SelectMin(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand *SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand *SelectRetype(TypeCvtNode &node, Operand &opnd0);
+  void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 
   template <typename T>
   Operand *SelectLiteral(T &c, MIRFunction &func, uint32 labelIdx) const {
@@ -130,10 +157,8 @@ class MPISel {
  protected:
   MemPool *isMp;
   CGFunc *cgFunc;
-  void SelectCopy(Operand &dest, Operand &src, PrimType toType, PrimType fromType);
-  void SelectCopy(Operand &dest, Operand &src, PrimType toType);
-  RegOperand &SelectCopy2Reg(Operand &src, PrimType toType, PrimType fromType);
-  RegOperand &SelectCopy2Reg(Operand &src, PrimType toType);
+  void SelectCopy(Operand &dest, Operand &src, PrimType toType, PrimType fromType = PTY_unknown);
+  RegOperand &SelectCopy2Reg(Operand &src, PrimType toType, PrimType fromType = PTY_unknown);
   void SelectIntCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
   void SelectCvtInt2Float(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
   void SelectFloatCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
@@ -143,12 +168,23 @@ class MPISel {
   MirTypeInfo GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType *mirType);
   MirTypeInfo GetMirTypeInfoFromMirNode(const BaseNode &node);
   MemOperand *GetOrCreateMemOpndFromIreadNode(const IreadNode &expr, PrimType primType, int offset);
+
+  virtual void SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, PrimType fromType, PrimType toType) {
+    CHECK_FATAL(false, "NYI");
+  }
+  virtual void SelectCvtFloat2Int(Operand &resOpnd, Operand &srcOpnd, PrimType itype, PrimType ftype) {
+    CHECK_FATAL(false, "NYI");
+  }
+  virtual bool IsSymbolRequireIndirection(const MIRSymbol &symbol) {
+    return false;
+  }
  private:
   StmtNode *HandleFuncEntry() const;
-  void HandleFuncExit() const;
   void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opndRhs);
   void SelectDassignStruct(MIRSymbol &symbol, MemOperand &symbolMem, Operand &opndRhs);
-  virtual MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId = 0) const = 0;
+  virtual void HandleFuncExit() const = 0;
+  virtual MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId = 0,
+                                                   RegOperand *baseReg = nullptr) = 0;
   virtual MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) const = 0;
   virtual Operand &GetTargetRetOperand(PrimType primType, int32 sReg) = 0;
   void SelectBasicOp(Operand &resOpnd, Operand &opnd0, Operand &opnd1, MOperator mOp, PrimType primType);
@@ -162,7 +198,6 @@ class MPISel {
   void SelectBnot(Operand &resOpnd, Operand &opnd0, PrimType primType) const;
   void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectExtractbits(RegOperand &resOpnd, RegOperand &opnd0, uint8 bitOffset, uint8 bitSize, PrimType primType);
-  void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   virtual RegOperand &GetTargetBasicPointer(PrimType primType) = 0;
   virtual RegOperand &GetTargetStackPointer(PrimType primType) = 0;
   void SelectMin(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);

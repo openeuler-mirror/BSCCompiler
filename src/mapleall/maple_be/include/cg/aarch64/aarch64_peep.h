@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -967,6 +967,29 @@ class RemoveMovingtoSameRegPattern : public CGPeepPattern {
   std::string GetPatternName() override {
     return "RemoveMovingtoSameRegPattern";
   }
+};
+
+/*
+ *  mov dest1, imm
+ *  mul dest2, reg1, dest1
+ *  ===> if imm is 2^n
+ *  mov        dest1, imm
+ *  lsl dest2, reg1, n
+ */
+class MulImmToShiftPattern : public CGPeepPattern {
+ public:
+  MulImmToShiftPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~MulImmToShiftPattern() override = default;
+  std::string GetPatternName() override {
+    return "MulImmToShiftPattern";
+  }
+  bool CheckCondition(Insn &insn) override;
+  void Run(BB &bb, Insn &insn) override;
+ private:
+  Insn *movInsn = nullptr;
+  uint32 shiftVal = 0;
+  MOperator newMop = MOP_undef;
 };
 
 /*

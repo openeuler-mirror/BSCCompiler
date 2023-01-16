@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -20,6 +20,24 @@ using namespace maple;
 
 #define JAVALANG (mirModule->IsJavaModule())
 
+uint32 VregInfo::virtualRegCount = kBaseVirtualRegNO;
+uint32 VregInfo::maxRegCount = 0;
+std::vector<VirtualRegNode> VregInfo::vRegTable;
+std::unordered_map<regno_t, RegOperand*> VregInfo::vRegOperandTable;
+/*  There are two builders, cgfunc builder (original code selector) and irbuilder (abstract).
+ *  This is to prevent conflict between the two for VregInfo as for arm64 both co-exists.
+ *  When switching to irbuilder completely, then this bool can go away.
+ */
+bool VregInfo::initialized = false;
+
+void Globals::SetTarget(CG &target) {
+  cg = &target;
+}
+const CG *Globals::GetTarget() const  {
+  ASSERT(cg, " set target info please ");
+  return cg;
+}
+
 CGFunc *CG::currentCGFunction = nullptr;
 std::map<MIRFunction*, std::pair<LabelIdx, LabelIdx>> CG::funcWrapLabels;
 
@@ -32,7 +50,6 @@ CG::~CG() {
   mirModule = nullptr;
   emitter = nullptr;
   currentCGFunction = nullptr;
-  instrumentationFunction = nullptr;
   dbgTraceEnter = nullptr;
   dbgTraceExit = nullptr;
   dbgFuncProfile = nullptr;
@@ -140,13 +157,6 @@ void CG::AddStackGuardvar() const {
   chkFunc->SetStorageClass(kScText);
   chkFunc->SetSKind(kStFunc);
   GlobalTables::GetGsymTable().AddToStringSymbolMap(*chkFunc);
-}
-
-void CG::SetInstrumentationFunction(const std::string &name) {
-  instrumentationFunction = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
-  instrumentationFunction->SetNameStrIdx(std::string("__").append(name).append("__"));
-  instrumentationFunction->SetStorageClass(kScText);
-  instrumentationFunction->SetSKind(kStFunc);
 }
 
 #define DBG_TRACE_ENTER MplDtEnter

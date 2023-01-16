@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -997,8 +997,10 @@ void CGCFG::ReverseCriticalEdge(BB &cbb) {
 bool CgHandleCFG::PhaseRun(maplebe::CGFunc &f) {
   CGCFG *cfg = f.GetMemoryPool()->New<CGCFG>(f);
   f.SetTheCFG(cfg);
+  cfg->MarkLabelTakenBB();
   /* build control flow graph */
   f.GetTheCFG()->BuildCFG();
+  f.HandleFuncCfg(cfg);
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleCFG, handlecfg)

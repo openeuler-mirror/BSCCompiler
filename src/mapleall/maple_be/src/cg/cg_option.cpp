@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -122,6 +122,7 @@ bool CGOptions::doCalleeToSpill = false;
 bool CGOptions::doRegSavesOpt = false;
 bool CGOptions::useSsaPreSave = false;
 bool CGOptions::useSsuPreRestore = false;
+bool CGOptions::useNewCg = false;
 bool CGOptions::replaceASM = false;
 bool CGOptions::generalRegOnly = false;
 bool CGOptions::fastMath = false;
@@ -532,6 +533,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::ssupreRestore.IsEnabledByUser()) {
     opts::cg::ssupreRestore ? EnableSsuPreRestore() : DisableSsuPreRestore();
+  }
+
+  if (opts::cg::newCg.IsEnabledByUser()) {
+    opts::cg::newCg ? EnableNewCg() : DisableNewCg();
   }
 
   if (opts::cg::lsraBb.IsEnabledByUser()) {

@@ -1,3 +1,17 @@
+/*
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+*/
 static std::set<uint64> ValidBitmaskImmSet = {
 #include "valid_bitmask_imm.txt"
 };
@@ -13,6 +27,24 @@ bool IsBitSizeImmediate(uint64 val, uint32 bitLen, uint32 nLowerZeroBits) {
     uint64 mask2 = (1UL << static_cast<uint64>(nLowerZeroBits)) - 1UL;
     return (mask2 & val) == 0UL && (mask1 & ((static_cast<uint64>(val)) >> nLowerZeroBits)) == 0UL;
 };
+
+/* This is a copy from "operand.cpp", temporary fix for me_slp.cpp usage of this file */
+/* was IsMoveWidableImmediate */
+bool IsMoveWidableImmediateCopy(uint64 val, uint32 bitLen) {
+  if (bitLen == k64BitSize) {
+    /* 0xHHHH000000000000 or 0x0000HHHH00000000, return true */
+    if (((val & ((static_cast<uint64>(0xffff)) << k48BitSize)) == val) ||
+        ((val & ((static_cast<uint64>(0xffff)) << k32BitSize)) == val)) {
+      return true;
+    }
+  } else {
+    /* get lower 32 bits */
+    val &= static_cast<uint64>(0xffffffff);
+  }
+  /* 0x00000000HHHH0000 or 0x000000000000HHHH, return true */
+  return ((val & ((static_cast<uint64>(0xffff)) << k16BitSize)) == val ||
+          (val & ((static_cast<uint64>(0xffff)) << 0)) == val);
+}
 
 bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
   ASSERT(val != 0, "IsBitmaskImmediate() don's accept 0 or -1");
@@ -75,6 +107,18 @@ bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
 #else
   return val == pattern * kBitmaskImmMultTable[kMaxBitTableSize - logDiff];
 #endif
+}
+
+bool IsSingleInstructionMovable32(int64 value) {
+  return (IsMoveWidableImmediateCopy(static_cast<uint64>(value), 32) ||
+            IsMoveWidableImmediateCopy(~static_cast<uint64>(value), 32) ||
+            IsBitmaskImmediate(static_cast<uint64>(value), 32));
+}
+
+bool IsSingleInstructionMovable64(int64 value) {
+  return (IsMoveWidableImmediateCopy(static_cast<uint64>(value), 64) ||
+            IsMoveWidableImmediateCopy(~static_cast<uint64>(value), 64) ||
+            IsBitmaskImmediate(static_cast<uint64>(value), 64));
 }
 
 bool Imm12BitValid(int64 value) {

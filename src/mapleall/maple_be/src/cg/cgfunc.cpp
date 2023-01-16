@@ -1415,11 +1415,14 @@ void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_asm, HandleAsm);
 }
 
+/* member of CGFunc */
+void CGFunc::InitFactory() {
+  InitHandleExprFactory();
+}
+
 CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon, MemPool &memPool,
                StackMemPool &stackMp, MapleAllocator &allocator, uint32 funcId)
-    : vRegTable(allocator.Adapter()),
-      bbVec(allocator.Adapter()),
-      vRegOperandTable(allocator.Adapter()),
+    : bbVec(allocator.Adapter()),
       pRegSpillMemOperands(allocator.Adapter()),
       spillRegMemOperands(allocator.Adapter()),
       reuseSpillLocMem(allocator.Adapter()),
@@ -1460,18 +1463,19 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
   SetHasAlloca(func.HasVlaOrAlloca());
 
   dummyBB = CreateNewBB();
-  vRegCount = firstMapleIrVRegNO + func.GetPregTab()->Size();
-  firstNonPregVRegNO = vRegCount;
+  vReg.SetCount(kBaseVirtualRegNO + func.GetPregTab()->Size());
+  firstNonPregVRegNO = vReg.GetCount();
   /* maximum register count initial be increased by 1024 */
-  maxRegCount = vRegCount + 1024;
+  SetMaxRegNum(vReg.GetCount() + 1024);
   if (func.GetMayWriteToAddrofStack()) {
     SetStackProtectInfo(kAddrofStack);
   }
+  vReg.vRegOperandTable.clear();
 
   insnBuilder = memPool.New<InsnBuilder>(memPool);
   opndBuilder = memPool.New<OperandBuilder>(memPool, func.GetPregTab()->Size());
 
-  vRegTable.resize(maxRegCount);
+  vReg.VRegTableResize(GetMaxRegNum());
   /* func.GetPregTab()->_preg_table[0] is nullptr, so skip it */
   ASSERT(func.GetPregTab()->PregFromPregIdx(0) == nullptr, "PregFromPregIdx(0) must be nullptr");
   for (size_t i = 1; i < func.GetPregTab()->Size(); ++i) {
@@ -1776,6 +1780,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
 
   AssignLmbcFormalParams();
 }
+
 
 void CGFunc::GenerateInstruction() {
   InitHandleExprFactory();
@@ -2093,6 +2098,7 @@ void CGFunc::HandleFunction() {
   GenSaveMethodInfoCode(*firstBB);
   /* build control flow graph */
   theCFG = memPool->New<CGCFG>(*this);
+  theCFG->MarkLabelTakenBB();
   theCFG->BuildCFG();
   RemoveUnreachableBB();
   AddCommonExitBB();
@@ -2101,7 +2107,6 @@ void CGFunc::HandleFunction() {
   }
   MarkCleanupBB();
   DetermineReturnTypeofCall();
-  theCFG->MarkLabelTakenBB();
   theCFG->UnreachCodeAnalysis();
   if (mirModule.GetSrcLang() == kSrcLangC) {
     theCFG->WontExitAnalysis();
@@ -2331,6 +2336,15 @@ bool CgHandleFunction::PhaseRun(maplebe::CGFunc &f) {
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleFunction, handlefunction)
+
+bool CgPatchLongBranch::PhaseRun(maplebe::CGFunc &f) {
+  f.PatchLongBranch();
+  if (!f.GetCG()->GetCGOptions().DoEmitCode() || f.GetCG()->GetCGOptions().DoDumpCFG()) {
+    f.DumpCFG();
+  }
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER(CgPatchLongBranch, patchlongbranch)
 
 bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
   if (f.GetCG()->GetCGOptions().WithDwarf()) {

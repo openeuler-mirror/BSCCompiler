@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,6 +32,8 @@
 #include "aarch64_cfgo.h"
 #include "aarch64_rematerialize.h"
 #include "aarch64_pgo_gen.h"
+#include "aarch64_MPISel.h"
+#include "aarch64_standardize.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -212,6 +214,12 @@ class AArch64CG : public CG {
   }
   Rematerializer *CreateRematerializer(MemPool &mp) const override {
     return mp.New<AArch64Rematerializer>();
+  }
+  MPISel *CreateMPIsel(MemPool &mp, AbstractIRBuilder &aIRBuilder, CGFunc &f) const override {
+    return mp.New<AArch64MPIsel>(mp, aIRBuilder, f);
+  }
+  Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64Standardize>(f);
   }
   /* Return the copy operand id of reg1 if it is an insn who just do copy from reg1 to reg2.
  * i. mov reg2, reg1

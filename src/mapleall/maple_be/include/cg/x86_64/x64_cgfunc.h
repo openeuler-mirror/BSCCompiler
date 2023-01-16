@@ -49,7 +49,7 @@ class X64CGFunc : public CGFunc {
   void SelectAbort() override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
   void SelectAsm(AsmNode &node) override;
-  void SelectAggDassign(DassignNode &stmt) override;
+  void SelectAggDassign(const DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectIassignoff(IassignoffNode &stmt) override;
   void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) override;

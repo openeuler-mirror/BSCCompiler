@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -51,6 +51,7 @@ enum MopProperty : maple::uint8 {
   kInsnInlineAsm,
   kInsnSpecialIntrisic,
   kInsnIsNop,
+  kInsnIsComment,
 };
 using regno_t = uint32_t;
 #define ISABSTRACT 1ULL
@@ -83,6 +84,7 @@ using regno_t = uint32_t;
 #define INLINEASM (1ULL << kInsnInlineAsm)
 #define SPINTRINSIC (1ULL << kInsnSpecialIntrisic)
 #define ISNOP (1ULL << kInsnIsNop)
+#define ISCOMMENT (1ULL << kInsnIsComment)
 constexpr maplebe::regno_t kInvalidRegNO = 0;
 
 /*
@@ -288,6 +290,9 @@ struct InsnDesc {
   }
   bool IsSpecialIntrinsic() const {
     return (properties & SPINTRINSIC) != 0;
+  }
+  bool IsComment() const {
+    return properties & ISCOMMENT;
   }
   MOperator GetOpc() const {
     return opc;

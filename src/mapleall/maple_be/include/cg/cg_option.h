@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -650,6 +650,22 @@ class CGOptions {
     return doCFGO;
   }
 
+  static void EnableNewCg() {
+    useNewCg = true;
+  }
+
+  static void DisableNewCg() {
+    useNewCg = false;
+  }
+
+  static bool UseNewCg() {
+    return useNewCg;
+  }
+
+  static bool DoFixLongBranch() {
+    return CGOptions::GetInstance().GetOptimizeLevel() == kLevel0;
+  }
+
   static void EnableRegSavesOpt() {
     doRegSavesOpt = true;
   }
@@ -673,6 +689,7 @@ class CGOptions {
   static bool UseSsaPreSave() {
     return useSsaPreSave;
   }
+
   static void EnableSsuPreRestore() {
     useSsuPreRestore = true;
   }
@@ -1429,6 +1446,7 @@ class CGOptions {
   static bool doRegSavesOpt;
   static bool useSsaPreSave;
   static bool useSsuPreRestore;
+  static bool useNewCg;
   static bool dumpOptimizeCommonLog;
   static bool checkArrayStore;
   static bool exclusiveEH;

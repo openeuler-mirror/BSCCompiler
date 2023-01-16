@@ -15,9 +15,13 @@
  ADDTARGETPHASE("layoutstackframe", true);
  ADDTARGETPHASE("createstartendlabel", true);
  ADDTARGETPHASE("buildehfunc", !GetMIRModule()->IsCModule());
- ADDTARGETPHASE("handlefunction", true);
+ ADDTARGETPHASE("handlefunction", !CGOptions::UseNewCg());
+ ADDTARGETPHASE("instructionselector", CGOptions::UseNewCg());
+ ADDTARGETPHASE("handlecfg", CGOptions::UseNewCg());
+ ADDTARGETPHASE("patchlongbranch", CGOptions::UseNewCg() && CGOptions::DoFixLongBranch());
  ADDTARGETPHASE("cgprofuse", Options::profileUse);
  ADDTARGETPHASE("moveargs", true);
+ ADDTARGETPHASE("instructionstandardize", CGOptions::UseNewCg());
  /* SSA PHASES */
  ADDTARGETPHASE("cgssaconstruct", CGOptions::DoCGSSA());
  ADDTARGETPHASE("cgcopyprop", CGOptions::DoCGSSA());

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -203,6 +203,11 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_wubfxrri5i5:
     case MOP_xubfxrri6i6: {
       manager->Optimize<UbfxAndCbzToTbzPattern>(true);
+      break;
+    }
+    case MOP_xmulrrr:
+    case MOP_wmulrrr: {
+      manager->Optimize<MulImmToShiftPattern>(!cgFunc->IsAfterRegAlloc());
       break;
     }
     default:
@@ -2484,6 +2489,61 @@ void RemoveMovingtoSameRegPattern::Run(BB &bb, Insn &insn) {
   /* remove mov x0,x0 when it cast i32 to i64 */
   if (CheckCondition(insn)) {
     bb.RemoveInsn(insn);
+  }
+}
+
+bool MulImmToShiftPattern::CheckCondition(Insn &insn) {
+  auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  movInsn = ssaInfo->GetDefInsn(useReg);
+  if (movInsn == nullptr) {
+    return false;
+  }
+  MOperator prevMop = movInsn->GetMachineOpcode();
+  if (prevMop != MOP_wmovri32 && prevMop != MOP_xmovri64) {
+    return false;
+  }
+  ImmOperand &immOpnd = static_cast<ImmOperand&>(movInsn->GetOperand(kInsnSecondOpnd));
+  if (immOpnd.IsNegative()) {
+    return false;
+  }
+  uint64 immVal = immOpnd.GetValue();
+  if (immVal == 0) {
+    shiftVal = 0;
+    newMop = insn.GetMachineOpcode() == MOP_xmulrrr ? MOP_xmovri64 : MOP_wmovri32;
+    return true;
+  }
+  /* power of 2 */
+  if ((immVal & (immVal - 1)) != 0) {
+    return false;
+  }
+  shiftVal = static_cast<uint32>(log2(immVal));
+  newMop = (prevMop == MOP_xmovri64) ? MOP_xlslrri6 : MOP_wlslrri5;
+  return true;
+}
+
+void MulImmToShiftPattern::Run(BB &bb, Insn &insn) {
+  /* mov x0,imm and mul to shift */
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  ImmOperand &immOpnd = aarch64CGFunc->CreateImmOperand(shiftVal, k32BitSize, false);
+  Insn *newInsn;
+  if (newMop == MOP_xmovri64 || newMop == MOP_wmovri32) {
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd), immOpnd);
+  } else {
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd),
+                                                   insn.GetOperand(kInsnSecondOpnd), immOpnd);
+  }
+  bb.ReplaceInsn(insn, *newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, *newInsn);
+  optSuccess = true;
+  SetCurrInsn(newInsn);
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(movInsn);
+    DumpAfterPattern(prevs, &insn, newInsn);
   }
 }
 

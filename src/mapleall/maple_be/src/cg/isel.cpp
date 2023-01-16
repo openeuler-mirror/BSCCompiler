@@ -18,8 +18,11 @@
 #include <utility>
 #include "factory.h"
 #include "cg.h"
+#include "cgfunc.h"
 
 namespace maplebe {
+/* Does not support size larget than 64 bits */
+#define PTY128MOD(pty) ((pty) = (((pty) == PTY_i128) ? PTY_i64 : (((pty) == PTY_u128) ? PTY_u64 : (pty))))
 /* register,                       imm ,                         memory,                        cond */
 #define DEF_FAST_ISEL_MAPPING_INT(SIZE)                                                                       \
 MOperator fastIselMapI##SIZE[Operand::OperandType::kOpdPhi][Operand::OperandType::kOpdPhi] = {                \
@@ -101,7 +104,7 @@ static MOperator GetFastCvtMopI(uint32 fromSize, uint32 toSize, bool isSigned) {
   if (fromSize <  k8BitSize || fromSize >  k64BitSize) {
     CHECK_FATAL(false, "unsupport type");
   }
-  /* Extend: fromSize < toSize */
+  /* Extend/Truncate: fromSize < toSize */
   auto tableDriven =  fastCvtMappingTableI.find({fromSize, toSize});
   if (tableDriven == fastCvtMappingTableI.end()) {
     CHECK_FATAL(false, "unsupport cvt");
@@ -190,6 +193,7 @@ void HandleLabel(StmtNode &stmt, const MPISel &iSel) {
   ASSERT(stmt.GetOpCode() == OP_label, "error");
   auto &label = static_cast<LabelNode&>(stmt);
   BB *newBB = cgFunc->StartNewBBImpl(false, label);
+  newBB->SetKind(BB::kBBFallthru);
   newBB->AddLabel(label.GetLabelIdx());
   cgFunc->SetLab2BBMap(static_cast<int32>(newBB->GetLabIdx()), *newBB);
   cgFunc->SetCurBB(*newBB);
@@ -228,6 +232,7 @@ void HandleRangeGoto(StmtNode &stmt, MPISel &iSel) {
   Operand *srcOpnd = iSel.HandleExpr(rangeGotoNode, *srcNode);
   cgFunc->SetCurBBKind(BB::kBBRangeGoto);
   iSel.SelectRangeGoto(rangeGotoNode, *srcOpnd);
+  cgFunc->SetCurBB(*cgFunc->StartNewBB(rangeGotoNode));
 }
 
 void HandleIgoto(StmtNode &stmt, MPISel &iSel) {
@@ -245,10 +250,9 @@ void HandleReturn(StmtNode &stmt, MPISel &iSel) {
   auto &retNode = static_cast<NaryStmtNode&>(stmt);
   ASSERT(retNode.NumOpnds() <= 1, "NYI return nodes number > 1");
   if (retNode.NumOpnds() != 0) {
-    Operand *opnd = iSel.HandleExpr(retNode, *retNode.Opnd(0));
-    iSel.SelectReturn(retNode, *opnd);
+    iSel.SelectReturn(retNode);
   }
-  iSel.SelectReturn();
+  iSel.SelectReturn(retNode.NumOpnds() == 0);
   /* return stmt will jump to the ret BB, so curBB is gotoBB */
   cgFunc->SetCurBBKind(BB::kBBGoto);
   cgFunc->SetCurBB(*cgFunc->StartNewBB(retNode));
@@ -280,8 +284,7 @@ void HandleCondbr(StmtNode &stmt, MPISel &iSel) {
   ASSERT(condNode != nullptr, "expect first operand of cond br");
   /* select cmpOp Insn and get the result "opnd0". However, the opnd0 is not used
    * in most backend architectures */
-  Operand *opnd0 = iSel.HandleExpr(stmt, *condNode);
-  iSel.SelectCondGoto(condGotoNode, *condNode, *opnd0);
+  iSel.SelectCondGoto(condGotoNode, *condNode);
   cgFunc->SetCurBB(*cgFunc->StartNewBB(condGotoNode));
 }
 
@@ -371,7 +374,7 @@ Operand *HandleTrunc(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectCvt(parent, static_cast<TypeCvtNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)));
 }
 
-Operand *HandleConstVal(const BaseNode &parent [[maybe_unused]], BaseNode &expr, const MPISel &iSel) {
+Operand *HandleConstVal(const BaseNode &parent, BaseNode &expr, const MPISel &iSel) {
   auto &constValNode = static_cast<ConstvalNode&>(expr);
   MIRConst *mirConst = constValNode.GetConstVal();
   ASSERT(mirConst != nullptr, "get constval of constvalnode failed");
@@ -380,10 +383,10 @@ Operand *HandleConstVal(const BaseNode &parent [[maybe_unused]], BaseNode &expr,
     return iSel.SelectIntConst(*mirIntConst, constValNode.GetPrimType());
   } else if (mirConst->GetKind() == kConstDoubleConst) {
     auto *mirDoubleConst = safe_cast<MIRDoubleConst>(mirConst);
-    return iSel.SelectFloatingConst(*mirDoubleConst, constValNode.GetPrimType());
+    return iSel.SelectFloatingConst(*mirDoubleConst, constValNode.GetPrimType(), parent);
   } else if (mirConst->GetKind() == kConstFloatConst) {
     auto *mirFloatConst = safe_cast<MIRFloatConst>(mirConst);
-    return iSel.SelectFloatingConst(*mirFloatConst, constValNode.GetPrimType());
+    return iSel.SelectFloatingConst(*mirFloatConst, constValNode.GetPrimType(), parent);
   } else {
     CHECK_FATAL(false, "NIY");
   }
@@ -438,7 +441,7 @@ Operand *HandleCmp(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
 }
 
 Operand *HandleAbs(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
-  return iSel.SelectAbs(static_cast<UnaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)));
+  return iSel.SelectAbs(static_cast<UnaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
 }
 
 Operand *HandleAlloca(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
@@ -480,6 +483,63 @@ Operand *HandleRetype(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
 Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   auto &intrinsicopNode = static_cast<IntrinsicopNode&>(expr);
   switch (intrinsicopNode.GetIntrinsic()) {
+    case INTRN_C_sin:
+      return iSel.SelectCsin(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_sinh:
+      return iSel.SelectCsinh(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_asin:
+      return iSel.SelectCasin(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_cos:
+      return iSel.SelectCcos(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_cosh:
+      return iSel.SelectCcosh(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_acos:
+      return iSel.SelectCacos(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_atan:
+      return iSel.SelectCatan(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_exp:
+      return iSel.SelectCexp(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_log:
+      return iSel.SelectClog(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_log10:
+      return iSel.SelectClog10(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+
+    case INTRN_C_sinf:
+      return iSel.SelectCsinf(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_sinhf:
+      return iSel.SelectCsinhf(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_asinf:
+      return iSel.SelectCasinf(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_cosf:
+      return iSel.SelectCcosf(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_coshf:
+      return iSel.SelectCcoshf(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_acosf:
+      return iSel.SelectCacosf(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_atanf:
+      return iSel.SelectCatanf(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_expf:
+      return iSel.SelectCexpf(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_logf:
+      return iSel.SelectClogf(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_log10f:
+      return iSel.SelectClog10f(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+
+    case INTRN_C_ffs:
+      return iSel.SelectCffs(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_memcmp:
+      return iSel.SelectCmemcmp(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_strlen:
+      return iSel.SelectCstrlen(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_strcmp:
+      return iSel.SelectCstrcmp(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_strncmp:
+      return iSel.SelectCstrncmp(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_strchr:
+      return iSel.SelectCstrchr(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+    case INTRN_C_strrchr:
+      return iSel.SelectCstrrchr(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
+
     case INTRN_C_rev16_2:
     case INTRN_C_rev_4:
     case INTRN_C_rev_8:
@@ -490,8 +550,6 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
     case INTRN_C_ctz32:
     case INTRN_C_ctz64:
       return iSel.SelectCctz(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
-    case INTRN_C_exp:
-      return iSel.SelectCexp(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
     default:
       ASSERT(false, "NIY, unsupported intrinsicop.");
       return nullptr;
@@ -578,8 +636,14 @@ Operand *MPISel::HandleExpr(const BaseNode &parent, BaseNode &expr) {
 void MPISel::DoMPIS() {
   isel::InitHandleStmtFactory();
   isel::InitHandleExprFactory();
+  GetCurFunc()->Link2ISel(this);
+  SrcPosition lastLocPos = SrcPosition();
+  SrcPosition lastMplPos = SrcPosition();
   StmtNode *secondStmt = HandleFuncEntry();
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
+    /* insert Insn for .loc before cg for the stmt */
+    GetCurFunc()->GenerateLoc(stmt, lastLocPos, lastMplPos);
+
     auto function = CreateProductFunction<HandleStmtFactory>(stmt->GetOpCode());
     CHECK_FATAL(function != nullptr, "unsupported opCode or has been lowered before");
     function(*stmt, *this);
@@ -700,14 +764,21 @@ void MPISel::SelectDassign(const DassignNode &stmt, Operand &opndRhs) {
   /* Generate Insn */
   if (rhsType == PTY_agg) {
     /* Agg Type */
-    SelectAggDassign(symbolInfo, symbolMem, opndRhs);
+    SelectAggDassign(symbolInfo, symbolMem, opndRhs, stmt);
     return;
   }
   PrimType memType = symbolInfo.primType;
   if (memType == PTY_agg) {
     memType = PTY_a64;
   }
-  SelectCopy(symbolMem, opndRhs, memType, rhsType);
+  if (IsSymbolRequireIndirection(*symbol)) {
+    RegOperand &regOpnd = cgFunc->GetOpndBuilder()->CreateVReg(k64BitSize, kRegTyInt);
+    SelectCopy(regOpnd, symbolMem, PTY_a64, PTY_a64);
+    MemOperand &stMem = GetOrCreateMemOpndFromSymbol(*symbol, stmt.GetFieldID(), &regOpnd);
+    SelectCopy(stMem, opndRhs, memType, rhsType);
+  } else {
+    SelectCopy(symbolMem, opndRhs, memType, rhsType);
+  }
   return;
 }
 
@@ -776,6 +847,7 @@ Operand *MPISel::SelectShift(const BinaryNode &node, Operand &opnd0,
 
 void MPISel::SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, Opcode shiftDirect,
     PrimType opnd0Type, PrimType opnd1Type) {
+  PTY128MOD(opnd0Type);
   if (opnd1.IsIntImmediate() && static_cast<ImmOperand&>(opnd1).GetValue() == 0) {
     SelectCopy(resOpnd, opnd0, opnd0Type);
     return;
@@ -804,8 +876,10 @@ void MPISel::SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, Opcod
 
 void MPISel::SelectRegassign(RegassignNode &stmt, Operand &opnd0) {
   PrimType rhsType = stmt.Opnd(0)->GetPrimType();
+  PTY128MOD(rhsType);
   PregIdx pregIdx = stmt.GetRegIdx();
   PrimType regType = stmt.GetPrimType();
+  PTY128MOD(regType);
   RegOperand &regOpnd = cgFunc->GetOpndBuilder()->CreateVReg(cgFunc->GetVirtualRegNOFromPseudoRegIdx(pregIdx),
       GetPrimTypeBitSize(regType), cgFunc->GetRegTyFromPrimTy(regType));
   SelectCopy(regOpnd, opnd0, regType, rhsType);
@@ -850,17 +924,28 @@ Operand *MPISel::SelectDread(const BaseNode &parent [[maybe_unused]], const Addr
     CHECK_FATAL(primType == maple::PTY_agg, "NIY");
     return &symbolMem;
   }
-  /* for BasicType, load symbolVal to register. */
-  RegOperand &regOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
-      cgFunc->GetRegTyFromPrimTy(primType));
   /* Generate Insn */
-  SelectCopy(regOpnd, symbolMem, primType, symbolType);
-  return &regOpnd;
+  if (IsSymbolRequireIndirection(*symbol)) {
+    RegOperand &regOpnd = cgFunc->GetOpndBuilder()->CreateVReg(k64BitSize, kRegTyInt);
+    SelectCopy(regOpnd, symbolMem, PTY_a64, PTY_a64);
+    RegOperand &regOpnd1 = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
+        cgFunc->GetRegTyFromPrimTy(primType));
+    MemOperand &ldMem = GetOrCreateMemOpndFromSymbol(*symbol, expr.GetFieldID(), &regOpnd);
+    SelectCopy(regOpnd1, ldMem, primType, symbolType);
+    return &regOpnd1;
+  } else {
+    /* for BasicType, load symbolVal to register. */
+    RegOperand &regOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
+        cgFunc->GetRegTyFromPrimTy(primType));
+    SelectCopy(regOpnd, symbolMem, primType, symbolType);
+    return &regOpnd;
+  }
 }
 
 Operand *MPISel::SelectAdd(const BinaryNode &node, Operand &opnd0,
                            Operand &opnd1, const BaseNode &parent [[maybe_unused]]) {
   PrimType primType = node.GetPrimType();
+  PTY128MOD(primType);
   RegOperand &resReg = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));
   RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, primType, node.Opnd(0)->GetPrimType());
@@ -920,7 +1005,7 @@ void MPISel::SelectExtractbits(RegOperand &resOpnd, RegOperand &opnd0, uint8 bit
 }
 
 Operand *MPISel::SelectExtractbits(const BaseNode &parent [[maybe_unused]],
-                                   const ExtractbitsNode &node, Operand &opnd0) {
+                                   ExtractbitsNode &node, Operand &opnd0) {
   PrimType fromType = node.Opnd(0)->GetPrimType();
   PrimType toType = node.GetPrimType();
   uint8 bitSize = node.GetBitsSize();
@@ -943,31 +1028,62 @@ Operand *MPISel::SelectExtractbits(const BaseNode &parent [[maybe_unused]],
 }
 
 Operand *MPISel::SelectCvt(const BaseNode &parent [[maybe_unused]], const TypeCvtNode &node, Operand &opnd0) {
-  PrimType fromType = node.Opnd(0)->GetPrimType();
+  PrimType fromType = node.FromType();
+  PTY128MOD(fromType);
   PrimType toType = node.GetPrimType();
+  PTY128MOD(toType);
   if (fromType == toType) {
     return &opnd0;
+  }
+  RegOperand *regOpnd0;
+  if (!opnd0.IsRegister()) {
+    RegOperand &result = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(fromType),
+        cgFunc->GetRegTyFromPrimTy(fromType));
+    SelectCopy(result, opnd0, fromType, fromType);
+    regOpnd0 = &result;
+  } else {
+    regOpnd0 = &static_cast<RegOperand&>(opnd0);
   }
   RegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
       cgFunc->GetRegTyFromPrimTy(toType));
   if (IsPrimitiveInteger(toType) && IsPrimitiveInteger(fromType)) {
-    SelectIntCvt(*resOpnd, opnd0, toType, fromType);
+    SelectIntCvt(*resOpnd, *regOpnd0, toType, fromType);
   } else if (IsPrimitiveFloat(toType) && IsPrimitiveInteger(fromType)) {
-    SelectCvtInt2Float(*resOpnd, opnd0, toType, fromType);
+    SelectCvtInt2Float(*resOpnd, *regOpnd0, toType, fromType);
   } else if (IsPrimitiveFloat(toType) && IsPrimitiveFloat(fromType)) {
-    SelectFloatCvt(*resOpnd, opnd0, toType, fromType);
+    SelectFloatCvt(*resOpnd, *regOpnd0, toType, fromType);
   } else if (IsPrimitiveInteger(toType) && IsPrimitiveFloat(fromType)) {
-    SelectCvtFloat2Int(*resOpnd, opnd0, toType, fromType);
+    SelectCvtFloat2Int(*resOpnd, *regOpnd0, toType, fromType);
   } else {
     CHECK_FATAL(false, "NIY cvt");
   }
   return resOpnd;
 }
 
-
 void MPISel::SelectCvtFloat2Int(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType) {
   uint32 toSize = GetPrimTypeBitSize(toType);
   bool isSigned = !IsPrimitiveUnsigned(toType);
+#if TARGAARCH64
+  /*
+   *  Due to fp precision, should use one insn to perform cvt.
+   */
+  MOperator mOp = abstract::MOP_undef;
+  switch (fromType) {
+    case PTY_f64:
+      mOp = (toSize <= k32BitSize) ? ((isSigned) ? MOP_cvt_i32_f64 : MOP_cvt_u32_f64) :
+                                     ((isSigned) ? MOP_cvt_i64_f64 : MOP_cvt_u64_f64);
+      break;
+    case PTY_f32:
+      mOp = (toSize <= k32BitSize) ? ((isSigned) ? MOP_cvt_i32_f32 : MOP_cvt_u32_f32) :
+                                     ((isSigned) ? MOP_cvt_i64_f32 : MOP_cvt_u64_f32);
+      break;
+    default:
+      CHECK_FATAL(false, "NYI");
+  }
+  Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));
+  (void)insn.AddOpndChain(resOpnd).AddOpndChain(opnd0);
+  cgFunc->GetCurBB()->AppendInsn(insn);
+#else
   PrimType newToType = toType;
   // cvt f64/32 -> u16 / u8 -> cvt f u32 + cvt u32 -> u8
   if (toSize < k32BitSize) {
@@ -978,9 +1094,9 @@ void MPISel::SelectCvtFloat2Int(RegOperand &resOpnd, Operand &opnd0, PrimType to
   SelectFloatCvt(tmpFloatOpnd, opnd0, newToType, fromType);
   MOperator mOp = abstract::MOP_undef;
   if (newToSize == k32BitSize) {
-    mOp = isSigned ? abstract::MOP_cvt_rf_i32 : abstract::MOP_cvt_rf_u32;
+    mOp = isSigned ? abstract::MOP_cvt_i32_f32 : abstract::MOP_cvt_u32_f32;
   } else if (newToSize == k64BitSize) {
-    mOp = isSigned ? abstract::MOP_cvt_rf_i64 : abstract::MOP_cvt_rf_u64;
+    mOp = isSigned ? abstract::MOP_cvt_i64_f64 : abstract::MOP_cvt_u64_f64;
   } else {
     CHECK_FATAL(false, "niy");
   }
@@ -993,18 +1109,39 @@ void MPISel::SelectCvtFloat2Int(RegOperand &resOpnd, Operand &opnd0, PrimType to
     SelectIntCvt(resOpnd, tmpIntOpnd, toType, newToType);
   }
   cgFunc->GetCurBB()->AppendInsn(insn);
+#endif
 }
 
 void MPISel::SelectCvtInt2Float(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType) {
   uint32 fromSize = GetPrimTypeBitSize(fromType);
   bool isSigned = !IsPrimitiveUnsigned(fromType);
+#if TARGAARCH64
+  /* Due to fp precision, convert is done with one instruction */
+  MOperator mOp = abstract::MOP_undef;
+  switch (toType) {
+    case PTY_f64:
+      mOp = (fromSize <= k32BitSize) ? ((isSigned) ? MOP_cvt_f64_i32 : MOP_cvt_f64_u32) :
+                                       ((isSigned) ? MOP_cvt_f64_i64 : MOP_cvt_f64_u64);
+      break;
+    case PTY_f32:
+      mOp = (fromSize <= k32BitSize) ? ((isSigned) ? MOP_cvt_f32_i32 : MOP_cvt_f32_u32) :
+                                       ((isSigned) ? MOP_cvt_f32_i64 : MOP_cvt_f32_u64);
+      break;
+    default:
+      CHECK_FATAL(false, "NYI");
+  }
+  RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, fromType);
+  Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));
+  (void)insn.AddOpndChain(resOpnd).AddOpndChain(regOpnd0);
+  cgFunc->GetCurBB()->AppendInsn(insn);
+#else
   MOperator mOp = abstract::MOP_undef;
   PrimType newFromType = PTY_begin;
   if (fromSize == k32BitSize) {
-    mOp = isSigned ? abstract::MOP_cvt_fr_i32 : abstract::MOP_cvt_fr_u32;
+    mOp = isSigned ? abstract::MOP_cvt_f32_i32 : abstract::MOP_cvt_f32_u32;
     newFromType = PTY_f32;
   } else if (fromSize == k64BitSize) {
-    mOp = isSigned ? abstract::MOP_cvt_fr_i64 : abstract::MOP_cvt_fr_u64;
+    mOp = isSigned ? abstract::MOP_cvt_f64_i64 : abstract::MOP_cvt_f64_u64;
     newFromType = PTY_f64;
   } else {
     CHECK_FATAL(false, "niy");
@@ -1016,6 +1153,7 @@ void MPISel::SelectCvtInt2Float(RegOperand &resOpnd, Operand &opnd0, PrimType to
   (void)insn.AddOpndChain(tmpFloatOpnd).AddOpndChain(regOpnd0);
   cgFunc->GetCurBB()->AppendInsn(insn);
   SelectFloatCvt(resOpnd, tmpFloatOpnd, toType, newFromType);
+#endif
 }
 
 void MPISel::SelectIntCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType) {
@@ -1025,13 +1163,15 @@ void MPISel::SelectIntCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, 
    * It is redundancy to insert "nop" casts (unsigned 32 -> singed 32) in abstract CG IR
    * The signedness of operands would be shown in the expression.
    */
-  RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, fromType);
+  bool isSigned = !IsPrimitiveUnsigned(fromType);
+  uint32 bitSize = opnd0.GetSize();
+  PrimType opndType = GetIntegerPrimTypeFromSize(isSigned, bitSize);
+  RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, fromType, opndType);
   if (toSize <= fromSize) {
     resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(regOpnd0.GetRegisterNumber(),
         GetPrimTypeBitSize(toType), cgFunc->GetRegTyFromPrimTy(toType));
     return;
   }
-  bool isSigned = !IsPrimitiveUnsigned(fromType);
   MOperator mOp = GetFastCvtMopI(fromSize, toSize, isSigned);
   Insn &insn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, InsnDesc::GetAbstractId(mOp));
   (void)insn.AddOpndChain(resOpnd).AddOpndChain(regOpnd0);
@@ -1182,6 +1322,7 @@ Operand *MPISel::SelectIread(const BaseNode &parent [[maybe_unused]], const Irea
   }
   /* for BasicType, load val in addr to register. */
   PrimType primType = expr.GetPrimType();
+  PTY128MOD(primType);
   RegOperand &result = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));
   SelectCopy(result, memOpnd, primType, lhsInfo.primType);
@@ -1254,53 +1395,6 @@ Operand *MPISel::SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, 
     SelectBior(resOpnd, resOpnd, tmpOpnd, primType);
   }
   return &resOpnd;
-}
-
-Operand *MPISel::SelectAbs(UnaryNode &node, Operand &opnd0) {
-  PrimType primType = node.GetPrimType();
-  if (IsPrimitiveVector(primType)) {
-    CHECK_FATAL(false, "NIY");
-  } else if (IsPrimitiveFloat(primType)) {
-    /*
-     * fabs(x) = x AND 0x7fffffff ffffffff [set sign bit to 0]
-     */
-    const static uint64 kNaN = 0x7fffffffffffffffUL;
-    const static double kNaNDouble = *(double*)(&kNaN);
-    const static uint64 kNaNf = 0x7fffffffUL;
-    const static double kNaNFloat = *(double*)(&kNaNf);
-    CHECK_FATAL(primType == PTY_f64 || primType == PTY_f32, "niy");
-
-    double mask = primType == PTY_f64 ? kNaNDouble : kNaNFloat;
-    MIRDoubleConst *c = cgFunc->GetMemoryPool()->New<MIRDoubleConst>(mask,
-        *GlobalTables::GetTypeTable().GetTypeTable().at(PTY_f64));
-    Operand *opnd1 = SelectFloatingConst(*c, PTY_f64);
-
-    RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
-        cgFunc->GetRegTyFromPrimTy(primType));
-    SelectBand(resOpnd, opnd0, *opnd1, primType);
-    return &resOpnd;
-  } else if (IsUnsignedInteger(primType)) {
-    return &opnd0;
-  } else {
-    /*
-     * abs(x) = (x XOR y) - y
-     * y = x >>> (bitSize - 1)
-     */
-    uint32 bitSize = GetPrimTypeBitSize(primType);
-    CHECK_FATAL(bitSize == k64BitSize || bitSize == k32BitSize, "only support 32-bits or 64-bits");
-    RegOperand &regOpnd0 = SelectCopy2Reg(opnd0, primType);
-    ImmOperand &immOpnd = cgFunc->GetOpndBuilder()->CreateImm(bitSize, bitSize - 1);
-    RegOperand &regOpndy = cgFunc->GetOpndBuilder()->CreateVReg(bitSize,
-        cgFunc->GetRegTyFromPrimTy(primType));
-    SelectShift(regOpndy, regOpnd0, immOpnd, OP_ashr, primType, primType);
-    RegOperand &tmpOpnd = cgFunc->GetOpndBuilder()->CreateVReg(bitSize,
-        cgFunc->GetRegTyFromPrimTy(primType));
-    SelectBxor(tmpOpnd, regOpnd0, regOpndy, primType);
-    RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(bitSize,
-        cgFunc->GetRegTyFromPrimTy(primType));
-    SelectSub(resOpnd, tmpOpnd, regOpndy, primType);
-    return &resOpnd;
-  }
 }
 
 Operand *MPISel::SelectAlloca(UnaryNode &node, Operand &opnd0) {
@@ -1396,59 +1490,48 @@ StmtNode *MPISel::HandleFuncEntry() const {
 RegOperand &MPISel::SelectCopy2Reg(Operand &src, PrimType toType, PrimType fromType) {
   uint32 fromSize = GetPrimTypeBitSize(fromType);
   uint32 toSize = GetPrimTypeBitSize(toType);
-  if (src.IsRegister() && fromSize == toSize) {
+  bool isReg = src.IsRegister();
+  uint32 srcRegSize = isReg ? src.GetSize() : 0;
+  if ((isReg && fromSize == toSize) || (fromType == PTY_unknown && isReg && srcRegSize == toSize)) {
     return static_cast<RegOperand&>(src);
   }
-  RegOperand &dest = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
-      cgFunc->GetRegTyFromPrimTy(toType));
-  if (fromSize != toSize) {
-    SelectCopy(dest, src, toType, fromType);
-  } else {
+  RegOperand &dest = cgFunc->GetOpndBuilder()->CreateVReg(toSize, cgFunc->GetRegTyFromPrimTy(toType));
+  if (fromType == PTY_unknown || fromSize == toSize) {
     SelectCopy(dest, src, toType);
+  } else if (fromSize != toSize) {
+    SelectCopy(dest, src, toType, fromType);
   }
-  return dest;
-}
-/* Pretty sure that implicit type conversions will not occur. */
-RegOperand &MPISel::SelectCopy2Reg(Operand &src, PrimType dtype) {
-  ASSERT(src.GetSize() == GetPrimTypeBitSize(dtype), "NIY");
-  if (src.IsRegister()) {
-    return static_cast<RegOperand&>(src);
-  }
-  RegOperand &dest = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(dtype),
-      cgFunc->GetRegTyFromPrimTy(dtype));
-  SelectCopy(dest, src, dtype);
   return dest;
 }
 /* This function copy/load/store src to a dest, Once the src and dest types
  * are different, implicit conversion is executed here. */
 void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType toType, PrimType fromType) {
-  if (GetPrimTypeBitSize(fromType) != GetPrimTypeBitSize(toType)) {
+  PTY128MOD(fromType);
+  PTY128MOD(toType);
+  uint32 fromSize = GetPrimTypeBitSize(fromType);
+  uint32 toSize = GetPrimTypeBitSize(toType);
+  if (fromType != PTY_unknown && fromSize != toSize) {
     RegOperand &srcRegOpnd = SelectCopy2Reg(src, fromType);
-    RegOperand &dstRegOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
-        cgFunc->GetRegTyFromPrimTy(toType));
+    RegOperand &dstRegOpnd = cgFunc->GetOpndBuilder()->CreateVReg(toSize, cgFunc->GetRegTyFromPrimTy(toType));
     SelectIntCvt(dstRegOpnd, srcRegOpnd, toType, fromType);
     SelectCopy(dest, dstRegOpnd, toType);
   } else {
-    SelectCopy(dest, src, toType);
-  }
-}
-
-/* Pretty sure that implicit type conversions will not occur. */
-void MPISel::SelectCopy(Operand &dest, Operand &src, PrimType type) {
-  ASSERT(dest.GetSize() == src.GetSize(), "NIY");
-  if (dest.GetKind() == Operand::kOpdRegister) {
-    SelectCopyInsn(dest, src, type);
-  } else if (dest.GetKind() == Operand::kOpdMem) {
-    if (src.GetKind() != Operand::kOpdRegister) {
-      RegOperand &tempReg = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(type),
-          cgFunc->GetRegTyFromPrimTy(type));
-      SelectCopyInsn(tempReg, src, type);
-      SelectCopyInsn(dest, tempReg, type);
-    } else {
-      SelectCopyInsn(dest, src, type);
+    if (dest.GetKind() == Operand::kOpdMem || src.GetKind() == Operand::kOpdMem) {
+      if ((dest.GetKind() == Operand::kOpdMem && src.GetKind() == Operand::kOpdRegister) ||
+          (dest.GetKind() == Operand::kOpdRegister && src.GetKind() == Operand::kOpdMem)) {
+        SelectCopyInsn(dest, src, toType);
+      } else if (src.GetKind() != Operand::kOpdRegister) {
+        RegOperand &tempReg = cgFunc->GetOpndBuilder()->CreateVReg(toSize, cgFunc->GetRegTyFromPrimTy(toType));
+        SelectCopyInsn(tempReg, src, toType);
+        SelectCopyInsn(dest, tempReg, toType);
+      } else {
+        SelectCopyInsn(dest, src, toType);
+      }
+    } else if (dest.GetKind() == Operand::kOpdRegister) {
+      SelectCopyInsn(dest, src, toType);
+    }else {
+      CHECK_FATAL(false, "NIY, CPU supports more than memory and registers");
     }
-  }else {
-    CHECK_FATAL(false, "NIY, CPU supports more than memory and registers");
   }
 }
 
@@ -1527,20 +1610,20 @@ Operand *MPISel::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
   if (IsPrimitiveInteger(fromType) && IsPrimitiveInteger(toType)) {
     return &SelectCopy2Reg(opnd0, toType, fromType);
   }
+  if (IsPrimitiveInteger(fromType) && IsPrimitiveFloat(toType)) {
+    RegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
+      cgFunc->GetRegTyFromPrimTy(toType));
+    SelectCvtInt2Float(*resOpnd, opnd0, toType, fromType);
+    return resOpnd;
+  }
+  if (IsPrimitiveFloat(fromType) && IsPrimitiveInteger(toType)) {
+    RegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
+      cgFunc->GetRegTyFromPrimTy(toType));
+    SelectCvtFloat2Int(*resOpnd, opnd0, toType, fromType);
+    return resOpnd;
+  }
   CHECK_FATAL(false, "NIY, retype");
   return nullptr;
-}
-
-void MPISel::HandleFuncExit() const {
-  BlockNode *block = cgFunc->GetFunction().GetBody();
-  ASSERT(block != nullptr, "get func body block failed in CGFunc::GenerateInstruction");
-  cgFunc->GetCurBB()->SetLastStmt(*block->GetLast());
-  /* Set lastbb's frequency */
-  cgFunc->SetLastBB(*cgFunc->GetCurBB());
-  /* the last BB is return BB */
-  cgFunc->GetLastBB()->SetKind(BB::kBBReturn);
-
-  cgFunc->AddCommonExitBB();
 }
 
 void InstructionSelector::GetAnalysisDependence(AnalysisDep &aDep) const {

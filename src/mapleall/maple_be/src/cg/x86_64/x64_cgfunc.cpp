@@ -73,7 +73,7 @@ void X64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
 void X64CGFunc::SelectAsm(AsmNode &node) {
   CHECK_FATAL(false, "NIY");
 }
-void X64CGFunc::SelectAggDassign(DassignNode &stmt) {
+void X64CGFunc::SelectAggDassign(const DassignNode &stmt) {
   CHECK_FATAL(false, "NIY");
 }
 void X64CGFunc::SelectIassign(IassignNode &stmt) {
