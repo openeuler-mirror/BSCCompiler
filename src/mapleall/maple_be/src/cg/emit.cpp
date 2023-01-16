@@ -499,7 +499,7 @@ void Emitter::EmitNullConstant(uint64 size) {
   Emit("\n");
 }
 
-void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo) {
+void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo, bool finished) {
   uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
   auto emitBfldValue = [&structEmitInfo, charBitWidth, this](bool flag) {
     while (structEmitInfo.GetCombineBitFieldWidth() > charBitWidth) {
@@ -531,20 +531,22 @@ void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo) {
   } else {
     emitBfldValue(false);
   }
-  if (structEmitInfo.GetCombineBitFieldWidth() != 0) {
-    EmitAsmLabel(kAsmByte);
-    uint64 value = structEmitInfo.GetCombineBitFieldValue() & 0x00000000000000ffUL;
-    Emit(std::to_string(value));
-    Emit("\n");
+  if (finished) {
+    if (structEmitInfo.GetCombineBitFieldWidth() != 0) {
+      EmitAsmLabel(kAsmByte);
+      uint64 value = structEmitInfo.GetCombineBitFieldValue() & 0x00000000000000ffUL;
+      Emit(std::to_string(value));
+      Emit("\n");
+    }
+    CHECK_FATAL(charBitWidth != 0, "divide by zero");
+    if ((structEmitInfo.GetNextFieldOffset() % charBitWidth) != 0) {
+      uint8 value = charBitWidth - (structEmitInfo.GetNextFieldOffset() % charBitWidth);
+      structEmitInfo.IncreaseNextFieldOffset(value);
+    }
+    structEmitInfo.SetTotalSize(structEmitInfo.GetNextFieldOffset() / charBitWidth);
+    structEmitInfo.SetCombineBitFieldValue(0);
+    structEmitInfo.SetCombineBitFieldWidth(0);
   }
-  CHECK_FATAL(charBitWidth != 0, "divide by zero");
-  if ((structEmitInfo.GetNextFieldOffset() % charBitWidth) != 0) {
-    uint8 value = charBitWidth - (structEmitInfo.GetNextFieldOffset() % charBitWidth);
-    structEmitInfo.IncreaseNextFieldOffset(value);
-  }
-  structEmitInfo.SetTotalSize(structEmitInfo.GetNextFieldOffset() / charBitWidth);
-  structEmitInfo.SetCombineBitFieldValue(0);
-  structEmitInfo.SetCombineBitFieldWidth(0);
 }
 
 void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mirConst, const MIRType *nextType,
@@ -553,21 +555,19 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
   if (fieldOffset > structEmitInfo.GetNextFieldOffset()) {
     uint16 curFieldOffset = structEmitInfo.GetNextFieldOffset() - structEmitInfo.GetCombineBitFieldWidth();
     structEmitInfo.SetCombineBitFieldWidth(fieldOffset - curFieldOffset);
-    EmitCombineBfldValue(structEmitInfo);
+    EmitCombineBfldValue(structEmitInfo, true);
     ASSERT(structEmitInfo.GetNextFieldOffset() <= fieldOffset,
            "structEmitInfo's nextFieldOffset should be <= fieldOffset");
     structEmitInfo.SetNextFieldOffset(fieldOffset);
   }
   uint32 fieldSize = static_cast<MIRBitFieldType&>(mirType).GetFieldSize();
+  if (structEmitInfo.GetCombineBitFieldWidth() + fieldSize >= k64BitSize && !CGOptions::IsBigEndian()) {
+    EmitCombineBfldValue(structEmitInfo, false);
+  }
   MIRIntConst &fieldValue = static_cast<MIRIntConst&>(mirConst);
   /* Truncate the size of FieldValue to the bit field size. */
   if (fieldSize < fieldValue.GetActualBitWidth()) {
     fieldValue.Trunc(fieldSize);
-  }
-  /* Clear higher Bits for signed value  */
-  if (structEmitInfo.GetCombineBitFieldValue() != 0 && structEmitInfo.GetCombineBitFieldWidth() < k64BitSize) {
-    structEmitInfo.SetCombineBitFieldValue((~(~0ULL << structEmitInfo.GetCombineBitFieldWidth())) &
-                                           structEmitInfo.GetCombineBitFieldValue());
   }
   if (CGOptions::IsBigEndian()) {
     uint64 beValue = static_cast<uint64_t>(fieldValue.GetExtValue());
@@ -582,9 +582,15 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
   }
   structEmitInfo.IncreaseCombineBitFieldWidth(fieldSize);
   structEmitInfo.IncreaseNextFieldOffset(fieldSize);
+  /* Clear higher Bits for signed value  */
+  if (structEmitInfo.GetCombineBitFieldValue() != 0 && fieldValue.GetValue().IsSigned() &&
+      structEmitInfo.GetCombineBitFieldWidth() < k64BitSize) {
+    structEmitInfo.SetCombineBitFieldValue((~(~0ULL << structEmitInfo.GetCombineBitFieldWidth())) &
+                                           structEmitInfo.GetCombineBitFieldValue());
+  }
   if ((nextType == nullptr) || (kTypeBitField != nextType->GetKind())) {
     /* emit structEmitInfo->combineBitFieldValue */
-    EmitCombineBfldValue(structEmitInfo);
+    EmitCombineBfldValue(structEmitInfo, true);
   }
 }
 

@@ -169,7 +169,7 @@ class Emitter {
   void EmitBlockMarker(const std::string &markerName, const std::string &sectionName,
                        bool withAddr, const std::string &addrName = "");
   void EmitNullConstant(uint64 size);
-  void EmitCombineBfldValue(StructEmitInfo &structEmitInfo);
+  void EmitCombineBfldValue(StructEmitInfo &structEmitInfo, bool finished);
   void EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mirConst, const MIRType *nextType,
                             uint64 fieldOffset);
   void EmitScalarConstant(MIRConst &mirConst, bool newLine = true, bool flag32 = false, bool isIndirect = false);
