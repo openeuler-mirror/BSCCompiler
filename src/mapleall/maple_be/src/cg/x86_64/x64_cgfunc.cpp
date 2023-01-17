@@ -252,7 +252,7 @@ Operand *X64CGFunc::SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode &ire
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-Operand *X64CGFunc::SelectIntConst(MIRIntConst &intConst) {
+Operand *X64CGFunc::SelectIntConst(MIRIntConst &intConst, const BaseNode &parent) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }

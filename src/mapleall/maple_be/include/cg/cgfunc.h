@@ -275,7 +275,7 @@ class CGFunc {
                                int extraOffset = 0, PrimType finalBitFieldDestType = kPtyInvalid) = 0;
   virtual Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) = 0;
   virtual Operand *SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode &ireadoff) = 0;
-  virtual Operand *SelectIntConst(MIRIntConst &intConst) = 0;
+  virtual Operand *SelectIntConst(MIRIntConst &intConst, const BaseNode &parent) = 0;
   virtual Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) = 0;
   virtual Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) = 0;
   virtual Operand *SelectFloat128Const(MIRFloat128Const &ldoubleConst) = 0;

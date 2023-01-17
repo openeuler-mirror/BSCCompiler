@@ -185,7 +185,7 @@ class AArch64CGFunc : public CGFunc {
                        int extraOffset = 0, PrimType finalBitFieldDestType = kPtyInvalid) override;
   Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) override;
   Operand *SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode &ireadoff) override;
-  Operand *SelectIntConst(MIRIntConst &intConst) override;
+  Operand *SelectIntConst(MIRIntConst &intConst, const BaseNode &parent) override;
   Operand *HandleFmovImm(PrimType stype, int64 val, MIRConst &mirConst, const BaseNode &parent);
   Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) override;
   Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) override;

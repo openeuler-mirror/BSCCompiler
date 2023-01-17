@@ -51,7 +51,7 @@ Operand *HandleConstVal(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
   ASSERT(mirConst != nullptr, "get constval of constvalnode failed");
   if (mirConst->GetKind() == kConstInt) {
     auto *mirIntConst = safe_cast<MIRIntConst>(mirConst);
-    return cgFunc.SelectIntConst(*mirIntConst);
+    return cgFunc.SelectIntConst(*mirIntConst, parent);
   } else if (mirConst->GetKind() == kConstFloatConst) {
     auto *mirFloatConst = safe_cast<MIRFloatConst>(mirConst);
     return cgFunc.SelectFloatConst(*mirFloatConst, parent);

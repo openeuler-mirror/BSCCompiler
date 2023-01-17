@@ -440,7 +440,8 @@ void AArch64CGFunc::SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype
   ASSERT(((dsize == k8BitSize) || (dsize == k16BitSize) || (dsize == k32BitSize) || (dsize == k64BitSize)),
          "The destination operand must be >= 8-bit");
   if (src.GetSize() == k32BitSize && dsize == k64BitSize && src.IsSingleInstructionMovable()) {
-    auto tempReg = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, dsize), dsize, kRegTyInt);
+    auto tempReg = CreateVirtualRegisterOperand(
+        NewVReg(kRegTyInt, k32BitSize), k32BitSize, kRegTyInt);
     GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wmovri32, *tempReg, src));
     SelectCopy(dest, dtype, *tempReg, PTY_u32);
     return;
@@ -3562,9 +3563,12 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
   return result;
 }
 
-Operand *AArch64CGFunc::SelectIntConst(MIRIntConst &intConst) {
-  return &CreateImmOperand(intConst.GetExtValue(), GetPrimTypeSize(intConst.GetType().GetPrimType()) * kBitsPerByte,
-                           false);
+Operand *AArch64CGFunc::SelectIntConst(MIRIntConst &intConst, const BaseNode &parent) {
+  PrimType primType = intConst.GetType().GetPrimType();
+  if (kOpcodeInfo.IsCompare(parent.GetOpCode())) {
+    primType = static_cast<const CompareNode&>(parent).GetOpndType();
+  }
+  return &CreateImmOperand(intConst.GetExtValue(), GetPrimTypeBitSize(primType), false);
 }
 
 template <typename T>

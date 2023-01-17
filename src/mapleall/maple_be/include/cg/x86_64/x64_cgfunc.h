@@ -98,7 +98,7 @@ class X64CGFunc : public CGFunc {
       PrimType finalBitFieldDestType = kPtyInvalid) override;
   Operand *SelectIreadoff(const BaseNode &parent, IreadoffNode &ireadoff) override;
   Operand *SelectIreadfpoff(const BaseNode &parent, IreadFPoffNode &ireadoff) override;
-  Operand *SelectIntConst(MIRIntConst &intConst) override;
+  Operand *SelectIntConst(MIRIntConst &intConst, const BaseNode &parent) override;
   Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) override;
   Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) override;
   Operand *SelectFloat128Const(MIRFloat128Const &ldoubleConst) override;
