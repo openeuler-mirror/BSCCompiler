@@ -2162,9 +2162,6 @@ void FEIRStmtIntrinsicCallAssign::RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckP
 
 std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   switch (intrinsicId) {
-    CASE_INTRN_C_SYNC: {
-      return GenMIRStmtsForIntrnC(mirBuilder, type->GenerateMIRType()->GetTypeIndex());
-    }
     case INTRN_JAVA_CLINIT_CHECK: {
       return GenMIRStmtsForClintCheck(mirBuilder);
     }
@@ -2174,10 +2171,17 @@ std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsImpl(MIRBuilder &mi
     case INTRN_JAVA_POLYMORPHIC_CALL: {
       return GenMIRStmtsForInvokePolyMorphic(mirBuilder);
     }
+    CASE_INTRN_C_SYNC: {
+      if (type != nullptr) {
+        return GenMIRStmtsForIntrnC(mirBuilder, type->GenerateMIRType()->GetTypeIndex());
+      }
+      break;
+    }
     default: {
-      return GenMIRStmtsForIntrnC(mirBuilder);
+      break;
     }
   }
+  return GenMIRStmtsForIntrnC(mirBuilder);
 }
 
 std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsForClintCheck(MIRBuilder &mirBuilder) const {

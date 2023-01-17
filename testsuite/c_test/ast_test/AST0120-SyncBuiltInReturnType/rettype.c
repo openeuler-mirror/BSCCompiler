@@ -10,6 +10,10 @@ static unsigned short test_qi[16] = { 3,5,7,9,0,0,1,65535,0,1,1,1,65535,0,1,1 };
 
 int do_qi ()
 {
+  __sync_lock_release(BI + 4);
+  if (BI[4] != 0) {
+    printf("BI[4]=%u\n",BI[4]);
+  }
   // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
   // CHECK: intrinsiccallwithtypeassigned u16 C___sync_fetch_and_add_2
   if (__sync_fetch_and_add(AI+6, BI[6]) != 0)
