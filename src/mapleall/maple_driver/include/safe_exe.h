@@ -21,6 +21,7 @@
  */
 #ifdef _WIN32
 #include <windows.h>
+#include <stdlib.h>
 #else
 #include <sys/wait.h>
 #endif
@@ -35,6 +36,12 @@
 #include "securec.h"
 
 namespace maple {
+enum class Compilee {
+  gcc,
+  hir2mpl,
+  unKnow
+};
+
 class SafeExe {
  public:
 #ifndef _WIN32
@@ -88,19 +95,23 @@ class SafeExe {
                                  const std::vector<MplOption> &options) {
     size_t argIndex;
     char **argv;
-    bool isGccCmd = false;
+    Compilee compileeFlag = Compilee::unKnow;
+    std::string ldLibPath = "";
     int index = cmd.find_last_of("-");
     if (index > 0 && cmd.substr(index) == "-gcc") {
-      isGccCmd = true;
+      compileeFlag = Compilee::gcc;
+    } else if (cmd.find("hir2mpl", 0) != -1) {
+      compileeFlag = Compilee::hir2mpl;
+      ldLibPath += mplOptions.GetExeFolder().substr(0, mplOptions.GetExeFolder().length() - 4);
+      ldLibPath += "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
     }
-    std::tie(argv, argIndex) = GenerateUnixArguments(cmd, mplOptions, options, isGccCmd);
-
+    std::tie(argv, argIndex) = GenerateUnixArguments(cmd, mplOptions, options, compileeFlag);
     if (opts::debug) {
       LogInfo::MapleLogger() << "Run: " << cmd;
       for (auto &opt : options) {
         LogInfo::MapleLogger() << " " << opt.GetKey() << " " << opt.GetValue();
       }
-      if (isGccCmd) {
+      if (compileeFlag == Compilee::gcc) {
         for (auto &opt : mplOptions.GetLinkInputFiles()) {
           LogInfo::MapleLogger() << " " << opt;
         }
@@ -113,6 +124,15 @@ class SafeExe {
     if (pid == 0) {
       // child process
       fflush(nullptr);
+      if (compileeFlag == Compilee::hir2mpl) {
+        std::string ld_path =":";
+        if (FileUtils::SafeGetenv(kGccPath) != "") {
+          ld_path += FileUtils::SafeGetenv(kGccPath);
+          ldLibPath += ld_path;
+        }
+        setenv("LD_LIBRARY_PATH", ldLibPath.c_str(), 1);
+      }
+
       if (execv(cmd.c_str(), argv) < 0) {
         /* last argv[argIndex] is nullptr, so it's j < argIndex (NOT j <= argIndex) */
         for (size_t j = 0; j < argIndex; ++j) {
@@ -265,21 +285,21 @@ class SafeExe {
   }
 
   static std::tuple<char **, size_t> GenerateUnixArguments(const std::string &cmd, const MplOptions &mplOptions,
-                                                        const std::vector<MplOption> &options, bool isGccCmd) {
+                                                        const std::vector<MplOption> &options, Compilee compileeFlag) {
     /* argSize=2, because we reserve 1st arg as exe binary, and another arg as last nullptr arg */
     size_t argSize = 2;
 
     /* Calculate how many args are needed.
      * (* 2) is needed, because we have key and value arguments in each option
      */
-    if (isGccCmd && mplOptions.GetLinkInputFiles().size() > 0) {
+    if (compileeFlag == Compilee::gcc && mplOptions.GetLinkInputFiles().size() > 0) {
       argSize += mplOptions.GetLinkInputFiles().size();
     }
     argSize += options.size() * 2;
 
     /* extra space for exe name and args */
     char **argv = new char *[argSize];
-
+    size_t argIndex = 1; // firts index is reserved for cmd, so it starts with 1
     // argv[0] is program name
     // copy args
     auto cmdSize = cmd.size() + 1; // +1 for NUL terminal
@@ -287,7 +307,6 @@ class SafeExe {
     strncpy_s(argv[0], cmdSize, cmd.c_str(), cmdSize); // c_str includes NUL terminal
 
     /* Allocate and fill all arguments */
-    size_t argIndex = 1; // firts index is reserved for cmd, so it starts with 1
     for (auto &opt : options) {
       auto key = opt.GetKey();
       auto val = opt.GetValue();
@@ -308,7 +327,7 @@ class SafeExe {
       }
     }
 
-    if (isGccCmd) {
+    if (compileeFlag == Compilee::gcc) {
       for (auto &opt : mplOptions.GetLinkInputFiles()) {
         auto keySize = opt.size() + 1;
 
