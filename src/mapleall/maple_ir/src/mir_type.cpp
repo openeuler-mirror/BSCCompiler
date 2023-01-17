@@ -2127,7 +2127,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
         curFieldID += static_cast<FieldID>(subStructType->NumberOfFieldIDs()) + 1; // 1 represents subStructType itself
       } else {
         int64 result = subStructType->GetBitOffsetFromBaseAddr(fieldID - curFieldID);
-        return result + static_cast<int64>(allocedSize * bitsPerByte);
+        return result + static_cast<int64>(offset * bitsPerByte);
       }
     }
 

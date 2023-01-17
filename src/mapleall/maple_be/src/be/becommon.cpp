@@ -644,7 +644,7 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
               curFieldID += GetStructFieldCount(subStructType->GetTypeIndex()) + 1;
             } else {
               std::pair<int32, int32> result = GetFieldOffset(*subStructType, fieldID - curFieldID);
-              return std::pair<int32, int32>(result.first + allocedSize, result.second);
+              return std::pair<int32, int32>(result.first + offset, result.second);
             }
           }
         }
