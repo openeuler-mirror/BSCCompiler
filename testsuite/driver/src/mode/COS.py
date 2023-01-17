@@ -39,7 +39,7 @@ COS = {
             option={
                 "me": "-Os --quiet",
                 "mpl2mpl": "-Os",
-                "mplcg": "-Os --fpic --quiet"
+                "mplcg": "-Os --fPIC --quiet"
             },
             global_option="",
             infiles=["${APP}.mpl"]

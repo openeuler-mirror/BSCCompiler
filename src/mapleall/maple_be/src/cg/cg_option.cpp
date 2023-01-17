@@ -153,7 +153,7 @@ void CGOptions::DecideMplcgRealLevel(bool isDebug) {
     EnableO1();
   }
 
-  if ((opts::cg::o2 || opts::o2) || (opts::cg::os || opts::os)) {
+  if ((opts::cg::o2 || opts::o2 || opts::o3) || (opts::cg::os || opts::os)) {
     if (opts::cg::os || opts::os) {
       optForSize = true;
     }

@@ -20,7 +20,7 @@ SCO0_TRAIN = {
         C2ast(
             clang="${OUT_ROOT}/tools/bin/clang",
             include_path=[
-                "${OUT_ROOT}/aarch64-clang-release/lib/include",
+                "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include"
             ],
@@ -30,15 +30,16 @@ SCO0_TRAIN = {
             extra_opt="${SPEC_PARAM}"
         ),
         Hir2mpl(
-            hir2mpl="${OUT_ROOT}/aarch64-clang-release/bin/hir2mpl",
+            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
+            option="-enable-variable-array",
             infile="${APP}.ast",
             outfile="${APP}.mpl"
         ),
         Maple(
-            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             run=["mplcg"],
             option={
-                "mplcg": "--O0 --patch-long-branch --quiet --no-pie --fpic --verbose-asm"
+                "mplcg": "--O0 --patch-long-branch --quiet --no-pie --fPIC --verbose-asm"
             },
             global_option="",
             infiles=["${APP}.mpl"]

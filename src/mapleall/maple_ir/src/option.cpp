@@ -165,6 +165,10 @@ void Options::DecideMpl2MplRealLevel() const {
     O2 = true;
     usePreg = true;
   }
+  if (opts::o3) {
+    O2 = true;
+    usePreg = true;
+  }
 }
 
 bool Options::SolveOptions(bool isDebug) const {

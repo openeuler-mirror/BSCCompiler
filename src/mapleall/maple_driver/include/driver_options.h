@@ -140,6 +140,7 @@ extern maplecl::Option<std::string> setDefSymVisi;
 extern maplecl::Option<std::string> fStrongEvalOrderE;
 extern maplecl::Option<std::string> march;
 extern maplecl::Option<std::string> sysRoot;
+extern maplecl::Option<std::string> specs;
 
 /* ##################### DIGITAL Options ############################################################### */
 

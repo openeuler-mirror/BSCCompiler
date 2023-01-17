@@ -21,10 +21,9 @@ extern const std::string kFileSeperatorStr;
 extern const char kFileSeperatorChar;
 // Use char[] since getenv receives char* as parameter
 constexpr char kMapleRoot[] = "MAPLE_ROOT";
-constexpr char kClangPath[] = "BiSheng_Clang_Path";
-constexpr char kAsPath[] = "BiSheng_AS_Path";
-constexpr char kGccPath[] = "BiSheng_GCC_Path";
-constexpr char kHpfGccPath[] = "BiSheng_Hpf_GCC_Path";
+constexpr char kClangPath[] = "BiShengC_Clang_Path";
+constexpr char kAsPath[] = "BiShengC_AS_Path";
+constexpr char kGccPath[] = "BiShengC_GCC_Path";
 
 class FileUtils {
  public:

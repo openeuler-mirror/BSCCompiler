@@ -90,7 +90,7 @@ void FileUtils::checkGCCVersion(const char *cmd) {
     ver.push_back(tmp);
     p = strtok(NULL, ".");
   }
-  if (atoi(ver[0].c_str()) < atoi("5") || (atoi(ver[0].c_str()) > atoi("5") && atoi(ver[1].c_str()) < atoi("5"))) {
+  if (atoi(ver[0].c_str()) < atoi("5") || (atoi(ver[0].c_str()) == atoi("5") && atoi(ver[1].c_str()) < atoi("5"))) {
     CHECK_FATAL(false, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
   }
 }

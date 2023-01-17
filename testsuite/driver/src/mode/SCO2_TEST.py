@@ -20,7 +20,7 @@ SCO2_TEST = {
         C2ast(
             clang="${OUT_ROOT}/tools/bin/clang",
             include_path=[
-                "${OUT_ROOT}/aarch64-clang-release/lib/include",
+                "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include"
             ],
@@ -30,19 +30,20 @@ SCO2_TEST = {
             extra_opt="${SPEC_PARAM}"
         ),
         Hir2mpl(
-            hir2mpl="${OUT_ROOT}/aarch64-clang-release/bin/hir2mpl",
+            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
+            option="-enable-variable-array -g",
             infile="${APP}.ast",
             outfile="${APP}.mpl"
         ),
         Maple(
-            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             run=["me", "mpl2mpl", "mplcg"],
             option={
                 "me": "-O2 --quiet",
                 "mpl2mpl": "-O2 --quiet",
-                "mplcg": "--O2 --fpic --quiet --no-pie --verbose-asm"
+                "mplcg": "--O2 --quiet --no-pie --verbose-asm --fPIC"
             },
-            global_option="",
+            global_option="-g",
             infiles=["${APP}.mpl"]
         ),
         CLinker(

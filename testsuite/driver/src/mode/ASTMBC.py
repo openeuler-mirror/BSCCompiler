@@ -48,7 +48,7 @@ ASTMBC = {
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             run=["mplcg"],
             option={
-                "mplcg": "-O2 --fpic --quiet"
+                "mplcg": "-O2 --fPIC --quiet"
             },
             global_option="",
             infile="${APP}.mbc",

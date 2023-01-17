@@ -39,7 +39,7 @@ ASTO2 = {
             option={
                 "me": "-O2 --quiet",
                 "mpl2mpl": "-O2",
-                "mplcg": "-O2 --fpic --quiet"
+                "mplcg": "-O2 --fPIC --quiet"
             },
             global_option="",
             infiles=["${APP}.mpl"],

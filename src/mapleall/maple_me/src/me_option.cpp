@@ -159,7 +159,7 @@ void MeOption::DecideMeRealLevel() const {
     placementRC = true;
     subsumRC = true;
     epreIncludeRef = true;
-  } else if (opts::me::o3) {
+  } else if (opts::me::o3 || opts::o3) {
     optForSize = false;
     optLevel = kLevelThree;
     // turn on as O2

@@ -32,6 +32,10 @@ static MplOption kMeDefaultOptionsO2[] = {
 #include "default/O2_options_me.def"
 #endif
 };
+// Os ME options
+static MplOption kMeDefaultOptionsOs[] = {
+#include "default/Os_options_me.def"
+};
 // O0 mpl2mpl options
 static MplOption kMpl2MplDefaultOptionsO0[] = {
 #ifdef ANDROID
@@ -48,6 +52,10 @@ static MplOption kMpl2MplDefaultOptionsO2[] = {
 #include "default/O2_options_mpl2mpl.def"
 #endif
 };
+// Os mpl2mpl options
+static MplOption kMpl2MplDefaultOptionsOs[] = {
+#include "default/Os_options_mpl2mpl.def"
+};
 // O0 mplcg options
 static MplOption kMplcgDefaultOptionsO0[] = {
 #ifdef ANDROID
@@ -63,6 +71,10 @@ static MplOption kMplcgDefaultOptionsO2[] = {
 #else
 #include "default/O2_options_mplcg.def"
 #endif
+};
+// Os mplcg options
+static MplOption kMplcgDefaultOptionsOs[] = {
+#include "default/Os_options_mplcg.def"
 };
 // O2 mplipa options
 static MplOption kMplipaDefaultOptionsO2[] = {
@@ -104,6 +116,10 @@ static MplOption kMplcgDefaultOptionsO0ForC[] = {
 static MplOption kMeDefaultOptionsO2ForC[] = {
 #include "default/O2_options_me_c.def"
 };
+// O3 ME options for C language
+static MplOption kMeDefaultOptionsO3ForC[] = {
+#include "default/O3_options_me_c.def"
+};
 // O2 mplcg options for C language
 static MplOption kMplcgDefaultOptionsO2ForC[] = {
 #include "default/O2_options_mplcg_c.def"
@@ -116,11 +132,7 @@ static MplOption kCpp2MplDefaultOptionsForAst[] = {
 static MplOption kClangDefaultOptions[] = {
 #include "default/O0_options_clang.def"
 };
-//O0 as options
-static MplOption kAsDefaultOptions[] = {
-#include "default/O0_options_as.def"
-};
-//O0 ld options
+// O0 ld options
 static MplOption kLdDefaultOptions[] = {
 #include "default/O0_options_ld.def"
 };

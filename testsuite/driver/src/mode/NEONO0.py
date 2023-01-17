@@ -39,7 +39,7 @@ NEONO0 = {
             option={
                 "me": "--quiet",
                 "mpl2mpl": "--quiet",
-                "mplcg": "--fpic --quiet"
+                "mplcg": "--fPIC --quiet"
             },
             global_option="",
             infiles=["${APP}.mpl"]

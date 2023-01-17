@@ -35,7 +35,7 @@ ASTO0 = {
         ),
         SimpleMaple(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            option="-O0 -g -S",
+            option="-O0 -g -S --fPIC",
             infile="${APP}.mpl",
             redirection="compile.log"
         ),

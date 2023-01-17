@@ -20,7 +20,7 @@ MPLIR = {
             maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
             run=[],
             option={},
-            global_option="-S",
+            global_option="-S --fPIC",
             infiles=["${DRIVER}.c", "${APP}.mpl" ]
         ),
         CLinker(

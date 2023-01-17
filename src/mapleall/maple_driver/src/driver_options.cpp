@@ -449,7 +449,11 @@ maplecl::Option<std::string> march({"-march"},
 maplecl::Option<std::string> sysRoot({"--sysroot"},
                             "  --sysroot <value>    \tSet the root directory of the target platform.\n"
                             "  --sysroot=<value>    \tSet the root directory of the target platform.\n",
-                            {driverCategory, clangCategory});
+                            {driverCategory, clangCategory, ldCategory});
+
+maplecl::Option<std::string> specs({"-specs"},
+                            "  -specs <value>    \tOverride built-in specs with the contents of <file>.\n",
+                            {driverCategory, ldCategory});
 
 /* ##################### DIGITAL Options ############################################################### */
 

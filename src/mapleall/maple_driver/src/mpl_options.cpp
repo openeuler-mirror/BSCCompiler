@@ -178,6 +178,7 @@ ErrorCode MplOptions::HandleEarlyOptions() {
   if (opts::o0.IsEnabledByUser() ||
       opts::o1.IsEnabledByUser() ||
       opts::o2.IsEnabledByUser() ||
+      opts::o3.IsEnabledByUser() ||
       opts::os.IsEnabledByUser()) {
     if (opts::run.IsEnabledByUser()) {
       /* -Ox and --run should not appear at the same time */
@@ -501,7 +502,7 @@ std::string MplOptions::GetCommonOptionsStr() const {
   std::string driverOptions;
   static const std::vector<maplecl::OptionInterface *> extraExclude = {
       &opts::run, &opts::optionOpt, &opts::infile, &opts::mpl2mplOpt, &opts::meOpt,&opts::mplcgOpt,
-      &opts::o0, &opts::o1, &opts::o2, &opts::os
+      &opts::o0, &opts::o1, &opts::o2, &opts::o3, &opts::os
   };
 
   for (auto const &opt : driverCategory.GetEnabledOptions()) {
@@ -601,7 +602,7 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO0ForC,
                                  sizeof(kMpl2MplDefaultOptionsO0ForC) / sizeof(MplOption));
     }
-  } else if (opts::o2) {
+  } else if (opts::o2 || opts::o3) {
     if (opts::withIpa) {
       UpdateRunningExe(kBinNameMplipa);
     }
@@ -614,8 +615,13 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
                                  sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
     } else {
-      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2ForC,
-                                 sizeof(kMeDefaultOptionsO2ForC) / sizeof(MplOption));
+      if (opts::o3) {
+        ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO3ForC,
+                                   sizeof(kMeDefaultOptionsO3ForC) / sizeof(MplOption));
+      } else {
+        ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2ForC,
+                                   sizeof(kMeDefaultOptionsO2ForC) / sizeof(MplOption));
+      }
       if (ret != kErrorNoError) {
         return ret;
       }
@@ -655,7 +661,7 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO0ForC,
                                  sizeof(kMplcgDefaultOptionsO0ForC) / sizeof(MplOption));
     }
-  } else if (opts::o2) {
+  } else if (opts::o2 || opts::o3) {
     if (srcLang != kSrcLangC) {
       ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2,
                                  sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption));

@@ -15,4 +15,3 @@
 // option name, option value, append maple root path?
 { "-Os", "", false },
 { "--quiet", "", false },
-{ "--fpic", "", false  },
