@@ -360,6 +360,15 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
       (prevMop == MOP_xinegrr && curMop == MOP_wcmprr) || (prevMop == MOP_winegrrs && curMop == MOP_xcmprr)) {
     return false;
   }
+  /*
+   * If the value of srcOpnd of neg is 0, we can not do this optimization.
+   * Because
+   *   for cmp(subs): if NOT(0), the add calculation may overflow
+   *   for cmn(adds): it has handled overflows before calling the addWithCarry function
+   * When the value of srcOpnd of neg is 0, (neg + cmp) and (cmn) set different (c) and (v) in condition flags.
+   *
+   * But we can not get the value of register, so we can only restrict the condition codes which use (c) and (v) flags.
+   */
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   InsnSet useInsns = GetAllUseInsn(ccReg);
   for (auto *useInsn : useInsns) {
@@ -367,10 +376,10 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
       continue;
     }
     MOperator useMop = useInsn->GetMachineOpcode();
-    if (useMop == MOP_bhi || useMop == MOP_bls) {
+    if (useInsn->IsCondBranch() && useMop != MOP_beq && useMop != MOP_bne && useMop != MOP_bmi && useMop != MOP_bpl) {
       return false;
     }
-    bool findUnsignedCond = false;
+    bool hasUnsupportedCode = false;
     for (uint32 i = 0; i < useInsn->GetOperandSize(); ++i) {
       if (useInsn->GetOperand(i).GetKind() == Operand::kOpdCond) {
         ConditionCode cond = static_cast<CondOperand&>(useInsn->GetOperand(i)).GetCode();
@@ -380,14 +389,13 @@ bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
          *  neg x1 x1 (0x8000000000000000) which is same for negative 0
          *  subs xt, x0, x1 () -> set v
          */
-        if (cond == CC_HI || cond == CC_LS || cond == CC_GE || cond == CC_GT ||
-            cond == CC_LE || cond == CC_LT) {
-          findUnsignedCond = true;
+        if (cond != CC_EQ && cond != CC_NE && cond != CC_MI && cond != CC_PL) {
+          hasUnsupportedCode = true;
           break;
         }
       }
     }
-    if (findUnsignedCond) {
+    if (hasUnsupportedCode) {
       return false;
     }
   }
