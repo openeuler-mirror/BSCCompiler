@@ -49,6 +49,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn) {
       auto &regOpnd = static_cast<RegOperand&>(opnd);
       if (regOpnd.IsOfVary()) {
         insn.SetOperand(i, aarchCGFunc->GetOrCreateStackBaseRegOperand());
+        regOpnd = aarchCGFunc->GetOrCreateStackBaseRegOperand();
       }
       if (regOpnd.GetRegisterNumber() == RFP) {
         insn.SetOperand(i, aarchCGFunc->GetOrCreatePhysicalRegisterOperand(stackBaseReg, k64BitSize, kRegTyInt));

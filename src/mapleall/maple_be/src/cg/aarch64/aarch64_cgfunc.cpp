@@ -7915,10 +7915,21 @@ RegOperand *AArch64CGFunc::SelectParmListDreadAccessField(const MIRSymbol &sym, 
   }
   MemOperand *memOpnd;
   if (sym.GetStorageClass() == kScFormal && fieldID > 0) {
-    MemOperand &baseOpnd = GetOrCreateMemOpnd(sym, 0, memSize);
-    RegOperand &base = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(PickLdInsn(k64BitSize, PTY_i64), base, baseOpnd));
-    memOpnd = &CreateMemOpnd(base, (static_cast<int64>(offset) + parmNum * GetPointerSize()), memSize);
+    MIRType *ty = sym.GetType();
+    uint64 symSize = GetBecommon().GetTypeSize(ty->GetTypeIndex().GetIdx());
+    /* sym passed by address, need to be dereference */
+    if (symSize > k16ByteSize) {
+      MemOperand &baseOpnd = GetOrCreateMemOpnd(sym, 0, memSize);
+      RegOperand &base = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+      GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(PickLdInsn(k64BitSize, PTY_i64), base, baseOpnd));
+      memOpnd = &CreateMemOpnd(base, (static_cast<int64>(offset) + parmNum * GetPointerSize()), memSize);
+    } else { /* sym passed by register , no need to be dereference */
+      if (CGOptions::IsArm64ilp32()) {
+        memOpnd = &GetOrCreateMemOpnd(sym, (k8ByteSize * parmNum + static_cast<int64>(offset)), memSize);
+      } else {
+        memOpnd = &GetOrCreateMemOpnd(sym, (GetPointerSize() * parmNum + static_cast<int64>(offset)), memSize);
+      }
+    }
   } else if (ploc.fpSize > 0) {
     memOpnd = &GetOrCreateMemOpnd(sym, (ploc.fpSize * parmNum + static_cast<int64>(offset)), memSize);
   } else {
