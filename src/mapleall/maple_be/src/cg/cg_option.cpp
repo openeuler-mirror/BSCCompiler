@@ -120,6 +120,7 @@ bool CGOptions::doPreLSRAOpt = false;
 bool CGOptions::doLocalRefSpill = false;
 bool CGOptions::doCalleeToSpill = false;
 bool CGOptions::doRegSavesOpt = false;
+bool CGOptions::doTailCallOpt = false;
 bool CGOptions::useSsaPreSave = false;
 bool CGOptions::useSsuPreRestore = false;
 bool CGOptions::useNewCg = false;
@@ -519,8 +520,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   if (opts::cg::tailcall.IsEnabledByUser()) {
-    opts::cg::tailcall ? SetOption(CGOptions::kTailCallOpt)
-                       : ClearOption(CGOptions::kTailCallOpt);
+    opts::cg::tailcall ? EnableTailCallOpt() : DisableTailCallOpt();
   }
 
   if (opts::cg::calleeregsPlacement.IsEnabledByUser()) {
@@ -807,16 +807,15 @@ void CGOptions::EnableO0() {
   ClearOption(kUseStackProtectorAll);
   ClearOption(kConstFold);
   ClearOption(kProEpilogueOpt);
-  ClearOption(kTailCallOpt);
 }
 
 void CGOptions::EnableO1() {
   optimizeLevel = kLevel1;
   doPreLSRAOpt = true;
   doCalleeToSpill = true;
+  doTailCallOpt = true;
   SetOption(kConstFold);
   SetOption(kProEpilogueOpt);
-  SetOption(kTailCallOpt);
   SetOption(kUseUnwindTables);
   ClearOption(kUseStackProtectorStrong);
   ClearOption(kUseStackProtectorAll);
@@ -846,8 +845,8 @@ void CGOptions::EnableO2() {
   doLocalRefSpill = false;
   doCalleeToSpill = false;
   doWriteRefFieldOpt = false;
+  doTailCallOpt = false;
   ClearOption(kProEpilogueOpt);
-  ClearOption(kTailCallOpt);
 #else
   doPreLSRAOpt = true;
   doLocalRefSpill = true;
@@ -856,8 +855,8 @@ void CGOptions::EnableO2() {
   useSsaPreSave = true;
   useSsuPreRestore = true;
   doWriteRefFieldOpt = true;
+  doTailCallOpt = true;
   SetOption(kProEpilogueOpt);
-  SetOption(kTailCallOpt);
 #endif
 
   /* O2 performs expand128Floats optimization on mpl2mpl (O0 does it on codegen) */
@@ -880,6 +879,7 @@ void CGOptions::EnableLiteCG() {
   doPreSchedule = false;
   doSchedule = false;
   doRegSavesOpt = false;
+  doTailCallOpt = false;
   useSsaPreSave = false;
   useSsuPreRestore = false;
   doWriteRefFieldOpt = false;
@@ -890,7 +890,6 @@ void CGOptions::EnableLiteCG() {
   ClearOption(kUseStackProtectorAll);
   ClearOption(kConstFold);
   ClearOption(kProEpilogueOpt);
-  ClearOption(kTailCallOpt);
 }
 
 void CGOptions::SetTargetMachine(const std::string &str) {

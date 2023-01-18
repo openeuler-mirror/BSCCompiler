@@ -51,9 +51,9 @@
  ADDTARGETPHASE("globalschedule", false);
  ADDTARGETPHASE("prescheduling", !GetMIRModule()->IsJavaModule() && CGOptions::DoPreSchedule());
  ADDTARGETPHASE("raopt", CGOptions::DoPreLSRAOpt());
- ADDTARGETPHASE("cgsplitcriticaledge", GetMIRModule()->IsCModule());
+ ADDTARGETPHASE("cgsplitcriticaledge", GetMIRModule()->IsCModule() && CGOptions::DoRegSavesOpt());
  ADDTARGETPHASE("regalloc", true);
- ADDTARGETPHASE("tailcallopt", GetMIRModule()->IsCModule());
+ ADDTARGETPHASE("tailcallopt", GetMIRModule()->IsCModule() && CGOptions::DoTailCallOpt());
  ADDTARGETPHASE("regsaves", GetMIRModule()->IsCModule() && CGOptions::DoRegSavesOpt());
  if (GetMIRModule()->GetFlavor() != MIRFlavor::kFlavorLmbc) {
    ADDTARGETPHASE("storeloadopt", GetMIRModule()->IsCModule() && CGOptions::DoStoreLoadOpt());

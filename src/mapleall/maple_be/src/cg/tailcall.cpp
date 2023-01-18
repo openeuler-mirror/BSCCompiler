@@ -260,7 +260,7 @@ void TailCallOpt::TideExitBB() {
 
 void TailCallOpt::Run() {
   stackProtect = cgFunc.GetNeedStackProtect();
-  if (cgFunc.GetCG()->DoTailCall() && !IsStackAddrTaken() && !stackProtect) {
+  if (CGOptions::DoTailCallOpt() && !IsStackAddrTaken() && !stackProtect) {
     (void)DoTailCallOpt(); // return value == "no call instr/only or 1 tailcall"
   }
   if (cgFunc.GetMirModule().IsCModule() && !exitBB2CallSitesMap.empty()) {

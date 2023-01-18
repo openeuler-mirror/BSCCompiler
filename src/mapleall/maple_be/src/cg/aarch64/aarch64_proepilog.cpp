@@ -1061,7 +1061,7 @@ void AArch64GenProEpilog::AppendJump(const MIRSymbol &funcSymbol) {
 }
 
 void AArch64GenProEpilog::AppendBBtoEpilog(BB &epilogBB, BB &newBB) {
-  if (epilogBB.GetPreds().empty() && cgFunc.GetMirModule().IsCModule() && cgFunc.GetCG()->DoTailCall()) {
+  if (epilogBB.GetPreds().empty() && cgFunc.GetMirModule().IsCModule() && CGOptions::DoTailCallOpt()) {
     epilogBB.SetNeedRestoreCfi(false);
     Insn &junk = cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_pseudo_none);
     epilogBB.AppendInsn(junk);

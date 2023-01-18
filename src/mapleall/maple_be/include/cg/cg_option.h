@@ -58,7 +58,6 @@ class CGOptions {
     kSoeCheckInsert = 1ULL << 33,
     kAddFuncProfile = 1ULL << 34,
     kPatchLongBranch = 1ULL << 35,
-    kTailCallOpt = 1ULL << 36,
     kUseUnwindTables = 1ULL << 37,
     /* undocumented */
     kDumpCFG = 1ULL << 61,
@@ -265,10 +264,6 @@ class CGOptions {
 
   bool DoPatchLongBranch() const {
     return (options & kPatchLongBranch) != 0;
-  }
-
-  bool DoTailCall() const {
-    return (options & kTailCallOpt) != 0;
   }
 
   bool DoCheckSOE() const {
@@ -676,6 +671,18 @@ class CGOptions {
 
   static bool DoRegSavesOpt() {
     return doRegSavesOpt;
+  }
+
+  static void EnableTailCallOpt() {
+    doTailCallOpt = true;
+  }
+
+  static void DisableTailCallOpt() {
+    doTailCallOpt = false;
+  }
+
+  static bool DoTailCallOpt() {
+    return doTailCallOpt;
   }
 
   static void EnableSsaPreSave() {
@@ -1444,6 +1451,7 @@ class CGOptions {
   static bool doCondBrAlign;
   static bool doWriteRefFieldOpt;
   static bool doRegSavesOpt;
+  static bool doTailCallOpt;
   static bool useSsaPreSave;
   static bool useSsuPreRestore;
   static bool useNewCg;

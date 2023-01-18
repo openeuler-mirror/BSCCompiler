@@ -164,10 +164,6 @@ class CG {
     return cgOption.DoPrologueEpilogue();
   }
 
-  bool DoTailCall() const {
-    return cgOption.DoTailCall();
-  }
-
   bool DoCheckSOE() const {
     return cgOption.DoCheckSOE();
   }
@@ -294,7 +290,7 @@ class CG {
   };
   virtual MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const  = 0;
   virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const = 0;
-  virtual MPISel *CreateMPIsel(MemPool &mp, CGFunc &f) const {
+  virtual MPISel *CreateMPIsel(MemPool &mp, AbstractIRBuilder &aIRBuilder, CGFunc &f) const {
     return nullptr;
   }
   virtual Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const {
