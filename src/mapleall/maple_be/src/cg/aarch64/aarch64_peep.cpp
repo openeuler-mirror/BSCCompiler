@@ -72,7 +72,7 @@ void AArch64CGPeepHole::Run() {
         continue;
       }
       if (ssaInfo != nullptr) {
-        optSuccess = optSuccess || DoSSAOptimize(*bb, *insn);
+        optSuccess |= DoSSAOptimize(*bb, *insn);
       } else {
         DoNormalOptimize(*bb, *insn);
       }
