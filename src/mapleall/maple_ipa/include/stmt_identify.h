@@ -128,6 +128,8 @@ class StmtInfo {
     if (meExpr.GetMeOp() == kMeOpOp) {
       auto &opExpr = static_cast<OpMeExpr &>(meExpr);
       hashCandidate.emplace_back(opExpr.GetFieldID());
+      hashCandidate.emplace_back(opExpr.GetBitsOffSet());
+      hashCandidate.emplace_back(opExpr.GetBitsSize());
       valid &= opExpr.GetFieldID() == 0;
     }
     for (auto i = 0; i < meExpr.GetNumOpnds(); ++i) {
