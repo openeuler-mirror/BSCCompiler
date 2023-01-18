@@ -141,6 +141,7 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_xandrri13: {
       manager->Optimize<LsrAndToUbfxPattern>(true);
       manager->Optimize<LslAndToUbfizPattern>(true);
+      manager->Optimize<ElimSpecificExtensionPattern>(true);
       break;
     }
     case MOP_wcselrrrc:
@@ -1785,6 +1786,15 @@ void ElimSpecificExtensionPattern::SetSpecificExtType(const Insn &currInsn) {
       extTypeIdx = UXTW;
       break;
     }
+    case MOP_wandrri12: {
+      is64Bits = false;
+      extTypeIdx = AND;
+    }
+    case MOP_xandrri13: {
+      is64Bits = true;
+      extTypeIdx = AND;
+      break;
+    }
     default: {
       extTypeIdx = EXTUNDEF;
     }
@@ -1847,7 +1857,7 @@ void ElimSpecificExtensionPattern::ReplaceExtWithMov(Insn &currInsn) {
 }
 
 void ElimSpecificExtensionPattern::ElimExtensionAfterMov(Insn &insn) {
-  if (&insn == currBB->GetFirstInsn()) {
+  if (&insn == currBB->GetFirstInsn() || extTypeIdx == AND) {
     return;
   }
   auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
@@ -1945,9 +1955,15 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
   if (extTypeIdx == EXTUNDEF) {
     return;
   }
+  if (extTypeIdx == AND) {
+    auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+    if (immOpnd.GetValue() != 0xff) {
+      return;
+    }
+  }
   MOperator prevOrigMop = prevInsn->GetMachineOpcode();
   for (uint8 i = 0; i < kPrevLoadPatternNum; i++) {
-    ASSERT(extTypeIdx < SETS, "extTypeIdx must be lower than SETS");
+    ASSERT(extTypeIdx < EXTTYPESIZE, "extTypeIdx must be lower than EXTTYPESIZE");
     if (prevOrigMop != loadMappingTable[extTypeIdx][i][0]) {
       continue;
     }
@@ -1964,14 +1980,10 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
     if (prevDstOpnd.GetSize() != currDstOpnd.GetSize()) {
       return;
     }
-
-    auto *newMemOp =
-        GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, prevNewMop);
-
+    auto *newMemOp = GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, prevNewMop);
     if (newMemOp == nullptr) {
       return;
     }
-
     auto *aarCGSSAInfo = static_cast<AArch64CGSSAInfo*>(ssaInfo);
     if (CG_PEEP_DUMP) {
       LogInfo::MapleLogger() << ">>>>>>> In " << GetPatternName() << " : <<<<<<<\n";
@@ -2011,7 +2023,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
 }
 
 void ElimSpecificExtensionPattern::ElimExtensionAfterSameExt(Insn &insn) {
-  if (extTypeIdx == EXTUNDEF) {
+  if (extTypeIdx == EXTUNDEF || extTypeIdx == AND) {
     return;
   }
   auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
@@ -2022,7 +2034,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterSameExt(Insn &insn) {
   MOperator prevMop = prevInsn->GetMachineOpcode();
   MOperator currMop = insn.GetMachineOpcode();
   for (uint8 i = 0; i < kSameExtPatternNum; i++) {
-    ASSERT(extTypeIdx < SETS, "extTypeIdx must be lower than SETS");
+    ASSERT(extTypeIdx < EXTTYPESIZE, "extTypeIdx must be lower than EXTTYPESIZE");
     if (sameExtMappingTable[extTypeIdx][i][0] == MOP_undef || sameExtMappingTable[extTypeIdx][i][1] == MOP_undef) {
       continue;
     }

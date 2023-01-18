@@ -862,7 +862,7 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
     return false;
   }
   Insn *prevInsn = opndInfo->insn;
-  if (prevInsn == nullptr) {
+  if (prevInsn == nullptr || (prevInsn->GetBB() != insn->GetBB() && prevInsn->GetBB()->GetSuccsSize() > 1)) {
     return false;
   }
 
@@ -881,12 +881,10 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
   OpndInfo *prevOpndInfo = GetOpndInfo(res, -1);
   MOperator newPreMop = (*pairIt)[1];
   ASSERT(newPreMop != MOP_undef, "Invalid opcode of instruction!");
-  if (!ValidPatternForCombineExtAndLoad(prevOpndInfo, insn, newPreMop, prevMop,
-                                        res)) {
+  if (!ValidPatternForCombineExtAndLoad(prevOpndInfo, insn, newPreMop, prevMop, res)) {
     return false;
   }
-  auto *newMemOp =
-      GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, newPreMop);
+  auto *newMemOp = GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, newPreMop);
   if (newMemOp == nullptr) {
     return false;
   }
@@ -1169,35 +1167,6 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
      * ===> ldrb x1, []     ===> ldrb x1, []   ===> ldrsb x1, []     ===> no change
      *      mov x1, x1           mov  x1, x1        mov   x1, x1
      */
-    case MOP_wandrri12:
-    case MOP_xandrri13: {
-      bool is64Bits = (opCode == MOP_xandrri13);
-      bool doAndOpt = false;
-      if (static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue() == 0xff) {
-        doAndOpt = CombineExtensionAndLoad(&insn, origInfos, AND, is64Bits);
-      }
-      if (doAndOpt) {
-        return doAndOpt;
-      }
-      /*
-      *  lsr     d0, d1, #6
-      *  and     d0, d0, #1
-      * ===> ubfx d0, d1, #6, #1
-      */
-      int64 immValue = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue();
-      if (!beforeRegAlloc && immValue != 0 &&
-          (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
-        /* immValue is (1 << n - 1) */
-        OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
-        return CombineLsrAnd(insn, *opndInfo, is64Bits, false);
-      }
-      if (beforeRegAlloc && immValue != 0 &&
-          (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
-        OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
-        return CombineExtAnd(insn, *opndInfo, false, immValue);
-      }
-      break;
-    }
     case MOP_xsxtb32:
       return CombineExtensionAndLoad(&insn, origInfos, SXTB, false);
     case MOP_xsxtb64:
