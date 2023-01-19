@@ -25,14 +25,16 @@ class RGNode {
  public:
   RGNode(MapleAllocator *alloc, uint32 idx, MeOccur *oc) : id(idx), occ(oc),
       pred(alloc->Adapter()),
+      phiOpndIndices(alloc->Adapter()),
       inEdgesCap(alloc->Adapter()),
       usedCap(alloc->Adapter()) {}
  private:
   uint32 id;
   MeOccur *occ;
   MapleVector<RGNode*> pred;
-  MapleVector<uint64> inEdgesCap;       // capacity of incoming edges
-  MapleVector<uint64> usedCap;          // used flow value of outgoing edges
+  MapleVector<uint32> phiOpndIndices;   // only applicable if occ is a phi
+  MapleVector<FreqType> inEdgesCap;     // capacity of incoming edges
+  MapleVector<FreqType> usedCap;        // used flow value of outgoing edges
 };
 
 // designate a visited node and the next outgoing edge to take
@@ -40,8 +42,8 @@ class Visit {
   friend class McSSAPre;
  private:
   Visit(RGNode *nd, uint32 idx) : node(nd), predIdx(idx) {}
-  uint64 AvailableCapacity() const { return node->inEdgesCap[predIdx] - node->usedCap[predIdx]; }
-  void IncreUsedCapacity(uint64 val) { node->usedCap[predIdx] += val; }
+  FreqType AvailableCapacity() const { return node->inEdgesCap[predIdx] - node->usedCap[predIdx]; }
+  void IncreUsedCapacity(FreqType val) { node->usedCap[predIdx] += val; }
   bool operator==(const Visit *rhs) const { return node == rhs->node && predIdx == rhs->predIdx; }
 
   RGNode *node;
@@ -55,7 +57,7 @@ class Route {
   Route(MapleAllocator *alloc) : visits(alloc->Adapter()) {}
  private:
   MapleVector<Visit> visits;
-  uint64 flowValue = 0;
+  FreqType flowValue = 0;
 };
 
 class McSSAPre : public SSAPre {
@@ -79,8 +81,8 @@ class McSSAPre : public SSAPre {
   void DumpRGToFile();                  // dump reduced graph to dot file
   bool IncludedEarlier(Visit **cut, Visit *curVisit, uint32 nextRouteIdx);
   void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route);
-  bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, uint64 flowSoFar);
-  bool SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, uint64 flowSoFar);
+  bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
+  bool SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
   void DetermineMinCut();
   bool VisitANode(RGNode *node, Route *route, std::vector<bool> &visitedNodes);
   bool FindAnotherRoute();
@@ -103,9 +105,9 @@ class McSSAPre : public SSAPre {
   uint32 numSourceEdges;
   MapleVector<Route*> maxFlowRoutes;
   uint32 nextRGNodeId;
-  uint64 maxFlowValue;
+  FreqType maxFlowValue;
   // relax maxFlowValue to avoid excessive mincut search time when number of routes is large
-  uint64 relaxedMaxFlowValue;
+  FreqType relaxedMaxFlowValue;
   MapleVector<Visit*> minCut;   // an array of Visits* to represent the minCut
   uint32 preUseProfileLimit = UINT32_MAX;
 };

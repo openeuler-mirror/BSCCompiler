@@ -56,7 +56,7 @@ void McSSAPre::ResetMCWillBeAvail(MePhiOcc *occ) const {
 void McSSAPre::ComputeMCWillBeAvail() const {
   if (minCut.size() == 0) {
     for (MePhiOcc *phiOcc : phiOccs) {
-      phiOcc->SetIsMCWillBeAvail(false);
+      phiOcc->SetIsMCWillBeAvail(phiOcc->IsFullyAvail());
     }
     return;
   }
@@ -65,7 +65,8 @@ void McSSAPre::ComputeMCWillBeAvail() const {
     MeOccur *occ = visit->node->occ;
     if (occ->GetOccType() == kOccPhiocc) {
       MePhiOcc *phiOcc = static_cast<MePhiOcc*>(occ);
-      MePhiOpndOcc *phiOpndOcc = phiOcc->GetPhiOpnd(visit->predIdx);
+      uint32 phiOpndIndex = visit->node->phiOpndIndices[visit->predIdx];
+      MePhiOpndOcc *phiOpndOcc = phiOcc->GetPhiOpnd(phiOpndIndex);
       phiOpndOcc->SetIsMCInsert(true);
     }
   }
@@ -172,7 +173,7 @@ void McSSAPre::RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSe
 
 // find the cut closest to the sink whose total flow is relaxedMaxFlowValue
 bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet,
-                                   uint32 nextRouteIdx, uint64 flowSoFar) {
+                                   uint32 nextRouteIdx, FreqType flowSoFar) {
   Route *curRoute = maxFlowRoutes[nextRouteIdx];
   Visit *curVisit = nullptr;
 
@@ -200,7 +201,7 @@ bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> 
       return false;
     }
     curVisit = &curRoute->visits[visitIdx];
-    uint64 visitCap =  curVisit->node->inEdgesCap[curVisit->predIdx];
+    FreqType visitCap =  curVisit->node->inEdgesCap[curVisit->predIdx];
     cut[nextRouteIdx] = curVisit;
     if (visitIdx != 0) {
       cutSet.insert(curVisit->node->id);
@@ -219,7 +220,7 @@ bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> 
 
 // find the cut closest to the sink whose total flow is maxFlowValue
 bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet,
-                            uint32 nextRouteIdx, uint64 flowSoFar) {
+                            uint32 nextRouteIdx, FreqType flowSoFar) {
   Route *curRoute = maxFlowRoutes[nextRouteIdx];
   Visit *curVisit = nullptr;
 
@@ -247,8 +248,8 @@ bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet
       return false;
     }
     curVisit = &curRoute->visits[visitIdx];
-    uint64 visitCap =  curVisit->node->inEdgesCap[curVisit->predIdx];
-    uint64 usedCap =  curVisit->node->usedCap[curVisit->predIdx];
+    FreqType visitCap =  curVisit->node->inEdgesCap[curVisit->predIdx];
+    FreqType usedCap =  curVisit->node->usedCap[curVisit->predIdx];
     if (visitCap != usedCap) {
       if (visitIdx != 0) {
         cutSet.insert(curVisit->node->id);
@@ -284,7 +285,7 @@ void McSSAPre::DetermineMinCut() {
   // key is RGNode's id; must be kept in sync with cut[]; sink node is not entered
   std::unordered_multiset<uint32> cutSet;
   constexpr double defaultRelaxScaling = 1.25;
-  relaxedMaxFlowValue = static_cast<uint64>(static_cast<double>(maxFlowValue) * defaultRelaxScaling);
+  relaxedMaxFlowValue = static_cast<FreqType>(static_cast<double>(maxFlowValue) * defaultRelaxScaling);
   bool relaxedSearch = false;
   if (maxFlowRoutes.size() >= 20) {
     // apply arbitrary heuristics to reduce search time
@@ -422,9 +423,9 @@ bool McSSAPre::FindAnotherRoute() {
     return false;
   }
   // find bottleneck capacity along route
-  uint64 minAvailCap = route->visits[0].AvailableCapacity();
+  FreqType minAvailCap = route->visits[0].AvailableCapacity();
   for (int32 i = 1; i < route->visits.size(); i++) {
-    uint64 curAvailCap = route->visits[i].AvailableCapacity();
+    FreqType curAvailCap = route->visits[i].AvailableCapacity();
     minAvailCap = std::min(minAvailCap, curAvailCap);
   }
   route->flowValue = minAvailCap;
@@ -486,7 +487,7 @@ void McSSAPre::AddSingleSink() {
     RGNode *use = it->second;
     // add edge from this use node to sink
     sink->pred.push_back(use);
-    sink->inEdgesCap.push_back(UINT64_MAX);
+    sink->inEdgesCap.push_back(INT64_MAX);
     sink->usedCap.push_back(0);
     numToSink++;
   }
@@ -511,6 +512,7 @@ void McSSAPre::AddSingleSource() {
         // add edge from source to this phi node
         RGNode *sucNode = occ2RGNodeMap[phiOcc];
         sucNode->pred.push_back(source);
+        sucNode->phiOpndIndices.push_back(i);
         sucNode->inEdgesCap.push_back(phiOcc->GetBB()->GetPred(i)->GetFrequency()+1);
         sucNode->usedCap.push_back(0);
         numSourceEdges++;
@@ -582,6 +584,7 @@ void McSSAPre::GraphReduction() {
               break;
             }
           }
+          use->phiOpndIndices.push_back(i);
           ASSERT(i != defPhiOcc->GetPhiOpnds().size(), "McSSAPre::GraphReduction: cannot find corresponding phi opnd");
           use->inEdgesCap.push_back(defPhiOcc->GetBB()->GetPred(i)->GetFrequency()+1);
           use->usedCap.push_back(0);
