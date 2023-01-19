@@ -164,7 +164,7 @@ bool CGPeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &in
         continue;
       }
       const InsnDesc *md = nextInsn->GetDesc();
-      auto *regProp = (md->opndMD[static_cast<uint64>(i)]);
+      auto *regProp = (md->opndMD[i]);
       bool isUse = regProp->IsUse();
       /* if noUse Redefined, no need to check live-out. */
       return isUse;
@@ -269,7 +269,7 @@ ReturnType CGPeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb
     int32 lastOpndId = static_cast<int32>(insn->GetOperandSize() - 1);
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
-      auto *regProp = (md->opndMD[static_cast<uint64>(i)]);
+      auto *regProp = (md->opndMD[i]);
       if (opnd.IsConditionCode()) {
         if (regOpnd.GetRegisterNumber() == kRFLAG) {
           bool isUse = regProp->IsUse();
@@ -378,7 +378,7 @@ bool PeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn
         continue;
       }
       const InsnDesc *md = nextInsn->GetDesc();
-      auto *regProp = (md->opndMD[static_cast<uint64>(i)]);
+      auto *regProp = (md->opndMD[i]);
       bool isUse = regProp->IsUse();
       /* if noUse Redefined, no need to check live-out. */
       return isUse;
@@ -483,7 +483,7 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
     int32 lastOpndId = static_cast<int32>(insn->GetOperandSize() - 1);
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
-      auto *regProp = (md->opndMD[static_cast<uint64>(i)]);
+      auto *regProp = (md->opndMD[i]);
       if (opnd.IsConditionCode()) {
         if (regOpnd.GetRegisterNumber() == kRFLAG) {
           bool isUse = regProp->IsUse();
@@ -651,11 +651,11 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole, cgpeephole)
 /* === Physical Pre Form === */
 bool CgPrePeepHole::PhaseRun(maplebe::CGFunc &f) {
   MemPool *mp = GetPhaseMemPool();
-  #if defined TARGAARCH64
+#if defined TARGAARCH64
   auto *cgpeep = mp->New<AArch64CGPeepHole>(f, mp);
-  #elif defined TARGX86_64
+#elif defined TARGX86_64
   auto *cgpeep = mp->New<X64CGPeepHole>(f, mp);
-  #endif
+#endif
   CHECK_FATAL(cgpeep != nullptr, "PeepHoleOptimizer instance create failure");
   cgpeep->Run();
   return false;
@@ -665,11 +665,11 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole, cgprepeephole)
 /* === Physical Post Form === */
 bool CgPostPeepHole::PhaseRun(maplebe::CGFunc &f) {
   MemPool *mp = GetPhaseMemPool();
-  #if defined TARGAARCH64
+#if defined TARGAARCH64
   auto *cgpeep = mp->New<AArch64CGPeepHole>(f, mp);
-  #elif defined TARGX86_64
+#elif defined TARGX86_64
   auto *cgpeep = mp->New<X64CGPeepHole>(f, mp);
-  #endif
+#endif
   CHECK_FATAL(cgpeep != nullptr, "PeepHoleOptimizer instance create failure");
   cgpeep->Run();
   return false;

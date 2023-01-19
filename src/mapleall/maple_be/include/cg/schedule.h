@@ -40,10 +40,10 @@ class RegPressureSchedule {
   void InitPartialSplitters(const MapleVector<DepNode*> &nodes);
   void Init(const MapleVector<DepNode*> &nodes);
   void UpdateBBPressure(const DepNode &node);
-  void CalculatePressure(DepNode &node, regno_t reg, bool def) const;
+  void CalculatePressure(const DepNode &node, regno_t reg, bool def) const;
   void SortReadyList();
   static bool IsLastUse(const DepNode &node, regno_t regNO) ;
-  void ReCalculateDepNodePressure(DepNode &node) const;
+  void ReCalculateDepNodePressure(const DepNode &node) const;
   void UpdateLiveReg(const DepNode &node, regno_t reg, bool def);
   bool CanSchedule(const DepNode &node) const;
   void UpdateReadyList(const DepNode &node);

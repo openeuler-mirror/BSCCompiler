@@ -1029,10 +1029,10 @@ bool ReachingDefinition::RegIsLiveBetweenInsn(uint32 regNO, Insn &startInsn, Ins
   return IsLiveInAllPathBB(regNO, *startInsn.GetBB(), *endInsn.GetBB(), visitedBB, isFirstNo);
 }
 
-static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vector<Insn *> &defInsnVec) {
-  for (const auto reg : static_cast<ListOperand&>(insn->GetOperand(index)).GetOperands()) {
+static bool SetDefInsnVecForAsm(Insn &insn, uint32 index, uint32 regNO, std::vector<Insn *> &defInsnVec) {
+  for (const auto reg : static_cast<ListOperand&>(insn.GetOperand(index)).GetOperands()) {
     if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
-      defInsnVec.emplace_back(insn);
+      defInsnVec.emplace_back(&insn);
       return true;
     }
   }
@@ -1057,8 +1057,8 @@ std::vector<Insn*> ReachingDefinition::FindRegDefBetweenInsn(uint32 regNO, Insn 
     }
 
     if (insn->IsAsmInsn()) {
-      if (SetDefInsnVecForAsm(insn, kAsmOutputListOpnd, regNO, defInsnVec) ||
-          SetDefInsnVecForAsm(insn, kAsmClobberListOpnd, regNO, defInsnVec)) {
+      if (SetDefInsnVecForAsm(*insn, kAsmOutputListOpnd, regNO, defInsnVec) ||
+          SetDefInsnVecForAsm(*insn, kAsmClobberListOpnd, regNO, defInsnVec)) {
         if (findAll) {
           defInsnVec.emplace_back(insn);
         } else {

@@ -180,7 +180,7 @@ bool RegPressureSchedule::DepNodePriorityCmp(const DepNode *node1, const DepNode
 }
 
 /* set a node's incPressure is true, when a class register inscrease */
-void RegPressureSchedule::ReCalculateDepNodePressure(DepNode &node) const {
+void RegPressureSchedule::ReCalculateDepNodePressure(const DepNode &node) const {
   /* if there is a type of register pressure increases, set incPressure as true. */
   auto &pressures = node.GetPressure();
   node.SetIncPressure(pressures[kRegisterInt] > 0);
@@ -247,7 +247,7 @@ bool RegPressureSchedule::IsLastUse(const DepNode &node, regno_t regNO) {
   return true;
 }
 
-void RegPressureSchedule::CalculatePressure(DepNode &node, regno_t reg, bool def) const {
+void RegPressureSchedule::CalculatePressure(const DepNode &node, regno_t reg, bool def) const {
   RegType regType = GetRegisterType(reg);
   /* if def a register, register pressure increase. */
   if (def) {

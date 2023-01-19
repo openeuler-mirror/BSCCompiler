@@ -61,9 +61,9 @@ class DefaultO0RegAllocator : public RegAllocator {
   bool CheckRangesOverlap(const std::pair<uint32, uint32> &range1,
                           const MapleVector<std::pair<uint32, uint32>> &ranges2) const;
   void SetupRegLiveness(BB *bb);
-  void SetupRegLiveness(MemOperand &opnd, uint32 insnId);
+  void SetupRegLiveness(const MemOperand &opnd, uint32 insnId);
   void SetupRegLiveness(ListOperand &opnd, uint32 insnId, bool isDef);
-  void SetupRegLiveness(RegOperand &opnd, uint32 insnId, bool isDef);
+  void SetupRegLiveness(const RegOperand &opnd, uint32 insnId, bool isDef);
 
   MapleSet<regno_t> calleeSaveUsed;
   MapleVector<bool> availRegSet;

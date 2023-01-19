@@ -659,16 +659,16 @@ PrimType MPISel::GetIntegerPrimTypeFromSize(bool isSigned, uint32 bitSize) const
 }
 
 void MPISel::SelectCallCommon(StmtNode &stmt, const MPISel &iSel) const {
-  CGFunc *cgFunc = iSel.GetCurFunc();
-  if (cgFunc->GetCurBB()->GetKind() != BB::kBBFallthru) {
-    cgFunc->SetCurBB(*cgFunc->StartNewBB(stmt));
+  CGFunc *cgFuncTemp = iSel.GetCurFunc();
+  if (cgFuncTemp->GetCurBB()->GetKind() != BB::kBBFallthru) {
+    cgFuncTemp->SetCurBB(*cgFuncTemp->StartNewBB(stmt));
   }
   StmtNode *prevStmt = stmt.GetPrev();
   if (prevStmt == nullptr || prevStmt->GetOpCode() != OP_catch) {
     return;
   }
   if ((stmt.GetNext() != nullptr) && (stmt.GetNext()->GetOpCode() == OP_label)) {
-    cgFunc->SetCurBB(*cgFunc->StartNewBBImpl(true, stmt));
+    cgFuncTemp->SetCurBB(*cgFuncTemp->StartNewBBImpl(true, stmt));
   }
 }
 

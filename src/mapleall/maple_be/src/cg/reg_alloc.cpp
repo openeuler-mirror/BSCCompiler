@@ -76,7 +76,7 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
   loopAnalysisUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 #endif
 
-  while (success == false) {
+  while (!success) {
     MemPool *phaseMp = GetPhaseMemPool();
 #ifdef RA_PERF_ANALYSIS
     start = std::chrono::system_clock::now();

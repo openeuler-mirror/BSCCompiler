@@ -252,7 +252,7 @@ void DefaultO0RegAllocator::SetupRegLiveness(BB *bb) {
   }
 }
 
-void DefaultO0RegAllocator::SetupRegLiveness(MemOperand &opnd, uint32 insnId) {
+void DefaultO0RegAllocator::SetupRegLiveness(const MemOperand &opnd, uint32 insnId) {
   /* base regOpnd is use in O0 */
   if (opnd.GetBaseRegister()) {
     SetupRegLiveness(*opnd.GetBaseRegister(), insnId, false);
@@ -269,7 +269,7 @@ void DefaultO0RegAllocator::SetupRegLiveness(ListOperand &opnd, uint32 insnId, b
   }
 }
 
-void DefaultO0RegAllocator::SetupRegLiveness(RegOperand &opnd, uint32 insnId, bool isDef) {
+void DefaultO0RegAllocator::SetupRegLiveness(const RegOperand &opnd, uint32 insnId, bool isDef) {
   MapleVector<std::pair<uint32, uint32>> ranges(alloc.Adapter());
   auto regLivenessIt = regLiveness.emplace(opnd.GetRegisterNumber(), ranges).first;
   auto &regLivenessRanges = regLivenessIt->second;

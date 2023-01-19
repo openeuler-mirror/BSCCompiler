@@ -247,7 +247,7 @@ void LiveAnalysis::GetBBDefUse(BB &bb) const {
 }
 
 /* build use and def sets of each BB according to the type of regOpnd. */
-void LiveAnalysis::CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse) const {
+void LiveAnalysis::CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse) const {
   if (!opnd.IsRegister()) {
     return;
   }
