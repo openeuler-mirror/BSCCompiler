@@ -2517,7 +2517,8 @@ bool OptimizeBB::OptBBIteratively() {
 class OptimizeFuntionCFG {
  public:
   OptimizeFuntionCFG(maple::MeFunction &func, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *candidates)
-      : f(func), cands(candidates) {}
+      : f(func),
+        cands(candidates) {}
 
   bool OptimizeOnFunc();
 

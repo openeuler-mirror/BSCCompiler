@@ -671,6 +671,10 @@ class MIRFunction {
     body = node;
   }
 
+  bool HasBody() {
+    return body != nullptr;
+  }
+
   SrcPosition &GetSrcPosition() {
     ASSERT(GetFuncSymbol() != nullptr, "null ptr check");
     return GetFuncSymbol()->GetSrcPosition();

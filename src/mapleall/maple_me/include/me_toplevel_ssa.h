@@ -50,7 +50,7 @@ MAPLE_FUNC_PHASE_DECLARE_BEGIN(METopLevelSSA, MeFunction)
     return ssa;
   }
   MeTopLevelSSA *ssa = nullptr;
- OVERRIDE_DEPENDENCE
+  OVERRIDE_DEPENDENCE
 MAPLE_FUNC_PHASE_DECLARE_END
 } // namespace maple
 #endif // MAPLE_ME_INCLUDE_ME_SSA_LOCAL_H

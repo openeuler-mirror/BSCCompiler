@@ -40,7 +40,12 @@ using ScalarVec = std::set<ScalarMeExpr *, ScalarMeExprCmp>;
 class MeSink {
  public:
   MeSink(MeFunction *meFunc, IRMap *irMap, Dominance *dom, Dominance *pdom, IdentifyLoops *loops, bool debug)
-      : func(meFunc), irMap(irMap), domTree(dom), pdomTree(pdom), loopInfo(loops), debug(debug) {
+      : func(meFunc),
+        irMap(irMap),
+        domTree(dom),
+        pdomTree(pdom),
+        loopInfo(loops),
+        debug(debug) {
     Init();
   }
 
@@ -718,7 +723,7 @@ MeExpr *MeSink::ConstructExpr(MeExpr *expr, const BB *predBB, const BB *phiBB) {
           return nullptr;
         }
         auto predIdx = phiBB->GetPredIndex(*predBB);
-        return phiIt->second->GetOpnd(static_cast<size_t>(predIdx));
+        return phiIt->second->GetOpnd(static_cast<size_t>(static_cast<uint32>(predIdx)));
       }
       return nullptr;
     }

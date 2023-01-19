@@ -121,7 +121,7 @@ bool LoopScalarAnalysisResult::NormalizationWithByteCount(std::vector<CRNode*> &
     }
     if (crNodeVector[i]->GetCRType() == kCRConstNode) {
       auto value = static_cast<CRConstNode*>(crNodeVector[i])->GetConstValue();
-      if (value % byteSize != 0) {
+      if (value % static_cast<int8>(byteSize) != 0) {
         return false;
       }
       value = value / byteSize;
@@ -897,7 +897,7 @@ bool LoopScalarAnalysisResult::HasUnknownCRNode(CRNode &crNode, CRNode *&result)
 // a = phi(b, c)
 // c = a + d
 // b and d is loopInvarirant
-CRNode *LoopScalarAnalysisResult::CreateSimpleCRForPhi(MePhiNode &phiNode,
+CRNode *LoopScalarAnalysisResult::CreateSimpleCRForPhi(const MePhiNode &phiNode,
                                                        VarMeExpr &startExpr, const VarMeExpr &backEdgeExpr) {
   if (loop == nullptr) {
     return nullptr;
@@ -1434,8 +1434,10 @@ TripCountType LoopScalarAnalysisResult::ComputeTripCount(const MeFunction &func,
     }
     CHECK_FATAL(constNode != nullptr, "constNode is nullptr");
     if (enableDebug) {
+      CHECK_FATAL(constNode != nullptr, "constNode should not be nullptr");
       DumpTripCount(*cr, static_cast<int32>(constNode->GetConstValue()), nullptr);
     }
+    CHECK_FATAL(cr != nullptr, "cr should not be nullptr");
     for (auto opnd : cr->GetOpnds()) {
       if (opnd->GetCRType() != kCRConstNode) {
         conditionCRNode = constNode;

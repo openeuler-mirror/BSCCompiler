@@ -95,7 +95,7 @@ void PregRenamer::RunSelf() {
       ASSERT(vstIdx < regMeExprTable.size(), "over size");
       auto *tregMeExpr = static_cast<RegMeExpr*>(regMeExprTable[vstIdx]);
       if (tregMeExpr->GetDefBy() == kDefByNo ||
-          tregMeExpr->DefByBB()->GetAttributes(kBBAttrIsTry)) {
+          (tregMeExpr->DefByBB() != nullptr && tregMeExpr->DefByBB()->GetAttributes(kBBAttrIsTry))) {
         isIntryOrZerov = true;
         break;
       }
@@ -134,7 +134,7 @@ void PregRenamer::RunSelf() {
     auto *regMeexpr = static_cast<RegMeExpr*>(regMeExprTable[it->first]);
     PregIdx oldPredIdx = regMeexpr->GetRegIdx();
     ASSERT(static_cast<uint32>(oldPredIdx) < firstAppearTable.size(), "oversize ");
-    if (!firstAppearTable[static_cast<size_t>(oldPredIdx)]) {
+    if (!firstAppearTable[static_cast<size_t>(static_cast<uint32>(oldPredIdx))]) {
       // use the previous register
       firstAppearTable[static_cast<size_t>(oldPredIdx)] = true;
       continue;
@@ -192,7 +192,7 @@ bool MEPregRename::PhaseRun(maple::MeFunction &f) {
   }
   if (MeOption::meVerify) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
-    auto *dom = FORCE_GET(MEDominance);
+    auto *dom = FORCE_EXEC(MEDominance)->GetDomResult();
     ASSERT(dom != nullptr, "dominance phase has problem");
     MeVerify verify(f);
     for (auto &bb : f.GetCfg()->GetAllBBs()) {

@@ -77,7 +77,8 @@ class SSATab : public AnalysisResult {
   //     |-----offset------|---|---|-----|
   // prevLevOst          tyIdx field
   OriginalSt *FindOrCreateExtraLevOst(
-      const VersionSt *ptrVst, const TyIdx tyIdx, FieldID field, OffsetType offset, bool isFieldArrayType = false) {
+      const VersionSt *ptrVst, const TyIdx tyIdx, FieldID field, const OffsetType &offset,
+      bool isFieldArrayType = false) {
     auto *nextLevOst = originalStTable.FindOrCreateExtraLevOriginalSt(ptrVst, tyIdx, field, offset, isFieldArrayType);
     versionStTable.CreateZeroVersionSt(nextLevOst);
     return nextLevOst;

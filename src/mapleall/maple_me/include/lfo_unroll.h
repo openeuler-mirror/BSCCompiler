@@ -27,8 +27,12 @@ namespace maple {
 class LfoUnrollOneLoop {
  public:
   LfoUnrollOneLoop(PreMeFunction *f, PreMeEmitter *preEm, DoloopInfo *doinfo)
-      : preMeFunc(f), preEmit(preEm), doloopInfo(doinfo), doloop(doinfo->doloop),
-        mirModule(&f->meFunc->GetMIRModule()), codeMP(preEm->GetCodeMP()),
+      : preMeFunc(f),
+        preEmit(preEm),
+        doloopInfo(doinfo),
+        doloop(doinfo->doloop),
+        mirModule(&f->meFunc->GetMIRModule()),
+        codeMP(preEm->GetCodeMP()),
         mirBuilder(mirModule->GetMIRBuilder()) {}
   ~LfoUnrollOneLoop() = default;
   BaseNode *CloneIVNode();

@@ -448,7 +448,10 @@ class MePhiNode {
     opnds.pop_back();
   }
 
-  ~MePhiNode() = default;
+  ~MePhiNode() {
+    lhs = nullptr;
+    defBB = nullptr;
+  };
 
   void UpdateLHS(ScalarMeExpr &expr) {
     lhs = &expr;

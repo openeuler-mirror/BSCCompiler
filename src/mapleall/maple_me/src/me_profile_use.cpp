@@ -83,7 +83,7 @@ void MeProfUse::ComputeBBFreq(BBUseInfo &bbInfo, bool &changed) {
   FreqType count = 0;
   if (!bbInfo.GetStatus()) {
     if (bbInfo.GetUnknownOutEdges() == 0) {
-      count = SumEdgesCount(bbInfo.GetOutEdges());
+      count = static_cast<FreqType>(SumEdgesCount(bbInfo.GetOutEdges()));
       bbInfo.SetCount(count);
       changed = true;
     } else if (bbInfo.GetUnknownInEdges() == 0) {
@@ -122,7 +122,7 @@ void MeProfUse::ComputeEdgeFreq() {
           if (useInfo->GetCount() > static_cast<int64_t>(outCount)) {
             total = useInfo->GetCount() - outCount;
           }
-          SetEdgeCount(useInfo->GetOutEdges(), total);
+          SetEdgeCount(useInfo->GetOutEdges(), static_cast<FreqType>(total));
           change = true;
         }
         if (useInfo->GetUnknownInEdges() == 1) {

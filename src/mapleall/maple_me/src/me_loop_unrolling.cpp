@@ -205,9 +205,10 @@ void LoopUnrolling::ResetFrequency(const BB &curBB, const BB &succ, const BB &ex
     }
     if ((&curBB == loop->latch && &succ == loop->head) || (&curBB == &exitBB && &succ == loop->latch)) {
       curCopyBB.PushBackSuccFreq(
-          loop->head->GetFrequency() % replicatedLoopNum == 0 ? 0 : loop->head->GetFrequency() % replicatedLoopNum - 1);
+          loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) == 0 ?
+          0 : loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) - 1);
     } else {
-      curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) % replicatedLoopNum);
+      curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) % static_cast<FreqType>(replicatedLoopNum));
     }
   } else {
     profValid &&resetFreqForAfterInsertGoto
@@ -313,13 +314,13 @@ void LoopUnrolling::ResetFrequency(BB &bb) {
   if ((!instrumentProf) && freq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
     freq = 1;
   }
-  bb.SetFrequency(freq + partialCount);
+  bb.SetFrequency(freq + static_cast<FreqType>(partialCount));
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
     auto currFreq = bb.GetEdgeFreq(i) / replicatedLoopNum;
     if ((!instrumentProf) && currFreq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
       currFreq = 1;
     }
-    bb.SetEdgeFreq(bb.GetSucc(i), currFreq + partialCount);
+    bb.SetEdgeFreq(bb.GetSucc(i), currFreq + static_cast<FreqType>(partialCount));
   }
 }
 
@@ -328,13 +329,14 @@ void LoopUnrolling::ResetFrequency() {
   auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   auto latchBB = loop->latch;
   if (isUnrollWithVar) {
-    FreqType latchFreq = loop->head->GetFrequency() % replicatedLoopNum - loop->preheader->GetFrequency();
-    exitBB->SetFrequency(loop->head->GetFrequency() % replicatedLoopNum - latchFreq);
+    FreqType latchFreq = loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) -
+                         loop->preheader->GetFrequency();
+    exitBB->SetFrequency(loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) - latchFreq);
     exitBB->SetEdgeFreq(latchBB, latchFreq);
     latchBB->SetFrequency(latchFreq);
     latchBB->SetEdgeFreq(loop->head, latchFreq);
   } else {
-    FreqType exitFreq = exitBB->GetFrequency() / replicatedLoopNum;
+    FreqType exitFreq = exitBB->GetFrequency() / static_cast<FreqType>(replicatedLoopNum);
     if (exitFreq == 0 && exitBB->GetFrequency() != 0) {
       exitFreq = 1;
     }
@@ -349,7 +351,7 @@ void LoopUnrolling::ResetFrequency() {
       latchFreq = 1;
     }
     latchBB->SetFrequency(latchFreq);
-    latchBB->SetEdgeFreq(loop->head, latchFreq);
+    latchBB->SetEdgeFreq(loop->head, static_cast<FreqType>(latchFreq));
   }
 }
 

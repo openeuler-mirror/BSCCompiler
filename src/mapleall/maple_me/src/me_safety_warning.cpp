@@ -75,7 +75,7 @@ inline static bool HandleReturnAssertNonnull(const MeStmt &stmt, const MIRModule
             returnStmt.GetFuncName().c_str(), func.GetName().c_str());
     } else {
       WARN_USER(kLncWarn, srcPosition, mod, "%s return nonnull but got nullable pointer when inlined to %s",
-                returnStmt.GetFuncName().c_str(), func.GetName().c_str());
+          returnStmt.GetFuncName().c_str(), func.GetName().c_str());
     }
   }
 
@@ -100,7 +100,7 @@ inline static bool HandleAssignAssertNonnull(const MeStmt &stmt, const MIRModule
             mod.GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(), func.GetName().c_str());
     } else {
       WARN_USER(kLncWarn, srcPosition, mod, "nullable pointer assignment of nonnull pointer when inlined to %s",
-           func.GetName().c_str());
+          func.GetName().c_str());
     }
   }
   return MeOption::npeCheckMode == SafetyCheckMode::kStaticCheck;
@@ -178,8 +178,9 @@ static bool HandleBoundaryCheckAssertAssign(const MeStmt &stmt, const MIRModule 
   if (curFuncNameIdx == stmtFuncNameIdx) {
     WARN_USER(kLncWarn, srcPosition, mod, "can't prove l-value's upper bounds <= r-value's upper bounds");
   } else {
-    WARN_USER(kLncWarn, srcPosition, mod, "can't prove l-value's upper bounds <= r-value's upper bounds when inlined to %s",
-         func.GetName().c_str());
+    WARN_USER(kLncWarn, srcPosition, mod,
+        "can't prove l-value's upper bounds <= r-value's upper bounds when inlined to %s",
+        func.GetName().c_str());
   }
 
   return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;

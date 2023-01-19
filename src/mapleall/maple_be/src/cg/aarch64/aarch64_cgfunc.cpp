@@ -10688,7 +10688,7 @@ void AArch64CGFunc::SelectAtomicStore(
 }
 
 void AArch64CGFunc::SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm) {
-  if (CGOptions::IsPIC()) {
+  if (CGOptions::IsPIC() && !CGOptions::IsPIE()) {
     SelectCTlsGlobalDesc(result, stImm);
   } else {
     SelectCTlsLocalDesc(result, stImm);

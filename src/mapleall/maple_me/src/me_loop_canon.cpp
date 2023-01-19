@@ -275,7 +275,7 @@ void MeLoopCanon::InsertExitBB(LoopDesc &loop) {
           freq = curBB->GetSuccFreq()[static_cast<uint32>(idx)];
         }
         curBB->ReplaceSucc(succ, newExitBB);
-        succ->AddPred(*newExitBB, pos);
+        succ->AddPred(*newExitBB, static_cast<size_t>(pos));
         if (updateFreqs) {
           newExitBB->SetFrequency(freq);
           newExitBB->PushBackSuccFreq(freq);

@@ -211,7 +211,7 @@ bool BBLayout::HasBetterLayoutPred(const BB &bb, BB &succ) {
   }
   FreqType sumEdgeFreq = succ.GetFrequency();
   const double hotEdgeFreqPercent = 0.8;  // should further fine tuning
-  FreqType hotEdgeFreq = static_cast<uint64>(sumEdgeFreq * hotEdgeFreqPercent);
+  FreqType hotEdgeFreq = sumEdgeFreq * static_cast<FreqType>(hotEdgeFreqPercent);
   // if edge freq(bb->succ) contribute more than 80% to succ block freq, no better layout pred than bb
   for (uint32 i = 0; i < predList.size(); ++i) {
     if (predList[i] == &bb) {

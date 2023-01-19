@@ -324,7 +324,7 @@ class LoopScalarAnalysisResult {
   CRNode *GetOrCreateCRMulNode(MeExpr *expr, const std::vector<CRNode*> &crMulNodes);
   CRNode *GetOrCreateCRDivNode(MeExpr *expr, CRNode &lhsCRNode, CRNode &rhsCRNode);
   CRNode *ComputeCRNodeWithOperator(MeExpr &expr, CRNode &lhsCRNode, CRNode &rhsCRNode, Opcode op);
-  CRNode *CreateSimpleCRForPhi(MePhiNode &phiNode, VarMeExpr &startExpr, const VarMeExpr &backEdgeExpr);
+  CRNode *CreateSimpleCRForPhi(const MePhiNode &phiNode, VarMeExpr &startExpr, const VarMeExpr &backEdgeExpr);
   CRNode *CreateCRForPhi(MePhiNode &phiNode);
   CRNode *GetOrCreateCRNode(MeExpr &expr);
   CRNode *DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &expr);

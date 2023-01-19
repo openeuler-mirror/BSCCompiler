@@ -19,8 +19,9 @@
 namespace maple {
 class PlacementRC : public MeSSUPre {
  public:
-  PlacementRC(MeFunction &f, Dominance &dom, MemPool &memPool, bool enabledDebug)
-      : MeSSUPre(f, dom, memPool, kDecrefPre, enabledDebug), placementRCTemp(nullptr),
+  PlacementRC(MeFunction &f, Dominance &dom, Dominance &pdom, MemPool &memPool, bool enabledDebug)
+      : MeSSUPre(f, dom, pdom, memPool, kDecrefPre, enabledDebug),
+        placementRCTemp(nullptr),
         bbHasReal(f.GetCfg()->GetAllBBs().size(), false, spreAllocator.Adapter()) {}
 
   virtual ~PlacementRC() = default;

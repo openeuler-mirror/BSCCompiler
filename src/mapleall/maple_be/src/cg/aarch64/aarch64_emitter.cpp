@@ -425,7 +425,7 @@ static void InsertNopAfterLastCall(AArch64CGFunc &cgFunc) {
 
 void AArch64AsmEmitter::EmitCallWithLocalAlias(Emitter &emitter, FuncNameOperand &func, const std::string &mdName) const {
   const MIRSymbol *funcSymbol = func.GetFunctionSymbol();
-  if (funcSymbol->IsGlobal()) {
+  if (!funcSymbol->IsStatic() && funcSymbol->GetFunction()->HasBody()) {
     std::string funcName = func.GetName();
     std::string funcAliasName = funcName + ".localalias";
     /* emit set alias instruction */

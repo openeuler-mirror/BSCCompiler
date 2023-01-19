@@ -628,7 +628,7 @@ class ValueRangePropagation {
         }
       }
     }
-    auto *domBB = dom.GetDom(bbID.GetIdx());
+    auto *domBB = dom.GetDom(static_cast<Dominance::NodeId>(bbID.GetIdx()));
     return (domBB == nullptr || domBB->GetID() == 0) ?
         nullptr : FindValueRangeInCaches(BBId(domBB->GetID()), exprID, numberOfRecursions, maxThreshold, pty);
   }
