@@ -20,7 +20,7 @@
 
 namespace maplebe {
 class CgProfUse {
- public:
+  public:
 
   struct Edge {
     BB *src;
@@ -171,6 +171,7 @@ class CgProfUse {
   MapleSet<Edge*> allEdges;
   MapleMap<BB*, MapleVector<Edge*>> BB2InEdges;
   MapleMap<BB*, MapleVector<Edge*>> BB2OutEdges;
+ private:
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CGProfUse, maplebe::CGFunc)

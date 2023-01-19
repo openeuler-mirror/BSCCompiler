@@ -278,7 +278,9 @@ BaseNode *CGLowerer::SplitBinaryNodeOpnd1(BinaryNode &bNode, BlockNode &blkNode)
 
   BaseNode *dreadNode = mirbuilder->CreateExprDread(*dnodeSt);
   bNode.SetOpnd(dreadNode, 1);
-
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(dnode->GetStmtID(), blkNode.GetStmtID());
+  }
   return &bNode;
 }
 
@@ -303,7 +305,9 @@ BaseNode *CGLowerer::SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent
       break;
     }
   }
-
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(dassignNode->GetStmtID(), blkNode.GetStmtID());
+  }
   return dreadNode;
 }
 
@@ -385,6 +389,9 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   currentStmtFreq = currentStmtFreq == -1 ? 0 : currentStmtFreq;
   func->SetLastFreqMap(brTargetStmt->GetStmtID(), currentStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), brTargetStmt);
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(brTargetStmt->GetStmtID(), static_cast<StmtNode*>(&parent)->GetStmtID());
+  }
   union {
     MIRSymbol *resSym;
     PregIdx resPreg;
@@ -399,6 +406,9 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
     // Fallthru: update the frequence 1
     func->SetFirstFreqMap(dassignTrue->GetStmtID(), fallthruStmtFreq);
     blkNode.InsertAfter(blkNode.GetLast(), dassignTrue);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(dassignTrue->GetStmtID(), static_cast<StmtNode*>(&parent)->GetStmtID());
+    }
   } else {
     cplxSelRes.resPreg = mirbuilder->GetCurrentFunction()->GetPregTab()->CreatePreg(tNode.GetPrimType());
     RegassignNode *regassignTrue =
@@ -406,6 +416,9 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
     // Update the frequence first opnd
     func->SetFirstFreqMap(regassignTrue->GetStmtID(), fallthruStmtFreq);
     blkNode.InsertAfter(blkNode.GetLast(), regassignTrue);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(regassignTrue->GetStmtID(), static_cast<StmtNode*>(&parent)->GetStmtID());
+    }
   }
 
   GotoNode *gotoStmt = mirModule.CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
@@ -421,18 +434,27 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   lableStmt->SetLabelIdx(targetIdx);
   func->SetFirstFreqMap(lableStmt->GetStmtID(), targetStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(lableStmt->GetStmtID(), static_cast<StmtNode*>(&parent)->GetStmtID());
+  }
 
   if (tNode.GetPrimType() == PTY_agg) {
     DassignNode *dassignFalse = mirbuilder->CreateStmtDassign(*cplxSelRes.resSym, 0, tNode.Opnd(2));
     // Update the frequence second opnd
     func->SetLastFreqMap(dassignFalse->GetStmtID(), targetStmtFreq);
     blkNode.InsertAfter(blkNode.GetLast(), dassignFalse);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(dassignFalse->GetStmtID(), static_cast<StmtNode*>(&parent)->GetStmtID());
+    }
   } else {
     RegassignNode *regassignFalse =
         mirbuilder->CreateStmtRegassign(tNode.GetPrimType(), cplxSelRes.resPreg, tNode.Opnd(2));
     // Update the frequence 2
     func->SetLastFreqMap(regassignFalse->GetStmtID(), targetStmtFreq);
     blkNode.InsertAfter(blkNode.GetLast(), regassignFalse);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(regassignFalse->GetStmtID(), static_cast<StmtNode*>(&parent)->GetStmtID());
+    }
   }
 
   lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
@@ -440,6 +462,9 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
   // Update the frequence third opnd
   func->SetFirstFreqMap(lableStmt->GetStmtID(), currentStmtFreq);
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(lableStmt->GetStmtID(), static_cast<StmtNode*>(&parent)->GetStmtID());
+  }
 
   BaseNode *exprNode = (tNode.GetPrimType() == PTY_agg) ?
       static_cast<BaseNode*>(mirbuilder->CreateExprDread(*cplxSelRes.resSym)) :
@@ -813,7 +838,11 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
     }
     auto depositBits = builder->CreateExprDepositbits(OP_depositbits, primType, static_cast<uint32>(bitOffset),
         bitSize, bitField, rhs);
-    return builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositBits);
+    StmtNode *iAssignoff = builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositBits);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(iAssignoff->GetStmtID(), block->GetStmtID());
+    }
+    return iAssignoff;
   }
   // if space not enough in the unit with size of primType, we would make an extra assignment from next bound
   auto bitsRemained = (static_cast<uint32>(bitOffset) + bitSize) - primTypeBitSize;
@@ -833,6 +862,10 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
       builder->CreateExprDepositbits(OP_depositbits, primType, 0, bitsRemained, bitFieldRemained, extractedHigherBits);
   auto *assignedHigherBits = builder->CreateStmtIassignoff(primType,
       byteOffset + static_cast<int32>(GetPrimTypeSize(primType)), baseAddr, depositedHigherBits);
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(assignedLowerBits->GetStmtID(), block->GetStmtID());
+    funcProfData->CopyStmtFreq(assignedHigherBits->GetStmtID(), block->GetStmtID());
+  }
   return assignedHigherBits;
 }
 
@@ -946,6 +979,10 @@ BlockNode *CGLowerer::LowerReturnStructUsingFakeParm(NaryStmtNode &retNode) {
   MIRPtrType *retTy = static_cast<MIRPtrType*>(retSt->GetType());
   IassignNode *iassign = mirModule.CurFuncCodeMemPool()->New<IassignNode>();
   iassign->SetTyIdx(retTy->GetTypeIndex());
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(iassign->GetStmtID(), retNode.GetStmtID());
+    funcProfData->CopyStmtFreq(blk->GetStmtID(), retNode.GetStmtID());
+  }
   ASSERT(opnd0 != nullptr, "opnd0 should not be nullptr");
   if ((beCommon.GetTypeSize(retTy->GetPointedTyIdx().GetIdx()) <= k16ByteSize) && (opnd0->GetPrimType() == PTY_agg)) {
     /* struct goes into register. */
@@ -1054,6 +1091,9 @@ void CGLowerer::LowerIassign(IassignNode &iassign, BlockNode &newBlk) {
     LowerStmt(iassign, newBlk);
     newStmt = &iassign;
   }
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(newStmt->GetStmtID(), newBlk.GetStmtID());
+  }
   newBlk.AddStatement(newStmt);
 }
 
@@ -1092,6 +1132,9 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
     }
     newBlk->AddStatement(assignNode);
     asmNode->SetOpnd(readOpnd, i);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(assignNode->GetStmtID(), newBlk->GetStmtID());
+    }
   }
   newBlk->AddStatement(asmNode);
 }
@@ -1179,6 +1222,9 @@ void CGLowerer::LowerCallStmt(StmtNode &stmt, StmtNode *&nextStmt, BlockNode &ne
     newStmt = LowerCall(static_cast<CallNode&>(*newStmt), nextStmt, newBlk, retty, uselvar);
   }
   newStmt->SetSrcPos(stmt.GetSrcPos());
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(newStmt->GetStmtID(), newBlk.GetStmtID());
+  }
   newBlk.AddStatement(newStmt);
   if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2 && stmt.GetOpCode() == OP_intrinsiccall) {
     /* Try to expand memset and memcpy call lowered from intrinsiccall */
@@ -1241,6 +1287,9 @@ StmtNode *CGLowerer::GenIntrinsiccallNode(const StmtNode &stmt, PUIdx &funcCalle
     }
     newCall->SetSrcPos(stmt.GetSrcPos());
     funcCalled = bFunc;
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(newCall->GetStmtID(), stmt.GetStmtID());
+    }
   }
   return newCall;
 }
@@ -1255,6 +1304,9 @@ StmtNode *CGLowerer::GenIcallNode(PUIdx &funcCalled, IcallNode &origCall) {
   newCall->SetSrcPos(origCall.GetSrcPos());
   CHECK_FATAL(newCall != nullptr, "nullptr is not expected");
   funcCalled = kFuncNotFound;
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(newCall->GetStmtID(), origCall.GetStmtID());
+  }
   return newCall;
 }
 
@@ -1262,6 +1314,9 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
                                    const PUIdx &funcCalled, bool handledAtLowerLevel, bool uselvar) {
   BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   blk->AddStatement(&newCall);
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(blk->GetStmtID(), newCall.GetStmtID());
+  }
   if (!handledAtLowerLevel) {
     CHECK_FATAL(p2nRets.size() <= 1, "make sure p2nRets size <= 1");
     /* Create DassignStmt to save kSregRetval0. */
@@ -1352,6 +1407,9 @@ BlockNode *CGLowerer::LowerMemop(StmtNode &stmt) {
   auto *next = stmt.GetNext();
   auto *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   blk->AddStatement(&stmt);
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(blk->GetStmtID(), stmt.GetStmtID());
+  }
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   bool success = simplifyOp.AutoSimplify(stmt, *blk, true);
   uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
@@ -1479,6 +1537,10 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
 
   /* transfer srcPosition location info */
   newCall->SetSrcPos(stmt.GetSrcPos());
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(newCall->GetStmtID(), stmt.GetStmtID());
+  }
+
   return GenBlockNode(*newCall, *p2nRets, stmt.GetOpCode(), funcCalled, handledAtLowerLevel, uselvar);
 }
 
@@ -1539,6 +1601,10 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
     DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(
         retPair.first, retPair.second.GetFieldID(), rhs);
     oldBlk->InsertBefore(nextStmt, dass);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(dass->GetStmtID(), stmt->GetStmtID());
+    }
+
     nextStmt = dass;
     // update CallReturnVector to the new temporary
     (*p2nrets)[0].first = temp->GetStIdx();
@@ -1598,6 +1664,9 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
       CallNode *callStmt = mirModule.GetMIRBuilder()->CreateStmtCall(callNode->GetPUIdx(), callNode->GetNopnd());
       callStmt->SetSrcPos(callNode->GetSrcPos());
       newBlk.AddStatement(callStmt);
+      if (funcProfData) {
+        funcProfData->CopyStmtFreq(callStmt->GetStmtID(), stmt->GetStmtID());
+      }
     } else if (stmt->GetOpCode() == OP_icallassigned || stmt->GetOpCode() == OP_icallprotoassigned) {
       auto *icallNode = static_cast<IcallNode*>(stmt);
       for (size_t i = 0; i < icallNode->GetNopndSize(); ++i) {
@@ -1612,6 +1681,9 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
       }
       icallStmt->SetSrcPos(icallNode->GetSrcPos());
       newBlk.AddStatement(icallStmt);
+      if (funcProfData) {
+        funcProfData->CopyStmtFreq(icallStmt->GetStmtID(), stmt->GetStmtID());
+      }
     } else {
       return false;
     }
@@ -1626,6 +1698,9 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
     pIdx1R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
     aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx1R, reg);
     newBlk.AddStatement(aStmt);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(aStmt->GetStmtID(), stmt->GetStmtID());
+    }
 
     /* save x1 */
     if (origSize > k8ByteSize) {
@@ -1633,6 +1708,9 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
       pIdx2R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
       aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx2R, reg);
       newBlk.AddStatement(aStmt);
+      if (funcProfData) {
+        funcProfData->CopyStmtFreq(aStmt->GetStmtID(), stmt->GetStmtID());
+      }
     }
 
     /* save &s */
@@ -1641,6 +1719,9 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
     PregIdx pIdxL = GetCurrentFunc()->GetPregTab()->CreatePreg(GetLoweredPtrType());
     aStmt = mirBuilder->CreateStmtRegassign(PTY_a64, pIdxL, regAddr);
     newBlk.AddStatement(aStmt);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(aStmt->GetStmtID(), stmt->GetStmtID());
+    }
 
     uint32 curSize = 0;
     PregIdx pIdxS;
@@ -1694,6 +1775,9 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
 
         pIdx1R = pIdx2R = pIdxS;
         newBlk.AddStatement(sStmp);
+        if (funcProfData) {
+          funcProfData->CopyStmtFreq(sStmp->GetStmtID(), stmt->GetStmtID());
+        }
         size -= k4ByteSize;
         curSize += k4ByteSize;
       } else if (size >= k2ByteSize) {
@@ -1725,6 +1809,9 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
 
         pIdx1R = pIdx2R = pIdxS;
         newBlk.AddStatement(sStmp);
+        if (funcProfData) {
+          funcProfData->CopyStmtFreq(sStmp->GetStmtID(), stmt->GetStmtID());
+        }
         size -= k2ByteSize;
         curSize += k2ByteSize;
       } else {
@@ -1754,10 +1841,16 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
 
         pIdx1R = pIdx2R = pIdxS;
         newBlk.AddStatement(sStmp);
+        if (funcProfData) {
+          funcProfData->CopyStmtFreq(sStmp->GetStmtID(), stmt->GetStmtID());
+        }
         size -= k1ByteSize;
         curSize += k1ByteSize;
       }
       newBlk.AddStatement(aStmt);
+      if (funcProfData) {
+        funcProfData->CopyStmtFreq(aStmt->GetStmtID(), stmt->GetStmtID());
+      }
     }
   }
   nextStmt = nextStmt->GetNext();  // skip the dassign
@@ -1782,6 +1875,9 @@ void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
     GetCurrentFunc()->SetLastFreqMap(regAss->GetStmtID(),
         GetCurrentFunc()->GetFreqFromLastStmt(stmt.GetStmtID()));
     stmt.SetOpnd(mirBuilder->CreateExprRegread(ptyp, pIdx), 0);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(regAss->GetStmtID(), stmt.GetStmtID());
+    }
   } else {
     stmt.SetOpnd(LowerExpr(stmt, *stmt.Opnd(0), newBlk), 0);
   }
@@ -1825,6 +1921,9 @@ StmtNode *CGLowerer::CreateFflushStmt(StmtNode &stmt) {
   argsFflush.push_back(mirBuilder->CreateExprDread(*stdoutSym));
   StmtNode *callFflush = mirBuilder->CreateStmtCall(fflush->GetPuidx(), argsFflush);
   callFflush->SetSrcPos(stmt.GetSrcPos());
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(callFflush->GetStmtID(), stmt.GetStmtID());
+  }
   return callFflush;
 }
 
@@ -1926,6 +2025,9 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
 
   brFalseNode->SetSrcPos(stmt.GetSrcPos());
   labelBC->SetSrcPos(stmt.GetSrcPos());
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(brFalseNode->GetStmtID(), stmt.GetStmtID());
+  }
   callPrintf->SetSrcPos(stmt.GetSrcPos());
   abortModeNode->SetSrcPos(stmt.GetSrcPos());
 
@@ -1941,6 +2043,9 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
 
 BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
   BlockNode *newBlk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(newBlk->GetStmtID(), block.GetStmtID());
+  }
   BlockNode *tmpBlockNode = nullptr;
   std::vector<StmtNode *> abortNode;
   if (block.GetFirst() == nullptr) {
@@ -2199,11 +2304,17 @@ void CGLowerer::SplitCallArg(CallNode &callNode, BaseNode *newOpnd, size_t i, Bl
       DassignNode *dassignNode = mirBuilder->CreateStmtDassign(*ret, 0, newOpnd);
       newBlk.AddStatement(dassignNode);
       callNode.SetOpnd(mirBuilder->CreateExprDread(*type, 0, *ret), i);
+      if (funcProfData) {
+        funcProfData->CopyStmtFreq(dassignNode->GetStmtID(), callNode.GetStmtID());
+      }
     } else {
       PregIdx pregIdx = mirModule.CurFunction()->GetPregTab()->CreatePreg(newOpnd->GetPrimType());
       RegassignNode *temp = mirBuilder->CreateStmtRegassign(newOpnd->GetPrimType(), pregIdx, newOpnd);
       newBlk.AddStatement(temp);
       callNode.SetOpnd(mirBuilder->CreateExprRegread(newOpnd->GetPrimType(), pregIdx), i);
+      if (funcProfData) {
+        funcProfData->CopyStmtFreq(temp->GetStmtID(), callNode.GetStmtID());
+      }
     }
   } else {
     callNode.SetOpnd(newOpnd, i);
@@ -2998,6 +3109,9 @@ StmtNode *CGLowerer::LowerDassignToThreadLocal(StmtNode &stmt) {
     auto ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*symbol->GetType());
     auto iassign = mirModule.GetMIRBuilder()->CreateStmtIassign(*ptrType, dAssign.GetFieldID(), addr, dAssign.GetRHS());
     result = iassign;
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(iassign->GetStmtID(), stmt.GetStmtID());
+    }
   }
   uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   if (newTypeTableSize != oldTypeTableSize) {
@@ -3060,6 +3174,9 @@ void CGLowerer::LowerResetStmt(StmtNode &stmt, BlockNode &block) {
   dassignNode->SetRHS(exprConst);
   dassignNode->SetFieldID(addrofNode->GetFieldID());
   block.AddStatement(dassignNode);
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(dassignNode->GetStmtID(), stmt.GetStmtID());
+  }
 }
 
 StmtNode *CGLowerer::LowerIntrinsicopDassign(const DassignNode &dsNode,
@@ -3105,6 +3222,9 @@ StmtNode *CGLowerer::LowerIntrinsicopDassign(const DassignNode &dsNode,
   CallNode *callStmt = mirModule.CurFuncCodeMemPool()->New<CallNode>(mirModule, OP_call);
   callStmt->SetPUIdx(st->GetFunction()->GetPuidx());
   callStmt->SetNOpnd(newOpnd);
+  if (funcProfData) {
+    funcProfData->CopyStmtFreq(callStmt->GetStmtID(), dsNode.GetStmtID());
+  }
   return callStmt;
 }
 
@@ -4233,6 +4353,9 @@ void CGLowerer::LowerFunc(MIRFunction &func) {
   hasTry = false;
   LowerEntry(func);
   LowerPseudoRegs(func);
+  if (Options::profileUse) {
+    funcProfData = mirModule.CurFunction()->GetFuncProfData();
+  }
   BuildLabel2FreqMap();
   BlockNode *origBody = func.GetBody();
   CHECK_FATAL(origBody != nullptr, "origBody should not be nullptr");
