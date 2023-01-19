@@ -357,14 +357,24 @@ class ASTUnaryOperatorExpr : public ASTExpr {
     return isGlobal;
   }
 
+  void SetVariableArrayExpr(ASTExpr *expr) {
+    variableArrayExpr = expr;
+  }
+
+  void SetisVariableArrayType(bool isVariableArrayTypeArg) {
+    isVariableArrayType = isVariableArrayTypeArg;
+  }
+
   UniqueFEIRExpr ASTUOSideEffectExpr(Opcode op, std::list<UniqueFEIRStmt> &stmts,
       const std::string &varName = "", bool post = false) const;
 
  protected:
   bool isGlobal = false;
+  bool isVariableArrayType = false;
   ASTExpr *expr = nullptr;
   MIRType *subType = nullptr;
   MIRType *uoType = nullptr;
+  ASTExpr *variableArrayExpr = nullptr;
   int64 pointeeLen = 0;
 };
 

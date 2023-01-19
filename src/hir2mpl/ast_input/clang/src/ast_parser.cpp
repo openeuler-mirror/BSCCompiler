@@ -1254,14 +1254,21 @@ ASTExpr *ASTParser::ProcessExprUnaryOperator(MapleAllocator &allocator, const cl
     if (subType->GetPrimType() == PTY_ptr) {
       int64 len;
       const clang::QualType qualType = subExpr->getType()->getPointeeType();
-      if (astFile->CvtType(qualType) != nullptr && astFile->CvtType(qualType)->GetPrimType() == PTY_ptr) {
-        MIRType *pointeeType = GlobalTables::GetTypeTable().GetPtr();
+      const clang::QualType desugaredType = qualType.getDesugaredType(*(astFile->GetContext()));
+      MIRType *pointeeType = GlobalTables::GetTypeTable().GetPtr();
+      MIRType *mirType = astFile->CvtType(qualType);
+      if (mirType != nullptr && mirType->GetPrimType() == PTY_ptr && !qualType->isVariableArrayType()) {
         len = static_cast<int64>(pointeeType->GetSize());
+        astUOExpr->SetPointeeLen(len);
+      } else if (qualType->isVariableArrayType()) {
+        astUOExpr->SetisVariableArrayType(true);
+        ASTExpr *vlaTypeSizeExpr = BuildExprToComputeSizeFromVLA(allocator, desugaredType);
+        astUOExpr->SetVariableArrayExpr(vlaTypeSizeExpr);
       } else {
         const clang::QualType desugaredType = qualType.getDesugaredType(*(astFile->GetContext()));
         len = astFile->GetContext()->getTypeSizeInChars(desugaredType).getQuantity();
+        astUOExpr->SetPointeeLen(len);
       }
-      astUOExpr->SetPointeeLen(len);
     }
   }
   if (clangOpCode == clang::UO_Imag || clangOpCode == clang::UO_Real) {

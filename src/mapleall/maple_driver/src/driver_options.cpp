@@ -108,10 +108,10 @@ maplecl::Option<bool> npeStaticCheck({"--npe-check-static"},
                                 "  --npe-check-static          \tEnable null pointer static check only\n",
                                 {driverCategory});
 
-maplecl::Option<bool> npeDynamicCheck({"--npe-check-dynamic"},
+maplecl::Option<bool> npeDynamicCheck({"--npe-check-dynamic", "-npe-check-dynamic"},
                                  "  --npe-check-dynamic         \tEnable null "
                                  "pointer dynamic check with static warning\n",
-                                 {driverCategory});
+                                 {driverCategory, hir2mplCategory});
 
 maplecl::Option<bool> npeDynamicCheckSilent({"--npe-check-dynamic-silent"},
                                        "  --npe-check-dynamic-silent  \tEnable null pointer dynamic "
@@ -131,19 +131,19 @@ maplecl::Option<bool> boundaryStaticCheck({"--boundary-check-static"},
                                      "  --boundary-check-static     \tEnable boundary static check\n",
                                      {driverCategory});
 
-maplecl::Option<bool> boundaryDynamicCheck({"--boundary-check-dynamic"},
+maplecl::Option<bool> boundaryDynamicCheck({"--boundary-check-dynamic", "-boundary-check-dynamic"},
                                       "  --boundary-check-dynamic    \tEnable boundary dynamic check "
                                       "with static warning\n",
-                                      {driverCategory});
+                                      {driverCategory, hir2mplCategory});
 
 maplecl::Option<bool> boundaryDynamicCheckSilent({"--boundary-check-dynamic-silent"},
                                             "  --boundary-check-dynamic-silent  \tEnable boundary dynamic "
                                             "check without static warning\n",
                                             {driverCategory});
 
-maplecl::Option<bool> safeRegionOption({"--safe-region"},
+maplecl::Option<bool> safeRegionOption({"--safe-region", "-safe-region"},
                                   "  --safe-region               \tEnable safe region\n",
-                                  {driverCategory});
+                                  {driverCategory, hir2mplCategory});
 
 maplecl::Option<bool> enableArithCheck({"--boundary-arith-check"},
                                   "  --boundary-arith-check       \tEnable pointer arithmetic check\n",
@@ -268,10 +268,6 @@ maplecl::Option<bool> linkerTimeOpt({"-flto"},
                             "  -flto                   \tEnable LTO in 'full' mode\n",
                             {driverCategory, unSupCategory});
 
-maplecl::Option<bool> usesignedchar({"-fsigned-char"},
-                               "  -fsigned-char          \tuse signed char\n",
-                               {driverCategory, hir2mplCategory});
-
 maplecl::Option<bool> shared({"-shared"},
                                "  -shared          \tCreate a shared library.\n",
                                {driverCategory, ldCategory});
@@ -283,6 +279,14 @@ maplecl::Option<bool> rdynamic({"-rdynamic"},
 maplecl::Option<bool> dndebug({"-DNDEBUG"},
                                "  -DNDEBUG          \t\n",
                                {driverCategory, ldCategory});
+
+maplecl::Option<bool> usesignedchar({"-fsigned-char", "-usesignedchar", "--usesignedchar"},
+                               "  -fsigned-char         \tuse signed char\n",
+                               {driverCategory, clangCategory, hir2mplCategory});
+
+maplecl::Option<bool> suppressWarnings({"-w"},
+                               "  -w         \tSuppress all warnings.\n",
+                               {driverCategory, clangCategory, asCategory, ldCategory});
 
 /* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},

@@ -126,8 +126,8 @@ class SafeExe {
       fflush(nullptr);
       if (compileeFlag == Compilee::hir2mpl) {
         std::string ld_path =":";
-        if (FileUtils::SafeGetenv(kGccPath) != "") {
-          ld_path += FileUtils::SafeGetenv(kGccPath);
+        if (FileUtils::SafeGetenv(kLdLibPath) != "") {
+          ld_path += FileUtils::SafeGetenv(kLdLibPath);
           ldLibPath += ld_path;
         }
         setenv("LD_LIBRARY_PATH", ldLibPath.c_str(), 1);

@@ -114,7 +114,7 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessNoBarrier);
 
   // ast compiler options
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::usesignedchar,
+  RegisterFactoryFunction<OptionFactory>(&opts::usesignedchar,
                                          &HIR2MPLOptions::ProcessUseSignedChar);
 
   // On Demand Type Creation
@@ -127,11 +127,11 @@ bool HIR2MPLOptions::InitFactory() {
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::depsamename,
                                          &HIR2MPLOptions::ProcessDepSameNamePolicy);
   // EnhanceC
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::npeCheckDynamic,
+  RegisterFactoryFunction<OptionFactory>(&opts::npeDynamicCheck,
                                          &HIR2MPLOptions::ProcessNpeCheckDynamic);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::boundaryCheckDynamic,
+  RegisterFactoryFunction<OptionFactory>(&opts::boundaryDynamicCheck,
                                          &HIR2MPLOptions::ProcessBoundaryCheckDynamic);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::safeRegion,
+  RegisterFactoryFunction<OptionFactory>(&opts::safeRegionOption,
                                          &HIR2MPLOptions::ProcessSafeRegion);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::defaultSafe,
                                          &HIR2MPLOptions::ProcessDefaultSafe);

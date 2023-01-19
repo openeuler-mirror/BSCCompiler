@@ -132,10 +132,6 @@ maplecl::Option<bool> nobarrier({"-nobarrier", "--nobarrier"},
                            "  -nobarrier             : no barrier",
                            {hir2mplCategory});
 
-maplecl::Option<bool> usesignedchar({"-usesignedchar", "--usesignedchar"},
-                               "  -usesignedchar         : use signed char",
-                               {hir2mplCategory});
-
 maplecl::Option<bool> o2({"-O2", "--O2"},
                     "  -O2                    : enable hir2mpl O2 optimize",
                     {hir2mplCategory});
@@ -184,20 +180,6 @@ maplecl::Option<std::string> depsamename({"-depsamename", "--depsamename"},
                                     "               : [sys] load type from sys when on-demand load same name type\n" \
                                     "               : [src] load type from src when on-demand load same name type",
                                     {hir2mplCategory});
-
-maplecl::Option<bool> npeCheckDynamic({"-npe-check-dynamic", "--npe-check-dynamic"},
-                                 "  --npe-check-dynamic     : Nonnull pointr dynamic checking",
-                                 {hir2mplCategory});
-
-maplecl::Option<bool> boundaryCheckDynamic({"-boundary-check-dynamic", "--boundary-check-dynamic"},
-                                      "  --boundary-check-dynamic\n"     \
-                                      "                         : Boundary dynamic checking",
-                                      {hir2mplCategory});
-
-maplecl::Option<bool> safeRegion({"-safe-region", "--safe-region"},
-                            "  --boundary-check-dynamic\n"               \
-                            "  --safe-region           : Enable safe region",
-                            {hir2mplCategory});
 
 maplecl::Option<bool> defaultSafe({"-defaultSafe", "--defaultSafe"},
                                   "  --defaultSafe     : treat unmarked function or blocks as safe region by default",

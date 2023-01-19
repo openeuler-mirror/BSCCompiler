@@ -96,11 +96,12 @@ extern maplecl::Option<bool> noStdinc;
 extern maplecl::Option<bool> pie;
 extern maplecl::Option<bool> fStrongEvalOrder;
 extern maplecl::Option<bool> linkerTimeOpt;
-extern maplecl::Option<bool> usesignedchar;
 extern maplecl::Option<bool> expand128Floats;
 extern maplecl::Option<bool> shared;
 extern maplecl::Option<bool> rdynamic;
 extern maplecl::Option<bool> dndebug;
+extern maplecl::Option<bool> usesignedchar;
+extern maplecl::Option<bool> suppressWarnings;
 
 /* ##################### STRING Options ############################################################### */
 

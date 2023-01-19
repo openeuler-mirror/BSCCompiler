@@ -128,8 +128,6 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
       } else {
         if (opt->GetName() == "-Wl") {
           (void)finalOptions.emplace_back(val, "");
-        } else if (opt->GetName() == "-fsigned-char") {
-          (void)finalOptions.emplace_back("-usesignedchar", val);
         } else {
           (void)finalOptions.emplace_back(opt->GetName(), val);
         }
