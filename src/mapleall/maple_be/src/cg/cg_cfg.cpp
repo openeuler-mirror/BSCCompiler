@@ -885,6 +885,13 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) const {
       }
     }
   }
+  if (cgFunc->GetFunction().GetFuncProfData() != nullptr) {
+    newBB.InitEdgeProfFreq();
+    FreqType newBBFreq = pred.GetEdgeProfFreq(succ);
+    newBB.SetProfFreq(newBBFreq);
+    pred.SetEdgeProfFreq(&newBB, newBBFreq);
+    newBB.SetEdgeProfFreq(&succ, newBBFreq);
+  }
 }
 
 #if TARGAARCH64
