@@ -192,7 +192,7 @@ void MeSSALPre::ComputeVarAndDfPhis() {
   dfPhiDfns.clear();
   PreWorkCand *workCand = GetWorkCand();
   const MapleVector<MeRealOcc*> &realOccList = workCand->GetRealOccs();
-  CHECK_FATAL(!dom->IsBBVecEmpty(), "size to be allocated is 0");
+  CHECK_FATAL(!dom->IsNodeVecEmpty(), "size to be allocated is 0");
   for (auto it = realOccList.begin(); it != realOccList.end(); ++it) {
     MeRealOcc *realOcc = *it;
     BB *defBB = realOcc->GetBB();
@@ -204,7 +204,7 @@ void MeSSALPre::ComputeVarAndDfPhis() {
   }
   std::set<uint32> tmpVarPhi(varPhiDfns.begin(), varPhiDfns.end());
   for (uint32 dfn : tmpVarPhi) {
-    GetIterDomFrontier(GetBB(dom->GetDtPreOrderItem(dfn)), &varPhiDfns);
+    GetIterDomFrontier(GetBB(BBId(dom->GetDtPreOrderItem(dfn))), &varPhiDfns);
   }
 }
 
@@ -404,7 +404,8 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (intConst == nullptr) {
         break;
       }
-      if ((intConst->GetExtValue() >> 12) == 0) {
+      constexpr uint8 k12bits = 12;
+      if ((intConst->GetExtValue() >> k12bits) == 0) {
         break;  // not promoting if value fits in 12 bits
       }
       if (!meStmt.GetBB()->GetAttributes(kBBAttrIsInLoop)) {
@@ -462,9 +463,9 @@ void MeSSALPre::BuildWorkList() {
   if (numBBs > kDoLpreBBsLimit) {
     return;
   }
-  const MapleVector<BBId> &preOrderDt = dom->GetDtPreOrder();
+  const auto &preOrderDt = dom->GetDtPreOrder();
   for (size_t i = 0; i < numBBs; ++i) {
-    BB *bb = tmpFunc.GetCfg()->GetBBFromID(preOrderDt[i]);
+    BB *bb = tmpFunc.GetCfg()->GetBBFromID(BBId(preOrderDt[i]));
     BuildWorkListBB(bb);
   }
 }
@@ -484,8 +485,11 @@ bool MESSALPre::PhaseRun(maple::MeFunction &f) {
     return false;
   }
 
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
   CHECK_NULL_FATAL(dom);
+  auto pdom = dominancePhase->GetPdomResult();
+  CHECK_NULL_FATAL(pdom);
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(irMap);
   auto *identLoops = GET_ANALYSIS(MELoopAnalysis, f);
@@ -494,7 +498,7 @@ bool MESSALPre::PhaseRun(maple::MeFunction &f) {
   uint32 lpreLimitUsed =
       (lprePULimitSpecified && puCount != MeOption::lprePULimit) ? UINT32_MAX : MeOption::lpreLimit;
   {
-    MeSSALPre ssaLpre(f, *irMap, *dom, *ApplyTempMemPool(), *ApplyTempMemPool(), kLoadPre, lpreLimitUsed);
+    MeSSALPre ssaLpre(f, *irMap, *dom, *pdom, *ApplyTempMemPool(), *ApplyTempMemPool(), kLoadPre, lpreLimitUsed);
     ssaLpre.SetRcLoweringOn(MeOption::rcLowering);
     ssaLpre.SetRegReadAtReturn(MeOption::regreadAtReturn);
     ssaLpre.SetSpillAtCatch(MeOption::spillAtCatch);
@@ -525,7 +529,7 @@ bool MESSALPre::PhaseRun(maple::MeFunction &f) {
     lowerGlobals.Run();
   }
   if (MeOption::lpre4Address || MeOption::lpre4LargeInt) {
-    MeSSALPre ssaLpre(f, *irMap, *dom, *ApplyTempMemPool(), *ApplyTempMemPool(), kAddrPre, lpreLimitUsed);
+    MeSSALPre ssaLpre(f, *irMap, *dom, *pdom, *ApplyTempMemPool(), *ApplyTempMemPool(), kAddrPre, lpreLimitUsed);
     ssaLpre.SetSpillAtCatch(MeOption::spillAtCatch);
     if (DEBUGFUNC_NEWPM(f)) {
       ssaLpre.SetSSAPreDebug(true);

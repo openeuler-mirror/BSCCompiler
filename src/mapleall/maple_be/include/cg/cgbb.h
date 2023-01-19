@@ -199,6 +199,8 @@ class BB {
 
   void RemoveInsn(Insn &insn);
 
+  void RemoveInsns(Insn &insn, const Insn &nextInsn);
+
   void RemoveInsnPair(Insn &insn, const Insn &nextInsn);
 
   void RemoveInsnSequence(Insn &insn, const Insn &nextInsn);
@@ -210,6 +212,8 @@ class BB {
   void AppendBBInsns(BB &bb);
 
   /* append all insns from bb into this bb */
+  bool CheckIfInsertCond(BB &bb);
+
   void InsertAtBeginning(BB &bb);
   void InsertAtEnd(BB &bb);
   void InsertAtEndMinus1(BB &bb);

@@ -629,7 +629,7 @@ MeExpr *GetCmpExprFromVR(const ValueRange *vr, MeExpr &expr, MeIRMap *irmap) {
   }
 }
 
-// DealWith this case :
+// DealWith this case
 // a: valueRange(0, constant) || valueRange(constant, 0)
 // ==>
 // a: valueRange(1, constant) || valueRange(constant, -1)
@@ -878,9 +878,9 @@ bool ValueRangePropagation::TheValueOfOpndIsInvaliedInABCO(
 }
 
 // Pointer assigned from multibranch requires the bounds info for all branches.
-// if:
+// if
 //    p = GetBoundaryPtr
-// else:
+// else
 //    p = GetBoundarylessPtr
 // error: p + i
 void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
@@ -1560,13 +1560,14 @@ void ValueRangePropagation::CollectMeExpr(
   }
 }
 
-// Create VR for bitSize like:
+// Create VR for bitSize like
 // bitsSize : 12
 // =>
 // vr: (0, 0xfff)
 void ValueRangePropagation::CreateVRWithBitsSize(const BB &bb, const OpMeExpr &opMeExpr) {
   auto bitsSize = opMeExpr.GetBitsSize();
-  if (bitsSize < 64) {
+  constexpr uint8_t k64Bits = 64;
+  if (bitsSize < k64Bits) {
     auto pTypeOfOpMeExpr = opMeExpr.GetPrimType();
     uint64 maxNumber = (1ULL << bitsSize) - 1;
     (void)Insert2Caches(bb.GetBBId(), opMeExpr.GetExprID(), std::make_unique<ValueRange>(
@@ -1644,7 +1645,8 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
           if (valueRange != nullptr && valueRange->GetRangeType() != kNotEqual &&
               (IsPrimitiveUnsigned(pTypeOpnd) || valueRange->IsGreaterThanOrEqualToZero())) {
             auto bSize = opMeExpr.GetBitsSize();
-            if (bSize < 64) {
+            constexpr uint8_t k64Bits = 64;
+            if (bSize < k64Bits) {
               uint64 maxNumber = (1ULL << bSize) - 1;
               // Judge whether the truncated range is the same as the previous range.
               if (valueRange->IsEqualAfterCVT(valueRange->GetLower().GetPrimType(), pTypeOpnd) &&
@@ -1812,7 +1814,7 @@ void ValueRangePropagation::InsertOstOfPhi2Cands(
     // the ssa of expr not need to be updated, otherwise the ssa of epr still needs to be updated.
     if (updateSSAExceptTheScalarExpr != nullptr && it.first == updateSSAExceptTheScalarExpr->GetOstIdx()) {
       // when do opt
-      ssaupdateCandsForCondExpr[it.first].insert(defBB);
+      (void)ssaupdateCandsForCondExpr[it.first].insert(defBB);
     } else {
       MeSSAUpdate::InsertOstToSSACands(it.first, *defBB, &cands);
       needUpdateSSA = true;
@@ -2743,7 +2745,7 @@ void ValueRangePropagation::MergeValueRangeOfPhiOperands(const LoopDesc &loop, c
       continue;
     }
     Bound resBound = vrOfInitExpr->GetRangeType() == kOnlyHasLowerBound ?
-        Bound(nullptr, GetMaxNumber(pType), pType) : Bound( nullptr, GetMinNumber(pType), pType);
+        Bound(nullptr, GetMaxNumber(pType), pType) : Bound(nullptr, GetMinNumber(pType), pType);
     bool vrCanBeComputed = true;
     index++;
     bool isAccurateBound = false;

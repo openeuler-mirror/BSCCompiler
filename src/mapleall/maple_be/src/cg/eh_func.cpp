@@ -531,7 +531,7 @@ void EHFunc::FillSwitchTable(SwitchNode &switchNode, const EHTry &ehTry) {
     for (size_t j = 0; j < catchNode->Size(); j++) {
       exceptionType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(catchNode->GetExceptionTyIdxVecElement(j));
       ptType = static_cast<MIRPtrType*>(exceptionType);
-      MapleMap<TyIdx, uint32>::iterator ty2IdxIt = ty2IndexTable.find(ptType->GetPointedTyIdx());
+      MapleMap<TyIdx, uint32>::const_iterator ty2IdxIt = ty2IndexTable.find(ptType->GetPointedTyIdx());
       ASSERT(ty2IdxIt != ty2IndexTable.end(), "find tyIdx failed!");
       uint32 tableIdx = ty2IdxIt->second;
       LabelNode *catchLabelNode = static_cast<LabelNode*>(catchNode->GetPrev());

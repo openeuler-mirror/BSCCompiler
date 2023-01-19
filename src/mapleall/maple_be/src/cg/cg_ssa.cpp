@@ -21,6 +21,7 @@ namespace maplebe {
 uint32 CGSSAInfo::ssaRegNObase = 100;
 void CGSSAInfo::ConstructSSA() {
   InsertPhiInsn();
+  vRegStk.resize(cgFunc->GetMaxVReg(), MapleStack<VRegVersion*>(ssaAlloc.Adapter()));
   /* Rename variables */
   RenameVariablesForBB(domInfo->GetCommonEntryBB().GetId());
 #if DEBUG
@@ -122,14 +123,11 @@ void CGSSAInfo::RenameBB(BB &bb) {
     return;
   }
   AddRenamedBB(bb.GetId());
-  /* record version stack size */
-  size_t tempSize = vRegStk.empty() ? allSSAOperands.size() + kBaseVirtualRegNO + 1 :
-      vRegStk.rbegin()->first + 1;
-  std::vector<int32> oriStackSize(tempSize, -1);
-  for (auto it : vRegStk) {
-    ASSERT(it.first < oriStackSize.size(), "out of range");
-    oriStackSize[it.first] = static_cast<int32>(it.second.size());
-  }
+  // record if a new version is pushed to vRegStk. It is used for new version pushed checking and recovering.
+  auto tmpNewVstPushed = std::make_unique<std::vector<bool>>(vRegStk.size(), false);
+  std::vector<bool> *backupPtr = isNewVersionPushed; // for recovering before leave this BB
+  isNewVersionPushed = tmpNewVstPushed.get();
+
   RenamePhi(bb);
   FOR_BB_INSNS(insn, &bb) {
     if (!insn->IsMachineInstruction()) {
@@ -141,14 +139,14 @@ void CGSSAInfo::RenameBB(BB &bb) {
   RenameSuccPhiUse(bb);
   RenameVariablesForBB(bb.GetId());
   /* stack pop up */
-  for (auto &it : vRegStk) {
-    if (it.first < oriStackSize.size() && oriStackSize[it.first] >= 0) {
-      while (static_cast<int32>(it.second.size()) > oriStackSize[static_cast<uint64>(it.first)]) {
-        ASSERT(!it.second.empty(), "empty stack");
-        it.second.pop();
-      }
+  for (size_t i = 0; i < vRegStk.size(); ++i) {
+    if (vRegStk[i].empty() || !IsNewVersionPushed(i)) {
+      continue;
     }
+    // only need to pop top, because we only keep the newest version on the top
+    vRegStk[i].pop();
   }
+  isNewVersionPushed = backupPtr;
 }
 
 void CGSSAInfo::RenamePhi(BB &bb) {
@@ -197,6 +195,28 @@ bool CGSSAInfo::IncreaseSSAOperand(regno_t vRegNO, VRegVersion *vst) {
   return true;
 }
 
+void CGSSAInfo::PushToRenameStack(VRegVersion *newVersion) {
+  if (newVersion == nullptr) {
+    return;
+  }
+  auto vRegNO = newVersion->GetOriginalRegNO();
+  // If a new version is pushed to the top before, replace it with the newest one;
+  // otherwise, push the newest version to the top.
+  if (IsNewVersionPushed(vRegNO)) {
+    ReplaceRenameStackTop(*newVersion);
+  } else {
+    SetNewVersionPushed(vRegNO);
+    auto &it = vRegStk[vRegNO];
+    if (!it.empty()) {
+      it.push(newVersion);
+      return;
+    }
+    MapleStack<VRegVersion*> vRegVersionStack(ssaAlloc.Adapter());
+    vRegVersionStack.push(newVersion);
+    vRegStk[vRegNO] = vRegVersionStack;
+  }
+}
+
 VRegVersion *CGSSAInfo::CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn, uint32 idx, bool isDefByPhi) {
   regno_t vRegNO = virtualOpnd.GetRegisterNumber();
   uint32 verionIdx = IncreaseVregCount(vRegNO);
@@ -207,21 +227,14 @@ VRegVersion *CGSSAInfo::CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn,
   if (!IncreaseSSAOperand(ssaOpnd->GetRegisterNumber(), newVst)) {
     CHECK_FATAL(false, "insert ssa operand failed");
   }
-  auto it = vRegStk.find(vRegNO);
-  if (it == vRegStk.end()) {
-    MapleStack<VRegVersion*> vRegVersionStack(ssaAlloc.Adapter());
-    auto ret = vRegStk.emplace(std::pair<regno_t, MapleStack<VRegVersion*>>(vRegNO, vRegVersionStack));
-    CHECK_FATAL(ret.second, "insert failed");
-    it = ret.first;
-  }
-  it->second.push(newVst);
+  PushToRenameStack(newVst);
   return newVst;
 }
 
 VRegVersion *CGSSAInfo::GetVersion(const RegOperand &virtualOpnd) {
   regno_t vRegNO = virtualOpnd.GetRegisterNumber();
-  auto vRegIt = vRegStk.find(vRegNO);
-  return vRegIt != vRegStk.end() ? vRegIt->second.top() : nullptr;
+  auto &vRegIt = vRegStk[vRegNO];
+  return !vRegIt.empty() ? vRegStk[vRegNO].top() : nullptr;
 }
 
 VRegVersion *CGSSAInfo::FindSSAVersion(regno_t ssaRegNO) {

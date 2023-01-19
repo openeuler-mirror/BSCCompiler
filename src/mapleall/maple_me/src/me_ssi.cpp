@@ -172,6 +172,7 @@ void MeSSI::InsertPiNodes() {
       CHECK_FATAL(brMeStmt->GetOffset() == brTarget->GetBBLabel(), "must be");
       if (careBranch.GetOptKindType(kCheckCastOpt)) {
         NaryMeExpr *instanceofType = GetInstanceOfType(*brMeStmt->GetOpnd());
+        CHECK_NULL_FATAL(instanceofType);
         MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(instanceofType->GetTyIdx());
         MeExpr *opnd = instanceofType->GetOpnd(0);
         if (opnd->GetMeOp() == kMeOpIvar) {
@@ -274,11 +275,11 @@ void MeSSI::InsertPhiNodes() {
       CHECK_FATAL(rhs->IsZeroVersion(), "must be");
     }
     CHECK_NULL_FATAL(oldDefBB);
-    MapleSet<BBId> &dfs = dom->GetDomFrontier(newDefBB->GetBBId());
+    auto &dfs = dom->GetDomFrontier(newDefBB->GetBBId());
     for (auto bbID : dfs) {
-      BB *dfBB = cfg->GetBBFromID(bbID);
+      BB *dfBB = cfg->GetBBFromID(BBId(bbID));
       if (!dom->Dominate(*oldDefBB, *dfBB)) {
-        MapleSet<BBId> &dfsTmp = dom->GetDomFrontier(oldDefBB->GetBBId());
+        auto &dfsTmp = dom->GetDomFrontier(oldDefBB->GetBBId());
         CHECK_FATAL(dfsTmp.find(bbID) != dfsTmp.end(), "must be");
         continue;
       }
@@ -330,9 +331,9 @@ void MeSSI::RenameStartPiArray(DefPoint &newDefPoint) {
     }
   }
   ReplacePiPhiInSuccs(*newDefBB, *(newDefPoint.GetLHS()));
-  const auto &children = dom->GetDomChildren(newDefBB->GetBBId());
-  for (const BBId &child : children) {
-    ReplaceBB(*(cfg->GetBBFromID(child)), *newDefBB, newDefPoint);
+  const auto &children = dom->GetDomChildren(newDefBB->GetID());
+  for (const auto &child : children) {
+    ReplaceBB(*(cfg->GetBBFromID(BBId(child))), *newDefBB, newDefPoint);
   }
 }
 
@@ -344,9 +345,9 @@ void MeSSI::RenameStartPhi(DefPoint &newDefPoint) {
     }
   }
   ReplacePiPhiInSuccs(*newDefBB, *(newDefPoint.GetLHS()));
-  const auto &children = dom->GetDomChildren(newDefBB->GetBBId());
-  for (const BBId &child : children) {
-    ReplaceBB(*(cfg->GetBBFromID(child)), *newDefBB, newDefPoint);
+  const auto &children = dom->GetDomChildren(newDefBB->GetID());
+  for (const auto &child : children) {
+    ReplaceBB(*(cfg->GetBBFromID(BBId(child))), *newDefBB, newDefPoint);
   }
 }
 
@@ -613,9 +614,9 @@ void MeSSI::ReplaceBB(BB &bb, BB &parentBB, DefPoint &newDefPoint) {
     }
   }
   ReplacePiPhiInSuccs(bb, *(newDefPoint.GetLHS()));
-  const auto &children = dom->GetDomChildren(bb.GetBBId());
-  for (const BBId &child : children) {
-    ReplaceBB(*(cfg->GetBBFromID(child)), bb, newDefPoint);
+  const auto &children = dom->GetDomChildren(bb.GetID());
+  for (const auto &child : children) {
+    ReplaceBB(*(cfg->GetBBFromID(BBId(child))), bb, newDefPoint);
   }
 }
 

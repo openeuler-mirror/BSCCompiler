@@ -73,7 +73,7 @@ class SafetyCheckWithBoundaryError : public SafetyCheck {
 };
 
 int64 GetMinNumber(PrimType pType);
-int64 GetMaxNumber(PrimType pType);
+int64 GetMaxNumber(PrimType primType);
 bool IsNeededPrimType(PrimType pType);
 int64 GetRealValue(int64 value, PrimType pType);
 bool IsPrimTypeUint64(PrimType pType);

@@ -10928,9 +10928,60 @@ Operand *AArch64CGFunc::SelectCctz(IntrinsicopNode &intrnNode) {
   return &dst2;
 }
 
+/*
+ * count # of 1 in binary digit bit:
+ * dassign %1 (intrinsicop C_popcount(val))
+ * let val -> w0 (32 bits value)/x0 (64 bits value)
+ * if 32 bits, extend to 64 bits: uxtw x0, w0
+ * floating move w0/x0 -> d0 (SIMD and FP destination register) to double-precision: fmov d0, x0
+ * count # of 1: cnt v0.8b, v0.8b
+ * add across all lanes: addv b0, v0.8b
+ * unsigned move vector element to general-purpose register: umov w0, v0.b[0]
+ * keep last 8 bits: and w0, w0, 255
+ * w0 -> ret
+ */
 Operand *AArch64CGFunc::SelectCpopcount(IntrinsicopNode &intrnNode) {
-  CHECK_FATAL(false, "%s NIY", intrnNode.GetIntrinDesc().name);
-  return nullptr;
+
+  PrimType pType = intrnNode.Opnd(kInsnFirstOpnd)->GetPrimType();
+  bool is32Bits = (GetPrimTypeSize(pType) == k4ByteSize);
+  Operand *opnd = GetOpndFromIntrnNode(intrnNode);
+  RegOperand *regOpnd0 = &LoadIntoRegister(*opnd, pType);
+
+  if (is32Bits) {
+    MOperator mopUxtw = MOP_xuxtw64;
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopUxtw, *regOpnd0, *regOpnd0));
+  }
+
+  MOperator mopFmov = MOP_xvmovdr;
+  RegOperand *regOpnd2 = &CreateRegisterOperandOfType(PTY_f64);
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopFmov, *regOpnd2, *regOpnd0));
+
+  RegOperand *regOpnd3 = &CreateRegisterOperandOfType(PTY_v8i8);
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(PTY_v8i8);
+  MOperator mopVcnt = MOP_vcntvv;
+  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mopVcnt, AArch64CG::kMd[mopVcnt]);
+  (void)vInsn.AddOpndChain(*regOpnd3).AddOpndChain(*regOpnd2);
+  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecDest);
+  GetCurBB()->AppendInsn(vInsn);
+
+  MOperator mopAddv = MOP_vbaddvrv;
+  RegOperand *regOpnd5 = &CreateRegisterOperandOfType(PTY_v4i32);
+  VectorInsn &vInsn1 = GetInsnBuilder()->BuildVectorInsn(mopAddv, AArch64CG::kMd[mopAddv]);
+  (void)vInsn1.AddOpndChain(*regOpnd5).AddOpndChain(*regOpnd3);
+  (void)vInsn1.PushRegSpecEntry(vecSpecDest);
+  GetCurBB()->AppendInsn(vInsn1);
+
+  MOperator mopUmov = MOP_vwmovrv;
+  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(4, 8, 0);
+  VectorInsn &vInsn2 = GetInsnBuilder()->BuildVectorInsn(mopUmov, AArch64CG::kMd[mopUmov]);
+  (void)vInsn2.AddOpndChain(*regOpnd0).AddOpndChain(*regOpnd5);
+  (void)vInsn2.PushRegSpecEntry(vecSpec2);
+  GetCurBB()->AppendInsn(vInsn2);
+
+  MOperator mopAnd = MOP_wandrri12;
+  ImmOperand &immValue255 = CreateImmOperand(kMaxImmVal, k32BitSize, true);
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopAnd, *regOpnd0, *regOpnd0, immValue255));
+  return regOpnd0;
 }
 
 Operand *AArch64CGFunc::SelectCparity(IntrinsicopNode &intrnNode) {

@@ -800,7 +800,7 @@ void Ebo::BuildAllInfo(BB &bb) {
         opndsConstant = false;
       }
     }  /* End : Process all the operands. */
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
     Arm32Insn *currArm32Insn = static_cast<Arm32Insn*>(insn);
     if (currArm32Insn->IsCondExecution()) {
       Operand &rFlag = cgFunc->GetOrCreateRflag();
@@ -1233,7 +1233,7 @@ bool CgEbo0::PhaseRun(maplebe::CGFunc &f) {
 #if TARGAARCH64 || TARGRISCV64
   ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, true, PhaseName());
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, true, "ebo0");
 #endif
   ebo->Run();
@@ -1260,7 +1260,7 @@ bool CgEbo1::PhaseRun(maplebe::CGFunc &f) {
 #if TARGAARCH64 || TARGRISCV64
   ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, true, PhaseName());
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, true, PhaseName());
 #endif
   ebo->Run();
@@ -1287,7 +1287,7 @@ bool CgPostEbo::PhaseRun(maplebe::CGFunc &f) {
 #if TARGAARCH64 || TARGRISCV64
   ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, false, PhaseName());
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, false, PhaseName());
 #endif
   ebo->Run();

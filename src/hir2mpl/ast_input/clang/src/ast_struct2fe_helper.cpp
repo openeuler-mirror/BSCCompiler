@@ -326,9 +326,6 @@ void ASTFunc2FEHelper::SolveFunctionAttributes() {
   ENCChecker::InsertBoundaryInAtts(attrs, func.GetBoundaryInfo());
   mirMethodPair.second.second = attrs;
   mirFunc->SetFuncAttrs(attrs);
-  if (firstArgRet) {
-    mirFunc->GetMIRFuncType()->funcAttrs.SetAttr(FUNCATTR_firstarg_return);
-  }
 }
 
 const std::string ASTFunc2FEHelper::GetSrcFileName() const {

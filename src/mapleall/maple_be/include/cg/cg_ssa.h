@@ -207,7 +207,6 @@ class CGSSAInfo {
     return allSSAOperands;
   }
   void AddNoDefVReg(regno_t noDefVregNO) {
-    ASSERT(!noDefVRegs.count(noDefVregNO), "duplicate no def Reg, please check");
     noDefVRegs.emplace(noDefVregNO);
   }
   void MarkInsnsInSSA(Insn &insn);
@@ -235,13 +234,29 @@ class CGSSAInfo {
     return renamedBBs.count(bbID);
   }
   void SetReversePostOrder();
+  void PushToRenameStack(VRegVersion *newVersion);
+
+  bool IsNewVersionPushed(regno_t vRegNo) const {
+    return isNewVersionPushed->at(vRegNo);
+  }
+
+  void SetNewVersionPushed(regno_t vRegNo) {
+    isNewVersionPushed->at(vRegNo) = true;
+  }
+
+  void ReplaceRenameStackTop(VRegVersion &newVersion) {
+    auto &vstStack = vRegStk[newVersion.GetOriginalRegNO()];
+    ASSERT(!vstStack.empty(), "must not be empty");
+    vstStack.pop();
+    vstStack.push(&newVersion);
+  }
 
   DomAnalysis *domInfo = nullptr;
   MapleSet<uint32> renamedBBs;
   /* original regNO - number of definitions (start from 0) */
   MapleMap<regno_t, uint32> vRegDefCount;
   /* original regNO - ssa version stk */
-  MapleMap<regno_t, MapleStack<VRegVersion*>> vRegStk;
+  MapleVector<MapleStack<VRegVersion*>> vRegStk;
   /* ssa regNO - ssa virtual operand version */
   MapleUnorderedMap<regno_t, VRegVersion*> allSSAOperands;
   /* For virtual registers which do not have definition */
@@ -251,23 +266,24 @@ class CGSSAInfo {
   /* destSize < srcSize but can be propagated */
   MapleVector<uint32> safePropInsns;
   int32 insnCount = 0;
+  std::vector<bool> *isNewVersionPushed = nullptr;
 };
 
 class SSAOperandVisitor : public OperandVisitorBase,
                           public OperandVisitors<RegOperand, ListOperand, MemOperand> {
  public:
-  SSAOperandVisitor(Insn &cInsn, OpndProp &cProp, uint32 idx) : insn(&cInsn), opndProp(&cProp), idx(idx) {}
+  SSAOperandVisitor(Insn &cInsn, const OpndDesc &cDes, uint32 idx) : insn(&cInsn), opndDes(&cDes), idx(idx) {}
   SSAOperandVisitor() = default;
   virtual ~SSAOperandVisitor() = default;
-  void SetInsnOpndInfo(Insn &cInsn, OpndProp &cProp, uint32 index) {
+  void SetInsnOpndInfo(Insn &cInsn, const OpndDesc &cDes, uint32 index) {
     insn = &cInsn;
-    opndProp = &cProp;
+    opndDes = &cDes;
     this->idx = index;
   }
 
  protected:
   Insn *insn = nullptr;
-  OpndProp *opndProp = nullptr;
+  const OpndDesc *opndDes = nullptr;
   uint32 idx = 0;
 };
 

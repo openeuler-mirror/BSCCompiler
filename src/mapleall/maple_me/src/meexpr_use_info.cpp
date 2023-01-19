@@ -143,7 +143,7 @@ void MeExprUseInfo::CollectUseInfoInFunc(IRMap *irMap, Dominance *domTree, MeExp
   useInfoState = state;
 
   for (auto bb : domTree->GetReversePostOrder()) {
-    CollectUseInfoInBB(bb);
+    CollectUseInfoInBB(irMap->GetBB(BBId(bb->GetID())));
   }
 }
 
@@ -168,7 +168,7 @@ bool MeExprUseInfo::ReplaceScalar(IRMap *irMap, const ScalarMeExpr *scalarA, Sca
 
       if (irMap->ReplaceMeExprStmt(*useStmt, *scalarA, *scalarB)) {
         AddUseSiteOfExpr(scalarB, useStmt);
-        useList->erase(it);
+        (void)useList->erase(it);
       }
     } else {
       ASSERT(useSite.IsUseByPhi(), "Invalid use type!");
@@ -187,7 +187,7 @@ bool MeExprUseInfo::ReplaceScalar(IRMap *irMap, const ScalarMeExpr *scalarA, Sca
 
         phi->GetOpnds()[id] = scalarB;
         AddUseSiteOfExpr(scalarB, phi);
-        useList->erase(it);
+        (void)useList->erase(it);
       }
     }
   }

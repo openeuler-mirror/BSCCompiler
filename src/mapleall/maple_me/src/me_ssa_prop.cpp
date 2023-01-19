@@ -125,9 +125,8 @@ StmtNode *SSAProp::SimplifyIassignAddrof(IassignNode *iassign, BB *bb) const {
     newMayDefList.insert(oldMayDefList.cbegin(), oldMayDefList.cend());
     newMayDefList.erase(newOst->GetIndex());
     // note: should update maydefNode's def info, otherwise it will be associated with old stmt.
-    std::for_each(newMayDefList.begin(), newMayDefList.end(), [dassign](std::pair<const OStIdx, MayDefNode> &item) {
-      item.second.SetStmt(dassign);
-    });
+    (void)std::for_each(newMayDefList.begin(), newMayDefList.end(),
+                        [dassign](std::pair<const OStIdx, MayDefNode> &item) {item.second.SetStmt(dassign);});
   }
   return dassign;
 }

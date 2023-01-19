@@ -1319,7 +1319,7 @@ uint32 TreeNode::GetBundleSize() const {
 // Only valid for load/store treeNode for now
 int32 TreeNode::GetScalarCost() const {
   ASSERT(IsLoad() || IsStore(), "must be");
-  int32 cost = GetLane();
+  int32 cost = static_cast<int32>(GetLane());
   if (CanNodeUseLoadStorePair()) {
     cost /= 2;
     auto *minMemLoc = GetMinMemLoc();
@@ -2549,7 +2549,7 @@ void SLPVectorizer::ReplaceStmts(const std::vector<MeStmt*> &origStmtVec, std::l
     std::vector<MeStmt*> newStmts;
     for (auto *child : treeNode->GetChildren()) {
       if (child->ConstOrNeedGather()) {
-        newStmts.insert(newStmts.end(), child->GetOutStmts().begin(), child->GetOutStmts().end());
+        (void)newStmts.insert(newStmts.end(), child->GetOutStmts().begin(), child->GetOutStmts().end());
       }
     }
     newStmts.insert(newStmts.end(), treeNode->GetOutStmts().begin(), treeNode->GetOutStmts().end());

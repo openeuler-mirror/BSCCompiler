@@ -102,9 +102,7 @@ void BB::RemoveInsn(Insn &insn) {
   }
 }
 
-void BB::RemoveInsnPair(Insn &insn, const Insn &nextInsn) {
-  ASSERT(insn.GetNext() == &nextInsn, "next_insn is supposed to follow insn");
-  ASSERT(nextInsn.GetPrev() == &insn, "next_insn is supposed to follow insn");
+void BB::RemoveInsns(Insn &insn, const Insn &nextInsn) {
   if ((firstInsn == &insn) && (lastInsn == &nextInsn)) {
     firstInsn = lastInsn = nullptr;
   } else if (firstInsn == &insn) {
@@ -120,24 +118,17 @@ void BB::RemoveInsnPair(Insn &insn, const Insn &nextInsn) {
   }
 }
 
+void BB::RemoveInsnPair(Insn &insn, const Insn &nextInsn) {
+  ASSERT(insn.GetNext() == &nextInsn, "next_insn is supposed to follow insn");
+  ASSERT(nextInsn.GetPrev() == &insn, "next_insn is supposed to follow insn");
+  RemoveInsns(insn, nextInsn);
+}
+
 /* Remove insns in this bb from insn1 to insn2. */
 void BB::RemoveInsnSequence(Insn &insn, const Insn &nextInsn) {
   ASSERT(insn.GetBB() == this, "remove insn sequence in one bb");
   ASSERT(nextInsn.GetBB() == this, "remove insn sequence in one bb");
-  if ((firstInsn == &insn) && (lastInsn == &nextInsn)) {
-    firstInsn = lastInsn = nullptr;
-  } else if (firstInsn == &insn) {
-    firstInsn = nextInsn.GetNext();
-  } else if (lastInsn == &nextInsn) {
-    lastInsn = insn.GetPrev();
-  }
-
-  if (insn.GetPrev() != nullptr) {
-    insn.GetPrev()->SetNext(nextInsn.GetNext());
-  }
-  if (nextInsn.GetNext() != nullptr) {
-    nextInsn.GetNext()->SetPrev(insn.GetPrev());
-  }
+  RemoveInsns(insn, nextInsn);
 }
 
 /* append all insns from bb into this bb */
@@ -160,14 +151,21 @@ void BB::AppendBBInsns(BB &bb) {
   }
 }
 
-/* prepend all insns from bb into this bb */
-void BB::InsertAtBeginning(BB &bb) {
+bool BB::CheckIfInsertCond(BB &bb) {
   if (bb.firstInsn == nullptr) { /* nothing to add */
-    return;
+    return false;
   }
 
   FOR_BB_INSNS(insn, &bb) {
     insn->SetBB(this);
+  }
+  return true;
+}
+
+/* prepend all insns from bb into this bb */
+void BB::InsertAtBeginning(BB &bb) {
+  if (!CheckIfInsertCond(bb)) {
+    return;
   }
 
   if (firstInsn == nullptr) {
@@ -210,12 +208,8 @@ void BB::InsertBeforeInsn(BB &fromBB, Insn &beforeInsn) {
 
 /* append all insns from bb into this bb */
 void BB::InsertAtEnd(BB &bb) {
-  if (bb.firstInsn == nullptr) { /* nothing to add */
+  if (!CheckIfInsertCond(bb)) {
     return;
-  }
-
-  FOR_BB_INSNS(insn, &bb) {
-    insn->SetBB(this);
   }
 
   if (firstInsn == nullptr) {

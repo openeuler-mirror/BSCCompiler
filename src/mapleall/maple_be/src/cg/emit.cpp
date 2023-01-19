@@ -435,7 +435,8 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
 #endif
         } else {
           align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirSymbol.GetType()->GetTypeIndex());
-#if TARGARM32 || TARGAARCH64 || TARGARK || TARGRISCV64
+#if TARGAARCH64 || (defined(TARGARM32) && TARGARM32) || (defined(TARGARK) && TARGARK) ||\
+    (defined(TARGRISCV64) && TARGRISCV64)
           if (CGOptions::IsArm64ilp32() && mirSymbol.GetType()->GetPrimType() == PTY_a32) {
             align = kAlignOfU8;
           } else {
@@ -1904,7 +1905,7 @@ void Emitter::EmitBlockMarker(const std::string &markerName, const std::string &
     EmitAsmLabel(kAsmData);
   }
   Emit(asmInfo->GetAlign());
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
   Emit("8\n" + markerName + ":\n");
 #else
   Emit("3\n" + markerName + ":\n");
@@ -1978,7 +1979,7 @@ void Emitter::EmitFuncLayoutInfo(const MIRSymbol &layout) {
     Emit(asmInfo->GetGlobal());
     Emit(markerName + "\n");
     EmitAsmLabel(kAsmData);
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
     EmitAsmLabel(layout, kAsmAlign);
     Emit(markerName + ":\n");
 #else
@@ -1986,7 +1987,7 @@ void Emitter::EmitFuncLayoutInfo(const MIRSymbol &layout) {
     Emit("3\n" + markerName + ":\n");
 #endif
 
-#if TARGAARCH64 || TARGRISCV64 || TARGX86_64
+#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64) || (defined(TARGX86_64) && TARGX86_64)
     EmitAsmLabel(kAsmQuad);
 #else
     Emit("\t.word ");
