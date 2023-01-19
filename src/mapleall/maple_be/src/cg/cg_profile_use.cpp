@@ -27,10 +27,10 @@ void CgProfUse::setupProf() {
   FOR_ALL_BB(bb, cgFunc) {
     bb->InitEdgeProfFreq();
     if (bb->GetFirstStmt() &&
-      (static_cast<int64_t>(funcProf->GetStmtFreq(bb->GetFirstStmt()->GetStmtID())) >= 0)) {
+        (static_cast<int64_t>(funcProf->GetStmtFreq(bb->GetFirstStmt()->GetStmtID())) >= 0)) {
       bb->SetProfFreq(funcProf->GetStmtFreq(bb->GetFirstStmt()->GetStmtID()));
     } else if (bb->GetLastStmt() &&
-      (static_cast<int64_t>(funcProf->GetStmtFreq(bb->GetLastStmt()->GetStmtID())) >= 0)) {
+               (static_cast<int64_t>(funcProf->GetStmtFreq(bb->GetLastStmt()->GetStmtID())) >= 0)) {
       bb->SetProfFreq(funcProf->GetStmtFreq(bb->GetLastStmt()->GetStmtID()));
     } else {
 #if DEBUG
