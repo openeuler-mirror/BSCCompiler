@@ -275,7 +275,7 @@ void AArch64MemLayout::LayoutFormalParams() {
       }
     }
     if (cgFunc->GetCG()->GetCGOptions().WithDwarf() && (symLoc->GetMemSegment() != nullptr)) {
-      cgFunc->AddDIESymbolLocation(sym, symLoc, true);
+      cgFunc->AddDIESymbolLocation(*sym, symLoc, true);
     }
   }
 }
@@ -331,7 +331,7 @@ void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, st
       segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(tyIdx));
     }
     if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
-      cgFunc->AddDIESymbolLocation(sym, symLoc, false);
+      cgFunc->AddDIESymbolLocation(*sym, symLoc, false);
     }
   }
 }

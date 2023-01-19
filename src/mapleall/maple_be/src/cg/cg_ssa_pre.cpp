@@ -587,19 +587,14 @@ void SSAPre::ApplySSAPre() {
   // #1 insert phis; results in allOccs and phiOccs
   FormPhis();  // result put in the set phi_bbs
   CreateSortedOccs();
-  // #2 rename
   Rename();
   if (!phiOccs.empty()) {
-    // #3 DownSafety
     ComputeDownsafe();
-    // #4 CanBeAvail
     ComputeCanBeAvail();
     ComputeLater();
   }
-  // #5 Finalize
   Finalize();
   if (!workCand->saveAtProlog) {
-    // #6 Code Motion
     CodeMotion();
   }
 }

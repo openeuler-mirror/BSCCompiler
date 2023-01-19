@@ -58,8 +58,8 @@ void LMBCMemLayout::LayoutStackFrame(void) {
   }
 }
 
-GlobalMemLayout::GlobalMemLayout(MIRModule *mod, MapleAllocator *mallocator) :
-    seg_GPbased(MS_GPbased), sym_alloc_table(mallocator->Adapter()), mirModule(mod) {
+GlobalMemLayout::GlobalMemLayout(MIRModule *mod, MapleAllocator *mallocator)
+    : seg_GPbased(MS_GPbased), sym_alloc_table(mallocator->Adapter()), mirModule(mod) {
   uint32 symtabsize = GlobalTables::GetGsymTable().GetSymbolTableSize();
   sym_alloc_table.resize(symtabsize);
   MIRSymbol *sym = nullptr;

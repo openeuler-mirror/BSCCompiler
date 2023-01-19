@@ -801,7 +801,7 @@ bool TypeBasedAliasAnalysis::IsFieldTypeOfAggType(MIRType *aggType, MIRType *che
   } else if (aggType->GetKind() == kTypeFArray) {
     res = IsFieldTypeOfArrayType(static_cast<MIRFarrayType*>(aggType), checkedType);
   }
-  compatibleTypeCache[aggType].emplace(checkedType, res);
+  (void)compatibleTypeCache[aggType].emplace(checkedType, res);
   return res;
 }
 

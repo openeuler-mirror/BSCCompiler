@@ -19,6 +19,11 @@
 #include "optimize_common.h"
 
 namespace maplebe {
+
+#ifdef RA_PERF_ANALYSIS
+  extern void printLSRATime() {};
+#endif
+
 class LSRALinearScanRegAllocator : public RegAllocator {
   enum RegInCatch : uint8 {
     /*
@@ -428,7 +433,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
     for (uint32 i = 0; i < regInfo->GetIntRegsParmsNum(); ++i) {
       intParamQueue.push_back(initialQue);
     }
-    for (int32 i = 0; i < regInfo->GetFloatRegsParmsNum(); ++i) {
+    for (uint32 i = 0; i < regInfo->GetFloatRegsParmsNum(); ++i) {
       fpParamQueue.push_back(initialQue);
     }
     firstIntReg = *regInfo->GetRegsFromType(kRegTyInt).begin();

@@ -20,7 +20,7 @@ using maplebe::Operand;
 using maplebe::MOperator;
 using maplebe::CG;
 using maplebe::Emitter;
-using maplebe::OpndProp;
+using maplebe::OpndDesc;
 
 struct DbgDescr {
   const std::string name;
@@ -37,7 +37,6 @@ static DbgDescr dbgDescrTable[kOpDbgLast + 1] = {
   { "undef", 0, { Operand::kOpdUndef, Operand::kOpdUndef, Operand::kOpdUndef } }
 };
 
-#if TARGAARCH64 || TARGRISCV64
 void DbgInsn::Dump() const {
   MOperator mOp = GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
@@ -50,17 +49,16 @@ void DbgInsn::Dump() const {
   LogInfo::MapleLogger() << "\n";
 }
 
-bool DbgInsn::Check() const {
+#if defined(DEBUG) && DEBUG
+void DbgInsn::Check() const {
   DbgDescr &dbgDescr = dbgDescrTable[GetMachineOpcode()];
   /* dbg instruction's 3rd /4th/5th operand must be null */
   for (uint32 i = 0; i < dbgDescr.opndCount; ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.GetKind() != dbgDescr.opndTypes[i]) {
-      ASSERT(false, "incorrect operand");
-      return false;
+      CHECK_FATAL(false, "incorrect operand in debug insn");
     }
   }
-  return true;
 }
 #endif
 
@@ -71,12 +69,10 @@ uint32 DbgInsn::GetLoc() const {
   return static_cast<uint32>(static_cast<ImmOperand *>(opnds[0])->GetVal());
 }
 
-void ImmOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop [[maybe_unused]]) const {
-  emitter.Emit(val);
-}
-
 void ImmOperand::Dump() const {
   LogInfo::MapleLogger() << " " << val;
 }
-
+void DBGOpndEmitVisitor::Visit(ImmOperand *v) {
+  (void)emitter.Emit(v->GetVal());
+}
 }  /* namespace maplebe */

@@ -135,24 +135,24 @@ class MIRSymbol {
     return appearsInCode;
   }
 
-  void SetTyIdx(TyIdx tyIdx) {
-    this->tyIdx = tyIdx;
+  void SetTyIdx(const TyIdx &newTyIdx) {
+    this->tyIdx = newTyIdx;
   }
 
   TyIdx GetTyIdx() const {
     return tyIdx;
   }
 
-  void SetInferredTyIdx(TyIdx inferredTyIdx) {
-    this->inferredTyIdx = inferredTyIdx;
+  void SetInferredTyIdx(const TyIdx &newInferredTyIdx) {
+    this->inferredTyIdx = newInferredTyIdx;
   }
 
   TyIdx GetInferredTyIdx() const {
     return inferredTyIdx;
   }
 
-  void SetStIdx(StIdx stIdx) {
-    this->stIdx = stIdx;
+  void SetStIdx(const StIdx &newStIdx) {
+    this->stIdx = newStIdx;
   }
 
   StIdx GetStIdx() const {
@@ -219,7 +219,7 @@ class MIRSymbol {
 
   bool IsTypeVolatile(int fieldID) const;
 
-  bool NeedPIC() const;
+  bool NeedGOT(bool isPIE) const;
 
   bool IsThreadLocal() const {
     return typeAttrs.GetAttr(ATTR_tls_static) || typeAttrs.GetAttr(ATTR_tls_dynamic);
@@ -309,6 +309,10 @@ class MIRSymbol {
     return sKind == kStVar;
   }
 
+  bool IsFunction() const {
+    return sKind == kStFunc;
+  }
+
   bool IsPreg() const {
     return sKind == kStPreg;
   }
@@ -321,8 +325,8 @@ class MIRSymbol {
     return value;
   }
 
-  void SetValue(SymbolType value) {
-    this->value = value;
+  void SetValue(SymbolType newValue) {
+    this->value = newValue;
   }
 
   SrcPosition &GetSrcPosition() {
@@ -429,7 +433,7 @@ class MIRSymbol {
   bool IsGctibSym() const;
   bool IsPrimordialObject() const;
   bool IgnoreRC() const;
-  void Dump(bool isLocal, int32 indent, bool suppressinit = false, const MIRSymbolTable *localsymtab = nullptr) const;
+  void Dump(bool isLocal, int32 indent, bool suppressInit = false, const MIRSymbolTable *localsymtab = nullptr) const;
   void DumpAsLiteralVar() const;
   bool operator==(const MIRSymbol &msym) const {
     return nameStrIdx == msym.nameStrIdx;
@@ -493,6 +497,8 @@ class MIRSymbol {
         return false;
     }
   }
+  UStrIdx asmAttr { 0 }; // if not 0, the string for the name in C's asm attribute
+  UStrIdx sectionAttr { 0 }; // if not 0, the string for the name in C's section attribute
 
   // Please keep order of the fields, avoid paddings.
  private:
@@ -516,10 +522,6 @@ class MIRSymbol {
   TypeAttrs typeAttrs;
   GStrIdx nameStrIdx{ 0 };
   std::pair<bool, UStrIdx> weakrefAttr { false, 0 };
- public:
-  UStrIdx asmAttr { 0 }; // if not 0, the string for the name in C's asm attribute
-  UStrIdx sectionAttr { 0 }; // if not 0, the string for the name in C's section attribute
- private:
   SymbolType value = { nullptr };
   SrcPosition srcPosition;      // where the symbol is defined
   // following cannot be assumed final even though they are declared final
@@ -545,7 +547,7 @@ class MIRSymbolTable {
   }
 
   MIRSymbol *GetSymbolFromStIdx(uint32 idx, bool checkFirst = false) const {
-    if (checkFirst && idx >= symbolTable.size()) {
+    if (checkFirst && static_cast<size_t>(idx) >= symbolTable.size()) {
       return nullptr;
     }
     CHECK_FATAL(IsValidIdx(idx), "symbol table index out of range");
@@ -586,7 +588,7 @@ class MIRSymbolTable {
     return (it == strIdxToStIdxMap.end()) ? StIdx() : it->second;
   }
 
-  MIRSymbol *GetSymbolFromStrIdx(GStrIdx idx, bool checkFirst = false) {
+  MIRSymbol *GetSymbolFromStrIdx(const GStrIdx &idx, bool checkFirst = false) const {
     return GetSymbolFromStIdx(GetStIdxFromStrIdx(idx).Idx(), checkFirst);
   }
 
@@ -659,7 +661,7 @@ class MIRLabelTable {
     return it->second;
   }
 
-  void AddToStringLabelMap(LabelIdx lidx);
+  void AddToStringLabelMap(LabelIdx labelIdx);
   size_t GetLabelTableSize() const {
     return labelTable.size();
   }

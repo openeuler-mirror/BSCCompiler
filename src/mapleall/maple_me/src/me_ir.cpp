@@ -20,6 +20,7 @@
 #include "me_ssa.h"
 #include "mir_function.h"
 #include "global_tables.h"
+#include "me_cfg.h"
 
 namespace {
   constexpr int32_t kDefaultPrintIndentNum = 5;
@@ -38,6 +39,10 @@ bool MeExpr::IsTheSameWorkcand(const MeExpr &expr) const {
     return false;
   }
   if (GetPrimTypeSize(GetRegPrimType(primType)) != GetPrimTypeSize(GetRegPrimType(expr.GetPrimType()))) {
+    return false;
+  }
+  if ((op == OP_div || op == OP_rem) && primType != expr.GetPrimType()) {
+    // div result differs between different types
     return false;
   }
   if (kOpcodeInfo.IsTypeCvt(op) || kOpcodeInfo.IsCompare(op)) {
@@ -562,10 +567,10 @@ MeStmt *ScalarMeExpr::GetDefByMeStmt() const {
   }
 }
 
-BB *ScalarMeExpr::GetDefByBBMeStmt(const Dominance &dominance, MeStmtPtr &defMeStmt) const {
+BB *ScalarMeExpr::GetDefByBBMeStmt(const MeCFG &cfg, MeStmtPtr &defMeStmt) const {
   switch (defBy) {
     case kDefByNo:
-      return &dominance.GetCommonEntryBB();
+      return cfg.GetCommonEntryBB();
     case kDefByStmt:
       ASSERT(def.defStmt, "ScalarMeExpr::DefByBB: defStmt cannot be nullptr");
       defMeStmt = def.defStmt;
@@ -998,7 +1003,7 @@ void ConststrMeExpr::Dump(const IRMap*, int32) const {
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void Conststr16MeExpr::Dump(const IRMap*, int32) const {
+void Conststr16MeExpr::Dump(const IRMap*, int32 indent) const {
   LogInfo::MapleLogger() << "CONSTSTR16";
   LogInfo::MapleLogger() << " ";
   LogInfo::MapleLogger() << strIdx;
@@ -1033,6 +1038,9 @@ void AddrofMeExpr::Dump(const IRMap*, int32) const {
 void OpMeExpr::Dump(const IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << "OP " << kOpcodeInfo.GetTableItemAt(GetOp()).name;
   LogInfo::MapleLogger() << " " << GetPrimTypeName(primType) << " " << GetPrimTypeName(opndType);
+  if (GetOp() == OP_iaddrof) {
+    LogInfo::MapleLogger() << " (field)" << GetFieldID();
+  }
   LogInfo::MapleLogger() << " mx" << GetExprID();
   LogInfo::MapleLogger() << '\n';
   ASSERT(opnds[0] != nullptr, "OpMeExpr::Dump: cannot have 0 operand");

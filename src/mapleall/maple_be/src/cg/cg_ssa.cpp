@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "cg_ssa.h"
+#include <utility>
 #include "cg.h"
 
 #include "optimize_common.h"
@@ -24,7 +25,7 @@ void CGSSAInfo::ConstructSSA() {
   vRegStk.resize(cgFunc->GetMaxVReg(), MapleStack<VRegVersion*>(ssaAlloc.Adapter()));
   /* Rename variables */
   RenameVariablesForBB(domInfo->GetCommonEntryBB().GetId());
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   /* Check phiListOpnd, must be ssaForm */
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {
@@ -127,7 +128,6 @@ void CGSSAInfo::RenameBB(BB &bb) {
   auto tmpNewVstPushed = std::make_unique<std::vector<bool>>(vRegStk.size(), false);
   std::vector<bool> *backupPtr = isNewVersionPushed; // for recovering before leave this BB
   isNewVersionPushed = tmpNewVstPushed.get();
-
   RenamePhi(bb);
   FOR_BB_INSNS(insn, &bb) {
     if (!insn->IsMachineInstruction()) {
@@ -261,7 +261,7 @@ Insn *CGSSAInfo::GetDefInsn(const RegOperand &useReg) {
   }
   regno_t useRegNO = useReg.GetRegisterNumber();
   VRegVersion *useVersion = FindSSAVersion(useRegNO);
-  ASSERT(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
+  CHECK_FATAL(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
   CHECK_FATAL(!useVersion->IsDeleted(), "deleted version");
   DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
   return defInfo == nullptr ? nullptr : defInfo->GetInsn();

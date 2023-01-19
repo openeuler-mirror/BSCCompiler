@@ -77,7 +77,7 @@ void MeAliasClass::PerformTBAAForC() {
         newAliasSet = GetMapleAllocator().GetMemPool()->New<AliasSet>(GetMapleAllocator().Adapter());
         newAliasSet->insert(oldAliasSet->cbegin(), oldAliasSet->cend());
       }
-      newAliasSet->erase(aliasedOstIdx);
+      (void)newAliasSet->erase(aliasedOstIdx);
     }
     if (newAliasSet != nullptr) {
       SetAliasSet(ost->GetIndex(), newAliasSet);

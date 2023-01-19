@@ -1699,7 +1699,7 @@ void MeCFG::BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccN
       continue;
     }
     uint32 succId = succ->UintID();
-    if (!visitedOrder[succId]) {
+    if (visitedOrder[succId] == 0) {
       BuildSCCDFS(*succ, visitIndex, sccNodes, visitedOrder, lowestOrder, inStack, visitStack);
       if (lowestOrder[succId] < lowestOrder[id]) {
         lowestOrder[id] = lowestOrder[succId];

@@ -28,12 +28,12 @@
 #include "reg_alloc.h"
 #include "target_info.h"
 #include "standardize.h"
-#if TARGAARCH64
+#if defined(TARGAARCH64) && TARGAARCH64
 #include "aarch64_emitter.h"
 #include "aarch64_cg.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_emitter.h"
-#elif TARGX86_64
+#elif defined(TARGX86_64) && TARGX86_64
 #include "x64_cg.h"
 #include "x64_emitter.h"
 #include "string_utils.h"
@@ -45,9 +45,9 @@ namespace maplebe {
 
 #define RELEASE(pointer)      \
   do {                        \
-    if (pointer != nullptr) { \
-      delete pointer;         \
-      pointer = nullptr;      \
+    if ((pointer) != nullptr) { \
+      delete (pointer);         \
+      (pointer) = nullptr;      \
     }                         \
   } while (0)
 
@@ -266,7 +266,7 @@ void InitFunctionPriority(std::map<std::string, uint32> &prioritylist) {
 
 void MarkFunctionPriority(std::map<std::string, uint32> &prioritylist, CGFunc &f) {
   if (!prioritylist.empty()) {
-    if (prioritylist.count(f.GetName())) {
+    if (prioritylist.count(f.GetName()) != 0) {
       f.SetPriority(prioritylist[f.GetName()]);
     }
   }
@@ -274,8 +274,7 @@ void MarkFunctionPriority(std::map<std::string, uint32> &prioritylist, CGFunc &f
 
 /* =================== new phase manager ===================  */
 #ifdef RA_PERF_ANALYSIS
-extern void printLSRATime();
-extern void printRATime();
+#include "reg_alloc_lsra.h"
 #endif
 
 bool CgFuncPM::PhaseRun(MIRModule &m) {
@@ -428,17 +427,15 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
 #if TARGAARCH64 || TARGRISCV64
   cg = new AArch64CG(m, *cgOptions, cgOptions->GetEHExclusiveFunctionNameVec(), CGOptions::GetCyclePatternMap());
   cg->SetEmitter(*m.GetMemPool()->New<AArch64AsmEmitter>(*cg, m.GetOutputFileName()));
-#elif TARGARM32
+#elif defined(TARGARM32) && TARGARM32
   cg = new Arm32CG(m, *cgOptions, cgOptions->GetEHExclusiveFunctionNameVec(), CGOptions::GetCyclePatternMap());
   cg->SetEmitter(*m.GetMemPool()->New<Arm32AsmEmitter>(*cg, m.GetOutputFileName()));
-#elif TARGX86_64
+#elif defined(TARGX86_64) && TARGX86_64
   cg = new X64CG(m, *cgOptions);
   cg->SetEmitter(*m.GetMemPool()->New<X64Emitter>(*cg, m.GetOutputFileName()));
 #else
 #error "unknown platform"
 #endif
-
-
   /*
    * Must be done before creating any BECommon instances.
    *
@@ -576,7 +573,7 @@ void CgFuncPM::EmitDebugInfo(const MIRModule &m) const {
 
 bool CgFuncPM::IsFramework(MIRModule &m) const {
   auto &funcList = m.GetFunctionList();
-  for (auto it = funcList.begin(); it != funcList.end(); ++it) {
+  for (auto it = funcList.cbegin(); it != funcList.cend(); ++it) {
     MIRFunction *mirFunc = *it;
     ASSERT(mirFunc != nullptr, "nullptr check");
     if (mirFunc->GetBody() != nullptr &&

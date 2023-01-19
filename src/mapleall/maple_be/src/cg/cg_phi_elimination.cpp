@@ -28,7 +28,7 @@ void PhiEliminate::TranslateTSSAToCSSA() {
       for (auto phiOpndIt : phiList.GetOperands()) {
         uint32 fBBId = phiOpndIt.first;
         ASSERT(fBBId != 0, "GetFromBBID = 0");
-#if DEBUG
+#if defined(DEBUG) && DEBUG
         bool find = false;
         for (auto predBB : bb->GetPreds()) {
           if (predBB->GetId() == fBBId) {

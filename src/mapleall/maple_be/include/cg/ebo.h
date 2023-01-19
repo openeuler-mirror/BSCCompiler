@@ -147,9 +147,10 @@ class Ebo {
   bool HasAssignedReg(const Operand &opnd) const;
   bool IsOfSameClass(const Operand &op0, const Operand &op1) const;
   bool OpndAvailableInBB(const BB &bb, OpndInfo *info) const;
-  bool ForwardPropCheck(const Operand *opndReplace, const OpndInfo &opndInfo, const Operand &opnd, Insn &insn);
-  bool RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndReplace, Operand &oldOpnd,
-                       const OpndInfo *tmpInfo) const;
+  bool ForwardPropCheck(const Operand *opndReplace, const OpndInfo &opndInfo,
+      const Operand &opnd, Insn &insn) const;
+  bool RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndReplace,
+      Operand &oldOpnd, const OpndInfo *tmpInfo) const;
   bool IsNotVisited(const BB &bb) {
     return !visitedBBs.at(bb.GetId());
   };

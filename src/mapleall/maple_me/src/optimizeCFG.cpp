@@ -509,7 +509,7 @@ void MustThrowExceptionExpr(MeExpr *expr, std::set<MeExpr*> &exceptionExpr) {
   }
 }
 
-// No return stmt :
+// No return stmt
 //  1. call no-return func
 //  2. stmt with expr that must throw exception
 MeStmt *GetNoReturnStmt(BB *bb) {
@@ -928,7 +928,7 @@ void OptimizeBB::DeleteBB(BB *bb) {
   bb->GetSuccFreq().clear();
 }
 
-// eliminate dead BB :
+// eliminate dead BB
 // 1.BB has no pred(expect then entry block)
 // 2.BB has only itself as pred
 bool OptimizeBB::EliminateDeadBB() {
@@ -1242,7 +1242,7 @@ BB *OptimizeBB::MergeSuccIntoPred(BB *pred, BB *succ) {
   // update succFreqs before update succs
   if (cfg->UpdateCFGFreq() && !succ->GetSuccFreq().empty()) {
     // copy succFreqs of succ to pred
-    for (int i = 0; i < succ->GetSuccFreq().size(); i++) {
+    for (size_t i = 0; i < succ->GetSuccFreq().size(); i++) {
       pred->PushBackSuccFreq(succ->GetSuccFreq()[i]);
     }
   }
@@ -2326,7 +2326,6 @@ MeExpr *OptimizeBB::TryToSimplifyCombinedCond(const MeExpr &expr) {
 //      /     succ(condBB)
 //     /     /       \
 //    commonBB       exitBB
-//
 // note: pred->commonBB and succ->commonBB are critical edge, they may be cut by an empty bb before
 bool OptimizeBB::FoldBranchToCommonDest(BB *pred, BB *succ) {
   if (!HasOnlyMeCondGotoStmt(*succ)) {
@@ -2374,7 +2373,6 @@ bool OptimizeBB::FoldBranchToCommonDest(BB *pred, BB *succ) {
   //  | 2    | false            | false            |                | and    |
   //  | 3    | true             | false            | true           | or     |
   //  | 4    | false            | true             | true           | and    |
-  //
   // pred's false branch to succ, so true branch to common
   bool isPredTrueToCommon = (FindFirstRealSucc(ptfBrPair.second) == succ);
   bool isSuccTrueToCommon = (FindFirstRealSucc(stfBrPair.first) == commonBB);
@@ -2436,7 +2434,6 @@ bool OptimizeBB::FoldBranchToCommonDest(BB *pred, BB *succ) {
 //      /     succ(condBB)
 //     /     /       \
 //    commonBB       exitBB
-//
 // note: curr->commonBB and succ->commonBB are critical edge, they may be cut by an empty bb before
 bool OptimizeBB::FoldBranchToCommonDest() {
   CHECK_CURR_BB();

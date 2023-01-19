@@ -275,13 +275,13 @@ int32 BB::NumInsn() const {
 }
 
 bool BB::IsInPhiList(regno_t regNO) {
-  for (auto phiInsnIt : phiInsnList) {
+  for (auto &phiInsnIt : std::as_const(phiInsnList)) {
     Insn *phiInsn = phiInsnIt.second;
     if (phiInsn == nullptr) {
       continue;
     }
     auto &phiListOpnd = static_cast<PhiOperand&>(phiInsn->GetOperand(kInsnSecondOpnd));
-    for (auto phiListIt : phiListOpnd.GetOperands()) {
+    for (auto &phiListIt : std::as_const(phiListOpnd.GetOperands())) {
       RegOperand *phiUseOpnd = phiListIt.second;
       if (phiUseOpnd == nullptr) {
         continue;
@@ -295,7 +295,7 @@ bool BB::IsInPhiList(regno_t regNO) {
 }
 
 bool BB::IsInPhiDef(regno_t regNO) {
-  for (auto phiInsnIt : phiInsnList) {
+  for (auto &phiInsnIt : std::as_const(phiInsnList)) {
     Insn *phiInsn = phiInsnIt.second;
     if (phiInsn == nullptr) {
       continue;

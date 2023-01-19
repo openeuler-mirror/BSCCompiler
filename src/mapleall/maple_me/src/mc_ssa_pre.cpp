@@ -227,7 +227,7 @@ bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet
   // determine starting value of visitIdx: start searching back from route end;
   // if any node is in cutSet, set visitIdx as that nodes's index in route;
   // otherwise, set visitIdx to 0
-  uint32 visitIdx = curRoute->visits.size();
+  size_t visitIdx = curRoute->visits.size();
   do {
     visitIdx--;
     if (cutSet.count(curRoute->visits[visitIdx].node->id) != 0) {
@@ -236,7 +236,7 @@ bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet
   } while (visitIdx != 1);
   // update cutSet with visited nodes lower than visitIdx
   if (visitIdx != 1) {
-    for (uint i = visitIdx - 1; i > 0; i--) {
+    for (size_t i = visitIdx - 1; i > 0; i--) {
       cutSet.insert(curRoute->visits[i].node->id);
     }
   }
@@ -423,9 +423,9 @@ bool McSSAPre::FindAnotherRoute() {
     return false;
   }
   // find bottleneck capacity along route
-  FreqType minAvailCap = route->visits[0].AvailableCapacity();
-  for (int32 i = 1; i < route->visits.size(); i++) {
-    FreqType curAvailCap = route->visits[i].AvailableCapacity();
+  uint64 minAvailCap = route->visits[0].AvailableCapacity();
+  for (size_t i = 1; i < route->visits.size(); i++) {
+    uint64 curAvailCap = route->visits[i].AvailableCapacity();
     minAvailCap = std::min(minAvailCap, curAvailCap);
   }
   route->flowValue = minAvailCap;
@@ -446,7 +446,7 @@ void McSSAPre::FindMaxFlow() {
   do {
     found = FindAnotherRoute();
   } while (found);
-  // calculate maxFlowValue;
+  /* calculate maxFlowValue */
   for (Route *route : maxFlowRoutes) {
     maxFlowValue += route->flowValue;
   }

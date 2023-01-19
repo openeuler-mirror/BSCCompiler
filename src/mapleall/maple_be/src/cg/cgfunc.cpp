@@ -13,7 +13,8 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "cgfunc.h"
-#if DEBUG
+#include <utility>
+#if defined(DEBUG) && DEBUG
 #include <iomanip>
 #endif
 #include "cg.h"
@@ -427,9 +428,9 @@ Operand *HandleVectorMerge(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
     if (!IsPrimitiveVector(ty)) {
       iNum = 0;
     } else {
-      iNum *= GetPrimTypeSize(ty) / GetVecLanes(ty);              /* 64x2: 0-1 -> 0-8 */
+      iNum *= static_cast<int32>(GetPrimTypeSize(ty) / GetVecLanes(ty));  /* 64x2: 0-1 -> 0-8 */
     }
-  } else {                                                             /* 32x4: 0-3 -> 0-12 */
+  } else {                                                                /* 32x4: 0-3 -> 0-12 */
     CHECK_FATAL(0, "VectorMerge does not have const index");
   }
   return cgFunc.SelectVectorMerge(intrnNode.GetPrimType(), opnd1, opnd2, iNum);
@@ -1096,8 +1097,8 @@ void HandleCondbr(StmtNode &stmt, CGFunc &cgFunc) {
   Opcode condOp = condGotoNode.GetOpCode();
   if (condNode->GetOpCode() == OP_constval) {
     auto *constValNode = static_cast<ConstvalNode*>(condNode);
-    if ((constValNode->GetConstVal()->IsZero() && (OP_brfalse == condOp)) ||
-        (!constValNode->GetConstVal()->IsZero() && (OP_brtrue == condOp))) {
+    if ((constValNode->GetConstVal()->IsZero() && (condOp == OP_brfalse)) ||
+        (!constValNode->GetConstVal()->IsZero() && (condOp == OP_brtrue))) {
       auto *gotoStmt = cgFunc.GetMemoryPool()->New<GotoNode>(OP_goto);
       gotoStmt->SetOffset(condGotoNode.GetOffset());
       HandleGoto(*gotoStmt, cgFunc);
@@ -1116,7 +1117,7 @@ void HandleCondbr(StmtNode &stmt, CGFunc &cgFunc) {
     if (IsPrimitiveInteger(primType)) {
       zeroOpnd = &cgFunc.CreateImmOperand(primType, 0);
     } else {
-      ASSERT(((PTY_f32 == primType) || (PTY_f64 == primType)), "we don't support half-precision FP operands yet");
+      ASSERT(((primType == PTY_f32) || (primType == PTY_f64)), "we don't support half-precision FP operands yet");
       zeroOpnd = &cgFunc.CreateImmOperand(primType, 0);
     }
     cgFunc.SelectCondGoto(condGotoNode, *opnd0, *zeroOpnd);
@@ -1444,7 +1445,7 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       funcScopeAllocator(&allocator),
       emitStVec(allocator.Adapter()),
       switchLabelCnt(allocator.Adapter()),
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
       sortedBBs(allocator.Adapter()),
       lrVec(allocator.Adapter()),
 #endif  /* TARGARM32 */
@@ -1586,14 +1587,14 @@ Insn &CGFunc::BuildScopeInsn(int64 id, bool isEnd) {
   return scope;
 }
 
-void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) {
+void CGFunc::GenerateLoc(StmtNode &stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos) {
   /* insert Insn for .loc before cg for the stmt */
-  if (cg->GetCGOptions().WithLoc() && stmt->op != OP_label && stmt->op != OP_comment) {
+  if (cg->GetCGOptions().WithLoc() && stmt.op != OP_label && stmt.op != OP_comment) {
     /* if original src file location info is availiable for this stmt,
      * use it and skip mpl file location info for this stmt
      */
     bool hasLoc = false;
-    SrcPosition &newSrcPos = stmt->GetSrcPos();
+    SrcPosition &newSrcPos = stmt.GetSrcPos();
     if (!newSrcPos.IsValid()) {
       return;
     }
@@ -1612,12 +1613,12 @@ void CGFunc::GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &l
   }
 }
 
-void CGFunc::GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone) {
+void CGFunc::GenerateScopeLabel(StmtNode &stmt, SrcPosition &lastSrcPos, bool &posDone) {
   /* insert lable for scope begin and end .LScp.1B .LScp.1E */
   MIRFunction &mirFunc = GetFunction();
   DebugInfo *dbgInfo = GetMirModule().GetDbgInfo();
-  if (cg->GetCGOptions().WithDwarf() && stmt->op != OP_comment) {
-    SrcPosition newSrcPos = stmt->GetSrcPos();
+  if (cg->GetCGOptions().WithDwarf() && stmt.op != OP_comment) {
+    SrcPosition newSrcPos = stmt.GetSrcPos();
     if (!newSrcPos.IsValid()) {
       return;
     }
@@ -1722,9 +1723,6 @@ void CGFunc::CreateLmbcFormalParamInfo() {
   } else {
     /* No aggregate pass by value here */
     for (StmtNode *stmt = lmbcFunc.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
-      if (stmt == nullptr) {
-        break;
-      }
       if (stmt->GetOpCode() == OP_label) {
         continue;
       }
@@ -1738,11 +1736,11 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       }
       IreadFPoffNode *ireadNode = static_cast<IreadFPoffNode *>(operand);
       primType = ireadNode->GetPrimType();
+      typeSize = GetPrimTypeSize(primType);
       if (ireadNode->GetOffset() < 0) {
         continue;
       }
       offset = static_cast<uint32>(ireadNode->GetOffset());
-      typeSize = GetPrimTypeSize(primType);
       CHECK_FATAL((offset % k8ByteSize) == 0, "");  /* scalar only, no struct for now */
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
       lmbcParamVec.push_back(info);
@@ -1755,14 +1753,11 @@ void CGFunc::CreateLmbcFormalParamInfo() {
 
   /* When a scalar param address is taken, its regassign is not in the 1st block */
   for (StmtNode *stmt = lmbcFunc.GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
-    if (stmt == nullptr) {
+    if (stmt->GetOpCode() != OP_regassign) {
       break;
     }
     if (stmt->GetOpCode() == OP_label) {
       continue;
-    }
-    if (stmt->GetOpCode() != OP_regassign) {
-      break;
     }
     RegassignNode *regAssignNode = static_cast<RegassignNode *>(stmt);
     BaseNode *operand = regAssignNode->Opnd(0);
@@ -1804,11 +1799,11 @@ void CGFunc::GenerateInstruction() {
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
     /* insert Insn for scope begin/end labels */
     if (lastStmtPos.IsBfOrEq(stmt->GetSrcPos())) {
-      GenerateScopeLabel(stmt, lastScpPos, posDone);
+      GenerateScopeLabel(*stmt, lastScpPos, posDone);
       lastStmtPos = stmt->GetSrcPos();
     }
     /* insert Insn for .loc before cg for the stmt */
-    GenerateLoc(stmt, lastLocPos, lastMplPos);
+    GenerateLoc(*stmt, lastLocPos, lastMplPos);
     BB *tmpBB = curBB;
     isVolLoad = false;
     if (CheckSkipMembarOp(*stmt)) {
@@ -1822,7 +1817,7 @@ void CGFunc::GenerateInstruction() {
     if (tempLoad && !isVolLoad) {
       stmt = stmt->GetNext();
     }
-    int32 freq = GetFreqFromStmt(stmt->GetStmtID());
+    int64_t freq = GetFreqFromStmt(stmt->GetStmtID());
     if (freq != -1) {
       if (tmpBB != curBB) {
         if (curBB->GetFirstInsn() == nullptr && curBB->GetLabIdx() == 0 && bbFreqSet.count(tmpBB->GetId()) == 0) {
@@ -1961,7 +1956,7 @@ void CGFunc::MarkCleanupBB() const {
   ASSERT(ExitbbNotInCleanupArea(*cleanupBB), "exitBB created in cleanupArea.");
   ASSERT(cleanupBB->GetEhSuccs().empty(), "CG internal error. Cleanup bb should not have ehSuccs.");
 
-#if DEBUG  /* Please don't remove me. */
+#if defined(DEBUG) && DEBUG  /* Please don't remove me. */
   /* Check if all of the cleanup bb is at bottom of the function. */
   bool isCleanupArea = true;
   if (!mirModule.IsCModule()) {
@@ -2043,7 +2038,7 @@ bool CGFunc::MemBarOpt(const StmtNode &membar) {
 void CGFunc::MakeupScopeLabels(BB &bb) {
   /* insert leftover scope-end labels */
   if (!scpIdSet.empty()) {
-    std::set<uint32>::reverse_iterator rit;
+    std::set<uint32>::const_reverse_iterator rit;
     for (rit=scpIdSet.rbegin(); rit != scpIdSet.rend(); ++rit) {
       bb.AppendInsn(BuildScopeInsn(*rit, true));
     }
@@ -2120,10 +2115,10 @@ void CGFunc::HandleFunction() {
   NeedStackProtect();
 }
 
-void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc, bool isParam) {
+void CGFunc::AddDIESymbolLocation(const MIRSymbol &sym, SymbolAlloc *loc, bool isParam) {
   ASSERT(debugInfo != nullptr, "debugInfo is null!");
   ASSERT(loc->GetMemSegment() != nullptr, "only support those variable that locate at stack now");
-  DBGDie *sdie = debugInfo->GetLocalDie(&func, sym->GetNameStrIdx());
+  DBGDie *sdie = debugInfo->GetLocalDie(&func, sym.GetNameStrIdx());
   if (sdie == nullptr) {
     return;
   }
@@ -2291,7 +2286,7 @@ void CGFunc::PatchLongBranch() {
 
 void CGFunc::UpdateAllRegisterVregMapping(MapleMap<regno_t, PregIdx> &newMap) {
   vregsToPregsMap.clear();
-  for (auto it : newMap) {
+  for (auto &it : std::as_const(newMap)) {
     vregsToPregsMap[it.first] = it.second;
   }
 }

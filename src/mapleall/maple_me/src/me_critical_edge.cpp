@@ -303,7 +303,7 @@ void MESplitCEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 bool MESplitCEdge::PhaseRun(maple::MeFunction &f) {
   bool enableDebug = DEBUGFUNC_NEWPM(f);
   MeSplitCEdge mscedge = MeSplitCEdge(enableDebug);
-  mscedge.SplitCriticalEdgeForMeFunc(f);
+  (void)mscedge.SplitCriticalEdgeForMeFunc(f);
   if (f.GetCfg()->UpdateCFGFreq() && (f.GetCfg()->DumpIRProfileFile())) {
     f.GetCfg()->DumpToFile("after-splitcriticaledge", false, true);
   }

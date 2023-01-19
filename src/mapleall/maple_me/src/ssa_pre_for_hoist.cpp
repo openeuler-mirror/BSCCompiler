@@ -295,7 +295,7 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOc
         if (!fDom->Dominate(*newRealocc->GetBB(), *occ->GetBB())) {
           continue;
         }
-        parent->allOccs.insert(iter, newRealocc);
+        (void)parent->allOccs.insert(iter, newRealocc);
         break;
       }
       newRealocc->SetIsHoisted(true);

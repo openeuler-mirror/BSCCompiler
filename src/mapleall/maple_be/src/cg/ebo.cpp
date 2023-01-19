@@ -14,10 +14,10 @@
  */
 #if TARGAARCH64
 #include "aarch64_ebo.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_ebo.h"
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
 #include "arm32_ebo.h"
 #endif
 #include "securec.h"
@@ -81,7 +81,7 @@ bool Ebo::IsFrameReg(Operand &opnd) const {
 }
 
 Operand *Ebo::GetZeroOpnd(uint32 size) const {
-#if TARGAARCH64 || TARGRISCV64
+#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
   return size > k64BitSize ? nullptr : &cgFunc->GetZeroOpnd(size);
 #else
   return nullptr;
@@ -154,14 +154,15 @@ bool Ebo::OpndAvailableInBB(const BB &bb, OpndInfo *info) const {
   return true;
 }
 
-bool Ebo::ForwardPropCheck(const Operand *opndReplace, const OpndInfo &opndInfo, const Operand &opnd, Insn &insn) {
+bool Ebo::ForwardPropCheck(const Operand *opndReplace, const OpndInfo &opndInfo,
+    const Operand &opnd, Insn &insn) const {
   if (opndReplace == nullptr) {
     return false;
   }
   if ((opndInfo.replacementInfo != nullptr) && opndInfo.replacementInfo->redefined) {
     return false;
   }
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   /* for arm32, disable forwardProp in strd insn. */
   if (insn.GetMachineOpcode() == MOP_strd) {
     return false;
@@ -190,7 +191,7 @@ bool Ebo::RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndRe
   }
   std::set<regno_t> defRegs = insn.GetDefRegs();
   if (!(defRegs.empty() ||
-      ((opnd.IsRegister() && !defRegs.count(static_cast<const RegOperand&>(opnd).GetRegisterNumber())) ||
+      ((opnd.IsRegister() && defRegs.count(static_cast<const RegOperand&>(opnd).GetRegisterNumber()) == 0) ||
       !beforeRegAlloc))) {
     return false;
   }
@@ -583,7 +584,7 @@ bool Ebo::ForwardPropagateOpnd(Insn &insn, Operand *&opnd, uint32 opndIndex,
     }
   }
   /* move reg, wzr, store vreg, mem ==> store wzr, mem */
-#if TARGAARCH64 || TARGRISCV64
+#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
   if (IsZeroRegister(*opnd) && opndIndex == 0 &&
       (insn.GetMachineOpcode() == MOP_wstr || insn.GetMachineOpcode() == MOP_xstr)) {
     if (EBO_DUMP) {
@@ -672,13 +673,15 @@ void Ebo::SimplifyInsn(Insn &insn, bool &insnReplaced, bool opndsConstant,
     if (insnReplaced) {
       return;
     }
-    if (opndNum >= 2) {
+    constexpr uint32 opNum = 2;
+    if (opndNum >= opNum) {
       /* special case */
       if (!insn.GetDefRegs().empty() && ResIsNotDefAndUse(insn)) {
-        if ((opndNum == 3) && (insn.GetDefRegs().size() == 1) &&
-            (((kInsnSecondOpnd < opnds.size()) && (opnds[kInsnSecondOpnd] != nullptr) &&
+        constexpr uint32 oNum = 3;
+        if ((opndNum == oNum) && (insn.GetDefRegs().size() == 1) &&
+            (((opnds.size() > kInsnSecondOpnd) && (opnds[kInsnSecondOpnd] != nullptr) &&
               IsConstantImmOrReg(*opnds[kInsnSecondOpnd])) ||
-             ((kInsnThirdOpnd < opnds.size()) && (opnds[kInsnThirdOpnd] != nullptr) &&
+             ((opnds.size() > kInsnThirdOpnd) && (opnds[kInsnThirdOpnd] != nullptr) &&
               IsConstantImmOrReg(*opnds[kInsnThirdOpnd])))) {
           insnReplaced = SimplifyConstOperand(insn, opnds, opndInfos);
         }
@@ -854,7 +857,7 @@ void Ebo::RemoveInsn(InsnInfo &info) const {
       }
     }
   }
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   Arm32CGFunc *a32CGFunc = static_cast<Arm32CGFunc*>(cgFunc);
   auto &gotInfosMap = a32CGFunc->GetGotInfosMap();
   for (auto it = gotInfosMap.begin(); it != gotInfosMap.end();) {
@@ -1230,7 +1233,7 @@ bool CgEbo0::PhaseRun(maplebe::CGFunc &f) {
   LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   MemPool *eboMp = GetPhaseMemPool();
   Ebo *ebo = nullptr;
-#if TARGAARCH64 || TARGRISCV64
+#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
   ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, true, PhaseName());
 #endif
 #if defined(TARGARM32) && TARGARM32
@@ -1257,7 +1260,7 @@ bool CgEbo1::PhaseRun(maplebe::CGFunc &f) {
   LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   MemPool *eboMp = GetPhaseMemPool();
   Ebo *ebo = nullptr;
-#if TARGAARCH64 || TARGRISCV64
+#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
   ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, true, PhaseName());
 #endif
 #if defined(TARGARM32) && TARGARM32
@@ -1284,7 +1287,7 @@ bool CgPostEbo::PhaseRun(maplebe::CGFunc &f) {
   LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   MemPool *eboMp = GetPhaseMemPool();
   Ebo *ebo = nullptr;
-#if TARGAARCH64 || TARGRISCV64
+#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
   ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, false, PhaseName());
 #endif
 #if defined(TARGARM32) && TARGARM32

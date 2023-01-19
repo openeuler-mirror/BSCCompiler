@@ -536,8 +536,8 @@ void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo, bool finished
     if (structEmitInfo.GetCombineBitFieldWidth() != 0) {
       EmitAsmLabel(kAsmByte);
       uint64 value = structEmitInfo.GetCombineBitFieldValue() & 0x00000000000000ffUL;
-      Emit(std::to_string(value));
-      Emit("\n");
+      (void)Emit(std::to_string(value));
+      (void)Emit("\n");
     }
     CHECK_FATAL(charBitWidth != 0, "divide by zero");
     if ((structEmitInfo.GetNextFieldOffset() % charBitWidth) != 0) {
@@ -991,7 +991,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
 
   if (((idx == static_cast<uint32>(FieldProperty::kPOffset)) && mirSymbol.IsReflectionFieldsInfo()) ||
       mirSymbol.IsReflectionFieldOffsetData()) {
-#if USE_32BIT_REF
+#if defined(USE_32BIT_REF) && USE_32BIT_REF
     Emit("\t.long\t");
 #else
 
@@ -1017,7 +1017,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
 
   if (((idx == static_cast<uint32>(MethodProperty::kDeclarclass)) ||
       (idx == static_cast<uint32>(MethodProperty::kPaddrData))) && mirSymbol.IsReflectionMethodsInfo()) {
-#if USE_32BIT_REF
+#if defined(USE_32BIT_REF) && USE_32BIT_REF
     Emit("\t.long\t");
 #else
 
@@ -1043,7 +1043,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
   }
 
   if ((idx == static_cast<uint32>(FieldProperty::kDeclarclass)) && mirSymbol.IsReflectionFieldsInfo()) {
-#if USE_32BIT_REF
+#if defined(USE_32BIT_REF) && USE_32BIT_REF
     Emit("\t.long\t");
 #else
 
@@ -1499,7 +1499,7 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
 #else
     EmitAsmLabel(kAsmQuad);
 #endif  /* USE_32BIT_REF */
-    Emit(intConst->GetValue());
+    (void)Emit(intConst->GetValue());
     Emit("\n");
   } else if (mirSymbol.IsReflectionFieldOffsetData()) {
     /* Figure out instance field offset now. */
@@ -1718,7 +1718,8 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
       ASSERT(false, "should not run here");
     }
   }
-  int64 iNum = (arrayType.GetSizeArrayItem(0) > 0) ? (static_cast<int64>(arrayType.GetSizeArrayItem(0))) - uNum : 0;
+  int64 iNum = (arrayType.GetSizeArrayItem(0) > 0) ?
+      static_cast<int>((static_cast<size_t>(arrayType.GetSizeArrayItem(0))) - uNum) : 0;
   if (iNum > 0) {
     if (!cg->GetMIRModule()->IsCModule()) {
       CHECK_FATAL(!Globals::GetInstance()->GetBECommon()->IsEmptyOfTypeSizeTable(), "container empty check");
@@ -1813,7 +1814,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
       }
       uint64 fieldOffset = static_cast<uint64>(static_cast<int64>(beCommon->GetFieldOffset(
           structType, fieldIdx).first)) * static_cast<uint64>(charBitWidth) + static_cast<uint64>(
-          static_cast<int64>(beCommon->GetFieldOffset(structType, fieldIdx).second));
+          static_cast<int64>(beCommon->GetFieldOffset(structType, static_cast<int32>(fieldIdx)).second));
       EmitBitFieldConstant(*sEmitInfo, *elemConst, nextElemType, fieldOffset);
     } else {
       if (elemConst != nullptr) {
@@ -1910,7 +1911,7 @@ void Emitter::EmitBlockMarker(const std::string &markerName, const std::string &
 #else
   Emit("3\n" + markerName + ":\n");
 #endif
-  EmitAsmLabel(kAsmQuad);
+  (void)EmitAsmLabel(kAsmQuad);
   if (withAddr) {
     Emit(addrName + "\n");
   } else {
@@ -2620,7 +2621,7 @@ void Emitter::EmitGlobalVariable() {
         }
       }
       if (mirSymbol->IsReflectionStrTab()) {  /* reflection-string-tab also aligned to 8B boundaries. */
-        Emit(asmInfo->GetAlign());
+        (void)Emit(asmInfo->GetAlign());
 #if TARGX86 || TARGX86_64
         Emit("8\n");
 #else
@@ -2690,11 +2691,11 @@ void Emitter::EmitGlobalVariable() {
       } else if (IsPrimitiveScalar(mirType->GetPrimType())) {
         EmitAsmLabel(*mirSymbol, kAsmSyname);
         EmitScalarConstant(*ct, true, false, true);
-      } else if (kTypeArray == mirType->GetKind()) {
+      } else if (mirType->GetKind() == kTypeArray) {
         EmitAsmLabel(*mirSymbol, kAsmSyname);
         EmitArrayConstant(*ct);
-      } else if (kTypeStruct == mirType->GetKind() || kTypeClass == mirType->GetKind() ||
-                 kTypeUnion == mirType->GetKind()) {
+      } else if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+                 mirType->GetKind() == kTypeUnion) {
         EmitAsmLabel(*mirSymbol, kAsmSyname);
         EmitStructConstant(*ct);
       } else {
@@ -3048,7 +3049,7 @@ void Emitter::EmitDWRef(const std::string &name) {
    * DW.ref._ZTI3xxx:
    *   .xword  _ZTI3xxx
    */
-  Emit("\t.hidden DW.ref." + name + "\n");
+  (void)Emit("\t.hidden DW.ref." + name + "\n");
   Emit("\t.weak DW.ref." + name + "\n");
   Emit("\t.section .data.DW.ref." + name + ",\"awG\",%progbits,DW.ref.");
   Emit(name + ",comdat\n");

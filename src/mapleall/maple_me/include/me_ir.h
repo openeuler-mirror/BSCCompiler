@@ -789,7 +789,7 @@ class AddroflabelMeExpr : public MeExpr {
     return true;
   }
   BaseNode &EmitExpr(MapleAllocator&) override;
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
 
   uint32 GetHashIndex() const override {
     constexpr uint32 shiftNum = 4;

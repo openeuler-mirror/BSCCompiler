@@ -180,8 +180,8 @@ class CGFunc {
   void RemoveUnreachableBB();
   Insn &BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum);
   Insn &BuildScopeInsn(int64 id, bool isEnd);
-  void GenerateLoc(StmtNode *stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
-  void GenerateScopeLabel(StmtNode *stmt, SrcPosition &lastSrcPos, bool &posDone);
+  void GenerateLoc(StmtNode &stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
+  void GenerateScopeLabel(StmtNode &stmt, SrcPosition &lastSrcPos, bool &posDone);
   FreqType GetFreqFromStmt(uint32 stmtId);
   void GenerateInstruction();
   bool MemBarOpt(const StmtNode &membar);
@@ -585,7 +585,7 @@ class CGFunc {
     debugInfo = dbgInfo;
   }
 
-  void AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc, bool isParam);
+  void AddDIESymbolLocation(const MIRSymbol &sym, SymbolAlloc *loc, bool isParam);
 
   virtual void DBGFixCallFrameLocationOffsets() {};
 

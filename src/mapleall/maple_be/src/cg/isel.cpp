@@ -642,7 +642,7 @@ void MPISel::DoMPIS() {
   StmtNode *secondStmt = HandleFuncEntry();
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
     /* insert Insn for .loc before cg for the stmt */
-    GetCurFunc()->GenerateLoc(stmt, lastLocPos, lastMplPos);
+    GetCurFunc()->GenerateLoc(*stmt, lastLocPos, lastMplPos);
 
     auto function = CreateProductFunction<HandleStmtFactory>(stmt->GetOpCode());
     CHECK_FATAL(function != nullptr, "unsupported opCode or has been lowered before");
