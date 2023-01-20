@@ -92,7 +92,7 @@ void ProfileGen::CreateModProfDesc() {
   MIRIntConst *nextMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *voidPtrTy);
   modProfDescSymMirConst->AddItem(nextMirConst, 3);
 
-  uint32 timeStamp = time(nullptr);
+  uint32 timeStamp = static_cast<uint32>(time(nullptr));
   MIRIntConst *stampMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(timeStamp, *u32Ty);
   modProfDescSymMirConst->AddItem(stampMirConst, 4);
 
@@ -105,7 +105,7 @@ void ProfileGen::CreateModProfDesc() {
 
   std::string fileNameWithPath = mod.GetFileNameWithPath();
   // Make the profile file name as fileName.gcda
-  std::string profFileName = fileNameWithPath.substr(0, fileNameWithPath.find_last_of(".")) + 
+  std::string profFileName = fileNameWithPath.substr(0, fileNameWithPath.find_last_of(".")) +
                              namemangler::kProfFileNameExt;
   auto *profileFNMirConst =
     modMP->New<MIRStrConst>(profFileName, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_a64)));

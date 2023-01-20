@@ -46,7 +46,7 @@ constexpr uint32 kAlignMovedFlag = 31;
 /* Supporting classes for GCTIB merging */
 class GCTIBKey {
  public:
-  GCTIBKey(MapleAllocator &allocator, uint32 rcHeader, std::vector<uint64> &patternWords)
+  GCTIBKey(MapleAllocator &allocator, uint32 rcHeader, const std::vector<uint64> &patternWords)
       : header(rcHeader), bitMapWords(allocator.Adapter()) {
     (void)bitMapWords.insert(bitMapWords.cbegin(), patternWords.cbegin(), patternWords.cend());
   }

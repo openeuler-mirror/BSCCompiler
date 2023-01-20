@@ -487,16 +487,16 @@ void LoopFinder::UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer) {
     }
   }
   if (outer->GetOuterLoop() != nullptr) {
-    UpdateOuterForInnerLoop(bb, const_cast<LoopHierarchy *>(outer->GetOuterLoop()));
+    UpdateOuterForInnerLoop(bb, outer->GetOuterLoop());
   }
 }
 
-void LoopFinder::UpdateOuterLoop(const LoopHierarchy *loop) {
+void LoopFinder::UpdateOuterLoop(LoopHierarchy *loop) {
   for (auto inner : loop->GetInnerLoops()) {
     UpdateOuterLoop(inner);
   }
   for (auto *bb : loop->GetLoopMembers()) {
-    UpdateOuterForInnerLoop(bb, const_cast<LoopHierarchy *>(loop->GetOuterLoop()));
+    UpdateOuterForInnerLoop(bb, loop->GetOuterLoop());
   }
 }
 
@@ -576,7 +576,7 @@ void LoopFinder::DetectInnerLoop() {
 }
 
 static void CopyLoopInfo(const LoopHierarchy &from, CGFuncLoops &to, CGFuncLoops *parent, MemPool &memPool) {
-  to.SetHeader(*const_cast<BB*>(from.GetHeader()));
+  to.SetHeader(*from.GetHeader());
   for (auto bb : from.GetOtherLoopEntries()) {
     to.AddMultiEntries(*bb);
   }

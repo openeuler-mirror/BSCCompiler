@@ -53,6 +53,7 @@ CG::~CG() {
   dbgTraceEnter = nullptr;
   dbgTraceExit = nullptr;
   dbgFuncProfile = nullptr;
+  fileGP = nullptr;
 }
 /* This function intends to be a more general form of GenFieldOffsetmap. */
 void CG::GenExtraTypeMetadata(const std::string &classListFileName, const std::string &outputBaseName) {

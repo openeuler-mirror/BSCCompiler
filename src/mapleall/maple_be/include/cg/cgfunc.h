@@ -922,7 +922,7 @@ class CGFunc {
     emitStVec[id] = &symbol;
   }
 
-  void UpdateEmitSt(BB &bb, LabelIdx oldLabelIdx, LabelIdx newLabelIdx) {
+  void UpdateEmitSt(const BB &bb, LabelIdx oldLabelIdx, LabelIdx newLabelIdx) {
     MIRSymbol *st = GetEmitSt(bb.GetId());
     MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
     MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));

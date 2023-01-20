@@ -67,6 +67,9 @@ class LoopHierarchy {
   const LoopHierarchy *GetOuterLoop() const {
     return outerLoop;
   }
+  LoopHierarchy *GetOuterLoop() {
+    return outerLoop;
+  }
   LoopHierarchy *GetPrev() {
     return prev;
   }
@@ -164,7 +167,7 @@ class LoopFinder : public AnalysisResult {
   void MergeLoops() const;
   void SortLoops();
   void UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer);
-  void UpdateOuterLoop(const LoopHierarchy *loop);
+  void UpdateOuterLoop(LoopHierarchy *loop);
   void CreateInnerLoop(LoopHierarchy &inner, LoopHierarchy &outer);
   void DetectInnerLoop();
   void UpdateCGFunc() const;

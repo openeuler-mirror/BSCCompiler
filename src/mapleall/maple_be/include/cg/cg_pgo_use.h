@@ -106,7 +106,7 @@ class BBChain {
 
 class CGProfUse {
  public:
-  CGProfUse(CGFunc &curF, MemPool &mp, DomAnalysis *dom, MapleSet<uint32> &newbbinsplit)
+  CGProfUse(CGFunc &curF, MemPool &mp, DomAnalysis *dom, const MapleSet<uint32> &newbbinsplit)
       : f(&curF),
         mp(&mp),
         puAlloc(&mp),

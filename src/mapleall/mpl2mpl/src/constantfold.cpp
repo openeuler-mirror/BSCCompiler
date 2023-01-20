@@ -1189,7 +1189,7 @@ MIRConst *ConstantFold::FoldRoundMIRConst(const MIRConst &cst, PrimType fromType
         return GlobalTables::GetFpConstTable().GetOrCreateFloatConst(floatValue);
       }
     } else {
-      uint64 fromValue = constValue.GetExtValue();
+      uint64 fromValue = static_cast<uint64>(constValue.GetExtValue());
       float floatValue = round(static_cast<float>(fromValue));
       if (static_cast<uint64>(floatValue) == fromValue) {
         return GlobalTables::GetFpConstTable().GetOrCreateFloatConst(floatValue);
@@ -1204,7 +1204,7 @@ MIRConst *ConstantFold::FoldRoundMIRConst(const MIRConst &cst, PrimType fromType
         return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(doubleValue);
       }
     } else {
-      uint64 fromValue = constValue.GetExtValue();
+      uint64 fromValue = static_cast<uint64>(constValue.GetExtValue());
       double doubleValue = round(static_cast<double>(fromValue));
       if (static_cast<uint64>(doubleValue) == fromValue) {
         return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(doubleValue);
@@ -1528,7 +1528,7 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldTypeCvt(TypeCvtNod
 
 MIRConst *ConstantFold::FoldSignExtendMIRConst(Opcode opcode, PrimType resultType, uint8 size,
                                                const IntVal &val) const {
-  uint64 result = opcode == OP_sext ? val.GetSXTValue(size) : val.GetZXTValue(size);
+  uint64 result = opcode == OP_sext ? static_cast<uint64>(val.GetSXTValue(size)) : val.GetZXTValue(size);
   MIRType &type = *GlobalTables::GetTypeTable().GetPrimType(resultType);
   MIRIntConst *constValue =
       GlobalTables::GetIntConstTable().GetOrCreateIntConst(result, type);
@@ -1865,7 +1865,7 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldBinary(BinaryNode 
             bsize++;
             ucst >>= 1;
           } while (ucst != 0);
-          if (shrAmt + bsize <= GetPrimTypeSize(primType) * k8BitSize &&
+          if (shrAmt + static_cast<int64>(bsize) <= GetPrimTypeSize(primType) * k8BitSize &&
               static_cast<uint64>(shrAmt) < GetPrimTypeSize(primType) * k8BitSize) {
             fold2extractbits = true;
             // change to use extractbits

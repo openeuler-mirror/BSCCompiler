@@ -72,7 +72,7 @@ class Rematerializer {
 
  private:
   bool IsRematerializableForAddrof(CGFunc &cgFunc, const LiveRange &lr) const;
-  bool IsRematerializableForDread(CGFunc &cgFunc, RematLevel rematLev) const;
+  virtual bool IsRematerializableForDread(CGFunc &cgFunc, RematLevel rematLev) const;
 
   virtual bool IsRematerializableForConstval(int64 val, uint32 bitLen) const = 0;
   virtual bool IsRematerializableForDread(int32 offset) const = 0;

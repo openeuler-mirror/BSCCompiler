@@ -981,14 +981,14 @@ void ReflectionAnalysis::GenMethodMetaCompact(const Klass &klass, MIRStructType 
   int32 methodInVtabIndexAndFlag = ((flag | kMethodMetaCompact) << methodInVtabShift) | methodInVtabIndex;
   mirBuilder.AddIntFieldConst(methodsInfoCompactType, newConstCompact, fieldIDCompact++, methodInVtabIndexAndFlag);
   int sizeOfMethodMetaCompactLeb128 = sizeof(int32);
-  int declaringClassOffset = allDeclaringClassOffset + sizeof(int32);
+  int declaringClassOffset = allDeclaringClassOffset + static_cast<int>(sizeof(int32));
 
   // @addr: point function addr
   MIRSymbol *methodAddrSt = GenMethodAddrData(funcSym);
   if (methodAddrSt != nullptr) {
     mirBuilder.AddAddrofFieldConst(methodsInfoCompactType, newConstCompact, fieldIDCompact++, *methodAddrSt);
-    sizeOfMethodMetaCompactLeb128 += sizeof(int32);
-    declaringClassOffset += sizeof(int32);
+    sizeOfMethodMetaCompactLeb128 += static_cast<int>(sizeof(int32));
+    declaringClassOffset += static_cast<int>(sizeof(int32));
   } else {
     mirBuilder.AddIntFieldConst(methodsInfoCompactType, newConstCompact, fieldIDCompact++, 0);
   }
@@ -1024,7 +1024,7 @@ void ReflectionAnalysis::GenMethodMetaCompact(const Klass &klass, MIRStructType 
   namemangler::GetUnsignedLeb128Encode(methodsCompactLeb128Vec, static_cast<uint32>(annotationIdx));
 
   // @leb128
-  sizeOfMethodMetaCompactLeb128 += methodsCompactLeb128Vec.size();
+  sizeOfMethodMetaCompactLeb128 += static_cast<int>(methodsCompactLeb128Vec.size());
   allDeclaringClassOffset += sizeOfMethodMetaCompactLeb128;
   for (auto byte : methodsCompactLeb128Vec) {
     uint8 byteValue = byte;
@@ -1777,7 +1777,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
         LogInfo::MapleLogger(kLlErr) << "Error: Missing interface for " << klass.GetKlassName() << "\n";
         CHECK_FATAL(false, "Missing interface");
       }
-      std::list<Klass*>::iterator it = std::find(superClassList.begin(), superClassList.end(), interface);
+      auto it = std::find(superClassList.cbegin(), superClassList.cend(), interface);
       if (it == superClassList.end()) {
         superClassList.push_back(interface);
       }

@@ -301,7 +301,7 @@ static StmtNode *SplitAggCopy(const AssignType *assignNode, MIRStructType *struc
     block->InsertAfter(assignNode, newAssign);
     newAssign->SetExpandFromArrayOfCharFunc(assignNode->IsExpandedFromArrayOfCharFunc());
     if (fieldType->IsMIRUnionType()) {
-      id += fieldType->NumberOfFieldIDs();
+      id += static_cast<int32>(fieldType->NumberOfFieldIDs());
     }
   }
   auto newAssign = assignNode->GetNext();
@@ -498,7 +498,7 @@ StmtNode *Simplify::SimplifyBitFieldWrite(const IassignNode &iass) {
   if (MeOption::IsBigEndian()) {
     auto extractSize = GetPrimTypeBitSize(bfe.extractType->GetPrimType());
     ASSERT(bfe.extractStart + bfe.extractSize <= extractSize, "bit offset is out-of-range");
-    bfe.extractStart = extractSize - (bfe.extractStart + bfe.extractSize);
+    bfe.extractStart = static_cast<int64>(extractSize) - (bfe.extractStart + bfe.extractSize);
   }
 
   auto *deposit = mirBuiler->CreateExprDepositbits(OP_depositbits, bfe.extractType->GetPrimType(),
@@ -604,7 +604,7 @@ BaseNode *Simplify::SimplifyBitFieldRead(IreadNode &iread) {
 
   if (MeOption::IsBigEndian()) {
     ASSERT(bfe.extractStart + bfe.extractSize <= GetPrimTypeBitSize(extractPtyp), "bit offset is out-of-range");
-    bfe.extractStart = GetPrimTypeBitSize(extractPtyp) - (bfe.extractStart + bfe.extractSize);
+    bfe.extractStart = static_cast<int64>(GetPrimTypeBitSize(extractPtyp)) - (bfe.extractStart + bfe.extractSize);
   }
 
   auto *extract = mirBuiler->CreateExprExtractbits(OP_extractbits, extractPtyp, static_cast<uint32>(bfe.extractStart),
@@ -743,7 +743,7 @@ static BaseNode *FoldIntConst(BaseNode *expr, uint64 &out, bool &isIntConst) {
   if (expr->GetOpCode() == OP_constval) {
     MIRConst *mirConst = static_cast<ConstvalNode*>(expr)->GetConstVal();
     if (mirConst->GetKind() == kConstInt) {
-      out = static_cast<MIRIntConst*>(mirConst)->GetExtValue();
+      out = static_cast<uint64>(static_cast<MIRIntConst*>(mirConst)->GetExtValue());
       isIntConst = true;
     }
     return nullptr;
@@ -754,7 +754,7 @@ static BaseNode *FoldIntConst(BaseNode *expr, uint64 &out, bool &isIntConst) {
   if (foldExpr != nullptr && foldExpr->GetOpCode() == OP_constval) {
     MIRConst *mirConst = static_cast<ConstvalNode*>(foldExpr)->GetConstVal();
     if (mirConst->GetKind() == kConstInt) {
-      out = static_cast<MIRIntConst*>(mirConst)->GetExtValue();
+      out = static_cast<uint64>(static_cast<MIRIntConst*>(mirConst)->GetExtValue());
       isIntConst = true;
     }
   }
@@ -1230,14 +1230,16 @@ bool MemEntry::ExpandMemset(int64 byte, uint64 size, MIRFunction &func,
     size_t structSize = structType->GetSize();
     size_t numFields = structType->NumberOfFieldIDs();
     // Relax restrictions when store-merge is powerful enough
-    bool expandIt = (structSize <= maxStructSize && (structSize / numFields >= minFieldSize) &&
-                     !structType->HasPadding());
-    if (!expandIt) {
-      // We only expand memset for no-padding struct, because only in this case, element-wise and byte-wise
-      // are equivalent
-      MayPrintLog(debug, false, memOpKind,
-                  "struct type has padding, or struct sum size is too big, or filed size is too small");
-      return false;
+    if (numFields != 0) {
+      bool expandIt = (structSize <= maxStructSize && (structSize / numFields >= minFieldSize) &&
+                       !structType->HasPadding());
+      if (!expandIt) {
+        // We only expand memset for no-padding struct, because only in this case, element-wise and byte-wise
+        // are equivalent
+        MayPrintLog(debug, false, memOpKind,
+                    "struct type has padding, or struct sum size is too big, or filed size is too small");
+        return false;
+      }
     }
     bool hasArrayField = false;
     for (uint32 id = 1; id <= numFields; ++id) {
@@ -2320,7 +2322,7 @@ bool SimplifyOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLeve
     block.RemoveStmt(memcpyCallStmt);
     return true;
   }
-  int64 copySize = srcSize;
+  uint64 copySize = srcSize;
   ErrorNumber errNum = ERRNO_OK;
 
   MemEntry dstMemEntry;
@@ -2351,7 +2353,7 @@ bool SimplifyOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLeve
   }
   bool ret = false;
   if (copySize != 0) {
-    ret = dstMemEntry.ExpandMemcpy(srcMemEntry, static_cast<uint64>(copySize), *func, *memcpyCallStmt, block,
+    ret = dstMemEntry.ExpandMemcpy(srcMemEntry, copySize, *func, *memcpyCallStmt, block,
                                    isLowLevel, debug, errNum);
   } else {
     // if copySize == 0, no need to copy memory, just return error number

@@ -166,6 +166,7 @@ BaseNode *ExtConstantFold::ExtFoldIor(BinaryNode *node) {
           break;
         }
       }
+      ASSERT_NOT_NULL(lNode);
 
       if ((lNode->IsSameContent(bNode->Opnd(0))) &&
           (bNode->Opnd(1)->GetOpCode() == OP_constval) &&
@@ -186,7 +187,7 @@ BaseNode *ExtConstantFold::ExtFoldIor(BinaryNode *node) {
 
   if (isWorkable) {
     std::sort(uniqOperands.begin(), uniqOperands.end());
-    uniqOperands.erase(std::unique(uniqOperands.begin(), uniqOperands.end()), uniqOperands.end());
+    uniqOperands.erase(std::unique(uniqOperands.begin(), uniqOperands.end()), uniqOperands.cend());
     if ((uniqOperands.size() >= 2) &&
         (uniqOperands[uniqOperands.size() - 1] == uniqOperands[0] + static_cast<int64>(uniqOperands.size()) - 1)) {
       PrimType nPrimType = node->GetPrimType();
@@ -219,14 +220,14 @@ BaseNode *ExtConstantFold::ExtFoldXand(BinaryNode *node) {
   CHECK_NULL_FATAL(node);
   CHECK_FATAL(node->GetOpCode() == OP_cand || node->GetOpCode() == OP_land, "Operator is neither OP_cand nor OP_land");
 
-  BaseNode * lnode = DispatchFold(node->Opnd(0));
+  BaseNode *lnode = DispatchFold(node->Opnd(0));
   if (lnode != node->Opnd(0)) {
-     node->SetOpnd(lnode, 0);
+    node->SetOpnd(lnode, 0);
   }
 
-  BaseNode * rnode = DispatchFold(node->Opnd(1));
+  BaseNode *rnode = DispatchFold(node->Opnd(1));
   if (rnode != node->Opnd(1)) {
-     node->SetOpnd(rnode, 1);
+    node->SetOpnd(rnode, 1);
   }
 
   // Check if it is of the form of (x & m) == c cand (x & m') == c'
@@ -243,13 +244,13 @@ BaseNode *ExtConstantFold::ExtFoldXand(BinaryNode *node) {
       (IsPrimitiveInteger(rnode->Opnd(1)->GetPrimType())) &&
       (lnode->Opnd(0)->Opnd(0)->IsSameContent(rnode->Opnd(0)->Opnd(0)))) {
     MIRConst *lmConstVal = safe_cast<ConstvalNode>(lnode->Opnd(0)->Opnd(1))->GetConstVal();
-    uint64 lmVal = static_cast<MIRIntConst*>(lmConstVal)->GetExtValue();
+    uint64 lmVal = static_cast<uint64>(static_cast<MIRIntConst*>(lmConstVal)->GetExtValue());
     MIRConst *rmConstVal = safe_cast<ConstvalNode>(rnode->Opnd(0)->Opnd(1))->GetConstVal();
-    uint64 rmVal = static_cast<MIRIntConst*>(rmConstVal)->GetExtValue();
+    uint64 rmVal = static_cast<uint64>(static_cast<MIRIntConst*>(rmConstVal)->GetExtValue());
     MIRConst *lcConstVal = safe_cast<ConstvalNode>(lnode->Opnd(1))->GetConstVal();
-    uint64 lcVal = static_cast<MIRIntConst*>(lcConstVal)->GetExtValue();
+    uint64 lcVal = static_cast<uint64>(static_cast<MIRIntConst*>(lcConstVal)->GetExtValue());
     MIRConst *rcConstVal = safe_cast<ConstvalNode>(rnode->Opnd(1))->GetConstVal();
-    uint64 rcVal = static_cast<MIRIntConst*>(rcConstVal)->GetExtValue();
+    uint64 rcVal = static_cast<uint64>(static_cast<MIRIntConst*>(rcConstVal)->GetExtValue());
 
     bool isWorkable = true;
     for (uint64 i = 0; i < 64; i++) {

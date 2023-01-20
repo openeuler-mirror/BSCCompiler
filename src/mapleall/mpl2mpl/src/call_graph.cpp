@@ -835,7 +835,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
     auto *tempSet = tempAlloc.GetMemPool()->New<MapleSet<Caller2Cands>>(tempAlloc.Adapter());
     icallToFix.insert({funcType->GetTypeIndex(), tempSet});
   }
-  CHECK_FATAL(CurFunction()->GetPuidx() == node.GetPuIdx(), "Error");
+  CHECK_FATAL(CurFunction()->GetPuidx() == static_cast<uint32>(node.GetPuIdx()), "Error");
   Callsite callSite = {callInfo, node.GetCallee().at(callInfo)};
   icallToFix.at(funcType->GetTypeIndex())->insert({node.GetPuIdx(), callSite});
 }

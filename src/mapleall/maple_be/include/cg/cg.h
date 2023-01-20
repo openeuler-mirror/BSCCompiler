@@ -326,7 +326,11 @@ class CG {
   void SetGP(MIRSymbol *sym) {
     fileGP = sym;
   }
-  MIRSymbol *GetGP() const {
+
+  const MIRSymbol *GetGP() const {
+    return fileGP;
+  }
+  MIRSymbol *GetGP() {
     return fileGP;
   }
 
@@ -362,7 +366,7 @@ class CG {
   virtual void DumpTargetOperand(Operand &opnd, const OpndDesc &opndDesc) const = 0;
 
  protected:
-  MIRModule *GetMIRModule() const {
+  const MIRModule *GetMIRModule() const {
     return mirModule;
   }
 

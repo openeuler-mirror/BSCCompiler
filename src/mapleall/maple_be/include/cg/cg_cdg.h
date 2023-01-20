@@ -60,7 +60,7 @@ class CDGNode {
     return bb;
   }
 
-  BB *GetBB() const {
+  const BB *GetBB() const {
     return bb;
   }
 
@@ -80,7 +80,7 @@ class CDGNode {
     return region;
   }
 
-  CDGRegion *GetRegion() const {
+  const CDGRegion *GetRegion() const {
     return region;
   }
 
@@ -399,7 +399,7 @@ class CDGEdge {
     return fromNode;
   }
 
-  void SetFromNode(CDGNode &from) {
+  void SetFromNode(const CDGNode &from) {
     fromNode = from;
   }
 
@@ -411,7 +411,7 @@ class CDGEdge {
     return toNode;
   }
 
-  void SetToNode(CDGNode &to) {
+  void SetToNode(const CDGNode &to) {
     toNode = to;
   }
 
@@ -524,7 +524,7 @@ class CDGRegion {
  */
 class FCDG {
  public:
-  FCDG(CGFunc &f, MapleAllocator &alloc)
+  FCDG(const CGFunc &f, MapleAllocator &alloc)
       : nodes(f.GetAllBBSize(), alloc.Adapter()),
         fcds(alloc.Adapter()), regions(f.GetAllBBSize() + 1, alloc.Adapter()) {}
   virtual ~FCDG() = default;
