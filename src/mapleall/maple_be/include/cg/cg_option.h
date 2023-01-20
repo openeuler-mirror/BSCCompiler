@@ -976,11 +976,11 @@ class CGOptions {
     return exclusiveEH;
   }
 
-  static uint8 GetPIEMode() {
+  static CGOptions::PICMode GetPIEMode() {
     return pieMode;
   }
 
-  static void SetPIEMode(uint8 mode) {
+  static void SetPIEMode(CGOptions::PICMode mode) {
     pieMode = mode;
   }
 
@@ -988,11 +988,11 @@ class CGOptions {
     return pieMode > kClose;
   }
 
-  static uint8 GetPICMode() {
+  static CGOptions::PICMode GetPICMode() {
     return picMode;
   }
 
-  static void SetPICMode(uint8 mode) {
+  static void SetPICMode(CGOptions::PICMode mode) {
     picMode = mode;
   }
 
@@ -1458,8 +1458,8 @@ class CGOptions {
   static bool dumpOptimizeCommonLog;
   static bool checkArrayStore;
   static bool exclusiveEH;
-  static uint8 picMode;
-  static uint8 pieMode;
+  static PICMode picMode;
+  static PICMode pieMode;
   static bool noSemanticInterposition;
   static bool noDupBB;
   static bool noCalleeCFI;

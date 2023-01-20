@@ -90,8 +90,9 @@ bool CGOptions::doSchedule = false;
 bool CGOptions::doWriteRefFieldOpt = false;
 bool CGOptions::dumpOptimizeCommonLog = false;
 bool CGOptions::checkArrayStore = false;
-uint8 CGOptions::picMode = 0;
-uint8 CGOptions::pieMode = 0;
+/* Enable large mode for fpic and fpie by default */
+CGOptions::PICMode CGOptions::picMode = kLargeMode;
+CGOptions::PICMode CGOptions::pieMode = kClose;
 bool CGOptions::noSemanticInterposition = false;
 bool CGOptions::noDupBB = false;
 bool CGOptions::noCalleeCFI = true;
@@ -214,8 +215,12 @@ bool CGOptions::SolveOptions(bool isDebug) {
     if(!opts::cg::fpie && !opts::cg::fPIE) {
       if (opts::cg::fPIC) {
         SetPICOptionHelper(kLargeMode);
+        SetPIEMode(kClose);
+        ClearOption(CGOptions::kGenPie);
       } else if (opts::cg::fpic) {
         SetPICOptionHelper(kSmallMode);
+        SetPIEMode(kClose);
+        ClearOption(CGOptions::kGenPie);
       } else {
         SetPICMode(kClose);
         ClearOption(CGOptions::kGenPic);
