@@ -65,6 +65,13 @@ struct OptionCategory {
     }
   }
 
+  void DeleteEnabledOption(OptionInterface *opt) {
+    if (enabledOptionsSet.find(opt) == enabledOptionsSet.end()) {
+      enabledOptionsSet.erase(enabledOptionsSet.find(opt));
+      enabledOptions.erase(std::find(enabledOptions.begin(), enabledOptions.end(), opt));
+    }
+  }
+
   const std::vector<OptionInterface *> &GetEnabledOptions() {
     return enabledOptions;
   }
@@ -119,6 +126,7 @@ class CommandLine {
     return HelpPrinter(defaultCategory);
   }
 
+  void closeOptimize(const OptionCategory &optCategory);
   std::vector<std::pair<std::string, RetCode>> badCLArgs;
   OptionCategory defaultCategory;
 

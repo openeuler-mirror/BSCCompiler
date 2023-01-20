@@ -152,8 +152,8 @@ Options &Options::GetInstance() {
 }
 
 void Options::DecideMpl2MplRealLevel() const {
-  if ((opts::mpl2mpl::o2 || opts::o2) || (opts::mpl2mpl::os || opts::os)) {
-    if (opts::mpl2mpl::os || opts::os) {
+  if ((opts::mpl2mpl::o2 || opts::o2.IsEnabledByUser()) || (opts::mpl2mpl::os || opts::os.IsEnabledByUser())) {
+    if (opts::mpl2mpl::os || opts::os.IsEnabledByUser()) {
       optForSize = true;
       doOutline = true;
 
@@ -165,7 +165,7 @@ void Options::DecideMpl2MplRealLevel() const {
     O2 = true;
     usePreg = true;
   }
-  if (opts::o3) {
+  if (opts::o3.IsEnabledByUser()) {
     O2 = true;
     usePreg = true;
   }

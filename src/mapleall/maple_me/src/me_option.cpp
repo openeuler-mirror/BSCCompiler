@@ -147,10 +147,10 @@ bool MeOption::skipVirtualMethod = false;
 #endif
 
 void MeOption::DecideMeRealLevel() const {
-  if (opts::me::o1 || opts::o1) {
+  if (opts::me::o1 || opts::o1.IsEnabledByUser()) {
     optLevel = kLevelOne;
-  } else if ((opts::me::o2 || opts::o2) || (opts::me::os || opts::os)) {
-    if (opts::me::os || opts::os) {
+  } else if ((opts::me::o2 || opts::o2.IsEnabledByUser()) || (opts::me::os || opts::os.IsEnabledByUser())) {
+    if (opts::me::os || opts::os.IsEnabledByUser()) {
       optForSize = true;
     }
     optLevel = kLevelTwo;
@@ -159,7 +159,7 @@ void MeOption::DecideMeRealLevel() const {
     placementRC = true;
     subsumRC = true;
     epreIncludeRef = true;
-  } else if (opts::me::o3 || opts::o3) {
+  } else if (opts::me::o3 || opts::o3.IsEnabledByUser()) {
     optForSize = false;
     optLevel = kLevelThree;
     // turn on as O2

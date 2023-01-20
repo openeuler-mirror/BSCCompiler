@@ -71,6 +71,24 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
   return RetCode::noError;
 }
 
+void CommandLine::closeOptimize(const OptionCategory &optCategory) {
+  if (optCategory.options.find("-O0") != optCategory.options.end()) {
+    optCategory.options.find("-O0")->second->UnSetEnabledByUser();
+  }
+  if (optCategory.options.find("-O1") != optCategory.options.end()) {
+    optCategory.options.find("-O1")->second->UnSetEnabledByUser();
+  }
+  if (optCategory.options.find("-O2") != optCategory.options.end()) {
+    optCategory.options.find("-O2")->second->UnSetEnabledByUser();
+  }
+  if (optCategory.options.find("-O3") != optCategory.options.end()) {
+    optCategory.options.find("-O3")->second->UnSetEnabledByUser();
+  }
+  if (optCategory.options.find("-Os") != optCategory.options.end()) {
+    optCategory.options.find("-Os")->second->UnSetEnabledByUser();
+  }
+}
+
 RetCode CommandLine::ParseOption(size_t &argsIndex,
                                  const std::deque<std::string_view> &args,
                                  KeyArg &keyArg, const OptionCategory &optCategory,
@@ -83,6 +101,12 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
   if (args[argsIndex] == "--no-pic") {
     auto item = optCategory.options.find("-fPIC");
     item->second->SetEnabledByUser();
+  }
+
+  if (args[argsIndex] == "--O0" || args[argsIndex] == "-O0" || args[argsIndex] == "--O1" || args[argsIndex] == "-O1" ||
+      args[argsIndex] == "--O2" || args[argsIndex] == "-O2" || args[argsIndex] == "--O3" || args[argsIndex] == "-O3" ||
+      args[argsIndex] == "--Os" || args[argsIndex] == "-Os") {
+    closeOptimize(optCategory);
   }
 
   RetCode err = opt->Parse(argsIndex, args, keyArg);

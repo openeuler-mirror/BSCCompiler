@@ -46,7 +46,7 @@ maplecl::Option<bool> o3({"--O3", "-O3"},
 
 maplecl::Option<bool> os({"--Os", "-Os"},
                     "  -Os                         \tOptimize for size, based on O2.\n",
-                    {driverCategory, hir2mplCategory});
+                    {driverCategory});
 
 maplecl::Option<bool> verify({"--verify"},
                         "  --verify                    \tVerify mpl file\n",

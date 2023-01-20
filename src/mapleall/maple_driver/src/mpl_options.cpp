@@ -198,7 +198,7 @@ ErrorCode MplOptions::HandleEarlyOptions() {
     }
   } else {
     runMode = RunMode::kAutoRun;
-    opts::o0.SetValue(true); // enable default -O0
+    opts::o0.SetEnabledByUser(); // enable default -O0
   }
 
   return kErrorNoError;
@@ -590,7 +590,7 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
     return ret;
   }
 
-  if (opts::o0) {
+  if (opts::o0.IsEnabledByUser()) {
     ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO0, sizeof(kMeDefaultOptionsO0) / sizeof(MplOption));
     if (ret != kErrorNoError) {
       return ret;
@@ -602,7 +602,15 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO0ForC,
                                  sizeof(kMpl2MplDefaultOptionsO0ForC) / sizeof(MplOption));
     }
-  } else if (opts::o2 || opts::o3) {
+  } else if (opts::o1.IsEnabledByUser()) {
+    ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO1ForC,
+                               sizeof(kMeDefaultOptionsO1ForC) / sizeof(MplOption));
+    if (ret != kErrorNoError) {
+      return ret;
+    }
+    ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO1ForC,
+                               sizeof(kMpl2MplDefaultOptionsO1ForC) / sizeof(MplOption));
+    } else if (opts::o2.IsEnabledByUser() || opts::o3.IsEnabledByUser()) {
     if (opts::withIpa) {
       UpdateRunningExe(kBinNameMplipa);
     }
@@ -615,7 +623,7 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
                                  sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
     } else {
-      if (opts::o3) {
+      if (opts::o3.IsEnabledByUser()) {
         ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO3ForC,
                                    sizeof(kMeDefaultOptionsO3ForC) / sizeof(MplOption));
       } else {
@@ -628,7 +636,7 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2ForC,
                                  sizeof(kMpl2MplDefaultOptionsO2ForC) / sizeof(MplOption));
     }
-  } else if (opts::os) {
+  } else if (opts::os.IsEnabledByUser()) {
     if (srcLang == kSrcLangJava) {
       return kErrorNotImplement;
     }
@@ -653,7 +661,7 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
   if (runMode == RunMode::kCustomRun) {
     return ret;
   }
-  if (opts::o0) {
+  if (opts::o0.IsEnabledByUser()) {
     if (srcLang != kSrcLangC) {
       ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO0,
                                  sizeof(kMplcgDefaultOptionsO0) / sizeof(MplOption));
@@ -661,7 +669,10 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO0ForC,
                                  sizeof(kMplcgDefaultOptionsO0ForC) / sizeof(MplOption));
     }
-  } else if (opts::o2 || opts::o3) {
+  } else if (opts::o1.IsEnabledByUser()) {
+    ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO1ForC,
+                               sizeof(kMplcgDefaultOptionsO1ForC) / sizeof(MplOption));
+  } else if (opts::o2.IsEnabledByUser() || opts::o3.IsEnabledByUser()) {
     if (srcLang != kSrcLangC) {
       ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2,
                                  sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption));
@@ -669,7 +680,7 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
       ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2ForC,
                                  sizeof(kMplcgDefaultOptionsO2ForC) / sizeof(MplOption));
     }
-  } else if (opts::os) {
+  } else if (opts::os.IsEnabledByUser()) {
       if (srcLang == kSrcLangJava) {
         return kErrorNotImplement;
       }
@@ -837,13 +848,15 @@ void MplOptions::PrintCommand(const Action * const action) {
 
   std::ostringstream optionStr;
   if (runMode == RunMode::kAutoRun) {
-    if (opts::o0) {
+    if (opts::o0.IsEnabledByUser()) {
       optionStr << " -O0";
-    } else if (opts::o1) {
+    } else if (opts::o1.IsEnabledByUser()) {
       optionStr << " -O1";
-    } else if (opts::o2) {
+    } else if (opts::o2.IsEnabledByUser()) {
       optionStr << " -O2";
-    } else if (opts::os) {
+    } else if (opts::o3.IsEnabledByUser()) {
+      optionStr << " -O3";
+    } else if (opts::os.IsEnabledByUser()) {
       optionStr << " -Os";
     }
 

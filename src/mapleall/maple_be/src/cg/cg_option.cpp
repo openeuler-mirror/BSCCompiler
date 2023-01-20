@@ -140,31 +140,32 @@ CGOptions &CGOptions::GetInstance() {
 }
 
 void CGOptions::DecideMplcgRealLevel(bool isDebug) {
-  if (opts::cg::o0 || opts::o0) {
+  if (opts::cg::o0 || opts::o0.IsEnabledByUser()) {
     if (isDebug) {
       LogInfo::MapleLogger() << "Real Mplcg level: O0\n";
     }
     EnableO0();
   }
 
-  if (opts::cg::o1 || opts::o1) {
+  if (opts::cg::o1 || opts::o1.IsEnabledByUser()) {
     if (isDebug) {
       LogInfo::MapleLogger() << "Real Mplcg level: O1\n";
     }
     EnableO1();
   }
 
-  if ((opts::cg::o2 || opts::o2 || opts::o3) || (opts::cg::os || opts::os)) {
-    if (opts::cg::os || opts::os) {
+  if ((opts::cg::o2 || opts::o2.IsEnabledByUser() || opts::o3.IsEnabledByUser()) ||
+      (opts::cg::os || opts::os.IsEnabledByUser())) {
+    if (opts::cg::os || opts::os.IsEnabledByUser()) {
       optForSize = true;
     }
     if (isDebug) {
-      std::string oLog = ((opts::cg::os == true) || (opts::os == true)) ? "Os" : "O2";
+      std::string oLog = ((opts::cg::os == true) || opts::os.IsEnabledByUser()) ? "Os" : "O2";
       LogInfo::MapleLogger() << "Real Mplcg level: " << oLog << "\n";
     }
     EnableO2();
   }
-  if (opts::cg::os || opts::os) {
+  if (opts::cg::os || opts::os.IsEnabledByUser()) {
     DisableAlignAnalysis();
     SetFuncAlignPow(0);
   }

@@ -104,6 +104,10 @@ static MplOption kDex2mplDefaultOptionsO2[] = {
 static MplOption kMpl2MplDefaultOptionsO0ForC[] = {
 #include "default/O0_options_mpl2mpl_c.def"
 };
+// O1 mpl2mpl options for C language
+static MplOption kMpl2MplDefaultOptionsO1ForC[] = {
+#include "default/O1_options_mpl2mpl_c.def"
+};
 // O2 mpl2mpl options for C language
 static MplOption kMpl2MplDefaultOptionsO2ForC[] = {
 #include "default/O2_options_mpl2mpl_c.def"
@@ -111,6 +115,14 @@ static MplOption kMpl2MplDefaultOptionsO2ForC[] = {
 // O0 mplcg options for C language
 static MplOption kMplcgDefaultOptionsO0ForC[] = {
 #include "default/O0_options_mplcg_c.def"
+};
+// O1 mplcg options for C language
+static MplOption kMplcgDefaultOptionsO1ForC[] = {
+#include "default/O1_options_mplcg_c.def"
+};
+// O1 ME options for C language
+static MplOption kMeDefaultOptionsO1ForC[] = {
+#include "default/O1_options_me_c.def"
 };
 // O2 ME options for C language
 static MplOption kMeDefaultOptionsO2ForC[] = {
