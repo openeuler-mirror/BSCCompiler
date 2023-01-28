@@ -49,7 +49,7 @@ inline static bool HandleAssertNonnull(const MeStmt &stmt, const MIRModule &mod,
     WARN_USER(kLncWarn, srcPosition, mod, "Dereference of nullable pointer");
   } else {
     WARN_USER(kLncWarn, srcPosition, mod, "Dereference of nullable pointer when inlined to %s",
-         newStmt.GetFuncName().c_str());
+        newStmt.GetFuncName().c_str());
   }
   return !MeOption::isNpeCheckAll || MeOption::npeCheckMode == SafetyCheckMode::kStaticCheck;
 }
@@ -66,7 +66,7 @@ inline static bool HandleReturnAssertNonnull(const MeStmt &stmt, const MIRModule
             returnStmt.GetFuncName().c_str());
     } else {
       WARN_USER(kLncWarn, srcPosition, mod, "%s return nonnull but got nullable pointer",
-           returnStmt.GetFuncName().c_str());
+          returnStmt.GetFuncName().c_str());
     }
   } else {
     if (MeOption::safeRegionMode && stmt.IsInSafeRegion()) {

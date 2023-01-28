@@ -85,6 +85,7 @@ class X64CGFunc : public CGFunc {
   Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) override;
   Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
   void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) override;
+  Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode) override;
   void SelectMembar(StmtNode &membar) override;
   void SelectComment(CommentNode &comment) override;
   void HandleCatch() override;

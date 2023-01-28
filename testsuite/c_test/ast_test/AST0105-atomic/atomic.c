@@ -2,6 +2,7 @@
 enum OrderEnum {
   MEMORY_ORDER_RELEAXED = __ATOMIC_RELAXED,
 };
+
 char func(int *a){}
 int main() {
   int a = 100;

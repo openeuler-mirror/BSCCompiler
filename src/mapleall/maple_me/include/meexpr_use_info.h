@@ -52,7 +52,7 @@ public:
   const MePhiNode *GetPhi() const { return Get<MePhiNode>(); }
   MePhiNode *GetPhi() { return Get<MePhiNode>(); }
 
-  uint32 GetRef() {
+  uint32 GetRef() const {
     return ref;
   }
 

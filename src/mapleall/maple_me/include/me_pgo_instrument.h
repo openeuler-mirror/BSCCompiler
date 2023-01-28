@@ -153,7 +153,7 @@ class PGOInstrument {
     const std::string& fileName = func->GetMIRModule().GetFileName();
     uint64 fileNameHash = DJBHash(fileName.c_str());
     std::string lineNo = std::to_string(func->GetMirFunc()->GetSrcPosition().LineNum());
-    uint64 linenoHash = fileNameHash << 32 | DJBHash(lineNo.c_str());
+    uint64 linenoHash = (fileNameHash << 32) | DJBHash(lineNo.c_str());
     return linenoHash;
   }
 

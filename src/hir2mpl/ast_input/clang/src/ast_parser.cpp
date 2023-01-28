@@ -2525,6 +2525,14 @@ void ASTParser::SetAtomExprValType(MapleAllocator &allocator, const clang::Atomi
     astExpr.SetFirstParamType(astFile->CvtType(firstType->isPointerType() ? firstType->getPointeeType() : firstType));
     astExpr.SetSecondParamType(astFile->CvtType(secondType->isPointerType() ?
         secondType->getPointeeType() : secondType));
+  } else if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_compare_exchange ||
+             atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_compare_exchange_n) {
+    astExpr.SetValExpr2(ProcessExpr(allocator, atomicExpr.getVal2()));
+    astExpr.SetOrderFailExpr(ProcessExpr(allocator, atomicExpr.getOrderFail()));
+    astExpr.SetIsWeakExpr(ProcessExpr(allocator, atomicExpr.getWeak()));
+    if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_compare_exchange) {
+      SetAtomExchangeType(allocator, atomicExpr, astExpr);
+    }
   }
 }
 
@@ -2583,6 +2591,8 @@ ASTExpr *ASTParser::ProcessExprAtomicExpr(MapleAllocator &allocator,
     {clang::AtomicExpr::AO__atomic_fetch_xor, kAtomicOpFetchXor},
     {clang::AtomicExpr::AO__atomic_fetch_or, kAtomicOpFetchOr},
     {clang::AtomicExpr::AO__atomic_fetch_nand, kAtomicOpFetchNand},
+    {clang::AtomicExpr::AO__atomic_compare_exchange, kAtomicOpCompareExchange},
+    {clang::AtomicExpr::AO__atomic_compare_exchange_n, kAtomicOpCompareExchangeN},
   };
   ASSERT(astOpMap.find(atomicExpr.getOp()) != astOpMap.end(), "%s:%d error: atomic expr op not supported!",
       FEManager::GetModule().GetFileNameFromFileNum(astFile->GetLOC(atomicExpr.getBuiltinLoc()).fileIdx).c_str(),

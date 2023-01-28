@@ -260,6 +260,7 @@ class CGFunc {
   virtual Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, SyncAndAtomicOp op, bool fetchBefore) = 0;
   virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) = 0;
+  virtual Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
   virtual void HandleCatch() = 0;
@@ -1385,10 +1386,12 @@ class CGFunc {
     }
   }
 
-  BB *CreateAtomicBuiltinBB() {
+  BB *CreateAtomicBuiltinBB(bool isBBIf = true) {
     LabelIdx atomicBBLabIdx = CreateLabel();
     BB *atomicBB = CreateNewBB();
-    atomicBB->SetKind(BB::kBBIf);
+    if (isBBIf) {
+      atomicBB->SetKind(BB::kBBIf);
+    }
     atomicBB->SetAtomicBuiltIn();
     atomicBB->AddLabel(atomicBBLabIdx);
     SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);

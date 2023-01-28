@@ -148,7 +148,7 @@ class MeProfUse : public PGOInstrument<BBUseEdge> {
   void ComputeBBFreq(BBUseInfo &bbInfo, bool &changed);
   FuncProfInfo *GetFuncData();
 
-  uint64 SumEdgesCount(const MapleVector<BBUseEdge*> &edges) const;
+  FreqType SumEdgesCount(const MapleVector<BBUseEdge*> &edges) const;
   BBUseInfo *GetBBUseInfo(const BB &bb) const;
   BBUseInfo *GetOrCreateBBUseInfo(const BB &bb) ;
   MeFunction *func;

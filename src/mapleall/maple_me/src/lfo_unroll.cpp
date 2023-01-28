@@ -114,8 +114,8 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
           preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()) {
         auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
         remDoloop = doloop->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                          stmtFreqs, stmtFreqs, 1/*numor*/, times/*denom*/,
-                          (kKeepOrigFreq | kUpdateUnrollRemainderFreq));
+            stmtFreqs, stmtFreqs, 1/*numor*/, times/*denom*/,
+            (kKeepOrigFreq | kUpdateUnrollRemainderFreq));
       } else {
         remDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
       }

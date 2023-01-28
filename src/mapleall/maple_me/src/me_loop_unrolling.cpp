@@ -201,7 +201,7 @@ void LoopUnrolling::ResetOldLabel2NewLabel2(std::unordered_map<BB*, BB*> &old2Ne
 void LoopUnrolling::ResetFrequency(const BB &curBB, const BB &succ, const BB &exitBB, BB &curCopyBB, bool copyAllLoop) {
   if (resetFreqForUnrollWithVar && copyAllLoop) {
     if (&curBB == &exitBB && &succ == *loop->inloopBB2exitBBs.begin()->second->begin()) {
-      curCopyBB.PushBackSuccFreq(loop->head->GetFrequency() % replicatedLoopNum == 0 ? 0 : 1);
+      curCopyBB.PushBackSuccFreq(loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) == 0 ? 0 : 1);
     }
     if ((&curBB == loop->latch && &succ == loop->head) || (&curBB == &exitBB && &succ == loop->latch)) {
       curCopyBB.PushBackSuccFreq(
@@ -251,9 +251,9 @@ void LoopUnrolling::CopyLoopBodyForProfile(BB &newHeadBB, std::unordered_map<BB*
         BB *newBB = CopyBB(*succ, true);
         if (resetFreqForUnrollWithVar) {
           if (succ == loop->latch) {
-            newBB->SetFrequency(loop->head->GetFrequency() % replicatedLoopNum - 1);
+            newBB->SetFrequency(loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) - 1);
           } else {
-            newBB->SetFrequency(succ->GetFrequency() % replicatedLoopNum);
+            newBB->SetFrequency(succ->GetFrequency() % static_cast<FreqType>(replicatedLoopNum));
           }
         } else {
           resetFreqForAfterInsertGoto
@@ -310,13 +310,13 @@ void LoopUnrolling::CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &ol
 
 // Update frequency of old BB.
 void LoopUnrolling::ResetFrequency(BB &bb) {
-  FreqType freq = bb.GetFrequency() / replicatedLoopNum;
+  FreqType freq = bb.GetFrequency() / static_cast<FreqType>(replicatedLoopNum);
   if ((!instrumentProf) && freq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
     freq = 1;
   }
   bb.SetFrequency(freq + static_cast<FreqType>(partialCount));
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
-    auto currFreq = bb.GetEdgeFreq(i) / replicatedLoopNum;
+    auto currFreq = bb.GetEdgeFreq(i) / static_cast<FreqType>(replicatedLoopNum);
     if ((!instrumentProf) && currFreq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
       currFreq = 1;
     }
@@ -341,12 +341,12 @@ void LoopUnrolling::ResetFrequency() {
       exitFreq = 1;
     }
     exitBB->SetFrequency(exitFreq);
-    auto exitEdgeFreq = exitBB->GetEdgeFreq(latchBB) / replicatedLoopNum;
+    auto exitEdgeFreq = exitBB->GetEdgeFreq(latchBB) / static_cast<FreqType>(replicatedLoopNum);
     if (exitEdgeFreq == 0 && exitBB->GetEdgeFreq(latchBB) != 0) {
       exitEdgeFreq = 1;
     }
-    exitBB->SetEdgeFreq(latchBB, exitEdgeFreq);
-    auto latchFreq = latchBB->GetFrequency() / replicatedLoopNum;
+    exitBB->SetEdgeFreq(latchBB, static_cast<FreqType>(exitEdgeFreq));
+    auto latchFreq = latchBB->GetFrequency() / static_cast<FreqType>(replicatedLoopNum);
     if (latchFreq == 0 && latchBB->GetFrequency() != 0) {
       latchFreq = 1;
     }
@@ -716,7 +716,7 @@ void LoopUnrolling::CopyLoopForPartialAndPre(BB *&newHead, BB *&newExiting) {
   std::unordered_map<BB*, BB*> old2NewBB;
   BB *newHeadBB = CopyBB(*loop->head, true);
   if (profValid) {
-    newHeadBB->SetFrequency(loop->head->GetFrequency() % replicatedLoopNum);
+    newHeadBB->SetFrequency(loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum));
   }
   (void)old2NewBB.emplace(loop->head, newHeadBB);
   std::set<BB*> labelBBs;
@@ -808,11 +808,12 @@ void LoopUnrolling::CopyLoopForPartial(BB &partialCondGoto, BB &exitedBB, BB &ex
   --index;
   exitedBB.AddPred(partialCondGoto, index);
   if (profValid) {
-    partialCondGoto.PushBackSuccFreq(exitedBB.GetFrequency() - (loop->head->GetFrequency() % replicatedLoopNum));
+    partialCondGoto.PushBackSuccFreq(exitedBB.GetFrequency() - (loop->head->GetFrequency() %
+                                                                static_cast<FreqType>(replicatedLoopNum)));
   }
   partialExit->AddSucc(exitedBB);
   if (profValid) {
-    partialExit->PushBackSuccFreq(loop->head->GetFrequency() % replicatedLoopNum);
+    partialExit->PushBackSuccFreq(loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum));
   }
   CHECK_FATAL(partialExit->GetKind() == kBBCondGoto, "must be kBBCondGoto");
   if (static_cast<CondGotoMeStmt*>(partialExit->GetLastMe())->GetOffset() != partialExit->GetSucc(1)->GetBBLabel()) {
@@ -825,7 +826,7 @@ void LoopUnrolling::CopyLoopForPartial(BB &partialCondGoto, BB &exitedBB, BB &ex
   }
   partialCondGoto.AddSucc(*partialHead);
   if (profValid) {
-    partialCondGoto.PushBackSuccFreq(loop->head->GetFrequency() % replicatedLoopNum);
+    partialCondGoto.PushBackSuccFreq(loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum));
     partialCondGoto.SetFrequency(partialCondGoto.GetEdgeFreq(static_cast<size_t>(0)) + partialCondGoto.GetEdgeFreq(1));
   }
   CHECK_FATAL(partialCondGoto.GetKind() == kBBCondGoto, "must be partialCondGoto");
@@ -966,7 +967,7 @@ void LoopUnrolling::CopyLoopForPartial(CR &cr, CRNode &varNode, uint32 j, uint32
   preCondGoto->GetSuccFreq().resize(kOperandNum);
   if (profValid) {
     preCondGoto->SetEdgeFreq(partialCondGoto, loop->head->GetFrequency() >= unrollTime ? 0 : 1);
-    preCondGoto->SetEdgeFreq(loop->head, loop->head->GetFrequency() / unrollTime);
+    preCondGoto->SetEdgeFreq(loop->head, loop->head->GetFrequency() / static_cast<FreqType>(unrollTime));
   }
   preCondGoto->SetKind(kBBCondGoto);
   CreateIndVarAndCondGotoStmt(cr, varNode, *preCondGoto, unrollTime, j);

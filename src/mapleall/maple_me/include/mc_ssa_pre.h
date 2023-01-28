@@ -23,11 +23,12 @@ class RGNode {
   friend class McSSAPre;
   friend class Visit;
  public:
-  RGNode(MapleAllocator *alloc, uint32 idx, MeOccur *oc) : id(idx), occ(oc),
-      pred(alloc->Adapter()),
-      phiOpndIndices(alloc->Adapter()),
-      inEdgesCap(alloc->Adapter()),
-      usedCap(alloc->Adapter()) {}
+  RGNode(MapleAllocator *alloc, uint32 idx, MeOccur *oc)
+      : id(idx), occ(oc),
+        pred(alloc->Adapter()),
+        phiOpndIndices(alloc->Adapter()),
+        inEdgesCap(alloc->Adapter()),
+        usedCap(alloc->Adapter()) {}
  private:
   uint32 id;
   MeOccur *occ;

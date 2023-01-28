@@ -3019,6 +3019,8 @@ static std::unordered_map<ASTAtomicOp, const std::string> astOpMap = {
     {kAtomicOpFetchAnd, "__atomic_fetch_and"},
     {kAtomicOpFetchXor, "__atomic_fetch_xor"},
     {kAtomicOpFetchOr, "__atomic_fetch_or"},
+    {kAtomicOpCompareExchange, "__atomic_compare_exchange"},
+    {kAtomicOpCompareExchangeN, "__atomic_compare_exchange_n"},
 };
 
 // ---------- ASTAtomicExpr ----------
@@ -3030,13 +3032,18 @@ UniqueFEIRExpr ASTAtomicExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
     }
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Expr(valExpr1->Emit2FEExpr(stmts));
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Type(val1Type);
-    if (atomicOp == kAtomicOpExchange) {
+    if (atomicOp == kAtomicOpExchange || atomicOp == kAtomicOpCompareExchange ||
+        atomicOp == kAtomicOpCompareExchangeN) {
       if (firstType != nullptr && secondType != nullptr &&
           firstType->GetSize() == secondType->GetSize() && firstType->GetSize() != thirdType->GetSize()) {
-        FE_ERR(kLncErr, valExpr1->GetSrcLoc(), "size mismatch in argument 3 of '__atomic_exchange'");
+        FE_ERR(kLncErr, valExpr1->GetSrcLoc(), "size mismatch in argument 3 of '%s'", astOpMap[atomicOp].c_str());
       }
       static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Expr(valExpr2->Emit2FEExpr(stmts));
       static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Type(val2Type);
+      if (atomicOp == kAtomicOpCompareExchange || atomicOp == kAtomicOpCompareExchangeN) {
+        static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetOrderFailExpr(orderFailExpr->Emit2FEExpr(stmts));
+        static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetIsWeakExpr(isWeakExpr->Emit2FEExpr(stmts));
+      }
     }
   } else {
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Type(val1Type);

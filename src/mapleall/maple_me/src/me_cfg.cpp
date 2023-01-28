@@ -525,6 +525,7 @@ void MeCFG::ReplaceWithAssertnonnull() {
   }
   for (LabelIdx lblIdx : patternSet) {
     BB *bb = GetLabelBBAt(lblIdx);
+    CHECK_FATAL(bb != nullptr, "bb should not be nullptr");
     // if BB->pred_.size()==0, it won't enter this function
     for (size_t i = 0; i < bb->GetPred().size(); ++i) {
       BB *innerBB = bb->GetPred(i);

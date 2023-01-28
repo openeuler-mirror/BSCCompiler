@@ -1630,7 +1630,6 @@ void GVN::DoPhiFRE(MePhiNode &phi, MeStmt *firstStmt) {
   auto &exprList = vn->GetMeExprList();
   uint32 realExprCnt = 0;
   auto &useInfo = irmap.GetExprUseInfo();
-//  bool findAssign = false;
   for (auto *recordExpr : exprList) {
     if (recordExpr->GetExprID() == kInvalidExprID || recordExpr->GetExprID() >= origExprNum) {
       continue;

@@ -157,7 +157,7 @@ class SSAPre {
   }
   virtual void CodeMotion();
   // step 5 Finalize methods
-  bool WillBeAvail(MePhiOcc *phiOcc) {
+  bool WillBeAvail(MePhiOcc *phiOcc) const {
     if (!workCand->applyMinCut) {
       return phiOcc->IsWillBeAvail();
     }

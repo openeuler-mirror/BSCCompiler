@@ -203,6 +203,10 @@ Operand *X64CGFunc::SelectCReturnAddress(IntrinsicopNode &intrinopNode) {
 void X64CGFunc::SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) {
   CHECK_FATAL(false, "NIY");
 }
+Operand *X64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
 void X64CGFunc::SelectMembar(StmtNode &membar) {
   CHECK_FATAL(false, "NIY");
 }

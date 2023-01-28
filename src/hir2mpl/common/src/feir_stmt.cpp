@@ -3867,15 +3867,17 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
   BaseNode *objNode = objExpr.get()->GenMIRNode(mirBuilder);
   args.emplace_back(objNode);
-  bool retVoid = false;
+  bool ret = false;
   if (atomicOp != kAtomicOpLoadN) {
     args.emplace_back(valExpr1->GenMIRNode(mirBuilder));
     if (atomicOp == kAtomicOpExchange) {
       args.emplace_back(valExpr2->GenMIRNode(mirBuilder));
+    } else if (atomicOp == kAtomicOpCompareExchange || atomicOp == kAtomicOpCompareExchangeN) {
+      args.emplace_back(valExpr2->GenMIRNode(mirBuilder));
+      args.emplace_back(isWeakExpr->GenMIRNode(mirBuilder));
     }
-    retVoid = (atomicOp == kAtomicOpExchangeN ||
-        (atomicOp >= kAtomicOpAddFetch && atomicOp <= kAtomicOpFetchNand)) ? false : true;
   }
+  ret = IsReturnAtomicOp(atomicOp);
   static std::unordered_map<ASTAtomicOp, MIRIntrinsicID> intrinsicIDMap = {
       {kAtomicOpLoadN, INTRN_C___atomic_load_n},
       {kAtomicOpLoad, INTRN_C___atomic_load},
@@ -3895,13 +3897,18 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
       {kAtomicOpFetchXor, INTRN_C___atomic_fetch_xor},
       {kAtomicOpFetchOr, INTRN_C___atomic_fetch_or},
       {kAtomicOpFetchNand, INTRN_C___atomic_fetch_nand},
+      {kAtomicOpCompareExchange, INTRN_C___atomic_compare_exchange},
+      {kAtomicOpCompareExchangeN, INTRN_C___atomic_compare_exchange_n},
   };
   ASSERT(intrinsicIDMap.find(atomicOp) != intrinsicIDMap.end(), "atomic opcode not yet supported!");
   MIRIntrinsicID intrinsicID = intrinsicIDMap[atomicOp];
   args.emplace_back(orderExpr->GenMIRNode(mirBuilder));
+  if (atomicOp == kAtomicOpCompareExchange || atomicOp == kAtomicOpCompareExchangeN) {
+    args.emplace_back(orderFailExpr->GenMIRNode(mirBuilder));
+  }
   TyIdx typeIndex = GetTyIdx(mirBuilder);
-  return (!retVoid) ? mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicID, std::move(args), retVar, typeIndex)
-                    : mirBuilder.CreateStmtIntrinsicCall(intrinsicID, std::move(args), typeIndex);
+  return ret ? mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicID, std::move(args), retVar, typeIndex) :
+               mirBuilder.CreateStmtIntrinsicCall(intrinsicID, std::move(args), typeIndex);
 }
 
 // ---------- FEIRStmtPesudoLabel ----------

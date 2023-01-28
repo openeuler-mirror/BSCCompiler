@@ -318,7 +318,7 @@ class MePhiOpndOcc : public MeOccur {
   }
 
   bool IsMCInsert() const {
-    return isMCInsert;;
+    return isMCInsert;
   }
 
   void SetIsMCInsert(bool mcInsert) {

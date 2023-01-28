@@ -1333,10 +1333,10 @@ bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt, bool i
       } else {
         if (stmt.GetOp() == OP_calcassertlt) {
           WARN_USER(kLncWarn, srcPosition, func->GetMIRModule(),
-               "the pointer >= the upper bounds after calculation when inlined to %s", func->GetName().c_str());
+              "the pointer >= the upper bounds after calculation when inlined to %s", func->GetName().c_str());
         } else if (stmt.GetOp() == OP_calcassertge) {
           WARN_USER(kLncWarn, srcPosition, func->GetMIRModule(),
-               "the pointer < the lower bounds after calculation when inlined to %s", func->GetName().c_str());
+              "the pointer < the lower bounds after calculation when inlined to %s", func->GetName().c_str());
         }
       }
       return !opts::enableArithCheck;

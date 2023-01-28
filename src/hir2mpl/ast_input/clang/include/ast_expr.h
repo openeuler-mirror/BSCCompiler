@@ -1806,6 +1806,14 @@ class ASTDependentScopeDeclRefExpr : public ASTExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 };
 
+/*
+  1.if atomicExpr has 3 pointer arguments, like 'void __atomic_exchange (type *ptr, type *val, type *ret, int memorder)'
+    objExpr is the first argument, valExpr1 is the second argument, valExpr2 is the third argument.
+  2.if atomicExpr has 2 pointer arguments, like 'void __atomic_store (type *ptr, type *val, int memorder)'
+    objExpr is the first argument, valExpr1 is the second argument, valExpr2 is a nullptr.
+  3.if atomicExpr has 1 pointer arguments, like 'type __atomic_add_fetch (type *ptr, type val, int memorder)'
+    objExpr is the first argument, valExpr1 is the second argument, valExpr2 is a nullptr.
+*/
 class ASTAtomicExpr : public ASTExpr {
  public:
   explicit ASTAtomicExpr(MapleAllocator &allocatorIn) : ASTExpr(allocatorIn, kASTOpAtomic),
@@ -1848,6 +1856,14 @@ class ASTAtomicExpr : public ASTExpr {
 
   void SetOrderExpr(ASTExpr *order) {
     orderExpr = order;
+  }
+
+  void SetOrderFailExpr(ASTExpr *order) {
+    orderFailExpr = order;
+  }
+
+  void SetIsWeakExpr(ASTExpr *weak) {
+    isWeakExpr = weak;
   }
 
   const ASTExpr *GetValExpr1() const {
@@ -1906,6 +1922,8 @@ class ASTAtomicExpr : public ASTExpr {
   ASTExpr *valExpr1 = nullptr;
   ASTExpr *valExpr2 = nullptr;
   ASTExpr *orderExpr = nullptr;
+  ASTExpr *orderFailExpr = nullptr;
+  ASTExpr *isWeakExpr = nullptr;
   ASTAtomicOp atomicOp = kAtomicOpUndefined;
   bool isFromStmt = false;
   const std::string varName;

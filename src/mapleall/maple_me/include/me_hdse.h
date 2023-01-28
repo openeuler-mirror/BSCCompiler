@@ -26,9 +26,10 @@
 namespace maple {
 class MeHDSE : public HDSE {
  public:
-  MeHDSE(MeFunction &f, Dominance &pDom, IRMap &map, const AliasClass *aliasClass, bool enabledDebug)
+  MeHDSE(MeFunction &f, Dominance &dom, Dominance &pdom, IRMap &map, const AliasClass *aliasClass, bool enabledDebug)
       : HDSE(f.GetMIRModule(), f.GetCfg()->GetAllBBs(), *f.GetCfg()->GetCommonEntryBB(), *f.GetCfg()->GetCommonExitBB(),
-             pDom, map, aliasClass, enabledDebug, MeOption::decoupleStatic), func(f) {}
+             dom, pdom, map, aliasClass, enabledDebug, MeOption::decoupleStatic),
+        func(f) {}
 
   virtual ~MeHDSE() = default;
   void BackwardSubstitution();

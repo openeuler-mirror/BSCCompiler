@@ -38,8 +38,8 @@ BBUseInfo *MeProfUse::GetBBUseInfo(const BB &bb) const {
   return item->second;
 }
 
-uint64 MeProfUse::SumEdgesCount(const MapleVector<BBUseEdge*> &edges) const {
-  uint64 count = 0;
+FreqType MeProfUse::SumEdgesCount(const MapleVector<BBUseEdge*> &edges) const {
+  FreqType count = 0;
   for (const auto &e : edges) {
     count += e->GetCount();
   }
@@ -87,7 +87,7 @@ void MeProfUse::ComputeBBFreq(BBUseInfo &bbInfo, bool &changed) {
       bbInfo.SetCount(count);
       changed = true;
     } else if (bbInfo.GetUnknownInEdges() == 0) {
-      count = static_cast<int64_t>(SumEdgesCount(bbInfo.GetInEdges()));
+      count = SumEdgesCount(bbInfo.GetInEdges());
       bbInfo.SetCount(count);
       changed = true;
     }
@@ -117,21 +117,21 @@ void MeProfUse::ComputeEdgeFreq() {
       ComputeBBFreq(*useInfo, change);
       if (useInfo->GetStatus()) {
         if (useInfo->GetUnknownOutEdges() == 1) {
-          uint64 total = 0;
-          uint64 outCount = SumEdgesCount(useInfo->GetOutEdges());
-          if (useInfo->GetCount() > static_cast<int64_t>(outCount)) {
+          FreqType total = 0;
+          FreqType outCount = SumEdgesCount(useInfo->GetOutEdges());
+          if (useInfo->GetCount() > outCount) {
             total = useInfo->GetCount() - outCount;
           }
           SetEdgeCount(useInfo->GetOutEdges(), static_cast<FreqType>(total));
           change = true;
         }
         if (useInfo->GetUnknownInEdges() == 1) {
-          uint64 total = 0;
-          uint64 inCount = SumEdgesCount(useInfo->GetInEdges());
-          if (useInfo->GetCount() > static_cast<int64_t>(inCount)) {
+          FreqType total = 0;
+          FreqType inCount = SumEdgesCount(useInfo->GetInEdges());
+          if (useInfo->GetCount() > inCount) {
             total = useInfo->GetCount() - inCount;
           }
-          SetEdgeCount(useInfo->GetInEdges(), static_cast<int64_t>(total));
+          SetEdgeCount(useInfo->GetInEdges(), total);
           change = true;
         }
       }

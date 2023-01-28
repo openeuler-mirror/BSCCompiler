@@ -1458,10 +1458,11 @@ class FEIRExprCStyleCast : public FEIRExpr {
 enum ASTAtomicOp {
   kAtomicOpUndefined,
   kAtomicOpLoad,
-  kAtomicOpLoadN,
   kAtomicOpStore,
   kAtomicOpStoreN,
   kAtomicOpExchange,
+  kAtomicReturnBegin,
+  kAtomicOpLoadN,
   kAtomicOpExchangeN,
   kAtomicOpAddFetch,
   kAtomicOpSubFetch,
@@ -1475,7 +1476,14 @@ enum ASTAtomicOp {
   kAtomicOpFetchXor,
   kAtomicOpFetchOr,
   kAtomicOpFetchNand,
+  kAtomicOpCompareExchange,
+  kAtomicOpCompareExchangeN,
+  kAtomicReturnEnd,
 };
+
+inline bool IsReturnAtomicOp(ASTAtomicOp atomicOp) {
+  return (atomicOp >= kAtomicReturnBegin && atomicOp <= kAtomicReturnEnd);
+}
 
 class FEIRExprAtomic : public FEIRExpr {
  public:
@@ -1506,6 +1514,14 @@ class FEIRExprAtomic : public FEIRExpr {
     val = std::move(value);
   }
 
+  void SetOrderFailExpr(UniqueFEIRExpr order) {
+    orderFailExpr = std::move(order);
+  }
+
+  void SetIsWeakExpr(UniqueFEIRExpr weak) {
+    isWeakExpr = std::move(weak);
+  }
+
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
@@ -1521,6 +1537,8 @@ class FEIRExprAtomic : public FEIRExpr {
   UniqueFEIRExpr valExpr1;
   UniqueFEIRExpr valExpr2;
   UniqueFEIRExpr orderExpr;
+  UniqueFEIRExpr orderFailExpr;
+  UniqueFEIRExpr isWeakExpr;
   ASTAtomicOp atomicOp;
   UniqueFEIRVar val;
 };

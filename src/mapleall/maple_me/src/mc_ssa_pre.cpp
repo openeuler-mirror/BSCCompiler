@@ -332,7 +332,7 @@ void McSSAPre::DetermineMinCut() {
 }
 
 bool McSSAPre::VisitANode(RGNode *node, Route *route, std::vector<bool> &visitedNodes) {
-  ASSERT(node->pred.size() != 0 , "McSSAPre::VisitANode: no connection to source node");
+  ASSERT(node->pred.size() != 0, "McSSAPre::VisitANode: no connection to source node");
   // if any pred is the source and there's capacity to reach it, return success
   for (uint32 i = 0; i < node->pred.size(); i++) {
     if (node->pred[i] == source && node->inEdgesCap[i] > node->usedCap[i]) {

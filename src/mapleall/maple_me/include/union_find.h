@@ -65,11 +65,11 @@ class UnionFind {
   unsigned int NewMember(uint32 id) {
     if (id + 1 >= rootIDs.size()) {
       size_t oldSize = rootIDs.size();
-      uint incNum = id + 2 - rootIDs.size();
+      uint incNum = static_cast<uint>(id + 2 - rootIDs.size());
       num += incNum;
       rootIDs.insert(rootIDs.end(), incNum, 0);
       sizeOfClass.insert(sizeOfClass.end(), incNum, 1);
-      for (size_t i = oldSize; i < rootIDs.size(); ++i) {
+      for (uint i = oldSize; i < rootIDs.size(); ++i) {
         rootIDs[i] = i;  // new member is its own root
       }
     }

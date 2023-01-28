@@ -160,11 +160,12 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
       localMemLayout.LayoutStackFrame();
       LMBCLowerer lmbcLowerer(&m, &beCommon, func, &globalMemLayout, &localMemLayout);
       lmbcLowerer.LowerFunction();
-      func->SetFrameSize(localMemLayout.StackFrameSize());
+      func->SetFrameSize(static_cast<uint32>(localMemLayout.StackFrameSize()));
       memPoolCtrler.DeleteMemPool(layoutMp);
     }
     globalMemLayout.seg_GPbased.size =
-        maplebe::RoundUp(static_cast<uint64>(globalMemLayout.seg_GPbased.size), GetPrimTypeSize(PTY_ptr));
+        static_cast<int32>(maplebe::RoundUp(static_cast<uint64>(static_cast<int64>(globalMemLayout.seg_GPbased.size)),
+        GetPrimTypeSize(PTY_ptr)));
     m.SetGlobalMemSize(globalMemLayout.seg_GPbased.size);
     // output .lmbc
     BinaryMplt binMplt(m);

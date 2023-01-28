@@ -444,7 +444,7 @@ class BB : public BaseGraphNode {
     if (pos == UINT32_MAX) {
       succFreq.push_back(freq);
     } else {
-      succFreq.insert(succFreq.begin() + pos, freq);
+      succFreq.insert(succFreq.begin() + static_cast<FreqType>(pos), freq);
     }
   }
   // update edge frequency

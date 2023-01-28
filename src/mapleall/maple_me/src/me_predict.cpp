@@ -719,7 +719,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
       LogInfo::MapleLogger() << "Set Header Frequency BB" << bb.GetBBId() << ": " << bb.GetFrequency() << std::endl;
     }
   } else if (headers != nullptr && std::find(headers->begin(), headers->end(), &bb) != headers->end()) {
-    bb.SetFrequency(kFreqBase / headers->size());
+    bb.SetFrequency(static_cast<FreqType>(kFreqBase / headers->size()));
     if (predictDebug) {
       LogInfo::MapleLogger() << "Set Header Frequency BB" << bb.GetBBId() << ": " << bb.GetFrequency() << std::endl;
     }
@@ -779,7 +779,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
       }
     }
     edge->frequency = bb.GetFrequency() * 1.0 * edge->probability / kProbBase;
-    total += edge->frequency;
+    total += static_cast<uint64>(edge->frequency);
     bool isBackEdge = headers != nullptr ? std::find(headers->begin(), headers->end(), &edge->dest) != headers->end() :
                                            &edge->dest == head;
     if (isBackEdge) {  // is the edge a back edge
