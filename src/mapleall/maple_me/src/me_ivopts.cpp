@@ -985,7 +985,8 @@ bool IVOptimizer::LHSEscape(const ScalarMeExpr *lhs) {
 MeExpr *IVOptimizer::OptimizeInvariable(MeExpr *expr) {
   for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
     auto *opnd = expr->GetOpnd(i);
-    if (opnd->GetMeOp() == kMeOpOp && data->IsLoopInvariant(*opnd)) {
+    if (opnd->GetMeOp() == kMeOpOp && opnd->GetOp() != OP_div && opnd->GetOp() != OP_rem &&
+        data->IsLoopInvariant(*opnd)) {
       // move loop invariant out of current loop
       auto found = invariables.find(opnd->GetExprID());
       RegMeExpr *outValue = nullptr;
@@ -1004,7 +1005,8 @@ MeExpr *IVOptimizer::OptimizeInvariable(MeExpr *expr) {
     auto *res = OptimizeInvariable(opnd);
     expr = irMap->ReplaceMeExprExpr(*expr, *opnd, *res);
   }
-  if (expr->GetMeOp() == kMeOpOp && data->IsLoopInvariant(*expr)) {
+  if (expr->GetMeOp() == kMeOpOp && expr->GetOp() != OP_div && expr->GetOp() != OP_rem &&
+      data->IsLoopInvariant(*expr)) {
     // move loop invariant out of current loop
     auto found = invariables.find(expr->GetExprID());
     RegMeExpr *outValue = nullptr;
