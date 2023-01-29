@@ -5125,6 +5125,21 @@ void ValueRangePropagation::InsertValueRangeOfCondExpr2Caches(BB &bb, const MeSt
     return;
   }
   auto op = opMeExpr->GetOp();
+  if (opnd1->IsScalar() && static_cast<ScalarMeExpr*>(opnd1)->GetDefBy() == kDefByPhi) {
+    auto &opnds = static_cast<ScalarMeExpr*>(opnd1)->GetDefPhi().GetOpnds();
+    if (opnds.size() == kNumOperands &&
+        opnds[0]->GetDefBy() == kDefByStmt &&
+        opnds[1]->GetDefBy() == kDefByStmt &&
+        opnds[0]->GetDefStmt()->GetRHS()->GetMeOp() == kMeOpConst &&
+        opnds[1]->GetDefStmt()->GetRHS()->GetMeOp() == kMeOpConst &&
+        static_cast<ConstMeExpr*>(opnds[0]->GetDefStmt()->GetRHS())->GetConstVal()->GetKind() == kConstInt &&
+        static_cast<ConstMeExpr*>(opnds[1]->GetDefStmt()->GetRHS())->GetConstVal()->GetKind() == kConstInt &&
+        static_cast<ConstMeExpr*>(opnds[0]->GetDefStmt()->GetRHS())->GetIntValue() == 0 &&
+        static_cast<ConstMeExpr*>(opnds[1]->GetDefStmt()->GetRHS())->GetIntValue() == 1) {
+      // If the condition is shortcircuit, it will be opt later, need not push the opnds to pairOfExprs.
+      return;
+    }
+  }
   if (op == OP_eq) {
     Insert2PairOfExprs(*opnd0, *opnd1, *trueBranch);
     Insert2PairOfExprs(*opnd1, *opnd0, *trueBranch);

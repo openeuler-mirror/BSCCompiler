@@ -211,7 +211,7 @@ class IVOptimizer {
   // step4: estimate the costs of candidates in every use and its own costs
   void ComputeCandCost();
   int64 ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep);
-  MeExpr *ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase, uint64 ratio, bool &replaced);
+  MeExpr *ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase, uint64 ratio, bool &replaced, bool analysis);
   uint32 ComputeCandCostForGroup(const IVCand &cand, IVGroup &group);
   void ComputeGroupCost();
   uint32 ComputeSetCost(CandSet &set);
@@ -675,6 +675,12 @@ bool IVOptimizer::CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt) {
   auto *simplified = irMap->SimplifyMeExpr(initValue);
   if (simplified != nullptr) {
     initValue = simplified;
+  }
+  if (initValue->GetOp() == OP_cvt &&
+      IsUnsignedInteger(static_cast<OpMeExpr*>(initValue)->GetOpndType()) &&
+      GetPrimTypeSize(static_cast<OpMeExpr*>(initValue)->GetOpndType()) < GetPrimTypeSize(initValue->GetPrimType())) {
+    data->CreateGroup(stmt, *iv, kUseGeneral, &op);
+    return false;
   }
   auto *step = irMap->CreateMeExprTypeCvt(op.GetPrimType(), GetSignedPrimType(op.GetOpndType()), *iv->step);
   simplified = irMap->SimplifyMeExpr(step);
@@ -1439,7 +1445,7 @@ struct ScalarPeel {
 };
 
 void FindScalarFactor(MeExpr &expr, OpMeExpr *parentCvt, std::unordered_map<int32, ScalarPeel> &record,
-    int64 multiplier, bool needSext) {
+    int64 multiplier, bool needSext, bool analysis) {
   switch (expr.GetMeOp()) {
     case kMeOpConst: {
       int64 constVal = needSext ? static_cast<ConstMeExpr&>(expr).GetSXTIntValue() :
@@ -1466,11 +1472,11 @@ void FindScalarFactor(MeExpr &expr, OpMeExpr *parentCvt, std::unordered_map<int3
     case kMeOpOp: {
       auto &op = static_cast<OpMeExpr&>(expr);
       if (op.GetOp() == OP_add) {
-        FindScalarFactor(*op.GetOpnd(0), parentCvt, record, multiplier, needSext);
-        FindScalarFactor(*op.GetOpnd(1), parentCvt, record, multiplier, needSext);
+        FindScalarFactor(*op.GetOpnd(0), parentCvt, record, multiplier, needSext, analysis);
+        FindScalarFactor(*op.GetOpnd(1), parentCvt, record, multiplier, needSext, analysis);
       } else if (op.GetOp() == OP_sub) {
-        FindScalarFactor(*op.GetOpnd(0), parentCvt, record, multiplier, needSext);
-        FindScalarFactor(*op.GetOpnd(1), parentCvt, record, -multiplier, needSext);
+        FindScalarFactor(*op.GetOpnd(0), parentCvt, record, multiplier, needSext, analysis);
+        FindScalarFactor(*op.GetOpnd(1), parentCvt, record, -multiplier, needSext, analysis);
       } else if (op.GetOp() == OP_mul) {
         auto *opnd0 = op.GetOpnd(0);
         auto *opnd1 = op.GetOpnd(1);
@@ -1481,16 +1487,21 @@ void FindScalarFactor(MeExpr &expr, OpMeExpr *parentCvt, std::unordered_map<int3
         }
         if (opnd0->GetMeOp() == kMeOpConst) {
           FindScalarFactor(*op.GetOpnd(1), parentCvt,
-              record, multiplier * static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue(), needSext);
+              record, multiplier * static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue(), needSext, analysis);
         } else {
           FindScalarFactor(*op.GetOpnd(0), parentCvt,
-              record, multiplier * static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue(), needSext);
+              record, multiplier * static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue(), needSext, analysis);
         }
       } else if (op.GetOp() == OP_cvt) {
         if (GetPrimTypeSize(op.GetOpndType()) < GetPrimTypeSize(op.GetPrimType())) {
+          if (!analysis && IsUnsignedInteger(op.GetOpndType())) {
+            PrimType expandType = parentCvt ? parentCvt->GetOpndType() : expr.GetPrimType();
+            record.emplace(expr.GetExprID(), ScalarPeel(&expr, multiplier, expandType));
+            return;
+          }
           parentCvt = &op;
         }
-        FindScalarFactor(*op.GetOpnd(0), parentCvt, record, multiplier, IsSignedInteger(op.GetOpndType()));
+        FindScalarFactor(*op.GetOpnd(0), parentCvt, record, multiplier, IsSignedInteger(op.GetOpndType()), analysis);
       }
       return;
     }
@@ -1520,8 +1531,8 @@ int64 IVOptimizer::ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep) {
 
   std::unordered_map<int32, ScalarPeel> candMap;
   std::unordered_map<int32, ScalarPeel> groupMap;
-  FindScalarFactor(candStep, nullptr, candMap, 1, false);
-  FindScalarFactor(groupStep, nullptr, groupMap, 1, false);
+  FindScalarFactor(candStep, nullptr, candMap, 1, false, true);
+  FindScalarFactor(groupStep, nullptr, groupMap, 1, false, true);
   int64 commonRatio = 0;
   for (auto &itGroup : groupMap) {
     auto itCand = candMap.find(itGroup.first);
@@ -1557,11 +1568,12 @@ int64 IVOptimizer::ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep) {
   return commonRatio;
 }
 
-MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase, uint64 ratio, bool &replaced) {
+MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase, uint64 ratio, bool &replaced,
+    bool analysis) {
   std::unordered_map<int32, ScalarPeel> candMap;
   std::unordered_map<int32, ScalarPeel> groupMap;
-  FindScalarFactor(candBase, nullptr, candMap, 1, false);
-  FindScalarFactor(groupBase, nullptr, groupMap, 1, false);
+  FindScalarFactor(candBase, nullptr, candMap, 1, false, analysis);
+  FindScalarFactor(groupBase, nullptr, groupMap, 1, false, analysis);
   MeExpr *extraExpr = nullptr;
   int64 candConst = 0;
   int64 groupConst = 0;
@@ -1632,9 +1644,10 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
     }
     bool addCvt = (itGroup == groupMap.end() || itGroup->second.expandType != itCand.second.expandType);
     if (itGroup == groupMap.end() || addCvt) {
-      if (itCand.second.expr->GetPrimType() == PTY_ptr ||
+      if ((itCand.second.expr->GetPrimType() == PTY_ptr ||
           itCand.second.expr->GetPrimType() == PTY_a64 ||
-          itCand.second.expr->GetPrimType() == PTY_a32) {  // it's not good to use one obj to form others
+          itCand.second.expr->GetPrimType() == PTY_a32) && itCand.second.expr->GetOp() != OP_cvt) {
+        // it's not good to use one obj to form others
         replaced = false;
         return nullptr;
       }
@@ -1725,7 +1738,7 @@ uint32 IVOptimizer::ComputeCandCostForGroup(const IVCand &cand, IVGroup &group) 
         return kInfinityCost;
       }
       MeExpr *extraExpr = ComputeExtraExprOfBase(*group.uses[0]->iv->base, *cand.iv->base,
-                                                 static_cast<uint64>(ratio), replaced);
+                                                 static_cast<uint64>(ratio), replaced, true);
       if (!replaced) {
         return kInfinityCost;
       }
@@ -1738,7 +1751,7 @@ uint32 IVOptimizer::ComputeCandCostForGroup(const IVCand &cand, IVGroup &group) 
   }
 
   MeExpr *extraExpr = ComputeExtraExprOfBase(*cand.iv->base, *group.uses[0]->iv->base,
-                                             static_cast<uint64>(ratio), replaced);
+                                             static_cast<uint64>(ratio), replaced, true);
   if (!replaced) {
     return kInfinityCost;
   }
@@ -2180,12 +2193,12 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
       // use inc version to replace
       auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
                                                 *cand->iv->base, *cand->iv->step);
-      extraExpr = ComputeExtraExprOfBase(*use->iv->base, *newBase, static_cast<uint64>(ratio), replaced);
+      extraExpr = ComputeExtraExprOfBase(*use->iv->base, *newBase, static_cast<uint64>(ratio), replaced, false);
       auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *cand->incVersion);
       (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
       use->expr = tmp;
     } else {
-      extraExpr = ComputeExtraExprOfBase(*use->iv->base, *cand->iv->base, static_cast<uint64>(ratio), replaced);
+      extraExpr = ComputeExtraExprOfBase(*use->iv->base, *cand->iv->base, static_cast<uint64>(ratio), replaced, false);
       auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *replace);
       (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
       use->expr = tmp;
@@ -2198,10 +2211,10 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
       // use inc version to replace
       auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
                                                 *cand->iv->base, *cand->iv->step);
-      extraExpr = ComputeExtraExprOfBase(*newBase, *use->iv->base, static_cast<uint64>(ratio), replaced);
+      extraExpr = ComputeExtraExprOfBase(*newBase, *use->iv->base, static_cast<uint64>(ratio), replaced, false);
       replace = cand->incVersion;
     } else {
-      extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base, static_cast<uint64>(ratio), replaced);
+      extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base, static_cast<uint64>(ratio), replaced, false);
     }
     // move extra computation to comparedExpr
     if (extraExpr != nullptr) {
@@ -2275,7 +2288,7 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
       use->comparedExpr = cvt;
     }
   }
-  ASSERT(replaced, "use should be able to be replaced");
+  CHECK_FATAL(replaced, "use should be able to be replaced");
   return replaceCompare;
 }
 
@@ -2346,7 +2359,7 @@ void IVOptimizer::UseReplace() {
       } else {
         bool replaced = true;
         ratio = ComputeRatioOfStep(*cand->iv->step, *use->iv->step);
-        extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base, static_cast<uint64>(ratio), replaced);
+        extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base, static_cast<uint64>(ratio), replaced, false);
         if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
           if (extraExpr == nullptr || (extraExpr->IsLeaf() && extraExpr->GetMeOp() != kMeOpConst)) {
             auto *tmpExpr = irMap->CreateRegMeExpr(use->expr->GetPrimType());
@@ -2358,11 +2371,11 @@ void IVOptimizer::UseReplace() {
             // use inc version to replace
             auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
                                                       *cand->iv->base, *cand->iv->step);
-            extraExpr = ComputeExtraExprOfBase(*newBase, *use->iv->base, static_cast<uint64>(ratio), replaced);
+            extraExpr = ComputeExtraExprOfBase(*newBase, *use->iv->base, static_cast<uint64>(ratio), replaced, false);
             replace = cand->incVersion;
           }
         }
-        ASSERT(replaced, "should have been replaced");
+        CHECK_FATAL(replaced, "should have been replaced");
       }
       // confirm type consistent
       MeExpr *simplified = nullptr;
