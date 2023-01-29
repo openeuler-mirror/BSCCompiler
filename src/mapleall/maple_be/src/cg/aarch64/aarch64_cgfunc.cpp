@@ -10984,9 +10984,25 @@ Operand *AArch64CGFunc::SelectCpopcount(IntrinsicopNode &intrnNode) {
   return regOpnd0;
 }
 
+/* count the parity of x, i.e. the number of 1-bits in x (binary digit bit) modulo 2
+ * dassign %1 (intrinsicop C_parity(val))
+ * let val -> w0 (32 bits value)/x0 (64 bits value)
+ * if 32 bits, extend to 64 bits: uxtw x0, w0
+ * floating move w0/x0 -> d0 (SIMD and FP destination register) to double-precision: fmov d0, x0
+ * count # of 1: cnt v0.8b, v0.8b
+ * add across all lanes: addv b0, v0.8b
+ * unsigned move vector element to general-purpose register: umov w0, v0.b[0]
+ * keep last 8 bits: and w0, w0, 255
+ * keep last bit 1 for even number, 0 for odd number
+ * w0 -> ret
+ */
 Operand *AArch64CGFunc::SelectCparity(IntrinsicopNode &intrnNode) {
-  CHECK_FATAL(false, "%s NIY", intrnNode.GetIntrinDesc().name);
-  return nullptr;
+  Operand *regOpnd0 = SelectCpopcount(intrnNode);
+
+  MOperator mopAnd = MOP_wandrri12;
+  ImmOperand &immValue1 = CreateImmOperand(k1ByteSizeInt, k32BitSize, true);
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopAnd, *regOpnd0, *regOpnd0, immValue1));
+  return regOpnd0;
 }
 
 Operand *AArch64CGFunc::SelectCclrsb(IntrinsicopNode &intrnNode) {
