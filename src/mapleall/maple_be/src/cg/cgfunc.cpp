@@ -1698,7 +1698,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
         tyIdx = lmbcFunc.GetFormalDefVec()[idx].formalTyIdx;
         type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
       } else {
-        FormalDef vec = const_cast<MIRFunction *>(GetBecommon().GetMIRModule().CurFunction())->GetFormalDefAt(idx);
+        FormalDef vec = (GetBecommon().GetMIRModule().CurFunction())->GetFormalDefAt(idx);
         tyIdx = vec.formalTyIdx;
         type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
       }

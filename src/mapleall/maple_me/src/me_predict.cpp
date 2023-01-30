@@ -483,11 +483,12 @@ void MePrediction::EstimateBBProb(BB &bb) {
           auto &callMeStmt = static_cast<const CallMeStmt&>(stmt);
           const MIRFunction &callee = callMeStmt.GetTargetFunction();
           // call heuristic : exceptional calls not taken.
-          if (!callee.IsPure()) {
-            PredEdgeDef(*FindEdge(bb, *dest), kPredCall, kNotTaken);
-          } else {
+          Edge *edge = FindEdge(bb, *dest);
+          if (!callee.IsPure() && edge) {
+            PredEdgeDef(*edge, kPredCall, kNotTaken);
+          } else if (edge) {
             // call heristic : normal call taken.
-            PredEdgeDef(*FindEdge(bb, *dest), kPredCall, kTaken);
+            PredEdgeDef(*edge, kPredCall, kTaken);
           }
           break;
         }

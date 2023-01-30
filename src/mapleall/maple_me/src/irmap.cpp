@@ -2155,7 +2155,7 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
     }
 
     auto &res = CollectBitparts(expr->GetOpnd(0), bps, depth + 1);
-    if (!res || bitShift > res->provenance.size()) {
+    if (!res || bitShift > static_cast<int64_t>(res->provenance.size())) {
       return result;
     }
 

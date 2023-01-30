@@ -215,7 +215,7 @@ class BB : public BaseGraphNode {
   }
 
   void SetBBId(BBId idx) {
-    SetID(idx.GetIdx());
+    SetID(static_cast<uint32>(idx.GetIdx()));
   }
 
   uint32 UintID() const {

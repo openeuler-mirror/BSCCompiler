@@ -527,7 +527,7 @@ OpndInfo *Ebo::BuildOperandInfo(BB &bb, Insn &insn, Operand &opnd, uint32 opndIn
                                 MapleVector<OpndInfo*> &origInfos) {
   if (opnd.IsList()) {
     ListOperand *listOpnd = static_cast<ListOperand*>(&opnd);
-    for (auto op : listOpnd->GetOperands()) {
+    for (const auto &op : listOpnd->GetOperands()) {
       OperandInfoUse(bb, *op);
     }
     return nullptr;

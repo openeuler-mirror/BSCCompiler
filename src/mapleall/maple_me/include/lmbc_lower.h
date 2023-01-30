@@ -29,7 +29,7 @@ class LMBCLowerer {
 
   PregIdx GetSpecialRegFromSt(const MIRSymbol *);
   BaseNode *LowerAddrof(AddrofNode *);
-  BaseNode *LowerDread(AddrofNode *);
+  BaseNode *LowerDread(const AddrofNode *);
   BaseNode *LowerDreadoff(DreadoffNode *);
   BaseNode *LowerIread(IreadNode *);
   BaseNode *LowerIaddrof(IreadNode *);
@@ -39,7 +39,7 @@ class LMBCLowerer {
   void LowerDassignoff(DassignoffNode *, BlockNode *);
   void LowerIassign(IassignNode *, BlockNode *);
   void LowerAggIassign(IassignNode *, MIRType *type, int32 offset, BlockNode *);
-  void LowerReturn(NaryStmtNode *retNode, BlockNode *newblk);
+  void LowerReturn(NaryStmtNode &retNode, BlockNode *newblk);
   void LowerCall(NaryStmtNode *stmt, BlockNode *newblk);
   BlockNode *LowerBlock(BlockNode *);
   void FixPrototype4FirstArgReturn(IcallNode *icall);

@@ -1953,6 +1953,9 @@ int64 GetMaxNumber(PrimType primType) {
 // If the result of operator add or sub is overflow or underflow, return false.
 bool ValueRangePropagation::AddOrSubWithConstant(
     PrimType primType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res) const {
+  if (!IsNeededPrimType(primType)) {
+    return false;
+  }
   if (ConstantFold::IntegerOpIsOverflow(op, primType, lhsConstant, rhsConstant)) {
     return false;
   }
@@ -1962,15 +1965,15 @@ bool ValueRangePropagation::AddOrSubWithConstant(
         (static_cast<uint64>(lhsConstant) - static_cast<uint64>(rhsConstant));
   } else {
     if (op == OP_add) {
-      if ((rhsConstant > 0 && lhsConstant > INT64_MAX - rhsConstant) ||
-          (rhsConstant < 0 && lhsConstant < INT64_MIN - rhsConstant)) {
+      if ((rhsConstant > 0 && lhsConstant > GetMaxNumber(primType) - rhsConstant) ||
+          (rhsConstant < 0 && lhsConstant < GetMinNumber(primType) - rhsConstant)) {
         return false;
       } else {
         res = lhsConstant + rhsConstant;
       }
     } else {
-      if ((rhsConstant < 0 && lhsConstant > INT64_MAX + rhsConstant) ||
-          (rhsConstant > 0 && lhsConstant < INT64_MIN + rhsConstant)) {
+      if ((rhsConstant < 0 && lhsConstant > GetMaxNumber(primType) + rhsConstant) ||
+          (rhsConstant > 0 && lhsConstant < GetMinNumber(primType) + rhsConstant)) {
         return false;
       } else {
         res = lhsConstant - rhsConstant;

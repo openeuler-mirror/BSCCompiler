@@ -51,9 +51,9 @@ BaseNode *LMBCLowerer::LowerAddrof(AddrofNode *expr) {
     offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
   }
   PrimType symty = (expr->GetPrimType() == PTY_simplestr ||
-                    expr->GetPrimType() == PTY_simpleobj) ? expr->GetPrimType() : LOWERED_PTR_TYPE;
+                    expr->GetPrimType() == PTY_simpleobj) ? expr->GetPrimType() : GetLoweredPtrType();
   if (!symbol->LMBCAllocateOffSpecialReg()) {
-    return mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, offset);
+    return mirBuilder->CreateExprDreadoff(OP_addrofoff, GetLoweredPtrType(), *symbol, offset);
   }
   BaseNode *rrn = mirBuilder->CreateExprRegread(symty, GetSpecialRegFromSt(symbol));
   offset += symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()].offset
@@ -63,7 +63,7 @@ BaseNode *LMBCLowerer::LowerAddrof(AddrofNode *expr) {
                                                             rrn,
                                                             mirBuilder->GetConstInt(offset));}
 
-BaseNode *LMBCLowerer::LowerDread(AddrofNode *expr) {
+BaseNode *LMBCLowerer::LowerDread(const AddrofNode *expr) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(expr->GetStIdx());
   ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
@@ -76,12 +76,13 @@ BaseNode *LMBCLowerer::LowerDread(AddrofNode *expr) {
     offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
   }
   if (!symbol->LMBCAllocateOffSpecialReg()) {
-    BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, 0);
+    BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, GetLoweredPtrType(), *symbol, 0);
     IreadoffNode *ireadoff = mirBuilder->CreateExprIreadoff(symty, offset, base);
     if (GetPrimTypeSize(ireadoff->GetPrimType()) == GetPrimTypeSize(expr->GetPrimType())) {
       return ireadoff;
     }
-    return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
+    return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()),
+                                         *ireadoff);
   }
   PregIdx spcreg = GetSpecialRegFromSt(symbol);
   if (spcreg == -kSregFp) {
@@ -91,16 +92,18 @@ BaseNode *LMBCLowerer::LowerDread(AddrofNode *expr) {
     if (GetPrimTypeSize(ireadoff->GetPrimType()) == GetPrimTypeSize(expr->GetPrimType())) {
       return ireadoff;
     }
-    return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
+    return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()),
+                                         *ireadoff);
   } else {
-    BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
+    BaseNode *rrn = mirBuilder->CreateExprRegread(GetLoweredPtrType(), spcreg);
     SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                               : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
     IreadoffNode *ireadoff = mirBuilder->CreateExprIreadoff(symty, symalloc.offset + offset, rrn);
     if (GetPrimTypeSize(ireadoff->GetPrimType()) == GetPrimTypeSize(expr->GetPrimType())) {
       return ireadoff;
     }
-    return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
+    return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()),
+                                         *ireadoff);
   }
 }
 
@@ -119,7 +122,7 @@ BaseNode *LMBCLowerer::LowerDreadoff(DreadoffNode *dreadoff) {
         symty, memlayout->sym_alloc_table[symbol->GetStIndex()].offset + dreadoff->offset);
     return ireadoff;
   } else {
-    BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
+    BaseNode *rrn = mirBuilder->CreateExprRegread(GetLoweredPtrType(), spcreg);
     SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                               : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
     IreadoffNode *ireadoff = mirBuilder->CreateExprIreadoff(symty, symalloc.offset + dreadoff->offset, rrn);
@@ -212,16 +215,16 @@ void LMBCLowerer::LowerAggDassign(const DassignNode *dsnode, MIRType *lhsty,
   } else {  // OP_iread
     rhs->SetOpCode(OP_iaddrof);
   }
-  rhs->SetPrimType(LOWERED_PTR_TYPE);
+  rhs->SetPrimType(GetLoweredPtrType());
   // generate lhs address expression
   BaseNode *lhs = nullptr;
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->GetStIdx());
   ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
   if (!symbol->LMBCAllocateOffSpecialReg()) {
-    lhs = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, offset);
+    lhs = mirBuilder->CreateExprDreadoff(OP_addrofoff, GetLoweredPtrType(), *symbol, offset);
   } else {
-    lhs = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, GetSpecialRegFromSt(symbol));
+    lhs = mirBuilder->CreateExprRegread(GetLoweredPtrType(), GetSpecialRegFromSt(symbol));
     SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                               : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
     offset = symalloc.offset + offset;
@@ -253,7 +256,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
       ptypUsed = rhs->GetPrimType();
     }
     if (!symbol->LMBCAllocateOffSpecialReg()) {
-      BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, LOWERED_PTR_TYPE, *symbol, 0);
+      BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, GetLoweredPtrType(), *symbol, 0);
       IassignoffNode *iassignoff = mirBuilder->CreateStmtIassignoff(ptypUsed,
                                                                     offset, base, rhs);
       newblk->AddStatement(iassignoff);
@@ -266,7 +269,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
           memlayout->sym_alloc_table[symbol->GetStIndex()].offset + offset, rhs);
       newblk->AddStatement(iassignoff);
     } else {
-      BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
+      BaseNode *rrn = mirBuilder->CreateExprRegread(GetLoweredPtrType(), spcreg);
       SymbolAlloc &symalloc = symbol->IsLocal() ?
           memlayout->sym_alloc_table[symbol->GetStIndex()] :
           globmemlayout->sym_alloc_table[symbol->GetStIndex()];
@@ -298,7 +301,7 @@ void LMBCLowerer::LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk) {
         memlayout->sym_alloc_table[symbol->GetStIndex()].offset + dsnode->offset, rhs);
     newblk->AddStatement(iassignoff);
   } else {
-    BaseNode *rrn = mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, spcreg);
+    BaseNode *rrn = mirBuilder->CreateExprRegread(GetLoweredPtrType(), spcreg);
     SymbolAlloc &symalloc = symbol->IsLocal() ? memlayout->sym_alloc_table[symbol->GetStIndex()]
                                               : globmemlayout->sym_alloc_table[symbol->GetStIndex()];
     IassignoffNode *iassignoff =
@@ -320,20 +323,20 @@ void LMBCLowerer::LowerAggIassign(IassignNode *iassign, MIRType *lhsty,
     case OP_iread: rhs->SetOpCode(OP_iaddrof); break;
     case OP_ireadoff: {
       IreadoffNode *ireadoff = static_cast<IreadoffNode*>(rhs);
-      rhs = mirBuilder->CreateExprBinary(OP_add, LOWERED_PTR_TYPE, rhs->Opnd(0),
+      rhs = mirBuilder->CreateExprBinary(OP_add, GetLoweredPtrType(), rhs->Opnd(0),
                                          mirBuilder->GetConstInt(ireadoff->GetOffset()));
       break;
     }
     case OP_ireadfpoff: {
       IreadFPoffNode *ireadfpoff = static_cast<IreadFPoffNode*>(rhs);
-      rhs = mirBuilder->CreateExprBinary(OP_add, LOWERED_PTR_TYPE,
-                                         mirBuilder->CreateExprRegread(LOWERED_PTR_TYPE, -kSregFp),
+      rhs = mirBuilder->CreateExprBinary(OP_add, GetLoweredPtrType(),
+                                         mirBuilder->CreateExprRegread(GetLoweredPtrType(), -kSregFp),
                                          mirBuilder->GetConstInt(ireadfpoff->GetOffset()));
       break;
     }
     default: ;
   }
-  rhs->SetPrimType(LOWERED_PTR_TYPE);
+  rhs->SetPrimType(GetLoweredPtrType());
   // generate the blkassignoff
   BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(offset,
                                                                                   lhsty->GetSize());
@@ -375,26 +378,26 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
 
 // called only if the return has > 1 operand; assume prior lowering already
 // converted any return of structs to be via fake parameter
-void LMBCLowerer::LowerReturn(NaryStmtNode *retNode, BlockNode *newblk) {
-  if (retNode->Opnd(0)->GetPrimType() != PTY_agg) {
-    CHECK_FATAL(retNode->NumOpnds() <= 2, "LMBCLowerer::LowerReturn: more than 2 return values NYI");
-    for (size_t i = 0; i < retNode->NumOpnds(); ++i) {
+void LMBCLowerer::LowerReturn(NaryStmtNode &retNode, BlockNode *newblk) {
+  if (retNode.Opnd(0)->GetPrimType() != PTY_agg) {
+    CHECK_FATAL(retNode.NumOpnds() <= 2, "LMBCLowerer::LowerReturn: more than 2 return values NYI");
+    for (size_t i = 0; i < retNode.NumOpnds(); ++i) {
       // insert regassign for the returned value
-      PrimType ptyp = retNode->Opnd(i)->GetPrimType();
-      BaseNode *rhs = LowerExpr(retNode->Opnd(i));
+      PrimType ptyp = retNode.Opnd(i)->GetPrimType();
+      BaseNode *rhs = LowerExpr(retNode.Opnd(i));
       RegassignNode *regasgn = mirBuilder->CreateStmtRegassign(ptyp,
                                                                i == 0 ? -kSregRetval0 : -kSregRetval1,
                                                                rhs);
       newblk->AddStatement(regasgn);
     }
   } else {  // handle return of small struct using only %%retval0
-    BaseNode *rhs = LowerExpr(retNode->Opnd(0));
+    BaseNode *rhs = LowerExpr(retNode.Opnd(0));
     RegassignNode *regasgn = mirBuilder->CreateStmtRegassign(PTY_agg, -kSregRetval0, rhs);
     newblk->AddStatement(regasgn);
   }
-  retNode->GetNopnd().clear();  // remove the return operands
-  retNode->SetNumOpnds(0);
-  newblk->AddStatement(retNode);
+  retNode.GetNopnd().clear();  // remove the return operands
+  retNode.SetNumOpnds(0);
+  newblk->AddStatement(&retNode);
 }
 
 void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
@@ -506,7 +509,7 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
         if (retNode->GetNopndSize() == 0) {
           newblk->AddStatement(stmt);
         } else {
-          LowerReturn(retNode, newblk);
+          LowerReturn(*retNode, newblk);
         }
         break;
       }

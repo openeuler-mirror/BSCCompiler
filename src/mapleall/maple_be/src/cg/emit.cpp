@@ -56,7 +56,7 @@ int32 GetPrimitiveTypeSize(const std::string &name) {
       return -1;
   }
 }
-DBGDieAttr *LFindAttribute(MapleVector<DBGDieAttr*> &vec, DwAt key) {
+DBGDieAttr *LFindAttribute(const MapleVector<DBGDieAttr*> &vec, DwAt key) {
   for (DBGDieAttr *at : vec)
     if (at->GetDwAt() == key) {
       return at;
@@ -392,7 +392,8 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       }
       (void)Emit(asmInfo->GetComm()).Emit(symName).Emit(", ").Emit(size).Emit(", ");
 #if PECOFF
-#if TARGARM || TARGAARCH64 || TARGARK || TARGRISCV64
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGARM32) && TARGARM32) || (defined(TARGARK) && TARGARK) ||\
+    (defined(TARGRISCV64) && TARGRISCV64)
       std::string align = std::to_string(
           static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
 #else
@@ -428,14 +429,14 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
             mirSymbol.GetType()->GetKind() == kTypeClass ||
             mirSymbol.GetType()->GetKind() == kTypeArray ||
             mirSymbol.GetType()->GetKind() == kTypeUnion) {
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
           return;
 #else
           align = kAlignOfU8;
 #endif
         } else {
           align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirSymbol.GetType()->GetTypeIndex());
-#if TARGAARCH64 || (defined(TARGARM32) && TARGARM32) || (defined(TARGARK) && TARGARK) ||\
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGARM32) && TARGARM32) || (defined(TARGARK) && TARGARK) ||\
     (defined(TARGRISCV64) && TARGRISCV64)
           if (CGOptions::IsArm64ilp32() && mirSymbol.GetType()->GetPrimType() == PTY_a32) {
             align = kAlignOfU8;
@@ -459,7 +460,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       Emit(asmInfo->GetSize());
       Emit(symName);
       Emit(", ");
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
       Emit(".-");
       Emit(symName);
 #else
@@ -670,7 +671,7 @@ void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect) {
     } else {
 #if TARGAARCH64
       (void)Emit("\t.xword\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
-#elif TARGX86_64
+#elif (defined(TARGX86_64) && TARGX86_64)
       EmitAsmLabel(kAsmQuad);
       (void)Emit(".LSTR__").Emit(std::to_string(strId).c_str());
 #else
@@ -1990,7 +1991,8 @@ void Emitter::EmitFuncLayoutInfo(const MIRSymbol &layout) {
     Emit("3\n" + markerName + ":\n");
 #endif
 
-#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64) || (defined(TARGX86_64) && TARGX86_64)
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64) ||\
+    (defined(TARGX86_64) && TARGX86_64)
     EmitAsmLabel(kAsmQuad);
 #else
     Emit("\t.word ");
@@ -2142,7 +2144,7 @@ void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec)
 void Emitter::EmitStringPointers() {
   if (CGOptions::OptimizeForSize()) {
     (void)Emit(asmInfo->GetSection()).Emit(".rodata,\"aMS\",@progbits,1").Emit("\n");
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
     Emit("\t.align 8\n");
 #else
     Emit("\t.align 3\n");
@@ -2155,7 +2157,7 @@ void Emitter::EmitStringPointers() {
       continue;
     }
     if (!CGOptions::OptimizeForSize()) {
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
       Emit("\t.align 8\n");
 #else
       Emit("\t.align 3\n");
@@ -2172,7 +2174,7 @@ void Emitter::EmitStringPointers() {
       continue;
     }
     if (!CGOptions::OptimizeForSize()) {
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
       Emit("\t.align 8\n");
 #else
       Emit("\t.align 3\n");
@@ -2180,7 +2182,7 @@ void Emitter::EmitStringPointers() {
     }
     uint32 strId = idx.GetIdx();
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
     Emit(asmInfo->GetAlign());
     Emit("8\n");
 #endif
@@ -2624,7 +2626,7 @@ void Emitter::EmitGlobalVariable() {
       }
       if (mirSymbol->IsReflectionStrTab()) {  /* reflection-string-tab also aligned to 8B boundaries. */
         (void)Emit(asmInfo->GetAlign());
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
         Emit("8\n");
 #else
         Emit("3\n");
@@ -3056,7 +3058,7 @@ void Emitter::EmitDWRef(const std::string &name) {
   Emit("\t.section .data.DW.ref." + name + ",\"awG\",%progbits,DW.ref.");
   Emit(name + ",comdat\n");
   Emit(asmInfo->GetAlign());
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
   Emit("8\n");
 #else
   Emit("3\n");
@@ -3175,6 +3177,21 @@ void Emitter::EmitDIFormSpecification(unsigned int dwform) {
   }
 }
 
+MIRFunction *Emitter::GetDwTagSubprogram(const MapleVector<DBGDieAttr*> &attrvec, DebugInfo &di) {
+  DBGDieAttr *name = LFindAttribute(attrvec, DW_AT_name);
+  if (name == nullptr) {
+    DBGDieAttr *spec = LFindAttribute(attrvec, DW_AT_specification);
+    CHECK_FATAL(spec != nullptr, "spec is null in Emitter::EmitDIAttrValue");
+    DBGDie *decl = di.GetDie(spec->GetId());
+    name = LFindAttribute(decl->GetAttrVec(), DW_AT_name);
+  }
+  CHECK_FATAL(name != nullptr, "name is null in Emitter::EmitDIAttrValue");
+  const std::string &str = GlobalTables::GetStrTable().GetStringFromStrIdx(name->GetId());
+  MIRBuilder *mirbuilder = GetCG()->GetMIRModule()->GetMIRBuilder();
+  MIRFunction *mfunc = mirbuilder->GetFunctionFromName(str);
+  return mfunc;
+}
+
 void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTag tagName, DebugInfo *di) {
   MapleVector<DBGDieAttr*> &attrvec = die->GetAttrVec();
 
@@ -3192,7 +3209,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
       outStream << attr->GetId();
       break;
     case DW_FORM_data1:
-#if DEBUG
+#if defined(DEBUG) && DEBUG
       if (attr->GetI() == kDbgDefaultVal) {
         EmitHexUnsigned(attr->GetI());
       } else
@@ -3200,7 +3217,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
       EmitHexUnsigned(uint8_t(attr->GetI()));
       break;
     case DW_FORM_data2:
-#if DEBUG
+#if defined(DEBUG) && DEBUG
       if (attr->GetI() == kDbgDefaultVal) {
         EmitHexUnsigned(attr->GetI());
       } else
@@ -3208,7 +3225,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
       EmitHexUnsigned(uint16_t(attr->GetI()));
       break;
     case DW_FORM_data4:
-#if DEBUG
+#if defined(DEBUG) && DEBUG
       if (attr->GetI() == kDbgDefaultVal) {
         EmitHexUnsigned(attr->GetI());
       } else
@@ -3220,18 +3237,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
         if (tagName == DW_TAG_compile_unit) {
           Emit(".L" XSTR(TEXT_END) "-.L" XSTR(TEXT_BEGIN));
         } else if (tagName == DW_TAG_subprogram) {
-          DBGDieAttr *name = LFindAttribute(attrvec, DW_AT_name);
-          if (name == nullptr) {
-            DBGDieAttr *spec = LFindAttribute(attrvec, DW_AT_specification);
-            CHECK_FATAL(spec != nullptr, "spec is null in Emitter::EmitDIAttrValue");
-            DBGDie *decl = di->GetDie(spec->GetId());
-            name = LFindAttribute(decl->GetAttrVec(), DW_AT_name);
-          }
-          CHECK_FATAL(name != nullptr, "name is null in Emitter::EmitDIAttrValue");
-          const std::string &str = GlobalTables::GetStrTable().GetStringFromStrIdx(name->GetId());
-
-          MIRBuilder *mirbuilder = GetCG()->GetMIRModule()->GetMIRBuilder();
-          MIRFunction *mfunc = mirbuilder->GetFunctionFromName(str);
+          MIRFunction *mfunc = GetDwTagSubprogram(attrvec, *di);
           lastMIRFunc = mfunc;
           MapleMap<MIRFunction*, std::pair<LabelIdx, LabelIdx> >::iterator it =
               CG::GetFuncWrapLabels().find(mfunc);
@@ -3272,17 +3278,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           Emit(".L" XSTR(TEXT_BEGIN));
         } else if (tagName == DW_TAG_subprogram) {
           /* if decl, name should be found; if def, we try DW_AT_specification */
-          DBGDieAttr *name = LFindAttribute(attrvec, DW_AT_name);
-          if (name == nullptr) {
-            DBGDieAttr *spec = LFindAttribute(attrvec, DW_AT_specification);
-            CHECK_FATAL(spec != nullptr, "spec is null in Emitter::EmitDIAttrValue");
-            DBGDie *decl = di->GetDie(spec->GetId());
-            name = LFindAttribute(decl->GetAttrVec(), DW_AT_name);
-          }
-          CHECK_FATAL(name != nullptr, "name is null in Emitter::EmitDIAttrValue");
-          const std::string &str = GlobalTables::GetStrTable().GetStringFromStrIdx(name->GetId());
-          MIRBuilder *mirbuilder = GetCG()->GetMIRModule()->GetMIRBuilder();
-          MIRFunction *mfunc = mirbuilder->GetFunctionFromName(str);
+          MIRFunction *mfunc = GetDwTagSubprogram(attrvec, *di);
           MapleMap<MIRFunction*, std::pair<LabelIdx, LabelIdx> >::iterator
               it = CG::GetFuncWrapLabels().find(mfunc);
           if (it != CG::GetFuncWrapLabels().end()) {
@@ -3736,7 +3732,7 @@ void Emitter::EmitHugeSoRoutines(bool lastRoutine) {
   }
   for (auto &target : hugeSoTargets) {
     (void)Emit("\t.section\t." + std::string(namemangler::kMuidJavatextPrefixStr) + ",\"ax\"\n");
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
     Emit("\t.align\t8\n");
 #else
     Emit("\t.align 3\n");

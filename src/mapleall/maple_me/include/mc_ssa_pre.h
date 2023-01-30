@@ -101,14 +101,14 @@ class McSSAPre : public SSAPre {
   void ComputeFullAvail() const;
 
   MapleUnorderedMap<MeOccur*, RGNode*> occ2RGNodeMap;
-  RGNode *source;
-  RGNode *sink;
-  uint32 numSourceEdges;
+  RGNode *source = nullptr;
+  RGNode *sink = nullptr;
+  uint32 numSourceEdges = 0;
   MapleVector<Route*> maxFlowRoutes;
-  uint32 nextRGNodeId;
-  FreqType maxFlowValue;
+  uint32 nextRGNodeId = 0;
+  FreqType maxFlowValue = 0;
   // relax maxFlowValue to avoid excessive mincut search time when number of routes is large
-  FreqType relaxedMaxFlowValue;
+  FreqType relaxedMaxFlowValue = 0;
   MapleVector<Visit*> minCut;   // an array of Visits* to represent the minCut
   uint32 preUseProfileLimit = UINT32_MAX;
 };

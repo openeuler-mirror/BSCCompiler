@@ -329,8 +329,8 @@ void LoopUnrolling::ResetFrequency() {
   auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   auto latchBB = loop->latch;
   if (isUnrollWithVar) {
-    FreqType latchFreq = loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) -
-                         loop->preheader->GetFrequency();
+    FreqType latchFreq = loop->head->GetFrequency() %
+        static_cast<FreqType>(replicatedLoopNum) - loop->preheader->GetFrequency();
     exitBB->SetFrequency(loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) - latchFreq);
     exitBB->SetEdgeFreq(latchBB, latchFreq);
     latchBB->SetFrequency(latchFreq);
@@ -345,7 +345,7 @@ void LoopUnrolling::ResetFrequency() {
     if (exitEdgeFreq == 0 && exitBB->GetEdgeFreq(latchBB) != 0) {
       exitEdgeFreq = 1;
     }
-    exitBB->SetEdgeFreq(latchBB, static_cast<FreqType>(exitEdgeFreq));
+    exitBB->SetEdgeFreq(latchBB, exitEdgeFreq);
     auto latchFreq = latchBB->GetFrequency() / static_cast<FreqType>(replicatedLoopNum);
     if (latchFreq == 0 && latchBB->GetFrequency() != 0) {
       latchFreq = 1;
@@ -808,8 +808,8 @@ void LoopUnrolling::CopyLoopForPartial(BB &partialCondGoto, BB &exitedBB, BB &ex
   --index;
   exitedBB.AddPred(partialCondGoto, index);
   if (profValid) {
-    partialCondGoto.PushBackSuccFreq(exitedBB.GetFrequency() - (loop->head->GetFrequency() %
-                                                                static_cast<FreqType>(replicatedLoopNum)));
+    partialCondGoto.PushBackSuccFreq(exitedBB.GetFrequency() -
+        (loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum)));
   }
   partialExit->AddSucc(exitedBB);
   if (profValid) {

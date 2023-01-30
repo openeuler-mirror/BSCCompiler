@@ -149,7 +149,7 @@ class PGOInstrument {
     return (allEdgeSize << edgeSizeInfoShift) | hashCode;
   }
 
-  uint64 ComputeLinenoHash() {
+  uint64 ComputeLinenoHash() const {
     const std::string& fileName = func->GetMIRModule().GetFileName();
     uint64 fileNameHash = DJBHash(fileName.c_str());
     std::string lineNo = std::to_string(func->GetMirFunc()->GetSrcPosition().LineNum());

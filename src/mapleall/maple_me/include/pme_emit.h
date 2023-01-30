@@ -62,7 +62,7 @@ class PreMeEmitter : public AnalysisResult {
     return nullptr;
   }
   MeExpr *GetMexpr(BaseNode *node) {
-    MapleMap<BaseNode *, PreMeMIRExtension *>::iterator it = preMeExprExtensionMap.find(node);
+    MapleMap<BaseNode *, PreMeMIRExtension *>::const_iterator it = preMeExprExtensionMap.find(node);
     if (it == preMeExprExtensionMap.end()) {
       return nullptr;
     }

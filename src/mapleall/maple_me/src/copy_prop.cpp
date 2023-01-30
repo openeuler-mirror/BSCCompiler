@@ -292,6 +292,7 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
     }
     case kMeOpIvar: {
       auto *ivarMeExpr = static_cast<IvarMeExpr*>(&meExpr);
+      CHECK_NULL_FATAL(ivarMeExpr);
       if (ivarMeExpr->HasMultipleMu()) {
         return meExpr;
       }
