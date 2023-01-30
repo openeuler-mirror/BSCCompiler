@@ -66,8 +66,9 @@ std::string FileUtils::SafeGetPath(const char *cmd, const char *name) {
     CHECK_FATAL(false, "Failed! Unable to find path of %s \n", name);
   }
   std::string path(buf);
-  int last = path.find_last_of('/') + 1; // 1 means include "/"
-  path = path.substr(0, last);
+  if (path.find(name) == path.npos) {
+    CHECK_FATAL(false, "Failed! Unable to find path of %s \n", name);
+  }
   return path;
 }
 

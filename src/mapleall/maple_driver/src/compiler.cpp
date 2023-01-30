@@ -20,10 +20,14 @@
 
 namespace maple {
 
-int Compiler::Exe(const MplOptions &mplOptions,
+int Compiler::Exe(const MplOptions &mplOptions, const Action &action,
                   const std::vector<MplOption> &options) const {
   std::ostringstream ostrStream;
-  ostrStream << GetBinPath(mplOptions) << GetBinName();
+  if (action.GetTool() == "ld" || action.GetTool() == "as") {
+    ostrStream << GetBin(mplOptions);
+  } else {
+    ostrStream << GetBinPath(mplOptions) << GetBinName();
+  }
   std::string binPath = ostrStream.str();
   return SafeExe::Exe(binPath, mplOptions, options);
 }
@@ -54,7 +58,7 @@ ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
   if (generatedOptions.empty()) {
     return kErrorInvalidParameter;
   }
-  if (Exe(options, generatedOptions) != 0) {
+  if (Exe(options, action, generatedOptions) != 0) {
     return kErrorCompileFail;
   }
   timer.Stop();

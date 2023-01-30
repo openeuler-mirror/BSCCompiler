@@ -77,6 +77,9 @@ class Compiler {
 
  protected:
   virtual std::string GetBinPath(const MplOptions &mplOptions) const;
+  virtual std::string GetBin(const MplOptions &mplOptions) const {
+    return "";
+  };
   virtual const std::string &GetBinName() const {
     return kBinNameNone;
   }
@@ -116,7 +119,7 @@ class Compiler {
                              const std::string &key, const std::string &value) const;
   std::vector<MplOption> MakeDefaultOptions(const MplOptions &options,
                                             const Action &action) const;
-  int Exe(const MplOptions &mplOptions, const std::vector<MplOption> &options) const;
+  int Exe(const MplOptions &mplOptions, const Action &action, const std::vector<MplOption> &options) const;
   const std::string &GetName() const {
     return name;
   }
@@ -282,7 +285,7 @@ class AsCompiler : public Compiler {
   ~AsCompiler() = default;
 
  private:
-  std::string GetBinPath(const MplOptions &mplOptions) const override;
+  std::string GetBin(const MplOptions &mplOptions) const override;
   const std::string &GetBinName() const override;
   const std::string &GetTool() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
@@ -311,7 +314,7 @@ class LdCompiler : public Compiler {
   ~LdCompiler() = default;
 
  private:
-  std::string GetBinPath(const MplOptions &mplOptions) const override;
+  std::string GetBin(const MplOptions &mplOptions) const override;
   const std::string &GetBinName() const override;
   const std::string &GetTool() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;

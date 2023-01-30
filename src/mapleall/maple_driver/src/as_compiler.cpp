@@ -69,16 +69,16 @@ DefaultOption AsCompilerBeILP32::GetDefaultOptions(const MplOptions &options, co
   return defaultOptions;
 }
 
-std::string AsCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
+std::string AsCompiler::GetBin(const MplOptions &mplOptions [[maybe_unused]]) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
   if (FileUtils::SafeGetenv(kMapleRoot) != "") {
-    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
-  } else if (FileUtils::SafeGetenv(kAsPath) != "") {
-    return FileUtils::SafeGetenv(kAsPath);
+    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/aarch64-linux-gnu-gcc";
+  } else if (FileUtils::SafeGetenv(kGccPath) != "") {
+    return FileUtils::SafeGetenv(kGccPath);
   }
-  return FileUtils::SafeGetPath("which aarch64-linux-gnu-as", "aarch64-linux-gnu-as");
+  return FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc");
 #endif
 }
 
@@ -92,11 +92,13 @@ const std::string &AsCompiler::GetTool() const {
 }
 
 DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
-  uint32_t len = 1; // for -o option
+  uint32_t len = 2; // for -o option
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
   defaultOptions.mplOptions[0].SetKey("-o");
   defaultOptions.mplOptions[0].SetValue(action.GetFullOutputName() + ".o");
+  defaultOptions.mplOptions[1].SetKey("-c");
+  defaultOptions.mplOptions[1].SetValue("");
 
   return defaultOptions;
 }
