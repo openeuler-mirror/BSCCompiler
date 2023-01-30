@@ -312,7 +312,7 @@ bool MemoryHelper::IsConsecutive(const MemLoc &mem1, const MemLoc &mem2, bool mu
   if (!dis) {
     return false;
   }
-  return dis.value() == mem1.type->GetSize();
+  return dis.value() == static_cast<ssize_t>(mem1.type->GetSize());
 }
 
 bool MemoryHelper::MustHaveNoOverlap(const MemLoc &mem1, const MemLoc &mem2) {
@@ -322,8 +322,8 @@ bool MemoryHelper::MustHaveNoOverlap(const MemLoc &mem1, const MemLoc &mem2) {
   }
   int32 offset1 = mem1.offset;
   int32 offset2 = mem2.offset;
-  int32 size1 = mem1.type->GetSize();
-  int32 size2 = mem2.type->GetSize();
+  uint32 size1 = mem1.type->GetSize();
+  uint32 size2 = mem2.type->GetSize();
   // overlapping case one:
   // mem1: |------|
   // mem2:     |------|
@@ -1589,8 +1589,8 @@ struct BlockScheduling {
 
   void ScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, bool needRectifyChiList = false) {
     CHECK_FATAL(stmt->GetBB() == anchor->GetBB(), "must belong to same BB");
-    int32 stmtOrderId = GetOrderId(stmt);
-    int32 anchorOrderId = GetOrderId(anchor);
+    int32 stmtOrderId = static_cast<int32>(GetOrderId(stmt));
+    int32 anchorOrderId = static_cast<int32>(GetOrderId(anchor));
     CHECK_FATAL(anchorOrderId < stmtOrderId, "anchor must be before stmt");
     if (needRectifyChiList) {
       irModified = SwapChiForSameOstIfNeeded(*stmt, *anchor);

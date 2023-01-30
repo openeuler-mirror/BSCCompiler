@@ -503,7 +503,7 @@ bool LoopUnrolling::SplitCondGotoBB() {
   return true;
 }
 
-LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(int64 tripCount) {
+LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(uint64 tripCount) {
   if (tripCount > kMaxCost) {
     // quickly return if iteration is large enough
     return kCanNotFullyUnroll;
@@ -529,7 +529,7 @@ LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(int64 trip
   if (!SplitCondGotoBB()) {
     return kCanNotSplitCondGoto;
   }
-  replicatedLoopNum = static_cast<uint64>(tripCount);
+  replicatedLoopNum = tripCount;
   for (int64 i = 0; i < tripCount; ++i) {
     if (i > 0) {
       needUpdateInitLoopFreq = false;
@@ -1131,7 +1131,7 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
                           : func->GetCfg()->DumpToFile("cfgbeforLoopUnrolling" + std::to_string(loop->head->GetBBId()));
   }
   // fully unroll
-  ReturnKindOfFullyUnroll returnKind = LoopFullyUnroll(static_cast<int64>(tripCount));
+  ReturnKindOfFullyUnroll returnKind = LoopFullyUnroll(tripCount);
   if (returnKind == LoopUnrolling::kCanNotSplitCondGoto) {
     return false;
   }

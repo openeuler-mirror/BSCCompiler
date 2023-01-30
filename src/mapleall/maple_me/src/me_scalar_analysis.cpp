@@ -1286,7 +1286,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
         // change to "i >= 0" to compute
         return ComputeTripCountWithSimpleConstCR(OP_ge, false, 0, start, stride);
       }
-      return static_cast<uint64>(times + static_cast<uint>(remainder != 0));
+      return static_cast<uint64>(times + (remainder != 0));
     }
     case OP_eq: {
       if (start != value) { return 0; }

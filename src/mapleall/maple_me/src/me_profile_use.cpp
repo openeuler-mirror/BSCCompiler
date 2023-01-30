@@ -41,7 +41,7 @@ BBUseInfo *MeProfUse::GetBBUseInfo(const BB &bb) const {
 FreqType MeProfUse::SumEdgesCount(const MapleVector<BBUseEdge*> &edges) const {
   FreqType count = 0;
   for (const auto &e : edges) {
-    count += e->GetCount();
+    count += static_cast<uint64>(e->GetCount());
   }
   return count;
 }

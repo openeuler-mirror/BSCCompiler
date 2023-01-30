@@ -1653,7 +1653,7 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
         replaced = false;
         return nullptr;
       }
-      int64 multiplier = -(itCand.second.multiplier * ratio);
+      int64 multiplier = -(itCand.second.multiplier * static_cast<int64>(ratio));
       auto *constExpr = irMap->CreateIntConstMeExpr(multiplier, ptyp);
       auto *expr = itCand.second.expr;
       if (extraExpr != nullptr) {

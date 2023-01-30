@@ -46,7 +46,7 @@ class LoopUnrolling {
         lastNew2OldBB(mpAllocator.Adapter()),
         profValid(func->IsIRProfValid()) {}
   ~LoopUnrolling() = default;
-  ReturnKindOfFullyUnroll LoopFullyUnroll(int64 tripCount);
+  ReturnKindOfFullyUnroll LoopFullyUnroll(uint64 tripCount);
   bool LoopPartialUnrollWithConst(uint64 tripCount);
   bool LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 j);
   bool LoopUnrollingWithConst(uint64 tripCount, bool onlyFully = false);

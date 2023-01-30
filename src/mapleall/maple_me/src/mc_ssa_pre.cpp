@@ -111,14 +111,14 @@ void McSSAPre::DumpRGToFile() {
   LogInfo::MapleLogger().rdbuf(buf);
   rgFile.open(fileName, std::ios::trunc);
   rgFile << "digraph {\n";
-  for (int32 i = 0; i < sink->pred.size(); i++) {
+  for (uint32 i = 0; i < sink->pred.size(); i++) {
     RGNode *pre = sink->pred[i];
     rgFile << "real" << pre->id << " -> " << "\"sink\nmaxflow " << maxFlowValue << "\";\n";
   }
   MapleUnorderedMap<MeOccur*, RGNode*>::iterator it = occ2RGNodeMap.begin();
   for (; it != occ2RGNodeMap.end(); it++) {
     RGNode *rgNode = it->second;
-    for (int32 i = 0; i < rgNode->pred.size(); i++) {
+    for (uint32 i = 0; i < rgNode->pred.size(); i++) {
       RGNode *pre = rgNode->pred[i];
       if (pre != source) {
         if (pre->occ->GetOccType() == kOccPhiocc) {
@@ -394,7 +394,7 @@ bool McSSAPre::FindAnotherRoute() {
   Route *route = perCandMemPool->New<Route>(&perCandAllocator);
   bool success = false;
   // pick an untaken sink predecessor first
-  for (int32 i = 0; i < sink->pred.size(); i++) {
+  for (uint32 i = 0; i < sink->pred.size(); i++) {
     if (sink->usedCap[i] == 0) {
       route->visits.push_back(Visit(sink, i));
       visitedNodes[sink->pred[i]->id] = true;
@@ -408,7 +408,7 @@ bool McSSAPre::FindAnotherRoute() {
   }
   if (!success) {
     // now, pick any sink predecessor
-    for (int32 i = 0; i < sink->pred.size(); i++) {
+    for (uint32 i = 0; i < sink->pred.size(); i++) {
       route->visits.push_back(Visit(sink, i));
       visitedNodes[sink->pred[i]->id] = true;
       success = VisitANode(sink->pred[i], route, visitedNodes);
@@ -430,7 +430,7 @@ bool McSSAPre::FindAnotherRoute() {
   }
   route->flowValue = minAvailCap;
   // update usedCap along route
-  for (int32 i = 0; i < route->visits.size(); i++) {
+  for (uint32 i = 0; i < route->visits.size(); i++) {
     route->visits[i].IncreUsedCapacity(minAvailCap);
   }
   maxFlowRoutes.push_back(route);
@@ -504,7 +504,7 @@ void McSSAPre::AddSingleSource() {
   for (MePhiOcc *phiOcc : phiOccs) {
     if (phiOcc->IsPartialAnt() && !phiOcc->IsFullyAvail()) {
       // look for null operands
-      for (int32 i = 0; i < phiOcc->GetPhiOpnds().size(); i++) {
+      for (uint32 i = 0; i < phiOcc->GetPhiOpnds().size(); i++) {
         MePhiOpndOcc *phiopndOcc = phiOcc->GetPhiOpnd(i);
         if (phiopndOcc->GetDef() != nullptr) {
           continue;

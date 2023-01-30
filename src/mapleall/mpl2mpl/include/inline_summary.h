@@ -273,7 +273,7 @@ class LiteExpr {
 
   void SetParamIndex(uint32 newParamIdx) {
     ASSERT(IsParam(), "must be");
-    data.paramIdx = static_cast<int64>(static_cast<int32>(newParamIdx));
+    data.paramIdx = newParamIdx;
   }
 
   MIRConst *GetMIRConst() {

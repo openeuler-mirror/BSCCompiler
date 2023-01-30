@@ -66,7 +66,7 @@ template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
       BitWord tmp = bitVector[i];
       unsigned bitPos = 0;
       while (tmp) {
-        unsigned trailingZeroNum = __builtin_ctzll(tmp);
+        unsigned trailingZeroNum = static_cast<unsigned>(__builtin_ctzll(tmp));
         bitPos += trailingZeroNum;
         tmp >>= trailingZeroNum;
         tmp -= 1;
@@ -80,7 +80,7 @@ template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
       BitWord tmp = bitVector[i];
       unsigned bitPos = 0;
       while (tmp) {
-        unsigned trailingZeroNum = __builtin_ctzll(tmp);
+        unsigned trailingZeroNum = static_cast<unsigned>(__builtin_ctzll(tmp));
         bitPos += trailingZeroNum;
         tmp >>= trailingZeroNum;
         tmp -= 1;

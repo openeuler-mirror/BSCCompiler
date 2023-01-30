@@ -74,7 +74,7 @@ MIRType *GetAggTypeOstEmbedded(const OriginalSt *ost) {
       aggType = static_cast<MIRPtrType *>(prevTypeA)->GetPointedType();
       constexpr int32 bitNumPerByte = 8;
       // offset is out of current AggType, return nullptr
-      if (aggType->GetSize() * bitNumPerByte <= static_cast<int64>(ost->GetOffset().val)) {
+      if (aggType->GetSize() * bitNumPerByte <= static_cast<uint32>(ost->GetOffset().val)) {
         return nullptr;
       }
     }
@@ -448,7 +448,7 @@ bool MayAliasFieldsAndMem(MIRType *aggType, std::vector<FieldID> &fields, int64 
   if (aggType->GetKind() == kTypeArray) {
     aggType = static_cast<MIRArrayType *>(aggType)->GetElemType();
     // fields specify the id of first element of aggType, so we should make memStart to the first element
-    memStart %= GetTypeBitSize(*aggType);
+    memStart %= static_cast<ssize_t>(GetTypeBitSize(*aggType));
   }
   ASSERT(aggType->IsStructType(), "Aggtype must be MIRStructType");
   auto *structType = static_cast<MIRStructType *>(aggType);

@@ -594,7 +594,7 @@ void MePrediction::CombinePredForBB(const BB &bb) {
     Edge *missing = nullptr;
     for (Edge *edge = edges[bb.GetBBId()]; edge != nullptr; edge = edge->next) {
       if (edge->probability > 0) {
-        prob -= edge->probability;
+        prob -= static_cast<uint32>(edge->probability);
       } else if (missing == nullptr) {
         missing = edge;
       } else {
@@ -602,7 +602,7 @@ void MePrediction::CombinePredForBB(const BB &bb) {
       }
     }
     CHECK_FATAL(missing != nullptr, "null ptr check");
-    missing->probability = prob;
+    missing->probability = static_cast<uint32>(prob);
     return;
   }
   EdgePrediction *preds = bbPredictions[bb.GetBBId()];
@@ -643,9 +643,9 @@ void MePrediction::CombinePredForBB(const BB &bb) {
   }
   ClearBBPredictions(bb);
   CHECK_FATAL(first != nullptr, "null ptr check");
-  first->probability = combinedProbability;
+  first->probability = static_cast<uint32>(combinedProbability);
   CHECK_FATAL(second != nullptr, "null ptr check");
-  second->probability = kProbBase - combinedProbability;
+  second->probability = static_cast<uint32>(kProbBase - combinedProbability);
 }
 
 void MePrediction::FindSCCHeaders(const SCCOfBBs &scc, std::vector<BB*> &headers) {
@@ -789,7 +789,7 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
   }
   // To ensure that the sum of out edge frequency is equal to bb frequency
   if (bestEdge != nullptr && static_cast<int64_t>(total) != bb.GetFrequency()) {
-    bestEdge->frequency += static_cast<uint32>(bb.GetFrequency() - total);
+    bestEdge->frequency += bb.GetFrequency() - static_cast<int64>(total);
   }
   return true;
 }
@@ -962,7 +962,7 @@ void MePrediction::EstimateBranchProb() {
         LogInfo::MapleLogger() << "probability for edge BB" << edge->src.GetBBId() << "->BB" <<
             edge->dest.GetBBId() << " is " << (edge->probability / hundredPercent) << "%\n";
       }
-      all += edge->probability;
+      all += static_cast<int32>(edge->probability);
     }
     if (edges[i] != nullptr) {
       CHECK_FATAL(all == kProbBase, "total probability is not 1");

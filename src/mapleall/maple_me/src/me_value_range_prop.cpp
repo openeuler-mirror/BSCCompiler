@@ -4137,7 +4137,7 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(
       if (bb.GetFrequency() > edgeFreq) {
         bb.SetFrequency(static_cast<uint32>(bb.GetFrequency() - edgeFreq));
         size_t trueBranchIdx = static_cast<uint32>(bb.GetSuccIndex(trueBranch));
-        int64_t updatedtrueFreq = static_cast<int64_t>(bb.GetSuccFreq()[trueBranchIdx] - static_cast<uint64>(edgeFreq));
+        int64_t updatedtrueFreq = static_cast<int64_t>(bb.GetSuccFreq()[trueBranchIdx] - edgeFreq);
         // transform may not be consistent with frequency value
         updatedtrueFreq = updatedtrueFreq > 0 ? updatedtrueFreq : 0;
         bb.SetSuccFreq(static_cast<int>(trueBranchIdx), static_cast<uint64>(updatedtrueFreq));
