@@ -547,7 +547,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     }
     int32 start = __builtin_ctzll(static_cast<uint64>(val));
     int32 end = static_cast<int32>(sizeof(val) * kBitsPerByte -
-        static_cast<int64>(__builtin_clzll(static_cast<uint64>(val))) - 1);
+        static_cast<uint>(__builtin_clzll(static_cast<uint64>(val))) - 1);
     return (size >= end - start + 1);
 #else
     uint8 start = 0;

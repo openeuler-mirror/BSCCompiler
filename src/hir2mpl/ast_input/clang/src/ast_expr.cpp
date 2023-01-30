@@ -1481,7 +1481,8 @@ bool ASTInitListExpr::SolveInitListPartialOfZero(std::variant<std::pair<UniqueFE
   }
   // consider struct alignment
   int64 fieldsBitSize =
-      (baseStructMirType->GetBitOffsetFromBaseAddr(fieldIdOfLastZero) + fieldSizeOfLastZero * kOneByte) - initBitSize;
+      (baseStructMirType->GetBitOffsetFromBaseAddr(fieldIdOfLastZero) +
+      static_cast<int64>(fieldSizeOfLastZero * kOneByte)) - initBitSize;
   if (fieldsCount >= 2 && fieldsBitSize % kOneByte == 0 && (fieldsBitSize / kOneByte) % 4 == 0) {
     auto addrOfExpr = CalculateStartAddressForMemset(var, static_cast<uint32>(initBitSize / 8), fieldID, base);
     ProcessImplicitInit(addrOfExpr->Clone(), 0, static_cast<uint32>(fieldsBitSize / kOneByte), 1, stmts,
@@ -2151,7 +2152,7 @@ MIRConst *ASTDesignatedInitUpdateExpr::GenerateMIRConstImpl() const {
   auto *base = static_cast<MIRAggConst*>(baseExpr->GenerateMIRConst());
   auto *update = static_cast<MIRAggConst*>(updaterExpr->GenerateMIRConst());
   auto mirConsts = update->GetConstVec();
-  for (int i = 0; i < mirConsts.size(); ++i) {
+  for (size_t i = 0; i < mirConsts.size(); ++i) {
     if (mirConsts[i]->GetKind() == kConstInvalid) {
       continue;
     } else {

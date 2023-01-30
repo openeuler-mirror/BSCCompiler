@@ -101,7 +101,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       auto shiftBits = static_cast<uint32>(static_cast<ImmOperand&>(opnd).GetValue());
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-      if ((static_cast<int64>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
+      if ((srcOpnd.GetValidBitsNum() - shiftBits) <= 0) {
         dstOpnd.SetValidBitsNum(k1BitSize);
       } else {
         dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - shiftBits);
@@ -129,7 +129,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
         ASSERT(opnd.IsIntImmediate(), "must be ImmOperand");
         auto shiftBits = static_cast<uint32>(static_cast<ImmOperand&>(opnd).GetValue());
         auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-        if ((static_cast<int64>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
+        if ((srcOpnd.GetValidBitsNum() - shiftBits) <= 0) {
           dstOpnd.SetValidBitsNum(k1BitSize);
         } else {
           dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - shiftBits);

@@ -578,7 +578,8 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
     structEmitInfo.SetCombineBitFieldValue(
         (structEmitInfo.GetCombineBitFieldValue() << fieldSize) + beValue);
   } else {
-    structEmitInfo.SetCombineBitFieldValue((fieldValue.GetExtValue() << structEmitInfo.GetCombineBitFieldWidth()) +
+    structEmitInfo.SetCombineBitFieldValue((static_cast<uint64>(fieldValue.GetExtValue()) <<
+                                            structEmitInfo.GetCombineBitFieldWidth()) +
                                            structEmitInfo.GetCombineBitFieldValue());
   }
   structEmitInfo.IncreaseCombineBitFieldWidth(fieldSize);
@@ -641,7 +642,7 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
       Emit(buf);
     } else {
       /* all others, print as number */
-      int ret = snprintf_s(buf, sizeof(buf), k4BitSize, "\\%03o", (*str) & 0xFF);
+      int ret = snprintf_s(buf, sizeof(buf), k4BitSize, "\\%03o", static_cast<uint16>(*str) & 0xFF);
       if (ret < 0) {
         FATAL(kLncFatal, "snprintf_s failed");
       }

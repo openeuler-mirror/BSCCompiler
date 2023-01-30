@@ -2975,8 +2975,8 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
     case OP_sizeoftype: {
       CHECK(static_cast<SizeoftypeNode&>(expr).GetTyIdx() < beCommon.GetSizeOfTypeSizeTable(),
             "index out of range in CGLowerer::LowerExpr");
-      int64 typeSize = beCommon.GetTypeSize(static_cast<SizeoftypeNode&>(expr).GetTyIdx());
-      return mirModule.GetMIRBuilder()->CreateIntConst(static_cast<uint64>(typeSize), PTY_u32);
+      uint64 typeSize = beCommon.GetTypeSize(static_cast<SizeoftypeNode&>(expr).GetTyIdx());
+      return mirModule.GetMIRBuilder()->CreateIntConst(typeSize, PTY_u32);
     }
 
     case OP_fieldsdist: {

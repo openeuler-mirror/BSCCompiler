@@ -4392,7 +4392,7 @@ void AArch64CGFunc::SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
 
       return;
     } else if (immValue > 2) {
-      uint32 zeroNum = __builtin_ffsll(immValue) - 1;
+      uint32 zeroNum = static_cast<uint32>(__builtin_ffsll(immValue) - 1);
       int64 headVal = static_cast<uint64>(immValue) >> zeroNum;
       /*
        * if (headVal - 1) & (headVal - 2) == 0, that is (immVal >> zeroNum) - 1 == 1 << n
@@ -9955,11 +9955,11 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
   } else if (sgKind == kMsArgsRegPassed) {
     int32 baseOffset;
     if (GetCG()->IsLmbc()) {
-      baseOffset = static_cast<int32>(symAlloc->GetOffset() + memLayout->GetSizeOfRefLocals() +
+      baseOffset = static_cast<int32>(symAlloc->GetOffset()) + static_cast<int32>(memLayout->GetSizeOfRefLocals() +
                    memLayout->SizeOfArgsToStackPass());   /* SP relative */
     } else {
-      baseOffset = static_cast<int32>(memLayout->GetSizeOfLocals()) + symAlloc->GetOffset() +
-                   static_cast<int32>(memLayout->GetSizeOfRefLocals());
+      baseOffset = static_cast<int32>(memLayout->GetSizeOfLocals() + memLayout->GetSizeOfRefLocals()) +
+                   static_cast<int32>(symAlloc->GetOffset());
     }
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsRefLocals) {
@@ -9974,12 +9974,12 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &symbolAlloc) {
   } else if (sgKind == kMsSpillReg) {
     int32 baseOffset;
     if (GetCG()->IsLmbc()) {
-      baseOffset = static_cast<int32>(symAlloc->GetOffset() +
-                   memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfRefLocals() +
+      baseOffset = static_cast<int32>(symAlloc->GetOffset()) +
+                   static_cast<int32>(memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfRefLocals() +
                    memLayout->SizeOfArgsToStackPass());
     } else {
-      baseOffset = static_cast<int32>(symAlloc->GetOffset() +
-                   static_cast<int32>(memLayout->SizeOfArgsRegisterPassed()) + memLayout->GetSizeOfLocals() +
+      baseOffset = static_cast<int32>(symAlloc->GetOffset()) +
+                   static_cast<int32>(memLayout->SizeOfArgsRegisterPassed() + memLayout->GetSizeOfLocals() +
                    memLayout->GetSizeOfRefLocals());
     }
     return baseOffset + sizeofFplr;
@@ -10431,7 +10431,7 @@ void AArch64CGFunc::SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode) 
     ASSERT(mirConst != nullptr, "nullptr check");
     CHECK_FATAL(mirConst->GetKind() == kConstInt, "expect MIRIntConst type");
     MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(mirConst);
-    int64 offset = GetPrimTypeSize(PTY_u64) * mirIntConst->GetExtValue();
+    int64 offset = static_cast<int32>(GetPrimTypeSize(PTY_u64)) * mirIntConst->GetExtValue();
 
     if (!CGOptions::IsQuiet()) {
       maple::LogInfo::MapleLogger(kLlInfo) << "At counter table offset: " << offset << std::endl;

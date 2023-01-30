@@ -69,9 +69,9 @@ void CGCFG::BuildCFG() const {
         CHECK_FATAL(branchInsn != nullptr, "machine instruction must be exist in ifBB");
         ASSERT(branchInsn->IsCondBranch(), "must be a conditional branch generated from an intrinsic");
         /* Assume the last non-null operand is the branch target */
-        int lastOpndIndex = curBB->GetLastMachineInsn()->GetOperandSize() - 1;
-        ASSERT(lastOpndIndex > -1, "lastOpndIndex's opnd is greater than -1");
-        Operand &lastOpnd = branchInsn->GetOperand(static_cast<uint32>(lastOpndIndex));
+        uint32 opSz = curBB->GetLastMachineInsn()->GetOperandSize();
+        ASSERT(opSz >= 1, "lastOpndIndex's opnd is greater than -1");
+        Operand &lastOpnd = branchInsn->GetOperand(opSz - 1u);
         ASSERT(lastOpnd.IsLabelOpnd(), "label Operand must be exist in branch insn");
         auto &labelOpnd = static_cast<LabelOperand&>(lastOpnd);
         BB *brToBB = cgFunc->GetBBFromLab2BBMap(labelOpnd.GetLabelIndex());
@@ -194,7 +194,7 @@ void CGCFG::CheckCFG() {
 void CGCFG::CheckCFGFreq() {
   auto verifyBBFreq = [this](const BB *bb, uint32 succFreq) {
     uint32 res = bb->GetFrequency();
-    if ((res != 0 && static_cast<uint32>(abs(static_cast<int>(res - succFreq)) / res > 1.0)) ||
+    if ((res != 0 && static_cast<uint32>(abs(static_cast<int>(res - succFreq))) / res > 1.0) ||
         (res == 0 && res != succFreq)) {
       // Not included
       if (bb->GetSuccs().size() > 1 && bb->GetPreds().size() > 1) {

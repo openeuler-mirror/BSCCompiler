@@ -190,8 +190,8 @@ FreqType SwitchLowerer::sumFreq(uint32 startIdx, uint32 endIdx) {
           valid = true;
         }
       } else {
-        for (uint32 caseIdx = switchItems[swIdx].first; caseIdx <= switchItems[swIdx].second; caseIdx++) {
-          freq = cgLowerer->GetLabel2Freq()[stmt->GetCasePair(caseIdx).second];
+        for (int32 caseIdx = switchItems[swIdx].first; caseIdx <= switchItems[swIdx].second; caseIdx++) {
+          freq = cgLowerer->GetLabel2Freq()[stmt->GetCasePair(static_cast<uint32>(caseIdx)).second];
           if (freq >= 0) {
             freqSum += freq;
             valid = true;
