@@ -2048,8 +2048,8 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
     uint32 fieldBitSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
     size_t fieldTypeSize = fieldType->GetSize();
     uint32 fieldTypeSizeBits = static_cast<uint32>(fieldTypeSize) * bitsPerByte;
-    auto originAlign =
-        fieldType->GetKind() == kTypeBitField ? GetPrimTypeSize(fieldType->GetPrimType()) : fieldType->GetAlign();
+    auto originAlign = fieldType->GetKind() == kTypeBitField ? GetPrimTypeSize(fieldType->GetPrimType())
+                                                             : std::max(fieldType->GetAlign(), fieldAttr.GetAlign());
     uint32 fieldAlign = fieldAttr.IsPacked() ? 1 : std::min(GetTypeAttrs().GetPack(), originAlign);
     auto fieldAlignBits = fieldAlign * bitsPerByte;
     // case 1 : bitfield (including zero-width bitfield);

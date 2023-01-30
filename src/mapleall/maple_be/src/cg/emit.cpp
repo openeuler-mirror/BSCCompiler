@@ -1845,6 +1845,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
       ASSERT(i < static_cast<uint32>(num - 1), "NYI");
       uint8 nextAlign = Globals::GetInstance()->GetBECommon()->GetTypeAlign(nextElemType->GetTypeIndex());
       auto fieldAttr = structType.GetFields()[i + 1].second.second;
+      nextAlign = std::max(nextAlign, static_cast<uint8>(fieldAttr.GetAlign()));
       nextAlign = fieldAttr.IsPacked() ? 1 : std::min(nextAlign, structPack);
       ASSERT(nextAlign != 0, "expect non-zero");
       /* append size, append 0 when align need. */

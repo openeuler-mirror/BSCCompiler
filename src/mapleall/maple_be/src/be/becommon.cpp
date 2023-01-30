@@ -578,7 +578,7 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     uint32 fieldTypeSize = GetTypeSize(fieldTyIdx);
     uint64 fieldSizeBits = fieldTypeSize * kBitsPerByte;
-    auto originAlign = GetTypeAlign(fieldTyIdx);
+    auto originAlign = std::max(GetTypeAlign(fieldTyIdx), static_cast<uint8>(fieldAttr.GetAlign()));
     uint64 fieldAlign = static_cast<uint64>(
         static_cast<int64>(fieldAttr.IsPacked() ? 1 : std::min(originAlign, structPack)));
     uint64 fieldAlignBits = static_cast<uint64>(static_cast<int64>(fieldAlign * kBitsPerByte));
