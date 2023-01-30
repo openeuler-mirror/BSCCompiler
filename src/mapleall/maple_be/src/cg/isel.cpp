@@ -706,6 +706,7 @@ std::pair<FieldID, MIRType*> MPISel::GetFieldIdAndMirTypeFromMirNode(const BaseN
     auto &dread = static_cast<const AddrofNode&>(node);
     fieldId = dread.GetFieldID();
     MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(dread.GetStIdx());
+    CHECK_FATAL(symbol != nullptr, "symbol should not be nullptr");
     mirType = symbol->GetType();
   } else if (node.GetOpCode() == maple::OP_iassign) {
     auto &iassign = static_cast<const IassignNode&>(node);

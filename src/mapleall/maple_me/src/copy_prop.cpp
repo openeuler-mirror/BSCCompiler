@@ -314,7 +314,7 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
         ivarMeExpr = (simplified != nullptr && simplified->GetMeOp() == kMeOpIvar) ?
             static_cast<IvarMeExpr*>(simplified) : ivarMeExpr;
       }
-
+      CHECK_FATAL(ivarMeExpr != nullptr, "ivarMeExpr should not be nullptr");
       auto &propedIvar = PropIvar(*ivarMeExpr);
       if (propedIvar.IsScalar() && !useInfo.GetUseSitesOfExpr(&propedIvar)) {
         useInfo.AddUseSiteOfExpr(&propedIvar, static_cast<MeStmt *>(ivarMeExpr->GetDefStmt()));

@@ -117,7 +117,7 @@ void MIRLexer::GenName() {
 // get the constant value
 TokenKind MIRLexer::GetConstVal() {
   bool negative = false;
-  int valStart = curIdx;
+  int valStart = static_cast<int>(curIdx);
   char c = GetCharAtWithUpperCheck(curIdx);
   if (c == '-') {
     c = GetNextCurrentCharWithUpperCheck();
@@ -221,7 +221,7 @@ TokenKind MIRLexer::GetLongHexConst(uint32 valStart, bool negative) {
   while (isxdigit(c)) {
     tmp = static_cast<uint32>(HexCharToDigit(c));
     tmp = (static_cast<__int128>(theLongDoubleVal[1]) << 4) + tmp;
-    theLongDoubleVal[1] = tmp;
+    theLongDoubleVal[1] = static_cast<uint64>(tmp);
     theLongDoubleVal[0] = (theLongDoubleVal[0] << 4) + (tmp >> 64);
     c = GetNextCurrentCharWithUpperCheck();
   }
@@ -240,16 +240,16 @@ TokenKind MIRLexer::GetLongHexConst(uint32 valStart, bool negative) {
 }
 
 TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
-  auto negOrSelf = [negative](uint64 val) { return negative ? ~val + 1 : val; };
+  auto negOrSelf = [negative](int64 val) { return negative ? ~val + 1 : val; };
 
-  theIntVal = static_cast<uint64_t>(HexCharToDigit(GetCharAtWithUpperCheck(curIdx)));
+  theIntVal = static_cast<int64>(HexCharToDigit(GetCharAtWithUpperCheck(curIdx)));
 
-  uint64 radix = theIntVal == 0 ? 8 : 10;
+  int64 radix = theIntVal == 0 ? 8 : 10;
 
   char c = GetNextCurrentCharWithUpperCheck();
 
   for (theIntVal = negOrSelf(theIntVal); isdigit(c); c = GetNextCurrentCharWithUpperCheck()) {
-    theIntVal = (theIntVal * radix) + negOrSelf(static_cast<uint64_t>(HexCharToDigit(c)));
+    theIntVal = (theIntVal * radix) + negOrSelf(static_cast<int64>(HexCharToDigit(c)));
   }
 
   if (c == 'u' || c == 'U') {  // skip 'u' or 'U'
@@ -323,7 +323,7 @@ TokenKind MIRLexer::GetFloatConst(uint32 valStart, uint32 startIdx, bool negativ
     if (negative) {
       theFloatVal = -theFloatVal;
     }
-    theIntVal = static_cast<uint64>(theFloatVal);
+    theIntVal = static_cast<int64>(theFloatVal);
     theDoubleVal = static_cast<double>(theFloatVal);
     if (negative && fabs(theFloatVal) <= 1e-6) {
       theDoubleVal = -theDoubleVal;
@@ -337,7 +337,7 @@ TokenKind MIRLexer::GetFloatConst(uint32 valStart, uint32 startIdx, bool negativ
     if (negative) {
       theDoubleVal = -theDoubleVal;
     }
-    theIntVal = static_cast<uint64>(theDoubleVal);
+    theIntVal = static_cast<int64>(theDoubleVal);
     theFloatVal = static_cast<float>(theDoubleVal);
     if (negative && fabs(theDoubleVal) <= 1e-15) {
       theFloatVal = -theFloatVal;
@@ -365,11 +365,11 @@ TokenKind MIRLexer::GetTokenWithPrefixPercent() {
   // token with prefix '%'
   char c = GetCharAtWithUpperCheck(curIdx);
   if (isdigit(c)) {
-    int valStart = curIdx - 1;
-    theIntVal = static_cast<uint64_t>(HexCharToDigit(c));
+    int valStart = static_cast<int>(curIdx) - 1;
+    theIntVal = static_cast<int64>(HexCharToDigit(c));
     c = GetNextCurrentCharWithUpperCheck();
     while (isdigit(c)) {
-      theIntVal = (theIntVal * 10) + static_cast<uint64_t>(HexCharToDigit(c));
+      theIntVal = (theIntVal * 10) + static_cast<int64>(HexCharToDigit(c));
       ASSERT(theIntVal >= 0, "int value overflow");
       c = GetNextCurrentCharWithUpperCheck();
     }

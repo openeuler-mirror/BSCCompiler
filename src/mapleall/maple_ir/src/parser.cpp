@@ -162,7 +162,7 @@ MIRIntrinsicID MIRParser::GetIntrinsicID(TokenKind tk) const {
 void MIRParser::Error(const std::string &str) {
   std::stringstream strStream;
   const std::string &lexName = lexer.GetName();
-  int curIdx = lexer.GetCurIdx() - lexName.length() + 1;
+  int curIdx = static_cast<int>(lexer.GetCurIdx() - lexName.length() + 1);
   strStream << "line: " << lexer.GetLineNum() << ":" << curIdx << ":";
   message += strStream.str();
   message += str;
@@ -185,7 +185,7 @@ const std::string &MIRParser::GetError() {
 void MIRParser::Warning(const std::string &str) {
   std::stringstream strStream;
   const std::string &lexName = lexer.GetName();
-  int curIdx = lexer.GetCurIdx() - lexName.length() + 1;
+  int curIdx = static_cast<int>(lexer.GetCurIdx() - lexName.length() + 1);
   strStream << "  >> warning line: " << lexer.GetLineNum() << ":" << curIdx << ":";
   warningMessage += strStream.str();
   warningMessage += str;
@@ -3396,7 +3396,7 @@ bool MIRParser::ParseTypeFromString(const std::string &src, TyIdx &tyIdx) {
 bool MIRParser::ParseMPLT(std::ifstream &mpltFile, const std::string &importFileName) {
   // save relevant values for the main input file
   std::ifstream *airFileSave = lexer.GetFile();
-  int lineNumSave = lexer.lineNum;
+  int lineNumSave = static_cast<int>(lexer.lineNum);
   std::string modFileNameSave = mod.GetFileName();
   // set up to read next line from the import file
   lexer.curIdx = 0;
@@ -3439,7 +3439,7 @@ bool MIRParser::ParseMPLT(std::ifstream &mpltFile, const std::string &importFile
   // restore old values to continue reading from the main input file
   lexer.curIdx = 0;  // to force reading new line
   lexer.currentLineSize = 0;
-  lexer.lineNum = lineNumSave;
+  lexer.lineNum = static_cast<uint32>(lineNumSave);
   lexer.SetFile(*airFileSave);
   mod.SetFileName(modFileNameSave);
   return true;

@@ -285,7 +285,7 @@ bool Insn::ScanReg(regno_t regNO) const {
 bool Insn::MayThrow() const {
   if (md->IsMemAccess() && !IsLoadLabel()) {
     auto *memOpnd = static_cast<MemOperand*>(GetMemOpnd());
-    ASSERT(memOpnd != nullptr, "CG invalid memory operand.");
+    CHECK_FATAL(memOpnd != nullptr, "CG invalid memory operand.");
     if (memOpnd->IsStackMem()) {
       return false;
     }

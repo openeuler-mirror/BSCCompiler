@@ -314,6 +314,7 @@ void ASTEnumDecl::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   }
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   MIRScope *mirScope = feFunction.GetTopMIRScope();
+  CHECK_FATAL(mirScope != nullptr, "mirScope should not be nullptr");
   MIRTypeByName *type = FEManager::GetTypeManager().GetOrCreateTypeByNameType(GenerateUniqueVarName());
   mirScope->SetTypeAliasMap(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetName()), type->GetTypeIndex());
 }

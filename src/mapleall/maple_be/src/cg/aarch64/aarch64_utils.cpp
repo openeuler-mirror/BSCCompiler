@@ -22,6 +22,7 @@ MemOperand *GetOrCreateMemOperandForNewMOP(CGFunc &cgFunc,
                                            MOperator newLoadMop) {
   MemPool &memPool = *cgFunc.GetMemoryPool();
   auto *memOp = static_cast<MemOperand *>(loadIns.GetMemOpnd());
+  CHECK_FATAL(memOp != nullptr, "memOp should not be nullptr");
   MOperator loadMop = loadIns.GetMachineOpcode();
 
   ASSERT(loadIns.IsLoad() && AArch64CG::kMd[newLoadMop].IsLoad(),
@@ -35,7 +36,6 @@ MemOperand *GetOrCreateMemOperandForNewMOP(CGFunc &cgFunc,
     // if sizes are the same just return old memory operand
     return newMemOp;
   }
-
   newMemOp = memOp->Clone(memPool);
   newMemOp->SetSize(newMemSize);
 

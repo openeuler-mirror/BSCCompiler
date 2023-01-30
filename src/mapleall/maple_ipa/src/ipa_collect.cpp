@@ -250,6 +250,7 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmt
       break;
     }
     default: {
+      CHECK_FATAL(scalar.GetDefByMeStmt() != nullptr, "nullptr check");
       auto defStmtInfoId = scalar.GetDefByMeStmt()->GetStmtInfoId();
       defUsePosition.definePositions.push_back(defStmtInfoId);
       if (scalar.GetDefBy() != kDefByChi && defStmtInfoId != kInvalidIndex) {

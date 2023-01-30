@@ -357,6 +357,7 @@ bool ASTParser::CheckIncContinueStmtExpr(const clang::Stmt &bodyStmt) const {
     clang::CompoundStmt::const_body_iterator it;
     for (it = cpdStmt->body_begin(); it != cpdStmt->body_end(); ++it) {
       const auto *subStmt = llvm::dyn_cast<const clang::Stmt>(*it);
+      CHECK_FATAL(subStmt != nullptr, "subStmt should not be nullptr");
       if (subStmt->getStmtClass() == clang::Stmt::ContinueStmtClass) {
         hasNestContinueLabel = true;
         break;

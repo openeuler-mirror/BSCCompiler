@@ -568,6 +568,7 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
   if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
     DebugInfo *di = cgFunc->GetCG()->GetMIRModule()->GetDbgInfo();
     DBGDie *fdie = di->GetFuncDie(&cgFunc->GetFunction());
+    CHECK_FATAL(fdie != nullptr, "fdie should not be nullptr");
     for (auto attr : fdie->GetAttrVec()) {
       if (!attr->GetKeep()) {
         continue;
@@ -957,7 +958,7 @@ void CGCFG::ReverseCriticalEdge(BB &cbb) {
 
   if (pred->GetKind() == BB::kBBIf) {
     Insn *brInsn = FindLastCondBrInsn(*pred);
-    ASSERT(brInsn != nullptr, "null ptr check");
+    CHECK_FATAL(brInsn != nullptr, "null ptr check");
     LabelOperand &brTarget = static_cast<LabelOperand&>(brInsn->GetOperand(AArch64isa::GetJumpTargetIdx(*brInsn)));
     if (brTarget.GetLabelIndex() == cbb.GetLabIdx()) {
       CHECK_FATAL(succ->GetLabIdx() != MIRLabelTable::GetDummyLabel(), "unexpect label");

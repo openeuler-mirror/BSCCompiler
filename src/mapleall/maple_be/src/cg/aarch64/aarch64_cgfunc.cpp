@@ -898,12 +898,12 @@ bool AArch64CGFunc::IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx)
   Operand::OperandType opndTy = opndProp->GetOperandType();
   if (opndTy == Operand::kOpdMem) {
     auto *memOpnd = static_cast<MemOperand*>(o);
+    CHECK_FATAL(memOpnd != nullptr, "memOpnd should not be nullptr");
     if (memOpnd->GetAddrMode() == MemOperand::kBOR) {
       return true;
     }
     OfstOperand *ofStOpnd = memOpnd->GetOffsetImmediate();
     int64 offsetValue = ofStOpnd ? ofStOpnd->GetOffsetValue() : 0LL;
-    CHECK_FATAL(memOpnd != nullptr, "memOpnd should not be nullptr");
     if (md->IsLoadStorePair() || (memOpnd->GetAddrMode() == MemOperand::kBOI)) {
       if (ofStOpnd && ofStOpnd->GetVary() == kUnAdjustVary) {
         offsetValue += static_cast<int32>(static_cast<AArch64MemLayout*>(GetMemlayout())->RealStackFrameSize() +

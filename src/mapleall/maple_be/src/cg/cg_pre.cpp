@@ -134,7 +134,7 @@ void CGPre::CreateSortedOccs() {
         case kOccDef:
         case kOccStore:
         case kOccMembar: {
-          if (++realOccIt != workCand->GetRealOccs().end()) {
+          if (realOccIt != workCand->GetRealOccs().end() && ++realOccIt != workCand->GetRealOccs().end()) {
             nextRealOcc = *realOccIt;
           } else {
             nextRealOcc = nullptr;
@@ -142,7 +142,7 @@ void CGPre::CreateSortedOccs() {
           break;
         }
         case kOccExit: {
-          if (++exitOccIt != exitOccs.end()) {
+          if (exitOccIt != exitOccs.end() && ++exitOccIt != exitOccs.end()) {
             nextExitOcc = *exitOccIt;
           } else {
             nextExitOcc = nullptr;
@@ -150,7 +150,7 @@ void CGPre::CreateSortedOccs() {
           break;
         }
         case kOccPhiocc: {
-          if (++phiIt != phiOccs.end()) {
+          if (phiIt != phiOccs.end() && ++phiIt != phiOccs.end()) {
             nextPhiOcc = *phiIt;
           } else {
             nextPhiOcc = nullptr;
@@ -158,7 +158,7 @@ void CGPre::CreateSortedOccs() {
           break;
         }
         case kOccPhiopnd: {
-          if (++phiOpndIt != phiOpnds.end()) {
+          if (phiOpndIt != phiOpnds.end() && ++phiOpndIt != phiOpnds.end()) {
             nextPhiOpndOcc = *phiOpndIt;
           } else {
             nextPhiOpndOcc = nullptr;
