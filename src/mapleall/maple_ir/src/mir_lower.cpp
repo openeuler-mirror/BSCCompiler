@@ -348,7 +348,7 @@ BlockNode *MIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   brFalseStmt->SetOffset(lalbeIdx);
   blk->AddStatement(brFalseStmt);
   blk->AppendStatementsFromBlock(*whileStmt.GetBody());
-  if (MeOption::optForSize) {
+  if (optLevel == 0 || MeOption::optForSize) {
     // still keep while-do format to avoid coping too much condition-related stmt
     LabelIdx whileLalbeIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
     mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(whileLalbeIdx);

@@ -487,6 +487,7 @@ void CgFuncPM::DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc) const {
   if (m.GetFlavor() <= kFeProduced) {
     mirLower->SetLowerCG();
     mirLower->SetMirFunc(&mirFunc);
+    mirLower->SetOptLevel(CGOptions::GetInstance().GetOptimizeLevel());
 
     DumpMIRFunc(mirFunc, "************* before MIRLowerer **************");
     mirLower->LowerFunc(mirFunc);
