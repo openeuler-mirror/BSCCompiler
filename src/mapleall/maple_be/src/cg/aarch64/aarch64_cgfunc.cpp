@@ -5433,9 +5433,9 @@ Operand *AArch64CGFunc::SelectExtractbits(ExtractbitsNode &node, Operand &srcOpn
 
 /*
  *  operand fits in MOVK if
- *     is64Bits && boffst == 0, 16, 32, 48 && bSize == 16, so boffset / 16 == 0, 1, 2, 3; (boffset / 16 ) & (~3) == 0
- *  or is32Bits && boffset == 0, 16 && bSize == 16, so boffset / 16 == 0, 1; (boffset / 16) & (~1) == 0
- *  imm range of aarch64-movk [0 - 65536] imm16
+ *     is64Bits && bitOffset == 0, 16, 32, 48 && bSize == 16
+ *  or is32Bits && bitOffset == 0, 16 && bSize == 16
+ *  imm range of aarch64-movk is [0 - 65536] imm16
  */
 inline bool IsMoveWideKeepable(int64 offsetVal, uint32 bitOffset, uint32 bitSize, bool is64Bits) {
   ASSERT(is64Bits || (bitOffset < k32BitSize), "");
@@ -5443,9 +5443,11 @@ inline bool IsMoveWideKeepable(int64 offsetVal, uint32 bitOffset, uint32 bitSize
   if (!isOutOfRange) {
     isOutOfRange = (static_cast<unsigned long int>(offsetVal) >> k16BitSize) > 0;
   }
-  return (!isOutOfRange) &&
-      bitSize == k16BitSize &&
-      ((bitOffset >> k16BitShift) & ~static_cast<uint32>(is64Bits ? 0x3 : 0x1)) == 0;
+  if (isOutOfRange) {
+    return false;
+  }
+  return ((bitOffset == k0BitSize || bitOffset == k16BitSize) ||
+          (is64Bits && (bitOffset == k32BitSize || bitOffset == k48BitSize))) && bitSize == k16BitSize;
 }
 
 /* we use the fact that A ^ B ^ A == B, A ^ 0 = A */

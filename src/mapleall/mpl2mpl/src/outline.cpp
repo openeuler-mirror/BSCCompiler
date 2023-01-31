@@ -241,6 +241,7 @@ class OutlineRegionExtractor {
           break;
         }
       }
+      ASSERT_NOT_NULL(symbol);
       (void)newFunc->GetFormalDefVec().emplace_back(FormalDef(symbol, symbol->GetTyIdx(), symbol->GetAttrs()));
       (void)newFunc->GetMIRFuncType()->GetParamTypeList().emplace_back(symbol->GetTyIdx());
       (void)newFunc->GetMIRFuncType()->GetParamAttrsList().emplace_back(symbol->GetAttrs());
@@ -262,6 +263,7 @@ class OutlineRegionExtractor {
     auto *parameter = candidate->GetParameters()[candidate->GetStIdxToParameterIndexMap()[stIdx]];
     auto *newParameter = exprMap[parameter];
     auto *symbol = oldFunc->GetSymbolTabItem(stIdx.Idx());
+    ASSERT_NOT_NULL(symbol);
     auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*symbol->GetType());
     auto *iassign = builder->CreateStmtIassign(*ptrType, dassign.GetFieldID(), newParameter, dassign.GetRHS());
     static_cast<BlockNode &>(parent).ReplaceStmt1WithStmt2(&dassign, iassign);
@@ -321,6 +323,7 @@ class OutlineRegionExtractor {
     bool created = false;
     auto *symbol = builder->GetOrCreateLocalDecl(symbolNameString, TyIdx(primType), *newFunc->GetSymTab(), created);
     CHECK_FATAL(created, "parameter created before when outlining");
+    ASSERT_NOT_NULL(symbol);
     symbol->SetSKind(kStVar);
     return symbol;
   }

@@ -653,6 +653,7 @@ void LoopUnrolling::AddPreHeader(BB *oldPreHeader, BB *head) {
     preheader->SetFrequency(preheaderFreq);
   }
   CondGotoMeStmt *condGotoStmt = static_cast<CondGotoMeStmt*>(oldPreHeader->GetLastMe());
+  ASSERT_NOT_NULL(condGotoStmt);
   LabelIdx oldlabIdx = condGotoStmt->GetOffset();
   if (oldlabIdx == head->GetBBLabel()) {
     LabelIdx label = func->GetOrCreateBBLabel(*preheader);
@@ -926,6 +927,7 @@ void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &pre
       }
       case kBBCondGoto: {
         auto condGotoStmt = static_cast<CondGotoMeStmt*>(bb->GetLastMe());
+        ASSERT_NOT_NULL(condGotoStmt);
         if (preCondGoto.GetBBLabel() == condGotoStmt->GetOffset()) {
           LabelIdx label = func->GetOrCreateBBLabel(*indVarAndTripCountDefBB);
           condGotoStmt->SetOffset(label);

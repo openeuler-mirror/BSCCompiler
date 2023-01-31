@@ -267,6 +267,8 @@ void JavaIntrnLowering::ProcessJavaIntrnMerge(StmtNode &assignNode, const Intrin
   if (assignNode.GetOpCode() == OP_dassign) {
     dassign = static_cast<DassignNode*>(&assignNode);
     MIRSymbol *dest = currFunc->GetLocalOrGlobalSymbol(dassign->GetStIdx());
+    ASSERT_NOT_NULL(dest);
+    ASSERT_NOT_NULL(dest->GetType());
     destType = dest->GetType()->GetPrimType();
   } else {
     regassign = static_cast<RegassignNode*>(&assignNode);
@@ -340,6 +342,7 @@ void JavaIntrnLowering::ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCa
   bool isReg = retPair.second.IsReg();
   MIRType *retType = nullptr;
   if (!isReg) {
+    ASSERT_NOT_NULL(currFunc->GetLocalOrGlobalSymbol(retPair.first));
     retType = currFunc->GetLocalOrGlobalSymbol(retPair.first)->GetType();
   } else {
     PregIdx pregIdx = retPair.second.GetPregIdx();
@@ -348,6 +351,7 @@ void JavaIntrnLowering::ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCa
                 "Dst preg needs to be a pointer or reference type");
     retType = mirPreg->GetMIRType();
   }
+  ASSERT_NOT_NULL(retType);
   CHECK_FATAL(retType->GetKind() == kTypePointer,
               "Return type of INTRN_JAVA_FILL_NEW_ARRAY should point to a Jarray");
   auto *arrayType = static_cast<MIRPtrType*>(retType)->GetPointedType();

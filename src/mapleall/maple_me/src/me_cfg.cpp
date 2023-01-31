@@ -1822,6 +1822,7 @@ void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, M
     LabelIdx label = meFunc.GetOrCreateBBLabel(*gotoBB);
     if (forMeIR) {
       auto *condBr = static_cast<CondGotoMeStmt*>(currBB.GetLastMe());
+      ASSERT_NOT_NULL(condBr);
       if (condBr->GetOffset() != label) {
         // original gotoBB is replaced by newBB
         condBr->SetOffset(label);

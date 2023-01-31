@@ -687,6 +687,7 @@ bool IpaSideEffect::UpdateSideEffectWithStmt(MeStmt &meStmt,
         CHECK_FATAL(lhs->GetOp() == OP_dread, "Must be dread.");
         VarMeExpr *lhsVar = static_cast<VarMeExpr*>(lhs);
         const OriginalSt *ost = meFunc.GetMeSSATab()->GetSymbolOriginalStFromID(lhsVar->GetOstIdx());
+        ASSERT_NOT_NULL(ost);
         if (ost->GetMIRSymbol()->IsGlobal()) {
           SetHasDef();
         }
@@ -1128,7 +1129,7 @@ bool MESideEffect::PhaseRun(MeFunction &f) {
   }
   Dominance *dom = nullptr;
   if (f.GetMirFunc()->GetBody() != nullptr) {
-    dom = GET_ANALYSIS(MEDominance, f);
+    dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   }
   CHECK_FATAL(dom != nullptr, "Dominance must be built.");
   MaplePhase *it = GetAnalysisInfoHook()->GetTopLevelAnalyisData<M2MCallGraph, MIRModule>(f.GetMIRModule());

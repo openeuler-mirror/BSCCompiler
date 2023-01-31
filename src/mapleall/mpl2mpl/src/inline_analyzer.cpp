@@ -711,6 +711,7 @@ void DebugCallInfo(CallInfo &callInfo, const CallGraph &cg) {
   auto *caller = callInfo.GetCaller();
   auto *callee = callInfo.GetCallee();
   auto *calleeNode = cg.GetCGNode(callee);
+  ASSERT_NOT_NULL(calleeNode);
   auto callerCnt = calleeNode->GetCaller().size();
   BadnessInfo badInfo;
   CalcBadnessImpl(callInfo, cg, badInfo);
@@ -826,6 +827,7 @@ std::optional<uint32> GetFuncSize(const MIRFunction &func) {
 bool CalleeCanBeRemovedIfInlined(const CallInfo &info, const CallGraph &cg) {
   auto *callee = info.GetCallee();
   auto *calleeNode = cg.GetCGNode(callee);
+  ASSERT_NOT_NULL(calleeNode);
   bool calledOnce = calleeNode->NumberOfUses() == 1 && calleeNode->NumReferences() == 1 && !calleeNode->IsAddrTaken();
   if (!calledOnce) {
     return false;

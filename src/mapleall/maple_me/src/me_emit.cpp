@@ -163,6 +163,7 @@ bool ProfileGenEmit::PhaseRun(maple::MeFunction &f) {
     // initialize is_deleted field to true; will reset when emitting Maple IR
     for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
       MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(static_cast<uint32>(k));
+      ASSERT_NOT_NULL(sym);
       if (sym->GetSKind() == kStVar) {
         sym->SetIsDeleted();
       }

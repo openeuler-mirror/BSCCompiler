@@ -20,6 +20,7 @@
 namespace maple {
 template <class T>
 void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
+  ASSERT_NOT_NULL(expr);
   if (expr->GetExprID() == kInvalidExprID) {
     return;
   }
@@ -46,7 +47,9 @@ void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
 MapleList<UseItem> *MeExprUseInfo::GetUseSitesOfExpr(const MeExpr *expr) const {
   if (IsInvalid()) {
     CHECK_FATAL(false, "Expr use info is invalid");
-  } else if (!expr->IsScalar()) {
+  }
+  ASSERT_NOT_NULL(expr);
+  if (!expr->IsScalar()) {
     CHECK_FATAL(useInfoState == kUseInfoOfAllExpr, "expr is not scalar, use info has not been collected");
   }
 

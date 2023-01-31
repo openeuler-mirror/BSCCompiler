@@ -3776,6 +3776,7 @@ void ValueRangePropagation::UpdateProfile(BB &pred, BB &bb, const BB &targetBB) 
     return;
   }
   auto *targetCondGotoStmt = static_cast<CondGotoMeStmt*>(predCondGoto->GetLastMe());
+  ASSERT_NOT_NULL(targetCondGotoStmt);
   if (targetCondGotoStmt->GetBranchProb() == kProbUnlikely || targetCondGotoStmt->GetBranchProb() == kProbLikely) {
     return;
   }

@@ -878,6 +878,7 @@ void InlineSummaryCollector::ComputeEdgePredicate() {
     ASSERT_NOT_NULL(lastStmt);
     CHECK_FATAL(lastStmt->GetOp() == OP_brtrue || lastStmt->GetOp() == OP_brfalse, "must be");
     auto *condStmt = static_cast<CondGotoMeStmt*>(lastStmt);
+    ASSERT_NOT_NULL(condStmt);
     auto *condExpr = condStmt->GetOpnd(0);
     uint32 paramsUsed = 0;
     auto *condLiteExpr = GetOrCreateLiteExpr(*condExpr, kExprKindConstNumber | kExprKindParam, paramsUsed);

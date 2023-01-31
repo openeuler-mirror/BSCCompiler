@@ -808,6 +808,7 @@ void GVN::MarkSuccBBReachable(const BB &bb) {
   switch (bb.GetKind()) {
     case kBBCondGoto: {
       const MeStmt *condMeStmt = bb.GetLastMe();
+      ASSERT_NOT_NULL(condMeStmt);
       MeExpr *condMeExpr = condMeStmt->GetOpnd(0);
       CongruenceClass *vn = GetVnOfMeExpr(*condMeExpr);
       const MeExpr *repExpr = vn->GetRepExpr();
@@ -1706,6 +1707,7 @@ void GVN::DoStmtFRE(MeStmt &stmt) {
     }
     auto *origLhs = stmt.GetLHS();
     CHECK_FATAL(origLhs != nullptr, "DoStmtFRE : check assign stmt");
+    ASSERT_NOT_NULL(leaderDef);
     stmt.SetOpnd(i, leaderDef->GetRHS());
     leaderDef->SetOpnd(i, origLhs);
     leaderDef->GetBB()->RemoveMeStmt(leaderDef);

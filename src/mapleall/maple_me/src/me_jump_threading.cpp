@@ -123,6 +123,7 @@ void JumpThreading::SetNewOffsetOfLastMeStmtForNewBB(const BB &oldBB, BB &newBB,
       auto *oldLastMe = static_cast<const GotoMeStmt*>(oldBB.GetLastMe());
       auto *newLastMe = static_cast<GotoMeStmt*>(newBB.GetLastMe());
       if (oldLastMe->GetOffset() == oldSucc.GetBBLabel()) {
+        ASSERT_NOT_NULL(newLastMe);
         newLastMe->SetOffset(func.GetOrCreateBBLabel(newSucc));
       }
       break;
@@ -725,6 +726,7 @@ void JumpThreading::PreFindPath(BB &bb, MeExpr &opnd0, MeExpr *opnd1) {
 }
 
 void JumpThreading::DealWithCondGoto(BB &bb) {
+  ASSERT_NOT_NULL(bb.GetLastMe());
   if (!bb.GetLastMe()->IsCondBr()) {
     return;
   }

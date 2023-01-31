@@ -31,7 +31,7 @@ MplScheduler::MplScheduler(const std::string &name)
 
 void MplScheduler::Init() {
   char *envStr = getenv("MP_DUMPTIME");
-  if (envStr != nullptr && atoi(envStr) == 1) {
+  if (envStr != nullptr && std::stoi(envStr) == 1) {
     dumpTime = true;
   }
   int ret = pthread_mutex_init(&mutexTaskIdsToRun, nullptr);
@@ -44,9 +44,9 @@ void MplScheduler::Init() {
   conditionFinishProcess = PTHREAD_COND_INITIALIZER;
 }
 
-void MplScheduler::AddTask(MplTask *task) {
-  task->SetTaskId(taskIdForAdd);
-  tbTasks.push_back(task);
+void MplScheduler::AddTask(MplTask &task) {
+  task.SetTaskId(taskIdForAdd);
+  tbTasks.push_back(&task);
   ++taskIdForAdd;
   ++numberTasks;
 }
@@ -165,7 +165,7 @@ void MplScheduler::ThreadMain(uint32 threadID, MplSchedulerParam *env) {
       timerRun.Start();
     }
     MplTaskParam *paramRun = CallbackGetTaskRunParam();
-    task->Run(paramRun);
+    (void)task->Run(paramRun);
     if (dumpTime) {
       timerRun.Stop();
       timeRun += timerRun.ElapsedMicroseconds();

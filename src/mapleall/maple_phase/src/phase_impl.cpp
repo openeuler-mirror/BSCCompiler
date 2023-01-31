@@ -92,7 +92,7 @@ thread_local FuncOptimizeImpl *FuncOptimizeIterator::phaseImplLocal = nullptr;
 FuncOptimizeIterator::FuncOptimizeIterator(const std::string &phaseName, std::unique_ptr<FuncOptimizeImpl> phaseImpl)
     : MplScheduler(phaseName), phaseImpl(std::move(phaseImpl)) {
   char *envStr = getenv("MP_DUMPTIME");
-  mplDumpTime = (envStr != nullptr && atoi(envStr) == 1);
+  mplDumpTime = (envStr != nullptr && std::stoi(envStr) == 1);
 }
 
 FuncOptimizeIterator::~FuncOptimizeIterator() = default;

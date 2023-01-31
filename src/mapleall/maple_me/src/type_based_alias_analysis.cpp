@@ -535,6 +535,7 @@ bool TypeWithSameSizeEmbedded(MIRType *aggType, MIRType *checkedType) {
   if (aggType == checkedType) {
     return true;
   }
+  ASSERT_NOT_NULL(checkedType);
   ASSERT_NOT_NULL(aggType);
   if (aggType->GetSize() != checkedType->GetSize()) {
     return false;

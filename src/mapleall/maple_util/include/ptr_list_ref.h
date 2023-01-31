@@ -286,11 +286,13 @@ class PtrListRef {
     if (this->last == nullptr) {
       this->first = _Value;
       this->last = _Value;
+      ASSERT_NOT_NULL(_Value);
       _Value->SetPrev(nullptr);
       _Value->SetNext(nullptr);
     } else {
       ASSERT(this->first != nullptr, "null ptr check");
       this->first->SetPrev(_Value);
+      ASSERT_NOT_NULL(_Value);
       _Value->SetPrev(nullptr);
       _Value->SetNext(this->first);
       this->first = _Value;
@@ -369,6 +371,7 @@ class PtrListRef {
     } else {
       // `_Where` stands for the position, however we made the data and node combined, so a const_cast is needed.
       auto *ptr = const_cast<T*>(&*_Where);
+      ASSERT_NOT_NULL(_Value);
       _Value->SetPrev(ptr);
       _Value->SetNext(ptr->GetNext());
       _Value->GetNext()->SetPrev(_Value);
@@ -428,7 +431,9 @@ class PtrListRef {
       // `_Where` stands for the position, however we made the data and node combined, so a const_cast is needed.
       auto *ptr = const_cast<T*>(&*_Where);
       ptr->GetPrev()->SetNext(ptr->GetNext());
-      ptr->GetNext()->SetPrev(ptr->GetPrev());
+      if (ptr->GetNext()) {
+        ptr->GetNext()->SetPrev(ptr->GetPrev());
+      }
     }
     return iterator(nullptr);
   }

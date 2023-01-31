@@ -50,6 +50,7 @@ void VectorVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &i
 void MapVersionStacks::InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) {
   for (auto &renameWithMapStack : std::as_const(renameWithMapStacks)) {
     OriginalSt *ost = ssaTab.GetOriginalStFromID(renameWithMapStack.first);
+    ASSERT_NOT_NULL(ost);
     ScalarMeExpr *zeroVersScalar =
         (ost->IsSymbolOst()) ? irMap.GetOrCreateZeroVersionVarMeExpr(*ost) : irMap.CreateRegMeExprVersion(*ost);
     auto renameStack = renameWithMapStack.second.get();
@@ -111,20 +112,21 @@ void MapVersionStacks::RecoverStackSize(std::vector<std::pair<uint32, OStIdx >> 
 
 void MeSSAUpdate::InsertPhis() {
   auto it = updateCands.begin();
-  std::set<BBId> dfSet;
+  std::set<uint32> dfSet;
   auto cfg = func.GetCfg();
   for (; it != updateCands.end(); ++it) {
     const OriginalSt *ost = ssaTab.GetOriginalStFromID(it->first);
+    ASSERT_NOT_NULL(ost);
     if (ost->IsVolatile()) { // volatile variables will not have ssa form.
       continue;
     }
     dfSet.clear();
     for (const auto &bbId : *it->second) {
-      dfSet.insert(dom.iterDomFrontier[bbId].cbegin(), dom.iterDomFrontier[bbId].cend());
+      dfSet.insert(dom.GetIterDomFrontier(bbId.GetIdx()).cbegin(), dom.GetIterDomFrontier(bbId.GetIdx()).cend());
     }
     for (const auto &bbId : dfSet) {
       // insert a phi node
-      BB *bb = cfg->GetBBFromID(bbId);
+      BB *bb = cfg->GetBBFromID(BBId(bbId));
       ASSERT_NOT_NULL(bb);
       auto phiListIt = bb->GetMePhiList().find(it->first);
       if (phiListIt != bb->GetMePhiList().end()) {
@@ -334,9 +336,9 @@ void MeSSAUpdate::RenameBB(BB &bb) {
   RenamePhiOpndsInSucc(bb);
   // recurse down dominator tree in pre-order traversal
   auto cfg = func.GetCfg();
-  const auto &children = dom.GetDomChildren(bb.GetBBId());
+  const auto &children = dom.GetDomChildren(bb.GetID());
   for (const auto &child : children) {
-    RenameBB(*cfg->GetBBFromID(child));
+    RenameBB(*cfg->GetBBFromID(BBId(child)));
   }
   // pop stacks back to where they were at entry to this BB
   rename->RecoverStackSize(origStackSize);
@@ -408,9 +410,9 @@ void MeSSAUpdate::Run() {
   rename->InsertZeroVersion2RenameStack(ssaTab, irMap);
   // recurse down dominator tree in pre-order traversal
   auto cfg = func.GetCfg();
-  const auto &children = dom.GetDomChildren(cfg->GetCommonEntryBB()->GetBBId());
+  const auto &children = dom.GetDomChildren(cfg->GetCommonEntryBB()->GetID());
   for (const auto &child : children) {
-    RenameBB(*cfg->GetBBFromID(child));
+    RenameBB(*cfg->GetBBFromID(BBId(child)));
   }
 }
 }  // namespace maple

@@ -1632,6 +1632,7 @@ StmtNode *SprintfBaseOper::InsertMemcpyCallStmt(const MapleVector<BaseNode *> &a
   auto memcpyFunc = mirBuilder->GetOrCreateFunction(kFuncNameOfMemcpy, TyIdx(PTY_void));
   auto memcpyCallStmt = mirBuilder->CreateStmtCallAssigned(memcpyFunc->GetPuidx(), args, nullptr, OP_callassigned);
   memcpyCallStmt->SetSrcPos(stmt.GetSrcPos());
+  ASSERT_NOT_NULL(memcpyFunc->GetFuncSymbol());
   memcpyFunc->GetFuncSymbol()->SetAppearsInCode(true);
   memcpyFunc->AllocSymTab();
   // handle memcpy return val

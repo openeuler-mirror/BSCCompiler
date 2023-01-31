@@ -197,6 +197,7 @@ void Expand128Floats::ReplaceOpNode(BlockNode *block, BaseNode *baseNode, size_t
   cvtFunc->SetAttr(FUNCATTR_public);
   cvtFunc->SetAttr(FUNCATTR_extern);
   cvtFunc->SetAttr(FUNCATTR_used);
+  ASSERT_NOT_NULL(cvtFunc->GetFuncSymbol());
   cvtFunc->GetFuncSymbol()->SetAppearsInCode(true);
   cvtFunc->AllocSymTab();
   MIRSymbol *stubFuncRet = builder->CreateSymbol(TyIdx(pType),
