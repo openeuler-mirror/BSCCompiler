@@ -760,7 +760,7 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
     case kConstFloat128Const: {
       MIRFloat128Const &ldoubleCt = static_cast<MIRFloat128Const&>(mirConst);
       const unsigned int *wVal = ldoubleCt.GetWordPtr();
-      const int mod = k16ByteFloat128Size / sizeof(int);
+      const int mod = static_cast<int>(k16ByteFloat128Size / sizeof(int));
       for (int i = 0; i < mod; i++) {
         EmitAsmLabel(asmName);
         if (!CGOptions::IsBigEndian()) {
@@ -1643,7 +1643,7 @@ void Emitter::EmitConstantTable(const MIRSymbol &mirSymbol, MIRConst &mirConst,
 #ifdef USE_32BIT_REF
       itabConflictIndex = static_cast<uint64>((safe_cast<MIRIntConst>(elemConst))->GetValue()) & 0xffff;
 #else
-      itabConflictIndex = safe_cast<MIRIntConst>(elemConst)->GetExtValue() & 0xffffffff;
+      itabConflictIndex = static_cast<uint64>((safe_cast<MIRIntConst>(elemConst)->GetExtValue()) & 0xffffffff);
 #endif
     }
     if (IsPrimitiveScalar(elemConst->GetType().GetPrimType())) {

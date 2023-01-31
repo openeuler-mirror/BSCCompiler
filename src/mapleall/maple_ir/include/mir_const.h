@@ -322,21 +322,21 @@ class MIRFloatConst : public MIRConst {
 
   std::pair<uint64, uint64> GetFloat128Value() const {
     // check special values
-    if (std::isinf(value.floatValue) && ((value.intValue & (1ull << 31)) >> 31) == 0x0) {
+    if (std::isinf(value.floatValue) && ((static_cast<uint64>(value.intValue) & (1ull << 31)) >> 31) == 0x0) {
       return {0x7fff000000000000, 0x0};
-    } else if (std::isinf(value.floatValue) && ((value.intValue & (1ull << 31)) >> 31) == 0x1) {
+    } else if (std::isinf(value.floatValue) && ((static_cast<uint64>(value.intValue) & (1ull << 31)) >> 31) == 0x1) {
       return {0xffff000000000000, 0x0};
-    } else if ((value.intValue ^ (0x1 << 31)) == 0x0) {
+    } else if ((static_cast<uint64>(value.intValue) ^ (0x1 << 31)) == 0x0) {
       return {0x8000000000000000, 0x0};
-    } else if ((value.intValue ^ 0x0) == 0x0) {
+    } else if ((static_cast<uint64>(value.intValue) ^ 0x0) == 0x0) {
       return {0x0, 0x0};
     } else if (std::isnan(value.floatValue)) {
       return {0x7fff800000000000, 0x0};
     }
 
-    uint64 sign = (value.intValue & (1ull << 31)) >> 31;
-    uint64 exp = (value.intValue & (0x7f800000)) >> 23;
-    uint64 mantiss = value.intValue & (0x007fffff);
+    uint64 sign = (static_cast<uint64>(value.intValue) & (1ull << 31)) >> 31;
+    uint64 exp = (static_cast<uint64>(value.intValue) & (0x7f800000)) >> 23;
+    uint64 mantiss = static_cast<uint64>(value.intValue) & (0x007fffff);
 
     const int float_exp_offset = 0x7f;
     const int float_min_exp = -0x7e;
@@ -354,7 +354,7 @@ class MIRFloatConst : public MIRConst {
       for (; ((mantiss >> (22 - num_pos)) & 0x1) != 1; ++num_pos) {};
 
       uint64 ldouble_exp = float_min_exp - (num_pos + 1) + ldouble_exp_offset;
-      int num_ldouble_mantiss_bits = float_mantiss_bits - (num_pos + 1);
+      int num_ldouble_mantiss_bits = float_mantiss_bits - static_cast<int64>((num_pos + 1));
       uint64 ldouble_mantiss_mask = (1 << num_ldouble_mantiss_bits) - 1;
       uint64 ldouble_mantiss = mantiss & ldouble_mantiss_mask;
       uint64 high_byte = (sign << 63 | (ldouble_exp << 48) | (ldouble_mantiss << (25 + num_pos + 1)));
@@ -443,21 +443,21 @@ class MIRDoubleConst : public MIRConst {
 
   std::pair<uint64, uint64> GetFloat128Value() const {
     // check special values
-    if (std::isinf(value.dValue) && ((value.intValue & (1ull << 63)) >> 63) == 0x0) {
+    if (std::isinf(value.dValue) && ((static_cast<uint64>(value.intValue) & (1ull << 63)) >> 63) == 0x0) {
       return {0x7fff000000000000, 0x0};
-    } else if (std::isinf(value.dValue) && ((value.intValue & (1ull << 63)) >> 63) == 0x1) {
+    } else if (std::isinf(value.dValue) && ((static_cast<uint64>(value.intValue) & (1ull << 63)) >> 63) == 0x1) {
       return {0xffff000000000000, 0x0};
-    } else if ((value.intValue ^ (1ull << 63)) == 0x0) {
+    } else if ((static_cast<uint64>(value.intValue) ^ (1ull << 63)) == 0x0) {
       return {0x8000000000000000, 0x0};
-    } else if ((value.intValue ^ 0x0) == 0x0) {
+    } else if ((static_cast<uint64>(value.intValue) ^ 0x0) == 0x0) {
       return {0x0, 0x0};
     } else if (std::isnan(value.dValue)) {
       return {0x7fff800000000000, 0x0};
     }
 
-    uint64 sign = (value.intValue & (1ull << 63)) >> 63;
-    uint64 exp = (value.intValue & (0x7ff0000000000000)) >> 52;
-    uint64 mantiss = value.intValue & (0x000fffffffffffff);
+    uint64 sign = (static_cast<uint64>(value.intValue) & (1ull << 63)) >> 63;
+    uint64 exp = (static_cast<uint64>(value.intValue) & (0x7ff0000000000000)) >> 52;
+    uint64 mantiss = static_cast<uint64>(value.intValue) & (0x000fffffffffffff);
 
     const int double_exp_offset = 0x3ff;
     const int double_min_exp = -0x3fe;
@@ -477,7 +477,7 @@ class MIRDoubleConst : public MIRConst {
       int num_pos = 0;
       for (; ((mantiss >> (51 - num_pos)) & 0x1) != 1; ++num_pos) {};
 
-      uint64 ldouble_exp = double_min_exp - (num_pos + 1) + ldouble_exp_offset;
+      uint64 ldouble_exp = static_cast<uint64>(double_min_exp - (num_pos + 1) + ldouble_exp_offset);
 
       int num_ldouble_mantiss_bits = double_mantiss_bits - (num_pos + 1);
       uint64 ldouble_mantiss_mask = (1ull << num_ldouble_mantiss_bits) - 1;

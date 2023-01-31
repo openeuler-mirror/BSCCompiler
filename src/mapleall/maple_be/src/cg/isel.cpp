@@ -738,7 +738,7 @@ MirTypeInfo MPISel::GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType
     ASSERT((mirType->IsMIRStructType() || mirType->IsMIRUnionType()), "non-structure");
     MIRStructType *structType = static_cast<MIRStructType*>(mirType);
     mirType = structType->GetFieldType(fieldId);
-    mirTypeInfo.offset = static_cast<uint32>(cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first);
+    mirTypeInfo.offset = cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first;
   }
   mirTypeInfo.primType = mirType->GetPrimType();
   // aggSize for AggType
@@ -1378,7 +1378,8 @@ Operand *MPISel::SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, 
   SelectBand(resOpnd, opnd0, imm1Opnd, primType);
   if (opnd1.IsIntImmediate()) {
     /* opnd1 is immediate, imm2 = (opnd1.val << bitOffset) & (~$imm1) */
-    int64 imm2Val = (static_cast<ImmOperand&>(opnd1).GetValue() << bitOffset) & (~imm1Val);
+    int64 imm2Val = static_cast<int64>((static_cast<uint64>(static_cast<ImmOperand&>(opnd1).GetValue()) <<
+        bitOffset)) & (~imm1Val);
     ImmOperand &imm2Opnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize, imm2Val);
     /* or */
     SelectBior(resOpnd, resOpnd, imm2Opnd, primType);

@@ -72,7 +72,7 @@ std::string ClangCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unuse
   }
   std::string path = mplOptions.GetExeFolder();
   // find the upper-level directory of bin/maple
-  int index = path.find_last_of('/') - 3;
+  size_t index = path.find_last_of('/') - static_cast<size_t>(3);
   std::string clangPath = path.substr(0, index);
   return clangPath + "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/";
 }

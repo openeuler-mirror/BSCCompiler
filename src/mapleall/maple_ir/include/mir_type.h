@@ -1717,7 +1717,7 @@ class MIRClassType : public MIRStructType {
 
   FieldID GetLastFieldID() const;
   FieldID GetFirstFieldID() const {
-    return GetLastFieldID() - fields.size() + 1;
+    return GetLastFieldID() - static_cast<FieldID>(fields.size() + 1);
   }
 
   FieldID GetFirstLocalFieldID() const;

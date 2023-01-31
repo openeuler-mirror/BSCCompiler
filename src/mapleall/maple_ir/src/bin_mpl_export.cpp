@@ -442,7 +442,7 @@ void BinaryMplExport::OutputStr(const GStrIdx &gstr) {
   }
 
   size_t mark = gStrMark.size();
-  gStrMark[gstr] = mark;
+  gStrMark[gstr] = static_cast<int64>(mark);
   WriteNum(kBinString);
   ASSERT(GlobalTables::GetStrTable().StringTableSize() != 0, "Container check");
   WriteAsciiStr(GlobalTables::GetStrTable().GetStringFromStrIdx(gstr));
@@ -620,7 +620,7 @@ void BinaryMplExport::Init() {
   funcMark[nullptr] = 0;
   eaNodeMark[nullptr] = 0;
   curFunc = nullptr;
-  for (uint32 pti = static_cast<int32>(PTY_begin); pti < static_cast<uint32>(PTY_end); ++pti) {
+  for (uint32 pti = static_cast<uint32>(PTY_begin); pti < static_cast<uint32>(PTY_end); ++pti) {
     typMark[GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(pti))] = pti;
   }
 }
@@ -645,7 +645,7 @@ void BinaryMplExport::OutputSymbol(MIRSymbol *sym) {
   WriteNum(sym->GetSKind());
   WriteNum(sym->GetStorageClass());
   size_t mark = symMark.size();
-  symMark[sym] = mark;
+  symMark[sym] = static_cast<int64>(mark);
   OutputTypeAttrs(sym->GetAttrs());
   WriteNum(sym->GetIsTmp() ? 1 : 0);
   if (sym->GetSKind() == kStPreg) {
@@ -1317,7 +1317,7 @@ void BinaryMplExport::OutputType(const TyIdx &tyIdx) {
     }
     ++BinaryMplExport::typeMarkOffset;
   } else {
-    size_t mark = typMark.size() + BinaryMplExport::typeMarkOffset;
+    size_t mark = typMark.size() + static_cast<uint>(BinaryMplExport::typeMarkOffset);
     typMark[ty] = mark;
   }
 

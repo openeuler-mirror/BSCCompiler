@@ -138,7 +138,8 @@ void BinaryMplExport::OutputAliasMap(MapleMap<GStrIdx, MIRAliasVars> &aliasVarMa
   for (std::pair<GStrIdx, MIRAliasVars> it : aliasVarMap) {
     OutputStr(it.first);
     OutputStr(it.second.mplStrIdx);
-    OutputType(it.second.tyIdx);
+    WriteNum(static_cast<uint32>(it.second.atk));
+    WriteNum(it.second.index);
     OutputStr(it.second.sigStrIdx);
   }
 }
@@ -375,7 +376,7 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
   } else {
     OutputSrcPos(SrcPosition());  // output 0
   }
-  int32 num = 0;
+  uint32 num = 0;
   uint64 idx = buf.size();
   ExpandFourBuffSize();  // place holder, Fixup later
   for (StmtNode *s = block->GetFirst(); s; s = s->GetNext()) {
@@ -432,7 +433,7 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
       }
       case OP_blkassignoff: {
         BlkassignoffNode *bass = static_cast<BlkassignoffNode *>(s);
-        int32 offsetAlign = (bass->offset << 4) | bass->alignLog2;
+        int32 offsetAlign = static_cast<int32>((static_cast<uint>(bass->offset) << 4) | bass->alignLog2);
         WriteNum(offsetAlign);
         WriteNum(bass->blockSize);
         break;
@@ -684,14 +685,14 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
 }
 
 void BinaryMplExport::WriteFunctionBodyField(uint64 contentIdx, std::unordered_set<std::string> *dumpFuncSet) {
-  Fixup(contentIdx, static_cast<int32>(buf.size()));
+  Fixup(contentIdx, static_cast<uint32>(buf.size()));
   // LogInfo::MapleLogger() << "Write FunctionBody Field " << std::endl;
   WriteNum(kBinFunctionBodyStart);
   uint64 totalSizeIdx = buf.size();
   ExpandFourBuffSize();  /// total size of this field to ~BIN_FUNCTIONBODY_START
   uint64 outFunctionBodySizeIdx = buf.size();
   ExpandFourBuffSize();  /// size of outFunctionBody
-  int32 size = 0;
+  uint32 size = 0;
 
   if (not2mplt) {
     for (MIRFunction *func : GetMIRModule().GetFunctionList()) {
@@ -736,7 +737,7 @@ void BinaryMplExport::WriteFunctionBodyField(uint64 contentIdx, std::unordered_s
     }
   }
 
-  Fixup(totalSizeIdx, static_cast<int32>(buf.size() - totalSizeIdx));
+  Fixup(totalSizeIdx, static_cast<uint32>(buf.size() - totalSizeIdx));
   Fixup(outFunctionBodySizeIdx, size);
   return;
 }

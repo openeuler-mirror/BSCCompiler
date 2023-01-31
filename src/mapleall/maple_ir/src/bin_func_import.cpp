@@ -153,7 +153,8 @@ void BinaryMplImport::ImportAliasMap(MIRFunction *func) {
     MIRAliasVars aliasvars;
     GStrIdx strIdx = ImportStr();
     aliasvars.mplStrIdx = ImportStr();
-    aliasvars.tyIdx = ImportType();
+    aliasvars.atk = static_cast<AliasTypeKind>(ReadNum());
+    aliasvars.index = static_cast<uint32>(ReadNum());
     (void)ImportStr();  // not assigning to mimic parser
     func->GetAliasVarMap()[strIdx] = aliasvars;
   }
@@ -536,8 +537,8 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       case OP_blkassignoff: {
         BlkassignoffNode *s = func->GetCodeMemPool()->New<BlkassignoffNode>();
         int32 offsetAlign = static_cast<int32>(ReadNum());
-        s->offset = offsetAlign >> kOffset4bit;
-        s->alignLog2 = offsetAlign & 0xf;
+        s->offset = static_cast<int32>(static_cast<uint32>(offsetAlign) >> kOffset4bit);
+        s->alignLog2 = static_cast<uint32>(offsetAlign) & 0xf;
         s->blockSize = static_cast<int32>(ReadNum());
         s->SetOpnd(ImportExpression(func), kFirstOpnd);
         s->SetOpnd(ImportExpression(func), kSecondOpnd);

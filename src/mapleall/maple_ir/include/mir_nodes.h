@@ -2572,7 +2572,7 @@ class IfStmtNode : public UnaryStmtNode {
     node->SetOpnd(Opnd()->CloneTree(allocator), 0);
     if (fromFreqs.count(GetStmtID()) > 0) {
       FreqType oldFreq = fromFreqs[GetStmtID()];
-      FreqType newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
+      FreqType newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * static_cast<FreqType>(numer / denom)) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
       if (updateOp & kUpdateOrigFreq) {
         FreqType left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
@@ -2658,10 +2658,10 @@ class WhileStmtNode : public UnaryStmtNode {
       FreqType oldFreq = fromFreqs[GetStmtID()];
       FreqType newFreq =
           numer == 0 ? 0 : (denom > 0 ? static_cast<int64_t>(static_cast<uint64_t>(oldFreq) * numer / denom) : oldFreq);
-      toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? static_cast<uint64_t>(newFreq) : 1;
+      toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
       if (updateOp & kUpdateOrigFreq) {
         FreqType left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
-        fromFreqs[GetStmtID()] = static_cast<uint64_t>(left);
+        fromFreqs[GetStmtID()] = left;
       }
     }
     node->SetOpnd(Opnd(0)->CloneTree(allocator), 0);
@@ -2729,15 +2729,16 @@ class DoloopNode : public StmtNode {
       FreqType oldFreq = fromFreqs[GetStmtID()];
       FreqType newFreq = oldFreq;
       if ((updateOp & kUpdateFreqbyScale) != 0) {  // used in inline/clone
-        newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
+        newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * static_cast<FreqType>(numer / denom)) : oldFreq);
       } else if ((updateOp & kUpdateUnrolledFreq) != 0) {  // used in unrolled part
         FreqType bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
-        newFreq = denom > 0 ? (bodyFreq * numer / denom + (oldFreq - bodyFreq)) : oldFreq;
+        newFreq = denom > 0 ? (bodyFreq * static_cast<FreqType>(numer / denom) + (oldFreq - bodyFreq)) : oldFreq;
       } else if ((updateOp & kUpdateUnrollRemainderFreq) != 0) {  // used in unrolled remainder
         FreqType bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
-        newFreq = denom > 0 ? (((bodyFreq * numer) % denom) + (oldFreq - bodyFreq)) : oldFreq;
+        newFreq = denom > 0 ? (((bodyFreq * static_cast<FreqType>(numer)) % static_cast<FreqType>(denom)) +
+            (oldFreq - bodyFreq)) : oldFreq;
       }
-      toFreqs[node->GetStmtID()] = static_cast<uint64_t>(newFreq);
+      toFreqs[node->GetStmtID()] = newFreq;
       ASSERT(oldFreq >= newFreq, "sanity check");
       if ((updateOp & kUpdateOrigFreq) != 0) {
         FreqType left = oldFreq - newFreq;
