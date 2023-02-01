@@ -4,6 +4,6 @@ int main() {
   print_int8x8_t(
     vshr_n_s8(
       set_int8x8_t(),
-      set_int()));
+      set_int_1()));
   return 0;
 }

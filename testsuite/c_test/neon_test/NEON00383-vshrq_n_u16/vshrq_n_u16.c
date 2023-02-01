@@ -4,6 +4,6 @@ int main() {
   print_uint16x8_t(
     vshrq_n_u16(
       set_uint16x8_t(),
-      set_int()));
+      set_int_1()));
   return 0;
 }

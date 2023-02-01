@@ -137,5 +137,6 @@ void print_int(int a) {
   printf("%ld\n", (long)a);
 }
 #define set_int() (0)
+#define set_int_1() (1)
 
 #endif /* __NEON_H__ */

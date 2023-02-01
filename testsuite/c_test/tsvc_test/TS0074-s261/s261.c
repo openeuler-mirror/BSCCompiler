@@ -1,0 +1,38 @@
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <sys/time.h>
+
+#include "common.h"
+#include "array_defs.h"
+
+real_t s261(struct args_t * func_args)
+{
+    initialise_arrays(__func__);
+    gettimeofday(&func_args->t1, NULL);
+    real_t t;
+    for (int nl = 0; nl < iterations; nl++) {
+        for (int i = 1; i < LEN_1D; ++i) {
+            t = a[i] + b[i];
+            a[i] = t + c[i-1];
+            t = c[i] * d[i];
+            c[i] = t;
+        }
+        dummy(a, b, c, d, e, aa, bb, cc, 0.);
+    }
+    gettimeofday(&func_args->t2, NULL);
+    return calc_checksum(__func__);
+}
+
+int main(int argc, char ** argv){
+    int n1 = 1;
+    int n3 = 1;
+    int* ip;
+    real_t s1,s2;
+    init(&ip, &s1, &s2);
+    printf("Loop \tTime(sec) \tChecksum\n");
+
+    time_function(&s261, NULL);
+    return EXIT_SUCCESS;
+}

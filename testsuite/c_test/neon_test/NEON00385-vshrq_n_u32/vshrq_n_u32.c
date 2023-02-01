@@ -4,6 +4,6 @@ int main() {
   print_uint32x4_t(
     vshrq_n_u32(
       set_uint32x4_t(),
-      set_int()));
+      set_int_1()));
   return 0;
 }
