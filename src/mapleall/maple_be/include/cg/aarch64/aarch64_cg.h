@@ -238,6 +238,41 @@ class AArch64CG : public CG {
   };
 
   static const InsnDesc kMd[kMopLast];
+  static constexpr MOperator movBetweenOpnds[kIndex2][kIndex2][kIndex2][kIndex2] = {
+    {
+      { {MOP_wmovrr, MOP_undef}, {MOP_xvmovrs, MOP_undef} },
+      { {MOP_undef, MOP_xmovrr}, {MOP_undef, MOP_xvmovrd} }
+    },
+    {
+      { {MOP_xvmovsr, MOP_undef}, {MOP_xvmovs, MOP_undef} },
+      { {MOP_undef, MOP_xvmovdr}, {MOP_undef, MOP_xvmovd} }
+    }
+  };
+
+  static void UpdateMopOfPropedInsn(Insn &insn) {
+    auto oldMop = insn.GetMachineOpcode();
+    if ((oldMop < MOP_xmovrr || oldMop > MOP_xvmovrv) && oldMop != MOP_vmovuu) {
+      return;
+    }
+    auto &leftOpnd = insn.GetOperand(kInsnFirstOpnd);
+    auto &rightOpnd = insn.GetOperand(kInsnSecondOpnd);
+    if (rightOpnd.IsImmediate() || leftOpnd.IsImmediate()) {
+      return;
+    }
+    auto &leftReg = static_cast<RegOperand &>(leftOpnd);
+    auto &rightReg = static_cast<RegOperand &>(rightOpnd);
+    auto isLeftRegFloat = leftReg.GetRegisterType() == kRegTyFloat ? 1 : 0;
+    auto isLeftReg64Bits = leftReg.GetSize() == k64BitSize ? 1 : 0;
+    auto isRightRegFloat = rightReg.GetRegisterType() == kRegTyFloat ? 1 : 0;
+    auto isRightReg64Bits = rightReg.GetSize() == k64BitSize ? 1 : 0;
+    auto mop = movBetweenOpnds[isLeftRegFloat][isLeftReg64Bits][isRightRegFloat][isRightReg64Bits];
+    if (mop == MOP_undef) {
+      return;
+    }
+    insn.SetMOP(AArch64CG::kMd[mop]);
+    insn.ClearRegSpecList();
+  }
+
   enum RegListType: uint8 {
     kR8List,
     kR16List,

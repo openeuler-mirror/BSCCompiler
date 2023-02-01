@@ -335,6 +335,9 @@ struct InsnDesc {
   uint32 GetAtomicNum() const {
     return atomicNum;
   }
+  size_t GetOperandNumber() const {
+    return opndMD.size();
+  }
 
   bool operator==(const InsnDesc &o) const;
 

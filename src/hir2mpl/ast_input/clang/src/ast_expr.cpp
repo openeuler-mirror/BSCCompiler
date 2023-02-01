@@ -703,10 +703,12 @@ MIRIntrinsicID intrinsic;
     SET_VDUP(v8u8)
     SET_VDUP(v2f32)
     case PTY_i64:
+    case PTY_v1i64:
       intrinsic = INTRN_vector_from_scalar_v1i64;
       break;
     case PTY_u64:
-      intrinsic = INTRN_vector_from_scalar_v1f64;
+    case PTY_v1u64:
+      intrinsic = INTRN_vector_from_scalar_v1u64;
       break;
     case PTY_f64:
       intrinsic = INTRN_vector_from_scalar_v1f64;
@@ -1245,12 +1247,12 @@ UniqueFEIRExpr ASTInitListExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts
   } else if (initListType->IsStructType()) {
     auto base = std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr>(std::make_pair(feirVar->Clone(), 0));
     ProcessInitList(base, *this, stmts);
-  } else if (isTransparent) {
-    CHECK_FATAL(initExprs.size() == 1, "Transparent init list size must be 1");
-    return initExprs[0]->Emit2FEExpr(stmts);
   } else if (hasVectorType) {
     auto base = std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr>(std::make_pair(feirVar->Clone(), 0));
     ProcessInitList(base, *this, stmts);
+  } else if (isTransparent) {
+    CHECK_FATAL(initExprs.size() == 1, "Transparent init list size must be 1");
+    return initExprs[0]->Emit2FEExpr(stmts);
   } else {
     CHECK_FATAL(true, "Unsupported init list type");
   }
@@ -1271,6 +1273,8 @@ void ASTInitListExpr::ProcessInitList(std::variant<std::pair<UniqueFEIRVar, Fiel
     }
   } else if (initList.initListType->GetKind() == kTypeStruct || initList.initListType->GetKind() == kTypeUnion) {
     ProcessStructInitList(base, initList, stmts);
+  } else if (initList.HasVectorType()) {
+    ProcessVectorInitList(base, initList, stmts);
   } else if (initList.isTransparent) {
     CHECK_FATAL(initList.initExprs.size() == 1, "Transparent init list size must be 1");
     auto feExpr = initList.initExprs[0]->Emit2FEExpr(stmts);
@@ -1287,8 +1291,6 @@ void ASTInitListExpr::ProcessInitList(std::variant<std::pair<UniqueFEIRVar, Fiel
       auto stmt = FEIRBuilder::CreateStmtDAssignAggField(feirVar->Clone(), feExpr->Clone(), fieldID);
       stmts.emplace_back(std::move(stmt));
     }
-  } else if (initList.HasVectorType()) {
-    ProcessVectorInitList(base, initList, stmts);
   }
 }
 
@@ -1822,9 +1824,11 @@ MIRIntrinsicID ASTInitListExpr::SetVectorSetLane(const MIRType &type) const {
     SETQ_LANE(v8u8)
     SETQ_LANE(v2f32)
     case PTY_i64:
+    case PTY_v1i64:
       intrinsic = INTRN_vector_set_element_v1i64;
       break;
     case PTY_u64:
+    case PTY_v1u64:
       intrinsic = INTRN_vector_set_element_v1u64;
       break;
     case PTY_f64:

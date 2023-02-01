@@ -1248,7 +1248,8 @@ ConstvalNode *ConstantFold::FoldTrunk(const ConstvalNode &cst, PrimType fromType
 }
 
 MIRConst *ConstantFold::FoldTypeCvtMIRConst(const MIRConst &cst, PrimType fromType, PrimType toType) const {
-  if (IsPrimitiveDynType(fromType) || IsPrimitiveDynType(toType)) {
+  if (IsPrimitiveDynType(fromType) || IsPrimitiveDynType(toType) ||
+      IsPrimitiveVector(fromType) || IsPrimitiveVector(toType)) {
     // do not fold
     return nullptr;
   }
@@ -1655,10 +1656,6 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldIread(IreadNode *n
   TyIdx typeId = msy->GetTyIdx();
   CHECK_FATAL(!GlobalTables::GetTypeTable().GetTypeTable().empty(), "container check");
   MIRType *msyType = GlobalTables::GetTypeTable().GetTypeTable()[typeId];
-  if (addrofNode->GetFieldID() != 0 &&
-      (msyType->GetKind() == kTypeStruct || msyType->GetKind() == kTypeClass)) {
-    msyType = static_cast<MIRStructType *>(msyType)->GetFieldType(addrofNode->GetFieldID());
-  }
   MIRPtrType *ptrType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(node->GetTyIdx()));
   // If the high level type of iaddrof/iread doesn't match
   // the type of addrof's rhs, this optimization cannot be done.

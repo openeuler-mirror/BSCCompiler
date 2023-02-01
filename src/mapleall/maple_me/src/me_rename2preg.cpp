@@ -33,7 +33,7 @@ bool SSARename2Preg::VarMeExprIsRenameCandidate(const VarMeExpr &varMeExpr) cons
     return false;
   }
   const MIRSymbol *mirst = ost->GetMIRSymbol();
-  if (mirst->GetAttr(ATTR_localrefvar) || ost->HasOneElemSimdAttr() || (mirst->GetAsmAttr() != 0)) {
+  if (mirst->GetAttr(ATTR_localrefvar) || (mirst->GetAsmAttr() != 0)) {
     return false;
   }
   auto primType = varMeExpr.GetPrimType();

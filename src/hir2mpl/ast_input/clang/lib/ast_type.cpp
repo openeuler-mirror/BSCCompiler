@@ -23,6 +23,17 @@
 
 namespace maple {
 std::map<Loc, uint32> LibAstFile::unnamedLocMap;
+static constexpr size_t kNumber16PowOf2 = 4;
+static constexpr size_t k8BytesPowOf2Number = 3;
+static constexpr size_t kSignedTypes = 2;
+static PrimType vectorTypeMap[kNumber16PowOf2 + 1][k8BytesPowOf2Number + 1][kSignedTypes] = {
+  {{PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_v1i64, PTY_v1u64}},
+  {{PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_v2i32, PTY_v2u32}, {PTY_v2i64, PTY_v2u64}},
+  {{PTY_begin, PTY_begin}, {PTY_v4i16, PTY_v4u16}, {PTY_v4i32, PTY_v4u32}, {PTY_begin, PTY_begin}},
+  {{PTY_v8i8, PTY_v8u8}, {PTY_v8i16, PTY_v8u16}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}},
+  {{PTY_v16i8, PTY_v16u8}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}},
+};
+
 MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType, bool isSourceType) const {
   clang::QualType srcType = qualType.getCanonicalType();
   if (srcType.isNull()) {
@@ -514,109 +525,13 @@ MIRType *LibAstFile::CvtVectorType(const clang::QualType srcType) {
   const auto *vectorType = llvm::cast<clang::VectorType>(srcType);
   MIRType *elemType = CvtType(vectorType->getElementType());
   unsigned numElems = vectorType->getNumElements();
-  MIRType *destType = nullptr;
-  switch (elemType->GetPrimType()) {
-    case PTY_i64:
-      if (numElems == 1) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_i64);
-      } else if (numElems == 2) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v2i64);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    case PTY_i32:
-      if (numElems == 1) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_i64);
-      } else if (numElems == 2) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v2i32);
-      } else if (numElems == 4) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v4i32);
-      } else if (numElems == 8) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v8i16);
-      } else if (numElems == 16) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v16i8);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    case PTY_i16:
-      if (numElems == 4) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v4i16);
-      } else if (numElems == 8) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v8i16);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    case PTY_i8:
-      if (numElems == 8) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v8i8);
-      } else if (numElems == 16) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v16i8);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    case PTY_u64:
-      if (numElems == 1) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_u64);
-      } else if (numElems == 2) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v2u64);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    case PTY_u32:
-      if (numElems == 2) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v2u32);
-      } else if (numElems == 4) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v4u32);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    case PTY_u16:
-      if (numElems == 4) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v4u16);
-      } else if (numElems == 8) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v8u16);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    case PTY_u8:
-      if (numElems == 8) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v8u8);
-      } else if (numElems == 16) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v16u8);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    case PTY_f64:
-      if (numElems == 1) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_f64);
-      } else if (numElems == 2) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v2f64);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    case PTY_f32:
-      if (numElems == 2) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v2f32);
-      } else if (numElems == 4) {
-        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v4f32);
-      } else {
-        CHECK_FATAL(false, "Unsupported vector type");
-      }
-      break;
-    default:
-      CHECK_FATAL(false, "Unsupported vector type");
-      break;
-  }
-  return destType;
+  CHECK_FATAL(elemType->GetSize() * numElems <= 16, "unsupported vector size");
+  auto powOf2NumElements = static_cast<size_t>(__builtin_ctz(numElems));
+  auto powOf2ElementByteSize = static_cast<size_t>(__builtin_ctzl(elemType->GetSize()));
+  auto isSigned = IsPrimitiveUnsigned(elemType->GetPrimType()) ? 1ULL : 0ULL;
+  auto primType = vectorTypeMap[powOf2NumElements][powOf2ElementByteSize][isSigned];
+  CHECK_FATAL(primType != PTY_begin, "unexpected vector type");
+  return GlobalTables::GetTypeTable().GetPrimType(primType);
 }
 
 bool LibAstFile::IsOneElementVector(const clang::QualType &qualType) {

@@ -33,6 +33,47 @@ class BB;
 class CG;
 class Emitter;
 class DepNode;
+
+struct VectorRegSpec {
+  VectorRegSpec() : vecLane(-1), vecLaneMax(0), vecElementSize(0), compositeOpnds(0) {}
+
+  explicit VectorRegSpec(PrimType type, int16 lane = -1, uint16 compositeOpnds = 0) :
+      vecLane(lane),
+      vecLaneMax(GetVecLanes(type)),
+      vecElementSize(GetVecEleSize(type)),
+      compositeOpnds(compositeOpnds) {}
+
+  VectorRegSpec(uint16 laneNum, uint16 eleSize, int16 lane = -1, uint16 compositeOpnds = 0) :
+      vecLane(lane),
+      vecLaneMax(laneNum),
+      vecElementSize(eleSize),
+      compositeOpnds(compositeOpnds) {}
+
+  void Dump() {
+    if (vecElementSize == 0) {
+      return;
+    }
+    LogInfo::MapleLogger() << vecLaneMax;
+    if (vecElementSize == k8BitSize) {
+      LogInfo::MapleLogger() << "B";
+    } else if (vecElementSize == k16BitSize) {
+      LogInfo::MapleLogger() << "H";
+    } else if (vecElementSize == k32BitSize) {
+      LogInfo::MapleLogger() << "S";
+    } else {
+      LogInfo::MapleLogger() << "D";
+    }
+    if (vecLane >= 0) {
+      LogInfo::MapleLogger() << "[" << vecLane << "]";
+    }
+  }
+
+  int16 vecLane;         /* -1 for whole reg, 0 to 15 to specify individual lane */
+  uint16 vecLaneMax;     /* Maximum number of lanes for this vregister */
+  uint16 vecElementSize; /* element size in each Lane */
+  uint16 compositeOpnds; /* Number of enclosed operands within this composite operand */
+};
+
 class Insn {
  public:
   enum RetType : uint8 {
@@ -48,6 +89,7 @@ class Insn {
         localAlloc(&memPool),
         opnds(localAlloc.Adapter()),
         registerBinding(localAlloc.Adapter()),
+        regSpecList(localAlloc.Adapter()),
         comment(&memPool) {}
   Insn(MemPool &memPool, MOperator opc, Operand &opnd0) : Insn(memPool, opc) { opnds.emplace_back(&opnd0); }
   Insn(MemPool &memPool, MOperator opc, Operand &opnd0, Operand &opnd1) : Insn(memPool, opc) {
@@ -556,6 +598,31 @@ class Insn {
   bool HasProcessedRHS() const {
     return processRHS;
   }
+  void ClearRegSpecList() {
+    regSpecList.clear();
+  }
+
+  VectorRegSpec *GetAndRemoveRegSpecFromList();
+
+  size_t GetNumOfRegSpec() const {
+    if (IsVectorOp() && !regSpecList.empty()) {
+      return regSpecList.size();
+    }
+    return 0;
+  }
+
+  const MapleList<VectorRegSpec*> &GetRegSpecList() const {
+    return regSpecList;
+  }
+
+  void SetRegSpecList(const MapleList<VectorRegSpec*> &vec) {
+    regSpecList = vec;
+  }
+
+  Insn &PushRegSpecEntry(VectorRegSpec *v) {
+    (void)regSpecList.emplace_back(v);
+    return *this;
+  }
 
  protected:
   MOperator mOp;
@@ -570,6 +637,7 @@ class Insn {
 
  private:
   MapleMap<uint32, uint32> registerBinding; /* used for inline asm only */
+  MapleList<VectorRegSpec*> regSpecList;
   enum OpKind : uint32 {
     kOpUnknown = 0,
     kOpCondDef = 0x1,
@@ -607,86 +675,6 @@ class Insn {
    * indicate whether the version has been processed.
    */
   bool processRHS = false;
-};
-
-struct VectorRegSpec {
-  VectorRegSpec() : vecLane(-1), vecLaneMax(0), vecElementSize(0), compositeOpnds(0) {}
-
-  explicit VectorRegSpec(PrimType type, int16 lane = -1, uint16 compositeOpnds = 0) :
-      vecLane(lane),
-      vecLaneMax(GetVecLanes(type)),
-      vecElementSize(GetVecEleSize(type)),
-      compositeOpnds(compositeOpnds) {}
-
-  VectorRegSpec(uint16 laneNum, uint16 eleSize, int16 lane = -1, uint16 compositeOpnds = 0) :
-      vecLane(lane),
-      vecLaneMax(laneNum),
-      vecElementSize(eleSize),
-      compositeOpnds(compositeOpnds) {}
-
-  void Dump() {
-    if (vecElementSize == 0) {
-      return;
-    }
-    LogInfo::MapleLogger() << vecLaneMax;
-    if (vecElementSize == k8BitSize) {
-      LogInfo::MapleLogger() << "B";
-    } else if (vecElementSize == k16BitSize) {
-      LogInfo::MapleLogger() << "H";
-    } else if (vecElementSize == k32BitSize) {
-      LogInfo::MapleLogger() << "S";
-    } else {
-      LogInfo::MapleLogger() << "D";
-    }
-    if (vecLane >= 0) {
-      LogInfo::MapleLogger() << "[" << vecLane << "]";
-    }
-  }
-
-  int16 vecLane;         /* -1 for whole reg, 0 to 15 to specify individual lane */
-  uint16 vecLaneMax;     /* Maximum number of lanes for this vregister */
-  uint16 vecElementSize; /* element size in each Lane */
-  uint16 compositeOpnds; /* Number of enclosed operands within this composite operand */
-};
-
-class VectorInsn : public Insn {
- public:
-  VectorInsn(MemPool &memPool, MOperator opc)
-      : Insn(memPool, opc),
-        regSpecList(localAlloc.Adapter()) {
-    regSpecList.clear();
-  }
-
-  ~VectorInsn() override = default;
-
-  void ClearRegSpecList() {
-    regSpecList.clear();
-  }
-
-  VectorRegSpec *GetAndRemoveRegSpecFromList();
-
-  size_t GetNumOfRegSpec() const {
-    if (IsVectorOp() && !regSpecList.empty()) {
-      return regSpecList.size();
-    }
-    return 0;
-  }
-
-  const MapleVector<VectorRegSpec*> &GetRegSpecList() const {
-    return regSpecList;
-  }
-
-  void SetRegSpecList(const MapleVector<VectorRegSpec*> &vec) {
-    regSpecList = vec;
-  }
-
-  VectorInsn &PushRegSpecEntry(VectorRegSpec *v) {
-    (void)regSpecList.emplace(regSpecList.begin(), v);
-    return *this;
-  }
-
- private:
-  MapleVector<VectorRegSpec*> regSpecList;
 };
 
 struct InsnIdCmp {

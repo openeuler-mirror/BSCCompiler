@@ -854,11 +854,9 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
         regOpnd->SetVecLanePosition(-1);
         regOpnd->SetVecLaneSize(0);
         regOpnd->SetVecElementSize(0);
-        if (insn.IsVectorOp()) {
-          PrepareVectorOperand(regOpnd, compositeOpnds, insn);
-          if (compositeOpnds != 0) {
-            (void)emitter.Emit("{");
-          }
+        PrepareVectorOperand(regOpnd, compositeOpnds, insn);
+        if (compositeOpnds != 0) {
+          (void)emitter.Emit("{");
         }
       }
     }
@@ -2136,7 +2134,7 @@ void AArch64AsmEmitter::EmitLazyBindingRoutine(Emitter &emitter, const Insn &ins
 }
 
 void AArch64AsmEmitter::PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds, Insn &insn) const {
-  VectorRegSpec* vecSpec = static_cast<VectorInsn&>(insn).GetAndRemoveRegSpecFromList();
+  auto *vecSpec = insn.GetAndRemoveRegSpecFromList();
   compositeOpnds = (vecSpec->compositeOpnds > 0) ? vecSpec->compositeOpnds : compositeOpnds;
   regOpnd->SetVecLanePosition(vecSpec->vecLane);
   switch (insn.GetMachineOpcode()) {

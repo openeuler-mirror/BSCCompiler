@@ -3191,7 +3191,7 @@ bool MIRParser::ParseExprIntrinsicop(BaseNodePtr &expr) {
 
 bool MIRParser::ParseScalarValue(MIRConstPtr &stype, MIRType &type) {
   PrimType ptp = type.GetPrimType();
-  if (IsPrimitiveInteger(ptp) || IsPrimitiveDynType(ptp) || ptp == PTY_gen) {
+  if (IsPrimitiveInteger(ptp) || IsPrimitiveDynType(ptp) || ptp == PTY_gen || ptp == PTY_v1i64 || ptp == PTY_v1u64) {
     if (lexer.GetTokenKind() != TK_intconst) {
       Error("constant value incompatible with integer type at ");
       return false;

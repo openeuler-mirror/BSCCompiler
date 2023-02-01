@@ -278,6 +278,8 @@ uint32 GetPrimTypeSize(PrimType primType) {
     case PTY_v4u16:
     case PTY_v8u8:
     case PTY_v2f32:
+    case PTY_v1i64:
+    case PTY_v1u64:
       return k8BitSize;
     case PTY_u128:
     case PTY_i128:
@@ -381,9 +383,10 @@ uint32 GetVecEleSize(PrimType primType) {
     case PTY_v2i64:
     case PTY_v2u64:
     case PTY_v2f64:
+    case PTY_v1i64:
+    case PTY_v1u64:
     case PTY_i64:
     case PTY_u64:
-    case PTY_f64:
       return k64BitSize;
     case PTY_v2i32:
     case PTY_v2u32:
@@ -402,6 +405,8 @@ uint32 GetVecEleSize(PrimType primType) {
     case PTY_v16i8:
     case PTY_v16u8:
       return k8BitSize;
+    case PTY_f64:
+      return 0;
     default:
       CHECK_FATAL(false, "unexpected primtType for vector");
   }
@@ -431,6 +436,9 @@ uint32 GetVecLanes(PrimType primType) {
     case PTY_v16u8:
     case PTY_f128:
       return k16BitSize;
+    case PTY_v1i64:
+    case PTY_v1u64:
+      return k1BitSize;
     default:
       return 0;
   }

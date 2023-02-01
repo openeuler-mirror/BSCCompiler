@@ -373,6 +373,8 @@ int32 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, boo
     case PTY_v4u16:
     case PTY_v8u8:
     case PTY_v2f32:
+    case PTY_v1i64:
+    case PTY_v1u64:
       /* Rule C.1 */
       ASSERT(GetPrimTypeSize(PTY_f64) == k8ByteSize, "unexpected type size");
       typeSize = k8ByteSize;
@@ -566,6 +568,8 @@ void AArch64CallConvImpl::InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo) {
     case PTY_v4u16:
     case PTY_v8u8:
     case PTY_v2f32:
+    case PTY_v1i64:
+    case PTY_v1u64:
 
     /*
      * for c128 complex numbers, we assume

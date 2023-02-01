@@ -492,6 +492,8 @@ class CGFunc {
       case PTY_v8u16:
       case PTY_v16i8:
       case PTY_v16u8:
+      case PTY_v1i64:
+      case PTY_v1u64:
         return kRegTyFloat;
       default:
         ASSERT(false, "Unexpected pty");

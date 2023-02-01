@@ -13,7 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "aarch64_optimize_common.h"
-#include "aarch64_isa.h"
+#include "aarch64_cg.h"
 #include "aarch64_cgfunc.h"
 #include "cgbb.h"
 
@@ -42,7 +42,7 @@ void AArch64InsnVisitor::ModifyJumpTarget(Operand &targetOperand, BB &bb) {
     }
     // fallthru below to patch the branch insn
   }
-  bb.GetLastInsn()->SetOperand(bb.GetLastInsn()->GetJumpTargetIdx(), targetOperand);
+  bb.GetLastInsn()->SetOperand(AArch64isa::GetJumpTargetIdx(*bb.GetLastInsn()), targetOperand);
 }
 
 void AArch64InsnVisitor::ModifyJumpTarget(maple::LabelIdx targetLabel, BB &bb) {
@@ -50,23 +50,21 @@ void AArch64InsnVisitor::ModifyJumpTarget(maple::LabelIdx targetLabel, BB &bb) {
 }
 
 void AArch64InsnVisitor::ModifyJumpTarget(BB &newTarget, BB &bb) {
-  ModifyJumpTarget(newTarget.GetLastInsn()->GetOperand(newTarget.GetLastInsn()->GetJumpTargetIdx()), bb);
+  ModifyJumpTarget(newTarget.GetLastInsn()->GetOperand(
+      AArch64isa::GetJumpTargetIdx(*newTarget.GetLastInsn())), bb);
 }
 
 Insn *AArch64InsnVisitor::CloneInsn(Insn &originalInsn) {
   MemPool *memPool = const_cast<MemPool*>(CG::GetCurCGFunc()->GetMemoryPool());
   if (originalInsn.IsTargetInsn()) {
-    if (!originalInsn.IsVectorOp()) {
-      return memPool->Clone<AArch64Insn>(*static_cast<AArch64Insn*>(&originalInsn));
-    } else {
-      AArch64VectorInsn *insn = memPool->Clone<AArch64VectorInsn>(*static_cast<AArch64VectorInsn*>(&originalInsn));
-      insn->SetRegSpecList(static_cast<AArch64VectorInsn&>(originalInsn).GetRegSpecList());
-      return insn;
-    }
+    return memPool->Clone<Insn>(originalInsn);
   } else if (originalInsn.IsCfiInsn()) {
     return memPool->Clone<cfi::CfiInsn>(*static_cast<cfi::CfiInsn*>(&originalInsn));
   } else if (originalInsn.IsDbgInsn()) {
     return memPool->Clone<mpldbg::DbgInsn>(*static_cast<mpldbg::DbgInsn*>(&originalInsn));
+  }
+  if (originalInsn.IsComment()) {
+    return memPool->Clone<Insn>(originalInsn);
   }
   CHECK_FATAL(false, "Cannot clone");
   return nullptr;
@@ -79,7 +77,7 @@ Insn *AArch64InsnVisitor::CloneInsn(Insn &originalInsn) {
  * because a register instead of label. So we don't take it as a branching instruction.
  */
 LabelIdx AArch64InsnVisitor::GetJumpLabel(const Insn &insn) const {
-  uint32 operandIdx = insn.GetJumpTargetIdx();
+  uint32 operandIdx = AArch64isa::GetJumpTargetIdx(insn);
   if (insn.GetOperand(operandIdx).IsLabelOpnd()) {
     return static_cast<LabelOperand&>(insn.GetOperand(operandIdx)).GetLabelIndex();
   }
@@ -146,5 +144,54 @@ bool AArch64InsnVisitor::IsAddOrSubInsn(const Insn &insn) const {
 RegOperand *AArch64InsnVisitor::CreateVregFromReg(const RegOperand &pReg) {
   return &static_cast<AArch64CGFunc*>(GetCGFunc())->CreateRegisterOperandOfType(
       pReg.GetRegisterType(), pReg.GetSize() / k8BitSize);
+}
+
+void AArch64InsnVisitor::ReTargetSuccBB(BB &bb, LabelIdx newTarget) const {
+  Insn *lastInsn = bb.GetLastMachineInsn();
+  if (lastInsn && (lastInsn->IsBranch() || lastInsn->IsCondBranch() || lastInsn->IsUnCondBranch())) {
+    CHECK_FATAL(false, "check last insn of a ft BB");
+  }
+  LabelOperand &targetOpnd = GetCGFunc()->GetOrCreateLabelOperand(newTarget);
+  Insn &newInsn = GetCGFunc()->GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd);
+  bb.AppendInsn(newInsn);
+}
+
+void AArch64InsnVisitor::FlipIfBB(BB &bb, LabelIdx ftLabel) const {
+  Insn *lastInsn = bb.GetLastMachineInsn();
+  CHECK_FATAL(lastInsn && lastInsn->IsCondBranch(), "must be ? of a if BB");
+  uint32 targetIdx = AArch64isa::GetJumpTargetIdx(*lastInsn);
+  MOperator mOp = AArch64isa::FlipConditionOp(lastInsn->GetMachineOpcode());
+  if (mOp == 0 || mOp > MOP_nop) {
+    CHECK_FATAL(false, "get flip op failed");
+  }
+  lastInsn->SetMOP(AArch64CG::kMd[mOp]);
+  LabelOperand &targetOpnd = GetCGFunc()->GetOrCreateLabelOperand(ftLabel);
+  lastInsn->SetOperand(targetIdx, targetOpnd);
+}
+
+BB *AArch64InsnVisitor::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru, bool isTargetFallthru) const {
+  BB *newBB = GetCGFunc()->CreateNewBB();
+  newBB->SetKind(BB::kBBGoto);
+  LabelIdx fallthruLabel = fallthru.GetLabIdx();
+  if (fallthruLabel == MIRLabelTable::GetDummyLabel()) {
+    fallthruLabel = GetCGFunc()->CreateLabel();
+    fallthru.SetLabIdx(fallthruLabel);
+  }
+  LabelOperand &targetOpnd = GetCGFunc()->GetOrCreateLabelOperand(fallthruLabel);
+  Insn &gotoInsn = GetCGFunc()->GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd);
+  newBB->AppendInsn(gotoInsn);
+
+  /* maintain pred and succ */
+  if (!isTargetFallthru) {
+    fallthru.RemovePreds(bb);
+  }
+  fallthru.PushBackPreds(*newBB);
+  if (!isTargetFallthru) {
+    bb.RemoveSuccs(fallthru);
+  }
+  bb.PushBackSuccs(*newBB);
+  newBB->PushBackSuccs(fallthru);
+  newBB->PushBackPreds(bb);
+  return newBB;
 }
 }  /* namespace maplebe */

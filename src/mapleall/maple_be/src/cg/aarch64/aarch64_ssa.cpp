@@ -185,11 +185,8 @@ void AArch64CGSSAInfo::DumpInsnInSSAForm(const Insn &insn) const {
       LogInfo::MapleLogger() << ")";
     }
   }
-  if (insn.IsVectorOp()) {
-    auto &vInsn = static_cast<const VectorInsn&>(insn);
-    if (vInsn.GetNumOfRegSpec() != 0) {
-      LogInfo::MapleLogger() << " (vecSpec: " << vInsn.GetNumOfRegSpec() << ")";
-    }
+  if (insn.GetNumOfRegSpec() != 0) {
+    LogInfo::MapleLogger() << " (vecSpec: " << insn.GetNumOfRegSpec() << ")";
   }
   LogInfo::MapleLogger() << "\n";
 }

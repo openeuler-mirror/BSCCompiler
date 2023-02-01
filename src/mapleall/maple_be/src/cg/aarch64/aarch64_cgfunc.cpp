@@ -18,7 +18,6 @@
 #include <algorithm>
 #include "aarch64_cg.h"
 #include "cfi.h"
-#include "mir_type.h"
 #include "mpl_logging.h"
 #include "rt.h"
 #include "opcode_info.h"
@@ -827,7 +826,7 @@ void AArch64CGFunc::SelectCopy(Operand &dest, PrimType dtype, Operand &src, Prim
         /* check vector reg to vector reg move */
         CHECK_FATAL(IsPrimitiveVector(dtype) || (dsize == k128BitSize), "invalid vectreg to vectreg move");
         MOperator mop = (dsize <= k64BitSize) ? MOP_vmovuu : MOP_vmovvv;
-        VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
+        auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
         (void)vInsn.AddOpndChain(dest).AddOpndChain(src);
         auto *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>(dsize >> k3ByteSize, k8BitSize);
         auto *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(dsize >> k3ByteSize, k8BitSize);
@@ -2963,10 +2962,11 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
   PrimType symType = symbol->GetType()->GetPrimType();
   uint32 offset = 0;
   bool parmCopy = false;
-  if (expr.GetFieldID() != 0) {
+  auto fieldId = expr.GetFieldID();
+  if (fieldId != 0) {
     MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
     ASSERT(structType != nullptr, "SelectDread: non-zero fieldID for non-structure");
-    symType = structType->GetFieldType(expr.GetFieldID())->GetPrimType();
+    symType = structType->GetFieldType(fieldId)->GetPrimType();
     offset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, expr.GetFieldID()).first);
     parmCopy = IsParamStructCopy(*symbol);
   }
@@ -4041,7 +4041,12 @@ Operand *AArch64CGFunc::SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opn
   bool is64Bits = (dsize == k64BitSize);
   bool isFloat = IsPrimitiveFloat(dtype);
   RegOperand *resOpnd = nullptr;
-  if (!IsPrimitiveVector(dtype)) {
+
+  if (IsPrimitiveVector(node.GetPrimType())) {
+    /* vector operands */
+    resOpnd = SelectVectorBinOp(
+        dtype, &opnd0, node.Opnd(0)->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(), OP_add);
+  } else {
     /* promoted type */
     PrimType primType =
         isFloat ? dtype : ((is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32)));
@@ -4057,10 +4062,6 @@ Operand *AArch64CGFunc::SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opn
       resOpnd = &CreateRegisterOperandOfType(primType);
     }
     SelectAdd(*resOpnd, opnd0, opnd1, primType);
-  } else {
-    /* vector operands */
-    resOpnd = SelectVectorBinOp(dtype, &opnd0, node.Opnd(0)->GetPrimType(), &opnd1,
-                                node.Opnd(1)->GetPrimType(), OP_add);
   }
   return resOpnd;
 }
@@ -4329,16 +4330,17 @@ Operand *AArch64CGFunc::SelectSub(BinaryNode &node, Operand &opnd0, Operand &opn
   bool is64Bits = (dsize == k64BitSize);
   bool isFloat = IsPrimitiveFloat(dtype);
   RegOperand *resOpnd = nullptr;
-  if (!IsPrimitiveVector(dtype)) {
+
+  if (IsPrimitiveVector(node.GetPrimType())) {
+    /* vector operands */
+    resOpnd = SelectVectorBinOp(
+        dtype, &opnd0, node.Opnd(0)->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(), OP_sub);
+  } else {
     /* promoted type */
     PrimType primType =
         isFloat ? dtype : ((is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32)));
     resOpnd = &GetOrCreateResOperand(parent, primType);
     SelectSub(*resOpnd, opnd0, opnd1, primType);
-  } else {
-    /* vector operands */
-    resOpnd = SelectVectorBinOp(dtype, &opnd0, node.Opnd(0)->GetPrimType(), &opnd1,
-                                node.Opnd(1)->GetPrimType(), OP_sub);
   }
   return resOpnd;
 }
@@ -4350,15 +4352,16 @@ Operand *AArch64CGFunc::SelectMpy(BinaryNode &node, Operand &opnd0, Operand &opn
   bool is64Bits = (dsize == k64BitSize);
   bool isFloat = IsPrimitiveFloat(dtype);
   RegOperand *resOpnd = nullptr;
-  if (!IsPrimitiveVector(dtype)) {
+
+  if (IsPrimitiveVector(node.GetPrimType())) {
+    resOpnd = SelectVectorBinOp(
+        dtype, &opnd0, node.Opnd(0)->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(), OP_mul);
+  } else {
     /* promoted type */
     PrimType primType =
         isFloat ? dtype : ((is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32)));
     resOpnd = &GetOrCreateResOperand(parent, primType);
     SelectMpy(*resOpnd, opnd0, opnd1, primType);
-  } else {
-    resOpnd = SelectVectorBinOp(dtype, &opnd0, node.Opnd(0)->GetPrimType(), &opnd1,
-                                node.Opnd(1)->GetPrimType(), OP_mul);
   }
   return resOpnd;
 }
@@ -4807,12 +4810,12 @@ void AArch64CGFunc::SelectCmpOp(Operand &resOpnd, Operand &lhsOpnd, Operand &rhs
 
 Operand *AArch64CGFunc::SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
   RegOperand *resOpnd = nullptr;
-  if (!IsPrimitiveVector(node.GetPrimType())) {
+  if (IsPrimitiveVector(node.GetPrimType())) {
+    resOpnd = SelectVectorCompare(
+        &opnd0, node.Opnd(0)->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(), node.GetOpCode());
+  } else {
     resOpnd = &GetOrCreateResOperand(parent, node.GetPrimType());
     SelectCmpOp(*resOpnd, opnd0, opnd1, node.GetOpCode(), node.GetOpndType(), parent);
-  } else {
-    resOpnd = SelectVectorCompare(&opnd0, node.Opnd(0)->GetPrimType(), &opnd1,
-                                  node.Opnd(1)->GetPrimType(), node.GetOpCode());
   }
   return resOpnd;
 }
@@ -4915,14 +4918,14 @@ Operand *AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, co
   uint32 dsize = GetPrimTypeBitSize(dtype);
   bool is64Bits = (dsize == k64BitSize);
   RegOperand *resOpnd = nullptr;
-  if (!IsPrimitiveVector(dtype)) {
+  if (IsPrimitiveVector(dtype)) {
+    resOpnd = SelectVectorBitwiseOp(dtype, &opnd0, node.Opnd(0)->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(),
+                                    (operatorCode == kAND) ? OP_band : (operatorCode == kIOR ? OP_bior : OP_bxor));
+  } else {
+    /* vector operations */
     PrimType primType = is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32);  /* promoted type */
     resOpnd = &GetOrCreateResOperand(parent, primType);
     SelectRelationOperator(operatorCode, *resOpnd, opnd0, opnd1, primType);
-  } else {
-    /* vector operations */
-    resOpnd = SelectVectorBitwiseOp(dtype, &opnd0, node.Opnd(0)->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(),
-                                    (operatorCode == kAND) ? OP_band : (operatorCode == kIOR ? OP_bior : OP_bxor));
   }
   return resOpnd;
 }
@@ -5151,31 +5154,23 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
   bool isFloat = IsPrimitiveFloat(dtype);
   RegOperand *resOpnd = nullptr;
   Opcode opcode = node.GetOpCode();
-
-  bool isOneElemVector = false;
   BaseNode *expr = node.Opnd(0);
-  if (expr->GetOpCode() == OP_dread) {
-    MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(static_cast<DreadNode*>(expr)->GetStIdx());
-    isOneElemVector = symbol->GetAttr(ATTR_oneelem_simd);
-  }
-
   Operand *opd0 = &opnd0;
   PrimType otyp0 = expr->GetPrimType();
   if (IsPrimitiveVector(dtype) && opnd0.IsConstImmediate()) {
     opd0 = SelectVectorFromScalar(dtype, opd0, node.Opnd(0)->GetPrimType());
     otyp0 = dtype;
   }
-
   if (IsPrimitiveVector(dtype) && opnd1.IsConstImmediate()) {
     int64 sConst = static_cast<ImmOperand&>(opnd1).GetValue();
     resOpnd = SelectVectorShiftImm(dtype, opd0, &opnd1, static_cast<int32>(sConst), opcode);
-  } else if ((IsPrimitiveVector(dtype) || isOneElemVector) && !opnd1.IsConstImmediate()) {
+  } else if ((IsPrimitiveVector(dtype)) && !opnd1.IsConstImmediate()) {
     resOpnd = SelectVectorShift(dtype, opd0, otyp0, &opnd1, node.Opnd(1)->GetPrimType(), opcode);
   } else {
     PrimType primType = isFloat ? dtype : (is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32));
     resOpnd = &GetOrCreateResOperand(parent, primType);
     ShiftDirection direct = (opcode == OP_lshr) ? kShiftLright : ((opcode == OP_ashr) ? kShiftAright : kShiftLeft);
-    SelectShift(*resOpnd, opnd0, opnd1, direct, primType);
+    SelectShift(*resOpnd, *opd0, opnd1, direct, primType);
   }
 
   if (dtype == PTY_i16) {
@@ -5809,8 +5804,14 @@ Operand *AArch64CGFunc::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
   if (LIsPrimitivePointer(fromType) && LIsPrimitivePointer(toType)) {
     return &LoadIntoRegister(opnd0, toType);
   }
-  if (IsPrimitiveVector(fromType) || IsPrimitiveVector(toType)) {
+  if (IsPrimitiveVector(fromType) && IsPrimitiveVector(toType)) {
     return &LoadIntoRegister(opnd0, toType);
+  }
+  if (IsPrimitiveVector(fromType) && !IsPrimitiveVector(toType)) {
+    return &SelectCopy(opnd0, GetPrimTypeSize(fromType) == k8ByteSize ? PTY_f64 : PTY_f128, toType);
+  }
+  if (!IsPrimitiveVector(fromType) && IsPrimitiveVector(toType)) {
+    return &SelectCopy(opnd0, fromType, GetPrimTypeSize(toType) == k8ByteSize ? PTY_f64 : PTY_f128);
   }
   Operand::OperandType opnd0Type = opnd0.GetKind();
   RegOperand *resOpnd = &CreateRegisterOperandOfType(toType);
@@ -9177,8 +9178,7 @@ void AArch64CGFunc::SelectComment(CommentNode &comment) {
 
 void AArch64CGFunc::SelectReturn(Operand *opnd0) {
   bool is64x1vec = GetFunction().GetAttr(FUNCATTR_oneelem_simd) ? true : false;
-  MIRType *floatType = GlobalTables::GetTypeTable().GetDouble();
-  MIRType *retTyp = is64x1vec ? floatType : GetFunction().GetReturnType();
+  MIRType *retTyp = GetFunction().GetReturnType();
   AArch64CallConvImpl retLocator(GetBecommon());
   CCLocInfo retMech;
   retLocator.InitReturnInfo(*retTyp, retMech);
@@ -10961,21 +10961,21 @@ Operand *AArch64CGFunc::SelectCpopcount(IntrinsicopNode &intrnNode) {
   RegOperand *regOpnd3 = &CreateRegisterOperandOfType(PTY_v8i8);
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(PTY_v8i8);
   MOperator mopVcnt = MOP_vcntvv;
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mopVcnt, AArch64CG::kMd[mopVcnt]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mopVcnt, AArch64CG::kMd[mopVcnt]);
   (void)vInsn.AddOpndChain(*regOpnd3).AddOpndChain(*regOpnd2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecDest);
   GetCurBB()->AppendInsn(vInsn);
 
   MOperator mopAddv = MOP_vbaddvrv;
   RegOperand *regOpnd5 = &CreateRegisterOperandOfType(PTY_v4i32);
-  VectorInsn &vInsn1 = GetInsnBuilder()->BuildVectorInsn(mopAddv, AArch64CG::kMd[mopAddv]);
+  auto &vInsn1 = GetInsnBuilder()->BuildVectorInsn(mopAddv, AArch64CG::kMd[mopAddv]);
   (void)vInsn1.AddOpndChain(*regOpnd5).AddOpndChain(*regOpnd3);
   (void)vInsn1.PushRegSpecEntry(vecSpecDest);
   GetCurBB()->AppendInsn(vInsn1);
 
   MOperator mopUmov = MOP_vwmovrv;
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(4, 8, 0);
-  VectorInsn &vInsn2 = GetInsnBuilder()->BuildVectorInsn(mopUmov, AArch64CG::kMd[mopUmov]);
+  auto &vInsn2 = GetInsnBuilder()->BuildVectorInsn(mopUmov, AArch64CG::kMd[mopUmov]);
   (void)vInsn2.AddOpndChain(*regOpnd0).AddOpndChain(*regOpnd5);
   (void)vInsn2.PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn2);
@@ -11895,12 +11895,13 @@ RegOperand *AArch64CGFunc::SelectOneElementVectorCopy(Operand *src, PrimType sTy
 }
 
 RegOperand *AArch64CGFunc::SelectVectorAbs(PrimType rType, Operand *o1) {
+  rType = FilterOneElementVectorType(rType);
   RegOperand *res = &CreateRegisterOperandOfType(rType);                    /* result operand */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);     /* vector operand 1 */
 
   MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vabsvv : MOP_vabsuu;
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
@@ -11919,7 +11920,7 @@ RegOperand *AArch64CGFunc::SelectVectorAddLong(PrimType rType, Operand *o1, Oper
   } else {
     mOp = IsUnsignedInteger(rType) ? MOP_vuaddl2vvv : MOP_vsaddl2vvv;
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
@@ -11938,7 +11939,7 @@ RegOperand *AArch64CGFunc::SelectVectorAddWiden(Operand *o1, PrimType otyp1, Ope
   } else {
     mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddw2vvv : MOP_vsaddw2vvv;
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
@@ -11966,7 +11967,7 @@ RegOperand *AArch64CGFunc::SelectVectorImmMov(PrimType rType, Operand *src, Prim
     mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vnotvi : MOP_vnotui;
   }
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
   (void)vInsn.PushRegSpecEntry(vecSpec);
   GetCurBB()->AppendInsn(vInsn);
@@ -11984,7 +11985,7 @@ RegOperand *AArch64CGFunc::SelectVectorRegMov(PrimType rType, Operand *src, Prim
     mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vwdupvr : MOP_vwdupur;
   }
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
   (void)vInsn.PushRegSpecEntry(vecSpec);
   GetCurBB()->AppendInsn(vInsn);
@@ -11992,7 +11993,7 @@ RegOperand *AArch64CGFunc::SelectVectorRegMov(PrimType rType, Operand *src, Prim
 }
 
 RegOperand *AArch64CGFunc::SelectVectorFromScalar(PrimType rType, Operand *src, PrimType sType) {
-  if (!IsPrimitiveVector(rType)) {
+  if (rType == PTY_v1u64 || rType == PTY_v1i64) {
     return SelectOneElementVectorCopy(src, sType);
   } else if (src->IsConstImmediate()) {
     return SelectVectorImmMov(rType, src, sType);
@@ -12007,7 +12008,7 @@ RegOperand *AArch64CGFunc::SelectVectorDup(PrimType rType, Operand *src, bool ge
   RegOperand *res = &CreateRegisterOperandOfType(rType);
   VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>(k2ByteSize, k64BitSize, getLow ? 0 : 1);
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vduprv, AArch64CG::kMd[MOP_vduprv]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vduprv, AArch64CG::kMd[MOP_vduprv]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
   (void)vInsn.PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
@@ -12031,7 +12032,7 @@ RegOperand *AArch64CGFunc::SelectVectorGetElement(PrimType rType, Operand *src, 
     mop = (GetPrimTypeBitSize(sType) > k64BitSize) ? MOP_vwmovrv : MOP_vwmovru;
   }
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
   (void)vInsn.PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
@@ -12046,21 +12047,10 @@ RegOperand *AArch64CGFunc::SelectVectorGetElement(PrimType rType, Operand *src, 
  */
 RegOperand *AArch64CGFunc::SelectVectorPairwiseAdalp(Operand *src1, PrimType sty1,
     Operand *src2, PrimType sty2) {
-  VectorRegSpec *vecSpecDest;
-  RegOperand *res;
-
-  if (!IsPrimitiveVector(sty1)) {
-    RegOperand *resF = SelectOneElementVectorCopy(src1, sty1);
-    res = &CreateRegisterOperandOfType(PTY_f64);
-    SelectCopy(*res, PTY_f64, *resF, PTY_f64);
-    vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(k1ByteSize, k64BitSize);
-  } else {
-    res = &CreateRegisterOperandOfType(sty1);                            /* result type same as sty1 */
-    SelectCopy(*res, sty1, *src1, sty1);
-    vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(sty1);
-  }
+  RegOperand *res = &CreateRegisterOperandOfType(sty1);                            /* result type same as sty1 */
+  SelectCopy(*res, sty1, *src1, sty1);
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(sty1);
   VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>(sty2);
-
   MOperator mop;
   if (IsUnsignedInteger(sty1)) {
     mop = GetPrimTypeSize(sty1) > k8ByteSize ? MOP_vupadalvv : MOP_vupadaluu;
@@ -12068,7 +12058,7 @@ RegOperand *AArch64CGFunc::SelectVectorPairwiseAdalp(Operand *src1, PrimType sty
     mop = GetPrimTypeSize(sty1) > k8ByteSize ? MOP_vspadalvv : MOP_vspadaluu;
   }
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*src2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
@@ -12079,16 +12069,9 @@ RegOperand *AArch64CGFunc::SelectVectorPairwiseAdalp(Operand *src1, PrimType sty
 }
 
 RegOperand *AArch64CGFunc::SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) {
-  PrimType oType = rType;
-  rType = FilterOneElementVectorType(oType);
   RegOperand *res = &CreateRegisterOperandOfType(rType);                   /* result operand */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>(sType);       /* source operand */
-
-  if (rType == PTY_f64) {
-    vecSpecDest->vecLaneMax = 1;
-  }
-
   MOperator mop;
   if (IsUnsignedInteger(sType)) {
     mop = GetPrimTypeSize(sType) > k8ByteSize ? MOP_vupaddvv : MOP_vupadduu;
@@ -12096,20 +12079,17 @@ RegOperand *AArch64CGFunc::SelectVectorPairwiseAdd(PrimType rType, Operand *src,
     mop = GetPrimTypeSize(sType) > k8ByteSize ? MOP_vspaddvv : MOP_vspadduu;
   }
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
   /* dest pushed first, popped first */
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
-  if (oType != rType) {
-    res = AdjustOneElementVectorOperand(oType, res);
-  }
   return res;
 }
 
 RegOperand *AArch64CGFunc::SelectVectorSetElement(Operand *eOpnd, PrimType eType, Operand *vOpnd,
                                                   PrimType vType, int32 lane) {
-  if (!IsPrimitiveVector(vType)) {
+  if (vType == PTY_v1u64 || vType == PTY_v1i64) {
     return SelectOneElementVectorCopy(eOpnd, eType);
   }
   RegOperand *reg = &CreateRegisterOperandOfType(eType);                   /* vector element type */
@@ -12123,7 +12103,7 @@ RegOperand *AArch64CGFunc::SelectVectorSetElement(Operand *eOpnd, PrimType eType
     mOp = GetPrimTypeSize(vType) > k8ByteSize ? MOP_vwinsvr : MOP_vwinsur;
   }
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*vOpnd).AddOpndChain(*reg);
   (void)vInsn.PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
@@ -12143,7 +12123,7 @@ RegOperand *AArch64CGFunc::SelectVectorAbsSubL(PrimType rType, Operand *o1, Oper
   } else {
     mop = IsPrimitiveUnSignedVector(rType) ? MOP_vuabdl2vvv : MOP_vsabdl2vvv;
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecOpd1).PushRegSpecEntry(vecSpecOpd2);
   GetCurBB()->AppendInsn(vInsn);
@@ -12163,7 +12143,7 @@ RegOperand *AArch64CGFunc::SelectVectorMerge(PrimType rType, Operand *o1, Operan
   ImmOperand *imm = &CreateImmOperand(index, k8BitSize, true);
 
   MOperator mOp = (GetPrimTypeSize(rType) > k8ByteSize) ? MOP_vextvvvi : MOP_vextuuui;
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2).AddOpndChain(*imm);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecOpd1).PushRegSpecEntry(vecSpecOpd2);
   GetCurBB()->AppendInsn(vInsn);
@@ -12183,7 +12163,7 @@ RegOperand *AArch64CGFunc::SelectVectorReverse(PrimType rType, Operand *src, Pri
   } else {
     CHECK_FATAL(false, "should not be here");
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*src);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpecSrc);
   GetCurBB()->AppendInsn(vInsn);
@@ -12203,13 +12183,13 @@ RegOperand *AArch64CGFunc::SelectVectorSum(PrimType rType, Operand *o1, PrimType
   } else {
     mOp = eSize <= k8BitSize ? MOP_vbaddvru : (eSize <= k16BitSize ? MOP_vhaddvru : MOP_vsaddvru);
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*iOpnd).AddOpndChain(*o1);
   (void)vInsn.PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
 
   mOp = eSize > k32BitSize ? MOP_vxmovrv : MOP_vwmovrv;
-  VectorInsn &vInsn2 = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn2 = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   auto *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(oType);
   (void)vInsn2.AddOpndChain(*res).AddOpndChain(*iOpnd);
   vecSpec2->vecLane = 0;
@@ -12252,7 +12232,7 @@ void AArch64CGFunc::PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand 
       mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vwdupvr : MOP_vwdupur; /* a scalar var */
     }
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*opd);
   (void)vInsn.PushRegSpecEntry(vecSpec);
   GetCurBB()->AppendInsn(vInsn);
@@ -12270,7 +12250,7 @@ void AArch64CGFunc::SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, P
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(oType);           /* vector operand 1 */
 
   MOperator mOp;
-  VectorInsn *insn;
+  Insn *insn;
   if (GetPrimTypeSize(rType) > GetPrimTypeSize(oType)) {
     /* expand, similar to vmov_XX() intrinsics */
     mOp = IsUnsignedInteger(rType) ? MOP_vushllvvi : MOP_vshllvvi;
@@ -12317,7 +12297,7 @@ RegOperand *AArch64CGFunc::SelectVectorCompareZero(Operand *o1, PrimType oty1, O
     default:
       CHECK_FATAL(false, "Invalid cc in vector compare");
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
@@ -12339,10 +12319,11 @@ RegOperand *AArch64CGFunc::SelectVectorCompare(Operand *o1, PrimType oty1, Opera
   PrepareVectorOperands(&o1, oty1, &o2, oty2);
   ASSERT(oty1 == oty2, "vector operand type mismatch");
 
-  RegOperand *res = &CreateRegisterOperandOfType(oty1);                     /* result operand */
-  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(oty1);
-  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(oty1);          /* vector operand 1 */
-  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(oty2);          /* vector operand 2 */
+  auto resultType = FilterOneElementVectorType(oty1);
+  RegOperand *res = &CreateRegisterOperandOfType(resultType);                     /* result operand */
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(resultType);
+  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(resultType);          /* vector operand 1 */
+  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(resultType);          /* vector operand 2 */
 
   MOperator mOp;
   switch (opc) {
@@ -12369,7 +12350,7 @@ RegOperand *AArch64CGFunc::SelectVectorCompare(Operand *o1, PrimType oty1, Opera
     default:
       CHECK_FATAL(false, "Invalid cc in vector compare");
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   if (opc == OP_lt || opc == OP_le) {
     (void)vInsn.AddOpndChain(*res).AddOpndChain(*o2).AddOpndChain(*o1);
   } else {
@@ -12386,16 +12367,10 @@ RegOperand *AArch64CGFunc::SelectVectorCompare(Operand *o1, PrimType oty1, Opera
 RegOperand *AArch64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1,
                                              Operand *o2, PrimType oty2, Opcode opc) {
   PrepareVectorOperands(&o1, oty1, &o2, oty2);
-  PrimType resultType = rType;
-  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
-  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 1 */
-  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 2 */
-
-  if (!IsPrimitiveVector(rType)) {
-    o1 = &SelectCopy(*o1, rType, PTY_f64);
-    o2 = &SelectCopy(*o2, rType, PTY_f64);
-    resultType = PTY_f64;
-  }
+  PrimType resultType = FilterOneElementVectorType(rType);
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(resultType);
+  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(resultType);          /* vector operand 1 */
+  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(resultType);          /* vector operand 2 */
   RegOperand *res = &CreateRegisterOperandOfType(resultType);                    /* result operand */
 
   /* signed and unsigned shl(v,v) both use sshl or ushl, they are the same */
@@ -12407,9 +12382,9 @@ RegOperand *AArch64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, PrimTy
   }
 
   if (opc != OP_shl) {
-    o2 = SelectVectorNeg(rType, o2);
+    o2 = SelectVectorNeg(resultType, o2);
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
@@ -12432,6 +12407,8 @@ uint32 ValidShiftConst(PrimType rType) {
     case PTY_v2i32:
     case PTY_v4u32:
     case PTY_v4i32:
+    case PTY_v1i64:
+    case PTY_v1u64:
       return k32BitSize;
     case PTY_v2u64:
     case PTY_v2i64:
@@ -12443,9 +12420,10 @@ uint32 ValidShiftConst(PrimType rType) {
 }
 
 RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Operand *imm, int32 sVal, Opcode opc) {
-  RegOperand *res = &CreateRegisterOperandOfType(rType);                    /* result operand */
-  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
-  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 1 */
+  auto resultType = FilterOneElementVectorType(rType);
+  RegOperand *res = &CreateRegisterOperandOfType(resultType);                    /* result operand */
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(resultType);
+  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(resultType);          /* vector operand 1 */
 
   if (!imm->IsConstImmediate()) {
     CHECK_FATAL(false, "VectorUShiftImm has invalid shift const");
@@ -12470,7 +12448,7 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
   if (needDup) {
     /* Dup constant to vector reg */
     MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vmovvi : MOP_vmovui;
-    VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+    auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
     (void)vInsn.AddOpndChain(*res).AddOpndChain(*imm);
     (void)vInsn.PushRegSpecEntry(vecSpecDest);
     GetCurBB()->AppendInsn(vInsn);
@@ -12491,7 +12469,7 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
       mOp = opc == OP_shl ? MOP_vushluui : MOP_vshruui;
     }
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*imm);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
@@ -12505,7 +12483,7 @@ RegOperand *AArch64CGFunc::SelectVectorTableLookup(PrimType rType, Operand *o1, 
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(rType);     /* vector operand 2 */
   vecSpec1->compositeOpnds = 1;                                             /* composite operand */
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vtbl1vvv, AArch64CG::kMd[MOP_vtbl1vvv]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vtbl1vvv, AArch64CG::kMd[MOP_vtbl1vvv]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
@@ -12519,7 +12497,7 @@ RegOperand *AArch64CGFunc::SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand
   VectorRegSpec *vecSpec3 = GetMemoryPool()->New<VectorRegSpec>(oTyp3);          /* vector operand 2 */
 
   MOperator mop = IsPrimitiveUnSignedVector(oTyp1) ? MOP_vumaddvvv : MOP_vsmaddvvv;
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
   (void)vInsn.AddOpndChain(*o1).AddOpndChain(*o2).AddOpndChain(*o3);
   (void)vInsn.PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2).PushRegSpecEntry(vecSpec3);
   GetCurBB()->AppendInsn(vInsn);
@@ -12541,7 +12519,7 @@ RegOperand *AArch64CGFunc::SelectVectorMull(PrimType rType, Operand *o1, PrimTyp
   } else {
     mop = IsPrimitiveUnSignedVector(rType) ? MOP_vumull2vvv : MOP_vsmull2vvv;
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
@@ -12553,10 +12531,11 @@ RegOperand *AArch64CGFunc::SelectVectorBinOp(PrimType rType, Operand *o1, PrimTy
   PrepareVectorOperands(&o1, oty1, &o2, oty2);
   ASSERT(oty1 == oty2, "vector operand type mismatch");
 
+  rType = FilterOneElementVectorType(rType);
   RegOperand *res = &CreateRegisterOperandOfType(rType);                   /* result operand */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
-  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(oty1);         /* source operand 1 */
-  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(oty2);         /* source operand 2 */
+  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(FilterOneElementVectorType(oty1));
+  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(FilterOneElementVectorType(oty2));
 
   MOperator mOp;
   if (opc == OP_add) {
@@ -12568,7 +12547,7 @@ RegOperand *AArch64CGFunc::SelectVectorBinOp(PrimType rType, Operand *o1, PrimTy
   } else {
     CHECK_FATAL(false, "Invalid opcode for SelectVectorBinOp");
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   /* dest pushed first, popped first */
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
@@ -12581,6 +12560,7 @@ RegOperand *AArch64CGFunc::SelectVectorBitwiseOp(PrimType rType, Operand *o1, Pr
   PrepareVectorOperands(&o1, oty1, &o2, oty2);
   ASSERT(oty1 == oty2, "vector operand type mismatch");
 
+  rType = FilterOneElementVectorType(rType);
   RegOperand *res = &CreateRegisterOperandOfType(rType);                    /* result operand */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 1 */
@@ -12596,7 +12576,7 @@ RegOperand *AArch64CGFunc::SelectVectorBitwiseOp(PrimType rType, Operand *o1, Pr
   } else {
     CHECK_FATAL(false, "Invalid opcode for SelectVectorBitwiseOp");
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
@@ -12608,7 +12588,7 @@ RegOperand *AArch64CGFunc::SelectVectorNarrow(PrimType rType, Operand *o1, PrimT
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(otyp);      /* vector operand */
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vxtnuv, AArch64CG::kMd[MOP_vxtnuv]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vxtnuv, AArch64CG::kMd[MOP_vxtnuv]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
@@ -12617,11 +12597,11 @@ RegOperand *AArch64CGFunc::SelectVectorNarrow(PrimType rType, Operand *o1, PrimT
 
 RegOperand *AArch64CGFunc::SelectVectorNarrow2(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2) {
   (void)oty1;             /* 1st opnd was loaded already, type no longer needed */
-  RegOperand *res = static_cast<RegOperand *>(o1);   /* o1 is also the result */
+  RegOperand *res = &SelectCopy(*static_cast<RegOperand *>(o1), oty1, rType);   /* o1 is also the result */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(oty2);      /* vector opnd2 */
 
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vxtn2uv, AArch64CG::kMd[MOP_vxtn2uv]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vxtn2uv, AArch64CG::kMd[MOP_vxtn2uv]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(vInsn);
@@ -12634,7 +12614,7 @@ RegOperand *AArch64CGFunc::SelectVectorNot(PrimType rType, Operand *o1) {
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 1 */
 
   MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vnotvv : MOP_vnotuu;
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
   (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(vInsn);
@@ -12647,7 +12627,7 @@ RegOperand *AArch64CGFunc::SelectVectorNeg(PrimType rType, Operand *o1) {
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 1 */
 
   MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vnegvv : MOP_vneguu;
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
   (void)vInsn.PushRegSpecEntry(vecSpecDest);
   (void)vInsn.PushRegSpecEntry(vecSpec1);
@@ -12667,7 +12647,7 @@ RegOperand *AArch64CGFunc::SelectVectorSelect(Operand &cond, PrimType rType, Ope
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(rType);
 
   uint32 mOp = GetPrimTypeBitSize(rType) > k64BitSize ? MOP_vbslvvv : MOP_vbsluuu;
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(o0).AddOpndChain(o1);
   (void)vInsn.PushRegSpecEntry(vecSpecDest);
   (void)vInsn.PushRegSpecEntry(vecSpec1);
@@ -12689,7 +12669,7 @@ RegOperand *AArch64CGFunc::SelectVectorShiftRNarrow(PrimType rType, Operand *o1,
   } else {
     CHECK_FATAL(false, "NYI: vshrn_high_");
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*imm);
   (void)vInsn.PushRegSpecEntry(vecSpecDest);
   (void)vInsn.PushRegSpecEntry(vecSpec1);
@@ -12718,7 +12698,7 @@ RegOperand *AArch64CGFunc::SelectVectorSubWiden(PrimType resType, Operand *o1, P
       mOp = IsUnsignedInteger(otyp1) ? MOP_vusubw2vvv : MOP_vssubw2vvv;
     }
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
   (void)vInsn.PushRegSpecEntry(vecSpecDest);
   (void)vInsn.PushRegSpecEntry(vecSpec1);
@@ -12738,7 +12718,7 @@ RegOperand *AArch64CGFunc::SelectVectorWiden(PrimType rType, Operand *o1, PrimTy
   } else {
     mOp = IsPrimitiveUnSignedVector(rType) ? MOP_vuxtl2vv : MOP_vsxtl2vv;
   }
-  VectorInsn &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1);
   (void)vInsn.PushRegSpecEntry(vecSpecDest);
   (void)vInsn.PushRegSpecEntry(vecSpec1);
@@ -12752,7 +12732,7 @@ RegOperand *AArch64CGFunc::SelectVectorMovNarrow(PrimType rType, Operand *opnd, 
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(oType);      /* vector operand */
 
   MOperator mOp = IsPrimitiveUnSignedVector(rType) ? MOP_vuqxtnuv : MOP_vsqxtnuv;
-  VectorInsn &insn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+  auto &insn = GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
   (void)insn.AddOpndChain(*res).AddOpndChain(*opnd);
   (void)insn.PushRegSpecEntry(vecSpecDest);
   (void)insn.PushRegSpecEntry(vecSpec1);
@@ -12778,13 +12758,6 @@ static int16 ResolveLaneNumberInfo(const IntrinsicopNode &expr, const IntrinsicD
   return -1;
 }
 
-static PrimType ConvertVectorPrimType(PrimType primType, IntrinArgType argType) {
-  if (argType == maple::kArgTyV1U64 || argType == maple::kArgTyV1I64) {
-    return PTY_f64;
-  }
-  return primType;
-}
-
 static PrimType ConvertVectorPrimTypeWithSpecialMOP(PrimType ptype, MOperator mop) {
   if (mop == MOP_vbicuuu || mop == MOP_vbsluuu) {
     ptype = PTY_v8i8;
@@ -12798,9 +12771,8 @@ RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrins
   auto intrinsicId = intrinsicOp.GetIntrinsic();
   CHECK_FATAL(intrinsicId >= maple::INTRN_vector_get_lane_v8u8, "unexpected intrinsic");
   size_t vectorIntrinsicIndex = intrinsicId - maple::INTRN_vector_get_lane_v8u8;
-  auto &intrinsicDesc = IntrinDesc::intrinTable[intrinsicId];
   auto &aarch64IntrinsicDesc = vectorIntrinsicMap[vectorIntrinsicIndex];
-  auto resultType = ConvertVectorPrimType(intrinsicOp.GetPrimType(), intrinsicDesc.argTypes[0]);
+  auto resultType = intrinsicOp.GetPrimType();
   auto mop = aarch64IntrinsicDesc.mop;
   resultType = ConvertVectorPrimTypeWithSpecialMOP(resultType, mop);
   auto &insnDesc = AArch64CG::kMd[mop];
@@ -12811,29 +12783,29 @@ RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrins
   if (returnOpndIndex != -1) {
     auto *srcExpr = intrinsicOp.Opnd(returnOpndIndex);
     auto *srcOpnd = HandleExpr(intrinsicOp, *srcExpr);
-    auto srcType = ConvertVectorPrimType(srcExpr->GetPrimType(), intrinsicDesc.argTypes[returnOpndIndex + 1]);
+    auto srcType = srcExpr->GetPrimType();
     SelectCopy(*result, resultType, *srcOpnd, srcType);
     resultLaneNumber = ResolveLaneNumberInfo(intrinsicOp, aarch64IntrinsicDesc, returnOpndIndex);
   }
   (void)insn.AddOpndChain(*result);
-  if (IsPrimitiveVector(resultType)) {
+  if (insnDesc.GetOpndDes(0)->IsVectorOperand() || resultLaneNumber != -1) {
     (void)insn.PushRegSpecEntry(GetMemoryPool()->New<VectorRegSpec>(resultType, resultLaneNumber));
   }
   for (size_t i = 0; i < aarch64IntrinsicDesc.opndOrder.size(); ++i) {
     auto opndId = aarch64IntrinsicDesc.opndOrder[i];
     auto *opndExpr = intrinsicOp.Opnd(opndId);
     auto *opnd = HandleExpr(intrinsicOp, *opndExpr);
-    auto opndType =
-        ConvertVectorPrimType(opndExpr->GetPrimType(), intrinsicDesc.argTypes[opndId + 1]);
-    if (opndType != opndExpr->GetPrimType()) {
+    auto opndType = opndExpr->GetPrimType();
+    auto *opndDesc = insnDesc.GetOpndDes(i + 1);
+    if (!opndDesc->IsImm()) {
       auto *newOpnd = &CreateRegisterOperandOfType(opndType);
       SelectCopy(*newOpnd, opndType, *opnd, opndExpr->GetPrimType());
       opnd = newOpnd;
     }
     opndType = ConvertVectorPrimTypeWithSpecialMOP(opndType, mop);
     (void)insn.AddOpndChain(*opnd);
-    if (IsPrimitiveVector(opndType)) {
-      auto laneNumber = ResolveLaneNumberInfo(intrinsicOp, aarch64IntrinsicDesc, opndId);
+    auto laneNumber = ResolveLaneNumberInfo(intrinsicOp, aarch64IntrinsicDesc, opndId);
+    if (opndDesc->IsVectorOperand() || laneNumber != -1) {
       (void)insn.PushRegSpecEntry(GetMemoryPool()->New<VectorRegSpec>(opndType, laneNumber));
     }
   }

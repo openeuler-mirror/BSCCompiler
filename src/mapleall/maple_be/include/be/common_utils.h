@@ -114,6 +114,7 @@ constexpr uint32 kDwordSizeTwo = 2;
 
 constexpr uint32 k4ByteFloatSize = 4;
 constexpr uint32 k8ByteDoubleSize = 8;
+constexpr uint32 k16ByteFloat128Size = 16;
 
 /* Storage location of operands in one insn */
 constexpr int32 kInsnFirstOpnd = 0;
@@ -159,6 +160,7 @@ constexpr int32 kDivide2 = 2;
 constexpr int32 kRegNum2 = 2;
 constexpr int32 kStepNum2 = 2;
 constexpr int32 kSign4ByteSize = 4;
+constexpr size_t kIndex2 = 2;
 
 /* alignment in bytes of uint8 */
 constexpr uint8 kAlignOfU8 = 3;
@@ -273,6 +275,25 @@ inline ConditionCode GetReverseCC(ConditionCode cc) {
       return CC_GT;
     default:
       CHECK_FATAL(0, "unknown condition code");
+  }
+  return kCcLast;
+}
+inline ConditionCode GetReverseBasicCC(ConditionCode cc) {
+  switch (cc) {
+    case CC_NE:
+      return CC_EQ;
+    case CC_EQ:
+      return CC_NE;
+    case CC_LT:
+      return CC_GE;
+    case CC_GE:
+      return CC_LT;
+    case CC_GT:
+      return CC_LE;
+    case CC_LE:
+      return CC_GT;
+    default:
+      CHECK_FATAL(false, "Not support yet.");
   }
   return kCcLast;
 }

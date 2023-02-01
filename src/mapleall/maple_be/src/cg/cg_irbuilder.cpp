@@ -65,18 +65,21 @@ Insn &InsnBuilder::BuildCfiInsn(MOperator opCode) {
   IncreaseInsnNum();
   return *nI;
 }
+
 Insn &InsnBuilder::BuildDbgInsn(MOperator opCode) {
   auto *nI = mp->New<mpldbg::DbgInsn>(*mp, opCode);
   IncreaseInsnNum();
   return *nI;
 }
+
 Insn &InsnBuilder::BuildCommentInsn(CommentOperand &comment) {
   Insn &insn = BuildInsn(abstract::MOP_comment, InsnDesc::GetAbstractId(abstract::MOP_comment));
   insn.AddOperand(comment);
   return insn;
 }
-VectorInsn &InsnBuilder::BuildVectorInsn(MOperator opCode, const InsnDesc &idesc) {
-  auto *newInsn = mp->New<VectorInsn>(*mp, opCode);
+
+Insn &InsnBuilder::BuildVectorInsn(MOperator opCode, const InsnDesc &idesc) {
+  auto *newInsn = mp->New<Insn>(*mp, opCode);
   newInsn->SetInsnDescrption(idesc);
   IncreaseInsnNum();
   return *newInsn;

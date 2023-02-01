@@ -14,6 +14,7 @@
  */
 #include "emit.h"
 #include <unistd.h>
+#include "cfg_primitive_types.h"
 #ifdef _WIN32
 #include <direct.h>
 #endif
@@ -1742,6 +1743,10 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
 
 void Emitter::EmitVectorConstant(MIRConst &mirConst) {
   MIRType &mirType = mirConst.GetType();
+  if (mirType.GetPrimType() == PTY_v1i64 || mirType.GetPrimType() == PTY_v1u64) {
+    EmitScalarConstant(mirConst, true, false, false);
+    return;
+  }
   MIRAggConst &vecCt = static_cast<MIRAggConst&>(mirConst);
   size_t uNum = vecCt.GetConstVec().size();
   for (size_t i = 0; i < uNum; ++i) {

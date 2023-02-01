@@ -223,10 +223,10 @@ DEF_MIR_INTRINSIC(vector_paddq_v2u64, "vector_paddq_v2u64", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
                   kArgTyV2U64, kArgTyV2U64)
 DEF_MIR_INTRINSIC(vector_paddd_v2i64, "vector_paddd_v2i64", 1,
-                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1I64,
                   kArgTyV2I64)
 DEF_MIR_INTRINSIC(vector_paddd_v2u64, "vector_paddd_v2u64", 1,
-                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1U64,
                   kArgTyV2U64)
 DEF_MIR_INTRINSIC(vector_pmax_v8i8, "vector_pmax_v8i8", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,

@@ -228,9 +228,6 @@ void MeSSALPre::BuildEntryLHSOcc4Formals() const {
   if (ost->HasAttr(ATTR_localrefvar)) {
     return;
   }
-  if (ost->HasOneElemSimdAttr()) {
-    return;
-  }
   // get the zero version VarMeExpr node
   VarMeExpr *zeroVersion = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
   MeRealOcc *occ = ssaPreMemPool->New<MeRealOcc>(nullptr, 0, zeroVersion);
@@ -259,7 +256,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
       (void)assignedFormals.insert(ost->GetIndex());
     }
     CHECK_NULL_FATAL(meStmt.GetRHS());
-    if (ost->IsVolatile() || ost->HasOneElemSimdAttr()) {
+    if (ost->IsVolatile()) {
       return;
     }
     if (lhs->GetPrimType() == PTY_agg) {
@@ -342,7 +339,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       }
       auto *varMeExpr = static_cast<VarMeExpr*>(&meExpr);
       const OriginalSt *ost = varMeExpr->GetOst();
-      if (ost->IsVolatile() || ost->HasOneElemSimdAttr()) {
+      if (ost->IsVolatile()) {
         break;
       }
       const MIRSymbol *sym = ost->GetMIRSymbol();

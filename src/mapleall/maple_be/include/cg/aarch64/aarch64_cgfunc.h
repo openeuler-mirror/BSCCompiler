@@ -369,11 +369,7 @@ class AArch64CGFunc : public CGFunc {
   bool DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId) const;
 
   PrimType FilterOneElementVectorType(PrimType origTyp) const {
-    PrimType nType = origTyp;
-    if (origTyp == PTY_i64 || origTyp == PTY_u64) {
-      nType = PTY_f64;
-    }
-    return nType;
+    return origTyp == PTY_v1i64 || origTyp == PTY_v1u64 ? PTY_f64 : origTyp;
   }
 
   ImmOperand &CreateImmOperand(PrimType ptyp, int64 val) override {

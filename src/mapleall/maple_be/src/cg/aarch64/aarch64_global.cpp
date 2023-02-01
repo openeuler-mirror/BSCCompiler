@@ -396,6 +396,7 @@ void ForwardPropPattern::Optimize(Insn &insn) {
         }
       }
     }
+    AArch64CG::UpdateMopOfPropedInsn(*useInsn);
   }
   insn.SetOperand(0, secondOpnd);
   cgFunc.GetRD()->UpdateInOut(*insn.GetBB(), true);
@@ -796,13 +797,13 @@ void BackPropPattern::Optimize(Insn &insn) {
    * mov X0, X0    // This can be easily remved later in peephole phase
    * ret
    */
+  AArch64CG::UpdateMopOfPropedInsn(*defInsnForSecondOpnd);
   if (cgFunc.HasCall() &&
       !(cgFunc.GetFunction().IsReturnVoid()) &&
       (firstRegNO == R0) &&
       (static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == R0))  {
     /* Keep this instruction: mov R0, R0 */
     cgFunc.GetRD()->UpdateInOut(*insn.GetBB(), true);
-    return;
   } else {
     insn.GetBB()->RemoveInsn(insn);
     cgFunc.GetRD()->UpdateInOut(*insn.GetBB(), true);

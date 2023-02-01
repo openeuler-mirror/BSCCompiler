@@ -723,8 +723,7 @@ MeExpr &Prop::TryPropUnionVar(VarMeExpr &var) {
 // return varMeExpr itself if no propagation opportunity
 MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
-  if (st->IsInstrumented() || varMeExpr.IsVolatile() || varMeExpr.GetOst()->HasOneElemSimdAttr() ||
-      propsPerformed >= propLimit) {
+  if (st->IsInstrumented() || varMeExpr.IsVolatile() || propsPerformed >= propLimit) {
     return varMeExpr;
   }
 

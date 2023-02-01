@@ -43,7 +43,7 @@ class InsnBuilder {
   Insn &BuildCfiInsn(MOperator opCode);
   Insn &BuildDbgInsn(MOperator opCode);
   Insn &BuildCommentInsn(CommentOperand &comment);
-  VectorInsn &BuildVectorInsn(MOperator opCode, const InsnDesc &idesc);
+  Insn &BuildVectorInsn(MOperator opCode, const InsnDesc &idesc);
 
   uint32 GetCreatedInsnNum() const {
     return createdInsnNum;

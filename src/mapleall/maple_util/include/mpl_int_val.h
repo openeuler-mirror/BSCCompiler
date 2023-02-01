@@ -31,7 +31,7 @@ class IntVal {
   }
 
   IntVal(uint64 val, PrimType type) : IntVal(val, GetPrimTypeActualBitSize(type), IsSignedInteger(type)) {
-    ASSERT(IsPrimitiveInteger(type), "Type must be integral");
+    ASSERT(IsPrimitiveInteger(type) || IsPrimitiveVectorInteger(type), "Type must be integral");
   }
 
   IntVal(const IntVal &val, PrimType type) : IntVal(val.value, type) {}

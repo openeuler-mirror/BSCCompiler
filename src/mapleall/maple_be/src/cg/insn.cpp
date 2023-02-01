@@ -303,15 +303,14 @@ void Insn::Dump() const {
   LogInfo::MapleLogger() << "< " << GetId() << " > ";
   LogInfo::MapleLogger() << md->name << "(" << mOp << ")";
 
-  for (uint32 i = 0, vRegSpecNum = 0; i < GetOperandSize(); ++i) {
+  auto vectorRegSpecIter = GetRegSpecList().begin();
+  for (uint32 i = 0; i < GetOperandSize(); ++i) {
     Operand &opnd = GetOperand(i);
     LogInfo::MapleLogger() << " (opnd" << i << ": ";
     Globals::GetInstance()->GetTarget()->DumpTargetOperand(opnd, *md->GetOpndDes(i));
-    if (md->GetOpndDes(i)->IsVectorOperand() && IsVectorOp()) {
-      auto *vInsn = static_cast<const VectorInsn*>(this);
-      auto *vRegSpec = vInsn->GetRegSpecList()[vRegSpecNum++];
+    if (md->GetOpndDes(i)->IsVectorOperand() && IsVectorOp() && GetRegSpecList().size()) {
       LogInfo::MapleLogger() << " ";
-      vRegSpec->Dump();
+      (*(vectorRegSpecIter++))->Dump();
     }
     LogInfo::MapleLogger() << ")";
   }
@@ -333,22 +332,19 @@ void Insn::Dump() const {
     LogInfo::MapleLogger() << ")";
   }
 
-  if (IsVectorOp()) {
-    auto *vInsn = static_cast<const VectorInsn*>(this);
-    if (vInsn->GetNumOfRegSpec() != 0) {
-      LogInfo::MapleLogger() << " (vecSpec: " << vInsn->GetNumOfRegSpec() << ")";
-    }
+  if (GetNumOfRegSpec() != 0) {
+    LogInfo::MapleLogger() << " (vecSpec: " << GetNumOfRegSpec() << ")";
   }
   LogInfo::MapleLogger() << "\n";
 }
 
-VectorRegSpec *VectorInsn::GetAndRemoveRegSpecFromList() {
+VectorRegSpec *Insn::GetAndRemoveRegSpecFromList() {
   if (regSpecList.size() == 0) {
-    VectorRegSpec *vecSpec = CG::GetCurCGFuncNoConst()->GetMemoryPool()->New<VectorRegSpec>() ;
+    VectorRegSpec *vecSpec = CG::GetCurCGFuncNoConst()->GetMemoryPool()->New<VectorRegSpec>();
     return vecSpec;
   }
-  VectorRegSpec *ret = regSpecList.back();
-  regSpecList.pop_back();
+  VectorRegSpec *ret = regSpecList.front();
+  regSpecList.pop_front();
   return ret;
 }
 }

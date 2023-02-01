@@ -1861,6 +1861,7 @@ void CopyRegProp::ReplaceAllUseForCopyProp() {
       srcVersion->AddUseInsn(*optSsaInfo, *useInsn, opndIt.first);
       it->second->ClearDU(opndIt.first);
     }
+    AArch64CG::UpdateMopOfPropedInsn(*useInsn);
     it = useList.erase(it);
   }
 }

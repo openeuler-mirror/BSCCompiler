@@ -397,7 +397,7 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym
   ASSERT(mirSym.GetStorageClass() == kScFormal, "should be args");
   MOperator mOp = aarchCGFunc->PickMovBetweenRegs(stype, stype);
   if (mOp == MOP_vmovvv || mOp == MOP_vmovuu) {
-    VectorInsn &vInsn = aarchCGFunc->GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
+    auto &vInsn = aarchCGFunc->GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
     (void)vInsn.AddOpndChain(dstRegOpnd).AddOpndChain(srcRegOpnd);
     auto *vecSpec1 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
     auto *vecSpec2 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
