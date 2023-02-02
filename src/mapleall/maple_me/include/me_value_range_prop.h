@@ -894,8 +894,8 @@ class ValueRangePropagation {
       ValueRange &valueRange, Bound &resBound);
   void ReplaceUsePoints(MePhiNode *phi);
   void CreateVRWithBitsSize(const BB &bb, const OpMeExpr &opMeExpr);
-  MeExpr &GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr) const;
-  std::unique_ptr<ValueRange> GetValueRangeOfLHS(const BB &pred, const BB &bb, MeExpr &expr);
+  MeExpr &GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr, const BB &condGoto);
+  std::unique_ptr<ValueRange> GetValueRangeOfLHS(const BB &pred, const BB &bb, MeExpr &expr, const BB &condGoto);
   Opcode GetOpAfterSwapThePositionsOfTwoOperands(Opcode op) const;
   bool IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &subExpr) const;
   void UpdateProfile(BB &pred, BB &bb, const BB &targetBB) const;
@@ -912,7 +912,8 @@ class ValueRangePropagation {
 
   template<typename T>
   bool IsOverflowAfterMul(T lhs, T rhs, PrimType pty);
-
+  bool HasDefPointInPred(const BB &begin, const BB &end, const ScalarMeExpr &opnd);
+  bool CanIgnoreTheDefPoint(const MeStmt &stmt, const BB &end, const ScalarMeExpr &expr) const;
 
   MeFunction &func;
   MeIRMap &irMap;
@@ -951,6 +952,7 @@ class ValueRangePropagation {
   std::stack<bool> onlyPropVRStack;
   std::stack<bool> onlyRecordValueRangeInTempCache;
   MapleVector<BaseGraphNode*>::iterator currItOfTravelReversePostOrder;
+  bool defByStmtInUDChain = false;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MEValueRangePropagation, MeFunction)

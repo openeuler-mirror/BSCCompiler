@@ -4360,7 +4360,7 @@ void ValueRangePropagation::ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeE
 //        succ1
 //          |
 //          bb if (a3)
-MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr) const {
+MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &bb, MeExpr &expr, const BB &condGoto) {
   if (!expr.IsScalar()) {
     return expr;
   }
@@ -4368,6 +4368,10 @@ MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &
   MeStmt *defStmt = nullptr;
   auto *defBB = scalar.GetDefByBBMeStmt(*func.GetCfg(), defStmt);
   if (dom.Dominate(*defBB, pred)) {
+    return expr;
+  }
+  if (HasDefPointInPred(pred, condGoto, scalar)) {
+    defByStmtInUDChain = true;
     return expr;
   }
   auto ostIndex = scalar.GetOstIdx();
@@ -4389,6 +4393,75 @@ MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &
   return expr;
 }
 
+// \ /
+// bb1
+// a1 = phi(a0, a2)
+// a2 = a1 + 1 ignore def point a2 when judge the way has def point from begin to end
+//  |
+// bb2
+// if (a2 < 1)
+bool ValueRangePropagation::CanIgnoreTheDefPoint(const MeStmt &stmt, const BB &end, const ScalarMeExpr &expr) const {
+  if (end.GetKind() != kBBCondGoto) {
+    return false;
+  }
+  auto opMeExpr = static_cast<OpMeExpr*>(static_cast<const CondGotoMeStmt*>(end.GetLastMe())->GetOpnd());
+  auto opnd0 = opMeExpr->GetOpnd(0);
+  auto opnd1 = opMeExpr->GetOpnd(1);
+  if (opnd0 != stmt.GetLHS() && opnd1 != stmt.GetLHS()) {
+    return false;
+  }
+  auto rhs = stmt.GetRHS();
+  if (rhs->GetMeOp() != kMeOpOp) {
+    return false;
+  }
+  if (rhs->GetOp() != OP_add && rhs->GetOp() != OP_sub) {
+    return false;
+  }
+  auto opnd0OfOp = rhs->GetOpnd(0);
+  auto opnd1OfOp = rhs->GetOpnd(1);
+  return (opnd0OfOp->IsScalar() && static_cast<ScalarMeExpr*>(opnd0OfOp)->GetOstIdx() == expr.GetOstIdx() &&
+          opnd1OfOp->GetMeOp() == kMeOpConst) ||
+         (opnd1OfOp->IsScalar() && static_cast<ScalarMeExpr*>(opnd1OfOp)->GetOstIdx() == expr.GetOstIdx() &&
+          opnd0OfOp->GetMeOp() == kMeOpConst);
+}
+
+// Find the opnd of phi recursively. If there is a definition point between begin and end,
+// can not use the opnd in begin to opt the cfg.
+//             begin a1 = 1 can not
+//           \ /
+//          pred0(a2 = phi(a0,a1)
+//            |
+//   pred1  pred2(a3 = 5) symbol a has def point in a3
+//        \  /
+//       succ0(a4 = phi(a0,a3))
+//         |
+//       end if (a4 - 1 > constant)
+bool ValueRangePropagation::HasDefPointInPred(const BB &begin, const BB &end, const ScalarMeExpr &opnd) {
+  auto *tempBB = &begin;
+  while (tempBB != &end) {
+    if (tempBB->GetSucc().size() != 1) {
+      return true;
+    }
+    for (auto &stmt : tempBB->GetMeStmts()) {
+      if (stmt.GetLHS() != nullptr && stmt.GetLHS()->GetOstIdx() == opnd.GetOstIdx()) {
+        return !CanIgnoreTheDefPoint(stmt, end, opnd);
+      }
+      if (stmt.GetChiList() != nullptr) {
+        for (auto &chi : *stmt.GetChiList()) {
+          if (chi.first == opnd.GetOstIdx()) {
+            return true;
+          }
+        }
+      }
+      if (stmt.GetAssignedLHS() != nullptr && stmt.GetAssignedLHS()->GetOstIdx() == opnd.GetOstIdx()) {
+        return true;
+      }
+    }
+    tempBB = tempBB->GetSucc(0);
+  }
+  return false;
+}
+
 // If expr a2 is assigned with b2 in pred bb, the valueRange of expr (a2 - b2) in pred bb is (0, kEqual).
 //   pred1  pred(a2 = b2)
 //        \  /
@@ -4398,15 +4471,15 @@ MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &
 //         |
 //       bb if (a3 - b3 > constant)
 std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfLHS(const BB &pred, const BB &bb,
-                                                                      MeExpr &expr) {
+                                                                      MeExpr &expr, const BB &condGoto) {
   if (expr.GetMeOp() != kMeOpOp || expr.GetOp() != OP_sub) {
     return nullptr;
   }
   auto &opMeExpr = static_cast<OpMeExpr&>(expr);
   auto *opnd0 = opMeExpr.GetOpnd(0);
   auto *opnd1 = opMeExpr.GetOpnd(1);
-  auto &versionOpnd0InPred = GetVersionOfOpndInPred(pred, bb, *opnd0);
-  auto &versionOpnd1InPred = GetVersionOfOpndInPred(pred, bb, *opnd1);
+  auto &versionOpnd0InPred = GetVersionOfOpndInPred(pred, bb, *opnd0, condGoto);
+  auto &versionOpnd1InPred = GetVersionOfOpndInPred(pred, bb, *opnd1, condGoto);
   // If the vr of versionOpnd0InPred is equal to the vr of versionOpnd1InPred in pred.
   if (FindPairOfExprs(versionOpnd0InPred, versionOpnd1InPred, pred)) {
     return CreateValueRangeOfEqualZero(PTY_u1);
@@ -4564,8 +4637,8 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
     auto *valueRangeInPred = FindValueRangeAndInitNumOfRecursion(*pred, *predOpnd);
     std::unique_ptr<ValueRange> valueRangeInPredPtr = nullptr;
     auto dummyRightRange = rightRange;
-    if (valueRangeInPred == nullptr) {
-      valueRangeInPredPtr = GetValueRangeOfLHS(*pred, bb, *predOpnd);
+    if (valueRangeInPred == nullptr && !defByStmtInUDChain) {
+      valueRangeInPredPtr = GetValueRangeOfLHS(*pred, bb, *predOpnd, condGoto);
       valueRangeInPred = valueRangeInPredPtr.get();
     }
     if (dummyRightRange == nullptr || valueRangeInPred == nullptr) {
@@ -4716,6 +4789,7 @@ bool ValueRangePropagation::ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, Val
   if (bb.GetKind() != kBBCondGoto) {
     return false;
   }
+  defByStmtInUDChain = false;
   ASSERT_NOT_NULL(bb.GetLastMe());
   auto *OpMeExpr = static_cast<CondGotoMeStmt*>(bb.GetLastMe())->GetOpnd();
   auto *opnd1 = (OpMeExpr->GetNumOpnds() == kNumOperands) ? OpMeExpr->GetOpnd(1) : nullptr;
