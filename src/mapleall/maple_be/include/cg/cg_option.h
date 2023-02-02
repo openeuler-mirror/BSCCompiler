@@ -95,6 +95,12 @@ class CGOptions {
     kABISoftFP
   };
 
+  enum VisibilityType : uint8 {
+    kDefault,
+    kHidden,
+    kProtected
+  };
+
   enum EmitFileType : uint8 {
     kAsm,
     kObj,
@@ -1404,6 +1410,28 @@ class CGOptions {
     return instrumentationOutPutPath;
   }
 
+  static void SetVisibilityType(const std::string &type) {
+    if (type == "hidden" || type == "internal") {
+      visibilityType = kHidden;
+    } else if (type == "protected") {
+      visibilityType = kProtected;
+    } else {
+      CHECK_FATAL(type == "default", "unsupported visibility type. Only support: default|hidden|protected|internal");
+    }
+  }
+
+  static VisibilityType GetVisibilityType() {
+    return visibilityType;
+  }
+
+  static void EnableNoplt() {
+    noplt = true;
+  }
+
+  static bool GetNoplt() {
+    return noplt;
+  }
+
  private:
   std::vector<std::string> phaseSequence;
   bool runCGFlag = true;
@@ -1521,6 +1549,8 @@ class CGOptions {
   static std::string instrumentationOutPutPath;
   static std::string liteProfile;
   static std::string functionProrityFile;
+  static VisibilityType visibilityType;
+  static bool noplt;
 };
 }  /* namespace maplebe */
 

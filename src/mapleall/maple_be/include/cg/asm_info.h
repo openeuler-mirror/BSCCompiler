@@ -31,12 +31,14 @@ enum AsmLabel : uint8 {
   kAsmByte,
   kAsmShort,
   kAsmValue,
+  kAsmWord,
   kAsmLong,
   kAsmQuad,
   kAsmSize,
   kAsmType,
   kAsmText,
-  kAsmHidden
+  kAsmHidden,
+  kAsmProtected
 };
 
 class AsmInfo {
@@ -105,6 +107,10 @@ class AsmInfo {
     return asmValue;
   }
 
+  const MapleString &GetWord() const {
+    return asmWord;
+  }
+
   const MapleString &GetLong() const {
     return asmLong;
   }
@@ -123,6 +129,10 @@ class AsmInfo {
 
   const MapleString &GetHidden() const {
     return asmHidden;
+  }
+
+  const MapleString &GetProtected() const {
+    return asmProtected;
   }
 
   const MapleString &GetText() const {
@@ -165,6 +175,7 @@ class AsmInfo {
 #else
         asmValue("\t.value\t", &memPool),
 #endif
+        asmWord("\t.word\t", &memPool),
 #ifdef TARGARM32
         asmLong("\t.word\t", &memPool),
 #else
@@ -174,6 +185,7 @@ class AsmInfo {
         asmSize("\t.size\t", &memPool),
         asmType("\t.type\t", &memPool),
         asmHidden("\t.hidden\t", &memPool),
+        asmProtected("\t.protected\t", &memPool),
         asmText("\t.text\t", &memPool),
         asmSet("\t.set\t", &memPool),
         asmWeakref("\t.weakref\t", &memPool) {}
@@ -197,11 +209,13 @@ class AsmInfo {
   MapleString asmByte;
   MapleString asmShort;
   MapleString asmValue;
+  MapleString asmWord;
   MapleString asmLong;
   MapleString asmQuad;
   MapleString asmSize;
   MapleString asmType;
   MapleString asmHidden;
+  MapleString asmProtected;
   MapleString asmText;
   MapleString asmSet;
   MapleString asmWeakref;

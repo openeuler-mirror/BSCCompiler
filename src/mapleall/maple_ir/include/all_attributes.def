@@ -35,6 +35,8 @@
   ATTR(delete)
   ATTR(fast_native)
   ATTR(inline)
+  ATTR(always_inline)
+  ATTR(gnu_inline)
   ATTR(noinline)
   ATTR(native)
   ATTR(strict)
@@ -65,6 +67,9 @@
   ATTR(optimized)
   ATTR(synchronized)
   ATTR(weak)
+  ATTR(visibility_hidden)
+  ATTR(visibility_protected)
+  ATTR(visibility_default)
 #endif
 #if defined(TYPE_ATTR) || defined(FIELD_ATTR)
 #include "memory_order_attrs.def"
@@ -86,6 +91,7 @@
   ATTR(rcunownedthis)
   ATTR(incomplete_array)
   ATTR(may_alias)
+  ATTR(static_init_zero)
 #endif
 #ifdef FUNC_ATTR
   ATTR(firstarg_return)

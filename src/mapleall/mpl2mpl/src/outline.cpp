@@ -631,10 +631,10 @@ MIRFunction *OutLine::CreateNewOutlineFunction(PrimType returnType) {
   (void)module->GetFunctionList().emplace_back(newFunc);
   newFunc->SetBody(newFunc->GetCodeMempool()->New<BlockNode>());
   newFunc->SetAttr(FUNCATTR_static);
-  newFunc->SetAttr(FUNCATTR_outlined);
   newFunc->AllocSymTab();
   newFunc->AllocPregTab();
   newFunc->AllocLabelTab();
+  newFunc->SetFuncOutlined();
   return newFunc;
 }
 

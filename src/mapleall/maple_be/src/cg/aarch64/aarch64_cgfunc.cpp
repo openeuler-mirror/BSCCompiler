@@ -10370,6 +10370,43 @@ Insn &AArch64CGFunc::GenerateLocalLongCallAfterInsn(const MIRSymbol &func, ListO
   return *callInsn;
 }
 
+/*
+ * Generate early bond pic call for "-fno-plt"
+ *  for "-fPIC"
+ *  adrp  VRx, :got:symbol
+ *  ldr VRx, [VRx, #:got_lo12:symbol]
+ *  blr VRx
+ *
+ *  for "-fpic"
+ *  adrp  VRx, _GLOBAL_OFFSET_TABLE_
+ *  ldr VRx, [VRx, #:gotpage_lo15:symbol]
+ *  blr VRx
+ *
+ * Input:
+ *  insn       : insert new instruction after the 'insn'
+ *  func       : the symbol of the function need to be called
+ *  srcOpnds   : list operand of the function need to be called
+ * Return: the 'blr' instruction
+ */
+Insn &AArch64CGFunc::GenerateGlobalNopltCallAfterInsn(const MIRSymbol &sym, ListOperand &srcOpnds) {
+  MIRFunction *func = sym.GetValue().mirFunc;
+  if ((CGOptions::IsPIE() && !func->GetBody()) || (CGOptions::IsPIC() && !func->IsStatic())) {
+    StImmOperand &stOpnd = CreateStImmOperand(sym, 0, 0);
+    RegOperand &tmpReg = CreateRegisterOperandOfType(PTY_u64);
+    SelectAddrof(tmpReg, stOpnd);
+    Insn &callInsn = GetInsnBuilder()->BuildInsn(MOP_xblr, tmpReg, srcOpnds);
+    GetCurBB()->AppendInsn(callInsn);
+    GetCurBB()->SetHasCall();
+    return callInsn;
+  } else {
+    Operand &targetOpnd = GetOrCreateFuncNameOpnd(sym);
+    Insn &callInsn = GetInsnBuilder()->BuildInsn(MOP_xbl, targetOpnd, srcOpnds);
+    GetCurBB()->AppendInsn(callInsn);
+    GetCurBB()->SetHasCall();
+    return callInsn;
+  }
+}
+
 Insn &AArch64CGFunc::AppendCall(const MIRSymbol &sym, ListOperand &srcOpnds) {
   Insn *callInsn = nullptr;
   if (CGOptions::IsLongCalls()) {
@@ -10379,6 +10416,8 @@ Insn &AArch64CGFunc::AppendCall(const MIRSymbol &sym, ListOperand &srcOpnds) {
     } else {
       callInsn = &GenerateGlobalLongCallAfterInsn(sym, srcOpnds);
     }
+  } else if (CGOptions::GetNoplt())  {
+    callInsn = &GenerateGlobalNopltCallAfterInsn(sym, srcOpnds);
   } else {
     Operand &targetOpnd = GetOrCreateFuncNameOpnd(sym);
     callInsn = &GetInsnBuilder()->BuildInsn(MOP_xbl, targetOpnd, srcOpnds);

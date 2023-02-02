@@ -367,6 +367,12 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       Emit("\n");
       return;
     }
+    case kAsmProtected: {
+      Emit(asmInfo->GetProtected());
+      Emit(symName);
+      Emit("\n");
+      return;
+    }
     case kAsmLocal: {
       Emit(asmInfo->GetLocal());
       Emit(symName);
@@ -2621,8 +2627,24 @@ void Emitter::EmitGlobalVariable() {
         } else {
           EmitAsmLabel(*mirSymbol, kAsmGlbl);
         }
-        if (theMIRModule->IsJavaModule()) {
+        /* if no visibility set individually, set it to be same as the -fvisibility value */
+        if (mirSymbol->IsDefaultVisibility()) {
+          switch (CGOptions::GetVisibilityType()) {
+            case CGOptions::kHidden:
+              mirSymbol->SetAttr(ATTR_visibility_hidden);
+              break;
+            case CGOptions::kProtected:
+              mirSymbol->SetAttr(ATTR_visibility_protected);
+              break;
+            default:
+              mirSymbol->SetAttr(ATTR_visibility_default);
+              break;
+          }
+        }
+        if (theMIRModule->IsJavaModule() || mirSymbol->GetAttr(ATTR_visibility_hidden)) {
           EmitAsmLabel(*mirSymbol, kAsmHidden);
+        } else if (mirSymbol->GetAttr(ATTR_visibility_protected)) {
+          EmitAsmLabel(*mirSymbol, kAsmProtected);
         }
       } else if (mirSymbol->GetStorageClass() == kScFstatic) {
         if (mirSymbol->sectionAttr == UStrIdx(0)) {

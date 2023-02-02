@@ -134,6 +134,8 @@ bool CGOptions::cgBigEndian = false;
 bool CGOptions::arm64ilp32 = false;
 bool CGOptions::noCommon = false;
 bool CGOptions::flavorLmbc = false;
+CGOptions::VisibilityType CGOptions::visibilityType = kDefault;
+bool CGOptions::noplt = false;
 
 CGOptions &CGOptions::GetInstance() {
   static CGOptions instance;
@@ -226,6 +228,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
         ClearOption(CGOptions::kGenPic);
       }
     }
+  }
+
+  if (opts::fNoPlt.IsEnabledByUser()) {
+    EnableNoplt();
   }
 
   if (opts::cg::fnoSemanticInterposition.IsEnabledByUser()) {
@@ -708,6 +714,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::functionPriority.IsEnabledByUser()) {
     SetFunctionPriority(opts::cg::functionPriority);
+  }
+
+  if (opts::fVisibility.IsEnabledByUser()) {
+    SetVisibilityType(opts::fVisibility);
   }
 
   /* override some options when loc, dwarf is generated */

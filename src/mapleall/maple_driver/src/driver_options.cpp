@@ -213,9 +213,9 @@ maplecl::Option<bool> MD({"-MD"},
                     "  -MD                         \tWrite a depfile containing user and system headers\n",
                     {driverCategory, unSupCategory});
 
-maplecl::Option<bool> unUsePlt({"-fno-plt"},
+maplecl::Option<bool> fNoPlt({"-fno-plt"},
                     "  -fno-plt                \tDo not use the PLT to make function calls\n",
-                    {driverCategory, unSupCategory});
+                    {driverCategory});
 
 maplecl::Option<bool> usePipe({"-pipe"},
                     "  -pipe                   \tUse pipes between commands, when possible\n",
@@ -437,9 +437,10 @@ maplecl::Option<std::string> linkerTimeOptE({"-flto="},
                             "  -flto=<value>           \tSet LTO mode to either 'full' or 'thin'\n",
                             {driverCategory, unSupCategory});
 
-maplecl::Option<std::string> setDefSymVisi({"-fvisibility"},
-                            "  -fvisibility=<value>    \tSet the default symbol visibility for all global declarationse",
-                            {driverCategory, unSupCategory});
+maplecl::Option<std::string> fVisibility({"-fvisibility"},
+                            "  -fvisibility=[default|hidden|protected|internal]    \tSet the default symbol visibility"
+                            " for every global declaration unless overridden within the code\n",
+                            {driverCategory});
 
 maplecl::Option<std::string> fStrongEvalOrderE({"-fstrong-eval-order="},
                             "  -fstrong-eval-order    \tFollow the C++17 evaluation order requirements"

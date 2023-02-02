@@ -339,6 +339,10 @@ class MIRFunction {
     return funcAttrs.GetAttr(FUNCATTR_safed);
   }
 
+  bool IsDefaultVisibility() const {
+    return !funcAttrs.GetAttr(FUNCATTR_visibility_hidden) && !funcAttrs.GetAttr(FUNCATTR_visibility_protected);
+  }
+
   void SetVarArgs() {
     funcAttrs.SetAttr(FUNCATTR_varargs);
   }
@@ -1326,6 +1330,14 @@ class MIRFunction {
     return checkedMayWriteToAddrofStack;
   }
 
+  void SetFuncOutlined() {
+    isOutlinedFunc = true;
+  }
+
+  bool IsOutlinedFunc() const {
+    return isOutlinedFunc;
+  }
+
   MIRFunction *GetFuncAlias();
 
  private:
@@ -1434,6 +1446,7 @@ class MIRFunction {
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);
   bool mayWriteToAddrofStack = false;
   bool checkedMayWriteToAddrofStack = false;
+  bool isOutlinedFunc = false;
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_MIR_FUNCTION_H

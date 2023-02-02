@@ -943,6 +943,7 @@ class AArch64CGFunc : public CGFunc {
                                bool isIntactIndexed, bool isPostIndexed, bool isPreIndexed) const;
   Insn &GenerateGlobalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds);
   Insn &GenerateLocalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds);
+  Insn &GenerateGlobalNopltCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds);
   bool IsDuplicateAsmList(const MIRSymbol &sym) const;
   RegOperand *CheckStringIsCompressed(BB &bb, RegOperand &str, int32 countOffset, PrimType countPty,
                                       LabelIdx jumpLabIdx);

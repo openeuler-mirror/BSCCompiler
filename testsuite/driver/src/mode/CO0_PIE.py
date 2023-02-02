@@ -72,7 +72,7 @@ CO0_PIE = {
         ),
         CLinker(
             infiles=["main.s", "${APP}.s"],
-            front_option="",
+            front_option="-pie",
             outfile="${APP}.out",
             back_option="-lm"
         )

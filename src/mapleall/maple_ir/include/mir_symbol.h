@@ -277,6 +277,10 @@ class MIRSymbol {
     return sKind == kStConst || (sKind == kStVar && value.konst != nullptr);
   }
 
+  bool IsDefaultVisibility() const {
+    return !typeAttrs.GetAttr(ATTR_visibility_hidden) && !typeAttrs.GetAttr(ATTR_visibility_protected);
+  }
+
   MIRType *GetType() const;
 
   const std::string &GetName() const {

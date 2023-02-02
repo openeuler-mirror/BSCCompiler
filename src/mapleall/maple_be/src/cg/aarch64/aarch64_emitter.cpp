@@ -514,20 +514,37 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     }
   }
   std::string funcStName = funcSt->GetName();
-  if (funcSt->GetFunction()->GetAttr(FUNCATTR_weak)) {
+  MIRFunction *func = funcSt->GetFunction();
+  if (func->GetAttr(FUNCATTR_weak)) {
     (void)emitter.Emit("\t.weak\t" + funcStName + "\n");
     if (currCG->GetMIRModule()->IsJavaModule()) {
       (void)emitter.Emit("\t.hidden\t" + funcStName + "\n");
     }
-  } else if (funcSt->GetFunction()->GetAttr(FUNCATTR_local)) {
+  } else if (func->GetAttr(FUNCATTR_local)) {
     (void)emitter.Emit("\t.local\t" + funcStName + "\n");
-  } else if (funcSt->GetFunction() && (!funcSt->GetFunction()->IsJava()) && funcSt->GetFunction()->IsStatic()) {
+  } else if (func && (!func->IsJava()) && func->IsStatic()) {
     // nothing
   } else {
-  /* should refer to function attribute */
-    (void)emitter.Emit("\t.globl\t").Emit(funcSt->GetName()).Emit("\n");
-    if (!currCG->GetMIRModule()->IsCModule()) {
-      (void)emitter.Emit("\t.hidden\t").Emit(funcSt->GetName()).Emit("\n");
+    /* should refer to function attribute */
+    (void)emitter.Emit("\t.globl\t").Emit(funcStName).Emit("\n");
+    /* if no visibility set individually, set it to be same as the -fvisibility value */
+    if (!func->IsStatic() && func->IsDefaultVisibility()) {
+      switch (CGOptions::GetVisibilityType()) {
+        case CGOptions::kHidden:
+          func->SetAttr(FUNCATTR_visibility_hidden);
+          break;
+        case CGOptions::kProtected:
+          func->SetAttr(FUNCATTR_visibility_protected);
+          break;
+        default:
+          func->SetAttr(FUNCATTR_visibility_default);
+          break;
+      }
+    }
+    if (!currCG->GetMIRModule()->IsCModule() || func->GetAttr(FUNCATTR_visibility_hidden)) {
+      (void)emitter.Emit("\t.hidden\t").Emit(funcStName).Emit("\n");
+    } else if (func->GetAttr(FUNCATTR_visibility_protected)) {
+      (void)emitter.Emit("\t.protected\t").Emit(funcStName).Emit("\n");
     }
   }
   (void)emitter.Emit("\t.type\t" + funcStName + ", %function\n");

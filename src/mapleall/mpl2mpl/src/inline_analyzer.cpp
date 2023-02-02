@@ -357,8 +357,9 @@ std::pair<bool, int32> EstimateGrowthIfInlinedToAllCallers(const CGNode &calleeC
   int32 growth = 0;
   auto *callee = calleeCgNode.GetMIRFunction();
   auto *calleeSummary = callee->GetInlineSummary();
+  auto isOutlinedFunc = callee->IsOutlinedFunc();
   if (calleeSummary == nullptr) {
-    CHECK_FATAL(callee->GetAttr(FUNCATTR_outlined), "All functions should have inline summary except outlined ones");
+    CHECK_FATAL(isOutlinedFunc, "All functions should have inline summary except outlined ones");
     constexpr int32 bigGrowth = 10000;
     return {false, bigGrowth};
   }
@@ -367,7 +368,7 @@ std::pair<bool, int32> EstimateGrowthIfInlinedToAllCallers(const CGNode &calleeC
     auto *caller = pair.first->GetMIRFunction();
     // self recursive callee can not be removed
     // avoid huge function that cause compiler build time explosion
-    if (caller == callee || caller->GetAttr(FUNCATTR_outlined) || WillCauseHugeFuncByInline(*caller, *callee)) {
+    if (caller == callee || caller->IsOutlinedFunc() || WillCauseHugeFuncByInline(*caller, *callee)) {
       if (callInfos != nullptr) {
         callInfos->clear();
       }
@@ -510,7 +511,7 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
       return std::pair{false, kIFC_OutOfGreedyInline};
     }
   }
-  if (callee.GetAttr(FUNCATTR_outlined) || caller.GetAttr(FUNCATTR_outlined)) {
+  if (callee.IsOutlinedFunc() || caller.IsOutlinedFunc()) {
     return {false, kIFC_Outlined};
   }
   // When callee is unsafe but callStmt is in safe region
@@ -740,7 +741,7 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::WantInlineImpl(CallInfo &callI
   }
   auto *callerSummary = caller.GetInlineSummary();
   if (callerSummary == nullptr) {
-    CHECK_FATAL(caller.GetAttr(FUNCATTR_outlined), "must be");
+    CHECK_FATAL(caller.IsOutlinedFunc(), "must be");
     return {false, kIFC_Outlined};
   }
   auto *calleeNode = cg.GetCGNode(&callee);
