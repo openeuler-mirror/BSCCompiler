@@ -5,6 +5,6 @@ int main() {
     vmull_lane_s16(
       set_int16x4_t(),
       set_int16x4_t(),
-      set_int()));
+      1));
   return 0;
 }

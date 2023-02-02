@@ -145,10 +145,13 @@ enum VectorIntrinsicID {
   kVectorIntrinsicLast
 };
 
-struct LaneNumberInfo {
-  LaneNumberInfo(size_t opndId, int16 laneNumber = -1) : opndId(opndId), laneNumber(laneNumber) {}
+struct IntrinsicOpndDesc {
+  IntrinsicOpndDesc(size_t id, int16 lane = -1, uint16 opnds = 0, PrimType type = PTY_begin)
+      : opndId(id), laneNumber(lane), compositeOpnds(opnds), primType(type) {}
   size_t opndId = kInvalidSize;
   int16 laneNumber = -1;
+  uint16 compositeOpnds = 0;
+  PrimType primType = PTY_begin;
 };
 
 struct IntrinsicDesc {
@@ -159,18 +162,18 @@ struct IntrinsicDesc {
         opndOrder(opndOrder) {}
 
   IntrinsicDesc(VectorIntrinsicID id, MOperator mop, int64 returnOpndIndex, std::vector<size_t> opndOrder,
-      std::unordered_map<size_t, LaneNumberInfo> opndLaneNumberMap)
+      std::unordered_map<size_t, IntrinsicOpndDesc> opndDescMap)
       : id(id),
         mop(mop),
         returnOpndIndex(returnOpndIndex),
         opndOrder(opndOrder),
-        opndLaneNumberMap(opndLaneNumberMap) {}
+        opndDescMap(opndDescMap) {}
 
   VectorIntrinsicID id;
   MOperator mop;
   int64 returnOpndIndex;
   std::vector<size_t> opndOrder;
-  std::unordered_map<size_t, LaneNumberInfo> opndLaneNumberMap;
+  std::unordered_map<size_t, IntrinsicOpndDesc> opndDescMap;
 };
 
 struct InsnDesc {

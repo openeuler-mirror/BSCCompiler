@@ -5,6 +5,6 @@ int main() {
     vextq_s8(
       set_int8x16_t(),
       set_int8x16_t(),
-      set_int()));
+      1));
   return 0;
 }

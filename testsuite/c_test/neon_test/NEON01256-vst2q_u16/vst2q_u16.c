@@ -1,0 +1,10 @@
+#include "neon.h"
+
+int main() {
+  uint16_t ptr[16] = { 0 };
+  vst2q_u16(
+      ptr,
+      set_uint16x8x2_t());
+  print_uint16_t_ptr(ptr, 16);
+  return 0;
+}

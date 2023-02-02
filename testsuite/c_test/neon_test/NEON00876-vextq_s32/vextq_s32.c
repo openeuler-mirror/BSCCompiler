@@ -5,6 +5,6 @@ int main() {
     vextq_s32(
       set_int32x4_t(),
       set_int32x4_t(),
-      set_int()));
+      1));
   return 0;
 }

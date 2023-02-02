@@ -4,8 +4,8 @@ int main() {
   print_uint64x2_t(
     vcopyq_laneq_u64(
       set_uint64x2_t(),
-      set_int(),
+      1,
       set_uint64x2_t(),
-      set_int()));
+      1));
   return 0;
 }

@@ -516,13 +516,6 @@ Operand *HandleVectorSum(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   return cgFunc.SelectVectorSum(resType, opnd1, intrnNode.Opnd(0)->GetPrimType());
 }
 
-Operand *HandleVectorTableLookup(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
-  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
-  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
-  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
-  return cgFunc.SelectVectorTableLookup(rType, opnd1, opnd2);
-}
-
 Operand *HandleVectorMadd(const IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
   Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
@@ -959,10 +952,6 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_subw_high_v4i16: case INTRN_vector_subw_high_v4u16:
     case INTRN_vector_subw_high_v2i32: case INTRN_vector_subw_high_v2u32:
       return HandleVectorSubWiden(intrinsicopNode, cgFunc, false, true);
-
-    case INTRN_vector_table_lookup_v8u8: case INTRN_vector_table_lookup_v8i8:
-    case INTRN_vector_table_lookup_v16u8: case INTRN_vector_table_lookup_v16i8:
-      return HandleVectorTableLookup(intrinsicopNode, cgFunc);
 
     case INTRN_vector_widen_low_v8u8: case INTRN_vector_widen_low_v8i8:
     case INTRN_vector_widen_low_v4u16: case INTRN_vector_widen_low_v4i16:

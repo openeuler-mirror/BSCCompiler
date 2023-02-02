@@ -4,8 +4,8 @@ int main() {
   print_int16x8_t(
     vcopyq_laneq_s16(
       set_int16x8_t(),
-      set_int(),
+      1,
       set_int16x8_t(),
-      set_int()));
+      1));
   return 0;
 }

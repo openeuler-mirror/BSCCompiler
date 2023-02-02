@@ -5,6 +5,6 @@ int main() {
     vext_s64(
       set_int64x1_t(),
       set_int64x1_t(),
-      set_int()));
+      0));
   return 0;
 }

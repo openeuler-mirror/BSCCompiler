@@ -48,6 +48,17 @@ int foo (int n) {
   return !p[0];
 }
 
+void func1();
+void func2() {
+  func1();
+}
+void func1() {
+  int n = 3;
+  // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
+  // CHECK: dassign %vla_size
+  char i[n];
+}
+
 int main (void) {
   if (foo (48) != 0) {
     abort ();

@@ -35,7 +35,7 @@ class ASTParser {
         vlaSizeMap(allocatorIn.Adapter()) {}
   virtual ~ASTParser() = default;
   bool OpenFile(MapleAllocator &allocator);
-  bool Release() const;
+  bool Release(MapleAllocator &allocator) const;
 
   bool Verify() const;
   bool PreProcessAST();
@@ -117,7 +117,7 @@ class ASTParser {
     }
     ASTDeclRefExpr *vlaSizeVarExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
     MIRType *vlaSizeType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
-    ASTDecl *vlaSizeVar = ASTDeclsBuilder::ASTDeclBuilder(
+    ASTDecl *vlaSizeVar = ASTDeclsBuilder::GetInstance(allocator).ASTDeclBuilder(
         allocator, MapleString("", allocator.GetMemPool()), FEUtils::GetSequentialName("vla_size."),
         MapleVector<MIRType*>({vlaSizeType}, allocator.Adapter()));
     vlaSizeVar->SetIsParam(true);
@@ -184,7 +184,8 @@ class ASTParser {
   ASTExpr *PROCESS_EXPR(GenericSelectionExpr);
 
   MapleVector<ASTDecl*> SolveFuncParameterDecls(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
-                                                MapleVector<MIRType*> &typeDescIn, std::list<ASTStmt*> &stmts);
+                                                MapleVector<MIRType*> &typeDescIn, std::list<ASTStmt*> &stmts,
+                                                bool needBody);
   GenericAttrs SolveFunctionAttributes(const clang::FunctionDecl &funcDecl, std::string &funcName) const;
   ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
   ASTStmt *SolveFunctionBody(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc,
@@ -195,7 +196,6 @@ class ASTParser {
   void SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &astVar) const;
 #define PROCESS_DECL(CLASS) ProcessDecl##CLASS##Decl(MapleAllocator &allocator, const clang::CLASS##Decl&)
   ASTDecl *PROCESS_DECL(Field);
-  ASTDecl *PROCESS_DECL(Function);
   ASTDecl *PROCESS_DECL(Record);
   ASTDecl *PROCESS_DECL(Var);
   ASTDecl *PROCESS_DECL(ParmVar);
@@ -205,7 +205,8 @@ class ASTParser {
   ASTDecl *PROCESS_DECL(FileScopeAsm);
   ASTDecl *PROCESS_DECL(Label);
   ASTDecl *PROCESS_DECL(StaticAssert);
-
+  ASTDecl *ProcessDeclFunctionDecl(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                   bool needBody = false);
   static ASTExpr *GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr &expr, uint32 typeSize);
   static ASTExpr *GetSizeMulExpr(MapleAllocator &allocator, ASTExpr &expr, ASTExpr &ptrSizeExpr);
 
@@ -270,6 +271,8 @@ class ASTParser {
   clang::Expr *GetAtomValExpr(clang::Expr *valExpr);
   clang::QualType GetPointeeType(const clang::Expr &expr);
   bool IsNeedGetPointeeType(const clang::FunctionDecl &funcDecl) const;
+  MapleVector<MIRType*> CvtFuncTypeAndRetType(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                              clang::QualType qualType);
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
                                                    std::stringstream &ss) const;
 static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();

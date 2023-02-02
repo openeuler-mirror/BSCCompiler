@@ -60,7 +60,8 @@ void ASTFunction::AddVLACleanupStmts(std::list<UniqueFEIRStmt> &stmts) {
 }
 
 bool ASTFunction::ProcessImpl() {
-  FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "ASTFunction::Process() for %s", astFunc.GetName().c_str());
+  FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "ASTFunction::Process() for %s, %lld", astFunc.GetName().c_str(),
+                astFunc.GetFuncId());
   bool success = true;
   mirFunction.NewBody();
   FEManager::GetMIRBuilder().SetCurrentFunction(mirFunction);

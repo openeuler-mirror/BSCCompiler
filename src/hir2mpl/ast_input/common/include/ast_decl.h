@@ -231,8 +231,8 @@ class ASTField : public ASTDecl {
 class ASTFunc : public ASTDecl {
  public:
   ASTFunc(const MapleString &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
-          const GenericAttrs &genAttrsIn, const MapleVector<ASTDecl*> &paramDeclsIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), paramDecls(paramDeclsIn) {
+          const GenericAttrs &genAttrsIn, const MapleVector<ASTDecl*> &paramDeclsIn, int64 funcId)
+      : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), paramDecls(paramDeclsIn), funcId(funcId) {
     genAttrs = genAttrsIn;
     declKind = kASTFunc;
   }
@@ -265,11 +265,16 @@ class ASTFunc : public ASTDecl {
     return true;
   }
 
+  int64 GetFuncId() const {
+    return funcId;
+  }
+
  private:
   // typeDesc format: [funcType, retType, arg0, arg1 ... argN]
   ASTStmt *compound = nullptr;  // func body
   MapleVector<ASTDecl*> paramDecls;
   std::pair<bool, std::string> weakrefAttr;
+  int64 funcId;
 };
 
 class ASTStruct : public ASTDecl {

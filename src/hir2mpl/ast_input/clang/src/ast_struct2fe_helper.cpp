@@ -293,7 +293,8 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
 void ASTFunc2FEHelper::SolveFunctionArguments() const {
   MapleVector<ASTDecl*> paramDecls = func.GetParamDecls();
   if (firstArgRet) {
-    ASTDecl *returnParamVar = ASTDeclsBuilder::ASTVarBuilder(allocator, MapleString("", allocator.GetMemPool()),
+    ASTDecl *returnParamVar = ASTDeclsBuilder::GetInstance(allocator).ASTVarBuilder(allocator,
+        MapleString("", allocator.GetMemPool()),
         "first_arg_return", MapleVector<MIRType*>({}, allocator.Adapter()), GenericAttrs());
     returnParamVar->SetIsParam(true);
     (void)paramDecls.insert(paramDecls.cbegin(), returnParamVar);

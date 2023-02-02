@@ -5,6 +5,6 @@ int main() {
     vext_s8(
       set_int8x8_t(),
       set_int8x8_t(),
-      set_int()));
+      1));
   return 0;
 }

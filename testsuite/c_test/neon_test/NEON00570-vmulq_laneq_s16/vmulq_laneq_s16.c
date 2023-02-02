@@ -5,6 +5,6 @@ int main() {
     vmulq_laneq_s16(
       set_int16x8_t(),
       set_int16x8_t(),
-      set_int()));
+      1));
   return 0;
 }

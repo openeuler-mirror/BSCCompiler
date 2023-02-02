@@ -5,6 +5,6 @@ int main() {
     vmull_high_laneq_u16(
       set_uint16x8_t(),
       set_uint16x8_t(),
-      set_int()));
+      1));
   return 0;
 }

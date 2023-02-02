@@ -687,10 +687,6 @@ RegOperand *X64CGFunc::SelectVectorSum(PrimType rtype, Operand *o1, PrimType oTy
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
-RegOperand *X64CGFunc::SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
-}
 RegOperand *X64CGFunc::SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) {
   CHECK_FATAL(false, "NIY");
   return nullptr;

@@ -125,9 +125,10 @@ MOperator extIs[kIntByteSizeDimension][kIntByteSizeDimension] = {
 };
 
 #define INTRINSICDESC(...) {__VA_ARGS__},
-const IntrinsicDesc vectorIntrinsicMap[kVectorIntrinsicLast] = {
+static const IntrinsicDesc vectorIntrinsicMap[kVectorIntrinsicLast] = {
 #include "aarch64_intrinsic_desc.def"
 };
+#undef INTRINSICDESC
 
 MOperator PickLdStInsn(bool isLoad, uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd) {
   ASSERT(__builtin_popcount(static_cast<uint32>(memOrd)) <= 1, "must be kMoNone or kMoAcquire");
@@ -12515,20 +12516,6 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
   return res;
 }
 
-RegOperand *AArch64CGFunc::SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) {
-  RegOperand *res = &CreateRegisterOperandOfType(rType);                    /* result operand */
-  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);  /* 8B or 16B */
-  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);     /* vector operand 1 */
-  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(rType);     /* vector operand 2 */
-  vecSpec1->compositeOpnds = 1;                                             /* composite operand */
-
-  auto &vInsn = GetInsnBuilder()->BuildVectorInsn(MOP_vtbl1vvv, AArch64CG::kMd[MOP_vtbl1vvv]);
-  (void)vInsn.AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*o2);
-  (void)vInsn.PushRegSpecEntry(vecSpecDest).PushRegSpecEntry(vecSpec1).PushRegSpecEntry(vecSpec2);
-  GetCurBB()->AppendInsn(vInsn);
-  return res;
-}
-
 RegOperand *AArch64CGFunc::SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2,
                                             PrimType oTyp2, Operand *o3, PrimType oTyp3) {
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(oTyp1);          /* operand 1 and result */
@@ -12779,17 +12766,22 @@ RegOperand *AArch64CGFunc::SelectVectorMovNarrow(PrimType rType, Operand *opnd, 
   return res;
 }
 
-static int16 ResolveLaneNumberInfo(const IntrinsicopNode &expr, const IntrinsicDesc &intrinsicDesc, size_t opndId) {
-  auto iter = intrinsicDesc.opndLaneNumberMap.find(opndId);
-  if (iter == intrinsicDesc.opndLaneNumberMap.end()) {
-    return -1;
+static const IntrinsicOpndDesc &GetIntrinsicOpndDesc(const IntrinsicDesc &intrinsicDesc,
+                                                     size_t opndId) {
+  auto iter = intrinsicDesc.opndDescMap.find(opndId);
+  if (iter == intrinsicDesc.opndDescMap.end()) {
+    static IntrinsicOpndDesc desc(kInvalidSize);
+    return desc;
   }
-  auto info = iter->second;
-  if (info.laneNumber != -1) {
-    return info.laneNumber;
+  return iter->second;
+}
+
+static int16 ResolveLaneNumber(const IntrinsicopNode &expr, const IntrinsicOpndDesc &opndDesc) {
+  if (opndDesc.laneNumber != -1) {
+    return opndDesc.laneNumber;
   }
-  if (info.opndId != kInvalidSize) {
-    auto *laneExpr = expr.Opnd(info.opndId);
+  if (opndDesc.opndId != kInvalidSize) {
+    auto *laneExpr = expr.Opnd(opndDesc.opndId);
     CHECK_FATAL(laneExpr->IsConstval(), "unexpected opnd type");
     auto *mirConst = static_cast<ConstvalNode*>(laneExpr)->GetConstVal();
     return static_cast<int16>(safe_cast<MIRIntConst>(mirConst)->GetExtValue());
@@ -12797,26 +12789,16 @@ static int16 ResolveLaneNumberInfo(const IntrinsicopNode &expr, const IntrinsicD
   return -1;
 }
 
-static PrimType ConvertVectorPrimTypeWithSpecialMOP(PrimType ptype, MOperator mop) {
-  if (mop == MOP_vbicuuu || mop == MOP_vbsluuu) {
-    ptype = PTY_v8i8;
-  } else if (mop == MOP_vbicvvv || mop == MOP_vbslvvv) {
-    ptype = PTY_v16i8;
-  }
-  return ptype;
-}
-
 RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrinsicOp) {
   auto intrinsicId = intrinsicOp.GetIntrinsic();
   CHECK_FATAL(intrinsicId >= maple::INTRN_vector_get_lane_v8u8, "unexpected intrinsic");
   size_t vectorIntrinsicIndex = intrinsicId - maple::INTRN_vector_get_lane_v8u8;
   auto &aarch64IntrinsicDesc = vectorIntrinsicMap[vectorIntrinsicIndex];
+  ASSERT(vectorIntrinsicIndex == aarch64IntrinsicDesc.id, "intrinsic map error!");
   auto resultType = intrinsicOp.GetPrimType();
   auto mop = aarch64IntrinsicDesc.mop;
-  resultType = ConvertVectorPrimTypeWithSpecialMOP(resultType, mop);
   auto &insnDesc = AArch64CG::kMd[mop];
   auto &insn = GetInsnBuilder()->BuildVectorInsn(mop, insnDesc);
-  int16 resultLaneNumber = -1;
   auto returnOpndIndex = aarch64IntrinsicDesc.returnOpndIndex;
   auto *result = &CreateRegisterOperandOfType(resultType);
   if (returnOpndIndex != -1) {
@@ -12824,28 +12806,42 @@ RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrins
     auto *srcOpnd = HandleExpr(intrinsicOp, *srcExpr);
     auto srcType = srcExpr->GetPrimType();
     SelectCopy(*result, resultType, *srcOpnd, srcType);
-    resultLaneNumber = ResolveLaneNumberInfo(intrinsicOp, aarch64IntrinsicDesc, returnOpndIndex);
   }
+  auto intrinsicOpndDesc = GetIntrinsicOpndDesc(aarch64IntrinsicDesc, returnOpndIndex);
+  auto resultLaneNumber = ResolveLaneNumber(intrinsicOp, intrinsicOpndDesc);
+  auto compositeOpnds = intrinsicOpndDesc.compositeOpnds;
+  resultType = (intrinsicOpndDesc.primType != PTY_begin) ? intrinsicOpndDesc.primType : resultType;
   (void)insn.AddOpndChain(*result);
   if (insnDesc.GetOpndDes(0)->IsVectorOperand() || resultLaneNumber != -1) {
-    (void)insn.PushRegSpecEntry(GetMemoryPool()->New<VectorRegSpec>(resultType, resultLaneNumber));
+    (void)insn.PushRegSpecEntry(
+        GetMemoryPool()->New<VectorRegSpec>(resultType, resultLaneNumber, compositeOpnds));
   }
   for (size_t i = 0; i < aarch64IntrinsicDesc.opndOrder.size(); ++i) {
     auto opndId = aarch64IntrinsicDesc.opndOrder[i];
     auto *opndExpr = intrinsicOp.Opnd(opndId);
     auto *opnd = HandleExpr(intrinsicOp, *opndExpr);
-    auto opndType = opndExpr->GetPrimType();
-    auto *opndDesc = insnDesc.GetOpndDes(i + 1);
-    if (!opndDesc->IsImm()) {
-      auto *newOpnd = &CreateRegisterOperandOfType(opndType);
-      SelectCopy(*newOpnd, opndType, *opnd, opndExpr->GetPrimType());
-      opnd = newOpnd;
-    }
-    opndType = ConvertVectorPrimTypeWithSpecialMOP(opndType, mop);
-    (void)insn.AddOpndChain(*opnd);
-    auto laneNumber = ResolveLaneNumberInfo(intrinsicOp, aarch64IntrinsicDesc, opndId);
-    if (opndDesc->IsVectorOperand() || laneNumber != -1) {
-      (void)insn.PushRegSpecEntry(GetMemoryPool()->New<VectorRegSpec>(opndType, laneNumber));
+    auto &intrinsicDesc = IntrinDesc::intrinTable[intrinsicId];
+    if (intrinsicDesc.argTypes[opndId + 1] == kArgTyPtr) {
+      ASSERT(opnd->IsRegister(), "NIY, must be register");
+      auto *regOpnd = static_cast<RegOperand*>(opnd);
+      (void)insn.AddOpndChain(CreateMemOpnd(*regOpnd, 0, GetPrimTypeBitSize(resultType)));
+    } else {
+      auto opndType = opndExpr->GetPrimType();
+      auto *opndDesc = insnDesc.GetOpndDes(i + 1);
+      if (!opndDesc->IsImm()) {
+        auto *newOpnd = &CreateRegisterOperandOfType(opndType);
+        SelectCopy(*newOpnd, opndType, *opnd, opndExpr->GetPrimType());
+        opnd = newOpnd;
+      }
+      auto intrinsicOpndDesc = GetIntrinsicOpndDesc(aarch64IntrinsicDesc, opndId);
+      auto laneNumber = ResolveLaneNumber(intrinsicOp, intrinsicOpndDesc);
+      auto compositeOpnds = intrinsicOpndDesc.compositeOpnds;
+      opndType = (intrinsicOpndDesc.primType != PTY_begin) ? intrinsicOpndDesc.primType : opndType;
+      (void)insn.AddOpndChain(*opnd);
+      if (opndDesc->IsVectorOperand() || laneNumber != -1) {
+        (void)insn.PushRegSpecEntry(
+            GetMemoryPool()->New<VectorRegSpec>(opndType, laneNumber, compositeOpnds));
+      }
     }
   }
   GetCurBB()->AppendInsn(insn);

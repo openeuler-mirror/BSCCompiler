@@ -350,7 +350,6 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorSubWiden(PrimType resType, Operand *o1, PrimType otyp1,
                                    Operand *o2, PrimType otyp2, bool isLow, bool isWide) override;
   RegOperand *SelectVectorSum(PrimType rType, Operand *o1, PrimType oType) override;
-  RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) override;
   RegOperand *SelectVectorIntrinsics(const IntrinsicopNode &intrinsicOp) override;

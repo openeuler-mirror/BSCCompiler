@@ -21,6 +21,7 @@
 #include "fe_manager.h"
 #include "enhance_c_checker.h"
 #include "conditional_operator.h"
+#include "fe_macros.h"
 
 namespace maple {
 // ---------- ASTDecl ---------
@@ -256,6 +257,8 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
   if (astStmt == nullptr) {
     return stmts;
   }
+  FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "ASTFunc::EmitASTStmtToFEIR() for %s, %lld",
+                GetName().c_str(), GetFuncId());
   const ASTCompoundStmt *astCpdStmt = static_cast<const ASTCompoundStmt*>(astStmt);
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   feFunction.PushFuncScope(FEUtils::CvtLoc2SrcPosition(astCpdStmt->GetSrcLoc()),

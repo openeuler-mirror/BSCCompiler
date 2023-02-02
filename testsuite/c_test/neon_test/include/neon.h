@@ -2,6 +2,7 @@
 #define __NEON_H__
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <arm_neon.h>
 
 #define VSET(a, lane, s, q) { a = vset##q##_lane_##s(lane, a, lane);}
@@ -76,9 +77,9 @@
                               printf("%ld,", (long)VGET(a, 15, s, q));  \
                               printf("\n");}
 
-#define FUNC_DEF(t, n, s, q)                          \
-void print_##t(t a) { VPRTINT_##n (a, s, q); }        \
-t set_##t() { t a; VSET_##n (a, s, q); return a; }
+#define FUNC_DEF(t, n, s, q)                                        \
+static inline void print_##t(t a) { VPRTINT_##n (a, s, q); }        \
+static inline t set_##t() { t a; VSET_##n (a, s, q); return a; }
 
 FUNC_DEF(int8x8_t, 8, s8, )
 FUNC_DEF(int8x16_t, 16, s8, q)
@@ -99,29 +100,77 @@ FUNC_DEF(uint64x2_t, 2, u64, q)
 
 #undef FUNC_DEF
 
-#define FUNC_DEF(t, ot)                                                     \
-void print_##t(t a) { print_##ot(a.val[0]); print_##ot(a.val[1]); }         \
-t set_##t() {t a; a.val[0] = set_##ot(); a.val[1] = set_##ot(); return a; }
+#define FUNC_DEF(t, ot, num)          \
+static inline void print_##t(t a) {   \
+  for (int i = 0; i < num; ++i) {     \
+    print_##ot(a.val[i]);             \
+  }                                   \
+}                                     \
+static inline t set_##t() {           \
+  t a;                                \
+  for (int i = 0; i < num; ++i) {     \
+    a.val[i] = set_##ot();  \
+  }                                   \
+  return a;                           \
+}
 
-FUNC_DEF(int8x8x2_t, int8x8_t)
-FUNC_DEF(int8x16x2_t, int8x16_t)
-FUNC_DEF(int16x4x2_t, int16x4_t)
-FUNC_DEF(int16x8x2_t, int16x8_t)
-FUNC_DEF(int32x2x2_t, int32x2_t)
-FUNC_DEF(int32x4x2_t, int32x4_t)
-FUNC_DEF(uint8x8x2_t, uint8x8_t)
-FUNC_DEF(uint8x16x2_t, uint8x16_t)
-FUNC_DEF(uint16x4x2_t, uint16x4_t)
-FUNC_DEF(uint16x8x2_t, uint16x8_t)
-FUNC_DEF(uint32x2x2_t, uint32x2_t)
-FUNC_DEF(uint32x4x2_t, uint32x4_t)
+FUNC_DEF(int8x8x2_t, int8x8_t, 2)
+FUNC_DEF(int8x16x2_t, int8x16_t, 2)
+FUNC_DEF(int16x4x2_t, int16x4_t, 2)
+FUNC_DEF(int16x8x2_t, int16x8_t, 2)
+FUNC_DEF(int32x2x2_t, int32x2_t, 2)
+FUNC_DEF(int32x4x2_t, int32x4_t, 2)
+FUNC_DEF(uint8x8x2_t, uint8x8_t, 2)
+FUNC_DEF(uint8x16x2_t, uint8x16_t, 2)
+FUNC_DEF(uint16x4x2_t, uint16x4_t, 2)
+FUNC_DEF(uint16x8x2_t, uint16x8_t, 2)
+FUNC_DEF(uint32x2x2_t, uint32x2_t, 2)
+FUNC_DEF(uint32x4x2_t, uint32x4_t, 2)
+FUNC_DEF(int64x1x2_t, int64x1_t, 2)
+FUNC_DEF(uint64x1x2_t, uint64x1_t, 2)
+FUNC_DEF(int64x2x2_t, int64x2_t, 2)
+FUNC_DEF(uint64x2x2_t, uint64x2_t, 2)
+
+FUNC_DEF(int8x8x3_t, int8x8_t, 3)
+FUNC_DEF(int8x16x3_t, int8x16_t, 3)
+FUNC_DEF(int16x4x3_t, int16x4_t, 3)
+FUNC_DEF(int16x8x3_t, int16x8_t, 3)
+FUNC_DEF(int32x2x3_t, int32x2_t, 3)
+FUNC_DEF(int32x4x3_t, int32x4_t, 3)
+FUNC_DEF(uint8x8x3_t, uint8x8_t, 3)
+FUNC_DEF(uint8x16x3_t, uint8x16_t, 3)
+FUNC_DEF(uint16x4x3_t, uint16x4_t, 3)
+FUNC_DEF(uint16x8x3_t, uint16x8_t, 3)
+FUNC_DEF(uint32x2x3_t, uint32x2_t, 3)
+FUNC_DEF(uint32x4x3_t, uint32x4_t, 3)
+FUNC_DEF(int64x1x3_t, int64x1_t, 3)
+FUNC_DEF(uint64x1x3_t, uint64x1_t, 3)
+FUNC_DEF(int64x2x3_t, int64x2_t, 3)
+FUNC_DEF(uint64x2x3_t, uint64x2_t, 3)
+
+FUNC_DEF(int8x8x4_t, int8x8_t, 4)
+FUNC_DEF(int8x16x4_t, int8x16_t, 4)
+FUNC_DEF(int16x4x4_t, int16x4_t, 4)
+FUNC_DEF(int16x8x4_t, int16x8_t, 4)
+FUNC_DEF(int32x2x4_t, int32x2_t, 4)
+FUNC_DEF(int32x4x4_t, int32x4_t, 4)
+FUNC_DEF(uint8x8x4_t, uint8x8_t, 4)
+FUNC_DEF(uint8x16x4_t, uint8x16_t, 4)
+FUNC_DEF(uint16x4x4_t, uint16x4_t, 4)
+FUNC_DEF(uint16x8x4_t, uint16x8_t, 4)
+FUNC_DEF(uint32x2x4_t, uint32x2_t, 4)
+FUNC_DEF(uint32x4x4_t, uint32x4_t, 4)
+FUNC_DEF(int64x1x4_t, int64x1_t, 4)
+FUNC_DEF(uint64x1x4_t, uint64x1_t, 4)
+FUNC_DEF(int64x2x4_t, int64x2_t, 4)
+FUNC_DEF(uint64x2x4_t, uint64x2_t, 4)
 
 #undef FUNC_DEF
 
-#define FUNC_DEF(t)                                 \
-void print_##t(t a) { printf("%ld\n", (long)a); }   \
-t set_##t() { return 1; }
+#define FUNC_DEF(t)                                               \
+static inline void print_##t(t a) { printf("%ld\n", (long)a); }
 
+FUNC_DEF(int)
 FUNC_DEF(int8_t)
 FUNC_DEF(int16_t)
 FUNC_DEF(int32_t)
@@ -133,10 +182,41 @@ FUNC_DEF(uint64_t)
 
 #undef FUNC_DEF
 
-void print_int(int a) {
-  printf("%ld\n", (long)a);
-}
 #define set_int() (0)
-#define set_int_1() (1)
+#define set_int8_t() (1)
+#define set_int16_t() (1)
+#define set_int32_t() (1)
+#define set_int64_t() (1)
+#define set_uint8_t() (1)
+#define set_uint16_t() (1)
+#define set_uint32_t() (1)
+#define set_uint64_t() (1)
+
+#define FUNC_DEF(t)                                       \
+static inline t *set_##t##_ptr(int len) {                 \
+  t *ptr = malloc(len * sizeof(t));                       \
+  for (int i = 0; i < len; ++i) {                         \
+    *(ptr + i) = i + 1;                                   \
+  }                                                       \
+  return ptr;                                             \
+}                                                         \
+static inline void print_##t##_ptr(t *ptr, int len) {     \
+  for (int i = 0; i < len; ++i) {                         \
+    printf("%ld,", (long)(*ptr + i));                     \
+  }                                                       \
+  printf("\n");                                           \
+}
+
+FUNC_DEF(int)
+FUNC_DEF(int8_t)
+FUNC_DEF(int16_t)
+FUNC_DEF(int32_t)
+FUNC_DEF(int64_t)
+FUNC_DEF(uint8_t)
+FUNC_DEF(uint16_t)
+FUNC_DEF(uint32_t)
+FUNC_DEF(uint64_t)
+
+#undef FUNC_DEF
 
 #endif /* __NEON_H__ */
