@@ -490,12 +490,12 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
   GStrIdx calleeStrIdx = callee.GetNameStrIdx();
   GStrIdx callerStrIdx = caller.GetNameStrIdx();
   const auto &noInlineList = InlineListInfo::GetNoInlineList();
-  if (noInlineList.find(calleeStrIdx) != noInlineList.end()) {
-    auto it = noInlineList.find(calleeStrIdx);
-    if (it == noInlineList.end()) {
+  auto cit = noInlineList.find(calleeStrIdx);
+  if (cit != noInlineList.end()) {
+    auto *callerList = cit->second;
+    if (callerList->empty()) {
       return {false, kIFC_NoinlineList};
     }
-    auto *callerList = it->second;
     if (callerList->find(callerStrIdx) != callerList->end()) {
       return {false, kIFC_NoinlineListCallsite};
     }
