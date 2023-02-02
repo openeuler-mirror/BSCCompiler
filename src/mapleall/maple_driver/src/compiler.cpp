@@ -91,7 +91,7 @@ void Compiler::AppendDefaultOptions(std::vector<MplOption> &finalOptions,
     LogInfo::MapleLogger() << Compiler::GetName() << " Default Options: ";
     for (const auto &defaultIt : defaultOptions) {
       LogInfo::MapleLogger() << defaultIt.GetKey() << " "
-                             << defaultIt.GetValue();
+                             << defaultIt.GetValue() << " ";
     }
     LogInfo::MapleLogger() << '\n';
   }

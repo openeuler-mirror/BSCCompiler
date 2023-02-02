@@ -58,7 +58,7 @@ std::string LdCompiler::GetBin(const MplOptions &mplOptions [[maybe_unused]]) co
     return FileUtils::SafeGetenv(kGccPath);
   }
   std::string gccPath = FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc") +
-                                                  "aarch64-linux-gnu-gcc -dumpversion";
+                                                  " -dumpversion";
   FileUtils::checkGCCVersion(gccPath.c_str());
   return FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc");
 #endif

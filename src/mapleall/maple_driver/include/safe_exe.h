@@ -154,7 +154,7 @@ class SafeExe {
       if (ret != kErrorNoError) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: ";
         for (auto &opt : options) {
-          LogInfo::MapleLogger() << opt.GetKey() << " " << opt.GetValue();
+          LogInfo::MapleLogger() << opt.GetKey() << " " << opt.GetValue() << " ";
         }
         LogInfo::MapleLogger() << "\n";
       }
