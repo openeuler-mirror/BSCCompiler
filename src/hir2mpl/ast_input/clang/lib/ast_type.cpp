@@ -521,17 +521,57 @@ void LibAstFile::CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQual
   }
 }
 
+MIRType *LibAstFile::CvtVectorSizeType(MIRType *elemType, MIRType *destType, uint32_t arrLen, uint32_t vecLen,
+                                       uint32 alignNum) {
+  MIRStructType *structType = nullptr;
+  MIRType *arrayType = nullptr;
+  TypeAttrs elemAttrs;
+  FieldAttrs attrs;
+  FieldPair mirFieldPair;
+  std::string fieldName = "val";
+  std::string typeName = elemType->GetMplTypeName();
+  std::vector<FieldPair> mirFieldVector;
+  std::string name = typeName + "x" + std::to_string(vecLen) + "x" +
+                     std::to_string(arrLen) + "_t";
+  structType = FEManager::GetTypeManager().GetOrCreateStructType(name);
+  if (structType->GetFieldsSize() != 0) {
+    return structType;
+  }
+  arrayType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*destType, 1, &arrLen, elemAttrs);
+  GStrIdx idx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fieldName);
+  attrs.SetAlign(alignNum);
+  mirFieldPair.first = idx;
+  mirFieldPair.second.first = arrayType->GetTypeIndex();
+  mirFieldPair.second.second = attrs;
+  mirFieldVector.emplace(mirFieldVector.begin(), mirFieldPair);
+  structType->SetFields(mirFieldVector);
+  return structType;
+}
+
 MIRType *LibAstFile::CvtVectorType(const clang::QualType srcType) {
   const auto *vectorType = llvm::cast<clang::VectorType>(srcType);
   MIRType *elemType = CvtType(vectorType->getElementType());
   unsigned numElems = vectorType->getNumElements();
-  CHECK_FATAL(elemType->GetSize() * numElems <= 16, "unsupported vector size");
+  MIRType *destType = nullptr;
+  auto elemTypeSize = elemType->GetSize();
+  uint32_t vecSize = numElems * elemTypeSize * 8;
+  CHECK_FATAL(!(vecSize & (vecSize - 1)), "VectorSize is not Multiples of 2");
+  if (vecSize > 128) {
+    uint32_t arrayLen = vecSize / 128;
+    numElems = numElems / arrayLen;
+  }
   auto powOf2NumElements = static_cast<size_t>(__builtin_ctz(numElems));
   auto powOf2ElementByteSize = static_cast<size_t>(__builtin_ctzl(elemType->GetSize()));
   auto isSigned = IsPrimitiveUnsigned(elemType->GetPrimType()) ? 1ULL : 0ULL;
   auto primType = vectorTypeMap[powOf2NumElements][powOf2ElementByteSize][isSigned];
   CHECK_FATAL(primType != PTY_begin, "unexpected vector type");
-  return GlobalTables::GetTypeTable().GetPrimType(primType);
+  destType = GlobalTables::GetTypeTable().GetPrimType(primType);
+  if (vecSize > 128) {
+    uint32_t arrayLen = vecSize / 128;
+    uint32_t vecLen = vecSize / (arrayLen * elemType->GetSize() * 8);
+    return CvtVectorSizeType(elemType, destType, arrayLen, vecLen, numElems * elemTypeSize);
+  }
+  return destType;
 }
 
 bool LibAstFile::IsOneElementVector(const clang::QualType &qualType) {

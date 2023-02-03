@@ -92,6 +92,8 @@ class LibAstFile {
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
   MIRType *CvtComplexType(const clang::QualType srcType) const;
   MIRType *CvtVectorType(const clang::QualType srcType);
+  MIRType *CvtVectorSizeType(MIRType *elemType, MIRType *destType, uint32_t arrLen, uint32_t vecLen,
+                             uint32 alignNum);
   MIRType *CvtTypedef(const clang::QualType &qualType);
   MIRType *CvtTypedefDecl(const clang::TypedefNameDecl &typedefDecl);
   bool TypeHasMayAlias(const clang::QualType srcType) const;
