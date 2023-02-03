@@ -35,8 +35,10 @@ CO0 = {
         ),
         Maple(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["mplcg"],
+            run=["me", "mpl2mpl", "mplcg"],
             option={
+                "me": "--quiet",
+                "mpl2mpl": "--quiet",
                 "mplcg": "--quiet --fPIC"
             },
             global_option="-g",

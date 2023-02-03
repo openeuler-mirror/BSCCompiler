@@ -3407,7 +3407,6 @@ uint64x1_t __builtin_mpl_vector_ld1_dup_u64v1(uint64_t const *ptr);
 uint64x2_t __builtin_mpl_vector_ld1q_dup_u64v2(uint64_t const *ptr);
 #define vld1q_dup_u64(ptr)  __builtin_mpl_vector_ld1q_dup_u64v2(ptr)
 
-
 int8x8x2_t __builtin_mpl_vector_ld2_i8v8(int8_t const *ptr);
 #define vld2_s8(ptr)  __builtin_mpl_vector_ld2_i8v8(ptr)
 
@@ -4194,11 +4193,13 @@ uint8x8_t __builtin_mpl_vector_qtbl1_u8v8(uint8x16_t t, uint8x8_t idx);
 uint8x16_t __builtin_mpl_vector_qtbl1q_u8v16(uint8x16_t t, uint8x16_t idx);
 #define vqtbl1q_u8(t, idx)  __builtin_mpl_vector_qtbl1q_u8v16(t, idx)
 
-static inline int8x8_t vtbl2_s8(int8x8x2_t a, int8x8_t idx) {
+static inline int8x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vtbl2_s8(int8x8x2_t a, int8x8_t idx) {
   return vqtbl1_s8(vcombine_s8(a.val[0], a.val[1]), idx);
 }
 
-static inline uint8x8_t vtbl2_u8(uint8x8x2_t a, uint8x8_t idx) {
+static inline uint8x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vtbl2_u8(uint8x8x2_t a, uint8x8_t idx) {
   return vqtbl1_u8(vcombine_u8(a.val[0], a.val[1]), idx);
 }
 
@@ -4250,13 +4251,15 @@ uint8x8_t __builtin_mpl_vector_qtbl4_u8v8(uint8x16x4_t t, uint8x8_t idx);
 uint8x16_t __builtin_mpl_vector_qtbl4q_u8v16(uint8x16x4_t t, uint8x16_t idx);
 #define vqtbl4q_u8(t, idx)  __builtin_mpl_vector_qtbl4q_u8v16(t, idx)
 
-static inline int8x8_t vtbx1_s8(int8x8_t a, int8x8_t b, int8x8_t idx) {
+static inline int8x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vtbx1_s8(int8x8_t a, int8x8_t b, int8x8_t idx) {
   uint8x8_t mask = vclt_u8((uint8x8_t)(idx), vmov_n_u8(8));
   int8x8_t tbl = vtbl1_s8(b, idx);
   return vbsl_s8(mask, tbl, a);
 }
 
-static inline uint8x8_t vtbx1_u8(uint8x8_t a, uint8x8_t b, uint8x8_t idx) {
+static inline uint8x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vtbx1_u8(uint8x8_t a, uint8x8_t b, uint8x8_t idx) {
   uint8x8_t mask = vclt_u8(idx, vmov_n_u8(8));
   uint8x8_t tbl = vtbl1_u8(b, idx);
   return vbsl_u8(mask, tbl, a);
@@ -4274,11 +4277,13 @@ uint8x8_t __builtin_mpl_vector_qtbx1_u8v8(uint8x8_t a, uint8x16_t t, uint8x8_t i
 uint8x16_t __builtin_mpl_vector_qtbx1q_u8v16(uint8x16_t a, uint8x16_t t, uint8x16_t idx);
 #define vqtbx1q_u8(a, t, idx)  __builtin_mpl_vector_qtbx1q_u8v16(a, t, idx)
 
-static inline int8x8_t vtbx2_s8(int8x8_t a, int8x8x2_t b, int8x8_t idx) {
+static inline int8x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vtbx2_s8(int8x8_t a, int8x8x2_t b, int8x8_t idx) {
   return vqtbx1_s8(a, vcombine_s8(b.val[0], b.val[1]), idx);
 }
 
-static inline uint8x8_t vtbx2_u8(uint8x8_t a, uint8x8x2_t b, uint8x8_t idx) {
+static inline uint8x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vtbx2_u8(uint8x8_t a, uint8x8x2_t b, uint8x8_t idx) {
   return vqtbx1_u8(a, vcombine_u8(b.val[0], b.val[1]), idx);
 }
 
@@ -4329,5 +4334,2694 @@ uint8x8_t __builtin_mpl_vector_qtbx4_u8v8(uint8x8_t a, uint8x16x4_t t, uint8x8_t
 
 uint8x16_t __builtin_mpl_vector_qtbx4q_u8v16(uint8x16_t a, uint8x16x4_t t, uint8x16_t idx);
 #define vqtbx4q_u8(a, t, idx)  __builtin_mpl_vector_qtbx4q_u8v16(a, t, idx)
+
+int8x8_t __builtin_mpl_vector_hadd_i8v8(int8x8_t a, int8x8_t b);
+#define vhadd_s8(a, b)  __builtin_mpl_vector_hadd_i8v8(a, b)
+
+int8x16_t __builtin_mpl_vector_haddq_i8v16(int8x16_t a, int8x16_t b);
+#define vhaddq_s8(a, b)  __builtin_mpl_vector_haddq_i8v16(a, b)
+
+int16x4_t __builtin_mpl_vector_hadd_i16v4(int16x4_t a, int16x4_t b);
+#define vhadd_s16(a, b)  __builtin_mpl_vector_hadd_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_haddq_i16v8(int16x8_t a, int16x8_t b);
+#define vhaddq_s16(a, b)  __builtin_mpl_vector_haddq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_hadd_i32v2(int32x2_t a, int32x2_t b);
+#define vhadd_s32(a, b)  __builtin_mpl_vector_hadd_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_haddq_i32v4(int32x4_t a, int32x4_t b);
+#define vhaddq_s32(a, b)  __builtin_mpl_vector_haddq_i32v4(a, b)
+
+uint8x8_t __builtin_mpl_vector_hadd_u8v8(uint8x8_t a, uint8x8_t b);
+#define vhadd_u8(a, b)  __builtin_mpl_vector_hadd_u8v8(a, b)
+
+uint8x16_t __builtin_mpl_vector_haddq_u8v16(uint8x16_t a, uint8x16_t b);
+#define vhaddq_u8(a, b)  __builtin_mpl_vector_haddq_u8v16(a, b)
+
+uint16x4_t __builtin_mpl_vector_hadd_u16v4(uint16x4_t a, uint16x4_t b);
+#define vhadd_u16(a, b)  __builtin_mpl_vector_hadd_u16v4(a, b)
+
+uint16x8_t __builtin_mpl_vector_haddq_u16v8(uint16x8_t a, uint16x8_t b);
+#define vhaddq_u16(a, b)  __builtin_mpl_vector_haddq_u16v8(a, b)
+
+uint32x2_t __builtin_mpl_vector_hadd_u32v2(uint32x2_t a, uint32x2_t b);
+#define vhadd_u32(a, b)  __builtin_mpl_vector_hadd_u32v2(a, b)
+
+uint32x4_t __builtin_mpl_vector_haddq_u32v4(uint32x4_t a, uint32x4_t b);
+#define vhaddq_u32(a, b)  __builtin_mpl_vector_haddq_u32v4(a, b)
+
+int8x8_t __builtin_mpl_vector_rhadd_i8v8(int8x8_t a, int8x8_t b);
+#define vrhadd_s8(a, b)  __builtin_mpl_vector_rhadd_i8v8(a, b)
+
+int8x16_t __builtin_mpl_vector_rhaddq_i8v16(int8x16_t a, int8x16_t b);
+#define vrhaddq_s8(a, b)  __builtin_mpl_vector_rhaddq_i8v16(a, b)
+
+int16x4_t __builtin_mpl_vector_rhadd_i16v4(int16x4_t a, int16x4_t b);
+#define vrhadd_s16(a, b)  __builtin_mpl_vector_rhadd_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_rhaddq_i16v8(int16x8_t a, int16x8_t b);
+#define vrhaddq_s16(a, b)  __builtin_mpl_vector_rhaddq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_rhadd_i32v2(int32x2_t a, int32x2_t b);
+#define vrhadd_s32(a, b)  __builtin_mpl_vector_rhadd_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_rhaddq_i32v4(int32x4_t a, int32x4_t b);
+#define vrhaddq_s32(a, b)  __builtin_mpl_vector_rhaddq_i32v4(a, b)
+
+uint8x8_t __builtin_mpl_vector_rhadd_u8v8(uint8x8_t a, uint8x8_t b);
+#define vrhadd_u8(a, b)  __builtin_mpl_vector_rhadd_u8v8(a, b)
+
+uint8x16_t __builtin_mpl_vector_rhaddq_u8v16(uint8x16_t a, uint8x16_t b);
+#define vrhaddq_u8(a, b)  __builtin_mpl_vector_rhaddq_u8v16(a, b)
+
+uint16x4_t __builtin_mpl_vector_rhadd_u16v4(uint16x4_t a, uint16x4_t b);
+#define vrhadd_u16(a, b)  __builtin_mpl_vector_rhadd_u16v4(a, b)
+
+uint16x8_t __builtin_mpl_vector_rhaddq_u16v8(uint16x8_t a, uint16x8_t b);
+#define vrhaddq_u16(a, b)  __builtin_mpl_vector_rhaddq_u16v8(a, b)
+
+uint32x2_t __builtin_mpl_vector_rhadd_u32v2(uint32x2_t a, uint32x2_t b);
+#define vrhadd_u32(a, b)  __builtin_mpl_vector_rhadd_u32v2(a, b)
+
+uint32x4_t __builtin_mpl_vector_rhaddq_u32v4(uint32x4_t a, uint32x4_t b);
+#define vrhaddq_u32(a, b)  __builtin_mpl_vector_rhaddq_u32v4(a, b)
+
+int8x8_t __builtin_mpl_vector_addhn_i8v8(int16x8_t a, int16x8_t b);
+#define vaddhn_s16(a, b)  __builtin_mpl_vector_addhn_i8v8(a, b)
+
+int16x4_t __builtin_mpl_vector_addhn_i16v4(int32x4_t a, int32x4_t b);
+#define vaddhn_s32(a, b)  __builtin_mpl_vector_addhn_i16v4(a, b)
+
+int32x2_t __builtin_mpl_vector_addhn_i32v2(int64x2_t a, int64x2_t b);
+#define vaddhn_s64(a, b)  __builtin_mpl_vector_addhn_i32v2(a, b)
+
+uint8x8_t __builtin_mpl_vector_addhn_u8v8(uint16x8_t a, uint16x8_t b);
+#define vaddhn_u16(a, b)  __builtin_mpl_vector_addhn_u8v8(a, b)
+
+uint16x4_t __builtin_mpl_vector_addhn_u16v4(uint32x4_t a, uint32x4_t b);
+#define vaddhn_u32(a, b)  __builtin_mpl_vector_addhn_u16v4(a, b)
+
+uint32x2_t __builtin_mpl_vector_addhn_u32v2(uint64x2_t a, uint64x2_t b);
+#define vaddhn_u64(a, b)  __builtin_mpl_vector_addhn_u32v2(a, b)
+
+int8x16_t __builtin_mpl_vector_addhn_high_i8v16(int8x8_t r, int16x8_t a, int16x8_t b);
+#define vaddhn_high_s16(r, a, b)  __builtin_mpl_vector_addhn_high_i8v16(r, a, b)
+
+int16x8_t __builtin_mpl_vector_addhn_high_i16v8(int16x4_t r, int32x4_t a, int32x4_t b);
+#define vaddhn_high_s32(r, a, b)  __builtin_mpl_vector_addhn_high_i16v8(r, a, b)
+
+int32x4_t __builtin_mpl_vector_addhn_high_i32v4(int32x2_t r, int64x2_t a, int64x2_t b);
+#define vaddhn_high_s64(r, a, b)  __builtin_mpl_vector_addhn_high_i32v4(r, a, b)
+
+uint8x16_t __builtin_mpl_vector_addhn_high_u8v16(uint8x8_t r, uint16x8_t a, uint16x8_t b);
+#define vaddhn_high_u16(r, a, b)  __builtin_mpl_vector_addhn_high_u8v16(r, a, b)
+
+uint16x8_t __builtin_mpl_vector_addhn_high_u16v8(uint16x4_t r, uint32x4_t a, uint32x4_t b);
+#define vaddhn_high_u32(r, a, b)  __builtin_mpl_vector_addhn_high_u16v8(r, a, b)
+
+uint32x4_t __builtin_mpl_vector_addhn_high_u32v4(uint32x2_t r, uint64x2_t a, uint64x2_t b);
+#define vaddhn_high_u64(r, a, b)  __builtin_mpl_vector_addhn_high_u32v4(r, a, b)
+
+int8x8_t __builtin_mpl_vector_raddhn_i8v8(int16x8_t a, int16x8_t b);
+#define vraddhn_s16(a, b)  __builtin_mpl_vector_raddhn_i8v8(a, b)
+
+int16x4_t __builtin_mpl_vector_raddhn_i16v4(int32x4_t a, int32x4_t b);
+#define vraddhn_s32(a, b)  __builtin_mpl_vector_raddhn_i16v4(a, b)
+
+int32x2_t __builtin_mpl_vector_raddhn_i32v2(int64x2_t a, int64x2_t b);
+#define vraddhn_s64(a, b)  __builtin_mpl_vector_raddhn_i32v2(a, b)
+
+uint8x8_t __builtin_mpl_vector_raddhn_u8v8(uint16x8_t a, uint16x8_t b);
+#define vraddhn_u16(a, b)  __builtin_mpl_vector_raddhn_u8v8(a, b)
+
+uint16x4_t __builtin_mpl_vector_raddhn_u16v4(uint32x4_t a, uint32x4_t b);
+#define vraddhn_u32(a, b)  __builtin_mpl_vector_raddhn_u16v4(a, b)
+
+uint32x2_t __builtin_mpl_vector_raddhn_u32v2(uint64x2_t a, uint64x2_t b);
+#define vraddhn_u64(a, b)  __builtin_mpl_vector_raddhn_u32v2(a, b)
+
+int8x16_t __builtin_mpl_vector_raddhn_high_i8v16(int8x8_t r, int16x8_t a, int16x8_t b);
+#define vraddhn_high_s16(r, a, b)  __builtin_mpl_vector_raddhn_high_i8v16(r, a, b)
+
+int16x8_t __builtin_mpl_vector_raddhn_high_i16v8(int16x4_t r, int32x4_t a, int32x4_t b);
+#define vraddhn_high_s32(r, a, b)  __builtin_mpl_vector_raddhn_high_i16v8(r, a, b)
+
+int32x4_t __builtin_mpl_vector_raddhn_high_i32v4(int32x2_t r, int64x2_t a, int64x2_t b);
+#define vraddhn_high_s64(r, a, b)  __builtin_mpl_vector_raddhn_high_i32v4(r, a, b)
+
+uint8x16_t __builtin_mpl_vector_raddhn_high_u8v16(uint8x8_t r, uint16x8_t a, uint16x8_t b);
+#define vraddhn_high_u16(r, a, b)  __builtin_mpl_vector_raddhn_high_u8v16(r, a, b)
+
+uint16x8_t __builtin_mpl_vector_raddhn_high_u16v8(uint16x4_t r, uint32x4_t a, uint32x4_t b);
+#define vraddhn_high_u32(r, a, b)  __builtin_mpl_vector_raddhn_high_u16v8(r, a, b)
+
+uint32x4_t __builtin_mpl_vector_raddhn_high_u32v4(uint32x2_t r, uint64x2_t a, uint64x2_t b);
+#define vraddhn_high_u64(r, a, b)  __builtin_mpl_vector_raddhn_high_u32v4(r, a, b)
+
+int8x8_t __builtin_mpl_vector_qadd_i8v8(int8x8_t a, int8x8_t b);
+#define vqadd_s8(a, b)  __builtin_mpl_vector_qadd_i8v8(a, b)
+
+int8x16_t __builtin_mpl_vector_qaddq_i8v16(int8x16_t a, int8x16_t b);
+#define vqaddq_s8(a, b)  __builtin_mpl_vector_qaddq_i8v16(a, b)
+
+int16x4_t __builtin_mpl_vector_qadd_i16v4(int16x4_t a, int16x4_t b);
+#define vqadd_s16(a, b)  __builtin_mpl_vector_qadd_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_qaddq_i16v8(int16x8_t a, int16x8_t b);
+#define vqaddq_s16(a, b)  __builtin_mpl_vector_qaddq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_qadd_i32v2(int32x2_t a, int32x2_t b);
+#define vqadd_s32(a, b)  __builtin_mpl_vector_qadd_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_qaddq_i32v4(int32x4_t a, int32x4_t b);
+#define vqaddq_s32(a, b)  __builtin_mpl_vector_qaddq_i32v4(a, b)
+
+int64x1_t __builtin_mpl_vector_qadd_i64v1(int64x1_t a, int64x1_t b);
+#define vqadd_s64(a, b)  __builtin_mpl_vector_qadd_i64v1(a, b)
+
+int64x2_t __builtin_mpl_vector_qaddq_i64v2(int64x2_t a, int64x2_t b);
+#define vqaddq_s64(a, b)  __builtin_mpl_vector_qaddq_i64v2(a, b)
+
+uint8x8_t __builtin_mpl_vector_qadd_u8v8(uint8x8_t a, uint8x8_t b);
+#define vqadd_u8(a, b)  __builtin_mpl_vector_qadd_u8v8(a, b)
+
+uint8x16_t __builtin_mpl_vector_qaddq_u8v16(uint8x16_t a, uint8x16_t b);
+#define vqaddq_u8(a, b)  __builtin_mpl_vector_qaddq_u8v16(a, b)
+
+uint16x4_t __builtin_mpl_vector_qadd_u16v4(uint16x4_t a, uint16x4_t b);
+#define vqadd_u16(a, b)  __builtin_mpl_vector_qadd_u16v4(a, b)
+
+uint16x8_t __builtin_mpl_vector_qaddq_u16v8(uint16x8_t a, uint16x8_t b);
+#define vqaddq_u16(a, b)  __builtin_mpl_vector_qaddq_u16v8(a, b)
+
+uint32x2_t __builtin_mpl_vector_qadd_u32v2(uint32x2_t a, uint32x2_t b);
+#define vqadd_u32(a, b)  __builtin_mpl_vector_qadd_u32v2(a, b)
+
+uint32x4_t __builtin_mpl_vector_qaddq_u32v4(uint32x4_t a, uint32x4_t b);
+#define vqaddq_u32(a, b)  __builtin_mpl_vector_qaddq_u32v4(a, b)
+
+uint64x1_t __builtin_mpl_vector_qadd_u64v1(uint64x1_t a, uint64x1_t b);
+#define vqadd_u64(a, b)  __builtin_mpl_vector_qadd_u64v1(a, b)
+
+uint64x2_t __builtin_mpl_vector_qaddq_u64v2(uint64x2_t a, uint64x2_t b);
+#define vqaddq_u64(a, b)  __builtin_mpl_vector_qaddq_u64v2(a, b)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqaddb_s8(int8_t a, int8_t b) {
+  return vget_lane_s8(vqadd_s8((int8x8_t){a}, (int8x8_t){b}), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqaddh_s16(int16_t a, int16_t b) {
+  return vget_lane_s16(vqadd_s16((int16x4_t){a}, (int16x4_t){b}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqadds_s32(int32_t a, int32_t b) {
+  return vget_lane_s32(vqadd_s32((int32x2_t){a}, (int32x2_t){b}), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqaddd_s64(int64_t a, int64_t b) {
+  return vget_lane_s64(vqadd_s64((int64x1_t){a}, (int64x1_t){b}), 0);
+}
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqaddb_u8(uint8_t a, uint8_t b) {
+  return vget_lane_u8(vqadd_u8((uint8x8_t){a}, (uint8x8_t){b}), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqaddh_u16(uint16_t a, uint16_t b) {
+  return vget_lane_u16(vqadd_u16((uint16x4_t){a}, (uint16x4_t){b}), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqadds_u32(uint32_t a, uint32_t b) {
+  return vget_lane_u32(vqadd_u32((uint32x2_t){a}, (uint32x2_t){b}), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqaddd_u64(uint64_t a, uint64_t b) {
+  return vget_lane_u64(vqadd_u64((uint64x1_t){a}, (uint64x1_t){b}), 0);
+}
+
+int8x8_t __builtin_mpl_vector_uqadd_i8v8(int8x8_t a, uint8x8_t b);
+#define vuqadd_s8(a, b)  __builtin_mpl_vector_uqadd_i8v8(a, b)
+
+int8x16_t __builtin_mpl_vector_uqaddq_i8v16(int8x16_t a, uint8x16_t b);
+#define vuqaddq_s8(a, b)  __builtin_mpl_vector_uqaddq_i8v16(a, b)
+
+int16x4_t __builtin_mpl_vector_uqadd_i16v4(int16x4_t a, uint16x4_t b);
+#define vuqadd_s16(a, b)  __builtin_mpl_vector_uqadd_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_uqaddq_i16v8(int16x8_t a, uint16x8_t b);
+#define vuqaddq_s16(a, b)  __builtin_mpl_vector_uqaddq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_uqadd_i32v2(int32x2_t a, uint32x2_t b);
+#define vuqadd_s32(a, b)  __builtin_mpl_vector_uqadd_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_uqaddq_i32v4(int32x4_t a, uint32x4_t b);
+#define vuqaddq_s32(a, b)  __builtin_mpl_vector_uqaddq_i32v4(a, b)
+
+int64x1_t __builtin_mpl_vector_uqadd_i64v1(int64x1_t a, uint64x1_t b);
+#define vuqadd_s64(a, b)  __builtin_mpl_vector_uqadd_i64v1(a, b)
+
+int64x2_t __builtin_mpl_vector_uqaddq_i64v2(int64x2_t a, uint64x2_t b);
+#define vuqaddq_s64(a, b)  __builtin_mpl_vector_uqaddq_i64v2(a, b)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vuqaddb_s8(int8_t a, int8_t b) {
+  return vget_lane_s8(vuqadd_s8((int8x8_t){a}, (int8x8_t){b}), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vuqaddh_s16(int16_t a, int16_t b) {
+  return vget_lane_s16(vuqadd_s16((int16x4_t){a}, (int16x4_t){b}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vuqadds_s32(int32_t a, int32_t b) {
+  return vget_lane_s32(vuqadd_s32((int32x2_t){a}, (int32x2_t){b}), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vuqaddd_s64(int64_t a, int64_t b) {
+  return vget_lane_s64(vuqadd_s64((int64x1_t){a}, (int64x1_t){b}), 0);
+}
+
+uint8x8_t __builtin_mpl_vector_sqadd_u8v8(uint8x8_t a, int8x8_t b);
+#define vsqadd_u8(a, b)  __builtin_mpl_vector_sqadd_u8v8(a, b)
+
+uint8x16_t __builtin_mpl_vector_sqaddq_u8v16(uint8x16_t a, int8x16_t b);
+#define vsqaddq_u8(a, b)  __builtin_mpl_vector_sqaddq_u8v16(a, b)
+
+uint16x4_t __builtin_mpl_vector_sqadd_u16v4(uint16x4_t a, int16x4_t b);
+#define vsqadd_u16(a, b)  __builtin_mpl_vector_sqadd_u16v4(a, b)
+
+uint16x8_t __builtin_mpl_vector_sqaddq_u16v8(uint16x8_t a, int16x8_t b);
+#define vsqaddq_u16(a, b)  __builtin_mpl_vector_sqaddq_u16v8(a, b)
+
+uint32x2_t __builtin_mpl_vector_sqadd_u32v2(uint32x2_t a, int32x2_t b);
+#define vsqadd_u32(a, b)  __builtin_mpl_vector_sqadd_u32v2(a, b)
+
+uint32x4_t __builtin_mpl_vector_sqaddq_u32v4(uint32x4_t a, int32x4_t b);
+#define vsqaddq_u32(a, b)  __builtin_mpl_vector_sqaddq_u32v4(a, b)
+
+uint64x1_t __builtin_mpl_vector_sqadd_u64v1(uint64x1_t a, int64x1_t b);
+#define vsqadd_u64(a, b)  __builtin_mpl_vector_sqadd_u64v1(a, b)
+
+uint64x2_t __builtin_mpl_vector_sqaddq_u64v2(uint64x2_t a, int64x2_t b);
+#define vsqaddq_u64(a, b)  __builtin_mpl_vector_sqaddq_u64v2(a, b)
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vsqaddb_u8(uint8_t a, uint8_t b) {
+  return vget_lane_u8(vsqadd_u8((uint8x8_t){a}, (uint8x8_t){b}), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vsqaddh_u16(uint16_t a, uint16_t b) {
+  return vget_lane_u16(vsqadd_u16((uint16x4_t){a}, (uint16x4_t){b}), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vsqadds_u32(uint32_t a, uint32_t b) {
+  return vget_lane_u32(vsqadd_u32((uint32x2_t){a}, (uint32x2_t){b}), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vsqaddd_u64(uint64_t a, uint64_t b) {
+  return vget_lane_u64(vsqadd_u64((uint64x1_t){a}, (uint64x1_t){b}), 0);
+}
+
+int8x8_t __builtin_mpl_vector_mla_i8v8(int8x8_t a, int8x8_t b, int8x8_t c);
+#define vmla_s8(a, b, c)  __builtin_mpl_vector_mla_i8v8(a, b, c)
+
+int8x16_t __builtin_mpl_vector_mlaq_i8v16(int8x16_t a, int8x16_t b, int8x16_t c);
+#define vmlaq_s8(a, b, c)  __builtin_mpl_vector_mlaq_i8v16(a, b, c)
+
+int16x4_t __builtin_mpl_vector_mla_i16v4(int16x4_t a, int16x4_t b, int16x4_t c);
+#define vmla_s16(a, b, c)  __builtin_mpl_vector_mla_i16v4(a, b, c)
+
+int16x8_t __builtin_mpl_vector_mlaq_i16v8(int16x8_t a, int16x8_t b, int16x8_t c);
+#define vmlaq_s16(a, b, c)  __builtin_mpl_vector_mlaq_i16v8(a, b, c)
+
+int32x2_t __builtin_mpl_vector_mla_i32v2(int32x2_t a, int32x2_t b, int32x2_t c);
+#define vmla_s32(a, b, c)  __builtin_mpl_vector_mla_i32v2(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mlaq_i32v4(int32x4_t a, int32x4_t b, int32x4_t c);
+#define vmlaq_s32(a, b, c)  __builtin_mpl_vector_mlaq_i32v4(a, b, c)
+
+uint8x8_t __builtin_mpl_vector_mla_u8v8(uint8x8_t a, uint8x8_t b, uint8x8_t c);
+#define vmla_u8(a, b, c)  __builtin_mpl_vector_mla_u8v8(a, b, c)
+
+uint8x16_t __builtin_mpl_vector_mlaq_u8v16(uint8x16_t a, uint8x16_t b, uint8x16_t c);
+#define vmlaq_u8(a, b, c)  __builtin_mpl_vector_mlaq_u8v16(a, b, c)
+
+uint16x4_t __builtin_mpl_vector_mla_u16v4(uint16x4_t a, uint16x4_t b, uint16x4_t c);
+#define vmla_u16(a, b, c)  __builtin_mpl_vector_mla_u16v4(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_mlaq_u16v8(uint16x8_t a, uint16x8_t b, uint16x8_t c);
+#define vmlaq_u16(a, b, c)  __builtin_mpl_vector_mlaq_u16v8(a, b, c)
+
+uint32x2_t __builtin_mpl_vector_mla_u32v2(uint32x2_t a, uint32x2_t b, uint32x2_t c);
+#define vmla_u32(a, b, c)  __builtin_mpl_vector_mla_u32v2(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mlaq_u32v4(uint32x4_t a, uint32x4_t b, uint32x4_t c);
+#define vmlaq_u32(a, b, c)  __builtin_mpl_vector_mlaq_u32v4(a, b, c)
+
+int8x8_t __builtin_mpl_vector_mls_i8v8(int8x8_t a, int8x8_t b, int8x8_t c);
+#define vmls_s8(a, b, c)  __builtin_mpl_vector_mls_i8v8(a, b, c)
+
+int8x16_t __builtin_mpl_vector_mlsq_i8v16(int8x16_t a, int8x16_t b, int8x16_t c);
+#define vmlsq_s8(a, b, c)  __builtin_mpl_vector_mlsq_i8v16(a, b, c)
+
+int16x4_t __builtin_mpl_vector_mls_i16v4(int16x4_t a, int16x4_t b, int16x4_t c);
+#define vmls_s16(a, b, c)  __builtin_mpl_vector_mls_i16v4(a, b, c)
+
+int16x8_t __builtin_mpl_vector_mlsq_i16v8(int16x8_t a, int16x8_t b, int16x8_t c);
+#define vmlsq_s16(a, b, c)  __builtin_mpl_vector_mlsq_i16v8(a, b, c)
+
+int32x2_t __builtin_mpl_vector_mls_i32v2(int32x2_t a, int32x2_t b, int32x2_t c);
+#define vmls_s32(a, b, c)  __builtin_mpl_vector_mls_i32v2(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mlsq_i32v4(int32x4_t a, int32x4_t b, int32x4_t c);
+#define vmlsq_s32(a, b, c)  __builtin_mpl_vector_mlsq_i32v4(a, b, c)
+
+uint8x8_t __builtin_mpl_vector_mls_u8v8(uint8x8_t a, uint8x8_t b, uint8x8_t c);
+#define vmls_u8(a, b, c)  __builtin_mpl_vector_mls_u8v8(a, b, c)
+
+uint8x16_t __builtin_mpl_vector_mlsq_u8v16(uint8x16_t a, uint8x16_t b, uint8x16_t c);
+#define vmlsq_u8(a, b, c)  __builtin_mpl_vector_mlsq_u8v16(a, b, c)
+
+uint16x4_t __builtin_mpl_vector_mls_u16v4(uint16x4_t a, uint16x4_t b, uint16x4_t c);
+#define vmls_u16(a, b, c)  __builtin_mpl_vector_mls_u16v4(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_mlsq_u16v8(uint16x8_t a, uint16x8_t b, uint16x8_t c);
+#define vmlsq_u16(a, b, c)  __builtin_mpl_vector_mlsq_u16v8(a, b, c)
+
+uint32x2_t __builtin_mpl_vector_mls_u32v2(uint32x2_t a, uint32x2_t b, uint32x2_t c);
+#define vmls_u32(a, b, c)  __builtin_mpl_vector_mls_u32v2(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mlsq_u32v4(uint32x4_t a, uint32x4_t b, uint32x4_t c);
+#define vmlsq_u32(a, b, c)  __builtin_mpl_vector_mlsq_u32v4(a, b, c)
+
+int16x8_t __builtin_mpl_vector_mlal_i16v8(int16x8_t a, int8x8_t b, int8x8_t c);
+#define vmlal_s8(a, b, c)  __builtin_mpl_vector_mlal_i16v8(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mlal_i32v4(int32x4_t a, int16x4_t b, int16x4_t c);
+#define vmlal_s16(a, b, c)  __builtin_mpl_vector_mlal_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_mlal_i64v2(int64x2_t a, int32x2_t b, int32x2_t c);
+#define vmlal_s32(a, b, c)  __builtin_mpl_vector_mlal_i64v2(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_mlal_u16v8(uint16x8_t a, uint8x8_t b, uint8x8_t c);
+#define vmlal_u8(a, b, c)  __builtin_mpl_vector_mlal_u16v8(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mlal_u32v4(uint32x4_t a, uint16x4_t b, uint16x4_t c);
+#define vmlal_u16(a, b, c)  __builtin_mpl_vector_mlal_u32v4(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_mlal_u64v2(uint64x2_t a, uint32x2_t b, uint32x2_t c);
+#define vmlal_u32(a, b, c)  __builtin_mpl_vector_mlal_u64v2(a, b, c)
+
+int16x8_t __builtin_mpl_vector_mlal_high_i16v8(int16x8_t a, int8x16_t b, int8x16_t c);
+#define vmlal_high_s8(a, b, c)  __builtin_mpl_vector_mlal_high_i16v8(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mlal_high_i32v4(int32x4_t a, int16x8_t b, int16x8_t c);
+#define vmlal_high_s16(a, b, c)  __builtin_mpl_vector_mlal_high_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_mlal_high_i64v2(int64x2_t a, int32x4_t b, int32x4_t c);
+#define vmlal_high_s32(a, b, c)  __builtin_mpl_vector_mlal_high_i64v2(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_mlal_high_u16v8(uint16x8_t a, uint8x16_t b, uint8x16_t c);
+#define vmlal_high_u8(a, b, c)  __builtin_mpl_vector_mlal_high_u16v8(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mlal_high_u32v4(uint32x4_t a, uint16x8_t b, uint16x8_t c);
+#define vmlal_high_u16(a, b, c)  __builtin_mpl_vector_mlal_high_u32v4(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_mlal_high_u64v2(uint64x2_t a, uint32x4_t b, uint32x4_t c);
+#define vmlal_high_u32(a, b, c)  __builtin_mpl_vector_mlal_high_u64v2(a, b, c)
+
+int16x8_t __builtin_mpl_vector_mlsl_i16v8(int16x8_t a, int8x8_t b, int8x8_t c);
+#define vmlsl_s8(a, b, c)  __builtin_mpl_vector_mlsl_i16v8(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mlsl_i32v4(int32x4_t a, int16x4_t b, int16x4_t c);
+#define vmlsl_s16(a, b, c)  __builtin_mpl_vector_mlsl_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_mlsl_i64v2(int64x2_t a, int32x2_t b, int32x2_t c);
+#define vmlsl_s32(a, b, c)  __builtin_mpl_vector_mlsl_i64v2(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_mlsl_u16v8(uint16x8_t a, uint8x8_t b, uint8x8_t c);
+#define vmlsl_u8(a, b, c)  __builtin_mpl_vector_mlsl_u16v8(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mlsl_u32v4(uint32x4_t a, uint16x4_t b, uint16x4_t c);
+#define vmlsl_u16(a, b, c)  __builtin_mpl_vector_mlsl_u32v4(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_mlsl_u64v2(uint64x2_t a, uint32x2_t b, uint32x2_t c);
+#define vmlsl_u32(a, b, c)  __builtin_mpl_vector_mlsl_u64v2(a, b, c)
+
+int16x8_t __builtin_mpl_vector_mlsl_high_i16v8(int16x8_t a, int8x16_t b, int8x16_t c);
+#define vmlsl_high_s8(a, b, c)  __builtin_mpl_vector_mlsl_high_i16v8(a, b, c)
+
+int32x4_t __builtin_mpl_vector_mlsl_high_i32v4(int32x4_t a, int16x8_t b, int16x8_t c);
+#define vmlsl_high_s16(a, b, c)  __builtin_mpl_vector_mlsl_high_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_mlsl_high_i64v2(int64x2_t a, int32x4_t b, int32x4_t c);
+#define vmlsl_high_s32(a, b, c)  __builtin_mpl_vector_mlsl_high_i64v2(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_mlsl_high_u16v8(uint16x8_t a, uint8x16_t b, uint8x16_t c);
+#define vmlsl_high_u8(a, b, c)  __builtin_mpl_vector_mlsl_high_u16v8(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_mlsl_high_u32v4(uint32x4_t a, uint16x8_t b, uint16x8_t c);
+#define vmlsl_high_u16(a, b, c)  __builtin_mpl_vector_mlsl_high_u32v4(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_mlsl_high_u64v2(uint64x2_t a, uint32x4_t b, uint32x4_t c);
+#define vmlsl_high_u32(a, b, c)  __builtin_mpl_vector_mlsl_high_u64v2(a, b, c)
+
+int16x4_t __builtin_mpl_vector_qdmulh_i16v4(int16x4_t a, int16x4_t b);
+#define vqdmulh_s16(a, b)  __builtin_mpl_vector_qdmulh_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_qdmulhq_i16v8(int16x8_t a, int16x8_t b);
+#define vqdmulhq_s16(a, b)  __builtin_mpl_vector_qdmulhq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_qdmulh_i32v2(int32x2_t a, int32x2_t b);
+#define vqdmulh_s32(a, b)  __builtin_mpl_vector_qdmulh_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_qdmulhq_i32v4(int32x4_t a, int32x4_t b);
+#define vqdmulhq_s32(a, b)  __builtin_mpl_vector_qdmulhq_i32v4(a, b)
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulhh_s16(int16_t a, int16_t b) {
+  return vget_lane_s16(vqdmulh_s16((int16x4_t){a}, (int16x4_t){b}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulhs_s32(int32_t a, int32_t b) {
+  return vget_lane_s32(vqdmulh_s32((int32x2_t){a}, (int32x2_t){b}), 0);
+}
+
+int16x4_t __builtin_mpl_vector_qrdmulh_i16v4(int16x4_t a, int16x4_t b);
+#define vqrdmulh_s16(a, b)  __builtin_mpl_vector_qrdmulh_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_qrdmulhq_i16v8(int16x8_t a, int16x8_t b);
+#define vqrdmulhq_s16(a, b)  __builtin_mpl_vector_qrdmulhq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_qrdmulh_i32v2(int32x2_t a, int32x2_t b);
+#define vqrdmulh_s32(a, b)  __builtin_mpl_vector_qrdmulh_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_qrdmulhq_i32v4(int32x4_t a, int32x4_t b);
+#define vqrdmulhq_s32(a, b)  __builtin_mpl_vector_qrdmulhq_i32v4(a, b)
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulhh_s16(int16_t a, int16_t b) {
+  return vget_lane_s16(vqrdmulh_s16((int16x4_t){a}, (int16x4_t){b}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulhs_s32(int32_t a, int32_t b) {
+  return vget_lane_s32(vqrdmulh_s32((int32x2_t){a}, (int32x2_t){b}), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmull_i32v4(int16x4_t a, int16x4_t b);
+#define vqdmull_s16(a, b)  __builtin_mpl_vector_qdmull_i32v4(a, b)
+
+int64x2_t __builtin_mpl_vector_qdmull_i64v2(int32x2_t a, int32x2_t b);
+#define vqdmull_s32(a, b)  __builtin_mpl_vector_qdmull_i64v2(a, b)
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmullh_s16(int16_t a, int16_t b) {
+  return vgetq_lane_s32(vqdmull_s16((int16x4_t){a}, (int16x4_t){b}), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulls_s32(int32_t a, int32_t b) {
+  return vgetq_lane_s64(vqdmull_s32((int32x2_t){a}, (int32x2_t){b}), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmull_high_i32v4(int16x8_t a, int16x8_t b);
+#define vqdmull_high_s16(a, b)  __builtin_mpl_vector_qdmull_high_i32v4(a, b)
+
+int64x2_t __builtin_mpl_vector_qdmull_high_i64v2(int32x4_t a, int32x4_t b);
+#define vqdmull_high_s32(a, b)  __builtin_mpl_vector_qdmull_high_i64v2(a, b)
+
+int32x4_t __builtin_mpl_vector_qdmlal_i32v4(int32x4_t a, int16x4_t b, int16x4_t c);
+#define vqdmlal_s16(a, b, c)  __builtin_mpl_vector_qdmlal_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_qdmlal_i64v2(int64x2_t a, int32x2_t b, int32x2_t c);
+#define vqdmlal_s32(a, b, c)  __builtin_mpl_vector_qdmlal_i64v2(a, b, c)
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlalh_s16(int32_t a, int16_t b, int16_t c) {
+  return vgetq_lane_s32(vqdmlal_s16((int32x4_t){a}, (int16x4_t){b}, (int16x4_t){c}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlals_s32(int32_t a, int16_t b, int16_t c) {
+  return vgetq_lane_s64(vqdmlal_s32((int64x2_t){a}, (int32x2_t){b}, (int32x2_t){c}), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmlal_high_i32v4(int32x4_t a, int16x8_t b, int16x8_t c);
+#define vqdmlal_high_s16(a, b, c)  __builtin_mpl_vector_qdmlal_high_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_qdmlal_high_i64v2(int64x2_t a, int32x4_t b, int32x4_t c);
+#define vqdmlal_high_s32(a, b, c)  __builtin_mpl_vector_qdmlal_high_i64v2(a, b, c)
+
+int32x4_t __builtin_mpl_vector_qdmlsl_i32v4(int32x4_t a, int16x4_t b, int16x4_t c);
+#define vqdmlsl_s16(a, b, c)  __builtin_mpl_vector_qdmlsl_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_qdmlsl_i64v2(int64x2_t a, int32x2_t b, int32x2_t c);
+#define vqdmlsl_s32(a, b, c)  __builtin_mpl_vector_qdmlsl_i64v2(a, b, c)
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlslh_s16(int32_t a, int16_t b, int16_t c) {
+  return vgetq_lane_s32(vqdmlsl_s16((int32x4_t){a}, (int16x4_t){b}, (int16x4_t){c}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlsls_s32(int32_t a, int16_t b, int16_t c) {
+  return vgetq_lane_s64(vqdmlsl_s32((int64x2_t){a}, (int32x2_t){b}, (int32x2_t){c}), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmlsl_high_i32v4(int32x4_t a, int16x8_t b, int16x8_t c);
+#define vqdmlsl_high_s16(a, b, c)  __builtin_mpl_vector_qdmlsl_high_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_qdmlsl_high_i64v2(int64x2_t a, int32x4_t b, int32x4_t c);
+#define vqdmlsl_high_s32(a, b, c)  __builtin_mpl_vector_qdmlsl_high_i64v2(a, b, c)
+
+int32x4_t __builtin_mpl_vector_qdmlal_lane_i32v4(int32x4_t a, int16x4_t b, int16x4_t v, const int lane);
+#define vqdmlal_lane_s16(a, b, v, lane)  __builtin_mpl_vector_qdmlal_lane_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmlal_lane_i64v2(int64x2_t a, int32x2_t b, int32x2_t v, const int lane);
+#define vqdmlal_lane_s32(a, b, v, lane)  __builtin_mpl_vector_qdmlal_lane_i64v2(a, b, v, lane)
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlalh_lane_s16(int32_t a, int16_t b, int16x4_t v, const int lane) {
+  return vgetq_lane_s32(vqdmlal_lane_s16((int32x4_t){a}, (int16x4_t){b}, v, lane), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlals_lane_s32(int64_t a, int32_t b, int32x2_t v, const int lane) {
+  return vgetq_lane_s64(vqdmlal_lane_s32((int64x2_t){a}, (int32x2_t){b}, v, lane), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmlal_high_lane_i32v4(int32x4_t a, int16x8_t b, int16x4_t v, const int lane);
+#define vqdmlal_high_lane_s16(a, b, v, lane)  __builtin_mpl_vector_qdmlal_high_lane_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmlal_high_lane_i64v2(int64x2_t a, int32x4_t b, int32x2_t v, const int lane);
+#define vqdmlal_high_lane_s32(a, b, v, lane)  __builtin_mpl_vector_qdmlal_high_lane_i64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_qdmlal_laneq_i32v4(int32x4_t a, int16x4_t b, int16x8_t v, const int lane);
+#define vqdmlal_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_qdmlal_laneq_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmlal_laneq_i64v2(int64x2_t a, int32x2_t b, int32x4_t v, const int lane);
+#define vqdmlal_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_qdmlal_laneq_i64v2(a, b, v, lane)
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlalh_laneq_s16(int32_t a, int16_t b, int16x8_t v, const int lane) {
+  return vgetq_lane_s32(vqdmlal_laneq_s16((int32x4_t){a}, (int16x4_t){b}, v, lane), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlals_laneq_s32(int64_t a, int32_t b, int32x4_t v, const int lane) {
+  return vgetq_lane_s64(vqdmlal_laneq_s32((int64x2_t){a}, (int32x2_t){b}, v, lane), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmlal_high_laneq_i32v4(int32x4_t a, int16x8_t b, int16x8_t v, const int lane);
+#define vqdmlal_high_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_qdmlal_high_laneq_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmlal_high_laneq_i64v2(int64x2_t a, int32x4_t b, int32x4_t v, const int lane);
+#define vqdmlal_high_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_qdmlal_high_laneq_i64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_qdmlsl_lane_i32v4(int32x4_t a, int16x4_t b, int16x4_t v, const int lane);
+#define vqdmlsl_lane_s16(a, b, v, lane)  __builtin_mpl_vector_qdmlsl_lane_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmlsl_lane_i64v2(int64x2_t a, int32x2_t b, int32x2_t v, const int lane);
+#define vqdmlsl_lane_s32(a, b, v, lane)  __builtin_mpl_vector_qdmlsl_lane_i64v2(a, b, v, lane)
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlslh_lane_s16(int32_t a, int16_t b, int16x4_t v, const int lane) {
+  return vgetq_lane_s32(vqdmlsl_lane_s16((int32x4_t){a}, (int16x4_t){b}, v, lane), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlsls_lane_s32(int64_t a, int32_t b, int32x2_t v, const int lane) {
+  return vgetq_lane_s64(vqdmlsl_lane_s32((int64x2_t){a}, (int32x2_t){b}, v, lane), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmlsl_high_lane_i32v4(int32x4_t a, int16x8_t b, int16x4_t v, const int lane);
+#define vqdmlsl_high_lane_s16(a, b, v, lane)  __builtin_mpl_vector_qdmlsl_high_lane_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmlsl_high_lane_i64v2(int64x2_t a, int32x4_t b, int32x2_t v, const int lane);
+#define vqdmlsl_high_lane_s32(a, b, v, lane)  __builtin_mpl_vector_qdmlsl_high_lane_i64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_qdmlsl_laneq_i32v4(int32x4_t a, int16x4_t b, int16x8_t v, const int lane);
+#define vqdmlsl_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_qdmlsl_laneq_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmlsl_laneq_i64v2(int64x2_t a, int32x2_t b, int32x4_t v, const int lane);
+#define vqdmlsl_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_qdmlsl_laneq_i64v2(a, b, v, lane)
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlslh_laneq_s16(int32_t a, int16_t b, int16x8_t v, const int lane) {
+  return vgetq_lane_s32(vqdmlsl_laneq_s16((int32x4_t){a}, (int16x4_t){b}, v, lane), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlsls_laneq_s32(int64_t a, int32_t b, int32x4_t v, const int lane) {
+  return vgetq_lane_s64(vqdmlsl_laneq_s32((int64x2_t){a}, (int32x2_t){b}, v, lane), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmlsl_high_laneq_i32v4(int32x4_t a, int16x8_t b, int16x8_t v, const int lane);
+#define vqdmlsl_high_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_qdmlsl_high_laneq_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmlsl_high_laneq_i64v2(int64x2_t a, int32x4_t b, int32x4_t v, const int lane);
+#define vqdmlsl_high_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_qdmlsl_high_laneq_i64v2(a, b, v, lane)
+
+int16x8_t __builtin_mpl_vector_mull_i16v8(int8x8_t a, int8x8_t b);
+#define vmull_s8(a, b)  __builtin_mpl_vector_mull_i16v8(a, b)
+
+int32x4_t __builtin_mpl_vector_mull_i32v4(int16x4_t a, int16x4_t b);
+#define vmull_s16(a, b)  __builtin_mpl_vector_mull_i32v4(a, b)
+
+int64x2_t __builtin_mpl_vector_mull_i64v2(int32x2_t a, int32x2_t b);
+#define vmull_s32(a, b)  __builtin_mpl_vector_mull_i64v2(a, b)
+
+uint16x8_t __builtin_mpl_vector_mull_u16v8(uint8x8_t a, uint8x8_t b);
+#define vmull_u8(a, b)  __builtin_mpl_vector_mull_u16v8(a, b)
+
+uint32x4_t __builtin_mpl_vector_mull_u32v4(uint16x4_t a, uint16x4_t b);
+#define vmull_u16(a, b)  __builtin_mpl_vector_mull_u32v4(a, b)
+
+uint64x2_t __builtin_mpl_vector_mull_u64v2(uint32x2_t a, uint32x2_t b);
+#define vmull_u32(a, b)  __builtin_mpl_vector_mull_u64v2(a, b)
+
+int16x8_t __builtin_mpl_vector_mull_high_i16v8(int8x16_t a, int8x16_t b);
+#define vmull_high_s8(a, b)  __builtin_mpl_vector_mull_high_i16v8(a, b)
+
+int32x4_t __builtin_mpl_vector_mull_high_i32v4(int16x8_t a, int16x8_t b);
+#define vmull_high_s16(a, b)  __builtin_mpl_vector_mull_high_i32v4(a, b)
+
+int64x2_t __builtin_mpl_vector_mull_high_i64v2(int32x4_t a, int32x4_t b);
+#define vmull_high_s32(a, b)  __builtin_mpl_vector_mull_high_i64v2(a, b)
+
+uint16x8_t __builtin_mpl_vector_mull_high_u16v8(uint8x16_t a, uint8x16_t b);
+#define vmull_high_u8(a, b)  __builtin_mpl_vector_mull_high_u16v8(a, b)
+
+uint32x4_t __builtin_mpl_vector_mull_high_u32v4(uint16x8_t a, uint16x8_t b);
+#define vmull_high_u16(a, b)  __builtin_mpl_vector_mull_high_u32v4(a, b)
+
+int32x4_t __builtin_mpl_vector_qdmull_n_i32v4(int16x4_t a, int16x4_t b);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmull_n_s16(int16x4_t a, int16_t b) {
+  return __builtin_mpl_vector_qdmull_n_i32v4(a, (int16x4_t){b});
+}
+
+int64x2_t __builtin_mpl_vector_qdmull_n_i64v2(int32x2_t a, int32x2_t b);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmull_n_s32(int32x2_t a, int32_t b) {
+  return __builtin_mpl_vector_qdmull_n_i64v2(a, (int32x2_t){b});
+}
+
+int32x4_t __builtin_mpl_vector_qdmull_high_n_i32v4(int16x8_t a, int16x8_t b);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmull_high_n_s16(int16x8_t a, int16_t b) {
+  return __builtin_mpl_vector_qdmull_high_n_i32v4(a, (int16x8_t){b});
+}
+
+int64x2_t __builtin_mpl_vector_qdmull_high_n_i64v2(int32x4_t a, int32x4_t b);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmull_high_n_s32(int32x4_t a, int32_t b) {
+  return __builtin_mpl_vector_qdmull_high_n_i64v2(a, (int32x4_t){b});
+}
+
+int32x4_t __builtin_mpl_vector_qdmull_lane_i32v4(int16x4_t a, int16x4_t v, const int lane);
+#define vqdmull_lane_s16(a, v, lane)  __builtin_mpl_vector_qdmull_lane_i32v4(a, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmull_lane_i64v2(int32x2_t a, int32x2_t v, const int lane);
+#define vqdmull_lane_s32(a, v, lane)  __builtin_mpl_vector_qdmull_lane_i64v2(a, v, lane)
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmullh_lane_s16(int16_t a, int16x4_t v, const int lane) {
+  return vgetq_lane_s32(vqdmull_lane_s16((int16x4_t){a}, v, lane), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulls_lane_s32(int32_t a, int32x2_t v, const int lane) {
+  return vgetq_lane_s64(vqdmull_lane_s32((int32x2_t){a}, v, lane), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmull_high_lane_i32v4(int16x8_t a, int16x4_t v, const int lane);
+#define vqdmull_high_lane_s16(a, v, lane)  __builtin_mpl_vector_qdmull_high_lane_i32v4(a, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmull_high_lane_i64v2(int32x4_t a, int32x2_t v, const int lane);
+#define vqdmull_high_lane_s32(a, v, lane)  __builtin_mpl_vector_qdmull_high_lane_i64v2(a, v, lane)
+
+int32x4_t __builtin_mpl_vector_qdmull_laneq_i32v4(int16x4_t a, int16x8_t v, const int lane);
+#define vqdmull_laneq_s16(a, v, lane)  __builtin_mpl_vector_qdmull_laneq_i32v4(a, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmull_laneq_i64v2(int32x2_t a, int32x4_t v, const int lane);
+#define vqdmull_laneq_s32(a, v, lane)  __builtin_mpl_vector_qdmull_laneq_i64v2(a, v, lane)
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmullh_laneq_s16(int16_t a, int16x8_t v, const int lane) {
+  return vgetq_lane_s32(vqdmull_laneq_s16((int16x4_t){a}, v, lane), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulls_laneq_s32(int32_t a, int32x4_t v, const int lane) {
+  return vgetq_lane_s64(vqdmull_laneq_s32((int32x2_t){a}, v, lane), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmull_high_laneq_i32v4(int16x8_t a, int16x8_t v, const int lane);
+#define vqdmull_high_laneq_s16(a, v, lane)  __builtin_mpl_vector_qdmull_high_laneq_i32v4(a, v, lane)
+
+int64x2_t __builtin_mpl_vector_qdmull_high_laneq_i64v2(int32x4_t a, int32x4_t v, const int lane);
+#define vqdmull_high_laneq_s32(a, v, lane)  __builtin_mpl_vector_qdmull_high_laneq_i64v2(a, v, lane)
+
+int16x4_t __builtin_mpl_vector_qdmulh_n_i16v4(int16x4_t a, int16x4_t b);
+static inline int16x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulh_n_s16(int16x4_t a, int16_t b) {
+  return __builtin_mpl_vector_qdmulh_n_i16v4(a, (int16x4_t){b});
+}
+
+int16x8_t __builtin_mpl_vector_qdmulhq_n_i16v8(int16x8_t a, int16x8_t b);
+static inline int16x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulhq_n_s16(int16x8_t a, int16_t b) {
+  return __builtin_mpl_vector_qdmulhq_n_i16v8(a, (int16x8_t){b});
+}
+
+int32x2_t __builtin_mpl_vector_qdmulh_n_i32v2(int32x2_t a, int32x2_t b);
+static inline int32x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulh_n_s32(int32x2_t a, int32_t b) {
+  return __builtin_mpl_vector_qdmulh_n_i32v2(a, (int32x2_t){b});
+}
+
+int32x4_t __builtin_mpl_vector_qdmulhq_n_i32v4(int32x4_t a, int32x4_t b);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulhq_n_s32(int32x4_t a, int32_t b) {
+  return __builtin_mpl_vector_qdmulhq_n_i32v4(a, (int32x4_t){b});
+}
+
+int16x4_t __builtin_mpl_vector_qdmulh_lane_i16v4(int16x4_t a, int16x4_t v, const int lane);
+#define vqdmulh_lane_s16(a, v, lane)  __builtin_mpl_vector_qdmulh_lane_i16v4(a, v, lane)
+
+int16x8_t __builtin_mpl_vector_qdmulhq_lane_i16v8(int16x8_t a, int16x4_t v, const int lane);
+#define vqdmulhq_lane_s16(a, v, lane)  __builtin_mpl_vector_qdmulhq_lane_i16v8(a, v, lane)
+
+int32x2_t __builtin_mpl_vector_qdmulh_lane_i32v2(int32x2_t a, int32x2_t v, const int lane);
+#define vqdmulh_lane_s32(a, v, lane)  __builtin_mpl_vector_qdmulh_lane_i32v2(a, v, lane)
+
+int32x4_t __builtin_mpl_vector_qdmulhq_lane_i32v4(int32x4_t a, int32x2_t v, const int lane);
+#define vqdmulhq_lane_s32(a, v, lane)  __builtin_mpl_vector_qdmulhq_lane_i32v4(a, v, lane)
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulhh_lane_s16(int16_t a, int16x4_t v, const int lane) {
+  return vget_lane_s16(vqdmulh_lane_s16((int16x4_t){a}, v, lane), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulhs_lane_s32(int32_t a, int32x2_t v, const int lane) {
+  return vget_lane_s32(vqdmulh_lane_s32((int32x2_t){a}, v, lane), 0);
+}
+
+int16x4_t __builtin_mpl_vector_qdmulh_laneq_i16v4(int16x4_t a, int16x8_t v, const int lane);
+#define vqdmulh_laneq_s16(a, v, lane)  __builtin_mpl_vector_qdmulh_laneq_i16v4(a, v, lane)
+
+int16x8_t __builtin_mpl_vector_qdmulhq_laneq_i16v8(int16x8_t a, int16x8_t v, const int lane);
+#define vqdmulhq_laneq_s16(a, v, lane)  __builtin_mpl_vector_qdmulhq_laneq_i16v8(a, v, lane)
+
+int32x2_t __builtin_mpl_vector_qdmulh_laneq_i32v2(int32x2_t a, int32x4_t v, const int lane);
+#define vqdmulh_laneq_s32(a, v, lane)  __builtin_mpl_vector_qdmulh_laneq_i32v2(a, v, lane)
+
+int32x4_t __builtin_mpl_vector_qdmulhq_laneq_i32v4(int32x4_t a, int32x4_t v, const int lane);
+#define vqdmulhq_laneq_s32(a, v, lane)  __builtin_mpl_vector_qdmulhq_laneq_i32v4(a, v, lane)
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulhh_laneq_s16(int16_t a, int16x8_t v, const int lane) {
+  return vget_lane_s16(vqdmulh_laneq_s16((int16x4_t){a}, v, lane), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmulhs_laneq_s32(int32_t a, int32x4_t v, const int lane) {
+  return vget_lane_s32(vqdmulh_laneq_s32((int32x2_t){a}, v, lane), 0);
+}
+
+int16x4_t __builtin_mpl_vector_qrdmulh_n_i16v4(int16x4_t a, int16x4_t b);
+static inline int16x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulh_n_s16(int16x4_t a, int16_t b) {
+  return __builtin_mpl_vector_qrdmulh_n_i16v4(a, (int16x4_t){b});
+}
+
+int16x8_t __builtin_mpl_vector_qrdmulhq_n_i16v8(int16x8_t a, int16x8_t b);
+static inline int16x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulhq_n_s16(int16x8_t a, int16_t b) {
+  return __builtin_mpl_vector_qrdmulhq_n_i16v8(a, (int16x8_t){b});
+}
+
+int32x2_t __builtin_mpl_vector_qrdmulh_n_i32v2(int32x2_t a, int32x2_t b);
+static inline int32x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulh_n_s32(int32x2_t a, int32_t b) {
+  return __builtin_mpl_vector_qrdmulh_n_i32v2(a, (int32x2_t){b});
+}
+
+int32x4_t __builtin_mpl_vector_qrdmulhq_n_i32v4(int32x4_t a, int32x4_t b);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulhq_n_s32(int32x4_t a, int32_t b) {
+  return __builtin_mpl_vector_qrdmulhq_n_i32v4(a, (int32x4_t){b});
+}
+
+int16x4_t __builtin_mpl_vector_qrdmulh_lane_i16v4(int16x4_t a, int16x4_t v, const int lane);
+#define vqrdmulh_lane_s16(a, v, lane)  __builtin_mpl_vector_qrdmulh_lane_i16v4(a, v, lane)
+
+int16x8_t __builtin_mpl_vector_qrdmulhq_lane_i16v8(int16x8_t a, int16x4_t v, const int lane);
+#define vqrdmulhq_lane_s16(a, v, lane)  __builtin_mpl_vector_qrdmulhq_lane_i16v8(a, v, lane)
+
+int32x2_t __builtin_mpl_vector_qrdmulh_lane_i32v2(int32x2_t a, int32x2_t v, const int lane);
+#define vqrdmulh_lane_s32(a, v, lane)  __builtin_mpl_vector_qrdmulh_lane_i32v2(a, v, lane)
+
+int32x4_t __builtin_mpl_vector_qrdmulhq_lane_i32v4(int32x4_t a, int32x2_t v, const int lane);
+#define vqrdmulhq_lane_s32(a, v, lane)  __builtin_mpl_vector_qrdmulhq_lane_i32v4(a, v, lane)
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulhh_lane_s16(int16_t a, int16x4_t v, const int lane) {
+  return vget_lane_s16(vqrdmulh_lane_s16((int16x4_t){a}, v, lane), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulhs_lane_s32(int32_t a, int32x2_t v, const int lane) {
+  return vget_lane_s32(vqrdmulh_lane_s32((int32x2_t){a}, v, lane), 0);
+}
+
+int16x4_t __builtin_mpl_vector_qrdmulh_laneq_i16v4(int16x4_t a, int16x8_t v, const int lane);
+#define vqrdmulh_laneq_s16(a, v, lane)  __builtin_mpl_vector_qrdmulh_laneq_i16v4(a, v, lane)
+
+int16x8_t __builtin_mpl_vector_qrdmulhq_laneq_i16v8(int16x8_t a, int16x8_t v, const int lane);
+#define vqrdmulhq_laneq_s16(a, v, lane)  __builtin_mpl_vector_qrdmulhq_laneq_i16v8(a, v, lane)
+
+int32x2_t __builtin_mpl_vector_qrdmulh_laneq_i32v2(int32x2_t a, int32x4_t v, const int lane);
+#define vqrdmulh_laneq_s32(a, v, lane)  __builtin_mpl_vector_qrdmulh_laneq_i32v2(a, v, lane)
+
+int32x4_t __builtin_mpl_vector_qrdmulhq_laneq_i32v4(int32x4_t a, int32x4_t v, const int lane);
+#define vqrdmulhq_laneq_s32(a, v, lane)  __builtin_mpl_vector_qrdmulhq_laneq_i32v4(a, v, lane)
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulhh_laneq_s16(int16_t a, int16x8_t v, const int lane) {
+  return vget_lane_s16(vqrdmulh_laneq_s16((int16x4_t){a}, v, lane), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrdmulhs_laneq_s32(int32_t a, int32x4_t v, const int lane) {
+  return vget_lane_s32(vqrdmulh_laneq_s32((int32x2_t){a}, v, lane), 0);
+}
+
+int32x4_t __builtin_mpl_vector_qdmlal_n_i32v4(int32x4_t a, int16x4_t b, int16x4_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlal_n_s16(int32x4_t a, int16x4_t b, int16_t c) {
+  return __builtin_mpl_vector_qdmlal_n_i32v4(a, b, (int16x4_t){c});
+}
+
+int64x2_t __builtin_mpl_vector_qdmlal_n_i64v2(int64x2_t a, int32x2_t b, int32x2_t c);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlal_n_s32(int64x2_t a, int32x2_t b, int32_t c) {
+  return __builtin_mpl_vector_qdmlal_n_i64v2(a, b, (int32x2_t){c});
+}
+
+int32x4_t __builtin_mpl_vector_qdmlal_high_n_i32v4(int32x4_t a, int16x8_t b, int16x8_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlal_high_n_s16(int32x4_t a, int16x8_t b, int16_t c) {
+  return __builtin_mpl_vector_qdmlal_high_n_i32v4(a, b, (int16x8_t){c});
+}
+
+int64x2_t __builtin_mpl_vector_qdmlal_high_n_i64v2(int64x2_t a, int32x4_t b, int32x4_t c);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlal_high_n_s32(int64x2_t a, int32x4_t b, int32_t c) {
+  return __builtin_mpl_vector_qdmlal_high_n_i64v2(a, b, (int32x4_t){c});
+}
+
+int32x4_t __builtin_mpl_vector_qdmlsl_n_i32v4(int32x4_t a, int16x4_t b, int16x4_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlsl_n_s16(int32x4_t a, int16x4_t b, int16_t c) {
+  return __builtin_mpl_vector_qdmlsl_n_i32v4(a, b, (int16x4_t){c});
+}
+
+int64x2_t __builtin_mpl_vector_qdmlsl_n_i64v2(int64x2_t a, int32x2_t b, int32x2_t c);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlsl_n_s32(int64x2_t a, int32x2_t b, int32_t c) {
+  return __builtin_mpl_vector_qdmlsl_n_i64v2(a, b, (int32x2_t){c});
+}
+
+int32x4_t __builtin_mpl_vector_qdmlsl_high_n_i32v4(int32x4_t a, int16x8_t b, int16x8_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlsl_high_n_s16(int32x4_t a, int16x8_t b, int16_t c) {
+  return __builtin_mpl_vector_qdmlsl_high_n_i32v4(a, b, (int16x8_t){c});
+}
+
+int64x2_t __builtin_mpl_vector_qdmlsl_high_n_i64v2(int64x2_t a, int32x4_t b, int32x4_t c);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqdmlsl_high_n_s32(int64x2_t a, int32x4_t b, int32_t c) {
+  return __builtin_mpl_vector_qdmlsl_high_n_i64v2(a, b, (int32x4_t){c});
+}
+
+int8x8_t __builtin_mpl_vector_hsub_i8v8(int8x8_t a, int8x8_t b);
+#define vhsub_s8(a, b)  __builtin_mpl_vector_hsub_i8v8(a, b)
+
+int8x16_t __builtin_mpl_vector_hsubq_i8v16(int8x16_t a, int8x16_t b);
+#define vhsubq_s8(a, b)  __builtin_mpl_vector_hsubq_i8v16(a, b)
+
+int16x4_t __builtin_mpl_vector_hsub_i16v4(int16x4_t a, int16x4_t b);
+#define vhsub_s16(a, b)  __builtin_mpl_vector_hsub_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_hsubq_i16v8(int16x8_t a, int16x8_t b);
+#define vhsubq_s16(a, b)  __builtin_mpl_vector_hsubq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_hsub_i32v2(int32x2_t a, int32x2_t b);
+#define vhsub_s32(a, b)  __builtin_mpl_vector_hsub_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_hsubq_i32v4(int32x4_t a, int32x4_t b);
+#define vhsubq_s32(a, b)  __builtin_mpl_vector_hsubq_i32v4(a, b)
+
+uint8x8_t __builtin_mpl_vector_hsub_u8v8(uint8x8_t a, uint8x8_t b);
+#define vhsub_u8(a, b)  __builtin_mpl_vector_hsub_u8v8(a, b)
+
+uint8x16_t __builtin_mpl_vector_hsubq_u8v16(uint8x16_t a, uint8x16_t b);
+#define vhsubq_u8(a, b)  __builtin_mpl_vector_hsubq_u8v16(a, b)
+
+uint16x4_t __builtin_mpl_vector_hsub_u16v4(uint16x4_t a, uint16x4_t b);
+#define vhsub_u16(a, b)  __builtin_mpl_vector_hsub_u16v4(a, b)
+
+uint16x8_t __builtin_mpl_vector_hsubq_u16v8(uint16x8_t a, uint16x8_t b);
+#define vhsubq_u16(a, b)  __builtin_mpl_vector_hsubq_u16v8(a, b)
+
+uint32x2_t __builtin_mpl_vector_hsub_u32v2(uint32x2_t a, uint32x2_t b);
+#define vhsub_u32(a, b)  __builtin_mpl_vector_hsub_u32v2(a, b)
+
+uint32x4_t __builtin_mpl_vector_hsubq_u32v4(uint32x4_t a, uint32x4_t b);
+#define vhsubq_u32(a, b)  __builtin_mpl_vector_hsubq_u32v4(a, b)
+
+int8x8_t __builtin_mpl_vector_subhn_i8v8(int16x8_t a, int16x8_t b);
+#define vsubhn_s16(a, b)  __builtin_mpl_vector_subhn_i8v8(a, b)
+
+int16x4_t __builtin_mpl_vector_subhn_i16v4(int32x4_t a, int32x4_t b);
+#define vsubhn_s32(a, b)  __builtin_mpl_vector_subhn_i16v4(a, b)
+
+int32x2_t __builtin_mpl_vector_subhn_i32v2(int64x2_t a, int64x2_t b);
+#define vsubhn_s64(a, b)  __builtin_mpl_vector_subhn_i32v2(a, b)
+
+uint8x8_t __builtin_mpl_vector_subhn_u8v8(uint16x8_t a, uint16x8_t b);
+#define vsubhn_u16(a, b)  __builtin_mpl_vector_subhn_u8v8(a, b)
+
+uint16x4_t __builtin_mpl_vector_subhn_u16v4(uint32x4_t a, uint32x4_t b);
+#define vsubhn_u32(a, b)  __builtin_mpl_vector_subhn_u16v4(a, b)
+
+uint32x2_t __builtin_mpl_vector_subhn_u32v2(uint64x2_t a, uint64x2_t b);
+#define vsubhn_u64(a, b)  __builtin_mpl_vector_subhn_u32v2(a, b)
+
+int8x16_t __builtin_mpl_vector_subhn_high_i8v16(int8x8_t r, int16x8_t a, int16x8_t b);
+#define vsubhn_high_s16(r, a, b)  __builtin_mpl_vector_subhn_high_i8v16(r, a, b)
+
+int16x8_t __builtin_mpl_vector_subhn_high_i16v8(int16x4_t r, int32x4_t a, int32x4_t b);
+#define vsubhn_high_s32(r, a, b)  __builtin_mpl_vector_subhn_high_i16v8(r, a, b)
+
+int32x4_t __builtin_mpl_vector_subhn_high_i32v4(int32x2_t r, int64x2_t a, int64x2_t b);
+#define vsubhn_high_s64(r, a, b)  __builtin_mpl_vector_subhn_high_i32v4(r, a, b)
+
+uint8x16_t __builtin_mpl_vector_subhn_high_u8v16(uint8x8_t r, uint16x8_t a, uint16x8_t b);
+#define vsubhn_high_u16(r, a, b)  __builtin_mpl_vector_subhn_high_u8v16(r, a, b)
+
+uint16x8_t __builtin_mpl_vector_subhn_high_u16v8(uint16x4_t r, uint32x4_t a, uint32x4_t b);
+#define vsubhn_high_u32(r, a, b)  __builtin_mpl_vector_subhn_high_u16v8(r, a, b)
+
+uint32x4_t __builtin_mpl_vector_subhn_high_u32v4(uint32x2_t r, uint64x2_t a, uint64x2_t b);
+#define vsubhn_high_u64(r, a, b)  __builtin_mpl_vector_subhn_high_u32v4(r, a, b)
+
+int8x8_t __builtin_mpl_vector_rsubhn_i8v8(int16x8_t a, int16x8_t b);
+#define vrsubhn_s16(a, b)  __builtin_mpl_vector_rsubhn_i8v8(a, b)
+
+int16x4_t __builtin_mpl_vector_rsubhn_i16v4(int32x4_t a, int32x4_t b);
+#define vrsubhn_s32(a, b)  __builtin_mpl_vector_rsubhn_i16v4(a, b)
+
+int32x2_t __builtin_mpl_vector_rsubhn_i32v2(int64x2_t a, int64x2_t b);
+#define vrsubhn_s64(a, b)  __builtin_mpl_vector_rsubhn_i32v2(a, b)
+
+uint8x8_t __builtin_mpl_vector_rsubhn_u8v8(uint16x8_t a, uint16x8_t b);
+#define vrsubhn_u16(a, b)  __builtin_mpl_vector_rsubhn_u8v8(a, b)
+
+uint16x4_t __builtin_mpl_vector_rsubhn_u16v4(uint32x4_t a, uint32x4_t b);
+#define vrsubhn_u32(a, b)  __builtin_mpl_vector_rsubhn_u16v4(a, b)
+
+uint32x2_t __builtin_mpl_vector_rsubhn_u32v2(uint64x2_t a, uint64x2_t b);
+#define vrsubhn_u64(a, b)  __builtin_mpl_vector_rsubhn_u32v2(a, b)
+
+int8x16_t __builtin_mpl_vector_rsubhn_high_i8v16(int8x8_t r, int16x8_t a, int16x8_t b);
+#define vrsubhn_high_s16(r, a, b)  __builtin_mpl_vector_rsubhn_high_i8v16(r, a, b)
+
+int16x8_t __builtin_mpl_vector_rsubhn_high_i16v8(int16x4_t r, int32x4_t a, int32x4_t b);
+#define vrsubhn_high_s32(r, a, b)  __builtin_mpl_vector_rsubhn_high_i16v8(r, a, b)
+
+int32x4_t __builtin_mpl_vector_rsubhn_high_i32v4(int32x2_t r, int64x2_t a, int64x2_t b);
+#define vrsubhn_high_s64(r, a, b)  __builtin_mpl_vector_rsubhn_high_i32v4(r, a, b)
+
+uint8x16_t __builtin_mpl_vector_rsubhn_high_u8v16(uint8x8_t r, uint16x8_t a, uint16x8_t b);
+#define vrsubhn_high_u16(r, a, b)  __builtin_mpl_vector_rsubhn_high_u8v16(r, a, b)
+
+uint16x8_t __builtin_mpl_vector_rsubhn_high_u16v8(uint16x4_t r, uint32x4_t a, uint32x4_t b);
+#define vrsubhn_high_u32(r, a, b)  __builtin_mpl_vector_rsubhn_high_u16v8(r, a, b)
+
+uint32x4_t __builtin_mpl_vector_rsubhn_high_u32v4(uint32x2_t r, uint64x2_t a, uint64x2_t b);
+#define vrsubhn_high_u64(r, a, b)  __builtin_mpl_vector_rsubhn_high_u32v4(r, a, b)
+
+int8x8_t __builtin_mpl_vector_qsub_i8v8(int8x8_t a, int8x8_t b);
+#define vqsub_s8(a, b)  __builtin_mpl_vector_qsub_i8v8(a, b)
+
+int8x16_t __builtin_mpl_vector_qsubq_i8v16(int8x16_t a, int8x16_t b);
+#define vqsubq_s8(a, b)  __builtin_mpl_vector_qsubq_i8v16(a, b)
+
+int16x4_t __builtin_mpl_vector_qsub_i16v4(int16x4_t a, int16x4_t b);
+#define vqsub_s16(a, b)  __builtin_mpl_vector_qsub_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_qsubq_i16v8(int16x8_t a, int16x8_t b);
+#define vqsubq_s16(a, b)  __builtin_mpl_vector_qsubq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_qsub_i32v2(int32x2_t a, int32x2_t b);
+#define vqsub_s32(a, b)  __builtin_mpl_vector_qsub_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_qsubq_i32v4(int32x4_t a, int32x4_t b);
+#define vqsubq_s32(a, b)  __builtin_mpl_vector_qsubq_i32v4(a, b)
+
+int64x1_t __builtin_mpl_vector_qsub_i64v1(int64x1_t a, int64x1_t b);
+#define vqsub_s64(a, b)  __builtin_mpl_vector_qsub_i64v1(a, b)
+
+int64x2_t __builtin_mpl_vector_qsubq_i64v2(int64x2_t a, int64x2_t b);
+#define vqsubq_s64(a, b)  __builtin_mpl_vector_qsubq_i64v2(a, b)
+
+uint8x8_t __builtin_mpl_vector_qsub_u8v8(uint8x8_t a, uint8x8_t b);
+#define vqsub_u8(a, b)  __builtin_mpl_vector_qsub_u8v8(a, b)
+
+uint8x16_t __builtin_mpl_vector_qsubq_u8v16(uint8x16_t a, uint8x16_t b);
+#define vqsubq_u8(a, b)  __builtin_mpl_vector_qsubq_u8v16(a, b)
+
+uint16x4_t __builtin_mpl_vector_qsub_u16v4(uint16x4_t a, uint16x4_t b);
+#define vqsub_u16(a, b)  __builtin_mpl_vector_qsub_u16v4(a, b)
+
+uint16x8_t __builtin_mpl_vector_qsubq_u16v8(uint16x8_t a, uint16x8_t b);
+#define vqsubq_u16(a, b)  __builtin_mpl_vector_qsubq_u16v8(a, b)
+
+uint32x2_t __builtin_mpl_vector_qsub_u32v2(uint32x2_t a, uint32x2_t b);
+#define vqsub_u32(a, b)  __builtin_mpl_vector_qsub_u32v2(a, b)
+
+uint32x4_t __builtin_mpl_vector_qsubq_u32v4(uint32x4_t a, uint32x4_t b);
+#define vqsubq_u32(a, b)  __builtin_mpl_vector_qsubq_u32v4(a, b)
+
+uint64x1_t __builtin_mpl_vector_qsub_u64v1(uint64x1_t a, uint64x1_t b);
+#define vqsub_u64(a, b)  __builtin_mpl_vector_qsub_u64v1(a, b)
+
+uint64x2_t __builtin_mpl_vector_qsubq_u64v2(uint64x2_t a, uint64x2_t b);
+#define vqsubq_u64(a, b)  __builtin_mpl_vector_qsubq_u64v2(a, b)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqsubb_s8(int8_t a, int8_t b) {
+  return vget_lane_s8(vqsub_s8((int8x8_t){a}, (int8x8_t){b}), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqsubh_s16(int16_t a, int16_t b) {
+  return vget_lane_s16(vqsub_s16((int16x4_t){a}, (int16x4_t){b}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqsubs_s32(int32_t a, int32_t b) {
+  return vget_lane_s32(vqsub_s32((int32x2_t){a}, (int32x2_t){b}), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqsubd_s64(int64_t a, int64_t b) {
+  return vget_lane_s64(vqsub_s64((int64x1_t){a}, (int64x1_t){b}), 0);
+}
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqsubb_u8(uint8_t a, uint8_t b) {
+  return vget_lane_u8(vqsub_u8((uint8x8_t){a}, (uint8x8_t){b}), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqsubh_u16(uint16_t a, uint16_t b) {
+  return vget_lane_u16(vqsub_u16((uint16x4_t){a}, (uint16x4_t){b}), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqsubs_u32(uint32_t a, uint32_t b) {
+  return vget_lane_u32(vqsub_u32((uint32x2_t){a}, (uint32x2_t){b}), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqsubd_u64(uint64_t a, uint64_t b) {
+  return vget_lane_u64(vqsub_u64((uint64x1_t){a}, (uint64x1_t){b}), 0);
+}
+
+int8x8_t __builtin_mpl_vector_aba_i8v8(int8x8_t a, int8x8_t b, int8x8_t c);
+#define vaba_s8(a, b, c)  __builtin_mpl_vector_aba_i8v8(a, b, c)
+
+int8x16_t __builtin_mpl_vector_abaq_i8v16(int8x16_t a, int8x16_t b, int8x16_t c);
+#define vabaq_s8(a, b, c)  __builtin_mpl_vector_abaq_i8v16(a, b, c)
+
+int16x4_t __builtin_mpl_vector_aba_i16v4(int16x4_t a, int16x4_t b, int16x4_t c);
+#define vaba_s16(a, b, c)  __builtin_mpl_vector_aba_i16v4(a, b, c)
+
+int16x8_t __builtin_mpl_vector_abaq_i16v8(int16x8_t a, int16x8_t b, int16x8_t c);
+#define vabaq_s16(a, b, c)  __builtin_mpl_vector_abaq_i16v8(a, b, c)
+
+int32x2_t __builtin_mpl_vector_aba_i32v2(int32x2_t a, int32x2_t b, int32x2_t c);
+#define vaba_s32(a, b, c)  __builtin_mpl_vector_aba_i32v2(a, b, c)
+
+int32x4_t __builtin_mpl_vector_abaq_i32v4(int32x4_t a, int32x4_t b, int32x4_t c);
+#define vabaq_s32(a, b, c)  __builtin_mpl_vector_abaq_i32v4(a, b, c)
+
+uint8x8_t __builtin_mpl_vector_aba_u8v8(uint8x8_t a, uint8x8_t b, uint8x8_t c);
+#define vaba_u8(a, b, c)  __builtin_mpl_vector_aba_u8v8(a, b, c)
+
+uint8x16_t __builtin_mpl_vector_abaq_u8v16(uint8x16_t a, uint8x16_t b, uint8x16_t c);
+#define vabaq_u8(a, b, c)  __builtin_mpl_vector_abaq_u8v16(a, b, c)
+
+uint16x4_t __builtin_mpl_vector_aba_u16v4(uint16x4_t a, uint16x4_t b, uint16x4_t c);
+#define vaba_u16(a, b, c)  __builtin_mpl_vector_aba_u16v4(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_abaq_u16v8(uint16x8_t a, uint16x8_t b, uint16x8_t c);
+#define vabaq_u16(a, b, c)  __builtin_mpl_vector_abaq_u16v8(a, b, c)
+
+uint32x2_t __builtin_mpl_vector_aba_u32v2(uint32x2_t a, uint32x2_t b, uint32x2_t c);
+#define vaba_u32(a, b, c)  __builtin_mpl_vector_aba_u32v2(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_abaq_u32v4(uint32x4_t a, uint32x4_t b, uint32x4_t c);
+#define vabaq_u32(a, b, c)  __builtin_mpl_vector_abaq_u32v4(a, b, c)
+
+int16x8_t __builtin_mpl_vector_abal_i16v8(int16x8_t a, int8x8_t b, int8x8_t c);
+#define vabal_s8(a, b, c)  __builtin_mpl_vector_abal_i16v8(a, b, c)
+
+int32x4_t __builtin_mpl_vector_abal_i32v4(int32x4_t a, int16x4_t b, int16x4_t c);
+#define vabal_s16(a, b, c)  __builtin_mpl_vector_abal_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_abal_i64v2(int64x2_t a, int32x2_t b, int32x2_t c);
+#define vabal_s32(a, b, c)  __builtin_mpl_vector_abal_i64v2(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_abal_u16v8(uint16x8_t a, uint8x8_t b, uint8x8_t c);
+#define vabal_u8(a, b, c)  __builtin_mpl_vector_abal_u16v8(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_abal_u32v4(uint32x4_t a, uint16x4_t b, uint16x4_t c);
+#define vabal_u16(a, b, c)  __builtin_mpl_vector_abal_u32v4(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_abal_u64v2(uint64x2_t a, uint32x2_t b, uint32x2_t c);
+#define vabal_u32(a, b, c)  __builtin_mpl_vector_abal_u64v2(a, b, c)
+
+int16x8_t __builtin_mpl_vector_abal_high_i16v8(int16x8_t a, int8x16_t b, int8x16_t c);
+#define vabal_high_s8(a, b, c)  __builtin_mpl_vector_abal_high_i16v8(a, b, c)
+
+int32x4_t __builtin_mpl_vector_abal_high_i32v4(int32x4_t a, int16x8_t b, int16x8_t c);
+#define vabal_high_s16(a, b, c)  __builtin_mpl_vector_abal_high_i32v4(a, b, c)
+
+int64x2_t __builtin_mpl_vector_abal_high_i64v2(int64x2_t a, int32x4_t b, int32x4_t c);
+#define vabal_high_s32(a, b, c)  __builtin_mpl_vector_abal_high_i64v2(a, b, c)
+
+uint16x8_t __builtin_mpl_vector_abal_high_u16v8(uint16x8_t a, uint8x16_t b, uint8x16_t c);
+#define vabal_high_u8(a, b, c)  __builtin_mpl_vector_abal_high_u16v8(a, b, c)
+
+uint32x4_t __builtin_mpl_vector_abal_high_u32v4(uint32x4_t a, uint16x8_t b, uint16x8_t c);
+#define vabal_high_u16(a, b, c)  __builtin_mpl_vector_abal_high_u32v4(a, b, c)
+
+uint64x2_t __builtin_mpl_vector_abal_high_u64v2(uint64x2_t a, uint32x4_t b, uint32x4_t c);
+#define vabal_high_u32(a, b, c)  __builtin_mpl_vector_abal_high_u64v2(a, b, c)
+
+int8x8_t __builtin_mpl_vector_qabs_i8v8(int8x8_t a);
+#define vqabs_s8(a)  __builtin_mpl_vector_qabs_i8v8(a)
+
+int8x16_t __builtin_mpl_vector_qabsq_i8v16(int8x16_t a);
+#define vqabsq_s8(a)  __builtin_mpl_vector_qabsq_i8v16(a)
+
+int16x4_t __builtin_mpl_vector_qabs_i16v4(int16x4_t a);
+#define vqabs_s16(a)  __builtin_mpl_vector_qabs_i16v4(a)
+
+int16x8_t __builtin_mpl_vector_qabsq_i16v8(int16x8_t a);
+#define vqabsq_s16(a)  __builtin_mpl_vector_qabsq_i16v8(a)
+
+int32x2_t __builtin_mpl_vector_qabs_i32v2(int32x2_t a);
+#define vqabs_s32(a)  __builtin_mpl_vector_qabs_i32v2(a)
+
+int32x4_t __builtin_mpl_vector_qabsq_i32v4(int32x4_t a);
+#define vqabsq_s32(a)  __builtin_mpl_vector_qabsq_i32v4(a)
+
+int64x1_t __builtin_mpl_vector_qabs_i64v1(int64x1_t a);
+#define vqabs_s64(a)  __builtin_mpl_vector_qabs_i64v1(a)
+
+int64x2_t __builtin_mpl_vector_qabsq_i64v2(int64x2_t a);
+#define vqabsq_s64(a)  __builtin_mpl_vector_qabsq_i64v2(a)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__)) vqabsb_s8(int8_t a) {
+  return vget_lane_s8(vqabs_s8((int8x8_t){a}), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__)) vqabsh_s16(int16_t a) {
+  return vget_lane_s16(vqabs_s16((int16x4_t){a}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__)) vqabss_s32(int32_t a) {
+  return vget_lane_s32(vqabs_s32((int32x2_t){a}), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__)) vqabsd_s64(int64_t a) {
+  return vget_lane_s64(vqabs_s64((int64x1_t){a}), 0);
+}
+
+uint32x2_t __builtin_mpl_vector_rsqrte_u32v2(uint32x2_t a);
+#define vrsqrte_u32(a)  __builtin_mpl_vector_rsqrte_u32v2(a)
+
+uint32x4_t __builtin_mpl_vector_rsqrteq_u32v4(uint32x4_t a);
+#define vrsqrteq_u32(a)  __builtin_mpl_vector_rsqrteq_u32v4(a)
+
+int16x4_t __builtin_mpl_vector_addlv_i8v8(int8x8_t a);
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlv_s8(int8x8_t a) {
+  return vget_lane_s16(__builtin_mpl_vector_addlv_i8v8(a), 0);
+}
+
+int16x4_t __builtin_mpl_vector_addlvq_i8v16(int8x16_t a);
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlvq_s8(int8x16_t a) {
+  return vget_lane_s16(__builtin_mpl_vector_addlvq_i8v16(a), 0);
+}
+
+int32x2_t __builtin_mpl_vector_addlv_i16v4(int16x4_t a);
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlv_s16(int16x4_t a) {
+  return vget_lane_s32(__builtin_mpl_vector_addlv_i16v4(a), 0);
+}
+
+int32x2_t __builtin_mpl_vector_addlvq_i16v8(int16x8_t a);
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlvq_s16(int16x8_t a) {
+  return vget_lane_s32(__builtin_mpl_vector_addlvq_i16v8(a), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlv_s32(int32x2_t a) {
+  return vget_lane_s64(vpaddl_s32(a), 0);
+}
+
+int64x1_t __builtin_mpl_vector_addlvq_i32v4(int32x4_t a);
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlvq_s32(int32x4_t a) {
+  return vget_lane_s64(__builtin_mpl_vector_addlvq_i32v4(a), 0);
+}
+
+uint16x4_t __builtin_mpl_vector_addlv_u8v8(uint8x8_t a);
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlv_u8(uint8x8_t a) {
+  return vget_lane_u16(__builtin_mpl_vector_addlv_u8v8(a), 0);
+}
+
+uint16x4_t __builtin_mpl_vector_addlvq_u8v16(uint8x16_t a);
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlvq_u8(uint8x16_t a) {
+  return vget_lane_u16(__builtin_mpl_vector_addlvq_u8v16(a), 0);
+}
+
+uint32x2_t __builtin_mpl_vector_addlv_u16v4(uint16x4_t a);
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlv_u16(uint16x4_t a) {
+  return vget_lane_u32(__builtin_mpl_vector_addlv_u16v4(a), 0);
+}
+
+uint32x2_t __builtin_mpl_vector_addlvq_u16v8(uint16x8_t a);
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlvq_u16(uint16x8_t a) {
+  return vget_lane_u32(__builtin_mpl_vector_addlvq_u16v8(a), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlv_u32(uint32x2_t a) {
+  return vget_lane_u64(vpaddl_u32(a), 0);
+}
+
+uint64x1_t __builtin_mpl_vector_addlvq_u32v4(uint32x4_t a);
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__)) vaddlvq_u32(uint32x4_t a) {
+  return vget_lane_u64(__builtin_mpl_vector_addlvq_u32v4(a), 0);
+}
+
+int8x8_t __builtin_mpl_vector_qshl_i8v8(int8x8_t a, int8x8_t b);
+#define vqshl_s8(a, b)  __builtin_mpl_vector_qshl_i8v8(a, b)
+
+int8x16_t __builtin_mpl_vector_qshlq_i8v16(int8x16_t a, int8x16_t b);
+#define vqshlq_s8(a, b)  __builtin_mpl_vector_qshlq_i8v16(a, b)
+
+int16x4_t __builtin_mpl_vector_qshl_i16v4(int16x4_t a, int16x4_t b);
+#define vqshl_s16(a, b)  __builtin_mpl_vector_qshl_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_qshlq_i16v8(int16x8_t a, int16x8_t b);
+#define vqshlq_s16(a, b)  __builtin_mpl_vector_qshlq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_qshl_i32v2(int32x2_t a, int32x2_t b);
+#define vqshl_s32(a, b)  __builtin_mpl_vector_qshl_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_qshlq_i32v4(int32x4_t a, int32x4_t b);
+#define vqshlq_s32(a, b)  __builtin_mpl_vector_qshlq_i32v4(a, b)
+
+int64x1_t __builtin_mpl_vector_qshl_i64v1(int64x1_t a, int64x1_t b);
+#define vqshl_s64(a, b)  __builtin_mpl_vector_qshl_i64v1(a, b)
+
+int64x2_t __builtin_mpl_vector_qshlq_i64v2(int64x2_t a, int64x2_t b);
+#define vqshlq_s64(a, b)  __builtin_mpl_vector_qshlq_i64v2(a, b)
+
+uint8x8_t __builtin_mpl_vector_qshl_u8v8(uint8x8_t a, int8x8_t b);
+#define vqshl_u8(a, b)  __builtin_mpl_vector_qshl_u8v8(a, b)
+
+uint8x16_t __builtin_mpl_vector_qshlq_u8v16(uint8x16_t a, int8x16_t b);
+#define vqshlq_u8(a, b)  __builtin_mpl_vector_qshlq_u8v16(a, b)
+
+uint16x4_t __builtin_mpl_vector_qshl_u16v4(uint16x4_t a, int16x4_t b);
+#define vqshl_u16(a, b)  __builtin_mpl_vector_qshl_u16v4(a, b)
+
+uint16x8_t __builtin_mpl_vector_qshlq_u16v8(uint16x8_t a, int16x8_t b);
+#define vqshlq_u16(a, b)  __builtin_mpl_vector_qshlq_u16v8(a, b)
+
+uint32x2_t __builtin_mpl_vector_qshl_u32v2(uint32x2_t a, int32x2_t b);
+#define vqshl_u32(a, b)  __builtin_mpl_vector_qshl_u32v2(a, b)
+
+uint32x4_t __builtin_mpl_vector_qshlq_u32v4(uint32x4_t a, int32x4_t b);
+#define vqshlq_u32(a, b)  __builtin_mpl_vector_qshlq_u32v4(a, b)
+
+uint64x1_t __builtin_mpl_vector_qshl_u64v1(uint64x1_t a, int64x1_t b);
+#define vqshl_u64(a, b)  __builtin_mpl_vector_qshl_u64v1(a, b)
+
+uint64x2_t __builtin_mpl_vector_qshlq_u64v2(uint64x2_t a, int64x2_t b);
+#define vqshlq_u64(a, b)  __builtin_mpl_vector_qshlq_u64v2(a, b)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlb_s8(int8_t a, int8_t b) {
+  return vget_lane_s8(vqshl_s8((int8x8_t){a}, (int8x8_t){b}), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlh_s16(int16_t a, int16_t b) {
+  return vget_lane_s16(vqshl_s16((int16x4_t){a}, (int16x4_t){b}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshls_s32(int32_t a, int32_t b) {
+  return vget_lane_s32(vqshl_s32((int32x2_t){a}, (int32x2_t){b}), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshld_s64(int64_t a, int64_t b) {
+  return vget_lane_s64(vqshl_s64((int64x1_t){a}, (int64x1_t){b}), 0);
+}
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlb_u8(uint8_t a, uint8_t b) {
+  return vget_lane_u8(vqshl_u8((uint8x8_t){a}, (uint8x8_t){b}), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlh_u16(uint16_t a, uint16_t b) {
+  return vget_lane_u16(vqshl_u16((uint16x4_t){a}, (uint16x4_t){b}), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshls_u32(uint32_t a, uint32_t b) {
+  return vget_lane_u32(vqshl_u32((uint32x2_t){a}, (uint32x2_t){b}), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshld_u64(uint64_t a, uint64_t b) {
+  return vget_lane_u64(vqshl_u64((uint64x1_t){a}, (uint64x1_t){b}), 0);
+}
+
+int8x8_t __builtin_mpl_vector_qshl_n_i8v8(int8x8_t a, const int n);
+#define vqshl_n_s8(a, n)  __builtin_mpl_vector_qshl_n_i8v8(a, n)
+
+int8x16_t __builtin_mpl_vector_qshlq_n_i8v16(int8x16_t a, const int n);
+#define vqshlq_n_s8(a, n)  __builtin_mpl_vector_qshlq_n_i8v16(a, n)
+
+int16x4_t __builtin_mpl_vector_qshl_n_i16v4(int16x4_t a, const int n);
+#define vqshl_n_s16(a, n)  __builtin_mpl_vector_qshl_n_i16v4(a, n)
+
+int16x8_t __builtin_mpl_vector_qshlq_n_i16v8(int16x8_t a, const int n);
+#define vqshlq_n_s16(a, n)  __builtin_mpl_vector_qshlq_n_i16v8(a, n)
+
+int32x2_t __builtin_mpl_vector_qshl_n_i32v2(int32x2_t a, const int n);
+#define vqshl_n_s32(a, n)  __builtin_mpl_vector_qshl_n_i32v2(a, n)
+
+int32x4_t __builtin_mpl_vector_qshlq_n_i32v4(int32x4_t a, const int n);
+#define vqshlq_n_s32(a, n)  __builtin_mpl_vector_qshlq_n_i32v4(a, n)
+
+int64x1_t __builtin_mpl_vector_qshl_n_i64v1(int64x1_t a, const int n);
+#define vqshl_n_s64(a, n)  __builtin_mpl_vector_qshl_n_i64v1(a, n)
+
+int64x2_t __builtin_mpl_vector_qshlq_n_i64v2(int64x2_t a, const int n);
+#define vqshlq_n_s64(a, n)  __builtin_mpl_vector_qshlq_n_i64v2(a, n)
+
+uint8x8_t __builtin_mpl_vector_qshl_n_u8v8(uint8x8_t a, const int n);
+#define vqshl_n_u8(a, n)  __builtin_mpl_vector_qshl_n_u8v8(a, n)
+
+uint8x16_t __builtin_mpl_vector_qshlq_n_u8v16(uint8x16_t a, const int n);
+#define vqshlq_n_u8(a, n)  __builtin_mpl_vector_qshlq_n_u8v16(a, n)
+
+uint16x4_t __builtin_mpl_vector_qshl_n_u16v4(uint16x4_t a, const int n);
+#define vqshl_n_u16(a, n)  __builtin_mpl_vector_qshl_n_u16v4(a, n)
+
+uint16x8_t __builtin_mpl_vector_qshlq_n_u16v8(uint16x8_t a, const int n);
+#define vqshlq_n_u16(a, n)  __builtin_mpl_vector_qshlq_n_u16v8(a, n)
+
+uint32x2_t __builtin_mpl_vector_qshl_n_u32v2(uint32x2_t a, const int n);
+#define vqshl_n_u32(a, n)  __builtin_mpl_vector_qshl_n_u32v2(a, n)
+
+uint32x4_t __builtin_mpl_vector_qshlq_n_u32v4(uint32x4_t a, const int n);
+#define vqshlq_n_u32(a, n)  __builtin_mpl_vector_qshlq_n_u32v4(a, n)
+
+uint64x1_t __builtin_mpl_vector_qshl_n_u64v1(uint64x1_t a, const int n);
+#define vqshl_n_u64(a, n)  __builtin_mpl_vector_qshl_n_u64v1(a, n)
+
+uint64x2_t __builtin_mpl_vector_qshlq_n_u64v2(uint64x2_t a, const int n);
+#define vqshlq_n_u64(a, n)  __builtin_mpl_vector_qshlq_n_u64v2(a, n)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlb_n_s8(int8_t a, const int n) {
+  return vget_lane_s64(vqshl_n_s8((int8x8_t){a}, n), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlh_n_s16(int16_t a, const int n) {
+  return vget_lane_s64(vqshl_n_s16((int16x4_t){a}, n), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshls_n_s32(int32_t a, const int n) {
+  return vget_lane_s64(vqshl_n_s32((int32x2_t){a}, n), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshld_n_s64(int64_t a, const int n) {
+  return vget_lane_s64(vqshl_n_s64((int64x1_t){a}, n), 0);
+}
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlb_n_u8(uint8_t a, const int n) {
+  return vget_lane_u64(vqshl_n_u8((uint8x8_t){a}, n), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlh_n_u16(uint16_t a, const int n) {
+  return vget_lane_u64(vqshl_n_u16((uint16x4_t){a}, n), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshls_n_u32(uint32_t a, const int n) {
+  return vget_lane_u64(vqshl_n_u32((uint32x2_t){a}, n), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshld_n_u64(uint64_t a, const int n) {
+  return vget_lane_u64(vqshl_n_u64((uint64x1_t){a}, n), 0);
+}
+
+uint8x8_t __builtin_mpl_vector_qshlu_n_u8v8(int8x8_t a, const int n);
+#define vqshlu_n_s8(a, n)  __builtin_mpl_vector_qshlu_n_u8v8(a, n)
+
+uint8x16_t __builtin_mpl_vector_qshluq_n_u8v16(int8x16_t a, const int n);
+#define vqshluq_n_s8(a, n)  __builtin_mpl_vector_qshluq_n_u8v16(a, n)
+
+uint16x4_t __builtin_mpl_vector_qshlu_n_u16v4(int16x4_t a, const int n);
+#define vqshlu_n_s16(a, n)  __builtin_mpl_vector_qshlu_n_u16v4(a, n)
+
+uint16x8_t __builtin_mpl_vector_qshluq_n_u16v8(int16x8_t a, const int n);
+#define vqshluq_n_s16(a, n)  __builtin_mpl_vector_qshluq_n_u16v8(a, n)
+
+uint32x2_t __builtin_mpl_vector_qshlu_n_u32v2(int32x2_t a, const int n);
+#define vqshlu_n_s32(a, n)  __builtin_mpl_vector_qshlu_n_u32v2(a, n)
+
+uint32x4_t __builtin_mpl_vector_qshluq_n_u32v4(int32x4_t a, const int n);
+#define vqshluq_n_s32(a, n)  __builtin_mpl_vector_qshluq_n_u32v4(a, n)
+
+uint64x1_t __builtin_mpl_vector_qshlu_n_u64v1(int64x1_t a, const int n);
+#define vqshlu_n_s64(a, n)  __builtin_mpl_vector_qshlu_n_u64v1(a, n)
+
+uint64x2_t __builtin_mpl_vector_qshluq_n_u64v2(int64x2_t a, const int n);
+#define vqshluq_n_s64(a, n)  __builtin_mpl_vector_qshluq_n_u64v2(a, n)
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlub_n_s8(int8_t a, const int n) {
+  return vget_lane_u64(vqshlu_n_s8((int8x8_t){a}, n), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshluh_n_s16(int16_t a, const int n) {
+  return vget_lane_u64(vqshlu_n_s16((int16x4_t){a}, n), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlus_n_s32(int32_t a, const int n) {
+  return vget_lane_u64(vqshlu_n_s32((int32x2_t){a}, n), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshlud_n_s64(int64_t a, const int n) {
+  return vget_lane_u64(vqshlu_n_s64((int64x1_t){a}, n), 0);
+}
+
+int8x8_t __builtin_mpl_vector_rshl_i8v8(int8x8_t a, int8x8_t b);
+#define vrshl_s8(a, b)  __builtin_mpl_vector_rshl_i8v8(a, b)
+
+int8x16_t __builtin_mpl_vector_rshlq_i8v16(int8x16_t a, int8x16_t b);
+#define vrshlq_s8(a, b)  __builtin_mpl_vector_rshlq_i8v16(a, b)
+
+int16x4_t __builtin_mpl_vector_rshl_i16v4(int16x4_t a, int16x4_t b);
+#define vrshl_s16(a, b)  __builtin_mpl_vector_rshl_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_rshlq_i16v8(int16x8_t a, int16x8_t b);
+#define vrshlq_s16(a, b)  __builtin_mpl_vector_rshlq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_rshl_i32v2(int32x2_t a, int32x2_t b);
+#define vrshl_s32(a, b)  __builtin_mpl_vector_rshl_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_rshlq_i32v4(int32x4_t a, int32x4_t b);
+#define vrshlq_s32(a, b)  __builtin_mpl_vector_rshlq_i32v4(a, b)
+
+int64x1_t __builtin_mpl_vector_rshl_i64v1(int64x1_t a, int64x1_t b);
+#define vrshl_s64(a, b)  __builtin_mpl_vector_rshl_i64v1(a, b)
+
+int64x2_t __builtin_mpl_vector_rshlq_i64v2(int64x2_t a, int64x2_t b);
+#define vrshlq_s64(a, b)  __builtin_mpl_vector_rshlq_i64v2(a, b)
+
+uint8x8_t __builtin_mpl_vector_rshl_u8v8(uint8x8_t a, int8x8_t b);
+#define vrshl_u8(a, b)  __builtin_mpl_vector_rshl_u8v8(a, b)
+
+uint8x16_t __builtin_mpl_vector_rshlq_u8v16(uint8x16_t a, int8x16_t b);
+#define vrshlq_u8(a, b)  __builtin_mpl_vector_rshlq_u8v16(a, b)
+
+uint16x4_t __builtin_mpl_vector_rshl_u16v4(uint16x4_t a, int16x4_t b);
+#define vrshl_u16(a, b)  __builtin_mpl_vector_rshl_u16v4(a, b)
+
+uint16x8_t __builtin_mpl_vector_rshlq_u16v8(uint16x8_t a, int16x8_t b);
+#define vrshlq_u16(a, b)  __builtin_mpl_vector_rshlq_u16v8(a, b)
+
+uint32x2_t __builtin_mpl_vector_rshl_u32v2(uint32x2_t a, int32x2_t b);
+#define vrshl_u32(a, b)  __builtin_mpl_vector_rshl_u32v2(a, b)
+
+uint32x4_t __builtin_mpl_vector_rshlq_u32v4(uint32x4_t a, int32x4_t b);
+#define vrshlq_u32(a, b)  __builtin_mpl_vector_rshlq_u32v4(a, b)
+
+uint64x1_t __builtin_mpl_vector_rshl_u64v1(uint64x1_t a, int64x1_t b);
+#define vrshl_u64(a, b)  __builtin_mpl_vector_rshl_u64v1(a, b)
+
+uint64x2_t __builtin_mpl_vector_rshlq_u64v2(uint64x2_t a, int64x2_t b);
+#define vrshlq_u64(a, b)  __builtin_mpl_vector_rshlq_u64v2(a, b)
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vrshld_s64(int64_t a, int64_t b) {
+  return vget_lane_s64(vrshl_s64((int64x1_t){a}, (int64x1_t){b}), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vrshld_u64(uint64_t a, uint64_t b) {
+  return vget_lane_u64(vrshl_u64((uint64x1_t){a}, (uint64x1_t){b}), 0);
+}
+
+int8x8_t __builtin_mpl_vector_qrshl_i8v8(int8x8_t a, int8x8_t b);
+#define vqrshl_s8(a, b)  __builtin_mpl_vector_qrshl_i8v8(a, b)
+
+int8x16_t __builtin_mpl_vector_qrshlq_i8v16(int8x16_t a, int8x16_t b);
+#define vqrshlq_s8(a, b)  __builtin_mpl_vector_qrshlq_i8v16(a, b)
+
+int16x4_t __builtin_mpl_vector_qrshl_i16v4(int16x4_t a, int16x4_t b);
+#define vqrshl_s16(a, b)  __builtin_mpl_vector_qrshl_i16v4(a, b)
+
+int16x8_t __builtin_mpl_vector_qrshlq_i16v8(int16x8_t a, int16x8_t b);
+#define vqrshlq_s16(a, b)  __builtin_mpl_vector_qrshlq_i16v8(a, b)
+
+int32x2_t __builtin_mpl_vector_qrshl_i32v2(int32x2_t a, int32x2_t b);
+#define vqrshl_s32(a, b)  __builtin_mpl_vector_qrshl_i32v2(a, b)
+
+int32x4_t __builtin_mpl_vector_qrshlq_i32v4(int32x4_t a, int32x4_t b);
+#define vqrshlq_s32(a, b)  __builtin_mpl_vector_qrshlq_i32v4(a, b)
+
+int64x1_t __builtin_mpl_vector_qrshl_i64v1(int64x1_t a, int64x1_t b);
+#define vqrshl_s64(a, b)  __builtin_mpl_vector_qrshl_i64v1(a, b)
+
+int64x2_t __builtin_mpl_vector_qrshlq_i64v2(int64x2_t a, int64x2_t b);
+#define vqrshlq_s64(a, b)  __builtin_mpl_vector_qrshlq_i64v2(a, b)
+
+uint8x8_t __builtin_mpl_vector_qrshl_u8v8(uint8x8_t a, int8x8_t b);
+#define vqrshl_u8(a, b)  __builtin_mpl_vector_qrshl_u8v8(a, b)
+
+uint8x16_t __builtin_mpl_vector_qrshlq_u8v16(uint8x16_t a, int8x16_t b);
+#define vqrshlq_u8(a, b)  __builtin_mpl_vector_qrshlq_u8v16(a, b)
+
+uint16x4_t __builtin_mpl_vector_qrshl_u16v4(uint16x4_t a, int16x4_t b);
+#define vqrshl_u16(a, b)  __builtin_mpl_vector_qrshl_u16v4(a, b)
+
+uint16x8_t __builtin_mpl_vector_qrshlq_u16v8(uint16x8_t a, int16x8_t b);
+#define vqrshlq_u16(a, b)  __builtin_mpl_vector_qrshlq_u16v8(a, b)
+
+uint32x2_t __builtin_mpl_vector_qrshl_u32v2(uint32x2_t a, int32x2_t b);
+#define vqrshl_u32(a, b)  __builtin_mpl_vector_qrshl_u32v2(a, b)
+
+uint32x4_t __builtin_mpl_vector_qrshlq_u32v4(uint32x4_t a, int32x4_t b);
+#define vqrshlq_u32(a, b)  __builtin_mpl_vector_qrshlq_u32v4(a, b)
+
+uint64x1_t __builtin_mpl_vector_qrshl_u64v1(uint64x1_t a, int64x1_t b);
+#define vqrshl_u64(a, b)  __builtin_mpl_vector_qrshl_u64v1(a, b)
+
+uint64x2_t __builtin_mpl_vector_qrshlq_u64v2(uint64x2_t a, int64x2_t b);
+#define vqrshlq_u64(a, b)  __builtin_mpl_vector_qrshlq_u64v2(a, b)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshlb_s8(int8_t a, int8_t b) {
+  return vget_lane_s8(vqrshl_s8((int8x8_t){a}, (int8x8_t){b}), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshlh_s16(int16_t a, int16_t b) {
+  return vget_lane_s16(vqrshl_s16((int16x4_t){a}, (int16x4_t){b}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshls_s32(int32_t a, int32_t b) {
+  return vget_lane_s32(vqrshl_s32((int32x2_t){a}, (int32x2_t){b}), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshld_s64(int64_t a, int64_t b) {
+  return vget_lane_s64(vqrshl_s64((int64x1_t){a}, (int64x1_t){b}), 0);
+}
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshlb_u8(uint8_t a, int8_t b) {
+  return vget_lane_u8(vqrshl_u8((uint8x8_t){a}, (int8x8_t){b}), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshlh_u16(uint16_t a, int16_t b) {
+  return vget_lane_u16(vqrshl_u16((uint16x4_t){a}, (int16x4_t){b}), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshls_u32(uint32_t a, int32_t b) {
+  return vget_lane_u32(vqrshl_u32((uint32x2_t){a}, (int32x2_t){b}), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshld_u64(uint64_t a, int64_t b) {
+  return vget_lane_u64(vqrshl_u64((uint64x1_t){a}, (int64x1_t){b}), 0);
+}
+
+int16x8_t __builtin_mpl_vector_shll_n_i16v8(int8x8_t a, const int n);
+#define vshll_n_s8(a, n)  __builtin_mpl_vector_shll_n_i16v8(a, n)
+
+int32x4_t __builtin_mpl_vector_shll_n_i32v4(int16x4_t a, const int n);
+#define vshll_n_s16(a, n)  __builtin_mpl_vector_shll_n_i32v4(a, n)
+
+int64x2_t __builtin_mpl_vector_shll_n_i64v2(int32x2_t a, const int n);
+#define vshll_n_s32(a, n)  __builtin_mpl_vector_shll_n_i64v2(a, n)
+
+uint16x8_t __builtin_mpl_vector_shll_n_u16v8(uint8x8_t a, const int n);
+#define vshll_n_u8(a, n)  __builtin_mpl_vector_shll_n_u16v8(a, n)
+
+uint32x4_t __builtin_mpl_vector_shll_n_u32v4(uint16x4_t a, const int n);
+#define vshll_n_u16(a, n)  __builtin_mpl_vector_shll_n_u32v4(a, n)
+
+uint64x2_t __builtin_mpl_vector_shll_n_u64v2(uint32x2_t a, const int n);
+#define vshll_n_u32(a, n)  __builtin_mpl_vector_shll_n_u64v2(a, n)
+
+int16x8_t __builtin_mpl_vector_shll_high_n_i16v8(int8x16_t a, const int n);
+#define vshll_high_n_s8(a, n)  __builtin_mpl_vector_shll_high_n_i16v8(a, n)
+
+int32x4_t __builtin_mpl_vector_shll_high_n_i32v4(int16x8_t a, const int n);
+#define vshll_high_n_s16(a, n)  __builtin_mpl_vector_shll_high_n_i32v4(a, n)
+
+int64x2_t __builtin_mpl_vector_shll_high_n_i64v2(int32x4_t a, const int n);
+#define vshll_high_n_s32(a, n)  __builtin_mpl_vector_shll_high_n_i64v2(a, n)
+
+uint16x8_t __builtin_mpl_vector_shll_high_n_u16v8(uint8x16_t a, const int n);
+#define vshll_high_n_u8(a, n)  __builtin_mpl_vector_shll_high_n_u16v8(a, n)
+
+uint32x4_t __builtin_mpl_vector_shll_high_n_u32v4(uint16x8_t a, const int n);
+#define vshll_high_n_u16(a, n)  __builtin_mpl_vector_shll_high_n_u32v4(a, n)
+
+uint64x2_t __builtin_mpl_vector_shll_high_n_u64v2(uint32x4_t a, const int n);
+#define vshll_high_n_u32(a, n)  __builtin_mpl_vector_shll_high_n_u64v2(a, n)
+
+int8x8_t __builtin_mpl_vector_sli_n_i8v8(int8x8_t a, int8x8_t b, const int n);
+#define vsli_n_s8(a, b, n)  __builtin_mpl_vector_sli_n_i8v8(a, b, n)
+
+int8x16_t __builtin_mpl_vector_sliq_n_i8v16(int8x16_t a, int8x16_t b, const int n);
+#define vsliq_n_s8(a, b, n)  __builtin_mpl_vector_sliq_n_i8v16(a, b, n)
+
+int16x4_t __builtin_mpl_vector_sli_n_i16v4(int16x4_t a, int16x4_t b, const int n);
+#define vsli_n_s16(a, b, n)  __builtin_mpl_vector_sli_n_i16v4(a, b, n)
+
+int16x8_t __builtin_mpl_vector_sliq_n_i16v8(int16x8_t a, int16x8_t b, const int n);
+#define vsliq_n_s16(a, b, n)  __builtin_mpl_vector_sliq_n_i16v8(a, b, n)
+
+int32x2_t __builtin_mpl_vector_sli_n_i32v2(int32x2_t a, int32x2_t b, const int n);
+#define vsli_n_s32(a, b, n)  __builtin_mpl_vector_sli_n_i32v2(a, b, n)
+
+int32x4_t __builtin_mpl_vector_sliq_n_i32v4(int32x4_t a, int32x4_t b, const int n);
+#define vsliq_n_s32(a, b, n)  __builtin_mpl_vector_sliq_n_i32v4(a, b, n)
+
+int64x1_t __builtin_mpl_vector_sli_n_i64v1(int64x1_t a, int64x1_t b, const int n);
+#define vsli_n_s64(a, b, n)  __builtin_mpl_vector_sli_n_i64v1(a, b, n)
+
+int64x2_t __builtin_mpl_vector_sliq_n_i64v2(int64x2_t a, int64x2_t b, const int n);
+#define vsliq_n_s64(a, b, n)  __builtin_mpl_vector_sliq_n_i64v2(a, b, n)
+
+uint8x8_t __builtin_mpl_vector_sli_n_u8v8(uint8x8_t a, uint8x8_t b, const int n);
+#define vsli_n_u8(a, b, n)  __builtin_mpl_vector_sli_n_u8v8(a, b, n)
+
+uint8x16_t __builtin_mpl_vector_sliq_n_u8v16(uint8x16_t a, uint8x16_t b, const int n);
+#define vsliq_n_u8(a, b, n)  __builtin_mpl_vector_sliq_n_u8v16(a, b, n)
+
+uint16x4_t __builtin_mpl_vector_sli_n_u16v4(uint16x4_t a, uint16x4_t b, const int n);
+#define vsli_n_u16(a, b, n)  __builtin_mpl_vector_sli_n_u16v4(a, b, n)
+
+uint16x8_t __builtin_mpl_vector_sliq_n_u16v8(uint16x8_t a, uint16x8_t b, const int n);
+#define vsliq_n_u16(a, b, n)  __builtin_mpl_vector_sliq_n_u16v8(a, b, n)
+
+uint32x2_t __builtin_mpl_vector_sli_n_u32v2(uint32x2_t a, uint32x2_t b, const int n);
+#define vsli_n_u32(a, b, n)  __builtin_mpl_vector_sli_n_u32v2(a, b, n)
+
+uint32x4_t __builtin_mpl_vector_sliq_n_u32v4(uint32x4_t a, uint32x4_t b, const int n);
+#define vsliq_n_u32(a, b, n)  __builtin_mpl_vector_sliq_n_u32v4(a, b, n)
+
+uint64x1_t __builtin_mpl_vector_sli_n_u64v1(uint64x1_t a, uint64x1_t b, const int n);
+#define vsli_n_u64(a, b, n)  __builtin_mpl_vector_sli_n_u64v1(a, b, n)
+
+uint64x2_t __builtin_mpl_vector_sliq_n_u64v2(uint64x2_t a, uint64x2_t b, const int n);
+#define vsliq_n_u64(a, b, n)  __builtin_mpl_vector_sliq_n_u64v2(a, b, n)
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vslid_n_s64(int64_t a, int64_t b, const int n) {
+  return vget_lane_s64(vsli_n_s64((int64x1_t){a}, (int64x1_t){b}, n), 0);
+}
+
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vslid_n_u64(uint64_t a, uint64_t b, const int n) {
+  return vget_lane_u64(vsli_n_u64((uint64x1_t){a}, (uint64x1_t){b}, n), 0);
+}
+
+int8x8_t __builtin_mpl_vector_rshr_n_i8v8(int8x8_t a, const int n);
+#define vrshr_n_s8(a, n)  __builtin_mpl_vector_rshr_n_i8v8(a, n)
+
+int8x16_t __builtin_mpl_vector_rshrq_n_i8v16(int8x16_t a, const int n);
+#define vrshrq_n_s8(a, n)  __builtin_mpl_vector_rshrq_n_i8v16(a, n)
+
+int16x4_t __builtin_mpl_vector_rshr_n_i16v4(int16x4_t a, const int n);
+#define vrshr_n_s16(a, n)  __builtin_mpl_vector_rshr_n_i16v4(a, n)
+
+int16x8_t __builtin_mpl_vector_rshrq_n_i16v8(int16x8_t a, const int n);
+#define vrshrq_n_s16(a, n)  __builtin_mpl_vector_rshrq_n_i16v8(a, n)
+
+int32x2_t __builtin_mpl_vector_rshr_n_i32v2(int32x2_t a, const int n);
+#define vrshr_n_s32(a, n)  __builtin_mpl_vector_rshr_n_i32v2(a, n)
+
+int32x4_t __builtin_mpl_vector_rshrq_n_i32v4(int32x4_t a, const int n);
+#define vrshrq_n_s32(a, n)  __builtin_mpl_vector_rshrq_n_i32v4(a, n)
+
+int64x2_t __builtin_mpl_vector_rshrq_n_i64v2(int64x2_t a, const int n);
+#define vrshrq_n_s64(a, n)  __builtin_mpl_vector_rshrq_n_i64v2(a, n)
+
+uint8x8_t __builtin_mpl_vector_rshr_n_u8v8(uint8x8_t a, const int n);
+#define vrshr_n_u8(a, n)  __builtin_mpl_vector_rshr_n_u8v8(a, n)
+
+uint8x16_t __builtin_mpl_vector_rshrq_n_u8v16(uint8x16_t a, const int n);
+#define vrshrq_n_u8(a, n)  __builtin_mpl_vector_rshrq_n_u8v16(a, n)
+
+uint16x4_t __builtin_mpl_vector_rshr_n_u16v4(uint16x4_t a, const int n);
+#define vrshr_n_u16(a, n)  __builtin_mpl_vector_rshr_n_u16v4(a, n)
+
+uint16x8_t __builtin_mpl_vector_rshrq_n_u16v8(uint16x8_t a, const int n);
+#define vrshrq_n_u16(a, n)  __builtin_mpl_vector_rshrq_n_u16v8(a, n)
+
+uint32x2_t __builtin_mpl_vector_rshr_n_u32v2(uint32x2_t a, const int n);
+#define vrshr_n_u32(a, n)  __builtin_mpl_vector_rshr_n_u32v2(a, n)
+
+uint32x4_t __builtin_mpl_vector_rshrq_n_u32v4(uint32x4_t a, const int n);
+#define vrshrq_n_u32(a, n)  __builtin_mpl_vector_rshrq_n_u32v4(a, n)
+
+uint64x2_t __builtin_mpl_vector_rshrq_n_u64v2(uint64x2_t a, const int n);
+#define vrshrq_n_u64(a, n)  __builtin_mpl_vector_rshrq_n_u64v2(a, n)
+
+int64x1_t __builtin_mpl_vector_rshrd_n_i64(int64x1_t a, const int n);
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vrshrd_n_s64(int64_t a, const int n) {
+  return vget_lane_s64(__builtin_mpl_vector_rshrd_n_i64((int64x1_t){a}, n), 0);
+}
+
+uint64x1_t __builtin_mpl_vector_rshrd_n_u64(uint64x1_t a, const int n);
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vrshrd_n_u64(uint64_t a, const int n) {
+  return vget_lane_u64(__builtin_mpl_vector_rshrd_n_u64((uint64x1_t){a}, n), 0);
+}
+
+int8x8_t __builtin_mpl_vector_sra_n_i8v8(int8x8_t a, int8x8_t b, const int n);
+#define vsra_n_s8(a, b, n)  __builtin_mpl_vector_sra_n_i8v8(a, b, n)
+
+int8x16_t __builtin_mpl_vector_sraq_n_i8v16(int8x16_t a, int8x16_t b, const int n);
+#define vsraq_n_s8(a, b, n)  __builtin_mpl_vector_sraq_n_i8v16(a, b, n)
+
+int16x4_t __builtin_mpl_vector_sra_n_i16v4(int16x4_t a, int16x4_t b, const int n);
+#define vsra_n_s16(a, b, n)  __builtin_mpl_vector_sra_n_i16v4(a, b, n)
+
+int16x8_t __builtin_mpl_vector_sraq_n_i16v8(int16x8_t a, int16x8_t b, const int n);
+#define vsraq_n_s16(a, b, n)  __builtin_mpl_vector_sraq_n_i16v8(a, b, n)
+
+int32x2_t __builtin_mpl_vector_sra_n_i32v2(int32x2_t a, int32x2_t b, const int n);
+#define vsra_n_s32(a, b, n)  __builtin_mpl_vector_sra_n_i32v2(a, b, n)
+
+int32x4_t __builtin_mpl_vector_sraq_n_i32v4(int32x4_t a, int32x4_t b, const int n);
+#define vsraq_n_s32(a, b, n)  __builtin_mpl_vector_sraq_n_i32v4(a, b, n)
+
+int64x2_t __builtin_mpl_vector_sraq_n_i64v2(int64x2_t a, int64x2_t b, const int n);
+#define vsraq_n_s64(a, b, n)  __builtin_mpl_vector_sraq_n_i64v2(a, b, n)
+
+uint8x8_t __builtin_mpl_vector_sra_n_u8v8(uint8x8_t a, uint8x8_t b, const int n);
+#define vsra_n_u8(a, b, n)  __builtin_mpl_vector_sra_n_u8v8(a, b, n)
+
+uint8x16_t __builtin_mpl_vector_sraq_n_u8v16(uint8x16_t a, uint8x16_t b, const int n);
+#define vsraq_n_u8(a, b, n)  __builtin_mpl_vector_sraq_n_u8v16(a, b, n)
+
+uint16x4_t __builtin_mpl_vector_sra_n_u16v4(uint16x4_t a, uint16x4_t b, const int n);
+#define vsra_n_u16(a, b, n)  __builtin_mpl_vector_sra_n_u16v4(a, b, n)
+
+uint16x8_t __builtin_mpl_vector_sraq_n_u16v8(uint16x8_t a, uint16x8_t b, const int n);
+#define vsraq_n_u16(a, b, n)  __builtin_mpl_vector_sraq_n_u16v8(a, b, n)
+
+uint32x2_t __builtin_mpl_vector_sra_n_u32v2(uint32x2_t a, uint32x2_t b, const int n);
+#define vsra_n_u32(a, b, n)  __builtin_mpl_vector_sra_n_u32v2(a, b, n)
+
+uint32x4_t __builtin_mpl_vector_sraq_n_u32v4(uint32x4_t a, uint32x4_t b, const int n);
+#define vsraq_n_u32(a, b, n)  __builtin_mpl_vector_sraq_n_u32v4(a, b, n)
+
+uint64x2_t __builtin_mpl_vector_sraq_n_u64v2(uint64x2_t a, uint64x2_t b, const int n);
+#define vsraq_n_u64(a, b, n)  __builtin_mpl_vector_sraq_n_u64v2(a, b, n)
+
+int64x1_t __builtin_mpl_vector_srad_n_i64(int64x1_t a, int64x1_t b, const int n);
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vsrad_n_s64(int64_t a, int64_t b, const int n) {
+  return vget_lane_s64(__builtin_mpl_vector_srad_n_i64((int64x1_t){a}, (int64x1_t){b}, n), 0);
+}
+
+uint64x1_t __builtin_mpl_vector_srad_n_u64(uint64x1_t a, uint64x1_t b, const int n);
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vsrad_n_u64(uint64_t a, uint64_t b, const int n) {
+  return vget_lane_u64(__builtin_mpl_vector_srad_n_u64((uint64x1_t){a}, (uint64x1_t){b}, n), 0);
+}
+
+int8x8_t __builtin_mpl_vector_rsra_n_i8v8(int8x8_t a, int8x8_t b, const int n);
+#define vrsra_n_s8(a, b, n)  __builtin_mpl_vector_rsra_n_i8v8(a, b, n)
+
+int8x16_t __builtin_mpl_vector_rsraq_n_i8v16(int8x16_t a, int8x16_t b, const int n);
+#define vrsraq_n_s8(a, b, n)  __builtin_mpl_vector_rsraq_n_i8v16(a, b, n)
+
+int16x4_t __builtin_mpl_vector_rsra_n_i16v4(int16x4_t a, int16x4_t b, const int n);
+#define vrsra_n_s16(a, b, n)  __builtin_mpl_vector_rsra_n_i16v4(a, b, n)
+
+int16x8_t __builtin_mpl_vector_rsraq_n_i16v8(int16x8_t a, int16x8_t b, const int n);
+#define vrsraq_n_s16(a, b, n)  __builtin_mpl_vector_rsraq_n_i16v8(a, b, n)
+
+int32x2_t __builtin_mpl_vector_rsra_n_i32v2(int32x2_t a, int32x2_t b, const int n);
+#define vrsra_n_s32(a, b, n)  __builtin_mpl_vector_rsra_n_i32v2(a, b, n)
+
+int32x4_t __builtin_mpl_vector_rsraq_n_i32v4(int32x4_t a, int32x4_t b, const int n);
+#define vrsraq_n_s32(a, b, n)  __builtin_mpl_vector_rsraq_n_i32v4(a, b, n)
+
+int64x2_t __builtin_mpl_vector_rsraq_n_i64v2(int64x2_t a, int64x2_t b, const int n);
+#define vrsraq_n_s64(a, b, n)  __builtin_mpl_vector_rsraq_n_i64v2(a, b, n)
+
+uint8x8_t __builtin_mpl_vector_rsra_n_u8v8(uint8x8_t a, uint8x8_t b, const int n);
+#define vrsra_n_u8(a, b, n)  __builtin_mpl_vector_rsra_n_u8v8(a, b, n)
+
+uint8x16_t __builtin_mpl_vector_rsraq_n_u8v16(uint8x16_t a, uint8x16_t b, const int n);
+#define vrsraq_n_u8(a, b, n)  __builtin_mpl_vector_rsraq_n_u8v16(a, b, n)
+
+uint16x4_t __builtin_mpl_vector_rsra_n_u16v4(uint16x4_t a, uint16x4_t b, const int n);
+#define vrsra_n_u16(a, b, n)  __builtin_mpl_vector_rsra_n_u16v4(a, b, n)
+
+uint16x8_t __builtin_mpl_vector_rsraq_n_u16v8(uint16x8_t a, uint16x8_t b, const int n);
+#define vrsraq_n_u16(a, b, n)  __builtin_mpl_vector_rsraq_n_u16v8(a, b, n)
+
+uint32x2_t __builtin_mpl_vector_rsra_n_u32v2(uint32x2_t a, uint32x2_t b, const int n);
+#define vrsra_n_u32(a, b, n)  __builtin_mpl_vector_rsra_n_u32v2(a, b, n)
+
+uint32x4_t __builtin_mpl_vector_rsraq_n_u32v4(uint32x4_t a, uint32x4_t b, const int n);
+#define vrsraq_n_u32(a, b, n)  __builtin_mpl_vector_rsraq_n_u32v4(a, b, n)
+
+uint64x2_t __builtin_mpl_vector_rsraq_n_u64v2(uint64x2_t a, uint64x2_t b, const int n);
+#define vrsraq_n_u64(a, b, n)  __builtin_mpl_vector_rsraq_n_u64v2(a, b, n)
+
+int64x1_t __builtin_mpl_vector_rsrad_n_i64(int64x1_t a, int64x1_t b, const int n);
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vrsrad_n_s64(int64_t a, int64_t b, const int n) {
+  return vget_lane_s64(__builtin_mpl_vector_rsrad_n_i64((int64x1_t){a}, (int64x1_t){b}, n), 0);
+}
+
+uint64x1_t __builtin_mpl_vector_rsrad_n_u64(uint64x1_t a, uint64x1_t b, const int n);
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vrsrad_n_u64(uint64_t a, uint64_t b, const int n) {
+  return vget_lane_u64(__builtin_mpl_vector_rsrad_n_u64((uint64x1_t){a}, (uint64x1_t){b}, n), 0);
+}
+
+int8x8_t __builtin_mpl_vector_shrn_n_i8v8(int16x8_t a, const int n);
+#define vshrn_n_s16(a, n)  __builtin_mpl_vector_shrn_n_i8v8(a, n)
+
+int16x4_t __builtin_mpl_vector_shrn_n_i16v4(int32x4_t a, const int n);
+#define vshrn_n_s32(a, n)  __builtin_mpl_vector_shrn_n_i16v4(a, n)
+
+int32x2_t __builtin_mpl_vector_shrn_n_i32v2(int64x2_t a, const int n);
+#define vshrn_n_s64(a, n)  __builtin_mpl_vector_shrn_n_i32v2(a, n)
+
+uint8x8_t __builtin_mpl_vector_shrn_n_u8v8(uint16x8_t a, const int n);
+#define vshrn_n_u16(a, n)  __builtin_mpl_vector_shrn_n_u8v8(a, n)
+
+uint16x4_t __builtin_mpl_vector_shrn_n_u16v4(uint32x4_t a, const int n);
+#define vshrn_n_u32(a, n)  __builtin_mpl_vector_shrn_n_u16v4(a, n)
+
+uint32x2_t __builtin_mpl_vector_shrn_n_u32v2(uint64x2_t a, const int n);
+#define vshrn_n_u64(a, n)  __builtin_mpl_vector_shrn_n_u32v2(a, n)
+
+int8x16_t __builtin_mpl_vector_shrn_high_n_i8v16(int8x8_t r, int16x8_t a, const int n);
+#define vshrn_high_n_s16(r, a, n)  __builtin_mpl_vector_shrn_high_n_i8v16(r, a, n)
+
+int16x8_t __builtin_mpl_vector_shrn_high_n_i16v8(int16x4_t r, int32x4_t a, const int n);
+#define vshrn_high_n_s32(r, a, n)  __builtin_mpl_vector_shrn_high_n_i16v8(r, a, n)
+
+int32x4_t __builtin_mpl_vector_shrn_high_n_i32v4(int32x2_t r, int64x2_t a, const int n);
+#define vshrn_high_n_s64(r, a, n)  __builtin_mpl_vector_shrn_high_n_i32v4(r, a, n)
+
+uint8x16_t __builtin_mpl_vector_shrn_high_n_u8v16(uint8x8_t r, uint16x8_t a, const int n);
+#define vshrn_high_n_u16(r, a, n)  __builtin_mpl_vector_shrn_high_n_u8v16(r, a, n)
+
+uint16x8_t __builtin_mpl_vector_shrn_high_n_u16v8(uint16x4_t r, uint32x4_t a, const int n);
+#define vshrn_high_n_u32(r, a, n)  __builtin_mpl_vector_shrn_high_n_u16v8(r, a, n)
+
+uint32x4_t __builtin_mpl_vector_shrn_high_n_u32v4(uint32x2_t r, uint64x2_t a, const int n);
+#define vshrn_high_n_u64(r, a, n)  __builtin_mpl_vector_shrn_high_n_u32v4(r, a, n)
+
+uint8x8_t __builtin_mpl_vector_qshrun_n_u8v8(int16x8_t a, const int n);
+#define vqshrun_n_s16(a, n)  __builtin_mpl_vector_qshrun_n_u8v8(a, n)
+
+uint16x4_t __builtin_mpl_vector_qshrun_n_u16v4(int32x4_t a, const int n);
+#define vqshrun_n_s32(a, n)  __builtin_mpl_vector_qshrun_n_u16v4(a, n)
+
+uint32x2_t __builtin_mpl_vector_qshrun_n_u32v2(int64x2_t a, const int n);
+#define vqshrun_n_s64(a, n)  __builtin_mpl_vector_qshrun_n_u32v2(a, n)
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshrunh_n_s16(int16_t a, const int n) {
+  return vget_lane_u8(vqshrun_n_s16((int16x8_t){a}, n), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshruns_n_s32(int32_t a, const int n) {
+  return vget_lane_u16(vqshrun_n_s32((int32x4_t){a}, n), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshrund_n_s64(int64_t a, const int n) {
+  return vget_lane_u32(vqshrun_n_s64((int64x2_t){a}, n), 0);
+}
+
+uint8x16_t __builtin_mpl_vector_qshrun_high_n_u8v16(uint8x8_t r, int16x8_t a, const int n);
+#define vqshrun_high_n_s16(r, a, n)  __builtin_mpl_vector_qshrun_high_n_u8v16(r, a, n)
+
+uint16x8_t __builtin_mpl_vector_qshrun_high_n_u16v8(uint16x4_t r, int32x4_t a, const int n);
+#define vqshrun_high_n_s32(r, a, n)  __builtin_mpl_vector_qshrun_high_n_u16v8(r, a, n)
+
+uint32x4_t __builtin_mpl_vector_qshrun_high_n_u32v4(uint32x2_t r, int64x2_t a, const int n);
+#define vqshrun_high_n_s64(r, a, n)  __builtin_mpl_vector_qshrun_high_n_u32v4(r, a, n)
+
+int8x8_t __builtin_mpl_vector_qshrn_n_i8v8(int16x8_t a, const int n);
+#define vqshrn_n_s16(a, n)  __builtin_mpl_vector_qshrn_n_i8v8(a, n)
+
+int16x4_t __builtin_mpl_vector_qshrn_n_i16v4(int32x4_t a, const int n);
+#define vqshrn_n_s32(a, n)  __builtin_mpl_vector_qshrn_n_i16v4(a, n)
+
+int32x2_t __builtin_mpl_vector_qshrn_n_i32v2(int64x2_t a, const int n);
+#define vqshrn_n_s64(a, n)  __builtin_mpl_vector_qshrn_n_i32v2(a, n)
+
+uint8x8_t __builtin_mpl_vector_qshrn_n_u8v8(uint16x8_t a, const int n);
+#define vqshrn_n_u16(a, n)  __builtin_mpl_vector_qshrn_n_u8v8(a, n)
+
+uint16x4_t __builtin_mpl_vector_qshrn_n_u16v4(uint32x4_t a, const int n);
+#define vqshrn_n_u32(a, n)  __builtin_mpl_vector_qshrn_n_u16v4(a, n)
+
+uint32x2_t __builtin_mpl_vector_qshrn_n_u32v2(uint64x2_t a, const int n);
+#define vqshrn_n_u64(a, n)  __builtin_mpl_vector_qshrn_n_u32v2(a, n)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshrnh_n_s16(int16_t a, const int n) {
+  return vget_lane_s8(vqshrn_n_s16((int16x8_t){a}, n), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshrns_n_s32(int32_t a, const int n) {
+  return vget_lane_s16(vqshrn_n_s32((int32x4_t){a}, n), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshrnd_n_s64(int64_t a, const int n) {
+  return vget_lane_s32(vqshrn_n_s64((int64x2_t){a}, n), 0);
+}
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshrnh_n_u16(uint16_t a, const int n) {
+  return vget_lane_u8(vqshrn_n_u16((uint16x8_t){a}, n), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshrns_n_u32(uint32_t a, const int n) {
+  return vget_lane_u16(vqshrn_n_u32((uint32x4_t){a}, n), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqshrnd_n_u64(uint64_t a, const int n) {
+  return vget_lane_u32(vqshrn_n_u64((uint64x2_t){a}, n), 0);
+}
+
+int8x16_t __builtin_mpl_vector_qshrn_high_n_i8v16(int8x8_t r, int16x8_t a, const int n);
+#define vqshrn_high_n_s16(r, a, n)  __builtin_mpl_vector_qshrn_high_n_i8v16(r, a, n)
+
+int16x8_t __builtin_mpl_vector_qshrn_high_n_i16v8(int16x4_t r, int32x4_t a, const int n);
+#define vqshrn_high_n_s32(r, a, n)  __builtin_mpl_vector_qshrn_high_n_i16v8(r, a, n)
+
+int32x4_t __builtin_mpl_vector_qshrn_high_n_i32v4(int32x2_t r, int64x2_t a, const int n);
+#define vqshrn_high_n_s64(r, a, n)  __builtin_mpl_vector_qshrn_high_n_i32v4(r, a, n)
+
+uint8x16_t __builtin_mpl_vector_qshrn_high_n_u8v16(uint8x8_t r, uint16x8_t a, const int n);
+#define vqshrn_high_n_u16(r, a, n)  __builtin_mpl_vector_qshrn_high_n_u8v16(r, a, n)
+
+uint16x8_t __builtin_mpl_vector_qshrn_high_n_u16v8(uint16x4_t r, uint32x4_t a, const int n);
+#define vqshrn_high_n_u32(r, a, n)  __builtin_mpl_vector_qshrn_high_n_u16v8(r, a, n)
+
+uint32x4_t __builtin_mpl_vector_qshrn_high_n_u32v4(uint32x2_t r, uint64x2_t a, const int n);
+#define vqshrn_high_n_u64(r, a, n)  __builtin_mpl_vector_qshrn_high_n_u32v4(r, a, n)
+
+uint8x8_t __builtin_mpl_vector_qrshrun_n_u8v8(int16x8_t a, const int n);
+#define vqrshrun_n_s16(a, n)  __builtin_mpl_vector_qrshrun_n_u8v8(a, n)
+
+uint16x4_t __builtin_mpl_vector_qrshrun_n_u16v4(int32x4_t a, const int n);
+#define vqrshrun_n_s32(a, n)  __builtin_mpl_vector_qrshrun_n_u16v4(a, n)
+
+uint32x2_t __builtin_mpl_vector_qrshrun_n_u32v2(int64x2_t a, const int n);
+#define vqrshrun_n_s64(a, n)  __builtin_mpl_vector_qrshrun_n_u32v2(a, n)
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshrunh_n_s16(int16_t a, const int n) {
+  return vget_lane_u8(vqrshrun_n_s16((int16x8_t){a}, n), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshruns_n_s32(int32_t a, const int n) {
+  return vget_lane_u16(vqrshrun_n_s32((int32x4_t){a}, n), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshrund_n_s64(int64_t a, const int n) {
+  return vget_lane_u32(vqrshrun_n_s64((int64x2_t){a}, n), 0);
+}
+
+uint8x16_t __builtin_mpl_vector_qrshrun_high_n_u8v16(uint8x8_t r, int16x8_t a, const int n);
+#define vqrshrun_high_n_s16(r, a, n)  __builtin_mpl_vector_qrshrun_high_n_u8v16(r, a, n)
+
+uint16x8_t __builtin_mpl_vector_qrshrun_high_n_u16v8(uint16x4_t r, int32x4_t a, const int n);
+#define vqrshrun_high_n_s32(r, a, n)  __builtin_mpl_vector_qrshrun_high_n_u16v8(r, a, n)
+
+uint32x4_t __builtin_mpl_vector_qrshrun_high_n_u32v4(uint32x2_t r, int64x2_t a, const int n);
+#define vqrshrun_high_n_s64(r, a, n)  __builtin_mpl_vector_qrshrun_high_n_u32v4(r, a, n)
+
+int8x8_t __builtin_mpl_vector_qrshrn_n_i8v8(int16x8_t a, const int n);
+#define vqrshrn_n_s16(a, n)  __builtin_mpl_vector_qrshrn_n_i8v8(a, n)
+
+int16x4_t __builtin_mpl_vector_qrshrn_n_i16v4(int32x4_t a, const int n);
+#define vqrshrn_n_s32(a, n)  __builtin_mpl_vector_qrshrn_n_i16v4(a, n)
+
+int32x2_t __builtin_mpl_vector_qrshrn_n_i32v2(int64x2_t a, const int n);
+#define vqrshrn_n_s64(a, n)  __builtin_mpl_vector_qrshrn_n_i32v2(a, n)
+
+uint8x8_t __builtin_mpl_vector_qrshrn_n_u8v8(uint16x8_t a, const int n);
+#define vqrshrn_n_u16(a, n)  __builtin_mpl_vector_qrshrn_n_u8v8(a, n)
+
+uint16x4_t __builtin_mpl_vector_qrshrn_n_u16v4(uint32x4_t a, const int n);
+#define vqrshrn_n_u32(a, n)  __builtin_mpl_vector_qrshrn_n_u16v4(a, n)
+
+uint32x2_t __builtin_mpl_vector_qrshrn_n_u32v2(uint64x2_t a, const int n);
+#define vqrshrn_n_u64(a, n)  __builtin_mpl_vector_qrshrn_n_u32v2(a, n)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshrnh_n_s16(int16_t a, const int n) {
+  return vget_lane_s8(vqrshrn_n_s16((int16x8_t){a}, n), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshrns_n_s32(int32_t a, const int n) {
+  return vget_lane_s16(vqrshrn_n_s32((int32x4_t){a}, n), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshrnd_n_s64(int64_t a, const int n) {
+  return vget_lane_s32(vqrshrn_n_s64((int64x2_t){a}, n), 0);
+}
+
+static inline uint8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshrnh_n_u16(uint16_t a, const int n) {
+  return vget_lane_u8(vqrshrn_n_u16((uint16x8_t){a}, n), 0);
+}
+
+static inline uint16_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshrns_n_u32(uint32_t a, const int n) {
+  return vget_lane_u16(vqrshrn_n_u32((uint32x4_t){a}, n), 0);
+}
+
+static inline uint32_t __attribute__ ((__always_inline__, __gnu_inline__))
+vqrshrnd_n_u64(uint64_t a, const int n) {
+  return vget_lane_u32(vqrshrn_n_u64((uint64x2_t){a}, n), 0);
+}
+
+int8x16_t __builtin_mpl_vector_qrshrn_high_n_i8v16(int8x8_t r, int16x8_t a, const int n);
+#define vqrshrn_high_n_s16(r, a, n)  __builtin_mpl_vector_qrshrn_high_n_i8v16(r, a, n)
+
+int16x8_t __builtin_mpl_vector_qrshrn_high_n_i16v8(int16x4_t r, int32x4_t a, const int n);
+#define vqrshrn_high_n_s32(r, a, n)  __builtin_mpl_vector_qrshrn_high_n_i16v8(r, a, n)
+
+int32x4_t __builtin_mpl_vector_qrshrn_high_n_i32v4(int32x2_t r, int64x2_t a, const int n);
+#define vqrshrn_high_n_s64(r, a, n)  __builtin_mpl_vector_qrshrn_high_n_i32v4(r, a, n)
+
+uint8x16_t __builtin_mpl_vector_qrshrn_high_n_u8v16(uint8x8_t r, uint16x8_t a, const int n);
+#define vqrshrn_high_n_u16(r, a, n)  __builtin_mpl_vector_qrshrn_high_n_u8v16(r, a, n)
+
+uint16x8_t __builtin_mpl_vector_qrshrn_high_n_u16v8(uint16x4_t r, uint32x4_t a, const int n);
+#define vqrshrn_high_n_u32(r, a, n)  __builtin_mpl_vector_qrshrn_high_n_u16v8(r, a, n)
+
+uint32x4_t __builtin_mpl_vector_qrshrn_high_n_u32v4(uint32x2_t r, uint64x2_t a, const int n);
+#define vqrshrn_high_n_u64(r, a, n)  __builtin_mpl_vector_qrshrn_high_n_u32v4(r, a, n)
+
+int8x8_t __builtin_mpl_vector_rshrn_n_i8v8(int16x8_t a, const int n);
+#define vrshrn_n_s16(a, n)  __builtin_mpl_vector_rshrn_n_i8v8(a, n)
+
+int16x4_t __builtin_mpl_vector_rshrn_n_i16v4(int32x4_t a, const int n);
+#define vrshrn_n_s32(a, n)  __builtin_mpl_vector_rshrn_n_i16v4(a, n)
+
+int32x2_t __builtin_mpl_vector_rshrn_n_i32v2(int64x2_t a, const int n);
+#define vrshrn_n_s64(a, n)  __builtin_mpl_vector_rshrn_n_i32v2(a, n)
+
+uint8x8_t __builtin_mpl_vector_rshrn_n_u8v8(uint16x8_t a, const int n);
+#define vrshrn_n_u16(a, n)  __builtin_mpl_vector_rshrn_n_u8v8(a, n)
+
+uint16x4_t __builtin_mpl_vector_rshrn_n_u16v4(uint32x4_t a, const int n);
+#define vrshrn_n_u32(a, n)  __builtin_mpl_vector_rshrn_n_u16v4(a, n)
+
+uint32x2_t __builtin_mpl_vector_rshrn_n_u32v2(uint64x2_t a, const int n);
+#define vrshrn_n_u64(a, n)  __builtin_mpl_vector_rshrn_n_u32v2(a, n)
+
+int8x16_t __builtin_mpl_vector_rshrn_high_n_i8v16(int8x8_t r, int16x8_t a, const int n);
+#define vrshrn_high_n_s16(r, a, n)  __builtin_mpl_vector_rshrn_high_n_i8v16(r, a, n)
+
+int16x8_t __builtin_mpl_vector_rshrn_high_n_i16v8(int16x4_t r, int32x4_t a, const int n);
+#define vrshrn_high_n_s32(r, a, n)  __builtin_mpl_vector_rshrn_high_n_i16v8(r, a, n)
+
+int32x4_t __builtin_mpl_vector_rshrn_high_n_i32v4(int32x2_t r, int64x2_t a, const int n);
+#define vrshrn_high_n_s64(r, a, n)  __builtin_mpl_vector_rshrn_high_n_i32v4(r, a, n)
+
+uint8x16_t __builtin_mpl_vector_rshrn_high_n_u8v16(uint8x8_t r, uint16x8_t a, const int n);
+#define vrshrn_high_n_u16(r, a, n)  __builtin_mpl_vector_rshrn_high_n_u8v16(r, a, n)
+
+uint16x8_t __builtin_mpl_vector_rshrn_high_n_u16v8(uint16x4_t r, uint32x4_t a, const int n);
+#define vrshrn_high_n_u32(r, a, n)  __builtin_mpl_vector_rshrn_high_n_u16v8(r, a, n)
+
+uint32x4_t __builtin_mpl_vector_rshrn_high_n_u32v4(uint32x2_t r, uint64x2_t a, const int n);
+#define vrshrn_high_n_u64(r, a, n)  __builtin_mpl_vector_rshrn_high_n_u32v4(r, a, n)
+
+int8x8_t __builtin_mpl_vector_sri_n_i8v8(int8x8_t a, int8x8_t b, const int n);
+#define vsri_n_s8(a, b, n)  __builtin_mpl_vector_sri_n_i8v8(a, b, n)
+
+int8x16_t __builtin_mpl_vector_sriq_n_i8v16(int8x16_t a, int8x16_t b, const int n);
+#define vsriq_n_s8(a, b, n)  __builtin_mpl_vector_sriq_n_i8v16(a, b, n)
+
+int16x4_t __builtin_mpl_vector_sri_n_i16v4(int16x4_t a, int16x4_t b, const int n);
+#define vsri_n_s16(a, b, n)  __builtin_mpl_vector_sri_n_i16v4(a, b, n)
+
+int16x8_t __builtin_mpl_vector_sriq_n_i16v8(int16x8_t a, int16x8_t b, const int n);
+#define vsriq_n_s16(a, b, n)  __builtin_mpl_vector_sriq_n_i16v8(a, b, n)
+
+int32x2_t __builtin_mpl_vector_sri_n_i32v2(int32x2_t a, int32x2_t b, const int n);
+#define vsri_n_s32(a, b, n)  __builtin_mpl_vector_sri_n_i32v2(a, b, n)
+
+int32x4_t __builtin_mpl_vector_sriq_n_i32v4(int32x4_t a, int32x4_t b, const int n);
+#define vsriq_n_s32(a, b, n)  __builtin_mpl_vector_sriq_n_i32v4(a, b, n)
+
+int64x2_t __builtin_mpl_vector_sriq_n_i64v2(int64x2_t a, int64x2_t b, const int n);
+#define vsriq_n_s64(a, b, n)  __builtin_mpl_vector_sriq_n_i64v2(a, b, n)
+
+uint8x8_t __builtin_mpl_vector_sri_n_u8v8(uint8x8_t a, uint8x8_t b, const int n);
+#define vsri_n_u8(a, b, n)  __builtin_mpl_vector_sri_n_u8v8(a, b, n)
+
+uint8x16_t __builtin_mpl_vector_sriq_n_u8v16(uint8x16_t a, uint8x16_t b, const int n);
+#define vsriq_n_u8(a, b, n)  __builtin_mpl_vector_sriq_n_u8v16(a, b, n)
+
+uint16x4_t __builtin_mpl_vector_sri_n_u16v4(uint16x4_t a, uint16x4_t b, const int n);
+#define vsri_n_u16(a, b, n)  __builtin_mpl_vector_sri_n_u16v4(a, b, n)
+
+uint16x8_t __builtin_mpl_vector_sriq_n_u16v8(uint16x8_t a, uint16x8_t b, const int n);
+#define vsriq_n_u16(a, b, n)  __builtin_mpl_vector_sriq_n_u16v8(a, b, n)
+
+uint32x2_t __builtin_mpl_vector_sri_n_u32v2(uint32x2_t a, uint32x2_t b, const int n);
+#define vsri_n_u32(a, b, n)  __builtin_mpl_vector_sri_n_u32v2(a, b, n)
+
+uint32x4_t __builtin_mpl_vector_sriq_n_u32v4(uint32x4_t a, uint32x4_t b, const int n);
+#define vsriq_n_u32(a, b, n)  __builtin_mpl_vector_sriq_n_u32v4(a, b, n)
+
+uint64x2_t __builtin_mpl_vector_sriq_n_u64v2(uint64x2_t a, uint64x2_t b, const int n);
+#define vsriq_n_u64(a, b, n)  __builtin_mpl_vector_sriq_n_u64v2(a, b, n)
+
+int64x1_t __builtin_mpl_vector_srid_n_i64(int64x1_t a, int64x1_t b, const int n);
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vsrid_n_s64(int64_t a, int64_t b, const int n) {
+  return vget_lane_s64(__builtin_mpl_vector_srid_n_i64((int64x1_t){a}, (int64x1_t){b}, n), 0);
+}
+
+uint64x1_t __builtin_mpl_vector_srid_n_u64(uint64x1_t a, uint64x1_t b, const int n);
+static inline uint64_t __attribute__ ((__always_inline__, __gnu_inline__))
+vsrid_n_u64(uint64_t a, uint64_t b, const int n) {
+  return vget_lane_u64(__builtin_mpl_vector_srid_n_u64((uint64x1_t){a}, (uint64x1_t){b}, n), 0);
+}
+
+int16x4_t __builtin_mpl_vector_mla_lane_i16v4(int16x4_t a, int16x4_t b, int16x4_t v, const int lane);
+#define vmla_lane_s16(a, b, v, lane)  __builtin_mpl_vector_mla_lane_i16v4(a, b, v, lane)
+
+int16x8_t __builtin_mpl_vector_mlaq_lane_i16v8(int16x8_t a, int16x8_t b, int16x4_t v, const int lane);
+#define vmlaq_lane_s16(a, b, v, lane)  __builtin_mpl_vector_mlaq_lane_i16v8(a, b, v, lane)
+
+int32x2_t __builtin_mpl_vector_mla_lane_i32v2(int32x2_t a, int32x2_t b, int32x2_t v, const int lane);
+#define vmla_lane_s32(a, b, v, lane)  __builtin_mpl_vector_mla_lane_i32v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlaq_lane_i32v4(int32x4_t a, int32x4_t b, int32x2_t v, const int lane);
+#define vmlaq_lane_s32(a, b, v, lane)  __builtin_mpl_vector_mlaq_lane_i32v4(a, b, v, lane)
+
+uint16x4_t __builtin_mpl_vector_mla_lane_u16v4(uint16x4_t a, uint16x4_t b, uint16x4_t v, const int lane);
+#define vmla_lane_u16(a, b, v, lane)  __builtin_mpl_vector_mla_lane_u16v4(a, b, v, lane)
+
+uint16x8_t __builtin_mpl_vector_mlaq_lane_u16v8(uint16x8_t a, uint16x8_t b, uint16x4_t v, const int lane);
+#define vmlaq_lane_u16(a, b, v, lane)  __builtin_mpl_vector_mlaq_lane_u16v8(a, b, v, lane)
+
+uint32x2_t __builtin_mpl_vector_mla_lane_u32v2(uint32x2_t a, uint32x2_t b, uint32x2_t v, const int lane);
+#define vmla_lane_u32(a, b, v, lane)  __builtin_mpl_vector_mla_lane_u32v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlaq_lane_u32v4(uint32x4_t a, uint32x4_t b, uint32x2_t v, const int lane);
+#define vmlaq_lane_u32(a, b, v, lane)  __builtin_mpl_vector_mlaq_lane_u32v4(a, b, v, lane)
+
+int16x4_t __builtin_mpl_vector_mla_laneq_i16v4(int16x4_t a, int16x4_t b, int16x8_t v, const int lane);
+#define vmla_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_mla_laneq_i16v4(a, b, v, lane)
+
+int16x8_t __builtin_mpl_vector_mlaq_laneq_i16v8(int16x8_t a, int16x8_t b, int16x8_t v, const int lane);
+#define vmlaq_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_mlaq_laneq_i16v8(a, b, v, lane)
+
+int32x2_t __builtin_mpl_vector_mla_laneq_i32v2(int32x2_t a, int32x2_t b, int32x4_t v, const int lane);
+#define vmla_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_mla_laneq_i32v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlaq_laneq_i32v4(int32x4_t a, int32x4_t b, int32x4_t v, const int lane);
+#define vmlaq_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_mlaq_laneq_i32v4(a, b, v, lane)
+
+uint16x4_t __builtin_mpl_vector_mla_laneq_u16v4(uint16x4_t a, uint16x4_t b, uint16x8_t v, const int lane);
+#define vmla_laneq_u16(a, b, v, lane)  __builtin_mpl_vector_mla_laneq_u16v4(a, b, v, lane)
+
+uint16x8_t __builtin_mpl_vector_mlaq_laneq_u16v8(uint16x8_t a, uint16x8_t b, uint16x8_t v, const int lane);
+#define vmlaq_laneq_u16(a, b, v, lane)  __builtin_mpl_vector_mlaq_laneq_u16v8(a, b, v, lane)
+
+uint32x2_t __builtin_mpl_vector_mla_laneq_u32v2(uint32x2_t a, uint32x2_t b, uint32x4_t v, const int lane);
+#define vmla_laneq_u32(a, b, v, lane)  __builtin_mpl_vector_mla_laneq_u32v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlaq_laneq_u32v4(uint32x4_t a, uint32x4_t b, uint32x4_t v, const int lane);
+#define vmlaq_laneq_u32(a, b, v, lane)  __builtin_mpl_vector_mlaq_laneq_u32v4(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlal_lane_i32v4(int32x4_t a, int16x4_t b, int16x4_t v, const int lane);
+#define vmlal_lane_s16(a, b, v, lane)  __builtin_mpl_vector_mlal_lane_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_mlal_lane_i64v2(int64x2_t a, int32x2_t b, int32x2_t v, const int lane);
+#define vmlal_lane_s32(a, b, v, lane)  __builtin_mpl_vector_mlal_lane_i64v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlal_lane_u32v4(uint32x4_t a, uint16x4_t b, uint16x4_t v, const int lane);
+#define vmlal_lane_u16(a, b, v, lane)  __builtin_mpl_vector_mlal_lane_u32v4(a, b, v, lane)
+
+uint64x2_t __builtin_mpl_vector_mlal_lane_u64v2(uint64x2_t a, uint32x2_t b, uint32x2_t v, const int lane);
+#define vmlal_lane_u32(a, b, v, lane)  __builtin_mpl_vector_mlal_lane_u64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlal_high_lane_i32v4(int32x4_t a, int16x8_t b, int16x4_t v, const int lane);
+#define vmlal_high_lane_s16(a, b, v, lane)  __builtin_mpl_vector_mlal_high_lane_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_mlal_high_lane_i64v2(int64x2_t a, int32x4_t b, int32x2_t v, const int lane);
+#define vmlal_high_lane_s32(a, b, v, lane)  __builtin_mpl_vector_mlal_high_lane_i64v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlal_high_lane_u32v4(uint32x4_t a, uint16x8_t b, uint16x4_t v, const int lane);
+#define vmlal_high_lane_u16(a, b, v, lane)  __builtin_mpl_vector_mlal_high_lane_u32v4(a, b, v, lane)
+
+uint64x2_t __builtin_mpl_vector_mlal_high_lane_u64v2(uint64x2_t a, uint32x4_t b, uint32x2_t v, const int lane);
+#define vmlal_high_lane_u32(a, b, v, lane)  __builtin_mpl_vector_mlal_high_lane_u64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlal_laneq_i32v4(int32x4_t a, int16x4_t b, int16x8_t v, const int lane);
+#define vmlal_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_mlal_laneq_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_mlal_laneq_i64v2(int64x2_t a, int32x2_t b, int32x4_t v, const int lane);
+#define vmlal_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_mlal_laneq_i64v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlal_laneq_u32v4(uint32x4_t a, uint16x4_t b, uint16x8_t v, const int lane);
+#define vmlal_laneq_u16(a, b, v, lane)  __builtin_mpl_vector_mlal_laneq_u32v4(a, b, v, lane)
+
+uint64x2_t __builtin_mpl_vector_mlal_laneq_u64v2(uint64x2_t a, uint32x2_t b, uint32x4_t v, const int lane);
+#define vmlal_laneq_u32(a, b, v, lane)  __builtin_mpl_vector_mlal_laneq_u64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlal_high_laneq_i32v4(int32x4_t a, int16x8_t b, int16x8_t v, const int lane);
+#define vmlal_high_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_mlal_high_laneq_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_mlal_high_laneq_i64v2(int64x2_t a, int32x4_t b, int32x4_t v, const int lane);
+#define vmlal_high_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_mlal_high_laneq_i64v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlal_high_laneq_u32v4(uint32x4_t a, uint16x8_t b, uint16x8_t v, const int lane);
+#define vmlal_high_laneq_u16(a, b, v, lane)  __builtin_mpl_vector_mlal_high_laneq_u32v4(a, b, v, lane)
+
+uint64x2_t __builtin_mpl_vector_mlal_high_laneq_u64v2(uint64x2_t a, uint32x4_t b, uint32x4_t v, const int lane);
+#define vmlal_high_laneq_u32(a, b, v, lane)  __builtin_mpl_vector_mlal_high_laneq_u64v2(a, b, v, lane)
+
+int16x4_t __builtin_mpl_vector_mla_n_i16v4(int16x4_t a, int16x4_t b, int16x4_t c);
+static inline int16x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmla_n_s16(int16x4_t a, int16x4_t b, int16_t c) {
+  return __builtin_mpl_vector_mla_n_i16v4(a, b, (int16x4_t){c});
+}
+
+int16x8_t __builtin_mpl_vector_mlaq_n_i16v8(int16x8_t a, int16x8_t b, int16x8_t c);
+static inline int16x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlaq_n_s16(int16x8_t a, int16x8_t b, int16_t c) {
+  return __builtin_mpl_vector_mlaq_n_i16v8(a, b, (int16x8_t){c});
+}
+
+int32x2_t __builtin_mpl_vector_mla_n_i32v2(int32x2_t a, int32x2_t b, int32x2_t c);
+static inline int32x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmla_n_s32(int32x2_t a, int32x2_t b, int32_t c) {
+  return __builtin_mpl_vector_mla_n_i32v2(a, b, (int32x2_t){c});
+}
+
+int32x4_t __builtin_mpl_vector_mlaq_n_i32v4(int32x4_t a, int32x4_t b, int32x4_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlaq_n_s32(int32x4_t a, int32x4_t b, int32_t c) {
+  return __builtin_mpl_vector_mlaq_n_i32v4(a, b, (int32x4_t){c});
+}
+
+uint16x4_t __builtin_mpl_vector_mla_n_u16v4(uint16x4_t a, uint16x4_t b, uint16x4_t c);
+static inline uint16x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmla_n_u16(uint16x4_t a, uint16x4_t b, uint16_t c) {
+  return __builtin_mpl_vector_mla_n_u16v4(a, b, (uint16x4_t){c});
+}
+
+uint16x8_t __builtin_mpl_vector_mlaq_n_u16v8(uint16x8_t a, uint16x8_t b, uint16x8_t c);
+static inline uint16x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlaq_n_u16(uint16x8_t a, uint16x8_t b, uint16_t c) {
+  return __builtin_mpl_vector_mlaq_n_u16v8(a, b, (uint16x8_t){c});
+}
+
+uint32x2_t __builtin_mpl_vector_mla_n_u32v2(uint32x2_t a, uint32x2_t b, uint32x2_t c);
+static inline uint32x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmla_n_u32(uint32x2_t a, uint32x2_t b, uint32_t c) {
+  return __builtin_mpl_vector_mla_n_u32v2(a, b, (uint32x2_t){c});
+}
+
+uint32x4_t __builtin_mpl_vector_mlaq_n_u32v4(uint32x4_t a, uint32x4_t b, uint32x4_t c);
+static inline uint32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlaq_n_u32(uint32x4_t a, uint32x4_t b, uint32_t c) {
+  return __builtin_mpl_vector_mlaq_n_u32v4(a, b, (uint32x4_t){c});
+}
+
+int16x4_t __builtin_mpl_vector_mls_lane_i16v4(int16x4_t a, int16x4_t b, int16x4_t v, const int lane);
+#define vmls_lane_s16(a, b, v, lane)  __builtin_mpl_vector_mls_lane_i16v4(a, b, v, lane)
+
+int16x8_t __builtin_mpl_vector_mlsq_lane_i16v8(int16x8_t a, int16x8_t b, int16x4_t v, const int lane);
+#define vmlsq_lane_s16(a, b, v, lane)  __builtin_mpl_vector_mlsq_lane_i16v8(a, b, v, lane)
+
+int32x2_t __builtin_mpl_vector_mls_lane_i32v2(int32x2_t a, int32x2_t b, int32x2_t v, const int lane);
+#define vmls_lane_s32(a, b, v, lane)  __builtin_mpl_vector_mls_lane_i32v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlsq_lane_i32v4(int32x4_t a, int32x4_t b, int32x2_t v, const int lane);
+#define vmlsq_lane_s32(a, b, v, lane)  __builtin_mpl_vector_mlsq_lane_i32v4(a, b, v, lane)
+
+uint16x4_t __builtin_mpl_vector_mls_lane_u16v4(uint16x4_t a, uint16x4_t b, uint16x4_t v, const int lane);
+#define vmls_lane_u16(a, b, v, lane)  __builtin_mpl_vector_mls_lane_u16v4(a, b, v, lane)
+
+uint16x8_t __builtin_mpl_vector_mlsq_lane_u16v8(uint16x8_t a, uint16x8_t b, uint16x4_t v, const int lane);
+#define vmlsq_lane_u16(a, b, v, lane)  __builtin_mpl_vector_mlsq_lane_u16v8(a, b, v, lane)
+
+uint32x2_t __builtin_mpl_vector_mls_lane_u32v2(uint32x2_t a, uint32x2_t b, uint32x2_t v, const int lane);
+#define vmls_lane_u32(a, b, v, lane)  __builtin_mpl_vector_mls_lane_u32v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlsq_lane_u32v4(uint32x4_t a, uint32x4_t b, uint32x2_t v, const int lane);
+#define vmlsq_lane_u32(a, b, v, lane)  __builtin_mpl_vector_mlsq_lane_u32v4(a, b, v, lane)
+
+int16x4_t __builtin_mpl_vector_mls_laneq_i16v4(int16x4_t a, int16x4_t b, int16x8_t v, const int lane);
+#define vmls_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_mls_laneq_i16v4(a, b, v, lane)
+
+int16x8_t __builtin_mpl_vector_mlsq_laneq_i16v8(int16x8_t a, int16x8_t b, int16x8_t v, const int lane);
+#define vmlsq_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_mlsq_laneq_i16v8(a, b, v, lane)
+
+int32x2_t __builtin_mpl_vector_mls_laneq_i32v2(int32x2_t a, int32x2_t b, int32x4_t v, const int lane);
+#define vmls_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_mls_laneq_i32v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlsq_laneq_i32v4(int32x4_t a, int32x4_t b, int32x4_t v, const int lane);
+#define vmlsq_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_mlsq_laneq_i32v4(a, b, v, lane)
+
+uint16x4_t __builtin_mpl_vector_mls_laneq_u16v4(uint16x4_t a, uint16x4_t b, uint16x8_t v, const int lane);
+#define vmls_laneq_u16(a, b, v, lane)  __builtin_mpl_vector_mls_laneq_u16v4(a, b, v, lane)
+
+uint16x8_t __builtin_mpl_vector_mlsq_laneq_u16v8(uint16x8_t a, uint16x8_t b, uint16x8_t v, const int lane);
+#define vmlsq_laneq_u16(a, b, v, lane)  __builtin_mpl_vector_mlsq_laneq_u16v8(a, b, v, lane)
+
+uint32x2_t __builtin_mpl_vector_mls_laneq_u32v2(uint32x2_t a, uint32x2_t b, uint32x4_t v, const int lane);
+#define vmls_laneq_u32(a, b, v, lane)  __builtin_mpl_vector_mls_laneq_u32v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlsq_laneq_u32v4(uint32x4_t a, uint32x4_t b, uint32x4_t v, const int lane);
+#define vmlsq_laneq_u32(a, b, v, lane)  __builtin_mpl_vector_mlsq_laneq_u32v4(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlsl_lane_i32v4(int32x4_t a, int16x4_t b, int16x4_t v, const int lane);
+#define vmlsl_lane_s16(a, b, v, lane)  __builtin_mpl_vector_mlsl_lane_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_mlsl_lane_i64v2(int64x2_t a, int32x2_t b, int32x2_t v, const int lane);
+#define vmlsl_lane_s32(a, b, v, lane)  __builtin_mpl_vector_mlsl_lane_i64v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlsl_lane_u32v4(uint32x4_t a, uint16x4_t b, uint16x4_t v, const int lane);
+#define vmlsl_lane_u16(a, b, v, lane)  __builtin_mpl_vector_mlsl_lane_u32v4(a, b, v, lane)
+
+uint64x2_t __builtin_mpl_vector_mlsl_lane_u64v2(uint64x2_t a, uint32x2_t b, uint32x2_t v, const int lane);
+#define vmlsl_lane_u32(a, b, v, lane)  __builtin_mpl_vector_mlsl_lane_u64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlsl_high_lane_i32v4(int32x4_t a, int16x8_t b, int16x4_t v, const int lane);
+#define vmlsl_high_lane_s16(a, b, v, lane)  __builtin_mpl_vector_mlsl_high_lane_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_mlsl_high_lane_i64v2(int64x2_t a, int32x4_t b, int32x2_t v, const int lane);
+#define vmlsl_high_lane_s32(a, b, v, lane)  __builtin_mpl_vector_mlsl_high_lane_i64v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlsl_high_lane_u32v4(uint32x4_t a, uint16x8_t b, uint16x4_t v, const int lane);
+#define vmlsl_high_lane_u16(a, b, v, lane)  __builtin_mpl_vector_mlsl_high_lane_u32v4(a, b, v, lane)
+
+uint64x2_t __builtin_mpl_vector_mlsl_high_lane_u64v2(uint64x2_t a, uint32x4_t b, uint32x2_t v, const int lane);
+#define vmlsl_high_lane_u32(a, b, v, lane)  __builtin_mpl_vector_mlsl_high_lane_u64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlsl_laneq_i32v4(int32x4_t a, int16x4_t b, int16x8_t v, const int lane);
+#define vmlsl_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_mlsl_laneq_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_mlsl_laneq_i64v2(int64x2_t a, int32x2_t b, int32x4_t v, const int lane);
+#define vmlsl_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_mlsl_laneq_i64v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlsl_laneq_u32v4(uint32x4_t a, uint16x4_t b, uint16x8_t v, const int lane);
+#define vmlsl_laneq_u16(a, b, v, lane)  __builtin_mpl_vector_mlsl_laneq_u32v4(a, b, v, lane)
+
+uint64x2_t __builtin_mpl_vector_mlsl_laneq_u64v2(uint64x2_t a, uint32x2_t b, uint32x4_t v, const int lane);
+#define vmlsl_laneq_u32(a, b, v, lane)  __builtin_mpl_vector_mlsl_laneq_u64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlsl_high_laneq_i32v4(int32x4_t a, int16x8_t b, int16x8_t v, const int lane);
+#define vmlsl_high_laneq_s16(a, b, v, lane)  __builtin_mpl_vector_mlsl_high_laneq_i32v4(a, b, v, lane)
+
+int64x2_t __builtin_mpl_vector_mlsl_high_laneq_i64v2(int64x2_t a, int32x4_t b, int32x4_t v, const int lane);
+#define vmlsl_high_laneq_s32(a, b, v, lane)  __builtin_mpl_vector_mlsl_high_laneq_i64v2(a, b, v, lane)
+
+uint32x4_t __builtin_mpl_vector_mlsl_high_laneq_u32v4(uint32x4_t a, uint16x8_t b, uint16x8_t v, const int lane);
+#define vmlsl_high_laneq_u16(a, b, v, lane)  __builtin_mpl_vector_mlsl_high_laneq_u32v4(a, b, v, lane)
+
+uint64x2_t __builtin_mpl_vector_mlsl_high_laneq_u64v2(uint64x2_t a, uint32x4_t b, uint32x4_t v, const int lane);
+#define vmlsl_high_laneq_u32(a, b, v, lane)  __builtin_mpl_vector_mlsl_high_laneq_u64v2(a, b, v, lane)
+
+int32x4_t __builtin_mpl_vector_mlal_n_i32v4(int32x4_t a, int16x4_t b, int16x4_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlal_n_s16(int32x4_t a, int16x4_t b, int16_t c) {
+  return __builtin_mpl_vector_mlal_n_i32v4(a, b, (int16x4_t){c});
+}
+
+int64x2_t __builtin_mpl_vector_mlal_n_i64v2(int64x2_t a, int32x2_t b, int32x2_t c);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlal_n_s32(int64x2_t a, int32x2_t b, int32_t c) {
+  return __builtin_mpl_vector_mlal_n_i64v2(a, b, (int32x2_t){c});
+}
+
+uint32x4_t __builtin_mpl_vector_mlal_n_u32v4(uint32x4_t a, uint16x4_t b, uint16x4_t c);
+static inline uint32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlal_n_u16(uint32x4_t a, uint16x4_t b, uint16_t c) {
+  return __builtin_mpl_vector_mlal_n_u32v4(a, b, (uint16x4_t){c});
+}
+
+uint64x2_t __builtin_mpl_vector_mlal_n_u64v2(uint64x2_t a, uint32x2_t b, uint32x2_t c);
+static inline uint64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlal_n_u32(uint64x2_t a, uint32x2_t b, uint32_t c) {
+  return __builtin_mpl_vector_mlal_n_u64v2(a, b, (uint32x2_t){c});
+}
+
+int32x4_t __builtin_mpl_vector_mlal_high_n_i32v4(int32x4_t a, int16x8_t b, int16x8_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlal_high_n_s16(int32x4_t a, int16x8_t b, int16_t c) {
+  return __builtin_mpl_vector_mlal_high_n_i32v4(a, b, (int16x8_t){c});
+}
+
+int64x2_t __builtin_mpl_vector_mlal_high_n_i64v2(int64x2_t a, int32x4_t b, int32x4_t c);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlal_high_n_s32(int64x2_t a, int32x4_t b, int32_t c) {
+  return __builtin_mpl_vector_mlal_high_n_i64v2(a, b, (int32x4_t){c});
+}
+
+uint32x4_t __builtin_mpl_vector_mlal_high_n_u32v4(uint32x4_t a, uint16x8_t b, uint16x8_t c);
+static inline uint32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlal_high_n_u16(uint32x4_t a, uint16x8_t b, uint16_t c) {
+  return __builtin_mpl_vector_mlal_high_n_u32v4(a, b, (uint16x8_t){c});
+}
+
+uint64x2_t __builtin_mpl_vector_mlal_high_n_u64v2(uint64x2_t a, uint32x4_t b, uint32x4_t c);
+static inline uint64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlal_high_n_u32(uint64x2_t a, uint32x4_t b, uint32_t c) {
+  return __builtin_mpl_vector_mlal_high_n_u64v2(a, b, (uint32x4_t){c});
+}
+
+int16x4_t __builtin_mpl_vector_mls_n_i16v4(int16x4_t a, int16x4_t b, int16x4_t c);
+static inline int16x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmls_n_s16(int16x4_t a, int16x4_t b, int16_t c) {
+  return __builtin_mpl_vector_mls_n_i16v4(a, b, (int16x4_t){c});
+}
+
+int16x8_t __builtin_mpl_vector_mlsq_n_i16v8(int16x8_t a, int16x8_t b, int16x8_t c);
+static inline int16x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsq_n_s16(int16x8_t a, int16x8_t b, int16_t c) {
+  return __builtin_mpl_vector_mlsq_n_i16v8(a, b, (int16x8_t){c});
+}
+
+int32x2_t __builtin_mpl_vector_mls_n_i32v2(int32x2_t a, int32x2_t b, int32x2_t c);
+static inline int32x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmls_n_s32(int32x2_t a, int32x2_t b, int32_t c) {
+  return __builtin_mpl_vector_mls_n_i32v2(a, b, (int32x2_t){c});
+}
+
+int32x4_t __builtin_mpl_vector_mlsq_n_i32v4(int32x4_t a, int32x4_t b, int32x4_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsq_n_s32(int32x4_t a, int32x4_t b, int32_t c) {
+  return __builtin_mpl_vector_mlsq_n_i32v4(a, b, (int32x4_t){c});
+}
+
+uint16x4_t __builtin_mpl_vector_mls_n_u16v4(uint16x4_t a, uint16x4_t b, uint16x4_t c);
+static inline uint16x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmls_n_u16(uint16x4_t a, uint16x4_t b, uint16_t c) {
+  return __builtin_mpl_vector_mls_n_u16v4(a, b, (uint16x4_t){c});
+}
+
+uint16x8_t __builtin_mpl_vector_mlsq_n_u16v8(uint16x8_t a, uint16x8_t b, uint16x8_t c);
+static inline uint16x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsq_n_u16(uint16x8_t a, uint16x8_t b, uint16_t c) {
+  return __builtin_mpl_vector_mlsq_n_u16v8(a, b, (uint16x8_t){c});
+}
+
+uint32x2_t __builtin_mpl_vector_mls_n_u32v2(uint32x2_t a, uint32x2_t b, uint32x2_t c);
+static inline uint32x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmls_n_u32(uint32x2_t a, uint32x2_t b, uint32_t c) {
+  return __builtin_mpl_vector_mls_n_u32v2(a, b, (uint32x2_t){c});
+}
+
+uint32x4_t __builtin_mpl_vector_mlsq_n_u32v4(uint32x4_t a, uint32x4_t b, uint32x4_t c);
+static inline uint32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsq_n_u32(uint32x4_t a, uint32x4_t b, uint32_t c) {
+  return __builtin_mpl_vector_mlsq_n_u32v4(a, b, (uint32x4_t){c});
+}
+
+int32x4_t __builtin_mpl_vector_mlsl_n_i32v4(int32x4_t a, int16x4_t b, int16x4_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsl_n_s16(int32x4_t a, int16x4_t b, int16_t c) {
+  return __builtin_mpl_vector_mlsl_n_i32v4(a, b, (int16x4_t){c});
+}
+
+int64x2_t __builtin_mpl_vector_mlsl_n_i64v2(int64x2_t a, int32x2_t b, int32x2_t c);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsl_n_s32(int64x2_t a, int32x2_t b, int32_t c) {
+  return __builtin_mpl_vector_mlsl_n_i64v2(a, b, (int32x2_t){c});
+}
+
+uint32x4_t __builtin_mpl_vector_mlsl_n_u32v4(uint32x4_t a, uint16x4_t b, uint16x4_t c);
+static inline uint32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsl_n_u16(uint32x4_t a, uint16x4_t b, uint16_t c) {
+  return __builtin_mpl_vector_mlsl_n_u32v4(a, b, (uint16x4_t){c});
+}
+
+uint64x2_t __builtin_mpl_vector_mlsl_n_u64v2(uint64x2_t a, uint32x2_t b, uint32x2_t c);
+static inline uint64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsl_n_u32(uint64x2_t a, uint32x2_t b, uint32_t c) {
+  return __builtin_mpl_vector_mlsl_n_u64v2(a, b, (uint32x2_t){c});
+}
+
+int32x4_t __builtin_mpl_vector_mlsl_high_n_i32v4(int32x4_t a, int16x8_t b, int16x8_t c);
+static inline int32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsl_high_n_s16(int32x4_t a, int16x8_t b, int16_t c) {
+  return __builtin_mpl_vector_mlsl_high_n_i32v4(a, b, (int16x8_t){c});
+}
+
+int64x2_t __builtin_mpl_vector_mlsl_high_n_i64v2(int64x2_t a, int32x4_t b, int32x4_t c);
+static inline int64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsl_high_n_s32(int64x2_t a, int32x4_t b, int32_t c) {
+  return __builtin_mpl_vector_mlsl_high_n_i64v2(a, b, (int32x4_t){c});
+}
+
+uint32x4_t __builtin_mpl_vector_mlsl_high_n_u32v4(uint32x4_t a, uint16x8_t b, uint16x8_t c);
+static inline uint32x4_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsl_high_n_u16(uint32x4_t a, uint16x8_t b, uint16_t c) {
+  return __builtin_mpl_vector_mlsl_high_n_u32v4(a, b, (uint16x8_t){c});
+}
+
+uint64x2_t __builtin_mpl_vector_mlsl_high_n_u64v2(uint64x2_t a, uint32x4_t b, uint32x4_t c);
+static inline uint64x2_t __attribute__ ((__always_inline__, __gnu_inline__))
+vmlsl_high_n_u32(uint64x2_t a, uint32x4_t b, uint32_t c) {
+  return __builtin_mpl_vector_mlsl_high_n_u64v2(a, b, (uint32x4_t){c});
+}
+
+int8x8_t __builtin_mpl_vector_qneg_i8v8(int8x8_t a);
+#define vqneg_s8(a)  __builtin_mpl_vector_qneg_i8v8(a)
+
+int8x16_t __builtin_mpl_vector_qnegq_i8v16(int8x16_t a);
+#define vqnegq_s8(a)  __builtin_mpl_vector_qnegq_i8v16(a)
+
+int16x4_t __builtin_mpl_vector_qneg_i16v4(int16x4_t a);
+#define vqneg_s16(a)  __builtin_mpl_vector_qneg_i16v4(a)
+
+int16x8_t __builtin_mpl_vector_qnegq_i16v8(int16x8_t a);
+#define vqnegq_s16(a)  __builtin_mpl_vector_qnegq_i16v8(a)
+
+int32x2_t __builtin_mpl_vector_qneg_i32v2(int32x2_t a);
+#define vqneg_s32(a)  __builtin_mpl_vector_qneg_i32v2(a)
+
+int32x4_t __builtin_mpl_vector_qnegq_i32v4(int32x4_t a);
+#define vqnegq_s32(a)  __builtin_mpl_vector_qnegq_i32v4(a)
+
+int64x1_t __builtin_mpl_vector_qneg_i64v1(int64x1_t a);
+#define vqneg_s64(a)  __builtin_mpl_vector_qneg_i64v1(a)
+
+int64x2_t __builtin_mpl_vector_qnegq_i64v2(int64x2_t a);
+#define vqnegq_s64(a)  __builtin_mpl_vector_qnegq_i64v2(a)
+
+static inline int8_t __attribute__ ((__always_inline__, __gnu_inline__)) vqnegb_s8(int8_t a) {
+  return vget_lane_s8(vqneg_s8((int8x8_t){a}), 0);
+}
+
+static inline int16_t __attribute__ ((__always_inline__, __gnu_inline__)) vqnegh_s16(int16_t a) {
+  return vget_lane_s16(vqneg_s16((int16x4_t){a}), 0);
+}
+
+static inline int32_t __attribute__ ((__always_inline__, __gnu_inline__)) vqnegs_s32(int32_t a) {
+  return vget_lane_s32(vqneg_s32((int32x2_t){a}), 0);
+}
+
+static inline int64_t __attribute__ ((__always_inline__, __gnu_inline__)) vqnegd_s64(int64_t a) {
+  return vget_lane_s64(vqneg_s64((int64x1_t){a}), 0);
+}
 
 #endif /* __ARM_NEON_H */

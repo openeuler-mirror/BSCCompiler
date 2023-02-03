@@ -12205,9 +12205,9 @@ RegOperand *AArch64CGFunc::SelectVectorPairwiseAdd(PrimType rType, Operand *src,
   VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>(sType);       /* source operand */
   MOperator mop;
   if (IsUnsignedInteger(sType)) {
-    mop = GetPrimTypeSize(sType) > k8ByteSize ? MOP_vupaddvv : MOP_vupadduu;
+    mop = GetPrimTypeSize(sType) > k8ByteSize ? MOP_vuaddlpvv : MOP_vuaddlpuu;
   } else {
-    mop = GetPrimTypeSize(sType) > k8ByteSize ? MOP_vspaddvv : MOP_vspadduu;
+    mop = GetPrimTypeSize(sType) > k8ByteSize ? MOP_vsaddlpvv : MOP_vsaddlpuu;
   }
 
   auto &vInsn = GetInsnBuilder()->BuildVectorInsn(mop, AArch64CG::kMd[mop]);
@@ -12384,7 +12384,7 @@ void AArch64CGFunc::SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, P
   Insn *insn;
   if (GetPrimTypeSize(rType) > GetPrimTypeSize(oType)) {
     /* expand, similar to vmov_XX() intrinsics */
-    mOp = IsUnsignedInteger(rType) ? MOP_vushllvvi : MOP_vshllvvi;
+    mOp = IsUnsignedInteger(rType) ? MOP_vushllvui : MOP_vshllvui;
     ImmOperand *imm = &CreateImmOperand(0, k8BitSize, true);
     insn = &GetInsnBuilder()->BuildVectorInsn(mOp, AArch64CG::kMd[mOp]);
     (void)insn->AddOpndChain(*res).AddOpndChain(*o1).AddOpndChain(*imm);
