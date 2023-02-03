@@ -207,6 +207,13 @@ Operand *X64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsi
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
+Operand *X64CGFunc::SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+void X64CGFunc::SelectCAtomicClear(const IntrinsiccallNode &intrinsiccallNode) {
+  CHECK_FATAL(false, "NIY");
+}
 void X64CGFunc::SelectMembar(StmtNode &membar) {
   CHECK_FATAL(false, "NIY");
 }

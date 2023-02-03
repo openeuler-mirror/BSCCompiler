@@ -1441,6 +1441,13 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ReturnAddress);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ExtractReturnAddr);
 
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AtomicTestAndSet);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AtomicClear);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AtomicThreadFence);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AtomicSignalFence);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AtomicAlwaysLockFree);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AtomicLockFree);
+
 // vector builtinfunc
 #define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...)         \
 UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;

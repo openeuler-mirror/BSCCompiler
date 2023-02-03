@@ -88,7 +88,14 @@ UniqueFEIRExpr ASTCallExpr::CreateIntrinsicCallAssignedForC(std::list<UniqueFEIR
   std::unique_ptr<FEIRStmtIntrinsicCallAssign> stmt = nullptr;
   UniqueFEIRVar retVar = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *mirType, false);
   if (!args.empty()) {
-    UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
+    UniqueFEIRType type = nullptr;
+    if (argIntrinsicID == INTRN_C___atomic_test_and_set) {
+      MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u8);
+      retVar = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *mirType, false);
+      type = FEIRTypeHelper::CreateTypeNative(*mirType);
+    } else {
+      type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
+    }
     stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(argIntrinsicID, std::move(type), retVar->Clone(),
                                                          std::move(argExprList));
   } else {
@@ -620,6 +627,30 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinExtractReturnAddr(std::list<UniqueFEIRStm
   return CreateIntrinsicopForC(stmts, INTRN_C__builtin_extract_return_addr);
 }
 
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinAtomicTestAndSet(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___atomic_test_and_set);
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinAtomicClear(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___atomic_clear);
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinAtomicThreadFence(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___atomic_thread_fence);
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinAtomicSignalFence(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___atomic_signal_fence);
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinAtomicAlwaysLockFree(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___atomic_always_lock_free);
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinAtomicLockFree(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___atomic_is_lock_free);
+}
+
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinAlloca(std::list<UniqueFEIRStmt> &stmts) const {
   auto arg = args[0]->Emit2FEExpr(stmts);
   CHECK_NULL_FATAL(mirType);
@@ -877,8 +908,8 @@ std::map<std::string, ASTParser::FuncPtrBuiltinFunc> ASTParser::InitBuiltinFuncP
 }
 
 ASTExpr *ASTParser::ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                     std::stringstream &ss) const {
-  return (this->*(builtingFuncPtrMap[ss.str()]))(allocator, expr, ss);
+                                     std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  return (this->*(builtingFuncPtrMap[ss.str()]))(allocator, expr, ss, astCallExpr);
 }
 
 ASTExpr *ASTParser::ProcessBuiltinFuncByName(MapleAllocator &allocator, const clang::CallExpr &expr,
@@ -892,7 +923,8 @@ ASTExpr *ASTParser::ProcessBuiltinFuncByName(MapleAllocator &allocator, const cl
 }
 
 ASTExpr *ASTParser::ParseBuiltinClassifyType(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                             std::stringstream &ss) const {
+                                             std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   (void)ss;
   clang::Expr::EvalResult res;
   bool success = expr.EvaluateAsInt(res, *(astFile->GetContext()));
@@ -905,7 +937,8 @@ ASTExpr *ASTParser::ParseBuiltinClassifyType(MapleAllocator &allocator, const cl
 }
 
 ASTExpr *ASTParser::ParseBuiltinConstantP(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                          std::stringstream &ss) const {
+                                          std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   (void)ss;
   int64 constP = expr.getArg(0)->isConstantInitializer(*astFile->GetNonConstAstContext(), false) ? 1 : 0;
   // Pointers are not considered constant
@@ -920,12 +953,14 @@ ASTExpr *ASTParser::ParseBuiltinConstantP(MapleAllocator &allocator, const clang
 }
 
 ASTExpr *ASTParser::ParseBuiltinSignbit(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                        std::stringstream &ss) const {
+                                        std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbit");
 }
 
 ASTExpr *ASTParser::ParseBuiltinIsinfsign(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                          std::stringstream &ss) const {
+                                          std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   (void)allocator;
   ss.clear();
   ss.str(std::string());
@@ -944,7 +979,8 @@ ASTExpr *ASTParser::ParseBuiltinIsinfsign(MapleAllocator &allocator, const clang
 }
 
 ASTExpr *ASTParser::ParseBuiltinHugeVal(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                        std::stringstream &ss) const {
+                                        std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
@@ -954,7 +990,8 @@ ASTExpr *ASTParser::ParseBuiltinHugeVal(MapleAllocator &allocator, const clang::
 }
 
 ASTExpr *ASTParser::ParseBuiltinHugeValf(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                         std::stringstream &ss) const {
+                                         std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
@@ -964,7 +1001,8 @@ ASTExpr *ASTParser::ParseBuiltinHugeValf(MapleAllocator &allocator, const clang:
 }
 
 ASTExpr *ASTParser::ParseBuiltinInf(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                    std::stringstream &ss) const {
+                                    std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
@@ -974,7 +1012,8 @@ ASTExpr *ASTParser::ParseBuiltinInf(MapleAllocator &allocator, const clang::Call
 }
 
 ASTExpr *ASTParser::ParseBuiltinInff(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                     std::stringstream &ss) const {
+                                     std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
@@ -984,7 +1023,8 @@ ASTExpr *ASTParser::ParseBuiltinInff(MapleAllocator &allocator, const clang::Cal
 }
 
 ASTExpr *ASTParser::ParseBuiltinNan(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                    std::stringstream &ss) const {
+                                    std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
@@ -994,7 +1034,8 @@ ASTExpr *ASTParser::ParseBuiltinNan(MapleAllocator &allocator, const clang::Call
 }
 
 ASTExpr *ASTParser::ParseBuiltinNanf(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                     std::stringstream &ss) const {
+                                     std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   (void)expr;
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
@@ -1004,32 +1045,51 @@ ASTExpr *ASTParser::ParseBuiltinNanf(MapleAllocator &allocator, const clang::Cal
 }
 
 ASTExpr *ASTParser::ParseBuiltinSignBitf(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                         std::stringstream &ss) const {
+                                         std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbitf");
 }
 
 ASTExpr *ASTParser::ParseBuiltinSignBitl(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                         std::stringstream &ss) const {
+                                         std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbitl");
 }
 
 ASTExpr *ASTParser::ParseBuiltinTrap(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                     std::stringstream &ss) const {
+                                     std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   return ProcessBuiltinFuncByName(allocator, expr, ss, "abort");
 }
 
 ASTExpr *ASTParser::ParseBuiltinCopysignf(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                          std::stringstream &ss) const {
+                                          std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   return ProcessBuiltinFuncByName(allocator, expr, ss, "copysignf");
 }
 
 ASTExpr *ASTParser::ParseBuiltinCopysign(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                         std::stringstream &ss) const {
+                                         std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   return ProcessBuiltinFuncByName(allocator, expr, ss, "copysign");
 }
 
 ASTExpr *ASTParser::ParseBuiltinCopysignl(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                          std::stringstream &ss) const {
+                                          std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
   return ProcessBuiltinFuncByName(allocator, expr, ss, "copysignl");
+}
+
+ASTExpr *ASTParser::ParseBuiltinAtomicClear(MapleAllocator &allocator, const clang::CallExpr &expr,
+                                            std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
+  CheckAtomicClearArg(expr);
+  return nullptr;
+}
+
+ASTExpr *ASTParser::ParseBuiltinAtomicTestAndSet(MapleAllocator &allocator, const clang::CallExpr &expr,
+                                                 std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  astCallExpr.SetType(GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u8));
+  return nullptr;
 }
 } // namespace maple

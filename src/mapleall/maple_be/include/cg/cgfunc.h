@@ -261,6 +261,8 @@ class CGFunc {
   virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) = 0;
+  virtual void SelectCAtomicClear(const IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
   virtual void HandleCatch() = 0;

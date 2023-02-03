@@ -2013,6 +2013,26 @@ bool ASTParser::IsNeedGetPointeeType(const clang::FunctionDecl &funcDecl) const 
   return (funcNameStr.find("__sync") != std::string::npos || funcNameStr.find("__atomic") != std::string::npos);
 }
 
+
+void ASTParser::CheckAtomicClearArg(const clang::CallExpr &expr) const {
+  /* get func args(1) to check __atomic_clear memorder value is valid */
+  int val = clang::dyn_cast<const clang::IntegerLiteral>(expr.getArg(1))->getValue().getSExtValue();
+  if (val != __ATOMIC_RELAXED && val != __ATOMIC_SEQ_CST && val != __ATOMIC_RELEASE) {
+    FE_WARN(kLncErr, astFile->GetExprLOC(expr), "invalid memory model for '__atomic_clear'");
+  }
+}
+
+std::string ASTParser::GetFuncNameFromFuncDecl(const clang::FunctionDecl &funcDecl) const {
+  std::string funcName = astFile->GetMangledName(funcDecl);
+  if (funcName.empty()) {
+    return nullptr;
+  }
+  if (!ASTUtil::IsValidName(funcName)) {
+    ASTUtil::AdjustName(funcName);
+  }
+  return funcName;
+}
+
 ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::CallExpr &expr) {
   ASTCallExpr *astCallExpr = ASTDeclsBuilder::ASTExprBuilder<ASTCallExpr>(allocator);
   ASSERT(astCallExpr != nullptr, "astCallExpr is nullptr");
@@ -2044,18 +2064,14 @@ ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::
   astCallExpr->SetArgs(args);
   // Obtain the function name directly
   if (funcDecl != nullptr) {
-    std::string funcName = astFile->GetMangledName(*funcDecl);
+    std::string funcName = GetFuncNameFromFuncDecl(*funcDecl);
     funcName = astCallExpr->CvtBuiltInFuncName(funcName);
-    if (!ASTUtil::IsValidName(funcName)) {
-      ASTUtil::AdjustName(funcName);
-    }
-
     if (builtingFuncPtrMap.find(funcName) != builtingFuncPtrMap.end()) {
       static std::stringstream ss;
       ss.clear();
       ss.str(std::string());
       ss << funcName;
-      ASTExpr *builtinFuncExpr = ParseBuiltinFunc(allocator, expr, ss);
+      ASTExpr *builtinFuncExpr = ParseBuiltinFunc(allocator, expr, ss, *astCallExpr);
       if (builtinFuncExpr != nullptr) {
         return builtinFuncExpr;
       }
@@ -2255,6 +2271,16 @@ ASTExpr *ASTParser::ProcessExprCastExpr(MapleAllocator &allocator, const clang::
   ASTExpr *astExpr = ProcessExpr(allocator, expr.getSubExpr());
   if (astExpr == nullptr) {
     return nullptr;
+  }
+
+  if (expr.getSubExpr()->getStmtClass() == clang::Stmt::CallExprClass) {
+    const clang::FunctionDecl *funcDecl = llvm::cast<clang::CallExpr>(expr.getSubExpr())->getDirectCallee();
+    if (funcDecl != nullptr) {
+      std::string funcName = GetFuncNameFromFuncDecl(*funcDecl);
+      if (funcName == "__atomic_test_and_set") {
+        astCastExpr->SetSrcType(GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u8));
+      }
+    }
   }
   astExpr->SetRValue(astCastExpr->IsRValue());
   astCastExpr->SetEvaluatedFlag(astExpr->GetEvaluatedFlag());
@@ -2862,13 +2888,7 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
   if (astFunc != nullptr && !needParseBody) {
     return astFunc;
   }
-  std::string funcName = astFile->GetMangledName(funcDecl);
-  if (funcName.empty()) {
-    return nullptr;
-  }
-  if (!ASTUtil::IsValidName(funcName)) {
-    ASTUtil::AdjustName(funcName);
-  }
+  std::string funcName = GetFuncNameFromFuncDecl(funcDecl);
   clang::QualType qualType = funcDecl.getReturnType();
   MapleVector<MIRType*> typeDescIn = CvtFuncTypeAndRetType(allocator, funcDecl, qualType);
   std::list<ASTStmt*> implicitStmts;

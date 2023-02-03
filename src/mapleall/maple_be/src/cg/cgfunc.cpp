@@ -777,6 +777,8 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C___atomic_compare_exchange_n :
     case INTRN_C___atomic_compare_exchange :
       return cgFunc.SelectCAtomicCompareExchange(intrinsicopNode);
+    case INTRN_C___atomic_test_and_set:
+      return cgFunc.SelectCAtomicTestAndSet(intrinsicopNode);
 
     case INTRN_C__builtin_return_address:
     case INTRN_C__builtin_extract_return_addr:

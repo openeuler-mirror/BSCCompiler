@@ -2171,7 +2171,8 @@ std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsImpl(MIRBuilder &mi
     case INTRN_JAVA_POLYMORPHIC_CALL: {
       return GenMIRStmtsForInvokePolyMorphic(mirBuilder);
     }
-    CASE_INTRN_C_SYNC: {
+    CASE_INTRN_C_SYNC:
+    case INTRN_C___atomic_test_and_set: {
       if (type != nullptr) {
         return GenMIRStmtsForIntrnC(mirBuilder, type->GenerateMIRType()->GetTypeIndex());
       }

@@ -273,14 +273,17 @@ class ASTParser {
   bool IsNeedGetPointeeType(const clang::FunctionDecl &funcDecl) const;
   MapleVector<MIRType*> CvtFuncTypeAndRetType(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                                               clang::QualType qualType);
+  void CheckAtomicClearArg(const clang::CallExpr &expr) const;
+  std::string GetFuncNameFromFuncDecl(const clang::FunctionDecl &funcDecl) const;
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                                   std::stringstream &ss) const;
+                                                   std::stringstream &ss, ASTCallExpr &astCallExpr) const;
 static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
 ASTExpr *ProcessBuiltinFuncByName(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss,
                                   const std::string &name) const;
-ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss) const;
+ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss,
+                          ASTCallExpr &astCallExpr) const;
 #define PARSE_BUILTIIN_FUNC(FUNC) ParseBuiltin##FUNC(MapleAllocator &allocator, const clang::CallExpr &expr, \
-                                                     std::stringstream &ss) const
+                                                     std::stringstream &ss, ASTCallExpr &astCallExpr) const
   ASTExpr *PARSE_BUILTIIN_FUNC(ClassifyType);
   ASTExpr *PARSE_BUILTIIN_FUNC(ConstantP);
   ASTExpr *PARSE_BUILTIIN_FUNC(Isinfsign);
@@ -299,6 +302,8 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   ASTExpr *PARSE_BUILTIIN_FUNC(Copysign);
   ASTExpr *PARSE_BUILTIIN_FUNC(Copysignl);
   ASTExpr *PARSE_BUILTIIN_FUNC(Objectsize);
+  ASTExpr *PARSE_BUILTIIN_FUNC(AtomicClear);
+  ASTExpr *PARSE_BUILTIIN_FUNC(AtomicTestAndSet);
 
   static std::map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
   uint32 fileIdx;

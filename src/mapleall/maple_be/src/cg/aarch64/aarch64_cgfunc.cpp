@@ -10911,6 +10911,9 @@ void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) {
       GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_dmb_ish));
       break;
     }
+    case INTRN_C___atomic_clear:
+      SelectCAtomicClear(intrinsicCallNode);
+      break;
     default: {
       CHECK_FATAL(false, "Intrinsic %d: %s not implemented by the AArch64 CG.", intrinsic, GetIntrinsicName(intrinsic));
       break;
@@ -11632,6 +11635,94 @@ Operand *AArch64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intr
   SetCurBB(*nextBB);
 
   return returnOpnd;
+}
+
+/*
+ * regassign %1 (intrinsicop C___Atomic_test_and_set(ptr, memorder))
+ * let ptr -> x0
+ * implement to asm:
+ * mov w1, 1
+ * label .L_1:
+ * ldxrb/ldaxrb w2, [x0]
+ * stxrb/stlxrb w3, w1, [x0]
+ * cbnz w3, .L_1
+ * a load-acquire would replace ldxr if acquire needed
+ * a store-relase would replace stxr if release needed
+ */
+Operand *AArch64CGFunc::SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) {
+  auto primType = intrinsicopNode.GetPrimType();
+
+  BB *atomicBB = CreateAtomicBuiltinBB(false);
+  if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
+  /* handle built_in args */
+  Operand *addrOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.GetNopndAt(kInsnFirstOpnd));
+  addrOpnd = &LoadIntoRegister(*addrOpnd, intrinsicopNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType());
+  auto &memOpnd = CreateMemOpnd(*static_cast<RegOperand*>(addrOpnd), 0, GetPrimTypeBitSize(primType));
+  auto *memOrderOpnd = intrinsicopNode.GetNopndAt(kInsnSecondOpnd);
+  std::memory_order memOrder = std::memory_order_seq_cst;
+  if (memOrderOpnd->IsConstval()) {
+    auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
+    memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
+  }
+  bool acquire = memOrder == std::memory_order_acquire || memOrder >= std::memory_order_acq_rel;
+  bool release = memOrder >= std::memory_order_release;
+
+  if (GetCG()->GetOptimizeLevel() != CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
+
+  /* mov reg, 1 */
+  auto *regOperated = &CreateRegisterOperandOfType(PTY_u32);
+  SelectCopyImm(*regOperated, CreateImmOperand(PTY_u32, 1), PTY_u32);
+
+  /* load from pointed address */
+  auto primTypeP2Size = GetPrimTypeP2Size(PTY_u8);
+  auto *regLoaded = &CreateRegisterOperandOfType(PTY_u32);
+  auto mOpLoad = PickLoadStoreExclInsn(primTypeP2Size, false, acquire);
+  atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(mOpLoad, *regLoaded, memOpnd));
+
+  /* store to pointed address */
+  auto *accessStatus = &CreateRegisterOperandOfType(PTY_u32);
+  auto mOpStore = PickLoadStoreExclInsn(primTypeP2Size, true, release);
+  atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(mOpStore, *accessStatus, *regOperated, memOpnd));
+  /* check the exclusive accsess status */
+  auto &atomicBBOpnd = GetOrCreateLabelOperand(*atomicBB);
+  atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wcbnz, *accessStatus, atomicBBOpnd));
+
+  BB *nextBB = CreateNewBB();
+  GetCurBB()->AppendBB(*nextBB);
+  SetCurBB(*nextBB);
+
+  return regLoaded;
+}
+
+/*
+ * intrinsiccall C___atomic_clear(ptr, memorder)
+ * let ptr -> x0
+ * implement to asm:
+ * str/stlr wzr, [x0]
+ * a store-relase would replace str if release needed
+ */
+void AArch64CGFunc::SelectCAtomicClear(const IntrinsiccallNode &intrinsiccallNode) {
+  auto primType = intrinsiccallNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType();
+
+  /* handle built_in args */
+  Operand *addrOpnd = HandleExpr(intrinsiccallNode, *intrinsiccallNode.GetNopndAt(kInsnFirstOpnd));
+  addrOpnd = &LoadIntoRegister(*addrOpnd, intrinsiccallNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType());
+  auto &memOpnd = CreateMemOpnd(*static_cast<RegOperand*>(addrOpnd), 0, GetPrimTypeBitSize(primType));
+  auto *memOrderOpnd = intrinsiccallNode.GetNopndAt(kInsnSecondOpnd);
+  std::memory_order memOrder = std::memory_order_relaxed;
+  if (memOrderOpnd->IsConstval()) {
+    auto *memOrderConst = static_cast<MIRIntConst*>(static_cast<ConstvalNode*>(memOrderOpnd)->GetConstVal());
+    memOrder = static_cast<std::memory_order>(memOrderConst->GetExtValue());
+  }
+
+  /* store to pointed address */
+  auto primTypeP2Size = GetPrimTypeP2Size(PTY_u8);
+  auto mOpStore = PickStInsn(GetPrimTypeBitSize(PTY_u8), primType, PickMemOrder(memOrder, false));
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOpStore, GetZeroOpnd(primTypeP2Size), memOpnd));
 }
 
 Operand *AArch64CGFunc::SelectAtomicLoad(Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder) {
