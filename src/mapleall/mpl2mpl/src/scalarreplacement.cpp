@@ -226,7 +226,7 @@ void ScalarReplacement::AppendLocalRefCleanup(const MIRSymbol *sym) {
   }
   for (IntrinsiccallNode *inode : localRefCleanup) {
     // do not push back as last one could be skipped
-    inode->GetNopnd().insert(inode->GetNopnd().begin(), builder->CreateDread(*sym, PTY_ref));
+    (void)(inode->GetNopnd().insert(inode->GetNopnd().cbegin(), builder->CreateDread(*sym, PTY_ref)));
   }
 }
 

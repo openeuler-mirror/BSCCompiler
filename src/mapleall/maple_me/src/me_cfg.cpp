@@ -1216,6 +1216,7 @@ BB &MeCFG::SplitBB(BB &bb, StmtNode &splitPoint, BB *newBB) {
   if (newBB == nullptr) {
     newBB = memPool->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
   }
+  CHECK_NULL_FATAL(newBB);
   SplitBBPhysically(bb, splitPoint, *newBB);
   // Fix BB in CFG
   newBB->SetKind(bb.GetKind());

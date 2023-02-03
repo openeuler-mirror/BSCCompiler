@@ -55,7 +55,7 @@ class VtableImpl : public FuncOptimizeImpl {
   void ResolveInlineCacheTable();
 #endif  // ~USE_32BIT_REF
 #endif  // ~USE_ARM32_MACRO
-  void DeferredVisit(CallNode &stmt, CallKind n);
+  void DeferredVisit(CallNode &stmt, CallKind kind);
   void DeferredVisitCheckFloat(CallNode &stmt, const MIRFunction &mirFunc);
   MIRModule *mirModule;
   KlassHierarchy *klassHierarchy;
@@ -68,7 +68,7 @@ class VtableImpl : public FuncOptimizeImpl {
   MIRSymbol *inlineCacheTableSym = nullptr;
 #endif  // ~USE_32BIT_REF
 #endif  // ~USE_ARM32_MACRO
-  MIRFunction *mccItabFunc;
+  MIRFunction *mccItabFunc = nullptr;
 };
 
 MAPLE_MODULE_PHASE_DECLARE(M2MVtableImpl)

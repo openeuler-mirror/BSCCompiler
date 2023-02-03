@@ -247,17 +247,17 @@ void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeex
   }
 }
 
-void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, const VarMeExpr *varmeexpr) {
-  SetupParmUsed(varmeexpr);
-  RegMeExpr *varreg = RenameVar(varmeexpr);
+void SSARename2Preg::Rename2PregLeafLHS(MeStmt &mestmt, const VarMeExpr &varmeexpr) {
+  SetupParmUsed(&varmeexpr);
+  RegMeExpr *varreg = RenameVar(&varmeexpr);
   if (varreg == nullptr) {
     return;
   }
-  Opcode desop = mestmt->GetOp();
+  Opcode desop = mestmt.GetOp();
   CHECK_FATAL(desop == OP_dassign || desop == OP_maydassign, "NYI");
-  MeExpr *oldrhs = (desop == OP_dassign) ? (static_cast<DassignMeStmt *>(mestmt)->GetRHS())
-                                         : (static_cast<MaydassignMeStmt *>(mestmt)->GetRHS());
-  TyIdx lhsTyIdx = varmeexpr->GetOst()->GetTyIdx();
+  MeExpr *oldrhs = (desop == OP_dassign) ? (static_cast<DassignMeStmt *>(&mestmt)->GetRHS())
+                                         : (static_cast<MaydassignMeStmt *>(&mestmt)->GetRHS());
+  TyIdx lhsTyIdx = varmeexpr.GetOst()->GetTyIdx();
   MIRType *lhsTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx);
   if (lhsTy->GetKind() == kTypeBitField) {
     MIRBitFieldType *bitfieldTy = static_cast<MIRBitFieldType *>(lhsTy);
@@ -291,11 +291,11 @@ void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, const VarMeExpr *varmeex
   auto *regssmestmt = meirmap->New<AssignMeStmt>(OP_regassign, varreg, oldrhs);
   varreg->SetDefByStmt(*regssmestmt);
   varreg->SetDefBy(kDefByStmt);
-  regssmestmt->CopyBase(*mestmt);
-  mestmt->GetBB()->ReplaceMeStmt(mestmt, regssmestmt);
-  mestmt->SetIsLive(false);
-  if (ostDefedByChi[varmeexpr->GetOstIdx()]) {
-    MeSSAUpdate::InsertOstToSSACands(varreg->GetOstIdx(), *mestmt->GetBB(), &candsForSSAUpdate);
+  regssmestmt->CopyBase(mestmt);
+  mestmt.GetBB()->ReplaceMeStmt(&mestmt, regssmestmt);
+  mestmt.SetIsLive(false);
+  if (ostDefedByChi[varmeexpr.GetOstIdx()]) {
+    MeSSAUpdate::InsertOstToSSACands(varreg->GetOstIdx(), *mestmt.GetBB(), &candsForSSAUpdate);
   }
   meirmap->SimplifyAssign(regssmestmt);
 }
@@ -381,7 +381,7 @@ void SSARename2Preg::Rename2PregStmt(MeStmt *stmt) {
   Opcode op = stmt->GetOp();
   if (op == OP_dassign || op == OP_maydassign) {
     CHECK_FATAL(stmt->GetRHS() && stmt->GetVarLHS(), "null ptr check");
-    Rename2PregLeafLHS(stmt, static_cast<VarMeExpr *>(stmt->GetVarLHS()));
+    Rename2PregLeafLHS(*stmt, *(static_cast<VarMeExpr *>(stmt->GetVarLHS())));
   }
 }
 

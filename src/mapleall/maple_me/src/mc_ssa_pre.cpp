@@ -339,7 +339,7 @@ bool McSSAPre::VisitANode(RGNode *node, Route *route, std::vector<bool> &visited
       // if there is another pred never taken that also reaches source, use that instead
       for (uint32 k = i + 1; k < node->pred.size(); k++) {
         if (node->pred[k] == source && node->usedCap[k] == 0 && node->inEdgesCap[k] > 0) {
-          route->visits.push_back(Visit(node, k));
+          route->visits.emplace_back(Visit(node, k));
           return true;
         }
       }

@@ -143,20 +143,20 @@ static MIRType *GetPointedToType(const MIRPtrType *pointerty) {
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx());
 }
 
-BaseNode *LMBCLowerer::LowerIread(IreadNode *expr) {
+BaseNode *LMBCLowerer::LowerIread(const IreadNode &expr) {
   int32 offset = 0;
-  MIRPtrType *ptrType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr->GetTyIdx()));
+  MIRPtrType *ptrType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr.GetTyIdx()));
   MIRType *type = ptrType->GetPointedType();
-  if (expr->GetFieldID() != 0) {
+  if (expr.GetFieldID() != 0) {
     MIRStructType *structty = static_cast<MIRStructType *>(type);
-    offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
-    type = structty->GetFieldType(expr->GetFieldID());
+    offset = becommon->GetFieldOffset(*structty, expr.GetFieldID()).first;
+    type = structty->GetFieldType(expr.GetFieldID());
   }
-  BaseNode *ireadoff = mirBuilder->CreateExprIreadoff(type->GetPrimType(), offset, expr->Opnd(0));
-  if (GetPrimTypeSize(ireadoff->GetPrimType()) == GetPrimTypeSize(expr->GetPrimType())) {
+  BaseNode *ireadoff = mirBuilder->CreateExprIreadoff(type->GetPrimType(), offset, expr.Opnd(0));
+  if (GetPrimTypeSize(ireadoff->GetPrimType()) == GetPrimTypeSize(expr.GetPrimType())) {
     return ireadoff;
   }
-  return mirBuilder->CreateExprTypeCvt(OP_cvt, expr->GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
+  return mirBuilder->CreateExprTypeCvt(OP_cvt, expr.GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
 }
 
 BaseNode *LMBCLowerer::LowerIaddrof(IaddrofNode *expr) {
@@ -194,7 +194,7 @@ BaseNode *LMBCLowerer::LowerExpr(BaseNode *expr) {
     case OP_dreadoff:
       return LowerDreadoff(static_cast<DreadoffNode *>(expr));
     case OP_iread:
-      return LowerIread(static_cast<IreadNode *>(expr));
+      return LowerIread(*(static_cast<IreadNode *>(expr)));
     case OP_iaddrof:
       return LowerIaddrof(static_cast<IreadNode *>(expr));
     default:
@@ -378,7 +378,7 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
 
 // called only if the return has > 1 operand; assume prior lowering already
 // converted any return of structs to be via fake parameter
-void LMBCLowerer::LowerReturn(NaryStmtNode &retNode, BlockNode *newblk) {
+void LMBCLowerer::LowerReturn(NaryStmtNode &retNode, BlockNode &newblk) {
   if (retNode.Opnd(0)->GetPrimType() != PTY_agg) {
     CHECK_FATAL(retNode.NumOpnds() <= 2, "LMBCLowerer::LowerReturn: more than 2 return values NYI");
     for (size_t i = 0; i < retNode.NumOpnds(); ++i) {
@@ -388,16 +388,16 @@ void LMBCLowerer::LowerReturn(NaryStmtNode &retNode, BlockNode *newblk) {
       RegassignNode *regasgn = mirBuilder->CreateStmtRegassign(ptyp,
                                                                i == 0 ? -kSregRetval0 : -kSregRetval1,
                                                                rhs);
-      newblk->AddStatement(regasgn);
+      newblk.AddStatement(regasgn);
     }
   } else {  // handle return of small struct using only %%retval0
     BaseNode *rhs = LowerExpr(retNode.Opnd(0));
     RegassignNode *regasgn = mirBuilder->CreateStmtRegassign(PTY_agg, -kSregRetval0, rhs);
-    newblk->AddStatement(regasgn);
+    newblk.AddStatement(regasgn);
   }
   retNode.GetNopnd().clear();  // remove the return operands
   retNode.SetNumOpnds(0);
-  newblk->AddStatement(&retNode);
+  newblk.AddStatement(&retNode);
 }
 
 void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
@@ -509,7 +509,7 @@ BlockNode *LMBCLowerer::LowerBlock(BlockNode *block) {
         if (retNode->GetNopndSize() == 0) {
           newblk->AddStatement(stmt);
         } else {
-          LowerReturn(*retNode, newblk);
+          LowerReturn(*retNode, *newblk);
         }
         break;
       }

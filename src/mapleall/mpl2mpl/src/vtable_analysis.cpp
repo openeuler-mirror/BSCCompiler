@@ -313,7 +313,7 @@ void VtableAnalysis::GenItableDefinition(const Klass &klass) {
     // remember count in secondItabVec
     count = ((secondConflictList.size() | (1ULL << (kShiftCountBit - 1))) << kShiftCountBit) + count;
     secondItabEmitArray->AddItem(
-        GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>(count), *voidPtrType),
+        GlobalTables::GetIntConstTable().GetOrCreateIntConst(count, *voidPtrType),
         0);
     secondItabEmitArray->AddItem(oneConst, 0);  // padding
     for (uint32 i = 0; i < kItabSecondHashSize; ++i) {
@@ -684,7 +684,7 @@ void VtableAnalysis::ReplaceVirtualInvoke(CallNode &stmt) {
     structType = klassFromFuncDependCallee->GetMIRStructType();
   }
   size_t entryOffset = SIZE_MAX;
-  if (puidxToVtabIndex.find(stmt.GetPUIdx()) != puidxToVtabIndex.end() && puidxToVtabIndex[stmt.GetPUIdx()] >= 0) {
+  if (puidxToVtabIndex.find(stmt.GetPUIdx()) != puidxToVtabIndex.end()) {
     entryOffset = puidxToVtabIndex[stmt.GetPUIdx()];
   } else {
     GStrIdx calleeStridx = callee->GetBaseFuncNameWithTypeStrIdx();
@@ -760,7 +760,7 @@ void VtableAnalysis::ReplaceVirtualInvoke(CallNode &stmt) {
       *GlobalTables::GetTypeTable().GetCompactPtr(),
       *GlobalTables::GetTypeTable().GetOrCreatePointerType(*GlobalTables::GetTypeTable().GetCompactPtr()), 0, addrNode);
   stmt.SetOpCode(OP_virtualicallassigned);
-  stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), readFuncPtr);
+  (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), readFuncPtr);
   stmt.SetNumOpnds(stmt.GetNumOpnds() + 1);
 }
 
@@ -810,7 +810,7 @@ void VtableAnalysis::ReplaceInterfaceInvoke(CallNode &stmt) {
       OP_resolveinterfacefunc, GlobalTables::GetTypeTable().GetCompactPtr()->GetPrimType(), stmt.GetPUIdx(),
       tabBaseAddress, tabBaseAddress->Opnd(0));
   stmt.SetOpCode(OP_interfaceicallassigned);
-  stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), resolveNode);
+  (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), resolveNode);
   stmt.SetNumOpnds(stmt.GetNumOpnds() + 1);
 }
 

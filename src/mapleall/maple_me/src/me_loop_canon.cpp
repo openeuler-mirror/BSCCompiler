@@ -126,9 +126,11 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
   FreqType freq = 0;
   for (BB *pred : splitList) {
     auto pos = splittedBB->GetPredIndex(*pred);
+    CHECK_FATAL(pos != -1, "pos can not be -1");
     for (auto &phiIter : std::as_const(mergedBB->GetMePhiList())) {
       // replace phi opnd
-      phiIter.second->GetOpnds().push_back(splittedBB->GetMePhiList().at(phiIter.first)->GetOpnd(pos));
+      phiIter.second->GetOpnds().push_back(splittedBB->GetMePhiList().at(phiIter.first)->
+          GetOpnd(static_cast<size_t>(pos)));
     }
     splittedBB->RemovePhiOpnd(pos);
     if (updateFreqs) {

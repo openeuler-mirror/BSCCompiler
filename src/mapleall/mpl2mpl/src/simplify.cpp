@@ -12,12 +12,12 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v1 for more details.
  */
-#include "triple.h"
 #include "simplify.h"
-#include <functional>
-#include <initializer_list>
 #include <iostream>
 #include <algorithm>
+#include <functional>
+#include <initializer_list>
+#include "triple.h"
 #include "constantfold.h"
 
 namespace maple {
@@ -68,11 +68,9 @@ MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldC
 
   auto *bitFieldType = safe_cast<MIRBitFieldType>(unionFieldType);
   auto *intCst = safe_cast<MIRIntConst>(fieldCst);
-
   if (!intCst) {
     return fieldCst;
   }
-
   if (!bitFieldType) {
     if (GetPrimTypeSize(unionFieldType.GetPrimType()) < GetPrimTypeSize(fieldCst->GetType().GetPrimType())) {
       return GlobalTables::GetIntConstTable().GetOrCreateIntConst(intCst->GetValue(), unionFieldType);
@@ -84,20 +82,18 @@ MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldC
 
   IntVal val = intCst->GetValue();
   uint8 bitSize = bitFieldType->GetFieldSize();
-
   if (bitSize >= val.GetBitWidth()) {
     return fieldCst;
   }
 
   if (isBigEndian) {
-    val = val.LShr(val.GetBitWidth() - bitSize);
+    val = val.LShr(static_cast<uint64>(val.GetBitWidth() - bitSize));
   } else {
     val = val & ((uint64(1) << bitSize) - 1);
   }
 
   return GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, fieldCst->GetType());
 }
-
 } // namespace
 
 // If size (in byte) is bigger than this threshold, we won't expand memop
@@ -637,8 +633,8 @@ BaseNode *Simplify::ReplaceExprWithConst(DreadNode &dread) {
     if (fldType->IsMIRBitFieldType()) {
       IntVal v = static_cast<MIRIntConst*>(symbolConst)->GetValue();
       uint8 fldSize = static_cast<MIRBitFieldType*>(fldType)->GetFieldSize();
-      symbolConst =
-          GlobalTables::GetIntConstTable().GetOrCreateIntConst(v.GetExtValue(fldSize), symbolConst->GetType());
+      symbolConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+          static_cast<uint64>(v.GetExtValue(fldSize)), symbolConst->GetType());
     }
   }
   return currFunc->GetModule()->GetMIRBuilder()->CreateConstval(symbolConst);
@@ -680,7 +676,7 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirCon
     ASSERT_NOT_NULL(currAggConst);
     ASSERT_NOT_NULL(currAggType);
     for (size_t iter = 0; iter < currAggType->GetFieldsSize() && !reached; ++iter) {
-      auto *fieldConst = currAggConst->GetAggConstElement(iter + 1);
+      auto *fieldConst = currAggConst->GetAggConstElement(static_cast<uint32>(iter + 1));
       auto *fieldType = originAggType.GetFieldType(currFieldId);
 
       if (currFieldId == fieldId) {
@@ -717,16 +713,15 @@ void Simplify::Finish() {
 }
 
 // Join `num` `byte`s into a number
-// Example:
+// Example
 //   byte   num                output
 //   0x0a    2                 0x0a0a
 //   0x12    4             0x12121212
 //   0xff    8     0xffffffffffffffff
 static uint64 JoinBytes(int byte, uint32 num) {
   CHECK_FATAL(num <= 8, "not support");
-  const uint8 firstByte = 0xff;
 
-  uint64 realByte = static_cast<uint64>(byte & firstByte);
+  uint64 realByte = static_cast<uint64>(byte & 0xff);
   if (realByte == 0) {
     return 0;
   }
@@ -782,7 +777,7 @@ static BaseNode *ConstructConstvalNode(int64 byte, uint64 num, PrimType primType
 }
 
 // Input total size of memory, split the memory into several blocks, the max block size is 8 bytes
-// Example:
+// Example
 //   input        output
 //     40     [ 8, 8, 8, 8, 8 ]
 //     31     [ 8, 8, 8, 4, 2, 1 ]
@@ -791,7 +786,7 @@ static void SplitMemoryIntoBlocks(size_t totalMemorySize, std::vector<uint32> &b
   size_t curBlockSize = kMaxMemoryBlockSizeToAssign;  // max block size in byte
   while (curBlockSize > 0) {
     size_t n = leftSize / curBlockSize;
-    blocks.insert(blocks.cend(), n, curBlockSize);
+    (void)blocks.insert(blocks.cend(), n, curBlockSize);
     leftSize -= (n * curBlockSize);
     curBlockSize = curBlockSize >> 1;
   }
@@ -848,6 +843,7 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
       const auto &concreteExpr = static_cast<const DreadNode&>(expr);
       auto *symbol = func.GetLocalOrGlobalSymbol(concreteExpr.GetStIdx());
       MIRType *curType = symbol->GetType();
+      CHECK_NULL_FATAL(curType);
       if (concreteExpr.GetFieldID() != 0) {
         curType = static_cast<MIRStructType*>(curType)->GetFieldType(concreteExpr.GetFieldID());
       }
@@ -862,7 +858,7 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
       auto *symbol = func.GetLocalOrGlobalSymbol(concreteExpr.GetStIdx());
       MIRType *curType = symbol->GetType();
       if (concreteExpr.GetFieldID() != 0) {
-        ASSERT_NOT_NULL(curType);
+        CHECK_NULL_FATAL(curType);
         curType = static_cast<MIRStructType*>(curType)->GetFieldType(concreteExpr.GetFieldID());
       }
       mirType = curType;
@@ -876,6 +872,7 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
     case OP_iaddrof: {  // Do NOT call GetType because it is for OP_iread
       const auto &concreteExpr = static_cast<const IaddrofNode&>(expr);
       MIRType *curType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(concreteExpr.GetTyIdx());
+      CHECK_NULL_FATAL(curType);
       CHECK_FATAL(curType->IsMIRPtrType(), "must be MIRPtrType");
       curType = static_cast<MIRPtrType*>(curType)->GetPointedType();
       CHECK_FATAL(curType->IsStructType(), "must be MIRStructType");
@@ -953,7 +950,7 @@ static void InsertBeforeAndMayPrintStmt(BlockNode &block, const StmtNode &anchor
 }
 
 static void InsertBeforeAndMayPrintStmtList(BlockNode &block, const StmtNode &anchor,
-                                      bool debug, std::initializer_list<StmtNode*> stmtList) {
+                                            bool debug, std::initializer_list<StmtNode*> stmtList) {
   for (StmtNode *stmt : stmtList) {
     if (stmt == nullptr) {
       continue;
@@ -1025,7 +1022,7 @@ class BlockOperationHelper {
   // dassign %ret (constval i32 errnNumber)
   // goto @finalLab
   void HandleErrorWithDstSizeCheck(LabelIdx curLabIdx, LabelIdx condLabIdx, LabelIdx finalLabIdx, OpKind memOpKind,
-                                   ErrorNumber errNumer, bool isDstSizeConst, int64 dstSize) {
+                                   ErrorNumber errNumer, bool isDstSizeConst, uint64 dstSize) {
     InsertLableNode(curLabIdx);
     if (!isDstSizeConst) {
       CreateAndInsertCheckStmt(OP_eq, stmt.Opnd(kMemOpSDstSizeOpndIdx), ConstructConstvalNode(0, PTY_u64, *mirBuilder),
@@ -1042,7 +1039,7 @@ class BlockOperationHelper {
   // dassign %ret (constval i32 errnNumber)
   // goto @finalLab
   void HandleErrorWithDstSizeCheckAndReset(LabelIdx curLabIdx, LabelIdx condLabIdx, LabelIdx finalLabIdx,
-                                           OpKind memOpKind, ErrorNumber errNumer, bool isDstSizeConst, int64 dstSize) {
+                                           OpKind memOpKind, ErrorNumber errNumer, bool isDstSizeConst, uint64 dstSize) {
     InsertLableNode(curLabIdx);
     if (!isDstSizeConst) {
       CreateAndInsertCheckStmt(OP_eq, stmt.Opnd(kMemOpSDstSizeOpndIdx), ConstructConstvalNode(0, PTY_u64, *mirBuilder),
@@ -1473,7 +1470,7 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, uint64 copySize, MIRFunction
     MIRType *u32Type = GlobalTables::GetTypeTable().GetUInt32();
     for (size_t i = 0; i < elemCnt; ++i) {
       ConstvalNode *indexExpr = mirBuilder->CreateConstval(
-          GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>(i), *u32Type));
+          GlobalTables::GetIntConstTable().GetOrCreateIntConst(i, *u32Type));
       auto *arrayExpr = mirBuilder->CreateExprArray(*arrayType, addrExpr, indexExpr);
       auto *rhsArrayExpr = mirBuilder->CreateExprArray(*arrayType, srcMem.addrExpr, indexExpr);
       auto *rhsIreadExpr = mirBuilder->CreateExprIread(*elemType, *elemPtrType, 0, rhsArrayExpr);
@@ -1496,7 +1493,7 @@ StmtNode *MemEntry::GenEndZeroAssign(StmtNode &stmt, MIRFunction &func, bool isL
   MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
   StmtNode *newAssign = nullptr;
   if (isLowLevel) {
-    newAssign = mirBuilder->CreateStmtIassignoff(PTY_u8, count, addrExpr,
+    newAssign = mirBuilder->CreateStmtIassignoff(PTY_u8, static_cast<int32>(count), addrExpr,
                                                  ConstructConstvalNode(0, PTY_u8, *mirBuilder));
     return newAssign;
   }
@@ -1584,7 +1581,6 @@ OpKind SimplifyOp::ComputeOpKind(StmtNode &stmt) {
   }
   auto &callStmt = static_cast<CallNode&>(stmt);
   MIRFunction *mirFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
-  const char *funcName = mirFunc->GetName().c_str();
   static const std::unordered_map<std::string, OpKind> hashFuncName = {
       {kFuncNameOfMemset, MEM_OP_memset},
       {kFuncNameOfMemcpy, MEM_OP_memcpy},
@@ -1595,7 +1591,7 @@ OpKind SimplifyOp::ComputeOpKind(StmtNode &stmt) {
       {kFuncNameOfSnprintfS, SPRINTF_OP_snprintf_s},
       {kFuncNameOfVsnprintfS, SPRINTF_OP_vsnprintf_s}
   };
-  auto iter = hashFuncName.find(funcName);
+  auto iter = hashFuncName.find(mirFunc->GetName().c_str());
   if (iter != hashFuncName.end()) {
     return iter->second;
   }
@@ -1636,6 +1632,7 @@ StmtNode *SprintfBaseOper::InsertMemcpyCallStmt(const MapleVector<BaseNode *> &a
   memcpyFunc->GetFuncSymbol()->SetAppearsInCode(true);
   memcpyFunc->AllocSymTab();
   // handle memcpy return val
+  CHECK_NULL_FATAL(op.GetFunction());
   auto *retAssign = MemEntry::GenRetAssign(stmt, *op.GetFunction(), isLowLevel, MEM_OP_memcpy, retVal);
   InsertBeforeAndMayPrintStmtList(block, stmt, op.IsDebug(), {memcpyCallStmt, retAssign});
   return memcpyCallStmt;
@@ -1668,7 +1665,7 @@ void SprintfBaseOper::ProcessRetValue(StmtNode &stmt, BlockNode &block, OpKind o
 }
 
 bool SprintfBaseOper::CheckInvalidPara(uint64 count, uint64 dstMax, uint64 srcSize) {
-  if (count == 0 || srcSize == 0 || dstMax== 0 || dstMax > kSecurecMemMaxLen|| count > kSecurecMemMaxLen) {
+  if (count == 0 || srcSize == 0 || dstMax == 0 || dstMax > kSecurecMemMaxLen || count > kSecurecMemMaxLen) {
     return false;
   }
   return true;
@@ -2102,7 +2099,7 @@ bool SimplifyOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLeve
   }
   bool ret = false;
   if (srcSize != 0) {
-    ret = dstMemEntry.ExpandMemset(val, static_cast<uint64>(srcSize), *func, *memsetCallStmt, block, isLowLevel,
+    ret = dstMemEntry.ExpandMemset(static_cast<int64>(val), static_cast<uint64>(srcSize), *func, *memsetCallStmt, block, isLowLevel,
                                    debug, errNum);
   } else {
     // if size == 0, no need to set memory, just return error nummber
@@ -2353,16 +2350,8 @@ bool SimplifyOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLeve
     }
   }
   bool ret = false;
-  if (copySize != 0) {
-    ret = dstMemEntry.ExpandMemcpy(srcMemEntry, copySize, *func, *memcpyCallStmt, block,
+  ret = dstMemEntry.ExpandMemcpy(srcMemEntry, copySize, *func, *memcpyCallStmt, block,
                                    isLowLevel, debug, errNum);
-  } else {
-    // if copySize == 0, no need to copy memory, just return error number
-    auto *retAssign = MemEntry::GenRetAssign(*memcpyCallStmt, *func, isLowLevel, memOpKind, errNum);
-    InsertBeforeAndMayPrintStmt(block, *memcpyCallStmt, debug, retAssign);
-    block.RemoveStmt(memcpyCallStmt);
-    ret = true;
-  }
   if (ret) {
     MayPrintLog(debug, true, memOpKind, "well done");
   }

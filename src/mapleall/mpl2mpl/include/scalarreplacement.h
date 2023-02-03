@@ -43,14 +43,14 @@ class ScalarReplacement : public FuncOptimizeImpl {
   BaseNode *IterateExpr(StmtNode *stmt, BaseNode *expr, Func const &applyFunc);
   template <typename Func>
   void IterateStmt(StmtNode *stmt, Func const &applyFunc);
-  BaseNode *MarkDassignDread(StmtNode *stmt, BaseNode *expr);
+  BaseNode *MarkDassignDread(StmtNode *stmt, BaseNode *opnd);
   void CollectCandidates();
   void DumpCandidates() const;
   bool IsMemsetLocalvar(StmtNode *stmt) const;
   bool IsSetClass(StmtNode *stmt) const;
   bool IsCCWriteRefField(StmtNode *stmt) const;
   bool CanBeReplaced(const StmtVec *refs) const;
-  BaseNode *ReplaceDassignDread(StmtNode *stmt, BaseNode *expr);
+  BaseNode *ReplaceDassignDread(StmtNode *stmt, BaseNode *opnd);
   void AppendLocalRefCleanup(const MIRSymbol *sym);
   void ReplaceWithScalar(const StmtVec *refs);
   void FixRCCalls(const StmtVec *refs);

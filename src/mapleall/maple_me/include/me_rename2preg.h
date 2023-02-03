@@ -51,10 +51,10 @@ class SSARename2Preg {
   void Rename2PregStmt(MeStmt *);
   void Rename2PregExpr(MeStmt *, MeExpr *);
   void Rename2PregLeafRHS(MeStmt *, const VarMeExpr *);
-  void Rename2PregLeafLHS(MeStmt *, const VarMeExpr *);
+  void Rename2PregLeafLHS(MeStmt &mestmt, const VarMeExpr &varmeexpr);
   RegMeExpr *CreatePregForVar(const VarMeExpr *varMeExpr);
   RegMeExpr *FindOrCreatePregForVarPhiOpnd(const VarMeExpr *varMeExpr);
-  void Rename2PregPhi(MePhiNode *, MapleMap<OStIdx, MePhiNode *> &);
+  bool Rename2PregPhi(MePhiNode *, MapleMap<OStIdx, MePhiNode *> &);
   void UpdateRegPhi(MePhiNode *, MePhiNode *, const VarMeExpr *);
   void Rename2PregCallReturn(MapleVector<MustDefMeNode> &);
   bool VarMeExprIsRenameCandidate(const VarMeExpr &varMeExpr) const;

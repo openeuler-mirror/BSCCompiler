@@ -728,7 +728,9 @@ bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
     // Check whether all pred bb have been estimated
     for (size_t i = 0; i < bb.GetPred().size(); ++i) {
       BB *pred = bb.GetPred(i);
-      if (!bbVisited[pred->GetBBId()] && pred != &bb && !IsBackEdge(*FindEdge(*pred, bb))) {
+      Edge *edge = FindEdge(*pred, bb);
+      CHECK_NULL_FATAL(edge);
+      if (!bbVisited[pred->GetBBId()] && pred != &bb && !IsBackEdge(*edge)) {
         if (predictDebug) {
           LogInfo::MapleLogger() << "BB" << bb.GetBBId() << " can't be estimated because it's predecessor BB" <<
               pred->GetBBId() << " hasn't be estimated yet\n";

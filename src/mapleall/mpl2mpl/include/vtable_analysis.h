@@ -55,9 +55,9 @@ class VtableAnalysis : public FuncOptimizeImpl {
   void ReplacePolymorphicInvoke(CallNode &stmt);
 
   std::unordered_map<PUIdx, uint> puidxToVtabIndex;
-  MIRType *voidPtrType;
-  MIRIntConst *zeroConst;
-  MIRIntConst *oneConst;
+  MIRType *voidPtrType = nullptr;
+  MIRIntConst *zeroConst = nullptr;
+  MIRIntConst *oneConst = nullptr;
 };
 
 MAPLE_MODULE_PHASE_DECLARE(M2MVtableAnalysis)

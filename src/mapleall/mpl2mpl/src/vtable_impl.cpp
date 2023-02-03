@@ -21,9 +21,9 @@
 // This phase is mainly to lower interfacecall into icall
 namespace {
 constexpr int kNumOfMCCParas = 5;
-#if USE_ARM32_MACRO
+#if defined(USE_ARM32_MACRO) && USE_ARM32_MACRO
 constexpr char kInterfaceMethod[] = "MCC_getFuncPtrFromItabSecondHash32";
-#elif USE_32BIT_REF
+#elif defined(USE_32BIT_REF) && USE_32BIT_REF
 constexpr char kInterfaceMethod[] = "MCC_getFuncPtrFromItab";
 #else
 constexpr char kInterfaceMethod[] = "MCC_getFuncPtrFromItabSecondHash64";
@@ -65,7 +65,7 @@ bool VtableImpl::Intrinsify(MIRFunction &func, CallNode &cnode) {
       for (size_t i = 0; i < cnode.GetNopndSize() - 1; ++i) {
         cnode.SetNOpndAt(i, cnode.GetNopnd().at(i + 1));
       }
-      cnode.SetNumOpnds(cnode.GetNumOpnds() - 1);
+      cnode.SetNumOpnds(static_cast<uint8>(cnode.GetNumOpnds() - 1));
       cnode.GetNopnd().resize(cnode.GetNumOpnds());
     }
     if (stidx.Idx() != 0) {
@@ -97,7 +97,7 @@ void VtableImpl::ProcessFunc(MIRFunction *func) {
       CallNode *cnode = static_cast<CallNode*>(stmt);
       MIRFunction *calleefunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(cnode->GetPUIdx());
       const std::set<std::string> intrisicsList {
-#define DEF_MIR_INTRINSIC(X, NAME, INTRN_CLASS, RETURN_TYPE, ...) NAME,
+#define DEF_MIR_INTRINSIC(X, NAME, NUM_INSN, INTRN_CLASS, RETURN_TYPE, ...) NAME,
 #include "simplifyintrinsics.def"
 #undef DEF_MIR_INTRINSIC
       };
@@ -237,21 +237,21 @@ void VtableImpl::DeferredVisit(CallNode &stmt, enum CallKind kind) {
     MIRType *classInfoType =
         GlobalTables::GetTypeTable().GetOrCreateClassType(namemangler::kClassMetadataTypeName, *mirModule);
     MIRSymbol *classInfoSt = mirModule->GetMIRBuilder()->GetOrCreateGlobalDecl(classinfoName, *classInfoType);
-    (void)stmt.GetNopnd().insert(stmt.GetNopnd().begin(),
+    (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(),
                                  mirModule->GetMIRBuilder()->CreateExprAddrof(0, *classInfoSt));
     stmt.numOpnds++;
   }
-  (void)stmt.GetNopnd().insert(stmt.GetNopnd().begin(), sigNameNode);
-  (void)stmt.GetNopnd().insert(stmt.GetNopnd().begin(), funcNameNode);
-  (void)stmt.GetNopnd().insert(stmt.GetNopnd().begin(), classNameNode);
+  (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), sigNameNode);
+  (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), funcNameNode);
+  (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), classNameNode);
   if (kind == CallKind::kStaticCall) {
-    (void)stmt.GetNopnd().insert(stmt.GetNopnd().begin(), builder->CreateIntConst(CallKind::kStaticCall, PTY_u64));
+    (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), builder->CreateIntConst(CallKind::kStaticCall, PTY_u64));
   } else if (kind == CallKind::kVirtualCall) {
-    (void)stmt.GetNopnd().insert(stmt.GetNopnd().begin(), builder->CreateIntConst(CallKind::kVirtualCall, PTY_u64));
+    (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), builder->CreateIntConst(CallKind::kVirtualCall, PTY_u64));
   } else if (kind == CallKind::kSuperCall) {
-    (void)stmt.GetNopnd().insert(stmt.GetNopnd().begin(), builder->CreateIntConst(CallKind::kSuperCall, PTY_u64));
+    (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), builder->CreateIntConst(CallKind::kSuperCall, PTY_u64));
   }
-  stmt.GetNopnd().insert(stmt.GetNopnd().begin(), builder->CreateIntConst(0, PTY_u64));
+  (void)stmt.GetNopnd().insert(stmt.GetNopnd().cbegin(), builder->CreateIntConst(0, PTY_u64));
   stmt.SetNumOpnds(stmt.GetNumOpnds() + kNumOfMCCParas);
   stmt.SetOpCode(OP_callassigned);
   MIRFunction *mccFunc = builder->GetOrCreateFunction("MCC_DeferredInvoke", mirFunc->GetReturnTyIdx());
@@ -272,6 +272,7 @@ void VtableImpl::DeferredVisitCheckFloat(CallNode &stmt, const MIRFunction &mirF
       currFunc->GetBody()->InsertAfter(&stmt, regAssignNode);
     } else {
       MIRSymbol *retSymbol = currFunc->GetSymTab()->GetSymbolFromStIdx(stmt.GetReturnVec()[0].first.Idx());
+      ASSERT_NOT_NULL(retSymbol);
       MIRSymbol *newSymbol = builder->CreateSymbol(GlobalTables::GetTypeTable().GetInt32()->GetTypeIndex(),
                                                    retSymbol->GetName() + "_def", retSymbol->GetSKind(),
                                                    retSymbol->GetStorageClass(), currFunc, retSymbol->GetScopeIdx());
@@ -297,6 +298,7 @@ void VtableImpl::DeferredVisitCheckFloat(CallNode &stmt, const MIRFunction &mirF
       currFunc->GetBody()->InsertAfter(&stmt, regAssignNode);
     } else {
       MIRSymbol *retSymbol = currFunc->GetSymTab()->GetSymbolFromStIdx(stmt.GetReturnVec()[0].first.Idx());
+      ASSERT_NOT_NULL(retSymbol);
       MIRSymbol *newSymbol = builder->CreateSymbol(GlobalTables::GetTypeTable().GetInt64()->GetTypeIndex(),
                                                    retSymbol->GetName() + "_def", retSymbol->GetSKind(),
                                                    retSymbol->GetStorageClass(), currFunc, retSymbol->GetScopeIdx());
@@ -356,7 +358,7 @@ void VtableImpl::ItabProcess(const StmtNode &stmt, const ResolveFuncNode &resolv
       builder->CreateStmtRegassign(PTY_ptr, pregItabAddress, resolveNode.GetTabBaseAddr());
   currFunc->GetBody()->InsertBefore(&stmt, itabAddressAssign);
   // read funcvalue
-  BaseNode *offsetNode = builder->CreateIntConst(hashCode * kTabEntrySize, PTY_u32);
+  BaseNode *offsetNode = builder->CreateIntConst(static_cast<uint64>(hashCode * kTabEntrySize), PTY_u32);
   BaseNode *addrNode = builder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
                                                  builder->CreateExprRegread(PTY_ptr, pregItabAddress), offsetNode);
   BaseNode *readFuncPtr = builder->CreateExprIread(

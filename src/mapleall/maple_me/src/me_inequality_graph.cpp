@@ -82,7 +82,7 @@ ESSAArrayNode *InequalityGraph::GetOrCreateArrayNode(MeExpr &meExpr) {
   return newArray;
 }
 
-InequalEdge *InequalityGraph::AddEdge(ESSABaseNode &from, ESSABaseNode &to, int64 value, EdgeType type) {
+InequalEdge *InequalityGraph::AddEdge(ESSABaseNode &from, ESSABaseNode &to, int64 value, EdgeType type) const {
   InequalEdge tmpEdge = InequalEdge(value, type);
   InequalEdge *edge = HasEdge(from, to, tmpEdge);
   if (edge != nullptr) {

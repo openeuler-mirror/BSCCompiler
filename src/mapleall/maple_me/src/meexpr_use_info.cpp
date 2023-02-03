@@ -28,7 +28,7 @@ void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
   auto uintExprID = static_cast<uint32>(expr->GetExprID());
   if (useSites->size() <= uintExprID) {
     constexpr uint32 bufferSize = 50;
-    useSites->insert(useSites->cend(), uintExprID + bufferSize, {nullptr, nullptr});
+    (void)(useSites->insert(useSites->cend(), uintExprID + bufferSize, {nullptr, nullptr}));
   }
   if ((*useSites)[uintExprID].second == nullptr) {
     auto *newList = allocator.New<MapleList<UseItem>>(allocator.Adapter());

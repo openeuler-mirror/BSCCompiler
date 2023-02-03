@@ -81,7 +81,7 @@ struct MemEntry {
                     StmtNode &stmt, BlockNode &block, bool isLowLevel, bool debug, ErrorNumber errorNumber) const;
   void ExpandMemcpyLowLevel(const MemEntry &srcMem, uint64 copySize, MIRFunction &func, StmtNode &stmt,
                             BlockNode &block, OpKind memOpKind, bool debug, ErrorNumber errorNumber) const;
-  static StmtNode *GenRetAssign(StmtNode &stmt, MIRFunction &func, bool isLowLevel, OpKind memOpKind,
+  static StmtNode *GenRetAssign(StmtNode &stmt, MIRFunction &func, bool isLowLevel, OpKind opKind,
                                 int32 returnVal = ERRNO_OK);
   StmtNode *GenEndZeroAssign(StmtNode &stmt, MIRFunction &func, bool isLowLevel, uint64 count) const;
   BaseNode *addrExpr = nullptr;   // memory address
@@ -109,7 +109,7 @@ class SprintfBaseOper {
   virtual bool GetDstMaxOrCountSize(StmtNode &stmt, uint64 &dstMax, uint64 &count) {
     CHECK_FATAL(false, "NEVER REACH");
   };
-  bool ReplaceSprintfWithMemcpy(StmtNode &stmt, BlockNode &block, uint32 fmtOpndIdx, uint64 copySize, bool isLowLevel);
+  bool ReplaceSprintfWithMemcpy(StmtNode &stmt, BlockNode &block, uint32 opndIdx, uint64 copySize, bool isLowLevel);
   bool CompareDstMaxSrcSize(StmtNode &stmt, BlockNode &block, uint64 dstMax, uint64 srcSize, bool isLowLevel);
   bool CompareCountSrcSize(StmtNode &stmt, BlockNode &block, uint64 count, uint64 srcSize, bool isLowLevel);
     bool DealWithDstOrEndZero(StmtNode &stmt, BlockNode &block, bool isLowLevel, uint64 count);

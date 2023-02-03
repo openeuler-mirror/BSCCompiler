@@ -956,6 +956,7 @@ bool MeSink::MergePhiWithPrevAssign(MePhiNode *phi, BB *bb) {
   }
 
   auto *rhsInCurrentBB = ConstructExpr(siblingRhs, nullptr, bb);
+  CHECK_NULL_FATAL(rhsInCurrentBB);
   ResetLiveStateOfDefPhi(rhsInCurrentBB);
   auto *assign = irMap->CreateAssignMeStmt(*lhs, *rhsInCurrentBB, *bb);
   bb->GetMeStmts().push_front(assign);

@@ -317,7 +317,7 @@ class InequalityGraph {
   ESSAVarNode *GetOrCreateVarNode(MeExpr &meExpr);
   ESSAPhiNode *GetOrCreatePhiNode(MePhiNode &phiNode);
   ESSAArrayNode *GetOrCreateArrayNode(MeExpr &meExpr);
-  InequalEdge *AddEdge(ESSABaseNode &from, ESSABaseNode &to, int64 value, EdgeType type);
+  InequalEdge *AddEdge(ESSABaseNode &from, ESSABaseNode &to, int64 value, EdgeType type) const;
   void AddPhiEdge(ESSABaseNode &from, ESSABaseNode &to, EdgeType type);
   void AddEdge(ESSABaseNode &from, ESSABaseNode &to, MeExpr &value, bool positive, EdgeType type);
   void ConnectTrivalEdge();

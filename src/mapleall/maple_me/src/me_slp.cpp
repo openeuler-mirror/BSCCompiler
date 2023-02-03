@@ -2184,7 +2184,7 @@ class SLPVectorizer {
   bool DoVectTreeNodeNary(TreeNode *treeNode);
   bool DoVectTreeNodeNaryReverse(TreeNode *treeNode, MIRIntrinsicID intrnId);
   bool DoVectTreeNodeIassign(TreeNode *treeNode);
-  bool DoVectTreeNodeGatherNeeded(TreeNode *treeNode);
+  bool DoVectTreeNodeGatherNeeded(TreeNode &treeNode);
   bool VectorizeSLPTree();
   void SetStmtVectorized(MeStmt &stmt);
   bool IsStmtVectorized(MeStmt &stmt) const;
@@ -3291,38 +3291,38 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
   return true;
 }
 
-bool SLPVectorizer::DoVectTreeNodeGatherNeeded(TreeNode *treeNode) {
+bool SLPVectorizer::DoVectTreeNodeGatherNeeded(TreeNode &treeNode) {
   if (!mergeToVecType) {
     SLP_DEBUG(os << "vector_set_element/vector_from_scalar is not supproted for scalar mergedType" << std::endl);
     return false;
   }
   auto elemType = tree->GetType();
-  auto *vecType = GenMergedType(elemType, treeNode->GetLane());
+  auto *vecType = GenMergedType(elemType, treeNode.GetLane());
   CHECK_NULL_FATAL(vecType);
   auto *vecReg = irMap.CreateRegMeExpr(*vecType);
-  auto exprNum = treeNode->GetExprs().size();
+  auto exprNum = treeNode.GetExprs().size();
   std::vector<std::pair<uint32, MeExpr*>> posExprVec;
   for (size_t i = 0; i < exprNum; ++i) {
-    MeExpr *valueExpr = treeNode->GetExprs()[i];
+    MeExpr *valueExpr = treeNode.GetExprs()[i];
     posExprVec.emplace_back(i, valueExpr);
   }
   MeExpr *vecRegNew = nullptr;
-  if (treeNode->SameExpr()) {
+  if (treeNode.SameExpr()) {
     MIRIntrinsicID intrnId = GetVectorFromScalarIntrnId(vecType->GetPrimType());
     // Create vector intrinsicop
     NaryMeExpr naryExpr(&irMap.GetIRMapAlloc(), kInvalidExprID, OP_intrinsicop,
         vecType->GetPrimType(), 1, TyIdx(0), intrnId, false);
-    naryExpr.PushOpnd(treeNode->GetExprs()[0]);
+    naryExpr.PushOpnd(treeNode.GetExprs()[0]);
     vecRegNew = irMap.CreateNaryMeExpr(naryExpr);
   } else {
     vecRegNew = BuildExprAfterVectorSetElement(func, vecReg, posExprVec, elemType);
   }
   auto *lhsReg = irMap.CreateRegMeExpr(*vecType);
   auto *vecAssign = irMap.CreateAssignMeStmt(*lhsReg, *vecRegNew, *currBB);
-  treeNode->PushOutStmt(vecAssign);
-  CHECK_FATAL(treeNode->GetChildren().empty(), "NOT VEC treeNode should not have children");
+  treeNode.PushOutStmt(vecAssign);
+  CHECK_FATAL(treeNode.GetChildren().empty(), "NOT VEC treeNode should not have children");
   if (debug) {
-    treeNode->DumpVecStmts(irMap);
+    treeNode.DumpVecStmts(irMap);
   }
   return true;
 }
@@ -3340,7 +3340,7 @@ bool SLPVectorizer::VectorizeTreeNode(TreeNode *treeNode) {
 
   // Tree node can not be vectorized, we use vector_set_element
   if (!treeNode->CanVectorized()) {
-    return DoVectTreeNodeGatherNeeded(treeNode);
+    return DoVectTreeNodeGatherNeeded(*treeNode);
   }
 
   switch (treeNode->GetOp()) {
