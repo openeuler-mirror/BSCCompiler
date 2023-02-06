@@ -7363,6 +7363,7 @@ bool AArch64CGFunc::GenRetCleanup(const IntrinsiccallNode *cleanupNode, bool for
 
 RegOperand *AArch64CGFunc::CreateVirtualRegisterOperand(regno_t vRegNO, uint32 size, RegType kind, uint32 flg) const {
   RegOperand *res = memPool->New<RegOperand>(vRegNO, size, kind, flg);
+  vReg.vRegOperandTable[vRegNO] = res;
   return res;
 }
 
@@ -7371,7 +7372,6 @@ RegOperand &AArch64CGFunc::CreateVirtualRegisterOperand(regno_t vRegNO) {
   ASSERT(vRegNO < vReg.VRegTableSize(), "index out of range");
   uint8 bitSize = static_cast<uint8>((static_cast<uint32>(vReg.VRegTableGetSize(vRegNO))) * kBitsPerByte);
   RegOperand *res = CreateVirtualRegisterOperand(vRegNO, bitSize, vReg.VRegTableGetType(vRegNO));
-  vReg.vRegOperandTable[vRegNO] = res;
   return *res;
 }
 
