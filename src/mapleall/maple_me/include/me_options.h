@@ -139,6 +139,7 @@ extern maplecl::Option<bool> unifyrets;
 extern maplecl::Option<bool> lfo;
 extern maplecl::Option<bool> dumpCfgOfPhases;
 extern maplecl::Option<bool> epreUseProfile;
+extern maplecl::Option<uint32_t> asanFlags;
 
 }
 

@@ -191,6 +191,7 @@ class MeOption {
   static bool unifyRets;
   static bool dumpCfgOfPhases;
   static bool epreUseProfile;
+  static uint32 asanFlags;
 // safety check option begin
   static SafetyCheckMode npeCheckMode;
   static bool isNpeCheckAll;

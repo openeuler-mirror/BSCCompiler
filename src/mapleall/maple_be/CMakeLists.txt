@@ -32,6 +32,7 @@ set(deps_maple
   libmplmewpo
   libmpl2mpl
   libmaple
+  libmplsan
 )
 
 set(inc_dirs

@@ -137,6 +137,7 @@ bool MeOption::safeRegionMode = false;
 bool MeOption::unifyRets = false;
 bool MeOption::dumpCfgOfPhases = false;
 bool MeOption::epreUseProfile = true;
+uint32 MeOption::asanFlags = 0x0;
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -424,6 +425,8 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(vecLoopLimit, opts::me::veclooplimit);
   maplecl::CopyIfEnabled(ivoptsLimit, opts::me::ivoptslimit);
   maplecl::CopyIfEnabled(unifyRets, opts::me::unifyrets);
+  maplecl::CopyIfEnabled(asanFlags, opts::me::asanFlags);
+  LogInfo::MapleLogger() << "ASAN: " << asanFlags << '\n';
 
 #if MIR_JAVA
   maplecl::CopyIfEnabled(acquireFuncName, opts::me::acquireFunc);

@@ -38,6 +38,7 @@ ADDMODULEPHASE("CodeReLayout", MeOption::optLevel == 2 && JAVALANG)
 ADDMODULEPHASE("javaehlower", JAVALANG)
 ADDMODULEPHASE("MUIDReplacement", JAVALANG)
 ADDMODULEPHASE("ConstantFold", JAVALANG || Options::O2)
+ADDMODULEPHASE("doModuleAsan", (MeOption::asanFlags & 0x02) > 0)
 #endif
 
 #ifdef ME_PHASE
@@ -116,4 +117,6 @@ ADDMAPLEMEPHASE("pregrename", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("bblayout", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("meemit", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("meverify", JAVALANG && MeOption::meVerify)
+ADDMAPLEMEPHASE("doAsan", (MeOption::asanFlags & 0x01) > 0)
+ADDMAPLEMEPHASE("doUbsanBound", (MeOption::asanFlags & 0x04) > 0)
 #endif
