@@ -426,7 +426,6 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(ivoptsLimit, opts::me::ivoptslimit);
   maplecl::CopyIfEnabled(unifyRets, opts::me::unifyrets);
   maplecl::CopyIfEnabled(asanFlags, opts::me::asanFlags);
-  LogInfo::MapleLogger() << "ASAN: " << asanFlags << '\n';
 
 #if MIR_JAVA
   maplecl::CopyIfEnabled(acquireFuncName, opts::me::acquireFunc);
