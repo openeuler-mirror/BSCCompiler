@@ -71,7 +71,8 @@ def move_tmp_files(src, dest):
     for tmp_ext in tmp_ext_list:
         tmp_file = f'{src}{tmp_ext}'
         if os.path.isfile(tmp_file):
-            run_cmd(f'mv {tmp_file} {dest_dir}/')
+            # run_cmd(f'mv {tmp_file} {dest_dir}/')
+            run_cmd(f'rm {tmp_file}')
 
 
 def add_asan_flags(flags):
