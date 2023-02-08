@@ -22,6 +22,7 @@ set(src_libmplsan
   src/san_common.cpp
   src/ubsan_phases.cpp
   src/ubsan_bounds.cpp
+  src/san_phase_manager.cpp
 )
 
 add_library(libmplsan SHARED ${src_libmplsan})

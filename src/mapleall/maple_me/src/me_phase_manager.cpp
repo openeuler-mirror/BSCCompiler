@@ -18,8 +18,6 @@
 #include "lower.h"
 #include "lmbc_memlayout.h"
 #include "lmbc_lower.h"
-#include "asan_phases.h"
-#include "ubsan_phases.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -288,7 +286,4 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEABCOpt, abcopt)
 MAPLE_TRANSFORM_PHASE_REGISTER(MEEmit, meemit)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(ProfileGenEmit, profgenEmit);
 
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEDoAsan, doAsan)
-MAPLE_ANALYSIS_PHASE_REGISTER(MEDoVarCheck, doAsanVarCheck);
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEDoUbsanBound, doUbsanBound)
 }  // namespace maple

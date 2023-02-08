@@ -597,6 +597,13 @@ void dep_expansion(BaseNode *stmt, set_check &dep, std::map<int32, std::vector<S
           }
         }
       }
+      for (int i = 0; i < stmt->NumOpnds(); i++) {
+        dep_expansion(stmt->Opnd(i), dep, reg_to_stmt, var_to_stmt, func);
+      }
+      break;
+    }
+    case OP_dassignoff: {
+      // TODO:
     }
     default: {
       for (int i = 0; i < stmt->NumOpnds(); i++) {

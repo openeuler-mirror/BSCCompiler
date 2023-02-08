@@ -30,6 +30,8 @@ ADDMODULEPHASE("ConstantFold", CLANG && Options::O2 && Options::enableGInline)
 ADDMODULEPHASE("inline", CLANG && (Options::O2 && Options::useInline && Options::profileUse))
 ADDMODULEPHASE("ipaclone", CLANG && Options::O2 && Options::enableIPAClone)
 ADDMODULEPHASE("ProfileGenPM", CLANG && Options::profileGen)
+// Address Sanitizer Phase (make it work before ME optimization)
+ADDMAPLEPHASE("doModuleAsan", MeOption::asanFlags > 0);
 // me phase manager is also a phase itself.
 ADDMAPLEPHASE("meFuncPM", IsRunMe() && MeOption::optLevel > 0);
 ADDMODULEPHASE("clinit", JAVALANG)
@@ -38,7 +40,6 @@ ADDMODULEPHASE("CodeReLayout", MeOption::optLevel == 2 && JAVALANG)
 ADDMODULEPHASE("javaehlower", JAVALANG)
 ADDMODULEPHASE("MUIDReplacement", JAVALANG)
 ADDMODULEPHASE("ConstantFold", JAVALANG || Options::O2)
-ADDMODULEPHASE("doModuleAsan", (MeOption::asanFlags & 0x02) > 0)
 #endif
 
 #ifdef ME_PHASE
@@ -117,6 +118,9 @@ ADDMAPLEMEPHASE("pregrename", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("bblayout", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("meemit", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("meverify", JAVALANG && MeOption::meVerify)
+#endif
+
+#ifdef SAN_PHASE
 ADDMAPLEMEPHASE("doAsan", (MeOption::asanFlags & 0x01) > 0)
 ADDMAPLEMEPHASE("doUbsanBound", (MeOption::asanFlags & 0x04) > 0)
 #endif

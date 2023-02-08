@@ -82,15 +82,4 @@ PreAnalysis* MEDoVarCheck::GetResult() {
     return this->result;
 }
 
-void MEModuleDoAsan::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-    // aDep.AddRequired<M2MKlassHierarchy>();
-    aDep.SetPreservedAll();
-}
-
-bool MEModuleDoAsan::PhaseRun(maple::MIRModule &m) {
-  ModuleAddressSanitizer AsanModule(m);
-  AsanModule.instrumentModule();
-  return true;
-}
-
 }  // namespace maple

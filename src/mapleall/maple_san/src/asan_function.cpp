@@ -28,9 +28,10 @@ void doInstrumentAddress(AddressSanitizer *Phase, StmtNode *I, StmtNode *InsertB
   // if the data is properly aligned.
   if ((TypeSize == 8 || TypeSize == 16 || TypeSize == 32 || TypeSize == 64 || TypeSize == 128) &&
       (Alignment >= Granularity || Alignment == 0 || Alignment >= TypeSize / 8)) {
-    return Phase->instrumentAddress(I, InsertBefore, Addr, TypeSize, IsWrite, nullptr);
+    Phase->instrumentAddress(I, InsertBefore, Addr, TypeSize, IsWrite, nullptr);
+  } else {
+    Phase->instrumentUnusualSizeOrAlignment(I, InsertBefore, Addr, TypeSize, IsWrite);
   }
-  Phase->instrumentUnusualSizeOrAlignment(I, InsertBefore, Addr, TypeSize, IsWrite);
 }
 
 void dumpFunc(MeFunction &func) {
@@ -502,6 +503,15 @@ bool AddressSanitizer::instrumentFunction(MeFunction &func) {
                       } else {
                         prevStmt = prevStmt->GetPrev();
                       }
+                    } else if (prevStmt->GetOpCode() == OP_dassignoff) {
+                      /*
+                      The dassignoff is not documented in the MAPLE IR
+                      It simulate the iassignoff implementation
+                      dassignoff <prim-type> <var_name> <offset> (<rhs-expr>)
+                      */
+                      DassignoffNode *dassignoff = dynamic_cast<DassignoffNode *>(prevStmt);
+                      CHECK_FATAL(dassignoff != nullptr, "Node with OP_dassignoff but not DassignoffNode");
+                      // TODO: I am not sure what should be done for it now ...
                     } else if (CallNode *testcallNode = dynamic_cast<CallNode *>(prevStmt)) {
                       // stop if we hit a Call
                       term_flag = true;
@@ -901,6 +911,16 @@ StmtNode *AddressSanitizer::splitIfAndElseBlock(Opcode op, StmtNode *elsePart, c
 
 bool AddressSanitizer::isInterestingSymbol(MIRSymbol &symbol) {
   if (StringUtils::StartsWith(symbol.GetName(), "asan_")) {
+    return false;
+  }
+  if (StringUtils::StartsWith(symbol.GetName(), "retVar_")) {
+    /* some variables have names with `retVar_<num>`
+    they are inserted by compiler to capture the returned value
+    of a function. We skip these variables since they are
+    inserted by compiler.
+    Currently, there is no flag to identify whether a variable is
+    created by users or ArkCC, we have to use this naive approach.
+    */
     return false;
   }
   if (StringUtils::StartsWith(symbol.GetName(), "_temp_.shortcircuit.")) {

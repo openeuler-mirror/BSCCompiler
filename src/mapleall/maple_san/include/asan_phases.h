@@ -4,6 +4,9 @@
 #include <string>
 #include "maple_phase.h"
 #include "san_common.h"
+#include "maple_phase.h"
+#include "maple_phase_manager.h"
+#include "me_phase_manager.h"
 
 
 namespace maple {
@@ -15,8 +18,6 @@ namespace maple {
     MAPLE_FUNC_PHASE_DECLARE_END
 
     MAPLE_FUNC_PHASE_DECLARE(MEDoAsan, MeFunction)
-
-    MAPLE_MODULE_PHASE_DECLARE(MEModuleDoAsan)
 
 } // namespace maple
 
