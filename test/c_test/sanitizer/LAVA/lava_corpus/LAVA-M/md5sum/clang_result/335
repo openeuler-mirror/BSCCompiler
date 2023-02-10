@@ -1,0 +1,54 @@
+Successfully triggered bug 335, crashing now!
+Successfully triggered bug 335, crashing now!
+=================================================================
+==7760==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x62d000008448 at pc 0x0000004d0c29 bp 0x7ffd3f508ec0 sp 0x7ffd3f508eb8
+READ of size 4 at 0x62d000008448 thread T0
+    #0 0x4d0c28 in md5_process_block /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/md5.c:374:7
+    #1 0x4d1154 in md5_process_bytes /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/md5.c:275:11
+    #2 0x4d0f1f in md5_stream /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/md5.c:203:5
+    #3 0x4cf0a8 in digest_file /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:485:9
+    #4 0x4cc354 in digest_check /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:694:43
+    #5 0x4cc354 in main /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:952:15
+    #6 0x7fa51e76fc86 in __libc_start_main /build/glibc-CVJwZb/glibc-2.27/csu/../csu/libc-start.c:310
+    #7 0x41bdc9 in _start (/root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/clang-install/md5sum-asan+0x41bdc9)
+
+0x62d000008448 is located 0 bytes to the right of 32840-byte region [0x62d000000400,0x62d000008448)
+allocated by thread T0 here:
+    #0 0x49702d in malloc /root/git/ThirdParty/llvm-12.0.0.src/compiler-rt/lib/asan/asan_malloc_linux.cpp:145:3
+    #1 0x4d0d7d in md5_stream /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/md5.c:147:18
+    #2 0x4cf0a8 in digest_file /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:485:9
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/md5.c:374:7 in md5_process_block
+Shadow bytes around the buggy address:
+  0x0c5a7fff9030: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c5a7fff9040: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c5a7fff9050: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c5a7fff9060: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c5a7fff9070: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x0c5a7fff9080: 00 00 00 00 00 00 00 00 00[fa]fa fa fa fa fa fa
+  0x0c5a7fff9090: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c5a7fff90a0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c5a7fff90b0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c5a7fff90c0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c5a7fff90d0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+  Shadow gap:              cc
+==7760==ABORTING

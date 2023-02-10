@@ -1,0 +1,15 @@
+Successfully triggered bug 1, crashing now!
+Successfully triggered bug 1, crashing now!
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==7634==ERROR: AddressSanitizer: SEGV on unknown address 0x1000c642d520 (pc 0x0000004ca918 bp 0x7ffecf0ef850 sp 0x7ffecf0ef560 T0)
+==7634==The signal is caused by a READ memory access.
+    #0 0x4ca918 in split_3 /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:382:15
+    #1 0x4ca918 in digest_check /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:629:39
+    #2 0x4ca918 in main /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:952:15
+    #3 0x7fdc88d79c86 in __libc_start_main /build/glibc-CVJwZb/glibc-2.27/csu/../csu/libc-start.c:310
+    #4 0x41bdc9 in _start (/root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/clang-install/md5sum-asan+0x41bdc9)
+
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:382:15 in split_3
+==7634==ABORTING

@@ -1,0 +1,38 @@
+Successfully triggered bug 359, crashing now!
+Successfully triggered bug 359, crashing now!
+=================================================================
+==7784==ERROR: AddressSanitizer: memcpy-param-overlap: memory ranges [0x7ffc215b1400,0x7ffc8dbc88fe) and [0x7ffc215b1150, 0x7ffc8dbc864e) overlap
+    #0 0x4962d4 in __asan_memcpy /root/git/ThirdParty/llvm-12.0.0.src/compiler-rt/lib/asan/asan_interceptors_memintrinsics.cpp:22:3
+    #1 0x4cf6d4 in memcpy /usr/include/x86_64-linux-gnu/bits/string_fortified.h:34:10
+    #2 0x4cf6d4 in set_uint32 /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/md5.c:94:3
+    #3 0x4cf6d4 in md5_read_ctx /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/md5.c:103:3
+    #4 0x4d0f2c in md5_stream /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/md5.c:206:3
+    #5 0x4cf0a8 in digest_file /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:485:9
+    #6 0x4cc354 in digest_check /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:694:43
+    #7 0x4cc354 in main /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:952:15
+    #8 0x7fc2f4947c86 in __libc_start_main /build/glibc-CVJwZb/glibc-2.27/csu/../csu/libc-start.c:310
+    #9 0x41bdc9 in _start (/root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/clang-install/md5sum-asan+0x41bdc9)
+
+Address 0x7ffc215b1400 is located in stack of thread T0 at offset 32 in frame
+    #0 0x4c86cf in main /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:822
+
+  This frame has 5 object(s):
+    [32, 52) 'bin_buffer_unaligned.i' (line 512) <== Memory access at offset 32 partially overflows this variable
+    [96, 104) 'line.i' (line 516) <== Memory access at offset 32 partially underflows this variable
+    [128, 136) 'line_chars_allocated.i' (line 517) <== Memory access at offset 32 partially underflows this variable
+    [160, 168) 'hex_digest.i' (line 543) <== Memory access at offset 32 partially underflows this variable
+    [192, 212) 'bin_buffer_unaligned' (line 823) <== Memory access at offset 32 partially underflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+Address 0x7ffc215b1150 is located in stack of thread T0 at offset 80 in frame
+    #0 0x4cf56f in md5_read_ctx /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/md5.c:101
+
+  This frame has 4 object(s):
+    [32, 36) 'v.addr.i78' (line 95)
+    [48, 52) 'v.addr.i65' (line 95)
+    [64, 68) 'v.addr.i52' (line 95)
+    [80, 84) 'v.addr.i' (line 95) <== Memory access at offset 80 partially overflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: memcpy-param-overlap /root/git/ThirdParty/llvm-12.0.0.src/compiler-rt/lib/asan/asan_interceptors_memintrinsics.cpp:22:3 in __asan_memcpy
+==7784==ABORTING

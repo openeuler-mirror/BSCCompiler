@@ -1,0 +1,17 @@
+Successfully triggered bug 326, crashing now!
+Successfully triggered bug 326, crashing now!
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==7754==ERROR: AddressSanitizer: SEGV on unknown address 0x61bb723ad248 (pc 0x7f05e988e750 bp 0x00006c61751b sp 0x7fff1d35d0b8 T0)
+==7754==The signal is caused by a READ memory access.
+    #0 0x7f05e988e750 in fileno_unlocked /build/glibc-CVJwZb/glibc-2.27/libio/fileno.c:35
+    #1 0x4d1649 in fadvise /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/lib/fadvise.c:43:15
+    #2 0x4cf09d in digest_file /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:483:3
+    #3 0x4cc354 in digest_check /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:694:43
+    #4 0x4cc354 in main /root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/coreutils-8.24-lava-safe/src/md5sum.c:952:15
+    #5 0x7f05e9828c86 in __libc_start_main /build/glibc-CVJwZb/glibc-2.27/csu/../csu/libc-start.c:310
+    #6 0x41bdc9 in _start (/root/git/OpenArkCompiler/test/c_test/sanitizer/LAVA/lava_corpus/LAVA-M/md5sum/clang-install/md5sum-asan+0x41bdc9)
+
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV /build/glibc-CVJwZb/glibc-2.27/libio/fileno.c:35 in fileno_unlocked
+==7754==ABORTING
