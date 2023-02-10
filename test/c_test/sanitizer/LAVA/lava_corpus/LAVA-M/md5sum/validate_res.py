@@ -69,10 +69,10 @@ def main():
             if n == 0:
                 TP += bugs1[idx][bug_id]
             elif n > 0:
-                TP += bugs1[idx][bug_id]
+                TP += bugs2[idx].get(bug_id, 0)
                 FP += n
             else:
-                TP = bugs1[idx][bug_id]
+                TP += bugs1[idx][bug_id]
                 FN -= n
     print("Bug Trigger")
     print(f"TP: {TP}")
