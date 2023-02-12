@@ -414,11 +414,15 @@ void FunctionStackPoisoner::processStackVariable() {
                                        mirBuilder->CreateExprTypeCvt(OP_cvt, IntptrTy->GetPrimType(), PTY_u64,
                                                                      *mirBuilder->CreateDread(*allocaValue, PTY_a64)),
                                        mirBuilder->CreateIntConst(desc.Offset, IntptrTy->GetPrimType()));
+      // change the variable to a pointer with name asan_<Var_name>
       MIRType *localVarPtr = GlobalTables::GetTypeTable().GetOrCreatePointerType(desc.Symbol->GetTyIdx());
       MIRSymbol *newLocalVar = getOrCreateSymbol(mirBuilder, localVarPtr->GetTypeIndex(), "asan_" + localVar->GetName(),
                                                  kStVar, kScAuto, mirFunction, kScopeLocal);
+      newLocalVar->SetSrcPosition(localVar->GetSrcPosition());
+      // initialize the field of the Var by dassign 
       DassignNode *dassignNode = mirBuilder->CreateStmtDassign(newLocalVar->GetStIdx(), 0, addExpr);
       dassignNode->InsertAfterThis(*insBefore);
+      // replace the Var being referenced
       replaceAllUsesWith(localVar, newLocalVar);
       for (int j = 0; j < mirFunction->GetFormalCount(); j++) {
         MIRSymbol *para = mirFunction->GetFormal(i);
@@ -535,65 +539,69 @@ void FunctionStackPoisoner::processStackVariable() {
   }
 }
 
+BaseNode* FunctionStackPoisoner::GetTransformedNode(MIRSymbol *oldVar, MIRSymbol *newVar, BaseNode *baseNode) {
+  BaseNode* retNode = nullptr;
+  if (baseNode->GetOpCode() == OP_addrof) {
+    AddrofNode *addrofNode = dynamic_cast<AddrofNode *>(baseNode);
+    MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
+    if (mirSymbol->GetStIdx() == oldVar->GetStIdx()) {
+      retNode = module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64);
+      return retNode;
+    }
+  } else if (baseNode->GetOpCode() == OP_dassign) {
+    DassignNode *dassignNode = dynamic_cast<DassignNode *>(baseNode);
+    MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(dassignNode->GetStIdx());
+    if (mirSymbol->GetStIdx() == oldVar->GetStIdx()) {
+      BaseNode *newRHS = GetTransformedNode(oldVar, newVar, dassignNode->GetRHS());
+      StmtNode *newStmtNode = module->GetMIRBuilder()->CreateStmtIassign(
+        *newVar->GetType(), dassignNode->GetFieldID(),
+        module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64), newRHS);
+      retNode = newStmtNode;
+      return retNode;
+    }
+  } else if (baseNode->GetOpCode() == OP_dread) {
+    DreadNode *dreadNode = dynamic_cast<DreadNode *>(baseNode);
+    MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(dreadNode->GetStIdx());
+    if (mirSymbol->GetStIdx() == oldVar->GetStIdx()) {
+      IreadNode *newStmtNode = module->GetMIRBuilder()->CreateExprIread(
+        *GlobalTables::GetTypeTable().GetPrimType(dreadNode->GetPrimType()), *newVar->GetType(),
+        dreadNode->GetFieldID(), module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64));
+      retNode = newStmtNode;
+      return retNode;
+    }
+  }
+
+  // all other process must run following code to make sure every child has been visited
+  for (size_t j = 0; j < baseNode->NumOpnds(); j++) {
+    BaseNode *tmpNode = GetTransformedNode(oldVar, newVar, baseNode->Opnd(j));
+    if (tmpNode != baseNode->Opnd(j)) {
+      baseNode->SetOpnd(tmpNode, j);
+    }
+  }
+  retNode = baseNode;
+  CHECK_FATAL(retNode != nullptr, "No return node.");
+  return retNode;
+}
+
 void FunctionStackPoisoner::replaceAllUsesWith(MIRSymbol *oldVar, MIRSymbol *newVar) {
   if (mirFunction->GetBody() == nullptr) {
     return;
   }
-  assert(oldVar->GetTyIdx() == dynamic_cast<MIRPtrType *>(newVar->GetType())->GetPointedTyIdx());
-
-  std::stack<BaseNode *> baseNodeStack;
-  std::map<BaseNode *, BaseNode *> nodeToFather;
-
+  CHECK_FATAL(oldVar->GetTyIdx() == dynamic_cast<MIRPtrType *>(newVar->GetType())->GetPointedTyIdx(),
+    "Replace Var SYmbol with different PointedTyIdx");
+  std::vector<std::pair<StmtNode*, StmtNode*>> toReplace;
   for (StmtNode &stmt : mirFunction->GetBody()->GetStmtNodes()) {
-    baseNodeStack.push(&stmt);
-    nodeToFather.clear();
-    while (!baseNodeStack.empty()) {
-      BaseNode *baseNode = baseNodeStack.top();
-      baseNodeStack.pop();
-      if (baseNode->GetOpCode() == OP_addrof) {
-        AddrofNode *addrofNode = dynamic_cast<AddrofNode *>(baseNode);
-        MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
-        if (mirSymbol->GetStIdx() == oldVar->GetStIdx()) {
-          BaseNode *fatherNode = nodeToFather[baseNode];
-          for (size_t j = 0; j < fatherNode->NumOpnds(); j++) {
-            if (fatherNode->Opnd(j) == baseNode) {
-              fatherNode->SetOpnd(module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64), j);
-              nodeToFather[fatherNode->Opnd(j)] = fatherNode;
-            }
-          }
-        }
-      }
-      if (baseNode->GetOpCode() == OP_dassign) {
-        DassignNode *dassignNode = dynamic_cast<DassignNode *>(baseNode);
-        MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(dassignNode->GetStIdx());
-        if (mirSymbol->GetStIdx() == oldVar->GetStIdx()) {
-          StmtNode *newStmtNode = module->GetMIRBuilder()->CreateStmtIassign(
-              *newVar->GetType(), dassignNode->GetFieldID(), module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64),
-              dassignNode->GetRHS());
-          mirFunction->GetBody()->ReplaceStmt1WithStmt2(dassignNode, newStmtNode);
-        }
-      }
-      if (baseNode->GetOpCode() == OP_dread) {
-        DreadNode *dreadNode = dynamic_cast<DreadNode *>(baseNode);
-        MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(dreadNode->GetStIdx());
-        if (mirSymbol->GetStIdx() == oldVar->GetStIdx()) {
-          IreadNode *newStmtNode = module->GetMIRBuilder()->CreateExprIread(
-              *GlobalTables::GetTypeTable().GetPrimType(dreadNode->GetPrimType()), *newVar->GetType(),
-              dreadNode->GetFieldID(), module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64));
-          BaseNode *fatherNode = nodeToFather[baseNode];
-          for (size_t j = 0; j < fatherNode->NumOpnds(); j++) {
-            if (fatherNode->Opnd(j) == baseNode) {
-              fatherNode->SetOpnd(newStmtNode, j);
-            }
-          }
-        }
-      }
-
-      for (size_t j = 0; j < baseNode->NumOpnds(); j++) {
-        baseNodeStack.push(baseNode->Opnd(j));
-        nodeToFather[baseNode->Opnd(j)] = baseNode;
-      }
+    BaseNode* newStmt = GetTransformedNode(oldVar, newVar, &stmt);
+    if (newStmt != dynamic_cast<BaseNode*>(&stmt)) {
+      StmtNode* stmt2ptr = dynamic_cast<StmtNode *>(newStmt);
+      CHECK_FATAL(stmt2ptr != nullptr, "Get a stmt2 without StmtNode type");
+      stmt2ptr->SetSrcPos(stmt.GetSrcPos());
+      toReplace.push_back(std::pair<StmtNode*, StmtNode*>(&stmt, stmt2ptr));
     }
+  }
+
+  for (auto ss : toReplace) {
+    mirFunction->GetBody()->ReplaceStmt1WithStmt2(ss.first, ss.second);
   }
 }
 }  // namespace maple

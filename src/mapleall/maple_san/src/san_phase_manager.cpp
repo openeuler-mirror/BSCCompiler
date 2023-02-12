@@ -22,7 +22,7 @@ bool MEModuleDoAsan::FuncLevelRun(MeFunction &meFunc, AnalysisDataManager &seria
     SolveSkipFrom(MeOption::GetSkipFromPhase(), i);
     const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(phasesSequence[i]);
     if (!IsQuiet()) {
-      LogInfo::MapleLogger() << "---Run Me " << (curPhase->IsAnalysis() ? "analysis" : "transform")
+      LogInfo::MapleLogger() << "---Run maple_san " << (curPhase->IsAnalysis() ? "analysis" : "transform")
                              << " Phase [ " << curPhase->PhaseName() << " ]---\n";
     }
     if (curPhase->IsAnalysis()) {
@@ -57,7 +57,7 @@ bool MEModuleDoAsan::PhaseRun(maple::MIRModule &m) {
       LogInfo::MapleLogger() << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> Sanitize Function  < " << func->GetName()
                              << " id=" << func->GetPuidxOrigin() << " >---\n";
       /* prepare me func */
-      auto meFuncMP = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "maple_me per-function mempool");
+      auto meFuncMP = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "maple_san per-function mempool");
       auto meFuncStackMP = std::make_unique<StackMemPool>(memPoolCtrler, "");
       MemPool *versMP = new ThreadLocalMemPool(memPoolCtrler, "first verst mempool");
       MeFunction &meFunc = *(meFuncMP->New<MeFunction>(&m, func, meFuncMP.get(), *meFuncStackMP, versMP, meInput));

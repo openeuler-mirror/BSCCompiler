@@ -32,6 +32,9 @@ namespace maple {
 
     bool isInFirstBlock(StmtNode *stmtNode);
 
+    BaseNode* GetTransformedNode(MIRSymbol *oldVar, MIRSymbol *newVar,
+                                 BaseNode *baseNode);
+
     void replaceAllUsesWith(MIRSymbol *oldVar, MIRSymbol *newVar);
 
     void handleDynamicAllocaCall(ASanDynaVariableDescription *AI);

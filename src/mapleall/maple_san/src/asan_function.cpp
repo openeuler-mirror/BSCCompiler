@@ -93,8 +93,9 @@ bool AddressSanitizer::instrumentFunction(MeFunction &func) {
   int numInstrumented = 0;
 
   for (auto stmt : toInstrument) {
-    if (isInterestingMemoryAccess(stmt).size()) {
-      instrumentMop(stmt);
+    std::vector<MemoryAccess> memAccVec = isInterestingMemoryAccess(stmt);
+    if (memAccVec.size() > 0) {
+      instrumentMop(stmt, memAccVec);
     } else {
       instrumentMemIntrinsic(dynamic_cast<IntrinsiccallNode *>(stmt));
     }
@@ -111,452 +112,461 @@ bool AddressSanitizer::instrumentFunction(MeFunction &func) {
   }
 
   int check_env = SANRAZOR_MODE();
-  if (numInstrumented > 0 || changedStack || !noReturnCalls.empty()) {
+  bool doSanrazor = (check_env > 0) && (numInstrumented > 0 || changedStack || !noReturnCalls.empty());
+  if (doSanrazor) {
     functionModified = true;
-    if (check_env > 0) {
-      LogInfo::MapleLogger() << "****************SANRAZOR instrumenting****************"
-                             << "\n";
-      MIRType *voidType = GlobalTables::GetTypeTable().GetVoid();
-      // type 0 is user check, type 1 is sanitzer check
-      int type_of_check = 0;
-      // if br_true set to 1, else set to 0
-      int br_true = 0;
-      // we check one step, than instrument_flag set to false
-      bool instrument_flag = false;
-      // info to plugin the shared lib
-      int bb_id = 0;
-      int stmt_id = 0;
-      MeCFG *cfg = func.GetCfg();
+    SanrazorProcess(func, userchecks, brgoto_map, stmt_to_bbID, stmt_id_to_stmt, stmt_id_list, check_env);
+  }
+  // dump IRs of each block
+  // dumpFunc(func);
+  LogInfo::MapleLogger() << "ASAN done instrumenting: " << functionModified << " " << func.GetName() << "\n";
 
-      std::set<int32> reg_order;
-      std::map<int32, std::vector<StmtNode *>> reg_to_stmt;
+  return functionModified;
+}
 
-      std::set<uint32> var_order;
-      std::map<uint32, std::vector<StmtNode *>> var_to_stmt;
+void AddressSanitizer::SanrazorProcess(MeFunction &func,
+                                       std::set<StmtNode *> &userchecks,
+                                       std::map<uint32, std::vector<StmtNode *>> &brgoto_map,
+                                       std::map<uint32, uint32> &stmt_to_bbID,
+                                       std::map<int, StmtNode *> &stmt_id_to_stmt,
+                                       std::vector<int> &stmt_id_list,
+                                       int check_env) {
+  MIRBuilder *builder = func.GetMIRModule().GetMIRBuilder();
+  LogInfo::MapleLogger() << "****************SANRAZOR instrumenting****************" << "\n";
+  MIRType *voidType = GlobalTables::GetTypeTable().GetVoid();
+  // type 0 is user check, type 1 is sanitzer check
+  int type_of_check = 0;
+  // if br_true set to 1, else set to 0
+  int br_true = 0;
+  // we check one step, than instrument_flag set to false
+  bool instrument_flag = false;
+  // info to plugin the shared lib
+  int bb_id = 0;
+  int stmt_id = 0;
+  MeCFG *cfg = func.GetCfg();
 
-      std::vector<set_check> san_set_check;
-      std::vector<int> san_set_check_ID;
+  std::set<int32> reg_order;
+  std::map<int32, std::vector<StmtNode *>> reg_to_stmt;
 
-      std::vector<set_check> user_set_check;
-      std::vector<int> user_set_check_ID;
+  std::set<uint32> var_order;
+  std::map<uint32, std::vector<StmtNode *>> var_to_stmt;
 
-      std::vector<StmtNode *> stmt_to_remove;
-      std::vector<StmtNode *> call_stmt_to_remove;
-      std::vector<std::pair<StmtNode *, BB *>> stmt_to_cleanup;
+  std::vector<set_check> san_set_check;
+  std::vector<int> san_set_check_ID;
 
-      for (BB *bb : cfg->GetAllBBs()) {
-        if (bb) {
-          for (StmtNode &stmt : bb->GetStmtNodes()) {
-            std::vector<int32> stmt_reg;
-            // OP_regassign -> <REG> = <EXPR>
-            if (stmt.GetOpCode() == OP_regassign) {
-              std::vector<int32> reg_redef_check_vec;
-              set_check regassign_tmp;
-              RegassignNode *regAssign = static_cast<RegassignNode *>(&stmt);
-              // using PregIdx = int32;
-              if (reg_to_stmt.count(regAssign->GetRegIdx()) == 0) {
-                reg_order.insert(regAssign->GetRegIdx());
-              }
-              reg_to_stmt[regAssign->GetRegIdx()].push_back(&stmt);
-            } else if (stmt.GetOpCode() == OP_dassign || stmt.GetOpCode() == OP_maydassign) {
-              std::vector<uint32> var_redef_check_vec;
-              set_check dassign_tmp;
-              DassignNode *dassign = static_cast<DassignNode *>(&stmt);
-              // uint32
-              if (var_to_stmt.count(dassign->GetStIdx().Idx()) == 0) {
-                var_order.insert(dassign->GetStIdx().Idx());
-              }
-              var_to_stmt[dassign->GetStIdx().Idx()].push_back(&stmt);
-            }
-            // Unsupported OPCODE:
-            // 1. iassignoff <prim-type> <offset> (<addr-expr>, <rhs-expr>)
-            // 2023-02-07: I added iassignoff as interestedMemoryAccess, the address is
-            // calculated by `<addr-expr> + offset`. Hence, the instrumented code is
-            // simply the same as iassign
-            // 2. callassigned
-            // 2023-02-07: I added callassigned to transform the returned variables' names
-            // there are dassign OpCodes inside callassigned instruction
-            else if (stmt.GetOpCode() == OP_callassigned) {
-              /*
+  std::vector<set_check> user_set_check;
+  std::vector<int> user_set_check_ID;
+
+  std::vector<StmtNode *> stmt_to_remove;
+  std::vector<StmtNode *> call_stmt_to_remove;
+  std::vector<std::pair<StmtNode *, BB *>> stmt_to_cleanup;
+
+  for (BB *bb : cfg->GetAllBBs()) {
+    if (bb) {
+      for (StmtNode &stmt : bb->GetStmtNodes()) {
+        std::vector<int32> stmt_reg;
+        // OP_regassign -> <REG> = <EXPR>
+        if (stmt.GetOpCode() == OP_regassign) {
+          std::vector<int32> reg_redef_check_vec;
+          set_check regassign_tmp;
+          RegassignNode *regAssign = static_cast<RegassignNode *>(&stmt);
+          // using PregIdx = int32;
+          if (reg_to_stmt.count(regAssign->GetRegIdx()) == 0) {
+            reg_order.insert(regAssign->GetRegIdx());
+          }
+          reg_to_stmt[regAssign->GetRegIdx()].push_back(&stmt);
+        } else if (stmt.GetOpCode() == OP_dassign || stmt.GetOpCode() == OP_maydassign) {
+          std::vector<uint32> var_redef_check_vec;
+          set_check dassign_tmp;
+          DassignNode *dassign = static_cast<DassignNode *>(&stmt);
+          // uint32
+          if (var_to_stmt.count(dassign->GetStIdx().Idx()) == 0) {
+            var_order.insert(dassign->GetStIdx().Idx());
+          }
+          var_to_stmt[dassign->GetStIdx().Idx()].push_back(&stmt);
+        }
+        // Unsupported OPCODE:
+        // 1. iassignoff <prim-type> <offset> (<addr-expr>, <rhs-expr>)
+        // 2023-02-07: I added iassignoff as interestedMemoryAccess, the address is
+        // calculated by `<addr-expr> + offset`. Hence, the instrumented code is
+        // simply the same as iassign
+        // 2. callassigned
+        // 2023-02-07: I added callassigned to transform the returned variables' names
+        // there are dassign OpCodes inside callassigned instruction
+        else if (stmt.GetOpCode() == OP_callassigned) {
+          /*
                     callassigned <func-name> (<opnd0>, ..., <opndn>) {
                     dassign <var-name0> <field-id0>
                     dassign <var-name1> <field-id1>
                     ...
                     dassign <var-namen> <field-idn> }
                 */
-
-            } else if (stmt.GetOpCode() == OP_iassign) {
-              // syntax: iassign <type> <field-id> (<addr-expr>, <rhs-expr>)
-              // %addr-expr = <rhs-expr>
-              //IassignNode *iassign = static_cast<IassignNode*>(&stmt);
-              BaseNode *addr_expr = stmt.Opnd(0);
-              // addr_expr have 3 cases
-              // iread u64 <* <$_TY_IDX111>> 22 (regread ptr %177)
-              if (addr_expr->GetOpCode() == OP_iread) {
-                std::vector<int32> dump_reg;
-                recursion(addr_expr, dump_reg);
-                for (int32 reg_tmp : dump_reg) {
-                  if (reg_to_stmt.count(reg_tmp) == 0) {
-                    reg_order.insert(reg_tmp);
-                  }
-                  reg_to_stmt[reg_tmp].push_back(&stmt);
-                }
-              } else if (addr_expr->GetOpCode() == OP_regread) {
-                // regread ptr %14
-                RegreadNode *regread = static_cast<RegreadNode *>(addr_expr);
-                if (reg_to_stmt.count(regread->GetRegIdx()) == 0) {
-                  reg_order.insert(regread->GetRegIdx());
-                }
-                reg_to_stmt[regread->GetRegIdx()].push_back(&stmt);
-              } else if (addr_expr->GetOpCode() == OP_dread) {
-                // dread i64 %asan_shadowBase
-                DreadNode *dread = static_cast<DreadNode *>(addr_expr);
-                if (var_to_stmt.count(dread->GetStIdx().Idx()) == 0) {
-                  var_order.insert(dread->GetStIdx().Idx());
-                }
-                var_to_stmt[dread->GetStIdx().Idx()].push_back(&stmt);
-              } else if (IsCommutative(addr_expr->GetOpCode())) {
-                std::vector<int32> dump_reg;
-                recursion(addr_expr->Opnd(0), dump_reg);
-                for (int32 reg_tmp : dump_reg) {
-                  if (reg_to_stmt.count(reg_tmp) == 0) {
-                    reg_order.insert(reg_tmp);
-                  }
-                  reg_to_stmt[reg_tmp].push_back(&stmt);
-                }
+          // We currently skip it, the retVar_XXX variable should not be instrumented
+        } else if (stmt.GetOpCode() == OP_iassign) {
+          // syntax: iassign <type> <field-id> (<addr-expr>, <rhs-expr>)
+          // %addr-expr = <rhs-expr>
+          //IassignNode *iassign = static_cast<IassignNode*>(&stmt);
+          BaseNode *addr_expr = stmt.Opnd(0);
+          // addr_expr have 3 cases
+          // iread u64 <* <$_TY_IDX111>> 22 (regread ptr %177)
+          if (addr_expr->GetOpCode() == OP_iread) {
+            std::vector<int32> dump_reg;
+            recursion(addr_expr, dump_reg);
+            for (int32 reg_tmp : dump_reg) {
+              if (reg_to_stmt.count(reg_tmp) == 0) {
+                reg_order.insert(reg_tmp);
               }
-            } else if (stmt.GetOpCode() == OP_brtrue || stmt.GetOpCode() == OP_brfalse) {
+              reg_to_stmt[reg_tmp].push_back(&stmt);
+            }
+          } else if (addr_expr->GetOpCode() == OP_regread) {
+            // regread ptr %14
+            RegreadNode *regread = static_cast<RegreadNode *>(addr_expr);
+            if (reg_to_stmt.count(regread->GetRegIdx()) == 0) {
+              reg_order.insert(regread->GetRegIdx());
+            }
+            reg_to_stmt[regread->GetRegIdx()].push_back(&stmt);
+          } else if (addr_expr->GetOpCode() == OP_dread) {
+            // dread i64 %asan_shadowBase
+            DreadNode *dread = static_cast<DreadNode *>(addr_expr);
+            if (var_to_stmt.count(dread->GetStIdx().Idx()) == 0) {
+              var_order.insert(dread->GetStIdx().Idx());
+            }
+            var_to_stmt[dread->GetStIdx().Idx()].push_back(&stmt);
+          } else if (IsCommutative(addr_expr->GetOpCode())) {
+            std::vector<int32> dump_reg;
+            recursion(addr_expr->Opnd(0), dump_reg);
+            for (int32 reg_tmp : dump_reg) {
+              if (reg_to_stmt.count(reg_tmp) == 0) {
+                reg_order.insert(reg_tmp);
+              }
+              reg_to_stmt[reg_tmp].push_back(&stmt);
+            }
+          }
+        } else if (stmt.GetOpCode() == OP_brtrue || stmt.GetOpCode() == OP_brfalse) {
+          set_check br_tmp;
+          dep_expansion(stmt.Opnd(0), br_tmp, reg_to_stmt, var_to_stmt, func);
+          gen_register_dep(&stmt, br_tmp, reg_to_stmt, var_to_stmt, func);
+
+          CondGotoNode *cgotoNode = static_cast<CondGotoNode *>(&stmt);
+          StmtNode *nextStmt = stmt.GetRealNext();
+          instrument_flag = false;
+          // if it is a user check
+          if (userchecks.count(&stmt) > 0) {
+            instrument_flag = true;
+            user_set_check.push_back(br_tmp);
+            user_set_check_ID.push_back(stmt.GetStmtID());
+          } else if (nextStmt != nullptr) {
+            if (CallNode *testcallNode = dynamic_cast<CallNode *>(nextStmt)) {
+              MIRFunction *testcalleeFunc =
+                  GlobalTables::GetFunctionTable().GetFunctionFromPuidx(testcallNode->GetPUIdx());
+              // instrument if it is a call to sanitzer
+              if (testcalleeFunc->GetName().find("__asan_report_") == 0) {
+                san_set_check.push_back(br_tmp);
+                san_set_check_ID.push_back(stmt.GetStmtID());
+                instrument_flag = true;
+              }
+            }
+          }
+          if (instrument_flag) {
+            uint32 goto_id = cgotoNode->GetOffset();
+            brgoto_map[goto_id].push_back(&stmt);
+            uint32 lb_id = (static_cast<LabelNode *>(&stmt))->GetLabelIdx();
+            // save the BB id for checking
+            stmt_to_bbID[lb_id] = bb->UintID();
+            stmt_id_to_stmt[stmt.GetStmtID()] = &stmt;
+            stmt_id_list.push_back(stmt.GetStmtID());
+          }
+        }
+      }
+    }
+  }
+  if (brgoto_map.size() > 0) {
+    // We loop again, if
+    for (BB *bb : cfg->GetAllBBs()) {
+      if (bb) {
+        for (StmtNode &stmt : bb->GetStmtNodes()) {
+          uint32 label_index = (static_cast<LabelNode *>(&stmt))->GetLabelIdx();
+          auto iter = brgoto_map.find(label_index);
+          // Some instruction with goto, will have the same LB id, as result
+          // we may double count our coverage, so, we exclude op_goto
+          if (iter != brgoto_map.end() && stmt.GetOpCode() != OP_goto) {
+            std::vector<StmtNode *> tmp = brgoto_map[label_index];
+            for (auto stmt_tmp : tmp) {
+              uint32 tmp_label_index = (static_cast<LabelNode *>(stmt_tmp))->GetLabelIdx();
+              auto id_check = stmt_to_bbID.find(tmp_label_index);
+              if (id_check == stmt_to_bbID.end()) {
+                //LogInfo::MapleLogger() << "[+] Can't fetch the ID "<<"\n";
+                bb_id = 0;
+              } else {
+                bb_id = stmt_to_bbID[tmp_label_index];
+              }
+              stmt_id = stmt_tmp->GetStmtID();
+              // We reverse the logic here
+              // Since brtrue, means jump if the check equal to true
+              // The instruction itself will need to be false in order for being executed
+              if (stmt_tmp->GetOpCode() == OP_brtrue) {
+                br_true = 0;
+              } else {
+                br_true = 1;
+              }
+              //record whether it is a usercheck or sancheck
+              auto search = userchecks.find(stmt_tmp);
+              if (search != userchecks.end()) {
+                type_of_check = 0;
+              } else {
+                type_of_check = 1;
+              }
+              CallNode *caller_cov = retCallCOV(func, bb_id, stmt_id, br_true, type_of_check);
+              CallNode *callee_cov = retCallCOV(func, bb_id, stmt_id, br_true ^ 1, type_of_check);
+              caller_cov->InsertBeforeThis(*stmt_tmp);
+              callee_cov->InsertBeforeThis(stmt);
+              stmt_to_cleanup.emplace_back(caller_cov, bb);
+              stmt_to_cleanup.emplace_back(callee_cov, bb);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (check_env == 2) {
+    LogInfo::MapleLogger() << "Solving Sat"
+                           << "\n";
+    // If is eliminate mode
+    std::string fn_UC = func.GetMIRModule().GetFileName() + "_UC";
+    std::string fn_SC = func.GetMIRModule().GetFileName() + "_SC";
+    std::map<int, san_struct> san_struct_UC = gen_dynmatch(fn_UC);
+    std::map<int, san_struct> san_struct_SC = gen_dynmatch(fn_SC);
+    std::map<int, std::set<int>> SC_SC_mapping;
+    std::map<int, std::set<int>> UC_SC_mapping;
+
+    for (auto const &[id_UC, val_UC] : san_struct_UC) {
+      for (auto const &[id_SC, val_SC] : san_struct_SC) {
+        // For SC-UC case, SC must be var a
+        if (dynamic_sat(val_SC, val_UC, false)) {
+          if (UC_SC_mapping.count(id_SC)) {
+            UC_SC_mapping[id_SC].insert(id_UC);
+          } else {
+            std::set<int> tmp_set;
+            tmp_set.insert(id_UC);
+            UC_SC_mapping[id_SC] = tmp_set;
+          }
+          if (UC_SC_mapping.count(id_UC)) {
+            UC_SC_mapping[id_UC].insert(id_SC);
+          } else {
+            std::set<int> tmp_set;
+            tmp_set.insert(id_SC);
+            UC_SC_mapping[id_UC] = tmp_set;
+          }
+        }
+      }
+    }
+
+    for (auto const &[id_SC_1, val_SC_1] : san_struct_SC) {
+      for (auto const &[id_SC_2, val_SC_2] : san_struct_SC) {
+        if (id_SC_1 != id_SC_2) {
+          if (dynamic_sat(val_SC_1, val_SC_2, false)) {
+            if (SC_SC_mapping.count(id_SC_1)) {
+              SC_SC_mapping[id_SC_1].insert(id_SC_2);
+            } else {
+              std::set<int> tmp_set;
+              tmp_set.insert(id_SC_2);
+              SC_SC_mapping[id_SC_1] = tmp_set;
+            }
+            if (SC_SC_mapping.count(id_SC_2)) {
+              SC_SC_mapping[id_SC_2].insert(id_SC_1);
+            } else {
+              std::set<int> tmp_set;
+              tmp_set.insert(id_SC_1);
+              SC_SC_mapping[id_SC_2] = tmp_set;
+            }
+          }
+        }
+      }
+    }
+    ////san san deletion
+    int SCSC_SAT_CNT = 0;
+    int SCSC_SAT_RUNS = 0;
+    for (int san_i = 0; san_i < san_set_check.size(); san_i++) {
+      for (int san_j = san_i + 1; san_j < san_set_check.size(); san_j++) {
+        SCSC_SAT_RUNS += 1;
+        int san_i_stmt_ID = san_set_check_ID[san_i];
+        int san_j_stmt_ID = san_set_check_ID[san_j];
+        if (SC_SC_mapping.count(san_i_stmt_ID)) {
+          if (SC_SC_mapping[san_i_stmt_ID].count(san_j_stmt_ID)) {
+            if (sat_check(san_set_check[san_i], san_set_check[san_j])) {
+              SCSC_SAT_CNT += 1;
+              StmtNode *erase_stmt;
+              // we just assume the larger the stmtID
+              // the later the stmt appears, which mostly work
+              if (san_i_stmt_ID > san_j_stmt_ID) {
+                erase_stmt = stmt_id_to_stmt[san_i_stmt_ID];
+              } else {
+                erase_stmt = stmt_id_to_stmt[san_j_stmt_ID];
+              }
+              if (std::count(stmt_to_remove.begin(), stmt_to_remove.end(), erase_stmt) == 0) {
+                stmt_to_remove.push_back(erase_stmt);
+                //stmt_to_remove.push_back(erase_stmt->GetRealNext());
+                call_stmt_to_remove.push_back(erase_stmt->GetRealNext()->GetRealNext());
+              }
+            }
+          }
+        }
+      }
+    }
+    int UCSC_SAT_CNT = 0;
+    int UCSC_SAT_RUNS = 0;
+    for (int san_i = 0; san_i < san_set_check.size(); san_i++) {
+      for (int user_j = 0; user_j < user_set_check.size(); user_j++) {
+        UCSC_SAT_RUNS += 1;
+        int san_i_stmt_ID = san_set_check_ID[san_i];
+        int user_j_stmt_ID = user_set_check_ID[user_j];
+        if (UC_SC_mapping.count(san_i_stmt_ID)) {
+          if (UC_SC_mapping[san_i_stmt_ID].count(user_j_stmt_ID)) {
+            print_dep(user_set_check[user_j]);
+            print_dep(san_set_check[san_i]);
+            bool goflag = false;
+            if (sat_check(user_set_check[user_j], san_set_check[san_i])) {
+              goflag = true;
+            } else {
+              san_set_check[san_i].opcode.erase(
+                  std::remove_if(san_set_check[san_i].opcode.begin(), san_set_check[san_i].opcode.end(), isBlacklist),
+                  san_set_check[san_i].opcode.end());
+              if (sat_check(user_set_check[user_j], san_set_check[san_i])) {
+                goflag = true;
+              }
+            }
+            if (goflag) {
+              UCSC_SAT_CNT += 1;
+              StmtNode *erase_stmt = stmt_id_to_stmt[san_i_stmt_ID];
+              if (std::count(stmt_to_remove.begin(), stmt_to_remove.end(), erase_stmt) == 0) {
+                stmt_to_remove.push_back(erase_stmt);
+                //stmt_to_remove.push_back(erase_stmt->GetRealNext());
+                call_stmt_to_remove.push_back(erase_stmt->GetRealNext()->GetRealNext());
+              }
+            }
+          }
+        }
+      }
+    }
+    LogInfo::MapleLogger() << "UC size: " << user_set_check.size() << "\n ";
+    LogInfo::MapleLogger() << "SC size: " << san_set_check.size() << "\n ";
+
+    LogInfo::MapleLogger() << "Total UC-SC pairs: " << UCSC_SAT_RUNS << " Eliminate: " << UCSC_SAT_CNT << "\n ";
+    LogInfo::MapleLogger() << "Total SC-SC pairs: " << SCSC_SAT_RUNS << " Eliminate: " << SCSC_SAT_CNT << "\n ";
+
+    LogInfo::MapleLogger() << "Removing phase: \n";
+    for (BB *bb : cfg->GetAllBBs()) {
+      if (bb) {
+        for (StmtNode &stmt : bb->GetStmtNodes()) {
+          if (std::count(stmt_to_remove.begin(), stmt_to_remove.end(), &stmt)) {
+            if (CallNode *testcallNode = dynamic_cast<CallNode *>(&stmt)) {
+              //bb->RemoveStmtNode(&stmt);
+              stmt_to_cleanup.emplace_back(&stmt, bb);
+            } else {
               set_check br_tmp;
               dep_expansion(stmt.Opnd(0), br_tmp, reg_to_stmt, var_to_stmt, func);
-              gen_register_dep(&stmt, br_tmp, reg_to_stmt, var_to_stmt, func);
-
-              CondGotoNode *cgotoNode = static_cast<CondGotoNode *>(&stmt);
-              StmtNode *nextStmt = stmt.GetRealNext();
-              instrument_flag = false;
-              // if it is a user check
-              if (userchecks.count(&stmt) > 0) {
-                instrument_flag = true;
-                user_set_check.push_back(br_tmp);
-                user_set_check_ID.push_back(stmt.GetStmtID());
-              } else if (nextStmt != nullptr) {
-                if (CallNode *testcallNode = dynamic_cast<CallNode *>(nextStmt)) {
-                  MIRFunction *testcalleeFunc =
-                      GlobalTables::GetFunctionTable().GetFunctionFromPuidx(testcallNode->GetPUIdx());
-                  // instrument if it is a call to sanitzer
-                  if (testcalleeFunc->GetName().find("__asan_report_") == 0) {
-                    san_set_check.push_back(br_tmp);
-                    san_set_check_ID.push_back(stmt.GetStmtID());
-                    instrument_flag = true;
-                  }
-                }
+              std::set<uint32> tmp_var_set;
+              while (!br_tmp.var_live.empty()) {
+                uint32 var_to_check = br_tmp.var_live.top();
+                tmp_var_set.insert(var_to_check);
+                br_tmp.var_live.pop();
               }
-              if (instrument_flag) {
-                uint32 goto_id = cgotoNode->GetOffset();
-                brgoto_map[goto_id].push_back(&stmt);
-                uint32 lb_id = (static_cast<LabelNode *>(&stmt))->GetLabelIdx();
-                // save the BB id for checking
-                stmt_to_bbID[lb_id] = bb->UintID();
-                stmt_id_to_stmt[stmt.GetStmtID()] = &stmt;
-                stmt_id_list.push_back(stmt.GetStmtID());
-              }
-            }
-          }
-        }
-      }
-      if (brgoto_map.size() > 0) {
-        // We loop again, if
-        for (BB *bb : cfg->GetAllBBs()) {
-          if (bb) {
-            for (StmtNode &stmt : bb->GetStmtNodes()) {
-              uint32 label_index = (static_cast<LabelNode *>(&stmt))->GetLabelIdx();
-              auto iter = brgoto_map.find(label_index);
-              // Some instruction with goto, will have the same LB id, as result
-              // we may double count our coverage, so, we exclude op_goto
-              if (iter != brgoto_map.end() && stmt.GetOpCode() != OP_goto) {
-                std::vector<StmtNode *> tmp = brgoto_map[label_index];
-                for (auto stmt_tmp : tmp) {
-                  uint32 tmp_label_index = (static_cast<LabelNode *>(stmt_tmp))->GetLabelIdx();
-                  auto id_check = stmt_to_bbID.find(tmp_label_index);
-                  if (id_check == stmt_to_bbID.end()) {
-                    //LogInfo::MapleLogger() << "[+] Can't fetch the ID "<<"\n";
-                    bb_id = 0;
-                  } else {
-                    bb_id = stmt_to_bbID[tmp_label_index];
-                  }
-                  stmt_id = stmt_tmp->GetStmtID();
-                  // We reverse the logic here
-                  // Since brtrue, means jump if the check equal to true
-                  // The instruction itself will need to be false in order for being executed
-                  if (stmt_tmp->GetOpCode() == OP_brtrue) {
-                    br_true = 0;
-                  } else {
-                    br_true = 1;
-                  }
-                  //record whether it is a usercheck or sancheck
-                  auto search = userchecks.find(stmt_tmp);
-                  if (search != userchecks.end()) {
-                    type_of_check = 0;
-                  } else {
-                    type_of_check = 1;
-                  }
-                  CallNode *caller_cov = retCallCOV(func, bb_id, stmt_id, br_true, type_of_check);
-                  CallNode *callee_cov = retCallCOV(func, bb_id, stmt_id, br_true ^ 1, type_of_check);
-                  caller_cov->InsertBeforeThis(*stmt_tmp);
-                  callee_cov->InsertBeforeThis(stmt);
-                  stmt_to_cleanup.emplace_back(caller_cov, bb);
-                  stmt_to_cleanup.emplace_back(callee_cov, bb);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (check_env == 2) {
-        LogInfo::MapleLogger() << "Solving Sat"
-                               << "\n";
-        // If is eliminate mode
-        std::string fn_UC = func.GetMIRModule().GetFileName() + "_UC";
-        std::string fn_SC = func.GetMIRModule().GetFileName() + "_SC";
-        std::map<int, san_struct> san_struct_UC = gen_dynmatch(fn_UC);
-        std::map<int, san_struct> san_struct_SC = gen_dynmatch(fn_SC);
-        std::map<int, std::set<int>> SC_SC_mapping;
-        std::map<int, std::set<int>> UC_SC_mapping;
-
-        for (auto const &[id_UC, val_UC] : san_struct_UC) {
-          for (auto const &[id_SC, val_SC] : san_struct_SC) {
-            // For SC-UC case, SC must be var a
-            if (dynamic_sat(val_SC, val_UC, false)) {
-              if (UC_SC_mapping.count(id_SC)) {
-                UC_SC_mapping[id_SC].insert(id_UC);
-              } else {
-                std::set<int> tmp_set;
-                tmp_set.insert(id_UC);
-                UC_SC_mapping[id_SC] = tmp_set;
-              }
-              if (UC_SC_mapping.count(id_UC)) {
-                UC_SC_mapping[id_UC].insert(id_SC);
-              } else {
-                std::set<int> tmp_set;
-                tmp_set.insert(id_SC);
-                UC_SC_mapping[id_UC] = tmp_set;
-              }
-            }
-          }
-        }
-
-        for (auto const &[id_SC_1, val_SC_1] : san_struct_SC) {
-          for (auto const &[id_SC_2, val_SC_2] : san_struct_SC) {
-            if (id_SC_1 != id_SC_2) {
-              if (dynamic_sat(val_SC_1, val_SC_2, false)) {
-                if (SC_SC_mapping.count(id_SC_1)) {
-                  SC_SC_mapping[id_SC_1].insert(id_SC_2);
-                } else {
-                  std::set<int> tmp_set;
-                  tmp_set.insert(id_SC_2);
-                  SC_SC_mapping[id_SC_1] = tmp_set;
-                }
-                if (SC_SC_mapping.count(id_SC_2)) {
-                  SC_SC_mapping[id_SC_2].insert(id_SC_1);
-                } else {
-                  std::set<int> tmp_set;
-                  tmp_set.insert(id_SC_1);
-                  SC_SC_mapping[id_SC_2] = tmp_set;
-                }
-              }
-            }
-          }
-        }
-        ////san san deletion
-        int SCSC_SAT_CNT = 0;
-        int SCSC_SAT_RUNS = 0;
-        for (int san_i = 0; san_i < san_set_check.size(); san_i++) {
-          for (int san_j = san_i + 1; san_j < san_set_check.size(); san_j++) {
-            SCSC_SAT_RUNS += 1;
-            int san_i_stmt_ID = san_set_check_ID[san_i];
-            int san_j_stmt_ID = san_set_check_ID[san_j];
-            if (SC_SC_mapping.count(san_i_stmt_ID)) {
-              if (SC_SC_mapping[san_i_stmt_ID].count(san_j_stmt_ID)) {
-                if (sat_check(san_set_check[san_i], san_set_check[san_j])) {
-                  SCSC_SAT_CNT += 1;
-                  StmtNode *erase_stmt;
-                  // we just assume the larger the stmtID
-                  // the later the stmt appears, which mostly work
-                  if (san_i_stmt_ID > san_j_stmt_ID) {
-                    erase_stmt = stmt_id_to_stmt[san_i_stmt_ID];
-                  } else {
-                    erase_stmt = stmt_id_to_stmt[san_j_stmt_ID];
-                  }
-                  if (std::count(stmt_to_remove.begin(), stmt_to_remove.end(), erase_stmt) == 0) {
-                    stmt_to_remove.push_back(erase_stmt);
-                    //stmt_to_remove.push_back(erase_stmt->GetRealNext());
-                    call_stmt_to_remove.push_back(erase_stmt->GetRealNext()->GetRealNext());
-                  }
-                }
-              }
-            }
-          }
-        }
-        int UCSC_SAT_CNT = 0;
-        int UCSC_SAT_RUNS = 0;
-        for (int san_i = 0; san_i < san_set_check.size(); san_i++) {
-          for (int user_j = 0; user_j < user_set_check.size(); user_j++) {
-            UCSC_SAT_RUNS += 1;
-            int san_i_stmt_ID = san_set_check_ID[san_i];
-            int user_j_stmt_ID = user_set_check_ID[user_j];
-            if (UC_SC_mapping.count(san_i_stmt_ID)) {
-              if (UC_SC_mapping[san_i_stmt_ID].count(user_j_stmt_ID)) {
-                print_dep(user_set_check[user_j]);
-                print_dep(san_set_check[san_i]);
-                bool goflag = false;
-                if (sat_check(user_set_check[user_j], san_set_check[san_i])) {
-                  goflag = true;
-                } else {
-                  san_set_check[san_i].opcode.erase(std::remove_if(san_set_check[san_i].opcode.begin(),
-                                                                   san_set_check[san_i].opcode.end(), isBlacklist),
-                                                    san_set_check[san_i].opcode.end());
-                  if (sat_check(user_set_check[user_j], san_set_check[san_i])) {
-                    goflag = true;
-                  }
-                }
-                if (goflag) {
-                  UCSC_SAT_CNT += 1;
-                  StmtNode *erase_stmt = stmt_id_to_stmt[san_i_stmt_ID];
-                  if (std::count(stmt_to_remove.begin(), stmt_to_remove.end(), erase_stmt) == 0) {
-                    stmt_to_remove.push_back(erase_stmt);
-                    //stmt_to_remove.push_back(erase_stmt->GetRealNext());
-                    call_stmt_to_remove.push_back(erase_stmt->GetRealNext()->GetRealNext());
-                  }
-                }
-              }
-            }
-          }
-        }
-        LogInfo::MapleLogger() << "UC size: " << user_set_check.size() << "\n ";
-        LogInfo::MapleLogger() << "SC size: " << san_set_check.size() << "\n ";
-
-        LogInfo::MapleLogger() << "Total UC-SC pairs: " << UCSC_SAT_RUNS << " Eliminate: " << UCSC_SAT_CNT << "\n ";
-        LogInfo::MapleLogger() << "Total SC-SC pairs: " << SCSC_SAT_RUNS << " Eliminate: " << SCSC_SAT_CNT << "\n ";
-
-        LogInfo::MapleLogger() << "Removing phase: \n";
-        for (BB *bb : cfg->GetAllBBs()) {
-          if (bb) {
-            for (StmtNode &stmt : bb->GetStmtNodes()) {
-              if (std::count(stmt_to_remove.begin(), stmt_to_remove.end(), &stmt)) {
-                if (CallNode *testcallNode = dynamic_cast<CallNode *>(&stmt)) {
-                  //bb->RemoveStmtNode(&stmt);
-                  stmt_to_cleanup.emplace_back(&stmt, bb);
-                } else {
-                  set_check br_tmp;
-                  dep_expansion(stmt.Opnd(0), br_tmp, reg_to_stmt, var_to_stmt, func);
-                  std::set<uint32> tmp_var_set;
-                  while (!br_tmp.var_live.empty()) {
-                    uint32 var_to_check = br_tmp.var_live.top();
-                    tmp_var_set.insert(var_to_check);
-                    br_tmp.var_live.pop();
-                  }
-                  bool term_flag = false;
-                  StmtNode *prevStmt = stmt.GetPrev();
-                  while (!term_flag && prevStmt != nullptr) {
-                    if (prevStmt->GetOpCode() == OP_brtrue || prevStmt->GetOpCode() == OP_brfalse) {
-                      set_check br_local_tmp;
-                      bool trigger = false;
-                      dep_expansion(prevStmt->Opnd(0), br_local_tmp, reg_to_stmt, var_to_stmt, func);
-                      while (!br_local_tmp.var_live.empty()) {
-                        uint32 var_to_check = br_local_tmp.var_live.top();
-                        if (func.GetMIRModule().CurFunction()->GetSymbolTabSize() >= int(var_to_check)) {
-                          MIRSymbol *var = func.GetMIRModule().CurFunction()->GetSymbolTabItem(var_to_check);
-                          if (var->GetName().find("asan_addr") == 0) {
-                            trigger = true;
-                            tmp_var_set.insert(var_to_check);
-                          }
-                        }
-                        br_local_tmp.var_live.pop();
+              bool term_flag = false;
+              StmtNode *prevStmt = stmt.GetPrev();
+              while (!term_flag && prevStmt != nullptr) {
+                if (prevStmt->GetOpCode() == OP_brtrue || prevStmt->GetOpCode() == OP_brfalse) {
+                  set_check br_local_tmp;
+                  bool trigger = false;
+                  dep_expansion(prevStmt->Opnd(0), br_local_tmp, reg_to_stmt, var_to_stmt, func);
+                  while (!br_local_tmp.var_live.empty()) {
+                    uint32 var_to_check = br_local_tmp.var_live.top();
+                    if (func.GetMIRModule().CurFunction()->GetSymbolTabSize() >= int(var_to_check)) {
+                      MIRSymbol *var = func.GetMIRModule().CurFunction()->GetSymbolTabItem(var_to_check);
+                      if (var->GetName().find("asan_addr") == 0) {
+                        trigger = true;
+                        tmp_var_set.insert(var_to_check);
                       }
-                      // we hit a possible UC, we terminate here
-                      if (!trigger) {
-                        term_flag = true;
-                      } else {
-                        prevStmt = prevStmt->GetPrev();
-                        // bb->RemoveStmtNode(prevStmt->GetRealNext());
-                        stmt_to_cleanup.emplace_back(prevStmt->GetRealNext(), bb);
+                    }
+                    br_local_tmp.var_live.pop();
+                  }
+                  // we hit a possible UC, we terminate here
+                  if (!trigger) {
+                    term_flag = true;
+                  } else {
+                    prevStmt = prevStmt->GetPrev();
+                    // bb->RemoveStmtNode(prevStmt->GetRealNext());
+                    stmt_to_cleanup.emplace_back(prevStmt->GetRealNext(), bb);
+                  }
+                } else if (prevStmt->GetOpCode() == OP_dassign) {
+                  DassignNode *dassign = static_cast<DassignNode *>(prevStmt);
+                  // dump extra dependence
+                  set_check br_local_tmp;
+                  dep_expansion(prevStmt, br_local_tmp, reg_to_stmt, var_to_stmt, func);
+                  while (!br_local_tmp.var_live.empty()) {
+                    uint32 var_to_check = br_local_tmp.var_live.top();
+                    if (func.GetMIRModule().CurFunction()->GetSymbolTabSize() >= int(var_to_check)) {
+                      MIRSymbol *var = func.GetMIRModule().CurFunction()->GetSymbolTabItem(var_to_check);
+                      if (var->GetName().find("asan_addr") == 0) {
+                        tmp_var_set.insert(var_to_check);
                       }
-                    } else if (prevStmt->GetOpCode() == OP_dassign) {
-                      DassignNode *dassign = static_cast<DassignNode *>(prevStmt);
-                      // dump extra dependence
-                      set_check br_local_tmp;
-                      dep_expansion(prevStmt, br_local_tmp, reg_to_stmt, var_to_stmt, func);
-                      while (!br_local_tmp.var_live.empty()) {
-                        uint32 var_to_check = br_local_tmp.var_live.top();
-                        if (func.GetMIRModule().CurFunction()->GetSymbolTabSize() >= int(var_to_check)) {
-                          MIRSymbol *var = func.GetMIRModule().CurFunction()->GetSymbolTabItem(var_to_check);
-                          if (var->GetName().find("asan_addr") == 0) {
-                            tmp_var_set.insert(var_to_check);
-                          }
-                        }
-                        br_local_tmp.var_live.pop();
-                      }
-                      if (tmp_var_set.count(dassign->GetStIdx().Idx())) {
-                        prevStmt = prevStmt->GetPrev();
-                        stmt_to_cleanup.emplace_back(prevStmt->GetRealNext(), bb);
-                        // bb->RemoveStmtNode(prevStmt->GetRealNext());
-                      } else {
-                        prevStmt = prevStmt->GetPrev();
-                      }
-                    } else if (prevStmt->GetOpCode() == OP_dassignoff) {
-                      /*
+                    }
+                    br_local_tmp.var_live.pop();
+                  }
+                  if (tmp_var_set.count(dassign->GetStIdx().Idx())) {
+                    prevStmt = prevStmt->GetPrev();
+                    stmt_to_cleanup.emplace_back(prevStmt->GetRealNext(), bb);
+                    // bb->RemoveStmtNode(prevStmt->GetRealNext());
+                  } else {
+                    prevStmt = prevStmt->GetPrev();
+                  }
+                } else if (prevStmt->GetOpCode() == OP_dassignoff) {
+                  /*
                       The dassignoff is not documented in the MAPLE IR
                       It simulate the iassignoff implementation
                       dassignoff <prim-type> <var_name> <offset> (<rhs-expr>)
                       */
-                      DassignoffNode *dassignoff = dynamic_cast<DassignoffNode *>(prevStmt);
-                      CHECK_FATAL(dassignoff != nullptr, "Node with OP_dassignoff but not DassignoffNode");
-                      // TODO: I am not sure what should be done for it now ...
-                    } else if (CallNode *testcallNode = dynamic_cast<CallNode *>(prevStmt)) {
-                      // stop if we hit a Call
-                      term_flag = true;
-                    } else {
-                      prevStmt = prevStmt->GetPrev();
-                    }
-                  }
-                  stmt_to_cleanup.emplace_back(&stmt, bb);
-                  // bb->RemoveStmtNode(&stmt);
+                  DassignoffNode *dassignoff = dynamic_cast<DassignoffNode *>(prevStmt);
+                  CHECK_FATAL(dassignoff != nullptr, "Node with OP_dassignoff but not DassignoffNode");
+                  // TODO: I am not sure what should be done for it now ...
+                } else if (CallNode *testcallNode = dynamic_cast<CallNode *>(prevStmt)) {
+                  // stop if we hit a Call
+                  term_flag = true;
+                } else {
+                  prevStmt = prevStmt->GetPrev();
                 }
               }
+              stmt_to_cleanup.emplace_back(&stmt, bb);
+              // bb->RemoveStmtNode(&stmt);
             }
           }
         }
-        for (auto bb_pair : stmt_to_cleanup) {
-          bb_pair.second->RemoveStmtNode(bb_pair.first);
-        }
-        int erase_ctr = 0;
-        LogInfo::MapleLogger() << "Clean up redundant call stmt "
-                               << "\n";
-        BlockNode *bodyNode = func.GetMirFunc()->GetBody();
-        for (auto stmt : call_stmt_to_remove) {
-          // stmt->Dump();
-          erase_ctr += 1;
-          bodyNode->RemoveStmt(stmt);
-        }
-        LogInfo::MapleLogger() << "Erased: " << erase_ctr << "\n";
       }
-      if ((func.GetName().compare("main") == 0) && (check_env == 1)) {
-        //Register the call, such it dump the coverage at the exit
-        __san_cov_flush = getOrInsertFunction(builder, "__san_cov_flush", voidType, {});
-        //Insert the atexit to the starting point of the main
-        MapleVector<BaseNode *> args(func.GetMIRModule().GetMPAllocator().Adapter());
-        StmtNode *stmt_tmp = builder->CreateStmtCall(__san_cov_flush->GetPuidx(), args);
-        func.GetMirFunc()->GetBody()->InsertFirst(stmt_tmp);
-      }
-      LogInfo::MapleLogger() << "****************SANRAZOR Done****************"
-                             << "\n";
     }
+    for (auto bb_pair : stmt_to_cleanup) {
+      bb_pair.second->RemoveStmtNode(bb_pair.first);
+    }
+    int erase_ctr = 0;
+    LogInfo::MapleLogger() << "Clean up redundant call stmt "
+                           << "\n";
+    BlockNode *bodyNode = func.GetMirFunc()->GetBody();
+    for (auto stmt : call_stmt_to_remove) {
+      // stmt->Dump();
+      erase_ctr += 1;
+      bodyNode->RemoveStmt(stmt);
+    }
+    LogInfo::MapleLogger() << "Erased: " << erase_ctr << "\n";
   }
-  // dump IRs of each block
-  dumpFunc(func);
-  LogInfo::MapleLogger() << "ASAN done instrumenting: " << functionModified << " " << func.GetName() << "\n";
-
-  return functionModified;
+  if ((func.GetName().compare("main") == 0) && (check_env == 1)) {
+    //Register the call, such it dump the coverage at the exit
+    __san_cov_flush = getOrInsertFunction(builder, "__san_cov_flush", voidType, {});
+    //Insert the atexit to the starting point of the main
+    MapleVector<BaseNode *> args(func.GetMIRModule().GetMPAllocator().Adapter());
+    StmtNode *stmt_tmp = builder->CreateStmtCall(__san_cov_flush->GetPuidx(), args);
+    func.GetMirFunc()->GetBody()->InsertFirst(stmt_tmp);
+  }
+  LogInfo::MapleLogger() << "****************SANRAZOR Done****************"
+                         << "\n";
 }
 
 void AddressSanitizer::instrumentMemIntrinsic(IntrinsiccallNode *stmtNode) {
@@ -602,11 +612,11 @@ void AddressSanitizer::instrumentMemIntrinsic(IntrinsiccallNode *stmtNode) {
 }
 
 std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *stmtNode) {
-  LogInfo::MapleLogger() << "ASAN isInterestingMemoryAccess " << stmtNode->GetSrcPos().DumpLocWithColToString() << "\n";
+  // LogInfo::MapleLogger() << "ASAN isInterestingMemoryAccess " << stmtNode->GetSrcPos().DumpLocWithColToString() << "\n";
 
   std::vector<MemoryAccess> memAccess;
   if (LocalDynamicShadow == stmtNode) {
-    LogInfo::MapleLogger() << "ASAN isInterestingMemoryAccess is done.\n";
+    // LogInfo::MapleLogger() << "ASAN isInterestingMemoryAccess is done.\n";
     return memAccess;
   }
 
@@ -637,6 +647,8 @@ std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *
                                                                     iassign->Opnd(0));
         struct MemoryAccess memoryAccess = {stmtNode, true, pointedTy->GetSize() << 3, align, addr};
         memAccess.emplace_back(memoryAccess);
+        // the rhs-expr can still read from somewhere, push it to stack
+        baseNodeStack.push(iassign->Opnd(1));
         break;
       }
       case OP_iassignoff: {
@@ -660,6 +672,8 @@ std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *
         BaseNode *addr = module->GetMIRBuilder()->CreateExprIaddrof(addrPrimType, TyIdx(primType), 0, addrExpr);
         struct MemoryAccess memoryAccess = {stmtNode, true, primTypeSize << 3, primTypeSize, addr};
         memAccess.emplace_back(memoryAccess);
+        // the rhs-expr can still read from somewhere, push it to stack
+        baseNodeStack.push(iassignoff->GetBOpnd(1));
         break;
       }
       case OP_iassignfpoff:
@@ -752,8 +766,8 @@ void AddressSanitizer::maybeInsertDynamicShadowAtFunctionEntry(MeFunction &F) {
   LocalDynamicShadow = mirBuilder->CreateExprIread(*IntPtrTy, *Int64PtrTy, 0, dreadNode);
 }
 
-void AddressSanitizer::instrumentMop(StmtNode *I) {
-  std::vector<MemoryAccess> memoryAccess = isInterestingMemoryAccess(I);
+void AddressSanitizer::instrumentMop(StmtNode *I, std::vector<MemoryAccess> &memoryAccess) {
+  // std::vector<MemoryAccess> memoryAccess = isInterestingMemoryAccess(I);
   assert(memoryAccess.size() > 0);
 
   unsigned granularity = 1 << Mapping.Scale;

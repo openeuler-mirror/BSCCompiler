@@ -604,11 +604,14 @@ void dep_expansion(BaseNode *stmt, set_check &dep, std::map<int32, std::vector<S
     }
     case OP_dassignoff: {
       // TODO:
+      // It is not documented in MAPLE IR.
+      break;
     }
     default: {
       for (int i = 0; i < stmt->NumOpnds(); i++) {
         dep_expansion(stmt->Opnd(i), dep, reg_to_stmt, var_to_stmt, func);
       }
+      break;
     }
   }
 }

@@ -44,7 +44,7 @@ namespace maple {
   private:
     friend class FunctionStackPoisoner;
 
-    void instrumentMop(StmtNode *I);
+    void instrumentMop(StmtNode *I, std::vector<MemoryAccess> &memoryAccess);
 
     void initializeCallbacks(MIRModule &module);
 
@@ -67,6 +67,14 @@ namespace maple {
     CallNode* generateCrashCode(MIRSymbol* Addr, bool IsWrite, size_t AccessSizeIndex, BaseNode *SizeArgument);
 
     BinaryNode *createSlowPathCmp(StmtNode *InsBefore,BaseNode *AddrLong, BaseNode *ShadowValue, uint32_t TypeSize);
+
+    void SanrazorProcess(MeFunction &func,
+                         std::set<StmtNode *> &userchecks,
+                         std::map<uint32, std::vector<StmtNode *>> &brgoto_map,
+                         std::map<uint32, uint32> &stmt_to_bbID,
+                         std::map<int, StmtNode *> &stmt_id_to_stmt,
+                         std::vector<int> &stmt_id_list,
+                         int check_env);
 
     struct FunctionStateRAII {
       AddressSanitizer *Phase;
