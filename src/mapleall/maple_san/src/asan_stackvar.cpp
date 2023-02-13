@@ -382,6 +382,24 @@ MIRSymbol *FunctionStackPoisoner::createAllocaForLayout(StmtNode *insBefore, MIR
   return alloca;
 }
 
+bool FunctionStackPoisoner::isFuncCallArg(const MIRSymbol * const symbolPtr) {
+  for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
+    if (symbolPtr == mirFunction->GetFormal(i)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool FunctionStackPoisoner::isFuncCallArg(const std::string symbolName) {
+  for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
+    if (symbolName == mirFunction->GetFormal(i)->GetName()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void FunctionStackPoisoner::processStackVariable() {
   if (stackVariableDesc.empty()) {
     return;
@@ -424,6 +442,21 @@ void FunctionStackPoisoner::processStackVariable() {
       dassignNode->InsertAfterThis(*insBefore);
       // replace the Var being referenced
       replaceAllUsesWith(localVar, newLocalVar);
+      /* The stack Var could be a function call parameter
+      When the stack Var is initialized by the calling convention, its shadow memory can be
+      initialized already, or it has value so that we need to assign the source value to its field
+      NOTE: this must be done after replaceAllUsesWith; otherwise, the initialization could be falsely
+      replaced*/
+      if (isFuncCallArg(localVar)) {
+        // dread asan_<Var> PTY_a64
+        BaseNode *asanAddrExpr = mirBuilder->CreateDread(*newLocalVar, PTY_a64);
+        // dread <Var> <type>
+        MIRType *argVarType = localVar->GetType();
+        BaseNode *argVarValue = mirBuilder->CreateDread(*localVar, argVarType->GetPrimType());
+        // TODO: need check->since we assign the whole value of an argument, the field should be 0
+        IassignNode *iassignNode = mirBuilder->CreateStmtIassign(*localVarPtr, 0, asanAddrExpr, argVarValue);
+        iassignNode->InsertAfterThis(*insBefore);
+      }
       for (int j = 0; j < mirFunction->GetFormalCount(); j++) {
         MIRSymbol *para = mirFunction->GetFormal(i);
         if (para == desc.Symbol) {

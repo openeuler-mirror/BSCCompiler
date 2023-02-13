@@ -98,7 +98,8 @@ namespace maple {
       if (sizeInBytes % minRedZone) {
         rightRedzoneSize += minRedZone - (sizeInBytes % minRedZone);
       }
-      assert(((rightRedzoneSize + sizeInBytes) % minRedZone) == 0);
+      ASSERT(((rightRedzoneSize + sizeInBytes) % minRedZone) == 0,
+        "rightRedzoneSize + sizeInBytes cannot be divided by minRedZone");
 
       // Create new type for global with redzones
       fieldVector.clear();

@@ -54,6 +54,9 @@ namespace maple {
     void copyToShadowInline(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes,
                             size_t Begin, size_t End, MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore);
 
+    bool isFuncCallArg(const MIRSymbol * const symbolPtr);
+    bool isFuncCallArg(const std::string symbolName);
+
     AddressSanitizer &ASan;
 
     MeFunction *meFunction;

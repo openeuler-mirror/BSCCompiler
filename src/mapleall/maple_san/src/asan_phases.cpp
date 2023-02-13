@@ -75,7 +75,7 @@ bool MEDoVarCheck::PhaseRun(maple::MeFunction &f) {
   }
   this->result = preAnalysis;
   LogInfo::MapleLogger() << "The MEDoVarCheck::PhaseRun ends " << f.GetName() << "\n";
-  return false;
+  return true;
 }
 
 PreAnalysis* MEDoVarCheck::GetResult() {
