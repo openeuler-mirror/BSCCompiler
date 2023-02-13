@@ -5,83 +5,80 @@
 #ifndef MAPLE_SAN_ASAN_STACKVAR_H
 #define MAPLE_SAN_ASAN_STACKVAR_H
 
-#include "module_phase_manager.h"
-#include "me_phase_manager.h"
-#include "san_common.h"
 #include "asan_function.h"
 #include "asan_interfaces.h"
+#include "me_phase_manager.h"
+#include "module_phase_manager.h"
+#include "san_common.h"
+#include <set>
+
 namespace maple {
-  class FunctionStackPoisoner {
-  public:
-    FunctionStackPoisoner(MeFunction &function, AddressSanitizer &asan) : ASan(asan),
-            meFunction(&function), mirFunction(function.GetMirFunc()), module(mirFunction->GetModule()),
-            IntptrTy(asan.IntPtrTy), Mapping(asan.Mapping),
-            StackAlignment(1 << Mapping.Scale) {
-      IntptrPtrTy = GlobalTables::GetTypeTable().GetOrCreatePointerType(*IntptrTy, PTY_ptr);
-    };
 
-    bool runOnFunction();
+class FunctionStackPoisoner {
+ public:
+  FunctionStackPoisoner(MeFunction &function, AddressSanitizer &asan);
 
-    void processStackVariable();
+  bool runOnFunction();
 
-    void unpoisonDynamicAllocas();
+  void processStackVariable();
 
-    void initializeCallbacks(MIRModule &M);
+  void unpoisonDynamicAllocas();
 
-    void createDynamicAllocasInitStorage();
+  void initializeCallbacks(MIRModule &M);
 
-    bool isInFirstBlock(StmtNode *stmtNode);
+  void createDynamicAllocasInitStorage();
 
-    BaseNode* GetTransformedNode(MIRSymbol *oldVar, MIRSymbol *newVar,
-                                 BaseNode *baseNode);
+  bool isInFirstBlock(StmtNode *stmtNode);
 
-    void replaceAllUsesWith(MIRSymbol *oldVar, MIRSymbol *newVar);
+  BaseNode *GetTransformedNode(MIRSymbol *oldVar, MIRSymbol *newVar, BaseNode *baseNode);
 
-    void handleDynamicAllocaCall(ASanDynaVariableDescription *AI);
+  void replaceAllUsesWith(MIRSymbol *oldVar, MIRSymbol *newVar);
 
-    MIRSymbol *createAllocaForLayout(StmtNode *insBefore, MIRBuilder *mirBuilder,
-                                     const ASanStackFrameLayout &L);
+  void handleDynamicAllocaCall(ASanDynaVariableDescription *AI);
 
-    void unpoisonDynamicAllocasBeforeInst(StmtNode *InstBefore, MIRSymbol *SavedStack);
+  MIRSymbol *createAllocaForLayout(StmtNode *insBefore, MIRBuilder *mirBuilder, const ASanStackFrameLayout &L);
 
+  void unpoisonDynamicAllocasBeforeInst(StmtNode *InstBefore, MIRSymbol *SavedStack);
 
-    void copyToShadow(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes,
-                      MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore);
+  void copyToShadow(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes, MIRBuilder *mirBuilder,
+                    BaseNode *ShadowBase, StmtNode *InsBefore);
 
-    void copyToShadow(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes,
-                      size_t Begin, size_t End, MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore);
+  void copyToShadow(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes, size_t Begin, size_t End,
+                    MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore);
 
-    void copyToShadowInline(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes,
-                            size_t Begin, size_t End, MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore);
+  void copyToShadowInline(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes, size_t Begin, size_t End,
+                          MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore);
 
-    bool isFuncCallArg(const MIRSymbol * const symbolPtr);
-    bool isFuncCallArg(const std::string symbolName);
+  bool isFuncCallArg(const MIRSymbol *const symbolPtr);
+  bool isFuncCallArg(const std::string symbolName);
 
-    AddressSanitizer &ASan;
+  AddressSanitizer &ASan;
 
-    MeFunction *meFunction;
-    MIRFunction *mirFunction;
+  MeFunction *meFunction;
+  MIRFunction *mirFunction;
 
-    MIRModule *module;
-    MIRType *IntptrTy;
-    MIRType *IntptrPtrTy;
-    ShadowMapping Mapping;
+  MIRModule *module;
+  MIRType *IntptrTy;
+  MIRType *IntptrPtrTy;
+  ShadowMapping Mapping;
 
-    unsigned StackAlignment;
-    MIRSymbol *DynamicAllocaLayout = nullptr;
+  unsigned StackAlignment;
+  MIRSymbol *DynamicAllocaLayout = nullptr;
 
-    std::vector<StmtNode *> RetVec;
-    std::vector<ASanStackVariableDescription> stackVariableDesc;
-    std::vector<ASanDynaVariableDescription> dynamicAllocaDesc;
+  std::vector<StmtNode *> RetVec;
+  std::vector<ASanStackVariableDescription> stackVariableDesc;
+  std::vector<ASanDynaVariableDescription> dynamicAllocaDesc;
+  std::set<const MIRSymbol *> callArgSymbols;
+  std::set<std::string> callArgSymbolNames;
 
-    MIRFunction *AsanSetShadowFunc[0x100] = {};
-    MIRFunction *AsanAllocaPoisonFunc, *AsanAllocasUnpoisonFunc;
+  MIRFunction *AsanSetShadowFunc[0x100] = {};
+  MIRFunction *AsanAllocaPoisonFunc, *AsanAllocasUnpoisonFunc;
 
-    bool HasNonEmptyInlineAsm = false;
-    bool HasReturnsTwiceCall = false;
+  bool HasNonEmptyInlineAsm = false;
+  bool HasReturnsTwiceCall = false;
 
-    std::map<MIRSymbol*, bool> isUsedInAlloca;
-  };
-}
+  std::map<MIRSymbol *, bool> isUsedInAlloca;
+};
+}  // namespace maple
 
-#endif //MAPLE_SAN_ASAN_STACKVAR_H
+#endif  //MAPLE_SAN_ASAN_STACKVAR_H

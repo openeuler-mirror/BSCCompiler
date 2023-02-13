@@ -27,6 +27,23 @@ static int StackMallocSizeClass(uint64_t LocalStackSize) {
   }
 }
 
+FunctionStackPoisoner::FunctionStackPoisoner(MeFunction &function, AddressSanitizer &asan)
+    : ASan(asan),
+      meFunction(&function),
+      mirFunction(function.GetMirFunc()),
+      module(mirFunction->GetModule()),
+      IntptrTy(asan.IntPtrTy),
+      Mapping(asan.Mapping),
+      StackAlignment(1 << Mapping.Scale) {
+  IntptrPtrTy = GlobalTables::GetTypeTable().GetOrCreatePointerType(*IntptrTy, PTY_ptr);
+  // initialize function arguments symbols
+  for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
+    const MIRSymbol *symbolPtr = mirFunction->GetFormal(i);
+    callArgSymbols.insert(symbolPtr);
+    callArgSymbolNames.insert(symbolPtr->GetName());
+  }
+}
+
 void FunctionStackPoisoner::copyToShadow(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes,
                                          MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore) {
   copyToShadow(ShadowMask, ShadowBytes, 0, ShadowMask.size(), mirBuilder, ShadowBase, InsBefore);
@@ -382,22 +399,14 @@ MIRSymbol *FunctionStackPoisoner::createAllocaForLayout(StmtNode *insBefore, MIR
   return alloca;
 }
 
-bool FunctionStackPoisoner::isFuncCallArg(const MIRSymbol * const symbolPtr) {
-  for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
-    if (symbolPtr == mirFunction->GetFormal(i)) {
-      return true;
-    }
-  }
-  return false;
+bool FunctionStackPoisoner::isFuncCallArg(const MIRSymbol *const symbolPtr) {
+  auto iter = callArgSymbols.find(symbolPtr);
+  return iter != callArgSymbols.end();
 }
 
 bool FunctionStackPoisoner::isFuncCallArg(const std::string symbolName) {
-  for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
-    if (symbolName == mirFunction->GetFormal(i)->GetName()) {
-      return true;
-    }
-  }
-  return false;
+  auto iter = callArgSymbolNames.find(symbolName);
+  return iter != callArgSymbolNames.end();
 }
 
 void FunctionStackPoisoner::processStackVariable() {
@@ -437,7 +446,7 @@ void FunctionStackPoisoner::processStackVariable() {
       MIRSymbol *newLocalVar = getOrCreateSymbol(mirBuilder, localVarPtr->GetTypeIndex(), "asan_" + localVar->GetName(),
                                                  kStVar, kScAuto, mirFunction, kScopeLocal);
       newLocalVar->SetSrcPosition(localVar->GetSrcPosition());
-      // initialize the field of the Var by dassign 
+      // initialize the field of the Var by dassign
       DassignNode *dassignNode = mirBuilder->CreateStmtDassign(newLocalVar->GetStIdx(), 0, addExpr);
       dassignNode->InsertAfterThis(*insBefore);
       // replace the Var being referenced
@@ -572,8 +581,8 @@ void FunctionStackPoisoner::processStackVariable() {
   }
 }
 
-BaseNode* FunctionStackPoisoner::GetTransformedNode(MIRSymbol *oldVar, MIRSymbol *newVar, BaseNode *baseNode) {
-  BaseNode* retNode = nullptr;
+BaseNode *FunctionStackPoisoner::GetTransformedNode(MIRSymbol *oldVar, MIRSymbol *newVar, BaseNode *baseNode) {
+  BaseNode *retNode = nullptr;
   if (baseNode->GetOpCode() == OP_addrof) {
     AddrofNode *addrofNode = dynamic_cast<AddrofNode *>(baseNode);
     MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
@@ -586,9 +595,9 @@ BaseNode* FunctionStackPoisoner::GetTransformedNode(MIRSymbol *oldVar, MIRSymbol
     MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(dassignNode->GetStIdx());
     if (mirSymbol->GetStIdx() == oldVar->GetStIdx()) {
       BaseNode *newRHS = GetTransformedNode(oldVar, newVar, dassignNode->GetRHS());
-      StmtNode *newStmtNode = module->GetMIRBuilder()->CreateStmtIassign(
-        *newVar->GetType(), dassignNode->GetFieldID(),
-        module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64), newRHS);
+      StmtNode *newStmtNode =
+          module->GetMIRBuilder()->CreateStmtIassign(*newVar->GetType(), dassignNode->GetFieldID(),
+                                                     module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64), newRHS);
       retNode = newStmtNode;
       return retNode;
     }
@@ -597,8 +606,8 @@ BaseNode* FunctionStackPoisoner::GetTransformedNode(MIRSymbol *oldVar, MIRSymbol
     MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(dreadNode->GetStIdx());
     if (mirSymbol->GetStIdx() == oldVar->GetStIdx()) {
       IreadNode *newStmtNode = module->GetMIRBuilder()->CreateExprIread(
-        *GlobalTables::GetTypeTable().GetPrimType(dreadNode->GetPrimType()), *newVar->GetType(),
-        dreadNode->GetFieldID(), module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64));
+          *GlobalTables::GetTypeTable().GetPrimType(dreadNode->GetPrimType()), *newVar->GetType(),
+          dreadNode->GetFieldID(), module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64));
       retNode = newStmtNode;
       return retNode;
     }
@@ -621,15 +630,15 @@ void FunctionStackPoisoner::replaceAllUsesWith(MIRSymbol *oldVar, MIRSymbol *new
     return;
   }
   CHECK_FATAL(oldVar->GetTyIdx() == dynamic_cast<MIRPtrType *>(newVar->GetType())->GetPointedTyIdx(),
-    "Replace Var SYmbol with different PointedTyIdx");
-  std::vector<std::pair<StmtNode*, StmtNode*>> toReplace;
+              "Replace Var SYmbol with different PointedTyIdx");
+  std::vector<std::pair<StmtNode *, StmtNode *>> toReplace;
   for (StmtNode &stmt : mirFunction->GetBody()->GetStmtNodes()) {
-    BaseNode* newStmt = GetTransformedNode(oldVar, newVar, &stmt);
-    if (newStmt != dynamic_cast<BaseNode*>(&stmt)) {
-      StmtNode* stmt2ptr = dynamic_cast<StmtNode *>(newStmt);
+    BaseNode *newStmt = GetTransformedNode(oldVar, newVar, &stmt);
+    if (newStmt != dynamic_cast<BaseNode *>(&stmt)) {
+      StmtNode *stmt2ptr = dynamic_cast<StmtNode *>(newStmt);
       CHECK_FATAL(stmt2ptr != nullptr, "Get a stmt2 without StmtNode type");
       stmt2ptr->SetSrcPos(stmt.GetSrcPos());
-      toReplace.push_back(std::pair<StmtNode*, StmtNode*>(&stmt, stmt2ptr));
+      toReplace.push_back(std::pair<StmtNode *, StmtNode *>(&stmt, stmt2ptr));
     }
   }
 
