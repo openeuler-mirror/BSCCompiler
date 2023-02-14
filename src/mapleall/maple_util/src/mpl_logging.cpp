@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -38,7 +38,7 @@ const char *tags[] = {
 };
 
 SECUREC_ATTRIBUTE(7, 8) void LogInfo::EmitLogForDevelop(enum LogTags tag, enum LogLevel ll, const std::string &file,
-                                                        const std::string &func, int line, const char *fmt, ...) {
+                                                        const std::string &func, int line, const char *fmt, ...) const {
   char buf[kMaxLogLen];
   ASSERT(tag < kLtAll, "illegal log tag");
 
@@ -99,6 +99,29 @@ SECUREC_ATTRIBUTE(7, 8) void LogInfo::EmitLogForDevelop(enum LogTags tag, enum L
   return;
 }
 
+SECUREC_ATTRIBUTE(4, 5) std::string LogInfo::EmitLogToStringForUser(enum LogNumberCode num, enum LogLevel ll,
+                                                                    const char *fmt, ...) const {
+  char buf[kMaxLogLen];
+  int len = snprintf_s(buf, kMaxLogLen, kMaxLogLen - 1, "%s %02d: ", kLongLogLevels[ll], num);
+  if (len == -1) {
+    WARN(kLncWarn, "snprintf_s failed");
+    return "";
+  }
+  if (outMode != 0) {
+    va_list l;
+    va_start(l, fmt);
+    int eNum = vsnprintf_s(buf + len, kMaxLogLen - len, static_cast<size_t>(kMaxLogLen - len - 1), fmt, l);
+    if (eNum == -1) {
+      WARN(kLncWarn, "vsnprintf_s failed");
+      va_end(l);
+      return "";
+    }
+    va_end(l);
+  }
+  std::string logStr(buf);
+  return logStr;
+}
+
 SECUREC_ATTRIBUTE(4, 5) void LogInfo::EmitLogForUser(enum LogNumberCode num, enum LogLevel ll, const char *fmt,
                                                      ...) const {
   char buf[kMaxLogLen];
@@ -107,7 +130,7 @@ SECUREC_ATTRIBUTE(4, 5) void LogInfo::EmitLogForUser(enum LogNumberCode num, enu
     WARN(kLncWarn, "snprintf_s failed");
     return;
   }
-  if (outMode) {
+  if (outMode != 0) {
     va_list l;
     va_start(l, fmt);
     int eNum = vsnprintf_s(buf + len, kMaxLogLen - len, static_cast<size_t>(kMaxLogLen - len - 1), fmt, l);
@@ -170,5 +193,45 @@ std::ostream &LogInfo::Info() {
 }
 std::ostream &LogInfo::Err() {
   return std::cerr;
+}
+
+void LogInfo::InsertUserWarnMessage(const Loc &loc, const std::string &message) {
+  std::lock_guard<std::mutex> lk(warnsMtx);
+  userWarnsMap[loc].emplace_back(message);
+  ++warnsNum;
+}
+
+void LogInfo::PrintUserWarnMessages() {
+  std::lock_guard<std::mutex> lk(warnsMtx);
+  for (auto it = userWarnsMap.cbegin(); it != userWarnsMap.cend(); ++it) {
+    std::vector<std::string> warns = it->second;
+    for (size_t i = 0; i < warns.size(); ++i) {
+      std::cerr << warns[i] << '\n';
+    }
+  }
+  if (!userWarnsMap.empty()) {
+    INFO(kLncInfo, "%d warn(s) generated.", warnsNum);
+    userWarnsMap.clear();
+  }
+}
+
+void LogInfo::InsertUserErrorMessage(const Loc &loc, const std::string &err) {
+  std::lock_guard<std::mutex> lk(errsMtx);
+  userErrsMap[loc].emplace_back(err);
+  ++errsNum;
+}
+
+void LogInfo::PrintUserErrorMessages() {
+  std::lock_guard<std::mutex> lk(errsMtx);
+  for (auto it = userErrsMap.cbegin(); it != userErrsMap.cend(); ++it) {
+    std::vector<std::string> errs = it->second;
+    for (size_t i = 0; i < errs.size(); ++i) {
+      std::cerr << errs[i] << '\n';
+    }
+  }
+  if (!userErrsMap.empty()) {
+    INFO(kLncInfo, "%d error(s) generated.", errsNum);
+    userErrsMap.clear();
+  }
 }
 }  // namespace maple

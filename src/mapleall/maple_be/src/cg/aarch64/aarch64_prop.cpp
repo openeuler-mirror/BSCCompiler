@@ -1664,10 +1664,10 @@ bool ExtendMovPattern::CheckSrcReg(regno_t srcRegNo, uint32 validNum) {
 
 bool ExtendMovPattern::BitNotAffected(const Insn &insn, uint32 validNum) {
   RegOperand &firstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  if (firstOpnd.IsPhysicalRegister()) {
+  RegOperand &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  if (firstOpnd.IsPhysicalRegister() || secondOpnd.IsPhysicalRegister()) {
     return false;
   }
-  RegOperand &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   regno_t desRegNo = firstOpnd.GetRegisterNumber();
   regno_t srcRegNo = secondOpnd.GetRegisterNumber();
   VRegVersion *useVersion = optSsaInfo->FindSSAVersion(desRegNo);

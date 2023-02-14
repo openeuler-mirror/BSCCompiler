@@ -20,7 +20,7 @@
 using namespace maple;
 
 int main(int argc, char **argv) {
-  SigHandler::EnableAll();
+  SigHandler::Enable();
 
   MplOptions mplOptions;
   int ret = static_cast<int>(mplOptions.Parse(argc, argv));

@@ -146,7 +146,8 @@ void ProfileGen::CreateModProfDesc() {
   // func_desc_tbl will be fixed up later in fixup
   MIRAddrofConst *addrofConst = modMP->New<MIRAddrofConst>(
       modProfDescSym->GetStIdx(), 0, *GlobalTables::GetTypeTable().GetPtr());
-  modProfDescSymMirConst->AddItem(addrofConst, 10);
+  constexpr uint32 id = 10;
+  modProfDescSymMirConst->AddItem(addrofConst, id);
 
   modProfDescSym->SetKonst(modProfDescSymMirConst);
   modProfDesc = modProfDescSym;
@@ -296,7 +297,7 @@ void ProfileGen::CreateFuncProfDescTbl() {
   for (size_t i = 0; i < tblSize; ++i) {
     MIRAddrofConst *funcProfDescMirConst = mod.GetMemPool()->New<MIRAddrofConst>(
         funcProfDescs[i]->GetStIdx(), 0, *GlobalTables::GetTypeTable().GetPtr());
-    funcDescTblMirConst->AddItem(funcProfDescMirConst, i);
+    funcDescTblMirConst->AddItem(funcProfDescMirConst, static_cast<uint32>(i));
   }
 
   funcProfDescTblSym->SetKonst(funcDescTblMirConst);
@@ -324,7 +325,8 @@ void ProfileGen::CreateInitProc() {
   MIRFunction *mplProfInit = mirBuilder->CreateFunction(
       namemangler::kprefixProfInit + FlatenName(mod.GetFileName()), *voidTy, formals);
   mplProfInit->SetPuidxOrigin(mplProfInit->GetPuidx());
-  mplProfInit->SetAttr(FUNCATTR_initialization);
+  mplProfInit->SetAttr(FUNCATTR_section);
+  mplProfInit->GetFuncAttrs().SetPrefixSectionName(".init_array");
   mirBuilder->SetCurrentFunction(*mplProfInit);
 
   MIRFunction *gccProfInitProtoTy = mirBuilder->GetOrCreateFunction(
@@ -358,7 +360,8 @@ void ProfileGen::CreateExitProc() {
   MIRFunction *mplProfExit = mirBuilder->CreateFunction(
       namemangler::kprefixProfExit + FlatenName(mod.GetFileName()), *voidTy, formals);
   mplProfExit->SetPuidxOrigin(mplProfExit->GetPuidx());
-  mplProfExit->SetAttr(FUNCATTR_termination);
+  mplProfExit->SetAttr(FUNCATTR_section);
+  mplProfExit->GetFuncAttrs().SetPrefixSectionName(".fini_array");
   mirBuilder->SetCurrentFunction(*mplProfExit);
 
   MIRFunction *gccProfExitProtoTy = mirBuilder->GetOrCreateFunction(namemangler::kGCCProfExit, voidTy->GetTypeIndex());

@@ -332,11 +332,7 @@ void CallGraph::DelNode(CGNode &node) {
       }
     }
   }
-  func->SetBody(nullptr);
-  // func will be erased, so the coressponding symbol should be set as Deleted
-  ASSERT_NOT_NULL(func);
-  ASSERT_NOT_NULL(func->GetFuncSymbol());
-  func->GetFuncSymbol()->SetIsDeleted();
+  func->Delete();
   nodesMap.erase(func);
   // Update Klass info as it has been built
   if (klassh->GetKlassFromFunc(func) != nullptr) {
@@ -2074,7 +2070,7 @@ bool M2MFuncDeleter::PhaseRun(maple::MIRModule &m) {
       if (debug) {
         LogInfo::MapleLogger() << "[funcdeleter] delete func: " << func->GetName() << std::endl;
       }
-      func->SetAttr(FUNCATTR_delete);
+      func->Delete();
       iter = funcList.erase(iter);
     } else {
       ++iter;

@@ -197,7 +197,8 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   callMINode->SetOpnds(arg);
   entryBody->AddStatement(callMINode);
   newEntry->SetBody(entryBody);
-  newEntry->SetAttr(FUNCATTR_initialization);
+  newEntry->SetAttr(FUNCATTR_section);
+  newEntry->GetFuncAttrs().SetPrefixSectionName(".init_array");
   m.AddFunction(newEntry);
 
   /* call setup in mplpgo.so if it needs mutex && dump in child process */
@@ -208,7 +209,8 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   auto &setupAlloc = newSetup->GetCodeMempoolAllocator();
   setupBody->AddStatement(newSetup->GetCodeMempool()->New<CallNode>(setupAlloc, OP_call, setupInSo->GetPuidx()));
   newSetup->SetBody(setupBody);
-  newSetup->SetAttr(FUNCATTR_initialization);
+  newSetup->SetAttr(FUNCATTR_section);
+  newSetup->GetFuncAttrs().SetPrefixSectionName(".init_array");
   m.AddFunction(newSetup);
 
   /* call exit in libmplpgo.so */
@@ -219,7 +221,8 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   auto &exitAlloc = newExit->GetCodeMempoolAllocator();
   exitBody->AddStatement(newExit->GetCodeMempool()->New<CallNode>(exitAlloc, OP_call, exitInSo->GetPuidx()));
   newExit->SetBody(exitBody);
-  newExit->SetAttr(FUNCATTR_termination);
+  newExit->SetAttr(FUNCATTR_section);
+  newExit->GetFuncAttrs().SetPrefixSectionName(".fini_array");
   m.AddFunction(newExit);
 }
 
@@ -234,8 +237,11 @@ void CGProfGen::InstrumentFunction() {
     return;
   }
 
-  if (f->GetFunction().GetAttr(FUNCATTR_termination) || f->GetFunction().GetAttr(FUNCATTR_initialization)) {
-    return;
+  if (f->GetFunction().GetAttr(FUNCATTR_section)) {
+    const std::string &sectionName = f->GetFunction().GetAttrs().GetPrefixSectionName();
+    if (sectionName == ".init_array" || sectionName == ".fini_array") {
+      return;
+    }
   }
 
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();

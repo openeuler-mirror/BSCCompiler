@@ -159,7 +159,9 @@ struct Loc {
   std::uint32_t line;
   std::uint32_t column;
   Loc(std::uint32_t fileIdxIn, std::uint32_t lineIn, std::uint32_t columnIn)
-      : fileIdx(fileIdxIn),  line(lineIn), column(columnIn) {}
+      : fileIdx(fileIdxIn),
+        line(lineIn),
+        column(columnIn) {}
 
   bool operator<(Loc const &loc) const {
     if (fileIdx != loc.fileIdx) {
@@ -221,7 +223,7 @@ class LogInfo {
     outMode = lm;
   }
   void EmitLogForDevelop(enum LogTags tag, enum LogLevel ll, const std::string &file, const std::string &func,
-                         int line, const char *fmt, ...);
+                         int line, const char *fmt, ...) const;
   FILE *outStream;
   LogMode outMode;
   std::map<Loc, std::vector<std::string>> userErrsMap;
@@ -361,11 +363,11 @@ class LogInfo {
 
 #define FATAL(num, fmt, ...)                                     \
   do {                                                           \
+    logInfo.PrintUserWarnMessages();                             \
+    logInfo.PrintUserErrorMessages();                            \
     if (PRINT_LEVEL_USER <= kLlFatal) {                          \
       logInfo.EmitLogForUser(num, kLlFatal, fmt, ##__VA_ARGS__); \
     }                                                            \
-    logInfo.PrintUserWarnMessages();                             \
-    logInfo.PrintUserErrorMessages();                            \
     if (DEBUG_TEST != 0) {                                       \
       abort();                                                   \
     } else {                                                     \

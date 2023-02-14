@@ -16,6 +16,7 @@
 #include <regex>
 #include <cassert>
 #include <map>
+#include <fstream>
 
 namespace namemangler {
 #ifdef __MRT_DEBUG
@@ -27,7 +28,7 @@ namespace namemangler {
 const int kLocalCodebufSize = 1024;
 const int kMaxCodecbufSize = (1 << 16); // Java spec support a max name length of 64K.
 
-#define GETHEXCHAR(n) static_cast<char>((n) < 10 ? (n) + '0' : (n) - 10 + 'a')
+#define GETHEXCHAR(n) static_cast<char>((n) < 10 ? (n) + kZeroAsciiNum : (n) - 10 + 'a')
 #define GETHEXCHARU(n) static_cast<char>((n) < 10 ? (n) + '0' : (n) - 10 + 'A')
 
 bool doCompression = false;
@@ -226,7 +227,7 @@ std::string DecodeName(const std::string &name) {
         c = static_cast<unsigned char>(namePtr[i++]);
         uint8_t b3 = (c <= '9') ? c - '0' : c - 'a' + kNumLimit;
         c = static_cast<unsigned char>(namePtr[i++]);
-        uint8_t b4 = (c <= '9') ? c - '0' : c - 'a' + kNumLimit;
+        uint8_t b4 = (c <= '9') ? static_cast<uint8_t>(c - '0') : static_cast<uint8_t>(c - 'a' + kNumLimit);
         uint32_t codepoint = (b1 << kCodeOffset3) | (b2 << kCodeOffset2) | (b3 << kCodeOffset) | b4;
         str16 += static_cast<char16_t>(codepoint);
         unsigned int n = UTF16ToUTF8(str, str16, 1, false);
@@ -334,7 +335,7 @@ std::string NativeJavaName(const std::string &name, bool overLoaded) {
             (c <= '9') ? static_cast<unsigned char>(c - '0') : static_cast<unsigned char>((c - 'A') + kNumLimit);
         unsigned char asc = v << kCodeOffset;
         c = decompressedName[i++];
-        v = (c <= '9') ? c - '0' : static_cast<unsigned char>((c - 'A') + kNumLimit);
+        v = (c <= '9') ? static_cast<unsigned char>(c - '0') : static_cast<unsigned char>((c - 'A') + kNumLimit);
         asc += v;
         if (asc == '/') {
           newName += "_";
@@ -585,13 +586,120 @@ size_t GetSleb128Size(int32_t v) {
   int end = ((v >= 0) ? 0 : -1);
 
   while (hasMore) {
-    // judege whether has More valid rem
-    hasMore = (rem != end) ||
-        ((static_cast<uint32_t>(rem) & 1) != (static_cast<uint>((static_cast<uint32_t>(v) >> 6)) & 1));
+    // judege whether has more valid rem
+    hasMore = (rem != end) || ((static_cast<uint32_t>(rem) & 1) !=
+        (static_cast<uint>((static_cast<uint32_t>(v) >> 6)) & 1));
     size++;
     v = rem;
     rem >>= static_cast<int>(kGreybackOffset); // intended signed shift: block codedex here
   }
   return size;
 }
+
+// encode signed to output stream
+uint32_t EncodeSLEB128(uint64_t value, std::ofstream &out) {
+  bool more;
+  uint32_t count = 0;
+  do {
+    uint8_t byte = value & 0x7f;
+    // NOTE: this assumes that this signed shift is an arithmetic right shift.
+    value >>= kGreybackOffset;
+    more = !((((value == 0) && ((byte & 0x40) == 0)) ||
+             ((value == static_cast<uint64_t>(-1)) && ((byte & 0x40) != 0))));
+    count++;
+    if (more) {
+      byte |= 0x80; // Mark this byte to show that more bytes will follow.
+    }
+    out << static_cast<char>(byte);
+  } while (more);
+  return count;
+}
+
+uint32_t EncodeULEB128(uint64_t value, std::ofstream &out) {
+  uint32_t count = 0;
+  do {
+    uint8_t byte = value & 0x7f;
+    value >>= kGreybackOffset;
+    count++;
+    if (value != 0) {
+      byte |= 0x80; // Mark this byte to show that more bytes will follow.
+    }
+    out << char(byte);
+  } while (value != 0);
+  return count;
+}
+
+// decode a ULEB128 value.
+uint64_t DecodeULEB128(const uint8_t *p, unsigned *n, const uint8_t *end) {
+  const uint8_t *origP = p;
+  uint64_t value = 0;
+  unsigned shift = 0;
+  enum Literals {
+    kOneHundredTwentyEight = 128,
+    kSixtyFour = 64
+  };
+  do {
+    if (p == end) {
+      if (n) {
+        *n = static_cast<unsigned>(p - origP);
+      }
+      return 0;
+    }
+    uint64_t slice = *p & 0x7f;
+    if ((shift >= kSixtyFour && slice != 0) || ((slice << shift) >> shift) != slice) {
+      if (n) {
+        *n = static_cast<unsigned>(p - origP);
+      }
+      return 0;
+    }
+    value += slice << shift;
+    shift += kGreybackOffset;
+  } while (*p++ >= kOneHundredTwentyEight);
+  if (n) {
+    *n = static_cast<unsigned>(p - origP);
+  }
+  return value;
+}
+
+// decode a SLEB128 value.
+int64_t DecodeSLEB128(const uint8_t *p, unsigned *n, const uint8_t *end) {
+  const uint8_t *origP = p;
+  int64_t value = 0;
+  unsigned shift = 0;
+  uint8_t byte;
+  enum Literals {
+    kOneHundredTwentyEight = 128,
+    kSixtyFour = 64,
+    kSixtyThree = 63
+  };
+  do {
+    if (p == end) {
+      if (n) {
+        *n = static_cast<unsigned>(p - origP);
+      }
+      return 0;
+    }
+    byte = *p;
+    uint64_t slice = byte & 0x7f;
+    if ((shift >= kSixtyFour && slice != (value < static_cast<int64_t>(0) ? 0x7f : 0x00)) ||
+        (shift == kSixtyThree && slice != 0 && slice != 0x7f)) {
+      if (n) {
+        *n = static_cast<unsigned>(p - origP);
+      }
+      return 0;
+    }
+    value |= static_cast<int64_t>(slice << shift);
+    shift += kGreybackOffset;
+    ++p;
+  } while (byte >= kOneHundredTwentyEight);
+  // Sign extend negative numbers if needed.
+  if (shift < kSixtyFour && (byte & 0x40)) {
+    value = static_cast<int64_t>(static_cast<uint64_t>(value) | static_cast<uint64_t>(0xffffffffffffffff << shift));
+  }
+  if (n) {
+    *n = static_cast<unsigned>(p - origP);
+  }
+  return value;
+}
+
 } // namespace namemangler

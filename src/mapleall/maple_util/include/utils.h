@@ -15,7 +15,6 @@
 #ifndef MAPLE_UTIL_INCLUDE_UTILS_H
 #define MAPLE_UTIL_INCLUDE_UTILS_H
 
-#include <vector>
 #include "mpl_logging.h"
 
 namespace maple {

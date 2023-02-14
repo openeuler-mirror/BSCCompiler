@@ -15,8 +15,6 @@
 
 #include "mpl_profdata_parser.h"
 
-#include <getopt.h>
-
 #include <cassert>
 #include <cinttypes>
 #include <cstdarg>
@@ -161,7 +159,7 @@ int MplProfDataParser::ReadMapleProfileData() {
   FunctionProfileImport funcImport(mprofDataFile, inputStream);
   funcImport.SetPosition(summaryImport.GetPosition());
   int res = funcImport.ReadFuncProfile(profData);
-  if (res) {
+  if (res != 0) {
     LogInfo::MapleLogger() << "no function profile part\n";
     return 1;
   }
@@ -183,7 +181,7 @@ bool MMplProfDataParser::PhaseRun(maple::MIRModule &m) {
   }
   MplProfDataParser parser(m, memPool, enableDebug);
   int res = parser.ReadMapleProfileData();
-  if (res) {
+  if (res != 0) {
     // something wrong
     LogInfo::MapleLogger() << " parse .mprofdata error\n";
     return false;

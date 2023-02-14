@@ -476,7 +476,10 @@ MeExpr *FindCond2SelRHSFromPhiNode(BB *condBB, const BB *ftOrGtBB, BB *jointBB, 
 
 // expr has deref nullptr or div/rem zero, return expr;
 // if it is not sure whether the expr will throw exception, return nullptr
-void MustThrowExceptionExpr(MeExpr *expr, std::set<MeExpr*> &exceptionExpr) {
+void MustThrowExceptionExpr(MeExpr *expr, std::set<MeExpr*> &exceptionExpr, bool &isDivOrRemException) {
+  if (isDivOrRemException) {
+    return;
+  }
   if (expr->GetMeOp() == kMeOpIvar) {
     // deref nullptr
     if (static_cast<IvarMeExpr*>(expr)->GetBase()->IsZero()) {
@@ -486,18 +489,19 @@ void MustThrowExceptionExpr(MeExpr *expr, std::set<MeExpr*> &exceptionExpr) {
   } else if ((expr->GetOp() == OP_div || expr->GetOp() == OP_rem) && expr->GetOpnd(1)->IsIntZero()) {
     // for float or double zero, this is legal.
     exceptionExpr.emplace(expr);
+    isDivOrRemException = true;
     return;
   } else if (expr->GetOp() == OP_select) {
-    MustThrowExceptionExpr(expr->GetOpnd(0), exceptionExpr);
+    MustThrowExceptionExpr(expr->GetOpnd(0), exceptionExpr, isDivOrRemException);
     // for select, if only one result will cause error, we are not sure whether
     // the actual result of this select expr will cause error
     std::set<MeExpr*> trueExpr;
-    MustThrowExceptionExpr(expr->GetOpnd(1), trueExpr);
+    MustThrowExceptionExpr(expr->GetOpnd(1), trueExpr, isDivOrRemException);
     if (trueExpr.empty()) {
       return;
     }
     std::set<MeExpr*> falseExpr;
-    MustThrowExceptionExpr(expr->GetOpnd(2), falseExpr);
+    MustThrowExceptionExpr(expr->GetOpnd(2), falseExpr, isDivOrRemException);
     if (falseExpr.empty()) {
       return;
     }
@@ -505,7 +509,7 @@ void MustThrowExceptionExpr(MeExpr *expr, std::set<MeExpr*> &exceptionExpr) {
     return;
   }
   for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
-    MustThrowExceptionExpr(expr->GetOpnd(i), exceptionExpr);
+    MustThrowExceptionExpr(expr->GetOpnd(i), exceptionExpr, isDivOrRemException);
   }
 }
 
@@ -517,7 +521,8 @@ MeStmt *GetNoReturnStmt(BB *bb) {
   for (auto *stmt = bb->GetFirstMe(); stmt != nullptr; stmt = stmt->GetNextMeStmt()) {
     std::set<MeExpr*> exceptionExpr;
     for (size_t i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
-      MustThrowExceptionExpr(stmt->GetOpnd(i), exceptionExpr);
+      bool isDivOrRemException = false;
+      MustThrowExceptionExpr(stmt->GetOpnd(i), exceptionExpr, isDivOrRemException);
       if (!exceptionExpr.empty()) {
         return stmt;
       }
@@ -1167,14 +1172,24 @@ bool OptimizeBB::RemoveSuccFromNoReturnBB() {
       currBB->GetLastMe()->SetIsLive(false);
       currBB->RemoveLastMeStmt();
     }
+    std::set<MeExpr*> exceptionExprSet;
+    bool divOrRemException = false;
+    for (size_t i = 0; i < exceptionStmt->NumMeStmtOpnds(); ++i) {
+      MustThrowExceptionExpr(exceptionStmt->GetOpnd(i), exceptionExprSet, divOrRemException);
+    }
     // if exceptionStmt not a callsite of exit func, we replace it with a exception-throwing expr.
-    if (exceptionStmt->GetOp() != OP_call) {
+    if (f.GetMIRModule().IsCModule() && divOrRemException) {
+      currBB->RemoveLastMeStmt();
+      auto *newCallMeStmt = irmap->NewInPool<IntrinsiccallMeStmt>(
+          OP_intrinsiccall, INTRN_C___builtin_division_exception);
+      newCallMeStmt->CopyInfo(*exceptionStmt);
+      for (auto *exceptionExpr : exceptionExprSet) {
+        newCallMeStmt->PushBackOpnd(exceptionExpr);
+      }
+      currBB->AddMeStmtLast(newCallMeStmt);
+    } else if (exceptionStmt->GetOp() != OP_call) {
       currBB->RemoveLastMeStmt();
       // we create a expr that must throw exception
-      std::set<MeExpr*> exceptionExprSet;
-      for (size_t i = 0; i < exceptionStmt->NumMeStmtOpnds(); ++i) {
-        MustThrowExceptionExpr(exceptionStmt->GetOpnd(i), exceptionExprSet);
-      }
       ASSERT(!exceptionExprSet.empty(), "Exception stmt must have an exception expr");
       for (auto *exceptionExpr : exceptionExprSet) {
         UnaryMeStmt *evalStmt = irmap->New<UnaryMeStmt>(OP_eval);

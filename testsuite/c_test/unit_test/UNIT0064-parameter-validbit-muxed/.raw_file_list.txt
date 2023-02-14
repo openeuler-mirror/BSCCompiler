@@ -1,0 +1,7 @@
+main.c
+gcc_main.o
+gcc_main.s
+test.cfg
+func.c
+expected.txt
+-----

@@ -342,7 +342,7 @@ void JavaIntrnLowering::ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCa
   bool isReg = retPair.second.IsReg();
   MIRType *retType = nullptr;
   if (!isReg) {
-    ASSERT_NOT_NULL(currFunc->GetLocalOrGlobalSymbol(retPair.first));
+    CHECK_NULL_FATAL(currFunc->GetLocalOrGlobalSymbol(retPair.first));
     retType = currFunc->GetLocalOrGlobalSymbol(retPair.first)->GetType();
   } else {
     PregIdx pregIdx = retPair.second.GetPregIdx();
@@ -355,7 +355,7 @@ void JavaIntrnLowering::ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCa
   CHECK_FATAL(retType->GetKind() == kTypePointer,
               "Return type of INTRN_JAVA_FILL_NEW_ARRAY should point to a Jarray");
   auto *arrayType = static_cast<MIRPtrType*>(retType)->GetPointedType();
-  BaseNode *lenNode = builder->CreateIntConst(static_cast<int64>(intrinCall.NumOpnds()), PTY_i32);
+  BaseNode *lenNode = builder->CreateIntConst(intrinCall.NumOpnds(), PTY_i32);
   JarrayMallocNode *newArrayNode = builder->CreateExprJarrayMalloc(OP_gcmallocjarray, *retType, *arrayType, lenNode);
   // Then fill each array element one by one.
   BaseNode *addrExpr = nullptr;
@@ -376,7 +376,7 @@ void JavaIntrnLowering::ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCa
   StmtNode *stmt = assignStmt;
   for (size_t i = 0; i < intrinCall.NumOpnds(); ++i) {
     ArrayNode *arrayexpr = builder->CreateExprArray(*arrayType, addrExpr,
-                                                    builder->CreateIntConst(static_cast<int64>(i), PTY_i32));
+                                                    builder->CreateIntConst(i, PTY_i32));
     arrayexpr->SetBoundsCheck(false);
     StmtNode *storeStmt = builder->CreateStmtIassign(*retType, 0, arrayexpr, intrinCall.Opnd(i));
     currFunc->GetBody()->InsertAfter(stmt, storeStmt);

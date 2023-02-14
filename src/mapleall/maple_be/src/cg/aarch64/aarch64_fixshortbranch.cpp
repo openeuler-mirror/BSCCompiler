@@ -155,7 +155,11 @@ void AArch64FixShortBranch::FixShortBranchesForSplitting() {
         CHECK_FATAL(targetLabelIdx != 0, "get label failed in condition branch insn");
         auto &targetLabelOpnd = dynamic_cast<LabelOperand&>(insn->GetOperand(targetLabelIdx));
         BB *targetBB = cgFunc->GetBBFromLab2BBMap(targetLabelOpnd.GetLabelIndex());
-        CHECK_FATAL(targetBB, "get Target bb from lab2bb map failed");
+        if (!targetBB) {
+	  LogInfo::MapleLogger() << "ISSUE Func : " << cgFunc->GetName() <<
+              " ISSUE label: " << targetLabelOpnd.GetLabelIndex() << "\n";
+	  CHECK_FATAL_FALSE("get Target bb from lab2bb map failed");
+        }
         bool crossBoundary = bb->IsInColdSection() != targetBB->IsInColdSection();
         if (!crossBoundary) {
           continue;
@@ -222,7 +226,10 @@ bool CgFixShortBranch::PhaseRun(maplebe::CGFunc &f) {
   CHECK_FATAL(fixShortBranch != nullptr, "AArch64FixShortBranch instance create failure");
   fixShortBranch->FixShortBranches();
   if (LiteProfile::IsInWhiteList(f.GetName()) && CGOptions::DoLiteProfUse()) {
-    fixShortBranch->FixShortBranchesForSplitting();
+    LiteProfile::BBInfo *bbInfo = f.GetFunction().GetModule()->GetLiteProfile().GetFuncBBProf(f.GetName());
+    if (bbInfo) {
+      fixShortBranch->FixShortBranchesForSplitting();
+    }
   }
   return false;
 }

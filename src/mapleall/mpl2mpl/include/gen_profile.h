@@ -31,7 +31,7 @@ static constexpr const uint32_t kMplFuncProfCtrInfoNum = 1;
 class ProfileGenPM : public SccPM {
  public:
   explicit ProfileGenPM(MemPool *memPool) : SccPM(memPool, &id) {}
-  bool PhaseRun(MIRModule &m) override;
+  bool PhaseRun(MIRModule &mod) override;
   PHASECONSTRUCTOR(ProfileGenPM);
   ~ProfileGenPM() override {}
   std::string PhaseName() const override;

@@ -744,6 +744,16 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C___sync_xor_and_fetch_4:
     case INTRN_C___sync_xor_and_fetch_8:
       return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpXor, false);
+    case INTRN_C___sync_fetch_and_nand_1:
+    case INTRN_C___sync_fetch_and_nand_2:
+    case INTRN_C___sync_fetch_and_nand_4:
+    case INTRN_C___sync_fetch_and_nand_8:
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpNand, true);
+    case INTRN_C___sync_nand_and_fetch_1:
+    case INTRN_C___sync_nand_and_fetch_2:
+    case INTRN_C___sync_nand_and_fetch_4:
+    case INTRN_C___sync_nand_and_fetch_8:
+      return cgFunc.SelectCSyncFetch(intrinsicopNode, kSyncAndAtomicOpNand, false);
     case INTRN_C___sync_synchronize:
       return cgFunc.SelectCSyncSynchronize(intrinsicopNode);
     case INTRN_C___atomic_load_n:
@@ -775,6 +785,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C___atomic_nand_fetch:
       return cgFunc.SelectCAtomicFetch(intrinsicopNode, kSyncAndAtomicOpNand, false);
     case INTRN_C___atomic_compare_exchange_n :
+      return cgFunc.SelectCAtomicCompareExchange(intrinsicopNode, true);
     case INTRN_C___atomic_compare_exchange :
       return cgFunc.SelectCAtomicCompareExchange(intrinsicopNode);
     case INTRN_C___atomic_test_and_set:
@@ -1214,9 +1225,9 @@ void HandleICall(StmtNode &stmt, CGFunc &cgFunc) {
   }
 }
 
-void HandleIntrinCall(StmtNode &stmt, CGFunc &cgFunc) {
+void HandleIntrinsicCall(StmtNode &stmt, CGFunc &cgFunc) {
   auto &call = static_cast<IntrinsiccallNode&>(stmt);
-  cgFunc.SelectIntrinCall(call);
+  cgFunc.SelectIntrinsicCall(call);
 }
 
 void HandleDassign(StmtNode &stmt, CGFunc &cgFunc) {
@@ -1382,10 +1393,10 @@ void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_call, HandleCall);
   RegisterFactoryFunction<HandleStmtFactory>(OP_icall, HandleICall);
   RegisterFactoryFunction<HandleStmtFactory>(OP_icallproto, HandleICall);
-  RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccall, HandleIntrinCall);
-  RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallassigned, HandleIntrinCall);
-  RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallwithtype, HandleIntrinCall);
-  RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallwithtypeassigned, HandleIntrinCall);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccall, HandleIntrinsicCall);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallassigned, HandleIntrinsicCall);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallwithtype, HandleIntrinsicCall);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallwithtypeassigned, HandleIntrinsicCall);
   RegisterFactoryFunction<HandleStmtFactory>(OP_dassign, HandleDassign);
   RegisterFactoryFunction<HandleStmtFactory>(OP_dassignoff, HandleDassignoff);
   RegisterFactoryFunction<HandleStmtFactory>(OP_regassign, HandleRegassign);

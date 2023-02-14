@@ -102,6 +102,7 @@ extern maplecl::Option<bool> rdynamic;
 extern maplecl::Option<bool> dndebug;
 extern maplecl::Option<bool> usesignedchar;
 extern maplecl::Option<bool> suppressWarnings;
+extern maplecl::Option<bool> pthread;
 
 /* ##################### STRING Options ############################################################### */
 

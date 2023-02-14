@@ -62,7 +62,7 @@ class ReversePtrListRefIterator {
   explicit ReversePtrListRefIterator(T right) : current(right) {}
 
   template <class Other>
-  ReversePtrListRefIterator(const ReversePtrListRefIterator<Other> &right) : current(right.base()) {}
+  explicit ReversePtrListRefIterator(const ReversePtrListRefIterator<Other> &right) : current(right.base()) {}
 
   template <class Other>
   ReversePtrListRefIterator &operator=(const ReversePtrListRefIterator<Other> &right) {
@@ -286,13 +286,13 @@ class PtrListRef {
     if (this->last == nullptr) {
       this->first = _Value;
       this->last = _Value;
-      ASSERT_NOT_NULL(_Value);
+      ASSERT(_Value != nullptr, "null ptr check");
       _Value->SetPrev(nullptr);
       _Value->SetNext(nullptr);
     } else {
       ASSERT(this->first != nullptr, "null ptr check");
       this->first->SetPrev(_Value);
-      ASSERT_NOT_NULL(_Value);
+      ASSERT(_Value != nullptr, "null ptr check");
       _Value->SetPrev(nullptr);
       _Value->SetNext(this->first);
       this->first = _Value;
@@ -371,7 +371,7 @@ class PtrListRef {
     } else {
       // `_Where` stands for the position, however we made the data and node combined, so a const_cast is needed.
       auto *ptr = const_cast<T*>(&*_Where);
-      ASSERT_NOT_NULL(_Value);
+      ASSERT(_Value != nullptr, "null ptr check");
       _Value->SetPrev(ptr);
       _Value->SetNext(ptr->GetNext());
       _Value->GetNext()->SetPrev(_Value);

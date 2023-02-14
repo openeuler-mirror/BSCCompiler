@@ -238,7 +238,7 @@ class CGFunc {
   virtual void SelectGoto(GotoNode &stmt) = 0;
   virtual void SelectCall(CallNode &callNode) = 0;
   virtual void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) = 0;
-  virtual void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) = 0;
+  virtual void SelectIntrinsicCall(IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinsicopNode, std::string name) = 0;
   virtual Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrinsicopNode, PrimType retType,
                                                 const std::string &name) = 0;
@@ -260,7 +260,8 @@ class CGFunc {
   virtual Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, SyncAndAtomicOp op, bool fetchBefore) = 0;
   virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) = 0;
-  virtual Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode,
+                                                bool isCompareExchangeN = false) = 0;
   virtual Operand *SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectCAtomicClear(const IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;

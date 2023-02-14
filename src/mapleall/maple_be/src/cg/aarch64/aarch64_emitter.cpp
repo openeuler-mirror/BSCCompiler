@@ -439,6 +439,29 @@ void AArch64AsmEmitter::EmitCallWithLocalAlias(Emitter &emitter, FuncNameOperand
   }
 }
 
+void HandleSpecificSec(Emitter &emitter, CGFunc &cgFunc) {
+  const std::string &sectionName = cgFunc.GetFunction().GetAttrs().GetPrefixSectionName();
+  emitter.Emit("\t.section\t" + sectionName);
+  if (cgFunc.GetPriority() != 0) {
+    emitter.Emit(".").Emit(cgFunc.GetPriority());
+  }
+  bool isInInitArray = sectionName == ".init_array";
+  bool isInFiniArray = sectionName == ".fini_array";
+  if (isInFiniArray || isInInitArray) {
+    emitter.Emit(",\"aw\"\n");
+  } else {
+    emitter.Emit(",\"ax\",@progbits\n");
+  }
+  /*
+   * Register function pointer in init/fini array
+   * Set function body in text
+   */
+  if (isInInitArray || isInFiniArray) {
+    emitter.Emit("\t.quad\t").Emit(cgFunc.GetName()).Emit("\n");
+    emitter.Emit("\t.text\n");
+  }
+}
+
 void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
   AArch64CGFunc &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
@@ -450,14 +473,6 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     (void)emitter.Emit("\t.section\t.init_array,\"aw\"\n");
     (void)emitter.Emit("\t.quad\t").Emit(cgFunc.GetName()).Emit("\n");
   }
-  if (cgFunc.GetFunction().GetAttr(FUNCATTR_initialization)) {
-    (void)emitter.Emit("\t.section\t.init_array,\"aw\"\n");
-    (void)emitter.Emit("\t.quad\t").Emit(cgFunc.GetName()).Emit("\n");
-  }
-  if (cgFunc.GetFunction().GetAttr(FUNCATTR_termination)) {
-    (void)emitter.Emit("\t.section\t.fini_array,\"aw\"\n");
-    (void)emitter.Emit("\t.quad\t").Emit(cgFunc.GetName()).Emit("\n");
-  }
   (void)emitter.Emit("\n");
   EmitMethodDesc(funcEmitInfo, emitter);
   /* emit java code to the java section. */
@@ -465,12 +480,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     std::string sectionName = namemangler::kMuidJavatextPrefixStr;
     (void)emitter.Emit("\t.section  ." + sectionName + ",\"ax\"\n");
   } else if (cgFunc.GetFunction().GetAttr(FUNCATTR_section)) {
-    const std::string &sectionName = cgFunc.GetFunction().GetAttrs().GetPrefixSectionName();
-    (void)emitter.Emit("\t.section  " + sectionName);
-    if (cgFunc.GetPriority() != 0) {
-      (void)Emit(".").Emit(cgFunc.GetPriority());
-    }
-    (void)Emit(",\"ax\",@progbits\n");
+    HandleSpecificSec(emitter, cgFunc);
   } else if (CGOptions::IsFunctionSections()) {
     (void)emitter.Emit("\t.section  .text.").Emit(cgFunc.GetName()).Emit(",\"ax\",@progbits\n");
   } else if (cgFunc.GetFunction().GetAttr(FUNCATTR_constructor_priority)) {

@@ -25,7 +25,7 @@ CommandLine &CommandLine::GetCommandLine() {
   return cl;
 }
 
-OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) {
+OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) const {
   auto &str = keyArg.rawArg;
 
   for (auto joinedOption : optCategory.joinedOptions) {
@@ -71,7 +71,7 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
   return RetCode::noError;
 }
 
-void CommandLine::closeOptimize(const OptionCategory &optCategory) {
+void CommandLine::CloseOptimize(const OptionCategory &optCategory) const {
   if (optCategory.options.find("-O0") != optCategory.options.end()) {
     optCategory.options.find("-O0")->second->UnSetEnabledByUser();
   }
@@ -106,7 +106,7 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
   if (args[argsIndex] == "--O0" || args[argsIndex] == "-O0" || args[argsIndex] == "--O1" || args[argsIndex] == "-O1" ||
       args[argsIndex] == "--O2" || args[argsIndex] == "-O2" || args[argsIndex] == "--O3" || args[argsIndex] == "-O3" ||
       args[argsIndex] == "--Os" || args[argsIndex] == "-Os") {
-    closeOptimize(optCategory);
+    CloseOptimize(optCategory);
   }
 
   RetCode err = opt->Parse(argsIndex, args, keyArg);
@@ -187,7 +187,7 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
       ASSERT(pos > 0, "CG internal error, composite unit with less than 2 unit elements.");
       err = ParseEqualOption(argsIndex, args, keyArg, optCategory, optCategory.options, pos);
       if (err != RetCode::noError) {
-        badCLArgs.emplace_back(args[argsIndex], err);
+        (void)badCLArgs.emplace_back(args[argsIndex], err);
         ++argsIndex;
         wasError = true;
       }
@@ -198,13 +198,12 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
     else {
       err = ParseSimpleOption(argsIndex, args, keyArg, optCategory, optCategory.options);
       if (err != RetCode::noError) {
-        badCLArgs.emplace_back(args[argsIndex], err);
+        (void)badCLArgs.emplace_back(args[argsIndex], err);
         ++argsIndex;
         wasError = true;
       }
       continue;
     }
-    continue;
   }
 
   if (&optCategory == &defaultCategory) {
@@ -231,8 +230,8 @@ RetCode CommandLine::Parse(int argc, char **argv, OptionCategory &optCategory) {
   }
 
   std::deque<std::string_view> args;
-  while (argc != 0 && *argv != nullptr) {
-    args.emplace_back(*argv);
+  while (argc > 0 && *argv != nullptr) {
+    (void)args.emplace_back(*argv);
     ++argv;
     --argc;
   }
@@ -241,17 +240,17 @@ RetCode CommandLine::Parse(int argc, char **argv, OptionCategory &optCategory) {
 }
 
 void CommandLine::Register(const std::vector<std::string> &optNames,
-                           OptionInterface &opt, OptionCategory &optCategory) {
+                           OptionInterface &opt, OptionCategory &optCategory) const {
   for (auto &optName : optNames) {
     if (optName.empty()) {
       continue;
     }
 
     ASSERT(optCategory.options.count(optName) == 0, "Duplicated options name %s", optName.data());
-    optCategory.options.emplace(optName, &opt);
+    (void)optCategory.options.emplace(optName, &opt);
 
     if (opt.IsJoinedValPermitted()) {
-      optCategory.joinedOptions.emplace(optName, &opt);
+      (void)optCategory.joinedOptions.emplace(optName, &opt);
     }
   }
 
@@ -259,7 +258,7 @@ void CommandLine::Register(const std::vector<std::string> &optNames,
   if (!disabledWith.empty()) {
     for (auto &disabledName : disabledWith) {
       ASSERT(optCategory.options.count(disabledName) == 0, "Duplicated options name %s", disabledName.data());
-      optCategory.options.emplace(disabledName, &opt);
+      (void)optCategory.options.emplace(disabledName, &opt);
     }
   }
 
@@ -267,7 +266,7 @@ void CommandLine::Register(const std::vector<std::string> &optNames,
   opt.optCategories.push_back(&optCategory);
 }
 
-void CommandLine::Clear(OptionCategory &optCategory) {
+void CommandLine::Clear(OptionCategory &optCategory) const {
   for (auto &opt : optCategory.registredOptions) {
     opt->Clear();
   }

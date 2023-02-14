@@ -43,22 +43,47 @@ std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options [[maybe_
   return action.GetOutputFolder() + outputName + ".ast";
 }
 
+bool IsUseBoundaryOption() {
+  return  opts::boundaryStaticCheck.IsEnabledByUser() || opts::boundaryDynamicCheckSilent.IsEnabledByUser();
+}
+
+bool IsUseNpeOption() {
+  return  opts::npeStaticCheck.IsEnabledByUser() || opts::npeDynamicCheckSilent.IsEnabledByUser();
+}
+
 DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
                                                  const Action &action [[maybe_unused]]) const {
   uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
-  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+  uint32_t length = len;
+  if (IsUseBoundaryOption()) {
+    length++;
+  }
+  if (IsUseNpeOption()) {
+    length++;
+  }
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(length), length };
 
   for (uint32_t i = 0; i < len; ++i) {
     defaultOptions.mplOptions[i] = kCpp2MplDefaultOptionsForAst[i];
   }
 
-  for (uint32_t i = 0; i < defaultOptions.length; ++i) {
+  for (uint32_t i = 0; i < len; ++i) {
     defaultOptions.mplOptions[i].SetValue(
         FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
                                            defaultOptions.mplOptions[i].GetValue(),
                                            options.GetExeFolder()));
-    }
-    return defaultOptions;
+  }
+  if (IsUseBoundaryOption()) {
+    defaultOptions.mplOptions[len].SetKey("--boundary-check-dynamic");
+    defaultOptions.mplOptions[len].SetValue("");
+    len++;
+  }
+  if (IsUseNpeOption()) {
+    defaultOptions.mplOptions[len].SetKey("--npe-check-dynamic");
+    defaultOptions.mplOptions[len].SetValue("");
+    len++;
+  }
+  return defaultOptions;
 }
 
 void Cpp2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions [[maybe_unused]], const Action &action,

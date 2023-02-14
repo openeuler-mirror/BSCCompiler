@@ -553,11 +553,14 @@ enum FuncAttrKind : unsigned {
 #include "all_attributes.def"
 #undef ATTR
 #undef FUNC_ATTR
+  FUNCATTR_Undef
 };
 
 class FuncAttrs {
  public:
-  FuncAttrs() = default;
+  FuncAttrs() {
+    ASSERT(FUNCATTR_Undef <= (sizeof(uint64) << 3u), "function attr out of range");
+  }
   FuncAttrs(const FuncAttrs &ta) = default;
   FuncAttrs &operator=(const FuncAttrs &p) = default;
   ~FuncAttrs() = default;

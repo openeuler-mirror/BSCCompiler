@@ -159,7 +159,6 @@ void __mpl_pgo_init(struct Mpl_Lite_Pgo_ObjectFileInfo *fileInfo) {
 
 void __mpl_pgo_exit() {
   if (__mpl_pgo_info_root.dumpOnce == 0 && __mpl_pgo_sleep_time == 0) {
-    printf("dump in main process\n");
     WriteToFile(__mpl_pgo_info_root.ofileInfoList);
     __mpl_pgo_info_root.dumpOnce++;
   }

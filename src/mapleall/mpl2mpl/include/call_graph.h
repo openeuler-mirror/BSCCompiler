@@ -163,7 +163,7 @@ class CallInfo {
 
  private:
   bool areAllArgsLocal = false;
-  InlineFailedCode inlineFailedCode = kIFC_NeedFurtherAnalysis;
+  InlineFailedCode inlineFailedCode = kIfcNeedFurtherAnalysis;
   CallType cType = kCallTypeInvalid;  // Call type
   MIRFunction *caller = nullptr;
   MIRFunction *callee = nullptr;
@@ -518,7 +518,7 @@ using Caller2Cands = std::pair<PUIdx, Callsite>;
 class CallGraph : public AnalysisResult {
  public:
   CallGraph(MIRModule &m, MemPool &memPool, MemPool &tempPool, const KlassHierarchy &kh, const std::string &fn);
-  ~CallGraph() = default;
+  ~CallGraph() override = default;
 
   void InitCallExternal() {
     callExternal = cgAlloc.GetMemPool()->New<CGNode>(static_cast<MIRFunction*>(nullptr), cgAlloc, numOfNodes++);

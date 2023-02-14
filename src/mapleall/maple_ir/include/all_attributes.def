@@ -112,7 +112,3 @@
 #if (defined(TYPE_ATTR) || defined(FIELD_ATTR)) && !defined(NOCONTENT_ATTR)
   ATTR(pack)
 #endif
-#ifdef FUNC_ATTR
-  ATTR(initialization)
-  ATTR(termination)
-#endif

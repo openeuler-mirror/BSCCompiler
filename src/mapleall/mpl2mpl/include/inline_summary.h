@@ -489,8 +489,10 @@ class Predicate {
           continue;
         }
         auto newCondIdx = oldCondIdx2New[j];
-        if (newCondIdx == static_cast<int32>(kCondIdxOverflow)) {
-          // condition out of range, we treat it as true condition
+        if (newCondIdx == static_cast<int32>(kCondIdxOverflow) || newCondIdx == -1) {
+          // (1) condition out of range, we treat it as true condition
+          // (2) There is no valid newCondIdx, indicating that the condition is never copied when
+          // merging costTable. So the condition is "really unknown", we threat it as true condition.
           newAssert = 0;
           break;
         }
@@ -875,7 +877,7 @@ class InlineSummary {
   // key: callStmtId, value: argInfoVec for current callsite, see `ArgInfo` for details
   MapleMap<uint32, ArgInfoVec*> argInfosMap;
   const char *mustNotInlineReason = nullptr;  // If not null, the function must not be inlined
-  InlineFailedCode inlineFailedCode = kIFC_NeedFurtherAnalysis;
+  InlineFailedCode inlineFailedCode = kIfcNeedFurtherAnalysis;
   bool hasBigSwitch = false;
   bool argInfoCollected = false;
   bool keyRefreshed = false;

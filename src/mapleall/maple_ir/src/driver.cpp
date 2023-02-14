@@ -31,7 +31,7 @@ std::unordered_set<std::string> dumpFuncSet = {};
 #if MIR_FEATURE_FULL
 
 int main(int argc, char **argv) {
-  SigHandler::EnableAll();
+  SigHandler::Enable();
 
   constexpr int judgeNumber = 2;
   constexpr uint32 k2Argv = 2;

@@ -91,7 +91,7 @@ class GenericType : public AnnotationType {
         mirStructType(ms),
         GenericArg(alloc.Adapter()),
         ArgOrder(alloc.Adapter()) {}
-  virtual ~GenericType() = default;
+  ~GenericType() override = default;
   void AddGenericPair(GenericDeclare * const k, AnnotationType *v) {
     GenericArg[k] = v;
     ArgOrder.push_back(v);
@@ -137,7 +137,7 @@ class GenericDeclare : public AnnotationType {
   explicit GenericDeclare(const GStrIdx &strIdx)
       : AnnotationType(kGenericDeclare, strIdx),
         defaultType(nullptr) {}
-  virtual ~GenericDeclare() = default;
+  ~GenericDeclare() override = default;
   AnnotationType *GetDefaultType() {
     return defaultType;
   }
@@ -189,7 +189,7 @@ class ExtendGeneric : public AnnotationType {
   ExtendGeneric(AnnotationType &c, EInfo h) : AnnotationType(kExtendType, GStrIdx(0)), contains(&c), eInfo(h) {
     CHECK_FATAL(c.GetKind() != kGenericMatch, "must be");
   }
-  virtual ~ExtendGeneric() = default;
+  ~ExtendGeneric() override = default;
 
   void Dump() override {
     std::cout << (eInfo == kHierarchyExtend ? '+' : (eInfo == kArrayType ? '[' : '-'));
@@ -266,7 +266,7 @@ class AnnotationAnalysis : public AnalysisResult {
           MIRType &classType = GetTypeFromTyIdx(GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(strIdx));
           dummyObj = pragmaMp.New<GenericType>(strIdx, &static_cast<MIRStructType&>(classType), pragmaAllocator);
         };
-  ~AnnotationAnalysis() = default;
+  ~AnnotationAnalysis() override = default;
   void Run();
  private:
   void AnalysisAnnotation();

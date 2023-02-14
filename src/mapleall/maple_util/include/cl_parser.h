@@ -106,12 +106,10 @@ class CommandLine {
     return Parse(argc, argv, defaultCategory);
   }
 
-  RetCode HandleInputArgs(const std::deque<std::string_view> &args,
-                          OptionCategory &optCategory);
-  void Register(const std::vector<std::string> &optNames, OptionInterface &opt,
-                OptionCategory &optCategory);
+  RetCode HandleInputArgs(const std::deque<std::string_view> &args, OptionCategory &optCategory);
+  void Register(const std::vector<std::string> &optNames, OptionInterface &opt, OptionCategory &optCategory) const;
 
-  void Clear(OptionCategory &optCategory);
+  void Clear(OptionCategory &optCategory) const;
   void Clear() {
     return Clear(defaultCategory);
   }
@@ -126,7 +124,7 @@ class CommandLine {
     return HelpPrinter(defaultCategory);
   }
 
-  void closeOptimize(const OptionCategory &optCategory);
+  void CloseOptimize(const OptionCategory &optCategory) const;
   std::vector<std::pair<std::string, RetCode>> badCLArgs;
   OptionCategory defaultCategory;
 
@@ -148,7 +146,7 @@ class CommandLine {
   OptionCategory unSupCategory;
 
  private:
-  OptionInterface *CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory);
+  OptionInterface *CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) const;
   RetCode ParseJoinedOption(size_t &argsIndex,
                             const std::deque<std::string_view> &args,
                             KeyArg &keyArg, OptionCategory &optCategory);

@@ -52,6 +52,7 @@ enum MopProperty : maple::uint8 {
   kInsnSpecialIntrisic,
   kInsnIsNop,
   kInsnIsComment,
+  kInsnIsBreakPoint,
 };
 using regno_t = uint32_t;
 #define ISABSTRACT 1ULL
@@ -85,6 +86,7 @@ using regno_t = uint32_t;
 #define SPINTRINSIC (1ULL << kInsnSpecialIntrisic)
 #define ISNOP (1ULL << kInsnIsNop)
 #define ISCOMMENT (1ULL << kInsnIsComment)
+#define ISBREAKPOINT (1ULL << kInsnIsBreakPoint)
 constexpr maplebe::regno_t kInvalidRegNO = 0;
 
 /*
@@ -146,23 +148,26 @@ enum VectorIntrinsicID {
 };
 
 struct IntrinsicOpndDesc {
-  IntrinsicOpndDesc(size_t id, int16 lane = -1, uint16 opnds = 0, PrimType type = PTY_begin)
+  IntrinsicOpndDesc(int32 id = -1, int16 lane = -1, uint16 opnds = 0,
+      PrimType type = PTY_begin)
       : opndId(id), laneNumber(lane), compositeOpnds(opnds), primType(type) {}
-  size_t opndId = kInvalidSize;
+  int32 opndId = -1;
   int16 laneNumber = -1;
   uint16 compositeOpnds = 0;
   PrimType primType = PTY_begin;
 };
 
 struct IntrinsicDesc {
-  IntrinsicDesc(VectorIntrinsicID id, MOperator mop, int64 returnOpndIndex, std::vector<size_t> opndOrder)
+  IntrinsicDesc(VectorIntrinsicID id, MOperator mop, int32 returnOpndIndex,
+      const std::vector<int32> &opndOrder)
       : id(id),
         mop(mop),
         returnOpndIndex(returnOpndIndex),
         opndOrder(opndOrder) {}
 
-  IntrinsicDesc(VectorIntrinsicID id, MOperator mop, int64 returnOpndIndex, std::vector<size_t> opndOrder,
-      std::unordered_map<size_t, IntrinsicOpndDesc> opndDescMap)
+  IntrinsicDesc(VectorIntrinsicID id, MOperator mop, int32 returnOpndIndex,
+      const std::vector<int32> &opndOrder,
+      const std::unordered_map<int32, IntrinsicOpndDesc> &opndDescMap)
       : id(id),
         mop(mop),
         returnOpndIndex(returnOpndIndex),
@@ -171,9 +176,9 @@ struct IntrinsicDesc {
 
   VectorIntrinsicID id;
   MOperator mop;
-  int64 returnOpndIndex;
-  std::vector<size_t> opndOrder;
-  std::unordered_map<size_t, IntrinsicOpndDesc> opndDescMap;
+  int32 returnOpndIndex;
+  std::vector<int32> opndOrder;
+  std::unordered_map<int32, IntrinsicOpndDesc> opndDescMap;
 };
 
 struct InsnDesc {
@@ -340,6 +345,9 @@ struct InsnDesc {
   }
   size_t GetOperandNumber() const {
     return opndMD.size();
+  }
+  bool IsBreakPoint() const {
+    return (properties & ISBREAKPOINT) != 0;
   }
 
   bool operator==(const InsnDesc &o) const;

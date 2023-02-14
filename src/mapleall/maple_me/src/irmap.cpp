@@ -1783,6 +1783,10 @@ bool IRMap::IfMeExprIsU1Type(const MeExpr *expr) const {
   if (expr == nullptr || expr->IsVolatile()) {
     return false;
   }
+  // Preserve integer-to-float conversions
+  if (!IsPrimitiveInteger(expr->GetPrimType())) {
+    return false;
+  }
   // return type of compare expr may be set as its opnd's type, but it is actually u1
   if (IsCompareHasReverseOp(expr->GetOp()) || expr->GetPrimType() == PTY_u1) {
     return true;

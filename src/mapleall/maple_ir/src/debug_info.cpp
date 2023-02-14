@@ -80,20 +80,23 @@ void DBGDie::AddSimpLocAttr(DwAt at, DwForm form, DwOp op, uint64 val) {
   if (val != kDbgDefaultVal) {
     p->AddSimpLocOpnd(val);
   }
-  DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form, reinterpret_cast<uint64>(p));
+  DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form,
+      reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(p)));
   AddAttr(attr);
 }
 
 void DBGDie::AddGlobalLocAttr(DwAt at, DwForm form, uint64 val) {
   DBGExprLoc *p = module->GetMemPool()->New<DBGExprLoc>(module, DW_OP_addr);
   p->SetGvarStridx(static_cast<int>(val));
-  DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form, reinterpret_cast<uint64>(p));
+  DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form,
+      reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(p)));
   AddAttr(attr);
 }
 
 void DBGDie::AddFrmBaseAttr(DwAt at, DwForm form) {
   DBGExprLoc *p = module->GetMemPool()->New<DBGExprLoc>(module, DW_OP_call_frame_cfa);
-  DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form, reinterpret_cast<uint64>(p));
+  DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form,
+      reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(p)));
   AddAttr(attr);
 }
 
@@ -604,7 +607,7 @@ void DebugInfo::BuildDebugInfoGlobalSymbols() {
 void DebugInfo::BuildDebugInfoFunctions() {
   for (auto func : GlobalTables::GetFunctionTable().GetFuncTable()) {
     // the first one in funcTable is nullptr
-    if (!func || func->GetAttr(FUNCATTR_delete)) {
+    if (!func || func->GetFuncSymbol()->IsDeleted()) {
       continue;
     }
     SetCurFunction(func);

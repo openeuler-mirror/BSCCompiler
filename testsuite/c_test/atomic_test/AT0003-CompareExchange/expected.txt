@@ -1,6 +1,0 @@
----test1---
-ptr=2, expected=2, desired=6
-ptr=6, expected=2, desired=6
-ptr=6, expected=6, desired=6
----test2---
-ptr=2, expected=2, desired=6

@@ -52,7 +52,7 @@ class A64OpndEmitVisitor : public OpndEmitVisitor {
 
 class A64OpndDumpVisitor : public OpndDumpVisitor {
  public:
-  A64OpndDumpVisitor(const OpndDesc &operandDesc) : OpndDumpVisitor(operandDesc) {}
+  explicit A64OpndDumpVisitor(const OpndDesc &operandDesc) : OpndDumpVisitor(operandDesc) {}
   ~A64OpndDumpVisitor() override = default;
 
   void Visit(RegOperand *v) final;

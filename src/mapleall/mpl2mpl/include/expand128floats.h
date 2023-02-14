@@ -24,7 +24,7 @@ class Expand128Floats : public FuncOptimizeImpl {
  public:
   Expand128Floats(MIRModule &mod, KlassHierarchy *kh, bool trace) : FuncOptimizeImpl(mod, kh, trace) {}
   explicit Expand128Floats(MIRModule &mod) : FuncOptimizeImpl(mod, nullptr, false) {}
-  ~Expand128Floats() = default;
+  ~Expand128Floats() override = default;
 
   FuncOptimizeImpl *Clone() override {
     return new Expand128Floats(*this);
@@ -37,12 +37,12 @@ class Expand128Floats : public FuncOptimizeImpl {
   std::string GetSequentialName0(const std::string &prefix, uint32_t num);
   uint32 GetSequentialNumber() const;
   std::string GetSequentialName(const std::string &prefix);
-  std::string SelectSoftFPCall(Opcode opCode, BaseNode *node);
+  std::string SelectSoftFPCall(Opcode opCode, const BaseNode *node);
   void ReplaceOpNode(BlockNode *block, BaseNode *baseNode, size_t opndId,
                      BaseNode *currNode, MIRFunction *func, StmtNode *stmt);
   bool CheckAndUpdateOp(BlockNode *block, BaseNode *node,
                         MIRFunction *func, StmtNode *stmt);
-  void ProcessBody(BlockNode *node, MIRFunction *func);
+  void ProcessBody(BlockNode *block, MIRFunction *func);
   void ProcessBody(BlockNode *block, StmtNode *stmt, MIRFunction *func);
 };
 

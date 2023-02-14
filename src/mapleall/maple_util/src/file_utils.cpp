@@ -33,13 +33,13 @@ const std::string kFileSeperatorWindowsStyleStr = std::string(1, kFileSeperatorW
 } // namespace
 
 namespace maple {
-#if __WIN32
+#if defined(__WIN32) && __WIN32
 const char kFileSeperatorChar = kFileSeperatorWindowsStyleChar;
 #else
 const char kFileSeperatorChar = kFileSeperatorLinuxStyleChar;
 #endif
 
-#if __WIN32
+#if defined(__WIN32) && __WIN32
 const std::string kFileSeperatorStr = kFileSeperatorWindowsStyleStr;
 #else
 const std::string kFileSeperatorStr = kFileSeperatorLinuxStyleStr;
@@ -54,49 +54,42 @@ std::string FileUtils::SafeGetenv(const char *envVar) {
   return tmpStr;
 }
 
-std::string FileUtils::SafeGetPath(const char *cmd, const char *name) {
+std::string FileUtils::SafeGetPath(const char *envVar, const char *name) {
   int size = 1024;
-  FILE *fp = NULL;
+  FILE *fp = nullptr;
   char buf[size];
-  if( (fp = popen(cmd, "r")) != NULL) {
-    while (fgets(buf, size, fp) != NULL) {}
-    pclose(fp);
-    fp = NULL;
-  } else {
-    CHECK_FATAL(false, "Failed! Unable to find path of %s \n", name);
-  }
+  CHECK_FATAL((fp = popen(envVar, "r")) != nullptr, "Failed! Unable to find path of %s \n", name);
+  while (fgets(buf, size, fp) != nullptr) {}
+  (void)pclose(fp);
+  fp = nullptr;
   std::string path(buf);
-  if (path.find(name) == path.npos) {
-    CHECK_FATAL(false, "Failed! Unable to find path of %s \n", name);
-  }
+  CHECK_FATAL(path.find(name) != std::string::npos, "Failed! Unable to find path of %s \n", name);
   std::string tmp = name;
   int index = path.find(tmp) + tmp.length();
   path = path.substr(0, index);
   return path;
 }
 
-void FileUtils::checkGCCVersion(const char *cmd) {
+void FileUtils::CheckGCCVersion(const char *cmd) {
   int size = 1024;
-  FILE *fp = NULL;
+  FILE *fp = nullptr;
   char buf[size];
-  if( (fp = popen(cmd, "r")) != NULL) {
-    while (fgets(buf, size, fp) != NULL) {}
-    pclose(fp);
-    fp = NULL;
-  } else {
-    CHECK_FATAL(false, "Failed to obtain the aarch64-linux-gnu-gcc version number.\n");
-  }
+  CHECK_FATAL((fp = popen(cmd, "r")) != nullptr, "Failed to obtain the aarch64-linux-gnu-gcc version number.\n");
+  while (fgets(buf, size, fp) != nullptr) {}
+  (void)pclose(fp);
+  fp = nullptr;
   std::vector<std::string> ver;
-  char *p;
-  p = strtok(buf, ".");
+  char *p = nullptr;
+  char *pSave = nullptr;
+  p = strtok_r(buf, ".", &pSave);
   while (p) {
     std::string tmp = p;
     ver.push_back(tmp);
-    p = strtok(NULL, ".");
+    p = strtok_r(nullptr, ".", &pSave);
   }
-  if (atoi(ver[0].c_str()) < atoi("5") || (atoi(ver[0].c_str()) == atoi("5") && atoi(ver[1].c_str()) < atoi("5"))) {
-    CHECK_FATAL(false, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
-  }
+  bool isEarlierVersion = std::stoi(ver[0].c_str()) < std::stoi("5") ||
+      (std::stoi(ver[0].c_str()) == std::stoi("5") && std::stoi(ver[1].c_str()) < std::stoi("5"));
+  CHECK_FATAL(!isEarlierVersion, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
 }
 
 std::string FileUtils::GetRealPath(const std::string &filePath) {

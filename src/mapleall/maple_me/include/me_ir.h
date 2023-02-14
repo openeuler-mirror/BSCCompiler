@@ -2271,6 +2271,9 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   CallMeStmt(MapleAllocator *alloc, Opcode op)
       : NaryMeStmt(alloc, op), MuChiMePart(alloc), AssignedPart(alloc) {}
 
+  CallMeStmt(MapleAllocator *alloc, Opcode op, PUIdx idx)
+      : NaryMeStmt(alloc, op), MuChiMePart(alloc), AssignedPart(alloc), puIdx(idx) {}
+
   CallMeStmt(MapleAllocator *alloc, const NaryMeStmt *cstmt, PUIdx idx)
       : NaryMeStmt(alloc, cstmt),
         MuChiMePart(alloc),

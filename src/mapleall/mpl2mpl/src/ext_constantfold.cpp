@@ -192,16 +192,16 @@ BaseNode *ExtConstantFold::ExtFoldIor(BinaryNode *node) {
         (uniqOperands[uniqOperands.size() - 1] == uniqOperands[0] + static_cast<int64>(uniqOperands.size()) - 1)) {
       PrimType nPrimType = node->GetPrimType();
       BaseNode* diffVal;
-      ConstvalNode *lowVal = mirModule->GetMIRBuilder()->CreateIntConst(minVal, nPrimType);
+      ConstvalNode *lowVal = mirModule->GetMIRBuilder()->CreateIntConst(static_cast<uint64>(minVal), nPrimType);
       diffVal = mirModule->CurFuncCodeMemPool()->New<BinaryNode>(OP_sub, nPrimType, lNode, lowVal);
       PrimType cmpPrimType = (nPrimType == PTY_i64 || nPrimType == PTY_u64) ? PTY_u64 : PTY_u32;
       MIRType *cmpMirType = (nPrimType == PTY_i64 || nPrimType == PTY_u64) ?
                             GlobalTables::GetTypeTable().GetUInt64() :
                             GlobalTables::GetTypeTable().GetUInt32();
       ConstvalNode *deltaVal = mirModule->GetMIRBuilder()->CreateIntConst(
-          static_cast<int64>(uniqOperands.size()) - 1, cmpPrimType);
-      CompareNode *result;
-      result = mirModule->GetMIRBuilder()->CreateExprCompare(OP_le, *cmpMirType, *cmpMirType, diffVal, deltaVal);
+          uniqOperands.size() - 1, cmpPrimType);
+      CompareNode *result = mirModule->GetMIRBuilder()->CreateExprCompare(OP_le, *cmpMirType, *cmpMirType,
+          diffVal, deltaVal);
       return result;
     } else {
       return node;
@@ -265,9 +265,9 @@ BaseNode *ExtConstantFold::ExtFoldXand(BinaryNode *node) {
       uint64 mVal = lmVal | rmVal;
       uint64 cVal = lcVal | rcVal;
       PrimType mPrimType = lnode->Opnd(0)->Opnd(1)->GetPrimType();
-      ConstvalNode *mIntConst = mirModule->GetMIRBuilder()->CreateIntConst(static_cast<int64>(mVal), mPrimType);
+      ConstvalNode *mIntConst = mirModule->GetMIRBuilder()->CreateIntConst(mVal, mPrimType);
       PrimType cPrimType = lnode->Opnd(1)->GetPrimType();
-      ConstvalNode *cIntConst = mirModule->GetMIRBuilder()->CreateIntConst(static_cast<int64>(cVal), cPrimType);
+      ConstvalNode *cIntConst = mirModule->GetMIRBuilder()->CreateIntConst(cVal, cPrimType);
       BinaryNode *eqNode = static_cast<BinaryNode *>(lnode);
       BinaryNode *bandNode = static_cast<BinaryNode *>(eqNode->Opnd(0));
       bandNode->SetOpnd(mIntConst, 1);
@@ -286,7 +286,7 @@ StmtNode *ExtConstantFold::ExtSimplifyBlock(BlockNode *node) {
   StmtNode *s = node->GetFirst();
   do {
     (void)ExtSimplify(s);
-    s = s->GetNext();;
+    s = s->GetNext();
   } while (s != nullptr);
   return node;
 }
@@ -307,8 +307,7 @@ StmtNode *ExtConstantFold::ExtSimplifyIf(IfStmtNode *node) {
 
 StmtNode *ExtConstantFold::ExtSimplifyDassign(DassignNode *node) {
   CHECK_NULL_FATAL(node);
-  BaseNode *returnValue;
-  returnValue = ExtFold(node->GetRHS());
+  BaseNode *returnValue = ExtFold(node->GetRHS());
   if (returnValue != node->GetRHS()) {
     node->SetRHS(returnValue);
   }
@@ -317,8 +316,7 @@ StmtNode *ExtConstantFold::ExtSimplifyDassign(DassignNode *node) {
 
 StmtNode *ExtConstantFold::ExtSimplifyIassign(IassignNode *node) {
   CHECK_NULL_FATAL(node);
-  BaseNode *returnValue;
-  returnValue = ExtFold(node->GetRHS());
+  BaseNode *returnValue = ExtFold(node->GetRHS());
   if (returnValue != node->GetRHS()) {
     node->SetRHS(returnValue);
   }

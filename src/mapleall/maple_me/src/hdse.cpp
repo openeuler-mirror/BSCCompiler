@@ -815,6 +815,11 @@ bool HDSE::StmtMustRequired(const MeStmt &meStmt, const BB &bb) const {
   if (IsStmtMustRequire(op) || op == OP_comment) {
     return true;
   }
+  // Cannot delete a statement with a divisor of 0.
+  if (op == OP_intrinsiccall &&
+      static_cast<const IntrinsiccallMeStmt&>(meStmt).GetIntrinsic() == INTRN_C___builtin_division_exception) {
+    return true;
+  }
   // control flow in an infinite loop cannot be eliminated
   if (ControlFlowInInfiniteLoop(bb, op)) {
     return true;

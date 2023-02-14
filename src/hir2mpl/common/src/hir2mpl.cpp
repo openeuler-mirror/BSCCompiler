@@ -18,7 +18,7 @@
 using namespace maple;
 
 int main(int argc, char **argv) {
-  SigHandler::EnableAll();
+  SigHandler::Enable();
 
   MPLTimer timer;
   timer.Start();

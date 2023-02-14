@@ -40,7 +40,7 @@ class StringUtils {
   static void SplitSV(const std::string_view &src, Container &container, char delim) {
     size_t startInd = 0;
     while (startInd < src.size()) {
-      if(src[startInd] == delim) {
+      if (src[startInd] == delim) {
         ++startInd;
         continue;
       }
@@ -59,7 +59,7 @@ class StringUtils {
 
   static void Split(const std::string &src, std::unordered_set<std::string> &container, char delim);
 
-  static std::string Trim(const std::string &s);
+  static std::string Trim(const std::string &src);
   static std::string Replace(const std::string &src, const std::string &target, const std::string &replacement);
   static std::string Append(const std::string &src, const std::string &target, const std::string &spliter);
   static std::string GetStrAfterLast(const std::string &src, const std::string &target,

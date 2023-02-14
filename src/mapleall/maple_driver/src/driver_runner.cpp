@@ -324,7 +324,6 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
   CHECK_MODULE();
   theMIRModule = theModule;
   if (withDwarf && !theModule->IsWithDbgInfo()) {
-    LogInfo::MapleLogger() << "set up debug info " << '\n';
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
 #if DEBUG
     if (cgOptions) {

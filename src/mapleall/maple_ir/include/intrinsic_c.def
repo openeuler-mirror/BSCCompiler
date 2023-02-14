@@ -82,6 +82,8 @@ DEF_MIR_INTRINSIC(C_sinh,\
                   "sinh", 1, INTRNISPURE, kArgTyF64, kArgTyF64)
 DEF_MIR_INTRINSIC(C_ffs,\
                   "ffs", 4, INTRNISPURE, kArgTyI32, kArgTyI32)
+DEF_MIR_INTRINSIC(C_fabsl,\
+                  "fabsl", 1, INTRNISPURE, kArgTyF128, kArgTyF128)
 DEF_MIR_INTRINSIC(C_va_start,\
                   "va_start", 10,\
                   INTRNISPURE | INTRNISSPECIAL | INTRNWRITEFIRSTOPND | INTRNREADSECONDOPND, \
@@ -119,6 +121,12 @@ DEF_MIR_INTRINSIC(C_rev16_2,\
 DEF_MIR_INTRINSIC(C_rev_4,\
                   "rev", DEFAULT_NUM_INSN, INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32, kArgTyI32)
 DEF_MIR_INTRINSIC(C_rev_8,\
+                  "rev", DEFAULT_NUM_INSN, INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64, kArgTyI64)
+DEF_MIR_INTRINSIC(C_bswap16,\
+                  "rev16", DEFAULT_NUM_INSN, INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI16, kArgTyI16)
+DEF_MIR_INTRINSIC(C_bswap32,\
+                  "rev", DEFAULT_NUM_INSN, INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32, kArgTyI32)
+DEF_MIR_INTRINSIC(C_bswap64,\
                   "rev", DEFAULT_NUM_INSN, INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64, kArgTyI64)
 DEF_MIR_INTRINSIC(C_stack_save,\
                   "stack_save", DEFAULT_NUM_INSN, INTRNISPURE | INTRNISSPECIAL, kArgTyPtr)
@@ -262,7 +270,10 @@ DEF_MIR_INTRINSIC(C__builtin_extract_return_addr,\
                   "__builtin_extract_return_addr", 1, INTRNISPURE, kArgTyPtr, kArgTyPtr)
 DEF_MIR_INTRINSIC(C___builtin_expect,\
                   "__builtin_expect", 0, INTRNISPURE, kArgTyI32, kArgTyI32, kArgTyI32)
-
+DEF_MIR_INTRINSIC(C___builtin_object_size,\
+                  "__builtin_object_size", 0, INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyU64, kArgTyPtr, kArgTyI32)
+DEF_MIR_INTRINSIC(C___builtin_division_exception,\
+                  "__builtin_division_exception", 0, INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyVoid, kArgTyI64)
 // atomic
 DEF_MIR_INTRINSIC(C___atomic_load_n,\
                   "__atomic_load_n", 1, INTRNATOMIC, kArgTyDynany, kArgTyPtr, kArgTyI32)

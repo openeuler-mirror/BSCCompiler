@@ -76,7 +76,7 @@ class MapleModulePhase : public MaplePhase {
   MapleModulePhase(MaplePhaseID id, MemPool *mp) : MaplePhase(kModulePhase, id, *mp) {}
   ~MapleModulePhase() override = default;
 
-  virtual bool PhaseRun(MIRModule &m) = 0;
+  virtual bool PhaseRun(MIRModule &mod) = 0;
 };
 
 template <class funcT>
@@ -213,9 +213,15 @@ static RegisterPhase<CLASSNAME> MAPLEPHASE_##PHASENAME(#PHASENAME, false, false,
 static_cast<PHASENAME*>(                                                \
     GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUniqueID(), this, &PHASENAME::id))->GetResult()
 
+#define EXEC_ANALYSIS(PHASENAME, PHASEKEY)                               \
+static_cast<PHASENAME*>(GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUniqueID(), this, &PHASENAME::id))
+
 #define FORCE_GET(PHASENAME) \
 static_cast<PHASENAME*>(     \
     GetAnalysisInfoHook()->ForceRunAnalysisPhase<MeFuncOptTy, MeFunction>(&PHASENAME::id, f))->GetResult()
+
+#define FORCE_EXEC(PHASENAME) \
+static_cast<PHASENAME*>(GetAnalysisInfoHook()->ForceRunAnalysisPhase<MeFuncOptTy, MeFunction>(&PHASENAME::id, f))
 
 #define FORCE_INVALID(PHASENAME, PHASEKEY) \
 GetAnalysisInfoHook()->ForceEraseAnalysisPhase(PHASEKEY.GetUniqueID(), &PHASENAME::id)

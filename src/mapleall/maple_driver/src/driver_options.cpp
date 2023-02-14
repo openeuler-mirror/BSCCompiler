@@ -247,7 +247,7 @@ maplecl::Option<bool> copyDtNeededEntries({"--copy-dt-needed-entries"},
                     {driverCategory, ldCategory});
 
 maplecl::Option<bool> sOpt({"-s"},
-                    "  -s    \t\n",
+                    "  -s    \tRemove all symbol table and relocation information from the executable\n",
                     {driverCategory, ldCategory});
 
 maplecl::Option<bool> noStdinc({"-nostdinc"},
@@ -273,7 +273,9 @@ maplecl::Option<bool> shared({"-shared"},
                                {driverCategory, ldCategory});
 
 maplecl::Option<bool> rdynamic({"-rdynamic"},
-                               "  -rdynamic          \t\n",
+                               "  -rdynamic          \tPass the flag `-export-dynamic' to the ELF linker,"
+                               "on targets that support it. This instructs the linker to add all symbols,"
+                               "not only used ones, to the dynamic symbol table.\n",
                                {driverCategory, ldCategory});
 
 maplecl::Option<bool> dndebug({"-DNDEBUG"},
@@ -286,6 +288,11 @@ maplecl::Option<bool> usesignedchar({"-fsigned-char", "-usesignedchar", "--usesi
 
 maplecl::Option<bool> suppressWarnings({"-w"},
                                "  -w         \tSuppress all warnings.\n",
+                               {driverCategory, clangCategory, asCategory, ldCategory});
+
+maplecl::Option<bool> pthread({"-pthread"},
+                               "  -pthread         \tDefine additional macros required for using"
+                               "the POSIX threads library.\n",
                                {driverCategory, clangCategory, asCategory, ldCategory});
 
 /* ##################### STRING Options ############################################################### */

@@ -30,7 +30,7 @@ using namespace maple;
 std::unordered_set<std::string> dumpFuncSet = {};
 
 int main(int argc, char **argv) {
-  SigHandler::EnableAll();
+  SigHandler::Enable();
 
   if (argc < k2BitSize) {
     MIR_PRINTF("usage: mpldbg foo.mpl\n");

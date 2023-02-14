@@ -13,11 +13,12 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "aarch64_insn.h"
+#include <fstream>
 #include "aarch64_cg.h"
 #include "common_utils.h"
 #include "insn.h"
 #include "metadata_layout.h"
-#include <fstream>
+
 
 namespace maplebe {
 
@@ -190,10 +191,22 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
       RegOperand *baseReg = v->GetBaseRegister();
       EmitIntReg(*baseReg, k64BitSize);
       CHECK_NULL_FATAL(v->GetSymbol());
-      if (CGOptions::IsPIC()  && (v->GetSymbol()->NeedPIC() || v->GetSymbol()->IsThreadLocal())) {
-        std::string gotEntry = v->GetSymbol()->IsThreadLocal() ? ", #:tlsdesc_lo12:" : ", #:got_lo12:";
+      if (CGOptions::IsPIC()  && (v->GetSymbol()->NeedGOT(CGOptions::IsPIE()) || v->GetSymbol()->IsThreadLocal())) {
+        std::string gotEntry = "";
+        if (v->GetSymbol()->IsThreadLocal()) {
+          gotEntry = ", #:tlsdesc_lo12:";
+        } else if (CGOptions::GetPICMode() == CGOptions::kLargeMode) {
+          gotEntry = ", #:got_lo12:";
+        } else if (CGOptions::GetPICMode() == CGOptions::kSmallMode) {
+          if (CGOptions::IsArm64ilp32()) {
+            gotEntry = ", #:gotpage_lo14:";
+          } else {
+            gotEntry = ", #:gotpage_lo15:";
+          }
+        }
+        CHECK_FATAL(gotEntry != "", "A64OpndEmitVisitor::Visit(MemOperand): wrong entry for got.");
         std::string symbolName = v->GetSymbolName();
-        symbolName += (v->GetSymbol()->GetStorageClass() == kScPstatic && !v->GetSymbol()->IsConst()) ?
+        symbolName += (v->GetSymbol()->GetStorageClass() == kScPstatic && v->GetSymbol()->GetSKind() != kStConst) ?
             std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()) : "";
         (void)emitter.Emit(gotEntry + symbolName);
         (void)emitter.Emit("]");
@@ -335,15 +348,20 @@ void A64OpndEmitVisitor::Visit(const MIRSymbol &symbol, int64 offset) {
   CHECK_FATAL(opndProp != nullptr, "opndProp is nullptr in  StImmOperand::Emit");
   const bool isThreadLocal = symbol.IsThreadLocal();
   const bool isLiteralLow12 = opndProp->IsLiteralLow12();
-  const bool hasGotEntry = CGOptions::IsPIC() && symbol.NeedPIC();
+  const bool hasGotEntry = CGOptions::IsPIC() && symbol.NeedGOT(CGOptions::IsPIE());
   bool hasPrefix = false;
   if (isThreadLocal) {
     (void)emitter.Emit(":tlsdesc");
     hasPrefix = true;
   }
   if (!hasPrefix && hasGotEntry) {
-    (void)emitter.Emit(":got");
-    hasPrefix = true;
+    if (CGOptions::GetPICMode() == CGOptions::kLargeMode) {
+      (void)emitter.Emit(":got");
+      hasPrefix = true;
+    } else if (CGOptions::GetPICMode() == CGOptions::kSmallMode) {
+      (void)emitter.Emit("_GLOBAL_OFFSET_TABLE_");
+      return;
+    }
   }
   if (isLiteralLow12) {
     std::string lo12String = hasPrefix ? "_lo12" : ":lo12";
@@ -401,8 +419,12 @@ void A64OpndEmitVisitor::Visit(OfstOperand *v) {
     return;
   }
   const MIRSymbol *symbol = v->GetSymbol();
-  if (CGOptions::IsPIC() && symbol->NeedPIC()) {
-    (void)emitter.Emit(":got:" + symbol->GetName());
+  if (CGOptions::IsPIC() && symbol->NeedGOT(CGOptions::IsPIE())) {
+    if (CGOptions::GetPICMode() == CGOptions::kLargeMode) {
+      (void)emitter.Emit(":got:" + symbol->GetName());
+    } else if (CGOptions::GetPICMode() == CGOptions::kSmallMode) {
+      (void)emitter.Emit("_GLOBAL_OFFSET_TABLE_");
+    }
   } else if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
     (void)emitter.Emit(symbol->GetName() +
         std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));

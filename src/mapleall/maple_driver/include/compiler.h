@@ -301,6 +301,7 @@ class AsCompilerBeILP32 : public AsCompiler {
  public:
   explicit AsCompilerBeILP32(const std::string &name) : AsCompiler(name) {}
  private:
+  std::string GetBin(const MplOptions &mplOptions) const override;
   std::string GetBinPath(const MplOptions &mplOptions) const override;
   const std::string &GetBinName() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
@@ -326,6 +327,7 @@ class LdCompilerBeILP32 : public LdCompiler {
  public:
   explicit LdCompilerBeILP32(const std::string &name) : LdCompiler(name) {}
  private:
+  std::string GetBin(const MplOptions &mplOptions) const override;
   std::string GetBinPath(const MplOptions &mplOptions) const override;
   const std::string &GetBinName() const override;
 };

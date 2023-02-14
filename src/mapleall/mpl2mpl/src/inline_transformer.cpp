@@ -162,7 +162,7 @@ void InlineTransformer::ReplaceSymbols(BaseNode *baseNode, uint32 stIdxOff, cons
   } else if (baseNode->GetOpCode() == OP_doloop) {
     DoloopNode *doLoopNode = static_cast<DoloopNode*>(baseNode);
     // Skip globals.
-    if (!doLoopNode->IsPreg() && doLoopNode->GetDoVarStIdx().Idx()) {
+    if (!doLoopNode->IsPreg() && doLoopNode->GetDoVarStIdx().Idx() != 0) {
       doLoopNode->SetDoVarStIdx(UpdateIdx(doLoopNode->GetDoVarStIdx(), stIdxOff, oldStIdx2New));
     }
   }
@@ -500,9 +500,9 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
   if (updateFreq) {
     auto *callerProfData = caller.GetFuncProfData();
     auto *calleeProfData = callee.GetFuncProfData();
-    FreqType callsiteFreq = callerProfData->GetStmtFreq(callStmt.GetStmtID());
+    uint64 callsiteFreq = static_cast<uint64>(callerProfData->GetStmtFreq(callStmt.GetStmtID()));
     FreqType calleeEntryFreq = calleeProfData->GetFuncFrequency();
-    uint32_t updateOp = (kKeepOrigFreq | kUpdateFreqbyScale);
+    uint32_t updateOp = static_cast<uint32_t>(kKeepOrigFreq | kUpdateFreqbyScale);
     BlockNode *blockNode;
     if (recursiveFirstClone) {
       blockNode = funcBody.CloneTreeWithFreqs(theMIRModule->GetCurFuncCodeMPAllocator(), callerProfData->GetStmtFreqs(),

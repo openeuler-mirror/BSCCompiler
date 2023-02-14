@@ -217,6 +217,7 @@ class OutlineRegionExtractor {
           auto *dread = static_cast<DreadNode *>(parameter);
           auto stIdx = GetOrCreateNewStIdx(dread->GetStIdx());
           symbol = newFunc->GetSymbolTabItem(stIdx.Idx());
+          CHECK_NULL_FATAL(symbol);
           symbol->SetStorageClass(kScFormal);
           break;
         }
@@ -233,6 +234,7 @@ class OutlineRegionExtractor {
           auto *dread = static_cast<DreadNode *>(CreateNewExpr(*parameter));
           auto stIdx = dread->GetStIdx();
           symbol = newFunc->GetSymbolTabItem(stIdx.Idx());
+          CHECK_NULL_FATAL(symbol);
           symbol->SetStorageClass(kScFormal);
           break;
         }

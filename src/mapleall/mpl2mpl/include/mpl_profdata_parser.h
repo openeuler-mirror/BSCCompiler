@@ -81,7 +81,7 @@ class ProfDataBinaryImportBase {
 class ProfileSummaryImport : public ProfDataBinaryImportBase {
  public:
   ProfileSummaryImport(std::string &outputFile, std::ifstream &input) : ProfDataBinaryImportBase(outputFile, input) {}
-  void ReadSummary(MplProfileData*);
+  void ReadSummary(MplProfileData* profData);
 
  private:
   void ReadMProfMagic();
@@ -97,7 +97,7 @@ class MplProfDataParser : public AnalysisResult {
  public:
   MplProfDataParser(MIRModule &mirmod, MemPool *mp, bool debug)
       : AnalysisResult(mp), m(mirmod), alloc(memPool), mempool(mp), dumpDetail(debug) {}
-  ~MplProfDataParser() = default;
+  ~MplProfDataParser() override = default;
   MplProfileData *GetProfData() {
     return profData;
   }

@@ -43,25 +43,28 @@ const VersionSt *GetVersionStFromExpr(const BaseNode *expr) {
 }
 
 // tracking def-chain to find the original def-expr
-const BaseNode *GetOriginalDefExpr(const VersionSt *vst) {
+const BaseNode *GetOriginalDefExpr(const VersionSt &vst) {
   const BaseNode *rhs = nullptr;
-  const VersionSt *rhsVst = vst;
+  const VersionSt *rhsVst = &vst;
   while (rhsVst != nullptr && rhsVst->GetDefType() == VersionSt::kAssign) {
     const StmtNode *defStmt = rhsVst->GetAssignNode();
     rhs = defStmt->GetRHS();
     rhsVst = GetVersionStFromExpr(rhs);
+    if (rhsVst == &vst) {
+      break;
+    }
   }
   return rhs;
 }
 
 // overload version, if expr has no VersionSt, return expr itself.
-const BaseNode *GetOriginalDefExpr(const BaseNode *expr) {
-  const VersionSt *vst = GetVersionStFromExpr(expr);
+const BaseNode &GetOriginalDefExpr(const BaseNode &expr) {
+  const VersionSt *vst = GetVersionStFromExpr(&expr);
   if (vst == nullptr) {
     return expr;
   }
-  const BaseNode *res = GetOriginalDefExpr(vst);
-  return res == nullptr ? expr : res;
+  const BaseNode *res = GetOriginalDefExpr(*vst);
+  return res == nullptr ? expr : *res;
 }
 
 // find stmt which vst is attached to.
@@ -131,34 +134,35 @@ bool DefinedBySameStmt(const VersionSt *vstA, const VersionSt *vstB) {
 }
 
 // if iread and maydef represent the same memory.
-bool AccessSameMemory(const IreadSSANode *iread, const MayDefNode *maydef) {
-  const VersionSt *ireadVst = GetVersionStFromExpr(iread);
+bool AccessSameMemory(const IreadSSANode &iread, const MayDefNode &maydef) {
+  const VersionSt *ireadVst = GetVersionStFromExpr(&iread);
+  // no need for nullptr check for ireadVst here
   OffsetType ireadOffset = ireadVst->GetOst()->GetOffset();
   if (ireadOffset.IsInvalid()) {
     return false; // if offset is not valid, memory represented by iread is not exact, we process it conservatively.
   }
-  const BaseNode *base = GetOriginalDefExpr(iread->Opnd(0));
-  OriginalSt *aliasOst = maydef->GetOpnd()->GetOst();
-  if (base->GetOpCode() == OP_addrof) {
+  const BaseNode &base = GetOriginalDefExpr(*iread.Opnd(0));
+  OriginalSt *aliasOst = maydef.GetOpnd()->GetOst();
+  if (base.GetOpCode() == OP_addrof) {
     // base is addrof, we can just compare their symbol
     // case 1 : iread fld1 (addrof fld2 a) <=> a{fld1 + fld2}
-    auto *addrofBase = static_cast<const AddrofSSANode *>(base);
+    auto &addrofBase = static_cast<const AddrofSSANode &>(base);
     if (aliasOst->GetIndirectLev() == 0 && aliasOst->IsSymbolOst() &&
-        aliasOst->GetMIRSymbol()->GetStIdx() == addrofBase->GetStIdx() &&
+        aliasOst->GetMIRSymbol()->GetStIdx() == addrofBase.GetStIdx() &&
         aliasOst->GetOffset() == ireadOffset &&
-        aliasOst->GetType() == static_cast<IreadNode*>(const_cast<IreadSSANode*>(iread)->GetNoSSANode())->GetType() &&
-        aliasOst->GetFieldID() == addrofBase->GetFieldID() + iread->GetFieldID()) {
+        aliasOst->GetType() == static_cast<IreadNode*>(const_cast<IreadSSANode&>(iread).GetNoSSANode())->GetType() &&
+        aliasOst->GetFieldID() == addrofBase.GetFieldID() + iread.GetFieldID()) {
       return true;
     }
   }
   // case 2: tracking def-chain of MayDef's base to find def-expr
-  VersionSt *aliasBaseVst = maydef->base;
-  if (aliasBaseVst == nullptr || aliasOst->GetFieldID() != iread->GetFieldID() ||
+  VersionSt *aliasBaseVst = maydef.base;
+  if (aliasBaseVst == nullptr || aliasOst->GetFieldID() != iread.GetFieldID() ||
       ireadOffset != aliasOst->GetOffset()) { // iread represents a different memory from MayDef if offset differs
     return false;
   }
-  const BaseNode *aliasBaseOrigSrc = GetOriginalDefExpr(aliasBaseVst);
-  return HasSameContent(aliasBaseOrigSrc, base);
+  const BaseNode *aliasBaseOrigSrc = GetOriginalDefExpr(*aliasBaseVst);
+  return HasSameContent(aliasBaseOrigSrc, &base);
 }
 } // anonymous namespace
 
@@ -219,26 +223,32 @@ void FSAA::EraseMayDefItem(TypeOfMayDefList &mayDefNodes, MapleMap<OStIdx, MayDe
   }
 }
 
+bool FSAA::IfChiSameAsRHS(const VersionSt &chiOpnd, const VersionSt &rhsVst, const BaseNode &rhsOrigSrc) {
+  bool isSame = (rhsVst.GetIndex()  == chiOpnd.GetIndex());
+  if (!isSame) {
+    const BaseNode *aliasOrigSrc = GetOriginalDefExpr(chiOpnd);
+    isSame = HasSameContent(aliasOrigSrc, &rhsOrigSrc);
+  }
+  return isSame;
+}
 // For iread, we first track the def-chain of RHS and every MayDef to find their original define expr.
 // If they have the same original value, we can remove the MayDef. Otherwise, we track def-chain of
 // their base. If they have the same base, and they also read the same field/offset of this base,
 // they are the same exactly, so we can also remove this MayDef from MayDefList.
-void FSAA::RemoveMayDefByIreadRHS(const IreadSSANode *rhs, TypeOfMayDefList &mayDefNodes) {
-  const VersionSt *rhsVst = GetVersionStFromExpr(rhs);
+void FSAA::RemoveMayDefByIreadRHS(const IreadSSANode &rhs, TypeOfMayDefList &mayDefNodes) {
+  const VersionSt *rhsVst = GetVersionStFromExpr(&rhs);
   OffsetType rhsOffset = rhsVst->GetOst()->GetOffset();
+  // N.B. one ost may corresponding to more than one expr, like : both array[i], array[i + n] has ost array{offset:Und}
+  // Even only one expr is found, a ost may represent a serious of memory, like : array index expr in a for loop
   if (rhsOffset.IsInvalid()) {
     return;
   }
-  const BaseNode *rhsOrigSrc = GetOriginalDefExpr(rhs);
+  const BaseNode &rhsOrigSrc = GetOriginalDefExpr(rhs);
   for (auto it = mayDefNodes.begin(); it != mayDefNodes.end();) {
-    // step 1: check if MayDef is the same as iread Vst
     VersionSt *aliasVst = it->second.GetOpnd();
-    const BaseNode *aliasOrig = GetOriginalDefExpr(aliasVst);
-    bool canBeErased = HasSameContent(rhsOrigSrc, aliasOrig);
-    if (!canBeErased) { // only if step 1 is not true, will step 2 be processed.
-      // step 2: check if MayDef's base is the same as iread's base
-      canBeErased = AccessSameMemory(rhs, &it->second);
-    }
+    // step 1: check if MayDef is the same as iread Vst
+    // step 2: check if MayDef's base is the same as iread's base
+    bool canBeErased = IfChiSameAsRHS(*aliasVst, *rhsVst, rhsOrigSrc) || AccessSameMemory(rhs, it->second);
     EraseMayDefItem(mayDefNodes, it, canBeErased); // will update iterator
   }
 }
@@ -247,20 +257,19 @@ void FSAA::RemoveMayDefByIreadRHS(const IreadSSANode *rhs, TypeOfMayDefList &may
 // If they have the same def-exprs, we can remove the MayDef. Otherwise, if the def-expr of rhs is an
 // iread expr, we will double check this iread expr like what we do for iread expr. That is to compare if
 // iread's base is the same as MayDef's.
-void FSAA::RemoveMayDefByDreadRHS(const AddrofSSANode *rhs, TypeOfMayDefList &mayDefNodes) {
-  const BaseNode *rhsOrigSrc = GetOriginalDefExpr(rhs);
-  if (rhsOrigSrc == nullptr) {
-    return;
-  }
+void FSAA::RemoveMayDefByDreadRHS(const AddrofSSANode &rhs, TypeOfMayDefList &mayDefNodes) {
+  const VersionSt *rhsVst = GetVersionStFromExpr(&rhs);
+  const BaseNode &rhsOrigSrc = GetOriginalDefExpr(rhs);
   for (auto it = mayDefNodes.begin(); it != mayDefNodes.end();) {
     // step 1: check if MayDef has the same value as rhs.
-    const BaseNode *aliasOrigSrc = GetOriginalDefExpr(it->second.GetOpnd());
-    bool canBeErased = HasSameContent(aliasOrigSrc, rhsOrigSrc);
+    MayDefNode maydef = it->second;
+    const VersionSt *aliasVst = maydef.GetOpnd();
+    bool canBeErased = IfChiSameAsRHS(*aliasVst, *rhsVst, rhsOrigSrc);
     // step 2: rhs is equivalent to an iread expr, check if it has the same base as MayDef's.
     // only if step 1 is not true and def-epxr of rhs is an iread expr, will step 2 be processed.
-    if (!canBeErased && rhsOrigSrc->GetOpCode() == OP_iread) {
+    if (!canBeErased && rhsOrigSrc.GetOpCode() == OP_iread) {
       bool sameMemory =
-          AccessSameMemory(static_cast<const IreadSSANode *>(rhsOrigSrc), &it->second);
+          AccessSameMemory(static_cast<const IreadSSANode &>(rhsOrigSrc), maydef);
       // Notice that memory version may be changed even if its base keep the same.
       // Example:
       // 1: baseB <- baseA
@@ -268,9 +277,10 @@ void FSAA::RemoveMayDefByDreadRHS(const AddrofSSANode *rhs, TypeOfMayDefList &ma
       // 3: iassign (baseA/baseB, ...)
       // 4: iassign (lhs, rhs) MayDef(baseB<1>)
       // We can not remove MayDef(baseB<1>) because its version is changed by line3 although baseB is not changed.
-      const VersionSt *rhsOrigVst = GetVersionStFromExpr(rhsOrigSrc);
+      const VersionSt *rhsOrigVst = GetVersionStFromExpr(&rhsOrigSrc);
+      // no need to nullptr check for rhsOrigVst here
       bool isMemNotModified = (rhsOrigVst->IsInitVersion() && it->second.GetOpnd()->IsInitVersion()) ||
-          DefinedBySameStmt(it->second.GetOpnd(), rhsOrigVst);
+          DefinedBySameStmt(maydef.GetOpnd(), rhsOrigVst);
       canBeErased = sameMemory && isMemNotModified;
     }
     EraseMayDefItem(mayDefNodes, it, canBeErased);
@@ -283,16 +293,25 @@ void FSAA::RemoveMayDefByDreadRHS(const AddrofSSANode *rhs, TypeOfMayDefList &ma
 // Case 2: The MayDef is alias with lhs, their memories overlap completely(not partially). Storing rhs to
 //         lhs will update the MayDef's value, but the value is the same as before.
 // Therefore, for typesafe, we can delete this MayDef from MayDefList.
-void FSAA::RemoveMayDefIfSameAsRHS(const IassignNode *stmt) {
+void FSAA::RemoveMayDefIfSameAsRHS(const IassignNode &stmt) {
   if (!MeOption::tbaa) {
     return; // type-safe constraint is not valid, do nothing
   }
-  BaseNode *rhs = stmt->GetRHS();
-  TypeOfMayDefList &mayDefNodes = ssaTab->GetStmtsSSAPart().GetMayDefNodesOf(*stmt);
+  BaseNode *rhs = stmt.GetRHS();
+  TypeOfMayDefList &mayDefNodes = ssaTab->GetStmtsSSAPart().GetMayDefNodesOf(stmt);
+  MIRType *lhsType = stmt.GetLHSType();
   if (rhs->GetOpCode() == OP_iread) {
-    RemoveMayDefByIreadRHS(static_cast<IreadSSANode*>(rhs), mayDefNodes);
+    // type size is not the same, can not overlap completely
+    if (lhsType->GetSize() != static_cast<IreadSSANode *>(rhs)->GetSSAVar()->GetOst()->GetType()->GetSize()) {
+      return;
+    }
+    RemoveMayDefByIreadRHS(static_cast<IreadSSANode &>(*rhs), mayDefNodes);
   } else if (rhs->GetOpCode() == OP_dread) {
-    RemoveMayDefByDreadRHS(static_cast<AddrofSSANode *>(rhs), mayDefNodes);
+    // type size is not the same, can not overlap completely
+    if (lhsType->GetSize() != static_cast<AddrofSSANode *>(rhs)->GetSSAVar()->GetOst()->GetType()->GetSize()) {
+      return;
+    }
+    RemoveMayDefByDreadRHS(static_cast<AddrofSSANode &>(*rhs), mayDefNodes);
   }
 }
 
@@ -302,13 +321,13 @@ void FSAA::ProcessBB(BB *bb) {
     if (itStmt->GetOpCode() != OP_iassign) {
       continue;
     }
-    IassignNode *iass = static_cast<IassignNode *>(&*itStmt);
+    IassignNode &iass = static_cast<IassignNode &>(*itStmt);
     RemoveMayDefIfSameAsRHS(iass);
     VersionSt *vst = nullptr;
-    if (iass->addrExpr->GetOpCode() == OP_dread) {
-      vst = static_cast<AddrofSSANode *>(iass->addrExpr)->GetSSAVar();
-    } else if (iass->addrExpr->GetOpCode() == OP_regread) {
-      vst = static_cast<RegreadSSANode *>(iass->addrExpr)->GetSSAVar();
+    if (iass.addrExpr->GetOpCode() == OP_dread) {
+      vst = static_cast<AddrofSSANode *>(iass.addrExpr)->GetSSAVar();
+    } else if (iass.addrExpr->GetOpCode() == OP_regread) {
+      vst = static_cast<RegreadSSANode *>(iass.addrExpr)->GetSSAVar();
     } else {
       break;
     }
@@ -337,7 +356,7 @@ void FSAA::ProcessBB(BB *bb) {
 }
 
 bool MEFSAA::PhaseRun(MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   CHECK_NULL_FATAL(dom);
   auto *ssaTab = GET_ANALYSIS(MESSATab, f);
   CHECK_NULL_FATAL(ssaTab);

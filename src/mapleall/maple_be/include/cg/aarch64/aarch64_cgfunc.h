@@ -130,6 +130,10 @@ class AArch64CGFunc : public CGFunc {
   void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd0) override;
   void SelectIgoto(Operand *opnd0) override;
+  bool IsFirstArgReturn(StmtNode &naryNode);
+  bool Is64x1vec(StmtNode &naryNode, BaseNode &argExpr, uint32 pnum);
+  PrimType GetParamPrimType(StmtNode &naryNode, uint32 pnum, bool isCallNative);
+  bool DoCallerEnsureValidParm(RegOperand &destOpnd, RegOperand &srcOpnd, PrimType formalPType);
   void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
   void SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &origOpnd0,
@@ -139,7 +143,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectGoto(GotoNode &stmt) override;
   void SelectCall(CallNode &callNode) override;
   void SelectIcall(IcallNode &icallNode, Operand &srcOpnd) override;
-  void SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) override;
+  void SelectIntrinsicCall(IntrinsiccallNode &intrinsicCallNode) override;
   Operand *SelectAArch64ffs(Operand &argOpnd, PrimType argType);
   Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name) override;
   Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrnNode, PrimType retType,
@@ -164,7 +168,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCAtomicFetch(IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore) override;
   Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
   void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) override;
-  Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode, bool isCompareExchangeN) override;
   Operand *SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) override;
   void SelectCAtomicClear(const IntrinsiccallNode &intrinsiccallNode) override;
   void SelectMembar(StmtNode &membar) override;
@@ -362,6 +366,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, PrimType oType);
   void SelectStackSave();
   void SelectStackRestore(const IntrinsiccallNode &intrnNode);
+  void SelectCDIVException(const IntrinsiccallNode &intrnNode);
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);
   void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 
@@ -868,8 +873,8 @@ class AArch64CGFunc : public CGFunc {
                              AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo);
   void GenAggParmForIreadfpoff(BaseNode &parent, ListOperand &srcOpnds,
                                AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo);
-  void SelectParmListForAggregate(BaseNode &parent, ListOperand &srcOpnds,
-                                  AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo);
+  void SelectParmListForAggregate(BaseNode &parent, ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
+                                  int32 &structCopyOffset, size_t argNo, PrimType &paramPType);
   size_t SelectParmListGetStructReturnSize(StmtNode &naryNode);
   bool MarkParmListCall(BaseNode &expr);
   void GenLargeStructCopyForDread(BaseNode &argExpr, int32 &structCopyOffset);
@@ -878,7 +883,6 @@ class AArch64CGFunc : public CGFunc {
   void GenLargeStructCopyForIreadoff(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo);
   void SelectParmListPreprocessLargeStruct(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo);
   void SelectParmListPreprocess(StmtNode &naryNode, size_t start, std::set<size_t> &specialArgs);
-  MOperator SelectExtMopForParmList(PrimType primType);
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
   void SelectClearStackCallParmList(const StmtNode &naryNode, ListOperand &srcOpnds,
                                     std::vector<int64> &stackPostion);

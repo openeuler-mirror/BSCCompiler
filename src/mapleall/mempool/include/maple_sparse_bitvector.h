@@ -15,12 +15,12 @@
 #ifndef MEMPOOL_INCLUDE_MAPLE_SPARSE_BITVECTOR_H
 #define MEMPOOL_INCLUDE_MAPLE_SPARSE_BITVECTOR_H
 #include <climits>
-#include <cstring>
 #include <iterator>
 #include <list>
 #include <iostream>
 #include <bitset>
 #include <set>
+#include "mempool_allocator.h"
 
 namespace maple {
 template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
@@ -65,7 +65,7 @@ template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
     for (unsigned i = 0; i < kBitWordNum; i++) {
       BitWord tmp = bitVector[i];
       unsigned bitPos = 0;
-      while (tmp) {
+      while (tmp != 0) {
         unsigned trailingZeroNum = static_cast<unsigned>(__builtin_ctzll(tmp));
         bitPos += trailingZeroNum;
         tmp >>= trailingZeroNum;
@@ -79,7 +79,7 @@ template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
     for (unsigned i = 0; i < kBitWordNum; i++) {
       BitWord tmp = bitVector[i];
       unsigned bitPos = 0;
-      while (tmp) {
+      while (tmp != 0) {
         unsigned trailingZeroNum = static_cast<unsigned>(__builtin_ctzll(tmp));
         bitPos += trailingZeroNum;
         tmp >>= trailingZeroNum;
@@ -324,7 +324,7 @@ class MapleSparseBitVector {
     return iter1 == elementList.end() && iter2 == rhs.elementList.end();
   }
 
-  bool operator!=(const MapleSparseBitVector &rhs) {
+  bool operator!=(const MapleSparseBitVector &rhs) const {
     return !(*this == rhs);
   }
 

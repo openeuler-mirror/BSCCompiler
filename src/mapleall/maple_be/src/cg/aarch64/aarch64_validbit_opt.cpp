@@ -53,16 +53,6 @@ void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
 void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
   MOperator mop = insn.GetMachineOpcode();
   switch (mop) {
-    case MOP_wuxtb_vb:
-    case MOP_wuxth_vb: {
-      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-      auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-      uint32 newVB = (mop == MOP_wuxtb_vb ? k8BitSize : k16BitSize);
-      dstOpnd.SetValidBitsNum(newVB);
-      MOperator recoverMop = (srcOpnd.GetSize() == k32BitSize ? MOP_wmovrr : MOP_xmovrr);
-      insn.SetMOP(AArch64CG::kMd[recoverMop]);
-      break;
-    }
     case MOP_wcsetrc:
     case MOP_xcsetrc: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
@@ -329,15 +319,16 @@ bool ExtValidBitPattern::CheckCondition(Insn &insn) {
   switch (mOp) {
     case MOP_xuxtb32:
     case MOP_xuxth32: {
-      if (static_cast<RegOperand&>(dstOpnd).GetValidBitsNum() !=
-          static_cast<RegOperand&>(srcOpnd).GetValidBitsNum()) {
+      if (static_cast<RegOperand&>(dstOpnd).GetValidBitsNum() != static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() ||
+          static_cast<RegOperand&>(srcOpnd).IsPhysicalRegister()) { // Do not optimize callee ensuring vb of parameter
         return false;
       }
       newMop = MOP_wmovrr;
       break;
     }
     case MOP_xuxtw64: {
-      if (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() > k32BitSize) {
+      if (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() > k32BitSize ||
+          static_cast<RegOperand&>(srcOpnd).IsPhysicalRegister()) { // Do not optimize callee ensuring vb of parameter
         return false;
       }
       newMop = MOP_wmovrr;

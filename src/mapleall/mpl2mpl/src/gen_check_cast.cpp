@@ -187,7 +187,7 @@ void CheckCastGenerator::GenCheckCast(StmtNode &stmt) {
         // Java array.
         auto *jarrayType = static_cast<MIRJarrayType*>(pointedType);
         std::string arrayName = jarrayType->GetJavaName();
-        int dim = 0;
+        uint64 dim = 0;
         while (arrayName[dim] == 'A') {
           ++dim;
         }
@@ -319,7 +319,7 @@ BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
 //   1) check nullptr
 //   2) check type, call IsAssignableFrom(targetClass, objClass)
 // eg:
-//   (1). cast:
+//   (1). cast
 //   intrinsiccallwithtypeassigned <* <$targetClass>> JAVA_CHECK_CAST (dread ref %Reg2_R45718) { dassign %Reg2_R45709 0}
 //   ==>
 //   ## check nullptr
@@ -334,7 +334,6 @@ BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
 //     }
 //   }
 //   dassign %Reg2_R45709 0 (dread ref %Reg2_R45718)
-//
 //   (2) instance-of
 //   dassign %Reg0_Z 0 (intrinsicopwithtype u1 <* <$targetClass>> JAVA_INSTANCE_OF (dread ref %Reg0_R45718))
 //   ==>
@@ -345,7 +344,6 @@ BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
 //   Example: } else {
 //     dassign %Reg0_Z 0 (constval u1 0)
 //   }
-//
 // #2 optimise type check(IsAssignableFrom(targetClass, objClass))
 //     1) slow path, invoke runtime api to check
 //     2) fast path, use cache to check type first, if fail, then go to slow path
@@ -362,13 +360,12 @@ BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
 //             iread ptr <* <$Ljava_2Flang_2FObject_3B>> 1 (regread ref %obj),
 //             addrof ptr T))
 //           regassign u1 %1 (constval u1 1)
-//
 //       (2) check cache
 //         a. check objClass equal to targetClass, if fail, then
 //         b. check objClass.cacheTrueClass equal to targetClass, if fail, then
 //         c. check objClass.cacheTFalseClass equal to targetClass, if fail, then
 //         b. go to slow path
-// eg:
+// eg
 //   dassign %Reg0_Z 0 (intrinsicopwithtype ref <* <$targetClass>> JAVA_ISASSIGNABLEFROM (dread ptr %objClass))
 //   ==>
 //   ##set result true first
@@ -683,7 +680,7 @@ void CheckCastGenerator::ReplaceIsAssignableFromUsingCache(BlockNode &blockNode,
     resultFalse = builder->CreateStmtDassign(*instanceOfRet, 0, falseVal);
     resultTrue = builder->CreateStmtDassign(*instanceOfRet, 0, trueVal);
 
-    if (isDefinedConstClass == false) {
+    if (!isDefinedConstClass) {
       targetClassSym = builder->GetOrCreateLocalDecl(kTargetClass, *GlobalTables::GetTypeTable().GetUIntType());
       targetClassAssign = builder->CreateStmtDassign(*targetClassSym, 0, targetClassNode);
     }
@@ -732,7 +729,7 @@ void CheckCastGenerator::ReplaceIsAssignableFromUsingCache(BlockNode &blockNode,
   classCacheTrueEqualCondIfStmt->GetThenPart()->AddStatement(classCacheFalseEqualCondIfStmt);
 
   blockNode.InsertBefore(&stmt, resultTrue);
-  if (isDefinedConstClass == false) {
+  if (!isDefinedConstClass) {
     blockNode.InsertBefore(&stmt, targetClassAssign);
   }
   blockNode.ReplaceStmt1WithStmt2(&stmt, classEqualCondIfStmt);

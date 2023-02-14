@@ -47,17 +47,33 @@ constexpr char kSecondInlineSymbolSuffix[] = "SECOND_";
 constexpr char kSecondInlineBeginComment[] = "second inlining begin: FUNC ";
 constexpr char kSecondInlineEndComment[] = "second inlining end: FUNC ";
 
+void UpdateEnclosingBlockCallback(const BlockNode &oldBlock, BlockNode &newBlock, const StmtNode &oldStmt,
+    StmtNode &newStmt, CallBackData *data);
+
+enum InlineStage {
+  kEarlyInline,
+  kGreedyInline
+};
+
 class InlineTransformer {
  public:
-  InlineTransformer(MIRFunction &caller, MIRFunction &callee, CallNode &callStmt, bool dumpDetail, CallGraph *cg)
+  InlineTransformer(InlineStage inlineStage, MIRFunction &caller, MIRFunction &callee,
+      CallNode &callStmt, bool dumpDetail, CallGraph *cg)
       : builder(*theMIRModule->GetMIRBuilder()),
         caller(caller),
         callee(callee),
         callStmt(callStmt),
+        enclosingBlk(*callStmt.GetEnclosingBlock()),
+        stage(inlineStage),
         dumpDetail(dumpDetail),
-        cg(cg) {}
+        cg(cg),
+        updateFreq(Options::profileUse && caller.GetFuncProfData() && callee.GetFuncProfData()) {
+    theMIRModule->SetCurFunction(&caller);
+  }
+
   bool PerformInline(BlockNode &enclosingBlk);
-  static void ReplaceSymbols(BaseNode*, uint32, const std::vector<uint32>*);
+  bool PerformInline(std::vector<CallInfo*> *newCallInfo = nullptr);
+  static void ReplaceSymbols(BaseNode *baseNode, uint32 StIdxOff, const std::vector<uint32> *oldStIdx2New);
   static void ConvertPStaticToFStatic(MIRFunction &func);
   void SetDumpDetail(bool value) {
     dumpDetail = value;
@@ -67,30 +83,37 @@ class InlineTransformer {
  private:
   BlockNode *CloneFuncBody(BlockNode &funcBody, bool recursiveFirstClone);
   BlockNode *GetClonedCalleeBody();
-  uint32 RenameSymbols(uint32) const;
-  uint32 RenameLabels(uint32) const;
-  uint32 RenamePregs(std::unordered_map<PregIdx, PregIdx>&) const;
-  void ReplaceLabels(BaseNode&, uint32) const;
-  void ReplacePregs(BaseNode*, std::unordered_map<PregIdx, PregIdx>&) const;
-  void AssignActualsToFormals(BlockNode&, uint32, uint32);
-  void AssignActualToFormal(BlockNode&, uint32, uint32, BaseNode&, const MIRSymbol&);
+  uint32 RenameSymbols(uint32 inlinedTimes) const;
+  uint32 RenameLabels(uint32 inlinedTimes) const;
+  uint32 RenamePregs(std::unordered_map<PregIdx, PregIdx> &pregOld2new) const;
+  void ReplaceLabels(BaseNode &baseNode, uint32 labIdxOff) const;
+  void ReplacePregs(BaseNode *baseNode, std::unordered_map<PregIdx, PregIdx> &pregOld2New) const;
+  void UpdateEnclosingBlock(BlockNode &body) const;
+  void CollectNewCallInfo(BaseNode *node, std::vector<CallInfo*> *newCallInfo) const;
+  void AssignActualsToFormals(BlockNode &newBody, uint32 stIdxOff, uint32 regIdxOff);
+  void AssignActualToFormal(BlockNode& newBody, uint32 stIdxOff, uint32 regIdxOff,
+      BaseNode &oldActual, const MIRSymbol &formal);
   void GenReturnLabel(BlockNode &newBody, uint32 inlinedTimes);
   void HandleReturn(BlockNode &newBody);
   void ReplaceCalleeBody(BlockNode &enclosingBlk, BlockNode &newBody);
-  LabelIdx CreateReturnLabel(uint32) const;
-  GotoNode *UpdateReturnStmts(BlockNode&, const CallReturnVector*, int&) const;
-  GotoNode *DoUpdateReturnStmts(BlockNode&, StmtNode&, const CallReturnVector*, int&) const;
-  void HandleTryBlock(StmtNode*, StmtNode*);
-  bool ResolveNestedTryBlock(BlockNode&, TryNode&, const StmtNode*) const;
+  LabelIdx CreateReturnLabel(uint32 inlinedTimes) const;
+  GotoNode *UpdateReturnStmts(BlockNode &newBody, const CallReturnVector *callReturnVector, int &retCount) const;
+  GotoNode *DoUpdateReturnStmts(BlockNode &newBody, StmtNode &stmt, const CallReturnVector *callReturnVector,
+      int &retCount) const;
+  void HandleTryBlock(StmtNode *stmtBeforeCall, StmtNode *stmtAfterCall);
+  bool ResolveNestedTryBlock(BlockNode &body, TryNode &outerTryNode, const StmtNode *outerEndTryNode) const;
 
   MIRBuilder &builder;
   MIRFunction &caller;
   MIRFunction &callee;
   CallNode &callStmt;
+  BlockNode &enclosingBlk;
+  const InlineStage stage;
   bool dumpDetail = false;
   LabelIdx returnLabelIdx = 0;    // The lableidx where the code will jump when the callee returns.
   StmtNode *labelStmt = nullptr;  // The LabelNode we created for the callee, if needed.
   CallGraph *cg = nullptr;
+  bool updateFreq = false;
 };
 }  // namespace maple
 #endif  // MPL2MPL_INCLUDE_INLINE_TRANSFORMER_H

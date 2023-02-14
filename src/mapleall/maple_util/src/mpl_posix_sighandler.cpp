@@ -38,6 +38,14 @@ std::map<int, SigHandler::FuncPtr> SigHandler::sig2callback =
     {};
 #endif
 
+std::array enabledByDefault{SIGTERM, SIGSEGV, SIGBUS, SIGABRT, SIGILL, SIGFPE, SIGXFSZ};
+
+void SigHandler::Enable() {
+  for (int signum : enabledByDefault) {
+    EnableSig(signum);
+  }
+}
+
 void SigHandler::EnableAll() {
 #ifdef __unix__
   for (auto it = sig2callback.cbegin(); it != sig2callback.cend(); ++it) {

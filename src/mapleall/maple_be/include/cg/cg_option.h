@@ -627,6 +627,18 @@ class CGOptions {
     return doCGSSA && !flavorLmbc;
   }
 
+  static void DisableCalleeEnsureParam() {
+    calleeEnsureParam = false;
+  }
+
+  static void EnableCalleeEnsureParam() {
+    calleeEnsureParam = true;
+  }
+
+  static bool CalleeEnsureParam() {
+    return calleeEnsureParam;
+  }
+
   static void EnableIPARA() {
     doIPARA = true;
   }
@@ -1394,12 +1406,12 @@ class CGOptions {
     return litePgoOutputFunction;
   }
 
-  static void SetInstrumentationWhiteList(std::string pgoWhiteList) {
-    instrumentationWhiteList = pgoWhiteList;
+  static void SetLitePgoWhiteList(std::string pgoWhiteList) {
+    litePgoWhiteList = pgoWhiteList;
   }
 
-  static std::string& GetInstrumentationWhiteList() {
-    return instrumentationWhiteList;
+  static std::string& GetLitePgoWhiteList() {
+    return litePgoWhiteList;
   }
 
   static void SetInstrumentationOutPutPath(std::string pgoOutPutPath) {
@@ -1464,6 +1476,7 @@ class CGOptions {
   static bool cgBigEndian;
   static bool doEBO;
   static bool doCGSSA;
+  static bool calleeEnsureParam;
   static bool doIPARA;
   static bool doCFGO;
   static bool doICO;
@@ -1545,7 +1558,7 @@ class CGOptions {
   static bool liteProfGen;
   static bool liteProfUse;
   static std::string litePgoOutputFunction;
-  static std::string instrumentationWhiteList;
+  static std::string litePgoWhiteList;
   static std::string instrumentationOutPutPath;
   static std::string liteProfile;
   static std::string functionProrityFile;

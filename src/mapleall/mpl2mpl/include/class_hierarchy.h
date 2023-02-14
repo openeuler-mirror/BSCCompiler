@@ -335,7 +335,7 @@ class WKTypes {
 class KlassHierarchy : public AnalysisResult {
  public:
   KlassHierarchy(MIRModule *mirmodule, MemPool *memPool);
-  virtual ~KlassHierarchy() = default;
+  ~KlassHierarchy() override = default;
 
   // Get a class. Return nullptr it does not exist.
   Klass *GetKlassFromStrIdx(GStrIdx strIdx) const;

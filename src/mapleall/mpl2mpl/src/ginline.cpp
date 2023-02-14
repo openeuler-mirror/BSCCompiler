@@ -44,13 +44,13 @@ bool GInline::ConsiderInlineCallsite(CallInfo &info, uint32 depth) {
   auto ifCode = static_cast<uint32>(info.GetInlineFailedCode());
   ++inlineStat[ifCode];
   if (!result) {
-    bool skipPrint = info.GetInlineFailedCode() == kIFC_EmptyCallee;
+    bool skipPrint = info.GetInlineFailedCode() == kIfcEmptyCallee;
     if (dumpDetail && !skipPrint) {
       const char *flag = !canInline ? "can not inline" : "don't want inline";
       LogInfo::MapleLogger() << "[" << flag << "] " << " " << info.GetCaller()->GetName() << "->" <<
           info.GetCallee()->GetName() << " because: " << GetInlineFailedStr(info.GetInlineFailedCode()) << std::endl;
       // for debug
-      if (info.GetInlineFailedCode() == kIFC_NotDeclaredInlineGrow) {
+      if (info.GetInlineFailedCode() == kIfcNotDeclaredInlineGrow) {
         auto *badInfo = CalcBadness(info);
         auto *callsiteNode = alloc.New<CallSiteNode>(info, *badInfo, depth);
         callsiteNode->Dump();
@@ -220,8 +220,8 @@ void GInline::PrintGInlineReport() const {
 // We try to inline shallow small callee (especially with inline attr), ignoring overall growth limit
 bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) {
   auto ifCode = callSiteNode.GetCallInfo()->GetInlineFailedCode();
-  if (ifCode == kIFC_InlineList || ifCode == kIFC_InlineListCallsite || ifCode == kIFC_HardCoded ||
-      ifCode == kIFC_ProfileHotCallsite) {
+  if (ifCode == kIfcInlineList || ifCode == kIfcInlineListCallsite || ifCode == kIfcHardCoded ||
+      ifCode == kIfcProfileHotCallsite) {
     return true;
   }
   if (!Options::ginlineAllowIgnoreGrowthLimit) {
@@ -276,10 +276,10 @@ void GInline::AfterInlineSuccess(const CallSiteNode &heapNode, const std::vector
     bool canBeRemoved, int64 lastSize) {
   ++totalSuccessCnt;
   CallInfo *callsite = heapNode.GetCallInfo();
-  if (callsite->GetInlineFailedCode() == kIFC_NeedFurtherAnalysis) {
-    callsite->SetInlineFailedCode(kIFC_Ok);
-    --inlineStat[static_cast<uint32>(kIFC_NeedFurtherAnalysis)];
-    ++inlineStat[static_cast<uint32>(kIFC_Ok)];
+  if (callsite->GetInlineFailedCode() == kIfcNeedFurtherAnalysis) {
+    callsite->SetInlineFailedCode(kIfcOk);
+    --inlineStat[static_cast<uint32>(kIfcNeedFurtherAnalysis)];
+    ++inlineStat[static_cast<uint32>(kIfcOk)];
   }
   auto growth = heapNode.GetGrowth();
   curSize += growth;

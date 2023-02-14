@@ -57,7 +57,7 @@ class MEBETopLevelManager : public ModulePM {
   ~MEBETopLevelManager() override {};
   PHASECONSTRUCTOR(MEBETopLevelManager)
   std::string PhaseName() const override;
-  void DoPhasesPopulate(const MIRModule &m);
+  void DoPhasesPopulate(const MIRModule &mirModule);
   void Run(MIRModule &mod);
   void InitFuncDescWithWhiteList(const MIRModule &mod);
   bool IsRunMpl2Mpl() const {

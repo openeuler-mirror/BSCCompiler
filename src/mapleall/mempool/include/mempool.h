@@ -27,12 +27,6 @@
 #include "thread_env.h"
 
 namespace maple {
-#define BITS_ALIGN(size) (((size) + 7) & (0xFFFFFFF8))
-
-constexpr size_t kMemBlockSizeMin = 2 * 1024;
-constexpr size_t kMemBlockMalloc = 1024 * 1024;
-static_assert((kMemBlockMalloc > kMemBlockSizeMin) && ((kMemBlockMalloc % kMemBlockSizeMin) == 0), "mempool error");
-
 struct MemBlock {
   MemBlock(uint8_t *startPtr, size_t size) : startPtr(startPtr), memSize(size) {}
   ~MemBlock() = default;
@@ -46,9 +40,13 @@ struct MemBlock {
   MemBlock *nextMemBlock = nullptr;
 };
 
+constexpr size_t kMemBlockStructSize = sizeof(MemBlock);
+constexpr size_t kMemBlockSizeMin = 2 * 1024;
+constexpr size_t kMemBlockMallocSize = kMemBlockSizeMin + kMemBlockStructSize;
+constexpr size_t kMemBlockRealMallocSize = kMemBlockMallocSize * 512;
+
 // Class declaration
 class MemPool;
-class StackMemPool;
 class MemPoolCtrler;
 extern MemPoolCtrler memPoolCtrler;
 
@@ -89,7 +87,7 @@ class MemPoolCtrler {
 
   ~MemPoolCtrler();
 
-  MemPool *NewMemPool(const std::string &, bool isLocalPool);
+  MemPool *NewMemPool(const std::string &name, bool isLocalPool);
   void DeleteMemPool(MemPool *memPool) const;
   bool HaveRace() const {
     return ThreadEnv::IsMeParallel() && (this == &maple::memPoolCtrler);
@@ -131,7 +129,7 @@ class MemPoolStat {
 #else
 class MemPoolStat {
  public:
-  ~MemPoolStat() = default;
+  virtual ~MemPoolStat() = default;
 
  protected:
   void SetName(const std::string & /* name */) const {}
@@ -140,7 +138,7 @@ class MemPoolStat {
 #endif
 
 // memory front end
-class MemPool : virtual private MemPoolStat {
+class MemPool : private MemPoolStat {
   friend MemPoolCtrler;
 
  public:
@@ -151,7 +149,7 @@ class MemPool : virtual private MemPoolStat {
     SetName(name);
   }
 
-  virtual ~MemPool();
+  ~MemPool() override;
 
   virtual void *Malloc(size_t size);
   void *Calloc(size_t size);
@@ -197,7 +195,7 @@ class MemPool : virtual private MemPoolStat {
   MemBlock *fixedMemHead = nullptr;
   MemBlock *bigMemHead = nullptr;
 
-  uint8_t *AllocNewMemBlock(size_t bytes);
+  uint8_t *AllocNewMemBlock(size_t byteSize);
 };
 
 using ThreadLocalMemPool = MemPool;
@@ -205,7 +203,7 @@ using ThreadLocalMemPool = MemPool;
 class ThreadShareMemPool : public MemPool {
  public:
   using MemPool::MemPool;
-  virtual ~ThreadShareMemPool() = default;
+  ~ThreadShareMemPool() override = default;
   void *Malloc(size_t size) override {
     ParallelGuard guard(poolMutex, ctrler.HaveRace());
     return MemPool::Malloc(size);
