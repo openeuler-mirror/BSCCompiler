@@ -457,27 +457,22 @@ void FunctionStackPoisoner::processStackVariable() {
       NOTE: this must be done after replaceAllUsesWith; otherwise, the initialization could be falsely
       replaced*/
       if (isFuncCallArg(localVar)) {
-        // dread asan_<Var> PTY_a64
-        BaseNode *asanAddrExpr = mirBuilder->CreateDread(*newLocalVar, PTY_a64);
-        // dread <Var> <type>
-        MIRType *argVarType = localVar->GetType();
-        BaseNode *argVarValue = mirBuilder->CreateDread(*localVar, argVarType->GetPrimType());
-        // TODO: need check->since we assign the whole value of an argument, the field should be 0
-        IassignNode *iassignNode = mirBuilder->CreateStmtIassign(*localVarPtr, 0, asanAddrExpr, argVarValue);
-        iassignNode->InsertAfterThis(*insBefore);
-      }
-      for (int j = 0; j < mirFunction->GetFormalCount(); j++) {
-        MIRSymbol *para = mirFunction->GetFormal(i);
-        if (para == desc.Symbol) {
-          LogInfo::MapleLogger() << para->GetName() << " is para\n";
-          MapleVector<BaseNode *> args(module->GetMPAllocator().Adapter());
-          args.emplace_back(mirBuilder->CreateDread(*newLocalVar, PTY_a64));
-          args.emplace_back(mirBuilder->CreateAddrof(*para, PTY_u64));
-          args.emplace_back(mirBuilder->GetConstUInt64(para->GetType()->GetSize()));
-
-          IntrinsiccallNode *intrinsiccallNode = mirBuilder->CreateStmtIntrinsicCall(INTRN_C_memcpy, args);
-          intrinsiccallNode->InsertAfterThis(*insBefore);
-        }
+        // // dread asan_<Var> PTY_a64
+        // BaseNode *asanAddrExpr = mirBuilder->CreateDread(*newLocalVar, PTY_a64);
+        // // dread <Var> <type>
+        // MIRType *argVarType = localVar->GetType();
+        // BaseNode *argVarValue = mirBuilder->CreateDread(*localVar, argVarType->GetPrimType());
+        // // TODO: need check->since we assign the whole value of an argument, the field should be 0
+        // IassignNode *iassignNode = mirBuilder->CreateStmtIassign(*localVarPtr, 0, asanAddrExpr, argVarValue);
+        // iassignNode->InsertAfterThis(*insBefore);
+        // // here we call memcpy to parse the argument
+        // the function should be the same as the upper code
+        MapleVector<BaseNode *> args(module->GetMPAllocator().Adapter());
+        args.emplace_back(mirBuilder->CreateDread(*newLocalVar, PTY_a64));
+        args.emplace_back(mirBuilder->CreateAddrof(*localVar, PTY_u64));
+        args.emplace_back(mirBuilder->GetConstUInt64(localVar->GetType()->GetSize()));
+        IntrinsiccallNode *intrinsiccallNode = mirBuilder->CreateStmtIntrinsicCall(INTRN_C_memcpy, args);
+        intrinsiccallNode->InsertAfterThis(*insBefore);
       }
     }
     if (desc.AllocaInst != nullptr) {
@@ -608,6 +603,19 @@ BaseNode *FunctionStackPoisoner::GetTransformedNode(MIRSymbol *oldVar, MIRSymbol
       IreadNode *newStmtNode = module->GetMIRBuilder()->CreateExprIread(
           *GlobalTables::GetTypeTable().GetPrimType(dreadNode->GetPrimType()), *newVar->GetType(),
           dreadNode->GetFieldID(), module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64));
+      retNode = newStmtNode;
+      return retNode;
+    }
+  } else if (baseNode->GetOpCode() == OP_dassignoff) {
+    DassignoffNode *dassignoffNode = dynamic_cast<DassignoffNode *>(baseNode);
+    MIRSymbol *mirSymbol = mirFunction->GetLocalOrGlobalSymbol(dassignoffNode->GetStIdx());
+    if (mirSymbol->GetStIdx() == oldVar->GetStIdx()) {
+      BaseNode *newRHS = GetTransformedNode(oldVar, newVar, dassignoffNode->GetRHS());
+      StmtNode *newStmtNode =
+          module->GetMIRBuilder()->CreateStmtIassignoff(newVar->GetType()->GetPrimType(),
+                                                        dassignoffNode->GetOffset(),
+                                                        module->GetMIRBuilder()->CreateDread(*newVar, PTY_a64),
+                                                        newRHS);
       retNode = newStmtNode;
       return retNode;
     }
