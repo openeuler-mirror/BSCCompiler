@@ -75,7 +75,7 @@ struct SourceFileField {
 class MUIDReplacement : public FuncOptimizeImpl {
  public:
   MUIDReplacement(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~MUIDReplacement() = default;
+  ~MUIDReplacement() override = default;
 
   FuncOptimizeImpl *Clone() override {
     return new MUIDReplacement(*this);
@@ -130,22 +130,22 @@ class MUIDReplacement : public FuncOptimizeImpl {
   void GenerateGlobalRootList();
   void CollectImplicitUndefClassInfo(StmtNode &stmt);
   void CollectFuncAndData();
-  void InsertFunctionProfile(MIRFunction &currentFunc, int64 index);
+  void InsertFunctionProfile(MIRFunction &currentFunc, uint64 index);
   void GenericSourceMuid();
   void GenCompilerMfileStatus();
   bool FindFuncNameInSimplfy(const std::string &name);
   bool CheckFunctionIsUsed(const MIRFunction &mirFunc) const;
-  void ReplaceMethodMetaFuncAddr(const MIRSymbol &funcSymbol, int64 index);
+  void ReplaceMethodMetaFuncAddr(const MIRSymbol &funcSymbol, uint64 index);
   void ReplaceFieldMetaStaticAddr(const MIRSymbol &mirSymbol, uint32 index);
   void CollectFuncAndDataFromKlasses();
   void CollectFuncAndDataFromGlobalTab();
   void CollectFuncAndDataFromFuncList();
   void GenerateCompilerVersionNum();
-  int64 GetDefOrUndefOffsetWithMask(uint64, bool isDef, bool muidIndex32Mod = false) const;
+  int64 GetDefOrUndefOffsetWithMask(uint64 offset, bool isDef, bool muidIndex32Mod = false) const;
   void CollectSuperClassArraySymbolData();
   void GenerateSourceInfo();
   static MIRSymbol *GetSymbolFromName(const std::string &name);
-  ConstvalNode* GetConstvalNode(int64 index);
+  ConstvalNode* GetConstvalNode(uint64 index);
   void InsertArrayClassSet(const MIRType &type);
   MIRType *GetIntrinsicConstArrayClass(StmtNode &stmt);
   void CollectArrayClass();

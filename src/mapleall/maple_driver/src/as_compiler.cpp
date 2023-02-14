@@ -18,8 +18,8 @@
 #include "default_options.def"
 
 namespace maple {
-static const std::string kAarch64BeIlp32As = "aarch64_be-linux-gnuilp32-as";
-static const std::string kAarch64BeAs = "aarch64_be-linux-gnu-as";
+static const std::string kAarch64BeIlp32As = "aarch64_be-linux-gnuilp32-gcc";
+static const std::string kAarch64BeAs = "aarch64_be-linux-gnu-gcc";
 
 std::string AsCompilerBeILP32::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
   std::string gccPath = FileUtils::SafeGetenv(kGccBePathEnv) + "/";
@@ -45,6 +45,16 @@ const std::string &AsCompilerBeILP32::GetBinName() const {
   }
 }
 
+std::string AsCompilerBeILP32::GetBin(const MplOptions &mplOptions [[maybe_unused]]) const {
+  auto binPath = GetBinPath(mplOptions);
+
+  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+    return binPath + kAarch64BeIlp32As;
+  } else {
+    return binPath + kAarch64BeAs;
+  }
+}
+
 DefaultOption AsCompilerBeILP32::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   auto &triple = Triple::GetTriple();
   if (triple.GetArch() != Triple::ArchType::aarch64_be ||
@@ -52,18 +62,21 @@ DefaultOption AsCompilerBeILP32::GetDefaultOptions(const MplOptions &options, co
     CHECK_FATAL(false, "ClangCompilerBeILP32 supports only aarch64_be GNU/GNUILP32 targets\n");
   }
 
-  uint32_t len = 1; // for -o option
+  uint32_t len = 2; // for -o and -c options
   if (triple.GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
     ++len; // for -mabi=ilp32
   }
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
-  defaultOptions.mplOptions[0].SetKey("-o");
-  defaultOptions.mplOptions[0].SetValue(action.GetFullOutputName() + ".o");
+  int i = 0;
+  defaultOptions.mplOptions[i].SetKey("-o");
+  defaultOptions.mplOptions[i++].SetValue(action.GetFullOutputName() + ".o");
+  defaultOptions.mplOptions[i].SetKey("-c");
+  defaultOptions.mplOptions[i++].SetValue("");
 
   if (triple.GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
-    defaultOptions.mplOptions[1].SetKey("-mabi=ilp32");
-    defaultOptions.mplOptions[1].SetValue("");
+    defaultOptions.mplOptions[i].SetKey("-mabi=ilp32");
+    defaultOptions.mplOptions[i++].SetValue("");
   }
 
   return defaultOptions;

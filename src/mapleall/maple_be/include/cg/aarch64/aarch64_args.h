@@ -37,8 +37,12 @@ struct ArgInfo {
 
 class AArch64MoveRegArgs : public MoveRegArgs {
  public:
-  explicit AArch64MoveRegArgs(CGFunc &func) : MoveRegArgs(func) {}
-  ~AArch64MoveRegArgs() override = default;
+  explicit AArch64MoveRegArgs(CGFunc &func) : MoveRegArgs(func) {
+    aarFunc = static_cast<AArch64CGFunc*>(&func);
+  }
+  ~AArch64MoveRegArgs() override {
+    aarFunc = nullptr;
+  }
   void Run() override;
 
  private:
@@ -58,6 +62,9 @@ class AArch64MoveRegArgs : public MoveRegArgs {
   void MoveLocalRefVarToRefLocals(MIRSymbol &mirSym) const;
   void LoadStackArgsToVReg(MIRSymbol &mirSym) const;
   void MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym) const;
+  Insn &CreateMoveArgsToVRegInsn(MOperator mOp, RegOperand &destOpnd, RegOperand &srcOpnd, PrimType primType) const;
+
+  AArch64CGFunc *aarFunc;
 };
 }  /* namespace maplebe */
 

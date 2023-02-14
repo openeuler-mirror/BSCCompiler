@@ -17,6 +17,8 @@
 #include <cstdint>
 #include <string>
 #include "securec.h"
+/* Anonymous namespace to restrict visibility of utility functions */
+namespace {
 class Version {
  public:
   static std::string GetVersionStr() {
@@ -96,4 +98,5 @@ class Version {
   static constexpr const uint32_t kMinorRuntimeVersion = 0;
 #endif // kMinorRuntimeVersion
 };
+} /* Anonymous namespace  */
 #endif // VERSION_H

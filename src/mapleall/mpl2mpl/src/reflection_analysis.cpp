@@ -637,7 +637,7 @@ bool RtRetentionPolicyCheck(const MIRSymbol &clInfo) {
       static_cast<MIRClassType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(clInfo.GetTyIdx()));
   for (MIRPragma *p : annoType->GetPragmaVec()) {
     if (GlobalTables::GetStrTable().GetStringFromStrIdx(
-            GlobalTables::GetTypeTable().GetTypeFromTyIdx(p->GetTyIdx())->GetNameStrIdx()) ==
+        GlobalTables::GetTypeTable().GetTypeFromTyIdx(p->GetTyIdx())->GetNameStrIdx()) ==
         (kJavaLangAnnotationRetentionStr)) {
       strIdx.reset(p->GetNthElement(0)->GetU64Val());
       std::string retentionType = GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx);
@@ -925,7 +925,7 @@ MIRSymbol *ReflectionAnalysis::GetParameterTypesSymbol(uint32 size, uint32 index
       static_cast<MIRStructType&>(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(parameterTypesTyIdx));
   MIRSymbol *parameterTypesSt =
       GetOrCreateSymbol(namemangler::kParameterTypesPrefixStr + std::to_string(index),
-      parameterTypes.GetTypeIndex(), true);
+                        parameterTypes.GetTypeIndex(), true);
   parameterTypesSt->SetStorageClass(kScFstatic);
   return parameterTypesSt;
 }
@@ -951,7 +951,7 @@ MIRSymbol *ReflectionAnalysis::GetMethodSignatureSymbol(std::string signature) {
 
   MIRSymbol *methodSignatureSt =
       GetOrCreateSymbol(namemangler::kMethodSignaturePrefixStr + std::to_string(mapMethodSignature.size()),
-      methodSignatureType.GetTypeIndex(), true);
+                        methodSignatureType.GetTypeIndex(), true);
   methodSignatureSt->SetStorageClass(kScFstatic);
   methodSignatureSt->SetKonst(newConst);
   mapMethodSignature[signature] = methodSignatureSt;
@@ -1153,7 +1153,7 @@ MIRSymbol *ReflectionAnalysis::GenSuperClassMetaData(std::list<Klass*> superClas
   MIRArrayType &arrayType = *GlobalTables::GetTypeTable().GetOrCreateArrayType(superclassMetadataType, size);
   MIRSymbol *superclassArraySt = nullptr;
 
-  auto itFindSuper = superClasesIdxMap.find(superClassList);
+  const auto &itFindSuper = superClasesIdxMap.find(superClassList);
   if (itFindSuper == superClasesIdxMap.end()) {
     std::string superClassArrayInfo = SUPERCLASSINFO_PREFIX_STR + std::to_string(superClasesIdxMap.size());
     superClasesIdxMap[superClassList] = superClassArrayInfo;
@@ -2159,7 +2159,7 @@ static void ReflectionAnalysisGenStrTab(MIRModule &mirModule, const std::string 
   strTabSt->SetStorageClass(kScFstatic);
   for (char c : strTab) {
     MIRConst *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        c, *GlobalTables::GetTypeTable().GetUInt8());
+        static_cast<uint64>(c), *GlobalTables::GetTypeTable().GetUInt8());
     strTabAggconst->AddItem(newConst, 0);
   }
   strTabSt->SetKonst(strTabAggconst);

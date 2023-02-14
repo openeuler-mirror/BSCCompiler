@@ -26,7 +26,7 @@ enum CallKind {
 class VtableImpl : public FuncOptimizeImpl {
  public:
   VtableImpl(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~VtableImpl() = default;
+  ~VtableImpl() override = default;
 
   void ProcessFunc(MIRFunction *func) override;
   FuncOptimizeImpl *Clone() override {

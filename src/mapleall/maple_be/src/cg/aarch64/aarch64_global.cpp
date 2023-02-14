@@ -60,6 +60,9 @@ void AArch64GlobalOpt::Run() {
   if (cgFunc.IsAfterRegAlloc()) {
     optManager.Optimize<SameRHSPropPattern>();
     optManager.Optimize<BackPropPattern>();
+    if (CGOptions::CalleeEnsureParam()) {
+      optManager.Optimize<ContinuousLdrPattern>();
+    }
     return;
   }
   if (!hasSpillBarrier) {
@@ -2262,6 +2265,170 @@ void SameRHSPropPattern::Run() {
   Init();
   FOR_ALL_BB_REV(bb, &cgFunc) {
     FOR_BB_INSNS_REV(insn, bb) {
+      if (!CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
+    }
+  }
+}
+
+bool ContinuousLdrPattern::IsMopMatch(const Insn &insn) {
+  auto mop = insn.GetMachineOpcode();
+  return mop == MOP_wldrh || mop == MOP_wldr || mop == MOP_xldr;
+}
+
+bool ContinuousLdrPattern::IsUsedBySameCall(Insn &insn1, Insn &insn2, Insn &insn3) const {
+  auto &reg1 = static_cast<RegOperand &>(insn1.GetOperand(kFirstOpnd));
+  auto &&usesite1 = cgFunc.GetRD()->FindUseForRegOpnd(insn1, reg1.GetRegisterNumber(), true);
+  if (usesite1.size() != 1 || !((*usesite1.begin())->IsCall() || (*usesite1.begin())->IsTailCall())) {
+    return false;
+  }
+  auto &reg2 = static_cast<RegOperand &>(insn2.GetOperand(kFirstOpnd));
+  auto &&usesite2 = cgFunc.GetRD()->FindUseForRegOpnd(insn2, reg2.GetRegisterNumber(), true);
+  if (usesite2.size() != 1 || !((*usesite2.begin())->IsCall() || (*usesite1.begin())->IsTailCall())) {
+    return false;
+  }
+  auto &reg3 = static_cast<RegOperand &>(insn3.GetOperand(kFirstOpnd));
+  auto &&usesite3 = cgFunc.GetRD()->FindUseForRegOpnd(insn3, reg3.GetRegisterNumber(), true);
+  if (usesite3.size() != 1 || !((*usesite3.begin())->IsCall() || (*usesite3.begin())->IsTailCall())) {
+    return false;
+  }
+  return (*usesite1.begin())->GetId() == (*usesite2.begin())->GetId() && (*usesite3.begin())->GetId();
+}
+
+bool ContinuousLdrPattern::IsMemValid(const MemOperand &memopnd) {
+  return memopnd.GetAddrMode() == MemOperand::kBOI;
+}
+
+bool ContinuousLdrPattern::IsImmValid(MOperator mop, const ImmOperand &imm) {
+  return AArch64CG::kMd[mop].IsValidImmOpnd(imm.GetValue());
+}
+
+int64 ContinuousLdrPattern::GetMemOffsetValue(const Insn &insn) {
+  return static_cast<MemOperand &>(insn.GetOperand(kSecondOpnd)).GetOffsetOperand()->GetValue();
+}
+
+bool ContinuousLdrPattern::CheckCondition(Insn &insn) {
+  if (!IsMopMatch(insn)) {
+    return false;
+  }
+  // merge the three adjacent ldr insns
+  insnList.clear();
+  insnList.push_back(&insn);
+  auto prevInsn = insn.GetPrev();
+  if (!prevInsn || !IsMopMatch(*prevInsn)) {
+    return false;
+  }
+  insnList.push_back(prevInsn);
+  auto prevPrevInsn = prevInsn->GetPrev();
+  if (!prevPrevInsn || !IsMopMatch(*prevPrevInsn)) {
+    return false;
+  }
+  insnList.push_back(prevPrevInsn);
+  if (!IsUsedBySameCall(insn, *prevInsn, *prevPrevInsn)) {
+    return false;
+  }
+
+  auto &currMem = static_cast<MemOperand &>(insn.GetOperand(kSecondOpnd));
+  auto &prevMem = static_cast<MemOperand &>(prevInsn->GetOperand(kSecondOpnd));
+  auto &prevPrevMem = static_cast<MemOperand &>(prevPrevInsn->GetOperand(kSecondOpnd));
+  if (!IsMemValid(currMem) || !IsMemValid(prevMem) || !IsMemValid(prevPrevMem)) {
+    return false;
+  }
+  auto baseRegNumOfCurr = currMem.GetBaseRegister()->GetRegisterNumber();
+  auto baseRegNumOfPrev = prevMem.GetBaseRegister()->GetRegisterNumber();
+  auto baseRegNumOfPrevPrev = prevPrevMem.GetBaseRegister()->GetRegisterNumber();
+  if (baseRegNumOfCurr != baseRegNumOfPrev || baseRegNumOfCurr != baseRegNumOfPrevPrev) {
+    return false;
+  }
+
+  return true;
+}
+
+void ContinuousLdrPattern::Optimize(Insn &insn) {
+  auto bb = insn.GetBB();
+  auto &aarch64CGFunc = static_cast<AArch64CGFunc &>(cgFunc);
+
+  // sort ldr insns by offset value of insn's memopnd
+  std::sort(insnList.begin(), insnList.end(),
+            [](const Insn *insn1, const Insn *insn2) { return GetMemOffsetValue(*insn1) < GetMemOffsetValue(*insn2); });
+
+  auto currMop = insnList[1]->GetMachineOpcode();
+  Insn *currInsn = nullptr;
+  Insn *prevInsn = nullptr;
+  Insn *extraInsn = nullptr;
+
+  // the two adjacent insns's mop should be same (all equals to ldrh)
+  // assign the second ldrh to currInsn, another to prevInsn
+  // and extraInsn will be ldr
+  if (insnList[0]->GetMachineOpcode() == insnList[1]->GetMachineOpcode()) {
+    currInsn = insnList[1];
+    prevInsn = insnList[0];
+    extraInsn = insnList[2];
+  } else if (insnList[1]->GetMachineOpcode() == insnList[2]->GetMachineOpcode()) {
+    currInsn = insnList[2];
+    prevInsn = insnList[1];
+    extraInsn = insnList[0];
+  } else {
+    return;
+  }
+
+  auto offset = GetMemOffsetValue(*currInsn) - GetMemOffsetValue(*prevInsn);
+  auto extraOffset = GetMemOffsetValue(*extraInsn) - GetMemOffsetValue(*prevInsn);
+  MOperator mop = MOP_undef;
+  MOperator ubfx = MOP_undef;
+  ImmOperand *imm;
+  if (currMop == MOP_wldrh && offset == k2ByteSize) {
+    if (abs(extraOffset) == k4ByteSize) {
+      imm = &aarch64CGFunc.CreateImmOperand(k16BitSize, k5BitSize, false);
+      mop = MOP_wldp;
+      ubfx = MOP_wubfxrri5i5;
+    } else if (abs(extraOffset) == k8ByteSize) {
+      imm = &aarch64CGFunc.CreateImmOperand(k16BitSize, k6BitSize, false);
+      mop = MOP_xldp;
+      ubfx = MOP_xubfxrri6i6;
+    } else {
+      return;
+    }
+  } else {
+    return;
+  }
+
+  // ldpRt1's first opnd will be the first opnd of ldp, and second opnd will be ldp's MemOperannd
+  // ldpRt2's first opnd will be ldp's second opnd
+  Insn *ldpRt1 = prevInsn;
+  Insn *ldpRt2 = extraInsn;
+  if (extraOffset < 0) {
+    std::swap(ldpRt1, ldpRt2);
+  }
+
+  if (IsImmValid(mop, *static_cast<MemOperand &>(ldpRt1->GetOperand(kSecondOpnd)).GetOffsetOperand())) {
+    auto &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mop, ldpRt1->GetOperand(kFirstOpnd),
+                                                       ldpRt2->GetOperand(kFirstOpnd), ldpRt1->GetOperand(kSecondOpnd));
+    auto &ubfxInsn = cgFunc.GetInsnBuilder()->BuildInsn(ubfx, currInsn->GetOperand(kFirstOpnd),
+                                                        prevInsn->GetOperand(kFirstOpnd), *imm, *imm);
+    newInsn.SetId(insn.GetPrev()->GetId());
+    bb->ReplaceInsn(*insn.GetPrev(), newInsn);
+    ubfxInsn.SetId(insn.GetId());
+    bb->ReplaceInsn(insn, ubfxInsn);
+    bb->RemoveInsn(*insn.GetPrev()->GetPrev());
+    cgFunc.GetRD()->UpdateInOut(*bb, true);
+    return;
+  }
+
+  cgFunc.GetRD()->UpdateInOut(*bb, true);
+}
+
+void ContinuousLdrPattern::Run() {
+  if (!cgFunc.GetMirModule().IsCModule()) {
+    return;
+  }
+  FOR_ALL_BB(bb, &cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
       if (!CheckCondition(*insn)) {
         continue;
       }

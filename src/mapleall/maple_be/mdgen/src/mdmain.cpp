@@ -71,7 +71,7 @@ bool GenSchedFiles(const std::string &fileName, const std::string &fileDir) {
 }
 
 int main(int argc, char **argv) {
-  SigHandler::EnableAll();
+  SigHandler::Enable();
 
   constexpr int minimumArgNum = 2;
   if (argc <= minimumArgNum) {

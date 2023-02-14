@@ -622,7 +622,7 @@ bool LiteProfile::HandleLitePGOFile(const std::string &fileName, const std::stri
   return true;
 }
 
-bool LiteProfile::HandleInstrumentationWhiteList(const std::string &fileName) {
+bool LiteProfile::HandleInstrumentationWhiteList(const std::string &fileName) const {
   std::ifstream in(fileName);
   if (!in.is_open()) {
     if (errno != ENOENT && errno != EACCES) {

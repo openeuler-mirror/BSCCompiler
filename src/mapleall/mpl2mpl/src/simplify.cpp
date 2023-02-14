@@ -114,7 +114,7 @@ static void MayPrintLog(bool debug, bool success, OpKind opKind, const char *str
     op = "memcpy";
   } else if (opKind == MEM_OP_memset_s) {
     op = "memset_s";
-  } else if (opKind == MEM_OP_memcpy_s) {
+  } else if (opKind == KMemOpMemcpyS) {
     op = "memcpy_s";
   }
   LogInfo::MapleLogger() << op << " expand " << (success ? "success: " : "failure: ") << str << std::endl;
@@ -1489,7 +1489,7 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, uint64 copySize, MIRFunction
   return true;
 }
 
-StmtNode *MemEntry::GenEndZeroAssign(StmtNode &stmt, MIRFunction &func, bool isLowLevel, uint64 count) const {
+StmtNode *MemEntry::GenEndZeroAssign(const StmtNode &stmt, MIRFunction &func, bool isLowLevel, uint64 count) const {
   MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
   StmtNode *newAssign = nullptr;
   if (isLowLevel) {
@@ -1498,7 +1498,7 @@ StmtNode *MemEntry::GenEndZeroAssign(StmtNode &stmt, MIRFunction &func, bool isL
     return newAssign;
   }
   MemEntryKind memKind = GetKind();
-  auto *base = mirBuilder->CreateExprBinary(OP_add, PTY_a64, static_cast<IassignNode&>(stmt).Opnd(0),
+  auto *base = mirBuilder->CreateExprBinary(OP_add, PTY_a64, static_cast<const IassignNode&>(stmt).Opnd(0),
                                             mirBuilder->CreateIntConst(count, PTY_a64));
   if (memKind == kMemEntryArray) {
     auto *arrayType = static_cast<MIRArrayType *>(memType);
@@ -1537,7 +1537,7 @@ StmtNode *MemEntry::GenRetAssign(StmtNode &stmt, MIRFunction &func, bool isLowLe
   BaseNode *rhs = callStmt.Opnd(0);  // for memset, memcpy
   switch (opKind) {
     case MEM_OP_memset_s:
-    case MEM_OP_memcpy_s:
+    case KMemOpMemcpyS:
     case SPRINTF_OP_sprintf:
     case SPRINTF_OP_sprintf_s:{
       // memset_s memcpy_s sprintf_s must return an returnVal
@@ -1585,7 +1585,7 @@ OpKind SimplifyOp::ComputeOpKind(StmtNode &stmt) {
       {kFuncNameOfMemset, MEM_OP_memset},
       {kFuncNameOfMemcpy, MEM_OP_memcpy},
       {kFuncNameOfMemsetS, MEM_OP_memset_s},
-      {kFuncNameOfMemcpyS, MEM_OP_memcpy_s},
+      {kFuncNameOfMemcpyS, KMemOpMemcpyS},
       {kFuncNameOfSprintf, SPRINTF_OP_sprintf},
       {kFuncNameOfSprintfS, SPRINTF_OP_sprintf_s},
       {kFuncNameOfSnprintfS, SPRINTF_OP_snprintf_s},
@@ -1606,7 +1606,7 @@ bool SimplifyOp::AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLevel)
       return SimplifyMemset(stmt, block, isLowLevel);
     }
     case MEM_OP_memcpy:
-    case MEM_OP_memcpy_s: {
+    case KMemOpMemcpyS: {
       return SimplifyMemcpy(stmt, block, isLowLevel);
     }
     case SPRINTF_OP_sprintf:
@@ -2153,7 +2153,7 @@ StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
   BlockOperationHelper helper(stmt, *func, block, false, debug);
   LabelIdx finalLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('f');
   if (errNum != ERRNO_OK || (isSrcSizeConst && isDstSizeConst && dstSize == 0 && srcSize == 0)) {
-    auto errnoAssign = MemEntry::GenRetAssign(stmt, *func, true, MEM_OP_memcpy_s, errNum);
+    auto errnoAssign = MemEntry::GenRetAssign(stmt, *func, true, KMemOpMemcpyS, errNum);
     InsertBeforeAndMayPrintStmt(block, stmt, debug, errnoAssign);
     block.RemoveStmt(&stmt);
     return nullptr;
@@ -2189,14 +2189,14 @@ StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
         // handle srcsize > dstsize
         auto *callStmt =
             helper.InsertMemsetCallStmt(stmt.Opnd(kMemOpDstOpndIdx), ConstructConstvalNode(0, PTY_i32, *mirBuilder));
-        helper.InsertRetAssignAndGoto(finalLabIdx, MEM_OP_memcpy_s, ERRNO_RANGE_AND_RESET);
+        helper.InsertRetAssignAndGoto(finalLabIdx, KMemOpMemcpyS, ERRNO_RANGE_AND_RESET);
         // handle src = nullptr
         if (!isSrcAddrSafe) {
-          helper.HandleErrorAndReset(srcNullPtrLabIdx, finalLabIdx, MEM_OP_memcpy_s, ERRNO_INVAL_AND_RESET);
+          helper.HandleErrorAndReset(srcNullPtrLabIdx, finalLabIdx, KMemOpMemcpyS, ERRNO_INVAL_AND_RESET);
         }
         // handle dst = nullptr
         if (!isDstAddrSafe) {
-          helper.HandleError(dstNullPtrLabIdx, finalLabIdx, ERRNO_INVAL, MEM_OP_memcpy_s);
+          helper.HandleError(dstNullPtrLabIdx, finalLabIdx, ERRNO_INVAL, KMemOpMemcpyS);
         }
         helper.InsertLableNode(finalLabIdx);
         block.RemoveStmt(&stmt);
@@ -2228,32 +2228,32 @@ StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
     auto memCallStmt = mirBuilder->CreateStmtCallAssigned(memFunc->GetPuidx(), args, nullptr, OP_callassigned);
     memCallStmt->SetSrcPos(stmt.GetSrcPos());
     InsertBeforeAndMayPrintStmt(block, stmt, debug, memCallStmt);
-    helper.InsertRetAssignAndGoto(finalLabIdx, MEM_OP_memcpy_s, errNum);
+    helper.InsertRetAssignAndGoto(finalLabIdx, KMemOpMemcpyS, errNum);
 
     // Add handler IR if dst and src are overlapped
-    helper.HandleErrorAndReset(overlapLabIdx, finalLabIdx, MEM_OP_memcpy_s, ERRNO_OVERLAP_AND_RESET);
+    helper.HandleErrorAndReset(overlapLabIdx, finalLabIdx, KMemOpMemcpyS, ERRNO_OVERLAP_AND_RESET);
 
     // handle addr equal
-    helper.HandleError(addrEqLabIdx, finalLabIdx, ERRNO_OK, MEM_OP_memcpy_s);
+    helper.HandleError(addrEqLabIdx, finalLabIdx, ERRNO_OK, KMemOpMemcpyS);
 
     if (!isSrcSizeConst || !isDstSizeConst) {
       // handle src size error
-      helper.HandleErrorAndReset(srcSizeCheckLabIdx, finalLabIdx, MEM_OP_memcpy_s, ERRNO_RANGE_AND_RESET);
+      helper.HandleErrorAndReset(srcSizeCheckLabIdx, finalLabIdx, KMemOpMemcpyS, ERRNO_RANGE_AND_RESET);
     }
 
     // handle src nullptr error
     if (!isSrcAddrSafe) {
-      helper.HandleErrorAndReset(srcNullPtrLabIdx, finalLabIdx, MEM_OP_memcpy_s, ERRNO_INVAL_AND_RESET);
+      helper.HandleErrorAndReset(srcNullPtrLabIdx, finalLabIdx, KMemOpMemcpyS, ERRNO_INVAL_AND_RESET);
     }
 
     // handle dst nullptr error
     if (!isDstAddrSafe) {
-      helper.HandleError(dstNullPtrLabIdx, finalLabIdx, ERRNO_INVAL, MEM_OP_memcpy_s);
+      helper.HandleError(dstNullPtrLabIdx, finalLabIdx, ERRNO_INVAL, KMemOpMemcpyS);
     }
 
     if (!isDstSizeConst) {
       // handle dst size error
-      helper.HandleError(dstSizeCheckLabIdx, finalLabIdx, ERRNO_RANGE, MEM_OP_memcpy_s);
+      helper.HandleError(dstSizeCheckLabIdx, finalLabIdx, ERRNO_RANGE, KMemOpMemcpyS);
     }
     helper.InsertLableNode(finalLabIdx);
     block.RemoveStmt(&stmt);
@@ -2268,20 +2268,20 @@ bool SimplifyOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLeve
   }
 
   OpKind memOpKind = ComputeOpKind(stmt);
-  if (memOpKind != MEM_OP_memcpy && memOpKind != MEM_OP_memcpy_s) {
+  if (memOpKind != MEM_OP_memcpy && memOpKind != KMemOpMemcpyS) {
     return false;
   }
   uint32 dstOpndIdx = 0;
   uint32 srcOpndIdx = 1;
   uint32 srcSizeOpndIdx = 2;
-  bool isSafeVersion = memOpKind == MEM_OP_memcpy_s;
+  bool isSafeVersion = memOpKind == KMemOpMemcpyS;
   if (debug) {
     LogInfo::MapleLogger() << "[funcName] " << func->GetName() << std::endl;
     stmt.Dump(0);
   }
 
   StmtNode* memcpyCallStmt = &stmt;
-  if (memOpKind == MEM_OP_memcpy_s) {
+  if (memOpKind == KMemOpMemcpyS) {
     memcpyCallStmt = PartiallyExpandMemcpyS(stmt, block);
     if (!memcpyCallStmt) {
       return true;  // Expand memcpy_s completely, no extra memcpy is generated, so just return true

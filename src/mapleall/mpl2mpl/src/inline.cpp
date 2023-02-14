@@ -555,7 +555,7 @@ void MInline::InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bo
   CallNode &callStmt = static_cast<CallNode&>(baseNode);
   MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
   CGNode *cgNode = cg->GetCGNode(&func);
-  ASSERT_NOT_NULL(cgNode);
+  CHECK_NULL_FATAL(cgNode);
   CallInfo *callInfo  = cgNode->GetCallInfo(callStmt);
   std::pair<bool, InlineFailedCode> canInlineRet =
       InlineAnalyzer::CanInlineImpl({&func, callee}, callStmt, *cg, currInlineDepth, true);  // earlyInline: true

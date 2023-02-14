@@ -64,16 +64,20 @@ DefaultOption ClangCompilerBeILP32::GetDefaultOptions(const MplOptions &options,
   return defaultOptions;
 }
 
+std::string GetFormatClangPath(const MplOptions &mplOptions) {
+  std::string path = mplOptions.GetExeFolder();
+  // find the upper-level directory of bin/maple
+  size_t index = path.find_last_of('/') - static_cast<size_t>(3);
+  std::string clangPath = path.substr(0, index);
+  return clangPath;
+}
 std::string ClangCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
   if (FileUtils::SafeGetenv(kMapleRoot) != "") {
     return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
   } else if (FileUtils::SafeGetenv(kClangPath) != "") {
     return FileUtils::SafeGetenv(kClangPath);
   }
-  std::string path = mplOptions.GetExeFolder();
-  // find the upper-level directory of bin/maple
-  size_t index = path.find_last_of('/') - static_cast<size_t>(3);
-  std::string clangPath = path.substr(0, index);
+  std::string clangPath = GetFormatClangPath(mplOptions);
   return clangPath + "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/";
 }
 
@@ -81,8 +85,20 @@ const std::string &ClangCompiler::GetBinName() const {
   return kBinNameClang;
 }
 
+bool IsUseSafeOption() {
+  bool flag = false;
+  if (opts::boundaryStaticCheck.IsEnabledByUser() || opts::npeStaticCheck.IsEnabledByUser() ||
+      opts::npeDynamicCheck.IsEnabledByUser() || opts::npeDynamicCheckSilent.IsEnabledByUser() ||
+      opts::npeDynamicCheckAll.IsEnabledByUser() || opts::boundaryDynamicCheck.IsEnabledByUser() ||
+      opts::boundaryDynamicCheckSilent.IsEnabledByUser() || opts::safeRegionOption.IsEnabledByUser() ||
+      opts::enableArithCheck.IsEnabledByUser() || opts::enableCallFflush.IsEnabledByUser()) {
+    flag= true;
+  }
+  return flag;
+}
+
 static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
-                                     const Action &action) {
+                                     const Action &action, const MplOptions &options) {
   uint32_t additionalLen = 1; // for -o option
 
   auto &triple = Triple::GetTriple();
@@ -90,12 +106,21 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
       triple.GetEnvironment() != Triple::EnvironmentType::GNU) {
     CHECK_FATAL(false, "Use -target option to select another toolchain\n");
   }
-
-  additionalLen += 3; // 3 options are filled below
+  if (IsUseSafeOption()) {
+    additionalLen += 3;
+  } else {
+    additionalLen += 1;
+  }
   opt = std::make_unique<MplOption[]>(additionalLen);
 
   opt[0].SetKey("-target");
   opt[0].SetValue(triple.Str());
+  if (IsUseSafeOption()) {
+    opt[1].SetKey("-isystem");
+    opt[1].SetValue(GetFormatClangPath(options) + "lib/libc_enhanced/include");
+    opt[2].SetKey("-DC_ENHANCED");
+    opt[2].SetValue("");
+  }
 
   /* Set last option as -o option */
   opt[additionalLen - 1].SetKey("-o");
@@ -111,7 +136,7 @@ DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const 
   uint32_t additionalLen = 0;
   std::unique_ptr<MplOption[]> additionalOptions;
 
-  additionalLen = FillSpecialDefaulOpt(additionalOptions, action);
+  additionalLen = FillSpecialDefaulOpt(additionalOptions, action, options);
   defaultLen = sizeof(kClangDefaultOptions) / sizeof(MplOption);
   fullLen = defaultLen + additionalLen;
 

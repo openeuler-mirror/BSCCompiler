@@ -64,7 +64,7 @@ uint32 CGOptions::funcAlignPow = 5;
 bool CGOptions::liteProfGen = false;
 bool CGOptions::liteProfUse = false;
 std::string CGOptions::liteProfile = "";
-std::string CGOptions::instrumentationWhiteList = "";
+std::string CGOptions::litePgoWhiteList = "";
 std::string CGOptions::instrumentationOutPutPath = "";
 std::string CGOptions::litePgoOutputFunction = "";
 std::string CGOptions::functionProrityFile = "";
@@ -76,6 +76,7 @@ bool CGOptions::useBarriersForVolatile = true;
 bool CGOptions::exclusiveEH = false;
 bool CGOptions::doEBO = false;
 bool CGOptions::doCGSSA = false;
+bool CGOptions::calleeEnsureParam = true;
 bool CGOptions::doIPARA = true;
 bool CGOptions::doCFGO = false;
 bool CGOptions::doICO = false;
@@ -691,11 +692,8 @@ bool CGOptions::SolveOptions(bool isDebug) {
     }
   }
 
-  if (opts::cg::instrumentationWhiteList.IsEnabledByUser()) {
-    SetInstrumentationWhiteList(opts::cg::instrumentationWhiteList);
-    if (!opts::cg::instrumentationWhiteList.GetValue().empty()) {
-      EnableLiteProfGen();
-    }
+  if (opts::cg::litePgoWhiteList.IsEnabledByUser()) {
+    SetLitePgoWhiteList(opts::cg::litePgoWhiteList);
   }
 
   if (opts::cg::instrumentationFile.IsEnabledByUser()) {

@@ -46,6 +46,16 @@ const std::string &LdCompilerBeILP32::GetBinName() const {
   }
 }
 
+std::string LdCompilerBeILP32::GetBin(const MplOptions &mplOptions [[maybe_unused]]) const {
+  auto binPath = GetBinPath(mplOptions);
+
+  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+    return binPath + kAarch64BeIlp32Gcc;
+  } else {
+    return binPath + kAarch64BeGcc;
+  }
+}
+
 std::string LdCompiler::GetBin(const MplOptions &mplOptions [[maybe_unused]]) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
@@ -54,12 +64,12 @@ std::string LdCompiler::GetBin(const MplOptions &mplOptions [[maybe_unused]]) co
     return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/aarch64-linux-gnu-gcc";
   } else if (FileUtils::SafeGetenv(kGccPath) != "") {
     std::string gccPath = FileUtils::SafeGetenv(kGccPath) + " -dumpversion";
-    FileUtils::checkGCCVersion(gccPath.c_str());
+    FileUtils::CheckGCCVersion(gccPath.c_str());
     return FileUtils::SafeGetenv(kGccPath);
   }
   std::string gccPath = FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc") +
                                                   " -dumpversion";
-  FileUtils::checkGCCVersion(gccPath.c_str());
+  FileUtils::CheckGCCVersion(gccPath.c_str());
   return FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc");
 #endif
 }

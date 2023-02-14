@@ -16,7 +16,7 @@
 #include "securec.h"
 namespace maple {
 MapleString::MapleString(const char *str, size_t size, MemPool *currMp)
-    : data(NewData(currMp, str, size)),
+    : data(NewData(*currMp, str, size)),
       memPool(currMp),
       dataLength(size) {}
 
@@ -35,12 +35,11 @@ MapleString::MapleString(const MapleString &str)
 MapleString::MapleString(const std::string &str, MemPool *currMp)
     : MapleString(str.data(), str.length(), currMp) {}
 
-char *MapleString::NewData(MemPool *memPool, const char *source, size_t len) {
-  MIR_ASSERT(memPool != nullptr);
+char *MapleString::NewData(MemPool &currMp, const char *source, size_t len) {
   if (source == nullptr && len == 0) {
     return nullptr;
   }
-  char *str = static_cast<char*>(memPool->Malloc((len + 1) * sizeof(char)));
+  char *str = static_cast<char*>(currMp.Malloc((len + 1) * sizeof(char)));
   CHECK_FATAL(str != nullptr, "MemPool::Malloc failed");
   if (source != nullptr && len != 0) {
     errno_t err = memcpy_s(str, len, source, len);
@@ -56,25 +55,7 @@ void MapleString::clear() {
 }
 
 size_t MapleString::find(const MapleString &str, size_t pos) const {
-  if ((dataLength - pos) < str.dataLength) {
-    return std::string::npos;
-  }
-  for (size_t i = pos; i < (dataLength - str.dataLength + 1); ++i) {
-    if (data[i] == str[0]) {
-      size_t j = 0;
-      for (; j < str.dataLength; ++j) {
-        if (data[i + j] == str[j]) {
-          continue;
-        } else {
-          break;
-        }
-      }
-      if (j == str.dataLength) {
-        return i;
-      }
-    }
-  }
-  return std::string::npos;
+  return UnsafeFind(str.c_str(), pos, str.dataLength);
 }
 
 size_t MapleString::find(const char *str, size_t pos) const {
@@ -82,25 +63,7 @@ size_t MapleString::find(const char *str, size_t pos) const {
     return std::string::npos;
   }
   size_t strLen = strlen(str);
-  if ((dataLength - pos) < strLen) {
-    return std::string::npos;
-  }
-  for (size_t i = pos; i < (dataLength - strLen + 1); ++i) {
-    if (data[i] == str[0]) {
-      size_t j = 0;
-      for (; j < strLen; ++j) {
-        if (data[i + j] == str[j]) {
-          continue;
-        } else {
-          break;
-        }
-      }
-      if (j == strLen) {
-        return i;
-      }
-    }
-  }
-  return std::string::npos;
+  return UnsafeFind(str, pos, strLen);
 }
 
 size_t MapleString::find_last_of(const char *str, size_t pos) const {
@@ -111,11 +74,11 @@ size_t MapleString::find_last_of(const char *str, size_t pos) const {
   if ((dataLength - pos) < strLen) {
     return std::string::npos;
   }
-  for (ssize_t i = (dataLength - strLen); i >= pos; --i) {
-    if (data[i] == str[0]) {
+  for (ssize_t i = static_cast<ssize_t>(dataLength - strLen); i >= static_cast<ssize_t>(pos); --i) {
+    if (data[static_cast<size_t>(i)] == str[0]) {
       size_t j = 0;
       for (; j < strLen; ++j) {
-        if (data[i + j] == str[j]) {
+        if (data[static_cast<size_t>(i) + j] == str[j]) {
           continue;
         } else {
           break;
@@ -133,25 +96,7 @@ size_t MapleString::find(const char *str, size_t pos, size_t n) const {
   if (str == nullptr) {
     return std::string::npos;
   }
-  if ((dataLength - pos) < n) {
-    return std::string::npos;
-  }
-  for (size_t i = pos; i < (dataLength - n + 1); ++i) {
-    if (data[i] == str[0]) {
-      size_t j = 0;
-      for (; j < n; ++j) {
-        if (data[i + j] == str[j]) {
-          continue;
-        } else {
-          break;
-        }
-      }
-      if (j == n) {
-        return i;
-      }
-    }
-  }
-  return std::string::npos;
+  return UnsafeFind(str, pos, n);
 }
 
 size_t MapleString::find(char c, size_t pos) const {
@@ -193,7 +138,7 @@ MapleString &MapleString::insert(size_t pos, const MapleString &str) {
       memPool->Realloc(data, (1 + dataLength) * sizeof(char), (1 + dataLength + str.dataLength) * sizeof(char)));
   CHECK_FATAL(data != nullptr, "null ptr check ");
   MapleString temp(memPool);
-  if (dataLength - pos) {
+  if (dataLength != pos) {
     temp = this->substr(pos, dataLength - pos);
   } else {
     temp = "";

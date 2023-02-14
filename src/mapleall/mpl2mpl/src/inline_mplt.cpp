@@ -63,7 +63,7 @@ bool InlineMplt::Forbidden(BaseNode *node, const std::pair<uint32, uint32> &inli
     PUIdx puiIdx = (node->GetOpCode() == OP_callassigned || node->GetOpCode() == OP_call) ?
         static_cast<CallNode*>(node)->GetPUIdx() : static_cast<AddroffuncNode*>(node)->GetPUIdx();
     MIRFunction *newCallee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puiIdx);
-    ASSERT_NOT_NULL(newCallee->GetFuncSymbol());
+    CHECK_NULL_FATAL(newCallee->GetFuncSymbol());
     (void)globalSymbols.insert(newCallee->GetFuncSymbol()->GetStIndex());
     if (newCallee->IsStatic()) {
       if (level == 0 || GetFunctionSize(*newCallee) > inlineSize || newCallee->GetAttr(FUNCATTR_noinline)) {
@@ -143,7 +143,7 @@ void InlineMplt::CollectTypesForOptimizedFunctions() {
 void InlineMplt::CollectTypesForInliningGlobals() {
   for (auto stIdx : inliningGlobals) {
     MIRSymbol *globalSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx);
-    ASSERT_NOT_NULL(globalSymbol);
+    CHECK_NULL_FATAL(globalSymbol);
     if (globalSymbol->IsVar()) {
       CollectTypesForGlobalVar(*globalSymbol);
     } else if (globalSymbol->IsFunction()) {
@@ -155,7 +155,7 @@ void InlineMplt::CollectTypesForInliningGlobals() {
 void InlineMplt::CollectTypesForSingleFunction(const MIRFunction &func) {
   for (uint32 k = 1; k < func.GetSymTab()->GetSymbolTableSize(); ++k) {
     MIRSymbol *localSymbol = func.GetSymTab()->GetSymbolFromStIdx(k);
-    ASSERT_NOT_NULL(localSymbol);
+    CHECK_NULL_FATAL(localSymbol);
     MIRType *type = localSymbol->GetType();
     CollectStructOrUnionTypes(type);
   }
@@ -214,8 +214,8 @@ void InlineMplt::DumpInlineCandidateToFile(const std::string &fileNameStr) {
 void InlineMplt::DumpOptimizedFunctionTypes() {
   for (auto it = optimizedFuncsType.begin(); it != optimizedFuncsType.end(); ++it) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(*it);
-    std::string name = type->GetName();
     ASSERT(type != nullptr, "type should not be nullptr here");
+    std::string name = type->GetName();
     bool isStructType = type->IsStructType();
     if (isStructType) {
       auto *structType = static_cast<MIRStructType*>(type);

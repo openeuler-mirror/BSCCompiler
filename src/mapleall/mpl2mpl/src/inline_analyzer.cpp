@@ -141,7 +141,7 @@ void InlineListInfo::ApplyInlineListInfo(const std::string &path, std::map<GStrI
     }
     if (str[0] != kHyphenStr[0]) {
       calleeStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(str);
-      auto it = listCallee.find(calleeStrIdx);
+      const auto &it = listCallee.find(calleeStrIdx);
       if (it == listCallee.end()) {
         auto *callerList = new std::set<GStrIdx>();
         (void)listCallee.emplace(calleeStrIdx, callerList);
@@ -485,7 +485,7 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
   const MIRFunction &caller = *callPair.first;
   MIRFunction &callee = *callPair.second;
   if (callee.GetBody() == nullptr) {
-    return {false, kIFC_EmptyCallee};
+    return {false, kIfcEmptyCallee};
   }
   GStrIdx calleeStrIdx = callee.GetNameStrIdx();
   GStrIdx callerStrIdx = caller.GetNameStrIdx();
@@ -494,60 +494,60 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
   if (cit != noInlineList.end()) {
     auto *callerList = cit->second;
     if (callerList->empty()) {
-      return {false, kIFC_NoinlineList};
+      return {false, kIfcNoinlineList};
     }
     if (callerList->find(callerStrIdx) != callerList->end()) {
-      return {false, kIFC_NoinlineListCallsite};
+      return {false, kIfcNoinlineListCallsite};
     }
   }
   if (callee.GetAttr(FUNCATTR_noinline)) {
-    return {false, kIFC_DeclaredNoinline};
+    return {false, kIfcDeclaredNoinline};
   }
   if (IsExternGnuInline(callee)) {
     if (earlyInline) {
-      return depth == 0 ? std::pair{true, kIFC_ExternGnuInlineCalleeDepth0} :
-                          std::pair{false, kIFC_ExternGnuInlineCalleeDepthN};
+      return depth == 0 ? std::pair{true, kIfcExternGnuInlineCalleeDepth0} :
+                          std::pair{false, kIfcExternGnuInlineCalleeDepthN};
     } else {
-      return std::pair{false, kIFC_OutOfGreedyInline};
+      return std::pair{false, kIfcOutOfGreedyInline};
     }
   }
   if (callee.IsOutlinedFunc() || caller.IsOutlinedFunc()) {
-    return {false, kIFC_Outlined};
+    return {false, kIfcOutlined};
   }
   // When callee is unsafe but callStmt is in safe region
   if (MeOption::safeRegionMode && (callStmt.IsInSafeRegion() || caller.IsSafe()) && (callee.IsUnSafe())) {
-    return {false, kIFC_UnsafeRegion};
+    return {false, kIfcUnsafeRegion};
   }
   // For extern inline function, we check nothing
   if (IsExternInlineFunc(callee)) {
-    return {true, kIFC_DeclaredExternInline};
+    return {true, kIfcDeclaredExternInline};
   }
   // For hardCoded function, we check nothing.
   const auto &hardCodedCallee = InlineListInfo::GetHardCodedCallees();
   if (hardCodedCallee.find(calleeStrIdx) != hardCodedCallee.end()) {
-    return {true, kIFC_HardCoded};
+    return {true, kIfcHardCoded};
   }
   // For excluded callee function.
   const auto &excludedCaller = InlineListInfo::GetExcludedCallers();
   if (excludedCaller.find(callerStrIdx) != excludedCaller.end()) {
-    return {false, kIFC_ExcludedCaller};
+    return {false, kIfcExcludedCaller};
   }
   const auto &excludedCallee = InlineListInfo::GetExcludedCallees();
   if (excludedCallee.find(calleeStrIdx) != excludedCallee.end()) {
-    return {false, kIFC_ExcludedCallee};
+    return {false, kIfcExcludedCallee};
   }
   if (StringUtils::StartsWith(callee.GetName(), "MCC_")) {
-    return {false, kIFC_MCCFunc};
+    return {false, kIfcMCCFunc};
   }
   // For rcWhiteList function.
   const auto &rcWhiteList = InlineListInfo::GetRCWhiteList();
   auto itCaller = rcWhiteList.find(callerStrIdx);
   auto itCallee = rcWhiteList.find(calleeStrIdx);
   if (itCaller != rcWhiteList.end() && itCallee == rcWhiteList.end()) {
-    return {false, kIFC_RCUnsafe};
+    return {false, kIfcRCUnsafe};
   }
   if (!FuncInlinable(callee)) {
-    return {false, kIFC_Attr};
+    return {false, kIfcAttr};
   }
   // Incompatible type conversion from arguments to formals
   size_t realArgNum = std::min(callStmt.NumOpnds(), callee.GetFormalCount());
@@ -557,11 +557,11 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
     bool formalIsAgg = (formalPrimType == PTY_agg);
     bool realArgIsAgg = (realArgPrimType == PTY_agg);
     if (formalIsAgg != realArgIsAgg) {   // xor
-      return {false, kIFC_ArgToFormalError};
+      return {false, kIfcArgToFormalError};
     }
   }
   if (!callee.GetLabelTab()->GetAddrTakenLabels().empty()) {
-    return {false, kIFC_AddrTakenLabel};
+    return {false, kIfcAddrTakenLabel};
   }
   // For inlineList function.
   const auto &inlineList = InlineListInfo::GetInlineList();
@@ -569,27 +569,27 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
   if (it != inlineList.end()) {
     auto callerList = it->second;
     if (callerList->empty()) {
-      return {true, kIFC_InlineList};
+      return {true, kIfcInlineList};
     }
     if (callerList->find(callerStrIdx) != callerList->end()) {
-      return {true, kIFC_InlineListCallsite};
+      return {true, kIfcInlineListCallsite};
     }
   }
   // for always_inline
   if (callee.GetAttr(FUNCATTR_always_inline)) {
     if (Options::respectAlwaysInline || (&caller != &callee && FuncMustBeDeleted(callee))) {
-      return {true, kIFC_DeclaredAlwaysInline};
+      return {true, kIfcDeclaredAlwaysInline};
     }
   }
   CGNode *cgNode = cg.GetCGNode(&callee);
   if (cgNode == nullptr) {
-    return {false, kIFC_NotInCallgraph};
+    return {false, kIfcNotInCallgraph};
   }
   if (cgNode->IsMustNotBeInlined()) {
-    return {false, kIFC_MarkUninlinable};
+    return {false, kIfcMarkUninlinable};
   }
   if (!IsSafeToInline(callee, callStmt)) {
-    return {false, kIFC_Unsafe};
+    return {false, kIfcUnsafe};
   }
   if (callee.GetInlineSummary() != nullptr) {
     auto codeFromSummary = callee.GetInlineSummary()->GetInlineFailedCode();
@@ -600,7 +600,7 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
       return {true, codeFromSummary};
     }
   }
-  return {true, kIFC_NeedFurtherAnalysis};
+  return {true, kIfcNeedFurtherAnalysis};
 }
 
 // The function maybe update callInfo.inlineFailedCode
@@ -615,7 +615,7 @@ bool InlineAnalyzer::CanInline(CallInfo &callInfo, const CallGraph &cg, uint32 d
     return true;
   }
   if (callInfo.GetCallType() != kCallTypeCall) {
-    callInfo.SetInlineFailedCode(kIFC_IndirectCall);
+    callInfo.SetInlineFailedCode(kIfcIndirectCall);
     return false;
   }
 
@@ -710,9 +710,11 @@ bool IgnoreNonDeclaredInlineSizeGrow(CallInfo &callInfo, const CallGraph &cg, co
 // print all kinds of info for a specified callsite
 void DebugCallInfo(CallInfo &callInfo, const CallGraph &cg) {
   auto *caller = callInfo.GetCaller();
+  CHECK_NULL_FATAL(caller);
   auto *callee = callInfo.GetCallee();
+  CHECK_NULL_FATAL(callee);
   auto *calleeNode = cg.GetCGNode(callee);
-  ASSERT_NOT_NULL(calleeNode);
+  CHECK_NULL_FATAL(calleeNode);
   auto callerCnt = calleeNode->GetCaller().size();
   BadnessInfo badInfo;
   CalcBadnessImpl(callInfo, cg, badInfo);
@@ -737,12 +739,12 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::WantInlineImpl(CallInfo &callI
   CHECK_NULL_FATAL(calleeSummary);
   auto calleeSize = static_cast<uint32>(calleeSummary->GetStaticInsns());
   if (!declaredInline && calleeSize >= Options::ginlineMaxNondeclaredInlineCallee) {
-    return {false, kIFC_NotDeclaredInlineTooBig};
+    return {false, kIfcNotDeclaredInlineTooBig};
   }
   auto *callerSummary = caller.GetInlineSummary();
   if (callerSummary == nullptr) {
     CHECK_FATAL(caller.IsOutlinedFunc(), "must be");
-    return {false, kIFC_Outlined};
+    return {false, kIfcOutlined};
   }
   auto *calleeNode = cg.GetCGNode(&callee);
   CHECK_NULL_FATAL(calleeNode);
@@ -752,7 +754,7 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::WantInlineImpl(CallInfo &callI
     auto growth = resultPair.second;
     bool calleeWillBeRemoved = canInlineToAllCallers && growth < 0;
     if (!calleeWillBeRemoved) {
-      return {false, kIFC_PreventedBySPS};
+      return {false, kIfcPreventedBySPS};
     }
   }
   // 0 level callsite, both caller and callee are small enough
@@ -761,16 +763,16 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::WantInlineImpl(CallInfo &callI
   constexpr int32 smallCallee = 22;
   bool smallCallsite = (calleeSize <= smallCallee && callerSize <= smallCaller);
   if (depth == 0 && !declaredInline && smallCallsite) {
-    return {true, kIFC_NeedFurtherAnalysis};
+    return {true, kIfcNeedFurtherAnalysis};
   }
   if (!Options::ginlineAllowNondeclaredInlineSizeGrow && !declaredInline && SizeWillGrow(*calleeNode, cg)) {
     // Give another chance
     bool ignoreSizeGrow = IgnoreNonDeclaredInlineSizeGrow(callInfo, cg, nullptr);
     if (!ignoreSizeGrow) {
-      return {false, kIFC_NotDeclaredInlineGrow};
+      return {false, kIfcNotDeclaredInlineGrow};
     }
   }
-  return {true, kIFC_NeedFurtherAnalysis};
+  return {true, kIfcNeedFurtherAnalysis};
 }
 
 bool InlineAnalyzer::WantInline(CallInfo &callInfo, const CallGraph &cg, uint32 depth) {
@@ -789,10 +791,10 @@ bool InlineAnalyzer::WantInline(CallInfo &callInfo, const CallGraph &cg, uint32 
   if (!callsiteProfile.empty()) {
     auto profileType = GetCallsiteProfileType(*callInfo.GetCaller(), *callee, callsiteProfile);
     if (profileType == kCallsiteProfileHot) {
-      callInfo.SetInlineFailedCode(kIFC_ProfileHotCallsite);
+      callInfo.SetInlineFailedCode(kIfcProfileHotCallsite);
       return true;
     } else if (profileType == kCallsiteProfileCold) {
-      callInfo.SetInlineFailedCode(kIFC_ProfileColdCallsite);
+      callInfo.SetInlineFailedCode(kIfcProfileColdCallsite);
       return false;
     }
   }
@@ -827,8 +829,9 @@ std::optional<uint32> GetFuncSize(const MIRFunction &func) {
 // called before performing inline
 bool CalleeCanBeRemovedIfInlined(const CallInfo &info, const CallGraph &cg) {
   auto *callee = info.GetCallee();
+  CHECK_NULL_FATAL(callee);
   auto *calleeNode = cg.GetCGNode(callee);
-  ASSERT_NOT_NULL(calleeNode);
+  CHECK_NULL_FATAL(calleeNode);
   bool calledOnce = calleeNode->NumberOfUses() == 1 && calleeNode->NumReferences() == 1 && !calleeNode->IsAddrTaken();
   if (!calledOnce) {
     return false;

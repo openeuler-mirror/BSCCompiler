@@ -2154,7 +2154,7 @@ void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec)
 
 void Emitter::EmitStringPointers() {
   if (CGOptions::OptimizeForSize()) {
-    (void)Emit(asmInfo->GetSection()).Emit(".rodata,\"aMS\",@progbits,1").Emit("\n");
+    (void)Emit(asmInfo->GetSection()).Emit(".rodata.str,\"aMS\",@progbits,1").Emit("\n");
 #if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
     Emit("\t.align 8\n");
 #else

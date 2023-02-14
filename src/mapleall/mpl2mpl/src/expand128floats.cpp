@@ -50,58 +50,46 @@ std::string Expand128Floats::GetSequentialName(const std::string &prefix) {
   return name;
 }
 
-std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, BaseNode *node) {
+std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, const BaseNode *node) {
   switch (opCode) {
     case OP_cvt:
     case OP_trunc:
-      if (static_cast<TypeCvtNode*>(node)->FromType() == PTY_f128) {
-        switch (static_cast<TypeCvtNode*>(node)->ptyp) {
+      if (static_cast<const TypeCvtNode*>(node)->FromType() == PTY_f128) {
+        switch (static_cast<const TypeCvtNode*>(node)->ptyp) {
           case PTY_i32:
             return "__fixtfsi";
-            break;
           case PTY_u32:
           case PTY_a32:
             return "__fixunstfsi";
-            break;
           case PTY_i64:
             return "__fixtfdi";
-            break;
           case PTY_u64:
           case PTY_a64:
             return "__fixunstfdi";
-            break;
           case PTY_f32:
             return "__trunctfsf2";
-            break;
           case PTY_f64:
             return "__trunctfdf2";
-            break;
           default:
             CHECK_FATAL(false, "unexpected destination type");
             break;
         }
-      } else if (static_cast<TypeCvtNode*>(node)->ptyp == PTY_f128) {
-        switch (static_cast<TypeCvtNode*>(node)->FromType()) {
+      } else if (static_cast<const TypeCvtNode*>(node)->ptyp == PTY_f128) {
+        switch (static_cast<const TypeCvtNode*>(node)->FromType()) {
           case PTY_i32:
             return "__floatsitf";
-            break;
           case PTY_u32:
           case PTY_a32:
             return "__floatunsitf";
-            break;
           case PTY_i64:
             return "__floatditf";
-            break;
           case PTY_u64:
           case PTY_a64:
             return "__floatunditf";
-            break;
           case PTY_f32:
             return "__extendsftf2";
-            break;
           case PTY_f64:
             return "__extenddftf2";
-            break;
           default:
             CHECK_FATAL(false, "unexpected source type");
             break;
@@ -112,19 +100,14 @@ std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, BaseNode *node) {
     case OP_add:
       /* cast node , then -- impl op */
       return "__addtf3";
-      break;
     case OP_sub:
       return "__subtf3";
-      break;
     case OP_mul:
       return "__multf3";
-      break;
     case OP_div:
       return "__divtf3";
-      break;
     case OP_neg:
       return "__negtf2";
-      break;
     case OP_cmp:
     case OP_cmpg:
     case OP_cmpl:
@@ -132,22 +115,16 @@ std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, BaseNode *node) {
       break;
     case OP_le:
       return "__letf2";
-      break;
     case OP_ge:
       return "__getf2";
-      break;
     case OP_lt:
       return "__lttf2";
-      break;
     case OP_gt:
       return "__gttf2";
-      break;
     case OP_ne:
       return "__netf2";
-      break;
     case OP_eq:
       return "__eqtf2";
-      break;
     /* add another calls -- complex, pow, etc */
     default:
       CHECK_FATAL(false, "Operation NYI");

@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "inline_summary.h"
+#include <utility>
 #include "constantfold.h"
 #include "dominance.h"
 
@@ -106,16 +107,16 @@ std::optional<uint32> GetZeroVersionParamIndex(const MeExpr &expr, MeFunction &f
 
 // Return true if the `expr` is the leaf expr with one of the specified `kinds`
 bool IsExprSpecifiedKinds(const MeExpr &expr, uint32 kinds, MeFunction &func) {
-  if ((kinds & kExprKindConstNumber) && expr.GetOp() == OP_constval) {
+  if (((kinds & kExprKindConstNumber) != 0) && expr.GetOp() == OP_constval) {
     auto constKind = static_cast<const ConstMeExpr&>(expr).GetConstVal()->GetKind();
     if (constKind == kConstInt || constKind == kConstFloatConst || constKind == kConstDoubleConst) {
       return true;
     }
   }
-  if ((kinds & kExprKindConst) && expr.GetOp() == OP_constval) {
+  if (((kinds & kExprKindConst) != 0) && expr.GetOp() == OP_constval) {
     return true;
   }
-  if ((kinds & kExprKindParam) && GetZeroVersionParamIndex(expr, func).has_value()) {
+  if (((kinds & kExprKindParam) != 0) && GetZeroVersionParamIndex(expr, func).has_value()) {
     return true;
   }
   return false;
@@ -368,12 +369,12 @@ void Predicate::AddAssert(Assert newAssert, const MapleVector<Condition*> &condi
 
   // Try to find out asserts that are obviously true such ass (x == 42 || x != 42)
   for (uint32 i = 0; i < kMaxNumCondition; ++i) {
-    if (!(newAssert & (kAssertOne << i))) {
+    if ((newAssert & (kAssertOne << i)) == 0) {
       continue;
     }
     auto *cond1 = conditions[i];
     for (uint32 j = i + 1; j < kMaxNumCondition; ++j) {
-      if (!(newAssert & (kAssertOne << j))) {
+      if ((newAssert & (kAssertOne << j)) == 0) {
         continue;
       }
       auto *cond2 = conditions[j];
@@ -469,7 +470,7 @@ void Predicate::Dump(const MapleVector<Condition*> &conditions) const {
     }
     os << "(";
     for (uint32 i = 0; i < kMaxNumCondition; ++i) {
-      if (assert & (kAssertOne << i)) {
+      if ((assert & (kAssertOne << i)) != 0) {
         if (!firstItem) {
           os << " || ";
         }
@@ -500,7 +501,7 @@ bool Predicate::AreAllUsedParamsInParamMapping(const std::vector<int32> &paramMa
   bool allMapping = true;
   uint32 paramsNum = std::min(sizeof(paramsUsed) * kNumBitsPerByte, paramMapping.size());
   for (uint32 i = 0; i < paramsNum; ++i) {
-    if ((paramsUsed & (1u << i)) && paramMapping[i] == -1) {
+    if (((paramsUsed & (1u << i)) != 0) && paramMapping[i] == -1) {
       allMapping = false;  // found parameter that has no mapping item
       break;
     }
@@ -518,7 +519,7 @@ void MergeInlineSummary(MIRFunction &caller, MIRFunction &callee, const StmtNode
   auto callStmtId = callStmt.GetStmtID();
   auto &argInfosMap = callerSummary->GetArgInfosMap();
   ArgInfoVec *argInfoVec = nullptr;
-  auto it = argInfosMap.find(callStmtId);
+  const auto &it = argInfosMap.find(callStmtId);
   if (it != argInfosMap.end()) {
     argInfoVec = it->second;
   }
@@ -544,7 +545,7 @@ void InlineSummary::MergeSummary(const InlineSummary &fromSummary, uint32 callSt
   InlineEdgeSummary *callEdgeSummary = nullptr;
   int32 callFrequency = -1;
   auto *callBBPredicate = Predicate::TruePredicate();
-  auto eit = edgeSummaryMap.find(callStmtId);
+  const auto &eit = edgeSummaryMap.find(callStmtId);
   if (eit != edgeSummaryMap.end()) {
     callEdgeSummary = eit->second;
     callFrequency = callEdgeSummary->frequency;
@@ -631,7 +632,7 @@ void InlineSummary::MergeAndRemapConditions(const InlineSummary &fromSummary, As
   // Map old conditon index (in the fromSummary) to new condition index (in the toSummary)
   oldCondIdx2New.fill(-1);  // Init all elements with invalid value
   for (uint32 i = kCondIdxRealBegin; i < kMaxNumCondition; ++i) {
-    if (!(condsNeedCopy & (kAssertOne << i))) {
+    if ((condsNeedCopy & (kAssertOne << i)) == 0) {
       continue;
     }
     if (currCondIdx >= kMaxNumCondition) {
@@ -878,7 +879,7 @@ void InlineSummaryCollector::ComputeEdgePredicate() {
     ASSERT_NOT_NULL(lastStmt);
     CHECK_FATAL(lastStmt->GetOp() == OP_brtrue || lastStmt->GetOp() == OP_brfalse, "must be");
     auto *condStmt = static_cast<CondGotoMeStmt*>(lastStmt);
-    ASSERT_NOT_NULL(condStmt);
+    CHECK_NULL_FATAL(condStmt);
     auto *condExpr = condStmt->GetOpnd(0);
     uint32 paramsUsed = 0;
     auto *condLiteExpr = GetOrCreateLiteExpr(*condExpr, kExprKindConstNumber | kExprKindParam, paramsUsed);
@@ -980,12 +981,12 @@ static void InlineAnalysisForCallStmt(const CallMeStmt &callStmt, const MIRFunct
     InlineSummary &callerSummary) {
   auto &targetFunc = callStmt.GetTargetFunction();
   if (targetFunc.GetName().find("setjmp") != std::string::npos) {
-    callerSummary.SetInlineFailedCode(kIFC_SetjmpInCallee);
+    callerSummary.SetInlineFailedCode(kIfcSetjmpInCallee);
   }
   // Recursive call is not supported by ginline for now.
   // Small recursive callee are supposed to be inlined by einline.
   if (targetFunc.GetPuidx() == caller.GetPuidx()) {
-    callerSummary.SetInlineFailedCode(kIFC_GinlineRecursiveCall);
+    callerSummary.SetInlineFailedCode(kIfcGinlineRecursiveCall);
   }
 }
 

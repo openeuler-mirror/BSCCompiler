@@ -122,6 +122,7 @@ extern maplecl::Option<bool> fastMath;
 extern maplecl::Option<bool> tailcall;
 extern maplecl::Option<bool> alignAnalysis;
 extern maplecl::Option<bool> cgSsa;
+extern maplecl::Option<bool> calleeEnsureParam;
 extern maplecl::Option<bool> common;
 extern maplecl::Option<bool> condbrAlign;
 extern maplecl::Option<uint32_t> alignMinBbSize;
@@ -132,7 +133,7 @@ extern maplecl::Option<uint32_t> funcAlignPow;
 extern maplecl::Option<bool> litePgoGen;
 extern maplecl::Option<std::string> litePgoOutputFunc;
 extern maplecl::Option<std::string> instrumentationFile;
-extern maplecl::Option<std::string> instrumentationWhiteList;
+extern maplecl::Option<std::string> litePgoWhiteList;
 extern maplecl::Option<std::string> litePgoFile;
 extern maplecl::Option<std::string> functionPriority;
 }

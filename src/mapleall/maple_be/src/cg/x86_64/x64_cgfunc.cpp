@@ -121,7 +121,7 @@ void X64CGFunc::SelectCall(CallNode &callNode) {
 void X64CGFunc::SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) {
   CHECK_FATAL(false, "NIY");
 }
-void X64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
+void X64CGFunc::SelectIntrinsicCall(IntrinsiccallNode &intrinsiccallNode) {
   CHECK_FATAL(false, "NIY");
 }
 Operand *X64CGFunc::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinopNode, std::string name) {
@@ -203,7 +203,7 @@ Operand *X64CGFunc::SelectCReturnAddress(IntrinsicopNode &intrinopNode) {
 void X64CGFunc::SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) {
   CHECK_FATAL(false, "NIY");
 }
-Operand *X64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode) {
+Operand *X64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode, bool isCompareExchangeN) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }

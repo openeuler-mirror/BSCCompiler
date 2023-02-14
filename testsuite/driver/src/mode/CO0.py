@@ -48,7 +48,7 @@ CO0 = {
             infiles=["${APP}.s"],
             front_option="",
             outfile="${APP}.out",
-            back_option="-lm"
+            back_option="-lpthread -lm"
         )
     ],
     "compile_err": [

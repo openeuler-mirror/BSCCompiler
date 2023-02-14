@@ -30,7 +30,7 @@ class FileUtils {
  public:
   static std::string SafeGetenv(const char *envVar);
   static std::string SafeGetPath(const char *envVar, const char *name);
-  static void checkGCCVersion(const char *cmd);
+  static void CheckGCCVersion(const char *cmd);
   static std::string GetRealPath(const std::string &filePath);
   static std::string GetFileName(const std::string &filePath, bool isWithExtension);
   static std::string GetFileExtension(const std::string &filePath);

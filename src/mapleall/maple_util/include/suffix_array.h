@@ -68,7 +68,7 @@ class SuffixArray {
   void ConstructSuffixArray();
   void ComputeLcpArray();
   void FindRepeatedSubStrings();
-  void Run(bool needLcp = false);
+  void Run(bool collectSubString = false);
   void Dump();
 
   std::vector<size_t> &GetSuffixArray() {

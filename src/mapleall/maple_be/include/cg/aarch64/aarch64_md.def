@@ -173,13 +173,6 @@ DEFINE_MOP(MOP_xuxth32, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS},ISCONVERSION,kLt
 /* MOP_xuxtw64	Same as mov w0,w0 */
 DEFINE_MOP(MOP_xuxtw64, {&OpndDesc::Reg64ID,&OpndDesc::Reg32IS},ISCONVERSION,kLtAluShift,"uxtw","0,1",1)
 
-/*
- * User-defined pseudo-instruction, which is used in validbit opt based on ssa,
- * will recover to mov after validbit opt
- */
-DEFINE_MOP(MOP_wuxtb_vb, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS},0,kLtAluShift,"//uxtb_vb","0,1",1)
-DEFINE_MOP(MOP_wuxth_vb, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS},0,kLtAluShift,"//uxth_vb","0,1",1)
-
 /* MOP_xvcvtfd */
 DEFINE_MOP(MOP_xvcvtfd, {&OpndDesc::Reg32FD,&OpndDesc::Reg64FS},ISCONVERSION,kLtFpalu,"fcvt","0,1",1)
 /* MOP_xvcvtdf */
@@ -804,6 +797,9 @@ DEFINE_MOP(MOP_xstlxr, {&OpndDesc::Reg32ID,&OpndDesc::Reg64IS,&OpndDesc::Mem64D}
 
 DEFINE_MOP(MOP_wstlxp, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS,&OpndDesc::Reg32IS,&OpndDesc::Mem64D},ISSTORE|ISSTOREPAIR|ISATOMIC|HASRELEASE|CANTHROW,kLtStore1,"stlxp","0,1,2,3",1,StrLdr64ImmValid)
 DEFINE_MOP(MOP_xstlxp, {&OpndDesc::Reg32ID,&OpndDesc::Reg64IS,&OpndDesc::Reg64IS,&OpndDesc::Mem64D},ISSTORE|ISSTOREPAIR|ISATOMIC|HASRELEASE|CANTHROW,kLtStore1,"stlxp","0,1,2,3",1,StrLdr64ImmValid)
+
+/* Generate a breakpoint instruction exception */
+DEFINE_MOP(MOP_brk, {&OpndDesc::Imm16}, 0, kLtAlu, "brk", "0", 1, Imm16BitValid)
 
 /* Memory barriers */
 /* MOP_dmb_ishld */

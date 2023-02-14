@@ -671,16 +671,14 @@ bool IVOptimizer::CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt) {
     data->CreateGroup(stmt, *iv, kUseGeneral, &op);
     return false;
   }
+  if (IsUnsignedInteger(op.GetOpndType()) && GetPrimTypeSize(op.GetOpndType()) < GetPrimTypeSize(op.GetPrimType())) {
+    data->CreateGroup(stmt, *iv, kUseGeneral, &op);
+    return false;
+  }
   auto *initValue = irMap->CreateMeExprTypeCvt(op.GetPrimType(), op.GetOpndType(), *iv->base);
   auto *simplified = irMap->SimplifyMeExpr(initValue);
   if (simplified != nullptr) {
     initValue = simplified;
-  }
-  if (initValue->GetOp() == OP_cvt &&
-      IsUnsignedInteger(static_cast<OpMeExpr*>(initValue)->GetOpndType()) &&
-      GetPrimTypeSize(static_cast<OpMeExpr*>(initValue)->GetOpndType()) < GetPrimTypeSize(initValue->GetPrimType())) {
-    data->CreateGroup(stmt, *iv, kUseGeneral, &op);
-    return false;
   }
   auto *step = irMap->CreateMeExprTypeCvt(op.GetPrimType(), GetSignedPrimType(op.GetOpndType()), *iv->step);
   simplified = irMap->SimplifyMeExpr(step);

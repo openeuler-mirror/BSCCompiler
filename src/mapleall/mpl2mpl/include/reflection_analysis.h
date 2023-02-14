@@ -122,7 +122,7 @@ class ReflectionAnalysis : public AnalysisResult {
       isLibcore = true;
     }
   }
-  ~ReflectionAnalysis() = default;
+  ~ReflectionAnalysis() override = default;
 
   static void GenStrTab(MIRModule &module);
   static uint32 FindOrInsertRepeatString(const std::string &str, bool isHot = false, uint8 hotType = kLayoutUnused);

@@ -570,7 +570,7 @@ maplecl::Option<bool> omitFramePointer({"--omit-frame-pointer", "-fomit-frame-po
                                        " --omit-frame-pointer          \t do not use frame pointer \n"
                                        " --no-omit-frame-pointer\n",
                                        {cgCategory, driverCategory},
-                                       maplecl::DisableEvery({"--no-omit-frame-pointer",  "-fno-omit-frame-pointer"}));
+                                       maplecl::DisableEvery({"--no-omit-frame-pointer", "-fno-omit-frame-pointer"}));
 
 maplecl::Option<bool> fastMath({"--fast-math"},
                                "  --fast-math                  \tPerform fast math\n"
@@ -578,11 +578,11 @@ maplecl::Option<bool> fastMath({"--fast-math"},
                                {cgCategory},
                                maplecl::DisableWith("--no-fast-math"));
 
-maplecl::Option<bool> tailcall({"--tailcall"},
-                               "  --tailcall                   \tDo tail call optimization\n"
-                               "  --no-tailcall\n",
-                               {cgCategory},
-                               maplecl::DisableWith("--no-tailcall"));
+maplecl::Option<bool> tailcall({"--tailcall", "-foptimize-sibling-calls"},
+                               "  --tailcall/-foptimize-sibling-calls                   \tDo tail call optimization\n"
+                               "  --no-tailcall/-fno-optimize-sibling-calls\n",
+                               {cgCategory, driverCategory},
+                               maplecl::DisableEvery({"-fno-optimize-sibling-calls", "--no-tailcall"}));
 
 maplecl::Option<bool> alignAnalysis({"--align-analysis"},
                                     "  --align-analysis                 \tPerform alignanalysis\n"
@@ -595,6 +595,12 @@ maplecl::Option<bool> cgSsa({"--cg-ssa"},
                             "  --no-cg-ssa\n",
                             {cgCategory},
                             maplecl::DisableWith("--no-cg-ssa"));
+
+maplecl::Option<bool> calleeEnsureParam({"--callee-ensure-param"},
+                                        "  --callee-ensure-param      \tCallee ensure valid vb of params\n"
+                                        "  --caller-ensure-param\n",
+                                        {cgCategory},
+                                        maplecl::DisableWith("--caller-ensure-param"));
 
 maplecl::Option<bool> common({"--common", "-fcommon"},
                              " --common           \t \n"
@@ -637,9 +643,9 @@ maplecl::Option<bool> litePgoGen({"--lite-pgo-gen"},
 maplecl::Option<std::string> instrumentationFile ({"--instrumentation-file"},
                                                   "--instrumentation-file=filepath \t instrumentation file output path\n",
                                                   {cgCategory});
-maplecl::Option<std::string> instrumentationWhiteList ({"--instrumentation-white-list"},
-                                                        "--instrumentation-white-list=filepath \t instrumentation function white list\n",
-                                                       {cgCategory});
+maplecl::Option<std::string> litePgoWhiteList ({"--lite-pgo-white-list"},
+                                                "--lite-pgo-white-list=filepath \t instrumentation function white list\n",
+                                                {cgCategory});
 maplecl::Option<std::string> litePgoOutputFunc ({"--lite-pgo-output-func"},
                                                  "--lite-pgo-output-func=function name \t generate lite profile at the exit of the output function[default none]\n",
                                                  {cgCategory});

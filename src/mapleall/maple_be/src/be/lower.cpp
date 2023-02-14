@@ -3098,10 +3098,9 @@ StmtNode *CGLowerer::LowerDassignToThreadLocal(StmtNode &stmt) {
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   auto dAssign = static_cast<DassignNode&>(stmt);
   StIdx stIdx = dAssign.GetStIdx();
-  if (!stIdx.IsGlobal()) {
-    return result;
-  }
-  MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
+  MIRSymbol *symbol = stIdx.IsGlobal() ?
+      GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx()) :
+      GetCurrentFunc()->GetSymbolTabItem(stIdx.Idx());
   ASSERT(symbol != nullptr, "symbol should not be nullptr");
   if (symbol->IsThreadLocal()) {
     //  iassign <* u32> 0 (regread u64 %addr, dread u32 $x)
@@ -3908,6 +3907,9 @@ StmtNode *CGLowerer::LowerIntrinsiccall(IntrinsiccallNode &intrinCall, BlockNode
     return LowerIntrinsicMplClearStack(intrinCall, newBlk);
   }
   if (intrnID == INTRN_C_va_start) {
+    return &intrinCall;
+  }
+  if (intrnID == maple::INTRN_C___builtin_division_exception) {
     return &intrinCall;
   }
   IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrnID];

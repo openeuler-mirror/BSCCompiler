@@ -1340,6 +1340,12 @@ class MIRFunction {
 
   MIRFunction *GetFuncAlias();
 
+  void Delete() {
+    body = nullptr;
+    GetFuncSymbol()->SetIsDeleted(); // func will be erased, so the coressponding symbol should be set as Deleted
+    ReleaseCodeMemory();
+  }
+
  private:
   MIRModule *module;     // the module that owns this function
   PUIdx puIdx = 0;           // the PU index of this function

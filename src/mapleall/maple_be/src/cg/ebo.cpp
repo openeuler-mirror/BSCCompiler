@@ -979,7 +979,8 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       /* Copies to and from the same register are not needed. */
       if (Globals::GetInstance()->GetTarget()->IsEffectiveCopy(*insn)) {
         if (HasAssignedReg(*opnd) && HasAssignedReg(insn->GetOperand(kInsnSecondOpnd)) &&
-            RegistersIdentical(*opnd, insn->GetOperand(kInsnSecondOpnd))) {
+            RegistersIdentical(*opnd, insn->GetOperand(kInsnSecondOpnd)) && 
+            insn->GetOperand(kInsnFirstOpnd).GetSize() == insn->GetOperand(kInsnSecondOpnd).GetSize()) {
           /* We may be able to get rid of the copy, but be sure that the operand is marked live into this block. */
           if ((insnInfo->origOpnd[kInsnSecondOpnd] != nullptr) && (&bb != insnInfo->origOpnd[kInsnSecondOpnd]->bb)) {
             MarkOpndLiveIntoBB(*opnd, bb, *insnInfo->origOpnd[kInsnSecondOpnd]->bb);

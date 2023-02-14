@@ -308,7 +308,7 @@ void NativeStubFuncGeneration::GenerateRegFuncTabEntry() {
 
   uint64 locIdx = regFuncTabConst->GetConstVec().size();
   auto *newConst =
-    GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>((locIdx << locIdxShift) | locIdxMask),
+    GlobalTables::GetIntConstTable().GetOrCreateIntConst(((locIdx << locIdxShift) | locIdxMask),
                                                          *GlobalTables::GetTypeTable().GetVoidPtr());
   regFuncTabConst->AddItem(newConst, 0);
 }
@@ -353,7 +353,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
   auto &arrayType = static_cast<MIRArrayType&>(regFuncTabConst->GetType());
   AddrofNode *regFuncExpr = builder->CreateExprAddrof(0, *regFuncSymbol);
   ArrayNode *arrayExpr = builder->CreateExprArray(arrayType, regFuncExpr,
-                                                  builder->CreateIntConst(static_cast<int64>(loc) - 1, PTY_i32));
+                                                  builder->CreateIntConst(loc - 1, PTY_i32));
   arrayExpr->SetBoundsCheck(false);
   auto *elemType = static_cast<MIRArrayType&>(arrayType).GetElemType();
   BaseNode *ireadExpr =
@@ -392,6 +392,10 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
       builder->CreateExprCompare(OP_eq, *GlobalTables::GetTypeTable().GetUInt1(),
                                  *GlobalTables::GetTypeTable().GetPtr(),
                                  readFlag, builder->CreateIntConst(kInvalidCode, PTY_ptr));
+#elif defined(TARGX86_64)
+  regReadExpr = nullptr;
+  BaseNode *checkRegExpr = nullptr;
+  return;
 #endif
 
   auto *ifStmt = static_cast<IfStmtNode*>(builder->CreateStmtIf(checkRegExpr));
@@ -535,7 +539,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
 //      }
 //    }
 StmtNode *NativeStubFuncGeneration::CreateNativeWrapperCallNode(MIRFunction &func, BaseNode *funcPtr,
-                                                                MapleVector<BaseNode*> &args, const MIRSymbol *ret,
+                                                                const MapleVector<BaseNode*> &args, const MIRSymbol *ret,
                                                                 bool needIndirectCall) {
 #ifdef USE_ARM32_MACRO
   constexpr size_t numOfArgs = 4;
@@ -547,7 +551,7 @@ StmtNode *NativeStubFuncGeneration::CreateNativeWrapperCallNode(MIRFunction &fun
   // The first arg is the natvie function pointer.
   wrapperArgs.push_back(funcPtr);
   // Push back all original args.
-  wrapperArgs.insert(wrapperArgs.end(), args.begin(), args.end());
+  (void)(wrapperArgs.insert(wrapperArgs.cend(), args.cbegin(), args.cend()));
   // Do not need native wrapper for fast natives or critical natives.
   if (needIndirectCall) {
     if (ret == nullptr) {

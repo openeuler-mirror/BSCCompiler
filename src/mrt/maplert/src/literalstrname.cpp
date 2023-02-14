@@ -18,9 +18,9 @@
 // note there is a macor kConstString "_C_STR_" in literalstrname.h
 // which need to match
 static const std::string mplConstStr("_C_STR_00000000000000000000000000000000");
-const uint32_t kMaxBytesLength = 15;
 
 namespace {
+const uint32_t kMaxBytesLength = 15;
 const char *kMplDigits = "0123456789abcdef";
 }
 

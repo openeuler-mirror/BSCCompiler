@@ -37,7 +37,7 @@ enum OpKind {
   MEM_OP_memset,
   MEM_OP_memcpy,
   MEM_OP_memset_s,
-  MEM_OP_memcpy_s,
+  KMemOpMemcpyS,
   SPRINTF_OP_sprintf,
   SPRINTF_OP_sprintf_s,
   SPRINTF_OP_snprintf_s,
@@ -83,7 +83,7 @@ struct MemEntry {
                             BlockNode &block, OpKind memOpKind, bool debug, ErrorNumber errorNumber) const;
   static StmtNode *GenRetAssign(StmtNode &stmt, MIRFunction &func, bool isLowLevel, OpKind opKind,
                                 int32 returnVal = ERRNO_OK);
-  StmtNode *GenEndZeroAssign(StmtNode &stmt, MIRFunction &func, bool isLowLevel, uint64 count) const;
+  StmtNode *GenEndZeroAssign(const StmtNode &stmt, MIRFunction &func, bool isLowLevel, uint64 count) const;
   BaseNode *addrExpr = nullptr;   // memory address
   MIRType *memType = nullptr;     // memory type, this may be nullptr for low level memory entry
 };
@@ -125,14 +125,14 @@ class SprintfBaseOper {
 class SimplifySprintf : public SprintfBaseOper {
  public:
   explicit SimplifySprintf(ProxyMemOp &op) : SprintfBaseOper(op) {}
-  ~SimplifySprintf() = default;
+  ~SimplifySprintf() override = default;
   bool ReplaceSprintfIfNeeded(StmtNode &stmt, BlockNode &block, bool isLowLevel, const OpKind &opKind) override;
 };
 
 class SimplifySprintfS : public SprintfBaseOper {
  public:
   explicit SimplifySprintfS(ProxyMemOp &op) : SprintfBaseOper(op) {}
-  ~SimplifySprintfS() = default;
+  ~SimplifySprintfS() override = default;
   bool ReplaceSprintfIfNeeded(StmtNode &stmt, BlockNode &block, bool isLowLevel, const OpKind &opKind) override;
   bool GetDstMaxOrCountSize(StmtNode &stmt, uint64 &dstMax, uint64 &count) override;
 };
@@ -140,7 +140,7 @@ class SimplifySprintfS : public SprintfBaseOper {
 class SimplifySnprintfS : public SprintfBaseOper {
  public:
   explicit SimplifySnprintfS(ProxyMemOp &op) : SprintfBaseOper(op) {}
-  ~SimplifySnprintfS() = default;
+  ~SimplifySnprintfS() override = default;
   bool ReplaceSprintfIfNeeded(StmtNode &stmt, BlockNode &block, bool isLowLevel, const OpKind &opKind) override;
   bool GetDstMaxOrCountSize(StmtNode &stmt, uint64 &dstMax, uint64 &count) override;
 };
@@ -149,7 +149,7 @@ class SimplifySnprintfS : public SprintfBaseOper {
 class SimplifyOp : public ProxyMemOp {
  public:
   static OpKind ComputeOpKind(StmtNode &stmt);
-  ~SimplifyOp() = default;
+  ~SimplifyOp() override = default;
 
   explicit SimplifyOp(MemPool &memPool) : sprintfAlloc(&memPool), sprintfMap(sprintfAlloc.Adapter()) {
     auto simplifySnprintfs = sprintfAlloc.New<SimplifySnprintfS>(*this);
@@ -198,7 +198,7 @@ class Simplify : public FuncOptimizeImpl {
   }
   Simplify(const Simplify &other) = delete;
   Simplify &operator=(const Simplify &other) = delete;
-  ~Simplify() = default;
+  ~Simplify() override = default;
   FuncOptimizeImpl *Clone() override {
     CHECK_FATAL(false, "Simplify has pointer, should not be Cloned");
   }

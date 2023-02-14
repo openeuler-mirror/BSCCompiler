@@ -405,16 +405,17 @@ void CgFuncPM::InitProfile(MIRModule &m)  const {
       LogInfo::MapleLogger() << "WARN: DeCompress() " << CGOptions::GetProfileData() << "failed in mplcg()\n";
     }
   }
-  if (!CGOptions::GetInstrumentationWhiteList().empty()) {
-    bool handleSucc = m.GetLiteProfile().HandleInstrumentationWhiteList(CGOptions::GetInstrumentationWhiteList());
+  if (!CGOptions::GetLitePgoWhiteList().empty()) {
+    bool handleSucc = m.GetLiteProfile().HandleInstrumentationWhiteList(CGOptions::GetLitePgoWhiteList());
     if (!handleSucc) {
-      LogInfo::MapleLogger() << "WARN: Handle instrumentation white list file " <<
-                                CGOptions::GetInstrumentationWhiteList() <<
+      LogInfo::MapleLogger() << "WARN: Handle lite-pgo white list file " <<
+                                CGOptions::GetLitePgoWhiteList() <<
                                 "failed in mplcg\n";
     }
   }
   if (!CGOptions::GetLiteProfile().empty()) {
     bool handleSucc = m.GetLiteProfile().HandleLitePGOFile(CGOptions::GetLiteProfile(), m.GetFileName());
+    CHECK_FATAL(handleSucc, "Error: Open Lite PGO input file failed");
     if (!handleSucc) {
       LogInfo::MapleLogger() << "WARN: Handle Lite PGO input file " << CGOptions::GetLiteProfile() <<
                                 "failed in mplcg\n";

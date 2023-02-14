@@ -26,6 +26,8 @@ class SigHandler {
   SigHandler() = delete;
   ~SigHandler(){};
 
+  /// @brief enable sighandler for default suite of signals
+  static void Enable();
   /// @brief enable handlig all supported signals
   static void EnableAll();
   /// @brief enable handlig signal "sig"

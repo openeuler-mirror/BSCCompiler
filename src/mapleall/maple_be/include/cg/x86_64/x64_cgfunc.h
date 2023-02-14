@@ -65,7 +65,7 @@ class X64CGFunc : public CGFunc {
   void SelectGoto(GotoNode &stmt) override;
   void SelectCall(CallNode &callNode) override;
   void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) override;
-  void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) override;
+  void SelectIntrinsicCall(IntrinsiccallNode &intrinsiccallNode) override;
   Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinopNode, std::string name) override;
   Operand *SelectCclz(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCctz(IntrinsicopNode &intrinopNode) override;
@@ -85,7 +85,7 @@ class X64CGFunc : public CGFunc {
   Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) override;
   Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
   void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) override;
-  Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode) override;
+  Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode, bool isCompareExchangeN) override;
   Operand *SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) override;
   void SelectCAtomicClear(const IntrinsiccallNode &intrinsiccallNode) override;
   void SelectMembar(StmtNode &membar) override;

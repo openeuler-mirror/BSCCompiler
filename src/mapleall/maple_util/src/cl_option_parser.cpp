@@ -34,7 +34,7 @@ bool IsPrefixDetected(const std::string_view &opt) {
   }
 
   /* -Wl is linker option */
-  if (opt.substr(0, 3) == "-Wl") {
+  if (opt.substr(0, 3) == "-Wl") { // 3: length of -Wl option
     return false;
   }
 

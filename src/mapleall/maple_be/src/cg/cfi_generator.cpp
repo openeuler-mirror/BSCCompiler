@@ -124,6 +124,9 @@ void GenCfi::Run() {
 }
 
 bool CgGenCfi::PhaseRun(maplebe::CGFunc &f) {
+  if (CGOptions::DoLiteProfGen() || CGOptions::DoLiteProfUse()) {
+    return true;
+  }
 #if TARGAARCH64
   GenCfi *genCfi = GetPhaseAllocator()->New<AArch64GenCfi>(f);
   genCfi->Run();

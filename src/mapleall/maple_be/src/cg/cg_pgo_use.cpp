@@ -596,10 +596,12 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
     return false;
   }
 
-  // for 525 538 only
   LiteProfile::BBInfo *bbInfo = f.GetFunction().GetModule()->GetLiteProfile().GetFuncBBProf(f.GetName());
+
+  /* 
+   * Currently, If all the counters of the function are 0, the bbInfo will not be recorded in pgo data.
+   * skip this case. However, it cannot distinguish which is not genereated correct. Need to be improved */
   if (!bbInfo) {
-    CHECK_FATAL_FALSE("find bb info failed");
     return false;
   }
 
