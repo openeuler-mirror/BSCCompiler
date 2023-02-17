@@ -11269,9 +11269,19 @@ Operand *AArch64CGFunc::SelectAArch64CAtomicFetch(const IntrinsicopNode &intrino
   auto &memOpnd = CreateMemOpnd(*static_cast<RegOperand*>(addrOpnd), 0, GetPrimTypeBitSize(primType));
   auto mOpLoad = PickLoadStoreExclInsn(primTypeP2Size, false, acquire);
   atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(mOpLoad, *regLoaded, memOpnd));
+  /* special handle for boolean type */
+  if (primType == PTY_u1) {
+    atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wandrri12, *regLoaded, *regLoaded,
+                                                     CreateImmOperand(PTY_u32, 1)));
+  }
   /* update loaded value */
   auto *regOperated = &CreateRegisterOperandOfType(primType);
   SelectArithmeticAndLogical(*regOperated, *regLoaded, *valueOpnd, primType, op);
+  /* special handle for boolean type */
+  if (primType == PTY_u1) {
+    atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wandrri12, *regOperated, *regOperated,
+                                                     CreateImmOperand(PTY_u32, 1)));
+  }
   /* store to pointed address */
   auto *accessStatus = &CreateRegisterOperandOfType(PTY_u32);
   auto mOpStore = PickLoadStoreExclInsn(primTypeP2Size, true, release);
@@ -11342,6 +11352,11 @@ Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, 
   BB *nextBB = CreateNewBB();
   nextBB->AddLabel(nextBBLableIdx);
   nextBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_dmb_ish, AArch64CG::kMd[MOP_dmb_ish]));
+  /* special handle for boolean return type */ 
+  if (intrinopNode.GetPrimType() == PTY_u1) {
+    nextBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wandrri12, *regLoaded, *regLoaded,
+                                                   CreateImmOperand(PTY_u32, 1)));
+  }
   SetLab2BBMap(static_cast<int32>(nextBBLableIdx), *nextBB);
   stlxrBB->AppendBB(*nextBB);
   SetCurBB(*nextBB);
@@ -11778,7 +11793,7 @@ Operand *AArch64CGFunc::SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsic
   atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wcbnz, *accessStatus, atomicBBOpnd));
 
   BB *nextBB = CreateNewBB();
-  atomicBB->AppendBB(*nextBB);
+  GetCurBB()->AppendBB(*nextBB);
   SetCurBB(*nextBB);
 
   return regLoaded;
