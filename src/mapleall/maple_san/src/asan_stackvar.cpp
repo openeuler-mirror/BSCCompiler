@@ -7,6 +7,7 @@
 #include <string_utils.h>
 
 #include "san_common.h"
+#include <set>
 
 #define ENABLE_STACK_SIZE_LIMIT 0
 
@@ -164,15 +165,32 @@ void FunctionStackPoisoner::initializeCallbacks(MIRModule &M) {
                                                 GlobalTables::GetTypeTable().GetVoid(), {IntptrTy, IntptrTy});
 }
 
+std::set<MIRSymbol *> FunctionStackPoisoner::GetStackVarReferedByCallassigned() {
+  std::set<MIRSymbol *> retOfCallassigned;
+  MIRSymbolTable *symbolTable = mirFunction->GetSymTab();
+  for (StmtNode &stmt : mirFunction->GetBody()->GetStmtNodes()) {
+    if (stmt.GetOpCode() == OP_callassigned) {
+      CallNode *tmp = dynamic_cast<CallNode *>(&stmt);
+      const CallReturnVector *retVecPtr = tmp->GetCallReturnVector();
+      // get the return value being refered by a function call
+      for (const CallReturnPair &retPair : *retVecPtr) {
+        MIRSymbol *symbol = symbolTable->GetSymbolFromStIdx(retPair.first.Idx());
+        retOfCallassigned.insert(symbol);
+      }
+    }
+  }
+  return retOfCallassigned;
+}
+
 bool FunctionStackPoisoner::runOnFunction() {
   initializeCallbacks(*module);
+  // Collect all variables refered by return statement of callassigned
+  std::set<MIRSymbol *> retOfCallassigned = GetStackVarReferedByCallassigned();
   // Collect alloca, ret, etc.
-  StmtNode *stmtNode = mirFunction->GetBody()->GetFirst();
-  while (stmtNode) {
-    if (stmtNode->GetOpCode() == OP_return) {
-      RetVec.push_back(stmtNode);
+  for (StmtNode &stmt : mirFunction->GetBody()->GetStmtNodes()) {
+    if (stmt.GetOpCode() == OP_return) {
+      RetVec.push_back(&stmt);
     }
-    stmtNode = stmtNode->GetNext();
   }
   // Collect local variable
   MIRSymbolTable *symbolTable = mirFunction->GetSymTab();
@@ -187,6 +205,10 @@ bool FunctionStackPoisoner::runOnFunction() {
     }
     if (ASan.isInterestingSymbol(*symbol)) {
       if (StringUtils::StartsWith(symbol->GetName(), "asan_")) {
+        continue;
+      }
+      // we skip symbols being refered by callassigned as a return value
+      if (retOfCallassigned.find(symbol) != retOfCallassigned.end()) {
         continue;
       }
       StackAlignment = std::max(StackAlignment, symbol->GetType()->GetAlign());
