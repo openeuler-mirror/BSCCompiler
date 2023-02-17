@@ -92,6 +92,29 @@ void FileUtils::CheckGCCVersion(const char *cmd) {
   CHECK_FATAL(!isEarlierVersion, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
 }
 
+std::string FileUtils::GetOutPutDir() {
+  return "./";
+}
+
+std::string GetTmpFolderPath() {
+  int size = 1024;
+  FILE *fp = nullptr;
+  char buf[size];
+  const char *cmd = "mktemp -d";
+  CHECK_FATAL((fp = popen(cmd, "r")) != nullptr, "Failed to create tmp folder");
+  while (fgets(buf, size, fp) != nullptr) {}
+  pclose(fp);
+  fp = nullptr;
+  std::string path(buf);
+  CHECK_FATAL(path.size() != 0, "Failed to create tmp folder");
+  std::string tmp = "\n";
+  int index = path.find(tmp) == path.npos ? path.length() : path.find(tmp);
+  path = path.substr(0, index);
+  return path;
+}
+
+std::string FileUtils::tmpFolderPath = GetTmpFolderPath() + "/";
+
 std::string FileUtils::GetRealPath(const std::string &filePath) {
 #ifdef _WIN32
   char *path = nullptr;
@@ -193,4 +216,27 @@ std::string FileUtils::AppendMapleRootIfNeeded(bool needRootPath, const std::str
   }
   return ostrStream.str();
 }
+
+bool FileUtils::DelTmpDir() {
+  if (tmpFolderPath == "") {
+    return true;
+  }
+  tmpFolderPath = "rm -rf " + tmpFolderPath;
+  const char* cmd = tmpFolderPath.c_str();
+  const int size = 1024;
+  FILE *fp = nullptr;
+  char buf[size] = {0};
+  if ((fp = popen(cmd, "r")) == nullptr) {
+    return false;
+  }
+  while (fgets(buf, size, fp) != nullptr) {}
+  (void)pclose(fp);
+  fp = nullptr;
+  std::string result(buf);
+  if (result != "") {
+    return false;
+  }
+  return true;
+}
+
 }  // namespace maple

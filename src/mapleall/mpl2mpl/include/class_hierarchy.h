@@ -206,7 +206,7 @@ class Klass {
 
   // Return the function defined in the current class, or the inherited
   // function if it is not defined in the current class.
-  MIRFunction *GetClosestMethod(GStrIdx) const;
+  MIRFunction *GetClosestMethod(GStrIdx funcName) const;
   // This for class only, which only has 0 or 1 super class
   Klass *GetSuperKlass() const;
   const MapleList<Klass*> &GetSuperKlasses() const {
@@ -392,7 +392,7 @@ class KlassHierarchy : public AnalysisResult {
   void MarkClassFlags();
   // Return the unique method if there is only one target virtual function.
   // Return 0 if there are multiple targets or the targets are unclear.
-  GStrIdx GetUniqueMethod(GStrIdx) const;
+  GStrIdx GetUniqueMethod(GStrIdx vfuncNameStridx) const;
   bool IsDevirtualListEmpty() const;
   void DumpDevirtualList(const std::string &outputFileName) const;
   void ReadDevirtualList(const std::string &inputFileName);

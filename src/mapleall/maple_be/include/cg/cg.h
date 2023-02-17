@@ -52,6 +52,7 @@ class RedundantComputeElim;
 class TailCallOpt;
 class Rematerializer;
 class CGProfGen;
+class CGAggressiveOpt;
 
 class Globals {
  public:
@@ -317,6 +318,10 @@ class CG {
   }
 
   virtual Rematerializer *CreateRematerializer(MemPool &mp) const {
+    return nullptr;
+  }
+
+  virtual CGAggressiveOpt *CreateAggressiveOpt(MemPool &mp, CGFunc &f) const {
     return nullptr;
   }
 

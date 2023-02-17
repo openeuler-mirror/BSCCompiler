@@ -27,7 +27,6 @@
 #include "ginline.h"
 #include "outline.h"
 #include "method_replace.h"
-#include "gen_profile.h"
 #if MIR_JAVA
 #include "native_stub_func.h"
 #include "vtable_analysis.h"
@@ -44,8 +43,6 @@
 #include "constantfold.h"
 #include "preme.h"
 #include "scalarreplacement.h"
-#include "openProfile.h"
-#include "update_mplt.h"
 #endif  // ~MIR_JAVA
 #include "option.h"
 #include "me_option.h"

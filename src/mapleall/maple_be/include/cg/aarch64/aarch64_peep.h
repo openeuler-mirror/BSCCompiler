@@ -999,8 +999,8 @@ class MulImmToShiftPattern : public CGPeepPattern {
 };
 
 /*
- * Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp, when they are
- * back to back and the [MEM] they access is conjointed.
+ * Combining {2 str into 1 stp || 2 ldr into 1 ldp || 2 strb into 1 strh || 2 strh into 1 str},
+ * when they are back to back and the [MEM] they access is conjoined.
  */
 class CombineContiLoadAndStorePattern : public CGPeepPattern {
  public:
@@ -1008,11 +1008,11 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
       : CGPeepPattern(cgFunc, currBB, currInsn) {
     doAggressiveCombine = cgFunc.GetMirModule().IsCModule();
   }
-  ~CombineContiLoadAndStorePattern() override {
-    memOpnd = nullptr;
-  }
+  ~CombineContiLoadAndStorePattern() override = default;
+
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
+
   std::string GetPatternName() override {
     return "CombineContiLoadAndStorePattern";
   }
@@ -1027,15 +1027,17 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
    * str x21, [x19, #16]
    */
   bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst) const;
+  bool IsValidNormalLoadOrStorePattern(Insn &insn, Insn &prevInsn, MemOperand &memOpnd, int64 curOfstVal, int64 prevOfstVal);
+  bool IsValidStackArgLoadOrStorePattern(Insn &curInsn, Insn &prevInsn, MemOperand &curMemOpnd, MemOperand &prevMemOpnd,
+                                         int64 curOfstVal, int64 prevOfstVal);
+  MOperator GetNewMemMop(MOperator mop) const;
+  Insn *GenerateMemPairInsn(MOperator newMop, RegOperand &curDestOpnd, RegOperand &prevDestOpnd,
+                            MemOperand &combineMemOpnd, bool isCurDestFirst);
+  bool FindUseX16AfterInsn(BB &bb, Insn &curInsn);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) const;
-  MOperator GetMopHigherByte(MOperator mop) const;
-  bool SplitOfstWithAddToCombine(const Insn &curInsn, Insn &combineInsn, const MemOperand &memOperand) const;
-  Insn *FindValidSplitAddInsn(Insn &combineInsn, const RegOperand &baseOpnd) const;
-  bool FindTmpRegOnlyUseAfterCombineInsn(const Insn &curInsn) const;
-  bool PlaceSplitAddInsn(const Insn &curInsn, Insn &combineInsn, const MemOperand &memOperand,
-                         RegOperand &baseOpnd, uint32 bitLen) const;
+
   bool doAggressiveCombine = false;
-  MemOperand *memOpnd = nullptr;
+  bool isPairAfterCombine = true;
 };
 
 /*

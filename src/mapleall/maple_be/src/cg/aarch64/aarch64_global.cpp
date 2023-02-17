@@ -2227,6 +2227,10 @@ bool SameRHSPropPattern::CheckCondition(Insn &insn) {
       continue;
     }
     regno_t regNO = static_cast<RegOperand&>(opnd).GetRegisterNumber();
+    /* Do not optimize r16-related to avoid tmp-reg is redefined */
+    if (regNO == R16) {
+      return false;
+    }
     if (!(cgFunc.GetRD()->FindRegDefBetweenInsn(regNO, prevInsn->GetNext(), insn.GetPrev()).empty())) {
       return false;
     }

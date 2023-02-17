@@ -1225,7 +1225,7 @@ class GraphColorRegAllocator : public RegAllocator {
   void ComputeLiveRangesUpdateIfInsnIsCall(const Insn &insn);
   void ComputeLiveRangesUpdateLiveUnitInsnRange(BB &bb, uint32 currPoint);
   void ComputeLiveRanges();
-  MemOperand *CreateSpillMem(uint32 spillIdx, SpillMemCheck check);
+  MemOperand *CreateSpillMem(uint32 spillIdx, uint32 memSize, SpillMemCheck check);
   bool CheckOverlap(uint64 val, uint32 i, LiveRange &lr1, LiveRange &lr2) const;
   void CheckInterference(LiveRange &lr1, LiveRange &lr2) const;
   void BuildInterferenceGraphSeparateIntFp(std::vector<LiveRange*> &intLrVec, std::vector<LiveRange*> &fpLrVec);
@@ -1261,7 +1261,7 @@ class GraphColorRegAllocator : public RegAllocator {
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                 RegType regType);
   MemOperand *GetReuseMem(const LiveRange &lr);
-  MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, regno_t regNO,
+  MemOperand *GetSpillMem(uint32 vregNO, uint32 spillSize, bool isDest, Insn &insn, regno_t regNO,
                           bool &isOutOfRange);
   bool SetAvailableSpillReg(std::unordered_set<regno_t> &cannotUseReg, LiveRange &lr,
                             MapleBitVector &usedRegMask);

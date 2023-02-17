@@ -2629,7 +2629,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<const ListOperand&>(opnd);
       for (auto &listElem : listOpnd.GetOperands()) {
-        RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
+        auto *regOpnd = static_cast<RegOperand*>(listElem);
         ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
         if (regNO == regOpnd->GetRegisterNumber()) {
           return true;
@@ -2642,7 +2642,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
       regno_t stackBaseRegNO = cgFunc->UseFP() ? R29 : RSP;
       if (!sameMemAccess && base != nullptr) {
         regno_t curBaseRegNO = base->GetRegisterNumber();
-        int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k16BitSize : k8BitSize);
+        auto memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k16BitSize : k8BitSize);
         if (!(curBaseRegNO == regNO && memOperand.GetAddrMode() == MemOperand::kBOI &&
             memOperand.GetOffsetImmediate() != nullptr &&
             (memOperand.GetOffsetImmediate()->GetOffsetValue() <= (baseOfst - memBarrierRange) ||
@@ -2663,13 +2663,13 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
         if (memOperand.GetAddrMode() == MemOperand::kBOI && memOperand.GetOffsetImmediate() != nullptr) {
           int64 curOffset = memOperand.GetOffsetImmediate()->GetOffsetValue();
           if (memOperand.GetSize() == k64BitSize) {
-            int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k16BitSize : k8BitSize);
+            auto memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k16BitSize : k8BitSize);
             if (curOffset < baseOfst + memBarrierRange &&
                 curOffset > baseOfst - memBarrierRange) {
               return true;
             }
           } else if (memOperand.GetSize() == k32BitSize) {
-            int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k8BitSize : k4BitSize);
+            auto memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k8BitSize : k4BitSize);
             if (curOffset < baseOfst + memBarrierRange &&
                 curOffset > baseOfst - memBarrierRange) {
               return true;
@@ -2679,7 +2679,7 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
       }
     } else if (opnd.IsConditionCode()) {
       Operand &rflagOpnd = cgFunc->GetOrCreateRflag();
-      RegOperand &rflagReg = static_cast<RegOperand&>(rflagOpnd);
+      auto &rflagReg = static_cast<RegOperand&>(rflagOpnd);
       if (rflagReg.GetRegisterNumber() == regNO) {
         return true;
       }
@@ -2695,7 +2695,6 @@ bool CombineContiLoadAndStorePattern::IsRegNotSameMemUseInInsn(const Insn &insn,
 std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, regno_t destRegNO,
                                                                    regno_t memBaseRegNO, int64 baseOfst) const {
   std::vector<Insn*> prevContiInsns;
-  bool isStr = insn.IsStore();
   for (Insn *curInsn = insn.GetPrev(); curInsn != nullptr; curInsn = curInsn->GetPrev()) {
     if (!curInsn->IsMachineInstruction()) {
       continue;
@@ -2706,16 +2705,14 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
     if (IsRegNotSameMemUseInInsn(*curInsn, memBaseRegNO, insn.IsStore(), static_cast<int32>(baseOfst))) {
       return prevContiInsns;
     }
-    /* return continuous STD/LDR insn */
-    if (((isStr && curInsn->IsStore()) || (!isStr && curInsn->IsLoad())) && !curInsn->IsLoadStorePair()) {
+    /* record continuous STD/LDR insn */
+    if (!curInsn->IsLoadStorePair() && ((insn.IsStore() && curInsn->IsStore()) || (insn.IsLoad() && curInsn->IsLoad()))) {
       auto *memOperand = static_cast<MemOperand*>(curInsn->GetMemOpnd());
       /* do not combine ldr r0, label */
       if (memOperand != nullptr) {
         auto *baseRegOpnd = static_cast<RegOperand*>(memOperand->GetBaseRegister());
-        ASSERT(baseRegOpnd == nullptr || !baseRegOpnd->IsVirtualRegister(),
-            "physical register has not been allocated?");
-        if ((memOperand->GetAddrMode() == MemOperand::kBOI) &&
-            baseRegOpnd->GetRegisterNumber() == memBaseRegNO) {
+        ASSERT(baseRegOpnd == nullptr || !baseRegOpnd->IsVirtualRegister(), "physical register has not been allocated?");
+        if ((memOperand->GetAddrMode() == MemOperand::kBOI) && baseRegOpnd->GetRegisterNumber() == memBaseRegNO) {
           prevContiInsns.emplace_back(curInsn);
         }
       }
@@ -2725,88 +2722,108 @@ std::vector<Insn*> CombineContiLoadAndStorePattern::FindPrevStrLdr(Insn &insn, r
      * ldr x9, [x21, #16]
      * although x21 is a calleeSave register, there is no guarantee data in memory [x21] is not changed
      */
-    if (curInsn->IsCall()) {
-      return prevContiInsns;
-    }
-    if (curInsn->GetMachineOpcode() == MOP_asm) {
-      return prevContiInsns;
-    }
-    if (curInsn->ScanReg(destRegNO)) {
+    if (curInsn->IsCall() || curInsn->GetMachineOpcode() == MOP_asm || curInsn->ScanReg(destRegNO)) {
       return prevContiInsns;
     }
   }
   return prevContiInsns;
 }
 
-Insn *CombineContiLoadAndStorePattern::FindValidSplitAddInsn(Insn &combineInsn, const RegOperand &baseOpnd) const {
-  Insn *splitAdd = nullptr;
-  for (Insn *cursor = combineInsn.GetPrev(); cursor != nullptr; cursor = cursor->GetPrev()) {
-    if (!cursor->IsMachineInstruction()) {
-      continue;
-    }
-    if (cursor->IsCall()) {
-      break;
-    }
-    if (cursor->IsRegDefined(baseOpnd.GetRegisterNumber())) {
-      break;
-    }
-    MOperator mOp = cursor->GetMachineOpcode();
-    if (mOp != MOP_xaddrri12 && mOp != MOP_waddrri12) {
-      continue;
-    }
-    auto &destOpnd = static_cast<RegOperand&>(cursor->GetOperand(kInsnFirstOpnd));
-    if (destOpnd.GetRegisterNumber() != R16 || destOpnd.GetSize() != baseOpnd.GetSize()) {
-      continue;
-    }
-    auto &useOpnd = static_cast<RegOperand&>(cursor->GetOperand(kInsnSecondOpnd));
-    /*
-     * split add as following:
-     * add R16, R0, #2, LSL #12
-     * add R16, R16, #1536
-     */
-    if (useOpnd.GetRegisterNumber() != baseOpnd.GetRegisterNumber()) {
-      if (useOpnd.GetRegisterNumber() == R16) {
-        Insn *defInsn = cursor->GetPrev();
-        CHECK_FATAL(defInsn != nullptr, "invalid defInsn");
-        CHECK_FATAL(defInsn->GetMachineOpcode() == MOP_xaddrri24 || defInsn->GetMachineOpcode() == MOP_waddrri24,
-                    "split with wrong add");
-        auto &opnd = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
-        if (opnd.GetRegisterNumber() == baseOpnd.GetRegisterNumber()) {
-          splitAdd = cursor;
-        }
-      }
-      break;
-    } else {
-      splitAdd = cursor;
-      break;
-    }
+bool CombineContiLoadAndStorePattern::CheckCondition(Insn &insn) {
+  MOperator mop = insn.GetMachineOpcode();
+  if (mop == MOP_wldrb || mop == MOP_wldrh) {
+    return false;
   }
-  return splitAdd;
+  auto *curMemOpnd = static_cast<MemOperand*>(insn.GetMemOpnd());
+  ASSERT(curMemOpnd != nullptr, "get mem operand failed");
+  if (!doAggressiveCombine || curMemOpnd->GetAddrMode() != MemOperand::kBOI) {
+    return false;
+  }
+  return true;
 }
 
-bool CombineContiLoadAndStorePattern::FindTmpRegOnlyUseAfterCombineInsn(const Insn &curInsn) const {
-  /*
-   * avoid the case as following:
-   *   add R16, R20, #28672
-   *   stp R1, R2, [R16, #408]
-   *   ldr R1, [R0, #14032]         add R16, R0, #3, LSL #12
-   *                      ====>     add R16, R16, #1536     (this r16 will clobber use of ldp R2, R3)
-   *                                ldp R1, R0, [R16, #208]
-   *   ldp R2, R3, [R16, #424]
-   *   ldr R0, [R0, #14036]
-   */
+/* Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp */
+void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+
+  auto *curMemOpnd = static_cast<MemOperand*>(insn.GetMemOpnd());
+  ASSERT(curMemOpnd->GetAddrMode() == MemOperand::kBOI, "invalid continues mem insn");
+  OfstOperand *curOfstOpnd = curMemOpnd->GetOffsetImmediate();
+  int64 curOfstVal = curOfstOpnd ? curOfstOpnd->GetOffsetValue() : 0;
+
+  auto *baseRegOpnd = static_cast<RegOperand*>(curMemOpnd->GetBaseRegister());
+  ASSERT(baseRegOpnd == nullptr || !baseRegOpnd->IsVirtualRegister(), "physical register has not been allocated?");
+  auto &curDestOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+
+  std::vector<Insn*> prevContiInsnVec = FindPrevStrLdr(insn, curDestOpnd.GetRegisterNumber(),
+                                                       baseRegOpnd->GetRegisterNumber(), curOfstVal);
+
+  for (auto prevContiInsn : prevContiInsnVec) {
+    ASSERT(prevContiInsn != nullptr, "get previous consecutive instructions failed");
+    auto *prevMemOpnd = static_cast<MemOperand*>(prevContiInsn->GetMemOpnd());
+    ASSERT(prevMemOpnd->GetAddrMode() == MemOperand::kBOI, "invalid continues mem insn");
+    OfstOperand *prevOfstOpnd = prevMemOpnd->GetOffsetImmediate();
+    int64 prevOfstVal = prevOfstOpnd ? prevOfstOpnd->GetOffsetValue() : 0;
+    auto &prevDestOpnd = static_cast<RegOperand&>(prevContiInsn->GetOperand(kInsnFirstOpnd));
+    if (prevDestOpnd.GetRegisterType() != curDestOpnd.GetRegisterType()) {
+      continue;
+    }
+
+    MemOperand *combineMemOpnd = (curOfstVal < prevOfstVal) ? curMemOpnd : prevMemOpnd;
+    if (IsValidNormalLoadOrStorePattern(insn, *prevContiInsn, *curMemOpnd, curOfstVal, prevOfstVal)) {
+      /* Process normal mem pair */
+      MOperator newMop = GetNewMemMop(insn.GetMachineOpcode());
+      Insn *combineInsn = GenerateMemPairInsn(newMop, curDestOpnd, prevDestOpnd, *combineMemOpnd, curOfstVal < prevOfstVal);
+      ASSERT(combineInsn != nullptr, "create combineInsn failed");
+      bb.InsertInsnAfter(*prevContiInsn, *combineInsn);
+      if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(newMop, combineMemOpnd,
+                                                                   isPairAfterCombine ? kInsnThirdOpnd : kInsnSecondOpnd))) {
+        if (FindUseX16AfterInsn(bb, *prevContiInsn)) {
+          /* Do not combine Insns when x16 was used after curInsn */
+          bb.RemoveInsn(*combineInsn);
+          return;
+        }
+        const InsnDesc *md = &AArch64CG::kMd[combineInsn->GetMachineOpcode()];
+        auto *opndProp = md->opndMD[kInsnFirstOpnd];
+        MemOperand &newMemOpnd = static_cast<AArch64CGFunc*>(cgFunc)->SplitOffsetWithAddInstruction(
+            *combineMemOpnd, opndProp->GetSize(), static_cast<AArch64reg>(R16), false, combineInsn, isPairAfterCombine);
+        combineInsn->SetOperand(isPairAfterCombine ? kInsnThirdOpnd : kInsnSecondOpnd, newMemOpnd);
+      }
+      RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
+      return;
+    } else if (IsValidStackArgLoadOrStorePattern(insn, *prevContiInsn, *curMemOpnd, *prevMemOpnd, curOfstVal, prevOfstVal)) {
+      /* Process stack-arg mem pair */
+      regno_t curDestRegNo = curDestOpnd.GetRegisterNumber();
+      regno_t prevDestRegNo = prevDestOpnd.GetRegisterNumber();
+      RegOperand &newDest = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(curDestRegNo), k64BitSize, curDestOpnd.GetRegisterType());
+      RegOperand &newPrevDest = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(prevDestRegNo), k64BitSize, prevDestOpnd.GetRegisterType());
+      MOperator newMop = (curDestOpnd.GetRegisterType() == kRegTyInt) ? MOP_xstp : MOP_dstp;
+      if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(newMop, combineMemOpnd, kInsnThirdOpnd))) {
+        return;
+      }
+      Insn *combineInsn = GenerateMemPairInsn(newMop, newDest, newPrevDest, *combineMemOpnd, curOfstVal < prevOfstVal);
+      bb.InsertInsnAfter(*prevContiInsn, *combineInsn);
+      RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
+      return;
+    }
+  }
+}
+
+bool CombineContiLoadAndStorePattern::FindUseX16AfterInsn(BB &bb, Insn &curInsn) {
   for (Insn *cursor = curInsn.GetNext(); cursor != nullptr; cursor = cursor->GetNext()) {
     if (!cursor->IsMachineInstruction()) {
       continue;
     }
-    MOperator mOp = cursor->GetMachineOpcode();
-    if (mOp == MOP_xaddrri12 || mOp == MOP_waddrri12 || mOp == MOP_xaddrri24 || mOp == MOP_waddrri24) {
-      auto &destOpnd = static_cast<RegOperand&>(cursor->GetOperand(kInsnFirstOpnd));
-      if (destOpnd.GetRegisterNumber() == R16) {
+    for (uint32 defRegNo : cursor->GetDefRegs()) {
+      if (defRegNo == R16) {
         return false;
       }
     }
-    if (!cursor->IsLoad() && !cursor->IsStore() && !cursor->IsLoadStorePair()) {
+    if ((!cursor->IsLoad() && !cursor->IsStore() && !cursor->IsLoadStorePair()) || cursor->IsAtomic()) {
       continue;
     }
     const InsnDesc *md = &AArch64CG::kMd[cursor->GetMachineOpcode()];
@@ -2823,236 +2840,113 @@ bool CombineContiLoadAndStorePattern::FindTmpRegOnlyUseAfterCombineInsn(const In
   return false;
 }
 
-bool CombineContiLoadAndStorePattern::PlaceSplitAddInsn(const Insn &curInsn, Insn &combineInsn,
-                                                        const MemOperand &memOperand,
-                                                        RegOperand &baseOpnd, uint32 bitLen) const {
-  Insn *cursor = nullptr;
-  MemOperand *maxOfstMem = nullptr;
-  int64 maxOfstVal = 0;
-  MOperator mop = curInsn.GetMachineOpcode();
-  OfstOperand *ofstOpnd = memOperand.GetOffsetImmediate();
-  int64 ofstVal = ofstOpnd->GetOffsetValue();
-  auto &aarFunc = static_cast<AArch64CGFunc&>(*cgFunc);
-  for (cursor = curInsn.GetNext(); cursor != nullptr; cursor = cursor->GetNext()) {
-    if (!cursor->IsMachineInstruction()) {
-      continue;
-    }
-    if (cursor->GetMachineOpcode() == mop && (cursor->IsLoad() || cursor->IsStore())) {
-      auto &curMemOpnd = static_cast<MemOperand&>(cursor->GetOperand(kInsnSecondOpnd));
-      RegOperand *curBaseOpnd = curMemOpnd.GetBaseRegister();
-      if (curMemOpnd.GetAddrMode() == MemOperand::kBOI && RegOperand::IsSameReg(baseOpnd, *curBaseOpnd)) {
-        OfstOperand *curOfstOpnd = curMemOpnd.GetOffsetImmediate();
-        CHECK_FATAL(curOfstOpnd != nullptr, "invalid OfstOperand");
-        if (curOfstOpnd->GetOffsetValue() > ofstVal &&
-            (curOfstOpnd->GetOffsetValue() - ofstVal) < MemOperand::GetMaxPairPIMM(bitLen) &&
-            !aarFunc.IsOperandImmValid(combineInsn.GetMachineOpcode(), &curMemOpnd, kInsnThirdOpnd)) {
-          maxOfstMem = &curMemOpnd;
-          maxOfstVal = curOfstOpnd->GetOffsetValue();
-        }
-      }
-    }
-    if (cursor->IsRegDefined(baseOpnd.GetRegisterNumber())) {
-      break;
-    }
-    if (cursor->IsRegDefined(R16)) {
-      break;
-    }
+Insn *CombineContiLoadAndStorePattern::GenerateMemPairInsn(MOperator newMop, RegOperand &curDestOpnd, RegOperand &prevDestOpnd,
+                                                           MemOperand &combineMemOpnd, bool isCurDestFirst) {
+  ASSERT(newMop != MOP_undef, "invalid MOperator");
+  Insn *combineInsn = nullptr;
+  if (isPairAfterCombine) { /* for ldr/str --> ldp/stp */
+    combineInsn = (isCurDestFirst) ? &cgFunc->GetInsnBuilder()->BuildInsn(newMop, curDestOpnd, prevDestOpnd, combineMemOpnd) :
+                                     &cgFunc->GetInsnBuilder()->BuildInsn(newMop, prevDestOpnd, curDestOpnd, combineMemOpnd);
+  } else { /* for strb/strh --> strh/str, curDestOpnd == preDestOpnd */
+    combineInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, curDestOpnd, combineMemOpnd);
+    combineMemOpnd.SetSize(newMop == MOP_wstrh ? maplebe::k16BitSize : maplebe::k32BitSize);
   }
-  MemOperand *newMemOpnd = nullptr;
-  if (maxOfstMem == nullptr) {
-    newMemOpnd = &aarFunc.SplitOffsetWithAddInstruction(memOperand, bitLen, static_cast<AArch64reg>(R16),
-                                                        false, &combineInsn, true);
-  } else {
-    RegOperand *addResOpnd = aarFunc.GetBaseRegForSplit(R16);
-    ImmOperand &immAddend = aarFunc.SplitAndGetRemained(*maxOfstMem, bitLen, maxOfstVal, true);
-    newMemOpnd = &aarFunc.CreateReplacementMemOperand(bitLen, *addResOpnd, ofstVal - immAddend.GetValue());
-    if (!(aarFunc.IsOperandImmValid(combineInsn.GetMachineOpcode(), newMemOpnd, kInsnThirdOpnd))) {
-      newMemOpnd = &aarFunc.SplitOffsetWithAddInstruction(memOperand, bitLen, static_cast<AArch64reg>(R16),
-                                                          false, &combineInsn, true);
-    } else {
-      aarFunc.SelectAddAfterInsn(*addResOpnd, baseOpnd, immAddend, PTY_i64, false, combineInsn);
-    }
-  }
-  if (!(aarFunc.IsOperandImmValid(combineInsn.GetMachineOpcode(), newMemOpnd, kInsnThirdOpnd))) {
-    return false;
-  }
-  combineInsn.SetOperand(kInsnThirdOpnd, *newMemOpnd);
-  return true;
+  return combineInsn;
 }
 
-bool CombineContiLoadAndStorePattern::SplitOfstWithAddToCombine(const Insn &curInsn, Insn &combineInsn,
-                                                                const MemOperand &memOperand) const {
-  auto *baseRegOpnd = static_cast<RegOperand*>(memOperand.GetBaseRegister());
-  auto *ofstOpnd = static_cast<OfstOperand*>(memOperand.GetOffsetImmediate());
-  ASSERT(baseRegOpnd && ofstOpnd, "get baseOpnd and ofstOpnd failed");
-  CHECK_FATAL(combineInsn.GetOperand(kInsnFirstOpnd).GetSize() == combineInsn.GetOperand(kInsnSecondOpnd).GetSize(),
-              "the size must equal");
-  if (baseRegOpnd->GetRegisterNumber() == R16) {
+bool CombineContiLoadAndStorePattern::IsValidNormalLoadOrStorePattern(Insn &insn, Insn &prevInsn, MemOperand &memOpnd,
+                                                                      int64 curOfstVal, int64 prevOfstVal) {
+  if (memOpnd.IsStackArgMem()) {
     return false;
   }
-  Insn *splitAdd = FindValidSplitAddInsn(combineInsn, *baseRegOpnd);
-  const InsnDesc *md = &AArch64CG::kMd[combineInsn.GetMachineOpcode()];
-  auto *opndProp = md->opndMD[kInsnFirstOpnd];
-  auto &aarFunc = static_cast<AArch64CGFunc&>(*cgFunc);
-  if (splitAdd == nullptr) {
-    if (combineInsn.IsLoadStorePair() && ofstOpnd->GetOffsetValue() < 0) {
-      return false; /* do not split */
+  ASSERT(insn.GetOperand(kInsnFirstOpnd).IsRegister(), "unexpect operand");
+  ASSERT(prevInsn.GetOperand(kInsnFirstOpnd).IsRegister(), "unexpect operand");
+  auto &curDestOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  auto &prevDestOpnd = static_cast<RegOperand&>(prevInsn.GetOperand(kInsnFirstOpnd));
+  if (prevDestOpnd.GetRegisterType() != curDestOpnd.GetRegisterType() || curDestOpnd.GetSize() != prevDestOpnd.GetSize()) {
+    return false;
+  }
+  uint32 memSize = insn.GetMemoryByteSize();
+  uint32 prevMemSize = prevInsn.GetMemoryByteSize();
+  if (memSize != prevMemSize) {
+    return false;
+  }
+
+  int64 diffVal = std::abs(curOfstVal - prevOfstVal);
+  if ((memSize == k1ByteSize && diffVal == k1BitSize) || (memSize == k2ByteSize && diffVal == k2BitSize) ||
+      (memSize == k4ByteSize && diffVal == k4BitSize) || (memSize == k8ByteSize && diffVal == k8BitSize)) {
+    MOperator curMop = insn.GetMachineOpcode();
+    ASSERT(curMop != MOP_wldrb && curMop != MOP_wldrh, "invalid mem insn that cannot be combined");
+    if (curMop == MOP_wstrb || curMop == MOP_wstrh) {
+      isPairAfterCombine = false;
     }
-    if (FindTmpRegOnlyUseAfterCombineInsn(combineInsn)) {
+
+    regno_t destRegNO = curDestOpnd.GetRegisterNumber();
+    regno_t prevDestRegNO = prevDestOpnd.GetRegisterNumber();
+    if (destRegNO == RZR && prevDestRegNO == RZR) {
+      return true;
+    }
+
+    if (insn.IsLoad() && destRegNO == prevDestRegNO) {
       return false;
     }
-    /* create and place addInsn */
-    return PlaceSplitAddInsn(curInsn, combineInsn, memOperand, *baseRegOpnd, opndProp->GetSize());
-  } else {
-    auto &newBaseReg = static_cast<RegOperand&>(splitAdd->GetOperand(kInsnFirstOpnd));
-    auto &addImmOpnd = static_cast<ImmOperand&>(splitAdd->GetOperand(kInsnThirdOpnd));
-    int64 addVal = 0;
-    if (static_cast<RegOperand&>(splitAdd->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == R16) {
-      Insn *defInsn = splitAdd->GetPrev();
-      CHECK_FATAL(defInsn->GetMachineOpcode() == MOP_xaddrri24 || defInsn->GetMachineOpcode() == MOP_waddrri24,
-                  "split with wrong add");
-      auto &immOpnd = static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
-      auto &shiftOpnd = static_cast<BitShiftOperand&>(defInsn->GetOperand(kInsnFourthOpnd));
-      addVal = static_cast<int64>((static_cast<uint64>(immOpnd.GetValue()) << shiftOpnd.GetShiftAmount())) +
-          addImmOpnd.GetValue();
-    } else {
-      addVal = addImmOpnd.GetValue();
+
+    if ((curMop == MOP_wstrb || curMop == MOP_wstrh) && (destRegNO != RZR || prevDestRegNO != RZR)) {
+      return false;
     }
-    auto *newOfstOpnd = &aarFunc.CreateOfstOpnd(static_cast<uint64>(ofstOpnd->GetOffsetValue() - addVal),
-        ofstOpnd->GetSize());
-    MemOperand *newMemOpnd = nullptr;
-    if (memOperand.GetSymbol()) {
-      newMemOpnd = aarFunc.CreateMemOperand(opndProp->GetSize(), newBaseReg, *newOfstOpnd, *memOperand.GetSymbol());
-    } else {
-      newMemOpnd = aarFunc.CreateMemOperand(opndProp->GetSize(), newBaseReg, *newOfstOpnd);
-    }
-    if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(combineInsn.GetMachineOpcode(), newMemOpnd,
-                                                                 kInsnThirdOpnd))) {
-      if (FindTmpRegOnlyUseAfterCombineInsn(combineInsn)) {
-        return false;
-      }
-      return PlaceSplitAddInsn(curInsn, combineInsn, memOperand, *baseRegOpnd, opndProp->GetSize());
-    }
-    combineInsn.SetOperand(kInsnThirdOpnd, *newMemOpnd);
+
     return true;
   }
+
+  return false;
 }
 
-bool CombineContiLoadAndStorePattern::CheckCondition(Insn &insn) {
-  memOpnd = static_cast<MemOperand*>(insn.GetMemOpnd());
-  ASSERT(memOpnd != nullptr, "get mem operand failed");
-  if (!doAggressiveCombine) {
+bool CombineContiLoadAndStorePattern::IsValidStackArgLoadOrStorePattern(Insn &curInsn, Insn &prevInsn, MemOperand &curMemOpnd,
+                                                                        MemOperand &prevMemOpnd, int64 curOfstVal,
+                                                                        int64 prevOfstVal) {
+  if (!curInsn.IsStore()) {
     return false;
   }
-  return memOpnd->GetAddrMode() == MemOperand::kBOI;
+  if (!curMemOpnd.IsStackArgMem() || !prevMemOpnd.IsStackArgMem()) {
+    return false;
+  }
+  auto &curDestOpnd = static_cast<RegOperand&>(curInsn.GetOperand(kInsnFirstOpnd));
+  auto &prevDestOpnd = static_cast<RegOperand&>(prevInsn.GetOperand(kInsnFirstOpnd));
+  uint32 memSize = curInsn.GetMemoryByteSize();
+  uint32 prevMemSize = prevInsn.GetMemoryByteSize();
+  auto diffVal = std::abs(curOfstVal - prevOfstVal);
+  if ((memSize == k4ByteSize || memSize == k8ByteSize) && (prevMemSize == k4ByteSize || prevMemSize == k8ByteSize) &&
+      (diffVal == k8BitSize) && (curDestOpnd.GetValidBitsNum() == memSize * k8BitSize) &&
+      (prevDestOpnd.GetValidBitsNum() == prevMemSize * k8BitSize)) {
+    return true;
+  }
+  return false;
 }
 
-/* Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp */
-void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(insn)) {
-    return;
-  }
-  MOperator thisMop = insn.GetMachineOpcode();
-  ASSERT(insn.GetOperand(kInsnFirstOpnd).IsRegister(), "unexpect operand");
-  auto &destOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  auto *baseRegOpnd = static_cast<RegOperand*>(memOpnd->GetBaseRegister());
-  OfstOperand *offsetOpnd = memOpnd->GetOffsetImmediate();
-  int64 offsetVal = offsetOpnd ? offsetOpnd->GetOffsetValue() : 0;
-  ASSERT(baseRegOpnd == nullptr || !baseRegOpnd->IsVirtualRegister(), "physical register has not been allocated?");
-  std::vector<Insn*> prevContiInsnVec = FindPrevStrLdr(
-      insn, destOpnd.GetRegisterNumber(), baseRegOpnd->GetRegisterNumber(), offsetVal);
-  for (auto prevContiInsn : prevContiInsnVec) {
-    ASSERT(prevContiInsn != nullptr, "get previous consecutive instructions failed");
-    auto *prevMemOpnd = static_cast<MemOperand*>(prevContiInsn->GetMemOpnd());
-    if (prevMemOpnd->GetAddrMode() != MemOperand::kBOI) {
-      continue;
-    }
-    auto &prevDestOpnd = static_cast<RegOperand&>(prevContiInsn->GetOperand(kInsnFirstOpnd));
-    uint32 memSize = insn.GetMemoryByteSize();
-    uint32 prevMemSize = prevContiInsn->GetMemoryByteSize();
-    if (prevDestOpnd.GetRegisterType() != destOpnd.GetRegisterType()) {
-      continue;
-    }
-    OfstOperand *prevOffsetOpnd = prevMemOpnd->GetOffsetImmediate();
-    int64 prevOffsetVal = prevOffsetOpnd ? prevOffsetOpnd->GetOffsetValue() : 0;
-    auto diffVal = std::abs(offsetVal - prevOffsetVal);
-    regno_t destRegNO = destOpnd.GetRegisterNumber();
-    regno_t prevDestRegNO = prevDestOpnd.GetRegisterNumber();
-    if (insn.IsStore() && memOpnd->IsStackArgMem() && prevMemOpnd->IsStackArgMem() &&
-        (memSize == k4ByteSize || memSize == k8ByteSize) && diffVal == k8BitSize &&
-        (prevMemSize == k4ByteSize || prevMemSize == k8ByteSize) &&
-        (destOpnd.GetValidBitsNum() == memSize * k8BitSize) &&
-        (prevDestOpnd.GetValidBitsNum() == prevMemSize * k8BitSize)) {
-      RegOperand &newDest = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
-          static_cast<AArch64reg>(destRegNO), k64BitSize, destOpnd.GetRegisterType());
-      RegOperand &newPrevDest = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
-          static_cast<AArch64reg>(prevDestRegNO), k64BitSize, prevDestOpnd.GetRegisterType());
-      MemOperand *combineMemOpnd = (offsetVal < prevOffsetVal) ? memOpnd : prevMemOpnd;
-      MOperator mopPair = (destOpnd.GetRegisterType() == kRegTyInt) ? MOP_xstp : MOP_dstp;
-      if ((static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, combineMemOpnd, kInsnThirdOpnd))) {
-        Insn &combineInsn = (offsetVal < prevOffsetVal) ?
-                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newDest, newPrevDest, *combineMemOpnd) :
-                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, newPrevDest, newDest, *combineMemOpnd);
-        bb.InsertInsnAfter(*prevContiInsn, combineInsn);
-        RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
-        return;
-      }
-    }
-    if (memSize != prevMemSize  ||
-        thisMop != prevContiInsn->GetMachineOpcode() || prevDestOpnd.GetSize() != destOpnd.GetSize()) {
-      continue;
-    }
-    /* do combination str/ldr -> stp/ldp */
-    if ((insn.IsStore() || destRegNO != prevDestRegNO) || (destRegNO == RZR && prevDestRegNO == RZR)) {
-      if ((memSize == k8ByteSize && diffVal == k8BitSize) ||
-          (memSize == k4ByteSize && diffVal == k4BitSize)) {
-        MOperator mopPair = GetMopPair(thisMop);
-        MemOperand *combineMemOpnd = (offsetVal < prevOffsetVal) ? memOpnd : prevMemOpnd;
-        Insn &combineInsn = (offsetVal < prevOffsetVal) ?
-                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, destOpnd, prevDestOpnd, *combineMemOpnd) :
-                            cgFunc->GetInsnBuilder()->BuildInsn(mopPair, prevDestOpnd, destOpnd, *combineMemOpnd);
-        bb.InsertInsnAfter(*prevContiInsn, combineInsn);
-        if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, combineMemOpnd, kInsnThirdOpnd)) &&
-            !SplitOfstWithAddToCombine(insn, combineInsn, *combineMemOpnd)) {
-            bb.RemoveInsn(combineInsn);
-            return;
-        }
-        RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
-        return;
-      }
-    }
-    /* do combination strb/ldrb -> strh/ldrh -> str/ldr */
-    if (destRegNO == prevDestRegNO && destRegNO == RZR && prevDestRegNO == RZR) {
-      if ((memSize == k1ByteSize && diffVal == k1ByteSize) ||  (memSize == k2ByteSize && diffVal == k2ByteSize)) {
-        MOperator mopPair = GetMopHigherByte(thisMop);
-        if (offsetVal < prevOffsetVal) {
-          if (static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, memOpnd, kInsnSecondOpnd)) {
-            Insn &combineInsn = cgFunc->GetInsnBuilder()->BuildInsn(mopPair, destOpnd, *memOpnd);
-            bb.InsertInsnAfter(*prevContiInsn, combineInsn);
-            RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
-            return;
-          }
-        } else {
-          if (static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(mopPair, prevMemOpnd, kInsnSecondOpnd)) {
-            Insn &combineInsn = cgFunc->GetInsnBuilder()->BuildInsn(mopPair, prevDestOpnd, *prevMemOpnd);
-            bb.InsertInsnAfter(*prevContiInsn, combineInsn);
-            RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
-            return;
-          }
-        }
-      }
-    }
-  }
-}
-
-MOperator CombineContiLoadAndStorePattern::GetMopHigherByte(MOperator mop) const {
+MOperator CombineContiLoadAndStorePattern::GetNewMemMop(MOperator mop) const {
   switch (mop) {
-    case MOP_wldrb:
-      return MOP_wldrh;
+    case MOP_xldr:
+      return MOP_xldp;
+    case MOP_wldr:
+      return MOP_wldp;
+    case MOP_xstr:
+      return MOP_xstp;
+    case MOP_wstr:
+      return MOP_wstp;
+    case MOP_dldr:
+      return MOP_dldp;
+    case MOP_qldr:
+      return MOP_qldp;
+    case MOP_sldr:
+      return MOP_sldp;
+    case MOP_dstr:
+      return MOP_dstp;
+    case MOP_sstr:
+      return MOP_sstp;
+    case MOP_qstr:
+      return MOP_qstp;
     case MOP_wstrb:
       return MOP_wstrh;
-    case MOP_wldrh:
-      return MOP_wldr;
     case MOP_wstrh:
       return MOP_wstr;
     default:

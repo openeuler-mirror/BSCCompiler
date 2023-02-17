@@ -22,7 +22,9 @@ namespace maple {
 class OutlineCandidate {
  public:
   explicit OutlineCandidate(RegionCandidate *candidate) : regionCandidate(candidate) {}
-  virtual ~OutlineCandidate() = default;
+  virtual ~OutlineCandidate() {
+      regionCandidate = nullptr;
+  }
 
   size_t InsertIntoParameterList(BaseNode &expr);
 
@@ -82,7 +84,7 @@ class OutlineCandidate {
     cleared = true;
   }
 
-  bool IsCleared() {
+  bool IsCleared() const {
     return cleared;
   }
  private:
@@ -158,7 +160,9 @@ class OutLine {
  public:
   OutLine(CollectIpaInfo *ipaInfo, MIRModule *module, MemPool *memPool) :
     ipaInfo(ipaInfo), module(module), memPool(memPool) {}
-  virtual ~OutLine() = default;
+  virtual ~OutLine() {
+      ipaInfo = nullptr;
+  }
   void Run();
  private:
   MIRFunction *CreateNewOutlineFunction(PrimType returnType);

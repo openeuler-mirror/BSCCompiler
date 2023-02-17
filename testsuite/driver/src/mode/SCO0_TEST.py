@@ -17,48 +17,25 @@ from api import *
 
 SCO0_TEST = {
     "compile": [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.o",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include"
             ],
-            option="--target=aarch64",
-            infile="${APP}.c",
-            outfile="${APP}.ast",
+            option="--O0 --patch-long-branch -fPIC -g --no-pie -c",
             extra_opt="${SPEC_PARAM}"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            option="-enable-variable-array -g",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["mplcg"],
-            option={
-                "mplcg": "--O0 --patch-long-branch --quiet --no-pie --fPIC --verbose-asm"
-            },
-            global_option="-g",
-            infiles=["${APP}.mpl"]
-        ),
-        CLinker(
-            infiles=["${APP}.s"],
-            front_option="-O2 -std=c99",
-            outfile="${APP}.o",
-            back_option="",
-            mid_opt="-c"
         )
     ],
     "link": [
-        CLinker(
+         MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             infiles=["${APP}"],
-            front_option="-std=gnu99 -no-pie",
             outfile="${EXE}",
-            back_option="-lm -L${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/",
-            mid_opt="${MID_OPT}"
+            option="-lm -L${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/ ${MID_OPT}"
         )
     ],
     "cp_data":[

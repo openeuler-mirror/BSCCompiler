@@ -135,6 +135,7 @@ bool CGOptions::cgBigEndian = false;
 bool CGOptions::arm64ilp32 = false;
 bool CGOptions::noCommon = false;
 bool CGOptions::flavorLmbc = false;
+bool CGOptions::doAggrOpt = false;
 CGOptions::VisibilityType CGOptions::visibilityType = kDefault;
 bool CGOptions::noplt = false;
 
@@ -812,6 +813,7 @@ void CGOptions::EnableO0() {
   doWriteRefFieldOpt = false;
   doAlignAnalysis = false;
   doCondBrAlign = false;
+  doAggrOpt = false;
   SetOption(kUseUnwindTables);
   if (maple::Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) {
     ClearOption(kUseStackProtectorStrong);
@@ -850,6 +852,7 @@ void CGOptions::EnableO2() {
   doAlignAnalysis = true;
   doCondBrAlign = true;
   doRetMerge = true;
+  doAggrOpt = true;
   SetOption(kConstFold);
   SetOption(kUseUnwindTables);
   ClearOption(kUseStackProtectorStrong);
@@ -899,6 +902,7 @@ void CGOptions::EnableLiteCG() {
   doWriteRefFieldOpt = false;
   doAlignAnalysis = false;
   doCondBrAlign = false;
+  doAggrOpt = false;
 
   ClearOption(kUseStackProtectorStrong);
   ClearOption(kUseStackProtectorAll);

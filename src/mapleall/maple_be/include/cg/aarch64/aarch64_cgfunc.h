@@ -244,8 +244,8 @@ class AArch64CGFunc : public CGFunc {
   /* method description contains method information which is metadata for reflection. */
   MemOperand *AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum, bool isDest, Insn &insn,
                                                  AArch64reg regNum, bool &isOutOfRange);
-  void SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, bool isDest,
-      Insn &insn);
+  void SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, bool isDest, Insn &insn);
+  void SelectAddAfterInsnBySize(Operand &resOpnd, Operand &opnd0, Operand &opnd1, uint32 size, bool isDest, Insn &insn);
   bool IsImmediateOffsetOutOfRange(const MemOperand &memOpnd, uint32 bitLen);
   bool IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx);
   Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
@@ -306,7 +306,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand &CreateRegisterOperandOfType(RegType regType, uint32 byteLen);
   RegOperand &CreateRflagOperand();
   RegOperand &GetOrCreateSpecialRegisterOperand(PregIdx sregIdx, PrimType primType);
-  MemOperand *GetOrCreatSpillMem(regno_t vrNum) override;
+  MemOperand *GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) override;
   void FreeSpillRegMem(regno_t vrNum) override;
   RegOperand &GetOrCreatePhysicalRegisterOperand(AArch64reg regNO, uint32 size, RegType kind, uint32 flag = 0);
   RegOperand &GetOrCreatePhysicalRegisterOperand(std::string &asmAttr);

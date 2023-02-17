@@ -202,6 +202,7 @@ MIRFunction *Clone::CloneFunctionNoReturn(MIRFunction &originalFunction) {
   GStrIdx fullNameStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(newFuncFullName);
   newFunction->OverrideBaseClassFuncNames(fullNameStrIdx);
   MIRSymbol *funcSt = newFunction->GetFuncSymbol();
+  ASSERT_NOT_NULL(funcSt);
   GlobalTables::GetGsymTable().RemoveFromStringSymbolMap(*funcSt);
   funcSt->SetNameStrIdx(fullNameStrIdx);
   GlobalTables::GetGsymTable().AddToStringSymbolMap(*funcSt);
@@ -210,7 +211,7 @@ MIRFunction *Clone::CloneFunctionNoReturn(MIRFunction &originalFunction) {
   return newFunction;
 }
 
-void Clone::UpdateReturnVoidIfPossible(CallMeStmt *callMeStmt, const MIRFunction &targetFunc) {
+void Clone::UpdateReturnVoidIfPossible(CallMeStmt *callMeStmt, const MIRFunction &targetFunc) const {
   if (callMeStmt == nullptr) {
     return;
   }

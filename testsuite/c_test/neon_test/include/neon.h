@@ -5,40 +5,40 @@
 #include <stdlib.h>
 #include <arm_neon.h>
 
-#define VSET(a, lane, s, q) { a = vset##q##_lane_##s(lane, a, lane);}
+#define VSET(a, lane, val, s, q) { a = vset##q##_lane_##s(val, a, lane);}
 #define VGET(a, lane, s, q) vget##q##_lane_##s(a, lane)
 
-#define VSET_1(a, s, q) { VSET(a, 0, s, q);}
-#define VSET_2(a, s, q) { VSET(a, 0, s, q); \
-                          VSET(a, 1, s, q);}
-#define VSET_4(a, s, q) { VSET(a, 0, s, q); \
-                          VSET(a, 1, s, q); \
-                          VSET(a, 2, s, q); \
-                          VSET(a, 3, s, q);}
-#define VSET_8(a, s, q) { VSET(a, 0, s, q); \
-                          VSET(a, 1, s, q); \
-                          VSET(a, 2, s, q); \
-                          VSET(a, 3, s, q); \
-                          VSET(a, 4, s, q); \
-                          VSET(a, 5, s, q); \
-                          VSET(a, 6, s, q); \
-                          VSET(a, 7, s, q);}
-#define VSET_16(a, s, q) { VSET(a, 0, s, q);  \
-                           VSET(a, 1, s, q);  \
-                           VSET(a, 2, s, q);  \
-                           VSET(a, 3, s, q);  \
-                           VSET(a, 4, s, q);  \
-                           VSET(a, 5, s, q);  \
-                           VSET(a, 6, s, q);  \
-                           VSET(a, 7, s, q);  \
-                           VSET(a, 8, s, q);  \
-                           VSET(a, 9, s, q);  \
-                           VSET(a, 10, s, q); \
-                           VSET(a, 11, s, q); \
-                           VSET(a, 12, s, q); \
-                           VSET(a, 13, s, q); \
-                           VSET(a, 14, s, q); \
-                           VSET(a, 15, s, q);}
+#define VSET_1(a, s, q) { VSET(a, 0, 1, s, q);}
+#define VSET_2(a, s, q) { VSET(a, 0, 1, s, q);    \
+                          VSET(a, 1, 2, s, q);}
+#define VSET_4(a, s, q) { VSET(a, 0, 1, s, q);    \
+                          VSET(a, 1, 2, s, q);    \
+                          VSET(a, 2, 3, s, q);    \
+                          VSET(a, 3, 4, s, q);}
+#define VSET_8(a, s, q) { VSET(a, 0, 1, s, q);    \
+                          VSET(a, 1, 2, s, q);    \
+                          VSET(a, 2, 3, s, q);    \
+                          VSET(a, 3, 4, s, q);    \
+                          VSET(a, 4, 5, s, q);    \
+                          VSET(a, 5, 6, s, q);    \
+                          VSET(a, 6, 7, s, q);    \
+                          VSET(a, 7, 8, s, q);}
+#define VSET_16(a, s, q) { VSET(a, 0, 1, s, q);   \
+                           VSET(a, 1, 2, s, q);   \
+                           VSET(a, 2, 3, s, q);   \
+                           VSET(a, 3, 4, s, q);   \
+                           VSET(a, 4, 5, s, q);   \
+                           VSET(a, 5, 6, s, q);   \
+                           VSET(a, 6, 7, s, q);   \
+                           VSET(a, 7, 8, s, q);   \
+                           VSET(a, 8, 9, s, q);   \
+                           VSET(a, 9, 10, s, q);  \
+                           VSET(a, 10, 11, s, q); \
+                           VSET(a, 11, 12, s, q); \
+                           VSET(a, 12, 13, s, q); \
+                           VSET(a, 13, 14, s, q); \
+                           VSET(a, 14, 15, s, q); \
+                           VSET(a, 15, 16, s, q);}
 
 #define VPRTINT_1(a, s, q) { printf("%ld,", (long)VGET(a, 0, s, q));  \
                              printf("\n");}
@@ -202,7 +202,7 @@ static inline t *set_##t##_ptr(int len) {                 \
 }                                                         \
 static inline void print_##t##_ptr(t *ptr, int len) {     \
   for (int i = 0; i < len; ++i) {                         \
-    printf("%ld,", (long)(*ptr + i));                     \
+    printf("%ld,", (long)(*(ptr + i)));                   \
   }                                                       \
   printf("\n");                                           \
 }

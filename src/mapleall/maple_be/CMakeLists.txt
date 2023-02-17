@@ -109,6 +109,7 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/aarch64/aarch64_rematerialize.cpp
         src/cg/aarch64/aarch64_MPISel.cpp
         src/cg/aarch64/aarch64_standardize.cpp
+        src/cg/aarch64/aarch64_aggressive_opt.cpp
         src/cg/cfi_generator.cpp
         src/cg/cfgo.cpp
         src/cg/local_opt.cpp
@@ -145,6 +146,7 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/data_dep_base.cpp
         src/cg/data_dep_analysis.cpp
         src/cg/global_schedule.cpp
+        src/cg/cg_aggressive_opt.cpp
     )
 endif()
 

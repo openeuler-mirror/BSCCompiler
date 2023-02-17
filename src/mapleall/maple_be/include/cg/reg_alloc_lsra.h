@@ -487,7 +487,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
   void SpillOperand(Insn &insn, Operand &opnd, bool isDef, uint32 spillIdx);
   void SetOperandSpill(Operand &opnd);
   RegOperand *HandleSpillForInsn(const Insn &insn, Operand &opnd);
-  MemOperand *GetSpillMem(uint32 vRegNO, bool isDest, Insn &insn, regno_t regNO,
+  MemOperand *GetSpillMem(uint32 vRegNO, uint32 spillSize, bool isDest, Insn &insn, regno_t regNO,
                           bool &isOutOfRange) const;
   void InsertCallerSave(Insn &insn, Operand &opnd, bool isDef);
   uint32 GetRegFromSet(MapleSet<uint32> &set, regno_t offset, LiveInterval &li, regno_t forcedReg = 0) const;

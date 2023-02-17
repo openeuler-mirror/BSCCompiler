@@ -151,7 +151,7 @@ class SafeExe {
         ret = kErrorCompileFail;
       }
 
-      if (ret != kErrorNoError) {
+      if (ret != kErrorNoError && opts::debug.IsEnabledByUser()) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: ";
         for (auto &opt : options) {
           LogInfo::MapleLogger() << opt.GetKey() << " " << opt.GetValue() << " ";

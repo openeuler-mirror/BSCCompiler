@@ -34,6 +34,7 @@
 #include "aarch64_pgo_gen.h"
 #include "aarch64_MPISel.h"
 #include "aarch64_standardize.h"
+#include "aarch64_aggressive_opt.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -220,6 +221,9 @@ class AArch64CG : public CG {
   }
   Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64Standardize>(f);
+  }
+  virtual CGAggressiveOpt *CreateAggressiveOpt(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64AggressiveOpt>(f);
   }
   /* Return the copy operand id of reg1 if it is an insn who just do copy from reg1 to reg2.
  * i. mov reg2, reg1

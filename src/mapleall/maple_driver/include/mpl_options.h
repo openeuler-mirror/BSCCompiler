@@ -79,7 +79,9 @@ class InputInfo {
 
     inputName = FileUtils::GetFileName(inputFile, true);
     inputFolder = FileUtils::GetFileFolder(inputFile);
-    outputFolder = inputFolder;
+    outputFolder = (inputFileType == InputFileType::kFileTypeDex || inputFileType == InputFileType::kFileTypeClass ||
+        inputFileType == InputFileType::kFileTypeCpp || inputFileType == InputFileType::kFileTypeJar) ? inputFolder :
+        opts::saveTempOpt.IsEnabledByUser() ? FileUtils::GetOutPutDir() : FileUtils::tmpFolderPath;
     outputName = FileUtils::GetFileName(inputFile, false);
     fullOutput = outputFolder + outputName;
   }
@@ -137,6 +139,10 @@ class InputInfo {
     return inputFile;
   }
 
+  const std::string &GetInputFolder() const {
+    return inputFolder;
+  }
+
   const std::string &GetOutputFolder() const {
     return outputFolder;
   }
@@ -175,7 +181,11 @@ class Action {
          const InputInfo *const inputInfo)
       : inputInfo(inputInfo), tool(tool)  {
     for (auto &inAction : inActions) {
-      linkInputFiles.push_back(inAction->GetInputFile());
+      if (inAction->GetInputFileType() == InputFileType::kFileTypeObj) {
+        linkInputFiles.push_back(inAction->GetInputFolder() + inAction->GetOutputName() + ".o");
+      } else {
+        linkInputFiles.push_back(inAction->GetOutputFolder() + inAction->GetOutputName() + ".o");
+      }
     }
 
     std::move(begin(inActions), end(inActions), std::back_inserter(inputActions));
@@ -193,6 +203,10 @@ class Action {
 
   const std::string &GetOutputFolder() const {
     return inputInfo->GetOutputFolder();
+  }
+
+  const std::string &GetInputFolder() const {
+    return inputInfo->GetInputFolder();
   }
 
   const std::string &GetOutputName() const {

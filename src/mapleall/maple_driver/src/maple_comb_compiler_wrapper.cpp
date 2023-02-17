@@ -35,19 +35,19 @@ std::string MapleCombCompilerWrp::GetBinPath(const MplOptions &mplOptions [[mayb
 
 DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &options [[maybe_unused]],
                                                       const Action &action [[maybe_unused]]) const {
-  /* need to add --maple-phase option to run only maple phase.
-   * linker will be called as separated step (AsCompiler).
-   */
-  opts::maplePhase.SetValue(true);
-
   /* opts::infile must be cleared because we should run compilation for each file separately.
    * Separated input file are set in Actions.
    */
   opts::infile.Clear();
-  uint32_t fullLen = 1;
+  uint32_t fullLen = 2;
   DefaultOption defaultOptions = {std::make_unique<MplOption[]>(fullLen), fullLen};
-  defaultOptions.mplOptions[0].SetKey("-S");
+  /* need to add --maple-phase option to run only maple phase.
+   * linker will be called as separated step (AsCompiler).
+   */
+  defaultOptions.mplOptions[0].SetKey("--maple-phase");
   defaultOptions.mplOptions[0].SetValue("");
+  defaultOptions.mplOptions[1].SetKey("-p");
+  defaultOptions.mplOptions[1].SetValue(action.GetInputFolder() + action.GetOutputName());
 
   return defaultOptions;
 }

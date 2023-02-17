@@ -194,8 +194,7 @@ class SimplifyOp : public ProxyMemOp {
 class Simplify : public FuncOptimizeImpl {
  public:
   Simplify(MIRModule &mod, KlassHierarchy *kh, MemPool &memPool, bool dump)
-      : FuncOptimizeImpl(mod, kh, dump), mirMod(mod), simplifyMemOp(memPool) {
-  }
+      : FuncOptimizeImpl(mod, kh, dump), mirMod(mod), simplifyMemOp(memPool) {}
   Simplify(const Simplify &other) = delete;
   Simplify &operator=(const Simplify &other) = delete;
   ~Simplify() override = default;

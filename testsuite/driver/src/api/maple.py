@@ -17,13 +17,14 @@ from api.shell_operator import ShellOperator
 
 class Maple(ShellOperator):
 
-    def __init__(self, maple, run, option, global_option, infiles, return_value_list=None, redirection=None):
+    def __init__(self, maple, run, option, global_option, infiles, return_value_list=None, redirection=None, outfile=""):
         super().__init__(return_value_list, redirection)
         self.maple = maple
         self.run = run
         self.option_dict = option
         self.global_option = global_option
         self.infiles = infiles
+        self.outfile = outfile
 
     def get_command(self, variables):
         self.command = self.maple + " "
@@ -35,4 +36,6 @@ class Maple(ShellOperator):
               option.append(self.option_dict[cmd])
           self.command += "--option=\"" + ":".join(option) + "\" "
         self.command += " " + self.global_option + " "
+        if self.outfile:
+            self.command += " -o " + self.outfile + " "
         return super().get_final_command(variables)

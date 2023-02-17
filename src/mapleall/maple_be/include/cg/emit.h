@@ -194,6 +194,7 @@ class Emitter {
   void EmitStaticFields(const std::vector<MIRSymbol*> &fields);
   void EmitLiteral(const MIRSymbol &literal, const std::map<GStrIdx, MIRType*> &strIdx2Type);
   void EmitStringPointers();
+  void EmitStringSectionAndAlign(bool isTermByZero);
   void GetHotAndColdMetaSymbolInfo(const std::vector<MIRSymbol*> &mirSymbolVec,
                                    std::vector<MIRSymbol*> &hotFieldInfoSymbolVec,
                                    std::vector<MIRSymbol*> &coldFieldInfoSymbolVec, const std::string &prefixStr,

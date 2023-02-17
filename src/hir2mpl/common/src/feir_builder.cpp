@@ -363,7 +363,8 @@ UniqueFEIRExpr FEIRBuilder::CreateExprCvtPrim(Opcode argOp, UniqueFEIRExpr srcEx
 UniqueFEIRExpr FEIRBuilder::CreateExprCastPrim(UniqueFEIRExpr srcExpr, PrimType dstType) {
   // Handle the case separately for future optimization and deletion.
   // bool u1
-  if (srcExpr->GetPrimType() == PTY_u1) {
+  PrimType srcType = srcExpr->GetPrimType();
+  if (srcType == PTY_u1) {
     if (FEUtils::IsInteger(dstType)) {
       return CreateExprCvtPrim(std::move(srcExpr), dstType);
     }
@@ -386,17 +387,17 @@ UniqueFEIRExpr FEIRBuilder::CreateExprCastPrim(UniqueFEIRExpr srcExpr, PrimType 
     }
   };
 
-  if (FEUtils::IsInteger(srcExpr->GetPrimType()) && FEUtils::IsInteger(dstType)) {
+  if (FEUtils::IsInteger(srcType) && FEUtils::IsInteger(dstType)) {
     // avoid using OP_cvt for integer types less than 32 bits
     if (GetPrimTypeBitSize(dstType) < 32) {
       return createExprExt();
     }
 
-    if (GetPrimTypeBitSize(dstType) > GetPrimTypeBitSize(srcExpr->GetPrimType())) {
-      PrimType srcRegPty = GetRegPrimType(srcExpr->GetPrimType());
+    if (GetPrimTypeBitSize(dstType) > GetPrimTypeBitSize(srcType)) {
+      PrimType srcRegPty = GetRegPrimType(srcType);
       if (srcRegPty == dstType) {
         // avoid using OP_cvt for integer types less than 32 bits, but need to explicit transformation
-        if (GetPrimTypeBitSize(srcExpr->GetPrimType()) < 32) {
+        if (GetPrimTypeBitSize(srcType) < 32) {
           return createExprExt();
         }
         return srcExpr;

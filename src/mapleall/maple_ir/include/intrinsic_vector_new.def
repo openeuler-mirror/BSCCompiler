@@ -1718,10 +1718,10 @@ DEF_MIR_INTRINSIC(vector_ld1q_dup_u64v2, "vector_ld1q_dup_u64v2", 1,
                   kArgTyPtr)
 DEF_MIR_INTRINSIC(vector_tbl1_i8v8, "vector_tbl1_i8v8", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
-                  kArgTyV8I8, kArgTyV8I8)
+                  kArgTyV16I8, kArgTyV8I8)
 DEF_MIR_INTRINSIC(vector_tbl1_u8v8, "vector_tbl1_u8v8", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U8,
-                  kArgTyV8U8, kArgTyV8U8)
+                  kArgTyV16U8, kArgTyV8U8)
 DEF_MIR_INTRINSIC(vector_qtbl1_i8v8, "vector_qtbl1_i8v8", 1,
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
                   kArgTyV16I8, kArgTyV8U8)

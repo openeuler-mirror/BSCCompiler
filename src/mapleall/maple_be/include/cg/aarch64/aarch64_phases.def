@@ -77,4 +77,5 @@
  ADDTARGETPHASE("cgpgouse", CGOptions::DoLiteProfUse());
  ADDTARGETPHASE("alignanalysis", GetMIRModule()->IsCModule() && CGOptions::DoAlignAnalysis() && !CGOptions::DoLiteProfGen());
  ADDTARGETPHASE("fixshortbranch", true);
+ ADDTARGETPHASE("cgaggressiveopt", GetMIRModule()->IsCModule() && CGOptions::DoAggrOpt());
  ADDTARGETPHASE("cgemit", true);

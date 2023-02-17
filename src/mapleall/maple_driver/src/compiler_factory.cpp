@@ -168,14 +168,9 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
   // Compiler finished
   compileFinished = true;
 
-  if (!opts::saveTempOpt.IsEnabledByUser() || !mplOptions.GetSaveFiles().empty()) {
-    std::vector<std::string> tmpFiles;
-
-    for (auto *action : actions) {
-      action->GetCompiler()->GetTmpFilesToDelete(mplOptions, *action, tmpFiles);
-    }
-
-    ret = DeleteTmpFiles(mplOptions, tmpFiles);
+  if (!FileUtils::DelTmpDir()) {
+    LogInfo::MapleLogger() << "Failed! Failed to delete tmpdir with command " << FileUtils::tmpFolderPath << "\n";
   }
+
   return ret;
 }

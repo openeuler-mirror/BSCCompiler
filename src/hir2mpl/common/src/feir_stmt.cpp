@@ -3038,9 +3038,9 @@ BaseNode *FEIRExprExtractBits::GenMIRNodeForExt(MIRBuilder &mirBuilder) const {
   BaseNode *nodeOpnd = opnd->GenMIRNode(mirBuilder);
   PrimType extPty;
   if (op == OP_zext) {
-    extPty = GetUnsignedPrimType(GetRegPrimType(nodeOpnd->GetPrimType()));
+    extPty = GetUnsignedPrimType(GetRegPrimType(primTypeDst));
   } else {
-    extPty = GetSignedPrimType(GetRegPrimType(nodeOpnd->GetPrimType()));
+    extPty = GetSignedPrimType(GetRegPrimType(primTypeDst));
   }
   MIRType *mirTypeDst = GlobalTables::GetTypeTable().GetPrimType(extPty);
   BaseNode *expr = mirBuilder.CreateExprExtractbits(op, *mirTypeDst, 0, widthDst, nodeOpnd);

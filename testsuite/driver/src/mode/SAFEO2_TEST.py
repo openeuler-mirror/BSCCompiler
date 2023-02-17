@@ -17,49 +17,25 @@ from api import *
 
 SAFEO2_TEST = {
     "compile": [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.o",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include"
             ],
-            option="--target=aarch64",
-            infile="${APP}.c",
-            outfile="${APP}.ast",
+            option="--O2 -fPIC --no-pie -c --npe-check-dynamic --boundary-check-dynamic",
             extra_opt="${SPEC_PARAM}"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            option="-enable-variable-array -boundary-check-dynamic --npe-check-dynamic",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O2 --quiet",
-                "mpl2mpl": "-O2 --quiet",
-                "mplcg": "--O2 --quiet --no-pie --verbose-asm --fPIC"
-            },
-            global_option="--npe-check-dynamic --boundary-check-dynamic",
-            infiles=["${APP}.mpl"]
-        ),
-        CLinker(
-            infiles=["${APP}.s"],
-            front_option="-O2 -std=c99",
-            outfile="${APP}.o",
-            back_option="",
-            mid_opt="-c"
         )
     ],
     "link": [
-        CLinker(
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             infiles=["${APP}"],
-            front_option="-std=gnu99 -no-pie",
             outfile="${EXE}",
-            back_option="-lm -L${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/"
+            option="-std=gnu99 --no-pie -lm -L${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/"
         )
     ],
     "cp_data":[

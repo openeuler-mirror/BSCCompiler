@@ -91,7 +91,7 @@ bool IsUseSafeOption() {
       opts::npeDynamicCheck.IsEnabledByUser() || opts::npeDynamicCheckSilent.IsEnabledByUser() ||
       opts::npeDynamicCheckAll.IsEnabledByUser() || opts::boundaryDynamicCheck.IsEnabledByUser() ||
       opts::boundaryDynamicCheckSilent.IsEnabledByUser() || opts::safeRegionOption.IsEnabledByUser() ||
-      opts::enableArithCheck.IsEnabledByUser() || opts::enableCallFflush.IsEnabledByUser()) {
+      opts::enableArithCheck.IsEnabledByUser() || opts::defaultSafe.IsEnabledByUser()) {
     flag= true;
   }
   return flag;
@@ -109,17 +109,24 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   if (IsUseSafeOption()) {
     additionalLen += 3;
   } else {
+    additionalLen += 2;
+  }
+  if (opts::passO2ToClang.IsEnabledByUser()) {
     additionalLen += 1;
   }
   opt = std::make_unique<MplOption[]>(additionalLen);
 
   opt[0].SetKey("-target");
   opt[0].SetValue(triple.Str());
+  opt[1].SetKey("-isystem");
+  opt[1].SetValue(GetFormatClangPath(options) + "lib/libc_enhanced/include");
   if (IsUseSafeOption()) {
-    opt[1].SetKey("-isystem");
-    opt[1].SetValue(GetFormatClangPath(options) + "lib/libc_enhanced/include");
     opt[2].SetKey("-DC_ENHANCED");
     opt[2].SetValue("");
+  }
+  if (opts::passO2ToClang.IsEnabledByUser()) {
+    opt[additionalLen - 2].SetKey("-O2");
+    opt[additionalLen - 2].SetValue("");
   }
 
   /* Set last option as -o option */

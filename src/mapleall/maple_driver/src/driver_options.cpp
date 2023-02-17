@@ -284,7 +284,8 @@ maplecl::Option<bool> dndebug({"-DNDEBUG"},
 
 maplecl::Option<bool> usesignedchar({"-fsigned-char", "-usesignedchar", "--usesignedchar"},
                                "  -fsigned-char         \tuse signed char\n",
-                               {driverCategory, clangCategory, hir2mplCategory});
+                               {driverCategory, clangCategory, hir2mplCategory},
+                               maplecl::DisableWith("-funsigned-char"));
 
 maplecl::Option<bool> suppressWarnings({"-w"},
                                "  -w         \tSuppress all warnings.\n",
@@ -294,6 +295,14 @@ maplecl::Option<bool> pthread({"-pthread"},
                                "  -pthread         \tDefine additional macros required for using"
                                "the POSIX threads library.\n",
                                {driverCategory, clangCategory, asCategory, ldCategory});
+
+maplecl::Option<bool> passO2ToClang({"-pO2ToCl"},
+                               "  -pthread         \ttmp for option -D_FORTIFY_SOURCE=1\n",
+                               {clangCategory});
+
+maplecl::Option<bool> defaultSafe({"-defaultSafe", "--defaultSafe"},
+                                  "  --defaultSafe     : treat unmarked function or blocks as safe region by default",
+                                  {driverCategory, hir2mplCategory});
 
 /* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},
@@ -466,6 +475,10 @@ maplecl::Option<std::string> sysRoot({"--sysroot"},
 maplecl::Option<std::string> specs({"-specs"},
                             "  -specs <value>    \tOverride built-in specs with the contents of <file>.\n",
                             {driverCategory, ldCategory});
+
+maplecl::Option<std::string> folder({"-p"},
+                            "  -p <value>    \tsave former folder when generating multiple output.\n",
+                            {driverCategory});
 
 /* ##################### DIGITAL Options ############################################################### */
 

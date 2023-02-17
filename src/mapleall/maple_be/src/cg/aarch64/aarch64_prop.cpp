@@ -1703,6 +1703,9 @@ void ExtendMovPattern::Optimize(Insn &insn) {
 
 void CopyRegProp::Run() {
   FOR_ALL_BB(bb, &cgFunc) {
+    if (bb->IsAtomicBuiltInBB()) {
+      continue;
+    }
     FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction()) {
         continue;

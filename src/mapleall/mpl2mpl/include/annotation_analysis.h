@@ -275,7 +275,7 @@ class AnnotationAnalysis : public AnalysisResult {
   void AnalysisAnnotationForFunc(const MIRPragma &funcPragma, MIRStructType &structType);
   AnnotationType *ReadInGenericType(AnnotationParser &aParser, MIRStructType *sType);
   GenericDeclare *ReadInGenericDeclare(AnnotationParser &aParser, MIRStructType *mirStructType = nullptr);
-  std::string ReadInAllSubString(const MIRPragma &classPragma);
+  std::string ReadInAllSubString(const MIRPragma &classPragma) const;
   void AAForClassInfo(MIRStructType &structType);
   void AAForFuncVarInfo(MIRStructType &structType);
   void AnalysisAnnotationForFuncLocalVar(MIRFunction &func, AnnotationParser &aParser, MIRStructType &structType);

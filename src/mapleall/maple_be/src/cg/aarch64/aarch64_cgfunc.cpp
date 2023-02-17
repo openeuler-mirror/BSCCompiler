@@ -10103,10 +10103,9 @@ void AArch64CGFunc::DBGFixCallFrameLocationOffsets() {
   }
 }
 
-void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType,
-                                       bool isDest, Insn &insn) {
-  uint32 dsize = GetPrimTypeBitSize(primType);
-  bool is64Bits = (dsize == k64BitSize);
+void AArch64CGFunc::SelectAddAfterInsnBySize(Operand &resOpnd, Operand &opnd0, Operand &opnd1, uint32 size,
+                                             bool isDest, Insn &insn) {
+  bool is64Bits = (size == k64BitSize);
   ASSERT(opnd0.GetKind() == Operand::kOpdRegister, "Spill memory operand should based on register");
   ASSERT((opnd1.GetKind() == Operand::kOpdImmediate || opnd1.GetKind() == Operand::kOpdOffset),
          "Spill memory operand should be with a immediate offset.");
@@ -10150,7 +10149,7 @@ void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand
     }
   } else {
     /* load into register */
-    RegOperand &movOpnd = GetOrCreatePhysicalRegisterOperand(R16, dsize, kRegTyInt);
+    RegOperand &movOpnd = GetOrCreatePhysicalRegisterOperand(R16, size, kRegTyInt);
     mOpCode = is64Bits ? MOP_xmovri64 : MOP_wmovri32;
     Insn &movInsn = GetInsnBuilder()->BuildInsn(mOpCode, movOpnd, *immOpnd);
     mOpCode = is64Bits ? MOP_xaddrrr : MOP_waddrrr;
@@ -10163,6 +10162,12 @@ void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand
       (void)insn.GetBB()->InsertInsnBefore(insn, newInsn);
     }
   }
+}
+
+void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType,
+                                       bool isDest, Insn &insn) {
+  uint32 dsize = GetPrimTypeBitSize(primType);
+  SelectAddAfterInsnBySize(resOpnd, opnd0, opnd1, dsize, isDest, insn);
 }
 
 MemOperand *AArch64CGFunc::AdjustMemOperandIfOffsetOutOfRange(
@@ -10211,7 +10216,7 @@ void AArch64CGFunc::FreeSpillRegMem(regno_t vrNum) {
   }
 }
 
-MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
+MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) {
   /* NOTES: must used in RA, not used in other place. */
   if (IsVRegNOForPseudoRegister(vrNum)) {
     auto p = pRegSpillMemOperands.find(GetPseudoRegIdxFromVirtualRegNO(vrNum));
@@ -10225,7 +10230,7 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
     if (vrNum >= vReg.VRegTableSize()) {
       CHECK_FATAL(false, "index out of range in AArch64CGFunc::FreeSpillRegMem");
     }
-    uint32 memBitSize = k64BitSize;
+    uint32 memBitSize = memSize <= k64BitSize ? k64BitSize : k128BitSize;
     auto it = reuseSpillLocMem.find(memBitSize);
     if (it != reuseSpillLocMem.end()) {
       MemOperand *memOpnd = it->second->GetOne();
@@ -11679,9 +11684,7 @@ Operand *AArch64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intr
   bool release = sucMemOrder >= std::memory_order_release;
 
   BB *atomicBB = CreateAtomicBuiltinBB(false);
-  if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
-    SetCurBB(*atomicBB);
-  }
+  SetCurBB(*atomicBB);
 
   /* load from pointed address */
   auto primTypeP2Size = GetPrimTypeP2Size(primType);
@@ -11708,11 +11711,7 @@ Operand *AArch64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intr
     auto &atomicBBOpnd = GetOrCreateLabelOperand(*atomicBB);
     atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wcbnz, *accessStatus, atomicBBOpnd));
   }
-
-  if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
-    SetCurBB(*nextAtomicBB);
-  }
-
+  SetCurBB(*nextAtomicBB);
   /* cset */
   auto *returnOpnd = &CreateRegisterOperandOfType(primType);
   SelectAArch64CSet(*returnOpnd, GetCondOperand(CC_EQ), false);
@@ -11747,10 +11746,7 @@ Operand *AArch64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intr
 Operand *AArch64CGFunc::SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) {
   auto primType = intrinsicopNode.GetPrimType();
 
-  BB *atomicBB = CreateAtomicBuiltinBB(false);
-  if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
-    SetCurBB(*atomicBB);
-  }
+  BB *atomicBB = CreateAtomicBuiltinBB();
   /* handle built_in args */
   Operand *addrOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.GetNopndAt(kInsnFirstOpnd));
   addrOpnd = &LoadIntoRegister(*addrOpnd, intrinsicopNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType());
@@ -11763,15 +11759,10 @@ Operand *AArch64CGFunc::SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsic
   }
   bool acquire = memOrder == std::memory_order_acquire || memOrder >= std::memory_order_acq_rel;
   bool release = memOrder >= std::memory_order_release;
-
-  if (GetCG()->GetOptimizeLevel() != CGOptions::kLevel0) {
-    SetCurBB(*atomicBB);
-  }
-
   /* mov reg, 1 */
   auto *regOperated = &CreateRegisterOperandOfType(PTY_u32);
   SelectCopyImm(*regOperated, CreateImmOperand(PTY_u32, 1), PTY_u32);
-
+  SetCurBB(*atomicBB);
   /* load from pointed address */
   auto primTypeP2Size = GetPrimTypeP2Size(PTY_u8);
   auto *regLoaded = &CreateRegisterOperandOfType(PTY_u32);
@@ -11787,7 +11778,7 @@ Operand *AArch64CGFunc::SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsic
   atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wcbnz, *accessStatus, atomicBBOpnd));
 
   BB *nextBB = CreateNewBB();
-  GetCurBB()->AppendBB(*nextBB);
+  atomicBB->AppendBB(*nextBB);
   SetCurBB(*nextBB);
 
   return regLoaded;

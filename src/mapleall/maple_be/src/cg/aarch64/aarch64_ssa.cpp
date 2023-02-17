@@ -56,8 +56,10 @@ RegOperand *AArch64CGSSAInfo::GetRenamedOperand(RegOperand &vRegOpnd, bool isDef
 }
 
 VRegVersion *AArch64CGSSAInfo::RenamedOperandSpecialCase(RegOperand &vRegOpnd, Insn &curInsn, uint32 idx) {
-  LogInfo::MapleLogger() << "WARNING: " << vRegOpnd.GetRegisterNumber() << " has no def info in function : "
-                         << cgFunc->GetName() << " !\n";
+  if (opts::debug) {
+    LogInfo::MapleLogger() << "WARNING: " << vRegOpnd.GetRegisterNumber() << " has no def info in function : "
+                           << cgFunc->GetName() << " !\n";
+  }
   /* occupy operand for no def vreg */
   if (!IncreaseSSAOperand(vRegOpnd.GetRegisterNumber(), nullptr)) {
     ASSERT(GetAllSSAOperands().find(vRegOpnd.GetRegisterNumber()) != GetAllSSAOperands().end(), "should find");

@@ -15,6 +15,8 @@
 #include "openProfile.h"
 #include "bin_mpl_export.h"
 #include "bin_mplt.h"
+#include "update_mplt.h"
+
 
   // namespace maple
 namespace maple {

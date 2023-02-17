@@ -1486,6 +1486,9 @@ void AArch64Schedule::ListScheduling(bool beforeRA) {
     if (bb->IsUnreachable()) {
       continue;
     }
+    if (bb->IsAtomicBuiltInBB()) {
+      continue;
+    }
     intraDDA->Run(*bb, nodes);
 
     if (LIST_SCHED_DUMP_REF) {

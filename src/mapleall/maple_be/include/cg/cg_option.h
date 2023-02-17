@@ -1422,6 +1422,10 @@ class CGOptions {
     return instrumentationOutPutPath;
   }
 
+  static bool DoAggrOpt() {
+    return doAggrOpt;
+  }
+
   static void SetVisibilityType(const std::string &type) {
     if (type == "hidden" || type == "internal") {
       visibilityType = kHidden;
@@ -1562,6 +1566,7 @@ class CGOptions {
   static std::string instrumentationOutPutPath;
   static std::string liteProfile;
   static std::string functionProrityFile;
+  static bool doAggrOpt;
   static VisibilityType visibilityType;
   static bool noplt;
 };
