@@ -58,7 +58,7 @@ enum InlineStage {
 class InlineTransformer {
  public:
   InlineTransformer(InlineStage inlineStage, MIRFunction &caller, MIRFunction &callee,
-      CallNode &callStmt, bool dumpDetail, CallGraph *cg)
+                    CallNode &callStmt, bool dumpDetail, CallGraph *cg)
       : builder(*theMIRModule->GetMIRBuilder()),
         caller(caller),
         callee(callee),

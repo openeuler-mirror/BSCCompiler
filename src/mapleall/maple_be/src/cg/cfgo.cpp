@@ -88,6 +88,9 @@ bool ChainingPattern::MergeFallthuBB(BB &curBB) {
       !cgFunc->GetTheCFG()->CanMerge(curBB, *sucBB)) {
     return false;
   }
+  if (curBB.IsAtomicBuiltInBB() || sucBB->IsAtomicBuiltInBB()) {
+    return false;
+  }
   Log(curBB.GetId());
   if (checkOnly) {
     return false;

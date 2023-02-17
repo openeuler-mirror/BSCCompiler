@@ -13,9 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "coderelayout.h"
-#include <algorithm>
-#include <fstream>
-#include <iostream>
 #include "profile.h"
 
 // This phase layout the function according the profile.
@@ -83,6 +80,7 @@ void CodeReLayout::AddStaticFieldRecord() {
     FindDreadRecur(stmt, stmt);
     if (stmt->GetOpCode() == OP_dassign) {
       MIRSymbol *mirSym = currFunc->GetLocalOrGlobalSymbol(static_cast<DassignNode*>(stmt)->GetStIdx());
+      ASSERT_NOT_NULL(mirSym);
       if (mirSym->IsStatic()) {
         BaseNode *node = builder->CreateExprAddrof((static_cast<DassignNode*>(stmt))->GetFieldID(),
                                                    (static_cast<DassignNode*>(stmt))->GetStIdx());
@@ -143,6 +141,7 @@ void CodeReLayout::InsertProfileBeforeDread(const StmtNode *stmt, BaseNode *opnd
   }
   DreadNode *dreadNode = static_cast<DreadNode*>(opnd);
   MIRSymbol *mirSym = currFunc->GetLocalOrGlobalSymbol(dreadNode->GetStIdx());
+  ASSERT_NOT_NULL(mirSym);
   if (mirSym->IsStatic()) {
     BaseNode *node = opnd;
     if (opnd->GetOpCode() == OP_dread) {
@@ -176,7 +175,7 @@ void CodeReLayout::Finish() {
       sortFunction->SetLayoutType((item.second).type);
     }
   }
-  for (auto &function : GetMIRModule().GetFunctionList()) {
+  for (auto &function : std::as_const(GetMIRModule().GetFunctionList())) {
     ++layoutCount[static_cast<size_t>(function->GetLayoutType())];
   }
   if (Options::genPGOReport || trace) {
@@ -186,8 +185,9 @@ void CodeReLayout::Finish() {
                              << "\tcount=" << layoutCount[i] << "\n";
     }
   }
-  std::stable_sort(GetMIRModule().GetFunctionList().begin(), GetMIRModule().GetFunctionList().end(),
-                   [](const MIRFunction *a, const MIRFunction *b) {
+  std::vector<MIRFunction*> temp(GetMIRModule().GetFunctionList().cbegin(),
+                                 GetMIRModule().GetFunctionList().cend());
+  std::stable_sort(temp.begin(), temp.end(), [](const MIRFunction *a, const MIRFunction *b) {
     ASSERT_NOT_NULL(a);
     ASSERT_NOT_NULL(b);
     return a->GetLayoutType() < b->GetLayoutType();
@@ -197,8 +197,7 @@ void CodeReLayout::Finish() {
     if (trace) {
       LogInfo::MapleLogger() << "last\t" << last << "\tcount\t" << layoutCount[i] << "\n";
     }
-    std::stable_sort(GetMIRModule().GetFunctionList().begin() + last,
-                     GetMIRModule().GetFunctionList().begin() + last + layoutCount[i],
+    std::stable_sort(temp.begin() + last, temp.begin() + last + layoutCount[i],
                      [](const MIRFunction *a, const MIRFunction *b) {
       ASSERT_NOT_NULL(a);
       ASSERT_NOT_NULL(b);
@@ -206,6 +205,7 @@ void CodeReLayout::Finish() {
     });
     last += layoutCount[i];
   }
+  std::copy(temp.begin(), temp.end(), GetMIRModule().GetFunctionList().begin());
   // Create layoutInfo
   GenLayoutSym();
 }
@@ -220,7 +220,7 @@ MIRSymbol *CodeReLayout::GenStrSym(const std::string &str) {
   staticSym->SetStorageClass(kScFstatic);
   for (const char &c : newStr) {
     MIRConst *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        c, *GlobalTables::GetTypeTable().GetUInt8());
+        static_cast<uint64>(c), *GlobalTables::GetTypeTable().GetUInt8());
     strTabAggConst->AddItem(newConst, 0);
   }
   staticSym->SetKonst(strTabAggConst);
@@ -243,11 +243,15 @@ void CodeReLayout::GenLayoutSym() {
       *GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetVoidPtr(), 1);
   MIRAggConst *funcLayoutConst = GetMIRModule().GetMemPool()->New<MIRAggConst>(GetMIRModule(), arrayType);
   uint32 funcIdx = 0;
+  auto funcIter = GetMIRModule().GetFunctionList().cbegin();
   MIRConst *fieldConst = nullptr;
   MIRFunction *method = nullptr;
   for (uint32 i = 0; i < static_cast<uint32>(LayoutType::kLayoutTypeCount); ++i) {
     if (funcIdx < GetMIRModule().GetFunctionList().size()) {
-      method = GetMIRModule().GetFunction(funcIdx);
+      if (i > 0) {
+        std::advance(funcIter, layoutCount[i - 1]);
+      }
+      method = *funcIter;
     } else {
       std::cerr << "no method for codelayout type " << GetLayoutTypeString(i) << "\n";
       return;
@@ -257,9 +261,10 @@ void CodeReLayout::GenLayoutSym() {
       if (trace) {
         LogInfo::MapleLogger() << "encounter valid method " << funcIdx << "\n";
       }
-      funcIdx++;
+      ++funcIdx;
       if (funcIdx < GetMIRModule().GetFunctionList().size()) {
-        method = GetMIRModule().GetFunction(funcIdx);
+        ++funcIter;
+        method = *funcIter;
       } else {
         std::cerr << "no method for codelayout" << GetLayoutTypeString(i) << "\n";
         return;

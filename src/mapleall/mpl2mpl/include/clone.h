@@ -77,7 +77,7 @@ class Clone : public AnalysisResult {
     return replaceRetIgnored;
   }
 
-  void UpdateReturnVoidIfPossible(CallMeStmt *callMeStmt, const MIRFunction &targetFunc);
+  void UpdateReturnVoidIfPossible(CallMeStmt *callMeStmt, const MIRFunction &targetFunc) const;
 
  private:
   MIRModule *mirModule;

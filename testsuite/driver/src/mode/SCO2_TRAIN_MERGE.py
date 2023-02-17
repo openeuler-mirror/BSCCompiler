@@ -74,7 +74,8 @@ SCO2_TRAIN_MERGE = {
                 "mplcg": "--O2 --quiet --no-pie --verbose-asm --fPIC"
             },
             global_option="",
-            infiles=["${APP}.mpl"]
+            infiles=["${APP}.mpl"],
+            outfile="${APP}.s"
         ),
         CLinker(
             infiles=["${APP}.s"],
@@ -85,11 +86,11 @@ SCO2_TRAIN_MERGE = {
         )
     ],
     "link": [
-        CLinker(
+        MapleDriver(
+            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
             infiles=["${APP}"],
-            front_option="-std=gnu99 -no-pie",
             outfile="${EXE}",
-            back_option="-lm -L${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/"
+            option="-std=gnu99 --no-pie -lm -L${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/"
         )
     ],
     "cp_data":[

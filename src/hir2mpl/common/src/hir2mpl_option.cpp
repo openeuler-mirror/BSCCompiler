@@ -181,10 +181,6 @@ maplecl::Option<std::string> depsamename({"-depsamename", "--depsamename"},
                                     "               : [src] load type from src when on-demand load same name type",
                                     {hir2mplCategory});
 
-maplecl::Option<bool> defaultSafe({"-defaultSafe", "--defaultSafe"},
-                                  "  --defaultSafe     : treat unmarked function or blocks as safe region by default",
-                                  {hir2mplCategory});
-
 maplecl::Option<bool> dumpFEIRBB({"-dump-bb", "--dump-bb"},
                             "  -dump-bb               : dump basic blocks info",
                             {hir2mplCategory});

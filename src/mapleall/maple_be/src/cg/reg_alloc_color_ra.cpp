@@ -1099,7 +1099,8 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
 }
 
 /* Create a common stack space for spilling with need_spill */
-MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, SpillMemCheck check) {
+MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, uint32 memSize,
+                                                   SpillMemCheck check) {
   if (spillIdx >= spillMemOpnds.size()) {
     return nullptr;
   }
@@ -1121,7 +1122,7 @@ MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, SpillMemChec
 
   if (spillMemOpnds[spillIdx] == nullptr) {
     regno_t reg = cgFunc->NewVReg(kRegTyInt, sizeof(int64));
-    spillMemOpnds[spillIdx] = cgFunc->GetOrCreatSpillMem(reg);
+    spillMemOpnds[spillIdx] = cgFunc->GetOrCreatSpillMem(reg, memSize);
   }
   return spillMemOpnds[spillIdx];
 }
@@ -2710,9 +2711,9 @@ MemOperand *GraphColorRegAllocator::GetReuseMem(const LiveRange &lr) {
 #endif  /* CONSISTENT_MEMOPNDi */
 }
 
-MemOperand *GraphColorRegAllocator::GetSpillMem(uint32 vregNO, bool isDest, Insn &insn,
-                                                regno_t regNO, bool &isOutOfRange) {
-  MemOperand *memOpnd = cgFunc->GetOrCreatSpillMem(vregNO);
+MemOperand *GraphColorRegAllocator::GetSpillMem(uint32 vregNO, uint32 spillSize, bool isDest,
+                                                Insn &insn, regno_t regNO, bool &isOutOfRange) {
+  MemOperand *memOpnd = cgFunc->GetOrCreatSpillMem(vregNO, spillSize);
   if (cgFunc->GetCG()->IsLmbc() && cgFunc->GetSpSaveReg()) {
     LiveRange *lr = lrMap[cgFunc->GetSpSaveReg()];
     RegOperand *baseReg = nullptr;
@@ -2750,7 +2751,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   uint32 regNO = regOpnd.GetRegisterNumber();
   LiveRange *lr = lrMap[regNO];
 
-  MemOperand *spillMem = CreateSpillMem(spillIdx, kSpillMemPre);
+  MemOperand *spillMem = CreateSpillMem(spillIdx, lr->GetSpillSize(), kSpillMemPre);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
 
   PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), regOpnd.GetSize());
@@ -2799,7 +2800,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
     return;
   }
 
-  MemOperand *spillMem = CreateSpillMem(spillIdx, kSpillMemPost);
+  MemOperand *spillMem = CreateSpillMem(spillIdx, lr->GetSpillSize(), kSpillMemPost);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
 
   PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), regOpnd.GetSize());
@@ -2863,7 +2864,7 @@ MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, bool &isOu
         baseRegNO = regInfo->GetReservedSpillReg();
       }
       ASSERT(baseRegNO != 0, "invalid base register number");
-      memOpnd = GetSpillMem(lr.GetRegNO(), isDef, insn, baseRegNO, isOutOfRange);
+      memOpnd = GetSpillMem(lr.GetRegNO(), lr.GetSpillSize(), isDef, insn, baseRegNO, isOutOfRange);
       /* dest's spill reg can only be R15 and R16 () */
       if (isOutOfRange && isDef) {
         ASSERT(lr.GetSpillReg() != regInfo->GetReservedSpillReg(),

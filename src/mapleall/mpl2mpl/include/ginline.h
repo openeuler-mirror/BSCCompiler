@@ -34,8 +34,8 @@
 namespace maple {
 class CallSiteNode {
  public:
-  CallSiteNode(CallInfo &info, BadnessInfo &badnessInfo, uint32 inlineDepth)
-      : callInfo(&info), badInfo(badnessInfo), depth(inlineDepth) {}
+  CallSiteNode(CallInfo *info, BadnessInfo &badnessInfo, uint32 inlineDepth)
+      : callInfo(info), badInfo(badnessInfo), depth(inlineDepth) {}
 
   auto *GetCallInfo() const {
     return callInfo;
@@ -105,6 +105,7 @@ class GInline {
 
   ~GInline() {
     CleanupInline();
+    cg = nullptr;
   }
 
   void Inline();

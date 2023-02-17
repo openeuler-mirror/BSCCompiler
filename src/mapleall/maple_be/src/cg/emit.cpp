@@ -2152,30 +2152,32 @@ void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec)
   }
 }
 
-void Emitter::EmitStringPointers() {
+void Emitter::EmitStringSectionAndAlign(bool isTermByZero) {
   if (CGOptions::OptimizeForSize()) {
-    (void)Emit(asmInfo->GetSection()).Emit(".rodata.str,\"aMS\",@progbits,1").Emit("\n");
+    if (!isTermByZero) {
+      (void)Emit(asmInfo->GetSection()).Emit(".rodata.str,\"aMS\",@progbits,1").Emit("\n");
+    } else {
+      (void)Emit(asmInfo->GetSection()).Emit(".rodata").Emit("\n");
+    }
+  } else {
+    (void)Emit(asmInfo->GetSection()).Emit(".rodata").Emit("\n");
+  }
 #if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
     Emit("\t.align 8\n");
 #else
     Emit("\t.align 3\n");
 #endif
-  } else {
-    (void)Emit(asmInfo->GetSection()).Emit(".rodata").Emit("\n");
-  }
+}
+
+void Emitter::EmitStringPointers() {
   for (auto idx: localStrPtr) {
     if (idx == 0) {
       continue;
     }
-    if (!CGOptions::OptimizeForSize()) {
-#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
-      Emit("\t.align 8\n");
-#else
-      Emit("\t.align 3\n");
-#endif
-    }
     uint32 strId = idx.GetIdx();
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
+    bool isTermByZero = str[str.size() - 1] == '\0';
+    EmitStringSectionAndAlign(isTermByZero);
     (void)Emit(".LUstr_").Emit(strId).Emit(":\n");
     std::string mplstr(str);
     EmitStr(mplstr, false, true);
@@ -2184,15 +2186,10 @@ void Emitter::EmitStringPointers() {
     if (idx == 0) {
       continue;
     }
-    if (!CGOptions::OptimizeForSize()) {
-#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
-      Emit("\t.align 8\n");
-#else
-      Emit("\t.align 3\n");
-#endif
-    }
     uint32 strId = idx.GetIdx();
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
+    bool isTermByZero = str[str.size() - 1] == '\0';
+    EmitStringSectionAndAlign(isTermByZero);
 #if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
     Emit(asmInfo->GetAlign());
     Emit("8\n");

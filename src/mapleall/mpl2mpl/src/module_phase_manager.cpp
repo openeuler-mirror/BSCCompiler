@@ -17,6 +17,9 @@
 #include "ipa_phase_manager.h"
 #include "ipa_side_effect.h"
 #include "mpl_profdata_parser.h"
+#include "openProfile.h"
+#include "update_mplt.h"
+#include "gen_profile.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())

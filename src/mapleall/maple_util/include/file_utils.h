@@ -40,6 +40,9 @@ class FileUtils {
   static bool IsFileExists(const std::string &filePath);
   static std::string AppendMapleRootIfNeeded(bool needRootPath, const std::string &path,
                                              const std::string &defaultRoot = "." + kFileSeperatorStr);
+  static std::string tmpFolderPath;
+  static std::string GetOutPutDir();
+  static bool DelTmpDir();
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_FILE_UTILS_H

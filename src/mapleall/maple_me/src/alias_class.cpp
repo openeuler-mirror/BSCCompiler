@@ -124,21 +124,18 @@ static bool IsRestrictPointer(const OriginalSt *ost) {
   if (!IsAddress(ost->GetType()->GetPrimType())) {
     return false;
   }
-
-  if (ost->IsSymbolOst() && ost->GetIndirectLev() == 0) {
-    auto *symbol = ost->GetMIRSymbol();
-    auto fieldId = ost->GetFieldID();
-    if (fieldId != 0) {
-      auto type = symbol->GetType();
-      CHECK_FATAL(type->IsStructType(), "must be struct type");
-      bool restrictField = static_cast<MIRStructType*>(type)->IsFieldRestrict(fieldId);
-      return restrictField;
-    } else {
-      bool restrictPointer = symbol->GetAttr(ATTR_restrict);
-      return restrictPointer;
-    }
+  if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
+    return false;
   }
-  return false;
+  auto *symbol = ost->GetMIRSymbol();
+  auto fieldId = ost->GetFieldID();
+  if (fieldId == 0) {
+    return symbol->GetAttr(ATTR_restrict);
+  }
+  auto type = symbol->GetType();
+  auto isStruct = type->IsStructType();
+  CHECK_FATAL(isStruct || !MeOption::tbaa, "must be struct type under strict-aliasing rules");
+  return static_cast<MIRStructType*>(type)->IsFieldRestrict(fieldId);;
 }
 
 bool AliasClass::CallHasNoPrivateDefEffect(StmtNode *stmt) const {

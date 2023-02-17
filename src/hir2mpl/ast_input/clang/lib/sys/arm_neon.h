@@ -4175,11 +4175,17 @@ void __builtin_mpl_vector_st4_lane_u64v1(uint64_t *ptr, uint64x1x4_t val, const 
 void __builtin_mpl_vector_st4q_lane_u64v2(uint64_t *ptr, uint64x2x4_t val, const int lane);
 #define vst4q_lane_u64(ptr, val, lane)  __builtin_mpl_vector_st4q_lane_u64v2(ptr, val, lane)
 
-int8x8_t __builtin_mpl_vector_tbl1_i8v8(int8x8_t a, int8x8_t idx);
-#define vtbl1_s8(a, idx)  __builtin_mpl_vector_tbl1_i8v8(a, idx)
+int8x8_t __builtin_mpl_vector_tbl1_i8v8(int8x16_t a, int8x8_t idx);
+static inline int8x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vtbl1_s8(int8x8_t a, int8x8_t idx) {
+  return __builtin_mpl_vector_tbl1_i8v8(vcombine_s8(a, (int8x8_t){0}), idx);
+}
 
-uint8x8_t __builtin_mpl_vector_tbl1_u8v8(uint8x8_t a, uint8x8_t idx);
-#define vtbl1_u8(a, idx)  __builtin_mpl_vector_tbl1_u8v8(a, idx)
+uint8x8_t __builtin_mpl_vector_tbl1_u8v8(uint16x8_t a, uint8x8_t idx);
+static inline uint8x8_t __attribute__ ((__always_inline__, __gnu_inline__))
+vtbl1_u8(uint8x8_t a, uint8x8_t idx) {
+  return __builtin_mpl_vector_tbl1_i8v8(vcombine_s8(a, (uint8x8_t){0}), idx);
+}
 
 int8x8_t __builtin_mpl_vector_qtbl1_i8v8(int8x16_t t, uint8x8_t idx);
 #define vqtbl1_s8(t, idx)  __builtin_mpl_vector_qtbl1_i8v8(t, idx)

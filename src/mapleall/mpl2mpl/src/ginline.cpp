@@ -52,7 +52,7 @@ bool GInline::ConsiderInlineCallsite(CallInfo &info, uint32 depth) {
       // for debug
       if (info.GetInlineFailedCode() == kIfcNotDeclaredInlineGrow) {
         auto *badInfo = CalcBadness(info);
-        auto *callsiteNode = alloc.New<CallSiteNode>(info, *badInfo, depth);
+        auto *callsiteNode = alloc.New<CallSiteNode>(&info, *badInfo, depth);
         callsiteNode->Dump();
         LogInfo::MapleLogger() << std::endl;
       }
@@ -128,7 +128,7 @@ void GInline::InsertNewCallSite(CallInfo &info, uint32 depth) {
   CHECK_NULL_FATAL(callee);
 
   auto *badInfo = CalcBadness(info);
-  auto *callsiteNode = alloc.New<CallSiteNode>(info, *badInfo, depth);
+  auto *callsiteNode = alloc.New<CallSiteNode>(&info, *badInfo, depth);
   (void)callSiteSet.emplace(callsiteNode);
   if (dumpDetail) {
     LogInfo::MapleLogger() << "Enqueue ";
@@ -157,7 +157,7 @@ void GInline::UpdateCallSite(CallInfo &info) {
     return;  // the callsite is not a candidate
   }
   auto *badInfo = CalcBadness(info);
-  auto *newNode = alloc.New<CallSiteNode>(info, *badInfo, (*it)->GetDepth());
+  auto *newNode = alloc.New<CallSiteNode>(&info, *badInfo, (*it)->GetDepth());
   (void)callSiteSet.erase(it);
   (void)callSiteSet.emplace(newNode);
   if (dumpDetail) {

@@ -1451,8 +1451,8 @@ void LSRALinearScanRegAllocator::InsertCallerSave(Insn &insn, Operand &opnd, boo
   std::string comment;
   bool isOutOfRange = false;
   if (isDef) {
-    memOpnd = GetSpillMem(vRegNO, true, insn, static_cast<regno_t>(intSpillRegSet[0] + firstIntReg),
-        isOutOfRange);
+    memOpnd = GetSpillMem(vRegNO, regSize, true, insn,
+        static_cast<regno_t>(intSpillRegSet[0] + firstIntReg), isOutOfRange);
     Insn *stInsn = regInfo->BuildStrInsn(regSize, spType, *phyOpnd, *memOpnd);
     comment = " SPILL for caller_save " + std::to_string(vRegNO);
     ++callerSaveSpillCount;
@@ -1467,8 +1467,8 @@ void LSRALinearScanRegAllocator::InsertCallerSave(Insn &insn, Operand &opnd, boo
       insn.GetBB()->InsertInsnAfter(insn, *stInsn);
     }
   } else {
-    memOpnd = GetSpillMem(vRegNO, false, insn, static_cast<regno_t>(intSpillRegSet[0] + firstIntReg),
-        isOutOfRange);
+    memOpnd = GetSpillMem(vRegNO, regSize, false, insn,
+        static_cast<regno_t>(intSpillRegSet[0] + firstIntReg), isOutOfRange);
     Insn *ldInsn = regInfo->BuildLdrInsn(regSize, spType, *phyOpnd, *memOpnd);
     comment = " RELOAD for caller_save " + std::to_string(vRegNO);
     ++callerSaveReloadCount;
@@ -1536,9 +1536,10 @@ RegOperand *LSRALinearScanRegAllocator::AssignPhysRegs(Operand &opnd, const Insn
   return nullptr;
 }
 
-MemOperand *LSRALinearScanRegAllocator::GetSpillMem(uint32 vRegNO, bool isDest, Insn &insn,
-                                                    regno_t regNO, bool &isOutOfRange) const {
-  MemOperand *memOpnd = cgFunc->GetOrCreatSpillMem(vRegNO);
+MemOperand *LSRALinearScanRegAllocator::GetSpillMem(uint32 vRegNO, uint32 spillSize, bool isDest,
+                                                    Insn &insn, regno_t regNO,
+                                                    bool &isOutOfRange) const {
+  MemOperand *memOpnd = cgFunc->GetOrCreatSpillMem(vRegNO, spillSize);
   return regInfo->AdjustMemOperandIfOffsetOutOfRange(memOpnd, vRegNO, isDest, insn, regNO, isOutOfRange);
 }
 
@@ -1649,7 +1650,7 @@ void LSRALinearScanRegAllocator::SpillOperand(Insn &insn, Operand &opnd, bool is
     li->SetStackSlot(kSpilled);
 
     ++spillCount;
-    memOpnd = GetSpillMem(regNO, true, insn,
+    memOpnd = GetSpillMem(regNO, regSize, true, insn,
         static_cast<regno_t>(intSpillRegSet[spillIdx + 1] + firstIntReg), isOutOfRange);
     Insn *stInsn = regInfo->BuildStrInsn(regSize, spType, *phyOpnd, *memOpnd);
     std::string comment = " SPILL vreg:" + std::to_string(regNO);
@@ -1671,7 +1672,7 @@ void LSRALinearScanRegAllocator::SpillOperand(Insn &insn, Operand &opnd, bool is
                              cgFunc->GetName() << "\n";
     }
     ++reloadCount;
-    memOpnd = GetSpillMem(regNO, false, insn,
+    memOpnd = GetSpillMem(regNO, regSize, false, insn,
         static_cast<regno_t>(intSpillRegSet[spillIdx] + firstIntReg), isOutOfRange);
     Insn *ldInsn = regInfo->BuildLdrInsn(regSize, spType, *phyOpnd, *memOpnd);
     std::string comment = " RELOAD vreg" + std::to_string(regNO);

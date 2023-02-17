@@ -2423,7 +2423,7 @@ class BlockNode : public StmtNode {
                                       const SrcPosition &inlinedPosition = SrcPosition());
 
   BlockNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                std::unordered_map<uint32_t, FreqType> &fromFreqs, uint64_t numer, uint64_t denom,
+                                std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, uint64_t denom,
                                 uint32_t updateOp);
 
   bool IsEmpty() const {

@@ -154,6 +154,14 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
     /* Set output file for last compilation tool */
     if (&action == options.GetActions()[0].get()) {
       /* the tool may not support "-o" for output option */
+      if (opts::output.GetValue() == "/dev/stdout") {
+        if (action.GetTool() == "as") {
+          LogInfo::MapleLogger(kLlErr) << "Fatal error: can't open a bfd on stdout - ." << "\n";
+          exit(1);
+        } else if (action.GetTool() == "ld") {
+          opts::output.SetValue("-");
+        }
+      }
       AppendOutputOption(finalOptions, opts::output.GetValue());
     }
   }

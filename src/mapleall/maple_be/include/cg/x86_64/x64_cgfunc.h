@@ -267,7 +267,7 @@ class X64CGFunc : public CGFunc {
     return false;
   };
 
-  MemOperand *GetOrCreatSpillMem(regno_t vrNum) override;
+  MemOperand *GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) override;
   void FreeSpillRegMem(regno_t vrNum) override;
   int64 GetOrCreatSpillRegLocation(regno_t vrNum) {
     auto symLoc = GetMemlayout()->GetLocOfSpillRegister(vrNum);

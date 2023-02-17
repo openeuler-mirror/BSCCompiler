@@ -103,6 +103,8 @@ extern maplecl::Option<bool> dndebug;
 extern maplecl::Option<bool> usesignedchar;
 extern maplecl::Option<bool> suppressWarnings;
 extern maplecl::Option<bool> pthread;
+extern maplecl::Option<bool> passO2ToClang;
+extern maplecl::Option<bool> defaultSafe;
 
 /* ##################### STRING Options ############################################################### */
 
@@ -142,6 +144,7 @@ extern maplecl::Option<std::string> fStrongEvalOrderE;
 extern maplecl::Option<std::string> march;
 extern maplecl::Option<std::string> sysRoot;
 extern maplecl::Option<std::string> specs;
+extern maplecl::Option<std::string> folder;
 
 /* ##################### DIGITAL Options ############################################################### */
 

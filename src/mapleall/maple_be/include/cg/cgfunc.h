@@ -170,7 +170,7 @@ class CGFunc {
   virtual void GenerateCleanupCode(BB &bb) = 0;
   virtual bool NeedCleanup() = 0;
   virtual void GenerateCleanupCodeForExtEpilog(BB &bb) = 0;
-  virtual MemOperand *GetOrCreatSpillMem(regno_t vrNum) = 0;
+  virtual MemOperand *GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) = 0;
   virtual void FreeSpillRegMem(regno_t vrNum) = 0;
   void CreateLmbcFormalParamInfo();
   virtual uint32 FloatParamRegRequired(MIRStructType *structType, uint32 &fpSize) = 0;

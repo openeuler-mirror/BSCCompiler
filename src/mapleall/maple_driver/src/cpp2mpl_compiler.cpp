@@ -34,13 +34,7 @@ std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options [[maybe_
   if (action.IsItFirstRealAction()) {
     return action.GetInputFile();
   }
-  // Get base file name
-  auto idx = action.GetOutputName().find(".ast");
-  std::string outputName = action.GetOutputName();
-  if (idx != std::string::npos) {
-    outputName = action.GetOutputName().substr(0, idx);
-  }
-  return action.GetOutputFolder() + outputName + ".ast";
+  return action.GetFullOutputName() + ".ast";
 }
 
 bool IsUseBoundaryOption() {
@@ -54,7 +48,8 @@ bool IsUseNpeOption() {
 DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
                                                  const Action &action [[maybe_unused]]) const {
   uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
-  uint32_t length = len;
+  // 1 for option -p
+  uint32_t length = len + 1;
   if (IsUseBoundaryOption()) {
     length++;
   }
@@ -73,6 +68,9 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
                                            defaultOptions.mplOptions[i].GetValue(),
                                            options.GetExeFolder()));
   }
+
+  defaultOptions.mplOptions[len].SetKey("--output");
+  defaultOptions.mplOptions[len++].SetValue(action.GetOutputFolder());
   if (IsUseBoundaryOption()) {
     defaultOptions.mplOptions[len].SetKey("--boundary-check-dynamic");
     defaultOptions.mplOptions[len].SetValue("");

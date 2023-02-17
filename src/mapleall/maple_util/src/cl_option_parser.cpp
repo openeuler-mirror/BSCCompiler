@@ -126,6 +126,15 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
     return RetCode::unnecessaryValue;
   }
 
+  /* option -o - */
+  if (keyArg.rawArg == "-o" && keyArg.val == "-") {
+    keyArg.val = "/dev/stdout";
+  }
+  if (keyArg.rawArg == "-D" && keyArg.val.find("_FORTIFY_SOURCE") != keyArg.val.npos) {
+    static std::string tmp(keyArg.val);
+    tmp += " -O2 ";
+    keyArg.val = tmp;
+  }
   if (!keyArg.isEqualOpt && IsPrefixDetected(keyArg.val)) {
     if (ExpectedVal() == ValueExpectedType::kValueRequired) {
       return RetCode::valueEmpty;

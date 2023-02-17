@@ -93,11 +93,11 @@ class CallInfo {
  public:
   CallInfo(CallType type, MIRFunction *callee, StmtNode *node, uint32 ld, uint32 stmtId, bool local = false)
       : areAllArgsLocal(local), cType(type), callee(callee), callStmt(node), loopDepth(ld), id(stmtId) {}
-  CallInfo(CallType type, MIRFunction &caller, MIRFunction &callee, StmtNode *node, uint32 ld, uint32 stmtId,
+  CallInfo(CallType type, MIRFunction *caller, MIRFunction &callee, StmtNode *node, uint32 ld, uint32 stmtId,
            bool local = false)
       : areAllArgsLocal(local),
         cType(type),
-        caller(&caller),
+        caller(caller),
         callee(&callee),
         callStmt(node),
         loopDepth(ld),
@@ -189,9 +189,9 @@ class CGNode : public BaseGraphNode {
     return numReferences;
   }
 
-  CGNode(MIRFunction *func, MapleAllocator &allocater, uint32 index)
+  CGNode(MIRFunction *func, MapleAllocator *allocater, uint32 index)
       : BaseGraphNode(index),
-        alloc(&allocater),
+        alloc(allocater),
         sccNode(nullptr),
         mirFunc(func),
         callees(alloc->Adapter()),
@@ -220,10 +220,10 @@ class CGNode : public BaseGraphNode {
     return mirFunc;
   }
 
-  void AddCallsite(CallInfo&, CGNode*);
-  void AddCallsite(CallInfo*, MapleSet<CGNode*, Comparator<CGNode>>*);
-  void RemoveCallsite(const CallInfo*);
-  void RemoveCallsite(uint32);
+  void AddCallsite(CallInfo &ci, CGNode *node);
+  void AddCallsite(CallInfo *ci, MapleSet<CGNode*, Comparator<CGNode>> *callee);
+  void RemoveCallsite(const CallInfo *ci);
+  void RemoveCallsite(uint32 stmtID);
 
   uint32 GetInlinedTimes() const {
     return inlinedTimes;
@@ -360,7 +360,7 @@ class CGNode : public BaseGraphNode {
   }
 
   void GetCaller(std::vector<CallInfo*> &callInfos) {
-    for (auto &pair : callers) {
+    for (const auto &pair : callers) {
       auto *callerNode = pair.first;
       auto *callStmts = pair.second;
       for (auto *callStmt : *callStmts) {
@@ -479,7 +479,7 @@ class CGNode : public BaseGraphNode {
   }
   // check frequency
   FreqType GetFuncFrequency() const;
-  FreqType GetCallsiteFrequency(const StmtNode *callstmt) const;
+  FreqType GetCallsiteFrequency(const StmtNode &callstmt) const;
 
  private:
   // mirFunc is generated from callStmt's puIdx from mpl instruction
@@ -517,11 +517,11 @@ using Caller2Cands = std::pair<PUIdx, Callsite>;
 
 class CallGraph : public AnalysisResult {
  public:
-  CallGraph(MIRModule &m, MemPool &memPool, MemPool &tempPool, const KlassHierarchy &kh, const std::string &fn);
+  CallGraph(MIRModule &m, MemPool &memPool, MemPool &templPool, const KlassHierarchy &kh, const std::string &fn);
   ~CallGraph() override = default;
 
   void InitCallExternal() {
-    callExternal = cgAlloc.GetMemPool()->New<CGNode>(static_cast<MIRFunction*>(nullptr), cgAlloc, numOfNodes++);
+    callExternal = cgAlloc.GetMemPool()->New<CGNode>(static_cast<MIRFunction*>(nullptr), &cgAlloc, numOfNodes++);
   }
 
   const CGNode *CallExternal() const {
@@ -549,27 +549,27 @@ class CallGraph : public AnalysisResult {
     return nodesMap;
   }
 
-  void HandleBody(MIRFunction&, BlockNode&, CGNode&, uint32);
-  void HandleCall(BlockNode&, CGNode&, StmtNode*, uint32);
-  void HandleICall(BlockNode&, CGNode&, StmtNode*, uint32);
-  MIRType *GetFuncTypeFromFuncAddr(const BaseNode*);
+  void HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uint32 loopDepth);
+  void HandleCall(BlockNode &body, CGNode &node, StmtNode &stmt, uint32 loopDepth2);
+  void HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint32 loopDepth);
+  MIRType *GetFuncTypeFromFuncAddr(const BaseNode *base);
   void RecordLocalConstValue(const StmtNode *stmt);
-  CallNode *ReplaceIcallToCall(BlockNode &body, IcallNode *icall, PUIdx newPUIdx);
+  CallNode *ReplaceIcallToCall(BlockNode &body, IcallNode *icall, PUIdx newPUIdx) const;
   void CollectAddroffuncFromExpr(const BaseNode *expr);
   void CollectAddroffuncFromStmt(const StmtNode *stmt);
   void CollectAddroffuncFromConst(MIRConst *mirConst);
-  void AddCallGraphNode(MIRFunction&);
+  void AddCallGraphNode(MIRFunction &func);
   void DumpToFile(bool dumpAll = true) const;
   void Dump() const;
   CGNode *GetCGNode(MIRFunction *func) const;
-  CGNode *GetCGNode(PUIdx puIdx) const;
-  void UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, PUIdx calleePuidx, CallNode *call);
-  void UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, std::set<PUIdx> &candidate);
+  CGNode *GetCGNode(const PUIdx puIdx) const;
+  void UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, PUIdx calleePuidx, CallNode *call) const;
+  void UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, std::set<PUIdx> &candidate) const;
   SCCNode<CGNode> *GetSCCNode(MIRFunction *func) const;
   bool IsRootNode(MIRFunction *func) const;
   void UpdateCallGraphNode(CGNode &node);
   void RecomputeSCC();
-  CallInfo *AddCallsite(CallType, CGNode&, CGNode&, CallNode&);
+  CallInfo *AddCallsite(CallType type, CGNode &caller, CGNode &callee, CallNode &call);
   MIRFunction *CurFunction() const {
     return mirModule->CurFunction();
   }
@@ -606,7 +606,7 @@ class CallGraph : public AnalysisResult {
   }
 
   void DelNode(CGNode &node);
-  void ClearFunctionList();
+  void ClearFunctionList() const;
 
   void SetDebugFlag(bool flag) {
     debugFlag = flag;
@@ -636,11 +636,12 @@ class CallGraph : public AnalysisResult {
 
   CallInfo *GenCallInfo(CallType type, MIRFunction *call, StmtNode *s, uint32 loopDepth, uint32 callsiteID) {
     MIRFunction *caller = mirModule->CurFunction();
-    return cgAlloc.GetMemPool()->New<CallInfo>(type, *caller, *call, s, loopDepth, callsiteID);
+    ASSERT_NOT_NULL(call);
+    return cgAlloc.GetMemPool()->New<CallInfo>(type, caller, *call, s, loopDepth, callsiteID);
   }
 
   CallInfo *GenCallInfo(CallType type, MIRFunction &caller, MIRFunction &callee, StmtNode &s) {
-    return cgAlloc.GetMemPool()->New<CallInfo>(type, caller, callee, &s, 0, s.GetStmtID());
+    return cgAlloc.GetMemPool()->New<CallInfo>(type, &caller, callee, &s, 0, s.GetStmtID());
   }
 
   bool debugFlag = false;
@@ -676,7 +677,7 @@ class IPODevirtulize {
 
  private:
   void SearchDefInMemberMethods(const Klass &klass);
-  void SearchDefInClinit(const Klass &klass);
+  void SearchDefInClinit(const Klass &klass) const;
   MapleAllocator cgAlloc;
   MIRBuilder *mirBuilder;
   KlassHierarchy *klassh;

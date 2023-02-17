@@ -350,7 +350,7 @@ maplecl::Option<bool> withRaGraphColor({"--with-ra-graph-color"},
 maplecl::Option<bool> patchLongBranch({"--patch-long-branch"},
                                       "  --patch-long-branch"
                                       "         \tEnable patching long distance branch with jumping pad\n",
-                                      {cgCategory});
+                                      {driverCategory, cgCategory});
 
 maplecl::Option<bool> constFold({"--const-fold"},
                                 "  --const-fold                \tEnable constant folding\n"

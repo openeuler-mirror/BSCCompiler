@@ -2894,7 +2894,7 @@ void CGLowerer::ProcessArrayExpr(BaseNode &expr, BlockNode &blkNode) {
 BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkNode) {
   bool isCvtU1Expr = (expr.GetOpCode() == OP_cvt && expr.GetPrimType() == PTY_u1 &&
       static_cast<TypeCvtNode&>(expr).FromType() != PTY_u1);
-  if (expr.GetPrimType() == PTY_u1) {
+  if (expr.GetOpCode() != OP_intrinsicop && expr.GetPrimType() == PTY_u1) {
 #if TARGAARCH64
     expr.SetPrimType(PTY_i32);
 #elif TARGX86_64

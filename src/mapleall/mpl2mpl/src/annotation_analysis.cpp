@@ -44,7 +44,7 @@ void GenericType::Dump() {
   std::string s = namemangler::DecodeName(GetName());
   s.pop_back();
   std::cout << s;
-  if (GenericArg.size()) {
+  if (GenericArg.size() != 0) {
     std::cout << "<";
     for (AnnotationType *real : ArgOrder) {
       if (real->GetKind() == kGenericType) {
@@ -361,7 +361,7 @@ GenericDeclare *AnnotationAnalysis::ReadInGenericDeclare(AnnotationParser &aPars
   return gDeclare;
 }
 
-std::string AnnotationAnalysis::ReadInAllSubString(const MIRPragma &classPragma) {
+std::string AnnotationAnalysis::ReadInAllSubString(const MIRPragma &classPragma) const {
   GStrIdx gStrIdx;
   std::string signature;
   CHECK_FATAL(classPragma.GetElementVector().size() == 1, "must be");
@@ -379,7 +379,7 @@ std::string AnnotationAnalysis::ReadInAllSubString(const MIRPragma &classPragma)
 
 void AnnotationAnalysis::AnalysisAnnotationForFuncLocalVar(MIRFunction &func, AnnotationParser &aParser,
                                                            MIRStructType &structType) {
-  for (const auto pair : func.GetAliasVarMap()) {
+  for (auto &pair : std::as_const(func.GetAliasVarMap())) {
     MIRAliasVars aliasVar = pair.second;
     if (aliasVar.sigStrIdx) {
       std::string newSig = GlobalTables::GetStrTable().GetStringFromStrIdx(aliasVar.sigStrIdx);

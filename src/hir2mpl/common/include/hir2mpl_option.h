@@ -54,7 +54,6 @@ extern maplecl::Option<std::string> xbootclasspath;
 extern maplecl::Option<std::string> classloadercontext;
 extern maplecl::Option<std::string> dep;
 extern maplecl::Option<std::string> depsamename;
-extern maplecl::Option<bool> defaultSafe;
 extern maplecl::Option<bool> dumpFEIRBB;
 extern maplecl::Option<std::string> dumpFEIRCFGGraph;
 extern maplecl::Option<bool> wpaa;

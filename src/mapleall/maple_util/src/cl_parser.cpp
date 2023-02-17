@@ -179,6 +179,11 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
       continue;
     }
 
+    if (arg.find("_FORTIFY_SOURCE") != arg.npos) {
+      auto item = clangCategory.options.find("-pO2ToCl");
+      item->second->SetEnabledByUser();
+    }
+
     KeyArg keyArg(arg);
 
     auto pos = arg.find('=');

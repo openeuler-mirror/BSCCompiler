@@ -336,13 +336,13 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
     currentAction = std::move(newAction);
   }
 
-  if (isNeedAs && !opts::onlyCompile.IsEnabledByUser()) {
+  if (isNeedAs && (!opts::onlyCompile.IsEnabledByUser() && !opts::maplePhase.IsEnabledByUser())) {
     UpdateRunningExe(kAsFlag);
     newAction = std::make_unique<Action>(kAsFlag, inputInfo, currentAction);
     currentAction = std::move(newAction);
   }
 
-  if (!opts::onlyCompile.IsEnabledByUser() && !opts::compileWOLink) {
+  if ((!opts::onlyCompile.IsEnabledByUser() && !opts::maplePhase.IsEnabledByUser()) && !opts::compileWOLink) {
     UpdateRunningExe(kLdFlag);
     /* "Linking step" Action can have several inputActions.
      * Each inputAction links to previous Actions to create the action tree.

@@ -52,7 +52,8 @@ SCMBCO2_TRAIN = {
                 "mplcg": "--O2 --quiet --no-pie --verbose-asm --fPIC"
             },
             global_option="",
-            infile="${APP}.mbc"
+            infile="${APP}.mbc",
+            outfile="${APP}.s"
         ),
         CLinker(
             infiles=["${APP}.s"],

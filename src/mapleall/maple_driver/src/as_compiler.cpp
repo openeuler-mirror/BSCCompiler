@@ -109,7 +109,11 @@ DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options, const Act
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
   defaultOptions.mplOptions[0].SetKey("-o");
-  defaultOptions.mplOptions[0].SetValue(action.GetFullOutputName() + ".o");
+  if (!opts::compileWOLink.IsEnabledByUser()) {
+    defaultOptions.mplOptions[0].SetValue(action.GetFullOutputName() + ".o");
+  } else {
+    defaultOptions.mplOptions[0].SetValue(FileUtils::GetOutPutDir() + action.GetOutputName() + ".o");
+  }
   defaultOptions.mplOptions[1].SetKey("-c");
   defaultOptions.mplOptions[1].SetValue("");
 

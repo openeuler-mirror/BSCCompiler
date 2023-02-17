@@ -75,13 +75,25 @@ std::string MplcgCompiler::GetInputFile(const MplOptions &options [[maybe_unused
 }
 
 void MplcgCompiler::SetOutputFileName(const MplOptions &options, const Action &action, const MIRModule &md) {
-  if (opts::onlyCompile && opts::output.IsEnabledByUser()) {
+  if ((opts::onlyCompile || opts::run.IsEnabledByUser()) && opts::output.IsEnabledByUser()) {
     outputFile = opts::output.GetValue();
   } else {
     if (md.GetSrcLang() == kSrcLangC) {
-      baseName = action.GetFullOutputName();
+      if (opts::folder.IsEnabledByUser()) {
+        baseName = !opts::onlyCompile.IsEnabledByUser() ? action.GetInputFolder() + action.GetOutputName() :
+            FileUtils::GetOutPutDir() + action.GetOutputName();
+      } else if (opts::run.IsEnabledByUser()) {
+        baseName = FileUtils::GetOutPutDir() + action.GetOutputName();
+      } else {
+        baseName = !opts::onlyCompile.IsEnabledByUser() ? action.GetFullOutputName() :
+            FileUtils::GetOutPutDir() + action.GetOutputName();
+      }
     } else {
-      baseName = action.GetOutputFolder() + FileUtils::GetFileName(GetInputFile(options, action, &md), false);
+      if (opts::run.IsEnabledByUser()) {
+        baseName = action.GetInputFolder() + FileUtils::GetFileName(GetInputFile(options, action, &md), false);
+      } else {
+        baseName = action.GetOutputFolder() + FileUtils::GetFileName(GetInputFile(options, action, &md), false);
+      }
     }
     outputFile = baseName + ".s";
   }

@@ -65,21 +65,11 @@ SCO0_TEST_MERGE = {
         )
     ],
     "mpl2o":[
-        Maple(
+        MapleDriver(
             maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
-            run=["mplcg"],
-            option={
-                "mplcg": "--O0 --patch-long-branch --quiet --no-pie --fPIC --verbose-asm"
-            },
-            global_option="",
-            infiles=["${APP}.mpl"]
-        ),
-        CLinker(
-            infiles=["${APP}.s"],
-            front_option="-O2 -std=c99",
+            infiles=["${APP}.mpl"],
             outfile="${APP}.o",
-            back_option="",
-            mid_opt="-c"
+            option="--O0 --patch-long-branch -fPIC --no-pie -c"
         )
     ],
     "link": [

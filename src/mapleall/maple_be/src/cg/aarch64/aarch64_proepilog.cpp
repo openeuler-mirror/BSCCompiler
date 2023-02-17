@@ -216,7 +216,7 @@ MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstructi
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CHECK_FATAL(mo.GetAddrMode() == MemOperand::kBOI, "mode should be kBOI");
   OfstOperand *ofstOp = mo.GetOffsetImmediate();
-  int32 offsetVal = static_cast<int32>(ofstOp->GetOffsetValue());
+  auto offsetVal = static_cast<int32>(ofstOp->GetOffsetValue());
   CHECK_FATAL(offsetVal > 0, "offsetVal should be greater than 0");
   CHECK_FATAL((static_cast<uint32>(offsetVal) & 0x7) == 0, "(offsetVal & 0x7) should be equal to 0");
   /*
@@ -244,13 +244,16 @@ void AArch64GenProEpilog::AppendInstructionPushPair(CGFunc &cgFunc,
 
   uint32 dataSize = GetPointerSize() * kBitsPerByte;
   CHECK_FATAL(offset >= 0, "offset must >= 0");
-  if (offset > kStpLdpImm64UpperBound) {
-    o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc, *static_cast<MemOperand*>(o2), dataSize, R16);
-  }
   Insn &pushInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
+  AppendInstructionTo(pushInsn, cgFunc);
+  if (offset > kStpLdpImm64UpperBound) {
+    MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(*static_cast<MemOperand*>(o2), dataSize,
+                                                                       static_cast<AArch64reg>(R16), false, &pushInsn,
+                                                                       pushInsn.IsLoadStorePair());
+    pushInsn.SetOperand(kInsnThirdOpnd, newMemOpnd);
+  }
   std::string comment = "SAVE CALLEE REGISTER PAIR";
   pushInsn.SetComment(comment);
-  AppendInstructionTo(pushInsn, cgFunc);
 }
 
 void AArch64GenProEpilog::AppendInstructionPushSingle(CGFunc &cgFunc,
@@ -838,13 +841,15 @@ void AArch64GenProEpilog::AppendInstructionPopPair(CGFunc &cgFunc,
 
   uint32 dataSize = GetPointerSize() * kBitsPerByte;
   CHECK_FATAL(offset >= 0, "offset must >= 0");
-  if (offset > kStpLdpImm64UpperBound) {
-    o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc,
-        static_cast<MemOperand&>(*o2), dataSize, R16);
-  }
   Insn &popInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
-  popInsn.SetComment("RESTORE RESTORE");
   cgFunc.GetCurBB()->AppendInsn(popInsn);
+  if (offset > kStpLdpImm64UpperBound) {
+    MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(*static_cast<MemOperand*>(o2), dataSize,
+                                                                       static_cast<AArch64reg>(R16), false, &popInsn,
+                                                                       popInsn.IsLoadStorePair());
+    popInsn.SetOperand(kInsnThirdOpnd, newMemOpnd);
+  }
+  popInsn.SetComment("RESTORE RESTORE");
 }
 
 

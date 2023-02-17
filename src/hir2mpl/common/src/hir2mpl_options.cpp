@@ -133,7 +133,7 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessBoundaryCheckDynamic);
   RegisterFactoryFunction<OptionFactory>(&opts::safeRegionOption,
                                          &HIR2MPLOptions::ProcessSafeRegion);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::defaultSafe,
+  RegisterFactoryFunction<OptionFactory>(&opts::defaultSafe,
                                          &HIR2MPLOptions::ProcessDefaultSafe);
 
   // O2 does not work, because it generates OP_ror instruction but this instruction is not supported in me
@@ -438,7 +438,7 @@ bool HIR2MPLOptions::ProcessNoBarrier(const maplecl::OptionInterface &) const {
 
 // ast compiler options
 bool HIR2MPLOptions::ProcessUseSignedChar(const maplecl::OptionInterface &) const {
-  FEOptions::GetInstance().SetUseSignedChar(true);
+  FEOptions::GetInstance().SetUseSignedChar(opts::usesignedchar);
   return true;
 }
 
