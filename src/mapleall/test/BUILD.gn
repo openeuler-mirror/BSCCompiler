@@ -24,8 +24,27 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ir/include/",
   "${MAPLEALL_ROOT}/mempool/include/",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
+  "${MAPLEALL_ROOT}/maple_me/include/",
+  "${MAPLEALL_ROOT}/maple_driver/include/",
+  "${MAPLEALL_ROOT}/mpl2mpl/include/",
+  "${MAPLEALL_ROOT}/maple_pgo/include/",
+  "${MAPLEALL_ROOT}/maple_be/include/",
+  "${MAPLEALL_ROOT}/maple_be/include/ad",
+  "${MAPLEALL_ROOT}/maple_be/include/ad/target",
+  "${MAPLEALL_ROOT}/maple_be/include/cg/",
+  "${MAPLEALL_ROOT}/maple_be/include/cg/aarch64/",
+  "${MAPLEALL_ROOT}/maple_be/include/be/",
+  "${MAPLEALL_ROOT}/maple_phase/include/",
+  "${MAPLE_BUILD_OUTPUT}/common/target/",
 ]
-src_mapleallUT = [ "cl_ut_test.cpp", "int_val_test.cpp", "stacktrace_test.cpp" ]
+src_mapleallUT = [
+  "cl_ut_test.cpp",
+  "int_val_test.cpp",
+  "stacktrace_test.cpp",
+  "maple_string_test.cpp",
+  "peep_revTest.cpp",
+  "int128_val_test.cpp",
+]
 
 executable("mapleallUT") {
   sources = src_mapleallUT
@@ -33,6 +52,14 @@ executable("mapleallUT") {
   output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 
   deps = [
+    "${MAPLEALL_ROOT}/maple_be:libmplbe",
+    "${MAPLEALL_ROOT}/maple_me:libmplme",
+    "${MAPLEALL_ROOT}/maple_be:libcg",
+    "${MAPLEALL_ROOT}/maple_be:libmplad",
+    "${MAPLEALL_ROOT}/maple_me:libmplmewpo",
+    "${MAPLEALL_ROOT}/maple_ipa:libmplipa",
+    "${MAPLEALL_ROOT}/maple_driver:libmaple_driver",
+    "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
     "${MAPLEALL_ROOT}/maple_ir:libmplir",
     "${MAPLEALL_ROOT}/mempool:libmempool",
@@ -42,6 +69,8 @@ executable("mapleallUT") {
   ]
 
   libs = [
+    "${MAPLE_BUILD_OUTPUT}/lib/64/libmplbe.a",
+    "${MAPLE_BUILD_OUTPUT}/lib/64/libmpl2mpl.a",
     "${MAPLE_ROOT}/tools/gtest_lib/lib/libgmock.a",
     "${MAPLE_ROOT}/tools/gtest_lib/lib/libgmock_main.a",
     "${MAPLE_ROOT}/tools/gtest_lib/lib/libgtest.a",

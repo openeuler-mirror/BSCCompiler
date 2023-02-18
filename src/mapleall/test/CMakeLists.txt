@@ -41,6 +41,7 @@ set(src_mapleallUT
     int_val_test.cpp
     stacktrace_test.cpp
     maple_string_test.cpp
+    int128_val_test.cpp
 )
 
 set(deps

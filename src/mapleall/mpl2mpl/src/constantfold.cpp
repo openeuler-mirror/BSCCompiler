@@ -47,7 +47,7 @@ std::optional<IntVal> operator*(const std::optional<IntVal> &v1, const std::opti
 
   // Perform all calculations in terms of the maximum available signed type.
   // The value will be truncated for an appropriate type when constant is created in PairToExpr function
-  return v1 && v2 ? v1->Mul(*v2, PTY_i64) : IntVal(0, PTY_i64);
+  return v1 && v2 ? v1->Mul(*v2, PTY_i64) : IntVal(static_cast<uint64>(0), PTY_i64);
 }
 
 // Perform all calculations in terms of the maximum available signed type.
@@ -413,7 +413,7 @@ MIRConst *ConstantFold::FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resul
                                                    const MIRIntConst *intConst1) {
   IntVal intVal0 = intConst0->GetValue();
   IntVal intVal1 = intConst1->GetValue();
-  IntVal result(0, resultType);
+  IntVal result(static_cast<uint64>(0), resultType);
 
   switch (opcode) {
     case OP_add: {
@@ -2702,7 +2702,7 @@ std::optional<ConstIntSet> GenerateIntSet(const OpMeExpr &meExpr, PrimType type)
   auto intVal = static_cast<ConstMeExpr *>(opnd1)->GetIntValue().TruncOrExtend(type);
   auto res = std::make_optional<ConstIntSet>();
   bool isSigned = intVal.IsSigned();
-  uint8 width = intVal.GetBitWidth();
+  uint16 width = intVal.GetBitWidth();
   switch (meExpr.GetOp()) {
     case OP_lt:
       if (intVal.IsMinValue()) {
@@ -2944,7 +2944,7 @@ MeExpr *ConstantFold::FoldCmpExpr(IRMap &irMap, const MeExpr &cmp1, const MeExpr
     if (!diff.IsPowerOf2()) {
       return nullptr;
     }
-    IntVal offset(0, type);
+    IntVal offset(static_cast<uint64>(0), type);
     if ((s1->lower ^ diff) != s2->lower) {
       offset = s1->lower;
     }

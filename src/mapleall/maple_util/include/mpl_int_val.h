@@ -15,7 +15,10 @@
 #ifndef MAPLE_UTIL_INCLUDE_MPL_INT_VAL_H
 #define MAPLE_UTIL_INCLUDE_MPL_INT_VAL_H
 
+#include <utility>
+
 #include "mir_type.h"
+#include "securec.h"
 
 namespace maple {
 
@@ -23,10 +26,17 @@ namespace maple {
 class IntVal {
  public:
   /// @brief create zero value with zero bit-width
-  IntVal() : value(0), width(0), sign(false) {}
+  IntVal() : width(0), sign(false) {
+    u.value = 0;
+  }
 
-  IntVal(uint64 val, uint8 bitWidth, bool isSigned) : value(val), width(bitWidth), sign(isSigned) {
-    ASSERT(width <= valBitSize && width != 0, "bit-width is too wide");
+  IntVal(uint64 val, uint16 bitWidth, bool isSigned) : width(bitWidth), sign(isSigned) {
+    Init(val);
+    TruncInPlace();
+  }
+
+  IntVal(const uint64 pVal[], uint16 bitWidth, bool isSigned) : width(bitWidth), sign(isSigned) {
+    Init(pVal);
     TruncInPlace();
   }
 
@@ -34,12 +44,45 @@ class IntVal {
     ASSERT(IsPrimitiveInteger(type) || IsPrimitiveVectorInteger(type), "Type must be integral");
   }
 
-  IntVal(const IntVal &val, PrimType type) : IntVal(val.value, type) {}
+  IntVal(const uint64 pVal[], PrimType type) : IntVal(pVal, GetPrimTypeActualBitSize(type), IsSignedInteger(type)) {
+    ASSERT(IsPrimitiveInteger(type), "Type must be integral");
+  }
 
-  IntVal(const IntVal &val, uint8 bitWidth, bool isSigned) : IntVal(val.value, bitWidth, isSigned) {}
+  IntVal(const IntVal &val, PrimType type) : width(GetPrimTypeActualBitSize(type)), sign(IsSignedInteger(type)) {
+    ASSERT(IsPrimitiveInteger(type), "Type must be integral");
+    Init(val.u, !val.IsOneWord());
+    TruncInPlace();
+  }
 
-  IntVal(const IntVal &val, bool isSigned) : IntVal(val.value, val.width, isSigned) {}
+  IntVal(const IntVal &val, uint16 bitWidth, bool isSigned) : width(bitWidth), sign(isSigned) {
+    Init(val.u, !val.IsOneWord());
+    TruncInPlace();
+  }
 
+  IntVal(const IntVal &val, bool isSigned) : width(val.width), sign(isSigned) {
+    Init(val.u, !val.IsOneWord());
+  }
+
+  // copy-ctor
+  IntVal(const IntVal &val) : width(val.width), sign(val.sign) {
+    Init(val.u, !val.IsOneWord());
+    TruncInPlace();
+  }
+
+  // move-ctor
+  IntVal(IntVal &&val) : width(val.width), sign(val.sign) {
+    errno_t err = memcpy_s(&u, sizeof(u), &val.u, sizeof(val.u));
+    CHECK_FATAL(err == EOK, "memcpy_s failed");
+    val.width = 0;
+  }
+
+  ~IntVal() {
+    if (!IsOneWord()) {
+      delete[] u.pValue;
+    }
+  }
+
+  // copy-assignment
   IntVal &operator=(const IntVal &other) {
     if (width == 0) {
       // Allow 'this' to be assigned with new bit-width and sign iff
@@ -48,34 +91,59 @@ class IntVal {
     } else {
       // Otherwise, assign only new value, but sign and width must be the same
       ASSERT(width == other.width && sign == other.sign, "different bit-width or sign");
-      value = other.value;
+      Init(other.u, !other.IsOneWord());
     }
+
+    return *this;
+  }
+
+  // move-assignment
+  IntVal &operator=(IntVal &&other) {
+    if (this == &other) {
+      return *this;
+    }
+
+    if (width == 0) {
+      // 'this' created with default ctor
+      width = other.width;
+      sign = other.sign;
+    } else {
+      ASSERT(width == other.width && sign == other.sign, "different bit-width or sign");
+    }
+    errno_t err = memcpy_s(&u, sizeof(u), &other.u, sizeof(other.u));
+    CHECK_FATAL(err == EOK, "memcpy_s failed");
+    other.width = 0;
 
     return *this;
   }
 
   IntVal &operator=(uint64 other) {
     ASSERT(width != 0, "can't be assigned to value with unknown size");
-    value = other;
+    Init(other);
     TruncInPlace();
-
     return *this;
   }
 
   void Assign(const IntVal &other) {
-    value = other.value;
     width = other.width;
     sign = other.sign;
+
+    Init(other.u, !other.IsOneWord());
   }
 
   /// @return bit-width of the value
-  uint8 GetBitWidth() const {
+  uint16 GetBitWidth() const {
     return width;
   }
 
   /// @return true if the value is signed
   bool IsSigned() const {
     return sign;
+  }
+
+  /// @return pointer to the IntVal's internal storage
+  const uint64 *GetRawData() const {
+    return IsOneWord() ? &u.value : u.pValue;
   }
 
   /// @return sign or zero extended value depending on its signedness
@@ -85,14 +153,18 @@ class IntVal {
 
   /// @return zero extended value
   uint64 GetZXTValue(uint8 size = 0) const {
+    ASSERT(IsOneSignificantWord(), "value doesn't fit into 64 bits");
+    uint64 value = IsOneWord() ? u.value : u.pValue[0];
     // if size == 0, just return the value itself because it's already truncated for an appropriate width
-    return size ? (value << (valBitSize - size)) >> (valBitSize - size) : value;
+    return size ? (value << (wordBitSize - size)) >> (wordBitSize - size) : value;
   }
 
   /// @return sign extended value
   int64 GetSXTValue(uint8 size = 0) const {
+    ASSERT(IsOneSignificantWord(), "value doesn't fit into 64 bits");
+    uint64 value = IsOneWord() ? u.value : u.pValue[0];
     uint8 bitWidth = size ? size : width;
-    return static_cast<int64>(value << (valBitSize - bitWidth)) >> (valBitSize - bitWidth);
+    return static_cast<int64>(value << (wordBitSize - bitWidth)) >> (wordBitSize - bitWidth);
   }
 
   /// @return true if the (most significant bit) MSB is set
@@ -100,52 +172,126 @@ class IntVal {
     return GetBit(width - 1);
   }
 
+  uint16 GetNumWords() const {
+    return GetNumWords(width);
+  }
+
   /// @return true if all bits are 1
   bool AreAllBitsOne() const {
-    return value == (allOnes >> (valBitSize - width));
+    if (IsOneWord()) {
+      return u.value == (allOnes >> (wordBitSize - width));
+    }
+
+    return CountTrallingOnes() == width;
+  }
+
+  /// @return true if all bits are 0
+  bool AreAllBitsZeros() const {
+    if (IsOneWord()) {
+      return u.value == 0;
+    }
+
+    return CountTrallingZeros() == width;
   }
 
   /// @return true if value is a power of 2 > 0
-  bool IsPowerOf2() {
-    return value && !(value & (value - 1));
+  bool IsPowerOf2() const {
+    if (IsOneWord()) {
+      return u.value && !(u.value & (u.value - 1));
+    }
+
+    return CountPopulation() == 1;
   }
 
   /// @return true if the value is maximum considering its signedness
   bool IsMaxValue() const {
-    return sign ? value == ((uint64(1) << (width - 1)) - 1) : AreAllBitsOne();
+    if (IsOneWord()) {
+      return sign ? u.value == ((uint64(1) << (width - 1)) - 1) : AreAllBitsOne();
+    }
+
+    return WideIsMaxValue();
   }
 
   /// @return true if the value is minimum considering its signedness
   bool IsMinValue() const {
-    return sign ? value == (uint64(1) << (width - 1)) : value == 0;
+    if (IsOneWord()) {
+      return sign ? u.value == (uint64(1) << (width - 1)) : u.value == 0;
+    }
+
+    return WideIsMinValue();
+  }
+
+  /// @return true if the value doesn't fit in wordBitSize
+  bool IsOneWord() const {
+    return width <= wordBitSize;
   }
 
   void SetMaxValue() {
-    value = sign ? ((uint64(1) << (width - 1)) - 1) : (allOnes >> (valBitSize - width));
+    SetMaxValue(sign, width);
   }
 
-  void SetMaxValue(bool isSigned, uint8 bitWidth) {
+  void SetMaxValue(bool isSigned, uint16 bitWidth) {
+    ASSERT(IsOneWord() || GetNumWords() == GetNumWords(bitWidth), "not implemented");
     sign = isSigned;
     width = bitWidth;
-    value = sign ? ((uint64(1) << (width - 1)) - 1) : (allOnes >> (valBitSize - width));
+    if (IsOneWord()) {
+      u.value = sign ? ((uint64(1) << (width - 1)) - 1) : (allOnes >> (wordBitSize - width));
+    } else {
+      WideSetMaxValue();
+    }
   }
 
   void SetMinValue() {
-    value = sign ? (uint64(1) << (width - 1)) : 0;
+    SetMinValue(sign, width);
   }
 
-  void SetMinValue(bool isSigned, uint8 bitWidth) {
+  void SetMinValue(bool isSigned, uint16 bitWidth) {
+    ASSERT(IsOneWord() || GetNumWords() == GetNumWords(bitWidth), "not implemented");
     sign = isSigned;
     width = bitWidth;
-    value = sign ? (uint64(1) << (width - 1)) : 0;
+    if (IsOneWord()) {
+      u.value = sign ? (uint64(1) << (width - 1)) : 0;
+    } else {
+      WideSetMinValue();
+    }
   }
+
+  /// @return quantity of the leading ones
+  uint16 CountLeadingOnes() const;
+
+  /// @return quantity of the tralling ones
+  uint16 CountTrallingOnes() const;
+
+  /// @return quantity of the leading zeros
+  uint16 CountLeadingZeros() const;
+
+  /// @return quantity of the tralling zeros
+  uint16 CountTrallingZeros() const;
+
+  /// @return quantity of the significant bits
+  uint16 CountSignificantBits() const;
+
+  /// @return quiantity of non-zero bits
+  uint16 CountPopulation() const;
 
   //
   // Comparison operators that manipulate on values with the same sign and bit-width
   //
   bool operator==(const IntVal &rhs) const {
     ASSERT(width == rhs.width && sign == rhs.sign, "bit-width and sign must be the same");
-    return value == rhs.value;
+    if (IsOneWord()) {
+      return u.value == rhs.u.value;
+    }
+
+    return std::equal(u.pValue, u.pValue + GetNumWords(), rhs.u.pValue);
+  }
+
+  bool operator==(int64 val) const {
+    if (IsOneSignificantWord()) {
+      return GetExtValue() == val;
+    }
+
+    return (*this == IntVal(val, width, sign));
   }
 
   bool operator!=(const IntVal &rhs) const {
@@ -154,12 +300,20 @@ class IntVal {
 
   bool operator<(const IntVal &rhs) const {
     ASSERT(width == rhs.width && sign == rhs.sign, "bit-width and sign must be the same");
-    return sign ? GetSXTValue() < rhs.GetSXTValue() : value < rhs.value;
+    if (IsOneWord()) {
+      return sign ? GetSXTValue() < rhs.GetSXTValue() : u.value < rhs.u.value;
+    }
+
+    return WideCompare(*this, rhs) < 0 ? true : false;
   }
 
   bool operator>(const IntVal &rhs) const {
     ASSERT(width == rhs.width && sign == rhs.sign, "bit-width and sign must be the same");
-    return sign ? GetSXTValue() > rhs.GetSXTValue() : value > rhs.value;
+    if (IsOneWord()) {
+      return sign ? GetSXTValue() > rhs.GetSXTValue() : u.value > rhs.u.value;
+    }
+
+    return WideCompare(*this, rhs) > 0 ? true : false;
   }
 
   bool operator<=(const IntVal &rhs) const {
@@ -175,16 +329,29 @@ class IntVal {
   //
   IntVal operator+(const IntVal &val) const {
     ASSERT(width == val.width && sign == val.sign, "bit-width and sign must be the same");
-    return IntVal(value + val.value, width, sign);
+    if (IsOneWord()) {
+      return IntVal(u.value + val.u.value, width, sign);
+    }
+
+    return WideAdd(val);
   }
 
   IntVal operator-(const IntVal &val) const {
     ASSERT(width == val.width && sign == val.sign, "bit-width and sign must be the same");
-    return IntVal(value - val.value, width, sign);
+    if (IsOneWord()) {
+      return IntVal(u.value - val.u.value, width, sign);
+    }
+
+    return WideSub(val);
   }
 
   IntVal &operator++() {
-    ++value;
+    if (IsOneWord()) {
+      ++u.value;
+    } else {
+      WideAddInPlace(1);
+    }
+
     TruncInPlace();
     return *this;
   }
@@ -196,7 +363,12 @@ class IntVal {
   }
 
   IntVal &operator--() {
-    --value;
+    if (IsOneWord()) {
+      --u.value;
+    } else {
+      WideSubInPlace(1);
+    }
+
     TruncInPlace();
     return *this;
   }
@@ -209,7 +381,11 @@ class IntVal {
 
   IntVal operator*(const IntVal &val) const {
     ASSERT(width == val.width && sign == val.sign, "bit-width and sign must be the same");
-    return IntVal(value * val.value, width, sign);
+    if (IsOneWord()) {
+      return IntVal(u.value * val.u.value, width, sign);
+    }
+
+    return WideMul(val);
   }
 
   IntVal operator/(const IntVal &divisor) const;
@@ -218,27 +394,49 @@ class IntVal {
 
   IntVal operator&(const IntVal &val) const {
     ASSERT(width == val.width && sign == val.sign, "bit-width and sign must be the same");
-    return IntVal(value & val.value, width, sign);
+    if (IsOneWord()) {
+      return IntVal(u.value & val.u.value, width, sign);
+    }
+
+    return WideAnd(val);
   }
 
   IntVal operator|(const IntVal &val) const {
     ASSERT(width == val.width && sign == val.sign, "bit-width and sign must be the same");
-    return IntVal(value | val.value, width, sign);
+    if (IsOneWord()) {
+      return IntVal(u.value | val.u.value, width, sign);
+    }
+
+    return WideOr(val);
   }
 
   IntVal operator^(const IntVal &val) const {
     ASSERT(width == val.width && sign == val.sign, "bit-width and sign must be the same");
-    return IntVal(value ^ val.value, width, sign);
+    if (IsOneWord()) {
+      return IntVal(u.value ^ val.u.value, width, sign);
+    }
+
+    return WideXor(val);
   }
 
   /// @brief shift-left operator
   IntVal operator<<(uint64 bits) const {
     ASSERT(bits <= width, "invalid shift value");
-    return IntVal(value << bits, width, sign);
+    if (IsOneWord()) {
+      return IntVal(u.value << bits, width, sign);
+    }
+
+    return WideShl(bits);
   }
 
   IntVal operator<<(const IntVal &bits) const {
-    return *this << bits.value;
+    ASSERT(!bits.GetSignBit(), "shift value is negative");
+    if (bits.IsOneWord()) {
+      return *this << bits.u.value;
+    }
+
+    ASSERT(bits.IsOneSignificantWord(), "invalid shift value");
+    return *this << bits.u.pValue[0];
   }
 
   /// @brief shift-right operator
@@ -246,11 +444,30 @@ class IntVal {
   ///       otherwise it's logical shift-right operator
   IntVal operator>>(uint64 bits) const {
     ASSERT(bits <= width, "invalid shift value");
-    return IntVal(sign ? GetSXTValue() >> bits : value >> bits, width, sign);
+    if (IsOneWord()) {
+      return IntVal(sign ? GetSXTValue() >> bits : u.value >> bits, width, sign);
+    }
+
+    return WideAShr(bits);
   }
 
   IntVal operator>>(const IntVal &bits) const {
-    return *this >> bits.value;
+    if (bits.IsOneWord()) {
+      return *this >> bits.u.value;
+    }
+
+    ASSERT(bits.IsOneSignificantWord(), "invalid shift value");
+    return *this >> bits.u.pValue[0];
+  }
+
+  /// @return absolute unsigned value
+  static IntVal Abs(const IntVal &val) {
+    if (!val.IsSigned()) {
+      return val;
+    }
+
+    IntVal ret(val, false);
+    return val.GetSignBit() ? -ret : ret;
   }
 
   //
@@ -305,12 +522,12 @@ class IntVal {
   }
 
   // sign division in terms of new bitWidth
-  IntVal SDiv(const IntVal &divisor, uint8 bitWidth) const {
+  IntVal SDiv(const IntVal &divisor, uint16 bitWidth) const {
     return TruncOrExtend(bitWidth, true) / divisor.TruncOrExtend(bitWidth, true);
   }
 
   // unsigned division in terms of new bitWidth
-  IntVal UDiv(const IntVal &divisor, uint8 bitWidth) const {
+  IntVal UDiv(const IntVal &divisor, uint16 bitWidth) const {
     return TruncOrExtend(bitWidth, false) / divisor.TruncOrExtend(bitWidth, false);
   }
 
@@ -320,12 +537,12 @@ class IntVal {
   }
 
   // signed modulo in terms of new bitWidth
-  IntVal SRem(const IntVal &divisor, uint8 bitWidth) const {
+  IntVal SRem(const IntVal &divisor, uint16 bitWidth) const {
     return TruncOrExtend(bitWidth, true) % divisor.TruncOrExtend(bitWidth, true);
   }
 
   // unsigned modulo in terms of new bitWidth
-  IntVal URem(const IntVal &divisor, uint8 bitWidth) const {
+  IntVal URem(const IntVal &divisor, uint16 bitWidth) const {
     return TruncOrExtend(bitWidth, false) % divisor.TruncOrExtend(bitWidth, false);
   }
 
@@ -343,7 +560,7 @@ class IntVal {
 
   // left-shift operators
   IntVal Shl(const IntVal &shift, PrimType pType) const {
-    return Shl(shift.value, pType);
+    return Shl(shift.u.value, pType);
   }
 
   IntVal Shl(uint64 shift, PrimType pType) const {
@@ -352,52 +569,83 @@ class IntVal {
 
   // logical right-shift operators (MSB is zero extended)
   IntVal LShr(const IntVal &shift, PrimType pType) const {
-    return LShr(shift.value, pType);
+    ASSERT(shift.IsOneSignificantWord(), "invalide shift value");
+    return LShr(shift.IsOneWord() ? shift.u.value : shift.u.pValue[0], pType);
   }
 
   IntVal LShr(uint64 shift, PrimType pType) const {
-    IntVal ret = TruncOrExtend(pType);
-    ret.value >>= shift;
-    return ret;
+    if (IsOneWord()) {
+      IntVal ret = TruncOrExtend(pType);
+      ASSERT(shift <= ret.GetBitWidth(), "invalid shift value");
+      ret.u.value >>= shift;
+      return ret;
+    }
+
+    return TruncOrExtend(pType).WideLShr(shift);
   }
 
   IntVal LShr(uint64 shift) const {
     ASSERT(shift <= width, "invalid shift value");
-    return IntVal(value >> shift, width, sign);
+    if (IsOneWord()) {
+      return IntVal(u.value >> shift, width, sign);
+    }
+
+    return WideLShr(shift);
   }
 
   // arithmetic right-shift operators (MSB is sign extended)
   IntVal AShr(const IntVal &shift, PrimType pType) const {
-    return AShr(shift.value, pType);
+    ASSERT(shift.IsOneSignificantWord(), "invalide shift value");
+    return AShr(shift.IsOneWord() ? shift.u.value : shift.u.pValue[0], pType);
   }
 
   IntVal AShr(uint64 shift, PrimType pType) const {
     IntVal ret = TruncOrExtend(pType);
-
     ASSERT(shift <= ret.width, "invalid shift value");
-    ret.value = ret.GetSXTValue() >> shift;
+    if (IsOneWord()) {
+      ret.u.value = ret.GetSXTValue() >> shift;
+    } else {
+      ret.WideAShrInPlace(shift);
+    }
     ret.TruncInPlace();
-
     return ret;
   }
 
   /// @brief invert all bits of value
   IntVal operator~() const {
-    return IntVal(~value, width, sign);
+    if (IsOneWord()) {
+      return IntVal(~u.value, width, sign);
+    }
+
+    return WideNot();
   }
 
   /// @return negated value
   IntVal operator-() const {
-    return IntVal(~value + 1, width, sign);
+    if (IsOneWord()) {
+      return IntVal(~u.value + 1, width, sign);
+    }
+
+    return WideNeg();
   }
 
   /// @brief truncate value to the given bit-width in-place.
   /// @note if bitWidth is not passed (or zero), the original
   ///       bit-width is preserved and the value is truncated to the original bit-width
-  void TruncInPlace(uint8 bitWidth = 0) {
-    ASSERT(valBitSize >= bitWidth, "invalid bit-width for truncate");
+  void TruncInPlace(uint16 bitWidth = 0) {
+    ASSERT(bitWidth <= width || !bitWidth, "incorrect trunc width");
+    ASSERT(!bitWidth || !width || GetNumWords() == GetNumWords(bitWidth), "trunc to given width isn't implemented");
 
-    value &= allOnes >> (valBitSize - (bitWidth ? bitWidth : width));
+    if (IsOneWord()) {
+      u.value &= allOnes >> (wordBitSize - (bitWidth ? bitWidth : width));
+    } else {
+      uint16 truncWidth = bitWidth ? bitWidth : width;
+      for (uint16 i = 0; i < GetNumWords(); ++i) {
+        uint8 emptyBits = (truncWidth >= wordBitSize) ? 0 : truncWidth;
+        u.pValue[i] &= allOnes >> (wordBitSize - emptyBits);
+        truncWidth -= wordBitSize;
+      }
+    }
 
     if (bitWidth) {
       width = bitWidth;
@@ -410,8 +658,12 @@ class IntVal {
     return Trunc(GetPrimTypeActualBitSize(newType), IsSignedInteger(newType));
   }
 
-  IntVal Trunc(uint8 newWidth, bool isSigned) const {
-    return { value, newWidth, isSigned };
+  IntVal Trunc(uint16 newWidth, bool isSigned) const {
+    if (IsOneWord()) {
+      return IntVal(u.value, newWidth, isSigned);
+    }
+
+    return IntVal(u.pValue, newWidth, isSigned);
   }
 
   /// @return sign or zero extended value depending on its signedness
@@ -420,41 +672,205 @@ class IntVal {
     return Extend(GetPrimTypeActualBitSize(newType), IsSignedInteger(newType));
   }
 
+  IntVal Extend(uint16 newWidth, bool isSigned) const {
+    ASSERT(newWidth > width, "invalid size for extension");
+    if (IsOneWord() && newWidth <= wordBitSize) {
+      return IntVal(GetExtValue(), newWidth, isSigned);
+    }
+
+    return ExtendToWideInt(newWidth, isSigned);
+  }
+
   /// @return sign/zero extended value or truncated value depending on bit-width
   /// @note returned value will have bit-width and sign obtained from newType
   IntVal TruncOrExtend(PrimType newType) const {
     return TruncOrExtend(GetPrimTypeActualBitSize(newType), IsSignedInteger(newType));
   }
 
-  IntVal TruncOrExtend(uint8 newWidth, bool isSigned) const {
+  IntVal TruncOrExtend(uint16 newWidth, bool isSigned) const {
     return newWidth <= width ? Trunc(newWidth, isSigned) : Extend(newWidth, isSigned);
   }
 
+  /// @return true if all significant bits fit into one word
+  bool IsOneSignificantWord() const {
+    return IsOneWord() || (CountSignificantBits() <= wordBitSize);
+  }
+
+  /// @brief get as string
+  std::string ToString() const {
+    std::stringstream ss;
+    Dump(ss);
+    return ss.str();
+  }
+
+  /// @brief dump to ostream
+  void Dump(std::ostream &os) const;
+
  private:
-  bool GetBit(uint8 bit) const {
+  static uint8 GetNumWords(uint16 bitWidth) {
+    return (bitWidth + wordBitSize - 1) / wordBitSize;
+  }
+
+  /// @brief compare two Wide integers
+  /// @return -1 if lhs < rhs
+  ///          0 if lhs == rhs
+  ///          1 if lhs > rhs
+  static int WideCompare(const IntVal &lhs, const IntVal &rhs);
+
+  // arithmetic and bitwise operators that manipulate on Wide integers
+  // majority of operators have "InPlace" version which use 'this' to save results
+
+  // operator +
+  IntVal WideAdd(const IntVal &rhs) const;
+  // unary operator +
+  void WideAddInPlace(const IntVal &rhs);
+  void WideAddInPlace(uint64 val);
+
+  // operator -
+  IntVal WideSub(const IntVal &rhs) const;
+  void WideSubInPlace(const IntVal &rhs);
+  void WideSubInPlace(uint64 val);
+
+  // opeartor *
+  IntVal WideMul(const IntVal &rhs) const;
+
+  // operator &
+  IntVal WideAnd(const IntVal &rhs) const;
+  void WideAndInPlace(const IntVal &rhs);
+
+  // operator |
+  IntVal WideOr(const IntVal &rhs) const;
+  void WideOrInPlace(const IntVal &rhs);
+
+  // operator ^
+  IntVal WideXor(const IntVal &rhs) const;
+  void WideXorInPlace(const IntVal &rhs);
+
+  // operator ~
+  IntVal WideNot() const;
+  void WideNotInPlace();
+
+  // unary oparator -
+  IntVal WideNeg() const;
+  void WideNegInPlace();
+
+  // operator <<
+  IntVal WideShl(uint64 bits) const;
+  void WideShlInPlace(uint64 bits);
+
+  // operator >>
+  IntVal WideAShr(uint64 bits) const;
+  void WideAShrInPlace(uint64 bits);
+
+  // operator >>
+  IntVal WideLShr(uint64 bits) const;
+  void WideLShrInPlace(uint64 bits);
+
+  /// @brief process signed division of two Wide integers
+  /// @return pair{quotient, remainder}
+  std::pair<IntVal, IntVal> WideDivRem(const IntVal &rhs) const;
+
+  /// @brief process unsigned division of two Wide integers
+  /// @return pair{quotient, remainder}
+  static std::pair<IntVal, IntVal> WideUnsignedDivRem(const IntVal &delimer, const IntVal &divisor);
+
+  /// @return true if the Wide integer is maximum considering its signedness
+  bool WideIsMaxValue() const;
+
+  /// @return true if the Wide integer is minimum considering its signedness
+  bool WideIsMinValue() const;
+
+  /// @brief set the maximum value for wide integer
+  void WideSetMaxValue();
+
+  /// @brief set the minimum value for wide integer
+  void WideSetMinValue();
+
+  /// @brief set max maximum value for wide integer
+  void WideMinMaxValue();
+
+  /// @return value which sign/zero extended to wide integer
+  IntVal ExtendToWideInt(uint16 newWidth, bool isSigned) const;
+
+  /// @brief set the given bit to one
+  void SetBit(uint16 bit) {
     ASSERT(bit < width, "Required bit is out of value range");
-    return (value & (uint64(1) << bit)) != 0;
+    uint64 mask = uint64(1) << (bit % wordBitSize);
+    if (IsOneWord()) {
+      u.value = u.value | mask;
+    } else {
+      uint16 word = GetNumWords(bit + 1) - 1;
+      u.pValue[word] = u.pValue[word] | mask;
+    }
   }
 
-  IntVal Extend(uint8 newWidth, bool isSigned) const {
-    ASSERT(newWidth > width, "invalid size for extension");
-    return IntVal(GetExtValue(), newWidth, isSigned);
+  /// @brief set the sign bit to one and set 'sign' to true
+  void SetSignBit() {
+    SetBit(width - 1);
   }
 
-  static constexpr uint8 valBitSize = sizeof(uint64) * CHAR_BIT;
+  bool GetBit(uint16 bit) const {
+    ASSERT(bit < width, "Required bit is out of value range");
+    if (IsOneWord()) {
+      return (u.value & (uint64(1) << bit)) != 0;
+    }
+
+    uint8 word = GetNumWords(bit + 1) - 1;
+    uint8 wordOffset = bit % wordBitSize;
+
+    return (u.pValue[word] & (uint64(1) << wordOffset)) != 0;
+  }
+
+  using Storage = union U {
+    uint64 value;    // Used to process the <= 64 bits values
+    uint64 *pValue;  // Used to store wide values
+  };
+
+  /// @ brief init IntVal with an integer value
+  void Init(uint64 val) {
+    if (IsOneWord()) {
+      u.value = val;
+    } else {
+      WideInit(val);
+    }
+  }
+
+  /// @ brief init IntVal with a pointer to array
+  void Init(const uint64 *pVal) {
+    if (IsOneWord()) {
+      u.value = pVal[0];
+    } else {
+      WideInit(pVal);
+    }
+  }
+
+  /// @ brief init IntVal with union
+  /// @ note isPointer is set if 'unionVal' stores a pointer
+  void Init(const Storage &unionVal, bool isPointer) {
+    if (isPointer) {
+      Init(unionVal.pValue);
+    } else {
+      Init(unionVal.value);
+    }
+  }
+
+  /// @brief construct wide integers
+  /// @note this functions allocate memmory
+  void WideInit(uint64 val);
+  void WideInit(const uint64 *val);
+
+  Storage u;
+
+  static constexpr uint8 wordBitSize = sizeof(uint64) * CHAR_BIT;
   static constexpr uint64 allOnes = uint64(~0);
 
-  uint64 value;
-  uint8 width;
+  uint16 width;
   bool sign;
 };
 
 //
 // Additional comparison operators
 //
-inline bool operator==(const IntVal &v1, int64 v2) {
-  return v1.GetExtValue() == v2;
-}
 
 inline bool operator==(int64 v1, const IntVal &v2) {
   return v2 == v1;
@@ -503,7 +919,7 @@ inline IntVal operator+(const IntVal &v1, uint64 v2) {
   return v1 + IntVal(v2, v1.GetBitWidth(), v1.IsSigned());
 }
 
-inline IntVal operator+(uint64 v1, const IntVal& v2) {
+inline IntVal operator+(uint64 v1, const IntVal &v2) {
   return v2 + v1;
 }
 
@@ -519,7 +935,7 @@ inline IntVal operator*(const IntVal &v1, uint64 v2) {
   return v1 * IntVal(v2, v1.GetBitWidth(), v1.IsSigned());
 }
 
-inline IntVal operator*(uint64 v1, const IntVal& v2) {
+inline IntVal operator*(uint64 v1, const IntVal &v2) {
   return v2 * v1;
 }
 
@@ -527,7 +943,7 @@ inline IntVal operator/(const IntVal &v1, uint64 v2) {
   return v1 / IntVal(v2, v1.GetBitWidth(), v1.IsSigned());
 }
 
-inline IntVal operator/(uint64 v1, const IntVal& v2) {
+inline IntVal operator/(uint64 v1, const IntVal &v2) {
   return IntVal(v1, v2.GetBitWidth(), v2.IsSigned()) / v2;
 }
 
@@ -535,7 +951,7 @@ inline IntVal operator%(const IntVal &v1, uint64 v2) {
   return v1 % IntVal(v2, v1.GetBitWidth(), v1.IsSigned());
 }
 
-inline IntVal operator%(uint64 v1, const IntVal& v2) {
+inline IntVal operator%(uint64 v1, const IntVal &v2) {
   return IntVal(v1, v2.GetBitWidth(), v2.IsSigned()) % v2;
 }
 
