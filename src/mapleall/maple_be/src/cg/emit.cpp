@@ -2385,6 +2385,23 @@ void Emitter::EmitUninitializedSymbol(const MIRSymbol &mirSymbol) {
   }
 }
 
+void SetVariableVisibility(MIRSymbol *mirSymbol) {
+  /* if no visibility set individually, set it to be same as the -fvisibility value */
+  if (mirSymbol->IsDefaultVisibility()) {
+    switch (CGOptions::GetVisibilityType()) {
+      case CGOptions::kHidden:
+        mirSymbol->SetAttr(ATTR_visibility_hidden);
+        break;
+      case CGOptions::kProtected:
+         mirSymbol->SetAttr(ATTR_visibility_protected);
+        break;
+      default:
+        mirSymbol->SetAttr(ATTR_visibility_default);
+        break;
+    }
+  }
+}
+
 void Emitter::EmitGlobalVariable() {
   std::vector<MIRSymbol*> typeStVec;
   std::vector<MIRSymbol*> typeNameStVec;
@@ -2537,14 +2554,22 @@ void Emitter::EmitGlobalVariable() {
     if (mirType == nullptr) {
       continue;
     }
+
     if (GetCG()->GetMIRModule()->IsCModule() && mirSymbol->GetStorageClass() == kScExtern) {
-      /* only emit weak & initialized extern at present */
-      if (mirSymbol->IsWeak() || mirSymbol->IsConst()) {
-        EmitAsmLabel(*mirSymbol, kAsmWeak);
+      /* emit initialized extern variable */
+      if (mirSymbol->IsConst()) {
+        EmitAsmLabel(*mirSymbol, kAsmGlbl);
+        SetVariableVisibility(mirSymbol);
+        if (mirSymbol->GetAttr(ATTR_visibility_hidden)) {
+          EmitAsmLabel(*mirSymbol, kAsmHidden);
+        } else if (mirSymbol->GetAttr(ATTR_visibility_protected)) {
+          EmitAsmLabel(*mirSymbol, kAsmProtected);
+        }
       } else {
         continue;
       }
     }
+
     /*
      * emit uninitialized global/static variables.
      * these variables store in .comm section.
@@ -2624,20 +2649,7 @@ void Emitter::EmitGlobalVariable() {
         } else {
           EmitAsmLabel(*mirSymbol, kAsmGlbl);
         }
-        /* if no visibility set individually, set it to be same as the -fvisibility value */
-        if (mirSymbol->IsDefaultVisibility()) {
-          switch (CGOptions::GetVisibilityType()) {
-            case CGOptions::kHidden:
-              mirSymbol->SetAttr(ATTR_visibility_hidden);
-              break;
-            case CGOptions::kProtected:
-              mirSymbol->SetAttr(ATTR_visibility_protected);
-              break;
-            default:
-              mirSymbol->SetAttr(ATTR_visibility_default);
-              break;
-          }
-        }
+        SetVariableVisibility(mirSymbol);
         if (theMIRModule->IsJavaModule() || mirSymbol->GetAttr(ATTR_visibility_hidden)) {
           EmitAsmLabel(*mirSymbol, kAsmHidden);
         } else if (mirSymbol->GetAttr(ATTR_visibility_protected)) {
