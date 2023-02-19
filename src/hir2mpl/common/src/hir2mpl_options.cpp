@@ -334,7 +334,7 @@ bool HIR2MPLOptions::ProcessNoMplFile(const maplecl::OptionInterface &) const {
 }
 
 bool HIR2MPLOptions::ProcessDumpLevel(const maplecl::OptionInterface &outputName) const {
-  int arg = outputName.GetCommonValue();
+  unsigned int arg = outputName.GetCommonValue();
   FEOptions::GetInstance().SetDumpLevel(arg);
   return true;
 }

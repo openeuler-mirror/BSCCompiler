@@ -107,9 +107,9 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
     CHECK_FATAL(false, "Use -target option to select another toolchain\n");
   }
   if (IsUseSafeOption()) {
-    additionalLen += 3;
+    additionalLen += 4;
   } else {
-    additionalLen += 2;
+    additionalLen += 3;
   }
   if (opts::passO2ToClang.IsEnabledByUser()) {
     additionalLen += 1;
@@ -120,9 +120,11 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   opt[0].SetValue(triple.Str());
   opt[1].SetKey("-isystem");
   opt[1].SetValue(GetFormatClangPath(options) + "lib/libc_enhanced/include");
+  opt[2].SetKey("-U");
+  opt[2].SetValue("__SIZEOF_INT128__");
   if (IsUseSafeOption()) {
-    opt[2].SetKey("-DC_ENHANCED");
-    opt[2].SetValue("");
+    opt[3].SetKey("-DC_ENHANCED");
+    opt[3].SetValue("");
   }
   if (opts::passO2ToClang.IsEnabledByUser()) {
     opt[additionalLen - 2].SetKey("-O2");
