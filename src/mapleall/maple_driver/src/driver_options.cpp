@@ -304,6 +304,10 @@ maplecl::Option<bool> defaultSafe({"-defaultSafe", "--defaultSafe"},
                                   "  --defaultSafe     : treat unmarked function or blocks as safe region by default",
                                   {driverCategory, hir2mplCategory});
 
+maplecl::Option<bool> onlyPreprocess({"-E"},
+                                  "  -E    \tPreprocess only; do not compile, assemble or link.\n",
+                                  {driverCategory, clangCategory});
+
 /* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},
                              "  --help                   \tPrint help\n",

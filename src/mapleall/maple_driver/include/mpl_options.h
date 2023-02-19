@@ -46,6 +46,7 @@ enum InputFileType {
   kFileTypeMeMpl,
   kFileTypeMbc,
   kFileTypeLmbc,
+  kFileTypeH,
 };
 
 enum OptimizationLevel {
@@ -126,6 +127,8 @@ class InputInfo {
       fileType = InputFileType::kFileTypeMbc;
     } else if (extensionName == "lmbc") {
       fileType = InputFileType::kFileTypeLmbc;
+    } else if (extensionName == "h") {
+      fileType = InputFileType::kFileTypeH;
     }
 
     return fileType;

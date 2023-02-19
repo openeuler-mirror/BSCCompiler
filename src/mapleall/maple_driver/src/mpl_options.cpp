@@ -272,9 +272,13 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
   switch (inputFileType) {
     case InputFileType::kFileTypeC:
     case InputFileType::kFileTypeCpp:
+    case InputFileType::kFileTypeH:
       UpdateRunningExe(kBinNameClang);
       newAction = std::make_unique<Action>(kBinNameClang, inputInfo, currentAction);
       currentAction = std::move(newAction);
+      if (opts::onlyPreprocess) {
+        return currentAction;
+      }
       [[clang::fallthrough]];
     case InputFileType::kFileTypeAst:
       UpdateRunningExe(kBinNameCpp2mpl);
