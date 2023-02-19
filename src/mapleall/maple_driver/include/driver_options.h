@@ -145,6 +145,7 @@ extern maplecl::Option<std::string> march;
 extern maplecl::Option<std::string> sysRoot;
 extern maplecl::Option<std::string> specs;
 extern maplecl::Option<std::string> folder;
+extern maplecl::Option<std::string> sanitizer;
 
 /* ##################### DIGITAL Options ############################################################### */
 

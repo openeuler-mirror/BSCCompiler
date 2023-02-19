@@ -192,6 +192,7 @@ class MeOption {
   static bool dumpCfgOfPhases;
   static bool epreUseProfile;
   static uint32 asanFlags;
+  static std::string fsanitizeFlags;
 // safety check option begin
   static SafetyCheckMode npeCheckMode;
   static bool isNpeCheckAll;

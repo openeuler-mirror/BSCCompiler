@@ -52,6 +52,8 @@ class FunctionStackPoisoner {
   bool isFuncCallArg(const MIRSymbol *const symbolPtr);
   bool isFuncCallArg(const std::string symbolName);
 
+  std::set<MIRSymbol *> GetStackVarReferedByCallassigned();
+
   AddressSanitizer &ASan;
 
   MeFunction *meFunction;
