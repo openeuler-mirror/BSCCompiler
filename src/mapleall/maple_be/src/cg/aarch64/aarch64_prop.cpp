@@ -2793,6 +2793,25 @@ Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand
  * Check whether the required phi is available, do not insert phi repeatedly.
  */
 RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs) const {
+  /*
+   * For the case as following, there are two different ssaVersion for a same original Vreg:
+   * [in original form]
+   *       lsl R227, R227, #3        lsl R227, R227, #3
+   *                       \         /
+   *                        \       /
+   *                       mov R2, R227
+   *
+   * [in ssa form]
+   *       lsl R173, R163, #3      lsl R172, R164, #3
+   *                       \        /
+   *                        \      /
+   *                  phi R175, (R173, R172)    ----->   need to create new phi(R165) for (R163, R164)
+   *                  mov R2, R175                       lsl R2, R165, #3
+   */
+  if (IsDifferentSSAVersion()) {
+    return nullptr;
+  }
+
   std::set<regno_t> validDifferOrigRegNOs;
   for (regno_t ssaRegNO : validDifferRegNOs) {
     VRegVersion *version = optSsaInfo->FindSSAVersion(ssaRegNO);
@@ -2835,6 +2854,20 @@ RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vecto
     }
   }
   return nullptr;
+}
+
+bool A64PregCopyPattern::IsDifferentSSAVersion() const {
+  for (auto *insn : validDefInsns) {
+    ASSERT(insn->GetOperandSize() > 0, "invalid insn to do prop");
+    Operand &dstOpnd = insn->GetOperand(kInsnFirstOpnd);
+    CHECK_FATAL(dstOpnd.IsRegister(), "invalid insn to do prop");
+    regno_t dstSSARegNo = static_cast<RegOperand&>(dstOpnd).GetRegisterNumber();
+    VRegVersion *ssaVersion = optSsaInfo->FindSSAVersion(dstSSARegNo);
+    if (ssaVersion->GetOriginalRegNO() == differOrigNO) {
+      return true;
+    }
+  }
+  return false;
 }
 
 RegOperand &A64PregCopyPattern::DFSBuildPhiInsn(Insn *curInsn, std::unordered_map<uint32, RegOperand*> &visited) {

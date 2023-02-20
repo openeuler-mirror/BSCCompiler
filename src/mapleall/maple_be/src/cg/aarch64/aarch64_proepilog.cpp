@@ -224,14 +224,10 @@ MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstructi
    * in AArch64GenProEpilog::GeneratePushRegs() and AArch64GenProEpilog::GeneratePopRegs()
    */
   RegOperand &br = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(baseRegNum, bitLen, kRegTyInt);
-  if (aarchCGFunc.GetSplitBaseOffset() == 0) {
-    aarchCGFunc.SetSplitBaseOffset(offsetVal);  /* remember the offset; don't forget to clear it */
-    ImmOperand &immAddEnd = aarchCGFunc.CreateImmOperand(offsetVal, k64BitSize, true);
-    RegOperand *origBaseReg = mo.GetBaseRegister();
-    aarchCGFunc.SelectAdd(br, *origBaseReg, immAddEnd, PTY_i64);
-  }
-  offsetVal = offsetVal - aarchCGFunc.GetSplitBaseOffset();
-  return &aarchCGFunc.CreateReplacementMemOperand(bitLen, br, offsetVal);
+  ImmOperand &immAddEnd = aarchCGFunc.CreateImmOperand(offsetVal, k64BitSize, true);
+  RegOperand *origBaseReg = mo.GetBaseRegister();
+  aarchCGFunc.SelectAdd(br, *origBaseReg, immAddEnd, PTY_i64);
+  return &aarchCGFunc.CreateReplacementMemOperand(bitLen, br, 0);
 }
 
 void AArch64GenProEpilog::AppendInstructionPushPair(CGFunc &cgFunc,

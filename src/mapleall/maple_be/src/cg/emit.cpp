@@ -29,6 +29,11 @@ using namespace maple;
 constexpr uint32 kSizeOfHugesoRoutine = 3;
 constexpr uint32 kFromDefIndexMask32Mod = 0x40000000;
 
+const std::string kDwOpAddr8SizeTab = "\n\t.8byte   ";
+const std::string kDwOpAddr8Size = ".8byte   ";
+const std::string kDwOpAddr4SizeTab = "\n\t.4byte   ";
+const std::string kDwOpAddr4Size = ".4byte   ";
+
 int32 GetPrimitiveTypeSize(const std::string &name) {
   if (name.length() != 1) {
     return -1;
@@ -3199,8 +3204,16 @@ void Emitter::EmitDIFormSpecification(unsigned int dwform) {
       /* if DWARF64, should be .8byte? */
       Emit(".4byte   ");
       break;
-    case DW_FORM_addr: /* Should we use DWARF64? for now, we generate .8byte as gcc does for DW_FORM_addr */
-      Emit(".8byte   ");
+    case DW_FORM_addr:
+      /* The DW_OP_addr operation has a single operand that encodes a machine
+         address and whose size is the size of an address on the target architecture */
+      if (GetPointerSize() == k8ByteSize) {
+        Emit(kDwOpAddr8SizeTab);
+      } else if (GetPointerSize() == k4ByteSize) {
+        Emit(kDwOpAddr4SizeTab);
+      } else {
+        ASSERT(false, "Unsupported Pointer Size");
+      }
       break;
     case DW_FORM_exprloc:
       Emit(".uleb128 ");
@@ -3402,7 +3415,15 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           EmitHexUnsigned(elp->GetOp());
           Emit(CMNT);
           (void)Emit(maple::GetDwOpName(elp->GetOp()));
-          Emit("\n\t.8byte   ");
+          /* The DW_OP_addr operation has a single operand that encodes a machine
+             address and whose size is the size of an address on the target architecture */
+          if (GetPointerSize() == k8ByteSize) {
+            Emit(kDwOpAddr8SizeTab);
+          } else if (GetPointerSize() == k4ByteSize) {
+            Emit(kDwOpAddr4SizeTab);
+          } else {
+            ASSERT(false, "Unsupported Pointer Size");
+          }
           (void)Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(
               static_cast<uint32>(elp->GetGvarStridx())).c_str());
           break;
