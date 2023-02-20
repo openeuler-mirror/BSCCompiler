@@ -531,9 +531,10 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std
   return true;
 }
 
-bool AArch64ICOIfThenElsePattern::CheckModifiedInCmpInsn(const Insn &insn) const {
-  /* add/sub insn's dest register does not exist in cmp insn. */
-  if (Has2SrcOpndSetInsn(insn)) {
+bool AArch64ICOIfThenElsePattern::CheckModifiedInCmpInsn(const Insn &insn, bool movInsnBeforeCmp) const {
+  /* insn's dest register does not exist in cmp insn. */
+  bool check = movInsnBeforeCmp ? IsSetInsnMOperator(insn) : Has2SrcOpndSetInsn(insn);
+  if (check) {
     RegOperand &insnDestReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
     if (flagOpnd) {
       RegOperand &cmpReg = static_cast<RegOperand&>(cmpInsn->GetOperand(kInsnFirstOpnd));
@@ -797,6 +798,14 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB *ifBB, BB *elseBB, BB &joinBB) {
   if (!CheckCondMoveBB(elseBB, elseDestSrcMap, elseDestRegs, elseSetInsn, insnInElseBBToBeRremovedOutOfCurrBB) ||
       (ifBB != nullptr && !CheckCondMoveBB(ifBB, ifDestSrcMap, ifDestRegs, ifSetInsn,
                                            insnInIfBBToBeRremovedOutOfCurrBB))) {
+    return false;
+  }
+  if (insnInElseBBToBeRremovedOutOfCurrBB != nullptr &&
+      !CheckModifiedInCmpInsn(*insnInElseBBToBeRremovedOutOfCurrBB, true)) {
+    return false;
+  }
+  if (insnInIfBBToBeRremovedOutOfCurrBB != nullptr &&
+      !CheckModifiedInCmpInsn(*insnInIfBBToBeRremovedOutOfCurrBB, true)) {
     return false;
   }
   if (!CheckHasSameDest(ifSetInsn, elseSetInsn) || !CheckHasSameDest(elseSetInsn, ifSetInsn) ||
