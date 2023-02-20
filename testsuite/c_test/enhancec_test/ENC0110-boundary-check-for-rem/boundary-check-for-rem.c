@@ -20,7 +20,7 @@ char * parson_strndup(const char *string, size_t n, int x) {
     if (!output_string) {
         return NULL;
     }
-    if (x > 0 && x < 9) {
+    if (x > 0 && x < 4) {
         output_string[x % 5] = '\0';
         return output_string;
     }
