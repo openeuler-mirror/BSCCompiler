@@ -406,7 +406,7 @@ void CgFuncPM::InitProfile(MIRModule &m)  const {
     }
   }
   if (!CGOptions::GetLitePgoWhiteList().empty()) {
-    bool handleSucc = m.GetLiteProfile().HandleInstrumentationWhiteList(CGOptions::GetLitePgoWhiteList());
+    bool handleSucc = m.GetLiteProfile().HandleLitePgoWhiteList(CGOptions::GetLitePgoWhiteList());
     if (!handleSucc) {
       LogInfo::MapleLogger() << "WARN: Handle lite-pgo white list file " <<
                                 CGOptions::GetLitePgoWhiteList() <<

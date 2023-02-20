@@ -27,6 +27,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_driver/defs",
   "${MAPLEALL_ROOT}/maple_driver/include",
   "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_pgo/include",
   "${MAPLEALL_ROOT}/mpl2mpl/include",
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
@@ -35,7 +36,6 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/mempool/include",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-  "${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat",
 ]
 
 executable("maple") {
@@ -43,7 +43,6 @@ executable("maple") {
     "src/as_compiler.cpp",
     "src/compiler.cpp",
     "src/compiler_factory.cpp",
-    "src/compiler_selector.cpp",
     "src/dex2mpl_compiler.cpp",
     "src/driver_runner.cpp",
     "src/ipa_compiler.cpp",
@@ -56,13 +55,14 @@ executable("maple") {
     "src/maple_comb_compiler.cpp",
     "src/mpl_options.cpp",
     "src/mplcg_compiler.cpp",
+    "src/hided_options.cpp",
   ]
 
   include_dirs = include_directories
 
   deps = [
     ":libdriver_option",
-    ":liboption_parser",
+    ":libmaple_driver",
     "${MAPLEALL_ROOT}/maple_be:libcg",
     "${MAPLEALL_ROOT}/maple_be:libmplad",
     "${MAPLEALL_ROOT}/maple_be:libmplbe",
@@ -80,9 +80,8 @@ executable("maple") {
   ]
 }
 
-static_library("libdriver_option") {
-  sources = [ "src/driver_options.cpp",
-              "src/driver_option_common.cpp" ]
+static_library("libmaple_driver") {
+  sources = [ "src/triple.cpp" ]
 
   include_dirs = [ "${MAPLEALL_ROOT}/maple_driver/include",
                    "${MAPLEALL_ROOT}/maple_util/include"
@@ -91,15 +90,12 @@ static_library("libdriver_option") {
   output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 }
 
-static_library("liboption_parser") {
-  sources = ["src/option_parser.cpp"]
+static_library("libdriver_option") {
+  sources = [ "src/driver_options.cpp" ]
 
-  include_dirs = [
-    "${MAPLEALL_ROOT}/maple_util/include",
-    "${MAPLEALL_ROOT}/maple_driver/include",
-    "${MAPLEALL_ROOT}/maple_ir/include",
-    "${MAPLEALL_ROOT}/mempool/include",
-    "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-  ] output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
+  include_dirs = [ "${MAPLEALL_ROOT}/maple_driver/include",
+                   "${MAPLEALL_ROOT}/maple_util/include"
+                 ]
+
+  output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 }
-

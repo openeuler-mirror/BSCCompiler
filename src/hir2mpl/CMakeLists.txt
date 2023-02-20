@@ -40,6 +40,7 @@ set(include_directories
   ${MAPLEALL_ROOT}/maple_ipa/include
   ${MAPLEALL_ROOT}/maple_ipa/include/old
   ${MAPLEALL_ROOT}/maple_util/include
+  ${MAPLEALL_ROOT}/maple_pgo/include
   ${MAPLEALL_ROOT}/maple_phase/include
   ${MAPLEALL_ROOT}/maple_driver/include
   ${MAPLEALL_ROOT}/mpl2mpl/include
@@ -248,6 +249,7 @@ set(inc_lib_hir2mpl_bytecode_input_class
   ${HIR2MPL_ROOT}/bytecode_input/class/include
   ${MAPLEALL_ROOT}/maple_ir/include
   ${MAPLEALL_ROOT}/maple_util/include
+  ${MAPLEALL_ROOT}/maple_pgo/include
   ${MAPLEALL_ROOT}/maple_driver/include
   ${MAPLEALL_ROOT}/mempool/include
   ${THIRD_PARTY_ROOT}/bounds_checking_function/include
@@ -290,6 +292,7 @@ if (NOT ${ONLY_C} STREQUAL "1")
       ${HIR2MPL_ROOT}/bytecode_input/dex/include
       ${MAPLEALL_ROOT}/maple_ir/include
       ${MAPLEALL_ROOT}/maple_util/include
+      ${MAPLEALL_ROOT}/maple_pgo/include
       ${MAPLEALL_ROOT}/maple_driver/include
       ${MAPLEALL_ROOT}/mempool/include
       ${THIRD_PARTY_ROOT}/bounds_checking_function/include
@@ -324,6 +327,7 @@ if (NOT ${ONLY_C} STREQUAL "1")
       ${HIR2MPL_ROOT}/bytecode_input/dex/include
       ${MAPLEALL_ROOT}/maple_ir/include
       ${MAPLEALL_ROOT}/maple_util/include
+      ${MAPLEALL_ROOT}/maple_pgo/include
       ${MAPLEALL_ROOT}/maple_driver/include
       ${MAPLEALL_ROOT}/mempool/include
       ${THIRD_PARTY_ROOT}/bounds_checking_function/include

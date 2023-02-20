@@ -31,7 +31,7 @@ class FormalDef;
 class MIRParser {
  public:
   explicit MIRParser(MIRModule &md)
-      : lexer(md),
+      : lexer(md.GetDbgInfo(), md.GetMPAllocator()),
         mod(md),
         definedLabels(mod.GetMPAllocator().Adapter()) {
     safeRegionFlag.push(false);

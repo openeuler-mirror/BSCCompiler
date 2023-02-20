@@ -39,6 +39,7 @@ set(include_directories
         ${THIRD_PARTY_ROOT}/bounds_checking_function/include
         ${MAPLEALL_ROOT}/maple_ir/include
         ${MAPLEALL_ROOT}/maple_util/include
+        ${MAPLEALL_ROOT}/maple_pgo/include
         ${MAPLEALL_ROOT}/maple_driver/include
         ${MAPLEALL_ROOT}/mempool/include
         ${MAPLE_ROOT}/build/gtestlib/include

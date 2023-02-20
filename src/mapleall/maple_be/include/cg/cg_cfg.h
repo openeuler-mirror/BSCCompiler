@@ -77,6 +77,7 @@ class CGCFG {
   void BuildCFG() const;
   void CheckCFG();
   void CheckCFGFreq();
+  uint32 ComputeCFGHash();
 
   void InitInsnVisitor(CGFunc &func) const;
   InsnVisitor *GetInsnModifier() const {

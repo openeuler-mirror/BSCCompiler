@@ -27,21 +27,33 @@ static inline struct Mpl_Lite_Pgo_DumpInfo *CreateDumpNode(char *inStr) {
   di->next = NULL;
 }
 
-static inline void DumpNodeTailInsert(struct Mpl_Lite_Pgo_DumpInfo *header, struct Mpl_Lite_Pgo_DumpInfo *new){
-  struct Mpl_Lite_Pgo_DumpInfo *tmp = header;
-  while (tmp->next != NULL){
-    tmp = tmp->next;
+static inline void EmitFunctionDesc(unsigned int modHash, const struct Mpl_Lite_Pgo_FuncInfo *funcPtr, int fd) {
+  /* skip function without counters */
+  if (funcPtr->counterNum == 0) {
+    return;
   }
-  tmp->next = new;
+  const uint64_t *cptr = funcPtr->counters;
+  char lineBuf[BUFFSIZE];
+  size_t emitSz = sprintf(lineBuf,"func &%s funcid %u,counterSz %lu,cfghash %u,\n\0",
+      funcPtr->funcName, modHash, funcPtr->counterNum, funcPtr->cfgHash);
+  write(fd, lineBuf,  emitSz);
+  if (!CheckAllZero(funcPtr)) {
+    for (size_t i = 0; cptr && i < funcPtr->counterNum; ++i) {
+      char counterBuf[BUFFSIZE];
+      size_t sizeOfCounter = sprintf(counterBuf, "%lu\n\0", *cptr);
+      write(fd, counterBuf,  sizeOfCounter);
+      cptr++;
+    }
+  }
+  return;
 }
 
-static size_t AppendOneString(
-    unsigned int modHash, const char *funcName, struct Mpl_Lite_Pgo_DumpInfo **head, const uint64_t *value, int fd) {
-  char lineBuf[BUFSIZE];
-  sprintf(lineBuf, "1 %u$$%s %lu\n\0", modHash, funcName, *value);
-  size_t sizeOfALine = strlen(lineBuf);
-  write(fd, lineBuf,  sizeOfALine);
-  return sizeOfALine;
+static inline void EmitFlavor(int fd) {
+  char flavorBuf[BUFFSIZE];
+  char timeBuf[TIMEBUFSIZE];
+  current_time_to_buf(timeBuf);
+  size_t emitSz = sprintf(flavorBuf,"flavor %s\n\0", timeBuf);
+  write(fd, flavorBuf, emitSz);
 }
 
 static inline void WriteToFile(const struct Mpl_Lite_Pgo_ObjectFileInfo *fInfo) {
@@ -53,17 +65,11 @@ static inline void WriteToFile(const struct Mpl_Lite_Pgo_ObjectFileInfo *fInfo) 
     return;
   }
   pthread_rwlock_wrlock(&rwlock);
+  EmitFlavor(fd);
   while (fInfo) {
     for (unsigned int i = 0; i != fInfo->funcNum; ++i) {
       const struct Mpl_Lite_Pgo_FuncInfo *funcPtr = fInfo->funcInfos[i];
-      if (!CheckAllZero(funcPtr)) {
-        const uint64_t *cptr = funcPtr->counters;
-        txtLen += AppendOneString(fInfo->modHash, funcPtr->funcName, &head, &funcPtr->counterNum, fd);
-        for (size_t i = 0; cptr && i < funcPtr->counterNum; ++i) {
-          txtLen += AppendOneString(fInfo->modHash, funcPtr->funcName, &head, cptr, fd);
-          cptr++;
-        }
-      }
+      EmitFunctionDesc (fInfo->modHash, funcPtr, fd);
     }
     fInfo = fInfo->next;
   }
@@ -132,6 +138,23 @@ void ShareCountersInProcess() {
 #endif
 }
 
+static inline void FlushCounters(struct Mpl_Lite_Pgo_ObjectFileInfo *fInfo) {
+  pthread_rwlock_wrlock(&rwlock);
+  while (fInfo) {
+    for (unsigned int i = 0; i != fInfo->funcNum; ++i) {
+      struct Mpl_Lite_Pgo_FuncInfo *funcPtr = fInfo->funcInfos[i];
+      uint64_t *cptr = funcPtr->counters;
+      for (size_t i = 0; cptr && i < funcPtr->counterNum; ++i) {
+        *cptr = 0;
+        cptr++;
+      }
+    }
+    fInfo = fInfo->next;
+  }
+
+  pthread_rwlock_unlock(&rwlock);
+}
+
 // use to watch dump timer && set mutex
 void __mpl_pgo_setup() {
   if (!__mpl_pgo_info_root.setUp) {
@@ -164,7 +187,6 @@ void __mpl_pgo_exit() {
   }
 }
 
-/* provide internal call for user */
 void __mpl_pgo_dump_wrapper() {
   asm volatile ( SAVE_ALL :::);
   pthread_rwlock_init(&rwlock, NULL);
@@ -172,6 +194,14 @@ void __mpl_pgo_dump_wrapper() {
     WriteToFile(__mpl_pgo_info_root.ofileInfoList);
   }
   __mpl_pgo_info_root.dumpOnce++;
+  pthread_rwlock_destroy(&rwlock);
+  asm volatile ( RESTORE_ALL :::);
+}
+
+void __mpl_pgo_flush_counter() {
+  asm volatile ( SAVE_ALL :::);
+  pthread_rwlock_init(&rwlock, NULL);
+  FlushCounters(__mpl_pgo_info_root.ofileInfoList);
   pthread_rwlock_destroy(&rwlock);
   asm volatile ( RESTORE_ALL :::);
 }

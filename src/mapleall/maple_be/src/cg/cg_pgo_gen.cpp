@@ -20,16 +20,6 @@
 
 namespace maplebe {
 uint64 CGProfGen::counterIdx = 0;
-std::string FlatenName(const std::string &name) {
-  std::string filteredName = name;
-  size_t startPos = name.find_last_of("/") == std::string::npos ? 0 : name.find_last_of("/") + 1U; // skip /
-  size_t endPos = name.find_last_of(".") == std::string::npos ? 0 : name.find_last_of(".");
-  CHECK_FATAL(endPos > startPos, "invalid module name");
-  filteredName = filteredName.substr(startPos, endPos - startPos);
-  std::replace(filteredName.begin(), filteredName.end(), '-', '_');
-  return filteredName;
-}
-
 std::string AppendModSpecSuffix(MIRModule &m) {
   std::string specSuffix = "_";
   specSuffix = specSuffix + std::to_string(DJBHash(m.GetEntryFuncName().c_str()) + m.GetNumFuncs());
@@ -39,7 +29,7 @@ std::string AppendModSpecSuffix(MIRModule &m) {
 static inline void CreateFuncInfo(
     MIRModule &m, MIRType *funcProfInfoTy, const std::vector<MIRFunction*> &validFuncs, std::vector<MIRSymbol*> &syms) {
   MIRType *voidPtrTy = GlobalTables::GetTypeTable().GetVoidPtr();
-  MIRType *u64Ty = GlobalTables::GetTypeTable().GetUInt64();
+  MIRType *u32Ty = GlobalTables::GetTypeTable().GetUInt32();
   for (MIRFunction *f : validFuncs) {
     auto *funcInfoMirConst = m.GetMemPool()->New<MIRAggConst>(m, *funcProfInfoTy);
 
@@ -47,11 +37,12 @@ static inline void CreateFuncInfo(
     auto *funcNameMirConst =
         m.GetMemPool()->New<MIRStrConst>(f->GetName(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_a64)));
     funcInfoMirConst->AddItem(funcNameMirConst, 1);
-    /* counter array will be fixed up later after instrumentation analysis */
-    MIRIntConst *zeroMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(puID, *u64Ty);
+    /* counter array and cfg hash will be fixed up later after instrumentation analysis */
+    MIRIntConst *zeroMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *u32Ty);
     funcInfoMirConst->AddItem(zeroMirConst, 2);
+    funcInfoMirConst->AddItem(zeroMirConst, 3);
     MIRIntConst *voidMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *voidPtrTy);
-    funcInfoMirConst->AddItem(voidMirConst, 3);
+    funcInfoMirConst->AddItem(voidMirConst, 4);
 
     MIRSymbol *funcInfoSym = m.GetMIRBuilder()->CreateGlobalDecl(
         namemangler::kprefixProfFuncDesc + std::to_string(puID), *funcProfInfoTy, kScFstatic);
@@ -62,7 +53,7 @@ static inline void CreateFuncInfo(
 
 static inline MIRSymbol *GetOrCreateFuncInfoTbl(MIRModule &m, const std::vector<MIRFunction*> &validFuncs) {
   std::string srcFN = m.GetFileName();
-  std::string useName = namemangler::kprefixProfCtrTbl + FlatenName(srcFN);
+  std::string useName = namemangler::kprefixProfCtrTbl + LiteProfile::FlatenName(srcFN);
   auto nameStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(useName);
   MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(nameStrIdx);
   if (sym != nullptr) {
@@ -73,14 +64,16 @@ static inline MIRSymbol *GetOrCreateFuncInfoTbl(MIRModule &m, const std::vector<
   FieldVector fields;
   //  Create function profile info type                                                      // Field
   GStrIdx funcNameStrIdx = m.GetMIRBuilder()->GetOrCreateStringIndex("func_name");       // 1
-  GStrIdx cntNumStrIdx = m.GetMIRBuilder()->GetOrCreateStringIndex("counter_num");       // 2
-  GStrIdx cntArrayStrIdx = m.GetMIRBuilder()->GetOrCreateStringIndex("counter_array");   // 3
+  GStrIdx cfgHashStrIdx = m.GetMIRBuilder()->GetOrCreateStringIndex("cfg_hash");         // 2
+  GStrIdx cntNumStrIdx = m.GetMIRBuilder()->GetOrCreateStringIndex("counter_num");       // 3
+  GStrIdx cntArrayStrIdx = m.GetMIRBuilder()->GetOrCreateStringIndex("counter_array");   // 4
 
   MIRType *voidPtrTy = GlobalTables::GetTypeTable().GetVoidPtr();
-  MIRType *u64Ty = GlobalTables::GetTypeTable().GetUInt64();
+  MIRType *u32Ty = GlobalTables::GetTypeTable().GetUInt32();
   TyIdx charPtrTyIdx = GlobalTables::GetTypeTable().GetOrCreatePointerType(TyIdx(PTY_u8))->GetTypeIndex();
   fields.emplace_back(funcNameStrIdx, TyIdxFieldAttrPair(charPtrTyIdx, FieldAttrs()));
-  fields.emplace_back(cntNumStrIdx, TyIdxFieldAttrPair(u64Ty->GetTypeIndex(), FieldAttrs()));
+  fields.emplace_back(cfgHashStrIdx, TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs()));
+  fields.emplace_back(cntNumStrIdx, TyIdxFieldAttrPair(u32Ty->GetTypeIndex(), FieldAttrs()));
   fields.emplace_back(cntArrayStrIdx, TyIdxFieldAttrPair(voidPtrTy->GetTypeIndex(), FieldAttrs()));
 
   MIRType *funcProfInfoTy =
@@ -105,7 +98,7 @@ static inline MIRSymbol *GetOrCreateFuncInfoTbl(MIRModule &m, const std::vector<
 
 static inline MIRSymbol *GetOrCreateModuleInfo(MIRModule &m, const std::vector<MIRFunction *>&validFuncs) {
   std::string srcFN = m.GetFileName();
-  std::string useName = namemangler::kprefixProfModDesc  + FlatenName(srcFN);
+  std::string useName = namemangler::kprefixProfModDesc  + LiteProfile::FlatenName(srcFN);
   auto nameStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(useName);
   MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(nameStrIdx);
   if (sym != nullptr) {
@@ -137,7 +130,7 @@ static inline MIRSymbol *GetOrCreateModuleInfo(MIRModule &m, const std::vector<M
   /* Initialize fields */
   auto *modProfSymMirConst = m.GetMemPool()->New<MIRAggConst>(m, *modInfoTy);
   MIRIntConst *modHashMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      DJBHash(m.GetFileName().c_str()), *u32Ty);
+      DJBHash(LiteProfile::FlatenName(m.GetFileName()).c_str()), *u32Ty);
   modProfSymMirConst->AddItem(modHashMirConst, 1);
   MIRIntConst *nextMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *voidPtrTy);
   modProfSymMirConst->AddItem(nextMirConst, 2);
@@ -184,7 +177,7 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
     validFuncs.push_back(f);
   }
   /* call entry in libmplpgo.so */
-  auto profEntry = std::string("__" + FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) + "_init");
+  auto profEntry = std::string("__" + LiteProfile::FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) + "_init");
   ArgVector formals(m.GetMPAllocator().Adapter());
   MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
   auto *newEntry  = m.GetMIRBuilder()->CreateFunction(profEntry, *voidTy, formals);
@@ -202,7 +195,7 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   m.AddFunction(newEntry);
 
   /* call setup in mplpgo.so if it needs mutex && dump in child process */
-  auto profSetup = std::string("__" + FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) +  "_setup");
+  auto profSetup = std::string("__" + LiteProfile::FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) +  "_setup");
   auto *newSetup = m.GetMIRBuilder()->CreateFunction(profSetup, *voidTy, formals);
   auto *setupInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_setup", TyIdx(PTY_void));
   auto *setupBody = newSetup->GetCodeMempool()->New<BlockNode>();
@@ -214,7 +207,7 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   m.AddFunction(newSetup);
 
   /* call exit in libmplpgo.so */
-  auto profExit = std::string("__" + FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) + "_exit");
+  auto profExit = std::string("__" + LiteProfile::FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) + "_exit");
   auto *newExit = m.GetMIRBuilder()->CreateFunction(profExit, *voidTy, formals);
   auto *exitInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_exit", TyIdx(PTY_void));
   auto *exitBody = newExit->GetCodeMempool()->New<BlockNode>();
@@ -245,7 +238,11 @@ void CGProfGen::InstrumentFunction() {
   }
 
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
-  MIRSymbol *bbCounterTab = GetOrCreateFuncCounter(f->GetFunction(), static_cast<uint32>(iBBs.size()));
+  CGCFG *cfg = f->GetTheCFG();
+  CHECK_FATAL(cfg != nullptr, "exit");
+
+  MIRSymbol *bbCounterTab = GetOrCreateFuncCounter(f->GetFunction(),
+      static_cast<uint32>(iBBs.size()), cfg->ComputeCFGHash());
   BECommon *be = Globals::GetInstance()->GetBECommon();
   uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   if (newTypeTableSize != oldTypeTableSize) {

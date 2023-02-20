@@ -27,7 +27,7 @@ class MIRLexer {
   friend MIRParser;
 
  public:
-  explicit MIRLexer(MIRModule &mod);
+  MIRLexer(DebugInfo *debugInfo, MapleAllocator &alloc);
   ~MIRLexer() {
     airFile = nullptr;
     if (airFileInternal.is_open()) {
@@ -75,7 +75,8 @@ class MIRLexer {
   std::string GetTokenString() const;  // for error reporting purpose
 
  private:
-  MIRModule &module;
+  /* update dbg info if need */
+  DebugInfo *dbgInfo = nullptr;
   // for storing the different types of constant values
   int64 theIntVal = 0;  // also indicates preg number under TK_preg
   float theFloatVal = 0.0;
@@ -122,6 +123,8 @@ class MIRLexer {
   TokenKind GetTokenWithPrefixQuotation();
   TokenKind GetTokenWithPrefixDoubleQuotation();
   TokenKind GetTokenSpecial();
+
+  void UpdateDbgMsg(uint32 lineNum);
 
   char GetCharAt(uint32 idx) const {
     return line[idx];

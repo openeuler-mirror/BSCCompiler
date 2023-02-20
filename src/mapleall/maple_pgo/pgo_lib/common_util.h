@@ -1,6 +1,8 @@
 #ifndef MPLPGO_C_COMMON_UTIL_H
 #define MPLPGO_C_COMMON_UTIL_H
+#include <time.h>
 
+#define TIMEBUFSIZE 26
 #define NULL ((void *)0)
 typedef long unsigned int size_t;
 typedef unsigned char		uint8_t;
@@ -161,6 +163,15 @@ void *__mmap(uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags,
   : "r"(x2), "r"(x3), "r"(x4), "r"(x5), "r"(w8)
   : "cc", "memory");
   return ret;
+}
+
+void current_time_to_buf(char* buf) {
+  time_t timer;
+  struct tm* tm_info;
+
+  timer = time(NULL);
+  tm_info = localtime(&timer);
+  strftime(buf, TIMEBUFSIZE, "%Y-%m-%d %H:%M:%S", tm_info);
 }
 
 #define SAVE_ALL                                                               \

@@ -148,6 +148,7 @@ class CGProfUse {
   std::unordered_map<uint32, BBUseInfo<maplebe::BB>*> bbProfileInfo;
 
   void ApplyOnBB();
+  bool VerifyProfiledata(const std::vector<maplebe::BB *> &iBBs, LiteProfile::BBInfo &bbInfo);
   void InitBBEdgeInfo();
   /* compute all edge freq in the cfg without consider exception */
   void ComputeEdgeFreq();

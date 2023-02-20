@@ -2,7 +2,7 @@
 #define MPLPGO_C_LIBRARY_H
 #include "common_util.h"
 
-#define BUFSIZE 50
+#define BUFFSIZE 1024
 
 struct Mpl_Lite_Pgo_DumpInfo {
   char *pgoFormatStr;
@@ -11,7 +11,8 @@ struct Mpl_Lite_Pgo_DumpInfo {
 /* information about all counters/icall/value in a function */
 struct Mpl_Lite_Pgo_FuncInfo {
   const char *funcName;
-  uint64_t counterNum;
+  uint32_t cfgHash;
+  uint32_t counterNum;
   const uint64_t * const counters;
 };
 
@@ -35,5 +36,8 @@ extern struct Mpl_Lite_Pgo_ProfileInfoRoot __mpl_pgo_info_root  __attribute__ ((
 void __mpl_pgo_setup();
 void __mpl_pgo_init(struct Mpl_Lite_Pgo_ObjectFileInfo *fileInfo);
 void __mpl_pgo_exit();
-
+/* provide internal call for user */
+void __mpl_pgo_dump_wrapper();
+/* restart counting at specific point in time */
+void __mpl_pgo_flush_counter();
 #endif

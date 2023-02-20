@@ -46,6 +46,7 @@ target_include_directories(libmplutil PRIVATE
   ${MAPLEALL_ROOT}/maple_ir/include
   ${MAPLEALL_ROOT}/mempool/include
   ${MAPLEALL_ROOT}/maple_driver/include
+  ${MAPLEALL_ROOT}/maple_pgo/include
   ${THIRD_PARTY_ROOT}/bounds_checking_function/include
   include
 )

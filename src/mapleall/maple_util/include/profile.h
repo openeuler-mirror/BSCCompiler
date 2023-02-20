@@ -117,36 +117,5 @@ class Profile {
   void ParseIRFuncDesc(const char *data, int fileNum);
   void ParseCounterTab(const char *data, int32 fileNum);
 };
-
-class LiteProfile {
- public:
-  struct BBInfo {
-    uint64 funcHash = 0;
-    std::vector<uint32> counter;
-    BBInfo() = default;
-    BBInfo(uint64 hash, std::vector<uint32> &&counter)
-        : funcHash(hash), counter(counter) {}
-    BBInfo(uint64 hash, const std::initializer_list<uint32> &iList)
-        : funcHash(hash), counter(iList) {}
-    ~BBInfo() = default;
-  };
-  // default get all kind profile
-  bool HandleLitePGOFile(const std::string &fileName, const std::string &moduleName);
-  bool HandleInstrumentationWhiteList(const std::string &fileName) const;
-  BBInfo *GetFuncBBProf(const std::string &funcName);
-  static bool IsInWhiteList(const std::string &funcName) {
-    return whiteList.empty() ? true : whiteList.count(funcName);
-  }
-  static uint32 GetBBNoThreshold() {
-    return bbNoThreshold;
-  }
-
- private:
-  static std::set<std::string> whiteList;
-  static uint32 bbNoThreshold;
-  static bool loaded;
-  std::unordered_map<std::string, BBInfo> funcBBProfData;
-  void ParseFuncBBData(const std::string &line, std::string &curFile, const std::string &moduleHash);
-};
 }  // namespace maple
 #endif  // MAPLE_UTIL_INCLUDE_PROFILE_H

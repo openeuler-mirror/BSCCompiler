@@ -58,10 +58,10 @@ int MIRLexer::ReadALine() {
   return currentLineSize;
 }
 
-MIRLexer::MIRLexer(MIRModule &mod)
-    : module(mod),
-      seenComments(mod.GetMPAllocator().Adapter()),
-      keywordMap(mod.GetMPAllocator().Adapter()) {
+MIRLexer::MIRLexer(DebugInfo *debugInfo,  MapleAllocator &alloc)
+    : dbgInfo(debugInfo),
+      seenComments(alloc.Adapter()),
+      keywordMap(alloc.Adapter()) {
   // initialize keywordMap
   keywordMap.clear();
 #define KEYWORD(STR)            \
@@ -86,8 +86,14 @@ void MIRLexer::PrepareForFile(const std::string &filename) {
   } else {
     lineNum = 1;
   }
-  module.GetDbgInfo()->UpdateMsg(lineNum, line.c_str());
+  UpdateDbgMsg(lineNum);
   kind = TK_invalid;
+}
+
+void MIRLexer::UpdateDbgMsg(uint32 lineNum) {
+  if (dbgInfo) {
+    dbgInfo->UpdateMsg(lineNum, line.c_str());
+  }
 }
 
 void MIRLexer::PrepareForString(const std::string &src) {
@@ -577,7 +583,7 @@ TokenKind MIRLexer::LexToken() {
       return TK_eof;
     }
     ++lineNum;  // a new line read.
-    module.GetDbgInfo()->UpdateMsg(lineNum, line.c_str());
+    UpdateDbgMsg(lineNum);
     // skip spaces
     c = GetCurrentCharWithUpperCheck();
     while (c == ' ' || c == '\t') {

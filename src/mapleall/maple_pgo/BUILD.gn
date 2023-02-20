@@ -1,0 +1,30 @@
+include_libmplpgo =
+    [
+      "${MAPLEALL_ROOT}/maple_me/include",
+      "${MAPLEALL_ROOT}/maple_pgo/include",
+      "${MAPLEALL_ROOT}/maple_ipa/include",
+      "${MAPLEALL_ROOT}/maple_ipa/include/old",
+      "${MAPLEALL_ROOT}/maple_util/include",
+      "${MAPLEALL_ROOT}/mempool/include",
+      "${MAPLEALL_ROOT}/maple_ir/include",
+      "${MAPLEALL_ROOT}/mpl2mpl/include",
+      "${MAPLEALL_ROOT}/maple_be/include/cg",
+      "${MAPLEALL_ROOT}/maple_be/include/be",
+      "${MAPLEALL_ROOT}/maple_be/include/ad",
+      "${MAPLEALL_ROOT}/maple_be/include/ad/target",
+      "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
+      "${MAPLEALL_ROOT}/maple_driver/include",
+    ]
+
+src_libmplpgo =
+    [
+      "src/cfg_mst.cpp",
+      "src/instrument.cpp",
+      "src/litepgo.cpp",
+    ]
+
+configs = ["${MAPLEALL_ROOT}:mapleallcompilecfg"]
+
+static_library("libmplpgo") {
+  sources = src_libmplpgo include_dirs = include_libmplpgo output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
+}

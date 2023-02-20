@@ -28,14 +28,11 @@ bool CGProfUse::ApplyPGOData() {
   }
   LiteProfile::BBInfo *bbInfo = f->GetFunction().GetModule()->GetLiteProfile().GetFuncBBProf(f->GetName());
   if (bbInfo == nullptr) {
-    std::cout << "find profile for " << f->GetName() << "Failed" << std::endl;
+    LogInfo::MapleLogger() << "find profile for " << f->GetName() << "Failed\n";
   }
   CHECK_FATAL(bbInfo != nullptr, "Get profile Failed");
-
-  if (bbInfo->counter.size() != iBBs.size()) {
-    LogInfo::MapleLogger() << f->GetName() << " counter doesn't match profile counter "
-                           << bbInfo->counter.size() << " func real counter " << iBBs.size() << '\n';
-    CHECK_FATAL(false, "");
+  if (!VerifyProfiledata(iBBs, *bbInfo)) {
+    CHECK_FATAL_FALSE("Verify lite profile data Failed!");
     return false;
   }
 
@@ -52,6 +49,22 @@ bool CGProfUse::ApplyPGOData() {
 #if 0
   f->GetTheCFG()->CheckCFGFreq();
 #endif
+  return true;
+}
+
+bool CGProfUse::VerifyProfiledata(const std::vector<maplebe::BB *> &iBBs, LiteProfile::BBInfo &bbInfo) {
+  /* check bb size */
+  if (bbInfo.counter.size() != iBBs.size()) {
+    LogInfo::MapleLogger() << f->GetName() << " counter doesn't match profile counter :"
+                           << bbInfo.counter.size() << " func real counter :" << iBBs.size() << '\n';
+    return false;
+  }
+  /* check cfg hash*/
+  if (bbInfo.funcHash != f->GetTheCFG()->ComputeCFGHash()) {
+    LogInfo::MapleLogger() << f->GetName() << " CFG hash doesn't match profile cfghash :"
+                           << bbInfo.funcHash << " func cfghash :" << f->GetTheCFG()->ComputeCFGHash() << '\n';
+    return false;
+  }
   return true;
 }
 
