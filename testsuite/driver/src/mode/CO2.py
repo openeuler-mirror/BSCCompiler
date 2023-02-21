@@ -74,9 +74,11 @@ CO2 = {
         ),
         Maple(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["mplcg"],
+            run=["me", "mpl2mpl", "mplcg"],
             option={
-                "mplcg": "--quiet"
+                "me": "-O2 --quiet",
+                "mpl2mpl": "-O2",
+                "mplcg": "-O2 --fPIC --quiet"
             },
             global_option="-g",
             infiles=["${APP}.mpl"],

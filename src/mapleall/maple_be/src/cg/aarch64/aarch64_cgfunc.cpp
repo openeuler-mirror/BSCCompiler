@@ -11708,7 +11708,7 @@ Operand *AArch64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intr
   atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(mOpLoad, *regLoaded, memOpnd1));
 
   /* compare the first param's value with the second */
-  SelectAArch64Cmp(*regLoaded, *regOpnd2, true, primType);
+  SelectAArch64Cmp(*regLoaded, *regOpnd2, true, GetPrimTypeBitSize(primType));
   /* bne */
   BB *nextAtomicBB = CreateAtomicBuiltinBB(false);
   LabelOperand &targetOpnd = GetOrCreateLabelOperand(*nextAtomicBB);
@@ -11720,7 +11720,7 @@ Operand *AArch64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intr
   atomicBB->AppendInsn(GetInsnBuilder()->BuildInsn(mOpStore, *accessStatus, *opnd3, memOpnd1));
   if (weak) {
     /* cmp */
-    SelectAArch64Cmp(*accessStatus, GetZeroOpnd(primType), true, primType);
+    SelectAArch64Cmp(*accessStatus, GetZeroOpnd(primType), true, GetPrimTypeBitSize(primType));
   } else {
     /* cbnz */
     auto &atomicBBOpnd = GetOrCreateLabelOperand(*atomicBB);
@@ -11731,7 +11731,7 @@ Operand *AArch64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intr
   auto *returnOpnd = &CreateRegisterOperandOfType(primType);
   SelectAArch64CSet(*returnOpnd, GetCondOperand(CC_EQ), false);
   /* cmp */
-  SelectAArch64Cmp(*returnOpnd, GetZeroOpnd(primType), true, primType);
+  SelectAArch64Cmp(*returnOpnd, GetZeroOpnd(primType), true, GetPrimTypeBitSize(primType));
   /* bne */
   BB *nextBB = CreateNewBB();
   auto &nextBBOpnd = GetOrCreateLabelOperand(*nextBB);
