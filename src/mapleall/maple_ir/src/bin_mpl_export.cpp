@@ -461,7 +461,7 @@ void BinaryMplExport::OutputUsrStr(UStrIdx ustr) {
   }
 
   size_t mark = uStrMark.size();
-  uStrMark[ustr] = mark;
+  uStrMark[ustr] = static_cast<int64>(mark);
   WriteNum(kBinUsrString);
   WriteAsciiStr(GlobalTables::GetUStrTable().GetStringFromStrIdx(ustr));
 }
@@ -682,7 +682,7 @@ void BinaryMplExport::OutputFunction(PUIdx puIdx) {
     return;
   }
   size_t mark = funcMark.size();
-  funcMark[func] = mark;
+  funcMark[func] = static_cast<int64>(mark);
   MIRFunction *savedFunc = mod.CurFunction();
   mod.SetCurFunction(func);
 
@@ -845,7 +845,7 @@ void BinaryMplExport::OutputCallInfo(CallInfo &callInfo) {
   }
   WriteNum(kBinCallinfo);
   size_t mark = callInfoMark.size();
-  callInfoMark[callInfo.GetID()] = mark;
+  callInfoMark[callInfo.GetID()] = static_cast<int64>(mark);
   WriteNum(callInfo.GetCallType());  // call type
   WriteInt(callInfo.GetLoopDepth());
   WriteInt(callInfo.GetID());
@@ -1009,7 +1009,7 @@ void BinaryMplExport::OutEaCgNode(EACGBaseNode &node) {
     return;
   }
   size_t mark = eaNodeMark.size();
-  eaNodeMark[&node] = mark;
+  eaNodeMark[&node] = static_cast<int64>(mark);
   WriteNum(kBinEaCgNode);
   WriteNum(node.kind);
   OutEaCgBaseNode(node, true);
@@ -1272,7 +1272,8 @@ void BinaryMplExport::Export(const std::string &fname, std::unordered_set<std::s
 }
 
 void BinaryMplExport::AppendAt(const std::string &name, int32 offset) {
-  FILE *f = fopen(name.c_str(), "r+b");
+  char absPath[PATH_MAX];
+  FILE *f = fopen(realpath(name.c_str(), absPath), "r+b");
   if (f == nullptr) {
     LogInfo::MapleLogger(kLlErr) << "Error while opening the binary file: " << name << '\n';
     FATAL(kLncFatal, "Error while creating the binary file: %s\n", name.c_str());
@@ -1318,7 +1319,7 @@ void BinaryMplExport::OutputType(const TyIdx &tyIdx) {
     ++BinaryMplExport::typeMarkOffset;
   } else {
     size_t mark = typMark.size() + static_cast<uint>(BinaryMplExport::typeMarkOffset);
-    typMark[ty] = mark;
+    typMark[ty] = static_cast<int64>(mark);
   }
 
   auto func = CreateProductFunction<OutputTypeFactory>(ty->GetKind());

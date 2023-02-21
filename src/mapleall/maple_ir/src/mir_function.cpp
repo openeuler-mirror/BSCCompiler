@@ -19,6 +19,7 @@
 #include "printing.h"
 #include "string_utils.h"
 #include "ipa_side_effect.h"
+#include "inline_summary.h"
 
 namespace {
 using namespace maple;
@@ -376,6 +377,8 @@ void MIRFunction::Dump(bool withoutBody) {
   if (codeMemPool == nullptr) {
     LogInfo::MapleLogger() << '\n';
   } else if (GetBody() != nullptr && !withoutBody && symbol->GetStorageClass() != kScExtern) {
+    StmtNode::lastPrintedLineNum = 0;
+    StmtNode::lastPrintedColumnNum = 0;
     ResetInfoPrinted();  // this ensures funcinfo will be printed
     GetBody()->Dump(0, module->GetFlavor() == kMmpl ? nullptr : GetSymTab(),
                     module->GetFlavor() < kMmpl ? GetPregTab() : nullptr, false,
@@ -446,7 +449,7 @@ void MIRFunction::DumpFrame(int32 indent) const {
   }
 }
 
-void MIRFunction::DumpScope() {
+void MIRFunction::DumpScope() const {
   scope->Dump(0);
 }
 
@@ -575,7 +578,7 @@ void MIRFunction::SetBaseClassFuncNames(GStrIdx strIdx) {
     }
     baseFuncSigStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcNameWithType);
     size_t newPos = name.find(delimiter, pos + width);
-    while (newPos != std::string::npos && (name[newPos - 1] == '_' && name[newPos - 2] != '_')) {
+    while (newPos < std::string::npos && (name[newPos - 1] == '_' && name[newPos - 2] != '_')) {
       newPos = name.find(delimiter, newPos + width);
     }
     if (newPos != 0) {
@@ -644,9 +647,49 @@ void MIRFunction::EnterFormals() {
   }
 }
 
+// InlineSummary constructor is dependent on the following Predicate static member functions and it
+// will be called by MIRFunction::GetOrCreateInlineSummary(). So we put the implemetation code here.
+// True predicate asserts: { 0 }
+// TruePredicate object is globally unique, so we allocate it in inlineSummaryAlloc.
+// DO NOT call this function after inlineSummaryAlloc is released.
+const Predicate *Predicate::TruePredicate() {
+  auto &summaryAlloc = theMIRModule->GetInlineSummaryAlloc();
+  static const auto * const truePredicate =
+      summaryAlloc.New<Predicate>(std::initializer_list<Assert>{ 0 }, summaryAlloc);
+  return truePredicate;
+}
+
+// False predicate asserts: { 1 }
+// FalsePredicate object is globally unique, so we allocate it in inlineSummaryAlloc.
+// DO NOT call this function after inlineSummaryAlloc is released.
+const Predicate *Predicate::FalsePredicate() {
+  auto &summaryAlloc = theMIRModule->GetInlineSummaryAlloc();
+  static const auto * const falsePredicate =
+      summaryAlloc.New<Predicate>(std::initializer_list<Assert>{ 1 }, summaryAlloc);
+  return falsePredicate;
+}
+
+// NotInline predicate asserts: { 2 }
+// NotInlinePredicate object is globally unique, so we allocate it in inlineSummaryAlloc.
+// DO NOT call this function after inlineSummaryAlloc is released.
+const Predicate *Predicate::NotInlinePredicate() {
+  auto &summaryAlloc = theMIRModule->GetInlineSummaryAlloc();
+  static const auto * const notInlinePredicate =
+      summaryAlloc.New<Predicate>(std::initializer_list<Assert>{ 2 }, summaryAlloc);
+  return notInlinePredicate;
+}
+
+InlineSummary *MIRFunction::GetOrCreateInlineSummary() {
+  if (inlineSummary == nullptr) {
+    auto &inlineSummaryAlloc = module->GetInlineSummaryAlloc();
+    CHECK_FATAL(inlineSummaryAlloc.GetMemPool() != nullptr, "inline summary alloc has been released?");
+    inlineSummary = inlineSummaryAlloc.New<InlineSummary>(inlineSummaryAlloc, this);
+  }
+  return GetInlineSummary();
+}
+
 void MIRFunction::NewBody() {
-  codeMemPool = GetCodeMemPool();
-  SetBody(codeMemPool->New<BlockNode>());
+  SetBody(GetCodeMemPool()->New<BlockNode>());
   // If mir_function.has been seen as a declaration, its symtab has to be moved
   // from module mempool to function mempool.
   MIRSymbolTable *oldSymTable = GetSymTab();
@@ -678,6 +721,16 @@ void MIRFunction::NewBody() {
   if (oldLabelTable != nullptr) {
     ASSERT(oldLabelTable->Size() == GetLabelTab()->Size(),
            "Does not expect to process labelTab in MIRFunction::NewBody");
+  }
+}
+
+MIRFunction *MIRFunction::GetFuncAlias() {
+  if (GetAttr(FUNCATTR_weakref)) {
+    auto aliasFunc = funcAttrs.GetAliasFuncName();
+    auto builder =  module->GetMIRBuilder();
+    return builder->GetOrCreateFunction(aliasFunc, funcType->GetRetTyIdx());
+  } else {
+    return this;
   }
 }
 
