@@ -22,13 +22,61 @@ DRIVER = {
             inputs="${APP}"
         )
     ],
+    "mpl2S2out": [
+        Driver(
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            global_option="-S -o ${CPP}",
+            inputs="${APP}"
+        ),
+        Driver(
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            global_option="",
+            inputs="${CPP}"
+        )
+    ],
+    "mpl2S2outNo": [
+        Driver(
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            global_option="-S",
+            inputs="${APP}"
+        ),
+        Driver(
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            global_option="",
+            inputs="${CPP}"
+        )
+    ],
+    "mpl2O2out": [
+        Driver(
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            global_option="-c -o ${BPP}",
+            inputs="${APP}"
+        ),
+        Driver(
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            global_option="",
+            inputs="${BPP}"
+        )
+    ],
+    "mpl2O2outNo": [
+        Driver(
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            global_option="-c",
+            inputs="${APP}"
+        ),
+        Driver(
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            global_option="",
+            inputs="${BPP}"
+        )
+    ],
     "run": [
         Shell(
             "${OUT_ROOT}/tools/bin/qemu-aarch64 -L ${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc ${APP}.out > output.log 2>&1"
         ),
-	CheckFileEqual(
-	    file1="output.log",
-	    file2="expected.txt"
-	)
+        CheckFileEqual(
+            file1="output.log",
+            file2="expected.txt"
+        )
     ]
 }

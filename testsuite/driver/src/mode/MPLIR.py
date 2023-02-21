@@ -16,18 +16,11 @@ from api import *
 
 MPLIR = {
     "compile" : [
-        Maple(
-            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
-            run=[],
-            option={},
-            global_option="-S --fPIC",
-            infiles=["${DRIVER}.c", "${APP}.mpl" ]
-        ),
-        CLinker(
-            infiles=["${DRIVER}.s"  "${APP}.s"],
-            front_option="",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${DRIVER}.c", "${APP}.mpl"],
             outfile="${APP}.out",
-            back_option="-lm"
+            option="-fPIC -lm"
         )
     ],
     "run": [

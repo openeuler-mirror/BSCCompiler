@@ -107,9 +107,9 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
     CHECK_FATAL(false, "Use -target option to select another toolchain\n");
   }
   if (IsUseSafeOption()) {
-    additionalLen += 5;
+    additionalLen += 6;
   } else {
-    additionalLen += 4;
+    additionalLen += 5;
   }
   if (opts::passO2ToClang.IsEnabledByUser()) {
     additionalLen += 1;
@@ -120,11 +120,13 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   opt[0].SetValue(triple.Str());
   opt[1].SetKey("-isystem");
   opt[1].SetValue(GetFormatClangPath(options) + "lib/libc_enhanced/include");
-  opt[2].SetKey("-U");
-  opt[2].SetValue("__SIZEOF_INT128__");
+  opt[2].SetKey("-isystem");
+  opt[2].SetValue(GetFormatClangPath(options) + "lib/include");
+  opt[3].SetKey("-U");
+  opt[3].SetValue("__SIZEOF_INT128__");
   if (IsUseSafeOption()) {
-    opt[3].SetKey("-DC_ENHANCED");
-    opt[3].SetValue("");
+    opt[4].SetKey("-DC_ENHANCED");
+    opt[4].SetValue("");
   }
   if (opts::passO2ToClang.IsEnabledByUser()) {
     opt[additionalLen - 3].SetKey("-O2");
@@ -132,7 +134,7 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   }
 
   /* Set last option as -o option */
-  if (!opts::onlyPreprocess) {
+  if (action.GetInputFileType() != InputFileType::kFileTypeH) {
     opt[additionalLen - 1].SetKey("-o");
     opt[additionalLen - 1].SetValue(action.GetFullOutputName() + ".ast");
     opt[additionalLen - 2].SetKey("-emit-ast"); // 2 is the array sequence number.
