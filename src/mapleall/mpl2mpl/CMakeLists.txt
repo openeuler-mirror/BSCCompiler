@@ -20,6 +20,7 @@ set(inc_libmpl2mpl
     ${MAPLEALL_ROOT}/maple_ipa/include/old
     ${MAPLEALL_ROOT}/maple_phase/include
     ${MAPLEALL_ROOT}/maple_util/include
+    ${MAPLEALL_ROOT}/maple_pgo/include
     ${MAPLEALL_ROOT}/maple_driver/include
     ${MAPLEALL_ROOT}/mpl2mpl/include
     ${MAPLEALL_ROOT}/mpl2mpl/include/aarch64

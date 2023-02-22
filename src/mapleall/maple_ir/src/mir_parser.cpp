@@ -854,7 +854,7 @@ bool MIRParser::ParseStmtCall(StmtNodePtr &stmt) {
     Error("expect func name in call but get ");
     return false;
   }
-  PUIdx pIdx;
+  PUIdx pIdx = 0;
   if (!ParseDeclaredFunc(pIdx)) {
     if (mod.GetFlavor() < kMmpl) {
       Error("expect .mmpl");

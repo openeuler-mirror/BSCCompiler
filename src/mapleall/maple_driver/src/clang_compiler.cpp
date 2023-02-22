@@ -107,9 +107,9 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
     CHECK_FATAL(false, "Use -target option to select another toolchain\n");
   }
   if (IsUseSafeOption()) {
-    additionalLen += 3;
+    additionalLen += 6;
   } else {
-    additionalLen += 2;
+    additionalLen += 5;
   }
   if (opts::passO2ToClang.IsEnabledByUser()) {
     additionalLen += 1;
@@ -120,18 +120,26 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   opt[0].SetValue(triple.Str());
   opt[1].SetKey("-isystem");
   opt[1].SetValue(GetFormatClangPath(options) + "lib/libc_enhanced/include");
+  opt[2].SetKey("-isystem");
+  opt[2].SetValue(GetFormatClangPath(options) + "lib/include");
+  opt[3].SetKey("-U");
+  opt[3].SetValue("__SIZEOF_INT128__");
   if (IsUseSafeOption()) {
-    opt[2].SetKey("-DC_ENHANCED");
-    opt[2].SetValue("");
+    opt[4].SetKey("-DC_ENHANCED");
+    opt[4].SetValue("");
   }
   if (opts::passO2ToClang.IsEnabledByUser()) {
-    opt[additionalLen - 2].SetKey("-O2");
-    opt[additionalLen - 2].SetValue("");
+    opt[additionalLen - 3].SetKey("-O2");
+    opt[additionalLen - 3].SetValue("");
   }
 
   /* Set last option as -o option */
-  opt[additionalLen - 1].SetKey("-o");
-  opt[additionalLen - 1].SetValue(action.GetFullOutputName() + ".ast");
+  if (action.GetInputFileType() != InputFileType::kFileTypeH && !opts::onlyPreprocess.IsEnabledByUser()) {
+    opt[additionalLen - 1].SetKey("-o");
+    opt[additionalLen - 1].SetValue(action.GetFullOutputName() + ".ast");
+    opt[additionalLen - 2].SetKey("-emit-ast"); // 2 is the array sequence number.
+    opt[additionalLen - 2].SetValue("");
+  }
 
   return additionalLen;
 }
@@ -144,14 +152,10 @@ DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const 
   std::unique_ptr<MplOption[]> additionalOptions;
 
   additionalLen = FillSpecialDefaulOpt(additionalOptions, action, options);
-  defaultLen = sizeof(kClangDefaultOptions) / sizeof(MplOption);
-  fullLen = defaultLen + additionalLen;
+  fullLen = additionalLen;
 
   defaultOptions = { std::make_unique<MplOption[]>(fullLen), fullLen };
 
-  for (uint32_t i = 0; i < defaultLen; ++i) {
-    defaultOptions.mplOptions[i] = kClangDefaultOptions[i];
-  }
   for (uint32_t defInd = defaultLen, additionalInd = 0;
        additionalInd < additionalLen; ++additionalInd) {
     defaultOptions.mplOptions[defInd++] = additionalOptions[additionalInd];

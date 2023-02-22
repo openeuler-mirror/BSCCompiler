@@ -26,6 +26,7 @@ set(inc_libmaple
   ${MAPLEALL_ROOT}/maple_driver/defs
   ${MAPLEALL_ROOT}/maple_driver/include
   ${MAPLEALL_ROOT}/maple_util/include
+  ${MAPLEALL_ROOT}/maple_pgo/include
   ${MAPLEALL_ROOT}/mpl2mpl/include
   ${MAPLEALL_ROOT}/maple_me/include
   ${MAPLEALL_ROOT}/maple_ipa/include
@@ -34,7 +35,6 @@ set(inc_libmaple
   ${MAPLEALL_ROOT}/maple_ir/include
   ${MAPLEALL_ROOT}/mempool/include
   ${THIRD_PARTY_ROOT}/bounds_checking_function/include
-  ${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat
 )
 
 set(src_libmaple

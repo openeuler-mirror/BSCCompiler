@@ -1921,6 +1921,29 @@ bool RedundantPhiProp::CheckCondition(Insn &insn) {
   return false;
 }
 
+/*
+ * case : ubfx  v2  v1  0  32
+ *        phi   v3  v2
+ *        mopX  v4  v3
+ */
+bool ValidBitNumberProp::IsPhiToMopX(const RegOperand &defOpnd) const  {
+  VRegVersion *destVersion = optSsaInfo->FindSSAVersion(defOpnd.GetRegisterNumber());
+  for (auto destUseIt : destVersion->GetAllUseInsns()) {
+    Insn *useInsn = destUseIt.second->GetInsn();
+    if (useInsn->IsPhi()) {
+      return true;
+    }
+    const InsnDesc *useMD = &AArch64CG::kMd[useInsn->GetMachineOpcode()];
+    for (auto &opndUseIt : as_const(destUseIt.second->GetOperands())) {
+      const OpndDesc *useProp = useMD->GetOpndDes(opndUseIt.first);
+      if (useProp->GetSize() == k64BitSize) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool ValidBitNumberProp::IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd) const {
   for (auto destUseIt : destVersion->GetAllUseInsns()) {
     Insn *useInsn = destUseIt.second->GetInsn();
@@ -1936,6 +1959,9 @@ bool ValidBitNumberProp::IsImplicitUse(const RegOperand &dstOpnd, const RegOpera
     }
     if (useInsn->IsPhi()) {
       auto &defOpnd = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd));
+      if (IsPhiToMopX(defOpnd)) {
+        return true;
+      }
       if (defOpnd.GetSize() == k32BitSize) {
         return false;
       }
@@ -2793,6 +2819,25 @@ Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand
  * Check whether the required phi is available, do not insert phi repeatedly.
  */
 RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vector<regno_t> &validDifferRegNOs) const {
+  /*
+   * For the case as following, there are two different ssaVersion for a same original Vreg:
+   * [in original form]
+   *       lsl R227, R227, #3        lsl R227, R227, #3
+   *                       \         /
+   *                        \       /
+   *                       mov R2, R227
+   *
+   * [in ssa form]
+   *       lsl R173, R163, #3      lsl R172, R164, #3
+   *                       \        /
+   *                        \      /
+   *                  phi R175, (R173, R172)    ----->   need to create new phi(R165) for (R163, R164)
+   *                  mov R2, R175                       lsl R2, R165, #3
+   */
+  if (IsDifferentSSAVersion()) {
+    return nullptr;
+  }
+
   std::set<regno_t> validDifferOrigRegNOs;
   for (regno_t ssaRegNO : validDifferRegNOs) {
     VRegVersion *version = optSsaInfo->FindSSAVersion(ssaRegNO);
@@ -2835,6 +2880,20 @@ RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vecto
     }
   }
   return nullptr;
+}
+
+bool A64PregCopyPattern::IsDifferentSSAVersion() const {
+  for (auto *insn : validDefInsns) {
+    ASSERT(insn->GetOperandSize() > 0, "invalid insn to do prop");
+    Operand &dstOpnd = insn->GetOperand(kInsnFirstOpnd);
+    CHECK_FATAL(dstOpnd.IsRegister(), "invalid insn to do prop");
+    regno_t dstSSARegNo = static_cast<RegOperand&>(dstOpnd).GetRegisterNumber();
+    VRegVersion *ssaVersion = optSsaInfo->FindSSAVersion(dstSSARegNo);
+    if (ssaVersion->GetOriginalRegNO() == differOrigNO) {
+      return true;
+    }
+  }
+  return false;
 }
 
 RegOperand &A64PregCopyPattern::DFSBuildPhiInsn(Insn *curInsn, std::unordered_map<uint32, RegOperand*> &visited) {

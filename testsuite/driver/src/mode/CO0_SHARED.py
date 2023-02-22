@@ -15,54 +15,37 @@
 from api import *
 
 compile_part = [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
-            include_path=[
-                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
-                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
-                "../lib/include"
-            ],
-            option="--target=aarch64 -U __SIZEOF_INT128__",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl -g",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O0 --quiet",
-                "mpl2mpl": "-O0",
-                "mplcg": " -fPIC -O0 --quiet"
-            },
-            global_option="-g",
-            infiles=["${APP}.mpl"],
-            redirection="compile.log"
+    MapleDriver(
+        maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+        infiles=["${APP}.c"],
+        outfile="${APP}.s",
+        include_path=[
+            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
+            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
+            "../lib/include"
+        ],
+        option="-O0 -g -fPIC -S",
+        redirection="compile.log"
         )
 ]
 
 link_part = [
-         CLinker(
-           infiles=["${APP}_main.s"],
-           front_option="",
-           outfile="main.exe",
-           back_option="-L. -l${APP} -lm -lpthread"
-         )
+    MapleDriver(
+        maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+        infiles=["${APP}_main.s"],
+        outfile="main.exe",
+        option="-L. -l${APP} -lm -lpthread"
+    )
 ]
 
 generate_shared_lib = [
-         CLinker(
-           infiles=["${APP}.s"],
-           front_option="-shared -fPIC",
-           outfile="lib${APP}.so",
-           back_option="-lm -lpthread"
-         )
+    MapleDriver(
+        maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+        infiles=["${APP}.s"],
+        outfile="lib${APP}.so",
+        option="-shared -fPIC -lm -lpthread"
+    )
 ]
-
 
 run_part = [
         Shell(

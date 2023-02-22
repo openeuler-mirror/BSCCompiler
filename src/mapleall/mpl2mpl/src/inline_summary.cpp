@@ -284,6 +284,12 @@ BaseNode *LiteExpr::ConvertToMapleIR(MapleAllocator &alloc, const ArgInfoVec *ar
       return alloc.New<CompareNode>(op, type, GetOpndType(), node0, node1);
     }
     return alloc.New<BinaryNode>(op, type, node0, node1);
+  } else if (opndNodes.size() == kOperandNumTernary) {
+    if (op == OP_select) {
+      auto *node1 = opnds[1]->ConvertToMapleIR(alloc, argInfoVec);
+      auto *node2 = opnds[2]->ConvertToMapleIR(alloc, argInfoVec);
+      return alloc.New<TernaryNode>(op, type, node0, node1, node2);
+    }
   } else {
     CHECK_FATAL(false, "NYI");
   }

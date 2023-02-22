@@ -22,24 +22,27 @@ std::string GetProfCntSymbolName(const std::string &funcName, PUIdx idx) {
   return funcName + "_" + std::to_string(idx) + "_counter";
 }
 
-static inline void RegisterInFuncInfo(MIRModule &m, PUIdx idx, const MIRSymbol &counter, uint32 elemCnt) {
+static inline void RegisterInFuncInfo(MIRFunction &func, const MIRSymbol &counter, uint32 elemCnt, uint32 cfgHash) {
   if (elemCnt == 0) {
     return;
   }
+  PUIdx idx = func.GetPuidx();
   auto funcStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(
       namemangler::kprefixProfFuncDesc + std::to_string(idx));
   MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(funcStrIdx);
   CHECK_FATAL(sym, "function have not generated, please check in CreateFuncInfo");
   auto *funcInfoMirConst = static_cast<MIRAggConst *>(sym->GetKonst());
-  MIRType *u64Ty = GlobalTables::GetTypeTable().GetUInt64();
-  MIRIntConst *eleCntMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(elemCnt, *u64Ty);
-  auto *counterConst = m.GetMemPool()->New<MIRAddrofConst>(
+  MIRType *u32Ty = GlobalTables::GetTypeTable().GetUInt32();
+  MIRIntConst *cfgHashConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(cfgHash, *u32Ty);
+  MIRIntConst *eleCntMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(elemCnt, *u32Ty);
+  auto *counterConst = func.GetModule()->GetMemPool()->New<MIRAddrofConst>(
       counter.GetStIdx(), 0, *GlobalTables::GetTypeTable().GetPtr());
-  funcInfoMirConst->SetItem(1, eleCntMirConst,2);
-  funcInfoMirConst->SetItem(2, counterConst, 3);
+  funcInfoMirConst->SetItem(1, cfgHashConst,2);
+  funcInfoMirConst->SetItem(2, eleCntMirConst,3);
+  funcInfoMirConst->SetItem(3, counterConst, 4);
 }
 
-MIRSymbol *GetOrCreateFuncCounter(MIRFunction &func, uint32 elemCnt) {
+MIRSymbol *GetOrCreateFuncCounter(MIRFunction &func, uint32 elemCnt, uint32 cfgHash) {
   auto *mirModule = func.GetModule();
   std::string name = GetProfCntSymbolName(func.GetName(), func.GetPuidx());
   auto nameStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(name);
@@ -59,7 +62,7 @@ MIRSymbol *GetOrCreateFuncCounter(MIRFunction &func, uint32 elemCnt) {
   sym->SetKonst(profTab);
   sym->SetStorageClass(kScFstatic);
   sym->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName("mpl_counter");
-  RegisterInFuncInfo(*mirModule, func.GetPuidx(), *sym, elemCnt);
+  RegisterInFuncInfo(func, *sym, elemCnt, cfgHash);
   return sym;
 }
 

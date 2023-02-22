@@ -16,78 +16,33 @@ from api import *
 
 CO0 = {
     "compile": [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.out",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
                 "../lib/include"
             ],
-            option="--target=aarch64 -U __SIZEOF_INT128__",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl -g",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "--quiet",
-                "mpl2mpl": "--quiet",
-                "mplcg": "--quiet --fPIC"
-            },
-            global_option="-g",
-            infiles=["${APP}.mpl"]
-        ),
-        CLinker(
-            infiles=["${APP}.s"],
-            front_option="",
-            outfile="${APP}.out",
-            back_option="-lpthread -lm"
+            option="-O0 -fPIC -g -lpthread -lm"
         )
     ],
     "compile_err": [
         Shell("EXPECT_ERR_START"),
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.out",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
                 "../lib/include"
             ],
-            option="--target=aarch64 -U __SIZEOF_INT128__",
-            infile="${APP}.c",
-            outfile="${APP}.ast",
+            option="-O0 -g -lm",
             redirection="compile.log",
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl -g",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl",
-            redirection="compile.log",
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["mplcg"],
-            option={
-                "mplcg": "--quiet"
-            },
-            global_option="-g",
-            infiles=["${APP}.mpl"],
-            redirection="compile.log",
-        ),
-        CLinker(
-            infiles=["${APP}.s"],
-            front_option="",
-            outfile="${APP}.out",
-            back_option="-lm",
-           redirection="compile.log",
         ),
         Shell("EXPECT_ERR_END"),
     ],
@@ -95,9 +50,9 @@ CO0 = {
         Shell(
             "${OUT_ROOT}/tools/bin/qemu-aarch64 -L ${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc ${APP}.out > output.log 2>&1"
         ),
-	CheckFileEqual(
-	    file1="output.log",
-	    file2="expected.txt"
-	)
+        CheckFileEqual(
+            file1="output.log",
+            file2="expected.txt"
+        )
     ]
 }

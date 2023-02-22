@@ -230,9 +230,12 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
     options.PrintCommand(&action);
     LogInfo::MapleLogger() << "Starting maplecomb\n";
   }
+  auto lastDot = fileName.find_last_of(".");
+  std::string baseName = (lastDot == std::string::npos) ? fileName : fileName.substr(lastDot);
   theModule->InitPartO2List(opts::partO2);
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
-                      fileName, fileName, opts::withDwarf, fileParsed,
+                      fileName, (action.IsItFirstRealAction()) ? action.GetFullOutputName() + baseName : fileName,
+                      opts::withDwarf, fileParsed,
                       opts::timePhase, opts::genVtable,
                       opts::genMeMpl, opts::genMapleBC,
                       opts::genLMBC);

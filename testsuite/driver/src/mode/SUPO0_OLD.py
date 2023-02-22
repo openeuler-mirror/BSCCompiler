@@ -1,5 +1,5 @@
 #
-# Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+# Copyright (c) [2023] Huawei Technologies Co.,Ltd.All rights reserved.
 #
 # OpenArkCompiler is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -14,27 +14,39 @@
 
 from api import *
 
-CO3_BPL_NOINLINE_C2M = {
+SUPO0_OLD = {
     "compile": [
-        Shell(
-          "${OUT_ROOT}/tools/bin/clang2mpl ${APP}.c -- -isystem ${MAPLE_BUILD_OUTPUT}/lib/include -isystem ${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include -isystem ${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include -isystem ../lib/include --target=aarch64-linux-elf -Wno-return-type -U__SIZEOF_INT128__"
+        C2ast(
+            clang="${OUT_ROOT}/tools/bin/clang",
+            include_path=[
+                "${MAPLE_BUILD_OUTPUT}/lib/include",
+                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
+                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
+                "../lib"
+            ],
+            option="--target=aarch64 -U __SIZEOF_INT128__",
+            infile="${APP}.c",
+            outfile="${APP}.ast"
+        ),
+        Hir2mpl(
+            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl -g",
+            infile="${APP}.ast",
+            outfile="${APP}.mpl"
         ),
         Maple(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
+            run=["mplcg"],
             option={
-                "me": "-O3 --quiet",
-                "mpl2mpl": "-O2 --quiet --no-inline",
-                "mplcg": "-O2 --fPIC --quiet"
+                "mplcg": "--quiet --fPIC"
             },
-            global_option="",
-            infiles=["${APP}.bpl"]
+            global_option="-g",
+            infiles=["${APP}.mpl"]
         ),
         CLinker(
             infiles=["${APP}.s"],
-            front_option="",
+            front_option="-O2 -static -L../lib -std=c89 -s",
             outfile="${APP}.out",
-            back_option="-lm"
+            back_option="-lst -lm"
         )
     ],
     "run": [

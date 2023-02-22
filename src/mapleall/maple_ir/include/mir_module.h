@@ -34,6 +34,7 @@
 #include "mempool.h"
 #include "mempool_allocator.h"
 #include "thread_env.h"
+#include "litepgo.h"
 #endif  // MIR_FEATURE_FULL
 
 namespace maple {

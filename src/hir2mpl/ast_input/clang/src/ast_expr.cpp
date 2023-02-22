@@ -1120,6 +1120,9 @@ MIRConst *ASTCompoundLiteralExpr::GenerateMIRPtrConst() const {
       tmpName, *compoundLiteralType);
   auto mirConst = child->GenerateMIRConst(); // InitListExpr in CompoundLiteral gen struct
   cleSymbol->SetKonst(mirConst);
+  if (isConstType) {
+    cleSymbol->SetAttr(ATTR_const);
+  }
   MIRAddrofConst *mirAddrofConst = FEManager::GetModule().GetMemPool()->New<MIRAddrofConst>(
   cleSymbol->GetStIdx(), 0, *compoundLiteralType);
   return mirAddrofConst;

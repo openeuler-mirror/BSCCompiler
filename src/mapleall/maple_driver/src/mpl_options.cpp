@@ -272,9 +272,14 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
   switch (inputFileType) {
     case InputFileType::kFileTypeC:
     case InputFileType::kFileTypeCpp:
+    case InputFileType::kFileTypeH:
+    case InputFileType::kFileTypeI:
       UpdateRunningExe(kBinNameClang);
       newAction = std::make_unique<Action>(kBinNameClang, inputInfo, currentAction);
       currentAction = std::move(newAction);
+      if (inputFileType == InputFileType::kFileTypeH || opts::onlyPreprocess.IsEnabledByUser()) {
+        return currentAction;
+      }
       [[clang::fallthrough]];
     case InputFileType::kFileTypeAst:
       UpdateRunningExe(kBinNameCpp2mpl);
@@ -329,7 +334,8 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       currentAction = std::move(newAction);
     }
   }
-  if (isNeedMplcg && !isMultipleFiles) {
+  if ((isNeedMplcg && !isMultipleFiles) || inputFileType == InputFileType::kFileTypeMeMpl ||
+      inputFileType == InputFileType::kFileTypeVtableImplMpl) {
     selectedExes.push_back(kBinNameMplcg);
     runningExes.push_back(kBinNameMplcg);
     newAction = std::make_unique<Action>(kBinNameMplcg, inputInfo, currentAction);
@@ -371,8 +377,14 @@ ErrorCode MplOptions::DecideRunningPhases() {
     CHECK_FATAL(lastAction != nullptr, "Incorrect input file type: %s",
                 inputInfo->GetInputFile().c_str());
 
+    if (inputInfo->GetInputFileType() == InputFileType::kFileTypeObj && (opts::compileWOLink.IsEnabledByUser() ||
+        opts::onlyCompile.IsEnabledByUser())) {
+      LogInfo::MapleLogger(kLlWarn) << "warning:" << inputInfo->GetInputFile() <<
+          " linker input file unused because linking not done " << std::endl;
+    }
     if ((lastAction->GetTool() == kAsFlag && !opts::compileWOLink) ||
-        lastAction->GetTool() == kInputPhase) {
+        (inputInfo->GetInputFileType() == InputFileType::kFileTypeObj && (!opts::compileWOLink.IsEnabledByUser() &&
+        !opts::onlyCompile.IsEnabledByUser()))) {
       /* 1. For linking step, inputActions are all assembly actions;
        * 2. If we try to link with maple driver, inputActions are all kInputPhase objects;
        */

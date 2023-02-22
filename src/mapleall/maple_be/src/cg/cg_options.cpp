@@ -23,24 +23,24 @@ namespace opts::cg {
 
 maplecl::Option<bool> fpie({"-fpie", "--fpie"},
                           "  --fpie                          \tGenerate position-independent executable in small mode\n"
-                          "  --no-pie\n",
+                          "  --no-pie/-no-pie\n",
                           {cgCategory, driverCategory, ldCategory},
-                          maplecl::DisableWith("--no-pie"));
+                          maplecl::DisableEvery({"--no-pie", "-no-pie"}));
 
 maplecl::Option<bool> fPIE({"-fPIE", "--fPIE",},
                           "  --fPIE                          \tGenerate position-independent executable in large mode\n"
-                          "  --no-pie\n",
+                          "  --no-pie/-no-pie\n",
                           {cgCategory, driverCategory, ldCategory});
 
 maplecl::Option<bool> fpic({"-fpic", "--fpic"},
                            "  --fpic                     \tGenerate position-independent shared library in small mode\n"
-                           "  --no-pic\n",
+                           "  --no-pic/no-pic\n",
                            {cgCategory, driverCategory, ldCategory},
-                           maplecl::DisableWith("--no-pic"));
+                           maplecl::DisableEvery({"--no-pic", "-no-pic"}));
 
 maplecl::Option<bool> fPIC({"-fPIC", "--fPIC"},
                            "  --fPIC                     \tGenerate position-independent shared library in large mode\n"
-                           "  --no-pic\n",
+                           "  --no-pic/no-pic\n",
                            {cgCategory, driverCategory, ldCategory});
 
 maplecl::Option<bool> fnoSemanticInterposition({"-fno-semantic-interposition", "--fno-semantic-interposition"},
@@ -72,7 +72,7 @@ maplecl::Option<bool> maplelinker({"--maplelinker"},
 maplecl::Option<bool> quiet({"--quiet"},
                             "  --quiet                     \tBe quiet (don't output debug messages)\n"
                             "  --no-quiet\n",
-                            {cgCategory},
+                            {driverCategory, cgCategory},
                             maplecl::DisableWith("--no-quiet"));
 
 maplecl::Option<bool> cg({"--cg"},

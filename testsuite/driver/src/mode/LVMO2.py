@@ -16,42 +16,25 @@ from api import *
 
 LVMO2 = {
     "compile": [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
-            include_path=[
-                "${MAPLE_BUILD_OUTPUT}/lib/include",
-                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
-                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
-                "../lib"
-            ],
-            option="--target=aarch64 -U __SIZEOF_INT128__",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            option="-g",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O2 --quiet",
-                "mpl2mpl": "-O2",
-                "mplcg": "-O2  --fPIC --quiet --verbose-asm"
-            },
-            global_option="-g",
-            infiles=["${APP}.mpl"]
+        MapleDriver(
+        maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+        infiles=["${APP}.c"],
+        outfile="${APP}.o",
+        include_path=[
+            "${MAPLE_BUILD_OUTPUT}/lib/include",
+            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
+            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
+            "../lib"
+        ],
+        option="-O2 -g -fPIC -c"
         )
     ],
     "link":[
-        CLinker(
-            infiles=["${APP}.s"],
-            front_option="-O2 -static -L../lib -std=c99 -s",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.o"],
             outfile="${APP}.out",
-            back_option="-lst -lm"
+            option="-static -L../lib -std=c99 -s -lst -lm"
         )
     ],
     "run": [

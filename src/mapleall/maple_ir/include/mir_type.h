@@ -27,6 +27,7 @@
 namespace maple {
 constexpr uint32 kTypeHashLength = 12289;  // hash length for mirtype, ref: planetmath.org/goodhashtableprimes
 const std::string kRenameKeyWord = "_MNO";  // A static symbol name will be renamed as oriname_MNOxxx.
+const uint8 kAlignBase = 1; // alignment base
 
 class FieldAttrs;  // circular dependency exists, no other choice
 class MIRAlias;
@@ -341,9 +342,9 @@ class TypeAttrs {
   }
 
   void SetAlign(uint32 x) {
-    ASSERT((~(x - 1) & x) == x, "SetAlign called with non-power-of-2");
+    ASSERT((~(x - kAlignBase) & x) == x, "SetAlign called with non-power-of-2");
     attrAlign = 0;
-    while (x != 1) {
+    while (x != kAlignBase) {
       x >>= 1;
       ++attrAlign;
     }
@@ -451,9 +452,9 @@ class FieldAttrs {
   }
 
   void SetAlign(uint32 x) {
-    ASSERT((~(x - 1) & x) == x, "SetAlign called with non-power-of-2");
+    ASSERT((~(x - kAlignBase) & x) == x, "SetAlign called with non-power-of-2");
     attrAlign = 0;
-    while (x != 1) {
+    while (x != kAlignBase) {
       x >>= 1;
       ++attrAlign;
     }

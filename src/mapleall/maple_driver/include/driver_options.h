@@ -105,6 +105,7 @@ extern maplecl::Option<bool> suppressWarnings;
 extern maplecl::Option<bool> pthread;
 extern maplecl::Option<bool> passO2ToClang;
 extern maplecl::Option<bool> defaultSafe;
+extern maplecl::Option<bool> onlyPreprocess;
 
 /* ##################### STRING Options ############################################################### */
 
@@ -150,6 +151,7 @@ extern maplecl::Option<std::string> sanitizer;
 /* ##################### DIGITAL Options ############################################################### */
 
 extern maplecl::Option<uint32_t> helpLevel;
+extern maplecl::Option<uint32_t> funcInliceSize;
 
 /* ##################### Warnings Options ############################################################### */
 

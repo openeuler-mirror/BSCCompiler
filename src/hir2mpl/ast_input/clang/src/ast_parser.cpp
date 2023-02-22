@@ -1373,6 +1373,12 @@ ASTExpr *ASTParser::ProcessExprCompoundLiteralExpr(MapleAllocator &allocator,
   ASTCompoundLiteralExpr *astCompoundLiteralExpr = ASTDeclsBuilder::ASTExprBuilder<ASTCompoundLiteralExpr>(allocator);
   CHECK_FATAL(astCompoundLiteralExpr != nullptr, "astCompoundLiteralExpr is nullptr");
   clang::QualType type = expr.getType();
+  if (llvm::isa<clang::ConstantArrayType>(type)) {
+    clang::QualType arrayType = llvm::cast<clang::ConstantArrayType>(type)->getElementType();
+    if (arrayType.isConstQualified()) {
+      astCompoundLiteralExpr->SetConstType(true);
+    }
+  }
   ASTExpr *astExpr = nullptr;
   if (type.getTypePtr()->getTypeClass() == clang::Type::TypeOfExpr) {
     astExpr = ProcessTypeofExpr(allocator, type);
@@ -2984,6 +2990,9 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
   // one elem vector type
   if (LibAstFile::IsOneElementVector(qualType)) {
     attrs.SetAttr(GENATTR_oneelem_simd);
+  }
+  if (qualType.isConstQualified()) {
+    attrs.SetAttr(GENATTR_const);
   }
   auto fieldDecl = ASTDeclsBuilder::GetInstance(allocator).ASTFieldBuilder(
       allocator, fileName, fieldName, MapleVector<MIRType*>({fieldType}, allocator.Adapter()),

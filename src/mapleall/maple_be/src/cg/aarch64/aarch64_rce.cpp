@@ -163,8 +163,6 @@ std::size_t AArch64RedundantComputeElim::ComputeDefUseHash(const Insn &insn, con
         hashS += static_cast<ImmOperand &>(opnd).GetHashContent();
       } else if (opndKind == Operand::kOpdExtend) {
         hashS += static_cast<ExtendShiftOperand &>(opnd).GetHashContent();
-      } else if (opnd.IsLogicLSLOpnd()) {
-        hashS += static_cast<LogicalShiftLeftOperand &>(opnd).GetHashContent();
       } else if (opndKind == Operand::kOpdShift) {
         hashS += static_cast<BitShiftOperand &>(opnd).GetHashContent();
       } else {
@@ -267,10 +265,13 @@ bool AArch64RedundantComputeElim::IsBothDefUseCase(VRegVersion &version) const {
 bool AArch64RedundantComputeElim::DoOpt(BB *bb) {
   bool optimize = false;
   FOR_BB_INSNS(insn, bb) {
-    if (!insn->IsMachineInstruction()) {
+    if (!insn->IsMachineInstruction() || insn->GetOperandSize() == 0) {
       continue;
     }
     doOpt = true;
+    if (cgFunc->GetName() == "expand_shift" && insn->GetId() == 144) {
+      std::cout << "add logical shift!" << std::endl;
+    }
     auto iter = candidates.find(insn);
     if (iter != candidates.end()) {
       /* during iteration, avoid repeated processing of insn, which may access wrong duInsnInfo of ssaVersion */
@@ -353,7 +354,7 @@ void AArch64RedundantComputeElim::Optimize(BB &curBB, Insn &curInsn,
     curInsn.SetProcessRHS();
   } else {
     MOperator newMop = GetNewMop(curDstOpnd, existDstOpnd);
-    Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, curDstOpnd, existDstOpnd);
+    Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, curDstOpnd, existDstOpnd);
     curBB.ReplaceInsn(curInsn, newInsn);
     ssaInfo->ReplaceInsn(curInsn, newInsn);
     newInsn.SetProcessRHS();

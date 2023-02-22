@@ -121,7 +121,11 @@ DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options, const Act
 }
 
 std::string AsCompiler::GetInputFileName(const MplOptions &options [[maybe_unused]], const Action &action) const {
-  return action.GetFullOutputName() + ".s";
+  if (action.IsItFirstRealAction()) {
+    return action.GetInputFile();
+  } else {
+    return action.GetFullOutputName() + ".s";
+  }
 }
 
 void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions [[maybe_unused]], const Action &action,

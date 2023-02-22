@@ -109,12 +109,6 @@ maplecl::Option<bool> dumpLOC({"--dump-LOC", "-dump-LOC"},
                          "  -dump-LOC              : gen LOC",
                          {hir2mplCategory});
 
-maplecl::Option<bool> dbgFriendly({"--g", "-g"},
-                             "  -g                     : emit debug friendly mpl, including\n"
-                             "                           no variable renaming\n"
-                             "                           gen LOC",
-                             {hir2mplCategory});
-
 maplecl::Option<bool> dumpPhaseTime({"--dump-phase-time", "-dump-phase-time"},
                                "  -dump-phase-time       : dump total phase time",
                                {hir2mplCategory});
@@ -132,10 +126,6 @@ maplecl::Option<bool> nobarrier({"-nobarrier", "--nobarrier"},
                            "  -nobarrier             : no barrier",
                            {hir2mplCategory});
 
-maplecl::Option<bool> o2({"-O2", "--O2"},
-                    "  -O2                    : enable hir2mpl O2 optimize",
-                    {hir2mplCategory});
-
 maplecl::Option<bool> simplifyShortCircuit({"-simplify-short-circuit", "--simplify-short-circuit"},
                                       "  -simplify-short-circuit\n"     \
                                       "                         : enable simplify short circuit",
@@ -145,10 +135,6 @@ maplecl::Option<bool> enableVariableArray({"-enable-variable-array", "--enable-v
                                      "  -enable-variable-array\n" \
                                      "                         : enable variable array",
                                      {hir2mplCategory});
-
-maplecl::Option<uint32_t> funcInliceSize({"-func-inline-size", "--func-inline-size"},
-                                    "  -func-inline-size      : set func inline size",
-                                    {hir2mplCategory});
 
 maplecl::Option<uint32_t> np({"-np", "--np"},
                         "  -np num                : number of threads",

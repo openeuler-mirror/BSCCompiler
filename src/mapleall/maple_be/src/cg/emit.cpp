@@ -29,6 +29,11 @@ using namespace maple;
 constexpr uint32 kSizeOfHugesoRoutine = 3;
 constexpr uint32 kFromDefIndexMask32Mod = 0x40000000;
 
+const std::string kDwOpAddr8SizeTab = "\n\t.8byte   ";
+const std::string kDwOpAddr8Size = ".8byte   ";
+const std::string kDwOpAddr4SizeTab = "\n\t.4byte   ";
+const std::string kDwOpAddr4Size = ".4byte   ";
+
 int32 GetPrimitiveTypeSize(const std::string &name) {
   if (name.length() != 1) {
     return -1;
@@ -2385,6 +2390,23 @@ void Emitter::EmitUninitializedSymbol(const MIRSymbol &mirSymbol) {
   }
 }
 
+void SetVariableVisibility(MIRSymbol *mirSymbol) {
+  /* if no visibility set individually, set it to be same as the -fvisibility value */
+  if (mirSymbol->IsDefaultVisibility()) {
+    switch (CGOptions::GetVisibilityType()) {
+      case CGOptions::kHidden:
+        mirSymbol->SetAttr(ATTR_visibility_hidden);
+        break;
+      case CGOptions::kProtected:
+         mirSymbol->SetAttr(ATTR_visibility_protected);
+        break;
+      default:
+        mirSymbol->SetAttr(ATTR_visibility_default);
+        break;
+    }
+  }
+}
+
 void Emitter::EmitGlobalVariable() {
   std::vector<MIRSymbol*> typeStVec;
   std::vector<MIRSymbol*> typeNameStVec;
@@ -2537,14 +2559,22 @@ void Emitter::EmitGlobalVariable() {
     if (mirType == nullptr) {
       continue;
     }
+
     if (GetCG()->GetMIRModule()->IsCModule() && mirSymbol->GetStorageClass() == kScExtern) {
-      /* only emit weak & initialized extern at present */
-      if (mirSymbol->IsWeak() || mirSymbol->IsConst()) {
-        EmitAsmLabel(*mirSymbol, kAsmWeak);
+      /* emit initialized extern variable */
+      if (mirSymbol->IsConst()) {
+        EmitAsmLabel(*mirSymbol, kAsmGlbl);
+        SetVariableVisibility(mirSymbol);
+        if (mirSymbol->GetAttr(ATTR_visibility_hidden)) {
+          EmitAsmLabel(*mirSymbol, kAsmHidden);
+        } else if (mirSymbol->GetAttr(ATTR_visibility_protected)) {
+          EmitAsmLabel(*mirSymbol, kAsmProtected);
+        }
       } else {
         continue;
       }
     }
+
     /*
      * emit uninitialized global/static variables.
      * these variables store in .comm section.
@@ -2613,6 +2643,8 @@ void Emitter::EmitGlobalVariable() {
           (void)Emit("\t.section\t" + sectionName + sectionConstrains + "@progbits\n");
         } else if (isThreadLocal) {
           (void)Emit("\t.section\t.tdata,\"awT\",@progbits\n");
+        } else if (mirSymbol->GetAttr(ATTR_const) && mirSymbol->IsConst()) {
+          (void)Emit("\t.section\t.rodata\n");
         } else {
           (void)Emit("\t.data\n");
         }
@@ -2624,20 +2656,7 @@ void Emitter::EmitGlobalVariable() {
         } else {
           EmitAsmLabel(*mirSymbol, kAsmGlbl);
         }
-        /* if no visibility set individually, set it to be same as the -fvisibility value */
-        if (mirSymbol->IsDefaultVisibility()) {
-          switch (CGOptions::GetVisibilityType()) {
-            case CGOptions::kHidden:
-              mirSymbol->SetAttr(ATTR_visibility_hidden);
-              break;
-            case CGOptions::kProtected:
-              mirSymbol->SetAttr(ATTR_visibility_protected);
-              break;
-            default:
-              mirSymbol->SetAttr(ATTR_visibility_default);
-              break;
-          }
-        }
+        SetVariableVisibility(mirSymbol);
         if (theMIRModule->IsJavaModule() || mirSymbol->GetAttr(ATTR_visibility_hidden)) {
           EmitAsmLabel(*mirSymbol, kAsmHidden);
         } else if (mirSymbol->GetAttr(ATTR_visibility_protected)) {
@@ -3187,8 +3206,16 @@ void Emitter::EmitDIFormSpecification(unsigned int dwform) {
       /* if DWARF64, should be .8byte? */
       Emit(".4byte   ");
       break;
-    case DW_FORM_addr: /* Should we use DWARF64? for now, we generate .8byte as gcc does for DW_FORM_addr */
-      Emit(".8byte   ");
+    case DW_FORM_addr:
+      /* The DW_OP_addr operation has a single operand that encodes a machine
+         address and whose size is the size of an address on the target architecture */
+      if (GetPointerSize() == k8ByteSize) {
+        Emit(kDwOpAddr8SizeTab);
+      } else if (GetPointerSize() == k4ByteSize) {
+        Emit(kDwOpAddr4SizeTab);
+      } else {
+        ASSERT(false, "Unsupported Pointer Size");
+      }
       break;
     case DW_FORM_exprloc:
       Emit(".uleb128 ");
@@ -3390,7 +3417,15 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           EmitHexUnsigned(elp->GetOp());
           Emit(CMNT);
           (void)Emit(maple::GetDwOpName(elp->GetOp()));
-          Emit("\n\t.8byte   ");
+          /* The DW_OP_addr operation has a single operand that encodes a machine
+             address and whose size is the size of an address on the target architecture */
+          if (GetPointerSize() == k8ByteSize) {
+            Emit(kDwOpAddr8SizeTab);
+          } else if (GetPointerSize() == k4ByteSize) {
+            Emit(kDwOpAddr4SizeTab);
+          } else {
+            ASSERT(false, "Unsupported Pointer Size");
+          }
           (void)Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(
               static_cast<uint32>(elp->GetGvarStridx())).c_str());
           break;

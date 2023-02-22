@@ -2170,6 +2170,10 @@ std::unique_ptr<ValueRange> ValueRangePropagation::RemWithValueRange(const BB &b
     Bound bound = Bound(nullptr, res, valueRange->GetBound().GetPrimType());
     return std::make_unique<ValueRange>(bound, valueRange->GetRangeType());
   } else {
+    if (valueRange->GetLower().IsLessThanOrEqualTo(remValueRange->GetLower(), remValueRange->GetPrimType()) ||
+        valueRange->GetUpper().IsGreaterThanOrEqualTo(remValueRange->GetUpper(), remValueRange->GetPrimType())) {
+      return remValueRange;
+    }
     std::unique_ptr<ValueRange> combineRes = CombineTwoValueRange(*remValueRange, *valueRange);
     int64 lowerRes = combineRes->GetLower().GetConstant();
     int64 upperRes = combineRes->GetUpper().GetConstant();

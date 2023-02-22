@@ -16,39 +16,18 @@ from api import *
 
 COS = {
     "compile": [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.out",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
-                "../lib/include"
+                "../lib/include",
+                "../../csmith_test/runtime_x86"
             ],
-            option="--target=aarch64 -U __SIZEOF_INT128__",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-Os --quiet",
-                "mpl2mpl": "-Os",
-                "mplcg": "-Os --fPIC --quiet"
-            },
-            global_option="",
-            infiles=["${APP}.mpl"]
-        ),
-        CLinker(
-            infiles=["${APP}.s"],
-            front_option="",
-            outfile="${APP}.out",
-            back_option="-lm"
+            option="-Os -fPIC -lm --save-temps"
         )
     ],
     "run": [

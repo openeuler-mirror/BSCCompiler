@@ -16,48 +16,25 @@ from api import *
 
 TSVO2 = {
     "compile": [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.o",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
                 "../lib/include"
             ],
-            option="--target=aarch64 -U __SIZEOF_INT128__ -DC_ENHANCED -std=c99",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O2 --quiet",
-                "mpl2mpl": "-O2",
-                "mplcg": "-O2 --fPIC --quiet"
-            },
-            global_option="",
-            infiles=["${APP}.mpl"]
-        ),
-        CLinker(
-            infiles=["${APP}.s"],
-            front_option="-std=c99 -I ../lib/include",
-            outfile="${APP}.o",
-            mid_opt="-c",
-            back_option=""
+            option="-O2 -DC_ENHANCED -std=c99 -fPIC -I ../lib/include -c",
         )
     ],
     "link": [
-        CLinker(
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             infiles=["${APP}"],
-            front_option="",
             outfile="a.exe",
-            back_option="-std=gnu99 -no-pie -std=c99 -lm"
+            option="-std=gnu99 --no-pie -std=c99 -lm",
         )
     ],
     "run": [
@@ -67,6 +44,6 @@ TSVO2 = {
         CheckFileEqual(
             file1="output.log",
             file2="expected.txt"
-	)
+        )
     ]
 }

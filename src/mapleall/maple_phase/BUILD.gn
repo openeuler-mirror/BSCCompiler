@@ -18,6 +18,7 @@ include_libmplphase =
       "${MAPLEALL_ROOT}/maple_ipa/include",
       "${MAPLEALL_ROOT}/maple_ipa/include/old",
       "${MAPLEALL_ROOT}/maple_util/include",
+      "${MAPLEALL_ROOT}/maple_pgo/include",
       "${MAPLEALL_ROOT}/mempool/include",
       "${MAPLEALL_ROOT}/maple_phase/include",
       "${MAPLEALL_ROOT}/maple_ir/include",
@@ -27,7 +28,6 @@ include_libmplphase =
       "${MAPLEALL_ROOT}/maple_be/include/ad",
       "${MAPLEALL_ROOT}/maple_be/include/ad/target",
       "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-      "${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat",
       "${MAPLEALL_ROOT}/maple_driver/include",
     ]
 

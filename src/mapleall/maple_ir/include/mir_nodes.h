@@ -3075,9 +3075,9 @@ class BlkassignoffNode : public BinaryStmtNode {
       alignLog2 = 0;
       return;
     }
-    ASSERT((~(x - 1) & x) == x, "SetAlign called with non power of 2");
+    ASSERT((~(x - kAlignBase) & x) == x, "SetAlign called with non power of 2");
     uint32 res = 0;
-    while (x != 1) {
+    while (x != kAlignBase) {
       x >>= 1;
       ++res;
     }

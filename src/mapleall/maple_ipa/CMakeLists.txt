@@ -32,6 +32,7 @@ target_include_directories(libmplipa PRIVATE
   ${MAPLEALL_ROOT}/maple_ir/include
   ${MAPLEALL_ROOT}/mempool/include
   ${MAPLEALL_ROOT}/maple_util/include
+  ${MAPLEALL_ROOT}/maple_pgo/include
   ${MAPLEALL_ROOT}/maple_me/include
   ${MAPLEALL_ROOT}/maple_ipa/include
   ${MAPLEALL_ROOT}/maple_ipa/include/old

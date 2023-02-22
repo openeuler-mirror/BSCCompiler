@@ -47,7 +47,8 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &options 
   defaultOptions.mplOptions[0].SetKey("--maple-phase");
   defaultOptions.mplOptions[0].SetValue("");
   defaultOptions.mplOptions[1].SetKey("-p");
-  defaultOptions.mplOptions[1].SetValue(action.GetInputFolder() + action.GetOutputName());
+  defaultOptions.mplOptions[1].SetValue(opts::onlyCompile.IsEnabledByUser() ?
+                                        action.GetInputFolder() : action.GetOutputFolder());
 
   return defaultOptions;
 }

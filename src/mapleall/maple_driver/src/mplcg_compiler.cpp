@@ -80,7 +80,7 @@ void MplcgCompiler::SetOutputFileName(const MplOptions &options, const Action &a
   } else {
     if (md.GetSrcLang() == kSrcLangC) {
       if (opts::folder.IsEnabledByUser()) {
-        baseName = !opts::onlyCompile.IsEnabledByUser() ? action.GetInputFolder() + action.GetOutputName() :
+        baseName = !opts::onlyCompile.IsEnabledByUser() ? opts::folder.GetValue() + action.GetOutputName() :
             FileUtils::GetOutPutDir() + action.GetOutputName();
       } else if (opts::run.IsEnabledByUser()) {
         baseName = FileUtils::GetOutPutDir() + action.GetOutputName();

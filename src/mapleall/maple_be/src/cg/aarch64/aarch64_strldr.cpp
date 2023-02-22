@@ -639,7 +639,7 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
       break;
     }
     case MOP_xsxtw64: {
-      if (propMode == kPropUnsignedExtend) {
+      if (propMode == kPropUnsignedExtend || propMode == kPropBase) {
         break;
       }
       propMode = kPropSignedExtend;
@@ -647,7 +647,7 @@ MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
       break;
     }
     case MOP_xuxtw64: {
-      if (propMode == kPropSignedExtend) {
+      if (propMode == kPropSignedExtend || propMode == kPropBase) {
         break;
       }
       propMode = kPropUnsignedExtend;

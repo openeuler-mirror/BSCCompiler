@@ -266,6 +266,7 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
       // an extra pass thru the global symbol table to print forward decl
       for (auto sit = symbolSet.begin(); sit != symbolSet.end(); ++sit) {
         MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx((*sit).Idx());
+        ASSERT(s != nullptr, "null ptr check");
         if (s->IsNeedForwDecl()) {
           s->Dump(false, 0, true);
         }

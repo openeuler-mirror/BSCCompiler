@@ -16,32 +16,15 @@ from api import *
 
 ASTO0 = {
     "compile": [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.exe",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include"
             ],
-            option="--target=aarch64",
-            infile="${APP}.c",
-            outfile="${APP}.ast",
+            option="-O0 -fPIC -g -static -L../../lib/c -lst -lm --save-temps",
             redirection="compile.log"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            option="-g",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl",
-            redirection="compile.log"
-        ),
-        SimpleMaple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            option="-O0 -g -S --fPIC",
-            infile="${APP}.mpl",
-            redirection="compile.log"
-        ),
-        GenBin(
-            infile="${APP}.s",
-            outfile="${APP}.exe"
         )
     ],
     "run": [

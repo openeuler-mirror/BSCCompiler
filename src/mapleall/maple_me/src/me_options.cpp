@@ -425,7 +425,7 @@ maplecl::Option<bool> strengthreduction({"--strengthreduction"},
 maplecl::Option<bool> sradd({"--sradd"},
                        "  --sradd                   \tPerform strength reduction for OP_add/sub\n"
                        "  --no-sradd                \tDisable strength reduction for OP_add/sub\n",
-                       {meCategory},
+                       {driverCategory, meCategory},
                        maplecl::DisableWith("--no-sradd"));
 
 maplecl::Option<bool> lftr({"--lftr"},

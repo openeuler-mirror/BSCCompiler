@@ -24,7 +24,7 @@ set(inc_libmplir
   ${MAPLEALL_ROOT}/maple_ipa/include/old
   ${MAPLEALL_ROOT}/maple_me/include
   ${MAPLEALL_ROOT}/maple_phase/include
-  ${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat
+  ${MAPLEALL_ROOT}/maple_pgo/include
 )
 
 set(src_libmplir
@@ -83,6 +83,7 @@ set(deps_irbuild
     libmpl2mpl
     libHWSecureC
     libdriver_option
+    libmaple_driver
 )
 
 set(CMAKE_CXX_FLAGS

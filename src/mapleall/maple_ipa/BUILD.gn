@@ -16,6 +16,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/mempool/include",
   "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_pgo/include",
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
   "${MAPLEALL_ROOT}/maple_ipa/include/old",
@@ -36,6 +37,7 @@ src_libmplipa = [
   "src/prop_parameter_type.cpp",
   "src/ipa_collect.cpp",
   "src/ipa_clone.cpp",
+  "src/region_identify.cpp",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
