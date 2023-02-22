@@ -277,7 +277,7 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       UpdateRunningExe(kBinNameClang);
       newAction = std::make_unique<Action>(kBinNameClang, inputInfo, currentAction);
       currentAction = std::move(newAction);
-      if (inputFileType == InputFileType::kFileTypeH) {
+      if (inputFileType == InputFileType::kFileTypeH || opts::onlyPreprocess.IsEnabledByUser()) {
         return currentAction;
       }
       [[clang::fallthrough]];

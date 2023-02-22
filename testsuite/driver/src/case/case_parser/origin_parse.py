@@ -30,17 +30,22 @@ class OriginParse(Component):
         self.case_name = input["case_name"]
         self.mode_set = input["mode_set"]
         self.case_command_suite = {}
+        self.case_config = {}
 
     def execute(self):
         test_cfg = TestCFG(os.path.join(EnvVar.TEST_SUITE_ROOT, self.case_name, "test.cfg"))
         test_cfg_content = test_cfg.test_cfg
+        # print(self.case_name)
+        # print(self.mode_set)
         for mode in self.mode_set:
+            if mode == '':
+                continue
             case = SingleCaseParser(self.case_name, mode, test_cfg_content)
             case.parse_case_config()
-            self.case_command_suite[mode] = case.get_command_suite()
+            self.case_config[mode], self.case_command_suite[mode] = case.get_command_suite()
 
     def get_output(self):
-        return self.case_command_suite
+        return self.case_config, self.case_command_suite
 
 
 class SingleCaseParser():
@@ -77,7 +82,7 @@ class SingleCaseParser():
                     os._exit(1)
 
     def get_command_suite(self):
-        return self.command_suite
+        return self.global_variables, self.command_suite
 
 
 class TestCFG(object):
