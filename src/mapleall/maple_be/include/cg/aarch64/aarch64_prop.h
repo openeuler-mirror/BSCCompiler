@@ -201,6 +201,7 @@ class ValidBitNumberProp : public PropOptimizePattern {
   }
  private:
   bool IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd) const;
+  bool IsPhiToMopX(const RegOperand &defOpnd) const;
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;
 };

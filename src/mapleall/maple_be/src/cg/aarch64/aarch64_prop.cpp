@@ -1921,6 +1921,29 @@ bool RedundantPhiProp::CheckCondition(Insn &insn) {
   return false;
 }
 
+/*
+ * case : ubfx  v2  v1  0  32
+ *        phi   v3  v2
+ *        mopX  v4  v3
+ */
+bool ValidBitNumberProp::IsPhiToMopX(const RegOperand &defOpnd) const  {
+  VRegVersion *destVersion = optSsaInfo->FindSSAVersion(defOpnd.GetRegisterNumber());
+  for (auto destUseIt : destVersion->GetAllUseInsns()) {
+    Insn *useInsn = destUseIt.second->GetInsn();
+    if (useInsn->IsPhi()) {
+      return true;
+    }
+    const InsnDesc *useMD = &AArch64CG::kMd[useInsn->GetMachineOpcode()];
+    for (auto &opndUseIt : as_const(destUseIt.second->GetOperands())) {
+      const OpndDesc *useProp = useMD->GetOpndDes(opndUseIt.first);
+      if (useProp->GetSize() == k64BitSize) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool ValidBitNumberProp::IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd) const {
   for (auto destUseIt : destVersion->GetAllUseInsns()) {
     Insn *useInsn = destUseIt.second->GetInsn();
@@ -1936,6 +1959,9 @@ bool ValidBitNumberProp::IsImplicitUse(const RegOperand &dstOpnd, const RegOpera
     }
     if (useInsn->IsPhi()) {
       auto &defOpnd = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd));
+      if (IsPhiToMopX(defOpnd)) {
+        return true;
+      }
       if (defOpnd.GetSize() == k32BitSize) {
         return false;
       }
