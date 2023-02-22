@@ -74,7 +74,7 @@ maplecl::Option<bool> inlineWithProfile({"--inline-with-profile"},
 maplecl::Option<bool> inlineOpt({"--inline"},
                            "  --inline                    \tEnable function inlining\n"
                            "  --no-inline                 \tDisable function inlining\n",
-                           {mpl2mplCategory},
+                           {driverCategory, mpl2mplCategory},
                            maplecl::DisableWith("--no-inline"));
 
 maplecl::Option<bool> ipaClone({"--ipa-clone"},

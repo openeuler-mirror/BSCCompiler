@@ -15,49 +15,30 @@
 from api import *
 
 compile_part = [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
-            include_path=[
-                "${MAPLE_BUILD_OUTPUT}/lib/include",
-                "${MAPLE_BUILD_OUTPUT}/lib/libc_enhanced/include",
-                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
-                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
-                "../lib/include"
-            ],
-            option="--target=aarch64 -U __SIZEOF_INT128__ -DC_ENHANCED",
-            infile="${APP}.c",
-            outfile="${APP}.ast",
-            redirection="compile.log"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            option="-npe-check-dynamic",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl",
-            redirection="compile.log"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O2 --quiet",
-                "mpl2mpl": "-O2",
-                "mplcg": "-O2 --fPIC --quiet"
-            },
-            global_option="--save-temps --npe-check-dynamic",
-            infiles=["${APP}.mpl"],
-            redirection="compile.log"
-        )
+    MapleDriver(
+        maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+        infiles=["${APP}.c"],
+        outfile="${APP}.s",
+        include_path=[
+            "${MAPLE_BUILD_OUTPUT}/lib/include",
+            "${MAPLE_BUILD_OUTPUT}/lib/libc_enhanced/include",
+            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
+            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
+            "../lib/include"
+        ],
+        option="-O2 -npe-check-dynamic -fPIC --save-temps -S",
+        redirection="compile.log"
+    )
 ]
 
 run_part = [
-        Shell(
-            "${OUT_ROOT}/tools/bin/qemu-aarch64 -L ${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc ${APP}.out > output.log 2>&1"
-        ),
-        CheckFileEqual(
-            file1="output.log",
-            file2="expected.txt"
-	    ),
+    Shell(
+        "${OUT_ROOT}/tools/bin/qemu-aarch64 -L ${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc ${APP}.out > output.log 2>&1"
+    ),
+    CheckFileEqual(
+        file1="output.log",
+        file2="expected.txt"
+    ),
 ]
 
 ENCO2_N_D_NO_LINK = {

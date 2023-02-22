@@ -1588,16 +1588,8 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
     if (itCand == candMap.end() || addCvt) {
       MeExpr *constExpr = nullptr;
       MeExpr *expr = itGroup.second.expr;
-      PrimType cvtType = addCvt ? itGroup.second.expandType : expr->GetPrimType();
       if (NeedCvtOrRetype(expr->GetPrimType(), groupBase.GetPrimType())) {
-        if (IsUnsignedInteger(cvtType) && itGroup.second.multiplier < 0) {
-          constExpr = irMap->CreateIntConstMeExpr(itGroup.second.multiplier, cvtType);
-          expr = irMap->CreateMeExprBinary(OP_mul, cvtType, *expr, *constExpr);
-          expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), cvtType, *expr);
-          itGroup.second.multiplier = 1;
-        } else {
-          expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), cvtType, *expr);
-        }
+        expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), expr->GetPrimType(), *expr);
       }
       if (itGroup.second.multiplier != 1) {
         constExpr = irMap->CreateIntConstMeExpr(itGroup.second.multiplier, groupBase.GetPrimType());
@@ -1612,16 +1604,8 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
       }
       MeExpr *constExpr = nullptr;
       MeExpr *expr = itGroup.second.expr;
-      PrimType cvtType = addCvt ? itGroup.second.expandType : expr->GetPrimType();
       if (NeedCvtOrRetype(expr->GetPrimType(), groupBase.GetPrimType())) {
-        if (IsUnsignedInteger(cvtType) && newMultiplier < 0) {
-          constExpr = irMap->CreateIntConstMeExpr(newMultiplier, cvtType);
-          expr = irMap->CreateMeExprBinary(OP_mul, cvtType, *expr, *constExpr);
-          expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), cvtType, *expr);
-          newMultiplier = 1;
-        } else {
-          expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), cvtType, *expr);
-        }
+        expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), expr->GetPrimType(), *expr);
       }
       if (newMultiplier != 1) {
         constExpr = irMap->CreateIntConstMeExpr(newMultiplier, groupBase.GetPrimType());
@@ -1660,18 +1644,9 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
         }
       }
       if (NeedCvtOrRetype(expr->GetPrimType(), ptyp)) {
-        PrimType cvtType = addCvt ? itCand.second.expandType : expr->GetPrimType();
-        if (IsUnsignedInteger(cvtType) && multiplier < 0) {
-          constExpr = irMap->CreateIntConstMeExpr(-(itCand.second.multiplier * ratio), cvtType);
-          expr = irMap->CreateMeExprBinary(OP_mul, cvtType, *expr, *constExpr);
-          expr = irMap->CreateMeExprTypeCvt(ptyp, cvtType, *expr);
-        } else {
-          expr = irMap->CreateMeExprTypeCvt(ptyp, cvtType, *expr);
-          expr = irMap->CreateMeExprBinary(OP_mul, ptyp, *expr, *constExpr);
-        }
-      } else {
-        expr = irMap->CreateMeExprBinary(OP_mul, ptyp, *expr, *constExpr);
+        expr = irMap->CreateMeExprTypeCvt(ptyp, expr->GetPrimType(), *expr);
       }
+      expr = irMap->CreateMeExprBinary(OP_mul, ptyp, *expr, *constExpr);
       extraExpr = extraExpr == nullptr ? expr
                                        : irMap->CreateMeExprBinary(OP_add, ptyp, *extraExpr, *expr);
     }

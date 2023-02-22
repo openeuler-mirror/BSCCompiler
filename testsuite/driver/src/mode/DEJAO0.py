@@ -19,42 +19,17 @@ DEJAO0 = {
         Shell("cp -r ../lib . && cp -r ../site.exp .")
     ],
     "compile": [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.out",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
                 "../lib"
             ],
-            option="--target=aarch64 -U __SIZEOF_INT128__ -I../h -I../lib",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            option="-g",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O0 --quiet",
-                "mpl2mpl": "-O0 --quiet",
-                "mplcg": "-O0 --quiet --no-pie --verbose-asm --fPIC"
-            },
-            global_option="-g",
-            infiles=["${APP}.mpl"]
-        ),
-        Shell(
-            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc -I../h -I../lib -c ${APP}.s"
-        )
-    ],
-    "link":[
-        Shell(
-            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${APP} -std=gnu99 -no-pie -L../lib/lib -lm -o ${EXE}"
+            option="-O0 -I../h -I../lib -g -fPIC --no-pie -std=gnu99 -L../lib/lib -lm",
         )
     ],
     "run": [

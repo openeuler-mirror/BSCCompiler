@@ -89,7 +89,7 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessDumpComment);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpLOC,
                                          &HIR2MPLOptions::ProcessDumpLOC);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dbgFriendly,
+  RegisterFactoryFunction<OptionFactory>(&opts::withDwarf,
                                          &HIR2MPLOptions::ProcessDbgFriendly);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpPhaseTime,
                                          &HIR2MPLOptions::ProcessDumpPhaseTime);
@@ -137,13 +137,13 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessDefaultSafe);
 
   // O2 does not work, because it generates OP_ror instruction but this instruction is not supported in me
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::o2,
+  RegisterFactoryFunction<OptionFactory>(&opts::o2,
                                          &HIR2MPLOptions::ProcessO2);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::simplifyShortCircuit,
                                          &HIR2MPLOptions::ProcessSimplifyShortCircuit);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::enableVariableArray,
                                          &HIR2MPLOptions::ProcessEnableVariableArray);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::funcInliceSize,
+  RegisterFactoryFunction<OptionFactory>(&opts::funcInliceSize,
                                          &HIR2MPLOptions::ProcessFuncInlineSize);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::wpaa,
                                          &HIR2MPLOptions::ProcessWPAA);

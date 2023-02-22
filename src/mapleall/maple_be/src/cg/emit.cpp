@@ -2643,6 +2643,8 @@ void Emitter::EmitGlobalVariable() {
           (void)Emit("\t.section\t" + sectionName + sectionConstrains + "@progbits\n");
         } else if (isThreadLocal) {
           (void)Emit("\t.section\t.tdata,\"awT\",@progbits\n");
+        } else if (mirSymbol->GetAttr(ATTR_const) && mirSymbol->IsConst()) {
+          (void)Emit("\t.section\t.rodata\n");
         } else {
           (void)Emit("\t.data\n");
         }

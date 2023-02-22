@@ -150,6 +150,7 @@ extern maplecl::Option<std::string> folder;
 /* ##################### DIGITAL Options ############################################################### */
 
 extern maplecl::Option<uint32_t> helpLevel;
+extern maplecl::Option<uint32_t> funcInliceSize;
 
 /* ##################### Warnings Options ############################################################### */
 

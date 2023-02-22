@@ -19,22 +19,11 @@ CO2_MPL_NOINLINE_C2M = {
         Shell(
           "${OUT_ROOT}/tools/bin/clang2mpl --ascii ${APP}.c -- -isystem ${MAPLE_BUILD_OUTPUT}/lib/include -isystem ${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include -isystem ${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include -isystem ../lib/include --target=aarch64-linux-elf -Wno-return-type -U__SIZEOF_INT128__"
         ),
-        Maple(
+        MapleDriver(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O2 --quiet",
-                "mpl2mpl": "-O2 --no-inline --quiet",
-                "mplcg": "-O2 --fPIC --quiet"
-            },
-            global_option="",
-            infiles=["${APP}.mpl"]
-        ),
-        CLinker(
-            infiles=["${APP}.s"],
-            front_option="",
+            infiles=["${APP}.mpl"],
             outfile="${APP}.out",
-            back_option="-lm"
+            option="-O3 -fPIC --no-inline -lm"
         )
     ],
     "run": [

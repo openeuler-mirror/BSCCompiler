@@ -28,11 +28,11 @@ CO0_MPL_C2M = {
             global_option="",
             infiles=["${APP}.mpl"]
         ),
-        CLinker(
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             infiles=["${APP}.s"],
-            front_option="",
             outfile="${APP}.out",
-            back_option="-lm"
+            option="-lm"
         )
     ],
     "run": [

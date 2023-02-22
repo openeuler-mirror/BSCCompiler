@@ -38,7 +38,7 @@ maplecl::Option<bool> o1({"--O1", "-O1"},
 
 maplecl::Option<bool> o2({"--O2", "-O2"},
                     "  -O2                         \tDo more optimization.\n",
-                    {driverCategory});
+                    {driverCategory, hir2mplCategory});
 
 maplecl::Option<bool> o3({"--O3", "-O3"},
                     "  -O3                         \tDo more optimization.\n",
@@ -92,7 +92,7 @@ maplecl::Option<bool> debug({"--debug"},
 
 maplecl::Option<bool> withDwarf({"-g"},
                            "  --debug                     \tPrint debug info.\n",
-                           {driverCategory});
+                           {driverCategory, hir2mplCategory});
 
 maplecl::Option<bool> withIpa({"--with-ipa"},
                           "  --with-ipa                  \tRun IPA when building\n"
@@ -434,7 +434,7 @@ maplecl::Option<std::string> saveTempOpt({"--save-temps"},
 maplecl::Option<std::string> target({"--target", "-target"},
                                "  --target=<arch><abi>        \tDescribe target platform\n"
                                "  \t\t\t\tExample: --target=aarch64-gnu or --target=aarch64_be-gnuilp32\n",
-                               {driverCategory, hir2mplCategory, dex2mplCategory, ipaCategory});
+                               {driverCategory, clangCategory, hir2mplCategory, dex2mplCategory, ipaCategory});
 
 maplecl::Option<std::string> MT({"-MT"},
                            "  -MT<args>                   \tSpecify name of main file output in depfile\n",
@@ -493,6 +493,10 @@ maplecl::Option<uint32_t> helpLevel({"--level"},
                                "                              \tNUM=2: Experimental options\n"
                                "                              \tNUM=3: Debug options\n",
                                {driverCategory});
+
+maplecl::Option<uint32_t> funcInliceSize({"-func-inline-size", "--func-inline-size"},
+                                    "  -func-inline-size      : set func inline size",
+                                    {driverCategory, hir2mplCategory});
 
 /* ##################### Warnings Options ############################################################### */
 

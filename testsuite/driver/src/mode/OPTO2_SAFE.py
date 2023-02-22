@@ -16,42 +16,25 @@ from api import *
 
 OPTO2_SAFE = {
     "compile": [
-        C2ast(
-            clang="${OUT_ROOT}/tools/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.o",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
                 "../lib"
             ],
-            option="--target=aarch64 -U __SIZEOF_INT128__ -I../h -I../lib",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            option="-boundary-check-dynamic --npe-check-dynamic",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O2 --quiet",
-                "mpl2mpl": "-O2 --quiet",
-                "mplcg": "-O2 --quiet --no-pie --verbose-asm --fPIC"
-            },
-            global_option="--npe-check-dynamic --boundary-check-dynamic",
-            infiles=["${APP}.mpl"]
-        ),
-        Shell(
-            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc -I../h -I../lib -c ${APP}.s"
+            option="-O2 -I../h -I../lib -boundary-check-dynamic --npe-check-dynamic --no-pie -fPIC -c"
         )
     ],
     "link":[
-        Shell(
-            "${OUT_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${APP}.o ${APP}2.o -std=gnu99 -no-pie -L../lib/lib -lst -lm -o ${APP}.exe"
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.o","${APP}2.o"],
+            outfile="${APP}.exe",
+            option="-std=gnu99 --no-pie -L../lib/lib -lst -lm"
         )
     ],
     "run": [
