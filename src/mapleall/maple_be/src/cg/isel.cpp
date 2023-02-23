@@ -700,6 +700,7 @@ std::pair<FieldID, MIRType*> MPISel::GetFieldIdAndMirTypeFromMirNode(const BaseN
     auto &dassign = static_cast<const DassignNode&>(node);
     fieldId = dassign.GetFieldID();
     MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(dassign.GetStIdx());
+    ASSERT(symbol != nullptr, "nullptr check");
     mirType = symbol->GetType();
   } else if (node.GetOpCode() == maple::OP_dread) {
     /* mirSymbol */

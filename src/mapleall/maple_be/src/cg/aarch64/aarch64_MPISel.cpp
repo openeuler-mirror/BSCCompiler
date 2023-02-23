@@ -103,7 +103,7 @@ void AArch64MPIsel::SelectReturn(bool noOpnd) {
 
 void AArch64MPIsel::CreateCallStructParamPassByStack(const MemOperand &memOpnd, uint32 symSize, int32 baseOffset) {
   uint32 copyTime = RoundUp(symSize, GetPointerSize()) / GetPointerSize();
-  for (int32 i = 0; i < copyTime; ++i) {
+  for (uint32 i = 0; i < copyTime; ++i) {
     MemOperand &addrMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize);
     addrMemOpnd.SetBaseRegister(*memOpnd.GetBaseRegister());
     ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*memOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));

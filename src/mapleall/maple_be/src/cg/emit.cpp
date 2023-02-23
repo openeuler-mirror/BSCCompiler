@@ -1655,7 +1655,7 @@ void Emitter::EmitConstantTable(const MIRSymbol &mirSymbol, MIRConst &mirConst,
 #ifdef USE_32BIT_REF
       itabConflictIndex = static_cast<uint64>((safe_cast<MIRIntConst>(elemConst))->GetValue()) & 0xffff;
 #else
-      itabConflictIndex = static_cast<uint64>((safe_cast<MIRIntConst>(elemConst)->GetExtValue()) & 0xffffffff);
+      itabConflictIndex = static_cast<uint64>(safe_cast<MIRIntConst>(elemConst)->GetExtValue()) & 0xffffffff;
 #endif
     }
     if (IsPrimitiveScalar(elemConst->GetType().GetPrimType())) {

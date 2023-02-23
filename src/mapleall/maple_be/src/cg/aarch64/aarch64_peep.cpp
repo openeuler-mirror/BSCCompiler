@@ -1833,6 +1833,7 @@ void ElimSpecificExtensionPattern::SetSpecificExtType(const Insn &currInsn) {
     case MOP_wandrri12: {
       is64Bits = false;
       extTypeIdx = AND;
+      break;
     }
     case MOP_xandrri13: {
       is64Bits = true;
@@ -1956,6 +1957,7 @@ bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(MOperator oldMop, MOper
   }
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
   auto *memOpnd = static_cast<MemOperand*>(prevInsn->GetMemOpnd());
+  CHECK_FATAL(memOpnd != nullptr, "invalid memOpnd");
 
   ASSERT(!prevInsn->IsStorePair(), "do not do ElimSpecificExtensionPattern for str pair");
   ASSERT(!prevInsn->IsLoadPair(), "do not do ElimSpecificExtensionPattern for ldr pair");
@@ -1963,7 +1965,6 @@ bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(MOperator oldMop, MOper
       !aarFunc->IsOperandImmValid(newMop, memOpnd, kInsnSecondOpnd)) {
     return false;
   }
-  CHECK_FATAL(memOpnd != nullptr, "invalid memOpnd");
   uint32 shiftAmount = memOpnd->ShiftAmount();
   if (shiftAmount == 0) {
     return true;
@@ -2576,7 +2577,7 @@ bool MulImmToShiftPattern::CheckCondition(Insn &insn) {
   if (immOpnd.IsNegative()) {
     return false;
   }
-  uint64 immVal = immOpnd.GetValue();
+  uint64 immVal = static_cast<uint64>(immOpnd.GetValue());
   if (immVal == 0) {
     shiftVal = 0;
     newMop = insn.GetMachineOpcode() == MOP_xmulrrr ? MOP_xmovri64 : MOP_wmovri32;

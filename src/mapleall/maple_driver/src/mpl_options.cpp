@@ -573,7 +573,7 @@ ErrorCode MplOptions::CheckInputFiles() {
   /* Set input files directly: maple file1 file2 */
   for (auto &arg : badArgs) {
     if (FileUtils::IsFileExists(arg.first)) {
-      int inedx = arg.first.find_last_of(".");
+      int inedx = static_cast<int>(arg.first.find_last_of("."));
       std::string tmp = arg.first.substr(inedx);
       if (tmp == ".a" || tmp == ".so") {
         linkInputFiles.push_back(arg.first);

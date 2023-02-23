@@ -109,7 +109,7 @@ class CollectIpaInfo {
   MIRModule &module;
   MIRBuilder &builder;
   MIRFunction *curFunc;
-  AnalysisDataManager *dataMap;
+  AnalysisDataManager *dataMap = nullptr;
   MapleAllocator allocator;
   MapleUnorderedMap<StmtInfo, StmtIndex, StmtInfoHash> stmtInfoToIntegerMap;
   MapleVector<StmtIndex> integerString;

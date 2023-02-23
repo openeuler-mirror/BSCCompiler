@@ -230,7 +230,8 @@ void InterDataDepAnalysis::GenerateInterDDGDot(MapleVector<DepNode*> &dataNodes)
   (void)fileName.append(cgFunc.GetName());
   (void)fileName.append(".dot");
 
-  iddgFile.open(fileName.c_str(), std::ios::trunc);
+  char absPath[PATH_MAX];
+  iddgFile.open(realpath(fileName.c_str(), absPath), std::ios::trunc);
   if (!iddgFile.is_open()) {
     LogInfo::MapleLogger(kLlWarn) << "fileName:" << fileName << " open failed.\n";
     return;

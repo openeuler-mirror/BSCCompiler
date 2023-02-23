@@ -475,7 +475,7 @@ int64 AArch64CombineRedundantX16Opt::GetAddImmValue(Insn &insn) {
   if (mop == MOP_waddrri24 || mop == MOP_xaddrri24) {
     auto &shiftOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
     auto &amountOpnd = static_cast<BitShiftOperand&>(insn.GetOperand(kInsnFourthOpnd));
-    return (shiftOpnd.GetValue() << amountOpnd.GetShiftAmount());
+    return (static_cast<uint>(shiftOpnd.GetValue()) << amountOpnd.GetShiftAmount());
   } else if (mop == MOP_waddrri12 || mop == MOP_xaddrri12) {
     auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
     return immOpnd.GetValue();

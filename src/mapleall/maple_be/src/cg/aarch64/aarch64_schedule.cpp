@@ -1336,7 +1336,8 @@ void AArch64Schedule::GenerateDot(const BB &bb, const MapleVector<DepNode*> &nod
   fileName.append(str);
   fileName.append("_dep_graph.dot");
 
-  dgFile.open(fileName.c_str(), std::ios::trunc);
+  char absPath[PATH_MAX];
+  dgFile.open(realpath(fileName.c_str(), absPath), std::ios::trunc);
   if (!dgFile.is_open()) {
     LogInfo::MapleLogger(kLlWarn) << "fileName:" << fileName << " open failure.\n";
     return;

@@ -75,7 +75,7 @@ class SafeExe {
       // parent process
       int status = -1;
       waitpid(pid, &status, 0);
-      if (!WIFEXITED(status)) {
+      if (!WIFEXITED(static_cast<uint>(status))) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
       } else if (WEXITSTATUS(status) != 0) {
@@ -145,7 +145,7 @@ class SafeExe {
       // parent process
       int status = -1;
       waitpid(pid, &status, 0);
-      if (!WIFEXITED(status)) {
+      if (!WIFEXITED(static_cast<uint>(status))) {
         ret = kErrorCompileFail;
       } else if (WEXITSTATUS(status) != 0) {
         ret = kErrorCompileFail;

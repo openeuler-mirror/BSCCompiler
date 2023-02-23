@@ -91,7 +91,7 @@ class CgProfUse {
 
       // Type 1 inference
       uint32 knownEdges1 = 0;
-      uint64 freqSum1 = 0;
+      FreqType freqSum1 = 0;
       Edge * unknownEdge1 = nullptr;
       MapleMap<BB*, MapleVector<Edge*>>::iterator iit = BB2InEdges.find(bb);
       if ((iit != BB2InEdges.end()) && (iit->second.size() != 0)) {
@@ -115,7 +115,7 @@ class CgProfUse {
 
       // Type 2 inference
       uint32 knownEdges2 = 0;
-      uint64 freqSum2 = 0;
+      FreqType freqSum2 = 0;
       Edge* unknownEdge2 = nullptr;
       MapleMap<BB*, MapleVector<Edge*>>::iterator oit = BB2OutEdges.find(bb);
       if ((oit != BB2OutEdges.end()) && (oit->second.size() != 0)) {

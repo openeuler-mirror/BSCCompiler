@@ -100,7 +100,7 @@ class StmtInfo {
       GetExprHashCandidate(*static_cast<IassignMeStmt *>(meStmt)->GetLHSVal());
     }
     hashCandidate.emplace_back(meStmt->NumMeStmtOpnds());
-    for (auto i = 0; i < meStmt->NumMeStmtOpnds(); ++i) {
+    for (size_t i = 0; i < meStmt->NumMeStmtOpnds(); ++i) {
       GetExprHashCandidate(*meStmt->GetOpnd(i));
     }
   }
@@ -177,7 +177,7 @@ class StmtInfo {
     if (hashCandidate.size() != rhs.hashCandidate.size()) {
       return false;
     }
-    for (auto i = 0; i < hashCandidate.size(); ++i) {
+    for (size_t i = 0; i < hashCandidate.size(); ++i) {
       if (hashCandidate[i] != rhs.hashCandidate[i]) {
         return false;
       }
@@ -249,7 +249,7 @@ class StmtInfoHash {
  public:
   size_t operator()(const StmtInfo &stmtInfo) const {
     auto hashCode = stmtInfo.GetHashCandidateAt(0);
-    for (auto i = 1; i < stmtInfo.GetHashCandidateSize(); ++i) {
+    for (size_t i = 1; i < stmtInfo.GetHashCandidateSize(); ++i) {
       hashCode ^= stmtInfo.GetHashCandidateAt(i);
     }
     return hashCode;

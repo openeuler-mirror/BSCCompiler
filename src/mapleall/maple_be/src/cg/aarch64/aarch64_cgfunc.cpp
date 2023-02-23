@@ -8509,6 +8509,7 @@ bool AArch64CGFunc::Is64x1vec(StmtNode &naryNode, BaseNode &argExpr, uint32 pnum
     case OP_dread: {
       auto &dNode = static_cast<DreadNode&>(argExpr);
       MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(dNode.GetStIdx());
+      ASSERT(symbol != nullptr, "nullptr check");
       if (dNode.GetFieldID() != 0) {
         auto *structType = static_cast<MIRStructType*>(symbol->GetType());
         ASSERT(structType != nullptr, "SelectParmList: non-zero fieldID for non-structure");
@@ -10596,7 +10597,7 @@ void AArch64CGFunc::SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode) 
   ASSERT(mirConst != nullptr, "nullptr check");
   CHECK_FATAL(mirConst->GetKind() == kConstInt, "expect MIRIntConst type");
   MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(mirConst);
-  int64 idx = GetPrimTypeSize(PTY_u32) * mirIntConst->GetExtValue();
+  int64 idx = static_cast<int64>(GetPrimTypeSize(PTY_u32)) * mirIntConst->GetExtValue();
   if (!CGOptions::IsQuiet()) {
     maple::LogInfo::MapleLogger(kLlErr) << "Id index " << idx << std::endl;
   }
