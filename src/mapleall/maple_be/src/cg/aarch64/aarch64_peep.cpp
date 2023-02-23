@@ -64,6 +64,45 @@ static bool IsZeroRegister(const Operand &opnd) {
   return regOpnd->GetRegisterNumber() == RZR;
 }
 
+MOperator GetMopUpdateAPSR(MOperator mop, bool &isAddShift) {
+  MOperator newMop = MOP_undef;
+  switch (mop) {
+    case MOP_xaddrrr: {
+      newMop = MOP_xaddsrrr;
+      isAddShift = false;
+      break;
+    }
+    case MOP_xaddrri12: {
+      newMop = MOP_xaddsrri12;
+      isAddShift = false;
+      break;
+    }
+    case MOP_waddrrr: {
+      newMop = MOP_waddsrrr;
+      isAddShift = false;
+      break;
+    }
+    case MOP_waddrri12: {
+      newMop = MOP_waddsrri12;
+      isAddShift = false;
+      break;
+    }
+    case MOP_xaddrrrs: {
+      newMop = MOP_xaddsrrrs;
+      isAddShift = true;
+      break;
+    }
+    case MOP_waddrrrs: {
+      newMop = MOP_waddsrrrs;
+      isAddShift = true;
+      break;
+    }
+    default:
+      break;
+  }
+  return newMop;
+}
+
 void AArch64CGPeepHole::Run() {
   bool optSuccess = false;
   FOR_ALL_BB(bb, cgFunc) {
@@ -209,6 +248,11 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_xmulrrr:
     case MOP_wmulrrr: {
       manager->Optimize<MulImmToShiftPattern>(!cgFunc->IsAfterRegAlloc());
+      break;
+    }
+    case MOP_wcmpri:
+    case MOP_xcmpri: {
+      manager->Optimize<AddCmpZeroPatternSSA>(true);
       break;
     }
     default:
@@ -2418,6 +2462,7 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
 void AArch64PrePeepHole1::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
   optimizations[kComplexExtendWordLslOpt] = optOwnMemPool->New<ComplexExtendWordLslAArch64>(cgFunc);
+  optimizations[kAddCmpZeroOpt] = optOwnMemPool->New<AddCmpZeroAArch64>(cgFunc);
 }
 
 void AArch64PrePeepHole1::Run(BB &bb, Insn &insn) {
@@ -2426,6 +2471,11 @@ void AArch64PrePeepHole1::Run(BB &bb, Insn &insn) {
     case MOP_xsxtw64:
     case MOP_xuxtw64: {
       (static_cast<ComplexExtendWordLslAArch64*>(optimizations[kComplexExtendWordLslOpt]))->Run(bb, insn);
+      break;
+    }
+    case MOP_wcmpri:
+    case MOP_xcmpri: {
+      (static_cast<AddCmpZeroAArch64*>(optimizations[kAddCmpZeroOpt]))->Run(bb, insn);
       break;
     }
     default:
@@ -4803,6 +4853,121 @@ bool UbfxAndCbzToTbzPattern::CheckCondition(Insn &insn) {
   return false;
 }
 
+bool AddCmpZeroAArch64::CheckAddCmpZeroCheckAdd(const Insn &insn, regno_t regNO) {
+  MOperator mop = insn.GetMachineOpcode();
+  switch (mop) {
+    case MOP_xaddrrr:
+    case MOP_xaddrri12:
+    case MOP_waddrrr:
+    case MOP_waddrri12:
+    case MOP_xaddrrrs:
+    case MOP_waddrrrs: {
+      regno_t regNO0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+      if (regNO0 == regNO) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
+bool AddCmpZeroAArch64::CheckAddCmpZeroContinue(const Insn &insn, regno_t regNO) {
+  for (uint32 i = 0; i < insn.GetOperandSize(); ++i) {
+    if (insn.GetDesc()->GetOpndDes(i) == &OpndDesc::CCS) {
+      return false;
+    }
+    if (insn.GetOperand(i).IsRegister()) {
+      RegOperand &opnd = static_cast<RegOperand&>(insn.GetOperand(i));
+      if (insn.GetDesc()->GetOpndDes(i)->IsDef() && regNO == opnd.GetRegisterNumber()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+Insn* AddCmpZeroAArch64::CheckAddCmpZeroAArch64Pattern(Insn &insn, regno_t regNO) {
+  Insn *prevInsn = insn.GetPrev();
+  while (prevInsn != nullptr) {
+    if (!prevInsn->IsMachineInstruction()) {
+      prevInsn = prevInsn->GetPrev();
+      continue;
+    }
+    if (CheckAddCmpZeroCheckAdd(*prevInsn, regNO)) {
+      if (CheckAddCmpZeroCheckCond(insn)) {
+        return prevInsn;
+      } else {
+        return nullptr;
+      }
+    }
+    if (!CheckAddCmpZeroContinue(*prevInsn, regNO)) {
+      return nullptr;
+    }
+    prevInsn = prevInsn->GetPrev();
+  }
+  return nullptr;
+}
+
+bool AddCmpZeroAArch64::CheckAddCmpZeroCheckCond(const Insn &insn) {
+  Insn *nextInsn = insn.GetNext();
+  while (nextInsn != nullptr) {
+    if (!nextInsn->IsMachineInstruction()) {
+      nextInsn = nextInsn->GetNext();
+      continue;
+    }
+    for (uint32 i = 0; i < nextInsn->GetOperandSize(); ++i) {
+      if (nextInsn->GetDesc()->GetOpndDes(i) == &OpndDesc::Cond) {
+        CondOperand& cond = static_cast<CondOperand&>(nextInsn->GetOperand(i));
+        if (cond.GetCode() == CC_EQ) {
+          return true;
+        } else {
+          return false;
+        }
+      }
+    }
+    nextInsn = nextInsn->GetNext();
+  }
+  return false;
+}
+
+void AddCmpZeroAArch64::Run(BB &bb, Insn &insn) {
+  MOperator mop = insn.GetMachineOpcode();
+  if (mop != MOP_wcmpri && mop != MOP_xcmpri) {
+    return;
+  }
+  auto &opnd3 = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  if (!opnd3.IsZero()) {
+    return;
+  }
+  auto &opnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  regno_t regNO = opnd2.GetRegisterNumber();
+  Insn *prevAddInsn = CheckAddCmpZeroAArch64Pattern(insn, regNO);
+  if (!prevAddInsn) {
+    return;
+  }
+  bool isAddShift = false;
+  MOperator newMop = GetMopUpdateAPSR(prevAddInsn->GetMachineOpcode(), isAddShift);
+  Insn *newInsn = nullptr;
+  if (isAddShift) {
+    newInsn = &cgFunc.GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd),
+                                                  prevAddInsn->GetOperand(kInsnFirstOpnd),
+                                                  prevAddInsn->GetOperand(kInsnSecondOpnd),
+                                                  prevAddInsn->GetOperand(kInsnThirdOpnd),
+                                                  prevAddInsn->GetOperand(kInsnFourthOpnd));
+  } else {
+    newInsn = &cgFunc.GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd),
+                                                  prevAddInsn->GetOperand(kInsnFirstOpnd),
+                                                  prevAddInsn->GetOperand(kInsnSecondOpnd),
+                                                  prevAddInsn->GetOperand(kInsnThirdOpnd));
+  }
+  bb.ReplaceInsn(*prevAddInsn, *newInsn);
+  bb.RemoveInsn(insn);
+}
+
 bool ComplexExtendWordLslAArch64::IsExtendWordLslPattern(const Insn &insn) const {
   Insn *nextInsn = insn.GetNext();
   if (nextInsn == nullptr) {
@@ -4844,5 +5009,99 @@ void ComplexExtendWordLslAArch64::Run(BB &bb, Insn &insn) {
       nextOpnd0, reg1, nextOpnd2, newImm);
   bb.RemoveInsn(*nextInsn);
   bb.ReplaceInsn(insn, newInsnSbfiz);
+}
+
+
+bool AddCmpZeroPatternSSA::CheckCondition(Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop != MOP_wcmpri && curMop != MOP_xcmpri) {
+    return false;
+  }
+  auto &ImmOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  if (!ImmOpnd.IsZero()) {
+    return false;
+  }
+
+  auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  prevAddInsn = ssaInfo->GetDefInsn(ccReg);
+  if (prevAddInsn == nullptr) {
+    return false;
+  }
+  MOperator prevAddMop = prevAddInsn->GetMachineOpcode();
+  if (prevAddMop != MOP_xaddrrr && prevAddMop != MOP_xaddrri12 &&
+      prevAddMop != MOP_waddrrr && prevAddMop != MOP_waddrri12 &&
+      prevAddMop != MOP_xaddrrrs && prevAddMop != MOP_waddrrrs) {
+    return false;
+  }
+  Insn *nextInsn = insn.GetNext();
+  while (nextInsn != nullptr) {
+    if (!nextInsn->IsMachineInstruction()) {
+      return false;
+    }
+    for (uint32 i = 0; i < nextInsn->GetOperandSize(); ++i) {
+      if (nextInsn->GetDesc()->GetOpndDes(i) == &OpndDesc::Cond) {
+        CondOperand& cond = static_cast<CondOperand&>(nextInsn->GetOperand(i));
+        if (cond.GetCode() == CC_EQ) {
+          return true;
+        } else {
+          return false;
+        }
+      }
+    }
+    nextInsn = nextInsn->GetNext();
+  }
+  return false;
+}
+
+void AddCmpZeroPatternSSA::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  bool isShiftAdd = false;
+  MOperator prevAddMop = prevAddInsn->GetMachineOpcode();
+  MOperator newAddMop = GetMopUpdateAPSR(prevAddMop, isShiftAdd);
+  ASSERT(newAddMop != MOP_undef, "unknown Add code");
+  /*
+   * Since new opnd can be defined in SSA ReplaceInsn, we should avoid pattern matching again.
+   * For "adds" can only be inserted in this phase, so we could do a simple check.
+   */
+  Insn *nextInsn = insn.GetNext();
+  while (nextInsn != nullptr) {
+    if (!nextInsn->IsMachineInstruction()) {
+      nextInsn = nextInsn->GetNext();
+      return;
+    }
+    MOperator nextMop = nextInsn->GetMachineOpcode();
+    if (nextMop == newAddMop) {
+      return;
+    }
+    nextInsn = nextInsn->GetNext();
+  }
+
+  Insn *newInsn = nullptr;
+  Operand &rflag = insn.GetOperand(kInsnFirstOpnd);
+  if (isShiftAdd) {
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newAddMop, rflag, prevAddInsn->GetOperand(kInsnFirstOpnd),
+                                                   prevAddInsn->GetOperand(kInsnSecondOpnd),
+                                                   prevAddInsn->GetOperand(kInsnThirdOpnd),
+                                                   prevAddInsn->GetOperand(kInsnFourthOpnd));
+  } else {
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newAddMop, rflag, prevAddInsn->GetOperand(kInsnFirstOpnd),
+                                                   prevAddInsn->GetOperand(kInsnSecondOpnd),
+                                                   prevAddInsn->GetOperand(kInsnThirdOpnd));
+  }
+  bb.InsertInsnAfter(insn, *newInsn);
+  /* update ssa info */
+  auto *a64SSAInfo = static_cast<AArch64CGSSAInfo*>(ssaInfo);
+  a64SSAInfo->CreateNewInsnSSAInfo(*newInsn);
+  SetCurrInsn(newInsn);
+
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevAddInsn);
+    prevs.emplace_back(&insn);
+    DumpAfterPattern(prevs, newInsn, nullptr);
+  }
 }
 }  /* namespace maplebe */

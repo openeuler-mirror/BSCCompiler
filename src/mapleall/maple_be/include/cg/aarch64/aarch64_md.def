@@ -58,24 +58,36 @@ DEFINE_MOP(MOP_xadrpl12, {&OpndDesc::Reg64ID,&OpndDesc::Reg64IS,&OpndDesc::Liter
 /* AARCH64 Arithmetic: add */
 /* MOP_xaddrrr */
 DEFINE_MOP(MOP_xaddrrr, {&OpndDesc::Reg64ID,&OpndDesc::Reg64IS,&OpndDesc::Reg64IS},0,kLtAlu,"add","0,1,2",1)
+/* MOP_xaddsrrr */
+DEFINE_MOP(MOP_xaddsrrr, {&OpndDesc::CCD, &OpndDesc::Reg64ID,&OpndDesc::Reg64IS,&OpndDesc::Reg64IS},0,kLtAlu,"adds","1,2,3",1)
 /* MOP_xaddrrrs */
 DEFINE_MOP(MOP_xaddrrrs, {&OpndDesc::Reg64ID,&OpndDesc::Reg64IS,&OpndDesc::Reg64IS,&OpndDesc::Bitshift64},0,kLtAluShift,"add","0,1,2,3",1)
+/* MOP_xaddsrrrs */
+DEFINE_MOP(MOP_xaddsrrrs, {&OpndDesc::CCD, &OpndDesc::Reg64ID,&OpndDesc::Reg64IS,&OpndDesc::Reg64IS,&OpndDesc::Bitshift64},0,kLtAluShift,"adds","1,2,3,4",1)
 /* MOP_xxwaddrrre */
 DEFINE_MOP(MOP_xxwaddrrre, {&OpndDesc::Reg64ID,&OpndDesc::Reg64IS,&OpndDesc::Reg32IS,&OpndDesc::Extendshift64},0,kLtAluShift,"add","0,1,2,3",1)
 /* MOP_xaddrri24 */
 DEFINE_MOP(MOP_xaddrri24, {&OpndDesc::Reg64ID,&OpndDesc::Reg64IS,&OpndDesc::Imm12,&OpndDesc::Lsl12},0,kLtShift,"add","0,1,2,3",1,Imm12BitValid)
 /* MOP_xaddrri12 */
 DEFINE_MOP(MOP_xaddrri12, {&OpndDesc::Reg64ID,&OpndDesc::Reg64IS,&OpndDesc::Imm12},0,kLtAlu,"add","0,1,2",1,Imm12BitValid)
+/* MOP_xaddsrri12 */
+DEFINE_MOP(MOP_xaddsrri12, {&OpndDesc::CCD, &OpndDesc::Reg64ID,&OpndDesc::Reg64IS,&OpndDesc::Imm12},0,kLtAlu,"adds","1,2,3",1,Imm12BitValid)
 /* MOP_waddrrr */
 DEFINE_MOP(MOP_waddrrr, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS,&OpndDesc::Reg32IS},0,kLtAlu,"add","0,1,2",1)
+/* MOP_waddsrrr */
+DEFINE_MOP(MOP_waddsrrr, {&OpndDesc::CCD, &OpndDesc::Reg32ID,&OpndDesc::Reg32IS,&OpndDesc::Reg32IS},0,kLtAlu,"adds","1,2,3",1)
 /* MOP_waddrrrs */
 DEFINE_MOP(MOP_waddrrrs, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS,&OpndDesc::Reg32IS,&OpndDesc::Bitshift32},0,kLtAluShift,"add","0,1,2,3",1)
+/* MOP_waddsrrrs */
+DEFINE_MOP(MOP_waddsrrrs, {&OpndDesc::CCD, &OpndDesc::Reg32ID,&OpndDesc::Reg32IS,&OpndDesc::Reg32IS,&OpndDesc::Bitshift32},0,kLtAluShift,"adds","1,2,3,4",1)
 /* MOP_xxwaddrrre */
 DEFINE_MOP(MOP_wwwaddrrre, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS,&OpndDesc::Reg32IS,&OpndDesc::Extendshift64},0,kLtAluShift,"add","0,1,2,3",1)
 /* MOP_waddrri24 */
 DEFINE_MOP(MOP_waddrri24, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS,&OpndDesc::Imm12,&OpndDesc::Lsl12},0,kLtAluShift,"add","0,1,2,3",1,Imm12BitValid)
 /* MOP_waddrri12 */
 DEFINE_MOP(MOP_waddrri12, {&OpndDesc::Reg32ID,&OpndDesc::Reg32IS,&OpndDesc::Imm12},0,kLtAlu,"add","0,1,2",1,Imm12BitValid)
+/* MOP_waddsrri12 */
+DEFINE_MOP(MOP_waddsrri12, {&OpndDesc::CCD, &OpndDesc::Reg32ID,&OpndDesc::Reg32IS,&OpndDesc::Imm12},0,kLtAlu,"adds","1,2,3",1,Imm12BitValid)
 /* MOP_dadd */
 DEFINE_MOP(MOP_dadd, {&OpndDesc::Reg64FD,&OpndDesc::Reg64FS,&OpndDesc::Reg64FS},0,kLtFpalu,"fadd","0,1,2",1)
 /* MOP_sadd */

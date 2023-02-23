@@ -1586,6 +1586,32 @@ class ReplaceIncDecWithIncPattern : public CGPeepPattern {
 };
 
 /*
+ * Replace following patterns:
+ *
+ * add   w1, w0, w1
+ * cmp   w1, #0       ====>  adds w1, w0, w1
+ *       EQ
+ *
+ * add   x1, x0, x1
+ * cmp   x1, #0       ====>  adds x1, x0, x1
+ *.......EQ
+ *
+ * ....
+ */
+class AddCmpZeroAArch64 : public PeepPattern {
+ public:
+  explicit AddCmpZeroAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~AddCmpZeroAArch64() override = default;
+  void Run(BB &bb, Insn &insn) override;
+
+ private:
+ bool CheckAddCmpZeroCheckAdd (const Insn &insn, regno_t regNO);
+ bool CheckAddCmpZeroContinue (const Insn &insn, regno_t regNO);
+ bool CheckAddCmpZeroCheckCond (const Insn &insn);
+ Insn* CheckAddCmpZeroAArch64Pattern(Insn &insn, regno_t regNO);
+};
+
+/*
  * Replace following pattern:
  * sxtw  x1, w0
  * lsl   x2, x1, #3  ====>  sbfiz x2, x0, #3, #32
@@ -1601,6 +1627,35 @@ class ComplexExtendWordLslAArch64 : public PeepPattern {
 
  private:
   bool IsExtendWordLslPattern(const Insn &insn) const;
+};
+
+
+/*
+ * Replace following patterns:
+ *
+ * add   w1, w0, w1
+ * cmp   w1, #0       ====>  adds w1, w0, w1
+ *       EQ
+ *
+ * add   x1, x0, x1
+ * cmp   x1, #0       ====>  adds x1, x0, x1
+ *       EQ
+ *
+ * ....
+ */
+class AddCmpZeroPatternSSA : public CGPeepPattern {
+ public:
+  AddCmpZeroPatternSSA(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~AddCmpZeroPatternSSA() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "AddCmpZeroPatternSSA";
+  }
+
+ private:
+  Insn *prevAddInsn = nullptr;
 };
 
 class AArch64PeepHole : public PeepPatternMatch {
@@ -1694,7 +1749,8 @@ class AArch64PrePeepHole1 : public PeepPatternMatch {
     kReplaceIncDecWithIncOpt,
     kAndCmpBranchesToTbzOpt,
     kComplexExtendWordLslOpt,
-    kPeepholeOptsNum
+    kAddCmpZeroOpt,
+    kPeepholeOptsNum,
   };
 };
 }  /* namespace maplebe */
