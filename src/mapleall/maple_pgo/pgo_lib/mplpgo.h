@@ -19,7 +19,7 @@ struct Mpl_Lite_Pgo_FuncInfo {
 /* information about all function profile instrumentation in an object file */
 struct Mpl_Lite_Pgo_ObjectFileInfo {
   unsigned int modHash;
-  struct Mpl_Lite_Pgo_ObjectFileInfo *next; /* build list for all object file info*/
+  struct Mpl_Lite_Pgo_ObjectFileInfo *next; /* build list for all object file info */
   uint64_t funcNum;
   const struct Mpl_Lite_Pgo_FuncInfo *const *funcInfos;
 };

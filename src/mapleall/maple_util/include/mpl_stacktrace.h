@@ -238,4 +238,4 @@ using Stacktrace = stacktrace::Stacktrace<Allocator>;
 
 }  // namespace maple
 
-#endif  //MAPLE_UTIL_INCLUDE_MPL_STACKTRACE
+#endif  // MAPLE_UTIL_INCLUDE_MPL_STACKTRACE
