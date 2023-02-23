@@ -657,7 +657,6 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
   int32 offset = FindCalleeBase();
   for (BB *bb : bfs->sortedBBs) {
     bid = bb->GetId();
-    aarchCGFunc->SetSplitBaseOffset(0);
     if (bbSavedRegs[bid] != nullptr && !bbSavedRegs[bid]->GetSaveSet().empty()) {
       aarchCGFunc->GetDummyBB()->ClearInsns();
       cgFunc->SetCurBB(*aarchCGFunc->GetDummyBB());
@@ -738,7 +737,6 @@ void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
   int32 offset = FindCalleeBase();
   for (BB *bb : bfs->sortedBBs) {
     bid = bb->GetId();
-    aarchCGFunc->SetSplitBaseOffset(0);
     SavedRegInfo *sp = bbSavedRegs[bid];
     if (sp != nullptr) {
       if (sp->GetEntrySet().empty() && sp->GetExitSet().empty()) {

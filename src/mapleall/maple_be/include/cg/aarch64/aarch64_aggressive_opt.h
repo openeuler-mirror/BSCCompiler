@@ -80,6 +80,7 @@ class AArch64CombineRedundantX16Opt {
     clearX16Def = false;
     isX16Used = false;
     hasUseOpndReDef = false;
+    isSpecialX16Def = false;
   }
 
   void InitSegmentInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc);
@@ -117,6 +118,7 @@ class AArch64CombineRedundantX16Opt {
   bool clearX16Def = false;
   bool isX16Used = false;
   bool hasUseOpndReDef = false;
+  bool isSpecialX16Def = false;  // For ignoring movz/movk that def x16 pattern
 };
 
 class AArch64AggressiveOpt : public CGAggressiveOpt {
