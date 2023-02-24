@@ -10,6 +10,7 @@ set(inc_dirs
   ${MAPLEALL_ROOT}/mpl2mpl/include
   ${MAPLEALL_ROOT}/maple_be/include/cg
   ${MAPLEALL_ROOT}/maple_ipa/include/old
+  ${MAPLEALL_ROOT}/maple_pgo/include
   ${THIRD_PARTY_ROOT}/bounds_checking_function/include
 )
 
