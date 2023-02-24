@@ -122,6 +122,7 @@ extern maplecl::Option<bool> fastMath;
 extern maplecl::Option<bool> tailcall;
 extern maplecl::Option<bool> alignAnalysis;
 extern maplecl::Option<bool> cgSsa;
+extern maplecl::Option<bool> globalSchedule;
 extern maplecl::Option<bool> calleeEnsureParam;
 extern maplecl::Option<bool> common;
 extern maplecl::Option<bool> condbrAlign;

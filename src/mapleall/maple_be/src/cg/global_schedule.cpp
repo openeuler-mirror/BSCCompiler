@@ -22,17 +22,99 @@ namespace maplebe {
 void GlobalSchedule::Run() {
   FCDG *fcdg = cda.GetFCDG();
   CHECK_FATAL(fcdg != nullptr, "control dependence analysis failed");
-  cda.GenerateFCDGDot();
-  cda.GenerateCFGDot();
-  DotGenerator::GenerateDot("globalsched", cgFunc, cgFunc.GetMirModule(),
-                            true, cgFunc.GetName());
+  if (GLOBAL_SCHEDULE_DUMP) {
+    cda.GenerateCFGDot();
+    cda.GenerateFCDGDot();
+    DotGenerator::GenerateDot("globalsched", cgFunc, cgFunc.GetMirModule(), true, cgFunc.GetName());
+  }
+  InitInsnIdAndLocInsn();
   for (auto region : fcdg->GetAllRegions()) {
-    if (region == nullptr) {
+    if (region == nullptr || !CheckCondition(*region)) {
       continue;
     }
-    idda.Run(*region, dataNodes);
-    idda.GenerateInterDDGDot(dataNodes);
+    interDDA.Run(*region);
+    if (GLOBAL_SCHEDULE_DUMP) {
+      cda.GenerateCFGInRegionDot(*region);
+      interDDA.GenerateDataDepGraphDotOfRegion(*region);
+    }
+    InitInRegion(*region);
+    if (CGOptions::DoVerifySchedule()) {
+      VerifyingSchedule(*region);
+      continue;
+    }
+    DoGlobalSchedule(*region);
   }
+}
+
+bool GlobalSchedule::CheckCondition(CDGRegion &region) {
+  uint32 insnSum = 0;
+  for (auto cdgNode : region.GetRegionNodes()) {
+    BB *bb = cdgNode->GetBB();
+    CHECK_FATAL(bb != nullptr, "get bb from cdgNode failed");
+    FOR_BB_INSNS_CONST(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      insnSum++;
+    }
+  }
+  return insnSum <= kMaxInsnNum;
+}
+
+/*
+ * The entry of global scheduling
+ */
+void GlobalSchedule::DoGlobalSchedule(CDGRegion &region) {
+  if (GLOBAL_SCHEDULE_DUMP) {
+    DumpRegionInfoBeforeSchedule(region);
+  }
+  listScheduler = schedMP.New<ListScheduler>(schedMP, cgFunc, false, "globalschedule");
+  /* Process nodes in a region by the topology sequence */
+  for (auto cdgNode : region.GetRegionNodes()) {
+    BB *bb = cdgNode->GetBB();
+    ASSERT(bb != nullptr, "get bb from cdgNode failed");
+    if (bb->IsAtomicBuiltInBB()) {
+      for (auto depNode : cdgNode->GetAllDataNodes()) {
+        for (auto succLink : depNode->GetSuccs()) {
+          DepNode &succNode = succLink->GetTo();
+          succNode.DecreaseValidPredsSize();
+        }
+      }
+      continue;
+    }
+
+    MemPool *cdgNodeMp = memPoolCtrler.NewMemPool("global-scheduler cdgNode memPool", true);
+    /* Collect candidate instructions of current cdgNode */
+    InitInCDGNode(region, *cdgNode, cdgNodeMp);
+
+    /* Execute list scheduling */
+    listScheduler->SetCDGRegion(region);
+    listScheduler->SetCDGNode(*cdgNode);
+    listScheduler->DoListScheduling();
+
+    /* Reorder instructions in the current BB based on the scheduling result */
+    FinishScheduling(*cdgNode);
+
+    if (GLOBAL_SCHEDULE_DUMP) {
+      DumpCDGNodeInfoAfterSchedule(*cdgNode);
+    }
+
+    ClearCDGNodeInfo(region, *cdgNode, cdgNodeMp);
+  }
+}
+
+void GlobalSchedule::ClearCDGNodeInfo(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp) {
+  std::vector<CDGNode*> equivalentNodes;
+  cda.GetEquivalentNodesInRegion(region, cdgNode, equivalentNodes);
+  for (auto equivNode : equivalentNodes) {
+    for (auto depNode : equivNode->GetAllDataNodes()) {
+      ASSERT(depNode->GetState() != kScheduled, "update state of depNode failed in finishScheduling");
+      depNode->SetState(kNormal);
+    }
+  }
+
+  memPoolCtrler.DeleteMemPool(cdgNodeMp);
+  commonSchedInfo = nullptr;
 }
 
 void CgGlobalSchedule::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
@@ -40,14 +122,17 @@ void CgGlobalSchedule::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool CgGlobalSchedule::PhaseRun(maplebe::CGFunc &f) {
-  MemPool *gsMemPool = GetPhaseMemPool();
+  CGOptions &cgOption = CGOptions::GetInstance();
+  if (cgOption.WithDwarf()) {
+    return false;
+  }
+  MemPool *memPool = GetPhaseMemPool();
   ControlDepAnalysis *cda = GET_ANALYSIS(CgControlDepAnalysis, f);
   MAD *mad = Globals::GetInstance()->GetMAD();
-  // Need move to target
-  auto *ddb = gsMemPool->New<AArch64DataDepBase>(*gsMemPool, f, *mad);
-  auto *idda = gsMemPool->New<InterDataDepAnalysis>(f, *gsMemPool, *ddb);
-  auto *globalSched = gsMemPool->New<GlobalSchedule>(*gsMemPool, f, *cda, *idda);
-  globalSched->Run();
+  auto *ddb = memPool->New<AArch64DataDepBase>(*memPool, f, *mad, false);
+  auto *idda = memPool->New<InterDataDepAnalysis>(f, *memPool, *ddb);
+  auto *globalScheduler = f.GetCG()->CreateGlobalSchedule(*memPool, f, *cda, *idda);
+  globalScheduler->Run();
   return true;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgGlobalSchedule, globalschedule)

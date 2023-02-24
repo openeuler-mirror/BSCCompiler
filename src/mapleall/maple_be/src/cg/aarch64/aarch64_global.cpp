@@ -2212,10 +2212,15 @@ bool SameRHSPropPattern::CheckCondition(Insn &insn) {
   if (std::find(candidates.begin(), candidates.end(), mOp) == candidates.end()) {
     return false;
   }
+  ASSERT(insn.GetOperand(kInsnFirstOpnd).IsRegister(), "insn first operand must be register");
+  /* Do not optimize r16-related to avoid tmp-reg is redefined */
+  if (static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber() == R16) {
+    return false;
+  }
   if (!FindSameRHSInsnInBB(insn)) {
     return false;
   }
-  CHECK_FATAL(prevInsn->GetOperand(kInsnFirstOpnd).IsRegister(), "prevInsn first operand must be register");
+  ASSERT(prevInsn->GetOperand(kInsnFirstOpnd).IsRegister(), "prevInsn first operand must be register");
   if (prevInsn->GetOperand(kInsnSecondOpnd).IsRegister() &&
       RegOperand::IsSameReg(prevInsn->GetOperand(kInsnFirstOpnd), prevInsn->GetOperand(kInsnSecondOpnd))) {
     return false;

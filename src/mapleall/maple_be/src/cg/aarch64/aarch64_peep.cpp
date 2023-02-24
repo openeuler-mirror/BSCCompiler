@@ -3865,19 +3865,29 @@ bool AndCbzBranchesToTstPattern::CheckCondition(Insn &insn) {
       (nextInsn->GetMachineOpcode() != MOP_wcbz && nextInsn->GetMachineOpcode() != MOP_xcbz)) {
     return false;
   }
-  auto &andRegOp = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  regno_t andRegNO1 = andRegOp.GetRegisterNumber();
-  auto &cbzRegOp2 = static_cast<RegOperand&>(nextInsn->GetOperand(kInsnFirstOpnd));
-  regno_t cbzRegNO2 = cbzRegOp2.GetRegisterNumber();
-  if (andRegNO1 != cbzRegNO2) {
+  auto &andRegOp1 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  regno_t andRegNo1 = andRegOp1.GetRegisterNumber();
+  auto &cbzRegOp1 = static_cast<RegOperand&>(nextInsn->GetOperand(kInsnFirstOpnd));
+  regno_t cbzRegNo1 = cbzRegOp1.GetRegisterNumber();
+  if (andRegNo1 != cbzRegNo1) {
     return false;
   }
   /* If the reg will be used later, we shouldn't optimize the and insn here */
-  if (IfOperandIsLiveAfterInsn(andRegOp, *nextInsn)) {
+  if (IfOperandIsLiveAfterInsn(andRegOp1, *nextInsn)) {
+    return false;
+  }
+  auto &andRegOp2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  Operand &andOpnd3 = insn.GetOperand(kInsnThirdOpnd);
+  if (andOpnd3.IsImmediate() && !static_cast<ImmOperand&>(andOpnd3).IsBitmaskImmediate(andRegOp2.GetSize())) {
+    return false;
+  }
+  /* avoid redefine cc-reg */
+  if (static_cast<AArch64CGFunc*>(cgFunc)->GetRflag() != nullptr) {
     return false;
   }
   return true;
 }
+
 void AndCbzBranchesToTstPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
@@ -3885,22 +3895,17 @@ void AndCbzBranchesToTstPattern::Run(BB &bb, Insn &insn) {
   Insn *nextInsn = insn.GetNextMachineInsn();
   CHECK_NULL_FATAL(nextInsn);
   /* build tst insn */
-  Operand &andOpnd3 = insn.GetOperand(kInsnThirdOpnd);
   auto &andRegOp2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  auto &andRegOp3 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  Operand &andOpnd3 = insn.GetOperand(kInsnThirdOpnd);
   MOperator newTstOp = MOP_undef;
   if (andOpnd3.IsRegister()) {
-    newTstOp = (andRegOp2.GetSize() <= k32BitSize && andRegOp3.GetSize() <= k32BitSize) ? MOP_wtstrr : MOP_xtstrr;
+    newTstOp = (insn.GetMachineOpcode() == MOP_wandrrr) ? MOP_wtstrr : MOP_xtstrr;
   } else {
-    newTstOp = (andRegOp2.GetSize() <= k32BitSize && andRegOp3.GetSize() <= k32BitSize) ? MOP_wtstri32 : MOP_xtstri64;
+    newTstOp = (insn.GetMachineOpcode() == MOP_wandrri12) ? MOP_wtstri32 : MOP_xtstri64;
   }
   Operand &rflag = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateRflag();
   Insn &newInsnTst = cgFunc->GetInsnBuilder()->BuildInsn(newTstOp, rflag, andRegOp2, andOpnd3);
-  if (andOpnd3.IsImmediate()) {
-    if (!static_cast<ImmOperand&>(andOpnd3).IsBitmaskImmediate(andRegOp2.GetSize())) {
-      return;
-    }
-  }
+
   /* build beq insn */
   MOperator opCode = nextInsn->GetMachineOpcode();
   bool reverse = (opCode == MOP_xcbz || opCode == MOP_wcbz);

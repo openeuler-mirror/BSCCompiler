@@ -22,11 +22,13 @@
 namespace maplebe {
 using namespace maple;
 constexpr maple::uint32 kMaxDependenceNum = 200;
+constexpr maple::uint32 kMaxInsnNum = 220;
 
 class DataDepBase {
  public:
-  DataDepBase(MemPool &memPool, CGFunc &func, MAD &mad)
-      : memPool(memPool), alloc(&memPool), cgFunc(func), mad(mad), beforeRA(!cgFunc.IsAfterRegAlloc()) {}
+  DataDepBase(MemPool &memPool, CGFunc &func, MAD &mad, bool isIntraAna)
+      : memPool(memPool), alloc(&memPool), cgFunc(func), mad(mad),
+        beforeRA(!cgFunc.IsAfterRegAlloc()), isIntra(isIntraAna) {}
   virtual ~DataDepBase() {
     curCDGNode = nullptr;
   }
@@ -56,6 +58,12 @@ class DataDepBase {
   CDGNode *GetCDGNode() {
     return curCDGNode;
   }
+  void SetCDGRegion(CDGRegion *region) {
+    curRegion = region;
+  }
+  CDGRegion *GetCDGRegion() {
+    return curRegion;
+  }
   void SetLastFrameDefInsn(Insn *insn) const {
     curCDGNode->SetLastFrameDefInsn(insn);
   }
@@ -81,7 +89,6 @@ class DataDepBase {
   void CombineDependence(DepNode &firstNode, const DepNode &secondNode, bool isAcrossSeparator,
                          bool isMemCombine = false);
 
-  bool IsIntraBlockAnalysis() const;
   bool IfInAmbiRegs(regno_t regNO) const;
   void AddDependence(DepNode &fromNode, DepNode &toNode, DepType depType);
   void RemoveSelfDeps(Insn &insn);
@@ -98,7 +105,6 @@ class DataDepBase {
   void SeparateDependenceGraph(MapleVector<DepNode*> &nodes, uint32 &nodeSum);
   DepNode *GenerateDepNode(Insn &insn, MapleVector<DepNode*> &nodes, uint32 &nodeSum, MapleVector<Insn*> &comments);
   void UpdateStackAndHeapDependency(DepNode &depNode, Insn &insn, const Insn &locInsn);
-  void BuildSeparatorNodeDependency(MapleVector<DepNode*> &dataNodes, Insn &insn);
   void BuildInterBlockDefUseDependency(DepNode &curDepNode, regno_t regNO, DepType depType, bool isDef);
   void BuildPredPathDefDependencyDFS(BB &curBB, std::vector<bool> &visited, DepNode &depNode,
                                      regno_t regNO, DepType depType);
@@ -109,6 +115,7 @@ class DataDepBase {
   void BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vector<bool> &visited, bool needCmp, DepNode &depNode,
                                                  DepType depType, DataDepBase::DataFlowInfoType infoType);
 
+  virtual void InitCDGNodeDataInfo(MemPool &mp, MapleAllocator &alloc, CDGNode &cdgNode) = 0;
   virtual void CombineClinit(DepNode &firstNode, DepNode &secondNode, bool isAcrossSeparator) = 0;
   virtual void CombineMemoryAccessPair(DepNode &firstNode, DepNode &secondNode, bool useFirstOffset) = 0;
   virtual bool IsFrameReg(const RegOperand&) const = 0;
@@ -124,7 +131,8 @@ class DataDepBase {
   virtual void BuildDepsDirtyHeap(Insn &insn) = 0;
   virtual void BuildOpndDependency(Insn &insn) = 0;
   virtual void BuildSpecialInsnDependency(Insn &insn, const MapleVector<DepNode*> &nodes) = 0;
-  virtual void UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, MapleVector<DepNode*> &nodes) = 0;
+  virtual void BuildAsmInsnDependency(Insn &insn) = 0;
+  virtual void UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, DepNode &sepNode) = 0;
   virtual DepNode *BuildSeparatorNode() = 0;
   virtual void BuildInterBlockMemDefUseDependency(DepNode &depNode, MemOperand &memOpnd,
                                                   MemOperand *nextMemOpnd, bool isMemDef) = 0;
@@ -132,14 +140,17 @@ class DataDepBase {
                                                 MemOperand &memOpnd, MemOperand *nextMemOpnd) = 0;
   virtual void BuildPredPathMemUseDependencyDFS(BB &curBB, std::vector<bool> &visited, DepNode &depNode,
                                                 MemOperand &memOpnd, MemOperand *nextMemOpnd) = 0;
+  virtual void DumpNodeStyleInDot(std::ofstream &file, DepNode &depNode) = 0;
 
  protected:
   MemPool &memPool;
   MapleAllocator alloc;
   CGFunc &cgFunc;
   MAD &mad;
-  CDGNode *curCDGNode = nullptr;
   bool beforeRA;
+  bool isIntra;
+  CDGNode *curCDGNode = nullptr;
+  CDGRegion *curRegion = nullptr;
   uint32 separatorIndex = 0;
 };
 }

@@ -48,6 +48,7 @@ set(deps
     libmpl
     libmaplepgo
     libcglowerer
+    libmaplepgo
     libmplbe
     libmplme
     libcg

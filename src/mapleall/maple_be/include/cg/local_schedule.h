@@ -12,41 +12,37 @@
 * FIT FOR A PARTICULAR PURPOSE.
 * See the Mulan PSL v2 for more details.
 */
-#ifndef MAPLEBE_INCLUDE_CG_GLOBAL_SCHEDULE_H
-#define MAPLEBE_INCLUDE_CG_GLOBAL_SCHEDULE_H
+#ifndef MAPLEBE_INCLUDE_CG_LOCAL_SCHEDULE_H
+#define MAPLEBE_INCLUDE_CG_LOCAL_SCHEDULE_H
 
 #include "base_schedule.h"
 
 namespace maplebe {
-#define GLOBAL_SCHEDULE_DUMP CG_DEBUG_FUNC(cgFunc)
+#define LOCAL_SCHEDULE_DUMP CG_DEBUG_FUNC(cgFunc)
 
-class GlobalSchedule : public BaseSchedule {
+class LocalSchedule : public BaseSchedule {
  public:
-  GlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, InterDataDepAnalysis &idda)
+  LocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, InterDataDepAnalysis &idda)
       : BaseSchedule(mp, f, cdAna), interDDA(idda) {}
-  virtual ~GlobalSchedule() = default;
+  virtual ~LocalSchedule() = default;
 
   std::string PhaseName() const {
-    return "globalschedule";
+    return "localschedule";
   }
   void Run() override;
   bool CheckCondition(CDGRegion &region);
-  /* Region-based global scheduling entry, using the list scheduling algorithm for scheduling insns in bb */
-  void DoGlobalSchedule(CDGRegion &region);
-
-  /* Verifying the Correctness of Global Scheduling */
-  virtual void VerifyingSchedule(CDGRegion &region) = 0;
+  void DoLocalSchedule(CDGNode &cdgNode);
 
  protected:
-  virtual void InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp) = 0;
+  void InitInCDGNode(CDGNode &cdgNode);
   virtual void FinishScheduling(CDGNode &cdgNode) = 0;
-  void ClearCDGNodeInfo(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp);
   void DumpInsnInfoByScheduledOrder(BB &curBB) const override {};
 
   InterDataDepAnalysis &interDDA;
 };
 
-MAPLE_FUNC_PHASE_DECLARE(CgGlobalSchedule, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLocalSchedule, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 } /* namespace maplebe */
 
-#endif  // MAPLEBE_INCLUDE_CG_GLOBAL_SCHEDULE_H
+#endif  // MAPLEBE_INCLUDE_CG_LOCAL_SCHEDULE_H

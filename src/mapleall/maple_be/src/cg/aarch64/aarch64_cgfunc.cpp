@@ -1227,9 +1227,9 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
 }
 
 void AArch64CGFunc::SelectAbort() {
-  RegOperand &inOpnd = GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
-  auto &mem = CreateMemOpnd(inOpnd, 0, k64BitSize);
-  Insn &movXzr = GetInsnBuilder()->BuildInsn(MOP_xmovri64, inOpnd, CreateImmOperand(0, k64BitSize, false));
+  RegOperand *inOpnd = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k64BitSize), k64BitSize, kRegTyInt);
+  auto &mem = CreateMemOpnd(*inOpnd, 0, k64BitSize);
+  Insn &movXzr = GetInsnBuilder()->BuildInsn(MOP_xmovri64, *inOpnd, CreateImmOperand(0, k64BitSize, false));
   Insn &loadRef = GetInsnBuilder()->BuildInsn(MOP_wldr, GetZeroOpnd(k64BitSize), mem);
   loadRef.SetDoNotRemove(true);
   movXzr.SetDoNotRemove(true);
