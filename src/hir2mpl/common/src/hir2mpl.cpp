@@ -15,7 +15,6 @@
 #include "fe_utils.h"
 #include "hir2mpl_compiler.h"
 #include "mpl_sighandler.h"
-#include "file_utils.h"
 using namespace maple;
 
 int main(int argc, char **argv) {
@@ -34,9 +33,6 @@ int main(int argc, char **argv) {
   timer.Stop();
   if (FEOptions::GetInstance().IsDumpTime()) {
     INFO(kLncInfo, "hir2mpl time: %.2lfms", timer.ElapsedMilliseconds() / 1.0);
-  }
-  if (!FileUtils::DelTmpDir()) {
-    LogInfo::MapleLogger() << "Failed! Failed to delete tmpdir" << FileUtils::tmpFolderPath << "\n";
   }
   return res;
 }

@@ -168,9 +168,5 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
   // Compiler finished
   compileFinished = true;
 
-  if (!FileUtils::DelTmpDir()) {
-    LogInfo::MapleLogger() << "Failed! Failed to delete tmpdir with command " << FileUtils::tmpFolderPath << "\n";
-  }
-
   return ret;
 }

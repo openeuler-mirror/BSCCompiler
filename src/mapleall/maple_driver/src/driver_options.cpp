@@ -308,6 +308,15 @@ maplecl::Option<bool> onlyPreprocess({"-E"},
                                   "  -E    \tPreprocess only; do not compile, assemble or link.\n",
                                   {driverCategory, clangCategory});
 
+maplecl::Option<bool> noStdLib({"-nostdlib"},
+                                  "  -nostdlib    \tDo not look for object files in standard path.\n",
+                                  {driverCategory, ldCategory});
+
+maplecl::Option<bool> r({"-r"},
+                                  "  -r    \tProduce a relocatable object as output. This is also"
+                                  " known as partial linking.\n",
+                                  {driverCategory, ldCategory});
+
 /* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},
                              "  --help                   \tPrint help\n",
