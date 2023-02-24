@@ -596,12 +596,6 @@ maplecl::Option<bool> cgSsa({"--cg-ssa"},
                             {cgCategory},
                             maplecl::DisableWith("--no-cg-ssa"));
 
-maplecl::Option<bool> globalSchedule({"--global-schedule"},
-                                     "  --global-schedule                     \tPerform global schedule\n"
-                                     "  --no-global-schedule\n",
-                                     {cgCategory},
-                                     maplecl::DisableWith("--no-global-schedule"));
-
 maplecl::Option<bool> calleeEnsureParam({"--callee-ensure-param"},
                                         "  --callee-ensure-param      \tCallee ensure valid vb of params\n"
                                         "  --caller-ensure-param\n",

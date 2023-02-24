@@ -26,10 +26,6 @@ void AArch64CombineRedundantX16Opt::Run() {
       if (!insn->IsMachineInstruction()) {
         continue;
       }
-      if (insn->GetMachineOpcode() == MOP_c_counter) {
-        ASSERT(bb->GetFirstInsn() == insn, "invalid pgo counter-insn");
-        continue;
-      }
       if (HasUseOpndReDef(*insn)) {
         hasUseOpndReDef = true;
       }

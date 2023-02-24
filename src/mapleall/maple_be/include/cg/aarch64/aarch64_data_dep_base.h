@@ -22,10 +22,9 @@
 namespace maplebe {
 class AArch64DataDepBase : public DataDepBase {
  public:
-  AArch64DataDepBase(MemPool &mp, CGFunc &func, MAD &mad, bool isIntraAna) : DataDepBase(mp, func, mad, isIntraAna) {}
+  AArch64DataDepBase(MemPool &mp, CGFunc &func, MAD &mad) : DataDepBase(mp, func, mad) {}
   ~AArch64DataDepBase() override = default;
 
-  void InitCDGNodeDataInfo(MemPool &mp, MapleAllocator &alloc, CDGNode &cdgNode) override;
   void CombineClinit(DepNode &firstNode, DepNode &secondNode, bool isAcrossSeparator) override;
   void CombineMemoryAccessPair(DepNode &firstNode, DepNode &secondNode, bool useFirstOffset) override;
   bool IsFrameReg(const RegOperand &opnd) const override;
@@ -41,8 +40,7 @@ class AArch64DataDepBase : public DataDepBase {
   void BuildDepsDirtyHeap(Insn &insn) override;
   void BuildOpndDependency(Insn &insn) override;
   void BuildSpecialInsnDependency(Insn &insn, const MapleVector<DepNode*> &nodes) override;
-  void BuildAsmInsnDependency(Insn &insn) override;
-  void UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, DepNode &sepNode) override;
+  void UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, MapleVector<DepNode*> &nodes) override;
   DepNode *BuildSeparatorNode() override;
   void BuildInterBlockMemDefUseDependency(DepNode &depNode, MemOperand &memOpnd,
                                           MemOperand *nextMemOpnd, bool isMemDef) override;
@@ -50,10 +48,10 @@ class AArch64DataDepBase : public DataDepBase {
                                         MemOperand &memOpnd, MemOperand *nextMemOpnd) override;
   void BuildPredPathMemUseDependencyDFS(BB &curBB, std::vector<bool> &visited, DepNode &depNode,
                                         MemOperand &memOpnd, MemOperand *nextMemOpnd) override;
-  void DumpNodeStyleInDot(std::ofstream &file, DepNode &depNode) override;
 
   void BuildAntiDepsDefStackMem(Insn &insn, MemOperand &memOpnd, const MemOperand *nextMemOpnd);
-  bool NeedBuildDepsMem(const MemOperand &memOpnd, const MemOperand *nextMemOpnd, const Insn &memInsn) const;
+  bool NeedBuildDepsMem(const MemOperand &memOpnd,
+                        const MemOperand *nextMemOpnd, const Insn &memInsn) const;
 
  protected:
   MemOperand *GetNextMemOperand(const Insn &insn, const MemOperand &aarchMemOpnd) const;

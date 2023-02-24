@@ -42,11 +42,11 @@ void GenCfi::InsertCFIDefCfaOffset(BB &bb, Insn &insn, int32 &cfiOffset) {
 }
 
 void GenCfi::GenerateStartDirective(BB &bb) {
-  Insn &startProcInsn = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_startproc);
+  Insn &startprocInsn = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_startproc);
   if (bb.GetFirstInsn() != nullptr) {
-    (void)bb.InsertInsnBefore(*bb.GetFirstInsn(), startProcInsn);
+    (void)bb.InsertInsnBefore(*bb.GetFirstInsn(), startprocInsn);
   } else {
-    bb.AppendInsn(startProcInsn);
+    bb.AppendInsn(startprocInsn);
   }
 
 #if !defined(TARGARM32)
@@ -58,7 +58,7 @@ void GenCfi::GenerateStartDirective(BB &bb) {
     Insn &personality = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_personality_symbol).AddOpndChain(
         cgFunc.CreateCfiImmOperand(EHFunc::kTypeEncoding, k8BitSize)).AddOpndChain(
         cgFunc.CreateCfiStrOperand("DW.ref.__mpl_personality_v0"));
-    bb.InsertInsnAfter(startProcInsn, personality);
+    bb.InsertInsnAfter(startprocInsn, personality);
   }
 #endif
 }

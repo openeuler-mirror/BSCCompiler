@@ -114,8 +114,6 @@ Def Reservation : kLtAdrpLdr {6, [kUnitIdSlotS, nothing, kUnitIdSlotDAgen, kUnit
                                      kUnitIdLdAgu]};
 Def Reservation : kLtClinitTail {8, [kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitIdLdAgu, nothing,
                                         kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitIdLdAgu]};
-Def Reservation : kLtTlsRel {6, [kUnitIdSlotS]};
-Def Reservation : kLtTlsCall {10, [kUnitIdSlotS, kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitIdLdAgu]};
 
 Def Bypass  {0, [kLtShift, kLtShiftReg], [kLtAlu]};
 Def Bypass  {1, [kLtShift], [kLtShift, kLtShiftReg, kLtAluShift, kLtAluShiftReg]};

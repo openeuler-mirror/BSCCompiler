@@ -627,22 +627,6 @@ class CGOptions {
     return doCGSSA && !flavorLmbc;
   }
 
-  static void DisableGlobalSchedule() {
-    doGlobalSchedule = false;
-  }
-
-  static void EnableGlobalSchedule() {
-    doGlobalSchedule = true;
-  }
-
-  static bool DoGlobalSchedule() {
-    return doGlobalSchedule;
-  }
-
-  static bool DoVerifySchedule() {
-    return doVerifySchedule;
-  }
-
   static void DisableCalleeEnsureParam() {
     calleeEnsureParam = false;
   }
@@ -1496,8 +1480,6 @@ class CGOptions {
   static bool cgBigEndian;
   static bool doEBO;
   static bool doCGSSA;
-  static bool doGlobalSchedule;
-  static bool doVerifySchedule;
   static bool calleeEnsureParam;
   static bool doIPARA;
   static bool doCFGO;
