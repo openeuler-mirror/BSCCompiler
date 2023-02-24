@@ -1588,8 +1588,8 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
     if (itCand == candMap.end() || addCvt) {
       MeExpr *constExpr = nullptr;
       MeExpr *expr = itGroup.second.expr;
-      if (NeedCvtOrRetype(expr->GetPrimType(), groupBase.GetPrimType())) {
-        expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), expr->GetPrimType(), *expr);
+      if (NeedCvtOrRetype(itGroup.second.expandType, groupBase.GetPrimType())) {
+        expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), itGroup.second.expandType, *expr);
       }
       if (itGroup.second.multiplier != 1) {
         constExpr = irMap->CreateIntConstMeExpr(itGroup.second.multiplier, groupBase.GetPrimType());
@@ -1604,8 +1604,8 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
       }
       MeExpr *constExpr = nullptr;
       MeExpr *expr = itGroup.second.expr;
-      if (NeedCvtOrRetype(expr->GetPrimType(), groupBase.GetPrimType())) {
-        expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), expr->GetPrimType(), *expr);
+      if (NeedCvtOrRetype(itGroup.second.expandType, groupBase.GetPrimType())) {
+        expr = irMap->CreateMeExprTypeCvt(groupBase.GetPrimType(), itGroup.second.expandType, *expr);
       }
       if (newMultiplier != 1) {
         constExpr = irMap->CreateIntConstMeExpr(newMultiplier, groupBase.GetPrimType());
@@ -1643,8 +1643,8 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
           extraExpr = irMap->CreateMeExprTypeCvt(ptyp, extraExpr->GetPrimType(), *extraExpr);
         }
       }
-      if (NeedCvtOrRetype(expr->GetPrimType(), ptyp)) {
-        expr = irMap->CreateMeExprTypeCvt(ptyp, expr->GetPrimType(), *expr);
+      if (NeedCvtOrRetype(itCand.second.expandType, ptyp)) {
+        expr = irMap->CreateMeExprTypeCvt(ptyp, itCand.second.expandType, *expr);
       }
       expr = irMap->CreateMeExprBinary(OP_mul, ptyp, *expr, *constExpr);
       extraExpr = extraExpr == nullptr ? expr
