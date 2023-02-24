@@ -462,7 +462,8 @@ void PostDomAnalysis::GeneratePdomTreeDot() {
   (void)fileName.append(cgFunc.GetName());
   (void)fileName.append(".dot");
 
-  pdomFile.open(fileName.c_str(), std::ios::trunc);
+  char absPath[PATH_MAX];
+  pdomFile.open(realpath(fileName.c_str(), absPath), std::ios::trunc);
   if (!pdomFile.is_open()) {
     LogInfo::MapleLogger(kLlWarn) << "fileName:" << fileName << " open failed.\n";
     return;

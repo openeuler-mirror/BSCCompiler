@@ -641,13 +641,6 @@ class AArch64CGFunc : public CGFunc {
 
   MemOperand &LoadStructCopyBase(const MIRSymbol &symbol, int64 offset, int dataSize);
 
-  int32 GetSplitBaseOffset() const {
-    return splitStpldpBaseOffset;
-  }
-  void SetSplitBaseOffset(int32 val) {
-    splitStpldpBaseOffset = val;
-  }
-
   Insn &CreateCfiRestoreInsn(uint32 reg, uint32 size) {
     return GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_restore).AddOpndChain(CreateCfiRegOperand(reg, size));
   }
@@ -804,7 +797,6 @@ class AArch64CGFunc : public CGFunc {
   bool fplrAddedToCalleeSaved = false;
   bool isIntrnCallForC = false;
   bool usedStpSubPairToAllocateCallFrame = false;
-  int32 splitStpldpBaseOffset = 0;
   regno_t methodHandleVreg = -1;
   uint32 alignPow = 5;  /* function align pow defaults to 5   i.e. 2^5 */
   LmbcArgInfo *lmbcArgInfo = nullptr;

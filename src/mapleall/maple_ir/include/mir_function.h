@@ -1342,6 +1342,7 @@ class MIRFunction {
 
   void Delete() {
     body = nullptr;
+    ASSERT(GetFuncSymbol() != nullptr, "null ptr check");
     GetFuncSymbol()->SetIsDeleted(); // func will be erased, so the coressponding symbol should be set as Deleted
     ReleaseCodeMemory();
   }

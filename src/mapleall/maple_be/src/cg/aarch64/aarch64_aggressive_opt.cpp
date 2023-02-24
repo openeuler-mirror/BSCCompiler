@@ -26,6 +26,10 @@ void AArch64CombineRedundantX16Opt::Run() {
       if (!insn->IsMachineInstruction()) {
         continue;
       }
+      if (insn->GetMachineOpcode() == MOP_c_counter) {
+        ASSERT(bb->GetFirstInsn() == insn, "invalid pgo counter-insn");
+        continue;
+      }
       if (HasUseOpndReDef(*insn)) {
         hasUseOpndReDef = true;
       }
@@ -36,11 +40,13 @@ void AArch64CombineRedundantX16Opt::Run() {
           FindCommonX16DefInsns(localMp, localAlloc);
           CombineRedundantX16DefInsns(*bb);
         }
-        if (hasX16Def && HasX16Use(*insn)) {
-          (void)recentX16DefPrevInsns->emplace_back(recentX16DefInsn);
+        if (hasX16Def) {
+          if (HasX16Use(*insn)) {
+            (void)recentX16DefPrevInsns->emplace_back(recentX16DefInsn);
+          }
+          recentSplitUseOpnd = GetAddUseOpnd(*insn);
+          recentX16DefInsn = insn;
         }
-        recentSplitUseOpnd = GetAddUseOpnd(*insn);
-        recentX16DefInsn = insn;
         ClearCurrentSegmentInfos();
         continue;
       }
@@ -78,7 +84,7 @@ void AArch64CombineRedundantX16Opt::ResetInsnId() {
 }
 
 bool AArch64CombineRedundantX16Opt::IsEndOfSegment(Insn &insn, bool hasX16Def) {
-  if (insn.IsCall() || (IsUseX16MemInsn(insn) && recentSplitUseOpnd == nullptr)) {
+  if (insn.IsCall() || (IsUseX16MemInsn(insn) && (recentSplitUseOpnd == nullptr || isSpecialX16Def))) {
     clearX16Def = true;
     return true;
   }
@@ -88,12 +94,14 @@ bool AArch64CombineRedundantX16Opt::IsEndOfSegment(Insn &insn, bool hasX16Def) {
   CHECK_FATAL(insn.GetDefRegs().size() == 1, "invalid x16 def instruction");
   MOperator curMop = insn.GetMachineOpcode();
   if (curMop != MOP_waddrri12 && curMop != MOP_xaddrri12 && curMop != MOP_waddrri24 && curMop != MOP_xaddrri24 &&
-      curMop != MOP_waddrrr && curMop != MOP_xaddrrr && curMop != MOP_wmovri32 && curMop != MOP_xmovri64) {
+      curMop != MOP_waddrrr && curMop != MOP_xaddrrr && curMop != MOP_wmovri32 && curMop != MOP_xmovri64 &&
+      curMop != MOP_wmovkri16 && curMop != MOP_xmovkri16 && curMop != MOP_wmovzri16 && curMop != MOP_xmovzri16) {
     clearX16Def = true;
     return true;
   }
   RegOperand *useOpnd = nullptr;
-  if (curMop != MOP_wmovri32 && curMop != MOP_xmovri64) {
+  if (curMop != MOP_wmovri32 && curMop != MOP_xmovri64 && curMop != MOP_wmovkri16 && curMop != MOP_xmovkri16 &&
+      curMop != MOP_wmovzri16 && curMop != MOP_xmovzri16) {
     if (curMop == MOP_waddrrr || curMop == MOP_xaddrrr) {
       auto &srcOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
       auto &srcOpnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
@@ -124,6 +132,7 @@ bool AArch64CombineRedundantX16Opt::IsEndOfSegment(Insn &insn, bool hasX16Def) {
 
 void AArch64CombineRedundantX16Opt::ComputeRecentAddImm() {
   CHECK_FATAL(recentSplitUseOpnd != nullptr, "invalid srcOpnd");
+  CHECK_FATAL(recentX16DefInsn != nullptr || !recentX16DefPrevInsns->empty(), "missing x16 def instruction");
   int64 curAddImm = 0;
   if (recentX16DefInsn != nullptr) {
     MOperator recentMop = recentX16DefInsn->GetMachineOpcode();
@@ -150,6 +159,7 @@ void AArch64CombineRedundantX16Opt::ComputeRecentAddImm() {
     if (HasX16Use(*recentX16DefInsn)) {
       CHECK_FATAL(!recentX16DefPrevInsns->empty(), "missing addLsl instructions");
       for (uint32 i = 0; i < recentX16DefPrevInsns->size(); ++i) {
+        ASSERT((*recentX16DefPrevInsns)[i] != nullptr, "invalid prev x16 def insns");
         curAddImm += GetAddImmValue(*(*recentX16DefPrevInsns)[i]);
       }
       curAddImm += immVal;
@@ -167,6 +177,14 @@ void AArch64CombineRedundantX16Opt::ComputeRecentAddImm() {
 void AArch64CombineRedundantX16Opt::RecordRecentSplitInsnInfo(Insn &insn) {
   // Compute and record the addImm until it is used
   MOperator curMop = insn.GetMachineOpcode();
+  // Special x16 Def
+  if (curMop == MOP_wmovkri16 || curMop == MOP_xmovkri16 || curMop == MOP_wmovzri16 || curMop == MOP_xmovzri16) {
+    isSpecialX16Def = true;
+    return;
+  }
+  if (isSpecialX16Def) {
+    return;
+  }
   if (curMop != MOP_waddrri24 && curMop != MOP_xaddrri24 && curMop != MOP_waddrri12 && curMop != MOP_xaddrri12 &&
       curMop != MOP_waddrrr && curMop != MOP_xaddrrr && curMop != MOP_wmovri32 && curMop != MOP_xmovri64) {
     return;
@@ -211,7 +229,6 @@ bool AArch64CombineRedundantX16Opt::IsUseX16MemInsn(Insn &insn) {
     return false;
   }
   CHECK_FATAL(memOpnd.GetAddrMode() == MemOperand::kBOI, "invalid mem instruction which uses x16");
-  CHECK_FATAL(recentX16DefInsn != nullptr || !recentX16DefPrevInsns->empty(), "missing x16 def instruction");
   return true;
 }
 
@@ -462,7 +479,7 @@ int64 AArch64CombineRedundantX16Opt::GetAddImmValue(Insn &insn) {
   if (mop == MOP_waddrri24 || mop == MOP_xaddrri24) {
     auto &shiftOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
     auto &amountOpnd = static_cast<BitShiftOperand&>(insn.GetOperand(kInsnFourthOpnd));
-    return (shiftOpnd.GetValue() << amountOpnd.GetShiftAmount());
+    return (static_cast<uint>(shiftOpnd.GetValue()) << amountOpnd.GetShiftAmount());
   } else if (mop == MOP_waddrri12 || mop == MOP_xaddrri12) {
     auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
     return immOpnd.GetValue();
@@ -555,6 +572,7 @@ void AArch64CombineRedundantX16Opt::ClearSegmentInfo(MemPool *tmpMp, MapleAlloca
   clearX16Def = false;
   isX16Used = false;
   hasUseOpndReDef = false;
+  isSpecialX16Def = false;
 }
 
 void AArch64AggressiveOpt::DoOpt() {

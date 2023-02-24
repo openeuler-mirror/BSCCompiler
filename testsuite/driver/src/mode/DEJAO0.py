@@ -35,7 +35,7 @@ DEJAO0 = {
     "run": [
         Shell("runtest -V || (echo 'pls install dejagnu first!' && exit 1)"),
         Shell(
-            "runtest ${APP} > output.log 2>&1"
+            "runtest --log_dialog ${APP} > output.log 2>&1"
         ),
         Shell("grep 'untested testcases' output.log && exit 1 || exit 0"),
         Shell("grep 'unexpected failure' output.log && exit 1 || exit 0"),

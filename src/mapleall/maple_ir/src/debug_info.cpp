@@ -607,9 +607,15 @@ void DebugInfo::BuildDebugInfoGlobalSymbols() {
 void DebugInfo::BuildDebugInfoFunctions() {
   for (auto func : GlobalTables::GetFunctionTable().GetFuncTable()) {
     // the first one in funcTable is nullptr
-    if (!func || func->GetFuncSymbol()->IsDeleted()) {
+    if (!func) {
       continue;
     }
+
+    ASSERT(func->GetFuncSymbol() != nullptr, "nullptr check");
+    if (func->GetFuncSymbol()->IsDeleted()) {
+      continue;
+    }
+
     SetCurFunction(func);
     // function decl
     if (stridxDieIdMap.find(func->GetNameStrIdx().GetIdx()) == stridxDieIdMap.end()) {

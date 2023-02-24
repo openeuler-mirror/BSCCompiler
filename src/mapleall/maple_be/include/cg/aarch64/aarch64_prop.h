@@ -183,6 +183,28 @@ class RedundantPhiProp : public PropOptimizePattern {
   VRegVersion *srcVersion = nullptr;
 };
 
+class RedundantExpandProp : public PropOptimizePattern {
+ public:
+  RedundantExpandProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
+  ~RedundantExpandProp() override {
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final {
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
+
+ private:
+  VRegVersion *destVersion = nullptr;
+  VRegVersion *srcVersion = nullptr;
+};
+
 class ValidBitNumberProp : public PropOptimizePattern {
  public:
   ValidBitNumberProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}

@@ -879,7 +879,7 @@ void LSRALinearScanRegAllocator::ComputeLiveIntervalForEachOperand(Insn &insn) {
    * we need to process src opnd first just in case the src/dest vreg are the same and the src vreg belongs to the
    * last interval.
    */
-  for (int32 i = opndNum - 1; i >= 0; --i) {
+  for (int32 i = static_cast<int32>(opndNum - 1); i >= 0; --i) {
     Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
     const OpndDesc *opndDesc = md->GetOpndDes(i);
     ASSERT(opndDesc != nullptr, "ptr null check.");
@@ -942,13 +942,13 @@ void LSRALinearScanRegAllocator::ComputeLiveInterval() {
          */
         RegOperand *retReg = nullptr;
         if (insn->GetRetType() == Insn::kRegInt) {
-          for (int i = 0; i < regInfo->GetIntRetRegsNum(); i++) {
+          for (uint32 i = 0; i < regInfo->GetIntRetRegsNum(); i++) {
             retReg = regInfo->GetOrCreatePhyRegOperand(regInfo->GetIntRetReg(i),
                 k64BitSize, kRegTyInt);
             RecordPhysRegs(*retReg, insnNum, true);
           }
         } else {
-          for (int i = 0; i < regInfo->GetFpRetRegsNum(); i++) {
+          for (uint32 i = 0; i < regInfo->GetFpRetRegsNum(); i++) {
             retReg = regInfo->GetOrCreatePhyRegOperand(regInfo->GetFpRetReg(i),
                 k64BitSize, kRegTyFloat);
             RecordPhysRegs(*retReg, insnNum, true);

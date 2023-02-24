@@ -37,7 +37,7 @@ class CDGNode {
  public:
   CDGNode(CDGNodeId nId, BB &bb, MapleAllocator &alloc)
       : id(nId), bb(&bb), outEdges(alloc.Adapter()), inEdges(alloc.Adapter()),
-        topoPreds(alloc.Adapter()), lastComments(alloc.Adapter()), predCDGNodes(alloc.Adapter()) {}
+        lastComments(alloc.Adapter()), dataNodes(alloc.Adapter()), cfiInsns(alloc.Adapter()) {}
   virtual ~CDGNode() {
     lastFrameDef = nullptr;
     bb = nullptr;
@@ -88,6 +88,10 @@ class CDGNode {
     region = &cdgRegion;
   }
 
+  void ClearRegion() {
+    region = nullptr;
+  }
+
   bool IsEntryNode() const {
     return isEntryNode;
   }
@@ -128,6 +132,30 @@ class CDGNode {
     return inEdges.size();
   }
 
+  void SetVisitedInTopoSort(bool isVisited) {
+    isVisitedInTopoSort = isVisited;
+  }
+
+  bool IsVisitedInTopoSort() {
+    return isVisitedInTopoSort;
+  }
+
+  void SetVisitedInExtendedFind() {
+    isVisitedInExtendedFind = true;
+  }
+
+  bool IsVisitedInExtendedFind() {
+    return isVisitedInExtendedFind;
+  }
+
+  uint32 GetInsnNum() {
+    return insnNum;
+  }
+
+  void SetInsnNum(uint32 num) {
+    insnNum = num;
+  }
+
   bool HasAmbiRegs() const {
     return hasAmbiRegs;
   }
@@ -160,19 +188,12 @@ class CDGNode {
     lastFrameDef = frameInsn;
   }
 
-  MapleVector<CDGNode*> &GetTopoPreds() {
-    return topoPreds;
+  void InitTopoInRegionInfo(MemPool &tmpMp, MapleAllocator &tmpAlloc) {
+    topoPredInRegion = tmpMp.New<MapleSet<CDGNodeId>>(tmpAlloc.Adapter());
   }
 
-  void AddTopoPred(CDGNode *pred) {
-    (void)topoPreds.emplace_back(pred);
-  }
-
-  void RemoveTopoPred(CDGNode *pred) {
-    auto it = std::find(topoPreds.begin(), topoPreds.end(), pred);
-    if (it != topoPreds.end()) {
-      (void)topoPreds.erase(it);
-    }
+  void ClearTopoInRegionInfo() {
+    topoPredInRegion = nullptr;
   }
 
   void InitDataDepInfo(MemPool &tmpMp, MapleAllocator &tmpAlloc, uint32 maxRegNum) {
@@ -196,7 +217,6 @@ class CDGNode {
     lastCallInsn = nullptr;
     lastFrameDef = nullptr;
     lastComments.clear();
-    predCDGNodes.clear();
 
     regDefs = nullptr;
     regUses = nullptr;
@@ -230,19 +250,19 @@ class CDGNode {
     ambiInsns->clear();
   }
 
-  Insn *GetLatestDefInsn(regno_t regNO) const {
+  Insn *GetLatestDefInsn(regno_t regNO) {
     return (*regDefs)[regNO];
   }
 
-  void SetLatestDefInsn(regno_t regNO, Insn *defInsn) const {
+  void SetLatestDefInsn(regno_t regNO, Insn *defInsn) {
     (*regDefs)[regNO] = defInsn;
   }
 
-  RegList *GetUseInsnChain(regno_t regNO) const {
+  RegList *GetUseInsnChain(regno_t regNO) {
     return (*regUses)[regNO];
   }
 
-  void AppendUseInsnChain(regno_t regNO, Insn *useInsn, MemPool &mp, bool beforeRA) const {
+  void AppendUseInsnChain(regno_t regNO, Insn *useInsn, MemPool &mp, bool beforeRA) {
     CHECK_FATAL(useInsn != nullptr, "invalid useInsn");
     auto *newUse = mp.New<RegList>();
     newUse->insn = useInsn;
@@ -266,23 +286,23 @@ class CDGNode {
     }
   }
 
-  void ClearUseInsnChain(regno_t regNO) const {
+  void ClearUseInsnChain(regno_t regNO) {
     (*regUses)[regNO] = nullptr;
   }
 
-  MapleVector<Insn*> &GetStackUseInsns() const {
+  MapleVector<Insn*> &GetStackUseInsns() {
     return *stackUses;
   }
 
-  void AddStackUseInsn(Insn *stackInsn) const {
+  void AddStackUseInsn(Insn *stackInsn) {
     stackUses->emplace_back(stackInsn);
   }
 
-  MapleVector<Insn*> &GetStackDefInsns() const {
+  MapleVector<Insn*> &GetStackDefInsns() {
     return *stackDefs;
   }
 
-  void AddStackDefInsn(Insn *stackInsn) const {
+  void AddStackDefInsn(Insn *stackInsn) {
     stackDefs->emplace_back(stackInsn);
   }
 
@@ -318,6 +338,14 @@ class CDGNode {
     ambiInsns->emplace_back(ambiInsn);
   }
 
+  MapleSet<CDGNodeId> &GetTopoPredInRegion() {
+    return *topoPredInRegion;
+  }
+
+  void InsertVisitedTopoPredInRegion(CDGNodeId nodeId) {
+    topoPredInRegion->insert(nodeId);
+  }
+
   MapleVector<Insn*> &GetLastComments() {
     return lastComments;
   }
@@ -343,6 +371,60 @@ class CDGNode {
     return *ehInRegs;
   }
 
+  MapleVector<DepNode*> &GetAllDataNodes() {
+    return dataNodes;
+  }
+
+  void AddDataNode(DepNode *depNode) {
+    (void)dataNodes.emplace_back(depNode);
+  }
+
+  void ClearDataNodes() {
+    dataNodes.clear();
+  }
+
+  MapleVector<Insn*> &GetCfiInsns() {
+    return cfiInsns;
+  }
+
+  void AddCfiInsn(Insn *cfiInsn) {
+    (void)cfiInsns.emplace_back(cfiInsn);
+  }
+
+  void RemoveDepNodeFromDataNodes(DepNode &depNode) {
+    for (auto iter = dataNodes.begin(); iter != dataNodes.end(); ++iter) {
+      if (*iter == &depNode) {
+        void(dataNodes.erase(iter));
+        break;
+      }
+    }
+  }
+
+  void InitPredNodeSumInRegion(int32 predSum) {
+    CHECK_FATAL(predSum >= 0, "invalid predSum");
+    predNodesInRegion = predSum;
+  }
+
+  void DecPredNodeSumInRegion() {
+    predNodesInRegion--;
+  }
+
+  bool IsAllPredInRegionProcessed() {
+    return (predNodesInRegion == 0);
+  }
+
+  uint32 &GetNodeSum() {
+    return nodeSum;
+  }
+
+  void AccNodeSum() {
+    nodeSum++;
+  }
+
+  void SetNodeSum(uint32 sum) {
+    nodeSum = sum;
+  }
+
   bool operator!=(const CDGNode &node) {
     if (this != &node) {
       return true;
@@ -364,6 +446,9 @@ class CDGNode {
   bool isExitNode = false;
   MapleVector<CDGEdge*> outEdges;
   MapleVector<CDGEdge*> inEdges;
+  bool isVisitedInTopoSort = false; // for sorting nodes in region by topological order
+  bool isVisitedInExtendedFind = false; // for finding a fallthrough path as a region
+  uint32 insnNum = 0; // record insn total num of BB
   /*
    * The following structures are used to record data flow infos in building data dependence among insns
    */
@@ -371,7 +456,6 @@ class CDGNode {
   Insn *membarInsn = nullptr;
   Insn *lastCallInsn = nullptr;
   Insn *lastFrameDef = nullptr;
-  MapleVector<CDGNode*> topoPreds; // For visit nodes by topological order in the region, it will change dynamically
   MapleVector<Insn*> *regDefs = nullptr; // the index is regNO, record the latest defInsn in the curBB
   MapleVector<RegList*> *regUses = nullptr; // the index is regNO
   MapleVector<Insn*> *stackUses = nullptr;
@@ -382,8 +466,21 @@ class CDGNode {
   MapleVector<Insn*> *ambiInsns = nullptr;
   MapleVector<DepNode*> *pseudoSepNodes = nullptr;
   MapleSet<regno_t> *ehInRegs = nullptr;
+  MapleSet<CDGNodeId> *topoPredInRegion = nullptr;
   MapleVector<Insn*> lastComments;
-  MapleVector<CDGNode*> predCDGNodes; // predecessor nodes of the curBB in CFG
+  MapleVector<DepNode*> dataNodes;
+  MapleVector<Insn*> cfiInsns;
+  /*
+   * For computing topological order of cdgNodes in a region,
+   * which is initialized to the number of pred nodes in CFG at the beginning of processing the region,
+   * and change dynamically
+   */
+  int32 predNodesInRegion = -1;
+  /*
+   * For intra-block dda: it accumulates from the first insn (nodeSum = 1) of bb
+   * For inter-block dda: it accumulates from the maximum of nodeSum in all the predecessor of cur cdgNode
+   */
+  uint32 nodeSum = 0;
 };
 
 class CDGEdge {
@@ -486,8 +583,13 @@ class CDGRegion {
     (void)memberNodes.erase(it);
   }
 
-  void ClearMemberNodes() {
-    memberNodes.clear();
+  CDGNode *GetCDGNodeById(CDGNodeId nodeId) {
+    for (auto cdgNode : memberNodes) {
+      if (cdgNode->GetNodeId() == nodeId) {
+        return cdgNode;
+      }
+    }
+    return nullptr;
   }
 
   MapleVector<CDGEdge*> &GetCDEdges() {
@@ -512,10 +614,23 @@ class CDGRegion {
     return maxId;
   }
 
+  void SetRegionRoot(CDGNode &node) {
+    root = &node;
+  }
+
+  CDGNode *GetRegionRoot() {
+    return root;
+  }
+
  private:
   CDGRegionId id;
-  MapleVector<CDGNode*> memberNodes;   // the nodes in CDGRegion by out-of-order
-  MapleVector<CDGEdge*> cdEdges;   // the control dependence sets of the parent node
+  MapleVector<CDGNode*> memberNodes;   // The nodes in CDGRegion by topological order
+  /*
+   * The control dependence sets of the parent node.
+   * If it is a general non-linear region, the cdEdges is empty.
+   */
+  MapleVector<CDGEdge*> cdEdges;
+  CDGNode *root = nullptr;
 };
 
 /*
@@ -580,7 +695,7 @@ class FCDG {
  private:
   MapleVector<CDGNode*> nodes; // all CDGNodes in FCDG that use nodeId as the index
   MapleVector<CDGEdge*> fcds; // all forward-control-dependence in FCDG
-  MapleVector<CDGRegion*> regions;   // all regions in FCDG that use CDGRegionId as the index
+  MapleVector<CDGRegion*> regions; // all regions in FCDG that use CDGRegionId as the index
 };
 
 struct CDGOutEdgeComparator {

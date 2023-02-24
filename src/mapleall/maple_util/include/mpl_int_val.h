@@ -274,9 +274,7 @@ class IntVal {
   /// @return quiantity of non-zero bits
   uint16 CountPopulation() const;
 
-  //
   // Comparison operators that manipulate on values with the same sign and bit-width
-  //
   bool operator==(const IntVal &rhs) const {
     ASSERT(width == rhs.width && sign == rhs.sign, "bit-width and sign must be the same");
     if (IsOneWord()) {
@@ -324,9 +322,7 @@ class IntVal {
     return !(*this < rhs);
   }
 
-  //
   // Arithmetic and bitwise operators that manipulate on values with the same sign and bit-width
-  //
   IntVal operator+(const IntVal &val) const {
     ASSERT(width == val.width && sign == val.sign, "bit-width and sign must be the same");
     if (IsOneWord()) {
@@ -470,17 +466,13 @@ class IntVal {
     return val.GetSignBit() ? -ret : ret;
   }
 
-  //
   // Comparison operators that compare values obtained from primitive type.
-  //
   /// @note Note that these functions work as follows:
   ///          1) sign or zero extend both values (*this and/or rhs) to the new bit-width
   ///             obtained from pType depending on their original signedness;
   ///             or truncate the values if their original bit-width is greater than new one
   ///          2) then perform the operation itself on new given values that have the same bit-width and sign
-  ///
   /// @warning it's better to avoid using these function in favor of operator==, operator< etc
-  ///
   bool Equal(const IntVal &rhs, PrimType pType) const {
     return TruncOrExtend(pType) == rhs.TruncOrExtend(pType);
   }
@@ -493,18 +485,14 @@ class IntVal {
     return TruncOrExtend(pType) > rhs.TruncOrExtend(pType);
   }
 
-  //
   // Arithmetic and bitwise operators that allow creating a new value
   // with the bit-width and sign obtained from primitive type
-  //
   /// @note Note that these functions work as follows:
   ///          1) sign or zero extend both values (*this and rhs) to the new bit-width
   ///             obtained from pType depending on their original signedness;
   ///             or truncate the values if their original bit-width is greater than new one
   ///          2) then perform the operation itself on new given values that have the same bit-width and sign
-  ///
   /// @warning it's better to avoid using these function in favor of operator+, operator- etc
-  ///
   IntVal Add(const IntVal &val, PrimType pType) const {
     return TruncOrExtend(pType) + val.TruncOrExtend(pType);
   }
@@ -868,9 +856,7 @@ class IntVal {
   bool sign;
 };
 
-//
 // Additional comparison operators
-//
 
 inline bool operator==(int64 v1, const IntVal &v2) {
   return v2 == v1;
@@ -911,10 +897,8 @@ inline IntVal Max(const IntVal &a, const IntVal &b, PrimType newType) {
 /// @brief dump IntVal object to the output stream
 std::ostream &operator<<(std::ostream &os, const IntVal &value);
 
-//
 // Arithmetic operators that manipulate on scalar (uint64) value and IntVal object
 // in terms of sign and bit-width of IntVal object
-//
 inline IntVal operator+(const IntVal &v1, uint64 v2) {
   return v1 + IntVal(v2, v1.GetBitWidth(), v1.IsSigned());
 }

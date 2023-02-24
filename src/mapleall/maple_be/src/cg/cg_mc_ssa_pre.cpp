@@ -100,14 +100,14 @@ void McSSAPre::DumpRGToFile() {
   LogInfo::MapleLogger().rdbuf(buf);
   rgFile.open(fileName, std::ios::trunc);
   rgFile << "digraph {\n";
-  for (int32 i = 0; i < sink->pred.size(); i++) {
+  for (uint32 i = 0; i < sink->pred.size(); i++) {
     RGNode *pre = sink->pred[i];
     rgFile << "real" << pre->id << " -> " << "\"sink\nmaxflow " << maxFlowValue << "\";\n";
   }
   MapleUnorderedMap<Occ*, RGNode*>::iterator it = occ2RGNodeMap.begin();
   for (; it != occ2RGNodeMap.end(); it++) {
     RGNode *rgNode = it->second;
-    for (int32 i = 0; i < rgNode->pred.size(); i++) {
+    for (uint32 i = 0; i < rgNode->pred.size(); i++) {
       RGNode *pre = rgNode->pred[i];
       if (pre != source) {
         if (pre->occ->occTy == kAOccPhi) {
@@ -383,7 +383,7 @@ bool McSSAPre::FindAnotherRoute() {
   Route *route = preMp->New<Route>(&preAllocator);
   bool success = false;
   // pick an untaken sink predecessor first
-  for (int32 i = 0; i < sink->pred.size(); i++) {
+  for (uint32 i = 0; i < sink->pred.size(); i++) {
     if (sink->usedCap[i] == 0) {
       route->visits.push_back(Visit(sink, i));
       visitedNodes[sink->pred[i]->id] = true;
@@ -397,7 +397,7 @@ bool McSSAPre::FindAnotherRoute() {
   }
   if (!success) {
     // now, pick any sink predecessor
-    for (int32 i = 0; i < sink->pred.size(); i++) {
+    for (uint32 i = 0; i < sink->pred.size(); i++) {
       route->visits.push_back(Visit(sink, i));
       visitedNodes[sink->pred[i]->id] = true;
       success = VisitANode(sink->pred[i], route, visitedNodes);
@@ -413,13 +413,13 @@ bool McSSAPre::FindAnotherRoute() {
   }
   // find bottleneck capacity along route
   FreqType minAvailCap = route->visits[0].AvailableCapacity();
-  for (int32 i = 1; i < route->visits.size(); i++) {
+  for (uint32 i = 1; i < route->visits.size(); i++) {
     FreqType curAvailCap = route->visits[i].AvailableCapacity();
     minAvailCap = std::min(minAvailCap, curAvailCap);
   }
   route->flowValue = minAvailCap;
   // update usedCap along route
-  for (int32 i = 0; i < route->visits.size(); i++) {
+  for (uint32 i = 0; i < route->visits.size(); i++) {
     route->visits[i].IncreUsedCapacity(minAvailCap);
   }
   maxFlowRoutes.push_back(route);

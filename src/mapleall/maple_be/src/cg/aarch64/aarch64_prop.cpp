@@ -1089,6 +1089,7 @@ void AArch64Prop::PropPatternOpt() {
   optManager.Optimize<FpSpConstProp>(*cgFunc, GetSSAInfo());
   optManager.Optimize<A64PregCopyPattern>(*cgFunc, GetSSAInfo());
   optManager.Optimize<A64ConstFoldPattern>(*cgFunc, GetSSAInfo());
+  optManager.Optimize<RedundantExpandProp>(*cgFunc, GetSSAInfo());
 }
 
 bool ExtendShiftPattern::IsSwapInsn(const Insn &insn) const {
@@ -1898,6 +1899,54 @@ void RedundantPhiProp::Run() {
         continue;
       }
       Optimize(*phiIt.second);
+    }
+  }
+}
+
+void RedundantExpandProp::Optimize(Insn &insn) {
+  insn.SetMOP(AArch64CG::kMd[MOP_xmovrr]);
+}
+
+bool RedundantExpandProp::CheckCondition(Insn &insn) {
+  if (insn.GetMachineOpcode() != MOP_xuxtw64) {
+    return false;
+  }
+  auto *destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  if (destOpnd != nullptr && destOpnd->IsSSAForm()) {
+      destVersion = optSsaInfo->FindSSAVersion(destOpnd->GetRegisterNumber());
+      ASSERT(destVersion != nullptr, "find Version failed");
+      for (auto destUseIt : destVersion->GetAllUseInsns()) {
+        Insn *useInsn = destUseIt.second->GetInsn();
+        int32 lastOpndId = static_cast<int32>(useInsn->GetOperandSize() - 1);
+        const InsnDesc *md = useInsn->GetDesc();
+        for (int32 i = lastOpndId; i >= 0; --i) {
+          auto *reg = (md->opndMD[i]);
+          auto &opnd = useInsn->GetOperand(i);
+          if (reg->IsUse() && opnd.IsRegister() && static_cast<RegOperand&>(opnd).GetRegisterNumber() == destOpnd->GetRegisterNumber()) {
+            if (opnd.GetSize() == k32BitSize && reg->GetSize() == k32BitSize) {
+              continue;
+            } else {
+              return false;
+            }
+          }
+        }
+     }
+     return true;
+  }
+  return false;
+}
+
+void RedundantExpandProp::Run() {
+  FOR_ALL_BB(bb, &cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      Init();
+      if (!CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
     }
   }
 }

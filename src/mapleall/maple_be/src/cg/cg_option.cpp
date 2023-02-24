@@ -76,6 +76,8 @@ bool CGOptions::useBarriersForVolatile = true;
 bool CGOptions::exclusiveEH = false;
 bool CGOptions::doEBO = false;
 bool CGOptions::doCGSSA = false;
+bool CGOptions::doGlobalSchedule = false;
+bool CGOptions::doVerifySchedule = false;
 bool CGOptions::calleeEnsureParam = true;
 bool CGOptions::doIPARA = true;
 bool CGOptions::doCFGO = false;
@@ -658,6 +660,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::cgSsa ? EnableCGSSA() : DisableCGSSA();
   }
 
+  if (opts::cg::globalSchedule.IsEnabledByUser()) {
+    opts::cg::globalSchedule ? EnableGlobalSchedule() : DisableGlobalSchedule();
+  }
+
   if (opts::cg::common.IsEnabledByUser()) {
     opts::cg::common ? EnableCommon() : DisableCommon();
   }
@@ -796,6 +802,7 @@ void CGOptions::EnableO0() {
   optimizeLevel = kLevel0;
   doEBO = false;
   doCGSSA = false;
+  doGlobalSchedule = false;
   doCFGO = false;
   doICO = false;
   doPrePeephole = false;
@@ -841,6 +848,7 @@ void CGOptions::EnableO2() {
   optimizeLevel = kLevel2;
   doEBO = true;
   doCGSSA = true;
+  doGlobalSchedule = true;
   doCFGO = true;
   doICO = true;
   doPrePeephole = true;
@@ -884,6 +892,7 @@ void CGOptions::EnableLiteCG() {
   optimizeLevel = kLevelLiteCG;
   doEBO = false;
   doCGSSA = false;
+  doGlobalSchedule = false;
   doCFGO = false;
   doICO = false;
   doPrePeephole = false;

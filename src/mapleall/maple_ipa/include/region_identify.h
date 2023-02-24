@@ -93,7 +93,9 @@ class RegionCandidate {
       if (pair.second != 0) {
         LogInfo::MapleLogger() << "output: reg %" << pair.second << "\n";
       } else {
-        LogInfo::MapleLogger() << "output: var %" << function->GetSymbolTabItem(pair.first.Idx())->GetName() << "\n";
+        auto symTableItem = function->GetSymbolTabItem(pair.first.Idx());
+        ASSERT(symTableItem != nullptr, "nullptr check");
+        LogInfo::MapleLogger() << "output: var %" << symTableItem->GetName() << "\n";
       }
     }
     auto *currStmt = start->GetStmtNode();
@@ -143,7 +145,9 @@ class RegionCandidate {
     auto stIdx = regionOutputs.begin()->first;
     auto pregIdx = regionOutputs.begin()->second;
     if (stIdx.Idx() != 0) {
-      return function->GetSymbolTabItem(stIdx.Idx())->GetType()->GetPrimType();
+      auto symTableItem = function->GetSymbolTabItem(stIdx.Idx());
+      ASSERT(symTableItem != nullptr, "nullptr check");
+      return symTableItem->GetType()->GetPrimType();
     } else {
       return function->GetPregItem(pregIdx)->GetPrimType();
     }

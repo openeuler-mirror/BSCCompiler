@@ -15,6 +15,9 @@
 
 #ifndef MAPLEIR_INCLUDE_MIR_ENUMERATION_H
 #define MAPLEIR_INCLUDE_MIR_ENUMERATION_H
+#include "cfg_primitive_types.h"
+#include "mpl_int_val.h"
+#include <vector>
 
 namespace maple {
 

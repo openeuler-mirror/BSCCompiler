@@ -305,6 +305,7 @@ void ASTStruct::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   }
   FEFunction &feFunction = FEManager::GetCurrentFEFunction();
   MIRScope *mirScope = feFunction.GetTopMIRScope();
+  ASSERT(mirScope != nullptr, "nullptr check");
   mirScope->SetTypeAliasMap(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetName()),
                             typeDesc.front()->GetTypeIndex());
 }
