@@ -1382,6 +1382,9 @@ bool OptimizeBB::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeE
 //     jointBB       jointBB
 bool OptimizeBB::CondBranchToSelect() {
   CHECK_CURR_BB();
+  if (currBB->GetKind() != kBBCondGoto) {
+    return false;
+  }
   BB *ftBB = FindFirstRealSucc(currBB->GetSucc(0));  // fallthruBB
   BB *gtBB = FindFirstRealSucc(currBB->GetSucc(1));  // gotoBB
   if (ftBB == gtBB) {
@@ -1937,7 +1940,10 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
                 << LOG_BBID(&pred) << "->...->BB" << LOG_BBID(&succ) << "(skipped)"
                 << " => BB" << LOG_BBID(&pred) << "->BB" << LOG_BBID(newBB) << "(new)->BB" << LOG_BBID(newTarget)
                 << "\n";
-    if (pred.GetSucc(1) == newBB) {
+    if (pred.GetSucc().size() == 1) {
+      pred.RemoveLastMeStmt();
+      pred.SetKind(kBBFallthru);
+    } else if (pred.GetSucc(1) == newBB) {
       cfg->UpdateBranchTarget(pred, succ, *newBB, f);
     }
     newTarget->AddPred(*newBB);
