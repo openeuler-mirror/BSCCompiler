@@ -153,11 +153,11 @@ SECUREC_ATTRIBUTE(5, 6) void LogInfo::EmitErrorMessage(const std::string &cond, 
                                                        unsigned int line, const char *fmt, ...) const {
   char buf[kMaxLogLen];
 #ifdef _WIN32
-  int len = snprintf_s(buf, kMaxLogLen, kMaxLogLen - 1, "CHECK/CHECK_FATAL failure: %s at [%s:%d] ",
+  int len = snprintf_s(buf, kMaxLogLen, kMaxLogLen - 1, "CHECK/CHECK_FATAL failure: %s at [%s:%u] ",
                        cond.c_str(), file.c_str(), line);
 #else
   pid_t tid = syscall(SYS_gettid);
-  int len = snprintf_s(buf, kMaxLogLen, kMaxLogLen - 1, "Tid(%d): CHECK/CHECK_FATAL failure: %s at [%s:%d] ",
+  int len = snprintf_s(buf, kMaxLogLen, kMaxLogLen - 1, "Tid(%u): CHECK/CHECK_FATAL failure: %s at [%s:%u] ",
                        tid, cond.c_str(), file.c_str(), line);
 #endif
   if (len == -1) {

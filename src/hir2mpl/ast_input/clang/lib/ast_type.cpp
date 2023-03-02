@@ -26,12 +26,13 @@ std::map<Loc, uint32> LibAstFile::unnamedLocMap;
 static constexpr size_t kNumber16PowOf2 = 4;
 static constexpr size_t k8BytesPowOf2Number = 3;
 static constexpr size_t kSignedTypes = 2;
+static constexpr size_t kMaxPrimTypeSize = 128;
 static PrimType vectorTypeMap[kNumber16PowOf2 + 1][k8BytesPowOf2Number + 1][kSignedTypes] = {
-  {{PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_v1i64, PTY_v1u64}},
-  {{PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_v2i32, PTY_v2u32}, {PTY_v2i64, PTY_v2u64}},
-  {{PTY_begin, PTY_begin}, {PTY_v4i16, PTY_v4u16}, {PTY_v4i32, PTY_v4u32}, {PTY_begin, PTY_begin}},
-  {{PTY_v8i8, PTY_v8u8}, {PTY_v8i16, PTY_v8u16}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}},
-  {{PTY_v16i8, PTY_v16u8}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}},
+    {{PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_v1i64, PTY_v1u64}},
+    {{PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_v2i32, PTY_v2u32}, {PTY_v2i64, PTY_v2u64}},
+    {{PTY_begin, PTY_begin}, {PTY_v4i16, PTY_v4u16}, {PTY_v4i32, PTY_v4u32}, {PTY_begin, PTY_begin}},
+    {{PTY_v8i8, PTY_v8u8}, {PTY_v8i16, PTY_v8u16}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}},
+    {{PTY_v16i8, PTY_v16u8}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}, {PTY_begin, PTY_begin}},
 };
 
 MIRType *LibAstFile::CvtPrimType(const clang::QualType qualType, bool isSourceType) const {
@@ -303,9 +304,9 @@ MIRType *LibAstFile::CvtRecordType(const clang::QualType qualType) {
   std::string name(ss.str());
   if (!recordDecl->isDefinedOutsideFunctionOrMethod()) {
     Loc l = GetLOC(recordDecl->getLocation());
-    std::stringstream ss;
-    ss << name << "_" << l.line << "_" << l.column;
-    name = ss.str();
+    std::stringstream ssLocal;
+    ssLocal << name << "_" << l.line << "_" << l.column;
+    name = ssLocal.str();
   }
   type = FEManager::GetTypeManager().GetOrCreateStructType(name);
   type->SetMIRTypeKind(srcType->isUnionType() ? kTypeUnion : kTypeStruct);
@@ -462,14 +463,22 @@ void LibAstFile::CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualT
   }
 }
 
-void LibAstFile::CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
-                                                            TypeAttrs &elemAttr, uint8_t &dim, bool isSourceType) {
+bool LibAstFile::CheckSourceTypeNameNotNull(const clang::QualType &currQualType, MIRType *&elemType,
+                                            bool isSourceType) {
   if (isSourceType) {
     MIRType *nameType = CvtTypedef(currQualType);
     if (nameType != nullptr) {
       elemType = nameType;
-      return;
+      return true;
     }
+  }
+  return false;
+}
+
+void LibAstFile::CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
+                                                            TypeAttrs &elemAttr, uint8_t &dim, bool isSourceType) {
+  if (CheckSourceTypeNameNotNull(currQualType, elemType, isSourceType)) {
+    return;
   }
   const clang::Type *ptrType = currQualType.getTypePtrOrNull();
   ASSERT(ptrType != nullptr, "Null type", currQualType.getAsString().c_str());
@@ -485,12 +494,8 @@ void LibAstFile::CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualTyp
 void LibAstFile::CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(
     const clang::QualType currQualType, MIRType *&elemType, TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
     bool isSourceType) {
-  if (isSourceType) {
-    MIRType *nameType = CvtTypedef(currQualType);
-    if (nameType != nullptr) {
-      elemType = nameType;
-      return;
-    }
+  if (CheckSourceTypeNameNotNull(currQualType, elemType, isSourceType)) {
+    return;
   }
   const clang::Type *ptrType = currQualType.getTypePtrOrNull();
   ASSERT(ptrType != nullptr, "ERROR:null pointer!");
@@ -521,15 +526,15 @@ void LibAstFile::CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQual
   }
 }
 
-MIRType *LibAstFile::CvtVectorSizeType(MIRType *elemType, MIRType *destType, uint32_t arrLen, uint32_t vecLen,
-                                       uint32 alignNum) {
+MIRType *LibAstFile::CvtVectorSizeType(const MIRType &elemType, MIRType *destType, uint32_t arrLen, uint32_t vecLen,
+                                       uint32 alignNum) const{
   MIRStructType *structType = nullptr;
   MIRType *arrayType = nullptr;
   TypeAttrs elemAttrs;
   FieldAttrs attrs;
   FieldPair mirFieldPair;
   std::string fieldName = "val";
-  std::string typeName = elemType->GetMplTypeName();
+  std::string typeName = elemType.GetMplTypeName();
   std::vector<FieldPair> mirFieldVector;
   std::string name = typeName + "x" + std::to_string(vecLen) + "x" +
                      std::to_string(arrLen) + "_t";
@@ -543,7 +548,7 @@ MIRType *LibAstFile::CvtVectorSizeType(MIRType *elemType, MIRType *destType, uin
   mirFieldPair.first = idx;
   mirFieldPair.second.first = arrayType->GetTypeIndex();
   mirFieldPair.second.second = attrs;
-  mirFieldVector.emplace(mirFieldVector.begin(), mirFieldPair);
+  (void)mirFieldVector.emplace(mirFieldVector.begin(), mirFieldPair);
   structType->SetFields(mirFieldVector);
   return structType;
 }
@@ -554,10 +559,10 @@ MIRType *LibAstFile::CvtVectorType(const clang::QualType srcType) {
   unsigned numElems = vectorType->getNumElements();
   MIRType *destType = nullptr;
   auto elemTypeSize = elemType->GetSize();
-  uint32_t vecSize = numElems * elemTypeSize * 8;
+  uint32_t vecSize = static_cast<uint32_t>(numElems * elemTypeSize * 8);
   CHECK_FATAL(!(vecSize & (vecSize - 1)), "VectorSize is not Multiples of 2");
-  if (vecSize > 128) {
-    uint32_t arrayLen = vecSize / 128;
+  if (vecSize > kMaxPrimTypeSize) {
+    uint32_t arrayLen = vecSize / kMaxPrimTypeSize;
     numElems = numElems / arrayLen;
   }
   auto powOf2NumElements = static_cast<size_t>(__builtin_ctz(numElems));
@@ -566,10 +571,10 @@ MIRType *LibAstFile::CvtVectorType(const clang::QualType srcType) {
   auto primType = vectorTypeMap[powOf2NumElements][powOf2ElementByteSize][isSigned];
   CHECK_FATAL(primType != PTY_begin, "unexpected vector type");
   destType = GlobalTables::GetTypeTable().GetPrimType(primType);
-  if (vecSize > 128) {
-    uint32_t arrayLen = vecSize / 128;
+  if (vecSize > kMaxPrimTypeSize) {
+    uint32_t arrayLen = vecSize / kMaxPrimTypeSize;
     uint32_t vecLen = vecSize / (arrayLen * elemType->GetSize() * 8);
-    return CvtVectorSizeType(elemType, destType, arrayLen, vecLen, numElems * elemTypeSize);
+    return CvtVectorSizeType(*elemType, destType, arrayLen, vecLen, numElems * elemTypeSize);
   }
   return destType;
 }

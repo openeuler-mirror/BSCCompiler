@@ -1535,6 +1535,10 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
       return nullptr;
   }
 
+  if (stmt.GetMayTailCall()) {
+    newCall->SetMayTailcall();
+  }
+
   /* transfer srcPosition location info */
   newCall->SetSrcPos(stmt.GetSrcPos());
   if (funcProfData) {
@@ -3332,7 +3336,7 @@ StmtNode *CGLowerer::CreateStmtCallWithReturnValue(const IntrinsicopNode &intrin
 }
 
 BaseNode *CGLowerer::LowerIntrinJavaMerge(const BaseNode &parent, IntrinsicopNode &intrinNode) const {
-  BaseNode *resNode = static_cast<BaseNode *>(&intrinNode);
+  BaseNode *resNode = static_cast<BaseNode*>(&intrinNode);
   CHECK_FATAL(intrinNode.GetNumOpnds() > 0, "invalid JAVA_MERGE intrinsic node");
   BaseNode *candidate = intrinNode.Opnd(0);
   ASSERT(candidate != nullptr, "candidate should not be nullptr");
@@ -3400,7 +3404,7 @@ BaseNode *CGLowerer::LowerIntrinJavaMerge(const BaseNode &parent, IntrinsicopNod
 }
 
 BaseNode *CGLowerer::LowerIntrinJavaArrayLength(const BaseNode &parent, IntrinsicopNode &intrinNode) {
-  BaseNode *resNode = static_cast<BaseNode *>(&intrinNode);
+  BaseNode *resNode = static_cast<BaseNode*>(&intrinNode);
   PUIdx bFunc = GetBuiltinToUse(intrinNode.GetIntrinsic());
   CHECK_FATAL(bFunc != kFuncNotFound, "bFunc should not be kFuncNotFound");
   MIRFunction *biFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(bFunc);
@@ -3468,7 +3472,7 @@ BaseNode *CGLowerer::LowerIntrinJavaArrayLength(const BaseNode &parent, Intrinsi
 }
 
 BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &intrinNode) {
-  BaseNode *resNode = static_cast<BaseNode *>(&intrinNode);
+  BaseNode *resNode = static_cast<BaseNode*>(&intrinNode);
   if (intrinNode.GetIntrinsic() == INTRN_JAVA_MERGE) {
     resNode = LowerIntrinJavaMerge(parent, intrinNode);
   } else if (intrinNode.GetIntrinsic() == INTRN_JAVA_ARRAY_LENGTH) {
@@ -3648,7 +3652,7 @@ BaseNode *CGLowerer::GetClassInfoExpr(const std::string &classInfo) const {
 }
 
 BaseNode *CGLowerer::LowerIntrinsicopWithType(const BaseNode &parent, IntrinsicopNode &intrinNode) {
-  BaseNode *resNode = static_cast<BaseNode *>(&intrinNode);
+  BaseNode *resNode = static_cast<BaseNode*>(&intrinNode);
   if ((intrinNode.GetIntrinsic() == INTRN_JAVA_CONST_CLASS) || (intrinNode.GetIntrinsic() == INTRN_JAVA_INSTANCE_OF)) {
     PUIdx bFunc = GetBuiltinToUse(intrinNode.GetIntrinsic());
     CHECK_FATAL(bFunc != kFuncNotFound, "bFunc not founded");

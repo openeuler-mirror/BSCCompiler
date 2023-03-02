@@ -323,6 +323,22 @@ void LibAstFile::CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericA
   }
 }
 
+void LibAstFile::SetAttrVisibility(const clang::DeclaratorDecl &decl, GenericAttrs &genAttrs) const {
+  if (decl.getLinkageAndVisibility().isVisibilityExplicit()) {
+    auto visibilityInfo = decl.getLinkageAndVisibility().getVisibility();
+    switch (visibilityInfo) {
+      case clang::Visibility::HiddenVisibility:
+        genAttrs.SetAttr(GENATTR_visibility_hidden);
+        break;
+      case clang::Visibility::ProtectedVisibility:
+        genAttrs.SetAttr(GENATTR_visibility_protected);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
 void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
   if (decl.isVirtualAsWritten()) {
@@ -419,18 +435,7 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
       genAttrs.ResetAttr(GENATTR_extern);
     }
   }
-  if (decl.getLinkageAndVisibility().isVisibilityExplicit()) {
-    auto visibilityInfo = decl.getLinkageAndVisibility().getVisibility();
-    switch (visibilityInfo) {
-      case clang::Visibility::HiddenVisibility:
-        genAttrs.SetAttr(GENATTR_visibility_hidden);
-        break;
-      case clang::Visibility::ProtectedVisibility:
-        genAttrs.SetAttr(GENATTR_visibility_protected);
-        break;
-      default: break;
-    }
-  }
+  SetAttrVisibility(decl, genAttrs);
   CheckUnsupportedFuncAttrs(decl);
 }
 
@@ -456,18 +461,7 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) cons
 
 void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
-  if (decl.getLinkageAndVisibility().isVisibilityExplicit()) {
-    auto visibilityInfo = decl.getLinkageAndVisibility().getVisibility();
-    switch (visibilityInfo) {
-      case clang::Visibility::HiddenVisibility:
-        genAttrs.SetAttr(GENATTR_visibility_hidden);
-        break;
-      case clang::Visibility::ProtectedVisibility:
-        genAttrs.SetAttr(GENATTR_visibility_protected);
-        break;
-      default: break;
-    }
-  }
+  SetAttrVisibility(decl, genAttrs);
   // handle __thread
   if (decl.getTLSKind() == clang::VarDecl::TLS_Static) {
     genAttrs.SetAttr(GENATTR_tls_static);

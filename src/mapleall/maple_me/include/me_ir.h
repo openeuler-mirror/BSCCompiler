@@ -1524,6 +1524,14 @@ class MeStmt {
     this->stmtAttrs.AppendAttr(stmtAttr.GetTargetAttrFlag(STMTATTR_insaferegion));
   }
 
+  void SetMayTailcall() {
+    stmtAttrs.SetAttr(STMTATTR_mayTailcall);
+  }
+
+  bool GetMayTailCall() {
+    return stmtAttrs.GetAttr(STMTATTR_mayTailcall);
+  }
+
   const StmtAttrs &GetStmtAttr() const {
     return stmtAttrs;
   }

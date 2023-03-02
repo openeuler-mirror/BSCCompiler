@@ -57,6 +57,7 @@ const uint32_t kMapleProfDataMagicNumber = 0xA0EFEF;
 class ProfDataBinaryImportBase {
  public:
   ProfDataBinaryImportBase(std::string &filename, std::ifstream &input) : fileName(filename), inputStream(input) {}
+  virtual ~ProfDataBinaryImportBase() = default;
   template <typename T>
   T ReadNum();
   std::ifstream &GetInputStream() {

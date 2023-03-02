@@ -838,7 +838,8 @@ MeExpr *IRMap::CreateIntConstMeExpr(const IntVal &value, PrimType pType) {
 
 MeExpr *IRMap::CreateIntConstMeExpr(int64 value, PrimType pType) {
   auto *intConst =
-      GlobalTables::GetIntConstTable().GetOrCreateIntConst(value, *GlobalTables::GetTypeTable().GetPrimType(pType));
+      GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<uint64>(value),
+          *GlobalTables::GetTypeTable().GetPrimType(pType));
   return CreateConstMeExpr(pType, *intConst);
 }
 
@@ -1246,7 +1247,7 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
     } else if (bitOneCount == 0) {
       return CreateIntConstMeExpr(0, shrExpr->GetPrimType());
     } else {
-      if (bitOneCount + static_cast<int32>(shrOffset) > GetPrimTypeBitSize(shrExpr->GetPrimType())) {
+      if (bitOneCount + shrOffset > static_cast<int64>(GetPrimTypeBitSize(shrExpr->GetPrimType()))) {
         return CreateIntConstMeExpr(0, shrExpr->GetPrimType());
       }
       auto *ret = CreateMeExprUnary(OP_extractbits, GetUnsignedPrimType(shrExpr->GetPrimType()), *opnd1);
@@ -1430,8 +1431,10 @@ MeExpr *IRMap::SimplifySubExpr(const OpMeExpr *subExpr) {
   // addrof a64 %a c0 - addrof a64 %a c1 == offset between field_c0 and field_c1
   if (opnd0->GetOp() == OP_addrof && opnd1->GetOp() == OP_addrof) {
     auto ost0 = ssaTab.GetOriginalStFromID(static_cast<AddrofMeExpr*>(opnd0)->GetOstIdx());
+    CHECK_NULL_FATAL(ost0);
     auto prevLevelOfOst0 = ost0->GetPrevLevelOst();
     auto ost1 = ssaTab.GetOriginalStFromID(static_cast<AddrofMeExpr*>(opnd1)->GetOstIdx());
+    CHECK_NULL_FATAL(ost1);
     auto prevLevelOfOst1 = ost1->GetPrevLevelOst();
     bool isPrevLevelOfOstSame = prevLevelOfOst0 != nullptr && prevLevelOfOst1 == prevLevelOfOst0;
     bool isOffsetValid = !ost0->GetOffset().IsInvalid() && !ost1->GetOffset().IsInvalid();
@@ -2459,11 +2462,11 @@ MeExpr *IRMap::SimplifyAshrMeExpr(OpMeExpr *opmeexpr) {
   }
   auto shiftAmt = static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue();
   auto bitWidth = GetPrimTypeBitSize(opmeexpr->GetPrimType());
-  if (shiftAmt >= bitWidth) {
+  if (static_cast<uint64>(shiftAmt) >= bitWidth) {
     return nullptr;
   }
 
-  uint64 signBit = 1 << (bitWidth - shiftAmt - 1);
+  uint64 signBit = 1ULL << (static_cast<int64>(bitWidth) - shiftAmt - 1);
   bool isSignBitZero = IsSignBitZero(opnd0, signBit, static_cast<uint64>(shiftAmt));
   // sign bit is known to be zero, we can replace ashr with lshr
   if (isSignBitZero) {

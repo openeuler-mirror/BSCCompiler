@@ -327,13 +327,13 @@ bool MemoryHelper::MustHaveNoOverlap(const MemLoc &mem1, const MemLoc &mem2) {
   // overlapping case one:
   // mem1: |------|
   // mem2:     |------|
-  if (offset1 <= offset2 && (offset2 - offset1) < size1) {
+  if (offset1 <= offset2 && static_cast<uint32>(offset2 - offset1) < size1) {
     return false;
   }
   // overlapping case two:
   // mem1:     |------|
   // mem2: |------|
-  if (offset2 < offset1 && (offset1 - offset2) < size2) {
+  if (offset2 < offset1 && static_cast<uint32>(offset1 - offset2) < size2) {
     return false;
   }
   return true;
@@ -2746,7 +2746,7 @@ bool SLPVectorizer::TryScheduleTogehter(const std::vector<MeStmt*> &stmts) {
   std::sort(sortedStmts.begin(), sortedStmts.end(), [](MeStmt *a, MeStmt *b) {
     return GetOrderId(a) < GetOrderId(b);
   });
-  for (int32 i = sortedStmts.size() - 2; i >= 0; --i) {
+  for (int32 i = sortedStmts.size() - 2; i >= 0; --i) { // i should be int
     bool res = blockScheduling->TryScheduleTwoStmtsTogether(sortedStmts[i], sortedStmts[i + 1]);
     if (!res) {
       return false;  // Schedule fail

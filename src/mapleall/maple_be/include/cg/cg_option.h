@@ -481,6 +481,21 @@ class CGOptions {
     duplicateAsmFile = fileName;
   }
 
+  static const std::string &GetCPU() {
+    return cpu;
+  }
+
+  static void SetCPU(const std::string &core) {
+    cpu = core;
+  }
+
+  static bool IsCortexA53() {
+    if (cpu == "cortex-a53") {
+      return true;
+    }
+    return false;
+  }
+
   static bool UseRange() {
     return range.enable;
   }
@@ -625,6 +640,26 @@ class CGOptions {
 
   static bool DoCGSSA() {
     return doCGSSA && !flavorLmbc;
+  }
+
+  static void DisableGlobalSchedule() {
+    doGlobalSchedule = false;
+  }
+
+  static void EnableGlobalSchedule() {
+    doGlobalSchedule = true;
+  }
+
+  static bool DoGlobalSchedule() {
+    return doGlobalSchedule;
+  }
+
+  static bool DoLocalSchedule() {
+    return doLocalSchedule;
+  }
+
+  static bool DoVerifySchedule() {
+    return doVerifySchedule;
   }
 
   static void DisableCalleeEnsureParam() {
@@ -1362,6 +1397,18 @@ class CGOptions {
     return funcAlignPow;
   }
 
+ static bool DoLiteProfVerify() {
+    return liteProfVerify;
+  }
+
+  static void EnableLiteProfVerify() {
+    liteProfVerify = true;
+  }
+
+  static void DisableLiteProfVerify() {
+    liteProfVerify = false;
+  }
+
   static bool DoLiteProfGen() {
     return liteProfGen;
   }
@@ -1473,6 +1520,7 @@ class CGOptions {
   static std::string skipAfter;
   static std::string dumpFunc;
   static std::string duplicateAsmFile;
+  static std::string cpu;
   static bool optForSize;
   static bool enableHotColdSplit;
   static bool useBarriersForVolatile;
@@ -1480,6 +1528,9 @@ class CGOptions {
   static bool cgBigEndian;
   static bool doEBO;
   static bool doCGSSA;
+  static bool doGlobalSchedule;
+  static bool doLocalSchedule;
+  static bool doVerifySchedule;
   static bool calleeEnsureParam;
   static bool doIPARA;
   static bool doCFGO;
@@ -1561,6 +1612,7 @@ class CGOptions {
   static uint32 funcAlignPow;
   static bool liteProfGen;
   static bool liteProfUse;
+  static bool liteProfVerify;
   static std::string litePgoOutputFunction;
   static std::string litePgoWhiteList;
   static std::string instrumentationOutPutPath;

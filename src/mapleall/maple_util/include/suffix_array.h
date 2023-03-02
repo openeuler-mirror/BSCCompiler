@@ -30,11 +30,11 @@ class SubStringOccurrences {
   explicit SubStringOccurrences(size_t length) : length(length) {}
   virtual ~SubStringOccurrences() = default;
 
-  std::vector<SubStringPair> &GetOccurrences() {
+  const std::vector<SubStringPair> &GetOccurrences() {
     return occurrences;
   }
 
-  size_t GetLength() {
+  const size_t GetLength() {
     return length;
   }
 
@@ -45,7 +45,7 @@ class SubStringOccurrences {
 
 class SuffixArray {
  public:
-  SuffixArray(std::vector<size_t> src, size_t length, size_t size)
+  SuffixArray(const std::vector<size_t> src, size_t length, size_t size)
       : length(length),
         alphabetSize(size),
         src(src),
@@ -71,25 +71,25 @@ class SuffixArray {
   void Run(bool collectSubString = false);
   void Dump();
 
-  std::vector<size_t> &GetSuffixArray() {
+  const std::vector<size_t> &GetSuffixArray() {
     return suffixArray;
   }
 
-  std::vector<size_t> &GetHeightArray() {
+  const std::vector<size_t> &GetHeightArray() {
     return heightArray;
   }
 
-  std::vector<SubStringOccurrences *> &GetRepeatedSubStrings() {
+  const std::vector<SubStringOccurrences *> &GetRepeatedSubStrings() {
     return repeatedSubStrings;
   }
 
  private:
-  size_t length;
+  size_t length = 1;
   size_t alphabetSize;
   size_t lmsSubStringCount = 0;
   size_t lmsCharacterCount = 1;
   bool hasSameLmsSubstring = false;
-  std::vector<size_t> src;
+  const std::vector<size_t> src;
   std::vector<bool> suffixType;
   std::vector<size_t> lmsSubStringPosition;
   std::vector<size_t> lmsCharacterString;

@@ -101,7 +101,7 @@ class ASTStmt {
 class ASTStmtDummy : public ASTStmt {
  public:
   explicit ASTStmtDummy(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDummy) {}
-  ~ASTStmtDummy() = default;
+  ~ASTStmtDummy() override = default;
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
@@ -111,7 +111,7 @@ class ASTCompoundStmt : public ASTStmt {
  public:
   explicit ASTCompoundStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCompound),
       astStmts(allocatorIn.Adapter()) {}
-  ~ASTCompoundStmt() = default;
+  ~ASTCompoundStmt() override = default;
   void SetASTStmt(ASTStmt *astStmt);
   void InsertASTStmtsAtFront(const std::list<ASTStmt*> &stmts);
   const MapleList<ASTStmt*> &GetASTStmtList() const;
@@ -144,7 +144,7 @@ class ASTCompoundStmt : public ASTStmt {
 class ASTReturnStmt : public ASTStmt {
  public:
   explicit ASTReturnStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtReturn) {}
-  ~ASTReturnStmt() = default;
+  ~ASTReturnStmt() override = default;
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
@@ -315,7 +315,7 @@ class ASTContinueStmt : public ASTStmt {
 class ASTUnaryOperatorStmt : public ASTStmt {
  public:
   explicit ASTUnaryOperatorStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtUO) {}
-  ~ASTUnaryOperatorStmt() = default;
+  ~ASTUnaryOperatorStmt() override = default;
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
@@ -334,7 +334,7 @@ class ASTGotoStmt : public ASTStmt {
  public:
   explicit ASTGotoStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtGoto),
       labelName("", allocatorIn.GetMemPool()) {}
-  ~ASTGotoStmt() = default;
+  ~ASTGotoStmt() override = default;
 
   std::string GetLabelName() const {
     return labelName.c_str() == nullptr ? "" : labelName.c_str();
@@ -352,7 +352,7 @@ class ASTGotoStmt : public ASTStmt {
 class ASTIndirectGotoStmt : public ASTStmt {
  public:
   explicit ASTIndirectGotoStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtIndirectGoto) {}
-  ~ASTIndirectGotoStmt() = default;
+  ~ASTIndirectGotoStmt() override = default;
 
  protected:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
@@ -361,7 +361,7 @@ class ASTIndirectGotoStmt : public ASTStmt {
 class ASTSwitchStmt : public ASTStmt {
  public:
   explicit ASTSwitchStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtSwitch) {}
-  ~ASTSwitchStmt() = default;
+  ~ASTSwitchStmt() override = default;
 
   void SetCondStmt(ASTStmt *cond) {
     condStmt = cond;
@@ -412,7 +412,7 @@ class ASTSwitchStmt : public ASTStmt {
 class ASTCaseStmt : public ASTStmt {
  public:
   explicit ASTCaseStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCase) {}
-  ~ASTCaseStmt() = default;
+  ~ASTCaseStmt() override = default;
 
   void SetLHS(ASTExpr *l) {
     lhs = l;
@@ -466,7 +466,7 @@ class ASTCaseStmt : public ASTStmt {
 class ASTDefaultStmt : public ASTStmt {
  public:
   explicit ASTDefaultStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDefault) {}
-  ~ASTDefaultStmt() = default;
+  ~ASTDefaultStmt() override = default;
 
   void SetChildStmt(ASTStmt* ch) {
     child = ch;
@@ -484,7 +484,7 @@ class ASTDefaultStmt : public ASTStmt {
 class ASTNullStmt : public ASTStmt {
  public:
   explicit ASTNullStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtNull) {}
-  ~ASTNullStmt() = default;
+  ~ASTNullStmt() override = default;
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
@@ -496,7 +496,7 @@ class ASTDeclStmt : public ASTStmt {
       : ASTStmt(allocatorIn, kASTStmtDecl),
         subDecls(allocatorIn.Adapter()),
         subDeclInfos(allocatorIn.Adapter()) {}
-  ~ASTDeclStmt() = default;
+  ~ASTDeclStmt() override = default;
 
   void SetSubDecl(ASTDecl *decl) {
     subDecls.emplace_back(decl);

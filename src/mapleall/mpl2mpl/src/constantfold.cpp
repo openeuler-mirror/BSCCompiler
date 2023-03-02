@@ -140,14 +140,17 @@ BaseNode *ConstantFold::PairToExpr(PrimType resultType, const std::pair<BaseNode
     BaseNode *r = static_cast<UnaryNode*>(pair.first)->Opnd(0);
     result = mirModule->CurFuncCodeMemPool()->New<BinaryNode>(OP_sub, resultType, val, r);
   } else {
-    if ((!pair.second->GetSignBit() && pair.second->GetSXTValue(GetPrimTypeBitSize(resultType)) > 0) ||
-        pair.second->GetSXTValue() == INT64_MIN) {
+    if ((!pair.second->GetSignBit() &&
+         pair.second->GetSXTValue(static_cast<uint8>(GetPrimTypeBitSize(resultType))) > 0) ||
+         pair.second->GetSXTValue() == INT64_MIN) {
       // +-a, 5 -> a + 5
       ConstvalNode *val = mirModule->GetMIRBuilder()->CreateIntConst(pair.second->GetExtValue(), resultType);
       result = mirModule->CurFuncCodeMemPool()->New<BinaryNode>(OP_add, resultType, pair.first, val);
     } else {
       // +-a, -5 -> a + -5
-      ConstvalNode *val = mirModule->GetMIRBuilder()->CreateIntConst(static_cast<uint64>((-pair.second.value()).GetExtValue()), resultType);
+      ConstvalNode *val =
+          mirModule->GetMIRBuilder()->CreateIntConst(static_cast<uint64>((-pair.second.value()).GetExtValue()),
+                                                     resultType);
       result = mirModule->CurFuncCodeMemPool()->New<BinaryNode>(OP_sub, resultType, pair.first, val);
     }
   }
@@ -1274,7 +1277,7 @@ MIRConst *ConstantFold::FoldTypeCvtMIRConst(const MIRConst &cst, PrimType fromTy
       }
       const MIRIntConst *constVal = safe_cast<MIRIntConst>(cst);
       ASSERT_NOT_NULL(constVal);
-      toConst = FoldSignExtendMIRConst(op, toType, fromSize, constVal->GetValue().TruncOrExtend(fromType));
+      toConst = FoldSignExtendMIRConst(op, toType, static_cast<uint8>(fromSize), constVal->GetValue().TruncOrExtend(fromType));
     } else {
       const MIRIntConst *constVal = safe_cast<MIRIntConst>(cst);
       ASSERT_NOT_NULL(constVal);
@@ -1471,7 +1474,7 @@ PrimType GetExprValueRangePtyp(BaseNode *expr) {
       }
     }
   }
-  return GetNearestSizePtyp(maxTypeSize, ptyp);
+  return GetNearestSizePtyp(static_cast<uint8>(maxTypeSize), ptyp);
 }
 
 std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldTypeCvt(TypeCvtNode *node) {
@@ -1920,7 +1923,7 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldBinary(BinaryNode 
       }
     } else if (op == OP_bior && cst == -1) {
       // X | (-1) -> -1
-      result = mirModule->GetMIRBuilder()->CreateIntConst(-1, cstTyp);
+      result = mirModule->GetMIRBuilder()->CreateIntConst(-1ULL, cstTyp);
     } else if ((op == OP_lior || op == OP_cior)) {
       if (cst == 0) {
         // X || 0 -> X

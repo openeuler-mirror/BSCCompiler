@@ -209,13 +209,13 @@ bool ReflectionAnalysis::IsMemberClass(const std::string &annotationString) {
 }
 
 int8_t ReflectionAnalysis::GetAnnoFlag(const std::string &annotationString) {
-  constexpr int8_t kMemberPosValid = 1;
-  constexpr int8_t kMemberPosValidOffset = 2;
-  constexpr int8_t kIsMemberClassOffset = 1;
+  constexpr uint8_t kMemberPosValid = 1;
+  constexpr uint8_t kMemberPosValidOffset = 2;
+  constexpr uint8_t kIsMemberClassOffset = 1;
   constexpr int8_t kNewMeta = 1;
   bool isMemberClass = IsMemberClass(annotationString);
-  int8_t value = (kMemberPosValid << kMemberPosValidOffset) +
-                 (static_cast<uint8_t>(isMemberClass) << kIsMemberClassOffset) + kNewMeta;
+  int8_t value = static_cast<int8_t>((kMemberPosValid << kMemberPosValidOffset) +
+                 (static_cast<uint8_t>(isMemberClass) << kIsMemberClassOffset)) + kNewMeta;
   return value;
 }
 

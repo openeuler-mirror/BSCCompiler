@@ -487,8 +487,8 @@ TokenKind MIRLexer::GetTokenWithPrefixDoubleQuotation() {
           const uint32 hexLength = 2;
           uint8 c1 = Char2num(GetCharAtWithLowerCheck(curIdx + 1));
           uint8 c2 = Char2num(GetCharAtWithLowerCheck(curIdx + 2));
-          uint32 cNew = static_cast<uint8_t>(c1 << hexShift) + c2;
-          line[curIdx - shift] = cNew;
+          uint8 cNew = static_cast<uint8_t>(c1 << hexShift) + c2;
+          line[curIdx - shift] = static_cast<char>(cNew);
           curIdx += hexLength;
           shift += hexLength;
           break;

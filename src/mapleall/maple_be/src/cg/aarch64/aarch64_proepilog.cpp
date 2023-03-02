@@ -159,9 +159,9 @@ void AArch64GenProEpilog::AddStackGuard(BB &bb) {
   cgFunc.SetCurBB(*formerCurBB);
 }
 
-BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
+void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   if (!stackProtect) {
-    return bb;
+    return;
   }
 
   BB *formerCurBB = cgFunc.GetCurBB();
@@ -181,16 +181,33 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   aarchCGFunc.SelectCondGoto(aarchCGFunc.GetOrCreateLabelOperand(failLable), OP_brtrue, OP_ne,
                              stAddrOpnd, aarchCGFunc.CreateImmOperand(0, k64BitSize, false), PTY_u64, false);
 
-  bb.AppendBBInsns(*(cgFunc.GetCurBB()));
 
-  LabelIdx nextBBLableIdx = aarchCGFunc.CreateLabel();
-  BB *nextBB = cgFunc.CreateNewBB(nextBBLableIdx, bb.IsUnreachable(), bb.GetKind(), bb.GetFrequency());
-  bb.AppendBB(*nextBB);
-  bb.PushBackSuccs(*nextBB);
-  nextBB->PushBackPreds(bb);
-  if (cgFunc.GetLastBB() == &bb) {
-    cgFunc.SetLastBB(*nextBB);
+  auto chkBB = cgFunc.CreateNewBB(bb.GetLabIdx(), bb.IsUnreachable(), BB::kBBIf, bb.GetFrequency());
+  chkBB->AppendBBInsns(bb);
+  bb.ClearInsns();
+  Insn *lastInsn = chkBB->GetLastInsn();
+  while (lastInsn != nullptr && (!lastInsn->IsMachineInstruction() ||
+                                 AArch64isa::IsPseudoInstruction(lastInsn->GetMachineOpcode()))) {
+    lastInsn = lastInsn->GetPrev();
   }
+  bool isTailCall = lastInsn == nullptr ? false : lastInsn->IsTailCall();
+  if (isTailCall) {
+    chkBB->RemoveInsn(*lastInsn);
+    bb.AppendInsn(*lastInsn);
+  }
+  chkBB->AppendBBInsns(*(cgFunc.GetCurBB()));
+  bb.PrependBB(*chkBB);
+  chkBB->PushBackSuccs(bb);
+  auto &originPreds = bb.GetPreds();
+  for (auto pred : originPreds) {
+    pred->RemoveSuccs(bb);
+    pred->PushBackSuccs(*chkBB);
+    chkBB->PushBackPreds(*pred);
+  }
+  LabelIdx nextLable = aarchCGFunc.CreateLabel();
+  bb.SetLabIdx(nextLable);
+  bb.ClearPreds();
+  bb.PushBackPreds(*chkBB);
 
   BB *newBB = aarchCGFunc.CreateNewBB(failLable, bb.IsUnreachable(), BB::kBBGoto, bb.GetFrequency());
   cgFunc.SetCurBB(*newBB);
@@ -199,16 +216,14 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   ListOperand *srcOpnds = aarchCGFunc.CreateListOpnd(*cgFunc.GetFuncScopeAllocator());
   Insn &callInsn = aarchCGFunc.AppendCall(*failFunc, *srcOpnds);
   callInsn.SetDoNotRemove(true);
-  LabelOperand &targetOpnd = cgFunc.GetOrCreateLabelOperand(nextBB->GetLabIdx());
+  LabelOperand &targetOpnd = cgFunc.GetOrCreateLabelOperand(bb.GetLabIdx());
   newBB->AppendInsn(cgFunc.GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd));
-  nextBB->AppendBB(*newBB);
-  bb.PushBackSuccs(*newBB);
-  newBB->PushBackPreds(bb);
-  newBB->PushBackSuccs(*nextBB);
+  bb.AppendBB(*newBB);
+  chkBB->PushBackSuccs(*newBB);
+  newBB->PushBackPreds(*chkBB);
+  newBB->PushBackSuccs(bb);
 
-  bb.SetKind(BB::kBBIf);
   cgFunc.SetCurBB(*formerCurBB);
-  return *nextBB;
 }
 
 MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstruction(CGFunc &cgFunc,
@@ -1079,20 +1094,7 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
     return;
   }
   /* generate stack protected instruction */
-  BB &epilogBB = GenStackGuardCheckInsn(bb);
-
-  if (&bb != &epilogBB) {
-    auto curBBIt = std::find(cgFunc.GetExitBBsVec().begin(), cgFunc.GetExitBBsVec().end(), &bb);
-    CHECK_FATAL(curBBIt != cgFunc.GetExitBBsVec().end(), "check case in GenerateEpilog");
-    (void)cgFunc.GetExitBBsVec().erase(curBBIt);
-    cgFunc.GetExitBBsVec().push_back(&epilogBB);
-    BB *commonExit =  cgFunc.GetCommonExitBB();
-    auto exitPredIt = std::find(commonExit->GetPredsBegin(), commonExit->GetPredsEnd(), &bb);
-    if (exitPredIt != commonExit->GetPredsEnd()) {
-      commonExit->ErasePreds(exitPredIt);
-      commonExit->PushBackPreds(epilogBB);
-    }
-  }
+  GenStackGuardCheckInsn(bb);
 
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
@@ -1136,9 +1138,9 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
   }
 
   GenerateRet(*(cgFunc.GetCurBB()));
-  AppendBBtoEpilog(epilogBB, *cgFunc.GetCurBB());
+  AppendBBtoEpilog(bb, *cgFunc.GetCurBB());
   if (cgFunc.GetCurBB()->GetHasCfi()) {
-    epilogBB.SetHasCfi();
+    bb.SetHasCfi();
   }
 
   cgFunc.SetCurBB(*formerCurBB);

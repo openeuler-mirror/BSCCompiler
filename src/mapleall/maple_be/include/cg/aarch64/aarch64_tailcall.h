@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2022] Futurewei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -35,10 +35,8 @@ class AArch64TailCallOpt : public TailCallOpt {
   bool InsnIsCall(Insn &insn) const override;
   bool InsnIsUncondJump(Insn &insn) const override;
   bool InsnIsAddWithRsp(Insn &insn) const override;
-  bool OpndIsStackRelatedReg(RegOperand &opnd) const override;
   bool OpndIsR0Reg(RegOperand &opnd) const override;
   bool OpndIsCalleeSaveReg(RegOperand &opnd) const override;
-  bool IsAddOrSubOp(MOperator mOp) const override;
   void ReplaceInsnMopWithTailCall(Insn &insn) override;
 };
 }  /* namespace maplebe */

@@ -1390,12 +1390,10 @@ class CGFunc {
     }
   }
 
-  BB *CreateAtomicBuiltinBB(bool isBBIf = true) {
+  BB *CreateAtomicBuiltinBB() {
     LabelIdx atomicBBLabIdx = CreateLabel();
     BB *atomicBB = CreateNewBB();
-    if (isBBIf) {
-      atomicBB->SetKind(BB::kBBIf);
-    }
+    atomicBB->SetKind(BB::kBBIf);
     atomicBB->SetAtomicBuiltIn();
     atomicBB->AddLabel(atomicBBLabIdx);
     SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);

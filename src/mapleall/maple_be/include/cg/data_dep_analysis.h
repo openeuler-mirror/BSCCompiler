@@ -1,5 +1,5 @@
 /*
-* Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+* Copyright (c) [2023] Huawei Technologies Co.,Ltd.All rights reserved.
 *
 * OpenArkCompiler is licensed under Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,6 +30,8 @@
 #include "cg_cdg.h"
 
 namespace maplebe {
+constexpr uint32 kMaxDumpRegionNodeNum = 6;
+
 /* Analyze IntraBlock Data Dependence */
 class IntraDataDepAnalysis {
  public:
@@ -53,43 +55,30 @@ class IntraDataDepAnalysis {
 class InterDataDepAnalysis {
  public:
   InterDataDepAnalysis(CGFunc &f, MemPool &memPool, DataDepBase &dataDepBase)
-      : cgFunc(f), interAlloc(&memPool), ddb(dataDepBase),
-        readyNodes(interAlloc.Adapter()), restNodes(interAlloc.Adapter()) {}
+      : cgFunc(f), interMp(memPool), interAlloc(&memPool), ddb(dataDepBase) {}
   virtual ~InterDataDepAnalysis() = default;
 
-  void AddReadyNode(CDGNode *node) {
-    (void)readyNodes.emplace_back(node);
-  }
-  void RemoveReadyNode(CDGNode *node) {
-    auto it = std::find(readyNodes.begin(), readyNodes.end(), node);
-    if (it != readyNodes.end()) {
-      (void)readyNodes.erase(it);
-    }
-  }
-  void InitRestNodes(const MapleVector<CDGNode*> &nodes) {
-    restNodes = nodes;
-  }
-  void RemoveRestNode(CDGNode *node) {
-    auto it = std::find(restNodes.begin(), restNodes.end(), node);
-    if (it != restNodes.end()) {
-      (void)restNodes.erase(it);
-    }
-  }
-
-  void Run(CDGRegion &region, MapleVector<DepNode*> &dataNodes);
-  void GlobalInit(MapleVector<DepNode*> &dataNodes);
-  void LocalInit(BB &bb, CDGNode &cdgNode, MapleVector<DepNode*> &dataNodes, std::size_t idx);
-  void GenerateInterDDGDot(MapleVector<DepNode*> &dataNodes);
+  void Run(CDGRegion &region);
+  void GenerateDataDepGraphDotOfRegion(CDGRegion &region);
 
  protected:
-  void ComputeTopologicalOrderInRegion(CDGRegion &region);
+  void InitInfoInRegion(MemPool &regionMp, MapleAllocator &regionAlloc, CDGRegion &region);
+  void InitInfoInCDGNode(MemPool &regionMp, MapleAllocator &regionAlloc, BB &bb, CDGNode &cdgNode);
+  void ClearInfoInRegion(MemPool *regionMp, MapleAllocator *regionAlloc, CDGRegion &region);
+  void AddBeginSeparatorNode(CDGNode *rootNode);
+  void SeparateDependenceGraph(CDGRegion &region, CDGNode &cdgNode);
+  void BuildDepsForNewSeparator(CDGRegion &region, CDGNode &cdgNode, DepNode &newSepNode);
+  void BuildDepsForPrevSeparator(CDGNode &cdgNode, DepNode &depNode, CDGRegion &curRegion);
+  void BuildSpecialInsnDependency(Insn &insn, CDGNode &cdgNode, CDGRegion &region, MapleAllocator &alloc);
+  void UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, CDGNode &cdgNode);
+  void AddEndSeparatorNode(CDGRegion &region, CDGNode &cdgNode);
+  void UpdateReadyNodesInfo(MapleAllocator &regionAlloc, CDGRegion &region, CDGNode &cdgNode, const CDGNode &root);
 
  private:
   CGFunc &cgFunc;
+  MemPool &interMp;
   MapleAllocator interAlloc;
   DataDepBase &ddb;
-  MapleVector<CDGNode*> readyNodes;
-  MapleVector<CDGNode*> restNodes;
 };
 } /* namespace maplebe */
 

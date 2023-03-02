@@ -61,7 +61,7 @@ class ProfileSummary {
     sumCount = sumcount;
   }
   void AddHistogramRecord(uint32_t s, uint32_t num, uint64_t mincount, uint64_t cumcounts) {
-    histogram.push_back(ProfileSummaryHistogram(s, num, mincount, cumcounts));
+    (void)histogram.emplace_back(ProfileSummaryHistogram(s, num, mincount, cumcounts));
   }
   void DumpSummary();
   uint64_t GetCheckSum() {
@@ -79,7 +79,7 @@ class ProfileSummary {
   uint64_t GetSumCount() {
     return sumCount;
   }
-  uint32_t GetHistogramLength() {
+  size_t GetHistogramLength() {
     return histogram.size();
   }
   void ProcessHistogram();
@@ -88,11 +88,11 @@ class ProfileSummary {
   }
 
  private:
-  uint64_t checkSum;                               // checksum value of module
-  uint32_t run;                                    // run times
-  uint32_t totalCount;                             // number of counters
-  uint64_t maxCount;                               // max counter value in single run
-  uint64_t sumCount;                               // sum of all counters accumulated.
+  uint64_t checkSum = 0;                               // checksum value of module
+  uint32_t run = 0;                                    // run times
+  uint32_t totalCount = 0;                             // number of counters
+  uint64_t maxCount = 0;                               // max counter value in single run
+  uint64_t sumCount = 0;                               // sum of all counters accumulated.
   MapleVector<ProfileSummaryHistogram> histogram;  // record gcov_bucket_type histogram[GCOV_HISTOGRAM_SIZE];
 };
 
@@ -136,7 +136,7 @@ class FuncProfInfo {
     stmtFreqs[stmtID] = freq;
   }
   void EraseStmtFreq(uint32_t stmtID) {
-    stmtFreqs.erase(stmtID);
+    (void)stmtFreqs.erase(stmtID);
   }
   void CopyStmtFreq(uint32_t newStmtID, uint32_t origStmtId, bool deleteOld = false) {
     ASSERT(GetStmtFreq(origStmtId) >= 0, "origStmtId no freq record");
@@ -162,9 +162,9 @@ class FuncProfInfo {
   // Raw arc coverage counts.
   unsigned edgeCounts;
   MapleVector<FreqType> counts;
-  FreqType entryFreq;                                // record entry bb frequence
+  FreqType entryFreq = 0;                            // record entry bb frequence
   std::unordered_map<uint32_t, FreqType> stmtFreqs;  // stmt_id is key, counter value
-  FreqType realEntryfreq;                            // function prof data may be modified after clone/inline
+  FreqType realEntryfreq = 0;                        // function prof data may be modified after clone/inline
 };
 
 class MplProfileData {

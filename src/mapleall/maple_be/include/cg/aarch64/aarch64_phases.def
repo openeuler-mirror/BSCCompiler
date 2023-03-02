@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022-2023] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan PSL v1.
  * You can use this software according to the terms and conditions of the Mulan PSL v1.
@@ -64,13 +64,12 @@
  ADDTARGETPHASE("generateproepilog", true);
  ADDTARGETPHASE("framefinalize", true);
  ADDTARGETPHASE("cfgo", GetMIRModule()->IsCModule() && CGOptions::DoCFGO());
- ADDTARGETPHASE("peephole0", CGOptions::DoPeephole())
+ ADDTARGETPHASE("peephole0", CGOptions::DoPeephole());
  ADDTARGETPHASE("postebo", CGOptions::DoEBO());
  ADDTARGETPHASE("postcfgo", CGOptions::DoCFGO());
- ADDTARGETPHASE("cgpostpeephole", CGOptions::DoPeephole())
- ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule() || CGOptions::GetInstance().IsUnwindTables() || GetMIRModule()->IsWithDbgInfo());
- ADDTARGETPHASE("dbgfixcallframeoffsets", true);
+ ADDTARGETPHASE("cgpostpeephole", CGOptions::DoPeephole());
  ADDTARGETPHASE("yieldpoint", GetMIRModule()->IsJavaModule() && CGOptions::IsInsertYieldPoint());
+ ADDTARGETPHASE("localschedule", false);
  ADDTARGETPHASE("scheduling", CGOptions::DoSchedule());
  ADDTARGETPHASE("cgsplitcriticaledge", CGOptions::DoLiteProfGen());
  ADDTARGETPHASE("cgpgogen", CGOptions::DoLiteProfGen());
@@ -78,4 +77,6 @@
  ADDTARGETPHASE("alignanalysis", GetMIRModule()->IsCModule() && CGOptions::DoAlignAnalysis() && !CGOptions::DoLiteProfGen());
  ADDTARGETPHASE("fixshortbranch", true);
  ADDTARGETPHASE("cgaggressiveopt", GetMIRModule()->IsCModule() && CGOptions::DoAggrOpt());
+ ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule() || CGOptions::GetInstance().IsUnwindTables() || GetMIRModule()->IsWithDbgInfo());
+ ADDTARGETPHASE("dbgfixcallframeoffsets", true);
  ADDTARGETPHASE("cgemit", true);

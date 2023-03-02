@@ -2448,7 +2448,7 @@ bool ValueRangePropagation::CanComputeLoopIndVar(const MeExpr &phiLHS, MeExpr &e
       ConstMeExpr *rhsExpr = static_cast<ConstMeExpr*>(opMeExpr.GetOpnd(1));
       int64 res = 0;
       auto rhsConst = rhsExpr->GetExtIntValue();
-      if (rhsExpr->GetPrimType() == PTY_u64 && static_cast<uint64>(rhsConst) > GetMaxNumber(PTY_i64)) {
+      if (rhsExpr->GetPrimType() == PTY_u64 && rhsConst > GetMaxNumber(PTY_i64)) {
         return false;
       }
       if (AddOrSubWithConstant(opMeExpr.GetPrimType(), defStmt->GetRHS()->GetOp(), constant, rhsConst, res)) {
@@ -3780,7 +3780,6 @@ void ValueRangePropagation::UpdateProfile(BB &pred, BB &bb, const BB &targetBB) 
     return;
   }
   auto *targetCondGotoStmt = static_cast<CondGotoMeStmt*>(predCondGoto->GetLastMe());
-  ASSERT_NOT_NULL(targetCondGotoStmt);
   if (targetCondGotoStmt->GetBranchProb() == kProbUnlikely || targetCondGotoStmt->GetBranchProb() == kProbLikely) {
     return;
   }

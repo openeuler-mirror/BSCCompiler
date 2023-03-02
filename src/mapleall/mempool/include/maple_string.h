@@ -227,7 +227,19 @@ class MapleString {
     return ::strlen(s);
   }
 
-  inline static char *NewData(MemPool &currMp, const char *source, size_t len);
+  inline static char *NewData(MemPool &currMp, const char *source, size_t len) {
+    if (source == nullptr && len == 0) {
+      return nullptr;
+    }
+    char *str = static_cast<char*>(currMp.Malloc((len + 1) * sizeof(char)));
+    CHECK_FATAL(str != nullptr, "MemPool::Malloc failed");
+    if (source != nullptr && len != 0) {
+      errno_t err = memcpy_s(str, len, source, len);
+      CHECK_FATAL(err == EOK, "memcpy_s failed");
+    }
+    str[len] = 0;
+    return str;
+  }
 
   inline size_t UnsafeFind(const char *str, size_t pos, size_t n) const {
     if ((dataLength - pos) < n) {
@@ -240,7 +252,7 @@ class MapleString {
       if (matchStart == nullptr) {
         return std::string::npos;
       }
-      size_t i = matchStart - data;
+      size_t i = static_cast<size_t>(matchStart - data);
       if ((dataLength - i) < n) {
         return std::string::npos;
       }

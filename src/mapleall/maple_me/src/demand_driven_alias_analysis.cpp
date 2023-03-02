@@ -443,16 +443,19 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
           continue;
         }
         OffsetType bitOffset(structType->GetBitOffsetFromBaseAddr(fieldId));
-
+        auto lhsFieldOffset = bitOffset + lhsOst->GetOffset();
+        auto rhsFieldOffset = bitOffset + rhsOst->GetOffset();
+        auto lhsMemberFieldId = fieldId + lhsOst->GetFieldID();
+        auto rhsMemberFieldId = fieldId + rhsOst->GetFieldID();
         const auto *nextLevOstsOfLHS = ssaTab->GetNextLevelOsts(*preLevOfLHSOst);
         auto fieldOstLHS = (nextLevOstsOfLHS == nullptr) ? nullptr :
             ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(
-                *nextLevOstsOfLHS, tyIdxOfPrevLevOst, fieldType, fieldId, bitOffset);
+                *nextLevOstsOfLHS, tyIdxOfPrevLevOst, fieldType, lhsMemberFieldId, lhsFieldOffset);
 
         const auto *nextLevOstsOfRHS = ssaTab->GetNextLevelOsts(*preLevOfRHSOst);
         auto fieldOstRHS = (nextLevOstsOfRHS == nullptr) ? nullptr :
             ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(
-                *nextLevOstsOfRHS, tyIdxOfPrevLevOst, fieldType, fieldId, bitOffset);
+                *nextLevOstsOfRHS, tyIdxOfPrevLevOst, fieldType, rhsMemberFieldId, rhsFieldOffset);
         if (fieldOstLHS == nullptr && fieldOstRHS == nullptr) {
           continue;
         }
@@ -460,16 +463,14 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         // the OriginalSt of at least one side has appearance in code
         if (fieldOstLHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(lhsOst->GetTyIdx());
-          fieldOstLHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(preLevOfLHSOst,
-                                                                                    ptrType->GetTypeIndex(),
-                                                                                    fieldId, bitOffset);
+          fieldOstLHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
+              preLevOfLHSOst, ptrType->GetTypeIndex(), lhsMemberFieldId, lhsFieldOffset);
         }
 
         if (fieldOstRHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(rhsOst->GetTyIdx());
-          fieldOstRHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(preLevOfRHSOst,
-                                                                                    ptrType->GetTypeIndex(),
-                                                                                    fieldId, bitOffset);
+          fieldOstRHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
+              preLevOfRHSOst, ptrType->GetTypeIndex(), rhsMemberFieldId, rhsFieldOffset);
         }
 
         auto *zeroVersionOfFieldOstLHS = ssaTab->GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstLHS);
@@ -543,8 +544,11 @@ void PEGBuilder::BuildPEGNodeInIassign(const IassignNode *iassign) {
   }
 
   auto *vstOfBase = baseAddrValNode.pegNode->vst;
+  auto fieldID = iassign->GetFieldID();
+  auto *mirStructType = static_cast<MIRPtrType &>(GetTypeFromTyIdx(iassign->GetTyIdx())).GetPointedType();
+  auto offset = OffsetType(mirStructType->GetBitOffsetFromBaseAddr(fieldID)) + baseAddrValNode.offset;
   OriginalSt *defedOst =
-      ssaTab->FindOrCreateExtraLevOst(vstOfBase, iassign->GetTyIdx(), iassign->GetFieldID(), baseAddrValNode.offset);
+      ssaTab->FindOrCreateExtraLevOst(vstOfBase, iassign->GetTyIdx(), fieldID, offset);
   CHECK_FATAL(defedOst, "defedOst is nullptr");
   auto zeroVersionSt = ssaTab->GetVerSt(defedOst->GetZeroVersionIndex());
   PEGNode *lhsNode = peg->GetOrCreateNodeOf(zeroVersionSt);

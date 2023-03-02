@@ -112,6 +112,7 @@ ADDMAPLEMEPHASE("safetyWarning", CLANG && MeOption::optLevel >= 2 &&
 ADDMAPLEMEPHASE("sink", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("copyprop", MeOption::optLevel >= 2 && !JAVALANG)
 ADDMAPLEMEPHASE("hdse", MeOption::optLevel >= 2 && !JAVALANG)
+ADDMAPLEMEPHASE("tailcall", MeOption::optLevel >= 2 && !JAVALANG && Options::tailcall)
 ADDMAPLEMEPHASE("pregrename", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("bblayout", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("meemit", MeOption::optLevel >= 2 || JAVALANG)

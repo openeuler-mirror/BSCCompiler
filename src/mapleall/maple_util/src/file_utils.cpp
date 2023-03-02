@@ -65,7 +65,7 @@ std::string FileUtils::SafeGetPath(const char *envVar, const char *name) {
   std::string path(buf);
   CHECK_FATAL(path.find(name) != std::string::npos, "Failed! Unable to find path of %s \n", name);
   std::string tmp = name;
-  int index = path.find(tmp) + tmp.length();
+  size_t index = path.find(tmp) + tmp.length();
   path = path.substr(0, index);
   return path;
 }

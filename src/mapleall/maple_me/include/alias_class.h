@@ -129,9 +129,10 @@ class AliasClass : public AnalysisResult {
         globalsMayAffectedByClinitCheck(acAlloc.Adapter()),
         aggsToUnion(acAlloc.Adapter()),
         nadsOsts(acAlloc.Adapter()),
-        lhsWithUndefinedOffsets(acAlloc.Adapter()),
+        ostWithUndefinedOffsets(acAlloc.Adapter()),
         assignSetOfVst(acAlloc.Adapter()),
         aliasSetOfOst(acAlloc.Adapter()),
+        addrofVstNextLevNotAllDefsSeen(acAlloc.Adapter()),
         vstNextLevNotAllDefsSeen(acAlloc.Adapter()),
         ostNotAllDefsSeen(acAlloc.Adapter()),
         lessThrowAlias(lessThrowAliasParam),
@@ -252,7 +253,7 @@ class AliasClass : public AnalysisResult {
   void SetPtrOpndNextLevNADS(const BaseNode &opnd, VersionSt *vst, bool hasNoPrivateDefEffect);
   void SetPtrOpndsNextLevNADS(unsigned int start, unsigned int end, MapleVector<BaseNode*> &opnds,
                               bool hasNoPrivateDefEffect);
-  void SetAggPtrFieldsNextLevNADS(const OriginalSt &ost);
+  void SetAggPtrFieldsNextLevNADS(const VersionSt &vst);
   void SetPtrFieldsOfAggNextLevNADS(const BaseNode *opnd, const VersionSt *vst);
   void SetAggOpndPtrFieldsNextLevNADS(MapleVector<BaseNode*> &opnds);
   void ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs);
@@ -310,6 +311,22 @@ class AliasClass : public AnalysisResult {
     return GetAssignSet(vst.GetIndex());
   }
 
+  bool IsAddrofVstNextLevNotAllDefSeen(size_t vstIdx) {
+    if (vstIdx >= addrofVstNextLevNotAllDefsSeen.size()) {
+      return false;
+    }
+    return addrofVstNextLevNotAllDefsSeen[vstIdx];
+  }
+
+  void SetAddrofVstNextLevNotAllDefsSeen(size_t vstIdx) {
+    if (vstIdx >= addrofVstNextLevNotAllDefsSeen.size()) {
+      size_t bufferSize = 5;
+      size_t incNum = vstIdx + bufferSize - addrofVstNextLevNotAllDefsSeen.size();
+      addrofVstNextLevNotAllDefsSeen.insert(addrofVstNextLevNotAllDefsSeen.end(), incNum, false);
+    }
+    addrofVstNextLevNotAllDefsSeen[vstIdx] = true;
+  }
+
   bool IsNextLevNotAllDefsSeen(size_t vstIdx) {
     if (vstIdx >= vstNextLevNotAllDefsSeen.size()) {
       return false;
@@ -350,11 +367,12 @@ class AliasClass : public AnalysisResult {
   MapleSet<OriginalSt*, OriginalSt::OriginalStPtrComparator> globalsAffectedByCalls;
   // aliased at calls; needed only when wholeProgramScope is true
   MapleSet<OStIdx> globalsMayAffectedByClinitCheck;
-  MapleMap<OriginalSt*, OriginalSt*> aggsToUnion; // aggs are copied, their fields should be unioned
+  MapleUnorderedMultiMap<OriginalSt*, OriginalSt*> aggsToUnion; // aggs are copied, their fields should be unioned
   MapleSet<OriginalSt*, OriginalSt::OriginalStPtrComparator> nadsOsts;
-  MapleVector<OriginalSt*> lhsWithUndefinedOffsets;
+  MapleVector<OriginalSt*> ostWithUndefinedOffsets;
   VstIdx2AssignSet assignSetOfVst;
   OstIdx2AliasSet aliasSetOfOst;
+  AliasAttrVec addrofVstNextLevNotAllDefsSeen;
   AliasAttrVec vstNextLevNotAllDefsSeen;
   AliasAttrVec ostNotAllDefsSeen;
 

@@ -99,6 +99,7 @@
 #endif
 #ifdef STMT_ATTR
   ATTR(insaferegion)
+  ATTR(mayTailcall)
 #endif
   ATTR(oneelem_simd)
   ATTR(nonnull)

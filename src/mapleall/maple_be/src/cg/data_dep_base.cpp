@@ -111,7 +111,7 @@ void DataDepBase::BuildMayThrowInsnDependency(Insn &insn) {
     Insn *lastFrameDef = curCDGNode->GetLastFrameDefInsn();
     if (lastFrameDef != nullptr) {
       AddDependence(*lastFrameDef->GetDepNode(), *insn.GetDepNode(), kDependenceTypeThrow);
-    } else if (!IsIntraBlockAnalysis()) {
+    } else if (!isIntra && curRegion->GetRegionRoot() != curCDGNode) {
       BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeThrow, kLastFrameDef);
     }
   }
@@ -147,8 +147,14 @@ void DataDepBase::BuildDepsBetweenControlRegAndCall(Insn &insn, bool isDest) {
 /* Build control data dependence for branch/ret instructions */
 void DataDepBase::BuildDepsControlAll(Insn &insn, const MapleVector<DepNode*> &nodes) {
   DepNode *depNode = insn.GetDepNode();
-  for (uint32 i = separatorIndex; i < depNode->GetIndex(); ++i) {
-    AddDependence(*nodes[i], *depNode, kDependenceTypeControl);
+  if (isIntra) {
+    for (uint32 i = separatorIndex; i < depNode->GetIndex(); ++i) {
+      AddDependence(*nodes[i], *depNode, kDependenceTypeControl);
+    }
+  } else {
+    for (auto dataNode : nodes) {
+      AddDependence(*dataNode, *depNode, kDependenceTypeControl);
+    }
   }
 }
 
@@ -165,10 +171,10 @@ void DataDepBase::BuildDepsSeparator(DepNode &newSepNode, MapleVector<DepNode*> 
 
 /* Build data dependence of may throw instructions */
 void DataDepBase::BuildDepsMayThrowInsn(Insn &insn) {
-  if (IsIntraBlockAnalysis()) {
-    MapleVector<Insn*> ambiInsns = curCDGNode->GetAmbiguousInsns();
+  if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
+    MapleVector<Insn*> &ambiInsns = curCDGNode->GetAmbiguousInsns();
     AddDependence4InsnInVectorByType(ambiInsns, insn, kDependenceTypeThrow);
-  } else {
+  } else if (curRegion->GetRegionRoot() != curCDGNode) {
     BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeThrow, kAmbiguous);
   }
 }
@@ -178,10 +184,10 @@ void DataDepBase::BuildDepsMayThrowInsn(Insn &insn) {
  * ambiguous instruction: instructions that can not across may throw instructions
  */
 void DataDepBase::BuildDepsAmbiInsn(Insn &insn) {
-  if (IsIntraBlockAnalysis()) {
-    MapleVector<Insn*> mayThrows = curCDGNode->GetMayThrowInsns();
+  if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
+    MapleVector<Insn*> &mayThrows = curCDGNode->GetMayThrowInsns();
     AddDependence4InsnInVectorByType(mayThrows, insn, kDependenceTypeThrow);
-  } else {
+  } else if (curRegion->GetRegionRoot() != curCDGNode) {
     BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeThrow, kMayThrows);
   }
   curCDGNode->AddAmbiguousInsn(&insn);
@@ -196,15 +202,14 @@ void DataDepBase::BuildDepsDefReg(Insn &insn, regno_t regNO) {
    * 2. For building inter-block data dependence, require the data flow info of all BBs on the pred path in CFG
    */
   /* Build anti dependence */
-  // Build intra block data dependence
-  RegList *regList = curCDGNode->GetUseInsnChain(regNO);
-  while (regList != nullptr) {
-    CHECK_NULL_FATAL(regList->insn);
-    AddDependence(*regList->insn->GetDepNode(), *node, kDependenceTypeAnti);
-    regList = regList->next;
-  }
-  // Build inter block data dependence
-  if (!IsIntraBlockAnalysis()) {
+  if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
+    RegList *regList = curCDGNode->GetUseInsnChain(regNO);
+    while (regList != nullptr) {
+      CHECK_NULL_FATAL(regList->insn);
+      AddDependence(*regList->insn->GetDepNode(), *node, kDependenceTypeAnti);
+      regList = regList->next;
+    }
+  } else if (curRegion->GetRegionRoot() != curCDGNode) {
     BuildInterBlockDefUseDependency(*node, regNO, kDependenceTypeAnti, false);
   }
 
@@ -213,7 +218,7 @@ void DataDepBase::BuildDepsDefReg(Insn &insn, regno_t regNO) {
   Insn *defInsn = curCDGNode->GetLatestDefInsn(regNO);
   if (defInsn != nullptr) {
     AddDependence(*defInsn->GetDepNode(), *node, kDependenceTypeOutput);
-  } else if (!IsIntraBlockAnalysis()) {
+  } else if (!isIntra && curRegion->GetRegionRoot() != curCDGNode) {
     // Build inter block data dependence
     BuildInterBlockDefUseDependency(*node, regNO, kDependenceTypeOutput, true);
   }
@@ -228,7 +233,7 @@ void DataDepBase::BuildDepsUseReg(Insn &insn, regno_t regNO) {
   Insn *defInsn = curCDGNode->GetLatestDefInsn(regNO);
   if (defInsn != nullptr) {
     AddDependence(*defInsn->GetDepNode(), *node, kDependenceTypeTrue);
-  } else if (!IsIntraBlockAnalysis()) {
+  } else if (!isIntra && curRegion->GetRegionRoot() != curCDGNode) {
     // Build inter block data dependence
     BuildInterBlockDefUseDependency(*node, regNO, kDependenceTypeTrue, true);
   }
@@ -241,27 +246,22 @@ void DataDepBase::UpdateStackAndHeapDependency(DepNode &depNode, Insn &insn, con
   }
   depNode.SetLocInsn(locInsn);
   curCDGNode->AddMayThrowInsn(&insn);
-  if (IsIntraBlockAnalysis()) {
+  if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
     AddDependence4InsnInVectorByType(curCDGNode->GetStackDefInsns(), insn, kDependenceTypeThrow);
     AddDependence4InsnInVectorByType(curCDGNode->GetHeapDefInsns(), insn, kDependenceTypeThrow);
-  } else {
+  } else if (curRegion->GetRegionRoot() != curCDGNode) {
     BuildInterBlockSpecialDataInfoDependency(depNode, false, kDependenceTypeThrow, kStackDefs);
     BuildInterBlockSpecialDataInfoDependency(depNode, false, kDependenceTypeThrow, kHeapDefs);
   }
 }
 
-void DataDepBase::BuildSeparatorNodeDependency(MapleVector<DepNode*> &dataNodes, Insn &insn) {
-  AddDependence(*dataNodes[separatorIndex], *insn.GetDepNode(), kDependenceTypeSeparator);
-}
-
 /* For inter data dependence analysis */
 void DataDepBase::BuildInterBlockDefUseDependency(DepNode &curDepNode, regno_t regNO, DepType depType,
                                                   bool isDef) {
-  CHECK_FATAL(!IsIntraBlockAnalysis(), "must be inter block data dependence analysis");
+  CHECK_FATAL(!isIntra, "must be inter block data dependence analysis");
+  CHECK_FATAL(curRegion->GetRegionRoot() != curCDGNode, "for the root node, cross-BB search is not required");
   BB *curBB = curCDGNode->GetBB();
   CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
-  CDGRegion *curRegion = curCDGNode->GetRegion();
-  CHECK_FATAL(curRegion != nullptr, "get region from cdgNode failed");
   std::vector<bool> visited(curRegion->GetMaxBBIdInRegion(), false);
   if (isDef) {
     BuildPredPathDefDependencyDFS(*curBB, visited, curDepNode, regNO, depType);
@@ -277,9 +277,9 @@ void DataDepBase::BuildPredPathDefDependencyDFS(BB &curBB, std::vector<bool> &vi
   }
   CDGNode *cdgNode = curBB.GetCDGNode();
   CHECK_FATAL(cdgNode != nullptr, "get cdgNode from bb failed");
-  CDGRegion *curRegion = cdgNode->GetRegion();
-  CHECK_FATAL(curRegion != nullptr, "get region from cdgNode failed");
-  if (curRegion->GetRegionId() != curCDGNode->GetRegion()->GetRegionId()) {
+  CDGRegion *region = cdgNode->GetRegion();
+  CHECK_FATAL(region != nullptr, "get region from cdgNode failed");
+  if (region->GetRegionId() != curRegion->GetRegionId()) {
     return;
   }
   Insn *curDefInsn = cdgNode->GetLatestDefInsn(regNO);
@@ -288,8 +288,15 @@ void DataDepBase::BuildPredPathDefDependencyDFS(BB &curBB, std::vector<bool> &vi
     AddDependence(*curDefInsn->GetDepNode(), depNode, depType);
     return;
   }
+  // Ignore back-edge
+  if (cdgNode == curRegion->GetRegionRoot()) {
+    return;
+  }
   for (auto predIt = curBB.GetPredsBegin(); predIt != curBB.GetPredsEnd(); ++predIt) {
-    BuildPredPathDefDependencyDFS(**predIt, visited, depNode, regNO, depType);
+    // Ignore back-edge of self-loop
+    if (*predIt != &curBB) {
+      BuildPredPathDefDependencyDFS(**predIt, visited, depNode, regNO, depType);
+    }
   }
 }
 
@@ -300,9 +307,9 @@ void DataDepBase::BuildPredPathUseDependencyDFS(BB &curBB, std::vector<bool> &vi
   }
   CDGNode *cdgNode = curBB.GetCDGNode();
   CHECK_FATAL(cdgNode != nullptr, "get cdgNode from bb failed");
-  CDGRegion *curRegion = cdgNode->GetRegion();
-  CHECK_FATAL(curRegion != nullptr, "get region from cdgNode failed");
-  if (curRegion->GetRegionId() != curCDGNode->GetRegion()->GetRegionId()) {
+  CDGRegion *region = cdgNode->GetRegion();
+  CHECK_FATAL(region != nullptr, "get region from cdgNode failed");
+  if (region->GetRegionId() != curRegion->GetRegionId()) {
     return;
   }
   visited[curBB.GetId()] = true;
@@ -311,19 +318,26 @@ void DataDepBase::BuildPredPathUseDependencyDFS(BB &curBB, std::vector<bool> &vi
     Insn *useInsn = useChain->insn;
     CHECK_FATAL(useInsn != nullptr, "get useInsn failed");
     AddDependence(*useInsn->GetDepNode(), depNode, depType);
+    useChain = useChain->next;
+  }
+  // Ignore back-edge
+  if (cdgNode == curRegion->GetRegionRoot()) {
+    return;
   }
   for (auto predIt = curBB.GetPredsBegin(); predIt != curBB.GetPredsEnd(); ++predIt) {
-    BuildPredPathDefDependencyDFS(**predIt, visited, depNode, regNO, depType);
+    // Ignore back-edge of self-loop
+    if (*predIt != &curBB) {
+      BuildPredPathUseDependencyDFS(**predIt, visited, depNode, regNO, depType);
+    }
   }
 }
 
 void DataDepBase::BuildInterBlockSpecialDataInfoDependency(DepNode &curDepNode, bool needCmp, DepType depType,
                                                            DataDepBase::DataFlowInfoType infoType) {
-  CHECK_FATAL(!IsIntraBlockAnalysis(), "must be inter block data dependence analysis");
+  CHECK_FATAL(!isIntra, "must be inter block data dependence analysis");
+  CHECK_FATAL(curRegion->GetRegionRoot() != curCDGNode, "for the root node, cross-BB search is not required");
   BB *curBB = curCDGNode->GetBB();
   CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
-  CDGRegion *curRegion = curCDGNode->GetRegion();
-  CHECK_FATAL(curRegion != nullptr, "get region from cdgNode failed");
   std::vector<bool> visited(curRegion->GetMaxBBIdInRegion(), false);
   BuildPredPathSpecialDataInfoDependencyDFS(*curBB, visited, needCmp, curDepNode, depType, infoType);
 }
@@ -336,9 +350,9 @@ void DataDepBase::BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vect
   }
   CDGNode *cdgNode = curBB.GetCDGNode();
   CHECK_FATAL(cdgNode != nullptr, "get cdgNode from bb failed");
-  CDGRegion *curRegion = cdgNode->GetRegion();
-  CHECK_FATAL(curRegion != nullptr, "get region from cdgNode failed");
-  if (curRegion->GetRegionId() != curCDGNode->GetRegion()->GetRegionId()) {
+  CDGRegion *region = cdgNode->GetRegion();
+  CHECK_FATAL(region != nullptr, "get region from cdgNode failed");
+  if (region != curCDGNode->GetRegion()) {
     return;
   }
 
@@ -389,7 +403,7 @@ void DataDepBase::BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vect
     }
     case kHeapUses: {
       visited[curBB.GetId()] = true;
-      MapleVector<Insn*> heapUses = cdgNode->GetHeapUseInsns();
+      MapleVector<Insn*> &heapUses = cdgNode->GetHeapUseInsns();
       if (needCmp) {
         AddDependence4InsnInVectorByTypeAndCmp(heapUses, *depNode.GetInsn(), depType);
       } else {
@@ -399,7 +413,7 @@ void DataDepBase::BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vect
     }
     case kHeapDefs: {
       visited[curBB.GetId()] = true;
-      MapleVector<Insn*> heapDefs = cdgNode->GetHeapDefInsns();
+      MapleVector<Insn*> &heapDefs = cdgNode->GetHeapDefInsns();
       if (needCmp) {
         AddDependence4InsnInVectorByTypeAndCmp(heapDefs, *depNode.GetInsn(), depType);
       } else {
@@ -409,13 +423,13 @@ void DataDepBase::BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vect
     }
     case kMayThrows: {
       visited[curBB.GetId()] = true;
-      MapleVector<Insn*> mayThrows = cdgNode->GetMayThrowInsns();
+      MapleVector<Insn*> &mayThrows = cdgNode->GetMayThrowInsns();
       AddDependence4InsnInVectorByType(mayThrows, *depNode.GetInsn(), depType);
       break;
     }
     case kAmbiguous: {
       visited[curBB.GetId()] = true;
-      MapleVector<Insn*> ambiInsns = cdgNode->GetAmbiguousInsns();
+      MapleVector<Insn*> &ambiInsns = cdgNode->GetAmbiguousInsns();
       AddDependence4InsnInVectorByType(ambiInsns, *depNode.GetInsn(), depType);
       break;
     }
@@ -424,8 +438,15 @@ void DataDepBase::BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vect
       break;
     }
   }
+  // Ignore back-edge
+  if (cdgNode == curRegion->GetRegionRoot()) {
+    return;
+  }
   for (auto predIt = curBB.GetPredsBegin(); predIt != curBB.GetPredsEnd(); ++predIt) {
-    BuildPredPathSpecialDataInfoDependencyDFS(**predIt, visited, needCmp, depNode, depType, infoType);
+    // Ignore back-edge of self-loop
+    if (*predIt != &curBB) {
+      BuildPredPathSpecialDataInfoDependencyDFS(**predIt, visited, needCmp, depNode, depType, infoType);
+    }
   }
 }
 
@@ -531,20 +552,12 @@ void DataDepBase::RemoveSelfDeps(Insn &insn) {
   node->RemovePred();
 }
 
-/* Check if in intra-block data dependence analysis */
-bool DataDepBase::IsIntraBlockAnalysis() const {
-  if (curCDGNode->GetRegion() == nullptr || curCDGNode->GetRegion()->GetRegionNodes().size() == 1) {
-    return true;
-  }
-  return false;
-}
-
 /* Check if regNO is in ehInRegs. */
 bool DataDepBase::IfInAmbiRegs(regno_t regNO) const {
   if (!curCDGNode->HasAmbiRegs()) {
     return false;
   }
-  MapleSet<regno_t> ehInRegs = curCDGNode->GetEhInRegs();
+  MapleSet<regno_t> &ehInRegs = curCDGNode->GetEhInRegs();
   if (ehInRegs.find(regNO) != ehInRegs.end()) {
     return true;
   }

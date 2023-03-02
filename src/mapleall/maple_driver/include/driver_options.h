@@ -108,6 +108,9 @@ extern maplecl::Option<bool> defaultSafe;
 extern maplecl::Option<bool> onlyPreprocess;
 extern maplecl::Option<bool> noStdLib;
 extern maplecl::Option<bool> r;
+extern maplecl::Option<bool> tailcall;
+extern maplecl::Option<bool> fnoDiagnosticsShowCaret;
+extern maplecl::Option<bool> wCCompat;
 
 /* ##################### STRING Options ############################################################### */
 
@@ -148,6 +151,9 @@ extern maplecl::Option<std::string> march;
 extern maplecl::Option<std::string> sysRoot;
 extern maplecl::Option<std::string> specs;
 extern maplecl::Option<std::string> folder;
+extern maplecl::Option<std::string> imacros;
+extern maplecl::Option<std::string> fdiagnosticsColor;
+extern maplecl::Option<std::string> mtlsSize;
 
 /* ##################### DIGITAL Options ############################################################### */
 

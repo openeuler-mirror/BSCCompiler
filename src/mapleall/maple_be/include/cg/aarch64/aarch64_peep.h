@@ -1605,10 +1605,10 @@ class AddCmpZeroAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
- bool CheckAddCmpZeroCheckAdd (const Insn &insn, regno_t regNO);
- bool CheckAddCmpZeroContinue (const Insn &insn, regno_t regNO);
+ bool CheckAddCmpZeroCheckAdd (const Insn &previnsn, const Insn &insn);
+ bool CheckAddCmpZeroContinue (const Insn &insn, RegOperand &opnd);
  bool CheckAddCmpZeroCheckCond (const Insn &insn);
- Insn* CheckAddCmpZeroAArch64Pattern(Insn &insn, regno_t regNO);
+ Insn* CheckAddCmpZeroAArch64Pattern(Insn &insn, RegOperand &opnd);
 };
 
 /*

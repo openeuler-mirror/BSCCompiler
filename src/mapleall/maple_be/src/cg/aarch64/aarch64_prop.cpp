@@ -1917,6 +1917,9 @@ bool RedundantExpandProp::CheckCondition(Insn &insn) {
       ASSERT(destVersion != nullptr, "find Version failed");
       for (auto destUseIt : destVersion->GetAllUseInsns()) {
         Insn *useInsn = destUseIt.second->GetInsn();
+        if(useInsn->IsPhi()) {
+          return false;
+        }
         int32 lastOpndId = static_cast<int32>(useInsn->GetOperandSize() - 1);
         const InsnDesc *md = useInsn->GetDesc();
         for (int32 i = lastOpndId; i >= 0; --i) {
@@ -2064,7 +2067,19 @@ bool ValidBitNumberProp::CheckCondition(Insn &insn) {
 }
 
 void ValidBitNumberProp::Optimize(Insn &insn) {
+  MapleUnorderedMap<uint32, DUInsnInfo*> useList = destVersion->GetAllUseInsns();
   optSsaInfo->ReplaceAllUse(destVersion, srcVersion);
+  // replace all implicit cvt to uxtw, validopt will handle the case if it can be optimized.
+  for (auto it = useList.begin(); it != useList.end(); it++)  {
+    Insn *useInsn = it->second->GetInsn();
+    if (useInsn->GetMachineOpcode() == MOP_xmovrr || useInsn->GetMachineOpcode() == MOP_wmovrr) { 
+      auto &dstOpnd = useInsn->GetOperand(kFirstOpnd);
+      auto &srcOpnd = useInsn->GetOperand(kSecondOpnd);
+      if (dstOpnd.GetSize() == k64BitSize && srcOpnd.GetSize() == k32BitSize) {
+        useInsn->SetMOP(AArch64CG::kMd[MOP_xuxtw64]);
+      }
+    }
+  }
   cgFunc.InsertExtendSet(srcVersion->GetSSAvRegOpnd()->GetRegisterNumber());
 }
 

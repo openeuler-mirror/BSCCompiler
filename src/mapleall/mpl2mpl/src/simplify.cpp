@@ -857,9 +857,10 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
       const auto &concreteExpr = static_cast<const AddrofNode&>(expr);
       auto *symbol = func.GetLocalOrGlobalSymbol(concreteExpr.GetStIdx());
       MIRType *curType = symbol->GetType();
+      ASSERT_NOT_NULL(curType);
       if (concreteExpr.GetFieldID() != 0) {
-        CHECK_NULL_FATAL(curType);
         curType = static_cast<MIRStructType*>(curType)->GetFieldType(concreteExpr.GetFieldID());
+        CHECK_NULL_FATAL(curType);
       }
       mirType = curType;
       break;

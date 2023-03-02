@@ -195,6 +195,27 @@ class BB {
     internalFlag1++;
   }
 
+  void AppendOtherBBInsn(BB &other, Insn &insn) {
+    if (insn.GetPrev() != nullptr) {
+      insn.GetPrev()->SetNext(insn.GetNext());
+    }
+    if (insn.GetNext() != nullptr) {
+      insn.GetNext()->SetPrev(insn.GetPrev());
+    }
+    if (firstInsn != nullptr && lastInsn != nullptr) {
+      lastInsn->SetNext(&insn);
+      insn.SetPrev(lastInsn);
+      insn.SetNext(nullptr);
+      lastInsn = &insn;
+    } else {
+      firstInsn = lastInsn = &insn;
+      insn.SetPrev(nullptr);
+      insn.SetNext(nullptr);
+    }
+    insn.SetBB(this);
+    internalFlag1++;
+  }
+
   void ReplaceInsn(Insn &insn, Insn &newInsn);
 
   void RemoveInsn(Insn &insn);

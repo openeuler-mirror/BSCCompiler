@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022-2023] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -59,7 +59,7 @@ class GenCfi {
   virtual void GenerateRegisterSaveDirective(BB &bb) {}
   virtual void GenerateRegisterRestoreDirective(BB &bb) {}
 
-  /* It is do insert a start location information for each function in debugging mode */
+  /* It inserts a start location information for each function in debugging mode */
   void InsertFirstLocation(BB &bb);
 };
 }  /* namespace maplebe */

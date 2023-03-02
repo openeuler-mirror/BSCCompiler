@@ -181,7 +181,8 @@ class OutlineRegionExtractor {
       case OP_callassigned:
       case OP_icallassigned:
       case OP_icallprotoassigned:
-      case OP_intrinsiccallassigned: {
+      case OP_intrinsiccallassigned:
+      case OP_intrinsiccallwithtypeassigned: {
         ReplaceCallReturnVector(node);
         break;
       }

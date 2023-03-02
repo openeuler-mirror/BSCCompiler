@@ -578,12 +578,6 @@ maplecl::Option<bool> fastMath({"--fast-math"},
                                {cgCategory},
                                maplecl::DisableWith("--no-fast-math"));
 
-maplecl::Option<bool> tailcall({"--tailcall", "-foptimize-sibling-calls"},
-                               "  --tailcall/-foptimize-sibling-calls                   \tDo tail call optimization\n"
-                               "  --no-tailcall/-fno-optimize-sibling-calls\n",
-                               {cgCategory, driverCategory},
-                               maplecl::DisableEvery({"-fno-optimize-sibling-calls", "--no-tailcall"}));
-
 maplecl::Option<bool> alignAnalysis({"--align-analysis"},
                                     "  --align-analysis                 \tPerform alignanalysis\n"
                                     "  --no-align-analysis\n",
@@ -595,6 +589,12 @@ maplecl::Option<bool> cgSsa({"--cg-ssa"},
                             "  --no-cg-ssa\n",
                             {cgCategory},
                             maplecl::DisableWith("--no-cg-ssa"));
+
+maplecl::Option<bool> globalSchedule({"--global-schedule"},
+                                     "  --global-schedule                     \tPerform global schedule\n"
+                                     "  --no-global-schedule\n",
+                                     {cgCategory},
+                                     maplecl::DisableWith("--no-global-schedule"));
 
 maplecl::Option<bool> calleeEnsureParam({"--callee-ensure-param"},
                                         "  --callee-ensure-param      \tCallee ensure valid vb of params\n"
@@ -655,4 +655,9 @@ maplecl::Option<std::string> litePgoFile({"--lite-pgo-file"},
 maplecl::Option<std::string> functionPriority({"--function-priority"},
                                          " --function-priority=filepath          \t when profile data is given, priority suffix is added to section name in order to improve code locality\n",
                                          {cgCategory});
+maplecl::Option<bool> litePgoVerify({"--lite-pgo-verify"},
+		                     " --lite-pgo-verify             \tverify lite-pgo data strictly, abort when encountering mismatch data(default:skip)\n"
+		                     "  --no-lite-pgo-verify\n",
+				     {cgCategory},
+		                     maplecl::DisableWith("--no-lite-pgo-verify"));
 }

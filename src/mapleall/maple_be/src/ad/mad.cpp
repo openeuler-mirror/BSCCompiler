@@ -278,6 +278,9 @@ bool AluShiftBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
   return &(defInsn.GetOperand(kInsnFirstOpnd)) != &(useInsn.GetOperand(kInsnSecondOpnd));
 }
 
+/*
+ * AccumulatorBypass: from multiplier to summator
+ */
 bool AccumulatorBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
   /*
    * hook condition

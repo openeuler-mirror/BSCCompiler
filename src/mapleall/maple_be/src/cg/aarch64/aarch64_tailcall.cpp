@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2022] Futurewei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -14,6 +14,7 @@
  */
 #include "aarch64_tailcall.h"
 #include "aarch64_abi.h"
+#include "aarch64_cg.h"
 
 namespace maplebe {
 using namespace std;
@@ -67,10 +68,6 @@ bool AArch64TailCallOpt::InsnIsAddWithRsp(Insn &insn) const {
   return false;
 }
 
-bool AArch64TailCallOpt::OpndIsStackRelatedReg(RegOperand &opnd) const {
-  return (opnd.GetRegisterNumber() == R29 || opnd.GetRegisterNumber() == R31 || opnd.GetRegisterNumber() == RSP);
-}
-
 bool AArch64TailCallOpt::OpndIsR0Reg(RegOperand &opnd) const {
   return (opnd.GetRegisterNumber() == R0);
 }
@@ -79,32 +76,15 @@ bool AArch64TailCallOpt::OpndIsCalleeSaveReg(RegOperand &opnd) const {
   return AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(opnd.GetRegisterNumber()));
 }
 
-bool AArch64TailCallOpt::IsAddOrSubOp(MOperator mOp) const {
-  switch (mOp) {
-    case MOP_xaddrrr:
-    case MOP_xaddrrrs:
-    case MOP_xxwaddrrre:
-    case MOP_xaddrri24:
-    case MOP_xaddrri12:
-    case MOP_xsubrrr:
-    case MOP_xsubrrrs:
-    case MOP_xxwsubrrre:
-    case MOP_xsubrri12:
-      return true;
-    default:
-      return false;
-  }
-}
-
 void AArch64TailCallOpt::ReplaceInsnMopWithTailCall(Insn &insn) {
   MOperator insnMop = insn.GetMachineOpcode();
   switch (insnMop) {
     case MOP_xbl: {
-      insn.SetMOP(MOP_tail_call_opt_xbl);
+      insn.SetMOP(AArch64CG::kMd[MOP_tail_call_opt_xbl]);
       break;
     }
     case MOP_xblr: {
-      insn.SetMOP(MOP_tail_call_opt_xblr);
+      insn.SetMOP(AArch64CG::kMd[MOP_tail_call_opt_xblr]);
       break;
     }
     default:

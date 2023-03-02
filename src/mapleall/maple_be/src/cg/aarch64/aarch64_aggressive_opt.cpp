@@ -26,6 +26,10 @@ void AArch64CombineRedundantX16Opt::Run() {
       if (!insn->IsMachineInstruction()) {
         continue;
       }
+      if (insn->GetMachineOpcode() == MOP_c_counter) {
+        ASSERT(bb->GetFirstInsn() == insn, "invalid pgo counter-insn");
+        continue;
+      }
       if (HasUseOpndReDef(*insn)) {
         hasUseOpndReDef = true;
       }
@@ -435,7 +439,8 @@ bool AArch64CombineRedundantX16Opt::HasX16Use(Insn &insn) {
 uint32 AArch64CombineRedundantX16Opt::GetMemSizeFromMD(Insn &insn) {
   const InsnDesc *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
   ASSERT(md != nullptr, "get md failed");
-  const OpndDesc *od = md->GetOpndDes(kInsnFirstOpnd);
+  uint32 memOpndIdx = GetMemOperandIdx(insn);
+  const OpndDesc *od = md->GetOpndDes(memOpndIdx);
   ASSERT(od != nullptr, "get od failed");
   return od->GetSize();
 }

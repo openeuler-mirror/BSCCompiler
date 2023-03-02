@@ -165,7 +165,7 @@ class MapleSparseBitVector {
         elementList(allocator.Adapter()),
         currIter(elementList.begin()) {}
 
-  explicit MapleSparseBitVector(const MapleSparseBitVector &rhs, MapleAllocator &alloc)
+  explicit MapleSparseBitVector(const MapleSparseBitVector &rhs, const MapleAllocator &alloc)
       : allocator(alloc),
         elementList(rhs.elementList, allocator.Adapter()),
         currIter(elementList.begin()) {}

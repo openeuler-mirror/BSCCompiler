@@ -36,7 +36,7 @@ namespace stacktrace {
 static std::string demangle(const char *mangledName) {
 #ifdef __unix__
   int status = 0;
-  char *name = abi::__cxa_demangle(mangledName, NULL, NULL, &status);
+  char *name = abi::__cxa_demangle(mangledName, nullptr, nullptr, &status);
 
   if (status != 0) {
     return mangledName;
@@ -44,7 +44,6 @@ static std::string demangle(const char *mangledName) {
 
   std::string res = std::string(name);
   std::free(name);
-
   return res;
 #else
   return std::string();
@@ -53,7 +52,7 @@ static std::string demangle(const char *mangledName) {
 
 class Frame {
  public:
-  explicit Frame(void *addr) : addr(addr) {
+  explicit Frame(const void *addr) : addr(addr) {
     init();
   }
 
@@ -89,12 +88,12 @@ class Frame {
 
   friend std::string to_string(const Frame &fr) {
     std::stringstream ss;
-    if (fr.getName().empty())
+    if (fr.getName().empty()) {
       ss << fr.getAddr();
-    else
+    } else {
       ss << fr.getName();
-    ss << " ["
-       << "0x" << std::hex << fr.getElfAddr() << "]";
+    }
+    ss << " [" << "0x" << std::hex << fr.getElfAddr() << "]";
     ss << (" in " + fr.getFilename());
     return ss.str();
   }
@@ -120,14 +119,14 @@ class Frame {
 
     filename = info.dli_fname ? std::string(info.dli_fname) : "??";
     name = info.dli_sname ? demangle(info.dli_sname) : "??";
-    linkAddr = reinterpret_cast<uintptr_t>(linkMap->l_addr);
+    linkAddr = static_cast<uintptr_t>(linkMap->l_addr);
 #else
     return;
 #endif
   }
 
  private:
-  const void *addr;
+  const void *addr = nullptr;
 
   uintptr_t linkAddr;
   std::string filename;
@@ -137,13 +136,17 @@ class Frame {
 template <class Allocator>
 class Stacktrace {
  public:
-  __attribute__((noinline)) Stacktrace(size_t maxDepth = 256) {
+  explicit __attribute__((noinline)) Stacktrace(size_t maxDepth = 256) {
     init(1, maxDepth);
   }
 
   Stacktrace(const Stacktrace &st) : frames(st.frames) {}
 
   Stacktrace &operator=(const Stacktrace &st) {
+    /* self-assignment check */
+    if (frames == &st.frames) {
+      return *this;
+    }
     frames = st.frames;
     return *this;
   }
@@ -151,6 +154,10 @@ class Stacktrace {
   Stacktrace(const Stacktrace &&st) : frames(std::move(st.frames)) {}
 
   Stacktrace &operator=(const Stacktrace &&st) {
+    /* self-assignment check */
+    if (frames == st.frames) {
+      return *this;
+    }
     frames = std::move(st.frames);
     return *this;
   }
@@ -201,28 +208,27 @@ class Stacktrace {
  private:
   std::vector<Frame, Allocator> frames;
 
- private:
   void __attribute__((noinline)) init(size_t nskip, size_t maxDepth) {
     ++nskip;  // skip current frame
 
-    typedef typename std::allocator_traits<Allocator>::template rebind_alloc<void *> allocator_void_ptr;
-    allocator_void_ptr allocator;
+    using AllocatorVoidPtr = typename std::allocator_traits<Allocator>::template rebind_alloc<void *>;
+    AllocatorVoidPtr allocator;
     size_t bufferSize = maxDepth;
     void **buffer = allocator.allocate(bufferSize);
 
-    size_t nframes = collectFrames(buffer, maxDepth);
+    size_t nframes = CollectFrames(buffer, static_cast<int>(maxDepth));
     ++nskip;  // skip frame of call "colectFrames(...)"
 
     if (nskip <= nframes) {
       for (size_t i = 0; i < nframes - nskip; ++i) {
-        frames.emplace_back(buffer[nskip + i]);
+        (void)frames.emplace_back(buffer[nskip + i]);
       }
     }
 
     allocator.deallocate(buffer, bufferSize);
   }
 
-  static size_t __attribute__((noinline)) collectFrames(void **outbuf, int maxFrames) {
+  static size_t __attribute__((noinline)) CollectFrames(void **outbuf, int maxFrames) {
 #ifdef __unix__
     return backtrace(outbuf, maxFrames);
 #else
@@ -233,7 +239,7 @@ class Stacktrace {
 
 }  // namespace stacktrace
 
-template <class Allocator = std::allocator<stacktrace::Frame> >
+template <class Allocator = std::allocator<stacktrace::Frame>>
 using Stacktrace = stacktrace::Stacktrace<Allocator>;
 
 }  // namespace maple

@@ -54,6 +54,8 @@ enum NodeType : uint8 {
 
 enum ScheduleState : uint8 {
   kNormal,
+  kCandidate,
+  kWaiting,
   kReady,
   kScheduled,
 };
@@ -93,14 +95,10 @@ class DepLink {
 
 class DepNode {
  public:
-  bool CanBeScheduled() const;
-  void OccupyUnits() const;
-  uint32 GetUnitKind() const;
-
   DepNode(Insn &insn, MapleAllocator &alloc)
       : insn(&insn), units(nullptr), reservation(nullptr), unitNum(0),
         eStart(0), lStart(0), visit(0), type(kNodeTypeNormal), state(kNormal), index(0), simulateCycle(0),
-        schedCycle(0), bruteForceSchedCycle(0), validPredsSize(0), validSuccsSize(0),
+        schedCycle(0), bruteForceSchedCycle(0), validPredsSize(0), validSuccsSize(0), topoPredsSize(0),
         preds(alloc.Adapter()), succs(alloc.Adapter()), comments(alloc.Adapter()),
         cfiInsns(alloc.Adapter()), clinitInsns(alloc.Adapter()), locInsn(nullptr), useRegnos(alloc.Adapter()),
         defRegnos(alloc.Adapter()), regPressure(nullptr) {}
@@ -109,11 +107,107 @@ class DepNode {
       : insn(&insn), units(unit),
         reservation(&rev), unitNum(num), eStart(0), lStart(0), visit(0), type(kNodeTypeNormal), state(kNormal),
         index(0), simulateCycle(0), schedCycle(0), bruteForceSchedCycle(0), validPredsSize(0), validSuccsSize(0),
-        preds(alloc.Adapter()), succs(alloc.Adapter()), comments(alloc.Adapter()), cfiInsns(alloc.Adapter()),
-        clinitInsns(alloc.Adapter()), locInsn(nullptr), useRegnos(alloc.Adapter()), defRegnos(alloc.Adapter()),
-        regPressure(nullptr) {}
+        topoPredsSize(0), preds(alloc.Adapter()), succs(alloc.Adapter()), comments(alloc.Adapter()),
+        cfiInsns(alloc.Adapter()), clinitInsns(alloc.Adapter()), locInsn(nullptr), useRegnos(alloc.Adapter()),
+        defRegnos(alloc.Adapter()), regPressure(nullptr) {}
 
   virtual ~DepNode() = default;
+
+  /*
+ * If all unit of this node need when it be scheduling is free, this node can be scheduled,
+ * Return true.
+ */
+  bool IsResourceFree() const {
+    for (uint32 i = 0; i < unitNum; ++i) {
+      Unit *unit = units[i];
+      if (unit != nullptr) {
+        if (!unit->IsFree(i)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /* Mark those unit that this node need occupy unit when it is being scheduled. */
+  void OccupyUnits() {
+    for (uint32 i = 0; i < unitNum; ++i) {
+      Unit *unit = units[i];
+      if (unit != nullptr) {
+        unit->Occupy(*insn, i);
+      }
+    }
+  }
+
+  /* Get unit kind of this node's units[0]. */
+  uint32 GetUnitKind() const {
+    uint32 retValue = 0;
+    if ((units == nullptr) || (units[0] == nullptr)) {
+      return retValue;
+    }
+
+    switch (units[0]->GetUnitId()) {
+      case kUnitIdSlotD:
+        retValue |= kUnitKindSlot0;
+        break;
+      case kUnitIdAgen:
+      case kUnitIdSlotSAgen:
+        retValue |= kUnitKindAgen;
+        break;
+      case kUnitIdSlotDAgen:
+        retValue |= kUnitKindAgen;
+        retValue |= kUnitKindSlot0;
+        break;
+      case kUnitIdHazard:
+      case kUnitIdSlotSHazard:
+        retValue |= kUnitKindHazard;
+        break;
+      case kUnitIdCrypto:
+        retValue |= kUnitKindCrypto;
+        break;
+      case kUnitIdMul:
+      case kUnitIdSlotSMul:
+        retValue |= kUnitKindMul;
+        break;
+      case kUnitIdDiv:
+        retValue |= kUnitKindDiv;
+        break;
+      case kUnitIdBranch:
+      case kUnitIdSlotSBranch:
+        retValue |= kUnitKindBranch;
+        break;
+      case kUnitIdStAgu:
+        retValue |= kUnitKindStAgu;
+        break;
+      case kUnitIdLdAgu:
+        retValue |= kUnitKindLdAgu;
+        break;
+      case kUnitIdFpAluS:
+      case kUnitIdFpAluD:
+        retValue |= kUnitKindFpAlu;
+        break;
+      case kUnitIdFpMulS:
+      case kUnitIdFpMulD:
+        retValue |= kUnitKindFpMul;
+        break;
+      case kUnitIdFpDivS:
+      case kUnitIdFpDivD:
+        retValue |= kUnitKindFpDiv;
+        break;
+      case kUnitIdSlot0LdAgu:
+        retValue |= kUnitKindSlot0;
+        retValue |= kUnitKindLdAgu;
+        break;
+      case kUnitIdSlot0StAgu:
+        retValue |= kUnitKindSlot0;
+        retValue |= kUnitKindStAgu;
+        break;
+      default:
+        break;
+    }
+
+    return retValue;
+  }
 
   Insn *GetInsn() const {
     return insn;
@@ -125,7 +219,7 @@ class DepNode {
     units = unit;
   }
   const Unit *GetUnitByIndex(uint32 idx) const {
-    ASSERT(index < unitNum, "out of units");
+    ASSERT(idx < unitNum, "out of units");
     return units[idx];
   }
   Reservation *GetReservation() const {
@@ -151,6 +245,12 @@ class DepNode {
   }
   void SetLStart(uint32 start) {
     lStart = start;
+  }
+  uint32 GetDelay() const {
+    return delay;
+  }
+  void SetDelay(uint32 prio) {
+    delay = prio;
   }
   uint32 GetVisit() const {
     return visit;
@@ -203,7 +303,7 @@ class DepNode {
   uint32 GetValidPredsSize() const {
     return validPredsSize;
   }
-  void DescreaseValidPredsSize() {
+  void DecreaseValidPredsSize() {
     --validPredsSize;
   }
   void IncreaseValidPredsSize() {
@@ -214,6 +314,21 @@ class DepNode {
   }
   void SetValidSuccsSize(uint32 size) {
     validSuccsSize = size;
+  }
+  void DecreaseValidSuccsSize() {
+    --validSuccsSize;
+  }
+  uint32 GetTopoPredsSize() {
+    return topoPredsSize;
+  }
+  void SetTopoPredsSize(uint32 size) {
+    topoPredsSize = size;
+  }
+  void IncreaseTopoPredsSize() {
+    ++topoPredsSize;
+  }
+  void DecreaseTopoPredsSize() {
+    --topoPredsSize;
   }
   const MapleVector<DepLink*> &GetPreds() const {
     return preds;
@@ -426,6 +541,7 @@ class DepNode {
   uint32 unitNum;
   uint32 eStart;
   uint32 lStart;
+  uint32 delay;   // Identify the critical path priority
   uint32 visit;
   NodeType type;
   ScheduleState state;
@@ -437,6 +553,9 @@ class DepNode {
   /* For scheduling, denotes unscheduled preds/succs number. */
   uint32 validPredsSize;
   uint32 validSuccsSize;
+
+  /* For compute eStart by topological order */
+  uint32 topoPredsSize;
 
   /* Dependence links. */
   MapleVector<DepLink*> preds;

@@ -330,7 +330,7 @@ void GInline::InlineCallsiteSet() {
       heapNode->Dump();
       LogInfo::MapleLogger() << (ignoreLimit ? " ignoreLimit\n" : "\n");
     }
-    auto *transformer = alloc.New<InlineTransformer>(kGreedyInline, *caller, *callee, *callNode, true, cg);
+    auto *transformer = alloc.New<InlineTransformer>(kGreedyInline, *caller, *callee, *callNode, dumpDetail, cg);
     std::vector<CallInfo*> newCallInfo;
     bool inlined = transformer->PerformInline(&newCallInfo);
     if (dumpDetail && !newCallInfo.empty()) {

@@ -298,7 +298,7 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     toFreqs[nnode->GetStmtID()] = (newFreq > 0 || (numer == 0)) ? newFreq : 1;
     if ((updateOp & kUpdateOrigFreq) != 0) {  // upateOp & 1 : update from
       int64_t left = static_cast<int64_t>(((oldFreq - newFreq) > 0 || (oldFreq == 0)) ? (oldFreq - newFreq) : 1);
-      fromFreqs[GetStmtID()] = static_cast<int64_t>(left);
+      fromFreqs[GetStmtID()] = left;
     }
   }
   for (auto &stmt : stmtNodeList) {
@@ -327,10 +327,10 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
           newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / static_cast<int64_t>(denom)) : oldFreq);
         }
         toFreqs[newStmt->GetStmtID()] =
-            (newFreq > 0 || oldFreq == 0 || numer == 0) ? static_cast<int64_t>(newFreq) : 1;
+            (newFreq > 0 || oldFreq == 0 || numer == 0) ? newFreq : 1;
         if ((updateOp & kUpdateOrigFreq) != 0) {
-          FreqType left = static_cast<int64_t>(((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1);
-          fromFreqs[stmt.GetStmtID()] = static_cast<int64_t>(left);
+          FreqType left = static_cast<FreqType>(((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1);
+          fromFreqs[stmt.GetStmtID()] = left;
         }
       }
     }

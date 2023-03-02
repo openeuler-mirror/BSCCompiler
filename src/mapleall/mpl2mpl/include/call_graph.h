@@ -371,7 +371,7 @@ class CGNode : public BaseGraphNode {
     }
   }
 
-  CallInfo *GetCallInfo(StmtNode &stmtNode) {
+  CallInfo *GetCallInfo(const StmtNode &stmtNode) {
     return GetCallInfoByStmtId(stmtNode.GetStmtID());
   }
 

@@ -17,14 +17,14 @@
 #include "aarch64_cgfunc.h"
 namespace maplebe {
 void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb) {
-  int32 stackFrameSize = static_cast<int32>(
+  auto stackFrameSize = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
-  int32 argsToStkPassSize = static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
+  auto argsToStkPassSize = static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
   int32 cfiOffset = stackFrameSize;
   Insn &stackDefNextInsn = FindStackDefNextInsn(bb);
   InsertCFIDefCfaOffset(bb, stackDefNextInsn, cfiOffset);
   cfiOffset = static_cast<int32>(GetOffsetFromCFA() - argsToStkPassSize);
-  AArch64CGFunc &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
 
   if (useFP) {
     (void)bb.InsertInsnBefore(stackDefNextInsn, aarchCGFunc.CreateCfiOffsetInsn(stackBaseReg, -cfiOffset, k64BitSize));

@@ -308,6 +308,12 @@ maplecl::Option<bool> onlyPreprocess({"-E"},
                                   "  -E    \tPreprocess only; do not compile, assemble or link.\n",
                                   {driverCategory, clangCategory});
 
+maplecl::Option<bool> tailcall({"--tailcall", "-foptimize-sibling-calls"},
+                               "  --tailcall/-foptimize-sibling-calls                   \tDo tail call optimization\n"
+                               "  --no-tailcall/-fno-optimize-sibling-calls\n",
+                               {cgCategory, driverCategory},
+                               maplecl::DisableEvery({"-fno-optimize-sibling-calls", "--no-tailcall"}));
+
 maplecl::Option<bool> noStdLib({"-nostdlib"},
                                   "  -nostdlib    \tDo not look for object files in standard path.\n",
                                   {driverCategory, ldCategory});
@@ -316,6 +322,16 @@ maplecl::Option<bool> r({"-r"},
                                   "  -r    \tProduce a relocatable object as output. This is also"
                                   " known as partial linking.\n",
                                   {driverCategory, ldCategory});
+maplecl::Option<bool> fnoDiagnosticsShowCaret({"-fno-diagnostics-show-caret"},
+                            "  -fno-diagnostics-show-caret    \tBy default, each diagnostic emitted includes"
+                            " the original source line and a caret `^' indicating the column.  This option"
+                            "suppresses this information.\n",
+                            {driverCategory, asCategory, ldCategory});
+
+maplecl::Option<bool> wCCompat({"-Wc++-compat"},
+                            "  -Wc++-compat    \tWarn about C constructs that are not in the "
+                            "common subset of C and C++ .\n",
+                            {driverCategory, asCategory, ldCategory});
 
 /* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},
@@ -492,6 +508,21 @@ maplecl::Option<std::string> specs({"-specs"},
 maplecl::Option<std::string> folder({"-p"},
                             "  -p <value>    \tsave former folder when generating multiple output.\n",
                             {driverCategory});
+
+maplecl::Option<std::string> imacros({"-imacros", "--imacros"},
+                            "  -imacros    \tExactly like `-include', except that any output produced by"
+                            " scanning FILE is thrown away.\n",
+                            {driverCategory, clangCategory});
+
+maplecl::Option<std::string> fdiagnosticsColor({"-fdiagnostics-color"},
+                            "  -fdiagnostics-color    \tUse color in diagnostics.  WHEN is 'never',"
+                            " 'always', or 'auto'.\n",
+                            {driverCategory, clangCategory, asCategory, ldCategory});
+
+maplecl::Option<std::string> mtlsSize({"-mtls-size"},
+                            "  -mtls-size      \tSpecify bit size of immediate TLS offsets. Valid values are 12, "
+                            "24, 32, 48. This option requires binutils 2.26 or newer.\n",
+                            {driverCategory, asCategory, ldCategory});
 
 /* ##################### DIGITAL Options ############################################################### */
 

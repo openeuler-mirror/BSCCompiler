@@ -518,8 +518,12 @@ class StmtAttrs {
   StmtAttrs &operator=(const StmtAttrs &p) = default;
   ~StmtAttrs() = default;
 
-  void SetAttr(StmtAttrKind x) {
-    attrFlag |= (1u << static_cast<unsigned int>(x));
+  void SetAttr(StmtAttrKind x, bool flag = true) {
+    if (flag) {
+      attrFlag |= (1u << static_cast<unsigned int>(x));
+    } else {
+      attrFlag &= ~(1u << static_cast<unsigned int>(x));
+    }
   }
 
   bool GetAttr(StmtAttrKind x) const {

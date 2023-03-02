@@ -35,19 +35,6 @@ MapleString::MapleString(const MapleString &str)
 MapleString::MapleString(const std::string &str, MemPool *currMp)
     : MapleString(str.data(), str.length(), currMp) {}
 
-char *MapleString::NewData(MemPool &currMp, const char *source, size_t len) {
-  if (source == nullptr && len == 0) {
-    return nullptr;
-  }
-  char *str = static_cast<char*>(currMp.Malloc((len + 1) * sizeof(char)));
-  CHECK_FATAL(str != nullptr, "MemPool::Malloc failed");
-  if (source != nullptr && len != 0) {
-    errno_t err = memcpy_s(str, len, source, len);
-    CHECK_FATAL(err == EOK, "memcpy_s failed");
-  }
-  str[len] = 0;
-  return str;
-}
 
 void MapleString::clear() {
   data = nullptr;

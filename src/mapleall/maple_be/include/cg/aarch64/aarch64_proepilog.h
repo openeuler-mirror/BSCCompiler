@@ -52,7 +52,7 @@ class AArch64GenProEpilog : public GenProEpilog {
   MemOperand *GetDownStack();
   void GenStackGuard();
   void AddStackGuard(BB &bb);
-  BB &GenStackGuardCheckInsn(BB &bb);
+  void GenStackGuardCheckInsn(BB &bb);
   void AppendInstructionAllocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void AppendInstructionAllocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void GeneratePushRegs();

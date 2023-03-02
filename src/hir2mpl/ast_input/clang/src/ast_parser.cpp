@@ -2605,7 +2605,7 @@ ASTExpr *ASTParser::ProcessExprAtomicExpr(MapleAllocator &allocator,
       SetAtomExchangeType(allocator, atomicExpr, *astExpr);
     }
   } else {
-    const clang::QualType valType = GetPointeeType(atomicExpr);
+    const clang::QualType valType = GetPointeeType(*atomicExpr.getPtr());
     astExpr->SetVal1Type(astFile->CvtType(valType));
   }
   astExpr->SetOrderExpr(ProcessExpr(allocator, atomicExpr.getOrder()));

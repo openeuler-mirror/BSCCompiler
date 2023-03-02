@@ -135,7 +135,7 @@ bool BB::InsertPhi(MapleAllocator *alloc, VersionSt *versionSt) {
   auto status = phiList.emplace(std::make_pair(versionSt->GetOst()->GetIndex(), phiNode));
   if (status.second) {
     status.first->second.GetPhiOpnds().resize(pred.size());
-    for (int idx = 0; idx < pred.size(); ++idx) {
+    for (size_t idx = 0; idx < pred.size(); ++idx) {
       status.first->second.SetPhiOpnd(idx, *versionSt);
     }
   }
@@ -420,6 +420,7 @@ void BB::InsertMeStmtBefore(const MeStmt *meStmt, MeStmt *inStmt) {
 }
 
 void BB::InsertMeStmtAfter(const MeStmt *meStmt, MeStmt *inStmt) {
+  CHECK_FATAL(inStmt != nullptr, "null ptr check");
   meStmtList.insertAfter(meStmt, inStmt);
   inStmt->SetBB(this);
 }
@@ -494,7 +495,8 @@ void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
   }
   for (size_t i = 0; i < len; ++i) {
     FreqType sfreq = GetSuccFreq()[i];
-    FreqType scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));
+    FreqType scalefreq = (succFreqs == 0 ?
+        static_cast<FreqType>(static_cast<size_t>(frequency) / len) : (sfreq * frequency / succFreqs));
     SetSuccFreq(static_cast<int>(i), scalefreq);
     // update succ frequency with new difference if needed
     if (updateBBFreqOfSucc) {

@@ -63,11 +63,13 @@ uint32 CGOptions::jumpAlignPow = 5;
 uint32 CGOptions::funcAlignPow = 5;
 bool CGOptions::liteProfGen = false;
 bool CGOptions::liteProfUse = false;
+bool CGOptions::liteProfVerify = false;
 std::string CGOptions::liteProfile = "";
 std::string CGOptions::litePgoWhiteList = "";
 std::string CGOptions::instrumentationOutPutPath = "";
 std::string CGOptions::litePgoOutputFunction = "";
 std::string CGOptions::functionProrityFile = "";
+std::string CGOptions::cpu = "cortex-a53";
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -76,6 +78,9 @@ bool CGOptions::useBarriersForVolatile = true;
 bool CGOptions::exclusiveEH = false;
 bool CGOptions::doEBO = false;
 bool CGOptions::doCGSSA = false;
+bool CGOptions::doGlobalSchedule = false;
+bool CGOptions::doLocalSchedule = false;
+bool CGOptions::doVerifySchedule = false;
 bool CGOptions::calleeEnsureParam = true;
 bool CGOptions::doIPARA = true;
 bool CGOptions::doCFGO = false;
@@ -533,8 +538,8 @@ bool CGOptions::SolveOptions(bool isDebug) {
                           : ClearOption(CGOptions::kProEpilogueOpt);
   }
 
-  if (opts::cg::tailcall.IsEnabledByUser()) {
-    opts::cg::tailcall ? EnableTailCallOpt() : DisableTailCallOpt();
+  if (opts::tailcall.IsEnabledByUser()) {
+    opts::tailcall ? EnableTailCallOpt() : DisableTailCallOpt();
   }
 
   if (opts::cg::calleeregsPlacement.IsEnabledByUser()) {
@@ -658,6 +663,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::cgSsa ? EnableCGSSA() : DisableCGSSA();
   }
 
+  if (opts::cg::globalSchedule.IsEnabledByUser()) {
+    opts::cg::globalSchedule ? EnableGlobalSchedule() : DisableGlobalSchedule();
+  }
+
   if (opts::cg::common.IsEnabledByUser()) {
     opts::cg::common ? EnableCommon() : DisableCommon();
   }
@@ -684,6 +693,9 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::litePgoGen.IsEnabledByUser()) {
     opts::cg::litePgoGen ? EnableLiteProfGen() : DisableLiteProfGen();
+  }
+  if (opts::cg::litePgoVerify.IsEnabledByUser()) {
+    opts::cg::litePgoVerify ? EnableLiteProfVerify() : DisableLiteProfVerify();
   }
 
   if (opts::cg::litePgoOutputFunc.IsEnabledByUser()) {
@@ -796,6 +808,8 @@ void CGOptions::EnableO0() {
   optimizeLevel = kLevel0;
   doEBO = false;
   doCGSSA = false;
+  doGlobalSchedule = false;
+  doLocalSchedule = false;
   doCFGO = false;
   doICO = false;
   doPrePeephole = false;
@@ -841,6 +855,8 @@ void CGOptions::EnableO2() {
   optimizeLevel = kLevel2;
   doEBO = true;
   doCGSSA = true;
+  doGlobalSchedule = true;
+  doLocalSchedule = true;
   doCFGO = true;
   doICO = true;
   doPrePeephole = true;
@@ -884,6 +900,8 @@ void CGOptions::EnableLiteCG() {
   optimizeLevel = kLevelLiteCG;
   doEBO = false;
   doCGSSA = false;
+  doGlobalSchedule = false;
+  doLocalSchedule = false;
   doCFGO = false;
   doICO = false;
   doPrePeephole = false;

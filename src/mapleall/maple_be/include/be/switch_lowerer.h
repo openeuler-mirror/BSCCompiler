@@ -49,7 +49,7 @@ class SwitchLowerer {
 
   maple::MIRModule &mirModule;
   maple::SwitchNode *stmt;
-  CGLowerer *cgLowerer;
+  CGLowerer *cgLowerer = nullptr;
   /*
    * the original switch table is sorted and then each dense (in terms of the
    * case tags) region is condensed into 1 switch item; in the switchItems

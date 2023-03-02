@@ -94,6 +94,7 @@
 #include "lfo_unroll.h"
 #include "me_safety_warning.h"
 #include "me_sink.h"
+#include "me_tailcall.h"
 
 namespace maple {
 using MeFuncOptTy = MapleFunctionPhase<MeFunction>;

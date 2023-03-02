@@ -506,6 +506,14 @@ class Insn {
     return !isCallReturnUnsigned;
   }
 
+  void SetMayTailCall() {
+    mayTailCall = true;
+  }
+
+  bool GetMayTailCall() const {
+    return mayTailCall;
+  }
+
   void SetRetType(RetType retTy) {
     this->retType = retTy;
   }
@@ -664,6 +672,7 @@ class Insn {
   bool asmDefCondCode = false;
   bool asmModMem = false;
   bool needSplit = false;
+  bool mayTailCall = false;
 
   /* for dynamic language to mark reference counting */
   int32 refSkipIdx = -1;

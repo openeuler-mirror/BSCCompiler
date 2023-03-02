@@ -52,6 +52,10 @@ class RedundantComputeElim;
 class TailCallOpt;
 class Rematerializer;
 class CGProfGen;
+class GlobalSchedule;
+class LocalSchedule;
+class ControlDepAnalysis;
+class InterDataDepAnalysis;
 class CGAggressiveOpt;
 
 class Globals {
@@ -307,6 +311,14 @@ class CG {
   virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const = 0;
+  virtual GlobalSchedule *CreateGlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
+                                               InterDataDepAnalysis &idda) const {
+    return nullptr;
+  }
+  virtual LocalSchedule *CreateLocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
+                                             InterDataDepAnalysis &idda) const {
+    return nullptr;
+  }
   virtual LocalOpt *CreateLocalOpt(MemPool &mp, CGFunc &f, ReachingDefinition&) const {
     return nullptr;
   };

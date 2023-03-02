@@ -192,6 +192,7 @@ class Options {
   static bool doOutline;
   static size_t outlineThreshold;
   static size_t outlineRegionMax;
+  static bool tailcall;
 
  private:
   void DecideMpl2MplRealLevel() const;

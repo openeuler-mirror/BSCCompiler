@@ -73,6 +73,7 @@ class LibAstFile {
   void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const;
+  void SetAttrVisibility(const clang::DeclaratorDecl &decl, GenericAttrs &genAttrs) const;
   void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) const;
   void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CheckUnsupportedVarAttrs(const clang::VarDecl &decl) const;
@@ -92,8 +93,9 @@ class LibAstFile {
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
   MIRType *CvtComplexType(const clang::QualType srcType) const;
   MIRType *CvtVectorType(const clang::QualType srcType);
-  MIRType *CvtVectorSizeType(MIRType *elemType, MIRType *destType, uint32_t arrLen, uint32_t vecLen,
-                             uint32 alignNum);
+  MIRType *CvtVectorSizeType(const MIRType &elemType, MIRType *destType, uint32_t arrLen, uint32_t vecLen,
+                             uint32 alignNum) const;
+  bool CheckSourceTypeNameNotNull(const clang::QualType &currQualType, MIRType *&elemType, bool isSourceType);
   MIRType *CvtTypedef(const clang::QualType &qualType);
   MIRType *CvtTypedefDecl(const clang::TypedefNameDecl &typedefDecl);
   bool TypeHasMayAlias(const clang::QualType srcType) const;

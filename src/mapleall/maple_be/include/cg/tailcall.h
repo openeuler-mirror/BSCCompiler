@@ -42,10 +42,10 @@ class TailCallOpt {
   void Run();
   bool DoTailCallOpt();
   void TideExitBB();
-  bool OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) const;
-  void TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB);
-  void ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap);
-  MapleMap<BB*, MapleSet<Insn*>> &GetExitBB2CallSitesMap() {
+  bool OptimizeTailBB(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, const BB &exitBB) const;
+  void TailCallBBOpt(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, BB &exitBB);
+  void ConvertToTailCalls(MapleSet<Insn*, InsnIdCmp> &callInsnsMap);
+  MapleMap<BB*, MapleSet<Insn*, InsnIdCmp>, BBIdCmp> &GetExitBB2CallSitesMap() {
     return exitBB2CallSitesMap;
   }
   void SetCurTailcallExitBB(BB *bb) {
@@ -67,19 +67,16 @@ class TailCallOpt {
   virtual bool InsnIsCall(Insn &insn) const = 0;
   virtual bool InsnIsUncondJump(Insn &insn) const = 0;
   virtual bool InsnIsAddWithRsp(Insn &insn) const = 0;
-  virtual bool OpndIsStackRelatedReg(RegOperand &opnd) const = 0;
   virtual bool OpndIsR0Reg(RegOperand &opnd) const = 0;
   virtual bool OpndIsCalleeSaveReg(RegOperand &opnd) const = 0;
-  virtual bool IsAddOrSubOp(MOperator mOp) const = 0;
   virtual void ReplaceInsnMopWithTailCall(Insn &insn) = 0;
-  bool IsStackAddrTaken();
 
  protected:
   CGFunc &cgFunc;
   MemPool *memPool;
   MapleAllocator tmpAlloc;
   bool stackProtect = false;
-  MapleMap<BB*, MapleSet<Insn*>> exitBB2CallSitesMap;
+  MapleMap<BB*, MapleSet<Insn*, InsnIdCmp>, BBIdCmp> exitBB2CallSitesMap;
   BB *curTailcallExitBB = nullptr;
 };
 

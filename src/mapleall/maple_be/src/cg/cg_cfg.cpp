@@ -838,6 +838,7 @@ void CGCFG::UnreachCodeAnalysis() const {
     }
 
     unreachBB->GetPrev()->SetNext(unreachBB->GetNext());
+    cgFunc->GetCommonExitBB()->RemovePreds(*unreachBB);
     unreachBB->GetNext()->SetPrev(unreachBB->GetPrev());
 
     for (BB *sucBB : unreachBB->GetSuccs()) {

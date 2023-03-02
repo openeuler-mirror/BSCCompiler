@@ -65,7 +65,7 @@ class OutlineCandidate {
     return returnValue;
   }
 
-  void CreateReturnExpr(SymbolRegPair &outputPair) {
+  void CreateReturnExpr(const SymbolRegPair &outputPair) {
     if (returnValue != nullptr) {
       return;
     }
@@ -152,7 +152,7 @@ class OutlineGroup {
   std::vector<OutlineCandidate> regionGroup;
   std::vector<BaseNode*> parameterList;
   std::vector<uint32> extraParameterValueNumber;
-  MIRFunction *outlineFunc;
+  MIRFunction *outlineFunc = nullptr;
   GroupId groupId;
 };
 

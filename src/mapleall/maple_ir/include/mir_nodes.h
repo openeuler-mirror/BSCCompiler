@@ -697,6 +697,14 @@ class CompareNode : public BinaryNode {
     opndType = type;
   }
 
+  bool IsSameContent(const BaseNode *node) const override {
+    if (!BinaryNode::IsSameContent(node)) {
+      return false;
+    }
+    auto compareNode = static_cast<const CompareNode *>(node);
+    return opndType == compareNode->GetOpndType();
+  }
+
  private:
   PrimType opndType = kPtyInvalid;  // type of operands.
 };
@@ -736,6 +744,14 @@ class DepositbitsNode : public BinaryNode {
 
   void SetBitsSize(uint8 size) {
     bitsSize = size;
+  }
+
+  bool IsSameContent(const BaseNode *node) const override {
+    if (!BinaryNode::IsSameContent(node)) {
+      return false;
+    }
+    auto depositebitsNode = static_cast<const DepositbitsNode *>(node);
+    return bitsOffset == depositebitsNode->GetBitsOffset() && bitsSize == depositebitsNode->GetBitsSize();
   }
 
  private:
@@ -782,6 +798,14 @@ class ResolveFuncNode : public BinaryNode {
 
   void SetPUIdx(PUIdx idx) {
     puIdx = idx;
+  }
+
+  bool IsSameContent(const BaseNode *node) const override {
+    if (!BinaryNode::IsSameContent(node)) {
+      return false;
+    }
+    auto resolveFuncNode = static_cast<const ResolveFuncNode *>(node);
+    return puIdx == resolveFuncNode->GetPuIdx();
   }
 
  private:
@@ -1542,6 +1566,14 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
 
   void CopySafeRegionAttr(const StmtAttrs &stmtAttr) {
     this->stmtAttrs.AppendAttr(stmtAttr.GetTargetAttrFlag(STMTATTR_insaferegion));
+  }
+
+  void SetMayTailcall(bool flag = true) {
+    stmtAttrs.SetAttr(STMTATTR_mayTailcall, flag);
+  }
+
+  bool GetMayTailCall() {
+    return stmtAttrs.GetAttr(STMTATTR_mayTailcall);
   }
 
   const StmtAttrs &GetStmtAttrs() const {

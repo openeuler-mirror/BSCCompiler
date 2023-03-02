@@ -1596,7 +1596,6 @@ bool OptimizeBB::FoldCondBranch() {
   }
   auto stmt1 = static_cast<CondGotoMeStmt *>(currBB->GetLastMe());
   auto stmt2 = static_cast<CondGotoMeStmt *>(succBB->GetFirstMe());
-  ASSERT_NOT_NULL(stmt1);
   if (stmt1->GetOp() != stmt2->GetOp()) {
     return false;
   }

@@ -290,7 +290,7 @@ void McSSAPre::DetermineMinCut() {
   if (maxFlowRoutes.size() >= 20) {
     // apply arbitrary heuristics to reduce search time
     relaxedSearch = true;
-    relaxedMaxFlowValue = maxFlowValue * (maxFlowRoutes.size() / 10);
+    relaxedMaxFlowValue = maxFlowValue * static_cast<FreqType>(maxFlowRoutes.size() / 10);
   }
   bool success = !relaxedSearch && SearchMinCut(cut, cutSet, 0, 0);
   if (!success) {
@@ -423,9 +423,9 @@ bool McSSAPre::FindAnotherRoute() {
     return false;
   }
   // find bottleneck capacity along route
-  uint64 minAvailCap = route->visits[0].AvailableCapacity();
+  FreqType minAvailCap = route->visits[0].AvailableCapacity();
   for (size_t i = 1; i < route->visits.size(); i++) {
-    uint64 curAvailCap = route->visits[i].AvailableCapacity();
+    FreqType curAvailCap = route->visits[i].AvailableCapacity();
     minAvailCap = std::min(minAvailCap, curAvailCap);
   }
   route->flowValue = minAvailCap;

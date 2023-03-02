@@ -145,6 +145,7 @@ bool Options::wpaa = false;  // whole program alias analysis
 bool Options::doOutline = false;
 size_t Options::outlineThreshold = 12800;
 size_t Options::outlineRegionMax = 512;
+bool Options::tailcall = true;
 
 Options &Options::GetInstance() {
   static Options instance;
@@ -371,6 +372,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(sideEffectWhiteList, opts::mpl2mpl::sideEffectWhiteList);
   maplecl::CopyIfEnabled(dumpIPA, opts::mpl2mpl::dumpIPA);
   maplecl::CopyIfEnabled(wpaa, opts::mpl2mpl::wpaa);
+  maplecl::CopyIfEnabled(tailcall, opts::tailcall);
 
   return true;
 }

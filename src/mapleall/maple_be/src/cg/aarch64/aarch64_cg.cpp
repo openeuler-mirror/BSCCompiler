@@ -22,6 +22,7 @@ namespace maplebe {
 #include "immvalid.def"
 #define DEFINE_MOP(...) {__VA_ARGS__},
 const InsnDesc AArch64CG::kMd[kMopLast] = {
+#include "abstract_mmir.def"
 #include "aarch64_md.def"
 #include "aarch64_mem_md.def"
 };
@@ -350,7 +351,7 @@ void AArch64CG::EnrollTargetPhases(MaplePhaseManager *pm) const {
 
 Insn &AArch64CG::BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) {
   ASSERT(defOpnd.IsRegister(), "build SSA on register operand");
-  CHECK_FATAL(defOpnd.IsOfIntClass() || defOpnd.IsOfFloatOrSIMDClass(), " unknown operand type ");
+  CHECK_FATAL(defOpnd.IsOfIntClass() || defOpnd.IsOfFloatOrSIMDClass() || defOpnd.IsOfCC(), " unknown operand type ");
   bool is64bit = defOpnd.GetSize() == k64BitSize;
   MOperator mop = MOP_nop;
   if (defOpnd.GetSize() == k128BitSize) {

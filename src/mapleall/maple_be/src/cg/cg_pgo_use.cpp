@@ -32,7 +32,11 @@ bool CGProfUse::ApplyPGOData() {
   }
   CHECK_FATAL(bbInfo != nullptr, "Get profile Failed");
   if (!VerifyProfiledata(iBBs, *bbInfo)) {
-    CHECK_FATAL_FALSE("Verify lite profile data Failed!");
+    if (!CGOptions::DoLiteProfVerify()) {
+      LogInfo::MapleLogger() << "skip profile applying for " << f->GetName() << " due to out of date\n";
+    } else {
+      CHECK_FATAL_FALSE("Verify lite profile data Failed!");
+    }
     return false;
   }
 

@@ -164,9 +164,9 @@ class Bound {
       return true;
     }
     if (IsPrimTypeUint64(fromType)) {
-      return static_cast<uint64>(constant) == GetRealValue(constant, toType);
+      return constant == GetRealValue(constant, toType);
     } else if (IsPrimTypeUint64(toType)) {
-      return static_cast<uint64>(constant) == GetRealValue(constant, fromType);
+      return constant == GetRealValue(constant, fromType);
     } else {
       return GetRealValue(constant, fromType) == GetRealValue(constant, toType);
     }
