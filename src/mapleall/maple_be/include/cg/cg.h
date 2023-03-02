@@ -91,6 +91,10 @@ class Globals {
     return mad;
   }
 
+  void ClearMAD() {
+    mad = nullptr;
+  }
+
   void SetOptimLevel(int32 opLevel) {
     optimLevel = opLevel;
   }

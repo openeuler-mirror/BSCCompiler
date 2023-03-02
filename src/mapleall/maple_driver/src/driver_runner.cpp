@@ -370,6 +370,7 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
   if (opts::debug) {
     LogInfo::MapleLogger() << "Mplcg consumed " << timer.ElapsedMilliseconds() << "ms" << '\n';
   }
+  Globals::GetInstance()->ClearMAD();
 }
 
 void DriverRunner::InitProfile() const {
