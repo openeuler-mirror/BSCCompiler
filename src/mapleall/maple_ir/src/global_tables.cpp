@@ -497,7 +497,7 @@ FPConstTable::~FPConstTable() {
   for (const auto &doubleConst : doubleConstTable) {
     delete doubleConst.second;
   }
-  for(const auto &float128Const : float128ConstTable) {
+  for (const auto &float128Const : float128ConstTable) {
     delete float128Const.second;
   }
 }

@@ -125,7 +125,7 @@ class SafeExe {
       // child process
       fflush(nullptr);
       if (compileeFlag == Compilee::hir2mpl) {
-        std::string ld_path =":";
+        std::string ld_path = ":";
         if (FileUtils::SafeGetenv(kLdLibPath) != "") {
           ld_path += FileUtils::SafeGetenv(kLdLibPath);
           ldLibPath += ld_path;

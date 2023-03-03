@@ -11371,7 +11371,7 @@ Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, 
   BB *nextBB = CreateNewBB();
   nextBB->AddLabel(nextBBLableIdx);
   nextBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_dmb_ish, AArch64CG::kMd[MOP_dmb_ish]));
-  /* special handle for boolean return type */ 
+  /* special handle for boolean return type */
   if (intrinopNode.GetPrimType() == PTY_u1) {
     nextBB->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_wandrri12, *regLoaded, *regLoaded,
                                                    CreateImmOperand(PTY_u32, 1)));

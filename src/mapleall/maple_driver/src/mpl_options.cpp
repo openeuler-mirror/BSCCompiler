@@ -513,7 +513,7 @@ void MplOptions::DumpActionTree(const Action &action, int indents) const {
 std::string MplOptions::GetCommonOptionsStr() const {
   std::string driverOptions;
   static const std::vector<maplecl::OptionInterface *> extraExclude = {
-      &opts::run, &opts::optionOpt, &opts::infile, &opts::mpl2mplOpt, &opts::meOpt,&opts::mplcgOpt,
+      &opts::run, &opts::optionOpt, &opts::infile, &opts::mpl2mplOpt, &opts::meOpt, &opts::mplcgOpt,
       &opts::o0, &opts::o1, &opts::o2, &opts::o3, &opts::os
   };
 

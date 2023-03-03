@@ -27,7 +27,7 @@ maplecl::Option<bool> fpie({"-fpie", "--fpie"},
                           {cgCategory, driverCategory, ldCategory},
                           maplecl::DisableEvery({"--no-pie", "-no-pie"}));
 
-maplecl::Option<bool> fPIE({"-fPIE", "--fPIE",},
+maplecl::Option<bool> fPIE({"-fPIE", "--fPIE"},
                           "  --fPIE                          \tGenerate position-independent executable in large mode\n"
                           "  --no-pie/-no-pie\n",
                           {cgCategory, driverCategory, ldCategory});

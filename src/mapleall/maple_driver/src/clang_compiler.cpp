@@ -92,7 +92,7 @@ bool IsUseSafeOption() {
       opts::npeDynamicCheckAll.IsEnabledByUser() || opts::boundaryDynamicCheck.IsEnabledByUser() ||
       opts::boundaryDynamicCheckSilent.IsEnabledByUser() || opts::safeRegionOption.IsEnabledByUser() ||
       opts::enableArithCheck.IsEnabledByUser() || opts::defaultSafe.IsEnabledByUser()) {
-    flag= true;
+    flag = true;
   }
   return flag;
 }

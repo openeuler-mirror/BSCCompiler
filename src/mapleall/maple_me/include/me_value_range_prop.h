@@ -128,7 +128,7 @@ class Bound {
 
   bool IsGreaterThanOrEqualToMin(PrimType pType) const {
     CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
-    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) >= static_cast<uint64>(GetMinNumber(pType)):
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) >= static_cast<uint64>(GetMinNumber(pType)) :
         GetRealValue(constant, pType) >= GetRealValue(GetMinNumber(pType), pType);
   }
 
@@ -146,7 +146,7 @@ class Bound {
 
   bool IsGreaterThanOrEqualTo(const Bound rightBound, PrimType pType) const {
     CHECK_FATAL(IsNeededPrimType(pType), "must not be here");
-    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) >= static_cast<uint64>(rightBound.GetConstant()):
+    return IsPrimTypeUint64(pType) ? static_cast<uint64>(constant) >= static_cast<uint64>(rightBound.GetConstant()) :
         GetRealValue(constant, pType) >= GetRealValue(rightBound.GetConstant(), pType);
   }
 

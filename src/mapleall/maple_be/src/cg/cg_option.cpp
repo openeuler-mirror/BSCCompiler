@@ -221,7 +221,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
     /* To avoid fpie mode being modified twice, need to ensure fpie is not opened. */
-    if(!opts::cg::fpie && !opts::cg::fPIE) {
+    if (!opts::cg::fpie && !opts::cg::fPIE) {
       if (opts::cg::fPIC) {
         SetPICOptionHelper(kLargeMode);
         SetPIEMode(kClose);

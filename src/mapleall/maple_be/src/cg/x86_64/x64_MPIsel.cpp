@@ -1090,7 +1090,7 @@ Operand *X64MPIsel::SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, 
 
 Operand *X64MPIsel::SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode) {
   ASSERT(opcode == OP_div || opcode == OP_rem, "unsupported opcode");
-  if(IsSignedInteger(primType) || IsUnsignedInteger(primType)) {
+  if (IsSignedInteger(primType) || IsUnsignedInteger(primType)) {
     uint32 bitSize = GetPrimTypeBitSize(primType);
     /* copy dividend to eax */
     RegOperand &raxOpnd = cgFunc->GetOpndBuilder()->CreatePReg(x64::RAX, bitSize,

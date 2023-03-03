@@ -370,7 +370,7 @@ void AArch64CombineRedundantX16Opt::CombineRedundantX16DefInsns(BB &bb) {
   if (combineInfos->empty()) {
     return;
   }
-  for (uint32 i = 0; i < combineInfos->size(); ++i ) {
+  for (uint32 i = 0; i < combineInfos->size(); ++i) {
     CombineInfo *combineInfo = (*combineInfos)[i];
     if (combineInfo->combineUseInfos->size() <= 1) {
       continue;
@@ -378,7 +378,7 @@ void AArch64CombineRedundantX16Opt::CombineRedundantX16DefInsns(BB &bb) {
     UseX16InsnInfo *firstInsnInfo = (*combineInfo->combineUseInfos)[0];
     auto &oldImmOpnd = static_cast<ImmOperand&>(firstInsnInfo->addInsn->GetOperand(kInsnThirdOpnd));
     auto &commonAddImmOpnd = aarFunc.CreateImmOperand(
-        combineInfo->combineAddImm,oldImmOpnd.GetSize(), oldImmOpnd.IsSignedValue());
+        combineInfo->combineAddImm, oldImmOpnd.GetSize(), oldImmOpnd.IsSignedValue());
     uint32 size = combineInfo->addUseOpnd->GetSize();
     aarFunc.SelectAddAfterInsnBySize(firstInsnInfo->addInsn->GetOperand(kInsnFirstOpnd), *combineInfo->addUseOpnd,
                                      commonAddImmOpnd, size, false, *firstInsnInfo->addInsn);

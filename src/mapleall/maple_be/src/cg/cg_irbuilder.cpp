@@ -146,11 +146,11 @@ ListOperand &OperandBuilder::CreateList(MemPool *mp) {
   return mp ? *mp->New<ListOperand>(alloc) : *alloc.New<ListOperand>(alloc);
 }
 
-FuncNameOperand &OperandBuilder::CreateFuncNameOpnd(MIRSymbol &symbol, MemPool *mp){
+FuncNameOperand &OperandBuilder::CreateFuncNameOpnd(MIRSymbol &symbol, MemPool *mp) {
   return mp ? *mp->New<FuncNameOperand>(symbol) : *alloc.New<FuncNameOperand>(symbol);
 }
 
-LabelOperand &OperandBuilder::CreateLabel(const char *parent, LabelIdx idx, MemPool *mp){
+LabelOperand &OperandBuilder::CreateLabel(const char *parent, LabelIdx idx, MemPool *mp) {
   return mp ? *mp->New<LabelOperand>(parent, idx, *mp) : *alloc.New<LabelOperand>(parent, idx, *alloc.GetMemPool());
 }
 

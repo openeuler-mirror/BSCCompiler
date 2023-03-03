@@ -197,7 +197,7 @@ void CGCFG::BuildCFG() const {
 
 static inline uint32 CRC32Compute(uint32_t crc, uint32 val) {
   crc ^= 0xFFFFFFFFU;
-  for (int32 idx = 3; idx >=0 ; idx--) {
+  for (int32 idx = 3; idx >= 0; idx--) {
     uint8 byteVal = (val >> (static_cast<uint32>(idx) * k8BitSize)) & 0xffu;
     int TableIdx = (crc ^ byteVal) & 0xffu;
     crc = CRCTable[TableIdx] ^ (crc >> k8BitSize);
@@ -210,7 +210,7 @@ uint32 CGCFG::ComputeCFGHash() {
   FOR_ALL_BB(bb, cgFunc) {
     hash = CRC32Compute (hash, bb->GetId());
     for (BB *sucBB : bb->GetSuccs()) {
-      hash = CRC32Compute (hash ,sucBB->GetId());
+      hash = CRC32Compute (hash, sucBB->GetId());
     }
   }
   return hash;

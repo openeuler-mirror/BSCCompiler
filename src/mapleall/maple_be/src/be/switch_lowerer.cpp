@@ -388,7 +388,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
     }
     if (start <= end) {  /* recursive call */
       BlockNode *tmp = BuildCodeForSwitchItems(start, end, lowBlockNodeChecked, highBlockNodeChecked,
-                                               sumFreq(start, end) );
+                                               sumFreq(start, end));
       CHECK_FATAL(tmp != nullptr, "tmp should not be nullptr");
       localBlk->AppendStatementsFromBlock(*tmp);
     } else if (!lowBlockNodeChecked || !highBlockNodeChecked) {

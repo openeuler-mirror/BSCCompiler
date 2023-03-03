@@ -46,7 +46,7 @@ bool Insn::IsBasicOp() const {
   return md ? md->IsBasicOp() : false;
 }
 bool Insn::IsConversion() const {
-  return md? md->IsConversion() : false;
+  return md ? md->IsConversion() : false;
 }
 bool Insn::IsUnaryOp() const {
   return md ? md->IsUnaryOp() : false;
