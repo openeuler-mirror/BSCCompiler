@@ -33,11 +33,6 @@ bool IsPrefixDetected(const std::string_view &opt) {
     return true;
   }
 
-  /* -Wl is linker option */
-  if (opt.substr(0, 3) == "-Wl") { // 3: length of -Wl option
-    return false;
-  }
-
   /* It should be "--" or "-" */
   return (opt[0] == '-');
 }
@@ -144,12 +139,7 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
   }
 
   if (IsJoinedValPermitted() && (GetValue() != "")) {
-    if (keyArg.key == "-Wl") {
-      // 3 is length of -Wl
-      SetValue(GetValue() + std::string(keyArg.val).substr(3));
-    } else {
-      SetValue(GetValue() + " " + std::string(keyArg.key) + " " + std::string(keyArg.val));
-    }
+    SetValue(GetValue() + " " + std::string(keyArg.key) + " " + std::string(keyArg.val));
   } else {
     SetValue(std::string(keyArg.val));
   }

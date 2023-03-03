@@ -521,11 +521,7 @@ std::string MplOptions::GetCommonOptionsStr() const {
     if (!(std::find(std::begin(extraExclude), std::end(extraExclude), opt) != std::end(extraExclude))) {
       for (const auto &val : opt->GetRawValues()) {
         if (!val.empty()) {
-          if (opt->GetName() == "-Wl") {
-            driverOptions += val + " ";
-          } else {
-            driverOptions += opt->GetName() + " " + val + " ";
-          }
+          driverOptions += opt->GetName() + " " + val + " ";
         } else {
           driverOptions += opt->GetName() + " ";
         }
@@ -573,14 +569,8 @@ ErrorCode MplOptions::CheckInputFiles() {
   /* Set input files directly: maple file1 file2 */
   for (auto &arg : badArgs) {
     if (FileUtils::IsFileExists(arg.first)) {
-      size_t index = arg.first.find_last_of(".");
-      std::string tmp = arg.first.substr(index);
-      if (tmp == ".a" || tmp == ".so") {
-        linkInputFiles.push_back(arg.first);
-      } else {
-        inputFiles.push_back(arg.first);
-        inputInfos.push_back(std::make_unique<InputInfo>(arg.first));
-      }
+      inputFiles.push_back(arg.first);
+      inputInfos.push_back(std::make_unique<InputInfo>(arg.first));
     } else {
       LogInfo::MapleLogger(kLlErr) << "Unknown option or non-existent input file: " << arg.first << "\n";
       if (!opts::ignoreUnkOpt) {

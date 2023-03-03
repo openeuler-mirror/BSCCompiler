@@ -130,19 +130,11 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
       if (opt->GetEqualType() == maplecl::EqualType::kWithEqual) {
         (void)finalOptions.emplace_back(opt->GetName() + "=" + val, "");
       } else {
-        if (opt->GetName() == "-Wl") {
-          (void)finalOptions.emplace_back(val, "");
-        } else {
-          (void)finalOptions.emplace_back(opt->GetName(), val);
-        }
+        (void)finalOptions.emplace_back(opt->GetName(), val);
       }
 
       if (isDebug) {
-        if (opt->GetName() == "-Wl") {
-          LogInfo::MapleLogger() << val << " ";
-        } else {
-          LogInfo::MapleLogger() << opt->GetName() << " " << val << " ";
-        }
+        LogInfo::MapleLogger() << opt->GetName() << " " << val << " ";
       }
     }
   }
@@ -163,6 +155,13 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
         }
       }
       AppendOutputOption(finalOptions, opts::output.GetValue());
+    }
+  }
+
+  /* Append -Wl option and link files. */
+  if (isDebug && toolName == "ld") {
+    for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
+      LogInfo::MapleLogger() << " " << opt;
     }
   }
 

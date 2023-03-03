@@ -124,6 +124,10 @@ class CommandLine {
     return HelpPrinter(defaultCategory);
   }
 
+  const std::vector<std::string> &GetLinkOptions() const {
+    return linkOptions;
+  }
+
   void CloseOptimize(const OptionCategory &optCategory) const;
   std::vector<std::pair<std::string, RetCode>> badCLArgs;
   OptionCategory defaultCategory;
@@ -144,9 +148,10 @@ class CommandLine {
   OptionCategory ipaCategory;
 
   OptionCategory unSupCategory;
+  std::vector<std::string> linkOptions;
 
  private:
-  OptionInterface *CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) const;
+  OptionInterface *CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory);
   RetCode ParseJoinedOption(size_t &argsIndex,
                             const std::deque<std::string_view> &args,
                             KeyArg &keyArg, OptionCategory &optCategory);

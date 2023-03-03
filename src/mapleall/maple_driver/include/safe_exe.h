@@ -100,6 +100,11 @@ class SafeExe {
     int index = cmd.find_last_of("-");
     if (index > 0 && cmd.substr(index) == "-gcc") {
       compileeFlag = Compilee::gcc;
+      for (auto &opt : options) {
+        if (opt.GetKey() == "-c") {
+          compileeFlag = Compilee::unKnow;
+        }
+      }
     } else if (cmd.find("hir2mpl", 0) != -1) {
       compileeFlag = Compilee::hir2mpl;
       ldLibPath += mplOptions.GetExeFolder().substr(0, mplOptions.GetExeFolder().length() - 4);
@@ -112,7 +117,7 @@ class SafeExe {
         LogInfo::MapleLogger() << " " << opt.GetKey() << " " << opt.GetValue();
       }
       if (compileeFlag == Compilee::gcc) {
-        for (auto &opt : mplOptions.GetLinkInputFiles()) {
+        for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
           LogInfo::MapleLogger() << " " << opt;
         }
       }
@@ -155,6 +160,11 @@ class SafeExe {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: ";
         for (auto &opt : options) {
           LogInfo::MapleLogger() << opt.GetKey() << " " << opt.GetValue() << " ";
+        }
+        if (compileeFlag == Compilee::gcc) {
+          for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
+            LogInfo::MapleLogger() << opt << " ";
+          }
         }
         LogInfo::MapleLogger() << "\n";
       }
@@ -292,8 +302,8 @@ class SafeExe {
     /* Calculate how many args are needed.
      * (* 2) is needed, because we have key and value arguments in each option
      */
-    if (compileeFlag == Compilee::gcc && mplOptions.GetLinkInputFiles().size() > 0) {
-      argSize += mplOptions.GetLinkInputFiles().size();
+    if (compileeFlag == Compilee::gcc && maplecl::CommandLine::GetCommandLine().GetLinkOptions().size() > 0) {
+      argSize += maplecl::CommandLine::GetCommandLine().GetLinkOptions().size();
     }
     argSize += options.size() * 2;
 
@@ -328,7 +338,7 @@ class SafeExe {
     }
 
     if (compileeFlag == Compilee::gcc) {
-      for (auto &opt : mplOptions.GetLinkInputFiles()) {
+      for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
         auto keySize = opt.size() + 1;
 
         if (keySize != 1) {

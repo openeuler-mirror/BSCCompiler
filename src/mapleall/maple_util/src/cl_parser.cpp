@@ -12,10 +12,13 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <vector>
+
 #include "cl_option.h"
 #include "cl_parser.h"
 
 #include "mpl_logging.h"
+#include "string_utils.h"
 
 
 using namespace maplecl;
@@ -25,7 +28,7 @@ CommandLine &CommandLine::GetCommandLine() {
   return cl;
 }
 
-OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) const {
+OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) {
   auto &str = keyArg.rawArg;
 
   for (auto joinedOption : optCategory.joinedOptions) {
@@ -35,16 +38,22 @@ OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &
       if (joinedOption.first != "-Wl") {
         keySize = joinedOption.first.size();
         keyArg.key = str.substr(0, keySize);
+        keyArg.val = str.substr(keySize);
       } else {
+        std::string tmp(str);
+        linkOptions.push_back(tmp);
         keySize = 0;
         keyArg.key = "-Wl";
       }
-      keyArg.val = str.substr(keySize);
 
-      keyArg.val = str.substr(keySize);
       keyArg.isJoinedOpt = true;
       return joinedOption.second;
     }
+  }
+  std::string tempStr(str);
+  std::string tmp = maple::StringUtils::GetStrAfterLast(tempStr, ".");
+  if (tmp == "a" || tmp == "so") {
+    linkOptions.push_back(tempStr);
   }
 
   return nullptr;
@@ -55,16 +64,26 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
                                        KeyArg &keyArg, OptionCategory &optCategory) {
   OptionInterface *option = CheckJoinedOption(keyArg, optCategory);
   if (option != nullptr) {
-    RetCode err = option->Parse(argsIndex, args, keyArg);
-    if (err != RetCode::noError) {
-      return err;
-    }
+    if (keyArg.key != "-Wl") {
+      RetCode err = option->Parse(argsIndex, args, keyArg);
+      if (err != RetCode::noError) {
+        return err;
+      }
 
-    /* Set Option in all categories registering for this option */
-    for (auto &category : option->optCategories) {
-      category->AddEnabledOption(option);
+      /* Set Option in all categories registering for this option */
+      for (auto &category : option->optCategories) {
+        category->AddEnabledOption(option);
+      }
+    } else {
+      argsIndex++;
     }
   } else {
+    std::string tempStr(keyArg.rawArg);
+    std::string tmp = maple::StringUtils::GetStrAfterLast(tempStr, ".");
+    if (tmp == "a" || tmp == "so") {
+      argsIndex++;
+      return RetCode::noError;
+    }
     return RetCode::notRegistered;
   }
 
