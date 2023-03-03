@@ -1490,11 +1490,12 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
     }
     case OP_intrinsiccallassigned:
     case OP_xintrinsiccallassigned: {
+      BlockNode *blockNode = LowerIntrinsiccallToIntrinsicop(stmt);
+      if (blockNode) {
+        return blockNode;
+      }
       IntrinsiccallNode &intrinCall = static_cast<IntrinsiccallNode&>(stmt);
       auto intrinsicID = intrinCall.GetIntrinsic();
-      if (IntrinDesc::intrinTable[intrinsicID].IsAtomic()) {
-        return LowerIntrinsiccallAassignedToAssignStmt(intrinCall);
-      }
       if (intrinsicID == INTRN_JAVA_POLYMORPHIC_CALL) {
         BaseNode *contextClassArg = GetBaseNodeFromCurFunc(*mirModule.CurFunction(), false);
         constexpr int kContextIdx = 4; /* stable index in MCC_DexPolymorphicCall, never out of range */
@@ -1511,10 +1512,9 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
       break;
     }
     case OP_intrinsiccallwithtypeassigned: {
-      IntrinsiccallNode &intrinCall = static_cast<IntrinsiccallNode&>(stmt);
-      auto intrinsicID = intrinCall.GetIntrinsic();
-      if (IntrinDesc::intrinTable[intrinsicID].IsAtomic()) {
-        return LowerIntrinsiccallAassignedToAssignStmt(intrinCall);
+      BlockNode *blockNode = LowerIntrinsiccallToIntrinsicop(stmt);
+      if (blockNode) {
+        return blockNode;
       }
       auto &origCall = static_cast<IntrinsiccallNode&>(stmt);
       newCall = GenIntrinsiccallNode(stmt, funcCalled, handledAtLowerLevel, origCall);
@@ -1546,6 +1546,15 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt, bool uselvar) {
   }
 
   return GenBlockNode(*newCall, *p2nRets, stmt.GetOpCode(), funcCalled, handledAtLowerLevel, uselvar);
+}
+
+BlockNode *CGLowerer::LowerIntrinsiccallToIntrinsicop(StmtNode &stmt) {
+  IntrinsiccallNode &intrinCall = static_cast<IntrinsiccallNode&>(stmt);
+  auto intrinsicID = intrinCall.GetIntrinsic();
+  if (IntrinDesc::intrinTable[intrinsicID].IsAtomic()) {
+    return LowerIntrinsiccallAassignedToAssignStmt(intrinCall);
+  }
+  return nullptr;
 }
 
 #if TARGAARCH64

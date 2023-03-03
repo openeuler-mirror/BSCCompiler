@@ -11326,7 +11326,9 @@ Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopN
 Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, bool retBool) {
   PrimType primType = intrinopNode.GetNopndAt(kInsnSecondOpnd)->GetPrimType();
   ASSERT(primType == intrinopNode.GetNopndAt(kInsnThirdOpnd)->GetPrimType(), "gcc built_in rule");
+  /* Create BB which includes atomic built_in function */
   BB *atomicBB = CreateAtomicBuiltinBB();
+  /* keep variables inside same BB in O0 to avoid obtaining parameter value across BB blocks */
   if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
     SetCurBB(*atomicBB);
   }
@@ -11407,14 +11409,21 @@ Operand *AArch64CGFunc::SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode) {
 
 Operand *AArch64CGFunc::SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) {
   auto primType = intrinopNode.GetPrimType();
+  /* Create BB which includes atomic built_in function */
+  BB *atomicBB = CreateAtomicBuiltinBB();
+  /* keep variables inside same BB in O0 to avoid obtaining parameter value across BB blocks */
+  if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
+  /*handle builtin args */
   Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
   Operand *valueOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
   addrOpnd = &LoadIntoRegister(*addrOpnd, intrinopNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType());
   valueOpnd = &LoadIntoRegister(*valueOpnd, intrinopNode.GetNopndAt(kInsnSecondOpnd)->GetPrimType());
 
-  /* Create BB which includes atomic built_in function */
-  BB *atomicBB = CreateAtomicBuiltinBB();
-  SetCurBB(*atomicBB);
+  if (GetCG()->GetOptimizeLevel() != CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
   /* load from pointed address */
   auto primTypeP2Size = GetPrimTypeP2Size(primType);
   auto *regLoaded = &CreateRegisterOperandOfType(primType);
@@ -11542,7 +11551,7 @@ Operand *AArch64CGFunc::SelectCAtomicExchangeN(const IntrinsicopNode &intrinsico
   }
   bool aquire = memOrder == std::memory_order_acquire || memOrder >= std::memory_order_acq_rel;
   bool release = memOrder >= std::memory_order_release;
-
+  /* Create BB which includes atomic built_in function */
   BB *atomicBB = CreateAtomicBuiltinBB();
   /* keep variables inside same BB in O0 to avoid obtaining parameter value across BB blocks */
   if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
@@ -11608,18 +11617,17 @@ void AArch64CGFunc::SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccall
   }
   bool aquire = memOrder == std::memory_order_acquire || memOrder >= std::memory_order_acq_rel;
   bool release = memOrder >= std::memory_order_release;
-
-  /* load value from ptr */
-  auto *valueOpnd = &CreateRegisterOperandOfType(primType);
-  auto *srcOpnd = HandleExpr(intrinsiccallNode, *srcNode);
-  auto &srcMemOpnd = CreateMemOpnd(LoadIntoRegister(*srcOpnd, primType), 0, GetPrimTypeBitSize(primType));
-  SelectCopy(*valueOpnd, primType, srcMemOpnd, primType);
-
+  /* Create BB which includes atomic built_in function */
   BB *atomicBB = CreateAtomicBuiltinBB();
   /* keep variables inside same BB in O0 to avoid obtaining parameter value across BB blocks */
   if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
     SetCurBB(*atomicBB);
   }
+  /* load value from ptr */
+  auto *valueOpnd = &CreateRegisterOperandOfType(primType);
+  auto *srcOpnd = HandleExpr(intrinsiccallNode, *srcNode);
+  auto &srcMemOpnd = CreateMemOpnd(LoadIntoRegister(*srcOpnd, primType), 0, GetPrimTypeBitSize(primType));
+  SelectCopy(*valueOpnd, primType, srcMemOpnd, primType);
   /* handle opnds */
   auto *addrOpnd = HandleExpr(intrinsiccallNode, *ptrNode);
   addrOpnd = &LoadIntoRegister(*addrOpnd, ptrNode->GetPrimType());
@@ -11674,7 +11682,9 @@ void AArch64CGFunc::SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccall
  */
 Operand *AArch64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode, bool isCompareExchangeN) {
   auto primType = intrinsicopNode.GetPrimType();
+  /* Create BB which includes atomic built_in function */
   BB *atomicBB1 = CreateAtomicBuiltinBB();
+  /* keep variables inside same BB in O0 to avoid obtaining parameter value across BB blocks */
   if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
     SetCurBB(*atomicBB1);
   }
@@ -11797,8 +11807,12 @@ Operand *AArch64CGFunc::SelectCAtomicCompareExchange(const IntrinsicopNode &intr
  */
 Operand *AArch64CGFunc::SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) {
   auto primType = intrinsicopNode.GetPrimType();
-
+  /* Create BB which includes atomic built_in function */
   BB *atomicBB = CreateAtomicBuiltinBB();
+  /* keep variables inside same BB in O0 to avoid obtaining parameter value across BB blocks */
+  if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
   /* handle built_in args */
   Operand *addrOpnd = HandleExpr(intrinsicopNode, *intrinsicopNode.GetNopndAt(kInsnFirstOpnd));
   addrOpnd = &LoadIntoRegister(*addrOpnd, intrinsicopNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType());
@@ -11814,7 +11828,9 @@ Operand *AArch64CGFunc::SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsic
   /* mov reg, 1 */
   auto *regOperated = &CreateRegisterOperandOfType(PTY_u32);
   SelectCopyImm(*regOperated, CreateImmOperand(PTY_u32, 1), PTY_u32);
-  SetCurBB(*atomicBB);
+  if (GetCG()->GetOptimizeLevel() != CGOptions::kLevel0) {
+    SetCurBB(*atomicBB);
+  }
   /* load from pointed address */
   auto primTypeP2Size = GetPrimTypeP2Size(PTY_u8);
   auto *regLoaded = &CreateRegisterOperandOfType(PTY_u32);

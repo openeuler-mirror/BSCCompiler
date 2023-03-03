@@ -175,6 +175,10 @@ class CGLowerer {
                      bool uselvar = false, bool isIntrinAssign = false);
   BlockNode *LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode &intrinsicCall);
   BlockNode *LowerCallAssignedStmt(StmtNode &stmt, bool uselvar = false);
+  /* Intrinsiccall will processe return and vector as a call separately.
+   * To be able to handle them in a unified manner, we lower intrinsiccall to Intrinsicsicop.
+   */
+  BlockNode *LowerIntrinsiccallToIntrinsicop(StmtNode &stmt);
   bool LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar, BlockNode *oldBlk);
   BlockNode *LowerMemop(StmtNode &stmt);
 
