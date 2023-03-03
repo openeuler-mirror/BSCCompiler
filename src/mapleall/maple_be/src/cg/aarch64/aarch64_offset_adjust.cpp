@@ -132,7 +132,10 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
     }
   }
   if (!aarchCGFunc->IsOperandImmValid(insn.GetMachineOpcode(), &immOpnd, index)) {
-    if (insn.GetMachineOpcode() >= MOP_xaddrri24 && insn.GetMachineOpcode() <= MOP_waddrri12) {
+    if (insn.GetMachineOpcode() == MOP_xaddsrri12 || insn.GetMachineOpcode() == MOP_waddsrri12) {
+      insn.Dump();
+      CHECK_FATAL(false, "NYI, need a better away to process 'adds' ");
+    } else if (insn.GetMachineOpcode() >= MOP_xaddrri24 && insn.GetMachineOpcode() <= MOP_waddrri12) {
       PrimType destTy =
           static_cast<RegOperand &>(insn.GetOperand(kInsnFirstOpnd)).GetSize() == k64BitSize ? PTY_i64 : PTY_i32;
       RegOperand *resOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
@@ -228,6 +231,29 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn) const {
           ImmOperand &addend = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
           addend.SetValue(addend.GetValue() + offset);
           AdjustmentOffsetForImmOpnd(insn, kInsnThirdOpnd); /* legalize imm opnd */
+        }
+        break;
+      }
+      case MOP_xaddsrri12: {
+        ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetRegisterNumber() == RSP,
+            "regNumber should be changed in AdjustmentOffsetForOpnd");
+        auto *newAddImmOpnd = static_cast<ImmOperand*>(
+            static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd)).Clone(*cgFunc->GetMemoryPool()));
+        newAddImmOpnd->SetValue(newAddImmOpnd->GetValue() + offset);
+        insn.SetOperand(kInsnFourthOpnd, *newAddImmOpnd);
+        AdjustmentOffsetForImmOpnd(insn, kInsnFourthOpnd); /* legalize imm opnd */
+        break;
+      }
+      case MOP_waddsrri12: {
+        if (!CGOptions::IsArm64ilp32()) {
+          insn.Dump();
+          CHECK_FATAL(false, "Unexpect offset adjustment insn");
+        } else {
+          ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetRegisterNumber() == RSP,
+              "regNumber should be changed in AdjustmentOffsetForOpnd");
+          ImmOperand &addend = static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
+          addend.SetValue(addend.GetValue() + offset);
+          AdjustmentOffsetForImmOpnd(insn, kInsnFourthOpnd); /* legalize imm opnd */
         }
         break;
       }
