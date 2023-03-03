@@ -362,10 +362,12 @@ void SigHandler::Handler(int sig, siginfo_t *info, void *ucontext) noexcept {
     DumpFaultingAddr(reinterpret_cast<uintptr_t>(info->si_addr));
   }
 
-  LogInfo::MapleLogger(kLlErr) << Stacktrace<>() << std::endl;
+  if (sig != SIGTERM) {
+    LogInfo::MapleLogger(kLlErr) << Stacktrace<>() << std::endl;
 
-  if (FuncPtr callback = sig2callback.at(sig)) {
-    callback(sig, info, ucontext);
+    if (FuncPtr callback = sig2callback.at(sig)) {
+      callback(sig, info, ucontext);
+    }
   }
 
   exit(EXIT_FAILURE);
