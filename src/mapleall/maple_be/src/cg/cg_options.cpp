@@ -54,13 +54,13 @@ maplecl::Option<bool> fnoSemanticInterposition({"-fno-semantic-interposition", "
 maplecl::Option<bool> verboseAsm({"--verbose-asm"},
                                  "  --verbose-asm               \tAdd comments to asm output\n"
                                  "  --no-verbose-asm\n",
-                                 {cgCategory},
+                                 {driverCategory, cgCategory},
                                  maplecl::DisableWith("--no-verbose-asm"));
 
 maplecl::Option<bool> verboseCg({"--verbose-cg"},
                                 "  --verbose-cg               \tAdd comments to cg output\n"
                                 "  --no-verbose-cg\n",
-                                {cgCategory},
+                                {driverCategory, cgCategory},
                                 maplecl::DisableWith("--no-verbose-cg"));
 
 maplecl::Option<bool> maplelinker({"--maplelinker"},

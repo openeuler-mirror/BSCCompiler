@@ -120,7 +120,7 @@ class InputInfo {
       } else {
         fileType = InputFileType::kFileTypeVtableImplMpl;
       }
-    } else if (extensionName == "s") {
+    } else if (extensionName == "s" || extensionName == "S") {
       fileType = InputFileType::kFileTypeS;
     } else if (extensionName == "o") {
       fileType = InputFileType::kFileTypeObj;

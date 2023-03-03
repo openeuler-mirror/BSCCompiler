@@ -658,6 +658,23 @@ maplecl::Option<bool> wShiftOverflow({"-Wshift-overflow"},
                                 {driverCategory, clangCategory},
                                 maplecl::DisableWith("-Wno-shift-overflow"));
 
+maplecl::Option<bool> Wnounusedcommandlineargument({"-Wno-unused-command-line-argument"},
+                                "  -Wno-unused-command-line-argument             \tno unused command line argument\n",
+                                {driverCategory, clangCategory});
+
+maplecl::Option<bool> Wnoconstantconversion({"-Wno-constant-conversion"},
+                                "  -Wno-constant-conversion             \tno constant conversion\n",
+                                {driverCategory, clangCategory});
+
+maplecl::Option<bool> Wnounknownwarningoption({"-Wno-unknown-warning-option"},
+                                "  -Wno-unknown-warning-option             \tno unknown warning option\n",
+                                {driverCategory, clangCategory});
+
+maplecl::Option<bool> Wnoimplicitfunctiondeclaration({"-Wno-implicit-function-declaration"},
+                                "  -Wno-implicit-function-declaration             \tThis option controls warnings when"
+                                " a function is used before being declared.\n",
+                                {driverCategory, clangCategory});
+
 /* #################################################################################################### */
 
 } /* namespace opts */
