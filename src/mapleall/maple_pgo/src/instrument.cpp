@@ -37,8 +37,8 @@ static inline void RegisterInFuncInfo(MIRFunction &func, const MIRSymbol &counte
   MIRIntConst *eleCntMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(elemCnt, *u32Ty);
   auto *counterConst = func.GetModule()->GetMemPool()->New<MIRAddrofConst>(
       counter.GetStIdx(), 0, *GlobalTables::GetTypeTable().GetPtr());
-  funcInfoMirConst->SetItem(1, cfgHashConst,2);
-  funcInfoMirConst->SetItem(2, eleCntMirConst,3);
+  funcInfoMirConst->SetItem(1, cfgHashConst, 2);
+  funcInfoMirConst->SetItem(2, eleCntMirConst, 3);
   funcInfoMirConst->SetItem(3, counterConst, 4);
 }
 

@@ -149,7 +149,7 @@ void CGProfGen::CreateProfFileSym(MIRModule &m, const std::string &outputPath, c
   auto *mirBuilder = m.GetMIRBuilder();
   auto *charPtrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_a64));
   const std::string finalName = outputPath + "mpl_lite_pgo.data";
-  auto *modNameMirConst =m.GetMemPool()->New<MIRStrConst>(finalName, *charPtrType);
+  auto *modNameMirConst = m.GetMemPool()->New<MIRStrConst>(finalName, *charPtrType);
   auto *funcPtrSym = mirBuilder->GetOrCreateGlobalDecl(symName, *charPtrType);
   funcPtrSym->SetAttr(ATTR_weak);  // weak symbol
   funcPtrSym->SetKonst(modNameMirConst);
@@ -165,7 +165,7 @@ void CGProfGen::CreateChildTimeSym(maple::MIRModule &m, const std::string &symNa
 
   // if time is set. wait_fork is required to be set
   auto *u8Type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u8));
-  auto *waitForkMirConst =m.GetMemPool()->New<MIRIntConst>(0, *u8Type);
+  auto *waitForkMirConst = m.GetMemPool()->New<MIRIntConst>(0, *u8Type);
   auto *waitForkSym = mirBuilder->GetOrCreateGlobalDecl("__mpl_pgo_wait_forks", *u8Type);
   waitForkSym->SetAttr(ATTR_weak);  // weak symbol
   waitForkSym->SetKonst(waitForkMirConst);

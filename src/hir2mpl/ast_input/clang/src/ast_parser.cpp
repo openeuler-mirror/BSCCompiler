@@ -2725,7 +2725,7 @@ bool ASTParser::PreProcessAST() {
         astDeclaration->SetSrcLoc(loc);                                                                   \
       }                                                                                                   \
     }                                                                                                     \
-  } while(0)
+  } while (0)
 
 #define DECL_CASE(CLASS)                                                                                  \
   case clang::Decl::CLASS: {                                                                              \
