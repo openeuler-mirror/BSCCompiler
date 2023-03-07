@@ -42,7 +42,11 @@ bool LiteProfile::HandleLitePGOFile(const std::string &fileName, const std::stri
       continue;
     }
     if (currentTokenKind == TK_flavor) {
-      /* skip beginning of lite-pgo data, not implement yet */
+      /*
+       * skip beginning of lite-pgo data, not implement yet
+       * refresh profile when a new set of pgo data comes in
+       */
+      funcBBProfData.clear();
     }
     if (currentTokenKind == TK_func) {
       ParseFuncProfile(funcDataLexer, moduleName);
