@@ -146,7 +146,7 @@ enum StackMapFrameItemTag : uint8 {
 class StackMapFrameItem : public JBCAttrItem {
  public:
   StackMapFrameItem(uint8 frameTypeIn, StackMapFrameItemTag tagIn);
-  virtual ~StackMapFrameItem() = default;
+  virtual ~StackMapFrameItem() override = default;
   static std::map<StackMapFrameItemTag, std::string> InitTagName();
   static std::string TagName(StackMapFrameItemTag tag);
   static StackMapFrameItemTag FrameType2Tag(uint8 frameType);
@@ -161,7 +161,7 @@ class StackMapFrameItem : public JBCAttrItem {
 class StackMapFrameItemSame : public StackMapFrameItem {
  public:
   explicit StackMapFrameItemSame(uint8 frameType);
-  ~StackMapFrameItemSame() = default;
+  ~StackMapFrameItemSame() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -201,7 +201,7 @@ class StackMapFrameItemSameLocals1Ex : public StackMapFrameItem {
 class StackMapFrameItemChop : public StackMapFrameItem {
  public:
   explicit StackMapFrameItemChop(uint8 frameType);
-  ~StackMapFrameItemChop() = default;
+  ~StackMapFrameItemChop() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -215,7 +215,7 @@ class StackMapFrameItemChop : public StackMapFrameItem {
 class StackMapFrameItemSameEx : public StackMapFrameItem {
  public:
   explicit StackMapFrameItemSameEx(uint8 frameType);
-  ~StackMapFrameItemSameEx() = default;
+  ~StackMapFrameItemSameEx() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -229,7 +229,7 @@ class StackMapFrameItemSameEx : public StackMapFrameItem {
 class StackMapFrameItemAppend : public StackMapFrameItem {
  public:
   StackMapFrameItemAppend(MapleAllocator &allocator, uint8 frameType);
-  ~StackMapFrameItemAppend() = default;
+  ~StackMapFrameItemAppend() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -244,7 +244,7 @@ class StackMapFrameItemAppend : public StackMapFrameItem {
 class StackMapFrameItemFull : public StackMapFrameItem {
  public:
   StackMapFrameItemFull(MapleAllocator &allocator, uint8 frameType);
-  ~StackMapFrameItemFull() = default;
+  ~StackMapFrameItemFull() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -297,7 +297,7 @@ class InnerClassItem : public JBCAttrItem {
 class LineNumberTableItem : public JBCAttrItem {
  public:
   LineNumberTableItem();
-  ~LineNumberTableItem() = default;
+  ~LineNumberTableItem() override = default;
   uint16 GetStartPC() const {
     return startPC;
   }
@@ -423,7 +423,7 @@ class LocalVariableTypeTableItem : public JBCAttrItem {
 class ElementValueItem : public JBCAttrItem {
  public:
   ElementValueItem(ElementValueKind kindIn, char tagIn);
-  virtual ~ElementValueItem() = default;
+  virtual ~ElementValueItem() override = default;
   static std::map<char, ElementValueKind> InitTagKindMap();
   static std::map<ElementValueKind, std::string> InitKindNameMap();
   static std::string KindName(ElementValueKind kind);
@@ -499,7 +499,7 @@ class Annotation : public JBCAttrItem {
 class ParamAnnotationItem : public JBCAttrItem {
  public:
   explicit ParamAnnotationItem(MapleAllocator &allocator);
-  ~ParamAnnotationItem() = default;
+  ~ParamAnnotationItem() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -634,7 +634,7 @@ class ElementValueAnnotation : public ElementValueItem {
 class ElementValueArray : public ElementValueItem {
  public:
   explicit ElementValueArray(MapleAllocator &allocator);
-  ~ElementValueArray() = default;
+  ~ElementValueArray() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -690,7 +690,7 @@ enum TargetInfoItemType : uint8 {
 class TargetInfoItem : public JBCAttrItem {
  public:
   explicit TargetInfoItem(TargetInfoItemTag tagIn);
-  virtual ~TargetInfoItem() = default;
+  virtual ~TargetInfoItem() override = default;
   static std::map<TargetInfoItemType, TargetInfoItemTag> InitTypeTagMap();
   static TargetInfoItemTag TargetType2Tag(TargetInfoItemType type);
   static TargetInfoItem *NewItem(MapleAllocator &allocator, BasicIORead &io, TargetInfoItemType targetType);
@@ -703,7 +703,7 @@ class TargetInfoItem : public JBCAttrItem {
 class TargetTypeParam : public TargetInfoItem {
  public:
   TargetTypeParam();
-  ~TargetTypeParam() = default;
+  ~TargetTypeParam() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -717,7 +717,7 @@ class TargetTypeParam : public TargetInfoItem {
 class TargetSuperType : public TargetInfoItem {
  public:
   TargetSuperType();
-  ~TargetSuperType() = default;
+  ~TargetSuperType() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -731,7 +731,7 @@ class TargetSuperType : public TargetInfoItem {
 class TargetTypeParamBound : public TargetInfoItem {
  public:
   TargetTypeParamBound();
-  ~TargetTypeParamBound() = default;
+  ~TargetTypeParamBound() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -746,7 +746,7 @@ class TargetTypeParamBound : public TargetInfoItem {
 class TargetEmpty : public TargetInfoItem {
  public:
   TargetEmpty();
-  ~TargetEmpty() = default;
+  ~TargetEmpty() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -757,7 +757,7 @@ class TargetEmpty : public TargetInfoItem {
 class TargetFormalParam : public TargetInfoItem {
  public:
   TargetFormalParam();
-  ~TargetFormalParam() = default;
+  ~TargetFormalParam() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -771,7 +771,7 @@ class TargetFormalParam : public TargetInfoItem {
 class TargetThrows : public TargetInfoItem {
  public:
   TargetThrows();
-  ~TargetThrows() = default;
+  ~TargetThrows() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -785,7 +785,7 @@ class TargetThrows : public TargetInfoItem {
 class TargetLocalVarItem : public TargetInfoItem {
  public:
   TargetLocalVarItem();
-  ~TargetLocalVarItem() = default;
+  ~TargetLocalVarItem() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -801,7 +801,7 @@ class TargetLocalVarItem : public TargetInfoItem {
 class TargetLocalVar : public TargetInfoItem {
  public:
   explicit TargetLocalVar(MapleAllocator &allocator);
-  ~TargetLocalVar() = default;
+  ~TargetLocalVar() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -816,7 +816,7 @@ class TargetLocalVar : public TargetInfoItem {
 class TargetCatch : public TargetInfoItem {
  public:
   TargetCatch();
-  ~TargetCatch() = default;
+  ~TargetCatch() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -830,7 +830,7 @@ class TargetCatch : public TargetInfoItem {
 class TargetOffset : public TargetInfoItem {
  public:
   TargetOffset();
-  ~TargetOffset() = default;
+  ~TargetOffset() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -844,7 +844,7 @@ class TargetOffset : public TargetInfoItem {
 class TargetTypeArg : public TargetInfoItem {
  public:
   TargetTypeArg();
-  ~TargetTypeArg() = default;
+  ~TargetTypeArg() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -859,7 +859,7 @@ class TargetTypeArg : public TargetInfoItem {
 class TypePathItem : public JBCAttrItem {
  public:
   TypePathItem();
-  ~TypePathItem() = default;
+  ~TypePathItem() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;
@@ -876,7 +876,7 @@ class TypePathItem : public JBCAttrItem {
 class TypePath : public JBCAttrItem {
  public:
   explicit TypePath(MapleAllocator &allocator);
-  ~TypePath() = default;
+  ~TypePath() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) override;

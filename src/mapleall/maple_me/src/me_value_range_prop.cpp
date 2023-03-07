@@ -3749,7 +3749,7 @@ bool ValueRangePropagation::OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &co
 }
 
 void ValueRangePropagation::UpdateProfile(BB &pred, BB &bb, const BB &targetBB) const {
-  if (bb.GetKind() != kBBCondGoto || bb.IsMeStmtEmpty() || !bb.GetLastMe()->IsCondBr()) {
+  if (bb.GetKind() != kBBCondGoto || bb.IsMeStmtEmpty() || !bb.GetLastMe() || !bb.GetLastMe()->IsCondBr()) {
     return;
   }
   auto *condGotoStmt = static_cast<CondGotoMeStmt*>(bb.GetLastMe());

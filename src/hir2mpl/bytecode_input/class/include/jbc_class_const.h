@@ -127,7 +127,7 @@ class JBCConstUTF8 : public JBCConst {
  public:
   JBCConstUTF8(MapleAllocator &alloc, JBCConstTag t);
   JBCConstUTF8(MapleAllocator &alloc, JBCConstTag t, const std::string &argStr);
-  ~JBCConstUTF8() = default;
+  ~JBCConstUTF8() override = default;
 
   const std::string GetString() const {
     return MapleStringToStd(str);
@@ -153,7 +153,7 @@ class JBCConst4Byte : public JBCConst {
   JBCConst4Byte(MapleAllocator &alloc, JBCConstTag t);
   JBCConst4Byte(MapleAllocator &alloc, JBCConstTag t, int32 arg);
   JBCConst4Byte(MapleAllocator &alloc, JBCConstTag t, float arg);
-  ~JBCConst4Byte() = default;
+  ~JBCConst4Byte() override = default;
   int32 GetInt32() const {
     return value.ivalue;
   }
@@ -184,7 +184,7 @@ class JBCConst8Byte : public JBCConst {
   JBCConst8Byte(MapleAllocator &alloc, JBCConstTag t);
   JBCConst8Byte(MapleAllocator &alloc, JBCConstTag t, int64 arg);
   JBCConst8Byte(MapleAllocator &alloc, JBCConstTag t, double arg);
-  ~JBCConst8Byte() = default;
+  ~JBCConst8Byte() override = default;
 
   int64 GetInt64() const {
     return value.lvalue;
@@ -258,7 +258,7 @@ class JBCConstString : public JBCConst {
  public:
   JBCConstString(MapleAllocator &alloc, JBCConstTag t);
   JBCConstString(MapleAllocator &alloc, JBCConstTag t, JBCConstPoolIdx argStringIdx);
-  ~JBCConstString() = default;
+  ~JBCConstString() override = default;
   void SetValue(const GStrIdx &argStrIdx) {
     strIdx = argStrIdx;
     str = GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx);

@@ -96,7 +96,7 @@ class JBCClassElem {
 class JBCClassField : public JBCClassElem {
  public:
   JBCClassField(MapleAllocator &allocator, const JBCClass &argKlass);
-  ~JBCClassField() = default;
+  ~JBCClassField() override = default;
 
  protected:
   SimpleXMLElem *GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool, uint32 idx) override;
@@ -105,7 +105,7 @@ class JBCClassField : public JBCClassElem {
 class JBCClassMethod : public JBCClassElem {
  public:
   JBCClassMethod(MapleAllocator &allocator, const JBCClass &argKlass);
-  ~JBCClassMethod() = default;
+  ~JBCClassMethod() override = default;
   bool PreProcess();
   const JBCAttrCode *GetCode() const;
   bool IsVirtual() const;
@@ -118,7 +118,7 @@ class JBCClassMethod : public JBCClassElem {
 
 class JBCClass {
  public:
-  JBCClass(MapleAllocator &allocatorIn);
+  explicit JBCClass(MapleAllocator &allocatorIn);
   LLT_MOCK_TARGET ~JBCClass() = default;
 
   bool ParseFile(BasicIORead &io);

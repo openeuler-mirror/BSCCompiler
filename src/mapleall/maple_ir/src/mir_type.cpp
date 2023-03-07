@@ -1630,9 +1630,9 @@ int64 MIRArrayType::GetBitOffsetFromArrayAddress(std::vector<int64> &indexArray)
     CHECK_FATAL(indexArray.size() == dim, "dimension mismatch!");
   }
   int64 sum = 0; // element numbers before the specified element
-  uint32 numberOfElemInLowerDim = 1;
+  uint64 numberOfElemInLowerDim = 1;
   for (uint32 id = 1; id <= dim; ++id) {
-    sum += indexArray[dim - id] * numberOfElemInLowerDim;
+    sum += static_cast<int64>(static_cast<uint64>(indexArray[dim - id]) * numberOfElemInLowerDim);
     numberOfElemInLowerDim *= sizeArray[dim - id];
   }
   size_t elemsize = GetElemType()->GetSize();
@@ -1640,8 +1640,8 @@ int64 MIRArrayType::GetBitOffsetFromArrayAddress(std::vector<int64> &indexArray)
     return 0;
   }
   elemsize = RoundUp(elemsize, typeAttrs.GetAlign());
-  constexpr size_t bitsPerByte = 8;
-  int64 offset = static_cast<int64>(static_cast<size_t>(sum) * elemsize * bitsPerByte);
+  constexpr uint64 bitsPerByte = 8;
+  int64 offset = static_cast<int64>(static_cast<uint64>(sum) * elemsize * bitsPerByte);
   if (GetElemType()->GetKind() == kTypeArray && indexArray.size() > dim) {
     std::vector<int64> subIndexArray(indexArray.begin() + dim, indexArray.end());
     offset += static_cast<MIRArrayType*>(GetElemType())->GetBitOffsetFromArrayAddress(subIndexArray);

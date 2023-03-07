@@ -14,6 +14,7 @@
  */
 #ifndef HIR2MPL_INCLUDE_JBC_CLASS_ACCESS_H
 #define HIR2MPL_INCLUDE_JBC_CLASS_ACCESS_H
+#include "types_def.h"
 
 namespace maple {
 namespace jbc {

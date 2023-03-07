@@ -248,7 +248,7 @@ bool LoopTransPlan::Generate(const DoloopNode *doLoop, const DoloopInfo* li, boo
       int64 tripCount = (upvalue - lowvalue) / (incrConst->GetExtValue());
       if (static_cast<uint32>(tripCount) < vecLanes) {
         tripCount = (tripCount / 4 * 4); // get closest 2^n
-        if (tripCount * vecInfo->smallestTypeSize < maplebe::k64BitSize) {
+        if (static_cast<uint32>(tripCount) * vecInfo->smallestTypeSize < maplebe::k64BitSize) {
           if (enableDebug) {
             LogInfo::MapleLogger() << "NOT VECTORIZABLE because of doLoop trip count is small \n";
           }
@@ -1321,7 +1321,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
         // opnd2 is uniform scalar and type is different from opnd1
         // widen opnd1 with same element type as opnd2
         BaseNode *newopnd1 = vecopnd1[0];
-        int opnd2ElemPrimTypeSize = GetPrimTypeSize(GetVecElemPrimType(opnd2PrimType));
+        uint32 opnd2ElemPrimTypeSize = GetPrimTypeSize(GetVecElemPrimType(opnd2PrimType));
         while (GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType)) < opnd2ElemPrimTypeSize) {
           newopnd1 = GenVectorWidenOpnd(newopnd1, opnd1PrimType, false);
           opnd1PrimType = newopnd1->GetPrimType();

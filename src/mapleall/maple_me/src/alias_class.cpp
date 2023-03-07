@@ -2344,7 +2344,7 @@ void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt, BBId bbid) {
   AccessSSANodes *theSSAPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
   for (uint32 ostIdx : aliasSet) {
     OriginalSt *aliasOst = ssaTab.GetOriginalStFromID(OStIdx(ostIdx));
-    if (!aliasOst->IsFinal()) {
+    if (aliasOst && !aliasOst->IsFinal()) {
       VersionSt *vst0 = ssaTab.GetVerSt(aliasOst->GetZeroVersionIndex());
       CHECK_FATAL(theSSAPart, "theSSAPart is nullptr!");
       theSSAPart->InsertMayUseNode(MayUseNode(vst0));

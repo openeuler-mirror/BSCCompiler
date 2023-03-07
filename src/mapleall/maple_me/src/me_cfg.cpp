@@ -481,8 +481,8 @@ void MeCFG::FixMirCFG() {
     StmtNode *stmt = bb->GetTheOnlyStmtNode();
     if (stmt != nullptr) {
       // simplify the cfg removing all succs of this bb
-      for (size_t si = 0; si < bb->GetSucc().size(); ++si) {
-        BB *sucBB = bb->GetSucc(si);
+      for (int64 si = 0; si < static_cast<int64>(bb->GetSucc().size()); ++si) {
+        BB *sucBB = bb->GetSucc(static_cast<size_t>(si));
         if (sucBB->GetAttributes(kBBAttrIsCatch)) {
           sucBB->RemovePred(*bb);
           --si;
@@ -503,8 +503,8 @@ void MeCFG::FixMirCFG() {
         newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, end()));
     eIt = valid_end();
     // redirect all succs of new bb to bb
-    for (size_t si = 0; si < newBB.GetSucc().size(); ++si) {
-      BB *sucBB = newBB.GetSucc(si);
+    for (int64 si = 0; si < static_cast<int64>(newBB.GetSucc().size()); ++si) {
+      BB *sucBB = newBB.GetSucc(static_cast<size_t>(si));
       if (sucBB->GetAttributes(kBBAttrIsCatch)) {
         sucBB->ReplacePred(&newBB, bb);
         --si;
@@ -527,7 +527,7 @@ void MeCFG::ReplaceWithAssertnonnull() {
     BB *bb = GetLabelBBAt(lblIdx);
     CHECK_FATAL(bb != nullptr, "bb should not be nullptr");
     // if BB->pred_.size()==0, it won't enter this function
-    for (size_t i = 0; i < bb->GetPred().size(); ++i) {
+    for (int64 i = 0; i < static_cast<int64>(bb->GetPred().size()); ++i) {
       BB *innerBB = bb->GetPred(i);
       if (innerBB->GetKind() == kBBCondGoto) {
         StmtNode &stmt = innerBB->GetStmtNodes().back();

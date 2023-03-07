@@ -1158,7 +1158,6 @@ ASTExpr *ASTParser::ProcessExpr(MapleAllocator &allocator, const clang::Expr *ex
     EXPR_CASE(GenericSelectionExpr);
     default:
       CHECK_FATAL(false, "ASTExpr %s NIY", expr->getStmtClassName());
-      return nullptr;
   }
 }
 
@@ -1265,8 +1264,8 @@ ASTExpr *ASTParser::ProcessExprUnaryOperator(MapleAllocator &allocator, const cl
         ASTExpr *vlaTypeSizeExpr = BuildExprToComputeSizeFromVLA(allocator, desugaredType);
         astUOExpr->SetVariableArrayExpr(vlaTypeSizeExpr);
       } else {
-        const clang::QualType desugaredType = qualType.getDesugaredType(*(astFile->GetContext()));
-        len = astFile->GetContext()->getTypeSizeInChars(desugaredType).getQuantity();
+        const clang::QualType desugaredTyp = qualType.getDesugaredType(*(astFile->GetContext()));
+        len = astFile->GetContext()->getTypeSizeInChars(desugaredTyp).getQuantity();
         astUOExpr->SetPointeeLen(len);
       }
     }
@@ -2525,7 +2524,7 @@ ASTExpr *ASTParser::ProcessExprArrayInitIndexExpr(MapleAllocator &allocator,
   return astExpr;
 }
 
-clang::Expr *ASTParser::GetAtomValExpr(clang::Expr *valExpr) {
+clang::Expr *ASTParser::GetAtomValExpr(clang::Expr *valExpr) const {
   clang::Expr *atomValExpr = valExpr;
   while (llvm::isa<clang::ImplicitCastExpr>(atomValExpr) || llvm::isa<clang::CStyleCastExpr>(atomValExpr) ||
          llvm::isa<clang::ParenExpr>(atomValExpr)) {
@@ -2540,7 +2539,7 @@ clang::Expr *ASTParser::GetAtomValExpr(clang::Expr *valExpr) {
   return atomValExpr;
 }
 
-clang::QualType ASTParser::GetPointeeType(const clang::Expr &expr) {
+clang::QualType ASTParser::GetPointeeType(const clang::Expr &expr) const {
   clang::QualType type = expr.getType().getCanonicalType();
   if (type->isPointerType() && !type->getPointeeType()->isRecordType()) {
     type = type->getPointeeType();
@@ -2718,11 +2717,11 @@ bool ASTParser::PreProcessAST() {
 
 #define SET_LOC(astDeclaration, decl, astFile)                                                            \
   do {                                                                                                    \
-    if (astDeclaration != nullptr) {                                                                      \
-      astDeclaration->SetGlobal(decl.isDefinedOutsideFunctionOrMethod());                                 \
-      if (astDeclaration->GetSrcFileIdx() == 0) {                                                         \
-        Loc loc = astFile->GetLOC(decl.getLocation());                                                    \
-        astDeclaration->SetSrcLoc(loc);                                                                   \
+    if ((astDeclaration) != nullptr) {                                                                      \
+      (astDeclaration)->SetGlobal((decl).isDefinedOutsideFunctionOrMethod());                                 \
+      if ((astDeclaration)->GetSrcFileIdx() == 0) {                                                         \
+        Loc loc = (astFile)->GetLOC((decl).getLocation());                                                    \
+        (astDeclaration)->SetSrcLoc(loc);                                                                   \
       }                                                                                                   \
     }                                                                                                     \
   } while (0)
@@ -2752,7 +2751,6 @@ ASTDecl *ASTParser::ProcessDecl(MapleAllocator &allocator, const clang::Decl &de
     DECL_CASE(FileScopeAsm);
     default:
       CHECK_FATAL(false, "ASTDecl: %s NIY", decl.getDeclKindName());
-      return nullptr;
   }
 }
 
@@ -2876,7 +2874,7 @@ ASTStmt *ASTParser::SolveFunctionBody(MapleAllocator &allocator,
 }
 
 MapleVector<MIRType*> ASTParser::CvtFuncTypeAndRetType(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
-                                                       clang::QualType qualType) {
+                                                       const clang::QualType &qualType) const {
   MapleVector<MIRType*> typeDescIn(allocator.Adapter());
   clang::QualType funcQualType = funcDecl.getType();
   MIRType *mirFuncType = astFile->CvtType(funcQualType);
@@ -3057,7 +3055,7 @@ void ASTParser::SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &ast
   }
 }
 
-void ASTParser::CheckVarNameValid(std::string varName) {
+void ASTParser::CheckVarNameValid(const std::string &varName) const {
   CHECK_FATAL(isalpha(varName[0]) || varName[0] == '_', "%s' varName is invalid", varName.c_str());
   for (size_t i = 1; i < varName.size(); i++) {
     /* check valid varName in C, but unsupport Unicode */

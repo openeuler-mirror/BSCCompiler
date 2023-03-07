@@ -495,6 +495,7 @@ void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
   }
   for (size_t i = 0; i < len; ++i) {
     FreqType sfreq = GetSuccFreq()[i];
+    ASSERT(frequency != -1, "frequency != -1");
     FreqType scalefreq = (succFreqs == 0 ?
         static_cast<FreqType>(static_cast<size_t>(frequency) / len) : (sfreq * frequency / succFreqs));
     SetSuccFreq(static_cast<int>(i), scalefreq);

@@ -15,7 +15,6 @@
 
 #ifndef HIR2MPL_INCLUDE_JBC_OPCODE_H
 #define HIR2MPL_INCLUDE_JBC_OPCODE_H
-#include <climits>
 #include <map>
 #include <string>
 #include <vector>
@@ -29,7 +28,7 @@ namespace maple {
 namespace jbc {
 enum JBCOpcode : uint8 {
 #define JBC_OP(op, value, type, name, flag) \
-  kOp##op = value,
+  kOp##op = (value),
 #include "jbc_opcode.def"
 #undef JBC_OP
 };
@@ -192,7 +191,7 @@ class JBCOp {
 class JBCOpUnused : public JBCOp {
  public:
   JBCOpUnused(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpUnused() = default;
+  ~JBCOpUnused() override = default;
 
  protected:
   bool ParseFileImpl(BasicIORead &io) override;
@@ -201,7 +200,7 @@ class JBCOpUnused : public JBCOp {
 class JBCOpReversed : public JBCOp {
  public:
   JBCOpReversed(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpReversed() = default;
+  ~JBCOpReversed() override = default;
 
  protected:
   bool ParseFileImpl(BasicIORead &io) override;
@@ -210,7 +209,7 @@ class JBCOpReversed : public JBCOp {
 class JBCOpDefault : public JBCOp {
  public:
   JBCOpDefault(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpDefault() = default;
+  ~JBCOpDefault() override = default;
 
  protected:
   bool ParseFileImpl(BasicIORead &io) override;
@@ -247,7 +246,7 @@ class JBCOpDefault : public JBCOp {
 class JBCOpConst : public JBCOp {
  public:
   JBCOpConst(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpConst() = default;
+  ~JBCOpConst() override = default;
   std::string DumpBiPush() const;
   std::string DumpSiPush() const;
   std::string DumpLdc(const JBCConstPool &constPool) const;
@@ -300,7 +299,7 @@ class JBCOpConst : public JBCOp {
 class JBCOpSlotOpr : public JBCOp {
  public:
   JBCOpSlotOpr(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpSlotOpr() = default;
+  ~JBCOpSlotOpr() override = default;
   bool IsAStore() const;
   uint16 GetSlotIdx() const {
     return slotIdx;
@@ -344,7 +343,7 @@ class JBCOpSlotOpr : public JBCOp {
 class JBCOpMathInc : public JBCOp {
  public:
   JBCOpMathInc(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpMathInc() = default;
+  ~JBCOpMathInc() override = default;
   uint16 GetIndex() const {
     return index;
   }
@@ -377,7 +376,7 @@ class JBCOpMathInc : public JBCOp {
 class JBCOpBranch : public JBCOp {
  public:
   JBCOpBranch(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpBranch() = default;
+  ~JBCOpBranch() override = default;
   uint32 GetTarget() const {
     return target;
   }
@@ -401,7 +400,7 @@ class JBCOpBranch : public JBCOp {
 class JBCOpGoto : public JBCOp {
  public:
   JBCOpGoto(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpGoto() = default;
+  ~JBCOpGoto() override = default;
   uint32 GetTarget() const {
     return target;
   }
@@ -421,7 +420,7 @@ class JBCOpGoto : public JBCOp {
 class JBCOpSwitch : public JBCOp {
  public:
   JBCOpSwitch(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpSwitch() = default;
+  ~JBCOpSwitch() override = default;
   const MapleMap<int32, uint32> &GetTargets() const {
     return targets;
   }
@@ -458,7 +457,7 @@ class JBCOpSwitch : public JBCOp {
 class JBCOpFieldOpr : public JBCOp {
  public:
   JBCOpFieldOpr(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpFieldOpr() = default;
+  ~JBCOpFieldOpr() override = default;
   std::string GetFieldType(const JBCConstPool &constPool) const;
   uint16 GetFieldIdx() const {
     return fieldIdx;
@@ -486,7 +485,7 @@ class JBCOpFieldOpr : public JBCOp {
 class JBCOpInvoke : public JBCOp {
  public:
   JBCOpInvoke(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpInvoke() = default;
+  ~JBCOpInvoke() override = default;
   std::string GetMethodDescription(const JBCConstPool &constPool) const;
   uint16 GetMethodIdx() const {
     return methodIdx;
@@ -520,7 +519,7 @@ class JBCOpInvoke : public JBCOp {
 class JBCOpJsr : public JBCOp {
  public:
   JBCOpJsr(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpJsr() = default;
+  ~JBCOpJsr() override = default;
   uint32 GetTarget() const {
     return target;
   }
@@ -559,7 +558,7 @@ class JBCOpJsr : public JBCOp {
 class JBCOpRet : public JBCOp {
  public:
   JBCOpRet(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpRet() = default;
+  ~JBCOpRet() override = default;
   uint16 GetIndex() const {
     return index;
   }
@@ -591,7 +590,7 @@ class JBCOpNew : public JBCOp {
   };
 
   JBCOpNew(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpNew() = default;
+  ~JBCOpNew() override = default;
 
   GStrIdx GetTypeNameIdx(const JBCConstPool &constPool) const;
   std::string GetTypeName(const JBCConstPool &constPool) const;
@@ -631,7 +630,7 @@ class JBCOpNew : public JBCOp {
 class JBCOpMultiANewArray : public JBCOp {
  public:
   JBCOpMultiANewArray(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpMultiANewArray() = default;
+  ~JBCOpMultiANewArray() override = default;
   uint16 GetRefTypeIdx() const {
     return refTypeIdx;
   }
@@ -663,7 +662,7 @@ class JBCOpMultiANewArray : public JBCOp {
 class JBCOpTypeCheck : public JBCOp {
  public:
   JBCOpTypeCheck(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn);
-  ~JBCOpTypeCheck() = default;
+  ~JBCOpTypeCheck() override = default;
   uint16 GetTypeIdx() const {
     return typeIdx;
   }

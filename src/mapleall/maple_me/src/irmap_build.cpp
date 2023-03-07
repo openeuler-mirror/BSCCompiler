@@ -121,6 +121,7 @@ void IRMapBuild::BuildMustDefList(MeStmt &meStmt, TypeOfMustDefList &mustDefList
 void IRMapBuild::BuildPhiMeNode(BB &bb) {
   for (auto &phi : bb.GetPhiList()) {
     const OriginalSt *oSt = ssaTab.GetOriginalStFromID(phi.first);
+    CHECK_NULL_FATAL(oSt);
     VersionSt *vSt = phi.second.GetResult();
 
     auto *phiMeNode = irMap->NewInPool<MePhiNode>();

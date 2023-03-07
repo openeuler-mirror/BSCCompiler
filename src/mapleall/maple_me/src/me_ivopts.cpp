@@ -1575,12 +1575,13 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
   FindScalarFactor(candBase, nullptr, candMap, 1, false, analysis);
   FindScalarFactor(groupBase, nullptr, groupMap, 1, false, analysis);
   MeExpr *extraExpr = nullptr;
-  int64 candConst = 0;
+  uint64 candConst = 0;
   int64 groupConst = 0;
   for (auto &itGroup : groupMap) {
     auto itCand = candMap.find(itGroup.first);
     if (itGroup.first == kInvalidExprID) {
-      candConst = itCand == candMap.end() ? 0 : itCand->second.multiplier * ratio;
+      candConst = itCand == candMap.end() ?
+          0 : itCand->second.multiplier * ratio;
       groupConst = itGroup.second.multiplier;
       continue;
     }
@@ -1598,7 +1599,8 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
       extraExpr = extraExpr == nullptr ? expr
                                        : irMap->CreateMeExprBinary(OP_add, groupBase.GetPrimType(), *extraExpr, *expr);
     } else {
-      int64 newMultiplier = itGroup.second.multiplier - (itCand->second.multiplier * ratio);
+      int64 newMultiplier = static_cast<int64>(static_cast<uint64>(itGroup.second.multiplier) -
+          (static_cast<uint64>(itCand->second.multiplier) * ratio));
       if (newMultiplier == 0) {
         continue;
       }
@@ -1622,7 +1624,7 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
   for (auto &itCand : candMap) {
     auto itGroup = groupMap.find(itCand.first);
     if (itCand.first == kInvalidExprID) {
-      candConst = itCand.second.multiplier * ratio;
+      candConst = static_cast<uint64>(itCand.second.multiplier) * ratio;
       groupConst = itGroup == groupMap.end() ? 0 : itGroup->second.multiplier;
       continue;
     }
@@ -1651,10 +1653,10 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
                                        : irMap->CreateMeExprBinary(OP_add, ptyp, *extraExpr, *expr);
     }
   }
-  if (static_cast<uint64>(groupConst) - static_cast<uint64>(candConst) == 0) {
+  if (static_cast<uint64>(groupConst) - candConst == 0) {
     return extraExpr;
   }
-  auto *constExpr = irMap->CreateIntConstMeExpr(static_cast<uint64>(groupConst) - static_cast<uint64>(candConst), ptyp);
+  auto *constExpr = irMap->CreateIntConstMeExpr(static_cast<uint64>(groupConst) - candConst, ptyp);
   extraExpr = extraExpr == nullptr ? constExpr
                                    : irMap->CreateMeExprBinary(OP_add, ptyp, *extraExpr, *constExpr);
   return extraExpr;

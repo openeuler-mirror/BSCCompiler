@@ -1485,9 +1485,9 @@ bool ASTInitListExpr::SolveInitListPartialOfZero(std::variant<std::pair<UniqueFE
     ++index;
   }
   // consider struct alignment
-  int64 fieldsBitSize =
-      (baseStructMirType->GetBitOffsetFromBaseAddr(fieldIdOfLastZero) +
-      static_cast<int64>(fieldSizeOfLastZero * kOneByte)) - initBitSize;
+  uint64 fieldsBitSize =
+      static_cast<uint64>((baseStructMirType->GetBitOffsetFromBaseAddr(fieldIdOfLastZero) +
+      static_cast<int64>(fieldSizeOfLastZero * kOneByte)) - initBitSize);
   if (fieldsCount >= 2 && fieldsBitSize % kOneByte == 0 && (fieldsBitSize / kOneByte) % 4 == 0) {
     auto addrOfExpr = CalculateStartAddressForMemset(var, static_cast<uint32>(initBitSize / 8), fieldID, base);
     ProcessImplicitInit(addrOfExpr->Clone(), 0, static_cast<uint32>(fieldsBitSize / kOneByte), 1, stmts,
@@ -1636,7 +1636,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
         curStructMirType->GetKind() == kTypeStruct &&
         fieldMirType->GetKind() != kTypeBitField && // skip bitfield type field because it not follows byte alignment
         initList.initExprs[i]->GetEvaluatedFlag() == kEvaluatedAsZero &&
-        (baseStructMirType->GetBitOffsetFromBaseAddr(fieldID) / kOneByte) % 4 == 0) {
+        (static_cast<uint64>(baseStructMirType->GetBitOffsetFromBaseAddr(fieldID)) / kOneByte) % 4 == 0) {
         if (SolveInitListPartialOfZero(base, fieldID, i, initList, stmts)) {
           continue;
         }
@@ -1651,7 +1651,8 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
 
     if (initList.initExprs[i]->GetASTOp() == kASTOpInitListExpr ||
         initList.initExprs[i]->GetASTOp() == kASTASTDesignatedInitUpdateExpr) {
-      SolveInitListExprOrDesignatedInitUpdateExpr(fieldInfo, *(initList.initExprs[i]), baseStructFEPtrType, base, stmts);
+      SolveInitListExprOrDesignatedInitUpdateExpr(fieldInfo, *(initList.initExprs[i]),
+          baseStructFEPtrType, base, stmts);
     } else if (fieldMirType->GetKind() == kTypeArray && initList.initExprs[i]->GetASTOp() == kASTStringLiteral) {
       SolveStructFieldOfArrayTypeInitWithStringLiteral(fieldInfo, *(initList.initExprs[i]),
                                                        baseStructFEPtrType, base, stmts);
@@ -1664,7 +1665,7 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
   if (curStructMirType->GetKind() == kTypeUnion) {
     UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), baseFieldID);
     ProcessImplicitInit(addrOfExpr->Clone(), curFieldTypeSize,
-                        curStructMirType->GetSize(), 1, stmts, initList.GetSrcLoc());
+                        static_cast<uint32>(curStructMirType->GetSize()), 1, stmts, initList.GetSrcLoc());
   }
 }
 
@@ -1710,8 +1711,8 @@ void ASTInitListExpr::HandleImplicitInitSections(const UniqueFEIRExpr &addrOfArr
   }
   CHECK_FATAL(elemSize != 0, "elemSize should not 0");
   auto allElemCnt = allSize / elemSize;
-  ProcessImplicitInit(addrOfArray->Clone(), static_cast<uint32>(initList.initExprs.size()), allElemCnt, elemSize, stmts,
-                      initList.GetSrcLoc());
+  ProcessImplicitInit(addrOfArray->Clone(), static_cast<uint32>(initList.initExprs.size()),
+      static_cast<uint32>(allElemCnt), static_cast<uint32>(elemSize), stmts, initList.GetSrcLoc());
 }
 
 void ASTInitListExpr::ProcessArrayInitList(const UniqueFEIRExpr &addrOfArray, const ASTInitListExpr &initList,

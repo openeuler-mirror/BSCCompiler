@@ -263,16 +263,16 @@ class ASTParser {
   ASTExpr *BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
   bool CheckIncContinueStmtExpr(const clang::Stmt &bodyStmt) const;
-  void CheckVarNameValid(std::string varName);
+  void CheckVarNameValid(const std::string &varName) const;
   void ParserExprVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, ASTExpr &expr);
   void ParserStmtVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, std::list<ASTStmt*> &stmts);
   void SetAtomExprValType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr, ASTAtomicExpr &astExpr);
   void SetAtomExchangeType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr, ASTAtomicExpr &astExpr);
-  clang::Expr *GetAtomValExpr(clang::Expr *valExpr);
-  clang::QualType GetPointeeType(const clang::Expr &expr);
+  clang::Expr *GetAtomValExpr(clang::Expr *valExpr) const;
+  clang::QualType GetPointeeType(const clang::Expr &expr) const;
   bool IsNeedGetPointeeType(const clang::FunctionDecl &funcDecl) const;
   MapleVector<MIRType*> CvtFuncTypeAndRetType(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
-                                              clang::QualType qualType);
+                                              const clang::QualType &qualType) const;
   void CheckAtomicClearArg(const clang::CallExpr &expr) const;
   std::string GetFuncNameFromFuncDecl(const clang::FunctionDecl &funcDecl) const;
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
