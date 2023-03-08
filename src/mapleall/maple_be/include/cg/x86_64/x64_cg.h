@@ -30,8 +30,6 @@
 #include "x64_rematerialize.h"
 
 namespace maplebe {
-constexpr int32 kIntRegTypeNum = 5;
-
 class X64CG : public CG {
  public:
   X64CG(MIRModule &mod, const CGOptions &opts) : CG(mod, opts) {}
@@ -148,14 +146,17 @@ class X64CG : public CG {
 
   /* Used for GCTIB pattern merging */
   std::string FindGCTIBPatternName(const std::string &name) const override;
-  static std::array<std::array<const std::string, x64::kAllRegNum>, kIntRegTypeNum> intRegNames;
   enum : uint8 {
-    kR8LowList,
-    kR8HighList,
-    kR16List,
-    kR32List,
-    kR64List
+    kR8LowList = 0,
+    kR8HighList = 1,
+    kR16List = 2,
+    kR32List = 3,
+    kR64List = 4,
+    kR128List = 5,
+    kIntRegTypeNum
   };
+   static std::array<std::array<const std::string, x64::kAllRegNum>, kIntRegTypeNum> intRegNames;
+
   bool IsEffectiveCopy(Insn &insn) const final;
   bool IsTargetInsn(MOperator mOp) const final;
   bool IsClinitInsn(MOperator mOp) const final;

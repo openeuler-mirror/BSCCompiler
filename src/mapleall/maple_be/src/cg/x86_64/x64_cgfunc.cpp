@@ -548,7 +548,7 @@ RegOperand &X64CGFunc::GetOrCreateFramePointerRegOperand() {
   return *a;
 }
 RegOperand &X64CGFunc::GetOrCreateStackBaseRegOperand() {
-  return GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerSize() * kBitsPerByte, kRegTyInt);
+  return GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerBitSize(), kRegTyInt);
 }
 RegOperand &X64CGFunc::GetZeroOpnd(uint32 size) {
   CHECK_FATAL(false, "NIY");
@@ -761,7 +761,7 @@ RegOperand *X64CGFunc::GetBaseReg(const maplebe::SymbolAlloc &symAlloc) {
   ASSERT(((sgKind == kMsArgsRegPassed) || (sgKind == kMsLocals) || (sgKind == kMsRefLocals) ||
       (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NIY");
   if (sgKind == kMsLocals || sgKind == kMsArgsRegPassed || sgKind == kMsArgsStkPassed) {
-    return &GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerSize() * kBitsPerByte, kRegTyInt);
+    return &GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerBitSize(), kRegTyInt);
   } else {
     CHECK_FATAL(false, "NIY sgKind");
   }
@@ -820,7 +820,7 @@ MemOperand *X64CGFunc::GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) {
     }
 
     RegOperand &baseOpnd = GetOrCreateStackBaseRegOperand();
-    int32 offset = GetOrCreatSpillRegLocation(vrNum);
+    int32 offset = GetOrCreatSpillRegLocation(vrNum, memBitSize / kBitsPerByte);
     MemOperand *memOpnd = &GetOpndBuilder()->CreateMem(baseOpnd, offset, memBitSize);
     spillRegMemOperands.emplace(std::pair<regno_t, MemOperand*>(vrNum, memOpnd));
     return memOpnd;

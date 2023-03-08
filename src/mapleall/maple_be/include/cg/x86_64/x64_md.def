@@ -55,6 +55,7 @@ DEFINE_MOP(MOP_movq_r_m, {&OpndDesc::Reg64IS,&OpndDesc::Mem64D},ISSTORE,kLtAlu,"
 
 /* floating point mov */
 DEFINE_MOP(MOP_movd_fr_r, {&OpndDesc::Reg128FS,&OpndDesc::Reg32ID},ISSTORE,kLtAlu,"movd","0,1",1)
+DEFINE_MOP(MOP_movd_r_fr, {&OpndDesc::Reg32IS,&OpndDesc::Reg128FD},ISSTORE,kLtAlu,"movd","0,1",1)
 DEFINE_MOP(MOP_movq_fr_r, {&OpndDesc::Reg128FS,&OpndDesc::Reg64ID},ISSTORE,kLtAlu,"movq","0,1",1)
 DEFINE_MOP(MOP_movq_r_fr, {&OpndDesc::Reg64IS,&OpndDesc::Reg128FD},ISSTORE,kLtAlu,"movq","0,1",1)
 DEFINE_MOP(MOP_movfs_m_r, {&OpndDesc::Mem32S,&OpndDesc::Reg128FD},ISLOAD,kLtAlu,"movss","0,1",1)
@@ -70,7 +71,7 @@ DEFINE_MOP(MOP_movabs_l_r, {&OpndDesc::Lbl64,&OpndDesc::Reg64ID},ISMOVE,kLtAlu,"
 
 /* push & pop & lea */
 DEFINE_MOP(MOP_pushq_r, {&OpndDesc::Reg64IS},0,kLtAlu,"pushq","0",1)
-DEFINE_MOP(MOP_popq_r, {&OpndDesc::Reg32IS},0,kLtAlu,"popq","0",1)
+DEFINE_MOP(MOP_popq_r, {&OpndDesc::Reg64IS},0,kLtAlu,"popq","0",1)
 
 DEFINE_MOP(MOP_leaq_m_r, {&OpndDesc::Mem64S,&OpndDesc::Reg64ID},0,kLtAlu,"leaq","0,1",1)
 DEFINE_MOP(MOP_leal_m_r, {&OpndDesc::Mem32S,&OpndDesc::Reg64ID},0,kLtAlu,"leaq","0,1",1)

@@ -605,6 +605,22 @@ class LiveRange {
     spillSize = size;
   }
 
+  uint32 GetMaxDefSize() const {
+    return maxDefSize;
+  }
+
+  void SetMaxDefSize(uint32 size) {
+    maxDefSize = size;
+  }
+
+  uint32 GetMaxUseSize() const {
+    return maxUseSize;
+  }
+
+  void SetMaxUseSize(uint32 size) {
+    maxUseSize = size;
+  }
+
   bool IsSpilled() const {
     return spilled;
   }
@@ -720,7 +736,9 @@ class LiveRange {
 #endif                                /* OPTIMIZE_FOR_PROLOG */
   MemOperand *spillMem = nullptr;     /* memory operand used for spill, if any */
   regno_t spillReg = 0;               /* register operand for spill at current point */
-  uint32 spillSize = 0;
+  uint32 spillSize = 0;               /* use min(maxDefSize, maxUseSize) */
+  uint32 maxDefSize = 0;
+  uint32 maxUseSize = 0;
   bool spilled = false;               /* color assigned */
   bool hasDefUse = false;               /* has regDS */
   bool proccessed = false;
@@ -1210,7 +1228,7 @@ class GraphColorRegAllocator : public RegAllocator {
   LiveRange *CreateLiveRangeAllocateAndUpdate(regno_t regNO, const BB &bb, bool isDef, uint32 currId);
   void CreateLiveRange(regno_t regNO, const BB &bb, bool isDef, uint32 currId, bool updateCount);
   bool SetupLiveRangeByOpHandlePhysicalReg(const RegOperand &regOpnd, Insn &insn, regno_t regNO, bool isDef);
-  void SetupLiveRangeByOp(Operand &op, Insn &insn, bool isDef, uint32 &numUses);
+  void SetupLiveRangeByOp(Operand &op, Insn &insn, bool isDef, uint32 regSize, uint32 &numUses);
   void SetupLiveRangeByRegNO(regno_t liveOut, BB &bb, uint32 currPoint);
   bool UpdateInsnCntAndSkipUseless(Insn &insn, uint32 &currPoint) const;
   void UpdateCallInfo(uint32 bbId, uint32 currPoint, const Insn &insn);

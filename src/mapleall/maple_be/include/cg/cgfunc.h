@@ -1360,6 +1360,11 @@ class CGFunc {
     return static_cast<int64>(GetBaseOffset(*symLoc));
   }
 
+  int64 GetOrCreatSpillRegLocation(regno_t vrNum, uint32 memByteSize) {
+    auto *symLoc = GetMemlayout()->GetLocOfSpillRegister(vrNum, memByteSize);
+    return static_cast<int64>(GetBaseOffset(*symLoc));
+  }
+
   virtual MemOperand *GetPseudoRegisterSpillMemoryOperand(PregIdx idx) = 0;
 
   uint32 GetSpillLocation(uint32 size) {

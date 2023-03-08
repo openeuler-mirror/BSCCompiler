@@ -134,7 +134,7 @@ class AArch64SymbolAlloc : public SymbolAlloc {
 class AArch64MemLayout : public MemLayout {
  public:
   AArch64MemLayout(BECommon &b, MIRFunction &f, MapleAllocator &mallocator)
-      : MemLayout(b, f, mallocator) {}
+      : MemLayout(b, f, mallocator, kAarch64StackPtrAlignment) {}
 
   ~AArch64MemLayout() override = default;
 
@@ -148,8 +148,6 @@ class AArch64MemLayout : public MemLayout {
   void LayoutStackFrame(int32 &structCopySize, int32 &maxParmStackSize) override;
 
   void AssignSpillLocationsToPseudoRegisters() override;
-
-  SymbolAlloc *AssignLocationToSpillReg(regno_t vrNum) override;
 
   uint64 StackFrameSize() const;
 
@@ -195,7 +193,6 @@ class AArch64MemLayout : public MemLayout {
  private:
   MemSegment segRefLocals = MemSegment(kMsRefLocals);
   /* callee saved register R19-R28 (10) */
-  MemSegment segSpillReg = MemSegment(kMsSpillReg);
   MemSegment segLocals = MemSegment(kMsLocals);  /* these are accessed via Frame Pointer */
   MemSegment segGrSaveArea = MemSegment(kMsGrSaveArea);
   MemSegment segVrSaveArea = MemSegment(kMsVrSaveArea);
@@ -208,6 +205,10 @@ class AArch64MemLayout : public MemLayout {
   void LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, std::vector<MIRSymbol*> &returnDelays);
   void LayoutEAVariales(std::vector<MIRSymbol*> &tempVar);
   void LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays, int32 &structCopySize, int32 &maxParmStackSize);
+
+  SymbolAlloc *CreateSymbolAlloc() const override {
+    return memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
+  }
 };
 }  /* namespace maplebe */
 

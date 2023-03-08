@@ -36,24 +36,26 @@ class X64Emitter : public AsmEmitter {
   void Run(FuncEmitInfo &funcEmitInfo) override;
 };
 
-class CGOpndEmitVisitor : public OperandVisitorBase,
-                          public OperandVisitors<CGRegOperand, CGImmOperand, CGMemOperand> {
+class X64OpndEmitVisitor : public OpndEmitVisitor {
  public:
-  CGOpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
-  virtual ~CGOpndEmitVisitor() = default;
-
- protected:
-  Emitter &emitter;
-};
-
-class X64OpndEmitVisitor : public CGOpndEmitVisitor {
- public:
-  X64OpndEmitVisitor(Emitter &emitter) : CGOpndEmitVisitor(emitter) {}
+  X64OpndEmitVisitor(Emitter &emitter, const OpndDesc *operandProp)
+      : OpndEmitVisitor(emitter, operandProp) {}
   ~X64OpndEmitVisitor() override = default;
 
-  void Visit(CGRegOperand *v) final;
-  void Visit(CGImmOperand *v) final;
-  void Visit(CGMemOperand *v) final;
+  void Visit(RegOperand *v) final;
+  void Visit(ImmOperand *v) final;
+  void Visit(MemOperand *v) final;
+  void Visit(FuncNameOperand *v) final;
+  void Visit(LabelOperand *v) final;
+  void Visit(ListOperand *v) final;
+  void Visit(StImmOperand *v) final;
+  void Visit(CondOperand *v) final;
+  void Visit(BitShiftOperand *v) final;
+  void Visit(ExtendShiftOperand *v) final;
+  void Visit(CommentOperand *v) final;
+  void Visit(OfstOperand *v) final;
+ private:
+  void Visit(maplebe::RegOperand *v, uint32 regSize);
 };
 
 }  /* namespace maplebe */

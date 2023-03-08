@@ -25,7 +25,7 @@ const InsnDesc X64CG::kMd[kMopLast] = {
 };
 #undef DEFINE_MOP
 
-std::array<std::array<const std::string, kAllRegNum>, kIntRegTypeNum> X64CG::intRegNames = {
+std::array<std::array<const std::string, kAllRegNum>, X64CG::kIntRegTypeNum> X64CG::intRegNames = {
     std::array<const std::string, kAllRegNum> {
         "err", "al", "bl", "cl", "dl", "spl", "bpl", "sil", "dil", "r8b", "r9b", "r10b", "r11b", "r12b", "r13b",
         "r14b", "r15b", "err1", "errMaxRegNum"
@@ -42,6 +42,10 @@ std::array<std::array<const std::string, kAllRegNum>, kIntRegTypeNum> X64CG::int
     }, std::array<const std::string, kAllRegNum> {
         "err", "rax", "rbx", "rcx", "rdx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13",
         "r14", "r15", "rip", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10",
+    "xmm11", "xmm12", "xmm13", "xmm14", "xmm15", "errMaxRegNum"
+    }, std::array<const std::string, kAllRegNum> {
+        "err", "err", "err", "err", "err", "err", "err", "err", "err", "err", "err", "err", "err", "err", "err",
+        "err", "err", "err", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10",
     "xmm11", "xmm12", "xmm13", "xmm14", "xmm15", "errMaxRegNum"
     },
 };

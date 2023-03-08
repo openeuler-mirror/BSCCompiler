@@ -269,10 +269,6 @@ class X64CGFunc : public CGFunc {
 
   MemOperand *GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) override;
   void FreeSpillRegMem(regno_t vrNum) override;
-  int64 GetOrCreatSpillRegLocation(regno_t vrNum) {
-    auto symLoc = GetMemlayout()->GetLocOfSpillRegister(vrNum);
-    return static_cast<int64>(GetBaseOffset(*symLoc));
-  }
  private:
   MapleSet<x64::X64reg> calleeSavedRegs;
   uint32 numIntregToCalleeSave = 0;

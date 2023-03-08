@@ -948,7 +948,7 @@ RegOperand *AArch64CGFunc::GetBaseRegForSplit(uint32 baseRegNum) {
     resOpnd = &CreateRegisterOperandOfType(PTY_i64);
   } else if (AArch64isa::IsPhysicalRegister(baseRegNum)) {
     resOpnd = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(baseRegNum),
-        GetPointerSize() * kBitsPerByte, kRegTyInt);
+        GetPointerBitSize(), kRegTyInt);
   } else  {
     resOpnd = &GetOrCreateVirtualRegisterOperand(baseRegNum);
   }
@@ -3129,7 +3129,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
       /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
       OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
 
-      auto size = GetPointerSize() * kBitsPerByte;
+      auto size = GetPointerBitSize();
       MemOperand *memOpnd = CreateMemOperand(static_cast<uint32>(size), static_cast<RegOperand&>(*srcOpnd),
                                              offset, *symbol);
       GetCurBB()->AppendInsn(
@@ -3210,7 +3210,7 @@ Operand *AArch64CGFunc::SelectAddrof(AddrofNode &expr, const BaseNode &parent, b
       structAddr = stackAddr;
     } else {
       MemOperand *mo =
-          CreateMemOperand(GetPointerSize() * kBitsPerByte, *stackAddr, CreateImmOperand(0, k32BitSize, false));
+          CreateMemOperand(GetPointerBitSize(), *stackAddr, CreateImmOperand(0, k32BitSize, false));
       structAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
       GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xldr, *structAddr, *mo));
     }
@@ -6632,11 +6632,11 @@ void AArch64CGFunc::GenerateCleanupCodeForExtEpilog(BB &bb) {
   SetCurBB(bb);
 
   RegOperand &regOpnd0 =
-    GetOrCreatePhysicalRegisterOperand(R0, GetPointerSize() * kBitsPerByte, GetRegTyFromPrimTy(PTY_a64));
+    GetOrCreatePhysicalRegisterOperand(R0, GetPointerBitSize(), GetRegTyFromPrimTy(PTY_a64));
   RegOperand &regOpnd1 =
-    GetOrCreatePhysicalRegisterOperand(R1, GetPointerSize() * kBitsPerByte, GetRegTyFromPrimTy(PTY_a64));
+    GetOrCreatePhysicalRegisterOperand(R1, GetPointerBitSize(), GetRegTyFromPrimTy(PTY_a64));
   /* allocate 16 bytes to store reg0 and reg1 (each reg has 8 bytes) */
-  MemOperand &frameAlloc = CreateCallFrameOperand(-16, GetPointerSize() * kBitsPerByte);
+  MemOperand &frameAlloc = CreateCallFrameOperand(-16, GetPointerBitSize());
   Insn &allocInsn = GetInsnBuilder()->BuildInsn(MOP_xstp, regOpnd0, regOpnd1, frameAlloc);
   allocInsn.SetDoNotRemove(true);
   AppendInstructionTo(allocInsn, *this);
@@ -6644,7 +6644,7 @@ void AArch64CGFunc::GenerateCleanupCodeForExtEpilog(BB &bb) {
   /* invoke MCC_CleanupLocalStackRef(). */
   HandleRCCall(false);
   /* deallocate 16 bytes which used to store reg0 and reg1 */
-  MemOperand &frameDealloc = CreateCallFrameOperand(16, GetPointerSize() * kBitsPerByte);
+  MemOperand &frameDealloc = CreateCallFrameOperand(16, GetPointerBitSize());
   GenRetCleanup(cleanEANode, true);
   Insn &deallocInsn = GetInsnBuilder()->BuildInsn(MOP_xldp, regOpnd0, regOpnd1, frameDealloc);
   deallocInsn.SetDoNotRemove(true);
@@ -6969,7 +6969,7 @@ void AArch64CGFunc::GenSaveMethodInfoCode(BB &bb) {
      */
     if ((GetFunction().GetAttr(FUNCATTR_native) || GetFunction().GetAttr(FUNCATTR_fast_native)) &&
         !GetFunction().GetAttr(FUNCATTR_critical_native) && !GetFunction().GetAttr(FUNCATTR_bridge)) {
-      RegOperand &fpReg = GetOrCreatePhysicalRegisterOperand(RFP, GetPointerSize() * kBitsPerByte, kRegTyInt);
+      RegOperand &fpReg = GetOrCreatePhysicalRegisterOperand(RFP, GetPointerBitSize(), kRegTyInt);
 
       ListOperand *srcOpnds = CreateListOpnd(*GetFuncScopeAllocator());
       RegOperand &parmRegOpnd1 = GetOrCreatePhysicalRegisterOperand(R0, k64BitSize, kRegTyInt);
@@ -7282,7 +7282,7 @@ bool AArch64CGFunc::GenRetCleanup(const IntrinsiccallNode *cleanupNode, bool for
     /* optimization for little slot cleanup */
     if (realMax == realMin && !forEA) {
       RegOperand &phyOpnd = GetOrCreatePhysicalRegisterOperand(R0, k64BitSize, GetRegTyFromPrimTy(PTY_a64));
-      Operand &stackLoc = CreateStkTopOpnd(static_cast<uint32>(realMin), GetPointerSize() * kBitsPerByte);
+      Operand &stackLoc = CreateStkTopOpnd(static_cast<uint32>(realMin), GetPointerBitSize());
       Insn &ldrInsn = GetInsnBuilder()->BuildInsn(PickLdInsn(k64BitSize, PTY_a64), phyOpnd, stackLoc);
       GetCurBB()->AppendInsn(ldrInsn);
 
@@ -7494,7 +7494,7 @@ void AArch64CGFunc::HandleRCCall(bool begin, const MIRSymbol *retRef) {
     while (ind < pairNum) {
       int32 offset = memLayout->GetRefLocBaseLoc() + kIntregBytelen * formalRef + pairRefBytes * ind;
       Operand &zeroOp = GetZeroOpnd(k64BitSize);
-      Operand &stackLoc = CreateStkTopOpnd(static_cast<uint32>(offset), GetPointerSize() * kBitsPerByte);
+      Operand &stackLoc = CreateStkTopOpnd(static_cast<uint32>(offset), GetPointerBitSize());
       Insn &setInc = GetInsnBuilder()->BuildInsn(MOP_xstp, zeroOp, zeroOp, stackLoc);
       GetCurBB()->AppendInsn(setInc);
       ind++;
@@ -7502,7 +7502,7 @@ void AArch64CGFunc::HandleRCCall(bool begin, const MIRSymbol *retRef) {
     if (singleNum > 0) {
       int32 offset = memLayout->GetRefLocBaseLoc() + kIntregBytelen * formalRef + kIntregBytelen * (refNum - 1);
       Operand &zeroOp = GetZeroOpnd(k64BitSize);
-      Operand &stackLoc = CreateStkTopOpnd(static_cast<uint32>(offset), GetPointerSize() * kBitsPerByte);
+      Operand &stackLoc = CreateStkTopOpnd(static_cast<uint32>(offset), GetPointerBitSize());
       Insn &setInc = GetInsnBuilder()->BuildInsn(MOP_xstr, zeroOp, stackLoc);
       GetCurBB()->AppendInsn(setInc);
     }
@@ -7516,7 +7516,7 @@ void AArch64CGFunc::HandleRCCall(bool begin, const MIRSymbol *retRef) {
   if ((refNum == 1) && !begin && (retRef == nullptr)) {
     RegOperand &phyOpnd = GetOrCreatePhysicalRegisterOperand(R0, k64BitSize, GetRegTyFromPrimTy(PTY_a64));
     Operand &stackLoc = CreateStkTopOpnd(static_cast<uint32>(memLayout->GetRefLocBaseLoc()),
-                                         GetPointerSize() * kBitsPerByte);
+                                         GetPointerBitSize());
     Insn &ldrInsn = GetInsnBuilder()->BuildInsn(PickLdInsn(k64BitSize, PTY_a64), phyOpnd, stackLoc);
     GetCurBB()->AppendInsn(ldrInsn);
 
@@ -7546,10 +7546,10 @@ void AArch64CGFunc::HandleRCCall(bool begin, const MIRSymbol *retRef) {
     if (stOffset == 0) {
       /* just have to Dec the next one. */
       stackLoc = &CreateStkTopOpnd(static_cast<uint32>(memLayout->GetRefLocBaseLoc()) + kIntregBytelen,
-                                   GetPointerSize() * kBitsPerByte);
+                                   GetPointerBitSize());
     } else {
       /* just have to Dec the current one. */
-      stackLoc = &CreateStkTopOpnd(static_cast<uint32>(memLayout->GetRefLocBaseLoc()), GetPointerSize() * kBitsPerByte);
+      stackLoc = &CreateStkTopOpnd(static_cast<uint32>(memLayout->GetRefLocBaseLoc()), GetPointerBitSize());
     }
     Insn &ldrInsn = GetInsnBuilder()->BuildInsn(PickLdInsn(k64BitSize, PTY_a64), phyOpnd, *stackLoc);
     GetCurBB()->AppendInsn(ldrInsn);
@@ -9150,11 +9150,11 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
     BaseNode *funcArgExpr = callNode.Opnd(0);
     PrimType ptype = funcArgExpr->GetPrimType();
     Operand *funcOpnd = HandleExpr(callNode, *funcArgExpr);
-    RegOperand &livein = GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte,
+    RegOperand &livein = GetOrCreatePhysicalRegisterOperand(R9, GetPointerBitSize(),
                                                             GetRegTyFromPrimTy(PTY_a64));
     SelectCopy(livein, ptype, *funcOpnd, ptype);
 
-    RegOperand &extraOpnd = GetOrCreatePhysicalRegisterOperand(R9, GetPointerSize() * kBitsPerByte, kRegTyInt);
+    RegOperand &extraOpnd = GetOrCreatePhysicalRegisterOperand(R9, GetPointerBitSize(), kRegTyInt);
     srcOpnds->PushOpnd(extraOpnd);
   }
   const std::string &funcName = fsym->GetName();
@@ -9514,7 +9514,7 @@ void AArch64CGFunc::SelectAddrofAfterRa(Operand &result, StImmOperand &stImm, st
   if (CGOptions::IsPIC() && symbol->NeedGOT(CGOptions::IsPIE())) {
     /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
     OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
-    MemOperand *memOpnd = CreateMemOperand(GetPointerSize() * kBitsPerByte, static_cast<RegOperand&>(*srcOpnd),
+    MemOperand *memOpnd = CreateMemOperand(GetPointerBitSize(), static_cast<RegOperand&>(*srcOpnd),
                                            offset, *symbol);
     (void)rematInsns.emplace_back(&GetInsnBuilder()->BuildInsn(
         memOpnd->GetSize() == k64BitSize ? MOP_xldr : MOP_wldr, result, *memOpnd));
@@ -10039,9 +10039,9 @@ RegOperand *AArch64CGFunc::GetBaseReg(const SymbolAlloc &symAlloc) {
 
   if (fsp == nullptr) {
     if (GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
-      fsp = &GetOrCreatePhysicalRegisterOperand(RSP, GetPointerSize() * kBitsPerByte, kRegTyInt);
+      fsp = &GetOrCreatePhysicalRegisterOperand(RSP, GetPointerBitSize(), kRegTyInt);
     } else {
-      fsp = &GetOrCreatePhysicalRegisterOperand(RFP, GetPointerSize() * kBitsPerByte, kRegTyInt);
+      fsp = &GetOrCreatePhysicalRegisterOperand(RFP, GetPointerBitSize(), kRegTyInt);
     }
   }
   return fsp;
@@ -10249,7 +10249,8 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) {
     if (vrNum >= vReg.VRegTableSize()) {
       CHECK_FATAL(false, "index out of range in AArch64CGFunc::FreeSpillRegMem");
     }
-    uint32 memBitSize = memSize <= k64BitSize ? k64BitSize : k128BitSize;
+    uint32 memBitSize = (memSize <= k32BitSize) ? k32BitSize :
+        (memSize <= k64BitSize) ? k64BitSize : k128BitSize;
     auto it = reuseSpillLocMem.find(memBitSize);
     if (it != reuseSpillLocMem.end()) {
       MemOperand *memOpnd = it->second->GetOne();
@@ -10260,7 +10261,7 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) {
     }
 
     RegOperand &baseOpnd = GetOrCreateStackBaseRegOperand();
-    int64 offset = GetOrCreatSpillRegLocation(vrNum);
+    int64 offset = GetOrCreatSpillRegLocation(vrNum, memBitSize / kBitsPerByte);
     MemOperand *memOpnd = nullptr;
     ImmOperand &offsetOpnd = CreateImmOperand(offset, k64BitSize, false);
     memOpnd = CreateMemOperand(memBitSize, baseOpnd, offsetOpnd);
@@ -10443,7 +10444,7 @@ Insn &AArch64CGFunc::GenerateGlobalLongCallAfterInsn(const MIRSymbol &func, List
   OfstOperand &offsetOpnd = CreateOfstOpnd(*symbol, 0);
   Insn &adrpInsn = GetInsnBuilder()->BuildInsn(MOP_xadrp, tmpReg, stOpnd);
   GetCurBB()->AppendInsn(adrpInsn);
-  MemOperand *memOrd = CreateMemOperand(GetPointerSize() * kBitsPerByte, static_cast<RegOperand&>(tmpReg),
+  MemOperand *memOrd = CreateMemOperand(GetPointerBitSize(), static_cast<RegOperand&>(tmpReg),
                                         offsetOpnd, *symbol);
   Insn &ldrInsn = GetInsnBuilder()->BuildInsn(memOrd->GetSize() == k64BitSize ? MOP_xldr : MOP_wldr, tmpReg, *memOrd);
   GetCurBB()->AppendInsn(ldrInsn);

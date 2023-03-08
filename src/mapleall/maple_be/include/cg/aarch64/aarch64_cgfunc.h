@@ -432,7 +432,7 @@ class AArch64CGFunc : public CGFunc {
     } else {
       reg = RFP;
     }
-    return GetOrCreatePhysicalRegisterOperand(reg, GetPointerSize() * kBitsPerByte, kRegTyInt);
+    return GetOrCreatePhysicalRegisterOperand(reg, GetPointerBitSize(), kRegTyInt);
   }
 
   RegOperand &GenStructParamIndex(RegOperand &base, const BaseNode &indexExpr, int shift, PrimType baseType);
@@ -446,7 +446,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand &HashMemOpnd(MemOperand &tMemOpnd);
 
   MemOperand &CreateMemOpnd(AArch64reg reg, int64 offset, uint32 size) {
-    RegOperand &baseOpnd = GetOrCreatePhysicalRegisterOperand(reg, GetPointerSize() * kBitsPerByte, kRegTyInt);
+    RegOperand &baseOpnd = GetOrCreatePhysicalRegisterOperand(reg, GetPointerBitSize(), kRegTyInt);
     return CreateMemOpnd(baseOpnd, offset, size);
   }
 
@@ -890,10 +890,6 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectRoundLibCall(RoundType roundType, const TypeCvtNode &node, Operand &opnd0);
   Operand *SelectRoundOperator(RoundType roundType, const TypeCvtNode &node, Operand &opnd0, const BaseNode &parent);
   Operand *SelectAArch64align(const IntrinsicopNode &intrnNode, bool isUp /* false for align down */);
-  int64 GetOrCreatSpillRegLocation(regno_t vrNum) {
-    AArch64SymbolAlloc *symLoc = static_cast<AArch64SymbolAlloc*>(GetMemlayout()->GetLocOfSpillRegister(vrNum));
-    return static_cast<int64>(GetBaseOffset(*symLoc));
-  }
   void SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsize, Operand &src, PrimType stype);
   void SelectCopyRegOpnd(Operand &dest, PrimType dtype, Operand::OperandType opndType, uint32 dsize, Operand &src,
                          PrimType stype);

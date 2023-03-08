@@ -396,7 +396,9 @@ class OpndEmitVisitor : public OperandVisitorBase,
                                                ExtendShiftOperand,
                                                CommentOperand> {
  public:
-  explicit OpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
+  explicit OpndEmitVisitor(Emitter &asmEmitter, const OpndDesc *operandProp)
+      : emitter(asmEmitter),
+        opndProp(operandProp) {}
   virtual ~OpndEmitVisitor() = default;
   uint8 GetSlot() {
     return slot;
@@ -419,6 +421,7 @@ class OpndEmitVisitor : public OperandVisitorBase,
    * asm {{destReg0, destReg2 ...}, srcReg}          -----> slot = 0
    */
   uint8 slot = 255;
+  const OpndDesc *opndProp;
 };
 }  /* namespace maplebe */
 

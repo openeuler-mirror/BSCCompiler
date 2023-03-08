@@ -72,7 +72,7 @@ std::vector<Insn*> AArch64Rematerializer::RematerializeForAddrof(CGFunc &cgFunc,
         (symbol->GetStorageClass() == kScExtern))) {
       /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
       OfstOperand &offsetOp = a64Func.CreateOfstOpnd(*symbol, offset, 0);
-      MemOperand *memOpnd = a64Func.CreateMemOperand(GetPointerSize() * kBitsPerByte, regOp, offsetOp, *symbol);
+      MemOperand *memOpnd = a64Func.CreateMemOperand(GetPointerBitSize(), regOp, offsetOp, *symbol);
       MOperator ldOp = (memOpnd->GetSize() == k64BitSize) ? MOP_xldr : MOP_wldr;
       insn = &cgFunc.GetInsnBuilder()->BuildInsn(ldOp, regOp, *memOpnd);
       insns.push_back(insn);

@@ -23,8 +23,7 @@ namespace maplebe {
 class A64OpndEmitVisitor : public OpndEmitVisitor {
  public:
   A64OpndEmitVisitor(Emitter &emitter, const OpndDesc *operandProp)
-      : OpndEmitVisitor(emitter),
-        opndProp(operandProp) {}
+      : OpndEmitVisitor(emitter, operandProp) {}
   ~A64OpndEmitVisitor() override {
     opndProp = nullptr;
   }
@@ -46,8 +45,6 @@ class A64OpndEmitVisitor : public OpndEmitVisitor {
   void EmitVectorOperand(const RegOperand &v);
   void EmitIntReg(const RegOperand &v, uint32 opndSz = kMaxSimm32);
   void Visit(const MIRSymbol &symbol, int64 offset);
-
-  const OpndDesc *opndProp;
 };
 
 class A64OpndDumpVisitor : public OpndDumpVisitor {
