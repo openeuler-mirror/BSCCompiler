@@ -2385,6 +2385,12 @@ void GraphColorRegAllocator::HandleLocalReg(Operand &op, LocalRegAllocator &loca
     return;
   }
 
+#ifdef RESERVED_REGS
+  if (regInfo->IsReservedReg(regNO, doMultiPass)) {
+    return;
+  }
+#endif  /* RESERVED_REGS */
+
   /* is this a local register ? */
   if (regInfo->IsVirtualRegister(regNO) && !IsLocalReg(regNO)) {
     return;

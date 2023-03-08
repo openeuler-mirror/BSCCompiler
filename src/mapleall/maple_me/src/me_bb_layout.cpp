@@ -593,7 +593,10 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
     }
   }
   do {
-    ASSERT(!bb.GetSucc().empty(), "container check");
+    if (bb.GetSucc().empty()) {
+      // If the pred of bb is brTargetBB and remove target bb after opt, can not do opt continue.
+      return;
+    }
     // condgoto's succ layout: [0] fallthru succ, [1] target succ, [2-...] eh succ/wontexit succ
     // goto's succ layout: [0] target succ, [1-...] eh succ/wontexit succ
     BB *brTargetBB = bb.GetKind() == kBBCondGoto ? bb.GetSucc(1) : bb.GetSucc(0);
