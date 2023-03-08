@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ast_interface.h"
+#include <string>
 #include "mpl_logging.h"
 #include "ast_util.h"
 #include "fe_utils.h"
@@ -576,7 +577,44 @@ void LibAstFile::EmitQualifierName(const clang::QualType qualType, std::stringst
   }
 }
 
+void LibAstFile::BuildFieldName(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl) {
+  std::string canonicalTypeName = fieldDecl.getType().getCanonicalType().getAsString();
+  std::string fieldName = GetMangledName(fieldDecl);
+  if (fieldName.empty() && fieldDecl.isAnonymousStructOrUnion()) {
+    fieldName = GetOrCreateMappedUnnamedName(*(fieldDecl.getType()->getAsRecordDecl()));
+  }
+  FEUtils::EraseFileNameforClangTypeStr(canonicalTypeName);
+  recordLayoutStr << fieldName << "-" << canonicalTypeName;
+  const auto *fieldRDcl = fieldDecl.getType()->getAsRecordDecl();
+  if (fieldRDcl != nullptr) {
+    recordLayoutStr << ":{";
+    for (const auto field : fieldRDcl->fields()) {
+      BuildFieldName(recordLayoutStr, *field);
+    }
+    recordLayoutStr << "}";
+  }
+  recordLayoutStr << ",";
+}
+
 const std::string LibAstFile::GetOrCreateMappedUnnamedName(const clang::Decl &decl) {
+  if (FEOptions::GetInstance().GetWPAA()) {
+    std::stringstream recordLayoutStr;
+    const clang::RecordDecl *myRecordDecl = nullptr;
+    if (const auto *fieldDecl = llvm::dyn_cast<clang::FieldDecl>(&decl)) {
+      myRecordDecl = fieldDecl->getType()->getAsRecordDecl();
+    } else if (const auto *recordDecl = llvm::dyn_cast<clang::RecordDecl>(&decl)) {
+      myRecordDecl = recordDecl;
+    }
+    if (myRecordDecl) {
+      recordLayoutStr << myRecordDecl->getKindName().str() << ":{";
+      for (const auto field : myRecordDecl->fields()) {
+        BuildFieldName(recordLayoutStr, *field);
+      }
+      recordLayoutStr << "}";
+    }
+    return "unnamed." + FEUtils::GetHashStr(recordLayoutStr.str());
+  }
+
   uint32 uid;
   if (FEOptions::GetInstance().GetFuncInlineSize() != 0 && !decl.getLocation().isMacroID()) {
     // use loc as key for wpaa mode
@@ -654,30 +692,39 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringst
   } else {
     ss << GetOrCreateMappedUnnamedName(*recordDecl);
   }
-  if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    std::string recordStr = recordDecl->getDefinition() == nullptr ? "" : GetRecordLayoutString(*recordDecl);
-    std::string filename = astContext->getSourceManager().getFilename(recordDecl->getLocation()).str();
-    ss << FEUtils::GetFileNameHashStr(filename + recordStr);
+  if (FEOptions::GetInstance().GetFuncInlineSize() != 0 || FEOptions::GetInstance().GetWPAA()) {
+    std::string layout = recordDecl->getDefinition() == nullptr ? "" : GetRecordLayoutString(*recordDecl);
+    ss << FEUtils::GetFileNameHashStr(layout);
   }
   CHECK_FATAL(ss.rdbuf()->in_avail() != 0, "stringstream is empty");
+}
+void LibAstFile::BuildFieldLayoutString(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl) {
+  std::string canonicalTypeName = fieldDecl.getType().getCanonicalType().getAsString();
+  std::string fieldName = GetMangledName(fieldDecl);
+  if (fieldName.empty() && fieldDecl.isAnonymousStructOrUnion()) {
+    fieldName = GetOrCreateMappedUnnamedName(fieldDecl);
+  }
+
+  FEUtils::EraseFileNameforClangTypeStr(canonicalTypeName);
+  recordLayoutStr << fieldName << "-" << canonicalTypeName;
+  const auto *fieldCl = fieldDecl.getType()->getAsRecordDecl();
+  if (fieldCl != nullptr) {
+    recordLayoutStr << ":{";
+    for (const auto field : fieldCl->fields()) {
+      BuildFieldLayoutString(recordLayoutStr, *field);
+    }
+    recordLayoutStr << "}";
+  }
+  recordLayoutStr << ",";
 }
 
 std::string LibAstFile::GetRecordLayoutString(const clang::RecordDecl &recordDecl) {
   std::stringstream recordLayoutStr;
-  const clang::ASTRecordLayout &recordLayout = GetContext()->getASTRecordLayout(&recordDecl);
-  unsigned int fieldCount = recordLayout.getFieldCount();
-  uint64_t recordSize = static_cast<uint64_t>(recordLayout.getSize().getQuantity());
-  recordLayoutStr << std::to_string(fieldCount) << std::to_string(recordSize);
-  clang::RecordDecl::field_iterator it = recordDecl.field_begin();
-  for (unsigned i = 0, e = recordLayout.getFieldCount(); i != e; ++i, ++it) {
-    const clang::FieldDecl *fieldDecl = *it;
-    recordLayoutStr << std::to_string(recordLayout.getFieldOffset(i));
-    std::string fieldName = GetMangledName(*fieldDecl);
-    if (fieldName.empty()) {
-      fieldName = GetOrCreateMappedUnnamedName(*fieldDecl);
-    }
-    recordLayoutStr << fieldName;
+  recordLayoutStr << recordDecl.getKindName().str() << ":{";
+  for (auto field : recordDecl.fields()) {
+    BuildFieldLayoutString(recordLayoutStr, *field);
   }
+  recordLayoutStr << "}";
   return recordLayoutStr.str();
 }
 
@@ -693,4 +740,25 @@ std::string LibAstFile::GetTypedefNameFromUnnamedStruct(const clang::RecordDecl 
   }
   return std::string();
 }
+// with macro enpanded, preproceeded code
+std::string LibAstFile::GetSourceText(const clang::Stmt &stmt) {
+  std::string s;
+  llvm::raw_string_ostream sos(s);
+  clang::PrintingPolicy pp(astContext->getLangOpts());
+  stmt.printPretty(sos, nullptr, pp);
+  sos.flush();
+  return s;
+}
+
+// non preproceeded code
+std::string LibAstFile::GetSourceTextRaw(const clang::SourceRange range, const clang::SourceManager &sm) {
+  clang::LangOptions lo;
+  auto startLoc = sm.getSpellingLoc(range.getBegin());
+  auto lastTokenLoc = sm.getSpellingLoc(range.getEnd());
+  auto endLoc = clang::Lexer::getLocForEndOfToken(lastTokenLoc, 0, sm, lo);
+  auto printableRange = clang::SourceRange{startLoc, endLoc};
+  return clang::Lexer::getSourceText(clang::CharSourceRange::getCharRange(printableRange),
+                                     sm, clang::LangOptions()).str();
+}
+
 } // namespace maple

@@ -53,7 +53,11 @@ class LibAstFile {
   void EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss);
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const;
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
+  void BuildFieldName(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl);
+  std::string GetSourceText(const clang::Stmt &stmt);
+  std::string GetSourceTextRaw(clang::SourceRange range, const clang::SourceManager &sm);
   std::string GetRecordLayoutString(const clang::RecordDecl &recordDecl);
+  void BuildFieldLayoutString(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl);
   void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
                                                     TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
                                                     bool isSourceType);
