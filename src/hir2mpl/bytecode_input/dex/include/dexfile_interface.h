@@ -50,6 +50,7 @@ enum ValueType {
 const uint16_t kIDexNumPackedOpcodes = 0x100;
 const uint16_t kIDexPackedSwitchSignature = 0x100;
 const uint16_t kIDexSparseSwitchSignature = 0x200;
+const uint8_t kMaxShiftBitArgs = 7;
 
 // opcode in dex file
 enum IDexOpcode : uint8_t {

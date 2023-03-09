@@ -132,8 +132,8 @@ class FEIRBuilder {
   static UniqueFEIRStmt CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
                                                         std::list<UniqueFEIRExpr> exprIndexs,
                                                         UniqueFEIRType arrayType, const std::string &argArrayName);
-  static UniqueFEIRStmt CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
-                                                        UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType,
+  /* std::vector<UniqueFEIRExpr> expr stores 0: exprElem; 1: exprArray; 2: exprIndex */
+  static UniqueFEIRStmt CreateStmtArrayStoreOneStmtForC(std::vector<UniqueFEIRExpr> expr, UniqueFEIRType arrayType,
                                                         UniqueFEIRType elemType, const std::string &argArrayName);
   static std::list<UniqueFEIRStmt> CreateStmtArrayLoad(UniqueFEIRVar varElem, UniqueFEIRVar varArray,
                                                        UniqueFEIRVar varIndex);

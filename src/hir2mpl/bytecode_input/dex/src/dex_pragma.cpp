@@ -92,7 +92,7 @@ void DexBCAnnotationElement::ProcessAnnotationEncodedValue(const uint8 **data, M
     case kValueDouble: {
       val = GetUVal(data, valueArg);
       // fill 0s for least significant bits
-      element.SetU64Val(val << ((7 - valueArg) << 3));
+      element.SetU64Val(val << ((kMaxShiftBitArgs - valueArg) << 3));
       cst = mp.New<MIRDoubleConst>(element.GetDoubleVal(), *GlobalTables::GetTypeTable().GetDouble());
       break;
     }
@@ -156,8 +156,8 @@ MIRIntConst *DexBCAnnotationElement::ProcessAnnotationEncodedValueInternalProces
                                                                                           MIRType &type) {
   // sign extended val
   uint64 val = GetUVal(data, valueArg);
-  uint32 shiftBit = static_cast<uint32>((7 - valueArg) * 8);
-  CHECK_FATAL(valueArg <= 7, "shiftBit positive check");
+  CHECK_FATAL(valueArg <= kMaxShiftBitArgs, "shiftBit positive check");
+  uint32 shiftBit = static_cast<uint32>((kMaxShiftBitArgs - valueArg) * 8);
   uint64 sVal = (static_cast<int64>(val) << shiftBit) >> shiftBit;
   element.SetI64Val(static_cast<int64>(sVal));
   MIRIntConst *intCst = mp.New<MIRIntConst>(sVal, type);

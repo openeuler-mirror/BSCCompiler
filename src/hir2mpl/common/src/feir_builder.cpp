@@ -618,12 +618,12 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprE
   return stmt;
 }
 
-UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
-                                                            UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType,
+UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(std::vector<UniqueFEIRExpr> expr, UniqueFEIRType arrayType,
                                                             UniqueFEIRType elemType, const std::string &argArrayName) {
-  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(exprElem), std::move(exprArray),
-                                                             std::move(exprIndex), std::move(arrayType),
-                                                             std::move(elemType), argArrayName);
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(expr[0]), // 0: exprElem
+                                                             std::move(expr[1]), // 1: exprArray
+                                                             std::move(expr[2]), // 2: exprIndex
+                                                             std::move(arrayType), std::move(elemType), argArrayName);
   return stmt;
 }
 

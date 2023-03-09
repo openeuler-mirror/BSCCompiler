@@ -179,6 +179,7 @@ ClassLoaderInfo *ClassLoaderContext::ParseInternal(const std::string &spec) {
         CHECK_FATAL(false, "Invalid class loader spec: %s", currentSpec.c_str());
         return nullptr;
       } else {
+        // 2: index of bracket starts and ends
         remaining = remaining.substr(sharedLibraryClose + 2, remaining.size() - sharedLibraryClose - 2);
       }
     }

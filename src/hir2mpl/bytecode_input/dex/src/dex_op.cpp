@@ -381,7 +381,7 @@ std::list<UniqueFEIRStmt> DexOpMonitor::EmitToFEIRStmtsImpl() {
   UniqueFEIRExpr expr = std::make_unique<FEIRExprDRead>(vA.GenFEIRVarReg());
   exprs.emplace_back(std::move(expr));
   if (opcode == kDexOpMonitorEnter) {
-    expr = std::make_unique<FEIRExprConst>(static_cast<int64>(2), PTY_i32);
+    expr = std::make_unique<FEIRExprConst>(static_cast<int64>(2), PTY_i32); // 2: constval i32 2
     exprs.emplace_back(std::move(expr));
   }
   UniqueFEIRStmt stmt =
