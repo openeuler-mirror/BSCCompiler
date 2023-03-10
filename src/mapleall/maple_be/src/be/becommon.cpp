@@ -618,7 +618,11 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
       } else {
         bool leftOverBits = false;
         uint64 offset = 0;
-
+        /* If a non-bit zero-sized field is interspersed between bit field fields, compression is not performed.*/
+        if (j > 0 && fieldTypeSize == 0 &&
+            GlobalTables::GetTypeTable().GetTypeFromTyIdx(fields[j - 1].second.first)->GetKind() == kTypeBitField) {
+          allocedSizeInBits = RoundUp(allocedSizeInBits, 2); // alignment must be power of 2
+        }
         if (allocedSizeInBits == allocedSize * k8BitSize) {
           allocedSize = RoundUp(allocedSize, fieldAlign);
           offset = allocedSize;
