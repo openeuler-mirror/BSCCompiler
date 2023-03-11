@@ -50,6 +50,35 @@ constexpr char kSecondInlineEndComment[] = "second inlining end: FUNC ";
 void UpdateEnclosingBlockCallback(const BlockNode &oldBlock, BlockNode &newBlock, const StmtNode &oldStmt,
     StmtNode &newStmt, CallBackData *data);
 
+enum class RealArgPropCandKind {
+  kUnknown,
+  kConst,
+  kVar,
+  kPreg
+};
+
+// The candidate of real argument that can be propagated to callee's formal.
+// It is either a mirConst or a CONST symbol (both local and global are OK),
+// see RealArgPropCand::Parse for details.
+struct RealArgPropCand {
+  RealArgPropCandKind kind = RealArgPropCandKind::kUnknown;
+  union {
+    MIRSymbol *symbol = nullptr;
+    MIRConst *mirConst;
+  } data;
+
+  void Parse(MIRFunction &caller, BaseNode &argExpr);
+
+  PrimType GetPrimType() const {
+    if (kind == RealArgPropCandKind::kConst) {
+      return data.mirConst->GetType().GetPrimType();
+    } else if (kind == RealArgPropCandKind::kVar || kind == RealArgPropCandKind::kPreg) {
+      return data.symbol->GetType()->GetPrimType();
+    }
+    return PTY_unknown;
+  }
+};
+
 enum InlineStage {
   kEarlyInline,
   kGreedyInline
@@ -93,6 +122,12 @@ class InlineTransformer {
   void AssignActualsToFormals(BlockNode &newBody, uint32 stIdxOff, uint32 regIdxOff);
   void AssignActualToFormal(BlockNode& newBody, uint32 stIdxOff, uint32 regIdxOff,
       BaseNode &oldActual, const MIRSymbol &formal);
+  void PropConstFormalInBlock(BlockNode &newBody, MIRSymbol &formal, const RealArgPropCand &realArg,
+      uint32 stIdxOff, uint32 regIdxOff);
+  void PropConstFormalInNode(BaseNode &baseNode, MIRSymbol &formal, const RealArgPropCand &realArg,
+      uint32 stIdxOff, uint32 regIdxOff);
+  void TryReplaceConstFormalWithRealArg(BaseNode &parent, uint32 opndIdx, MIRSymbol &formal,
+      const RealArgPropCand &realArg, const std::pair<uint32, uint32> &offsetPair);
   void GenReturnLabel(BlockNode &newBody, uint32 inlinedTimes);
   void HandleReturn(BlockNode &newBody);
   void ReplaceCalleeBody(BlockNode &enclosingBlk, BlockNode &newBody);
