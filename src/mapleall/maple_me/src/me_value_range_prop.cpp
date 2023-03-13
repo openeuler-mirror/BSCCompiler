@@ -4489,7 +4489,9 @@ std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfLHS(const BB &
   }
   auto vrpOfOpnd0 = FindValueRangeInCurrBBOrDominateBBs(pred, versionOpnd0InPred);
   auto vrpOfOpnd1 = FindValueRangeInCurrBBOrDominateBBs(pred, versionOpnd1InPred);
-  if (vrpOfOpnd0 == nullptr || vrpOfOpnd1 == nullptr) {
+  if (vrpOfOpnd0 == nullptr || vrpOfOpnd1 == nullptr ||
+      // If two ranges are not a certain constant value, it cannot be determined whether they are equal.
+      !vrpOfOpnd0->IsKEqualAndConstantRange() || !vrpOfOpnd1->IsKEqualAndConstantRange()) {
     return nullptr;
   }
   if (vrpOfOpnd0->IsEqual(vrpOfOpnd1.get())) {

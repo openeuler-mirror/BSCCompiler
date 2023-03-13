@@ -424,6 +424,9 @@ class ValueRange {
         CHECK_FATAL(false, "can not be here");
     }
   }
+  bool IsKEqualAndConstantRange() const {
+    return rangeType == kEqual && range.bound.GetVar() == nullptr;
+  }
 
   bool IsZeroInRange() const {
     return IsConstantLowerAndUpper() && GetUpper().GetConstant() >= 0 &&
