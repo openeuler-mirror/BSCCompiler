@@ -2427,10 +2427,20 @@ FEIRExprConst::FEIRExprConst(double val)
   CheckRawValue2SetZero();
 }
 
+FEIRExprConst::FEIRExprConst(const uint64_t *val)
+    : FEIRExpr(FEIRNodeKind::kExprConst) {
+  ASSERT(type != nullptr, "type is nullptr");
+  type->SetPrimType(PTY_f128);
+  value.f128[0] = val[0];
+  value.f128[1] = val[1];
+  CheckRawValue2SetZero();
+}
+
 std::unique_ptr<FEIRExpr> FEIRExprConst::CloneImpl() const {
   std::unique_ptr<FEIRExpr> expr = std::make_unique<FEIRExprConst>();
   FEIRExprConst *exprConst = static_cast<FEIRExprConst*>(expr.get());
-  exprConst->value.u64 = value.u64;
+  exprConst->value.f128[0] = value.f128[0];
+  exprConst->value.f128[1] = value.f128[1];
   ASSERT(type != nullptr, "type is nullptr");
   exprConst->type->SetPrimType(type->GetPrimType());
   exprConst->CheckRawValue2SetZero();
@@ -2459,6 +2469,12 @@ BaseNode *FEIRExprConst::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
       return mirBuilder.CreateFloatConst(value.f32);
     case PTY_f64:
       return mirBuilder.CreateDoubleConst(value.f64);
+    case PTY_f128: {
+      uint64 v[2];
+      errno_t err = memcpy_s(v, sizeof(v), value.f128, sizeof(long double));
+      CHECK_FATAL(err == EOK, "memcpy_s failed");
+      return mirBuilder.CreateFloat128Const(v);
+    }
     default:
       ERR(kLncErr, "unsupported const kind");
       return nullptr;

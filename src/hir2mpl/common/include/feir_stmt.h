@@ -560,6 +560,7 @@ union ConstExprValue {
   uint64 u64 = 0;
   int64 i64;
   double f64;
+  uint64 f128[2];
 };
 
 class FEIRExprConst : public FEIRExpr {
@@ -570,6 +571,7 @@ class FEIRExprConst : public FEIRExpr {
   explicit FEIRExprConst(uint32 val);
   explicit FEIRExprConst(float val);
   explicit FEIRExprConst(double val);
+  explicit FEIRExprConst(const uint64_t *val);
   ~FEIRExprConst() override = default;
   FEIRExprConst(const FEIRExprConst&) = delete;
   FEIRExprConst& operator=(const FEIRExprConst&) = delete;

@@ -24,6 +24,7 @@ class ASTFunc;
 class ASTStmt;
 struct ASTValue {
   union Value {
+    uint64 f128[2];
     uint8 u8;
     uint16 u16;
     uint32 u32;
@@ -35,7 +36,7 @@ struct ASTValue {
     int64 i64;
     double f64;
     UStrIdx strIdx;
-  } val = { 0 };
+  } val = {{0, 0}};
   PrimType pty = PTY_begin;
 
   PrimType GetPrimType() const {
@@ -285,6 +286,7 @@ class ASTCastExpr : public ASTExpr {
 
  private:
   MIRConst *GenerateMIRDoubleConst() const;
+  MIRConst *GenerateMIRFloat128Const() const;
   MIRConst *GenerateMIRFloatConst() const;
   MIRConst *GenerateMIRIntConst() const;
   UniqueFEIRExpr EmitExprVdupVector(PrimType primtype, UniqueFEIRExpr &subExpr) const;
@@ -1549,22 +1551,34 @@ class ASTIntegerLiteral : public ASTExpr {
 
 enum class FloatKind {
   F32,
-  F64
+  F64,
+  F128
 };
 
 class ASTFloatingLiteral : public ASTExpr {
+  static constexpr size_t kFloatArraySize = 2;
  public:
   explicit ASTFloatingLiteral(MapleAllocator &allocatorIn) : ASTExpr(allocatorIn, kASTFloatingLiteral) {
     (void)allocatorIn;
   }
+
   ~ASTFloatingLiteral() override = default;
 
-  double GetVal() const {
-    return val;
+  std::array<uint64, 2> GetVal() const {
+    return std::get<1>(val);
+  }
+
+  double GetDoubleVal() const {
+    return std::get<0>(val);
   }
 
   void SetVal(double valIn) {
     val = valIn;
+  }
+
+  void SetVal(const uint64_t valIn[2]) {
+    std::array<uint64, kFloatArraySize> buf = {valIn[1], valIn[0]};
+    val = buf;
   }
 
   void SetKind(FloatKind argKind) {
@@ -1578,8 +1592,8 @@ class ASTFloatingLiteral : public ASTExpr {
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   MIRConst *GenerateMIRConstImpl() const override;
-  double val = 0;
   FloatKind kind = FloatKind::F32;
+  std::variant<double, std::array<uint64, kFloatArraySize>> val;
 };
 
 class ASTCharacterLiteral : public ASTExpr {

@@ -921,6 +921,12 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
                                  llvm::APFloatBase::rmNearestTiesToAway,
                                  &losesInfo);
             astValue->val.f64 = fValue.convertToDouble();
+          } else if (constMirType->GetPrimType() == PTY_f128) {
+            (void)fValue.convert(llvm::APFloat::IEEEquad(), llvm::APFloatBase::rmNearestTiesToAway,
+                                 &losesInfo);
+            llvm::APInt intValue = fValue.bitcastToAPInt();
+            astValue->val.f128[0] = intValue.getRawData()[0];
+            astValue->val.f128[1] = intValue.getRawData()[1];
           } else {
             (void)fValue.convert(llvm::APFloat::IEEEsingle(),
                                  llvm::APFloatBase::rmNearestTiesToAway,
@@ -1074,10 +1080,11 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
       floatExpr->SetVal(val);
     } else if (&fltSem == &llvm::APFloat::IEEEquad() || &fltSem == &llvm::APFloat::x87DoubleExtended()) {
       bool losesInfo;
-      (void)floatVal.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::rmNearestTiesToAway, &losesInfo);
-      val = static_cast<double>(floatVal.convertToDouble());
-      floatExpr->SetKind(FloatKind::F64);
-      floatExpr->SetVal(val);
+      (void)floatVal.convert(llvm::APFloat::IEEEquad(),
+                             llvm::APFloatBase::rmNearestTiesToAway, &losesInfo);
+      llvm::APInt intValue = floatVal.bitcastToAPInt();
+      floatExpr->SetKind(FloatKind::F128);
+      floatExpr->SetVal(intValue.getRawData());
     } else {
       return nullptr;
     }
@@ -2182,7 +2189,7 @@ ASTExpr *ASTParser::ProcessExprFloatingLiteral(MapleAllocator &allocator, const 
                       llvm::APFloatBase::rmNearestTiesToAway,
                       &losesInfo);
     val = static_cast<double>(apf.convertToDouble());
-    astFloatingLiteral->SetKind(FloatKind::F64);
+    astFloatingLiteral->SetKind(FloatKind::F128);
     astFloatingLiteral->SetVal(val);
   } else {
     CHECK_FATAL(false, "unsupported floating literal");

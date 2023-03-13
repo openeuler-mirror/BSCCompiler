@@ -282,7 +282,11 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
       if (!typeDesc[1]->IsScalarType()) {
         retType = PTY_i32;
       }
-      retExpr = FEIRBuilder::CreateExprConstAnyScalar(retType, static_cast<int64>(0));
+      if (retType != PTY_f128) {
+        retExpr = FEIRBuilder::CreateExprConstAnyScalar(retType, static_cast<int64>(0));
+      } else {
+        retExpr = FEIRBuilder::CreateExprConstAnyScalar(retType,  {0, 0});
+      }
     }
     UniqueFEIRStmt retStmt = std::make_unique<FEIRStmtReturn>(std::move(retExpr));
     endLoc.column = 0;

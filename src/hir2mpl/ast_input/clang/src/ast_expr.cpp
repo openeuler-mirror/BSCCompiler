@@ -174,6 +174,10 @@ MIRConst *ASTValue::Translate2MIRConst() const {
       return FEManager::GetModule().GetMemPool()->New<MIRDoubleConst>(
           val.f64, *GlobalTables::GetTypeTable().GetPrimType(PTY_f64));
     }
+    case PTY_f128: {
+      return FEManager::GetModule().GetMemPool()->New<MIRFloat128Const>(
+          static_cast<const uint64*>(val.f128), *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
+    }
     case PTY_a64: {
       return FEManager::GetModule().GetMemPool()->New<MIRStrConst>(
           val.strIdx, *GlobalTables::GetTypeTable().GetPrimType(PTY_a64));
@@ -438,6 +442,8 @@ MIRConst *ASTCastExpr::GenerateMIRConstImpl() const {
       return GenerateMIRDoubleConst();
     } else if (dst->GetPrimType() == PTY_f32) {
       return GenerateMIRFloatConst();
+    } else if (dst->GetPrimType() == PTY_f128) {
+      return GenerateMIRFloat128Const();
     } else {
       return GenerateMIRIntConst();
     }
@@ -466,6 +472,48 @@ MIRConst *ASTCastExpr::GenerateMIRDoubleConst() const {
       return FEManager::GetModule().GetMemPool()->New<MIRDoubleConst>(
           static_cast<double>(static_cast<MIRDoubleConst*>(childConst)->GetValue()),
           *GlobalTables::GetTypeTable().GetPrimType(PTY_f64));
+    }
+    case kConstFloat128Const: {
+      return FEManager::GetModule().GetMemPool()->New<MIRDoubleConst>(
+          static_cast<double>(static_cast<MIRFloat128Const*>(childConst)->GetDoubleValue()),
+          *GlobalTables::GetTypeTable().GetPrimType(PTY_f64));
+    }
+    default: {
+      CHECK_FATAL(false, "Unsupported pty type: %d", GetConstantValue()->pty);
+      return nullptr;
+    }
+  }
+}
+
+MIRConst *ASTCastExpr::GenerateMIRFloat128Const() const {
+  MIRConst *childConst = child->GenerateMIRConst();
+  switch (childConst->GetKind()) {
+    case kConstFloatConst: {
+      std::pair<uint64, uint64> floatInt = static_cast<MIRFloatConst*>(childConst)->GetFloat128Value();
+      uint64 arr[2] = {floatInt.first, floatInt.second};
+      return FEManager::GetModule().GetMemPool()->New<MIRFloat128Const>(arr,
+          *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
+    }
+    case kConstInt: {
+      std::pair<uint64, uint64> floatInt = MIRDoubleConst(
+          static_cast<MIRIntConst*>(childConst)->GetValue().GetExtValue(),
+          *GlobalTables::GetTypeTable().GetPrimType(PTY_f64)).GetFloat128Value();
+
+      uint64 arr[2] = {floatInt.first, floatInt.second};
+      return FEManager::GetModule().GetMemPool()->New<MIRFloat128Const>(arr,
+          *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
+    }
+    case kConstDoubleConst: {
+      std::pair<uint64, uint64> floatInt = static_cast<MIRDoubleConst*>(childConst)->GetFloat128Value();
+      uint64 arr[2] = {floatInt.first, floatInt.second};
+      return FEManager::GetModule().GetMemPool()->New<MIRFloat128Const>(
+          static_cast<const uint64*>(arr),
+          *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
+    }
+    case kConstFloat128Const: {
+      return FEManager::GetModule().GetMemPool()->New<MIRFloat128Const>(
+          static_cast<const uint64*>(static_cast<MIRFloat128Const*>(childConst)->GetIntValue()),
+          *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
     }
     default: {
       CHECK_FATAL(false, "Unsupported pty type: %d", GetConstantValue()->pty);
@@ -796,7 +844,8 @@ UniqueFEIRExpr ASTUnaryOperatorExpr::ASTUOSideEffectExpr(Opcode op, std::list<Un
   UniqueFEIRType sizeType = (subPrimType == PTY_ptr) ? std::make_unique<FEIRTypeNative>(*GlobalTables::GetTypeTable().
       GetPrimType(PTY_i64)) : std::make_unique<FEIRTypeNative>(*GlobalTables::GetTypeTable().GetPrimType(PTY_ptr));
   UniqueFEIRExpr subExpr = (subPrimType == PTY_ptr) ? std::make_unique<FEIRExprConst>(pointeeLen, PTY_i32) :
-      FEIRBuilder::CreateExprConstAnyScalar(subPrimType, 1);
+      ((subPrimType != PTY_f128) ? FEIRBuilder::CreateExprConstAnyScalar(subPrimType, 1) :
+      FEIRBuilder::CreateExprConstAnyScalar(subPrimType, 0x3FFFLL << 48));
   UniqueFEIRExpr sideEffectExpr = FEIRBuilder::CreateExprMathBinary(op, childFEIRExpr->Clone(), subExpr->Clone());
   UniqueFEIRStmt sideEffectStmt = FEIRBuilder::AssginStmtField(childFEIRExpr->Clone(), std::move(sideEffectExpr), 0);
   if (isVariableArrayType) {
@@ -2631,14 +2680,17 @@ UniqueFEIRExpr ASTIntegerLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stm
 // ---------- ASTFloatingLiteral ----------
 MIRConst *ASTFloatingLiteral::GenerateMIRConstImpl() const {
   MemPool *mp = FEManager::GetModule().GetMemPool();
-  MIRConst *cst;
+  MIRConst *cst = nullptr;
   MIRType *type;
   if (kind == FloatKind::F32) {
     type = GlobalTables::GetTypeTable().GetPrimType(PTY_f32);
-    cst = mp->New<MIRFloatConst>(static_cast<float>(val), *type);
-  } else {
+    cst = mp->New<MIRFloatConst>(GetDoubleVal(), *type);
+  } else if (kind == FloatKind::F64) {
     type = GlobalTables::GetTypeTable().GetPrimType(PTY_f64);
-    cst = mp->New<MIRDoubleConst>(val, *type);
+    cst = mp->New<MIRDoubleConst>(GetDoubleVal(), *type);
+  } else {
+    type = GlobalTables::GetTypeTable().GetPrimType(PTY_f128);
+    cst = mp->New<MIRFloat128Const>(std::get<1>(val).data(), *type);
   }
   return cst;
 }
@@ -2647,9 +2699,11 @@ UniqueFEIRExpr ASTFloatingLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &st
   (void)stmts;
   UniqueFEIRExpr expr;
   if (kind == FloatKind::F32) {
-    expr = FEIRBuilder::CreateExprConstF32(static_cast<float>(val));
+    expr = FEIRBuilder::CreateExprConstF32(static_cast<float>(GetDoubleVal()));
+  } else if (kind == FloatKind::F64) {
+    expr = FEIRBuilder::CreateExprConstF64(GetDoubleVal());
   } else {
-    expr = FEIRBuilder::CreateExprConstF64(val);
+    expr = FEIRBuilder::CreateExprConstF128(std::get<1>(val).data());
   }
   CHECK_NULL_FATAL(expr);
   return expr;
@@ -2869,6 +2923,7 @@ VaArgInfo ASTVAArgExpr::ProcessValistArgInfo(const MIRType &type) const {
       case PTY_f32:  // float is automatically promoted to double when passed to va_arg
         WARN(kLncWarn, "error: float is promoted to double when passed to va_arg");
       case PTY_f64:  // double
+      case PTY_f128:
         info = { false, 16, 8, false, nullptr };
         break;
       case PTY_i32:

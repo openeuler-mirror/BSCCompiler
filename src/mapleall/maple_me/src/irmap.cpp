@@ -1861,6 +1861,9 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
   }
   // fold constval cmp
   if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+    if (cmpExpr->GetPrimType() == PTY_f128 || cmpExpr->GetOpndType() == PTY_f128) {
+      return nullptr;
+    }
     maple::ConstantFold cf(mirModule);
     MIRConst *opnd0const = static_cast<ConstMeExpr *>(opnd0)->GetConstVal();
     MIRConst *opnd1const = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();

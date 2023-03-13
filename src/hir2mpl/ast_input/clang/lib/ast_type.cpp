@@ -119,10 +119,10 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSou
     case clang::BuiltinType::Float:
       return PTY_f32;
     case clang::BuiltinType::Double:
-    case clang::BuiltinType::LongDouble:
       return PTY_f64;
     case clang::BuiltinType::Float128:
-      return PTY_f64;
+    case clang::BuiltinType::LongDouble:
+      return PTY_f128;
     case clang::BuiltinType::NullPtr: // default 64-bit, need to update
       return PTY_a64;
     case clang::BuiltinType::Half:    // PTY_f16, NOTYETHANDLED

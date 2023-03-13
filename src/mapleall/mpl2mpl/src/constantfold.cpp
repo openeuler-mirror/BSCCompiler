@@ -1725,6 +1725,10 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldBinary(BinaryNode 
   PrimType primType = node->GetPrimType();
   PrimType lPrimTypes = node->Opnd(0)->GetPrimType();
   PrimType rPrimTypes = node->Opnd(1)->GetPrimType();
+  if (lPrimTypes == PTY_f128 || rPrimTypes == PTY_f128 || node->GetPrimType() == PTY_f128) {
+    // folding of non-unary float128 is not supported yet
+    return std::make_pair(static_cast<BaseNode*>(node), std::nullopt);
+  }
   std::pair<BaseNode*, std::optional<IntVal>> lp = DispatchFold(node->Opnd(0));
   std::pair<BaseNode*, std::optional<IntVal>> rp = DispatchFold(node->Opnd(1));
   BaseNode *l = lp.first;
@@ -2070,6 +2074,10 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldCompare(CompareNod
   std::pair<BaseNode*, std::optional<IntVal>> rp = DispatchFold(node->Opnd(1));
   ConstvalNode *lConst = safe_cast<ConstvalNode>(lp.first);
   ConstvalNode *rConst = safe_cast<ConstvalNode>(rp.first);
+  if (node->GetOpndType() == PTY_f128 || node->GetPrimType() == PTY_f128) {
+    // folding of non-unary float128 is not supported yet
+    return std::make_pair(static_cast<BaseNode*>(node), std::nullopt);
+  }
   Opcode opcode = node->GetOpCode();
   if (lConst != nullptr && rConst != nullptr && !IsPrimitiveDynType(node->GetOpndType())) {
     result = FoldConstComparison(node->GetOpCode(), node->GetPrimType(), node->GetOpndType(),

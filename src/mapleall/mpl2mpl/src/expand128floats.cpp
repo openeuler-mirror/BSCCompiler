@@ -50,12 +50,21 @@ std::string Expand128Floats::GetSequentialName(const std::string &prefix) {
   return name;
 }
 
-std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, const BaseNode *node) {
+std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, BaseNode *node) {
+  CHECK_FATAL(node, "Nullptr at Expand129Floats::SelectSoftFPCall method");
   switch (opCode) {
     case OP_cvt:
     case OP_trunc:
-      if (static_cast<const TypeCvtNode*>(node)->FromType() == PTY_f128) {
-        switch (static_cast<const TypeCvtNode*>(node)->ptyp) {
+      if (static_cast<TypeCvtNode*>(node)->FromType() == PTY_f128) {
+        switch (static_cast<TypeCvtNode*>(node)->ptyp) {
+          case PTY_i8:
+          case PTY_i16:
+            node->ptyp = PTY_i32;
+            return "__fixtfsi";
+          case PTY_u8:
+          case PTY_u16:
+            node->ptyp = PTY_u32;
+            return "__fixunstfsi";
           case PTY_i32:
             return "__fixtfsi";
           case PTY_u32:
@@ -76,6 +85,14 @@ std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, const BaseNode *nod
         }
       } else if (static_cast<const TypeCvtNode*>(node)->ptyp == PTY_f128) {
         switch (static_cast<const TypeCvtNode*>(node)->FromType()) {
+          case PTY_i8:
+          case PTY_i16:
+            node->ptyp = PTY_i32;
+            return "__floatsitf";
+          case PTY_u8:
+          case PTY_u16:
+            node->ptyp = PTY_u32;
+            return "__floatunsitf";
           case PTY_i32:
             return "__floatsitf";
           case PTY_u32:

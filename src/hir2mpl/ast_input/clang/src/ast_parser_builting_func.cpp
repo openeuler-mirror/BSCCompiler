@@ -727,12 +727,15 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpect(std::list<UniqueFEIRStmt> &stmts) 
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinAbs(std::list<UniqueFEIRStmt> &stmts) const {
-  auto arg = args[0]->Emit2FEExpr(stmts);
-  CHECK_NULL_FATAL(mirType);
-  auto abs = std::make_unique<FEIRExprUnary>(FEIRTypeHelper::CreateTypeNative(*mirType), OP_abs, std::move(arg));
-  auto feType = std::make_unique<FEIRTypeNative>(*mirType);
-  abs->SetType(std::move(feType));
-  return abs;
+  if (mirType->GetPrimType() != PTY_f128) {
+    auto arg = args[0]->Emit2FEExpr(stmts);
+    CHECK_NULL_FATAL(mirType);
+    auto abs = std::make_unique<FEIRExprUnary>(FEIRTypeHelper::CreateTypeNative(*mirType), OP_abs, std::move(arg));
+    auto feType = std::make_unique<FEIRTypeNative>(*mirType);
+    abs->SetType(std::move(feType));
+    return abs;
+  }
+  return CreateIntrinsicopForC(stmts, INTRN_C_fabsl);
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinACos(std::list<UniqueFEIRStmt> &stmts) const {
@@ -1016,6 +1019,18 @@ ASTExpr *ASTParser::ParseBuiltinHugeVal(MapleAllocator &allocator, const clang::
   return astFloatingLiteral;
 }
 
+ASTExpr *ASTParser::ParseBuiltinHugeVall(MapleAllocator &allocator, const clang::CallExpr &expr,
+                                         std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
+  (void)expr;
+  (void)ss;
+  ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
+  astFloatingLiteral->SetKind(FloatKind::F128);
+  uint64 initVal[2] = {0x0, 0x7fff000000000000};
+  astFloatingLiteral->SetVal(std::move(initVal));
+  return astFloatingLiteral;
+}
+
 ASTExpr *ASTParser::ParseBuiltinHugeValf(MapleAllocator &allocator, const clang::CallExpr &expr,
                                          std::stringstream &ss, ASTCallExpr &astCallExpr) const {
   (void)astCallExpr;
@@ -1035,6 +1050,18 @@ ASTExpr *ASTParser::ParseBuiltinInf(MapleAllocator &allocator, const clang::Call
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(FloatKind::F64);
   astFloatingLiteral->SetVal(std::numeric_limits<float>::infinity());
+  return astFloatingLiteral;
+}
+
+ASTExpr *ASTParser::ParseBuiltinInfl(MapleAllocator &allocator, const clang::CallExpr &expr,
+                                     std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
+  (void)expr;
+  (void)ss;
+  ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
+  astFloatingLiteral->SetKind(FloatKind::F128);
+  uint64 initVal[2] = {0x0, 0x7fff000000000000};
+  astFloatingLiteral->SetVal(std::move(initVal));
   return astFloatingLiteral;
 }
 
@@ -1060,6 +1087,18 @@ ASTExpr *ASTParser::ParseBuiltinNan(MapleAllocator &allocator, const clang::Call
   return astFloatingLiteral;
 }
 
+ASTExpr *ASTParser::ParseBuiltinNanl(MapleAllocator &allocator, const clang::CallExpr &expr,
+                                     std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
+  (void)expr;
+  (void)ss;
+  ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
+  astFloatingLiteral->SetKind(FloatKind::F128);
+  uint64 initVal[2] = {0x0, 0x7fff800000000000};
+  astFloatingLiteral->SetVal(std::move(initVal));
+  return astFloatingLiteral;
+}
+
 ASTExpr *ASTParser::ParseBuiltinNanf(MapleAllocator &allocator, const clang::CallExpr &expr,
                                      std::stringstream &ss, ASTCallExpr &astCallExpr) const {
   (void)astCallExpr;
@@ -1080,6 +1119,9 @@ ASTExpr *ASTParser::ParseBuiltinSignBitf(MapleAllocator &allocator, const clang:
 ASTExpr *ASTParser::ParseBuiltinSignBitl(MapleAllocator &allocator, const clang::CallExpr &expr,
                                          std::stringstream &ss, ASTCallExpr &astCallExpr) const {
   (void)astCallExpr;
+  if (astFile->CvtType(expr.getArg(0)->getType())->GetPrimType() != PTY_f128) {
+    return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbit");
+  }
   return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbitl");
 }
 

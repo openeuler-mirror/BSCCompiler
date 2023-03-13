@@ -197,6 +197,10 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstPtr(int64 val) {
   return std::make_unique<FEIRExprConst>(val, PTY_ptr);
 }
 
+UniqueFEIRExpr FEIRBuilder::CreateExprConstF128(const uint64_t val[2]) {
+  return std::make_unique<FEIRExprConst>(val);
+}
+
 // Create a const expr of specified prime type with fixed value.
 // Note that loss of precision, byte value is only supported.
 UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int64 val) {
@@ -213,18 +217,28 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int64 va
     case PTY_ptr:
     case PTY_a64:
       return std::make_unique<FEIRExprConst>(val, primType);
-    case PTY_f128:
-      // Not Implemented
-      CHECK_FATAL(false, "Not Implemented");
-      return nullptr;
     case PTY_f32:
       return CreateExprConstF32(static_cast<float>(val));
     case PTY_f64:
       return CreateExprConstF64(static_cast<double>(val));
+    case PTY_f128:
+      return CreateExprConstAnyScalar(PTY_f128, std::pair<uint64_t, uint64_t>({static_cast<uint64_t>(val), 0}));
     default:
       if (IsPrimitiveVector(primType)) {
         return CreateExprVdupAnyVector(primType, val);
       }
+      CHECK_FATAL(false, "unsupported const prime type");
+      return nullptr;
+  }
+}
+
+UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, std::pair<uint64_t, uint64_t> val) {
+  switch (primType) {
+    case PTY_f128: {
+      const uint64_t valArray[2] = {val.first, val.second};
+      return CreateExprConstF128(static_cast<const uint64_t *>(valArray));
+    }
+    default:
       CHECK_FATAL(false, "unsupported const prime type");
       return nullptr;
   }

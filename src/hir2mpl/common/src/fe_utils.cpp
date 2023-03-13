@@ -367,6 +367,10 @@ MIRConst *FEUtils::CreateImplicitConst(MIRType *type) {
       return FEManager::GetModule().GetMemPool()->New<MIRDoubleConst>(
           0, *GlobalTables::GetTypeTable().GetPrimType(PTY_f64));
     }
+    case PTY_f128: {
+      return FEManager::GetModule().GetMemPool()->New<MIRFloat128Const>(
+          nullptr, *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
+    }
     case PTY_ptr: {
       return GlobalTables::GetIntConstTable().GetOrCreateIntConst(
           0, *GlobalTables::GetTypeTable().GetPrimType(PTY_i64));

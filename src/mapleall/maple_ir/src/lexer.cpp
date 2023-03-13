@@ -223,14 +223,15 @@ TokenKind MIRLexer::GetLongHexConst(uint32 valStart, bool negative) {
     name = line.substr(valStart, curIdx - valStart);
     return TK_invalid;
   }
-  __int128 tmp = 0;
+  unsigned __int128 tmp = 0;
+  uint32 buf = 0;
   while (isxdigit(c)) {
-    tmp = static_cast<uint32>(HexCharToDigit(c));
-    tmp = (static_cast<__int128>(theLongDoubleVal[1] << 4)) + tmp;
-    theLongDoubleVal[1] = static_cast<uint64>(tmp);
-    theLongDoubleVal[0] = (theLongDoubleVal[0] << 4) + (tmp >> 64);
+    buf = static_cast<uint32>(HexCharToDigit(c));
+    tmp = (tmp << 4) + buf;
     c = GetNextCurrentCharWithUpperCheck();
   }
+  theLongDoubleVal[1] = static_cast<uint64>(tmp);
+  theLongDoubleVal[0] = static_cast<uint64>(tmp >> 64);
   theIntVal = static_cast<int64>(static_cast<uint64>(theLongDoubleVal[1]));
   if (negative) {
     theIntVal = -theIntVal;

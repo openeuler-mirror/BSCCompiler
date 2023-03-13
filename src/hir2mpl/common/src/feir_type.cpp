@@ -264,6 +264,8 @@ MIRType *FEIRTypeDefault::GenerateMIRTypeForPrim() const {
       return GlobalTables::GetTypeTable().GetFloat();
     case PTY_f64:
       return GlobalTables::GetTypeTable().GetDouble();
+    case PTY_f128:
+      return GlobalTables::GetTypeTable().GetFloat128();
     case PTY_u1:
       return GlobalTables::GetTypeTable().GetUInt1();
     case PTY_u8:

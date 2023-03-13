@@ -289,9 +289,12 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   ASTExpr *PARSE_BUILTIIN_FUNC(Isinfsign);
   ASTExpr *PARSE_BUILTIIN_FUNC(HugeVal);
   ASTExpr *PARSE_BUILTIIN_FUNC(HugeValf);
+  ASTExpr *PARSE_BUILTIIN_FUNC(HugeVall);
   ASTExpr *PARSE_BUILTIIN_FUNC(Inf);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Infl);
   ASTExpr *PARSE_BUILTIIN_FUNC(Inff);
   ASTExpr *PARSE_BUILTIIN_FUNC(Nan);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Nanl);
   ASTExpr *PARSE_BUILTIIN_FUNC(Nanf);
   ASTExpr *PARSE_BUILTIIN_FUNC(Signbit);
   ASTExpr *PARSE_BUILTIIN_FUNC(SignBitf);
