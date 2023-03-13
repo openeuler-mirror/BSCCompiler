@@ -33,7 +33,7 @@ void FEFunctionPhaseResult::Combine(const FEFunctionPhaseResult &result) {
 
 void FEFunctionPhaseResult::Dump() {
   for (const std::string &name :phaseNames) {
-    auto it = phaseTimes.find(name);
+    std::map<std::string, int64>::const_iterator it = phaseTimes.find(name);
     CHECK_FATAL(it != phaseTimes.cend(), "phase time is undefined for %s", name.c_str());
     INFO(kLncInfo, "[PhaseTime]  %s: %lld ns", name.c_str(), it->second);
   }

@@ -252,62 +252,29 @@ double BasicIORead::ReadDouble(bool &success) {
 }
 
 void BasicIORead::ReadBufferUInt8(uint8 *dst, uint32 length) {
-  const uint8 *p = GetSafeBuffer(length);
-  pos += length;
-  errno_t err = memcpy_s(dst, length, p, length);
-  CHECK_FATAL(err == EOK, "memcpy_s failed");
+  ReadBuffer8BitLong(dst, length);
 }
 
 void BasicIORead::ReadBufferUInt8(uint8 *dst, uint32 length, bool &success) {
-  const uint8 *p = GetBuffer(length);
-  if (p == nullptr) {
-    success = false;
-    return;
-  }
-  pos += length;
-  success = true;
-  errno_t err = memcpy_s(dst, length, p, length);
-  CHECK_FATAL(err == EOK, "memcpy_s failed");
+  ReadBuffer8BitLong(dst, length, success);
 }
 
 void BasicIORead::ReadBufferInt8(int8 *dst, uint32 length) {
   CHECK_NULL_FATAL(dst);
-  const uint8 *p = GetSafeBuffer(length);
-  pos += length;
-  errno_t err = memcpy_s(dst, length, p, length);
-  CHECK_FATAL(err == EOK, "memcpy_s failed");
+  ReadBuffer8BitLong(dst, length);
 }
 
 void BasicIORead::ReadBufferInt8(int8 *dst, uint32 length, bool &success) {
   CHECK_NULL_FATAL(dst);
-  const uint8 *p = GetBuffer(length);
-  if (p == nullptr) {
-    success = false;
-    return;
-  }
-  pos += length;
-  success = true;
-  errno_t err = memcpy_s(dst, length, p, length);
-  CHECK_FATAL(err == EOK, "memcpy_s failed");
+  ReadBuffer8BitLong(dst, length, success);
 }
 
 void BasicIORead::ReadBufferChar(char *dst, uint32 length) {
-  const uint8 *p = GetSafeBuffer(length);
-  pos += length;
-  errno_t err = memcpy_s(dst, length, p, length);
-  CHECK_FATAL(err == EOK, "memcpy_s failed");
+  ReadBuffer8BitLong(dst, length);
 }
 
 void BasicIORead::ReadBufferChar(char *dst, uint32 length, bool &success) {
-  const uint8 *p = GetBuffer(length);
-  if (p == nullptr) {
-    success = false;
-    return;
-  }
-  pos += length;
-  success = true;
-  errno_t err = memcpy_s(dst, length, p, length);
-  CHECK_FATAL(err == EOK, "memcpy_s failed");
+  ReadBuffer8BitLong(dst, length, success);
 }
 
 std::string BasicIORead::ReadString(uint32 length) {

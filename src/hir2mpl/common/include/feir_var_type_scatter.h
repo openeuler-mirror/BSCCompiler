@@ -22,7 +22,7 @@ namespace maple {
 class FEIRVarTypeScatter : public FEIRVar {
  public:
   explicit FEIRVarTypeScatter(UniqueFEIRVar argVar);
-  ~FEIRVarTypeScatter() = default;
+  ~FEIRVarTypeScatter() override = default;
   void AddScatterType(const UniqueFEIRType &type);
   const std::unordered_set<FEIRTypeKey, FEIRTypeKeyHash> &GetScatterTypes() const {
     return scatterTypes;

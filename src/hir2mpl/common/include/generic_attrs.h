@@ -46,7 +46,7 @@ class GenericAttrs {
   }
 
   void ResetAttr(GenericAttrKind x) {
-    attrFlag.reset(x);
+    (void)attrFlag.reset(x);
   }
 
   bool GetAttr(GenericAttrKind x) const {

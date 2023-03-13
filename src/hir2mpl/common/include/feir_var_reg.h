@@ -33,7 +33,7 @@ class FEIRVarReg : public FEIRVar {
       : FEIRVar(kind, std::move(argType)),
         regNum(argRegNum) {}
 
-  ~FEIRVarReg() = default;
+  ~FEIRVarReg() override = default;
   uint32 GetRegNum() const {
     return regNum;
   }
@@ -61,7 +61,7 @@ class FEIRVarAccumulator : public FEIRVarReg {
   FEIRVarAccumulator(uint32 argRegNum, std::unique_ptr<FEIRType> argType)
       : FEIRVarReg(argRegNum, std::move(argType), FEIRVarKind::kFEIRVarAccumulator) {}
 
-  ~FEIRVarAccumulator() = default;
+  ~FEIRVarAccumulator() override = default;
 
  protected:
   std::string GetNameImpl(const MIRType &mirType) const override;

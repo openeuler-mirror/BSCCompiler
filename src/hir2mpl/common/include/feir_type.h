@@ -182,7 +182,7 @@ class FEIRTypeDefault : public FEIRType {
   explicit FEIRTypeDefault(PrimType argPrimType);
   FEIRTypeDefault(PrimType argPrimType, const GStrIdx &argTypeNameIdx);
   FEIRTypeDefault(PrimType argPrimType, const GStrIdx &argTypeNameIdx, TypeDim argDim);
-  ~FEIRTypeDefault() = default;
+  ~FEIRTypeDefault() override = default;
   FEIRTypeDefault(const FEIRTypeDefault&) = delete;
   FEIRTypeDefault &operator=(const FEIRTypeDefault&) = delete;
   void LoadFromJavaTypeName(const std::string &typeName, bool inMpl = true);
@@ -262,7 +262,7 @@ class FEIRTypeDefault : public FEIRType {
 class FEIRTypeByName : public FEIRTypeDefault {
  public:
   FEIRTypeByName(PrimType argPrimType, const std::string &argTypeName, TypeDim argDim = 0);
-  ~FEIRTypeByName() = default;
+  ~FEIRTypeByName() override = default;
   FEIRTypeByName(const FEIRTypeByName&) = delete;
   FEIRTypeByName &operator=(const FEIRTypeByName&) = delete;
 
@@ -292,7 +292,7 @@ class FEIRTypeByName : public FEIRTypeDefault {
 class FEIRTypeNative : public FEIRType {
  public:
   explicit FEIRTypeNative(MIRType &argMIRType);
-  ~FEIRTypeNative() = default;
+  ~FEIRTypeNative() override = default;
   FEIRTypeNative(const FEIRTypeNative&) = delete;
   FEIRTypeNative &operator=(const FEIRTypeNative&) = delete;
 

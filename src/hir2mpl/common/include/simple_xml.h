@@ -99,7 +99,7 @@ class SimpleXMLElemMultiLine : public SimpleXMLElem {
  public:
   SimpleXMLElemMultiLine(MapleAllocator &alloc, const std::string &cat);
   SimpleXMLElemMultiLine(MapleAllocator &alloc, const std::string &cat, uint32 argID);
-  ~SimpleXMLElemMultiLine() = default;
+  ~SimpleXMLElemMultiLine() override = default;
   void AddLine(const std::string &line);
 
  protected:
