@@ -436,6 +436,18 @@ void AArch64CGFunc::SelectCopyImm(Operand &dest, PrimType dType, ImmOperand &src
 
 void AArch64CGFunc::SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype) {
   uint32 dsize = GetPrimTypeBitSize(dtype);
+  // If the type size of the parent node is smaller than the type size of the child node,
+  // the number of child node needs to be truncated.
+  if (dsize < src.GetSize()) {
+    int64 value = src.GetValue();
+    // get the lower dsize-1 of the signed value
+    int64 signedValue = value & ((1UL << (dsize - 1)) - 1);
+    // set the sign bit for the truncated signed value
+    signedValue = value >= 0 ? (signedValue & ~(1UL << (dsize - 1))) :
+                               (signedValue | (((1UL << (src.GetSize() - dsize + 1)) - 1) << (dsize - 1)));
+    value = IsUnsignedInteger(dtype) ? (value & ((1UL << dsize) - 1)) : signedValue;
+    src.SetValue(value);
+  }
   ASSERT(IsPrimitiveInteger(dtype), "The type of destination operand must be Integer");
   ASSERT(((dsize == k8BitSize) || (dsize == k16BitSize) || (dsize == k32BitSize) || (dsize == k64BitSize)),
          "The destination operand must be >= 8-bit");
