@@ -26,7 +26,7 @@ NEONO2 = {
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
                 "../include"
             ],
-            option="-O2 -fPIC -lm"
+            option="-O2 -fPIC -lm --save-temps"
         )
     ],
     "run": [
