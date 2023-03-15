@@ -340,6 +340,24 @@ void LibAstFile::SetAttrVisibility(const clang::DeclaratorDecl &decl, GenericAtt
   }
 }
 
+void LibAstFile::SetAttrTLSModel(const clang::VarDecl &decl, GenericAttrs &genAttrs) const {
+  if (decl.hasAttr<clang::TLSModelAttr>()) {
+    const clang::TLSModelAttr *tlsAttr = decl.getAttr<clang::TLSModelAttr>();
+    const std::string tlsModelName = tlsAttr->getModel().str();
+    if (tlsModelName == "local-exec") {
+      genAttrs.SetAttr(GENATTR_local_exec);
+    } else if (tlsModelName == "local-dynamic") {
+      genAttrs.SetAttr(GENATTR_local_dynamic);
+    } else if (tlsModelName == "initial-exec") {
+      genAttrs.SetAttr(GENATTR_initial_exec);
+    } else if (tlsModelName == "global-dynamic") {
+      genAttrs.SetAttr(GENATTR_global_dynamic);
+    } else {
+      CHECK_FATAL(false, "TLSMODE: %s is not support", tlsModelName.c_str());
+    }
+  }
+}
+
 void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
   if (decl.isVirtualAsWritten()) {
@@ -463,6 +481,7 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) cons
 void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
   SetAttrVisibility(decl, genAttrs);
+  SetAttrTLSModel(decl, genAttrs);
   // handle __thread
   if (decl.getTLSKind() == clang::VarDecl::TLS_Static) {
     genAttrs.SetAttr(GENATTR_tls_static);

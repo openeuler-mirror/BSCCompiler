@@ -78,6 +78,7 @@ class LibAstFile {
   void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const;
   void SetAttrVisibility(const clang::DeclaratorDecl &decl, GenericAttrs &genAttrs) const;
+  void SetAttrTLSModel(const clang::VarDecl &decl, GenericAttrs &genAttrs) const;
   void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) const;
   void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CheckUnsupportedVarAttrs(const clang::VarDecl &decl) const;

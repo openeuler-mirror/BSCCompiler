@@ -92,6 +92,10 @@
   ATTR(incomplete_array)
   ATTR(may_alias)
   ATTR(static_init_zero)
+  ATTR(local_exec)
+  ATTR(initial_exec)
+  ATTR(local_dynamic)
+  ATTR(global_dynamic)
 #endif
 #ifdef FUNC_ATTR
   ATTR(firstarg_return)
