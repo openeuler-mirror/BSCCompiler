@@ -51,15 +51,22 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
     KUseOrDef
   };
 
+  struct DestSrcMap {
+    DestSrcMap(const std::map<Operand*, std::vector<Operand*>> &ifMap,
+               const std::map<Operand*, std::vector<Operand*>> &elseMap)
+        : ifDestSrcMap(ifMap), elseDestSrcMap(elseMap) {}
+    const std::map<Operand*, std::vector<Operand*>> &ifDestSrcMap;
+    const std::map<Operand*, std::vector<Operand*>> &elseDestSrcMap;
+  };
+
   explicit AArch64ICOIfThenElsePattern(CGFunc &func) : AArch64ICOPattern(func) {}
   ~AArch64ICOIfThenElsePattern() override {
     cmpBB = nullptr;
   }
   bool Optimize(BB &curBB) override;
  protected:
-  bool BuildCondMovInsn(const BB &bb, const std::map<Operand*, std::vector<Operand*>> &ifDestSrcMap,
-                        const std::map<Operand*, std::vector<Operand*>> &elseDestSrcMap, bool elseBBIsProcessed,
-                        std::vector<Insn*> &generateInsn) const;
+  bool BuildCondMovInsn(const BB &bb, const DestSrcMap &destSrcTempMap, bool elseBBIsProcessed,
+                        std::vector<Insn*> &generateInsn, const Insn *toBeRremoved2CmpBB) const;
   bool DoOpt(BB *ifBB, BB *elseBB, BB &joinBB);
   void GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest, RegOperand &destReg,
                           std::vector<Insn*> &generateInsn) const;
