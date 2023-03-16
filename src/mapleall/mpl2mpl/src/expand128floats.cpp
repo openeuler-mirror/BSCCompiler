@@ -183,6 +183,7 @@ void Expand128Floats::ReplaceOpNode(BlockNode *block, BaseNode *baseNode, size_t
     }
     for (size_t i = 0; i < currNode->numOpnds; ++i) {
       args.push_back(currNode->Opnd(i));
+      args[args.size() - 1]->ptyp = PTY_f128;
     }
   }
   Opcode currOpCode = currNode->GetOpCode();

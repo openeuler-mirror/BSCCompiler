@@ -20,15 +20,18 @@
 #include "bb.h"
 #include "insn.h"
 #include "cg_ssa.h"
+#include "reg_coalesce.h"
 
 namespace maplebe {
 #define CG_VALIDBIT_OPT_DUMP CG_DEBUG_FUNC(*cgFunc)
 class ValidBitPattern {
  public:
   ValidBitPattern(CGFunc &f, CGSSAInfo &info) : cgFunc(&f), ssaInfo(&info) {}
+  ValidBitPattern(CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : cgFunc(&f), ssaInfo(&info), regll(&ll) {}
   virtual ~ValidBitPattern() {
     cgFunc = nullptr;
     ssaInfo = nullptr;
+    regll = nullptr;
   }
   std::string PhaseName() const {
     return "cgvalidbitopt";
@@ -43,14 +46,16 @@ class ValidBitPattern {
  protected:
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
+  LiveIntervalAnalysis *regll;
 };
 
 class ValidBitOpt {
  public:
-  ValidBitOpt(CGFunc &f, CGSSAInfo &info) : cgFunc(&f), ssaInfo(&info) {}
+  ValidBitOpt(CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : cgFunc(&f), ssaInfo(&info), regll(&ll) {}
   virtual ~ValidBitOpt() {
     cgFunc = nullptr;
     ssaInfo = nullptr;
+    regll = nullptr;
   }
   void Run();
   static uint32 GetImmValidBit(int64 value, uint32 size) {
@@ -75,7 +80,13 @@ class ValidBitOpt {
   }
 
   template<typename VBOpt>
-  void Optimize(BB &bb, Insn &insn) const {
+  void OptimizeProp(BB &bb, Insn &insn) const {
+    VBOpt opt(*cgFunc, *ssaInfo, *regll);
+    opt.Run(bb, insn);
+  }
+
+  template<typename VBOpt>
+  void OptimizeNoProp(BB &bb, Insn &insn) const {
     VBOpt opt(*cgFunc, *ssaInfo);
     opt.Run(bb, insn);
   }
@@ -88,6 +99,7 @@ class ValidBitOpt {
  protected:
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
+  LiveIntervalAnalysis *regll;
 };
 MAPLE_FUNC_PHASE_DECLARE(CgValidBitOpt, maplebe::CGFunc)
 } /* namespace maplebe */
