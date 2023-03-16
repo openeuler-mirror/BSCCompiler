@@ -44,9 +44,6 @@ struct Mpl_Lite_Pgo_ProfileInfoRoot {
   int setUp;
 };
 
-extern struct Mpl_Lite_Pgo_ProfileInfoRoot __mpl_pgo_info_root  __attribute__ ((__visibility__ ("hidden"))) =
-    {0, 0, 0};
-
 void __mpl_pgo_setup();
 void __mpl_pgo_init(struct Mpl_Lite_Pgo_ObjectFileInfo *fileInfo);
 void __mpl_pgo_exit();

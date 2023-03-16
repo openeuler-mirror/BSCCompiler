@@ -84,16 +84,18 @@ class IntVal {
 
   // copy-assignment
   IntVal &operator=(const IntVal &other) {
-    if (width == 0) {
-      // Allow 'this' to be assigned with new bit-width and sign iff
-      // its original bit-width is zero (i.e. the value was created by the default ctor)
-      Assign(other);
-    } else {
-      // Otherwise, assign only new value, but sign and width must be the same
-      ASSERT(width == other.width && sign == other.sign, "different bit-width or sign");
-      Init(other.u, !other.IsOneWord());
+    // self-assignment check
+    if (this != &other) {
+      if (width == 0) {
+        // Allow 'this' to be assigned with new bit-width and sign iff
+        // its original bit-width is zero (i.e. the value was created by the default ctor)
+        Assign(other);
+      } else {
+        // Otherwise, assign only new value, but sign and width must be the same
+        ASSERT(width == other.width && sign == other.sign, "different bit-width or sign");
+        Init(other.u, !other.IsOneWord());
+      }
     }
-
     return *this;
   }
 

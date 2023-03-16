@@ -125,7 +125,6 @@ class Frame {
 #endif
   }
 
- private:
   const void *addr = nullptr;
 
   uintptr_t linkAddr;
@@ -179,7 +178,6 @@ class Stacktrace {
     return os;
   }
 
- public:
   using iterator = typename std::vector<Frame, Allocator>::iterator;
   using const_iterator = typename std::vector<Frame, Allocator>::const_iterator;
   using reverse_iterator = typename std::reverse_iterator<iterator>;

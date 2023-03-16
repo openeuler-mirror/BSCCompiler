@@ -117,7 +117,7 @@ class PGOInstrumentTemplate {
  public:
   explicit PGOInstrumentTemplate(MemPool &mp) : mst(mp) {}
 
-  void GetInstrumentBBs(std::vector<IRBB*> &bbs, IRBB *commonEnty) const;
+  void GetInstrumentBBs(std::vector<IRBB*> &bbs, IRBB *commonEntry) const;
   void PrepareInstrumentInfo(IRBB *commonEntry, IRBB* commmonExit) {
     mst.ComputeMST(commonEntry, commmonExit);
   }

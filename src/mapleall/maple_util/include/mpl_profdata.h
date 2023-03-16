@@ -83,7 +83,7 @@ class ProfileSummary {
     return histogram.size();
   }
   void ProcessHistogram();
-  MapleVector<ProfileSummaryHistogram> &GetHistogram() {
+  const MapleVector<ProfileSummaryHistogram> &GetHistogram() const {
     return histogram;
   }
 
