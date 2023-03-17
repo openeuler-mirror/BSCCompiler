@@ -55,7 +55,7 @@ void FEOptions::AddInputDexFile(const std::string &fileName) {
 
 void FEOptions::AddInputASTFile(const std::string &fileName) {
   FEFileType::FileType type = FEFileType::GetInstance().GetFileTypeByMagicNumber(fileName);
-  if (type == FEFileType::FileType::kAST) {
+  if (type == FEFileType::FileType::kAST || type == FEFileType::FileType::kO) {
     inputASTFiles.push_back(fileName);
   } else {
     WARN(kLncWarn, "invalid input AST file %s...skipped", fileName.c_str());

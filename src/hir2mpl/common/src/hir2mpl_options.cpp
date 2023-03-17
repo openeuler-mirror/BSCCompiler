@@ -491,6 +491,7 @@ void HIR2MPLOptions::ProcessInputFiles(const std::vector<std::string> &inputs) c
         FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "DEX file detected: %s", inputName.c_str());
         FEOptions::GetInstance().AddInputDexFile(inputName);
         break;
+      case FEFileType::kO:
       case FEFileType::kAST:
         FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "AST file detected: %s", inputName.c_str());
         FEOptions::GetInstance().AddInputASTFile(inputName);
