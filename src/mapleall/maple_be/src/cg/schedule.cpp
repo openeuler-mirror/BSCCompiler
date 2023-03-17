@@ -405,7 +405,7 @@ void RegPressureSchedule::UpdateReadyList(const DepNode &node) {
     if (!partialSet.empty() && (partialSet.find(&succNode) == partialSet.end())) {
       continue;
     }
-    succNode.DecreaseValidPredsSize();
+    succNode.DescreaseValidPredsSize();
     if (((succ->GetDepType() == kDependenceTypeTrue) || CanSchedule(succNode)) && (succNode.GetState() == kNormal)) {
       readyList.emplace_back(&succNode);
       succNode.SetState(kReady);
@@ -430,7 +430,7 @@ void RegPressureSchedule::BruteUpdateReadyList(const DepNode &node, std::vector<
     if (!partialSet.empty() && (partialSet.find(&succNode) == partialSet.end())) {
       continue;
     }
-    succNode.DecreaseValidPredsSize();
+    succNode.DescreaseValidPredsSize();
     if (((succ->GetDepType() == kDependenceTypeTrue) || CanSchedule(succNode)) && (succNode.GetState() == kNormal)) {
       readyList.emplace_back(&succNode);
       succNode.SetState(kReady);

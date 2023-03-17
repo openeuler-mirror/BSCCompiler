@@ -20,6 +20,9 @@
 
 namespace maplebe {
 using namespace maple;
+namespace {
+constexpr maple::uint32 kMaxDependenceNum = 200;
+};
 
 class DepAnalysis {
  public:

@@ -59,7 +59,7 @@ class GenCfi {
   virtual void GenerateRegisterSaveDirective(BB &bb) {}
   virtual void GenerateRegisterRestoreDirective(BB &bb) {}
 
-  /* It inserts a start location information for each function in debugging mode */
+  /* It is do insert a start location information for each function in debugging mode */
   void InsertFirstLocation(BB &bb);
 };
 }  /* namespace maplebe */

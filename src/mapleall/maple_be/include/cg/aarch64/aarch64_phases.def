@@ -48,7 +48,8 @@
 
  ADDTARGETPHASE("prepeephole1", CGOptions::DoPrePeephole());
  ADDTARGETPHASE("ebo1", CGOptions::DoEBO());
- ADDTARGETPHASE("globalschedule", GetMIRModule()->IsCModule() && CGOptions::DoGlobalSchedule());
+ ADDTARGETPHASE("globalschedule", false);
+ ADDTARGETPHASE("prescheduling", !GetMIRModule()->IsJavaModule() && CGOptions::DoPreSchedule());
  ADDTARGETPHASE("raopt", CGOptions::DoPreLSRAOpt());
  ADDTARGETPHASE("cgsplitcriticaledge", GetMIRModule()->IsCModule() && CGOptions::DoRegSavesOpt());
  ADDTARGETPHASE("regalloc", true);
@@ -67,14 +68,14 @@
  ADDTARGETPHASE("postebo", CGOptions::DoEBO());
  ADDTARGETPHASE("postcfgo", CGOptions::DoCFGO());
  ADDTARGETPHASE("cgpostpeephole", CGOptions::DoPeephole())
+ ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule() || CGOptions::GetInstance().IsUnwindTables() || GetMIRModule()->IsWithDbgInfo());
+ ADDTARGETPHASE("dbgfixcallframeoffsets", true);
  ADDTARGETPHASE("yieldpoint", GetMIRModule()->IsJavaModule() && CGOptions::IsInsertYieldPoint());
- ADDTARGETPHASE("localschedule", GetMIRModule()->IsCModule() && CGOptions::DoSchedule());
+ ADDTARGETPHASE("scheduling", CGOptions::DoSchedule());
  ADDTARGETPHASE("cgsplitcriticaledge", CGOptions::DoLiteProfGen());
  ADDTARGETPHASE("cgpgogen", CGOptions::DoLiteProfGen());
  ADDTARGETPHASE("cgpgouse", CGOptions::DoLiteProfUse());
  ADDTARGETPHASE("alignanalysis", GetMIRModule()->IsCModule() && CGOptions::DoAlignAnalysis() && !CGOptions::DoLiteProfGen());
  ADDTARGETPHASE("fixshortbranch", true);
  ADDTARGETPHASE("cgaggressiveopt", GetMIRModule()->IsCModule() && CGOptions::DoAggrOpt());
- ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule() || CGOptions::GetInstance().IsUnwindTables() || GetMIRModule()->IsWithDbgInfo());
- ADDTARGETPHASE("dbgfixcallframeoffsets", true);
  ADDTARGETPHASE("cgemit", true);

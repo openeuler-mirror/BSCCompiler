@@ -106,6 +106,8 @@ extern maplecl::Option<bool> pthread;
 extern maplecl::Option<bool> passO2ToClang;
 extern maplecl::Option<bool> defaultSafe;
 extern maplecl::Option<bool> onlyPreprocess;
+extern maplecl::Option<bool> noStdLib;
+extern maplecl::Option<bool> r;
 
 /* ##################### STRING Options ############################################################### */
 

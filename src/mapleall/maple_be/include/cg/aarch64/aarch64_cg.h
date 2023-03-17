@@ -34,8 +34,6 @@
 #include "aarch64_pgo_gen.h"
 #include "aarch64_MPISel.h"
 #include "aarch64_standardize.h"
-#include "aarch64_global_schedule.h"
-#include "aarch64_local_schedule.h"
 #include "aarch64_aggressive_opt.h"
 
 namespace maplebe {
@@ -211,14 +209,6 @@ class AArch64CG : public CG {
   }
   TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64TailCallOpt>(mp, f);
-  }
-  GlobalSchedule *CreateGlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
-                                       InterDataDepAnalysis &idda) const override {
-    return mp.New<AArch64GlobalSchedule>(mp, f, cda, idda);
-  }
-  LocalSchedule *CreateLocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
-                                     InterDataDepAnalysis &idda) const override {
-    return mp.New<AArch64LocalSchedule>(mp, f, cda, idda);
   }
   CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64CFGOptimizer>(f, mp);

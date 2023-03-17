@@ -83,7 +83,7 @@ class InputInfo {
     inputFolder = FileUtils::GetFileFolder(inputFile);
     outputFolder = (inputFileType == InputFileType::kFileTypeDex || inputFileType == InputFileType::kFileTypeClass ||
         inputFileType == InputFileType::kFileTypeCpp || inputFileType == InputFileType::kFileTypeJar) ? inputFolder :
-        opts::saveTempOpt.IsEnabledByUser() ? FileUtils::GetOutPutDir() : FileUtils::tmpFolderPath;
+        opts::saveTempOpt.IsEnabledByUser() ? FileUtils::GetOutPutDir() : FileUtils::GetInstance().GetTmpFolder();
     outputName = FileUtils::GetFileName(inputFile, false);
     fullOutput = outputFolder + outputName;
   }

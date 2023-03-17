@@ -12,12 +12,14 @@ test_union1_t g_union1;
 test_union2_t g_union2;
 
 test_union1_t func1(void) {
-    // CHECK: ldr     d{{[0-1]+}}
+    // CHECK: ldr     d0
+    // CHECK: ldr     d1
     return g_union1;
 }
 
 test_union2_t func2(void) {
-    // CHECK: ldr     x{{[0-1]+}}
+    // CHECK: ldr     x0
+    // CHECK: ldr     x1
     return g_union2;
 }
 

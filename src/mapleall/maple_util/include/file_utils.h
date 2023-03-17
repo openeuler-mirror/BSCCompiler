@@ -28,6 +28,12 @@ constexpr char kLdLibPath[] = "LD_LIBRARY_PATH";
 
 class FileUtils {
  public:
+  static FileUtils &GetInstance() {
+    static FileUtils instance;
+    return instance;
+  }
+  FileUtils(const FileUtils&) = delete;
+  FileUtils &operator=(const FileUtils&) = delete;
   static std::string SafeGetenv(const char *envVar);
   static std::string SafeGetPath(const char *envVar, const char *name);
   static void CheckGCCVersion(const char *cmd);
@@ -40,9 +46,18 @@ class FileUtils {
   static bool IsFileExists(const std::string &filePath);
   static std::string AppendMapleRootIfNeeded(bool needRootPath, const std::string &path,
                                              const std::string &defaultRoot = "." + kFileSeperatorStr);
-  static std::string tmpFolderPath;
+  const std::string &GetTmpFolder() const {
+    return tmpFolderPath;
+  };
   static std::string GetOutPutDir();
-  static bool DelTmpDir();
+  bool DelTmpDir();
+  std::string GetTmpFolderPath();
+ private:
+  std::string tmpFolderPath;
+  FileUtils() : tmpFolderPath(GetTmpFolderPath()) {}
+  ~FileUtils() {
+    DelTmpDir();
+  }
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_FILE_UTILS_H
