@@ -181,5 +181,18 @@ MOperator GetMopSub2Subs(const Insn &insn) {
       return curMop;
   }
 }
+
+// This api is only used for cgir verify, implemented by calling the memopndofst interface.
+int64 GetMemOpndOffsetValue(MOperator mOp, Operand *o) {
+  auto *memOpnd = static_cast<MemOperand*>(o);
+  CHECK_FATAL(memOpnd != nullptr, "memOpnd should not be nullptr");
+  // kBOR memOpnd has no offsetvalue, so return 0 for verify.
+  if (memOpnd->GetAddrMode() == MemOperand::kBOR) {
+    return 0;
+  }
+  OfstOperand *ofStOpnd = memOpnd->GetOffsetImmediate();
+  int64 offsetValue = ofStOpnd ? ofStOpnd->GetOffsetValue() : 0LL;
+  return offsetValue;
+}
 } /* namespace AArch64isa */
 }  /* namespace maplebe */

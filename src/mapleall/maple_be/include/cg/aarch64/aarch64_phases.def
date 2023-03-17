@@ -79,4 +79,5 @@
  ADDTARGETPHASE("cgaggressiveopt", GetMIRModule()->IsCModule() && CGOptions::DoAggrOpt());
  ADDTARGETPHASE("gencfi", !GetMIRModule()->IsCModule() || CGOptions::GetInstance().IsUnwindTables() || GetMIRModule()->IsWithDbgInfo());
  ADDTARGETPHASE("dbgfixcallframeoffsets", true);
+ ADDTARGETPHASE("cgirverify", true);
  ADDTARGETPHASE("cgemit", true);

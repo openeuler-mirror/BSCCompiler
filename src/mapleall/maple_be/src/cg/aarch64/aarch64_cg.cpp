@@ -20,11 +20,11 @@
 
 namespace maplebe {
 #include "immvalid.def"
+#include "aarch64_mopvalid.def"
 #define DEFINE_MOP(...) {__VA_ARGS__},
 const InsnDesc AArch64CG::kMd[kMopLast] = {
 #include "abstract_mmir.def"
 #include "aarch64_md.def"
-#include "aarch64_mem_md.def"
 };
 #undef DEFINE_MOP
 

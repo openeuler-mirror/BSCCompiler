@@ -536,6 +536,8 @@ class CGFunc {
 
   void PatchLongBranch();
 
+  void VerifyAllInsn();
+
   virtual uint32 MaxCondBranchDistance() {
     return INT_MAX;
   }
@@ -1479,6 +1481,8 @@ MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPatchLongBranch, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgFixCFLocOsft, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgVerify, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgGenCfi, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END

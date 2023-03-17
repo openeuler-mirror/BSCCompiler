@@ -474,7 +474,6 @@ class ContinuousLdrPattern : public OptimizePattern {
   static bool IsMopMatch(const Insn &insn);
   bool IsUsedBySameCall(Insn &insn1, Insn &insn2, Insn &insn3) const;
   static bool IsMemValid(const MemOperand &memopnd);
-  static bool IsImmValid(MOperator mop, const ImmOperand &imm);
   static int64 GetMemOffsetValue(const Insn &insn);
 
   std::vector<Insn *> insnList;

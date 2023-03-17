@@ -903,10 +903,16 @@ bool AArch64CGFunc::IsImmediateOffsetOutOfRange(const MemOperand &memOpnd, uint3
   }
 }
 
+// This api is used to judge whether opnd is legal for mop.
+// It is implemented by calling verify api of mop (InsnDesc -> Verify).
 bool AArch64CGFunc::IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx) {
   const InsnDesc *md = &AArch64CG::kMd[mOp];
   auto *opndProp = md->opndMD[opndIdx];
-
+  MemPool *localMp = memPoolCtrler.NewMemPool("opnd verify mempool", true);
+  auto *localAlloc = new MapleAllocator(localMp);
+  MapleVector<Operand*> testOpnds(md->opndMD.size(), localAlloc->Adapter());
+  testOpnds[opndIdx] = o;
+  bool flag = true;
   Operand::OperandType opndTy = opndProp->GetOperandType();
   if (opndTy == Operand::kOpdMem) {
     auto *memOpnd = static_cast<MemOperand*>(o);
@@ -917,20 +923,18 @@ bool AArch64CGFunc::IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx)
     OfstOperand *ofStOpnd = memOpnd->GetOffsetImmediate();
     int64 offsetValue = ofStOpnd ? ofStOpnd->GetOffsetValue() : 0LL;
     if (md->IsLoadStorePair() || (memOpnd->GetAddrMode() == MemOperand::kBOI)) {
-      if (ofStOpnd && ofStOpnd->GetVary() == kUnAdjustVary) {
-        offsetValue += static_cast<int32>(static_cast<AArch64MemLayout*>(GetMemlayout())->RealStackFrameSize() +
-            0xffL);
-      }
-      return md->IsValidImmOpnd(offsetValue);
+      flag = md->Verify(testOpnds);
     } else if (memOpnd->GetAddrMode() == MemOperand::kLo12Li) {
-      return offsetValue == 0;
+      flag = offsetValue == 0;
     } else if (memOpnd->IsPostIndexed() || memOpnd->IsPreIndexed()) {
-      return (offsetValue <= static_cast<int64>(k256BitSizeInt) && offsetValue >= kNegative256BitSize);
+      flag = (offsetValue <= static_cast<int64>(k256BitSizeInt) && offsetValue >= kNegative256BitSize);
     }
   } else if (opndTy == Operand::kOpdImmediate) {
-    return md->IsValidImmOpnd(static_cast<ImmOperand*>(o)->GetValue());
+    flag = md->Verify(testOpnds);
   }
-  return true;
+  delete localAlloc;
+  memPoolCtrler.DeleteMemPool(localMp);
+  return flag;
 }
 
 MemOperand &AArch64CGFunc::CreateReplacementMemOperand(uint32 bitLen,

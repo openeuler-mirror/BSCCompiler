@@ -38,6 +38,7 @@ class InsnBuilder {
   Insn &BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2);
   Insn &BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2, Operand &o3);
   Insn &BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2, Operand &o3, Operand &o4);
+  Insn &BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2, Operand &o3, Operand &o4, Operand &o5);
   Insn &BuildInsn(MOperator opCode, std::vector<Operand*> &opnds);
 
   Insn &BuildCfiInsn(MOperator opCode);

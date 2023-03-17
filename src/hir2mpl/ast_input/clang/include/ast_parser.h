@@ -326,6 +326,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   MapleList<ASTFileScopeAsm*> &astFileScopeAsms;
   MapleList<ASTEnumDecl*> &astEnums;
   MapleMap<clang::Expr*, ASTExpr*> vlaSizeMap;
+  std::unordered_map<std::string, std::unordered_set<std::string>> structFileNameMap;
 };
 }  // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_PARSER_H

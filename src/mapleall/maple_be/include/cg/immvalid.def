@@ -128,6 +128,7 @@ bool Imm12BitValid(int64 value) {
   return result;
 }
 
+// For the 32-bit variant: is the bitmask immediate
 bool Imm12BitMaskValid(int64 value) {
   if (value == 0 || static_cast<int64>(value) == -1) {
     return false;
@@ -142,6 +143,7 @@ bool Imm13BitValid(int64 value) {
   return result;
 }
 
+// For the 64-bit variant: is the bitmask immediate
 bool Imm13BitMaskValid(int64 value) {
   if (value == 0 || static_cast<int64>(value) == -1) {
     return false;
@@ -158,6 +160,95 @@ bool Imm16BitValid(int64 value) {
     */
   result = result || IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal12Bits, kMaxImmVal12Bits);
   return result;
+}
+
+// For the 32-bit variant: is the shift amount, in the range 0 to 31, opnd input is bitshiftopnd
+bool BitShift5BitValid(uint32 value) {
+  bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal5Bits, 0);
+  return result;
+}
+
+// For the 64-bit variant: is the shift amount, in the range 0 to 63, opnd input is bitshiftopnd
+bool BitShift6BitValid(uint32 value) {
+  bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal6Bits, 0);
+  return result;
+}
+
+// For the 32-bit variant: is the shift amount, in the range 0 to 31, opnd input is immopnd
+bool BitShift5BitValidImm(int64 value) {
+  bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal5Bits, 0);
+  return result;
+}
+
+// For the 64-bit variant: is the shift amount, in the range 0 to 63, opnd input is immopnd
+bool BitShift6BitValidImm(int64 value) {
+  bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal6Bits, 0);
+  return result;
+}
+
+// Is a 16-bit unsigned immediate, in the range 0 to 65535, used by BRK
+bool Imm16BitValidImm(int64 value) {
+  bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal16Bits, 0);
+  return result;
+}
+
+// Is the flag bit specifier, an immediate in the range 0 to 15, used by CCMP
+bool Nzcv4BitValid(int64 value) {
+  bool result = IsBitSizeImmediate(static_cast<uint64>(value), k4BitSize, 0);
+  return result;
+}
+
+// For the 32-bit variant: is the bit number of the lsb of the source bitfield, in the range 0 to 31
+bool Lsb5BitValid(int64 value) {
+  bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal5Bits, 0);
+  return result;
+}
+
+// For the 32-bit variant: is the width of the bitfield, in the range 1 to 32-<lsb>
+bool Width5BitValid(int64 value, int64 lsb) {
+  return  (value >= 1) && (value <= 32 - lsb);
+}
+
+// For the 32-bit variant: is the width of the bitfield, in the range 1 to 32, is used for only width verified
+bool Width5BitOnlyValid(int64 value) {
+  return  (value >= 1) && (value <= 32);
+}
+
+// For the 64-bit variant: is the bit number of the lsb of the source bitfield, in the range 0 to 63
+bool Lsb6BitValid(int64 value) {
+  bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal6Bits, 0);
+  return result;
+}
+
+// For the 64-bit variant: is the width of the bitfield, in the range 1 to 64-<lsb>
+bool Width6BitValid(int64 value, int64 lsb) {
+  return  (value >= 1) && (value <= 64 - lsb);
+}
+
+// For the 64-bit variant: is the width of the bitfield, in the range 1 to 64, is used for only width verified
+bool Width6BitOnlyValid(int64 value) {
+  return  (value >= 1) && (value <= 64);
+}
+
+// Is the left shift amount to be applied after extension in the range 0 to 4
+bool ExtendShift0To4Valid(uint32 value) {
+  bool result = (value >= k0BitSize) && (value <= k4BitSize);
+  return result;
+}
+
+// Is the optional left shift to apply to the immediate, it can have the values: 0, 12
+bool LeftShift12Valid(uint32 value) {
+  return value == k0BitSize || value == k12BitSize;
+}
+
+// For the 32-bit variant: is the amount by which to shift the immediate left, either 0 or 16
+bool ImmShift32Valid(uint32 value) {
+  return value == k0BitSize || value == k16BitSize;
+}
+
+// For the 64-bit variant: is the amount by which to shift the immediate left, either 0, 16, 32 or 48
+bool ImmShift64Valid(uint32 value) {
+  return value == k0BitSize || value == k16BitSize || value == k32BitSize || value == k48BitSize;
 }
 
 /*

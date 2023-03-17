@@ -800,6 +800,10 @@ class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
     return extendOp;
   }
 
+  uint32 GetValue() const {
+    return shiftAmount;
+  }
+
   bool Less(const Operand &right) const override;
 
   void Dump() const override {
@@ -883,6 +887,10 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
 
   ShiftOp GetShiftOp() const {
     return shiftOp;
+  }
+
+  uint32 GetValue() const {
+    return GetShiftAmount();
   }
 
   void Dump() const override {

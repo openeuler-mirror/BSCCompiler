@@ -29,26 +29,37 @@ Insn &InsnBuilder::BuildInsn(MOperator opCode, const InsnDesc &idesc) {
 
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0) {
   const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
-  return BuildInsn(opCode, tMd).AddOpndChain(o0);
+  Insn &result = BuildInsn(opCode, tMd).AddOpndChain(o0);
+  return result;
 }
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0, Operand &o1) {
   const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
-  return BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1);
+  Insn &result = BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1);
+  return result;
 }
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2) {
   const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
-  return BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2);
+  Insn &result = BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2);
+  return result;
 }
 
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2, Operand &o3) {
   const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
-  return BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2).AddOpndChain(o3);
+  Insn &result = BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2).AddOpndChain(o3);
+  return result;
 }
 
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2, Operand &o3, Operand &o4) {
   const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
   Insn &nI = BuildInsn(opCode, tMd);
   return nI.AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2).AddOpndChain(o3).AddOpndChain(o4);
+}
+
+Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2,
+    Operand &o3, Operand &o4, Operand &o5) {
+  const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
+  Insn &nI = BuildInsn(opCode, tMd);
+  return nI.AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2).AddOpndChain(o3).AddOpndChain(o4).AddOpndChain(o5);
 }
 
 Insn &InsnBuilder::BuildInsn(MOperator opCode, std::vector<Operand*> &opnds) {

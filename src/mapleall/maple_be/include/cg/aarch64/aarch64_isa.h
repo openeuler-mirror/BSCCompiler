@@ -23,7 +23,6 @@ namespace maplebe {
 enum AArch64MOP_t : maple::uint32 {
 #include "abstract_mmir.def"
 #include "aarch64_md.def"
-#include "aarch64_mem_md.def"
   kMopLast
 };
 #undef DEFINE_MOP
@@ -167,6 +166,10 @@ bool IsSub(const Insn &insn);
 MOperator GetMopSub2Subs(const Insn &insn);
 
 MOperator FlipConditionOp(MOperator flippedOp);
+ 
+// Function: for immediate verification, memopnd ofstvalue is returned from opnd input.
+// It's worth noting that 0 will be returned when kBOR memopnd is input.
+int64 GetMemOpndOffsetValue(MOperator mOp, Operand *o);
 } /* namespace AArch64isa */
 
 /*

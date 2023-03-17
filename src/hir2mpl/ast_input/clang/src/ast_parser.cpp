@@ -3304,14 +3304,41 @@ bool ASTParser::RetrieveStructs(MapleAllocator &allocator) {
         recDecl = recDeclDef;
       }
     }
-    ASTStruct *curStructOrUnion = static_cast<ASTStruct*>(ProcessDecl(allocator, *recDecl));
-    if (curStructOrUnion == nullptr) {
-      return false;
-    }
-    auto itor = std::find(astStructs.cbegin(), astStructs.cend(), curStructOrUnion);
-    if (itor != astStructs.end()) {
-    } else {
+    if (FEOptions::GetInstance().GetWPAA()) {
+      std::string srcFileName = GetSourceFileName();
+      std::stringstream recName;
+      clang::QualType qType = recDecl->getTypeForDecl()->getCanonicalTypeInternal();
+      astFile->EmitTypeName(*qType->getAs<clang::RecordType>(), recName);
+      std::string recordName = recName.str();
+      auto itFile = structFileNameMap.find(srcFileName);
+      if (itFile != structFileNameMap.end()) {
+        auto itIdxSet = itFile->second;
+        auto itIdx = itIdxSet.find(recordName);
+        if (itIdx == itIdxSet.end()) {
+          (void)itIdxSet.insert(recordName);
+        } else {
+          continue;
+        }
+      } else {
+        std::unordered_set<std::string> structIdxSet;
+        (void)structIdxSet.insert(recordName);
+        structFileNameMap.insert(std::pair<std::string, std::unordered_set<std::string>>(srcFileName, structIdxSet));
+      }
+      ASTStruct *curStructOrUnion = static_cast<ASTStruct*>(ProcessDecl(allocator, *recDecl));
+      if (curStructOrUnion == nullptr) {
+        return false;
+      }
       astStructs.emplace_back(curStructOrUnion);
+    } else {
+      ASTStruct *curStructOrUnion = static_cast<ASTStruct*>(ProcessDecl(allocator, *recDecl));
+      if (curStructOrUnion == nullptr) {
+        return false;
+      }
+      auto itor = std::find(astStructs.cbegin(), astStructs.cend(), curStructOrUnion);
+      if (itor != astStructs.end()) {
+      } else {
+        (void)astStructs.emplace_back(curStructOrUnion);
+      }
     }
   }
   return true;

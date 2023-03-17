@@ -176,6 +176,14 @@ class Insn {
     return retSize;
   }
 
+  // Insn Function: check legitimacy of opnds.
+  bool VerifySelf() const {
+    if (this->IsCfiInsn() || this->IsDbgInsn()) {
+      return true;
+    }
+    return md->Verify(opnds);
+  }
+
   virtual bool IsMachineInstruction() const;
 
   bool OpndIsDef(uint32 id) const;

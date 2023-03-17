@@ -139,6 +139,7 @@ class HIR2MPLCompilerComponent {
   std::list<FEInputEnumHelper*> enumHelpers;
   std::unique_ptr<FEFunctionPhaseResult> phaseResultTotal;
   std::set<FEFunction*> compileFailedFEFunctions;
+  std::vector<FEInputMethodHelper*> globalLTOFuncHelpers;
 };
 }  // namespace maple
 #endif

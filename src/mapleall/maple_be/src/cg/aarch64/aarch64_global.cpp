@@ -2310,10 +2310,6 @@ bool ContinuousLdrPattern::IsMemValid(const MemOperand &memopnd) {
   return memopnd.GetAddrMode() == MemOperand::kBOI;
 }
 
-bool ContinuousLdrPattern::IsImmValid(MOperator mop, const ImmOperand &imm) {
-  return AArch64CG::kMd[mop].IsValidImmOpnd(imm.GetValue());
-}
-
 int64 ContinuousLdrPattern::GetMemOffsetValue(const Insn &insn) {
   return static_cast<MemOperand &>(insn.GetOperand(kSecondOpnd)).GetOffsetOperand()->GetValue();
 }
@@ -2412,7 +2408,8 @@ void ContinuousLdrPattern::Optimize(Insn &insn) {
     std::swap(ldpRt1, ldpRt2);
   }
 
-  if (IsImmValid(mop, *static_cast<MemOperand &>(ldpRt1->GetOperand(kSecondOpnd)).GetOffsetOperand())) {
+  Operand &opnd = ldpRt1->GetOperand(kSecondOpnd);
+  if (aarch64CGFunc.IsOperandImmValid(mop, &opnd, kThirdOpnd)) {
     auto &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mop, ldpRt1->GetOperand(kFirstOpnd),
                                                        ldpRt2->GetOperand(kFirstOpnd), ldpRt1->GetOperand(kSecondOpnd));
     auto &ubfxInsn = cgFunc.GetInsnBuilder()->BuildInsn(ubfx, currInsn->GetOperand(kFirstOpnd),

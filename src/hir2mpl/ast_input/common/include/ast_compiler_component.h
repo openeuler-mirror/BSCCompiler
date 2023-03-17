@@ -51,6 +51,7 @@ class ASTCompilerComponent : public HIR2MPLCompilerComponent {
   ASTInput<T> astInput;
   std::unordered_set<std::string> structNameSet;
   std::unordered_map<std::string, FEInputMethodHelper*> funcNameMap;
+  std::unordered_map<std::string, uint32> funcIdxMap;
 
   void ParseInputStructs();
   void ParseInputFuncs();

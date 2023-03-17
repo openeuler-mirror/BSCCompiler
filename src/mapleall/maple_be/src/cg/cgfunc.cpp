@@ -2289,6 +2289,17 @@ void CGFunc::PatchLongBranch() {
   }
 }
 
+// Cgirverify phase function: all insns will be verified before cgemit.
+void CGFunc::VerifyAllInsn() {
+  FOR_ALL_BB(bb, this) {
+    FOR_BB_INSNS(insn, bb) {
+      if(!insn->VerifySelf()) {
+        CHECK_FATAL_FALSE("Insn is illegal.");
+      }
+    }
+  }
+}
+
 void CGFunc::UpdateAllRegisterVregMapping(MapleMap<regno_t, PregIdx> &newMap) {
   vregsToPregsMap.clear();
   for (auto &it : std::as_const(newMap)) {
@@ -2353,4 +2364,13 @@ bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFixCFLocOsft, dbgfixcallframeoffsets)
+
+bool CgVerify::PhaseRun(maplebe::CGFunc &f) {
+  f.VerifyAllInsn();
+  if (!f.GetCG()->GetCGOptions().DoEmitCode() || f.GetCG()->GetCGOptions().DoDumpCFG()) {
+    f.DumpCFG();
+  }
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER(CgVerify, cgirverify)
 }  /* namespace maplebe */
