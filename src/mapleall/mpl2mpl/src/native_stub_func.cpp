@@ -539,8 +539,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
 //      }
 //    }
 StmtNode *NativeStubFuncGeneration::CreateNativeWrapperCallNode(MIRFunction &func, BaseNode *funcPtr,
-                                                                const MapleVector<BaseNode*> &args, const MIRSymbol *ret,
-                                                                bool needIndirectCall) {
+    const MapleVector<BaseNode*> &args, const MIRSymbol *ret, bool needIndirectCall) {
 #ifdef USE_ARM32_MACRO
   constexpr size_t numOfArgs = 4;
 #else

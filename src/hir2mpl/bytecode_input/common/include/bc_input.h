@@ -41,7 +41,7 @@ class BCInput {
 
  private:
   bool CollectAllDepTypeNamesOnAllBCFiles(std::unordered_set<std::string> &allDepSet);
-  bool CollectMethodDepTypeNamesOnAllBCFiles(std::unordered_set<std::string> &allDepSet);
+  bool CollectMethodDepTypeNamesOnAllBCFiles(std::unordered_set<std::string> &depSet);
 
   std::map<std::string, std::unique_ptr<BCParserBase>> bcParserMap;  // map<filename, BCParser>
   MIRModule &module;

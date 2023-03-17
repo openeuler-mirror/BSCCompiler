@@ -14,8 +14,6 @@
  */
 #ifndef HIR2MPL_BC_INPUT_INCLUDE_BC_PRAGMA_H
 #define HIR2MPL_BC_INPUT_INCLUDE_BC_PRAGMA_H
-#include <cstdint>
-#include <memory>
 #include <vector>
 #include "mir_module.h"
 #include "mir_pragma.h"

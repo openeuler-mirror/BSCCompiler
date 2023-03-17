@@ -253,24 +253,25 @@ void MUIDReplacement::CollectFuncAndDataFromGlobalTab() {
     // entry 0 is reserved as nullptr
     MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
     CHECK_FATAL(mirSymbol != nullptr, "Invalid global data symbol at index %u", i);
+    if (mirSymbol->GetStorageClass() == kScExtern &&
+        (mirSymbol->IsReflectionClassInfo() || mirSymbol->IsStatic())) {
+      AddUndefData(mirSymbol);
+      continue;
+    }
     if (mirSymbol->GetStorageClass() == kScGlobal) {
-      if (mirSymbol->IsReflectionClassInfo()) {
-        if (!mirSymbol->IsForcedGlobalClassinfo() &&
-            preloadedClassInfo.find(mirSymbol->GetName()) == preloadedClassInfo.end()) {
+      if (mirSymbol->IsReflectionClassInfo() && !mirSymbol->IsForcedGlobalClassinfo() &&
+          preloadedClassInfo.find(mirSymbol->GetName()) == preloadedClassInfo.end()) {
           // With maple linker, global data can be declared as local
           mirSymbol->SetStorageClass(kScFstatic);
-        }
-        if (mirSymbol->GetKonst() != nullptr) {
-          // Use this to exclude forward-declared classinfo symbol
-          AddDefData(mirSymbol);
-        }
-      } else if (mirSymbol->IsStatic()) {
+      }
+      if (mirSymbol->IsReflectionClassInfo() && mirSymbol->GetKonst() != nullptr) {
+        // Use this to exclude forward-declared classinfo symbol
+        AddDefData(mirSymbol);
+      }
+      if (!mirSymbol->IsReflectionClassInfo() && mirSymbol->IsStatic()) {
         mirSymbol->SetStorageClass(kScFstatic);
         AddDefData(mirSymbol);
       }
-    } else if (mirSymbol->GetStorageClass() == kScExtern &&
-               (mirSymbol->IsReflectionClassInfo() || mirSymbol->IsStatic())) {
-      AddUndefData(mirSymbol);
     }
   }
 }
@@ -1127,10 +1128,7 @@ void MUIDReplacement::GenerateRangeTable() {
   }
   std::string bbProfileName = namemangler::kBBProfileTabPrefixStr + GetMIRModule().GetFileNameAsPostfix();
   MIRSymbol *funcProfCounterTabSym = GetSymbolFromName(bbProfileName);
-  std::vector<MIRSymbol*> irProfWorkList = {
-    funcProfInfTabSym,
-    funcProfCounterTabSym
-  };
+  std::vector<MIRSymbol*> irProfWorkList = {funcProfInfTabSym, funcProfCounterTabSym};
   InitRangeTabUseSym(irProfWorkList, rangeTabEntryType, *rangeTabConst);
   if (!rangeTabConst->GetConstVec().empty()) {
     rangeArrayType.SetSizeArrayItem(0, rangeTabConst->GetConstVec().size());
@@ -1837,7 +1835,7 @@ void MUIDReplacement::GenericSourceMuid() {
     MIRArrayType &arrayType =
       *GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetUInt8(), 0);
     MIRAggConst *newConst = GetMIRModule().GetMemPool()->New<MIRAggConst>(GetMIRModule(), arrayType);
-    for (const char &c : Options::sourceMuid) {
+    for (const unsigned char &c : Options::sourceMuid) {
       MIRConst *charConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
           static_cast<uint64>(c), *GlobalTables::GetTypeTable().GetUInt8());
       newConst->AddItem(charConst, 0);

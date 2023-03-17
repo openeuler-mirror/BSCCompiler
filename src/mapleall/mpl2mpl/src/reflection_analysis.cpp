@@ -19,6 +19,7 @@
 #include <functional>
 #include <iomanip>
 #include <fstream>
+#include <utility>
 #include "vtable_analysis.h"
 #include "vtable_impl.h"
 #include "option.h"
@@ -1153,7 +1154,7 @@ MIRSymbol *ReflectionAnalysis::GenSuperClassMetaData(std::list<Klass*> superClas
   MIRArrayType &arrayType = *GlobalTables::GetTypeTable().GetOrCreateArrayType(superclassMetadataType, size);
   MIRSymbol *superclassArraySt = nullptr;
 
-  const auto &itFindSuper = superClasesIdxMap.find(superClassList);
+  const auto &itFindSuper = std::as_const(superClasesIdxMap).find(superClassList);
   if (itFindSuper == superClasesIdxMap.end()) {
     std::string superClassArrayInfo = SUPERCLASSINFO_PREFIX_STR + std::to_string(superClasesIdxMap.size());
     superClasesIdxMap[superClassList] = superClassArrayInfo;
@@ -1941,7 +1942,7 @@ bool ReflectionAnalysis::IsAnonymousClass(const std::string &annotationString) {
   size_t pos = annotationString.find(target, 0);
   if (pos != std::string::npos) {
     int i = kAnonymousClassIndex;
-    while (i--) {
+    while ((i--) != 0) {
       pos = annotationString.find("!", pos + 1);
       CHECK_FATAL(pos != std::string::npos, "Error:annotationString in func: isAnonymousClass()");
     }
@@ -2159,7 +2160,7 @@ static void ReflectionAnalysisGenStrTab(MIRModule &mirModule, const std::string 
   strTabSt->SetStorageClass(kScFstatic);
   for (char c : strTab) {
     MIRConst *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        static_cast<uint64>(c), *GlobalTables::GetTypeTable().GetUInt8());
+        static_cast<uint64>(static_cast<unsigned char>(c)), *GlobalTables::GetTypeTable().GetUInt8());
     strTabAggconst->AddItem(newConst, 0);
   }
   strTabSt->SetKonst(strTabAggconst);

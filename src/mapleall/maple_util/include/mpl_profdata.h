@@ -116,6 +116,7 @@ class FuncProfInfo {
   FreqType GetFuncRealFrequency() const {
     return realEntryfreq;
   }
+
   void SetFuncRealFrequency(FreqType freq) {
     realEntryfreq = freq;
   }
@@ -123,21 +124,25 @@ class FuncProfInfo {
   std::unordered_map<uint32_t, FreqType> &GetStmtFreqs() {
     return stmtFreqs;
   }
+
   FreqType GetStmtFreq(uint32_t stmtID) {
     if (stmtFreqs.count(stmtID) > 0) {
       return stmtFreqs[stmtID];
     }
     return -1;  // unstored
   }
+
   void SetStmtFreq(uint32_t stmtID, FreqType freq) {
     if (freq == -1) {
       return;
     }
     stmtFreqs[stmtID] = freq;
   }
+
   void EraseStmtFreq(uint32_t stmtID) {
     (void)stmtFreqs.erase(stmtID);
   }
+
   void CopyStmtFreq(uint32_t newStmtID, uint32_t origStmtId, bool deleteOld = false) {
     ASSERT(GetStmtFreq(origStmtId) >= 0, "origStmtId no freq record");
     SetStmtFreq(newStmtID, GetStmtFreq(origStmtId));
@@ -145,6 +150,7 @@ class FuncProfInfo {
       EraseStmtFreq(origStmtId);
     }
   }
+
   bool IsHotCallSite(uint32_t stmtID) {
     if (stmtFreqs.count(stmtID) > 0) {
       FreqType freq = stmtFreqs[stmtID];
@@ -153,6 +159,7 @@ class FuncProfInfo {
     ASSERT(0, "should not be here");
     return false;
   }
+
   void DumpFunctionProfile();
 
   unsigned ident;

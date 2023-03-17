@@ -1151,6 +1151,8 @@ ASTExpr *ASTParser::ParseBuiltinCopysignl(MapleAllocator &allocator, const clang
 
 ASTExpr *ASTParser::ParseBuiltinAtomicClear(MapleAllocator &allocator, const clang::CallExpr &expr,
                                             std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)allocator;
+  (void)ss;
   (void)astCallExpr;
   CheckAtomicClearArg(expr);
   return nullptr;
@@ -1158,6 +1160,9 @@ ASTExpr *ASTParser::ParseBuiltinAtomicClear(MapleAllocator &allocator, const cla
 
 ASTExpr *ASTParser::ParseBuiltinAtomicTestAndSet(MapleAllocator &allocator, const clang::CallExpr &expr,
                                                  std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)allocator;
+  (void)ss;
+  (void)expr;
   astCallExpr.SetType(GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u8));
   return nullptr;
 }

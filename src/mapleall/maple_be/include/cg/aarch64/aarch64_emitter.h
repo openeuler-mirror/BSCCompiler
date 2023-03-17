@@ -23,7 +23,7 @@ using namespace maple;
 class AArch64AsmEmitter : public AsmEmitter {
  public:
   AArch64AsmEmitter(CG &cg, const std::string &asmFileName) : AsmEmitter(cg, asmFileName) {}
-  ~AArch64AsmEmitter() = default;
+  ~AArch64AsmEmitter() override = default;
 
   void EmitRefToMethodDesc(FuncEmitInfo &funcEmitInfo, Emitter &emitter) override;
   void EmitRefToMethodInfo(FuncEmitInfo &funcEmitInfo, Emitter &emitter) override;

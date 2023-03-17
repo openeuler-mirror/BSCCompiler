@@ -182,8 +182,8 @@ class ReflectionAnalysis : public AnalysisResult {
   MIRSymbol *GetSymbol(GStrIdx strIdx, TyIdx tyIdx);
   void GenClassMetaData(Klass &klass);
   std::string GetAnnoValueNoArray(const MIRPragmaElement &annoElem);
-  std::string GetArrayValue(const MapleVector<MIRPragmaElement*> &subElemVector);
-  std::string GetAnnotationValue(const MapleVector<MIRPragmaElement*> &subElemVector, GStrIdx typeStrIdx);
+  std::string GetArrayValue(const MapleVector<MIRPragmaElement*> &subelemVector);
+  std::string GetAnnotationValue(const MapleVector<MIRPragmaElement*> &subelemVector, GStrIdx typeStrIdx);
   MIRSymbol *GenSuperClassMetaData(std::list<Klass*> superClassList);
   MIRSymbol *GenFieldOffsetData(const Klass &klass, const std::pair<FieldPair, int> &fieldInfo);
   MIRSymbol *GetMethodSignatureSymbol(std::string signature);
@@ -194,7 +194,7 @@ class ReflectionAnalysis : public AnalysisResult {
   void GenFieldMetaCompact(const Klass &klass, MIRStructType &fieldsInfoCompactType,
                            const std::pair<FieldPair, int> &fieldInfo,
                            MIRAggConst &aggConstCompact);
-  void GenMethodMetaCompact(const Klass &klass, MIRStructType &methodsInfoType, int idx,
+  void GenMethodMetaCompact(const Klass &klass, MIRStructType &methodsInfoCompactType, int idx,
                             const MIRSymbol &funcSym, MIRAggConst &aggConst,
                             int &allDeclaringClassOffset,
                             std::unordered_map<uint32, std::string> &baseNameMp,
@@ -204,7 +204,7 @@ class ReflectionAnalysis : public AnalysisResult {
                                    std::unordered_map<uint32, std::string> &baseNameMp,
                                    std::unordered_map<uint32, std::string> &fullNameMp);
   MIRSymbol *GenFieldsMeta(const Klass &klass, std::vector<std::pair<FieldPair, int>> &fieldsVector,
-                           const std::vector<std::pair<FieldPair, uint16>> &fieldHashvec);
+                           const std::vector<std::pair<FieldPair, uint16>> &fieldHashVec);
   void GenFieldMeta(const Klass &klass, MIRStructType &fieldsInfoType,
                     const std::pair<FieldPair, int> &fieldInfo, MIRAggConst &aggConst,
                     int idx, const std::vector<std::pair<FieldPair, uint16>> &fieldHashVec);
@@ -239,19 +239,19 @@ class ReflectionAnalysis : public AnalysisResult {
   void GenAllFieldHash(std::vector<std::pair<FieldPair, uint16>> &fieldV) const;
   void GenAnnotation(std::map<int, int> &idxNumMap, std::string &annoArr, MIRStructType &classType,
                       PragmaKind paragKind, const std::string &paragName, TyIdx fieldTypeIdx,
-                      std::map<int, int> *paramNumArray = nullptr, int *paramIndex = nullptr);
+                      std::map<int, int> *paramnumArray = nullptr, int *paramIndex = nullptr);
   void AppendValueByType(std::string &annoArr, const MIRPragmaElement &elem);
   bool IsAnonymousClass(const std::string &annotationString);
   bool IsLocalClass(const std::string annotationString);
   bool IsPrivateClass(const MIRClassType &classType) const;
   bool IsStaticClass(const MIRStructType &classType) const;
-  int8 JudgePara(MIRStructType &ctype);
+  int8 JudgePara(MIRStructType &classType);
   void CheckPrivateInnerAndNoSubClass(Klass &clazz, const std::string &annoArr);
   void ConvertMapleClassName(const std::string &mplClassName, std::string &javaDsp);
 
   int GetDeflateStringIdx(const std::string &subStr, bool needSpecialFlag);
   uint32 GetAnnoCstrIndex(std::map<int, int> &idxNumMap, const std::string &annoArr, bool isField);
-  uint16 GetMethodInVtabIndex(const Klass &clazz, const MIRFunction &func) const;
+  uint16 GetMethodInVtabIndex(const Klass &klass, const MIRFunction &func) const;
   void GetSignatureTypeNames(std::string &signature, std::vector<std::string> &typeNames);
   MIRSymbol *GetClinitFuncSymbol(const Klass &klass);
   int SolveAnnotation(MIRStructType &classType, const MIRFunction &func);

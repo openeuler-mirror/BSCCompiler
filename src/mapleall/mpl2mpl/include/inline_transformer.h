@@ -102,7 +102,7 @@ class InlineTransformer {
 
   bool PerformInline(BlockNode &enclosingBlk);
   bool PerformInline(std::vector<CallInfo*> *newCallInfo = nullptr);
-  static void ReplaceSymbols(BaseNode *baseNode, uint32 StIdxOff, const std::vector<uint32> *oldStIdx2New);
+  static void ReplaceSymbols(BaseNode *baseNode, uint32 stIdxOff, const std::vector<uint32> *oldStIdx2New);
   static void ConvertPStaticToFStatic(MIRFunction &func);
   void SetDumpDetail(bool value) {
     dumpDetail = value;
@@ -130,7 +130,7 @@ class InlineTransformer {
       const RealArgPropCand &realArg, const std::pair<uint32, uint32> &offsetPair);
   void GenReturnLabel(BlockNode &newBody, uint32 inlinedTimes);
   void HandleReturn(BlockNode &newBody);
-  void ReplaceCalleeBody(BlockNode &enclosingBlk, BlockNode &newBody);
+  void ReplaceCalleeBody(BlockNode &enclosingBlock, BlockNode &newBody);
   LabelIdx CreateReturnLabel(uint32 inlinedTimes) const;
   GotoNode *UpdateReturnStmts(BlockNode &newBody, const CallReturnVector *callReturnVector, int &retCount) const;
   GotoNode *DoUpdateReturnStmts(BlockNode &newBody, StmtNode &stmt, const CallReturnVector *callReturnVector,

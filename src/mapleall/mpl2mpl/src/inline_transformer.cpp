@@ -502,7 +502,7 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
     auto *calleeProfData = callee.GetFuncProfData();
     uint64 callsiteFreq = static_cast<uint64>(callerProfData->GetStmtFreq(callStmt.GetStmtID()));
     FreqType calleeEntryFreq = calleeProfData->GetFuncFrequency();
-    uint32_t updateOp = static_cast<uint32_t>(kKeepOrigFreq | kUpdateFreqbyScale);
+    uint32_t updateOp = static_cast<uint32_t>(kKeepOrigFreq) | static_cast<uint32_t>(kUpdateFreqbyScale);
     BlockNode *blockNode;
     if (recursiveFirstClone) {
       blockNode = funcBody.CloneTreeWithFreqs(theMIRModule->GetCurFuncCodeMPAllocator(), callerProfData->GetStmtFreqs(),
@@ -691,6 +691,7 @@ void RealArgPropCand::Parse(MIRFunction &caller, BaseNode &argExpr) {
     auto stIdx = static_cast<DreadNode&>(argExpr).GetStIdx();
     // only consider const variable
     auto *symbol = caller.GetLocalOrGlobalSymbol(stIdx);
+    ASSERT_NOT_NULL(symbol);
     if (symbol->GetAttr(ATTR_const)) {
       kind = RealArgPropCandKind::kVar;
       data.symbol = symbol;

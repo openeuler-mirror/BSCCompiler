@@ -178,6 +178,8 @@ class SimplifyOp : public ProxyMemOp {
   bool SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLevel);
   bool SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel) override;
  private:
+  void FoldMemsExpr(StmtNode &stmt, uint64 &srcSize, bool &isSrcSizeConst, uint64 &dstSize,
+                    bool &isDstSizeConst) const;
   StmtNode *PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) const;
   StmtNode *PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block);
 

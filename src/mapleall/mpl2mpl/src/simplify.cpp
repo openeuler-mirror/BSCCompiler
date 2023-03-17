@@ -87,7 +87,7 @@ MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldC
   }
 
   if (isBigEndian) {
-    val = val.LShr(static_cast<uint64>(val.GetBitWidth() - bitSize));
+    val = val.LShr(static_cast<uint64>(val.GetBitWidth()) - static_cast<uint64>(bitSize));
   } else {
     val = val & ((uint64(1) << bitSize) - 1);
   }
@@ -562,7 +562,7 @@ BaseNode *Simplify::SimplifyExpr(BaseNode &expr) {
       return SimplifyBitFieldRead(static_cast<IreadNode&>(expr));
     }
     default: {
-      for (auto i = 0; i < expr.GetNumOpnds(); i++) {
+      for (size_t i = 0; i < expr.GetNumOpnds(); i++) {
         if (expr.Opnd(i)) {
           expr.SetOpnd(SimplifyExpr(*expr.Opnd(i)), i);
         }
@@ -772,7 +772,7 @@ static BaseNode *ConstructConstvalNode(uint64 val, PrimType primType, MIRBuilder
 }
 
 static BaseNode *ConstructConstvalNode(int64 byte, uint64 num, PrimType primType, MIRBuilder &mirBuilder) {
-  auto val = JoinBytes(byte, static_cast<uint32>(num));
+  auto val = JoinBytes(static_cast<int32>(byte), static_cast<uint32>(num));
   return ConstructConstvalNode(val, primType, mirBuilder);
 }
 
@@ -1040,7 +1040,7 @@ class BlockOperationHelper {
   // dassign %ret (constval i32 errnNumber)
   // goto @finalLab
   void HandleErrorWithDstSizeCheckAndReset(LabelIdx curLabIdx, LabelIdx condLabIdx, LabelIdx finalLabIdx,
-                                           OpKind memOpKind, ErrorNumber errNumer, bool isDstSizeConst, uint64 dstSize) {
+      OpKind memOpKind, ErrorNumber errNumer, bool isDstSizeConst, uint64 dstSize) {
     InsertLableNode(curLabIdx);
     if (!isDstSizeConst) {
       CreateAndInsertCheckStmt(OP_eq, stmt.Opnd(kMemOpSDstSizeOpndIdx), ConstructConstvalNode(0, PTY_u64, *mirBuilder),
@@ -1378,7 +1378,7 @@ void MemEntry::ExpandMemcpyLowLevel(const MemEntry &srcMem, uint64 copySize, MIR
         rhsAddrExpr = mirBuilder->CreateExprBinary(OP_add, *ptrType, realSrcExpr, offsetConstExpr);
       }
       BaseNode *rhsExpr = mirBuilder->CreateExprIread(*constMIRType, *constMIRPtrType, 0, rhsAddrExpr);
-      auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, offset, realDstExpr, rhsExpr);
+      auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, static_cast<int32>(offset), realDstExpr, rhsExpr);
       InsertBeforeAndMayPrintStmt(block, stmt, debug, iassignoff);
       offset += curSize;
       continue;
@@ -1905,24 +1905,27 @@ bool SimplifySprintfS::ReplaceSprintfIfNeeded(StmtNode &stmt, BlockNode &block, 
   return true;
 }
 
-// expand memset_s call statement, return pointer of memset call statement node to be expanded in the next step, return
-// nullptr if memset_s is expanded completely.
-StmtNode *SimplifyOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) const{
-  ErrorNumber errNum = ERRNO_OK;
-
-  uint64 srcSize = 0;
-  bool isSrcSizeConst = false;
+void SimplifyOp::FoldMemsExpr(StmtNode &stmt, uint64 &srcSize, bool &isSrcSizeConst, uint64 &dstSize,
+                              bool &isDstSizeConst) const {
   BaseNode *foldSrcSizeExpr = FoldIntConst(stmt.Opnd(kMemOpSSrcSizeOpndIdx), srcSize, isSrcSizeConst);
   if (foldSrcSizeExpr != nullptr) {
     stmt.SetOpnd(foldSrcSizeExpr, kMemOpSDstSizeOpndIdx);
   }
-
-  uint64 dstSize = 0;
-  bool isDstSizeConst = false;
   BaseNode *foldDstSizeExpr = FoldIntConst(stmt.Opnd(kMemOpSDstSizeOpndIdx), dstSize, isDstSizeConst);
   if (foldDstSizeExpr != nullptr) {
     stmt.SetOpnd(foldDstSizeExpr, kMemOpSDstSizeOpndIdx);
   }
+}
+
+// expand memset_s call statement, return pointer of memset call statement node to be expanded in the next step, return
+// nullptr if memset_s is expanded completely.
+StmtNode *SimplifyOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) const {
+  ErrorNumber errNum = ERRNO_OK;
+  uint64 srcSize = 0;
+  bool isSrcSizeConst = false;
+  uint64 dstSize = 0;
+  bool isDstSizeConst = false;
+  FoldMemsExpr(stmt, srcSize, isSrcSizeConst, dstSize, isDstSizeConst);
   if (isDstSizeConst) {
     if ((srcSize > dstSize && dstSize == 0) || dstSize > kSecurecMemMaxLen) {
       errNum = ERRNO_RANGE;
@@ -2100,8 +2103,8 @@ bool SimplifyOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLeve
   }
   bool ret = false;
   if (srcSize != 0) {
-    ret = dstMemEntry.ExpandMemset(static_cast<int64>(val), static_cast<uint64>(srcSize), *func, *memsetCallStmt, block, isLowLevel,
-                                   debug, errNum);
+    ret = dstMemEntry.ExpandMemset(static_cast<int64>(val), static_cast<uint64>(srcSize), *func, *memsetCallStmt,
+        block, isLowLevel, debug, errNum);
   } else {
     // if size == 0, no need to set memory, just return error nummber
     auto *retAssign = MemEntry::GenRetAssign(*memsetCallStmt, *func, isLowLevel, memOpKind, errNum);
@@ -2117,20 +2120,11 @@ bool SimplifyOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLeve
 
 StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
   ErrorNumber errNum = ERRNO_OK;
-
   uint64 srcSize = 0;
   bool isSrcSizeConst = false;
-  BaseNode *foldSrcSizeExpr = FoldIntConst(stmt.Opnd(kMemOpSSrcSizeOpndIdx), srcSize, isSrcSizeConst);
-  if (foldSrcSizeExpr != nullptr) {
-    stmt.SetOpnd(foldSrcSizeExpr, kMemOpSDstSizeOpndIdx);
-  }
-
   uint64 dstSize = 0;
   bool isDstSizeConst = false;
-  BaseNode *foldDstSizeExpr = FoldIntConst(stmt.Opnd(kMemOpSDstSizeOpndIdx), dstSize, isDstSizeConst);
-  if (foldDstSizeExpr != nullptr) {
-    stmt.SetOpnd(foldDstSizeExpr, kMemOpSDstSizeOpndIdx);
-  }
+  FoldMemsExpr(stmt, srcSize, isSrcSizeConst, dstSize, isDstSizeConst);
   if (isDstSizeConst) {
     if ((dstSize == 0) || static_cast<uint64>(dstSize) > kSecurecMemMaxLen) {
       errNum = ERRNO_RANGE;
@@ -2352,7 +2346,7 @@ bool SimplifyOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLeve
   }
   bool ret = false;
   ret = dstMemEntry.ExpandMemcpy(srcMemEntry, copySize, *func, *memcpyCallStmt, block,
-                                   isLowLevel, debug, errNum);
+                                 isLowLevel, debug, errNum);
   if (ret) {
     MayPrintLog(debug, true, memOpKind, "well done");
   }

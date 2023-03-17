@@ -14,8 +14,8 @@
  */
 #ifndef HIR2MPL_BC_INPUT_INCLUDE_BC_INPUT_INL_H_
 #define HIR2MPL_BC_INPUT_INCLUDE_BC_INPUT_INL_H_
-#include "bc_input.h"
 #include <typeinfo>
+#include "bc_input.h"
 #include "dex_parser.h"
 #include "hir2mpl_env.h"
 
@@ -40,7 +40,7 @@ bool BCInput<T>::ReadBCFile(uint32 index, const std::string &fileName, const std
     ERR(kLncErr, "Verify file failed in : %s.", fileName.c_str());
     return false;
   }
-  if (bcParser->RetrieveClasses(bcClasses) == false) {
+  if (!(bcParser->RetrieveClasses(bcClasses))) {
     ERR(kLncErr, "Retrieve classes failed in : %s.", fileName.c_str());
     return false;
   }
@@ -107,7 +107,7 @@ template <class T>
 bool BCInput<T>::CollectAllDepTypeNamesOnAllBCFiles(std::unordered_set<std::string> &allDepSet) {
   for (auto &item : bcParserMap) {
     std::unordered_set<std::string> depSet;
-    if (item.second->CollectAllDepTypeNames(depSet) == false) {
+    if (!(item.second->CollectAllDepTypeNames(depSet))) {
       ERR(kLncErr, "Collect all dependent typenames failed in : %s.", item.first.c_str());
       return false;
     }
@@ -153,7 +153,7 @@ template <class T>
 bool BCInput<T>::CollectClassNamesOnAllBCFiles(std::unordered_set<std::string> &allClassSet) {
   for (auto &item : bcParserMap) {
     std::unordered_set<std::string> classSet;
-    if (item.second->CollectAllClassNames(classSet) == false) {
+    if (!(item.second->CollectAllClassNames(classSet))) {
       ERR(kLncErr, "Collect all class names failed in : %s.", item.first.c_str());
       return false;
     }

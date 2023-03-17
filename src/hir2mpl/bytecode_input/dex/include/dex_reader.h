@@ -24,13 +24,13 @@
 
 namespace maple {
 namespace bc {
-typedef std::map<uint16, std::set<std::tuple<std::string, std::string, std::string>>> SrcLocalInfo;
+using SrcLocalInfo = std::map<uint16, std::set<std::tuple<std::string, std::string, std::string>>>;
 
 class DexReader : public BCReader {
  public:
   DexReader(uint32 fileIdxIn, const std::string &fileNameIn)
       : BCReader(fileNameIn), fileIdx(fileIdxIn) {}
-  ~DexReader() = default;
+  ~DexReader() override = default;
   void SetDexFile(std::unique_ptr<IDexFile> dexFile);
   uint32 GetClassItemsSize() const;
   const char *GetClassJavaSourceFileName(uint32 classIdx) const;

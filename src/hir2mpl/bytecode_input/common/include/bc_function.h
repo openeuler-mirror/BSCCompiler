@@ -23,7 +23,7 @@ class BCFunction : public FEFunction {
  public:
   BCFunction(const BCClassMethod2FEHelper &argMethodHelper, MIRFunction &mirFunc,
               const std::unique_ptr<FEFunctionPhaseResult> &argPhaseResultTotal);
-  virtual ~BCFunction() = default;
+  virtual ~BCFunction() override = default;
 
  protected:
   bool GenerateGeneralStmt(const std::string &phaseName) override {

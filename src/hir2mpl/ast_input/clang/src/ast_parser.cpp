@@ -1753,7 +1753,7 @@ ASTExpr *ASTParser::BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, con
       if (sizeExpr == nullptr) {
         return nullptr;
       }
-      MapleMap<clang::Expr*, ASTExpr*>::const_iterator iter = vlaSizeMap.find(sizeExpr);
+      MapleMap<clang::Expr*, ASTExpr*>::const_iterator iter = std::as_const(vlaSizeMap).find(sizeExpr);
       if (iter != vlaSizeMap.cend()) {
         return iter->second;
       }
