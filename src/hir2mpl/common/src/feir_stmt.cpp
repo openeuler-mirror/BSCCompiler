@@ -3865,14 +3865,11 @@ std::unique_ptr<FEIRExpr> FEIRExprAtomic::CloneImpl() const {
   return expr;
 }
 
-TyIdx FEIRExprAtomic::GetTyIdx(MIRBuilder &mirBuilder) const {
+TyIdx FEIRExprAtomic::GetTyIdx() const {
   TyIdx typeIndex(0);
-  if (atomicOp == kAtomicOpExchange) {
-    typeIndex = val2Type->GetTypeIndex();
-  } else {
-    typeIndex = val1Type->GetTypeIndex();
+  if (refType != nullptr) {
+    typeIndex = refType->GetTypeIndex();
   }
-
   return typeIndex;
 }
 
@@ -3923,7 +3920,7 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   if (atomicOp == kAtomicOpCompareExchange || atomicOp == kAtomicOpCompareExchangeN) {
     args.emplace_back(orderFailExpr->GenMIRNode(mirBuilder));
   }
-  TyIdx typeIndex = GetTyIdx(mirBuilder);
+  TyIdx typeIndex = GetTyIdx();
   return ret ? mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicID, std::move(args), retVar, typeIndex) :
                mirBuilder.CreateStmtIntrinsicCall(intrinsicID, std::move(args), typeIndex);
 }

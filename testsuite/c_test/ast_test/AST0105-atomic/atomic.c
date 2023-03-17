@@ -11,7 +11,7 @@ int main() {
   int *next = &b;
   enum OrderEnum order = MEMORY_ORDER_RELEAXED;
   // CHECK: LOC [[# FILENUM]] [[# @LINE + 2 ]]
-  // CHECK: intrinsiccallwithtype i32 C___atomic_store_n
+  // CHECK: intrinsiccallwithtype <* i32> C___atomic_store_n
   __atomic_store_n(&prev, (next), order);
   int v = 0;
   int count = 0;

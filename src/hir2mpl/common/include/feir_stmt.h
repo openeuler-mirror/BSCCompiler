@@ -1527,7 +1527,7 @@ class FEIRExprAtomic : public FEIRExpr {
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
-  TyIdx GetTyIdx(MIRBuilder &mirBuilder) const;
+  TyIdx GetTyIdx() const;
 
  private:
   MIRType *mirType = nullptr;
