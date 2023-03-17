@@ -1167,7 +1167,7 @@ ConstvalNode *ConstantFold::FoldFloor(const ConstvalNode &cst, PrimType fromType
 
 MIRConst *ConstantFold::FoldRoundMIRConst(const MIRConst &cst, PrimType fromType, PrimType toType) const {
   if (fromType == PTY_f128 || toType == PTY_f128) {
-    LogInfo::MapleLogger() << "FoldRoundMIRConst is not supported for f128\n";
+    // folding while rounding float128 is not supported yet
     return nullptr;
   }
 

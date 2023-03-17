@@ -195,6 +195,8 @@ class IVOptimizer {
   bool CreateIVFromMul(OpMeExpr &op, MeStmt &stmt);
   bool CreateIVFromSub(OpMeExpr &op, MeStmt &stmt);
   bool CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt);
+  bool CanCreateIV(const OpMeExpr &op, const IV &iv) const;
+  bool CreateIVFromUnsignedCvt(const OpMeExpr &op, const IV &iv) const;
   bool CreateIVFromIaddrof(OpMeExpr &op, MeStmt &stmt);
   OpMeExpr *TryCvtCmp(OpMeExpr &op, MeStmt &stmt);
   bool FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddress = false);
@@ -664,14 +666,65 @@ bool IVOptimizer::CreateIVFromSub(OpMeExpr &op, MeStmt &stmt) {
   return false;
 }
 
+bool IVOptimizer::CreateIVFromUnsignedCvt(const OpMeExpr &op, const IV &iv) const {
+  if ((data->realIterNum == static_cast<uint64>(-1)) ||
+      // Primtype above 8 bytes is not supported.
+      (GetPrimTypeSize(op.GetPrimType()) > kEightByte) ||
+      (GetPrimTypeSize(iv.base->GetPrimType()) > kEightByte) ||
+      (GetPrimTypeSize(iv.step->GetPrimType()) > kEightByte)) {
+    return false;
+  }
+  // Ensure that the steps of each iteration are consistent.
+  // For example:
+  // base: uint64_max - 1
+  // step: 1
+  // tripCount: 10
+  // The step of first iteration is 1 and the step of second iteration is -uint64_max.
+  if (iv.base->GetMeOp() != kMeOpConst || iv.step->GetMeOp() != kMeOpConst) {
+    return false;
+  }
+  auto base = static_cast<ConstMeExpr*>(iv.base)->GetZXTIntValue();
+  auto unsignedStep = static_cast<ConstMeExpr*>(iv.step)->GetZXTIntValue();
+  auto signedStep = static_cast<ConstMeExpr*>(iv.step)->GetExtIntValue();
+  uint64 finalValue = 0;
+  auto prim = op.GetPrimType();
+  // finalValue: base + step * tripcount
+  finalValue = (GetPrimTypeSize(prim) == k8BitSize) ? (base + unsignedStep * data->realIterNum) :
+      static_cast<uint64>(GetRealValue((GetRealValue(static_cast<int64>(base), prim) +
+          GetRealValue(static_cast<int64>(unsignedStep), prim) *
+          GetRealValue(static_cast<int64>(data->realIterNum), prim)), prim));
+  uint64 res = (finalValue < base) ? (base - finalValue) : (finalValue - base);
+  if (unsignedStep == 0) {
+    return false;
+  }
+  // Compare the calculated trip count with the actual trip count.
+  // If it is not equal, it means that overflow occurs during iteration.
+  if ((finalValue < base) &&
+      ((signedStep > 0 && (res / unsignedStep) == data->realIterNum) ||
+       (signedStep < 0 && (res / static_cast<uint64>(-signedStep)) == data->realIterNum))) {
+  } else if ((finalValue > base) && ((res / unsignedStep) == data->realIterNum)) {
+  } else {
+    return false;
+  }
+  return true;
+}
+
+bool IVOptimizer::CanCreateIV(const OpMeExpr &op, const IV &iv) const {
+  if (!IsPrimitiveInteger(op.GetPrimType())) {
+    return false;
+  }
+  if (IsUnsignedInteger(op.GetOpndType()) &&
+      GetPrimTypeSize(op.GetOpndType()) < GetPrimTypeSize(op.GetPrimType()) &&
+      !CreateIVFromUnsignedCvt(op, iv)) {
+    return false;
+  }
+  return true;
+}
+
 bool IVOptimizer::CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt) {
   auto *iv = data->GetIV(*op.GetOpnd(0));
   ASSERT_NOT_NULL(iv);
-  if (!IsPrimitiveInteger(op.GetPrimType())) {
-    data->CreateGroup(stmt, *iv, kUseGeneral, &op);
-    return false;
-  }
-  if (IsUnsignedInteger(op.GetOpndType()) && GetPrimTypeSize(op.GetOpndType()) < GetPrimTypeSize(op.GetPrimType())) {
+  if (!CanCreateIV(op, *iv)) {
     data->CreateGroup(stmt, *iv, kUseGeneral, &op);
     return false;
   }
@@ -1344,7 +1397,7 @@ static uint32 ComputeExprCost(MeExpr &expr, const MeExpr *parent = nullptr) {
   constexpr uint32 cvtCost = 4;
   constexpr uint32 addCost = 4;
   constexpr uint32 addressCost = 5;
-  constexpr uint32 mulCost = 5;
+  constexpr uint32 mulCost = 4;
   constexpr uint32 symbolCost = 9;
   constexpr uint32 defaultCost = 16;
 
@@ -1732,7 +1785,7 @@ uint32 IVOptimizer::ComputeCandCostForGroup(const IVCand &cand, IVGroup &group) 
   if (!replaced) {
     return kInfinityCost;
   }
-  uint32 mulCost = 5;
+  uint32 mulCost = 4;
   uint8 extraConstCost = 4;
   if (group.type == kUseGeneral) {
     if (extraExpr == nullptr) {
