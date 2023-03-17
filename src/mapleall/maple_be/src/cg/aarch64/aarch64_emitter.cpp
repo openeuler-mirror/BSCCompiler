@@ -1020,6 +1020,7 @@ static void AsmStringOutputRegNum(
   if (isInt) {
     newRegno = regno - intBase;
   } else {
+    CHECK_FATAL(regno > 35, "The input type must be float.");
     newRegno = regno - fpBase;
   }
   if (newRegno > (kDecimalMax - 1)) {
