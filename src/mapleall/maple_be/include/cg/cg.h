@@ -312,7 +312,7 @@ class CG {
   virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const = 0;
   virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
-  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const = 0;
+  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const = 0;
   virtual GlobalSchedule *CreateGlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,

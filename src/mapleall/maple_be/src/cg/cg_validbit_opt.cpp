@@ -15,11 +15,8 @@
 #include "cg_validbit_opt.h"
 #include "mempool.h"
 #include "aarch64_validbit_opt.h"
-#include "aarch64_reg_coalesce.h"
 
 namespace maplebe {
-
-
 InsnSet ValidBitPattern::GetAllUseInsn(const RegOperand &defReg) {
   InsnSet allUseInsn;
   if ((ssaInfo != nullptr) && defReg.IsSSAForm()) {
@@ -146,18 +143,14 @@ void ValidBitOpt::Run() {
 bool CgValidBitOpt::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
   CHECK_FATAL(ssaInfo != nullptr, "Get ssaInfo failed");
-  LiveIntervalAnalysis *ll = GET_ANALYSIS(CGliveIntervalAnalysis, f);
-  CHECK_FATAL(ll != nullptr, "Get ll failed");
-  auto *vbOpt = f.GetCG()->CreateValidBitOpt(*GetPhaseMemPool(), f, *ssaInfo, *ll);
+  auto *vbOpt = f.GetCG()->CreateValidBitOpt(*GetPhaseMemPool(), f, *ssaInfo);
   CHECK_FATAL(vbOpt != nullptr, "vbOpt instance create failed");
   vbOpt->Run();
-  ll->ClearBFS();
   return true;
 }
 
 void CgValidBitOpt::GetAnalysisDependence(AnalysisDep &aDep) const {
   aDep.AddRequired<CgSSAConstruct>();
-  aDep.AddRequired<CGliveIntervalAnalysis>();
   aDep.AddPreserved<CgSSAConstruct>();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgValidBitOpt, cgvalidbitopt)

@@ -16,84 +16,12 @@
 #include "aarch64_cg.h"
 
 namespace maplebe {
-
-bool PropPattern::HasLiveRangeConflict(const RegOperand &dstReg, const RegOperand &srcReg, VRegVersion *destVersion, VRegVersion *srcVersion) const {
-  ASSERT(destVersion != nullptr, "find destVersion failed");
-  ASSERT(srcVersion != nullptr, "find srcVersion failed");
-  LiveInterval *dstll = nullptr;
-  LiveInterval *srcll = nullptr;
-  if (destVersion->GetOriginalRegNO() == srcVersion->GetOriginalRegNO()) {
-    return true;
-  }
-  regno_t dstRegNO = dstReg.GetRegisterNumber();
-  regno_t srcRegNO = srcReg.GetRegisterNumber();
-  for (auto useDUInfoIt : destVersion->GetAllUseInsns()) {
-    if (useDUInfoIt.second == nullptr) {
-      continue;
-    }
-    Insn *useInsn = (useDUInfoIt.second)->GetInsn();
-    if (useInsn == nullptr) {
-      continue;
-    }
-    if (useInsn->IsPhi() && dstReg.GetSize() != srcReg.GetSize()) {
-      return false;
-    }
-
-    dstll = regll->GetLiveInterval(dstRegNO);
-    srcll = regll->GetLiveInterval(srcRegNO);
-    ASSERT(dstll != nullptr, "dstll should not be nullptr");
-    ASSERT(srcll != nullptr, "srcll should not be nullptr");
-    static_cast<AArch64LiveIntervalAnalysis*>(regll)->CheckInterference(*dstll, *srcll);
-    BB *useBB = useInsn->GetBB();
-    if (dstll->IsConflictWith(srcRegNO) &&
-        // support override value when the version is not transphi
-        (((useBB->IsInPhiDef(srcRegNO) || useBB->IsInPhiList(srcRegNO)) && useBB->HasCriticalEdge()) ||
-        useBB->IsInPhiList(dstRegNO))) {
-      return false;
-    }
-  }
-  if (dstll && srcll) {
-    regll->CoalesceLiveIntervals(*dstll, *srcll);
-  }
-  return true;
-}
-
-void PropPattern::VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) {
-  ASSERT(movInsn.GetMachineOpcode() == MOP_xmovrr || movInsn.GetMachineOpcode() == MOP_wmovrr, "NIY explicit CVT");
-  if (destReg.GetSize() == k64BitSize && srcReg.GetSize() == k32BitSize) {
-    movInsn.SetMOP(AArch64CG::kMd[MOP_xuxtw64]);
-  } else if (destReg.GetSize() == k32BitSize && srcReg.GetSize() == k64BitSize) {
-    movInsn.SetMOP(AArch64CG::kMd[MOP_xubfxrri6i6]);
-    movInsn.AddOperand(cgFunc->CreateImmOperand(PTY_i64, 0));
-    movInsn.AddOperand(cgFunc->CreateImmOperand(PTY_i64, k32BitSize));
-  } else {
-    return;
-  }
-}
-
-// prop ssa info and change implicit cvt to uxtw / ubfx
-void PropPattern::ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersion *srcVersion) {
-  MapleUnorderedMap<uint32, DUInsnInfo*> useList = destVersion->GetAllUseInsns();
-  ssaInfo->ReplaceAllUse(destVersion, srcVersion);
-  for (auto it = useList.begin(); it != useList.end(); it++)  {
-    Insn *useInsn = it->second->GetInsn();
-    if (useInsn->GetMachineOpcode() == MOP_xmovrr || useInsn->GetMachineOpcode() == MOP_wmovrr) { 
-      auto &dstOpnd = useInsn->GetOperand(kFirstOpnd);
-      auto &srcOpnd = useInsn->GetOperand(kSecondOpnd);
-      ASSERT(dstOpnd.IsRegister() && srcOpnd.IsRegister(), "must be");
-      auto &destReg = static_cast<RegOperand &>(dstOpnd);
-      auto &srcReg = static_cast<RegOperand &>(srcOpnd);
-      VaildateImplicitCvt(destReg, srcReg, *useInsn);
-    }
-  }
-}
-
 void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
   MOperator curMop = insn.GetMachineOpcode();
   switch (curMop) {
     case MOP_wandrri12:
     case MOP_xandrri13: {
-      OptimizeProp<AndValidBitPattern>(bb, insn);
+      Optimize<AndValidBitPattern>(bb, insn);
       break;
     }
     case MOP_xuxtb32:
@@ -104,17 +32,17 @@ void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
     case MOP_xubfxrri6i6:
     case MOP_wsbfxrri5i5:
     case MOP_xsbfxrri6i6: {
-      OptimizeProp<ExtValidBitPattern>(bb, insn);
+      Optimize<ExtValidBitPattern>(bb, insn);
       break;
     }
     case MOP_wcsetrc:
     case MOP_xcsetrc: {
-      OptimizeNoProp<CmpCsetVBPattern>(bb, insn);
+      Optimize<CmpCsetVBPattern>(bb, insn);
       break;
     }
     case MOP_bge:
     case MOP_blt: {
-      OptimizeNoProp<CmpBranchesPattern>(bb, insn);
+      Optimize<CmpBranchesPattern>(bb, insn);
       break;
     }
     default:
@@ -160,10 +88,10 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
     case MOP_xlsrrri6: {
       Operand &opnd = insn.GetOperand(kInsnThirdOpnd);
       ASSERT(opnd.IsIntImmediate(), "must be ImmOperand");
-      auto shiftBits = static_cast<int32>(static_cast<ImmOperand&>(opnd).GetValue());
+      auto shiftBits = static_cast<uint32>(static_cast<ImmOperand&>(opnd).GetValue());
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-      if ((static_cast<int32>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
+      if ((srcOpnd.GetValidBitsNum() - shiftBits) <= 0) {
         dstOpnd.SetValidBitsNum(k1BitSize);
       } else {
         dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - shiftBits);
@@ -189,9 +117,9 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
           (mop == MOP_xasrrri6 && srcOpnd.GetValidBitsNum() < k64BitSize)) {
         Operand &opnd = insn.GetOperand(kInsnThirdOpnd);
         ASSERT(opnd.IsIntImmediate(), "must be ImmOperand");
-        auto shiftBits = static_cast<int32>(static_cast<ImmOperand&>(opnd).GetValue());
+        auto shiftBits = static_cast<uint32>(static_cast<ImmOperand&>(opnd).GetValue());
         auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-        if ((static_cast<int32>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
+        if ((srcOpnd.GetValidBitsNum() - shiftBits) <= 0) {
           dstOpnd.SetValidBitsNum(k1BitSize);
         } else {
           dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - shiftBits);
@@ -370,26 +298,17 @@ void AndValidBitPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
   }
-  if (desReg != nullptr && desReg->IsSSAForm() && srcReg != nullptr && srcReg->IsSSAForm()) {
-    destVersion = ssaInfo->FindSSAVersion(desReg->GetRegisterNumber());
-    ASSERT(destVersion != nullptr, "find Version failed");
-    srcVersion = ssaInfo->FindSSAVersion(srcReg->GetRegisterNumber());
-    ASSERT(srcVersion != nullptr, "find Version failed");
-    if (!HasLiveRangeConflict(*desReg, *srcReg, destVersion, srcVersion)) {
-      Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *desReg, *srcReg);
-      bb.ReplaceInsn(insn, newInsn);
-      // update ssa info
-      ssaInfo->ReplaceInsn(insn, newInsn);
-      if (desReg->GetSize() > srcReg->GetSize() || desReg->GetSize() != desReg->GetValidBitsNum()) {
-        ssaInfo->InsertSafePropInsn(newInsn.GetId());
-      }
-      return;
-    }
-  } else {
-    return;
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *desReg, *srcReg);
+  bb.ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  ssaInfo->InsertSafePropInsn(newInsn.GetId());
+  /* dump pattern info */
+  if (CG_VALIDBIT_OPT_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(&insn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
   }
-  //prop ssa info
-  ReplaceImplicitCvtAndProp(destVersion, srcVersion);
 }
 
 bool ExtValidBitPattern::CheckCondition(Insn &insn) {
@@ -463,40 +382,30 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
     case MOP_xuxtb32:
     case MOP_xuxth32:
     case MOP_xuxtw64:
-    case MOP_xsxtw64:
+    case MOP_xsxtw64: {
+      insn.SetMOP(AArch64CG::kMd[newMop]);
+      if (newDstOpnd->GetSize() > newSrcOpnd->GetSize()) {
+        ssaInfo->InsertSafePropInsn(insn.GetId());
+      }
+      break;
+    }
     case MOP_wubfxrri5i5:
     case MOP_xubfxrri6i6:
     case MOP_wsbfxrri5i5:
     case MOP_xsbfxrri6i6: {
-      // if dest is preg, change mop because there is no ssa version for preg
-      if (newDstOpnd != nullptr && newDstOpnd->IsPhysicalRegister() && newSrcOpnd != nullptr && newSrcOpnd->IsSSAForm()) {
-        Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *newDstOpnd, *newSrcOpnd);
-        bb.ReplaceInsn(insn, newInsn);
-        ssaInfo->ReplaceInsn(insn, newInsn);
-        if (newDstOpnd->GetSize() > newSrcOpnd->GetSize() || newDstOpnd->GetSize() != newDstOpnd->GetValidBitsNum()) {
-          ssaInfo->InsertSafePropInsn(newInsn.GetId());
-        }
+      Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *newDstOpnd, *newSrcOpnd);
+      bb.ReplaceInsn(insn, newInsn);
+      /* update ssa info */
+      ssaInfo->ReplaceInsn(insn, newInsn);
+      if (newDstOpnd->GetSize() > newSrcOpnd->GetSize() || newDstOpnd->GetSize() != newDstOpnd->GetValidBitsNum()) {
+        ssaInfo->InsertSafePropInsn(newInsn.GetId());
       }
-      if (newDstOpnd != nullptr && newDstOpnd->IsSSAForm() && newSrcOpnd != nullptr && newSrcOpnd->IsSSAForm()) {
-        destVersion = ssaInfo->FindSSAVersion(newDstOpnd->GetRegisterNumber());
-        ASSERT(destVersion != nullptr, "find Version failed");
-        srcVersion = ssaInfo->FindSSAVersion(newSrcOpnd->GetRegisterNumber());
-        ASSERT(srcVersion != nullptr, "find Version failed");
-        // when there is live range conflict, do not prop, change mop
-        if (!HasLiveRangeConflict(*newDstOpnd, *newSrcOpnd, destVersion, srcVersion)) {
-          Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *newDstOpnd, *newSrcOpnd);
-          bb.ReplaceInsn(insn, newInsn);
-          /* update ssa info */
-          ssaInfo->ReplaceInsn(insn, newInsn);
-          if (newDstOpnd->GetSize() > newSrcOpnd->GetSize() || newDstOpnd->GetSize() != newDstOpnd->GetValidBitsNum()) {
-            ssaInfo->InsertSafePropInsn(newInsn.GetId());
-          }
-          return;
-        }
-      } else {
-        return;
+      /* dump pattern info */
+      if (CG_VALIDBIT_OPT_DUMP) {
+        std::vector<Insn*> prevs;
+        prevs.emplace_back(&insn);
+        DumpAfterPattern(prevs, &insn, &newInsn);
       }
-      ReplaceImplicitCvtAndProp(destVersion, srcVersion);
     }
     default:
       return;

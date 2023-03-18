@@ -22,22 +22,12 @@
 namespace maplebe {
 class AArch64ValidBitOpt : public ValidBitOpt {
  public:
-  AArch64ValidBitOpt(CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : ValidBitOpt(f, info, ll) {}
+  AArch64ValidBitOpt(CGFunc &f, CGSSAInfo &info) : ValidBitOpt(f, info) {}
   ~AArch64ValidBitOpt() override = default;
 
   void DoOpt(BB &bb, Insn &insn) override;
   void SetValidBits(Insn &insn) override;
   bool SetPhiValidBits(Insn &insn) override;
-};
-
-class PropPattern : public ValidBitPattern {
- public:
-  PropPattern(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : ValidBitPattern(cgFunc, info, ll) {}
-  ~PropPattern() override {}
- protected:
-  bool HasLiveRangeConflict(const RegOperand &dstReg, const RegOperand &srcReg, VRegVersion *destVersion, VRegVersion *srcVersion) const;
-  void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
-  void ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersion *srcVersion);
 };
 
 /*
@@ -50,14 +40,12 @@ class PropPattern : public ValidBitPattern {
  * and w6[16], w0[16], #FF00[16]              mov  w6, w0
  * asr w6,     w6[16], #8[4]        ===>      asr  w6, w6
  */
-class AndValidBitPattern : public PropPattern {
+class AndValidBitPattern : public ValidBitPattern {
  public:
-  AndValidBitPattern(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : PropPattern(cgFunc, info, ll) {}
+  AndValidBitPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
   ~AndValidBitPattern() override {
     desReg = nullptr;
     srcReg = nullptr;
-    destVersion = nullptr;
-    srcVersion = nullptr;
   }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -70,8 +58,6 @@ class AndValidBitPattern : public PropPattern {
   MOperator newMop = MOP_undef;
   RegOperand *desReg = nullptr;
   RegOperand *srcReg = nullptr;
-  VRegVersion *destVersion = nullptr;
-  VRegVersion *srcVersion = nullptr;
 };
 
 /*
@@ -85,14 +71,12 @@ class AndValidBitPattern : public PropPattern {
  * ===>
  * mov   w1, w2
  */
-class ExtValidBitPattern : public PropPattern {
+class ExtValidBitPattern : public ValidBitPattern {
  public:
-  ExtValidBitPattern(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : PropPattern(cgFunc, info, ll) {}
+  ExtValidBitPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
   ~ExtValidBitPattern() override {
     newDstOpnd = nullptr;
     newSrcOpnd = nullptr;
-    destVersion = nullptr;
-    srcVersion = nullptr;
   }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -103,8 +87,6 @@ class ExtValidBitPattern : public PropPattern {
  private:
   RegOperand *newDstOpnd = nullptr;
   RegOperand *newSrcOpnd = nullptr;
-  VRegVersion *destVersion = nullptr;
-  VRegVersion *srcVersion = nullptr;
   MOperator newMop = MOP_undef;
 };
 

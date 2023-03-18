@@ -126,11 +126,10 @@ class X64CG : public CG {
     (void)ssaInfo;
     return nullptr;
   }
-  ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const override {
+  ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     (void)mp;
     (void)f;
     (void)ssaInfo;
-    (void)ll;
     return nullptr;
   }
   RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
