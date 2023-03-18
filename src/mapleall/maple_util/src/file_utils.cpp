@@ -140,8 +140,32 @@ std::string FileUtils::GetFileName(const std::string &filePath, bool isWithExten
   return StringUtils::GetStrBeforeLast(fullFileName, ".");
 }
 
+std::string GetFileType(const std::string &filePath) {
+  std::string tmp = "file " + filePath + "| awk '{print $2}'";
+  const char* cmd = tmp.c_str();
+  const int size = 1024;
+  FILE *fp = nullptr;
+  char buf[size] = {0};
+  CHECK_FATAL((fp = popen(cmd, "r")) != nullptr, "Failed to get file type");
+  while (fgets(buf, size, fp) != nullptr) {}
+  (void)pclose(fp);
+  fp = nullptr;
+  std::string result(buf);
+  CHECK_FATAL(result.size() != 0, "Failed to create tmp folder");
+  return result;
+}
+
 std::string FileUtils::GetFileExtension(const std::string &filePath) {
-  return StringUtils::GetStrAfterLast(filePath, ".", true);
+  std::string  fileExtension = StringUtils::GetStrAfterLast(filePath, ".", true);
+  if (fileExtension == "o") {
+    std::string filetype = GetFileType(filePath);
+    if (filetype.find("ELF") != std::string::npos) {
+      return fileExtension;
+    } else {
+      return "oast";
+    }
+  }
+  return fileExtension;
 }
 
 std::string FileUtils::GetExecutable() {
@@ -220,11 +244,10 @@ bool FileUtils::DelTmpDir() {
     return true;
   }
   std::string tmp = "rm -rf " + FileUtils::GetInstance().GetTmpFolder();
-  const char* cmd = tmp.c_str();
   const int size = 1024;
   FILE *fp = nullptr;
   char buf[size] = {0};
-  if ((fp = popen(cmd, "r")) == nullptr) {
+  if ((fp = popen(tmp.c_str(), "r")) == nullptr) {
     return false;
   }
   while (fgets(buf, size, fp) != nullptr) {}

@@ -83,7 +83,7 @@ bool HIR2MPLOptions::InitFactory() {
   // debug info control options
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpLevel,
                                          &HIR2MPLOptions::ProcessDumpLevel);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpTime,
+  RegisterFactoryFunction<OptionFactory>(&opts::dumpTime,
                                          &HIR2MPLOptions::ProcessDumpTime);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpComment,
                                          &HIR2MPLOptions::ProcessDumpComment);
@@ -145,7 +145,7 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessEnableVariableArray);
   RegisterFactoryFunction<OptionFactory>(&opts::funcInliceSize,
                                          &HIR2MPLOptions::ProcessFuncInlineSize);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::wpaa,
+  RegisterFactoryFunction<OptionFactory>(&opts::wpaa,
                                          &HIR2MPLOptions::ProcessWPAA);
 
   return true;

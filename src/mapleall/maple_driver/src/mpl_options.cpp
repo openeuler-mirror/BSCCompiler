@@ -103,7 +103,8 @@ ErrorCode MplOptions::Parse(int argc, char **argv) {
 }
 
 ErrorCode MplOptions::HandleOptions() {
-  if (opts::output.IsEnabledByUser() && GetActions().size() > 1) {
+  if (opts::output.IsEnabledByUser() && inputInfos.size() > 1 &&
+     (opts::onlyCompile.IsEnabledByUser() || opts::compileWOLink.IsEnabledByUser())) {
     LogInfo::MapleLogger(kLlErr) << "Cannot specify -o with -c, -S when generating multiple output\n";
     return kErrorInvalidParameter;
   }
@@ -147,11 +148,7 @@ void MplOptions::HandleSafeOptions() {
 ErrorCode MplOptions::HandleEarlyOptions() {
   if (opts::version) {
     LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
-
-    /* exit, if only one "version" option is set. Else: continue compilation */
-    if (driverCategory.GetEnabledOptions().size() == 1) {
-      return kErrorExitHelp;
-    }
+    exit(0);
   }
 
   if (opts::printDriverPhases) {
@@ -277,14 +274,19 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       UpdateRunningExe(kBinNameClang);
       newAction = std::make_unique<Action>(kBinNameClang, inputInfo, currentAction);
       currentAction = std::move(newAction);
-      if (inputFileType == InputFileType::kFileTypeH || opts::onlyPreprocess.IsEnabledByUser()) {
+      if (inputFileType == InputFileType::kFileTypeH || opts::onlyPreprocess.IsEnabledByUser() ||
+          (opts::linkerTimeOpt.IsEnabledByUser() && opts::compileWOLink.IsEnabledByUser())) {
         return currentAction;
       }
       [[clang::fallthrough]];
+    case InputFileType::kFileTypeOast:
     case InputFileType::kFileTypeAst:
       UpdateRunningExe(kBinNameCpp2mpl);
       newAction = std::make_unique<Action>(kBinNameCpp2mpl, inputInfo, currentAction);
       currentAction = std::move(newAction);
+      if (isAllAst && isMultipleFiles) {
+        return currentAction;
+      }
       break;
     case InputFileType::kFileTypeJar:
       // fall-through
@@ -365,8 +367,20 @@ ErrorCode MplOptions::DecideRunningPhases() {
   ErrorCode ret = kErrorNoError;
   std::vector<std::unique_ptr<Action>> linkActions;
   std::unique_ptr<Action> lastAction;
-
   bool isMultipleFiles = (inputInfos.size() > 1);
+
+  if (isAllAst && isMultipleFiles) {
+    auto lastInputInfo = inputInfos.back()->GetInputFile();
+    inputInfos.pop_back();
+    for (auto &inputInfo : inputInfos) {
+      hirInputFiles.push_back(inputInfo->GetInputFile());
+    }
+    inputInfos.clear();
+    inputInfos.push_back(std::make_unique<InputInfo>(lastInputInfo));
+    inputInfos.push_back(std::make_unique<InputInfo>(InputInfo(inputInfos.back()->GetOutputFolder() + "tmp.mpl",
+                         InputFileType::kFileTypeMpl, "tmp.mpl", inputInfos.back()->GetOutputFolder(),
+                         inputInfos.back()->GetOutputFolder(), "tmp", inputInfos.back()->GetOutputFolder() + "tmp")));
+  }
 
   for (auto &inputInfo : inputInfos) {
     CHECK_FATAL(inputInfo != nullptr, "InputInfo must be created!!");
@@ -578,6 +592,17 @@ ErrorCode MplOptions::CheckInputFiles() {
       }
     }
   }
+
+  bool allAst = false;
+  for (auto &inputInfo : inputInfos) {
+    if (inputInfo->GetInputFileType() == InputFileType::kFileTypeOast ||
+        inputInfo->GetInputFileType() == InputFileType::kFileTypeAst) {
+      allAst = true;
+    } else {
+      allAst = false;
+    }
+  }
+  isAllAst = allAst;
 
   if (inputFiles.empty()) {
     return kErrorFileNotFound;

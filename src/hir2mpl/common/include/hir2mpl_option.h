@@ -36,7 +36,6 @@ extern maplecl::Option<bool> asciimplt;
 extern maplecl::Option<bool> dumpInstComment;
 extern maplecl::Option<bool> noMplFile;
 extern maplecl::Option<uint32_t> dumpLevel;
-extern maplecl::Option<bool> dumpTime;
 extern maplecl::Option<bool> dumpComment;
 extern maplecl::Option<bool> dumpLOC;
 extern maplecl::Option<bool> dumpPhaseTime;
@@ -53,7 +52,6 @@ extern maplecl::Option<std::string> dep;
 extern maplecl::Option<std::string> depsamename;
 extern maplecl::Option<bool> dumpFEIRBB;
 extern maplecl::Option<std::string> dumpFEIRCFGGraph;
-extern maplecl::Option<bool> wpaa;
 extern maplecl::Option<bool> debug;
 
 }

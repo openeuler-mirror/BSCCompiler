@@ -50,10 +50,23 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
   uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
   // 1 for option -p
   uint32_t length = len + 1;
+  bool isMultipleFiles = false;
+ 
+  if (options.GetIsAllAst()) {
+    if (options.GetHirInputFiles().size() >= 1) {
+      isMultipleFiles = true;
+    }
+    length += options.GetHirInputFiles().size();
+    length++;
+  }
+
   if (IsUseBoundaryOption()) {
     length++;
   }
   if (IsUseNpeOption()) {
+    length++;
+  }
+  if (opts::linkerTimeOpt.IsEnabledByUser()) {
     length++;
   }
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(length), length };
@@ -69,6 +82,16 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
                                            options.GetExeFolder()));
   }
 
+  if (options.GetIsAllAst() && isMultipleFiles) {
+    for (auto tmp : options.GetHirInputFiles()) {
+      defaultOptions.mplOptions[len].SetKey(tmp);
+      defaultOptions.mplOptions[len].SetValue("");
+      len++;
+    }
+    defaultOptions.mplOptions[len].SetKey("-o");
+    defaultOptions.mplOptions[len++].SetValue("tmp.mpl");
+  }
+
   defaultOptions.mplOptions[len].SetKey("--output");
   defaultOptions.mplOptions[len++].SetValue(action.GetOutputFolder());
   if (IsUseBoundaryOption()) {
@@ -78,6 +101,11 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
   }
   if (IsUseNpeOption()) {
     defaultOptions.mplOptions[len].SetKey("--npe-check-dynamic");
+    defaultOptions.mplOptions[len].SetValue("");
+    len++;
+  }
+  if (opts::linkerTimeOpt.IsEnabledByUser()) {
+    defaultOptions.mplOptions[len].SetKey("-wpaa");
     defaultOptions.mplOptions[len].SetValue("");
     len++;
   }

@@ -111,6 +111,8 @@ extern maplecl::Option<bool> r;
 extern maplecl::Option<bool> tailcall;
 extern maplecl::Option<bool> fnoDiagnosticsShowCaret;
 extern maplecl::Option<bool> wCCompat;
+extern maplecl::Option<bool> wpaa;
+extern maplecl::Option<bool> dumpTime;
 
 /* ##################### STRING Options ############################################################### */
 

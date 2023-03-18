@@ -484,7 +484,7 @@ maplecl::Option<bool> sideEffect({"--side-effect"},
 maplecl::Option<bool> sideEffectWhiteList({"--side-effect-white-list"},
                             "  --side-effect-white-list      \tIPA side-effect: using function white list\n"
                             "  --side-effect-no-white-list\n",
-                            {mpl2mplCategory},
+                            {driverCategory, mpl2mplCategory},
                             maplecl::DisableWith("--side-effect-no-white-list"));
 
 maplecl::Option<bool> dumpIPA({"--dump-ipa"},

@@ -493,7 +493,7 @@ maplecl::Option<std::string> cyclePatternList({"--cycle-pattern-list"},
 maplecl::Option<std::string> duplicateAsmList({"--duplicate_asm_list"},
                                               "  --duplicate_asm_list        \tDuplicate asm functions to delete plt call\n"
                                               "                              \t--duplicate_asm_list=list_file\n",
-                                              {cgCategory});
+                                              {driverCategory, cgCategory});
 
 maplecl::Option<std::string> duplicateAsmList2({"--duplicate_asm_list2"},
                                                "  --duplicate_asm_list2"

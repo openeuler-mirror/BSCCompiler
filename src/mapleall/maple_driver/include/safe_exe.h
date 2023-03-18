@@ -105,8 +105,11 @@ class SafeExe {
           compileeFlag = Compilee::unKnow;
         }
       }
-    } else if (cmd.find("hir2mpl", 0) != -1) {
+    } else if ((cmd.find("hir2mpl", 0) != -1) || (cmd.find("clang", 0) != -1)) {
       compileeFlag = Compilee::hir2mpl;
+      if (FileUtils::SafeGetenv(kMapleRoot) != "") {
+        ldLibPath += FileUtils::SafeGetenv(kMapleRoot) + "/build/tools/hpk/:";
+      }
       ldLibPath += mplOptions.GetExeFolder().substr(0, mplOptions.GetExeFolder().length() - 4);
       ldLibPath += "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
     }

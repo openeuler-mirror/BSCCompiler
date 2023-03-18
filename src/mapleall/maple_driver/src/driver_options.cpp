@@ -20,7 +20,7 @@ namespace opts {
 
 /* ##################### BOOL Options ############################################################### */
 
-maplecl::Option<bool> version({"--version", "-v"},
+maplecl::Option<bool> version({"--version", "-v", "-dumpversion"},
                          "  --version [command]         \tPrint version and exit.\n",
                          {driverCategory});
 
@@ -332,6 +332,15 @@ maplecl::Option<bool> wCCompat({"-Wc++-compat"},
                             "  -Wc++-compat    \tWarn about C constructs that are not in the "
                             "common subset of C and C++ .\n",
                             {driverCategory, asCategory, ldCategory});
+
+maplecl::Option<bool> wpaa({"-wpaa", "--wpaa"},
+                      "  -dump-cfg funcname1,funcname2\n"               \
+                      "  -wpaa                  : enable whole program ailas analysis",
+                      {driverCategory, hir2mplCategory});
+
+maplecl::Option<bool> dumpTime({"--dump-time", "-dump-time"},
+                          "  -dump-time             : dump time",
+                          {driverCategory, hir2mplCategory});
 
 /* ##################### STRING Options ############################################################### */
 maplecl::Option<std::string> help({"--help", "-h"},

@@ -142,7 +142,7 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
   /* output file can not be specified for several last actions. As exaple:
    * If last actions are assembly tool for 2 files (to get file1.o, file2.o),
    * we can not have one output name for them. */
-  if (opts::output.IsEnabledByUser() && options.GetActions().size() == 1) {
+  if ((opts::output.IsEnabledByUser() && options.GetActions().size() == 1) || action.GetTool() == "ld") {
     /* Set output file for last compilation tool */
     if (&action == options.GetActions()[0].get()) {
       /* the tool may not support "-o" for output option */
@@ -154,6 +154,9 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
           opts::output.SetValue("-");
         }
       }
+      AppendOutputOption(finalOptions, opts::output.GetValue());
+    }
+    if (action.GetTool() == "ld") {
       AppendOutputOption(finalOptions, opts::output.GetValue());
     }
   }

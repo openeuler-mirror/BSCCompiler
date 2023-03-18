@@ -48,6 +48,7 @@ enum InputFileType {
   kFileTypeLmbc,
   kFileTypeH,
   kFileTypeI,
+  kFileTypeOast,
 };
 
 enum OptimizationLevel {
@@ -87,6 +88,17 @@ class InputInfo {
     outputName = FileUtils::GetFileName(inputFile, false);
     fullOutput = outputFolder + outputName;
   }
+
+  InputInfo(const std::string &inputFile, const InputFileType &inputFileType, const std::string &inputName,
+            const std::string &inputFolder, const std::string &outputFolder, const std::string &outputName,
+            const std::string &fullOutput)
+      : inputFile(inputFile),
+        inputFileType(inputFileType),
+        inputName(inputName),
+        inputFolder(inputFolder),
+        outputName(outputName),
+        outputFolder(outputFolder),
+        fullOutput(fullOutput) {}
 
   ~InputInfo() = default;
   static InputFileType GetInputFileType(const std::string &inputFilePath) {
@@ -132,6 +144,8 @@ class InputInfo {
       fileType = InputFileType::kFileTypeH;
     } else if (extensionName == "i") {
       fileType = InputFileType::kFileTypeI;
+    } else if (extensionName == "oast") {
+      fileType = InputFileType::kFileTypeOast;
     }
 
     return fileType;
@@ -334,6 +348,11 @@ class MplOptions {
     return linkInputFiles;
   }
 
+  /* return hirInputFiles when -flto. */
+  const std::vector<std::string> &GetHirInputFiles() const {
+    return hirInputFiles;
+  }
+
   const std::string &GetExeFolder() const {
     return exeFolder;
   }
@@ -368,6 +387,10 @@ class MplOptions {
 
   const std::vector<std::unique_ptr<Action>> &GetActions() const {
     return rootActions;
+  }
+
+  bool GetIsAllAst() const {
+    return isAllAst;
   }
 
   maplecl::OptionCategory *GetCategory(const std::string &tool) const;
@@ -407,6 +430,7 @@ class MplOptions {
 
   std::vector<std::string> inputFiles;
   std::vector<std::string> linkInputFiles;
+  std::vector<std::string> hirInputFiles;
   std::string exeFolder;
   RunMode runMode = RunMode::kUnkownRun;
   std::vector<std::string> saveFiles = {};
@@ -420,6 +444,7 @@ class MplOptions {
 
   bool hasPrinted = false;
   bool generalRegOnly = false;
+  bool isAllAst = false;
   SafetyCheckMode npeCheckMode = SafetyCheckMode::kNoCheck;
   SafetyCheckMode boundaryCheckMode = SafetyCheckMode::kNoCheck;
 
