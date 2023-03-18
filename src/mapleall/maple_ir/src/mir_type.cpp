@@ -1649,7 +1649,7 @@ int64 MIRArrayType::GetBitOffsetFromArrayAddress(std::vector<int64> &indexArray)
   return offset;
 }
 
-size_t MIRArrayType::ElemNumber() {
+size_t MIRArrayType::ElemNumber() const {
   size_t elemNum = 1;
   for (uint16 id = 0; id < dim; ++id) {
     elemNum *= sizeArray[id];
@@ -2396,5 +2396,171 @@ MIRType *GetElemType(const MIRType &arrayType) {
   }
   return nullptr;
 }
+
+#ifdef TARGAARCH64
+static constexpr size_t kMaxHfaOrHvaElemNumber = 4;
+
+bool CheckHomogeneousAggregatesBaseTypeAndAlign(const MIRType &mirType, PrimType type) {
+  if (mirType.GetAlign() > GetPrimTypeSize(type)) {
+    return false;
+  }
+  if (type == PTY_f32 || type == PTY_f64 || type == PTY_f128 || IsPrimitiveVector(type)) {
+    return true;
+  }
+  return false;
+}
+
+bool IsSameHomogeneousAggregatesBaseType(PrimType type, PrimType nextType) {
+  if ((type == PTY_f32 || type == PTY_f64 || type == PTY_f128) && type == nextType) {
+    return true;
+  } else if (IsPrimitiveVector(type) && IsPrimitiveVector(nextType) &&
+      GetPrimTypeSize(type) == GetPrimTypeSize(nextType)) {
+    return true;
+  }
+  return false;
+}
+
+bool IsUnionHomogeneousAggregates(const MIRStructType &ty, PrimType &primType, size_t &elemNum) {
+  primType = PTY_begin;
+  elemNum = 0;
+  for (const auto &field : ty.GetFields()) {
+    MIRType *filedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(field.second.first);
+    if (filedType->GetSize() == 0) {
+      continue;
+    }
+    PrimType filedPrimType = PTY_begin;
+    size_t filedElemNum = 0;
+    if (!IsHomogeneousAggregates(*filedType, filedPrimType, filedElemNum, false)) {
+      return false;
+    }
+    primType = (primType == PTY_begin) ? filedPrimType : primType;
+    if (!IsSameHomogeneousAggregatesBaseType(primType, filedPrimType)) {
+      return false;
+    }
+    elemNum = std::max(elemNum, filedElemNum);
+  }
+  return (elemNum != 0);
+}
+
+bool IsStructHomogeneousAggregates(const MIRStructType &ty, PrimType &primType, size_t &elemNum) {
+  primType = PTY_begin;
+  elemNum = 0;
+  for (const auto &field : ty.GetFields()) {
+    MIRType *filedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(field.second.first);
+    if (filedType->GetSize() == 0) {
+      continue;
+    }
+    PrimType filedPrimType = PTY_begin;
+    size_t filedElemNum = 0;
+    if (!IsHomogeneousAggregates(*filedType, filedPrimType, filedElemNum, false)) {
+      return false;
+    }
+    elemNum += filedElemNum;
+    primType = (primType == PTY_begin) ? filedPrimType : primType;
+    if (elemNum > kMaxHfaOrHvaElemNumber ||
+        !IsSameHomogeneousAggregatesBaseType(primType, filedPrimType) ||
+        !CheckHomogeneousAggregatesBaseTypeAndAlign(ty, filedPrimType)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool IsArrayHomogeneousAggregates(const MIRArrayType &ty, PrimType &primType, size_t &elemNum) {
+  primType = PTY_begin;
+  elemNum = 0;
+  MIRType *elemMirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ty.GetElemTyIdx());
+  if (elemMirType->GetKind() == kTypeArray || elemMirType->GetKind() == kTypeStruct) {
+    if (!IsHomogeneousAggregates(*elemMirType, primType, elemNum, false)) {
+      return false;
+    }
+    elemNum *= ty.ElemNumber();
+  } else {
+    primType = elemMirType->GetPrimType();
+    elemNum = ty.ElemNumber();
+  }
+  if (elemNum > kMaxHfaOrHvaElemNumber ||
+      !CheckHomogeneousAggregatesBaseTypeAndAlign(ty, primType)) {
+    return false;
+  }
+  return true;
+}
+
+bool IsHomogeneousAggregates(const MIRType &ty, PrimType &primType, size_t &elemNum,
+                             bool firstDepth) {
+  if (firstDepth && ty.GetKind() == kTypeUnion) {
+    return IsUnionHomogeneousAggregates(static_cast<const MIRStructType&>(ty), primType, elemNum);
+  }
+  if (firstDepth && ty.GetKind() != kTypeStruct) {
+    return false;
+  }
+  primType = PTY_begin;
+  elemNum = 0;
+  if (ty.GetKind() == kTypeStruct) {
+    auto &structType = static_cast<const MIRStructType&>(ty);
+    return IsStructHomogeneousAggregates(structType, primType, elemNum);
+  } else if (ty.GetKind() == kTypeArray) {
+    auto &arrType = static_cast<const MIRArrayType&>(ty);
+    return IsArrayHomogeneousAggregates(arrType, primType, elemNum);
+  } else {
+    primType = ty.GetPrimType();
+    elemNum = 1;
+    if (!CheckHomogeneousAggregatesBaseTypeAndAlign(ty, primType)) {
+      return false;
+    }
+  }
+  return (elemNum != 0);
+}
+
+bool IsParamStructCopyToMemory(const MIRType &ty) {
+  if (ty.GetPrimType() == PTY_agg) {
+    PrimType primType = PTY_begin;
+    size_t elemNum = 0;
+    return !IsHomogeneousAggregates(ty, primType, elemNum) && ty.GetSize() > k16BitSize;
+  }
+  return false;
+}
+
+bool IsReturnInMemory(const MIRType &ty) {
+  if (ty.GetPrimType() == PTY_agg) {
+    PrimType primType = PTY_begin;
+    size_t elemNum = 0;
+    return !IsHomogeneousAggregates(ty, primType, elemNum) && ty.GetSize() > k16BitSize;
+  }
+  return false;
+}
+#else
+bool IsParamStructCopyToMemory(const MIRType &ty) {
+  return ty.GetPrimType() == PTY_agg && ty.GetSize() > k16BitSize;
+}
+
+bool IsReturnInMemory(const MIRType &ty) {
+  return ty.GetPrimType() == PTY_agg && ty.GetSize() > k16BitSize;
+}
+#endif  // TARGAARCH64
+
+void UpdateMIRFuncTypeFirstArgRet(MIRFuncType &funcType) {
+  auto *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType.GetRetTyIdx());
+  if (IsReturnInMemory(*retType)) {
+    auto &paramTypeList = funcType.GetParamTypeList();
+    auto &paramAttrList = funcType.GetParamAttrsList();
+    auto *firstArg = GlobalTables::GetTypeTable().GetOrCreatePointerType(funcType.GetRetTyIdx(),
+        PTY_ptr, funcType.GetRetAttrs());
+    (void)paramTypeList.insert(paramTypeList.begin(), firstArg->GetTypeIndex());
+    (void)paramAttrList.insert(paramAttrList.begin(), TypeAttrs());
+    funcType.SetFirstArgReturn();
+    funcType.SetRetTyIdx(GlobalTables::GetTypeTable().GetPrimType(PTY_void)->GetTypeIndex());
+  }
+}
+
+// Traverse type table and update func type
+void UpdateMIRFuncTypeFirstArgRet() {
+  for (auto *mirType : GlobalTables::GetTypeTable().GetTypeTable()) {
+    if (mirType && mirType->IsMIRFuncType()) {
+      UpdateMIRFuncTypeFirstArgRet(static_cast<MIRFuncType&>(*mirType));
+    }
+  }
+}
+
 }  // namespace maple
 #endif  // MIR_FEATURE_FULL

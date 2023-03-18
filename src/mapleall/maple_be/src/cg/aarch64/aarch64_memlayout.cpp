@@ -108,8 +108,9 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
 }
 
 void AArch64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) const {
-  if (be.GetTypeSize(typeIdx) > k16ByteSize) {
-    /* size > 16 is passed on stack, the formal is just a pointer to the copy on stack. */
+  auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typeIdx);
+  if (IsParamStructCopyToMemory(*mirType)) {
+    // passed on stack, the formal is just a pointer to the copy on stack.
     if (CGOptions::IsArm64ilp32()) {
       align = k8ByteSize;
       size = k8ByteSize;
@@ -143,14 +144,13 @@ void AArch64MemLayout::LayoutVarargParams() {
     for (uint32 i = 0; i < func->GetFormalCount(); i++) {
       if (i == 0) {
         if (func->IsFirstArgReturn() && func->GetReturnType()->GetPrimType() != PTY_void) {
-          TyIdx tyIdx = func->GetFuncRetStructTyIdx();
-          if (be.GetTypeSize(tyIdx.GetIdx()) <= k16ByteSize) {
+          if (!IsReturnInMemory(*func->GetReturnType())) {
             continue;
           }
         }
       }
       MIRType *ty = func->GetNthParamType(i);
-      parmlocator.LocateNextParm(*ty, ploc, i == 0, func);
+      parmlocator.LocateNextParm(*ty, ploc, i == 0, func->GetMIRFuncType());
       if (ploc.reg0 != kRinvalid) {
         if (ploc.reg0 >= R0 && ploc.reg0 <= R7) {
           nIntRegs++;
@@ -209,20 +209,17 @@ void AArch64MemLayout::LayoutFormalParams() {
       if (mirFunction->IsReturnStruct() && mirFunction->IsFirstArgReturn()) {
         symLoc->SetMemSegment(GetSegArgsRegPassed());
         symLoc->SetOffset(GetSegArgsRegPassed().GetSize());
-        TyIdx tyIdx = mirFunction->GetFuncRetStructTyIdx();
-        if (be.GetTypeSize(tyIdx.GetIdx()) > k16ByteSize) {
-          if (CGOptions::IsArm64ilp32()) {
-            segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + k8ByteSize);
-          } else {
-            segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + GetPointerSize());
-          }
+        if (CGOptions::IsArm64ilp32()) {
+          segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + k8ByteSize);
+        } else {
+          segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + GetPointerSize());
         }
         continue;
       }
     }
     MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirFunction->GetFormalDefVec()[i].formalTyIdx);
     uint32 ptyIdx = ty->GetTypeIndex();
-    parmLocator.LocateNextParm(*ty, ploc, i == 0, mirFunction);
+    parmLocator.LocateNextParm(*ty, ploc, i == 0, mirFunction->GetMIRFuncType());
     if (ploc.reg0 != kRinvalid) {  /* register */
       symLoc->SetRegisters(static_cast<AArch64reg>(ploc.reg0), static_cast<AArch64reg>(ploc.reg1),
                            static_cast<AArch64reg>(ploc.reg2), static_cast<AArch64reg>(ploc.reg3));

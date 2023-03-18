@@ -1382,11 +1382,7 @@ bool MIRParser::ParseFuncType(TyIdx &tyIdx) {
     Error("bad attribute in function ret type at ");
     return false;
   }
-  MIRFuncType functype(retTyIdx, vecTyIdx, vecAttrs, retTypeAttrs);
-  functype.funcAttrs = fAttrs;
-  if (varargs) {
-    functype.SetVarArgs();
-  }
+  MIRFuncType functype(retTyIdx, vecTyIdx, vecAttrs, fAttrs, retTypeAttrs);
   tyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&functype);
   return true;
 }
@@ -1914,9 +1910,9 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
   std::string symbolStrName = lexer.GetName();
   GStrIdx symbolStrID = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(symbolStrName);
   symbol.SetNameStrIdx(symbolStrID);
-  tk = lexer.NextToken();
+  (void)lexer.NextToken();
   if (ParseStorageClass(symbol)) {
-    lexer.NextToken();
+    (void)lexer.NextToken();
   }
   // i32
   TyIdx tyIdx(0);
@@ -1932,31 +1928,31 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
   symbol.SetTyIdx(tyIdx);
   /* parse section/register attribute from inline assembly */
   if (lexer.GetTokenKind() == TK_section) {
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_lparen) {
       Error("expect ( for section attribute but get ");
       return false;
     }
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_string) {
       Error("expect string literal for section attribute but get ");
       return false;
     }
     UStrIdx literalStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     symbol.sectionAttr = literalStrIdx;
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_rparen) {
       Error("expect ) for section attribute but get ");
       return false;
     }
-    lexer.NextToken();
+    (void)lexer.NextToken();
   } else if (lexer.GetTokenKind() == TK_asmattr) { /* Specifying Registers for Local Variables */
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_lparen) {
       Error("expect ( for register inline-asm attribute but get ");
       return false;
     }
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_string) {
       Error("expect string literal for section attribute but get ");
       return false;
@@ -1964,12 +1960,12 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
     UStrIdx literalStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     symbol.asmAttr = literalStrIdx;
 
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_rparen) {
       Error("expect ) for section attribute but get ");
       return false;
     }
-    lexer.NextToken();
+    (void)lexer.NextToken();
   }
   if (!ParseVarTypeAttrs(symbol)) {
     Error("bad type attribute in variable declaration at ");
@@ -2044,17 +2040,17 @@ bool MIRParser::ParsePrototype(MIRFunction &func, MIRSymbol &funcSymbol, TyIdx &
   }
   std::vector<TyIdx> vecTy;       // for storing the parameter types
   std::vector<TypeAttrs> vecAt;  // for storing the parameter type attributes
+  FuncAttrs funcAttrs;  // for storing the func type attributes
   // this part for parsing the argument list and return type
   if (lexer.GetTokenKind() != TK_lparen) {
     Error("expect ( for func but get ");
     return false;
   }
   // parse parameters
-  bool varArgs = false;
   TokenKind pmTk = lexer.NextToken();
   while (pmTk != TK_rparen) {
     if (pmTk == TK_dotdotdot) {
-      varArgs = true;
+      funcAttrs.SetAttr(FUNCATTR_varargs);
       func.SetVarArgs();
       pmTk = lexer.NextToken();
       if (pmTk != TK_rparen) {
@@ -2090,8 +2086,11 @@ bool MIRParser::ParsePrototype(MIRFunction &func, MIRSymbol &funcSymbol, TyIdx &
   }
   MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
   func.SetReturnStruct(*retType);
+  if (func.IsFirstArgReturn()) {
+    funcAttrs.SetAttr(FUNCATTR_firstarg_return);
+  }
   MIRType *funcType =
-      GlobalTables::GetTypeTable().GetOrCreateFunctionType(tyIdx, vecTy, vecAt, varArgs);
+      GlobalTables::GetTypeTable().GetOrCreateFunctionType(tyIdx, vecTy, vecAt, funcAttrs);
   funcTyIdx = funcType->GetTypeIndex();
   funcSymbol.SetTyIdx(funcTyIdx);
   func.SetMIRFuncType(static_cast<MIRFuncType*>(funcType));

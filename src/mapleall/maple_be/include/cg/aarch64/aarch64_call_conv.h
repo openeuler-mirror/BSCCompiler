@@ -23,98 +23,54 @@
 namespace maplebe {
 using namespace maple;
 
-/*
- * We use the names used in ARM IHI 0055C_beta. $ 5.4.2.
- * nextGeneralRegNO (= _int_parm_num)  : Next General-purpose Register number
- * nextFloatRegNO (= _float_parm_num): Next SIMD and Floating-point Register Number
- * nextStackArgAdress (= _last_memOffset): Next Stacked Argument Address
- * for processing an incoming or outgoing parameter list
- */
+// We use the names used in Procedure Call Standard for the Arm 64-bit
+// Architecture (AArch64) 2022Q3.  $6.8.2
+// nextGeneralRegNO (= _int_parm_num)  : Next General-purpose Register number
+// nextFloatRegNO (= _float_parm_num): Next SIMD and Floating-point Register Number
+// nextStackArgAdress (= _last_memOffset): Next Stacked Argument Address
+// for processing an incoming or outgoing parameter list
 class AArch64CallConvImpl {
  public:
   explicit AArch64CallConvImpl(BECommon &be) : beCommon(be) {}
 
   ~AArch64CallConvImpl() = default;
 
-  /* Return size of aggregate structure copy on stack. */
-  int32 LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, bool isFirst = false, MIRFunction *tFunc = nullptr);
+  // Return size of aggregate structure copy on stack.
+  uint64 LocateNextParm(MIRType &mirType, CCLocInfo &ploc, bool isFirst = false,
+                        MIRFuncType *tFunc = nullptr);
 
-  int32 LocateRetVal(MIRType &retType, CCLocInfo &pLoc);
+  void LocateRetVal(MIRType &retType, CCLocInfo &ploc);
 
-  void InitCCLocInfo(CCLocInfo &pLoc) const;
+  void InitCCLocInfo(CCLocInfo &ploc) const;
 
-  /* for lmbc */
+  // for lmbc
   uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize);
 
-  /*  return value related  */
-  void InitReturnInfo(MIRType &retTy, CCLocInfo &ccLocInfo);
+  void SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &ploc) const;
 
-  void SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &pLoc) const;
-
-  void SetupToReturnThroughMemory(CCLocInfo &pLoc) const {
-    pLoc.regCount = 1;
-    pLoc.reg0 = R8;
-    pLoc.primTypeOfReg0 = PTY_u64;
+  void SetupToReturnThroughMemory(CCLocInfo &ploc) const {
+    ploc.regCount = 1;
+    ploc.reg0 = R8;
+    ploc.primTypeOfReg0 = GetExactPtrPrimType();
   }
 
  private:
   BECommon &beCommon;
-  uint64 paramNum = 0;  /* number of all types of parameters processed so far */
-  uint32 nextGeneralRegNO = 0;  /* number of integer parameters processed so far */
-  uint32 nextFloatRegNO = 0;  /* number of float parameters processed so far */
-  int32 nextStackArgAdress = 0;
+  uint32 nextGeneralRegNO = 0;  //number of integer parameters processed so far
+  uint32 nextFloatRegNO = 0;    // number of float parameters processed so far
+  uint64 nextStackArgAdress = 0;
 
   AArch64reg AllocateGPRegister() {
     return (nextGeneralRegNO < AArch64Abi::kNumIntParmRegs) ? AArch64Abi::kIntParmRegs[nextGeneralRegNO++] : kRinvalid;
   }
 
-  void AllocateTwoGPRegisters(CCLocInfo &pLoc) {
-    if ((nextGeneralRegNO + 1) < AArch64Abi::kNumIntParmRegs) {
-      pLoc.reg0 = AArch64Abi::kIntParmRegs[nextGeneralRegNO++];
-      pLoc.reg1 = AArch64Abi::kIntParmRegs[nextGeneralRegNO++];
-    } else {
-      pLoc.reg0 = kRinvalid;
-    }
-  }
+  void AllocateGPRegister(const MIRType &mirType, CCLocInfo &ploc, uint64 size, uint64 align);
 
   AArch64reg AllocateSIMDFPRegister() {
     return (nextFloatRegNO < AArch64Abi::kNumFloatParmRegs) ? AArch64Abi::kFloatParmRegs[nextFloatRegNO++] : kRinvalid;
   }
 
-  void AllocateNSIMDFPRegisters(CCLocInfo &ploc, uint32 num) {
-    if ((nextFloatRegNO + num - 1) < AArch64Abi::kNumFloatParmRegs) {
-      switch (num) {
-        case kOneRegister:
-          ploc.reg0 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          break;
-        case kTwoRegister:
-          ploc.reg0 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          ploc.reg1 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          break;
-        case kThreeRegister:
-          ploc.reg0 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          ploc.reg1 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          ploc.reg2 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          break;
-        case kFourRegister:
-          ploc.reg0 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          ploc.reg1 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          ploc.reg2 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          ploc.reg3 = AArch64Abi::kFloatParmRegs[nextFloatRegNO++];
-          break;
-        default:
-          CHECK_FATAL(0, "AllocateNSIMDFPRegisters: unsupported");
-      }
-    } else {
-      ploc.reg0 = kRinvalid;
-    }
-  }
-
-  void RoundNGRNUpToNextEven() {
-    nextGeneralRegNO = (nextGeneralRegNO + 1U) & ~1U;
-  }
-
-  int32 ProcessPtyAggWhenLocateNextParm(MIRType &mirType, CCLocInfo &pLoc, uint64 &typeSize, int32 typeAlign);
+  uint64 AllocateRegisterForAgg(const MIRType &mirType, CCLocInfo &ploc, uint64 size, uint64 align);
 };
 }  /* namespace maplebe */
 

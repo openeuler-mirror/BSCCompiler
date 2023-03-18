@@ -414,6 +414,10 @@ class TypeTable {
   MIRType *GetOrCreateFarrayType(const MIRType &elem);
   MIRType *GetOrCreateJarrayType(const MIRType &elem);
   MIRType *GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecType,
+                                   const std::vector<TypeAttrs> &vecAttrs,
+                                   const FuncAttrs &funcAttrs,
+                                   const TypeAttrs &retAttrs = TypeAttrs());
+  MIRType *GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecType,
                                    const std::vector<TypeAttrs> &vecAttrs, bool isVarg = false,
                                    const TypeAttrs &retAttrs = TypeAttrs());
   MIRType *GetOrCreateStructType(const std::string &name, const FieldVector &fields, const FieldVector &prntFields,

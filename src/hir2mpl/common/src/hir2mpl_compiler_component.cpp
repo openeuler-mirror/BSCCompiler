@@ -113,6 +113,8 @@ bool HIR2MPLCompilerComponent::ProcessDeclImpl() {
       success = helper->ProcessDecl() ? success : false;
     }
   }
+  // Traverse type table and update func type
+  UpdateMIRFuncTypeFirstArgRet();
   timer.StopAndDumpTimeMS("HIR2MPLCompilerComponent::ProcessDecl()");
   return success;
 }

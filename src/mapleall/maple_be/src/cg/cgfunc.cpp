@@ -40,9 +40,6 @@ Operand *HandleDread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
 Operand *HandleRegread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   auto &regReadNode = static_cast<RegreadNode&>(expr);
-  if (regReadNode.GetRegIdx() == -kSregRetval0 || regReadNode.GetRegIdx() == -kSregRetval1) {
-    return &cgFunc.ProcessReturnReg(regReadNode.GetPrimType(), -(regReadNode.GetRegIdx()));
-  }
   return cgFunc.SelectRegread(regReadNode);
 }
 

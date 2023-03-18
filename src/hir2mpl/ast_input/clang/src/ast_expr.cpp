@@ -340,7 +340,7 @@ void ASTCallExpr::AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, s
     UniqueFEIRExpr expr = args[i]->Emit2FEExpr(stmts);
     callStmt->AddExprArgReverse(std::move(expr));
   }
-  if (IsFirstArgRet()) {
+  if (IsReturnInMemory(*mirType)) {
     UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *mirType, false, false);
     UniqueFEIRExpr expr = FEIRBuilder::CreateExprAddrofVar(var->Clone());
     callStmt->AddExprArgReverse(std::move(expr));
@@ -367,7 +367,7 @@ UniqueFEIRExpr ASTCallExpr::AddRetExpr(const std::unique_ptr<FEIRStmtAssign> &ca
   UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(GetRetVarName(), *mirType, false, false);
   var->SetAttrs(GetReturnVarAttrs());
   UniqueFEIRVar dreadVar = var->Clone();
-  if (!IsFirstArgRet()) {
+  if (!IsReturnInMemory(*mirType)) {
     callStmt->SetVar(var->Clone());
   }
   return FEIRBuilder::CreateExprDRead(dreadVar->Clone());
@@ -391,7 +391,7 @@ std::unique_ptr<FEIRStmtAssign> ASTCallExpr::GenCallStmt() const {
     ASSERT_NOT_NULL(info);
     info->SetFuncAttrs(funcAttrs);
     FEIRTypeNative *retTypeInfo = nullptr;
-    if (IsFirstArgRet()) {
+    if (IsReturnInMemory(*mirType)) {
       retTypeInfo = mp->New<FEIRTypeNative>(*GlobalTables::GetTypeTable().GetPrimType(PTY_void));
     } else {
       retTypeInfo = mp->New<FEIRTypeNative>(*mirType);
@@ -2944,6 +2944,20 @@ VaArgInfo ASTVAArgExpr::ProcessValistArgInfo(const MIRType &type) const {
     MIRStructType structType = static_cast<const MIRStructType&>(type);
     size_t size = structType.GetSize();
     size = (size + 7) & -8;  // size round up 8
+#ifdef TARGAARCH64
+    PrimType baseType = PTY_begin;
+    size_t elemNum = 0;
+    if (IsHomogeneousAggregates(type, baseType, elemNum)) {
+      // homogeneous aggregates is passed by fp register
+      info = { false, static_cast<int>(elemNum * k16BitSize), static_cast<int>(size), false,
+          GlobalTables::GetTypeTable().GetPrimType(baseType) };
+    } else if (size > k16BitSize) {
+      // aggregates size > 16-byte, is passed by address
+      info = { true, k8BitSize, k8BitSize, true, nullptr };
+    } else {
+      info = { true, static_cast<int>(size), static_cast<int>(size), false, nullptr };
+    }
+#else
     if (size > 16) {
       info = { true, 8, 8, true, nullptr };
     } else {
@@ -2955,6 +2969,7 @@ VaArgInfo ASTVAArgExpr::ProcessValistArgInfo(const MIRType &type) const {
         info = { true, static_cast<int>(size), static_cast<int>(size), false, nullptr };
       }
     }
+#endif  // TARGAARCH64
   } else {
     CHECK_FATAL(false, "unsupport mirtype");
   }

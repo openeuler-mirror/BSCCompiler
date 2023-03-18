@@ -1259,11 +1259,6 @@ class ASTCallExpr : public ASTExpr {
     return mirType->GetPrimType() != PTY_void;
   }
 
-  bool IsFirstArgRet() const {
-    // If the return value exceeds 16 bytes, it is passed as the first parameter.
-    return mirType->GetPrimType() == PTY_agg && mirType->GetSize() > 16;
-  }
-
   void SetFuncDecl(ASTFunc *decl) {
     funcDecl = decl;
   }

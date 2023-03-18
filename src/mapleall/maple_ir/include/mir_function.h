@@ -194,7 +194,7 @@ class MIRFunction {
 
   void UpdateFuncTypeAndFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs = false);
   void UpdateFuncTypeAndFormalsAndReturnType(const std::vector<MIRSymbol*> &symbols, const TyIdx &retTyIdx,
-                                             bool clearOldArgs = false);
+                                             bool clearOldArgs = false, bool firstArgRet = false);
   LabelIdx GetOrCreateLableIdxFromName(const std::string &name);
   GStrIdx GetLabelStringIndex(LabelIdx labelIdx) const {
     CHECK_FATAL(labelTab != nullptr, "labelTab is nullptr");
@@ -436,8 +436,6 @@ class MIRFunction {
 
   void SetStructReturnedInRegs();
   bool StructReturnedInRegs() const;
-
-  void SetReturnStruct(const MIRType *retType);
 
   bool IsEmpty() const;
   bool IsClinit() const;

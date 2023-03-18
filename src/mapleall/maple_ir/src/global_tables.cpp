@@ -220,16 +220,26 @@ MIRType *TypeTable::GetOrCreateJarrayType(const MIRType &elem) {
   return typeTable.at(tyIdx);
 }
 
-MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecType,
-                                            const std::vector<TypeAttrs> &vecAttrs, bool isVarg,
+MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx,
+                                            const std::vector<TyIdx> &vecType,
+                                            const std::vector<TypeAttrs> &vecAttrs,
+                                            const FuncAttrs &funcAttrs,
                                             const TypeAttrs &retAttrs) {
-  MIRFuncType funcType(retTyIdx, vecType, vecAttrs, retAttrs);
-  if (isVarg) {
-    funcType.SetVarArgs();
-  }
+  MIRFuncType funcType(retTyIdx, vecType, vecAttrs, funcAttrs, retAttrs);
   TyIdx tyIdx = GetOrCreateMIRType(&funcType);
   ASSERT(tyIdx < typeTable.size(), "index out of range in TypeTable::GetOrCreateFunctionType");
   return typeTable.at(tyIdx);
+}
+
+
+MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecType,
+                                            const std::vector<TypeAttrs> &vecAttrs, bool isVarg,
+                                            const TypeAttrs &retAttrs) {
+  FuncAttrs funcAttrs;
+  if (isVarg) {
+    funcAttrs.SetAttr(FUNCATTR_varargs);
+  }
+  return GetOrCreateFunctionType(retTyIdx, vecType, vecAttrs, funcAttrs, retAttrs);
 }
 
 MIRType *TypeTable::GetOrCreateStructOrUnion(const std::string &name, const FieldVector &fields,

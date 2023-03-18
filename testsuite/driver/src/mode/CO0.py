@@ -26,7 +26,7 @@ CO0 = {
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
                 "../lib/include"
             ],
-            option="-O0 -fPIC -g -lpthread -lm"
+            option="-O0 -fPIC -g -lpthread -lm --save-temps"
         )
     ],
     "compile_err": [

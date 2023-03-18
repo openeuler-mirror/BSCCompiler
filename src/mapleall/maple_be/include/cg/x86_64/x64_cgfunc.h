@@ -165,7 +165,6 @@ class X64CGFunc : public CGFunc {
   Operand *SelectLazyLoadStatic(MIRSymbol &st, int64 offset, PrimType primType) override;
   Operand *SelectLoadArrayClassCache(MIRSymbol &st, int64 offset, PrimType primType) override;
   void GenerateYieldpoint(BB &bb) override;
-  Operand &ProcessReturnReg(PrimType primType, int32 sReg) override;
   Operand &GetOrCreateRflag() override;
   const Operand *GetRflag() const override;
   const Operand *GetFloatRflag() const override;

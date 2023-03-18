@@ -48,7 +48,8 @@ void ASTParser::ProcessNonnullFuncPtrAttrs(MapleAllocator &allocator, const clan
     retAttr.SetAttr(ATTR_nonnull);
   }
   MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
-      funcType->GetRetTyIdx(), funcType->GetParamTypeList(), attrsVec, funcType->IsVarargs(), retAttr);
+      funcType->GetRetTyIdx(), funcType->GetParamTypeList(),
+      attrsVec, funcType->GetFuncAttrs(), retAttr);
   astVar.SetTypeDesc(MapleVector<MIRType*>({GlobalTables::GetTypeTable().GetOrCreatePointerType(
       *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))}, allocator.Adapter()));
 }
@@ -567,7 +568,8 @@ void ASTParser::ProcessBoundaryFuncPtrAttrs(MapleAllocator &allocator, const cla
   }
   if (isUpdated) {
     MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
-        funcType->GetRetTyIdx(), funcType->GetParamTypeList(), attrsVec, funcType->IsVarargs(), retAttr);
+        funcType->GetRetTyIdx(), funcType->GetParamTypeList(),
+        attrsVec, funcType->GetFuncAttrs(), retAttr);
     astDecl.SetTypeDesc(MapleVector<MIRType*>({GlobalTables::GetTypeTable().GetOrCreatePointerType(
         *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))}, allocator.Adapter()));
   }
@@ -648,7 +650,8 @@ void ASTParser::ProcessBoundaryFuncPtrAttrsByIndex(MapleAllocator &allocator, co
   }
   if (isUpdated) {
     MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
-        funcType.GetRetTyIdx(), funcType.GetParamTypeList(), attrsVec, funcType.IsVarargs(), retAttr);
+        funcType.GetRetTyIdx(), funcType.GetParamTypeList(),
+        attrsVec, funcType.GetFuncAttrs(), retAttr);
     astDecl.SetTypeDesc(MapleVector<MIRType*>({GlobalTables::GetTypeTable().GetOrCreatePointerType(
         *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))}, allocator.Adapter()));
   }

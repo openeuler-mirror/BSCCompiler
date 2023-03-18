@@ -130,10 +130,10 @@ class AArch64CGFunc : public CGFunc {
   void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd0) override;
   void SelectIgoto(Operand *opnd0) override;
-  bool IsFirstArgReturn(StmtNode &naryNode);
-  bool Is64x1vec(StmtNode &naryNode, BaseNode &argExpr, uint32 pnum);
-  PrimType GetParamPrimType(StmtNode &naryNode, uint32 pnum, bool isCallNative);
   bool DoCallerEnsureValidParm(RegOperand &destOpnd, RegOperand &srcOpnd, PrimType formalPType);
+  void SelectParmListSmallStruct(const CCLocInfo &ploc, Operand &addr, ListOperand &srcOpnds);
+  void SelectParmListPassByStack(const MIRType &mirType, Operand &opnd, uint32 memOffset,
+                                 bool preCopyed, std::vector<Insn*> &insnForStackArgs);
   void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
   void SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &origOpnd0,
@@ -476,7 +476,6 @@ class AArch64CGFunc : public CGFunc {
 
   Operand &GetOrCreateFuncNameOpnd(const MIRSymbol &symbol) const;
   void GenerateYieldpoint(BB &bb) override;
-  Operand &ProcessReturnReg(PrimType primType, int32 sReg) override;
   void GenerateCleanupCode(BB &bb) override;
   bool NeedCleanup() override;
   void GenerateCleanupCodeForExtEpilog(BB &bb) override;
@@ -834,48 +833,42 @@ class AArch64CGFunc : public CGFunc {
     return (o.IsRegister() ? static_cast<RegOperand&>(o) : SelectCopy(o, sty, dty));
   }
 
-  void SelectCopySmallAggToReg(uint32 symSize, RegOperand &parmOpnd, const MemOperand &memOpnd);
-  void CreateCallStructParamPassByStack(uint32 symSize, MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
-  RegOperand *SelectParmListDreadAccessField(const MIRSymbol &sym, FieldID fieldID, const CCLocInfo &ploc,
-                                             int32 offset, uint32 parmNum);
-  void CreateCallStructParamPassByReg(regno_t regno, MemOperand &memOpnd, ListOperand &srcOpnds,
-                                      FpParamState state, uint32 symSize);
-  void CreateCallStructParamMemcpy(const MIRSymbol &sym, uint32 structSize, int32 copyOffset, int32 fromOffset);
-  void CreateCallStructParamMemcpy(RegOperand &addrOpnd, uint32 structSize, int32 copyOffset, int32 fromOffset);
-  RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addrOpd,
-                                               int32 copyOffset, int32 fromOffset, const CCLocInfo &ploc);
-  RegOperand *LoadIreadAddrForSamllAgg(BaseNode &iread);
-  void SelectParmListDreadSmallAggregate(MIRSymbol &sym, MIRType &structType,
-                                         ListOperand &srcOpnds,
-                                         int32 offset, AArch64CallConvImpl &parmLocator, FieldID fieldID);
-  void SelectParmListIreadSmallAggregate(BaseNode &iread, MIRType &structType, ListOperand &srcOpnds,
-                                         int32 offset, AArch64CallConvImpl &parmLocator);
-  void SelectParmListDreadLargeAggregate(MIRSymbol &sym, MIRType &structType,
-                                         ListOperand &srcOpnds,
-                                         AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 fromOffset);
-  void SelectParmListIreadLargeAggregate(const IreadNode &iread, MIRType &structType, ListOperand &srcOpnds,
-                                         AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, int32 fromOffset);
-  void CreateCallStructMemcpyToParamReg(MIRType &structType, int32 structCopyOffset, AArch64CallConvImpl &parmLocator,
-                                        ListOperand &srcOpnds);
-  void GenAggParmForDread(const BaseNode &parent, ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
-                          int32 &structCopyOffset, size_t argNo);
-  void GenAggParmForIread(const BaseNode &parent, ListOperand &srcOpnds,
-                          AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo);
-  void GenAggParmForIreadoff(BaseNode &parent, ListOperand &srcOpnds,
-                             AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo);
-  void GenAggParmForIreadfpoff(BaseNode &parent, ListOperand &srcOpnds,
-                               AArch64CallConvImpl &parmLocator, int32 &structCopyOffset, size_t argNo);
-  void SelectParmListForAggregate(BaseNode &parent, ListOperand &srcOpnds, AArch64CallConvImpl &parmLocator,
-                                  int32 &structCopyOffset, size_t argNo, PrimType &paramPType);
-  size_t SelectParmListGetStructReturnSize(StmtNode &naryNode);
   bool MarkParmListCall(BaseNode &expr);
-  void GenLargeStructCopyForDread(BaseNode &argExpr, int32 &structCopyOffset);
-  void GenLargeStructCopyForIread(BaseNode &argExpr, int32 &structCopyOffset);
-  void GenLargeStructCopyForIreadfpoff(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo);
-  void GenLargeStructCopyForIreadoff(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo);
-  void SelectParmListPreprocessLargeStruct(BaseNode &parent, BaseNode &argExpr, int32 &structCopyOffset, size_t argNo);
-  void SelectParmListPreprocess(StmtNode &naryNode, size_t start, std::set<size_t> &specialArgs);
+
+  struct AggregateDesc {
+    MIRType *mirType = nullptr;
+    MIRSymbol *sym = nullptr;
+    uint32 offset = 0;
+    bool isRefField = false;
+  };
+
+  struct ParamDesc {
+    ParamDesc(MIRType *type, BaseNode *expr, MIRSymbol *symbol = nullptr,
+              uint32 ofst = 0, bool copyed = false)
+        : mirType(type), argExpr(expr), sym(symbol), offset(ofst), preCopyed(copyed) {}
+    MIRType *mirType = nullptr;
+    BaseNode *argExpr = nullptr;  // expr node
+    MIRSymbol *sym = nullptr;     // agg sym
+    uint32 offset = 0;            // agg offset, for preCopyed struct, RSP-based offset
+    bool preCopyed = false;       // for large struct, pre copyed to strack
+    bool isSpecialArg = false;    // such as : tls
+  };
+
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
+  std::pair<MIRFunction*, MIRFuncType*> GetCalleeFunction(StmtNode &naryNode);
+  Operand *GetSymbolAddressOpnd(const MIRSymbol &sym, int32 offset, bool useMem);
+  void SelectStructMemcpy(RegOperand &destOpnd, RegOperand &srcOpnd, uint32 structSize);
+  void SelectStructCopy(MemOperand &destOpnd, MemOperand &srcOpnd, uint32 structSize);
+  Operand *GetAddrOpndWithBaseNode(const BaseNode &argExpr, MIRSymbol &sym, uint32 offset,
+                                   bool useMem = true);
+  void GetAggregateDescFromAggregateNode(BaseNode &argExpr, AggregateDesc &aggDesc);
+  void SelectParamPreCopy(const BaseNode &argExpr, AggregateDesc &aggDesc, uint64 mirSize,
+                          int32 structCopyOffset, bool isArgUnused);
+  void SelectParmListPreprocessForAggregate(BaseNode &argExpr, int32 &structCopyOffset,
+                                            std::vector<ParamDesc> &argsDesc, bool isArgUnused);
+  bool SelectParmListPreprocess(StmtNode &naryNode, size_t start, bool isCallNative,
+                                std::vector<ParamDesc> &argsDesc,
+                                const MIRFunction *callee = nullptr);
   void SelectClearStackCallParmList(const StmtNode &naryNode, ListOperand &srcOpnds,
                                     std::vector<int64> &stackPostion);
   void SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOpnd, PrimType primType, bool isSigned, bool is64Bits);

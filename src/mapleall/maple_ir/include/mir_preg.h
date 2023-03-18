@@ -32,7 +32,9 @@ enum SpecialReg : signed int {
   kSregMethodhdl = 5,
   kSregRetval0 = 6,
   kSregRetval1 = 7,
-  kSregLast = 8,
+  kSregRetval2 = 8,
+  kSregRetval3 = 9,
+  kSregLast = 10,
 };
 #if MIR_FEATURE_FULL
 class MIRPreg {
@@ -44,8 +46,8 @@ class MIRPreg {
   MIRPreg(uint32 n, PrimType ptyp, MIRType *mType) : primType(ptyp), pregNo(n), mirType(mType) {}
 
   ~MIRPreg() = default;
-  void SetNeedRC(bool needRC = true) {
-    this->needRC = needRC;
+  void SetNeedRC(bool newNeedRC = true) {
+    this->needRC = newNeedRC;
   }
 
   bool NeedRC() const {
@@ -76,17 +78,23 @@ class MIRPreg {
     return pregNo;
   }
 
-  void SetPregNo(int32 pregNo) {
-    this->pregNo = pregNo;
+  void SetPregNo(int32 newPregNo) {
+    this->pregNo = newPregNo;
   }
 
   MIRType *GetMIRType() const {
     return mirType;
   }
 
-  void SetMIRType(MIRType *mirType) {
-    this->mirType = mirType;
+  void SetMIRType(MIRType *newMirType) {
+    this->mirType = newMirType;
   }
+  union RematInfo {
+    const MIRConst *mirConst; // used only when op is OP_constval
+    const MIRSymbol *sym;     // used only when op is OP_addrof or OP_dread
+  } rematInfo;
+  FieldID fieldID = 0;  // used only when op is OP_addrof or OP_dread
+  bool addrUpper = false;  // used only when op is OP_addrof to indicate upper bits of address
 
  private:
   PrimType primType = kPtyInvalid;
@@ -94,13 +102,6 @@ class MIRPreg {
   Opcode op = OP_undef; // OP_constval, OP_addrof or OP_dread if rematerializable
   int32 pregNo;  // the number in maple IR after the %
   MIRType *mirType = nullptr;
- public:
-  union RematInfo {
-    const MIRConst *mirConst; // used only when op is OP_constval
-    const MIRSymbol *sym;     // used only when op is OP_addrof or OP_dread
-  } rematInfo;
-  FieldID fieldID = 0;  // used only when op is OP_addrof or OP_dread
-  bool addrUpper = false;  // used only when op is OP_addrof to indicate upper bits of address
 };
 
 class MIRPregTable {
@@ -118,6 +119,8 @@ class MIRPregTable {
     specPregTable[kSregMethodhdl].SetPregNo(-kSregMethodhdl);
     specPregTable[kSregRetval0].SetPregNo(-kSregRetval0);
     specPregTable[kSregRetval1].SetPregNo(-kSregRetval1);
+    specPregTable[kSregRetval2].SetPregNo(-kSregRetval2);
+    specPregTable[kSregRetval3].SetPregNo(-kSregRetval3);
     for (uint32 i = 0; i < kSregLast; ++i) {
       specPregTable[i].SetPrimType(PTY_unknown);
     }

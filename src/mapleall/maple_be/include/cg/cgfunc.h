@@ -343,7 +343,6 @@ class CGFunc {
   virtual Operand *SelectLazyLoadStatic(MIRSymbol &st, int64 offset, PrimType primType) = 0;
   virtual Operand *SelectLoadArrayClassCache(MIRSymbol &st, int64 offset, PrimType primType) = 0;
   virtual void GenerateYieldpoint(BB &bb) = 0;
-  virtual Operand &ProcessReturnReg(PrimType primType, int32 sReg) = 0;
 
   virtual Operand &GetOrCreateRflag() = 0;
   virtual const Operand *GetRflag() const = 0;
@@ -1352,9 +1351,8 @@ class CGFunc {
     RegType regType = vRegNode.GetType();
     ASSERT(regType == kRegTyInt || regType == kRegTyFloat, "");
     uint32 size = vRegNode.GetSize();  /* in bytes */
-    ASSERT(size == sizeof(int32) || size == sizeof(int64), "");
-    return (regType == kRegTyInt ? (size == sizeof(int32) ? PTY_i32 : PTY_i64)
-                                 : (size == sizeof(float) ? PTY_f32 : PTY_f64));
+    return (regType == kRegTyInt ? (size <= sizeof(int32) ? PTY_i32 : PTY_i64) :
+                                   (size <= sizeof(float) ? PTY_f32 : PTY_f64));
   }
 
   int64 GetPseudoRegisterSpillLocation(PregIdx idx) {
@@ -1377,8 +1375,8 @@ class CGFunc {
 
   /* See if the symbol is a structure parameter that requires a copy. */
   bool IsParamStructCopy(const MIRSymbol &symbol) {
-    if (symbol.GetStorageClass() == kScFormal &&
-        GetBecommon().GetTypeSize(symbol.GetTyIdx().GetIdx()) > k16ByteSize) {
+    auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbol.GetTyIdx());
+    if (symbol.GetStorageClass() == kScFormal && IsParamStructCopyToMemory(*mirType)) {
       return true;
     }
     return false;
@@ -1406,6 +1404,20 @@ class CGFunc {
     SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);
     GetCurBB()->AppendBB(*atomicBB);
     return atomicBB;
+  }
+
+  // clone old mem and add offset
+  // oldMem: [base, imm:12] -> newMem: [base, imm:(12 + offset)]
+  MemOperand &GetMemOperandAddOffset(MemOperand &oldMem, uint32 offset) {
+    if (offset == 0) {
+      return oldMem;
+    }
+    auto &newMem = static_cast<MemOperand&>(*oldMem.Clone(*GetMemoryPool()));
+    auto &oldOffset = *oldMem.GetOffsetOperand();
+    auto &newOffst = static_cast<ImmOperand&>(*oldOffset.Clone(*GetMemoryPool()));
+    newOffst.SetValue(oldOffset.GetValue() + offset);
+    newMem.SetOffsetOperand(newOffst);
+    return newMem;
   }
 
  private:

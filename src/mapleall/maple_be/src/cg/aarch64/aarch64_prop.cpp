@@ -2072,7 +2072,7 @@ void ValidBitNumberProp::Optimize(Insn &insn) {
   // replace all implicit cvt to uxtw, validopt will handle the case if it can be optimized.
   for (auto it = useList.begin(); it != useList.end(); it++)  {
     Insn *useInsn = it->second->GetInsn();
-    if (useInsn->GetMachineOpcode() == MOP_xmovrr || useInsn->GetMachineOpcode() == MOP_wmovrr) { 
+    if (useInsn->GetMachineOpcode() == MOP_xmovrr || useInsn->GetMachineOpcode() == MOP_wmovrr) {
       auto &dstOpnd = useInsn->GetOperand(kFirstOpnd);
       auto &srcOpnd = useInsn->GetOperand(kSecondOpnd);
       if (dstOpnd.GetSize() == k64BitSize && srcOpnd.GetSize() == k32BitSize) {

@@ -123,9 +123,12 @@ void MIRFunction::UpdateFuncTypeAndFormals(const std::vector<MIRSymbol*> &symbol
 }
 
 void MIRFunction::UpdateFuncTypeAndFormalsAndReturnType(const std::vector<MIRSymbol*> &symbols, const TyIdx &retTyIdx,
-                                                        bool clearOldArgs) {
+                                                        bool clearOldArgs, bool firstArgRet) {
   auto *newFuncType = ReconstructFormals(symbols, clearOldArgs);
   newFuncType->SetRetTyIdx(retTyIdx);
+  if (firstArgRet) {
+    newFuncType->funcAttrs.SetAttr(FUNCATTR_firstarg_return);
+  }
   auto newFuncTypeIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(newFuncType);
   funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(newFuncTypeIdx));
   delete newFuncType;
@@ -157,21 +160,7 @@ void MIRFunction::SetReturnStruct() {
 }
 void MIRFunction::SetReturnStruct(const MIRType &retType) {
   if (retType.IsStructType()) {
-    flag |= kFuncPropRetStruct;
-  }
-}
-void MIRFunction::SetReturnStruct(const MIRType *retType) {
-  switch (retType->GetKind()) {
-    case kTypeUnion:
-    case kTypeStruct:
-    case kTypeStructIncomplete:
-    case kTypeClass:
-    case kTypeClassIncomplete:
-    case kTypeInterface:
-    case kTypeInterfaceIncomplete:
-      flag |= kFuncPropRetStruct;
-      break;
-    default:;
+    SetReturnStruct();
   }
 }
 

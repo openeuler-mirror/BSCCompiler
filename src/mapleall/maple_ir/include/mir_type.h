@@ -1074,7 +1074,7 @@ class MIRArrayType : public MIRType {
   bool HasFields() const override;
   uint32 NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
-  size_t ElemNumber();
+  size_t ElemNumber() const;
 
  private:
   TyIdx eTyIdx{ 0 };
@@ -1929,8 +1929,19 @@ class MIRFuncType : public MIRType {
   explicit MIRFuncType(const GStrIdx &strIdx)
       : MIRType(kTypeFunction, PTY_ptr, strIdx) {}
 
-  MIRFuncType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecTy, const std::vector<TypeAttrs> &vecAt,
+  MIRFuncType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecTy,
+              const std::vector<TypeAttrs> &vecAt, const FuncAttrs &funcAttrsIn,
               const TypeAttrs &retAttrsIn)
+      : MIRType(kTypeFunction, PTY_ptr),
+        funcAttrs(funcAttrsIn),
+        retTyIdx(retTyIdx),
+        paramTypeList(vecTy),
+        paramAttrsList(vecAt),
+        retAttrs(retAttrsIn) {}
+
+  // Deprecated
+  MIRFuncType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecTy,
+              const std::vector<TypeAttrs> &vecAt, const TypeAttrs &retAttrsIn)
       : MIRType(kTypeFunction, PTY_ptr),
         retTyIdx(retTyIdx),
         paramTypeList(vecTy),
@@ -2008,6 +2019,7 @@ class MIRFuncType : public MIRType {
     return funcAttrs.GetAttr(FUNCATTR_varargs);
   }
 
+  // Deprecated, set this attribute during construction.
   void SetVarArgs() {
     funcAttrs.SetAttr(FUNCATTR_varargs);
   }
@@ -2016,8 +2028,13 @@ class MIRFuncType : public MIRType {
     return funcAttrs.GetAttr(FUNCATTR_firstarg_return);
   }
 
+  // Deprecated, set this attribute during construction.
   void SetFirstArgReturn() {
     funcAttrs.SetAttr(FUNCATTR_firstarg_return);
+  }
+
+  const FuncAttrs &GetFuncAttrs() const {
+    return funcAttrs;
   }
 
   const TypeAttrs &GetRetAttrs() const {
@@ -2201,6 +2218,14 @@ inline size_t GetTypeBitSize(const MIRType &type) {
 }
 
 MIRType *GetElemType(const MIRType &arrayType);
+
+#ifdef TARGAARCH64
+bool IsHomogeneousAggregates(const MIRType &ty, PrimType &primType, size_t &elemNum,
+                             bool firstDepth = true);
+#endif  // TARGAARCH64
+bool IsParamStructCopyToMemory(const MIRType &ty);
+bool IsReturnInMemory(const MIRType &ty);
+void UpdateMIRFuncTypeFirstArgRet();
 #endif  // MIR_FEATURE_FULL
 }  // namespace maple
 

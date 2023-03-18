@@ -34,6 +34,24 @@ struct CCLocInfo {
   uint8 regCount = 0;             /* number of registers <= 2 storing the return value */
   PrimType primTypeOfReg0;    /* the primitive type stored in reg0 */
   PrimType primTypeOfReg1;    /* the primitive type stored in reg1 */
+  PrimType primTypeOfReg2;
+  PrimType primTypeOfReg3;
+
+  void Clear() {
+    reg0 = kInvalidRegNO;
+    reg1 = kInvalidRegNO;
+    reg2 = kInvalidRegNO;
+    reg3 = kInvalidRegNO;
+    memOffset = 0;
+    memSize = 0;
+    fpSize = 0;
+    numFpPureRegs = 0;
+    regCount = 0;
+    primTypeOfReg0 = PTY_begin;
+    primTypeOfReg1 = PTY_begin;
+    primTypeOfReg2 = PTY_begin;
+    primTypeOfReg3 = PTY_begin;
+  }
 
   uint8 GetRegCount() const {
     return regCount;
@@ -41,6 +59,18 @@ struct CCLocInfo {
 
   PrimType GetPrimTypeOfReg0() const {
     return primTypeOfReg0;
+  }
+
+  PrimType GetPrimTypeOfReg1() const {
+    return primTypeOfReg1;
+  }
+
+  PrimType GetPrimTypeOfReg2() const {
+    return primTypeOfReg2;
+  }
+
+  PrimType GetPrimTypeOfReg3() const {
+    return primTypeOfReg3;
   }
 
   regno_t GetReg0() const {
@@ -62,9 +92,9 @@ struct CCLocInfo {
 
 class LmbcFormalParamInfo {
  public:
-  LmbcFormalParamInfo(PrimType pType, uint32 ofst, uint32 sz) :
-      type(nullptr), primType(pType), offset(ofst), onStackOffset(0), size(sz), regNO(0), vregNO(0), numRegs(0),
-      fpSize(0), isReturn(false), isPureFloat(false), isOnStack(false), hasRegassign(false) {}
+  LmbcFormalParamInfo(PrimType pType, uint32 ofst, uint32 sz)
+      : type(nullptr), primType(pType), offset(ofst), onStackOffset(0), size(sz), regNO(0), vregNO(0), numRegs(0),
+        fpSize(0), isReturn(false), isPureFloat(false), isOnStack(false), hasRegassign(false) {}
 
   ~LmbcFormalParamInfo() = default;
 

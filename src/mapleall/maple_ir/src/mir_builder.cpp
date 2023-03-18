@@ -276,8 +276,12 @@ MIRFunction *MIRBuilder::CreateFunction(const std::string &name, const MIRType &
       (void)fn->GetSymTab()->AddToStringSymbolMap(*formalDef.formalSym);
     }
   }
+  FuncAttrs funcAttrs;
+  if (isVarg) {
+    funcAttrs.SetAttr(FUNCATTR_varargs);
+  }
   funcSymbol->SetTyIdx(GlobalTables::GetTypeTable().GetOrCreateFunctionType(
-      returnType.GetTypeIndex(), funcVecType, funcVecAttrs, isVarg)->GetTypeIndex());
+      returnType.GetTypeIndex(), funcVecType, funcVecAttrs, funcAttrs)->GetTypeIndex());
   auto *funcType = static_cast<MIRFuncType*>(funcSymbol->GetType());
   fn->SetMIRFuncType(funcType);
   funcSymbol->SetFunction(fn);
@@ -518,7 +522,7 @@ ConstvalNode *MIRBuilder::CreateDoubleConst(double val) {
 
 ConstvalNode *MIRBuilder::CreateFloat128Const(const uint64 *val) {
   auto *mirConst = GetCurrentFuncDataMp()->New<MIRFloat128Const>(
-      *val, *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
+      val, *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
   return GetCurrentFuncCodeMp()->New<ConstvalNode>(PTY_f128, mirConst);
 }
 
@@ -651,6 +655,10 @@ DreadoffNode *MIRBuilder::CreateExprDreadoff(Opcode op, PrimType pty, const MIRS
   return node;
 }
 
+IreadNode *MIRBuilder::CreateExprIread(PrimType primType, TyIdx ptrTypeIdx, FieldID fieldID, BaseNode *addr) {
+  return GetCurrentFuncCodeMp()->New<IreadNode>(OP_iread, GetRegPrimType(primType), ptrTypeIdx, fieldID, addr);
+}
+
 IreadNode *MIRBuilder::CreateExprIread(const MIRType &returnType, const MIRType &ptrType, FieldID fieldID,
                                        BaseNode *addr) {
   TyIdx returnTypeIdx = returnType.GetTypeIndex();
@@ -658,8 +666,7 @@ IreadNode *MIRBuilder::CreateExprIread(const MIRType &returnType, const MIRType 
         "index out of range in MIRBuilder::CreateExprIread");
   ASSERT(fieldID != 0 || ptrType.GetPrimType() != PTY_agg,
          "Error: Fieldid should not be 0 when trying to iread a field from type ");
-  PrimType type = GetRegPrimType(returnType.GetPrimType());
-  return GetCurrentFuncCodeMp()->New<IreadNode>(OP_iread, type, ptrType.GetTypeIndex(), fieldID, addr);
+  return CreateExprIread(returnType.GetPrimType(), ptrType.GetTypeIndex(), fieldID, addr);
 }
 
 IreadoffNode *MIRBuilder::CreateExprIreadoff(PrimType pty, int32 offset, BaseNode *opnd0) {
@@ -772,7 +779,7 @@ ArrayNode *MIRBuilder::CreateExprArray(const MIRType &arrayType, std::vector<Bas
   return arrayNode;
 }
 
-IntrinsicopNode *MIRBuilder::CreateExprIntrinsicop(MIRIntrinsicID id, Opcode op, PrimType primType, TyIdx tyIdx,
+IntrinsicopNode *MIRBuilder::CreateExprIntrinsicop(MIRIntrinsicID id, Opcode op, PrimType primType, const TyIdx &tyIdx,
                                                    const MapleVector<BaseNode*> &ops) {
   auto *expr = GetCurrentFuncCodeMp()->New<IntrinsicopNode>(*GetCurrentFuncCodeMpAllocator(), op, primType);
   expr->SetIntrinsic(id);
@@ -837,10 +844,11 @@ IcallNode *MIRBuilder::CreateStmtIcall(const MapleVector<BaseNode*> &args) {
   return stmt;
 }
 
-IcallNode *MIRBuilder::CreateStmtIcallproto(const MapleVector<BaseNode*> &args) {
+IcallNode *MIRBuilder::CreateStmtIcallproto(const MapleVector<BaseNode*> &args, const TyIdx &prototypeIdx) {
   auto *stmt = GetCurrentFuncCodeMp()->New<IcallNode>(*GetCurrentFuncCodeMpAllocator(), OP_icallproto);
   ASSERT(stmt != nullptr, "stmt is null");
   stmt->SetOpnds(args);
+  stmt->SetRetTyIdx(prototypeIdx);
   return stmt;
 }
 
@@ -861,7 +869,8 @@ IcallNode *MIRBuilder::CreateStmtIcallAssigned(const MapleVector<BaseNode*> &arg
   return stmt;
 }
 
-IcallNode *MIRBuilder::CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*> &args, const MIRSymbol &ret) {
+IcallNode *MIRBuilder::CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*> &args, const MIRSymbol &ret,
+                                                    const TyIdx &prototypeIdx) {
   auto *stmt = GetCurrentFuncCodeMp()->New<IcallNode>(*GetCurrentFuncCodeMpAllocator(), OP_icallprotoassigned);
   CallReturnVector nrets(GetCurrentFuncCodeMpAllocator()->Adapter());
   CHECK_FATAL((ret.GetStorageClass() == kScAuto || ret.GetStorageClass() == kScFormal ||
@@ -874,7 +883,7 @@ IcallNode *MIRBuilder::CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*>
   for (size_t i = 0; i < stmt->GetNopndSize(); ++i) {
     stmt->SetNOpndAt(i, args.at(i));
   }
-  stmt->SetRetTyIdx(ret.GetTyIdx());
+  stmt->SetRetTyIdx(prototypeIdx);
   return stmt;
 }
 
@@ -980,10 +989,7 @@ IntrinsiccallNode *MIRBuilder::CreateStmtXintrinsicCallAssigned(MIRIntrinsicID i
 }
 
 NaryStmtNode *MIRBuilder::CreateStmtReturn(BaseNode *rVal) {
-  auto *stmt = GetCurrentFuncCodeMp()->New<NaryStmtNode>(*GetCurrentFuncCodeMpAllocator(), OP_return);
-  ASSERT(stmt != nullptr, "stmt is null");
-  stmt->PushOpnd(rVal);
-  return stmt;
+  return CreateStmtNary(OP_return, rVal);
 }
 
 NaryStmtNode *MIRBuilder::CreateStmtNary(Opcode op, const MapleVector<BaseNode*> &rVals) {
