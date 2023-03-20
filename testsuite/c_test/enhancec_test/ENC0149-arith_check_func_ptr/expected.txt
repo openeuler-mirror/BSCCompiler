@@ -1,0 +1,3 @@
+arith_check_func_ptr.c:40 error: the offset < lower bounds after pointer arithmetic!
+qemu: uncaught target signal 11 (Segmentation fault) - core dumped
+Segmentation fault
