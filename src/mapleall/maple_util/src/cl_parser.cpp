@@ -144,7 +144,7 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
 RetCode CommandLine::ParseEqualOption(size_t &argsIndex,
                                       const std::deque<std::string_view> &args,
                                       KeyArg &keyArg, OptionCategory &optCategory,
-                                      const OptionsMapType &optMap, ssize_t pos) {
+                                      const OptionsMapType &optMap, size_t pos) {
   keyArg.isEqualOpt = true;
   auto &arg = args[argsIndex];
 
@@ -153,10 +153,17 @@ RetCode CommandLine::ParseEqualOption(size_t &argsIndex,
    * As example for -Dkey=value: default splitting key="Dkey" value="value",
    * Joined option splitting key="D" value="key=value"
    */
-  auto item = optMap.find(std::string(arg.substr(0, pos)));
+  auto item = optMap.find(std::string(arg));
+  if (item == optMap.end()) {
+    item = optMap.find(std::string(arg.substr(0, pos + 1)));
+    if (item == optMap.end()) {
+      item = optMap.find(std::string(arg.substr(0, pos)));
+    }
+  }
   if (item != optMap.end()) {
     /* equal option, like --key=value */
-    keyArg.key = arg.substr(0, pos);
+    keyArg.key = (optMap.find(std::string(arg.substr(0, pos + 1))) !=  optMap.end()) ? arg.substr(0, pos + 1) :
+                  arg.substr(0, pos);
     keyArg.val = arg.substr(pos + 1);
     return ParseOption(argsIndex, args, keyArg, optCategory, item->second);
   } else {

@@ -162,7 +162,7 @@ class CommandLine {
   RetCode ParseEqualOption(size_t &argsIndex,
                            const std::deque<std::string_view> &args,
                            KeyArg &keyArg, OptionCategory &optCategory,
-                           const OptionsMapType &optMap, ssize_t pos);
+                           const OptionsMapType &optMap, size_t pos);
   RetCode ParseSimpleOption(size_t &argsIndex,
                             const std::deque<std::string_view> &args,
                             KeyArg &keyArg, OptionCategory &optCategory,

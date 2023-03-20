@@ -128,7 +128,12 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
     }
     for (const auto &val : opt->GetRawValues()) {
       if (opt->GetEqualType() == maplecl::EqualType::kWithEqual) {
-        (void)finalOptions.emplace_back(opt->GetName() + "=" + val, "");
+        auto pos = opt->GetName().find('=');
+        if (pos != std::string::npos) {
+          (void)finalOptions.emplace_back(opt->GetName() + val, "");
+        } else {
+          (void)finalOptions.emplace_back(opt->GetName() + "=" + val, "");
+        }
       } else {
         (void)finalOptions.emplace_back(opt->GetName(), val);
       }
