@@ -86,15 +86,21 @@ std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, BaseNode *node) {
       } else if (static_cast<const TypeCvtNode*>(node)->ptyp == PTY_f128) {
         switch (static_cast<const TypeCvtNode*>(node)->FromType()) {
           case PTY_i8:
-          case PTY_i16:
-            node->ptyp = PTY_i32;
+          case PTY_i16: {
+            auto *cvtNode = static_cast<TypeCvtNode*>(node);
+            cvtNode->SetFromType(PTY_i32);
+            cvtNode->Opnd(0)->ptyp = PTY_i32;
             return "__floatsitf";
-          case PTY_u8:
-          case PTY_u16:
-            node->ptyp = PTY_u32;
-            return "__floatunsitf";
+          }
           case PTY_i32:
             return "__floatsitf";
+          case PTY_u8:
+          case PTY_u16: {
+            auto *cvtNode = static_cast<TypeCvtNode*>(node);
+            cvtNode->SetFromType(PTY_u32);
+            cvtNode->Opnd(0)->ptyp = PTY_u32;
+            return "__floatunsitf";
+          }
           case PTY_u32:
           case PTY_a32:
             return "__floatunsitf";
@@ -183,7 +189,6 @@ void Expand128Floats::ReplaceOpNode(BlockNode *block, BaseNode *baseNode, size_t
     }
     for (size_t i = 0; i < currNode->numOpnds; ++i) {
       args.push_back(currNode->Opnd(i));
-      args[args.size() - 1]->ptyp = PTY_f128;
     }
   }
   Opcode currOpCode = currNode->GetOpCode();
