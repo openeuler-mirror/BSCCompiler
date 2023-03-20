@@ -1112,15 +1112,16 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
 }
 
 /* Create a common stack space for spilling with need_spill */
-MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, uint32 memSize,
+MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, RegType regType,
                                                    SpillMemCheck check) {
+  auto spillMemOpnds = (regType == kRegTyInt) ? intSpillMemOpnds : fpSpillMemOpnds;
   if (spillIdx >= spillMemOpnds.size()) {
     return nullptr;
   }
 
   if (operandSpilled[spillIdx]) {
     /* For this insn, spill slot already used, need to find next available slot. */
-    uint32 i;
+    uint32 i = 0;
     for (i = spillIdx + 1; i < kSpillMemOpndNum; ++i) {
       if (!operandSpilled[i]) {
         break;
@@ -1134,8 +1135,11 @@ MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, uint32 memSi
   }
 
   if (spillMemOpnds[spillIdx] == nullptr) {
-    regno_t reg = cgFunc->NewVReg(kRegTyInt, sizeof(int64));
-    spillMemOpnds[spillIdx] = cgFunc->GetOrCreatSpillMem(reg, memSize);
+    regno_t reg = cgFunc->NewVReg(kRegTyInt, k64BitSize);
+    // spillPre or spillPost need maxSize for spill
+    // so, for int, spill 64-bit; for float, spill 128-bit;
+    spillMemOpnds[spillIdx] = cgFunc->GetOrCreatSpillMem(reg,
+        (regType == kRegTyInt) ? k64BitSize : k128BitSize);
   }
   return spillMemOpnds[spillIdx];
 }
@@ -2770,14 +2774,16 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   uint32 regNO = regOpnd.GetRegisterNumber();
   LiveRange *lr = lrMap[regNO];
 
-  MemOperand *spillMem = CreateSpillMem(spillIdx, lr->GetSpillSize(), kSpillMemPre);
+  MemOperand *spillMem = CreateSpillMem(spillIdx, regOpnd.GetRegisterType(), kSpillMemPre);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
 
-  PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), lr->GetSpillSize());
+  // for int, must str 64-bit; for float, must str 128-bit;
+  uint32 strSize = (regOpnd.GetRegisterType() == kRegTyInt) ? k64BitSize : k128BitSize;
+  PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), strSize);
   bool isOutOfRange = false;
   spillMem = regInfo->AdjustMemOperandIfOffsetOutOfRange(spillMem, regOpnd.GetRegisterNumber(),
       false, insn, regInfo->GetReservedSpillReg(), isOutOfRange);
-  Insn &stInsn = *regInfo->BuildStrInsn(lr->GetSpillSize(), stype, phyOpnd, *spillMem);
+  Insn &stInsn = *regInfo->BuildStrInsn(strSize, stype, phyOpnd, *spillMem);
   std::string comment = " SPILL for spill vreg: " + std::to_string(regNO) + " op:" +
                         kOpcodeInfo.GetName(lr->GetOp());
   stInsn.SetComment(comment);
@@ -2819,10 +2825,12 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
     return;
   }
 
-  MemOperand *spillMem = CreateSpillMem(spillIdx, lr->GetSpillSize(), kSpillMemPost);
+  MemOperand *spillMem = CreateSpillMem(spillIdx, regOpnd.GetRegisterType(), kSpillMemPost);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
 
-  PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), lr->GetSpillSize());
+  // for int, must ldr 64-bit; for float, must ldr 128-bit;
+  uint32 ldrSize = (regOpnd.GetRegisterType() == kRegTyInt) ? k64BitSize : k128BitSize;
+  PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), ldrSize);
   bool isOutOfRange = false;
   Insn *nextInsn = insn.GetNextMachineInsn();
   spillMem = regInfo->AdjustMemOperandIfOffsetOutOfRange(spillMem, regOpnd.GetRegisterNumber(),
@@ -2831,12 +2839,12 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
                         " op:" + kOpcodeInfo.GetName(lr->GetOp());
   if (isLastInsn) {
     for (auto tgtBB : insn.GetBB()->GetSuccs()) {
-      Insn *newLd = regInfo->BuildLdrInsn(lr->GetSpillSize(), stype, phyOpnd, *spillMem);
+      Insn *newLd = regInfo->BuildLdrInsn(ldrSize, stype, phyOpnd, *spillMem);
       newLd->SetComment(comment);
       tgtBB->InsertInsnBegin(*newLd);
     }
   } else {
-    Insn *ldrInsn = regInfo->BuildLdrInsn(lr->GetSpillSize(), stype, phyOpnd, *spillMem);
+    Insn *ldrInsn = regInfo->BuildLdrInsn(ldrSize, stype, phyOpnd, *spillMem);
     ldrInsn->SetComment(comment);
     if (isOutOfRange) {
       if (nextInsn == nullptr) {

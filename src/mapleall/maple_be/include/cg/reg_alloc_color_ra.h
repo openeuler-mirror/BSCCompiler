@@ -1243,7 +1243,7 @@ class GraphColorRegAllocator : public RegAllocator {
   void ComputeLiveRangesUpdateIfInsnIsCall(const Insn &insn);
   void ComputeLiveRangesUpdateLiveUnitInsnRange(BB &bb, uint32 currPoint);
   void ComputeLiveRanges();
-  MemOperand *CreateSpillMem(uint32 spillIdx, uint32 memSize, SpillMemCheck check);
+  MemOperand *CreateSpillMem(uint32 spillIdx, RegType regType, SpillMemCheck check);
   bool CheckOverlap(uint64 val, uint32 i, LiveRange &lr1, LiveRange &lr2) const;
   void CheckInterference(LiveRange &lr1, LiveRange &lr2) const;
   void BuildInterferenceGraphSeparateIntFp(std::vector<LiveRange*> &intLrVec, std::vector<LiveRange*> &fpLrVec);
@@ -1402,7 +1402,8 @@ class GraphColorRegAllocator : public RegAllocator {
    *                          sp_reg1 <- [spillMemOpnds[1]]
    *                          sp_reg2 <- [spillMemOpnds[2]]
    */
-  std::array<MemOperand*, kSpillMemOpndNum> spillMemOpnds = { nullptr };
+  std::array<MemOperand*, kSpillMemOpndNum> intSpillMemOpnds = { nullptr };
+  std::array<MemOperand*, kSpillMemOpndNum> fpSpillMemOpnds = { nullptr };
   bool operandSpilled[kSpillMemOpndNum];
   bool needExtraSpillReg = false;
 #ifdef USE_LRA
