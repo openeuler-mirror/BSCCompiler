@@ -73,10 +73,7 @@ void A64OpndEmitVisitor::Visit(maplebe::ImmOperand *v) {
   }
 
   int64 value = v->GetValue();
-  bool isNegative = (value < 0);
   if (!v->IsFmov()) {
-    value = (v->GetSize() == k64BitSize ? value : (isNegative ?
-      static_cast<int64>(static_cast<int32>(value)) : static_cast<int64>(static_cast<uint32>(value))));
     (void)emitter.Emit((opndProp != nullptr && opndProp->IsLoadLiteral()) ? "=" : "#").Emit(value);
     return;
   }

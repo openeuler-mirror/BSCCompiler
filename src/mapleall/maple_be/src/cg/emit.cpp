@@ -593,7 +593,7 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
   } else {
     structEmitInfo.SetCombineBitFieldValue((static_cast<uint64>(fieldValue.GetExtValue()) <<
                                             structEmitInfo.GetCombineBitFieldWidth()) +
-                                           structEmitInfo.GetCombineBitFieldValue());
+                                            structEmitInfo.GetCombineBitFieldValue());
   }
   structEmitInfo.IncreaseCombineBitFieldWidth(fieldSize);
   structEmitInfo.IncreaseNextFieldOffset(fieldSize);

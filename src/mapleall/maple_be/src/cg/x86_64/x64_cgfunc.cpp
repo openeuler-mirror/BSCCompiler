@@ -571,9 +571,15 @@ void X64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn 
 void X64CGFunc::CleanupDeadMov(bool dump) {
   CHECK_FATAL(false, "NIY");
 }
+
 void X64CGFunc::GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realCallerSave) {
-  CHECK_FATAL(false, "NIY");
+  for (uint32 i = x64::kRinvalid; i <= x64::kMaxRegNum; ++i) {
+    if (x64::IsCallerSaveReg(static_cast<X64reg>(i))) {
+      realCallerSave.insert(i);
+    }
+  }
 }
+
 bool X64CGFunc::IsFrameReg(const RegOperand &opnd) const {
   CHECK_FATAL(false, "NIY");
   return false;

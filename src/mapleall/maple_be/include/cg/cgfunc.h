@@ -1281,6 +1281,19 @@ class CGFunc {
     return priority;
   }
 
+  static bool UsePlt(const MIRSymbol *funcSt = nullptr) {
+    if (CGOptions::GetNoplt() || CGOptions::IsNoSemanticInterposition() ||
+        CGOptions::GetVisibilityType() == CGOptions::kHidden) {
+      return false;
+    }
+
+    if (funcSt && funcSt->IsHiddenVisibility()) {
+      return false;
+    }
+
+    return true;
+  }
+
  protected:
   uint32 firstNonPregVRegNO;
   VregInfo vReg;                          /* for assigning a number for each CG virtual register */

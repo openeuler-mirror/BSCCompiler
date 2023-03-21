@@ -957,26 +957,13 @@ bool GraphColorRegAllocator::UpdateInsnCntAndSkipUseless(Insn &insn, uint32 &cur
 }
 
 void GraphColorRegAllocator::UpdateCallInfo(uint32 bbId, uint32 currPoint, const Insn &insn) {
-  auto *targetOpnd = insn.GetCallTargetOperand();
-  CHECK_FATAL(targetOpnd != nullptr, "target is null in Insn::IsCallToFunctionThatNeverReturns");
-  if (CGOptions::DoIPARA() && targetOpnd->IsFuncNameOpnd()) {
-    FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
-    const MIRSymbol *funcSt = target->GetFunctionSymbol();
-    ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
-    MIRFunction *func = funcSt->GetFunction();
-    if (func != nullptr && func->IsReferedRegsValid()) {
-      for (auto preg : func->GetReferedRegs()) {
-        if (!regInfo->IsCalleeSavedReg(preg)) {
-          for (auto vregNO : vregLive) {
-            LiveRange *lr = lrMap[vregNO];
-            lr->InsertElemToCallDef(preg);
-          }
-        }
-      }
-    } else {
+  if (CGOptions::DoIPARA()) {
+    std::set<regno_t> callerSaveRegs;
+    cgFunc->GetRealCallerSaveRegs(insn, callerSaveRegs);
+    for (auto preg : callerSaveRegs) {
       for (auto vregNO : vregLive) {
         LiveRange *lr = lrMap[vregNO];
-        lr->SetCrossCall();
+        lr->InsertElemToCallDef(preg);
       }
     }
   } else {
@@ -4372,17 +4359,11 @@ void CallerSavePre::BuildWorkList() {
           }
           if ((it->second & kIsCall) > 0) {
             Insn *callInsn = insnMap[it->first];
-            auto *targetOpnd = callInsn->GetCallTargetOperand();
-            if (CGOptions::DoIPARA() && targetOpnd->IsFuncNameOpnd()) {
-              FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
-              const MIRSymbol *funcSt = target->GetFunctionSymbol();
-              ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
-              MIRFunction *mirFunc = funcSt->GetFunction();
-              if (mirFunc != nullptr && mirFunc->IsReferedRegsValid()) {
-                auto regSet = mirFunc->GetReferedRegs();
-                if (regSet.find(lr->GetAssignedRegNO()) == regSet.end()) {
-                  continue;
-                }
+            if (CGOptions::DoIPARA()) {
+              std::set<regno_t> callerSaveRegs;
+              func->GetRealCallerSaveRegs(*callInsn, callerSaveRegs);
+              if (callerSaveRegs.find(lr->GetAssignedRegNO()) == callerSaveRegs.end()) {
+                continue;
               }
             }
             (void) CreateRealOcc(*callInsn, opnd, kOccStore);

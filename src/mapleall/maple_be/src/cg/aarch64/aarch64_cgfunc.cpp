@@ -6472,6 +6472,19 @@ void AArch64CGFunc::GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &r
           realSaveRegs.insert(preg);
         }
       }
+      if (UsePlt(funcSt)) {
+        // When plt is used during function call, x0-x9 and v0-v7 is saved on the stack.
+        for (uint32 i = R10; i <= R29; ++i) {
+          if (AArch64Abi::IsCallerSaveReg(static_cast<AArch64reg>(i))) {
+            realSaveRegs.insert(i);
+          }
+        }
+        for (uint32 i = V8; i <= V31; ++i) {
+          if (AArch64Abi::IsCallerSaveReg(static_cast<AArch64reg>(i))) {
+            realSaveRegs.insert(i);
+          }
+        }
+      }
       return;
     }
   }

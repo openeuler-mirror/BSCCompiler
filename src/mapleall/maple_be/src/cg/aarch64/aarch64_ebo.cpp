@@ -305,26 +305,16 @@ void AArch64Ebo::DefineCallerSaveRegisters(InsnInfo &insnInfo) {
   }
   ASSERT(insn->IsCall() || insn->IsTailCall(), "insn should be a call insn.");
   if (CGOptions::DoIPARA()) {
-    auto *targetOpnd = insn->GetCallTargetOperand();
-    CHECK_FATAL(targetOpnd != nullptr, "target is null in Insn::IsCallToFunctionThatNeverReturns");
-    if (targetOpnd->IsFuncNameOpnd()) {
-      FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
-      const MIRSymbol *funcSt = target->GetFunctionSymbol();
-      ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
-      MIRFunction *func = funcSt->GetFunction();
-      if (func != nullptr && func->IsReferedRegsValid()) {
-        for (auto preg : func->GetReferedRegs()) {
-          if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(preg))) {
-            continue;
-          }
-          RegOperand *opnd = &a64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(preg), k64BitSize,
-              AArch64isa::IsFPSIMDRegister(static_cast<AArch64reg>(preg)) ? kRegTyFloat : kRegTyInt);
-          OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
-          opndInfo->insnInfo = &insnInfo;
-        }
-        return;
-      }
+    std::set<regno_t> callerSaveRegs;
+    a64CGFunc->GetRealCallerSaveRegs(*insn, callerSaveRegs);
+    for (auto preg : callerSaveRegs) {
+      auto &opnd = a64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(preg),
+          k64BitSize,
+          (AArch64isa::IsFPSIMDRegister(static_cast<AArch64reg>(preg)) ? kRegTyFloat : kRegTyInt));
+      auto *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, opnd);
+      opndInfo->insnInfo = &insnInfo;
     }
+    return;
   }
   for (auto opnd : callerSaveRegTable) {
     OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);

@@ -25,7 +25,7 @@ CO2 = {
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
                 "../lib/include",
-                "../../csmith_test/runtime_x86"
+                "${MAPLE_ROOT}/testsuite/c_test/csmith_test/runtime_x86"
             ],
             option="-O2 -fPIC -lpthread -lm ${option}"
         )
