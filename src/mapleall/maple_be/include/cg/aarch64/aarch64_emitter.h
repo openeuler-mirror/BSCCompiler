@@ -57,8 +57,11 @@ class AArch64AsmEmitter : public AsmEmitter {
   void EmitStringIndexOf(Emitter &emitter, const Insn &insn) const;
   void EmitLazyBindingRoutine(Emitter &emitter, const Insn &insn) const;
   void EmitCheckThrowPendingException(Emitter &emitter) const;
-  void EmitCTlsDescRel(Emitter &emitter, const Insn &insn) const;
-  void EmitCTlsDescCall(Emitter &emitter, const Insn &insn) const;
+  void EmitCTlsDescRel(Emitter &emitter, const Insn &insn) const;  // emit instrinsic for local-exec TLS model
+  void EmitCTlsDescCall(Emitter &emitter, const Insn &insn) const; // emit instrinsic for general dynamic TLS mode
+  void EmitCTlsDescGot(Emitter &emitter, const Insn &insn) const;  // emit instrinsic for initial-exec TLS model
+  void EmitCTlsLoadTdata(Emitter &emitter, const Insn &insn) const;     // emit instrinsic for warmup-dynamic TLS model
+  void EmitCTlsLoadTbss(Emitter &emitter, const Insn &insn) const;     // emit instrinsic for warmup-dynamic TLS model
   void EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) const;
 
   void PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds, Insn &insn) const;

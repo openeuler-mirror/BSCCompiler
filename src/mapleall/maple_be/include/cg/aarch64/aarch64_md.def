@@ -498,6 +498,21 @@ DEFINE_MOP(MOP_tls_desc_rel, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc:
  */
 DEFINE_MOP(MOP_tls_desc_call, {&OpndDesc::Reg64ID, &OpndDesc::Reg64ID, &OpndDesc::ListSrc}, ISCALL | CANTHROW | SPINTRINSIC, kLtBranch, "tlsdesccall", "0,1", 2)
 
+/*
+ * will be emit to three instrunctions in a row:
+ * adrp  xd, :got:__staticDecoupleValueOffset$$xxx+offset
+ * ldr xd, [xd,#:got_lo12:__staticDecoupleValueOffset$$xx+offset]
+ * ldr xd, [xd]
+ */
+DEFINE_MOP(MOP_tlsload_tdata, {&OpndDesc::Reg64ID},CANTHROW,kLtAdrpLdr,"intrinsic_tlsload","0",3)
+DEFINE_MOP(MOP_tlsload_tbss, {&OpndDesc::Reg64ID},CANTHROW,kLtAdrpLdr,"intrinsic_tlsload","0",3)
+
+/*
+ * adrp    x1, :gottprel:symbol
+ * ldr     x1, [x1, #:gottprel_lo12:symbol]
+ */
+DEFINE_MOP(MOP_tls_desc_got, {&OpndDesc::Reg64ID,&OpndDesc::LiteralSrc},0,kLtTlsRel,"tlsdescgot","0,1",2)
+
 /* System register access */
 /* MOP_mrs */
 DEFINE_MOP(MOP_mrs, {&OpndDesc::Reg64ID, &OpndDesc::String0S}, ISMOVE, kLtAlu, "mrs", "0,1", 1)

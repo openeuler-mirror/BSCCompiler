@@ -1283,7 +1283,7 @@ class CGFunc {
 
   static bool UsePlt(const MIRSymbol *funcSt = nullptr) {
     if (CGOptions::GetNoplt() || CGOptions::IsNoSemanticInterposition() ||
-        CGOptions::GetVisibilityType() == CGOptions::kHidden) {
+        CGOptions::GetVisibilityType() == CGOptions::kHiddenVisibility) {
       return false;
     }
 

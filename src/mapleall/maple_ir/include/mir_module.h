@@ -694,6 +694,13 @@ class MIRModule {
 
   bool HasNotWarned(uint32 position, uint32 stmtOriginalID);
 
+  MapleMap<const MIRSymbol*, uint64> &GetTdataVarOffset() {
+    return tdataVarOffset;
+  }
+  MapleMap<const MIRSymbol*, uint64> &GetTbssVarOffset() {
+    return tbssVarOffset;
+  }
+
  private:
   void DumpTypeTreeToCxxHeaderFile(MIRType &ty, std::unordered_set<MIRType*> &dumpedClasses) const;
 
@@ -789,6 +796,9 @@ class MIRModule {
   std::map<CalleePair, std::map<double, std::vector<CallerSummary>>> calleeParamAboutDouble;
   std::map<CalleePair, std::map<float, std::vector<CallerSummary>>> calleeParamAboutFloat;
   std::map<PUIdx, std::vector<ImpExpr>> funcImportantExpr;
+
+  MapleMap<const MIRSymbol*, uint64> tdataVarOffset;
+  MapleMap<const MIRSymbol*, uint64> tbssVarOffset;
 };
 #endif  // MIR_FEATURE_FULL
 }  // namespace maple

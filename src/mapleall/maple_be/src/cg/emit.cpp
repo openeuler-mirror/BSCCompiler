@@ -2229,6 +2229,16 @@ void Emitter::EmitLocalVariable(const CGFunc &cgFunc) {
     }
     emittedLocalSym.push_back(localName);
 
+    // temporary for WarmupDynamicTLS，need to be refactor later
+    if (st->IsThreadLocal() && CGOptions::GetTLSModel() == CGOptions::kWarmupDynamicTLSModel) {
+      if (st->IsConst()) {
+        globalTlsDataVec.emplace_back(st);
+      } else {
+        globalTlsBssVec.emplace_back(st);
+      }
+      continue;
+    }
+
     MIRType *ty = st->GetType();
     MIRConst *ct = st->GetKonst();
     if (ct == nullptr) {
@@ -2387,14 +2397,14 @@ void Emitter::EmitUninitializedSymbol(const MIRSymbol &mirSymbol) {
   }
 }
 
+// if no visibility set individually, set it to be same as the -fvisibility value
 void SetVariableVisibility(MIRSymbol *mirSymbol) {
-  /* if no visibility set individually, set it to be same as the -fvisibility value */
   if (mirSymbol->IsDefaultVisibility()) {
     switch (CGOptions::GetVisibilityType()) {
-      case CGOptions::kHidden:
+      case CGOptions::kHiddenVisibility:
         mirSymbol->SetAttr(ATTR_visibility_hidden);
         break;
-      case CGOptions::kProtected:
+      case CGOptions::kProtectedVisibility:
          mirSymbol->SetAttr(ATTR_visibility_protected);
         break;
       default:
@@ -2586,6 +2596,10 @@ void Emitter::EmitGlobalVariable() {
         globalVarVec.emplace_back(std::make_pair(mirSymbol, false));
         continue;
       }
+      if (CGOptions::GetTLSModel() == CGOptions::kWarmupDynamicTLSModel && mirSymbol->IsThreadLocal()) {
+        globalTlsBssVec.emplace_back(mirSymbol);
+        continue;
+      }
       EmitUninitializedSymbol(*mirSymbol);
       continue;
     }
@@ -2594,6 +2608,16 @@ void Emitter::EmitGlobalVariable() {
     if (mirSymbol->GetStorageClass() == kScGlobal ||
         (mirSymbol->GetStorageClass() == kScExtern && GetCG()->GetMIRModule()->IsCModule()) ||
         (mirSymbol->GetStorageClass() == kScFstatic && !mirSymbol->IsReadOnly())) {
+      // process TLS warmup First, need to refactor
+      if (CGOptions::GetTLSModel() == CGOptions::kWarmupDynamicTLSModel && mirSymbol->IsThreadLocal()) {
+        if (mirSymbol->sectionAttr != UStrIdx(0)) {
+          auto &sectionName = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirSymbol->sectionAttr);
+          LogInfo::MapleLogger() << "sectionName is : " << sectionName << "\n";
+          CHECK_FATAL(false, "Not support layout TLS symbol in different sections yet");
+        }
+        globalTlsDataVec.emplace_back(mirSymbol);
+        continue;
+      }
       /* Emit section */
       EmitAsmLabel(*mirSymbol, kAsmType);
       if (mirSymbol->IsReflectionStrTab()) {
@@ -2747,6 +2771,7 @@ void Emitter::EmitGlobalVariable() {
       }
     }
   } /* end proccess all mirSymbols. */
+  EmitTLSBlock(globalTlsDataVec, globalTlsBssVec);
   EmitStringPointers();
   /* emit global var */
   EmitGlobalVars(globalVarVec);
@@ -3080,6 +3105,75 @@ void Emitter::EmitMethodFieldSequential(const MIRSymbol &mirSymbol,
   std::string symbolName = mirSymbol.GetName();
   Emit("\t.size\t" + symbolName + ", .-");
   Emit(symbolName + "\n");
+}
+
+// tdata anchor (tdata not implement yet)
+//  tdata symbols
+//  tbss anchor
+//  tbss symbols
+void Emitter::EmitTLSBlock(const std::vector<MIRSymbol*> &tdataVec, const std::vector<MIRSymbol*> &tbssVec) {
+  if (!tdataVec.empty()) {
+    Emit("\t.section\t.tdata,\"awT\",@progbits\n");
+    Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
+    InsertAnchor("tdata_start", 0);
+    for (const auto tdataSym : tdataVec) {
+      if (tdataSym->GetAttr(ATTR_weak)) {
+        EmitAsmLabel(*tdataSym, kAsmWeak);
+      } else {
+        EmitAsmLabel(*tdataSym, kAsmGlbl);
+      }
+      EmitAsmLabel(*tdataSym, kAsmAlign);
+      EmitAsmLabel(*tdataSym, kAsmSyname);
+      MIRConst *mirConst = tdataSym->GetKonst();
+      MIRType *mirType = tdataSym->GetType();
+      if (IsPrimitiveVector(mirType->GetPrimType())) {
+        EmitVectorConstant(*mirConst);
+      } else if (IsPrimitiveScalar(mirType->GetPrimType())) {
+        if (!CGOptions::IsArm64ilp32()) {
+          if (IsAddress(mirType->GetPrimType())) {
+            uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
+            CHECK_FATAL(sizeinbits == k64BitSize, "EmitGlobalVariable: pointer must be of size 8");
+          }
+        }
+        if (cg->GetMIRModule()->IsCModule()) {
+          EmitScalarConstant(*mirConst, true, false, true);
+        } else {
+          EmitScalarConstant(*mirConst);
+        }
+      } else if (mirType->GetKind() == kTypeArray) {
+        EmitArrayConstant(*mirConst);
+      } else if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+                 mirType->GetKind() == kTypeUnion) {
+        EmitStructConstant(*mirConst);
+      } else {
+        ASSERT(false, "NYI");
+      }
+      EmitAsmLabel(*tdataSym, kAsmSize);
+    }
+  }
+  if (!tbssVec.empty()) {
+    Emit("\t.section\t.tbss,\"awT\",@nobits\n");
+    Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
+    InsertAnchor("tbss_start", 0);
+    for (auto *tbssSym : tbssVec) {
+      if (tbssSym->GetAttr(ATTR_weak)) {
+        EmitAsmLabel(*tbssSym, kAsmWeak);
+      } else if (tbssSym->GetStorageClass() == kScGlobal) {
+        EmitAsmLabel(*tbssSym, kAsmGlbl);
+      }
+      EmitAsmLabel(*tbssSym, kAsmType);
+      EmitAsmLabel(*tbssSym, kAsmAlign);
+      EmitAsmLabel(*tbssSym, kAsmSyname);
+      EmitAsmLabel(*tbssSym, kAsmZero);
+      EmitAsmLabel(*tbssSym, kAsmSize);
+    }
+  }
+  return;
+}
+
+void Emitter::InsertAnchor(std::string anchorName, int64 offset) {
+  Emit(asmInfo->GetSet()).Emit("\t.").Emit(anchorName).Emit(",.");
+  Emit(" + ").Emit(offset).Emit("\n");
 }
 
 void Emitter::EmitDWRef(const std::string &name) {

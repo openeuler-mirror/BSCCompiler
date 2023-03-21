@@ -96,9 +96,18 @@ class CGOptions {
   };
 
   enum VisibilityType : uint8 {
-    kDefault,
-    kHidden,
-    kProtected
+    kDefaultVisibility,
+    kHiddenVisibility,
+    kProtectedVisibility
+  };
+ 
+  enum TLSModel : uint8 {
+    kDefaultTLSModel,
+    kLocalExecTLSModel,
+    kLocalDynamicTLSModel,
+    kGlobalDynamicTLSModel,
+    kInitialExecTLSModel,
+    kWarmupDynamicTLSModel
   };
 
   enum EmitFileType : uint8 {
@@ -293,6 +302,10 @@ class CGOptions {
 
   int32 GetOptimizeLevel() const {
     return optimizeLevel;
+  }
+
+  static bool IsOptimized() {
+    return CGOptions::GetInstance().GetOptimizeLevel() > kLevel0;
   }
 
   bool IsRunCG() const {
@@ -1053,6 +1066,10 @@ class CGOptions {
     return picMode > kClose;
   }
 
+  static bool IsShlib() {
+    return IsPIC() && !IsPIE();
+  }
+
   void SetPICOptionHelper(CGOptions::PICMode mode) {
     SetPICMode(mode);
     SetOption(CGOptions::kGenPic);
@@ -1475,9 +1492,9 @@ class CGOptions {
 
   static void SetVisibilityType(const std::string &type) {
     if (type == "hidden" || type == "internal") {
-      visibilityType = kHidden;
+      visibilityType = kHiddenVisibility;
     } else if (type == "protected") {
-      visibilityType = kProtected;
+      visibilityType = kProtectedVisibility;
     } else {
       CHECK_FATAL(type == "default", "unsupported visibility type. Only support: default|hidden|protected|internal");
     }
@@ -1493,6 +1510,26 @@ class CGOptions {
 
   static bool GetNoplt() {
     return noplt;
+  }
+
+  static void SetTLSModel(const std::string &model) {
+    if (model == "global-dynamic") {
+      tlsModel = kGlobalDynamicTLSModel;
+    } else if (model == "local-dynamic") {
+      tlsModel = kLocalDynamicTLSModel;
+    } else if (model == "initial-exec") {
+      tlsModel = kInitialExecTLSModel;
+    } else if (model == "local-exec") {
+      tlsModel = kLocalExecTLSModel;
+    } else if (model == "warmup-dynamic") {
+      tlsModel = kWarmupDynamicTLSModel;
+    } else {
+      CHECK_FATAL_FALSE("unsupported tls model.");
+    }
+  }
+ 
+  static TLSModel GetTLSModel() {
+    return tlsModel;
   }
 
  private:
@@ -1620,6 +1657,7 @@ class CGOptions {
   static std::string functionProrityFile;
   static bool doAggrOpt;
   static VisibilityType visibilityType;
+  static TLSModel tlsModel;
   static bool noplt;
 };
 }  /* namespace maplebe */

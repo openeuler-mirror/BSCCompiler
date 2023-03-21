@@ -540,10 +540,10 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     /* if no visibility set individually, set it to be same as the -fvisibility value */
     if (!func->IsStatic() && func->IsDefaultVisibility()) {
       switch (CGOptions::GetVisibilityType()) {
-        case CGOptions::kHidden:
+        case CGOptions::kHiddenVisibility:
           func->SetAttr(FUNCATTR_visibility_hidden);
           break;
-        case CGOptions::kProtected:
+        case CGOptions::kProtectedVisibility:
           func->SetAttr(FUNCATTR_visibility_protected);
           break;
         default:
@@ -802,12 +802,24 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
     case MOP_pseudo_none: {
       return;
     }
+    case MOP_tlsload_tdata: {
+      EmitCTlsLoadTdata(emitter, insn);
+      return;
+    }
+    case MOP_tlsload_tbss: {
+      EmitCTlsLoadTbss(emitter, insn);
+      return;
+    }
     case MOP_tls_desc_call: {
       EmitCTlsDescCall(emitter, insn);
       return;
     }
     case MOP_tls_desc_rel: {
       EmitCTlsDescRel(emitter, insn);
+      return;
+    }
+    case MOP_tls_desc_got: {
+      EmitCTlsDescGot(emitter, insn);
       return;
     }
     case MOP_sync_lock_test_setI:
@@ -2053,7 +2065,6 @@ void AArch64AsmEmitter::EmitCTlsDescRel(Emitter &emitter, const Insn &insn) cons
   result->Accept(resultVisitor);
   (void)emitter.Emit(", #:tprel_lo12_nc:").Emit(symName).Emit("\n");
 }
-
 void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) const {
   const InsnDesc *md = &AArch64CG::kMd[MOP_tls_desc_call];
   Operand *func = &insn.GetOperand(kInsnSecondOpnd);
@@ -2078,6 +2089,63 @@ void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) con
   (void)emitter.Emit("\t").Emit("blr").Emit("\t");
   func->Accept(funcVisitor);
   (void)emitter.Emit("\n");
+}
+
+void AArch64AsmEmitter::EmitCTlsLoadTdata(Emitter &emitter, const Insn &insn) const {
+  const InsnDesc *md = &AArch64CG::kMd[MOP_tlsload_tdata];
+  Operand *result = &insn.GetOperand(kInsnFirstOpnd);
+  A64OpndEmitVisitor resultVisitor(emitter, md->opndMD[0]);
+  (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit(", :got:tdata_addr\n");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\t");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit(", [");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit(", #:got_lo12:tdata_addr]\n");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\t");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit(", [");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit("]\n");
+}
+
+void AArch64AsmEmitter::EmitCTlsLoadTbss(Emitter &emitter, const Insn &insn) const {
+  const InsnDesc *md = &AArch64CG::kMd[MOP_tlsload_tbss];
+  Operand *result = &insn.GetOperand(kInsnFirstOpnd);
+  A64OpndEmitVisitor resultVisitor(emitter, md->opndMD[0]);
+  (void)emitter.Emit("\t").Emit("adrp").Emit("\t");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit(", :got:tbss_addr\n");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\t");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit(", [");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit(", #:got_lo12:tbss_addr]\n");
+  (void)emitter.Emit("\t").Emit("ldr").Emit("\t");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit(", [");
+  result->Accept(resultVisitor);
+  (void)emitter.Emit("]\n");
+}
+
+void AArch64AsmEmitter::EmitCTlsDescGot(Emitter &emitter, const Insn &insn) const {
+  const InsnDesc *md = &AArch64CG::kMd[MOP_tls_desc_got];
+  Operand *result = &insn.GetOperand(kInsnFirstOpnd);
+  Operand *symbol = &insn.GetOperand(kInsnSecondOpnd);
+  auto stImmOpnd = static_cast<StImmOperand*>(symbol);
+  std::string symName = stImmOpnd->GetName();
+  symName += stImmOpnd->GetSymbol()->GetStorageClass() == kScPstatic ?
+             std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()) : "";
+  A64OpndEmitVisitor resultVisitor(emitter, md->opndMD[0]);
+  emitter.Emit("\t").Emit("adrp").Emit("\t");
+  result->Accept(resultVisitor);
+  emitter.Emit(", :gottprel:").Emit(symName).Emit("\n");
+  emitter.Emit("\t").Emit("ldr").Emit("\t");
+  result->Accept(resultVisitor);
+  emitter.Emit(", [");
+  result->Accept(resultVisitor);
+  emitter.Emit(", #:gottprel_lo12:").Emit(symName).Emit("]\n");
 }
 
 void AArch64AsmEmitter::EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) const {

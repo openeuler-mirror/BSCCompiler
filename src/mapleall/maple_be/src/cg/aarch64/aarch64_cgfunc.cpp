@@ -2988,6 +2988,10 @@ RegOperand *AArch64CGFunc::SelectRegread(RegreadNode &expr) {
 
 void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field) {
   const MIRSymbol *symbol = stImm.GetSymbol();
+  if (symbol->GetName() == ".tbss_start" || symbol->GetName() == ".tdata_start") {
+    SelectThreadAnchor(result, stImm);
+    return;
+  }
   if (!GetFunction().IsMayWriteToAddrofStackChecked() && symbol->GetStorageClass() == kScAuto) {
     SetStackProtectInfo(kAddrofStack);
   }
@@ -3076,6 +3080,12 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
       GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xadrpl12, result, *srcOpnd, stImm));
     }
   }
+}
+
+void AArch64CGFunc::SelectThreadAnchor(Operand &result, StImmOperand &stImm) {
+  auto &r0opnd = GetOrCreatePhysicalRegisterOperand (R0, k64BitSize, GetRegTyFromPrimTy(PTY_u64));
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_tls_desc_call, r0opnd, result, stImm));
+  SelectCopy(result, PTY_u64,r0opnd, PTY_u64);
 }
 
 void AArch64CGFunc::SelectAddrof(Operand &result, MemOperand &memOpnd, FieldID field) {
@@ -10112,13 +10122,80 @@ void AArch64CGFunc::SelectAtomicStore(
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, LoadIntoRegister(srcOpnd, primType), memOpnd));
 }
 
-void AArch64CGFunc::SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm) {
-  if (CGOptions::IsPIC() && !CGOptions::IsPIE()) {
-    SelectCTlsGlobalDesc(result, stImm);
-  } else {
-    SelectCTlsLocalDesc(result, stImm);
+void AArch64CGFunc::SelectTLSModelByAttr(Operand &result, StImmOperand &stImm) {
+  const MIRSymbol *symbol = stImm.GetSymbol();
+  if (symbol->GetAttr(ATTR_local_exec)) {
+    SelectCTlsLocalDesc(result, stImm); // local-exec
+  } else if (symbol->GetAttr(ATTR_initial_exec)) {
+    SelectCTlsGotDesc(result, stImm); // initial-exec
+  } else if (symbol->GetAttr(ATTR_local_dynamic)) {
+    SelectCTlsGlobalDesc(result, stImm); // local-dynamic
+  } else if (symbol->GetAttr(ATTR_global_dynamic)) {
+    SelectCTlsGlobalDesc(result, stImm); // global-dynamic
   }
-  if (stImm.GetOffset() > 0) {
+}
+
+bool AArch64CGFunc::SelectTLSModelByOption(Operand &result, StImmOperand &stImm,  bool isShlib) {
+  CGOptions::TLSModel ftlsModel = CGOptions::GetTLSModel();
+  if (ftlsModel == CGOptions::kLocalExecTLSModel) { // local-exec model has same output with or without PIC
+    SelectCTlsLocalDesc(result, stImm);
+  } else {
+    if (isShlib) {
+      if (ftlsModel == CGOptions::kInitialExecTLSModel) {
+        SelectCTlsGotDesc(result, stImm);
+      } else if (ftlsModel == CGOptions::kLocalDynamicTLSModel) {
+        SelectCTlsGlobalDesc(result, stImm);
+      } else if (ftlsModel == CGOptions::kGlobalDynamicTLSModel) {
+        SelectCTlsGlobalDesc(result, stImm);
+      } else if (ftlsModel == CGOptions::kWarmupDynamicTLSModel) {
+        SelectCTlsLoad(result, stImm);
+        return true;
+      }
+    } else { // no PIC
+      if (stImm.GetSymbol()->GetStorageClass() == kScExtern) {
+        SelectCTlsGotDesc(result, stImm); // extern TLS symbol needs to use initial-exec model without fPIC option
+      } else {
+        SelectCTlsLocalDesc(result, stImm);
+      }
+    }
+  }
+  return false;
+}
+
+void AArch64CGFunc::SelectTLSModelByPreemptibility(Operand &result, StImmOperand &stImm, bool isShlib) {
+  bool isLocal = stImm.GetSymbol()->GetStorageClass() != kScExtern;
+  if (!isShlib) {
+    if (isLocal) {
+      SelectCTlsLocalDesc(result, stImm); // local-exec
+    } else {
+      SelectCTlsGotDesc(result, stImm); // initial-exec
+    }
+  } else {
+    if (isLocal) {
+      SelectCTlsGlobalDesc(result, stImm); // local-dynamic
+    } else {
+      SelectCTlsGlobalDesc(result, stImm); // global-dynamic
+    }
+  }
+}
+
+void AArch64CGFunc::SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm) {
+  bool isUsingWarmup = false;
+  // judge the model of this TLS symbol by this order:
+  if (!stImm.GetSymbol()->IsDefaultTLSModel()) {
+    // 1. if it has its already-defined non-default tls_model attribute
+    SelectTLSModelByAttr(result, stImm);
+  } else {
+    bool isShlib = CGOptions::IsShlib();
+    if (CGOptions::GetTLSModel() != CGOptions::kDefaultTLSModel) {
+      // 2. if it does not has already-defined model attribute, check for file-wide '-ftls-model' option
+      isUsingWarmup = SelectTLSModelByOption(result, stImm, isShlib);
+    } else {
+      // 3. if no attribute or option, choose its model by fPIC option and its preemptibility
+      SelectTLSModelByPreemptibility(result, stImm, isShlib);
+    }
+  }
+  if (stImm.GetOffset() > 0 && !isUsingWarmup) { // warmup-dynamic does not need this extern ADD insn
     auto &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
     SelectAdd(result, result, immOpnd, PTY_u64);
   }
@@ -10141,6 +10218,50 @@ void AArch64CGFunc::SelectCTlsGlobalDesc(Operand &result, StImmOperand &stImm) {
   auto tpidr = &CreateCommentOperand("tpidr_el0");
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_mrs, *specialFunc, *tpidr));
   SelectAdd(result, r0opnd, *specialFunc, PTY_u64);
+}
+
+void AArch64CGFunc::SelectCTlsGotDesc(Operand &result, StImmOperand &stImm) {
+  auto tpidr = &CreateCommentOperand("tpidr_el0");
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_mrs, result, *tpidr));
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_tls_desc_got, result, stImm));
+}
+
+void AArch64CGFunc::SelectCTlsLoad(Operand &result, StImmOperand &stImm) {
+  const MIRSymbol *st = stImm.GetSymbol();
+  if (!st->IsConst()) {
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_tlsload_tbss, result));
+  } else {
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_tlsload_tdata, result));
+  }
+  auto tpidr = &CreateCommentOperand("tpidr_el0");
+  RegOperand *specialFunc = &CreateRegisterOperandOfType(PTY_u64);
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_mrs, *specialFunc, *tpidr));
+  Operand *immOpnd = nullptr;
+  int64 offset = 0;
+  if (!st->IsConst()) {
+    MapleMap<const MIRSymbol*, uint64> &tbssVarOffset = GetMirModule().GetTbssVarOffset();
+    if (tbssVarOffset.find(st) != tbssVarOffset.end()) {
+      offset = static_cast<int64>(tbssVarOffset.at(st));
+      if (offset) {
+        immOpnd = &CreateImmOperand(offset, k32BitSize, false);
+        SelectAdd(result, result, *immOpnd, PTY_u64);
+      }
+    } else {
+      CHECK_FATAL(false, "All uninitialized TLS should be in tbssVarOffset");
+    }
+  } else {
+    MapleMap<const MIRSymbol*, uint64> &tdataVarOffset = GetMirModule().GetTdataVarOffset();
+    if (tdataVarOffset.find(st) != tdataVarOffset.end()) {
+      offset = static_cast<int64>(tdataVarOffset.at(st));
+      if (offset) {
+        immOpnd = &CreateImmOperand(offset, k32BitSize, false);
+        SelectAdd(result, result, *immOpnd, PTY_u64);
+      }
+    } else {
+      CHECK_FATAL(false, "All initialized TLS should be in tdataVarOffset");
+    }
+  }
+  SelectAdd(result, result, *specialFunc, PTY_u64);
 }
 
 void AArch64CGFunc::SelectIntrinsicCall(IntrinsiccallNode &intrinsicCallNode) {

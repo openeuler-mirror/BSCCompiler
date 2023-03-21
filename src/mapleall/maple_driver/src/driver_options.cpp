@@ -519,6 +519,11 @@ maplecl::Option<std::string> mtlsSize({"-mtls-size"},
                             "24, 32, 48. This option requires binutils 2.26 or newer.\n",
                             {driverCategory, asCategory, ldCategory});
 
+maplecl::Option<std::string> ftlsModel({"-ftls-model"},
+                            "  -ftls-model=[global-dynamic|local-dynamic|initial-exec|local-exec|warmup-dynamic] "
+                            "   \tAlter the thread-local storage model to be used.\n",
+                            {driverCategory});
+
 /* ##################### DIGITAL Options ############################################################### */
 
 maplecl::Option<uint32_t> helpLevel({"--level"},
@@ -4428,11 +4433,6 @@ maplecl::Option<bool> FtimeReportDetails({"-ftime-report-details"},
                                "  -ftime-report-details             \tRecord times taken by sub-phases separately.\n",
                                {driverCategory, unSupCategory},
                                maplecl::DisableWith("-fno-time-report-details"));
-
-maplecl::Option<std::string> FtlsModel({"-ftls-model="},
-                               "  -ftls-model=             \tAlter the thread-local storage model to "
-                               "be used (see Thread-Local).\n",
-                               {driverCategory, unSupCategory});
 
 maplecl::Option<bool> Ftracer({"-ftracer"},
                                "  -ftracer             \tPerform superblock formation via tail duplication.\n",

@@ -241,6 +241,7 @@ class Emitter {
     return *this;
   }
 
+  void InsertAnchor(std::string anchorName, int64 offset); // provide anchor in specific postion for better assembly
   void EmitLabelRef(LabelIdx labIdx);
   void EmitStmtLabel(LabelIdx labIdx);
   void EmitLabelPair(const LabelPair &pairLabel);
@@ -359,7 +360,9 @@ class Emitter {
   void EmitDWRef(const std::string &name);
   void InitRangeIdx2PerfixStr();
   void EmitAddressString(const std::string &address);
-  void EmitAliasAndRef(const MIRSymbol &sym); /* handle function symbol which has alias and weak ref */
+  void EmitAliasAndRef(const MIRSymbol &sym); // handle function symbol which has alias and weak ref
+  // collect all global TLS together -- better perfomance for local dynamic
+  void EmitTLSBlock(const std::vector<MIRSymbol*> &tdataVec, const std::vector<MIRSymbol*> &tbssVec);
 
   CG *cg;
   MOperator currentMop = UINT_MAX;
@@ -380,6 +383,10 @@ class Emitter {
 #endif
   MapleMap<DBGDie*, LabelIdx> labdie2labidxTable;
   MapleMap<uint32_t, std::string> fileMap;
+
+  // for global warmup localDynamicOpt
+  std::vector<MIRSymbol*> globalTlsDataVec;
+  std::vector<MIRSymbol*> globalTlsBssVec;
 };
 
 class OpndEmitVisitor : public OperandVisitorBase,

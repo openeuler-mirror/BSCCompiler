@@ -66,6 +66,110 @@ void DumpMIRFunc(MIRFunction &func, const char *msg, bool printAlways = false, c
 
 } /* anonymous namespace */
 
+// a tricky implementation of accessing TLS symbol
+// call to __tls_get_addr has been arranged at init_array of specific so/exec
+// the TLSLD entry of the module will be recorded in a global accessable symbol
+void PrepareForWarmupDynamicTLS(MIRModule &m) {
+  auto *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
+  auto *anchorMirConst = m.GetMemPool()->New<MIRIntConst>(0, *ptrType);
+  auto *tdataAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tdata_addr", *ptrType);
+  auto *tbssAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tbss_addr", *ptrType);
+  tdataAnchorSym->SetKonst(anchorMirConst);
+  tbssAnchorSym->SetKonst(anchorMirConst);
+
+  ArgVector formals(m.GetMPAllocator().Adapter());
+  MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
+  auto *tlsWarmup = m.GetMIRBuilder()->CreateFunction("__tls_address_warmup", *voidTy, formals);
+  // since each module may has its own tlsWarmup, mark it as weak in case for preemption
+  tlsWarmup->SetAttr(FUNCATTR_weak);
+  auto *warmupBody = tlsWarmup->GetCodeMempool()->New<BlockNode>();
+  MIRSymbol *tempAnchorSym = nullptr;
+  AddrofNode *tlsAddrNode = nullptr;
+  DassignNode *dassignNode = nullptr;
+
+  if (!m.GetTdataVarOffset().empty()) {
+    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tdata_start", *ptrType);
+    tempAnchorSym->SetIsDeleted();
+    tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
+    dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
+    dassignNode->SetStIdx(tdataAnchorSym->GetStIdx());
+    dassignNode->SetFieldID(0);
+    dassignNode->SetOpnd(tlsAddrNode, 0);
+    warmupBody->AddStatement(dassignNode);
+  }
+
+  if (!m.GetTbssVarOffset().empty()) {
+    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tbss_start", *ptrType);
+    tempAnchorSym->SetIsDeleted();
+    tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
+    dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
+    dassignNode->SetStIdx(tbssAnchorSym->GetStIdx());
+    dassignNode->SetFieldID(0);
+    dassignNode->SetOpnd(tlsAddrNode, 0);
+    warmupBody->AddStatement(dassignNode);
+  }
+
+  tlsWarmup->SetBody(warmupBody);
+  tlsWarmup->SetAttr(FUNCATTR_section);
+  tlsWarmup->GetFuncAttrs().SetPrefixSectionName(".init_array");
+  m.AddFunction(tlsWarmup);
+}
+
+void CalculateWarmupDynamicTLS(MIRModule &m) {
+  size_t size = GlobalTables::GetGsymTable().GetSymbolTableSize();
+  MIRType *mirType = nullptr;
+  uint64 tdataOffset = 0;
+  uint64 tbssOffset = 0;
+  MapleMap<const MIRSymbol*, uint64> &tdataVarOffset = m.GetTdataVarOffset();
+  MapleMap<const MIRSymbol*, uint64> &tbssVarOffset = m.GetTbssVarOffset();
+
+  for (auto it = m.GetFunctionList().begin(); it != m.GetFunctionList().end(); ++it) {
+    MIRFunction *mirFunc = *it;
+    if (mirFunc->GetBody() == nullptr) {
+      continue;
+    }
+    MIRSymbolTable *lSymTab = mirFunc->GetSymTab();
+    if (lSymTab == nullptr) {
+      continue;
+    }
+    size_t lsize = lSymTab->GetSymbolTableSize();
+    for (size_t i = 0; i < lsize; i++) {
+      const MIRSymbol *mirSymbol = lSymTab->GetSymbolFromStIdx(static_cast<uint32>(i));
+      if (mirSymbol == nullptr || mirSymbol->GetStorageClass() != kScPstatic) {
+        continue;
+      }
+      if (mirSymbol->IsThreadLocal()) {
+        mirType = mirSymbol->GetType();
+        if (!mirSymbol->IsConst()) {
+          tbssOffset = RoundUp(tbssOffset, mirType->GetAlign());
+          tbssVarOffset[mirSymbol] = tbssOffset;
+          tbssOffset += mirType->GetSize();
+        } else {
+          tdataOffset = RoundUp(tdataOffset, mirType->GetAlign());
+          tdataVarOffset[mirSymbol] = tdataOffset;
+          tdataOffset += mirType->GetSize();
+        }
+      }
+    }
+  }
+
+  for (size_t i = 0; i < size; ++i) {
+    const MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
+    if (mirSymbol != nullptr && (mirSymbol->IsThreadLocal())) {
+      mirType = mirSymbol->GetType();
+      if (!mirSymbol->IsConst()) {
+        tbssOffset = RoundUp(tbssOffset, mirType->GetAlign());
+        tbssVarOffset[mirSymbol] = tbssOffset;
+        tbssOffset += mirType->GetSize();
+      } else {
+        tdataOffset = RoundUp(tdataOffset, mirType->GetAlign());
+        tdataVarOffset[mirSymbol] = tdataOffset;
+        tdataOffset += mirType->GetSize();
+      }
+    }
+  }
+}
+
 void CgFuncPM::GenerateOutPutFile(MIRModule &m) const {
   CHECK_FATAL(cg != nullptr, "cg is null");
   CHECK_FATAL(cg->GetEmitter(), "emitter is null");
@@ -290,6 +394,11 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
     PrepareLower(m);
     std::map<std::string, uint32> priorityList;
     InitFunctionPriority(priorityList);
+
+    if (CGOptions::GetTLSModel() == CGOptions::kWarmupDynamicTLSModel) {
+      CalculateWarmupDynamicTLS(m);
+      PrepareForWarmupDynamicTLS(m);
+    }
 
     uint32 countFuncId = 0;
     unsigned long rangeNum = 0;

@@ -285,6 +285,11 @@ class MIRSymbol {
     return !typeAttrs.GetAttr(ATTR_visibility_hidden) && !typeAttrs.GetAttr(ATTR_visibility_protected);
   }
 
+  bool IsDefaultTLSModel() const {
+    return IsThreadLocal() && !typeAttrs.GetAttr(ATTR_local_exec) && !typeAttrs.GetAttr(ATTR_initial_exec) &&
+        !typeAttrs.GetAttr(ATTR_local_dynamic) && !typeAttrs.GetAttr(ATTR_global_dynamic);
+  }
+
   MIRType *GetType() const;
 
   const std::string &GetName() const {

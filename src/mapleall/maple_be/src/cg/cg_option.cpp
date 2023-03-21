@@ -141,7 +141,8 @@ bool CGOptions::arm64ilp32 = false;
 bool CGOptions::noCommon = false;
 bool CGOptions::flavorLmbc = false;
 bool CGOptions::doAggrOpt = false;
-CGOptions::VisibilityType CGOptions::visibilityType = kDefault;
+CGOptions::VisibilityType CGOptions::visibilityType = kDefaultVisibility;
+CGOptions::TLSModel CGOptions::tlsModel = kDefaultTLSModel;
 bool CGOptions::noplt = false;
 
 CGOptions &CGOptions::GetInstance() {
@@ -248,6 +249,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
     } else {
       DisableNoSemanticInterposition();
     }
+  }
+
+  if (opts::ftlsModel.IsEnabledByUser()) {
+    SetTLSModel(opts::ftlsModel);
   }
 
   if (opts::cg::verboseAsm.IsEnabledByUser()) {
