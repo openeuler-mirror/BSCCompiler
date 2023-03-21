@@ -9982,11 +9982,11 @@ maplecl::Option<std::string> U({"-u"},
 maplecl::Option<bool> std03({"-std=c++03"},
                             "  -std=c++03 \tConform to the ISO 1998 C++ standard revised by the 2003 technical "
                             "corrigendum.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std0x({"-std=c++0x"},
                             "  -std=c++0x \tDeprecated in favor of -std=c++11.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std11({"-std=c++11"},
                             "  -std=c++11 \tConform to the ISO 2011 C++ standard.\n",
@@ -9994,152 +9994,152 @@ maplecl::Option<bool> std11({"-std=c++11"},
 
 maplecl::Option<bool> std14({"-std=c++14"},
                             "  -std=c++14 \tConform to the ISO 2014 C++ standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std17({"-std=c++17"},
                             "  -std=c++17 \ttConform to the ISO 2017 C++ standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std1y({"-std=c++1y"},
                             "  -std=c++1y \tDeprecated in favor of -std=c++14.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std1z({"-std=c++1z"},
                             "  -std=c++1z \tConform to the ISO 2017(?) C++ draft standard (experimental and "
                             "incomplete support).\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std98({"-std=c++98"},
                             "  -std=c++98\tConform to the ISO 1998 C++ standard revised by the 2003 technical "
                             "corrigendum.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std11p({"-std=c11"},
                             "  -std=c11 \tConform to the ISO 2011 C standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdc1x({"-std=c1x"},
                             "  -std=c1x \tDeprecated in favor of -std=c11.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std89({"-std=c89"},
                             "  -std=c89\tConform to the ISO 1990 C standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std90({"-std=c90"},
                             "  -std \tConform to the ISO 1998 C++ standard revised by the 2003 technical "
                             "corrigendum.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std99({"-std=c99"},
                             "  -std=c99 \tConform to the ISO 1999 C standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std9x({"-std=c9x"},
                             "  -std=c9x \tDeprecated in favor of -std=c99.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std2003({"-std=f2003"},
                             "  -std=f2003 \tConform to the ISO Fortran 2003 standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std2008({"-std=f2008"},
                             "  -std=f2008 \tConform to the ISO Fortran 2008 standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std2008ts({"-std=f2008ts"},
                             "  -std=f2008ts \tConform to the ISO Fortran 2008 standard including TS 29113.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdf95({"-std=f95"},
                             "  -std=f95 \tConform to the ISO Fortran 95 standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu({"-std=gnu"},
                             "  -std=gnu \tConform to nothing in particular.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu03p({"-std=gnu++03"},
                             "  -std=gnu++03 \tConform to the ISO 1998 C++ standard revised by the 2003 technical "
                             "corrigendum with GNU extensions.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnuoxp({"-std=gnu++0x"},
                             "  -std=gnu++0x \tDeprecated in favor of -std=gnu++11.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu11p({"-std=gnu++11"},
                             "  -std=gnu++11 \tConform to the ISO 2011 C++ standard with GNU extensions.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu14p({"-std=gnu++14"},
                             "  -std=gnu++14 \tConform to the ISO 2014 C++ standard with GNU extensions.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu17p({"-std=gnu++17"},
                             "  -std=gnu++17 \tConform to the ISO 2017 C++ standard with GNU extensions.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu1yp({"-std=gnu++1y"},
                             "  -std=gnu++1y \tDeprecated in favor of -std=gnu++14.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu1zp({"-std=gnu++1z"},
                             "  -std=gnu++1z \tConform to the ISO 201z(7?) C++ draft standard with GNU extensions "
                             "(experimental and incomplete support).\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu98p({"-std=gnu++98"},
                             "  -std=gnu++98 \tConform to the ISO 1998 C++ standard revised by the 2003 technical "
                             "corrigendum with GNU extensions.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu11({"-std=gnu11"},
                             "  -std=gnu11 \tConform to the ISO 2011 C standard with GNU extensions.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu1x({"-std=gnu1x"},
                             "  -std=gnu1x \tDeprecated in favor of -std=gnu11.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu89({"-std=gnu89"},
                             "  -std=gnu89 \tConform to the ISO 1990 C standard with GNU extensions.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu90({"-std=gnu90"},
                             "  -std=gnu90 \tConform to the ISO 1990 C standard with GNU extensions.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu99({"-std=gnu99"},
                             "  -std=gnu99 \tConform to the ISO 1999 C standard with GNU extensions.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdgnu9x({"-std=gnu9x"},
                             "  -std=gnu9x \tDeprecated in favor of -std=gnu99.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std1990({"-std=iso9899:1990"},
                             "  -std=iso9899:1990 \tConform to the ISO 1990 C standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std1994({"-std=iso9899:199409"},
                             "  -std=iso9899:199409 \tConform to the ISO 1990 C standard as amended in 1994.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std1999({"-std=iso9899:1999"},
                             "  -std=iso9899:1999 \tConform to the ISO 1999 C standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std199x({"-std=iso9899:199x"},
                             "  -std=iso9899:199x \tDeprecated in favor of -std=iso9899:1999.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> std2011({"-std=iso9899:2011"},
                             "  -std=iso9899:2011\tConform to the ISO 2011 C standard.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 maplecl::Option<bool> stdlegacy({"-std=legacy"},
                             "  -std=legacy\tAccept extensions to support legacy code.\n",
-                            {driverCategory, unSupCategory});
+                            {driverCategory, clangCategory, unSupCategory});
 
 } /* namespace opts */
