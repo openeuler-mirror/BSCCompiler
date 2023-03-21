@@ -4071,6 +4071,8 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const
     case INTRN_C_ctz32:
     case INTRN_C_ctz64:
     case INTRN_C_fabsl:
+    case INTRN_C_fmaxl:
+    case INTRN_C_fminl:
     case INTRN_C_popcount32:
     case INTRN_C_popcount64:
     case INTRN_C_parity32:

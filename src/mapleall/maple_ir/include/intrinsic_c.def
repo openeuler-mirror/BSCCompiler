@@ -84,6 +84,8 @@ DEF_MIR_INTRINSIC(C_ffs,\
                   "ffs", 4, INTRNISPURE, kArgTyI32, kArgTyI32)
 DEF_MIR_INTRINSIC(C_fabsl,\
                   "fabsl", 1, INTRNISPURE, kArgTyF128, kArgTyF128)
+DEF_MIR_INTRINSIC(C_fmaxl, "fmaxl", 1, INTRNISPURE, kArgTyF128, kArgTyF128, kArgTyF128)
+DEF_MIR_INTRINSIC(C_fminl, "fminl", 1, INTRNISPURE, kArgTyF128, kArgTyF128, kArgTyF128)
 DEF_MIR_INTRINSIC(C_va_start,\
                   "va_start", 10,\
                   INTRNISPURE | INTRNISSPECIAL | INTRNWRITEFIRSTOPND | INTRNREADSECONDOPND, \

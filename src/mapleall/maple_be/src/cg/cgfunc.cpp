@@ -632,6 +632,10 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     // int
     case INTRN_C_ffs:
       return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "ffs");
+    case INTRN_C_fmaxl:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_f128, "fmaxl");
+    case INTRN_C_fminl:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_f128, "fminl");
     // libc mem* and str* functions as intrinsicops
     case INTRN_C_memcmp:
       return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_i32, "memcmp");

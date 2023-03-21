@@ -815,11 +815,19 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinBswap16(std::list<UniqueFEIRStmt> &stmts)
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinFmax(std::list<UniqueFEIRStmt> &stmts) const {
-  return CreateBinaryExpr(stmts, OP_max);
+  if (mirType->GetPrimType() != PTY_f128) {
+    return CreateBinaryExpr(stmts, OP_max);
+  } else {
+    return CreateIntrinsicopForC(stmts, INTRN_C_fmaxl);
+  }
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinFmin(std::list<UniqueFEIRStmt> &stmts) const {
-  return CreateBinaryExpr(stmts, OP_min);
+  if (mirType->GetPrimType() != PTY_f128) {
+    return CreateBinaryExpr(stmts, OP_min);
+  } else {
+    return CreateIntrinsicopForC(stmts, INTRN_C_fminl);
+  }
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinLog(std::list<UniqueFEIRStmt> &stmts) const {
