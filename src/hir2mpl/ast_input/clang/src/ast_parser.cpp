@@ -2856,14 +2856,17 @@ GenericAttrs ASTParser::SolveFunctionAttributes(const clang::FunctionDecl &funcD
   astFile->CollectFuncAttrs(funcDecl, attrs, kPublic);
   // for inline optimize
   if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    funcName = funcName + astFile->GetAstFileNameHashStr();
+    if (FEOptions::GetInstance().GetWPAA()) {
+      astFile->BuildStaticFunctionLayout(funcDecl, funcName);
+    } else {
+      funcName = funcName + astFile->GetAstFileNameHashStr();
+    }
   }
 
   // set inline functions as weak symbols as it's in C++
   if (opts::inlineAsWeak == true && attrs.GetAttr(GENATTR_inline) && !attrs.GetAttr(GENATTR_static)) {
     attrs.SetAttr(GENATTR_weak);
   }
-
   return attrs;
 }
 
@@ -3146,7 +3149,11 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
   const clang::QualType parmQualType = parmVarDecl.getType();
   std::string parmName = parmVarDecl.getNameAsString();
   if (parmName.length() == 0) {
-    parmName = FEUtils::GetSequentialName("arg|");
+    if (FEOptions::GetInstance().GetWPAA()) {
+      parmName = "arg|";
+    } else {
+      parmName = FEUtils::GetSequentialName("arg|");
+    }
   }
   MIRType *paramType = astFile->CvtType(parmQualType);
   if (paramType == nullptr) {

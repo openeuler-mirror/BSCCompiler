@@ -776,8 +776,79 @@ std::string LibAstFile::GetSourceTextRaw(const clang::SourceRange range, const c
   auto lastTokenLoc = sm.getSpellingLoc(range.getEnd());
   auto endLoc = clang::Lexer::getLocForEndOfToken(lastTokenLoc, 0, sm, lo);
   auto printableRange = clang::SourceRange{startLoc, endLoc};
-  return clang::Lexer::getSourceText(clang::CharSourceRange::getCharRange(printableRange),
-                                     sm, clang::LangOptions()).str();
+  return clang::Lexer::getSourceText(clang::CharSourceRange::getCharRange(printableRange), sm, clang::LangOptions())
+      .str();
 }
 
-} // namespace maple
+// when function is considered unique, return true;
+bool LibAstFile::CheckAndBuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl,
+                                                   std::stringstream &funcNameStream,
+                                                   std::unordered_set<int64_t> &visitedCalls) {
+  if (!funcDecl.isStatic()) {
+    return false;
+  }
+  if (!funcDecl.getBody()) {
+    return false;
+  }
+  std::string funcSignature = BuildStaticFunctionSignature(funcDecl);
+  funcNameStream << funcSignature << "{";
+  std::string funcSourceCode = "";
+  funcSourceCode = GetSourceText(*(funcDecl.getBody()));
+  funcNameStream << funcSourceCode << "};";
+  CallCollector collector = CallCollector(astContext);
+
+  collector.TraverseStmt(funcDecl.getBody());
+  if (collector.IsNeedToBeUniq()) {
+    return true;
+  }
+  auto callExprs = collector.GetCallExprs();
+  funcNameStream << "->${";
+  for (auto const &pair : callExprs) {
+    if (visitedCalls.count(pair.first) > 0) {
+      // recursive call
+      continue;
+    }
+    (void)visitedCalls.insert(pair.first);
+    if (const clang::FunctionDecl *currentFuncDecl = pair.second->getDirectCallee()) {
+      if (CheckAndBuildStaticFunctionLayout(*currentFuncDecl, funcNameStream, visitedCalls)) {
+        return true;
+      }
+    }
+  }
+  funcNameStream << "}$, ";
+  return false;
+}
+
+void LibAstFile::BuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl, std::string &funcName) {
+  std::stringstream funcNameStream;
+  funcNameStream << funcName;
+  std::unordered_set<int64_t> visitedCalls;
+  if (CheckAndBuildStaticFunctionLayout(funcDecl, funcNameStream, visitedCalls)) {
+    funcName = funcName + ".static_involved" + this->GetAstFileNameHashStr();
+  } else {
+    funcName = funcName + FEUtils::GetFileNameHashStr(funcNameStream.str());
+  }
+}
+
+std::string LibAstFile::BuildStaticFunctionSignature(const clang::FunctionDecl &funcDecl) {
+  std::string signature;
+  signature += funcDecl.getReturnType().getCanonicalType().getAsString();
+  signature += " ";
+  signature += funcDecl.getNameAsString();
+  signature += "(";
+
+  // If the function definition is a noprototype declaration,
+  // which is allowed in c99, the parameter information will not be recorded, as well as func(void);
+  if (const auto *funcType = funcDecl.getType()->getAs<clang::FunctionProtoType>()) {
+    for (unsigned int i = 0; i < funcType->getNumParams(); i++) {
+      const auto paramType = funcType->getParamType(i).getCanonicalType();
+      signature += paramType.getAsString() + ",";
+    }
+    if (signature.back() == ',') {
+      signature.pop_back();
+    }
+  }
+  signature += ");";
+  return signature;
+}
+}  // namespace maple
