@@ -57,7 +57,9 @@ class AArch64CGFunc : public CGFunc {
         immOpndsRequiringOffsetAdjustment(mallocator.Adapter()),
         immOpndsRequiringOffsetAdjustmentForRefloc(mallocator.Adapter()) {
     uCatch.regNOCatch = 0;
-    SetUseFP(CGOptions::UseFramePointer() || HasVLAOrAlloca() || !f.GetModule()->IsCModule() ||
+    SetUseFP(HasVLAOrAlloca() || !f.GetModule()->IsCModule() ||
+             (HasCall() && CGOptions::UseFramePointer() != CGOptions::kNoneFP) ||
+             (!HasCall() && CGOptions::UseFramePointer() == CGOptions::kAllFP) ||
              f.GetModule()->GetFlavor() == MIRFlavor::kFlavorLmbc);
   }
 
@@ -735,6 +737,19 @@ class AArch64CGFunc : public CGFunc {
 
   RegOperand &GetZeroOpnd(uint32 bitLen) override;
 
+  uint32 GetNumIntregToCalleeSave() const {
+    return numIntregToCalleeSave;
+  }
+  void SetNumIntregToCalleeSave(uint32 val) {
+    numIntregToCalleeSave = val;
+  }
+  bool GetStoreFP() const {
+    return storeFP;
+  }
+  void SetStoreFP(bool val) {
+    storeFP = val;
+  }
+
  private:
   enum RelationOperator : uint8 {
     kAND,
@@ -800,6 +815,7 @@ class AArch64CGFunc : public CGFunc {
   uint32 alignPow = 5;  /* function align pow defaults to 5   i.e. 2^5 */
   LmbcArgInfo *lmbcArgInfo = nullptr;
   MIRType *lmbcCallReturnType = nullptr;
+  bool storeFP = false;
 
   void SelectLoadAcquire(Operand &dest, PrimType dtype, Operand &src, PrimType stype,
                          AArch64isa::MemoryOrdering memOrd, bool isDirect);

@@ -118,6 +118,7 @@ extern maplecl::Option<std::string> filetype;
 extern maplecl::Option<bool> longCalls;
 extern maplecl::Option<bool> functionSections;
 extern maplecl::Option<bool> omitFramePointer;
+extern maplecl::Option<bool> omitLeafFramePointer;
 extern maplecl::Option<bool> fastMath;
 extern maplecl::Option<bool> tailcall;
 extern maplecl::Option<bool> alignAnalysis;

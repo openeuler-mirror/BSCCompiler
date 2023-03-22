@@ -116,7 +116,7 @@ CGOptions::ABIType CGOptions::abiType = kABIHard;
 CGOptions::EmitFileType CGOptions::emitFileType = kAsm;
 bool CGOptions::genLongCalls = false;
 bool CGOptions::functionSections = false;
-bool CGOptions::useFramePointer = false;
+CGOptions::FramePointerType CGOptions::useFramePointer = kNoneFP;
 bool CGOptions::gcOnly = false;
 bool CGOptions::quiet = false;
 bool CGOptions::doPatchLongBranch = false;
@@ -639,8 +639,14 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::functionSections ? EnableFunctionSections() : DisableFunctionSections();
   }
 
+  if (opts::cg::omitLeafFramePointer.IsEnabledByUser()) {
+    opts::cg::omitLeafFramePointer ? SetFramePointer(kNonLeafFP) : SetFramePointer(kAllFP);
+  }
+
   if (opts::cg::omitFramePointer.IsEnabledByUser()) {
-    opts::cg::omitFramePointer ? DisableFramePointer() : EnableFramePointer();
+    opts::cg::omitFramePointer ? SetFramePointer(kNoneFP) :
+        ((!opts::cg::omitLeafFramePointer.IsEnabledByUser() || opts::cg::omitLeafFramePointer) ?
+            SetFramePointer(kNonLeafFP) : SetFramePointer(kAllFP));
   }
 
   if (opts::gcOnly.IsEnabledByUser()) {

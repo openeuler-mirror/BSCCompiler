@@ -115,6 +115,12 @@ class CGOptions {
     kObj,
     kEmitNone,
   };
+
+  enum FramePointerType : uint8 {
+    kNoneFP,
+    kNonLeafFP,
+    kAllFP,
+  };
   /*
    * The default CG option values are:
    * Don't BE_QUITE; verbose,
@@ -1314,15 +1320,11 @@ class CGOptions {
     return functionSections;
   }
 
-  static void EnableFramePointer() {
-    useFramePointer = true;
+  static void SetFramePointer(FramePointerType fpType) {
+    useFramePointer = fpType;
   }
 
-  static void DisableFramePointer() {
-    useFramePointer = false;
-  }
-
-  static bool UseFramePointer() {
+  static FramePointerType UseFramePointer() {
     return useFramePointer;
   }
 
@@ -1616,7 +1618,7 @@ class CGOptions {
   /* if true generate adrp/ldr/blr */
   static bool genLongCalls;
   static bool functionSections;
-  static bool useFramePointer;
+  static FramePointerType useFramePointer;
   static bool gcOnly;
   static bool doPreSchedule;
   static bool emitBlockMarker;

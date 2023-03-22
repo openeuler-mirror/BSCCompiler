@@ -630,7 +630,14 @@ int32 AArch64RegSavesOpt::FindCalleeBase() const {
 void AArch64RegSavesOpt::SetupRegOffsets() {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   const MapleVector<AArch64reg> &proEpilogRegs = aarchCGFunc->GetProEpilogSavedRegs();
-  int32 regsInProEpilog = static_cast<int32>(proEpilogRegs.size() - 2);
+  int32 regsInProEpilog = static_cast<int32>(proEpilogRegs.size());
+  // for RLR
+  regsInProEpilog--;
+  // for RFP
+  if (std::find(proEpilogRegs.begin(), proEpilogRegs.end(), RFP) != proEpilogRegs.end()) {
+      regsInProEpilog--;
+  }
+
   const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
 
   int32 offset = FindCalleeBase();

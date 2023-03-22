@@ -567,10 +567,16 @@ maplecl::Option<bool> functionSections({"--function-sections", "-ffunction-secti
                                        maplecl::DisableWith("--no-function-sections"));
 
 maplecl::Option<bool> omitFramePointer({"--omit-frame-pointer", "-fomit-frame-pointer"},
-                                       " --omit-frame-pointer          \t do not use frame pointer \n"
+                                       " --omit-frame-pointer          \t do not use frame pointer for non-leaf func\n"
                                        " --no-omit-frame-pointer\n",
                                        {cgCategory, driverCategory},
                                        maplecl::DisableEvery({"--no-omit-frame-pointer", "-fno-omit-frame-pointer"}));
+
+maplecl::Option<bool> omitLeafFramePointer({"--omit-leaf-frame-pointer", "-momit-leaf-frame-pointer"},
+                                       " --omit-leaf-frame-pointer          \t do not use frame pointer for leaf func\n"
+                                       " --no-omit-leaf-frame-pointer\n",
+                                       {cgCategory, driverCategory},
+                                       maplecl::DisableEvery({"--no-omit-leaf-frame-pointer", "-mno-omit-leaf-frame-pointer"}));
 
 maplecl::Option<bool> fastMath({"--fast-math"},
                                "  --fast-math                  \tPerform fast math\n"

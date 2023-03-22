@@ -83,8 +83,8 @@ bool AArch64GenProEpilog::NeedProEpilog() {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   const MapleVector<AArch64reg> &regsToRestore = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
-  size_t calleeSavedRegSize = kTwoRegister;
-  CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot FP and LR ?");
+  size_t calleeSavedRegSize = kOneRegister;
+  CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot LR ?");
   if (funcHasCalls || regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() ||
       static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout())->GetSizeOfLocals() > 0 ||
       cgFunc.GetFunction().GetAttr(FUNCATTR_callersensitive)) {
@@ -297,10 +297,12 @@ Insn &AArch64GenProEpilog::AppendInstructionForAllocateOrDeallocateCallFrame(int
   }
   if (argsToStkPassSize <= kStrLdrImm64UpperBound - kOffset8MemPos) {
     mOp = isAllocate ? pushPopOps[kRegsPushOp][rty][kPushPopSingle] : pushPopOps[kRegsPopOp][rty][kPushPopSingle];
-    RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, size * kBitsPerByte, rty);
     MemOperand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize), size * kBitsPerByte);
-    Insn &insn1 = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, *o2);
-    AppendInstructionTo(insn1, cgFunc);
+    if (storeFP) {
+      RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, size * kBitsPerByte, rty);
+      Insn &insn1 = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, *o2);
+      AppendInstructionTo(insn1, cgFunc);
+    }
     RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, size * kBitsPerByte, rty);
     o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize + size),
                                         size * kBitsPerByte);
@@ -311,11 +313,13 @@ Insn &AArch64GenProEpilog::AppendInstructionForAllocateOrDeallocateCallFrame(int
     RegOperand &oo = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, size * kBitsPerByte, kRegTyInt);
     ImmOperand &io1 = aarchCGFunc.CreateImmOperand(argsToStkPassSize, k64BitSize, true);
     aarchCGFunc.SelectCopyImm(oo, io1, PTY_i64);
-    RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, size * kBitsPerByte, rty);
     RegOperand &rsp = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, size * kBitsPerByte, kRegTyInt);
     MemOperand *mo = aarchCGFunc.CreateMemOperand(size * kBitsPerByte, rsp, oo);
-    Insn &insn1 = cgFunc.GetInsnBuilder()->BuildInsn(isAllocate ? MOP_xstr : MOP_xldr, o0, *mo);
-    AppendInstructionTo(insn1, cgFunc);
+    if (storeFP) {
+      RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, size * kBitsPerByte, rty);
+      Insn &insn1 = cgFunc.GetInsnBuilder()->BuildInsn(isAllocate ? MOP_xstr : MOP_xldr, o0, *mo);
+      AppendInstructionTo(insn1, cgFunc);
+    }
     ImmOperand &io2 = aarchCGFunc.CreateImmOperand(size, k64BitSize, true);
     aarchCGFunc.SelectAdd(oo, oo, io2, PTY_i64);
     RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, size * kBitsPerByte, rty);
@@ -331,7 +335,8 @@ Insn &AArch64GenProEpilog::CreateAndAppendInstructionForAllocateCallFrame(int64 
                                                                           RegType rty) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
-  MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
+  MOperator mOp = (storeFP || argsToStkPassSize > kStrLdrPerPostUpperBound) ?
+      pushPopOps[kRegsPushOp][rty][kPushPopPair] : pushPopOps[kRegsPushOp][rty][kPushPopSingle];
   Insn *allocInsn = nullptr;
   if (argsToStkPassSize > kStpLdpImm64UpperBound) {
     allocInsn = &AppendInstructionForAllocateOrDeallocateCallFrame(argsToStkPassSize, reg0, reg1, rty, true);
@@ -340,7 +345,8 @@ Insn &AArch64GenProEpilog::CreateAndAppendInstructionForAllocateCallFrame(int64 
     Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerBitSize(), rty);
     Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, static_cast<int32>(argsToStkPassSize),
                                                  GetPointerBitSize());
-    allocInsn = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
+    allocInsn = (storeFP || argsToStkPassSize > kStrLdrPerPostUpperBound) ?
+        &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2) : &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o1, *o2);
     AppendInstructionTo(*allocInsn, cgFunc);
   }
   if (currCG->InstrumentWithDebugTraceCall()) {
@@ -391,11 +397,13 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrame(AArch64reg reg0, AA
     } else {
       offset = stackFrameSize;
     }
-    MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
+    MOperator mOp = (storeFP || offset > kStrLdrPerPostUpperBound) ?
+        pushPopOps[kRegsPushOp][rty][kPushPopPair] : pushPopOps[kRegsPushOp][rty][kPushPopSingle];
     RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerBitSize(), rty);
     RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerBitSize(), rty);
     MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(static_cast<int32>(-offset), GetPointerBitSize());
-    ipoint = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2);
+    ipoint = (storeFP || offset > kStrLdrPerPostUpperBound) ?
+        &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2) : &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o1, o2);
     AppendInstructionTo(*ipoint, cgFunc);
     if (currCG->InstrumentWithDebugTraceCall()) {
       aarchCGFunc.AppendCall(*currCG->GetDebugTraceEnterFunction());
@@ -452,21 +460,25 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
       ipoint = cgFunc.GetCurBB()->GetLastInsn();
       ipoint->SetStackDef(true);
     } else {
-      MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
+      MOperator mOp = (storeFP || stackFrameSize > kStrLdrPerPostUpperBound) ?
+          pushPopOps[kRegsPushOp][rty][kPushPopPair] : pushPopOps[kRegsPushOp][rty][kPushPopSingle];
       RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerBitSize(), rty);
       RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerBitSize(), rty);
       MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(-stackFrameSize, GetPointerBitSize());
-      ipoint = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2);
+      ipoint = (storeFP || stackFrameSize > kStrLdrPerPostUpperBound) ?
+          &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2) : &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o1, o2);
       AppendInstructionTo(*ipoint, cgFunc);
       ipoint->SetStackDef(true);
     }
 
     if (useStpSub) {
-      MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
+      MOperator mOp = storeFP ? pushPopOps[kRegsPushOp][rty][kPushPopPair] :
+                                pushPopOps[kRegsPushOp][rty][kPushPopSingle];
       RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, GetPointerBitSize(), rty);
       RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, GetPointerBitSize(), rty);
       MemOperand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, 0, GetPointerBitSize());
-      ipoint = &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
+      ipoint = storeFP ? &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2) :
+                         &cgFunc.GetInsnBuilder()->BuildInsn(mOp, o1, *o2);
       AppendInstructionTo(*ipoint, cgFunc);
     }
     if (currCG->InstrumentWithDebugTraceCall()) {
@@ -541,9 +553,10 @@ void AArch64GenProEpilog::GeneratePushRegs() {
   }
 
   MapleVector<AArch64reg>::const_iterator it = regsToSave.begin();
-  /* skip the first two registers */
-  CHECK_FATAL(*it == RFP, "The first callee saved reg is expected to be RFP");
-  ++it;
+  // skip the RFP & RLR
+  if (*it == RFP) {
+    ++it;
+  }
   CHECK_FATAL(*it == RLR, "The second callee saved reg is expected to be RLR");
   ++it;
 
@@ -580,7 +593,10 @@ void AArch64GenProEpilog::GeneratePushRegs() {
 
   for (; it != regsToSave.end(); ++it) {
     AArch64reg reg = *it;
-    CHECK_FATAL(reg != RFP, "stray RFP in callee_saved_list?");
+    // skip the RFP
+    if (reg == RFP) {
+      continue;
+    }
     CHECK_FATAL(reg != RLR, "stray RLR in callee_saved_list?");
     RegType regType = AArch64isa::IsGPRegister(reg) ? kRegTyInt : kRegTyFloat;
     AArch64reg &firstHalf = AArch64isa::IsGPRegister(reg) ? intRegFirstHalf : fpRegFirstHalf;
@@ -925,14 +941,19 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
     }
     if (stackFrameSize > kStpLdpImm64UpperBound || isLmbc) {
       Operand *o2 = aarchCGFunc.CreateStackMemOpnd(RSP, (isLmbc ? lmbcOffset : 0), GetPointerBitSize());
-      Insn &deallocInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
+      mOp = storeFP ? pushPopOps[kRegsPopOp][rty][kPushPopPair] : pushPopOps[kRegsPopOp][rty][kPushPopSingle];
+      Insn &deallocInsn = storeFP ? cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2) :
+                                    cgFunc.GetInsnBuilder()->BuildInsn(mOp, o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
       Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
       Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
       aarchCGFunc.SelectAdd(spOpnd, spOpnd, immOpnd, PTY_u64);
     } else {
       MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(stackFrameSize, GetPointerBitSize());
-      Insn &deallocInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2);
+      mOp = (storeFP || stackFrameSize > kStrLdrPerPostUpperBound) ?
+          pushPopOps[kRegsPopOp][rty][kPushPopPair] : pushPopOps[kRegsPopOp][rty][kPushPopSingle];
+      Insn &deallocInsn = (storeFP || stackFrameSize > kStrLdrPerPostUpperBound) ?
+          cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, o2) : cgFunc.GetInsnBuilder()->BuildInsn(mOp, o1, o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
     }
   } else {
@@ -941,7 +962,10 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
     if (argsToStkPassSize > kStpLdpImm64UpperBound) {
       (void)AppendInstructionForAllocateOrDeallocateCallFrame(argsToStkPassSize, reg0, reg1, rty, false);
     } else {
-      Insn &deallocInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
+      mOp = (storeFP || argsToStkPassSize > kStrLdrPerPostUpperBound) ?
+          pushPopOps[kRegsPopOp][rty][kPushPopPair] : pushPopOps[kRegsPopOp][rty][kPushPopSingle];
+      Insn &deallocInsn = (storeFP || argsToStkPassSize > kStrLdrPerPostUpperBound) ?
+          cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2) : cgFunc.GetInsnBuilder()->BuildInsn(mOp, o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
     }
 
@@ -976,8 +1000,10 @@ void AArch64GenProEpilog::GeneratePopRegs() {
    * Make sure this is reflected when computing calleeSavedRegs.size()
    * skip the first two registers
    */
-  CHECK_FATAL(*it == RFP, "The first callee saved reg is expected to be RFP");
-  ++it;
+  // skip the RFP & RLR
+  if (*it == RFP) {
+    ++it;
+  }
   CHECK_FATAL(*it == RLR, "The second callee saved reg is expected to be RLR");
   ++it;
 
@@ -1017,9 +1043,10 @@ void AArch64GenProEpilog::GeneratePopRegs() {
    */
   for (; it != regsToRestore.end(); ++it) {
     AArch64reg reg = *it;
-    CHECK_FATAL(reg != RFP, "stray RFP in callee_saved_list?");
+    if (reg == RFP) {
+      continue;
+    }
     CHECK_FATAL(reg != RLR, "stray RLR in callee_saved_list?");
-
     RegType regType = AArch64isa::IsGPRegister(reg) ? kRegTyInt : kRegTyFloat;
     AArch64reg &firstHalf = AArch64isa::IsGPRegister(reg) ? intRegFirstHalf : fpRegFirstHalf;
     if (firstHalf == kRinvalid) {

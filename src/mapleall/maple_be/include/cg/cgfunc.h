@@ -1086,7 +1086,7 @@ class CGFunc {
   }
 
   bool GetHasProEpilogue() const {
-    return hasProEpilogue;
+    return hasProEpilogue || useFP;
   }
 
   void SetHasProEpilogue(bool state) {

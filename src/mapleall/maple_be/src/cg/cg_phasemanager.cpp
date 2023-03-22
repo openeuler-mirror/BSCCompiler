@@ -565,7 +565,7 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
 
 #if TARGAARCH64
   if (!m.IsCModule()) {
-    CGOptions::EnableFramePointer();
+    CGOptions::SetFramePointer(CGOptions::kAllFP);
   }
 #endif
 }
