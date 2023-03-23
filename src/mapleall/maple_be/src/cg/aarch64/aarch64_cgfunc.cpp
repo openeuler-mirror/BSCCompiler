@@ -2300,6 +2300,7 @@ MIRType *AArch64CGFunc::LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyI
 bool AArch64CGFunc::LmbcSmallAggForRet(const BaseNode &bNode, const Operand *src, int32 offset, bool skip1) {
   PrimType pTy;
   uint32 size = 0;
+  ASSERT_NOT_NULL(src);
   AArch64reg regno = static_cast<AArch64reg>(static_cast<const RegOperand*>(src)->GetRegisterNumber());
   MIRFunction *func = &GetFunction();
 
@@ -10434,6 +10435,7 @@ Operand *AArch64CGFunc::GetOpndFromIntrnNode(const IntrinsicopNode &intrnNode) {
   Operand *opnd = HandleExpr(intrnNode, *argexpr);
 
   RegOperand &ldDest = CreateRegisterOperandOfType(ptype);
+  ASSERT_NOT_NULL(opnd);
   if (opnd->IsMemoryAccessOperand()) {
     Insn &insn = GetInsnBuilder()->BuildInsn(PickLdInsn(GetPrimTypeBitSize(ptype), ptype), ldDest, *opnd);
     GetCurBB()->AppendInsn(insn);
@@ -10576,7 +10578,7 @@ Operand *AArch64CGFunc::SelectCisaligned(IntrinsicopNode &intrnNode) {
   BaseNode *argexpr0 = intrnNode.Opnd(0);
   PrimType ptype0 = argexpr0->GetPrimType();
   Operand *opnd0 = HandleExpr(intrnNode, *argexpr0);
-
+  ASSERT_NOT_NULL(opnd0);
   RegOperand &ldDest0 = CreateRegisterOperandOfType(ptype0);
   if (opnd0->IsMemoryAccessOperand()) {
     GetCurBB()->AppendInsn(

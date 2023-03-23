@@ -150,7 +150,7 @@ class IntVal {
 
   /// @return sign or zero extended value depending on its signedness
   int64 GetExtValue(uint8 size = 0) const {
-    return sign ? GetSXTValue(size) : GetZXTValue(size);
+    return sign ? GetSXTValue(size) : static_cast<int64>(GetZXTValue(size));
   }
 
   /// @return zero extended value

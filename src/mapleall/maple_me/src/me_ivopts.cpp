@@ -1634,7 +1634,7 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
     auto itCand = candMap.find(itGroup.first);
     if (itGroup.first == kInvalidExprID) {
       candConst = itCand == candMap.end() ?
-          0 : itCand->second.multiplier * ratio;
+          0 : static_cast<uint64>(itCand->second.multiplier * ratio);
       groupConst = itGroup.second.multiplier;
       continue;
     }

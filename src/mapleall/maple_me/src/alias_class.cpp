@@ -550,6 +550,7 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
       RecordAliasAnalysisInfo(*zeroVersionStOfFieldOstRHS);
       RecordAliasAnalysisInfo(*zeroVersionStOfFieldOstLHS);
       if (IsNextLevNotAllDefsSeen(fieldOstLHS->GetZeroVersionIndex())) {
+        ASSERT_NOT_NULL(fieldOstRHS);
         SetNextLevNotAllDefsSeen(fieldOstRHS->GetZeroVersionIndex());
       }
       CHECK_FATAL(fieldOstLHS, "fieldOstLHS is nullptr!");

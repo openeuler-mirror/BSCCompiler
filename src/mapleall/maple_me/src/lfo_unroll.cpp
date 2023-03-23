@@ -206,7 +206,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
   }
   // update incrExpr
   ConstvalNode *stepNode = static_cast<ConstvalNode *>(unrolledDoloop->GetIncrExpr());
-  uint64 origIncr = static_cast<MIRIntConst *>(stepNode->GetConstVal())->GetExtValue();
+  uint64 origIncr = static_cast<uint64>(static_cast<MIRIntConst *>(stepNode->GetConstVal())->GetExtValue());
   unrolledDoloop->SetIncrExpr(mirBuilder->CreateIntConst(origIncr * times, ivPrimType));
   unrolledBlk->AddStatement(unrolledDoloop);
   return unrolledBlk;

@@ -452,12 +452,16 @@ void ListScheduler::DumpDelay() {
   for (auto depNode : commonSchedInfo->GetCandidates()) {
     Insn *insn = depNode->GetInsn();
     ASSERT(insn != nullptr, "get insn from depNode failed");
+    uint32 predSize = depNode->GetValidPredsSize();
+    uint32 delay = depNode->GetDelay();
+    ASSERT_NOT_NULL(mad->FindReservation(*insn));
+    int latency = mad->FindReservation(*insn)->GetLatency();
     LogInfo::MapleLogger() << "      " <<
         std::setiosflags(std::ios::left) << std::setw(8) << insn->GetId() << std::resetiosflags(std::ios::left) <<
         std::setiosflags(std::ios::right) << std::setw(4) << curBB->GetId() << std::resetiosflags(std::ios::right) <<
-        std::setiosflags(std::ios::right) << std::setw(10) << depNode->GetValidPredsSize() << std::resetiosflags(std::ios::right) <<
-        std::setiosflags(std::ios::right) << std::setw(10) << depNode->GetDelay() << std::resetiosflags(std::ios::right) <<
-        std::setiosflags(std::ios::right) << std::setw(8) << mad->FindReservation(*insn)->GetLatency() << std::resetiosflags(std::ios::right) <<
+        std::setiosflags(std::ios::right) << std::setw(10) << predSize << std::resetiosflags(std::ios::right) <<
+        std::setiosflags(std::ios::right) << std::setw(10) << delay << std::resetiosflags(std::ios::right) <<
+        std::setiosflags(std::ios::right) << std::setw(8) << latency << std::resetiosflags(std::ios::right) <<
         std::setiosflags(std::ios::right) << std::setw(15);
     DumpReservation(*depNode);
     LogInfo::MapleLogger() << std::resetiosflags(std::ios::right) << "\n";
@@ -491,14 +495,19 @@ void ListScheduler::DumpDepNodeInfo(BB &curBB, MapleVector<DepNode*> &nodes, std
   for (auto depNode : nodes) {
     Insn *insn = depNode->GetInsn();
     ASSERT(insn != nullptr, "get insn from depNode failed");
+    uint32 predSize = depNode->GetValidPredsSize();
+    uint32 eStart = depNode->GetEStart();
+    uint32 lStart = depNode->GetLStart();
+    ASSERT_NOT_NULL(mad->FindReservation(*insn));
+    int latency = mad->FindReservation(*insn)->GetLatency();
     LogInfo::MapleLogger() << "      " <<
         std::setiosflags(std::ios::left) << std::setw(8) << insn->GetId() << std::resetiosflags(std::ios::left) <<
         std::setiosflags(std::ios::right) << std::setw(4) << curBB.GetId() << std::resetiosflags(std::ios::right) <<
         std::setiosflags(std::ios::right) << std::setw(8) << state << std::resetiosflags(std::ios::right) <<
-        std::setiosflags(std::ios::right) << std::setw(12) << depNode->GetValidPredsSize() << std::resetiosflags(std::ios::right) <<
-        std::setiosflags(std::ios::right) << std::setw(10) << depNode->GetEStart() << std::resetiosflags(std::ios::right) <<
-        std::setiosflags(std::ios::right) << std::setw(10) << depNode->GetLStart() << std::resetiosflags(std::ios::right) <<
-        std::setiosflags(std::ios::right) << std::setw(8) << mad->FindReservation(*insn)->GetLatency() << std::resetiosflags(std::ios::right) <<
+        std::setiosflags(std::ios::right) << std::setw(12) << predSize << std::resetiosflags(std::ios::right) <<
+        std::setiosflags(std::ios::right) << std::setw(10) << eStart << std::resetiosflags(std::ios::right) <<
+        std::setiosflags(std::ios::right) << std::setw(10) << lStart << std::resetiosflags(std::ios::right) <<
+        std::setiosflags(std::ios::right) << std::setw(8) << latency << std::resetiosflags(std::ios::right) <<
         std::setiosflags(std::ios::right) << std::setw(15);
     DumpReservation(*depNode);
     LogInfo::MapleLogger() << std::resetiosflags(std::ios::right) << "\n";

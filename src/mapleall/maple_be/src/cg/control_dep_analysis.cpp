@@ -69,6 +69,7 @@ void ControlDepAnalysis::BuildCFGInfo() {
         cfgEdge->SetCondition(0);
         break;
       case BB::kBBIntrinsic:
+        ASSERT_NOT_NULL(srcBB->GetLastMachineInsn());
         if (!srcBB->GetLastMachineInsn()->IsBranch()) {
           // set default cond number
           cfgEdge->SetCondition(0);
