@@ -2687,6 +2687,34 @@ bool BinaryNode::IsSameContent(const BaseNode *node) const {
   }
 }
 
+bool RetypeNode::IsSameContent(const BaseNode *node) const {
+  auto *retyeNode = dynamic_cast<const RetypeNode*>(node);
+  if (!retyeNode) {
+    return false;
+  }
+  if (retyeNode == this) {
+    return true;
+  }
+  if (retyeNode->tyIdx == tyIdx && TypeCvtNode::IsSameContent(node)) {
+    return true;
+  }
+  return false;
+}
+
+bool ExtractbitsNode::IsSameContent(const BaseNode *node) const {
+  auto *extractNode = dynamic_cast<const ExtractbitsNode*>(node);
+  if (!extractNode) {
+    return false;
+  }
+  if (extractNode == this) {
+    return true;
+  }
+  if (extractNode->bitsSize == bitsSize && extractNode->bitsOffset == bitsOffset && UnaryNode::IsSameContent(node)) {
+    return true;
+  }
+  return false;
+}
+
 bool ConstvalNode::IsSameContent(const BaseNode *node) const {
   auto *constvalNode = dynamic_cast<const ConstvalNode*>(node);
   if (this == constvalNode) {

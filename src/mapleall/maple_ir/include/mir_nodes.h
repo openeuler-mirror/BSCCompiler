@@ -311,6 +311,8 @@ class RetypeNode : public TypeCvtNode {
     tyIdx = tyIdxVal;
   }
 
+  bool IsSameContent(const BaseNode *node) const override;
+
  private:
   bool VerifyPrimTypesAndOpnd() const;
   bool CheckFromJarray(const MIRType &from, const MIRType &to, VerifyResult &verifyResult) const;
@@ -376,6 +378,8 @@ class ExtractbitsNode : public UnaryNode {
   void SetBitsSize(uint8 size) {
     bitsSize = size;
   }
+
+  bool IsSameContent(const BaseNode *node) const override;
 
  private:
   uint8 bitsOffset = 0;
