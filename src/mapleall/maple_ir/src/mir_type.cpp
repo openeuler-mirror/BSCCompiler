@@ -1376,6 +1376,9 @@ uint32 MIRStructType::GetAlign() const {
       maxAlign = algn;
     }
   }
+  if (HasZeroWidthBitField()) {
+    return maxAlign;
+  }
   return std::min(maxAlign, GetTypeAttrs().GetPack());
 }
 
@@ -1959,6 +1962,20 @@ static bool TraverseToFieldInFields(const FieldVector &fields, const GStrIdx &fi
   for (auto &fp : fields) {
     if (fp.first == fieldStrIdx) {
       field = fp;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool MIRStructType::HasZeroWidthBitField() const {
+#if !defined(TARGAARCH64)
+  return false;
+#endif
+  for (uint32 j = 0; j < fields.size(); ++j) {
+    TyIdx fieldTyIdx = fields[j].second.first;
+    MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
+    if (fieldType->GetKind() == kTypeBitField && fieldType->GetSize() == 0) {
       return true;
     }
   }

@@ -197,7 +197,11 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
     } else {  /* for unions, bitfields are treated as non-bitfields */
       allocedSize = std::max(allocedSize, static_cast<uint64>(fieldTypeSize));
     }
-    SetTypeAlign(tyIdx, std::max(GetTypeAlign(tyIdx), fieldAlign));
+    if (structType.HasZeroWidthBitField()) {
+      SetTypeAlign(tyIdx, std::max(GetTypeAlign(tyIdx), originAlign));
+    } else {
+      SetTypeAlign(tyIdx, std::max(GetTypeAlign(tyIdx), fieldAlign));
+    }
     /* C99
      * Last struct element of a struct with more than one member
      * is a flexible array if it is an array of size 0.

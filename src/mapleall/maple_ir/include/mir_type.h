@@ -1536,6 +1536,8 @@ class MIRStructType : public MIRType {
     return alias;
   }
 
+  bool HasZeroWidthBitField() const;
+
  protected:
   FieldVector fields{};
   std::vector<TyIdx> fieldInferredTyIdx{};

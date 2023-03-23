@@ -24,7 +24,8 @@ CO0 = {
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
-                "../lib/include"
+                "../lib/include",
+                "${MAPLE_ROOT}/testsuite/c_test/csmith_test/runtime_x86"
             ],
             option="-O0 -fPIC -g -lpthread -lm --save-temps"
         )
