@@ -97,8 +97,8 @@ class SafeExe {
     char **argv;
     Compilee compileeFlag = Compilee::unKnow;
     std::string ldLibPath = "";
-    int index = cmd.find_last_of("-");
-    if (index > 0 && cmd.substr(index) == "-gcc") {
+    size_t index = cmd.find_last_of("-");
+    if (index > 0 && index < cmd.size() && cmd.substr(index) == "-gcc") {
       compileeFlag = Compilee::gcc;
       for (auto &opt : options) {
         if (opt.GetKey() == "-c") {

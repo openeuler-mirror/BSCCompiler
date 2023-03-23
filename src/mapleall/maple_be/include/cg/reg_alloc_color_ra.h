@@ -315,7 +315,7 @@ class LiveRange {
     return bbMember[index];
   }
 
-  void SetBBMemberElem(int32 index, uint64 elem) {
+  void SetBBMemberElem(int32 index, uint64 elem) const {
     bbMember[index] = elem;
   }
 

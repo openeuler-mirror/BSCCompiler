@@ -2864,7 +2864,7 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool CombineContiLoadAndStorePattern::FindUseX16AfterInsn(BB &bb, Insn &curInsn) {
+bool CombineContiLoadAndStorePattern::FindUseX16AfterInsn(BB &bb, const Insn &curInsn) {
   for (Insn *cursor = curInsn.GetNext(); cursor != nullptr; cursor = cursor->GetNext()) {
     if (!cursor->IsMachineInstruction()) {
       continue;

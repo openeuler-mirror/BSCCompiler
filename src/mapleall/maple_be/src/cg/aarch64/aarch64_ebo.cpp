@@ -976,7 +976,7 @@ bool AArch64Ebo::CombineMultiplySub(Insn &insn, OpndInfo *opndInfo, bool is64bit
   return false;
 }
 
-bool CheckInsnRefField(const Insn &insn, size_t opndIndex) {
+bool CheckInsnRefField(const Insn &insn, uint32 opndIndex) {
   if (insn.IsAccessRefField() && insn.AccessMem()) {
     Operand &opnd0 = insn.GetOperand(opndIndex);
     if (opnd0.IsRegister()) {

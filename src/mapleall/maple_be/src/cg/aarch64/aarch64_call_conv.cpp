@@ -20,7 +20,7 @@ namespace maplebe {
 using namespace maple;
 
 // external interface to look for pure float struct
-uint32 AArch64CallConvImpl::FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) {
+uint32 AArch64CallConvImpl::FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) const {
   PrimType baseType = PTY_begin;
   size_t elemNum = 0;
   if (!IsHomogeneousAggregates(structType, baseType, elemNum)) {
@@ -68,7 +68,7 @@ void AArch64CallConvImpl::InitCCLocInfo(CCLocInfo &ploc) const {
 //   would require that arg be passed as a value in a register (or set of registers)
 //   according to the rules in Parameter passing, then the result is returned in the
 //   same registers as would be used for such an argument."
-void AArch64CallConvImpl::LocateRetVal(MIRType &retType, CCLocInfo &ploc) {
+void AArch64CallConvImpl::LocateRetVal(const MIRType &retType, CCLocInfo &ploc) {
   InitCCLocInfo(ploc);
   uint32 retSize = beCommon.GetTypeSize(retType.GetTypeIndex().GetIdx());
   if (retSize == 0) {
@@ -95,7 +95,7 @@ void AArch64CallConvImpl::LocateRetVal(MIRType &retType, CCLocInfo &ploc) {
   if (IsHomogeneousAggregates(retType, baseType, elemNum)) {
     // homogeneous aggregates, return in v0-v3
     AllocateHomogeneousAggregatesRegister(ploc, AArch64Abi::kFloatReturnRegs,
-        AArch64Abi::kNumFloatParmRegs, baseType, elemNum);
+        AArch64Abi::kNumFloatParmRegs, baseType, static_cast<uint32>(elemNum));
     return;
   }
   if (retSize <= k16ByteSize) {

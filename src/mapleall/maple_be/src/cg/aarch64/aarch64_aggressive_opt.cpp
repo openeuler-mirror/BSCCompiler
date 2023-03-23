@@ -301,7 +301,7 @@ void AArch64CombineRedundantX16Opt::FindCommonX16DefInsns(MemPool *tmpMp, MapleA
   }
 }
 
-void AArch64CombineRedundantX16Opt::ProcessSameAddImmCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) {
+void AArch64CombineRedundantX16Opt::ProcessSameAddImmCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) const {
   CHECK_FATAL(recentSplitUseOpnd != nullptr && recentAddImm != 0, "find split insn info failed");
   auto *newCombineInfo = tmpMp->New<CombineInfo>();
   newCombineInfo->combineAddImm = recentAddImm;
@@ -399,7 +399,7 @@ void AArch64CombineRedundantX16Opt::CombineRedundantX16DefInsns(BB &bb) {
   }
 }
 
-bool AArch64CombineRedundantX16Opt::HasX16Def(Insn &insn) {
+bool AArch64CombineRedundantX16Opt::HasX16Def(const Insn &insn) const {
   for (uint32 defRegNo : insn.GetDefRegs()) {
     if (defRegNo == R16) {
       return true;
@@ -408,7 +408,7 @@ bool AArch64CombineRedundantX16Opt::HasX16Def(Insn &insn) {
   return false;
 }
 
-bool AArch64CombineRedundantX16Opt::HasUseOpndReDef(Insn &insn) {
+bool AArch64CombineRedundantX16Opt::HasUseOpndReDef(const Insn &insn) const {
   for (uint32 defRegNo : insn.GetDefRegs()) {
     if (recentSplitUseOpnd != nullptr && defRegNo == recentSplitUseOpnd->GetRegisterNumber()) {
       return true;
@@ -417,7 +417,7 @@ bool AArch64CombineRedundantX16Opt::HasUseOpndReDef(Insn &insn) {
   return false;
 }
 
-bool AArch64CombineRedundantX16Opt::HasX16Use(Insn &insn) {
+bool AArch64CombineRedundantX16Opt::HasX16Use(const Insn &insn) const{
   MOperator mop = insn.GetMachineOpcode();
   if (mop == MOP_wmovri32 || mop == MOP_xmovri64) {
     return false;

@@ -7675,8 +7675,7 @@ Operand *AArch64CGFunc::GetSymbolAddressOpnd(const MIRSymbol &sym, int32 offset,
   return &rhsOpnd;
 }
 
-void AArch64CGFunc::SelectStructMemcpy(RegOperand &destOpnd, RegOperand &srcOpnd,
-                                       uint32 structSize) {
+void AArch64CGFunc::SelectStructMemcpy(RegOperand &destOpnd, RegOperand &srcOpnd, uint32 structSize) {
   std::vector<Operand*> opndVec;
   opndVec.push_back(&CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize))); // result
   opndVec.push_back(&destOpnd);  // param 0
@@ -7752,7 +7751,7 @@ Operand *AArch64CGFunc::GetAddrOpndWithBaseNode(const BaseNode &argExpr, MIRSymb
 
 
 void AArch64CGFunc::SelectParamPreCopy(const BaseNode &argExpr, AggregateDesc &aggDesc,
-                                       uint64 mirSize, int32 structCopyOffset, bool isArgUnused) {
+                                       uint32 mirSize, int32 structCopyOffset, bool isArgUnused) {
   auto &spReg = GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
   auto &offsetOpnd = CreateImmOperand(structCopyOffset, k64BitSize, false);
   if (mirSize > kParmMemcpySize) {
@@ -7834,7 +7833,7 @@ bool AArch64CGFunc::SelectParmListPreprocess(StmtNode &naryNode, size_t start, b
   return hasSpecialArg;
 }
 
-std::pair<MIRFunction*, MIRFuncType*> AArch64CGFunc::GetCalleeFunction(StmtNode &naryNode) {
+std::pair<MIRFunction*, MIRFuncType*> AArch64CGFunc::GetCalleeFunction(StmtNode &naryNode) const {
   MIRFunction *callee = nullptr;
   MIRFuncType *calleeType = nullptr;
   if (dynamic_cast<CallNode*>(&naryNode) != nullptr) {

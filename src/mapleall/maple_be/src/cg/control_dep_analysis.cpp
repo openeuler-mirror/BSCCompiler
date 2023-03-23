@@ -908,7 +908,7 @@ bool CgControlDepAnalysis::PhaseRun(maplebe::CGFunc &f) {
   CHECK_FATAL(pdomInfo != nullptr, "get result of PostDomAnalysis failed");
   auto *cfgMST = cdgMemPool->New<CFGMST<BBEdge<maplebe::BB>, maplebe::BB>>(*cdgMemPool);
   cda = f.IsAfterRegAlloc() ? cdgMemPool->New<ControlDepAnalysis>(f, *cdgMemPool, "localschedule", true) :
-    cdgMemPool->New<ControlDepAnalysis>(f, *cdgMemPool, *tmpMemPool, *domInfo, *pdomInfo, *cfgMST, "globalschedule");
+    cdgMemPool->New<ControlDepAnalysis>(f, *cdgMemPool, *tmpMemPool, *domInfo, *pdomInfo, cfgMST, "globalschedule");
   cda->Run();
   return true;
 }

@@ -34,7 +34,7 @@ StmtNode *TryCatchBlocksLower::MoveCondGotoIntoTry(BBT &jtBB, BBT &condbrBB, con
   StmtNode *firstStmtMovedIn = nullptr;
   const MapleVector<BBT*> &bbs = labeledBBsInTry;
   StmtNode *jtStmt = jtBB.GetKeyStmt();
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   StmtNode *js = jtBB.GetFirstStmt();
   while (js->GetOpCode() != OP_try) {
     js = js->GetNext();

@@ -146,7 +146,7 @@ void MplOptions::HandleSafeOptions() {
 }
 
 ErrorCode MplOptions::HandleEarlyOptions() {
-  if (opts::version || opts::Dumpversion) {
+  if (opts::version || opts::oDumpversion) {
     LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
     exit(0);
   }

@@ -1033,7 +1033,7 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
   MOperator GetNewMemMop(MOperator mop) const;
   Insn *GenerateMemPairInsn(MOperator newMop, RegOperand &curDestOpnd, RegOperand &prevDestOpnd,
                             MemOperand &combineMemOpnd, bool isCurDestFirst);
-  bool FindUseX16AfterInsn(BB &bb, Insn &curInsn);
+  bool FindUseX16AfterInsn(BB &bb, const Insn &curInsn);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) const;
 
   bool doAggressiveCombine = false;

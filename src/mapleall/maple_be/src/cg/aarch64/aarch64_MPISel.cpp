@@ -158,7 +158,7 @@ void AArch64MPIsel::SelectParmListForAggregate(BaseNode &argExpr, AArch64CallCon
 
   /* create call struct param pass */
   if (argSize > k16ByteSize || ploc.reg0 == kRinvalid) {
-    CreateCallStructParamPassByStack(memOpnd, argSize, ploc.memOffset);
+    CreateCallStructParamPassByStack(memOpnd, static_cast<uint32>(argSize), ploc.memOffset);
   } else {
     CHECK_FATAL(ploc.fpSize == 0, "Unknown call parameter state");
     CreateCallStructParamPassByReg(memOpnd, ploc.reg0, 0);
@@ -551,7 +551,7 @@ Operand *AArch64MPIsel::SelectRem(BinaryNode &node, Operand &opnd0, Operand &opn
   return cgFunc->SelectRem(node, opnd0, opnd1, parent);
 }
 
-Operand *AArch64MPIsel::SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode) {
+Operand *AArch64MPIsel::SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode) const {
   (void)opnd0;
   (void)opnd1;
   (void)primType;
@@ -585,7 +585,7 @@ void AArch64MPIsel::SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0,
   a64func->SelectMinOrMax(isMin, resOpnd, opnd0, opnd1, primType);
 }
 
-Operand *AArch64MPIsel::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name, Operand &opnd0,
+Operand *AArch64MPIsel::SelectIntrinsicOpWithOneParam(const IntrinsicopNode &intrnNode, std::string name, Operand &opnd0,
     const BaseNode &parent) {
   PrimType ptype = intrnNode.Opnd(0)->GetPrimType();
   Operand *opnd = &opnd0;

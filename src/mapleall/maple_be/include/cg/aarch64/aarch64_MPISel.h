@@ -108,7 +108,7 @@ class AArch64MPIsel : public MPISel {
   void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectCmpResult(RegOperand &resOpnd, Opcode opCode, PrimType primType, PrimType primOpndType);
-  Operand *SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode);
+  Operand *SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode) const;
   RegOperand &GetTargetStackPointer(PrimType primType) override;
   RegOperand &GetTargetBasicPointer(PrimType primType) override;
   std::tuple<Operand*, size_t, MIRType*> GetMemOpndInfoFromAggregateNode(BaseNode &argExpr);
@@ -120,7 +120,7 @@ class AArch64MPIsel : public MPISel {
   bool IsParamStructCopy(const MIRSymbol &symbol);
   bool IsSymbolRequireIndirection(const MIRSymbol &symbol) override;
   void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
-  Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name, Operand &opnd0,
+  Operand *SelectIntrinsicOpWithOneParam(const IntrinsicopNode &intrnNode, std::string name, Operand &opnd0,
                                          const BaseNode &parent);
   void SelectLibCallNoReturn(const std::string &funcName, std::vector<Operand*> &opndVec, PrimType primType);
   void SelectLibCallNArg(const std::string &funcName, std::vector<Operand*> &opndVec,

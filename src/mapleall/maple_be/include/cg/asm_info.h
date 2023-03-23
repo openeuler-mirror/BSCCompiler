@@ -148,7 +148,7 @@ class AsmInfo {
   }
 
   explicit AsmInfo(MemPool &memPool)
-#if TARGX86 || TARGX86_64
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
       : asmCmnt("\t//\t", &memPool),
 #elif TARGARM32
       : asmCmnt("\t@\t", &memPool),

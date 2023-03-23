@@ -93,13 +93,13 @@ class AArch64CombineRedundantX16Opt {
   void RecordUseX16InsnInfo(Insn &insn, MemPool *tmpMp, MapleAllocator *tmpAlloc);
   void ComputeValidAddImmInterval(UseX16InsnInfo &x16UseInfo, bool isPair);
   void FindCommonX16DefInsns(MemPool *tmpMp, MapleAllocator *tmpAlloc);
-  void ProcessSameAddImmCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc);
+  void ProcessSameAddImmCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) const;
   void ProcessIntervalIntersectionCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc);
   void CombineRedundantX16DefInsns(BB &bb);
 
-  bool HasX16Def(Insn &insn);
-  bool HasX16Use(Insn &insn);
-  bool HasUseOpndReDef(Insn &insn);
+  bool HasX16Def(const Insn &insn) const;
+  bool HasX16Use(const Insn &insn) const;
+  bool HasUseOpndReDef(const Insn &insn) const;
   uint32 GetMemSizeFromMD(Insn &insn);
   RegOperand *GetAddUseOpnd(Insn &insn);
   uint32 GetMemOperandIdx(Insn &insn);

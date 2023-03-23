@@ -1565,7 +1565,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
 }
 
 bool CGLowerer::LowerStructReturnInRegs(BlockNode &newBlk, StmtNode &stmt, DassignNode &dnodeStmt,
-                                        MIRType &dtype) {
+                                        const MIRType &dtype) {
   // lower callassigned -> call
   if (stmt.GetOpCode() == OP_callassigned) {
     auto &callNode = static_cast<CallNode&>(stmt);
@@ -1622,7 +1622,7 @@ bool CGLowerer::LowerStructReturnInRegs(BlockNode &newBlk, StmtNode &stmt, Dassi
 //  regassign u64 %1 (regread u64 %%retval0)
 //  regassign ptr %2 (addrof ptr $s)
 //  iassign <* u64> 0 (regread ptr %2, regread u64 %1)
-void CGLowerer::LowerStructReturnInGpRegs(BlockNode &newBlk, StmtNode &stmt,
+void CGLowerer::LowerStructReturnInGpRegs(BlockNode &newBlk, const StmtNode &stmt,
                                           const MIRSymbol &symbol) {
   auto size = static_cast<uint32>(symbol.GetType()->GetSize());
 
@@ -1703,7 +1703,7 @@ void CGLowerer::LowerStructReturnInGpRegs(BlockNode &newBlk, StmtNode &stmt,
 //  regassign f64 %1 (regread f64 %%retval0)
 //  regassign ptr %2 (addrof ptr $s)
 //  iassign <* f64> 0 (regread ptr %2, regread f64 %1)
-void CGLowerer::LowerStructReturnInFpRegs(BlockNode &newBlk, StmtNode &stmt,
+void CGLowerer::LowerStructReturnInFpRegs(BlockNode &newBlk, const StmtNode &stmt,
                                           const MIRSymbol &symbol, PrimType primType,
                                           size_t elemNum) {
   // save retvals

@@ -39,7 +39,7 @@ class BCCompilerComponent : public HIR2MPLCompilerComponent {
  private:
   bool LoadOnDemandType2BCClass(const std::unordered_set<std::string> &allDepsSet,
                                 const std::unordered_set<std::string> &allDefsSet,
-                                std::list<std::unique_ptr<bc::BCClass>> &klassList);
+                                std::list<std::unique_ptr<bc::BCClass>> &klassList) const;
   bool LoadOnDemandBCClass2FEClass(const std::list<std::unique_ptr<bc::BCClass>> &klassList,
                                    std::list<std::unique_ptr<FEInputStructHelper>> &structHelpers,
                                    bool isEmitDepsMplt);

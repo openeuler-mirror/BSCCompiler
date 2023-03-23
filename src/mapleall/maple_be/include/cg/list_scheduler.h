@@ -39,7 +39,7 @@ class CommonScheduleInfo {
       : csiAlloc(&memPool), candidates(csiAlloc.Adapter()), schedResults(csiAlloc.Adapter()) {}
   ~CommonScheduleInfo() = default;
 
-  bool IsDepNodeInCandidates(CDGNode &curCDGNode, DepNode &depNode) {
+  bool IsDepNodeInCandidates(const CDGNode &curCDGNode, const DepNode &depNode) {
     ASSERT(depNode.GetInsn() != nullptr, "get insn from depNode failed");
     ASSERT(curCDGNode.GetBB() != nullptr, "get bb from cdgNode failed");
     if (depNode.GetInsn()->GetBB()->GetId() == curCDGNode.GetBB()->GetId()) {
@@ -59,7 +59,7 @@ class CommonScheduleInfo {
   void AddCandidates(DepNode *depNode) {
     (void)candidates.emplace_back(depNode);
   }
-  void EraseNodeFromCandidates(DepNode *depNode) {
+  void EraseNodeFromCandidates(const DepNode *depNode) {
     for (auto iter = candidates.begin(); iter != candidates.end(); ++iter) {
       if (*iter == depNode) {
         (void )candidates.erase(iter);
@@ -165,7 +165,7 @@ class ListScheduler {
   void DumpDepNodeInfo(BB &curBB, MapleVector<DepNode*> &nodes, std::string state);
   void DumpReservation(DepNode &depNode) const;
 
-  void EraseNodeFromReadyList(DepNode *depNode) {
+  void EraseNodeFromReadyList(const DepNode *depNode) {
     for (auto iter = readyList.begin(); iter != readyList.end(); ++iter) {
       if (*iter == depNode) {
         (void)readyList.erase(iter);
@@ -177,7 +177,7 @@ class ListScheduler {
     return readyList.erase(depIter);
   }
 
-  void EraseNodeFromWaitingQueue(DepNode *depNode) {
+  void EraseNodeFromWaitingQueue(const DepNode *depNode) {
     for (auto iter = waitingQueue.begin(); iter != waitingQueue.end(); ++iter) {
       if (*iter == depNode) {
         (void)waitingQueue.erase(iter);

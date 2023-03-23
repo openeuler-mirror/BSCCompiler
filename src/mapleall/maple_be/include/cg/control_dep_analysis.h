@@ -29,8 +29,8 @@ namespace maplebe {
 class ControlDepAnalysis {
  public:
   ControlDepAnalysis(CGFunc &func, MemPool &memPool, MemPool &tmpPool, DomAnalysis &d, PostDomAnalysis &pd,
-                     CFGMST<BBEdge<maplebe::BB>, maplebe::BB> &cfgmst, std::string pName = "")
-      : cgFunc(func), dom(&d), pdom(&pd), cfgMST(&cfgmst), cdgMemPool(memPool), tmpMemPool(&tmpPool),
+                     CFGMST<BBEdge<maplebe::BB>, maplebe::BB> *cfgmst, std::string pName = "")
+      : cgFunc(func), dom(&d), pdom(&pd), cfgMST(cfgmst), cdgMemPool(memPool), tmpMemPool(&tmpPool),
         cdgAlloc(&memPool), tmpAlloc(&tmpPool), nonPdomEdges(tmpAlloc.Adapter()),
         curCondNumOfBB(tmpAlloc.Adapter()), phaseName(std::move(pName)) {}
   ControlDepAnalysis(CGFunc &func, MemPool &memPool, std::string pName = "", bool isSingle = true)

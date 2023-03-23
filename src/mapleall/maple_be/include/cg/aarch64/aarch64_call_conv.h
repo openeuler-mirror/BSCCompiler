@@ -39,12 +39,12 @@ class AArch64CallConvImpl {
   uint64 LocateNextParm(MIRType &mirType, CCLocInfo &ploc, bool isFirst = false,
                         MIRFuncType *tFunc = nullptr);
 
-  void LocateRetVal(MIRType &retType, CCLocInfo &ploc);
+  void LocateRetVal(const MIRType &retType, CCLocInfo &ploc);
 
   void InitCCLocInfo(CCLocInfo &ploc) const;
 
   // for lmbc
-  uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize);
+  uint32 FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) const;
 
   void SetupSecondRetReg(const MIRType &retTy2, CCLocInfo &ploc) const;
 

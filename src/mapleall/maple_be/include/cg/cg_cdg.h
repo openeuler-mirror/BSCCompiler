@@ -298,7 +298,7 @@ class CDGNode {
     stackUses->emplace_back(stackInsn);
   }
 
-  MapleVector<Insn*> &GetStackDefInsns() {
+  MapleVector<Insn*> &GetStackDefInsns() const {
     return *stackDefs;
   }
 
@@ -318,7 +318,7 @@ class CDGNode {
     return *heapDefs;
   }
 
-  void AddHeapDefInsn(Insn *heapInsn) {
+  void AddHeapDefInsn(Insn *heapInsn) const {
     heapDefs->emplace_back(heapInsn);
   }
 
@@ -334,7 +334,7 @@ class CDGNode {
     return *ambiInsns;
   }
 
-  void AddAmbiguousInsn(Insn *ambiInsn) {
+  void AddAmbiguousInsn(Insn *ambiInsn) const {
     ambiInsns->emplace_back(ambiInsn);
   }
 
@@ -363,7 +363,7 @@ class CDGNode {
     lastComments.clear();
   }
 
-  void AddPseudoSepNodes(DepNode *node) {
+  void AddPseudoSepNodes(DepNode *node) const {
     pseudoSepNodes->emplace_back(node);
   }
 
