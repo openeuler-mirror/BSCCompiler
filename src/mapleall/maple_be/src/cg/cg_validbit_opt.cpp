@@ -129,14 +129,7 @@ void ValidBitOpt::Run() {
    * Set validbit of regOpnd before optimization
    */
   RectifyValidBitNum();
-  FOR_ALL_BB(bb, cgFunc) {
-    FOR_BB_INSNS(insn, bb) {
-      if (!insn->IsMachineInstruction()) {
-        continue;
-      }
-      DoOpt(*bb, *insn);
-    }
-  }
+  DoOpt();
   /*
    * Recover validbit of regOpnd after optimization
    */

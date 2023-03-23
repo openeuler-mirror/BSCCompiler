@@ -25,9 +25,12 @@ class AArch64ValidBitOpt : public ValidBitOpt {
   AArch64ValidBitOpt(CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : ValidBitOpt(f, info, ll) {}
   ~AArch64ValidBitOpt() override = default;
 
-  void DoOpt(BB &bb, Insn &insn) override;
+  void DoOpt() override;
   void SetValidBits(Insn &insn) override;
   bool SetPhiValidBits(Insn &insn) override;
+ private:
+  void OptPatternWithImplicitCvt(BB &bb, Insn &insn);
+  void OptCvt(BB &bb, Insn &insn);
 };
 
 class PropPattern : public ValidBitPattern {

@@ -88,14 +88,49 @@ void PropPattern::ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersio
   }
 }
 
-void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
+void AArch64ValidBitOpt::DoOpt() {
+  FOR_ALL_BB(bb, cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      OptPatternWithImplicitCvt(*bb, *insn);
+    }
+  }
+  FOR_ALL_BB(bb, cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      OptCvt(*bb, *insn);
+    }
+  }
+}
+
+// Patterns that may have implicit cvt
+void AArch64ValidBitOpt::OptPatternWithImplicitCvt(BB &bb, Insn &insn) {
   MOperator curMop = insn.GetMachineOpcode();
   switch (curMop) {
-    case MOP_wandrri12:
-    case MOP_xandrri13: {
-      OptimizeProp<AndValidBitPattern>(bb, insn);
+    case MOP_bge:
+    case MOP_blt: {
+      OptimizeNoProp<CmpBranchesPattern>(bb, insn);
       break;
     }
+    case MOP_wcsetrc:
+    case MOP_xcsetrc: {
+      OptimizeNoProp<CmpCsetVBPattern>(bb, insn);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+// In OptCvt, optimize all cvt
+// Should convert implicit mov to explicit uxtw / ubfx in pattern.
+void AArch64ValidBitOpt::OptCvt(BB &bb, Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  switch (curMop) {
     case MOP_xuxtb32:
     case MOP_xuxth32:
     case MOP_xuxtw64:
@@ -107,14 +142,9 @@ void AArch64ValidBitOpt::DoOpt(BB &bb, Insn &insn) {
       OptimizeProp<ExtValidBitPattern>(bb, insn);
       break;
     }
-    case MOP_wcsetrc:
-    case MOP_xcsetrc: {
-      OptimizeNoProp<CmpCsetVBPattern>(bb, insn);
-      break;
-    }
-    case MOP_bge:
-    case MOP_blt: {
-      OptimizeNoProp<CmpBranchesPattern>(bb, insn);
+    case MOP_wandrri12:
+    case MOP_xandrri13: {
+      OptimizeProp<AndValidBitPattern>(bb, insn);
       break;
     }
     default:
@@ -260,7 +290,18 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       dstOpnd.SetValidBitsNum(newVB);
       break;
     }
-    case MOP_wiorrri12:
+    case MOP_wiorrri12: {
+      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+      auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+      uint32 src1VB = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetValidBitsNum();
+      uint32 src2VB = GetImmValidBit(immOpnd.GetValue(), dstOpnd.GetSize());
+      uint32 newVB = (src1VB >= src2VB ? src1VB : src2VB);
+      if (newVB > k32BitSize) {
+        newVB = k32BitSize;
+      }
+      dstOpnd.SetValidBitsNum(newVB);
+      break;
+    }
     case MOP_xiorrri13: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));

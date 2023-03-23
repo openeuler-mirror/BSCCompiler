@@ -90,7 +90,7 @@ class ValidBitOpt {
     VBOpt opt(*cgFunc, *ssaInfo);
     opt.Run(bb, insn);
   }
-  virtual void DoOpt(BB &bb, Insn &insn) = 0;
+  virtual void DoOpt() = 0;
   void RectifyValidBitNum();
   void RecoverValidBitNum();
   virtual void SetValidBits(Insn &insn) = 0;
