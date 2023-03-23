@@ -1706,10 +1706,13 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
                                        : irMap->CreateMeExprBinary(OP_add, ptyp, *extraExpr, *expr);
     }
   }
-  if (static_cast<uint64>(groupConst) - candConst == 0) {
+  IntVal gConst(groupConst, groupBase.GetPrimType());
+  IntVal cConst(candConst, candBase.GetPrimType());
+  IntVal subVal(gConst.GetExtValue() - cConst.GetExtValue(), groupBase.GetPrimType());
+  if (subVal == 0) {
     return extraExpr;
   }
-  auto *constExpr = irMap->CreateIntConstMeExpr(static_cast<uint64>(groupConst) - candConst, ptyp);
+  auto *constExpr = irMap->CreateIntConstMeExpr(subVal.GetSXTValue(), ptyp);
   extraExpr = extraExpr == nullptr ? constExpr
                                    : irMap->CreateMeExprBinary(OP_add, ptyp, *extraExpr, *constExpr);
   return extraExpr;
