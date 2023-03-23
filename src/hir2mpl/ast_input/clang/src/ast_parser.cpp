@@ -2604,15 +2604,15 @@ ASTExpr *ASTParser::ProcessExprAtomicExpr(MapleAllocator &allocator,
   CHECK_FATAL(astExpr != nullptr, "astCastExpr is nullptr");
   astExpr->SetObjExpr(ProcessExpr(allocator, atomicExpr.getPtr()));
   astExpr->SetType(astFile->CvtType(atomicExpr.getPtr()->getType()));
-  astExpr->SetRefType(astFile->CvtType(atomicExpr.getPtr()->getType()->getPointeeType()));
+  const clang::QualType firstArgPointeeType = GetPointeeType(*atomicExpr.getPtr());
+  astExpr->SetRefType(astFile->CvtType(firstArgPointeeType));
   if (atomicExpr.getOp() != clang::AtomicExpr::AO__atomic_load_n) {
     SetAtomExprValType(allocator, atomicExpr, *astExpr);
     if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_exchange) {
       SetAtomExchangeType(allocator, atomicExpr, *astExpr);
     }
   } else {
-    const clang::QualType valType = GetPointeeType(*atomicExpr.getPtr());
-    astExpr->SetVal1Type(astFile->CvtType(valType));
+    astExpr->SetVal1Type(astFile->CvtType(firstArgPointeeType));
   }
   astExpr->SetOrderExpr(ProcessExpr(allocator, atomicExpr.getOrder()));
 
