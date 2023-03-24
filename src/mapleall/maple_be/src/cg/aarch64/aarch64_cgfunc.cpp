@@ -7685,12 +7685,28 @@ void AArch64CGFunc::SelectStructMemcpy(RegOperand &destOpnd, RegOperand &srcOpnd
 }
 
 void AArch64CGFunc::SelectStructCopy(MemOperand &destOpnd, MemOperand &srcOpnd, uint32 structSize) {
-  for (uint32 offset = 0; offset < structSize; offset += k8ByteSize) {
+  for (uint32 offset = 0; offset < structSize;) {
+    PrimType primType;
+    auto loadSize = structSize - offset;
+    if (CGOptions::IsBigEndian() || loadSize >= k8ByteSize) {
+      primType = PTY_u64;   // load exact size agg (BigEndian not support yet)
+    } else if (loadSize >= k4ByteSize) {
+      primType = PTY_u32;
+    } else if (loadSize >= k2ByteSize) {
+      primType = PTY_u16;
+    } else {
+      primType = PTY_u8;
+    }
     auto &dest = GetMemOperandAddOffset(destOpnd, offset);
     auto &src = GetMemOperandAddOffset(srcOpnd, offset);
-    auto &tmpOpnd = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-    SelectCopy(tmpOpnd, PTY_u64, src, PTY_u64);
-    SelectCopy(dest, PTY_u64, tmpOpnd, PTY_u64);
+    auto &tmpOpnd = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, GetPrimTypeSize(primType)));
+    auto &ldInsn = GetInsnBuilder()->BuildInsn(
+        PickLdInsn(GetPrimTypeBitSize(primType), primType), tmpOpnd, src);
+    GetCurBB()->AppendInsn(ldInsn);
+    auto &strInsn = GetInsnBuilder()->BuildInsn(
+        PickStInsn(GetPrimTypeBitSize(primType), primType), tmpOpnd, dest);
+    GetCurBB()->AppendInsn(strInsn);
+    offset += GetPrimTypeSize(primType);
   }
 }
 
@@ -7795,7 +7811,6 @@ void AArch64CGFunc::SelectParmListPreprocessForAggregate(BaseNode &argExpr, int3
   // B.4  If the argument type is a Composite Type that is larger than 16 bytes,
   //      then the argument is copied to memory allocated by the caller
   //      and the argument is replaced by a pointer to the copy.
-  mirSize = RoundUp(mirSize, k8ByteSize);
   uint32 align = aggDesc.mirType->GetAlign() > k8ByteSize ? k16ByteSize : k8ByteSize;
   structCopyOffset = static_cast<int32>(RoundUp(structCopyOffset, align));
 
@@ -7803,7 +7818,7 @@ void AArch64CGFunc::SelectParmListPreprocessForAggregate(BaseNode &argExpr, int3
 
   (void)argsDesc.emplace_back(aggDesc.mirType, nullptr, nullptr,
       static_cast<uint32>(structCopyOffset), true);
-  structCopyOffset += static_cast<int32>(mirSize);
+  structCopyOffset += static_cast<int32>(RoundUp(mirSize, k8ByteSize));
 }
 
 // Stage B - Pre-padding and extension of arguments
@@ -7852,20 +7867,55 @@ std::pair<MIRFunction*, MIRFuncType*> AArch64CGFunc::GetCalleeFunction(StmtNode 
   return {callee, calleeType};
 }
 
-void AArch64CGFunc::SelectParmListSmallStruct(const CCLocInfo &ploc, Operand &addr,
-                                              ListOperand &srcOpnds) {
+void AArch64CGFunc::SelectParmListSmallStruct(const MIRType &mirType, const CCLocInfo &ploc,
+                                              Operand &addr, ListOperand &srcOpnds) {
   uint32 offset = 0;
   ASSERT(addr.IsMemoryAccessOperand(), "NIY, must be mem opnd");
+  uint64 size = mirType.GetSize();
   auto &memOpnd = static_cast<MemOperand&>(addr);
   // ldr memOpnd to parmReg
   auto loadParamFromMem =
-      [this, &offset, &memOpnd, &srcOpnds](AArch64reg regno, PrimType primType) {
+      [this, &offset, &memOpnd, &srcOpnds, &size](AArch64reg regno, PrimType primType) {
     auto &phyReg = GetOrCreatePhysicalRegisterOperand(regno,
       GetPrimTypeBitSize(primType), GetRegTyFromPrimTy(primType));
-    auto &ldMemOpnd = GetMemOperandAddOffset(memOpnd, offset);
-    Insn &ldInsn = GetInsnBuilder()->BuildInsn(
-        PickLdInsn(GetPrimTypeBitSize(primType), primType), phyReg, ldMemOpnd);
-    GetCurBB()->AppendInsn(ldInsn);
+    bool isFpReg = !IsPrimitiveInteger(primType) || IsPrimitiveVectorFloat(primType);
+    if (!CGOptions::IsBigEndian() && !isFpReg && (size - offset < k8ByteSize)) {
+      // load exact size agg (BigEndian not support yet)
+      RegOperand *valOpnd = nullptr;
+      for (uint32 exactOfst = 0; exactOfst < (size - offset);) {
+        PrimType exactPrimType;
+        auto loadSize = size - offset - exactOfst;
+        if (loadSize >= k4ByteSize) {
+          exactPrimType = PTY_u32;
+        } else if (loadSize >= k2ByteSize) {
+          exactPrimType = PTY_u16;
+        } else {
+          exactPrimType = PTY_u8;
+        }
+        auto &ldMemOpnd = GetMemOperandAddOffset(memOpnd, exactOfst + offset);
+        auto &tmpValOpnd =
+            CreateVirtualRegisterOperand(NewVReg(kRegTyInt, GetPrimTypeSize(exactPrimType)));
+        Insn &ldInsn = GetInsnBuilder()->BuildInsn(
+            PickLdInsn(GetPrimTypeBitSize(exactPrimType), exactPrimType), tmpValOpnd, ldMemOpnd);
+        GetCurBB()->AppendInsn(ldInsn);
+        if (exactOfst != 0) {
+          auto &shiftOpnd = CreateImmOperand(exactOfst * kBitsPerByte, k32BitSize, false);
+          SelectShift(tmpValOpnd, tmpValOpnd, shiftOpnd, kShiftLeft, primType);
+        }
+        if (valOpnd) {
+          SelectBior(*valOpnd, *valOpnd, tmpValOpnd, primType);
+        } else {
+          valOpnd = &tmpValOpnd;
+        }
+        exactOfst += GetPrimTypeSize(exactPrimType);
+      }
+      SelectCopy(phyReg, primType, *valOpnd, primType);
+    } else {
+      auto &ldMemOpnd = GetMemOperandAddOffset(memOpnd, offset);
+      Insn &ldInsn = GetInsnBuilder()->BuildInsn(
+          PickLdInsn(GetPrimTypeBitSize(primType), primType), phyReg, ldMemOpnd);
+      GetCurBB()->AppendInsn(ldInsn);
+    }
     srcOpnds.PushOpnd(phyReg);
     offset += GetPrimTypeSize(primType);
   };
@@ -7884,31 +7934,25 @@ void AArch64CGFunc::SelectParmListSmallStruct(const CCLocInfo &ploc, Operand &ad
 void AArch64CGFunc::SelectParmListPassByStack(const MIRType &mirType, Operand &opnd,
                                               uint32 memOffset, bool preCopyed,
                                               std::vector<Insn*> &insnForStackArgs) {
-  uint64 size = preCopyed ? k8ByteSize : RoundUp(mirType.GetSize(), k8ByteSize);
-  for (uint32 offset = 0; offset < size; offset += k8ByteSize) {
-    RegOperand *valReg = nullptr;
-    PrimType primType = preCopyed ? PTY_a64 : mirType.GetPrimType();
-    if (primType == PTY_agg) {
-      primType = PTY_u64;
-      ASSERT(opnd.IsMemoryAccessOperand(), "NIY, must be mem opnd");
-      auto &ldMemOpnd = GetMemOperandAddOffset(static_cast<MemOperand&>(opnd), offset);
-      valReg = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      Insn &ldInsn = GetInsnBuilder()->BuildInsn(
-          PickLdInsn(GetPrimTypeBitSize(primType), primType), *valReg, ldMemOpnd);
-      GetCurBB()->AppendInsn(ldInsn);
-    } else {
-      valReg = &LoadIntoRegister(opnd, primType);
-    }
-    auto &actMemOpnd = CreateMemOpnd(RSP, (memOffset + offset), GetPrimTypeBitSize(primType));
-    Insn &strInsn = GetInsnBuilder()->BuildInsn(
-        PickStInsn(GetPrimTypeBitSize(primType), primType), *valReg, actMemOpnd);
-    actMemOpnd.SetStackArgMem(true);
-    if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel2 &&
-        insnForStackArgs.size() < kShiftAmount12) {
-      (void)insnForStackArgs.emplace_back(&strInsn);
-    } else {
-      GetCurBB()->AppendInsn(strInsn);
-    }
+  if (!preCopyed && mirType.GetPrimType() == PTY_agg) {
+    ASSERT(opnd.IsMemoryAccessOperand(), "NIY, must be mem opnd");
+    auto &actOpnd = CreateMemOpnd(RSP, memOffset, k64BitSize);
+    SelectStructCopy(actOpnd, static_cast<MemOperand&>(opnd), mirType.GetSize());
+    return;
+  }
+
+  PrimType primType = preCopyed ? PTY_a64 : mirType.GetPrimType();
+  CHECK_FATAL(primType != PTY_i128 && primType != PTY_u128, "NIY, i128 is unsupported");
+  auto &valReg = LoadIntoRegister(opnd, primType);
+  auto &actMemOpnd = CreateMemOpnd(RSP, memOffset, GetPrimTypeBitSize(primType));
+  Insn &strInsn = GetInsnBuilder()->BuildInsn(
+      PickStInsn(GetPrimTypeBitSize(primType), primType), valReg, actMemOpnd);
+  actMemOpnd.SetStackArgMem(true);
+  if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel2 &&
+      insnForStackArgs.size() < kShiftAmount12) {
+    (void)insnForStackArgs.emplace_back(&strInsn);
+  } else {
+    GetCurBB()->AppendInsn(strInsn);
   }
 }
 
@@ -7966,7 +8010,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
 
     if (ploc.reg0 != kRinvalid) {  // load to the register.
       if (mirType->GetPrimType() == PTY_agg && !preCopyed) {
-        SelectParmListSmallStruct(ploc, *opnd, srcOpnds);
+        SelectParmListSmallStruct(*mirType, ploc, *opnd, srcOpnds);
       } else {
         CHECK_FATAL(ploc.reg1 == kRinvalid, "NIY");
         auto &phyReg = GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(ploc.reg0),

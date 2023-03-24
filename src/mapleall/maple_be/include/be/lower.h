@@ -179,13 +179,11 @@ class CGLowerer {
    * To be able to handle them in a unified manner, we lower intrinsiccall to Intrinsicsicop.
    */
   BlockNode *LowerIntrinsiccallToIntrinsicop(StmtNode &stmt);
-  bool LowerStructReturnInRegs(BlockNode &newBlk, StmtNode &stmt, DassignNode &dnodeStmt,
-                               const MIRType &dtype);
+  bool LowerStructReturnInRegs(BlockNode &newBlk, StmtNode &stmt, const MIRSymbol &retSym);
   void LowerStructReturnInGpRegs(BlockNode &newBlk, const StmtNode &stmt, const MIRSymbol &symbol);
   void LowerStructReturnInFpRegs(BlockNode &newBlk, const StmtNode &stmt, const MIRSymbol &symbol,
                                  PrimType primType, size_t elemNum);
-  bool LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar,
-                         BlockNode *oldBlk);
+  bool LowerStructReturn(BlockNode &newBlk, StmtNode &stmt, bool &lvar);
   BlockNode *LowerMemop(StmtNode &stmt);
 
   BaseNode *LowerRem(BaseNode &expr, BlockNode &blk);

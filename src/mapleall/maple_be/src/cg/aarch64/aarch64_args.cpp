@@ -130,7 +130,9 @@ void AArch64MoveRegArgs::LoadStackArgsToVReg(MIRSymbol &mirSym) const {
 }
 
 void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym) const {
-  CHECK_FATAL(ploc.reg1 == kRinvalid, "NIY");
+  // when args parameter type i128, reg1 will be used.
+  // but, i128 is not supported in back-end
+  CHECK_FATAL(ploc.reg2 == kRinvalid, "NIY");
   RegType regType = (ploc.reg0 < V0) ? kRegTyInt : kRegTyFloat;
   PrimType sType = mirSym.GetType()->GetPrimType();
   uint32 byteSize = GetPrimTypeSize(sType);

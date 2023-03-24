@@ -1502,14 +1502,9 @@ BlockNode *CGLowerer::LowerIntrinsiccallToIntrinsicop(StmtNode &stmt) {
   return nullptr;
 }
 
-// return true if successfully lowered; nextStmt is in/out, and is made to point
-// to its following statement if lowering of the struct return is successful
-bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
-                                  StmtNode *&nextStmt, bool &lvar, BlockNode *oldBlk) {
-  if (!nextStmt) {
-    return false;
-  }
-  CallReturnVector *p2nrets = stmt->GetCallReturnVector();
+// return true if successfully lowered
+bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode &stmt, bool &lvar) {
+  CallReturnVector *p2nrets = stmt.GetCallReturnVector();
   if (p2nrets->size() == 0) {
     return false;
   }
@@ -1521,51 +1516,17 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt,
   if (retSym->GetType()->GetPrimType() != PTY_agg) {
     return false;
   }
-  if (nextStmt->op != OP_dassign) {
-    // introduce a temporary and insert a dassign whose rhs is this temporary
-    // and whose lhs is retSym
-    MIRSymbol *temp = CreateNewRetVar(*retSym->GetType(), kUserRetValPrefix);
-    BaseNode *rhs = mirModule.GetMIRBuilder()->CreateExprDread(*temp->GetType(), 0, *temp);
-    DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(
-        retPair.first, retPair.second.GetFieldID(), rhs);
-    oldBlk->InsertBefore(nextStmt, dass);
-    if (funcProfData) {
-      funcProfData->CopyStmtFreq(dass->GetStmtID(), stmt->GetStmtID());
-    }
 
-    nextStmt = dass;
-    // update CallReturnVector to the new temporary
-    (*p2nrets)[0].first = temp->GetStIdx();
-    (*p2nrets)[0].second.SetFieldID(0);
-  }
-  // now, it is certain that nextStmt is a dassign
-  BaseNode *bnode = static_cast<DassignNode*>(nextStmt)->GetRHS();
-  if (bnode->GetOpCode() != OP_dread) {
-    return false;
-  }
-  DreadNode *dnode = static_cast<DreadNode*>(bnode);
-  if (dnode->GetPrimType() != PTY_agg) {
-    return false;
-  }
-  CallReturnPair pair = (*p2nrets)[0];
-  if (pair.first != dnode->GetStIdx()) {
-    return false;
-  }
-  auto *dnodeStmt = static_cast<DassignNode*>(nextStmt);
-  MIRType *dtype = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dnode->GetStIdx())->GetType();
-  if (IsReturnInMemory(*dtype)) {
-    (*p2nrets)[0].first = dnodeStmt->GetStIdx();
-    (*p2nrets)[0].second.SetFieldID(dnodeStmt->GetFieldID());
+  if (IsReturnInMemory(*retSym->GetType())) {
     lvar = true;
-  } else if (!LowerStructReturnInRegs(newBlk, *stmt, *dnodeStmt, *dtype)) {
+  } else if (!LowerStructReturnInRegs(newBlk, stmt, *retSym)) {
     return false;
   }
-  nextStmt = nextStmt->GetNext();  // skip the dassign
   return true;
 }
 
-bool CGLowerer::LowerStructReturnInRegs(BlockNode &newBlk, StmtNode &stmt, DassignNode &dnodeStmt,
-                                        const MIRType &dtype) {
+bool CGLowerer::LowerStructReturnInRegs(BlockNode &newBlk, StmtNode &stmt,
+                                        const MIRSymbol &retSym) {
   // lower callassigned -> call
   if (stmt.GetOpCode() == OP_callassigned) {
     auto &callNode = static_cast<CallNode&>(stmt);
@@ -1602,17 +1563,16 @@ bool CGLowerer::LowerStructReturnInRegs(BlockNode &newBlk, StmtNode &stmt, Dassi
     return false;
   }
 
-  MIRSymbol *symbol = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dnodeStmt.GetStIdx());
 #if TARGAARCH64
   PrimType primType = PTY_begin;
   size_t elemNum = 0;
-  if (IsHomogeneousAggregates(dtype, primType, elemNum)) {
-    LowerStructReturnInFpRegs(newBlk, stmt, *symbol, primType, elemNum);
+  if (IsHomogeneousAggregates(*retSym.GetType(), primType, elemNum)) {
+    LowerStructReturnInFpRegs(newBlk, stmt, retSym, primType, elemNum);
   } else {
-    LowerStructReturnInGpRegs(newBlk, stmt, *symbol);
+    LowerStructReturnInGpRegs(newBlk, stmt, retSym);
   }
 #else
-  LowerStructReturnInGpRegs(newBlk, stmt, *symbol);
+  LowerStructReturnInGpRegs(newBlk, stmt, retSym);
 #endif  // TARGAARCH64
   return true;
 }
@@ -2005,8 +1965,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       case OP_icallprotoassigned: {
         // pass the addr of lvar if this is a struct call assignment
         bool lvar = false;
-        // nextStmt could be changed by the call to LowerStructReturn
-        if (!LowerStructReturn(*newBlk, stmt, nextStmt, lvar, &block)) {
+        if (!LowerStructReturn(*newBlk, *stmt, lvar)) {
           newBlk->AppendStatementsFromBlock(*LowerCallAssignedStmt(*stmt, lvar));
         }
         break;

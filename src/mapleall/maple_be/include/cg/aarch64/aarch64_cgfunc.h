@@ -133,7 +133,8 @@ class AArch64CGFunc : public CGFunc {
   void SelectReturn(Operand *opnd0) override;
   void SelectIgoto(Operand *opnd0) override;
   bool DoCallerEnsureValidParm(RegOperand &destOpnd, RegOperand &srcOpnd, PrimType formalPType);
-  void SelectParmListSmallStruct(const CCLocInfo &ploc, Operand &addr, ListOperand &srcOpnds);
+  void SelectParmListSmallStruct(const MIRType &mirType, const CCLocInfo &ploc,
+                                 Operand &addr, ListOperand &srcOpnds);
   void SelectParmListPassByStack(const MIRType &mirType, Operand &opnd, uint32 memOffset,
                                  bool preCopyed, std::vector<Insn*> &insnForStackArgs);
   void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);

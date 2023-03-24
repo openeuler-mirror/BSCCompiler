@@ -189,10 +189,11 @@ void AArch64CallConvImpl::AllocateGPRegister(const MIRType &mirType, CCLocInfo &
     auto regNum = (size <= k8ByteSize) ? kOneRegister : kTwoRegister;
     if (nextGeneralRegNO + regNum - 1 < AArch64Abi::kNumIntParmRegs) {
       ploc.reg0 = AllocateGPRegister();
-      ploc.primTypeOfReg0 = PTY_u64;
+      ploc.primTypeOfReg0 = (size <= k4ByteSize && !CGOptions::IsBigEndian()) ? PTY_u32 : PTY_u64;
       if (regNum == kTwoRegister) {
         ploc.reg1 = AllocateGPRegister();
-        ploc.primTypeOfReg1 = PTY_u64;
+        ploc.primTypeOfReg1 =
+            (size <= k12ByteSize && !CGOptions::IsBigEndian()) ? PTY_u32 : PTY_u64;
       }
       return;
     }
