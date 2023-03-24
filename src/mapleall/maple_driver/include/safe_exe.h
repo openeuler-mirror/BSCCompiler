@@ -109,9 +109,11 @@ class SafeExe {
       compileeFlag = Compilee::hir2mpl;
       if (FileUtils::SafeGetenv(kMapleRoot) != "") {
         ldLibPath += FileUtils::SafeGetenv(kMapleRoot) + "/build/tools/hpk/:";
+        ldLibPath += FileUtils::SafeGetenv(kMapleRoot) + "/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
+      } else {
+        ldLibPath += mplOptions.GetExeFolder().substr(0, mplOptions.GetExeFolder().length() - 4);
+        ldLibPath += "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
       }
-      ldLibPath += mplOptions.GetExeFolder().substr(0, mplOptions.GetExeFolder().length() - 4);
-      ldLibPath += "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
     }
     std::tie(argv, argIndex) = GenerateUnixArguments(cmd, mplOptions, options, compileeFlag);
     if (opts::debug) {
