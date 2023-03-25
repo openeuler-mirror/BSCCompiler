@@ -744,7 +744,7 @@ MirTypeInfo MPISel::GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType
   mirTypeInfo.primType = mirType->GetPrimType();
   // aggSize for AggType
   if (mirTypeInfo.primType == maple::PTY_agg) {
-    mirTypeInfo.size = cgFunc->GetBecommon().GetTypeSize(mirType->GetTypeIndex());
+    mirTypeInfo.size = cgFunc->GetBecommon().GetTypeSize(static_cast<uint32>(mirType->GetTypeIndex()));
   }
   return mirTypeInfo;
 }
@@ -784,7 +784,7 @@ void MPISel::SelectDassign(const DassignNode &stmt, Operand &opndRhs) {
   return;
 }
 
-void MPISel::SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) {
+void MPISel::SelectDassignoff(const DassignoffNode &stmt, Operand &opnd0) {
   MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(stmt.stIdx);
   PrimType primType = stmt.GetPrimType();
   uint32 bitSize = GetPrimTypeBitSize(primType);
@@ -826,7 +826,7 @@ void MPISel::SelectIassignoff(const IassignoffNode &stmt) {
   SelectCopy(memOpnd, rhsReg, primType);
 }
 
-ImmOperand *MPISel::SelectIntConst(MIRIntConst &intConst, PrimType primType) const {
+ImmOperand *MPISel::SelectIntConst(const MIRIntConst &intConst, PrimType primType) const {
   return &cgFunc->GetOpndBuilder()->CreateImm(GetPrimTypeBitSize(primType), intConst.GetExtValue());
 }
 
@@ -1575,7 +1575,7 @@ void MPISel::SelectBnot(Operand &resOpnd, Operand &opnd0, PrimType primType) con
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
-Operand *MPISel::SelectMin(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectMin(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
   PrimType primType = node.GetPrimType();
   RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));
@@ -1600,7 +1600,7 @@ void MPISel::SelectMax(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimTyp
   SelectMinOrMax(false, resOpnd, opnd0, opnd1, primType);
 }
 
-Operand *MPISel::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
+Operand *MPISel::SelectRetype(const TypeCvtNode &node, Operand &opnd0) {
   PrimType fromType = node.Opnd(0)->GetPrimType();
   PrimType toType = node.GetPrimType();
   ASSERT(GetPrimTypeSize(fromType) == GetPrimTypeSize(toType), "retype bit widith doesn' match");

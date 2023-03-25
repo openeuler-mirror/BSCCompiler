@@ -47,6 +47,16 @@ Insn *ICOPattern::FindLastCmpInsn(BB &bb) const {
   return nullptr;
 }
 
+std::vector<LabelOperand*> ICOPattern::GetLabelOpnds(const Insn &insn) const {
+  std::vector<LabelOperand*> labelOpnds;
+  for (uint32 i = 0; i < insn.GetOperandSize(); i++) {
+    if (insn.GetOperand(i).IsLabelOpnd()) {
+      labelOpnds.emplace_back(static_cast<LabelOperand*>(&insn.GetOperand(i)));
+    }
+  }
+  return labelOpnds;
+}
+
 bool CgIco::PhaseRun(maplebe::CGFunc &f) {
   LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   if (ICO_DUMP_NEWPM) {

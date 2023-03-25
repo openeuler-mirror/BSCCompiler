@@ -108,11 +108,11 @@ bool Insn::IsLoadStorePair() const {
 bool Insn::IsLoadLabel() const {
   return md && md->IsLoad() && GetOperand(kInsnSecondOpnd).GetKind() == Operand::kOpdBBAddress;
 }
-bool Insn::OpndIsDef(uint32 id) const {
-  return md ? md->GetOpndDes(id)->IsDef() : false;
+bool Insn::OpndIsDef(uint32 opndId) const {
+  return md ? md->GetOpndDes(opndId)->IsDef() : false;
 }
-bool Insn::OpndIsUse(uint32 id) const {
-  return md ? md->GetOpndDes(id)->IsUse() : false;
+bool Insn::OpndIsUse(uint32 opndId) const {
+  return md ? md->GetOpndDes(opndId)->IsUse() : false;
 }
 bool Insn::IsClinit() const {
   return Globals::GetInstance()->GetTarget()->IsClinitInsn(mOp);

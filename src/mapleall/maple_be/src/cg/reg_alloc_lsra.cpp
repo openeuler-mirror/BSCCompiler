@@ -1949,7 +1949,7 @@ void LSRALinearScanRegAllocator::LiveIntervalAnalysis() {
           }
           lowestLi->SetStackSlot(kSpilled);
           active.erase(itFinded);
-          interNum = active.size();
+          interNum = static_cast<uint32>(active.size());
         } else {
           break;
         }

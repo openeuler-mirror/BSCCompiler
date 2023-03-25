@@ -252,7 +252,7 @@ void Emitter::EmitFileInfo(const std::string &fileName) {
   free(curDirName);
 
   EmitInlineAsmSection();
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   Emit("\t.syntax unified\n");
   /*
    * "The arm instruction set is a subset of
@@ -2568,16 +2568,20 @@ void Emitter::EmitGlobalVariable() {
     }
 
     if (GetCG()->GetMIRModule()->IsCModule() && mirSymbol->GetStorageClass() == kScExtern) {
-      /* emit initialized extern variable */
-      if (mirSymbol->IsConst()) {
+      bool isInitialized = mirSymbol->IsConst();
+      if (isInitialized) {
+        // emit .global directive for initialized extern variable
         EmitAsmLabel(*mirSymbol, kAsmGlbl);
-        SetVariableVisibility(mirSymbol);
-        if (mirSymbol->GetAttr(ATTR_visibility_hidden)) {
-          EmitAsmLabel(*mirSymbol, kAsmHidden);
-        } else if (mirSymbol->GetAttr(ATTR_visibility_protected)) {
-          EmitAsmLabel(*mirSymbol, kAsmProtected);
-        }
-      } else {
+      }
+      // emit visibility
+      SetVariableVisibility(mirSymbol);
+      if (mirSymbol->GetAttr(ATTR_visibility_hidden)) {
+        EmitAsmLabel(*mirSymbol, kAsmHidden);
+      } else if (mirSymbol->GetAttr(ATTR_visibility_protected)) {
+        EmitAsmLabel(*mirSymbol, kAsmProtected);
+      }
+      // if not initialized, continue after emitting visibility
+      if (!isInitialized) {
         continue;
       }
     }

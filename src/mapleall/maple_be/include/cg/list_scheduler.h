@@ -155,14 +155,14 @@ class ListScheduler {
   void UpdateEStart(DepNode &schedNode);
   void UpdateInfoAfterSelectNode(DepNode &schedNode);
   void UpdateNodesInReadyList();
-  void UpdateAdvanceCycle(DepNode &schedNode);
+  void UpdateAdvanceCycle(const DepNode &schedNode);
   void CountUnitKind(const DepNode &depNode, uint32 unitKindCount[]) const;
   void DumpWaitingQueue() const;
   void DumpReadyList() const;
   void DumpScheduledResult() const;
-  void DumpDelay();
+  void DumpDelay() const;
   void DumpEStartLStartOfAllNodes();
-  void DumpDepNodeInfo(BB &curBB, MapleVector<DepNode*> &nodes, std::string state);
+  void DumpDepNodeInfo(BB &curBB, MapleVector<DepNode*> &nodes, std::string state) const;
   void DumpReservation(DepNode &depNode) const;
 
   void EraseNodeFromReadyList(const DepNode *depNode) {

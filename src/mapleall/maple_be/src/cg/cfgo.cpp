@@ -879,6 +879,9 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
         }
         bb->RemoveInsn(*bb->GetLastInsn());
         FOR_BB_INSNS(insn, (&curBB)) {
+          if (!insn->IsMachineInstruction()) {
+            continue;
+          }
           Insn *clonedInsn = cgFunc->GetTheCFG()->CloneInsn(*insn);
           clonedInsn->SetPrev(nullptr);
           clonedInsn->SetNext(nullptr);

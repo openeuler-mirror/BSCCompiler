@@ -186,9 +186,9 @@ class Insn {
 
   virtual bool IsMachineInstruction() const;
 
-  bool OpndIsDef(uint32 id) const;
+  bool OpndIsDef(uint32 opndId) const;
 
-  bool OpndIsUse(uint32 id) const;
+  bool OpndIsUse(uint32 opndId) const;
 
   virtual bool IsPCLoad() const {
     return false;

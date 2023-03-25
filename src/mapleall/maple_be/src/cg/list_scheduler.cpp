@@ -223,7 +223,7 @@ void ListScheduler::UpdateNodesInReadyList() {
   }
 }
 
-void ListScheduler::UpdateAdvanceCycle(DepNode &schedNode) {
+void ListScheduler::UpdateAdvanceCycle(const DepNode &schedNode) {
   switch (schedNode.GetInsn()->GetLatencyType()) {
     case kLtClinit:
       advancedCycle = kClinitAdvanceCycle;
@@ -436,7 +436,7 @@ void ListScheduler::DumpScheduledResult() const {
   LogInfo::MapleLogger() << "}\n\n";
 }
 
-void ListScheduler::DumpDelay() {
+void ListScheduler::DumpDelay() const {
   BB *curBB = curCDGNode->GetBB();
   ASSERT(curBB != nullptr, "get bb from cdgNode failed");
   LogInfo::MapleLogger() << "        >> Delay priority of readyList in bb_" << curBB->GetId() << "\n";
@@ -491,7 +491,7 @@ void ListScheduler::DumpEStartLStartOfAllNodes() {
   LogInfo::MapleLogger() << "     --------------------------------------------------------------------------\n\n";
 }
 
-void ListScheduler::DumpDepNodeInfo(BB &curBB, MapleVector<DepNode*> &nodes, std::string state) {
+void ListScheduler::DumpDepNodeInfo(BB &curBB, MapleVector<DepNode*> &nodes, std::string state) const{
   for (auto depNode : nodes) {
     Insn *insn = depNode->GetInsn();
     ASSERT(insn != nullptr, "get insn from depNode failed");

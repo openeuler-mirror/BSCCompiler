@@ -546,8 +546,7 @@ LiveRange *GraphColorRegAllocator::CreateLiveRangeAllocateAndUpdate(regno_t regN
           break;
         case OP_addrof:
         case OP_dread:
-          lr->SetRematerializable(preg->GetOp(), preg->rematInfo.sym,
-                                  preg->fieldID, preg->addrUpper);
+          lr->SetRematerializable(preg->GetOp(), preg->rematInfo.sym, preg->fieldID, preg->addrUpper);
           break;
         case OP_undef:
           break;
@@ -1569,7 +1568,7 @@ void GraphColorRegAllocator::PruneLrForSplit(LiveRange &lr, BB &bb, bool remove,
     return;
   }
 
-  bb.SetInternalFlag1(true);
+  bb.SetInternalFlag1(1);
   MapleMap<uint32, LiveUnit*>::const_iterator lu = lr.FindInLuMap(bb.GetId());
   uint32 defNum = 0;
   uint32 useNum = 0;
@@ -1589,7 +1588,7 @@ void GraphColorRegAllocator::PruneLrForSplit(LiveRange &lr, BB &bb, bool remove,
         remove = false;
       } else {
         /* No ref in this bb. mark as potential remove. */
-        bb.SetInternalFlag2(true);
+        bb.SetInternalFlag2(1);
         return;
       }
     } else {
@@ -1724,7 +1723,7 @@ void GraphColorRegAllocator::FindUseForSplit(LiveRange &lr, SplitBBInfo &bbInfo,
     }
   }
 
-  bb->SetInternalFlag1(true);
+  bb->SetInternalFlag1(1);
   MapleMap<uint32, LiveUnit*>::const_iterator lu = lr.FindInLuMap(bb->GetId());
   uint32 defNum = 0;
   uint32 useNum = 0;
@@ -1738,7 +1737,7 @@ void GraphColorRegAllocator::FindUseForSplit(LiveRange &lr, SplitBBInfo &bbInfo,
     /* In removal mode, has not encountered a ref yet. */
     if (defNum == 0 && useNum == 0) {
       /* No ref in this bb. mark as potential remove. */
-      bb->SetInternalFlag2(true);
+      bb->SetInternalFlag2(1);
       if (bb->GetLoop() != nullptr) {
         /* bb in loop, need to make sure of loop carried dependency */
         (void)candidateInLoop.insert(bb->GetLoop());
@@ -1808,10 +1807,10 @@ void GraphColorRegAllocator::ComputeBBForOldSplit(LiveRange &newLr, LiveRange &o
       continue;
     }
     for (auto pred : bb->GetPreds()) {
-      pred->SetInternalFlag1(true);
+      pred->SetInternalFlag1(1);
     }
     for (auto pred : bb->GetEhPreds()) {
-      pred->SetInternalFlag1(true);
+      pred->SetInternalFlag1(1);
     }
     bbInfo.SetCandidateBB(*bb);
     bbInfo.SetStartBB(*bb);
@@ -1895,9 +1894,9 @@ bool GraphColorRegAllocator::LrCanBeColored(const LiveRange &lr, const BB &bbAdd
 /* Support function for LR split.  Move one BB from LR1 to LR2. */
 void GraphColorRegAllocator::MoveLrBBInfo(LiveRange &oldLr, LiveRange &newLr, BB &bb) const {
   /* initialize backward traversal flag for the bb pruning phase */
-  bb.SetInternalFlag1(false);
+  bb.SetInternalFlag1(0);
   /* initialize bb removal marker */
-  bb.SetInternalFlag2(false);
+  bb.SetInternalFlag2(0);
   /* Insert BB into new LR */
   uint32 bbID = bb.GetId();
   newLr.SetMemberBitArrElem(bbID);
