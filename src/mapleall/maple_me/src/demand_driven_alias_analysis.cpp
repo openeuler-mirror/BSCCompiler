@@ -154,7 +154,7 @@ void ProgramExprGraph::Dump() const {
   }
 }
 
-PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfDread(const AddrofSSANode *dread) {
+PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfDread(const AddrofSSANode *dread) const {
   auto *dreadNode = static_cast<const AddrofSSANode *>(dread);
   auto *vst = dreadNode->GetSSAVar();
   auto *ost = vst->GetOst();
@@ -736,7 +736,7 @@ void PropGlobalAndFormalAttr(PEGNode *node, AliasAttribute attr, int32 indirectL
   }
 }
 
-void PEGBuilder::UpdateAttributes() {
+void PEGBuilder::UpdateAttributes() const {
   // multi-assign of ost results in uncertainty of value of the ost. For example:
   // L1: int *ptr = array;
   // L2: def/use *(ptr + 1) = 1;

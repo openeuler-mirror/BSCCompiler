@@ -227,7 +227,7 @@ class ReflectionAnalysis : public AnalysisResult {
   static void GenHotClassNameString(const Klass &klass);
   uint32 FindOrInsertReflectString(const std::string &str);
   static void InitReflectString();
-  uint32 BKDRHash(const std::string &strName, uint32 seed);
+  uint32 BKDRHash(const std::string &strName, uint32 seed) const;
   void GenClassHashMetaData();
   void MarkWeakMethods();
 

@@ -30,7 +30,7 @@ class LocalSchedule : public BaseSchedule {
     return "localschedule";
   }
   void Run() override;
-  bool CheckCondition(CDGRegion &region);
+  bool CheckCondition(CDGRegion &region) const;
   void DoLocalSchedule(CDGNode &cdgNode);
 
  protected:

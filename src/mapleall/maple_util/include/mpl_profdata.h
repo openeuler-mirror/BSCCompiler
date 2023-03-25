@@ -73,7 +73,7 @@ class ProfileSummary {
   uint32_t GetTotalCount() {
     return totalCount;
   }
-  uint64_t GetMaxCount() {
+  uint64_t GetMaxCount() const {
     return maxCount;
   }
   uint64_t GetSumCount() {

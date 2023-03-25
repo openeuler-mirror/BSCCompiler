@@ -1592,7 +1592,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     return stmtInfoId;
   }
 
-  bool operator==(const StmtNode &rhs) {
+  bool operator==(const StmtNode &rhs) const {
     return this == &rhs;
   }
 

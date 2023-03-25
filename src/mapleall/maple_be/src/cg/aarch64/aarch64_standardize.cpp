@@ -171,7 +171,7 @@ static AbstractIR2Target abstract2TargetTable[abstract::kMopLast] {
   {abstract::MOP_comment, {{MOP_nop, {kAbtractNone}, {}}}},
 };
 
-Operand *AArch64Standardize::GetInsnResult(Insn *insn) {
+Operand *AArch64Standardize::GetInsnResult(Insn *insn) const {
   for (uint32 i = 0; i < insn->GetOperandSize(); ++i) {
     if (insn->OpndIsDef(i)) {
       return &(insn->GetOperand(i));

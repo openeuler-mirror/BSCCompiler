@@ -42,7 +42,7 @@ class LMBCLowerer {
   void LowerReturn(NaryStmtNode &retNode, BlockNode &newblk);
   void LowerCall(NaryStmtNode *stmt, BlockNode *newblk);
   BlockNode *LowerBlock(BlockNode *);
-  void FixPrototype4FirstArgReturn(IcallNode *icall);
+  void FixPrototype4FirstArgReturn(IcallNode *icall) const;
   void LowerFunction();
 
   MIRModule *mirModule;

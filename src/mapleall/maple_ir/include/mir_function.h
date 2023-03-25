@@ -628,7 +628,7 @@ class MIRFunction {
     CHECK_FATAL(typeNameTab != nullptr, "typeNameTab is nullptr");
     return typeNameTab->GetTyIdxFromGStrIdx(idx);
   }
-  void SetGStrIdxToTyIdx(GStrIdx gStrIdx, TyIdx tyIdx) {
+  void SetGStrIdxToTyIdx(GStrIdx gStrIdx, TyIdx tyIdx) const {
     CHECK_FATAL(typeNameTab != nullptr, "typeNameTab is nullptr");
     typeNameTab->SetGStrIdxToTyIdx(gStrIdx, tyIdx);
   }

@@ -306,7 +306,7 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(warnNativeFunc, opts::me::warnemptynative);
   maplecl::CopyIfEnabled(epreLimit, opts::me::eprelimit);
   maplecl::CopyIfEnabled(eprePULimit, opts::me::eprepulimit);
-  maplecl::CopyIfEnabled(epreUseProfileLimit, opts::me::epreuseprofilelimit);
+  maplecl::CopyIfEnabled(epreUseProfileLimit, opts::me::epreUseProfileLimit);
   maplecl::CopyIfEnabled(stmtprePULimit, opts::me::stmtprepulimit);
   maplecl::CopyIfEnabled(lpreLimit, opts::me::lprelimit);
   maplecl::CopyIfEnabled(lprePULimit, opts::me::lprepulimit);

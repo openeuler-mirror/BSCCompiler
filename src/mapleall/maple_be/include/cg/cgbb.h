@@ -316,7 +316,7 @@ class BB {
   void SetProfFreq(FreqType arg) {
     profFreq = arg;
   }
-  bool IsInColdSection() {
+  bool IsInColdSection() const {
     return inColdSection;
   }
   void SetColdSection() {

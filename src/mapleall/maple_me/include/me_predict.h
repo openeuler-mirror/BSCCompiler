@@ -99,7 +99,7 @@ class MePrediction : public AnalysisResult {
   void BBLevelPredictions();
   void Init();
   bool PredictedByLoopHeuristic(const BB &bb) const;
-  void SortLoops();
+  void SortLoops() const;
   void PredictLoops();
   void PredictByOpcode(BB *bb);
   void EstimateBBProb(BB &bb);

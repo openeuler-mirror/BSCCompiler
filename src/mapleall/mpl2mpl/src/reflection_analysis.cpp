@@ -1632,7 +1632,7 @@ uint32 ReflectionAnalysis::GetAnnoCstrIndex(std::map<int, int> &idxNumMap, const
   return signatureIdx;
 }
 
-uint32 ReflectionAnalysis::BKDRHash(const std::string &strName, uint32 seed) {
+uint32 ReflectionAnalysis::BKDRHash(const std::string &strName, uint32 seed) const {
   uint32 hash = 0;
   for (auto name : strName) {
     auto uName = static_cast<uint8_t>(name);

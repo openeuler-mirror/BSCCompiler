@@ -38,7 +38,7 @@ class BaseSchedule {
 
  protected:
   void InitInsnIdAndLocInsn();
-  void InitInRegion(CDGRegion &region);
+  void InitInRegion(CDGRegion &region) const;
   void DumpRegionInfoBeforeSchedule(CDGRegion &region) const;
   void DumpCDGNodeInfoBeforeSchedule(CDGNode &cdgNode) const;
   void DumpCDGNodeInfoAfterSchedule(CDGNode &cdgNode) const;

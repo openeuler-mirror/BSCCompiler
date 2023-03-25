@@ -50,7 +50,7 @@ MeExpr *IRMap::SimplifyCast(MeExpr *expr) {
 }
 
 // Try to remove redundant intTrunc for dassgin and iassign
-void IRMap::SimplifyCastForAssign(MeStmt *assignStmt) {
+void IRMap::SimplifyCastForAssign(MeStmt *assignStmt) const {
   MeCastOpt::SimplifyCastForAssign(assignStmt);
 }
 

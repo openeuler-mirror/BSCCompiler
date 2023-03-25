@@ -451,7 +451,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
   newblk->AddStatement(stmt);
 }
 
-void LMBCLowerer::FixPrototype4FirstArgReturn(IcallNode *icall) {
+void LMBCLowerer::FixPrototype4FirstArgReturn(IcallNode *icall) const {
   MIRFuncType *ftype = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icall->GetRetTyIdx()));
   if (!ftype->FirstArgReturn()) {
     return;

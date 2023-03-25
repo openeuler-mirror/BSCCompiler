@@ -233,7 +233,7 @@ void InlineMplt::DumpOptimizedFunctionTypes() {
   }
 }
 
-uint32 InlineMplt::GetFunctionSize(MIRFunction &mirFunc) {
+uint32 InlineMplt::GetFunctionSize(MIRFunction &mirFunc) const {
   auto *tempMemPool = memPoolCtrler.NewMemPool("temp mempool", false);
   StmtCostAnalyzer sca(tempMemPool, &mirFunc);
   uint32 funcSize = static_cast<uint32>(sca.GetStmtsCost(mirFunc.GetBody())) / static_cast<uint32>(kSizeScale);

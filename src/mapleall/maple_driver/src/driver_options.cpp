@@ -278,10 +278,10 @@ maplecl::Option<bool> dndebug({"-DNDEBUG"},
     "  -DNDEBUG          \t\n",
     {driverCategory, ldCategory});
 
-maplecl::Option<bool> usesignedchar({"-fsigned-char", "-usesignedchar", "--usesignedchar"},
-    "  -fsigned-char         \tuse signed char\n",
-    {driverCategory, clangCategory, hir2mplCategory},
-    maplecl::DisableWith("-funsigned-char"));
+maplecl::Option<bool> useSignedChar({"-fsigned-char", "-usesignedchar", "--usesignedchar"},
+                               "  -fsigned-char         \tuse signed char\n",
+                               {driverCategory, clangCategory, hir2mplCategory},
+                               maplecl::DisableWith("-funsigned-char"));
 
 maplecl::Option<bool> suppressWarnings({"-w"},
     "  -w         \tSuppress all warnings.\n",

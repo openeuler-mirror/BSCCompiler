@@ -156,7 +156,7 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyDepositbits(const OpMeExpr &opmeexpr);
   MeExpr *SimplifyExtractbits(const OpMeExpr &opmeexpr);
   MeExpr *SimplifyMeExpr(MeExpr *x);
-  void SimplifyCastForAssign(MeStmt *assignStmt);
+  void SimplifyCastForAssign(MeStmt *assignStmt) const;
   void SimplifyAssign(AssignMeStmt *assignStmt);
   MeExpr *SimplifyCast(MeExpr *expr);
   MeExpr* SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar);

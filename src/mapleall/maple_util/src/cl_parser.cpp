@@ -111,7 +111,7 @@ void CommandLine::CloseOptimize(const OptionCategory &optCategory) const {
 RetCode CommandLine::ParseOption(size_t &argsIndex,
                                  const std::deque<std::string_view> &args,
                                  KeyArg &keyArg, const OptionCategory &optCategory,
-                                 OptionInterface *opt) {
+                                 OptionInterface *opt) const {
   if (args[argsIndex] == "--no-pie") {
     auto item = optCategory.options.find("-fPIE");
     item->second->SetEnabledByUser();

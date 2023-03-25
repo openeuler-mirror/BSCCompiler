@@ -2024,7 +2024,7 @@ bool ValueRangePropagation::IsConstant(const BB &bb, MeExpr &expr, int64 &value,
 
 // Create new valueRange when old valueRange add or sub with a valuerange.
 std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
-    Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight) {
+    Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight) const {
   if (valueRangeLeft.GetRangeType() == kNotEqual || valueRangeRight.GetRangeType() == kNotEqual ||
       valueRangeLeft.GetRangeType() == kOnlyHasLowerBound || valueRangeRight.GetRangeType() == kOnlyHasLowerBound ||
       valueRangeLeft.GetRangeType() == kOnlyHasUpperBound || valueRangeRight.GetRangeType() == kOnlyHasUpperBound) {
@@ -2069,7 +2069,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
       valueRangeLeft.IsAccurate() || valueRangeRight.IsAccurate());
 }
 
-bool ValueRangePropagation::AddOrSubWithBound(Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op) {
+bool ValueRangePropagation::AddOrSubWithBound(Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op) const {
   int64 res = 0;
   if (!AddOrSubWithConstant(oldBound.GetPrimType(), op, oldBound.GetConstant(), rhsConstant, res)) {
     return false;
@@ -2080,7 +2080,7 @@ bool ValueRangePropagation::AddOrSubWithBound(Bound oldBound, Bound &resBound, i
 
 // Create new valueRange when old valueRange add or sub with a constant.
 std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
-    Opcode op, ValueRange &valueRange, int64 rhsConstant) {
+    Opcode op, ValueRange &valueRange, int64 rhsConstant) const {
   if (valueRange.GetRangeType() == kLowerAndUpper) {
     if (valueRange.IsConstantLowerAndUpper() &&
         valueRange.GetLower().IsGreaterThan(valueRange.GetUpper(), valueRange.GetPrimType())) {
@@ -4289,7 +4289,7 @@ bool ValueRangePropagation::MustBeFallthruOrGoto(const BB &defBB, const BB &bb) 
   return false;
 }
 
-std::unique_ptr<ValueRange> ValueRangePropagation::AntiValueRange(ValueRange &valueRange) {
+std::unique_ptr<ValueRange> ValueRangePropagation::AntiValueRange(ValueRange &valueRange) const {
   RangeType oldType = valueRange.GetRangeType();
   if (oldType != kEqual && oldType != kNotEqual) {
     return nullptr;
@@ -4336,7 +4336,7 @@ void ValueRangePropagation::PropValueRangeFromCondGotoToTrueAndFalseBranch(
 // phiOpnds: (b, c), phi rhs of opnd in this bb
 // predOpnd or phiOpnds is uesd to find the valuerange in the pred of bb
 void ValueRangePropagation::ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd,
-    MePhiNode *&phi, bool &thePhiIsInBB) {
+    MePhiNode *&phi, bool &thePhiIsInBB) const {
   /* If currOpnd is not defined in bb, set opnd to currOpnd */
   predOpnd = &currOpnd;
   /* find the rhs of opnd */

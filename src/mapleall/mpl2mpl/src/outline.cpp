@@ -430,7 +430,7 @@ class OutlineRegionExtractor {
     }
   }
 
-  void GenerateOutput() {
+  void GenerateOutput() const {
     newFunc->GetModule()->SetCurFunction(newFunc);
     if (endLabel != kInvalidLabelIdx) {
       newFunc->GetBody()->AddStatement(builder->CreateStmtLabel(endLabel));

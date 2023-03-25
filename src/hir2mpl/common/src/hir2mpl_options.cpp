@@ -114,7 +114,7 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessNoBarrier);
 
   // ast compiler options
-  RegisterFactoryFunction<OptionFactory>(&opts::usesignedchar,
+  RegisterFactoryFunction<OptionFactory>(&opts::useSignedChar,
                                          &HIR2MPLOptions::ProcessUseSignedChar);
 
   // On Demand Type Creation
@@ -438,7 +438,7 @@ bool HIR2MPLOptions::ProcessNoBarrier(const maplecl::OptionInterface &) const {
 
 // ast compiler options
 bool HIR2MPLOptions::ProcessUseSignedChar(const maplecl::OptionInterface &) const {
-  FEOptions::GetInstance().SetUseSignedChar(opts::usesignedchar);
+  FEOptions::GetInstance().SetUseSignedChar(opts::useSignedChar);
   return true;
 }
 

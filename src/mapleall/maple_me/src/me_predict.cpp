@@ -286,7 +286,7 @@ bool MePrediction::PredictedByLoopHeuristic(const BB &bb) const {
 }
 
 // Sort loops first so that hanle innermost loop first in PropFreqInLoops.
-void MePrediction::SortLoops() {
+void MePrediction::SortLoops() const {
   const auto &bbId2rpoId = dom->GetReversePostOrderId();
   std::stable_sort(meLoop->GetMeLoops().begin(), meLoop->GetMeLoops().end(),
                    [&bbId2rpoId](const LoopDesc *loop1, const LoopDesc *loop2) {

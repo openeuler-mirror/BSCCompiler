@@ -1034,7 +1034,7 @@ ASTExpr *ASTParser::ParseBuiltinHugeVall(MapleAllocator &allocator, const clang:
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(FloatKind::F128);
-  uint64 initVal[2] = {0x0, 0x7fff000000000000};
+  ASTFloatingLiteral::floatArraySizes initVal = {0x0, 0x7fff000000000000};
   astFloatingLiteral->SetVal(std::move(initVal));
   return astFloatingLiteral;
 }
@@ -1068,7 +1068,7 @@ ASTExpr *ASTParser::ParseBuiltinInfl(MapleAllocator &allocator, const clang::Cal
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(FloatKind::F128);
-  uint64 initVal[2] = {0x0, 0x7fff000000000000};
+  ASTFloatingLiteral::floatArraySizes initVal = {0x0, 0x7fff000000000000};
   astFloatingLiteral->SetVal(std::move(initVal));
   return astFloatingLiteral;
 }
@@ -1102,7 +1102,7 @@ ASTExpr *ASTParser::ParseBuiltinNanl(MapleAllocator &allocator, const clang::Cal
   (void)ss;
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(FloatKind::F128);
-  uint64 initVal[2] = {0x0, 0x7fff800000000000};
+  ASTFloatingLiteral::floatArraySizes initVal = {0x0, 0x7fff800000000000};
   astFloatingLiteral->SetVal(std::move(initVal));
   return astFloatingLiteral;
 }

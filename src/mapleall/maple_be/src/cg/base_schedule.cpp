@@ -38,7 +38,7 @@ void BaseSchedule::InitInsnIdAndLocInsn() {
   }
 }
 
-void BaseSchedule::InitInRegion(CDGRegion &region) {
+void BaseSchedule::InitInRegion(CDGRegion &region) const {
   // Init valid dependency size for scheduling
   for (auto cdgNode : region.GetRegionNodes()) {
     for (auto depNode : cdgNode->GetAllDataNodes()) {

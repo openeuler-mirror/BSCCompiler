@@ -47,7 +47,7 @@ void LocalSchedule::Run() {
   }
 }
 
-bool LocalSchedule::CheckCondition(CDGRegion &region) {
+bool LocalSchedule::CheckCondition(CDGRegion &region) const {
   CHECK_FATAL(region.GetRegionNodeSize() == 1 && region.GetRegionRoot() != nullptr,
               "invalid region in local scheduling");
   uint32 insnSum = 0;

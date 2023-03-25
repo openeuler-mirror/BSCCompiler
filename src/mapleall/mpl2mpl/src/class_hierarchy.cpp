@@ -73,6 +73,8 @@ void Klass::DumpKlassMethods() const {
   LogInfo::MapleLogger() << "   class member methods:\n";
   for (MIRFunction *method : methods) {
     LogInfo::MapleLogger() << "   \t" << method->GetName() << " , ";
+    ASSERT_NOT_NULL(method);
+    ASSERT_NOT_NULL(method->GetFuncSymbol());
     method->GetFuncSymbol()->GetAttrs().DumpAttributes();
     LogInfo::MapleLogger() << "\n";
   }
@@ -233,7 +235,7 @@ void Klass::CountVirtMethTopDown(const KlassHierarchy &kh) {
   // Initialize strIdx2CandidateMap based on the superclass methods
   for (Klass *superAndImplClass : *superAndImplClasses) {
     ASSERT(superAndImplClass != nullptr, "Not a valid super class of interface");
-    for (const auto &pair : superAndImplClass->strIdx2CandidateMap) {
+    for (auto &pair : std::as_const(superAndImplClass->strIdx2CandidateMap)) {
       strIdx = pair.first;
       pvec = pair.second;
       ASSERT(pvec->size() == 1, "Expect exactly one method definition from parent class");
@@ -288,7 +290,7 @@ void Klass::CountVirtMethBottomUp() {
   GStrIdx strIdx;
   for (Klass *subKlass : subKlasses) {
     CHECK_FATAL(subKlass != nullptr, "nullptr check failed");
-    for (const auto &pair : subKlass->strIdx2CandidateMap) {
+    for (auto &pair : std::as_const(subKlass->strIdx2CandidateMap)) {
       strIdx = pair.first;
       if (strIdx2CandidateMap.find(strIdx) == strIdx2CandidateMap.end()) {
         continue;
@@ -557,7 +559,7 @@ void KlassHierarchy::ExceptionFlagProp(Klass &klass) {
 }
 
 void KlassHierarchy::AddKlassRelationAndMethods() {
-  for (const auto &pair : strIdx2KlassMap) {
+  for (auto &pair : std::as_const(strIdx2KlassMap)) {
     Klass *klass = pair.second;
     ASSERT(klass, "null ptr check");
     Klass *superKlass = nullptr;
@@ -621,7 +623,7 @@ void KlassHierarchy::TagThrowableKlasses() {
   if (throwable == nullptr) {
     return;
   }
-  for (const auto &pair : strIdx2KlassMap) {
+  for (auto &pair : std::as_const(strIdx2KlassMap)) {
     Klass *klass = pair.second;
     ASSERT(klass != nullptr, "unexpeced null klass");
     if (!klass->IsInterface() && IsSuperKlass(throwable, klass)) {
@@ -650,7 +652,7 @@ static void CollectImplInterfaces(const Klass &klass, std::set<Klass*> &implInte
 }
 
 void KlassHierarchy::UpdateImplementedInterfaces() {
-  for (const auto &pair : strIdx2KlassMap) {
+  for (auto &pair : std::as_const(strIdx2KlassMap)) {
     Klass *klass = pair.second;
     ASSERT(klass != nullptr, "null ptr check");
     if (!klass->IsInterface()) {
@@ -689,7 +691,7 @@ void KlassHierarchy::GetChildKlasses(const Klass &klass, std::vector<Klass*> &ch
 
 void KlassHierarchy::TopologicalSortKlasses() {
   std::set<Klass*> inQueue;  // Local variable, no need to use MapleSet
-  for (const auto &pair : strIdx2KlassMap) {
+  for (auto &pair : std::as_const(strIdx2KlassMap)) {
     Klass *klass = pair.second;
     ASSERT(klass != nullptr, "klass can not be nullptr");
     if (!klass->HasSuperKlass() && !klass->ImplementsKlass()) {
@@ -737,7 +739,7 @@ void KlassHierarchy::CountVirtualMethods() const {
   }
 }
 
-Klass *KlassHierarchy::AddClassFlag(const std::string &name, uint32 flag) {
+Klass *KlassHierarchy::AddClassFlag(const std::string &name, uint32 flag) const {
   Klass *refKlass = GetKlassFromLiteral(name);
   if (refKlass != nullptr) {
     refKlass->SetFlag(flag);

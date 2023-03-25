@@ -218,7 +218,7 @@ void GInline::PrintGInlineReport() const {
 }
 
 // We try to inline shallow small callee (especially with inline attr), ignoring overall growth limit
-bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) {
+bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) const {
   auto ifCode = callSiteNode.GetCallInfo()->GetInlineFailedCode();
   if (ifCode == kIfcInlineList || ifCode == kIfcInlineListCallsite || ifCode == kIfcHardCoded ||
       ifCode == kIfcProfileHotCallsite) {

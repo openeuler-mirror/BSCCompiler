@@ -139,7 +139,7 @@ class MIRScope {
     alias->SetAliasVarMap(idx, vars);
   }
 
-  MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
+  MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() const {
     return alias->GetAliasVarMap();
   }
 

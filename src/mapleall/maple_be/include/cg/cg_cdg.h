@@ -148,7 +148,7 @@ class CDGNode {
     return isVisitedInExtendedFind;
   }
 
-  uint32 GetInsnNum() {
+  uint32 GetInsnNum() const {
     return insnNum;
   }
 
@@ -342,7 +342,7 @@ class CDGNode {
     return *topoPredInRegion;
   }
 
-  void InsertVisitedTopoPredInRegion(CDGNodeId nodeId) {
+  void InsertVisitedTopoPredInRegion(CDGNodeId nodeId) const {
     topoPredInRegion->insert(nodeId);
   }
 
@@ -409,7 +409,7 @@ class CDGNode {
     predNodesInRegion--;
   }
 
-  bool IsAllPredInRegionProcessed() {
+  bool IsAllPredInRegionProcessed() const {
     return (predNodesInRegion == 0);
   }
 

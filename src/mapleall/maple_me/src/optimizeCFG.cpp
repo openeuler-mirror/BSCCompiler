@@ -805,7 +805,7 @@ class OptimizeBB {
   BB *MergeSuccIntoPred(BB *pred, BB *succ);
   bool CondBranchToSelect();
   bool FoldCondBranch();
-  bool IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr);
+  bool IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr) const;
   // for OptimizeUncondBB
   bool MergeGotoBBToPred(BB *gotoBB, BB *pred);
   // after moving pred from curr to curr's successor (i.e. succ), update the phiList of curr and succ
@@ -1334,7 +1334,7 @@ bool OptimizeBB::MergeDistinctBBPair() {
   return everChanged;
 }
 
-bool OptimizeBB::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr) {
+bool OptimizeBB::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr) const {
   if (trueExpr == falseExpr) {
     return true;
   }

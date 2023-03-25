@@ -49,7 +49,7 @@ class Standardize {
   void SetAddressMapping(bool needMapping) {
     needAddrMapping = needMapping;
   }
-  bool NeedAddressMapping(const Insn &insn) {
+  bool NeedAddressMapping(const Insn &insn) const {
     /* Operand number for two addressing mode is 2 */
     /* and 3 for three addressing mode */
     return needAddrMapping && ((insn.GetOperandSize() > 2) || (insn.IsUnaryOp()));

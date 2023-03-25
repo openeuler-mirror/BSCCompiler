@@ -1571,6 +1571,12 @@ class ASTFloatingLiteral : public ASTExpr {
     val = valIn;
   }
 
+  using floatArraySizes = std::array<uint64, kFloatArraySize>;
+  void SetVal(const floatArraySizes &valIn) {
+    floatArraySizes  buf = {valIn[1], valIn[0]};
+    val = buf;
+  }
+
   void SetVal(const uint64_t valIn[2]) {
     std::array<uint64, kFloatArraySize> buf = {valIn[1], valIn[0]};
     val = buf;

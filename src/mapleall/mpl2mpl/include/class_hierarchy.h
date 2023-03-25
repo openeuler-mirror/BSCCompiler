@@ -386,7 +386,7 @@ class KlassHierarchy : public AnalysisResult {
   // Get a vector of child class and implemented class
   void GetChildKlasses(const Klass &klass, std::vector<Klass*> &childKlasses) const;
   void ExceptionFlagProp(Klass &klass);
-  Klass *AddClassFlag(const std::string &name, uint32 flag);
+  Klass *AddClassFlag(const std::string &name, uint32 flag) const;
   int GetFieldIDOffsetBetweenClasses(const Klass &super, const Klass &base) const;
   void TopologicalSortKlasses();
   void MarkClassFlags();

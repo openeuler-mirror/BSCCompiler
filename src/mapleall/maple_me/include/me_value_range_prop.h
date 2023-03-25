@@ -747,10 +747,10 @@ class ValueRangePropagation {
   bool AddOrSubWithConstant(PrimType pType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res) const;
   std::unique_ptr<ValueRange> NegValueRange(const BB &bb, MeExpr &opnd, uint32 &numberOfRecursions,
       std::unordered_set<int32> &foundExprs);
-  bool AddOrSubWithBound(Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op);
-  std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant);
+  bool AddOrSubWithBound(Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op) const;
+  std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant) const;
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
-      Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight);
+      Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight) const;
   std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const OpMeExpr &opMeExpr);
   bool CanComputeLoopIndVar(const MeExpr &phiLHS, MeExpr &expr, int64 &constant);
   std::unique_ptr<ValueRange> RemWithValueRange(const BB &bb, const OpMeExpr &opMeExpr, int64 rhsConstant);
@@ -827,7 +827,7 @@ class ValueRangePropagation {
                                                 Opcode opOfBrStmt, Opcode conditionalOp, ValueRange *valueRangeOfLeft);
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
   std::unique_ptr<ValueRange> DealWithMeOp(const BB &bb, const MeStmt &stmt);
-  void ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd, MePhiNode *&phi, bool &thePhiIsInBB);
+  void ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd, MePhiNode *&phi, bool &thePhiIsInBB) const;
   bool AnalysisValueRangeInPredsOfCondGotoBB(BB &bb, MeExpr *opnd0, MeExpr &currOpnd,
       ValueRange *rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB &condGoto);
   void CreateLabelForTargetBB(BB &pred, BB &newBB);
@@ -872,7 +872,7 @@ class ValueRangePropagation {
   void DeleteAssertNonNull();
   void DeleteBoundaryCheck();
   bool MustBeFallthruOrGoto(const BB &defBB, const BB &bb) const;
-  std::unique_ptr<ValueRange> AntiValueRange(ValueRange &valueRange);
+  std::unique_ptr<ValueRange> AntiValueRange(ValueRange &valueRange) const;
   void DeleteUnreachableBBs(BB &curBB, BB &falseBranch, BB &trueBranch);
   void PropValueRangeFromCondGotoToTrueAndFalseBranch(
       const MeExpr &opnd0, ValueRange &rightRange, const BB &falseBranch, const BB &trueBranch);

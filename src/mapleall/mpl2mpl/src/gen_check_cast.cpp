@@ -75,7 +75,7 @@ void CheckCastGenerator::InitFuncs() {
   castExceptionFunc->SetAttr(FUNCATTR_nosideeffect);
 }
 
-MIRSymbol *CheckCastGenerator::GetOrCreateClassInfoSymbol(const std::string &className) {
+MIRSymbol *CheckCastGenerator::GetOrCreateClassInfoSymbol(const std::string &className) const {
   std::string classInfoName = CLASSINFO_PREFIX_STR + className;
   builder->GlobalLock();
   MIRSymbol *classInfoSymbol = builder->GetGlobalDecl(classInfoName);
@@ -306,7 +306,7 @@ void CheckCastGenerator::GenAllCheckCast() {
   }
 }
 
-BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
+BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) const {
   FieldID fieldID = builder->GetStructFieldIDFromFieldNameParentFirst(WKTypes::Util::GetJavaLangObjectType(),
                                                                       namemangler::kShadowClassName);
   BaseNode *ireadExpr =

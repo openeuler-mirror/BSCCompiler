@@ -99,7 +99,7 @@ extern maplecl::Option<bool> expand128Floats;
 extern maplecl::Option<bool> shared;
 extern maplecl::Option<bool> rdynamic;
 extern maplecl::Option<bool> dndebug;
-extern maplecl::Option<bool> usesignedchar;
+extern maplecl::Option<bool> useSignedChar;
 extern maplecl::Option<bool> suppressWarnings;
 extern maplecl::Option<bool> pthread;
 extern maplecl::Option<bool> passO2ToClang;
