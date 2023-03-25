@@ -55,7 +55,14 @@ Insn *AArch64ICOPattern::BuildCcmpInsn(ConditionCode ccCode, const Insn &cmpInsn
   if (isIntTy && static_cast<RegOperand&>(opnd2).GetRegisterNumber() >= k32BitSize) {
     return nullptr;
   }
-  return &cgFunc->GetInsnBuilder()->BuildInsn(mOpCode, opnd0, opnd1, opnd2, opnd3, cond, opnd0);
+  std::vector<Operand*> opnds;
+  opnds.emplace_back(&opnd0);
+  opnds.emplace_back(&opnd1);
+  opnds.emplace_back(&opnd2);
+  opnds.emplace_back(&opnd3);
+  opnds.emplace_back(&cond);
+  opnds.emplace_back(&opnd0);
+  return &cgFunc->GetInsnBuilder()->BuildInsn(mOpCode, opnds);
 }
 
 /* Rooted ccCode resource NZCV */

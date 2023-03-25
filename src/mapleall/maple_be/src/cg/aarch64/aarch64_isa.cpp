@@ -183,7 +183,7 @@ MOperator GetMopSub2Subs(const Insn &insn) {
 }
 
 // This api is only used for cgir verify, implemented by calling the memopndofst interface.
-int64 GetMemOpndOffsetValue(MOperator mOp, Operand *o) {
+int64 GetMemOpndOffsetValue(Operand *o) {
   auto *memOpnd = static_cast<MemOperand*>(o);
   CHECK_FATAL(memOpnd != nullptr, "memOpnd should not be nullptr");
   // kBOR memOpnd has no offsetvalue, so return 0 for verify.

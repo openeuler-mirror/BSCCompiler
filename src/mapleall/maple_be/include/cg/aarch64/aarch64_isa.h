@@ -169,7 +169,7 @@ MOperator FlipConditionOp(MOperator flippedOp);
  
 // Function: for immediate verification, memopnd ofstvalue is returned from opnd input.
 // It's worth noting that 0 will be returned when kBOR memopnd is input.
-int64 GetMemOpndOffsetValue(MOperator mOp, Operand *o);
+int64 GetMemOpndOffsetValue(Operand *o);
 } /* namespace AArch64isa */
 
 /*

@@ -14,23 +14,23 @@
 */
 
 // Immediate verification for a byte from/to memory. simm: -256 ~ 255; pimm: 0 ~ 4095.
-bool StrLdr8Valid(MOperator mOp, Operand *o) {
-  return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(mOp, o), 0);
+bool StrLdr8Valid(Operand *o) {
+  return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), 0);
 }
 
 // Immediate verification for half word from/to memory. simm: -256 ~ 255; pimm: 0 ~ 8190, multiple of 2.
-bool StrLdr16Valid(MOperator mOp, Operand *o) {
-  return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(mOp, o), k1ByteSize);
+bool StrLdr16Valid(Operand *o) {
+  return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k1ByteSize);
 }
 
 // Immediate verification for a word from/to memory. simm: -256 ~ 255; pimm: 0 ~ 16380, multiple of 4.
-bool StrLdr32Valid(MOperator mOp, Operand *o) {
-  return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(mOp, o), k2ByteSize);
+bool StrLdr32Valid(Operand *o) {
+  return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k2ByteSize);
 }
 
 // Immediate verification: value range -256 ~ 252, multiple of 4.
-bool StrLdr32PairValid(MOperator mOp, Operand *o) {
-  int64 value = AArch64isa::GetMemOpndOffsetValue(mOp, o);
+bool StrLdr32PairValid(Operand *o) {
+  int64 value = AArch64isa::GetMemOpndOffsetValue(o);
   if ((value <= kMaxSimm32Pair)  && (value >= kMinSimm32)) {
     return (static_cast<uint64>(value) & 3) > 0 ? false : true;
   }
@@ -38,13 +38,13 @@ bool StrLdr32PairValid(MOperator mOp, Operand *o) {
 }
 
 // Immediate verification for 2 words from/to memory. simm: -256 ~ 255; pimm: 0 ~ 32760, multiple of 8.
-bool StrLdr64Valid(MOperator mOp, Operand *o) {
- return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(mOp, o), k3ByteSize);
+bool StrLdr64Valid(Operand *o) {
+  return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k3ByteSize);
 }
 
 // Immediate verification: value range -512 ~ 504, multiple of 8.
-bool StrLdr64PairValid(MOperator mOp, Operand *o) {
-  int64 value = AArch64isa::GetMemOpndOffsetValue(mOp, o);
+bool StrLdr64PairValid(Operand *o) {
+  int64 value = AArch64isa::GetMemOpndOffsetValue(o);
   if (value <= kMaxSimm64Pair && (value >= kMinSimm64)) {
     return (static_cast<uint64>(value) & 7) > 0 ? false : true;
   }
@@ -52,13 +52,13 @@ bool StrLdr64PairValid(MOperator mOp, Operand *o) {
 }
 
 // Immediate verification for 4 words from/to memory. simm: -256 ~ 255; pimm: 0 ~ 65520, multiple of 16.
-bool StrLdr128Valid(MOperator mOp, Operand *o) {
-  return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(mOp, o), k4ByteSize);
+bool StrLdr128Valid(Operand *o) {
+  return StrLdrSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k4ByteSize);
 }
 
 // Immediate verification: value range -1024 ~ 1008, multiple of 16.
-bool StrLdr128PairValid(MOperator mOp, Operand *o) {
-  int64 value = AArch64isa::GetMemOpndOffsetValue(mOp, o);
+bool StrLdr128PairValid(Operand *o) {
+  int64 value = AArch64isa::GetMemOpndOffsetValue(o);
   if (value < k1024BitSize && (value >= kNegative1024BitSize)) {
     return (static_cast<uint64>(value) & 0xf) > 0 ? false : true;
   }
@@ -66,824 +66,824 @@ bool StrLdr128PairValid(MOperator mOp, Operand *o) {
 }
 
 bool MOP_wmovri32Valid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? IsSingleInstructionMovable32(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? IsSingleInstructionMovable32(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
   return checkSecond;
 }
 
 bool MOP_xmovri64Valid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? IsSingleInstructionMovable64(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? IsSingleInstructionMovable64(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
   return checkSecond;
 }
 
 bool MOP_xaddrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xaddsrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFifth = opnds[kInsnFifthOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
+  bool checkFifth = (opnds[kInsnFifthOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
   return checkFifth;
 }
 
 bool MOP_xxwaddrrreValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xaddrri24Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-  bool checkFourth = opnds[kInsnFourthOpnd] ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkThird && checkFourth;
 }
 
 bool MOP_xaddrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xaddsrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_waddrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_waddsrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFifth = opnds[kInsnFifthOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
+  bool checkFifth = (opnds[kInsnFifthOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
   return checkFifth;
 }
 
 bool MOP_wwwaddrrreValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_waddrri24Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-  bool checkFourth = opnds[kInsnFourthOpnd] ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkThird && checkFourth;
 }
 
 bool MOP_waddrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_waddsrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xsubrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xsubsrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFifth = opnds[kInsnFifthOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
+  bool checkFifth = (opnds[kInsnFifthOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
   return checkFifth;
 }
 
 bool MOP_xsubrri24Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-  bool checkFourth = opnds[kInsnFourthOpnd] ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkThird && checkFourth;
 }
 
 bool MOP_xsubsrri24Valid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
-  bool checkFifth = opnds[kInsnFifthOpnd] ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFifth = (opnds[kInsnFifthOpnd] != nullptr) ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
   return checkFourth && checkFifth;
 }
 
 bool MOP_xsubrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xsubsrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wsubrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wsubsrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFifth = opnds[kInsnFifthOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
+  bool checkFifth = (opnds[kInsnFifthOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
   return checkFifth;
 }
 
 bool MOP_wsubrri24Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-  bool checkFourth = opnds[kInsnFourthOpnd] ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkThird && checkFourth;
 }
 
 bool MOP_wsubsrri24Valid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
-  bool checkFifth = opnds[kInsnFifthOpnd] ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFifth = (opnds[kInsnFifthOpnd] != nullptr) ? LeftShift12Valid(static_cast<BitShiftOperand*>(opnds[kInsnFifthOpnd])->GetValue()) : true;
   return checkFourth && checkFifth;
 }
 
 bool MOP_wsubrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wsubsrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xxwsubrrreValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wwwsubrrreValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xandrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xandrri13Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm13BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm13BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wandrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wandrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xiorrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xiorrri13Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm13BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm13BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wiorrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wiorrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xeorrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xeorrri13Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm13BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm13BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_weorrrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_weorrri12Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wubfxrri5i5Valid(const MapleVector<Operand*> &opnds) {
-  if (opnds[kInsnThirdOpnd] && opnds[kInsnFourthOpnd]) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
     int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
     return Lsb5BitValid(lsb) && Width5BitValid(width, lsb);
   } else {
-    bool checkThird = opnds[kInsnThirdOpnd] ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-    bool checkFourth = opnds[kInsnFourthOpnd] ? Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }
 
 bool MOP_xubfxrri6i6Valid(const MapleVector<Operand*> &opnds) {
-  if (opnds[kInsnThirdOpnd] && opnds[kInsnFourthOpnd]) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
     int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
     return Lsb6BitValid(lsb) && Width6BitValid(width, lsb);
   } else {
-    bool checkThird = opnds[kInsnThirdOpnd] ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-    bool checkFourth = opnds[kInsnFourthOpnd] ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }
 
 bool MOP_wsbfxrri5i5Valid(const MapleVector<Operand*> &opnds) {
-  if (opnds[kInsnThirdOpnd] && opnds[kInsnFourthOpnd]) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
     int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
     return Lsb5BitValid(lsb) && Width5BitValid(width, lsb);
   } else {
-    bool checkThird = opnds[kInsnThirdOpnd] ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-    bool checkFourth = opnds[kInsnFourthOpnd] ? Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }
 
 bool MOP_xsbfxrri6i6Valid(const MapleVector<Operand*> &opnds) {
-  if (opnds[kInsnThirdOpnd] && opnds[kInsnFourthOpnd]) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
     int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
     return Lsb6BitValid(lsb) && Width6BitValid(width, lsb);
   } else {
-    bool checkThird = opnds[kInsnThirdOpnd] ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-    bool checkFourth = opnds[kInsnFourthOpnd] ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }
 
 bool MOP_wubfizrri5i5Valid(const MapleVector<Operand*> &opnds) {
-  if (opnds[kInsnThirdOpnd] && opnds[kInsnFourthOpnd]) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
     int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
     return Lsb5BitValid(lsb) && Width5BitValid(width, lsb);
   } else {
-    bool checkThird = opnds[kInsnThirdOpnd] ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-    bool checkFourth = opnds[kInsnFourthOpnd] ? Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }
 
 bool MOP_xubfizrri6i6Valid(const MapleVector<Operand*> &opnds) {
-  if (opnds[kInsnThirdOpnd] && opnds[kInsnFourthOpnd]) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
     int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
     return Lsb6BitValid(lsb) && Width6BitValid(width, lsb);
   } else {
-    bool checkThird = opnds[kInsnThirdOpnd] ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-    bool checkFourth = opnds[kInsnFourthOpnd] ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }
 
 bool MOP_xsbfizrri6i6Valid(const MapleVector<Operand*> &opnds) {
-  if (opnds[kInsnThirdOpnd] && opnds[kInsnFourthOpnd]) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
     int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
     return Lsb6BitValid(lsb) && Width6BitValid(width, lsb);
   } else {
-    bool checkThird = opnds[kInsnThirdOpnd] ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-    bool checkFourth = opnds[kInsnFourthOpnd] ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }
 
 bool MOP_wbfirri5i5Valid(const MapleVector<Operand*> &opnds) {
-  if (opnds[kInsnThirdOpnd] && opnds[kInsnFourthOpnd]) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
     int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
     return Lsb5BitValid(lsb) && Width5BitValid(width, lsb);
   } else {
-    bool checkThird = opnds[kInsnThirdOpnd] ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-    bool checkFourth = opnds[kInsnFourthOpnd] ? Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }
 
 bool MOP_xbfirri6i6Valid(const MapleVector<Operand*> &opnds) {
-  if (opnds[kInsnThirdOpnd] && opnds[kInsnFourthOpnd]) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
     int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
     return Lsb6BitValid(lsb) && Width6BitValid(width, lsb);
   } else {
-    bool checkThird = opnds[kInsnThirdOpnd] ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-    bool checkFourth = opnds[kInsnFourthOpnd] ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }
 
 bool MOP_xlslrri6Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wlslrri5Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xasrrri6Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wasrrri5Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xlsrrri6Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wlsrrri5Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wtstri32Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xtstri64Valid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm13BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm13BitMaskValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wextrrrri5Valid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xextrrrri6Valid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_winegrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xinegrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wldrsbValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr8Valid(MOP_wldrsb, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_xldrsbValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr8Valid(MOP_xldrsb, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 } 
 
 bool MOP_wldrbValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr8Valid(MOP_wldrb, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldrshValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr16Valid(MOP_wldrsh, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_xldrshValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr16Valid(MOP_xldrsh, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_xldrswValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr32Valid(MOP_xldrsw, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldrhValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr16Valid(MOP_wldrh, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr32Valid(MOP_wldr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_xldrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr64Valid(MOP_xldr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_bldrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr8Valid(MOP_bldr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_hldrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr16Valid(MOP_hldr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_sldrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr32Valid(MOP_sldr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_dldrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr64Valid(MOP_dldr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_qldrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr128Valid(MOP_qldr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr128Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr32PairValid(MOP_wldp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr32PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_xldpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr64PairValid(MOP_xldp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr64PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_xldpswValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr32PairValid(MOP_xldpsw, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr32PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_sldpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr32PairValid(MOP_sldp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr32PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_dldpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr64PairValid(MOP_dldp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr64PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_qldpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr128PairValid(MOP_qldp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr128PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_wldarbValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr8Valid(MOP_wldarb, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldarhValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr16Valid(MOP_wldarh, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldarValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr32Valid(MOP_wldar, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_xldarValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr64Valid(MOP_xldar, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wmovkri16Valid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
-  bool checkThird = opnds[kInsnThirdOpnd] ? ImmShift32Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? ImmShift32Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkSecond && checkThird;
 }
 
 bool MOP_xmovkri16Valid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
-  bool checkThird = opnds[kInsnThirdOpnd] ? ImmShift64Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? ImmShift64Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkSecond && checkThird;
 }
 
 bool MOP_wmovzri16Valid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
-  bool checkThird = opnds[kInsnThirdOpnd] ? ImmShift32Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? ImmShift32Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkSecond && checkThird;
 }
 
 bool MOP_xmovzri16Valid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
-  bool checkThird = opnds[kInsnThirdOpnd] ? ImmShift64Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? ImmShift64Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkSecond && checkThird;
 }
 
 bool MOP_wmovnri16Valid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
-  bool checkThird = opnds[kInsnThirdOpnd] ? ImmShift32Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? ImmShift32Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkSecond && checkThird;
 }
 
 bool MOP_xmovnri16Valid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
-  bool checkThird = opnds[kInsnThirdOpnd] ? ImmShift64Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? ImmShift64Valid(static_cast<BitShiftOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkSecond && checkThird;
 }
 
 bool MOP_wldxrbValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr8Valid(MOP_wldxrb, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldxrhValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr16Valid(MOP_wldxrh, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldxrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr32Valid(MOP_wldxr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_xldxrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr64Valid(MOP_xldxr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldaxrbValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr8Valid(MOP_wldaxrb, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldaxrhValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr16Valid(MOP_wldaxrh, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldaxrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr32Valid(MOP_wldaxr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_xldaxrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr64Valid(MOP_xldaxr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wldaxpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr32Valid(MOP_wldaxp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_xldaxpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr64Valid(MOP_xldaxp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_wcmpriValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wcmprrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wwcmprreValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xcmpriValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xcmprrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xwcmprreValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wccmpriicValid(const MapleVector<Operand*> &opnds) {
   // Is a five bit unsigned (positive) immediate, range 0 to 31
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Nzcv4BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Nzcv4BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkThird && checkFourth;
 }
 
 bool MOP_wccmprricValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Nzcv4BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Nzcv4BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xccmpriicValid(const MapleVector<Operand*> &opnds) {
   // Is a five bit unsigned (positive) immediate, range 0 to 31
-  bool checkThird = opnds[kInsnThirdOpnd] ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Nzcv4BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Nzcv4BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkThird && checkFourth;
 }
 
 bool MOP_xccmprricValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? Nzcv4BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? Nzcv4BitValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wcmnriValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_wcmnrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift5BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wwcmnrreValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xcmnriValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
 bool MOP_xcmnrrsValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? BitShift6BitValid(static_cast<BitShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_xwcmnrreValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? ExtendShift0To4Valid(static_cast<ExtendShiftOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
   return checkFourth;
 }
 
 bool MOP_wtbnzValid(const MapleVector<Operand*> &opnds) {
   // Is the bit number to be tested, in the range 0 to 63
-  bool checkSecond = opnds[kInsnSecondOpnd] ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
   return checkSecond;
 }
 
 bool MOP_xtbnzValid(const MapleVector<Operand*> &opnds) {
   // Is the bit number to be tested, in the range 0 to 63
-  bool checkSecond = opnds[kInsnSecondOpnd] ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
   return checkSecond;
 }
 
 bool MOP_wtbzValid(const MapleVector<Operand*> &opnds) {
   // Is the bit number to be tested, in the range 0 to 63
-  bool checkSecond = opnds[kInsnSecondOpnd] ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
   return checkSecond;
 }
 
 bool MOP_xtbzValid(const MapleVector<Operand*> &opnds) {
   // Is the bit number to be tested, in the range 0 to 63
-  bool checkSecond = opnds[kInsnSecondOpnd] ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
   return checkSecond;
 }
 
 bool MOP_wstrbValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr8Valid(MOP_wstrb, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wstrhValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr16Valid(MOP_wstrh, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wstrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr32Valid(MOP_wstr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_xstrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr64Valid(MOP_xstr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_sstrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr32Valid(MOP_sstr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_dstrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr64Valid(MOP_dstr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_qstrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr128Valid(MOP_qstr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr128Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wstpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr32PairValid(MOP_wstp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr32PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_xstpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr64PairValid(MOP_xstp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr64PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_sstpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr32PairValid(MOP_sstp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr32PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_dstpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr64PairValid(MOP_dstp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr64PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_qstpValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr128PairValid(MOP_qstp, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr128PairValid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_wstlrbValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr8Valid(MOP_wstlrb, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wstlrhValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr16Valid(MOP_wstlrh, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wstlrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr32Valid(MOP_wstlr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_xstlrValid(const MapleVector<Operand*> &opnds) {
-  bool checkSecond = opnds[kInsnSecondOpnd] ? StrLdr64Valid(MOP_xstlr, opnds[kInsnSecondOpnd]) : true;
+  bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnSecondOpnd]) : true;
   return checkSecond;
 }
 
 bool MOP_wstxrbValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr8Valid(MOP_wstxrb, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_wstxrhValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr16Valid(MOP_wstxrh, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_wstxrValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr32Valid(MOP_wstxr, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_xstxrValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr64Valid(MOP_xstxr, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_wstlxrbValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr8Valid(MOP_wstlxrb, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr8Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_wstlxrhValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr16Valid(MOP_wstlxrh, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr16Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_wstlxrValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr32Valid(MOP_wstlxr, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr32Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_xstlxrValid(const MapleVector<Operand*> &opnds) {
-  bool checkThird = opnds[kInsnThirdOpnd] ? StrLdr64Valid(MOP_xstlxr, opnds[kInsnThirdOpnd]) : true;
+  bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnThirdOpnd]) : true;
   return checkThird;
 }
 
 bool MOP_wstlxpValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? StrLdr64Valid(MOP_wstlxp, opnds[kInsnFourthOpnd]) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnFourthOpnd]) : true;
   return checkFourth;
 }
 
 bool MOP_xstlxpValid(const MapleVector<Operand*> &opnds) {
-  bool checkFourth = opnds[kInsnFourthOpnd] ? StrLdr64Valid(MOP_xstlxp, opnds[kInsnFourthOpnd]) : true;
+  bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ? StrLdr64Valid(opnds[kInsnFourthOpnd]) : true;
   return checkFourth;
 }
 
 bool MOP_brkValid(const MapleVector<Operand*> &opnds) {
-  bool checkFirst = opnds[kInsnFirstOpnd] ? Imm16BitValidImm(static_cast<ImmOperand*>(opnds[kInsnFirstOpnd])->GetValue()) : true;
+  bool checkFirst = (opnds[kInsnFirstOpnd] != nullptr) ? Imm16BitValidImm(static_cast<ImmOperand*>(opnds[kInsnFirstOpnd])->GetValue()) : true;
   return checkFirst;
 }

@@ -250,7 +250,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType, bool isDest, Insn &insn);
   void SelectAddAfterInsnBySize(Operand &resOpnd, Operand &opnd0, Operand &opnd1, uint32 size, bool isDest, Insn &insn);
   bool IsImmediateOffsetOutOfRange(const MemOperand &memOpnd, uint32 bitLen);
-  bool IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx);
+  bool IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx) const;
   Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   void SelectDiv(Operand &resOpnd, Operand &origOpnd0, Operand &opnd1, PrimType primType) override;
   Operand *SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;

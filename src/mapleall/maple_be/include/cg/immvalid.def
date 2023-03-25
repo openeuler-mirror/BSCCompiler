@@ -206,12 +206,12 @@ bool Lsb5BitValid(int64 value) {
 
 // For the 32-bit variant: is the width of the bitfield, in the range 1 to 32-<lsb>
 bool Width5BitValid(int64 value, int64 lsb) {
-  return  (value >= 1) && (value <= 32 - lsb);
+  return (value >= 1) && (value <= 32 - lsb);
 }
 
 // For the 32-bit variant: is the width of the bitfield, in the range 1 to 32, is used for only width verified
 bool Width5BitOnlyValid(int64 value) {
-  return  (value >= 1) && (value <= 32);
+  return (value >= 1) && (value <= 32);
 }
 
 // For the 64-bit variant: is the bit number of the lsb of the source bitfield, in the range 0 to 63
@@ -222,18 +222,17 @@ bool Lsb6BitValid(int64 value) {
 
 // For the 64-bit variant: is the width of the bitfield, in the range 1 to 64-<lsb>
 bool Width6BitValid(int64 value, int64 lsb) {
-  return  (value >= 1) && (value <= 64 - lsb);
+  return (value >= 1) && (value <= 64 - lsb);
 }
 
 // For the 64-bit variant: is the width of the bitfield, in the range 1 to 64, is used for only width verified
 bool Width6BitOnlyValid(int64 value) {
-  return  (value >= 1) && (value <= 64);
+  return (value >= 1) && (value <= 64);
 }
 
-// Is the left shift amount to be applied after extension in the range 0 to 4
+// Is the left shift amount to be applied after extension in the range 0 to 4, uint32 means value non-negative
 bool ExtendShift0To4Valid(uint32 value) {
-  bool result = (value >= k0BitSize) && (value <= k4BitSize);
-  return result;
+  return (value <= k4BitSize);
 }
 
 // Is the optional left shift to apply to the immediate, it can have the values: 0, 12

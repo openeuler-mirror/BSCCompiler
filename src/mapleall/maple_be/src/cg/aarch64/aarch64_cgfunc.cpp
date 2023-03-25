@@ -905,7 +905,7 @@ bool AArch64CGFunc::IsImmediateOffsetOutOfRange(const MemOperand &memOpnd, uint3
 
 // This api is used to judge whether opnd is legal for mop.
 // It is implemented by calling verify api of mop (InsnDesc -> Verify).
-bool AArch64CGFunc::IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx) {
+bool AArch64CGFunc::IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx) const {
   const InsnDesc *md = &AArch64CG::kMd[mOp];
   auto *opndProp = md->opndMD[opndIdx];
   MemPool *localMp = memPoolCtrler.NewMemPool("opnd verify mempool", true);
