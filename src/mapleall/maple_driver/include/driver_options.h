@@ -2058,6 +2058,8 @@ extern maplecl::Option<std::string> oFinlineLimit;
 extern maplecl::Option<std::string> oFfixed;
 extern maplecl::Option<std::string> oFtemplateDepth;
 extern maplecl::Option<std::string> oFtemplateDepthE;
+extern maplecl::Option<std::string> functionReorderAlgorithm;
+extern maplecl::Option<std::string> functionReorderProfile;
 
 /* ##################### DIGITAL Options ############################################################### */
 

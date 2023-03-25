@@ -27,6 +27,7 @@
 #include "reg_alloc.h"
 #include "target_info.h"
 #include "standardize.h"
+#include "cg_callgraph_reorder.h"
 #if defined(TARGAARCH64) && TARGAARCH64
 #include "aarch64_emitter.h"
 #include "aarch64_cg.h"
@@ -340,6 +341,21 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) const {
 }
 
 void InitFunctionPriority(std::map<std::string, uint32> &prioritylist) {
+  std::string reorderAlgo = CGOptions::GetFunctionReorderAlgorithm();
+  if (!reorderAlgo.empty()) {
+    std::string reorderProfile = CGOptions::GetFunctionReorderProfile();
+    if (reorderProfile.empty()) {
+      LogInfo::MapleLogger() << "WARN: function reorder need profile"
+                             << "\n";
+    }
+    if (reorderAlgo == "call-chain-clustering") {
+      prioritylist = ReorderAccordingProfile(reorderProfile);
+    } else {
+      LogInfo::MapleLogger() << "WARN: function reorder algorithm no support"
+                             << "\n";
+    }
+    return;
+  }
   if (CGOptions::GetFunctionPriority() != "") {
     std::string fileName = CGOptions::GetFunctionPriority();
     std::ifstream in(fileName);
@@ -367,12 +383,34 @@ void InitFunctionPriority(std::map<std::string, uint32> &prioritylist) {
   }
 }
 
-void MarkFunctionPriority(std::map<std::string, uint32> &prioritylist, CGFunc &f) {
+static void MarkFunctionPriority(std::map<std::string, uint32> &prioritylist, CGFunc &f) {
   if (!prioritylist.empty()) {
     if (prioritylist.count(f.GetName()) != 0) {
       f.SetPriority(prioritylist[f.GetName()]);
     }
   }
+}
+
+static std::optional<MapleList<MIRFunction *>> ReorderFunction(MIRModule &m,
+                                                                 const std::map<std::string, uint32> &priorityList) {
+  if (!opts::linkerTimeOpt.IsEnabledByUser()) {
+    return std::nullopt;
+  }
+  if (priorityList.empty()) {
+    return std::nullopt;
+  }
+  MapleList<MIRFunction *> reorderdFunctionList(m.GetMPAllocator().Adapter());
+  std::vector<MIRFunction *> hotFunctions(priorityList.size());
+  for (auto f : m.GetFunctionList()) {
+    if (priorityList.find(f->GetName()) != priorityList.end()) {
+      CHECK_FATAL(hotFunctions.size() > priorityList.at(f->GetName()) - 1, "func priority out of range");
+      hotFunctions[priorityList.at(f->GetName()) - 1] = f;
+    } else {
+      reorderdFunctionList.push_back(f);
+    }
+  }
+  std::copy(hotFunctions.begin(), hotFunctions.end(), std::back_inserter(reorderdFunctionList));
+  return reorderdFunctionList;
 }
 
 /* =================== new phase manager ===================  */
@@ -395,6 +433,8 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
     std::map<std::string, uint32> priorityList;
     InitFunctionPriority(priorityList);
 
+    auto reorderedFunctions = ReorderFunction(m, priorityList);
+
     if (CGOptions::GetTLSModel() == CGOptions::kWarmupDynamicTLSModel) {
       CalculateWarmupDynamicTLS(m);
       PrepareForWarmupDynamicTLS(m);
@@ -408,7 +448,11 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 
     auto admMempool = AllocateMemPoolInPhaseManager("cg phase manager's analysis data manager mempool");
     auto *serialADM = GetManagerMemPool()->New<AnalysisDataManager>(*(admMempool.get()));
-    for (auto it = m.GetFunctionList().begin(); it != m.GetFunctionList().end(); ++it) {
+    auto *funcList = &m.GetFunctionList();
+    if (reorderedFunctions) {
+      funcList = &reorderedFunctions.value();
+    }
+    for (auto it = funcList->begin(); it != funcList->end(); ++it) {
       ASSERT(serialADM->CheckAnalysisInfoEmpty(), "clean adm before function run");
       MIRFunction *mirFunc = *it;
       if (mirFunc->GetBody() == nullptr) {

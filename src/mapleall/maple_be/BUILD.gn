@@ -281,6 +281,7 @@ src_libcg = [
   "src/cg/isa.cpp",
   "src/cg/insn.cpp",
   "src/cg/cg_phasemanager.cpp",
+  "src/cg/cg_callgraph_reorder.cpp",
 ]
 
 cflags_cc -= [ "-DRC_NO_MMAP" ]

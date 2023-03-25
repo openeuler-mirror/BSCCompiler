@@ -443,7 +443,9 @@ void HandleSpecificSec(Emitter &emitter, CGFunc &cgFunc) {
   const std::string &sectionName = cgFunc.GetFunction().GetAttrs().GetPrefixSectionName();
   emitter.Emit("\t.section\t" + sectionName);
   if (cgFunc.GetPriority() != 0) {
-    emitter.Emit(".").Emit(cgFunc.GetPriority());
+    if (!opts::linkerTimeOpt.IsEnabledByUser()) {
+        emitter.Emit(".").Emit(cgFunc.GetPriority());
+    }
   }
   bool isInInitArray = sectionName == ".init_array";
   bool isInFiniArray = sectionName == ".fini_array";
@@ -487,7 +489,11 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     (void)emitter.Emit("\t.section\t.text.startup").Emit(",\"ax\",@progbits\n");
   } else {
     if (cgFunc.GetPriority() != 0) {
-      (void)emitter.Emit("\t.section\tperf_hot.").Emit(cgFunc.GetPriority()).Emit(",\"ax\",@progbits\n");
+        if (opts::linkerTimeOpt.IsEnabledByUser()) {
+          (void)emitter.Emit("\t.section\tperf_hot").Emit(",\"ax\",@progbits\n");
+        } else {
+          (void)emitter.Emit("\t.section\tperf_hot.").Emit(cgFunc.GetPriority()).Emit(",\"ax\",@progbits\n");
+        }
     } else {
       (void)emitter.Emit("\t.text\n");
     }

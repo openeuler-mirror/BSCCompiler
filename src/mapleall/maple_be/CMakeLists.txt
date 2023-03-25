@@ -283,6 +283,7 @@ set(src_libcg
     src/cg/isa.cpp
     src/cg/insn.cpp
     src/cg/cg_phasemanager.cpp
+    src/cg/cg_callgraph_reorder.cpp
 )
 
 string(REPLACE "-DRC_NO_MMAP" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")

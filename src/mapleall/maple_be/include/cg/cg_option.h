@@ -1464,6 +1464,22 @@ class CGOptions {
     return functionProrityFile;
   }
 
+  static void SetFunctionReorderAlgorithm(std::string algorithm) {
+    functionReorderAlgorithm = algorithm;
+  }
+
+  static std::string GetFunctionReorderAlgorithm() {
+    return functionReorderAlgorithm;
+  }
+
+  static void SetFunctionReorderProfile(std::string profile) {
+    functionReorderProfile = profile;
+  }
+
+  static std::string GetFunctionReorderProfile() {
+    return functionReorderProfile;
+  }
+
   static void SetLitePgoOutputFunction(std::string iofile) {
     litePgoOutputFunction = iofile;
   }
@@ -1657,6 +1673,8 @@ class CGOptions {
   static std::string instrumentationOutPutPath;
   static std::string liteProfile;
   static std::string functionProrityFile;
+  static std::string functionReorderAlgorithm;
+  static std::string functionReorderProfile;
   static bool doAggrOpt;
   static VisibilityType visibilityType;
   static TLSModel tlsModel;

@@ -262,7 +262,7 @@ maplecl::Option<bool> fStrongEvalOrder({"-fstrong-eval-order"},
 
 maplecl::Option<bool> linkerTimeOpt({"-flto"},
     "  -flto                   \tEnable LTO in 'full' mode\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, cgCategory});
 
 maplecl::Option<bool> shared({"-shared"},
     "  -shared          \tCreate a shared library.\n",
@@ -524,6 +524,15 @@ maplecl::Option<std::string> ftlsModel({"-ftls-model"},
                             "  -ftls-model=[global-dynamic|local-dynamic|initial-exec|local-exec|warmup-dynamic] "
                             "   \tAlter the thread-local storage model to be used.\n",
                             {driverCategory});
+
+maplecl::Option<std::string> functionReorderAlgorithm({"--function-reorder-algorithm"},
+                                                      " --function-reorder-algorithm=[call-chain-clustering]"
+                                                      "          \t choose function reorder algorithm\n",
+                                                      {driverCategory, cgCategory});
+maplecl::Option<std::string> functionReorderProfile({"--function-reorder-profile"},
+                                                    " --function-reorder-profile=filepath"
+                                                    "          \t profile for function reorder\n",
+                                                    {driverCategory, cgCategory});
 
 /* ##################### DIGITAL Options ############################################################### */
 

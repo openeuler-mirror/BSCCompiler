@@ -69,6 +69,8 @@ std::string CGOptions::litePgoWhiteList = "";
 std::string CGOptions::instrumentationOutPutPath = "";
 std::string CGOptions::litePgoOutputFunction = "";
 std::string CGOptions::functionProrityFile = "";
+std::string CGOptions::functionReorderAlgorithm = "";
+std::string CGOptions::functionReorderProfile = "";
 std::string CGOptions::cpu = "cortex-a53";
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
@@ -737,6 +739,14 @@ bool CGOptions::SolveOptions(bool isDebug) {
   if (opts::cg::functionPriority.IsEnabledByUser()) {
     SetFunctionPriority(opts::cg::functionPriority);
   }
+
+  if (opts::functionReorderAlgorithm.IsEnabledByUser()) {
+    SetFunctionReorderAlgorithm(opts::functionReorderAlgorithm);
+  }
+
+  if (opts::functionReorderProfile.IsEnabledByUser()) {
+    SetFunctionReorderProfile(opts::functionReorderProfile);
+  } 
 
   if (opts::fVisibility.IsEnabledByUser()) {
     SetVisibilityType(opts::fVisibility);
