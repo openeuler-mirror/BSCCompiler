@@ -123,7 +123,7 @@ class Options {
   static bool mapleLinker;
   static bool dumpMuidFile;
   static bool emitVtableImpl;
-#if MIR_JAVA
+#if defined(MIR_JAVA) && MIR_JAVA
   static bool skipVirtualMethod;
 #endif
   // Ready to be deleted.

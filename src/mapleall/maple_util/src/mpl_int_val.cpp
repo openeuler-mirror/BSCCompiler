@@ -383,7 +383,7 @@ static void MulPart(uint64 *dst, const uint64 *src, uint64 multiplier, uint16 pa
       carry += AddCarry(dst[part + i + 1], overflow);
 
       uint16 j = part + i + 2;
-      while (carry && j < numParts) {
+      while ((carry != 0) && j < numParts) {
         carry = AddCarry(dst[j], carry);
         ++j;
       }
@@ -510,7 +510,7 @@ static void ShiftLeft(T *dst, uint16 numWords, uint16 bits) {
   uint16 shiftWords = bits / typeBitSize;
   uint8 shiftBits = bits % typeBitSize;
 
-  if (!shiftBits) {
+  if (shiftBits == 0) {
     size_t size = (numWords - shiftWords) * sizeof(T);
     errno_t err = memmove_s(dst + shiftWords, size, dst, size);
     CHECK_FATAL(err == EOK, "memmove_s failed");
@@ -562,7 +562,7 @@ static void ShiftRight(T *dst, uint16 numWords, uint16 bits, bool negRemainder =
   uint16 shiftWords = bits / typeBitSize;
   uint8 shiftBits = bits % typeBitSize;
 
-  if (!shiftBits) {
+  if (shiftBits == 0) {
     errno_t err =
         memmove_s(dst, (numWords - shiftWords) * sizeof(T), dst + shiftWords, (numWords - shiftWords) * sizeof(T));
     CHECK_FATAL(err == EOK, "memmove_s failed");
@@ -907,7 +907,7 @@ uint16 IntVal::CountLeadingOnes() const {
 
   uint16 i = GetNumWords() - 1;
   uint8 ones = maple::CountLeadingOnes(u.pValue[i] | mask) - startPos;
-  if (!ones) {
+  if (ones == 0) {
     return 0;
   }
 

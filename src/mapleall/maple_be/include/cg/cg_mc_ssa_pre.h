@@ -111,7 +111,7 @@ class McSSAPre : public SSAPre {
   uint32 nextRGNodeId = 1;  // 0 is reserved
   FreqType maxFlowValue = 0;
   // relax maxFlowValue to avoid excessive mincut search time when number of routes is large
-  FreqType relaxedMaxFlowValue;
+  FreqType relaxedMaxFlowValue = 0;
   MapleVector<Visit*> minCut;   // an array of Visits* to represent the minCut
 };
 

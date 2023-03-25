@@ -27,7 +27,7 @@ uint32 AArch64CallConvImpl::FloatParamRegRequired(MIRStructType &structType, uin
     return 0;
   }
   fpSize = GetPrimTypeSize(baseType);
-  return elemNum;
+  return static_cast<uint32>(elemNum);
 }
 
 static void AllocateHomogeneousAggregatesRegister(CCLocInfo &ploc, const AArch64reg *regList,
@@ -256,7 +256,7 @@ uint64 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &ploc, bo
   uint64 typeAlign = beCommon.GetTypeAlign(mirType.GetTypeIndex());
   ploc.memSize = static_cast<int32>(typeSize);
 
-  int32 aggCopySize = 0;
+  uint64 aggCopySize = 0;
   if (IsPrimitiveFloat(mirType.GetPrimType()) || IsPrimitiveVector(mirType.GetPrimType())) {
     // float or vector, passed by float or SIMD register
     ploc.reg0 = AllocateSIMDFPRegister();
@@ -274,7 +274,7 @@ uint64 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &ploc, bo
     // being passed in memory
     typeAlign = (typeAlign <= k8ByteSize) ? k8ByteSize : typeAlign;
     nextStackArgAdress = RoundUp(nextStackArgAdress, typeAlign);
-    ploc.memOffset = nextStackArgAdress;
+    ploc.memOffset = static_cast<int32>(nextStackArgAdress);
     // large struct, passed with pointer
     nextStackArgAdress += (aggCopySize != 0 ? k8ByteSize : typeSize);
   }

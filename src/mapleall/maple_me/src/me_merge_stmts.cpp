@@ -57,7 +57,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
     size_t endIdx = 0;
     int32 startBitOffset = iassignCandidates[startCandidate].first;
 
-    if ((startBitOffset & 0x7) != 0) {
+    if ((static_cast<uint32>(startBitOffset) & 0x7) != 0) {
       startCandidate++;
       continue;
     }

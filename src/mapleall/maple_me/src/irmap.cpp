@@ -2151,7 +2151,7 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
     uint64 bit = 1;
     for (uint8 i = 0; i < bitwidth; ++i, bit <<= 1) {
       // clear the bit if andMask is zero for this bit.
-      if ((andMask & bit) == 0) {
+      if ((static_cast<uint64>(andMask) & bit) == 0) {
         result->provenance[i] = BitPart::kUnset;
       }
     }

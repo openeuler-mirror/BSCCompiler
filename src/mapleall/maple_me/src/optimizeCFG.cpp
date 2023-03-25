@@ -1610,8 +1610,11 @@ bool OptimizeBB::FoldCondBranch() {
       isAnd = true;
     }
 
-    if (!isAnd && (foldExpr = FoldCmpOfBitOps(*irmap, *stmt1->GetOpnd(), *stmt2->GetOpnd())) != nullptr) {
-      break;
+    if (!isAnd) {
+      foldExpr = FoldCmpOfBitOps(*irmap, *stmt1->GetOpnd(), *stmt2->GetOpnd());
+      if (foldExpr != nullptr) {
+        break;
+      }
     }
 
     if ((foldExpr = ConstantFold::FoldCmpExpr(*irmap, *stmt1->GetOpnd(), *stmt2->GetOpnd(), isAnd)) != nullptr) {

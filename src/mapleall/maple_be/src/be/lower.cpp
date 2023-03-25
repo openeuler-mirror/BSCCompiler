@@ -221,8 +221,8 @@ BaseNode *CGLowerer::SplitBinaryNodeOpnd1(BinaryNode &bNode, BlockNode &blkNode)
 
   BaseNode *opnd1 = bNode.Opnd(1);
   MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(opnd1->GetPrimType()));
-  MIRSymbol *dnodeSt = mirbuilder->GetOrCreateLocalDecl(const_cast<const std::string&>(name), *ty);
-  DassignNode *dnode = mirbuilder->CreateStmtDassign(const_cast<MIRSymbol&>(*dnodeSt), 0, opnd1);
+  MIRSymbol *dnodeSt = mirbuilder->GetOrCreateLocalDecl(name, *ty);
+  DassignNode *dnode = mirbuilder->CreateStmtDassign(*dnodeSt, 0, opnd1);
   blkNode.InsertAfter(blkNode.GetLast(), dnode);
 
   BaseNode *dreadNode = mirbuilder->CreateExprDread(*dnodeSt);

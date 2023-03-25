@@ -260,7 +260,7 @@ void CGCFG::CheckCFG() {
 void CGCFG::CheckCFGFreq() {
   auto verifyBBFreq = [this](const BB *bb, uint32 succFreq) {
     uint32 res = bb->GetFrequency();
-    if ((res != 0 && static_cast<uint32>(abs(static_cast<int>(res - succFreq))) / res > 1.0) ||
+    if ((res != 0 && static_cast<uint32>(abs(static_cast<int>(res - succFreq))) / res > 1) ||
         (res == 0 && res != succFreq)) {
       // Not included
       if (bb->GetSuccs().size() > 1 && bb->GetPreds().size() > 1) {

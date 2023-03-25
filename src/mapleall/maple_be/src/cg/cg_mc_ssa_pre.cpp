@@ -601,8 +601,8 @@ void McSSAPre::SetPartialAnt(PhiOpndOcc *phiOpnd) const {
     return;
   }
   defPhiOcc->isPartialAnt = true;
-  for (PhiOpndOcc *phiOpnd : defPhiOcc->phiOpnds) {
-    SetPartialAnt(phiOpnd);
+  for (PhiOpndOcc *sPhiOpnd : defPhiOcc->phiOpnds) {
+    SetPartialAnt(sPhiOpnd);
   }
 }
 

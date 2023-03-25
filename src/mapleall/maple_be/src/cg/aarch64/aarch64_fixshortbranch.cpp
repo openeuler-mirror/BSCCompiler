@@ -131,7 +131,7 @@ void AArch64FixShortBranch::FixShortBranches() const {
 uint32 GetLabelIdx(Insn &insn) {
   uint32 res = 0;
   uint32 foundCount = 0;
-  for (size_t i = 0; i < insn.GetOperandSize(); ++i) {
+  for (uint32 i = 0; i < insn.GetOperandSize(); ++i) {
     Operand &opnd = insn.GetOperand(i);
     if (opnd.GetKind() == Operand::kOpdBBAddress) {
       res = i;

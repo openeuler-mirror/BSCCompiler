@@ -1151,7 +1151,7 @@ void MemEntry::ExpandMemsetLowLevel(int64 byte, uint64 size, MIRFunction &func, 
   }
   BaseNode *readConst = nullptr;
   // rhs const is big, extract it to avoid redundant expression
-  bool shouldExtractRhs = blocks.size() > 1 && (byte & 0xff) != 0;
+  bool shouldExtractRhs = blocks.size() > 1 && (static_cast<uint64>(byte) & 0xff) != 0;
   for (auto curSize : blocks) {
     // low level memset expand result:
     //   iassignoff <prim-type> <offset> (dstAddrExpr, constval <prim-type> xx)

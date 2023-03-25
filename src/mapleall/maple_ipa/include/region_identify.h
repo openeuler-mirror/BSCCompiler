@@ -228,7 +228,7 @@ class RegionGroup {
 
  private:
   std::vector<RegionCandidate> groups;
-  uint32 groupId;
+  uint32 groupId = 0;
   int64 cost = 0;
 };
 

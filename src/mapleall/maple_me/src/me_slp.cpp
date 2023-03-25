@@ -2961,7 +2961,7 @@ MeExpr *BuildExprAfterVectorSetElement(MeFunction &func, RegMeExpr *vecReg,
 // Example:
 //   constants: [ 12, 35, 78, 89 ], elemSize: 8bit
 //   output: (bin) 01011001 01001110 00100011 00001100
-uint64 ConstructConstants(std::vector<int64> &constants, uint32 elemSize) {
+uint64 ConstructConstants(std::vector<uint64> &constants, uint32 elemSize) {
   uint64 res = 0;
   uint32 shift = 0;
   uint32 maskShift = 64 - elemSize;
@@ -2996,9 +2996,9 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
     }
     vecType = GetScalarUnsignedTypeBySize(GetPrimTypeBitSize(vecType->GetPrimType()));
     lhsReg = irMap.CreateRegMeExpr(*vecType);
-    std::vector<int64> constants(treeNode->GetExprs().size());
+    std::vector<uint64> constants(treeNode->GetExprs().size());
     std::transform(treeNode->GetExprs().begin(), treeNode->GetExprs().end(), constants.begin(), [](MeExpr *expr) {
-      return static_cast<ConstMeExpr*>(expr)->GetExtIntValue();
+      return static_cast<uint64>(static_cast<ConstMeExpr*>(expr)->GetExtIntValue());
     });
     uint64 mergeConstval = ConstructConstants(constants, GetPrimTypeBitSize(elemType));
     rhs = irMap.CreateIntConstMeExpr(mergeConstval, vecType->GetPrimType());

@@ -472,8 +472,11 @@ void BB::DumpMePhiList(const IRMap *irMap) {
   for (const auto &phi : mePhiList) {
     phi.second->Dump(irMap);
     int dumpVsyNum = DumpOptions::GetDumpVsyNum();
-    if (dumpVsyNum > 0 && ++count >= dumpVsyNum) {
-      break;
+    if (dumpVsyNum > 0) {
+      ++count;
+      if (count >= dumpVsyNum) {
+        break;
+      }
     }
     ASSERT(count >= 0, "mePhiList too large");
   }

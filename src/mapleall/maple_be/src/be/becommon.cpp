@@ -780,7 +780,7 @@ bool BECommon::CallIsOfAttr(FuncAttrKind attr, const StmtNode *narynode) const {
 
   /* For now, all 64x1_t types object are not propagated to become pregs by mplme, so the following
      is not needed for now. We need to revisit this later when types are enhanced with attributes */
-#if TO_BE_RESURRECTED
+#if defined(TO_BE_RESURRECTED) && TO_BE_RESURRECTED
   bool attrFunc = false;
   if (narynode->GetOpCode() == OP_call) {
     CallNode *callNode = static_cast<CallNode *>(narynode);

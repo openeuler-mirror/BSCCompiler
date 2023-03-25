@@ -78,7 +78,7 @@ class SafeExe {
       if (!WIFEXITED(static_cast<uint>(status))) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
-      } else if (WEXITSTATUS(status) != 0) {
+      } else if (static_cast<uint>(WEXITSTATUS(status)) != 0) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
       }
@@ -157,7 +157,7 @@ class SafeExe {
       waitpid(pid, &status, 0);
       if (!WIFEXITED(static_cast<uint>(status))) {
         ret = kErrorCompileFail;
-      } else if (WEXITSTATUS(status) != 0) {
+      } else if (static_cast<uint>(WEXITSTATUS(status)) != 0) {
         ret = kErrorCompileFail;
       }
 
@@ -319,8 +319,8 @@ class SafeExe {
     // copy args
     auto cmdSize = cmd.size() + 1; // +1 for NUL terminal
     argv[0] = new char[cmdSize];
-    strncpy_s(argv[0], cmdSize, cmd.c_str(), cmdSize); // c_str includes NUL terminal
-
+    errno_t errSafe = strncpy_s(argv[0], cmdSize, cmd.c_str(), cmdSize); // c_str includes NUL terminal
+    CHECK_FATAL(errSafe == EOK, "strncpy_s failed");
     /* Allocate and fill all arguments */
     for (auto &opt : options) {
       auto key = opt.GetKey();
@@ -331,13 +331,15 @@ class SafeExe {
 
       if (keySize != 1) {
         argv[argIndex] = new char[keySize];
-        strncpy_s(argv[argIndex], keySize, key.c_str(), keySize);
+        errSafe = strncpy_s(argv[argIndex], keySize, key.c_str(), keySize);
+        CHECK_FATAL(errSafe == EOK, "strncpy_s failed");
         ++argIndex;
       }
 
       if (valSize != 1) {
         argv[argIndex] = new char[valSize];
-        strncpy_s(argv[argIndex], valSize, val.c_str(), valSize);
+        errSafe = strncpy_s(argv[argIndex], valSize, val.c_str(), valSize);
+        CHECK_FATAL(errSafe == EOK, "strncpy_s failed");
         ++argIndex;
       }
     }
@@ -348,7 +350,8 @@ class SafeExe {
 
         if (keySize != 1) {
           argv[argIndex] = new char[keySize];
-          strncpy_s(argv[argIndex], keySize, opt.c_str(), keySize);
+          errSafe = strncpy_s(argv[argIndex], keySize, opt.c_str(), keySize);
+          CHECK_FATAL(errSafe == EOK, "strncpy_s failed");
           ++argIndex;
         }
       }

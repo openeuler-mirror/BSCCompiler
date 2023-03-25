@@ -64,7 +64,7 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
         insn.SetComment(std::string("store param: ").append(sym->GetName()));
       }
       aarFunc->GetCurBB()->AppendInsn(insn);
-      offset += GetPrimTypeSize(primType);
+      offset += static_cast<int32>(GetPrimTypeSize(primType));
     };
     generateStrInsn(static_cast<AArch64reg>(ploc.GetReg0()), ploc.GetPrimTypeOfReg0());
     if (ploc.GetReg1() != kRinvalid) {
@@ -201,7 +201,7 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() const {
   CCLocInfo ploc;
 
   auto &mirFunc = aarFunc->GetFunction();
-  for (auto i = 0; i < mirFunc.GetFormalCount(); ++i) {
+  for (size_t i = 0; i < mirFunc.GetFormalCount(); ++i) {
     MIRType *ty = mirFunc.GetNthParamType(i);
     parmlocator.LocateNextParm(*ty, ploc, (i == 0), mirFunc.GetMIRFuncType());
     MIRSymbol *sym = mirFunc.GetFormal(i);

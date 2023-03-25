@@ -2444,7 +2444,7 @@ bool LSRALinearScanRegAllocator::AllocateRegisters() {
         (spillCount + callerSaveSpillCount) << " SPILL\n";
     LogInfo::MapleLogger() << "Total " << "(" << reloadCount << "+ " << callerSaveReloadCount << ") = " <<
         (reloadCount + callerSaveReloadCount) << " RELOAD\n";
-    uint32_t insertInsn = spillCount + callerSaveSpillCount + reloadCount + callerSaveReloadCount;
+    uint64 insertInsn = spillCount + callerSaveSpillCount + reloadCount + callerSaveReloadCount;
     float rate = (float(insertInsn) / float(insnNumBeforRA));
     LogInfo::MapleLogger() <<"insn Num Befor RA:"<< insnNumBeforRA <<", insert " << insertInsn <<
         " insns: " << ", insertInsn/insnNumBeforRA: "<< rate <<"\n";

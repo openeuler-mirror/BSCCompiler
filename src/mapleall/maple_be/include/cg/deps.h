@@ -541,7 +541,7 @@ class DepNode {
   uint32 unitNum;
   uint32 eStart;
   uint32 lStart;
-  uint32 delay;   // Identify the critical path priority
+  uint32 delay = 0;   // Identify the critical path priority
   uint32 visit;
   NodeType type;
   ScheduleState state;

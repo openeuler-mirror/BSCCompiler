@@ -1129,7 +1129,7 @@ class CGFunc {
     }
     auto it = func.GetLastFreqMap().find(stmt.GetStmtID());
     if (it != func.GetLastFreqMap().end()) {
-      frequency = it->second;
+      frequency = static_cast<uint32>(it->second);
     }
   }
 

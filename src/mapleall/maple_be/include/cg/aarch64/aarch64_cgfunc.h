@@ -105,7 +105,7 @@ class AArch64CGFunc : public CGFunc {
   void HandleRetCleanup(NaryStmtNode &retNode) override;
   void MergeReturn() override;
   RegOperand *ExtractNewMemBase(const MemOperand &memOpnd);
-  Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
+  Operand *AArchHandleExpr(const BaseNode &parent, BaseNode &expr);
   void SelectDassign(DassignNode &stmt, Operand &opnd0) override;
   void SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) override;
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;

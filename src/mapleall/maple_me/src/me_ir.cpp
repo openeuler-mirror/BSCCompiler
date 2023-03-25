@@ -1334,9 +1334,12 @@ void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, ScalarMeExpr*> &muLis
     } else {
       LogInfo::MapleLogger() << ", ";
     }
-    if (DumpOptions::GetDumpVsyNum() > 0 && ++count >= DumpOptions::GetDumpVsyNum()) {
-      LogInfo::MapleLogger() << " ... ";
-      break;
+    if (DumpOptions::GetDumpVsyNum() > 0) {
+      (void)++count;
+      if (count >= DumpOptions::GetDumpVsyNum()) {
+        LogInfo::MapleLogger() << " ... ";
+        break;
+      }
     }
   }
   LogInfo::MapleLogger() << " }\n";
@@ -1356,9 +1359,12 @@ void DumpChiList(const IRMap *irMap, const MapleMap<OStIdx, ChiMeNode*> &chiList
     } else {
       LogInfo::MapleLogger() << ", ";
     }
-    if (DumpOptions::GetDumpVsyNum() > 0 && count++ >= DumpOptions::GetDumpVsyNum()) {
-      LogInfo::MapleLogger() << " ... ";
-      break;
+    if (DumpOptions::GetDumpVsyNum() > 0) {
+      (void)++count;
+      if (count >= DumpOptions::GetDumpVsyNum()) {
+        LogInfo::MapleLogger() << " ... ";
+        break;
+      }
     }
   }
   LogInfo::MapleLogger() << " }\n";

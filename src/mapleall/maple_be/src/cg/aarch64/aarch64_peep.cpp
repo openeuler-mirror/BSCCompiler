@@ -4863,15 +4863,29 @@ bool AddCmpZeroAArch64::CheckAddCmpZeroCheckAdd(const Insn &prevInsn, const Insn
   MOperator mop = prevInsn.GetMachineOpcode();
   switch (mop) {
     case MOP_xaddrrr:
-    case MOP_xaddrri12:
     case MOP_waddrrr:
-    case MOP_waddrri12:
     case MOP_xaddrrrs:
     case MOP_waddrrrs: {
       RegOperand opnd0 = static_cast<RegOperand&>(prevInsn.GetOperand(kInsnFirstOpnd));
       RegOperand opnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
       if (opnd0.Equals(opnd) && insn.GetDesc()->GetOpndDes(kInsnSecondOpnd)->GetSize() ==
           prevInsn.GetDesc()->GetOpndDes(kInsnFirstOpnd)->GetSize()) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+    case MOP_waddrri12:
+    case MOP_xaddrri12: {
+      RegOperand opnd0 = static_cast<RegOperand&>(prevInsn.GetOperand(kInsnFirstOpnd));
+      RegOperand opnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      if (!(opnd0.Equals(opnd) && insn.GetDesc()->GetOpndDes(kInsnSecondOpnd)->GetSize() ==
+          prevInsn.GetDesc()->GetOpndDes(kInsnFirstOpnd)->GetSize())) {
+        return false;
+      }
+      auto &immOpnd = static_cast<ImmOperand&>(prevInsn.GetOperand(kInsnThirdOpnd));
+      auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
+      if (aarch64CGFunc->IsOperandImmValid(prevInsn.GetMachineOpcode(), &immOpnd, kInsnThirdOpnd)) {
         return true;
       } else {
         return false;

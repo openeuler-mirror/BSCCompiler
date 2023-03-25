@@ -1314,7 +1314,7 @@ void GraphColorRegAllocator::Separate() {
 #endif  /* USE_LRA */
 #ifdef OPTIMIZE_FOR_PROLOG
     if (doOptProlog && ((lr->GetNumDefs() <= 1) && (lr->GetNumUses() <= 1) && (lr->GetNumCall() > 0)) &&
-        (lr->GetFrequency() <= (cgFunc->GetFirstBB()->GetFrequency() << 1))) {
+        (lr->GetFrequency() <= static_cast<FreqType>(cgFunc->GetFirstBB()->GetFrequency() << 1))) {
       if (lr->GetRegType() == kRegTyInt) {
         intDelayed.emplace_back(lr);
       } else {
