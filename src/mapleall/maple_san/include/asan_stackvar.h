@@ -5,12 +5,13 @@
 #ifndef MAPLE_SAN_ASAN_STACKVAR_H
 #define MAPLE_SAN_ASAN_STACKVAR_H
 
+#include <set>
+
 #include "asan_function.h"
 #include "asan_interfaces.h"
 #include "me_phase_manager.h"
 #include "module_phase_manager.h"
 #include "san_common.h"
-#include <set>
 
 namespace maple {
 
@@ -24,7 +25,7 @@ class FunctionStackPoisoner {
 
   void unpoisonDynamicAllocas();
 
-  void initializeCallbacks(MIRModule &M);
+  void initializeCallbacks(const MIRModule &M);
 
   void createDynamicAllocasInitStorage();
 
@@ -49,8 +50,8 @@ class FunctionStackPoisoner {
   void copyToShadowInline(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes, size_t Begin, size_t End,
                           MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore);
 
-  bool isFuncCallArg(const MIRSymbol *const symbolPtr);
-  bool isFuncCallArg(const std::string symbolName);
+  bool isFuncCallArg(const MIRSymbol *const symbolPtr) const;
+  bool isFuncCallArg(const std::string symbolName) const;
 
   std::set<MIRSymbol *> GetStackVarReferedByCallassigned();
 
@@ -82,5 +83,4 @@ class FunctionStackPoisoner {
   std::map<MIRSymbol *, bool> isUsedInAlloca;
 };
 }  // namespace maple
-
-#endif  //MAPLE_SAN_ASAN_STACKVAR_H
+#endif  // MAPLE_SAN_ASAN_STACKVAR_H

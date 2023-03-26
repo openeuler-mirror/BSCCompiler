@@ -14,7 +14,7 @@ namespace maple {
 inline uint64_t alignTo(uint64_t Value, uint64_t Align, uint64_t Skew = 0) {
   assert(Align != 0u && "Align can't be 0.");
   Skew %= Align;
-  return (Value + Align - 1 - Skew) / Align * Align + Skew;
+  return (((((Value + Align) - 1) - Skew) / Align) * Align) + Skew;
 }
 
 static inline bool CompareVars(const ASanStackVariableDescription &a, const ASanStackVariableDescription &b) {
@@ -45,10 +45,6 @@ std::string ComputeASanStackFrameDescription(const std::vector<ASanStackVariable
 
   for (const auto &var : vars) {
     std::string name = var.Name;
-    /*if (var.Line) {
-        name += ":";
-        name += std::to_string(var.Line);
-      }*/
     stackDescription << " " << var.Offset << " " << var.Size << " " << name.size() << " " << name;
   }
   return stackDescription.str();
@@ -82,7 +78,10 @@ std::vector<uint8_t> GetShadowBytesAfterScope(const std::vector<ASanStackVariabl
     assert(Var.LifetimeSize <= Var.Size);
     const size_t LifetimeShadowSize = (Var.LifetimeSize + Granularity - 1) / Granularity;
     const size_t Offset = Var.Offset / Granularity;
-    std::fill(SB.begin() + Offset, SB.begin() + Offset + LifetimeShadowSize, kAsanStackUseAfterScopeMagic);
+    auto Last = SB.begin() + Offset + LifetimeShadowSize;
+    for (auto Start = SB.begin() + Offset; Start != Last; ++Start) {
+      *Start = kAsanStackUseAfterScopeMagic;
+    }
   }
 
   return SB;

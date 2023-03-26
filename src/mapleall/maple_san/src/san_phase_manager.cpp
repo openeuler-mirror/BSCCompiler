@@ -6,7 +6,6 @@
 namespace maple {
 
 void MEModuleDoAsan::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-    // aDep.AddRequired<M2MKlassHierarchy>();
     aDep.SetPreservedAll();
 }
 
@@ -37,8 +36,9 @@ bool MEModuleDoAsan::FuncLevelRun(MeFunction &meFunc, AnalysisDataManager &seria
 
 bool MEModuleDoAsan::PhaseRun(maple::MIRModule &m) {
   bool changed = false;
-  // ModuleAddressSanitizer AsanModule(m);
-  // AsanModule.instrumentModule();
+  // TODO: We have not instrumented global values
+  // TODO: ModuleAddressSanitizer AsanModule(m);
+  // TODO: AsanModule.instrumentModule();
   auto &compFuncList = m.GetFunctionList();
   auto admMempool = AllocateMemPoolInPhaseManager("ASAN phase manager's analysis data manager mempool");
   auto *serialADM = GetManagerMemPool()->New<AnalysisDataManager>(*(admMempool.get()));

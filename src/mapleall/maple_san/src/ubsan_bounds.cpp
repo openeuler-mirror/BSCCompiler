@@ -24,7 +24,7 @@ namespace maple {
 
   static void getTypeKind(MIRType *mirType, uint16_t *typeKind, uint16_t *typeInfo) {
 
-    *typeKind = -1;
+    *typeKind = 0xffff;
     *typeInfo = 0;
 
     PrimitiveType primType = PrimitiveType(mirType->GetPrimType());
@@ -38,20 +38,17 @@ namespace maple {
       *typeInfo = mirType->GetSize();
     } else {
       // Not implemented
-      // CHECK_FATAL(false, "Not implemented yet!");
+      mirType->Dump(0, false);
+      LogInfo::MapleLogger() << "The above mirType has not been implemented yet!\n";
     }
-
-    // LogInfo::MapleLogger() << "\n " << log2_32(mirType->GetSize() << 3) << " ";
-    // mirType->Dump(0, false);
-    // LogInfo::MapleLogger() << " " << *typeInfo << " " << *typeKind << "\n";
   }
 
   ArrayInfo::ArrayInfo (StmtNode *usedStmt, MIRArrayType *arrayType, ArrayNode *arrayNode)
           : usedStmt(usedStmt), arrayType(arrayType) {
-    for (int i = 1; i < arrayNode->NumOpnds(); i++) {
+    for (size_t i = 1; i < arrayNode->NumOpnds(); i++) {
       this->offset.push_back(arrayNode->Opnd(i));
     }
-    for (int i = 0; i < arrayType->GetDim(); i++) {
+    for (uint16 i = 0; i < arrayType->GetDim(); i++) {
       this->dimensions.push_back(arrayType->GetSizeArrayItem(i));
     }
     MIRType *type;
@@ -64,17 +61,17 @@ namespace maple {
     elemType.push_back(type);
   }
 
-  uint64_t ArrayInfo::GetElementSize() {
+  size_t ArrayInfo::GetElementSize() {
     return this->elemType.back()->GetSize();
   }
 
-  void ArrayInfo::SetNeededSize(uint64 neededSize) {
-    this->neededSize = neededSize;
+  void ArrayInfo::SetNeededSize(size_t size) {
+    this->neededSize = size;
   }
 
-  std::string ArrayInfo::GetArrayTypeName(int dim) {
+  std::string ArrayInfo::GetArrayTypeName(size_t dim) {
     std::string ret = std::string(GetPrimTypeName(elemType.back()->GetPrimType())) + " ";
-    for (int i = dim; i < this->dimensions.size(); i++) {
+    for (size_t i = dim; i < this->dimensions.size(); i++) {
         ret += "[" + std::to_string(this->dimensions.at(i)) + "]";
     }
     ret = '\'' + ret + "\'";
@@ -101,9 +98,9 @@ namespace maple {
           continue;
         }
         ArrayNode *arrayNode = dynamic_cast<ArrayNode *>(iassign->Opnd(0));
-        MIRArrayType *arrayType = dynamic_cast<MIRArrayType *>(arrayNode->
+        MIRArrayType *tmpArrayType = dynamic_cast<MIRArrayType *>(arrayNode->
                 GetArrayType(GlobalTables::GetTypeTable()));
-        ArrayInfo arrayInfo(stmtNode, arrayType, arrayNode);
+        ArrayInfo arrayInfo(stmtNode, tmpArrayType, arrayNode);
 
         MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassign->GetTyIdx());
         MIRPtrType *pointerType = static_cast<MIRPtrType *>(mirType);
@@ -124,8 +121,9 @@ namespace maple {
           continue;
         }
         ArrayNode *arrayNode = dynamic_cast<ArrayNode *>(iread->Opnd(0));
-        MIRArrayType *arrayType = dynamic_cast<MIRArrayType *>(arrayNode->GetArrayType(GlobalTables::GetTypeTable()));
-        ArrayInfo arrayInfo(stmtNode, arrayType, arrayNode);
+        MIRArrayType *tmpArrayType = dynamic_cast<MIRArrayType *>(arrayNode->
+                GetArrayType(GlobalTables::GetTypeTable()));
+        ArrayInfo arrayInfo(stmtNode, tmpArrayType, arrayNode);
 
         MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread->GetTyIdx());
         MIRPtrType *pointerType = static_cast<MIRPtrType *>(mirType);
@@ -133,21 +131,20 @@ namespace maple {
         arrayInfo.SetNeededSize(pointedTy->GetSize());
 
         AddrofNode *addrofNode = dynamic_cast<AddrofNode *>(arrayNode->GetBase());
-        // CHECK_FATAL(addrofNode != nullptr, "The base of arrayNode is not of type AddrofNode");
         if (addrofNode == nullptr) {
           continue;
         }
 
         toBeChecked.push_back(arrayInfo);
       }
-      for (int j = baseNode->NumOpnds() - 1; j >= 0; j--) {
+      for (size_t j = 0; j < baseNode->NumOpnds(); ++j) {
         baseNodeStack.push(baseNode->Opnd(j));
       }
     }
     return toBeChecked;
   }
 
-  void BoundCheck::getBoundsCheckCond(ArrayInfo *arrayInfo, BlockNode *body, int dim) {
+  void BoundCheck::getBoundsCheckCond(ArrayInfo *arrayInfo, BlockNode *body, size_t dim) {
 
     LogInfo::MapleLogger() << "\nInstrument for " << arrayInfo->neededSize << " bytes\n";
 
@@ -177,7 +174,7 @@ namespace maple {
   }
 
 
-  void BoundCheck::insertBoundsCheck(ArrayInfo *arrayInfo, int dim) {
+  void BoundCheck::insertBoundsCheck(ArrayInfo *arrayInfo, size_t dim) {
     StmtNode *insertBefore = arrayInfo->usedStmt;
     MIRType *uint64 = GlobalTables::GetTypeTable().GetUInt64();
 
@@ -441,7 +438,7 @@ namespace maple {
       }
       for (ArrayInfo arrayInfo: toBeChecked) {
         if (arrayInfo.offset.size()) {
-          for (int i = 0; i < arrayInfo.offset.size(); i++) {
+          for (size_t i = 0; i < arrayInfo.offset.size(); i++) {
             getBoundsCheckCond(&arrayInfo, func->GetMirFunc()->GetBody(), i);
             insertBoundsCheck(&arrayInfo, i);
           }

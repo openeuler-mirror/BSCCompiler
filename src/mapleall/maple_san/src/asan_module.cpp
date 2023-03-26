@@ -93,7 +93,7 @@ namespace maple {
       size_t sizeInBytes = global->GetType()->GetSize();
       size_t minRedZone = MinRedzoneSizeForGlobal();
       size_t redzone = std::max(minRedZone,
-                                std::min(kMaxGlobalRedzone, (sizeInBytes / minRedZone / 4) * minRedZone));
+                                std::min(kMaxGlobalRedzone, ((sizeInBytes / minRedZone) / 4) * minRedZone));
       size_t rightRedzoneSize = redzone;
       if (sizeInBytes % minRedZone) {
         rightRedzoneSize += minRedZone - (sizeInBytes % minRedZone);
@@ -134,7 +134,7 @@ namespace maple {
       newGlobalConst->AddItem(globalConstClone, 1);
       // Initialize the field redzone
       MIRAggConst *arrayConst = module->GetMemPool()->New<MIRAggConst>(*module, *rightRedZoneTy);
-      for (int j = 0; j < rightRedzoneSize; j++) {
+      for (size_t j = 0; j < rightRedzoneSize; j++) {
         arrayConst->AddItem(GlobalTables::GetIntConstTable().GetOrCreateIntConst(
                 0, *GlobalTables::GetTypeTable().GetInt8()), 0);
       }
@@ -225,7 +225,6 @@ namespace maple {
       LogInfo::MapleLogger() << "NEW GLOBAL: " << newGlobalVar->GetName() << "\n";
       newGlobals[i] = newGlobalVar;
       initializers[i] = initializer;
-      // if (ClInitializers && MD.IsDynInit) HasDynamicallyInitializedGlobals = true;
     }
     InstrumentGlobalsWithMetadataArray(ctorToBeInserted, newGlobals, initializers);
     return false;
@@ -317,7 +316,7 @@ namespace maple {
   void ModuleAddressSanitizer::GetGlobalSymbolUsage() {
     // Replace all old global users with new global
     for (MIRFunction *func : module->GetFunctionList()) {
-      if (func == nullptr || func == NULL || func->GetBody() == nullptr) {
+      if (func == nullptr || func->GetBody() == nullptr) {
         continue;
       }
       std::stack<BaseNode *> baseNodeStack;

@@ -9,7 +9,7 @@
 #include "san_common.h"
 #include <set>
 
-#define ENABLE_STACK_SIZE_LIMIT 0
+#define ENABLE_STACK_SIZE_LIMIT false
 
 namespace maple {
 
@@ -55,7 +55,7 @@ void FunctionStackPoisoner::copyToShadow(std::vector<uint8_t> ShadowMask, std::v
                                          StmtNode *InsBefore) {
   assert(ShadowMask.size() == ShadowBytes.size());
   size_t Done = Begin;
-
+  const size_t threshold = 64;
   for (size_t i = Begin, j = Begin + 1; i < End; i = j++) {
     if (!ShadowMask[i]) {
       assert(!ShadowBytes[i]);
@@ -66,17 +66,12 @@ void FunctionStackPoisoner::copyToShadow(std::vector<uint8_t> ShadowMask, std::v
       continue;
     }
     // Skip same values.
-    for (; j < End && ShadowMask[j] && Val == ShadowBytes[j]; ++j) {
+    while (j < End && ShadowMask[j] && Val == ShadowBytes[j]) {
+      ++j;
     }
 
-    if (j - i >= 64) {
+    if (j - i >= threshold) {
       copyToShadowInline(ShadowMask, ShadowBytes, Done, i, mirBuilder, ShadowBase, InsBefore);
-      // MapleVector<BaseNode *> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-      // args.emplace_back(mirBuilder->CreateExprBinary(OP_add, *IntptrTy, ShadowBase,
-      // mirBuilder->CreateIntConst(i, IntptrTy->GetPrimType())));
-      // args.emplace_back(mirBuilder->CreateIntConst(j - i, IntptrTy->GetPrimType()));
-
-      // mirBuilder->CreateStmtCall(AsanSetShadowFunc[Val]->GetPuidx(), args);
       Done = j;
     }
   }
@@ -147,7 +142,7 @@ void FunctionStackPoisoner::copyToShadowInline(std::vector<uint8_t> ShadowMask, 
   }
 }
 
-void FunctionStackPoisoner::initializeCallbacks(MIRModule &M) {
+void FunctionStackPoisoner::initializeCallbacks(const MIRModule &M) {
   MIRBuilder *mirBuilder = M.GetMIRBuilder();
 #ifdef ENABLERBTREE
 #else
@@ -348,11 +343,7 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(ASanDynaVariableDescription 
         mirBuilder->CreateIntConst(AdditionalChunkSize + intConst->GetValue().GetExtValue(), IntptrTy->GetPrimType());
   } else {
     BaseNode *OldSize = AI->Size;
-
-    // PartialSize = OldSize % 32
     BinaryNode *PartialSize = mirBuilder->CreateExprBinary(OP_band, *IntptrTy, OldSize, AllocaRzMask);
-
-    // Misalign = kAllocaRzSize - PartialSize;
     BaseNode *Misalign = mirBuilder->CreateExprBinary(OP_sub, *IntptrTy, AllocaRzSize, PartialSize);
 
     MIRSymbol *misAlignSym = getOrCreateSymbol(mirBuilder, IntptrTy->GetTypeIndex(), "asan_misAlign", kStVar, kScAuto,
@@ -361,11 +352,8 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(ASanDynaVariableDescription 
     dassignNode->InsertAfterThis(*AI->AllocaInst);
 
     Misalign = mirBuilder->CreateDread(*misAlignSym, IntptrTy->GetPrimType());
-    // PartialPadding = Misalign != kAllocaRzSize ? Misalign : 0;
     BinaryNode *Cond = mirBuilder->CreateExprCompare(OP_ne, *IntptrTy, *IntptrTy, Misalign, AllocaRzSize);
     TernaryNode *PartialPadding = mirBuilder->CreateExprTernary(OP_select, *IntptrTy, Cond, Misalign, Zero);
-
-    // AdditionalChunkSize = Align + PartialPadding + kAllocaRzSize
     // Align is added to locate left redzone, PartialPadding for possible
     // partial redzone and kAllocaRzSize for right redzone respectively.
     BinaryNode *AdditionalChunkSize = mirBuilder->CreateExprBinary(
@@ -383,7 +371,6 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(ASanDynaVariableDescription 
   dassignNode->InsertAfterThis(*AI->AllocaInst);
   assert(AI->AllocaInst->Opnd(0)->GetOpCode() == OP_alloca);
 
-  // NewAddress = Address + Align
   BinaryNode *NewAddress = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPrimType(PTY_u64),
                                                         mirBuilder->CreateDread(*tmpAlloca, PTY_a64),
                                                         mirBuilder->CreateIntConst(Align, PTY_u64));
@@ -421,12 +408,12 @@ MIRSymbol *FunctionStackPoisoner::createAllocaForLayout(StmtNode *insBefore, MIR
   return alloca;
 }
 
-bool FunctionStackPoisoner::isFuncCallArg(const MIRSymbol *const symbolPtr) {
+bool FunctionStackPoisoner::isFuncCallArg(const MIRSymbol *const symbolPtr) const {
   auto iter = callArgSymbols.find(symbolPtr);
   return iter != callArgSymbols.end();
 }
 
-bool FunctionStackPoisoner::isFuncCallArg(const std::string symbolName) {
+bool FunctionStackPoisoner::isFuncCallArg(const std::string symbolName) const {
   auto iter = callArgSymbolNames.find(symbolName);
   return iter != callArgSymbolNames.end();
 }
@@ -437,7 +424,7 @@ void FunctionStackPoisoner::processStackVariable() {
   }
   StmtNode *insBefore = mirFunction->GetBody()->GetFirst();
   size_t granularity = 1ULL << Mapping.Scale;
-  size_t minHeaderSize = std::max((size_t)ASan.LongSize / 2, granularity);
+  size_t minHeaderSize = std::max(ASan.LongSize / 2, granularity);
   const ASanStackFrameLayout &L = ComputeASanStackFrameLayout(stackVariableDesc, granularity, minHeaderSize);
   auto descriptionString = ComputeASanStackFrameDescription(stackVariableDesc);
   LogInfo::MapleLogger() << descriptionString << " --- " << L.FrameSize << "\n";
@@ -454,7 +441,7 @@ void FunctionStackPoisoner::processStackVariable() {
   MIRBuilder *mirBuilder = module->GetMIRBuilder();
   MIRSymbol *allocaValue = createAllocaForLayout(insBefore, mirBuilder, L);
 
-  for (int i = 0; i < stackVariableDesc.size(); i++) {
+  for (size_t i = 0; i < stackVariableDesc.size(); i++) {
     ASanStackVariableDescription desc = stackVariableDesc.at(i);
     if (desc.Symbol != nullptr) {
       MIRSymbol *localVar = desc.Symbol;

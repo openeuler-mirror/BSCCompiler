@@ -26,7 +26,6 @@ bool MEDoAsan::PhaseRun(maple::MeFunction &f) {
 }
 
 void MEDoVarCheck::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-    // aDep.AddRequired<MEMeCfg>();
     aDep.SetPreservedAll();
 }
 

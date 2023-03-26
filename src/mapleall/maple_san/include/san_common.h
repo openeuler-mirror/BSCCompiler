@@ -59,14 +59,14 @@ namespace maple {
   // Struct to contain the information for performing set check
   // For elimination of san check
   struct set_check{
-    std::vector<uint8> opcode ;             //1. opcode  enum Opcode : uint8
-    std::vector<int32> register_terminal ;  //2. register_terminal -> cannot further expand 
-    std::stack<int32> register_live ;       //3. register_live  -> for further expansion
-    std::vector<uint32> var_terminal ;      //4. var_terminal -> cannot further expand
-    std::stack<uint32> var_live ;           //5. var_live  -> for further expansion 
-    std::vector<IntVal> const_int64 ;        //6. const, we only track int64 or kConstInt
-    std::vector<uint32> const_str ;         //7. const str ,we only store the index 
-    std::vector<int32> type_num ;           //8. Type, but we will just track the fieldID for simplicity  iread->GetFieldID()
+    std::vector<uint8> opcode ;             // 1. opcode  enum Opcode : uint8
+    std::vector<int32> register_terminal ;  // 2. register_terminal -> cannot further expand 
+    std::stack<int32> register_live ;       // 3. register_live  -> for further expansion
+    std::vector<uint32> var_terminal ;      // 4. var_terminal -> cannot further expand
+    std::stack<uint32> var_live ;           // 5. var_live  -> for further expansion 
+    std::vector<IntVal> const_int64 ;       // 6. const, we only track int64 or kConstInt
+    std::vector<uint32> const_str ;         // 7. const str ,we only store the index 
+    std::vector<int32> type_num ;           // 8. Type, but we will just track the fieldID for simplicity  iread->GetFieldID()
   };
 
   struct san_struct{
@@ -108,11 +108,11 @@ namespace maple {
 
   size_t TypeSizeToSizeIndex(uint32_t TypeSize);
 
-  std::vector<MIRSymbol *> GetGlobalVaribles(MIRModule &mirModule);
+  std::vector<MIRSymbol *> GetGlobalVaribles(const MIRModule &mirModule);
 
-  void appendToGlobalCtors(MIRModule &mirModule, MIRFunction *func);
+  void appendToGlobalCtors(const MIRModule &mirModule, const MIRFunction *func);
 
-  void appendToGlobalDtors(MIRModule &mirModule, MIRFunction *func);
+  void appendToGlobalDtors(const MIRModule &mirModule, const MIRFunction *func);
 
   MIRFunction *getOrInsertFunction(MIRBuilder* mirBuilder, const char *name,
                                    MIRType *retType, std::vector<MIRType*> argTypes);
@@ -122,9 +122,9 @@ namespace maple {
 
   MIRAddrofConst *createSourceLocConst(MIRModule &mirModule, MIRSymbol *Var, PrimType primType);
 
-  MIRAddrofConst *createAddrofConst(MIRModule &mirModule, MIRSymbol *mirSymbol, PrimType primType);
+  MIRAddrofConst *createAddrofConst(const MIRModule &mirModule, const MIRSymbol *mirSymbol, PrimType primType);
 
-  MIRStrConst *createStringConst(MIRModule &mirModule, std::basic_string<char> Str, PrimType primType);
+  MIRStrConst *createStringConst(const MIRModule &mirModule, std::basic_string<char> Str, PrimType primType);
 
   std::string ComputeASanStackFrameDescription(const std::vector<ASanStackVariableDescription> &vars);
 
@@ -138,9 +138,9 @@ namespace maple {
                                                    size_t MinHeaderSize);
   // Start of Sanrazor 
   int SANRAZOR_MODE();
-  CallNode *retCallCOV(MeFunction &func,int bb_id, int stmt_id,int br_true,int type_of_check);
+  CallNode *retCallCOV(const MeFunction &func,int bb_id, int stmt_id,int br_true,int type_of_check);
   void recursion(BaseNode *stmt,std::vector<int32>& stmt_reg);
-  bool isReg_redefined(BaseNode *stmt,std::vector<int32>& stmt_reg);
+  bool isReg_redefined(BaseNode *stmt,std::vector<PregIdx>& stmt_reg);
   bool isVar_redefined(BaseNode *stmt,std::vector<uint32>& stmt_reg);
   void dep_expansion(BaseNode *stmt,set_check &dep,
                   std::map<int32, std::vector<StmtNode *>>reg_to_stmt,

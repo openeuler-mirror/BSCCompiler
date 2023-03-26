@@ -63,4 +63,4 @@ namespace maple {
 }
 
 
-#endif //MAPLE_SAN_ASAN_MODULE_H
+#endif // MAPLE_SAN_ASAN_MODULE_H

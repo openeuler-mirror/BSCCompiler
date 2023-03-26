@@ -34,32 +34,32 @@ void doInstrumentAddress(AddressSanitizer *Phase, StmtNode *I, StmtNode *InsertB
   }
 }
 
-void dumpFunc(MeFunction &func) {
-  StmtNodes &stmtNodes = func.GetMirFunc()->GetBody()->GetStmtNodes();
+void dumpFunc(MeFunction &mefunc) {
+  StmtNodes &stmtNodes = mefunc.GetMirFunc()->GetBody()->GetStmtNodes();
   for (StmtNode &stmt : stmtNodes) {
     stmt.Dump(0);
   }
 }
 
-bool AddressSanitizer::instrumentFunction(MeFunction &func) {
-  MIRBuilder *builder = func.GetMIRModule().GetMIRBuilder();
-  this->func = &func;
-  if (func.GetMirFunc()->GetAttr(FUNCATTR_extern)) {
+bool AddressSanitizer::instrumentFunction(MeFunction &mefunc) {
+  MIRBuilder *builder = mefunc.GetMIRModule().GetMIRBuilder();
+  this->func = &mefunc;
+  if (mefunc.GetMirFunc()->GetAttr(FUNCATTR_extern)) {
     return false;
   }
-  if (func.GetName().find("__asan_") == 0 || func.GetName().find("__san_cov_") == 0) {
+  if (mefunc.GetName().find("__asan_") == 0 || mefunc.GetName().find("__san_cov_") == 0) {
     return false;
   }
 
   bool functionModified = false;
 
-  LogInfo::MapleLogger() << "ASAN instrumenting: " << func.GetName() << "\n";
+  LogInfo::MapleLogger() << "ASAN instrumenting: " << mefunc.GetName() << "\n";
 
-  initializeCallbacks(func.GetMIRModule());
+  initializeCallbacks(mefunc.GetMIRModule());
 
   FunctionStateRAII cleanupObj(this);
 
-  maybeInsertDynamicShadowAtFunctionEntry(func);
+  maybeInsertDynamicShadowAtFunctionEntry(mefunc);
 
   std::vector<StmtNode *> toInstrument;
   std::vector<StmtNode *> noReturnCalls;
@@ -71,13 +71,13 @@ bool AddressSanitizer::instrumentFunction(MeFunction &func) {
   // Map the stmt by using label ID to the basic block ID, for verification in the coverage
   std::map<uint32, uint32> stmt_to_bbID;
 
-  /*distinguish between user checks and sanitzer checks*/
+  // Distinguishing user checks or sanitzer checks
   std::set<StmtNode *> userchecks;
 
   std::map<int, StmtNode *> stmt_id_to_stmt;
   std::vector<int> stmt_id_list;
 
-  for (StmtNode &stmt : func.GetMirFunc()->GetBody()->GetStmtNodes()) {
+  for (StmtNode &stmt : mefunc.GetMirFunc()->GetBody()->GetStmtNodes()) {
     toInstrument.push_back(&stmt);
     if (CallNode *callNode = dynamic_cast<CallNode *>(&stmt)) {
       MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
@@ -102,7 +102,7 @@ bool AddressSanitizer::instrumentFunction(MeFunction &func) {
     numInstrumented++;
   }
 
-  FunctionStackPoisoner fsp(func, *this);
+  FunctionStackPoisoner fsp(mefunc, *this);
   bool changedStack = fsp.runOnFunction();
 
   for (auto stmt : noReturnCalls) {
@@ -115,23 +115,23 @@ bool AddressSanitizer::instrumentFunction(MeFunction &func) {
   bool doSanrazor = (check_env > 0) && (numInstrumented > 0 || changedStack || !noReturnCalls.empty());
   if (doSanrazor) {
     functionModified = true;
-    SanrazorProcess(func, userchecks, brgoto_map, stmt_to_bbID, stmt_id_to_stmt, stmt_id_list, check_env);
+    SanrazorProcess(mefunc, userchecks, brgoto_map, stmt_to_bbID, stmt_id_to_stmt, stmt_id_list, check_env);
   }
   // dump IRs of each block
-  // dumpFunc(func);
-  LogInfo::MapleLogger() << "ASAN done instrumenting: " << functionModified << " " << func.GetName() << "\n";
+  // dumpFunc(mefunc);
+  LogInfo::MapleLogger() << "ASAN done instrumenting: " << functionModified << " " << mefunc.GetName() << "\n";
 
   return functionModified;
 }
 
-void AddressSanitizer::SanrazorProcess(MeFunction &func,
+void AddressSanitizer::SanrazorProcess(MeFunction &mefunc,
                                        std::set<StmtNode *> &userchecks,
                                        std::map<uint32, std::vector<StmtNode *>> &brgoto_map,
                                        std::map<uint32, uint32> &stmt_to_bbID,
                                        std::map<int, StmtNode *> &stmt_id_to_stmt,
                                        std::vector<int> &stmt_id_list,
                                        int check_env) {
-  MIRBuilder *builder = func.GetMIRModule().GetMIRBuilder();
+  MIRBuilder *builder = mefunc.GetMIRModule().GetMIRBuilder();
   LogInfo::MapleLogger() << "****************SANRAZOR instrumenting****************" << "\n";
   MIRType *voidType = GlobalTables::GetTypeTable().GetVoid();
   // type 0 is user check, type 1 is sanitzer check
@@ -143,7 +143,7 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
   // info to plugin the shared lib
   int bb_id = 0;
   int stmt_id = 0;
-  MeCFG *cfg = func.GetCfg();
+  MeCFG *cfg = mefunc.GetCfg();
 
   std::set<int32> reg_order;
   std::map<int32, std::vector<StmtNode *>> reg_to_stmt;
@@ -152,10 +152,10 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
   std::map<uint32, std::vector<StmtNode *>> var_to_stmt;
 
   std::vector<set_check> san_set_check;
-  std::vector<int> san_set_check_ID;
+  std::vector<uint32> san_set_check_ID;
 
   std::vector<set_check> user_set_check;
-  std::vector<int> user_set_check_ID;
+  std::vector<uint32> user_set_check_ID;
 
   std::vector<StmtNode *> stmt_to_remove;
   std::vector<StmtNode *> call_stmt_to_remove;
@@ -168,16 +168,13 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
         // OP_regassign -> <REG> = <EXPR>
         if (stmt.GetOpCode() == OP_regassign) {
           std::vector<int32> reg_redef_check_vec;
-          set_check regassign_tmp;
           RegassignNode *regAssign = static_cast<RegassignNode *>(&stmt);
-          // using PregIdx = int32;
           if (reg_to_stmt.count(regAssign->GetRegIdx()) == 0) {
             reg_order.insert(regAssign->GetRegIdx());
           }
           reg_to_stmt[regAssign->GetRegIdx()].push_back(&stmt);
         } else if (stmt.GetOpCode() == OP_dassign || stmt.GetOpCode() == OP_maydassign) {
           std::vector<uint32> var_redef_check_vec;
-          set_check dassign_tmp;
           DassignNode *dassign = static_cast<DassignNode *>(&stmt);
           // uint32
           if (var_to_stmt.count(dassign->GetStIdx().Idx()) == 0) {
@@ -205,7 +202,6 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
         } else if (stmt.GetOpCode() == OP_iassign) {
           // syntax: iassign <type> <field-id> (<addr-expr>, <rhs-expr>)
           // %addr-expr = <rhs-expr>
-          //IassignNode *iassign = static_cast<IassignNode*>(&stmt);
           BaseNode *addr_expr = stmt.Opnd(0);
           // addr_expr have 3 cases
           // iread u64 <* <$_TY_IDX111>> 22 (regread ptr %177)
@@ -244,8 +240,8 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
           }
         } else if (stmt.GetOpCode() == OP_brtrue || stmt.GetOpCode() == OP_brfalse) {
           set_check br_tmp;
-          dep_expansion(stmt.Opnd(0), br_tmp, reg_to_stmt, var_to_stmt, func);
-          gen_register_dep(&stmt, br_tmp, reg_to_stmt, var_to_stmt, func);
+          dep_expansion(stmt.Opnd(0), br_tmp, reg_to_stmt, var_to_stmt, mefunc);
+          gen_register_dep(&stmt, br_tmp, reg_to_stmt, var_to_stmt, mefunc);
 
           CondGotoNode *cgotoNode = static_cast<CondGotoNode *>(&stmt);
           StmtNode *nextStmt = stmt.GetRealNext();
@@ -295,7 +291,6 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
               uint32 tmp_label_index = (static_cast<LabelNode *>(stmt_tmp))->GetLabelIdx();
               auto id_check = stmt_to_bbID.find(tmp_label_index);
               if (id_check == stmt_to_bbID.end()) {
-                //LogInfo::MapleLogger() << "[+] Can't fetch the ID "<<"\n";
                 bb_id = 0;
               } else {
                 bb_id = stmt_to_bbID[tmp_label_index];
@@ -309,15 +304,15 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
               } else {
                 br_true = 1;
               }
-              //record whether it is a usercheck or sancheck
+              // record whether it is a usercheck or sancheck
               auto search = userchecks.find(stmt_tmp);
               if (search != userchecks.end()) {
                 type_of_check = 0;
               } else {
                 type_of_check = 1;
               }
-              CallNode *caller_cov = retCallCOV(func, bb_id, stmt_id, br_true, type_of_check);
-              CallNode *callee_cov = retCallCOV(func, bb_id, stmt_id, br_true ^ 1, type_of_check);
+              CallNode *caller_cov = retCallCOV(mefunc, bb_id, stmt_id, br_true, type_of_check);
+              CallNode *callee_cov = retCallCOV(mefunc, bb_id, stmt_id, br_true ^ 1, type_of_check);
               caller_cov->InsertBeforeThis(*stmt_tmp);
               callee_cov->InsertBeforeThis(stmt);
               stmt_to_cleanup.emplace_back(caller_cov, bb);
@@ -333,8 +328,8 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
     LogInfo::MapleLogger() << "Solving Sat"
                            << "\n";
     // If is eliminate mode
-    std::string fn_UC = func.GetMIRModule().GetFileName() + "_UC";
-    std::string fn_SC = func.GetMIRModule().GetFileName() + "_SC";
+    std::string fn_UC = mefunc.GetMIRModule().GetFileName() + "_UC";
+    std::string fn_SC = mefunc.GetMIRModule().GetFileName() + "_SC";
     std::map<int, san_struct> san_struct_UC = gen_dynmatch(fn_UC);
     std::map<int, san_struct> san_struct_SC = gen_dynmatch(fn_SC);
     std::map<int, std::set<int>> SC_SC_mapping;
@@ -384,14 +379,14 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
         }
       }
     }
-    ////san san deletion
+    // san deletion
     int SCSC_SAT_CNT = 0;
     int SCSC_SAT_RUNS = 0;
-    for (int san_i = 0; san_i < san_set_check.size(); san_i++) {
-      for (int san_j = san_i + 1; san_j < san_set_check.size(); san_j++) {
+    for (size_t san_i = 0; san_i < san_set_check.size(); san_i++) {
+      for (size_t san_j = san_i + 1; san_j < san_set_check.size(); san_j++) {
         SCSC_SAT_RUNS += 1;
-        int san_i_stmt_ID = san_set_check_ID[san_i];
-        int san_j_stmt_ID = san_set_check_ID[san_j];
+        uint32 san_i_stmt_ID = san_set_check_ID[san_i];
+        uint32 san_j_stmt_ID = san_set_check_ID[san_j];
         if (SC_SC_mapping.count(san_i_stmt_ID)) {
           if (SC_SC_mapping[san_i_stmt_ID].count(san_j_stmt_ID)) {
             if (sat_check(san_set_check[san_i], san_set_check[san_j])) {
@@ -406,7 +401,6 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
               }
               if (std::count(stmt_to_remove.begin(), stmt_to_remove.end(), erase_stmt) == 0) {
                 stmt_to_remove.push_back(erase_stmt);
-                //stmt_to_remove.push_back(erase_stmt->GetRealNext());
                 call_stmt_to_remove.push_back(erase_stmt->GetRealNext()->GetRealNext());
               }
             }
@@ -416,11 +410,11 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
     }
     int UCSC_SAT_CNT = 0;
     int UCSC_SAT_RUNS = 0;
-    for (int san_i = 0; san_i < san_set_check.size(); san_i++) {
-      for (int user_j = 0; user_j < user_set_check.size(); user_j++) {
+    for (size_t san_i = 0; san_i < san_set_check.size(); san_i++) {
+      for (size_t user_j = 0; user_j < user_set_check.size(); user_j++) {
         UCSC_SAT_RUNS += 1;
-        int san_i_stmt_ID = san_set_check_ID[san_i];
-        int user_j_stmt_ID = user_set_check_ID[user_j];
+        uint32 san_i_stmt_ID = san_set_check_ID[san_i];
+        uint32 user_j_stmt_ID = user_set_check_ID[user_j];
         if (UC_SC_mapping.count(san_i_stmt_ID)) {
           if (UC_SC_mapping[san_i_stmt_ID].count(user_j_stmt_ID)) {
             print_dep(user_set_check[user_j]);
@@ -441,7 +435,6 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
               StmtNode *erase_stmt = stmt_id_to_stmt[san_i_stmt_ID];
               if (std::count(stmt_to_remove.begin(), stmt_to_remove.end(), erase_stmt) == 0) {
                 stmt_to_remove.push_back(erase_stmt);
-                //stmt_to_remove.push_back(erase_stmt->GetRealNext());
                 call_stmt_to_remove.push_back(erase_stmt->GetRealNext()->GetRealNext());
               }
             }
@@ -461,14 +454,13 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
         for (StmtNode &stmt : bb->GetStmtNodes()) {
           if (std::count(stmt_to_remove.begin(), stmt_to_remove.end(), &stmt)) {
             if (CallNode *testcallNode = dynamic_cast<CallNode *>(&stmt)) {
-              //bb->RemoveStmtNode(&stmt);
               stmt_to_cleanup.emplace_back(&stmt, bb);
             } else {
               set_check br_tmp;
-              dep_expansion(stmt.Opnd(0), br_tmp, reg_to_stmt, var_to_stmt, func);
-              std::set<uint32> tmp_var_set;
+              dep_expansion(stmt.Opnd(0), br_tmp, reg_to_stmt, var_to_stmt, mefunc);
+              std::set<size_t> tmp_var_set;
               while (!br_tmp.var_live.empty()) {
-                uint32 var_to_check = br_tmp.var_live.top();
+                size_t var_to_check = br_tmp.var_live.top();
                 tmp_var_set.insert(var_to_check);
                 br_tmp.var_live.pop();
               }
@@ -478,11 +470,11 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
                 if (prevStmt->GetOpCode() == OP_brtrue || prevStmt->GetOpCode() == OP_brfalse) {
                   set_check br_local_tmp;
                   bool trigger = false;
-                  dep_expansion(prevStmt->Opnd(0), br_local_tmp, reg_to_stmt, var_to_stmt, func);
+                  dep_expansion(prevStmt->Opnd(0), br_local_tmp, reg_to_stmt, var_to_stmt, mefunc);
                   while (!br_local_tmp.var_live.empty()) {
                     uint32 var_to_check = br_local_tmp.var_live.top();
-                    if (func.GetMIRModule().CurFunction()->GetSymbolTabSize() >= int(var_to_check)) {
-                      MIRSymbol *var = func.GetMIRModule().CurFunction()->GetSymbolTabItem(var_to_check);
+                    if (mefunc.GetMIRModule().CurFunction()->GetSymbolTabSize() >= var_to_check) {
+                      MIRSymbol *var = mefunc.GetMIRModule().CurFunction()->GetSymbolTabItem(var_to_check);
                       if (var->GetName().find("asan_addr") == 0) {
                         trigger = true;
                         tmp_var_set.insert(var_to_check);
@@ -502,11 +494,11 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
                   DassignNode *dassign = static_cast<DassignNode *>(prevStmt);
                   // dump extra dependence
                   set_check br_local_tmp;
-                  dep_expansion(prevStmt, br_local_tmp, reg_to_stmt, var_to_stmt, func);
+                  dep_expansion(prevStmt, br_local_tmp, reg_to_stmt, var_to_stmt, mefunc);
                   while (!br_local_tmp.var_live.empty()) {
                     uint32 var_to_check = br_local_tmp.var_live.top();
-                    if (func.GetMIRModule().CurFunction()->GetSymbolTabSize() >= int(var_to_check)) {
-                      MIRSymbol *var = func.GetMIRModule().CurFunction()->GetSymbolTabItem(var_to_check);
+                    if (mefunc.GetMIRModule().CurFunction()->GetSymbolTabSize() >= var_to_check) {
+                      MIRSymbol *var = mefunc.GetMIRModule().CurFunction()->GetSymbolTabItem(var_to_check);
                       if (var->GetName().find("asan_addr") == 0) {
                         tmp_var_set.insert(var_to_check);
                       }
@@ -516,7 +508,6 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
                   if (tmp_var_set.count(dassign->GetStIdx().Idx())) {
                     prevStmt = prevStmt->GetPrev();
                     stmt_to_cleanup.emplace_back(prevStmt->GetRealNext(), bb);
-                    // bb->RemoveStmtNode(prevStmt->GetRealNext());
                   } else {
                     prevStmt = prevStmt->GetPrev();
                   }
@@ -529,7 +520,7 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
                   DassignoffNode *dassignoff = dynamic_cast<DassignoffNode *>(prevStmt);
                   CHECK_FATAL(dassignoff != nullptr, "Node with OP_dassignoff but not DassignoffNode");
                   // TODO: I am not sure what should be done for it now ...
-                } else if (CallNode *testcallNode = dynamic_cast<CallNode *>(prevStmt)) {
+                } else if (CallNode *tmpTestCallNode = dynamic_cast<CallNode *>(prevStmt)) {
                   // stop if we hit a Call
                   term_flag = true;
                 } else {
@@ -537,7 +528,6 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
                 }
               }
               stmt_to_cleanup.emplace_back(&stmt, bb);
-              // bb->RemoveStmtNode(&stmt);
             }
           }
         }
@@ -549,21 +539,20 @@ void AddressSanitizer::SanrazorProcess(MeFunction &func,
     int erase_ctr = 0;
     LogInfo::MapleLogger() << "Clean up redundant call stmt "
                            << "\n";
-    BlockNode *bodyNode = func.GetMirFunc()->GetBody();
+    BlockNode *bodyNode = mefunc.GetMirFunc()->GetBody();
     for (auto stmt : call_stmt_to_remove) {
-      // stmt->Dump();
       erase_ctr += 1;
       bodyNode->RemoveStmt(stmt);
     }
     LogInfo::MapleLogger() << "Erased: " << erase_ctr << "\n";
   }
-  if ((func.GetName().compare("main") == 0) && (check_env == 1)) {
-    //Register the call, such it dump the coverage at the exit
+  if ((mefunc.GetName().compare("main") == 0) && (check_env == 1)) {
+    // Register the call, such it dump the coverage at the exit
     __san_cov_flush = getOrInsertFunction(builder, "__san_cov_flush", voidType, {});
-    //Insert the atexit to the starting point of the main
-    MapleVector<BaseNode *> args(func.GetMIRModule().GetMPAllocator().Adapter());
+    // Insert the atexit to the starting point of the main
+    MapleVector<BaseNode *> args(mefunc.GetMIRModule().GetMPAllocator().Adapter());
     StmtNode *stmt_tmp = builder->CreateStmtCall(__san_cov_flush->GetPuidx(), args);
-    func.GetMirFunc()->GetBody()->InsertFirst(stmt_tmp);
+    mefunc.GetMirFunc()->GetBody()->InsertFirst(stmt_tmp);
   }
   LogInfo::MapleLogger() << "****************SANRAZOR Done****************"
                          << "\n";
@@ -612,11 +601,8 @@ void AddressSanitizer::instrumentMemIntrinsic(IntrinsiccallNode *stmtNode) {
 }
 
 std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *stmtNode) {
-  // LogInfo::MapleLogger() << "ASAN isInterestingMemoryAccess " << stmtNode->GetSrcPos().DumpLocWithColToString() << "\n";
-
   std::vector<MemoryAccess> memAccess;
   if (LocalDynamicShadow == stmtNode) {
-    // LogInfo::MapleLogger() << "ASAN isInterestingMemoryAccess is done.\n";
     return memAccess;
   }
 
@@ -624,11 +610,11 @@ std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *
   baseNodeStack.push(stmtNode);
   while (!baseNodeStack.empty()) {
     BaseNode *baseNode = baseNodeStack.top();
-    CHECK_FATAL((baseNode != nullptr && baseNode != 0), "Invalid IR node pointer.");
+    CHECK_FATAL(baseNode != nullptr, "Invalid IR node pointer.");
     baseNodeStack.pop();
     switch (baseNode->GetOpCode()) {
       case OP_iassign: {
-        IassignNode *iassign = dynamic_cast<IassignNode *>(baseNode);  // iassign
+        IassignNode *iassign = dynamic_cast<IassignNode *>(baseNode);
         CHECK_FATAL((iassign != nullptr), "Invalid IR node with OpCode OP_iassign");
         MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassign->GetTyIdx());
         MIRPtrType *pointerType = static_cast<MIRPtrType *>(mirType);
@@ -714,8 +700,6 @@ std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *
       }
     }
     for (int j = baseNode->NumOpnds() - 1; j >= 0; j--) {
-      // StmtNode *tmpStmtNode = dynamic_cast<StmtNode *>(baseNode);
-      // CHECK_FATAL(tmpStmtNode != nullptr, "Not a StmtNode");
       if (baseNode->GetOpCode() == OP_return) continue;
       baseNodeStack.push(baseNode->Opnd(j));
     }
@@ -724,8 +708,8 @@ std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *
   return memAccess;
 }
 
-void AddressSanitizer::initializeCallbacks(MIRModule &module) {
-  MIRBuilder *mirBuilder = module.GetMIRBuilder();
+void AddressSanitizer::initializeCallbacks(const MIRModule &mirModule) {
+  MIRBuilder *mirBuilder = mirModule.GetMIRBuilder();
   MIRType *voidType = GlobalTables::GetTypeTable().GetVoid();
   MIRType *Int32Type = GlobalTables::GetTypeTable().GetPrimType(PTY_i32);
   MIRType *Int8PtrType =
@@ -755,7 +739,7 @@ void AddressSanitizer::initializeCallbacks(MIRModule &module) {
   AsanHandleNoReturnFunc = getOrInsertFunction(mirBuilder, kAsanHandleNoReturnName, voidType, {});
 }
 
-void AddressSanitizer::maybeInsertDynamicShadowAtFunctionEntry(MeFunction &F) {
+void AddressSanitizer::maybeInsertDynamicShadowAtFunctionEntry(const MeFunction &F) {
   if (Mapping.Offset != kDynamicShadowSentinel) {
     return;
   }
@@ -767,7 +751,6 @@ void AddressSanitizer::maybeInsertDynamicShadowAtFunctionEntry(MeFunction &F) {
 }
 
 void AddressSanitizer::instrumentMop(StmtNode *I, std::vector<MemoryAccess> &memoryAccess) {
-  // std::vector<MemoryAccess> memoryAccess = isInterestingMemoryAccess(I);
   assert(memoryAccess.size() > 0);
 
   unsigned granularity = 1 << Mapping.Scale;
@@ -923,7 +906,7 @@ StmtNode *AddressSanitizer::splitIfAndElseBlock(Opcode op, StmtNode *elsePart, c
   return brStmt;
 }
 
-bool AddressSanitizer::isInterestingSymbol(MIRSymbol &symbol) {
+bool AddressSanitizer::isInterestingSymbol(const MIRSymbol &symbol) {
   if (StringUtils::StartsWith(symbol.GetName(), "asan_")) {
     return false;
   }
@@ -950,31 +933,31 @@ bool AddressSanitizer::isInterestingSymbol(MIRSymbol &symbol) {
   bool isInteresting = true;
 
   MIRType *mirType = symbol.GetType();
-  isInteresting &= isTypeSized(mirType);
-  isInteresting &= mirType->GetSize() > 0;
-  isInteresting &= !symbol.IsConst();
+  isInteresting = isInteresting && isTypeSized(mirType);
+  isInteresting = isInteresting && mirType->GetSize() > 0;
+  isInteresting = isInteresting && !symbol.IsConst();
 
   if (mirType->GetKind() == kTypeScalar || mirType->GetKind() == kTypePointer || mirType->GetKind() == kTypeBitField) {
-    isInteresting &= false;
+    isInteresting = false;
   }
 
   ProcessedSymbols[&symbol] = isInteresting;
   return isInteresting;
 }
 
-bool AddressSanitizer::isInterestingAlloca(UnaryNode &unaryNode) {
+bool AddressSanitizer::isInterestingAlloca(const UnaryNode &unaryNode) {
   if (ProcessedAllocas.find(&unaryNode) != ProcessedAllocas.end()) {
     return ProcessedAllocas[&unaryNode];
   }
   bool isInteresting = true;
 
-  ConstvalNode *constvalNode = dynamic_cast<ConstvalNode *>(unaryNode.Opnd(0));
+  const ConstvalNode *constvalNode = dynamic_cast<const ConstvalNode *>(unaryNode.Opnd(0));
   if (constvalNode) {
-    MIRIntConst *mirConst = dynamic_cast<MIRIntConst *>(constvalNode->GetConstVal());
+    const MIRIntConst *mirConst = dynamic_cast<const MIRIntConst *>(constvalNode->GetConstVal());
     isInteresting = mirConst->GetValue().GetExtValue() > 0;
   }
   ProcessedAllocas[&unaryNode] = isInteresting;
   return isInteresting;
 }
 
-}  // end namespace maple
+}  // namespace maple

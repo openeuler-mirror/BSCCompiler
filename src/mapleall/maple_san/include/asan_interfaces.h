@@ -5,6 +5,8 @@
 #ifndef MAPLE_SAN_INCLUDE_ASAN_MESSAGES_H
 #define MAPLE_SAN_INCLUDE_ASAN_MESSAGES_H
 
+namespace maple {
+
 static const char *const kAsanModuleCtorName = "asan.module_ctor";
 static const char *const kAsanModuleDtorName = "asan.module_dtor";
 
@@ -23,4 +25,5 @@ static const char *const kAsanShadowMemoryDynamicAddress =
 static const char *const kAsanAllocaPoison = "__asan_alloca_poison";
 static const char *const kAsanAllocasUnpoison = "__asan_allocas_unpoison";
 
-#endif //MAPLE_SAN_INCLUDE__ASAN_MESSAGES_H
+} // namespace maple
+#endif // MAPLE_SAN_INCLUDE__ASAN_MESSAGES_H
