@@ -2503,7 +2503,9 @@ void RemoveIdenticalLoadAndStorePattern::Run(BB &bb, Insn &insn) {
       bb.RemoveInsn(insn);
     }
   } else if ((mop1 == MOP_wstr && mop2 == MOP_wldr) || (mop1 == MOP_xstr && mop2 == MOP_xldr)) {
-    if (IsMemOperandsIdentical(insn, *nextInsn)) {
+    uint32 srcOpndSize1 = insn.GetOperand(kInsnFirstOpnd).GetSize();
+    uint32 srcOpndSize2 = nextInsn->GetOperand(kInsnFirstOpnd).GetSize();
+    if (srcOpndSize1 == srcOpndSize2 && IsMemOperandsIdentical(insn, *nextInsn)) {
       bb.RemoveInsn(*nextInsn);
     }
   }
