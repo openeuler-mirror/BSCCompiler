@@ -158,7 +158,7 @@ class MIRScope {
   SrcPosition GetScopeEndPos(const SrcPosition &pos);
   bool AddScope(MIRScope *scope);
 
-  void SetTypeAliasMap(GStrIdx gStrIdx, TyIdx tyIdx) {
+  void SetTypeAliasMap(GStrIdx gStrIdx, TyIdx tyIdx) const {
     typeAlias->SetTypeAliasMap(gStrIdx, tyIdx);
   }
 

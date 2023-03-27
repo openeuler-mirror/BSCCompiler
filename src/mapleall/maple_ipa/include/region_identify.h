@@ -153,7 +153,7 @@ class RegionCandidate {
     }
   }
 
-  bool IsOverlapWith(RegionCandidate &rhs) {
+  bool IsOverlapWith(RegionCandidate &rhs) const {
     return (startId >= rhs.GetStartId() && startId <= rhs.GetEndId()) ||
         (rhs.GetStartId() >= startId && rhs.GetStartId() <= endId);
   }
@@ -164,7 +164,7 @@ class RegionCandidate {
   }
 
   template<typename Functor>
-  void TraverseRegion(Functor processor) {
+  void TraverseRegion(Functor processor) const {
     auto &stmtList = start->GetCurrBlock()->GetStmtNodes();
     auto begin = StmtNodes::iterator(start->GetStmtNode());
     for (auto it = begin; it != stmtList.end() && it->GetStmtInfoId() <= endId ; ++it) {

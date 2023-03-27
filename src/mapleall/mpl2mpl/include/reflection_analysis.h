@@ -178,7 +178,7 @@ class ReflectionAnalysis : public AnalysisResult {
   static uint32 FirstFindOrInsertRepeatString(const std::string &str, bool isHot, uint8 hotType);
   MIRSymbol *GetOrCreateSymbol(const std::string &name, TyIdx tyIdx, bool needInit);
   MIRSymbol *GetSymbol(const std::string &name, TyIdx tyIdx);
-  MIRSymbol *CreateSymbol(GStrIdx strIdx, TyIdx tyIdx);
+  MIRSymbol *CreateSymbol(GStrIdx strIdx, TyIdx tyIdx) const;
   MIRSymbol *GetSymbol(GStrIdx strIdx, TyIdx tyIdx);
   void GenClassMetaData(Klass &klass);
   std::string GetAnnoValueNoArray(const MIRPragmaElement &annoElem);
@@ -247,7 +247,7 @@ class ReflectionAnalysis : public AnalysisResult {
   bool IsStaticClass(const MIRStructType &classType) const;
   int8 JudgePara(MIRStructType &classType);
   void CheckPrivateInnerAndNoSubClass(Klass &clazz, const std::string &annoArr);
-  void ConvertMapleClassName(const std::string &mplClassName, std::string &javaDsp);
+  void ConvertMapleClassName(const std::string &mplClassName, std::string &javaDsp) const;
 
   int GetDeflateStringIdx(const std::string &subStr, bool needSpecialFlag);
   uint32 GetAnnoCstrIndex(std::map<int, int> &idxNumMap, const std::string &annoArr, bool isField);

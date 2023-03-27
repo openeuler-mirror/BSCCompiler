@@ -94,7 +94,7 @@ class CollectIpaInfo {
     return ++currNewStmtIndex;
   }
 
-  uint GetTotalStmtInfoCount() {
+  uint GetTotalStmtInfoCount() const {
     return currNewStmtIndex;
   }
 

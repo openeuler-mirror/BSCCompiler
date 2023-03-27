@@ -312,7 +312,7 @@ void LMBCLowerer::LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk) {
 }
   // lower using OP_blkassignoff
 void LMBCLowerer::LowerAggIassign(IassignNode *iassign, MIRType *lhsty,
-                                  int32 offset, BlockNode *newblk) {
+                                  int32 offset, BlockNode *newblk) const {
   BaseNode *rhs = iassign->rhs;
   CHECK_FATAL(rhs->GetOpCode() == OP_dread || rhs->GetOpCode() == OP_iread ||
               rhs->GetOpCode() == OP_ireadoff || rhs->GetOpCode() == OP_ireadfpoff,

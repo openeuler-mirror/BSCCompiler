@@ -1465,7 +1465,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
 }
 
 // set lhs type to vector type and return lhs pointto type
-MIRType *LoopVectorization::VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp) {
+MIRType *LoopVectorization::VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp) const {
   MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
   CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
   MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);

@@ -119,7 +119,7 @@ bool MeLoopInversion::NeedConvert(MeFunction *func, BB &bb, BB &pred, MapleAlloc
   return true;
 }
 
-void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bool> &swapSuccs) {
+void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bool> &swapSuccs) const {
   // if bb->fallthru is in loopbody, latchBB need convert condgoto and make original target as its fallthru
   bool swapSuccOfLatch = (swapSuccs.find(std::make_pair(&bb, &pred)) != swapSuccs.cend());
   if (isDebugFunc) {

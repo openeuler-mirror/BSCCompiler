@@ -100,7 +100,7 @@ class VregInfo {
     ++virtualRegCount;
     return temp;
   }
-  void Inc(uint32 v) {
+  void Inc(uint32 v) const {
     virtualRegCount += v;
   }
   uint32 GetCount() const {
@@ -120,7 +120,7 @@ class VregInfo {
   void SetMaxRegCount(uint32 num) {
     maxRegCount = num;
   }
-  void IncMaxRegCount(uint32 num) {
+  void IncMaxRegCount(uint32 num) const {
     maxRegCount += num;
   }
 

@@ -103,7 +103,7 @@ class MIRBuilder {
   MIRFunction *GetOrCreateFunction(const std::string &str, TyIdx retTyIdx);
   MIRFunction *GetFunctionFromSymbol(const MIRSymbol &funcSymbol) const;
   MIRFunction *GetFunctionFromStidx(StIdx stIdx);
-  MIRFunction *GetFunctionFromName(const std::string &str);
+  MIRFunction *GetFunctionFromName(const std::string &str) const;
   // For compiler-generated metadata struct
   void AddIntFieldConst(const MIRStructType &sType, MIRAggConst &newConst, uint32 fieldID, int64 constValue) const;
   void AddAddrofFieldConst(const MIRStructType &structType, MIRAggConst &newConst, uint32 fieldID,
@@ -157,7 +157,7 @@ class MIRBuilder {
   ConstvalNode *CreateFloat128Const(const uint64 *val);
   ConstvalNode *GetConstInt(MemPool &memPool, int val) const;
   ConstvalNode *GetConstInt(int val) {
-    return CreateIntConst(static_cast<uint64_t>(val), PTY_i32);
+    return CreateIntConst(static_cast<uint64_t>(static_cast<int64_t>(val)), PTY_i32);
   }
 
   ConstvalNode *GetConstUInt1(bool val) {
@@ -197,6 +197,7 @@ class MIRBuilder {
   AddrofNode *CreateExprDread(MIRSymbol &symbol, uint16 fieldID);
   DreadoffNode *CreateExprDreadoff(Opcode op, PrimType pty, const MIRSymbol &symbol, int32 offset);
   RegreadNode *CreateExprRegread(PrimType pty, PregIdx regIdx);
+  IreadNode *CreateExprIread(PrimType primType, TyIdx ptrTypeIdx, FieldID fieldID, BaseNode *addr);
   IreadNode *CreateExprIread(const MIRType &returnType, const MIRType &ptrType, FieldID fieldID, BaseNode *addr);
   IreadoffNode *CreateExprIreadoff(PrimType pty, int32 offset, BaseNode *opnd0);
   IreadFPoffNode *CreateExprIreadFPoff(PrimType pty, int32 offset);
@@ -225,7 +226,7 @@ class MIRBuilder {
   ArrayNode *CreateExprArray(const MIRType &arrayType, BaseNode *op);
   ArrayNode *CreateExprArray(const MIRType &arrayType, BaseNode *op1, BaseNode *op2);
   ArrayNode *CreateExprArray(const MIRType &arrayType, std::vector<BaseNode *> ops);
-  IntrinsicopNode *CreateExprIntrinsicop(MIRIntrinsicID id, Opcode op, PrimType primType, TyIdx tyIdx,
+  IntrinsicopNode *CreateExprIntrinsicop(MIRIntrinsicID id, Opcode op, PrimType primType, const TyIdx &tyIdx,
                                          const MapleVector<BaseNode*> &ops);
   IntrinsicopNode *CreateExprIntrinsicop(MIRIntrinsicID idx, Opcode opCode, const MIRType &type,
                                          const MapleVector<BaseNode*> &ops);
@@ -264,8 +265,9 @@ class MIRBuilder {
 
   IcallNode *CreateStmtIcall(const MapleVector<BaseNode*> &args);
   IcallNode *CreateStmtIcallAssigned(const MapleVector<BaseNode*> &args, const MIRSymbol &ret);
-  IcallNode *CreateStmtIcallproto(const MapleVector<BaseNode*> &args);
-  IcallNode *CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*> &args, const MIRSymbol &ret);
+  IcallNode *CreateStmtIcallproto(const MapleVector<BaseNode*> &args, const TyIdx &prototypeIdx);
+  IcallNode *CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*> &args, const MIRSymbol &ret,
+                                          const TyIdx &prototypeIdx);
   // For Call, VirtualCall, SuperclassCall, InterfaceCall
   IntrinsiccallNode *CreateStmtIntrinsicCall(MIRIntrinsicID idx, const MapleVector<BaseNode*> &arguments,
                                              TyIdx tyIdx = TyIdx());
@@ -312,6 +314,8 @@ class MIRBuilder {
   MIRSymbol *CreateSymbol(TyIdx tyIdx, GStrIdx strIdx, MIRSymKind mClass, MIRStorageClass sClass,
                           MIRFunction *func, uint8 scpID) const;
   MIRSymbol *CreateConstStringSymbol(const std::string &symbolName, const std::string &content);
+  MIRSymbol *GetOrCreateLocalDecl(const std::string &str, TyIdx tyIdx, MIRSymbolTable &symbolTable,
+                                  bool &created) const;
   // for creating nodes
   AddrofNode *CreateAddrof(const MIRSymbol &st, PrimType pty = PTY_ptr);
   AddrofNode *CreateDread(const MIRSymbol &st, PrimType pty);
@@ -324,8 +328,6 @@ class MIRBuilder {
 
  private:
   MIRSymbol *GetOrCreateGlobalDecl(const std::string &str, TyIdx tyIdx, bool &created) const;
-  MIRSymbol *GetOrCreateLocalDecl(const std::string &str, TyIdx tyIdx, MIRSymbolTable &symbolTable,
-                                  bool &created) const;
 
   MIRModule *mirModule;
   MapleSet<TyIdx> incompleteTypeRefedSet;

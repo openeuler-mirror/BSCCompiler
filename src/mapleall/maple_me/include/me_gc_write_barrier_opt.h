@@ -20,12 +20,13 @@
 namespace maple {
 class GCWriteBarrierOpt {
  public:
-  GCWriteBarrierOpt(MeFunction &f, Dominance &dom, bool enabledDebug)
+  GCWriteBarrierOpt(MeFunction &f, Dominance &dom, Dominance &pdom, bool enabledDebug)
       : func(f),
         mirModule(f.GetMIRModule()),
         irMap(*f.GetIRMap()),
         ssaTab(*f.GetMeSSATab()),
         dominance(dom),
+        postDominance(pdom),
         callBBs(0, false),
         visited(0, false),
         enabledDebug(enabledDebug) {}
@@ -44,7 +45,7 @@ class GCWriteBarrierOpt {
   bool HasYieldPoint(const MeStmt &start, const MeStmt &end);
   bool HasCallAfterStmt(const MeStmt &stmt);
   bool HasCallBeforeStmt(const MeStmt &stmt);
-  bool HasCallBetweenStmt(const MeStmt &start, const MeStmt &end);
+  bool HasCallBetweenStmt(const MeStmt &start, const MeStmt &end) const;
   bool IsBackEdgeDest(const BB &bb);
   bool HasCallInBB(const BB &bb);
 
@@ -53,6 +54,7 @@ class GCWriteBarrierOpt {
   IRMap &irMap;
   SSATab &ssaTab;
   Dominance &dominance;
+  Dominance &postDominance;
   std::vector<bool> callBBs;
   std::vector<bool> visited;
   bool enabledDebug;

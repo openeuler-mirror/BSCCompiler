@@ -770,7 +770,7 @@ std::string LibAstFile::GetSourceText(const clang::Stmt &stmt) {
 }
 
 // non preproceeded code
-std::string LibAstFile::GetSourceTextRaw(const clang::SourceRange range, const clang::SourceManager &sm) {
+std::string LibAstFile::GetSourceTextRaw(const clang::SourceRange range, const clang::SourceManager &sm) const {
   clang::LangOptions lo;
   auto startLoc = sm.getSpellingLoc(range.getBegin());
   auto lastTokenLoc = sm.getSpellingLoc(range.getEnd());

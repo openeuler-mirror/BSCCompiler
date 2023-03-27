@@ -239,7 +239,7 @@ std::string FileUtils::AppendMapleRootIfNeeded(bool needRootPath, const std::str
   return ostrStream.str();
 }
 
-bool FileUtils::DelTmpDir() {
+bool FileUtils::DelTmpDir() const {
   if (FileUtils::GetInstance().GetTmpFolder() == "") {
     return true;
   }

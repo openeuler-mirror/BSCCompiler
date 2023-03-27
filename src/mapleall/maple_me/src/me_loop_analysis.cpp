@@ -284,7 +284,7 @@ void IdentifyLoops::Dump() const {
   }
 }
 
-void IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
+void IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) const {
   // If predsize of head is one, it means that one is entry bb.
   if (loop.head->GetPred().size() == 1) {
     CHECK_FATAL(cfg->GetCommonEntryBB()->GetSucc(0) == loop.head, "succ of entry bb must be head");

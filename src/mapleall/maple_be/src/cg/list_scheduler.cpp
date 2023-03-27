@@ -371,7 +371,7 @@ void ListScheduler::ComputeLStart() {
 
 /* Calculate the most used unitKind index */
 void ListScheduler::CalculateMostUsedUnitKindCount() {
-  uint32 unitKindCount[kUnitKindLast] = { 0 };
+  std::array<uint32, kUnitKindLast> unitKindCount = { 0 };
   for (auto node : readyList) {
     CountUnitKind(*node, unitKindCount);
   }
@@ -387,7 +387,7 @@ void ListScheduler::CalculateMostUsedUnitKindCount() {
 }
 
 /* The index of unitKindCount is unitKind, the element of unitKindCount is count of the unitKind */
-void ListScheduler::CountUnitKind(const DepNode &depNode, uint32 unitKindCount[]) const {
+void ListScheduler::CountUnitKind(const DepNode &depNode, std::array<uint32, kUnitKindLast> &unitKindCount) const {
   uint32 unitKind = depNode.GetUnitKind();
   auto index = static_cast<uint32>(__builtin_ffs(static_cast<int>(unitKind)));
   while (index != 0) {

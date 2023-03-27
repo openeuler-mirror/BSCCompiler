@@ -142,7 +142,7 @@ class CGLowerer {
   std::string GetFileNameSymbolName(const std::string &fileName) const;
 
   void SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode*> &argsPrintf);
-  StmtNode *CreateFflushStmt(StmtNode &stmt);
+  StmtNode *CreateFflushStmt(StmtNode &stmt) const;
 
   void LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode &newBlk, std::vector<StmtNode *> &abortNode);
 

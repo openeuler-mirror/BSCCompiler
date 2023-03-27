@@ -34,7 +34,7 @@ class SubStringOccurrences {
     return occurrences;
   }
 
-  const size_t GetLength() {
+  const size_t GetLength() const {
     return length;
   }
 

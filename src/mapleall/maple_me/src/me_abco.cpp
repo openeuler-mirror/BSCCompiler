@@ -125,13 +125,14 @@ void MeABC::BuildSoloPiInGraph(const PiassignMeStmt &piMeStmt) {
   (void)inequalityGraph->AddEdge(*piLHSNode, *piRHSNode, 0, EdgeType::kLower);
 }
 
-bool MeABC::PiExecuteBeforeCurrentCheck(const PiassignMeStmt &piMeStmt) {
+bool MeABC::PiExecuteBeforeCurrentCheck(const PiassignMeStmt &piMeStmt) const {
   BB *currentCheckBB = currentCheck->GetBB();
   const BB *piBB = piMeStmt.GetBB();
   if (currentCheckBB != piBB) {
     return dom->Dominate(*piBB, *currentCheckBB);
   }
   const MeStmt *lastMeStmt = piBB->GetLastMe();
+  ASSERT_NOT_NULL(lastMeStmt);
   CHECK_FATAL(lastMeStmt->GetNextMeStmt() == nullptr, "must be");
   MeStmt *tmpMeStmt = piMeStmt.GetNextMeStmt();
   while (tmpMeStmt != nullptr) {
@@ -1090,7 +1091,7 @@ void MEABCOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MEABCOpt::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   ASSERT(dom != nullptr, "dominance phase has problem");
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "irMap phase has problem");

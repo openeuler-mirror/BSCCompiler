@@ -38,7 +38,7 @@ class LMBCLowerer {
   void LowerDassign(DassignNode *, BlockNode *);
   void LowerDassignoff(DassignoffNode *, BlockNode *);
   void LowerIassign(IassignNode *, BlockNode *);
-  void LowerAggIassign(IassignNode *, MIRType *type, int32 offset, BlockNode *);
+  void LowerAggIassign(IassignNode *, MIRType *type, int32 offset, BlockNode *) const;
   void LowerReturn(NaryStmtNode &retNode, BlockNode &newblk);
   void LowerCall(NaryStmtNode *stmt, BlockNode *newblk);
   BlockNode *LowerBlock(BlockNode *);

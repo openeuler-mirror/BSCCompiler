@@ -829,7 +829,7 @@ class OptimizeBB {
 
   void DeleteBB(BB *bb);
 
-  bool IsEmptyBB(BB &bb) {
+  bool IsEmptyBB(BB &bb) const {
     return isMeIR ? IsMeEmptyBB(bb) : IsMplEmptyBB(bb);
   }
 

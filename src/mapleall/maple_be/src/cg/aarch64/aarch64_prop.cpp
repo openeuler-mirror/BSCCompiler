@@ -352,7 +352,7 @@ bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUI
   return true;
 }
 
-bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT) {
+bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT) const {
   Insn *useInsn = useDUInfo.GetInsn();
   CHECK_FATAL(useInsn != nullptr, "get useInsn failed");
   if (useDUInfo.GetOperands().size() == 1) {

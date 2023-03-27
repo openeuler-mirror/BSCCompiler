@@ -105,7 +105,7 @@ class MeABC {
   ESSABaseNode *GetOrCreateRHSNode(MeExpr &expr);
   void BuildPhiInGraph(MePhiNode &phi);
   void BuildSoloPiInGraph(const PiassignMeStmt &piMeStmt);
-  bool PiExecuteBeforeCurrentCheck(const PiassignMeStmt &piMeStmt);
+  bool PiExecuteBeforeCurrentCheck(const PiassignMeStmt &piMeStmt) const;
   void AddEdgePair(ESSABaseNode &from, ESSABaseNode &to, int64 value, EdgeType type);
   bool BuildArrayCheckInGraph(MeStmt &meStmt);
   bool BuildBrMeStmtInGraph(MeStmt &meStmt);

@@ -153,7 +153,7 @@ class IdentifyLoops : public AnalysisResult {
   void SetExitBB(LoopDesc &loop);
   void ProcessBB(BB *bb);
   void Dump() const;
-  void ProcessPreheaderAndLatch(LoopDesc &loop);
+  void ProcessPreheaderAndLatch(LoopDesc &loop) const;
 
  private:
   MemPool *meLoopMemPool;

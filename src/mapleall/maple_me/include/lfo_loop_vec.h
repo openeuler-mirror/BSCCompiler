@@ -168,10 +168,10 @@ class LoopVectorization {
   RegreadNode *GenVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
   bool IassignIsReduction(IassignNode *iassign, LoopVecInfo* vecInfo);
   RegreadNode *GetorNewVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
-  MIRType *VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp);
+  MIRType *VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp) const;
   void VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp);
   void GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes);
- private:
+
   MIRFunction *mirFunc;
   // point to PreMeStmtExtensionMap of PreMeEmitter, key is stmtID
   MapleMap<uint32_t, PreMeMIRExtension *>  *PreMeStmtExtensionMap;

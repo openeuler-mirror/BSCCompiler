@@ -81,7 +81,7 @@ class McSSAPre : public SSAPre {
   bool AmongMinCut(RGNode *, uint32 idx) const;
   void DumpRGToFile();                  // dump reduced graph to dot file
   bool IncludedEarlier(Visit **cut, Visit *curVisit, uint32 nextRouteIdx);
-  void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route);
+  void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route) const;
   bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
   bool SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
   void DetermineMinCut();

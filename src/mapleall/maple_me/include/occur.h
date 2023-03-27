@@ -41,7 +41,7 @@ class MeOccur {
   MeOccur(OccType ty, int cId, BB &bb, MeOccur *df) : occTy(ty), classID(cId), mirBB(&bb), def(df) {}
   virtual ~MeOccur() = default;
   virtual void Dump(const IRMap &irMap) const;
-  void DumpOccur(IRMap &irMap);
+  void DumpOccur(IRMap &irMap) const;
   bool IsDominate(Dominance &dom, MeOccur &occ);
   const BB *GetBB() const {
     return mirBB;

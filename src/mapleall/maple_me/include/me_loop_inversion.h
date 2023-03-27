@@ -23,7 +23,7 @@ class MeLoopInversion {
  public:
   MeLoopInversion(bool enableDebugFunc, MemPool &givenMp) : isDebugFunc(enableDebugFunc), innerMp(&givenMp) {}
   ~MeLoopInversion() = default;
-  void ExecuteLoopInversion(MeFunction &func, Dominance &dom);
+  void ExecuteLoopInversion(MeFunction &func, const Dominance &dom);
 
   bool IsCFGChange() const {
     return isCFGChange;
@@ -31,7 +31,7 @@ class MeLoopInversion {
 
  private:
   using Key = std::pair<BB*, BB*>;
-  void Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bool> &swapSuccs);
+  void Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bool> &swapSuccs) const;
   bool NeedConvert(MeFunction *func, BB &bb, BB &pred,
                    MapleAllocator &localAlloc, MapleMap<Key, bool> &swapSuccs) const;
 

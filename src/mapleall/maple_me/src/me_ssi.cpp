@@ -19,7 +19,7 @@ bool MeSSI::isDebug = false;
 constexpr int kNumOpnds = 2;
 constexpr int kPiStmtUpperBound = 2;
 
-VarMeExpr *MeSSI::CreateNewPiExpr(const MeExpr &opnd) {
+VarMeExpr *MeSSI::CreateNewPiExpr(const MeExpr &opnd)const {
   if (opnd.GetMeOp() == kMeOpConst) {
     return nullptr;
   }
@@ -214,7 +214,7 @@ void MeSSI::InsertPiNodes() {
   }
 }
 
-bool MeSSI::ExistedPhiNode(BB &bb, const VarMeExpr &rhs) {
+bool MeSSI::ExistedPhiNode(BB &bb, const VarMeExpr &rhs) const {
   return bb.GetMePhiList().find(rhs.GetOstIdx()) != bb.GetMePhiList().end();
 }
 

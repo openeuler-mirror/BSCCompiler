@@ -240,7 +240,7 @@ MIRFunction *MIRBuilder::GetFunctionFromSymbol(const MIRSymbol &funcSymbol) cons
   return funcSymbol.GetFunction();
 }
 
-MIRFunction *MIRBuilder::GetFunctionFromName(const std::string &str) {
+MIRFunction *MIRBuilder::GetFunctionFromName(const std::string &str) const {
   auto *funcSymbol =
       GlobalTables::GetGsymTable().GetSymbolFromStrIdx(GlobalTables::GetStrTable().GetStrIdxFromName(str));
   return funcSymbol != nullptr ? GetFunctionFromSymbol(*funcSymbol) : nullptr;

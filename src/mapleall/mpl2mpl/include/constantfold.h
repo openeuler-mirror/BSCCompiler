@@ -43,7 +43,7 @@ class ConstantFold : public FuncOptimizeImpl {
   // simplification happened. If the statement can be deleted after a
   // simplification, it returns nullptr.
   StmtNode *Simplify(StmtNode *node);
-  StmtNode *SimplifyIassignWithAddrofBaseNode(IassignNode &node, const AddrofNode &base);
+  StmtNode *SimplifyIassignWithAddrofBaseNode(IassignNode &node, const AddrofNode &base) const;
 
   FuncOptimizeImpl *Clone() override {
     return new ConstantFold(*this);
@@ -139,7 +139,7 @@ class ConstantFold : public FuncOptimizeImpl {
   BaseNode *PairToExpr(PrimType resultType, const std::pair<BaseNode*, std::optional<IntVal>> &pair) const;
   BaseNode *SimplifyDoubleCompare(CompareNode &node) const;
   CompareNode *FoldConstComparisonReverse(Opcode opcode, PrimType resultType, PrimType opndType,
-                                          BaseNode &l, BaseNode &r);
+                                          BaseNode &l, BaseNode &r) const;
   MIRModule *mirModule;
   CFConfig cfc;
 };

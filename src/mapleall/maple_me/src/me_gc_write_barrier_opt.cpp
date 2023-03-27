@@ -75,9 +75,9 @@ void GCWriteBarrierOpt::GCLower(BB &bb, std::map<OStIdx, std::vector<MeStmt*>> &
     }
   }
   visited[bb.GetBBId()] = true;
-  const auto &domChildren = dominance.GetDomChildren(bb.GetBBId());
+  const auto &domChildren = dominance.GetDomChildren(bb.GetID());
   for (const auto &childBBId : domChildren) {
-    BB *child = func.GetCfg()->GetBBFromID(childBBId);
+    BB *child = func.GetCfg()->GetBBFromID(BBId(childBBId));
     if (child == nullptr) {
       continue;
     }
@@ -147,8 +147,8 @@ bool GCWriteBarrierOpt::IsCall(const MeStmt &stmt) const {
 }
 
 bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
-  BB *startBB = start.GetBB();
-  BB *endBB = end.GetBB();
+  const BB *startBB = start.GetBB();
+  const BB *endBB = end.GetBB();
   if (startBB == endBB) {
     return HasCallBetweenStmt(start, end);
   }
@@ -158,11 +158,11 @@ bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
   if (HasCallAfterStmt(start) || HasCallBeforeStmt(end) || IsBackEdgeDest(*endBB)) {
     return true;
   }
-  const auto &domChildren = dominance.GetDomChildren(startBB->GetBBId());
-  const MapleSet<BBId> pdomChildren = dominance.GetPdomChildrenItem(endBB->GetBBId());
+  const auto &domChildren = dominance.GetDomChildren(startBB->GetID());
+  const auto pdomChildren = postDominance.GetDomChildren(endBB->GetID());
   const MapleVector<BB*> bbVec = func.GetCfg()->GetAllBBs();
   for (const auto &childBBId : domChildren) {
-    if (pdomChildren.find(childBBId) == pdomChildren.end()) {
+    if (std::find(pdomChildren.begin(), pdomChildren.end(), childBBId) == pdomChildren.end()) {
       continue;
     }
     BB *bb = bbVec.at(childBBId);
@@ -189,7 +189,7 @@ bool GCWriteBarrierOpt::HasCallBeforeStmt(const MeStmt &stmt) {
   return HasCallBetweenStmt(firstMeStmt, stmt);
 }
 
-bool GCWriteBarrierOpt::HasCallBetweenStmt(const MeStmt &start, const MeStmt &end) {
+bool GCWriteBarrierOpt::HasCallBetweenStmt(const MeStmt &start, const MeStmt &end) const {
   CHECK_FATAL(start.GetBB() == end.GetBB(), "NYI.");
   for (const MeStmt *meStmt = &start; meStmt != &end; meStmt = meStmt->GetNext()) {
     if (IsCall(*meStmt)) {

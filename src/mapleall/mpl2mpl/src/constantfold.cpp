@@ -756,7 +756,7 @@ ConstvalNode *ConstantFold::FoldConstComparison(Opcode opcode, PrimType resultTy
 }
 
 CompareNode *ConstantFold::FoldConstComparisonReverse(Opcode opcode, PrimType resultType, PrimType opndType,
-                                                      BaseNode &l, BaseNode &r) {
+                                                      BaseNode &l, BaseNode &r) const {
   CompareNode *result = nullptr;
   Opcode op = opcode;
   switch (opcode) {
@@ -2288,7 +2288,7 @@ StmtNode *ConstantFold::SimplifyDassign(DassignNode *node) {
   return node;
 }
 
-StmtNode *ConstantFold::SimplifyIassignWithAddrofBaseNode(IassignNode &node, const AddrofNode &base) {
+StmtNode *ConstantFold::SimplifyIassignWithAddrofBaseNode(IassignNode &node, const AddrofNode &base) const {
   auto *mirTypeOfIass = GlobalTables::GetTypeTable().GetTypeFromTyIdx(node.GetTyIdx());
   if (!mirTypeOfIass->IsMIRPtrType()) {
     return &node;

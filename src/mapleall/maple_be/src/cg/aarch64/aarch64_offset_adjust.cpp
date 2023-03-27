@@ -40,7 +40,7 @@ void AArch64FPLROffsetAdjustment::Run() {
 #endif
 }
 
-void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn) {
+void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn) const {
   uint32 opndNum = insn.GetOperandSize();
   bool replaceFP = false;
   for (uint32 i = 0; i < opndNum; ++i) {

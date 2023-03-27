@@ -617,7 +617,7 @@ MIRSymbol *ReflectionAnalysis::GetSymbol(GStrIdx strIdx, TyIdx tyIdx) {
   return nullptr;
 }
 
-MIRSymbol *ReflectionAnalysis::CreateSymbol(GStrIdx strIdx, TyIdx tyIdx) {
+MIRSymbol *ReflectionAnalysis::CreateSymbol(GStrIdx strIdx, TyIdx tyIdx) const {
   MIRSymbol *st = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
   st->SetStorageClass(kScGlobal);
   st->SetSKind(kStVar);
@@ -1409,7 +1409,7 @@ MIRSymbol *ReflectionAnalysis::GenFieldsMetaData(const Klass &klass, bool isHot)
   return fieldsArraySt;
 }
 
-void ReflectionAnalysis::ConvertMapleClassName(const std::string &mplClassName, std::string &javaDsp) {
+void ReflectionAnalysis::ConvertMapleClassName(const std::string &mplClassName, std::string &javaDsp) const {
   // Convert classname end with _3B, 3 is strlen("_3B")
   unsigned int len = strlen(kClassSuffix);
   if (mplClassName.size() > len && mplClassName.rfind(kClassSuffix, mplClassName.size() - len) != std::string::npos) {

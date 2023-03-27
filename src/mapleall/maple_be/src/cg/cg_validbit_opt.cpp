@@ -20,7 +20,7 @@
 namespace maplebe {
 
 
-InsnSet ValidBitPattern::GetAllUseInsn(const RegOperand &defReg) {
+InsnSet ValidBitPattern::GetAllUseInsn(const RegOperand &defReg) const {
   InsnSet allUseInsn;
   if ((ssaInfo != nullptr) && defReg.IsSSAForm()) {
     VRegVersion *defVersion = ssaInfo->FindSSAVersion(defReg.GetRegisterNumber());

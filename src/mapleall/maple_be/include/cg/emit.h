@@ -267,7 +267,7 @@ class Emitter {
   void EmitDIDebugRangesSection();
   void EmitDIDebugLineSection();
   void EmitDIDebugStrSection();
-  MIRFunction *GetDwTagSubprogram(const MapleVector<DBGDieAttr*> &attrvec, DebugInfo &di);
+  MIRFunction *GetDwTagSubprogram(const MapleVector<DBGDieAttr*> &attrvec, DebugInfo &di) const;
   void EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTag tagName, DebugInfo *di);
   void EmitDIFormSpecification(unsigned int dwform);
   void EmitDIFormSpecification(const DBGDieAttr *attr) {

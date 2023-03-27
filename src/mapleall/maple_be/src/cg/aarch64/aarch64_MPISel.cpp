@@ -300,7 +300,7 @@ void AArch64MPIsel::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd, Opera
 }
 
 Insn &AArch64MPIsel::AppendCall(AArch64MOP_t mOp, Operand &targetOpnd,
-    ListOperand &paramOpnds, ListOperand &retOpnds) {
+    ListOperand &paramOpnds, ListOperand &retOpnds) const {
   Insn &callInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, AArch64CG::kMd[mOp]);
   callInsn.AddOpndChain(targetOpnd).AddOpndChain(paramOpnds).AddOpndChain(retOpnds);
   cgFunc->GetCurBB()->AppendInsn(callInsn);
@@ -564,7 +564,7 @@ Operand *AArch64MPIsel::SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &
   return cgFunc->SelectCmpOp(node, opnd0, opnd1, parent);
 }
 
-void AArch64MPIsel::SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType) {
+void AArch64MPIsel::SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType) const {
   (void)opnd0;
   (void)opnd1;
   (void)primType;

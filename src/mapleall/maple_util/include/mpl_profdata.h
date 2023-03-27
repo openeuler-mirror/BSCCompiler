@@ -64,7 +64,7 @@ class ProfileSummary {
     (void)histogram.emplace_back(ProfileSummaryHistogram(s, num, mincount, cumcounts));
   }
   void DumpSummary();
-  uint64_t GetCheckSum() {
+  uint64_t GetCheckSum() const {
     return checkSum;
   }
   uint32_t GetRun() {

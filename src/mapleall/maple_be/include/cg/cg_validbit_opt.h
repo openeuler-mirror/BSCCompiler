@@ -40,7 +40,7 @@ class ValidBitPattern {
   virtual std::string GetPatternName() = 0;
   virtual bool CheckCondition(Insn &insn) = 0;
   virtual void Run(BB &bb, Insn &insn) = 0;
-  InsnSet GetAllUseInsn(const RegOperand &defReg);
+  InsnSet GetAllUseInsn(const RegOperand &defReg) const;
   void DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn);
 
  protected:

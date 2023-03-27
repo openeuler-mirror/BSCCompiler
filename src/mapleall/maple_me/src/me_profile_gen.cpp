@@ -86,7 +86,7 @@ void MeProfGen::InstrumentBB(BB &bb) {
   }
 }
 
-void MeProfGen::SaveProfile() {
+void MeProfGen::SaveProfile() const {
   if (!Options::profileTest) {
     return;
   }

@@ -144,7 +144,7 @@ class CDGNode {
     isVisitedInExtendedFind = true;
   }
 
-  bool IsVisitedInExtendedFind() {
+  bool IsVisitedInExtendedFind() const {
     return isVisitedInExtendedFind;
   }
 
@@ -310,7 +310,7 @@ class CDGNode {
     return *heapUses;
   }
 
-  void AddHeapUseInsn(Insn *heapInsn) {
+  void AddHeapUseInsn(Insn *heapInsn) const {
     heapUses->emplace_back(heapInsn);
   }
 

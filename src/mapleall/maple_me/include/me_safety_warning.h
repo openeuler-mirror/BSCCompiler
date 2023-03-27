@@ -44,7 +44,7 @@ class MESafetyWarning : public MapleFunctionPhase<MeFunction> {
  private:
   void GetAnalysisDependence(maple::AnalysisDep &aDep) const override;
   bool IsStaticModeForOp(Opcode op) const;
-  SafetyWarningHandler *FindHandler(Opcode op);
+  SafetyWarningHandler *FindHandler(Opcode op) const;
 
   SafetyWarningHandlers *realNpeHandleMap;
   SafetyWarningHandlers *realBoundaryHandleMap;

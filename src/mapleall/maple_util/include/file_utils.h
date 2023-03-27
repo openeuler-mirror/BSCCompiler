@@ -50,7 +50,7 @@ class FileUtils {
     return tmpFolderPath;
   };
   static std::string GetOutPutDir();
-  bool DelTmpDir();
+  bool DelTmpDir() const;
   std::string GetTmpFolderPath();
  private:
   std::string tmpFolderPath;

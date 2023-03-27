@@ -96,7 +96,7 @@ class AArch64MPIsel : public MPISel {
   void SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, PrimType fromType, PrimType toType) override;
   void SelectCvtFloat2Int(Operand &resOpnd, Operand &srcOpnd, PrimType itype, PrimType ftype) override;
   Insn &AppendCall(AArch64MOP_t mOp, Operand &targetOpnd,
-      ListOperand &paramOpnds, ListOperand &retOpnds);
+      ListOperand &paramOpnds, ListOperand &retOpnds) const;
   void SelectCalleeReturn(MIRType *retType, ListOperand &retOpnds);
 
   /* Inline function implementation of va_start */
@@ -106,7 +106,7 @@ class AArch64MPIsel : public MPISel {
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);
   void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds);
   void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
-  void SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType);
+  void SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType) const;
   void SelectCmpResult(RegOperand &resOpnd, Opcode opCode, PrimType primType, PrimType primOpndType);
   Operand *SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode) const;
   RegOperand &GetTargetStackPointer(PrimType primType) override;

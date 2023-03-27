@@ -3323,7 +3323,7 @@ void Emitter::EmitDIFormSpecification(unsigned int dwform) {
   }
 }
 
-MIRFunction *Emitter::GetDwTagSubprogram(const MapleVector<DBGDieAttr*> &attrvec, DebugInfo &di) {
+MIRFunction *Emitter::GetDwTagSubprogram(const MapleVector<DBGDieAttr*> &attrvec, DebugInfo &di) const {
   DBGDieAttr *name = LFindAttribute(attrvec, DW_AT_name);
   if (name == nullptr) {
     DBGDieAttr *spec = LFindAttribute(attrvec, DW_AT_specification);

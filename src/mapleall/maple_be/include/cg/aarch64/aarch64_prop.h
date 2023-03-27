@@ -123,7 +123,7 @@ class A64ConstProp {
   bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const;
   bool ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUInfo,
                                    ImmOperand &constOpnd, ArithmeticType aT) const;
-  bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
+  bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT) const;
   bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT) const;
   bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;
   bool BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;

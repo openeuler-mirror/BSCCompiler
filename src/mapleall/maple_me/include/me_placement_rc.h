@@ -61,7 +61,7 @@ class PlacementRC : public MeSSUPre {
   void LookForRealOccOfStores(MeStmt &stmt, BB &bb);
   void LookForUseOccOfLocalRefVars(MeStmt &stmt);
   void TraverseStatementsBackwards(BB &bb);
-  void AddCleanupArg();
+  void AddCleanupArg() const;
   MeStmt *GetDefStmt(BB &bb);
 
   void PerCandInit() override {

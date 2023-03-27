@@ -156,7 +156,7 @@ class ListScheduler {
   void UpdateInfoAfterSelectNode(DepNode &schedNode);
   void UpdateNodesInReadyList();
   void UpdateAdvanceCycle(const DepNode &schedNode);
-  void CountUnitKind(const DepNode &depNode, uint32 unitKindCount[]) const;
+  void CountUnitKind(const DepNode &depNode, std::array<uint32, kUnitKindLast> &unitKindCount) const;
   void DumpWaitingQueue() const;
   void DumpReadyList() const;
   void DumpScheduledResult() const;

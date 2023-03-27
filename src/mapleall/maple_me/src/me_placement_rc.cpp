@@ -121,7 +121,7 @@ void PlacementRC::HandleThrowOperand(SRealOcc &realOcc, ThrowMeStmt &thwStmt) {
   }
 }
 
-void PlacementRC::AddCleanupArg() {
+void PlacementRC::AddCleanupArg() const {
   auto cfg = func->GetCfg();
   for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
     auto &meStmts = bb->GetMeStmts();
@@ -513,7 +513,7 @@ void PlacementRC::HandleCanInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt 
       } else if (mdLHS->GetMeOp() == kMeOpReg) {
         // The case callasigned (dassign var) ==> callassigned (regassign reg). Find the real defStmt.
         MeStmt *defStmt = nullptr;
-        BB *bb = realOcc.GetVar()->GetDefByBBMeStmt(*dom, defStmt);
+        BB *bb = realOcc.GetVar()->GetDefByBBMeStmt(*cfg, defStmt);
         CHECK_FATAL(bb == &lastUseBB, "the bb is not last use bb");
         CHECK_NULL_FATAL(defStmt);
         lastUseBB.InsertMeStmtAfter(defStmt, &decrefStmt);
@@ -876,7 +876,7 @@ void PlacementRC::BuildWorkListBB(BB *bb) {
   }
 
   // Recurse on child BBs in post-dominator tree
-  for (BBId bbId : dom->GetPdomChildrenItem(bb->GetBBId())) {
+  for (auto bbId : pdom->GetDomChildren(bb->GetID())) {
     BuildWorkListBB(func->GetCfg()->GetAllBBs().at(bbId));
   }
 }
@@ -919,11 +919,14 @@ bool MEPlacementRC::PhaseRun(maple::MeFunction &f) {
 
   f.SetHints(f.GetHints() | kPlacementRCed);
 
-  Dominance *dom = GET_ANALYSIS(MEDominance, f);
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
   ASSERT_NOT_NULL(dom);
+  auto pdom = dominancePhase->GetPdomResult();
+  ASSERT_NOT_NULL(pdom);
   MeIRMap *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(irMap);
-  PlacementRC placementRC(f, *dom, *GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
+  PlacementRC placementRC(f, *dom, *pdom, *GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
   placementRC.ApplySSUPre();
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After PLACEMENT RC =============" << '\n';

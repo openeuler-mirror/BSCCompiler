@@ -1553,7 +1553,7 @@ struct BlockScheduling {
     }
   }
 
-  bool IsStmtInRegion(MeStmt *stmt, MeStmt *beginStmt, MeStmt *endStmt) {
+  bool IsStmtInRegion(MeStmt *stmt, MeStmt *beginStmt, MeStmt *endStmt) const {
     if (IsRegionEmpty(beginStmt, endStmt)) {
       return false;
     }

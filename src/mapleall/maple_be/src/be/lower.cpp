@@ -1588,6 +1588,21 @@ void CGLowerer::LowerStructReturnInGpRegs(BlockNode &newBlk, const StmtNode &stm
                                           const MIRSymbol &symbol) {
   auto size = static_cast<uint32>(symbol.GetType()->GetSize());
 
+  if (size == 0) {
+    return;
+  } else if (size <= k8ByteSize) {
+    // size <= 8-Byte, lowerd into
+    // call &foo
+    // dassign agg $s (regread agg %%retval0)
+    auto *regread = mirBuilder->CreateExprRegread(symbol.GetType()->GetPrimType(), -kSregRetval0);
+    auto *dStmt = mirBuilder->CreateStmtDassign(symbol.GetStIdx(), 0, regread);
+    newBlk.AddStatement(dStmt);
+    if (funcProfData) {
+      funcProfData->CopyStmtFreq(dStmt->GetStmtID(), stmt.GetStmtID());
+    }
+    return;
+  }
+
   // save retval0, retval1
   PregIdx pIdx1R = 0, pIdx2R = 0;
   auto genRetvalSave = [this, &newBlk, &stmt](PregIdx &pIdx, SpecialReg sreg) {
@@ -1600,9 +1615,7 @@ void CGLowerer::LowerStructReturnInGpRegs(BlockNode &newBlk, const StmtNode &stm
     }
   };
   genRetvalSave(pIdx1R, kSregRetval0);
-  if (size > k8ByteSize) {
-    genRetvalSave(pIdx2R, kSregRetval1);
-  }
+  genRetvalSave(pIdx2R, kSregRetval1);
 
   // save &s
   BaseNode *regAddr = mirBuilder->CreateExprAddrof(0, symbol);
@@ -1768,7 +1781,7 @@ bool CGLowerer::IsSwitchToRangeGoto(const BlockNode &blk) const {
   return false;
 }
 
-StmtNode *CGLowerer::CreateFflushStmt(StmtNode &stmt) {
+StmtNode *CGLowerer::CreateFflushStmt(StmtNode &stmt) const {
   MIRFunction *fflush = mirBuilder->GetOrCreateFunction("fflush", TyIdx(PTY_i32));
   fflush->GetFuncSymbol()->SetAppearsInCode(true);
   MapleVector<BaseNode*> argsFflush(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());

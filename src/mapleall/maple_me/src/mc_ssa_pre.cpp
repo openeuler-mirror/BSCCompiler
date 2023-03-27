@@ -162,7 +162,7 @@ bool McSSAPre::IncludedEarlier(Visit **cut, Visit *curVisit, uint32 nextRouteIdx
 }
 
 // remove this route's nodes from cutSet
-void McSSAPre::RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route) {
+void McSSAPre::RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route) const {
   for (uint32 i = 1; i < route->visits.size(); i++) {
     Visit &curVisit = route->visits[i];
     std::unordered_multiset<uint32>::iterator it = cutSet.find(curVisit.node->id);
