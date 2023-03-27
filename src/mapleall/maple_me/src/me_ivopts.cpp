@@ -1683,9 +1683,9 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
     }
     bool addCvt = (itGroup == groupMap.end() || itGroup->second.expandType != itCand.second.expandType);
     if (itGroup == groupMap.end() || addCvt) {
-      if ((itCand.second.expr->GetPrimType() == PTY_ptr ||
-          itCand.second.expr->GetPrimType() == PTY_a64 ||
-          itCand.second.expr->GetPrimType() == PTY_a32) && itCand.second.expr->GetOp() != OP_cvt) {
+      if (analysis && itCand.second.expr->GetOp() != OP_cvt &&
+          (itCand.second.expr->GetPrimType() == PTY_ptr || itCand.second.expr->GetPrimType() == PTY_a64 ||
+           itCand.second.expr->GetPrimType() == PTY_a32)) {
         // it's not good to use one obj to form others
         replaced = false;
         return nullptr;
@@ -1708,7 +1708,8 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
   }
   IntVal gConst(groupConst, groupBase.GetPrimType());
   IntVal cConst(candConst, candBase.GetPrimType());
-  IntVal subVal(gConst.GetExtValue() - cConst.GetExtValue(), groupBase.GetPrimType());
+  IntVal subVal(static_cast<uint64>(gConst.GetExtValue()) - static_cast<uint64>(cConst.GetExtValue()),
+                groupBase.GetPrimType());
   if (subVal == 0) {
     return extraExpr;
   }
@@ -2204,8 +2205,11 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
   bool replaced = true;
   bool replaceCompare = false;
   MeExpr *simplified = nullptr;
-  if (IsSignedInteger(static_cast<OpMeExpr*>(use->expr)->GetOpndType())) {
-    static_cast<OpMeExpr*>(use->expr)->SetOpndType(GetSignedPrimType(cand->iv->expr->GetPrimType()));
+  auto opndType = static_cast<OpMeExpr*>(use->expr)->GetOpndType();
+  if (IsSignedInteger(opndType)) {
+    PrimType oldType = opndType;
+    opndType = GetSignedPrimType(cand->iv->expr->GetPrimType());
+    use->iv->base = irMap->CreateMeExprTypeCvt(opndType, oldType, *use->iv->base);
   }
   ratio = ComputeRatioOfStep(*cand->iv->step, *use->iv->step);
   if (ratio == 0) {
@@ -2213,6 +2217,7 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
     // swap comparison if ratio is negative
     if (ratio < 0) {
       OpMeExpr newOpExpr(static_cast<OpMeExpr&>(*use->expr), kInvalidExprID);
+      newOpExpr.SetOpndType(opndType);
       auto op = newOpExpr.GetOp();
       CHECK_FATAL(IsCompareHasReverseOp(op), "should be known op!");
       auto newOp = GetSwapCmpOp(op);
@@ -2280,9 +2285,8 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
         }
         extraExpr = irMap->CreateMeExprBinary(OP_sub, extraExpr->GetPrimType(),
                                               *comparedExpr, *extraExpr);
-        if (extraExpr->GetPrimType() != static_cast<OpMeExpr*>(use->expr)->GetOpndType()) {
-          extraExpr = irMap->CreateMeExprTypeCvt(static_cast<OpMeExpr*>(use->expr)->GetOpndType(),
-                                                 extraExpr->GetPrimType(), *extraExpr);
+        if (extraExpr->GetPrimType() != opndType) {
+          extraExpr = irMap->CreateMeExprTypeCvt(opndType, extraExpr->GetPrimType(), *extraExpr);
         }
         simplified = irMap->SimplifyMeExpr(extraExpr);
         if (simplified != nullptr) { extraExpr = simplified; }
@@ -2290,6 +2294,7 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
         if (ratio == -1) {
           // swap comparison
           OpMeExpr newOpExpr(static_cast<OpMeExpr&>(*use->expr), kInvalidExprID);
+          newOpExpr.SetOpndType(opndType);
           auto op = newOpExpr.GetOp();
           CHECK_FATAL(IsCompareHasReverseOp(op), "should be known op!");
           auto newOp = GetSwapCmpOp(op);
@@ -2304,18 +2309,21 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, MeSt
           if (simplified != nullptr) { extraExpr = simplified; }
         }
         extraExpr = GetInvariant(extraExpr);
-        auto *newCmp = ReplaceCompareOpnd(static_cast<OpMeExpr&>(*use->expr), use->comparedExpr, extraExpr);
+        OpMeExpr newOpExpr(static_cast<OpMeExpr&>(*use->expr), kInvalidExprID);
+        newOpExpr.SetOpndType(opndType);
+        auto *newCmp = ReplaceCompareOpnd(newOpExpr, use->comparedExpr, extraExpr);
         (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *newCmp);
         use->expr = newCmp;
         use->comparedExpr = extraExpr;
         extraExpr = nullptr;
       }
     }
-    if (use->comparedExpr->GetPrimType() != static_cast<OpMeExpr*>(use->expr)->GetOpndType()) {
-      auto *cvt = irMap->CreateMeExprTypeCvt(static_cast<OpMeExpr*>(use->expr)->GetOpndType(),
-                                             use->comparedExpr->GetPrimType(), *use->comparedExpr);
+    if (use->comparedExpr->GetPrimType() != opndType) {
+      auto *cvt = irMap->CreateMeExprTypeCvt(opndType, use->comparedExpr->GetPrimType(), *use->comparedExpr);
       cvt = GetInvariant(cvt);
-      auto *newCmp = ReplaceCompareOpnd(static_cast<OpMeExpr&>(*use->expr), use->comparedExpr, cvt);
+      OpMeExpr newOpExpr(static_cast<OpMeExpr&>(*use->expr), kInvalidExprID);
+      newOpExpr.SetOpndType(opndType);
+      auto *newCmp = ReplaceCompareOpnd(newOpExpr, use->comparedExpr, cvt);
       (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *newCmp);
       use->expr = newCmp;
       use->comparedExpr = cvt;
