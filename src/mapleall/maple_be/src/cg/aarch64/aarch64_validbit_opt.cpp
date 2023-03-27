@@ -281,7 +281,17 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       dstOpnd.SetValidBitsNum(newVB);
       break;
     }
-    case MOP_wiorrrr:
+    case MOP_wiorrrr: {
+      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+      uint32 src1VB = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetValidBitsNum();
+      uint32 src2VB = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValidBitsNum();
+      uint32 newVB = (src1VB >= src2VB ? src1VB : src2VB);
+      if (newVB > k32BitSize) {
+        newVB = k32BitSize;
+      }
+      dstOpnd.SetValidBitsNum(newVB);
+      break;
+    }
     case MOP_xiorrrr: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       uint32 src1VB = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetValidBitsNum();
