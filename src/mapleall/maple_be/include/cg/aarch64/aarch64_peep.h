@@ -1619,14 +1619,19 @@ class AddCmpZeroAArch64 : public PeepPattern {
  * uxtw  x1, w0
  * lsl   x2, x1, #3  ====>  ubfiz x2, x0, #3, #32
  */
-class ComplexExtendWordLslAArch64 : public PeepPattern {
+class ComplexExtendWordLslPattern : public CGPeepPattern {
  public:
-  explicit ComplexExtendWordLslAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ComplexExtendWordLslAArch64() override = default;
+  ComplexExtendWordLslPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~ComplexExtendWordLslPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "ComplexExtendWordLslPattern";
+  }
 
  private:
-  bool IsExtendWordLslPattern(const Insn &insn) const;
+  Insn *useInsn = nullptr;
 };
 
 

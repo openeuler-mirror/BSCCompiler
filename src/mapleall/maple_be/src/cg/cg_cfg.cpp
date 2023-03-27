@@ -379,7 +379,7 @@ void CGCFG::MergeBB(BB &merger, BB &mergee, CGFunc &func) {
   }
   if (mergee.GetKind() == BB::kBBReturn) {
     for (size_t i = 0; i < func.ExitBBsVecSize(); ++i) {
-      if (func.GetExitBB(i) == &mergee) {
+      if (func.GetExitBB(static_cast<int32>(i)) == &mergee) {
         func.EraseExitBBsVec(func.GetExitBBsVec().begin() + i);
       }
     }

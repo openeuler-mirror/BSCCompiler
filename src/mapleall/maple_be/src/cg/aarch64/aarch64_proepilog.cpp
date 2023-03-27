@@ -1084,7 +1084,8 @@ void AArch64GenProEpilog::AppendJump(const MIRSymbol &funcSymbol) {
 }
 
 void AArch64GenProEpilog::AppendBBtoEpilog(BB &epilogBB, BB &newBB) {
-  if (epilogBB.GetPreds().empty() && cgFunc.GetMirModule().IsCModule() && CGOptions::DoTailCallOpt()) {
+  if (epilogBB.GetPreds().empty() && &epilogBB != cgFunc.GetFirstBB() &&
+      cgFunc.GetMirModule().IsCModule() && CGOptions::DoTailCallOpt()) {
     epilogBB.SetNeedRestoreCfi(false);
     Insn &junk = cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_pseudo_none);
     epilogBB.AppendInsn(junk);
@@ -1206,6 +1207,10 @@ void AArch64GenProEpilog::Run() {
   GenerateProlog(*(cgFunc.GetPrologureBB()));
 
   for (auto *exitBB : cgFunc.GetExitBBsVec()) {
+    // Do not generate epilog in fast-path-return BB
+    if (exitBB->IsFastPathReturn()) {
+      continue;
+    }
     GenerateEpilog(*exitBB);
   }
 

@@ -203,7 +203,7 @@ void TailCallOpt::TideExitBB() {
   cgFunc.GetTheCFG()->UnreachCodeAnalysis();
   std::vector<BB*> realRets;
   for (auto *exitBB : cgFunc.GetExitBBsVec()) {
-    if (!exitBB->GetPreds().empty()) {
+    if (!exitBB->GetPreds().empty() || exitBB == cgFunc.GetFirstBB()) {
       (void)realRets.emplace_back(exitBB);
     }
   }

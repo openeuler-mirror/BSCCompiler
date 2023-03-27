@@ -406,9 +406,6 @@ void ForwardPropPattern::Optimize(Insn &insn) {
 }
 
 void ForwardPropPattern::RemoveMopUxtwToMov(Insn &insn) {
-  if (CGOptions::DoCGSSA()) {
-    CHECK_FATAL(false, "check case in ssa");
-  }
   auto &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   auto &destOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   uint32 destRegNo = destOpnd.GetRegisterNumber();
@@ -543,6 +540,10 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
   }
   if (AArch64isa::IsPseudoInstruction(defInsnForSecondOpnd->GetMachineOpcode()) || defInsnForSecondOpnd->IsCall() ||
       defInsnForSecondOpnd->IsTailCall()) {
+    return false;
+  }
+  if (cgFunc.IsAfterRegAlloc() && defInsnForSecondOpnd->GetMachineOpcode() == insn.GetMachineOpcode() &&
+      static_cast<RegOperand&>(defInsnForSecondOpnd->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == firstRegNO) {
     return false;
   }
   /* unconcerned regs. */

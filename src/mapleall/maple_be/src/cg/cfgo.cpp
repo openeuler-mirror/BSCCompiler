@@ -445,6 +445,19 @@ void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) const {
   sucBB.RemovePreds(curBB);
   gotoTarget->PushBackPreds(curBB);
   cgFunc->GetTheCFG()->FlushUnReachableStatusAndRemoveRelations(sucBB, *cgFunc);
+  /*
+   * LastBB cannot be removed from the preds of succBB by FlushUnReachableStatusAndRemoveRelations, Why?
+   * We'll do a separate process below for the case that sucBB is LastBB.
+   */
+  if (sucBB.GetKind() == BB::kBBGoto && &sucBB == cgFunc->GetLastBB()) {
+    // gotoBB has only on succ.
+    ASSERT(sucBB.GetSuccsSize() == 1, "invalid gotoBB");
+    sucBB.SetUnreachable(true);
+    sucBB.SetFirstInsn(nullptr);
+    sucBB.SetLastInsn(nullptr);
+    gotoTarget->RemovePreds(sucBB);
+    sucBB.RemoveSuccs(*gotoTarget);
+  }
 }
 
 /*
@@ -822,6 +835,9 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
  *   2. curBB can't have cfi instruction when postcfgo.
  */
 bool DuplicateBBPattern::Optimize(BB &curBB) {
+  if (!cgFunc->IsAfterRegAlloc()) {
+    return false;
+  }
   if (curBB.IsUnreachable()) {
     return false;
   }
@@ -904,6 +920,23 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
 }
 
 /* === new pm === */
+bool CgPreCfgo::PhaseRun(maplebe::CGFunc &f) {
+  CFGOptimizer *cfgOptimizer = f.GetCG()->CreateCFGOptimizer(*GetPhaseMemPool(), f);
+  const std::string &funcClass = f.GetFunction().GetBaseClassName();
+  const std::string &funcName = f.GetFunction().GetBaseFuncName();
+  const std::string &name = funcClass + funcName;
+  if (CFGO_DUMP_NEWPM) {
+    DotGenerator::GenerateDot("before-precfgo", f, f.GetMirModule());
+  }
+  cfgOptimizer->Run(name);
+  if (CFGO_DUMP_NEWPM) {
+    f.GetTheCFG()->CheckCFG();
+    DotGenerator::GenerateDot("after-precfgo", f, f.GetMirModule());
+  }
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPreCfgo, precfgo)
+
 bool CgCfgo::PhaseRun(maplebe::CGFunc &f) {
   CFGOptimizer *cfgOptimizer = f.GetCG()->CreateCFGOptimizer(*GetPhaseMemPool(), f);
   if (f.IsAfterRegAlloc()) {

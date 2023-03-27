@@ -782,6 +782,11 @@ class CGFunc {
     return commonExitBB;
   }
 
+  BB *GetCommonEntryBB() {
+    ASSERT(bbVec[0]->GetId() == 0 && bbVec[0] != firstBB, "there is no commonEntryBB");
+    return bbVec[0];
+  }
+
   LabelIdx GetFirstCGGenLabelIdx() const {
     return firstCGGenLabelIdx;
   }

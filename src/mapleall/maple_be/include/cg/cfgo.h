@@ -33,7 +33,7 @@ class ChainingPattern : public OptimizationPattern {
     dotColor = kCfgoChaining;
   }
 
-  ~ChainingPattern() override = default;
+  virtual ~ChainingPattern() = default;
   bool Optimize(BB &curBB) override;
 
  protected:
@@ -53,7 +53,7 @@ class SequentialJumpPattern : public OptimizationPattern {
     dotColor = kCfgoSj;
   }
 
-  ~SequentialJumpPattern() override = default;
+  virtual ~SequentialJumpPattern() = default;
   bool Optimize(BB &curBB) override;
 
  protected:
@@ -68,7 +68,7 @@ class FlipBRPattern : public OptimizationPattern {
     dotColor = kCfgoFlipCond;
   }
 
-  ~FlipBRPattern() override = default;
+  virtual ~FlipBRPattern() = default;
   bool Optimize(BB &curBB) override;
 
   CfgoPhase GetPhase() const {
@@ -80,7 +80,10 @@ class FlipBRPattern : public OptimizationPattern {
   CfgoPhase phase = kCfgoDefault;
 
  protected:
-  void RelocateThrowBB(BB &curBB) const;
+  void RelocateThrowBB(BB &curBB);
+ private:
+  virtual uint32 GetJumpTargetIdx(const Insn &insn) = 0;
+  virtual MOperator FlipConditionOp(MOperator flippedOp) = 0;
 };
 
 /* This class represents the scenario that the BB is unreachable. */
@@ -92,7 +95,7 @@ class UnreachBBPattern : public OptimizationPattern {
     func.GetTheCFG()->FindAndMarkUnreachable(*cgFunc);
   }
 
-  ~UnreachBBPattern() override = default;
+  virtual ~UnreachBBPattern() = default;
   bool Optimize(BB &curBB) override;
 };
 
@@ -107,7 +110,7 @@ class DuplicateBBPattern : public OptimizationPattern {
     dotColor = kCfgoDup;
   }
 
-  ~DuplicateBBPattern() override = default;
+  virtual ~DuplicateBBPattern() = default;
   bool Optimize(BB &curBB) override;
 
  private:
@@ -124,7 +127,7 @@ class EmptyBBPattern : public OptimizationPattern {
     dotColor = kCfgoEmpty;
   }
 
-  ~EmptyBBPattern() override = default;
+  virtual ~EmptyBBPattern() = default;
   bool Optimize(BB &curBB) override;
 };
 
@@ -134,9 +137,7 @@ class CFGOptimizer : public Optimizer {
     name = "CFGO";
   }
 
-  ~CFGOptimizer() override = default;
-  void InitOptimizePatterns() override;
-
+  virtual ~CFGOptimizer() = default;
   CfgoPhase GetPhase() const {
     return phase;
   }
@@ -146,6 +147,8 @@ class CFGOptimizer : public Optimizer {
   CfgoPhase phase = kCfgoDefault;
 };
 
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPreCfgo, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgCfgo, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPostCfgo, maplebe::CGFunc)

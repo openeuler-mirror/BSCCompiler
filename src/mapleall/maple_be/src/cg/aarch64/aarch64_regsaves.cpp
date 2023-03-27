@@ -430,7 +430,7 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
 }
 
 void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
-  AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MapleAllocator sprealloc(memPool);
 #if RS_DUMP
   M_LOG << "Determining regsave sites using ssa_pre for " << cgFunc->GetName() << ":\n";
@@ -539,7 +539,7 @@ void AArch64RegSavesOpt::RevertToRestoreAtEpilog(AArch64reg reg) {
 /* Determine calleesave regs restore locations by calling ssu-pre,
    previous bbSavedRegs memory is cleared and restore locs recorded in it */
 void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
-  AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MapleAllocator sprealloc(memPool);
 #if RS_DUMP
   M_LOG << "Determining Callee Restore Locations:\n";

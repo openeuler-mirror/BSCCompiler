@@ -2366,12 +2366,18 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
     case MOP_xsxth64:
     case MOP_xsxtw64: {
       manager->NormalPatternOpt<EliminateSpecifcSXTPattern>(cgFunc->IsAfterRegAlloc());
+      if (!manager->OptSuccess() && thisMop == MOP_xsxtw64) {
+        manager->NormalPatternOpt<ComplexExtendWordLslPattern>(cgFunc->IsAfterRegAlloc());
+      }
       break;
     }
     case MOP_xuxtb32:
     case MOP_xuxth32:
     case MOP_xuxtw64: {
       manager->NormalPatternOpt<EliminateSpecifcUXTPattern>(cgFunc->IsAfterRegAlloc());
+      if (!manager->OptSuccess() && thisMop == MOP_xuxtw64) {
+        manager->NormalPatternOpt<ComplexExtendWordLslPattern>(cgFunc->IsAfterRegAlloc());
+      }
       break;
     }
     case MOP_wsdivrrr: {
@@ -2462,18 +2468,12 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
 
 void AArch64PrePeepHole1::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
-  optimizations[kComplexExtendWordLslOpt] = optOwnMemPool->New<ComplexExtendWordLslAArch64>(cgFunc);
   optimizations[kAddCmpZeroOpt] = optOwnMemPool->New<AddCmpZeroAArch64>(cgFunc);
 }
 
 void AArch64PrePeepHole1::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   switch (thisMop) {
-    case MOP_xsxtw64:
-    case MOP_xuxtw64: {
-      (static_cast<ComplexExtendWordLslAArch64*>(optimizations[kComplexExtendWordLslOpt]))->Run(bb, insn);
-      break;
-    }
     case MOP_wcmpri:
     case MOP_xcmpri: {
       (static_cast<AddCmpZeroAArch64*>(optimizations[kAddCmpZeroOpt]))->Run(bb, insn);
@@ -3067,12 +3067,16 @@ void EliminateSpecifcSXTPattern::Run(BB &bb, Insn &insn) {
           if (value >= static_cast<int64>(0xFFFFFFFFFFFFFF80) && value <= 0x7F &&
               immOpnd.IsSingleInstructionMovable(regOpnd0.GetSize())) {
             bb.RemoveInsn(insn);
+            optSuccess = true;
+            return;
           }
         } else if (thisMop == MOP_xsxth32) {
           /* value should in range between -32678 and 32678 */
           if (value >= static_cast<int64>(0xFFFFFFFFFFFF8000) && value <= 0x7FFF &&
               immOpnd.IsSingleInstructionMovable(regOpnd0.GetSize())) {
             bb.RemoveInsn(insn);
+            optSuccess = true;
+            return;
           }
         } else {
           uint64 flag = 0xFFFFFFFFFFFFFF80; /* initialize the flag with fifty-nine 1s at top */
@@ -3088,6 +3092,8 @@ void EliminateSpecifcSXTPattern::Run(BB &bb, Insn &insn) {
             prevInsn->SetOperand(kInsnFirstOpnd, dstOpnd);
             prevInsn->SetMOP(AArch64CG::kMd[MOP_xmovri64]);
             bb.RemoveInsn(insn);
+            optSuccess = true;
+            return;
           }
         }
       }
@@ -3127,6 +3133,7 @@ void EliminateSpecifcUXTPattern::Run(BB &bb, Insn &insn) {
          (thisMop == MOP_xuxth32 && retSize <= k2ByteSize) ||
          (thisMop == MOP_xuxtw64 && retSize <= k4ByteSize))) {
       bb.RemoveInsn(insn);
+      optSuccess = true;
     }
     return;
   }
@@ -3150,6 +3157,8 @@ void EliminateSpecifcUXTPattern::Run(BB &bb, Insn &insn) {
         /* check the top 56 bits of value */
         if ((static_cast<uint64>(value) & 0xFFFFFFFFFFFFFF00) == 0) {
           bb.RemoveInsn(insn);
+          optSuccess = true;
+          return;
         }
       }
     } else if (prevInsn->GetMachineOpcode() == MOP_wldrb) {
@@ -3158,6 +3167,8 @@ void EliminateSpecifcUXTPattern::Run(BB &bb, Insn &insn) {
         return;
       }
       bb.RemoveInsn(insn);
+      optSuccess = true;
+      return;
     }
   } else if (thisMop == MOP_xuxth32) {
     if (prevInsn->GetMachineOpcode() == MOP_wmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
@@ -3171,6 +3182,8 @@ void EliminateSpecifcUXTPattern::Run(BB &bb, Insn &insn) {
         int64 value = immOpnd.GetValue();
         if ((static_cast<uint64>(value) & 0xFFFFFFFFFFFF0000) == 0) {
           bb.RemoveInsn(insn);
+          optSuccess = true;
+          return;
         }
       }
     } else if (prevInsn->GetMachineOpcode() == MOP_wldrh) {
@@ -3179,6 +3192,8 @@ void EliminateSpecifcUXTPattern::Run(BB &bb, Insn &insn) {
         return;
       }
       bb.RemoveInsn(insn);
+      optSuccess = true;
+      return;
     }
   } else {
     /* this_mop == MOP_xuxtw64 */
@@ -3191,6 +3206,8 @@ void EliminateSpecifcUXTPattern::Run(BB &bb, Insn &insn) {
       }
       /* 32-bit ldr does zero-extension by default, so this conversion can be skipped */
       bb.RemoveInsn(insn);
+      optSuccess = true;
+      return;
     }
   }
 }
@@ -4992,49 +5009,48 @@ void AddCmpZeroAArch64::Run(BB &bb, Insn &insn) {
   bb.RemoveInsn(insn);
 }
 
-bool ComplexExtendWordLslAArch64::IsExtendWordLslPattern(const Insn &insn) const {
-  Insn *nextInsn = insn.GetNext();
-  if (nextInsn == nullptr) {
+bool ComplexExtendWordLslPattern::CheckCondition(Insn &insn) {
+  if (insn.GetMachineOpcode() != MOP_xsxtw64 && insn.GetMachineOpcode() != MOP_xuxtw64) {
     return false;
   }
-  MOperator nextMop = nextInsn->GetMachineOpcode();
+  useInsn = insn.GetNextMachineInsn();
+  if (useInsn == nullptr) {
+    return false;
+  }
+  MOperator nextMop = useInsn->GetMachineOpcode();
   if (nextMop != MOP_xlslrri6) {
     return false;
   }
   return true;
 }
 
-void ComplexExtendWordLslAArch64::Run(BB &bb, Insn &insn) {
-  if (!IsExtendWordLslPattern(insn)) {
+void ComplexExtendWordLslPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
     return;
   }
-  MOperator mop = insn.GetMachineOpcode();
-  Insn *nextInsn = insn.GetNext();
-  auto &nextOpnd2 = static_cast<ImmOperand&>(nextInsn->GetOperand(kInsnThirdOpnd));
-  if (nextOpnd2.GetValue() > k32BitSize) {
+  MOperator curMop = insn.GetMachineOpcode();
+  auto &lslImmOpnd = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnThirdOpnd));
+  ASSERT(lslImmOpnd.GetValue() >= 0, "invalid immOpnd of lsl");
+  if (lslImmOpnd.GetValue() > k32BitSize) {
     return;
   }
-  auto &opnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  auto &nextOpnd1 = static_cast<RegOperand&>(nextInsn->GetOperand(kInsnSecondOpnd));
-  regno_t regNO0 = opnd0.GetRegisterNumber();
-  regno_t nextRegNO1 = nextOpnd1.GetRegisterNumber();
-  if (regNO0 != nextRegNO1 || IfOperandIsLiveAfterInsn(opnd0, *nextInsn)) {
+  auto &extDefOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  auto &lslUseOpnd = static_cast<RegOperand&>(useInsn->GetOperand(kInsnSecondOpnd));
+  regno_t extDefRegNO = extDefOpnd.GetRegisterNumber();
+  regno_t lslUseRegNO = lslUseOpnd.GetRegisterNumber();
+  if (extDefRegNO != lslUseRegNO || IfOperandIsLiveAfterInsn(extDefOpnd, *useInsn)) {
     return;
   }
-  auto &opnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  auto &nextOpnd0 = static_cast<RegOperand&>(nextInsn->GetOperand(kInsnFirstOpnd));
-  regno_t regNO1 = opnd1.GetRegisterNumber();
-  cgFunc.InsertExtendSet(regNO1);
-  MOperator mopNew = mop == MOP_xsxtw64 ? MOP_xsbfizrri6i6 : MOP_xubfizrri6i6;
-  auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
-  RegOperand &reg1 = aarch64CGFunc->GetOrCreateVirtualRegisterOperand(regNO1);
-  ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(k32BitSize, k6BitSize, false);
-  Insn &newInsnSbfiz = cgFunc.GetInsnBuilder()->BuildInsn(mopNew,
-      nextOpnd0, reg1, nextOpnd2, newImm);
-  bb.RemoveInsn(*nextInsn);
-  bb.ReplaceInsn(insn, newInsnSbfiz);
-}
 
+  MOperator mopNew = (curMop == MOP_xsxtw64 ? MOP_xsbfizrri6i6 : MOP_xubfizrri6i6);
+  auto &extUseOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  auto &lslDefOpnd = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd));
+  ImmOperand &newImmOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateImmOperand(k32BitSize, k6BitSize, false);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(mopNew, lslDefOpnd, extUseOpnd, lslImmOpnd, newImmOpnd);
+  bb.RemoveInsn(*useInsn);
+  bb.ReplaceInsn(insn, newInsn);
+  optSuccess = true;
+}
 
 bool AddCmpZeroPatternSSA::CheckCondition(Insn &insn) {
   MOperator curMop = insn.GetMachineOpcode();

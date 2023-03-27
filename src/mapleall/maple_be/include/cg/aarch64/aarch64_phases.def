@@ -38,7 +38,7 @@
  ADDTARGETPHASE("ebo", CGOptions::DoEBO());
  ADDTARGETPHASE("prepeephole", CGOptions::DoPrePeephole())
  ADDTARGETPHASE("ico", CGOptions::DoICO())
- ADDTARGETPHASE("cfgo", !GetMIRModule()->IsCModule() && CGOptions::DoCFGO());
+ ADDTARGETPHASE("precfgo", CGOptions::DoCFGO());
 
  if (GetMIRModule()->GetFlavor() != MIRFlavor::kFlavorLmbc) {
    ADDTARGETPHASE("storeloadopt", CGOptions::DoStoreLoadOpt() && !CGOptions::DoCGSSA());

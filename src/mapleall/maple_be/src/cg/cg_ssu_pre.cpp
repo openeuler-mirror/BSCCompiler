@@ -19,7 +19,7 @@ namespace maplebe {
 
 // ================ Step 6: Code Motion ================
 void SSUPre::CodeMotion() {
-  // pass 1 only donig insertion
+  // pass 1 only doing insertion
   for (SOcc *occ : allOccs) {
     if (occ->occTy != kSOccLambdaRes) {
       continue;
@@ -40,7 +40,9 @@ void SSUPre::CodeMotion() {
         workCand->restoreAtEpilog = true;
         break;
       }
-      workCand->restoreAtExitBBs.insert(realOcc->cgbb->GetId());
+      if (realOcc->cgbb != cgFunc->GetCommonEntryBB()) {
+        workCand->restoreAtExitBBs.insert(realOcc->cgbb->GetId());
+      }
     }
   }
   if (enabledDebug) {
