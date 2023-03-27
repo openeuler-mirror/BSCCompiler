@@ -34,10 +34,10 @@ class AddressSanitizer {
 
   bool instrumentFunction(MeFunction &F);
 
-  void instrumentAddress(StmtNode *OrigIns, StmtNode *InsertBefore, BaseNode *Addr, uint32_t TypeSize, bool IsWrite,
+  void instrumentAddress(StmtNode *OrigIns, StmtNode *InsertBefore, BaseNode *Addr, uint64_t TypeSize, bool IsWrite,
                          BaseNode *SizeArgument);
 
-  void instrumentUnusualSizeOrAlignment(StmtNode *I, StmtNode *InsertBefore, BaseNode *Addr, uint32_t TypeSize,
+  void instrumentUnusualSizeOrAlignment(StmtNode *I, StmtNode *InsertBefore, BaseNode *Addr, uint64_t TypeSize,
                                         bool IsWrite);
 
  private:
@@ -61,11 +61,17 @@ class AddressSanitizer {
   /// and set IsWrite/Alignment. Otherwise return nullptr.
   std::vector<MemoryAccess> isInterestingMemoryAccess(StmtNode *stmtNode);
 
+  MemoryAccess getIassignMemoryAccess(IassignNode &iassign);
+
+  MemoryAccess getIassignoffMemoryAccess(IassignoffNode &iassignoff);
+
+  MemoryAccess getIreadMemoryAccess(IreadNode &iread, StmtNode *stmtNode);
+
   StmtNode *splitIfAndElseBlock(Opcode op, StmtNode *elsePart, const BinaryNode *cmpStmt);
 
   CallNode *generateCrashCode(MIRSymbol *Addr, bool IsWrite, size_t AccessSizeIndex, BaseNode *SizeArgument);
 
-  BinaryNode *createSlowPathCmp(StmtNode *InsBefore, BaseNode *AddrLong, BaseNode *ShadowValue, uint32_t TypeSize);
+  BinaryNode *createSlowPathCmp(StmtNode *InsBefore, BaseNode *AddrLong, BaseNode *ShadowValue, uint64_t TypeSize);
 
   void SanrazorProcess(MeFunction &mefunc, std::set<StmtNode *> &userchecks,
                        std::map<uint32, std::vector<StmtNode *>> &brgoto_map, std::map<uint32, uint32> &stmt_to_bbID,

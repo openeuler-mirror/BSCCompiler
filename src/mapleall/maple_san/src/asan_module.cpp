@@ -249,7 +249,7 @@ namespace maple {
 
   void ModuleAddressSanitizer::InstrumentGlobalsWithMetadataArray(
           BlockNode *ctorToBeInserted,
-          std::vector<MIRSymbol *> ExtendedGlobals,
+          const std::vector<MIRSymbol *> ExtendedGlobals,
           std::vector<MIRConst *> MetadataInitializers) {
     assert(ExtendedGlobals.size() == MetadataInitializers.size());
     unsigned N = ExtendedGlobals.size();
@@ -281,7 +281,7 @@ namespace maple {
   }
 
   BlockNode *ModuleAddressSanitizer::CreateCtorAndInitFunctions(
-          std::string CtorName, std::string InitName, MapleVector<BaseNode *> InitArgs) {
+          const std::string CtorName, const std::string InitName, const MapleVector<BaseNode *> InitArgs) {
     MIRBuilder *mirBuilder = module->GetMIRBuilder();
     ArgVector args(module->GetMPAllocator().Adapter());
     AsanCtorFunction = mirBuilder->CreateFunction(CtorName, *GlobalTables::GetTypeTable().GetVoid(), args);

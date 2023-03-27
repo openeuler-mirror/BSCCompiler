@@ -23,7 +23,7 @@ bool isBlacklist(int k) {
 }
 
 void doInstrumentAddress(AddressSanitizer *Phase, StmtNode *I, StmtNode *InsertBefore, BaseNode *Addr,
-                         unsigned Alignment, unsigned Granularity, uint32_t TypeSize, bool IsWrite) {
+                         unsigned Alignment, unsigned Granularity, uint64_t TypeSize, bool IsWrite) {
   // Instrument a 1-, 2-, 4-, 8-, or 16- byte access with one check
   // if the data is properly aligned.
   if ((TypeSize == 8 || TypeSize == 16 || TypeSize == 32 || TypeSize == 64 || TypeSize == 128) &&
@@ -124,15 +124,14 @@ bool AddressSanitizer::instrumentFunction(MeFunction &mefunc) {
   return functionModified;
 }
 
-void AddressSanitizer::SanrazorProcess(MeFunction &mefunc,
-                                       std::set<StmtNode *> &userchecks,
+void AddressSanitizer::SanrazorProcess(MeFunction &mefunc, std::set<StmtNode *> &userchecks,
                                        std::map<uint32, std::vector<StmtNode *>> &brgoto_map,
                                        std::map<uint32, uint32> &stmt_to_bbID,
-                                       std::map<int, StmtNode *> &stmt_id_to_stmt,
-                                       std::vector<int> &stmt_id_list,
+                                       std::map<int, StmtNode *> &stmt_id_to_stmt, std::vector<int> &stmt_id_list,
                                        int check_env) {
   MIRBuilder *builder = mefunc.GetMIRModule().GetMIRBuilder();
-  LogInfo::MapleLogger() << "****************SANRAZOR instrumenting****************" << "\n";
+  LogInfo::MapleLogger() << "****************SANRAZOR instrumenting****************"
+                         << "\n";
   MIRType *voidType = GlobalTables::GetTypeTable().GetVoid();
   // type 0 is user check, type 1 is sanitzer check
   int type_of_check = 0;
@@ -600,6 +599,67 @@ void AddressSanitizer::instrumentMemIntrinsic(IntrinsiccallNode *stmtNode) {
   }
 }
 
+MemoryAccess AddressSanitizer::getIassignMemoryAccess(IassignNode &iassign) {
+  MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassign.GetTyIdx());
+  MIRPtrType *pointerType = static_cast<MIRPtrType *>(mirType);
+  MIRType *pointedTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerType->GetPointedTyIdx());
+  size_t align = pointedTy->GetAlign();
+  if (pointedTy->IsStructType()) {
+    MIRStructType *mirStructType = dynamic_cast<MIRStructType *>(pointedTy);
+    if (iassign.GetFieldID() > 0) {
+      pointedTy = mirStructType->GetFieldType(iassign.GetFieldID());
+      align = pointedTy->GetAlign();
+    } else {
+      align = pointedTy->GetSize();
+    }
+  }
+  BaseNode *addr =
+      module->GetMIRBuilder()->CreateExprIaddrof(PTY_u64, iassign.GetTyIdx(), iassign.GetFieldID(), iassign.Opnd(0));
+  MemoryAccess memoryAccess = {&iassign, true, pointedTy->GetSize() << 3, align, addr};
+  return memoryAccess;
+}
+
+MemoryAccess AddressSanitizer::getIassignoffMemoryAccess(IassignoffNode &iassignoff) {
+  int32 offset = iassignoff.GetOffset();
+  BaseNode *addrNode = iassignoff.GetBOpnd(0);
+  PrimType primType = iassignoff.GetPrimType();
+  PrimType addrPrimType = addrNode->GetPrimType();
+  BaseNode *addrExpr = nullptr;
+  size_t primTypeSize = GetPrimTypeSize(primType);
+  if (offset == 0) {
+    addrExpr = addrNode;
+  } else {
+    MIRType *mirType = module->CurFuncCodeMemPool()->New<MIRType>(MIRTypeKind::kTypePointer, addrPrimType);
+    MIRIntConst *offsetConstVal = module->CurFuncCodeMemPool()->New<MIRIntConst>(offset, *mirType);
+    ConstvalNode *offsetNode = module->CurFuncCodeMemPool()->New<ConstvalNode>(addrPrimType);
+    offsetNode->SetConstVal(offsetConstVal);
+    addrExpr = module->CurFuncCodeMemPool()->New<BinaryNode>(OP_add, addrPrimType, addrNode, offsetNode);
+  }
+  BaseNode *addr = module->GetMIRBuilder()->CreateExprIaddrof(addrPrimType, TyIdx(primType), 0, addrExpr);
+  MemoryAccess memoryAccess = {&iassignoff, true, primTypeSize << 3, primTypeSize, addr};
+  return memoryAccess;
+}
+
+MemoryAccess AddressSanitizer::getIreadMemoryAccess(IreadNode &iread, StmtNode *stmtNode) {
+  MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread.GetTyIdx());
+  MIRPtrType *pointerType = static_cast<MIRPtrType *>(mirType);
+  MIRType *pointedTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerType->GetPointedTyIdx());
+  size_t align = pointedTy->GetAlign();
+  if (pointedTy->IsStructType()) {
+    MIRStructType *mirStructType = dynamic_cast<MIRStructType *>(pointedTy);
+    if (iread.GetFieldID() > 0) {
+      pointedTy = mirStructType->GetFieldType(iread.GetFieldID());
+      align = pointedTy->GetAlign();
+    } else {
+      align = pointedTy->GetSize();
+    }
+  }
+  BaseNode *addr =
+      module->GetMIRBuilder()->CreateExprIaddrof(PTY_u64, iread.GetTyIdx(), iread.GetFieldID(), iread.Opnd(0));
+  MemoryAccess memoryAccess = {stmtNode, false, pointedTy->GetSize() << 3, align, addr};
+  return memoryAccess;
+}
+
 std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *stmtNode) {
   std::vector<MemoryAccess> memAccess;
   if (LocalDynamicShadow == stmtNode) {
@@ -616,22 +676,7 @@ std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *
       case OP_iassign: {
         IassignNode *iassign = dynamic_cast<IassignNode *>(baseNode);
         CHECK_FATAL((iassign != nullptr), "Invalid IR node with OpCode OP_iassign");
-        MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassign->GetTyIdx());
-        MIRPtrType *pointerType = static_cast<MIRPtrType *>(mirType);
-        MIRType *pointedTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerType->GetPointedTyIdx());
-        size_t align = pointedTy->GetAlign();
-        if (pointedTy->IsStructType()) {
-          MIRStructType *mirStructType = dynamic_cast<MIRStructType *>(pointedTy);
-          if (iassign->GetFieldID() > 0) {
-            pointedTy = mirStructType->GetFieldType(iassign->GetFieldID());
-            align = pointedTy->GetAlign();
-          } else {
-            align = pointedTy->GetSize();
-          }
-        }
-        BaseNode *addr = module->GetMIRBuilder()->CreateExprIaddrof(PTY_u64, iassign->GetTyIdx(), iassign->GetFieldID(),
-                                                                    iassign->Opnd(0));
-        struct MemoryAccess memoryAccess = {stmtNode, true, pointedTy->GetSize() << 3, align, addr};
+        struct MemoryAccess memoryAccess = getIassignMemoryAccess(*iassign);
         memAccess.emplace_back(memoryAccess);
         // the rhs-expr can still read from somewhere, push it to stack
         baseNodeStack.push(iassign->Opnd(1));
@@ -640,23 +685,7 @@ std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *
       case OP_iassignoff: {
         IassignoffNode *iassignoff = dynamic_cast<IassignoffNode *>(baseNode);
         CHECK_FATAL((iassignoff != nullptr), "Invalid IR node with OpCode OP_iassignoff");
-        int32 offset = iassignoff->GetOffset();
-        BaseNode *addrNode = iassignoff->GetBOpnd(0);
-        PrimType primType = iassignoff->GetPrimType();
-        PrimType addrPrimType = addrNode->GetPrimType();
-        BaseNode *addrExpr = nullptr;
-        size_t primTypeSize = GetPrimTypeSize(primType);
-        if (offset == 0) {
-          addrExpr = addrNode;
-        } else {
-          MIRType *mirType = module->CurFuncCodeMemPool()->New<MIRType>(MIRTypeKind::kTypePointer, addrPrimType);
-          MIRIntConst *offsetConstVal = module->CurFuncCodeMemPool()->New<MIRIntConst>(offset, *mirType);
-          ConstvalNode *offsetNode = module->CurFuncCodeMemPool()->New<ConstvalNode>(addrPrimType);
-          offsetNode->SetConstVal(offsetConstVal);
-          addrExpr = module->CurFuncCodeMemPool()->New<BinaryNode>(OP_add, addrPrimType, addrNode, offsetNode);
-        }
-        BaseNode *addr = module->GetMIRBuilder()->CreateExprIaddrof(addrPrimType, TyIdx(primType), 0, addrExpr);
-        struct MemoryAccess memoryAccess = {stmtNode, true, primTypeSize << 3, primTypeSize, addr};
+        struct MemoryAccess memoryAccess = getIassignoffMemoryAccess(*iassignoff);
         memAccess.emplace_back(memoryAccess);
         // the rhs-expr can still read from somewhere, push it to stack
         baseNodeStack.push(iassignoff->GetBOpnd(1));
@@ -673,22 +702,7 @@ std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *
           iread = dynamic_cast<IreadNode *>(baseNode);
         }
         CHECK_FATAL((iread != nullptr), "Invalid IR node with OpCode OP_iread.");
-        MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread->GetTyIdx());
-        MIRPtrType *pointerType = static_cast<MIRPtrType *>(mirType);
-        MIRType *pointedTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerType->GetPointedTyIdx());
-        size_t align = pointedTy->GetAlign();
-        if (pointedTy->IsStructType()) {
-          MIRStructType *mirStructType = dynamic_cast<MIRStructType *>(pointedTy);
-          if (iread->GetFieldID() > 0) {
-            pointedTy = mirStructType->GetFieldType(iread->GetFieldID());
-            align = pointedTy->GetAlign();
-          } else {
-            align = pointedTy->GetSize();
-          }
-        }
-        BaseNode *addr =
-            module->GetMIRBuilder()->CreateExprIaddrof(PTY_u64, iread->GetTyIdx(), iread->GetFieldID(), iread->Opnd(0));
-        struct MemoryAccess memoryAccess = {stmtNode, false, pointedTy->GetSize() << 3, align, addr};
+        struct MemoryAccess memoryAccess = getIreadMemoryAccess(*iread, stmtNode);
         memAccess.emplace_back(memoryAccess);
         break;
       }
@@ -699,7 +713,7 @@ std::vector<MemoryAccess> AddressSanitizer::isInterestingMemoryAccess(StmtNode *
       default: {
       }
     }
-    for (int j = baseNode->NumOpnds() - 1; j >= 0; j--) {
+    for (size_t j = 0; j < baseNode->NumOpnds(); ++j) {
       if (baseNode->GetOpCode() == OP_return) continue;
       baseNodeStack.push(baseNode->Opnd(j));
     }
@@ -778,7 +792,7 @@ BaseNode *AddressSanitizer::memToShadow(BaseNode *Shadow, MIRBuilder &mirBuilder
   }
 }
 
-void AddressSanitizer::instrumentAddress(StmtNode *OrigIns, StmtNode *InsertBefore, BaseNode *Addr, uint32_t TypeSize,
+void AddressSanitizer::instrumentAddress(StmtNode *OrigIns, StmtNode *InsertBefore, BaseNode *Addr, uint64_t TypeSize,
                                          bool IsWrite, BaseNode *SizeArgument) {
   MIRBuilder *mirBuilder = module->GetMIRBuilder();
 
@@ -833,7 +847,7 @@ void AddressSanitizer::instrumentAddress(StmtNode *OrigIns, StmtNode *InsertBefo
 }
 
 void AddressSanitizer::instrumentUnusualSizeOrAlignment(StmtNode *I, StmtNode *InsertBefore, BaseNode *Addr,
-                                                        uint32_t TypeSize, bool IsWrite) {
+                                                        uint64_t TypeSize, bool IsWrite) {
   MIRBuilder *mirBuilder = module->GetMIRBuilder();
   BaseNode *size = mirBuilder->CreateIntConst(TypeSize / 8, IntPtrPrim);
   MIRSymbol *addrSymbol = getOrCreateSymbol(mirBuilder, IntPtrTy->GetTypeIndex(), "asan_addr", kStVar, kScAuto,
@@ -852,7 +866,7 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(StmtNode *I, StmtNode *I
 }
 
 BinaryNode *AddressSanitizer::createSlowPathCmp(StmtNode *InsBefore, BaseNode *AddrLong, BaseNode *ShadowValue,
-                                                uint32_t TypeSize) {
+                                                uint64_t TypeSize) {
   MIRBuilder *mirBuilder = module->GetMIRBuilder();
   size_t granularity = static_cast<size_t>(1) << Mapping.Scale;
   // Addr & (Granularity - 1)
@@ -864,7 +878,7 @@ BinaryNode *AddressSanitizer::createSlowPathCmp(StmtNode *InsBefore, BaseNode *A
                                                     mirBuilder->CreateIntConst(TypeSize / 8 - 1, IntPtrPrim));
   }
   // (uint8_t) ((Addr & (Granularity-1)) + size - 1)
-  MIRSymbol *length = getOrCreateSymbol(mirBuilder, (TyIdx)ShadowValue->GetPrimType(), "asan_length", kStVar, kScAuto,
+  MIRSymbol *length = getOrCreateSymbol(mirBuilder, TyIdx(ShadowValue->GetPrimType()), "asan_length", kStVar, kScAuto,
                                         module->CurFunction(), kScopeLocal);
   DassignNode *dassignNode = mirBuilder->CreateStmtDassign(length->GetStIdx(), 0, lastAccessedByte);
   dassignNode->InsertBeforeThis(*InsBefore);

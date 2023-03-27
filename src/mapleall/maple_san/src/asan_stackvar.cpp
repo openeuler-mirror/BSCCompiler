@@ -43,14 +43,15 @@ FunctionStackPoisoner::FunctionStackPoisoner(MeFunction &function, AddressSaniti
     callArgSymbols.insert(symbolPtr);
     callArgSymbolNames.insert(symbolPtr->GetName());
   }
+  initializeCallbacks(*module);
 }
 
-void FunctionStackPoisoner::copyToShadow(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes,
+void FunctionStackPoisoner::copyToShadow(const std::vector<uint8_t> ShadowMask, const std::vector<uint8_t> ShadowBytes,
                                          MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore) {
   copyToShadow(ShadowMask, ShadowBytes, 0, ShadowMask.size(), mirBuilder, ShadowBase, InsBefore);
 }
 
-void FunctionStackPoisoner::copyToShadow(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes,
+void FunctionStackPoisoner::copyToShadow(const std::vector<uint8_t> ShadowMask, const std::vector<uint8_t> ShadowBytes,
                                          size_t Begin, size_t End, MIRBuilder *mirBuilder, BaseNode *ShadowBase,
                                          StmtNode *InsBefore) {
   assert(ShadowMask.size() == ShadowBytes.size());
@@ -79,7 +80,7 @@ void FunctionStackPoisoner::copyToShadow(std::vector<uint8_t> ShadowMask, std::v
   copyToShadowInline(ShadowMask, ShadowBytes, Done, End, mirBuilder, ShadowBase, InsBefore);
 }
 
-void FunctionStackPoisoner::copyToShadowInline(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes,
+void FunctionStackPoisoner::copyToShadowInline(const std::vector<uint8_t> ShadowMask, const std::vector<uint8_t> ShadowBytes,
                                                size_t Begin, size_t End, MIRBuilder *mirBuilder, BaseNode *ShadowBase,
                                                StmtNode *InsBefore) {
   if (Begin >= End) {
@@ -110,7 +111,7 @@ void FunctionStackPoisoner::copyToShadowInline(std::vector<uint8_t> ShadowMask, 
 
     uint64_t Val = 0;
     for (size_t j = 0; j < StoreSizeInBytes; j++) {
-      Val |= (uint64_t)ShadowBytes[i + j] << (8 * j);
+      Val |= uint64_t(ShadowBytes[i + j]) << (8 * j);
     }
 
     BinaryNode *Ptr = mirBuilder->CreateExprBinary(OP_add, *IntptrTy, ShadowBase,
@@ -177,17 +178,9 @@ std::set<MIRSymbol *> FunctionStackPoisoner::GetStackVarReferedByCallassigned() 
   return retOfCallassigned;
 }
 
-bool FunctionStackPoisoner::runOnFunction() {
-  initializeCallbacks(*module);
+void FunctionStackPoisoner::collectLocalVariablesWithoutAlloca() {
   // Collect all variables refered by return statement of callassigned
   std::set<MIRSymbol *> retOfCallassigned = GetStackVarReferedByCallassigned();
-  // Collect alloca, ret, etc.
-  for (StmtNode &stmt : mirFunction->GetBody()->GetStmtNodes()) {
-    if (stmt.GetOpCode() == OP_return) {
-      RetVec.push_back(&stmt);
-    }
-  }
-  // Collect local variable
   MIRSymbolTable *symbolTable = mirFunction->GetSymTab();
   size_t size = symbolTable->GetSymbolTableSize();
   for (size_t i = 0; i < size; ++i) {
@@ -218,38 +211,58 @@ bool FunctionStackPoisoner::runOnFunction() {
       stackVariableDesc.push_back(description);
     }
   }
+}
+
+void FunctionStackPoisoner::collectDescFromUnaryStmtNode(UnaryStmtNode &assignNode) {
+  BaseNode *baseNode = assignNode.GetRHS();
+  while (baseNode) {
+    UnaryNode *rhs = dynamic_cast<UnaryNode *>(baseNode);
+    if (rhs == nullptr) {
+      return;
+    }
+    if (rhs->GetOpCode() == OP_alloca && ASan.isInterestingAlloca(*rhs)) {
+      ConstvalNode *constvalNode = dynamic_cast<ConstvalNode *>(rhs->Opnd(0));
+      if (constvalNode && isInFirstBlock(&assignNode)) {
+        // static alloca
+        MIRIntConst *mirConst = dynamic_cast<MIRIntConst *>(constvalNode->GetConstVal());
+        ASanStackVariableDescription description = {
+            "",      static_cast<size_t>(mirConst->GetValue().GetZXTValue()),
+            0,       0,
+            nullptr, &assignNode,
+            0,       assignNode.GetSrcPos().LineNum()};
+        stackVariableDesc.push_back(description);
+      } else {
+        // dynamic alloca
+        ASanDynaVariableDescription description = {"", rhs->Opnd(0), &assignNode, 0, assignNode.GetSrcPos().LineNum()};
+        dynamicAllocaDesc.push_back(description);
+      }
+    }
+    baseNode = rhs->Opnd(0);
+  }
+}
+
+void FunctionStackPoisoner::collectLocalVariablesWithAlloca() {
   for (StmtNode &stmt : mirFunction->GetBody()->GetStmtNodes()) {
     if (stmt.GetOpCode() == OP_regassign || stmt.GetOpCode() == OP_dassign) {
       UnaryStmtNode *assignNode = dynamic_cast<UnaryStmtNode *>(&stmt);
-      BaseNode *baseNode = assignNode->GetRHS();
-
-      while (baseNode) {
-        if (UnaryNode *rhs = dynamic_cast<UnaryNode *>(baseNode)) {
-          if (rhs->GetOpCode() == OP_alloca && ASan.isInterestingAlloca(*rhs)) {
-            ConstvalNode *constvalNode = dynamic_cast<ConstvalNode *>(rhs->Opnd(0));
-
-            if (constvalNode && isInFirstBlock(&stmt)) {
-              // static alloca
-              MIRIntConst *mirConst = dynamic_cast<MIRIntConst *>(constvalNode->GetConstVal());
-              ASanStackVariableDescription description = {
-                  "",      static_cast<size_t>(mirConst->GetValue().GetZXTValue()),
-                  0,       0,
-                  nullptr, &stmt,
-                  0,       stmt.GetSrcPos().LineNum()};
-              stackVariableDesc.push_back(description);
-            } else {
-              // dynamic alloca
-              ASanDynaVariableDescription description = {"", rhs->Opnd(0), &stmt, 0, stmt.GetSrcPos().LineNum()};
-              dynamicAllocaDesc.push_back(description);
-            }
-          }
-          baseNode = rhs->Opnd(0);
-        } else {
-          baseNode = nullptr;
-        }
-      }
+      CHECK_FATAL(assignNode != nullptr, "Node with OP_regassign or OP_dassign is not UnaryStmtNode.");
+      collectDescFromUnaryStmtNode(*assignNode);
     }
   }
+}
+
+bool FunctionStackPoisoner::runOnFunction() {
+  // Collect alloca, ret, etc.
+  for (StmtNode &stmt : mirFunction->GetBody()->GetStmtNodes()) {
+    if (stmt.GetOpCode() == OP_return) {
+      RetVec.push_back(&stmt);
+    }
+  }
+  // Collect local variable
+  // initialize stackVariableDesc and dynamicAllocaDesc
+  collectLocalVariablesWithoutAlloca();
+  collectLocalVariablesWithAlloca();
+  // ignore variables already been used for alloca
   auto iter = stackVariableDesc.begin();
   while (iter != stackVariableDesc.end()) {
     if (iter->Symbol != nullptr && isUsedInAlloca[iter->Symbol]) {
@@ -278,14 +291,14 @@ bool FunctionStackPoisoner::isInFirstBlock(StmtNode *stmtNode) {
     if (stmtNode->IsCondBr()) {
       CondGotoNode *condGotoNode = dynamic_cast<CondGotoNode *>(stmtNode);
       ConstvalNode *constvalNode = dynamic_cast<ConstvalNode *>(condGotoNode->Opnd(0));
-      if (constvalNode) {
-        MIRIntConst *mirIntConst = dynamic_cast<MIRIntConst *>(constvalNode->GetConstVal());
-        if (mirIntConst && mirIntConst->GetValue() == 1) {
-          stmtNode = stmtNode->GetPrev();
-          continue;
-        }
+      if (constvalNode == nullptr) {
+        // the stmt is after a direct branch stmt, cannot be the stmt in the first block
+        return false;
       }
-      return false;
+      MIRIntConst *mirIntConst = dynamic_cast<MIRIntConst *>(constvalNode->GetConstVal());
+      if (!(mirIntConst && mirIntConst->GetValue() == 1)) {
+        return false;
+      }
     }
     stmtNode = stmtNode->GetPrev();
   }
@@ -321,8 +334,8 @@ void FunctionStackPoisoner::unpoisonDynamicAllocas() {
 
 void FunctionStackPoisoner::handleDynamicAllocaCall(ASanDynaVariableDescription *AI) {
   MIRBuilder *mirBuilder = module->GetMIRBuilder();
-  const unsigned Align = std::max(kAllocaRzSize, (unsigned int)1);
-  const uint64_t AllocaRedzoneMask = kAllocaRzSize - 1;
+  const unsigned Align = std::max(kAllocaRzSize, 1U);
+  const uint64_t AllocaRedzoneMask = kAllocaRzSize - 1U;
 
   ConstvalNode *Zero = mirBuilder->CreateIntConst(0, IntptrTy->GetPrimType());
   ConstvalNode *AllocaRzSize = mirBuilder->CreateIntConst(kAllocaRzSize, IntptrTy->GetPrimType());
@@ -655,7 +668,7 @@ void FunctionStackPoisoner::replaceAllUsesWith(MIRSymbol *oldVar, MIRSymbol *new
       StmtNode *stmt2ptr = dynamic_cast<StmtNode *>(newStmt);
       CHECK_FATAL(stmt2ptr != nullptr, "Get a stmt2 without StmtNode type");
       stmt2ptr->SetSrcPos(stmt.GetSrcPos());
-      toReplace.push_back(std::pair<StmtNode *, StmtNode *>(&stmt, stmt2ptr));
+      toReplace.emplace_back(std::pair<StmtNode *, StmtNode *>(&stmt, stmt2ptr));
     }
   }
 

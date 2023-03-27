@@ -14,7 +14,7 @@ namespace maple {
 
 void appendToGlobalCtors(const MIRModule &mirModule, const MIRFunction *func) {
   MIRBuilder *mirBuilder = mirModule.GetMIRBuilder();
-  MIRFunction *GlobalCtors = mirBuilder->GetOrCreateFunction("__cxx_global_var_init", (TyIdx)PTY_void);
+  MIRFunction *GlobalCtors = mirBuilder->GetOrCreateFunction("__cxx_global_var_init", TyIdx(PTY_void));
   MapleVector<BaseNode *> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   CallNode *callNode = mirBuilder->CreateStmtCall(func->GetPuidx(), args);
   GlobalCtors->GetBody()->AddStatement(callNode);
@@ -22,7 +22,7 @@ void appendToGlobalCtors(const MIRModule &mirModule, const MIRFunction *func) {
 
 void appendToGlobalDtors(const MIRModule &mirModule, const MIRFunction *func) {
   MIRBuilder *mirBuilder = mirModule.GetMIRBuilder();
-  MIRFunction *GlobalCtors = mirBuilder->GetOrCreateFunction("__cxx_global_var_fini", (TyIdx)PTY_void);
+  MIRFunction *GlobalCtors = mirBuilder->GetOrCreateFunction("__cxx_global_var_fini", TyIdx(PTY_void));
   MapleVector<BaseNode *> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   CallNode *callNode = mirBuilder->CreateStmtCall(func->GetPuidx(), args);
   GlobalCtors->GetBody()->AddStatement(callNode);
@@ -85,7 +85,7 @@ MIRAddrofConst *createSourceLocConst(MIRModule &mirModule, MIRSymbol *Var, PrimT
   // Create struct type
   MIRStructType LocStruct(kTypeStruct);
   GlobalTables::GetTypeTable().AddFieldToStructType(LocStruct, "module_name",
-                                                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)primType));
+                                                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(primType)));
   GlobalTables::GetTypeTable().AddFieldToStructType(LocStruct, "line", *GlobalTables::GetTypeTable().GetInt32());
   GlobalTables::GetTypeTable().AddFieldToStructType(LocStruct, "column", *GlobalTables::GetTypeTable().GetInt32());
   // Create initial value
@@ -106,7 +106,7 @@ MIRAddrofConst *createAddrofConst(const MIRModule &mirModule, const MIRSymbol *m
   AddrofNode *addrofNode = mirModule.GetMIRBuilder()->CreateAddrof(*mirSymbol);
   MIRAddrofConst *mirAddrofConst =
       mirModule.GetMemPool()->New<MIRAddrofConst>(addrofNode->GetStIdx(), addrofNode->GetFieldID(),
-                                                  *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)primType));
+                                                  *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(primType)));
   return mirAddrofConst;
 }
 
@@ -114,7 +114,7 @@ MIRAddrofConst *createAddrofConst(const MIRModule &mirModule, const MIRSymbol *m
 MIRStrConst *createStringConst(const MIRModule &mirModule, std::basic_string<char> Str, PrimType primType) {
   MIRStrConst *strConst =
       mirModule.GetMemPool()->New<MIRStrConst>(GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(Str),
-                                               *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)primType));
+                                               *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(primType)));
 
   return strConst;
 }
@@ -207,7 +207,7 @@ size_t TypeSizeToSizeIndex(uint32_t TypeSize) {
   return zeroBits;
 }
 
-MIRSymbol *getOrCreateSymbol(MIRBuilder *mirBuilder, TyIdx tyIdx, const std::string &name, MIRSymKind mClass,
+MIRSymbol *getOrCreateSymbol(MIRBuilder *mirBuilder, const TyIdx tyIdx, const std::string &name, MIRSymKind mClass,
                              MIRStorageClass sClass, MIRFunction *func, uint8 scpID) {
   MIRSymbol *st = nullptr;
   if (func) {
@@ -218,10 +218,10 @@ MIRSymbol *getOrCreateSymbol(MIRBuilder *mirBuilder, TyIdx tyIdx, const std::str
   if (st == nullptr || st->GetTyIdx() != tyIdx) {
     return mirBuilder->CreateSymbol(tyIdx, name, mClass, sClass, func, scpID);
   }
-  ASSERT(mClass == st->GetSKind(),
-         "trying to create a new symbol that has the same name and GtyIdx. might cause problem");
-  ASSERT(sClass == st->GetStorageClass(),
-         "trying to create a new symbol that has the same name and tyIdx. might cause problem");
+  CHECK_FATAL(mClass == st->GetSKind(),
+             "trying to create a new symbol that has the same name and GtyIdx. might cause problem");
+  CHECK_FATAL(sClass == st->GetStorageClass(),
+              "trying to create a new symbol that has the same name and tyIdx. might cause problem");
   return st;
 }
 
@@ -384,6 +384,7 @@ StmtNode *retLatest_Regassignment(StmtNode *stmt, int32 register_number) {
   }
   return ret_stmt;
 }
+
 StmtNode *retLatest_Varassignment(StmtNode *stmt, uint32 var_number) {
   StmtNode *ret_stmt = nullptr;
   StmtNode *prevStmt = stmt->GetPrev();
@@ -445,8 +446,105 @@ std::set<Opcode> OP_code_blacklist{
 
 std::set<Opcode> OP_code_re_map{OP_eq, OP_ge, OP_gt, OP_le, OP_lt, OP_ne, OP_cmp, OP_cmpl, OP_cmpg};
 
+void dep_iassign_expansion(IassignNode *iassign, set_check &dep) {
+  BaseNode *rhs_expr = iassign->Opnd(1);
+  if (rhs_expr->GetOpCode() == OP_regread) {
+    // Case 1. regread u32 %13
+    RegreadNode *regread = static_cast<RegreadNode *>(rhs_expr);
+    dep.register_live.push(regread->GetRegIdx());
+  } else if (rhs_expr->GetOpCode() == OP_constval) {
+    // Case 2. constval i32 0 -> terminal
+    ConstvalNode *constValNode = static_cast<ConstvalNode *>(rhs_expr);
+    MIRConst *mirConst = constValNode->GetConstVal();
+    if (mirConst != nullptr) {
+      if (mirConst->GetKind() == kConstInt) {
+        auto *const_to_get_value = safe_cast<MIRIntConst>(mirConst);
+        dep.const_int64.push_back(const_to_get_value->GetValue());
+      }
+    }
+  } else if (rhs_expr->GetOpCode() == OP_iread) {
+    // Case 3. iread agg <* <$_TY_IDX334>> 0 (regread ptr %4) -> Only hold the ptr for deref
+    std::vector<int32> dump_reg;
+    recursion(rhs_expr, dump_reg);
+    for (int32 reg_temp : dump_reg) {
+      dep.register_live.push(reg_temp);
+    }
+  } else {
+    // Case 4. zext u32 8 (lshr u32 (regread u32 %4, constval i32 24))
+    // Just assume it can be further expand and treat as a terminal...
+    // Some of this of compound stmt are register
+    // assigned by callassigned or function input register
+    // Although there are some case didn't like this
+    // We can set it as terminal register to prevent recursively deref
+    // since it may crash
+    // A proper SSA likely fix this issue
+    std::vector<int32> dump_reg;
+    recursion(rhs_expr, dump_reg);
+    for (int32 reg_temp : dump_reg) {
+      dep.register_terminal.push_back(reg_temp);
+    }
+  }
+}
+
+void dep_constval_expansion(ConstvalNode *constValNode, set_check &dep) {
+  MIRConst *mirConst = constValNode->GetConstVal();
+  // we only trace int64
+  // We didn't handle following cases
+  // kConstFloatConst, MIRFloatConst
+  // kConstDoubleConst, MIRDoubleConst
+  if (mirConst != nullptr) {
+    if (mirConst->GetKind() == kConstInt) {
+      auto *const_to_get_value = safe_cast<MIRIntConst>(mirConst);
+      dep.const_int64.push_back(const_to_get_value->GetValue());
+    }
+  }
+}
+
+void dep_dassign_expansion(DassignNode *dassign, set_check &dep, std::map<int32, std::vector<StmtNode *>> reg_to_stmt,
+                           std::map<uint32, std::vector<StmtNode *>> var_to_stmt, MeFunction func) {
+  std::stack<uint8> san_blacklist_stack;
+  bool required_to_clean_san = false;
+  if (func.GetMIRModule().CurFunction()->GetSymbolTabSize() >= dassign->GetStIdx().Idx()) {
+    MIRSymbol *var = func.GetMIRModule().CurFunction()->GetSymbolTabItem(dassign->GetStIdx().Idx());
+    if (var->GetName().find("asan_length") == 0) {
+      // dassign %asan_length 0 (band i64 (dread i64 %asan_addr, constval i64 7))
+      san_blacklist_stack.push(OP_band);
+      san_blacklist_stack.push(OP_add);
+      required_to_clean_san = true;
+    } else if (var->GetName().find("asan_shadowValue") == 0) {
+      san_blacklist_stack.push(OP_ashr);
+      san_blacklist_stack.push(OP_add);
+      required_to_clean_san = true;
+    }
+  }
+  if (required_to_clean_san) {
+    std::vector<std::vector<uint8>::iterator> it_vector;
+    if (san_blacklist_stack.size() >= dep.opcode.size()) {
+      for (size_t opcode_vect_i = 0; opcode_vect_i < dep.opcode.size(); ++opcode_vect_i) {
+        dep.opcode.pop_back();
+      }
+    } else {
+      while (!san_blacklist_stack.empty()) {
+        bool done = false;
+        uint8 remove_item = san_blacklist_stack.top();
+        san_blacklist_stack.pop();
+        LogInfo::MapleLogger() << remove_item;
+        for (std::vector<uint8>::iterator it = dep.opcode.begin(); it != dep.opcode.end(); ++it) {
+          if (*it == remove_item && !done) {
+            dep.opcode.erase(it);
+            done = true;
+          }
+        }
+      }
+    }
+  }
+  for (size_t i = 0; i < dassign->NumOpnds(); i++) {
+    dep_expansion(dassign->Opnd(i), dep, reg_to_stmt, var_to_stmt, func);
+  }
+}
+
 void dep_expansion(BaseNode *stmt, set_check &dep, std::map<int32, std::vector<StmtNode *>> reg_to_stmt,
-                   std::map<uint32, std::vector<StmtNode *>> var_to_stmt, MeFunction func) {
+                   std::map<uint32, std::vector<StmtNode *>> var_to_stmt, const MeFunction& func) {
   if ((!OP_code_blacklist.count(stmt->GetOpCode())) && (!OP_code_re_map.count(stmt->GetOpCode()))) {
     dep.opcode.push_back(stmt->GetOpCode());
   } else if (OP_code_re_map.count(stmt->GetOpCode())) {
@@ -455,43 +553,7 @@ void dep_expansion(BaseNode *stmt, set_check &dep, std::map<int32, std::vector<S
   switch (stmt->GetOpCode()) {
     case OP_iassign: {
       IassignNode *iassign = static_cast<IassignNode *>(stmt);
-      BaseNode *rhs_expr = iassign->Opnd(1);
-      if (rhs_expr->GetOpCode() == OP_regread) {
-        // Case 1. regread u32 %13
-        RegreadNode *regread = static_cast<RegreadNode *>(rhs_expr);
-        dep.register_live.push(regread->GetRegIdx());
-      } else if (rhs_expr->GetOpCode() == OP_constval) {
-        // Case 2. constval i32 0 -> terminal
-        ConstvalNode *constValNode = static_cast<ConstvalNode *>(rhs_expr);
-        MIRConst *mirConst = constValNode->GetConstVal();
-        if (mirConst != nullptr) {
-          if (mirConst->GetKind() == kConstInt) {
-            auto *const_to_get_value = safe_cast<MIRIntConst>(mirConst);
-            dep.const_int64.push_back(const_to_get_value->GetValue());
-          }
-        }
-      } else if (rhs_expr->GetOpCode() == OP_iread) {
-        // Case 3. iread agg <* <$_TY_IDX334>> 0 (regread ptr %4) -> Only hold the ptr for deref
-        std::vector<int32> dump_reg;
-        recursion(rhs_expr, dump_reg);
-        for (int32 reg_temp : dump_reg) {
-          dep.register_live.push(reg_temp);
-        }
-      } else {
-        // Case 4. zext u32 8 (lshr u32 (regread u32 %4, constval i32 24))
-        // Just assume it can be further expand and treat as a terminal...
-        // Some of this of compound stmt are register
-        // assigned by callassigned or function input register
-        // Although there are some case didn't like this
-        // We can set it as terminal register to prevent recursively deref
-        // since it may crash
-        // A proper SSA likely fix this issue
-        std::vector<int32> dump_reg;
-        recursion(rhs_expr, dump_reg);
-        for (int32 reg_temp : dump_reg) {
-          dep.register_terminal.push_back(reg_temp);
-        }
-      }
+      dep_iassign_expansion(iassign, dep);
       break;
     }
     case OP_regread: {
@@ -501,17 +563,7 @@ void dep_expansion(BaseNode *stmt, set_check &dep, std::map<int32, std::vector<S
     }
     case OP_constval: {
       ConstvalNode *constValNode = static_cast<ConstvalNode *>(stmt);
-      MIRConst *mirConst = constValNode->GetConstVal();
-      // we only trace int64
-      // We didn't handle following cases
-      // kConstFloatConst, MIRFloatConst
-      // kConstDoubleConst, MIRDoubleConst
-      if (mirConst != nullptr) {
-        if (mirConst->GetKind() == kConstInt) {
-          auto *const_to_get_value = safe_cast<MIRIntConst>(mirConst);
-          dep.const_int64.push_back(const_to_get_value->GetValue());
-        }
-      }
+      dep_constval_expansion(constValNode, dep);
       break;
     }
     case OP_conststr: {
@@ -540,45 +592,7 @@ void dep_expansion(BaseNode *stmt, set_check &dep, std::map<int32, std::vector<S
     }
     case OP_dassign: {
       DassignNode *dassign = static_cast<DassignNode *>(stmt);
-      std::stack<uint8> san_blacklist_stack;
-      bool required_to_clean_san = false;
-      if (func.GetMIRModule().CurFunction()->GetSymbolTabSize() >= int(dassign->GetStIdx().Idx())) {
-        MIRSymbol *var = func.GetMIRModule().CurFunction()->GetSymbolTabItem(dassign->GetStIdx().Idx());
-        if (var->GetName().find("asan_length") == 0) {
-          // dassign %asan_length 0 (band i64 (dread i64 %asan_addr, constval i64 7))
-          san_blacklist_stack.push(OP_band);
-          san_blacklist_stack.push(OP_add);
-          required_to_clean_san = true;
-        } else if (var->GetName().find("asan_shadowValue") == 0) {
-          san_blacklist_stack.push(OP_ashr);
-          san_blacklist_stack.push(OP_add);
-          required_to_clean_san = true;
-        }
-      }
-      if (required_to_clean_san) {
-        std::vector<std::vector<uint8>::iterator> it_vector;
-        if (san_blacklist_stack.size() >= dep.opcode.size()) {
-          for (int opcode_vect_i = 0; opcode_vect_i < dep.opcode.size(); ++opcode_vect_i) {
-            dep.opcode.pop_back();
-          }
-        } else {
-          while (!san_blacklist_stack.empty()) {
-            bool done = false;
-            uint8 remove_item = san_blacklist_stack.top();
-            san_blacklist_stack.pop();
-            LogInfo::MapleLogger() << remove_item;
-            for (std::vector<uint8>::iterator it = dep.opcode.begin(); it != dep.opcode.end(); ++it) {
-              if (*it == remove_item && !done) {
-                dep.opcode.erase(it);
-                done = true;
-              }
-            }
-          }
-        }
-      }
-      for (size_t i = 0; i < stmt->NumOpnds(); i++) {
-        dep_expansion(stmt->Opnd(i), dep, reg_to_stmt, var_to_stmt, func);
-      }
+      dep_dassign_expansion(dassign, dep, reg_to_stmt, var_to_stmt, func);
       break;
     }
     case OP_dassignoff: {
@@ -744,7 +758,7 @@ std::map<int, san_struct> gen_dynmatch(std::string file_name) {
   return ret_log_update;
 }
 
-bool dynamic_sat(san_struct a, san_struct b, bool SCSC) {
+bool dynamic_sat(const san_struct a, const san_struct b, bool SCSC) {
   // For SC-UC case, SC must be var a
   if (a.tot_ctr == b.tot_ctr) {
     if ((a.l_ctr == b.l_ctr) || (a.l_ctr == b.r_ctr)) {

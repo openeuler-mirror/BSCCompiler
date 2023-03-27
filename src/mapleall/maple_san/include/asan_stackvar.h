@@ -41,13 +41,13 @@ class FunctionStackPoisoner {
 
   void unpoisonDynamicAllocasBeforeInst(StmtNode *InstBefore, MIRSymbol *SavedStack);
 
-  void copyToShadow(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes, MIRBuilder *mirBuilder,
+  void copyToShadow(const std::vector<uint8_t> ShadowMask, const std::vector<uint8_t> ShadowBytes, MIRBuilder *mirBuilder,
                     BaseNode *ShadowBase, StmtNode *InsBefore);
 
-  void copyToShadow(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes, size_t Begin, size_t End,
+  void copyToShadow(const std::vector<uint8_t> ShadowMask, const std::vector<uint8_t> ShadowBytes, size_t Begin, size_t End,
                     MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore);
 
-  void copyToShadowInline(std::vector<uint8_t> ShadowMask, std::vector<uint8_t> ShadowBytes, size_t Begin, size_t End,
+  void copyToShadowInline(const std::vector<uint8_t> ShadowMask, const std::vector<uint8_t> ShadowBytes, size_t Begin, size_t End,
                           MIRBuilder *mirBuilder, BaseNode *ShadowBase, StmtNode *InsBefore);
 
   bool isFuncCallArg(const MIRSymbol *const symbolPtr) const;
@@ -81,6 +81,10 @@ class FunctionStackPoisoner {
   bool HasReturnsTwiceCall = false;
 
   std::map<MIRSymbol *, bool> isUsedInAlloca;
+ private:
+  void collectLocalVariablesWithoutAlloca();
+  void collectLocalVariablesWithAlloca();
+  void collectDescFromUnaryStmtNode(UnaryStmtNode &assignNode);
 };
 }  // namespace maple
 #endif  // MAPLE_SAN_ASAN_STACKVAR_H

@@ -5,62 +5,58 @@
 #ifndef MAPLE_SAN_ASAN_MODULE_H
 #define MAPLE_SAN_ASAN_MODULE_H
 
-#include "mir_module.h"
 #include "asan_mapping.h"
-#include "san_common.h"
 #include "asan_stackvar.h"
 #include "mir_function.h"
+#include "mir_module.h"
+#include "san_common.h"
 
 namespace maple {
-  class ModuleAddressSanitizer {
-  public:
-    ModuleAddressSanitizer(MIRModule &module) : module(&module), Mapping(getShadowMapping()) {
-      int longsize = kSizeOfPtr * 8;
-      IntPtrPrim = longsize == sizeof(int32) ? PTY_i32 : PTY_i64;
-      IntPtrTy = GlobalTables::GetTypeTable().GetPrimType(IntPtrPrim);
-      GetGlobalSymbolUsage();
-    }
+class ModuleAddressSanitizer {
+ public:
+  ModuleAddressSanitizer(MIRModule &module) : module(&module), Mapping(getShadowMapping()) {
+    int longsize = kSizeOfPtr * 8;
+    IntPtrPrim = longsize == sizeof(int32) ? PTY_i32 : PTY_i64;
+    IntPtrTy = GlobalTables::GetTypeTable().GetPrimType(IntPtrPrim);
+    GetGlobalSymbolUsage();
+  }
 
+  bool instrumentModule();
 
-    bool instrumentModule();
+ private:
+  void initializeCallbacks();
 
-  private:
+  void GetGlobalSymbolUsage();
 
-    void initializeCallbacks();
+  bool InstrumentGlobals(BlockNode *ctorToBeInserted);
+  bool ShouldInstrumentGlobal(MIRSymbol *var);
 
-    void GetGlobalSymbolUsage();
+  void InstrumentGlobalsWithMetadataArray(BlockNode *ctorToBeInserted, const std::vector<MIRSymbol *> ExtendedGlobals,
+                                          std::vector<MIRConst *> MetadataInitializers);
 
-    bool InstrumentGlobals(BlockNode *ctorToBeInserted);
-    bool ShouldInstrumentGlobal(MIRSymbol *var);
+  BlockNode *CreateCtorAndInitFunctions(const std::string CtorName, const std::string InitName,
+                                        const MapleVector<BaseNode *> InitArgs);
 
-    void InstrumentGlobalsWithMetadataArray(BlockNode *ctorToBeInserted,
-                                            std::vector<MIRSymbol*> ExtendedGlobals,
-                                            std::vector<MIRConst*> MetadataInitializers);
+  BlockNode *CreateModuleDtor();
 
-    BlockNode *CreateCtorAndInitFunctions(std::string CtorName, std::string InitName,
-                               MapleVector<BaseNode *> InitArgs);
+  size_t MinRedzoneSizeForGlobal() const {
+    return std::max(32U, 1U << Mapping.Scale);
+  }
 
-    BlockNode *CreateModuleDtor();
+  MIRModule *module;
 
-    size_t MinRedzoneSizeForGlobal() const {
-      return std::max(32U, 1U << Mapping.Scale);
-    }
+  PrimType IntPtrPrim;
+  MIRType *IntPtrTy;
+  ShadowMapping Mapping;
 
-    MIRModule *module;
+  MIRFunction *AsanRegisterGlobals, *AsanUnregisterGlobals;
 
-    PrimType IntPtrPrim;
-    MIRType *IntPtrTy;
-    ShadowMapping Mapping;
+  MIRFunction *AsanCtorFunction = nullptr;
+  MIRFunction *AsanDtorFunction = nullptr;
 
-    MIRFunction *AsanRegisterGlobals, *AsanUnregisterGlobals;
+  std::map<std::basic_string<char>, std::set<BaseNode *>> symbolUsedInStmt;
+  std::map<std::basic_string<char>, std::set<MIRSymbol *>> symbolUsedInInit;
+};
+}  // namespace maple
 
-    MIRFunction *AsanCtorFunction = nullptr;
-    MIRFunction *AsanDtorFunction = nullptr;
-
-    std::map<std::basic_string<char>, std::set<BaseNode *>> symbolUsedInStmt;
-    std::map<std::basic_string<char>, std::set<MIRSymbol *>> symbolUsedInInit;
-  };
-}
-
-
-#endif // MAPLE_SAN_ASAN_MODULE_H
+#endif  // MAPLE_SAN_ASAN_MODULE_H

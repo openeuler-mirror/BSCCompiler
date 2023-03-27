@@ -8,13 +8,13 @@
 
 #include "san_common.h"
 namespace maple {
-static const uint64_t kDefaultShadowScale = 3;
-static const uint64_t kDefaultShadowOffset32 = 1ULL << 29;  // 0x20000000
-static const uint64_t kDefaultShadowOffset64 = 1ULL << 44;
-static const uint64_t kDynamicShadowSentinel = std::numeric_limits<uint64_t>::max();
-static const uint64_t kSmallX86_64ShadowOffsetBase = 0x7FFFFFFF;  // < 2G.
-static const uint64_t kSmallX86_64ShadowOffsetAlignMask = ~0xFFFULL;
-static const uint64_t kAArch64_ShadowOffset64 = 1ULL << 36;
+const uint64_t kDefaultShadowScale = 3;
+const uint64_t kDefaultShadowOffset32 = 1ULL << 29;  // 0x20000000
+const uint64_t kDefaultShadowOffset64 = 1ULL << 44;
+const uint64_t kDynamicShadowSentinel = std::numeric_limits<uint64_t>::max();
+const uint64_t kSmallX86_64ShadowOffsetBase = 0x7FFFFFFF;  // < 2G.
+const uint64_t kSmallX86_64ShadowOffsetAlignMask = ~0xFFFULL;
+const uint64_t kAArch64_ShadowOffset64 = 1ULL << 36;
 
 struct ShadowMapping {
   int Scale;
@@ -22,7 +22,7 @@ struct ShadowMapping {
   bool OrShadowOffset;
 };
 
-static inline ShadowMapping getShadowMapping() {
+inline ShadowMapping getShadowMapping() {
   ShadowMapping Mapping;
   Mapping.Scale = kDefaultShadowScale;
 #if TARGAARCH64
