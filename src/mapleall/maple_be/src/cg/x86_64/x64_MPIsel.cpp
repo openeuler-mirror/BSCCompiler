@@ -44,7 +44,7 @@ MemOperand &X64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, Fie
     ASSERT((mirType->IsMIRStructType() || mirType->IsMIRUnionType()), "non-structure");
     MIRStructType *structType = static_cast<MIRStructType*>(mirType);
     symType = structType->GetFieldType(fieldId)->GetPrimType();
-    fieldOffset = static_cast<uint32>(cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first);
+    fieldOffset = static_cast<uint32>(structType->GetFieldOffsetFromBaseAddr(fieldId).byteOffset);
   }
   uint32 opndSz = (symType == PTY_agg) ? k64BitSize : GetPrimTypeBitSize(symType);
   return GetOrCreateMemOpndFromSymbol(symbol, opndSz, fieldOffset);

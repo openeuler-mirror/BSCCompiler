@@ -93,7 +93,7 @@ class BECommon {
 
   void GenObjSize(const MIRClassType &classType, FILE &outFile) const;
 
-  std::pair<int32, int32> GetFieldOffset(MIRStructType &structType, FieldID fieldID);
+  OffsetPair GetJClassFieldOffset(MIRStructType &classType, FieldID fieldID);
 
   bool IsRefField(MIRStructType &structType, FieldID fieldID) const;
 

@@ -35,7 +35,12 @@ using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;
 using FieldPair = std::pair<GStrIdx, TyIdxFieldAttrPair>;
 using FieldVector = std::vector<FieldPair>;
 using MIRTypePtr = MIRType*;
-
+// if it is a bitfield, byteoffset gives the offset of the container for
+// extracting the bitfield and bitoffset is with respect to the current byte
+struct OffsetPair {
+  int32 byteOffset;
+  int32 bitOffset;
+};
 constexpr size_t kMaxArrayDim = 20;
 const std::string kJstrTypeName = "constStr";
 constexpr uint32 kInvalidFieldNum = UINT32_MAX;
@@ -1527,6 +1532,8 @@ class MIRStructType : public MIRType {
 
   int64 GetBitOffsetFromBaseAddr(FieldID fieldID) const override;
 
+  OffsetPair GetFieldOffsetFromBaseAddr(FieldID fieldID) const;
+
   bool HasPadding() const;
 
   void SetAlias(MIRAlias *mirAlias) {
@@ -1565,8 +1572,10 @@ class MIRStructType : public MIRType {
   FieldPair TraverseToField(GStrIdx fieldStrIdx) const ;
   bool HasVolatileFieldInFields(const FieldVector &fieldsOfStruct) const;
   bool HasTypeParamInFields(const FieldVector &fieldsOfStruct) const;
-  int64 GetBitOffsetFromUnionBaseAddr(FieldID fieldID) const;
-  int64 GetBitOffsetFromStructBaseAddr(FieldID fieldID) const;
+  // compute the offset of the field given by fieldID within the struct type
+  OffsetPair GetFieldOffsetFromStructBaseAddr(FieldID fieldID) const;
+  // compute the offset of the field given by fieldID within the union type
+  OffsetPair GetFieldOffsetFromUnionBaseAddr(FieldID fieldID) const;
   MIRAlias *alias = nullptr;
 };
 

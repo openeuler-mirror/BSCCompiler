@@ -1139,7 +1139,8 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
   if (fieldId != 0) {
     MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
     ASSERT(structType != nullptr, "SelectDassign: non-zero fieldID for non-structure");
-    offset = GetBecommon().GetFieldOffset(*structType, fieldId).first;
+    offset = structType->GetKind() == kTypeClass ? GetBecommon().GetJClassFieldOffset(*structType, fieldId).byteOffset :
+        structType->GetFieldOffsetFromBaseAddr(fieldId).byteOffset;
     parmCopy = IsParamStructCopy(*symbol);
   }
   uint32 regSize = GetPrimTypeBitSize(rhsPType);
@@ -1751,7 +1752,9 @@ void AArch64CGFunc::SelectAggDassign(const DassignNode &stmt) {
     MIRStructType *structType = static_cast<MIRStructType*>(lhsSymbol->GetType());
     ASSERT(structType != nullptr, "SelectAggDassign: non-zero fieldID for non-structure");
     lhsType = structType->GetFieldType(stmt.GetFieldID());
-    lhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, stmt.GetFieldID()).first);
+    lhsOffset = structType->GetKind() == kTypeClass ?
+        GetBecommon().GetJClassFieldOffset(*structType, stmt.GetFieldID()).byteOffset :
+        structType->GetFieldOffsetFromBaseAddr(stmt.GetFieldID()).byteOffset;
     bothUnion = bothUnion || (structType->GetKind() == kTypeUnion);
   }
   uint32 lhsAlign = GetBecommon().GetTypeAlign(lhsType->GetTypeIndex());
@@ -1768,7 +1771,9 @@ void AArch64CGFunc::SelectAggDassign(const DassignNode &stmt) {
       MIRStructType *structType = static_cast<MIRStructType*>(rhsSymbol->GetType());
       ASSERT(structType != nullptr, "SelectAggDassign: non-zero fieldID for non-structure");
       rhsType = structType->GetFieldType(rhsDread->GetFieldID());
-      rhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, rhsDread->GetFieldID()).first);
+      rhsOffset = structType->GetKind() == kTypeClass ?
+          GetBecommon().GetJClassFieldOffset(*structType, rhsDread->GetFieldID()).byteOffset :
+          structType->GetFieldOffsetFromBaseAddr(rhsDread->GetFieldID()).byteOffset;
       bothUnion = bothUnion && (structType->GetKind() == kTypeUnion);
     }
     bothUnion = bothUnion && (rhsSymbol == lhsSymbol);
@@ -1917,7 +1922,9 @@ void AArch64CGFunc::SelectAggDassign(const DassignNode &stmt) {
       MIRStructType *rhsStructType = static_cast<MIRStructType*>(rhsType);
       ASSERT(rhsStructType != nullptr, "SelectAggDassign: non-zero fieldID for non-structure");
       rhsType = rhsStructType->GetFieldType(rhsIread->GetFieldID());
-      rhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*rhsStructType, rhsIread->GetFieldID()).first);
+      rhsOffset = rhsStructType->GetKind() == kTypeClass ?
+          GetBecommon().GetJClassFieldOffset(*rhsStructType, rhsIread->GetFieldID()).byteOffset :
+          rhsStructType->GetFieldOffsetFromBaseAddr(rhsIread->GetFieldID()).byteOffset;
       isRefField = GetBecommon().IsRefField(*rhsStructType, rhsIread->GetFieldID());
     }
     rhsAlign = GetBecommon().GetTypeAlign(rhsType->GetTypeIndex());
@@ -2105,7 +2112,9 @@ void AArch64CGFunc::SelectIassign(IassignNode &stmt) {
     }
     ASSERT(structType != nullptr, "SelectIassign: non-zero fieldID for non-structure");
     pointedType = structType->GetFieldType(stmt.GetFieldID());
-    offset = GetBecommon().GetFieldOffset(*structType, stmt.GetFieldID()).first;
+    offset = structType->GetKind() == kTypeClass ?
+        GetBecommon().GetJClassFieldOffset(*structType, stmt.GetFieldID()).byteOffset :
+        structType->GetFieldOffsetFromBaseAddr(stmt.GetFieldID()).byteOffset;
     isRefField = GetBecommon().IsRefField(*structType, stmt.GetFieldID());
   } else {
     pointedType = GetPointedToType(*pointerType);
@@ -2554,7 +2563,9 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
     MIRStructType *structType = static_cast<MIRStructType*>(lhsType);
     ASSERT(structType != nullptr, "SelectAggIassign: non-zero fieldID for non-structure");
     lhsType = structType->GetFieldType(stmt.GetFieldID());
-    lhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, stmt.GetFieldID()).first);
+    lhsOffset = structType->GetKind() == kTypeClass ?
+        static_cast<uint32>(GetBecommon().GetJClassFieldOffset(*structType, stmt.GetFieldID()).byteOffset) :
+        static_cast<uint32>(structType->GetFieldOffsetFromBaseAddr(stmt.GetFieldID()).byteOffset);
   } else if (lhsType->GetKind() == kTypeArray) {
 #if DEBUG
     MIRArrayType *arrayLhsType = static_cast<MIRArrayType*>(lhsType);
@@ -2590,7 +2601,9 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
       MIRStructType *structType = static_cast<MIRStructType *>(rhsSymbol->GetType());
       ASSERT(structType != nullptr, "SelectAggIassign: non-zero fieldID for non-structure");
       rhsType = structType->GetFieldType(rhsDread->GetFieldID());
-      rhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, rhsDread->GetFieldID()).first);
+      rhsOffset = structType->GetKind() == kTypeClass ?
+          static_cast<uint32>(GetBecommon().GetJClassFieldOffset(*structType, rhsDread->GetFieldID()).byteOffset) :
+          static_cast<uint32>(structType->GetFieldOffsetFromBaseAddr(rhsDread->GetFieldID()).byteOffset);
     }
     rhsAlign = GetBecommon().GetTypeAlign(rhsType->GetTypeIndex());
     alignUsed = std::min(lhsAlign, rhsAlign);
@@ -2715,7 +2728,9 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
       MIRStructType *rhsStructType = static_cast<MIRStructType*>(rhsType);
       ASSERT(rhsStructType, "SelectAggDassign: non-zero fieldID for non-structure");
       rhsType = rhsStructType->GetFieldType(rhsIread->GetFieldID());
-      rhsOffset = static_cast<uint32>(GetBecommon().GetFieldOffset(*rhsStructType, rhsIread->GetFieldID()).first);
+      rhsOffset = rhsStructType->GetKind() == kTypeClass ?
+          static_cast<uint32>(GetBecommon().GetJClassFieldOffset(*rhsStructType, rhsIread->GetFieldID()).byteOffset) :
+          static_cast<uint32>(rhsStructType->GetFieldOffsetFromBaseAddr(rhsIread->GetFieldID()).byteOffset);
       isRefField = GetBecommon().IsRefField(*rhsStructType, rhsIread->GetFieldID());
     }
     rhsAlign = GetBecommon().GetTypeAlign(rhsType->GetTypeIndex());
@@ -2902,7 +2917,9 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
     MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
     ASSERT(structType != nullptr, "SelectDread: non-zero fieldID for non-structure");
     symType = structType->GetFieldType(fieldId)->GetPrimType();
-    offset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, expr.GetFieldID()).first);
+    offset = structType->GetKind() == kTypeClass ?
+       static_cast<uint32>(GetBecommon().GetJClassFieldOffset(*structType, expr.GetFieldID()).byteOffset) :
+       static_cast<uint32>(structType->GetFieldOffsetFromBaseAddr(expr.GetFieldID()).byteOffset);
     parmCopy = IsParamStructCopy(*symbol);
   }
 
@@ -3134,7 +3151,9 @@ Operand *AArch64CGFunc::SelectAddrof(AddrofNode &expr, const BaseNode &parent, b
       MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
       /* with array of structs, it is possible to have nullptr */
       if (structType != nullptr) {
-        offset = GetBecommon().GetFieldOffset(*structType, expr.GetFieldID()).first;
+        offset = structType->GetKind() == kTypeClass ?
+            static_cast<uint32>(GetBecommon().GetJClassFieldOffset(*structType, expr.GetFieldID()).byteOffset) :
+            static_cast<uint32>(structType->GetFieldOffsetFromBaseAddr(expr.GetFieldID()).byteOffset);
       }
     }
   }
@@ -3357,7 +3376,9 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
 
     ASSERT(structType != nullptr, "SelectIread: non-zero fieldID for non-structure");
     pointedType = structType->GetFieldType(expr.GetFieldID());
-    offset = GetBecommon().GetFieldOffset(*structType, expr.GetFieldID()).first;
+    offset = structType->GetKind() == kTypeClass ?
+        GetBecommon().GetJClassFieldOffset(*structType, expr.GetFieldID()).byteOffset :
+        structType->GetFieldOffsetFromBaseAddr(expr.GetFieldID()).byteOffset;
     isRefField = GetBecommon().IsRefField(*structType, expr.GetFieldID());
   } else {
     pointedType = GetPointedToType(*pointerType);
@@ -7720,7 +7741,7 @@ void AArch64CGFunc::GetAggregateDescFromAggregateNode(BaseNode &argExpr, Aggrega
       ASSERT((mirType->IsMIRStructType() || mirType->IsMIRUnionType()), "NIY, non-structure");
       auto *structType = static_cast<MIRStructType*>(mirType);
       mirType = structType->GetFieldType(dread.GetFieldID());
-      aggDesc.offset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, dread.GetFieldID()).first);
+      aggDesc.offset = structType->GetFieldOffsetFromBaseAddr(dread.GetFieldID()).byteOffset;
       aggDesc.isRefField = GetBecommon().IsRefField(*structType, dread.GetFieldID());
     }
   } else if (argExpr.GetOpCode() == OP_iread) {
@@ -7732,7 +7753,7 @@ void AArch64CGFunc::GetAggregateDescFromAggregateNode(BaseNode &argExpr, Aggrega
       ASSERT((mirType->IsMIRStructType() || mirType->IsMIRUnionType()), "NIY, non-structure");
       MIRStructType *structType = static_cast<MIRStructType*>(mirType);
       mirType = structType->GetFieldType(iread.GetFieldID());
-      aggDesc.offset = static_cast<uint32>(GetBecommon().GetFieldOffset(*structType, iread.GetFieldID()).first);
+      aggDesc.offset = structType->GetFieldOffsetFromBaseAddr(iread.GetFieldID()).byteOffset;
       aggDesc.isRefField = GetBecommon().IsRefField(*structType, iread.GetFieldID());
     }
   } else {
@@ -8382,7 +8403,7 @@ void AArch64CGFunc::IntrinsifyStringIndexOf(ListOperand &srcOpnds, const MIRSymb
   FieldID fieldID = GetMirModule().GetMIRBuilder()->GetStructFieldIDFromFieldNameParentFirst(stringType, "count");
   MIRType *fieldType = stringType->GetFieldType(fieldID);
   PrimType countPty = fieldType->GetPrimType();
-  int32 offset = GetBecommon().GetFieldOffset(*stringType, fieldID).first;
+  int32 offset = GetBecommon().GetJClassFieldOffset(*stringType, fieldID).byteOffset;
   LabelIdx callBBLabIdx = CreateLabel();
   RegOperand *srcCountOpnd = CheckStringIsCompressed(*GetCurBB(), *srcString, offset, countPty, callBBLabIdx);
 

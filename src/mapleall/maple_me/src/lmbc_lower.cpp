@@ -48,7 +48,7 @@ BaseNode *LMBCLowerer::LowerAddrof(AddrofNode *expr) {
   int32 offset = 0;
   if (expr->GetFieldID() != 0) {
     MIRStructType *structty = static_cast<MIRStructType *>(symbol->GetType());
-    offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(expr->GetFieldID()).byteOffset;
   }
   PrimType symty = (expr->GetPrimType() == PTY_simplestr ||
                     expr->GetPrimType() == PTY_simpleobj) ? expr->GetPrimType() : GetLoweredPtrType();
@@ -73,7 +73,7 @@ BaseNode *LMBCLowerer::LowerDread(const AddrofNode *expr) {
     MIRStructType *structty = static_cast<MIRStructType *>(symbol->GetType());
     FieldPair thepair = structty->TraverseToField(expr->GetFieldID());
     symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first)->GetPrimType();
-    offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(expr->GetFieldID()).byteOffset;
   }
   if (!symbol->LMBCAllocateOffSpecialReg()) {
     BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, GetLoweredPtrType(), *symbol, 0);
@@ -149,7 +149,7 @@ BaseNode *LMBCLowerer::LowerIread(const IreadNode &expr) {
   MIRType *type = ptrType->GetPointedType();
   if (expr.GetFieldID() != 0) {
     MIRStructType *structty = static_cast<MIRStructType *>(type);
-    offset = becommon->GetFieldOffset(*structty, expr.GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(expr.GetFieldID()).byteOffset;
     type = structty->GetFieldType(expr.GetFieldID());
   }
   BaseNode *ireadoff = mirBuilder->CreateExprIreadoff(type->GetPrimType(), offset, expr.Opnd(0));
@@ -166,7 +166,7 @@ BaseNode *LMBCLowerer::LowerIaddrof(IaddrofNode *expr) {
     MIRStructType *structty =
         static_cast<MIRStructType*>(
             GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<MIRPtrType*>(type)->GetPointedTyIdx()));
-    offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(expr->GetFieldID()).byteOffset;
   }
   if (offset == 0) {
     return expr->Opnd(0);
@@ -247,7 +247,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
     ASSERT_NOT_NULL(structty);
     FieldPair thepair = structty->TraverseToField(dsnode->GetFieldID());
     symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-    offset = becommon->GetFieldOffset(*structty, dsnode->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(dsnode->GetFieldID()).byteOffset;
   }
   BaseNode *rhs = LowerExpr(dsnode->Opnd(0));
   if (rhs->GetPrimType() != PTY_agg || rhs->GetOpCode() == OP_regread) {
@@ -355,7 +355,7 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
   if (iassign->GetFieldID() != 0) {
     MIRStructType *structty = static_cast<MIRStructType *>(
         GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx()));
-    offset = becommon->GetFieldOffset(*structty, iassign->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(iassign->GetFieldID()).byteOffset;
     TyIdx ftyidx = structty->TraverseToField(iassign->GetFieldID()).second.first;
     type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftyidx);
   } else {

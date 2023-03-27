@@ -482,10 +482,10 @@ void BECommon::GenFieldOffsetMap(const std::string &className) {
       fieldSize = RTSupport::GetRTSupportInstance().GetFieldSize();
     }
 
-    std::pair<int32, int32> p = GetFieldOffset(*classType, i);
-    CHECK_FATAL(p.second == 0, "expect p.second equals 0");
+    OffsetPair p = GetJClassFieldOffset(*classType, i);
+    CHECK_FATAL(p.bitOffset == 0, "expect p.second equals 0");
     LogInfo::MapleLogger() << "CLASS_FIELD_OFFSET_MAP(" << className.c_str() << "," << fieldName.c_str() << ","
-                           << p.first << "," << fieldSize << ")\n";
+                           << p.bitOffset << "," << fieldSize << ")\n";
   }
 }
 
@@ -525,10 +525,10 @@ void BECommon::GenFieldOffsetMap(MIRClassType &classType, FILE &outFile) {
       fieldSize = RTSupport::GetRTSupportInstance().GetFieldSize();
     }
 
-    std::pair<int32, int32> p = GetFieldOffset(classType, i);
-    CHECK_FATAL(p.second == 0, "expect p.second equals 0");
+    OffsetPair p = GetJClassFieldOffset(classType, i);
+    CHECK_FATAL(p.bitOffset == 0, "expect p.second equals 0");
     (void)fprintf(&outFile, "__MRT_CLASS_FIELD(%s, %s, %d, %lu)\n", className.c_str(), fieldName.c_str(),
-        p.first, fieldSize);
+        p.bitOffset, fieldSize);
   }
 }
 
@@ -551,139 +551,16 @@ void BECommon::GenObjSize(const MIRClassType &classType, FILE &outFile) const {
   fprintf(&outFile, "__MRT_CLASS(%s, %" PRIu64 ", %s)\n", className.c_str(), objSize, parentName);
 }
 
-/*
- * compute the offset of the field given by fieldID within the structure type
- * structy; it returns the answer in the pair (byteoffset, bitoffset) such that
- * if it is a bitfield, byteoffset gives the offset of the container for
- * extracting the bitfield and bitoffset is with respect to the container
- */
-std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, FieldID fieldID) {
-  CHECK_FATAL(fieldID <= GetStructFieldCount(structType.GetTypeIndex()), "GetFieldOFfset: fieldID too large");
-  uint64 allocedSize = 0;
-  uint64 allocedSizeInBits = 0;
-  FieldID curFieldID = 1;
+// compute the offset of the field given by fieldID within the java class
+OffsetPair BECommon::GetJClassFieldOffset(MIRStructType &classType, FieldID fieldID) {
+  CHECK_FATAL(fieldID <= GetStructFieldCount(classType.GetTypeIndex()), "GetFieldOFfset: fieldID too large");
   if (fieldID == 0) {
-    return std::pair<int32, int32>(0, 0);
+    return {0, 0};
   }
-
-  if (structType.GetKind() == kTypeClass) {
-    CHECK_FATAL(HasJClassLayout(static_cast<MIRClassType&>(structType)), "Cannot found java class layout information");
-    const JClassLayout &layout = GetJClassLayout(static_cast<MIRClassType&>(structType));
-    CHECK_FATAL(static_cast<uint32>(fieldID) - 1 < layout.size(), "subscript out of range");
-    return std::pair<int32, int32>(static_cast<int32>(layout[fieldID - 1].GetOffset()), 0);
-  }
-
-  /* process the struct fields */
-  FieldVector fields = structType.GetFields();
-  auto structPack = static_cast<uint8>(structType.GetTypeAttrs().GetPack());
-  for (uint32 j = 0; j < fields.size(); ++j) {
-    TyIdx fieldTyIdx = fields[j].second.first;
-    auto fieldAttr = fields[j].second.second;
-    MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
-    uint32 fieldTypeSize = GetTypeSize(fieldTyIdx);
-    uint64 fieldSizeBits = fieldTypeSize * kBitsPerByte;
-    auto originAlign = std::max(GetTypeAlign(fieldTyIdx), static_cast<uint8>(fieldAttr.GetAlign()));
-    uint64 fieldAlign = static_cast<uint64>(
-        static_cast<int64>(fieldAttr.IsPacked() ? 1 : std::min(originAlign, structPack)));
-    uint64 fieldAlignBits = static_cast<uint64>(static_cast<int64>(fieldAlign * kBitsPerByte));
-    CHECK_FATAL(fieldAlign != 0, "fieldAlign should not equal 0");
-    if (structType.GetKind() != kTypeUnion) {
-      if (fieldType->GetKind() == kTypeBitField) {
-        uint32 fieldSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
-        /*
-         * Is this field is crossing the align boundary of its base type? Or,
-         * is field a zero-with bit field?
-         * Refer to C99 standard (§6.7.2.1) :
-         * > As a special case, a bit-field structure member with a width of 0 indicates that no further
-         * > bit-field is to be packed into the unit in which the previous bit-field, if any, was placed.
-         *
-         * We know that A zero-width bit field can cause the next field to be aligned on the next container
-         * boundary where the container is the same size as the underlying type of the bit field.
-         */
-        if ((!structType.GetTypeAttrs().IsPacked() &&
-            ((allocedSizeInBits / fieldSizeBits) != ((allocedSizeInBits + fieldSize - 1u) / fieldSizeBits))) ||
-            fieldSize == 0) {
-          /*
-           * the field is crossing the align boundary of its base type;
-           * align alloced_size_in_bits to fieldAlign
-           */
-          allocedSizeInBits = RoundUp(allocedSizeInBits, fieldSizeBits);
-        }
-        /* allocate the bitfield */
-        if (curFieldID == fieldID) {
-          return std::pair<int32, int32>(
-              static_cast<int32>(static_cast<int64>((allocedSizeInBits / fieldAlignBits) * fieldAlign)),
-              static_cast<int32>(static_cast<int64>(allocedSizeInBits % fieldAlignBits)));
-        } else {
-          ++curFieldID;
-        }
-        allocedSizeInBits += fieldSize;
-        allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlignBits) / kBitsPerByte);
-      } else {
-        bool leftOverBits = false;
-        uint64 offset = 0;
-        // If a non-bit zero-sized field is interspersed between bit field fields, compression is not performed.
-        if (j > 0 && fieldTypeSize == 0 &&
-            GlobalTables::GetTypeTable().GetTypeFromTyIdx(fields[j - 1].second.first)->GetKind() == kTypeBitField) {
-          allocedSizeInBits = RoundUp(allocedSizeInBits, fieldAlignBits);
-        }
-        if (allocedSizeInBits == allocedSize * k8BitSize) {
-          allocedSize = RoundUp(allocedSize, fieldAlign);
-          offset = allocedSize;
-        } else {
-          /* still some leftover bits on allocated words, we calculate things based on bits then. */
-          if (allocedSizeInBits / fieldAlignBits != (allocedSizeInBits + fieldSizeBits - k1BitSize) / fieldAlignBits) {
-            /* the field is crossing the align boundary of its base type */
-            allocedSizeInBits = RoundUp(allocedSizeInBits, fieldAlignBits);
-          }
-          allocedSize = RoundUp(allocedSize, fieldAlign);
-          offset = (allocedSizeInBits / fieldAlignBits) * fieldAlign;
-          leftOverBits =  true;
-        }
-
-        if (curFieldID == fieldID) {
-          return std::pair<int32, int32>(static_cast<int32>(static_cast<int64>(offset)), 0);
-        } else {
-          MIRStructType *subStructType = fieldType->EmbeddedStructType();
-          if (subStructType == nullptr) {
-            ++curFieldID;
-          } else {
-            if ((curFieldID + GetStructFieldCount(subStructType->GetTypeIndex())) < fieldID) {
-              curFieldID += GetStructFieldCount(subStructType->GetTypeIndex()) + 1;
-            } else {
-              std::pair<int32, int32> result = GetFieldOffset(*subStructType, fieldID - curFieldID);
-              return std::pair<int32, int32>(result.first + static_cast<int>(offset), result.second);
-            }
-          }
-        }
-
-        if (leftOverBits) {
-          allocedSizeInBits += fieldSizeBits;
-          allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlignBits) / kBitsPerByte);
-        } else {
-          allocedSize += fieldTypeSize;
-          allocedSizeInBits = allocedSize * kBitsPerByte;
-        }
-      }
-    } else {  /* for unions, bitfields are treated as non-bitfields */
-      if (curFieldID == fieldID) {
-        return std::pair<int32, int32>(0, 0);
-      } else {
-        MIRStructType *subStructType = fieldType->EmbeddedStructType();
-        if (subStructType == nullptr) {
-          curFieldID++;
-        } else {
-          if ((curFieldID + GetStructFieldCount(subStructType->GetTypeIndex())) < fieldID) {
-            curFieldID += GetStructFieldCount(subStructType->GetTypeIndex()) + 1;
-          } else {
-            return GetFieldOffset(*subStructType, fieldID - curFieldID);
-          }
-        }
-      }
-    }
-  }
-  CHECK_FATAL(false, "GetFieldOffset() fails to find field");
-  return std::pair<int32, int32>(0, 0);
+  CHECK_FATAL(HasJClassLayout(static_cast<MIRClassType&>(classType)), "Cannot found java class layout information");
+  const JClassLayout &layout = GetJClassLayout(static_cast<MIRClassType&>(classType));
+  CHECK_FATAL(static_cast<uint32>(fieldID) - 1 < layout.size(), "subscript out of range");
+  return {static_cast<int32>(layout[fieldID - 1].GetOffset()), 0};
 }
 
 bool BECommon::TyIsInSizeAlignTable(const MIRType &ty) const {
@@ -757,15 +634,15 @@ BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
       uint32 index = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeTable().at(
           iNode.GetTyIdx()))->GetPointedTyIdx();
       MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeTable().at(index);
-      std::pair<int32, int32> byteBitOffset =
-          GetFieldOffset(static_cast<MIRStructType&>(*pointedType), iNode.GetFieldID());
+      OffsetPair byteBitOffset =
+          GetJClassFieldOffset(static_cast<MIRStructType&>(*pointedType), iNode.GetFieldID());
 #if TARGAARCH64 || TARGRISCV64
       ASSERT(GetAddressPrimType() == GetLoweredPtrType(), "incorrect address type, expect a GetLoweredPtrType()");
 #endif
       return mirModule.GetMIRBuilder()->CreateExprBinary(
           OP_add, *GlobalTables::GetTypeTable().GetPrimType(GetAddressPrimType()),
           static_cast<BaseNode*>(iNode.Opnd(0)),
-          mirModule.GetMIRBuilder()->CreateIntConst(static_cast<uint64>(static_cast<int64>(byteBitOffset.first)),
+          mirModule.GetMIRBuilder()->CreateIntConst(static_cast<uint64>(static_cast<int64>(byteBitOffset.byteOffset)),
                                                     PTY_u32));
     }
     default:

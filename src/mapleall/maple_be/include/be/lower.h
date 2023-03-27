@@ -219,9 +219,9 @@ class CGLowerer {
   void LowerTypePtr(BaseNode &node) const;
 
   BaseNode *GetBitField(int32 byteOffset, BaseNode *baseAddr, PrimType fieldPrimType);
-  StmtNode *WriteBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
+  StmtNode *WriteBitField(const OffsetPair &byteBitOffsets, const MIRBitFieldType *fieldType,
                           BaseNode *baseAddr, BaseNode *rhs, BlockNode *block);
-  BaseNode *ReadBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
+  BaseNode *ReadBitField(const OffsetPair &byteBitOffsets, const MIRBitFieldType *fieldType,
                          BaseNode *baseAddr);
   BaseNode *LowerDreadBitfield(DreadNode &dread);
   BaseNode *LowerIreadBitfield(IreadNode &iread);

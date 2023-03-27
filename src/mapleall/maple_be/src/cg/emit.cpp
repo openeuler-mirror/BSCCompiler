@@ -824,8 +824,8 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
       if (symAddr.GetFieldID() > 1) {
         MIRStructType *structType = static_cast<MIRStructType *>(symAddrSym->GetType());
         ASSERT(structType != nullptr, "EmitScalarConstant: non-zero fieldID for non-structure");
-        (void)Emit(" + ").Emit(Globals::GetInstance()->GetBECommon()->GetFieldOffset(
-            *structType, symAddr.GetFieldID()).first);
+        int32 offset = structType->GetFieldOffsetFromBaseAddr(symAddr.GetFieldID()).byteOffset;
+        (void)Emit(" + ").Emit(offset);
       }
       break;
     }
@@ -1316,9 +1316,9 @@ int64 Emitter::GetFieldOffsetValue(const std::string &className, const MIRIntCon
     ASSERT(it != strIdx2Type.end(), "Can not find type");
     MIRType &ty = *it->second;
     MIRStructType &structType = static_cast<MIRStructType&>(ty);
-    std::pair<int32, int32> fieldOffsetPair =
-        Globals::GetInstance()->GetBECommon()->GetFieldOffset(structType, fieldIdx);
-    int64 fieldOffset = fieldOffsetPair.first * static_cast<int64>(charBitWidth) + fieldOffsetPair.second;
+    OffsetPair fieldOffsetPair =
+          Globals::GetInstance()->GetBECommon()->GetJClassFieldOffset(structType, fieldIdx);
+    int64 fieldOffset = fieldOffsetPair.byteOffset * static_cast<int64>(charBitWidth) + fieldOffsetPair.bitOffset;
     return fieldOffset;
   }
 }
@@ -1830,9 +1830,9 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
         MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *elemType);
         elemConst = zeroFill;
       }
-      uint64 fieldOffset = static_cast<uint64>(static_cast<int64>(beCommon->GetFieldOffset(
-          structType, fieldIdx).first)) * static_cast<uint64>(charBitWidth) + static_cast<uint64>(
-          static_cast<int64>(beCommon->GetFieldOffset(structType, static_cast<int32>(fieldIdx)).second));
+      OffsetPair offsetPair = structType.GetFieldOffsetFromBaseAddr(fieldIdx);
+      uint64 fieldOffset = static_cast<uint64>(static_cast<int64>(offsetPair.byteOffset *
+          static_cast<uint64>(charBitWidth)) + static_cast<uint64>(static_cast<int64>(offsetPair.bitOffset)));
       EmitBitFieldConstant(*sEmitInfo, *elemConst, nextElemType, fieldOffset);
     } else {
       if (elemConst != nullptr) {
@@ -3846,7 +3846,9 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
           }
           prevSubstruct = fieldty->EmbeddedStructType();
           FieldID fieldID = static_cast<int32>(i + embeddedIDs) + 1;
-          int offset = Globals::GetInstance()->GetBECommon()->GetFieldOffset(*sty, fieldID).first;
+          int offset = sty->GetKind() == kTypeClass ? 
+              Globals::GetInstance()->GetBECommon()->GetJClassFieldOffset(*sty, fieldID).byteOffset :
+              sty->GetFieldOffsetFromBaseAddr(fieldID).byteOffset;
           GStrIdx fldName = sty->GetFieldsElemt(i).first;
           DBGDie *cdie = LFindChildDieWithName(die, DW_TAG_member, fldName);
           CHECK_FATAL(cdie != nullptr, "cdie is null in Emitter::SetupDBGInfo");

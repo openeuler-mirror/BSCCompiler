@@ -1968,12 +1968,14 @@ static bool TraverseToFieldInFields(const FieldVector &fields, const GStrIdx &fi
   return false;
 }
 
+// On the ARM platform, when using both zero-sized bitfields and the pack attribute simultaneously,
+// the size of a struct should be calculated according to the default alignment without the pack attribute.
 bool MIRStructType::HasZeroWidthBitField() const {
-#if !defined(TARGAARCH64)
+#ifndef TARGAARCH64
   return false;
 #endif
-  for (uint32 j = 0; j < fields.size(); ++j) {
-    TyIdx fieldTyIdx = fields[j].second.first;
+  for (FieldPair field : fields) {
+    TyIdx fieldTyIdx = field.second.first;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     if (fieldType->GetKind() == kTypeBitField && fieldType->GetSize() == 0) {
       return true;
@@ -2013,22 +2015,32 @@ bool MIRStructType::HasVolatileField() const {
   return HasVolatileFieldInFields(fields) || HasVolatileFieldInFields(parentFields);
 }
 
-int64 MIRStructType::GetBitOffsetFromUnionBaseAddr(FieldID fieldID) const {
-  CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromUnionBaseAddr: fieldID too large");
+int64 MIRStructType::GetBitOffsetFromBaseAddr(FieldID fieldID) const {
+  CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromBaseAddr: fieldID too large");
   if (fieldID == 0) {
     return 0;
   }
+  constexpr int64 bitsPerByte = 8; // 8 bits per byte
+  OffsetPair offsetPair = GetFieldOffsetFromBaseAddr(fieldID);
+  int64 offset = static_cast<int64>(offsetPair.byteOffset) * bitsPerByte + static_cast<int64>(offsetPair.bitOffset);
+  return offset;
+}
+
+OffsetPair MIRStructType::GetFieldOffsetFromUnionBaseAddr(FieldID fieldID) const {
+  CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromUnionBaseAddr: fieldID too large");
+  if (fieldID == 0) {
+    return {0, 0};
+  }
 
   FieldID curFieldID = 1;
-  FieldVector fieldPairs = GetFields();
   // for unions, bitfields are treated as non-bitfields
-  for (FieldPair field : fieldPairs) {
+  for (FieldPair field : fields) {
     TyIdx fieldTyIdx = field.second.first;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     if (curFieldID == fieldID) {
       // target field id is found
       // offset of field in union direcly(i.e. not embedded in other struct) is zero.
-      return 0;
+      return {0, 0};
     } else {
       MIRStructType *subStructType = fieldType->EmbeddedStructType();
       if (subStructType == nullptr) {
@@ -2041,40 +2053,39 @@ int64 MIRStructType::GetBitOffsetFromUnionBaseAddr(FieldID fieldID) const {
           // 1 represents subStructType itself
           curFieldID += static_cast<FieldID>(subStructType->NumberOfFieldIDs()) + 1;
         } else {
-          return subStructType->GetBitOffsetFromBaseAddr(fieldID - curFieldID);
+          return subStructType->GetFieldOffsetFromBaseAddr(fieldID - curFieldID);
         }
       }
     }
   }
-  CHECK_FATAL(false, "GetBitOffsetFromUnionBaseAddr() fails to find field");
-  return kOffsetUnknown;
+  CHECK_FATAL(false, "GetFieldOffsetFromUnionBaseAddr() fails to find field");
+  return {0, 0};
 }
 
-int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
+OffsetPair MIRStructType::GetFieldOffsetFromStructBaseAddr(FieldID fieldID) const{
   CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromUnionBaseAddr: fieldID too large");
   if (fieldID == 0) {
-    return 0;
+    return {0, 0};
   }
 
   uint64 allocedSize = 0; // space need for all fields before currentField
   uint64 allocedBitSize = 0;
   FieldID curFieldID = 1;
   constexpr uint32 bitsPerByte = 8; // 8 bits per byte
-  FieldVector fieldPairs = GetFields();
   // process the struct fields
   // There are 3 possible kinds of field in a MIRStructureType:
   //  case 1 : bitfield (including zero-width bitfield);
-  //  case 2 : primtive field;
+  //  case 2 : primitive field;
   //  case 3 : normal (empty/non-empty) structure(struct/union) field;
-  for (FieldPair field : fieldPairs) {
-    TyIdx fieldTyIdx = field.second.first;
-    auto fieldAttr = field.second.second;
+  for (uint32 j = 0; j < fields.size(); ++j) {
+    TyIdx fieldTyIdx = fields[j].second.first;
+    auto fieldAttr = fields[j].second.second;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     uint32 fieldBitSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
     size_t fieldTypeSize = fieldType->GetSize();
     uint32 fieldTypeSizeBits = static_cast<uint32>(fieldTypeSize) * bitsPerByte;
-    auto originAlign = fieldType->GetKind() == kTypeBitField ? GetPrimTypeSize(fieldType->GetPrimType())
-                                                             : std::max(fieldType->GetAlign(), fieldAttr.GetAlign());
+    auto originAlign = fieldType->GetKind() == kTypeBitField ? GetPrimTypeSize(fieldType->GetPrimType()) :
+        std::max(fieldType->GetAlign(), fieldAttr.GetAlign());
     uint32 fieldAlign = fieldAttr.IsPacked() ? 1 : std::min(GetTypeAttrs().GetPack(), originAlign);
     auto fieldAlignBits = fieldAlign * bitsPerByte;
     // case 1 : bitfield (including zero-width bitfield);
@@ -2082,7 +2093,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
       fieldTypeSizeBits = static_cast<uint32>(GetPrimTypeSize(fieldType->GetPrimType())) * bitsPerByte;
       // Is this field is crossing the align boundary of its base type?
       // for example:
-      // struct Expamle {
+      // struct Example {
       //      int32 fld1 : 30;
       //      int32 fld2 : 3;  // 30 + 3 > 32(= int32 align), cross the align boundary, start from next int32 boundary
       // }
@@ -2110,7 +2121,8 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
 
       // target field id is found
       if (curFieldID == fieldID) {
-        return static_cast<int64>(allocedBitSize);
+        return {static_cast<int32>((allocedBitSize / fieldAlignBits) * fieldAlign),
+            static_cast<int32>(allocedBitSize % fieldAlignBits)};
       } else {
         ++curFieldID;
       }
@@ -2119,7 +2131,11 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
       allocedSize = std::max(allocedSize, RoundUp(allocedBitSize, fieldAlignBits) / bitsPerByte);
       continue;
     } // case 1 end
-
+    // If a non-bit zero-sized field is interspersed between bit field fields, compression is not performed.
+    if (j > 0 && fieldTypeSize == 0 &&
+        GlobalTables::GetTypeTable().GetTypeFromTyIdx(fields[j - 1].second.first)->GetKind() == kTypeBitField) {
+      allocedBitSize = RoundUp(allocedBitSize, fieldAlignBits);
+    }
     bool leftOverBits = false;
     uint64 offset = 0;
     // no bit field before current field
@@ -2138,10 +2154,10 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
     }
     // target field id is found
     if (curFieldID == fieldID) {
-      return static_cast<int64>(offset * bitsPerByte);
+      return {static_cast<int32>(offset), 0};
     }
     MIRStructType *subStructType = fieldType->EmbeddedStructType();
-    // case 2 : primtive field;
+    // case 2 : primitive field;
     if (subStructType == nullptr) {
       ++curFieldID;
     } else {
@@ -2151,8 +2167,8 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
       if ((curFieldID + static_cast<FieldID>(subStructType->NumberOfFieldIDs())) < fieldID) {
         curFieldID += static_cast<FieldID>(subStructType->NumberOfFieldIDs()) + 1; // 1 represents subStructType itself
       } else {
-        int64 result = subStructType->GetBitOffsetFromBaseAddr(fieldID - curFieldID);
-        return result + static_cast<int64>(offset * bitsPerByte);
+        OffsetPair result = subStructType->GetFieldOffsetFromBaseAddr(fieldID - curFieldID);
+        return {result.byteOffset + static_cast<int>(offset), result.bitOffset};
       }
     }
 
@@ -2164,32 +2180,36 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) const {
       allocedBitSize = allocedSize * bitsPerByte;
     }
   }
-  CHECK_FATAL(false, "GetBitOffsetFromStructBaseAddr() fails to find field");
-  return kOffsetUnknown;
+  CHECK_FATAL(false, "GetFieldOffsetFromUnionBaseAddr() fails to find field");
+  return {0, 0};
 }
 
-int64 MIRStructType::GetBitOffsetFromBaseAddr(FieldID fieldID) const {
+// compute the offset of the field given by fieldID within the structure type
+// structy; it returns the answer in the pair (byteoffset, bitoffset) such that
+// if it is a bitfield, byteoffset gives the offset of the container for
+// extracting the bitfield and bitoffset is with respect to the current byte
+OffsetPair MIRStructType::GetFieldOffsetFromBaseAddr(FieldID fieldID) const {
   CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromBaseAddr: fieldID too large");
   if (fieldID == 0) {
-    return 0;
+    return {0, 0};
   }
   switch (GetKind()) {
     case kTypeClass: {
       // NYI: should know class layout, for different language, the result is different
-      return kOffsetUnknown; // Invalid offset
+      return {0, 0}; // Invalid offset
     }
     case kTypeUnion: {
-      return GetBitOffsetFromUnionBaseAddr(fieldID);
+      return GetFieldOffsetFromUnionBaseAddr(fieldID);
     }
     case kTypeStruct: {
-      return GetBitOffsetFromStructBaseAddr(fieldID);
+      return GetFieldOffsetFromStructBaseAddr(fieldID);
     }
     default: {
       CHECK_FATAL(false, "Wrong type kind for MIRStructType!");
     }
   }
   CHECK_FATAL(false, "Should never reach here!");
-  return kOffsetUnknown;
+  return {0, 0};
 }
 
 // Whether the memory layout of struct has paddings

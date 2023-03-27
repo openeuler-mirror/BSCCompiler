@@ -193,7 +193,9 @@ BaseNode *CGLowerer::LowerIaddrof(const IreadNode &iaddrof) {
   MIRStructType *structTy = static_cast<MIRStructType*>(
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerTy->GetPointedTyIdx()));
   CHECK_FATAL(structTy != nullptr, "LowerIaddrof: non-zero fieldID for non-structure");
-  int32 offset = beCommon.GetFieldOffset(*structTy, iaddrof.GetFieldID()).first;
+  int32 offset = structTy->GetKind() == kTypeClass ?
+      beCommon.GetJClassFieldOffset(*structTy, iaddrof.GetFieldID()).byteOffset :
+      structTy->GetFieldOffsetFromBaseAddr(iaddrof.GetFieldID()).byteOffset;
   if (offset == 0) {
     return iaddrof.Opnd(0);
   }
@@ -771,12 +773,12 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
   return rAdd;
 }
 
-StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
+StmtNode *CGLowerer::WriteBitField(const OffsetPair &byteBitOffsets, const MIRBitFieldType *fieldType,
     BaseNode *baseAddr, BaseNode *rhs, BlockNode *block) {
   auto bitSize = fieldType->GetFieldSize();
   auto primType = fieldType->GetPrimType();
-  auto byteOffset = byteBitOffsets.first;
-  auto bitOffset = byteBitOffsets.second;
+  auto byteOffset = byteBitOffsets.byteOffset;
+  auto bitOffset = byteBitOffsets.bitOffset;
   auto *builder = mirModule.GetMIRBuilder();
   auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
@@ -818,12 +820,12 @@ StmtNode *CGLowerer::WriteBitField(const std::pair<int32, int32> &byteBitOffsets
   return assignedHigherBits;
 }
 
-BaseNode *CGLowerer::ReadBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
+BaseNode *CGLowerer::ReadBitField(const OffsetPair &byteBitOffsets, const MIRBitFieldType *fieldType,
     BaseNode *baseAddr) {
   auto bitSize = fieldType->GetFieldSize();
   auto primType = fieldType->GetPrimType();
-  auto byteOffset = byteBitOffsets.first;
-  auto bitOffset = byteBitOffsets.second;
+  auto byteOffset = byteBitOffsets.byteOffset;
+  auto bitOffset = byteBitOffsets.bitOffset;
   auto *builder = mirModule.GetMIRBuilder();
   auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
@@ -858,7 +860,7 @@ BaseNode *CGLowerer::LowerDreadBitfield(DreadNode &dread) {
   }
   auto *builder = mirModule.GetMIRBuilder();
   auto *baseAddr = builder->CreateExprAddrof(0, dread.GetStIdx());
-  auto byteBitOffsets = beCommon.GetFieldOffset(*structTy, dread.GetFieldID());
+  auto byteBitOffsets = structTy->GetFieldOffsetFromBaseAddr(dread.GetFieldID());
   return ReadBitField(byteBitOffsets, static_cast<MIRBitFieldType*>(fType), baseAddr);
 }
 
@@ -879,7 +881,7 @@ BaseNode *CGLowerer::LowerIreadBitfield(IreadNode &iread) {
   if (fType->GetKind() != kTypeBitField) {
     return &iread;
   }
-  auto byteBitOffsets = beCommon.GetFieldOffset(*structTy, iread.GetFieldID());
+  auto byteBitOffsets = structTy->GetFieldOffsetFromBaseAddr(iread.GetFieldID());
   return ReadBitField(byteBitOffsets, static_cast<MIRBitFieldType*>(fType), iread.Opnd(0));
 }
 
@@ -989,7 +991,7 @@ StmtNode *CGLowerer::LowerDassignBitfield(DassignNode &dassign, BlockNode &newBl
   }
   auto *builder = mirModule.GetMIRBuilder();
   auto *baseAddr = builder->CreateExprAddrof(0, dassign.GetStIdx());
-  auto byteBitOffsets = beCommon.GetFieldOffset(*structTy, dassign.GetFieldID());
+  auto byteBitOffsets = structTy->GetFieldOffsetFromBaseAddr(dassign.GetFieldID());
   return WriteBitField(byteBitOffsets, static_cast<MIRBitFieldType*>(fType), baseAddr, dassign.GetRHS(), &newBlk);
 }
 
@@ -1021,7 +1023,7 @@ StmtNode *CGLowerer::LowerIassignBitfield(IassignNode &iassign, BlockNode &newBl
   if (fType->GetKind() != kTypeBitField) {
     return &iassign;
   }
-  auto byteBitOffsets = beCommon.GetFieldOffset(*structTy, iassign.GetFieldID());
+  auto byteBitOffsets = structTy->GetFieldOffsetFromBaseAddr(iassign.GetFieldID());
   auto *bitFieldType = static_cast<MIRBitFieldType*>(fType);
   return WriteBitField(byteBitOffsets, bitFieldType, iassign.Opnd(0), iassign.GetRHS(), &newBlk);
 }
