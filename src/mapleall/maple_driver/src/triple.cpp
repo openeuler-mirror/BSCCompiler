@@ -1562,7 +1562,7 @@ maplecl::Option<bool> oMfxsr({"-mfxsr"},
 
 maplecl::Option<bool> oMG({"-MG"},
     "  -MG             \tTreat missing header files as generated files.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oMg10({"-mg10"},
     "  -mg10             \t\n",
@@ -3479,7 +3479,7 @@ maplecl::Option<bool> oMlzcnt({"-mlzcnt"},
 
 maplecl::Option<bool> oMM({"-MM"},
     "  -MM             \tLike -M but ignore system header files.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oMm({"-Mm"},
     "  -Mm             \tCauses variables to be assigned to the .near section by default.\n",
@@ -3554,7 +3554,7 @@ maplecl::Option<std::string> oMmcuE({"-mmcu="},
 
 maplecl::Option<bool> oMMD({"-MMD"},
     "  -MMD             \tLike -MD but ignore system header files.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oMmedia({"-mmedia"},
     "  -mmedia             \tUse media instructions.\n",
@@ -4008,7 +4008,7 @@ maplecl::Option<std::string> oMoverrideE({"-moverride="},
 
 maplecl::Option<bool> oMP({"-MP"},
     "  -MP             \tGenerate phony targets for all headers.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oMpaRisc10({"-mpa-risc-1-0"},
     "  -mpa-risc-1-0             \tSynonyms for -march=1.0 respectively.\n",
@@ -4251,7 +4251,7 @@ maplecl::Option<bool> oMpushArgs({"-mpush-args"},
 
 maplecl::Option<bool> oMQ({"-MQ"},
     "  -MQ             \t-MQ <target> o       Add a MAKE-quoted target.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory}, maplecl::joinedValue);
 
 maplecl::Option<bool> oMqClass({"-mq-class"},
     "  -mq-class             \tEnable 'q' instruction alternatives.\n",

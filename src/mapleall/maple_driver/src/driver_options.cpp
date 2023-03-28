@@ -211,7 +211,7 @@ maplecl::Option<bool> expand128Floats({"--expand128floats"},
 
 maplecl::Option<bool> MD({"-MD"},
     "  -MD                         \tWrite a depfile containing user and system headers\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> fNoPlt({"-fno-plt"},
     "  -fno-plt                \tDo not use the PLT to make function calls\n",
@@ -464,11 +464,11 @@ maplecl::Option<std::string> target({"--target", "-target"},
 
 maplecl::Option<std::string> oMT({"-MT"},
     "  -MT<args>                   \tSpecify name of main file output in depfile\n",
-    {driverCategory, unSupCategory}, maplecl::joinedValue);
+    {driverCategory, clangCategory}, maplecl::joinedValue);
 
 maplecl::Option<std::string> oMF({"-MF"},
     "  -MF<file>                   \tWrite depfile output from -MD, -M to <file>\n",
-    {driverCategory, unSupCategory}, maplecl::joinedValue);
+    {driverCategory, clangCategory}, maplecl::joinedValue);
 
 maplecl::Option<std::string> oWl({"-Wl"},
     "  -Wl,<arg>               \tPass the comma separated arguments in <arg> to the linker\n",
@@ -679,7 +679,7 @@ maplecl::Option<std::string> oBundle_loader({"-bundle_loader"},
 
 maplecl::Option<bool> oC({"-C"},
     "  -C             \tDo not discard comments. \n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oCC({"-CC"},
     "  -CC             \tDo not discard comments in macro expansions.\n",
@@ -1131,7 +1131,7 @@ maplecl::Option<std::string> oFdisable({"-fdisable-"},
 
 maplecl::Option<bool> oFdollarsInIdentifiers({"-fdollars-in-identifiers"},
     "  -fdollars-in-identifiers             \tPermit '$' as an identifier character.\n",
-    {driverCategory, unSupCategory},
+    {driverCategory, clangCategory},
     maplecl::DisableWith("-fno-dollars-in-identifiers"));
 
 maplecl::Option<bool> oFdse({"-fdse"},
@@ -1646,7 +1646,7 @@ maplecl::Option<std::string> oFexcessPrecision({"-fexcess-precision="},
 maplecl::Option<std::string> oFexecCharset({"-fexec-charset="},
     "  -fexec-charset=             \tConvert all strings and character constants to "
     "character set <cset>.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oFexpensiveOptimizations({"-fexpensive-optimizations"},
     "  -fexpensive-optimizations             \tPerform a number of minor, expensive "
@@ -1664,7 +1664,7 @@ maplecl::Option<bool> oFextNumericLiterals({"-fext-numeric-literals"},
 maplecl::Option<bool> oFextendedIdentifiers({"-fextended-identifiers"},
     "  -fextended-identifiers             \tPermit universal character names (\\u and \\U) "
     "in identifiers.\n",
-    {driverCategory, unSupCategory},
+    {driverCategory, clangCategory},
     maplecl::DisableWith("-fno-extended-identifiers"));
 
 maplecl::Option<bool> oFexternTlsInit({"-fextern-tls-init"},
@@ -1863,7 +1863,7 @@ maplecl::Option<bool> oFinlineSmallFunctions({"-finline-small-functions"},
 
 maplecl::Option<std::string> oFinputCharset({"-finput-charset="},
     "  -finput-charset=             \tSpecify the default character set for source files.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oFinstrumentFunctions({"-finstrument-functions"},
     "  -finstrument-functions             \tInstrument function entry and exit with "
@@ -2586,7 +2586,7 @@ maplecl::Option<bool> oFpchDeps({"-fpch-deps"},
 
 maplecl::Option<bool> oFpchPreprocess({"-fpch-preprocess"},
     "  -fpch-preprocess             \tLook for and use PCH files even when preprocessing.\n",
-    {driverCategory, unSupCategory},
+    {driverCategory, clangCategory},
     maplecl::DisableWith("-fno-pch-preprocess"));
 
 maplecl::Option<bool> oFpeelLoops({"-fpeel-loops"},
@@ -3134,7 +3134,7 @@ maplecl::Option<bool> oFsyntaxOnly({"-fsyntax-only"},
 
 maplecl::Option<std::string> oFtabstop({"-ftabstop="},
     "  -ftabstop=             \tSet the distance between tab stops.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<std::string> oFtemplateBacktraceLimit({"-ftemplate-backtrace-limit="},
     "  -ftemplate-backtrace-limit=             \tSet the maximum number of template "
@@ -3693,8 +3693,8 @@ maplecl::Option<bool> oNoCanonicalPrefixes({"-no-canonical-prefixes"},
     {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oNoIntegratedCpp({"-no-integrated-cpp"},
-    "  -no-integrated-cpp             \t\n",
-    {driverCategory, unSupCategory});
+    "  -no-integrated-cpp             \tPerform preprocessing as a separate pass before compilation.\n",
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oNoSysrootSuffix({"-no-sysroot-suffix"},
     "  -no-sysroot-suffix             \t\n",
@@ -3769,7 +3769,7 @@ maplecl::Option<bool> oP({"-p"},
 
 maplecl::Option<bool> oLargeP({"-P"},
     "  -P             \tDo not generate #line directives.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oPagezero_size({"-pagezero_size"},
     "  -pagezero_size             \t\n",
@@ -4008,7 +4008,7 @@ maplecl::Option<bool> oTraditionalCpp({"-traditional-cpp"},
 
 maplecl::Option<bool> oTrigraphs({"-trigraphs"},
     "  -trigraphs             \t-trigraphs   Support ISO C trigraphs.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oTwolevel_namespace({"-twolevel_namespace"},
     "  -twolevel_namespace             \t\n",
@@ -4020,7 +4020,7 @@ maplecl::Option<bool> oUmbrella({"-umbrella"},
 
 maplecl::Option<bool> oUndef({"-undef"},
     "  -undef             \tDo not predefine system-specific and GCC-specific macros.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oUndefined({"-undefined"},
     "  -undefined             \t\n",
@@ -4056,7 +4056,7 @@ maplecl::Option<bool> oWmisspelledIsr({"-Wmisspelled-isr"},
 maplecl::Option<std::string> oWp({"-Wp"},
     "  -Wp             \tYou can use -Wp,option to bypass the compiler driver and pass "
     "option directly through to the preprocessor. \n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory}, maplecl::joinedValue);
 
 maplecl::Option<bool> oWrapper({"-wrapper"},
     "  -wrapper             \tInvoke all subcommands under a wrapper program. \n",
@@ -4080,7 +4080,7 @@ maplecl::Option<std::string> oXlinker({"-Xlinker"},
 
 maplecl::Option<std::string> oXpreprocessor({"-Xpreprocessor"},
     "  -Xpreprocessor             \tPass option as an option to the preprocessor. \n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory}, maplecl::joinedValue);
 
 maplecl::Option<std::string> oYm({"-Ym"},
     "  -Ym             \tLook in the directory dir to find the M4 preprocessor. \n",
@@ -4266,7 +4266,7 @@ maplecl::Option<bool> oStdlegacy({"-std=legacy"},
 maplecl::Option<bool> oFworkingDirectory({"-fworking-directory"},
     "  -fworking-directory             \tGenerate a #line directive pointing at the current "
     "working directory.\n",
-    {driverCategory, unSupCategory},
+    {driverCategory, clangCategory},
     maplecl::DisableWith("-fno-working-directory"));
 
 maplecl::Option<bool> oFwrapv({"-fwrapv"},
@@ -4460,7 +4460,7 @@ maplecl::Option<bool> oKeep_private_externs({"-keep_private_externs"},
 
 maplecl::Option<bool> oM({"-M"},
     "  -M             \tGenerate make dependencies.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oM1({"-m1"},
     "  -m1             \tGenerate code for the SH1.\n",
@@ -5089,6 +5089,15 @@ maplecl::Option<bool> oMwarnCellMicrocode({"-mwarn-cell-microcode"},
     "  -mwarn-cell-microcode             \tWarn when a Cell microcode instruction is "
     "emitted. \n",
     {driverCategory, unSupCategory});
+
+maplecl::Option<std::string> oD({"-d"},
+    "  -d<letters>             \tEnable dumps from specific passes of the compiler.\n",
+    {driverCategory, clangCategory}, maplecl::joinedValue);
+
+maplecl::Option<std::string> oA({"-A"},
+    "  -A<question>=<answer>             \tAssert the <answer> to <question>.  Putting '-' before <question> disables "
+    "the <answer> to <question> assertion missing after %qs.\n",
+    {driverCategory, clangCategory}, maplecl::joinedValue);
 
     /* #################################################################################################### */
 

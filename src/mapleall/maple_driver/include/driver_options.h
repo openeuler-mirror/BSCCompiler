@@ -2061,6 +2061,8 @@ extern maplecl::Option<std::string> oFtemplateDepth;
 extern maplecl::Option<std::string> oFtemplateDepthE;
 extern maplecl::Option<std::string> functionReorderAlgorithm;
 extern maplecl::Option<std::string> functionReorderProfile;
+extern maplecl::Option<std::string> oA;
+extern maplecl::Option<std::string> oD;
 
 /* ##################### DIGITAL Options ############################################################### */
 

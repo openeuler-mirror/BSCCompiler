@@ -43,13 +43,13 @@ maplecl::Option<bool> fPIC({"-fPIC", "--fPIC"},
                            "  --no-pic/no-pic\n",
                            {cgCategory, driverCategory, ldCategory});
 
-maplecl::Option<bool> fnoSemanticInterposition({"-fno-semantic-interposition", "--fno-semantic-interposition"},
+maplecl::Option<bool> fnoSemanticInterposition({"-fno-semantic-interposition"},
                                                "  --fno-semantic-interposition  \tif interposition happens for "
                                                "functions, the overwriting function will have precisely the same "
                                                "semantics (and side effects)\n"
-                                               "  --fsemantic-interposition\n",
-                                               {cgCategory, driverCategory, ldCategory},
-                                               maplecl::DisableWith("--fsemantic-interposition"));
+                                               "  -fsemantic-interposition\n",
+                                               {cgCategory, driverCategory},
+                                               maplecl::DisableWith("-fsemantic-interposition"));
 
 maplecl::Option<bool> verboseAsm({"--verbose-asm"},
                                  "  --verbose-asm               \tAdd comments to asm output\n"
