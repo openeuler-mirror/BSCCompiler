@@ -723,8 +723,7 @@ maplecl::Option<bool> epreUseProfile({"--epreuseprofile"},
                      maplecl::DisableWith("--no-epreuseprofile"));
 
 maplecl::Option<uint32_t> asanFlags({"--sanitizer", "--san", "-san"},
-                     "  --sanitizer=FLAGS     \tEnable instrumenting sanitizer \
-                      according to the given FLAGS\n"
+                     "  --sanitizer=FLAGS     \tEnable instrumenting sanitizer according to the given FLAGS\n"
                      "  --sanitizer=0  \tDisable instrumenting sanitizer\n",
                      {meCategory});
 }

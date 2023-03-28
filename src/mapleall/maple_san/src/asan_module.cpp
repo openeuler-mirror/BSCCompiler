@@ -104,8 +104,9 @@ namespace maple {
       // Create new type for global with redzones
       fieldVector.clear();
       parentFileds.clear();
+      CHECK_FATAL(rightRedzoneSize < UINT32_MAX, "Too large redzone size.");
       MIRArrayType *rightRedZoneTy = GlobalTables::GetTypeTable().GetOrCreateArrayType(
-              *GlobalTables::GetTypeTable().GetInt8(), rightRedzoneSize);
+              *GlobalTables::GetTypeTable().GetInt8(), uint32_t(rightRedzoneSize));
       GlobalTables::GetTypeTable().PushIntoFieldVector(
               fieldVector, "orig", *global->GetType());
       GlobalTables::GetTypeTable().PushIntoFieldVector(
@@ -252,8 +253,8 @@ namespace maple {
           const std::vector<MIRSymbol *> ExtendedGlobals,
           std::vector<MIRConst *> MetadataInitializers) {
     assert(ExtendedGlobals.size() == MetadataInitializers.size());
-    unsigned N = ExtendedGlobals.size();
-    assert(N > 0);
+    size_t N = ExtendedGlobals.size();
+    CHECK_FATAL(N > 0, "Zero size extended globals.");
     MIRArrayType *arrayOfGlobalStructTy = GlobalTables::GetTypeTable().GetOrCreateArrayType(
             MetadataInitializers[0]->GetType(), N);
     MIRAggConst *allGlobalsConst = module->GetMemPool()->New<MIRAggConst>(*module, *arrayOfGlobalStructTy);

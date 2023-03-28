@@ -183,8 +183,9 @@ void FunctionStackPoisoner::collectLocalVariablesWithoutAlloca() {
   std::set<MIRSymbol *> retOfCallassigned = GetStackVarReferedByCallassigned();
   MIRSymbolTable *symbolTable = mirFunction->GetSymTab();
   size_t size = symbolTable->GetSymbolTableSize();
-  for (size_t i = 0; i < size; ++i) {
-    MIRSymbol *symbol = symbolTable->GetSymbolFromStIdx(i);
+  CHECK_FATAL(size < UINT32_MAX, "Too large symbol table size.");
+  for (uint32_t i = 0; i < uint32_t(size); ++i) {
+    MIRSymbol *symbol = symbolTable->GetSymbolFromStIdx(LabelIdx(i));
     if (symbol == nullptr) {
       continue;
     }
@@ -315,7 +316,7 @@ void FunctionStackPoisoner::createDynamicAllocasInitStorage() {
   mirFunction->GetBody()->InsertBefore(mirFunction->GetBody()->GetFirst(), dassignNode);
 }
 
-void FunctionStackPoisoner::unpoisonDynamicAllocasBeforeInst(StmtNode *InstBefore, MIRSymbol *SavedStack) {
+void FunctionStackPoisoner::unpoisonDynamicAllocasBeforeInst(StmtNode *InstBefore) {
   MIRBuilder *mirBuilder = module->GetMIRBuilder();
   MapleVector<BaseNode *> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   args.emplace_back(mirBuilder->CreateDread(*DynamicAllocaLayout, IntptrTy->GetPrimType()));
@@ -328,7 +329,7 @@ void FunctionStackPoisoner::unpoisonDynamicAllocasBeforeInst(StmtNode *InstBefor
 // Unpoison dynamic allocas redzones.
 void FunctionStackPoisoner::unpoisonDynamicAllocas() {
   for (auto &Ret : RetVec) {
-    unpoisonDynamicAllocasBeforeInst(Ret, DynamicAllocaLayout);
+    unpoisonDynamicAllocasBeforeInst(Ret);
   }
 }
 
@@ -345,13 +346,13 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(ASanDynaVariableDescription 
   if (AI->Size->GetOpCode() == OP_constval) {
     ConstvalNode *constvalNode = dynamic_cast<ConstvalNode *>(AI->Size);
     MIRIntConst *intConst = dynamic_cast<MIRIntConst *>(constvalNode->GetConstVal());
-    int PartialSize = intConst->GetValue().GetExtValue() & AllocaRedzoneMask;
-    int MisAlign = kAllocaRzSize - PartialSize;
-    int PartialPadding = MisAlign;
-    if (kAllocaRzSize == MisAlign) {
+    uint64_t PartialSize = uint64_t(intConst->GetValue().GetExtValue()) & AllocaRedzoneMask;
+    uint64_t MisAlign = kAllocaRzSize - PartialSize;
+    uint64_t PartialPadding = MisAlign;
+    if (uint64_t(kAllocaRzSize) == MisAlign) {
       PartialPadding = 0;
     }
-    int AdditionalChunkSize = Align + kAllocaRzSize + PartialPadding;
+    uint64_t AdditionalChunkSize = Align + kAllocaRzSize + PartialPadding;
     NewSize =
         mirBuilder->CreateIntConst(AdditionalChunkSize + intConst->GetValue().GetExtValue(), IntptrTy->GetPrimType());
   } else {
@@ -404,14 +405,16 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(ASanDynaVariableDescription 
 
 MIRSymbol *FunctionStackPoisoner::createAllocaForLayout(StmtNode *insBefore, MIRBuilder *mirBuilder,
                                                         const ASanStackFrameLayout &L) {
+  CHECK_FATAL(L.FrameSize < UINT32_MAX, "Too large frame size.");
   MIRArrayType *arrayType =
-      GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetInt8(), L.FrameSize);
+      GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetInt8(), uint32_t(L.FrameSize));
   MIRSymbol *tmp =
       getOrCreateSymbol(mirBuilder, arrayType->GetTypeIndex(), "asan_tmp", kStVar, kScAuto, mirFunction, kScopeLocal);
   size_t realignStack = 32;
   assert((realignStack & (realignStack - 1)) == 0);
   size_t frameAlignment = std::max(L.FrameAlignment, realignStack);
-  tmp->GetAttrs().SetAlign(frameAlignment);
+  CHECK_FATAL(frameAlignment < UINT32_MAX, "Too large frameAlignment.");
+  tmp->GetAttrs().SetAlign(uint32_t(frameAlignment));
   MIRType *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*GlobalTables::GetTypeTable().GetInt8());
   MIRSymbol *alloca =
       getOrCreateSymbol(mirBuilder, ptrType->GetTypeIndex(), "asan_alloca", kStVar, kScAuto, mirFunction, kScopeLocal);
@@ -576,7 +579,6 @@ void FunctionStackPoisoner::processStackVariable() {
                mirBuilder->CreateDread(*shadowBase, shadowBase->GetType()->GetPrimType()), insBefore);
 
   std::vector<uint8_t> shadowClean(shadowAfterScope.size(), 0);
-  std::vector<uint8_t> shadowAfterReturn;
 
   // (Un)poison the stack before all ret instructions.
   for (StmtNode *ret : RetVec) {

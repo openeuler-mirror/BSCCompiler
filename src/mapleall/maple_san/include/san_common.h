@@ -57,14 +57,14 @@ struct ASanStackFrameLayout {
 // Struct to contain the information for performing set check
 // For elimination of san check
 struct set_check {
-  std::vector<uint8> opcode;             // 1. opcode  enum Opcode : uint8
-  std::vector<int32> register_terminal;  // 2. register_terminal -> cannot further expand
-  std::stack<int32> register_live;       // 3. register_live  -> for further expansion
-  std::vector<uint32> var_terminal;      // 4. var_terminal -> cannot further expand
-  std::stack<uint32> var_live;           // 5. var_live  -> for further expansion
+  std::vector<uint8_t> opcode;             // 1. opcode  enum Opcode : uint8
+  std::vector<int32_t> register_terminal;  // 2. register_terminal -> cannot further expand
+  std::stack<int32_t> register_live;       // 3. register_live  -> for further expansion
+  std::vector<uint32_t> var_terminal;      // 4. var_terminal -> cannot further expand
+  std::stack<uint32_t> var_live;           // 5. var_live  -> for further expansion
   std::vector<IntVal> const_int64;       // 6. const, we only track int64 or kConstInt
-  std::vector<uint32> const_str;         // 7. const str ,we only store the index
-  std::vector<int32> type_num;  // 8. Type, but we will just track the fieldID for simplicity  iread->GetFieldID()
+  std::vector<uint32_t> const_str;         // 7. const str ,we only store the index
+  std::vector<int32_t> type_num;  // 8. Type, but we will just track the fieldID for simplicity  iread->GetFieldID()
 };
 
 struct san_struct {
@@ -122,7 +122,7 @@ MIRAddrofConst *createSourceLocConst(MIRModule &mirModule, MIRSymbol *Var, PrimT
 
 MIRAddrofConst *createAddrofConst(const MIRModule &mirModule, const MIRSymbol *mirSymbol, PrimType primType);
 
-MIRStrConst *createStringConst(const MIRModule &mirModule, std::basic_string<char> Str, PrimType primType);
+MIRStrConst *createStringConst(const MIRModule &mirModule, const std::basic_string<char>& Str, PrimType primType);
 
 std::string ComputeASanStackFrameDescription(const std::vector<ASanStackVariableDescription> &vars);
 
@@ -146,16 +146,16 @@ void print_dep(set_check dep);
 template <typename T>
 void print_stack(std::stack<T> &st);
 template <typename T>
-bool compareVectors(std::vector<T> a, std::vector<T> b);
+bool compareVectors(const std::vector<T>& a, const std::vector<T>& b);
 int getIndex(std::vector<StmtNode *> v, StmtNode *K);
 StmtNode *retLatest_Regassignment(StmtNode *stmt, int32 register_number);
 StmtNode *retLatest_Varassignment(StmtNode *stmt, uint32 var_number);
 set_check commit(set_check old, set_check latest);
 void gen_register_dep(StmtNode *stmt, set_check &br_tmp, std::map<int32, std::vector<StmtNode *>> reg_to_stmt,
-                      std::map<uint32, std::vector<StmtNode *>> var_to_stmt, MeFunction func);
-bool sat_check(set_check a, set_check b);
+                      std::map<uint32, std::vector<StmtNode *>> var_to_stmt, const MeFunction& func);
+bool sat_check(const set_check& a, const set_check& b);
 std::map<int, san_struct> gen_dynmatch(std::string file_name);
-bool dynamic_sat(const san_struct a, const san_struct b, bool SCSC);
+bool dynamic_sat(const san_struct& a, const san_struct& b, bool SCSC);
 
 }  // end namespace maple
 #endif  // MAPLE_SAN_INCLUDE_SAN_COMMON_H

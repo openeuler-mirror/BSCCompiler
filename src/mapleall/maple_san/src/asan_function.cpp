@@ -22,15 +22,15 @@ bool isBlacklist(int k) {
   return (k == 120 || k == 125);
 }
 
-void doInstrumentAddress(AddressSanitizer *Phase, StmtNode *I, StmtNode *InsertBefore, BaseNode *Addr,
-                         unsigned Alignment, unsigned Granularity, uint64_t TypeSize, bool IsWrite) {
+void doInstrumentAddress(AddressSanitizer *Phase, StmtNode *InsertBefore, BaseNode *Addr,
+                         size_t Alignment, size_t Granularity, uint64_t TypeSize, bool IsWrite) {
   // Instrument a 1-, 2-, 4-, 8-, or 16- byte access with one check
   // if the data is properly aligned.
   if ((TypeSize == 8 || TypeSize == 16 || TypeSize == 32 || TypeSize == 64 || TypeSize == 128) &&
       (Alignment >= Granularity || Alignment == 0 || Alignment >= TypeSize / 8)) {
-    Phase->instrumentAddress(I, InsertBefore, Addr, TypeSize, IsWrite, nullptr);
+    Phase->instrumentAddress(InsertBefore, Addr, TypeSize, IsWrite, nullptr);
   } else {
-    Phase->instrumentUnusualSizeOrAlignment(I, InsertBefore, Addr, TypeSize, IsWrite);
+    Phase->instrumentUnusualSizeOrAlignment(InsertBefore, Addr, TypeSize, IsWrite);
   }
 }
 
@@ -57,6 +57,7 @@ bool AddressSanitizer::instrumentFunction(MeFunction &mefunc) {
 
   initializeCallbacks(mefunc.GetMIRModule());
 
+  // When exit this function, the destructor will clean relatives
   FunctionStateRAII cleanupObj(this);
 
   maybeInsertDynamicShadowAtFunctionEntry(mefunc);
@@ -75,7 +76,6 @@ bool AddressSanitizer::instrumentFunction(MeFunction &mefunc) {
   std::set<StmtNode *> userchecks;
 
   std::map<int, StmtNode *> stmt_id_to_stmt;
-  std::vector<int> stmt_id_list;
 
   for (StmtNode &stmt : mefunc.GetMirFunc()->GetBody()->GetStmtNodes()) {
     toInstrument.push_back(&stmt);
@@ -112,6 +112,7 @@ bool AddressSanitizer::instrumentFunction(MeFunction &mefunc) {
   }
 
   int check_env = SANRAZOR_MODE();
+  std::vector<int> stmt_id_list;
   bool doSanrazor = (check_env > 0) && (numInstrumented > 0 || changedStack || !noReturnCalls.empty());
   if (doSanrazor) {
     functionModified = true;
@@ -767,9 +768,9 @@ void AddressSanitizer::maybeInsertDynamicShadowAtFunctionEntry(const MeFunction 
 void AddressSanitizer::instrumentMop(StmtNode *I, std::vector<MemoryAccess> &memoryAccess) {
   assert(memoryAccess.size() > 0);
 
-  unsigned granularity = 1 << Mapping.Scale;
+  size_t granularity = 1 << Mapping.Scale;
   for (MemoryAccess access : memoryAccess) {
-    doInstrumentAddress(this, I, I, access.ptrOperand, access.alignment, granularity, access.typeSize, access.isWrite);
+    doInstrumentAddress(this, I, access.ptrOperand, access.alignment, granularity, access.typeSize, access.isWrite);
   }
 }
 
@@ -792,7 +793,7 @@ BaseNode *AddressSanitizer::memToShadow(BaseNode *Shadow, MIRBuilder &mirBuilder
   }
 }
 
-void AddressSanitizer::instrumentAddress(StmtNode *OrigIns, StmtNode *InsertBefore, BaseNode *Addr, uint64_t TypeSize,
+void AddressSanitizer::instrumentAddress(StmtNode *InsertBefore, BaseNode *Addr, uint64_t TypeSize,
                                          bool IsWrite, BaseNode *SizeArgument) {
   MIRBuilder *mirBuilder = module->GetMIRBuilder();
 
@@ -846,7 +847,7 @@ void AddressSanitizer::instrumentAddress(StmtNode *OrigIns, StmtNode *InsertBefo
   crash->InsertBeforeThis(*crashBlock);
 }
 
-void AddressSanitizer::instrumentUnusualSizeOrAlignment(StmtNode *I, StmtNode *InsertBefore, BaseNode *Addr,
+void AddressSanitizer::instrumentUnusualSizeOrAlignment(StmtNode *InsertBefore, BaseNode *Addr,
                                                         uint64_t TypeSize, bool IsWrite) {
   MIRBuilder *mirBuilder = module->GetMIRBuilder();
   BaseNode *size = mirBuilder->CreateIntConst(TypeSize / 8, IntPtrPrim);
@@ -861,8 +862,8 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(StmtNode *I, StmtNode *I
                                                 module->CurFunction(), kScopeLocal);
   DassignNode *lastByte = mirBuilder->CreateStmtDassign(lastByteSymbol->GetStIdx(), 0, binaryNode);
   lastByte->InsertAfterThis(*InsertBefore);
-  instrumentAddress(I, InsertBefore, Addr, 8, IsWrite, size);
-  instrumentAddress(I, InsertBefore, mirBuilder->CreateDread(*lastByteSymbol, PTY_ptr), 8, IsWrite, size);
+  instrumentAddress(InsertBefore, Addr, 8, IsWrite, size);
+  instrumentAddress(InsertBefore, mirBuilder->CreateDread(*lastByteSymbol, PTY_ptr), 8, IsWrite, size);
 }
 
 BinaryNode *AddressSanitizer::createSlowPathCmp(StmtNode *InsBefore, BaseNode *AddrLong, BaseNode *ShadowValue,

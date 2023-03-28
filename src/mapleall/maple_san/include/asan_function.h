@@ -34,10 +34,10 @@ class AddressSanitizer {
 
   bool instrumentFunction(MeFunction &F);
 
-  void instrumentAddress(StmtNode *OrigIns, StmtNode *InsertBefore, BaseNode *Addr, uint64_t TypeSize, bool IsWrite,
+  void instrumentAddress(StmtNode *InsertBefore, BaseNode *Addr, uint64_t TypeSize, bool IsWrite,
                          BaseNode *SizeArgument);
 
-  void instrumentUnusualSizeOrAlignment(StmtNode *I, StmtNode *InsertBefore, BaseNode *Addr, uint64_t TypeSize,
+  void instrumentUnusualSizeOrAlignment(StmtNode *InsertBefore, BaseNode *Addr, uint64_t TypeSize,
                                         bool IsWrite);
 
  private:

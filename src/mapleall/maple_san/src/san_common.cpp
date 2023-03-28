@@ -91,7 +91,7 @@ MIRAddrofConst *createSourceLocConst(MIRModule &mirModule, MIRSymbol *Var, PrimT
   // Create initial value
   MIRAggConst *LocStructConst = mirModule.GetMemPool()->New<MIRAggConst>(mirModule, LocStruct);
   // Initialize the field orig
-  for (int i = 0; i < 3; i++) {
+  for (uint32_t i = 0; i < 3; i++) {
     LocStructConst->AddItem(LocData[i], i + 1);
   }
   // Create a new symbol, MIRStructType is a subclass of MIRType
@@ -111,7 +111,7 @@ MIRAddrofConst *createAddrofConst(const MIRModule &mirModule, const MIRSymbol *m
 }
 
 // Create a constant for Str so that we can pass it to the run-time lib.
-MIRStrConst *createStringConst(const MIRModule &mirModule, std::basic_string<char> Str, PrimType primType) {
+MIRStrConst *createStringConst(const MIRModule &mirModule, const std::basic_string<char>& Str, PrimType primType) {
   MIRStrConst *strConst =
       mirModule.GetMemPool()->New<MIRStrConst>(GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(Str),
                                                *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(primType)));
@@ -143,7 +143,9 @@ bool isTypeSized(MIRType *type) {
     MIRStructType *structType = dynamic_cast<MIRStructType *>(type);
     if (structType) {
       for (size_t i = 1; i < structType->GetFieldsSize(); i++) {
-        if (!isTypeSized(structType->GetFieldType(i))) {
+        // FieldID type is int32, there should be a FieldID_MAX
+        CHECK_FATAL(i < INT32_MAX, "Too large filed size.");
+        if (!isTypeSized(structType->GetFieldType(FieldID(i)))) {
           return false;
         }
       }
@@ -175,7 +177,8 @@ int computeRedZoneField(MIRType *type) {
   if (type->IsStructType()) {
     MIRStructType *structType = dynamic_cast<MIRStructType *>(type);
     for (size_t i = 1; i < structType->GetFieldsSize(); i++) {
-      MIRType *subType = structType->GetFieldType(i);
+      CHECK_FATAL(i < INT32_MAX, "Too large field size.");
+      MIRType *subType = structType->GetFieldType(FieldID(i));
       field += computeRedZoneField(subType);
     }
   }
@@ -300,7 +303,7 @@ void print_stack(std::stack<T> &st) {
 }
 
 template <typename T>
-bool compareVectors(std::vector<T> a, std::vector<T> b) {
+bool compareVectors(const std::vector<T>& a, const std::vector<T>& b) {
   // I am not sure why the original implementation use
   // sets to compare the equivalence of two vectors (peformance?)
   // Anyway, I think we may not delete the following code now
@@ -518,7 +521,6 @@ void dep_dassign_expansion(DassignNode *dassign, set_check &dep, std::map<int32,
     }
   }
   if (required_to_clean_san) {
-    std::vector<std::vector<uint8>::iterator> it_vector;
     if (san_blacklist_stack.size() >= dep.opcode.size()) {
       for (size_t opcode_vect_i = 0; opcode_vect_i < dep.opcode.size(); ++opcode_vect_i) {
         dep.opcode.pop_back();
@@ -620,7 +622,7 @@ set_check commit(set_check old, set_check latest) {
   return old;
 }
 
-bool sat_check(set_check a, set_check b) {
+bool sat_check(const set_check& a, const set_check& b) {
   if (compareVectors(a.opcode, b.opcode)
       /*
       A strict check should also check
@@ -635,13 +637,12 @@ bool sat_check(set_check a, set_check b) {
 }
 
 void gen_register_dep(StmtNode *stmt, set_check &br_tmp, std::map<int32, std::vector<StmtNode *>> reg_to_stmt,
-                      std::map<uint32, std::vector<StmtNode *>> var_to_stmt, MeFunction func) {
+                      std::map<uint32, std::vector<StmtNode *>> var_to_stmt, const MeFunction& func) {
   while (!br_tmp.register_live.empty()) {
-    int32 register_to_check = br_tmp.register_live.top();
+    int32_t register_to_check = br_tmp.register_live.top();
     auto iter = reg_to_stmt.find(register_to_check);
     br_tmp.register_live.pop();
     if (iter != reg_to_stmt.end()) {
-      std::vector<StmtNode *> tmp = reg_to_stmt[register_to_check];
       StmtNode *latest_stmt_tmp = retLatest_Regassignment(stmt, register_to_check);
       if (latest_stmt_tmp != nullptr) {
         set_check br_tmp_go;
@@ -654,7 +655,7 @@ void gen_register_dep(StmtNode *stmt, set_check &br_tmp, std::map<int32, std::ve
     }
   }
   while (!br_tmp.var_live.empty()) {
-    uint32 var_to_check = br_tmp.var_live.top();
+    uint32_t var_to_check = br_tmp.var_live.top();
     auto iter = var_to_stmt.find(var_to_check);
     br_tmp.var_live.pop();
     if (iter != var_to_stmt.end()) {
@@ -758,7 +759,7 @@ std::map<int, san_struct> gen_dynmatch(std::string file_name) {
   return ret_log_update;
 }
 
-bool dynamic_sat(const san_struct a, const san_struct b, bool SCSC) {
+bool dynamic_sat(const san_struct& a, const san_struct& b, bool SCSC) {
   // For SC-UC case, SC must be var a
   if (a.tot_ctr == b.tot_ctr) {
     if ((a.l_ctr == b.l_ctr) || (a.l_ctr == b.r_ctr)) {

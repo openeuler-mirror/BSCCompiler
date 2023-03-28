@@ -10,16 +10,16 @@
 
 namespace maple {
 
-  static unsigned log2_32(uint32_t value) {
-    int n = 32;
-    unsigned y;
-
+  size_t log2_64(size_t value) {
+    size_t n = 64;
+    size_t y;
+    y = value >>32; if (y != 0) { n = n -32; value = y; }
     y = value >>16; if (y != 0) { n = n -16; value = y; }
     y = value >> 8; if (y != 0) { n = n - 8; value = y; }
     y = value >> 4; if (y != 0) { n = n - 4; value = y; }
     y = value >> 2; if (y != 0) { n = n - 2; value = y; }
     y = value >> 1; if (y != 0) { n = n - 1; }
-    return 32 - n;
+    return 64 - n;
   }
 
   static void getTypeKind(MIRType *mirType, uint16_t *typeKind, uint16_t *typeInfo) {
@@ -31,7 +31,7 @@ namespace maple {
 
     if (primType.IsInteger()) {
       *typeKind = 0;
-      *typeInfo = (log2_32(mirType->GetSize() << 3) << 1) | \
+      *typeInfo = (log2_64(mirType->GetSize() << 3) << 1) | \
                   (primType.IsUnsigned() ? 0 : 1);
     } else if (primType.IsFloat()) {
       *typeKind = 1;
@@ -282,22 +282,23 @@ namespace maple {
 
 
     UStrIdx typeName = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(arrayInfo->GetArrayTypeName(dim));
-    int arraySize = strlen(arrayInfo->GetArrayTypeName(dim).c_str());
+    size_t arraySize = arrayInfo->GetArrayTypeName(dim).size();
+    CHECK_FATAL(arraySize < 99, "Too long name for this arrayType.");
     constNode = mirModule->CurFuncCodeMemPool()->New<ConststrNode>(PTY_a64, typeName);
     arguments.push_back(mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetAddr64(),
                                                      mirBuilder->CreateAddrof(*arrayType, PTY_u64),
                                                      mirBuilder->CreateIntConst(4, PTY_a64)));
     arguments.push_back(constNode);
-    arguments.push_back(mirBuilder->GetConstUInt32(arraySize + 1));
+    arguments.push_back(mirBuilder->GetConstUInt32(uint32_t(arraySize + 1)));
     IntrinsiccallNode *intrinsiccallNode = mirBuilder->CreateStmtIntrinsicCall(INTRN_C_memcpy, arguments);
     intrinsiccallNode->InsertAfterThis(*labelStmt);
 
     arguments.clear();
     arguments.push_back(mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetAddr64(),
                                                      mirBuilder->CreateAddrof(*arrayType, PTY_u64),
-                                                     mirBuilder->CreateIntConst(5 + arraySize, PTY_a64)));
+                                                     mirBuilder->CreateIntConst(int(5 + arraySize), PTY_a64)));
     arguments.push_back(mirBuilder->CreateIntConst(0, PTY_u32));
-    arguments.push_back(mirBuilder->GetConstUInt32(99 - arraySize));
+    arguments.push_back(mirBuilder->GetConstUInt32(uint32_t(99 - arraySize)));
     intrinsiccallNode = mirBuilder->CreateStmtIntrinsicCall(INTRN_C_memset, arguments);
     intrinsiccallNode->InsertAfterThis(*labelStmt);
 
@@ -320,21 +321,22 @@ namespace maple {
     constNode = mirModule->CurFuncCodeMemPool()->New<ConststrNode>(PTY_a64, typeName);
 
     arraySize = strlen(GetPrimTypeName(arrayInfo->offset[dim]->GetPrimType()));
+    CHECK_FATAL(arraySize < 99, "Too long name for PrimTypeName.");
     arguments.clear();
     arguments.push_back(mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetAddr64(),
                                                      mirBuilder->CreateAddrof(*indexType, PTY_u64),
                                                      mirBuilder->CreateIntConst(4, PTY_a64)));
     arguments.push_back(constNode);
-    arguments.push_back(mirBuilder->GetConstUInt32( arraySize + 1));
+    arguments.push_back(mirBuilder->GetConstUInt32(uint32_t(arraySize + 1)));
     intrinsiccallNode = mirBuilder->CreateStmtIntrinsicCall(INTRN_C_memcpy, arguments);
     intrinsiccallNode->InsertAfterThis(*labelStmt);
 
     arguments.clear();
     arguments.push_back(mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetAddr64(),
                                                      mirBuilder->CreateAddrof(*indexType, PTY_u64),
-                                                     mirBuilder->CreateIntConst(5 + arraySize, PTY_a64)));
+                                                     mirBuilder->CreateIntConst(int(5 + arraySize), PTY_a64)));
     arguments.push_back(mirBuilder->CreateIntConst(0, PTY_u32));
-    arguments.push_back(mirBuilder->GetConstUInt32(99 - arraySize));
+    arguments.push_back(mirBuilder->GetConstUInt32(uint32_t(99 - arraySize)));
     intrinsiccallNode = mirBuilder->CreateStmtIntrinsicCall(INTRN_C_memset, arguments);
     intrinsiccallNode->InsertAfterThis(*labelStmt);
 

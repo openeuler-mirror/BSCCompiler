@@ -57,8 +57,10 @@ bool MEDoVarCheck::PhaseRun(maple::MeFunction &f) {
 
   MIRSymbolTable *symbolTable = mirFunction->GetSymTab();
   size_t size = symbolTable->GetSymbolTableSize();
-  for (size_t i = 0; i < size; ++i) {
-    MIRSymbol *symbol = symbolTable->GetSymbolFromStIdx(i);
+  // LabelIdx is the type of uint32_t, we should have a LabelIdx_MAX
+  CHECK_FATAL(size < UINT32_MAX, "Too large table size");
+  for (uint32_t i = 0; i < uint32_t(size); ++i) {
+    MIRSymbol *symbol = symbolTable->GetSymbolFromStIdx(LabelIdx(i));
     if (symbol == nullptr) {
       continue;
     }

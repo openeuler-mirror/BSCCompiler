@@ -39,7 +39,7 @@ class FunctionStackPoisoner {
 
   MIRSymbol *createAllocaForLayout(StmtNode *insBefore, MIRBuilder *mirBuilder, const ASanStackFrameLayout &L);
 
-  void unpoisonDynamicAllocasBeforeInst(StmtNode *InstBefore, MIRSymbol *SavedStack);
+  void unpoisonDynamicAllocasBeforeInst(StmtNode *InstBefore);
 
   void copyToShadow(const std::vector<uint8_t> ShadowMask, const std::vector<uint8_t> ShadowBytes, MIRBuilder *mirBuilder,
                     BaseNode *ShadowBase, StmtNode *InsBefore);
