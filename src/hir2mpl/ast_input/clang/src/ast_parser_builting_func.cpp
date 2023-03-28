@@ -1005,7 +1005,9 @@ ASTExpr *ASTParser::ParseBuiltinIsinfsign(MapleAllocator &allocator, const clang
   MIRType *mirType = astFile->CvtType(expr.getArg(0)->getType());
   if (mirType != nullptr) {
     PrimType type = mirType->GetPrimType();
-    if (type == PTY_f64) {
+    if (type == PTY_f128) {
+      ss << "__isinfl";
+    } else if (type == PTY_f64) {
       ss << "__isinf";
     } else if (type == PTY_f32) {
       ss << "__isinff";
