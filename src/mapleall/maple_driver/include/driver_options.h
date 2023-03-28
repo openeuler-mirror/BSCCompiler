@@ -1864,6 +1864,7 @@ extern maplecl::Option<bool> oFsanitizeRecover;
 extern maplecl::Option<bool> oFobjcStd;
 extern maplecl::Option<bool> oFobjcSjljExceptions;
 extern maplecl::Option<bool> oFrandomSeed;
+extern maplecl::Option<bool> tlsAggressiveOpt;
 
 /* ##################### STRING Options ############################################################### */
 

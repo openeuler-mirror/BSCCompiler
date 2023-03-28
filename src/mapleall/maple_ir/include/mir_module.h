@@ -694,6 +694,19 @@ class MIRModule {
 
   bool HasNotWarned(uint32 position, uint32 stmtOriginalID);
 
+  // now we use the full path name as the ankor name. Maybe a better way later.
+  void SetTlsAnchorHashString() {
+    std::string fileName = GetFileName();
+    std::replace(fileName.begin(), fileName.end(), '.', '$');
+    std::replace(fileName.begin(), fileName.end(), '/', '$');
+    std::replace(fileName.begin(), fileName.end(), '-', '$');
+    tlsAnchorHashString = fileName;
+  }
+
+  std::string &GetTlsAnchorHashString() {
+    return tlsAnchorHashString;
+  }
+
   MapleMap<const MIRSymbol*, uint64> &GetTdataVarOffset() {
     return tdataVarOffset;
   }
@@ -797,6 +810,7 @@ class MIRModule {
   std::map<CalleePair, std::map<float, std::vector<CallerSummary>>> calleeParamAboutFloat;
   std::map<PUIdx, std::vector<ImpExpr>> funcImportantExpr;
 
+  std::string tlsAnchorHashString = "";
   MapleMap<const MIRSymbol*, uint64> tdataVarOffset;
   MapleMap<const MIRSymbol*, uint64> tbssVarOffset;
 };

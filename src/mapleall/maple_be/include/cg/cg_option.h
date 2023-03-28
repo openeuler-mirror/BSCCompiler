@@ -100,14 +100,13 @@ class CGOptions {
     kHiddenVisibility,
     kProtectedVisibility
   };
- 
+
   enum TLSModel : uint8 {
     kDefaultTLSModel,
     kLocalExecTLSModel,
     kLocalDynamicTLSModel,
     kGlobalDynamicTLSModel,
     kInitialExecTLSModel,
-    kWarmupDynamicTLSModel
   };
 
   enum EmitFileType : uint8 {
@@ -1539,13 +1538,11 @@ class CGOptions {
       tlsModel = kInitialExecTLSModel;
     } else if (model == "local-exec") {
       tlsModel = kLocalExecTLSModel;
-    } else if (model == "warmup-dynamic") {
-      tlsModel = kWarmupDynamicTLSModel;
     } else {
       CHECK_FATAL_FALSE("unsupported tls model.");
     }
   }
- 
+
   static TLSModel GetTLSModel() {
     return tlsModel;
   }
@@ -1678,6 +1675,7 @@ class CGOptions {
   static bool doAggrOpt;
   static VisibilityType visibilityType;
   static TLSModel tlsModel;
+  static bool doTlsGlobalWarmUpOpt;
   static bool noplt;
 };
 }  /* namespace maplebe */

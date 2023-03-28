@@ -2229,8 +2229,8 @@ void Emitter::EmitLocalVariable(const CGFunc &cgFunc) {
     }
     emittedLocalSym.push_back(localName);
 
-    // temporary for WarmupDynamicTLS，need to be refactor later
-    if (st->IsThreadLocal() && CGOptions::GetTLSModel() == CGOptions::kWarmupDynamicTLSModel) {
+    // temporary for LocalDynamicTLS，need to be refactor later
+    if (st->IsThreadLocal() && CGOptions::IsShlib() && CGOptions::GetTLSModel() == CGOptions::kLocalDynamicTLSModel) {
       if (st->IsConst()) {
         globalTlsDataVec.emplace_back(st);
       } else {
@@ -2600,7 +2600,8 @@ void Emitter::EmitGlobalVariable() {
         globalVarVec.emplace_back(std::make_pair(mirSymbol, false));
         continue;
       }
-      if (CGOptions::GetTLSModel() == CGOptions::kWarmupDynamicTLSModel && mirSymbol->IsThreadLocal()) {
+      if (mirSymbol->IsThreadLocal() && CGOptions::IsShlib() &&
+          CGOptions::GetTLSModel() == CGOptions::kLocalDynamicTLSModel) {
         globalTlsBssVec.emplace_back(mirSymbol);
         continue;
       }
@@ -2612,8 +2613,9 @@ void Emitter::EmitGlobalVariable() {
     if (mirSymbol->GetStorageClass() == kScGlobal ||
         (mirSymbol->GetStorageClass() == kScExtern && GetCG()->GetMIRModule()->IsCModule()) ||
         (mirSymbol->GetStorageClass() == kScFstatic && !mirSymbol->IsReadOnly())) {
-      // process TLS warmup First, need to refactor
-      if (CGOptions::GetTLSModel() == CGOptions::kWarmupDynamicTLSModel && mirSymbol->IsThreadLocal()) {
+      // process TLS LocalDynamic First, need to refactor
+      if (mirSymbol->IsThreadLocal() && CGOptions::IsShlib() &&
+          CGOptions::GetTLSModel() == CGOptions::kLocalDynamicTLSModel) {
         if (mirSymbol->sectionAttr != UStrIdx(0)) {
           auto &sectionName = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirSymbol->sectionAttr);
           LogInfo::MapleLogger() << "sectionName is : " << sectionName << "\n";
@@ -3119,7 +3121,7 @@ void Emitter::EmitTLSBlock(const std::vector<MIRSymbol*> &tdataVec, const std::v
   if (!tdataVec.empty()) {
     Emit("\t.section\t.tdata,\"awT\",@progbits\n");
     Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
-    InsertAnchor("tdata_start", 0);
+    InsertAnchor("tdata_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
     for (const auto tdataSym : tdataVec) {
       if (tdataSym->GetAttr(ATTR_weak)) {
         EmitAsmLabel(*tdataSym, kAsmWeak);
@@ -3158,7 +3160,7 @@ void Emitter::EmitTLSBlock(const std::vector<MIRSymbol*> &tdataVec, const std::v
   if (!tbssVec.empty()) {
     Emit("\t.section\t.tbss,\"awT\",@nobits\n");
     Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
-    InsertAnchor("tbss_start", 0);
+    InsertAnchor("tbss_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
     for (auto *tbssSym : tbssVec) {
       if (tbssSym->GetAttr(ATTR_weak)) {
         EmitAsmLabel(*tbssSym, kAsmWeak);

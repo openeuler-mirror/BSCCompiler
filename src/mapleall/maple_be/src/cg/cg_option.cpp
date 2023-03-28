@@ -746,7 +746,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::functionReorderProfile.IsEnabledByUser()) {
     SetFunctionReorderProfile(opts::functionReorderProfile);
-  } 
+  }
 
   if (opts::fVisibility.IsEnabledByUser()) {
     SetVisibilityType(opts::fVisibility);

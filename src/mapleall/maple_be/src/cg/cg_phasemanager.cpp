@@ -71,25 +71,24 @@ void DumpMIRFunc(MIRFunction &func, const char *msg, bool printAlways = false, c
 // call to __tls_get_addr has been arranged at init_array of specific so/exec
 // the TLSLD entry of the module will be recorded in a global accessable symbol
 void PrepareForWarmupDynamicTLS(MIRModule &m) {
+  if (m.GetTdataVarOffset().empty() && m.GetTbssVarOffset().empty()) {
+    return;
+  }
   auto *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
   auto *anchorMirConst = m.GetMemPool()->New<MIRIntConst>(0, *ptrType);
-  auto *tdataAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tdata_addr", *ptrType);
-  auto *tbssAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tbss_addr", *ptrType);
-  tdataAnchorSym->SetKonst(anchorMirConst);
-  tbssAnchorSym->SetKonst(anchorMirConst);
 
   ArgVector formals(m.GetMPAllocator().Adapter());
   MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
-  auto *tlsWarmup = m.GetMIRBuilder()->CreateFunction("__tls_address_warmup", *voidTy, formals);
-  // since each module may has its own tlsWarmup, mark it as weak in case for preemption
-  tlsWarmup->SetAttr(FUNCATTR_weak);
+  auto *tlsWarmup = m.GetMIRBuilder()->CreateFunction("__tls_address_warmup_" + m.GetTlsAnchorHashString(), *voidTy, formals);
   auto *warmupBody = tlsWarmup->GetCodeMempool()->New<BlockNode>();
   MIRSymbol *tempAnchorSym = nullptr;
   AddrofNode *tlsAddrNode = nullptr;
   DassignNode *dassignNode = nullptr;
 
   if (!m.GetTdataVarOffset().empty()) {
-    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tdata_start", *ptrType);
+    auto *tdataAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tdata_addr_" + m.GetTlsAnchorHashString(), *ptrType);
+    tdataAnchorSym->SetKonst(anchorMirConst);
+    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tdata_start_" + m.GetTlsAnchorHashString(), *ptrType);
     tempAnchorSym->SetIsDeleted();
     tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
     dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
@@ -100,7 +99,9 @@ void PrepareForWarmupDynamicTLS(MIRModule &m) {
   }
 
   if (!m.GetTbssVarOffset().empty()) {
-    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tbss_start", *ptrType);
+    auto *tbssAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tbss_addr_" + m.GetTlsAnchorHashString(), *ptrType);
+    tbssAnchorSym->SetKonst(anchorMirConst);
+    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tbss_start_" + m.GetTlsAnchorHashString(), *ptrType);
     tempAnchorSym->SetIsDeleted();
     tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
     dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
@@ -116,6 +117,8 @@ void PrepareForWarmupDynamicTLS(MIRModule &m) {
   m.AddFunction(tlsWarmup);
 }
 
+
+// calculate all local dynamic TLS offset from the anchor
 void CalculateWarmupDynamicTLS(MIRModule &m) {
   size_t size = GlobalTables::GetGsymTable().GetSymbolTableSize();
   MIRType *mirType = nullptr;
@@ -156,7 +159,10 @@ void CalculateWarmupDynamicTLS(MIRModule &m) {
 
   for (size_t i = 0; i < size; ++i) {
     const MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
-    if (mirSymbol != nullptr && (mirSymbol->IsThreadLocal())) {
+    if (mirSymbol == nullptr || mirSymbol->GetStorageClass() == kScExtern) {
+      continue;
+    }
+    if (mirSymbol->IsThreadLocal()) {
       mirType = mirSymbol->GetType();
       if (!mirSymbol->IsConst()) {
         tbssOffset = RoundUp(tbssOffset, mirType->GetAlign());
@@ -435,7 +441,8 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 
     auto reorderedFunctions = ReorderFunction(m, priorityList);
 
-    if (CGOptions::GetTLSModel() == CGOptions::kWarmupDynamicTLSModel) {
+    if (CGOptions::IsShlib() && CGOptions::GetTLSModel() == CGOptions::kLocalDynamicTLSModel) {
+      m.SetTlsAnchorHashString();
       CalculateWarmupDynamicTLS(m);
       PrepareForWarmupDynamicTLS(m);
     }

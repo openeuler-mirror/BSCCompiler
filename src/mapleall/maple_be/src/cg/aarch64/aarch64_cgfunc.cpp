@@ -3002,7 +3002,8 @@ RegOperand *AArch64CGFunc::SelectRegread(RegreadNode &expr) {
 
 void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field) {
   const MIRSymbol *symbol = stImm.GetSymbol();
-  if (symbol->GetName() == ".tbss_start" || symbol->GetName() == ".tdata_start") {
+  if (symbol->GetName() == ".tbss_start_" + GetMirModule().GetTlsAnchorHashString() ||
+      symbol->GetName() == ".tdata_start_" + GetMirModule().GetTlsAnchorHashString()) {
     SelectThreadAnchor(result, stImm);
     return;
   }
@@ -8005,7 +8006,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
 
     auto *mirType = argsDesc[i].mirType;
 
-    // get param opnd, for unpreCody agg, opnd must be mem opnd 
+    // get param opnd, for unpreCody agg, opnd must be mem opnd
     Operand *opnd = nullptr;
     auto preCopyed = argsDesc[i].preCopyed;
     if (preCopyed) {  // preCopyed agg, passed by address
@@ -10183,17 +10184,24 @@ void AArch64CGFunc::SelectAtomicStore(
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, LoadIntoRegister(srcOpnd, primType), memOpnd));
 }
 
-void AArch64CGFunc::SelectTLSModelByAttr(Operand &result, StImmOperand &stImm) {
+bool AArch64CGFunc::SelectTLSModelByAttr(Operand &result, StImmOperand &stImm) {
   const MIRSymbol *symbol = stImm.GetSymbol();
   if (symbol->GetAttr(ATTR_local_exec)) {
     SelectCTlsLocalDesc(result, stImm); // local-exec
   } else if (symbol->GetAttr(ATTR_initial_exec)) {
     SelectCTlsGotDesc(result, stImm); // initial-exec
   } else if (symbol->GetAttr(ATTR_local_dynamic)) {
-    SelectCTlsGlobalDesc(result, stImm); // local-dynamic
+    if (stImm.GetSymbol()->GetStorageClass() != kScExtern) {
+      SelectCTlsLoad(result, stImm); // local-dynamic
+      return true;
+    } else {
+      SelectCTlsGlobalDesc(result, stImm);
+      return false;
+    }
   } else if (symbol->GetAttr(ATTR_global_dynamic)) {
     SelectCTlsGlobalDesc(result, stImm); // global-dynamic
   }
+  return false;
 }
 
 bool AArch64CGFunc::SelectTLSModelByOption(Operand &result, StImmOperand &stImm,  bool isShlib) {
@@ -10205,12 +10213,14 @@ bool AArch64CGFunc::SelectTLSModelByOption(Operand &result, StImmOperand &stImm,
       if (ftlsModel == CGOptions::kInitialExecTLSModel) {
         SelectCTlsGotDesc(result, stImm);
       } else if (ftlsModel == CGOptions::kLocalDynamicTLSModel) {
-        SelectCTlsGlobalDesc(result, stImm);
+        if (stImm.GetSymbol()->GetStorageClass() != kScExtern) {
+          SelectCTlsLoad(result, stImm);
+          return true;
+        } else {
+          SelectCTlsGlobalDesc(result, stImm);
+        }
       } else if (ftlsModel == CGOptions::kGlobalDynamicTLSModel) {
         SelectCTlsGlobalDesc(result, stImm);
-      } else if (ftlsModel == CGOptions::kWarmupDynamicTLSModel) {
-        SelectCTlsLoad(result, stImm);
-        return true;
       }
     } else { // no PIC
       if (stImm.GetSymbol()->GetStorageClass() == kScExtern) {
@@ -10223,7 +10233,7 @@ bool AArch64CGFunc::SelectTLSModelByOption(Operand &result, StImmOperand &stImm,
   return false;
 }
 
-void AArch64CGFunc::SelectTLSModelByPreemptibility(Operand &result, StImmOperand &stImm, bool isShlib) {
+bool AArch64CGFunc::SelectTLSModelByPreemptibility(Operand &result, StImmOperand &stImm, bool isShlib) {
   bool isLocal = stImm.GetSymbol()->GetStorageClass() != kScExtern;
   if (!isShlib) {
     if (isLocal) {
@@ -10238,25 +10248,26 @@ void AArch64CGFunc::SelectTLSModelByPreemptibility(Operand &result, StImmOperand
       SelectCTlsGlobalDesc(result, stImm); // global-dynamic
     }
   }
+  return false;
 }
 
 void AArch64CGFunc::SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm) {
-  bool isUsingWarmup = false;
+  bool isLocalDynamic = false;
   // judge the model of this TLS symbol by this order:
   if (!stImm.GetSymbol()->IsDefaultTLSModel()) {
     // 1. if it has its already-defined non-default tls_model attribute
-    SelectTLSModelByAttr(result, stImm);
+    isLocalDynamic = SelectTLSModelByAttr(result, stImm);
   } else {
     bool isShlib = CGOptions::IsShlib();
     if (CGOptions::GetTLSModel() != CGOptions::kDefaultTLSModel) {
       // 2. if it does not has already-defined model attribute, check for file-wide '-ftls-model' option
-      isUsingWarmup = SelectTLSModelByOption(result, stImm, isShlib);
+      isLocalDynamic = SelectTLSModelByOption(result, stImm, isShlib);
     } else {
       // 3. if no attribute or option, choose its model by fPIC option and its preemptibility
-      SelectTLSModelByPreemptibility(result, stImm, isShlib);
+      isLocalDynamic = SelectTLSModelByPreemptibility(result, stImm, isShlib);
     }
   }
-  if (stImm.GetOffset() > 0 && !isUsingWarmup) { // warmup-dynamic does not need this extern ADD insn
+  if (stImm.GetOffset() > 0 && !isLocalDynamic) { // warmup-dynamic does not need this extern ADD insn
     auto &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
     SelectAdd(result, result, immOpnd, PTY_u64);
   }
@@ -10303,6 +10314,7 @@ void AArch64CGFunc::SelectCTlsLoad(Operand &result, StImmOperand &stImm) {
     MapleMap<const MIRSymbol*, uint64> &tbssVarOffset = GetMirModule().GetTbssVarOffset();
     if (tbssVarOffset.find(st) != tbssVarOffset.end()) {
       offset = static_cast<int64>(tbssVarOffset.at(st));
+      offset += stImm.GetOffset();
       if (offset) {
         immOpnd = &CreateImmOperand(offset, k32BitSize, false);
         SelectAdd(result, result, *immOpnd, PTY_u64);
@@ -10314,6 +10326,7 @@ void AArch64CGFunc::SelectCTlsLoad(Operand &result, StImmOperand &stImm) {
     MapleMap<const MIRSymbol*, uint64> &tdataVarOffset = GetMirModule().GetTdataVarOffset();
     if (tdataVarOffset.find(st) != tdataVarOffset.end()) {
       offset = static_cast<int64>(tdataVarOffset.at(st));
+      offset += stImm.GetOffset();
       if (offset) {
         immOpnd = &CreateImmOperand(offset, k32BitSize, false);
         SelectAdd(result, result, *immOpnd, PTY_u64);

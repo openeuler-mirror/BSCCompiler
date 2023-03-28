@@ -911,9 +911,9 @@ class AArch64CGFunc : public CGFunc {
   void SelectCAtomicLoad(const IntrinsiccallNode &intrinsiccall);
   void SelectCSyncLockRelease(const IntrinsiccallNode &intrinsiccall, PrimType primType);
   void SelectAtomicStore(Operand &srcOpnd, Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
-  void SelectTLSModelByAttr(Operand &result, StImmOperand &stImm);
+  bool SelectTLSModelByAttr(Operand &result, StImmOperand &stImm);
   bool SelectTLSModelByOption(Operand &result, StImmOperand &stImm, bool isShlib);
-  void SelectTLSModelByPreemptibility(Operand &result, StImmOperand &stImm, bool isShlib);
+  bool SelectTLSModelByPreemptibility(Operand &result, StImmOperand &stImm, bool isShlib);
   void SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm);
   void SelectThreadAnchor(Operand &result, StImmOperand &stImm);
   void SelectCTlsLocalDesc(Operand &result, StImmOperand &stImm);
