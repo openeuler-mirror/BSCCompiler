@@ -16,7 +16,7 @@
 #include <gmock/gmock.h>
 #include <memory>
 #include <list>
-#include "bc_parser.h"
+#include "bc_parser-inl.h"
 #include "dex_parser.h"
 #include "bc_class.h"
 #include "types_def.h"

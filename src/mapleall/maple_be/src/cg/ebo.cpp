@@ -879,7 +879,7 @@ void Ebo::RemoveInsn(InsnInfo &info) const {
 }
 
 /* Mark opnd is live between def bb and into bb. */
-void Ebo::MarkOpndLiveIntoBB(const Operand &opnd, BB &into, BB &def) const {
+void Ebo::MarkOpndLiveIntoBB(const Operand &opnd, BB &into, const BB &def) const {
   if (live == nullptr) {
     return;
   }

@@ -71,7 +71,7 @@ bool CGProfUse::PhaseRun(maplebe::CGFunc &f) {
   CgProfUse cgprofuse(f, *GetPhaseMemPool());
   cgprofuse.setupProf();
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   if (CGOptions::FuncFilter(f.GetName())) {
     DotGenerator::GenerateDot("after-CGProfUse", f, f.GetMirModule(), false, f.GetName());
   }

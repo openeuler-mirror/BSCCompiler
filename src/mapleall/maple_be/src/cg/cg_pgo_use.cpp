@@ -735,7 +735,7 @@ void CGProfUse::ReTargetSuccBB(BB &bb, BB &fallthru) {
   bb.SetKind(BB::kBBGoto);
 }
 
-void CGProfUse::ChangeToFallthruFromGoto(BB &bb) {
+void CGProfUse::ChangeToFallthruFromGoto(BB &bb) const {
   CHECK_FATAL(bb.GetLastMachineInsn(), "Get last insn in GOTO bb failed");
   bb.RemoveInsn(*bb.GetLastMachineInsn());
   bb.SetKind(BB::kBBFallthru);

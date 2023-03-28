@@ -179,7 +179,7 @@ void BB::InsertAtBeginning(BB &bb) {
   bb.firstInsn = bb.lastInsn = nullptr;
 }
 
-void BB::InsertBeforeInsn(BB &fromBB, Insn &beforeInsn) {
+void BB::InsertBeforeInsn(BB &fromBB, Insn &beforeInsn) const {
   if (fromBB.firstInsn == nullptr) { /* nothing to add */
     return;
   }

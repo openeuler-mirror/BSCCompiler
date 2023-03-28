@@ -72,7 +72,8 @@ class InterDataDepAnalysis {
   void BuildSpecialInsnDependency(Insn &insn, CDGNode &cdgNode, CDGRegion &region, MapleAllocator &alloc);
   void UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, CDGNode &cdgNode);
   void AddEndSeparatorNode(CDGRegion &region, CDGNode &cdgNode);
-  void UpdateReadyNodesInfo(MapleAllocator &regionAlloc, CDGRegion &region, CDGNode &cdgNode, const CDGNode &root);
+  void UpdateReadyNodesInfo(MapleAllocator &regionAlloc, CDGRegion &region, CDGNode &cdgNode,
+                            const CDGNode &root) const;
 
  private:
   CGFunc &cgFunc;

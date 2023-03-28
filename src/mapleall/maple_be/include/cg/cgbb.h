@@ -227,7 +227,7 @@ class BB {
   void RemoveInsnSequence(Insn &insn, const Insn &nextInsn);
 
   /* prepend all insns from bb before insn */
-  void InsertBeforeInsn(BB &fromBB, Insn &beforeInsn);
+  void InsertBeforeInsn(BB &fromBB, Insn &beforeInsn) const;
 
   /* append all insns from bb into this bb */
   void AppendBBInsns(BB &bb);

@@ -568,11 +568,8 @@ void CgFuncPM::InitProfile(MIRModule &m)  const {
   }
   if (!CGOptions::GetLiteProfile().empty()) {
     bool handleSucc = m.GetLiteProfile().HandleLitePGOFile(CGOptions::GetLiteProfile(), m.GetFileName());
-    CHECK_FATAL(handleSucc, "Error: Open Lite PGO input file failed");
-    if (!handleSucc) {
-      LogInfo::MapleLogger() << "WARN: Handle Lite PGO input file " << CGOptions::GetLiteProfile() <<
-                                "failed in mplcg\n";
-    }
+    CHECK_FATAL(handleSucc, "Error: Handle Lite PGO input file ",
+                CGOptions::GetLiteProfile().c_str(), "failed in mplcg");
   }
 }
 

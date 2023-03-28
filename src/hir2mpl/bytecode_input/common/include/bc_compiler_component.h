@@ -16,7 +16,7 @@
 #define HIR2MPL_BC_INPUT_INCLUDE_BC_COMPILER_COMPONENT_H
 #include "fe_macros.h"
 #include "hir2mpl_compiler_component.h"
-#include "bc_input.h"
+#include "bc_input-inl.h"
 
 namespace maple {
 namespace bc {
@@ -50,5 +50,4 @@ class BCCompilerComponent : public HIR2MPLCompilerComponent {
 };  // class BCCompilerComponent
 }  // namespace bc
 }  // namespace maple
-#include "bc_compiler_component-inl.h"
 #endif  // HIR2MPL_BC_INPUT_INCLUDE_BC_COMPILER_COMPONENT_H

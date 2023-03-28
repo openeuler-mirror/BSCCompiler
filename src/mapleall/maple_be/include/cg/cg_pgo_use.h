@@ -174,7 +174,7 @@ class CGProfUse {
   void AddBBProf(BB &bb);
   void AddBB(BB &bb);
   void ReTargetSuccBB(BB &bb, BB &fallthru);
-  void ChangeToFallthruFromGoto(BB &bb);
+  void ChangeToFallthruFromGoto(BB &bb) const;
   LabelIdx GetOrCreateBBLabIdx(BB &bb) const;
 
   void InitFrequencyReversePostOrderBBList();

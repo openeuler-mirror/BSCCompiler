@@ -22,7 +22,7 @@
 #include "hir2mpl_options.h"
 #include "jbc_compiler_component.h"
 #include "fe_options.h"
-#include "bc_compiler_component.h"
+#include "bc_compiler_component-inl.h"
 #include "ark_annotation_processor.h"
 #include "dex_reader.h"
 #include "ast_compiler_component.h"

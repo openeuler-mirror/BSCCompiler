@@ -381,7 +381,7 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) const {
   }
   for (size_t i = 0; i < labelVec.size(); ++i) {
     if (labelVec[i] == sucBB.GetLabIdx()) {
-      curBB.SetRangeGotoLabel(i, gotoTarget->GetLabIdx());
+      curBB.SetRangeGotoLabel(static_cast<uint32>(i), gotoTarget->GetLabIdx());
     }
   }
   cgFunc->UpdateEmitSt(curBB, sucBB.GetLabIdx(), gotoTarget->GetLabIdx());

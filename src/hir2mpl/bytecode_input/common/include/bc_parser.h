@@ -94,5 +94,4 @@ class MethodProcessSchedular : public MplScheduler {
 };
 }  // namespace bc
 }  // namespace maple
-#include "bc_parser-inl.h"
 #endif  // MPL_FE_BC_INPUT_BC_PARSER_H

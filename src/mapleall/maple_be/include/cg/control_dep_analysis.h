@@ -60,7 +60,7 @@ class ControlDepAnalysis {
 
   /* Provide scheduling-related interfaces */
   void ComputeSingleBBRegions(); // For local-scheduling in a single BB
-  void GetEquivalentNodesInRegion(CDGRegion &region, CDGNode &cdgNode, std::vector<CDGNode*> &equivalentNodes);
+  void GetEquivalentNodesInRegion(CDGRegion &region, CDGNode &cdgNode, std::vector<CDGNode*> &equivalentNodes) const;
 
   /* Interface for obtaining PDGAnalysis infos */
   FCDG *GetFCDG() {
@@ -93,7 +93,7 @@ class ControlDepAnalysis {
   void ComputeRegionForCurNode(uint32 curBBId, std::vector<bool> &visited);
   void CreateAndDivideRegion(uint32 pBBId);
   void ComputeRegionForNonDepNodes();
-  CDGRegion *FindExistRegion(CDGNode &node);
+  CDGRegion *FindExistRegion(CDGNode &node) const;
   bool IsISEqualToCDs(CDGNode &parent, CDGNode &child);
   void MergeRegions(CDGNode &mergeNode, CDGNode &candiNode);
 

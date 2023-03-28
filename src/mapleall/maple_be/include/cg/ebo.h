@@ -168,7 +168,7 @@ class Ebo {
   InsnInfo *GetNewInsnInfo(Insn &insn);
   int32 ComputeOpndHash(const Operand &opnd) const;
   uint32 ComputeHashVal(Insn &insn, const MapleVector<OpndInfo*> &opndInfos) const;
-  void MarkOpndLiveIntoBB(const Operand &opnd, BB &into, BB &def) const;
+  void MarkOpndLiveIntoBB(const Operand &opnd, BB &into, const BB &def) const;
   void RemoveInsn(InsnInfo &info) const;
   void RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo) const;
   void HashInsn(Insn &insn, const MapleVector<OpndInfo*> &origInfo, const MapleVector<OpndInfo*> &opndInfos);

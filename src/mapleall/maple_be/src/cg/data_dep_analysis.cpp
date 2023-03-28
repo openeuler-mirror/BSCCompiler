@@ -312,7 +312,7 @@ void InterDataDepAnalysis::UpdateRegUseAndDef(Insn &insn, const DepNode &depNode
 }
 
 void InterDataDepAnalysis::UpdateReadyNodesInfo(MapleAllocator &regionAlloc, CDGRegion &region, CDGNode &cdgNode,
-                                                const CDGNode &root) {
+                                                const CDGNode &root) const {
   BB *bb = cdgNode.GetBB();
   CHECK_FATAL(bb != nullptr, "get bb from cdgNode failed");
   for (auto succIt = bb->GetSuccsBegin(); succIt != bb->GetSuccsEnd(); ++succIt) {

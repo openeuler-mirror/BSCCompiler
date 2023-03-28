@@ -19,7 +19,7 @@
 #include <list>
 #include "mir_module.h"
 #include "bc_class.h"
-#include "bc_parser.h"
+#include "bc_parser-inl.h"
 
 namespace maple {
 namespace bc {
@@ -51,5 +51,4 @@ class BCInput {
 };
 }
 }
-#include "bc_input-inl.h"
 #endif  // HIR2MPL_BC_INPUT_INCLUDE_BC_INPUT_H

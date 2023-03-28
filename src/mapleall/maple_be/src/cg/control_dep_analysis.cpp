@@ -461,7 +461,7 @@ void ControlDepAnalysis::CreateAndDivideRegion(uint32 pBBId) {
 }
 
 /* Check whether the region corresponding to the control dependence set exists */
-CDGRegion *ControlDepAnalysis::FindExistRegion(CDGNode &node) {
+CDGRegion *ControlDepAnalysis::FindExistRegion(CDGNode &node) const {
   MapleVector<CDGRegion*> &allRegions = fcdg->GetAllRegions();
   MapleVector<CDGEdge*> &curCDs = node.GetAllInEdges();
   // Nodes that don't have control dependencies are processed in a unified method at last
@@ -601,7 +601,7 @@ void ControlDepAnalysis::CreateAllCDGNodes() {
  * And it must be behind the current cdgNode in the topology order
  */
 void ControlDepAnalysis::GetEquivalentNodesInRegion(CDGRegion &region, CDGNode &cdgNode,
-                                                    std::vector<CDGNode*> &equivalentNodes) {
+                                                    std::vector<CDGNode*> &equivalentNodes) const {
   BB *curBB = cdgNode.GetBB();
   CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
   MapleVector<CDGNode*> &memberNodes = region.GetRegionNodes();

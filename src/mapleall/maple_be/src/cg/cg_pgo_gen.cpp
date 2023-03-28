@@ -20,7 +20,7 @@
 
 namespace maplebe {
 uint64 CGProfGen::counterIdx = 0;
-std::string AppendModSpecSuffix(MIRModule &m) {
+std::string AppendModSpecSuffix(const MIRModule &m) {
   std::string specSuffix = "_";
   specSuffix = specSuffix + std::to_string(DJBHash(m.GetEntryFuncName().c_str()) + m.GetNumFuncs());
   return specSuffix;
