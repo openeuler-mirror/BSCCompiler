@@ -15,8 +15,30 @@
 #ifndef MAPLE_DRIVER_INCLUDE_FILE_UTILS_H
 #define MAPLE_DRIVER_INCLUDE_FILE_UTILS_H
 #include <string>
+#include "types_def.h"
 
 namespace maple {
+  enum class InputFileType {
+  kFileTypeNone,
+  kFileTypeClass,
+  kFileTypeJar,
+  kFileTypeAst,
+  kFileTypeCpp,
+  kFileTypeC,
+  kFileTypeDex,
+  kFileTypeMpl,
+  kFileTypeVtableImplMpl,
+  kFileTypeS,
+  kFileTypeObj,
+  kFileTypeBpl,
+  kFileTypeMeMpl,
+  kFileTypeMbc,
+  kFileTypeLmbc,
+  kFileTypeH,
+  kFileTypeI,
+  kFileTypeOast,
+};
+
 extern const std::string kFileSeperatorStr;
 extern const char kFileSeperatorChar;
 // Use char[] since getenv receives char* as parameter
@@ -46,6 +68,9 @@ class FileUtils {
   static bool IsFileExists(const std::string &filePath);
   static std::string AppendMapleRootIfNeeded(bool needRootPath, const std::string &path,
                                              const std::string &defaultRoot = "." + kFileSeperatorStr);
+  static InputFileType GetFileType(const std::string &filePath);
+  static InputFileType GetFileTypeByMagicNumber(const std::string &pathName);
+
   const std::string &GetTmpFolder() const {
     return tmpFolderPath;
   };
@@ -58,6 +83,8 @@ class FileUtils {
   ~FileUtils() {
     DelTmpDir();
   }
+  static const uint32 kMagicAST = 0x48435043;
+  static const uint32 kMagicELF = 0x464c457f;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_FILE_UTILS_H

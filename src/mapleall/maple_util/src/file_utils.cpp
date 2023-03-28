@@ -140,32 +140,53 @@ std::string FileUtils::GetFileName(const std::string &filePath, bool isWithExten
   return StringUtils::GetStrBeforeLast(fullFileName, ".");
 }
 
-std::string GetFileType(const std::string &filePath) {
-  std::string tmp = "file " + filePath + "| awk '{print $2}'";
-  const char* cmd = tmp.c_str();
-  const int size = 1024;
-  FILE *fp = nullptr;
-  char buf[size] = {0};
-  CHECK_FATAL((fp = popen(cmd, "r")) != nullptr, "Failed to get file type");
-  while (fgets(buf, size, fp) != nullptr) {}
-  (void)pclose(fp);
-  fp = nullptr;
-  std::string result(buf);
-  CHECK_FATAL(result.size() != 0, "Failed to create tmp folder");
-  return result;
-}
-
 std::string FileUtils::GetFileExtension(const std::string &filePath) {
   std::string  fileExtension = StringUtils::GetStrAfterLast(filePath, ".", true);
-  if (fileExtension == "o") {
-    std::string filetype = GetFileType(filePath);
-    if (filetype.find("ELF") != std::string::npos) {
-      return fileExtension;
-    } else {
-      return "oast";
-    }
-  }
   return fileExtension;
+}
+
+InputFileType FileUtils::GetFileType(const std::string &filePath) {
+  InputFileType fileType = InputFileType::kFileTypeNone;
+  std::string extensionName = GetFileExtension(filePath);
+  if (extensionName == "class") {
+    fileType = InputFileType::kFileTypeClass;
+  } else if (extensionName == "dex") {
+    fileType = InputFileType::kFileTypeDex;
+  } else if (extensionName == "c") {
+    fileType = InputFileType::kFileTypeC;
+  } else if (extensionName == "cpp") {
+    fileType = InputFileType::kFileTypeCpp;
+  } else if (extensionName == "ast") {
+    fileType = InputFileType::kFileTypeAst;
+  } else if (extensionName == "jar") {
+    fileType = InputFileType::kFileTypeJar;
+  } else if (extensionName == "mpl" || extensionName == "bpl") {
+    if (filePath.find("VtableImpl") == std::string::npos) {
+      if (filePath.find(".me.mpl") != std::string::npos) {
+        fileType = InputFileType::kFileTypeMeMpl;
+      } else {
+        fileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
+      }
+    } else {
+      fileType = InputFileType::kFileTypeVtableImplMpl;
+    }
+  } else if (extensionName == "s" || extensionName == "S") {
+    fileType = InputFileType::kFileTypeS;
+  } else if (extensionName == "o") {
+    fileType = GetFileTypeByMagicNumber(filePath);
+  } else if (extensionName == "mbc") {
+    fileType = InputFileType::kFileTypeMbc;
+  } else if (extensionName == "lmbc") {
+    fileType = InputFileType::kFileTypeLmbc;
+  } else if (extensionName == "h") {
+    fileType = InputFileType::kFileTypeH;
+  } else if (extensionName == "i") {
+    fileType = InputFileType::kFileTypeI;
+  } else if (extensionName == "oast") {
+    fileType = InputFileType::kFileTypeOast;
+  }
+
+  return fileType;
 }
 
 std::string FileUtils::GetExecutable() {
@@ -258,6 +279,20 @@ bool FileUtils::DelTmpDir() const {
     return false;
   }
   return true;
+}
+
+InputFileType FileUtils::GetFileTypeByMagicNumber(const std::string &pathName) {
+  std::ifstream file(GetRealPath(pathName));
+  if (!file.is_open()) {
+    ERR(kLncErr, "unable to open file %s", pathName.c_str());
+    return InputFileType::kFileTypeNone;
+  }
+  uint32 magic = 0;
+  int length = static_cast<int>(sizeof(uint32));
+  (void)file.read(reinterpret_cast<char*>(&magic), length);
+  file.close();
+  return magic == kMagicAST ? InputFileType::kFileTypeOast : magic == kMagicELF ? InputFileType::kFileTypeObj :
+                                                                                  InputFileType::kFileTypeNone;
 }
 
 }  // namespace maple

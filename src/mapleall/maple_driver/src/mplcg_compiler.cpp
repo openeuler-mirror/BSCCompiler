@@ -204,9 +204,9 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, const Action &action,
     theModule->SetWithMe(
         std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(),
                   kBinNameMe) != options.GetRunningExes().end());
-    if (action.GetInputFileType() != kFileTypeBpl &&
-        action.GetInputFileType() != kFileTypeMbc &&
-        action.GetInputFileType() != kFileTypeLmbc) {
+    if (action.GetInputFileType() != InputFileType::kFileTypeBpl &&
+        action.GetInputFileType() != InputFileType::kFileTypeMbc &&
+        action.GetInputFileType() != InputFileType::kFileTypeLmbc) {
       std::unique_ptr<MIRParser> theParser;
       theParser.reset(new MIRParser(*theModule));
       bool parsed = theParser->ParseMIR(0, cgOption.GetParserOption());

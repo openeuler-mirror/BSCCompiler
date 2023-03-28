@@ -30,27 +30,6 @@
 #include "mir_module.h"
 
 namespace maple {
-enum InputFileType {
-  kFileTypeNone,
-  kFileTypeClass,
-  kFileTypeJar,
-  kFileTypeAst,
-  kFileTypeCpp,
-  kFileTypeC,
-  kFileTypeDex,
-  kFileTypeMpl,
-  kFileTypeVtableImplMpl,
-  kFileTypeS,
-  kFileTypeObj,
-  kFileTypeBpl,
-  kFileTypeMeMpl,
-  kFileTypeMbc,
-  kFileTypeLmbc,
-  kFileTypeH,
-  kFileTypeI,
-  kFileTypeOast,
-};
-
 enum OptimizationLevel {
   kO0,
   kO1,
@@ -78,7 +57,7 @@ class InputInfo {
  public:
   explicit InputInfo(const std::string &inputFile)
       : inputFile(inputFile) {
-    inputFileType = GetInputFileType(inputFile);
+    inputFileType =  FileUtils::GetFileType(inputFile);
 
     inputName = FileUtils::GetFileName(inputFile, true);
     inputFolder = FileUtils::GetFileFolder(inputFile);
@@ -101,55 +80,6 @@ class InputInfo {
         fullOutput(fullOutput) {}
 
   ~InputInfo() = default;
-  static InputFileType GetInputFileType(const std::string &inputFilePath) {
-    InputFileType fileType = InputFileType::kFileTypeNone;
-    std::string extensionName = FileUtils::GetFileExtension(inputFilePath);
-    if (extensionName == "class") {
-      fileType = InputFileType::kFileTypeClass;
-    }
-    else if (extensionName == "dex") {
-      fileType = InputFileType::kFileTypeDex;
-    }
-    else if (extensionName == "c") {
-      fileType = InputFileType::kFileTypeC;
-    }
-    else if (extensionName == "cpp") {
-      fileType = InputFileType::kFileTypeCpp;
-    }
-    else if (extensionName == "ast") {
-      fileType = InputFileType::kFileTypeAst;
-    }
-    else if (extensionName == "jar") {
-      fileType = InputFileType::kFileTypeJar;
-    }
-    else if (extensionName == "mpl" || extensionName == "bpl") {
-      if (inputFilePath.find("VtableImpl") == std::string::npos) {
-        if (inputFilePath.find(".me.mpl") != std::string::npos) {
-          fileType = InputFileType::kFileTypeMeMpl;
-        } else {
-          fileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
-        }
-      } else {
-        fileType = InputFileType::kFileTypeVtableImplMpl;
-      }
-    } else if (extensionName == "s" || extensionName == "S") {
-      fileType = InputFileType::kFileTypeS;
-    } else if (extensionName == "o") {
-      fileType = InputFileType::kFileTypeObj;
-    } else if (extensionName == "mbc") {
-      fileType = InputFileType::kFileTypeMbc;
-    } else if (extensionName == "lmbc") {
-      fileType = InputFileType::kFileTypeLmbc;
-    } else if (extensionName == "h") {
-      fileType = InputFileType::kFileTypeH;
-    } else if (extensionName == "i") {
-      fileType = InputFileType::kFileTypeI;
-    } else if (extensionName == "oast") {
-      fileType = InputFileType::kFileTypeOast;
-    }
-
-    return fileType;
-  }
 
   InputFileType GetInputFileType() const {
     return inputFileType;
