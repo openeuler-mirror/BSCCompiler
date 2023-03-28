@@ -106,7 +106,7 @@ class MeExprCastInfo : public CastInfo<MeExpr> {
   }
 };
 
-class BaseNodeCastInfo: public CastInfo<BaseNode> {
+class BaseNodeCastInfo : public CastInfo<BaseNode> {
  public:
   explicit BaseNodeCastInfo(BaseNode *expr) : CastInfo(expr) {}
   ~BaseNodeCastInfo() = default;
@@ -140,7 +140,7 @@ class BaseNodeCastInfo: public CastInfo<BaseNode> {
       case OP_regread: {
         const auto *regread = static_cast<const RegreadNode*>(expr);
         PregIdx regIdx = regread->GetRegIdx();
-        MIRPreg *preg = theMIRModule->CurFunction()->GetPregItem(regIdx);
+        const MIRPreg *preg = theMIRModule->CurFunction()->GetPregItem(regIdx);
         return preg->GetPrimType();
       }
       case OP_iread: {
@@ -148,10 +148,11 @@ class BaseNodeCastInfo: public CastInfo<BaseNode> {
         return iread->GetType()->GetPrimType();
       }
       case OP_dread: {
-         const auto *dread = static_cast<const DreadNode*>(expr);
-         StIdx stIdx = dread->GetStIdx();
-         MIRSymbol *symbol = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(stIdx);
-         return symbol->GetType()->GetPrimType();
+        const auto *dread = static_cast<const DreadNode*>(expr);
+        StIdx stIdx = dread->GetStIdx();
+        MIRSymbol *symbol = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(stIdx);
+        CHECK_NULL_FATAL(symbol);
+        return symbol->GetType()->GetPrimType();
       }
       default:
         CHECK_FATAL(false, "NYI");

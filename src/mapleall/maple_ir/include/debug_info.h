@@ -24,7 +24,7 @@
 #include "mir_scope.h"
 #include "namemangler.h"
 #include "lexer.h"
-#include "Dwarf.h"
+#include "dwarf.h"
 
 namespace maple {
 // for more color code: http://ascii-table.com/ansi-escape-sequences.php
@@ -168,7 +168,7 @@ class DBGExprLoc {
     return simpLoc->GetVal();
   }
 
-  void SetGvarStridx(int idx) {
+  void SetGvarStridx(int idx) const {
     simpLoc->SetVal(idx);
   }
 
@@ -623,7 +623,7 @@ class DebugInfo {
   void ClearDebugInfo();
   void Dump(int indent);
 
-  DBGDie *GetDie(const MIRFunction *func);
+  DBGDie *GetFuncDie(const MIRFunction *func, bool isDeclDie = false);
   DBGDie *GetLocalDie(MIRFunction *func, GStrIdx strIdx);
   DBGDieAttr *CreateAttr(DwAt at, DwForm form, uint64 val) const;
 
@@ -697,7 +697,7 @@ class DebugInfo {
     return parentDieStack.size();
   }
 
-  void SetErrPos(uint32 lnum, uint32 cnum) {
+  void SetErrPos(uint32 lnum, uint32 cnum) const {
     compileMsg->SetErrPos(lnum, cnum);
   }
 
@@ -846,8 +846,8 @@ class DebugInfo {
 
   void AddScopeDie(MIRScope *scope);
   DBGDie *GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx);
-  void HandleTypeAlias(MIRScope *scope);
-  void AddAliasDies(MIRScope *scope, bool isLocal);
+  void HandleTypeAlias(MIRScope &scope);
+  void AddAliasDies(MIRScope &scope, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx

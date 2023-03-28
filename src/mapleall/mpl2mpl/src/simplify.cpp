@@ -887,7 +887,7 @@ bool MemEntry::ComputeMemEntry(BaseNode &expr, MIRFunction &func, MemEntry &memE
         return true;
       }
       const auto &concreteExpr = static_cast<const RegreadNode&>(expr);
-      MIRPreg *preg = func.GetPregItem(concreteExpr.GetRegIdx());
+      const MIRPreg *preg = func.GetPregItem(concreteExpr.GetRegIdx());
       bool isFromDread = (preg->GetOp() == OP_dread);
       bool isFromAddrof = (preg->GetOp() == OP_addrof);
       if (isFromDread || isFromAddrof) {

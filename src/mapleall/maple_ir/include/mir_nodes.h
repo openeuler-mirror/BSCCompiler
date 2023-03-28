@@ -3184,6 +3184,10 @@ class SafetyCheckStmtNode {
   explicit SafetyCheckStmtNode(GStrIdx funcNameIdx) : funcNameIdx(funcNameIdx) {}
   SafetyCheckStmtNode(const SafetyCheckStmtNode &stmtNode) : funcNameIdx(stmtNode.GetFuncNameIdx()) {}
   SafetyCheckStmtNode &operator=(const SafetyCheckStmtNode &stmtNode) {
+    // self-assignment check
+    if (funcNameIdx == stmtNode.GetFuncNameIdx()) {
+      return *this;
+    }
     funcNameIdx = stmtNode.GetFuncNameIdx();
     return *this;
   }

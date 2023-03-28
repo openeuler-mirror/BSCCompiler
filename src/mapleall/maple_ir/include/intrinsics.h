@@ -18,7 +18,7 @@
 #include "intrinsic_op.h"
 
 namespace maple {
-enum IntrinProperty {
+enum IntrinProperty : uint32 {
   kIntrnUndef,
   kIntrnIsJs,
   kIntrnIsJsUnary,
@@ -27,17 +27,33 @@ enum IntrinProperty {
   kIntrnIsJavaUnary,
   kIntrnIsJavaBinary,
   kIntrnIsReturnStruct,
-  kIntrnNoSideEffect,
+  kIntrnNoSideEffect, // read only
   kIntrnIsLoadMem,
   kIntrnIsPure,
   kIntrnNeverReturn,
   kIntrnIsAtomic,
   kIntrnIsRC,
   kIntrnIsSpecial,
-  kIntrnIsVector
+  kIntrnIsVector,
+  // the opnd is marked as "WRITE" but not "READ" => write only
+  // the opnd is marked as "READ" but not "WRITE" => read only
+  // the opnd is marked with nothing but has side effect => write & read
+  // the opnd is marked as "WRITE" and "READ" => write & read
+  kIntrnWriteFirstOpnd,
+  kIntrnWriteSecondOpnd,
+  kIntrnWriteThirdOpnd,
+  kIntrnWriteFourthOpnd,
+  kIntrnWriteFifthOpnd,
+  kIntrnWriteSixthOpnd,
+  kIntrnReadFirstOpnd,
+  kIntrnReadSecondOpnd,
+  kIntrnReadThirdOpnd,
+  kIntrnReadFourthOpnd,
+  kIntrnReadFifthOpnd,
+  kIntrnReadSixthOpnd,
 };
 
-enum IntrinArgType {
+enum IntrinArgType : uint32 {
   kArgTyUndef,
   kArgTyVoid,
   kArgTyI8,
@@ -109,11 +125,24 @@ constexpr uint32 INTRNATOMIC = 1U << kIntrnIsAtomic;
 constexpr uint32 INTRNISRC = 1U << kIntrnIsRC;
 constexpr uint32 INTRNISSPECIAL = 1U << kIntrnIsSpecial;
 constexpr uint32 INTRNISVECTOR = 1U << kIntrnIsVector;
+constexpr uint32 INTRNWRITEFIRSTOPND = 1U << kIntrnWriteFirstOpnd;
+constexpr uint32 INTRNWRITESECONDOPND = 1U << kIntrnWriteSecondOpnd;
+constexpr uint32 INTRNWRITETHIRDOPND = 1U << kIntrnWriteThirdOpnd;
+constexpr uint32 INTRNWRITEFOURTHOPND = 1U << kIntrnWriteFourthOpnd;
+constexpr uint32 INTRNWRITEFIFTHOPND = 1U << kIntrnWriteFifthOpnd;
+constexpr uint32 INTRNWRITESIXTHOPND = 1U << kIntrnWriteSixthOpnd;
+constexpr uint32 INTRNREADFIRSTOPND = 1U << kIntrnReadFirstOpnd;
+constexpr uint32 INTRNREADSECONDOPND = 1U << kIntrnReadSecondOpnd;
+constexpr uint32 INTRNREADTHIRDOPND = 1U << kIntrnReadThirdOpnd;
+constexpr uint32 INTRNREADFOURTHOPND = 1U << kIntrnReadFourthOpnd;
+constexpr uint32 INTRNREADFIFTHOPND = 1U << kIntrnReadFifthOpnd;
+constexpr uint32 INTRNREADSIXTHOPND = 1U << kIntrnReadSixthOpnd;
 class MIRType;    // circular dependency exists, no other choice
 class MIRModule;  // circular dependency exists, no other choice
 struct IntrinDesc {
   static constexpr int kMaxArgsNum = 7;
   const char *name;
+  size_t numInsn;
   uint32 properties;
   IntrinArgType argTypes[1 + kMaxArgsNum];  // argTypes[0] is the return type
   bool IsJS() const {
@@ -165,19 +194,27 @@ struct IntrinDesc {
   }
 
   bool HasNoSideEffect() const {
-    return properties & INTRNNOSIDEEFFECT;
+    return static_cast<bool>(properties & INTRNNOSIDEEFFECT);
   }
 
   bool IsVectorOp() const {
     return static_cast<bool>(properties & INTRNISVECTOR);
   }
 
+  size_t GetNumInsn() const {
+    return numInsn;
+  }
+
+  bool IsNthOpndMarkedToWrite(uint32 opndIdx) const;
+  bool IsNthOpndMarkedToRead(uint32 opndIdx) const;
+  bool ReadNthOpnd(uint32 opndIdx) const;
+  bool WriteNthOpnd(uint32 opndIdx) const;
   MIRType *GetReturnType() const;
   MIRType *GetArgType(uint32 index) const;
   MIRType *GetTypeFromArgTy(IntrinArgType argType) const;
   static MIRType *jsValueType;
   static MIRModule *mirModule;
-  static void InitMIRModule(MIRModule *mirModule);
+  static void InitMIRModule(MIRModule *mod);
   static MIRType *GetOrCreateJSValueType();
   static IntrinDesc intrinTable[INTRN_LAST + 1];
 };

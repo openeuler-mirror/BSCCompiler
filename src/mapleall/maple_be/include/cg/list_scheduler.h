@@ -162,7 +162,7 @@ class ListScheduler {
   void DumpScheduledResult() const;
   void DumpDelay() const;
   void DumpEStartLStartOfAllNodes();
-  void DumpDepNodeInfo(BB &curBB, MapleVector<DepNode*> &nodes, std::string state) const;
+  void DumpDepNodeInfo(const BB &curBB, MapleVector<DepNode*> &nodes, const std::string state) const;
   void DumpReservation(DepNode &depNode) const;
 
   void EraseNodeFromReadyList(const DepNode *depNode) {

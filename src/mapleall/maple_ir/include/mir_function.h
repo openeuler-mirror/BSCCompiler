@@ -656,9 +656,7 @@ class MIRFunction {
       pregTab = module->GetMemPool()->New<MIRPregTable>(&module->GetMPAllocator());
     }
   }
-  MIRPreg *GetPregItem(PregIdx idx) {
-    return const_cast<MIRPreg*>(const_cast<const MIRFunction*>(this)->GetPregItem(idx));
-  }
+  
   const MIRPreg *GetPregItem(PregIdx idx) const {
     return pregTab->PregFromPregIdx(idx);
   }

@@ -210,7 +210,7 @@ class RegionGroup {
     return groups;
   }
 
-  uint32 GetGroupId() {
+  uint32 GetGroupId() const {
     return groupId;
   }
 

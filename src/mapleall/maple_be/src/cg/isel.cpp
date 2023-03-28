@@ -444,12 +444,12 @@ Operand *HandleAbs(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectAbs(static_cast<UnaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
 }
 
-Operand *HandleAlloca(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleAlloca(const BaseNode /*&parent*/, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectAlloca(static_cast<UnaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)));
 }
 
-Operand *HandleCGArrayElemAdd(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
-  return iSel.SelectCGArrayElemAdd(static_cast<BinaryNode&>(expr), parent);
+Operand *HandleCGArrayElemAdd(const BaseNode /*&parent*/, BaseNode &expr, MPISel &iSel) {
+  return iSel.SelectCGArrayElemAdd(static_cast<BinaryNode&>(expr));
 }
 
 void HandleAsm(StmtNode &stmt, MPISel &iSel) {
@@ -467,14 +467,14 @@ Operand *HandleSelect(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectSelect(static_cast<TernaryNode&>(expr), condOpnd, trueOpnd, falseOpnd, parent);
 }
 
-Operand *HandleMin(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleMin(const BaseNode /*&parent*/, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectMin(static_cast<BinaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)),
-                        *iSel.HandleExpr(expr, *expr.Opnd(1)), parent);
+                        *iSel.HandleExpr(expr, *expr.Opnd(1)));
 }
 
-Operand *HandleMax(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleMax(const BaseNode /*&parent*/, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectMax(static_cast<BinaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)),
-                        *iSel.HandleExpr(expr, *expr.Opnd(1)), parent);
+                        *iSel.HandleExpr(expr, *expr.Opnd(1)));
 }
 Operand *HandleRetype(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectRetype(static_cast<TypeCvtNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)));
@@ -1432,7 +1432,7 @@ Operand *MPISel::SelectAlloca(UnaryNode &node, Operand &opnd0) {
   return &resOpnd;
 }
 
-Operand *MPISel::SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent) {
+Operand *MPISel::SelectCGArrayElemAdd(BinaryNode &node) {
   BaseNode *opnd0 = node.Opnd(0);
   BaseNode *opnd1 = node.Opnd(1);
   ASSERT(opnd1->GetOpCode() == OP_constval, "NIY, opnd1->op should be OP_constval.");
@@ -1575,7 +1575,7 @@ void MPISel::SelectBnot(Operand &resOpnd, Operand &opnd0, PrimType primType) con
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
-Operand *MPISel::SelectMin(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectMin(const BinaryNode &node, Operand &opnd0, Operand &opnd1) {
   PrimType primType = node.GetPrimType();
   RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));
@@ -1588,7 +1588,7 @@ void MPISel::SelectMin(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimTyp
 }
 
 
-Operand *MPISel::SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1) {
   PrimType primType = node.GetPrimType();
   RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));

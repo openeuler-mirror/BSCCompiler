@@ -28,12 +28,8 @@ std::string LdCompilerBeILP32::GetBinPath(const MplOptions &mplOptions [[maybe_u
                                kAarch64BeIlp32Gcc : kAarch64BeGcc;
   std::string gccToolPath = gccPath + gccTool;
 
-  if (!FileUtils::IsFileExists(gccToolPath)) {
-    LogInfo::MapleLogger(kLlErr) << kGccBePathEnv << " environment variable must be set as the path to "
-                                 << gccTool << "\n";
-    CHECK_FATAL(false, "%s environment variable must be set as the path to %s\n",
-                kGccBePathEnv, gccTool.c_str());
-  }
+  CHECK_FATAL(FileUtils::IsFileExists(gccToolPath), "%s environment variable must be set as the path to %s\n",
+      kGccBePathEnv, gccTool.c_str());
 
   return gccPath;
 }
