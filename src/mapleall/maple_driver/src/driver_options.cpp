@@ -328,6 +328,10 @@ maplecl::Option<bool> wpaa({"-wpaa", "--wpaa"},
     "  -dump-cfg funcname1,funcname2\n"               \
     "  -wpaa                  : enable whole program ailas analysis",
     {driverCategory, hir2mplCategory});
+maplecl::Option<bool> fm({"-fm", "--fm"},
+    "  static function merge will be enabled"               \
+    "  only when wpaa is enabled at the same time",
+    {driverCategory, hir2mplCategory});
 
 maplecl::Option<bool> dumpTime({"--dump-time", "-dump-time"},
     "  -dump-time             : dump time",

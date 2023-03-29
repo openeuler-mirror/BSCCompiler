@@ -2856,7 +2856,7 @@ GenericAttrs ASTParser::SolveFunctionAttributes(const clang::FunctionDecl &funcD
   astFile->CollectFuncAttrs(funcDecl, attrs, kPublic);
   // for inline optimize
   if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    if (FEOptions::GetInstance().GetWPAA()) {
+    if (FEOptions::GetInstance().GetWPAA() && FEOptions::GetInstance().IsEnableFuncMerge()) {
       astFile->BuildStaticFunctionLayout(funcDecl, funcName);
     } else {
       funcName = funcName + astFile->GetAstFileNameHashStr();
@@ -3149,7 +3149,7 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
   const clang::QualType parmQualType = parmVarDecl.getType();
   std::string parmName = parmVarDecl.getNameAsString();
   if (parmName.length() == 0) {
-    if (FEOptions::GetInstance().GetWPAA()) {
+    if (FEOptions::GetInstance().GetWPAA() && FEOptions::GetInstance().IsEnableFuncMerge()) {
       parmName = "arg|";
     } else {
       parmName = FEUtils::GetSequentialName("arg|");

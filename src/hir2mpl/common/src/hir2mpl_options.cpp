@@ -147,6 +147,8 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessFuncInlineSize);
   RegisterFactoryFunction<OptionFactory>(&opts::wpaa,
                                          &HIR2MPLOptions::ProcessWPAA);
+  RegisterFactoryFunction<OptionFactory>(&opts::fm,
+                                         &HIR2MPLOptions::ProcessFM);
 
   return true;
 }
@@ -599,6 +601,13 @@ bool HIR2MPLOptions::ProcessWPAA(const maplecl::OptionInterface &) const {
   FEOptions::GetInstance().SetFuncInlineSize(UINT32_MAX);
   return true;
 }
+
+// func merge
+bool HIR2MPLOptions::ProcessFM(const maplecl::OptionInterface &) const {
+  FEOptions::GetInstance().SetFuncMergeEnable(true);
+  return true;
+}
+
 
 // AOT
 bool HIR2MPLOptions::ProcessAOT(const maplecl::OptionInterface &) const {

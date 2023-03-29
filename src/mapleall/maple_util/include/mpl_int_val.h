@@ -166,7 +166,13 @@ class IntVal {
     ASSERT(IsOneSignificantWord(), "value doesn't fit into 64 bits");
     uint64 value = IsOneWord() ? u.value : u.pValue[0];
     uint8 bitWidth = size ? size : width;
-    return static_cast<int64>(value << (wordBitSize - bitWidth)) >> (wordBitSize - bitWidth);
+    ASSERT(size <= width, "size should <= %u, but got %u", width, size);
+    // Do not rely on compiler implement-defined behavior for signed integer shifting
+    uint8 shift = wordBitSize - bitWidth;
+    value <<= shift;
+    // prepare leading ones for negative value
+    uint64 leadingOnes = allOnes << ((bitWidth < wordBitSize) ? bitWidth : (wordBitSize - 1));
+    return static_cast<int64>(GetBit(bitWidth - 1) ? ((value >> shift) | leadingOnes) : (value >> shift));
   }
 
   /// @return true if the (most significant bit) MSB is set
