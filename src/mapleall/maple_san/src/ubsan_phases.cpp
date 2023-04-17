@@ -1,3 +1,5 @@
+#ifdef ENABLE_MAPLE_SAN
+
 #include "ubsan_phases.h"
 #include "ubsan_bounds.h"
 
@@ -14,3 +16,4 @@ namespace maple {
   }
 }
 
+#endif

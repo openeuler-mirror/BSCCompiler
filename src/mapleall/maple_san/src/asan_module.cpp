@@ -1,6 +1,7 @@
 //
 // Created by wchenbt on 4/4/2021.
 //
+#ifdef ENABLE_MAPLE_SAN
 
 #include "asan_module.h"
 #include "mir_builder.h"
@@ -395,3 +396,4 @@ namespace maple {
   }
 }
 
+#endif

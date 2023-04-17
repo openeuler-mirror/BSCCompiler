@@ -1,3 +1,5 @@
+#ifdef ENABLE_MAPLE_SAN
+
 #ifndef MAPLE_SAN_INCLUDE_SAN_PHASES_MANAGER_H
 #define MAPLE_SAN_INCLUDE_SAN_PHASES_MANAGER_H
 
@@ -25,5 +27,7 @@ private:
 };
 
 } // namespace maple
+
+#endif
 
 #endif

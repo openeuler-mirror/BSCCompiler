@@ -1,6 +1,7 @@
 //
 // Created by wchenbt on 3/4/2021.
 //
+#ifdef ENABLE_MAPLE_SAN
 
 #include "asan_stackvar.h"
 
@@ -679,3 +680,5 @@ void FunctionStackPoisoner::replaceAllUsesWith(MIRSymbol *oldVar, MIRSymbol *new
   }
 }
 }  // namespace maple
+
+#endif

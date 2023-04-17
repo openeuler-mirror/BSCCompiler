@@ -1,6 +1,7 @@
 //
 // Created by wchenbt on 4/4/2021.
 //
+#ifdef ENABLE_MAPLE_SAN
 
 #ifndef MAPLE_SAN_ASAN_FUNCTION_H
 #define MAPLE_SAN_ASAN_FUNCTION_H
@@ -121,3 +122,5 @@ class AddressSanitizer {
 
 }  // namespace maple
 #endif  // MAPLE_SAN_ASAN_FUNCTION_H
+
+#endif

@@ -27,13 +27,15 @@ set(src_libmplsan
 )
 
 add_library(libmplsan SHARED ${src_libmplsan})
-set_target_properties(libmplsan PROPERTIES
-  COMPILE_FLAGS ""
-  INCLUDE_DIRECTORIES "${inc_dirs}"
-  LINK_LIBRARIES ""
-  ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
-)
 
+if(ENABLE_MAPLE_SAN)
+  set_target_properties(libmplsan PROPERTIES
+    COMPILE_FLAGS "-DENABLE_MAPLE_SAN=1"
+    INCLUDE_DIRECTORIES "${inc_dirs}"
+    LINK_LIBRARIES ""
+    ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
+  )
+endif(ENABLE_MAPLE_SAN)
 # OPTION(ASAN_ENABLE_RBTREE "Use RBTree for shadow memory management in ASan" OFF)
 # if(ASAN_ENABLE_RBTREE)
 #         target_compile_definitions(mplsan PUBLIC ENABLERBTREE)

@@ -1,3 +1,5 @@
+#ifdef ENABLE_MAPLE_SAN
+
 #include "asan_phases.h"
 #include "asan_function.h"
 #include "asan_module.h"
@@ -84,3 +86,5 @@ PreAnalysis* MEDoVarCheck::GetResult() {
 }
 
 }  // namespace maple
+
+#endif

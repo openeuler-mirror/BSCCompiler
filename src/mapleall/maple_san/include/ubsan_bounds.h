@@ -1,6 +1,7 @@
 //
 // Created by wchenbt on 9/5/2021.
 //
+#ifdef ENABLE_MAPLE_SAN
 
 #ifndef MAPLE_SAN_UBSAN_BOUNDS_H
 #define MAPLE_SAN_UBSAN_BOUNDS_H
@@ -54,3 +55,5 @@ class BoundCheck {
 };
 }  // namespace maple
 #endif  // MAPLE_SAN_UBSAN_BOUNDS_H
+
+#endif

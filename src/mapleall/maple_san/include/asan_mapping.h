@@ -1,6 +1,8 @@
 //
 // Created by wchenbt on 4/1/21.
 //
+#ifdef ENABLE_MAPLE_SAN
+
 #ifndef MAPLE_SAN_INCLUDE_ASAN_MAPPING_H
 #define MAPLE_SAN_INCLUDE_ASAN_MAPPING_H
 
@@ -42,3 +44,5 @@ inline ShadowMapping getShadowMapping() {
 }
 }  // namespace maple
 #endif  // MAPLE_SAN_INCLUDE_ASAN_MAPPING_H
+
+#endif

@@ -1,6 +1,7 @@
 //
 // Created by wchenbt on 3/4/2021.
 //
+#ifdef ENABLE_MAPLE_SAN
 
 #ifndef MAPLE_SAN_ASAN_STACKVAR_H
 #define MAPLE_SAN_ASAN_STACKVAR_H
@@ -88,3 +89,5 @@ class FunctionStackPoisoner {
 };
 }  // namespace maple
 #endif  // MAPLE_SAN_ASAN_STACKVAR_H
+
+#endif

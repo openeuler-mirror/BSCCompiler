@@ -1,3 +1,5 @@
+#ifdef ENABLE_MAPLE_SAN
+
 #include "san_phase_manager.h"
 #include "asan_phases.h"
 #include "ubsan_phases.h"
@@ -83,3 +85,5 @@ MAPLE_ANALYSIS_PHASE_REGISTER(MEDoVarCheck, doAsanVarCheck);
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEDoUbsanBound, doUbsanBound);
 
 } // namespace maple
+
+#endif

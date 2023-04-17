@@ -30,6 +30,10 @@ if(NOT ${GIT_REVISION} STREQUAL "")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DGIT_REVISION=\\\"${GIT_REVISION}\\\"")
 endif()
 
+OPTION(ENABLE_MAPLE_SAN "Enabling sanitizer functionalities" OFF)
+if(ENABLE_MAPLE_SAN)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DENABLE_MAPLE_SAN=1")
+endif(ENABLE_MAPLE_SAN)
 
 add_subdirectory(maple_util)
 add_subdirectory(mempool)

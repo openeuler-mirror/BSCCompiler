@@ -1,6 +1,7 @@
 //
 // Created by wchenbt on 9/5/2021.
 //
+#ifdef ENABLE_MAPLE_SAN
 
 #include "ubsan_bounds.h"
 #include "me_function.h"
@@ -450,3 +451,5 @@ namespace maple {
     return true;
   }
 } // namespace maple
+
+#endif

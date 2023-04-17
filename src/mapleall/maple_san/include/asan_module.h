@@ -1,6 +1,7 @@
 //
 // Created by wchenbt on 4/4/2021.
 //
+#ifdef ENABLE_MAPLE_SAN
 
 #ifndef MAPLE_SAN_ASAN_MODULE_H
 #define MAPLE_SAN_ASAN_MODULE_H
@@ -60,3 +61,5 @@ class ModuleAddressSanitizer {
 }  // namespace maple
 
 #endif  // MAPLE_SAN_ASAN_MODULE_H
+
+#endif

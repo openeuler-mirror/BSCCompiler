@@ -426,11 +426,13 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(vecLoopLimit, opts::me::veclooplimit);
   maplecl::CopyIfEnabled(ivoptsLimit, opts::me::ivoptslimit);
   maplecl::CopyIfEnabled(unifyRets, opts::me::unifyrets);
+#ifdef ENABLE_MAPLE_SAN
   maplecl::CopyIfEnabled(asanFlags, opts::me::asanFlags);
   maplecl::CopyIfEnabled(fsanitizeFlags, opts::sanitizer);
   if (fsanitizeFlags == "address") {
     asanFlags = 0x1;
   }
+#endif
 
 #if MIR_JAVA
   maplecl::CopyIfEnabled(acquireFuncName, opts::me::acquireFunc);

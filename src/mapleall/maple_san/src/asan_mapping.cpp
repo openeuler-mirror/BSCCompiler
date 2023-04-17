@@ -1,6 +1,4 @@
-//
-// Created by wchenbt on 4/1/21.
-//
+#ifdef ENABLE_MAPLE_SAN
 
 #include "asan_mapping.h"
 
@@ -126,3 +124,5 @@ ASanStackFrameLayout ComputeASanStackFrameLayout(std::vector<ASanStackVariableDe
   return Layout;
 }
 }  // namespace maple
+
+#endif

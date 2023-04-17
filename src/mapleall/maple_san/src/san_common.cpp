@@ -1,6 +1,7 @@
 //
 // Created by wchenbt on 5/4/2021.
 //
+#ifdef ENABLE_MAPLE_SAN
 
 #include "san_common.h"
 
@@ -790,3 +791,5 @@ bool dynamic_sat(const san_struct& a, const san_struct& b, bool SCSC) {
 }
 
 }  // namespace maple
+
+#endif

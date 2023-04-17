@@ -1,6 +1,7 @@
 //
 // Created by wchenbt on 2021/3/28.
 //
+#ifdef ENABLE_MAPLE_SAN
 
 #ifndef MAPLE_SAN_INCLUDE_ASAN_MESSAGES_H
 #define MAPLE_SAN_INCLUDE_ASAN_MESSAGES_H
@@ -21,3 +22,5 @@ const char *const kAsanAllocasUnpoison = "__asan_allocas_unpoison";
 
 } // namespace maple
 #endif // MAPLE_SAN_INCLUDE__ASAN_MESSAGES_H
+
+#endif

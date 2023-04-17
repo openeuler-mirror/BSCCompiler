@@ -1,6 +1,5 @@
-//
-// Created by wchenbt on 4/4/2021.
-//
+#ifdef ENABLE_MAPLE_SAN
+
 #include "asan_function.h"
 
 #include <string_utils.h>
@@ -976,3 +975,5 @@ bool AddressSanitizer::isInterestingAlloca(const UnaryNode &unaryNode) {
 }
 
 }  // namespace maple
+
+#endif

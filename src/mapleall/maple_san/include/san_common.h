@@ -1,3 +1,5 @@
+#ifdef ENABLE_MAPLE_SAN
+
 #ifndef MAPLE_SAN_INCLUDE_SAN_COMMON_H
 #define MAPLE_SAN_INCLUDE_SAN_COMMON_H
 #include "me_function.h"
@@ -159,3 +161,5 @@ bool dynamic_sat(const san_struct& a, const san_struct& b, bool SCSC);
 
 }  // end namespace maple
 #endif  // MAPLE_SAN_INCLUDE_SAN_COMMON_H
+
+#endif

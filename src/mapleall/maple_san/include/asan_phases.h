@@ -1,3 +1,5 @@
+#ifdef ENABLE_MAPLE_SAN
+
 #ifndef MAPLE_SAN_INCLUDE_ASAN_PHASES_H
 #define MAPLE_SAN_INCLUDE_ASAN_PHASES_H
 
@@ -22,3 +24,5 @@ namespace maple {
 } // namespace maple
 
 #endif // MAPLE_SAN_INCLUDE_SAN_PHASES_H
+
+#endif
