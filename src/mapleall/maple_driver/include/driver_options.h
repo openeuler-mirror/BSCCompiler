@@ -148,7 +148,9 @@ extern maplecl::Option<std::string> march;
 extern maplecl::Option<std::string> sysRoot;
 extern maplecl::Option<std::string> specs;
 extern maplecl::Option<std::string> folder;
+#ifdef ENABLE_MAPLE_SAN
 extern maplecl::Option<std::string> sanitizer;
+#endif
 
 /* ##################### DIGITAL Options ############################################################### */
 
