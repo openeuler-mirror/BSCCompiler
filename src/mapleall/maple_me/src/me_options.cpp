@@ -721,9 +721,10 @@ maplecl::Option<bool> epreUseProfile({"--epreuseprofile"},
                      "  --no-epreuseprofile     \tDisable profile-guided epre phase\n",
                      {meCategory},
                      maplecl::DisableWith("--no-epreuseprofile"));
-
+#ifdef ENABLE_MAPLE_SAN
 maplecl::Option<uint32_t> asanFlags({"--sanitizer", "--san", "-san"},
                      "  --sanitizer=FLAGS     \tEnable instrumenting sanitizer according to the given FLAGS\n"
                      "  --sanitizer=0  \tDisable instrumenting sanitizer\n",
                      {meCategory});
+#endif
 }

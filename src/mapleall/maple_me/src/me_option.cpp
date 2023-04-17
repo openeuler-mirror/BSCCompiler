@@ -137,8 +137,10 @@ bool MeOption::safeRegionMode = false;
 bool MeOption::unifyRets = false;
 bool MeOption::dumpCfgOfPhases = false;
 bool MeOption::epreUseProfile = true;
+#ifdef ENABLE_MAPLE_SAN
 uint32 MeOption::asanFlags = 0x0;
 std::string MeOption::fsanitizeFlags;
+#endif
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
