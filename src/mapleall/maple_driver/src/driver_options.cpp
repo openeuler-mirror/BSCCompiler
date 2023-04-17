@@ -492,7 +492,11 @@ maplecl::Option<std::string> specs({"-specs"},
 maplecl::Option<std::string> folder({"-p"},
                             "  -p <value>    \tsave former folder when generating multiple output.\n",
                             {driverCategory});
-
+#ifdef ENABLE_MAPLE_SAN
+maplecl::Option<std::string> sanitizer({"-fsanitize"},
+                            " -fsanitize=address   \tEnable AddressSanitizer.\n",
+                            {driverCategory, meCategory});
+#endif
 /* ##################### DIGITAL Options ############################################################### */
 
 maplecl::Option<uint32_t> helpLevel({"--level"},
