@@ -228,7 +228,8 @@ bool AArch64CombineRedundantX16Opt::IsUseX16MemInsn(Insn &insn) {
   if (baseOpnd == nullptr || baseOpnd->GetRegisterNumber() != R16) {
     return false;
   }
-  CHECK_FATAL(memOpnd.GetAddrMode() == MemOperand::kBOI, "invalid mem instruction which uses x16");
+  CHECK_FATAL(memOpnd.GetAddrMode() == MemOperand::kBOI || memOpnd.GetAddrMode() == MemOperand::kLo12Li,
+              "invalid mem instruction which uses x16");
   return true;
 }
 
@@ -239,7 +240,7 @@ void AArch64CombineRedundantX16Opt::RecordUseX16InsnInfo(Insn &insn, MemPool *tm
   auto *x16UseInfo = tmpMp->New<UseX16InsnInfo>();
   x16UseInfo->memInsn = &insn;
   x16UseInfo->addPrevInsns = tmpMp->New<MapleVector<Insn*>>(tmpAlloc->Adapter());
-  x16UseInfo->InsertAddPrevInsns(recentX16DefPrevInsns);
+  x16UseInfo->InsertAddPrevInsns(*recentX16DefPrevInsns);
   x16UseInfo->addInsn = recentX16DefInsn;
   x16UseInfo->curAddImm = recentAddImm;
   x16UseInfo->curOfst = (ofstOpnd == nullptr ? 0 : ofstOpnd->GetOffsetValue());

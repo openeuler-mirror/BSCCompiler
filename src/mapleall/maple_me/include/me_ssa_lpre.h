@@ -23,8 +23,9 @@ namespace maple {
 constexpr size_t kDoLpreBBsLimit = 0x7fffff;
 class MeSSALPre : public SSAPre {
  public:
-  MeSSALPre(MeFunction &f, MeIRMap &hMap, Dominance &dom, MemPool &memPool, MemPool &mp2, PreKind kind, uint32 limit)
-      : SSAPre(hMap, dom, memPool, mp2, kind, limit),
+  MeSSALPre(MeFunction &f, MeIRMap &hMap, Dominance &dom, Dominance &pdom, MemPool &memPool, MemPool &mp2, PreKind kind,
+            uint32 limit)
+      : SSAPre(hMap, dom, pdom, memPool, mp2, kind, limit),
         irMap(&hMap),
         func(&f),
         assignedFormals(ssaPreAllocator.Adapter()),
@@ -42,10 +43,10 @@ class MeSSALPre : public SSAPre {
     MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &candsForSSAUpdate);
   }
  private:
-  void GenerateSaveRealOcc(MeRealOcc&) override;
+  void GenerateSaveRealOcc(MeRealOcc &realOcc) override;
   MeExpr *GetTruncExpr(const VarMeExpr &theLHS, MeExpr &savedRHS);
-  void GenerateReloadRealOcc(MeRealOcc&) override;
-  MeExpr *PhiOpndFromRes(MeRealOcc&, size_t) const override;
+  void GenerateReloadRealOcc(MeRealOcc &realOcc) override;
+  MeExpr *PhiOpndFromRes(MeRealOcc &realZ, size_t j) const override;
   void ComputeVarAndDfPhis() override;
   bool ScreenPhiBB(BBId) const override {
     return true;

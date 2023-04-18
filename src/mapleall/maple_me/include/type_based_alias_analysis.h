@@ -21,8 +21,8 @@ namespace maple {
 class TypeBasedAliasAnalysis {
  public:
   static bool MayAlias(const OriginalSt *ostA, const OriginalSt *ostB);
-  static bool FilterAliasElemOfRHSForIassign(const OriginalSt *aliasElemOst, const OriginalSt *lhsOst,
-                                             const OriginalSt *rhsOst);
+  static bool FilterAliasElemOfRHSForIassign(const OriginalSt &aliasElemOst, const OriginalSt &lhsOst,
+                                             const OriginalSt &rhsOst);
   static bool MayAliasTBAAForC(const OriginalSt *ostA, const OriginalSt *ostB);
   static void ClearOstTypeUnsafeInfo();
   static std::vector<bool> &GetPtrTypeUnsafe() {
@@ -55,7 +55,7 @@ class TypeBasedAliasAnalysis {
     }
     return ptrValueTypeUnsafe[prevLevVstIdx];
   }
-  static bool IsFieldTypeOfAggType(MIRType *aggType, MIRType *checkedType);
+  static bool IsFieldTypeOfAggType(MIRType *aggType, MIRType &checkedType);
  private:
   static std::vector<bool> ptrValueTypeUnsafe; // index is OStIdx
 };

@@ -37,7 +37,7 @@ VtableImpl::VtableImpl(MIRModule &mod, KlassHierarchy *kh, bool dump)
   mccItabFunc->SetAttr(FUNCATTR_nosideeffect);
 }
 #if defined(TARGARM) || defined(TARGAARCH64) || defined(TARGRISCV64)
-bool VtableImpl::Intrinsify(MIRFunction &func, CallNode &cnode) {
+bool VtableImpl::Intrinsify(MIRFunction &func, CallNode &cnode) const {
   MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(cnode.GetPUIdx());
   const std::string funcName = calleeFunc->GetName();
   MIRIntrinsicID intrnId = INTRN_UNDEFINED;
@@ -103,11 +103,10 @@ void VtableImpl::ProcessFunc(MIRFunction *func) {
       };
       const std::string funcName = calleefunc->GetName();
       if (!Options::buildApp && Options::O2 && intrisicsList.find(funcName) != intrisicsList.end() &&
-          funcName != "Ljava_2Flang_2FString_3B_7CindexOf_7C_28Ljava_2Flang_2FString_3B_29I") {
-        if (Intrinsify(*func, *cnode)) {
-          stmt = next;
-          continue;
-        }
+          funcName != "Ljava_2Flang_2FString_3B_7CindexOf_7C_28Ljava_2Flang_2FString_3B_29I" &&
+          Intrinsify(*func, *cnode)) {
+        stmt = next;
+        continue;
       }
     }
 #endif /* TARGARM || TARGAARCH64 */
@@ -259,7 +258,7 @@ void VtableImpl::DeferredVisit(CallNode &stmt, enum CallKind kind) {
   DeferredVisitCheckFloat(stmt, *mirFunc);
 }
 
-void VtableImpl::DeferredVisitCheckFloat(CallNode &stmt, const MIRFunction &mirFunc) {
+void VtableImpl::DeferredVisitCheckFloat(CallNode &stmt, const MIRFunction &mirFunc) const {
   if (!stmt.GetReturnVec().empty() && mirFunc.GetReturnTyIdx() == PTY_f32) {
     if (stmt.GetReturnVec().begin()->second.IsReg()) {
       PregIdx returnIdx = stmt.GetReturnVec().begin()->second.GetPregIdx();
@@ -316,7 +315,7 @@ void VtableImpl::DeferredVisitCheckFloat(CallNode &stmt, const MIRFunction &mirF
   }
 }
 
-void VtableImpl::ReplaceResolveInterface(StmtNode &stmt, const ResolveFuncNode &resolveNode) {
+void VtableImpl::ReplaceResolveInterface(StmtNode &stmt, const ResolveFuncNode &resolveNode) const {
   MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(resolveNode.GetPuIdx());
   std::string signature = VtableAnalysis::DecodeBaseNameWithType(*func);
   MIRType *compactPtrType = GlobalTables::GetTypeTable().GetCompactPtr();
@@ -350,7 +349,7 @@ void VtableImpl::ReplaceResolveInterface(StmtNode &stmt, const ResolveFuncNode &
 
 void VtableImpl::ItabProcess(const StmtNode &stmt, const ResolveFuncNode &resolveNode, const std::string &signature,
                              const PregIdx &pregFuncPtr, const MIRType &compactPtrType,
-                             const PrimType &compactPtrPrim) {
+                             const PrimType &compactPtrPrim) const {
   int64 hashCode = GetHashIndex(signature.c_str());
   uint64 secondHashCode = GetSecondHashIndex(signature.c_str());
   PregIdx pregItabAddress = currFunc->GetPregTab()->CreatePreg(PTY_ptr);

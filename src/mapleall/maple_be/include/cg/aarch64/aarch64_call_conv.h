@@ -39,7 +39,7 @@ class AArch64CallConvImpl {
   uint64 LocateNextParm(MIRType &mirType, CCLocInfo &ploc, bool isFirst = false,
                         MIRFuncType *tFunc = nullptr);
 
-  void LocateRetVal(const MIRType &retType, CCLocInfo &ploc);
+  void LocateRetVal(const MIRType &retType, CCLocInfo &ploc) const;
 
   void InitCCLocInfo(CCLocInfo &ploc) const;
 

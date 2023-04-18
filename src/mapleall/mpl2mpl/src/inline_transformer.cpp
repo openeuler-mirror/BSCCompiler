@@ -500,7 +500,7 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
   if (updateFreq) {
     auto *callerProfData = caller.GetFuncProfData();
     auto *calleeProfData = callee.GetFuncProfData();
-    uint64 callsiteFreq = static_cast<uint64>(callerProfData->GetStmtFreq(callStmt.GetStmtID()));
+    FreqType callsiteFreq = callerProfData->GetStmtFreq(callStmt.GetStmtID());
     FreqType calleeEntryFreq = calleeProfData->GetFuncFrequency();
     uint32_t updateOp = static_cast<uint32_t>(kKeepOrigFreq) | static_cast<uint32_t>(kUpdateFreqbyScale);
     BlockNode *blockNode;
@@ -511,7 +511,7 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
       blockNode = funcBody.CloneTreeWithFreqs(theMIRModule->GetCurFuncCodeMPAllocator(), callerProfData->GetStmtFreqs(),
                                               calleeProfData->GetStmtFreqs(), callsiteFreq, calleeEntryFreq, updateOp);
       // update callee left entry Frequency
-      int64_t calleeFreq = calleeProfData->GetFuncRealFrequency();
+      FreqType calleeFreq = calleeProfData->GetFuncRealFrequency();
       calleeProfData->SetFuncRealFrequency(calleeFreq - callsiteFreq);
     }
     return blockNode;

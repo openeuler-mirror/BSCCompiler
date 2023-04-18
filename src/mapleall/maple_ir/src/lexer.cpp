@@ -247,7 +247,7 @@ TokenKind MIRLexer::GetLongHexConst(uint32 valStart, bool negative) {
 }
 
 TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
-  auto negOrSelf = [negative](int64 val) { return negative ? ~val + 1 : val; };
+  auto negOrSelf = [negative](uint64 val) { return negative ? ~val + 1 : val; };
 
   theIntVal = static_cast<int64>(HexCharToDigit(GetCharAtWithUpperCheck(curIdx)));
 
@@ -255,8 +255,9 @@ TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
 
   char c = GetNextCurrentCharWithUpperCheck();
 
-  for (theIntVal = negOrSelf(theIntVal); isdigit(c); c = GetNextCurrentCharWithUpperCheck()) {
-    theIntVal = (theIntVal * radix) + negOrSelf(static_cast<int64>(HexCharToDigit(c)));
+  for (theIntVal = static_cast<int64>(negOrSelf(static_cast<uint64>(theIntVal)));
+      isdigit(c); c = GetNextCurrentCharWithUpperCheck()) {
+    theIntVal = (theIntVal * radix) + static_cast<int64>(negOrSelf(static_cast<uint32>(HexCharToDigit(c))));
   }
 
   if (c == 'u' || c == 'U') {  // skip 'u' or 'U'

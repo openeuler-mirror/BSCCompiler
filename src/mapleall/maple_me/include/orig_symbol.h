@@ -480,13 +480,13 @@ class OriginalStTable {
 
   MIRType *GetTypeFromBaseAddressAndFieldId(TyIdx tyIdx, FieldID fieldId, bool isFieldArrayType) const;
   OriginalSt *FindOrCreateExtraLevOriginalSt(
-      const VersionSt *vst, TyIdx tyIdx, FieldID fieldId,
+      const VersionSt &vst, TyIdx tyIdx, FieldID fieldId,
       const OffsetType &offset = OffsetType(kOffsetUnknown), bool isFieldArrayType = false);
   OriginalSt *FindExtraLevOriginalSt(
-      const MapleVector<OriginalSt*> &nextLevelOsts, const TyIdx &tyIdxOfPtr, const MIRType *type, FieldID fieldId,
+      const MapleVector<OriginalSt*> &nextLevelOsts, const TyIdx &tyIdxOfPtr, const MIRType *type, FieldID fld,
       const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
   OriginalSt *FindExtraLevOriginalSt(
-      const VersionSt *vst, const TyIdx &tyIdxOfPtr, const MIRType *typeOfOst, FieldID fieldId,
+      const VersionSt *vst, const TyIdx &tyIdxOfPtr, const MIRType *typeOfOst, FieldID fld,
       const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
   OriginalSt *FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost);
   MapleVector<OriginalSt*> *GetNextLevelOstsOfVst(size_t vstIdx) const;

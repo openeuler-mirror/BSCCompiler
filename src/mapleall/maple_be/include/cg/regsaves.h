@@ -22,16 +22,16 @@ namespace maplebe {
 class RegSavesOpt {
  public:
   RegSavesOpt(CGFunc &func, MemPool &pool)
-    : cgFunc(&func),
-      memPool(&pool),
-      alloc(&pool) {}
+      : cgFunc(&func),
+        memPool(&pool),
+        alloc(&pool) {}
 
   virtual ~RegSavesOpt() = default;
 
   virtual void Run() {}
 
   std::string PhaseName() const {
-    return "regsavesopt";
+    return "regsaves";
   }
 
   CGFunc *GetCGFunc() const {

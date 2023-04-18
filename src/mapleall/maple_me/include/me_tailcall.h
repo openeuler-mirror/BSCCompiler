@@ -25,7 +25,7 @@ namespace maple {
 // for doing tailcall, we will do further analysis on the back-end
 class TailcallOpt : public AnalysisResult {
  public:
-  TailcallOpt(MeFunction &func, MemPool &mempool);
+  TailcallOpt(MeFunction &f, MemPool &mempool);
 
   void Walk();
   void WalkTroughBB(BB &bb);

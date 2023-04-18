@@ -322,6 +322,8 @@ TEST(WideIntVal, Division) {
 
   ASSERT_EQ(sMin / (sMin + sOne), sOne);
   ASSERT_EQ(sMin % (sMin + sOne), -sOne);
+
+  ASSERT_EQ(sMax / sMax, sOne);
 }
 
 TEST(WideIntVal, TruncExtend) {

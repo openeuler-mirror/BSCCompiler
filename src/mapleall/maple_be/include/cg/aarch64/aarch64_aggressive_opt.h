@@ -30,8 +30,8 @@ class AArch64CombineRedundantX16Opt {
 
  private:
   struct UseX16InsnInfo {
-    void InsertAddPrevInsns(MapleVector<Insn*> *recentPrevInsns) const {
-      for (auto insn : *recentPrevInsns) {
+    void InsertAddPrevInsns(MapleVector<Insn*> &recentPrevInsns) const {
+      for (auto insn : recentPrevInsns) {
         addPrevInsns->emplace_back(insn);
       }
     }

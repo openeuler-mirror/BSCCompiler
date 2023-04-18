@@ -118,7 +118,8 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
   uint32 LmbcFindTotalStkUsed(std::vector<TyIdx> &paramList);
   uint32 LmbcTotalRegsUsed();
-  bool LmbcSmallAggForRet(const BaseNode &bNode, const Operand *src, int32 offset = 0, bool skip1 = false);
+  bool LmbcSmallAggForRet(const BaseNode &bNode, const Operand &src, int32 offset = 0,
+                          bool skip1 = false);
   bool LmbcSmallAggForCall(BlkassignoffNode &bNode, const Operand *src, std::vector<TyIdx> **parmList);
   bool GetNumReturnRegsForIassignfpoff(MIRType &rType, PrimType &primType, uint32 &numRegs);
   void GenIassignfpoffStore(Operand &srcOpnd, int32 offset, uint32 byteSize, PrimType primType);
@@ -147,6 +148,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectCall(CallNode &callNode) override;
   void SelectIcall(IcallNode &icallNode, Operand &srcOpnd) override;
   void SelectIntrinsicCall(IntrinsiccallNode &intrinsicCallNode) override;
+  RegOperand *SelectIntrinsicOpLoadTlsAnchor(const IntrinsicopNode& intrinsicopNode, const BaseNode &parent) override;
   Operand *SelectAArch64ffs(Operand &argOpnd, PrimType argType);
   Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name) override;
   Operand *SelectIntrinsicOpWithNParams(IntrinsicopNode &intrnNode, PrimType retType,
@@ -911,7 +913,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectCAtomicLoad(const IntrinsiccallNode &intrinsiccall);
   void SelectCSyncLockRelease(const IntrinsiccallNode &intrinsiccall, PrimType primType);
   void SelectAtomicStore(Operand &srcOpnd, Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
-  bool SelectTLSModelByAttr(Operand &result, StImmOperand &stImm);
+  bool SelectTLSModelByAttr(Operand &result, StImmOperand &stImm, bool isShlib);
   bool SelectTLSModelByOption(Operand &result, StImmOperand &stImm, bool isShlib);
   bool SelectTLSModelByPreemptibility(Operand &result, StImmOperand &stImm, bool isShlib);
   void SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm);
@@ -972,6 +974,15 @@ class AArch64CGFunc : public CGFunc {
                                      RegOperand *regOp);
   LabelIdx GetLabelInInsn(Insn &insn) override {
     return static_cast<LabelOperand&>(insn.GetOperand(AArch64isa::GetJumpTargetIdx(insn))).GetLabelIndex();
+  }
+  void CheckAndSetStackProtectInfoWithAddrof(const MIRSymbol &symbol) {
+    // 1. if me performs stack protection check, doesn't need to set stack protect
+    // 2. only addressing variables on the stack, need to set stack protect
+    // 3. retVar is generated internally by compiler, doesn't need to set stack protect
+    if (!GetFunction().IsMayWriteToAddrofStackChecked() &&
+        symbol.GetStorageClass() == kScAuto && !symbol.IsReturnVar()) {
+      SetStackProtectInfo(kAddrofStack);
+    }
   }
 };
 }  /* namespace maplebe */

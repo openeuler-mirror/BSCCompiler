@@ -633,7 +633,7 @@ MeExpr *GetCmpExprFromVR(const ValueRange *vr, MeExpr &expr, MeIRMap *irmap) {
 // a: valueRange(0, constant) || valueRange(constant, 0)
 // ==>
 // a: valueRange(1, constant) || valueRange(constant, -1)
-std::unique_ptr<ValueRange> ValueRangePropagation::ZeroIsInRange(const ValueRange &valueRange) {
+std::unique_ptr<ValueRange> ValueRangePropagation::ZeroIsInRange(const ValueRange &valueRange) const {
   if (valueRange.GetRangeType() == kLowerAndUpper && valueRange.GetLower().GetVar() == nullptr &&
       valueRange.GetUpper().GetVar() == nullptr &&
       valueRange.GetLower().GetConstant() < valueRange.GetUpper().GetConstant()) {
@@ -708,7 +708,7 @@ bool SafetyCheckWithBoundaryError::HandleAssertltOrAssertle(
 }
 
 bool ValueRangePropagation::CompareConstantOfIndexAndLength(
-    const MeStmt &meStmt, const ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op) {
+    const MeStmt &meStmt, const ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op) const {
   if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
                                                     valueRangeOfLengthPtr.GetBound().GetConstant())) {
     return true;
@@ -1082,7 +1082,7 @@ void ValueRangePropagation::GetValueRangeOfCRNode(
 }
 
 template<typename T>
-bool ValueRangePropagation::IsOverflowAfterMul(T lhs, T rhs, PrimType pty) {
+bool ValueRangePropagation::IsOverflowAfterMul(T lhs, T rhs, PrimType pty) const {
   if (!IsNeededPrimType(pty)) {
     return true;
   }
@@ -1961,8 +1961,8 @@ bool ValueRangePropagation::AddOrSubWithConstant(
   }
   if (IsPrimTypeUint64(primType)) {
     res = (op == OP_add) ?
-        (static_cast<uint64>(lhsConstant) + static_cast<uint64>(rhsConstant)) :
-        (static_cast<uint64>(lhsConstant) - static_cast<uint64>(rhsConstant));
+        static_cast<int64>((static_cast<uint64>(lhsConstant) + static_cast<uint64>(rhsConstant))) :
+        static_cast<int64>((static_cast<uint64>(lhsConstant) - static_cast<uint64>(rhsConstant)));
   } else {
     if (op == OP_add) {
       if ((rhsConstant > 0 && lhsConstant > GetMaxNumber(primType) - rhsConstant) ||
@@ -1984,7 +1984,7 @@ bool ValueRangePropagation::AddOrSubWithConstant(
 }
 
 // Create new bound when old bound add or sub with a constant.
-bool ValueRangePropagation::CreateNewBoundWhenAddOrSub(Opcode op, Bound bound, int64 rhsConstant, Bound &res) {
+bool ValueRangePropagation::CreateNewBoundWhenAddOrSub(Opcode op, Bound bound, int64 rhsConstant, Bound &res) const {
   int64 constant = 0;
   if (AddOrSubWithConstant(bound.GetPrimType(), op, bound.GetConstant(), rhsConstant, constant)) {
     res = Bound(bound.GetVar(), constant, bound.GetPrimType());
@@ -2319,7 +2319,7 @@ int64 GetRealValue(int64 value, PrimType primType) {
   }
 }
 
-std::unique_ptr<ValueRange> ValueRangePropagation::CopyValueRange(ValueRange &valueRange, PrimType primType) {
+std::unique_ptr<ValueRange> ValueRangePropagation::CopyValueRange(ValueRange &valueRange, PrimType primType) const {
   if (primType != PTY_begin && (!valueRange.GetLower().IsEqualAfterCVT(valueRange.GetPrimType(), primType) ||
                                 !valueRange.GetUpper().IsEqualAfterCVT(valueRange.GetPrimType(), primType))) {
     // When the valueRange changes after conversion according to the parameter primType, return nullptr.
@@ -2428,7 +2428,7 @@ void ValueRangePropagation::DealWithAssign(BB &bb, const MeStmt &stmt) {
 // i1 = phi(i0, i2),
 // i2 = i1 + 1,
 // stride is 1.
-bool ValueRangePropagation::CanComputeLoopIndVar(const MeExpr &phiLHS, MeExpr &expr, int64 &constant) {
+bool ValueRangePropagation::CanComputeLoopIndVar(const MeExpr &phiLHS, MeExpr &expr, int64 &constant) const {
   auto *curExpr = &expr;
   while (true) {
     if (!curExpr->IsScalar()) {
@@ -2699,7 +2699,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::MergeValueRangeOfPhiOperands(
 }
 
 bool ValueRangePropagation::MergeVrOrInitAndBackedge(MePhiNode &mePhiNode, ValueRange &vrOfInitExpr,
-    ValueRange &valueRange, Bound &resBound) {
+    ValueRange &valueRange, Bound &resBound) const {
   bool isOnlyHasLowerBound = vrOfInitExpr.GetRangeType() == kOnlyHasLowerBound;
   auto pType = mePhiNode.GetLHS()->GetPrimType();
   auto upperBound = isOnlyHasLowerBound ? valueRange.GetBound() : vrOfInitExpr.GetBound();
@@ -2824,13 +2824,6 @@ void ValueRangePropagation::MergeValueRangeOfPhiOperands(const LoopDesc &loop, c
   }
 }
 
-bool ValueRangePropagation::TheValueRangeOfOpndAndSubOpndAreEqual(const MeExpr &opnd) const {
-  // opnd[0] = OP zext i32 kPtyInvalid mx590
-  //   opnd[0] = REGINDX:15 u8 %15 mx589
-  return (opnd.GetOp() == OP_zext && static_cast<const OpMeExpr&>(opnd).GetBitsOffSet() == 0 &&
-      IsPrimitiveUnsigned(opnd.GetOpnd(0)->GetPrimType()));
-}
-
 void ValueRangePropagation::CalculateVROfSubOpnd(BBId bbID, const MeExpr &opnd, ValueRange &valueRange) {
   // Deal with the case like:
   // opnd[0] = OP sub u32 u32 mx1
@@ -2871,14 +2864,8 @@ bool ValueRangePropagation::Insert2Caches(
   }
 
   if (onlyRecordValueRangeInTempCache.top()) {
-    if (opnd != nullptr && TheValueRangeOfOpndAndSubOpndAreEqual(*opnd)) {
-      (void)tempCaches[bbID].insert(std::make_pair(opnd->GetOpnd(0)->GetExprID(), CopyValueRange(*valueRange)));
-    }
     tempCaches[bbID][exprID] = std::move(valueRange);
   } else {
-    if (opnd != nullptr && TheValueRangeOfOpndAndSubOpndAreEqual(*opnd)) {
-      caches.at(bbID)[opnd->GetOpnd(0)->GetExprID()] = CopyValueRange(*valueRange);
-    }
     caches.at(bbID)[exprID] = std::move(valueRange);
   }
   if (opnd != nullptr) {
@@ -2889,7 +2876,7 @@ bool ValueRangePropagation::Insert2Caches(
 
 // The rangeType of vrOfRHS is kEqual and the rangeType of vrOfLHS is kEqual, kNotEqual or kLowerAndUpper
 void ValueRangePropagation::JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueRange &vrOfRHS,
-    std::unique_ptr<ValueRange> &valueRangePtr) {
+    std::unique_ptr<ValueRange> &valueRangePtr) const {
   if (vrOfRHS.GetRangeType() != kEqual) {
     return;
   }
@@ -4299,27 +4286,6 @@ std::unique_ptr<ValueRange> ValueRangePropagation::AntiValueRange(ValueRange &va
       valueRange.GetBound().GetPrimType()), newType);
 }
 
-void ValueRangePropagation::DeleteUnreachableBBs(BB &curBB, BB &falseBranch, BB &trueBranch) {
-  size_t sizeOfUnreachables = 0;
-  for (auto &pred : curBB.GetPred()) {
-    if (unreachableBBs.find(pred) != unreachableBBs.end()) {
-      sizeOfUnreachables++;
-    }
-  }
-  if (curBB.GetPred().size() - sizeOfUnreachables == 0) {
-    // If the preds of curBB which is condgoto and analysised is empty, delete the curBB.
-    Insert2UnreachableBBs(curBB);
-    // If the preds of falseBranch is empty, delete the falseBranch.
-    if (falseBranch.GetPred().size() == 1 && falseBranch.GetPred(0) == &curBB) {
-      Insert2UnreachableBBs(falseBranch);
-    }
-    // If the preds of trueBranch is empty, delete the trueBranch.
-    if (trueBranch.GetPred().size() == 1 && trueBranch.GetPred(0) == &curBB) {
-      Insert2UnreachableBBs(trueBranch);
-    }
-  }
-}
-
 void ValueRangePropagation::PropValueRangeFromCondGotoToTrueAndFalseBranch(
     const MeExpr &opnd0, ValueRange &rightRange, const BB &falseBranch, const BB &trueBranch) {
   std::unique_ptr<ValueRange> trueBranchValueRange;
@@ -4439,7 +4405,7 @@ bool ValueRangePropagation::CanIgnoreTheDefPoint(const MeStmt &stmt, const BB &e
 //       succ0(a4 = phi(a0,a3))
 //         |
 //       end if (a4 - 1 > constant)
-bool ValueRangePropagation::HasDefPointInPred(const BB &begin, const BB &end, const ScalarMeExpr &opnd) {
+bool ValueRangePropagation::HasDefPointInPred(const BB &begin, const BB &end, const ScalarMeExpr &opnd) const {
   auto *tempBB = &begin;
   while (tempBB != &end) {
     if (tempBB->GetSucc().size() != 1) {

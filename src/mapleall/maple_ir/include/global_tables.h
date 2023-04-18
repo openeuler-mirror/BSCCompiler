@@ -29,6 +29,7 @@
 #include "mir_type.h"
 #include "mir_const.h"
 #include "mir_enum.h"
+#include "int128_util.h"
 
 namespace maple {
 using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;
@@ -72,10 +73,29 @@ class IntConstKey {
   TyIdx tyIdx;
 };
 
+class Int128ConstKey {
+  friend class IntConstHash;
+  friend class IntConstCmp;
+
+ public:
+  Int128ConstKey(const Int128ElemTy *v, TyIdx tyIdx) : tyIdx(tyIdx) {
+    Int128Util::CopyInt128(val, v);
+  }
+  virtual ~Int128ConstKey() {}
+
+ private:
+  Int128Arr val = {0, 0};
+  TyIdx tyIdx;
+};
+
 class IntConstHash {
  public:
   std::size_t operator() (const IntConstKey &key) const {
     return std::hash<int64>{}(key.val) ^ (std::hash<uint64>{}(static_cast<uint64>(key.tyIdx)) << 1);
+  }
+  std::size_t operator()(const Int128ConstKey &key) const {
+    return std::hash<uint64>{}(key.val[0]) ^ (std::hash<uint64>{}(key.val[1])) ^
+           (std::hash<uint64>{}(static_cast<uint64>(key.tyIdx)) << 1);
   }
 };
 
@@ -83,6 +103,9 @@ class IntConstCmp {
  public:
   bool operator() (const IntConstKey &lkey, const IntConstKey &rkey) const {
     return lkey.val == rkey.val && lkey.tyIdx == rkey.tyIdx;
+  }
+  bool operator()(const Int128ConstKey &lkey, const Int128ConstKey &rkey) const {
+    return lkey.val[0] == rkey.val[0] && lkey.val[1] == rkey.val[1];
   }
 };
 
@@ -209,6 +232,16 @@ class TypeTable {
   MIRType *GetUInt64() const {
     ASSERT(PTY_u64 < typeTable.size(), "array index out of range");
     return typeTable.at(PTY_u64);
+  }
+
+  MIRType *GetInt128() const {
+    ASSERT(PTY_i128 < typeTable.size(), "array index out of range");
+    return typeTable.at(PTY_i128);
+  }
+
+  MIRType *GetUInt128() const {
+    ASSERT(PTY_u128 < typeTable.size(), "array index out of range");
+    return typeTable.at(PTY_u128);
   }
 
   MIRType *GetPtr() const {
@@ -668,8 +701,11 @@ class IntConstTable {
   IntConstTable() = default;
   MIRIntConst *DoGetOrCreateIntConst(uint64 val, MIRType &type);
   MIRIntConst *DoGetOrCreateIntConstTreadSafe(uint64 val, MIRType &type);
+  MIRIntConst *DoGetOrCreateInt128Const(const Int128ElemTy *pVal, MIRType &type);
+  MIRIntConst *DoGetOrCreateInt128ConstTreadSafe(const Int128ElemTy *pVal, MIRType &type);
   std::shared_timed_mutex mtx;
   std::unordered_map<IntConstKey, MIRIntConst*, IntConstHash, IntConstCmp> intConstTable;
+  std::unordered_map<Int128ConstKey, MIRIntConst *, IntConstHash, IntConstCmp> int128ConstTable;
 };
 
 // STypeNameTable is only used to store class and interface types.

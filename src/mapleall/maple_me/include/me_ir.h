@@ -140,7 +140,7 @@ class MeExpr {
 
   bool ContainsVolatile() const;
 
-  bool IsTheSameWorkcand(const MeExpr&) const;
+  bool IsTheSameWorkcand(const MeExpr &expr) const;
   virtual void SetDefByStmt(MeStmt&) {}
 
   virtual MeExpr *GetOpnd(size_t) const {
@@ -166,7 +166,7 @@ class MeExpr {
     return !kOpcodeInfo.NotPure(op);
   }
 
-  virtual bool IsSameVariableValue(const VarMeExpr&) const;
+  virtual bool IsSameVariableValue(const VarMeExpr &expr) const;
   MeExpr *ResolveMeExprValue();
   bool CouldThrowException() const;
   bool IsAllOpndsIdentical(const MeExpr &meExpr) const;
@@ -228,7 +228,7 @@ class ScalarMeExpr : public MeExpr {
     return true;
   }
 
-  bool IsUseSameSymbol(const MeExpr&) const override;
+  bool IsUseSameSymbol(const MeExpr &expr) const override;
 
   void SetDefByStmt(MeStmt &defStmt) override {
     defBy = kDefByStmt;
@@ -345,9 +345,9 @@ class ScalarMeExpr : public MeExpr {
 
   MeStmt *GetDefByMeStmt() const;
   BB *GetDefByBBMeStmt(const MeCFG &cfg, MeStmtPtr &defMeStmt) const;
-  void Dump(const IRMap*, int32 indent = 0) const override;
+  void Dump(const IRMap *irMap, int32 indent = 0) const override;
   BaseNode &EmitExpr(MapleAllocator&) override;
-  bool IsSameVariableValue(const VarMeExpr&) const override;
+  bool IsSameVariableValue(const VarMeExpr &expr) const override;
   ScalarMeExpr *FindDefByStmt(std::set<ScalarMeExpr*> &visited);
   bool IsZeroVersion() const;
 
@@ -373,14 +373,14 @@ class VarMeExpr final : public ScalarMeExpr {
 
   ~VarMeExpr() = default;
 
-  void Dump(const IRMap*, int32 indent = 0) const override;
+  void Dump(const IRMap *irMap, int32 indent = 0) const override;
   BaseNode &EmitExpr(MapleAllocator&) override;
   bool IsValidVerIdx() const;
 
   bool IsVolatile() const override;
   // indicate if the variable is local variable but not a function formal variable
-  bool IsPureLocal(const MIRFunction&) const;
-  bool IsSameVariableValue(const VarMeExpr&) const override;
+  bool IsPureLocal(const MIRFunction &irFunc) const;
+  bool IsSameVariableValue(const VarMeExpr &expr) const override;
   VarMeExpr &ResolveVarMeValue();
   bool PointsToStringLiteral();
 
@@ -560,14 +560,20 @@ class ConstMeExpr : public MeExpr {
     return constVal;
   }
 
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
 
   uint32 GetHashIndex() const override {
     CHECK_FATAL(constVal != nullptr, "constVal is null");
     if (constVal->GetKind() == kConstInt) {
       auto *intConst = safe_cast<MIRIntConst>(constVal);
       CHECK_NULL_FATAL(intConst);
-      return static_cast<uint32>(intConst->GetExtValue());
+      const IntVal &intValConst = intConst->GetValue();
+      if (!intValConst.IsOneSignificantWord()) {
+        const uint64 *val = intValConst.GetRawData();
+        return std::hash<uint64>{}(val[0]) ^ std::hash<uint64>{}(val[1]);
+      } else {
+        return static_cast<uint32>(intValConst.GetExtValue());
+      }
     }
     if (constVal->GetKind() == kConstFloatConst) {
       auto *floatConst = safe_cast<MIRFloatConst>(constVal);
@@ -606,7 +612,7 @@ class ConststrMeExpr : public MeExpr {
 
   void Dump(const IRMap*, int32 indent = 0) const override;
   BaseNode &EmitExpr(MapleAllocator&) override;
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
 
   UStrIdx GetStrIdx() const {
     return strIdx;
@@ -630,7 +636,7 @@ class Conststr16MeExpr : public MeExpr {
 
   void Dump(const IRMap*, int32 indent = 0) const override;
   BaseNode &EmitExpr(MapleAllocator&) override;
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
 
   U16StrIdx GetStrIdx() {
     return strIdx;
@@ -654,7 +660,7 @@ class SizeoftypeMeExpr : public MeExpr {
 
   void Dump(const IRMap*, int32 indent = 0) const override;
   BaseNode &EmitExpr(MapleAllocator&) override;
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
 
   TyIdx GetTyIdx() const {
     return tyIdx;
@@ -677,7 +683,7 @@ class FieldsDistMeExpr : public MeExpr {
   ~FieldsDistMeExpr() = default;
   void Dump(const IRMap*, int32 indent = 0) const override;
   BaseNode &EmitExpr(MapleAllocator&) override;
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
 
   TyIdx GetTyIdx() const {
     return tyIdx;
@@ -712,9 +718,9 @@ class AddrofMeExpr : public MeExpr {
   ~AddrofMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
-  bool IsUseSameSymbol(const MeExpr&) const override;
+  bool IsUseSameSymbol(const MeExpr &expr) const override;
   BaseNode &EmitExpr(MapleAllocator &alloc) override;
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
 
   OStIdx GetOstIdx() const {
     return ost->GetIndex();
@@ -748,7 +754,7 @@ class AddroffuncMeExpr : public MeExpr {
 
   void Dump(const IRMap*, int32 indent = 0) const override;
   BaseNode &EmitExpr(MapleAllocator &alloc) override;
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
 
   PUIdx GetPuIdx() const {
     return puIdx;
@@ -777,7 +783,7 @@ class AddroflabelMeExpr : public MeExpr {
 
   ~AddroflabelMeExpr() override {}
 
-  void Dump(const IRMap *, int32 indent = 0) const override;
+  void Dump(const IRMap *irMap, int32 indent = 0) const override;
   bool IsIdentical(const MeExpr *meexpr) const {
     if (meexpr->GetOp() != GetOp()) {
       return false;
@@ -860,12 +866,12 @@ class OpMeExpr : public MeExpr {
   OpMeExpr(const OpMeExpr&) = delete;
   OpMeExpr &operator=(const OpMeExpr&) = delete;
 
-  bool IsIdentical(const OpMeExpr &meexpr) const;
+  bool IsIdentical(const OpMeExpr &meExpr) const;
   bool IsAllOpndsIdentical(const OpMeExpr &meExpr) const;
   bool IsCompareIdentical(const OpMeExpr &meExpr) const;
-  void Dump(const IRMap*, int32 indent = 0) const override;
-  bool IsUseSameSymbol(const MeExpr&) const override;
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  void Dump(const IRMap *irMap, int32 indent = 0) const override;
+  bool IsUseSameSymbol(const MeExpr &expr) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
   BaseNode &EmitExpr(MapleAllocator&) override;
   uint8 GetDepth() const override {
     return depth;
@@ -1007,7 +1013,7 @@ class IvarMeExpr : public MeExpr {
 
   ~IvarMeExpr() = default;
 
-  void Dump(const IRMap*, int32 indent = 0) const override;
+  void Dump(const IRMap *irMap, int32 indent = 0) const override;
   uint8 GetDepth() const override {
     return base->GetDepth() + 1;
   }
@@ -1015,7 +1021,7 @@ class IvarMeExpr : public MeExpr {
   bool IsVolatile() const override;
   bool IsFinal();
   bool IsRCWeak() const;
-  bool IsUseSameSymbol(const MeExpr&) const override;
+  bool IsUseSameSymbol(const MeExpr &expr) const override;
   bool IsIdentical(IvarMeExpr &expr, bool inConstructor) const;
   bool IsMuListIdentical(IvarMeExpr &expr) const;
   MeExpr *GetIdenticalExpr(MeExpr &expr, bool inConstructor) const override;
@@ -1134,6 +1140,10 @@ class IvarMeExpr : public MeExpr {
     }
   }
 
+  void Push2MuList(ScalarMeExpr &expr) {
+    muList.push_back(&expr);
+  }
+
   uint32 GetMuCount() const {
     return static_cast<uint32>(muList.size());
   }
@@ -1197,14 +1207,14 @@ class NaryMeExpr : public MeExpr {
 
   ~NaryMeExpr() = default;
 
-  void Dump(const IRMap*, int32 indent = 0) const override;
+  void Dump(const IRMap *irMap, int32 indent = 0) const override;
   uint8 GetDepth() const override {
     return depth;
   }
-  bool IsIdentical(const NaryMeExpr&) const;
-  bool IsUseSameSymbol(const MeExpr&) const override;
+  bool IsIdentical(const NaryMeExpr& meExpr) const;
+  bool IsUseSameSymbol(const MeExpr &expr) const override;
   BaseNode &EmitExpr(MapleAllocator&) override;
-  MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
+  MeExpr *GetIdenticalExpr(MeExpr &expr, bool isConstructor) const override;
   MeExpr *GetOpnd(size_t idx) const override {
     ASSERT(idx < opnds.size(), "NaryMeExpr operand out of bounds");
     return opnds[idx];
@@ -1306,7 +1316,7 @@ class MeStmt {
     isLive = value;
   }
 
-  virtual void Dump(const IRMap*) const;
+  virtual void Dump(const IRMap *irMap) const;
   MeStmt *GetNextMeStmt() const;
   virtual size_t NumMeStmtOpnds() const {
     return 0;
@@ -1372,7 +1382,7 @@ class MeStmt {
     stmtAttrs = meStmt.stmtAttrs;
   }
 
-  bool IsTheSameWorkcand(const MeStmt&) const;
+  bool IsTheSameWorkcand(const MeStmt& mestmt) const;
   virtual bool NeedDecref() const {
     return false;
   }
@@ -1713,7 +1723,7 @@ class PiassignMeStmt : public MeStmt {
     return isToken;
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
 
  private:
   VarMeExpr *rhs = nullptr;
@@ -1742,7 +1752,7 @@ class AssignMeStmt : public MeStmt {
     rhs = val;
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
 
   bool NeedIncref() const override {
     return needIncref;
@@ -1853,7 +1863,7 @@ class DassignMeStmt : public AssignMeStmt {
     wasMayDassign = value;
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
 
   ScalarMeExpr *GetVarLHS() const override {
     return static_cast<VarMeExpr *>(lhs);
@@ -1975,7 +1985,7 @@ class MaydassignMeStmt : public MeStmt {
     fieldID = fieldIDVal;
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   ScalarMeExpr *GetLHS() const override {
     return chiList.find(mayDSSym->GetIndex())->second->GetLHS();
   }
@@ -2099,7 +2109,7 @@ class IassignMeStmt : public MeStmt {
     needIncref = false;
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   MeExpr *GetRHS() const override {
     return rhs;
   }
@@ -2210,8 +2220,8 @@ class NaryMeStmt : public MeStmt {
     (void)opnds.insert(begin, expr);
   }
 
-  void DumpOpnds(const IRMap*) const;
-  void Dump(const IRMap*) const override;
+  void DumpOpnds(const IRMap *irMap) const;
+  void Dump(const IRMap *irMap) const override;
   MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return nullptr;
   }
@@ -2310,7 +2320,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return stmtID;
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
   }
@@ -2405,7 +2415,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   MIRFunction &GetTargetFunction();
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
 
-  void SetCallReturn(ScalarMeExpr&);
+  void SetCallReturn(ScalarMeExpr& curexpr);
 
  private:
   PUIdx puIdx = 0;
@@ -2442,7 +2452,7 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
 
   virtual ~IcallMeStmt() = default;
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
   }
@@ -2566,7 +2576,7 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
 
   virtual ~IntrinsiccallMeStmt() = default;
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
   }
@@ -2696,7 +2706,7 @@ class AsmMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   }
 
   virtual ~AsmMeStmt() = default;
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() override {
     return &muList;
   }
@@ -2731,7 +2741,7 @@ class RetMeStmt : public NaryMeStmt {
 
   ~RetMeStmt() = default;
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() override {
     return &muList;
   }
@@ -2771,7 +2781,7 @@ class UnaryMeStmt : public MeStmt {
     opnd = val;
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
 
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
 
@@ -2957,7 +2967,7 @@ class CondGotoMeStmt : public UnaryMeStmt {
     }
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
 
  private:
@@ -3062,7 +3072,7 @@ class SwitchMeStmt : public UnaryMeStmt {
     return switchTable;
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
 
  private:
@@ -3111,7 +3121,7 @@ class GosubMeStmt : public WithMuMeStmt {
 
   ~GosubMeStmt() = default;
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
 
  private:
@@ -3144,7 +3154,7 @@ class ThrowMeStmt : public WithMuMeStmt {
     opnd = val;
   }
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
 
  private:
@@ -3157,7 +3167,7 @@ class SyncMeStmt : public NaryMeStmt, public MuChiMePart {
 
   ~SyncMeStmt() = default;
 
-  void Dump(const IRMap*) const override;
+  void Dump(const IRMap *irMap) const override;
   MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() override {
     return &muList;
   }

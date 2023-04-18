@@ -17,7 +17,7 @@
 #include "mpl_options.h"
 
 namespace maple {
-int32 MergeStmts::GetStructFieldBitSize(const MIRStructType *structType, FieldID fieldID) {
+int32 MergeStmts::GetStructFieldBitSize(const MIRStructType *structType, FieldID fieldID) const {
   TyIdx fieldTypeIdx = structType->GetFieldTyIdx(fieldID);
   MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTypeIdx);
   uint32 fieldBitSize;
@@ -29,7 +29,7 @@ int32 MergeStmts::GetStructFieldBitSize(const MIRStructType *structType, FieldID
   return fieldBitSize;
 }
 
-int32 MergeStmts::GetPointedTypeBitSize(TyIdx ptrTypeIdx) {
+int32 MergeStmts::GetPointedTypeBitSize(TyIdx ptrTypeIdx) const {
   MIRPtrType *ptrMirType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTypeIdx));
   MIRType *pointedMirType = ptrMirType->GetPointedType();
   return static_cast<int32>(pointedMirType->GetSize() * 8);
@@ -118,7 +118,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
       uint64 fieldVal = static_cast<uint64>(rhsLastIassignMeStmt->GetExtIntValue());
       uint64 combinedVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
 
-      auto combineValue = [&](int stmtIdx) {
+      auto combineValue = [&](size_t stmtIdx) {
         fieldID = static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetLHSVal()->GetFieldID();
         if (fieldID == 0) {
           TyIdx lhsPtrTypeIdx = static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetLHSVal()->GetTyIdx();
@@ -127,18 +127,18 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
           fieldBitSize = GetStructFieldBitSize(lhsStructType, fieldID);
         }
         fieldVal = static_cast<uint64>(static_cast<ConstMeExpr*>(
-            static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1))->GetExtIntValue());
+            static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1U))->GetExtIntValue());
         fieldVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
-        combinedVal = (combinedVal << fieldBitSize) | fieldVal;
+        combinedVal = (combinedVal << static_cast<uint32>(fieldBitSize)) | fieldVal;
       };
 
       if (isBigEndian) {
-        for (int stmtIdx = static_cast<int>(startCandidate) + 1; stmtIdx <= static_cast<int>(endIdx); ++stmtIdx) {
+        for (size_t stmtIdx = startCandidate + 1; stmtIdx <= endIdx; ++stmtIdx) {
           combineValue(stmtIdx);
         }
       } else {
-        for (int stmtIdx = static_cast<int>(endIdx) - 1; stmtIdx >= static_cast<int>(startCandidate); --stmtIdx) {
-          combineValue(stmtIdx);
+        for (int64 stmtIdx = static_cast<int64>(endIdx) - 1; stmtIdx >= static_cast<int64>(startCandidate); --stmtIdx) {
+          combineValue(static_cast<size_t>(stmtIdx));
         }
       }
 
@@ -231,7 +231,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
 
       uint64 combinedVal = (fieldValIdx << (64 - fieldBitSizeEndIdx)) >> (64 - fieldBitSizeEndIdx);
 
-      auto combineValue = [&](int stmtIdx) {
+      auto combineValue = [&dassignCandidates, &lhsStructTypeStart, &combinedVal, this](size_t stmtIdx) {
         OriginalSt *lhsOrigStStmtIdx =
             static_cast<DassignMeStmt*>(dassignCandidates[stmtIdx].second)->GetVarLHS()->GetOst();
         FieldID fieldIDStmtIdx = lhsOrigStStmtIdx->GetFieldID();
@@ -247,8 +247,8 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
           combineValue(stmtIdx);
         }
       } else {
-        for (int stmtIdx = static_cast<int>(endIdx) - 1; stmtIdx >= static_cast<int>(startCandidate); --stmtIdx) {
-          combineValue(stmtIdx);
+        for (int64 stmtIdx = static_cast<int64>(endIdx) - 1; stmtIdx >= static_cast<int64>(startCandidate); --stmtIdx) {
+          combineValue(static_cast<size_t>(stmtIdx));
         }
       }
 

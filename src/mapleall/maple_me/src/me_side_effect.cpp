@@ -74,7 +74,7 @@ bool IpaSideEffect::IsIgnoreMethod(const MIRFunction &func) {
   if (func.IsAbstract()) {
     return true;
   }
-  Klass *klass = callGraph.GetKlassh()->GetKlassFromFunc(&func);
+  Klass *klass = callGraph.GetKlassh().GetKlassFromFunc(&func);
   if (klass == nullptr) {
     // An array, must have method, but has all effects
     SetEffectsTrue();
@@ -84,7 +84,7 @@ bool IpaSideEffect::IsIgnoreMethod(const MIRFunction &func) {
   return std::find(methods.begin(), methods.end(), &func) == methods.end();
 }
 
-void IpaSideEffect::CopySccSideEffectToAllFunctions(SCCNode<CGNode> &scc, uint8 seMask) {
+void IpaSideEffect::CopySccSideEffectToAllFunctions(SCCNode<CGNode> &scc, uint8 seMask) const {
   // For all members of the SCC, copy the sum of the side effect of SCC to each member func.
   for (auto &sccIt : scc.GetNodes()) {
     CGNode *cgNode = sccIt;
@@ -97,16 +97,16 @@ void IpaSideEffect::CopySccSideEffectToAllFunctions(SCCNode<CGNode> &scc, uint8 
     CHECK_FATAL(func->IsNoDefEffect() || (seMask & kHasDef) == kHasDef, "Must be true.");
     CHECK_FATAL(func->IsNoThrowException() || (seMask & kHasThrow) == kHasThrow, "Must be true.");
     CHECK_FATAL(func->IsNoPrivateDefEffect() || (seMask & kHasPrivateDef) == kHasPrivateDef, "Must be true.");
-    if (seMask & kNotPure) {
+    if ((seMask & kNotPure) != 0) {
       func->UnsetPure();
     }
-    if (seMask & kHasDef) {
+    if ((seMask & kHasDef) != 0) {
       func->UnsetNoDefEffect();
     }
-    if (seMask & kHasThrow) {
+    if ((seMask & kHasThrow) != 0) {
       func->UnsetNoThrowException();
     }
-    if (seMask & kHasPrivateDef) {
+    if ((seMask & kHasPrivateDef) != 0) {
       func->UnsetNoPrivateDefEffect();
     }
   }
@@ -116,8 +116,8 @@ void IpaSideEffect::GetEffectFromCallee(MIRFunction &callee, const MIRFunction &
   uint32 calleeScc = GetOrSetSCCNodeId(callee);
   if (IsCallingIntoSCC(calleeScc)) {
     // Call graph ensures that all methods in SCC are visited before a call into the SCC.
-    auto it = sccSe.find(calleeScc);
-    CHECK_FATAL(it != sccSe.end(), "Sideeffect of scc must have been set.");
+    const auto it = std::as_const(sccSe).find(calleeScc);
+    CHECK_FATAL(it != sccSe.cend(), "Sideeffect of scc must have been set.");
     uint8 mask = it->second;
 
     hasDefArg = hasDefArg || (mask & kHasDefArg);
@@ -332,8 +332,8 @@ bool IpaSideEffect::MatchPuidxAndSetSideEffects(PUIdx idx) {
   if (idx == 0) {
     return false;
   }
-  auto mrtIt = mrtPuIdx.find(idx);
-  if (mrtIt == mrtPuIdx.end()) {
+  const auto mrtIt = std::as_const(mrtPuIdx).find(idx);
+  if (mrtIt == mrtPuIdx.cend()) {
     return false;
   }
   uint8 mrtSe = mrtIt->second;
@@ -358,7 +358,7 @@ bool IpaSideEffect::IsPureFromSummary(const MIRFunction &func) const {
 }
 
 
-void IpaSideEffect::ReadSummary() {
+void IpaSideEffect::ReadSummary() const {
   if (mrtListSz != 0) {
     return;
   }
@@ -452,7 +452,7 @@ void IpaSideEffect::UpdateExternalFuncSideEffects(MIRFunction &func) {
   auto callerIt = callGraph.GetNodesMap().find(&func);
   CHECK_FATAL(callerIt != callGraph.GetNodesMap().end(), "CGNode not found.");
   CGNode *cgNode = callerIt->second;
-  for (auto &callSite : cgNode->GetCallee()) {
+  for (auto &callSite : std::as_const(cgNode->GetCallee())) {
     // IPASEEN == true, body == NULL;
     // IPASEEN == true, body != NULL;
     // IPASEEN == false, body != NULL, ignore
@@ -793,7 +793,7 @@ bool IpaSideEffect::UpdateSideEffectWithStmt(MeStmt &meStmt,
       bool defArg = false;
       bool returnGlobal = false;
       bool returnArg = false;
-      for (auto &callSite : callerNode->GetCallee()) {
+      for (auto &callSite : std::as_const(callerNode->GetCallee())) {
         if (callSite.first->GetID() == callMeStmt.GetStmtID()) {
           for (auto *calleeNode : *callSite.second) {
             MIRFunction *calleeFunc = calleeNode->GetMIRFunction();
@@ -884,7 +884,7 @@ bool IpaSideEffect::UpdateSideEffectWithStmt(MeStmt &meStmt,
       CGNode *callerNode = callGraph.GetCGNode(meFunc.GetMirFunc());
       CHECK_FATAL(callerNode != nullptr, "Must not be null");
       bool defArg = false;
-      for (Callsite callSite : callerNode->GetCallee()) {
+      for (auto &callSite : std::as_const(callerNode->GetCallee())) {
         if (callSite.first->GetID() == callMeStmt.GetStmtID()) {
           for (auto *calleeNode : *callSite.second) {
             MIRFunction *calleeFunc = calleeNode->GetMIRFunction();
@@ -1062,8 +1062,8 @@ void IpaSideEffect::DoAnalysis() {
   uint8 mask = 0;
   sccId = GetOrSetSCCNodeId(*func);
   if (sccId != 0) {
-    auto itTmp = sccSe.find(sccId);
-    if (itTmp != sccSe.end()) {
+    const auto itTmp = std::as_const(sccSe).find(sccId);
+    if (itTmp != sccSe.cend()) {
       mask = itTmp->second;
     }
   }

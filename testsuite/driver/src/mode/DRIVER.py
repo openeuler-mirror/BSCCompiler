@@ -22,6 +22,13 @@ DRIVER = {
             inputs="${APP}"
         )
     ],
+    "compileWithGcc": [
+        Driver(
+            maple="${OUT_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ",
+            global_option="${OPTION}",
+            inputs="${APP}"
+        )
+    ],
     "mpl2S2out": [
         Driver(
             maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",

@@ -68,9 +68,9 @@ void AArch64CallConvImpl::InitCCLocInfo(CCLocInfo &ploc) const {
 //   would require that arg be passed as a value in a register (or set of registers)
 //   according to the rules in Parameter passing, then the result is returned in the
 //   same registers as would be used for such an argument."
-void AArch64CallConvImpl::LocateRetVal(const MIRType &retType, CCLocInfo &ploc) {
+void AArch64CallConvImpl::LocateRetVal(const MIRType &retType, CCLocInfo &ploc) const {
   InitCCLocInfo(ploc);
-  uint32 retSize = beCommon.GetTypeSize(retType.GetTypeIndex().GetIdx());
+  size_t retSize = retType.GetSize();
   if (retSize == 0) {
     return;    // size 0 ret val
   }
@@ -238,7 +238,7 @@ static void SetupCCLocInfoRegCount(CCLocInfo &ploc) {
 uint64 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &ploc, bool isFirst, MIRFuncType *tFunc) {
   InitCCLocInfo(ploc);
 
-  uint64 typeSize = beCommon.GetTypeSize(mirType.GetTypeIndex());
+  uint64 typeSize = mirType.GetSize();
   if (typeSize == 0) {
     return 0;
   }
@@ -253,7 +253,8 @@ uint64 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &ploc, bo
     }
   }
 
-  uint64 typeAlign = beCommon.GetTypeAlign(mirType.GetTypeIndex());
+  uint64 typeAlign = mirType.GetAlign();
+
   ploc.memSize = static_cast<int32>(typeSize);
 
   uint64 aggCopySize = 0;

@@ -133,7 +133,7 @@ BaseNode *ExtConstantFold::ExtFold(BaseNode *node) {
   return DispatchFold(node);
 }
 
-BaseNode *ExtConstantFold::ExtFoldIor(BinaryNode *node) {
+BaseNode *ExtConstantFold::ExtFoldIor(BinaryNode *node) const {
   CHECK_NULL_FATAL(node);
   // The target pattern (Cior, Lior):
   // x == c || x == c+1 || ... || x == c+k
@@ -156,15 +156,12 @@ BaseNode *ExtConstantFold::ExtFoldIor(BinaryNode *node) {
       operands.push(static_cast<BinaryNode *>(operand)->GetBOpnd(1));
     } else if (op == OP_eq) {
       BinaryNode *bNode = static_cast<BinaryNode *>(operand);
-      if (lNode == nullptr) {
-        if (bNode->Opnd(0)->GetOpCode() == OP_dread ||
-            bNode->Opnd(0)->GetOpCode() == OP_iread) {
-          lNode = bNode->Opnd(0);
-        } else {
-          // Consider other cases in future
-          isWorkable = false;
-          break;
-        }
+      if (lNode == nullptr && (bNode->Opnd(0)->GetOpCode() == OP_dread || bNode->Opnd(0)->GetOpCode() == OP_iread)) {
+        lNode = bNode->Opnd(0);
+      } else if (lNode == nullptr) {
+        // Consider other cases in future
+        isWorkable = false;
+        break;
       }
       ASSERT_NOT_NULL(lNode);
 
@@ -187,7 +184,7 @@ BaseNode *ExtConstantFold::ExtFoldIor(BinaryNode *node) {
 
   if (isWorkable) {
     std::sort(uniqOperands.begin(), uniqOperands.end());
-    uniqOperands.erase(std::unique(uniqOperands.begin(), uniqOperands.end()), uniqOperands.cend());
+    (void)uniqOperands.erase(std::unique(uniqOperands.begin(), uniqOperands.end()), uniqOperands.cend());
     if ((uniqOperands.size() >= 2) &&
         (uniqOperands[uniqOperands.size() - 1] == uniqOperands[0] + static_cast<int64>(uniqOperands.size()) - 1)) {
       PrimType nPrimType = node->GetPrimType();

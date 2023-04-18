@@ -395,6 +395,24 @@ class MIRSymbol {
     return GetName() == "__eh_index__";
   }
 
+  // check symbol is a retVar
+  bool IsReturnVar() const {
+    if (storageClass != kScAuto) {
+      return false;
+    }
+    // the prefix of the retVar symbol is 'retVar_'
+    constexpr uint32 kRetVarPrefixLength = 7;
+    if (GetName().compare(0, kRetVarPrefixLength, "retVar_") != 0) {
+      return false;
+    }
+    // retVar symbol has only one underscope
+    constexpr uint32 kRetVarUnderscopeNum = 1;
+    if (std::count(GetName().begin(), GetName().end(), '_') != kRetVarUnderscopeNum) {
+      return false;
+    }
+    return true;
+  }
+
   bool HasAddrOfValues() const;
   bool IsLiteral() const;
   bool IsLiteralPtr() const;

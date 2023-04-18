@@ -17,6 +17,7 @@
 
 #include "operand.h"
 #include "mad.h"
+#include "isa.h"
 
 namespace maplebe {
 /*
@@ -27,12 +28,15 @@ constexpr int kX64StackPtrAlignment = 16;
 constexpr int32 kOffsetAlign = 8;
 constexpr uint32 kIntregBytelen = 8;   /* 64-bit */
 constexpr uint32 kFpregBytelen = 8;    /* only lower 64 bits are used */
-constexpr int kSizeOfFplr = 16;
+constexpr uint32 kSizeOfFplr = 16;
+
+class Insn;
 
 namespace x64 {
 /* machine instruction description */
 #define DEFINE_MOP(op, ...) op,
 enum X64MOP_t : maple::uint32 {
+#include "abstract_mmir.def"
 #include "x64_md.def"
   kMopLast
 };
@@ -95,23 +99,15 @@ static inline RegType GetRegType(X64reg r) {
   ASSERT(false, "No suitable register type to return?");
   return kRegTyUndef;
 }
-}  /* namespace x64 */
+/*
+ * Precondition: The given insn is a jump instruction.
+ * Get the jump target label operand index from the given instruction.
+ * Note: MOP_jmp_m, MOP_jmp_r is a jump instruction, but the target is unknown at compile time.
+ */
+uint32 GetJumpTargetIdx(const Insn &insn);
 
-enum RegPropState : uint32 {
-  kRegPropUndef = 0,
-  kRegPropDef = 0x1,
-  kRegPropUse = 0x2
-};
-enum RegAddress : uint32 {
-  kRegHigh = 0x4,
-  kRegLow = 0x8
-};
-constexpr uint32 kMemLow12 = 0x10;
-constexpr uint32 kLiteralLow12 = kMemLow12;
-constexpr uint32 kPreInc = 0x20;
-constexpr uint32 kPostInc = 0x40;
-constexpr uint32 kLoadLiteral = 0x80;
-constexpr uint32 kVector = 0x100;
+MOperator FlipConditionOp(MOperator flippedOp);
+}  /* namespace x64 */
 
 /*
  * We save callee-saved registers from lower stack area to upper stack area.

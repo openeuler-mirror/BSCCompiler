@@ -416,7 +416,7 @@ void AArch64IsolateFastPath::IsolateFastPathOpt() {
   cgFunc.GetExitBBsVec().push_back(returnBB);
 
   MapleList<BB*>::const_iterator predIt = std::find(tgtBB->GetPredsBegin(), tgtBB->GetPredsEnd(), returnBB);
-  tgtBB->ErasePreds(predIt);
+  (void)tgtBB->ErasePreds(predIt);
   tgtBB->ClearInsns();
   returnBB->ClearSuccs();
   if (tgtBB->GetPrev() != nullptr && tgtBB->GetNext() != nullptr) {

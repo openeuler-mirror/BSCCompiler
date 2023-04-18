@@ -527,7 +527,7 @@ void MeCFG::ReplaceWithAssertnonnull() {
     BB *bb = GetLabelBBAt(lblIdx);
     CHECK_FATAL(bb != nullptr, "bb should not be nullptr");
     // if BB->pred_.size()==0, it won't enter this function
-    for (int64 i = 0; i < static_cast<int64>(bb->GetPred().size()); ++i) {
+    for (size_t i = 0; i < bb->GetPred().size(); ++i) {
       BB *innerBB = bb->GetPred(i);
       if (innerBB->GetKind() == kBBCondGoto) {
         StmtNode &stmt = innerBB->GetStmtNodes().back();
@@ -1797,7 +1797,7 @@ void MeCFG::BuildSCC() {
 }
 
 // After currBB's succ is changed, we can update currBB's target
-void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc) {
+void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc) const {
   bool forMeIR = meFunc.GetIRMap() != nullptr;
   // update statement offset if succ is goto target
   if (currBB.IsGoto()) {
@@ -1909,7 +1909,7 @@ inline void ConstructEdgeFreqForBBWith2Succs(BB &bb) {
 
 // set bb succ frequency from bb freq
 // no critical edge is expected
-void MeCFG::ConstructEdgeFreqFromBBFreq() {
+void MeCFG::ConstructEdgeFreqFromBBFreq() const {
   // set succfreqs
   auto eIt = valid_end();
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
@@ -1941,7 +1941,9 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   }
   auto eIt = valid_end();
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
-    if ((*bIt)->IsEmpty()) continue;
+    if ((*bIt)->IsEmpty()) {
+      continue;
+    }
     StmtNode &first = (*bIt)->GetFirst();
     StmtNode &last = (*bIt)->GetLast();
     if (funcData->stmtFreqs.count(first.GetStmtID()) > 0) {

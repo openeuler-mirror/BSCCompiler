@@ -94,6 +94,12 @@ class PEGNode {
     attr[kAliasAttrEscaped] = attr[kAliasAttrEscaped] || other->attr[kAliasAttrEscaped];
   }
 
+  void UpdateAttrWhenReachingGlobalNode(const PEGNode *other) {
+    attr[kAliasAttrNextLevNotAllDefsSeen] = attr[kAliasAttrNextLevNotAllDefsSeen] || other->attr[kAliasAttrGlobal];
+    attr[kAliasAttrEscaped] =
+        attr[kAliasAttrEscaped] || other->attr[kAliasAttrEscaped] || other->attr[kAliasAttrGlobal];
+  }
+
   void SetMultiDefined() {
     multiDefed = true;
   }

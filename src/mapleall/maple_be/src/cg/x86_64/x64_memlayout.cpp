@@ -82,8 +82,8 @@ uint32 X64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  int32 
 }
 
 void X64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) const {
-  align = be.GetTypeAlign(typeIdx);
-  size = static_cast<uint32>(be.GetTypeSize(typeIdx));
+  align = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typeIdx)->GetAlign();
+  size = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typeIdx)->GetSize();
 }
 
 void X64MemLayout::LayoutVarargParams() {
@@ -97,7 +97,7 @@ void X64MemLayout::LayoutVarargParams() {
       if (i == 0) {
         if (be.HasFuncReturnType(*func)) {
           TyIdx tidx = be.GetFuncReturnType(*func);
-          if (be.GetTypeSize(tidx.GetIdx()) <= k16ByteSize) {
+          if (GlobalTables::GetTypeTable().GetTypeFromTyIdx(tidx.GetIdx())->GetSize() <= k16ByteSize) {
             continue;
           }
         }
@@ -170,7 +170,8 @@ void X64MemLayout::LayoutFormalParams() {
       if (!sym->IsPreg()) {
         SetSizeAlignForTypeIdx(ptyIdx, size, align);
         symLoc->SetMemSegment(GetSegArgsRegPassed());
-        if (ty->GetPrimType() == PTY_agg &&  be.GetTypeSize(ptyIdx) > k4ByteSize) {
+        if (ty->GetPrimType() == PTY_agg &&
+            GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx)->GetSize() > k4ByteSize) {
           /* struct param aligned on 8 byte boundary unless it is small enough */
           align = GetPointerSize();
         }
@@ -204,14 +205,14 @@ void X64MemLayout::LayoutLocalVariables() {
 
     symLoc->SetMemSegment(segLocals);
     MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-    uint32 align = be.GetTypeAlign(tyIdx);
+    uint32 align = ty->GetAlign();
     if (ty->GetPrimType() == PTY_agg && align < k8BitSize) {
       segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), k8BitSize)));
     } else {
       segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), align)));
     }
     symLoc->SetOffset(segLocals.GetSize());
-    segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(tyIdx));
+    segLocals.SetSize(segLocals.GetSize() + GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetSize());
   }
 }
 
@@ -228,7 +229,7 @@ void X64MemLayout::AssignSpillLocationsToPseudoRegisters() {
     segLocals.SetSize(RoundUp(segLocals.GetSize(), GetPrimTypeSize(pType)));
     symLoc->SetOffset(segLocals.GetSize());
     MIRType *mirTy = GlobalTables::GetTypeTable().GetTypeTable()[pType];
-    segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(mirTy->GetTypeIndex()));
+    segLocals.SetSize(segLocals.GetSize() + mirTy->GetSize());
     spillLocTable[i] = symLoc;
   }
 }

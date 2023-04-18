@@ -216,6 +216,8 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int64 va
     case PTY_i64:
     case PTY_ptr:
     case PTY_a64:
+    case PTY_u128:
+    case PTY_i128:
       return std::make_unique<FEIRExprConst>(val, primType);
     case PTY_f32:
       return CreateExprConstF32(static_cast<float>(val));

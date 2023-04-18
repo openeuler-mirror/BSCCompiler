@@ -259,7 +259,7 @@ void JavaIntrnLowering::ProcessForNameClassLoader(CallNode &callNode) {
   }
 }
 
-void JavaIntrnLowering::ProcessJavaIntrnMerge(StmtNode &assignNode, const IntrinsicopNode &intrinNode) {
+void JavaIntrnLowering::ProcessJavaIntrnMerge(StmtNode &assignNode, const IntrinsicopNode &intrinNode) const {
   CHECK_FATAL(intrinNode.GetNumOpnds() == 1, "invalid JAVA_MERGE intrinsic node");
   PrimType destType;
   DassignNode *dassign = nullptr;
@@ -289,7 +289,7 @@ void JavaIntrnLowering::ProcessJavaIntrnMerge(StmtNode &assignNode, const Intrin
   }
 }
 
-BaseNode *JavaIntrnLowering::JavaIntrnMergeToCvtType(PrimType destType, PrimType srcType, BaseNode *src) {
+BaseNode *JavaIntrnLowering::JavaIntrnMergeToCvtType(PrimType destType, PrimType srcType, BaseNode *src) const {
   CHECK_FATAL(IsPrimitiveInteger(destType) || IsPrimitiveFloat(destType),
               "typemerge source type is not a primitive type");
   CHECK_FATAL(IsPrimitiveInteger(srcType) || IsPrimitiveFloat(srcType),
@@ -335,7 +335,7 @@ BaseNode *JavaIntrnLowering::JavaIntrnMergeToCvtType(PrimType destType, PrimType
   CHECK_FATAL(false, "NYI. Don't know what to do");
 }
 
-void JavaIntrnLowering::ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCall) {
+void JavaIntrnLowering::ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCall) const {
   // First create a new array.
   CHECK_FATAL(intrinCall.GetReturnVec().size() == 1, "INTRN_JAVA_FILL_NEW_ARRAY should have 1 return value");
   CallReturnPair retPair = intrinCall.GetCallReturnPair(0);

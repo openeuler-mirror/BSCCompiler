@@ -166,7 +166,7 @@ class PtrListRefIterator {
     return it;
   }
 
-  PtrListRefIterator operator--(int) {
+  PtrListRefIterator operator--(int) const {
     PtrListRefIterator it = *this;
     --(*this);
     return it;

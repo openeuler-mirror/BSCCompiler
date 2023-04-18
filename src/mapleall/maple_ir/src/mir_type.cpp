@@ -195,11 +195,11 @@ bool NeedCvtOrRetype(PrimType origin, PrimType compared) {
 }
 
 uint8 GetPointerSize() {
-#if TARGX86 || TARGARM32 || TARGVM
+#if (defined(TARGX86) && TARGX86) || (defined(TARGARM32) && TARGARM32) || (defined(TARGVM) && TARGVM)
   return 4;
-#elif TARGX86_64
+#elif defined(TARGX86_64) && TARGX86_64
   return 8;
-#elif TARGAARCH64
+#elif defined(TARGAARCH64) && TARGAARCH64
   ASSERT(Triple::GetTriple().GetEnvironment() != Triple::UnknownEnvironment,
          "Triple must be initialized before using");
   uint8 size = (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? 4 : 8;
@@ -210,11 +210,11 @@ uint8 GetPointerSize() {
 }
 
 uint8 GetP2Size() {
-#if TARGX86 || TARGARM32 || TARGVM
+#if (defined(TARGX86) && TARGX86) || (defined(TARGARM32) && TARGARM32) || (defined(TARGVM) && TARGVM)
   return 2;
-#elif TARGX86_64
+#elif defined(TARGX86_64) && TARGX86_64
   return 3;
-#elif TARGAARCH64
+#elif defined(TARGAARCH64) && TARGAARCH64
   ASSERT(Triple::GetTriple().GetEnvironment() != Triple::UnknownEnvironment,
          "Triple must be initialized before using");
   uint8 size = (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? 2 : 3;
@@ -225,11 +225,11 @@ uint8 GetP2Size() {
 }
 
 PrimType GetLoweredPtrType() {
-#if TARGX86 || TARGARM32 || TARGVM
+#if (defined(TARGX86) && TARGX86) || (defined(TARGARM32) && TARGARM32) || (defined(TARGVM) && TARGVM)
   return PTY_a32;
-#elif TARGX86_64
+#elif defined(TARGX86_64) && TARGX86_64
   return PTY_a64;
-#elif TARGAARCH64
+#elif defined(TARGAARCH64) && TARGAARCH64
   ASSERT(Triple::GetTriple().GetEnvironment() != Triple::UnknownEnvironment,
          "Triple must be initialized before using");
   auto pty = (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? PTY_a32 : PTY_a64;
@@ -248,24 +248,24 @@ uint32 GetPrimTypeSize(PrimType primType) {
   switch (primType) {
     case PTY_void:
     case PTY_agg:
-      return k0BitSize;
+      return k0ByteSize;
     case PTY_ptr:
     case PTY_ref:
       return GetPointerSize();
     case PTY_u1:
     case PTY_i8:
     case PTY_u8:
-      return k1BitSize;
+      return k1ByteSize;
     case PTY_i16:
     case PTY_u16:
-      return k2BitSize;
+      return k2ByteSize;
     case PTY_a32:
     case PTY_f32:
     case PTY_i32:
     case PTY_u32:
     case PTY_simplestr:
     case PTY_simpleobj:
-      return k4BitSize;
+      return k4ByteSize;
     case PTY_a64:
     case PTY_c64:
     case PTY_f64:
@@ -280,7 +280,7 @@ uint32 GetPrimTypeSize(PrimType primType) {
     case PTY_v2f32:
     case PTY_v1i64:
     case PTY_v1u64:
-      return k8BitSize;
+      return k8ByteSize;
     case PTY_u128:
     case PTY_i128:
     case PTY_c128:
@@ -295,7 +295,7 @@ uint32 GetPrimTypeSize(PrimType primType) {
     case PTY_v16u8:
     case PTY_v2f64:
     case PTY_v4f32:
-      return k16BitSize;
+      return k16ByteSize;
 #ifdef DYNAMICLANG
     case PTY_dynf32:
     case PTY_dyni32:
@@ -304,13 +304,13 @@ uint32 GetPrimTypeSize(PrimType primType) {
     case PTY_dynundef:
     case PTY_dynnull:
     case PTY_dynbool:
-      return k8BitSize;
+      return k8ByteSize;
     case PTY_dynany:
     case PTY_dynf64:
-      return k8BitSize;
+      return k8ByteSize;
 #endif
     default:
-      return k0BitSize;
+      return k0ByteSize;
   }
 }
 
@@ -323,17 +323,17 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
     case PTY_u1:
     case PTY_i8:
     case PTY_u8:
-      return k0BitSize;
+      return k0ByteSize;
     case PTY_i16:
     case PTY_u16:
-      return k1BitSize;
+      return k1ByteSize;
     case PTY_a32:
     case PTY_f32:
     case PTY_i32:
     case PTY_u32:
     case PTY_simplestr:
     case PTY_simpleobj:
-      return k2BitSize;
+      return k2ByteSize;
     case PTY_a64:
     case PTY_c64:
     case PTY_f64:
@@ -346,7 +346,7 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
     case PTY_v4u16:
     case PTY_v8u8:
     case PTY_v2f32:
-      return k3BitSize;
+      return k3ByteSize;
     case PTY_c128:
     case PTY_f128:
     case PTY_v2i64:
@@ -359,7 +359,7 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
     case PTY_v16u8:
     case PTY_v2f64:
     case PTY_v4f32:
-      return k4BitSize;
+      return k4ByteSize;
 #ifdef DYNAMICLANG
     case PTY_dynf32:
     case PTY_dyni32:
@@ -370,11 +370,11 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
     case PTY_dynbool:
     case PTY_dynany:
     case PTY_dynf64:
-      return k3BitSize;
+      return k3ByteSize;
 #endif
     default:
       ASSERT(false, "Power-of-2 size only applicable to sizes of 1, 2, 4, 8 or 16 bytes.");
-      return k10BitSize;
+      return k10ByteSize;
   }
 }
 
@@ -1360,26 +1360,29 @@ size_t MIRStructType::GetSize() const {
 
 uint32 MIRStructType::GetAlign() const {
   if (fields.size() == 0) {
-    return 0;
+    return 1;
   }
   uint32 maxAlign = 1;
+  uint32 maxOriginAlign = 1;
+  auto structPack = GetTypeAttrs().GetPack();
   for (size_t i = 0; i < fields.size(); ++i) {
     TyIdxFieldAttrPair tfap = GetTyidxFieldAttrPair(i);
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first);
-    uint32 algn = fieldType->GetAlign();
-    if (fieldType->GetKind() == kTypeBitField) {
-      algn = GetPrimTypeSize(fieldType->GetPrimType());
-    } else {
-      algn = std::max(algn, tfap.second.GetAlign());
+    auto attrAlign = tfap.second.GetAlign();
+    auto originAlign = std::max(attrAlign, fieldType->GetAlign());
+    uint32 fieldAlign = tfap.second.IsPacked() ? static_cast<uint32>(1U) : std::min(originAlign, structPack);
+    CHECK_FATAL(fieldAlign != 0, "expect fieldAlign not equal 0");
+    if (maxAlign < fieldAlign) {
+      maxAlign = fieldAlign;
     }
-    if (maxAlign < algn) {
-      maxAlign = algn;
+    if (maxOriginAlign < originAlign) {
+      maxOriginAlign = originAlign;
     }
   }
   if (HasZeroWidthBitField()) {
-    return maxAlign;
+    return maxOriginAlign;
   }
-  return std::min(maxAlign, GetTypeAttrs().GetPack());
+  return maxAlign;
 }
 
 void MIRStructType::DumpFieldsAndMethods(int indent, bool hasMethod) const {

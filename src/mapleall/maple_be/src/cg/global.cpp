@@ -71,6 +71,7 @@ bool CgGlobalOpt::PhaseRun(maplebe::CGFunc &f) {
     return false;
   }
   reachingDef->SetAnalysisMode(kRDAllAnalysis);
+  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
   GlobalOpt *globalOpt = nullptr;
 #if TARGAARCH64 || TARGRISCV64
   globalOpt = GetPhaseAllocator()->New<AArch64GlobalOpt>(f);

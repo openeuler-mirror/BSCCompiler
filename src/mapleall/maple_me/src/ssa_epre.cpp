@@ -68,10 +68,7 @@ void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, ScalarMeExpr &regOrVar)
         savedRHS = irMap->CreateMeExprTypeCvt(lhsPrimType, savedRHS->GetPrimType(), *savedRHS);
       } else {
         Opcode extOp = IsSignedInteger(lhsPrimType) ? OP_sext : OP_zext;
-        PrimType newPrimType = PTY_u32;
-        if (IsSignedInteger(lhsPrimType)) {
-          newPrimType = PTY_i32;
-        }
+        PrimType newPrimType = IsSignedInteger(lhsPrimType) ? PTY_i32 : PTY_u32;
         OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
         opmeexpr.SetBitsSize(static_cast<uint8>(GetPrimTypeSize(lhsPrimType) * 8));
         opmeexpr.SetOpnd(0, savedRHS);
@@ -306,7 +303,7 @@ void SSAEPre::ComputeVarAndDfPhis() {
   varPhiDfns.clear();
   dfPhiDfns.clear();
   const MapleVector<MeRealOcc*> &realOccList = workCand->GetRealOccs();
-  CHECK_FATAL(!dom->IsBBVecEmpty(), "size to be allocated is 0");
+  CHECK_FATAL(!dom->IsNodeVecEmpty(), "size to be allocated is 0");
   for (auto it = realOccList.begin(); it != realOccList.end(); ++it) {
     MeRealOcc *realOcc = *it;
     if (realOcc->GetOccType() == kOccCompare) {
@@ -330,7 +327,7 @@ void SSAEPre::ComputeVarAndDfPhis() {
   }
   std::set<uint32> tmpVarPhi(varPhiDfns.begin(), varPhiDfns.end());
   for (uint32 dfn : tmpVarPhi) {
-    GetIterDomFrontier(GetBB(dom->GetDtPreOrderItem(dfn)), &varPhiDfns);
+    GetIterDomFrontier(GetBB(BBId(dom->GetDtPreOrderItem(dfn))), &varPhiDfns);
   }
 }
 

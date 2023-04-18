@@ -160,7 +160,7 @@ class MapleSparseBitVector {
   using BitWord =  unsigned long long;
 
  public:
-  explicit MapleSparseBitVector(MapleAllocator &alloc)
+  explicit MapleSparseBitVector(const MapleAllocator &alloc)
       : allocator(alloc),
         elementList(allocator.Adapter()),
         currIter(elementList.begin()) {}

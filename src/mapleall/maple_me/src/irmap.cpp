@@ -1133,7 +1133,7 @@ MeExpr *IRMap::FoldConstExprBinary(PrimType primType, Opcode op, ConstMeExpr &op
   if ((op == OP_div || op == OP_rem) && !IsDivSafe(*constA, *constB, primType)) {
     return nullptr;
   }
-  MIRConst *resconst = ConstantFold::FoldIntConstBinaryMIRConst(op, primType, constA, constB);
+  MIRConst *resconst = ConstantFold::FoldIntConstBinaryMIRConst(op, primType, *constA, *constB);
   return CreateConstMeExpr(primType, *resconst);
 }
 
@@ -2050,7 +2050,7 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
   return nullptr;
 }
 
-MeExpr *IRMap::SimplifySelExpr(OpMeExpr *selExpr) {
+MeExpr *IRMap::SimplifySelExpr(const OpMeExpr *selExpr) {
   if (selExpr->GetOp() != OP_select) {
     return nullptr;
   }
@@ -2230,6 +2230,236 @@ static bool bitMapIsValidForReverse(uint32 from, uint32 to, uint8 bitwidth) {
   return from == bitwidth - to - 1;
 }
 
+// Calculate the number of continuous binary bits as 1 and other bits must as 0.
+static bool CountContinuousOnes(uint64 value, size_t &count) {
+  while (value != 0) {
+    if ((value & 0x1) == 0) {
+      break;
+    }
+    ++count;
+    value >>= 1;
+  }
+  return (value == 0);
+}
+
+bool IRMap::DealWithIaddrofWhenGetInfoOfIvar(IreadPairInfo &info) const {
+  // opnd[0] = IVAR mx434 u32 TYIDX:551<* u32> (field)0
+  //  base = OP iaddrof a64 kPtyInvalid (field)15 mx433
+  //   opnd[0] = REGINDX:15 a64 %15 mx388
+  //  - MU: {VAR %retVar_4031{offset:0}<0>[idx:10](vstIdx:22)->{15/288}[idx:28] (field)15 mx163}
+  auto iaddrofMeExpr = static_cast<OpMeExpr*>(info.ivar->GetBase());
+  if (!iaddrofMeExpr->GetOpnd(0)->IsLeaf()) {
+    return false;
+  }
+  auto baseType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrofMeExpr->GetTyIdx());
+  ASSERT(baseType->IsMIRPtrType(), "must be ptr type");
+  auto pointedTy = static_cast<MIRPtrType*>(baseType)->GetPointedType();
+  info.SetInfoOfIvar(*iaddrofMeExpr->GetOpnd(0), pointedTy->GetBitOffsetFromBaseAddr(
+      iaddrofMeExpr->GetFieldID()) + iaddrofMeExpr->GetBitsOffSet(), info.ivar->GetType()->GetSize());
+  return true;
+}
+
+bool IRMap::GetInfoOfIvar(MeExpr &expr, IreadPairInfo &info) const {
+  if (!IsPrimitiveInteger(expr.GetPrimType())) {
+    return false;
+  }
+  if (expr.GetMeOp() == kMeOpIvar) {
+    info.ivar = static_cast<IvarMeExpr*>(&expr);
+  } else if (expr.GetOp() == OP_band) {
+    auto opnd0 = expr.GetOpnd(0);
+    if (opnd0->GetMeOp() != kMeOpIvar) {
+      return false;
+    }
+    info.ivar = static_cast<IvarMeExpr*>(opnd0);
+    auto opnd1 = expr.GetOpnd(1);
+    if (opnd1->GetMeOp() != kMeOpConst || !IsPrimitiveInteger(opnd1->GetPrimType())) {
+      return false;
+    }
+  } else {
+    return false;
+  }
+  if (info.ivar->GetType()->IsMIRBitFieldType()) {
+    return false;
+  }
+  // convert byte size to bit size.
+  info.bitOffset = info.ivar->GetOffset() * static_cast<int32>(k8BitSize);
+  if (info.ivar->GetBase()->GetOp() == OP_add) {
+    auto opnd0 = info.ivar->GetBase()->GetOpnd(0);
+    auto opnd1 = info.ivar->GetBase()->GetOpnd(1);
+    if (opnd1->GetMeOp() != kMeOpConst) {
+      return false;
+    }
+    auto constMeExpr = static_cast<ConstMeExpr*>(opnd1);
+    if (!IsPrimitiveInteger(constMeExpr->GetPrimType())) {
+      return false;
+    }
+    info.SetInfoOfIvar(*opnd0, constMeExpr->GetExtIntValue() * k8BitSize,
+        info.ivar->GetType()->GetSize());
+    return true;
+  }
+  if (info.ivar->GetBase()->GetOp() == OP_iaddrof) {
+    return DealWithIaddrofWhenGetInfoOfIvar(info);
+  }
+  if (!info.ivar->GetBase()->IsLeaf()) {
+    return false;
+  }
+  auto baseType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(info.ivar->GetTyIdx());
+  ASSERT(baseType->IsMIRPtrType(), "type of iread must be ptr type");
+  auto pointedTy = static_cast<MIRPtrType*>(baseType)->GetPointedType();
+  info.SetInfoOfIvar(*info.ivar->GetBase(), pointedTy->GetBitOffsetFromBaseAddr(info.ivar->GetFieldID()),
+      info.ivar->GetType()->GetSize());
+  return true;
+}
+
+MeExpr *IRMap::CreateNewIvarForAdjacentIread(MeExpr &base0, const IvarMeExpr &ivar0, const IvarMeExpr &ivar1,
+    PrimType ivarPTy, int64 newOffset) {
+  auto basePTy = base0.GetPrimType();
+  auto *newBase = (newOffset / static_cast<int64>(k8BitSize) == 0) ? &base0 : CreateMeExprBinary(
+      OP_add, basePTy, base0, *CreateIntConstMeExpr(newOffset / static_cast<int64>(k8BitSize), basePTy));
+  IvarMeExpr newIvar(&irMapAlloc, kInvalidExprID, ivarPTy, GlobalTables::GetTypeTable().GetOrCreatePointerType(
+      *GlobalTables::GetTypeTable().GetPrimType(ivarPTy))->GetTypeIndex(), 0, OP_iread);
+  newIvar.SetBase(newBase);
+  for (auto mu : ivar0.GetMuList()) {
+    if (mu == nullptr) {
+      continue;
+    }
+    newIvar.Push2MuList(*mu);
+  }
+  for (auto mu : ivar1.GetMuList()) {
+    if (mu == nullptr) {
+      continue;
+    }
+    newIvar.Push2MuList(*mu);
+  }
+  if (newIvar.GetMuList().size() > 1) {
+    (void)newIvar.GetMuList().erase(newIvar.GetMuList().begin());
+  }
+  return HashMeExpr(newIvar);
+}
+
+bool IRMap::GetIreadsInfo(MeExpr &opnd0, MeExpr &opnd1, IreadPairInfo &info0, IreadPairInfo &info1) const {
+  if (!GetInfoOfIvar(opnd0, info0)) {
+    return false;
+  }
+  if (!GetInfoOfIvar(opnd1, info1)) {
+    return false;
+  }
+  // The bases of two ireads must be the same
+  if (info0.base != info1.base) {
+    return false;
+  }
+  // Do not opt with volatile attribute.
+  if (info0.ivar->GetVolatileFromBaseSymbol() || info1.ivar->GetVolatileFromBaseSymbol()) {
+    return false;
+  }
+  // Two fields must be adjacent and there are no additional bits between two fields.
+  if (info0.bitOffset + static_cast<int64>(info0.byteSize) * static_cast<int64>(k8BitSize) != info1.bitOffset) {
+    return false;
+  }
+  // The offset of the first filed relative to base must be an integer multiple of 8 bits.
+  if (info0.bitOffset % static_cast<int64>(k8BitSize) != 0) {
+    return false;
+  }
+  return true;
+}
+
+MeExpr *IRMap::OptBandWithIread(MeExpr &opnd0, MeExpr &opnd1) {
+  IreadPairInfo info0;
+  IreadPairInfo info1;
+  if (!GetIreadsInfo(opnd0, opnd1, info0, info1)) {
+    return nullptr;
+  }
+  if (info0.byteSize + info1.byteSize <= k8ByteSize) {
+    return nullptr;
+  }
+  if (opnd1.GetOp() != OP_band) {
+    return nullptr;
+  }
+  if (opnd1.GetOpnd(1)->GetMeOp() != kMeOpConst) {
+    return nullptr;
+  }
+  size_t bitSizeOfBand = 0;
+  if (!CountContinuousOnes(static_cast<ConstMeExpr*>(opnd1.GetOpnd(1))->GetZXTIntValue(), bitSizeOfBand)) {
+    return nullptr;
+  }
+  auto distance = info1.byteSize * static_cast<size_t>(k8BitSize) - bitSizeOfBand;
+  if (distance % k8BitSize != 0) {
+    return nullptr;
+  }
+  if (info0.byteSize * k8BitSize < distance) {
+    return nullptr;
+  }
+  auto newOffset = info1.bitOffset - static_cast<int64>(distance);
+  return CreateNewIvarForAdjacentIread(*info0.base, *info0.ivar, *info1.ivar, opnd1.GetPrimType(), newOffset);
+}
+
+MeExpr *IRMap::MergeAdjacentIread(MeExpr &opnd0, MeExpr &opnd1) {
+  IreadPairInfo info0;
+  IreadPairInfo info1;
+  if (!GetIreadsInfo(opnd0, opnd1, info0, info1)) {
+    return nullptr;
+  }
+  PrimType resPTy = PTY_begin;
+  size_t resBytes = 0;
+  if (info0.byteSize + info1.byteSize <= k1ByteSize) {
+    resPTy = PTY_u8;
+    resBytes = k1ByteSize;
+  } else if (info0.byteSize + info1.byteSize <= k2ByteSize) {
+    resPTy = PTY_u16;
+    resBytes = k2ByteSize;
+  } else if (info0.byteSize + info1.byteSize <= k4ByteSize) {
+    resPTy = PTY_u32;
+    resBytes = k4ByteSize;
+  } else if (info0.byteSize + info1.byteSize <= k8ByteSize) {
+    resPTy = PTY_u64;
+    resBytes = k8ByteSize;
+  } else {
+    return nullptr;
+  }
+  auto *resIvar = CreateNewIvarForAdjacentIread(*info0.base, *info0.ivar, *info1.ivar, resPTy, info0.bitOffset);
+  // If the number of bits in two files is not an integer multiple of 8 bytes,
+  // the remaining bits need to be cleared to zero.
+  if (info0.byteSize + info1.byteSize == resBytes) {
+    return resIvar;
+  }
+  auto offset = (info0.byteSize + info1.byteSize) * k8BitSize;
+  return CreateMeExprBinary(
+      OP_band, resPTy, *resIvar, *CreateIntConstMeExpr(static_cast<int64>((uint64(1) << offset)) - 1, resPTy));
+}
+
+// dassign %_3799__c_2702_158_SECOND_6 0 (bior i32 (
+//    iread u32 <* <$HpfFlowKey>> 6 (dread a64 %_3799__key_SECOND_6),
+//    shl i32 (
+//      iread u32 <* <$HpfFlowKey>> 7 (dread a64 %_3799__key_SECOND_6),
+//      constval i32 16)))
+// dassign %_3799__c_2702_158_SECOND_6 0 (
+//    iread u32 <* u32> 0 (add a64 (dread a64 %_3799__key_SECOND_6, constval a64 8)))
+MeExpr *IRMap::ReadContinuousMemory(const OpMeExpr &opMeExpr) {
+  MeExpr *opnd0 = opMeExpr.GetOpnd(0);
+  MeExpr *opnd1 = opMeExpr.GetOpnd(1);
+  Opcode opcode0 = opnd0->GetOp();
+  Opcode opcode1 = opnd1->GetOp();
+  if (opcode0 != OP_iread && opcode1 != OP_shl) {
+    return nullptr;
+  }
+  MeExpr *shlOpnd0 = opnd1->GetOpnd(0);
+  MeExpr *shlOpnd1 = opnd1->GetOpnd(1);
+  if (shlOpnd0->GetOp() != OP_iread) {
+    return nullptr;
+  }
+  if (shlOpnd1->GetMeOp() != kMeOpConst) {
+    return nullptr;
+  }
+  auto iread0 = static_cast<IvarMeExpr*>(opnd0);
+  auto iread1 = static_cast<IvarMeExpr*>(shlOpnd0);
+  auto shlConst = static_cast<ConstMeExpr*>(shlOpnd1)->GetZXTIntValue();
+  // The number of bits shifted to the left must be the same as the number of bits in the first field.
+  if (iread0->GetType()->GetSize() * k8BitSize != shlConst) {
+    return nullptr;
+  }
+  return MergeAdjacentIread(*iread0, *iread1);
+}
+
 // match OR bit operations for bytewise reverse, replace with intrinsic rev
 MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
   Opcode opcode = opmeexpr->GetOp();
@@ -2261,8 +2491,8 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
     if (expr1->GetMeOp() != kMeOpConst) {
       return nullptr;
     }
-    auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetExtIntValue();
-    auto c2 = static_cast<ConstMeExpr *>(expr1)->GetExtIntValue();
+    auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetZXTIntValue();
+    auto c2 = static_cast<ConstMeExpr *>(expr1)->GetZXTIntValue();
     if ((c1 & c2) == 0) {
       auto newOpnd0 = CreateMeExprBinary(OP_bior, opmeexpr->GetPrimType(), *opnd0->GetOpnd(0), *opnd1);
       auto res = CreateMeExprBinary(OP_bxor, opnd0->GetPrimType(), *newOpnd0, *expr1);
@@ -2357,7 +2587,7 @@ static bool IsSignBitZero(MeExpr *opnd, uint64 signBit, uint64 shiftAmt) {
         return false;
       }
       auto andValue = static_cast<ConstMeExpr *>(opnd1)->GetExtIntValue();
-      knownZeroBits |= ~andValue;
+      knownZeroBits |= ~(static_cast<uint64>(andValue));
       break;
     }
     default:
@@ -2536,7 +2766,7 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
   auto foldConst = [this](MeExpr *opnd0, MeExpr *opnd1, Opcode op, PrimType ptyp) {
     MIRIntConst *opnd0const = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(opnd0)->GetConstVal());
     MIRIntConst *opnd1const = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(opnd1)->GetConstVal());
-    MIRConst *resconst = ConstantFold::FoldIntConstBinaryMIRConst(op, ptyp, opnd0const, opnd1const);
+    MIRConst *resconst = ConstantFold::FoldIntConstBinaryMIRConst(op, ptyp, *opnd0const, *opnd1const);
     return CreateConstMeExpr(ptyp, *resconst);
   };
   switch (opop) {
@@ -2684,7 +2914,7 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
           return nullptr;
       }
       MIRConst *resconst = ConstantFold::FoldIntConstBinaryMIRConst(opmeexpr->GetOp(),
-          opmeexpr->GetPrimType(), opnd0const, opnd1const);
+          opmeexpr->GetPrimType(), *opnd0const, *opnd1const);
       return CreateConstMeExpr(opmeexpr->GetPrimType(), *resconst);
     }
     case OP_depositbits: {

@@ -82,11 +82,13 @@ void BBLayout::InitBBChains() {
 
 void BBLayout::BuildChainForFunc() {
   debugChainLayout = enabledDebug;
-  uint32 validBBNum = 0;
+  int32 validBBNumTmp = 0;
   for (auto it = cfg->valid_begin(); it != cfg->valid_end(); ++it) {
-    ++validBBNum;
+    ++validBBNumTmp;
   }
-  --validBBNum;  // exclude common entry BB
+  --validBBNumTmp;  // exclude common entry BB
+  CHECK_FATAL(validBBNumTmp > 0, "BBNum must > 0");
+  uint32 validBBNum = static_cast<uint32>(validBBNumTmp);
   if (debugChainLayout) {
     LogInfo::MapleLogger() << "\n[Chain layout] " << func.GetName() << ", valid bb num: " << validBBNum << std::endl;
   }
@@ -203,7 +205,7 @@ bool BBLayout::IsCandidateSucc(const BB &bb, const BB &succ, const MapleVector<b
 }
 
 // Whether succ has a better layout pred than bb
-bool BBLayout::HasBetterLayoutPred(const BB &bb, BB &succ) {
+bool BBLayout::HasBetterLayoutPred(const BB &bb, BB &succ) const {
   auto &predList = succ.GetPred();
   // predList.size() may be 0 if bb is common entry BB
   if (predList.size() <= 1) {
@@ -1036,6 +1038,7 @@ void BBLayout::OptimiseCFG() {
     }
   }
   (void)cfg->UnreachCodeAnalysis(false);
+  cfg->WontExitAnalysis();
 }
 
 void BBLayout::SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const {

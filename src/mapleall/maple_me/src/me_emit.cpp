@@ -52,7 +52,7 @@ static void ResetDependentedSymbolLive(MIRConst *mirConst) {
 
 void ResetDependentedSymbolLive(MIRFunction *func) {
   for (size_t k = 1; k < func->GetSymTab()->GetSymbolTableSize(); ++k) {
-    MIRSymbol *sym = func->GetSymTab()->GetSymbolFromStIdx(k);
+    MIRSymbol *sym = func->GetSymTab()->GetSymbolFromStIdx(static_cast<uint32>(k));
     CHECK_FATAL(sym, "sym is nullptr!");
     if (!sym->IsConst()) {
       continue;

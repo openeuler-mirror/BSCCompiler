@@ -111,6 +111,7 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/aarch64/aarch64_global_schedule.cpp
         src/cg/aarch64/aarch64_local_schedule.cpp
         src/cg/aarch64/aarch64_aggressive_opt.cpp
+        src/cg/aarch64/aarch64_imm_valid.cpp
         src/cg/cfi_generator.cpp
         src/cg/cfgo.cpp
         src/cg/local_opt.cpp

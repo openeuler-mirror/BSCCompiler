@@ -34,6 +34,7 @@
 #include "fe_options.h"
 #include "feir_type_helper.h"
 #include "feir_dfg.h"
+#include "int128_util.h"
 
 namespace maple {
 class FEIRBuilder;
@@ -561,6 +562,7 @@ union ConstExprValue {
   int64 i64;
   double f64;
   uint64 f128[2];
+  Int128Arr i128;
 };
 
 class FEIRExprConst : public FEIRExpr {
@@ -568,6 +570,7 @@ class FEIRExprConst : public FEIRExpr {
   FEIRExprConst();
   FEIRExprConst(int64 val, PrimType argType);
   FEIRExprConst(uint64 val, PrimType argType);
+  FEIRExprConst(const IntVal &val, PrimType argType);
   explicit FEIRExprConst(uint32 val);
   explicit FEIRExprConst(float val);
   explicit FEIRExprConst(double val);

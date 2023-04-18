@@ -14,17 +14,7 @@
  */
 #ifndef MPL2MPL_INCLUDE_INLINE_H
 #define MPL2MPL_INCLUDE_INLINE_H
-#include "call_graph.h"
 #include "inline_transformer.h"
-#include "maple_phase_manager.h"
-#include "me_option.h"
-#include "mempool.h"
-#include "mempool_allocator.h"
-#include "mir_builder.h"
-#include "mir_function.h"
-#include "mir_parser.h"
-#include "opcode_info.h"
-#include "string_utils.h"
 
 namespace maple {
 
@@ -80,14 +70,14 @@ class MInline {
   InlineResult AnalyzeCallee(const MIRFunction &caller, MIRFunction &callee, const CallNode &callStmt);
   void AdjustInlineThreshold(const MIRFunction &caller, MIRFunction &callee, const CallNode &callStmt,
       uint32 &threshold, uint32 &thresholdType);
-  bool IsSmallCalleeForEarlyInline(MIRFunction &callee, int32 *outInsns);
+  bool IsSmallCalleeForEarlyInline(MIRFunction &callee, int32 *outInsns) const;
   virtual bool CanInline(CGNode*, std::unordered_map<MIRFunction*, bool>&) {
     return false;
   }
 
   bool CheckCalleeAndInline(MIRFunction*, BlockNode *enclosingBlk, CallNode*, MIRFunction*);
   bool SuitableForTailCallOpt(BaseNode &enclosingBlk, const StmtNode &stmtNode, CallNode &callStmt);
-  bool CalleeReturnValueCheck(StmtNode &stmtNode, CallNode &callStmt);
+  bool CalleeReturnValueCheck(StmtNode &stmtNode, CallNode &callStmt) const;
   void InlineCalls(CGNode &node);
   void PostInline(MIRFunction &caller);
   void InlineCallsBlock(MIRFunction &func, BlockNode &enclosingBlk, BaseNode &baseNode, bool &changed,

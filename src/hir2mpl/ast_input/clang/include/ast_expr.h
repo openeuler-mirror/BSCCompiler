@@ -25,6 +25,7 @@ class ASTStmt;
 struct ASTValue {
   union Value {
     uint64 f128[2];
+    Int128Arr i128;
     uint8 u8;
     uint16 u16;
     uint32 u32;
@@ -168,7 +169,7 @@ class ASTExpr {
   virtual MIRConst *GenerateMIRConstImpl() const;
   virtual UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const = 0;
   virtual ASTExpr *IgnoreParensImpl();
-
+  MIRIntrinsicID SetVectorSetLane(const MIRType &type) const;
   virtual ASTDecl *GetASTDeclImpl() const {
     return refedDecl;
   }
@@ -312,9 +313,21 @@ class ASTDeclRefExpr : public ASTExpr {
   }
   ~ASTDeclRefExpr() override = default;
 
+  void SetIsVectorType(bool flag) {
+    isVectorType = flag;
+  }
+
+  void SetIsAddrOfType(bool flag) {
+    isAddrOfType = flag;
+  }
+
  protected:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+
+ private:
+  bool isVectorType = false;
+  bool isAddrOfType = false;
 };
 
 class ASTUnaryOperatorExpr : public ASTExpr {
@@ -760,7 +773,6 @@ class ASTInitListExpr : public ASTExpr {
                                                         const UniqueFEIRExpr &addrOfArrayField) const;
   void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              const ASTInitListExpr &initList, std::list<UniqueFEIRStmt> &stmts) const;
-  MIRIntrinsicID SetVectorSetLane(const MIRType &type) const;
   void ProcessDesignatedInitUpdater(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                     const UniqueFEIRExpr &addrOfCharArray, ASTExpr *expr,
                                     std::list<UniqueFEIRStmt> &stmts) const;
@@ -993,7 +1005,7 @@ class ASTArraySubscriptExpr : public ASTExpr {
     arrayType = ty;
   }
 
-  const MIRType *GetArrayType() const {
+  MIRType *GetArrayType() const {
     return arrayType;
   }
 
@@ -1005,6 +1017,10 @@ class ASTArraySubscriptExpr : public ASTExpr {
 
   void SetVLASizeExpr(ASTExpr *expr) {
     vlaSizeExpr = expr;
+  }
+
+  void SetIsVectorType(bool flag) {
+    isVectorType = flag;
   }
 
  private:
@@ -1020,12 +1036,15 @@ class ASTArraySubscriptExpr : public ASTExpr {
                              const UniqueFEIRExpr &baseAddrExpr) const;
   bool InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr indexExpr,
                               UniqueFEIRExpr baseAddrFEExpr) const;
+  MIRIntrinsicID SetVectorGetLane(const MIRType &type) const;
+  MIRIntrinsicID SetVectorGetQLane(const MIRType &type) const;
 
   ASTExpr *baseExpr = nullptr;
   MIRType *arrayType = nullptr;
   ASTExpr *idxExpr = nullptr;
   bool isVLA = false;
   ASTExpr *vlaSizeExpr = nullptr;
+  bool isVectorType = false;
 };
 
 class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {
@@ -1522,13 +1541,18 @@ class ASTParenExpr : public ASTExpr {
 
 class ASTIntegerLiteral : public ASTExpr {
  public:
-  explicit ASTIntegerLiteral(MapleAllocator &allocatorIn) : ASTExpr(allocatorIn, kASTIntegerLiteral) {
+  explicit ASTIntegerLiteral(MapleAllocator &allocatorIn)
+      : ASTExpr(allocatorIn, kASTIntegerLiteral), val(static_cast<uint64>(0), PTY_i64) {
     (void)allocatorIn;
   }
   ~ASTIntegerLiteral() override = default;
 
-  int64 GetVal() const {
+  const IntVal &GetVal() const {
     return val;
+  }
+
+  void SetVal(const IntVal &valIn) {
+    val.Assign(valIn);
   }
 
   void SetVal(int64 valIn) {
@@ -1541,7 +1565,7 @@ class ASTIntegerLiteral : public ASTExpr {
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 
-  int64 val = 0;
+  IntVal val;
 };
 
 enum class FloatKind {

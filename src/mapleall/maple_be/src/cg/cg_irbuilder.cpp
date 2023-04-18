@@ -93,6 +93,10 @@ ImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, MemPool *mp) {
   return mp ? *mp->New<ImmOperand>(value, size, false) : *alloc.New<ImmOperand>(value, size, false);
 }
 
+ImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, bool isSigned, MemPool *mp) {
+  return mp ? *mp->New<ImmOperand>(value, size, isSigned) : *alloc.New<ImmOperand>(value, size, isSigned);
+}
+
 ImmOperand &OperandBuilder::CreateImm(const MIRSymbol &symbol, int64 offset, int32 relocs, MemPool *mp) {
   return mp ? *mp->New<ImmOperand>(symbol, offset, relocs, false) :
       *alloc.New<ImmOperand>(symbol, offset, relocs, false);
@@ -127,6 +131,13 @@ MemOperand &OperandBuilder::CreateMem(uint32 size, RegOperand &baseOpnd, ImmOper
     return *mp->New<MemOperand>(size, baseOpnd, ofstOperand, symbol);
   }
   return *alloc.New<MemOperand>(size, baseOpnd, ofstOperand, symbol);
+}
+
+BitShiftOperand &OperandBuilder::CreateBitShift(BitShiftOperand::ShiftOp op, uint32 amount, uint32 bitLen, MemPool *mp) {
+  if (mp != nullptr) {
+    return *mp->New<BitShiftOperand>(op, amount, bitLen);
+  }
+  return *alloc.New<BitShiftOperand>(op, amount, bitLen);
 }
 
 RegOperand &OperandBuilder::CreateVReg(uint32 size, RegType type, MemPool *mp) {

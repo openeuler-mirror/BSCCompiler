@@ -21,6 +21,7 @@
 #include "insn.h"
 #include "cg_ssa.h"
 #include "reg_coalesce.h"
+#include "cg_dce.h"
 
 namespace maplebe {
 #define CG_VALIDBIT_OPT_DUMP CG_DEBUG_FUNC(*cgFunc)
@@ -46,12 +47,14 @@ class ValidBitPattern {
  protected:
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
-  LiveIntervalAnalysis *regll;
+  LiveIntervalAnalysis *regll = nullptr;
 };
 
 class ValidBitOpt {
  public:
-  ValidBitOpt(CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : cgFunc(&f), ssaInfo(&info), regll(&ll) {}
+  ValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) :memPool(&mp), cgFunc(&f), ssaInfo(&info), regll(&ll) {
+    cgDce = f.GetCG()->CreateCGDce(mp, f, info);
+  }
   virtual ~ValidBitOpt() {
     cgFunc = nullptr;
     ssaInfo = nullptr;
@@ -97,9 +100,11 @@ class ValidBitOpt {
   virtual bool SetPhiValidBits(Insn &insn) = 0;
 
  protected:
+  MemPool *memPool;
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
   LiveIntervalAnalysis *regll;
+  CGDce *cgDce = nullptr;
 };
 MAPLE_FUNC_PHASE_DECLARE(CgValidBitOpt, maplebe::CGFunc)
 } /* namespace maplebe */

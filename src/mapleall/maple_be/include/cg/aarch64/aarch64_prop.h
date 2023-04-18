@@ -70,7 +70,8 @@ class A64StrLdrProp {
   bool ReplaceMemOpnd(const MemOperand &currMemOpnd);
   MemOperand *SelectReplaceMem(const MemOperand &currMemOpnd);
   RegOperand *GetReplaceReg(RegOperand &a64Reg);
-  MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal, uint32 memSize) const;
+  MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal,
+                                uint32 memSize, VaryType varyType = kNotVary) const;
   MemOperand *SelectReplaceExt(RegOperand &base, uint32 amount, bool isSigned, uint32 memSize);
   bool CheckNewMemOffset(const Insn &insn, MemOperand &newMemOpnd, uint32 opndIdx) const;
   void DoMemReplace(const RegOperand &replacedReg, MemOperand &newMem, Insn &useInsn);
@@ -104,14 +105,14 @@ class A64ConstProp {
         cgFunc(&f),
         ssaInfo(&sInfo),
         curInsn(&insn) {}
-  void DoOpt();
+  void DoOpt() const;
   /* false : default lsl #0 true: lsl #12 (only support 12 bit left shift in aarch64) */
   static MOperator GetRegImmMOP(MOperator regregMop, bool withLeftShift);
   static MOperator GetReversalMOP(MOperator arithMop);
   static MOperator GetFoldMopAndVal(int64 &newVal, int64 constVal, const Insn &arithInsn);
 
  private:
-  bool ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
+  bool ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const;
   /* use xzr/wzr in aarch64 to shrink register live range */
   void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) const;
 
@@ -179,51 +180,6 @@ class RedundantPhiProp : public PropOptimizePattern {
   }
 
  private:
-  VRegVersion *destVersion = nullptr;
-  VRegVersion *srcVersion = nullptr;
-};
-
-class RedundantExpandProp : public PropOptimizePattern {
- public:
-  RedundantExpandProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
-  ~RedundantExpandProp() override {
-    destVersion = nullptr;
-    srcVersion = nullptr;
-  }
-  bool CheckCondition(Insn &insn) final;
-  void Optimize(Insn &insn) final;
-  void Run() final;
-
- protected:
-  void Init() final {
-    destVersion = nullptr;
-    srcVersion = nullptr;
-  }
-
- private:
-  VRegVersion *destVersion = nullptr;
-  VRegVersion *srcVersion = nullptr;
-};
-
-class ValidBitNumberProp : public PropOptimizePattern {
- public:
-  ValidBitNumberProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
-  ~ValidBitNumberProp() override {
-    destVersion = nullptr;
-    srcVersion = nullptr;
-  }
-  bool CheckCondition(Insn &insn) final;
-  void Optimize(Insn &insn) final;
-  void Run() final;
-
- protected:
-  void Init() final {
-    destVersion = nullptr;
-    srcVersion = nullptr;
-  }
- private:
-  bool IsImplicitUse(const RegOperand &dstOpnd, const RegOperand &srcOpnd) const;
-  bool IsPhiToMopX(const RegOperand &defOpnd) const;
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;
 };

@@ -552,7 +552,7 @@ void BECommon::GenObjSize(const MIRClassType &classType, FILE &outFile) const {
 }
 
 // compute the offset of the field given by fieldID within the java class
-OffsetPair BECommon::GetJClassFieldOffset(MIRStructType &classType, FieldID fieldID) {
+OffsetPair BECommon::GetJClassFieldOffset(MIRStructType &classType, FieldID fieldID) const {
   CHECK_FATAL(fieldID <= GetStructFieldCount(classType.GetTypeIndex()), "GetFieldOFfset: fieldID too large");
   if (fieldID == 0) {
     return {0, 0};

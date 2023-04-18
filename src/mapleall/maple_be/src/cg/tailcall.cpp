@@ -191,7 +191,7 @@ void TailCallOpt::ConvertToTailCalls(MapleSet<Insn*, InsnIdCmp> &callInsnsMap) {
           !CGCFG::InSwitchTable(sBB->GetLabIdx(), cgFunc)) {
         auto it = std::find(cgFunc.GetExitBBsVec().begin(), cgFunc.GetExitBBsVec().end(), sBB);
         CHECK_FATAL(it != cgFunc.GetExitBBsVec().end(), "find unuse exit failed");
-        cgFunc.EraseExitBBsVec(it);
+        (void)cgFunc.EraseExitBBsVec(it);
         cgFunc.GetTheCFG()->RemoveBB(*sBB);
       }
       break;

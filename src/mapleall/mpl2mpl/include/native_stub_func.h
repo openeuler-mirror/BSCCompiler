@@ -54,7 +54,17 @@ class NativeFuncProperty {
 class NativeStubFuncGeneration : public FuncOptimizeImpl {
  public:
   NativeStubFuncGeneration(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~NativeStubFuncGeneration() override = default;
+  ~NativeStubFuncGeneration() override {
+    MCCSetReliableUnwindContextFunc = nullptr;
+    regTableConst = nullptr;
+    MRTDecodeRefFunc = nullptr;
+    MRTCallSlowNativeExtFunc = nullptr;
+    regFuncTabConst = nullptr;
+    MRTPostNativeFunc = nullptr;
+    MRTCheckThrowPendingExceptionFunc = nullptr;
+    regFuncSymbol = nullptr;
+    MRTPreNativeFunc = nullptr;
+  }
 
   void ProcessFunc(MIRFunction *func) override;
   void Finish() override;

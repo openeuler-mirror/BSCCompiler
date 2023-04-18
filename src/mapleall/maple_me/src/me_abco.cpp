@@ -767,7 +767,7 @@ void MeABC::AddUseDef(MeExpr &meExpr) {
 }
 
 void MeABC::CollectCareInsns() {
-  for (auto pair : arrayChecks) {
+  for (const auto &pair : std::as_const(arrayChecks)) {
     MeStmt *meStmt = pair.first;
     if (IsCallAssigned(meStmt->GetOp())) {
       arrayNewChecks[meStmt] = nullptr;
@@ -787,7 +787,7 @@ bool MeABC::ProveGreaterZ(const MeExpr &weight) {
 }
 
 void MeABC::ReSolveEdge() {
-  for (auto pair : unresolveEdge) {
+  for (const auto &pair : std::as_const(unresolveEdge)) {
     MeExpr *weight = pair.second;
     if (!inequalityGraph->HasNode(*weight)) {
       continue;
@@ -968,8 +968,8 @@ void MeABC::InitNewStartPoint(MeStmt &meStmt, MeExpr &opnd1, MeExpr &opnd2, bool
     (void)inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(&opnd2)->GetExtIntValue());
   }
   BB *curBB = meStmt.GetBB();
-  if (curBB->GetPiList().size()) {
-    for (auto pair : curBB->GetPiList()) {
+  if (curBB->GetPiList().size() != 0) {
+    for (const auto &pair : std::as_const(curBB->GetPiList())) {
       CHECK_FATAL(pair.second.size() >= 1, "must be");
       PiassignMeStmt *pi = pair.second[0];
       AddUseDef(*pi->GetLHS());
@@ -1063,7 +1063,7 @@ void MeABC::ExecuteABCO() {
   if (CollectABC()) {
     ssi->ConvertToSSI();
     CollectCareInsns();
-    for (auto pair : arrayNewChecks) {
+    for (const auto &pair : std::as_const(arrayNewChecks)) {
       if (pair.first->GetOp() == OP_callassigned) {
         auto *callNode = static_cast<CallMeStmt*>(pair.first);
         ProcessCallParameters(*callNode);

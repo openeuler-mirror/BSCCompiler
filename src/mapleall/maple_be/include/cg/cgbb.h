@@ -484,8 +484,8 @@ class BB {
   void PushFrontSuccs(BB &bb) {
     succs.push_front(&bb);
   }
-  void ErasePreds(MapleList<BB*>::const_iterator it) {
-    preds.erase(it);
+  MapleList<BB*>::iterator ErasePreds(MapleList<BB*>::const_iterator it) {
+    return preds.erase(it);
   }
   void EraseSuccs(MapleList<BB*>::const_iterator it) {
     succs.erase(it);
@@ -556,8 +556,8 @@ class BB {
   CGFuncLoops *GetLoop() const {
     return loop;
   }
-  void SetLoop(CGFuncLoops &arg) {
-    loop = &arg;
+  void SetLoop(CGFuncLoops *arg) {
+    loop = arg;
   }
   bool GetLiveInChange() const {
     return liveInChange;

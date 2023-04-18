@@ -46,6 +46,8 @@ enum LsMOpType : uint8 {
   kLwNeg,  /* MOP_winegrr | MOP_winegrrs */
   kLxIor,  /* MOP_xiorrrr | MOP_xiorrrrs */
   kLwIor,  /* MOP_wiorrrr | MOP_wiorrrrs */
+  kLxAnd,  /* MOP_xandrrr | MOP_xandrrrs */
+  kLwAnd,  /* MOP_wandrrr | MOP_wandrrrs */
 };
 
 enum SuffixType : uint8 {

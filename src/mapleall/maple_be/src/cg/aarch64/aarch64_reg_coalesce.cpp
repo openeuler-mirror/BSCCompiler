@@ -151,7 +151,7 @@ void AArch64LiveIntervalAnalysis::ComputeLiveIntervalsForEachUseOperand(Insn &in
   }
 }
 
-/* handle live range for bb->live_out */
+// handle live range for bb->live_out
 void AArch64LiveIntervalAnalysis::SetupLiveIntervalInLiveOut(regno_t liveOut, const BB &bb, uint32 currPoint) {
   --currPoint;
 

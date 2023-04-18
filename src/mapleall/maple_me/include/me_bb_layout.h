@@ -259,7 +259,7 @@ class BBLayout {
   void DoBuildChain(const BB &header, BBChain &chain, const MapleVector<bool> *context);
   BB *GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> *context, bool considerBetterPredForSucc);
   bool IsCandidateSucc(const BB &bb, const BB &succ, const MapleVector<bool> *context);
-  bool HasBetterLayoutPred(const BB &bb, BB &succ);
+  bool HasBetterLayoutPred(const BB &bb, BB &succ) const;
 
   MeFunction &func;
   MapleAllocator layoutAlloc;

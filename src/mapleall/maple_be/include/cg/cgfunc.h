@@ -412,6 +412,9 @@ class CGFunc {
   virtual RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) = 0;
   virtual RegOperand *SelectVectorIntrinsics(const IntrinsicopNode &intrinsicNode) = 0;
 
+  virtual RegOperand *SelectIntrinsicOpLoadTlsAnchor(const IntrinsicopNode& intrinsicopNode,
+                                                     const BaseNode &parent) = 0;
+
   virtual void HandleFuncCfg(CGCFG *cfg) { AddCommonExitBB(); }
 
   /* For ebo issue. */
@@ -807,8 +810,8 @@ class CGFunc {
     return exitBBVec.empty();
   }
 
-  void EraseExitBBsVec(MapleVector<BB*>::iterator it) {
-    exitBBVec.erase(it);
+  MapleVector<BB*>::iterator EraseExitBBsVec(MapleVector<BB*>::iterator it) {
+    return exitBBVec.erase(it);
   }
 
   void PushBackExitBBsVec(BB &bb) {
@@ -848,8 +851,16 @@ class CGFunc {
     return exitBBVec.at(index);
   }
 
+  MapleVector<BB*>::iterator EraseNoReturnCallBB(MapleVector<BB*>::iterator it) {
+    return noReturnCallBBVec.erase(it);
+  }
+
   void PushBackNoReturnCallBBsVec(BB &bb) {
     noReturnCallBBVec.emplace_back(&bb);
+  }
+
+  MapleVector<BB*> &GetNoRetCallBBVec() {
+    return noReturnCallBBVec;
   }
 
   void SetLab2BBMap(int32 index, BB &bb) {
@@ -886,7 +897,7 @@ class CGFunc {
     memLayout = &layout;
   }
 
-  RegisterInfo *GetTargetRegInfo() {
+  RegisterInfo *GetTargetRegInfo() const {
     return targetRegInfo;
   }
 
@@ -1426,15 +1437,13 @@ class CGFunc {
 
   // clone old mem and add offset
   // oldMem: [base, imm:12] -> newMem: [base, imm:(12 + offset)]
-  MemOperand &GetMemOperandAddOffset(MemOperand &oldMem, uint32 offset) {
-    if (offset == 0) {
-      return oldMem;
-    }
+  MemOperand &GetMemOperandAddOffset(MemOperand &oldMem, uint32 offset, uint32 newSize) {
     auto &newMem = static_cast<MemOperand&>(*oldMem.Clone(*GetMemoryPool()));
     auto &oldOffset = *oldMem.GetOffsetOperand();
     auto &newOffst = static_cast<ImmOperand&>(*oldOffset.Clone(*GetMemoryPool()));
     newOffst.SetValue(oldOffset.GetValue() + offset);
     newMem.SetOffsetOperand(newOffst);
+    newMem.SetSize(newSize);
     return newMem;
   }
 

@@ -26,6 +26,21 @@ class IRMapBuild; // circular dependency exists, no other choice
 class IRMap : public AnalysisResult {
   friend IRMapBuild;
  public:
+  struct IreadPairInfo {
+    IreadPairInfo() {}
+
+    void SetInfoOfIvar(MeExpr &baseArg, int64 offsetArg, size_t sizeArg) {
+      base = &baseArg;
+      bitOffset += offsetArg;
+      byteSize = sizeArg;
+    }
+
+    IvarMeExpr *ivar = nullptr;
+    MeExpr *base = nullptr;
+    int64 bitOffset = 0;
+    size_t byteSize = 0;
+  };
+
   IRMap(SSATab &ssaTab, MemPool &memPool, uint32 hashTableSize)
       : AnalysisResult(&memPool),
         ssaTab(ssaTab),
@@ -148,7 +163,7 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyAddExpr(const OpMeExpr *addExpr);
   MeExpr *SimplifyMulExpr(const OpMeExpr *mulExpr);
   MeExpr *SimplifyCmpExpr(OpMeExpr *cmpExpr);
-  MeExpr *SimplifySelExpr(OpMeExpr *selExpr);
+  MeExpr *SimplifySelExpr(const OpMeExpr *selExpr);
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyOrMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyAshrMeExpr(OpMeExpr *opmeexpr);
@@ -166,6 +181,14 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyIvar(IvarMeExpr *ivar, bool lhsIvar);
   void UpdateIncDecAttr(MeStmt &meStmt);
   static MIRType *GetArrayElemType(const MeExpr &opnd);
+  bool DealWithIaddrofWhenGetInfoOfIvar(IreadPairInfo &info) const;
+  bool GetInfoOfIvar(MeExpr &expr, IreadPairInfo &info) const;
+  MeExpr *ReadContinuousMemory(const OpMeExpr &opMeExpr);
+  MeExpr *OptBandWithIread(MeExpr &opnd0, MeExpr &opnd1);
+  MeExpr *MergeAdjacentIread(MeExpr &opnd0, MeExpr &opnd1);
+  bool GetIreadsInfo(MeExpr &opnd0, MeExpr &opnd1, IreadPairInfo &info0, IreadPairInfo &info1) const;
+  MeExpr *CreateNewIvarForAdjacentIread(
+      MeExpr &base0, const IvarMeExpr &ivar0, const IvarMeExpr &ivar1, PrimType ivarPTy, int64 newOffset);
 
   template <class T, typename... Arguments>
   T *NewInPool(Arguments&&... args) {

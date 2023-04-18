@@ -20,6 +20,14 @@
 #include "operand.h"
 
 namespace maplebe {
+// For verify & split insn
+#define VERIFY_INSN(INSN) (INSN)->VerifySelf()
+#define SPLIT_INSN(INSN, FUNC) \
+  (INSN)->SplitSelf(FUNC->IsAfterRegAlloc(), FUNC->GetInsnBuilder(), FUNC->GetOpndBuilder())
+// circular dependency exists, no other choice
+class Insn;
+class InsnBuilder;
+class OperandBuilder;
 enum MopProperty : maple::uint8 {
   kInsnIsAbstract,
   kInsnIsMove,
@@ -192,10 +200,21 @@ struct InsnDesc {
     atomicNum = 1;
   };
 
+  InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
+      const std::string &inName, const std::string &inFormat, uint32 anum)
+      : opc(op),
+        opndMD(opndmd),
+        properties(props),
+        latencyType(ltype),
+        name(inName),
+        format(inFormat),
+        atomicNum(anum) {
+  };
+
   // for hard-coded machine description.
   InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
       const std::string &inName, const std::string &inFormat, uint32 anum,
-      std::function<bool(const MapleVector<Operand*>)> vFunc = nullptr)
+      std::function<bool(const MapleVector<Operand*>)> vFunc)
       : opc(op),
         opndMD(opndmd),
         properties(props),
@@ -204,6 +223,22 @@ struct InsnDesc {
         format(inFormat),
         atomicNum(anum),
         validFunc(vFunc) {
+  };
+
+  // for hard-coded machine description.
+  InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
+      const std::string &inName, const std::string &inFormat, uint32 anum,
+      std::function<bool(const MapleVector<Operand*>)> vFunc,
+      std::function<void(Insn*, bool, InsnBuilder*, OperandBuilder*)> sFunc)
+      : opc(op),
+        opndMD(opndmd),
+        properties(props),
+        latencyType(ltype),
+        name(inName),
+        format(inFormat),
+        atomicNum(anum),
+        validFunc(vFunc),
+        splitFunc(sFunc) {
   };
 
   MOperator opc;
@@ -215,6 +250,8 @@ struct InsnDesc {
   uint32 atomicNum; /* indicate how many asm instructions it will emit. */
   // If insn has immOperand, this function needs to be implemented.
   std::function<bool(const MapleVector<Operand*>)> validFunc = nullptr;
+  // If insn needs to be split, this function needs to be implemented.
+  std::function<void(Insn*, bool, InsnBuilder*, OperandBuilder*)> splitFunc = nullptr;
 
   bool IsSame(const InsnDesc &left,
       std::function<bool (const InsnDesc &left, const InsnDesc &right)> cmp) const;
@@ -314,6 +351,12 @@ struct InsnDesc {
       CHECK_FATAL_FALSE("The size of opnds is wrong.");
     }
     return validFunc(opnds);
+  }
+  void Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) const {
+    if (!splitFunc) {
+      return;
+    }
+    splitFunc(insn, isAfterRegAlloc, insnBuilder, opndBuilder);
   }
   const OpndDesc *GetOpndDes(size_t index) const {
     return opndMD[index];

@@ -26,7 +26,7 @@ class ExtConstantFold {
   BaseNode* ExtFoldTernary(TernaryNode *node);
   StmtNode *ExtSimplify(StmtNode *node);
   BaseNode *ExtFold(BaseNode *node);
-  BaseNode *ExtFoldIor(BinaryNode *node);
+  BaseNode *ExtFoldIor(BinaryNode *node) const;
   BaseNode *ExtFoldXand(BinaryNode *node);
   StmtNode *ExtSimplifyBlock(BlockNode *node);
   StmtNode *ExtSimplifyIf(IfStmtNode *node);

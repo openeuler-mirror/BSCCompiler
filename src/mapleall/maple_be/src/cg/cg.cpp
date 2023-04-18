@@ -153,11 +153,12 @@ void CG::AddStackGuardvar() const {
   chkGuard->SetTyIdx(GlobalTables::GetTypeTable().GetTypeTable()[PTY_u64]->GetTypeIndex());
   GlobalTables::GetGsymTable().AddToStringSymbolMap(*chkGuard);
 
-  MIRSymbol *chkFunc = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
-  chkFunc->SetNameStrIdx(std::string("__stack_chk_fail"));
-  chkFunc->SetStorageClass(kScText);
-  chkFunc->SetSKind(kStFunc);
-  GlobalTables::GetGsymTable().AddToStringSymbolMap(*chkFunc);
+  MIRFunction *func = GetMIRModule()->GetMIRBuilder()->GetOrCreateFunction("__stack_chk_fail",
+      GlobalTables::GetTypeTable().GetVoid()->GetTypeIndex());
+  MIRSymbol *chkFuncSym = func->GetFuncSymbol();
+  chkFuncSym->SetAppearsInCode(true);
+  chkFuncSym->SetStorageClass(kScExtern);
+  GlobalTables::GetGsymTable().AddToStringSymbolMap(*chkFuncSym);
 }
 
 #define DBG_TRACE_ENTER MplDtEnter
@@ -218,8 +219,8 @@ static void AppendReferenceOffsets64(const BECommon &beCommon, MIRStructType &cu
     auto &fieldTypeName = GlobalTables::GetStrTable().GetStringFromStrIdx(fieldType->GetNameStrIdx());
     auto fieldTypeKind = fieldType->GetKind();
 
-    auto fieldSize = beCommon.GetTypeSize(fieldTypeIdx);
-    auto fieldAlign = beCommon.GetTypeAlign(fieldTypeIdx);
+    auto fieldSize = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTypeIdx)->GetSize();
+    auto fieldAlign = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTypeIdx)->GetAlign();
     int64 myOffset = static_cast<int64>(RoundUp(curOffset, fieldAlign));
     int64 nextOffset = myOffset + static_cast<int64>(fieldSize);
 

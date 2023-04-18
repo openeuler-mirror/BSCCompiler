@@ -27,9 +27,8 @@ bool Rematerializer::IsRematerializableForAddrof(CGFunc &cgFunc, const LiveRange
   }
   /* cost too much to remat */
   if ((symbol->GetStorageClass() == kScFormal) && (symbol->GetSKind() == kStVar) &&
-      ((fieldID != 0) ||
-          (cgFunc.GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx()) >
-              k16ByteSize))) {
+      ((fieldID != 0) || (GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+          symbol->GetType()->GetTypeIndex().GetIdx())->GetSize() > k16ByteSize))) {
     return false;
   }
   if (!addrUpper && CGOptions::IsPIC() && ((symbol->GetStorageClass() == kScGlobal) ||

@@ -567,10 +567,10 @@ void MIRFunction::SetBaseClassFuncNames(GStrIdx strIdx) {
     }
     baseFuncSigStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcNameWithType);
     size_t newPos = name.find(delimiter, pos + width);
-    while (newPos < std::string::npos && (name[newPos - 1] == '_' && name[newPos - 2] != '_')) {
+    while (newPos != std::string::npos && (name[newPos - 1] == '_' && name[newPos - 2] != '_')) {
       newPos = name.find(delimiter, newPos + width);
     }
-    if (newPos != 0) {
+    if (newPos != std::string::npos && newPos > 0) {
       std::string funcName = name.substr(pos + width, newPos - pos - width);
       baseFuncStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
       std::string signature = name.substr(newPos + width, name.length() - newPos - width);

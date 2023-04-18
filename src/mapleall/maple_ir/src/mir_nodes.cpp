@@ -284,7 +284,7 @@ BlockNode *BlockNode::CloneTreeWithSrcPosition(const MIRModule &mod, const GStrI
 BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     std::unordered_map<uint32_t, FreqType>& toFreqs,
     std::unordered_map<uint32_t, FreqType>& fromFreqs,
-    FreqType numer, uint64_t denom, uint32_t updateOp) {
+    FreqType numer, FreqType denom, uint32_t updateOp) {
   auto *nnode = allocator.GetMemPool()->New<BlockNode>();
   nnode->SetStmtID(stmtIDNext++);
   if (fromFreqs.count(GetStmtID()) > 0) {
@@ -600,7 +600,7 @@ void ArrayNode::Dump(int32 indent) const {
   NaryOpnds::Dump(indent);
 }
 
-bool ArrayNode::IsSameBase(ArrayNode *arry) {
+bool ArrayNode::IsSameBase(ArrayNode *arry) const {
   ASSERT(arry != nullptr, "null ptr check");
   if (arry == this) {
     return true;

@@ -73,6 +73,8 @@ MOperator FlipConditionOp(MOperator flippedOp) {
       return AArch64MOP_t::MOP_beq;
     case AArch64MOP_t::MOP_bpl:
       return AArch64MOP_t::MOP_bmi;
+    case AArch64MOP_t::MOP_bmi:
+      return AArch64MOP_t::MOP_bpl;
     case AArch64MOP_t::MOP_xcbnz:
       return AArch64MOP_t::MOP_xcbz;
     case AArch64MOP_t::MOP_wcbnz:
@@ -89,6 +91,10 @@ MOperator FlipConditionOp(MOperator flippedOp) {
       return AArch64MOP_t::MOP_xtbz;
     case AArch64MOP_t::MOP_xtbz:
       return AArch64MOP_t::MOP_xtbnz;
+    case AArch64MOP_t::MOP_bvc:
+      return AArch64MOP_t::MOP_bvs;
+    case AArch64MOP_t::MOP_bvs:
+      return AArch64MOP_t::MOP_bvc;
     default:
       break;
   }
@@ -194,5 +200,36 @@ int64 GetMemOpndOffsetValue(Operand *o) {
   int64 offsetValue = ofStOpnd ? ofStOpnd->GetOffsetValue() : 0LL;
   return offsetValue;
 }
+
+// Returns the number of trailing 0-bits in x, starting at the least significant bit position.
+// If x is 0, the result is -1.
+int32 GetTail0BitNum(int64 val) {
+  uint32 bitNum = 0;
+  for (; bitNum < k64BitSize; bitNum++) {
+    if ((static_cast<uint64>(1) << static_cast<uint32>(bitNum)) & static_cast<uint64>(val)) {
+      break;
+    }
+  }
+  if (bitNum == k64BitSize) {
+    return -1;
+  }
+  return bitNum;
+}
+
+// Returns the number of leading 0-bits in x, starting at the most significant bit position.
+// If x is 0, the result is -1.
+int32 GetHead0BitNum(int64 val) {
+  uint32 bitNum = 0;
+  for (; bitNum < k64BitSize; bitNum++) {
+    if ((0x8000000000000000ULL >> static_cast<uint32>(bitNum)) & static_cast<uint64>(val)) {
+      break;
+    }
+  }
+  if (bitNum == k64BitSize) {
+    return -1;
+  }
+  return bitNum;
+}
+
 } /* namespace AArch64isa */
 }  /* namespace maplebe */

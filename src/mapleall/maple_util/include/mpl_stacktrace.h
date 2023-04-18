@@ -58,9 +58,10 @@ class Frame {
 
   Frame(const Frame &) = default;
   Frame &operator=(const Frame &) = default;
-  ~Frame(){};
+  ~Frame() {
+    addr = nullptr;
+  };
 
- public:
   std::string getFilename() const {
     return filename;
   }
@@ -143,7 +144,7 @@ class Stacktrace {
 
   Stacktrace &operator=(const Stacktrace &st) {
     /* self-assignment check */
-    if (frames == &st.frames) {
+    if (this == &st) {
       return *this;
     }
     frames = st.frames;
@@ -154,7 +155,7 @@ class Stacktrace {
 
   Stacktrace &operator=(const Stacktrace &&st) {
     /* self-assignment check */
-    if (frames == st.frames) {
+    if (this == &st) {
       return *this;
     }
     frames = std::move(st.frames);

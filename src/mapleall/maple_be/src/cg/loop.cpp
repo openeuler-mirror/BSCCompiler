@@ -582,7 +582,7 @@ static void CopyLoopInfo(const LoopHierarchy &from, CGFuncLoops &to, CGFuncLoops
   }
   for (auto *bb : from.GetLoopMembers()) {
     to.AddLoopMembers(*bb);
-    bb->SetLoop(to);
+    bb->SetLoop(&to);
   }
   for (auto *bb : from.GetBackedge()) {
     to.AddBackedge(*bb);
@@ -629,6 +629,11 @@ void LoopFinder::FormLoopHierarchy() {
 
   FOR_ALL_BB(bb, cgFunc) {
     bb->SetLevel(0);
+    // Loop analysis inserts info into common objects in the entire CG phase(CGFunc & BB ...),
+    // before re-analysis, the info must be cleared.
+    // It needs to be rectified in the future, infos after loop analysis are stored in the result,
+    // instead of the common object.
+    bb->SetLoop(nullptr);
   }
   bool changed;
   do {

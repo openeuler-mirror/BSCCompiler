@@ -135,8 +135,8 @@ class MUIDReplacement : public FuncOptimizeImpl {
   void GenCompilerMfileStatus();
   bool FindFuncNameInSimplfy(const std::string &name);
   bool CheckFunctionIsUsed(const MIRFunction &mirFunc) const;
-  void ReplaceMethodMetaFuncAddr(const MIRSymbol &funcSymbol, uint64 index);
-  void ReplaceFieldMetaStaticAddr(const MIRSymbol &mirSymbol, uint32 index);
+  void ReplaceMethodMetaFuncAddr(const MIRSymbol &funcSymbol, uint64 index) const;
+  void ReplaceFieldMetaStaticAddr(const MIRSymbol &mirSymbol, uint32 index) const;
   void CollectFuncAndDataFromKlasses();
   void CollectFuncAndDataFromGlobalTab();
   void CollectFuncAndDataFromFuncList();
@@ -145,12 +145,12 @@ class MUIDReplacement : public FuncOptimizeImpl {
   void CollectSuperClassArraySymbolData();
   void GenerateSourceInfo();
   static MIRSymbol *GetSymbolFromName(const std::string &name);
-  ConstvalNode* GetConstvalNode(uint64 index);
+  ConstvalNode* GetConstvalNode(uint64 index) const;
   void InsertArrayClassSet(const MIRType &type);
-  MIRType *GetIntrinsicConstArrayClass(StmtNode &stmt);
+  MIRType *GetIntrinsicConstArrayClass(StmtNode &stmt) const;
   void CollectArrayClass();
   void GenArrayClassCache();
-  void ReleasePragmaMemPool();
+  void ReleasePragmaMemPool() const;
   std::unordered_set<std::string> arrayClassSet;
   // The following sets are for internal uses. Sorting order does not matter here.
   std::unordered_set<MIRFunction*> funcDefSet;

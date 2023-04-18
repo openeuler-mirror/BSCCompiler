@@ -101,8 +101,8 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
     }
   }
   // check if there is def by phi
-  auto phiIt = bb.GetMePhiList().find(workCand->GetOst()->GetIndex());
-  if (phiIt != bb.GetMePhiList().end()) {
+  const auto phiIt = std::as_const(bb.GetMePhiList()).find(workCand->GetOst()->GetIndex());
+  if (phiIt != bb.GetMePhiList().cend()) {
     if (enabledDebug) {
       LogInfo::MapleLogger() << "EnsureRHSInCurTemp: found def-by-phi at BB" << bb.GetBBId() << '\n';
     }
@@ -126,7 +126,7 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
   if (enabledDebug) {
     LogInfo::MapleLogger() << "EnsureRHSInCurTemp: cannot find def at BB" << bb.GetBBId() << '\n';
   }
-  RegMeExpr *savedCurTemp = EnsureRHSInCurTemp(*dom->GetDom(bb.GetBBId()));
+  RegMeExpr *savedCurTemp = EnsureRHSInCurTemp(*cfg->GetBBFromID(BBId(dom->GetDom(bb.GetID())->GetID())));
   CHECK_NULL_FATAL(savedCurTemp);
   bbCurTempMap[&bb] = savedCurTemp;
   return savedCurTemp;
@@ -209,8 +209,8 @@ void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
   }
 
   SpreWorkCand *wkCand = nullptr;
-  auto mapIt = workCandMap.find(ostIdx);
-  if (mapIt != workCandMap.end()) {
+  const auto mapIt = std::as_const(workCandMap).find(ostIdx);
+  if (mapIt != workCandMap.cend()) {
     wkCand = mapIt->second;
   } else {
     OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(ostIdx);
@@ -243,8 +243,8 @@ void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
 // create a new use occurrence for symbol oidx in given bb
 void MeStorePre::CreateUseOcc(const OStIdx &ostIdx, BB &bb) {
   SpreWorkCand *wkCand = nullptr;
-  auto mapIt = workCandMap.find(ostIdx);
-  if (mapIt == workCandMap.end()) {
+  const auto mapIt = std::as_const(workCandMap).find(ostIdx);
+  if (mapIt == workCandMap.cend()) {
     OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(ostIdx);
     CHECK_FATAL(ost, "ost is nullptr!");
     wkCand = spreMp->New<SpreWorkCand>(spreAllocator, *ost);
@@ -370,7 +370,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
     CreateEntryOcc(*bb);
   }
   // recurse on child BBs in post-dominator tree
-  for (BBId bbId : dom->GetPdomChildrenItem(bb->GetBBId())) {
+  for (auto bbId : pdom->GetDomChildren(bb->GetID())) {
     BuildWorkListBB(func->GetCfg()->GetAllBBs().at(bbId));
   }
 }
@@ -383,8 +383,11 @@ void MEStorePre::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MEStorePre::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
-  ASSERT(dom != nullptr, "dominance phase has problem");
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
+  ASSERT(dom != nullptr, "dominance construction has problem");
+  auto pdom = dominancePhase->GetPdomResult();
+  ASSERT(pdom != nullptr, "postdominance construction has problem");
   auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
   ASSERT(aliasClass != nullptr, "aliasClass phase has problem");
   auto *meIrMap = GET_ANALYSIS(MEIRMapBuild, f);
@@ -393,7 +396,7 @@ bool MEStorePre::PhaseRun(maple::MeFunction &f) {
     return false;
   }
 
-  MeStorePre storePre(f, *dom, *aliasClass, *ApplyTempMemPool(), DEBUGFUNC_NEWPM(f));
+  MeStorePre storePre(f, *dom, *pdom, *aliasClass, *ApplyTempMemPool(), DEBUGFUNC_NEWPM(f));
   storePre.ApplySSUPre();
 
   auto &candsForSSAUpdate = storePre.CandsForSSAUpdate();

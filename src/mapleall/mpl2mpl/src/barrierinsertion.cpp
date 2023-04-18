@@ -156,18 +156,15 @@ StmtNode *BarrierInsertion::RunFunction::CheckRefRead(BaseNode *opnd, const Stmt
 // Condition: 1) rhs is not addressof symbols with names starting "__vtab__" or
 //               "__itab__" (vtab, itab initialization
 // Handling:  1) Replace iassign with a call to CC_WriteRefField.
-//
 // [[|i|intrinsic]callassigned]
 // Condition: 1) Return type is ref.
 // Handling:  1) Assign return values to temporary variables, use
 //               MCC_ReleaseRefVar on the original return variable, and then
 //               dassign the tmp variable to the actual return var.
-//
 // [call]
 // Condition: 1) Return type is ref.
 // Handling:  1) Assign return values to temporary variables, and then call
 //               MCC_ReleaseRefVar on them.
-//
 // [return]
 // Assumption: 1) If the return type is ref, assume it is the result of a dread.
 // Handling:   1) If the return value is a reference, consider it as if it is
@@ -175,7 +172,6 @@ StmtNode *BarrierInsertion::RunFunction::CheckRefRead(BaseNode *opnd, const Stmt
 //             2) Call MCC_ReleaseRefVar on all local vars except un-assigned
 //                parameters and the return value. this is processed after
 //                procesing all statements.
-//
 // This function returns the last stmt it generated or visited.  HandleBlock
 // shall continue with the next statement after the return value, if any.
 StmtNode *BarrierInsertion::RunFunction::HandleStmt(StmtNode &stmt, BlockNode &block) const {
@@ -298,18 +294,14 @@ void BarrierInsertion::RunFunction::HandleReturn(const NaryStmtNode &retNode) {
     if (val->GetPrimType() != PTY_ref) {
       continue;
     }
-    if (val->GetOpCode() != OP_dread) {
-      if (val->GetOpCode() == OP_constval) {
-        auto constvalNode = static_cast<ConstvalNode*>(val);
-        MIRConst *con = constvalNode->GetConstVal();
-        if (con->GetKind() == kConstInt) {
-          auto intConst = safe_cast<MIRIntConst>(con);
-          if (intConst->IsZero()) {
-            // It is a nullptr.  Skip this return value.
-            continue;
-          }
-        }
+    if (val->GetOpCode() == OP_constval) {
+      auto constvalNode = static_cast<ConstvalNode*>(val);
+      MIRConst *con = constvalNode->GetConstVal();
+      if (con->GetKind() == kConstInt && safe_cast<MIRIntConst>(con)->IsZero()) {
+        // It is a nullptr.  Skip this return value.
+        continue;
       }
+    } else if (val->GetOpCode() != OP_dread) {
       CHECK_FATAL(false,
                   "Found a return statement that returns a ref but is not from a dread.  Please enable the code below"
                   "this line.");
@@ -346,13 +338,9 @@ void BarrierInsertion::RunFunction::HandleReturn(const NaryStmtNode &retNode) {
     CHECK_FATAL(localSym != nullptr, "local_sym is nullptr");
     if (GlobalTables::GetTypeTable().GetTypeFromTyIdx(localSym->GetTyIdx())->GetPrimType() == PTY_ref &&
         (localSym->GetStorageClass() == kScAuto || assignedParams.find(localSym->GetStIdx()) != assignedParams.end())) {
-      if (localSym->IgnoreRC()) {
-        continue;
-      }
-      if (backupVarIndices.find(localSym->GetStIdx()) != backupVarIndices.end()) {
-        continue;
-      }
-      if (retValStIdxs.find(localSym->GetStIdx()) != retValStIdxs.end()) {
+      if (localSym->IgnoreRC() ||
+          backupVarIndices.find(localSym->GetStIdx()) != backupVarIndices.end() ||
+          retValStIdxs.find(localSym->GetStIdx()) != retValStIdxs.end()) {
         continue;
       }
       if (BARDEBUG) {

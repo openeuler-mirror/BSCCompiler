@@ -83,7 +83,7 @@ static bool IsConstantMultipliedByVariable(const CRMulNode &crMulNode) {
 }
 
 // Get the byte size of array for simpify the crNodes.
-uint8 LoopScalarAnalysisResult::GetByteSize(std::vector<CRNode*> &crNodeVector) {
+uint8 LoopScalarAnalysisResult::GetByteSize(std::vector<CRNode*> &crNodeVector) const {
   for (size_t i = 0; i < crNodeVector.size(); ++i) {
     if (crNodeVector[i]->GetCRType() != kCRMulNode) {
       continue;
@@ -98,7 +98,7 @@ uint8 LoopScalarAnalysisResult::GetByteSize(std::vector<CRNode*> &crNodeVector) 
 }
 
 // Get the prim type of index or bound, if not found, return PTY_i64.
-PrimType LoopScalarAnalysisResult::GetPrimType(std::vector<CRNode*> &crNodeVector) {
+PrimType LoopScalarAnalysisResult::GetPrimType(std::vector<CRNode*> &crNodeVector) const {
   for (size_t i = 0; i < crNodeVector.size(); ++i) {
     if (crNodeVector[i]->GetCRType() == kCRVarNode) {
       return crNodeVector[i]->GetExpr()->GetPrimType();
@@ -395,8 +395,8 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRConstNode(MeExpr *expr, int64 val
     allCRNodes.insert(std::move(constNode));
     return constPtr;
   }
-  auto it = expr2CR.find(expr);
-  if (it != expr2CR.end()) {
+  const auto it = std::as_const(expr2CR).find(expr);
+  if (it != expr2CR.cend()) {
     return it->second;
   }
 
@@ -408,8 +408,8 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRConstNode(MeExpr *expr, int64 val
 }
 
 CRNode *LoopScalarAnalysisResult::GetOrCreateCRVarNode(MeExpr &expr) {
-  auto it = expr2CR.find(&expr);
-  if (it != expr2CR.end()) {
+  const auto it = std::as_const(expr2CR).find(&expr);
+  if (it != expr2CR.cend()) {
     return it->second;
   }
 
@@ -447,8 +447,8 @@ CRNode* LoopScalarAnalysisResult::GetOrCreateCRAddNode(MeExpr *expr, const std::
     crPtr->SetOpnds(crAddNodes);
     return crPtr;
   }
-  auto it = expr2CR.find(expr);
-  if (it != expr2CR.end()) {
+  const auto it = std::as_const(expr2CR).find(expr);
+  if (it != expr2CR.cend()) {
     return it->second;
   }
   std::unique_ptr<CRAddNode> crAdd = std::make_unique<CRAddNode>(expr);
@@ -478,8 +478,8 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCR(MeExpr &expr, CRNode &start, CRN
 }
 
 CRNode *LoopScalarAnalysisResult::GetOrCreateCR(MeExpr *expr, const std::vector<CRNode*> &crNodes) {
-  auto it = expr2CR.find(expr);
-  if (it != expr2CR.end()) {
+  const auto it = std::as_const(expr2CR).find(expr);
+  if (it != expr2CR.cend()) {
     return it->second;
   }
   std::unique_ptr<CR> cr = std::make_unique<CR>(expr);
@@ -630,8 +630,8 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
   if (mulCRIndex < crMulOpnds.size()) {
     while (crMulOpnds[mulCRIndex]->GetCRType() == kCRMulNode) {
       (void)crMulOpnds.insert(crMulOpnds.cend(),
-                        static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().cbegin(),
-                        static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().cend());
+                              static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().cbegin(),
+                              static_cast<CRAddNode*>(crMulOpnds[mulCRIndex])->GetOpnds().cend());
       (void)crMulOpnds.erase(crMulOpnds.cbegin() + static_cast<int64_t>(mulCRIndex));
     }
     return GetCRMulNode(expr, crMulOpnds);
@@ -689,9 +689,9 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
             (void)crMulOpnds.erase(crMulOpnds.cbegin() + static_cast<int64_t>(divCRIndex));
             (void)crMulOpnds.erase(crMulOpnds.cbegin());
             (void)crMulOpnds.insert(crMulOpnds.cend(),
-                              GetOrCreateCRDivNode(nullptr,
-                                                   *divCRNode->GetLHS(),
-                                                   *GetOrCreateCRConstNode(nullptr, res)));
+                                    GetOrCreateCRDivNode(nullptr,
+                                                         *divCRNode->GetLHS(),
+                                                         *GetOrCreateCRConstNode(nullptr, res)));
             if (crMulOpnds.size() == 1) {
               return crMulOpnds[0];
             }
@@ -780,7 +780,6 @@ CRNode *LoopScalarAnalysisResult::ChangeNegative2MulCRNode(CRNode &crNode) {
   crMulNodes.push_back(&crNode);
   return GetCRMulNode(nullptr, crMulNodes);
 }
-
 
 CR *LoopScalarAnalysisResult::AddCRWithCR(CR &lhsCR, CR &rhsCR) {
   std::unique_ptr<CR> cr = std::make_unique<CR>(nullptr);
@@ -965,7 +964,7 @@ CRNode *LoopScalarAnalysisResult::CreateSimpleCRForPhi(const MePhiNode &phiNode,
   return GetOrCreateCR(*phiNode.GetLHS(), *start, *stride);
 }
 
-CRNode *LoopScalarAnalysisResult::CreateCRForPhi(MePhiNode &phiNode) {
+CRNode *LoopScalarAnalysisResult::CreateCRForPhi(const MePhiNode &phiNode) {
   if (loop == nullptr) {
     return nullptr;
   }
@@ -1231,8 +1230,12 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
   uint64 remainder = static_cast<uint64>((value - start) % stride);
   switch (op) {
     case OP_ge: {
-      if (isSigned && start < value) { return 0; }
-      if (!isSigned && static_cast<uint64>(start) < static_cast<uint64>(value)) { return 0; }
+      if (isSigned && start < value) {
+        return 0;
+      }
+      if (!isSigned && static_cast<uint64>(start) < static_cast<uint64>(value)) {
+        return 0;
+      }
       // consider if there's overflow
       if (stride > 0) {
         if (isSigned ||  // undefined overflow
@@ -1246,8 +1249,12 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
       return static_cast<uint64>(times + 1);
     }
     case OP_gt: {
-      if (isSigned && start <= value) { return 0; }
-      if (!isSigned && static_cast<uint64>(start) <= static_cast<uint64>(value)) { return 0; }
+      if (isSigned && start <= value) {
+        return 0;
+      }
+      if (!isSigned && static_cast<uint64>(start) <= static_cast<uint64>(value)) {
+        return 0;
+      }
       // consider if there's overflow
       if (stride > 0) {
         if (isSigned ||  // undefined overflow
@@ -1260,8 +1267,12 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
       return static_cast<uint64>(times + static_cast<int64>(remainder != 0));
     }
     case OP_le: {
-      if (isSigned && start > value) { return 0; }
-      if (!isSigned && static_cast<uint64>(start) > static_cast<uint64>(value)) { return 0; }
+      if (isSigned && start > value) {
+        return 0;
+      }
+      if (!isSigned && static_cast<uint64>(start) > static_cast<uint64>(value)) {
+        return 0;
+      }
       // consider if there's underflow
       if (stride < 0) {
         if (isSigned ||  // undefined underflow
@@ -1275,8 +1286,12 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
       return static_cast<uint64>(times + 1);
     }
     case OP_lt: {
-      if (isSigned && start >= value) { return 0; }
-      if (!isSigned && static_cast<uint64>(start) >= static_cast<uint64>(value)) { return 0; }
+      if (isSigned && start >= value) {
+        return 0;
+      }
+      if (!isSigned && static_cast<uint64>(start) >= static_cast<uint64>(value)) {
+        return 0;
+      }
       // consider if there's underflow
       if (stride < 0) {
         if (isSigned ||  // undefined underflow
@@ -1286,21 +1301,31 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
         // change to "i >= 0" to compute
         return ComputeTripCountWithSimpleConstCR(OP_ge, false, 0, start, stride);
       }
-      return static_cast<uint64>(times + (remainder != 0));
+      return static_cast<uint64>(times + static_cast<int64>(remainder != 0));
     }
     case OP_eq: {
-      if (start != value) { return 0; }
+      if (start != value) {
+        return 0;
+      }
       return 1;
     }
     case OP_ne: {
-      if (start == value) { return 0; }
-      if (remainder != 0) { return kInvalidTripCount; }  // infinite loop
+      if (start == value) {
+        return 0;
+      }
+      if (remainder != 0) {
+        return kInvalidTripCount;
+      }  // infinite loop
       if (stride < 0) {
         // consider if there's underflow
-        if (isSigned && start < value) { return kInvalidTripCount; }  // undefined underflow
+        if (isSigned && start < value) {
+          return kInvalidTripCount;
+        }  // undefined underflow
       } else {
         // consider if there's overflow
-        if (isSigned && start > value) { return kInvalidTripCount; }  // undefined overflow
+        if (isSigned && start > value) {
+          return kInvalidTripCount;
+        }  // undefined overflow
       }
       return static_cast<uint64>(times);
     }
@@ -1316,7 +1341,7 @@ void LoopScalarAnalysisResult::SortOperatorCRNode(std::vector<CRNode*> &crNodeOp
 }
 
 void LoopScalarAnalysisResult::PutTheAddrExprAtTheFirstOfVector(
-    std::vector<CRNode*> &crNodeOperands, const MeExpr &addrExpr) {
+    std::vector<CRNode*> &crNodeOperands, const MeExpr &addrExpr) const {
   if (crNodeOperands.size() >= 1 && crNodeOperands[0]->GetExpr() == &addrExpr) {
     return;
   }

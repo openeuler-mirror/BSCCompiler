@@ -19,10 +19,6 @@
 
 namespace maple {
 std::string Cpp2MplCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const{
-  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
-    return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
-      FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
-  }
   return mplOptions.GetExeFolder();
 }
 
@@ -50,12 +46,8 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
   uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
   // 1 for option -p
   uint32_t length = len + 1;
-  bool isMultipleFiles = false;
  
   if (options.GetIsAllAst()) {
-    if (options.GetHirInputFiles().size() >= 1) {
-      isMultipleFiles = true;
-    }
     length += options.GetHirInputFiles().size();
     length++;
   }
@@ -82,7 +74,7 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
                                            options.GetExeFolder()));
   }
 
-  if (options.GetIsAllAst() && isMultipleFiles) {
+  if (options.GetIsAllAst()) {
     for (auto tmp : options.GetHirInputFiles()) {
       defaultOptions.mplOptions[len].SetKey(tmp);
       defaultOptions.mplOptions[len].SetValue("");

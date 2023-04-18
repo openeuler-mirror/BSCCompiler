@@ -35,11 +35,14 @@ class AArch64ICOPattern : public ICOPattern {
  protected:
   ConditionCode Encode(MOperator mOp, bool inverse) const;
   Insn *BuildCmpInsn(const Insn &condBr) const;
-  Insn *BuildCcmpInsn(ConditionCode ccCode, const Insn &cmpInsn) const;
+  Insn *BuildCcmpInsn(ConditionCode ccCode, ConditionCode ccCode2,
+      const Insn &cmpInsn, Insn *&moveInsn, bool reverse) const;
   Insn *BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse) const;
   Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2) const;
   static uint32 GetNZCV(ConditionCode ccCode, bool inverse);
   bool CheckMop(MOperator mOperator) const;
+  bool CheckMopOfCmp(MOperator mOperator) const;
+  bool IsReverseMop(MOperator mOperator1, MOperator mOperator2) const;
 };
 
 /* If-Then-Else pattern */

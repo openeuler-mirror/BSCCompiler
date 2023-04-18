@@ -228,7 +228,10 @@ bool CgFixShortBranch::PhaseRun(maplebe::CGFunc &f) {
   if (LiteProfile::IsInWhiteList(f.GetName()) && CGOptions::DoLiteProfUse()) {
     LiteProfile::BBInfo *bbInfo = f.GetFunction().GetModule()->GetLiteProfile().GetFuncBBProf(f.GetName());
     if (bbInfo) {
-      fixShortBranch->FixShortBranchesForSplitting();
+      CHECK_FATAL(bbInfo->verified.first, "Must verified pgo data in pgo use");
+      if (bbInfo->verified.second) {
+        fixShortBranch->FixShortBranchesForSplitting();
+      }
     }
   }
   return false;

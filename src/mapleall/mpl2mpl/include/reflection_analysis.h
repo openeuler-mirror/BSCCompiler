@@ -122,7 +122,10 @@ class ReflectionAnalysis : public AnalysisResult {
       isLibcore = true;
     }
   }
-  ~ReflectionAnalysis() override = default;
+  ~ReflectionAnalysis() override {
+    klassH = nullptr;
+    mirModule = nullptr;
+  }
 
   static void GenStrTab(MIRModule &module);
   static uint32 FindOrInsertRepeatString(const std::string &str, bool isHot = false, uint8 hotType = kLayoutUnused);
@@ -132,7 +135,7 @@ class ReflectionAnalysis : public AnalysisResult {
   static TyIdx GetClassMetaDataTyIdx() {
     return classMetadataTyIdx;
   }
-  void DumpPGOSummary();
+  void DumpPGOSummary() const;
 
  private:
   static std::unordered_map<std::string, uint32> &GetStr2IdxMap() {
@@ -176,10 +179,10 @@ class ReflectionAnalysis : public AnalysisResult {
   }
 
   static uint32 FirstFindOrInsertRepeatString(const std::string &str, bool isHot, uint8 hotType);
-  MIRSymbol *GetOrCreateSymbol(const std::string &name, TyIdx tyIdx, bool needInit);
-  MIRSymbol *GetSymbol(const std::string &name, TyIdx tyIdx);
+  MIRSymbol *GetOrCreateSymbol(const std::string &name, const TyIdx &tyIdx, bool needInit) const;
+  MIRSymbol *GetSymbol(const std::string &name, const TyIdx &tyIdx) const;
   MIRSymbol *CreateSymbol(GStrIdx strIdx, TyIdx tyIdx) const;
-  MIRSymbol *GetSymbol(GStrIdx strIdx, TyIdx tyIdx);
+  MIRSymbol *GetSymbol(GStrIdx strIdx, TyIdx tyIdx) const;
   void GenClassMetaData(Klass &klass);
   std::string GetAnnoValueNoArray(const MIRPragmaElement &annoElem);
   std::string GetArrayValue(const MapleVector<MIRPragmaElement*> &subelemVector);
@@ -223,43 +226,43 @@ class ReflectionAnalysis : public AnalysisResult {
   static void GenMetadataType(MIRModule &module);
   static MIRType *GetRefFieldType();
   static TyIdx GenMetaStructType(MIRModule &module, MIRStructType &metaType, const std::string &str);
-  uint32 GetHashIndex(const std::string &strName);
+  uint32 GetHashIndex(const std::string &strName) const;
   static void GenHotClassNameString(const Klass &klass);
-  uint32 FindOrInsertReflectString(const std::string &str);
+  uint32 FindOrInsertReflectString(const std::string &str) const;
   static void InitReflectString();
   uint32 BKDRHash(const std::string &strName, uint32 seed) const;
   void GenClassHashMetaData();
-  void MarkWeakMethods();
+  void MarkWeakMethods() const;
 
   bool VtableFunc(const MIRFunction &func) const;
   void GenPrimitiveClass();
   void GenAllMethodHash(std::vector<std::pair<MethodPair*, int>> &methodInfoVec,
                         std::unordered_map<uint32, std::string> &baseNameMap,
-                        std::unordered_map<uint32, std::string> &fullNameMap);
+                        std::unordered_map<uint32, std::string> &fullNameMap) const;
   void GenAllFieldHash(std::vector<std::pair<FieldPair, uint16>> &fieldV) const;
   void GenAnnotation(std::map<int, int> &idxNumMap, std::string &annoArr, MIRStructType &classType,
                       PragmaKind paragKind, const std::string &paragName, TyIdx fieldTypeIdx,
                       std::map<int, int> *paramnumArray = nullptr, int *paramIndex = nullptr);
-  void AppendValueByType(std::string &annoArr, const MIRPragmaElement &elem);
-  bool IsAnonymousClass(const std::string &annotationString);
-  bool IsLocalClass(const std::string annotationString);
+  void AppendValueByType(std::string &annoArr, const MIRPragmaElement &elem) const;
+  bool IsAnonymousClass(const std::string &annotationString) const;
+  bool IsLocalClass(const std::string annotationString) const;
   bool IsPrivateClass(const MIRClassType &classType) const;
   bool IsStaticClass(const MIRStructType &classType) const;
-  int8 JudgePara(MIRStructType &classType);
-  void CheckPrivateInnerAndNoSubClass(Klass &clazz, const std::string &annoArr);
+  int8 JudgePara(MIRStructType &classType) const;
+  void CheckPrivateInnerAndNoSubClass(Klass &clazz, const std::string &annoArr) const;
   void ConvertMapleClassName(const std::string &mplClassName, std::string &javaDsp) const;
 
-  int GetDeflateStringIdx(const std::string &subStr, bool needSpecialFlag);
+  int GetDeflateStringIdx(const std::string &subStr, bool needSpecialFlag) const;
   uint32 GetAnnoCstrIndex(std::map<int, int> &idxNumMap, const std::string &annoArr, bool isField);
   uint16 GetMethodInVtabIndex(const Klass &klass, const MIRFunction &func) const;
   void GetSignatureTypeNames(std::string &signature, std::vector<std::string> &typeNames);
-  MIRSymbol *GetClinitFuncSymbol(const Klass &klass);
+  MIRSymbol *GetClinitFuncSymbol(const Klass &klass) const;
   int SolveAnnotation(MIRStructType &classType, const MIRFunction &func);
-  uint32 GetTypeNameIdxFromType(const MIRType &type, const Klass &klass, const std::string &fieldName);
-  bool IsMemberClass(const std::string &annotationString);
-  int8_t GetAnnoFlag(const std::string &annotationString);
+  uint32 GetTypeNameIdxFromType(const MIRType &type, const Klass &klass, const std::string &fieldName) const;
+  bool IsMemberClass(const std::string &annotationString) const;
+  int8_t GetAnnoFlag(const std::string &annotationString) const;
   void GenFieldTypeClassInfo(const MIRType &type, const Klass &klass, std::string &classInfo,
-                             const std::string fieldName, bool &isClass);
+                             const std::string fieldName, bool &isClass) const;
 
   MIRModule *mirModule;
   MapleAllocator allocator;

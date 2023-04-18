@@ -93,7 +93,7 @@ class BECommon {
 
   void GenObjSize(const MIRClassType &classType, FILE &outFile) const;
 
-  OffsetPair GetJClassFieldOffset(MIRStructType &classType, FieldID fieldID);
+  OffsetPair GetJClassFieldOffset(MIRStructType &classType, FieldID fieldID) const;
 
   bool IsRefField(MIRStructType &structType, FieldID fieldID) const;
 
@@ -158,7 +158,7 @@ class BECommon {
     return mirModule;
   }
 
-  uint64 GetTypeSize(uint32 idx) const {
+  uint64 GetClassTypeSize(uint32 idx) const {
     return typeSizeTable.at(idx);
   }
   uint32 GetSizeOfTypeSizeTable() const {
@@ -183,9 +183,6 @@ class BECommon {
     }
   }
 
-  uint8 GetTypeAlign(uint32 idx) const {
-    return typeAlignTable.at(idx);
-  }
   size_t GetSizeOfTypeAlignTable() const {
     return typeAlignTable.size();
   }
@@ -243,6 +240,13 @@ class BECommon {
    */
   MapleUnorderedMap<MIRClassType*, JClassLayout*> jClassLayoutTable;
   MapleUnorderedMap<MIRFunction*, TyIdx> funcReturnType;
+
+  uint8 GetTypeAlign(uint32 idx) const {
+    return typeAlignTable.at(idx);
+  }
+  uint64 GetTypeSize(uint32 idx) const {
+    return typeSizeTable.at(idx);
+  }
 }; /* class BECommon */
 }  /* namespace maplebe */
 

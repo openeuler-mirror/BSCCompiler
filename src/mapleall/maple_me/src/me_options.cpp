@@ -12,12 +12,8 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#include "driver_options.h"
-
-#include <bits/stdint-uintn.h>
-#include <stdint.h>
 #include <string>
+#include "driver_options.h"
 
 namespace opts::me {
 
@@ -52,7 +48,8 @@ maplecl::Option<std::string> range({"--range"},
                               {meCategory});
 
 maplecl::Option<std::string> pgoRange({"--pgorange"},
-                              "  --pglrange                  \tUse profile-guided optimizations only for funcid in the range [NUM0, NUM1]\n"
+                              "  --pglrange                  \tUse profile-guided optimizations only for funcid "
+                              "in the range [NUM0, NUM1]\n"
                               "                              \t--pgorange=NUM0,NUM1\n",
                               {meCategory});
 
@@ -215,7 +212,8 @@ maplecl::Option<uint32_t> eprepulimit({"--eprepulimit"},
                                  {meCategory});
 
 maplecl::Option<uint32_t> epreUseProfileLimit({"--epreuseprofilelimit"},
-                                 "  --epreuseprofilelimit       \tMake EPRE take advantage of profile data only for the first NUM expressions\n"
+                                 "  --epreuseprofilelimit       \tMake EPRE take advantage of profile data only "
+                                 "for the first NUM expressions\n"
                                  "                              \t--epreuseprofilelimit=NUM\n",
                                  {meCategory});
 

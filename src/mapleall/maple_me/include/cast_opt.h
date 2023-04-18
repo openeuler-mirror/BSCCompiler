@@ -56,6 +56,9 @@ class CastInfo {
   bool IsInvalid() const {
     return kind == CAST_unknown;
   }
+  bool IsExtension() const {
+    return kind == CAST_sext || kind == CAST_zext;
+  }
   CastKind kind = CAST_unknown;  // CastInfo is invalid if kind is CAST_unknown
   PrimType srcType = PTY_begin;
   PrimType dstType = PTY_end;

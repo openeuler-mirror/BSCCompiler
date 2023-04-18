@@ -67,7 +67,7 @@ class AArch64AsmEmitter : public AsmEmitter {
   void PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds, Insn &insn) const;
   bool CheckInsnRefField(const Insn &insn, uint32 opndIndex) const;
 
-  void EmitCallWithLocalAlias(Emitter &emitter, FuncNameOperand &func, const std::string &mdName) const;
+  void EmitCallWithLocalAlias(Emitter &emitter, const std::string &funcName, const std::string &mdName) const;
 };
 }  /* namespace maplebe */
 

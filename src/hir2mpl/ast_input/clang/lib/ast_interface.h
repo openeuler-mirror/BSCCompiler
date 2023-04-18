@@ -55,7 +55,7 @@ class LibAstFile {
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
   void BuildFieldName(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl);
   std::string GetSourceText(const clang::Stmt &stmt);
-  std::string GetSourceTextRaw(clang::SourceRange range, const clang::SourceManager &sm) const;
+  std::string GetSourceTextRaw(const clang::SourceRange range, const clang::SourceManager &sm) const;
   std::string BuildStaticFunctionSignature(const clang::FunctionDecl &funcDecl);
   void BuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl, std::string &funcName);
   bool CheckAndBuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl, std::stringstream &funcNameStream,

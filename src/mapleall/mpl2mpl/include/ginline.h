@@ -34,8 +34,8 @@
 namespace maple {
 class CallSiteNode {
  public:
-  CallSiteNode(CallInfo *info, const BadnessInfo &badnessInfo, uint32 inlineDepth)
-      : callInfo(info), badInfo(badnessInfo), depth(inlineDepth) {}
+  CallSiteNode(CallInfo *info, const BadnessInfo &badnessInfo, uint32 inlineDepth) :
+      callInfo(info), badInfo(badnessInfo), depth(inlineDepth) {}
 
   auto *GetCallInfo() const {
     return callInfo;

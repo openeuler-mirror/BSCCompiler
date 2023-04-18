@@ -32,8 +32,8 @@ class ChainingPattern : public OptimizationPattern {
     patternName = "BB Chaining";
     dotColor = kCfgoChaining;
   }
-
   virtual ~ChainingPattern() = default;
+
   bool Optimize(BB &curBB) override;
 
  protected:
@@ -59,6 +59,8 @@ class SequentialJumpPattern : public OptimizationPattern {
  protected:
   void SkipSucBB(BB &curBB, BB &sucBB) const;
   void UpdateSwitchSucc(BB &curBB, BB &sucBB) const;
+  // If the sucBB has one invalid predBB, the sucBB can not be skipped
+  bool HasInvalidPred(BB &sucBB) const;
 };
 
 class FlipBRPattern : public OptimizationPattern {

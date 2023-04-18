@@ -91,7 +91,7 @@ void SigHandler::SetTimer(int seconds) {
     }
   };
 
-  if (setitimer(ITIMER_REAL, &timeValue, nullptr)) {
+  if (setitimer(ITIMER_REAL, &timeValue, nullptr) != 0) {
     LogInfo::MapleLogger(kLlErr) << "setitimer failed with " << errno << std::endl;
     exit(EXIT_FAILURE);
   }
@@ -322,7 +322,7 @@ void SigHandler::SetSigaction(int sig, SigHandler::FuncPtr callback) {
   sigact.sa_flags = SA_SIGINFO | SA_ONSTACK;
   sigact.sa_sigaction = callback;
 
-  if (sigaction(sig, &sigact, nullptr)) {
+  if (sigaction(sig, &sigact, nullptr) != 0) {
     LogInfo::MapleLogger(kLlErr) << "sigacton failed with " << errno << std::endl;
     exit(EXIT_FAILURE);
   }
@@ -335,7 +335,7 @@ void SigHandler::SetDefaultSigaction(int sig) {
 #ifdef __unix__
   struct sigaction sigact = {};
   sigact.sa_handler = SIG_DFL;
-  if (sigaction(sig, &sigact, nullptr)) {
+  if (sigaction(sig, &sigact, nullptr) != 0) {
     LogInfo::MapleLogger(kLlErr) << "sigacton failed with " << errno << std::endl;
     exit(EXIT_FAILURE);
   }
@@ -347,7 +347,7 @@ void SigHandler::SetDefaultSigaction(int sig) {
 void DumpFaultingAddr(uintptr_t addr) {
   uintptr_t linkAddr = GetLinkAddr(addr);
   LogInfo::MapleLogger(kLlErr) << "faulting address: ";
-  if (linkAddr) {
+  if (linkAddr != 0) {
     LogInfo::MapleLogger(kLlErr) << "0x" << std::hex << addr - linkAddr << " (0x" << std::hex << addr << ")"
                                  << std::endl;
   } else {

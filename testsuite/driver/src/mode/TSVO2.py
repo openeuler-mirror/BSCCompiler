@@ -34,7 +34,7 @@ TSVO2 = {
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             infiles=["${APP}"],
             outfile="a.exe",
-            option="-std=gnu99 --no-pie -std=c99 -lm",
+            option="-std=gnu99 -no-pie -std=c99 -lm",
         )
     ],
     "run": [

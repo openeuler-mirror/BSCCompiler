@@ -43,8 +43,8 @@ class GCWriteBarrierOpt {
   OStIdx GetOStIdx(MeExpr &meExpr);
   bool IsCall(const MeStmt &stmt) const;
   bool HasYieldPoint(const MeStmt &start, const MeStmt &end);
-  bool HasCallAfterStmt(const MeStmt &stmt);
-  bool HasCallBeforeStmt(const MeStmt &stmt);
+  bool HasCallAfterStmt(const MeStmt &stmt) const;
+  bool HasCallBeforeStmt(const MeStmt &stmt) const;
   bool HasCallBetweenStmt(const MeStmt &start, const MeStmt &end) const;
   bool IsBackEdgeDest(const BB &bb);
   bool HasCallInBB(const BB &bb);

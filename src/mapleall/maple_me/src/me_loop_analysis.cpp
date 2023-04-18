@@ -31,7 +31,7 @@ bool LoopDesc::CheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, bool onlyStepOn
     return false;
   }
   int meet = 0;
-  if (!DoCheckBasicIV(solve, phiLhs, meet) || meet != 1) {
+  if (!DoCheckBasicIV(solve, phiLhs, meet, false, onlyStepOne) || meet != 1) {
     return false;
   }
   return true;
@@ -92,15 +92,15 @@ bool LoopDesc::DoCheckBasicIV(MeExpr *solve, ScalarMeExpr *phiLhs, int &meet, bo
   return false;
 }
 
-bool IsStepOneIV(MeExpr *expr, const LoopDesc &loop) {
-  if (!expr->IsScalar()) {
+bool IsStepOneIV(MeExpr &expr, const LoopDesc &loop) {
+  if (!expr.IsScalar()) {
     return false;
   }
-  auto *scalarExpr = static_cast<ScalarMeExpr*>(expr);
+  auto &scalarExpr = static_cast<ScalarMeExpr&>(expr);
   auto *loopHeader = loop.head;
   auto &phiList = loopHeader->GetMePhiList();
-  auto it = phiList.find(scalarExpr->GetOstIdx());
-  if (it == phiList.end()) {
+  const auto it = std::as_const(phiList).find(scalarExpr.GetOstIdx());
+  if (it == phiList.cend()) {
     return false;
   }
   auto *phi = it->second;
@@ -113,22 +113,22 @@ bool IsStepOneIV(MeExpr *expr, const LoopDesc &loop) {
 }
 
 // loop must be a Canonical Loop
-static bool IsExprIntConstOrDefOutOfLoop(MeExpr *expr, const LoopDesc &loop) {
-  if (expr->GetOp() == OP_constval && static_cast<ConstMeExpr*>(expr)->GetConstVal()->GetKind() == kConstInt) {
+static bool IsExprIntConstOrDefOutOfLoop(MeExpr &expr, const LoopDesc &loop) {
+  if (expr.GetOp() == OP_constval && static_cast<ConstMeExpr&>(expr).GetConstVal()->GetKind() == kConstInt) {
     return true;
   }
-  if (!expr->IsScalar()) {
+  if (!expr.IsScalar()) {
     return false;
   }
-  auto *scalarExpr = static_cast<ScalarMeExpr*>(expr);
-  auto *defStmt = scalarExpr->GetDefByMeStmt();
+  auto &scalarExpr = static_cast<ScalarMeExpr&>(expr);
+  auto *defStmt = scalarExpr.GetDefByMeStmt();
   auto &loopBBs = loop.loopBBs;
   if (defStmt != nullptr &&
       std::find(loopBBs.begin(), loopBBs.end(), defStmt->GetBB()->GetID()) == loop.loopBBs.end()) {
     return true;
   }
-  if (scalarExpr->GetDefBy() == kDefByPhi) {
-    auto *phi = &scalarExpr->GetDefPhi();
+  if (scalarExpr.GetDefBy() == kDefByPhi) {
+    auto *phi = &scalarExpr.GetDefPhi();
     auto *defBB = phi->GetDefBB();
     // defPhi is not in the loop
     if (std::find(loopBBs.begin(), loopBBs.end(), defBB->GetID()) == loop.loopBBs.end()) {
@@ -166,10 +166,10 @@ bool LoopDesc::IsFiniteLoop() const {
   }
   auto *opnd0 = condExpr->GetOpnd(0);
   auto *opnd1 = condExpr->GetOpnd(1);
-  bool isIV0 = IsStepOneIV(opnd0, *this);
-  bool isIV1 = IsStepOneIV(opnd1, *this);
-  bool isConstOrDefOutOfLoop0 = IsExprIntConstOrDefOutOfLoop(opnd0, *this);
-  bool isConstOrDefOutOfLoop1 = IsExprIntConstOrDefOutOfLoop(opnd1, *this);
+  bool isIV0 = IsStepOneIV(*opnd0, *this);
+  bool isIV1 = IsStepOneIV(*opnd1, *this);
+  bool isConstOrDefOutOfLoop0 = IsExprIntConstOrDefOutOfLoop(*opnd0, *this);
+  bool isConstOrDefOutOfLoop1 = IsExprIntConstOrDefOutOfLoop(*opnd1, *this);
   if (isConstOrDefOutOfLoop0 && isConstOrDefOutOfLoop1) {
     return true;
   }
@@ -196,7 +196,7 @@ void IdentifyLoops::SetLoopParent4BB(const BB &bb, LoopDesc &loopDesc) {
   bbLoopParent[bb.GetBBId()] = &loopDesc;
 }
 
-void IdentifyLoops::SetExitBB(LoopDesc &loop) {
+void IdentifyLoops::SetExitBB(LoopDesc &loop) const {
   for (auto bbId : loop.loopBBs) {
     auto *bb = cfg->GetBBFromID(bbId);
     for (auto *succ : bb->GetSucc()) {
@@ -223,7 +223,7 @@ void IdentifyLoops::ProcessBB(BB *bb) {
       LoopDesc *loop = CreateLoopDesc(*bb, *pred);
       // check try...catch
       auto found = std::find_if(bb->GetPred().begin(), bb->GetPred().end(),
-                                [](BB *pre) { return pre->GetAttributes(kBBAttrIsTry); });
+                                [](const BB *pre) { return pre->GetAttributes(kBBAttrIsTry); });
       if (found != bb->GetPred().end()) {
         loop->SetHasTryBB(true);
       }

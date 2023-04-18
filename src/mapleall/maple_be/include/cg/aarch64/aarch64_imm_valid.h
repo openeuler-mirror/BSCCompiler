@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2023] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,116 +12,56 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
 */
-static std::set<uint64> ValidBitmaskImmSet = {
-#include "valid_bitmask_imm.txt"
-};
-constexpr uint32 kMaxBitTableSize = 5;
-constexpr std::array<uint64, kMaxBitTableSize> kBitmaskImmMultTable = {
-    0x0000000100000001UL, 0x0001000100010001UL, 0x0101010101010101UL, 0x1111111111111111UL, 0x5555555555555555UL,
+#ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_IMM_VALID_H
+#define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_IMM_VALID_H
+
+#include "common_utils.h"
+#include "types_def.h"
+
+namespace maplebe {
+static inline bool IsBitSizeImmediate(uint64 val, uint32 bitLen, uint32 nLowerZeroBits) {
+  // mask1 is a 64bits number that is all 1 shifts left size bits
+  const uint64 mask1 = 0xffffffffffffffffUL << bitLen;
+  // mask2 is a 64 bits number that nlowerZeroBits are all 1, higher bits aro all 0
+  uint64 mask2 = (1UL << static_cast<uint64>(nLowerZeroBits)) - 1UL;
+  return (mask2 & val) == 0UL && (mask1 & ((static_cast<uint64>(val)) >> nLowerZeroBits)) == 0UL;
 };
 
-bool IsBitSizeImmediate(uint64 val, uint32 bitLen, uint32 nLowerZeroBits) {
-    /* mask1 is a 64bits number that is all 1 shifts left size bits */
-    const uint64 mask1 = 0xffffffffffffffffUL << bitLen;
-    /* mask2 is a 64 bits number that nlowerZeroBits are all 1, higher bits aro all 0 */
-    uint64 mask2 = (1UL << static_cast<uint64>(nLowerZeroBits)) - 1UL;
-    return (mask2 & val) == 0UL && (mask1 & ((static_cast<uint64>(val)) >> nLowerZeroBits)) == 0UL;
-};
-
-/* This is a copy from "operand.cpp", temporary fix for me_slp.cpp usage of this file */
-/* was IsMoveWidableImmediate */
-bool IsMoveWidableImmediateCopy(uint64 val, uint32 bitLen) {
+// This is a copy from "operand.cpp", temporary fix for me_slp.cpp usage of this file
+// was IsMoveWidableImmediate
+static inline bool IsMoveWidableImmediateCopy(uint64 val, uint32 bitLen) {
   if (bitLen == k64BitSize) {
-    /* 0xHHHH000000000000 or 0x0000HHHH00000000, return true */
+    // 0xHHHH000000000000 or 0x0000HHHH00000000, return true
     if (((val & ((static_cast<uint64>(0xffff)) << k48BitSize)) == val) ||
         ((val & ((static_cast<uint64>(0xffff)) << k32BitSize)) == val)) {
       return true;
     }
   } else {
-    /* get lower 32 bits */
+    // get lower 32 bits
     val &= static_cast<uint64>(0xffffffff);
   }
-  /* 0x00000000HHHH0000 or 0x000000000000HHHH, return true */
+  // 0x00000000HHHH0000 or 0x000000000000HHHH, return true
   return ((val & ((static_cast<uint64>(0xffff)) << k16BitSize)) == val ||
           (val & ((static_cast<uint64>(0xffff)) << 0)) == val);
 }
+namespace aarch64 {
+bool IsBitmaskImmediate(uint64 val, uint32 bitLen);
+} // namespace aarch64
 
-bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
-  ASSERT(val != 0, "IsBitmaskImmediate() don's accept 0 or -1");
-  ASSERT(static_cast<int64>(val) != -1, "IsBitmaskImmediate() don's accept 0 or -1");
-  if ((bitLen == k32BitSize) && (static_cast<int32>(val) == -1)) {
-    return false;
-  }
-  uint64 val2 = val;
-  if (bitLen == k32BitSize) {
-    val2 = (val2 << k32BitSize) | (val2 & ((1ULL << k32BitSize) - 1));
-  }
-  bool expectedOutcome = (ValidBitmaskImmSet.find(val2) != ValidBitmaskImmSet.end());
-
-  if ((val & 0x1) != 0) {
-    /*
-     * we want to work with
-     * 0000000000000000000000000000000000000000000001100000000000000000
-     * instead of
-     * 1111111111111111111111111111111111111111111110011111111111111111
-     */
-    val = ~val;
-  }
-
-  if (bitLen == k32BitSize) {
-    val = (val << k32BitSize) | (val & ((1ULL << k32BitSize) - 1));
-  }
-
-  /* get the least significant bit set and add it to 'val' */
-  uint64 tmpVal = val + (val & static_cast<uint64>(UINT64_MAX - val + 1));
-
-  /* now check if tmp is a power of 2 or tmpVal==0. */
-  tmpVal = tmpVal & (tmpVal - 1);
-  if (tmpVal == 0) {
-    if (!expectedOutcome) {
-      LogInfo::MapleLogger() << "0x" << std::hex << std::setw(static_cast<int>(k16ByteSize)) <<
-          std::setfill('0') << static_cast<uint64>(val) << "\n";
-      return false;
-    }
-    ASSERT(expectedOutcome, "incorrect implementation: not valid value but returning true");
-    /* power of two or zero ; return true */
-    return true;
-  }
-
-  int32 p0 = __builtin_ctzll(val);
-  int32 p1 = __builtin_ctzll(tmpVal);
-  int64 diff = p1 - p0;
-
-  /* check if diff is a power of two; return false if not. */
-  if ((static_cast<uint64>(diff) & (static_cast<uint64>(diff) - 1)) != 0) {
-    ASSERT(!expectedOutcome, "incorrect implementation: valid value but returning false");
-    return false;
-  }
-
-  uint32 logDiff = static_cast<uint32>(__builtin_ctzll(static_cast<uint64>(diff)));
-  uint64 pattern = val & ((1ULL << static_cast<uint64>(diff)) - 1);
-#if defined(DEBUG) && DEBUG
-  bool ret = (val == pattern * kBitmaskImmMultTable[kMaxBitTableSize - logDiff]);
-  ASSERT(expectedOutcome == ret, "incorrect implementation: return value does not match expected outcome");
-  return ret;
-#else
-  return val == pattern * kBitmaskImmMultTable[kMaxBitTableSize - logDiff];
-#endif
-}
-
-bool IsSingleInstructionMovable32(int64 value) {
+using namespace aarch64;
+static inline bool IsSingleInstructionMovable32(int64 value) {
   return (IsMoveWidableImmediateCopy(static_cast<uint64>(value), 32) ||
             IsMoveWidableImmediateCopy(~static_cast<uint64>(value), 32) ||
             IsBitmaskImmediate(static_cast<uint64>(value), 32));
 }
 
-bool IsSingleInstructionMovable64(int64 value) {
+static inline bool IsSingleInstructionMovable64(int64 value) {
   return (IsMoveWidableImmediateCopy(static_cast<uint64>(value), 64) ||
             IsMoveWidableImmediateCopy(~static_cast<uint64>(value), 64) ||
             IsBitmaskImmediate(static_cast<uint64>(value), 64));
 }
 
-bool Imm12BitValid(int64 value) {
+static inline bool Imm12BitValid(int64 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal12Bits, 0);
   // for target linux-aarch64-gnu
   result = result || IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal12Bits, kMaxImmVal12Bits);
@@ -129,14 +69,14 @@ bool Imm12BitValid(int64 value) {
 }
 
 // For the 32-bit variant: is the bitmask immediate
-bool Imm12BitMaskValid(int64 value) {
+static inline bool Imm12BitMaskValid(int64 value) {
   if (value == 0 || static_cast<int64>(value) == -1) {
     return false;
   }
   return IsBitmaskImmediate(static_cast<uint64>(value), k32BitSize);
 }
 
-bool Imm13BitValid(int64 value) {
+static inline bool Imm13BitValid(int64 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal13Bits, 0);
   // for target linux-aarch64-gnu
   result = result || IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal13Bits, kMaxImmVal13Bits);
@@ -144,120 +84,116 @@ bool Imm13BitValid(int64 value) {
 }
 
 // For the 64-bit variant: is the bitmask immediate
-bool Imm13BitMaskValid(int64 value) {
+static inline bool Imm13BitMaskValid(int64 value) {
   if (value == 0 || static_cast<int64>(value) == -1) {
     return false;
   }
   return IsBitmaskImmediate(static_cast<uint64>(value), k64BitSize);
 }
 
-bool Imm16BitValid(int64 value) {
+static inline bool Imm16BitValid(int64 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal16Bits, 0);
-   /*
-    * for target linux-aarch64-gnu
-    * aarch64 assembly takes up to 24-bits immediate, generating
-    * either cmp or cmp with shift 12 encoding
-    */
+  // for target linux-aarch64-gnu
+  //  aarch64 assembly takes up to 24-bits immediate, generating
+  //  either cmp or cmp with shift 12 encoding
   result = result || IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal12Bits, kMaxImmVal12Bits);
   return result;
 }
 
 // For the 32-bit variant: is the shift amount, in the range 0 to 31, opnd input is bitshiftopnd
-bool BitShift5BitValid(uint32 value) {
+static inline bool BitShift5BitValid(uint32 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal5Bits, 0);
   return result;
 }
 
 // For the 64-bit variant: is the shift amount, in the range 0 to 63, opnd input is bitshiftopnd
-bool BitShift6BitValid(uint32 value) {
+static inline bool BitShift6BitValid(uint32 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal6Bits, 0);
   return result;
 }
 
 // For the 32-bit variant: is the shift amount, in the range 0 to 31, opnd input is immopnd
-bool BitShift5BitValidImm(int64 value) {
+static inline bool BitShift5BitValidImm(int64 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal5Bits, 0);
   return result;
 }
 
 // For the 64-bit variant: is the shift amount, in the range 0 to 63, opnd input is immopnd
-bool BitShift6BitValidImm(int64 value) {
+static inline bool BitShift6BitValidImm(int64 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal6Bits, 0);
   return result;
 }
 
 // Is a 16-bit unsigned immediate, in the range 0 to 65535, used by BRK
-bool Imm16BitValidImm(int64 value) {
+static inline bool Imm16BitValidImm(int64 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal16Bits, 0);
   return result;
 }
 
 // Is the flag bit specifier, an immediate in the range 0 to 15, used by CCMP
-bool Nzcv4BitValid(int64 value) {
+static inline bool Nzcv4BitValid(int64 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), k4BitSize, 0);
   return result;
 }
 
 // For the 32-bit variant: is the bit number of the lsb of the source bitfield, in the range 0 to 31
-bool Lsb5BitValid(int64 value) {
+static inline bool Lsb5BitValid(int64 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal5Bits, 0);
   return result;
 }
 
 // For the 32-bit variant: is the width of the bitfield, in the range 1 to 32-<lsb>
-bool Width5BitValid(int64 value, int64 lsb) {
+static inline bool Width5BitValid(int64 value, int64 lsb) {
   return (value >= 1) && (value <= 32 - lsb);
 }
 
 // For the 32-bit variant: is the width of the bitfield, in the range 1 to 32, is used for only width verified
-bool Width5BitOnlyValid(int64 value) {
+static inline bool Width5BitOnlyValid(int64 value) {
   return (value >= 1) && (value <= 32);
 }
 
 // For the 64-bit variant: is the bit number of the lsb of the source bitfield, in the range 0 to 63
-bool Lsb6BitValid(int64 value) {
+static inline bool Lsb6BitValid(int64 value) {
   bool result = IsBitSizeImmediate(static_cast<uint64>(value), kMaxImmVal6Bits, 0);
   return result;
 }
 
 // For the 64-bit variant: is the width of the bitfield, in the range 1 to 64-<lsb>
-bool Width6BitValid(int64 value, int64 lsb) {
+static inline bool Width6BitValid(int64 value, int64 lsb) {
   return (value >= 1) && (value <= 64 - lsb);
 }
 
 // For the 64-bit variant: is the width of the bitfield, in the range 1 to 64, is used for only width verified
-bool Width6BitOnlyValid(int64 value) {
+static inline bool Width6BitOnlyValid(int64 value) {
   return (value >= 1) && (value <= 64);
 }
 
 // Is the left shift amount to be applied after extension in the range 0 to 4, uint32 means value non-negative
-bool ExtendShift0To4Valid(uint32 value) {
+static inline bool ExtendShift0To4Valid(uint32 value) {
   return (value <= k4BitSize);
 }
 
 // Is the optional left shift to apply to the immediate, it can have the values: 0, 12
-bool LeftShift12Valid(uint32 value) {
+static inline bool LeftShift12Valid(uint32 value) {
   return value == k0BitSize || value == k12BitSize;
 }
 
 // For the 32-bit variant: is the amount by which to shift the immediate left, either 0 or 16
-bool ImmShift32Valid(uint32 value) {
+static inline bool ImmShift32Valid(uint32 value) {
   return value == k0BitSize || value == k16BitSize;
 }
 
 // For the 64-bit variant: is the amount by which to shift the immediate left, either 0, 16, 32 or 48
-bool ImmShift64Valid(uint32 value) {
+static inline bool ImmShift64Valid(uint32 value) {
   return value == k0BitSize || value == k16BitSize || value == k32BitSize || value == k48BitSize;
 }
 
-/*
- * 8bit         : 0
- * halfword     : 1
- * 32bit - word : 2
- * 64bit - word : 3
- * 128bit- word : 4
- */
-bool StrLdrSignedOfstValid(int64 value, uint wordSize) {
+// 8bit         : 0
+// halfword     : 1
+// 32bit - word : 2
+// 64bit - word : 3
+// 128bit- word : 4
+static inline bool StrLdrSignedOfstValid(int64 value, uint wordSize) {
   if (value <= k256BitSize && value >= kNegative256BitSize) {
     return true;
   } else if ((value > k256BitSize) && (value <= kMaxPimm[wordSize])) {
@@ -267,44 +203,46 @@ bool StrLdrSignedOfstValid(int64 value, uint wordSize) {
   return false;
 }
 
-
-bool StrLdr8ImmValid(int64 value) {
+static inline bool StrLdr8ImmValid(int64 value) {
   return StrLdrSignedOfstValid(value, 0);
 }
 
-bool StrLdr16ImmValid(int64 value) {
+static inline bool StrLdr16ImmValid(int64 value) {
   return StrLdrSignedOfstValid(value, k1ByteSize);
 }
 
-bool StrLdr32ImmValid(int64 value) {
+static inline bool StrLdr32ImmValid(int64 value) {
   return StrLdrSignedOfstValid(value, k2ByteSize);
 }
 
-bool StrLdr32PairImmValid(int64 value) {
+static inline bool StrLdr32PairImmValid(int64 value) {
   if ((value <= kMaxSimm32Pair)  && (value >= kMinSimm32)) {
     return (static_cast<uint64>(value) & 3) > 0 ? false : true;
   }
   return false;
 }
 
-bool StrLdr64ImmValid(int64 value) {
- return StrLdrSignedOfstValid(value, k3ByteSize);
+static inline bool StrLdr64ImmValid(int64 value) {
+  return StrLdrSignedOfstValid(value, k3ByteSize);
 }
 
-bool StrLdr64PairImmValid(int64 value) {
+static inline bool StrLdr64PairImmValid(int64 value) {
   if (value <= kMaxSimm64Pair && (value >= kMinSimm64)) {
     return (static_cast<uint64>(value) & 7) > 0 ? false : true;
   }
   return false;
 }
 
-bool StrLdr128ImmValid(int64 value) {
+static inline bool StrLdr128ImmValid(int64 value) {
   return StrLdrSignedOfstValid(value, k4ByteSize);
 }
 
-bool StrLdr128PairImmValid(int64 value) {
+static inline bool StrLdr128PairImmValid(int64 value) {
   if (value < k1024BitSize && (value >= kNegative1024BitSize)) {
     return (static_cast<uint64>(value) & 0xf) > 0 ? false : true;
   }
   return false;
 }
+}  // namespace maplebe
+
+#endif  // MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_IMM_VALID_H

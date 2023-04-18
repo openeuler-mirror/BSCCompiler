@@ -66,7 +66,7 @@ class AnalyzeRC {
   void CreateCleanupIntrinsics();
   void RenameRefPtrs(BB *bb);
   void OptimizeRC();
-  void RemoveUnneededCleanups();
+  void RemoveUnneededCleanups() const;
   void RenameUses(MeStmt &meStmt);
   RCItem *FindOrCreateRCItem(OriginalSt &ost);
   OriginalSt *GetOriginalSt(const MeExpr &refLHS) const;

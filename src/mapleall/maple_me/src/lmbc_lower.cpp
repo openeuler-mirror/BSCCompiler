@@ -311,8 +311,8 @@ void LMBCLowerer::LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk) {
   }
 }
   // lower using OP_blkassignoff
-void LMBCLowerer::LowerAggIassign(IassignNode *iassign, MIRType *lhsty,
-                                  int32 offset, BlockNode *newblk) const {
+void LMBCLowerer::LowerAggIassign(IassignNode *iassign, const MIRType *lhsty,
+                                  int32 offset, BlockNode &newblk) const {
   BaseNode *rhs = iassign->rhs;
   CHECK_FATAL(rhs->GetOpCode() == OP_dread || rhs->GetOpCode() == OP_iread ||
               rhs->GetOpCode() == OP_ireadoff || rhs->GetOpCode() == OP_ireadfpoff,
@@ -343,7 +343,7 @@ void LMBCLowerer::LowerAggIassign(IassignNode *iassign, MIRType *lhsty,
   bass->SetAlign(lhsty->GetAlign());
   bass->SetBOpnd(iassign->addrExpr, 0);
   bass->SetBOpnd(rhs, 1);
-  newblk->AddStatement(bass);
+  newblk.AddStatement(bass);
 }
 
 void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
@@ -372,7 +372,7 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
                                                                   iassign->rhs);
     newblk->AddStatement(iassignoff);
   } else {
-    LowerAggIassign(iassign, type, offset, newblk);
+    LowerAggIassign(iassign, type, offset, *newblk);
   }
 }
 
@@ -412,7 +412,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
       if (stmt->GetOpCode() == OP_icallproto) {
         IcallNode *icallproto = static_cast<IcallNode*>(stmt);
         funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallproto->GetRetTyIdx()));
-        paramInPrototype = (i - 1) < funcType->GetParamTypeList().size();
+        paramInPrototype = (i == 0) ? false : (i - 1) < funcType->GetParamTypeList().size();
       } else {
         CallNode *callNode = static_cast<CallNode*>(stmt);
         MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());

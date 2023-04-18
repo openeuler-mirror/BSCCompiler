@@ -42,11 +42,8 @@ class HDSE {
 
   virtual ~HDSE() = default;
 
-  void DoHDSE();
+  void DoHDSESafely(MeFunction *f, AnalysisInfoHook &anaRes);
   void InvokeHDSEUpdateLive();
-  bool NeedUNClean() const {
-    return needUNClean;
-  }
   void SetRemoveRedefine(bool val) {
     removeRedefine = val;
   }
@@ -56,7 +53,7 @@ class HDSE {
   void SetUpdateFreq(bool update) {
     updateFreq = update;
   }
-  bool UpdateFreq() {
+  bool UpdateFreq() const {
     return updateFreq;
   }
 
@@ -89,12 +86,14 @@ class HDSE {
   static const uint8 kExprTypeNotNull = 2;
   bool decoupleStatic = false;
   bool needUNClean = false;     // used to record if there's unreachable BB
+  bool cfgChanged = false;
   bool removeRedefine = false;  // used to control if run ResolveContinuousRedefine()
   bool updateFreq = false;
   MapleVector<uint32> verstUseCounts;                // index is vstIdx
   std::forward_list<DassignMeStmt*> backSubsCands;  // backward substitution candidates
 
  private:
+  void DoHDSE();
   void DseInit();
   void MarkSpecialStmtRequired();
   void InitIrreducibleBrRequiredStmts();

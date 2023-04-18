@@ -79,14 +79,16 @@ void PrepareForWarmupDynamicTLS(MIRModule &m) {
 
   ArgVector formals(m.GetMPAllocator().Adapter());
   MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
-  auto *tlsWarmup = m.GetMIRBuilder()->CreateFunction("__tls_address_warmup_" + m.GetTlsAnchorHashString(), *voidTy, formals);
+  auto *tlsWarmup = m.GetMIRBuilder()->CreateFunction("__tls_address_warmup_" + m.GetTlsAnchorHashString(),
+      *voidTy, formals);
   auto *warmupBody = tlsWarmup->GetCodeMempool()->New<BlockNode>();
   MIRSymbol *tempAnchorSym = nullptr;
   AddrofNode *tlsAddrNode = nullptr;
   DassignNode *dassignNode = nullptr;
 
   if (!m.GetTdataVarOffset().empty()) {
-    auto *tdataAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tdata_addr_" + m.GetTlsAnchorHashString(), *ptrType);
+    auto *tdataAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tdata_addr_" + m.GetTlsAnchorHashString(),
+        *ptrType);
     tdataAnchorSym->SetKonst(anchorMirConst);
     tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tdata_start_" + m.GetTlsAnchorHashString(), *ptrType);
     tempAnchorSym->SetIsDeleted();
@@ -129,27 +131,31 @@ void CalculateWarmupDynamicTLS(MIRModule &m) {
 
   for (auto it = m.GetFunctionList().begin(); it != m.GetFunctionList().end(); ++it) {
     MIRFunction *mirFunc = *it;
-    if (mirFunc->GetBody() == nullptr) {
+    if (mirFunc->GetBody() == nullptr || mirFunc->GetSymTab() == nullptr) {
       continue;
     }
     MIRSymbolTable *lSymTab = mirFunc->GetSymTab();
-    if (lSymTab == nullptr) {
-      continue;
-    }
     size_t lsize = lSymTab->GetSymbolTableSize();
     for (size_t i = 0; i < lsize; i++) {
       const MIRSymbol *mirSymbol = lSymTab->GetSymbolFromStIdx(static_cast<uint32>(i));
+      mirType = mirSymbol->GetType();
+      uint64 align = 0;
+      if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+          mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
+        align = k8ByteSize;
+      } else {
+        align = mirType->GetAlign();
+      }
       if (mirSymbol == nullptr || mirSymbol->GetStorageClass() != kScPstatic) {
         continue;
       }
       if (mirSymbol->IsThreadLocal()) {
-        mirType = mirSymbol->GetType();
         if (!mirSymbol->IsConst()) {
-          tbssOffset = RoundUp(tbssOffset, mirType->GetAlign());
+          tbssOffset = RoundUp(tbssOffset, align);
           tbssVarOffset[mirSymbol] = tbssOffset;
           tbssOffset += mirType->GetSize();
         } else {
-          tdataOffset = RoundUp(tdataOffset, mirType->GetAlign());
+          tdataOffset = RoundUp(tdataOffset, align);
           tdataVarOffset[mirSymbol] = tdataOffset;
           tdataOffset += mirType->GetSize();
         }
@@ -162,14 +168,21 @@ void CalculateWarmupDynamicTLS(MIRModule &m) {
     if (mirSymbol == nullptr || mirSymbol->GetStorageClass() == kScExtern) {
       continue;
     }
+    mirType = mirSymbol->GetType();
+    uint64 align = 0;
+    if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+        mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
+      align = k8ByteSize;
+    } else {
+      align = mirType->GetAlign();
+    }
     if (mirSymbol->IsThreadLocal()) {
-      mirType = mirSymbol->GetType();
       if (!mirSymbol->IsConst()) {
-        tbssOffset = RoundUp(tbssOffset, mirType->GetAlign());
+        tbssOffset = RoundUp(tbssOffset, align);
         tbssVarOffset[mirSymbol] = tbssOffset;
         tbssOffset += mirType->GetSize();
       } else {
-        tdataOffset = RoundUp(tdataOffset, mirType->GetAlign());
+        tdataOffset = RoundUp(tdataOffset, align);
         tdataVarOffset[mirSymbol] = tdataOffset;
         tdataOffset += mirType->GetSize();
       }
@@ -441,9 +454,8 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 
     auto reorderedFunctions = ReorderFunction(m, priorityList);
 
-    if (CGOptions::IsShlib() && CGOptions::GetTLSModel() == CGOptions::kLocalDynamicTLSModel) {
+    if (opts::aggressiveTlsLocalDynamicOpt) {
       m.SetTlsAnchorHashString();
-      CalculateWarmupDynamicTLS(m);
       PrepareForWarmupDynamicTLS(m);
     }
 

@@ -35,7 +35,7 @@ SCO0_TRAIN = {
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             infiles=["${APP}"],
             outfile="${EXE}",
-            option="-std=gnu99 --no-pie -lm -L${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/"
+            option="-std=gnu99 -no-pie -lm -L${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/"
         )
     ],
     "cp_data":[

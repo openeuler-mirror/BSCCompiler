@@ -204,7 +204,7 @@ class AArch64CG : public CG {
     return mp.New<AArch64Dce>(mp, f, ssaInfo);
   }
   ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const override {
-    return mp.New<AArch64ValidBitOpt>(f, ssaInfo, ll);
+    return mp.New<AArch64ValidBitOpt>(mp, f, ssaInfo, ll);
   }
   RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64RedundantComputeElim>(f, ssaInfo, mp);

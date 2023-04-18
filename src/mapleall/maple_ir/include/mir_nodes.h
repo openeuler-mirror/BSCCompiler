@@ -1222,7 +1222,7 @@ class ArrayNode : public NaryNode {
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
-  bool IsSameBase(ArrayNode *arry);
+  bool IsSameBase(ArrayNode *arry) const;
 
   size_t NumOpnds() const override {
     ASSERT(numOpnds == GetNopndSize(), "ArrayNode has wrong numOpnds field");
@@ -2459,7 +2459,7 @@ class BlockNode : public StmtNode {
                                       const SrcPosition &inlinedPosition = SrcPosition());
 
   BlockNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, uint64_t denom,
+                                std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
                                 uint32_t updateOp);
 
   bool IsEmpty() const {

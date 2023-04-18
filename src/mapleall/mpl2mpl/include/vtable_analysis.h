@@ -28,7 +28,11 @@ constexpr unsigned int kShiftCountBit = 8 * 4;  // Get the low 32bit
 class VtableAnalysis : public FuncOptimizeImpl {
  public:
   VtableAnalysis(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~VtableAnalysis() override = default;
+  ~VtableAnalysis() override {
+    voidPtrType = nullptr;
+    zeroConst = nullptr;
+    oneConst = nullptr;
+  }
   static std::string DecodeBaseNameWithType(const MIRFunction &func);
   static bool IsVtableCandidate(const MIRFunction &func);
   void ProcessFunc(MIRFunction *func) override;
@@ -39,18 +43,18 @@ class VtableAnalysis : public FuncOptimizeImpl {
  private:
   bool CheckInterfaceSpecification(const Klass &baseKlass, const Klass &currKlass) const;
   bool CheckOverrideForCrossPackage(const MIRFunction &baseMethod, const MIRFunction &currMethod) const;
-  void AddMethodToTable(MethodPtrVector &methodTable, MethodPair &methodPair);
+  void AddMethodToTable(MethodPtrVector &methodTable, MethodPair &methodPair) const;
   void GenVtableList(const Klass &klass);
   void DumpVtableList(const Klass &klass) const;
   void GenTableSymbol(const std::string &prefix, const std::string klassName, MIRAggConst &newConst) const;
   void GenVtableDefinition(const Klass &klass);
   void GenItableDefinition(const Klass &klass);
   void AddNullPointExceptionCheck(MIRFunction &func, StmtNode &stmt) const;
-  BaseNode *GenVtabItabBaseAddr(BaseNode &obj, bool isVirtual);
+  BaseNode *GenVtabItabBaseAddr(BaseNode &obj, bool isVirtual) const;
   size_t SearchWithoutRettype(const MIRFunction &callee, const MIRStructType &structType) const;
   bool CheckInterfaceImplemented(const CallNode &stmt) const;
   void ReplaceVirtualInvoke(CallNode &stmt);
-  void ReplaceInterfaceInvoke(CallNode &stmt);
+  void ReplaceInterfaceInvoke(CallNode &stmt) const;
   void ReplaceSuperclassInvoke(CallNode &stmt);
   void ReplacePolymorphicInvoke(CallNode &stmt);
 

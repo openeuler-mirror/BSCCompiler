@@ -141,8 +141,8 @@ void InlineListInfo::ApplyInlineListInfo(const std::string &path, std::map<GStrI
     }
     if (str[0] != kHyphenStr[0]) {
       calleeStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(str);
-      const auto &it = listCallee.find(calleeStrIdx);
-      if (it == listCallee.end()) {
+      auto it = std::as_const(listCallee).find(calleeStrIdx);
+      if (it == listCallee.cend()) {
         auto *callerList = new std::set<GStrIdx>();
         (void)listCallee.emplace(calleeStrIdx, callerList);
       }
@@ -151,8 +151,8 @@ void InlineListInfo::ApplyInlineListInfo(const std::string &path, std::map<GStrI
       CHECK_FATAL(pos != std::string::npos, "cannot find '->' ");
       str = str.substr(pos);
       GStrIdx callerStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(str);
-      auto it = listCallee.find(calleeStrIdx);
-      CHECK_FATAL(it != listCallee.end(), "illegal configuration for inlineList");
+      const auto it = std::as_const(listCallee).find(calleeStrIdx);
+      CHECK_FATAL(it != listCallee.cend(), "illegal configuration for inlineList");
       (void)it->second->insert(callerStrIdx);
     }
   }
@@ -219,13 +219,13 @@ void InlineListInfo::Clear() {
   }
   valid = false;
 
-  for (auto &pair : inlineList) {
-    delete pair.second;
+  for (auto pairIter = inlineList.cbegin(); pairIter != inlineList.cend(); ++pairIter) {
+    delete pairIter->second;
   }
   inlineList.clear();
 
-  for (auto &pair : noInlineList) {
-    delete pair.second;
+  for (auto pairIter = noInlineList.cbegin(); pairIter != noInlineList.cend(); ++pairIter) {
+    delete pairIter->second;
   }
   noInlineList.clear();
 

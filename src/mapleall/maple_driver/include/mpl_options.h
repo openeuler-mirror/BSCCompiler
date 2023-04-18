@@ -57,7 +57,7 @@ class InputInfo {
  public:
   explicit InputInfo(const std::string &inputFile)
       : inputFile(inputFile) {
-    inputFileType =  FileUtils::GetFileType(inputFile);
+    inputFileType = FileUtils::GetFileType(inputFile);
 
     inputName = FileUtils::GetFileName(inputFile, true);
     inputFolder = FileUtils::GetFileFolder(inputFile);

@@ -62,7 +62,7 @@ MIRSymbol *MUIDReplacement::GetSymbolFromName(const std::string &name) {
   return GlobalTables::GetGsymTable().GetSymbolFromStrIdx(gStrIdx);
 }
 
-ConstvalNode* MUIDReplacement::GetConstvalNode(uint64 index) {
+ConstvalNode* MUIDReplacement::GetConstvalNode(uint64 index) const {
 #ifdef USE_ARM32_MACRO
   return builder->CreateIntConst(index, PTY_i32);
 #else
@@ -127,7 +127,7 @@ void MUIDReplacement::InsertArrayClassSet(const MIRType &type) {
   arrayClassSet.insert(klassJavaDescriptor);
 }
 
-MIRType *MUIDReplacement::GetIntrinsicConstArrayClass(StmtNode &stmt) {
+MIRType *MUIDReplacement::GetIntrinsicConstArrayClass(StmtNode &stmt) const {
   Opcode op = stmt.GetOpCode();
   if (op == OP_dassign || op == OP_regassign) {
     auto &unode = static_cast<UnaryStmtNode&>(stmt);
@@ -756,7 +756,7 @@ void MUIDReplacement::GenerateFuncDefTable() {
   }
 }
 
-void MUIDReplacement::ReplaceMethodMetaFuncAddr(const MIRSymbol &funcSymbol, uint64 index) {
+void MUIDReplacement::ReplaceMethodMetaFuncAddr(const MIRSymbol &funcSymbol, uint64 index) const {
   std::string symbolName = funcSymbol.GetName();
   MIRSymbol *methodAddrDataSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetStrIdxFromName(namemangler::kMethodAddrDataPrefixStr + symbolName));
@@ -871,7 +871,7 @@ void MUIDReplacement::GenerateDataDefTable() {
   }
 }
 
-void MUIDReplacement::ReplaceFieldMetaStaticAddr(const MIRSymbol &mirSymbol, uint32 index) {
+void MUIDReplacement::ReplaceFieldMetaStaticAddr(const MIRSymbol &mirSymbol, uint32 index) const {
   std::string symbolName = mirSymbol.GetName();
   MIRSymbol *fieldOffsetDataSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetStrIdxFromName(namemangler::kFieldOffsetDataPrefixStr + symbolName));
@@ -1904,7 +1904,7 @@ void MUIDReplacement::GenerateSourceInfo() {
   }
 }
 
-void MUIDReplacement::ReleasePragmaMemPool() {
+void MUIDReplacement::ReleasePragmaMemPool() const {
   for (Klass *klass : klassHierarchy->GetTopoSortedKlasses()) {
     MIRStructType *mirStruct = klass->GetMIRStructType();
     mirStruct->GetPragmaVec().clear();

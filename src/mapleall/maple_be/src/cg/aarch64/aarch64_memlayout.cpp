@@ -119,8 +119,8 @@ void AArch64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint
       size = GetPointerSize();
     }
   } else {
-    align = be.GetTypeAlign(typeIdx);
-    size = static_cast<uint32>(be.GetTypeSize(typeIdx));
+    align = mirType->GetAlign();
+    size = static_cast<uint32>(mirType->GetSize());
   }
 }
 
@@ -302,9 +302,11 @@ void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, st
         continue;
       }
       symLoc->SetMemSegment(segRefLocals);
-      segRefLocals.SetSize(RoundUp(segRefLocals.GetSize(), be.GetTypeAlign(tyIdx)));
+      segRefLocals.SetSize(RoundUp(segRefLocals.GetSize(),
+          GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetAlign()));
       symLoc->SetOffset(segRefLocals.GetSize());
-      segRefLocals.SetSize(segRefLocals.GetSize() + be.GetTypeSize(tyIdx));
+      segRefLocals.SetSize(segRefLocals.GetSize() +
+          static_cast<uint32>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetSize()));
     } else {
       if (sym->GetName() == "__EARetTemp__" ||
           sym->GetName().substr(0, kEARetTempNameSize) == "__EATemp__") {
@@ -313,7 +315,7 @@ void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, st
       }
       symLoc->SetMemSegment(segLocals);
       MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-      uint32 align = be.GetTypeAlign(tyIdx);
+      uint32 align = ty->GetAlign();
       uint32 tSize = 0;
       if ((IsPrimitiveVector(ty->GetPrimType()) && GetPrimTypeSize(ty->GetPrimType()) > k8ByteSize) ||
           AArch64Abi::IsVectorArrayType(ty, tSize) != PTY_void) {
@@ -325,7 +327,8 @@ void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, st
         segLocals.SetSize(static_cast<uint32>(RoundUp(segLocals.GetSize(), align)));
       }
       symLoc->SetOffset(segLocals.GetSize());
-      segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(tyIdx));
+      segLocals.SetSize(segLocals.GetSize() +
+          static_cast<uint32>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetSize()));
     }
     if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
       cgFunc->AddDIESymbolLocation(*sym, symLoc, false);
@@ -341,9 +344,11 @@ void AArch64MemLayout::LayoutEAVariales(std::vector<MIRSymbol*> &tempVar) {
     SetSymAllocInfo(stIndex, *symLoc);
     ASSERT(!symLoc->IsRegister(), "expect not register");
     symLoc->SetMemSegment(segRefLocals);
-    segRefLocals.SetSize(RoundUp(segRefLocals.GetSize(), be.GetTypeAlign(tyIdx)));
+    segRefLocals.SetSize(RoundUp(segRefLocals.GetSize(),
+        GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetAlign()));
     symLoc->SetOffset(segRefLocals.GetSize());
-    segRefLocals.SetSize(segRefLocals.GetSize() + be.GetTypeSize(tyIdx));
+    segRefLocals.SetSize(segRefLocals.GetSize() +
+        static_cast<uint32>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetSize()));
   }
 }
 
@@ -358,9 +363,11 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
 
     ASSERT(sym->IsRefType(), "expect reftype ");
     symLoc->SetMemSegment(segRefLocals);
-    segRefLocals.SetSize(RoundUp(segRefLocals.GetSize(), be.GetTypeAlign(tyIdx)));
+    segRefLocals.SetSize(RoundUp(segRefLocals.GetSize(),
+        GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetAlign()));
     symLoc->SetOffset(segRefLocals.GetSize());
-    segRefLocals.SetSize(segRefLocals.GetSize() + be.GetTypeSize(tyIdx));
+    segRefLocals.SetSize(segRefLocals.GetSize() +
+        static_cast<uint32>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetSize()));
   }
   segArgsToStkPass.SetSize(FindLargestActualArea(structCopySize));
   maxParmStackSize = static_cast<int32>(segArgsToStkPass.GetSize());
@@ -412,7 +419,8 @@ void AArch64MemLayout::LayoutActualParams() {
        */
       MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirFunction->GetFormalDefVec()[i].formalTyIdx);
       uint32 ptyIdx = ty->GetTypeIndex();
-      static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(*sym, 0, be.GetTypeAlign(ptyIdx) * kBitsPerByte);
+      static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(*sym, 0,
+          GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx)->GetAlign() * kBitsPerByte);
     }
   }
 }
@@ -466,7 +474,7 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
     segLocals.SetSize(RoundUp(segLocals.GetSize(), GetPrimTypeSize(pType)));
     symLoc->SetOffset(segLocals.GetSize());
     MIRType *mirTy = GlobalTables::GetTypeTable().GetTypeTable()[pType];
-    segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(mirTy->GetTypeIndex()));
+    segLocals.SetSize(segLocals.GetSize() + static_cast<uint32>(mirTy->GetSize()));
     spillLocTable[i] = symLoc;
   }
 
@@ -553,17 +561,18 @@ int32 AArch64MemLayout::GetVRSaveAreaBaseLoc() const {
 }
 
 int32 AArch64MemLayout::GetCalleeSaveBaseLoc() const {
-  auto offset = StackFrameSize() - static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved();
-  if (cgFunc->GetMirModule().GetFlavor() != MIRFlavor::kFlavorLmbc) {
-    offset -= GetSizeOfLocals();
-  } else {
-    offset = (offset - SizeOfArgsToStackPass()) + kSizeOfFplr;
-  }
+  uint32 offset = RealStackFrameSize() - static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved();
+  offset = (offset - SizeOfArgsToStackPass()) + kSizeOfFplr;
 
   if (cgFunc->GetMirModule().IsCModule() && cgFunc->GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
-    auto saveareasize = RoundUp(GetSizeOfGRSaveArea(), GetPointerSize() * k2BitSize) +
-                        RoundUp(GetSizeOfVRSaveArea(), GetPointerSize() * k2BitSize);
+    // According to AAPCS64 document:
+    // __gr_top: set to the address of the byte immediately following the general register argument save area, the
+    // end of the save area being aligned to a 16 byte boundary.
+    // __vr_top: set to the address of the byte immediately following the FP/SIMD register argument save area, the
+    // end of the save area being aligned to a 16 byte boundary.
+    auto saveareasize = RoundUp(GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment) +
+                        RoundUp(GetSizeOfVRSaveArea(), kAarch64StackPtrAlignment);
     offset -= saveareasize;
   }
 

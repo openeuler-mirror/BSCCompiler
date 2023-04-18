@@ -444,12 +444,12 @@ Operand *HandleAbs(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectAbs(static_cast<UnaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
 }
 
-Operand *HandleAlloca(const BaseNode /*&parent*/, BaseNode &expr, MPISel &iSel) {
+Operand *HandleAlloca(const BaseNode /* &parent */, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectAlloca(static_cast<UnaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)));
 }
 
-Operand *HandleCGArrayElemAdd(const BaseNode /*&parent*/, BaseNode &expr, MPISel &iSel) {
-  return iSel.SelectCGArrayElemAdd(static_cast<BinaryNode&>(expr));
+Operand *HandleCGArrayElemAdd(const BaseNode /* &parent */, const BaseNode &expr, MPISel &iSel) {
+  return iSel.SelectCGArrayElemAdd(static_cast<const BinaryNode&>(expr));
 }
 
 void HandleAsm(StmtNode &stmt, MPISel &iSel) {
@@ -467,12 +467,12 @@ Operand *HandleSelect(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectSelect(static_cast<TernaryNode&>(expr), condOpnd, trueOpnd, falseOpnd, parent);
 }
 
-Operand *HandleMin(const BaseNode /*&parent*/, BaseNode &expr, MPISel &iSel) {
+Operand *HandleMin(const BaseNode /* &parent */, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectMin(static_cast<BinaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)),
                         *iSel.HandleExpr(expr, *expr.Opnd(1)));
 }
 
-Operand *HandleMax(const BaseNode /*&parent*/, BaseNode &expr, MPISel &iSel) {
+Operand *HandleMax(const BaseNode /* &parent */, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectMax(static_cast<BinaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)),
                         *iSel.HandleExpr(expr, *expr.Opnd(1)));
 }
@@ -551,7 +551,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
     case INTRN_C_ctz64:
       return iSel.SelectCctz(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
     default:
-      ASSERT(false, "NIY, unsupported intrinsicop.");
+      CHECK_FATAL(false, "NIY, unsupported intrinsicop.");
       return nullptr;
   }
 }
@@ -744,7 +744,7 @@ MirTypeInfo MPISel::GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType
   mirTypeInfo.primType = mirType->GetPrimType();
   // aggSize for AggType
   if (mirTypeInfo.primType == maple::PTY_agg) {
-    mirTypeInfo.size = cgFunc->GetBecommon().GetTypeSize(static_cast<uint32>(mirType->GetTypeIndex()));
+    mirTypeInfo.size = mirType->GetSize();
   }
   return mirTypeInfo;
 }
@@ -1378,9 +1378,9 @@ Operand *MPISel::SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, 
   /* and */
   SelectBand(resOpnd, opnd0, imm1Opnd, primType);
   if (opnd1.IsIntImmediate()) {
-    /* opnd1 is immediate, imm2 = (opnd1.val << bitOffset) & (~$imm1) */
+    // opnd1 is immediate, imm2 = (opnd1.val << bitOffset) & (~$imm1)
     int64 imm2Val = static_cast<int64>((static_cast<uint64>(static_cast<ImmOperand&>(opnd1).GetValue()) <<
-        bitOffset)) & (~imm1Val);
+        bitOffset) & (~imm1Val));
     ImmOperand &imm2Opnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize, imm2Val);
     /* or */
     SelectBior(resOpnd, resOpnd, imm2Opnd, primType);
@@ -1432,7 +1432,7 @@ Operand *MPISel::SelectAlloca(UnaryNode &node, Operand &opnd0) {
   return &resOpnd;
 }
 
-Operand *MPISel::SelectCGArrayElemAdd(BinaryNode &node) {
+Operand *MPISel::SelectCGArrayElemAdd(const BinaryNode &node) {
   BaseNode *opnd0 = node.Opnd(0);
   BaseNode *opnd1 = node.Opnd(1);
   ASSERT(opnd1->GetOpCode() == OP_constval, "NIY, opnd1->op should be OP_constval.");
@@ -1588,7 +1588,7 @@ void MPISel::SelectMin(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimTyp
 }
 
 
-Operand *MPISel::SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1) {
+Operand *MPISel::SelectMax(const BinaryNode &node, Operand &opnd0, Operand &opnd1) {
   PrimType primType = node.GetPrimType();
   RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));

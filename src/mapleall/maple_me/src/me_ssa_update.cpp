@@ -26,8 +26,8 @@ std::stack<ScalarMeExpr*> *VectorVersionStacks::GetRenameStack(OStIdx idx) {
 }
 
 std::stack<ScalarMeExpr*> *MapVersionStacks::GetRenameStack(OStIdx idx) {
-  auto it = renameWithMapStacks.find(idx);
-  if (it == renameWithMapStacks.end()) {
+  auto it = std::as_const(renameWithMapStacks).find(idx);
+  if (it == renameWithMapStacks.cend()) {
     return nullptr;
   }
   return it->second.get();
@@ -349,7 +349,7 @@ void MeSSAUpdate::InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
   if (ssaCands == nullptr) {
     return;
   }
-  auto it = ssaCands->find(ostIdx);
+  const auto it = std::as_const(ssaCands)->find(ostIdx);
   if (it == ssaCands->end()) {
     std::unique_ptr<std::set<BBId>> bbSet = std::make_unique<std::set<BBId>>(std::less<BBId>());
     bbSet->insert(defBB.GetBBId());

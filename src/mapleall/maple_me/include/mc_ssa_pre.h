@@ -78,14 +78,14 @@ class McSSAPre : public SSAPre {
   void ResetMCWillBeAvail(MePhiOcc *phiOcc) const;
   void ComputeMCWillBeAvail() const;
   // step 7 max flow/min cut
-  bool AmongMinCut(RGNode *, uint32 idx) const;
+  bool AmongMinCut(const RGNode *nd, uint32 idx) const;
   void DumpRGToFile();                  // dump reduced graph to dot file
-  bool IncludedEarlier(Visit **cut, Visit *curVisit, uint32 nextRouteIdx);
-  void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route) const;
+  bool IncludedEarlier(Visit **cut, const Visit &curVisit, uint32 nextRouteIdx) const;
+  void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route &route) const;
   bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
   bool SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
   void DetermineMinCut();
-  bool VisitANode(RGNode *node, Route *route, std::vector<bool> &visitedNodes);
+  bool VisitANode(RGNode &node, Route *route, std::vector<bool> &visitedNodes);
   bool FindAnotherRoute();
   void FindMaxFlow();
   // step 6 single sink
@@ -95,7 +95,7 @@ class McSSAPre : public SSAPre {
   // step 4 graph reduction
   void GraphReduction();
   // step 3 data flow methods
-  void SetPartialAnt(MePhiOpndOcc *phiOpnd) const;
+  void SetPartialAnt(MePhiOpndOcc &phiOpnd) const;
   void ComputePartialAnt() const;
   void ResetFullAvail(MePhiOcc *occ) const;
   void ComputeFullAvail() const;

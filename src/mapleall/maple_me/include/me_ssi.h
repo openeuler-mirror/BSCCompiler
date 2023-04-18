@@ -194,7 +194,7 @@ class MeSSI {
   }
   MIRType *GetInferredType(MeExpr *expr);
  private:
-  NaryMeExpr *GetInstanceOfType(MeExpr &e);
+  NaryMeExpr *GetInstanceOfType(MeExpr &e) const;
   void AddPiForABCOpt(BB &bb);
   void AddNullPointerInfoForVar() const;
   uint8_t AnalysisBranch(MeStmt &meStmt);
@@ -209,7 +209,7 @@ class MeSSI {
   void ReplacePiPhiInSuccs(BB &bb, VarMeExpr &newVar);
   bool ReplaceStmt(MeStmt &meStmt, VarMeExpr &newVar, VarMeExpr &oldVar);
   void ReplaceBB(BB &bb, BB &parentBB, DefPoint &newDefPoint);
-  bool ExistedPiNode(BB &bb, BB &parentBB, const VarMeExpr &rhs);
+  bool ExistedPiNode(BB &bb, BB &parentBB, const VarMeExpr &rhs) const;
   void CreatePhi(VarMeExpr &rhs, BB &dfBB);
   VarMeExpr *CreateNewPiExpr(const MeExpr &opnd) const;
   void CreateNewPiStmt(VarMeExpr *lhs, MeExpr &rhs, BB &bb, MeStmt &generatedBy, bool isToken);

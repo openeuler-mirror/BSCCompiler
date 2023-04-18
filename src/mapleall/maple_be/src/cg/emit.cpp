@@ -63,10 +63,11 @@ int32 GetPrimitiveTypeSize(const std::string &name) {
   }
 }
 DBGDieAttr *LFindAttribute(const MapleVector<DBGDieAttr*> &vec, DwAt key) {
-  for (DBGDieAttr *at : vec)
+  for (DBGDieAttr *at : vec) {
     if (at->GetDwAt() == key) {
       return at;
     }
+  }
   return nullptr;
 }
 
@@ -391,26 +392,24 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       return;
     }
     case kAsmZero: {
-      uint64 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex());
+      uint64 size = mirType->GetSize();
       EmitNullConstant(size);
       return;
     }
     case kAsmComm: {
       std::string size;
       if (isFlexibleArray) {
-        size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()) + arraySize);
+        size = std::to_string(mirType->GetSize() + arraySize);
       } else {
-        size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
+        size = std::to_string(mirType->GetSize());
       }
       (void)Emit(asmInfo->GetComm()).Emit(symName).Emit(", ").Emit(size).Emit(", ");
 #if PECOFF
 #if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGARM32) && TARGARM32) || (defined(TARGARK) && TARGARK) ||\
     (defined(TARGRISCV64) && TARGRISCV64)
-      std::string align = std::to_string(
-          static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
+      std::string align = std::to_string(static_cast<int>(log2(mirType->GetAlign())));
 #else
-      std::string align = std::to_string(
-          Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()));
+      std::string align = std::to_string(mirType->GetAlign());
 #endif
       emit(align.c_str());
 #else /* ELF */
@@ -421,14 +420,14 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
         Emit(4096);
       } else if (((kind == kTypeStruct) || (kind == kTypeClass) || (kind == kTypeArray) || (kind == kTypeUnion)) &&
                  ((storage == kScGlobal) || (storage == kScPstatic) || (storage == kScFstatic))) {
-        int32 align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex());
+        uint32 align = mirType->GetAlign();
         if (GetPointerSize() < align) {
           (void)Emit(std::to_string(align));
         } else {
           (void)Emit(std::to_string(k8ByteSize));
         }
       } else {
-        (void)Emit(std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex())));
+        (void)Emit(std::to_string(mirType->GetAlign()));
       }
 #endif
       Emit("\n");
@@ -447,7 +446,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
           align = kAlignOfU8;
 #endif
         } else {
-          align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirSymbol.GetType()->GetTypeIndex());
+          align = mirSymbol.GetType()->GetAlign();
 #if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGARM32) && TARGARM32) || (defined(TARGARK) && TARGARK) ||\
     (defined(TARGRISCV64) && TARGRISCV64)
           if (CGOptions::IsArm64ilp32() && mirSymbol.GetType()->GetPrimType() == PTY_a32) {
@@ -478,10 +477,9 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
 #else
       std::string size;
       if (isFlexibleArray) {
-          size = std::to_string(
-              Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()) + arraySize);
+          size = std::to_string(mirType->GetSize() + arraySize);
       } else {
-          size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
+          size = std::to_string(mirType->GetSize());
       }
       Emit(size);
 #endif
@@ -1316,8 +1314,8 @@ int64 Emitter::GetFieldOffsetValue(const std::string &className, const MIRIntCon
     ASSERT(it != strIdx2Type.end(), "Can not find type");
     MIRType &ty = *it->second;
     MIRStructType &structType = static_cast<MIRStructType&>(ty);
-    OffsetPair fieldOffsetPair =
-          Globals::GetInstance()->GetBECommon()->GetJClassFieldOffset(structType, fieldIdx);
+    ASSERT_NOT_NULL(Globals::GetInstance()->GetBECommon());
+    OffsetPair fieldOffsetPair = Globals::GetInstance()->GetBECommon()->GetJClassFieldOffset(structType, fieldIdx);
     int64 fieldOffset = fieldOffsetPair.byteOffset * static_cast<int64>(charBitWidth) + fieldOffsetPair.bitOffset;
     return fieldOffset;
   }
@@ -1604,7 +1602,9 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
       ASSERT(it != strIdx2Type.end(), "Can not find type");
       MIRType *mirType = it->second;
       ASSERT_NOT_NULL(mirType);
-      objSize = Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex());
+      objSize = mirType->GetKind() == kTypeClass ?
+          Globals::GetInstance()->GetBECommon()->GetClassTypeSize(mirType->GetTypeIndex()) :
+          mirType->GetSize();
     }
     /* objSize should not exceed 16 bits */
     CHECK_FATAL(objSize <= 0xffff, "Error:the objSize is too large");
@@ -1740,13 +1740,13 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
       CHECK_FATAL(!arrayCt.GetConstVec().empty(), "container empty check");
     }
     if (uNum > 0) {
-      uint64 unInSizeInByte = static_cast<uint64>(iNum) * static_cast<uint64>(
-          Globals::GetInstance()->GetBECommon()->GetTypeSize(arrayCt.GetConstVecItem(0)->GetType().GetTypeIndex()));
+      uint64 unInSizeInByte = static_cast<uint64>(iNum) * static_cast<uint64>(GlobalTables::GetTypeTable().
+          GetTypeFromTyIdx(arrayCt.GetConstVecItem(0)->GetType().GetTypeIndex())->GetSize());
       if (unInSizeInByte != 0) {
         EmitNullConstant(unInSizeInByte);
       }
     } else {
-      uint64 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(scalarIdx.GetIdx()) * dim;
+      uint64 size = GlobalTables::GetTypeTable().GetTypeFromTyIdx(scalarIdx.GetIdx())->GetSize() * dim;
       Emit("\t.zero\t").Emit(static_cast<int64>(size)).Emit("\n");
     }
   }
@@ -1771,7 +1771,7 @@ void Emitter::EmitVectorConstant(MIRConst &mirConst) {
   }
   size_t lanes = GetVecLanes(mirType.GetPrimType());
   if (lanes > uNum) {
-    MIRIntConst zConst(0, vecCt.GetConstVecItem(0)->GetType());
+    MIRIntConst zConst(static_cast<uint64>(0), vecCt.GetConstVecItem(0)->GetType());
     for (size_t i = uNum; i < lanes; i++) {
       EmitScalarConstant(zConst, true, false, false);
     }
@@ -1799,7 +1799,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
   }
   BECommon *beCommon = Globals::GetInstance()->GetBECommon();
   /* total size of emitted elements size. */
-  uint32 size = beCommon->GetTypeSize(structType.GetTypeIndex());
+  uint32 size = structType.GetSize();
   uint32 fieldIdx = 1;
   if (structType.GetKind() == kTypeUnion) {
     fieldIdx = structCt.GetFieldIdItem(0);
@@ -1813,7 +1813,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
     if (structType.GetKind() == kTypeStruct) {
       elemConst = structCt.GetAggConstElement(i + 1);
     } else {
-      elemConst = structCt.GetAggConstElement(fieldIdx);
+      elemConst = structCt.GetAggConstElement(static_cast<int32>(fieldIdx));
     }
     MIRType *elemType = structType.GetElemType(i);
     if (structType.GetKind() == kTypeUnion) {
@@ -1823,7 +1823,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
     if (i != static_cast<uint32>(num - 1)) {
       nextElemType = structType.GetElemType(i + 1);
     }
-    uint64 elemSize = beCommon->GetTypeSize(elemType->GetTypeIndex());
+    uint64 elemSize = elemType->GetSize();
     uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
     if (elemType->GetKind() == kTypeBitField) {
       if (elemConst == nullptr) {
@@ -1831,8 +1831,8 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
         elemConst = zeroFill;
       }
       OffsetPair offsetPair = structType.GetFieldOffsetFromBaseAddr(fieldIdx);
-      uint64 fieldOffset = static_cast<uint64>(static_cast<int64>(offsetPair.byteOffset *
-          static_cast<uint64>(charBitWidth)) + static_cast<uint64>(static_cast<int64>(offsetPair.bitOffset)));
+      uint64 fieldOffset = static_cast<uint64>(offsetPair.byteOffset) * static_cast<uint64>(charBitWidth) +
+          static_cast<uint64>(offsetPair.bitOffset);
       EmitBitFieldConstant(*sEmitInfo, *elemConst, nextElemType, fieldOffset);
     } else {
       if (elemConst != nullptr) {
@@ -1860,7 +1860,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
 
     if (nextElemType != nullptr && kTypeBitField != nextElemType->GetKind()) {
       ASSERT(i < static_cast<uint32>(num - 1), "NYI");
-      uint8 nextAlign = Globals::GetInstance()->GetBECommon()->GetTypeAlign(nextElemType->GetTypeIndex());
+      uint8 nextAlign = nextElemType->GetAlign();
       auto fieldAttr = structType.GetFields()[i + 1].second.second;
       nextAlign = std::max(nextAlign, static_cast<uint8>(fieldAttr.GetAlign()));
       nextAlign = fieldAttr.IsPacked() ? 1 : std::min(nextAlign, structPack);
@@ -2230,7 +2230,7 @@ void Emitter::EmitLocalVariable(const CGFunc &cgFunc) {
     emittedLocalSym.push_back(localName);
 
     // temporary for LocalDynamicTLS，need to be refactor later
-    if (st->IsThreadLocal() && CGOptions::IsShlib() && CGOptions::GetTLSModel() == CGOptions::kLocalDynamicTLSModel) {
+    if (st->IsThreadLocal() && opts::aggressiveTlsLocalDynamicOpt) {
       if (st->IsConst()) {
         globalTlsDataVec.emplace_back(st);
       } else {
@@ -2352,9 +2352,7 @@ void Emitter::EmitGlobalVars(std::vector<std::pair<MIRSymbol*, bool>> &globalVar
   MIRType *mirType = endSym->GetType();
   ASSERT_NOT_NULL(endSym);
   ASSERT_NOT_NULL(mirType);
-  const std::string kStaticVarEndAdd =
-      std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex())) + "+" +
-                     endSym->GetName();
+  const std::string kStaticVarEndAdd = std::to_string(mirType->GetSize()) + "+" + endSym->GetName();
   EmitBlockMarker("__MBlock_globalVars_cold_end", "", true, kStaticVarEndAdd);
 }
 
@@ -2600,8 +2598,7 @@ void Emitter::EmitGlobalVariable() {
         globalVarVec.emplace_back(std::make_pair(mirSymbol, false));
         continue;
       }
-      if (mirSymbol->IsThreadLocal() && CGOptions::IsShlib() &&
-          CGOptions::GetTLSModel() == CGOptions::kLocalDynamicTLSModel) {
+      if (mirSymbol->IsThreadLocal() && opts::aggressiveTlsLocalDynamicOpt) {
         globalTlsBssVec.emplace_back(mirSymbol);
         continue;
       }
@@ -2614,8 +2611,7 @@ void Emitter::EmitGlobalVariable() {
         (mirSymbol->GetStorageClass() == kScExtern && GetCG()->GetMIRModule()->IsCModule()) ||
         (mirSymbol->GetStorageClass() == kScFstatic && !mirSymbol->IsReadOnly())) {
       // process TLS LocalDynamic First, need to refactor
-      if (mirSymbol->IsThreadLocal() && CGOptions::IsShlib() &&
-          CGOptions::GetTLSModel() == CGOptions::kLocalDynamicTLSModel) {
+      if (mirSymbol->IsThreadLocal() && opts::aggressiveTlsLocalDynamicOpt) {
         if (mirSymbol->sectionAttr != UStrIdx(0)) {
           auto &sectionName = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirSymbol->sectionAttr);
           LogInfo::MapleLogger() << "sectionName is : " << sectionName << "\n";
@@ -3793,7 +3789,7 @@ void Emitter::FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr) const {
     uint32 tid = typeAttr->GetId();
     CHECK_FATAL(tid < Globals::GetInstance()->GetBECommon()->GetSizeOfTypeSizeTable(),
                 "index out of range in Emitter::FillInClassByteSize");
-    int64_t byteSize = static_cast<int64_t>(Globals::GetInstance()->GetBECommon()->GetTypeSize(tid));
+    int64_t byteSize = static_cast<int64_t>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tid)->GetSize());
     LUpdateAttrValue(byteSizeAttr, byteSize);
   }
 }
@@ -3848,7 +3844,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
           }
           prevSubstruct = fieldty->EmbeddedStructType();
           FieldID fieldID = static_cast<int32>(i + embeddedIDs) + 1;
-          int offset = sty->GetKind() == kTypeClass ? 
+          int32 offset = sty->GetKind() == kTypeClass ?
               Globals::GetInstance()->GetBECommon()->GetJClassFieldOffset(*sty, fieldID).byteOffset :
               sty->GetFieldOffsetFromBaseAddr(fieldID).byteOffset;
           GStrIdx fldName = sty->GetFieldsElemt(i).first;

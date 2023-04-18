@@ -187,7 +187,7 @@ void AArch64MPIsel::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds) {
 
 bool AArch64MPIsel::IsParamStructCopy(const MIRSymbol &symbol) {
   if (symbol.GetStorageClass() == kScFormal &&
-      cgFunc->GetBecommon().GetTypeSize(symbol.GetTyIdx().GetIdx()) > k16ByteSize) {
+      GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbol.GetTyIdx().GetIdx())->GetSize() > k16ByteSize) {
     return true;
   }
   return false;
@@ -309,7 +309,7 @@ Insn &AArch64MPIsel::AppendCall(AArch64MOP_t mOp, Operand &targetOpnd,
   return callInsn;
 }
 
-void AArch64MPIsel::SelectCalleeReturn(MIRType *retType, ListOperand &retOpnds) {
+void AArch64MPIsel::SelectCalleeReturn(const MIRType *retType, ListOperand &retOpnds) {
   if (retType == nullptr) {
     return;
   }
@@ -423,7 +423,7 @@ void AArch64MPIsel::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOp
 
   /* load the displacement into a register by accessing memory at base + index*8 */
   AArch64CGFunc *a64func = static_cast<AArch64CGFunc*>(cgFunc);
-  BitShiftOperand &bitOpnd = a64func->CreateBitShiftOperand(BitShiftOperand::kLSL, k3BitSize, k8BitShift);
+  BitShiftOperand &bitOpnd = a64func->CreateBitShiftOperand(BitShiftOperand::kShiftLSL, k3BitSize, k8BitShift);
   Operand *disp = static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(k64BitSize, baseOpnd, *indexOpnd, bitOpnd);
   RegOperand &tgt = cgFunc->GetOpndBuilder()->CreateVReg(k64BitSize, kRegTyInt);
   SelectAdd(tgt, baseOpnd, *disp, PTY_u64);

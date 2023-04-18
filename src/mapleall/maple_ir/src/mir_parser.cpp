@@ -992,7 +992,7 @@ bool MIRParser::ParseStmtIntrinsiccall(StmtNodePtr &stmt, bool isAssigned) {
                                                                              : OP_xintrinsiccallassigned);
   auto *intrnCallNode = mod.CurFuncCodeMemPool()->New<IntrinsiccallNode>(mod, o);
   lexer.NextToken();
-  if (o == (!isAssigned) ? OP_intrinsiccall : OP_intrinsiccallassigned) {
+  if (o == ((!isAssigned) ? OP_intrinsiccall : OP_intrinsiccallassigned)) {
     intrnCallNode->SetIntrinsic(GetIntrinsicID(lexer.GetTokenKind()));
   } else {
     intrnCallNode->SetIntrinsic(static_cast<MIRIntrinsicID>(lexer.GetTheIntVal()));

@@ -623,7 +623,7 @@ bool OpMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
   }
   auto &opMeExpr = static_cast<const OpMeExpr&>(expr);
   for (uint32 i = 0; i < kOperandNumTernary; ++i) {
-    if (opnds[i]) {
+    if (opnds[i] != nullptr) {
       if (!opMeExpr.opnds[i]) {
         return false;
       }
@@ -631,7 +631,7 @@ bool OpMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
         return false;
       }
     } else {
-      if (opMeExpr.opnds[i]) {
+      if (opMeExpr.opnds[i] != nullptr) {
         return false;
       }
     }
@@ -639,8 +639,7 @@ bool OpMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
   return true;
 }
 
-MeExpr *OpMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *OpMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   if (!kOpcodeInfo.NotPure(GetOp())) {
     auto *opExpr = static_cast<OpMeExpr*>(&expr);
 
@@ -780,8 +779,7 @@ int64 ConstMeExpr::GetSXTIntValue() const {
   return safe_cast<MIRIntConst>(constVal)->GetSXTValue();
 }
 
-MeExpr *ConstMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *ConstMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   auto *constExpr = static_cast<ConstMeExpr*>(&expr);
 
   while (constExpr != nullptr) {
@@ -795,8 +793,7 @@ MeExpr *ConstMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
   return nullptr;
 }
 
-MeExpr *ConststrMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *ConststrMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   auto *constStrExpr = static_cast<ConststrMeExpr*>(&expr);
 
   while (constStrExpr != nullptr) {
@@ -809,8 +806,7 @@ MeExpr *ConststrMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const
   return nullptr;
 }
 
-MeExpr *Conststr16MeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *Conststr16MeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   auto *constStr16Expr = static_cast<Conststr16MeExpr*>(&expr);
 
   while (constStr16Expr != nullptr) {
@@ -823,8 +819,7 @@ MeExpr *Conststr16MeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) con
   return nullptr;
 }
 
-MeExpr *SizeoftypeMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *SizeoftypeMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   auto *sizeoftypeExpr = static_cast<SizeoftypeMeExpr*>(&expr);
 
   while (sizeoftypeExpr != nullptr) {
@@ -837,8 +832,7 @@ MeExpr *SizeoftypeMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) con
   return nullptr;
 }
 
-MeExpr *FieldsDistMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *FieldsDistMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   auto *fieldsDistExpr = static_cast<FieldsDistMeExpr*>(&expr);
 
   while (fieldsDistExpr != nullptr) {
@@ -852,8 +846,7 @@ MeExpr *FieldsDistMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) con
   return nullptr;
 }
 
-MeExpr *AddrofMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *AddrofMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   auto *addrofExpr = static_cast<AddrofMeExpr*>(&expr);
 
   while (addrofExpr != nullptr) {
@@ -868,8 +861,7 @@ MeExpr *AddrofMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
   return nullptr;
 }
 
-MeExpr *NaryMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *NaryMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   auto *naryExpr = static_cast<NaryMeExpr*>(&expr);
 
   while (naryExpr != nullptr) {
@@ -884,8 +876,7 @@ MeExpr *NaryMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
   return nullptr;
 }
 
-MeExpr *AddroffuncMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *AddroffuncMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   auto *addroffuncExpr = static_cast<AddroffuncMeExpr*>(&expr);
 
   while (addroffuncExpr != nullptr) {
@@ -898,8 +889,7 @@ MeExpr *AddroffuncMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) con
   return nullptr;
 }
 
-MeExpr *AddroflabelMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
-  (void)isConstructor;
+MeExpr *AddroflabelMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) const {
   auto *addroflabelExpr = static_cast<AddroflabelMeExpr*>(&expr);
 
   while (addroflabelExpr != nullptr) {
@@ -958,7 +948,7 @@ void VarMeExpr::Dump(const IRMap *irMap, int32) const {
   }
 }
 
-void RegMeExpr::Dump(const IRMap *irMap, int32) const {
+void RegMeExpr::Dump(const IRMap *irMap, int32 /* indent */) const {
   CHECK_NULL_FATAL(irMap);
   LogInfo::MapleLogger() << "REGINDX:" << GetRegIdx();
   LogInfo::MapleLogger() << " " << GetPrimTypeName(GetPrimType());
@@ -968,19 +958,19 @@ void RegMeExpr::Dump(const IRMap *irMap, int32) const {
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void AddroffuncMeExpr::Dump(const IRMap*, int32) const {
+void AddroffuncMeExpr::Dump(const IRMap*, int32 /* indent */) const {
   LogInfo::MapleLogger() << "ADDROFFUNC:";
   LogInfo::MapleLogger() << GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx)->GetName();
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void AddroflabelMeExpr::Dump(const IRMap *irMap, int32) const {
+void AddroflabelMeExpr::Dump(const IRMap *irMap, int32 /* indent */) const {
   LogInfo::MapleLogger() << "ADDROFLABEL:";
   LogInfo::MapleLogger() << " @" << irMap->GetMIRModule().CurFunction()->GetLabelName(labelIdx);
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void GcmallocMeExpr::Dump(const IRMap*, int32) const {
+void GcmallocMeExpr::Dump(const IRMap*, int32 /* indent */) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOp()).name << " " << GetPrimTypeName(GetPrimType());
   LogInfo::MapleLogger() << " ";
   GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->Dump(0);
@@ -988,7 +978,7 @@ void GcmallocMeExpr::Dump(const IRMap*, int32) const {
   LogInfo::MapleLogger() << " ";
 }
 
-void ConstMeExpr::Dump(const IRMap*, int32) const {
+void ConstMeExpr::Dump(const IRMap*, int32 /* indent */) const {
   LogInfo::MapleLogger() << "CONST ";
   LogInfo::MapleLogger() << GetPrimTypeName(constVal->GetType().GetPrimType()) << " ";
   CHECK_FATAL(constVal != nullptr, "constVal is null");
@@ -996,21 +986,21 @@ void ConstMeExpr::Dump(const IRMap*, int32) const {
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void ConststrMeExpr::Dump(const IRMap*, int32) const {
+void ConststrMeExpr::Dump(const IRMap*, int32 /* indent */) const {
   LogInfo::MapleLogger() << "CONSTSTR";
   LogInfo::MapleLogger() << " ";
   LogInfo::MapleLogger() << strIdx;
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void Conststr16MeExpr::Dump(const IRMap*, int32 indent) const {
+void Conststr16MeExpr::Dump(const IRMap*, int32 /* indent */) const {
   LogInfo::MapleLogger() << "CONSTSTR16";
   LogInfo::MapleLogger() << " ";
   LogInfo::MapleLogger() << strIdx;
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void SizeoftypeMeExpr::Dump(const IRMap*, int32) const {
+void SizeoftypeMeExpr::Dump(const IRMap*, int32 /* indent */) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOp()).name << " " << GetPrimTypeName(GetPrimType());
   LogInfo::MapleLogger() << " TYIDX:" << tyIdx;
   MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
@@ -1018,7 +1008,7 @@ void SizeoftypeMeExpr::Dump(const IRMap*, int32) const {
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void FieldsDistMeExpr::Dump(const IRMap*, int32) const {
+void FieldsDistMeExpr::Dump(const IRMap*, int32 /* indent */) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOp()).name << " " << GetPrimTypeName(GetPrimType());
   LogInfo::MapleLogger() << " TYIDX:" << tyIdx;
   MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
@@ -1028,7 +1018,7 @@ void FieldsDistMeExpr::Dump(const IRMap*, int32) const {
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
-void AddrofMeExpr::Dump(const IRMap*, int32) const {
+void AddrofMeExpr::Dump(const IRMap*, int32 /* indent */) const {
   LogInfo::MapleLogger() << "ADDROF:";
   GetOst()->Dump();
   LogInfo::MapleLogger() << " (field)" << GetFieldID();
@@ -1047,7 +1037,7 @@ void OpMeExpr::Dump(const IRMap *irMap, int32 indent) const {
   PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << "opnd[0] = ";
   opnds[0]->Dump(irMap, indent + 1);
-  if (opnds[1]) {
+  if (opnds[1] != nullptr) {
     LogInfo::MapleLogger() << '\n';
   } else {
     return;
@@ -1055,7 +1045,7 @@ void OpMeExpr::Dump(const IRMap *irMap, int32 indent) const {
   PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << "opnd[1] = ";
   opnds[1]->Dump(irMap, indent + 1);
-  if (opnds[2]) {
+  if (opnds[2] != nullptr) {
     LogInfo::MapleLogger() << '\n';
   } else {
     return;
@@ -1147,7 +1137,7 @@ MeExpr *MaydassignMeStmt::GetLHSRef(bool excludeLocalRefVar) {
   return lhs;
 }
 
-MeExpr *IassignMeStmt::GetLHSRef(bool) {
+MeExpr *IassignMeStmt::GetLHSRef(bool /* excludeLocalRefVar */) {
   CHECK_FATAL(lhsVar != nullptr, "lhsVar is null");
   MIRType *baseType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsVar->GetTyIdx());
   ASSERT(baseType != nullptr, "null ptr check");

@@ -19,6 +19,8 @@
 #include "aarch64_isa.h"
 #include "aarch64_insn.h"
 #include "aarch64_cgfunc.h"
+#include "aarch64_cg.h"
+#include "aarch64_isa.h"
 
 /*
  * This phase implements if-conversion optimization,
@@ -27,38 +29,62 @@
 namespace maplebe {
 void AArch64IfConversionOptimizer::InitOptimizePatterns() {
   singlePassPatterns.emplace_back(memPool->New<AArch64ICOIfThenElsePattern>(*cgFunc));
-  singlePassPatterns.emplace_back(memPool->New<AArch64ICOSameCondPattern>(*cgFunc));
+  if (cgFunc->GetMirModule().IsCModule()) {
+    singlePassPatterns.emplace_back(memPool->New<AArch64ICOSameCondPattern>(*cgFunc));
+  }
   singlePassPatterns.emplace_back(memPool->New<AArch64ICOMorePredsPattern>(*cgFunc));
 }
 
 /* build ccmp Insn */
-Insn *AArch64ICOPattern::BuildCcmpInsn(ConditionCode ccCode, const Insn &cmpInsn) const {
+Insn *AArch64ICOPattern::BuildCcmpInsn(ConditionCode ccCode, ConditionCode ccCode2,
+    const Insn &cmpInsn, Insn *&moveInsn, bool reverse) const {
   Operand &opnd0 = cmpInsn.GetOperand(kInsnFirstOpnd);
   Operand &opnd1 = cmpInsn.GetOperand(kInsnSecondOpnd);
   Operand &opnd2 = cmpInsn.GetOperand(kInsnThirdOpnd);
+  if (!opnd2.IsImmediate() && !opnd2.IsRegister()) {
+      return nullptr;
+  }
+  /* ccmp has only int opnd */
+  if (opnd2.IsImmediate() && !static_cast<ImmOperand&>(opnd2).IsIntImmediate()) {
+    return nullptr;
+  }
+  if (opnd2.IsRegister() && !static_cast<RegOperand&>(opnd1).IsOfIntClass()) {
+    return nullptr;
+  }
   /* ccmp has only int opnd */
   if (!static_cast<RegOperand&>(opnd1).IsOfIntClass()) {
     return nullptr;
   }
   AArch64CGFunc *func = static_cast<AArch64CGFunc*>(cgFunc);
-  uint32 nzcv = GetNZCV(ccCode, false);
+  uint32 nzcv = GetNZCV(ccCode2, false);
   if (nzcv == k16BitSize) {
     return nullptr;
   }
   ImmOperand &opnd3 = func->CreateImmOperand(PTY_u8, nzcv);
   CondOperand &cond = static_cast<AArch64CGFunc *>(cgFunc)->GetCondOperand(ccCode);
   uint32 dSize = opnd1.GetSize();
-  bool isIntTy = opnd2.IsIntImmediate();
-  MOperator mOpCode = isIntTy ? (dSize == k64BitSize ? MOP_xccmpriic : MOP_wccmpriic)
-                              : (dSize == k64BitSize ? MOP_xccmprric : MOP_wccmprric);
-  /* cmp opnd2 in the range 0-4095, ccmp opnd2 in the range 0-31 */
-  if (isIntTy && static_cast<RegOperand&>(opnd2).GetRegisterNumber() >= k32BitSize) {
+
+  MOperator mOpCode = (dSize == k64BitSize ? MOP_xccmprric : MOP_wccmprric);
+  auto moveAble = static_cast<ImmOperand&>(opnd2).IsSingleInstructionMovable(
+      AArch64CG::kMd[cmpInsn.GetMachineOpcode()].GetOpndDes(1)->GetSize());
+  if (!moveAble) {
     return nullptr;
+  }
+  auto *newReg = &opnd2;
+  if (opnd2.IsImmediate()) {
+    if (static_cast<ImmOperand&>(opnd2).GetValue() >= k32BitSize) {
+      newReg = cgFunc->GetTheCFG()->CreateVregFromReg(static_cast<RegOperand&>(opnd1));
+      uint32 mOp = (opnd2.GetSize() == 64 ? (opnd2.IsImmediate() ? MOP_xmovri64 : MOP_xmovrr) :
+          (opnd2.IsImmediate() ? MOP_wmovri32 : MOP_wmovrr));
+      moveInsn = &cgFunc->GetInsnBuilder()->BuildInsn(mOp, *newReg, opnd2);
+    } else {
+      mOpCode = (dSize == k64BitSize ? MOP_xccmpriic : MOP_wccmpriic);
+    }
   }
   std::vector<Operand*> opnds;
   opnds.emplace_back(&opnd0);
   opnds.emplace_back(&opnd1);
-  opnds.emplace_back(&opnd2);
+  opnds.emplace_back(newReg);
   opnds.emplace_back(&opnd3);
   opnds.emplace_back(&cond);
   opnds.emplace_back(&opnd0);
@@ -503,7 +529,7 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std
     std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn, Insn *&toBeRremovedOutOfCurrBB) const {
   std::map<Operand*, Insn*> dest2InsnMap; // CheckModifiedRegister will ensure that dest is defined only once.
   if (bb == nullptr) {
-    return false;
+    return true;
   }
   FOR_BB_INSNS(insn, bb) {
     if (!insn->IsMachineInstruction() || insn->IsBranch()) {
@@ -811,6 +837,11 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB *ifBB, BB *elseBB, BB &joinBB) {
       !CheckModifiedInCmpInsn(*insnInIfBBToBeRremovedOutOfCurrBB, true)) {
     return false;
   }
+  // If ifBB and elseBB are the same bb, there is no need to move statement forward.
+  if (ifBB == elseBB &&
+      (insnInElseBBToBeRremovedOutOfCurrBB != nullptr || insnInIfBBToBeRremovedOutOfCurrBB != nullptr)) {
+    return false;
+  }
   if (!CheckHasSameDest(ifSetInsn, elseSetInsn) || !CheckHasSameDest(elseSetInsn, ifSetInsn) ||
       !CheckHasSameDestSize(ifSetInsn, elseSetInsn)) {
     return false;
@@ -871,7 +902,7 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB *ifBB, BB *elseBB, BB &joinBB) {
   if (ifBB != nullptr) {
     ifBBProcessResult = BuildCondMovInsn(*ifBB, destSrcTempMap, true, ifGenerateInsn, newInsnOfIfBB);
   }
-  if (!elseBBProcessResult || (ifBB != nullptr && !ifBBProcessResult)) {
+  if ((elseBB != nullptr && !elseBBProcessResult) || (ifBB != nullptr && !ifBBProcessResult)) {
     RevertMoveInsns(elseBB, prevInsnInElseBB, newInsnOfElseBB, insnInElseBBToBeRremovedOutOfCurrBB);
     RevertMoveInsns(ifBB, prevInsnInIfBB, newInsnOfIfBB, insnInIfBBToBeRremovedOutOfCurrBB);
     return false;
@@ -979,13 +1010,17 @@ bool AArch64ICOIfThenElsePattern::Optimize(BB &curBB) {
     ifBB = nullptr;
     elseBB = elseDest;
     joinBB = thenDest;
+  } else if (thenDest->NumPreds() == 1 && thenDest->NumSuccs() == 1 && thenDest->GetSuccs().front() == elseDest) {
+    ifBB = thenDest;
+    elseBB = nullptr;
+    joinBB = elseDest;
   } else {
     /* not a form we can handle */
     return false;
   }
-  ASSERT(elseBB != nullptr, "elseBB should not be nullptr");
-  if (CGCFG::InLSDA(elseBB->GetLabIdx(), cgFunc->GetEHFunc()) ||
-      CGCFG::InSwitchTable(elseBB->GetLabIdx(), *cgFunc)) {
+  if (elseBB != nullptr &&
+      (CGCFG::InLSDA(elseBB->GetLabIdx(), cgFunc->GetEHFunc()) ||
+       CGCFG::InSwitchTable(elseBB->GetLabIdx(), *cgFunc))) {
     return false;
   }
 
@@ -1005,14 +1040,54 @@ bool AArch64ICOSameCondPattern::Optimize(BB &secondIfBB) {
   if (secondIfBB.GetKind() != BB::kBBIf || secondIfBB.NumPreds() != 1) {
     return false;
   }
-  BB *firstIfBB = secondIfBB.GetPrev();
-  BB *nextBB = firstIfBB->GetNext();
-  CHECK_FATAL(nextBB != nullptr, "nextBB is null in AArch64ICOSameCondPattern::Optimize");
+  if (secondIfBB.GetPreds().size() != 1) {
+    return false;
+  }
+  BB *firstIfBB = *secondIfBB.GetPredsBegin();
   /* firstIfBB's nextBB is secondIfBB */
-  if (firstIfBB == nullptr || firstIfBB->GetKind() != BB::kBBIf || nextBB->GetId() != secondIfBB.GetId()) {
+  if (firstIfBB->GetKind() != BB::kBBIf) {
+    return false;
+  }
+  if (firstIfBB->GetNext() == nullptr || secondIfBB.GetNext() == nullptr) {
+    return false;
+  }
+  if (firstIfBB->GetSuccs().size() != kOperandNumBinary || secondIfBB.GetSuccs().size() != kOperandNumBinary) {
+    return false;
+  }
+  auto *firstIfSucc0 = firstIfBB->GetSuccs().front();
+  auto *firstIfSucc1 = firstIfBB->GetSuccs().back();
+  if (firstIfBB->GetNext()->GetLabIdx() != firstIfSucc0->GetLabIdx() &&
+      firstIfBB->GetNext()->GetLabIdx() != firstIfSucc1->GetLabIdx()) {
+    return false;
+  }
+  auto *secondIfSucc0 = secondIfBB.GetSuccs().front();
+  auto *secondIfSucc1 = secondIfBB.GetSuccs().back();
+  if (secondIfBB.GetNext()->GetLabIdx() != secondIfSucc0->GetLabIdx() &&
+      secondIfBB.GetNext()->GetLabIdx() != secondIfSucc1->GetLabIdx()) {
+    return false;
+  }
+  if (secondIfBB.GetLabIdx() != firstIfSucc0->GetLabIdx() &&
+      secondIfBB.GetLabIdx() != firstIfSucc1->GetLabIdx()) {
     return false;
   }
   return DoOpt(*firstIfBB, secondIfBB);
+}
+
+bool AArch64ICOPattern::IsReverseMop(MOperator mOperator1, MOperator mOperator2) const {
+  return (mOperator1 == MOP_beq && mOperator2 == MOP_bne) ||
+      (mOperator1 == MOP_blt && mOperator2 == MOP_bge) ||
+      (mOperator1 == MOP_ble && mOperator2 == MOP_bgt) ||
+      (mOperator1 == MOP_blo && mOperator2 == MOP_bhs) ||
+      (mOperator1 == MOP_bhi && mOperator2 == MOP_bls) ||
+      (mOperator1 == MOP_bpl && mOperator2 == MOP_bmi) ||
+      (mOperator1 == MOP_bvc && mOperator2 == MOP_bvs) ||
+      (mOperator1 == MOP_bne && mOperator2 == MOP_beq) ||
+      (mOperator1 == MOP_bge && mOperator2 == MOP_blt) ||
+      (mOperator1 == MOP_bgt && mOperator2 == MOP_ble) ||
+      (mOperator1 == MOP_bhs && mOperator2 == MOP_blo) ||
+      (mOperator1 == MOP_bls && mOperator2 == MOP_bhi) ||
+      (mOperator1 == MOP_bmi && mOperator2 == MOP_bpl) ||
+      (mOperator1 == MOP_bvs && mOperator2 == MOP_bvc);
 }
 
 bool AArch64ICOPattern::CheckMop(MOperator mOperator) const {
@@ -1037,6 +1112,18 @@ bool AArch64ICOPattern::CheckMop(MOperator mOperator) const {
   }
 }
 
+bool AArch64ICOPattern::CheckMopOfCmp(MOperator mOperator) const {
+  switch (mOperator) {
+    case MOP_wcmpri:
+    case MOP_wcmprr:
+    case MOP_xcmpri:
+    case MOP_xcmprr:
+      return true;
+    default:
+      return false;
+  }
+}
+
 /* branchInsn1 is firstIfBB's LastCondBrInsn
  * branchInsn2 is secondIfBB's LastCondBrInsn
  *
@@ -1054,20 +1141,33 @@ bool AArch64ICOSameCondPattern::DoOpt(BB &firstIfBB, BB &secondIfBB) const {
   if (cmpInsn1 == nullptr || cmpInsn2 == nullptr) {
     return false;
   }
-
-  /* tbz and cbz will not be optimized */
-  if (mOperator1 != mOperator2 || !CheckMop(mOperator1)) {
+  if (!CheckMopOfCmp(cmpInsn1->GetMachineOpcode()) || !CheckMopOfCmp(cmpInsn2->GetMachineOpcode())) {
     return false;
   }
-
+  /* tbz and cbz will not be optimizsed */
+  if (!CheckMop(mOperator1) || !CheckMop(mOperator2)) {
+    return false;
+  }
   /* two BB has same branch */
   std::vector<LabelOperand*> labelOpnd1 = GetLabelOpnds(*branchInsn1);
   std::vector<LabelOperand*> labelOpnd2 = GetLabelOpnds(*branchInsn2);
-  if (labelOpnd1.size() != 1 || labelOpnd1.size() != 1 ||
-      labelOpnd1[0]->GetLabelIndex() != labelOpnd2[0]->GetLabelIndex()) {
+
+  if (labelOpnd1.size() != 1 || labelOpnd1.size() != 1) {
     return false;
   }
-
+  auto fallthruBBOfFirstIf = firstIfBB.GetNext();
+  bool fallthruIsSendIfBB = (fallthruBBOfFirstIf->GetLabIdx() == secondIfBB.GetLabIdx());
+  // Determine if two if bbs have the same successor.
+  if (fallthruIsSendIfBB) {
+    if (labelOpnd1[0]->GetLabelIndex() != labelOpnd2[0]->GetLabelIndex() &&
+        labelOpnd1[0]->GetLabelIndex() != secondIfBB.GetNext()->GetLabIdx()) {
+      return false;
+    }
+  } else {
+    if (fallthruBBOfFirstIf->GetLabIdx() != labelOpnd2[0]->GetLabelIndex()) {
+      return false;
+    }
+  }
   /* secondifBB only has branchInsn and cmpInsn */
   FOR_BB_INSNS_REV(insn, &secondIfBB) {
     if (!insn->IsMachineInstruction()) {
@@ -1077,23 +1177,51 @@ bool AArch64ICOSameCondPattern::DoOpt(BB &firstIfBB, BB &secondIfBB) const {
       return false;
     }
   }
-
-  /* build ccmp Insn */
-  ConditionCode ccCode = Encode(branchInsn1->GetMachineOpcode(), true);
+  ConditionCode ccCode = Encode(branchInsn1->GetMachineOpcode(), fallthruIsSendIfBB);
+  bool inverseCCCode2 = false;
+  // Determine the value of flag NZCV.
+  if (fallthruIsSendIfBB) {
+    if (labelOpnd2[0]->GetLabelIndex() == labelOpnd1[0]->GetLabelIndex()) {
+      inverseCCCode2 = true;
+    }
+  } else {
+    if (labelOpnd2[0]->GetLabelIndex() == fallthruBBOfFirstIf->GetLabIdx()) {
+      inverseCCCode2 = true;
+    }
+  }
+  ConditionCode ccCode2 = Encode(branchInsn2->GetMachineOpcode(), inverseCCCode2);
   ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
-  Insn *ccmpInsn = BuildCcmpInsn(ccCode, *cmpInsn2);
+  Insn *movInsn = nullptr;
+  /* build ccmp Insn */
+  Insn *ccmpInsn = BuildCcmpInsn(ccCode, ccCode2, *cmpInsn2, movInsn, fallthruIsSendIfBB);
   if (ccmpInsn == nullptr) {
     return false;
   }
-
+  auto *nextBB = secondIfBB.GetNext();
   /* insert ccmp Insn */
   firstIfBB.InsertInsnBefore(*branchInsn1, *ccmpInsn);
-
-  /* Remove secondIfBB */
-  BB *nextBB = secondIfBB.GetNext();
+  if (movInsn != nullptr) {
+    firstIfBB.InsertInsnBefore(*cmpInsn1, *movInsn);
+  }
+  if (fallthruIsSendIfBB) {
+    firstIfBB.ReplaceInsn(*branchInsn1, *branchInsn2);
+  } else {
+    LabelOperand &targetOpnd = cgFunc->GetOrCreateLabelOperand(*nextBB);
+    auto &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(AArch64isa::FlipConditionOp(branchInsn2->GetMachineOpcode()),
+        branchInsn2->GetOperand(0), targetOpnd);
+    firstIfBB.ReplaceInsn(*branchInsn1, newInsn);
+  }
+  auto secondIfLabel =  secondIfBB.GetLabIdx();
+  auto &label2BBMap = cgFunc->GetLab2BBMap();
+  if (secondIfLabel != MIRLabelTable::GetDummyLabel()) {
+    label2BBMap.erase(secondIfLabel);
+  }
   cgFunc->GetTheCFG()->RemoveBB(secondIfBB);
-  firstIfBB.PushFrontSuccs(*nextBB);
-  nextBB->PushFrontPreds(firstIfBB);
+  if (nextBB->GetLabIdx() != labelOpnd1[0]->GetLabelIndex()) {
+    label2BBMap.emplace(nextBB->GetLabIdx(), nextBB);
+    firstIfBB.PushFrontSuccs(*nextBB);
+    nextBB->PushFrontPreds(firstIfBB);
+  }
   return true;
 }
 /*

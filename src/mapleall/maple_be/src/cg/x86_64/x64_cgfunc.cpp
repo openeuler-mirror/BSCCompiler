@@ -830,20 +830,18 @@ MemOperand *X64CGFunc::GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) {
   }
 }
 
+RegOperand *X64CGFunc::SelectIntrinsicOpLoadTlsAnchor(const IntrinsicopNode& intrinsicopNode,
+                                                          const BaseNode &parent) {
+  CHECK_FATAL_FALSE("Tls anchor not supported in x86_64 yet");
+  return nullptr;
+}
+
 void X64OpndDumpVisitor::Visit(maplebe::RegOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "reg ";
   DumpRegInfo(*v);
   DumpSize(*v);
-  const OpndDesc *regDesc = GetOpndDesc();
-  LogInfo::MapleLogger() << " [";
-  if (regDesc->IsRegDef()) {
-    LogInfo::MapleLogger() << "DEF ";
-  }
-  if (regDesc->IsRegUse()) {
-    LogInfo::MapleLogger() << "USE";
-  }
-  LogInfo::MapleLogger() << "]";
+  DumpOpndDesc();
   DumpOpndSuffix();
 }
 
@@ -879,9 +877,10 @@ void X64OpndDumpVisitor::DumpRegInfo(maplebe::RegOperand &v) {
   if (v.GetRegisterNumber() > kBaseVirtualRegNO) {
     LogInfo::MapleLogger() << "V" << v.GetRegisterNumber();
   } else {
-    bool r32 = (v.GetSize() == k32BitSize);
+    uint32 regType = (v.GetSize() == k32BitSize) ? X64CG::kR32List : X64CG::kR64List;
     LogInfo::MapleLogger() << "%"
-                           << X64CG::intRegNames[(r32 ? X64CG::kR32List : X64CG::kR64List)][v.GetRegisterNumber()];
+                           << X64CG::intRegNames[regType][v.GetRegisterNumber()]
+                           << " R" << v.GetRegisterNumber();
   }
 }
 
@@ -899,10 +898,12 @@ void X64OpndDumpVisitor::Visit(maplebe::ListOperand *v) {
 
   MapleList<RegOperand*> opndList = v->GetOperands();
   for (auto it = opndList.begin(); it != opndList.end();) {
-    (*it)->Dump();
-    LogInfo::MapleLogger() << (++it == opndList.end() ? "" : " ,");
+    LogInfo::MapleLogger() << "reg ";
+    DumpRegInfo(*(*it));
+    DumpSize(*(*it));
+    LogInfo::MapleLogger() << (++it == opndList.end() ? "" : ", ");
   }
-  DumpSize(*v);
+  DumpOpndDesc();
   DumpOpndSuffix();
 }
 

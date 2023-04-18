@@ -838,7 +838,7 @@ class LsrAndToUbfxPattern : public CGPeepPattern {
 
 /*
  * lsl w1, w2, #m
- * and w3, w1, #2^n-1    --->    if n > m : ubfiz w3, w2, #m, #n-m
+ * and w3, w1, #[(2^n-1 << m) ~ (2^n-1)]    --->    if n > m : ubfiz w3, w2, #m, #n-m
  *
  * and w1, w2, #2^n-1    --->    ubfiz w3, w2, #m, #n
  * lsl w3, w1, #m

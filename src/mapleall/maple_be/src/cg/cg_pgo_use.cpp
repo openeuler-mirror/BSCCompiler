@@ -31,7 +31,7 @@ bool CGProfUse::ApplyPGOData() {
     LogInfo::MapleLogger() << "find profile for " << f->GetName() << "Failed\n";
   }
   CHECK_FATAL(bbInfo != nullptr, "Get profile Failed");
-  if (!VerifyProfiledata(iBBs, *bbInfo)) {
+  if (!VerifyProfileData(iBBs, *bbInfo)) {
     if (!CGOptions::DoLiteProfVerify()) {
       LogInfo::MapleLogger() << "skip profile applying for " << f->GetName() << " due to out of date\n";
     } else {
@@ -56,19 +56,23 @@ bool CGProfUse::ApplyPGOData() {
   return true;
 }
 
-bool CGProfUse::VerifyProfiledata(const std::vector<maplebe::BB *> &iBBs, LiteProfile::BBInfo &bbInfo) {
+bool CGProfUse::VerifyProfileData(const std::vector<maplebe::BB *> &iBBs, LiteProfile::BBInfo &bbInfo) {
   /* check bb size */
+  bbInfo.verified.first = true;
   if (bbInfo.counter.size() != iBBs.size()) {
     LogInfo::MapleLogger() << f->GetName() << " counter doesn't match profile counter :"
                            << bbInfo.counter.size() << " func real counter :" << iBBs.size() << '\n';
+    bbInfo.verified.second = false;
     return false;
   }
   /* check cfg hash*/
   if (bbInfo.funcHash != f->GetTheCFG()->ComputeCFGHash()) {
     LogInfo::MapleLogger() << f->GetName() << " CFG hash doesn't match profile cfghash :"
                            << bbInfo.funcHash << " func cfghash :" << f->GetTheCFG()->ComputeCFGHash() << '\n';
+    bbInfo.verified.second = false;
     return false;
   }
+  bbInfo.verified.second = true;
   return true;
 }
 
@@ -702,7 +706,7 @@ void CGProfUse::AddBBProf(BB &bb) {
     }
     CHECK_FATAL(ftBB, "find ft bb after ifBB failed");
     if (&bb == targetBB) {
-      CHECK_FATAL(!bbSplit.count(ftBB->GetId()), "check split bb");
+      CHECK_FATAL(bbSplit.count(ftBB->GetId()) == 0, "check split bb");
       LabelIdx fallthruLabel = GetOrCreateBBLabIdx(*ftBB);
       f->GetTheCFG()->GetInsnModifier()->FlipIfBB(*curBB, fallthruLabel);
     } else if (&bb != ftBB) {

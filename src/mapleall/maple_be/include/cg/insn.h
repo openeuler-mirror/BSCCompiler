@@ -33,6 +33,8 @@ class BB;
 class CG;
 class Emitter;
 class DepNode;
+class InsnBuilder;
+class OperandBuilder;
 
 struct VectorRegSpec {
   VectorRegSpec() : vecLane(-1), vecLaneMax(0), vecElementSize(0), compositeOpnds(0) {}
@@ -182,6 +184,10 @@ class Insn {
       return true;
     }
     return md->Verify(opnds);
+  }
+
+  void SplitSelf(bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+    md->Split(this, isAfterRegAlloc, insnBuilder, opndBuilder);
   }
 
   virtual bool IsMachineInstruction() const;

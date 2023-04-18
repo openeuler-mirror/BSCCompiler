@@ -125,7 +125,7 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
   if (keyArg.rawArg == "-o" && keyArg.val == "-") {
     keyArg.val = "/dev/stdout";
   }
-  if (keyArg.rawArg == "-D" && keyArg.val.find("_FORTIFY_SOURCE") != keyArg.val.npos) {
+  if (keyArg.rawArg == "-D" && keyArg.val.find("_FORTIFY_SOURCE") != std::string::npos) {
     static std::string tmp(keyArg.val);
     tmp += " -O2 ";
     keyArg.val = tmp;

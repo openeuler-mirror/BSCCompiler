@@ -34,7 +34,7 @@ std::unordered_map<Opcode, F128OpRes> f128OpsRes = {
   {OP_le, {OP_le, OP_gt}}
 };
 
-std::string Expand128Floats::GetSequentialName0(const std::string &prefix, uint32_t num) {
+std::string Expand128Floats::GetSequentialName0(const std::string &prefix, uint32_t num) const {
   std::stringstream ss;
   ss << prefix << num;
   return ss.str();
@@ -45,12 +45,12 @@ uint32 Expand128Floats::GetSequentialNumber() const {
   return unnamedSymbolIdx++;
 }
 
-std::string Expand128Floats::GetSequentialName(const std::string &prefix) {
+std::string Expand128Floats::GetSequentialName(const std::string &prefix) const {
   std::string name = GetSequentialName0(prefix, GetSequentialNumber());
   return name;
 }
 
-std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, BaseNode *node) {
+std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, BaseNode *node) const {
   CHECK_FATAL(node, "Nullptr at Expand129Floats::SelectSoftFPCall method");
   switch (opCode) {
     case OP_cvt:

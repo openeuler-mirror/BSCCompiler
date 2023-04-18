@@ -158,8 +158,7 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void RevertToRestoreAtEpilog(AArch64reg reg);
   void DetermineCalleeSaveLocationsPre();
   void DetermineCalleeRestoreLocations();
-  int32 FindCalleeBase() const;
-  void SetupRegOffsets();
+  int32 GetCalleeBaseOffset() const;
   void InsertCalleeSaveCode();
   void InsertCalleeRestoreCode();
   void PrintSaveLocs(AArch64reg reg);
@@ -204,14 +203,17 @@ class AArch64RegSavesOpt : public RegSavesOpt {
     }
   }
 
-  void ResetCalleeBit(CalleeBitsType * data, BBID bid, regno_t reg) const {
-    CalleeBitsType mask = 1ULL << RegBitMap(reg);
-    data[bid] = GetBBCalleeBits(data, bid) & ~mask;
-  }
-
   bool IsCalleeBitSet(CalleeBitsType * data, BBID bid, regno_t reg) const {
     CalleeBitsType mask = 1ULL << RegBitMap(reg);
     return GetBBCalleeBits(data, bid) & mask;
+  }
+
+  bool IsCalleeBitSetDef(BBID bid, regno_t reg) const {
+    return IsCalleeBitSet(calleeBitsDef, bid, reg);
+  }
+
+  bool IsCalleeBitSetUse(BBID bid, regno_t reg) const {
+    return IsCalleeBitSet(calleeBitsUse, bid, reg);
   }
 
   /* AArch64 specific callee-save registers bit positions
@@ -257,12 +259,54 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   CalleeBitsType *calleeBitsDef = nullptr;
   CalleeBitsType *calleeBitsUse = nullptr;
   CalleeBitsType *calleeBitsAcc = nullptr;
-  MapleVector<SavedRegInfo *> bbSavedRegs; /* set of regs to be saved in a BB */
-  MapleVector<SavedBBInfo *> regSavedBBs;  /* set of BBs to be saved for a reg */
-  MapleMap<regno_t, uint32> regOffset;     /* save offset of each register */
-  MapleSet<BBID> visited;                  /* temp */
-  MapleMap<BBID, BB*> id2bb;               /* bbid to bb* mapping */
+  MapleVector<SavedRegInfo *> bbSavedRegs;  // set of regs to be saved in a BB */
+  MapleVector<SavedBBInfo *> regSavedBBs;   // set of BBs to be saved for a reg */
+  MapleMap<regno_t, int32> regOffset; // save offset of each register
+  MapleSet<BBID> visited;   // temp
+  MapleMap<BBID, BB*> id2bb;  // bbid to bb* mapping
 };
+
+// callee reg finder, return two reg for stp/ldp
+class AArch64RegFinder {
+ public:
+  AArch64RegFinder(const CGFunc &func, const AArch64RegSavesOpt &regSave) :
+      regAlloced(func.GetTargetRegInfo()->GetAllRegNum(), true) {
+    CalcRegUsedInSameBBsMat(func, regSave);
+    CalcRegUsedInBBsNum(func, regSave);
+    SetCalleeRegUnalloc(func);
+  }
+
+  // get callee reg1 and reg2 for stp/ldp; if reg1 is invalid, all reg is alloced
+  std::pair<regno_t, regno_t> GetPairCalleeeReg();
+
+  void Dump() const;
+ private:
+  // two reg is used in same bb's num
+  // such as: BB1 use r1,r2; BB2 use r1,r3; BB3 use r1,r2,r3
+  //      r1  r2  r3
+  //  r1  /   2   2
+  //  r2  2   /   1
+  //  r3  2   1   /
+  std::vector<std::vector<uint32>> regUsedInSameBBsMat;
+  // reg is used in bb's num
+  std::map<regno_t, uint32> regUsedInBBsNum;
+  std::vector<bool> regAlloced;  // callee reg is alloced, true is alloced
+
+  void CalcRegUsedInSameBBsMat(const CGFunc &func, const AArch64RegSavesOpt &regSave);
+  void CalcRegUsedInBBsNum(const CGFunc &func, const AArch64RegSavesOpt &regSave);
+  void SetCalleeRegUnalloc(const CGFunc &func);
+
+  // find an unalloced reg, which has max UsedInBBsNum
+  regno_t FindMaxUnallocRegUsedInBBsNum() const {
+    for (regno_t i = kRinvalid; i < regAlloced.size(); ++i) {
+      if (!regAlloced[i]) {
+        return i;
+      }
+    }
+    return kRinvalid;
+  }
+};
+
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_AARCH64REGSAVESOPT_H */

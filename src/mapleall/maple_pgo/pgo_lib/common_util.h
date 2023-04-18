@@ -38,6 +38,9 @@ typedef long int		int64_t;
 #ifndef O_APPEND
 # define O_APPEND 02000
 #endif
+#ifndef O_TRUNC
+#define O_TRUNC 01000
+#endif
 
 #define MAP_SHARED 0x01       // Share changes.
 #define MAP_PRIVATE	0x02      // Changes are private.
@@ -181,11 +184,11 @@ void *__mmap(uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags,
 
 void current_time_to_buf(char* buf) {
   time_t timer;
-  struct tm* tm_info;
+  struct tm tm_info;
 
   timer = time(NULL);
-  tm_info = localtime(&timer);
-  strftime(buf, TIMEBUFSIZE, "%Y-%m-%d %H:%M:%S", tm_info);
+  (void)localtime_r(&timer, &tm_info);
+  strftime(buf, TIMEBUFSIZE, "%Y-%m-%d %H:%M:%S", &tm_info);
 }
 
 #define SAVE_ALL                                                               \

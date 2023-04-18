@@ -981,6 +981,10 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_mov_narrow_v4i32: case INTRN_vector_mov_narrow_v4u32:
     case INTRN_vector_mov_narrow_v8i16: case INTRN_vector_mov_narrow_v8u16:
       return HandleVectorMovNarrow(intrinsicopNode, cgFunc);
+
+    case INTRN_C___tls_get_tbss_anchor: case INTRN_C___tls_get_tdata_anchor:
+      return cgFunc.SelectIntrinsicOpLoadTlsAnchor(intrinsicopNode, parent);
+
     default: {
       if (!intrinsicDesc.IsVectorOp()) {
         CHECK_FATAL(false, "Unsupported intrinsicop.");
@@ -1707,7 +1711,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       }
       primType = type->GetPrimType();
       offset = stackOffset;
-      typeSize = static_cast<uint32>(GetBecommon().GetTypeSize(tyIdx));
+      typeSize = static_cast<uint32>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetSize());
       stackOffset += (typeSize + 7) & (-8);
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
       lmbcParamVec.push_back(info);
@@ -2249,7 +2253,7 @@ void CGFunc::ClearLoopInfo() {
 }
 
 void CGFunc::DumpCFGToDot(const std::string &fileNamePrefix) {
-  std::ofstream file(fileNamePrefix + GetName());
+  std::ofstream file(fileNamePrefix + GetName() + ".dot");
   file << "digraph {" << std::endl;
   for (auto *bb : GetAllBBs()) {
     if (bb == nullptr) {
@@ -2294,8 +2298,11 @@ void CGFunc::PatchLongBranch() {
 void CGFunc::VerifyAllInsn() {
   FOR_ALL_BB(bb, this) {
     FOR_BB_INSNS(insn, bb) {
-      if(!insn->VerifySelf()) {
-        CHECK_FATAL_FALSE("Insn is illegal.");
+      if(!VERIFY_INSN(insn)) {
+        LogInfo::MapleLogger() << "Illegal insn is:\n";
+        insn->Dump();
+        LogInfo::MapleLogger() << "Function name is:\n" << GetName() << "\n";
+        CHECK_FATAL_FALSE("The problem is illegal insn, info is above.");
       }
     }
   }

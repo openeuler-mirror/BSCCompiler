@@ -20,8 +20,10 @@ namespace maplebe {
 /* Initialize cfg optimization patterns */
 void AArch64CFGOptimizer::InitOptimizePatterns() {
   (void)diffPassPatterns.emplace_back(memPool->New<ChainingPattern>(*cgFunc));
-  (void)diffPassPatterns.emplace_back(memPool->New<SequentialJumpPattern>(*cgFunc));
-  AArch64FlipBRPattern *brOpt = memPool->New<AArch64FlipBRPattern>(*cgFunc);
+  if (cgFunc->GetMirModule().IsCModule()) {
+    (void)diffPassPatterns.emplace_back(memPool->New<SequentialJumpPattern>(*cgFunc));
+  }
+  auto *brOpt = memPool->New<AArch64FlipBRPattern>(*cgFunc);
   if (GetPhase() == kCfgoPostRegAlloc) {
     brOpt->SetPhase(kCfgoPostRegAlloc);
   }

@@ -71,6 +71,7 @@ struct RealArgPropCand {
 
   PrimType GetPrimType() const {
     if (kind == RealArgPropCandKind::kConst) {
+      CHECK_NULL_FATAL(data.mirConst);
       return data.mirConst->GetType().GetPrimType();
     } else if (kind == RealArgPropCandKind::kVar || kind == RealArgPropCandKind::kPreg) {
       ASSERT_NOT_NULL(data.symbol);

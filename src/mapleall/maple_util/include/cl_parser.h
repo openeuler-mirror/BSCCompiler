@@ -119,8 +119,8 @@ class CommandLine {
     return BashCompletionPrinter(defaultCategory);
   }
 
-  void HelpPrinter(const OptionCategory &optCategory) const;
-  void HelpPrinter() const {
+  void HelpPrinter(OptionCategory &optCategory) const;
+  void HelpPrinter() {
     return HelpPrinter(defaultCategory);
   }
 
@@ -158,7 +158,7 @@ class CommandLine {
   RetCode ParseOption(size_t &argsIndex,
                       const std::deque<std::string_view> &args,
                       KeyArg &keyArg, const OptionCategory &optCategory,
-                      OptionInterface *opt) const;
+                      OptionInterface &opt) const;
   RetCode ParseEqualOption(size_t &argsIndex,
                            const std::deque<std::string_view> &args,
                            KeyArg &keyArg, OptionCategory &optCategory,

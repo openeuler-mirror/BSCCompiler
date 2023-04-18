@@ -48,19 +48,19 @@ class SSARename2Preg {
     return aliasclass->GetAliasSet(ost->GetIndex());
   }
 
-  void Rename2PregStmt(MeStmt *);
-  void Rename2PregExpr(MeStmt *, MeExpr *);
-  void Rename2PregLeafRHS(MeStmt *, const VarMeExpr *);
+  void Rename2PregStmt(MeStmt *stmt);
+  void Rename2PregExpr(MeStmt *mestmt, MeExpr *meexpr);
+  void Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeexpr);
   void Rename2PregLeafLHS(MeStmt &mestmt, const VarMeExpr &varmeexpr);
-  RegMeExpr *CreatePregForVar(const VarMeExpr *varMeExpr);
+  RegMeExpr *CreatePregForVar(const VarMeExpr &varMeExpr);
   RegMeExpr *FindOrCreatePregForVarPhiOpnd(const VarMeExpr *varMeExpr);
-  bool Rename2PregPhi(MePhiNode *, MapleMap<OStIdx, MePhiNode *> &);
-  void UpdateRegPhi(MePhiNode *, MePhiNode *, const VarMeExpr *);
-  void Rename2PregCallReturn(MapleVector<MustDefMeNode> &);
+  bool Rename2PregPhi(MePhiNode &mevarphinode, MapleMap<OStIdx, MePhiNode *> &regPhiList);
+  void UpdateRegPhi(MePhiNode &mevarphinode, MePhiNode &regphinode, const VarMeExpr *lhs);
+  void Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdeflist);
   bool VarMeExprIsRenameCandidate(const VarMeExpr &varMeExpr) const;
-  RegMeExpr *RenameVar(const VarMeExpr *);
+  RegMeExpr *RenameVar(const VarMeExpr *varMeExpr);
   void UpdateMirFunctionFormal();
-  void SetupParmUsed(const VarMeExpr *);
+  void SetupParmUsed(const VarMeExpr *varmeexpr);
   void Init();
   void CollectUsedOst(const MeExpr *meExpr);
   void CollectDefUseInfoOfOst();

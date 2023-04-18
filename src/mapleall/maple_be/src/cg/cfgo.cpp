@@ -325,8 +325,8 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
   if (curBB.GetKind() == BB::kBBGoto && !curBB.IsEmpty()) {
     BB *sucBB = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
     CHECK_FATAL(sucBB != nullptr, "sucBB is null in SequentialJumpPattern::Optimize");
-    BB *tragetBB = CGCFG::GetTargetSuc(*sucBB);
-    if ((sucBB != &curBB) && sucBB->IsSoloGoto() &&  tragetBB != nullptr && tragetBB != sucBB) {
+    BB *targetBB = CGCFG::GetTargetSuc(*sucBB);
+    if (sucBB != &curBB && sucBB->IsSoloGoto() && targetBB != nullptr && targetBB != sucBB && !HasInvalidPred(*sucBB)) {
       Log(curBB.GetId());
       if (checkOnly) {
         return false;
@@ -337,14 +337,35 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
     }
   } else if (curBB.GetKind() == BB::kBBIf) {
     for (BB *sucBB : curBB.GetSuccs()) {
-      BB *tragetBB = CGCFG::GetTargetSuc(*sucBB);
-      if (sucBB != curBB.GetNext() && sucBB->IsSoloGoto() &&
-          tragetBB != nullptr && tragetBB != sucBB) {
+      BB *sucTargetBB = CGCFG::GetTargetSuc(*sucBB);
+      if (sucBB != curBB.GetNext() && sucBB->IsSoloGoto() && sucTargetBB != nullptr && sucTargetBB != sucBB &&
+          !HasInvalidPred(*sucBB)) {
         Log(curBB.GetId());
         if (checkOnly) {
           return false;
         }
-        cgFunc->GetTheCFG()->RetargetJump(*sucBB, curBB);
+        // e.g.
+        //                BB12[if]   (curBB)
+        //               beq  label:11
+        //                 /     \
+        //                /     BB25[if] (label: 11)
+        //                \      /
+        //                 BB13[goto]  (sucBB)
+        //                   |
+        //                 BB6[ft]   (targetBB)  (label: 6)
+        // For the above case, the ifBB can not modify the target label of the conditional jump insn,
+        // because the target of the conditional jump insn is the other succBB(BB25).
+        BB *ifTargetBB = CGCFG::GetTargetSuc(curBB);
+        CHECK_NULL_FATAL(ifTargetBB);
+        // In addition, if the targetBB(ifTargetBB) of the ifBB is not the gotoBB(sucBB), and the targetBB(sucTargetBB)
+        // of the sucBB is not its next, we can not do the optimization, because it will change the layout of the
+        // sucTargetBB, and it does not necessarily improve performance.
+        if (ifTargetBB != sucBB && sucBB->GetNext() != sucTargetBB) {
+          return false;
+        }
+        if (ifTargetBB == sucBB) {
+          cgFunc->GetTheCFG()->RetargetJump(*sucBB, curBB);
+        }
         SkipSucBB(curBB, *sucBB);
         return true;
       }
@@ -352,7 +373,7 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
   } else if (curBB.GetKind() == BB::kBBRangeGoto) {
     bool changed = false;
     for (BB *sucBB : curBB.GetSuccs()) {
-      if (sucBB != curBB.GetNext() && sucBB->IsSoloGoto() &&
+      if (sucBB != curBB.GetNext() && sucBB->IsSoloGoto() && !HasInvalidPred(*sucBB) &&
           cgFunc->GetTheCFG()->GetTargetSuc(*sucBB) != nullptr) {
         Log(curBB.GetId());
         if (checkOnly) {
@@ -431,6 +452,34 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) const {
   }
 }
 
+bool SequentialJumpPattern::HasInvalidPred(BB &sucBB) const {
+  for (auto predIt = sucBB.GetPredsBegin(); predIt != sucBB.GetPredsEnd(); ++predIt) {
+    if ((*predIt)->GetKind() != BB::kBBGoto && (*predIt)->GetKind() != BB::kBBIf &&
+        (*predIt)->GetKind() != BB::kBBRangeGoto && (*predIt)->GetKind() != BB::kBBFallthru) {
+      return true;
+    }
+    if ((*predIt)->GetKind() == BB::kBBIf) {
+      BB *ifTargetBB = CGCFG::GetTargetSuc(**predIt);
+      CHECK_NULL_FATAL(ifTargetBB);
+      BB *sucTargetBB = CGCFG::GetTargetSuc(sucBB);
+      CHECK_NULL_FATAL(sucTargetBB);
+      if (ifTargetBB != &sucBB && sucBB.GetNext() != sucTargetBB) {
+        return true;
+      }
+    }
+    if ((*predIt)->GetKind() == BB::kBBIf || (*predIt)->GetKind() == BB::kBBRangeGoto) {
+      if ((*predIt)->GetNext() == &sucBB) {
+        return true;
+      }
+    } else if ((*predIt)->GetKind() == BB::kBBGoto) {
+      if (*predIt == &sucBB || (*predIt)->IsEmpty()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /*
  * preCond:
  * sucBB is one of curBB's successor.
@@ -444,19 +493,59 @@ void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) const {
   curBB.PushBackSuccs(*gotoTarget);
   sucBB.RemovePreds(curBB);
   gotoTarget->PushBackPreds(curBB);
+  // If the sucBB needs to be skipped, all preds of the sucBB must skip it and update cfg info.
+  // e.g.
+  //             BB3[if]     (curBB)
+  //             / \
+  //            /   BB6[if]
+  //            \   /
+  //             BB10[goto]  (sucBB)
+  //              |
+  //             BB8         (gotoTarget)
+  for (auto *predBB : sucBB.GetPreds()) {
+    if (predBB->GetKind() == BB::kBBGoto) {
+      cgFunc->GetTheCFG()->RetargetJump(sucBB, *predBB);
+    } else if (predBB->GetKind() == BB::kBBIf) {
+      BB *ifTargetBB = CGCFG::GetTargetSuc(*predBB);
+      if (ifTargetBB == &sucBB) {
+        cgFunc->GetTheCFG()->RetargetJump(sucBB, *predBB);
+      }
+    } else if (predBB->GetKind() == BB::kBBFallthru) {
+      // e.g.
+      //      (curBB) BB70[goto]         BB27[if]
+      //                \              /             \
+      //                 \            /               \
+      //                  \      BB71[ft] (iterPredBB) \
+      //                   \     /                      \
+      //                    BB48[goto]   (sucBB)      BB28[ft]
+      //                      |                     /
+      //                      |                    /
+      //                    BB29[if]   (gotoTarget)
+      ASSERT_NOT_NULL(cgFunc->GetTheCFG()->GetInsnModifier());
+      cgFunc->GetTheCFG()->GetInsnModifier()->ModifyFathruBBToGotoBB(*predBB, gotoTarget->GetLabIdx());
+    } else if (predBB->GetKind() == BB::kBBRangeGoto) {
+      UpdateSwitchSucc(*predBB, sucBB);
+    }
+    predBB->RemoveSuccs(sucBB);
+    sucBB.RemovePreds(*predBB);
+    predBB->PushBackSuccs(*gotoTarget);
+    gotoTarget->PushBackPreds(*predBB);
+  }
   cgFunc->GetTheCFG()->FlushUnReachableStatusAndRemoveRelations(sucBB, *cgFunc);
-  /*
-   * LastBB cannot be removed from the preds of succBB by FlushUnReachableStatusAndRemoveRelations, Why?
-   * We'll do a separate process below for the case that sucBB is LastBB.
-   */
+  // LastBB cannot be removed from the preds of succBB by FlushUnReachableStatusAndRemoveRelations, Why?
+  // We'll do a separate process below for the case that sucBB is LastBB.
   if (sucBB.GetKind() == BB::kBBGoto && &sucBB == cgFunc->GetLastBB()) {
-    // gotoBB has only on succ.
+    // gotoBB has only one succ.
     ASSERT(sucBB.GetSuccsSize() == 1, "invalid gotoBB");
     sucBB.SetUnreachable(true);
     sucBB.SetFirstInsn(nullptr);
     sucBB.SetLastInsn(nullptr);
     gotoTarget->RemovePreds(sucBB);
     sucBB.RemoveSuccs(*gotoTarget);
+  }
+  // Remove the unreachableBB which has been skipped
+  if (sucBB.IsUnreachable()) {
+    cgFunc->GetTheCFG()->RemoveBB(sucBB);
   }
 }
 
@@ -929,6 +1018,10 @@ bool CgPreCfgo::PhaseRun(maplebe::CGFunc &f) {
     DotGenerator::GenerateDot("before-precfgo", f, f.GetMirModule());
   }
   cfgOptimizer->Run(name);
+  // This phase modifies the cfg, which affects the loop analysis result,
+  // so we need to run loop-analysis again.
+  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
+  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
   if (CFGO_DUMP_NEWPM) {
     f.GetTheCFG()->CheckCFG();
     DotGenerator::GenerateDot("after-precfgo", f, f.GetMirModule());
@@ -966,6 +1059,8 @@ bool CgPostCfgo::PhaseRun(maplebe::CGFunc &f) {
   const std::string &funcClass = f.GetFunction().GetBaseClassName();
   const std::string &funcName = f.GetFunction().GetBaseFuncName();
   const std::string &name = funcClass + funcName;
+  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+  cfgOptimizer->SetPhase(kPostCfgo);
   if (CFGO_DUMP_NEWPM) {
     DotGenerator::GenerateDot("before-postcfgo", f, f.GetMirModule());
   }
@@ -973,6 +1068,8 @@ bool CgPostCfgo::PhaseRun(maplebe::CGFunc &f) {
   if (CFGO_DUMP_NEWPM) {
     DotGenerator::GenerateDot("after-postcfgo", f, f.GetMirModule());
   }
+  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
+  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPostCfgo, postcfgo)

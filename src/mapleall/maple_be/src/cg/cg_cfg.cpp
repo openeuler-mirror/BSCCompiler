@@ -378,21 +378,29 @@ void CGCFG::MergeBB(BB &merger, BB &mergee, CGFunc &func) {
     func.SetLastBB(*prevLast);
   }
   if (mergee.GetKind() == BB::kBBReturn) {
-    for (size_t i = 0; i < func.ExitBBsVecSize(); ++i) {
-      if (func.GetExitBB(static_cast<int32>(i)) == &mergee) {
-        func.EraseExitBBsVec(func.GetExitBBsVec().begin() + i);
+    auto retIt = func.GetExitBBsVec().begin();
+    while (retIt != func.GetExitBBsVec().end()) {
+      if (*retIt == &mergee) {
+        (void)func.EraseExitBBsVec(retIt);
+        break;
+      } else {
+        ++retIt;
       }
     }
     func.PushBackExitBBsVec(merger);
   }
-  /* if mergee is infinite loop */
-  BB *commonExit =  func.GetCommonExitBB();
-  const auto exitPredIt = std::find(commonExit->GetPredsBegin(), commonExit->GetPredsEnd(), &mergee);
-  if (exitPredIt != commonExit->GetPredsEnd()) {
-    commonExit->ErasePreds(exitPredIt);
-    commonExit->PushBackPreds(merger);
+  if (mergee.GetKind() == BB::kBBNoReturn) {
+    auto noRetIt = func.GetNoRetCallBBVec().begin();
+    while (noRetIt != func.GetNoRetCallBBVec().end()) {
+      if (*noRetIt == &mergee) {
+        (void)func.EraseNoReturnCallBB(noRetIt);
+        break;
+      } else {
+        ++noRetIt;
+      }
+    }
+    func.PushBackNoReturnCallBBsVec(merger);
   }
-
   if (mergee.GetKind() == BB::kBBRangeGoto) {
     func.AddEmitSt(merger.GetId(), *func.GetEmitSt(mergee.GetId()));
     func.DeleteEmitSt(mergee.GetId());
@@ -560,52 +568,55 @@ void CGCFG::FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func)
 }
 
 void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
-  BB *sucBB = CGCFG::GetTargetSuc(curBB, false, isGotoIf);
-  if (sucBB != nullptr) {
-    sucBB->RemovePreds(curBB);
-  }
-  BB *fallthruSuc = nullptr;
-  if (isGotoIf) {
-    for (BB *succ : curBB.GetSuccs()) {
-      if (succ == sucBB) {
-        continue;
+  if (!curBB.IsUnreachable()) {
+    BB *sucBB = CGCFG::GetTargetSuc(curBB, false, isGotoIf);
+    if (sucBB != nullptr) {
+      sucBB->RemovePreds(curBB);
+    }
+
+    BB *fallthruSuc = nullptr;
+    if (isGotoIf) {
+      for (BB *succ : curBB.GetSuccs()) {
+        if (succ == sucBB) {
+          continue;
+        }
+        fallthruSuc = succ;
+        break;
       }
-      fallthruSuc = succ;
-      break;
+      ASSERT(fallthruSuc == curBB.GetNext(), "fallthru succ should be its next bb.");
+      if (fallthruSuc != nullptr) {
+        fallthruSuc->RemovePreds(curBB);
+      }
     }
-    ASSERT(fallthruSuc == curBB.GetNext(), "fallthru succ should be its next bb.");
-    if (fallthruSuc != nullptr) {
-      fallthruSuc->RemovePreds(curBB);
-    }
-  }
-  for (BB *preBB : curBB.GetPreds()) {
-    if (preBB->GetKind() == BB::kBBIgoto) {
-      sucBB->PushBackPreds(curBB);
-      return;
-    }
-    /*
+    for (BB *preBB : curBB.GetPreds()) {
+      if (preBB->GetKind() == BB::kBBIgoto) {
+        sucBB->PushBackPreds(curBB);
+        return;
+      }
+      /*
      * If curBB is the target of its predecessor, change
      * the jump target.
      */
-    if (&curBB == GetTargetSuc(*preBB, true, isGotoIf)) {
-      LabelIdx targetLabel;
-      if (curBB.GetNext()->GetLabIdx() == 0) {
-        targetLabel = insnVisitor->GetCGFunc()->CreateLabel();
-        curBB.GetNext()->SetLabIdx(targetLabel);
-      } else {
-        targetLabel = curBB.GetNext()->GetLabIdx();
+      if (&curBB == GetTargetSuc(*preBB, true, isGotoIf)) {
+        LabelIdx targetLabel;
+        if (curBB.GetNext()->GetLabIdx() == 0) {
+          targetLabel = insnVisitor->GetCGFunc()->CreateLabel();
+          curBB.GetNext()->SetLabIdx(targetLabel);
+        } else {
+          targetLabel = curBB.GetNext()->GetLabIdx();
+        }
+        insnVisitor->ModifyJumpTarget(targetLabel, *preBB);
       }
-      insnVisitor->ModifyJumpTarget(targetLabel, *preBB);
+      if (fallthruSuc != nullptr && !fallthruSuc->IsPredecessor(*preBB)) {
+        preBB->PushBackSuccs(*fallthruSuc);
+        fallthruSuc->PushBackPreds(*preBB);
+      }
+      if (sucBB != nullptr && !sucBB->IsPredecessor(*preBB)) {
+        preBB->PushBackSuccs(*sucBB);
+        sucBB->PushBackPreds(*preBB);
+      }
+      preBB->RemoveSuccs(curBB);
     }
-    if (fallthruSuc != nullptr && !fallthruSuc->IsPredecessor(*preBB)) {
-      preBB->PushBackSuccs(*fallthruSuc);
-      fallthruSuc->PushBackPreds(*preBB);
-    }
-    if (sucBB != nullptr && !sucBB->IsPredecessor(*preBB)) {
-      preBB->PushBackSuccs(*sucBB);
-      sucBB->PushBackPreds(*preBB);
-    }
-    preBB->RemoveSuccs(curBB);
   }
 
   for (BB *ehSucc : curBB.GetEhSuccs()) {
@@ -647,6 +658,23 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
   }
 }
 
+void CGCFG::UpdateCommonExitBBInfo() {
+  BB *commonExitBB = cgFunc->GetCommonExitBB();
+  ASSERT_NOT_NULL(commonExitBB);
+  commonExitBB->ClearPreds();
+  for (BB *exitBB : cgFunc->GetExitBBsVec()) {
+    if (!exitBB->IsUnreachable()) {
+      commonExitBB->PushBackPreds(*exitBB);
+    }
+  }
+  for (BB *noRetBB : cgFunc->GetNoRetCallBBVec()) {
+    if (!noRetBB->IsUnreachable()) {
+      commonExitBB->PushBackPreds(*noRetBB);
+    }
+  }
+  WontExitAnalysis();
+}
+
 void CGCFG::RetargetJump(BB &srcBB, BB &targetBB) const {
   insnVisitor->ModifyJumpTarget(srcBB, targetBB);
 }
@@ -657,6 +685,7 @@ BB *CGCFG::GetTargetSuc(BB &curBB, bool branchOnly, bool isGotoIf) {
     case BB::kBBIntrinsic:
     case BB::kBBIf: {
       const Insn* origLastInsn = curBB.GetLastMachineInsn();
+      ASSERT_NOT_NULL(origLastInsn);
       if (isGotoIf && (curBB.GetPrev() != nullptr) &&
           (curBB.GetKind() == BB::kBBGoto || curBB.GetKind() == BB::kBBIf) &&
           (curBB.GetPrev()->GetKind() == BB::kBBGoto || curBB.GetPrev()->GetKind() == BB::kBBIf)) {

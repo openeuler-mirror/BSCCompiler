@@ -284,7 +284,7 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       UpdateRunningExe(kBinNameCpp2mpl);
       newAction = std::make_unique<Action>(kBinNameCpp2mpl, inputInfo, currentAction);
       currentAction = std::move(newAction);
-      if (isAllAst && isMultipleFiles) {
+      if (isAllAst) {
         return currentAction;
       }
       break;
@@ -369,14 +369,21 @@ ErrorCode MplOptions::DecideRunningPhases() {
   std::unique_ptr<Action> lastAction;
   bool isMultipleFiles = (inputInfos.size() > 1);
 
-  if (isAllAst && isMultipleFiles) {
-    auto lastInputInfo = inputInfos.back()->GetInputFile();
-    inputInfos.pop_back();
+  if (isAllAst) {
+    std::vector<std::unique_ptr<InputInfo>> tmpInputInfos;
     for (auto &inputInfo : inputInfos) {
-      hirInputFiles.push_back(inputInfo->GetInputFile());
+      if (inputInfo->GetInputFileType() == InputFileType::kFileTypeObj) {
+        tmpInputInfos.push_back(std::move(inputInfo));
+      } else {
+        hirInputFiles.push_back(inputInfo->GetInputFile());
+      }
     }
     inputInfos.clear();
-    inputInfos.push_back(std::make_unique<InputInfo>(lastInputInfo));
+    inputInfos = std::move(tmpInputInfos);
+    tmpInputInfos.clear();
+    auto lastOastInfo = hirInputFiles.back();
+    hirInputFiles.pop_back();
+    inputInfos.push_back(std::make_unique<InputInfo>(lastOastInfo));
     inputInfos.push_back(std::make_unique<InputInfo>(InputInfo(inputInfos.back()->GetOutputFolder() + "tmp.mpl",
                          InputFileType::kFileTypeMpl, "tmp.mpl", inputInfos.back()->GetOutputFolder(),
                          inputInfos.back()->GetOutputFolder(), "tmp", inputInfos.back()->GetOutputFolder() + "tmp")));
@@ -593,16 +600,21 @@ ErrorCode MplOptions::CheckInputFiles() {
     }
   }
 
-  bool allAst = false;
+  bool isOast = false;
+  bool notAstOrElf = false;
   for (auto &inputInfo : inputInfos) {
-    if (inputInfo->GetInputFileType() == InputFileType::kFileTypeOast ||
-        inputInfo->GetInputFileType() == InputFileType::kFileTypeAst) {
-      allAst = true;
-    } else {
-      allAst = false;
+    if (inputInfo->GetInputFileType() == InputFileType::kFileTypeOast) {
+      isOast = true;
+    } else if (inputInfo->GetInputFileType() != InputFileType::kFileTypeObj &&
+               inputInfo->GetInputFileType() != InputFileType::kFileTypeAst) {
+      notAstOrElf = true;
     }
   }
-  isAllAst = allAst;
+  if (isOast && notAstOrElf) {
+    LogInfo::MapleLogger(kLlErr) << "Only .o and obj files in Ir format can be compiled together." << "\n";
+    return kErrorInvalidParameter;
+  }
+  isAllAst = isOast;
 
   if (inputFiles.empty()) {
     return kErrorFileNotFound;

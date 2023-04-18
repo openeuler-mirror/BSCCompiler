@@ -34,10 +34,6 @@ class OBJSize {
   void Execute();
 
  private:
-  size_t InvalidSize(bool getMaxSizeOfObjs) const {
-    return getMaxSizeOfObjs ? 0 : -1;
-  }
-
   size_t IsInvalidSize(size_t size) const {
     return size == static_cast<uint64>(-1);
   }
@@ -55,8 +51,10 @@ class OBJSize {
   size_t DealWithSprintfAndVsprintf(const CallMeStmt &callMeStmt, const MIRFunction &calleeFunc);
   size_t DealWithArray(const MeExpr &opnd, int64 type) const;
   size_t DealWithAddrof(const MeExpr &opnd, bool getSizeOfWholeVar) const;
-  size_t DealWithDread(const MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) const;
+  size_t DealWithDread(MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) const;
   size_t DealWithIaddrof(const MeExpr &opnd, int64 type, bool getSizeOfWholeVar) const;
+  bool DealWithOpnd(const MeExpr &opnd, std::set<MePhiNode*> &visitedPhi) const;
+  bool PhiOpndIsDefPointOfOtherPhi(MeExpr& expr, std::set<MePhiNode *>& visitedPhi) const;
 
   MeFunction &func;
   MeIRMap &irMap;

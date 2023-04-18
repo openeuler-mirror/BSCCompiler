@@ -16,6 +16,7 @@
 #define MAPLE_DRIVER_INCLUDE_FILE_UTILS_H
 #include <string>
 #include "types_def.h"
+#include "mpl_logging.h"
 
 namespace maple {
   enum class InputFileType {
@@ -76,12 +77,14 @@ class FileUtils {
   };
   static std::string GetOutPutDir();
   bool DelTmpDir() const;
-  std::string GetTmpFolderPath();
+  std::string GetTmpFolderPath() const;
  private:
   std::string tmpFolderPath;
   FileUtils() : tmpFolderPath(GetTmpFolderPath()) {}
   ~FileUtils() {
-    DelTmpDir();
+    if (!DelTmpDir()) {
+      maple::LogInfo::MapleLogger() << "DelTmpDir failed" << '\n';
+    };
   }
   static const uint32 kMagicAST = 0x48435043;
   static const uint32 kMagicELF = 0x464c457f;

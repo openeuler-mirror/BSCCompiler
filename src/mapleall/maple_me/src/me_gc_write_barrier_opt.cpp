@@ -46,7 +46,7 @@ void GCWriteBarrierOpt::Prepare() {
 void GCWriteBarrierOpt::GCLower(BB &bb, std::map<OStIdx, std::vector<MeStmt*>> &writeBarrierMap) {
   // to record stack size
   std::map<OStIdx, size_t> savedStacksize;
-  for (const auto &item : writeBarrierMap) {
+  for (const auto &item : std::as_const(writeBarrierMap)) {
     savedStacksize[item.first] = item.second.size();
   }
   for (auto &stmt : bb.GetMeStmts()) {
@@ -179,12 +179,12 @@ bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
   return false;
 }
 
-bool GCWriteBarrierOpt::HasCallAfterStmt(const MeStmt &stmt) {
+bool GCWriteBarrierOpt::HasCallAfterStmt(const MeStmt &stmt) const {
   const MeStmt &lastMeStmt = stmt.GetBB()->GetMeStmts().back();
   return HasCallBetweenStmt(stmt, lastMeStmt);
 }
 
-bool GCWriteBarrierOpt::HasCallBeforeStmt(const MeStmt &stmt) {
+bool GCWriteBarrierOpt::HasCallBeforeStmt(const MeStmt &stmt) const {
   const MeStmt &firstMeStmt = stmt.GetBB()->GetMeStmts().front();
   return HasCallBetweenStmt(firstMeStmt, stmt);
 }

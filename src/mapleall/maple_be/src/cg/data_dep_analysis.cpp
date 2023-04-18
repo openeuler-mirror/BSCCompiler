@@ -157,7 +157,7 @@ void InterDataDepAnalysis::Run(CDGRegion &region) {
       UpdateRegUseAndDef(*insn, *ddgNode, *cdgNode);
     }
     cdgNode->CopyAndClearComments(comments);
-    UpdateReadyNodesInfo(interAlloc, region, *cdgNode, *root);
+    UpdateReadyNodesInfo(*cdgNode, *root);
   }
   ClearInfoInRegion(regionMp, regionAlloc, region);
 }
@@ -311,8 +311,7 @@ void InterDataDepAnalysis::UpdateRegUseAndDef(Insn &insn, const DepNode &depNode
   }
 }
 
-void InterDataDepAnalysis::UpdateReadyNodesInfo(MapleAllocator &regionAlloc, CDGRegion &region, CDGNode &cdgNode,
-                                                const CDGNode &root) const {
+void InterDataDepAnalysis::UpdateReadyNodesInfo(CDGNode &cdgNode, const CDGNode &root) const {
   BB *bb = cdgNode.GetBB();
   CHECK_FATAL(bb != nullptr, "get bb from cdgNode failed");
   for (auto succIt = bb->GetSuccsBegin(); succIt != bb->GetSuccsEnd(); ++succIt) {

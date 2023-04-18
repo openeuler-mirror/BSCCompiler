@@ -282,7 +282,7 @@ FreqType CGNode::GetCallsiteFrequency(const StmtNode &callstmt) const {
     return funcInfo->stmtFreqs[callstmt.GetStmtID()];
   }
   ASSERT(0, "should not be here");
-  return UINT64_MAX;
+  return INT64_MAX;
 }
 
 FreqType CGNode::GetFuncFrequency() const {
@@ -424,7 +424,8 @@ SCCNode<CGNode> *CallGraph::GetSCCNode(MIRFunction *func) const {
   return (cgNode != nullptr) ? cgNode->GetSCCNode() : nullptr;
 }
 
-void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, std::set<PUIdx> &candidate) const {
+void CallGraph::UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall,
+                                     const std::set<PUIdx> &candidate) const {
   CGNode *caller = GetCGNode(callerPuIdx);
   for (auto &pair : std::as_const(caller->GetCallee())) {
     auto *callsite = pair.first;
@@ -606,22 +607,22 @@ void CallGraph::RecordLocalConstValue(const StmtNode *stmt) {
   localConstValueMap[lhs->GetStIdx()] = dassign->GetRHS();
 }
 
-CallNode *CallGraph::ReplaceIcallToCall(BlockNode &body, IcallNode *icall, PUIdx newPUIdx) const {
-  MapleVector<BaseNode*> opnds(icall->GetNopnd().begin() + 1, icall->GetNopnd().end(),
+CallNode *CallGraph::ReplaceIcallToCall(BlockNode &body, IcallNode &icall, PUIdx newPUIdx) const {
+  MapleVector<BaseNode*> opnds(icall.GetNopnd().begin() + 1, icall.GetNopnd().end(),
                                 CurFunction()->GetCodeMPAllocator().Adapter());
   CallNode *newCall = nullptr;
-  if (icall->GetOpCode() == OP_icall) {
+  if (icall.GetOpCode() == OP_icall) {
     newCall = mirBuilder->CreateStmtCall(newPUIdx, opnds, OP_call);
-  } else if (icall->GetOpCode() == OP_icallassigned) {
+  } else if (icall.GetOpCode() == OP_icallassigned) {
     newCall = mirBuilder->CreateStmtCallAssigned(
-        newPUIdx, opnds, icall->GetCallReturnSymbol(mirBuilder->GetMirModule()), OP_callassigned, icall->GetRetTyIdx());
+        newPUIdx, opnds, icall.GetCallReturnSymbol(mirBuilder->GetMirModule()), OP_callassigned, icall.GetRetTyIdx());
   } else {
     CHECK_FATAL(false, "NYI");
   }
-  body.ReplaceStmt1WithStmt2(icall, newCall);
-  newCall->SetSrcPos(icall->GetSrcPos());
+  body.ReplaceStmt1WithStmt2(&icall, newCall);
+  newCall->SetSrcPos(icall.GetSrcPos());
   if (debugFlag) {
-    icall->Dump(0);
+    icall.Dump(0);
     newCall->Dump(0);
     LogInfo::MapleLogger() << "replace icall successfully!\n";
   }
@@ -704,7 +705,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
         }
         if (symbol->GetKonst()->GetKind() == kConstAddrofFunc) {
           auto *addrofFuncConst = static_cast<MIRAddroffuncConst*>(symbol->GetKonst());
-          stmt = ReplaceIcallToCall(body, icall, addrofFuncConst->GetValue());
+          stmt = ReplaceIcallToCall(body, *icall, addrofFuncConst->GetValue());
           HandleCall(body, node, *stmt, loopDepth);
           return;
         }
@@ -713,7 +714,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
           auto *elem = aggConst->GetAggConstElement(dread->GetFieldID());
           if (elem->GetKind() == kConstAddrofFunc) {
             auto *addrofFuncConst = static_cast<MIRAddroffuncConst*>(elem);
-            stmt = ReplaceIcallToCall(body, icall, addrofFuncConst->GetValue());
+            stmt = ReplaceIcallToCall(body, *icall, addrofFuncConst->GetValue());
             HandleCall(body, node, *stmt, loopDepth);
             return;
           }
@@ -727,7 +728,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
           auto *rhsNode = localConstValueMap[symbol->GetStIdx()];
           if (rhsNode != nullptr && rhsNode->GetOpCode() == OP_addroffunc) {
             auto *funcNode = static_cast<AddroffuncNode*>(rhsNode);
-            stmt = ReplaceIcallToCall(body, icall, funcNode->GetPUIdx());
+            stmt = ReplaceIcallToCall(body, *icall, funcNode->GetPUIdx());
             HandleCall(body, node, *stmt, loopDepth);
             return;
           }
@@ -771,12 +772,12 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
             auto *konst = static_cast<ConstvalNode*>(arrayNode->GetNopndAt(i))->GetConstVal();
             auto index = static_cast<MIRIntConst*>(konst)->GetExtValue();
             if (result->GetKind() == kConstAggConst) {
-              result = static_cast<MIRAggConst*>(result)->GetConstVecItem(index);
+              result = static_cast<MIRAggConst*>(result)->GetConstVecItem(static_cast<size_t>(index));
             }
           }
           CHECK_FATAL(result->GetKind() == kConstAddrofFunc, "Must be");
           auto *constValue = static_cast<MIRAddroffuncConst*>(result);
-          stmt = ReplaceIcallToCall(body, icall, constValue->GetValue());
+          stmt = ReplaceIcallToCall(body, *icall, constValue->GetValue());
           HandleCall(body, node, *stmt, loopDepth);
           return;
         }
@@ -808,7 +809,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
     }
     case OP_addroffunc: {
       auto *funcNode = static_cast<AddroffuncNode*>(funcAddr);
-      stmt = ReplaceIcallToCall(body, icall, funcNode->GetPUIdx());
+      stmt = ReplaceIcallToCall(body, *icall, funcNode->GetPUIdx());
       HandleCall(body, node, *stmt, loopDepth);
       return;
     }
@@ -1175,7 +1176,7 @@ void IPODevirtulize::SearchDefInClinit(const Klass &klass) const {
   }
 }
 
-void IPODevirtulize::SearchDefInMemberMethods(const Klass &klass) {
+void IPODevirtulize::SearchDefInMemberMethods(const Klass &klass) const {
   SearchDefInClinit(klass);
   MIRClassType *classType = static_cast<MIRClassType*>(klass.GetMIRStructType());
   std::vector<FieldID> finalPrivateFieldID;
@@ -1624,7 +1625,7 @@ void DoDevirtual(const Klass &klass, const KlassHierarchy &klassh) {
   }
 }
 
-void IPODevirtulize::DevirtualFinal() {
+void IPODevirtulize::DevirtualFinal() const {
   // Search all klass in order to find final variables
   MapleMap<GStrIdx, Klass*>::const_iterator it = klassh->GetKlasses().begin();
   for (; it != klassh->GetKlasses().end(); ++it) {
@@ -1663,7 +1664,7 @@ void IPODevirtulize::DevirtualFinal() {
           }
         }
       }
-      DoDevirtual(*klass, *GetKlassh());
+      DoDevirtual(*klass, GetKlassh());
     }
   }
 }

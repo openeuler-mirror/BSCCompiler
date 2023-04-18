@@ -37,19 +37,19 @@ class SeqVectorize {
   void Perform();
   void VisitNode(StmtNode *stmt);
   void CollectStores(IassignNode *iassign);
-  void DumpCandidates(const MeExpr *base, const StoreList *storelist) const;
+  void DumpCandidates(const MeExpr &base, const StoreList &storelist) const;
   void CheckAndTransform();
-  bool IsOpExprConsecutiveMem(MeExpr *off1, MeExpr *off2, int32_t diff) const;
+  bool IsOpExprConsecutiveMem(const MeExpr &off1, const MeExpr &off2, int32_t diff) const;
   bool CanSeqVec(const IassignNode *s1, const IassignNode *s2, bool reverse = false);
   bool CanSeqVecRhs(MeExpr *rhs1, MeExpr *rhs2);
-  void LegalityCheckAndTransform(const StoreList *storelist);
+  void LegalityCheckAndTransform(const StoreList &storelist);
   bool HasVecType(PrimType sPrimType, uint8 lanes) const;
   MIRType* GenVecType(PrimType sPrimType, uint8 lanes) const;
   RegassignNode *GenDupScalarStmt(BaseNode *scalar, PrimType vecPrimType);
-  bool SameIntConstValue(const MeExpr *e1, const MeExpr *e2) const;
-  bool CanAdjustRhsType(PrimType targetType, const ConstvalNode *rhs) const;
+  bool SameIntConstValue(const MeExpr &e1, const MeExpr &e2) const;
+  bool CanAdjustRhsType(PrimType targetType, const ConstvalNode &rhs) const;
   void MergeIassigns(MapleVector<IassignNode *> &cands);
-  bool IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2, PrimType ptrType);
+  bool IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2, PrimType ptrType) const;
   static uint32_t seqVecStores;
   // iassignnode in same level block
   MemPool *localMP;

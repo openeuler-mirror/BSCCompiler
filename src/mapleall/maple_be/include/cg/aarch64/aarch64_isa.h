@@ -37,7 +37,7 @@ constexpr int32 kAarch64StackPtrAlignmentInt = 16;
 constexpr int32 kOffsetAlign = 8;
 constexpr uint32 kIntregBytelen = 8; /* 64-bit */
 constexpr uint32 kFpregBytelen = 8;  /* only lower 64 bits are used */
-constexpr int kSizeOfFplr = 16;
+constexpr uint32 kSizeOfFplr = 16;
 
 enum StpLdpImmBound : int {
   kStpLdpImm64LowerBound = -512,
@@ -170,6 +170,10 @@ MOperator FlipConditionOp(MOperator flippedOp);
 // Function: for immediate verification, memopnd ofstvalue is returned from opnd input.
 // It's worth noting that 0 will be returned when kBOR memopnd is input.
 int64 GetMemOpndOffsetValue(Operand *o);
+
+int32 GetTail0BitNum(int64 val);
+
+int32 GetHead0BitNum(int64 val);
 } /* namespace AArch64isa */
 
 /*

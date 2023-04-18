@@ -26,7 +26,11 @@ enum CallKind {
 class VtableImpl : public FuncOptimizeImpl {
  public:
   VtableImpl(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~VtableImpl() override = default;
+  ~VtableImpl() override {
+    mirModule = nullptr;
+    klassHierarchy = nullptr;
+    mccItabFunc = nullptr;
+  }
 
   void ProcessFunc(MIRFunction *func) override;
   FuncOptimizeImpl *Clone() override {
@@ -39,10 +43,10 @@ class VtableImpl : public FuncOptimizeImpl {
 #endif  // ~USE_ARM32_MACRO
 
  private:
-  void ReplaceResolveInterface(StmtNode &stmt, const ResolveFuncNode &resolveNode);
+  void ReplaceResolveInterface(StmtNode &stmt, const ResolveFuncNode &resolveNode) const;
   void ItabProcess(const StmtNode &stmt, const ResolveFuncNode &resolveNode, const std::string &signature,
-                   const PregIdx &pregFuncPtr, const MIRType &compactPtrType, const PrimType &compactPtrPrim);
-  bool Intrinsify(MIRFunction &func, CallNode &cnode);
+                   const PregIdx &pregFuncPtr, const MIRType &compactPtrType, const PrimType &compactPtrPrim) const;
+  bool Intrinsify(MIRFunction &func, CallNode &cnode) const;
 #ifndef USE_ARM32_MACRO
 #ifdef USE_32BIT_REF
   void InlineCacheinit();
@@ -56,7 +60,7 @@ class VtableImpl : public FuncOptimizeImpl {
 #endif  // ~USE_32BIT_REF
 #endif  // ~USE_ARM32_MACRO
   void DeferredVisit(CallNode &stmt, CallKind kind);
-  void DeferredVisitCheckFloat(CallNode &stmt, const MIRFunction &mirFunc);
+  void DeferredVisitCheckFloat(CallNode &stmt, const MIRFunction &mirFunc) const;
   MIRModule *mirModule;
   KlassHierarchy *klassHierarchy;
 #ifndef USE_ARM32_MACRO

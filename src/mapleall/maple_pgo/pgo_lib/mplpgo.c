@@ -59,7 +59,7 @@ static inline void EmitFlavor(int fd) {
 static inline void WriteToFile(const struct Mpl_Lite_Pgo_ObjectFileInfo *fInfo) {
   size_t txtLen = 0;
   struct Mpl_Lite_Pgo_DumpInfo *head = NULL;
-  int fd = open(__mpl_pgo_dump_filename, O_RDWR | O_APPEND | O_CREAT, 0640);
+  int fd = open(__mpl_pgo_dump_filename, O_RDWR | O_TRUNC | O_CREAT, 0640);
   if (fd == -1) {
     perror("Error opening mpl_pgo_dump file");
     return;
@@ -192,6 +192,7 @@ void __mpl_pgo_dump_wrapper() {
   pthread_rwlock_init(&rwlock, NULL);
   if (((unsigned int)(__mpl_pgo_info_root.dumpOnce) % 10000ul) == 0) {
     WriteToFile(__mpl_pgo_info_root.ofileInfoList);
+    __mpl_pgo_flush_counter();
   }
   __mpl_pgo_info_root.dumpOnce++;
   pthread_rwlock_destroy(&rwlock);

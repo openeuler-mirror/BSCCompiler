@@ -86,7 +86,7 @@ void GCLowering::HandleVarAssignMeStmt(MeStmt &stmt) {
   stmt.GetBB()->ReplaceMeStmt(&stmt, writeRefCall);
 }
 
-MIRIntrinsicID GCLowering::SelectWriteBarrier(const MeStmt &stmt) {
+MIRIntrinsicID GCLowering::SelectWriteBarrier(const MeStmt &stmt) const {
   MeExpr *lhs = nullptr;
   if (stmt.GetOp() == OP_dassign) {
     lhs = stmt.GetLHS();
@@ -127,7 +127,7 @@ void GCLowering::HandleIvarAssignMeStmt(MeStmt &stmt) {
   stmt.GetBB()->ReplaceMeStmt(&stmt, writeRefCall);
 }
 
-MeExpr *GCLowering::GetBase(IvarMeExpr &ivar) {
+MeExpr *GCLowering::GetBase(IvarMeExpr &ivar) const {
   MeExpr *base = ivar.GetBase();
   CHECK_NULL_FATAL(base);
   if (!Options::buildApp || ivar.GetFieldID() != 0 || base->GetMeOp() != kMeOpReg) {

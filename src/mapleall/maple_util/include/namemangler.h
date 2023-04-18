@@ -218,6 +218,8 @@ uint32_t EncodeULEB128(uint64_t value, std::ofstream &out);
 uint64_t DecodeULEB128(const uint8_t *p, unsigned *n = nullptr, const uint8_t *end = nullptr);
 int64_t DecodeSLEB128(const uint8_t *p, unsigned *n = nullptr, const uint8_t *end = nullptr);
 constexpr int32_t kZeroAsciiNum = 48;
+constexpr int32_t kAAsciiNum = 65;
+constexpr int32_t kaAsciiNum = 97;
 } // namespace namemangler
 
 #endif

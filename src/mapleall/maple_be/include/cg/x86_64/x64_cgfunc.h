@@ -267,6 +267,7 @@ class X64CGFunc : public CGFunc {
   };
 
   MemOperand *GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) override;
+  RegOperand *SelectIntrinsicOpLoadTlsAnchor(const IntrinsicopNode& intrinsicopNode, const BaseNode &parent) override;
   void FreeSpillRegMem(regno_t vrNum) override;
  private:
   MapleSet<x64::X64reg> calleeSavedRegs;

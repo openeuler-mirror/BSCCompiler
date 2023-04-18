@@ -123,7 +123,7 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
       ssaPre.doLFTR = true;
     }
   }
-  if (f.GetHints() & kPlacementRCed) {
+  if ((f.GetHints() & kPlacementRCed) != 0) {
     ssaPre.SetPlacementRC(true);
   }
   if (eprePULimitSpecified && puCount == MeOption::eprePULimit && epreLimitUsed != UINT32_MAX) {
@@ -154,10 +154,7 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
     }
     hdse.hdseKeepRef = MeOption::dseKeepRef;
-    hdse.DoHDSE();
-    if (hdse.NeedUNClean()) {
-      f.GetCfg()->UnreachCodeAnalysis(true);
-    }
+    hdse.DoHDSESafely(&f, *GetAnalysisInfoHook());
   }
   ++puCount;
   return true;

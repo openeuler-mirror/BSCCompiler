@@ -58,6 +58,7 @@ extern const char *GetPrimTypeName(PrimType primType);
 extern const char *GetPrimTypeJavaName(PrimType primType);
 extern int64 MinValOfSignedInteger(PrimType primType);
 extern PrimType GetVecElemPrimType(PrimType primType);
+// size in bits
 constexpr uint32 k0BitSize = 0;
 constexpr uint32 k1BitSize = 1;
 constexpr uint32 k2BitSize = 2;
@@ -70,6 +71,19 @@ constexpr uint32 k10BitSize = 10;
 constexpr uint32 k16BitSize = 16;
 constexpr uint32 k32BitSize = 32;
 constexpr uint32 k64BitSize = 64;
+// size in bytes
+constexpr uint32 k0ByteSize = 0;
+constexpr uint32 k1ByteSize = 1;
+constexpr uint32 k2ByteSize = 2;
+constexpr uint32 k3ByteSize = 3;
+constexpr uint32 k4ByteSize = 4;
+constexpr uint32 k5ByteSize = 5;
+constexpr uint32 k8ByteSize = 8;
+constexpr uint32 k9ByteSize = 9;
+constexpr uint32 k10ByteSize = 10;
+constexpr uint32 k16ByteSize = 16;
+constexpr uint32 k32ByteSize = 32;
+constexpr uint32 k64ByteSize = 64;
 
 inline const std::string kDbgLong = "long.";
 inline const std::string kDbgULong = "Ulong.";
@@ -128,6 +142,10 @@ inline bool IsPossible32BitAddress(PrimType tp) {
 
 inline bool MustBeAddress(PrimType tp) {
   return (tp == PTY_ptr || tp == PTY_ref || tp == PTY_a64 || tp == PTY_a32);
+}
+
+inline bool IsInt128Ty(PrimType type) {
+  return type == PTY_u128 || type == PTY_i128;
 }
 
 inline bool IsPrimitivePureScalar(PrimType type) {

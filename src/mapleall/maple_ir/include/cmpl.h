@@ -96,7 +96,7 @@ struct MirModuleT {
   PUIdx mainFuncID;           // the entry function; 0 if no main function
   uint32 numFuncs;            // because puIdx 0 is reserved, numFuncs is also the highest puIdx
   MirFuncT **funcs;           // list of all funcs in the module.
-#if 1                         // the js2mpl buld always set HAVE_MMAP to 1 // binmir file mmap info
+#if defined(HAVE_MMAP) && HAVE_MMAP == 1       // the js2mpl buld always set HAVE_MMAP to 1 // binmir file mmap info
   int binMirImageFd;          // file handle for mmap
 #endif                        // HAVE_MMAP
   void *binMirImageStart;     // binimage memory start

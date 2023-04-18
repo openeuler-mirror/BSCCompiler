@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "maple_phase_manager.h"
+#include <utility>
 #include "cgfunc.h"
 #include "mpl_timer.h"
 #include "me_function.h"
@@ -43,8 +44,8 @@ void AnalysisDataManager::AddAnalysisPhase(uint32 phaseKey, MaplePhase *p) {
 // This is for the actully phase
 void AnalysisDataManager::EraseAnalysisPhase(uint32 phaseKey, MaplePhaseID pid) {
   auto it = analysisPhaseMemPool.find(AnalysisMemKey(phaseKey, pid));
-  const auto itanother = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, pid));
-  if (it != analysisPhaseMemPool.cend() && itanother != availableAnalysisPhases.cend()) {
+  const auto &itanother = std::as_const(availableAnalysisPhases).find(AnalysisMemKey(phaseKey, pid));
+  if (it != analysisPhaseMemPool.end() && itanother != availableAnalysisPhases.cend()) {
     auto resultanother = availableAnalysisPhases.erase(AnalysisMemKey(phaseKey, pid));
     CHECK_FATAL(resultanother > 0, "Release Failed");
     delete it->second;
@@ -82,38 +83,39 @@ void AnalysisDataManager::EraseAnalysisPhase(MapleMap<AnalysisMemKey, MaplePhase
 }
 
 void AnalysisDataManager::ClearInVaildAnalysisPhase(uint32 phaseKey, AnalysisDep &aDep) {
-  if (!aDep.GetPreservedAll()) {
-    // delete phases which are not preserved
-    if (aDep.GetPreservedPhase().empty()) {
-      for (auto it = availableAnalysisPhases.begin(); it != availableAnalysisPhases.end();) {
-        if (it->first.first == phaseKey) {
-          EraseAnalysisPhase(it);
-        } else {
-          ++it;
-        }
+  if (aDep.GetPreservedAll()) {
+    if (aDep.GetPreservedExceptPhase().empty()) {
+      return;
+    }
+    for (auto exceptPhaseID : aDep.GetPreservedExceptPhase()) {
+      auto it = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, exceptPhaseID));
+      if (it != availableAnalysisPhases.end()) {
+        EraseAnalysisPhase(it);
       }
     }
+    return;
+  }
+  // delete phases which are not preserved
+  if (aDep.GetPreservedPhase().empty()) {
     for (auto it = availableAnalysisPhases.begin(); it != availableAnalysisPhases.end();) {
-      if (!aDep.FindIsPreserved((it->first).second) && it->first.first == phaseKey) {
+      if (it->first.first == phaseKey) {
         EraseAnalysisPhase(it);
       } else {
         ++it;
       }
     }
-  } else {
-    if (!aDep.GetPreservedExceptPhase().empty()) {
-      for (auto exceptPhaseID : aDep.GetPreservedExceptPhase()) {
-        auto it = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, exceptPhaseID));
-        if (it != availableAnalysisPhases.end()) {
-          EraseAnalysisPhase(it);
-        }
-      }
+  }
+  for (auto it = availableAnalysisPhases.begin(); it != availableAnalysisPhases.end();) {
+    if (!aDep.FindIsPreserved((it->first).second) && it->first.first == phaseKey) {
+      EraseAnalysisPhase(it);
+    } else {
+      ++it;
     }
   }
 }
 
 MaplePhase *AnalysisDataManager::GetVaildAnalysisPhase(uint32 phaseKey, MaplePhaseID pid) {
-  const auto it = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, pid));
+  const auto it = std::as_const(availableAnalysisPhases).find(AnalysisMemKey(phaseKey, pid));
   if (it == availableAnalysisPhases.cend()) {
     LogInfo::MapleLogger() << "Required " <<
         MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(pid)->PhaseName() << " running before \n";
@@ -125,7 +127,7 @@ MaplePhase *AnalysisDataManager::GetVaildAnalysisPhase(uint32 phaseKey, MaplePha
 }
 
 bool AnalysisDataManager::IsAnalysisPhaseAvailable(uint32 phaseKey, MaplePhaseID pid) {
-  const auto it = availableAnalysisPhases.find(AnalysisMemKey(phaseKey, pid));
+  const auto it = std::as_const(availableAnalysisPhases).find(AnalysisMemKey(phaseKey, pid));
   return it != availableAnalysisPhases.cend();
 }
 
@@ -169,9 +171,10 @@ void MaplePhaseManager::AddPhase(const std::string &phaseName, bool condition) {
   }
 }
 
-void MaplePhaseManager::DumpPhaseTime() {
+void MaplePhaseManager::DumpPhaseTime() const {
   if (phaseTh != nullptr) {
     phaseTh->DumpPhasesTime();
+    phaseTh->Clear();
   }
 }
 
@@ -210,7 +213,7 @@ void MaplePhaseManager::SolveSkipAfter(const std::string &phaseName, size_t &i) 
 
 AnalysisDep *MaplePhaseManager::FindAnalysisDep(const MaplePhase &phase) {
   AnalysisDep *anDependence = nullptr;
-  const auto anDepIt = analysisDepMap.find(phase.GetPhaseID());
+  const auto anDepIt = std::as_const(analysisDepMap).find(phase.GetPhaseID());
   if (anDepIt != analysisDepMap.cend()) {
     anDependence = anDepIt->second;
   } else {
@@ -241,7 +244,8 @@ AnalysisDataManager *MaplePhaseManager::GetAnalysisDataManager(const std::thread
   }
 }
 
-std::unique_ptr<ThreadLocalMemPool> MaplePhaseManager::AllocateMemPoolInPhaseManager(const std::string &mempoolName) {
+std::unique_ptr<ThreadLocalMemPool> MaplePhaseManager::AllocateMemPoolInPhaseManager(
+    const std::string &mempoolName) const {
   if (!UseGlobalMpCtrler()) {
     LogInfo::MapleLogger() << " Inner Ctrler has not been supported yet \n";
   }

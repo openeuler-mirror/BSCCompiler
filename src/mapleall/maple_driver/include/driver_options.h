@@ -113,6 +113,7 @@ extern maplecl::Option<bool> wCCompat;
 extern maplecl::Option<bool> wpaa;
 extern maplecl::Option<bool> fm;
 extern maplecl::Option<bool> dumpTime;
+extern maplecl::Option<bool> aggressiveTlsLocalDynamicOpt;
 extern maplecl::Option<bool> oDumpversion;
 extern maplecl::Option<bool> oWnounusedcommandlineargument;
 extern maplecl::Option<bool> oWnoconstantconversion;

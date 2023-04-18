@@ -23,7 +23,8 @@ class OutlineCandidate {
  public:
   explicit OutlineCandidate(RegionCandidate *candidate) : regionCandidate(candidate) {}
   virtual ~OutlineCandidate() {
-      regionCandidate = nullptr;
+    regionCandidate = nullptr;
+    returnValue = nullptr;
   }
 
   size_t InsertIntoParameterList(BaseNode &expr);
@@ -105,7 +106,9 @@ class OutlineGroup {
       regionGroup.emplace_back(&region);
     }
   }
-  virtual ~OutlineGroup() = default;
+  virtual ~OutlineGroup() {
+    outlineFunc = nullptr;
+  }
 
   void PrepareParameterLists() {
     CollectOutlineInfo();
@@ -161,7 +164,9 @@ class OutLine {
   OutLine(CollectIpaInfo *ipaInfo, MIRModule *module, MemPool *memPool) :
     ipaInfo(ipaInfo), module(module), memPool(memPool) {}
   virtual ~OutLine() {
-      ipaInfo = nullptr;
+    ipaInfo = nullptr;
+    memPool = nullptr;
+    module = nullptr;
   }
   void Run();
  private:

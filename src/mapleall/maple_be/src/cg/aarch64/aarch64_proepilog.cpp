@@ -222,6 +222,7 @@ void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   chkBB->PushBackSuccs(*newBB);
   newBB->PushBackPreds(*chkBB);
   newBB->PushBackSuccs(bb);
+  bb.PushBackPreds(*newBB);
 
   cgFunc.SetCurBB(*formerCurBB);
 }

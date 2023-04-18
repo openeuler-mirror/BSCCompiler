@@ -491,7 +491,7 @@ void ListScheduler::DumpEStartLStartOfAllNodes() {
   LogInfo::MapleLogger() << "     --------------------------------------------------------------------------\n\n";
 }
 
-void ListScheduler::DumpDepNodeInfo(const BB &curBB, MapleVector<DepNode*> &nodes, std::string state) const{
+void ListScheduler::DumpDepNodeInfo(const BB &curBB, MapleVector<DepNode*> &nodes, const std::string state) const{
   for (auto depNode : nodes) {
     Insn *insn = depNode->GetInsn();
     ASSERT(insn != nullptr, "get insn from depNode failed");

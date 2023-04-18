@@ -98,7 +98,9 @@ class MIRIntConst : public MIRConst {
   MIRIntConst(uint64 val, MIRType &type)
       : MIRConst(type, kConstInt), value(val, type.GetPrimType()) {}
 
-  MIRIntConst(const IntVal &val, MIRType &type) : MIRConst(type, kConstInt), value(val) {
+  MIRIntConst(const uint64 *pVal, MIRType &type) : MIRConst(type, kConstInt), value(pVal, type.GetPrimType()) {}
+
+  MIRIntConst(const IntVal &val, MIRType &type) : MIRConst(type, kConstInt), value(val, type.GetPrimType()) {
     [[maybe_unused]] PrimType pType = type.GetPrimType();
     ASSERT(IsPrimitiveInteger(pType) && GetPrimTypeActualBitSize(pType) <= value.GetBitWidth(),
            "Constant is tried to be constructed with non-integral type or bit-width is not appropriate for it");
@@ -107,7 +109,7 @@ class MIRIntConst : public MIRConst {
   MIRIntConst(MIRType &type) : MIRConst(type, kConstInvalid) {}
 
   /// @return number of used bits in the value
-  uint8 GetActualBitWidth() const;
+  uint16 GetActualBitWidth() const;
 
   void Trunc(uint8 width) {
     value.TruncInPlace(width);

@@ -267,9 +267,7 @@ bool MESafetyWarning::IsStaticModeForOp(Opcode op) const {
     return MeOption::boundaryCheckMode == SafetyCheckMode::kStaticCheck;
     default:
       CHECK_FATAL(false, "NEVER REACH");
-      break;
   }
-  return false;
 }
 
 SafetyWarningHandler *MESafetyWarning::FindHandler(Opcode op) const {

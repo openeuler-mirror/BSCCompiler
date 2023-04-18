@@ -255,7 +255,7 @@ static void UpdateFieldIdAndPtrType(const MIRType &baseType, FieldID baseFieldId
     return;
   }
   MIRType *baseMemType = static_cast<const MIRPtrType&>(baseType).GetPointedType();
-  if (baseMemType->GetKind() != kTypeStruct || !TypeBasedAliasAnalysis::IsFieldTypeOfAggType(baseMemType, memType)) {
+  if (baseMemType->GetKind() != kTypeStruct || !TypeBasedAliasAnalysis::IsFieldTypeOfAggType(baseMemType, *memType)) {
     return;
   }
   auto *structType = static_cast<MIRStructType*>(baseMemType);
@@ -301,7 +301,7 @@ VersionSt *AliasClass::FindOrCreateVstOfExtraLevOst(
   FieldID baseFieldId = aliasInfoOfBaseAddress.fieldID;
   UpdateFieldIdAndPtrType(*baseType, baseFieldId, offset, newTyIdx, fieldId);
 
-  auto *nextLevOst = ssaTab.FindOrCreateExtraLevOst(vstOfBaseAddress, newTyIdx, fieldId, offset, isNextLevelArrayType);
+  auto *nextLevOst = ssaTab.FindOrCreateExtraLevOst(*vstOfBaseAddress, newTyIdx, fieldId, offset, isNextLevelArrayType);
   ASSERT(nextLevOst != nullptr, "failed in creating next-level-ost");
   auto *zeroVersionOfNextLevOst = ssaTab.GetVerSt(nextLevOst->GetZeroVersionIndex());
   RecordAliasAnalysisInfo(*zeroVersionOfNextLevOst);
@@ -539,11 +539,11 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
       }
       if (fieldOstLHS == nullptr) {
         fieldOstLHS = ssaTab.GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-            preLevOfLHSOst, tyIdxOfLhsPrevLevOst, lhsFieldID, lhsFieldOffset);
+            *preLevOfLHSOst, tyIdxOfLhsPrevLevOst, lhsFieldID, lhsFieldOffset);
       }
       if (fieldOstRHS == nullptr) {
         fieldOstRHS = ssaTab.GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-            preLevOfRHSOst, tyIdxOfRhsPrevLevOst, rhsFieldID, rhsFieldOffset);
+            *preLevOfRHSOst, tyIdxOfRhsPrevLevOst, rhsFieldID, rhsFieldOffset);
       }
       auto *zeroVersionStOfFieldOstLHS = ssaTab.GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstLHS);
       auto *zeroVersionStOfFieldOstRHS = ssaTab.GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstRHS);
@@ -2266,7 +2266,7 @@ void AliasClass::CollectMayDefForIassign(StmtNode &stmt, OstPtrSet &mayDefOsts) 
       if (!MayAliasBasicAA(ostOfLhs, aliasedOst)) {
         continue;
       }
-      if (TypeBasedAliasAnalysis::FilterAliasElemOfRHSForIassign(aliasedOst, ostOfLhs, rhsOst)) {
+      if (TypeBasedAliasAnalysis::FilterAliasElemOfRHSForIassign(*aliasedOst, *ostOfLhs, *rhsOst)) {
         continue;
       }
     }
@@ -2479,7 +2479,7 @@ void AliasClass::CollectMayUseForIntrnCallOpnd(const StmtNode &stmt,
     bool writeOpnd = intrinDesc->WriteNthOpnd(opndId);
     if (mayDefUseOsts.size() == 0 && writeOpnd) {
       // create next-level ost as it not seen before
-      auto nextLevOst = ssaTab.FindOrCreateExtraLevOst(vst, vst->GetOst()->GetTyIdx(), 0, OffsetType(0));
+      auto nextLevOst = ssaTab.FindOrCreateExtraLevOst(*vst, vst->GetOst()->GetTyIdx(), 0, OffsetType(0));
       CHECK_FATAL(nextLevOst != nullptr, "Failed to create next-level ost");
       auto *zeroVersionOfNextLevOst = ssaTab.GetVerSt(nextLevOst->GetZeroVersionIndex());
       RecordAliasAnalysisInfo(*zeroVersionOfNextLevOst);

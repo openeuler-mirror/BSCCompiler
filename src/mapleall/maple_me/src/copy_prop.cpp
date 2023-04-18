@@ -14,6 +14,7 @@
  */
 #include "copy_prop.h"
 #include "me_cfg.h"
+#include "me_hdse.h"
 
 namespace maple {
 static constexpr uint kMaxDepth = 5;
@@ -430,6 +431,7 @@ void MECopyProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEDominance>();
   aDep.AddRequired<MEIRMapBuild>();
   aDep.AddRequired<MELoopAnalysis>();
+  aDep.AddRequired<MEAliasClass>();
   aDep.SetPreservedAll();
 }
 
@@ -454,6 +456,13 @@ bool MECopyProp::PhaseRun(maple::MeFunction &f) {
   copyProp.ReplaceSelfAssign();
   copyProp.TraversalBB(*f.GetCfg()->GetCommonEntryBB());
   useInfo.InvalidUseInfo();
+  // run hdse to remove unused stmts
+  auto *aliasClass0 = GET_ANALYSIS(MEAliasClass, f);
+  MeHDSE hdse(f, *dom, *pdom, *f.GetIRMap(), aliasClass0, DEBUGFUNC_NEWPM(f));
+  if (!MeOption::quiet) {
+    LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
+  }
+  hdse.DoHDSESafely(&f, *GetAnalysisInfoHook());
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After Copy Propagation  =============" << '\n';
     f.Dump(false);

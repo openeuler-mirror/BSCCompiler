@@ -82,7 +82,6 @@ void GetAttrOfType(const MIRType &type, std::string &str) {
       auto arryType = static_cast<const MIRArrayType&>(type);
       for (uint32 i = 0; i < arryType.GetDim(); ++i) {
         str += "_" + std::to_string(arryType.GetSizeArrayItem(i));
-        break;
       }
       GetAttrOfType(*arryType.GetElemType(), str);
       break;

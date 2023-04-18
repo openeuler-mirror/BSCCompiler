@@ -211,10 +211,10 @@ static RegisterPhase<CLASSNAME> MAPLEPHASE_##PHASENAME(#PHASENAME, false, false,
 
 #define GET_ANALYSIS(PHASENAME, PHASEKEY)                               \
 static_cast<PHASENAME*>(                                                \
-    GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUniqueID(), this, &PHASENAME::id))->GetResult()
+    GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUniqueID(), *this, &PHASENAME::id))->GetResult()
 
 #define EXEC_ANALYSIS(PHASENAME, PHASEKEY)                               \
-static_cast<PHASENAME*>(GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUniqueID(), this, &PHASENAME::id))
+static_cast<PHASENAME*>(GetAnalysisInfoHook()->FindAnalysisData((PHASEKEY).GetUniqueID(), *this, &PHASENAME::id))
 
 #define FORCE_GET(PHASENAME) \
 static_cast<PHASENAME*>(     \

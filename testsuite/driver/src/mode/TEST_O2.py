@@ -39,7 +39,7 @@ TEST_O2 = {
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             infiles=["${APP2}.o","${APP3}.o"],
             outfile="a.out",
-            option="-w -L. -l${LIB}"
+            option="-w -L. -l${LIB} -Wl,-rpath=."
         )
     ],
     "run": [

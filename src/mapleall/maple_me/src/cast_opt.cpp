@@ -16,6 +16,7 @@
 #include "irmap.h"
 #include "mir_builder.h"
 #include "constantfold.h"
+#include "mir_type.h"
 
 namespace maple {
 // For controlling cast elimination
@@ -442,13 +443,17 @@ MeExpr *MeCastOpt::SimplifyCastPair(IRMap &irMap, const MeExprCastInfo &firstCas
   // To improved: do more powerful optimization for firstCastImplicit
   bool isFirstCastImplicit = !IsExplicitCastOp(firstCastExpr->GetOp());
   if (isFirstCastImplicit) {
-    // Wrong example: zext u32 u8 (iread u32 <* u16>)  =[x]=>  iread u32 <* u16>
+    // Wrong examples:
+    // zext u32 u8 (iread u32 <* u16>)  =[x]=>  iread u32 <* u16>
     // srcType may be modified, we should use origSrcType
-    if (resultCastKind != CAST_unknown && dstType == midType1 &&
-        GetPrimTypeActualBitSize(midType2) >= GetPrimTypeActualBitSize(origSrcType)) {
-      return firstCastExpr;
-    } else {
+    const auto outerFromTypeLowerThanInner = GetPrimTypeActualBitSize(midType2) < GetPrimTypeActualBitSize(origSrcType);
+    // sext u32 i8 (iread u32 <* u8>)  =[x]=>  iread u32 <* u8>
+    const auto extsWithSignDiffer = firstCastInfo.IsExtension() && secondCastInfo.IsExtension() &&
+        IsPrimitiveUnsigned(midType2) != IsPrimitiveUnsigned(origSrcType);
+    if (resultCastKind == CAST_unknown || dstType != midType1 || outerFromTypeLowerThanInner || extsWithSignDiffer) {
       return nullptr;
+    } else {
+      return firstCastExpr;
     }
   }
 

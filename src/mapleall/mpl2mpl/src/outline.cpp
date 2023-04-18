@@ -121,7 +121,7 @@ class OutlineInfoCollector {
     }
   }
  private:
-  void CollectParameter(BaseNode &node) {
+  void CollectParameter(BaseNode &node) const {
     auto &regionInputs = candidate->GetRegionCandidate()->GetRegionInPuts();
     auto symbolRegPair = RegionCandidate::GetSymbolRegPair(node);
     if (regionInputs.find(symbolRegPair) == regionInputs.end()) {
@@ -273,7 +273,7 @@ class OutlineRegionExtractor {
     candidate->GetReplacedStmtMap()[&node] = iassign;
   }
 
-  StIdx CreateNewStIdx(const StIdx oldStIdx) {
+  StIdx CreateNewStIdx(const StIdx oldStIdx) const {
     auto *oldSym = oldFunc->GetSymbolTabItem(oldStIdx.Idx());
     auto *newSym = newFunc->GetSymTab()->CloneLocalSymbol(*oldSym);
     newSym->SetIsTmp(true);
@@ -331,7 +331,7 @@ class OutlineRegionExtractor {
     return symbol;
   }
 
-  BaseNode *ReloadVar(BaseNode &originNode, BaseNode &newBase) {
+  BaseNode *ReloadVar(BaseNode &originNode, BaseNode &newBase) const {
     auto &dread = static_cast<DreadNode&>(originNode);
     auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(TyIdx(dread.GetPrimType()));
     return builder->CreateExprIread(dread.GetPrimType(), ptrType->GetTypeIndex(), 0, &newBase);

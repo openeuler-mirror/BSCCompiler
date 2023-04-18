@@ -36,7 +36,7 @@ void AArch64ReachingDefinition::InitStartGen() {
       continue;
     }
 
-    uint64 symSize = cgFunc->GetBecommon().GetTypeSize(type->GetTypeIndex());
+    uint64 symSize = type->GetSize();
     if ((cgFunc->GetMirModule().GetSrcLang() == kSrcLangC) && (symSize > k8ByteSize)) {
       /* For C structure passing in one or two registers. */
       symSize = k8ByteSize;
@@ -106,7 +106,7 @@ void AArch64ReachingDefinition::InitStartGen() {
             static_cast<AArch64SymbolAlloc*>(cgFunc->GetMemlayout()->GetSymAllocInfo(firstSym->GetStIndex()));
         int32 stOffset = cgFunc->GetBaseOffset(*firstSymLoc);
         MIRType *firstType = cgFunc->GetFunction().GetNthParamType(i);
-        uint32 firstSymSize = cgFunc->GetBecommon().GetTypeSize(firstType->GetTypeIndex());
+        uint32 firstSymSize = firstType->GetSize();
         uint32 firstStackSize = firstSymSize < k4ByteSize ? k4ByteSize : firstSymSize;
 
         MemOperand *memOpnd = aarchCGFunc->CreateStackMemOpnd(RFP, stOffset, firstStackSize * kBitsPerByte);

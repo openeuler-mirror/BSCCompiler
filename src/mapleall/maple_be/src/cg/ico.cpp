@@ -74,6 +74,12 @@ bool CgIco::PhaseRun(maplebe::CGFunc &f) {
   const std::string &funcName = f.GetFunction().GetBaseFuncName();
   std::string name = funcClass + funcName;
   ico->Run(name);
+  if (ico->IsOptimized()) {
+    // This phase modifies the cfg, which affects the loop analysis result,
+    // so we need to run loop-analysis again.
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
+    (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+  }
   if (ICO_DUMP_NEWPM) {
     DotGenerator::GenerateDot("ico-after", f, f.GetMirModule());
   }

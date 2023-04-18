@@ -58,9 +58,9 @@ bool CGOptions::optForSize = false;
 bool CGOptions::enableHotColdSplit = false;
 uint32 CGOptions::alignMinBBSize = 16;
 uint32 CGOptions::alignMaxBBSize = 96;
-uint32 CGOptions::loopAlignPow = 4;
-uint32 CGOptions::jumpAlignPow = 5;
-uint32 CGOptions::funcAlignPow = 5;
+uint32 CGOptions::loopAlignPow = 3;
+uint32 CGOptions::jumpAlignPow = 3;
+uint32 CGOptions::funcAlignPow = 6;
 bool CGOptions::liteProfGen = false;
 bool CGOptions::liteProfUse = false;
 bool CGOptions::liteProfVerify = false;
@@ -245,12 +245,15 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   if (opts::cg::fnoSemanticInterposition.IsEnabledByUser()) {
-    if (opts::cg::fnoSemanticInterposition && ((GeneratePositionIndependentCode() &&
-        !GeneratePositionIndependentExecutable()) || GeneratePositionIndependentExecutable())) {
+    if (opts::cg::fnoSemanticInterposition && IsShlib()) {
       EnableNoSemanticInterposition();
     } else {
       DisableNoSemanticInterposition();
     }
+  }
+
+  if (opts::linkerTimeOpt.IsEnabledByUser() && IsShlib()) {
+    EnableNoSemanticInterposition();
   }
 
   if (opts::ftlsModel.IsEnabledByUser()) {

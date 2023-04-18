@@ -356,12 +356,64 @@ size_t OBJSize::DealWithIaddrof(const MeExpr &opnd, int64 type, bool getSizeOfWh
       static_cast<uint64>(typeOfBase->GetBitOffsetFromBaseAddr(fieldIDOfIaddrof) / kBitsPerByte);
 }
 
-size_t OBJSize::DealWithDread(const MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) const {
+bool OBJSize::DealWithOpnd(const MeExpr &opnd, std::set<MePhiNode*> &visitedPhi) const {
+  for (uint8 i = 0; i < opnd.GetNumOpnds(); ++i) {
+    if (PhiOpndIsDefPointOfOtherPhi(*opnd.GetOpnd(i), visitedPhi)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// If phi opnd is def point of other phi, return true. Such as meir:
+// VAR:%pu8Buf{offset:0}<0>[idx:16] mx94 = MEPHI{mx93,mx361}
+// VAR:%pu8Buf{offset:0}<0>[idx:16] mx93 = MEPHI{mx53,mx94}
+bool OBJSize::PhiOpndIsDefPointOfOtherPhi(MeExpr &expr, std::set<MePhiNode*> &visitedPhi) const {
+  if (!expr.IsScalar()) {
+    return false;
+  }
+  auto *var = static_cast<ScalarMeExpr*>(&expr);
+  if (var->GetDefBy() == kDefByStmt) {
+    auto defStmt = var->GetDefStmt();
+    for (size_t i = 0; i < defStmt->NumMeStmtOpnds(); ++i) {
+      if (DealWithOpnd(*defStmt->GetOpnd(i), visitedPhi)) {
+        return true;
+      }
+    }
+  }
+  if (var->GetDefBy() == kDefByChi) {
+    auto *rhs = var->GetDefChi().GetRHS();
+    if (rhs == nullptr) {
+      return false;
+    }
+    return PhiOpndIsDefPointOfOtherPhi(*rhs, visitedPhi);
+  }
+  if (var->GetDefBy() == kDefByPhi) {
+    MePhiNode *phi = &(var->GetDefPhi());
+    if (visitedPhi.find(phi) != visitedPhi.end()) {
+      return true;
+    }
+    (void)visitedPhi.insert(phi);
+    std::set<MeExpr*> res;
+    for (auto *phiOpnd : phi->GetOpnds()) {
+      if (PhiOpndIsDefPointOfOtherPhi(*phiOpnd, visitedPhi)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+size_t OBJSize::DealWithDread(MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) const {
   if (!opnd.IsScalar()) {
     return kInvalidDestSize;
   }
-  auto &scalarMeExpr = static_cast<const ScalarMeExpr&>(opnd);
+  auto &scalarMeExpr = static_cast<ScalarMeExpr&>(opnd);
   if (scalarMeExpr.GetDefBy() == kDefByPhi) {
+    std::set<MePhiNode*> visitedPhi;
+    if (PhiOpndIsDefPointOfOtherPhi(scalarMeExpr, visitedPhi)) {
+      return kInvalidDestSize;
+    }
     auto &phi = scalarMeExpr.GetDefPhi();
     size_t size = getMaxSizeOfObjs ? 0 : std::numeric_limits<uint64_t>::max();
     for (size_t i = 0; i < phi.GetOpnds().size(); ++i) {

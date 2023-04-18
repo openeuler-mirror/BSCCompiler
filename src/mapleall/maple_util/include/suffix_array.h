@@ -30,7 +30,7 @@ class SubStringOccurrences {
   explicit SubStringOccurrences(size_t length) : length(length) {}
   virtual ~SubStringOccurrences() = default;
 
-  const std::vector<SubStringPair> &GetOccurrences() {
+  const std::vector<SubStringPair> &GetOccurrences() const {
     return occurrences;
   }
 
@@ -71,15 +71,15 @@ class SuffixArray {
   void Run(bool collectSubString = false);
   void Dump();
 
-  const std::vector<size_t> &GetSuffixArray() {
+  const std::vector<size_t> &GetSuffixArray() const {
     return suffixArray;
   }
 
-  const std::vector<size_t> &GetHeightArray() {
+  const std::vector<size_t> &GetHeightArray() const {
     return heightArray;
   }
 
-  const std::vector<SubStringOccurrences *> &GetRepeatedSubStrings() {
+  const std::vector<SubStringOccurrences *> &GetRepeatedSubStrings() const {
     return repeatedSubStrings;
   }
 

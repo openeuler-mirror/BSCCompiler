@@ -109,9 +109,7 @@ void AArch64FPLROffsetAdjustment::AdjustMemOfstVary(Insn &insn, uint32 i) const 
   if (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary) {
     bool condition = aarchCGFunc->IsOperandImmValid(insn.GetMachineOpcode(), &currMemOpnd, i);
     if (!condition) {
-      MemOperand &newMemOpnd = aarchCGFunc->SplitOffsetWithAddInstruction(
-          currMemOpnd, currMemOpnd.GetSize(), static_cast<AArch64reg>(R16), false, &insn, insn.IsLoadStorePair());
-      insn.SetOperand(i, newMemOpnd);
+      SPLIT_INSN(&insn, aarchCGFunc);
     }
   }
 }
@@ -180,9 +178,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn) const {
     memOpnd->SetOffsetOperand(*newOfstOpnd);
     uint32 i = insn.IsLoadStorePair() ? kInsnThirdOpnd : kInsnSecondOpnd;
     if (!aarchCGFunc->IsOperandImmValid(insn.GetMachineOpcode(), memOpnd, i)) {
-      MemOperand &newMemOpnd = aarchCGFunc->SplitOffsetWithAddInstruction(
-          *memOpnd, memOpnd->GetSize(), static_cast<AArch64reg>(R16), false, &insn, insn.IsLoadStorePair());
-      insn.SetOperand(i, newMemOpnd);
+      SPLIT_INSN(&insn, aarchCGFunc);
     }
   } else {
     switch (insn.GetMachineOpcode()) {
@@ -208,8 +204,11 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn) const {
       case MOP_xsubrri12: {
         ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP,
             "regNumber should be changed in AdjustmentOffsetForOpnd");
-        ImmOperand &subend = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
-        subend.SetValue(subend.GetValue() - offset);
+        auto &tempReg = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
+        auto &offsetReg = aarchCGFunc->CreateImmOperand(offset, k64BitSize, false);
+        aarchCGFunc->SelectAddAfterInsn(tempReg, insn.GetOperand(kInsnSecondOpnd),
+            offsetReg, PTY_i64, false, insn);
+        insn.SetOperand(kInsnSecondOpnd, tempReg);
         break;
       }
       case MOP_xsubrri24: {

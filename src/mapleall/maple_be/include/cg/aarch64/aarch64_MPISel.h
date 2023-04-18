@@ -97,7 +97,7 @@ class AArch64MPIsel : public MPISel {
   void SelectCvtFloat2Int(Operand &resOpnd, Operand &srcOpnd, PrimType itype, PrimType ftype) override;
   Insn &AppendCall(AArch64MOP_t mOp, Operand &targetOpnd,
       ListOperand &paramOpnds, ListOperand &retOpnds) const;
-  void SelectCalleeReturn(MIRType *retType, ListOperand &retOpnds);
+  void SelectCalleeReturn(const MIRType *retType, ListOperand &retOpnds);
 
   /* Inline function implementation of va_start */
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);

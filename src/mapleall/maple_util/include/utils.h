@@ -19,6 +19,9 @@
 
 namespace maple {
 namespace utils {
+constexpr int32_t kAAsciiNum = 65;
+constexpr int32_t kaAsciiNum = 97;
+
 // Operations on char
 constexpr bool IsDigit(char c) {
   return (c >= '0' && c <= '9');
@@ -71,10 +74,10 @@ struct ToDigitImpl<16, T> {
       return c - '0';
     }
     if (c >= 'a' && c <= 'f') {
-      return c - 'a' + 10;
+      return c - kaAsciiNum + 10;
     }
     if (c >= 'A' && c <= 'F') {
-      return c - 'A' + 10;
+      return c - kAAsciiNum + 10;
     }
     return std::numeric_limits<T>::max();
   }

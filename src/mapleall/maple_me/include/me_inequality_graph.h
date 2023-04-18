@@ -318,8 +318,8 @@ class InequalityGraph {
   ESSAPhiNode *GetOrCreatePhiNode(MePhiNode &phiNode);
   ESSAArrayNode *GetOrCreateArrayNode(MeExpr &meExpr);
   InequalEdge *AddEdge(ESSABaseNode &from, ESSABaseNode &to, int64 value, EdgeType type) const;
-  void AddPhiEdge(ESSABaseNode &from, ESSABaseNode &to, EdgeType type);
-  void AddEdge(ESSABaseNode &from, ESSABaseNode &to, MeExpr &value, bool positive, EdgeType type);
+  void AddPhiEdge(ESSABaseNode &from, ESSABaseNode &to, EdgeType type) const;
+  void AddEdge(ESSABaseNode &from, ESSABaseNode &to, MeExpr &value, bool positive, EdgeType type) const;
   void ConnectTrivalEdge();
   void DumpDotFile(DumpType dumpType) const;
   ESSABaseNode &GetNode(const MeExpr &meExpr);

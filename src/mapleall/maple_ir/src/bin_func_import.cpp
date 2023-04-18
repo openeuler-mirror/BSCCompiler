@@ -89,7 +89,7 @@ MIRSymbol *BinaryMplImport::ImportLocalSymbol(MIRFunction *func) {
   return sym;
 }
 
-PregIdx BinaryMplImport::ImportPreg(MIRFunction *func) {
+PregIdx BinaryMplImport::ImportPreg(const MIRFunction *func) {
   int64 tag = ReadNum();
   if (tag == 0) {
     return 0;

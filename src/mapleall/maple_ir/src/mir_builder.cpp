@@ -246,7 +246,7 @@ MIRFunction *MIRBuilder::GetFunctionFromName(const std::string &str) const {
   return funcSymbol != nullptr ? GetFunctionFromSymbol(*funcSymbol) : nullptr;
 }
 
-MIRFunction *MIRBuilder::GetFunctionFromStidx(StIdx stIdx) {
+MIRFunction *MIRBuilder::GetFunctionFromStidx(StIdx stIdx) const {
   auto *funcSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
   return funcSymbol != nullptr ? GetFunctionFromSymbol(*funcSymbol) : nullptr;
 }
@@ -500,6 +500,14 @@ MIRSymbol *MIRBuilder::CreatePregFormalSymbol(TyIdx tyIdx, PregIdx pRegIdx, MIRF
 
 ConstvalNode *MIRBuilder::CreateConstval(MIRConst *mirConst) {
   return GetCurrentFuncCodeMp()->New<ConstvalNode>(mirConst->GetType().GetPrimType(), mirConst);
+}
+
+ConstvalNode *MIRBuilder::CreateInt128Const(const Int128ElemTy *value, PrimType pty) {
+  ASSERT(IsInt128Ty(pty), "unxecpected prim type");
+  IntVal intVal(value, pty);
+  auto *mirConst =
+      GlobalTables::GetIntConstTable().GetOrCreateIntConst(intVal, *GlobalTables::GetTypeTable().GetPrimType(pty));
+  return GetCurrentFuncCodeMp()->New<ConstvalNode>(pty, mirConst);
 }
 
 ConstvalNode *MIRBuilder::CreateIntConst(uint64 val, PrimType pty) {

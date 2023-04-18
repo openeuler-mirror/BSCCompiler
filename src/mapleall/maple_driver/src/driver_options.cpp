@@ -328,6 +328,7 @@ maplecl::Option<bool> wpaa({"-wpaa", "--wpaa"},
     "  -dump-cfg funcname1,funcname2\n"               \
     "  -wpaa                  : enable whole program ailas analysis",
     {driverCategory, hir2mplCategory});
+
 maplecl::Option<bool> fm({"-fm", "--fm"},
     "  static function merge will be enabled"               \
     "  only when wpaa is enabled at the same time",
@@ -336,6 +337,10 @@ maplecl::Option<bool> fm({"-fm", "--fm"},
 maplecl::Option<bool> dumpTime({"--dump-time", "-dump-time"},
     "  -dump-time             : dump time",
     {driverCategory, hir2mplCategory});
+
+maplecl::Option<bool> aggressiveTlsLocalDynamicOpt({"--tls-local-dynamic-opt"},
+    "  --tls-local-dynamic-opt    \tdo aggressive tls local dynamic opt\n",
+    {driverCategory});
 
 /* ##################### STRING Options ############################################################### */
 
@@ -506,7 +511,7 @@ maplecl::Option<std::string> specs({"-specs"},
     {driverCategory, ldCategory});
 
 maplecl::Option<std::string> folder({"-tmp-folder"},
-    "  -p <value>    \tsave former folder when generating multiple output.\n",
+    "  -tmp-folder    \tsave former folder when generating multiple output.\n",
     {driverCategory});
 
 maplecl::Option<std::string> imacros({"-imacros", "--imacros"},
@@ -588,13 +593,13 @@ maplecl::Option<bool> oStaticLibubsan({"-static-libubsan"},
 maplecl::Option<bool> oStaticLibmpx({"-static-libmpx"},
     "  -static-libmpx             \tThe -static-libmpx option directs the MAPLE driver to "
     "link libmpx statically, without necessarily linking other libraries statically.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oStaticLibmpxwrappers({"-static-libmpxwrappers"},
     "  -static-libmpxwrappers             \tThe -static-libmpxwrappers option directs the"
     " MAPLE driver to link libmpxwrappers statically, without necessarily linking other"
     " libraries statically.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oSymbolic({"-symbolic"},
     "  -symbolic             \tWarn about any unresolved references (unless overridden "
@@ -3779,8 +3784,9 @@ maplecl::Option<bool> oPagezero_size({"-pagezero_size"},
     "  -pagezero_size             \t\n",
     {driverCategory, unSupCategory});
 
-maplecl::Option<bool> oParam({"-param"},
-    "  -param             \t\n",
+maplecl::Option<bool> oParam({"--param"},
+    "  --param <param>=<value>             \tSet parameter <param> to value.  See below for a complete "
+    "list of parameters.\n",
     {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oPassExitCodes({"-pass-exit-codes"},
@@ -4386,7 +4392,7 @@ maplecl::Option<bool> oGz({"-gz"},
 
 maplecl::Option<bool> oH({"-H"},
     "  -H             \tPrint the name of header files as they are used.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oHeaderpad_max_install_names({"-headerpad_max_install_names"},
     "  -headerpad_max_install_names             \t\n",
@@ -5102,6 +5108,15 @@ maplecl::Option<std::string> oA({"-A"},
     "  -A<question>=<answer>             \tAssert the <answer> to <question>.  Putting '-' before <question> disables "
     "the <answer> to <question> assertion missing after %qs.\n",
     {driverCategory, clangCategory}, maplecl::joinedValue);
+
+maplecl::Option<bool> oO({"-O"},
+    "  -O             \tReduce code size and execution time, without performing any optimizations that "
+    "take a great deal of compilation time.\n",
+    {driverCategory, unSupCategory});
+
+maplecl::Option<bool> oNoPie({"-no-pie"},
+    "  -no-pie             \tDon't create a position independent executable.\n",
+    {driverCategory, ldCategory});
 
     /* #################################################################################################### */
 

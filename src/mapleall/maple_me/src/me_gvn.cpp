@@ -27,7 +27,6 @@
 #include "dominance.h"
 #include "global_tables.h"
 #include "irmap.h"
-#include "itab_util.h"
 #include "maple_phase.h"
 #include "me_cfg.h"
 #include "me_dominance.h"
@@ -255,7 +254,7 @@ class VnExpr {
 class PhiVnExpr : public VnExpr {
  public:
   explicit PhiVnExpr(const BB &bb) : VnExpr(VnKind::kVnPhi), defBB(bb) {}
-  virtual ~PhiVnExpr() = default;
+  ~PhiVnExpr() override = default;
 
   PhiVnExpr(size_t vnExprID, const PhiVnExpr &phiVnExpr) : VnExpr(VnKind::kVnPhi, vnExprID), defBB(phiVnExpr.defBB) {
     opnds.insert(opnds.end(), phiVnExpr.opnds.begin(), phiVnExpr.opnds.end());
@@ -324,7 +323,10 @@ class IvarVnExpr : public VnExpr {
         mu(ivarVnExpr.mu),
         defStmtRank(ivarVnExpr.defStmtRank) {}
 
-  virtual ~IvarVnExpr() = default;
+  ~IvarVnExpr() override {
+    baseAddr = nullptr;
+    mu = nullptr;
+  }
 
   void SetBaseAddr(const CongruenceClass *baseVn) {
     baseAddr = baseVn;
@@ -382,7 +384,7 @@ class NaryVnExpr : public VnExpr {
     opnds.insert(opnds.end(), naryVnExpr.opnds.begin(), naryVnExpr.opnds.end());
   }
 
-  virtual ~NaryVnExpr() = default;
+  ~NaryVnExpr() override = default;
 
   void AddOpnd(const CongruenceClass &opnd) {
     opnds.emplace_back(&opnd);
@@ -442,7 +444,7 @@ class OpVnExpr : public VnExpr {
     opnds.insert(opnds.end(), opVnExpr.opnds.begin(), opVnExpr.opnds.end());
   }
 
-  virtual ~OpVnExpr() = default;
+  ~OpVnExpr() override = default;
 
   void AddOpnd(const CongruenceClass &opnd) {
     opnds.emplace_back(&opnd);
@@ -640,7 +642,7 @@ class GVN {
   void MarkEntryBBReachable();
   // mark succ of bb reachable according to last stmt of bb
   void MarkSuccBBReachable(const BB &bb);
-  SCCNode<BB> *GetSCCofBB(BB *bb) const;
+  SCCNode<BB> *GetSCCofBB(const BB *bb) const;
   // collect def-use info for SCC
   void CollectUseInfoInSCC(const SCCNode<BB> &scc);
 
@@ -663,7 +665,7 @@ class GVN {
   // if its subexpr has vn created before, it will just use the vn and not create a new one.
   CongruenceClass *CreateVnForMeExprIteratively(MeExpr &expr);
   // try to get vn from expr2vn first, if not found, create a new one
-  CongruenceClass *GetOrCreateVnForMeExpr(MeExpr &rhs);
+  CongruenceClass *GetOrCreateVnForMeExpr(MeExpr &expr);
 
   CongruenceClass *GetOrCreateVnForPhi(const MePhiNode &phi, const BB &bb);
   void SetVnForExpr(MeExpr &expr, CongruenceClass &vn);
@@ -687,7 +689,7 @@ class GVN {
 
   void FullRedundantElimination();
 
-  void AddToVnVector(CongruenceClass *vn);
+  void AddToVnVector(const CongruenceClass &vn);
   void DumpVnVector() const;
   void DumpVnExprs() const;
   void DumpSCC(const SCCNode<BB> &scc) const;
@@ -761,11 +763,11 @@ void GVN::RankStmtAndPhi() {
   for (auto *scc : sccTopologicalVec) {
     std::vector<BB*> rpo(scc->GetNodes().begin(), scc->GetNodes().end());
     const auto &bbId2RpoId = dom.GetReversePostOrderId();
-    std::sort(rpo.begin(), rpo.end(), [&bbId2RpoId](BB *forward, BB *backward) {
+    std::sort(rpo.begin(), rpo.end(), [&bbId2RpoId](const BB *forward, const BB *backward) {
       return bbId2RpoId[forward->GetBBId()] < bbId2RpoId[backward->GetBBId()];
     });
     for (auto *bb : rpo) {
-      for (auto &phi : bb->GetMePhiList()) {
+      for (const auto &phi : std::as_const(bb->GetMePhiList())) {
         rank[phi.second] = ++kRankNum; // start from 1
       }
       for (auto &stmt : bb->GetMeStmts()) {
@@ -858,7 +860,7 @@ void GVN::MarkSuccBBReachable(const BB &bb) {
 }
 
 // NEEDFIX: Add GetSCCNode to BB
-SCCNode<BB> *GVN::GetSCCofBB(BB *bb) const {
+SCCNode<BB> *GVN::GetSCCofBB(const BB *bb) const {
   (void)bb;
   return nullptr;
 }
@@ -883,7 +885,7 @@ CongruenceClass *GVN::GetOrCreateVnForHashedVnExpr(const VnExpr &hashedVnExpr) {
   CongruenceClass *newVn = tmpMP.New<CongruenceClass>();
   DEBUG_LOG() << "Create new vn <vn" << newVn->GetID() << "> for vnexpr <vx" << vnExprID << ">\n";
   vnExpr2Vn[vnExprID] = newVn;
-  AddToVnVector(newVn);
+  AddToVnVector(*newVn);
   return newVn;
 }
 
@@ -898,7 +900,7 @@ CongruenceClass *GVN::CreateVnForMeExpr(MeExpr &expr) {
   CongruenceClass *vn = tmpMP.New<CongruenceClass>(expr);
   DEBUG_LOG() << "Create new vn <vn" << vn->GetID() << "> for expr <mx" << expr.GetExprID() << ">\n";
   SetVnForExpr(expr, *vn);
-  AddToVnVector(vn);
+  AddToVnVector(*vn);
   return vn;
 }
 
@@ -1144,7 +1146,7 @@ void GVN::MarkExprNeedUpdated(const MeExpr &expr) {
 BB *GVN::GetFirstReachableBB(const SCCNode<BB> &scc) {
   std::vector<BB*> rpo(scc.GetNodes().begin(), scc.GetNodes().end());
   const auto &bbId2RpoId = dom.GetReversePostOrderId();
-  std::sort(rpo.begin(), rpo.end(), [&bbId2RpoId](BB *forward, BB *backward) {
+  std::sort(rpo.begin(), rpo.end(), [&bbId2RpoId](const BB *forward, const BB *backward) {
     return bbId2RpoId[forward->GetBBId()] < bbId2RpoId[backward->GetBBId()];
   });
   auto it = std::find_if(rpo.begin(), rpo.end(), [this](const BB *bb) {
@@ -1165,7 +1167,7 @@ void GVN::TouchPhisStmtsInBB(BB &bb, std::set<const BB *> &visited, const std::s
   if (!empty) {
     DEBUG_LOG() << "Touch stmts/phis in BB" << bb.GetBBId().GetIdx() << "\n";
   }
-  for (auto &phi : bb.GetMePhiList()) {
+  for (const auto &phi : std::as_const(bb.GetMePhiList())) {
     if (phi.second->GetIsLive()) {
       touch.emplace(phi.second);
       needTouchSucc = false;
@@ -1221,7 +1223,7 @@ void GVN::GenVnForSingleBB(BB &bb) {
     return;
   }
   // 1. process phis
-  for (auto &phiItem : bb.GetMePhiList()) {
+  for (const auto &phiItem : std::as_const(bb.GetMePhiList())) {
     if (!phiItem.second->GetIsLive()) {
       continue;
     }
@@ -1284,7 +1286,7 @@ void GVN::GenVnForSingleBB(BB &bb) {
     }
     // 2.4 process chilist of stmt
     if (stmt.GetChiList() != nullptr) {
-      for (auto &chiItem : *stmt.GetChiList()) {
+      for (const auto &chiItem : std::as_const(*stmt.GetChiList())) {
         MeExpr *lhs = chiItem.second->GetLHS();
         CongruenceClass *lhsVn = GetVnOfMeExpr(*lhs);
         if (!lhs->IsVolatile() || lhsVn == nullptr) {
@@ -1370,7 +1372,7 @@ void GVN::GenVnForLhsValue(MeStmt &stmt, const std::set<const BB *> &touchedBB) 
   }
   // process chilist of stmt
   if (stmt.GetChiList() != nullptr) {
-    for (auto &chiItem : *stmt.GetChiList()) {
+    for (const auto &chiItem : std::as_const(*stmt.GetChiList())) {
       MeExpr *chiLHS = chiItem.second->GetLHS();
       if (GetVnOfMeExpr(*chiLHS) == nullptr) {
         (void) CreateVnForMeExpr(*chiLHS);
@@ -1457,11 +1459,11 @@ void GVN::GenVnForSCCIteratively(const SCCNode<BB> &scc) {
   DEBUG_LOG() << "-- End Generating GVN for SCC " << scc.GetID() << "\n";
 }
 
-void GVN::AddToVnVector(CongruenceClass *vn) {
-  if (vnVector.size() <= vn->GetID()) {
-    vnVector.resize(vn->GetID() + 1, nullptr);
+void GVN::AddToVnVector(const CongruenceClass &vn) {
+  if (vnVector.size() <= vn.GetID()) {
+    vnVector.resize(vn.GetID() + 1, nullptr);
   }
-  vnVector[vn->GetID()] = vn;
+  vnVector[vn.GetID()] = &vn;
 }
 
 void GVN::DumpVnVector() const {
@@ -1640,10 +1642,10 @@ void GVN::DoPhiFRE(MePhiNode &phi, MeStmt *firstStmt) {
     }
     // we can not replace phi use, skip count it
     auto *useSites = useInfo.GetUseSitesOfExpr(recordExpr);
-    auto it = std::find_if(useSites->begin(), useSites->end(), [this, &phi](const UseItem &use) {
+    const auto it = std::find_if(useSites->cbegin(), useSites->cend(), [this, &phi](const UseItem &use) {
       return use.IsUseByStmt() && this->dom.Dominate(*phi.GetDefBB(), *use.GetUseBB());
     });
-    if (it == useSites->end()) {
+    if (it == useSites->cend()) {
       continue;
     }
     realExprCnt++;
@@ -1723,7 +1725,7 @@ void GVN::FullRedundantElimination() {
       }
       // DoPhiFRE may generate new stmts at begin of BB
       MeStmt *stmt = bb->GetFirstMe();
-      for (auto &phi : bb->GetMePhiList()) {
+      for (const auto &phi : std::as_const(bb->GetMePhiList())) {
         if (phi.second->GetIsLive()) {
           DoPhiFRE(*phi.second, stmt);
         }
@@ -1798,13 +1800,7 @@ bool MEGVN::PhaseRun(maple::MeFunction &f) {
   auto *aliasClass = FORCE_GET(MEAliasClass);
   MeHDSE hdse(f, *dom, *pdom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
   hdse.hdseKeepRef = MeOption::dseKeepRef;
-  hdse.DoHDSE();
-  if (hdse.NeedUNClean()) {
-    bool cfgChange = f.GetCfg()->UnreachCodeAnalysis(true);
-    if (cfgChange) {
-      FORCE_INVALID(MEDominance, f);
-    }
-  }
+  hdse.DoHDSESafely(&f, *GetAnalysisInfoHook());
   return false;
 }
 } // namespace maple

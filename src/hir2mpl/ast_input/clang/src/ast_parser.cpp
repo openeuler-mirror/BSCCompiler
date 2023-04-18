@@ -26,6 +26,7 @@
 #include "fe_manager.h"
 #include "enhance_c_checker.h"
 #include "fe_macros.h"
+#include "int128_util.h"
 
 namespace maple {
 
@@ -841,8 +842,8 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           }
           astValue->pty = PTY_i64;
           break;
-        case PTY_i128:
-          astValue->val.i64 = static_cast<int64>(result.Val.getInt().getSExtValue());
+        case PTY_i128: {
+          Int128Util::CopyInt128(astValue->val.i128, result.Val.getInt().getRawData());
           astValue->pty = PTY_i128;
           static bool i128Warning = true;
           if (i128Warning) {
@@ -852,6 +853,7 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
             i128Warning = false;
           }
           break;
+        }
         case PTY_u8:
           astValue->val.u8 = static_cast<uint8>(result.Val.getInt().getExtValue());
           astValue->pty = PTY_u8;
@@ -872,8 +874,8 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           }
           astValue->pty = PTY_u64;
           break;
-        case PTY_u128:
-          astValue->val.u64 = static_cast<uint64>(result.Val.getInt().getZExtValue());
+        case PTY_u128: {
+          Int128Util::CopyInt128(astValue->val.i128, result.Val.getInt().getRawData());
           astValue->pty = PTY_u128;
           static bool u128Warning = true;
           if (u128Warning) {
@@ -883,6 +885,7 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
             u128Warning = false;
           }
           break;
+        }
         case PTY_u1:
           astValue->val.u8 = (result.Val.getInt().getExtValue() == 0 ? 0 : 1);
           astValue->pty = PTY_u1;
@@ -1058,8 +1061,9 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
   if (constVal.isInt()) {
     ASTIntegerLiteral *intExpr = allocator.New<ASTIntegerLiteral>(allocator);
     llvm::APSInt intVal = constVal.getInt();
-    intExpr->SetVal(intVal.getExtValue());
-    if (intVal.getExtValue() == 0) {
+    intExpr->SetVal(IntVal(intVal.getRawData(), intVal.getBitWidth(), intVal.isSigned()));
+
+    if (intVal == 0) {
       intExpr->SetEvaluatedFlag(kEvaluatedAsZero);
     } else {
       intExpr->SetEvaluatedFlag(kEvaluatedAsNonZero);
@@ -1613,18 +1617,22 @@ ASTExpr *ASTParser::ProcessExprArraySubscriptExpr(MapleAllocator &allocator, con
 
   base = PeelParen2(*base);
   ASTExpr *idxExpr = ProcessExpr(allocator, expr.getIdx());
-  astArraySubscriptExpr->SetIdxExpr(idxExpr);
-  astArraySubscriptExpr->SetCallAlloca(idxExpr != nullptr && idxExpr->IsCallAlloca());
   clang::QualType arrayQualType = base->getType().getCanonicalType();
   if (base->getStmtClass() == clang::Stmt::ImplicitCastExprClass &&
       !static_cast<const clang::ImplicitCastExpr*>(base)->isPartOfExplicitCast()) {
     arrayQualType = static_cast<const clang::ImplicitCastExpr*>(base)->getSubExpr()->getType().getCanonicalType();
   }
-
-  CHECK_FATAL(!arrayQualType->isVectorType(), "Unsupported vector type in astArraySubscriptExpr");
-
-  auto arrayMirType = astFile->CvtType(arrayQualType);
+  MIRType *arrayMirType = astFile->CvtType(arrayQualType);
+  if (arrayQualType->isVectorType()) {
+    if (arrayMirType->GetSize() <= 16) {  // vectortype size <= 128 bits.
+      astArraySubscriptExpr->SetIsVectorType(true);
+    } else {
+      CHECK_FATAL(false, "Unsupported vectortype size > 128 in astArraySubscriptExpr");
+    }
+  }
+  astArraySubscriptExpr->SetIdxExpr(idxExpr);
   astArraySubscriptExpr->SetArrayType(arrayMirType);
+  astArraySubscriptExpr->SetCallAlloca(idxExpr != nullptr && idxExpr->IsCallAlloca());
 
   clang::QualType exprType = expr.getType().getCanonicalType();
   if (arrayQualType->isVariablyModifiedType()) {
@@ -1633,6 +1641,10 @@ ASTExpr *ASTParser::ProcessExprArraySubscriptExpr(MapleAllocator &allocator, con
     astArraySubscriptExpr->SetVLASizeExpr(vlaTypeSizeExpr);
   }
   ASTExpr *astBaseExpr = ProcessExpr(allocator, base);
+  if (astBaseExpr->GetASTOp() == kASTOpRef && idxExpr->GetASTOp() != kASTIntegerLiteral) {
+    auto refExpr = static_cast<ASTDeclRefExpr*>(astBaseExpr);
+    refExpr->SetIsAddrOfType(true);
+  }
   astArraySubscriptExpr->SetCallAlloca(astBaseExpr != nullptr && astBaseExpr->IsCallAlloca());
   astArraySubscriptExpr->SetBaseExpr(astBaseExpr);
   auto *mirType = astFile->CvtType(exprType);
@@ -2326,6 +2338,15 @@ ASTExpr *ASTParser::ProcessExprDeclRefExpr(MapleAllocator &allocator, const clan
         } else {
           astDecl = ProcessDecl(allocator, *(expr.getDecl()->getCanonicalDecl()));
         }
+      }
+      clang::QualType type = expr.getType();
+      if (llvm::isa<clang::TypedefType>(type)) {
+        auto typedefType = llvm::dyn_cast<clang::TypedefType>(type);
+        if (llvm::isa<clang::VectorType>(typedefType->desugar())) {
+          astRefExpr->SetIsVectorType(true);
+        }
+      } else if (llvm::isa<clang::VectorType>(type)) {
+        astRefExpr->SetIsVectorType(true);
       }
       astRefExpr->SetASTDecl(astDecl);
       astRefExpr->SetType(astDecl->GetTypeDesc().front());
@@ -3099,6 +3120,13 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   if (varType->IsMIRIncompleteStructType() && !attrs.GetAttr(GENATTR_extern)) {
     FE_ERR(kLncErr, astFile->GetLOC(varDecl.getLocation()), "tentative definition of variable '%s' has incomplete"
         " struct type 'struct '%s''", varName.c_str(), varType->GetName().c_str());
+  }
+  if (varDecl.hasInit() && attrs.GetAttr(GENATTR_extern)) {
+    attrs.ResetAttr(GENATTR_extern);
+  }
+  if (attrs.GetAttr(GENATTR_extern) && attrs.GetAttr(GENATTR_visibility_hidden)) {
+    attrs.ResetAttr(GENATTR_extern);
+    attrs.SetAttr(GENATTR_static);
   }
   astVar = ASTDeclsBuilder::GetInstance(allocator).ASTVarBuilder(
       allocator, fileName, varName, MapleVector<MIRType*>({varType}, allocator.Adapter()), attrs, varDecl.getID());

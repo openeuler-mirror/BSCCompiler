@@ -171,7 +171,7 @@ uint32_t ReflectionAnalysis::totalCStr = 0;
 std::map<std::list<Klass*>, std::string> ReflectionAnalysis::superClasesIdxMap{};
 
 void ReflectionAnalysis::GenFieldTypeClassInfo(const MIRType &type, const Klass &klass, std::string &classInfo,
-                                               const std::string fieldName, bool &isClass) {
+                                               const std::string fieldName, bool &isClass) const {
   switch (type.GetKind()) {
     case kTypeScalar: {
       isClass = false;
@@ -200,7 +200,7 @@ void ReflectionAnalysis::GenFieldTypeClassInfo(const MIRType &type, const Klass 
   }
 }
 
-bool ReflectionAnalysis::IsMemberClass(const std::string &annotationString) {
+bool ReflectionAnalysis::IsMemberClass(const std::string &annotationString) const {
   uint32_t idx = ReflectionAnalysis::FindOrInsertReflectString(kEnclosingClassStr);
   std::string target = annoDelimiterPrefix + std::to_string(idx) + annoDelimiter;
   if (annotationString.find(target, 0) != std::string::npos) {
@@ -209,7 +209,7 @@ bool ReflectionAnalysis::IsMemberClass(const std::string &annotationString) {
   return false;
 }
 
-int8_t ReflectionAnalysis::GetAnnoFlag(const std::string &annotationString) {
+int8_t ReflectionAnalysis::GetAnnoFlag(const std::string &annotationString) const{
   constexpr uint8_t kMemberPosValid = 1;
   constexpr uint8_t kMemberPosValidOffset = 2;
   constexpr uint8_t kIsMemberClassOffset = 1;
@@ -220,7 +220,7 @@ int8_t ReflectionAnalysis::GetAnnoFlag(const std::string &annotationString) {
   return value;
 }
 
-int ReflectionAnalysis::GetDeflateStringIdx(const std::string &subStr, bool needSpecialFlag) {
+int ReflectionAnalysis::GetDeflateStringIdx(const std::string &subStr, bool needSpecialFlag) const {
   std::string flag = needSpecialFlag ? (std::to_string(GetAnnoFlag(subStr)) + annoDelimiter) : "1!";
   return FindOrInsertReflectString(flag + subStr);
 }
@@ -438,7 +438,7 @@ int ReflectionAnalysis::SolveAnnotation(MIRStructType &classType, const MIRFunct
 }
 
 uint32 ReflectionAnalysis::GetTypeNameIdxFromType(const MIRType &type, const Klass &klass,
-    const std::string &fieldName) {
+    const std::string &fieldName) const {
   uint32 typeNameIdx = 0;
   switch (type.GetKind()) {
     case kTypeScalar: {
@@ -477,7 +477,7 @@ uint32 ReflectionAnalysis::GetTypeNameIdxFromType(const MIRType &type, const Kla
   return typeNameIdx;
 }
 
-void ReflectionAnalysis::CheckPrivateInnerAndNoSubClass(Klass &clazz, const std::string &annoArr) {
+void ReflectionAnalysis::CheckPrivateInnerAndNoSubClass(Klass &clazz, const std::string &annoArr) const {
   // LMain_24A_3B  `EC!`VL!24!LMain_3B!`IC!`AF!4!2!name!23!A!
   uint32_t idx = FindOrInsertReflectString(kEnclosingClassStr);
   std::string target = annoDelimiterPrefix + std::to_string(idx) + annoDelimiter;
@@ -523,7 +523,7 @@ void ReflectionAnalysis::ConvertMethodSig(std::string &signature) {
 
 void ReflectionAnalysis::GenAllMethodHash(std::vector<std::pair<MethodPair*, int>> &methodInfoVec,
                                           std::unordered_map<uint32, std::string> &baseNameMap,
-                                          std::unordered_map<uint32, std::string> &fullNameMap) {
+                                          std::unordered_map<uint32, std::string> &fullNameMap) const {
   std::vector<MIRFunction*> methodVector;
   std::vector<uint16> hashVector;
   for (auto &methodInfo : methodInfoVec) {
@@ -566,7 +566,8 @@ uint16 GetFieldHash(const std::vector<std::pair<FieldPair, uint16>> &fieldV, con
   return 0;
 }
 
-MIRSymbol *ReflectionAnalysis::GetOrCreateSymbol(const std::string &name, TyIdx tyIdx, bool needInit = false) {
+MIRSymbol *ReflectionAnalysis::GetOrCreateSymbol(const std::string &name, const TyIdx &tyIdx,
+                                                 bool needInit = false) const {
   const GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   MIRSymbol *st = GetSymbol(strIdx, tyIdx);
   if (st != nullptr && !needInit) {
@@ -585,7 +586,7 @@ MIRSymbol *ReflectionAnalysis::GetOrCreateSymbol(const std::string &name, TyIdx 
   return st;
 }
 
-MIRSymbol *ReflectionAnalysis::GetSymbol(const std::string &name, TyIdx tyIdx) {
+MIRSymbol *ReflectionAnalysis::GetSymbol(const std::string &name, const TyIdx &tyIdx) const {
   const GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   MIRSymbol *st = GetSymbol(strIdx, tyIdx);
   return st;
@@ -600,7 +601,7 @@ static bool IsSameType(TyIdx tyIdx1, TyIdx tyIdx2) {
   return type1->EqualTo(*type2);
 }
 
-MIRSymbol *ReflectionAnalysis::GetSymbol(GStrIdx strIdx, TyIdx tyIdx) {
+MIRSymbol *ReflectionAnalysis::GetSymbol(GStrIdx strIdx, TyIdx tyIdx) const {
   MIRSymbol *st = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
   if (st != nullptr && st->GetSKind() == kStVar) {
     if (IsSameType(st->GetTyIdx(), tyIdx)) {
@@ -634,8 +635,7 @@ bool ReflectionAnalysis::VtableFunc(const MIRFunction &func) const {
 
 bool RtRetentionPolicyCheck(const MIRSymbol &clInfo) {
   GStrIdx strIdx;
-  auto *annoType =
-      static_cast<MIRClassType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(clInfo.GetTyIdx()));
+  auto *annoType = static_cast<MIRClassType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(clInfo.GetTyIdx()));
   for (MIRPragma *p : annoType->GetPragmaVec()) {
     if (GlobalTables::GetStrTable().GetStringFromStrIdx(
         GlobalTables::GetTypeTable().GetTypeFromTyIdx(p->GetTyIdx())->GetNameStrIdx()) ==
@@ -724,8 +724,7 @@ struct HashCodeComparator {
   const std::unordered_map<uint32, std::string> &basenameMp;
   const std::unordered_map<uint32, std::string> &fullnameMp;
   HashCodeComparator(const std::unordered_map<uint32, std::string> &arg1,
-                     const std::unordered_map<uint32, std::string> &arg2)
-      : basenameMp(arg1), fullnameMp(arg2) {}
+                     const std::unordered_map<uint32, std::string> &arg2) : basenameMp(arg1), fullnameMp(arg2) {}
 
   bool operator()(std::pair<MethodPair*, int> a, std::pair<MethodPair*, int> b) {
     const MIRSymbol *funcSymA = GlobalTables::GetGsymTable().GetSymbolFromStidx(a.first->first.Idx());
@@ -791,10 +790,9 @@ uint32 ReflectionAnalysis::GetMethodFlag(const MIRFunction &func) const {
   return flag;
 }
 
-void ReflectionAnalysis::GenMethodMeta(const Klass &klass, MIRStructType &methodsInfoType,
-                                       const MIRSymbol &funcSym, MIRAggConst &aggConst, int idx,
-                                       std::unordered_map<uint32, std::string> &baseNameMp,
-                                       std::unordered_map<uint32, std::string> &fullNameMp) {
+void ReflectionAnalysis::GenMethodMeta(const Klass &klass, MIRStructType &methodsInfoType, const MIRSymbol &funcSym,
+    MIRAggConst &aggConst, int idx, std::unordered_map<uint32, std::string> &baseNameMp,
+    std::unordered_map<uint32, std::string> &fullNameMp) {
   MIRFunction &func = *funcSym.GetFunction();
   MIRAggConst &newConst = *mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, methodsInfoType);
   uint32 fieldID = 1;
@@ -863,13 +861,11 @@ void ReflectionAnalysis::GenMethodMeta(const Klass &klass, MIRStructType &method
 }
 
 MIRSymbol *ReflectionAnalysis::GenMethodsMeta(const Klass &klass,
-                                              std::vector<std::pair<MethodPair*, int>> &methodInfoVec,
-                                              std::unordered_map<uint32, std::string> &baseNameMp,
-                                              std::unordered_map<uint32, std::string> &fullNameMp) {
+    std::vector<std::pair<MethodPair*, int>> &methodInfoVec, std::unordered_map<uint32, std::string> &baseNameMp,
+    std::unordered_map<uint32, std::string> &fullNameMp) {
   MIRStructType *classType = klass.GetMIRStructType();
   size_t arraySize = classType->GetMethods().size();
-  auto &methodsInfoType =
-      static_cast<MIRStructType&>(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(methodsInfoTyIdx));
+  auto &methodsInfoType = static_cast<MIRStructType&>(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(methodsInfoTyIdx));
   MIRArrayType &arrayType = *GlobalTables::GetTypeTable().GetOrCreateArrayType(methodsInfoType, arraySize);
   MIRAggConst *aggConst = mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, arrayType);
   ASSERT(aggConst != nullptr, "null ptr check!");
@@ -960,10 +956,8 @@ MIRSymbol *ReflectionAnalysis::GetMethodSignatureSymbol(std::string signature) {
 }
 
 void ReflectionAnalysis::GenMethodMetaCompact(const Klass &klass, MIRStructType &methodsInfoCompactType, int idx,
-                                              const MIRSymbol &funcSym, MIRAggConst &aggConst,
-                                              int &allDeclaringClassOffset,
-                                              std::unordered_map<uint32, std::string> &baseNameMp,
-                                              std::unordered_map<uint32, std::string> &fullNameMp) {
+    const MIRSymbol &funcSym, MIRAggConst &aggConst, int &allDeclaringClassOffset,
+    std::unordered_map<uint32, std::string> &baseNameMp, std::unordered_map<uint32, std::string> &fullNameMp) {
   MIRFunction &func = *funcSym.GetFunction();
   MIRAggConst &newConstCompact = *mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, methodsInfoCompactType);
   std::vector<uint8> methodsCompactLeb128Vec;
@@ -1419,7 +1413,7 @@ void ReflectionAnalysis::ConvertMapleClassName(const std::string &mplClassName, 
   }
 }
 
-void ReflectionAnalysis::AppendValueByType(std::string &annoArr, const MIRPragmaElement &elem) {
+void ReflectionAnalysis::AppendValueByType(std::string &annoArr, const MIRPragmaElement &elem) const {
   std::ostringstream oss;
   std::string tmp;
   switch (elem.GetType()) {
@@ -1641,7 +1635,7 @@ uint32 ReflectionAnalysis::BKDRHash(const std::string &strName, uint32 seed) con
   return hash;
 }
 
-uint32 ReflectionAnalysis::GetHashIndex(const std::string &strName) {
+uint32 ReflectionAnalysis::GetHashIndex(const std::string &strName) const {
   constexpr int hashSeed = 211;
   return BKDRHash(strName, hashSeed);
 }
@@ -1664,7 +1658,7 @@ void ReflectionAnalysis::GenHotClassNameString(const Klass &klass) {
   (void)ReflectionAnalysis::FindOrInsertRepeatString(klassJavaDescriptor, true);  // Always used.
 }
 
-uint32 ReflectionAnalysis::FindOrInsertReflectString(const std::string &str) {
+uint32 ReflectionAnalysis::FindOrInsertReflectString(const std::string &str) const {
   uint8 hotType = 0;
   bool isHot = mirModule->GetProfile().CheckReflectionStrHot(str, hotType);
   if (isHot) {
@@ -1674,7 +1668,7 @@ uint32 ReflectionAnalysis::FindOrInsertReflectString(const std::string &str) {
   return ReflectionAnalysis::FindOrInsertRepeatString(str, isHot, hotType);
 }
 
-MIRSymbol *ReflectionAnalysis::GetClinitFuncSymbol(const Klass &klass) {
+MIRSymbol *ReflectionAnalysis::GetClinitFuncSymbol(const Klass &klass) const {
   MIRStructType *classType = klass.GetMIRStructType();
   if (classType == nullptr || classType->GetMethods().empty()) {
     return nullptr;
@@ -1922,7 +1916,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
   classTab.push_back(classSt);
 }
 
-int8 ReflectionAnalysis::JudgePara(MIRStructType &classType) {
+int8 ReflectionAnalysis::JudgePara(MIRStructType &classType) const {
   for (MIRPragma *prag : classType.GetPragmaVec()) {
     if (prag->GetKind() == kPragmaClass) {
       if ((GlobalTables::GetTypeTable().GetTypeFromTyIdx(prag->GetTyIdx())->GetName() ==
@@ -1935,7 +1929,7 @@ int8 ReflectionAnalysis::JudgePara(MIRStructType &classType) {
   return 0;
 }
 
-bool ReflectionAnalysis::IsAnonymousClass(const std::string &annotationString) {
+bool ReflectionAnalysis::IsAnonymousClass(const std::string &annotationString) const {
   // eg: `IC!`AF!4!0!name!30!!
   uint32_t idx = ReflectionAnalysis::FindOrInsertReflectString(kInnerClassStr);
   std::string target = annoDelimiterPrefix + std::to_string(idx) + annoDelimiter;
@@ -1954,7 +1948,7 @@ bool ReflectionAnalysis::IsAnonymousClass(const std::string &annotationString) {
   return false;
 }
 
-bool ReflectionAnalysis::IsLocalClass(const std::string annotationString) {
+bool ReflectionAnalysis::IsLocalClass(const std::string annotationString) const {
   uint32_t idx = ReflectionAnalysis::FindOrInsertReflectString(kEnclosingMethod);
   std::string target = annoDelimiterPrefix + std::to_string(idx) + annoDelimiter;
   size_t pos = annotationString.find(target, 0);
@@ -2179,7 +2173,7 @@ void ReflectionAnalysis::GenStrTab(MIRModule &module) {
   ReflectionAnalysisGenStrTab(module, strTab, strTabName);
 }
 
-void ReflectionAnalysis::MarkWeakMethods() {
+void ReflectionAnalysis::MarkWeakMethods() const {
   if (!isLibcore) {
     return;
   }
@@ -2204,7 +2198,7 @@ void ReflectionAnalysis::MarkWeakMethods() {
   }
 }
 
-void ReflectionAnalysis::DumpPGOSummary() {
+void ReflectionAnalysis::DumpPGOSummary() const {
   LogInfo::MapleLogger() << "PGO summary \n";
   LogInfo::MapleLogger() << "hot method meta " << ReflectionAnalysis::hotMethodMeta << " total "
                          << ReflectionAnalysis::totalMethodMeta << std::setprecision(2) << " ratio "

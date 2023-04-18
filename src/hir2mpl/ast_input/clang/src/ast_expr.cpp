@@ -301,7 +301,7 @@ UniqueFEIRExpr ASTDeclRefExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts)
     UniqueFEIRVar feirVar =
         FEIRBuilder::CreateVarNameForC(refedDecl->GenerateUniqueVarName(), *mirType, refedDecl->IsGlobal(), false);
     feirVar->SetAttrs(attrs);
-    if (mirType->GetKind() == kTypeArray) {
+    if (mirType->GetKind() == kTypeArray || (isVectorType && isAddrOfType)) {
       feirRefExpr = FEIRBuilder::CreateExprAddrofVar(std::move(feirVar));
     } else {
       feirRefExpr = FEIRBuilder::CreateExprDRead(std::move(feirVar));
@@ -765,7 +765,7 @@ MIRIntrinsicID intrinsic;
       CHECK_FATAL(false, "Unhandled vector type in CreateExprVdupAnyVector");
   }
   UniqueFEIRType feType = FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPrimType(primtype));
-  std::vector<std::unique_ptr<FEIRExpr>> argOpnds;
+  std::vector<UniqueFEIRExpr> argOpnds;
   argOpnds.push_back(std::move(subExpr));
   return std::make_unique<FEIRExprIntrinsicopForC>(std::move(feType), intrinsic, argOpnds);
 }
@@ -1839,7 +1839,7 @@ void ASTInitListExpr::ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar
     for (size_t index = 0; index < initList.initExprs.size(); ++index) {
       UniqueFEIRExpr indexExpr = FEIRBuilder::CreateExprConstI32(index);
       UniqueFEIRExpr elemExpr = initList.initExprs[index]->Emit2FEExpr(stmts);
-      std::vector<std::unique_ptr<FEIRExpr>> argOpnds;
+      std::vector<UniqueFEIRExpr> argOpnds;
       argOpnds.push_back(std::move(elemExpr));
       argOpnds.push_back(dreadVar->Clone());
       argOpnds.push_back(std::move(indexExpr));
@@ -1851,31 +1851,31 @@ void ASTInitListExpr::ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar
   }
 }
 
-MIRIntrinsicID ASTInitListExpr::SetVectorSetLane(const MIRType &type) const {
+MIRIntrinsicID ASTExpr::SetVectorSetLane(const MIRType &type) const {
   MIRIntrinsicID intrinsic;
   switch (type.GetPrimType()) {
 #define SETQ_LANE(TY)                                                          \
     case PTY_##TY:                                                             \
       intrinsic = INTRN_vector_set_element_##TY;                               \
-      break;
+      break
 
-    SETQ_LANE(v2i64)
-    SETQ_LANE(v4i32)
-    SETQ_LANE(v8i16)
-    SETQ_LANE(v16i8)
-    SETQ_LANE(v2u64)
-    SETQ_LANE(v4u32)
-    SETQ_LANE(v8u16)
-    SETQ_LANE(v16u8)
-    SETQ_LANE(v2f64)
-    SETQ_LANE(v4f32)
-    SETQ_LANE(v2i32)
-    SETQ_LANE(v4i16)
-    SETQ_LANE(v8i8)
-    SETQ_LANE(v2u32)
-    SETQ_LANE(v4u16)
-    SETQ_LANE(v8u8)
-    SETQ_LANE(v2f32)
+    SETQ_LANE(v2i64);
+    SETQ_LANE(v4i32);
+    SETQ_LANE(v8i16);
+    SETQ_LANE(v16i8);
+    SETQ_LANE(v2u64);
+    SETQ_LANE(v4u32);
+    SETQ_LANE(v8u16);
+    SETQ_LANE(v16u8);
+    SETQ_LANE(v2f64);
+    SETQ_LANE(v4f32);
+    SETQ_LANE(v2i32);
+    SETQ_LANE(v4i16);
+    SETQ_LANE(v8i8);
+    SETQ_LANE(v2u32);
+    SETQ_LANE(v4u16);
+    SETQ_LANE(v8u8);
+    SETQ_LANE(v2f32);
     case PTY_i64:
     case PTY_v1i64:
       intrinsic = INTRN_vector_set_element_v1i64;
@@ -2062,6 +2062,52 @@ UniqueFEIRExpr ASTArraySubscriptExpr::SolveOtherArrayType(const UniqueFEIRExpr &
   return FEIRBuilder::CreateExprBinary(std::move(sizeType), OP_add, baseAddrFEExpr->Clone(), std::move(offsetExpr));
 }
 
+MIRIntrinsicID ASTArraySubscriptExpr::SetVectorGetLane(const MIRType &type) const {
+  MIRIntrinsicID intrinsic;
+  switch (type.GetPrimType()) {
+#define GET_LANE(TY)                                                       \
+    case PTY_##TY:                                                         \
+      intrinsic = INTRN_vector_get_lane_##TY;                              \
+      break
+
+    GET_LANE(v2i32);
+    GET_LANE(v4i16);
+    GET_LANE(v8i8);
+    GET_LANE(v2u32);
+    GET_LANE(v4u16);
+    GET_LANE(v8u8);
+    GET_LANE(v1i64);
+    GET_LANE(v1u64);
+    default:
+      CHECK_FATAL(false, "Unhandled vector type");
+      return INTRN_UNDEFINED;
+  }
+  return intrinsic;
+}
+
+MIRIntrinsicID ASTArraySubscriptExpr::SetVectorGetQLane(const MIRType &type) const {
+  MIRIntrinsicID intrinsic;
+  switch (type.GetPrimType()) {
+#define GETQ_LANE(TY)                                                       \
+    case PTY_##TY:                                                          \
+      intrinsic = INTRN_vector_getq_lane_##TY;                              \
+      break
+
+    GETQ_LANE(v2i64);
+    GETQ_LANE(v4i32);
+    GETQ_LANE(v8i16);
+    GETQ_LANE(v16i8);
+    GETQ_LANE(v2u64);
+    GETQ_LANE(v4u32);
+    GETQ_LANE(v8u16);
+    GETQ_LANE(v16u8);
+    default:
+      CHECK_FATAL(false, "Unhandled vector type");
+      return INTRN_UNDEFINED;
+  }
+  return intrinsic;
+}
+
 UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   std::list<UniqueFEIRStmt> subStmts;  // To delete redundant bounds checks in one ASTArraySubscriptExpr stmts.
   auto baseAddrFEExpr = baseExpr->Emit2FEExpr(subStmts);
@@ -2086,11 +2132,25 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
   } else {
     addrOfArray = SolveOtherArrayType(baseAddrFEExpr, subStmts);
   }
-  if (InsertBoundaryChecking(subStmts, addrOfArray->Clone(), std::move(baseAddrFEExpr))) {
+  if (InsertBoundaryChecking(subStmts, addrOfArray->Clone(), baseAddrFEExpr->Clone())) {
     addrOfArray->SetIsBoundaryChecking(true);
   }
   stmts.splice(stmts.end(), subStmts);
-  return FEIRBuilder::CreateExprIRead(std::move(retFEType), fePtrType->Clone(), addrOfArray->Clone());
+  if (isVectorType && idxExpr->GetASTOp() == kASTIntegerLiteral) {
+    MIRIntrinsicID intrinsic;
+    if (arrayType->GetSize() < 16) {  // vectortype size < 128 bits.
+      intrinsic = SetVectorGetLane(*arrayType);
+    } else {
+      intrinsic = SetVectorGetQLane(*arrayType);
+    }
+    std::vector<UniqueFEIRExpr> argOpnds;
+    UniqueFEIRExpr idxFEIRExpr = FEIRBuilder::CreateExprConstI32(idxExpr->GetConstantValue()->val.i32);
+    argOpnds.push_back(baseAddrFEExpr->Clone());
+    argOpnds.push_back(idxFEIRExpr->Clone());
+    UniqueFEIRType srcType = FEIRTypeHelper::CreateTypeNative(*mirType);
+    return std::make_unique<FEIRExprIntrinsicopForC>(std::move(srcType), intrinsic, argOpnds);
+  }
+  return FEIRBuilder::CreateExprIRead(std::move(retFEType), fePtrType->Clone(), std::move(addrOfArray));
 }
 
 UniqueFEIRExpr ASTExprUnaryExprOrTypeTraitExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
@@ -2622,6 +2682,26 @@ UniqueFEIRExpr ASTAssignExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
                                                      rightFEExpr->Clone(), fieldID);
     stmts.emplace_back(std::move(preStmt));
     return leftFEExpr;
+  } else if (leftFEExpr->GetKind() == FEIRNodeKind::kExprIntrinsicop) {
+    auto vectorArrayExpr = static_cast<ASTArraySubscriptExpr*>(leftExpr);
+    MIRType *arrayType = vectorArrayExpr->GetArrayType();
+    MIRIntrinsicID intrinsic = SetVectorSetLane(*arrayType);
+    std::vector<UniqueFEIRExpr> argOpnds;
+    auto baseAddrFEExpr = vectorArrayExpr->GetBaseExpr()->Emit2FEExpr(stmts);
+    auto vectorDecl = vectorArrayExpr->GetBaseExpr()->GetASTDecl();
+    auto idxFEIRExpr = FEIRBuilder::CreateExprConstI32(vectorArrayExpr->GetIdxExpr()->GetConstantValue()->val.i32);
+    GetActualRightExpr(rightFEExpr, leftFEExpr);
+    argOpnds.push_back(rightFEExpr->Clone());  // Intrinsicop_set_lane arg0 : value
+    argOpnds.push_back(baseAddrFEExpr->Clone());  // Intrinsicop_set_lane arg1 : vectortype
+    argOpnds.push_back(idxFEIRExpr->Clone());  // Intrinsicop_set_lane arg2 : index
+    UniqueFEIRType srcType = FEIRTypeHelper::CreateTypeNative(*arrayType);
+    UniqueFEIRExpr intrinsicFEIRExpr = std::make_unique<FEIRExprIntrinsicopForC>(std::move(srcType),
+                                                                                 intrinsic, argOpnds);
+    UniqueFEIRVar feirVar = FEIRBuilder::CreateVarNameForC(vectorDecl->GenerateUniqueVarName(), *arrayType,
+                                                           vectorDecl->IsGlobal());
+    auto preStmt = FEIRBuilder::CreateStmtDAssignAggField(feirVar->Clone(), intrinsicFEIRExpr->Clone(), 0);
+    stmts.emplace_back(std::move(preStmt));
+    return leftFEExpr;
   }
   return nullptr;
 }
@@ -2667,14 +2747,17 @@ UniqueFEIRExpr ASTParenExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
 
 // ---------- ASTIntegerLiteral ----------
 MIRConst *ASTIntegerLiteral::GenerateMIRConstImpl() const {
-  return GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<uint64>(val),
-                                                              *GlobalTables::GetTypeTable().GetPrimType(PTY_i64));
+  PrimType pty = GetType()->GetPrimType();
+  if (IsInt128Ty(pty)) {
+    return GlobalTables::GetIntConstTable().GetOrCreateIntConst(val,
+                                                                *GlobalTables::GetTypeTable().GetPrimType(PTY_i128));
+  }
+  return GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *GlobalTables::GetTypeTable().GetPrimType(PTY_i64));
 }
 
 UniqueFEIRExpr ASTIntegerLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   (void)stmts;
-  UniqueFEIRExpr constExpr = std::make_unique<FEIRExprConst>(val, mirType->GetPrimType());
-  return constExpr;
+  return std::make_unique<FEIRExprConst>(val, mirType->GetPrimType());
 }
 
 // ---------- ASTFloatingLiteral ----------
@@ -2923,8 +3006,10 @@ VaArgInfo ASTVAArgExpr::ProcessValistArgInfo(const MIRType &type) const {
       case PTY_f32:  // float is automatically promoted to double when passed to va_arg
         WARN(kLncWarn, "error: float is promoted to double when passed to va_arg");
       case PTY_f64:  // double
-      case PTY_f128:
         info = { false, 16, 8, false, nullptr };
+        break;
+      case PTY_f128:
+        info = { false, 16, 16, false, nullptr };
         break;
       case PTY_i32:
       case PTY_u32:

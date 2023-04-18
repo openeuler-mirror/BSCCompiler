@@ -130,6 +130,7 @@ void ValidBitOpt::Run() {
    */
   RectifyValidBitNum();
   DoOpt();
+  cgDce->DoDce();
   /*
    * Recover validbit of regOpnd after optimization
    */

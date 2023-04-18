@@ -31,9 +31,9 @@ static constexpr const uint32_t kMplFuncProfCtrInfoNum = 1;
 class ProfileGenPM : public SccPM {
  public:
   explicit ProfileGenPM(MemPool *memPool) : SccPM(memPool, &id) {}
+  ~ProfileGenPM() override = default;
   bool PhaseRun(MIRModule &mod) override;
   PHASECONSTRUCTOR(ProfileGenPM);
-  ~ProfileGenPM() override {}
   std::string PhaseName() const override;
  private:
   void GetAnalysisDependence(AnalysisDep &aDep) const override;

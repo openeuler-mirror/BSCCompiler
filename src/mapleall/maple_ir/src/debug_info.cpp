@@ -767,7 +767,7 @@ DBGDie *DebugInfo::GetOrCreateLabelDie(LabelIdx labid) {
   MIRFunction *func = GetCurFunction();
   CHECK(labid < func->GetLabelTab()->GetLabelTableSize(), "index out of range in DebugInfo::GetOrCreateLabelDie");
   GStrIdx strid = func->GetLabelTab()->GetSymbolFromStIdx(labid);
-  if ((funcLstrIdxDieIdMap[func]).size() &&
+  if ((funcLstrIdxDieIdMap[func]).size() > 0 &&
       (funcLstrIdxDieIdMap[func]).find(strid.GetIdx()) != (funcLstrIdxDieIdMap[func]).end()) {
     return GetLocalDie(strid);
   }

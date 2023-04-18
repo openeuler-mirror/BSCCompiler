@@ -423,20 +423,12 @@ static void InsertNopAfterLastCall(AArch64CGFunc &cgFunc) {
     }
 }
 
-void AArch64AsmEmitter::EmitCallWithLocalAlias(Emitter &emitter, FuncNameOperand &func, const std::string &mdName) const {
-  const MIRSymbol *funcSymbol = func.GetFunctionSymbol();
-  if (!funcSymbol->IsStatic() && funcSymbol->GetFunction()->HasBody()) {
-    std::string funcName = func.GetName();
-    std::string funcAliasName = funcName + ".localalias";
-    /* emit set alias instruction */
-    (void)emitter.Emit("\t.set\t");
-    (void)emitter.Emit(funcAliasName).Emit(", ");
-    (void)emitter.Emit(funcName).Emit("\n");
-
-    /* emit call instruction */
-    (void)emitter.Emit("\t").Emit(mdName).Emit("\t");
-    (void)emitter.Emit(funcAliasName).Emit("\n");
-  }
+void AArch64AsmEmitter::EmitCallWithLocalAlias(Emitter &emitter, const std::string &funcName,
+                                               const std::string &mdName) const {
+  std::string funcAliasName = funcName + ".localalias";
+  // emit call instruction
+  (void)emitter.Emit("\t").Emit(mdName).Emit("\t");
+  (void)emitter.Emit(funcAliasName).Emit("\n");
 }
 
 void HandleSpecificSec(Emitter &emitter, CGFunc &cgFunc) {
@@ -462,6 +454,13 @@ void HandleSpecificSec(Emitter &emitter, CGFunc &cgFunc) {
     emitter.Emit("\t.quad\t").Emit(cgFunc.GetName()).Emit("\n");
     emitter.Emit("\t.text\n");
   }
+}
+
+static void EmitLocalAliasOfFuncName(Emitter &emitter, const std::string &funcName) {
+  auto funcAliasName = funcName + ".localalias";
+  (void)emitter.Emit("\t.set\t");
+  (void)emitter.Emit(funcAliasName).Emit(", ");
+  (void)emitter.Emit(funcName).Emit("\n");
 }
 
 void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
@@ -619,6 +618,10 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     }
     if (boundaryBB && bb->GetNext() == boundaryBB) {
       (void)emitter.Emit("\t.size\t" + funcStName + ", . - " + funcStName + "\n");
+      if (CGOptions::IsNoSemanticInterposition() && !cgFunc.GetFunction().IsStatic() &&
+          cgFunc.GetFunction().IsDefaultVisibility()) {
+        EmitLocalAliasOfFuncName(emitter, funcStName);
+      }
       std::string sectionName = ".text.unlikely." + funcStName + ".cold";
       (void)emitter.Emit("\t.section  " + sectionName + ",\"ax\"\n");
       (void)emitter.Emit("\t.align 5\n");
@@ -633,6 +636,11 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     (void)emitter.Emit("\t.size\t" + funcStName + ".cold, .-").Emit(funcStName + ".cold\n");
   } else {
     (void)emitter.Emit("\t.size\t" + funcStName + ", .-").Emit(funcStName + "\n");
+  }
+
+  if (!boundaryBB && CGOptions::IsNoSemanticInterposition() && !cgFunc.GetFunction().IsStatic() &&
+      cgFunc.GetFunction().IsDefaultVisibility()) {
+    EmitLocalAliasOfFuncName(emitter, funcStName);
   }
 
 
@@ -846,9 +854,13 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
     }
   }
   /* if fno-semantic-interposition is enabled, print function alias instead */
-  if (md->IsCall() && insn.GetOperand(kInsnFirstOpnd).IsFuncNameOpnd() && CGOptions::IsNoSemanticInterposition()) {
-    EmitCallWithLocalAlias(emitter, static_cast<FuncNameOperand&>(insn.GetOperand(kInsnFirstOpnd)), md->GetName());
-    return;
+  if ((md->IsCall() || md->IsTailCall()) && insn.GetOperand(kInsnFirstOpnd).IsFuncNameOpnd() && CGOptions::IsNoSemanticInterposition()) {
+    const MIRSymbol *funcSymbol = static_cast<FuncNameOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetFunctionSymbol();
+    MIRFunction *mirFunc = funcSymbol->GetFunction();
+    if (mirFunc && !mirFunc->IsStatic() && mirFunc->HasBody() && mirFunc->IsDefaultVisibility()) {
+      EmitCallWithLocalAlias(emitter, funcSymbol->GetName(), md->GetName());
+      return;
+    }
   }
 
   std::string format(md->format);

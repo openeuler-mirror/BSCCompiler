@@ -24,7 +24,8 @@ constexpr uint32_t maxVecSize = 128;
 
 namespace maple {
 
-void LoopVecInfo::UpdateDoloopProfData(MIRFunction *mirFunc, DoloopNode *doLoop, int32_t vecLanes, bool isRemainder) {
+void LoopVecInfo::UpdateDoloopProfData(MIRFunction *mirFunc, const DoloopNode *doLoop, int32_t vecLanes,
+                                       bool isRemainder) {
   auto *profData = mirFunc->GetFuncProfData();
   if (!profData) {
     return;
@@ -1465,15 +1466,15 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
 }
 
 // set lhs type to vector type and return lhs pointto type
-MIRType *LoopVectorization::VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp) const {
-  MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
+MIRType *LoopVectorization::VectorizeIassignLhs(IassignNode &iassign, const LoopTransPlan *tp) const {
+  MIRType &mirType = GetTypeFromTyIdx(iassign.GetTyIdx());
   CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
   MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
   MIRType *lhsvecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
   ASSERT(lhsvecType != nullptr, "vector type should not be null");
   tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(lhsvecType->GetPrimType()));
   MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsvecType, PTY_ptr);
-  iassign->SetTyIdx(pvecType->GetTypeIndex());
+  iassign.SetTyIdx(pvecType->GetTypeIndex());
   return lhsvecType;
 }
 
@@ -1551,7 +1552,7 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       if (tp->vecInfo->reductionStmts.find(iassign) != tp->vecInfo->reductionStmts.end()) {
         VectorizeReductionStmt(static_cast<StmtNode *>(node), tp);
       } else {
-        MIRType *lhsptvecType = VectorizeIassignLhs(iassign, tp);
+        MIRType *lhsptvecType = VectorizeIassignLhs(*iassign, tp);
         BaseNode *rhs = iassign->GetRHS();
         BaseNode *newrhs;
         if (tp->vecInfo->uniformVecNodes.find(rhs) != tp->vecInfo->uniformVecNodes.end()) {

@@ -184,4 +184,13 @@ BB *AArch64InsnVisitor::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru, bool isTar
   newBB->PushBackPreds(bb);
   return newBB;
 }
+
+void AArch64InsnVisitor::ModifyFathruBBToGotoBB(BB &bb, LabelIdx labelIdx) const {
+  CHECK_FATAL(bb.GetKind() == BB::kBBFallthru, "invalid kind of bb");
+  CGFunc *cgFunc = GetCGFunc();
+  LabelOperand &labelOpnd = cgFunc->GetOrCreateLabelOperand(labelIdx);
+  Insn &jumpInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_xuncond, labelOpnd);
+  bb.AppendInsn(jumpInsn);
+  bb.SetKind(BB::kBBGoto);
+}
 }  /* namespace maplebe */

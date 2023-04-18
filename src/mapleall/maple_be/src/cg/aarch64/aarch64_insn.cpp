@@ -319,16 +319,16 @@ void A64OpndEmitVisitor::Visit(ExtendShiftOperand *v) {
 void A64OpndEmitVisitor::Visit(BitShiftOperand *v) {
   std::string shiftOp;
   switch (v->GetShiftOp()) {
-    case BitShiftOperand::kLSL:
+    case BitShiftOperand::kShiftLSL:
       shiftOp = "LSL #";
       break;
-    case BitShiftOperand::kLSR:
+    case BitShiftOperand::kShiftLSR:
       shiftOp = "LSR #";
       break;
-    case BitShiftOperand::kASR:
+    case BitShiftOperand::kShiftASR:
       shiftOp = "ASR #";
       break;
-    case BitShiftOperand::kROR:
+    case BitShiftOperand::kShiftROR:
       shiftOp = "ROR #";
       break;
     default:
@@ -492,6 +492,9 @@ void A64OpndDumpVisitor::Visit(ImmOperand *v) {
   } else {
     LogInfo::MapleLogger() << "imm:" << v->GetValue();
   }
+  if (v->GetVary() == kUnAdjustVary) {
+    LogInfo::MapleLogger() << " vary";
+  }
 }
 
 void A64OpndDumpVisitor::Visit(MemOperand *a64v) {
@@ -569,8 +572,8 @@ void A64OpndDumpVisitor::Visit(StImmOperand *v) {
 void A64OpndDumpVisitor::Visit(BitShiftOperand *v) {
   BitShiftOperand::ShiftOp shiftOp = v->GetShiftOp();
   uint32 shiftAmount = v->GetShiftAmount();
-  LogInfo::MapleLogger() << ((shiftOp == BitShiftOperand::kLSL) ? "LSL: " :
-      ((shiftOp == BitShiftOperand::kLSR) ? "LSR: " : "ASR: "));
+  LogInfo::MapleLogger() << ((shiftOp == BitShiftOperand::kShiftLSL) ? "LSL: " :
+      ((shiftOp == BitShiftOperand::kShiftLSR) ? "LSR: " : "ASR: "));
   LogInfo::MapleLogger() << shiftAmount;
 }
 void A64OpndDumpVisitor::Visit(ExtendShiftOperand *v) {

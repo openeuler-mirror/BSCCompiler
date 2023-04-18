@@ -325,16 +325,16 @@ class LoopScalarAnalysisResult {
   CRNode *GetOrCreateCRDivNode(MeExpr *expr, CRNode &lhsCRNode, CRNode &rhsCRNode);
   CRNode *ComputeCRNodeWithOperator(MeExpr &expr, CRNode &lhsCRNode, CRNode &rhsCRNode, Opcode op);
   CRNode *CreateSimpleCRForPhi(const MePhiNode &phiNode, VarMeExpr &startExpr, const VarMeExpr &backEdgeExpr);
-  CRNode *CreateCRForPhi(MePhiNode &phiNode);
+  CRNode *CreateCRForPhi(const MePhiNode &phiNode);
   CRNode *GetOrCreateCRNode(MeExpr &expr);
   CRNode *DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &expr);
   TripCountType ComputeTripCount(const MeFunction &func, uint64 &tripCountResult, CRNode *&conditionCRNode, CR *&itCR);
-  void PutTheAddrExprAtTheFirstOfVector(std::vector<CRNode*> &crNodeOperands, const MeExpr &addrExpr);
-  CRNode &SortCROperand(CRNode &crNode, MeExpr &expr);
+  void PutTheAddrExprAtTheFirstOfVector(std::vector<CRNode*> &crNodeOperands, const MeExpr &addrExpr) const;
+  CRNode &SortCROperand(CRNode &crNode, MeExpr &addrExpr);
   void SortOperatorCRNode(std::vector<CRNode*> &crNodeOperands, MeExpr &addrExpr);
   bool NormalizationWithByteCount(std::vector<CRNode*> &crNodeVector, uint8 byteSize);
-  uint8 GetByteSize(std::vector<CRNode*> &crNodeVector);
-  PrimType GetPrimType(std::vector<CRNode*> &crNodeVector);
+  uint8 GetByteSize(std::vector<CRNode*> &crNodeVector) const;
+  PrimType GetPrimType(std::vector<CRNode*> &crNodeVector) const;
 
  private:
   MeIRMap *irMap;

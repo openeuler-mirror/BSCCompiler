@@ -61,7 +61,7 @@ class StmtCostAnalyzer {
   int64 GetExprCost(BaseNode *expr);
   int64 GetMeStmtCost(MeStmt *meStmt);
   int64 GetMeExprCost(MeExpr *meExpr);
-  int64 GetMoveCost(size_t sizeInByte);
+  int64 GetMoveCost(size_t sizeInByte) const;
   TargetInfo *GetTargetInfo() { return ti; }
   MIRType *GetMIRTypeFromStIdxAndField(const StIdx idx, FieldID fieldID) const;
   void SetFunction(MIRFunction *func) { curFunc = func; }

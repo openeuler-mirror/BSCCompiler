@@ -198,7 +198,7 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfIread(const IreadSSANode 
   offset = typeHasBeenCasted ? OffsetType::InvalidOffset() : offset;
 
   auto *vstOfBase = ptrNode.pegNode->vst;
-  auto *mayUsedOst = ssaTab->FindOrCreateExtraLevOst(vstOfBase, iread->GetTyIdx(), iread->GetFieldID(), offset);
+  auto *mayUsedOst = ssaTab->FindOrCreateExtraLevOst(*vstOfBase, iread->GetTyIdx(), iread->GetFieldID(), offset);
   auto *zeroVersionOfMayUsedOst = ssaTab->GetVersionStTable().GetZeroVersionSt(mayUsedOst);
   // build prevLev-nextLev relationship
   auto *pegNodeOfMayUsedOSt = peg->GetOrCreateNodeOf(zeroVersionOfMayUsedOst);
@@ -404,6 +404,9 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
   auto lhsOst = lhsNode->vst->GetOst();
   auto rhsOst = rhsNode->vst->GetOst();
   bool rhsIsAddress = MaybeAddress(rhsOst->GetTyIdx());
+  if (lhsNode->attr[kAliasAttrGlobal] && rhsIsAddress) {
+    rhsNode->attr[kAliasAttrNextLevNotAllDefsSeen] = true;
+  }
   if (lhsIsAddress) {
     // formal has init value at function entry,
     // redefining makes formal be multi-defined.
@@ -464,13 +467,13 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         if (fieldOstLHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(lhsOst->GetTyIdx());
           fieldOstLHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-              preLevOfLHSOst, ptrType->GetTypeIndex(), lhsMemberFieldId, lhsFieldOffset);
+              *preLevOfLHSOst, ptrType->GetTypeIndex(), lhsMemberFieldId, lhsFieldOffset);
         }
 
         if (fieldOstRHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(rhsOst->GetTyIdx());
           fieldOstRHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-              preLevOfRHSOst, ptrType->GetTypeIndex(), rhsMemberFieldId, rhsFieldOffset);
+              *preLevOfRHSOst, ptrType->GetTypeIndex(), rhsMemberFieldId, rhsFieldOffset);
         }
 
         auto *zeroVersionOfFieldOstLHS = ssaTab->GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstLHS);
@@ -548,7 +551,7 @@ void PEGBuilder::BuildPEGNodeInIassign(const IassignNode *iassign) {
   auto *mirStructType = static_cast<MIRPtrType &>(GetTypeFromTyIdx(iassign->GetTyIdx())).GetPointedType();
   auto offset = OffsetType(mirStructType->GetBitOffsetFromBaseAddr(fieldID)) + baseAddrValNode.offset;
   OriginalSt *defedOst =
-      ssaTab->FindOrCreateExtraLevOst(vstOfBase, iassign->GetTyIdx(), fieldID, offset);
+      ssaTab->FindOrCreateExtraLevOst(*vstOfBase, iassign->GetTyIdx(), fieldID, offset);
   CHECK_FATAL(defedOst, "defedOst is nullptr");
   auto zeroVersionSt = ssaTab->GetVerSt(defedOst->GetZeroVersionIndex());
   PEGNode *lhsNode = peg->GetOrCreateNodeOf(zeroVersionSt);
@@ -919,6 +922,7 @@ void DemandDrivenAliasAnalysis::Propagate(WorkListType &workList, PEGNode *to, c
   if (newNode.first) {
     (void)workList.emplace_back(WorkListItem(to, reachItem.src, reachItem.state, offset));
     to->CopyAttrFromValueAliasedNode(reachItem.src);
+    reachItem.src->UpdateAttrWhenReachingGlobalNode(to);
     if (enableDebug) {
       LogInfo::MapleLogger() << "===New candidate: ";
       reachItem.src->vst->Dump();

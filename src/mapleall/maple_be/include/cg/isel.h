@@ -58,7 +58,7 @@ class MPISel {
   virtual Operand* SelectExtractbits(const BaseNode &parent, ExtractbitsNode &node, Operand &opnd0);
   virtual Operand *SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   Operand *SelectAlloca(UnaryNode &node, Operand &opnd0);
-  Operand *SelectCGArrayElemAdd(BinaryNode &node);
+  Operand *SelectCGArrayElemAdd(const BinaryNode &node);
   ImmOperand *SelectIntConst(const MIRIntConst &intConst, PrimType primType) const;
   void SelectCallCommon(StmtNode &stmt, const MPISel &iSel) const;
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
@@ -129,7 +129,7 @@ class MPISel {
   virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &rOpnd, const DassignNode &s) = 0;
   Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
   Operand *SelectMin(const BinaryNode &node, Operand &opnd0, Operand &opnd1);
-  Operand *SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1);
+  Operand *SelectMax(const BinaryNode &node, Operand &opnd0, Operand &opnd1);
   Operand *SelectRetype(const TypeCvtNode &node, Operand &opnd0);
   void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 

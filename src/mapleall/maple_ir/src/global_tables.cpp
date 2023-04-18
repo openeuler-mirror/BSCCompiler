@@ -312,8 +312,16 @@ void FPConstTable::PostInit() {
 }
 
 MIRIntConst *IntConstTable::GetOrCreateIntConst(const IntVal &val, MIRType &type) {
+  PrimType pt = type.GetPrimType();
   if (ThreadEnv::IsMeParallel()) {
+    if (IsInt128Ty(pt)) {
+      return DoGetOrCreateInt128ConstTreadSafe(val.GetRawData(), type);
+    }
     return DoGetOrCreateIntConstTreadSafe(static_cast<uint64>(val.GetExtValue()), type);
+  }
+
+  if (IsInt128Ty(pt)) {
+    return DoGetOrCreateInt128Const(val.GetRawData(), type);
   }
   return DoGetOrCreateIntConst(static_cast<uint64>(val.GetExtValue()), type);
 }
@@ -334,6 +342,15 @@ MIRIntConst *IntConstTable::DoGetOrCreateIntConst(uint64 val, MIRType &type) {
   return intConstTable[key];
 }
 
+MIRIntConst *IntConstTable::DoGetOrCreateInt128Const(const Int128ElemTy *pVal, MIRType &type) {
+  Int128ConstKey key(pVal, type.GetTypeIndex());
+  if (int128ConstTable.find(key) != int128ConstTable.end()) {
+    return int128ConstTable[key];
+  }
+  int128ConstTable[key] = new MIRIntConst(pVal, type);
+  return int128ConstTable[key];
+}
+
 MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(uint64 val, MIRType &type) {
   IntConstKey key(val, type.GetTypeIndex());
   {
@@ -345,6 +362,19 @@ MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(uint64 val, MIRType &
   std::unique_lock<std::shared_timed_mutex> lock(mtx);
   intConstTable[key] = new MIRIntConst(val, type);
   return intConstTable[key];
+}
+
+MIRIntConst *IntConstTable::DoGetOrCreateInt128ConstTreadSafe(const Int128ElemTy *pVal, MIRType &type) {
+  Int128ConstKey key(pVal, type.GetTypeIndex());
+  {
+    std::shared_lock<std::shared_timed_mutex> lock(mtx);
+    if (int128ConstTable.find(key) != int128ConstTable.end()) {
+      return int128ConstTable[key];
+    }
+  }
+  std::unique_lock<std::shared_timed_mutex> lock(mtx);
+  int128ConstTable[key] = new MIRIntConst(pVal, type);
+  return int128ConstTable[key];
 }
 
 IntConstTable::~IntConstTable() {

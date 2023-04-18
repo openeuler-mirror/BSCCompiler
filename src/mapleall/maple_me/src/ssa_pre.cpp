@@ -168,45 +168,7 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
     if (!WillBeAvail(phiOcc) || phiOcc->IsRemoved()) {
       continue;
     }
-    if (phiOcc->GetRegPhi()) {
-      MePhiNode *phiReg = phiOcc->GetRegPhi();
-      const MapleVector<MePhiOpndOcc *> &phiopnds = phiOcc->GetPhiOpnds();
-      for (uint32 i = 0; i < phiopnds.size(); i++) {
-        RegMeExpr *regOpnd = static_cast<RegMeExpr *>(phiopnds[i]->phiOpnd4Temp);
-        if (regOpnd == nullptr) {
-          // create a zero version
-          CHECK_FATAL(curTemp != nullptr, "curTemp can't be null in SSAPre::UpdateInsertedPhiOccOpnd");
-          regOpnd = irMap->CreateRegMeExprVersion(static_cast<RegMeExpr&>(*curTemp));
-        }
-        phiReg->GetOpnds().push_back(regOpnd);
-      }
-      (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiReg->GetOpnd(0)->GetOstIdx(), phiReg));
-      if (workCand->NeedLocalRefVar() && phiOcc->GetVarPhi() != nullptr) {
-        MePhiNode *phiVar = phiOcc->GetVarPhi();
-        const MapleVector<MePhiOpndOcc *> &phiOpnds = phiOcc->GetPhiOpnds();
-        for (uint32 i = 0; i < phiOpnds.size(); i++) {
-          RegMeExpr *regOpnd = static_cast<RegMeExpr *>(phiOpnds[i]->phiOpnd4Temp);
-          VarMeExpr *localRefVarOpnd = nullptr;
-          if (regOpnd == nullptr) {
-            // create a zero version
-            CHECK_FATAL(curLocalRefVar != nullptr, "null ptr check");
-            OriginalSt *ost = curLocalRefVar->GetOst();
-            localRefVarOpnd = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
-          } else {
-            auto mapIt = temp2LocalRefVarMap.find(regOpnd);
-            if (mapIt == temp2LocalRefVarMap.end()) {
-              CHECK_FATAL(curLocalRefVar != nullptr, "null ptr check");
-              OriginalSt *ost = curLocalRefVar->GetOst();
-              localRefVarOpnd = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
-            } else {
-              localRefVarOpnd = mapIt->second;
-            }
-          }
-          phiVar->GetOpnds().push_back(localRefVarOpnd);
-        }
-        (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiVar->GetOpnd(0)->GetOstIdx(), phiVar));
-      }
-    } else {
+    if (!phiOcc->GetRegPhi()) {
       MePhiNode *phiVar = phiOcc->GetVarPhi();
       const MapleVector<MePhiOpndOcc *> &phiopnds = phiOcc->GetPhiOpnds();
       for (uint32 i = 0; i < phiopnds.size(); i++) {
@@ -218,7 +180,46 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
         phiVar->GetOpnds().push_back(varOpnd);
       }
       (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiVar->GetOpnd(0)->GetOstIdx(), phiVar));
+      continue;
     }
+    MePhiNode *phiReg = phiOcc->GetRegPhi();
+    const MapleVector<MePhiOpndOcc *> &phiopnds = phiOcc->GetPhiOpnds();
+    for (uint32 i = 0; i < phiopnds.size(); i++) {
+      RegMeExpr *regOpnd = static_cast<RegMeExpr *>(phiopnds[i]->phiOpnd4Temp);
+      if (regOpnd == nullptr) {
+        // create a zero version
+        CHECK_FATAL(curTemp != nullptr, "curTemp can't be null in SSAPre::UpdateInsertedPhiOccOpnd");
+        regOpnd = irMap->CreateRegMeExprVersion(static_cast<RegMeExpr&>(*curTemp));
+      }
+      phiReg->GetOpnds().push_back(regOpnd);
+    }
+    (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiReg->GetOpnd(0)->GetOstIdx(), phiReg));
+    if (!workCand->NeedLocalRefVar() || phiOcc->GetVarPhi() == nullptr) {
+      continue;
+    }
+    MePhiNode *phiVar = phiOcc->GetVarPhi();
+    const MapleVector<MePhiOpndOcc *> &phiOpnds = phiOcc->GetPhiOpnds();
+    for (uint32 i = 0; i < phiOpnds.size(); i++) {
+      RegMeExpr *regOpnd = static_cast<RegMeExpr *>(phiOpnds[i]->phiOpnd4Temp);
+      VarMeExpr *localRefVarOpnd = nullptr;
+      if (regOpnd == nullptr) {
+        // create a zero version
+        CHECK_FATAL(curLocalRefVar != nullptr, "null ptr check");
+        OriginalSt *ost = curLocalRefVar->GetOst();
+        localRefVarOpnd = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
+      } else {
+        auto mapIt = std::as_const(temp2LocalRefVarMap).find(regOpnd);
+        if (mapIt == temp2LocalRefVarMap.end()) {
+          CHECK_FATAL(curLocalRefVar != nullptr, "null ptr check");
+          OriginalSt *ost = curLocalRefVar->GetOst();
+          localRefVarOpnd = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
+        } else {
+          localRefVarOpnd = mapIt->second;
+        }
+      }
+      phiVar->GetOpnds().push_back(localRefVarOpnd);
+    }
+    (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiVar->GetOpnd(0)->GetOstIdx(), phiVar));
   }
 }
 
@@ -367,15 +368,15 @@ void SSAPre::CodeMotion() {
 
 // ================ Step 5: Finalize =================
 
-// return true if either:
+// return true if either
 // operand is nullptr (def is null), or
 // hasRealUse is false and defined by a PHI not will be avail
-bool SSAPre::OKToInsert(MePhiOpndOcc *phiOpnd) {
-  if (phiOpnd->GetDef() == nullptr) {
+bool SSAPre::OKToInsert(MePhiOpndOcc &phiOpnd) const {
+  if (phiOpnd.GetDef() == nullptr) {
     return true;
   }
-  if (!phiOpnd->HasRealUse()) {
-    MeOccur *defOcc = phiOpnd->GetDef();
+  if (!phiOpnd.HasRealUse()) {
+    MeOccur *defOcc = phiOpnd.GetDef();
     if (defOcc->GetOccType() == kOccPhiocc &&
         !WillBeAvail(static_cast<MePhiOcc*>(defOcc))) {
       return true;
@@ -439,7 +440,7 @@ void SSAPre::Finalize1() {
         if (!WillBeAvail(phiOcc)) {
           break;
         }
-        if (OKToInsert(phiOpnd)) {
+        if (OKToInsert(*phiOpnd)) {
           // insert the current expression at the end of the block containing phiOpnd
           if (phiOpnd->GetBB()->GetSucc().size() > 1) {
             CHECK_FATAL(!workCand->Redo2HandleCritEdges(), "Finalize1: insertion at critical edge, aborting");
@@ -791,26 +792,27 @@ void SSAPre::ComputeDS() const {
       }
     }
   }
-  if (GetSSAPreDebug()) {
-    mirModule->GetOut() << "========ssapre candidate " << workCand->GetIndex()
-                        << " after DownSafety===================\n";
-    for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
-      MePhiOcc *phiOcc = *it;
-      phiOcc->Dump(*irMap);
-      if (phiOcc->SpeculativeDownSafe()) {
-        mirModule->GetOut() << " spec_downsafe /";
-      }
-      if (phiOcc->IsDownSafe()) {
-        mirModule->GetOut() << " is downsafe\n";
-        for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
-          if (!phiOpnd->IsProcessed()) {
-            phiOpnd->Dump(*irMap);
-            mirModule->GetOut() << " has not been processed by Rename2\n";
-          }
+  if (!GetSSAPreDebug()) {
+    return;
+  }
+  mirModule->GetOut() << "========ssapre candidate " << workCand->GetIndex()
+                      << " after DownSafety===================\n";
+  for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
+    MePhiOcc *phiOcc = *it;
+    phiOcc->Dump(*irMap);
+    if (phiOcc->SpeculativeDownSafe()) {
+      mirModule->GetOut() << " spec_downsafe /";
+    }
+    if (phiOcc->IsDownSafe()) {
+      mirModule->GetOut() << " is downsafe\n";
+      for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
+        if (!phiOpnd->IsProcessed()) {
+          phiOpnd->Dump(*irMap);
+          mirModule->GetOut() << " has not been processed by Rename2\n";
         }
-      } else {
-        mirModule->GetOut() << " is not downsafe\n";
       }
+    } else {
+      mirModule->GetOut() << " is not downsafe\n";
     }
   }
 }

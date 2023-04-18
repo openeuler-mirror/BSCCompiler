@@ -85,7 +85,7 @@ int32 Classification(const BECommon &be, MIRType &mirType, ArgumentClass classes
        * The size of each argument gets rounded up to eightbytes,
        * Therefore the stack will always be eightbyte aligned.
        */
-      uint64 sizeOfTy = RoundUp(be.GetTypeSize(mirType.GetTypeIndex()), k8ByteSize);
+      uint64 sizeOfTy = RoundUp(mirType.GetSize(), k8ByteSize);
       if (sizeOfTy == 0) {
         return 0;
       }

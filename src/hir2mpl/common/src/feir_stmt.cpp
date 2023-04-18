@@ -2388,19 +2388,38 @@ FEIRExprConst::FEIRExprConst()
   value.u64 = 0;
 }
 
-FEIRExprConst::FEIRExprConst(int64 val, PrimType argType)
-    : FEIRExpr(FEIRNodeKind::kExprConst) {
+FEIRExprConst::FEIRExprConst(int64 val, PrimType argType) : FEIRExpr(FEIRNodeKind::kExprConst) {
   ASSERT(type != nullptr, "type is nullptr");
   type->SetPrimType(argType);
-  value.i64 = val;
+  if (IsInt128Ty(argType)) {
+    value.i128[0] = static_cast<uint64>(val);
+    value.i128[1] = val < 0 ? -1 : 0;
+  } else {
+    value.i64 = val;
+  }
   CheckRawValue2SetZero();
 }
 
-FEIRExprConst::FEIRExprConst(uint64 val, PrimType argType)
-    : FEIRExpr(FEIRNodeKind::kExprConst) {
+FEIRExprConst::FEIRExprConst(uint64 val, PrimType argType) : FEIRExpr(FEIRNodeKind::kExprConst) {
   ASSERT(type != nullptr, "type is nullptr");
   type->SetPrimType(argType);
-  value.u64 = val;
+  if (IsInt128Ty(argType)) {
+    value.i128[0] = val;
+    value.i128[1] = 0;
+  } else {
+    value.u64 = val;
+  }
+  CheckRawValue2SetZero();
+}
+
+FEIRExprConst::FEIRExprConst(const IntVal &val, PrimType argType) : FEIRExpr(FEIRNodeKind::kExprConst) {
+  ASSERT(type != nullptr, "type is nullptr");
+  type->SetPrimType(argType);
+  if (!IsInt128Ty(argType)) {
+    value.i64 = val.GetExtValue();
+  } else {
+    Int128Util::CopyInt128(value.i128, val.GetRawData());
+  }
   CheckRawValue2SetZero();
 }
 
@@ -2439,8 +2458,9 @@ FEIRExprConst::FEIRExprConst(const uint64_t *val)
 std::unique_ptr<FEIRExpr> FEIRExprConst::CloneImpl() const {
   std::unique_ptr<FEIRExpr> expr = std::make_unique<FEIRExprConst>();
   FEIRExprConst *exprConst = static_cast<FEIRExprConst*>(expr.get());
-  exprConst->value.f128[0] = value.f128[0];
-  exprConst->value.f128[1] = value.f128[1];
+  constexpr size_t cpySize = sizeof(value);
+  errno_t err = memcpy_s(&exprConst->value, cpySize, &value, cpySize);
+  CHECK_FATAL(err == EOK, "memcpy_s failed");
   ASSERT(type != nullptr, "type is nullptr");
   exprConst->type->SetPrimType(type->GetPrimType());
   exprConst->CheckRawValue2SetZero();
@@ -2460,11 +2480,12 @@ BaseNode *FEIRExprConst::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
     case PTY_i16:
     case PTY_i32:
     case PTY_i64:
-    case PTY_i128:
-    case PTY_u128:
     case PTY_ref:
     case PTY_ptr:
       return mirBuilder.CreateIntConst(static_cast<uint64>(value.i64), primType);
+    case PTY_i128:
+    case PTY_u128:
+      return mirBuilder.CreateInt128Const(value.i128, primType);
     case PTY_f32:
       return mirBuilder.CreateFloatConst(value.f32);
     case PTY_f64:
@@ -2487,8 +2508,10 @@ uint32 FEIRExprConst::HashImpl() const {
 }
 
 void FEIRExprConst::CheckRawValue2SetZero() {
-  if (value.u64 == 0) {
-    type->SetZero(true);
+  if (IsInt128Ty(type->GetPrimType())) {
+    type->SetZero(value.i128[0] == 0 && value.i128[1] == 0);
+  } else {
+    type->SetZero(value.u64 == 0);
   }
 }
 

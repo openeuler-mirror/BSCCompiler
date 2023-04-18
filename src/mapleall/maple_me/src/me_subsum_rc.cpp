@@ -21,7 +21,7 @@ void SubsumRC::SetCantSubsum() {
     if (bb == nullptr) {
       continue;
     }
-    for (auto it : bb->GetMePhiList()) {
+    for (auto &it : std::as_const(bb->GetMePhiList())) {
       const OriginalSt *ost = ssaTab->GetOriginalStFromID(it.first);
       CHECK_FATAL(ost, "ost is nullptr!");
       if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
@@ -42,7 +42,7 @@ bool SubsumRC::IsRhsPostDominateLhs(const SOcc &rhsOcc, const VarMeExpr &lhs) co
   for (SOcc *occ : allOccs) {
     if (occ->GetOccTy() == kSOccReal) {
       auto *realOcc = static_cast<SRealOcc*>(occ);
-      if (realOcc->GetVar() == &lhs && rhsOcc.IsPostDominate(dom, occ)) {
+      if (realOcc->GetVar() == &lhs && rhsOcc.IsPostDominate(pdom, occ)) {
         return true;
       }
     }
@@ -66,7 +66,7 @@ void SubsumRC::SubsumeRC(MeStmt &stmt) {
       } else if (realOcc->GetVar() == rhsVar) {
         bool redundantRHSDec = realOcc->GetRedundant();
         bool rhsDecPdomLHS = IsRhsPostDominateLhs(*realOcc, *lhs);
-        bool rhsDecPdomStmt = dom->PostDominate(realOcc->GetBB(), *stmt.GetBB());
+        bool rhsDecPdomStmt = pdom->Dominate(realOcc->GetBB(), *stmt.GetBB());
         if (redundantRHSDec && (rhsDecPdomLHS || rhsDecPdomStmt)) {
           // if there is a decref of rhs is just post-dominate that of the lhs,
           // it can't do subsum either.
@@ -163,8 +163,8 @@ void SubsumRC::ReplaceExpr(BB &bb, const MeExpr &var, MeExpr &reg) {
 // create realoccurence decRef of varX, meStmt is the work candidate.
 void SubsumRC::CreateRealOcc(VarMeExpr &varX, DassignMeStmt &meStmt, MeStmt &decRef) {
   SpreWorkCand *wkCand = nullptr;
-  auto mapIt = candMap.find(&meStmt);
-  if (mapIt != candMap.end()) {
+  const auto mapIt = std::as_const(candMap).find(&meStmt);
+  if (mapIt != candMap.cend()) {
     wkCand = mapIt->second;
   } else {
     OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(varX.GetOstIdx());
@@ -211,8 +211,8 @@ void SubsumRC::BuildRealOccs(MeStmt &stmt, BB &bb) {
     }
   }
   // recurse on child BBs in post-dominator tree
-  for (BBId bbId : dom->GetPdomChildrenItem(bb.GetBBId())) {
-    BuildRealOccs(stmt, *cfg->GetBBFromID(bbId));
+  for (auto bbId : pdom->GetDomChildren(bb.GetID())) {
+    BuildRealOccs(stmt, *cfg->GetBBFromID(BBId(bbId)));
   }
 }
 
@@ -283,8 +283,8 @@ void SubsumRC::BuildWorkListBB(BB *bb) {
     CreateEntryOcc(*bb);
   }
   // recurse on child BBs in post-dominator tree
-  for (BBId bbId : dom->GetPdomChildrenItem(bb->GetBBId())) {
-    BuildWorkListBB(cfg->GetBBFromID(bbId));
+  for (auto bbId : dom->GetDomChildren(bb->GetID())) {
+    BuildWorkListBB(cfg->GetBBFromID(BBId(bbId)));
   }
 }
 
@@ -295,7 +295,7 @@ void SubsumRC::RunSSUPre() {
     LogInfo::MapleLogger() << "------ worklist initial size " << candMap.size() << '\n';
   }
   size_t candNum = 0;
-  for (std::pair<MeStmt*, SpreWorkCand*> wkCandPair : candMap) {
+  for (auto &wkCandPair : std::as_const(candMap)) {
     workCand = wkCandPair.second;
     MeStmt *stmt = wkCandPair.first;
     ASSERT(stmt->GetOp() == OP_dassign, "work_cand should be a dassign stmt");
@@ -349,9 +349,12 @@ bool MESubsumRC::PhaseRun(maple::MeFunction &f) {
   if (!MeOption::subsumRC) {
     return false;
   }
-  auto *dom = GET_ANALYSIS(MEDominance, f);
-  ASSERT(dom != nullptr, "dominance phase has problem");
-  SubsumRC subsumRC(f, *dom, *GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
+  ASSERT(dom != nullptr, "dominance construction has problem");
+  auto pdom = dominancePhase->GetPdomResult();
+  ASSERT(pdom != nullptr, "postdominance construction has problem");
+  SubsumRC subsumRC(f, *dom, *pdom, *GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
   subsumRC.RunSSUPre();
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After SUBSUM RC =============\n";

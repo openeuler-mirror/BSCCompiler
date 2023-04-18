@@ -13,14 +13,14 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "aarch64_cg.h"
+#include "aarch64_mop_valid.h"
 #include "mir_builder.h"
 #include "becommon.h"
 #include "label_creation.h"
 #include "alignment.h"
 
 namespace maplebe {
-#include "immvalid.def"
-#include "aarch64_mopvalid.def"
+#include "aarch64_mopsplit.def"
 #define DEFINE_MOP(...) {__VA_ARGS__},
 const InsnDesc AArch64CG::kMd[kMopLast] = {
 #include "abstract_mmir.def"

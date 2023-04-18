@@ -57,7 +57,9 @@ const uint32_t kMapleProfDataMagicNumber = 0xA0EFEF;
 class ProfDataBinaryImportBase {
  public:
   ProfDataBinaryImportBase(std::string &filename, std::ifstream &input) : fileName(filename), inputStream(input) {}
-  virtual ~ProfDataBinaryImportBase() = default;
+  virtual ~ProfDataBinaryImportBase() {
+    pos = nullptr;
+  }
   template <typename T>
   T ReadNum();
   std::ifstream &GetInputStream() {
@@ -82,6 +84,7 @@ class ProfDataBinaryImportBase {
 class ProfileSummaryImport : public ProfDataBinaryImportBase {
  public:
   ProfileSummaryImport(std::string &outputFile, std::ifstream &input) : ProfDataBinaryImportBase(outputFile, input) {}
+  ~ProfileSummaryImport() override = default;
   void ReadSummary(MplProfileData* profData);
 
  private:
@@ -91,6 +94,7 @@ class ProfileSummaryImport : public ProfDataBinaryImportBase {
 class FunctionProfileImport : public ProfDataBinaryImportBase {
  public:
   FunctionProfileImport(std::string &inputFile, std::ifstream &input) : ProfDataBinaryImportBase(inputFile, input) {}
+  ~FunctionProfileImport() override = default;
   int ReadFuncProfile(MplProfileData *profData);
 };
 
@@ -98,7 +102,10 @@ class MplProfDataParser : public AnalysisResult {
  public:
   MplProfDataParser(MIRModule &mirmod, MemPool *mp, bool debug)
       : AnalysisResult(mp), m(mirmod), alloc(memPool), mempool(mp), dumpDetail(debug) {}
-  ~MplProfDataParser() override = default;
+  ~MplProfDataParser() override {
+    profData = nullptr;
+    mempool = nullptr;
+  }
   MplProfileData *GetProfData() {
     return profData;
   }

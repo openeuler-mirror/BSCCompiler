@@ -64,7 +64,9 @@ class MIRAlias {
 class MIRTypeAlias {
  public:
   explicit MIRTypeAlias(MIRModule *mod) : module(mod) {}
-  virtual ~MIRTypeAlias() = default;
+  virtual ~MIRTypeAlias() {
+    module = nullptr;
+  };
 
   bool IsEmpty() const {
     return typeAliasMap.size() == 0;

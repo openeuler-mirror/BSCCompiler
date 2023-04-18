@@ -216,7 +216,7 @@ class Dominance {
   void GenPostOrderID() {
     ASSERT(!nodeVec.empty(), "size to be allocated is 0");
     std::vector<bool> visitedMap(nodeVec.size(), false);
-    int32 postOrderID = 0;
+    size_t postOrderID = 0;
     PostOrderWalk(commonEntryNode, postOrderID, visitedMap);
     // initialize reversePostOrder
     reversePostOrder.resize(postOrderID);
@@ -226,7 +226,7 @@ class Dominance {
       if (postOrderNo == -1) {
         continue;
       }
-      reversePostOrder[maxPostOrderID - postOrderNo] = nodeVec[i];
+      reversePostOrder[maxPostOrderID - static_cast<size_t>(postOrderNo)] = nodeVec[i];
     }
   }
 
@@ -282,7 +282,7 @@ class Dominance {
 
   void ComputeDtDfn() {
     for (size_t i = 0; i < dtPreOrder.size(); ++i) {
-      dtDfn[dtPreOrder[i]] = i;
+      dtDfn[dtPreOrder[i]] = static_cast<uint32>(i);
     }
   }
 
@@ -348,7 +348,7 @@ class Dominance {
     return false;
   }
 
-  void PostOrderWalk(const BaseGraphNode &node, int32 &pid, std::vector<bool> &visitedMap) {
+  void PostOrderWalk(const BaseGraphNode &node, size_t &pid, std::vector<bool> &visitedMap) {
     auto nodeId = node.GetID();
     ASSERT(nodeId < visitedMap.size(), "index out of range");
     if (nodeVec[nodeId] == nullptr || visitedMap[nodeId]) {
@@ -398,7 +398,7 @@ class Dominance {
     for (auto frontierNodeId : domFrontier[node.GetID()]) {
       (void)dfSet.insert(frontierNodeId);
       if (frontierNodeId < nodeIdMarker) {  // union with its computed result
-        (void)dfSet.insert(iterDomFrontier[frontierNodeId].cbegin(), iterDomFrontier[frontierNodeId].cend());
+        dfSet.insert(iterDomFrontier[frontierNodeId].cbegin(), iterDomFrontier[frontierNodeId].cend());
       } else {  // recursive call
         auto frontierNode = nodeVec[frontierNodeId];
         if (frontierNode == nullptr) {

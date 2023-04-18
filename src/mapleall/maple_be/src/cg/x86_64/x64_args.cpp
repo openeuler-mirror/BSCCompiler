@@ -40,7 +40,7 @@ void X64MoveRegArgs::CollectRegisterArgs(std::map<uint32, X64reg> &argsList,
     MIRFunction *func = const_cast<MIRFunction *>(x64CGFunc->GetBecommon().GetMIRModule().CurFunction());
     if (x64CGFunc->GetBecommon().HasFuncReturnType(*func)) {
       TyIdx tyIdx = x64CGFunc->GetBecommon().GetFuncReturnType(*func);
-      if (x64CGFunc->GetBecommon().GetTypeSize(tyIdx) <= k16ByteSize) {
+      if (GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetSize() <= k16ByteSize) {
         start = 1;
       }
     }
@@ -77,7 +77,7 @@ ArgInfo X64MoveRegArgs::GetArgInfo(std::map<uint32, X64reg> &argsList,
   ArgInfo argInfo;
   argInfo.reg = argsList[argIndex];
   argInfo.mirTy = x64CGFunc->GetFunction().GetNthParamType(argIndex);
-  argInfo.symSize = x64CGFunc->GetBecommon().GetTypeSize(argInfo.mirTy->GetTypeIndex());
+  argInfo.symSize = argInfo.mirTy->GetSize();
   argInfo.memPairSecondRegSize = 0;
   argInfo.doMemPairOpt = false;
   argInfo.createTwoStores  = false;
@@ -266,7 +266,7 @@ void X64MoveRegArgs::MoveVRegisterArgs() {
     MIRFunction *func = const_cast<MIRFunction*>(x64CGFunc->GetBecommon().GetMIRModule().CurFunction());
     if (x64CGFunc->GetBecommon().HasFuncReturnType(*func)) {
       TyIdx idx = x64CGFunc->GetBecommon().GetFuncReturnType(*func);
-      if (x64CGFunc->GetBecommon().GetTypeSize(idx) <= k16BitSize) {
+      if (GlobalTables::GetTypeTable().GetTypeFromTyIdx(idx)->GetSize() <= k16BitSize) {
         start = 1;
       }
     }

@@ -67,19 +67,19 @@ class ProfileSummary {
   uint64_t GetCheckSum() const {
     return checkSum;
   }
-  uint32_t GetRun() {
+  uint32_t GetRun() const {
     return run;
   }
-  uint32_t GetTotalCount() {
+  uint32_t GetTotalCount() const {
     return totalCount;
   }
   uint64_t GetMaxCount() const {
     return maxCount;
   }
-  uint64_t GetSumCount() {
+  uint64_t GetSumCount() const {
     return sumCount;
   }
-  size_t GetHistogramLength() {
+  size_t GetHistogramLength() const {
     return histogram.size();
   }
   void ProcessHistogram();

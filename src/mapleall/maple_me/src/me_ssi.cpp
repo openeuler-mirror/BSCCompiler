@@ -92,7 +92,7 @@ void MeSSI::AddPiForABCOpt(BB &bb) {
   }
 }
 
-NaryMeExpr *MeSSI::GetInstanceOfType(MeExpr &e) {
+NaryMeExpr *MeSSI::GetInstanceOfType(MeExpr &e) const {
   CHECK_FATAL(e.GetMeOp() == kMeOpVar, "must b");
   VarMeExpr *var = static_cast<VarMeExpr*>(&e);
   if (var->GetPrimType() != PTY_u1 || var->GetDefBy() != kDefByStmt) {
@@ -218,13 +218,13 @@ bool MeSSI::ExistedPhiNode(BB &bb, const VarMeExpr &rhs) const {
   return bb.GetMePhiList().find(rhs.GetOstIdx()) != bb.GetMePhiList().end();
 }
 
-bool MeSSI::ExistedPiNode(BB &bb, BB &parentBB, const VarMeExpr &rhs) {
+bool MeSSI::ExistedPiNode(BB &bb, BB &parentBB, const VarMeExpr &rhs) const {
   MapleMap<BB*, std::vector<PiassignMeStmt*>> &piList = bb.GetPiList();
-  auto it = piList.find(&parentBB);
-  if (it == piList.end()) {
+  auto it = std::as_const(piList).find(&parentBB);
+  if (it == piList.cend()) {
     return false;
   }
-  std::vector<PiassignMeStmt*> &piStmts = it->second;
+  const std::vector<PiassignMeStmt*> &piStmts = it->second;
   CHECK_FATAL(!piStmts.empty(), "should not be empty");
   CHECK_FATAL(piStmts.size() <= kPiStmtUpperBound, "must be");
   PiassignMeStmt *pi1 = piStmts.at(0);
@@ -382,8 +382,8 @@ void MeSSI::ReplacePiPhiInSuccs(BB &bb, VarMeExpr &newVar) {
     }
     CHECK_FATAL(index < succBB->GetPred().size(), "must be");
     MapleMap<OStIdx, MePhiNode*> &phiList = succBB->GetMePhiList();
-    auto it2 = phiList.find(newVar.GetOstIdx());
-    if (it2 != phiList.end()) {
+    auto it2 = std::as_const(phiList).find(newVar.GetOstIdx());
+    if (it2 != phiList.cend()) {
       MePhiNode *phi = it2->second;
       ScalarMeExpr *oldVar = phi->GetOpnd(index);
       phi->SetOpnd(index, &newVar);
@@ -624,7 +624,7 @@ void MeSSI::RemoveExtraNodes() {
   for (DefPoint *defP : newDefPoints) {
     defP->RemoveFromBB();
   }
-  for (auto pair : modifiedStmt) {
+  for (auto &pair : std::as_const(modifiedStmt)) {
     MeStmt *meStmt = pair.first.first;
     MeExpr *newVar = nullptr;
     if ((meStmt->GetOp() == OP_iassign) && (pair.first.second == 0)) {
@@ -636,7 +636,7 @@ void MeSSI::RemoveExtraNodes() {
     bool replaced = ReplaceStmtWithNewVar(*meStmt, *newVar, *oldVar, false);
     CHECK_FATAL(replaced, "must be");
   }
-  for (auto pair : modifiedPhi) {
+  for (auto &pair : std::as_const(modifiedPhi)) {
     MePhiNode *phi = pair.first;
     for (size_t i = 0; i < pair.second.size(); ++i) {
       size_t index = i;

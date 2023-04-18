@@ -109,6 +109,7 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_ico.cpp",
   "src/cg/aarch64/aarch64_insn.cpp",
   "src/cg/aarch64/aarch64_isa.cpp",
+  "src/cg/aarch64/aarch64_imm_valid.cpp",
   "src/cg/aarch64/aarch64_memlayout.cpp",
   "src/cg/aarch64/aarch64_args.cpp",
   "src/cg/aarch64/aarch64_live.cpp",

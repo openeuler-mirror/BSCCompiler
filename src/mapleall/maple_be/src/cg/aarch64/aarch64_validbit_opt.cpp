@@ -17,47 +17,6 @@
 
 namespace maplebe {
 
-bool PropPattern::HasLiveRangeConflict(const RegOperand &dstReg, const RegOperand &srcReg, VRegVersion *destVersion, VRegVersion *srcVersion) const {
-  ASSERT(destVersion != nullptr, "find destVersion failed");
-  ASSERT(srcVersion != nullptr, "find srcVersion failed");
-  LiveInterval *dstll = nullptr;
-  LiveInterval *srcll = nullptr;
-  if (destVersion->GetOriginalRegNO() == srcVersion->GetOriginalRegNO()) {
-    return true;
-  }
-  regno_t dstRegNO = dstReg.GetRegisterNumber();
-  regno_t srcRegNO = srcReg.GetRegisterNumber();
-  for (auto useDUInfoIt : destVersion->GetAllUseInsns()) {
-    if (useDUInfoIt.second == nullptr) {
-      continue;
-    }
-    Insn *useInsn = (useDUInfoIt.second)->GetInsn();
-    if (useInsn == nullptr) {
-      continue;
-    }
-    if (useInsn->IsPhi() && dstReg.GetSize() != srcReg.GetSize()) {
-      return false;
-    }
-
-    dstll = regll->GetLiveInterval(dstRegNO);
-    srcll = regll->GetLiveInterval(srcRegNO);
-    ASSERT(dstll != nullptr, "dstll should not be nullptr");
-    ASSERT(srcll != nullptr, "srcll should not be nullptr");
-    static_cast<AArch64LiveIntervalAnalysis*>(regll)->CheckInterference(*dstll, *srcll);
-    BB *useBB = useInsn->GetBB();
-    if (dstll->IsConflictWith(srcRegNO) &&
-        // support override value when the version is not transphi
-        (((useBB->IsInPhiDef(srcRegNO) || useBB->IsInPhiList(srcRegNO)) && useBB->HasCriticalEdge()) ||
-        useBB->IsInPhiList(dstRegNO))) {
-      return false;
-    }
-  }
-  if (dstll && srcll) {
-    regll->CoalesceLiveIntervals(*dstll, *srcll);
-  }
-  return true;
-}
-
 void PropPattern::VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) {
   ASSERT(movInsn.GetMachineOpcode() == MOP_xmovrr || movInsn.GetMachineOpcode() == MOP_wmovrr, "NIY explicit CVT");
   if (destReg.GetSize() == k64BitSize && srcReg.GetSize() == k32BitSize) {
@@ -83,6 +42,11 @@ void PropPattern::ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersio
       ASSERT(dstOpnd.IsRegister() && srcOpnd.IsRegister(), "must be");
       auto &destReg = static_cast<RegOperand &>(dstOpnd);
       auto &srcReg = static_cast<RegOperand &>(srcOpnd);
+      // for preg case, do not change mop because preg can not be proped later.
+      if (useInsn->GetMachineOpcode() == MOP_wmovrr && destReg.IsPhysicalRegister()) {
+        ssaInfo->InsertSafePropInsn(useInsn->GetId());
+        continue;
+      }
       VaildateImplicitCvt(destReg, srcReg, *useInsn);
     }
   }
@@ -105,6 +69,56 @@ void AArch64ValidBitOpt::DoOpt() {
       OptCvt(*bb, *insn);
     }
   }
+  FOR_ALL_BB(bb, cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      OptPregCvt(*bb, *insn);
+    }
+  }
+}
+
+void RedundantExpandProp::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  insn.SetMOP(AArch64CG::kMd[MOP_xmovrr]);
+}
+
+bool RedundantExpandProp::CheckCondition(Insn &insn) {
+  if (insn.GetMachineOpcode() != MOP_xuxtw64) {
+    return false;
+  }
+  auto *destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  if (destOpnd != nullptr && destOpnd->IsSSAForm()) {
+      destVersion = ssaInfo->FindSSAVersion(destOpnd->GetRegisterNumber());
+      ASSERT(destVersion != nullptr, "find Version failed");
+      for (auto destUseIt : destVersion->GetAllUseInsns()) {
+        Insn *useInsn = destUseIt.second->GetInsn();
+        auto &propInsns = ssaInfo->GetSafePropInsns();
+        bool isSafeCvt = std::find(propInsns.begin(), propInsns.end(), useInsn->GetId()) != propInsns.end();
+        if(useInsn->IsPhi() || isSafeCvt) {
+          return false;
+        }
+        int32 lastOpndId = static_cast<int32>(useInsn->GetOperandSize() - 1);
+        const InsnDesc *md = useInsn->GetDesc();
+        for (int32 i = lastOpndId; i >= 0; --i) {
+          auto *reg = (md->opndMD[i]);
+          auto &opnd = useInsn->GetOperand(i);
+          if (reg->IsUse() && opnd.IsRegister() && 
+              static_cast<RegOperand&>(opnd).GetRegisterNumber() == destOpnd->GetRegisterNumber()) {
+            if (opnd.GetSize() == k32BitSize && reg->GetSize() == k32BitSize) {
+              continue;
+            } else {
+              return false;
+            }
+          }
+        }
+     }
+     return true;
+  }
+  return false;
 }
 
 // Patterns that may have implicit cvt
@@ -145,6 +159,19 @@ void AArch64ValidBitOpt::OptCvt(BB &bb, Insn &insn) {
     case MOP_wandrri12:
     case MOP_xandrri13: {
       OptimizeProp<AndValidBitPattern>(bb, insn);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+// patterns with uxtw vreg preg
+void AArch64ValidBitOpt::OptPregCvt(BB &bb, Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  switch (curMop) {
+    case MOP_xuxtw64: {
+      OptimizeProp<RedundantExpandProp>(bb, insn);
       break;
     }
     default:
@@ -426,21 +453,102 @@ void AndValidBitPattern::Run(BB &bb, Insn &insn) {
     ASSERT(destVersion != nullptr, "find Version failed");
     srcVersion = ssaInfo->FindSSAVersion(srcReg->GetRegisterNumber());
     ASSERT(srcVersion != nullptr, "find Version failed");
-    if (!HasLiveRangeConflict(*desReg, *srcReg, destVersion, srcVersion)) {
-      Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *desReg, *srcReg);
-      bb.ReplaceInsn(insn, newInsn);
-      // update ssa info
-      ssaInfo->ReplaceInsn(insn, newInsn);
-      if (desReg->GetSize() > srcReg->GetSize() || desReg->GetSize() != desReg->GetValidBitsNum()) {
-        ssaInfo->InsertSafePropInsn(newInsn.GetId());
-      }
-      return;
-    }
+    //prop ssa info
+    cgFunc->InsertExtendSet(srcVersion->GetSSAvRegOpnd()->GetRegisterNumber());
+    ReplaceImplicitCvtAndProp(destVersion, srcVersion);
   } else {
     return;
   }
-  //prop ssa info
-  ReplaceImplicitCvtAndProp(destVersion, srcVersion);
+}
+
+bool ExtValidBitPattern::RealUseMopX(const RegOperand &defOpnd, InsnSet &visitedInsn) {
+  VRegVersion *destVersion = ssaInfo->FindSSAVersion(defOpnd.GetRegisterNumber());
+  for (auto destUseIt : destVersion->GetAllUseInsns()) {
+    Insn *useInsn = destUseIt.second->GetInsn();
+    if (visitedInsn.count(useInsn) != 0) {
+      continue;
+    }
+    visitedInsn.insert(useInsn);
+    if (useInsn->IsPhi()) {
+      auto &phiDefOpnd = useInsn->GetOperand(kInsnFirstOpnd);
+      CHECK_FATAL(phiDefOpnd.IsRegister(), "must be register");
+      auto &phiRegDefOpnd = static_cast<RegOperand&>(phiDefOpnd);
+      if (RealUseMopX(phiRegDefOpnd, visitedInsn)) {
+        return true;
+      }
+    }
+    if (useInsn->GetMachineOpcode() == MOP_xuxtw64) {
+      return true;
+    }
+    const InsnDesc *useMD = &AArch64CG::kMd[useInsn->GetMachineOpcode()];
+    for (auto &opndUseIt : as_const(destUseIt.second->GetOperands())) {
+      const OpndDesc *useProp = useMD->GetOpndDes(opndUseIt.first);
+      if (useProp->GetSize() == k64BitSize) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool ExtValidBitPattern::CheckValidCvt(Insn &insn) {
+  // extend to all shift pattern in future
+  RegOperand *destOpnd = nullptr;
+  RegOperand *srcOpnd = nullptr;
+  if (insn.GetMachineOpcode() == MOP_xuxtw64) {
+    destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+    srcOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  }
+  if (insn.GetMachineOpcode() == MOP_xubfxrri6i6) {
+    destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+    srcOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+    auto &lsb = static_cast<ImmOperand &>(insn.GetOperand(kInsnThirdOpnd));
+    auto &width = static_cast<ImmOperand &>(insn.GetOperand(kInsnFourthOpnd));
+    if ((lsb.GetValue() != 0) || (width.GetValue() != k32BitSize)) {
+      return false;
+    }
+  }
+  if (destOpnd != nullptr && destOpnd->IsSSAForm() && srcOpnd != nullptr && srcOpnd->IsSSAForm()) {
+    destVersion = ssaInfo->FindSSAVersion(destOpnd->GetRegisterNumber());
+    srcVersion = ssaInfo->FindSSAVersion(srcOpnd->GetRegisterNumber());
+    ASSERT(destVersion != nullptr, "find Version failed");
+    for (auto destUseIt : destVersion->GetAllUseInsns()) {
+      Insn *useInsn = destUseIt.second->GetInsn();
+      // check case: 
+      // uxtw R1 R0
+      // uxtw R2 R1
+      if (useInsn->GetMachineOpcode() == MOP_xuxtw64) {
+        return false;
+      }
+      // recursively check all real use mop, if there is one mop that use 64 bit size reg, do not optimize
+      if(useInsn->IsPhi()) {
+        auto &defOpnd = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd));
+        InsnSet visitedInsn;
+        (void)visitedInsn.insert(useInsn);
+        if (RealUseMopX(defOpnd, visitedInsn)) {
+          return false;
+        }
+      }
+      int32 lastOpndId = static_cast<int32>(useInsn->GetOperandSize() - 1);
+      const InsnDesc *md = useInsn->GetDesc();
+      // check case:
+      // uxtw R1 R0
+      // mopX R2 R1(64)
+      for (int32 i = lastOpndId; i >= 0; --i) {
+        auto *reg = (md->opndMD[i]);
+        auto &opnd = useInsn->GetOperand(i);
+        if (reg->IsUse() && opnd.IsRegister() && static_cast<RegOperand&>(opnd).GetRegisterNumber() == destOpnd->GetRegisterNumber()) {
+          if (reg->GetSize() == k32BitSize) {
+            continue;
+          } else {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+  return false;
 }
 
 bool ExtValidBitPattern::CheckCondition(Insn &insn) {
@@ -459,12 +567,15 @@ bool ExtValidBitPattern::CheckCondition(Insn &insn) {
       break;
     }
     case MOP_xuxtw64: {
-      if (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() > k32BitSize ||
-          static_cast<RegOperand&>(srcOpnd).IsPhysicalRegister()) { // Do not optimize callee ensuring vb of parameter
-        return false;
+      if (CheckValidCvt(insn) || (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() <= k32BitSize &&
+          !static_cast<RegOperand&>(srcOpnd).IsPhysicalRegister())) { // Do not optimize callee ensuring vb of parameter
+          if (static_cast<RegOperand&>(srcOpnd).IsSSAForm() && srcVersion != nullptr) {
+            srcVersion->SetImplicitCvt();
+          }
+          newMop = MOP_wmovrr;
+          break;
       }
-      newMop = MOP_wmovrr;
-      break;
+      return false;
     }
     case MOP_xsxtw64: {
       if (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() >= k32BitSize) {
@@ -483,12 +594,22 @@ bool ExtValidBitPattern::CheckCondition(Insn &insn) {
       CHECK_FATAL(immOpnd2.IsImmediate(), "must be immediate");
       int64 lsb = static_cast<ImmOperand&>(immOpnd1).GetValue();
       int64 width = static_cast<ImmOperand&>(immOpnd2).GetValue();
+      if (CheckValidCvt(insn)) {
+        if (static_cast<RegOperand&>(srcOpnd).IsSSAForm() && srcVersion != nullptr) {
+          srcVersion->SetImplicitCvt();
+        }
+        newMop = MOP_xmovrr;
+        break;
+      }
       if (lsb != 0 || static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() > width) {
         return false;
       }
       if ((mOp == MOP_wsbfxrri5i5 || mOp == MOP_xsbfxrri6i6) &&
           static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() == width) {
         return false;
+      }
+      if (static_cast<RegOperand&>(srcOpnd).IsSSAForm() && srcVersion != nullptr) {
+        srcVersion->SetImplicitCvt();
       }
       if (mOp == MOP_wubfxrri5i5 || mOp == MOP_wsbfxrri5i5) {
         newMop = MOP_wmovrr;
@@ -527,27 +648,17 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
         if (newDstOpnd->GetSize() > newSrcOpnd->GetSize() || newDstOpnd->GetSize() != newDstOpnd->GetValidBitsNum()) {
           ssaInfo->InsertSafePropInsn(newInsn.GetId());
         }
+        return;
       }
       if (newDstOpnd != nullptr && newDstOpnd->IsSSAForm() && newSrcOpnd != nullptr && newSrcOpnd->IsSSAForm()) {
         destVersion = ssaInfo->FindSSAVersion(newDstOpnd->GetRegisterNumber());
         ASSERT(destVersion != nullptr, "find Version failed");
         srcVersion = ssaInfo->FindSSAVersion(newSrcOpnd->GetRegisterNumber());
         ASSERT(srcVersion != nullptr, "find Version failed");
-        // when there is live range conflict, do not prop, change mop
-        if (!HasLiveRangeConflict(*newDstOpnd, *newSrcOpnd, destVersion, srcVersion)) {
-          Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *newDstOpnd, *newSrcOpnd);
-          bb.ReplaceInsn(insn, newInsn);
-          /* update ssa info */
-          ssaInfo->ReplaceInsn(insn, newInsn);
-          if (newDstOpnd->GetSize() > newSrcOpnd->GetSize() || newDstOpnd->GetSize() != newDstOpnd->GetValidBitsNum()) {
-            ssaInfo->InsertSafePropInsn(newInsn.GetId());
-          }
-          return;
-        }
-      } else {
+        cgFunc->InsertExtendSet(srcVersion->GetSSAvRegOpnd()->GetRegisterNumber());
+        ReplaceImplicitCvtAndProp(destVersion, srcVersion);
         return;
       }
-      ReplaceImplicitCvtAndProp(destVersion, srcVersion);
     }
     default:
       return;

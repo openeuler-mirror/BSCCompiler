@@ -300,11 +300,11 @@ class MeCFG : public AnalysisResult {
   }
   void BBTopologicalSort(SCCOfBBs &scc);
   void BuildSCC();
-  void UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc);
+  void UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc) const;
   void SwapBBId(BB &bb1, BB &bb2);
   void ConstructBBFreqFromStmtFreq();
   void ConstructStmtFreq();
-  void ConstructEdgeFreqFromBBFreq();
+  void ConstructEdgeFreqFromBBFreq() const;
   void UpdateEdgeFreqWithBBFreq();
   int VerifyBBFreq(bool checkFatal = false);
   void SetUpdateCFGFreq(bool b) {

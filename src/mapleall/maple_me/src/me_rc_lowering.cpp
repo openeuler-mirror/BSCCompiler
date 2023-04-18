@@ -117,7 +117,7 @@ void RCLowering::UpdateRefVarVersions(BB &bb) {
 
   // recursive call in preorder traversal of dominator tree
   ASSERT(bb.GetBBId() < dominance->GetDomChildrenSize(), "index out of range");
-  const auto &domChildren = dominance->GetDomChildren(bb.GetBBId());
+  const auto &domChildren = dominance->GetDomChildren(bb.GetID());
   for (const auto &id : domChildren) {
     UpdateRefVarVersions(*cfg->GetAllBBs().at(id));
   }
@@ -516,7 +516,7 @@ void RCLowering::CheckArrayStore(IntrinsiccallMeStmt &writeRefCall) {
     return;
   }
   MIRIntrinsicID intrnID = writeRefCall.GetIntrinsic();
-  if (!((INTRN_MCCWriteVolNoInc <= intrnID) && (INTRN_MCCWrite >= intrnID))) {
+  if (!((intrnID >= INTRN_MCCWriteVolNoInc) && (intrnID <= INTRN_MCCWrite))) {
     return;
   }
   if (writeRefCall.GetOpnd(1)->GetOp() != OP_iaddrof) {
@@ -1122,7 +1122,7 @@ void RCLowering::HandleReturnStmt() {
 
 void RCLowering::HandleArguments() {
   // placementRC would have already addressed formals
-  if (func.GetHints() & kPlacementRCed) {
+  if ((func.GetHints() & kPlacementRCed) != 0) {
     return;
   }
   // handle arguments, if the formal gets modified
@@ -1466,7 +1466,7 @@ void RCLowering::FastLowerThrowStmt(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exc
   if (throwVal->GetMeOp() == kMeOpVar) {
     auto *var = static_cast<VarMeExpr*>(throwVal);
     auto iter = exceptionAllocsites.find(var->GetVstIdx());
-    if (iter != exceptionAllocsites.cend()) {
+    if (iter != exceptionAllocsites.end()) {
       exceptionAllocsites.erase(iter);
     }
   }
@@ -1650,7 +1650,7 @@ bool MERCLowering::PhaseRun(maple::MeFunction &f) {
   RCLowering rcLowering(f, *kh, DEBUGFUNC_NEWPM(f));
   rcLowering.Prepare();
   if (!rcLowering.GetIsAnalyzed()) {
-    auto *dom = GET_ANALYSIS(MEDominance, f);
+    auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
     CHECK_FATAL(dom != nullptr, "dominance phase has problem");
     rcLowering.SetDominance(*dom);
   }

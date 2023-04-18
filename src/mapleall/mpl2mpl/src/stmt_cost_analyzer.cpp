@@ -165,7 +165,7 @@ int64 StmtCostAnalyzer::GetStmtsCost(BlockNode *block) {
   return cost;
 }
 
-int64 StmtCostAnalyzer::GetMoveCost(size_t sizeInByte) {
+int64 StmtCostAnalyzer::GetMoveCost(size_t sizeInByte) const {
   return static_cast<int64>(((sizeInByte + ti->GetMaxMoveBytes() - 1) / ti->GetMaxMoveBytes()) * kSizeScale);
 }
 

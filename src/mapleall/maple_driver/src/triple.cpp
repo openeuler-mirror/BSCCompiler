@@ -3292,6 +3292,19 @@ maplecl::Option<bool> oWnoScalarStorageOrder({"-Wno-scalar-storage-order"},
     {driverCategory, unSupCategory},
     maplecl::DisableWith("-Wscalar-storage-order"));
 
+maplecl::Option<bool> oWnoReservedIdMacro({"-Wno-reserved-id-macro"},
+    "  -Wno-reserved-id-macro              \tDo not warn when macro name is a reserved identifier.\n",
+    {driverCategory, clangCategory});
+
+maplecl::Option<bool> oWnoGnuZeroVariadicMacroArguments({"-Wno-gnu-zero-variadic-macro-arguments"},
+    "  -Wno-gnu-zero-variadic-macro-arguments              \tDo not warn when token pasting of ',' and __VA_ARGS__ "
+    "is a GNU extension.\n",
+    {driverCategory, clangCategory});
+
+maplecl::Option<bool> oWnoGnuStatementExpression({"-Wno-gnu-statement-expression"},
+    "  -Wno-gnu-statement-expression              \tDo not warn when use of GNU statement expression extension.\n",
+    {driverCategory, clangCategory});
+
 maplecl::Option<bool> oMleadz({"-mleadz"},
     "  -mleadz             \tnables the leadz (leading zero) instruction.\n",
     {driverCategory, unSupCategory});

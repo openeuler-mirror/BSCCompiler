@@ -756,7 +756,9 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const ImmOperand &immOper
   ImmOperand *immOperand = &a64CGFunc->CreateImmOperand(val, opndSize, false);
   if (!immOperand->IsSingleInstructionMovable()) {
     ASSERT(res->IsRegister(), " expect a register operand");
-    static_cast<AArch64CGFunc*>(cgFunc)->SplitMovImmOpndInstruction(val, *(static_cast<RegOperand*>(res)), &insn);
+    Insn &movInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_xmovri64, *res, *immOperand);
+    bb.InsertInsnBefore(insn, movInsn);
+    SPLIT_INSN(&movInsn, cgFunc);
     bb.RemoveInsn(insn);
   } else {
     MOperator newmOp = opndSize == k64BitSize ? MOP_xmovri64 : MOP_wmovri32;
@@ -1209,7 +1211,7 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
           auto &immOpnd = static_cast<ImmOperand&>(insn1->GetOperand(kInsnThirdOpnd));
           uint32 xLslrriBitLen = 6;
           uint32 wLslrriBitLen = 5;
-          Operand &shiftOpnd = aarchFunc->CreateBitShiftOperand(BitShiftOperand::kLSL,
+          Operand &shiftOpnd = aarchFunc->CreateBitShiftOperand(BitShiftOperand::kShiftLSL,
               static_cast<uint32>(immOpnd.GetValue()), (opCode == MOP_xlslrri6) ? xLslrriBitLen : wLslrriBitLen);
           MOperator mOp = (is64bits ? MOP_xaddrrrs : MOP_waddrrrs);
           insn.GetBB()->ReplaceInsn(insn, cgFunc->GetInsnBuilder()->BuildInsn(mOp, res, op0, opnd1, shiftOpnd));

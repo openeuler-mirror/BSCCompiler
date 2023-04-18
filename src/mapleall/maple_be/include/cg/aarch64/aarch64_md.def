@@ -13,7 +13,7 @@
  * See the Mulan PSL v1 for more details.
  */
 /* InsnDesc format:
- * {mop, opndMD, properties, latency, name, format, atomicNum, validFunc(nullptr)}
+ * {mop, opndMD, properties, latency, name, format, atomicNum, validFunc(nullptr), splitFunc(nullptr)}
  */
 
 /* AARCH64 MOVES */
@@ -23,10 +23,10 @@ DEFINE_MOP(MOP_xmovrr, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS}, ISMOVE, kLtAlu,
 DEFINE_MOP(MOP_wmovrr, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS}, ISMOVE, kLtAlu, "mov", "0,1", 1)
 /* MOP_wmovri32 */
 DEFINE_MOP(MOP_wmovri32, {&OpndDesc::Reg32ID, &OpndDesc::Imm32}, ISMOVE, kLtAlu, "mov", "0,1", 1,
-    MOP_wmovri32Valid)
+    MOP_wmovri32Valid, MOP_wmovri32Split)
 /* MOP_xmovri64 */
 DEFINE_MOP(MOP_xmovri64, {&OpndDesc::Reg64ID, &OpndDesc::Imm64}, ISMOVE, kLtAlu, "mov", "0,1", 1,
-    MOP_xmovri64Valid)
+    MOP_xmovri64Valid, MOP_xmovri64Split)
 /* MOP_xmovrr_uxtw -- Remove Redundant uxtw -- used in globalopt:UxtwMovPattern */
 DEFINE_MOP(MOP_xmovrr_uxtw, {&OpndDesc::Reg64ID, &OpndDesc::Reg32IS}, ISMOVE, kLtAlu, "mov", "0,1", 1)
 
@@ -67,11 +67,11 @@ DEFINE_MOP(MOP_xaddsrrrs, {&OpndDesc::CCD, &OpndDesc::Reg64ID, &OpndDesc::Reg64I
 /* MOP_xxwaddrrre */
 DEFINE_MOP(MOP_xxwaddrrre, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Reg32IS, &OpndDesc::Extendshift64}, 0, kLtAluShift, "add", "0,1,2,3", 1, MOP_xxwaddrrreValid)
 /* MOP_xaddrri24 */
-DEFINE_MOP(MOP_xaddrri24, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtShift, "add", "0,1,2,3", 1, MOP_xaddrri24Valid)
+DEFINE_MOP(MOP_xaddrri24, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtShift, "add", "0,1,2,3", 1, MOP_xaddrri24Valid, MOP_xaddrri24Split)
 /* MOP_xaddrri12 */
-DEFINE_MOP(MOP_xaddrri12, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12}, 0, kLtAlu, "add", "0,1,2", 1, MOP_xaddrri12Valid)
+DEFINE_MOP(MOP_xaddrri12, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12}, 0, kLtAlu, "add", "0,1,2", 1, MOP_xaddrri12Valid, MOP_xaddrri12Split)
 /* MOP_xaddsrri12 */
-DEFINE_MOP(MOP_xaddsrri12, {&OpndDesc::CCD, &OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12}, 0, kLtAlu, "adds", "1,2,3", 1, MOP_xaddsrri12Valid)
+DEFINE_MOP(MOP_xaddsrri12, {&OpndDesc::CCD, &OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12}, 0, kLtAlu, "adds", "1,2,3", 1, MOP_xaddsrri12Valid, MOP_xaddsrri12Split)
 /* MOP_waddrrr */
 DEFINE_MOP(MOP_waddrrr, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Reg32IS}, 0, kLtAlu, "add", "0,1,2", 1)
 /* MOP_waddsrrr */
@@ -83,11 +83,11 @@ DEFINE_MOP(MOP_waddsrrrs, {&OpndDesc::CCD, &OpndDesc::Reg32ID, &OpndDesc::Reg32I
 /* MOP_xxwaddrrre */
 DEFINE_MOP(MOP_wwwaddrrre, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Reg32IS, &OpndDesc::Extendshift64}, 0, kLtAluShift, "add", "0,1,2,3", 1, MOP_wwwaddrrreValid)
 /* MOP_waddrri24 */
-DEFINE_MOP(MOP_waddrri24, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtAluShift, "add", "0,1,2,3", 1, MOP_waddrri24Valid)
+DEFINE_MOP(MOP_waddrri24, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtAluShift, "add", "0,1,2,3", 1, MOP_waddrri24Valid, MOP_waddrri24Split)
 /* MOP_waddrri12 */
-DEFINE_MOP(MOP_waddrri12, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12}, 0, kLtAlu, "add", "0,1,2", 1, MOP_waddrri12Valid)
+DEFINE_MOP(MOP_waddrri12, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12}, 0, kLtAlu, "add", "0,1,2", 1, MOP_waddrri12Valid, MOP_waddrri12Split)
 /* MOP_waddsrri12 */
-DEFINE_MOP(MOP_waddsrri12, {&OpndDesc::CCD, &OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12}, 0, kLtAlu, "adds", "1,2,3", 1, MOP_waddsrri12Valid)
+DEFINE_MOP(MOP_waddsrri12, {&OpndDesc::CCD, &OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12}, 0, kLtAlu, "adds", "1,2,3", 1, MOP_waddsrri12Valid, MOP_waddsrri12Split)
 /* MOP_dadd */
 DEFINE_MOP(MOP_dadd, {&OpndDesc::Reg64FD, &OpndDesc::Reg64FS, &OpndDesc::Reg64FS}, 0, kLtFpalu, "fadd", "0,1,2", 1)
 /* MOP_sadd */
@@ -104,13 +104,13 @@ DEFINE_MOP(MOP_xsubrrrs, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Reg
 /* MOP_xsubsrrrs */
 DEFINE_MOP(MOP_xsubsrrrs, {&OpndDesc::CCD, &OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Reg64IS, &OpndDesc::Bitshift64}, 0, kLtAluShift, "subs", "1,2,3,4", 1, MOP_xsubsrrrsValid)
 /* MOP_xsubrri24 */
-DEFINE_MOP(MOP_xsubrri24, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtAluShift, "sub", "0,1,2,3", 1, MOP_xsubrri24Valid)
+DEFINE_MOP(MOP_xsubrri24, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtAluShift, "sub", "0,1,2,3", 1, MOP_xsubrri24Valid, MOP_xsubrri24Split)
 /* MOP_xsubsrri24 */
 DEFINE_MOP(MOP_xsubsrri24, {&OpndDesc::CCD, &OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtAluShift, "subs", "1,2,3,4", 1, MOP_xsubsrri24Valid)
 /* MOP_xsubrri12 */
-DEFINE_MOP(MOP_xsubrri12, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12}, 0, kLtAlu, "sub", "0,1,2", 1, MOP_xsubrri12Valid)
+DEFINE_MOP(MOP_xsubrri12, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12}, 0, kLtAlu, "sub", "0,1,2", 1, MOP_xsubrri12Valid, MOP_xsubrri12Split)
 /* MOP_xsubsrri12 */
-DEFINE_MOP(MOP_xsubsrri12, {&OpndDesc::CCD, &OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12}, 0, kLtAlu, "subs", "1,2,3", 1, MOP_xsubsrri12Valid)
+DEFINE_MOP(MOP_xsubsrri12, {&OpndDesc::CCD, &OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm12}, 0, kLtAlu, "subs", "1,2,3", 1, MOP_xsubsrri12Valid, MOP_xsubsrri12Split)
 /* MOP_wsubrrr */
 DEFINE_MOP(MOP_wsubrrr, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Reg32IS}, 0, kLtAlu, "sub", "0,1,2", 1)
 /* MOP_wsubsrrr */
@@ -120,13 +120,13 @@ DEFINE_MOP(MOP_wsubrrrs, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Reg
 /* MOP_wsubsrrrs */
 DEFINE_MOP(MOP_wsubsrrrs, {&OpndDesc::CCD, &OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Reg32IS, &OpndDesc::Bitshift32}, 0, kLtAluShift, "subs", "1,2,3,4", 1, MOP_wsubsrrrsValid)
 /* MOP_wsubrri24 */
-DEFINE_MOP(MOP_wsubrri24, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtAluShift, "sub", "0,1,2,3", 1, MOP_wsubrri24Valid)
+DEFINE_MOP(MOP_wsubrri24, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtAluShift, "sub", "0,1,2,3", 1, MOP_wsubrri24Valid, MOP_wsubrri24Split)
 /* MOP_wsubsrri24 */
 DEFINE_MOP(MOP_wsubsrri24, {&OpndDesc::CCD, &OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12, &OpndDesc::Lsl12}, 0, kLtAluShift, "subs", "1,2,3,4", 1, MOP_wsubsrri24Valid)
 /* MOP_wsubrri12 */
-DEFINE_MOP(MOP_wsubrri12, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12}, 0, kLtAlu, "sub", "0,1,2", 1, MOP_wsubrri12Valid)
+DEFINE_MOP(MOP_wsubrri12, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12}, 0, kLtAlu, "sub", "0,1,2", 1, MOP_wsubrri12Valid, MOP_wsubrri12Split)
 /* MOP_wsubsrri12 */
-DEFINE_MOP(MOP_wsubsrri12, {&OpndDesc::CCD, &OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12}, 0, kLtAlu, "subs", "1,2,3", 1, MOP_wsubsrri12Valid)
+DEFINE_MOP(MOP_wsubsrri12, {&OpndDesc::CCD, &OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm12}, 0, kLtAlu, "subs", "1,2,3", 1, MOP_wsubsrri12Valid, MOP_wsubsrri12Split)
 
 /* AARCH64 Arithmetic: sub */
 /* MOP_xxwsubrrre */
@@ -546,47 +546,47 @@ DEFINE_MOP(MOP_sync_lock_test_setL, {&OpndDesc::Reg64ID, &OpndDesc::Reg32ID, &Op
 
 /* AARCH64 LOADS */
 /* MOP_wldrsb --- Load Register Signed Byte */
-DEFINE_MOP(MOP_wldrsb, {&OpndDesc::Reg32ID, &OpndDesc::Mem8S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsb", "0,1", 1, MOP_wldrsbValid)
+DEFINE_MOP(MOP_wldrsb, {&OpndDesc::Reg32ID, &OpndDesc::Mem8S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsb", "0,1", 1, MOP_wldrsbValid, MOP_wldrsbSplit)
 /* MOP_xldrsb --- Load Register Signed Byte */
-DEFINE_MOP(MOP_xldrsb, {&OpndDesc::Reg64ID, &OpndDesc::Mem8S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsb", "0,1", 1, MOP_xldrsbValid)
+DEFINE_MOP(MOP_xldrsb, {&OpndDesc::Reg64ID, &OpndDesc::Mem8S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsb", "0,1", 1, MOP_xldrsbValid, MOP_xldrsbSplit)
 /* MOP_wldrb */
-DEFINE_MOP(MOP_wldrb, {&OpndDesc::Reg32ID, &OpndDesc::Mem8S}, ISLOAD | CANTHROW, kLtLoad1, "ldrb", "0,1", 1, MOP_wldrbValid)
+DEFINE_MOP(MOP_wldrb, {&OpndDesc::Reg32ID, &OpndDesc::Mem8S}, ISLOAD | CANTHROW, kLtLoad1, "ldrb", "0,1", 1, MOP_wldrbValid, MOP_wldrbSplit)
 /* MOP_wldrsh  --- Load Register Signed Halfword */
-DEFINE_MOP(MOP_wldrsh, {&OpndDesc::Reg32ID, &OpndDesc::Mem16S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsh", "0,1", 1, MOP_wldrshValid)
+DEFINE_MOP(MOP_wldrsh, {&OpndDesc::Reg32ID, &OpndDesc::Mem16S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsh", "0,1", 1, MOP_wldrshValid, MOP_wldrshSplit)
 /* MOP_xldrsh  --- Load Register Signed Halfword */
-DEFINE_MOP(MOP_xldrsh, {&OpndDesc::Reg64ID, &OpndDesc::Mem16S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsh", "0,1", 1, MOP_xldrshValid)
+DEFINE_MOP(MOP_xldrsh, {&OpndDesc::Reg64ID, &OpndDesc::Mem16S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsh", "0,1", 1, MOP_xldrshValid, MOP_xldrshSplit)
 /* MOP_xldrsw  --- Load Register Signed Word */
-DEFINE_MOP(MOP_xldrsw, {&OpndDesc::Reg64ID, &OpndDesc::Mem32S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsw", "0,1", 1, MOP_xldrswValid)
+DEFINE_MOP(MOP_xldrsw, {&OpndDesc::Reg64ID, &OpndDesc::Mem32S}, ISLOAD | CANTHROW, kLtLoad1, "ldrsw", "0,1", 1, MOP_xldrswValid, MOP_xldrswSplit)
 /* MOP_wldrh */
-DEFINE_MOP(MOP_wldrh, {&OpndDesc::Reg32ID, &OpndDesc::Mem16S}, ISLOAD | CANTHROW, kLtLoad1, "ldrh", "0,1", 1, MOP_wldrhValid)
+DEFINE_MOP(MOP_wldrh, {&OpndDesc::Reg32ID, &OpndDesc::Mem16S}, ISLOAD | CANTHROW, kLtLoad1, "ldrh", "0,1", 1, MOP_wldrhValid, MOP_wldrhSplit)
 /* MOP_wldr */
-DEFINE_MOP(MOP_wldr, {&OpndDesc::Reg32ID, &OpndDesc::Mem32S}, ISLOAD | CANTHROW, kLtLoad1, "ldr", "0,1", 1, MOP_wldrValid)
+DEFINE_MOP(MOP_wldr, {&OpndDesc::Reg32ID, &OpndDesc::Mem32S}, ISLOAD | CANTHROW, kLtLoad1, "ldr", "0,1", 1, MOP_wldrValid, MOP_wldrSplit)
 /* MOP_xldr */
-DEFINE_MOP(MOP_xldr, {&OpndDesc::Reg64ID, &OpndDesc::Mem64S}, ISLOAD | CANTHROW, kLtLoad2, "ldr", "0,1", 1, MOP_xldrValid)
+DEFINE_MOP(MOP_xldr, {&OpndDesc::Reg64ID, &OpndDesc::Mem64S}, ISLOAD | CANTHROW, kLtLoad2, "ldr", "0,1", 1, MOP_xldrValid, MOP_xldrSplit)
 /* MOP_bldr */
-DEFINE_MOP(MOP_bldr, {&OpndDesc::Reg8FD, &OpndDesc::Mem8S}, ISLOAD | CANTHROW, kLtFLoad64, "ldr", "0,1", 1, MOP_bldrValid)
+DEFINE_MOP(MOP_bldr, {&OpndDesc::Reg8FD, &OpndDesc::Mem8S}, ISLOAD | CANTHROW, kLtFLoad64, "ldr", "0,1", 1, MOP_bldrValid, MOP_bldrSplit)
 /* MOP_hldr */
-DEFINE_MOP(MOP_hldr, {&OpndDesc::Reg16FD, &OpndDesc::Mem16S}, ISLOAD | CANTHROW, kLtFLoad64, "ldr", "0,1", 1, MOP_hldrValid)
+DEFINE_MOP(MOP_hldr, {&OpndDesc::Reg16FD, &OpndDesc::Mem16S}, ISLOAD | CANTHROW, kLtFLoad64, "ldr", "0,1", 1, MOP_hldrValid, MOP_hldrSplit)
 /* MOP_sldr */
-DEFINE_MOP(MOP_sldr, {&OpndDesc::Reg32FD, &OpndDesc::Mem32S}, ISLOAD | CANTHROW, kLtFLoadMany, "ldr", "0,1", 1, MOP_sldrValid)
+DEFINE_MOP(MOP_sldr, {&OpndDesc::Reg32FD, &OpndDesc::Mem32S}, ISLOAD | CANTHROW, kLtFLoadMany, "ldr", "0,1", 1, MOP_sldrValid, MOP_sldrSplit)
 /* MOP_dldr */
-DEFINE_MOP(MOP_dldr, {&OpndDesc::Reg64FD, &OpndDesc::Mem64S}, ISLOAD | CANTHROW, kLtFLoadMany, "ldr", "0,1", 1, MOP_dldrValid)
+DEFINE_MOP(MOP_dldr, {&OpndDesc::Reg64FD, &OpndDesc::Mem64S}, ISLOAD | CANTHROW, kLtFLoadMany, "ldr", "0,1", 1, MOP_dldrValid, MOP_dldrSplit)
 /* MOP_qldr */
-DEFINE_MOP(MOP_qldr, {&OpndDesc::Reg128FD, &OpndDesc::Mem128S}, ISLOAD | CANTHROW, kLtFLoadMany, "ldr", "0,1", 1, MOP_qldrValid)
+DEFINE_MOP(MOP_qldr, {&OpndDesc::Reg128FD, &OpndDesc::Mem128S}, ISLOAD | CANTHROW, kLtFLoadMany, "ldr", "0,1", 1, MOP_qldrValid, MOP_qldrSplit)
 
 /* AArch64 LDP/LDPSW */
 /* MOP_wldp */
-DEFINE_MOP(MOP_wldp, {&OpndDesc::Reg32ID, &OpndDesc::Reg32ID, &OpndDesc::Mem32S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtLoad2, "ldp", "0,1,2", 1, MOP_wldpValid)
+DEFINE_MOP(MOP_wldp, {&OpndDesc::Reg32ID, &OpndDesc::Reg32ID, &OpndDesc::Mem32S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtLoad2, "ldp", "0,1,2", 1, MOP_wldpValid, MOP_wldpSplit)
 /* MOP_xldp */
-DEFINE_MOP(MOP_xldp, {&OpndDesc::Reg64ID, &OpndDesc::Reg64ID, &OpndDesc::Mem64S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtLoad3plus, "ldp", "0,1,2", 1, MOP_xldpValid)
+DEFINE_MOP(MOP_xldp, {&OpndDesc::Reg64ID, &OpndDesc::Reg64ID, &OpndDesc::Mem64S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtLoad3plus, "ldp", "0,1,2", 1, MOP_xldpValid, MOP_xldpSplit)
 /* MOP_xldpsw */
-DEFINE_MOP(MOP_xldpsw, {&OpndDesc::Reg64ID, &OpndDesc::Reg64ID, &OpndDesc::Mem32S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtLoad2, "ldpsw", "0,1,2", 1, MOP_xldpswValid)
+DEFINE_MOP(MOP_xldpsw, {&OpndDesc::Reg64ID, &OpndDesc::Reg64ID, &OpndDesc::Mem32S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtLoad2, "ldpsw", "0,1,2", 1, MOP_xldpswValid, MOP_xldpswSplit)
 /* MOP_sldp */
-DEFINE_MOP(MOP_sldp, {&OpndDesc::Reg32FD, &OpndDesc::Reg32FD, &OpndDesc::Mem32S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtFLoad64, "ldp", "0,1,2", 1, MOP_sldpValid)
+DEFINE_MOP(MOP_sldp, {&OpndDesc::Reg32FD, &OpndDesc::Reg32FD, &OpndDesc::Mem32S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtFLoad64, "ldp", "0,1,2", 1, MOP_sldpValid, MOP_sldpSplit)
 /* MOP_dldp */
-DEFINE_MOP(MOP_dldp, {&OpndDesc::Reg64FD, &OpndDesc::Reg64FD, &OpndDesc::Mem64S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtFLoadMany, "ldp", "0,1,2", 1, MOP_dldpValid)
+DEFINE_MOP(MOP_dldp, {&OpndDesc::Reg64FD, &OpndDesc::Reg64FD, &OpndDesc::Mem64S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtFLoadMany, "ldp", "0,1,2", 1, MOP_dldpValid, MOP_dldpSplit)
 /* MOP_qldp */
-DEFINE_MOP(MOP_qldp, {&OpndDesc::Reg128FD, &OpndDesc::Reg128FD, &OpndDesc::Mem128S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtFLoadMany, "ldp", "0,1,2", 1, MOP_qldpValid)
+DEFINE_MOP(MOP_qldp, {&OpndDesc::Reg128FD, &OpndDesc::Reg128FD, &OpndDesc::Mem128S}, ISLOAD | ISLOADPAIR | CANTHROW, kLtFLoadMany, "ldp", "0,1,2", 1, MOP_qldpValid, MOP_qldpSplit)
 
 /* AARCH64 Load with Acquire semantics */
 /* MOP_wldarb */
@@ -599,17 +599,17 @@ DEFINE_MOP(MOP_wldar, {&OpndDesc::Reg32ID, &OpndDesc::Mem32S}, ISLOAD | ISATOMIC
 DEFINE_MOP(MOP_xldar, {&OpndDesc::Reg64ID, &OpndDesc::Mem64S}, ISLOAD | ISATOMIC | HASACQUIRE | CANTHROW, kLtLoad1, "ldar", "0,1", 1, MOP_xldarValid)
 
 /* MOP_wmovkri16 */
-DEFINE_MOP(MOP_wmovkri16, {&OpndDesc::Reg32IDS, &OpndDesc::Imm16, &OpndDesc::Lsl4}, ISMOVE, kLtShift, "movk", "0,1,2", 1, MOP_wmovkri16Valid)
+DEFINE_MOP(MOP_wmovkri16, {&OpndDesc::Reg32IDS, &OpndDesc::Imm16, &OpndDesc::Lsl5}, ISMOVE, kLtShift, "movk", "0,1,2", 1, MOP_wmovkri16Valid)
 /* MOP_xmovkri16 */
 DEFINE_MOP(MOP_xmovkri16, {&OpndDesc::Reg64IDS, &OpndDesc::Imm16, &OpndDesc::Lsl6}, ISMOVE, kLtShift, "movk", "0,1,2", 1, MOP_xmovkri16Valid)
 
 /* MOP_wmovzri16 */
-DEFINE_MOP(MOP_wmovzri16, {&OpndDesc::Reg32ID, &OpndDesc::Imm16, &OpndDesc::Lsl4}, ISMOVE, kLtShift, "movz", "0,1,2", 1, MOP_wmovzri16Valid)
+DEFINE_MOP(MOP_wmovzri16, {&OpndDesc::Reg32ID, &OpndDesc::Imm16, &OpndDesc::Lsl5}, ISMOVE, kLtShift, "movz", "0,1,2", 1, MOP_wmovzri16Valid)
 /* MOP_xmovzri16 */
 DEFINE_MOP(MOP_xmovzri16, {&OpndDesc::Reg64ID, &OpndDesc::Imm16, &OpndDesc::Lsl6}, ISMOVE, kLtShift, "movz", "0,1,2", 1, MOP_xmovzri16Valid)
 
 /* MOP_wmovnri16 */
-DEFINE_MOP(MOP_wmovnri16, {&OpndDesc::Reg32ID, &OpndDesc::Imm16, &OpndDesc::Lsl4}, ISMOVE, kLtShift, "movn", "0,1,2", 1, MOP_wmovnri16Valid)
+DEFINE_MOP(MOP_wmovnri16, {&OpndDesc::Reg32ID, &OpndDesc::Imm16, &OpndDesc::Lsl5}, ISMOVE, kLtShift, "movn", "0,1,2", 1, MOP_wmovnri16Valid)
 /* MOP_xmovnri16 */
 DEFINE_MOP(MOP_xmovnri16, {&OpndDesc::Reg64ID, &OpndDesc::Imm16, &OpndDesc::Lsl6}, ISMOVE, kLtShift, "movn", "0,1,2", 1, MOP_xmovnri16Valid)
 
@@ -722,11 +722,11 @@ DEFINE_MOP(MOP_xcmprrs, {&OpndDesc::CCD, &OpndDesc::Reg64IS, &OpndDesc::Reg64IS,
 DEFINE_MOP(MOP_xwcmprre, {&OpndDesc::CCD, &OpndDesc::Reg64IS, &OpndDesc::Reg32IS, &OpndDesc::Extendshift64}, 0, kLtAlu, "cmp", "1,2,3", 1, MOP_xwcmprreValid)
 
 /* MOP_wccmpriic -- AArch64 cmp has no dest operand */
-DEFINE_MOP(MOP_wccmpriic, {&OpndDesc::CCD, &OpndDesc::Reg32IS, &OpndDesc::Imm5, &OpndDesc::Imm4, &OpndDesc::Cond, &OpndDesc::CCS}, 0, kLtAlu, "ccmp", "1,2,3,4", 1, MOP_wccmpriicValid)
+DEFINE_MOP(MOP_wccmpriic, {&OpndDesc::CCD, &OpndDesc::Reg32IS, &OpndDesc::Imm5, &OpndDesc::Imm4, &OpndDesc::Cond, &OpndDesc::CCS}, 0, kLtAlu, "ccmp", "1,2,3,4", 1, MOP_wccmpriicValid, MOP_wccmpriicSplit)
 /* MOP_wccmprric -- register, shifted register, AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_wccmprric, {&OpndDesc::CCD, &OpndDesc::Reg32IS, &OpndDesc::Reg32IS, &OpndDesc::Imm4, &OpndDesc::Cond, &OpndDesc::CCS}, 0, kLtAlu, "ccmp", "1,2,3,4", 1, MOP_wccmprricValid)
 /* MOP_xccmpriic -- AArch64 cmp has no dest operand */
-DEFINE_MOP(MOP_xccmpriic, {&OpndDesc::CCD, &OpndDesc::Reg64IS, &OpndDesc::Imm5, &OpndDesc::Imm4, &OpndDesc::Cond, &OpndDesc::CCS}, 0, kLtAlu, "ccmp", "1,2,3,4", 1, MOP_xccmpriicValid)
+DEFINE_MOP(MOP_xccmpriic, {&OpndDesc::CCD, &OpndDesc::Reg64IS, &OpndDesc::Imm5, &OpndDesc::Imm4, &OpndDesc::Cond, &OpndDesc::CCS}, 0, kLtAlu, "ccmp", "1,2,3,4", 1, MOP_xccmpriicValid, MOP_xccmpriicSplit)
 /* MOP_xccmprric -- register, shifted register, AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_xccmprric, {&OpndDesc::CCD, &OpndDesc::Reg64IS, &OpndDesc::Reg64IS, &OpndDesc::Imm4, &OpndDesc::Cond, &OpndDesc::CCS}, 0, kLtAlu, "ccmp", "1,2,3,4", 1, MOP_xccmprricValid)
 
@@ -773,33 +773,33 @@ DEFINE_MOP(MOP_xtbz, {&OpndDesc::Reg64IS, &OpndDesc::Imm8, &OpndDesc::AddressNam
 
 /* AARCH64 STORES */
 /* MOP_wstrb -- Store Register Byte */
-DEFINE_MOP(MOP_wstrb, {&OpndDesc::Reg32IS, &OpndDesc::Mem8D}, ISSTORE | CANTHROW, kLtStore1, "strb", "0,1", 1, MOP_wstrbValid)
+DEFINE_MOP(MOP_wstrb, {&OpndDesc::Reg32IS, &OpndDesc::Mem8D}, ISSTORE | CANTHROW, kLtStore1, "strb", "0,1", 1, MOP_wstrbValid, MOP_wstrbSplit)
 /* MOP_wstrh -- Store Register Halfword */
-DEFINE_MOP(MOP_wstrh, {&OpndDesc::Reg32IS, &OpndDesc::Mem16D}, ISSTORE | CANTHROW, kLtStore1, "strh", "0,1", 1, MOP_wstrhValid)
+DEFINE_MOP(MOP_wstrh, {&OpndDesc::Reg32IS, &OpndDesc::Mem16D}, ISSTORE | CANTHROW, kLtStore1, "strh", "0,1", 1, MOP_wstrhValid, MOP_wstrhSplit)
 /* MOP_wstr -- Store Register Word */
-DEFINE_MOP(MOP_wstr, {&OpndDesc::Reg32IS, &OpndDesc::Mem32D}, ISSTORE | CANTHROW, kLtStore1, "str", "0,1", 1, MOP_wstrValid)
+DEFINE_MOP(MOP_wstr, {&OpndDesc::Reg32IS, &OpndDesc::Mem32D}, ISSTORE | CANTHROW, kLtStore1, "str", "0,1", 1, MOP_wstrValid, MOP_wstrSplit)
 /* MOP_xstr -- Store Register Double word */
-DEFINE_MOP(MOP_xstr, {&OpndDesc::Reg64IS, &OpndDesc::Mem64D}, ISSTORE | CANTHROW, kLtStore2, "str", "0,1", 1, MOP_xstrValid)
+DEFINE_MOP(MOP_xstr, {&OpndDesc::Reg64IS, &OpndDesc::Mem64D}, ISSTORE | CANTHROW, kLtStore2, "str", "0,1", 1, MOP_xstrValid, MOP_xstrSplit)
 
 /* MOP_sstr -- Store Register SIMD/FP Float */
-DEFINE_MOP(MOP_sstr, {&OpndDesc::Reg32FS, &OpndDesc::Mem32D}, ISSTORE | CANTHROW, kLtStore2, "str", "0,1", 1, MOP_sstrValid)
+DEFINE_MOP(MOP_sstr, {&OpndDesc::Reg32FS, &OpndDesc::Mem32D}, ISSTORE | CANTHROW, kLtStore2, "str", "0,1", 1, MOP_sstrValid, MOP_sstrSplit)
 /* MOP_dstr -- Store Register SIMD/FP Double */
-DEFINE_MOP(MOP_dstr, {&OpndDesc::Reg64FS, &OpndDesc::Mem64D}, ISSTORE | CANTHROW, kLtStore3plus, "str", "0,1", 1, MOP_dstrValid)
+DEFINE_MOP(MOP_dstr, {&OpndDesc::Reg64FS, &OpndDesc::Mem64D}, ISSTORE | CANTHROW, kLtStore3plus, "str", "0,1", 1, MOP_dstrValid, MOP_dstrSplit)
 /* MOP_qstr -- Store Register SIMD/FP Double */
-DEFINE_MOP(MOP_qstr, {&OpndDesc::Reg128VS, &OpndDesc::Mem128D}, ISSTORE | CANTHROW, kLtStore3plus, "str", "0,1", 1, MOP_qstrValid)
+DEFINE_MOP(MOP_qstr, {&OpndDesc::Reg128VS, &OpndDesc::Mem128D}, ISSTORE | CANTHROW, kLtStore3plus, "str", "0,1", 1, MOP_qstrValid, MOP_qstrSplit)
 
 /* AArch64 STP. */
 /* MOP_wstp */
-DEFINE_MOP(MOP_wstp, {&OpndDesc::Reg32IS, &OpndDesc::Reg32IS, &OpndDesc::Mem32D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtStore2, "stp", "0,1,2", 1, MOP_wstpValid)
+DEFINE_MOP(MOP_wstp, {&OpndDesc::Reg32IS, &OpndDesc::Reg32IS, &OpndDesc::Mem32D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtStore2, "stp", "0,1,2", 1, MOP_wstpValid, MOP_wstpSplit)
 /* MOP_xstp */
-DEFINE_MOP(MOP_xstp, {&OpndDesc::Reg64IS, &OpndDesc::Reg64IS, &OpndDesc::Mem64D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtStore3plus, "stp", "0,1,2", 1, MOP_xstpValid)
+DEFINE_MOP(MOP_xstp, {&OpndDesc::Reg64IS, &OpndDesc::Reg64IS, &OpndDesc::Mem64D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtStore3plus, "stp", "0,1,2", 1, MOP_xstpValid, MOP_xstpSplit)
 /* AArch64 does not define STPSW. It has no practical value. */
 /* MOP_sstp */
-DEFINE_MOP(MOP_sstp, {&OpndDesc::Reg32FS, &OpndDesc::Reg32FS, &OpndDesc::Mem32D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtAdvsimdMulQ, "stp", "0,1,2", 1, MOP_sstpValid)
+DEFINE_MOP(MOP_sstp, {&OpndDesc::Reg32FS, &OpndDesc::Reg32FS, &OpndDesc::Mem32D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtAdvsimdMulQ, "stp", "0,1,2", 1, MOP_sstpValid, MOP_sstpSplit)
 /* MOP_dstp */
-DEFINE_MOP(MOP_dstp, {&OpndDesc::Reg64FS, &OpndDesc::Reg64FS, &OpndDesc::Mem64D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtAdvsimdMulQ, "stp", "0,1,2", 1, MOP_dstpValid)
+DEFINE_MOP(MOP_dstp, {&OpndDesc::Reg64FS, &OpndDesc::Reg64FS, &OpndDesc::Mem64D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtAdvsimdMulQ, "stp", "0,1,2", 1, MOP_dstpValid, MOP_dstpSplit)
 /* MOP_qstp */
-DEFINE_MOP(MOP_qstp, {&OpndDesc::Reg128VS, &OpndDesc::Reg128VS, &OpndDesc::Mem128D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtAdvsimdMulQ, "stp", "0,1,2", 1, MOP_qstpValid)
+DEFINE_MOP(MOP_qstp, {&OpndDesc::Reg128VS, &OpndDesc::Reg128VS, &OpndDesc::Mem128D}, ISSTORE | ISSTOREPAIR | CANTHROW, kLtAdvsimdMulQ, "stp", "0,1,2", 1, MOP_qstpValid, MOP_qstpSplit)
 
 /* AARCH64 Store with Release semantics */
 /* MOP_wstlrb -- Store-Release Register Byte */

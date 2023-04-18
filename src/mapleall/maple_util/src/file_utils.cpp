@@ -96,19 +96,19 @@ std::string FileUtils::GetOutPutDir() {
   return "./";
 }
 
-std::string FileUtils::GetTmpFolderPath() {
+std::string FileUtils::GetTmpFolderPath() const {
   int size = 1024;
   FILE *fp = nullptr;
   char buf[size];
   const char *cmd = "mktemp -d";
   CHECK_FATAL((fp = popen(cmd, "r")) != nullptr, "Failed to create tmp folder");
   while (fgets(buf, size, fp) != nullptr) {}
-  pclose(fp);
+  (void)pclose(fp);
   fp = nullptr;
   std::string path(buf);
   CHECK_FATAL(path.size() != 0, "Failed to create tmp folder");
   std::string tmp = "\n";
-  int index = path.find(tmp) == path.npos ? path.length() : path.find(tmp);
+  size_t index = path.find(tmp) == path.npos ? path.length() : path.find(tmp);
   path = path.substr(0, index);
   return path + "/";
 }

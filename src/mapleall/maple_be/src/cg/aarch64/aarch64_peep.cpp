@@ -1276,7 +1276,6 @@ bool LslAndToUbfizPattern::CheckUseInsnMop(const Insn &useInsn) const {
     case MOP_xsxth64:
     case MOP_xuxtb32:
     case MOP_xuxth32:
-    case MOP_xuxtw64:
     case MOP_xsxtw64:
     case MOP_xubfxrri6i6:
     case MOP_xcmprr:
@@ -1320,41 +1319,49 @@ void LslAndToUbfizPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-/* Build ubfiz insn or mov insn */
+// Build ubfiz insn or mov insn
 Insn *LslAndToUbfizPattern::BuildNewInsn(const Insn &andInsn, const Insn &lslInsn, const Insn &useInsn) const {
   uint64 andImmValue = static_cast<uint64>(static_cast<ImmOperand&>(andInsn.GetOperand(kInsnThirdOpnd)).GetValue());
-  /* Check whether the value of immValue is 2^n-1. */
-  uint64 judgment = andImmValue & (andImmValue + 1);
+  uint64 lslImmValue = static_cast<uint64>(static_cast<ImmOperand&>(lslInsn.GetOperand(kInsnThirdOpnd)).GetValue());
+  MOperator useMop = useInsn.GetMachineOpcode();
+  // isLslAnd means true -> lsl + and, false -> and + lsl
+  bool isLslAnd = (useMop == MOP_wandrri12) || (useMop == MOP_xandrri13);
+  // judgment need to set non-zero value
+  uint64 judgment = 1;
+  // When useInsn is lsl, check whether the value of immValue is 2^n-1.
+  // When useInsn is and, check whether the value of immValue is (2^n-1) << m
+  if (isLslAnd) {
+    if ((andImmValue >> lslImmValue) != 0) {
+      judgment = (andImmValue >> lslImmValue) & ((andImmValue >> lslImmValue) + 1);
+    }
+  } else {
+    judgment = andImmValue & (andImmValue + 1);
+  }
   if (judgment != 0) {
     return nullptr;
   }
-  MOperator mop = andInsn.GetMachineOpcode();
-  MOperator useMop = useInsn.GetMachineOpcode();
   RegOperand &ubfizOpnd1 = static_cast<RegOperand&>(useInsn.GetOperand(kInsnFirstOpnd));
   uint32 opnd1Size = ubfizOpnd1.GetSize();
   RegOperand &ubfizOpnd2 = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
   uint32 opnd2Size = ubfizOpnd2.GetSize();
   ImmOperand &ubfizOpnd3 = static_cast<ImmOperand&>(lslInsn.GetOperand(kInsnThirdOpnd));
   uint32 mValue = static_cast<uint32>(ubfizOpnd3.GetValue());
-  uint32 nValue = static_cast<uint32>(__builtin_popcountll(andImmValue));
+  uint32 nValue = 0;
+  if (isLslAnd) {
+    nValue = static_cast<uint32>(__builtin_popcountll(andImmValue >> lslImmValue));
+  } else {
+    nValue = static_cast<uint32>(__builtin_popcountll(andImmValue));
+  }
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  if (opnd1Size != opnd2Size) {
+  if (opnd1Size != opnd2Size || (mValue + nValue) > opnd1Size) {
     return nullptr;
   }
-  if (nValue > mValue || useMop == MOP_wlslrri5 || useMop == MOP_xlslrri6) {
-    MOperator newMop = (mop == MOP_wandrri12) ? MOP_wubfizrri5i5 : MOP_xubfizrri6i6;
-    uint32 size = (mop == MOP_wandrri12) ? kMaxImmVal5Bits : kMaxImmVal6Bits;
-    int64 val = 0;
-    if (useMop == MOP_wlslrri5 || useMop == MOP_xlslrri6) {
-      val = opnd1Size > (nValue + mValue) ? nValue : opnd1Size - mValue;
-    } else {
-      val = nValue - mValue;
-    }
-    ImmOperand &ubfizOpnd4 = aarFunc->CreateImmOperand(val, size, false);
-    Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, ubfizOpnd1, ubfizOpnd2, ubfizOpnd3, ubfizOpnd4);
-    return &newInsn;
-  }
-  return nullptr;
+  MOperator addMop = andInsn.GetMachineOpcode();
+  MOperator newMop = (addMop == MOP_wandrri12) ? MOP_wubfizrri5i5 : MOP_xubfizrri6i6;
+  uint32 size = (addMop == MOP_wandrri12) ? kMaxImmVal5Bits : kMaxImmVal6Bits;
+  ImmOperand &ubfizOpnd4 = aarFunc->CreateImmOperand(nValue, size, false);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, ubfizOpnd1, ubfizOpnd2, ubfizOpnd3, ubfizOpnd4);
+  return &newInsn;
 }
 
 bool MvnAndToBicPattern::CheckCondition(Insn &insn) {
@@ -1602,10 +1609,10 @@ bool LogicShiftAndOrrToExtrPattern::CheckCondition(Insn &insn) {
     int64 prevImm = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd)).GetValue();
     auto &shiftOpnd = static_cast<BitShiftOperand&>(insn.GetOperand(kInsnFourthOpnd));
     uint32 shiftAmount = shiftOpnd.GetShiftAmount();
-    if (shiftOpnd.GetShiftOp() == BitShiftOperand::kLSL && (prevMop == MOP_wlsrrri5 || prevMop == MOP_xlsrrri6)) {
+    if (shiftOpnd.GetShiftOp() == BitShiftOperand::kShiftLSL && (prevMop == MOP_wlsrrri5 || prevMop == MOP_xlsrrri6)) {
       prevLsrInsn = prevInsn;
       shiftValue = prevImm;
-    } else if (shiftOpnd.GetShiftOp() == BitShiftOperand::kLSR &&
+    } else if (shiftOpnd.GetShiftOp() == BitShiftOperand::kShiftLSR &&
                (prevMop == MOP_wlslrri5 || prevMop == MOP_xlslrri6)) {
       prevLslInsn = prevInsn;
       shiftValue = shiftAmount;
@@ -2838,11 +2845,7 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
           bb.RemoveInsn(*combineInsn);
           return;
         }
-        const InsnDesc *md = &AArch64CG::kMd[combineInsn->GetMachineOpcode()];
-        auto *opndProp = md->opndMD[kInsnFirstOpnd];
-        MemOperand &newMemOpnd = static_cast<AArch64CGFunc*>(cgFunc)->SplitOffsetWithAddInstruction(
-            *combineMemOpnd, opndProp->GetSize(), static_cast<AArch64reg>(R16), false, combineInsn, isPairAfterCombine);
-        combineInsn->SetOperand(isPairAfterCombine ? kInsnThirdOpnd : kInsnSecondOpnd, newMemOpnd);
+        SPLIT_INSN(combineInsn, cgFunc);
       }
       RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
       return;
@@ -3738,7 +3741,7 @@ void ReplaceDivToMultiPattern::Run(BB &bb, Insn &insn) {
         aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(sdivOpnd1RegNum),
                                                           k64BitSize, kRegTyInt);
     /* shift bit amount is thirty-one at this insn */
-    BitShiftOperand &addLsrOpnd = aarch64CGFunc->CreateBitShiftOperand(BitShiftOperand::kLSR, 31, 6);
+    BitShiftOperand &addLsrOpnd = aarch64CGFunc->CreateBitShiftOperand(BitShiftOperand::kShiftLSR, 31, 6);
     Insn &addLsrInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_xaddrrrs, extSdivO0, tempOpnd, extSdivO1, addLsrOpnd);
     bb.InsertInsnBefore(*prePrevInsn, addLsrInsn);
 

@@ -111,13 +111,13 @@ void CommandLine::CloseOptimize(const OptionCategory &optCategory) const {
 RetCode CommandLine::ParseOption(size_t &argsIndex,
                                  const std::deque<std::string_view> &args,
                                  KeyArg &keyArg, const OptionCategory &optCategory,
-                                 OptionInterface *opt) const {
-  if (args[argsIndex] == "--no-pie") {
+                                 OptionInterface &opt) const {
+  if (args[argsIndex] == "--no-pie" || args[argsIndex] == "-fno-pie") {
     auto item = optCategory.options.find("-fPIE");
     item->second->SetEnabledByUser();
   }
 
-  if (args[argsIndex] == "--no-pic") {
+  if (args[argsIndex] == "--no-pic" || args[argsIndex] == "-fno-pic") {
     auto item = optCategory.options.find("-fPIC");
     item->second->SetEnabledByUser();
   }
@@ -128,14 +128,14 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
     CloseOptimize(optCategory);
   }
 
-  RetCode err = opt->Parse(argsIndex, args, keyArg);
+  RetCode err = opt.Parse(argsIndex, args, keyArg);
   if (err != RetCode::noError) {
     return err;
   }
 
   /* Set Option in all categories registering for this option */
-  for (auto &category : opt->optCategories) {
-    category->AddEnabledOption(opt);
+  for (auto &category : opt.optCategories) {
+    category->AddEnabledOption(&opt);
   }
 
   return RetCode::noError;
@@ -165,7 +165,7 @@ RetCode CommandLine::ParseEqualOption(size_t &argsIndex,
     keyArg.key = (optMap.find(std::string(arg.substr(0, pos + 1))) !=  optMap.end()) ? arg.substr(0, pos + 1) :
                   arg.substr(0, pos);
     keyArg.val = arg.substr(pos + 1);
-    return ParseOption(argsIndex, args, keyArg, optCategory, item->second);
+    return ParseOption(argsIndex, args, keyArg, optCategory, *item->second);
   } else {
     /* It can be joined option, like: -DMACRO=VALUE */
     return ParseJoinedOption(argsIndex, args, keyArg, optCategory);
@@ -182,7 +182,7 @@ RetCode CommandLine::ParseSimpleOption(size_t &argsIndex,
   auto item = optMap.find(std::string(arg));
   if (item != optMap.end()) {
     /* --key or --key value */
-    return ParseOption(argsIndex, args, keyArg, optCategory, item->second);
+    return ParseOption(argsIndex, args, keyArg, optCategory, *item->second);
   } else {
     /* It can be joined option, like: -DMACRO */
     return ParseJoinedOption(argsIndex, args, keyArg, optCategory);
@@ -205,7 +205,7 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
       continue;
     }
 
-    if (arg.find("_FORTIFY_SOURCE") != arg.npos) {
+    if (arg.find("_FORTIFY_SOURCE") != std::string::npos) {
       auto item = clangCategory.options.find("-pO2ToCl");
       item->second->SetEnabledByUser();
     }
@@ -309,7 +309,11 @@ void CommandLine::BashCompletionPrinter(const OptionCategory &optCategory) const
   }
 }
 
-void CommandLine::HelpPrinter(const OptionCategory &optCategory) const {
+void CommandLine::HelpPrinter(OptionCategory &optCategory) const {
+  std::sort(optCategory.registredOptions.begin(), optCategory.registredOptions.end(),
+      [](const OptionInterface *a, const OptionInterface *b) {
+        return a->GetOptName() < b->GetOptName();
+      });
   for (auto &opt : optCategory.registredOptions) {
     if (opt->IsVisibleOption()) {
       maple::LogInfo::MapleLogger() << opt->GetDescription() << '\n';

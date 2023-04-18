@@ -17,7 +17,7 @@ from api.shell_operator import ShellOperator
  
 class MapleDriver(ShellOperator):
  
-    def __init__(self, maple, infiles, outfile, option, return_value_list=None, redirection=None, include_path="", extra_opt=""):
+    def __init__(self, maple, infiles, option, return_value_list=None, redirection=None, outfile="", include_path="", extra_opt=""):
         super().__init__(return_value_list, redirection)
         self.maple = maple
         self.include_path = include_path
@@ -29,8 +29,12 @@ class MapleDriver(ShellOperator):
     def get_command(self, variables):
         include_path_str = " ".join(["-isystem " + path for path in self.include_path])
         self.command = self.maple + " "
-        self.command += " ".join(self.infiles)
-        self.command += " -o " + self.outfile
+        if isinstance(self.infiles,list):
+            self.command += " ".join(self.infiles)
+        if isinstance(self.infiles,str):
+            self.command += self.infiles + " "
+        if self.outfile != "":
+            self.command += " -o " + self.outfile
         self.command += " " + include_path_str
         self.command += " " + self.option + " " + self.extra_opt
         return super().get_final_command(variables)

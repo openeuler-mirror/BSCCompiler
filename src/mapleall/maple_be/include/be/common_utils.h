@@ -45,6 +45,7 @@ constexpr uint32 k24BitSize = 24;
 constexpr uint32 k32BitSize = 32;
 constexpr uint32 k40BitSize = 40;
 constexpr uint32 k48BitSize = 48;
+constexpr uint32 k52BitSize = 52;
 constexpr uint32 k56BitSize = 56;
 constexpr uint32 k64BitSize = 64;
 constexpr uint32 k128BitSize = 128;

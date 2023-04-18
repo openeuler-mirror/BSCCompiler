@@ -54,7 +54,7 @@ std::string GetLabel(AnnotationType &aType) {
   return lable;
 }
 
-void CheckCast::DumpGenericNode(GenericNode &node, std::ostream &out) {
+void CheckCast::DumpGenericNode(GenericNode &node, std::ostream &out) const {
   std::string lable = GetLabel(*node.aType);
   out << node.aType->GetId() << " [label=\"" << lable << "\"];\n";
   if (node.next != nullptr) {
@@ -69,7 +69,7 @@ void CheckCast::DumpGenericGraph() {
   CHECK_FATAL(fileBufPtr, "open file : %s failed!", outFile.c_str());
   std::ostream dotFile(&fileBuf);
   dotFile << "digraph InequalityGraph {\n";
-  for (auto pair : created) {
+  for (const auto &pair : std::as_const(created)) {
     GenericNode *node = pair.second;
     DumpGenericNode(*node, dotFile);
   }
@@ -105,7 +105,7 @@ void CheckCast::BuildGenericGraph(AnnotationType *annoType) {
   switch (annoType->GetKind()) {
     case kGenericType: {
       GenericType *gType = static_cast<GenericType*>(annoType);
-      for (auto pair : gType->GetGenericMap()) {
+      for (const auto &pair : std::as_const(gType->GetGenericMap())) {
         GenericDeclare *gDeclare = pair.first;
         AnnotationType *realType = pair.second;
         GenericNode *gDeclareNode = GetOrCreateGenericNode(gDeclare);
@@ -199,6 +199,7 @@ void CheckCast::TryToResolveFuncArg(MeExpr &expr, AnnotationType &at) {
     }
     VarMeExpr *var = static_cast<VarMeExpr*>(&expr);
     const OriginalSt *symOst = func->GetIRMap()->GetSSATab().GetOriginalStFromID(var->GetOstIdx());
+    ASSERT_NOT_NULL(symOst);
     const MIRSymbol *sym = symOst->GetMIRSymbol();
     mirType = sym->GetType();
     if (mirType->GetKind() == kTypePointer) {
@@ -385,13 +386,14 @@ MIRType *CheckCast::TryToResolveType(GenericNode &retNode) {
 }
 
 void CheckCast::AddClassInheritanceInfo(MIRType &mirType) {
+  MIRType *realType = &mirType;
   if (mirType.GetKind() == kTypePointer) {
-    mirType = *static_cast<MIRPtrType&>(mirType).GetPointedType();
+    realType = static_cast<MIRPtrType&>(mirType).GetPointedType();
   }
   if (!mirType.IsStructType()) {
     return;
   }
-  MIRStructType *structType = static_cast<MIRStructType*>(&mirType);
+  MIRStructType *structType = static_cast<MIRStructType*>(realType);
   for (GenericType *gt : structType->GetInheritanceGeneric()) {
     BuildGenericGraph(gt);
     AddClassInheritanceInfo(*gt->GetMIRStructType());
@@ -399,7 +401,7 @@ void CheckCast::AddClassInheritanceInfo(MIRType &mirType) {
 }
 
 // varStruct is parent, callStruct is child
-bool CheckCast::ExactlyMatch(MIRStructType &varStruct, MIRStructType &callStruct) {
+bool CheckCast::ExactlyMatch(MIRStructType &varStruct, MIRStructType &callStruct) const {
   if (varStruct.GetGenericDeclare().size() == 0 || callStruct.GetGenericDeclare().size() == 0) {
     return false;
   }
@@ -455,7 +457,7 @@ AnnotationType *CheckCast::CloneNewAnnotationType(AnnotationType *at, MIRStructT
   return newGT;
 }
 
-bool CheckCast::RetIsGenericRelative(MIRFunction &callee) {
+bool CheckCast::RetIsGenericRelative(MIRFunction &callee) const {
   if (callee.GetFuncGenericRet() == nullptr) {
     return false;
   }
@@ -565,7 +567,7 @@ bool CheckCast::ProvedByAnnotationInfo(const IntrinsiccallMeStmt &callNode) {
   return result;
 }
 
-void CheckCast::RemoveRedundantCheckCast(MeStmt &stmt, BB &bb) {
+void CheckCast::RemoveRedundantCheckCast(MeStmt &stmt, BB &bb) const {
   if (stmt.GetOp() == OP_intrinsiccallwithtypeassigned) {
     auto *callAssign = static_cast<IntrinsiccallMeStmt*>(&stmt);
     ScalarMeExpr *lhs = callAssign->GetAssignedLHS();
@@ -713,7 +715,7 @@ void MECheckCastOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MECheckCastOpt::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   MaplePhase *it = GetAnalysisInfoHook()->GetTopLevelAnalyisData<M2MKlassHierarchy, MIRModule>(f.GetMIRModule());
   auto *kh = static_cast<M2MKlassHierarchy*>(it)->GetResult();
   ASSERT_NOT_NULL(dom);

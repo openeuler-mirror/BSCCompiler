@@ -59,6 +59,7 @@ class SafeExe {
     }
     // end of arguments sentinel is nullptr
     argv[vectorArgs.size()] = nullptr;
+    fflush(nullptr);
     pid_t pid = fork();
     ErrorCode ret = kErrorNoError;
     if (pid == 0) {
@@ -78,7 +79,7 @@ class SafeExe {
       if (!WIFEXITED(static_cast<uint>(status))) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
-      } else if (static_cast<uint>(WEXITSTATUS(status)) != 0) {
+      } else if (WEXITSTATUS(static_cast<uint>(status)) != 0) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
       }
@@ -129,6 +130,7 @@ class SafeExe {
       LogInfo::MapleLogger() << "\n";
     }
 
+    fflush(nullptr);
     pid_t pid = fork();
     ErrorCode ret = kErrorNoError;
     if (pid == 0) {
@@ -157,7 +159,7 @@ class SafeExe {
       waitpid(pid, &status, 0);
       if (!WIFEXITED(static_cast<uint>(status))) {
         ret = kErrorCompileFail;
-      } else if (static_cast<uint>(WEXITSTATUS(status)) != 0) {
+      } else if (WEXITSTATUS(static_cast<uint>(status)) != 0) {
         ret = kErrorCompileFail;
       }
 

@@ -714,6 +714,19 @@ class MIRModule {
     return tbssVarOffset;
   }
 
+  MIRSymbol *GetTdataAnchor() {
+    return tdataAnchor;
+  }
+  MIRSymbol *GetTbssAnchor() {
+    return tbssAnchor;
+  }
+  void SetTdataAnchor(MIRSymbol *st) {
+    tdataAnchor = st;
+  }
+  void SetTbssAnchor(MIRSymbol *st) {
+    tbssAnchor = st;
+  }
+
  private:
   void DumpTypeTreeToCxxHeaderFile(MIRType &ty, std::unordered_set<MIRType*> &dumpedClasses) const;
 
@@ -813,6 +826,8 @@ class MIRModule {
   std::string tlsAnchorHashString = "";
   MapleMap<const MIRSymbol*, uint64> tdataVarOffset;
   MapleMap<const MIRSymbol*, uint64> tbssVarOffset;
+  MIRSymbol *tdataAnchor;
+  MIRSymbol *tbssAnchor;
 };
 #endif  // MIR_FEATURE_FULL
 }  // namespace maple

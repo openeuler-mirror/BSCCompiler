@@ -55,13 +55,14 @@ class ConstantFold : public FuncOptimizeImpl {
   }
 
   template <class T> T CalIntValueFromFloatValue(T value, const MIRType &resultType) const;
-  MIRConst *FoldFloorMIRConst(const MIRConst&, PrimType, PrimType, bool isFloor = true) const;
-  MIRConst *FoldRoundMIRConst(const MIRConst&, PrimType, PrimType) const;
-  MIRConst *FoldTypeCvtMIRConst(const MIRConst&, PrimType, PrimType) const;
-  MIRConst *FoldSignExtendMIRConst(Opcode, PrimType, uint8, const IntVal&) const;
-  static MIRConst *FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *intConst0,
-                                              const MIRIntConst *intConst1);
-  MIRConst *FoldConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRConst&, const MIRConst&);
+  MIRConst *FoldFloorMIRConst(const MIRConst &cst, PrimType fromType, PrimType toType, bool isFloor = true) const;
+  MIRConst *FoldRoundMIRConst(const MIRConst &cst, PrimType fromType, PrimType toType) const;
+  MIRConst *FoldTypeCvtMIRConst(const MIRConst &cst, PrimType fromType, PrimType toType) const;
+  MIRConst *FoldSignExtendMIRConst(Opcode opcode, PrimType resultType, uint8 size, const IntVal &val) const;
+  static MIRConst *FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst &intConst0,
+                                              const MIRIntConst &intConst1);
+  MIRConst *FoldConstComparisonMIRConst(Opcode opcode, PrimType resultType, PrimType opndType,
+                                        const MIRConst &const0, const MIRConst &const1) const;
   static bool IntegerOpIsOverflow(Opcode op, PrimType primType, int64 cstA, int64 cstB);
   static MIRIntConst *FoldIntConstUnaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *constNode);
 
@@ -107,8 +108,8 @@ class ConstantFold : public FuncOptimizeImpl {
                                 const ConstvalNode &const1) const;
   ConstvalNode *FoldIntConstComparison(Opcode opcode, PrimType resultType, PrimType opndType,
                                        const ConstvalNode &const0, const ConstvalNode &const1) const;
-  MIRIntConst *FoldIntConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRIntConst&,
-                                              const MIRIntConst&) const;
+  MIRIntConst *FoldIntConstComparisonMIRConst(Opcode opcode, PrimType resultType, PrimType opndType,
+                                              const MIRIntConst &intConst0, const MIRIntConst &intConst1) const;
   ConstvalNode *FoldIntConstBinary(Opcode opcode, PrimType resultType, const ConstvalNode &const0,
                                    const ConstvalNode &const1) const;
   ConstvalNode *FoldFPConstComparison(Opcode opcode, PrimType resultType, PrimType opndType, const ConstvalNode &const0,
@@ -133,11 +134,11 @@ class ConstantFold : public FuncOptimizeImpl {
   BaseNode *Negate(BaseNode *node) const;
   BaseNode *Negate(UnaryNode *node) const;
   BaseNode *Negate(const ConstvalNode *node) const;
-  BinaryNode *NewBinaryNode(BinaryNode *old, Opcode op, PrimType primeType, BaseNode *lhs, BaseNode *rhs) const;
-  UnaryNode *NewUnaryNode(UnaryNode *old, Opcode op, PrimType primeType, BaseNode *expr) const;
+  BinaryNode *NewBinaryNode(BinaryNode *old, Opcode op, PrimType primType, BaseNode *lhs, BaseNode *rhs) const;
+  UnaryNode *NewUnaryNode(UnaryNode *old, Opcode op, PrimType primType, BaseNode *expr) const;
   std::pair<BaseNode*, std::optional<IntVal>> DispatchFold(BaseNode *node);
   BaseNode *PairToExpr(PrimType resultType, const std::pair<BaseNode*, std::optional<IntVal>> &pair) const;
-  BaseNode *SimplifyDoubleCompare(CompareNode &node) const;
+  BaseNode *SimplifyDoubleCompare(CompareNode &compareNode) const;
   CompareNode *FoldConstComparisonReverse(Opcode opcode, PrimType resultType, PrimType opndType,
                                           BaseNode &l, BaseNode &r) const;
   MIRModule *mirModule;

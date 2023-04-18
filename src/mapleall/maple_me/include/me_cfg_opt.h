@@ -23,7 +23,7 @@ class MeCfgOpt {
   explicit MeCfgOpt(MeIRMap *irMap) : meIrMap(irMap) {}
 
   ~MeCfgOpt() = default;
-  bool Run(MeCFG &cfg);
+  bool Run(MeCFG &cfg) const;
 
  private:
   bool PreCheck(const MeCFG &cfg) const;

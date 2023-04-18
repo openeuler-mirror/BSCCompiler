@@ -62,7 +62,7 @@ class LoopVecInfo {
   void ResetStmtRHSTypeSize() { currentRHSTypeSize = 0; }
   bool UpdateRHSTypeSize(PrimType ptype); // record rhs node typesize
   // used when profileUse is true
-  void UpdateDoloopProfData(MIRFunction *mirFunc, DoloopNode *doLoop, int32_t vecLanes, bool isRemainder = false);
+  void UpdateDoloopProfData(MIRFunction *mirFunc, const DoloopNode *doLoop, int32_t vecLanes, bool isRemainder = false);
   uint32_t largestTypeSize;  // largest size type in vectorizable stmtnodes
   uint32_t smallestTypeSize;  // smallest size type in vectorizable stmtnodes
   uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt
@@ -168,7 +168,7 @@ class LoopVectorization {
   RegreadNode *GenVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
   bool IassignIsReduction(IassignNode *iassign, LoopVecInfo* vecInfo);
   RegreadNode *GetorNewVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
-  MIRType *VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp) const;
+  MIRType *VectorizeIassignLhs(IassignNode &iassign, const LoopTransPlan *tp) const;
   void VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp);
   void GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes);
 

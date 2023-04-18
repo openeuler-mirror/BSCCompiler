@@ -34,7 +34,7 @@ OPTO2 = {
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             infiles=["${APP}.o","${APP}2.o"],
             outfile="${APP}.exe",
-            option="-std=gnu99 --no-pie -L../lib/lib -lst -lm"
+            option="-std=gnu99 -no-pie -L../lib/lib -lst -lm"
         )
     ],
     "run": [

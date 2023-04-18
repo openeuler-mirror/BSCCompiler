@@ -22,7 +22,7 @@
 namespace maplebe {
 class AArch64ValidBitOpt : public ValidBitOpt {
  public:
-  AArch64ValidBitOpt(CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : ValidBitOpt(f, info, ll) {}
+  AArch64ValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : ValidBitOpt(mp, f, info, ll) {}
   ~AArch64ValidBitOpt() override = default;
 
   void DoOpt() override;
@@ -31,6 +31,7 @@ class AArch64ValidBitOpt : public ValidBitOpt {
  private:
   void OptPatternWithImplicitCvt(BB &bb, Insn &insn);
   void OptCvt(BB &bb, Insn &insn);
+  void OptPregCvt(BB &bb, Insn &insn);
 };
 
 class PropPattern : public ValidBitPattern {
@@ -38,7 +39,6 @@ class PropPattern : public ValidBitPattern {
   PropPattern(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : ValidBitPattern(cgFunc, info, ll) {}
   ~PropPattern() override {}
  protected:
-  bool HasLiveRangeConflict(const RegOperand &dstReg, const RegOperand &srcReg, VRegVersion *destVersion, VRegVersion *srcVersion) const;
   void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
   void ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersion *srcVersion);
 };
@@ -104,11 +104,35 @@ class ExtValidBitPattern : public PropPattern {
   }
 
  private:
+  bool CheckValidCvt(Insn &insn);
+  bool RealUseMopX(const RegOperand &defOpnd, InsnSet &visitedInsn);
   RegOperand *newDstOpnd = nullptr;
   RegOperand *newSrcOpnd = nullptr;
   VRegVersion *destVersion = nullptr;
   VRegVersion *srcVersion = nullptr;
   MOperator newMop = MOP_undef;
+};
+
+class RedundantExpandProp : public PropPattern {
+ public:
+  RedundantExpandProp(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : PropPattern(cgFunc, info, ll) {}
+  ~RedundantExpandProp() override {
+    newDstOpnd = nullptr;
+    newSrcOpnd = nullptr;
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "RedundantExpandProp";
+  }
+
+ private:
+  RegOperand *newDstOpnd = nullptr;
+  RegOperand *newSrcOpnd = nullptr;
+  VRegVersion *destVersion = nullptr;
+  VRegVersion *srcVersion = nullptr;
 };
 
 /*

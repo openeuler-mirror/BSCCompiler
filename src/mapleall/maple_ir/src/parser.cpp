@@ -470,13 +470,13 @@ bool MIRParser::ParsePragmaElementForAnnotation(MIRPragmaElement &elem) {
     Error("parsing pragma error: expecting int but get ");
     return false;
   }
-  int64 size = static_cast<int64>(lexer.GetTheIntVal());
+  uint64 size = lexer.GetTheIntVal();
   tk = lexer.NextToken();
-  if (tk != TK_coma && size) {
+  if (tk != TK_coma && size > 0) {
     Error("parsing pragma error: expecting , but get ");
     return false;
   }
-  for (int64 i = 0; i < size; ++i) {
+  for (uint64 i = 0; i < size; ++i) {
     auto *e0 = mod.GetMemPool()->New<MIRPragmaElement>(mod);
     tk = lexer.NextToken();
     if (tk != TK_label) {

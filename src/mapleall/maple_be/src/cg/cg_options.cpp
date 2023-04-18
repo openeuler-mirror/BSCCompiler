@@ -23,24 +23,24 @@ namespace opts::cg {
 
 maplecl::Option<bool> fpie({"-fpie", "--fpie"},
                           "  --fpie                          \tGenerate position-independent executable in small mode\n"
-                          "  --no-pie/-no-pie\n",
+                          "  --no-pie/-fno-pie\n",
                           {cgCategory, driverCategory, ldCategory},
-                          maplecl::DisableEvery({"--no-pie", "-no-pie"}));
+                          maplecl::DisableEvery({"-fno-pie", "--no-pie"}));
 
 maplecl::Option<bool> fPIE({"-fPIE", "--fPIE"},
                           "  --fPIE                          \tGenerate position-independent executable in large mode\n"
-                          "  --no-pie/-no-pie\n",
+                          "  --no-pie/-fno-pie\n",
                           {cgCategory, driverCategory, ldCategory});
 
 maplecl::Option<bool> fpic({"-fpic", "--fpic"},
                            "  --fpic                     \tGenerate position-independent shared library in small mode\n"
-                           "  --no-pic/no-pic\n",
+                           "  --no-pic/-fno-pic\n",
                            {cgCategory, driverCategory, ldCategory},
-                           maplecl::DisableEvery({"--no-pic", "-no-pic"}));
+                           maplecl::DisableEvery({"-fno-pic", "--no-pic"}));
 
 maplecl::Option<bool> fPIC({"-fPIC", "--fPIC"},
                            "  --fPIC                     \tGenerate position-independent shared library in large mode\n"
-                           "  --no-pic/no-pic\n",
+                           "  --no-pic/-fno-pic\n",
                            {cgCategory, driverCategory, ldCategory});
 
 maplecl::Option<bool> fnoSemanticInterposition({"-fno-semantic-interposition"},

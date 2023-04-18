@@ -227,8 +227,8 @@ MIRType* SeqVectorize::GenVecType(PrimType sPrimType, uint8 lanes) const {
   return vecType;
 }
 
-bool SeqVectorize::CanAdjustRhsType(PrimType targetType, const ConstvalNode *rhs) const {
-  const MIRIntConst *intConst = static_cast<const MIRIntConst*>(rhs->GetConstVal());
+bool SeqVectorize::CanAdjustRhsType(PrimType targetType, const ConstvalNode &rhs) const {
+  const MIRIntConst *intConst = static_cast<const MIRIntConst*>(rhs.GetConstVal());
   int64 v = intConst->GetExtValue();
   bool res = false;
   switch (targetType) {
@@ -268,11 +268,11 @@ bool SeqVectorize::CanAdjustRhsType(PrimType targetType, const ConstvalNode *rhs
   return res;
 }
 
-void SeqVectorize::DumpCandidates(const MeExpr *base, const StoreList *storelist) const {
+void SeqVectorize::DumpCandidates(const MeExpr &base, const StoreList &storelist) const {
   LogInfo::MapleLogger() << "Dump base node \t";
-  base->Dump(meIRMap, 0);
-  for (uint32_t i = 0; i < (*storelist).size(); i++) {
-    (*storelist)[i]->Dump(0);
+  base.Dump(meIRMap, 0);
+  for (uint32_t i = 0; i < storelist.size(); i++) {
+    storelist[i]->Dump(0);
   }
   return;
 }
@@ -293,7 +293,7 @@ void SeqVectorize::CollectStores(IassignNode *iassign) {
   // check lhs and rhs type
   if (iassign->GetRHS()->IsConstval() &&
       (stmtpt != iassign->GetRHS()->GetPrimType()) &&
-      (!CanAdjustRhsType(stmtpt, static_cast<ConstvalNode *>(iassign->GetRHS())))) {
+      (!CanAdjustRhsType(stmtpt, *(static_cast<ConstvalNode *>(iassign->GetRHS()))))) {
     return;
   }
   // compare base address with store list
@@ -322,13 +322,13 @@ void SeqVectorize::CollectStores(IassignNode *iassign) {
   stores[base] = storelist;
 }
 
-bool SeqVectorize::SameIntConstValue(const MeExpr *e1, const MeExpr *e2) const {
-  if (e1->GetOp() == maple::OP_constval && e2->GetOp() == maple::OP_constval &&
-      IsPrimitiveInteger(e1->GetPrimType()) &&
-      IsPrimitiveInteger(e2->GetPrimType())) {
-    const MIRConst *const1 =  (static_cast<const ConstMeExpr *>(e1))->GetConstVal();
+bool SeqVectorize::SameIntConstValue(const MeExpr &e1, const MeExpr &e2) const {
+  if (e1.GetOp() == maple::OP_constval && e2.GetOp() == maple::OP_constval &&
+      IsPrimitiveInteger(e1.GetPrimType()) &&
+      IsPrimitiveInteger(e2.GetPrimType())) {
+    const MIRConst *const1 =  (static_cast<const ConstMeExpr *>(&e1))->GetConstVal();
     const MIRIntConst *intc1 =  static_cast<const MIRIntConst *>(const1);
-    const MIRConst *const2 =  (static_cast<const ConstMeExpr *>(e2))->GetConstVal();
+    const MIRConst *const2 =  (static_cast<const ConstMeExpr *>(&e2))->GetConstVal();
     const MIRIntConst *intc2 =  static_cast<const MIRIntConst *>(const2);
     return (intc1->GetExtValue() == intc2->GetExtValue());
   }
@@ -337,7 +337,7 @@ bool SeqVectorize::SameIntConstValue(const MeExpr *e1, const MeExpr *e2) const {
 
 bool SeqVectorize::CanSeqVecRhs(MeExpr *rhs1, MeExpr *rhs2) {
   // case 1: rhs1 and rhs2 are constval and same value
-  if ((rhs1 == rhs2) || SameIntConstValue(rhs1, rhs2)) {
+  if ((rhs1 == rhs2) || SameIntConstValue(*rhs1, *rhs2)) {
     if (IsRhsConst() || IsRhsStatusUnset()) {
       SetRhsConst();
       return true;
@@ -372,33 +372,33 @@ bool SeqVectorize::CanSeqVecRhs(MeExpr *rhs1, MeExpr *rhs2) {
   return false;
 }
 
-bool SeqVectorize::IsOpExprConsecutiveMem(MeExpr *off1, MeExpr *off2, int32_t diff) const {
-  if (off1->GetOp() == off2->GetOp() &&
-      off1->GetOp() == OP_add) {
-    if (off1->GetOpnd(0) == off2->GetOpnd(0) &&
-        (off1->GetOpnd(1)->GetOp() == OP_constval) &&
-        (off2->GetOpnd(1)->GetOp() == OP_constval)) {
-      MIRConst *constoff1 =  static_cast<ConstMeExpr *>(off1->GetOpnd(1))->GetConstVal();
-      MIRIntConst *intoff1 =  static_cast<MIRIntConst *>(constoff1);
-      MIRConst *constoff2 =  static_cast<ConstMeExpr *>(off2->GetOpnd(1))->GetConstVal();
-      MIRIntConst *intoff2 =  static_cast<MIRIntConst *>(constoff2);
+bool SeqVectorize::IsOpExprConsecutiveMem(const MeExpr &off1, const MeExpr &off2, int32_t diff) const {
+  if (off1.GetOp() == off2.GetOp() &&
+      off1.GetOp() == OP_add) {
+    if (off1.GetOpnd(0) == off2.GetOpnd(0) &&
+        (off1.GetOpnd(1)->GetOp() == OP_constval) &&
+        (off2.GetOpnd(1)->GetOp() == OP_constval)) {
+      const MIRConst *constoff1 =  static_cast<const ConstMeExpr *>(off1.GetOpnd(1))->GetConstVal();
+      const MIRIntConst *intoff1 =  static_cast<const MIRIntConst *>(constoff1);
+      const MIRConst *constoff2 =  static_cast<const ConstMeExpr *>(off2.GetOpnd(1))->GetConstVal();
+      const MIRIntConst *intoff2 =  static_cast<const MIRIntConst *>(constoff2);
       if (intoff2->GetExtValue() - intoff1->GetExtValue() == diff) {
         return true;
       }
     }
-  } else if (off1->GetOp() == OP_mul && off2->GetOp() == OP_add) {
-    if (off1 == off2->GetOpnd(0) && off2->GetOpnd(1)->GetOp() == OP_constval) {
-      MIRConst *constoff2 = static_cast<ConstMeExpr *>(off2->GetOpnd(1))->GetConstVal();
+  } else if (off1.GetOp() == OP_mul && off2.GetOp() == OP_add) {
+    if ((&off1) == off2.GetOpnd(0) && off2.GetOpnd(1)->GetOp() == OP_constval) {
+      MIRConst *constoff2 = static_cast<ConstMeExpr *>(off2.GetOpnd(1))->GetConstVal();
       MIRIntConst *intoff2 = static_cast<MIRIntConst *>(constoff2);
       if (intoff2->GetValue() == diff) {
         return true;
       }
     }
-  } else if (off1->GetOp() == off2->GetOp() && off1->GetOp() == OP_constval) {
-    MIRConst *const1 = static_cast<ConstMeExpr *>(off1)->GetConstVal();
-    MIRIntConst *intc1 = static_cast<MIRIntConst *>(const1);
-    MIRConst *const2 = static_cast<ConstMeExpr *>(off2)->GetConstVal();
-    MIRIntConst *intc2 = static_cast<MIRIntConst *>(const2);
+  } else if (off1.GetOp() == off2.GetOp() && off1.GetOp() == OP_constval) {
+    const MIRConst *const1 = static_cast<const ConstMeExpr *>(&off1)->GetConstVal();
+    const MIRIntConst *intc1 = static_cast<const MIRIntConst *>(const1);
+    const MIRConst *const2 = static_cast<const ConstMeExpr *>(&off2)->GetConstVal();
+    const MIRIntConst *intc2 = static_cast<const MIRIntConst *>(const2);
     if (intc2->GetExtValue() - intc1->GetExtValue() == diff) {
       return true;
     }
@@ -406,7 +406,7 @@ bool SeqVectorize::IsOpExprConsecutiveMem(MeExpr *off1, MeExpr *off2, int32_t di
   return false;
 }
 
-bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2, PrimType ptrType) {
+bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2, PrimType ptrType) const {
   MeExpr *base1 = ivar1->GetBase();
   MeExpr *base2 = ivar2->GetBase();
   uint32_t base1NumOpnds = base1->GetNumOpnds();
@@ -439,7 +439,7 @@ bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2
     // check lhs: highest dimension offset is consecutive
     MeExpr *off1 = base1->GetOpnd(base1NumOpnds - 1);
     MeExpr *off2 = base2->GetOpnd(base2NumOpnds - 1);
-    if (!IsOpExprConsecutiveMem(off1, off2, 1)) {
+    if (!IsOpExprConsecutiveMem(*off1, *off2, 1)) {
       return false;
     }
   } else {
@@ -608,18 +608,18 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
   SeqVectorize::seqVecStores++;
 }
 
-void SeqVectorize::LegalityCheckAndTransform(const StoreList *storelist) {
+void SeqVectorize::LegalityCheckAndTransform(const StoreList &storelist) {
   MapleVector<IassignNode *> cands(localAlloc.Adapter());
-  size_t len = storelist->size();
+  size_t len = storelist.size();
   bool needReverse = true;
   cands.clear();
   ResetRhsStatus(); // reset rhs is const flag
   for (size_t i = 0; i < len; ++i) {
-    IassignNode *store1 = (*storelist)[i];
+    IassignNode *store1 = storelist[i];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));
     cands.push_back(store1);
     for (size_t j = i + 1; j < len; ++j) {
-      IassignNode *store2 = (*storelist)[j];
+      IassignNode *store2 = storelist[j];
       if (CanSeqVec(cands.back(), store2, false)) {
         cands.push_back(store2);
       }
@@ -637,11 +637,11 @@ void SeqVectorize::LegalityCheckAndTransform(const StoreList *storelist) {
   }
   ResetRhsStatus(); // reset rhs is const flag
   for (int i = static_cast<int>(len) - 1; i >= 0; --i) {
-    IassignNode *store1 = (*storelist)[i];
+    IassignNode *store1 = storelist[i];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));
     cands.push_back(store1);
     for (int j = i - 1; j >= 0; --j) {
-      IassignNode *store2 = (*storelist)[j];
+      IassignNode *store2 = storelist[j];
       if (CanSeqVec(cands.back(), store2, true)) {
         cands.push_back(store2);
       }
@@ -663,9 +663,9 @@ void SeqVectorize::CheckAndTransform() {
   StoreListMap::const_iterator mapit = stores.cbegin();
   for (; mapit != stores.end(); ++mapit) {
     if (enableDebug) {
-      DumpCandidates(mapit->first, mapit->second);
+      DumpCandidates(*(mapit->first), *(mapit->second));
     }
-    LegalityCheckAndTransform(mapit->second);
+    LegalityCheckAndTransform(*(mapit->second));
   }
 
   // clear list

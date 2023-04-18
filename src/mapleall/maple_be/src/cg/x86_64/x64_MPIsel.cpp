@@ -295,7 +295,7 @@ void X64MPIsel::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, uint32
 
 bool X64MPIsel::IsParamStructCopy(const MIRSymbol &symbol) {
   if (symbol.GetStorageClass() == kScFormal &&
-      cgFunc->GetBecommon().GetTypeSize(symbol.GetTyIdx().GetIdx()) > k16ByteSize) {
+      GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbol.GetTyIdx().GetIdx())->GetSize() > k16ByteSize) {
     return true;
   }
   return false;

@@ -64,6 +64,10 @@ class InsnVisitor {
   virtual void FlipIfBB(BB &bb, LabelIdx ftLabel) const = 0;
   virtual BB *CreateGotoBBAfterCondBB(BB &bb, BB &fallthru, bool isTargetFallthru) const = 0;
 
+  // Change ftBB to gotoBB:
+  // Append new jumpInsn in curBB.
+  virtual void ModifyFathruBBToGotoBB(BB &bb, LabelIdx labelIdx) const = 0;
+
  private:
   CGFunc *cgFunc;
 };  /* class InsnVisitor; */
@@ -100,6 +104,12 @@ class CGCFG {
   void RemoveBB(BB &curBB, bool isGotoIf = false) const;
   /* Skip the successor of bb, directly jump to bb's successor'ssuccessor */
   void RetargetJump(BB &srcBB, BB &targetBB) const;
+
+  /*
+   * Update the preds of CommonExitBB after changing cfg,
+   * We'd better do it once after cfgo opt
+   */
+  void UpdateCommonExitBBInfo();
 
   /* Loop up if the given label is in the exception tables in LSDA */
   static bool InLSDA(LabelIdx label, const EHFunc *ehFunc);

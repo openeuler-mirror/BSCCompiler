@@ -163,6 +163,12 @@ class OptionInterface {
     return names[0];
   }
 
+  // Used for option sorting.
+  std::string GetOptName() const {
+    assert(names.size() > 0);
+    return names[0];
+  }
+
   const std::string &GetDescription() const {
     return optDescription;
   }
@@ -229,7 +235,7 @@ class Option : public OptionInterface {
    * strding test = option1; or int dig = option2 - here will be implicit conversation.
    */
   /* implicit */
-  operator T() {
+  operator T() const {
     return GetValue();
   }
 
@@ -318,7 +324,7 @@ class Option : public OptionInterface {
   RetCode ParseString(size_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
   RetCode ParseBool(size_t &argsIndex, const std::deque<std::string_view> &args);
 
-  void FillVal(const T &val, std::vector<std::string> &vals) {
+  void FillVal(const T &val, std::vector<std::string> &vals) const {
     if constexpr(digitalCheck<T>) {
       (void)vals.emplace_back(std::to_string(val));
     } else if constexpr (std::is_same_v<std::string, T>) {

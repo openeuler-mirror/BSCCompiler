@@ -168,7 +168,7 @@ class DBGExprLoc {
     return simpLoc->GetVal();
   }
 
-  void SetGvarStridx(int idx) const {
+  void SetGvarStridx(int idx) {
     simpLoc->SetVal(idx);
   }
 

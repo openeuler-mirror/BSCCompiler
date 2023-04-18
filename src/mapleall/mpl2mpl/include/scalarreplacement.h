@@ -40,9 +40,9 @@ class ScalarReplacement : public FuncOptimizeImpl {
   std::vector<IntrinsiccallNode*> localRefCleanup;
   std::unordered_map<MIRSymbol*, FldRefMap> localVarMap;
   template <typename Func>
-  BaseNode *IterateExpr(StmtNode *stmt, BaseNode *expr, Func const &applyFunc);
+  BaseNode *IterateExpr(StmtNode *stmt, BaseNode *expr, Func const &applyFunc) const;
   template <typename Func>
-  void IterateStmt(StmtNode *stmt, Func const &applyFunc);
+  void IterateStmt(StmtNode *stmt, Func const &applyFunc) const;
   BaseNode *MarkDassignDread(StmtNode *stmt, BaseNode *opnd);
   void CollectCandidates();
   void DumpCandidates() const;
@@ -50,7 +50,7 @@ class ScalarReplacement : public FuncOptimizeImpl {
   bool IsSetClass(StmtNode *stmt) const;
   bool IsCCWriteRefField(StmtNode *stmt) const;
   bool CanBeReplaced(const StmtVec *refs) const;
-  BaseNode *ReplaceDassignDread(StmtNode *stmt, BaseNode *opnd);
+  BaseNode *ReplaceDassignDread(StmtNode &stmt, BaseNode *opnd) const;
   void AppendLocalRefCleanup(const MIRSymbol *sym);
   void ReplaceWithScalar(const StmtVec *refs);
   void FixRCCalls(const StmtVec *refs);
