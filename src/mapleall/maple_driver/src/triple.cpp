@@ -2422,7 +2422,7 @@ maplecl::Option<bool> oWduplicatedCond({"-Wduplicated-cond"},
 maplecl::Option<std::string> oWeak_reference_mismatches({"-weak_reference_mismatches"},
     "  -weak_reference_mismatches             \tSpecifies what to do if a symbol import conflicts between file "
     "(weak in one and not in another) the default is to treat the symbol as non-weak.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oWeffc({"-Weffc++"},
     "  -Weffc++             \tWarn about violations of Effective C++ style rules.\n",
@@ -3006,9 +3006,9 @@ maplecl::Option<bool> oWstackProtector({"-Wstack-protector"},
     {driverCategory, clangCategory},
     maplecl::DisableWith("-Wno-stack-protector"));
 
-maplecl::Option<std::string> oWstackUsage({"-Wstack-usage"},
-    "  -Wstack-usage             \t-Wstack-usage=<byte-size> Warn if stack usage might exceed <byte-size>.\n",
-    {driverCategory, clangCategory});
+maplecl::Option<std::string> oWstackUsage({"-Wstack-usage="},
+    "  -Wstack-usage=             \t-Wstack-usage=<byte-size> Warn if stack usage might exceed <byte-size>.\n",
+    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oWstrictAliasing({"-Wstrict-aliasing"},
     "  -Wstrict-aliasing             \tWarn about code which might break strict aliasing "
@@ -4262,7 +4262,7 @@ maplecl::Option<bool> oMpushArgs({"-mpush-args"},
     {driverCategory, unSupCategory},
     maplecl::DisableWith("--mno-push-args"));
 
-maplecl::Option<bool> oMQ({"-MQ"},
+maplecl::Option<std::string> oMQ({"-MQ"},
     "  -MQ             \t-MQ <target> o       Add a MAKE-quoted target.\n",
     {driverCategory, clangCategory}, maplecl::joinedValue);
 

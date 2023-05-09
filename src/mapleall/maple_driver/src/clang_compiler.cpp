@@ -134,7 +134,9 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   }
 
   /* Set last option as -o option */
-  if (action.GetInputFileType() != InputFileType::kFileTypeH && !opts::onlyPreprocess.IsEnabledByUser()) {
+  if (action.GetInputFileType() != InputFileType::kFileTypeH && !opts::onlyPreprocess.IsEnabledByUser() &&
+      !opts::oM.IsEnabledByUser() && !opts::oMM.IsEnabledByUser() && !opts::oMG.IsEnabledByUser() &&
+      !opts::oMQ.IsEnabledByUser()) {
     if (!opts::linkerTimeOpt.IsEnabledByUser() || !opts::compileWOLink.IsEnabledByUser()) {
       opt[additionalLen - 1].SetKey("-o");
       opt[additionalLen - 1].SetValue(action.GetFullOutputName() + ".ast");

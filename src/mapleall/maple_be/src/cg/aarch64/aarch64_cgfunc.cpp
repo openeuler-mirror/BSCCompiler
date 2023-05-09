@@ -2752,6 +2752,8 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
       return;
     }
     ASSERT(copySize != 0, "expect non-zero");
+    // If the program goes through the following for loop, hasPairOrTwoWords returns true.
+    bool hasPairOrTwoWords = false;
     for (uint32 i = 0; i < (lhsSize / copySize); i++) {
       /* generate the load */
       uint32 operandSize = copySize * k8BitSize;
@@ -2791,37 +2793,55 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
         lhsMemOpnd = FixLargeMemOpnd(mOp, *static_cast<MemOperand*>(lhsMemOpnd), operandSize, kInsnSecondOpnd);
         GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, result, *lhsMemOpnd));
       }
+      hasPairOrTwoWords = true;
     }
     /* take care of extra content at the end less than the unit */
     uint64 lhsSizeCovered = (lhsSize / copySize) * copySize;
     uint32 newAlignUsed = copySize;
+    // Insn can be reduced when lhsSizeNotCovered = 3 | 5 | 6 | 7
+    // 3: h + b -> w ; 5: w + b -> x ; 6: w + h -> x ; 7: w + h + b -> x
+    uint32 lhsSizeNotCovered = lhsSize - lhsSizeCovered;
+    if (hasPairOrTwoWords &&
+        (lhsSizeNotCovered == k3BitSize || ((lhsSizeNotCovered >= k5BitSize) && (lhsSizeNotCovered <= k7BitSize)))) {
+      uint64 ofst = (lhsSizeNotCovered == k3BitSize) ? (lhsSize - k4BitSize) : (lhsSize - k8BitSize);
+      uint32 memOpndSize = (lhsSizeNotCovered == k3BitSize) ? k32BitSize : k64BitSize;
+      regno_t vRegNO = NewVReg(kRegTyInt, (lhsSizeNotCovered == k3BitSize) ? k4BitSize : k8BitSize);
+      GenLdStForAggIassign(ofst, rhsOffset, lhsOffset, *rhsAddrOpnd, lhsAddrOpnd, memOpndSize, vRegNO, isRefField);
+      lhsSizeCovered += lhsSizeNotCovered;
+    }
     while (lhsSizeCovered < lhsSize) {
       newAlignUsed = newAlignUsed >> 1;
       if (IslhsSizeAligned(lhsSizeCovered, newAlignUsed, lhsSize)) {
         continue;
       }
-      /* generate the load */
-      int64 rhsOffValCoverd = static_cast<int64>(rhsOffset + lhsSizeCovered);
-      ImmOperand &rhsOfstOpnd = CreateImmOperand(rhsOffValCoverd, k32BitSize, false);
       uint32 memOpndSize = newAlignUsed * k8BitSize;
-      MemOperand *rhsMemOpnd = CreateMemOperand(memOpndSize, static_cast<RegOperand&>(*rhsAddrOpnd), rhsOfstOpnd);
       regno_t vRegNO = NewVReg(kRegTyInt, std::max(4u, newAlignUsed));
-      RegOperand &result = CreateVirtualRegisterOperand(vRegNO);
-      MOperator mOpLD = PickLdInsn(memOpndSize, PTY_u32);
-      rhsMemOpnd = FixLargeMemOpnd(mOpLD, *rhsMemOpnd, memOpndSize, static_cast<uint32>(kInsnSecondOpnd));
-      Insn &insn = GetInsnBuilder()->BuildInsn(mOpLD, result, *rhsMemOpnd);
-      insn.MarkAsAccessRefField(isRefField);
-      GetCurBB()->AppendInsn(insn);
-      /* generate the store */
-      int64 lhsOffValWithCover = static_cast<int64>(lhsOffset + lhsSizeCovered);
-      ImmOperand &lhsOfstOpnd = CreateImmOperand(lhsOffValWithCover, k32BitSize, false);
-      MemOperand *lhsMemOpnd = CreateMemOperand(memOpndSize, static_cast<RegOperand&>(lhsAddrOpnd), lhsOfstOpnd);
-      MOperator mOpST = PickStInsn(memOpndSize, PTY_u32);
-      lhsMemOpnd = FixLargeMemOpnd(mOpST, *lhsMemOpnd, memOpndSize, static_cast<uint32>(kInsnSecondOpnd));
-      GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOpST, result, *lhsMemOpnd));
+      GenLdStForAggIassign(lhsSizeCovered, rhsOffset, lhsOffset, *rhsAddrOpnd, lhsAddrOpnd, memOpndSize, vRegNO,
+                           isRefField);
       lhsSizeCovered += newAlignUsed;
     }
   }
+}
+
+void AArch64CGFunc::GenLdStForAggIassign(uint64 ofst, uint32 rhsOffset, uint32 lhsOffset, RegOperand &rhsAddrOpnd,
+                                         Operand &lhsAddrOpnd, uint32 memOpndSize, regno_t vRegNO, bool isRefField) {
+  /* generate the load */
+  int64 rhsOffValCovered = static_cast<int64>(rhsOffset + ofst);
+  ImmOperand &rhsOfstOpnd = CreateImmOperand(rhsOffValCovered, k32BitSize, false);
+  MemOperand *rhsMemOpnd = CreateMemOperand(memOpndSize, rhsAddrOpnd, rhsOfstOpnd);
+  RegOperand &result = CreateVirtualRegisterOperand(vRegNO);
+  MOperator mOpLD = PickLdInsn(memOpndSize, PTY_u32);
+  rhsMemOpnd = FixLargeMemOpnd(mOpLD, *rhsMemOpnd, memOpndSize, static_cast<uint32>(kInsnSecondOpnd));
+  Insn &insn = GetInsnBuilder()->BuildInsn(mOpLD, result, *rhsMemOpnd);
+  insn.MarkAsAccessRefField(isRefField);
+  GetCurBB()->AppendInsn(insn);
+  /* generate the store */
+  int64 lhsOffValWithCover = static_cast<int64>(lhsOffset + ofst);
+  ImmOperand &lhsOfstOpnd = CreateImmOperand(lhsOffValWithCover, k32BitSize, false);
+  MemOperand *lhsMemOpnd = CreateMemOperand(memOpndSize, static_cast<RegOperand &>(lhsAddrOpnd), lhsOfstOpnd);
+  MOperator mOpST = PickStInsn(memOpndSize, PTY_u32);
+  lhsMemOpnd = FixLargeMemOpnd(mOpST, *lhsMemOpnd, memOpndSize, static_cast<uint32>(kInsnSecondOpnd));
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOpST, result, *lhsMemOpnd));
 }
 
 void AArch64CGFunc::SelectReturnSendOfStructInRegs(BaseNode *x) {

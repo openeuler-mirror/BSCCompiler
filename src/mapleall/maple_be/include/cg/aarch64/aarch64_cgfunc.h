@@ -130,6 +130,8 @@ class AArch64CGFunc : public CGFunc {
   void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) override;
   void SelectBlkassignoff(BlkassignoffNode &bNode, Operand &src) override;
   void SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) override;
+  void GenLdStForAggIassign(uint64 ofst, uint32 rhsOffset, uint32 lhsOffset, RegOperand &rhsAddrOpnd,
+                            Operand &lhsAddrOpnd, uint32 memOpndSize, regno_t vRegNO, bool isRefField);
   void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd0) override;
   void SelectIgoto(Operand *opnd0) override;

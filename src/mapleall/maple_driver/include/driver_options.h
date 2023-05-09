@@ -1482,7 +1482,7 @@ extern maplecl::Option<bool> oMprologueEpilogue;
 extern maplecl::Option<bool> oMprototype;
 extern maplecl::Option<bool> oMpureCode;
 extern maplecl::Option<bool> oMpushArgs;
-extern maplecl::Option<bool> oMQ;
+extern maplecl::Option<std::string> oMQ;
 extern maplecl::Option<bool> oMqClass;
 extern maplecl::Option<bool> oMquadMemory;
 extern maplecl::Option<bool> oMquadMemoryAtomic;
@@ -1868,6 +1868,8 @@ extern maplecl::Option<bool> oFobjcSjljExceptions;
 extern maplecl::Option<bool> oFrandomSeed;
 extern maplecl::Option<bool> tlsAggressiveOpt;
 extern maplecl::Option<bool> staticLibmplpgo;
+extern maplecl::Option<bool> oFnoExtendedIdentifiers;
+extern maplecl::Option<bool> oFnoPchPreprocess;
 
 /* ##################### STRING Options ############################################################### */
 
@@ -2065,7 +2067,6 @@ extern maplecl::Option<std::string> oFtemplateDepthE;
 extern maplecl::Option<std::string> functionReorderAlgorithm;
 extern maplecl::Option<std::string> functionReorderProfile;
 extern maplecl::Option<std::string> oA;
-extern maplecl::Option<std::string> oD;
 
 /* ##################### DIGITAL Options ############################################################### */
 

@@ -688,7 +688,7 @@ maplecl::Option<std::string> oBundle_loader({"-bundle_loader"},
 
 maplecl::Option<bool> oC({"-C"},
     "  -C             \tDo not discard comments. \n",
-    {driverCategory, clangCategory});
+    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oCC({"-CC"},
     "  -CC             \tDo not discard comments in macro expansions.\n",
@@ -740,17 +740,17 @@ maplecl::Option<bool> oDH({"-dH"},
 maplecl::Option<bool> oDI({"-dI"},
     "  -dI             \tOutput '#include' directives in addition to the result of"
     " preprocessing.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oDM({"-dM"},
     "  -dM             \tInstead of the normal output, generate a list of '#define' "
     "directives for all the macros defined during the execution of the preprocessor, "
     "including predefined macros. \n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oDN({"-dN"},
     "  -dN             \t Like -dD, but emit only the macro names, not their expansions.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oDp({"-dp"},
     "  -dp             \tAnnotate the assembler output with a comment indicating which "
@@ -764,7 +764,7 @@ maplecl::Option<bool> oDP({"-dP"},
 
 maplecl::Option<bool> oDU({"-dU"},
     "  -dU             \tLike -dD except that only macros that are expanded.\n",
-    {driverCategory, unSupCategory});
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oDumpfullversion({"-dumpfullversion"},
     "  -dumpfullversion             \tPrint the full compiler version, always 3 numbers "
@@ -1671,10 +1671,12 @@ maplecl::Option<bool> oFextNumericLiterals({"-fext-numeric-literals"},
     maplecl::DisableWith("-fno-ext-numeric-literals"));
 
 maplecl::Option<bool> oFextendedIdentifiers({"-fextended-identifiers"},
-    "  -fextended-identifiers             \tPermit universal character names (\\u and \\U) "
-    "in identifiers.\n",
-    {driverCategory, clangCategory},
-    maplecl::DisableWith("-fno-extended-identifiers"));
+    "  -fextended-identifiers             \tPermit universal character names (\\u and \\U) in identifiers.\n",
+    {driverCategory, clangCategory});
+
+maplecl::Option<bool> oFnoExtendedIdentifiers({"-fno-extended-identifiers"},
+    "  -fno-extended-identifiers             \tDon't ermit universal character names (\\u and \\U) in identifiers.\n",
+    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oFexternTlsInit({"-fextern-tls-init"},
     "  -fextern-tls-init             \tSupport dynamic initialization of thread-local "
@@ -2595,8 +2597,11 @@ maplecl::Option<bool> oFpchDeps({"-fpch-deps"},
 
 maplecl::Option<bool> oFpchPreprocess({"-fpch-preprocess"},
     "  -fpch-preprocess             \tLook for and use PCH files even when preprocessing.\n",
-    {driverCategory, clangCategory},
-    maplecl::DisableWith("-fno-pch-preprocess"));
+    {driverCategory, clangCategory});
+
+maplecl::Option<bool> oFnoPchPreprocess({"-fno-pch-preprocess"},
+    "  -fno-pch-preprocess            \tLook for and use PCH files even when preprocessing.\n",
+    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oFpeelLoops({"-fpeel-loops"},
     "  -fpeel-loops             \tPerform loop peeling.\n",
@@ -3703,7 +3708,7 @@ maplecl::Option<bool> oNoCanonicalPrefixes({"-no-canonical-prefixes"},
 
 maplecl::Option<bool> oNoIntegratedCpp({"-no-integrated-cpp"},
     "  -no-integrated-cpp             \tPerform preprocessing as a separate pass before compilation.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oNoSysrootSuffix({"-no-sysroot-suffix"},
     "  -no-sysroot-suffix             \t\n",
@@ -4090,7 +4095,7 @@ maplecl::Option<std::string> oXlinker({"-Xlinker"},
 
 maplecl::Option<std::string> oXpreprocessor({"-Xpreprocessor"},
     "  -Xpreprocessor             \tPass option as an option to the preprocessor. \n",
-    {driverCategory, clangCategory}, maplecl::joinedValue);
+    {driverCategory, clangCategory});
 
 maplecl::Option<std::string> oYm({"-Ym"},
     "  -Ym             \tLook in the directory dir to find the M4 preprocessor. \n",
@@ -4274,9 +4279,8 @@ maplecl::Option<bool> oStdlegacy({"-std=legacy"},
     {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oFworkingDirectory({"-fworking-directory"},
-    "  -fworking-directory             \tGenerate a #line directive pointing at the current "
-    "working directory.\n",
-    {driverCategory, clangCategory},
+    "  -fworking-directory             \tGenerate a #line directive pointing at the current working directory.\n",
+    {driverCategory, unSupCategory},
     maplecl::DisableWith("-fno-working-directory"));
 
 maplecl::Option<bool> oFwrapv({"-fwrapv"},
@@ -5096,13 +5100,8 @@ maplecl::Option<bool> oMvzeroupper({"-mvzeroupper"},
     {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oMwarnCellMicrocode({"-mwarn-cell-microcode"},
-    "  -mwarn-cell-microcode             \tWarn when a Cell microcode instruction is "
-    "emitted. \n",
+    "  -mwarn-cell-microcode             \tWarn when a Cell microcode instruction is emitted. \n",
     {driverCategory, unSupCategory});
-
-maplecl::Option<std::string> oD({"-d"},
-    "  -d<letters>             \tEnable dumps from specific passes of the compiler.\n",
-    {driverCategory, clangCategory}, maplecl::joinedValue);
 
 maplecl::Option<std::string> oA({"-A"},
     "  -A<question>=<answer>             \tAssert the <answer> to <question>.  Putting '-' before <question> disables "

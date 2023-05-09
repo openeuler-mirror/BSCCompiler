@@ -291,7 +291,9 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       newAction = std::make_unique<Action>(kBinNameClang, inputInfo, currentAction);
       currentAction = std::move(newAction);
       if (inputFileType == InputFileType::kFileTypeH || opts::onlyPreprocess.IsEnabledByUser() ||
-          (opts::linkerTimeOpt.IsEnabledByUser() && opts::compileWOLink.IsEnabledByUser())) {
+          (opts::linkerTimeOpt.IsEnabledByUser() && opts::compileWOLink.IsEnabledByUser()) ||
+           opts::oM.IsEnabledByUser() || opts::oMM.IsEnabledByUser() || opts::oMG.IsEnabledByUser() ||
+           opts::oMQ.IsEnabledByUser()) {
         return currentAction;
       }
       [[clang::fallthrough]];
