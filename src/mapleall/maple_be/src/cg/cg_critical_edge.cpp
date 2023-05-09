@@ -12,21 +12,23 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "cg.h"
 #include "cg_critical_edge.h"
 #include "cg_ssa.h"
 
 namespace maplebe {
 void CriticalEdge::SplitCriticalEdges() {
   for (auto it = criticalEdges.begin(); it != criticalEdges.end(); ++it) {
-    cgFunc->GetTheCFG()->BreakCriticalEdge(*((*it).first), *((*it).second));
+    BB *newBB = cgFunc->GetTheCFG()->BreakCriticalEdge(*((*it).first), *((*it).second));
+    if (newBB) {
+      (void)newBBcreated.emplace(newBB->GetId());
+    }
   }
 }
 
 void CriticalEdge::CollectCriticalEdges() {
   constexpr int multiPredsNum = 2;
   FOR_ALL_BB(bb, cgFunc) {
-    const MapleList<BB*> &preds = bb->GetPreds();
+    const auto &preds = bb->GetPreds();
     if (preds.size() < multiPredsNum) {
       continue;
     }

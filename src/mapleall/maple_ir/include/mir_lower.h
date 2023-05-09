@@ -147,7 +147,7 @@ class MIRLower {
   FuncProfInfo *GetFuncProfData() const {
     return mirFunc->GetFuncProfData();
   }
-  void CopyStmtFrequency(StmtNode *newStmt, StmtNode *oldStmt) {
+  void CopyStmtFrequency(const StmtNode *newStmt, const StmtNode *oldStmt) {
     ASSERT(GetFuncProfData() != nullptr, "nullptr check");
     if (newStmt == oldStmt) {
       return;

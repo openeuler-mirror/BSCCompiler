@@ -49,7 +49,7 @@ void ListScheduler::DoListScheduling() {
       candiNode->SetState(kWaiting);
       candiIter = commonSchedInfo->EraseIterFromCandidates(candiIter);
     } else {
-      candiIter++;
+      ++candiIter;
     }
   }
 
@@ -73,7 +73,7 @@ void ListScheduler::DoListScheduling() {
         waitingNode->SetState(kReady);
         waitingIter = EraseIterFromWaitingQueue(waitingIter);
       } else {
-        waitingIter++;
+        ++waitingIter;
       }
     }
 
@@ -167,7 +167,8 @@ void ListScheduler::UpdateEStart(DepNode &schedNode) {
       ASSERT(succNode.GetState() != kScheduled, "invalid state of depNode");
       succNode.SetEStart(std::max(succNode.GetEStart(), schedNode.GetSchedCycle() + succLink->GetLatency()));
       maxEStart = std::max(maxEStart, succNode.GetEStart());
-      if (!succNode.GetSuccs().empty() && std::find(traversalList.begin(), traversalList.end(), &succNode) == traversalList.end()) {
+      if (!succNode.GetSuccs().empty() &&
+          std::find(traversalList.begin(), traversalList.end(), &succNode) == traversalList.end()) {
         (void)traversalList.emplace_back(&succNode);
       }
     }
@@ -218,7 +219,7 @@ void ListScheduler::UpdateNodesInReadyList() {
       readyNode->SetState(kWaiting);
       readyIter = EraseIterFromReadyList(readyIter);
     } else {
-      readyIter++;
+      ++readyIter;
     }
   }
 }
@@ -279,7 +280,7 @@ void ListScheduler::ComputeDelayPriority() {
 void ListScheduler::InitInfoBeforeCompEStart(uint32 cycle, std::vector<DepNode*> &traversalList) {
   for (CDGNode *cdgNode : region->GetRegionNodes()) {
     for (auto *depNode : cdgNode->GetAllDataNodes()) {
-      depNode->SetTopoPredsSize(depNode->GetPreds().size());
+      depNode->SetTopoPredsSize(static_cast<uint32>(depNode->GetPreds().size()));
       if (depNode->GetState() != kScheduled) {
         depNode->SetEStart(cycle);
       }
@@ -325,7 +326,7 @@ void ListScheduler::InitInfoBeforeCompLStart(std::vector<DepNode*> &traversalLis
   for (CDGNode *cdgNode : region->GetRegionNodes()) {
     for (auto depNode : cdgNode->GetAllDataNodes()) {
       depNode->SetLStart(maxEStart);
-      depNode->SetValidSuccsSize(depNode->GetSuccs().size());
+      depNode->SetValidSuccsSize(static_cast<uint32>(depNode->GetSuccs().size()));
       if (depNode->GetSuccs().empty()) {
         (void)traversalList.emplace_back(depNode);
       }
@@ -378,7 +379,7 @@ void ListScheduler::CalculateMostUsedUnitKindCount() {
 
   uint32 maxCount = 0;
   maxUnitIdx = 0;
-  for (size_t i = 1; i < kUnitKindLast; ++i) {
+  for (uint32 i = 1; i < kUnitKindLast; ++i) {
     if (maxCount < unitKindCount[i]) {
       maxCount = unitKindCount[i];
       maxUnitIdx = i;
@@ -447,7 +448,8 @@ void ListScheduler::DumpDelay() const {
       std::setiosflags(std::ios::right) << std::setw(10) << "predDepSize" << std::resetiosflags(std::ios::right) <<
       std::setiosflags(std::ios::right) << std::setw(10) << "delay" << std::resetiosflags(std::ios::right) <<
       std::setiosflags(std::ios::right) << std::setw(8) << "cost" << std::resetiosflags(std::ios::right) <<
-      std::setiosflags(std::ios::right) << std::setw(15) << "reservation" << std::resetiosflags(std::ios::right) << "\n";
+      std::setiosflags(std::ios::right) << std::setw(15) << "reservation" << std::resetiosflags(std::ios::right) <<
+      "\n";
   LogInfo::MapleLogger() << "     --------------------------------------------------------\n";
   for (auto depNode : commonSchedInfo->GetCandidates()) {
     Insn *insn = depNode->GetInsn();
@@ -483,7 +485,8 @@ void ListScheduler::DumpEStartLStartOfAllNodes() {
       std::setiosflags(std::ios::right) << std::setw(10) << "EStart" << std::resetiosflags(std::ios::right) <<
       std::setiosflags(std::ios::right) << std::setw(10) << "LStart" << std::resetiosflags(std::ios::right) <<
       std::setiosflags(std::ios::right) << std::setw(8) << "cost" << std::resetiosflags(std::ios::right) <<
-      std::setiosflags(std::ios::right) << std::setw(15) << "reservation" << std::resetiosflags(std::ios::right) << "\n";
+      std::setiosflags(std::ios::right) << std::setw(15) << "reservation" << std::resetiosflags(std::ios::right) <<
+      "\n";
   LogInfo::MapleLogger() << "     --------------------------------------------------------------------------\n";
   DumpDepNodeInfo(*curBB, commonSchedInfo->GetCandidates(), "candi");
   DumpDepNodeInfo(*curBB, waitingQueue, "wait");
@@ -514,7 +517,7 @@ void ListScheduler::DumpDepNodeInfo(const BB &curBB, MapleVector<DepNode*> &node
   }
 }
 
-void ListScheduler::DumpReservation(DepNode &depNode) const {
+void ListScheduler::DumpReservation(const DepNode &depNode) const {
   for (uint32 i = 0; i < depNode.GetUnitNum(); ++i) {
     UnitId unitId = depNode.GetUnitByIndex(i)->GetUnitId();
     switch (unitId) {

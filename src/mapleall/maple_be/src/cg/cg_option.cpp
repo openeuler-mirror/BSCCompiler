@@ -198,9 +198,11 @@ bool CGOptions::SolveOptions(bool isDebug) {
     std::string printOpt;
     if (isDebug) {
       for (const auto &val : opt->GetRawValues()) {
-        printOpt += opt->GetName() + " " + val + " ";
+        if (opt->IsEnabledByUser()) {
+          printOpt += opt->GetName() + " " + val + " ";
+          LogInfo::MapleLogger() << "cg options: " << printOpt << '\n';
+        }
       }
-      LogInfo::MapleLogger() << "cg options: " << printOpt << '\n';
     }
   }
 
@@ -213,9 +215,9 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   if (opts::cg::fpie.IsEnabledByUser() || opts::cg::fPIE.IsEnabledByUser()) {
-    if (opts::cg::fPIE) {
+    if (opts::cg::fPIE && opts::cg::fPIE.IsEnabledByUser()) {
       SetPIEOptionHelper(kLargeMode);
-    } else if (opts::cg::fpie) {
+    } else if (opts::cg::fpie && opts::cg::fpie.IsEnabledByUser()) {
       SetPIEOptionHelper(kSmallMode);
     } else {
       SetPIEMode(kClose);
@@ -225,12 +227,12 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
     /* To avoid fpie mode being modified twice, need to ensure fpie is not opened. */
-    if (!opts::cg::fpie && !opts::cg::fPIE) {
-      if (opts::cg::fPIC) {
+    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() && ! opts::cg::fPIE.IsEnabledByUser() &&!opts::cg::fPIE) {
+      if (opts::cg::fPIC && opts::cg::fPIC.IsEnabledByUser()) {
         SetPICOptionHelper(kLargeMode);
         SetPIEMode(kClose);
         ClearOption(CGOptions::kGenPie);
-      } else if (opts::cg::fpic) {
+      } else if (opts::cg::fpic && opts::cg::fpic.IsEnabledByUser()) {
         SetPICOptionHelper(kSmallMode);
         SetPIEMode(kClose);
         ClearOption(CGOptions::kGenPie);
@@ -760,6 +762,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetVisibilityType(opts::fVisibility);
   }
 
+  SetOption(kWithSrc);
   /* override some options when loc, dwarf is generated */
   if (WithLoc()) {
     SetOption(kWithSrc);

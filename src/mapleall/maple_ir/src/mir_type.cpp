@@ -205,7 +205,7 @@ uint8 GetPointerSize() {
   uint8 size = (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? 4 : 8;
   return size;
 #else
-  #error "Unsupported target"
+#error "Unsupported target"
 #endif
 }
 
@@ -220,7 +220,7 @@ uint8 GetP2Size() {
   uint8 size = (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? 2 : 3;
   return size;
 #else
-  #error "Unsupported target"
+#error "Unsupported target"
 #endif
 }
 
@@ -235,7 +235,7 @@ PrimType GetLoweredPtrType() {
   auto pty = (Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? PTY_a32 : PTY_a64;
   return pty;
 #else
-  #error "Unsupported target"
+#error "Unsupported target"
 #endif
 }
 
@@ -1159,9 +1159,9 @@ static void DumpFields(FieldVector fields, int indent, bool otherFields = false)
     fa.DumpAttributes();
     if (fa.GetAttr(FLDATTR_static) && fa.GetAttr(FLDATTR_final) &&
         (fa.GetAttr(FLDATTR_public) || fa.GetAttr(FLDATTR_protected))) {
-      const char *fieldName = GlobalTables::GetStrTable().GetStringFromStrIdx(fields[i].first).c_str();
       MIRSymbol *fieldVar =
-          GlobalTables::GetGsymTable().GetSymbolFromStrIdx(GlobalTables::GetStrTable().GetStrIdxFromName(fieldName));
+          GlobalTables::GetGsymTable().GetSymbolFromStrIdx(GlobalTables::GetStrTable().GetStrIdxFromName(
+              GlobalTables::GetStrTable().GetStringFromStrIdx(fields[i].first).c_str()));
       if (fieldVar != nullptr && fieldVar->GetKonst() != nullptr &&
           fieldVar->GetKonst()->GetKind() == kConstStr16Const) {
         LogInfo::MapleLogger() << " = ";
@@ -1363,7 +1363,7 @@ uint32 MIRStructType::GetAlign() const {
     return 1;
   }
   uint32 maxAlign = 1;
-  uint32 maxOriginAlign = 1;
+  uint32 maxZeroBitFieldAlign = 1;
   auto structPack = GetTypeAttrs().GetPack();
   for (size_t i = 0; i < fields.size(); ++i) {
     TyIdxFieldAttrPair tfap = GetTyidxFieldAttrPair(i);
@@ -1372,15 +1372,13 @@ uint32 MIRStructType::GetAlign() const {
     auto originAlign = std::max(attrAlign, fieldType->GetAlign());
     uint32 fieldAlign = tfap.second.IsPacked() ? static_cast<uint32>(1U) : std::min(originAlign, structPack);
     CHECK_FATAL(fieldAlign != 0, "expect fieldAlign not equal 0");
-    if (maxAlign < fieldAlign) {
-      maxAlign = fieldAlign;
-    }
-    if (maxOriginAlign < originAlign) {
-      maxOriginAlign = originAlign;
+    maxAlign = std::max(maxAlign, fieldAlign);
+    if (fieldType->IsMIRBitFieldType() && static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize() == 0) {
+      maxZeroBitFieldAlign = std::max(maxZeroBitFieldAlign, GetPrimTypeSize(fieldType->GetPrimType()));
     }
   }
   if (HasZeroWidthBitField()) {
-    return maxOriginAlign;
+    return std::max(maxZeroBitFieldAlign, maxAlign);
   }
   return maxAlign;
 }
@@ -1924,7 +1922,7 @@ bool MIRGenericInstantType::EqualTo(const MIRType &type) const {
 
 // in the search, curfieldid is being decremented until it reaches 1
 FieldPair MIRStructType::TraverseToFieldRef(FieldID &fieldID) const {
-  if (!fields.size()) {
+  if (fields.empty()) {
     return FieldPair(GStrIdx(0), TyIdxFieldAttrPair(TyIdx(0), FieldAttrs()));
   }
 
@@ -2539,6 +2537,9 @@ bool IsHomogeneousAggregates(const MIRType &ty, PrimType &primType, size_t &elem
   if (ty.GetKind() == kTypeStruct) {
     auto &structType = static_cast<const MIRStructType&>(ty);
     return IsStructHomogeneousAggregates(structType, primType, elemNum);
+  } else if (ty.GetKind() == kTypeUnion) {
+    auto &unionType = static_cast<const MIRStructType&>(ty);
+    return IsUnionHomogeneousAggregates(unionType, primType, elemNum);
   } else if (ty.GetKind() == kTypeArray) {
     auto &arrType = static_cast<const MIRArrayType&>(ty);
     return IsArrayHomogeneousAggregates(arrType, primType, elemNum);

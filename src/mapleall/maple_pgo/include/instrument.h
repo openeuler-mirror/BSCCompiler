@@ -204,6 +204,8 @@ class BBUseInfo {
 
   BBUseEdge<BB> *GetOnlyUnknownInEdges();
 
+  void Dump();
+
  private:
   bool valid = false;
   uint64 countValue = 0;

@@ -298,6 +298,9 @@ RegOperand *AArch64ICOIfThenElsePattern::GenerateRegAndTempInsn(Operand &dest, c
       return &cgFunc->GetZeroOpnd(destReg.GetSize());
     }
     Insn &tempInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, *reg, tempSrcElse);
+    if (!VERIFY_INSN(&tempInsn)) {
+      SPLIT_INSN(&tempInsn, cgFunc);
+    }
     generateInsn.emplace_back(&tempInsn);
     return reg;
   } else {

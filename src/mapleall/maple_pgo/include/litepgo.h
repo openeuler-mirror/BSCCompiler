@@ -22,6 +22,7 @@
 
 namespace maple {
 class MIRLexer;
+class MIRModule;
 class LiteProfile {
  public:
   struct BBInfo {
@@ -36,7 +37,7 @@ class LiteProfile {
     ~BBInfo() = default;
   };
   // default get all kind profile
-  bool HandleLitePGOFile(const std::string &fileName, const std::string &moduleName);
+  bool HandleLitePGOFile(const std::string &fileName, MIRModule &m);
   bool HandleLitePgoWhiteList(const std::string &fileName) const;
   BBInfo *GetFuncBBProf(const std::string &funcName);
   bool IsExtremelyCold(const std::string &funcName) {

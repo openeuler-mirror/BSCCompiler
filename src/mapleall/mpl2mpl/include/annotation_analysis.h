@@ -89,14 +89,14 @@ class GenericType : public AnnotationType {
   GenericType(const GStrIdx &strIdx, MIRType *ms, MapleAllocator &alloc)
       : AnnotationType(kGenericType, strIdx),
         mirStructType(ms),
-        GenericArg(alloc.Adapter()),
-        ArgOrder(alloc.Adapter()) {}
+        genericArg(alloc.Adapter()),
+        argOrder(alloc.Adapter()) {}
   ~GenericType() override {
     mirStructType = nullptr;
   }
   void AddGenericPair(GenericDeclare * const k, AnnotationType *v) {
-    GenericArg[k] = v;
-    ArgOrder.push_back(v);
+    genericArg[k] = v;
+    argOrder.push_back(v);
   }
 
   MIRStructType *GetMIRStructType() const {
@@ -119,19 +119,19 @@ class GenericType : public AnnotationType {
   }
 
   MapleMap<GenericDeclare*, AnnotationType*> &GetGenericMap() {
-    return GenericArg;
+    return genericArg;
   }
 
   MapleVector<AnnotationType*> &GetGenericArg() {
-    return ArgOrder;
+    return argOrder;
   }
 
   void Dump() override;
   void ReWriteType(std::string &subClass) override;
  private:
   MIRType *mirStructType;
-  MapleMap<GenericDeclare*, AnnotationType*> GenericArg;
-  MapleVector<AnnotationType*> ArgOrder;
+  MapleMap<GenericDeclare*, AnnotationType*> genericArg;
+  MapleVector<AnnotationType*> argOrder;
 };
 
 class GenericDeclare : public AnnotationType {
@@ -154,7 +154,7 @@ class GenericDeclare : public AnnotationType {
   }
 
   std::string GetBelongToName() const {
-    if (defKind == defByStruct) {
+    if (defKind == kDefByStruct) {
       return belongsTo.structType->GetName();
     } else {
       return belongsTo.func->GetName();
@@ -164,12 +164,12 @@ class GenericDeclare : public AnnotationType {
   void Dump() override;
 
   void SetBelongToStruct(MIRStructType *s) {
-    defKind = defByStruct;
+    defKind = kDefByStruct;
     belongsTo.structType = s;
   }
 
   void SetBelongToFunc(MIRFunction *f) {
-    defKind = defByFunc;
+    defKind = kDefByFunc;
     belongsTo.func = f;
   }
 
@@ -181,11 +181,11 @@ class GenericDeclare : public AnnotationType {
   };
   DefPoint belongsTo;
   enum DefKind {
-    defByNone,
-    defByStruct,
-    defByFunc
+    kDefByNone,
+    kDefByStruct,
+    kDefByFunc
   };
-  DefKind defKind = defByNone;
+  DefKind defKind = kDefByNone;
 };
 
 class ExtendGeneric : public AnnotationType {

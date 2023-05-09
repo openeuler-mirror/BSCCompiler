@@ -320,7 +320,7 @@ void MeStackProtect::CheckAddrofStack() {
   }
 }
 
-bool MeStackProtect::MayWriteStack() {
+bool MeStackProtect::MayWriteStack() const {
   auto *cfg = f->GetCfg();
   for (BB *bb: cfg->GetAllBBs()) {
     if (bb == nullptr || bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB()) {

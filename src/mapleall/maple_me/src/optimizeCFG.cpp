@@ -2797,8 +2797,11 @@ bool MEOptimizeCFGNoSSA::PhaseRun(MeFunction &f) {
   debug = DEBUGFUNC_NEWPM(f);
   phaseName = PhaseName();
   bool change = OptimizeMeFuncCFG(f, nullptr);
-  if (change && f.GetCfg()->DumpIRProfileFile()) {
-    f.GetCfg()->DumpToFile("after-OptimizeCFGNOSSA", false, f.GetCfg()->UpdateCFGFreq());
+  if (change) {
+    FORCE_INVALID(MEDominance, f);
+    if (f.GetCfg()->DumpIRProfileFile()) {
+      f.GetCfg()->DumpToFile("after-OptimizeCFGNOSSA", false, f.GetCfg()->UpdateCFGFreq());
+    }
   }
   return change;
 }

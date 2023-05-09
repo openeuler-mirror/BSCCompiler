@@ -337,7 +337,7 @@ class ASTUnaryOperatorExpr : public ASTExpr {
   explicit ASTUnaryOperatorExpr(MapleAllocator &allocatorIn, ASTOp o) : ASTExpr(allocatorIn, o) {
     (void)allocatorIn;
   }
-  virtual ~ASTUnaryOperatorExpr() override {
+  ~ASTUnaryOperatorExpr() override {
     variableArrayExpr = nullptr;
   }
   void SetUOExpr(ASTExpr *astExpr);

@@ -237,7 +237,7 @@ void FEUtils::EraseFileNameforClangTypeStr(std::string &typeStr) {
 std::string FEUtils::GetHashStr(const std::string &str, uint32 seed) {
   const char *name = str.c_str();
   uint32 hash = 0;
-  while (*name) {
+  while (*name != 0) {
     uint8_t uName = *name++;
     hash = hash * seed + uName;
   }

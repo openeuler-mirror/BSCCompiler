@@ -1192,7 +1192,7 @@ bool LocalVarSaveInsnPattern::CheckLiveRange(const Insn &firstInsn) {
 }
 
 bool LocalVarSaveInsnPattern::CheckCondition(Insn &firstInsn) {
-  secondInsn = firstInsn.GetNext();
+  secondInsn = firstInsn.GetNextMachineInsn();
   if (secondInsn == nullptr) {
     return false;
   }

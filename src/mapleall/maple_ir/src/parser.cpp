@@ -428,7 +428,7 @@ bool MIRParser::ParsePragmaElementForArray(MIRPragmaElement &elem) {
   }
   int64 size = static_cast<int64>(lexer.GetTheIntVal());
   tk = lexer.NextToken();
-  if (tk != TK_coma && size) {
+  if (tk != TK_coma && size != 0) {
     Error("parsing pragma error: expecting , but get ");
     return false;
   }
@@ -2124,7 +2124,7 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     return false;
   }
   if (funcSymbol != nullptr && funcSymbol->GetSKind() == kStFunc &&
-      funcSymbol->IsNeedForwDecl() == true && !funcSymbol->GetFunction()->GetBody()) {
+      funcSymbol->IsNeedForwDecl() && !funcSymbol->GetFunction()->GetBody()) {
     SetSrcPos(funcSymbol->GetSrcPosition(), lexer.GetLineNum());
   }
   if (funcSymbol != nullptr) {
@@ -2932,11 +2932,11 @@ bool MIRParser::ParseMIRForFunc() {
     return false;
   }
   // when parsing function in mplt_inline file, set fromMpltInline as true.
-  if ((this->options & kParseInlineFuncBody) && curFunc) {
+  if ((this->options & kParseInlineFuncBody) != 0 && curFunc) {
     curFunc->SetFromMpltInline(true);
     return true;
   }
-  if ((this->options & kParseOptFunc) && curFunc) {
+  if ((this->options & kParseOptFunc) != 0 && curFunc) {
     curFunc->SetAttr(FUNCATTR_optimized);
     mod.AddOptFuncs(curFunc);
   }
@@ -3507,7 +3507,7 @@ bool MIRParser::ParsePrototypeRemaining(MIRFunction &func, std::vector<TyIdx> &v
 }
 
 void MIRParser::EmitError(const std::string &fileName) {
-  if (!strlen(GetError().c_str())) {
+  if (strlen(GetError().c_str()) == 0) {
     return;
   }
   mod.GetDbgInfo()->EmitMsg();
@@ -3515,7 +3515,7 @@ void MIRParser::EmitError(const std::string &fileName) {
 }
 
 void MIRParser::EmitWarning(const std::string &fileName) const {
-  if (!strlen(GetWarning().c_str())) {
+  if (strlen(GetWarning().c_str()) == 0) {
     return;
   }
   WARN(kLncWarn, "%s \n%s\n", fileName.c_str(), GetWarning().c_str());

@@ -34,9 +34,9 @@ void PropPattern::VaildateImplicitCvt(RegOperand &destReg, const RegOperand &src
 void PropPattern::ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersion *srcVersion) {
   MapleUnorderedMap<uint32, DUInsnInfo*> useList = destVersion->GetAllUseInsns();
   ssaInfo->ReplaceAllUse(destVersion, srcVersion);
-  for (auto it = useList.begin(); it != useList.end(); it++)  {
+  for (auto it = useList.begin(); it != useList.end(); ++it)  {
     Insn *useInsn = it->second->GetInsn();
-    if (useInsn->GetMachineOpcode() == MOP_xmovrr || useInsn->GetMachineOpcode() == MOP_wmovrr) { 
+    if (useInsn->GetMachineOpcode() == MOP_xmovrr || useInsn->GetMachineOpcode() == MOP_wmovrr) {
       auto &dstOpnd = useInsn->GetOperand(kFirstOpnd);
       auto &srcOpnd = useInsn->GetOperand(kSecondOpnd);
       ASSERT(dstOpnd.IsRegister() && srcOpnd.IsRegister(), "must be");
@@ -98,15 +98,16 @@ bool RedundantExpandProp::CheckCondition(Insn &insn) {
         Insn *useInsn = destUseIt.second->GetInsn();
         auto &propInsns = ssaInfo->GetSafePropInsns();
         bool isSafeCvt = std::find(propInsns.begin(), propInsns.end(), useInsn->GetId()) != propInsns.end();
-        if(useInsn->IsPhi() || isSafeCvt) {
+        if (useInsn->IsPhi() || isSafeCvt) {
           return false;
         }
         int32 lastOpndId = static_cast<int32>(useInsn->GetOperandSize() - 1);
         const InsnDesc *md = useInsn->GetDesc();
+        // i should be int
         for (int32 i = lastOpndId; i >= 0; --i) {
-          auto *reg = (md->opndMD[i]);
-          auto &opnd = useInsn->GetOperand(i);
-          if (reg->IsUse() && opnd.IsRegister() && 
+          auto *reg = (md->opndMD[static_cast<uint32>(i)]);
+          auto &opnd = useInsn->GetOperand(static_cast<uint32>(i));
+          if (reg->IsUse() && opnd.IsRegister() &&
               static_cast<RegOperand&>(opnd).GetRegisterNumber() == destOpnd->GetRegisterNumber()) {
             if (opnd.GetSize() == k32BitSize && reg->GetSize() == k32BitSize) {
               continue;
@@ -182,6 +183,13 @@ void AArch64ValidBitOpt::OptPregCvt(BB &bb, Insn &insn) {
 void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
   MOperator mop = insn.GetMachineOpcode();
   switch (mop) {
+    // for case sbfx 32 64
+    // we can not deduce that dst opnd valid bit num;
+    case MOP_xsbfxrri6i6: {
+      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+      dstOpnd.SetValidBitsNum(static_cast<uint32>(k64BitSize));
+      break;
+    }
     case MOP_wcsetrc:
     case MOP_xcsetrc: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
@@ -223,7 +231,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       if ((static_cast<int32>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
         dstOpnd.SetValidBitsNum(k1BitSize);
       } else {
-        dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - shiftBits);
+        dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - static_cast<uint32>(shiftBits));
       }
       break;
     }
@@ -251,7 +259,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
         if ((static_cast<int32>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
           dstOpnd.SetValidBitsNum(k1BitSize);
         } else {
-          dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - shiftBits);
+          dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - static_cast<uint32>(shiftBits));
         }
       }
       break;
@@ -393,7 +401,7 @@ static bool IsZeroRegister(const Operand &opnd) {
 bool AndValidBitPattern::CheckImmValidBit(int64 andImm, uint32 andImmVB, int64 shiftImm) const {
   if ((__builtin_ffs(static_cast<int>(andImm)) - 1 == shiftImm) &&
       ((static_cast<uint64>(andImm) >> static_cast<uint64>(shiftImm)) ==
-      ((1 << (andImmVB - static_cast<uint64>(shiftImm))) - 1))) {
+      ((1UL << (andImmVB - static_cast<uint64>(shiftImm))) - 1))) {
     return true;
   }
   return false;
@@ -462,8 +470,8 @@ void AndValidBitPattern::Run(BB &bb, Insn &insn) {
 }
 
 bool ExtValidBitPattern::RealUseMopX(const RegOperand &defOpnd, InsnSet &visitedInsn) {
-  VRegVersion *destVersion = ssaInfo->FindSSAVersion(defOpnd.GetRegisterNumber());
-  for (auto destUseIt : destVersion->GetAllUseInsns()) {
+  VRegVersion *vdestVersion = ssaInfo->FindSSAVersion(defOpnd.GetRegisterNumber());
+  for (auto destUseIt : vdestVersion->GetAllUseInsns()) {
     Insn *useInsn = destUseIt.second->GetInsn();
     if (visitedInsn.count(useInsn) != 0) {
       continue;
@@ -491,7 +499,7 @@ bool ExtValidBitPattern::RealUseMopX(const RegOperand &defOpnd, InsnSet &visited
   return false;
 }
 
-bool ExtValidBitPattern::CheckValidCvt(Insn &insn) {
+bool ExtValidBitPattern::CheckValidCvt(const Insn &insn) {
   // extend to all shift pattern in future
   RegOperand *destOpnd = nullptr;
   RegOperand *srcOpnd = nullptr;
@@ -514,14 +522,14 @@ bool ExtValidBitPattern::CheckValidCvt(Insn &insn) {
     ASSERT(destVersion != nullptr, "find Version failed");
     for (auto destUseIt : destVersion->GetAllUseInsns()) {
       Insn *useInsn = destUseIt.second->GetInsn();
-      // check case: 
+      // check case:
       // uxtw R1 R0
       // uxtw R2 R1
       if (useInsn->GetMachineOpcode() == MOP_xuxtw64) {
         return false;
       }
       // recursively check all real use mop, if there is one mop that use 64 bit size reg, do not optimize
-      if(useInsn->IsPhi()) {
+      if (useInsn->IsPhi()) {
         auto &defOpnd = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd));
         InsnSet visitedInsn;
         (void)visitedInsn.insert(useInsn);
@@ -535,9 +543,10 @@ bool ExtValidBitPattern::CheckValidCvt(Insn &insn) {
       // uxtw R1 R0
       // mopX R2 R1(64)
       for (int32 i = lastOpndId; i >= 0; --i) {
-        auto *reg = (md->opndMD[i]);
-        auto &opnd = useInsn->GetOperand(i);
-        if (reg->IsUse() && opnd.IsRegister() && static_cast<RegOperand&>(opnd).GetRegisterNumber() == destOpnd->GetRegisterNumber()) {
+        auto *reg = (md->opndMD[static_cast<uint32>(i)]);
+        auto &opnd = useInsn->GetOperand(static_cast<uint32>(i));
+        if (reg->IsUse() && opnd.IsRegister() &&
+            static_cast<RegOperand&>(opnd).GetRegisterNumber() == destOpnd->GetRegisterNumber()) {
           if (reg->GetSize() == k32BitSize) {
             continue;
           } else {
@@ -641,7 +650,8 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
     case MOP_wsbfxrri5i5:
     case MOP_xsbfxrri6i6: {
       // if dest is preg, change mop because there is no ssa version for preg
-      if (newDstOpnd != nullptr && newDstOpnd->IsPhysicalRegister() && newSrcOpnd != nullptr && newSrcOpnd->IsSSAForm()) {
+      if (newDstOpnd != nullptr && newDstOpnd->IsPhysicalRegister() && newSrcOpnd != nullptr &&
+          newSrcOpnd->IsSSAForm()) {
         Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *newDstOpnd, *newSrcOpnd);
         bb.ReplaceInsn(insn, newInsn);
         ssaInfo->ReplaceInsn(insn, newInsn);

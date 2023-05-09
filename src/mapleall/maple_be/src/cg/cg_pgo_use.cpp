@@ -253,7 +253,7 @@ void CGProfUse::LayoutBBwithProfile() {
   // clear next pointer for last non-split BB
   for (auto it = mainChain->rbegin(); it != mainChain->rend(); ++it) {
     auto *bb = static_cast<BB*>(*it);
-    if (!bbSplit.count(bb->GetID())) {
+    if (bbSplit.count(bb->GetID()) == 0) {
       bb->SetNext(nullptr);
       break;
     }

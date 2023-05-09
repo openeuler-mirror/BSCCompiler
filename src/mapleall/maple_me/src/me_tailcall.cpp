@@ -24,7 +24,10 @@ static constexpr int kUnEscaped = 1;
 static constexpr int kEscaped = 2;
 
 TailcallOpt::TailcallOpt(MeFunction &f, MemPool &mempool)
-    : AnalysisResult(&mempool), func(f), escapedPoints(f.GetCfg()->NumBBs(), kUnvisited) {}
+    : AnalysisResult(&mempool),
+     func(f), tailcallAlloc(&mempool),
+     callCands(tailcallAlloc.Adapter()),
+     escapedPoints(f.GetCfg()->NumBBs(), kUnvisited, tailcallAlloc.Adapter()) {}
 
 void TailcallOpt::Walk() {
   auto cfg = func.GetCfg();

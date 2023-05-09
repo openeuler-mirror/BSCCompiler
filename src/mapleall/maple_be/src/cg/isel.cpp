@@ -744,7 +744,7 @@ MirTypeInfo MPISel::GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType
   mirTypeInfo.primType = mirType->GetPrimType();
   // aggSize for AggType
   if (mirTypeInfo.primType == maple::PTY_agg) {
-    mirTypeInfo.size = mirType->GetSize();
+    mirTypeInfo.size = static_cast<uint32>(mirType->GetSize());
   }
   return mirTypeInfo;
 }
@@ -987,7 +987,7 @@ void MPISel::SelectExtractbits(RegOperand &resOpnd, RegOperand &opnd0, uint8 bit
      * resOpnd = opnd0 & ((1 << bitSize) - 1)
      */
     ImmOperand &imm = cgFunc->GetOpndBuilder()->CreateImm(primBitSize,
-        (static_cast<int64>(1) << bitSize) - 1);
+        static_cast<int64>((1ULL << bitSize) - 1));
     SelectBand(resOpnd, opnd0, imm, primType);
   } else {
     /*
@@ -1351,7 +1351,7 @@ static inline uint64 CreateDepositBitsImm1(uint32 primBitSize, uint8 bitOffset, 
   if (bitSize + bitOffset >= primBitSize) {
     val = 0;
   } else {
-    val <<= (bitSize + bitOffset);
+    val <<= static_cast<uint>(bitSize + bitOffset);
   }
   val |= (static_cast<uint64>(1) << bitOffset) - 1;
   return val;
@@ -1392,7 +1392,7 @@ Operand *MPISel::SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, 
     ImmOperand &countOpnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize, bitOffset);
     SelectShift(tmpOpnd, tmpOpnd, countOpnd, OP_shl, primType, primType);
     /* and (~$imm1) */
-    ImmOperand &nonImm1Opnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize, (~imm1Val));
+    ImmOperand &nonImm1Opnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize, static_cast<int64>(~imm1Val));
     SelectBand(tmpOpnd, tmpOpnd, nonImm1Opnd, primType);
     /* or */
     SelectBior(resOpnd, resOpnd, tmpOpnd, primType);
@@ -1615,13 +1615,13 @@ Operand *MPISel::SelectRetype(const TypeCvtNode &node, Operand &opnd0) {
   }
   if (IsPrimitiveInteger(fromType) && IsPrimitiveFloat(toType)) {
     RegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
-      cgFunc->GetRegTyFromPrimTy(toType));
+        cgFunc->GetRegTyFromPrimTy(toType));
     SelectCvtInt2Float(*resOpnd, opnd0, toType, fromType);
     return resOpnd;
   }
   if (IsPrimitiveFloat(fromType) && IsPrimitiveInteger(toType)) {
     RegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
-      cgFunc->GetRegTyFromPrimTy(toType));
+        cgFunc->GetRegTyFromPrimTy(toType));
     SelectCvtFloat2Int(*resOpnd, opnd0, toType, fromType);
     return resOpnd;
   }

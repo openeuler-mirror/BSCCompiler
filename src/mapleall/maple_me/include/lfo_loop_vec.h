@@ -138,7 +138,7 @@ class LoopVectorization {
   IntrinsicopNode *GenDupScalarExpr(BaseNode *scalar, PrimType vecPrimType);
   bool ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo *vecInfo, BaseNode *x);
   bool Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo *vecInfo, BlockNode *block);
-  void widenDoloop(DoloopNode *doloop, LoopTransPlan *tp);
+  void WidenDoloop(DoloopNode *doloop, LoopTransPlan *tp);
   DoloopNode *PrepareDoloop(DoloopNode *doloop, LoopTransPlan *tp);
   DoloopNode *GenEpilog(DoloopNode *doloop) const;
   const MemPool *GetLocalMp() const { return localMP; }

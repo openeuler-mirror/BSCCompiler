@@ -42,7 +42,7 @@ void LMBCMemLayout::LayoutStackFrame(void) {
     }
     if (sym->GetStorageClass() == kScPstatic && sym->LMBCAllocateOffSpecialReg()) {
       uint32 stindex = sym->GetStIndex();
-      sym_alloc_table[stindex].mem_segment = seg_GPbased;
+      sym_alloc_table[stindex].memSegment = seg_GPbased;
       seg_GPbased->size = static_cast<int32>(maplebe::RoundUp(seg_GPbased->size, sym->GetType()->GetAlign()));
       sym_alloc_table[stindex].offset = seg_GPbased->size;
       seg_GPbased->size += static_cast<int32>(sym->GetType()->GetSize());
@@ -51,7 +51,7 @@ void LMBCMemLayout::LayoutStackFrame(void) {
       continue;
     }
     uint32 stindex = sym->GetStIndex();
-    sym_alloc_table[stindex].mem_segment = &seg_FPbased;
+    sym_alloc_table[stindex].memSegment = &seg_FPbased;
     seg_FPbased.size -= static_cast<int32>(sym->GetType()->GetSize());
     seg_FPbased.size = static_cast<int32>(maplebe::RoundDown(seg_FPbased.size, sym->GetType()->GetAlign()));
     sym_alloc_table[stindex].offset = seg_FPbased.size;
@@ -80,7 +80,7 @@ GlobalMemLayout::GlobalMemLayout(MIRModule *mod, MapleAllocator *mallocator)
         continue;
       }
       uint32 stindex = sym->GetStIndex();
-      sym_alloc_table[stindex].mem_segment = &seg_GPbased;
+      sym_alloc_table[stindex].memSegment = &seg_GPbased;
       seg_GPbased.size = static_cast<int32>(maplebe::RoundUp(seg_GPbased.size, sym->GetType()->GetAlign()));
       sym_alloc_table[stindex].offset = seg_GPbased.size;
       seg_GPbased.size += static_cast<int32>(sym->GetType()->GetSize());

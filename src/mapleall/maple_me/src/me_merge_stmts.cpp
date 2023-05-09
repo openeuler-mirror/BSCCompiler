@@ -36,7 +36,7 @@ int32 MergeStmts::GetPointedTypeBitSize(TyIdx ptrTypeIdx) const {
 }
 
 // Candidate stmts LHS must cover contiguous memory and RHS expr must be const
-void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
+void MergeStmts::MergeIassigns(vOffsetStmt& iassignCandidates) {
   if (iassignCandidates.empty() || iassignCandidates.size() == 1) {
     return;
   }
@@ -165,7 +165,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
 }
 
 // Candidate stmts LHS must cover contiguous memory and RHS expr must be const
-void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
+void MergeStmts::MergeDassigns(vOffsetStmt& dassignCandidates) {
   if (dassignCandidates.empty() || dassignCandidates.size() == 1) {
     return;
   }
@@ -275,7 +275,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
   }
 }
 
-IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2,
+IassignMeStmt *MergeStmts::GenSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2,
                                           const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
   MeIRMap *irMap = func.GetIRMap();
   iVar1.SetOffset(offset);
@@ -286,7 +286,7 @@ IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMe
   return xIassignStmt;
 }
 
-IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr &valMeExpr,
+IassignMeStmt *MergeStmts::GenSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr &valMeExpr,
                                           const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
   MeIRMap *irMap = func.GetIRMap();
   iVar.SetOffset(offset);
@@ -303,7 +303,7 @@ void MergeStmts::GenShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uX
   IvarMeExpr iVarBase(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, uXTgtMirType->GetPrimType(),
                       uXTgtPtrType->GetTypeIndex(), 0);
   iVarBase.SetBase(dstMeExpr);
-  IassignMeStmt *xIassignStmt = genSimdIassign(offset, iVarBase, *srcRegMeExpr, memsetCallStmtChi,
+  IassignMeStmt *xIassignStmt = GenSimdIassign(offset, iVarBase, *srcRegMeExpr, memsetCallStmtChi,
                                                uXTgtPtrType->GetTypeIndex());
   memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
   xIassignStmt->CopyInfo(*memsetCallStmt);
@@ -321,7 +321,7 @@ bool EnableSIMD(const int &length, bool needToBeMultiplyOfByte) {
   }
 }
 
-void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
+void MergeStmts::SimdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   ASSERT(memcpyCallStmt->GetIntrinsic() == INTRN_C_memcpy, "The stmt is NOT intrinsic memcpy");
 
   ConstMeExpr *lengthExpr = static_cast<ConstMeExpr*>(memcpyCallStmt->GetOpnd(2));
@@ -374,7 +374,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   tmpIvar2.SetBase(srcMeExpr);
 
   for (int32 i = 0; i < numOf16Byte; i++) {
-    IassignMeStmt *xIassignStmt = genSimdIassign(16 * i, tmpIvar1, tmpIvar2, *memcpyCallStmtChi,
+    IassignMeStmt *xIassignStmt = GenSimdIassign(16 * i, tmpIvar1, tmpIvar2, *memcpyCallStmtChi,
                                                  v16uint8PtrType->GetTypeIndex());
     memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, xIassignStmt);
     xIassignStmt->CopyInfo(*memcpyCallStmt);
@@ -387,7 +387,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
     tmpIvar3.SetBase(dstMeExpr);
     IvarMeExpr tmpIvar4(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, PTY_v8u8, v8uint8PtrType->GetTypeIndex(), 0);
     tmpIvar4.SetBase(srcMeExpr);
-    IassignMeStmt *xIassignStmt = genSimdIassign(offset8Byte, tmpIvar3, tmpIvar4, *memcpyCallStmtChi,
+    IassignMeStmt *xIassignStmt = GenSimdIassign(offset8Byte, tmpIvar3, tmpIvar4, *memcpyCallStmtChi,
                                                  v8uint8PtrType->GetTypeIndex());
     memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, xIassignStmt);
     xIassignStmt->CopyInfo(*memcpyCallStmt);
@@ -400,7 +400,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   }
 }
 
-void MergeStmts::simdMemset(IntrinsiccallMeStmt *memsetCallStmt) {
+void MergeStmts::SimdMemset(IntrinsiccallMeStmt *memsetCallStmt) {
   ASSERT(memsetCallStmt->GetIntrinsic() == INTRN_C_memset, "The stmt is NOT intrinsic memset");
 
   ConstMeExpr *numExpr = static_cast<ConstMeExpr*>(memsetCallStmt->GetOpnd(2));
@@ -451,7 +451,7 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt *memsetCallStmt) {
   dupRegAssignMeStmt->CopyInfo(*memsetCallStmt);
 
   for (int32 i = 0; i < numOf16Byte; i++) {
-    IassignMeStmt *xIassignStmt = genSimdIassign(16 * i, tmpIvar, *dupRegMeExpr, *memsetCallStmtChi,
+    IassignMeStmt *xIassignStmt = GenSimdIassign(16 * i, tmpIvar, *dupRegMeExpr, *memsetCallStmtChi,
                                                  v16u8PtrType->GetTypeIndex());
     memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
     xIassignStmt->CopyInfo(*memsetCallStmt);
@@ -591,10 +591,10 @@ void MergeStmts::MergeMeStmts() {
           MIRIntrinsicID intrinsicCallID = intrinsicCallStmt->GetIntrinsic();
           if (intrinsicCallID == INTRN_C_memcpy) {
             candidateStmts.push(nullptr);
-            simdMemcpy(intrinsicCallStmt);
+            SimdMemcpy(intrinsicCallStmt);
           } else if (intrinsicCallID == INTRN_C_memset) {
             candidateStmts.push(nullptr);
-            simdMemset(intrinsicCallStmt);
+            SimdMemset(intrinsicCallStmt);
           } else {
             // More to come
           }
@@ -644,7 +644,7 @@ void MergeStmts::MergeMeStmts() {
             candidateStmts.pop();
           }
           iassignCandidates.insert(iassignCandidates.begin(), uniqueCheck.begin(), uniqueCheck.end());
-          mergeIassigns(iassignCandidates);
+          MergeIassigns(iassignCandidates);
           break;
         }
         case OP_dassign: {
@@ -661,7 +661,7 @@ void MergeStmts::MergeMeStmts() {
             candidateStmts.pop();
           }
           dassignCandidates.insert(dassignCandidates.begin(), uniqueCheck.begin(), uniqueCheck.end());
-          mergeDassigns(dassignCandidates);
+          MergeDassigns(dassignCandidates);
           break;
         }
         default: {

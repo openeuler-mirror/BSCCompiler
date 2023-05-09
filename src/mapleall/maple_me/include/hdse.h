@@ -42,7 +42,7 @@ class HDSE {
 
   virtual ~HDSE() = default;
 
-  void DoHDSESafely(MeFunction *f, AnalysisInfoHook &anaRes);
+  void DoHDSESafely(const MeFunction *f, AnalysisInfoHook &anaRes);
   void InvokeHDSEUpdateLive();
   void SetRemoveRedefine(bool val) {
     removeRedefine = val;

@@ -451,10 +451,10 @@ void CheckCastGenerator::ConvertCheckCastToIsAssignableFrom(StmtNode &stmt) {
       opndArgs.push_back(objectClassReadNode);
       isAssignableFromNode =
           builder->CreateExprIntrinsicop(INTRN_JAVA_ISASSIGNABLEFROM, OP_intrinsicopwithtype, *checkType, opndArgs);
-      PregIdx IsAssignableFromResultIdx = currFunc->GetPregTab()->CreatePreg(PTY_u1);
+      PregIdx isAssignableFromResultIdx = currFunc->GetPregTab()->CreatePreg(PTY_u1);
       isAssignableFromResultAssign =
-          builder->CreateStmtRegassign(PTY_u1, IsAssignableFromResultIdx, isAssignableFromNode);
-      isAssignableFromResultReadNode = builder->CreateExprRegread(PTY_u1, IsAssignableFromResultIdx);
+          builder->CreateStmtRegassign(PTY_u1, isAssignableFromResultIdx, isAssignableFromNode);
+      isAssignableFromResultReadNode = builder->CreateExprRegread(PTY_u1, isAssignableFromResultIdx);
     } else {
       MIRSymbol *objectClassSym =
           builder->GetOrCreateLocalDecl(kObjectClassSym, *GlobalTables::GetTypeTable().GetPtr());
@@ -468,10 +468,10 @@ void CheckCastGenerator::ConvertCheckCastToIsAssignableFrom(StmtNode &stmt) {
       opndArgs.push_back(objectClassReadNode);
       isAssignableFromNode =
           builder->CreateExprIntrinsicop(INTRN_JAVA_ISASSIGNABLEFROM, OP_intrinsicopwithtype, *checkType, opndArgs);
-      MIRSymbol *IsAssignableFromResultSym =
+      MIRSymbol *isAssignableFromResultSym =
           builder->GetOrCreateLocalDecl(kIsAssignableFromResult, *GlobalTables::GetTypeTable().GetUInt1());
-      isAssignableFromResultAssign = builder->CreateStmtDassign(*IsAssignableFromResultSym, 0, isAssignableFromNode);
-      isAssignableFromResultReadNode = builder->CreateExprDread(*IsAssignableFromResultSym);
+      isAssignableFromResultAssign = builder->CreateStmtDassign(*isAssignableFromResultSym, 0, isAssignableFromNode);
+      isAssignableFromResultReadNode = builder->CreateExprDread(*isAssignableFromResultSym);
     }
 
     BaseNode *condZero = builder->CreateExprCompare(

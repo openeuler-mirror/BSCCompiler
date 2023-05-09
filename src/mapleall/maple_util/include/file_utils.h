@@ -48,6 +48,7 @@ constexpr char kClangPath[] = "BiShengC_Clang_Path";
 constexpr char kAsPath[] = "BiShengC_AS_Path";
 constexpr char kGccPath[] = "BiShengC_GCC_Path";
 constexpr char kLdLibPath[] = "LD_LIBRARY_PATH";
+constexpr char kGetOsVersion[] = "BiShengC_GET_OS_VERSION";
 
 class FileUtils {
  public:

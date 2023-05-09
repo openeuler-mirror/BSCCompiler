@@ -276,7 +276,9 @@ class MapleString {
 
 template <typename OS>
 inline OS &operator<<(OS &os, const MapleString &data) {
-  os << data.c_str();
+  if (!data.empty()) {
+    os << data.c_str();
+  }
   return os;
 }
 

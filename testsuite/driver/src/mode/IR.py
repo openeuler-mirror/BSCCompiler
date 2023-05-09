@@ -17,11 +17,11 @@ from api import *
 IR = {
     "compile": [
         Irbuild(
-            irbuild="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/irbuild",
+            irbuild="${OUT_ROOT}/target/product/maple_arm64/bin/irbuild",
             infile="${APP}.mpl"
         ),
         Irbuild(
-            irbuild="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/irbuild",
+            irbuild="${OUT_ROOT}/target/product/maple_arm64/bin/irbuild",
             infile="${APP}.irb.mpl"
         ),
         CheckFileEqual(

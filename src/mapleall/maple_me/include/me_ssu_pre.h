@@ -36,7 +36,7 @@ class SOcc {
   virtual ~SOcc() = default;
 
   virtual void Dump() const = 0;
-  bool IsPostDominate(Dominance *pdom, const SOcc *occ) const {
+  bool IsPostDominate(const Dominance *pdom, const SOcc *occ) const {
     CHECK_NULL_FATAL(occ);
     CHECK_NULL_FATAL(pdom);
     return pdom->Dominate(mirBB, occ->mirBB);

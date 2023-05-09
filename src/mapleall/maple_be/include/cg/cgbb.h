@@ -110,7 +110,7 @@ class BB : public maple::BaseGraphNode {
         rangeGotoLabelVec(mallocator.Adapter()),
         phiInsnList(mallocator.Adapter()) {}
 
-  virtual ~BB() = default;
+  ~BB() override = default;
 
   virtual BB *Clone(MemPool &memPool) const {
     BB *bb = memPool.Clone<BB>(*this);
@@ -739,16 +739,16 @@ class BB : public maple::BaseGraphNode {
   void SetLiveIn(SparseDataInfo &arg) {
     liveIn = &arg;
   }
-  void SetLiveInBit(uint32 arg) const {
+  void SetLiveInBit(uint32 arg) {
     liveIn->SetBit(arg);
   }
-  void SetLiveInInfo(const SparseDataInfo &arg) const {
+  void SetLiveInInfo(const SparseDataInfo &arg) {
     *liveIn = arg;
   }
-  void LiveInOrBits(const SparseDataInfo &arg) const {
+  void LiveInOrBits(const SparseDataInfo &arg) {
     liveIn->OrBits(arg);
   }
-  void LiveInEnlargeCapacity(uint32 arg) const {
+  void LiveInEnlargeCapacity(uint32 arg) {
     liveIn->EnlargeCapacityToAdaptSize(arg);
   }
   void LiveInClearDataInfo() {
@@ -764,13 +764,13 @@ class BB : public maple::BaseGraphNode {
   void SetLiveOut(SparseDataInfo &arg) {
     liveOut = &arg;
   }
-  void SetLiveOutBit(uint32 arg) const {
+  void SetLiveOutBit(uint32 arg) {
     liveOut->SetBit(arg);
   }
-  void LiveOutOrBits(const SparseDataInfo &arg) const {
+  void LiveOutOrBits(const SparseDataInfo &arg) {
     liveOut->OrBits(arg);
   }
-  void LiveOutEnlargeCapacity(uint32 arg) const {
+  void LiveOutEnlargeCapacity(uint32 arg) {
     liveOut->EnlargeCapacityToAdaptSize(arg);
   }
   void LiveOutClearDataInfo() {
@@ -783,13 +783,13 @@ class BB : public maple::BaseGraphNode {
   void SetDef(SparseDataInfo &arg) {
     def = &arg;
   }
-  void SetDefBit(uint32 arg) const {
+  void SetDefBit(uint32 arg) {
     def->SetBit(arg);
   }
-  void DefResetAllBit() const {
+  void DefResetAllBit() {
     def->ResetAllBit();
   }
-  void DefResetBit(uint32 arg) const {
+  void DefResetBit(uint32 arg) {
     def->ResetBit(arg);
   }
   void DefClearDataInfo() {
@@ -802,13 +802,13 @@ class BB : public maple::BaseGraphNode {
   void SetUse(SparseDataInfo &arg) {
     use = &arg;
   }
-  void SetUseBit(uint32 arg) const {
+  void SetUseBit(uint32 arg) {
     use->SetBit(arg);
   }
-  void UseResetAllBit() const {
+  void UseResetAllBit() {
     use->ResetAllBit();
   }
-  void UseResetBit(uint32 arg) const {
+  void UseResetBit(uint32 arg) {
     use->ResetBit(arg);
   }
   void UseClearDataInfo() {
@@ -935,7 +935,7 @@ class BB : public maple::BaseGraphNode {
 
  private:
   static const std::string bbNames[kBBLast];
-  //uint32 id;
+  // uint32 id
   uint32 level = 0;
   uint32 frequency = 0;
   FreqType profFreq = 0; // profileUse

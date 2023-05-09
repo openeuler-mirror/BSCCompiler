@@ -319,7 +319,7 @@ bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUI
     /* try aarch64 imm shift mode */
     tempImm->SetValue(static_cast<uint64>(tempImm->GetValue()) >> 12);
     if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd) &&
-        static_cast<uint32>(CGOptions::GetInstance().GetOptimizeLevel()) < CGOptions::kLevel0) {
+        CGOptions::GetInstance().GetOptimizeLevel() < static_cast<int32>(CGOptions::kLevel0)) {
       ASSERT(false, "NIY");
     }
     auto *zeroImm = &(static_cast<AArch64CGFunc*>(cgFunc)->
@@ -489,7 +489,7 @@ bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const
   return false;
 }
 
-bool A64ConstProp::ReplaceCmpToCmn(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const {
+bool A64ConstProp::ReplaceCmpToCmn(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const {
   Insn *useInsn = useDUInfo.GetInsn();
   if (useDUInfo.GetOperands().size() != 1) {
     return false;

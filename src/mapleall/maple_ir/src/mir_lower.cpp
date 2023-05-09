@@ -455,7 +455,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   }
   blk->AppendStatementsFromBlock(*doloop.GetDoBody());
   if (doloop.IsPreg()) {
-    PregIdx regIdx = (PregIdx)doloop.GetDoVarStIdx().FullIdx();
+    PregIdx regIdx = static_cast<PregIdx>(doloop.GetDoVarStIdx().FullIdx());
     MIRPreg *mirPreg = mirModule.CurFunction()->GetPregTab()->PregFromPregIdx(regIdx);
     PrimType doVarPType = mirPreg->GetPrimType();
     ASSERT(doVarPType != kPtyInvalid, "runtime check error");
@@ -810,7 +810,7 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
           resNode = newValNode;
         }
       }
-      if (i > 0 && isConst == false) {
+      if (i > 0 && !isConst) {
         resNode = array->GetIndex(i);
       }
 

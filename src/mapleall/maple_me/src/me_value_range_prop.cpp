@@ -297,7 +297,15 @@ bool ValueRangePropagation::DealWithSwitchWhenOpndIsConstant(BB &bb, BB *default
     auto *caseBB = func.GetCfg()->GetLabelBBAt(pair.second);
     CHECK_FATAL(caseBB, "caseBB is nullptr!");
     // The value ranges of opnd and case are equal.
-    if (valueRange->GetBound().IsEqual(Bound(nullptr, pair.first, PTY_i64), valueRange->GetBound().GetPrimType())) {
+    if (valueRange->GetBound().GetPrimType() == PTY_u1) {
+      // If the opnd of the switch is of type bool, there is no need to convert the primtype of the case,
+      // and the values are directly compared for equality.
+      if (valueRange->GetBound().GetConstant() == pair.first) {
+        findBB = true;
+        continue;
+      }
+    } else if (valueRange->GetBound().IsEqual(Bound(nullptr, pair.first, PTY_i64),
+        switchMeStmt.GetOpnd()->GetPrimType())) {
       findBB = true;
       continue;
     }
@@ -310,6 +318,9 @@ bool ValueRangePropagation::DealWithSwitchWhenOpndIsConstant(BB &bb, BB *default
   bb.RemoveLastMeStmt();
   bb.SetKind(kBBFallthru);
   isCFGChange = true;
+  if (bb.GetAttributes() == 0 && bb.GetSucc().size() != 1) {
+    ASSERT(false, "must only has one succ bb");
+  }
   return true;
 }
 
@@ -4622,7 +4633,8 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
     }
     if (ConditionEdgeCanBeDeleted(*pred, bb, valueRangeInPred, dummyRightRange, falseBranch, trueBranch, opndType, op,
         updateSSAExceptTheScalarExpr, ssaupdateCandsForCondExpr)) {
-      if (updateSSAExceptTheScalarExpr != nullptr && phi != nullptr) {
+      if (updateSSAExceptTheScalarExpr != nullptr && updateSSAExceptTheScalarExpr->GetOst()->IsLocal() &&
+          phi != nullptr) {
         if (updateSSAExceptTheScalarExpr->GetDefBy() == kDefByStmt) {
           // PredOpnd is only used by condGoto stmt and phi, if the condGoto stmt can be deleted, need not update ssa
           // of predOpnd and the def point of predOpnd can be deleted.
@@ -4970,8 +4982,11 @@ MeExpr *ValueRangePropagation::GetDefOfBase(const IvarMeExpr &ivar) const {
 }
 
 void ValueRangePropagation::DealWithCondGotoWhenRightRangeIsNotExist(
-    BB &bb, const MeExpr &opnd0, MeExpr &opnd1, Opcode opOfBrStmt, Opcode conditionalOp, ValueRange *valueRangeOfLeft) {
-  PrimType prim = opnd1.GetPrimType();
+    BB &bb, const OpMeExpr &opMeExpr, Opcode opOfBrStmt, ValueRange *valueRangeOfLeft) {
+  auto opnd0 = opMeExpr.GetOpnd(0);
+  auto opnd1 = opMeExpr.GetOpnd(1);
+  auto conditionalOp = opMeExpr.GetOp();
+  PrimType prim = opMeExpr.GetOpndType();
   if (!IsNeededPrimType(prim)) {
     return;
   }
@@ -4980,73 +4995,73 @@ void ValueRangePropagation::DealWithCondGotoWhenRightRangeIsNotExist(
   GetTrueAndFalseBranch(opOfBrStmt, bb, trueBranch, falseBranch);
   switch (conditionalOp) {
     case OP_ne: {
-      (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
-          std::make_unique<ValueRange>(Bound(&opnd1, prim), kNotEqual));
-      (void)Insert2Caches(falseBranch->GetBBId(), opnd0.GetExprID(),
-          std::make_unique<ValueRange>(Bound(&opnd1, prim), kEqual));
+      (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(),
+          std::make_unique<ValueRange>(Bound(opnd1, prim), kNotEqual));
+      (void)Insert2Caches(falseBranch->GetBBId(), opnd0->GetExprID(),
+          std::make_unique<ValueRange>(Bound(opnd1, prim), kEqual));
       break;
     }
     case OP_eq: {
-      (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
-          std::make_unique<ValueRange>(Bound(&opnd1, prim), kEqual));
-      (void)Insert2Caches(falseBranch->GetBBId(), opnd0.GetExprID(),
-          std::make_unique<ValueRange>(Bound(&opnd1, prim), kNotEqual));
+      (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(),
+          std::make_unique<ValueRange>(Bound(opnd1, prim), kEqual));
+      (void)Insert2Caches(falseBranch->GetBBId(), opnd0->GetExprID(),
+          std::make_unique<ValueRange>(Bound(opnd1, prim), kNotEqual));
       break;
     }
     case OP_le: {
       if (valueRangeOfLeft != nullptr && valueRangeOfLeft->GetRangeType() == kOnlyHasLowerBound) {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(),
                             std::make_unique<ValueRange>(valueRangeOfLeft->GetLower(),
-                                                         Bound(&opnd1, prim), kLowerAndUpper, dealWithPhi));
+                                                         Bound(opnd1, prim), kLowerAndUpper, dealWithPhi));
       } else {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(),
                             std::make_unique<ValueRange>(Bound(GetMinNumber(prim), prim),
-                                                         Bound(&opnd1, prim), kLowerAndUpper));
+                                                         Bound(opnd1, prim), kLowerAndUpper));
       }
-      (void)Insert2Caches(falseBranch->GetBBId(), opnd0.GetExprID(),
-          std::make_unique<ValueRange>(Bound(&opnd1, 1, prim),
+      (void)Insert2Caches(falseBranch->GetBBId(), opnd0->GetExprID(),
+          std::make_unique<ValueRange>(Bound(opnd1, 1, prim),
               Bound(GetMaxNumber(prim), prim), kLowerAndUpper));
       break;
     }
     case OP_lt: {
       if (valueRangeOfLeft != nullptr && valueRangeOfLeft->GetRangeType() == kOnlyHasLowerBound) {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(),
                             std::make_unique<ValueRange>(valueRangeOfLeft->GetLower(),
-                                                         Bound(&opnd1, -1, prim), kLowerAndUpper, dealWithPhi));
+                                                         Bound(opnd1, -1, prim), kLowerAndUpper, dealWithPhi));
       } else {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(),
                             std::make_unique<ValueRange>(Bound(GetMinNumber(prim), prim),
-                                                         Bound(&opnd1, -1, prim), kLowerAndUpper));
+                                                         Bound(opnd1, -1, prim), kLowerAndUpper));
       }
-      (void)Insert2Caches(falseBranch->GetBBId(), opnd0.GetExprID(),
-          std::make_unique<ValueRange>(Bound(&opnd1, prim), Bound(GetMaxNumber(prim), prim), kLowerAndUpper));
+      (void)Insert2Caches(falseBranch->GetBBId(), opnd0->GetExprID(),
+          std::make_unique<ValueRange>(Bound(opnd1, prim), Bound(GetMaxNumber(prim), prim), kLowerAndUpper));
       break;
     }
     case OP_ge: {
       if (valueRangeOfLeft != nullptr && valueRangeOfLeft->GetRangeType() == kOnlyHasUpperBound) {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(), std::make_unique<ValueRange>(
-            Bound(&opnd1, prim), valueRangeOfLeft->GetBound(), kLowerAndUpper, dealWithPhi));
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(), std::make_unique<ValueRange>(
+            Bound(opnd1, prim), valueRangeOfLeft->GetBound(), kLowerAndUpper, dealWithPhi));
       } else {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
-            std::make_unique<ValueRange>(Bound(&opnd1, prim),
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(),
+            std::make_unique<ValueRange>(Bound(opnd1, prim),
                 Bound(GetMaxNumber(prim), prim), kLowerAndUpper));
       }
-      (void)Insert2Caches(falseBranch->GetBBId(), opnd0.GetExprID(),
+      (void)Insert2Caches(falseBranch->GetBBId(), opnd0->GetExprID(),
           std::make_unique<ValueRange>(Bound(GetMinNumber(prim), prim),
-              Bound(&opnd1, -1, prim), kLowerAndUpper));
+              Bound(opnd1, -1, prim), kLowerAndUpper));
       break;
     }
     case OP_gt: {
       if (valueRangeOfLeft != nullptr && valueRangeOfLeft->GetRangeType() == kOnlyHasUpperBound) {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(), std::make_unique<ValueRange>(
-            Bound(&opnd1, 1, prim), valueRangeOfLeft->GetBound(), kLowerAndUpper, dealWithPhi));
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(), std::make_unique<ValueRange>(
+            Bound(opnd1, 1, prim), valueRangeOfLeft->GetBound(), kLowerAndUpper, dealWithPhi));
       } else {
-        (void)Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
-            std::make_unique<ValueRange>(Bound(&opnd1, 1, prim), Bound(GetMaxNumber(prim), prim), kLowerAndUpper));
+        (void)Insert2Caches(trueBranch->GetBBId(), opnd0->GetExprID(),
+            std::make_unique<ValueRange>(Bound(opnd1, 1, prim), Bound(GetMaxNumber(prim), prim), kLowerAndUpper));
       }
-      (void)Insert2Caches(falseBranch->GetBBId(), opnd0.GetExprID(),
+      (void)Insert2Caches(falseBranch->GetBBId(), opnd0->GetExprID(),
           std::make_unique<ValueRange>(Bound(GetMinNumber(prim), prim),
-              Bound(&opnd1, prim), kLowerAndUpper));
+              Bound(opnd1, prim), kLowerAndUpper));
       break;
     }
     default:
@@ -5296,16 +5311,17 @@ bool ValueRangePropagation::AnalysisUnreachableForEqOrNe(BB &bb, const CondGotoM
 //          second brfalse mx1 eq(ne/gt/le/ge/lt) mx2 ==>  remove falseBranch or trueBranch
 bool ValueRangePropagation::DealWithVariableRange(BB &bb, const CondGotoMeStmt &brMeStmt,
                                                   const ValueRange &leftRange) {
+  auto primType = static_cast<OpMeExpr*>(brMeStmt.GetOpnd())->GetOpndType();
   MeExpr *opnd1 = static_cast<OpMeExpr*>(brMeStmt.GetOpnd())->GetOpnd(1);
   // Example1: deal with like if (mx1 > mx2), when the valuerange of mx1 is [mx2+1, max(mx2_type)]
   // Example2: deal with like if (mx1 >= mx2), when the valuerange of mx1 is [mx2, max(mx2_type)]
   if (leftRange.GetLower().GetVar() == opnd1 && leftRange.GetUpper().GetVar() == nullptr &&
-      leftRange.UpperIsMax(opnd1->GetPrimType())) {
+      leftRange.UpperIsMax(primType)) {
     return AnalysisUnreachableForGeOrGt(bb, brMeStmt, leftRange);
   // Example1: deal with like if (mx1 < mx2), when the valuerange of mx1 is [min(mx2_type), mx2-1]
   // Example2: deal with like if (mx1 <= mx2), when the valuerange of mx1 is [min(mx2_type), mx2]
   } else if (leftRange.GetLower().GetVar() == nullptr && leftRange.GetUpper().GetVar() == opnd1 &&
-      leftRange.LowerIsMin(opnd1->GetPrimType())) {
+      leftRange.LowerIsMin(primType)) {
     return AnalysisUnreachableForLeOrLt(bb, brMeStmt, leftRange);
   // Example: deal with like if (mx1 == mx2), when the valuerange of mx1 is [mx2, mx2]
   // Example: deal with like if (mx1 != mx2), when the valuerange of mx1 is [mx2, mx2]
@@ -5347,7 +5363,7 @@ void ValueRangePropagation::DealWithCondGoto(BB &bb, MeStmt &stmt) {
   }
   if (rightRange == nullptr) {
     if (!ConditionEdgeCanBeDeleted(bb, *opnd0, rightRange, opMeExpr->GetOpndType(), opMeExpr->GetOp())) {
-      DealWithCondGotoWhenRightRangeIsNotExist(bb, *opnd0, *opnd1, brMeStmt.GetOp(), opMeExpr->GetOp(), leftRange);
+      DealWithCondGotoWhenRightRangeIsNotExist(bb, *opMeExpr, brMeStmt.GetOp(), leftRange);
     }
     return;
   }
@@ -5460,13 +5476,15 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   (void)f.GetCfg()->UnreachCodeAnalysis(true);
   f.GetCfg()->WontExitAnalysis();
   // split critical edges
-  (void)MeSplitCEdge(false).SplitCriticalEdgeForMeFunc(f);
+  bool split = MeSplitCEdge(false).SplitCriticalEdgeForMeFunc(f);
+  if (split || valueRangePropagation.IsCFGChange()) {
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
+    dom = FORCE_EXEC(MEDominance)->GetDomResult();
+  }
   if (valueRangePropagation.IsCFGChange()) {
     if (ValueRangePropagation::isDebug) {
       f.GetCfg()->DumpToFile("valuerange-after" + std::to_string(f.vrpRuns));
     }
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
-    dom = FORCE_EXEC(MEDominance)->GetDomResult();
     if (valueRangePropagation.NeedUpdateSSA()) {
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands);
       MPLTimer timer;

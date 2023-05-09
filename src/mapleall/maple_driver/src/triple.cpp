@@ -2419,9 +2419,10 @@ maplecl::Option<bool> oWduplicatedCond({"-Wduplicated-cond"},
     {driverCategory, clangCategory},
     maplecl::DisableWith("-Wno-duplicated-cond"));
 
-maplecl::Option<bool> oWeak_reference_mismatches({"-weak_reference_mismatches"},
-    "  -weak_reference_mismatches             \t\n",
-    {driverCategory, clangCategory});
+maplecl::Option<std::string> oWeak_reference_mismatches({"-weak_reference_mismatches"},
+    "  -weak_reference_mismatches             \tSpecifies what to do if a symbol import conflicts between file "
+    "(weak in one and not in another) the default is to treat the symbol as non-weak.\n",
+    {driverCategory, unSupCategory});
 
 maplecl::Option<bool> oWeffc({"-Weffc++"},
     "  -Weffc++             \tWarn about violations of Effective C++ style rules.\n",
@@ -3006,8 +3007,7 @@ maplecl::Option<bool> oWstackProtector({"-Wstack-protector"},
     maplecl::DisableWith("-Wno-stack-protector"));
 
 maplecl::Option<std::string> oWstackUsage({"-Wstack-usage"},
-    "  -Wstack-usage             \tWarn if stack usage might be larger than "
-    "specified amount.\n",
+    "  -Wstack-usage             \t-Wstack-usage=<byte-size> Warn if stack usage might exceed <byte-size>.\n",
     {driverCategory, clangCategory});
 
 maplecl::Option<bool> oWstrictAliasing({"-Wstrict-aliasing"},

@@ -683,26 +683,22 @@ bool IVOptimizer::CreateIVFromUnsignedCvt(const OpMeExpr &op, const IV &iv) cons
   if (iv.base->GetMeOp() != kMeOpConst || iv.step->GetMeOp() != kMeOpConst) {
     return false;
   }
-  auto base = static_cast<ConstMeExpr*>(iv.base)->GetZXTIntValue();
-  auto unsignedStep = static_cast<ConstMeExpr*>(iv.step)->GetZXTIntValue();
-  auto signedStep = static_cast<ConstMeExpr*>(iv.step)->GetExtIntValue();
-  uint64 finalValue = 0;
-  auto prim = op.GetPrimType();
-  // finalValue: base + step * tripcount
-  finalValue = (GetPrimTypeSize(prim) == k8BitSize) ? (base + unsignedStep * data->realIterNum) :
-      static_cast<uint64>(GetRealValue((GetRealValue(static_cast<int64>(base), prim) +
-          GetRealValue(static_cast<int64>(unsignedStep), prim) *
-          GetRealValue(static_cast<int64>(data->realIterNum), prim)), prim));
-  uint64 res = (finalValue < base) ? (base - finalValue) : (finalValue - base);
+  auto base = static_cast<ConstMeExpr*>(iv.base)->GetIntValue().TruncOrExtend(op.GetOpndType());
+  auto unsignedStep = static_cast<ConstMeExpr*>(iv.step)->GetIntValue().TruncOrExtend(op.GetOpndType());
   if (unsignedStep == 0) {
     return false;
   }
+  auto signedStep = unsignedStep.TruncOrExtend(GetSignedPrimType(op.GetOpndType()));
+  // finalValue: base + step * tripcount
+  auto finalValue = base + unsignedStep * data->realIterNum;
+  auto res = (finalValue < base) ? (base - finalValue) : (finalValue - base);
   // Compare the calculated trip count with the actual trip count.
   // If it is not equal, it means that overflow occurs during iteration.
+  IntVal zeroVersion(static_cast<uint64>(0), op.GetOpndType());
   if ((finalValue < base) &&
-      ((signedStep > 0 && (res / unsignedStep) == data->realIterNum) ||
-       (signedStep < 0 && (res / static_cast<uint64>(-signedStep)) == data->realIterNum))) {
-  } else if ((finalValue > base) && ((res / unsignedStep) == data->realIterNum)) {
+      ((signedStep > zeroVersion && (res / unsignedStep) == static_cast<int64>(data->realIterNum)) ||
+       (signedStep < zeroVersion && (res / (-signedStep)) == static_cast<int64>(data->realIterNum)))) {
+  } else if ((finalValue > base) && ((res / unsignedStep) == static_cast<int64>(data->realIterNum))) {
   } else {
     return false;
   }

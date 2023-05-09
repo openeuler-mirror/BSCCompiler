@@ -2683,7 +2683,7 @@ MeExpr *IRMap::SimplifyExtractbits(const OpMeExpr &opmeexpr) {
   return nullptr;
 }
 
-MeExpr *IRMap::SimplifyAshrMeExpr(OpMeExpr *opmeexpr) {
+MeExpr *IRMap::SimplifyAshrMeExpr(const OpMeExpr *opmeexpr) {
   Opcode opcode = opmeexpr->GetOp();
   if (opcode != OP_ashr) {
     return nullptr;

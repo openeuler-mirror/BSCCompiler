@@ -104,7 +104,7 @@ class ExtValidBitPattern : public PropPattern {
   }
 
  private:
-  bool CheckValidCvt(Insn &insn);
+  bool CheckValidCvt(const Insn &insn);
   bool RealUseMopX(const RegOperand &defOpnd, InsnSet &visitedInsn);
   RegOperand *newDstOpnd = nullptr;
   RegOperand *newSrcOpnd = nullptr;

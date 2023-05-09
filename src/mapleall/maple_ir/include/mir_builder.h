@@ -102,7 +102,7 @@ class MIRBuilder {
 
   MIRFunction *GetOrCreateFunction(const std::string &str, TyIdx retTyIdx);
   MIRFunction *GetFunctionFromSymbol(const MIRSymbol &funcSymbol) const;
-  MIRFunction *GetFunctionFromStidx(StIdx stIdx) const;
+  MIRFunction *GetFunctionFromStidx(const StIdx &stIdx) const;
   MIRFunction *GetFunctionFromName(const std::string &str) const;
   // For compiler-generated metadata struct
   void AddIntFieldConst(const MIRStructType &sType, MIRAggConst &newConst, uint32 fieldID, int64 constValue) const;

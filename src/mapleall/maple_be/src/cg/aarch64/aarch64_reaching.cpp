@@ -178,7 +178,7 @@ void AArch64ReachingDefinition::AddRetPseudoInsns() {
   if (exitBBSize == 0) {
     if (cgFunc->GetCleanupBB() != nullptr && cgFunc->GetCleanupBB()->GetPrev() != nullptr) {
       AddRetPseudoInsn(*cgFunc->GetCleanupBB()->GetPrev());
-    } else {
+    } else if (!cgFunc->GetMirModule().IsCModule()) {
       AddRetPseudoInsn(*cgFunc->GetLastBB()->GetPrev());
     }
   } else {
@@ -1170,6 +1170,9 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
     CHECK_FATAL(index == nullptr, "Existing [x29 + index] Memory Address");
     ASSERT(memOpnd.GetOffsetImmediate(), "offset must be a immediate value");
     int64 offsetVal = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+    if (offsetVal > stackSize) {
+      return;
+    }
     if (offsetVal < 0) {
       offsetVal = static_cast<int64>(stackSize) + offsetVal;
     }

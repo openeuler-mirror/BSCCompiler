@@ -28,13 +28,13 @@ class LMBCLowerer {
         globmemlayout(gmemlayout), memlayout(lmemlayout) {}
 
   PregIdx GetSpecialRegFromSt(const MIRSymbol *sym);
-  BaseNode *LowerAddrof(AddrofNode *expr);
+  BaseNode *LowerAddrof(const AddrofNode *expr);
   BaseNode *LowerDread(const AddrofNode *expr);
   BaseNode *LowerDreadoff(DreadoffNode *dreadoff);
   BaseNode *LowerIread(const IreadNode &expr);
-  BaseNode *LowerIaddrof(IreadNode *expr);
+  BaseNode *LowerIaddrof(const IreadNode *expr);
   BaseNode *LowerExpr(BaseNode *expr);
-  void LowerAggDassign(const DassignNode &dsnode, MIRType *lhsty, int32 offset, BlockNode *newblk);
+  void LowerAggDassign(const DassignNode &dsnode, const MIRType *lhsty, int32 offset, BlockNode *newblk);
   void LowerDassign(DassignNode *dsnode, BlockNode *newblk);
   void LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk);
   void LowerIassign(IassignNode *iassign, BlockNode *newblk);
@@ -42,7 +42,7 @@ class LMBCLowerer {
   void LowerReturn(NaryStmtNode &retNode, BlockNode &newblk);
   void LowerCall(NaryStmtNode *stmt, BlockNode *newblk);
   BlockNode *LowerBlock(BlockNode *block);
-  void FixPrototype4FirstArgReturn(IcallNode *icall) const;
+  void FixPrototype4FirstArgReturn(const IcallNode *icall) const;
   void LowerFunction();
 
   MIRModule *mirModule;

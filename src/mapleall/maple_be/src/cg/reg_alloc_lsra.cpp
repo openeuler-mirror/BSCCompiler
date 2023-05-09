@@ -579,7 +579,7 @@ void LSRALinearScanRegAllocator::SetupLiveInterval(Operand &opnd, Insn &insn, bo
  */
 void LSRALinearScanRegAllocator::LiveInterval::AddRange(uint32 from, uint32 to) {
   if (ranges.empty()) {
-    ranges.push_back(std::pair<uint32, uint32>(from, to));
+    ranges.emplace_back(std::pair<uint32, uint32>(from, to));
   } else {
     if (to < ranges.front().first) {
       (void)ranges.insert(ranges.cbegin(), std::pair<uint32, uint32>(from, to));
@@ -881,7 +881,7 @@ void LSRALinearScanRegAllocator::ComputeLiveIntervalForEachOperand(Insn &insn) {
    */
   for (int32 i = static_cast<int32>(opndNum - 1); i >= 0; --i) {
     Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
-    const OpndDesc *opndDesc = md->GetOpndDes(i);
+    const OpndDesc *opndDesc = md->GetOpndDes(static_cast<size_t>(i));
     ASSERT(opndDesc != nullptr, "ptr null check.");
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<const ListOperand&>(opnd);
@@ -980,11 +980,9 @@ void LSRALinearScanRegAllocator::ComputeLiveInterval() {
           static_cast<float>(li->GetFirstDef() - li->GetLastUse()));
     }
   }
-
   if (LSRA_DUMP) {
     PrintLiveIntervals();
   }
-
 }
 
 /* A physical register is freed at the end of the live interval.  Return to pool. */
@@ -1514,7 +1512,7 @@ RegOperand *LSRALinearScanRegAllocator::AssignPhysRegs(Operand &opnd, const Insn
   }
 
   if (LSRA_DUMP) {
-    uint32 activeSz = active.size();
+    size_t activeSz = active.size();
     LogInfo::MapleLogger() << "\tAssignPhysRegs-active_sz " << activeSz << "\n";
   }
 
@@ -1933,7 +1931,7 @@ void LSRALinearScanRegAllocator::LiveIntervalAnalysis() {
       }
 
       /* 2 get interfere info, and analysis */
-      uint32 interNum = active.size();
+      size_t interNum = active.size();
       if (LSRA_DUMP) {
         LogInfo::MapleLogger() << "In insn " << insn->GetId() << ", " << interNum << " overlap live intervals.\n";
         LogInfo::MapleLogger() << "\n";
@@ -1949,7 +1947,7 @@ void LSRALinearScanRegAllocator::LiveIntervalAnalysis() {
           }
           lowestLi->SetStackSlot(kSpilled);
           active.erase(itFinded);
-          interNum = static_cast<uint32>(active.size());
+          interNum = active.size();
         } else {
           break;
         }

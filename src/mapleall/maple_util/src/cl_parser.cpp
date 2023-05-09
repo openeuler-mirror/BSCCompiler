@@ -35,7 +35,7 @@ OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &
     /* Joined Option (like -DMACRO) can be detected as substring (-D) in the option string */
     if (str.find(joinedOption.first) == 0) {
       size_t keySize;
-      if (joinedOption.first != "-Wl") {
+      if (joinedOption.first != "-Wl" && joinedOption.first != "-l") {
         keySize = joinedOption.first.size();
         keyArg.key = str.substr(0, keySize);
         keyArg.val = str.substr(keySize);
@@ -43,7 +43,11 @@ OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &
         std::string tmp(str);
         linkOptions.push_back(tmp);
         keySize = 0;
-        keyArg.key = "-Wl";
+        if (joinedOption.first == "-Wl") {
+          keyArg.key = "-Wl";
+        } else {
+          keyArg.key = "-l";
+        }
       }
 
       keyArg.isJoinedOpt = true;
@@ -53,6 +57,10 @@ OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &
   std::string tempStr(str);
   std::string tmp = maple::StringUtils::GetStrAfterLast(tempStr, ".");
   if (tmp == "a" || tmp == "so") {
+    if (maple::StringUtils::GetStrAfterLast(tempStr, "/") == "libmplpgo.so" ||
+        maple::StringUtils::GetStrAfterLast(tempStr, "/") == "libmplpgo.a") {
+      SetHasPgoLib(true);
+    }
     linkOptions.push_back(tempStr);
   }
 
@@ -64,7 +72,7 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
                                        KeyArg &keyArg, OptionCategory &optCategory) {
   OptionInterface *option = CheckJoinedOption(keyArg, optCategory);
   if (option != nullptr) {
-    if (keyArg.key != "-Wl") {
+    if (keyArg.key != "-Wl" && keyArg.key != "-l") {
       RetCode err = option->Parse(argsIndex, args, keyArg);
       if (err != RetCode::noError) {
         return err;
@@ -108,6 +116,21 @@ void CommandLine::CloseOptimize(const OptionCategory &optCategory) const {
   }
 }
 
+void CommandLine::DeleteEnabledOptions(size_t &argsIndex, const std::deque<std::string_view> &args,
+                                       const OptionCategory &optCategory) const {
+  std::map<std::string_view, std::string> picOrPie = {{"-fpic", "-fPIC"}, {"--fpic", "-fPIC"}, {"-fpie", "-fPIE"},
+                                                      {"--fpie", "-fPIE"}, {"-fPIE", "-fpie"}, {"--fPIE", "-fpie"},
+                                                      {"-fPIC", "-fpic"}, {"--fPIC", "-fpic"}};
+  auto item = optCategory.options.find(picOrPie[args[argsIndex]]);
+  item->second->UnSetEnabledByUser();
+  for (auto &category : item->second->optCategories) {
+    if (std::find(category->GetEnabledOptions().begin(), category->GetEnabledOptions().end(), item->second) !=
+                  category->GetEnabledOptions().end()) {
+      category->DeleteEnabledOption(item->second);
+    }
+  }
+}
+
 RetCode CommandLine::ParseOption(size_t &argsIndex,
                                  const std::deque<std::string_view> &args,
                                  KeyArg &keyArg, const OptionCategory &optCategory,
@@ -120,6 +143,13 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
   if (args[argsIndex] == "--no-pic" || args[argsIndex] == "-fno-pic") {
     auto item = optCategory.options.find("-fPIC");
     item->second->SetEnabledByUser();
+  }
+
+  if (args[argsIndex] == "-fpic" || args[argsIndex] == "--fpic" ||
+      args[argsIndex] == "-fpie" || args[argsIndex] == "--fpie" ||
+      args[argsIndex] == "-fPIE" || args[argsIndex] == "--fPIE" ||
+      args[argsIndex] == "-fPIC" || args[argsIndex] == "--fPIC") {
+    DeleteEnabledOptions(argsIndex, args, optCategory);
   }
 
   if (args[argsIndex] == "--O0" || args[argsIndex] == "-O0" || args[argsIndex] == "--O1" || args[argsIndex] == "-O1" ||
@@ -178,6 +208,11 @@ RetCode CommandLine::ParseSimpleOption(size_t &argsIndex,
                                        const OptionsMapType &optMap) {
   keyArg.isEqualOpt = false;
   auto &arg = args[argsIndex];
+  if (std::string(arg) == "--lite-pgo-gen") {
+    SetUseLitePgoGen(true);
+  } else if (std::string(arg) == "--no-lite-pgo-gen") {
+    SetUseLitePgoGen(false);
+  }
 
   auto item = optMap.find(std::string(arg));
   if (item != optMap.end()) {

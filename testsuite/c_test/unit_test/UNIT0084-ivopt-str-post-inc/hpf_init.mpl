@@ -6709,7 +6709,7 @@ LOC 55 137 123
       dread u32 %ifIndex_123_14)
 LOC 55 139 15
     # CHECK-NOT: lsl
-    # CHECK:add {{.*}} #16
+    # CHECK:str {{.*}} #16
     callassigned &HpfPktProcess (iread ptr <* <* <$hpe_mbuf> align(64)>> 0 (array 1 ptr <* <[1] <* <$hpe_mbuf> align(64)>>> (dread ptr %mbuf, dread i32 %i_122_13))) { dassign %retVar_5768 0 }
 LOC 55 139 9
     eval (dread u64 %retVar_5768)

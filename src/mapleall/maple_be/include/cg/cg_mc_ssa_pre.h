@@ -82,10 +82,10 @@ class McSSAPre : public SSAPre {
   void ResetMCWillBeAvail(PhiOcc *occ) const;
   void ComputeMCWillBeAvail() const;
   // step 7 max flow/min cut
-  bool AmongMinCut(RGNode *nd, uint32 idx) const;
+  bool AmongMinCut(const RGNode *nd, uint32 idx) const;
   void DumpRGToFile();                  // dump reduced graph to dot file
-  bool IncludedEarlier(Visit **cut, Visit *curVisit, uint32 nextRouteIdx);
-  void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route);
+  bool IncludedEarlier(Visit **cut, const Visit *curVisit, uint32 nextRouteIdx) const;
+  void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route) const;
   bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx,
                            FreqType flowSoFar);
   bool SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);

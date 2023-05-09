@@ -17,10 +17,16 @@ from api.shell_operator import ShellOperator
 
 class Linker(ShellOperator):
 
-    def __init__(self, lib, return_value_list=None, redirection=None):
+    def __init__(self, infile, lib, model, native_src=None, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
+        self.model = model
         self.lib = lib
+        self.native_src = native_src
+        self.infile = infile
 
     def get_command(self, variables):
-        self.command = "${OUT_ROOT}/tools/bin/clang++ -g3 -O2 -x assembler-with-cpp -march=armv8-a -target aarch64-linux-gnu -c ${APP}.VtableImpl.s && ${OUT_ROOT}/tools/bin/clang++ ${APP}.VtableImpl.o -L${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/" + self.lib + " -g3 -O2 -march=armv8-a -target aarch64-linux-gnu -fPIC -shared -o ${APP}.so ${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/mrt_module_init.o -fuse-ld=lld -rdynamic -lcore-all -lcommon-bridge -Wl,-z,notext -Wl,-T${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/linker/maplelld.so.lds"
+        if self.native_src:
+            self.command = "${OUT_ROOT}/target/product/public/bin/linker -m " + self.model + " -l " + self.lib + " -i " + self.infile + " -n " + self.native_src
+        else:
+            self.command = "${OUT_ROOT}/target/product/public/bin/linker -m " + self.model + " -l " + self.lib + " -i " + self.infile
         return super().get_final_command(variables)

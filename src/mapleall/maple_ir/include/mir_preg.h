@@ -18,6 +18,7 @@
 #include <climits>
 #include "mir_module.h"
 #include "global_tables.h"
+#include "opcodes.h"
 #endif  // MIR_FEATURE_FULL
 
 namespace maple {

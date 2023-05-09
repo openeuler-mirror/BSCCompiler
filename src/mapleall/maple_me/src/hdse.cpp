@@ -959,7 +959,7 @@ void HDSE::DoHDSE() {
   RemoveNotRequiredStmts();
 }
 
-void HDSE::DoHDSESafely(MeFunction *f, AnalysisInfoHook &anaRes) {
+void HDSE::DoHDSESafely(const MeFunction *f, AnalysisInfoHook &anaRes) {
   DoHDSE();
   if (!f) {
     return;

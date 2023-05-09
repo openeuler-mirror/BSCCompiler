@@ -458,7 +458,7 @@ void LoopUnrolling::RemoveCondGoto() {
   cfg->DeleteBasicBlock(*loop->latch);
 }
 
-bool LoopUnrolling::SplitCondGotoBB() {
+bool LoopUnrolling::SplitCondGotoBB() const {
   auto *exitBB = func->GetCfg()->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   auto *exitedBB = *(loop->inloopBB2exitBBs.cbegin()->second->cbegin());
   MeStmt *lastStmt = exitBB->GetLastMe();

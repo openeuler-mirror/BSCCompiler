@@ -24,7 +24,7 @@ class PlacementRC : public MeSSUPre {
         placementRCTemp(nullptr),
         bbHasReal(f.GetCfg()->GetAllBBs().size(), false, spreAllocator.Adapter()) {}
 
-  virtual ~PlacementRC() = default;
+  ~PlacementRC() override = default;
 
  private:
   // Step 6 methods

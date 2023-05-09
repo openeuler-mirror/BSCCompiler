@@ -35,10 +35,10 @@ const int32 CondGotoNode::probAll = 10000;
 
 const char *GetIntrinsicName(MIRIntrinsicID intrn) {
   switch (intrn) {
-    default:
 #define DEF_MIR_INTRINSIC(STR, NAME, NUM_INSN, INTRN_CLASS, RETURN_TYPE, ...) \
-  case INTRN_##STR:                                                           \
-    return #STR;
+    case INTRN_##STR:                                                           \
+      return #STR;
+    default:
 #include "intrinsics.def"
 #undef DEF_MIR_INTRINSIC
   }
@@ -290,7 +290,7 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
   if (fromFreqs.count(GetStmtID()) > 0) {
     FreqType oldFreq = fromFreqs[GetStmtID()];
     FreqType newFreq;
-    if (updateOp & static_cast<uint32_t>(kUpdateUnrollRemainderFreq)) {
+    if ((updateOp & static_cast<uint32_t>(kUpdateUnrollRemainderFreq)) != 0) {
       newFreq = denom > 0 ? (oldFreq * numer % static_cast<int64_t>(denom)) : oldFreq;
     } else {
       newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / static_cast<int64_t>(denom)) : oldFreq);
@@ -308,14 +308,17 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
           (static_cast<BlockNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     } else if (stmt.GetOpCode() == OP_if) {
       newStmt = static_cast<StmtNode*>(
-          (static_cast<IfStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
+          (static_cast<IfStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs,
+                                                                static_cast<uint64_t>(numer), denom, updateOp));
     } else if (stmt.GetOpCode() == OP_while) {
       newStmt = static_cast<StmtNode*>(
           (static_cast<WhileStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator,
-                                                                   toFreqs, fromFreqs, numer, denom, updateOp));
+                                                                   toFreqs, fromFreqs, static_cast<uint64_t>(numer),
+                                                                   denom, updateOp));
     } else if (stmt.GetOpCode() == OP_doloop) {
       newStmt = static_cast<StmtNode*>(
-          (static_cast<DoloopNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
+          (static_cast<DoloopNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs,
+                                                                static_cast<uint64_t>(numer), denom, updateOp));
     } else {
       newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
       if (fromFreqs.count(stmt.GetStmtID()) > 0) {
@@ -600,7 +603,7 @@ void ArrayNode::Dump(int32 indent) const {
   NaryOpnds::Dump(indent);
 }
 
-bool ArrayNode::IsSameBase(ArrayNode *arry) const {
+bool ArrayNode::IsSameBase(const ArrayNode *arry) const {
   ASSERT(arry != nullptr, "null ptr check");
   if (arry == this) {
     return true;
@@ -911,7 +914,7 @@ void TryNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << " {";
   for (size_t i = 0; i < offsets.size(); ++i) {
     uint32 offset = offsets[i];
-    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName((LabelIdx)offset);
+    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName(static_cast<LabelIdx>(offset));
   }
   LogInfo::MapleLogger() << " }\n";
 }

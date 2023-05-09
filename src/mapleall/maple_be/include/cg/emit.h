@@ -34,13 +34,6 @@
 #include "debug_info.h"
 #include "alignment.h"
 
-namespace maple {
-const char *GetDwTagName(unsigned n);
-const char *GetDwFormName(unsigned n);
-const char *GetDwAtName(unsigned n);
-const char *GetDwOpName(unsigned n);
-}  /* namespace maple */
-
 #if defined(TARGRISCV64) && TARGRISCV64
 #define CMNT "\t# "
 #else
@@ -406,10 +399,10 @@ class OpndEmitVisitor : public OperandVisitorBase,
   explicit OpndEmitVisitor(Emitter &asmEmitter, const OpndDesc *operandProp)
       : emitter(asmEmitter),
         opndProp(operandProp) {}
-  virtual ~OpndEmitVisitor() {
+  ~OpndEmitVisitor() override {
     opndProp = nullptr;
   }
-  uint8 GetSlot() {
+  uint8 GetSlot() const {
     return slot;
   }
   void SetSlot(uint8 startIndex) {

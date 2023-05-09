@@ -245,8 +245,8 @@ BaseNode *CGLowerer::SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent
   name.append(std::to_string(val++));
 
   MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(tNode.GetPrimType()));
-  MIRSymbol *dassignNodeSym = mirbuilder->GetOrCreateLocalDecl(const_cast<const std::string&>(name), *ty);
-  DassignNode *dassignNode = mirbuilder->CreateStmtDassign(const_cast<MIRSymbol&>(*dassignNodeSym), 0, &tNode);
+  MIRSymbol *dassignNodeSym = mirbuilder->GetOrCreateLocalDecl(name, *ty);
+  DassignNode *dassignNode = mirbuilder->CreateStmtDassign(*dassignNodeSym, 0, &tNode);
   blkNode.InsertAfter(blkNode.GetLast(), dassignNode);
 
   BaseNode *dreadNode = mirbuilder->CreateExprDread(*dassignNodeSym);
@@ -352,7 +352,7 @@ BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &pare
     static uint32 val = 0;
     std::string name("ComplexSelectTmp");
     name.append(std::to_string(val++));
-    cplxSelRes.resSym = mirbuilder->GetOrCreateLocalDecl(const_cast<std::string&>(name), *resultTy);
+    cplxSelRes.resSym = mirbuilder->GetOrCreateLocalDecl(name, *resultTy);
     DassignNode *dassignTrue = mirbuilder->CreateStmtDassign(*cplxSelRes.resSym, 0, tNode.Opnd(1));
     // Fallthru: update the frequence 1
     func->SetFirstFreqMap(dassignTrue->GetStmtID(), fallthruStmtFreq);
@@ -1399,7 +1399,8 @@ BlockNode *CGLowerer::LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode 
   auto firstArgTypeIdx = intrinsicCall.GetTyIdx();
   CHECK_FATAL(firstArgTypeIdx != 0, "firstArgTypeIdx should not be 0");
   PrimType primType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(firstArgTypeIdx)->GetPrimType();
-  auto *intrinsicOp = builder->CreateExprIntrinsicop(intrinsicID, OP_intrinsicop, primType, firstArgTypeIdx, opndVector);
+  auto *intrinsicOp = builder->CreateExprIntrinsicop(intrinsicID, OP_intrinsicop, primType,
+                                                     firstArgTypeIdx, opndVector);
   auto &returnVector = intrinsicCall.GetReturnVec();
   StmtNode *newStmt = nullptr;
   if (returnVector.size() == 0) {
@@ -1665,7 +1666,7 @@ void CGLowerer::LowerStructReturnInGpRegs(BlockNode &newBlk, const StmtNode &stm
       }
       auto *pointedType = GlobalTables::GetTypeTable().GetPrimType(primType);
       auto *iassignStmt = mirBuilder->CreateStmtIassign(
-            *beCommon.BeGetOrCreatePointerType(*pointedType), 0, addrNode, regreadExp);
+          *beCommon.BeGetOrCreatePointerType(*pointedType), 0, addrNode, regreadExp);
       newBlk.AddStatement(iassignStmt);
       if (funcProfData) {
         funcProfData->CopyStmtFreq(iassignStmt->GetStmtID(), stmt.GetStmtID());
@@ -2501,7 +2502,7 @@ void CGLowerer::LowerTryCatchBlocks(BlockNode &body) {
   bool generateEHCode = GenerateExceptionHandlingCode();
   tryCatchLower.SetGenerateEHCode(generateEHCode);
   tryCatchLower.TraverseBBList();
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   tryCatchLower.CheckTryCatchPattern();
 #endif
 }
@@ -3828,16 +3829,16 @@ StmtNode *CGLowerer::LowerSyncEnterSyncExit(StmtNode &stmt) {
     MIRIntConst *intConst = safe_cast<MIRIntConst>(cst->GetConstVal());
     switch (intConst->GetExtValue()) {
       case kMCCSyncEnterFast0:
-        id = INTRN_FIRST_SYNC_ENTER;
+        id = static_cast<BuiltinFunctionID>(INTRN_FIRST_SYNC_ENTER);
         break;
       case kMCCSyncEnterFast1:
-        id = INTRN_SECOND_SYNC_ENTER;
+        id = static_cast<BuiltinFunctionID>(INTRN_SECOND_SYNC_ENTER);
         break;
       case kMCCSyncEnterFast2:
-        id = INTRN_THIRD_SYNC_ENTER;
+        id = static_cast<BuiltinFunctionID>(INTRN_THIRD_SYNC_ENTER);
         break;
       case kMCCSyncEnterFast3:
-        id = INTRN_FOURTH_SYNC_ENTER;
+        id = static_cast<BuiltinFunctionID>(INTRN_FOURTH_SYNC_ENTER);
         break;
       default:
         CHECK_FATAL(false, "wrong kind for syncenter");
@@ -3845,7 +3846,7 @@ StmtNode *CGLowerer::LowerSyncEnterSyncExit(StmtNode &stmt) {
     }
   } else {
     CHECK_FATAL(nStmt.NumOpnds() == 1, "wrong args for syncexit");
-    id = INTRN_YNC_EXIT;
+    id = static_cast<BuiltinFunctionID>(INTRN_YNC_EXIT);
   }
   PUIdx bFunc = GetBuiltinToUse(id);
   CHECK_FATAL(bFunc != kFuncNotFound, "bFunc should be found");

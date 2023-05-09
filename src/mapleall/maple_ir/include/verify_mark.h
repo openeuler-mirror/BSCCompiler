@@ -14,7 +14,6 @@
  */
 #ifndef MAPLEALL_VERIFY_MARK_H
 #define MAPLEALL_VERIFY_MARK_H
-#include "verify_pragma_info.h"
 
 namespace maple {
 #ifdef NOT_USED

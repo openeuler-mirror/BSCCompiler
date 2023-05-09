@@ -197,7 +197,7 @@ class MeSSI {
   NaryMeExpr *GetInstanceOfType(MeExpr &e) const;
   void AddPiForABCOpt(BB &bb);
   void AddNullPointerInfoForVar() const;
-  uint8_t AnalysisBranch(MeStmt &meStmt);
+  uint8_t AnalysisBranch(MeStmt &meStmt) const;
   void RemoveExtraNodes();
   void InsertPiNodes();
   bool ExistedPhiNode(BB &bb, const VarMeExpr &rhs) const;

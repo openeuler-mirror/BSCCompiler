@@ -31,7 +31,7 @@ class MeHDSE : public HDSE {
              dom, pdom, map, aliasClass, enabledDebug, MeOption::decoupleStatic),
         func(f) {}
 
-  virtual ~MeHDSE() = default;
+  ~MeHDSE() override = default;
   void BackwardSubstitution();
   std::string PhaseName() const {
     return "hdse";

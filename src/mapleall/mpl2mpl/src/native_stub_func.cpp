@@ -178,7 +178,7 @@ void NativeStubFuncGeneration::ProcessFunc(MIRFunction *func) {
   args.push_back(Options::usePreg ? (static_cast<BaseNode*>(builder->CreateExprRegread(PTY_ptr, envPregIdx)))
                                   : (static_cast<BaseNode*>(builder->CreateExprDread(*envPtrSym))));
   CallNode *postFuncCall =
-      builder->CreateStmtCallAssigned(MRTPostNativeFunc->GetPuidx(), args, nullptr, OP_callassigned);
+      builder->CreateStmtCallAssigned(mrtPostNativeFunc->GetPuidx(), args, nullptr, OP_callassigned);
 
   MapleVector<BaseNode*> allocCallArgs(func->GetCodeMempoolAllocator().Adapter());
   if (!func->GetAttr(FUNCATTR_critical_native)) {
@@ -232,7 +232,7 @@ void NativeStubFuncGeneration::ProcessFunc(MIRFunction *func) {
     CHECK_FATAL(stubFuncRet != nullptr, "stubfunc_ret is nullptr");
     decodeArgs.push_back(builder->CreateExprDread(*stubFuncRet));
     CallNode *decodeFuncCall =
-        builder->CreateStmtCallAssigned(MRTDecodeRefFunc->GetPuidx(), decodeArgs, stubFuncRet, OP_callassigned);
+        builder->CreateStmtCallAssigned(mrtDecodeRefFunc->GetPuidx(), decodeArgs, stubFuncRet, OP_callassigned);
     func->GetBody()->AddStatement(decodeFuncCall);
   }
   if (needNativeCall) {
@@ -262,13 +262,13 @@ void NativeStubFuncGeneration::ProcessFunc(MIRFunction *func) {
   // check pending exception just before leaving this stub frame except for critical natives
   if (needCheckExceptionCall) {
     MapleVector<BaseNode*> getExceptArgs(func->GetCodeMempoolAllocator().Adapter());
-    CallNode *callGetExceptFunc = builder->CreateStmtCallAssigned(MRTCheckThrowPendingExceptionFunc->GetPuidx(),
+    CallNode *callGetExceptFunc = builder->CreateStmtCallAssigned(mrtCheckThrowPendingExceptionFunc->GetPuidx(),
                                                                   getExceptArgs, nullptr, OP_callassigned);
     func->GetBody()->AddStatement(callGetExceptFunc);
   } else if (!func->GetAttr(FUNCATTR_critical_native) &&
              !(existsFuncProperty && funcProperty.jniType == kJniTypeCriticalNeedArg)) {
     MapleVector<BaseNode*> frameStatusArgs(func->GetCodeMempoolAllocator().Adapter());
-    CallNode *callSetFrameStatusFunc = builder->CreateStmtCallAssigned(MCCSetReliableUnwindContextFunc->GetPuidx(),
+    CallNode *callSetFrameStatusFunc = builder->CreateStmtCallAssigned(mccSetReliableUnwindContextFunc->GetPuidx(),
                                                                        frameStatusArgs, nullptr, OP_callassigned);
     func->GetBody()->AddStatement(callSetFrameStatusFunc);
   }
@@ -465,7 +465,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
         StmtNode *wrapperCall = CreateNativeWrapperCallNode(func, readFuncPtr, args, ret, needIndirectCall);
         ifStmt->GetThenPart()->AddStatement(wrapperCall);
         MapleVector<BaseNode*> opnds(builder->GetCurrentFuncCodeMpAllocator()->Adapter());
-        CallNode *callGetExceptFunc = builder->CreateStmtCallAssigned(MRTCheckThrowPendingExceptionFunc->GetPuidx(),
+        CallNode *callGetExceptFunc = builder->CreateStmtCallAssigned(mrtCheckThrowPendingExceptionFunc->GetPuidx(),
                                                                       opnds, nullptr, OP_callassigned);
         ifStmt->GetThenPart()->AddStatement(callGetExceptFunc);
         auto *elseBlock = func.GetCodeMempool()->New<BlockNode>();
@@ -490,7 +490,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
       ifStmt->GetThenPart()->AddStatement(callGetFindNativeFunc);
       if (!needCheckThrowPendingExceptionFunc) {
         MapleVector<BaseNode*> opnds(builder->GetCurrentFuncCodeMpAllocator()->Adapter());
-        CallNode *callGetExceptFunc = builder->CreateStmtCallAssigned(MRTCheckThrowPendingExceptionFunc->GetPuidx(),
+        CallNode *callGetExceptFunc = builder->CreateStmtCallAssigned(mrtCheckThrowPendingExceptionFunc->GetPuidx(),
                                                                       opnds, nullptr, OP_callassigned);
         ifStmt->GetThenPart()->AddStatement(callGetExceptFunc);
       }
@@ -521,7 +521,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
   if (!needCheckThrowPendingExceptionFunc) {
     MapleVector<BaseNode*> opnds(builder->GetCurrentFuncCodeMpAllocator()->Adapter());
     CallNode *callGetExceptFunc =
-        builder->CreateStmtCallAssigned(MRTCheckThrowPendingExceptionFunc->GetPuidx(), opnds, nullptr, OP_callassigned);
+        builder->CreateStmtCallAssigned(mrtCheckThrowPendingExceptionFunc->GetPuidx(), opnds, nullptr, OP_callassigned);
     ifStmt->GetThenPart()->AddStatement(callGetExceptFunc);
   }
   func.GetBody()->AddStatement(ifStmt);
@@ -560,9 +560,9 @@ StmtNode *NativeStubFuncGeneration::CreateNativeWrapperCallNode(MIRFunction &fun
     }
   }
   if (args.size() > numOfArgs) {
-    wrapperFunc = MRTCallSlowNativeExtFunc;
+    wrapperFunc = mrtCallSlowNativeExtFunc;
   } else {
-    wrapperFunc = MRTCallSlowNativeFunc[args.size()];
+    wrapperFunc = mrtCallSlowNativeFunc[args.size()];
   }
   if (ret == nullptr) {
     return builder->CreateStmtCall(wrapperFunc->GetPuidx(), wrapperArgs);
@@ -582,11 +582,11 @@ void NativeStubFuncGeneration::GenerateHelperFuncDecl() {
   MIRType *voidPointerType = GlobalTables::GetTypeTable().GetVoidPtr();
   MIRType *refType = GlobalTables::GetTypeTable().GetRef();
   // MRT_PendingException
-  MRTCheckThrowPendingExceptionFunc =
+  mrtCheckThrowPendingExceptionFunc =
       builder->GetOrCreateFunction(namemangler::kCheckThrowPendingExceptionFunc, voidType->GetTypeIndex());
-  CHECK_FATAL(MRTCheckThrowPendingExceptionFunc != nullptr, "MRTCheckThrowPendingExceptionFunc is null.");
-  MRTCheckThrowPendingExceptionFunc->SetAttr(FUNCATTR_nosideeffect);
-  MRTCheckThrowPendingExceptionFunc->SetBody(nullptr);
+  CHECK_FATAL(mrtCheckThrowPendingExceptionFunc != nullptr, "mrtCheckThrowPendingExceptionFunc is null.");
+  mrtCheckThrowPendingExceptionFunc->SetAttr(FUNCATTR_nosideeffect);
+  mrtCheckThrowPendingExceptionFunc->SetBody(nullptr);
   // MRT_PreNativeCall
   MRTPreNativeFunc = builder->GetOrCreateFunction(namemangler::kPreNativeFunc, voidType->GetTypeIndex());
   CHECK_FATAL(MRTPreNativeFunc != nullptr, "MRTPreNativeFunc is null.");
@@ -594,36 +594,36 @@ void NativeStubFuncGeneration::GenerateHelperFuncDecl() {
   // MRT_PostNativeCall
   ArgVector postArgs(GetMIRModule().GetMPAllocator().Adapter());
   postArgs.push_back(ArgPair("env", voidPointerType));
-  MRTPostNativeFunc = builder->GetOrCreateFunction(namemangler::kPostNativeFunc, voidType->GetTypeIndex());
-  CHECK_FATAL(MRTPostNativeFunc != nullptr, "MRTPostNativeFunc is null.");
-  MRTPostNativeFunc->SetBody(nullptr);
+  mrtPostNativeFunc = builder->GetOrCreateFunction(namemangler::kPostNativeFunc, voidType->GetTypeIndex());
+  CHECK_FATAL(mrtPostNativeFunc != nullptr, "mrtPostNativeFunc is null.");
+  mrtPostNativeFunc->SetBody(nullptr);
   // MRT_DecodeReference
   ArgVector decodeArgs(GetMIRModule().GetMPAllocator().Adapter());
   decodeArgs.push_back(ArgPair("obj", refType));
-  MRTDecodeRefFunc = builder->CreateFunction(namemangler::kDecodeRefFunc, *refType, decodeArgs);
-  CHECK_FATAL(MRTDecodeRefFunc != nullptr, "MRTDecodeRefFunc is null.");
-  MRTDecodeRefFunc->SetAttr(FUNCATTR_nosideeffect);
-  MRTDecodeRefFunc->SetBody(nullptr);
+  mrtDecodeRefFunc = builder->CreateFunction(namemangler::kDecodeRefFunc, *refType, decodeArgs);
+  CHECK_FATAL(mrtDecodeRefFunc != nullptr, "mrtDecodeRefFunc is null.");
+  mrtDecodeRefFunc->SetAttr(FUNCATTR_nosideeffect);
+  mrtDecodeRefFunc->SetBody(nullptr);
   // MCC_CallSlowNative
   ArgVector callArgs(GetMIRModule().GetMPAllocator().Adapter());
   callArgs.push_back(ArgPair("func", voidPointerType));
   for (int i = 0; i < kSlownativeFuncnum; ++i) {
-    MRTCallSlowNativeFunc[i] = builder->CreateFunction(callSlowNativeFuncs[i], *voidPointerType, callArgs);
-    CHECK_FATAL(MRTCallSlowNativeFunc[i] != nullptr, "MRTCallSlowNativeFunc is null.");
-    MRTCallSlowNativeFunc[i]->SetBody(nullptr);
+    mrtCallSlowNativeFunc[i] = builder->CreateFunction(callSlowNativeFuncs[i], *voidPointerType, callArgs);
+    CHECK_FATAL(mrtCallSlowNativeFunc[i] != nullptr, "mrtCallSlowNativeFunc is null.");
+    mrtCallSlowNativeFunc[i]->SetBody(nullptr);
   }
   // MCC_CallSlowNativeExt
   ArgVector callExtArgs(GetMIRModule().GetMPAllocator().Adapter());
   callExtArgs.push_back(ArgPair("func", voidPointerType));
-  MRTCallSlowNativeExtFunc = builder->CreateFunction(namemangler::kCallSlowNativeExt, *voidPointerType, callExtArgs);
-  CHECK_FATAL(MRTCallSlowNativeExtFunc != nullptr, "MRTCallSlowNativeExtFunc is null.");
-  MRTCallSlowNativeExtFunc->SetBody(nullptr);
+  mrtCallSlowNativeExtFunc = builder->CreateFunction(namemangler::kCallSlowNativeExt, *voidPointerType, callExtArgs);
+  CHECK_FATAL(mrtCallSlowNativeExtFunc != nullptr, "mrtCallSlowNativeExtFunc is null.");
+  mrtCallSlowNativeExtFunc->SetBody(nullptr);
   // MCC_SetReliableUnwindContext
-  MCCSetReliableUnwindContextFunc =
+  mccSetReliableUnwindContextFunc =
       builder->GetOrCreateFunction(namemangler::kSetReliableUnwindContextFunc, voidType->GetTypeIndex());
-  CHECK_FATAL(MCCSetReliableUnwindContextFunc != nullptr, "MCCSetReliableUnwindContextFunc is null");
-  MCCSetReliableUnwindContextFunc->SetAttr(FUNCATTR_nosideeffect);
-  MCCSetReliableUnwindContextFunc->SetBody(nullptr);
+  CHECK_FATAL(mccSetReliableUnwindContextFunc != nullptr, "mccSetReliableUnwindContextFunc is null");
+  mccSetReliableUnwindContextFunc->SetAttr(FUNCATTR_nosideeffect);
+  mccSetReliableUnwindContextFunc->SetBody(nullptr);
 }
 
 void NativeStubFuncGeneration::GenerateRegTable() {

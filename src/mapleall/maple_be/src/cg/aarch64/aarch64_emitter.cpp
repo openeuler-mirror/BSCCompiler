@@ -645,8 +645,6 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       cgFunc.GetFunction().IsDefaultVisibility()) {
     EmitLocalAliasOfFuncName(emitter, funcStName);
   }
-
-
   auto constructorAttr = funcSt->GetFunction()->GetAttrs().GetConstructorPriority();
   if (constructorAttr != -1) {
     (void)emitter.Emit("\t.section\t.init_array." + std::to_string(constructorAttr) + ",\"aw\"\n");
@@ -857,7 +855,8 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
     }
   }
   /* if fno-semantic-interposition is enabled, print function alias instead */
-  if ((md->IsCall() || md->IsTailCall()) && insn.GetOperand(kInsnFirstOpnd).IsFuncNameOpnd() && CGOptions::IsNoSemanticInterposition()) {
+  if ((md->IsCall() || md->IsTailCall()) && insn.GetOperand(kInsnFirstOpnd).IsFuncNameOpnd() &&
+      CGOptions::IsNoSemanticInterposition()) {
     const MIRSymbol *funcSymbol = static_cast<FuncNameOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetFunctionSymbol();
     MIRFunction *mirFunc = funcSymbol->GetFunction();
     if (mirFunc && !mirFunc->IsStatic() && mirFunc->HasBody() && mirFunc->IsDefaultVisibility()) {
@@ -1133,9 +1132,11 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
         } else if (c == '{') {
           c = asmStr[++i];
           CHECK_FATAL(((c >= '0') && (c <= '9')), "Inline asm : invalid register constraint number");
-          auto val = static_cast<uint32>(char(c)) - static_cast<uint32>(char('0'));
+          auto val = static_cast<uint32>(static_cast<unsigned char>(c)) -
+                     static_cast<uint32>(static_cast<unsigned char>('0'));
           if (asmStr[i + 1] >= '0' && asmStr[i + 1] <= '9') {
-            val = val * kDecimalMax + static_cast<uint32>(char(asmStr[++i])) - static_cast<uint32>(char('0'));
+            val = val * kDecimalMax + static_cast<uint32>(static_cast<unsigned char>(asmStr[++i])) -
+                  static_cast<uint32>(static_cast<unsigned char>('0'));
           }
           regno_t regno;
           bool isAddr = false;

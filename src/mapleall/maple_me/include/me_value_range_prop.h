@@ -824,8 +824,8 @@ class ValueRangePropagation {
   size_t GetRealPredSize(const BB &bb) const;
   bool RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBranch, ScalarMeExpr *updateSSAExceptTheScalarExpr,
                              std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr);
-  void DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, const MeExpr &opnd0, MeExpr &opnd1,
-                                                Opcode opOfBrStmt, Opcode conditionalOp, ValueRange *valueRangeOfLeft);
+  void DealWithCondGotoWhenRightRangeIsNotExist(
+      BB &bb, const OpMeExpr &opMeExpr, Opcode opOfBrStmt, ValueRange *valueRangeOfLeft);
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
   std::unique_ptr<ValueRange> DealWithMeOp(const BB &bb, const MeStmt &stmt);
   void ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd, MePhiNode *&phi, bool &thePhiIsInBB) const;

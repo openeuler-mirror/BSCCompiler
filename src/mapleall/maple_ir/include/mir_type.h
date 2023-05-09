@@ -2118,7 +2118,7 @@ class MIRTypeByName : public MIRType {
   size_t GetHashIndex() const override {
     constexpr uint8 idxShift = 2;
     uint8 nameIsLocalValue = nameIsLocal ? 1 : 0;
-    return ((static_cast<size_t>(nameStrIdx) << idxShift) + nameIsLocalValue + (typeKind << kShiftNumOfTypeKind)) %
+    return ((static_cast<uint32>(nameStrIdx) << idxShift) + nameIsLocalValue + (typeKind << kShiftNumOfTypeKind)) %
            kTypeHashLength;
   }
 };

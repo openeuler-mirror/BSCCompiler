@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <functional>
 #include <initializer_list>
-#include "triple.h"
 #include "constantfold.h"
 #include "../../maple_be/include/cg/cg_option.h"
 
@@ -40,6 +39,10 @@ constexpr char kFuncNameOfSprintfS[] = "sprintf_s";
 constexpr char kFuncNameOfSnprintfS[] = "snprintf_s";
 constexpr char kFuncNameOfVsnprintfS[] = "vsnprintf_s";
 constexpr uint64_t kSecurecMemMaxLen = 0x7fffffffUL;
+static constexpr int64_t kWidthLL = 64;
+static constexpr int64_t kWidthInt = 32;
+static constexpr int64_t kWidthShort = 16;
+static constexpr int64_t kWidthChar = 8;
 static constexpr int32 kProbUnlikely = 1000;
 constexpr uint32_t kMemOpDstOpndIdx = 0;
 constexpr uint32_t kMemOpSDstSizeOpndIdx = 1;
@@ -79,7 +82,7 @@ MIRConst *TruncateUnionConstant(const MIRStructType &unionType, MIRConst *fieldC
     return fieldCst;
   }
 
-  bool isBigEndian = MeOption::IsBigEndian() || Options::IsBigEndian();
+  bool isBigEndian = Options::IsBigEndian();
 
   IntVal val = intCst->GetValue();
   uint8 bitSize = bitFieldType->GetFieldSize();
@@ -421,21 +424,21 @@ static bool ExtractBitField(const MIRPtrType &type, FieldID fldID, BitFieldExtra
   }
   auto bitOffset = type.GetPointedType()->GetBitOffsetFromBaseAddr(fldID);
   auto extractSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
-  if ((bitOffset / LLONG_WIDTH) != ((bitOffset + extractSize) / LLONG_WIDTH)) {
+  if ((bitOffset / kWidthLL) != ((bitOffset + extractSize) / kWidthLL)) {
     return false;
   }
-  if (bitOffset % CHAR_WIDTH == 0 && (extractSize == CHAR_WIDTH || extractSize == SHRT_WIDTH ||
-                                      extractSize == INT_WIDTH || extractSize == LLONG_WIDTH)) {
+  if (bitOffset % kWidthChar == 0 && (extractSize == kWidthChar || extractSize == kWidthShort ||
+                                      extractSize == kWidthInt || extractSize == kWidthLL)) {
     return false;
   }
-  auto byteOffset = (bitOffset / LLONG_WIDTH) * CHAR_WIDTH;  // expand the read length to 64 bit
+  auto byteOffset = (bitOffset / kWidthLL) * kWidthChar;  // expand the read length to 64 bit
   auto *readType = GlobalTables::GetTypeTable().GetUInt64();
-  if ((bitOffset / INT_WIDTH) == ((bitOffset + extractSize) / INT_WIDTH)) {
-    byteOffset = (bitOffset / INT_WIDTH) * INT_WIDTH / CHAR_WIDTH;  // expand the read length to 32 bit
+  if ((bitOffset / kWidthInt) == ((bitOffset + extractSize) / kWidthInt)) {
+    byteOffset = (bitOffset / kWidthInt) * kWidthInt / kWidthChar;  // expand the read length to 32 bit
     readType = GlobalTables::GetTypeTable().GetUInt32();
   }
   bfe.byteOffset = byteOffset;
-  bfe.extractStart = bitOffset - byteOffset * CHAR_WIDTH;
+  bfe.extractStart = bitOffset - byteOffset * kWidthChar;
   bfe.extractSize = extractSize;
   bfe.extractType = readType;
   return true;
@@ -766,13 +769,17 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirCon
   bool reached = false;
   bool isUpperLayerUnion = false;
   std::function<void(MIRConst *, MIRType *)> traverseAgg = [&] (MIRConst *currConst, MIRType *currType) {
+    if (currType->GetKind() == kTypeArray) {
+      currFieldId += static_cast<FieldID>(currType->EmbeddedStructType()->GetFieldsSize());
+      return;
+    }
     if (isUpperLayerUnion && (!currConst || currConst->GetKind() != kConstAggConst)) {
       reached = currFieldId == fieldId;
       resultConst = reached ? currConst : resultConst;
       return;
     }
     auto *currAggConst = safe_cast<MIRAggConst>(currConst);
-    auto *currAggType = safe_cast<MIRStructType>(currType);
+    auto *currAggType = currType->EmbeddedStructType();
     ASSERT_NOT_NULL(currAggConst);
     ASSERT_NOT_NULL(currAggType);
     for (size_t iter = 0; iter < currAggType->GetFieldsSize() && !reached; ++iter) {
@@ -780,17 +787,13 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirCon
       auto *fieldType = originAggType.GetFieldType(currFieldId);
 
       if (currFieldId == fieldId) {
-        if (auto *truncCst = TruncateUnionConstant(*currAggType, fieldConst, *fieldType)) {
-          resultConst = truncCst;
-        } else {
-          resultConst = TruncateUnionConstant(*currAggType, fieldConst, *fieldType);
-        }
+        resultConst = TruncateUnionConstant(*currAggType, fieldConst, *fieldType);
         reached = true;
         return;
       }
 
       ++currFieldId;
-      if (fieldType->GetKind() == kTypeUnion || fieldType->GetKind() == kTypeStruct) {
+      if (fieldType->EmbeddedStructType()) {
         bool isPrevUpperLayerUnion = isUpperLayerUnion;
         isUpperLayerUnion = currAggType->GetKind() == kTypeUnion;
         traverseAgg(fieldConst, fieldType);

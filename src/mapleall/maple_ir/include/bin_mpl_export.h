@@ -127,7 +127,7 @@ class BinaryMplExport {
   void OutputPragmaVec(const std::vector<MIRPragma*> &pragmaVec);
   void OutputClassTypeData(const MIRClassType &type);
   void OutputSymbol(MIRSymbol *sym);
-  void OutputEnumeration(MIREnum *mirEnum);
+  void OutputEnumeration(const MIREnum *mirEnum);
   void OutputFunction(PUIdx puIdx);
   void OutputInterfaceTypeData(const MIRInterfaceType &type);
   void OutputSrcPos(const SrcPosition &pos);

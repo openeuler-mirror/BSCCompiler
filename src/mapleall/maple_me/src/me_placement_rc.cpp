@@ -16,7 +16,7 @@
 #include "me_irmap_build.h"
 
 namespace {
-const std::set<std::string> whiteListFunc {
+const std::set<std::string> kWhiteListFunc {
 #include "rcwhitelist.def"
 };
 }
@@ -890,7 +890,7 @@ void MEPlacementRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 
 bool MEPlacementRC::PhaseRun(maple::MeFunction &f) {
   std::string funcName = f.GetName();
-  if (whiteListFunc.find(funcName) != whiteListFunc.end() || f.GetMirFunc()->GetAttr(FUNCATTR_rclocalunowned)) {
+  if (kWhiteListFunc.find(funcName) != kWhiteListFunc.end() || f.GetMirFunc()->GetAttr(FUNCATTR_rclocalunowned)) {
     return false;
   }
   auto *cfg = GET_ANALYSIS(MEMeCfg, f);

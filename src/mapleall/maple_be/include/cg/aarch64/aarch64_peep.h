@@ -22,13 +22,13 @@
 #include "mir_builder.h"
 
 namespace maplebe {
-class AArch64CGPeepHole : CGPeepHole {
+class AArch64CGPeepHole : public CGPeepHole {
  public:
   /* normal constructor */
   AArch64CGPeepHole(CGFunc &f, MemPool *memPool) : CGPeepHole(f, memPool) {};
   /* constructor for ssa */
   AArch64CGPeepHole(CGFunc &f, MemPool *memPool, CGSSAInfo *cgssaInfo) : CGPeepHole(f, memPool, cgssaInfo) {};
-  ~AArch64CGPeepHole() = default;
+  ~AArch64CGPeepHole() override = default;
 
   void Run() override;
   bool DoSSAOptimize(BB &bb, Insn &insn) override;
@@ -454,6 +454,38 @@ class NormRevTbzToTbzPattern : public CGPeepPattern {
   Insn *tbzInsn = nullptr;
 };
 
+// Add/Sub & load/store insn mergence pattern:
+// add  x0, x0, #255
+// ldr  w1, [x0]        ====>    ldr  w1, [x0, #255]!
+//
+// stp  w1, w2, [x0]
+// sub  x0, x0, #256    ====>    stp  w1, w2, [x0], #-256
+// If new load/store insn is invalid and should be split, the pattern optimization will not work.
+class AddSubMergeLdStPattern : public CGPeepPattern {
+  public:
+  AddSubMergeLdStPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  AddSubMergeLdStPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~AddSubMergeLdStPattern() override = default;
+  std::string GetPatternName() override {
+    return "AddSubMergeLdStPattern";
+  }
+  bool CheckCondition(Insn &insn) override;
+  void Run(BB &bb, Insn &insn) override;
+
+  private:
+  bool CheckIfCanBeMerged(Insn *adjacentInsn, Insn &insn);
+  Insn *nextInsn = nullptr;
+  Insn *prevInsn = nullptr;
+  Insn *insnToBeReplaced = nullptr;
+  bool isAddSubFront = false;
+  bool isLdStFront = false;
+  bool isInsnAdd = false;
+  RegOperand *insnDefReg = nullptr;
+  RegOperand *insnUseReg = nullptr;
+};
+
 class CombineSameArithmeticPattern : public CGPeepPattern {
  public:
   CombineSameArithmeticPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
@@ -828,12 +860,14 @@ class LsrAndToUbfxPattern : public CGPeepPattern {
   ~LsrAndToUbfxPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
+  bool CheckIntersectedCondition(Insn &insn, Insn &prevInsn);
   std::string GetPatternName() override {
     return "LsrAndToUbfxPattern";
   }
 
  private:
   Insn *prevInsn = nullptr;
+  bool isWXSumOutOfRange = false;
 };
 
 /*
@@ -1029,13 +1063,14 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
    * str x21, [x19, #16]
    */
   bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst) const;
-  bool IsValidNormalLoadOrStorePattern(Insn &insn, Insn &prevInsn, MemOperand &memOpnd, int64 curOfstVal, int64 prevOfstVal);
-  bool IsValidStackArgLoadOrStorePattern(Insn &curInsn, Insn &prevInsn, MemOperand &curMemOpnd, MemOperand &prevMemOpnd,
-                                         int64 curOfstVal, int64 prevOfstVal);
+  bool IsValidNormalLoadOrStorePattern(const Insn &insn, const Insn &prevInsn, const MemOperand &memOpnd,
+                                       int64 curOfstVal, int64 prevOfstVal);
+  bool IsValidStackArgLoadOrStorePattern(const Insn &curInsn, const Insn &prevInsn, const MemOperand &curMemOpnd,
+                                         const MemOperand &prevMemOpnd, int64 curOfstVal, int64 prevOfstVal) const;
   MOperator GetNewMemMop(MOperator mop) const;
   Insn *GenerateMemPairInsn(MOperator newMop, RegOperand &curDestOpnd, RegOperand &prevDestOpnd,
                             MemOperand &combineMemOpnd, bool isCurDestFirst);
-  bool FindUseX16AfterInsn(const Insn &curInsn);
+  bool FindUseX16AfterInsn(const Insn &curInsn) const;
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) const;
 
   bool doAggressiveCombine = false;
@@ -1609,10 +1644,10 @@ class AddCmpZeroAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
- bool CheckAddCmpZeroCheckAdd(const Insn &prevInsn, const Insn &insn);
- bool CheckAddCmpZeroContinue(const Insn &insn, RegOperand &opnd);
- bool CheckAddCmpZeroCheckCond(const Insn &insn);
- Insn* CheckAddCmpZeroAArch64Pattern(Insn &insn, RegOperand &opnd);
+  bool CheckAddCmpZeroCheckAdd(const Insn &prevInsn, const Insn &insn) const;
+  bool CheckAddCmpZeroContinue(const Insn &insn, const RegOperand &opnd) const;
+  bool CheckAddCmpZeroCheckCond(const Insn &insn) const;
+  Insn* CheckAddCmpZeroAArch64Pattern(Insn &insn, const RegOperand &opnd);
 };
 
 /*

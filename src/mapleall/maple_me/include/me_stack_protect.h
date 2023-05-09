@@ -26,7 +26,7 @@ class MeStackProtect {
   explicit MeStackProtect(MeFunction &func) : f(&func) {}
   ~MeStackProtect() = default;
   void CheckAddrofStack();
-  bool MayWriteStack();
+  bool MayWriteStack() const;
 
  private:
   bool IsMeStmtSafe(const MeStmt &stmt) const;

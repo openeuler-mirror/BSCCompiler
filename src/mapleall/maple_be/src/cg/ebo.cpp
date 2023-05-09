@@ -81,7 +81,7 @@ bool Ebo::IsFrameReg(Operand &opnd) const {
 }
 
 Operand *Ebo::GetZeroOpnd(uint32 size) const {
-#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)
   return size > k64BitSize ? nullptr : &cgFunc->GetZeroOpnd(size);
 #else
   return nullptr;
@@ -878,8 +878,8 @@ void Ebo::RemoveInsn(InsnInfo &info) const {
 #endif
 }
 
-/* Mark opnd is live between def bb and into bb. */
-void Ebo::MarkOpndLiveIntoBB(const Operand &opnd, const BB &into, const BB &def) const {
+/* Mark opnd is live between def bb and into bb. (parameter into & def cannot be marked as const) */
+void Ebo::MarkOpndLiveIntoBB(const Operand &opnd, BB &into, BB &def) const {
   if (live == nullptr) {
     return;
   }

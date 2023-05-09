@@ -24,7 +24,7 @@ class LocalSchedule : public BaseSchedule {
  public:
   LocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, InterDataDepAnalysis &idda)
       : BaseSchedule(mp, f, cdAna), interDDA(idda) {}
-  virtual ~LocalSchedule() = default;
+  ~LocalSchedule() override = default;
 
   std::string PhaseName() const {
     return "localschedule";

@@ -136,7 +136,7 @@ bool MIRBuilder::TraverseToNamedFieldWithTypeAndMatchStyle(MIRStructType &struct
     TyIdx fieldTyIdx = structType.GetFieldsElemt(fieldIdx).second.first;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     ASSERT(fieldType != nullptr, "fieldType is null");
-    if (matchStyle && structType.GetFieldsElemt(fieldIdx).first == nameIdx) {
+    if (matchStyle != 0 && structType.GetFieldsElemt(fieldIdx).first == nameIdx) {
       if (typeIdx == 0u || fieldTyIdx == typeIdx ||
           fieldType->IsOfSameType(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(typeIdx))) {
         return true;
@@ -246,7 +246,7 @@ MIRFunction *MIRBuilder::GetFunctionFromName(const std::string &str) const {
   return funcSymbol != nullptr ? GetFunctionFromSymbol(*funcSymbol) : nullptr;
 }
 
-MIRFunction *MIRBuilder::GetFunctionFromStidx(StIdx stIdx) const {
+MIRFunction *MIRBuilder::GetFunctionFromStidx(const StIdx &stIdx) const {
   auto *funcSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
   return funcSymbol != nullptr ? GetFunctionFromSymbol(*funcSymbol) : nullptr;
 }
@@ -571,7 +571,7 @@ ConstvalNode *MIRBuilder::CreateAddroffuncConst(const BaseNode &node) {
 ConstvalNode *MIRBuilder::CreateStrConst(const BaseNode &node) {
   ASSERT(node.GetOpCode() == OP_conststr, "illegal op for conststr const");
   UStrIdx strIdx = static_cast<const ConststrNode&>(node).GetStrIdx();
-  CHECK_FATAL(PTY_u8 < GlobalTables::GetTypeTable().GetTypeTable().size(),
+  CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeTable().size() > PTY_u8,
               "index is out of range in MIRBuilder::CreateStrConst");
   TyIdx tyIdx = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u8))->GetTypeIndex();
   MIRPtrType ptrType(tyIdx);
@@ -584,7 +584,7 @@ ConstvalNode *MIRBuilder::CreateStrConst(const BaseNode &node) {
 ConstvalNode *MIRBuilder::CreateStr16Const(const BaseNode &node) {
   ASSERT(node.GetOpCode() == OP_conststr16, "illegal op for conststr16 const");
   U16StrIdx strIdx = static_cast<const Conststr16Node&>(node).GetStrIdx();
-  CHECK_FATAL(PTY_u16 < GlobalTables::GetTypeTable().GetTypeTable().size(),
+  CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeTable().size() > PTY_u16,
               "index out of range in MIRBuilder::CreateStr16Const");
   TyIdx ptyIdx = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u16))->GetTypeIndex();
   MIRPtrType ptrType(ptyIdx);

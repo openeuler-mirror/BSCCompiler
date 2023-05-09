@@ -878,7 +878,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *GetSymbolAddressOpnd(const MIRSymbol &sym, int32 offset, bool useMem);
   void SelectStructMemcpy(RegOperand &destOpnd, RegOperand &srcOpnd, uint32 structSize);
   void SelectStructCopy(MemOperand &destOpnd, MemOperand &srcOpnd, uint32 structSize);
-  Operand *GetAddrOpndWithBaseNode(const BaseNode &argExpr, MIRSymbol &sym, uint32 offset,
+  Operand *GetAddrOpndWithBaseNode(const BaseNode &argExpr, const MIRSymbol &sym, uint32 offset,
                                    bool useMem = true);
   void GetAggregateDescFromAggregateNode(BaseNode &argExpr, AggregateDesc &aggDesc);
   void SelectParamPreCopy(const BaseNode &argExpr, AggregateDesc &aggDesc, uint32 mirSize,
@@ -928,7 +928,7 @@ class AArch64CGFunc : public CGFunc {
 
   Operand *GetOpndWithOneParam(const IntrinsicopNode &intrnNode);
   Operand *GetOpndFromIntrnNode(const IntrinsicopNode &intrnNode);
-  bool IslhsSizeAligned(uint64 lhsSizeCovered, uint32 newAlignUsed, uint64 lhsSize);
+  bool IslhsSizeAligned(uint64 lhsSizeCovered, uint32 newAlignUsed, uint64 lhsSize) const;
   RegOperand &GetRegOpnd(bool isAfterRegAlloc, PrimType primType);
   Operand *SelectAArch64CAtomicFetch(const IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore);
   Operand *SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore);

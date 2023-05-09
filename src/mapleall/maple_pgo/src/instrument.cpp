@@ -15,8 +15,9 @@
 
 #include "instrument.h"
 #include "cgbb.h"
-
 #include "mir_builder.h"
+#include "mpl_logging.h"
+
 namespace maple {
 std::string GetProfCntSymbolName(const std::string &funcName, PUIdx idx) {
   return funcName + "_" + std::to_string(idx) + "_counter";
@@ -118,6 +119,22 @@ BBUseEdge<BB> *BBUseInfo<BB>::GetOnlyUnknownInEdges() {
     }
   }
   return ouEdge;
+}
+
+template<typename BB>
+void BBUseInfo<BB>::Dump() {
+  for (const auto &inE : inEdges) {
+    if (inE->GetStatus()) {
+      LogInfo::MapleLogger() << inE->GetSrcBB()->GetId() << "->" <<
+          inE->GetDestBB()->GetId() << " c : " << inE->GetCount() << "\n";
+    }
+  }
+  for (const auto &outE : outEdges) {
+    if (outE->GetStatus()) {
+      LogInfo::MapleLogger() << outE->GetSrcBB()->GetId() << "->" <<
+          outE->GetDestBB()->GetId() << " c : " << outE->GetCount() << "\n";
+    }
+  }
 }
 
 template class PGOInstrumentTemplate<maplebe::BB, maple::BBEdge<maplebe::BB>>;

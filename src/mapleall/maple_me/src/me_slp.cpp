@@ -1448,7 +1448,7 @@ int32 TreeNode::GetCost() const {
       return static_cast<int32>(GetLane());
     }
   }
-  int32 cost = static_cast<int32>(-(GetLane() - 1));
+  int32 cost = -(static_cast<int32>(GetLane() - 1));
   if (op == OP_ashr) {
     // aarch64 only vector shl(register), lowering vector shr will introduce an extra vector neg instruction.
     cost += 1;
@@ -1598,7 +1598,7 @@ struct BlockScheduling {
     return false;
   }
 
-  bool IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt);
+  bool IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) const;
 
   void ScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, bool needRectifyChiList = false) {
     CHECK_FATAL(stmt->GetBB() == anchor->GetBB(), "must belong to same BB");
@@ -1700,24 +1700,24 @@ void GetDependencyStmts(MeStmt *stmt, std::vector<MeStmt*> &depsOfOpnd, std::vec
   }
 }
 
-void GetOstsUsed(MeExpr *expr, std::unordered_set<OriginalSt*> &ostsUsed) {
-  Opcode op = expr->GetOp();
+void GetOstsUsed(const MeExpr &expr, std::unordered_set<OriginalSt*> &ostsUsed) {
+  Opcode op = expr.GetOp();
   if (op == OP_regread) {
     // we don't need to consider defPhi, we only focus on BB level use-def
-    auto *ost = static_cast<RegMeExpr*>(expr)->GetOst();
+    auto *ost = static_cast<const RegMeExpr&>(expr).GetOst();
     ostsUsed.insert(ost);
   }
-  for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
-    auto *opnd = expr->GetOpnd(i);
-    GetOstsUsed(opnd, ostsUsed);
+  for (size_t i = 0; i < expr.GetNumOpnds(); ++i) {
+    auto *opnd = expr.GetOpnd(i);
+    GetOstsUsed(*opnd, ostsUsed);
   }
 }
 
-void GetOstsUsed(MeStmt *stmt, std::unordered_set<OriginalSt*> &ostsUsed) {
+void GetOstsUsed(const MeStmt &stmt, std::unordered_set<OriginalSt*> &ostsUsed) {
   // We only consider stmt opnd, skip chiList, because there is always no chi for preg
-  for (size_t i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
-    auto *opnd = stmt->GetOpnd(i);
-    GetOstsUsed(opnd, ostsUsed);
+  for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
+    auto *opnd = stmt.GetOpnd(i);
+    GetOstsUsed(*opnd, ostsUsed);
   }
 }
 
@@ -1793,9 +1793,9 @@ void BlockScheduling::ExtendUseInfo() {
   extendUseInfo = true;
 }
 
-bool BlockScheduling::IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) {
+bool BlockScheduling::IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) const {
   std::unordered_set<OriginalSt*> ostsUsed;
-  GetOstsUsed(stmt, ostsUsed);
+  GetOstsUsed(*stmt, ostsUsed);
   return ostsUsed.find(ost) != ostsUsed.end();
 }
 
@@ -2187,7 +2187,7 @@ class SLPVectorizer {
   bool DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, uint32 end, bool onlySchedule = false);
 
   bool TryScheduleTogehter(const std::vector<MeStmt*> &stmts);
-  bool BuildTree(std::vector<MeStmt*> &stmts);
+  void BuildTree(std::vector<MeStmt*> &stmts);
   TreeNode *BuildTreeRec(std::vector<ExprWithDef*> &exprVec, uint32 depth, TreeNode *parentNode);
 
   bool VectorizeTreeNode(TreeNode *treeNode);
@@ -2446,10 +2446,7 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
   for (uint32 i = begin; i < end; ++i) {
     stmts.push_back(storeVec[i]->stmt);
   }
-  bool res = BuildTree(stmts);
-  if (!res) {
-    CHECK_FATAL(false, "should not be here");
-  }
+  BuildTree(stmts);
   if (onlySchedule) {
     SLP_DEBUG(os << "onlySchedule save result" << std::endl);
     CodeMotionSaveSchedulingResult();
@@ -2771,14 +2768,14 @@ bool SLPVectorizer::TryScheduleTogehter(const std::vector<MeStmt*> &stmts) {
 
 // Building SLP tree
 // input: sorted stmts by memLoc offset
-bool SLPVectorizer::BuildTree(std::vector<MeStmt*> &stmts) {
+void SLPVectorizer::BuildTree(std::vector<MeStmt*> &stmts) {
   tree = tmpAlloc->New<SLPTree>(*tmpAlloc, memoryHelper, func, *blockScheduling);
   SLP_DEBUG(os << "Build tree node for " << GetOpName(stmts[0]->GetOp()) << std::endl);
   CHECK_FATAL(stmts.size() >= k2BitSize, "must be");
 
   if (!TryScheduleTogehter(stmts)) {
     SLP_FAILURE_DEBUG(os << "Scheduling failure" << std::endl);
-    return true;
+    return;
   }
   SLP_DEBUG(os << "Scheduling OK, building tree node..." << std::endl);
   auto *rootNode = tree->CreateTreeNodeByStmts(stmts, nullptr);
@@ -2797,7 +2794,6 @@ bool SLPVectorizer::BuildTree(std::vector<MeStmt*> &stmts) {
     os << "===== Print tree in text foramt =====" << std::endl;
     PrintSLPTree(rootNode, func, false);
   }
-  return true;
 }
 
 TreeNode *SLPVectorizer::BuildTreeRec(std::vector<ExprWithDef*> &exprVec, uint32 depth, TreeNode *parentNode) {
@@ -3055,12 +3051,12 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
   return true;
 }
 
-void SetMuListForVectorIvar(IvarMeExpr &ivar, TreeNode *treeNode) {
-  auto &order = treeNode->GetOrder();
+void SetMuListForVectorIvar(IvarMeExpr &ivar, const TreeNode &treeNode) {
+  auto &order = treeNode.GetOrder();
   ivar.GetMuList().resize(order.size(), nullptr);
   for (size_t i = 0; i < order.size(); ++i) {
     uint32 orderIdx = order[i];
-    auto *mu = static_cast<IvarMeExpr*>(treeNode->GetMemLocs()[i]->Emit())->GetUniqueMu();
+    auto *mu = static_cast<IvarMeExpr*>(treeNode.GetMemLocs()[i]->Emit())->GetUniqueMu();
     ivar.SetMuItem(orderIdx, mu);
   }
 }
@@ -3094,7 +3090,7 @@ bool SLPVectorizer::DoVectTreeNodeIvar(TreeNode *treeNode) {
   newIvar.SetTyIdx(vecPtrType->GetTypeIndex());
   newIvar.SetPtyp(vecType->GetPrimType());
   newIvar.SetBase(newBase);
-  SetMuListForVectorIvar(newIvar, treeNode);
+  SetMuListForVectorIvar(newIvar, *treeNode);
   addrExpr = irMap.HashMeExpr(newIvar);
 
   CHECK_FATAL(addrExpr->GetMeOp() == kMeOpIvar, "only iread memLoc is supported for now");

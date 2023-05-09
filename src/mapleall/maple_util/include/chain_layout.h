@@ -32,6 +32,7 @@ using NodeType = BaseGraphNode;
 // Data structure for loop
 class LoopWrapperBase {
  public:
+  virtual ~LoopWrapperBase() = default;
   virtual NodeType *GetHeader() = 0;
   virtual void GetLoopMembers(std::vector<uint32> &nodeIds) const = 0;
   virtual uint32 GetLoopDepth() const = 0;
@@ -40,6 +41,8 @@ class LoopWrapperBase {
 class MeLoopWrapper : public LoopWrapperBase {
  public:
   explicit MeLoopWrapper(LoopDesc &meLoop) : loop(meLoop) {}
+
+  ~MeLoopWrapper() override = default;
 
   NodeType *GetHeader() override {
     return loop.head;
@@ -66,6 +69,8 @@ class MeLoopWrapper : public LoopWrapperBase {
 class CGLoopWrapper : public LoopWrapperBase {
  public:
   explicit CGLoopWrapper(maplebe::CGFuncLoops &cgLoop) : loop(cgLoop) {}
+
+  ~CGLoopWrapper() override = default;
 
   NodeType *GetHeader() override {
     return loop.GetHeader();
@@ -99,6 +104,8 @@ class NodeIterBase {
   using iterator_category = std::forward_iterator_tag;
   using self = NodeIterBase;
 
+  virtual ~NodeIterBase() = default;
+
   virtual value_type operator*() const = 0;
   virtual self &operator++() = 0;
   virtual bool operator==(const self &rhs) const = 0;
@@ -108,6 +115,9 @@ class NodeIterBase {
 class MeBBIter : public NodeIterBase {
  public:
   explicit MeBBIter(pointer pt) : nodePtr(pt) {}
+  ~MeBBIter() override {
+    nodePtr = nullptr;
+  }
 
   value_type operator*() const override {
     return *nodePtr;
@@ -133,6 +143,8 @@ class MeBBIter : public NodeIterBase {
 class CGBBIter : public NodeIterBase {
  public:
   explicit CGBBIter(value_type val) : node(val) {}
+
+  ~CGBBIter() override = default;
 
   value_type operator*() const override {
     return node;
@@ -161,6 +173,8 @@ class CGBBIter : public NodeIterBase {
 class FuncWrapperBase {
  public:
   using iterator = NodeIterBase;
+
+  virtual ~FuncWrapperBase() = default;
 
   // member functions for container
   virtual size_t size() const = 0;
@@ -207,6 +221,7 @@ class MeFuncWrapper : public FuncWrapperBase {
  public:
   MeFuncWrapper(MeFunction &meFunc, MemPool &mp) : FuncWrapperBase(true, mp), func(meFunc) {}
 
+  ~MeFuncWrapper() override = default;
   MeFunction &GetFunc() {
     return func;
   }
@@ -272,6 +287,8 @@ class MeFuncWrapper : public FuncWrapperBase {
 class CGFuncWrapper : public FuncWrapperBase {
  public:
   CGFuncWrapper(maplebe::CGFunc &cgFunc, MemPool &mp) : FuncWrapperBase(false, mp), func(cgFunc) {}
+
+  ~CGFuncWrapper() override = default;
 
   maplebe::CGFunc &GetFunc() {
     return func;
@@ -355,6 +372,8 @@ class DomWrapperBase {
   using reverse_iterator = NodePtrHolder::reverse_iterator;
   using const_reverse_iterator = NodePtrHolder::const_reverse_iterator;
 
+  virtual ~DomWrapperBase() = default;
+
   virtual size_t rpo_size() const = 0;
   virtual iterator rpo_begin() = 0;
   virtual iterator rpo_end() = 0;
@@ -364,6 +383,8 @@ class DomWrapperBase {
 class MeDomWrapper : public DomWrapperBase {
  public:
   explicit MeDomWrapper(Dominance &meDom) : dom(meDom) {}
+
+  ~MeDomWrapper() override = default;
 
   size_t rpo_size() const override {
     return dom.GetReversePostOrder().size();
@@ -388,6 +409,8 @@ class MeDomWrapper : public DomWrapperBase {
 class CGDomWrapper : public DomWrapperBase {
  public:
   explicit CGDomWrapper(maplebe::DomAnalysis &cgDom) : dom(cgDom) {}
+
+  ~CGDomWrapper() override = default;
 
   size_t rpo_size() const override {
     return dom.GetReversePostOrder().size();

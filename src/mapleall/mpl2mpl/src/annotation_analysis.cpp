@@ -44,9 +44,9 @@ void GenericType::Dump() {
   std::string s = namemangler::DecodeName(GetName());
   s.pop_back();
   std::cout << s;
-  if (GenericArg.size() != 0) {
+  if (genericArg.size() != 0) {
     std::cout << "<";
-    for (AnnotationType *real : ArgOrder) {
+    for (AnnotationType *real : argOrder) {
       if (real->GetKind() == kGenericType) {
         real->Dump();
       } else if (real->GetKind() == kGenericDeclare) {
@@ -70,12 +70,12 @@ void AnnotationType::Dump() {
 
 void GenericType::ReWriteType(std::string &subClass) {
   std::string className = mirStructType->GetName();
-  size_t ClassMethodSplitterStrSize = strlen(namemangler::kClassMethodSplitterStr);
-  (void)className.replace(className.size() - ClassMethodSplitterStrSize, ClassMethodSplitterStrSize, subClass);
+  size_t classMethodSplitterStrSize = strlen(namemangler::kClassMethodSplitterStr);
+  (void)className.replace(className.size() - classMethodSplitterStrSize, classMethodSplitterStrSize, subClass);
   mirStructType = GetClassTypeFromName(className);
   typeName = GlobalTables::GetStrTable().GetStrIdxFromName(className);
-  GenericArg.clear();
-  ArgOrder.clear();
+  genericArg.clear();
+  argOrder.clear();
 }
 
 GenericDeclare *AnnotationParser::GetOrCreateDeclare(GStrIdx gStrIdx, MemPool &mp, bool check, MIRStructType *sType) {

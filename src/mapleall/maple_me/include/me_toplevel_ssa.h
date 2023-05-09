@@ -33,7 +33,7 @@ class MeTopLevelSSA : public SSA, public AnalysisResult {
         func(&f),
         vstUseInfo(&memPool) {}
 
-  ~MeTopLevelSSA() = default;
+  ~MeTopLevelSSA() override = default;
 
   void CollectUseInfo();
   VstUseInfo *GetVstUseInfo() {

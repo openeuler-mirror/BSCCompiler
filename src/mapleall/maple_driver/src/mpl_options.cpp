@@ -63,6 +63,22 @@ const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "hir2mpl",
 ErrorCode MplOptions::Parse(int argc, char **argv) {
   (void)maplecl::CommandLine::GetCommandLine().Parse(argc, argv);
   exeFolder = FileUtils::GetFileFolder(FileUtils::GetExecutable());
+  if (maplecl::CommandLine::GetCommandLine().GetUseLitePgoGen() &&
+      !maplecl::CommandLine::GetCommandLine().GetHasPgoLib()) {
+    std::string libpgoName = opts::staticLibmplpgo.IsEnabledByUser() ? "libmplpgo.a" : "libmplpgo.so";
+    std::string pgoLibPath = "";
+    if (FileUtils::SafeGetenv(kMapleRoot) != "" && FileUtils::SafeGetenv(kGetOsVersion) != "") {
+      pgoLibPath = FileUtils::SafeGetenv(kMapleRoot) + "/libpgo/lib_" +
+                   FileUtils::SafeGetenv(kGetOsVersion) + "/" + libpgoName;
+    } else {
+      std::string tmpFilePath = maple::StringUtils::GetStrBeforeLast(exeFolder, "/");
+      pgoLibPath = maple::StringUtils::GetStrBeforeLast(tmpFilePath, "/") + "/lib/libc_pgo/" + libpgoName;
+    }
+    CHECK_FATAL(FileUtils::IsFileExists(pgoLibPath), "%s not exit.", pgoLibPath.c_str());
+    std::string threadLibPath = "-lpthread";
+    maplecl::CommandLine::GetCommandLine().GetLinkOptions().push_back(pgoLibPath);
+    maplecl::CommandLine::GetCommandLine().GetLinkOptions().push_back(threadLibPath);
+  }
 
   // We should recognize O0, O2 and run options firstly to decide the real options
   ErrorCode ret = HandleEarlyOptions();

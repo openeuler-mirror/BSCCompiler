@@ -116,7 +116,7 @@ NaryMeExpr *MeSSI::GetInstanceOfType(MeExpr &e) const {
   return callNode;
 }
 
-uint8_t MeSSI::AnalysisBranch(MeStmt &meStmt) {
+uint8_t MeSSI::AnalysisBranch(MeStmt &meStmt) const {
   CHECK_FATAL(meStmt.IsCondBr(), "must be");
   auto *brMeStmt = static_cast<CondGotoMeStmt*>(&meStmt);
   MeExpr *meCmp = brMeStmt->GetOpnd();

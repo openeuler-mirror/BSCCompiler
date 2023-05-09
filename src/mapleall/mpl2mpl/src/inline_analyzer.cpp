@@ -277,10 +277,10 @@ void InlineListInfo::Prepare() {
     (void)excludedCallees.insert(strIdx);
   }
 
-  std::set<std::string> whitelistFunc {
+  std::set<std::string> kWhiteListFunc {
 #include "rcwhitelist.def"
   };
-  for (auto it = whitelistFunc.begin(); it != whitelistFunc.end(); ++it) {
+  for (auto it = kWhiteListFunc.begin(); it != kWhiteListFunc.end(); ++it) {
     GStrIdx strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(*it);
     (void)rcWhiteList.insert(strIdx);
   }

@@ -83,8 +83,8 @@ class MeSink {
   void ProcessPhiList(BB *bb);
   void SinkStmtsInBB(BB *bb);
 
-  const BB *BestSinkBB(const BB *fromBB, const BB *toBB);
-  std::pair<const BB*, bool> CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList);
+  const BB *BestSinkBB(const BB *fromBB, const BB *toBB) const;
+  std::pair<const BB*, bool> CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList) const;
   const BB *CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar);
   void CalSinkSites();
 
@@ -1051,7 +1051,7 @@ static bool BBIsEmptyOrContainsSingleGoto(const BB *bb) {
 
 // we should not sink stmt from non-loop BB into loop BB or from outter loop into inner loop.
 // if toBB is in a different loop with fromBB, return a dominator of toBB which is in the same loop with fromBB.
-const BB *MeSink::BestSinkBB(const BB *fromBB, const BB *toBB) {
+const BB *MeSink::BestSinkBB(const BB *fromBB, const BB *toBB) const {
   CHECK_FATAL(domTree->Dominate(*fromBB, *toBB), "fromBB must dom toBB");
   if (fromBB == toBB) {
     return toBB;
@@ -1085,7 +1085,8 @@ void MeSink::RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, const BB *targetB
   defStmtsSinkToBottom[targetBB->GetBBId()]->push_front(defStmt);
 }
 
-std::pair<const BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList) {
+std::pair<const BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *scalar,
+    const UseSitesType &useList) const {
   if (useList.empty()) {
     return {nullptr, false};
   }

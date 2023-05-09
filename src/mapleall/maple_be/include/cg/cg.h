@@ -95,11 +95,11 @@ class Globals {
     mad = nullptr;
   }
 
-  void SetOptimLevel(int32 opLevel) {
+  void SetOptimLevel(uint32 opLevel) {
     optimLevel = opLevel;
   }
 
-  int32 GetOptimLevel() const {
+  uint32 GetOptimLevel() const {
     return optimLevel;
   }
 
@@ -109,7 +109,7 @@ class Globals {
  private:
   BECommon *beCommon = nullptr;
   MAD *mad = nullptr;
-  int32 optimLevel = 0;
+  uint32 optimLevel = 0;
   CG *cg = nullptr;
   Globals() = default;
 };
@@ -181,7 +181,7 @@ class CG {
     return cgOption.GenerateDebugFriendlyCode();
   }
 
-  int32 GetOptimizeLevel() const {
+  uint32 GetOptimizeLevel() const {
     return cgOption.GetOptimizeLevel();
   }
 

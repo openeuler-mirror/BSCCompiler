@@ -167,7 +167,7 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifySelExpr(const OpMeExpr *selExpr);
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyOrMeExpr(OpMeExpr *opmeexpr);
-  MeExpr *SimplifyAshrMeExpr(OpMeExpr *opmeexpr);
+  MeExpr *SimplifyAshrMeExpr(const OpMeExpr *opmeexpr);
   MeExpr *SimplifyXorMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyDepositbits(const OpMeExpr &opmeexpr);
   MeExpr *SimplifyExtractbits(const OpMeExpr &opmeexpr);

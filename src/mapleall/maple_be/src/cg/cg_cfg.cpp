@@ -18,12 +18,12 @@
 #elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_insn.h"
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
 #include "arm32_insn.h"
 #endif
 #include "cg_option.h"
 #include "mpl_logging.h"
-#if TARGX86_64
+#if defined(TARGX86_64) && TARGX86_64
 #include "x64_cgfunc.h"
 #include "cg.h"
 #endif
@@ -87,7 +87,7 @@ bool CanBBThrow(const BB &bb) {
 }
 
 namespace maplebe {
-void CGCFG::BuildCFG() const {
+void CGCFG::BuildCFG() {
   /*
    * Second Pass:
    * Link preds/succs in the BBs
@@ -199,8 +199,8 @@ static inline uint32 CRC32Compute(uint32_t crc, uint32 val) {
   crc ^= 0xFFFFFFFFU;
   for (int32 idx = 3; idx >= 0; idx--) {
     uint8 byteVal = (val >> (static_cast<uint32>(idx) * k8BitSize)) & 0xffu;
-    int TableIdx = (crc ^ byteVal) & 0xffu;
-    crc = CRCTable[TableIdx] ^ (crc >> k8BitSize);
+    uint32_t tableIdx = (crc ^ byteVal) & 0xffu;
+    crc = CRCTable[tableIdx] ^ (crc >> k8BitSize);
   }
   return crc ^ 0xFFFFFFFFU;
 }
@@ -222,7 +222,7 @@ void CGCFG::CheckCFG() {
       bool found = false;
       for (BB *sucPred : sucBB->GetPreds()) {
         if (sucPred == bb) {
-          if (found == false) {
+          if (!found) {
             found = true;
           } else {
             LogInfo::MapleLogger() << "dup pred " << sucPred->GetId() << " for sucBB " << sucBB->GetId() << "\n";
@@ -230,7 +230,7 @@ void CGCFG::CheckCFG() {
           }
         }
       }
-      if (found == false) {
+      if (!found) {
         LogInfo::MapleLogger() << "non pred for sucBB " << sucBB->GetId() << " for BB " << bb->GetId() << "\n";
         CHECK_FATAL_FALSE("CG_CFG check failed !");
       }
@@ -241,7 +241,7 @@ void CGCFG::CheckCFG() {
       bool found = false;
       for (BB *predSucc : predBB->GetSuccs()) {
         if (predSucc == bb) {
-          if (found == false) {
+          if (!found) {
             found = true;
           } else {
             LogInfo::MapleLogger() << "dup succ " << predSucc->GetId() << " for predBB " << predBB->GetId() << "\n";
@@ -249,7 +249,7 @@ void CGCFG::CheckCFG() {
           }
         }
       }
-      if (found == false) {
+      if (!found) {
         LogInfo::MapleLogger() << "non succ for predBB " << predBB->GetId() << " for BB " << bb->GetId() << "\n";
         CHECK_FATAL_FALSE("CG_CFG check failed !");
       }
@@ -474,7 +474,7 @@ void CGCFG::FindAndMarkUnreachable(CGFunc &func) {
     /* Check if bb is the cleanupBB/switchTableBB/firstBB/lastBB of the function */
     if (bb->IsCleanup() || InSwitchTable(bb->GetLabIdx(), func) || bb == func.GetFirstBB() || bb == func.GetLastBB()) {
       toBeAnalyzedBBs.push(bb);
-    } else if (bb->IsLabelTaken() == false) {
+    } else if (!(bb->IsLabelTaken())) {
       bb->SetUnreachable(true);
     }
     bb = bb->GetNext();
@@ -544,7 +544,7 @@ void CGCFG::FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func)
                      it->GetEhPreds().empty() &&
                      !InSwitchTable(it->GetLabIdx(), *cgFunc) &&
                      !cgFunc->IsExitBB(*it) &&
-                     (it->IsLabelTaken() == false);
+                     (!(it->IsLabelTaken()));
     if (!needFlush) {
       continue;
     }
@@ -821,7 +821,7 @@ void CGCFG::UnreachCodeAnalysis() const {
     } else {
       (void)unreachBBs.insert(bb);
     }
-    if (bb->IsLabelTaken() == false) {
+    if (!(bb->IsLabelTaken())) {
       bb->SetUnreachable(true);
     }
     bb = bb->GetNext();
@@ -853,10 +853,20 @@ void CGCFG::UnreachCodeAnalysis() const {
     if (cgFunc->IsExitBB(*unreachBB) && !cgFunc->GetMirModule().IsCModule()) {
       unreachBB->SetUnreachable(false);
     }
+    for (auto exitBB = cgFunc->GetExitBBsVec().begin(); exitBB != cgFunc->GetExitBBsVec().end(); ++exitBB) {
+      if (*exitBB == unreachBB) {
+        if (!cgFunc->GetMirModule().IsCModule()) {
+          unreachBB->SetUnreachable(false);
+        } else {
+          cgFunc->GetExitBBsVec().erase(exitBB);
+        }
+        break;
+      }
+    }
     EHFunc *ehFunc = cgFunc->GetEHFunc();
     /* if unreachBB InLSDA ,replace unreachBB's label with nextReachableBB before remove it. */
     if (ehFunc != nullptr && ehFunc->NeedFullLSDA() &&
-        cgFunc->GetTheCFG()->InLSDA(unreachBB->GetLabIdx(), ehFunc)) {
+        maplebe::CGCFG::InLSDA(unreachBB->GetLabIdx(), ehFunc)) {
       /* find next reachable BB */
       BB* nextReachableBB = nullptr;
       for (BB* curBB = unreachBB; curBB != nullptr; curBB = curBB->GetNext()) {
@@ -877,7 +887,9 @@ void CGCFG::UnreachCodeAnalysis() const {
 
     unreachBB->GetPrev()->SetNext(unreachBB->GetNext());
     cgFunc->GetCommonExitBB()->RemovePreds(*unreachBB);
-    unreachBB->GetNext()->SetPrev(unreachBB->GetPrev());
+    if (unreachBB->GetNext()) {
+      unreachBB->GetNext()->SetPrev(unreachBB->GetPrev());
+    }
 
     for (BB *sucBB : unreachBB->GetSuccs()) {
       sucBB->RemovePreds(*unreachBB);
@@ -1017,8 +1029,14 @@ BB *CGCFG::BreakCriticalEdge(BB &pred, BB &succ) const {
   } else {
     BB *exitBB = cgFunc->GetExitBBsVec().size() == 0 ? nullptr : cgFunc->GetExitBB(0);
     if (exitBB == nullptr || exitBB->IsUnreachable()) {
-      cgFunc->GetLastBB()->AppendBB(*newBB);
-      cgFunc->SetLastBB(*newBB);
+      if (cgFunc->GetLastBB()->IsUnreachable()) {
+        // nowhere to connect the newBB, drop it
+        cgFunc->ClearBBInVec(newBB->GetId());
+        return nullptr;
+      } else {
+        cgFunc->GetLastBB()->AppendBB(*newBB);
+        cgFunc->SetLastBB(*newBB);
+      }
     } else {
       exitBB->AppendBB(*newBB);
       if (cgFunc->GetLastBB() == exitBB) {
@@ -1042,7 +1060,7 @@ BB *CGCFG::BreakCriticalEdge(BB &pred, BB &succ) const {
     for (size_t i = 0; i < labelVec.size(); ++i) {
       if (labelVec[i] == succ.GetLabIdx()) {
         /* single edge for multi jump target, so have to replace all. */
-        pred.SetRangeGotoLabel(i, newLblIdx);
+        pred.SetRangeGotoLabel(static_cast<uint32>(i), newLblIdx);
       }
     }
     cgFunc->UpdateEmitSt(pred, succ.GetLabIdx(), newLblIdx);

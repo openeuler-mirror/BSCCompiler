@@ -281,7 +281,11 @@ bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
   // find the phi for ivOst
   BB *bb = condbr->GetBB();
   MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
-  MePhiNode *ivPhiNode =  mePhiList[ivOst->GetIndex()];
+  auto itOfIVOst = mePhiList.find(ivOst->GetIndex());
+  if (itOfIVOst == mePhiList.end()) {
+    return false;
+  }
+  MePhiNode *ivPhiNode = itOfIVOst->second;
   if (ivPhiNode == nullptr) {
     return false;
   }
@@ -350,6 +354,9 @@ void IVCanon::ComputeTripCount() {
   do {
     trialsCount++;
     testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
+    if (!IsPrimitiveInteger(testExpr->GetOpndType())) {
+      return;
+    }
     // check left operand
     ScalarMeExpr *iv = testExpr->GetOpnd(0)->IsScalar() ? static_cast<ScalarMeExpr *>(testExpr->GetOpnd(0))
                                                         : nullptr;

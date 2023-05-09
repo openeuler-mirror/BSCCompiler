@@ -21,7 +21,7 @@
 #include "types_def.h"
 namespace maple {
 constexpr uint32_t HOTCALLSITEFREQ = 100;
-enum UpdateFreqOp {
+enum UpdateFreqOp : uint32_t {
   kKeepOrigFreq = 0,
   kUpdateOrigFreq = 0x1,
   kUpdateFreqbyScale = 0x2,

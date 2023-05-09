@@ -343,7 +343,7 @@ void MESubsumRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MESubsumRC::PhaseRun(maple::MeFunction &f) {
-  if (!(f.GetHints() & kPlacementRCed)) {
+  if ((f.GetHints() & kPlacementRCed) == 0) {
     return false;
   }
   if (!MeOption::subsumRC) {

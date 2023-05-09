@@ -77,12 +77,12 @@ class Number {
 
   template<typename U = size_t>
   operator
-      std::enable_if_t<meta_and<meta_not<std::is_same<U, T>>, std::is_same<U, size_t>>::value, U>() const noexcept {
+      std::enable_if_t<MetaAnd<MetaNot<std::is_same<U, T>>, std::is_same<U, size_t>>::value, U>() const noexcept {
     return static_cast<size_t>(val);
   }
 
-  template<typename U, typename = std::enable_if_t<meta_and<meta_not<std::is_same<U, T>>,
-                                                            meta_not<std::is_same<U, size_t>>>::value>>
+  template<typename U, typename = std::enable_if_t<MetaAnd<MetaNot<std::is_same<U, T>>,
+                                                           MetaNot<std::is_same<U, size_t>>>::value>>
   explicit operator U() const noexcept {
     return static_cast<U>(val);
   }
@@ -179,73 +179,73 @@ inline Number<T, Tag> operator-(const Number<T, Tag> &lhs, const Number<T, Tag> 
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator==(const Number<T, Tag> &lhs, const U &rhs) {
   return lhs.get() == rhs;
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator==(const U &lhs, const Number<T, Tag> &rhs) {
   return lhs == rhs.get();
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator!=(const Number<T, Tag> &lhs, const U &rhs) {
   return !(lhs == rhs);
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator!=(const U &lhs, const Number<T, Tag> &rhs) {
   return !(lhs == rhs);
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator<(const Number<T, Tag> &lhs, const U &rhs) {
   return lhs.get() < rhs;
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator<(const U &lhs, const Number<T, Tag> &rhs) {
   return lhs < rhs.get();
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator<=(const Number<T, Tag> &lhs, const U &rhs) {
   return lhs.get() <= rhs;
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator<=(const U &lhs, const Number<T, Tag> &rhs) {
   return lhs <= rhs.get();
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator>(const Number<T, Tag> &lhs, const U &rhs) {
   return !(lhs <= rhs);
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator>(const U &lhs, const Number<T, Tag> &rhs) {
   return !(lhs <= rhs);
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator>=(const Number<T, Tag> &lhs, const U &rhs) {
   return !(lhs < rhs);
 }
 
 template<typename T, typename Tag, typename U,
-         typename = std::enable_if_t<meta_or<std::is_integral<U>, std::is_enum<U>>::value>>
+         typename = std::enable_if_t<MetaOr<std::is_integral<U>, std::is_enum<U>>::value>>
 inline bool operator>=(const U &lhs, const Number<T, Tag> &rhs) {
   return !(lhs < rhs);
 }

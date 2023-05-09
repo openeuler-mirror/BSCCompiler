@@ -686,4 +686,12 @@ std::list<UniqueFEIRStmt> ASTUOAddrOfLabelExprStmt::Emit2FEStmtImpl() const {
   }
   return stmts;
 }
+
+std::list<UniqueFEIRStmt> ASTMemberExprStmt::Emit2FEStmtImpl() const {
+  std::list<UniqueFEIRStmt> stmts;
+  for (auto expr : exprs) {
+    (void)expr->Emit2FEExpr(stmts);
+  }
+  return stmts;
+}
 } // namespace maple

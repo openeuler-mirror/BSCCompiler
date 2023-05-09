@@ -20,7 +20,7 @@ namespace maplebe {
 class AArch64ProfGen : public CGProfGen {
  public:
   AArch64ProfGen(CGFunc &curF, MemPool &mp) : CGProfGen(curF, mp) {}
-  virtual ~AArch64ProfGen() = default;
+  ~AArch64ProfGen() override = default;
 
   void InstrumentBB(BB &bb, MIRSymbol &countTab, uint32 offset) override;
   void CreateCallForDump(BB &bb, const MIRSymbol &dumpCall) override;

@@ -78,7 +78,7 @@ class CGCFG {
 
   ~CGCFG() = default;
 
-  void BuildCFG() const;
+  void BuildCFG();
   void CheckCFG();
   void CheckCFGFreq();
   uint32 ComputeCFGHash();

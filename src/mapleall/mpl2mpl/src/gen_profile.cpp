@@ -337,10 +337,10 @@ void ProfileGen::CreateInitProc() {
   gccProfInitArgSym->SetTyIdx(argPtrTy->GetTypeIndex());
   gccProfInitProtoTy->AddArgument(gccProfInitArgSym);
 
-  MapleVector<BaseNode*> ActArg(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+  MapleVector<BaseNode*> actArg(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   AddrofNode *addrModProfDesc = mirBuilder->CreateExprAddrof(0, *modProfDesc);
-  ActArg.push_back(addrModProfDesc);
-  CallNode *callGInit = mirBuilder->CreateStmtCall(gccProfInitProtoTy->GetPuidx(), ActArg);
+  actArg.push_back(addrModProfDesc);
+  CallNode *callGInit = mirBuilder->CreateStmtCall(gccProfInitProtoTy->GetPuidx(), actArg);
 
   BlockNode *block = mplProfInit->GetCodeMemPool()->New<BlockNode>();
   block->AddStatement(callGInit);
@@ -367,8 +367,8 @@ void ProfileGen::CreateExitProc() {
   MIRFunction *gccProfExitProtoTy = mirBuilder->GetOrCreateFunction(namemangler::kGCCProfExit, voidTy->GetTypeIndex());
   gccProfExitProtoTy->AllocSymTab();
 
-  MapleVector<BaseNode*> ActArg(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-  CallNode *callGExit = mirBuilder->CreateStmtCall(gccProfExitProtoTy->GetPuidx(), ActArg);
+  MapleVector<BaseNode*> actArg(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+  CallNode *callGExit = mirBuilder->CreateStmtCall(gccProfExitProtoTy->GetPuidx(), actArg);
 
   BlockNode *block = mplProfExit->GetCodeMemPool()->New<BlockNode>();
   block->AddStatement(callGExit);

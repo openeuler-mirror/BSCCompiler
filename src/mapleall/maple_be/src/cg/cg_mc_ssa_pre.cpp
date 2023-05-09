@@ -71,7 +71,7 @@ void McSSAPre::ComputeMCWillBeAvail() const {
 
 // ================ Step 7: Max Flow / Min Cut =================
 
-bool McSSAPre::AmongMinCut(RGNode *nd, uint32 idx) const {
+bool McSSAPre::AmongMinCut(const RGNode *nd, uint32 idx) const {
   for (Visit *visit : minCut) {
     if (visit->node == nd && visit->predIdx == idx) {
       return true;
@@ -105,7 +105,7 @@ void McSSAPre::DumpRGToFile() {
     rgFile << "real" << pre->id << " -> " << "\"sink\nmaxflow " << maxFlowValue << "\";\n";
   }
   MapleUnorderedMap<Occ*, RGNode*>::iterator it = occ2RGNodeMap.begin();
-  for (; it != occ2RGNodeMap.end(); it++) {
+  for (; it != occ2RGNodeMap.end(); ++it) {
     RGNode *rgNode = it->second;
     for (uint32 i = 0; i < rgNode->pred.size(); i++) {
       RGNode *pre = rgNode->pred[i];
@@ -139,7 +139,7 @@ void McSSAPre::DumpRGToFile() {
   LogInfo::MapleLogger() << "++++ ssapre candidate " << workCand->workCandID << " dumped to " << fileName << "\n";
 }
 
-bool McSSAPre::IncludedEarlier(Visit **cut, Visit *curVisit, uint32 nextRouteIdx) {
+bool McSSAPre::IncludedEarlier(Visit **cut, const Visit *curVisit, uint32 nextRouteIdx) const {
   uint32 i = nextRouteIdx;
   while (i != 0) {
     i--;
@@ -151,7 +151,7 @@ bool McSSAPre::IncludedEarlier(Visit **cut, Visit *curVisit, uint32 nextRouteIdx
 }
 
 // remove this route's nodes from cutSet
-void McSSAPre::RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route) {
+void McSSAPre::RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route) const {
   for (uint32 i = 1; i < route->visits.size(); i++) {
     Visit &curVisit = route->visits[i];
     std::unordered_multiset<uint32>::iterator it = cutSet.find(curVisit.node->id);
@@ -169,7 +169,7 @@ bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> 
   // determine starting value of visitIdx: start searching back from route end;
   // if any node is in cutSet, set visitIdx as that nodes's index in route;
   // otherwise, set visitIdx to 0
-  uint32 visitIdx = curRoute->visits.size();
+  size_t visitIdx = curRoute->visits.size();
   do {
     visitIdx--;
     if (cutSet.count(curRoute->visits[visitIdx].node->id) != 0) {
@@ -216,7 +216,7 @@ bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet
   // determine starting value of visitIdx: start searching back from route end;
   // if any node is in cutSet, set visitIdx as that nodes's index in route;
   // otherwise, set visitIdx to 0
-  uint32 visitIdx = curRoute->visits.size();
+  size_t visitIdx = curRoute->visits.size();
   do {
     visitIdx--;
     if (cutSet.count(curRoute->visits[visitIdx].node->id) != 0) {
@@ -225,7 +225,7 @@ bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet
   } while (visitIdx != 1);
   // update cutSet with visited nodes lower than visitIdx
   if (visitIdx != 1) {
-    for (uint i = visitIdx - 1; i > 0; i--) {
+    for (uint i = visitIdx - 1; i > 0; --i) {
       cutSet.insert(curRoute->visits[i].node->id);
     }
   }
@@ -243,7 +243,7 @@ bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet
       if (visitIdx != 0) {
         cutSet.insert(curVisit->node->id);
       }
-      visitIdx++;
+      ++visitIdx;
       continue;
     }
     cut[nextRouteIdx] = curVisit;
@@ -257,7 +257,7 @@ bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet
     if (success && nextRouteIdx != (maxFlowRoutes.size() - 1)) {
       success = SearchMinCut(cut, cutSet, nextRouteIdx + 1, flowSoFar + visitCap);
     }
-    visitIdx++;
+    ++visitIdx;
   } while (!success);
   return true;
 }
@@ -279,7 +279,7 @@ void McSSAPre::DetermineMinCut() {
   if (maxFlowRoutes.size() >= 20) {
     // apply arbitrary heuristics to reduce search time
     relaxedSearch = true;
-    relaxedMaxFlowValue = maxFlowValue * (maxFlowRoutes.size() / 10);
+    relaxedMaxFlowValue = static_cast<FreqType>(static_cast<size_t>(maxFlowValue) * (maxFlowRoutes.size() / 10));
   }
   bool success = !relaxedSearch && SearchMinCut(cut, cutSet, 0, 0);
   if (!success) {
@@ -298,11 +298,11 @@ void McSSAPre::DetermineMinCut() {
     return (left->node != right->node) ? (left->node->id < right->node->id)
                                        : (left->predIdx < right->predIdx); });
   // remove duplicates in the cut to form mincut
-  minCut.push_back(cut[0]);
+  minCut.emplace_back(cut[0]);
   size_t duplicatedVisits = 0;
   for (uint32 i = 1; i < maxFlowRoutes.size(); i++) {
     if (cut[i] != cut[i - 1]) {
-      minCut.push_back(cut[i]);
+      minCut.emplace_back(cut[i]);
     } else {
       duplicatedVisits++;
     }
@@ -328,11 +328,11 @@ bool McSSAPre::VisitANode(RGNode *node, Route *route, std::vector<bool> &visited
       // if there is another pred never taken that also reaches source, use that instead
       for (uint32 k = i + 1; k < node->pred.size(); k++) {
         if (node->pred[k] == source && node->usedCap[k] == 0 && node->inEdgesCap[k] > 0) {
-          route->visits.push_back(Visit(node, k));
+          route->visits.emplace_back(Visit(node, k));
           return true;
         }
       }
-      route->visits.push_back(Visit(node, i));
+      route->visits.emplace_back(Visit(node, i));
       return true;
     }
   }
@@ -340,7 +340,7 @@ bool McSSAPre::VisitANode(RGNode *node, Route *route, std::vector<bool> &visited
   // pick a never-taken predecessor path first
   for (uint32 i = 0; i < node->pred.size(); i++) {
     if (node->usedCap[i] == 0 && node->inEdgesCap[i] > 0 && !visitedNodes[node->pred[i]->id]) {
-      route->visits.push_back(Visit(node, i));
+      route->visits.emplace_back(Visit(node, i));
       visitedNodes[node->pred[i]->id] = true;
       bool success = VisitANode(node->pred[i], route, visitedNodes);
       if (!success) {
@@ -363,7 +363,7 @@ bool McSSAPre::VisitANode(RGNode *node, Route *route, std::vector<bool> &visited
   for (uint32 i = 0; i < numPreds; i++) {
     uint32 j = sortedPred[i];
     if (!visitedNodes[node->pred[j]->id] && node->inEdgesCap[j] > node->usedCap[j]) {
-      route->visits.push_back(Visit(node, j));
+      route->visits.emplace_back(Visit(node, j));
       visitedNodes[node->pred[j]->id] = true;
       bool success = VisitANode(node->pred[j], route, visitedNodes);
       if (!success) {
@@ -385,7 +385,7 @@ bool McSSAPre::FindAnotherRoute() {
   // pick an untaken sink predecessor first
   for (uint32 i = 0; i < sink->pred.size(); i++) {
     if (sink->usedCap[i] == 0) {
-      route->visits.push_back(Visit(sink, i));
+      route->visits.emplace_back(Visit(sink, i));
       visitedNodes[sink->pred[i]->id] = true;
       success = VisitANode(sink->pred[i], route, visitedNodes);
       if (!success) {
@@ -398,7 +398,7 @@ bool McSSAPre::FindAnotherRoute() {
   if (!success) {
     // now, pick any sink predecessor
     for (uint32 i = 0; i < sink->pred.size(); i++) {
-      route->visits.push_back(Visit(sink, i));
+      route->visits.emplace_back(Visit(sink, i));
       visitedNodes[sink->pred[i]->id] = true;
       success = VisitANode(sink->pred[i], route, visitedNodes);
       if (!success) {
@@ -422,7 +422,7 @@ bool McSSAPre::FindAnotherRoute() {
   for (uint32 i = 0; i < route->visits.size(); i++) {
     route->visits[i].IncreUsedCapacity(minAvailCap);
   }
-  maxFlowRoutes.push_back(route);
+  maxFlowRoutes.emplace_back(route);
   return true;
 }
 
@@ -468,15 +468,15 @@ void McSSAPre::AddSingleSink() {
   sink = preMp->New<RGNode>(&preAllocator, nextRGNodeId++, nullptr);
   size_t numToSink = 0;
   MapleUnorderedMap<Occ*, RGNode*>::iterator it = occ2RGNodeMap.begin();
-  for (; it != occ2RGNodeMap.end(); it++) {
+  for (; it != occ2RGNodeMap.end(); ++it) {
     if (it->first->occTy != kAOccReal) {
       continue;
     }
     RGNode *use = it->second;
     // add edge from this use node to sink
-    sink->pred.push_back(use);
-    sink->inEdgesCap.push_back(INT64_MAX);
-    sink->usedCap.push_back(0);
+    sink->pred.emplace_back(use);
+    sink->inEdgesCap.emplace_back(INT64_MAX);
+    sink->usedCap.emplace_back(0);
     numToSink++;
   }
   ASSERT(numToSink != 0, "McSSAPre::AddSingleSink: found 0 edge to sink");
@@ -493,17 +493,17 @@ void McSSAPre::AddSingleSource() {
       // look for null operands
       MapleList<BB*>::iterator it = phiOcc->cgbb->GetPredsBegin();
       uint32 i; // index in phiOcc's phiOpnds
-      for (i = 0; i < phiOcc->phiOpnds.size(); i++, it++) {
+      for (i = 0; i < phiOcc->phiOpnds.size(); i++, ++it) {
         PhiOpndOcc *phiopndOcc = phiOcc->phiOpnds[i];
         if (phiopndOcc->def != nullptr) {
           continue;
         }
         // add edge from source to this phi node
         RGNode *sucNode = occ2RGNodeMap[phiOcc];
-        sucNode->pred.push_back(source);
-        sucNode->phiOpndIndices.push_back(i);
-        sucNode->inEdgesCap.push_back((*it)->GetProfFreq() + 1);
-        sucNode->usedCap.push_back(0);
+        sucNode->pred.emplace_back(source);
+        sucNode->phiOpndIndices.emplace_back(i);
+        sucNode->inEdgesCap.emplace_back((*it)->GetProfFreq() + 1);
+        sucNode->usedCap.emplace_back(0);
         numSourceEdges++;
       }
     }
@@ -546,9 +546,9 @@ void McSSAPre::GraphReduction() {
           occ2RGNodeMap[realOcc] = use;
           numRealOccs++;
           RGNode *def = occ2RGNodeMap[defOcc];
-          use->pred.push_back(def);
-          use->inEdgesCap.push_back(realOcc->cgbb->GetProfFreq() + 1);
-          use->usedCap.push_back(0);
+          use->pred.emplace_back(def);
+          use->inEdgesCap.emplace_back(realOcc->cgbb->GetProfFreq() + 1);
+          use->usedCap.emplace_back(0);
           numType2Edges++;
         }
       }
@@ -564,19 +564,19 @@ void McSSAPre::GraphReduction() {
           ASSERT(occ2RGNodeMap.find(defOcc) != occ2RGNodeMap.end(), "McSSAPre::GraphReduction: def node not found");
           RGNode *def = occ2RGNodeMap[defOcc];
           RGNode *use = occ2RGNodeMap[defPhiOcc];
-          use->pred.push_back(def);
+          use->pred.emplace_back(def);
           // find the pred bb (pointed to by it) that corresponds to phiopndOcc
           MapleList<BB*>::iterator it = defPhiOcc->cgbb->GetPredsBegin();
           uint32 i; // index in defPhiOcc's phiOpnds
-          for (i = 0; i < defPhiOcc->phiOpnds.size(); i++, it++) {
+          for (i = 0; i < defPhiOcc->phiOpnds.size(); i++, ++it) {
             if (defPhiOcc->phiOpnds[i] == phiopndOcc) {
               break;
             }
           }
-          use->phiOpndIndices.push_back(i);
+          use->phiOpndIndices.emplace_back(i);
           ASSERT(i != defPhiOcc->phiOpnds.size(), "McSSAPre::GraphReduction: cannot find corresponding phi opnd");
-          use->inEdgesCap.push_back((*it)->GetProfFreq() + 1);
-          use->usedCap.push_back(0);
+          use->inEdgesCap.emplace_back((*it)->GetProfFreq() + 1);
+          use->usedCap.emplace_back(0);
           numType1Edges++;
         }
       }
@@ -715,7 +715,7 @@ void McSSAPre::ApplyMCSSAPre() {
 
 void DoProfileGuidedSavePlacement(CGFunc *f, DomAnalysis *dom, SsaPreWorkCand *workCand) {
   MemPool *tempMP = memPoolCtrler.NewMemPool("cg_mc_ssa_pre", true);
-  McSSAPre cgssapre(f, dom, tempMP, workCand, false/*asEarlyAsPossible*/, false/*enabledDebug*/);
+  McSSAPre cgssapre(f, dom, tempMP, workCand, false /*asEarlyAsPossible*/, false /*enabledDebug*/);
 
   cgssapre.ApplyMCSSAPre();
 

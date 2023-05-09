@@ -302,8 +302,8 @@ void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, st
         continue;
       }
       symLoc->SetMemSegment(segRefLocals);
-      segRefLocals.SetSize(RoundUp(segRefLocals.GetSize(),
-          GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetAlign()));
+      segRefLocals.SetSize(static_cast<uint32>(RoundUp(segRefLocals.GetSize(),
+          GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetAlign())));
       symLoc->SetOffset(segRefLocals.GetSize());
       segRefLocals.SetSize(segRefLocals.GetSize() +
           static_cast<uint32>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetSize()));

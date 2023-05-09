@@ -5118,6 +5118,10 @@ maplecl::Option<bool> oNoPie({"-no-pie"},
     "  -no-pie             \tDon't create a position independent executable.\n",
     {driverCategory, ldCategory});
 
+maplecl::Option<bool> staticLibmplpgo({"--static-libmplpgo"},
+    " --static-libmplpgo             \tStatic link using libmplpgo\n",
+    {driverCategory, cgCategory});
+
     /* #################################################################################################### */
 
 } /* namespace opts */

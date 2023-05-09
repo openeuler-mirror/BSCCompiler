@@ -59,7 +59,7 @@ class VersionStacks {
 class VectorVersionStacks : public VersionStacks {
  public:
   VectorVersionStacks() = default;
-  virtual ~VectorVersionStacks() = default;
+  ~VectorVersionStacks() override = default;
 
   std::stack<ScalarMeExpr*> *GetRenameStack(OStIdx idx) override;
   void InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) override;
@@ -79,7 +79,7 @@ class MapVersionStacks : public VersionStacks {
  public:
   MapVersionStacks()
       : renameWithMapStacks(std::less<OStIdx>()) {}
-  virtual ~MapVersionStacks() = default;
+  ~MapVersionStacks() override = default;
 
   std::stack<ScalarMeExpr*> *GetRenameStack(OStIdx idx) override;
   void InsertZeroVersion2RenameStack(SSATab &ssaTab, IRMap &irMap) override;
@@ -113,10 +113,10 @@ class MeSSAUpdate {
 
  private:
   void InsertPhis();
-  void RenamePhi(const BB &bb);
+  void RenamePhi(const BB &bb) const;
   MeExpr *RenameExpr(MeExpr &meExpr, bool &changed);
   void RenameStmts(BB &bb);
-  void RenamePhiOpndsInSucc(const BB &bb);
+  void RenamePhiOpndsInSucc(const BB &bb) const;
   void RenameBB(BB &bb);
   MeFunction &func;
   IRMap &irMap;

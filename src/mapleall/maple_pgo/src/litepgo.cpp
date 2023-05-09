@@ -13,8 +13,12 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "litepgo.h"
+#include <string>
 #include "itab_util.h"
 #include "lexer.h"
+#include "mempool.h"
+#include "mempool_allocator.h"
+#include "mir_module.h"
 
 namespace maple {
 bool LiteProfile::loaded = false;
@@ -36,16 +40,15 @@ LiteProfile::BBInfo *LiteProfile::GetFuncBBProf(const std::string &funcName) {
   return &item->second;
 }
 
-bool LiteProfile::HandleLitePGOFile(const std::string &fileName, const std::string &moduleName) {
+bool LiteProfile::HandleLitePGOFile(const std::string &fileName, MIRModule &m) {
   if (loaded) {
     LogInfo::MapleLogger() << "this Profile has been handled before" << '\n';
     return false;
   }
   loaded = true;
+  const std::string moduleName = m.GetFileName();
   /* init a lexer for parsing lite-pgo function data */
-  MemPool *funcDatatMp = memPoolCtrler.NewMemPool("LitePgoFuncData Mempool", true);
-  MapleAllocator funcDataMa(funcDatatMp);
-  MIRLexer funcDataLexer(nullptr, funcDataMa);
+  MIRLexer funcDataLexer(nullptr, m.GetMPAllocator());
   funcDataLexer.PrepareForFile(fileName);
   (void)funcDataLexer.NextToken();
   bool atEof = false;
@@ -68,7 +71,6 @@ bool LiteProfile::HandleLitePGOFile(const std::string &fileName, const std::stri
     }
     (void)funcDataLexer.NextToken();
   }
-  delete funcDatatMp;
   return true;
 }
 

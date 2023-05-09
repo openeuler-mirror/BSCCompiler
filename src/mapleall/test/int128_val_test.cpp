@@ -362,19 +362,19 @@ TEST(WideIntVal, TemporaryMethods) {
   // dumps
   std::stringstream ss;
   ss << sMin;
-  ASSERT_EQ(ss.str(), "0xL80000000000000000000000000000000");
+  ASSERT_EQ(ss.str(), "0x80000000000000000000000000000000");
 
   ss.str(std::string());
   ss << uZero;
-  ASSERT_EQ(ss.str(), "0xL0");
+  ASSERT_EQ(ss.str(), "0x0");
 
   ss.str(std::string());
   ss << sMax;
-  ASSERT_EQ(ss.str(), "0xL7fffffffffffffffffffffffffffffff");
+  ASSERT_EQ(ss.str(), "0x7fffffffffffffffffffffffffffffff");
 
   ss.str(std::string());
   ss << uMax;
-  ASSERT_EQ(ss.str(), "0xLffffffffffffffffffffffffffffffff");
+  ASSERT_EQ(ss.str(), "0xffffffffffffffffffffffffffffffff");
 
   // IsOneSignificantWord
   ASSERT_EQ(sInt128(-1).IsOneSignificantWord(), true);

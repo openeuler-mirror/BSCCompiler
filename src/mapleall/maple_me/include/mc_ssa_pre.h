@@ -43,9 +43,15 @@ class Visit {
   friend class McSSAPre;
  private:
   Visit(RGNode *nd, uint32 idx) : node(nd), predIdx(idx) {}
-  FreqType AvailableCapacity() const { return node->inEdgesCap[predIdx] - node->usedCap[predIdx]; }
-  void IncreUsedCapacity(FreqType val) { node->usedCap[predIdx] += val; }
-  bool operator==(const Visit *rhs) const { return node == rhs->node && predIdx == rhs->predIdx; }
+  FreqType AvailableCapacity() const {
+    return node->inEdgesCap[predIdx] - node->usedCap[predIdx];
+  }
+  void IncreUsedCapacity(FreqType val) {
+    node->usedCap[predIdx] += val;
+  }
+  bool operator==(const Visit *rhs) const {
+    return node == rhs->node && predIdx == rhs->predIdx;
+  }
 
   RGNode *node;
   uint32 predIdx;          // the index in node's pred
@@ -55,7 +61,7 @@ class Visit {
 class Route {
   friend class McSSAPre;
  public:
-  Route(MapleAllocator *alloc) : visits(alloc->Adapter()) {}
+  explicit Route(MapleAllocator *alloc) : visits(alloc->Adapter()) {}
  private:
   MapleVector<Visit> visits;
   FreqType flowValue = 0;
@@ -72,7 +78,9 @@ class McSSAPre : public SSAPre {
   ~McSSAPre() override = default;
 
   void ApplyMCSSAPRE();
-  void SetPreUseProfileLimit(uint32 n) { preUseProfileLimit = n; }
+  void SetPreUseProfileLimit(uint32 n) {
+    preUseProfileLimit = n;
+  }
  private:
   // step 8 willbeavail
   void ResetMCWillBeAvail(MePhiOcc *phiOcc) const;
@@ -82,7 +90,8 @@ class McSSAPre : public SSAPre {
   void DumpRGToFile();                  // dump reduced graph to dot file
   bool IncludedEarlier(Visit **cut, const Visit &curVisit, uint32 nextRouteIdx) const;
   void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route &route) const;
-  bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
+  bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx,
+                           FreqType flowSoFar);
   bool SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
   void DetermineMinCut();
   bool VisitANode(RGNode &node, Route *route, std::vector<bool> &visitedNodes);

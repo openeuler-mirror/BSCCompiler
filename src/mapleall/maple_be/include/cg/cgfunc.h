@@ -976,11 +976,11 @@ class CGFunc {
       CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
       MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
 
-      LabelIdx labelIdx = lblConst->GetValue();
-      CHECK_FATAL(switchLabelCnt[labelIdx] > 0, "error labelIdx");
-      --switchLabelCnt[labelIdx];
-      if (switchLabelCnt[labelIdx] == 0) {
-        (void)switchLabelCnt.erase(labelIdx);
+      LabelIdx tmpLabelIdx = lblConst->GetValue();
+      CHECK_FATAL(switchLabelCnt[tmpLabelIdx] > 0, "error tmpLabelIdx");
+      --switchLabelCnt[tmpLabelIdx];
+      if (switchLabelCnt[tmpLabelIdx] == 0) {
+        (void)switchLabelCnt.erase(tmpLabelIdx);
       }
     }
     (void)emitStVec.erase(id);
@@ -1180,7 +1180,7 @@ class CGFunc {
     return bb;
   }
 
-  void SetCurBBKind(BB::BBKind bbKind) const {
+  void SetCurBBKind(BB::BBKind bbKind) {
     curBB->SetKind(bbKind);
   }
 
@@ -1446,7 +1446,7 @@ class CGFunc {
 
   // clone old mem and add offset
   // oldMem: [base, imm:12] -> newMem: [base, imm:(12 + offset)]
-  MemOperand &GetMemOperandAddOffset(MemOperand &oldMem, uint32 offset, uint32 newSize) {
+  MemOperand &GetMemOperandAddOffset(const MemOperand &oldMem, uint32 offset, uint32 newSize) {
     auto &newMem = static_cast<MemOperand&>(*oldMem.Clone(*GetMemoryPool()));
     auto &oldOffset = *oldMem.GetOffsetOperand();
     auto &newOffst = static_cast<ImmOperand&>(*oldOffset.Clone(*GetMemoryPool()));

@@ -55,7 +55,9 @@ struct AggGroup {
 class SRA {
  public:
   explicit SRA(MeFunction &f) : func(f), builder(*f.GetMIRModule().GetMIRBuilder()) {}
-  ~SRA() = default;
+  ~SRA() {
+    curBB = nullptr;
+  }
 
   void Run();
  private:
@@ -156,7 +158,7 @@ void SRA::SplitAggCopy(AssignType &assignNode, MIRStructType &structureType) {
     }
     id++;
   }
-  removed.emplace(std::make_pair(&assignNode, curBB));
+  (void)removed.emplace(std::make_pair(&assignNode, curBB));
 }
 
 void SRA::SplitDassignAggCopy(DassignNode &dassign) {

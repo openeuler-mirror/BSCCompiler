@@ -877,7 +877,7 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
     return false;
   }
   auto *newMemOp = GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, newPreMop);
-  if (newMemOp == nullptr) {
+  if (newMemOp == nullptr || !a64CGFunc->IsOperandImmValid(newPreMop, newMemOp, prevInsn->GetMemOpndIdx())) {
     return false;
   }
   prevInsn->SetMemOpnd(newMemOp);

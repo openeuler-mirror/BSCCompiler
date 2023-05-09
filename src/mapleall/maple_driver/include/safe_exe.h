@@ -27,7 +27,6 @@
 #endif
 
 #include <unistd.h>
-#include <sys/types.h>
 #include <cstdlib>
 #include "error_code.h"
 #include "mpl_logging.h"
@@ -76,10 +75,11 @@ class SafeExe {
       // parent process
       int status = -1;
       waitpid(pid, &status, 0);
-      if (!WIFEXITED(static_cast<uint>(status))) {
+      auto exitStatus = static_cast<uint32>(status);
+      if (!WIFEXITED(exitStatus)) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
-      } else if (WEXITSTATUS(static_cast<uint>(status)) != 0) {
+      } else if (WEXITSTATUS(exitStatus) != 0) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
       }
@@ -106,7 +106,8 @@ class SafeExe {
           compileeFlag = Compilee::unKnow;
         }
       }
-    } else if ((cmd.find("hir2mpl", 0) != -1) || (cmd.find("clang", 0) != -1)) {
+    } else if (StringUtils::GetStrAfterLast(cmd, kFileSeperatorStr) == "hir2mpl" ||
+               StringUtils::GetStrAfterLast(cmd, kFileSeperatorStr) == "clang") {
       compileeFlag = Compilee::hir2mpl;
       if (FileUtils::SafeGetenv(kMapleRoot) != "") {
         ldLibPath += FileUtils::SafeGetenv(kMapleRoot) + "/build/tools/hpk/:";
@@ -157,9 +158,10 @@ class SafeExe {
       // parent process
       int status = -1;
       waitpid(pid, &status, 0);
-      if (!WIFEXITED(static_cast<uint>(status))) {
+      auto exitStatus = static_cast<uint32>(status);
+      if (!WIFEXITED(exitStatus)) {
         ret = kErrorCompileFail;
-      } else if (WEXITSTATUS(static_cast<uint>(status)) != 0) {
+      } else if (WEXITSTATUS(exitStatus) != 0) {
         ret = kErrorCompileFail;
       }
 

@@ -22,7 +22,7 @@
 #include "me_stack_protect.h"
 
 namespace {
-const std::set<std::string> propWhiteList {
+const std::set<std::string> kPropWhiteList {
 #define PROPILOAD(funcName) #funcName,
 #include "propiloadlist.def"
 #undef PROPILOAD
@@ -98,7 +98,7 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
       (eprePULimitSpecified && puCount != MeOption::eprePULimit) ? UINT32_MAX : MeOption::epreLimit;
   MemPool *ssaPreMemPool = ApplyTempMemPool();
   bool epreIncludeRef = MeOption::epreIncludeRef;
-  if (!MeOption::gcOnly && propWhiteList.find(f.GetName()) != propWhiteList.end()) {
+  if (!MeOption::gcOnly && kPropWhiteList.find(f.GetName()) != kPropWhiteList.end()) {
     epreIncludeRef = false;
   }
   MeSSAEPre ssaPre(f, *irMap, *dom, *pdom, kh, *ssaPreMemPool, *ApplyTempMemPool(), epreLimitUsed, epreIncludeRef,
@@ -142,7 +142,7 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
     MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate());
     ssaUpdate.Run();
   }
-  if ((f.GetHints() & kPlacementRCed) && ssaPre.GetAddedNewLocalRefVars()) {
+  if ((f.GetHints() & kPlacementRCed) != 0 && ssaPre.GetAddedNewLocalRefVars()) {
     PlacementRC placeRC(f, *dom, *pdom, *ssaPreMemPool, DEBUGFUNC_NEWPM(f));
     placeRC.preKind = MeSSUPre::kSecondDecrefPre;
     placeRC.ApplySSUPre();

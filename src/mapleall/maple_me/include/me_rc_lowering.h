@@ -55,7 +55,7 @@ class RCLowering {
   void TraverseAllStmts(BB &bb);
   void RestoreVersionRecords(std::map<OStIdx, size_t> &savedStackSize);
   void UnmarkNotNeedDecRefOpnds();
-  void EpreFixup(BB &bb);
+  void EpreFixup(BB &bb) const;
   void BBLower(BB &bb);
   void CreateCleanupIntrinsics();
   void HandleArguments();
@@ -71,10 +71,10 @@ class RCLowering {
   VarMeExpr *CreateNewTmpVarMeExpr(bool isLocalRefVar);
   VarMeExpr *CreateVarMeExprFromSym(MIRSymbol &sym) const;
   // return true if the rhs is simple so we can adjust RC count before assignments
-  bool RCFirst(MeExpr &rhs);
+  bool RCFirst(MeExpr &rhs) const;
   IntrinsiccallMeStmt *GetVarRHSHandleStmt(const MeStmt &stmt);
   IntrinsiccallMeStmt *GetIvarRHSHandleStmt(const MeStmt &stmt);
-  MIRIntrinsicID PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId = INTRN_UNDEFINED);
+  MIRIntrinsicID PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId = INTRN_UNDEFINED) const;
   IntrinsiccallMeStmt *CreateRCIntrinsic(MIRIntrinsicID intrnID, const MeStmt &stmt, std::vector<MeExpr*> &opnds,
                                          bool assigned = false);
   MeExpr *HandleIncRefAndDecRefStmt(MeStmt &stmt);
@@ -103,7 +103,7 @@ class RCLowering {
   void HandlePerManent(MeStmt &stmt);
   bool HasCallOrBranch(const MeStmt &from, const MeStmt &to) const;
   MIRIntrinsicID SelectWriteBarrier(const MeStmt &stmt);
-  MIRType *GetArrayNodeType(const VarMeExpr &var);
+  MIRType *GetArrayNodeType(const VarMeExpr &var) const;
   void CheckArrayStore(IntrinsiccallMeStmt &writeRefCall);
   void FastLowerThrowStmt(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites);
   void FastLowerRetStmt(MeStmt &stmt);

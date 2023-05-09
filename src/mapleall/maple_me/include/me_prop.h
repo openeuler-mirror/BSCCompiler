@@ -21,11 +21,12 @@
 namespace maple {
 class MeProp : public Prop {
  public:
-  MeProp(MeIRMap &irMap, Dominance &dom, MemPool &memPool, const PropConfig &config, uint32 limit = UINT32_MAX)
-      : Prop(irMap, dom, memPool, irMap.GetFunc().GetCfg()->GetAllBBs().size(), config, limit),
+  MeProp(MeIRMap &irMap, Dominance &dom, Dominance &pdom, MemPool &memPool, const PropConfig &config,
+         uint32 limit = UINT32_MAX)
+      : Prop(irMap, dom, pdom, memPool, irMap.GetFunc().GetCfg()->GetAllBBs().size(), config, limit),
         func(&irMap.GetFunc()) {}
 
-  virtual ~MeProp() = default;
+  ~MeProp() override = default;
  private:
   MeFunction *func;
 

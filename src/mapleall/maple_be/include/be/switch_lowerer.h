@@ -73,7 +73,7 @@ class SwitchLowerer {
   maple::CondGotoNode *BuildCondGotoNode(int32 idx, Opcode opCode, BaseNode &cond);
   maple::BlockNode *BuildCodeForSwitchItems(int32 start, int32 end, bool lowBlockNodeChecked,
                                             bool highBlockNodeChecked, FreqType freqSum, LabelIdx newLabelIdx = 0);
-  FreqType sumFreq(uint32 startIdx, uint32 endIdx);
+  FreqType SumFreq(uint32 startIdx, uint32 endIdx);
 };
 }  /* namespace maplebe */
 

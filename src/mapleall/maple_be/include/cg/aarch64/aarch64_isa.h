@@ -124,7 +124,7 @@ inline bool IsFPSIMDRegister(AArch64reg r) {
   return V0 <= r && r <= V31;
 }
 
- inline bool IsPhysicalRegister(regno_t r) {
+inline bool IsPhysicalRegister(regno_t r) {
   return r < kMaxRegNum;
 }
 

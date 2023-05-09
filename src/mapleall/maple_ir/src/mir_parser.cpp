@@ -1125,7 +1125,7 @@ bool MIRParser::ParseCallReturnPair(CallReturnPair &retpair) {
     TyIdx tyidx(0);
     // RegreadNode regreadexpr;
     bool ret = ParsePrimType(tyidx);
-    if (ret != true) {
+    if (!ret) {
       Error("call ParsePrimType failed in ParseCallReturns");
       return false;
     }
@@ -3196,7 +3196,11 @@ bool MIRParser::ParseScalarValue(MIRConstPtr &stype, MIRType &type) {
       Error("constant value incompatible with integer type at ");
       return false;
     }
-    stype = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lexer.GetTheIntVal(), type);
+    if (IsInt128Ty(ptp)) {
+      stype = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lexer.GetTheInt128Val(), type);
+    } else {
+      stype = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lexer.GetTheIntVal(), type);
+    }
   } else if (ptp == PTY_f32) {
     if (lexer.GetTokenKind() != TK_floatconst) {
       Error("constant value incompatible with single-precision float type at ");

@@ -477,9 +477,9 @@ MIRFloat128Const *FPConstTable::GetOrCreateFloat128Const(const uint64 *fvalPtr) 
     return nanFloat128Const;
   }
   if (f128Const.IsInf()) {
-    return (f128Const.GetSign()) ? minusInfFloat128Const : infFloat128Const;
+    return (f128Const.GetSign() != 0) ? minusInfFloat128Const : infFloat128Const;
   }
-  if (f128Const.IsZero() && f128Const.GetSign()) {
+  if (f128Const.IsZero() && f128Const.GetSign() != 0) {
     return minusZeroFloat128Const;
   }
   if (ThreadEnv::IsMeParallel()) {

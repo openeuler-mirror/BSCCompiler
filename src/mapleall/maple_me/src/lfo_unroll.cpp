@@ -59,7 +59,7 @@ BlockNode *LfoUnrollOneLoop::DoFullUnroll(size_t tripCount) {
     auto &stmtFreqs = profData->GetStmtFreqs();
     uint32 updateOp = (kKeepOrigFreq | kUpdateUnrolledFreq);
     unrolledBlk = doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                                                          stmtFreqs, stmtFreqs, 1, unrollTimes, updateOp);
+        stmtFreqs, stmtFreqs, 1, static_cast<FreqType>(unrollTimes), updateOp);
   } else {
     unrolledBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
   }
@@ -73,12 +73,11 @@ BlockNode *LfoUnrollOneLoop::DoFullUnroll(size_t tripCount) {
         preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()) {
       auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
       nextIterBlk = doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                                                            stmtFreqs, stmtFreqs, 1, unrollTimes,
-                                                            (kKeepOrigFreq | kUpdateUnrolledFreq));
+          stmtFreqs, stmtFreqs, 1, static_cast<FreqType>(unrollTimes), (kKeepOrigFreq | kUpdateUnrolledFreq));
     } else {
       nextIterBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
     }
-    BaseNode *adjExpr = mirBuilder->CreateIntConst(stepAmount * i, ivPrimType);
+    BaseNode *adjExpr = mirBuilder->CreateIntConst(static_cast<uint64>(stepAmount * i), ivPrimType);
     BaseNode *repExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, doloop->GetStartExpr(), adjExpr);
     ReplaceIV(nextIterBlk, repExpr);
     unrolledBlk->InsertBlockAfter(*nextIterBlk, unrolledBlk->GetLast());
@@ -102,7 +101,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
         auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
         unrolledBlk =
             doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-                                                    stmtFreqs, stmtFreqs, 1, times,
+                                                    stmtFreqs, stmtFreqs, 1, static_cast<FreqType>(times),
                                                     (kKeepOrigFreq | kUpdateUnrollRemainderFreq));
       } else {
         unrolledBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
@@ -114,7 +113,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
           preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()) {
         auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
         remDoloop = doloop->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-            stmtFreqs, stmtFreqs, 1/*numor*/, times/*denom*/,
+            stmtFreqs, stmtFreqs, 1 /* numor */, times /* denom */,
             (kKeepOrigFreq | kUpdateUnrollRemainderFreq));
       } else {
         remDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
@@ -122,7 +121,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
       // generate remDoloop's termination
       BaseNode *terminationRHS = codeMP->New<BinaryNode>(OP_add, ivPrimType,
           doloop->GetStartExpr()->CloneTree(*preEmit->GetCodeMPAlloc()),
-          mirBuilder->CreateIntConst(static_cast<int64>(remainderTripCount), ivPrimType));
+          mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
       remDoloop->SetContExpr(codeMP->New<CompareNode>(OP_lt, PTY_i32, ivPrimType, CloneIVNode(), terminationRHS));
       unrolledBlk = codeMP->New<BlockNode>();
       unrolledBlk->AddStatement(remDoloop);
@@ -141,7 +140,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
           mirBuilder->CreateIntConst(1, ivPrimType));
     }
     tripsExpr = codeMP->New<BinaryNode>(OP_rem, ivPrimType, tripsExpr,
-        mirBuilder->CreateIntConst(static_cast<int64>(times), ivPrimType));
+        mirBuilder->CreateIntConst(times, ivPrimType));
     BaseNode *remLoopEndExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType,
         startExpr->CloneTree(*preEmit->GetCodeMPAlloc()), tripsExpr);
     // store in a preg
@@ -182,12 +181,12 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
     if (Options::profileUse && preMeFunc->meFunc && preMeFunc->meFunc->GetMirFunc() &&
         preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()) {
       auto &stmtFreqs = preMeFunc->meFunc->GetMirFunc()->GetFuncProfData()->GetStmtFreqs();
-      nextIterBlk = doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(),
-          stmtFreqs, stmtFreqs, 1/*numor*/, times/*denom*/, (kKeepOrigFreq | kUpdateUnrolledFreq));
+      nextIterBlk = doloop->GetDoBody()->CloneTreeWithFreqs(mirModule->GetCurFuncCodeMPAllocator(), stmtFreqs,
+          stmtFreqs, 1 /* numor */, static_cast<FreqType>(times) /* denom */, (kKeepOrigFreq | kUpdateUnrolledFreq));
     } else {
       nextIterBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
     }
-    BaseNode *adjExpr = mirBuilder->CreateIntConst(stepAmount * i, ivPrimType);
+    BaseNode *adjExpr = mirBuilder->CreateIntConst(static_cast<uint64>(stepAmount * i), ivPrimType);
     BaseNode *repExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, CloneIVNode(), adjExpr);
     ReplaceIV(nextIterBlk, repExpr);
     unrolledDoloop->GetDoBody()->InsertBlockAfter(*nextIterBlk, unrolledDoloop->GetDoBody()->GetLast());
@@ -197,7 +196,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
   if (tripCount != 0) {
     if (remainderTripCount != 0) {
       BaseNode *newStartExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, unrolledDoloop->GetStartExpr(),
-          mirBuilder->CreateIntConst(static_cast<int64>(remainderTripCount), ivPrimType));
+          mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
       unrolledDoloop->SetStartExpr(newStartExpr);
     }
   } else {

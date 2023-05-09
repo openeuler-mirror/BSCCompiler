@@ -14,7 +14,7 @@
 
 from api import *
 
-AAPCS64_O0 = {
+AAPCS64_O2 = {
     "compile": [
         MapleDriver(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
@@ -23,16 +23,16 @@ AAPCS64_O0 = {
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include"
             ],
-            option="-O0 -fPIC -g -static -L../../lib/c -lst -lm --save-temps -S",
+            option="-O2 -fPIC -g -static -L../../lib/c -lst -lm --save-temps -S",
             redirection="compile.log"
         )
     ],
     "gcc_compile": [
         Shell(
-            "${OUT_ROOT}/tools/bin/aarch64-linux-gnu-gcc -isystem ${MAPLE_BUILD_OUTPUT}/lib/include \
+            "${OUT_ROOT}/tools/bin/aarch64-linux-gnu-gcc \
             -isystem ${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include          \
             -isystem ${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include     \
-            -U __SIZEOF_INT128__ -O0 -S ${APP}.c",
+            -U __SIZEOF_INT128__ -O2 -S ${APP}.c",
         ),
     ],
     "link_run": [

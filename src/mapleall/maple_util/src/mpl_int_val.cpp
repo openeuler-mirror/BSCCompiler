@@ -1038,7 +1038,7 @@ void IntVal::Dump(std::ostream &os) const {
     uint16 numWords = GetNumWords();
     ASSERT(numWords >= numZeroWords, "invalid count of zero words");
 
-    os << std::hex << "0xL";
+    os << std::hex << "0x";
     if (numWords == numZeroWords) {
       os << "0";
     } else {

@@ -37,7 +37,7 @@ bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
     val2 = (val2 << k32BitSize) | (val2 & ((1ULL << k32BitSize) - 1));
   }
   bool expectedOutcome = (ValidBitmaskImmSet.find(val2) != ValidBitmaskImmSet.end());
- 
+
   if ((val & 0x1) != 0) {
     /*
      * we want to work with
@@ -47,37 +47,39 @@ bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
      */
     val = ~val;
   }
- 
+
   if (bitLen == k32BitSize) {
     val = (val << k32BitSize) | (val & ((1ULL << k32BitSize) - 1));
   }
- 
+
   /* get the least significant bit set and add it to 'val' */
   uint64 tmpVal = val + (val & static_cast<uint64>(UINT64_MAX - val + 1));
- 
+
   /* now check if tmp is a power of 2 or tmpVal==0. */
   tmpVal = tmpVal & (tmpVal - 1);
   if (tmpVal == 0) {
     if (!expectedOutcome) {
+#if defined(DEBUG) && DEBUG
       LogInfo::MapleLogger() << "0x" << std::hex << std::setw(static_cast<int>(k16ByteSize)) <<
           std::setfill('0') << static_cast<uint64>(val) << "\n";
+#endif
       return false;
     }
     ASSERT(expectedOutcome, "incorrect implementation: not valid value but returning true");
     /* power of two or zero ; return true */
     return true;
   }
- 
+
   int32 p0 = __builtin_ctzll(val);
   int32 p1 = __builtin_ctzll(tmpVal);
   int64 diff = p1 - p0;
- 
+
   /* check if diff is a power of two; return false if not. */
   if ((static_cast<uint64>(diff) & (static_cast<uint64>(diff) - 1)) != 0) {
     ASSERT(!expectedOutcome, "incorrect implementation: valid value but returning false");
     return false;
   }
- 
+
   uint32 logDiff = static_cast<uint32>(__builtin_ctzll(static_cast<uint64>(diff)));
   uint64 pattern = val & ((1ULL << static_cast<uint64>(diff)) - 1);
 #if defined(DEBUG) && DEBUG

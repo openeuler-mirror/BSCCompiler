@@ -112,7 +112,7 @@ inline void ForEachBBArrElem(const MapleVector<uint64> &vec, const Func functor)
     }
     for (uint32 bBBArrElem = 0; bBBArrElem < kU64; ++bBBArrElem) {
       if ((vec[iBBArrElem] & (1ULL << bBBArrElem)) != 0) {
-        (void)functor(iBBArrElem * kU64 + bBBArrElem);
+        functor(iBBArrElem * kU64 + bBBArrElem);
       }
     }
   }
@@ -959,8 +959,8 @@ class FinalizeRegisterInfo {
     useDefOperands.emplace_back(idx, &opnd);
   }
 
-  int32 GetMemOperandIdx() const {
-    return static_cast<int32>(memOperandIdx);
+  uint32 GetMemOperandIdx() const {
+    return memOperandIdx;
   }
 
   const Operand *GetBaseOperand() const {
@@ -1340,7 +1340,7 @@ class GraphColorRegAllocator : public RegAllocator {
   MemOperand *GetCommonReuseMem(const MapleSet<regno_t> &conflict,
                                 const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                 RegType regType) const;
-  MemOperand *GetReuseMem(const LiveRange &lr);
+  MemOperand *GetReuseMem(const LiveRange &lr) const;
   MemOperand *GetSpillMem(uint32 vregNO, uint32 spillSize, bool isDest, Insn &insn, regno_t regNO,
                           bool &isOutOfRange);
   bool SetAvailableSpillReg(std::unordered_set<regno_t> &cannotUseReg, LiveRange &lr,
@@ -1487,7 +1487,7 @@ class CallerSavePre : public CGPre {
         regAllocator(regAlloc),
         loopHeadBBs(ssaPreAllocator.Adapter()) {}
 
-  ~CallerSavePre() {
+  ~CallerSavePre() override {
     func = nullptr;
     regAllocator = nullptr;
     workLr = nullptr;

@@ -209,6 +209,7 @@ void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   }
   LabelIdx nextLable = aarchCGFunc.CreateLabel();
   bb.SetLabIdx(nextLable);
+  cgFunc.SetLab2BBMap(nextLable, bb);
   bb.ClearPreds();
   bb.PushBackPreds(*chkBB);
 
@@ -1203,7 +1204,7 @@ void AArch64GenProEpilog::Run() {
   if (cgFunc.IsExitBBsVecEmpty()) {
     if (cgFunc.GetCleanupBB() != nullptr && cgFunc.GetCleanupBB()->GetPrev() != nullptr) {
       cgFunc.PushBackExitBBsVec(*cgFunc.GetCleanupBB()->GetPrev());
-    } else {
+    } else if (!cgFunc.GetMirModule().IsCModule()) {
       cgFunc.PushBackExitBBsVec(*cgFunc.GetLastBB()->GetPrev());
     }
   }

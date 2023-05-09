@@ -1222,7 +1222,7 @@ class ArrayNode : public NaryNode {
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
-  bool IsSameBase(ArrayNode *arry) const;
+  bool IsSameBase(const ArrayNode *arry) const;
 
   size_t NumOpnds() const override {
     ASSERT(numOpnds == GetNopndSize(), "ArrayNode has wrong numOpnds field");
@@ -1576,7 +1576,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     stmtAttrs.SetAttr(STMTATTR_mayTailcall, flag);
   }
 
-  bool GetMayTailCall() {
+  bool GetMayTailCall() const {
     return stmtAttrs.GetAttr(STMTATTR_mayTailcall);
   }
 
@@ -1585,7 +1585,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   }
 
   void SetStmtInfoId(size_t index) {
-    stmtInfoId = index;
+    stmtInfoId = static_cast<uint32>(index);
   }
 
   const uint32 GetStmtInfoId() const {
@@ -2508,7 +2508,7 @@ class BlockNode : public StmtNode {
 
 struct CallBackData {
  public:
-  ~CallBackData() {}
+  virtual ~CallBackData() {}
   virtual void Free() {}
 };
 
@@ -2527,7 +2527,7 @@ class BlockCallBack {
   }
 
   void Invoke(const BlockNode &oldBlock, BlockNode &newBlock,
-      const StmtNode &oldStmt, StmtNode &newStmt) {
+      const StmtNode &oldStmt, StmtNode &newStmt) const {
     if (callBack != nullptr) {
       callBack(oldBlock, newBlock, oldStmt, newStmt, data);
     }
@@ -2611,14 +2611,16 @@ class IfStmtNode : public UnaryStmtNode {
       FreqType oldFreq = fromFreqs[GetStmtID()];
       FreqType newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * static_cast<FreqType>(numer / denom)) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
-      if (updateOp & kUpdateOrigFreq) {
+      if ((updateOp & kUpdateOrigFreq) != 0) {
         FreqType left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
       }
     }
-    node->thenPart = thenPart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
+    node->thenPart = thenPart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer),
+                                                  denom, updateOp);
     if (elsePart != nullptr) {
-      node->elsePart = elsePart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
+      node->elsePart = elsePart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer),
+                                                    denom, updateOp);
     }
     node->SetMeStmtID(GetMeStmtID());
     return node;
@@ -2696,13 +2698,13 @@ class WhileStmtNode : public UnaryStmtNode {
       FreqType newFreq =
           numer == 0 ? 0 : (denom > 0 ? static_cast<int64_t>(static_cast<uint64_t>(oldFreq) * numer / denom) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
-      if (updateOp & kUpdateOrigFreq) {
+      if ((updateOp & kUpdateOrigFreq) != 0) {
         FreqType left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
       }
     }
     node->SetOpnd(Opnd(0)->CloneTree(allocator), 0);
-    node->body = body->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
+    node->body = body->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer), denom, updateOp);
     return node;
   }
 
@@ -2785,7 +2787,8 @@ class DoloopNode : public StmtNode {
     node->SetStartExpr(startExpr->CloneTree(allocator));
     node->SetContExpr(GetCondExpr()->CloneTree(allocator));
     node->SetIncrExpr(GetIncrExpr()->CloneTree(allocator));
-    node->SetDoBody(GetDoBody()->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
+    node->SetDoBody(GetDoBody()->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer),
+                                                    denom, updateOp));
     return node;
   }
 
@@ -3359,7 +3362,7 @@ class CallNode : public NaryStmtNode {
 
   CallNode(CallNode &node) = delete;
   CallNode &operator=(const CallNode &node) = delete;
-  virtual ~CallNode() override {
+  ~CallNode() override {
     enclosingBlk = nullptr;
   }
   virtual void Dump(int32 indent, bool newline) const;

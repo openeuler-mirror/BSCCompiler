@@ -470,7 +470,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     return relocs;
   }
 
-  bool IsInBitSize(uint8 size, uint8 nLowerZeroBits) const {
+  bool IsInBitSize(uint32 size, uint32 nLowerZeroBits) const {
     return IsBitSizeImmediate(static_cast<uint64>(value), size, nLowerZeroBits);
   }
 

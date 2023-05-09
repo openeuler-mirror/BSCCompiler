@@ -15,6 +15,7 @@
 #ifndef MAPLE_PHASE_INCLUDE_MAPLE_PHASE_H
 #define MAPLE_PHASE_INCLUDE_MAPLE_PHASE_H
 #include "maple_phase_support.h"
+
 namespace maple {
 class MaplePhase;
 class AnalysisInfoHook;
@@ -159,7 +160,7 @@ class PHASENAME : public MapleSccPhase<IRTYPE> {                           \
   static MaplePhase *CreatePhase(MemPool *createMP) {                      \
     return createMP->New<PHASENAME>(createMP);                             \
   }                                                                        \
-  bool PhaseRun(IRTYPE &scc) override;
+  bool PhaseRun(IRTYPE &scc) override;  // can not add parentheses for IRTYPE, it needs to take "&"
 
 #define MAPLE_SCC_PHASE_DECLARE_END \
 };

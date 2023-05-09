@@ -32,7 +32,7 @@ class MeSSALPre : public SSAPre {
         loopHeadBBs(ssaPreAllocator.Adapter()),
         candsForSSAUpdate() {}
 
-  virtual ~MeSSALPre() = default;
+  ~MeSSALPre() override = default;
   void FindLoopHeadBBs(const IdentifyLoops &identLoops);
 
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &GetCandsForSSAUpdate() {
@@ -44,7 +44,7 @@ class MeSSALPre : public SSAPre {
   }
  private:
   void GenerateSaveRealOcc(MeRealOcc &realOcc) override;
-  MeExpr *GetTruncExpr(const VarMeExpr &theLHS, MeExpr &savedRHS);
+  MeExpr *GetTruncExpr(const VarMeExpr &theLHS, MeExpr &savedRHS) const;
   void GenerateReloadRealOcc(MeRealOcc &realOcc) override;
   MeExpr *PhiOpndFromRes(MeRealOcc &realZ, size_t j) const override;
   void ComputeVarAndDfPhis() override;

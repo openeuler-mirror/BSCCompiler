@@ -305,7 +305,7 @@ class CGOptions {
   void SetRange(const std::string &str, const std::string &cmd, Range &subRange) const;
   void SetTargetMachine(const std::string &str);
 
-  int32 GetOptimizeLevel() const {
+  uint32 GetOptimizeLevel() const {
     return optimizeLevel;
   }
 
@@ -1564,7 +1564,7 @@ class CGOptions {
   bool runCGFlag = true;
   bool generateObjectMap = true;
   uint32 parserOption = 0;
-  int32 optimizeLevel = 0;
+  uint32 optimizeLevel = 0;
 
   GenerateFlag generateFlag = 0;
   OptionFlag options = kUndefined;
@@ -1697,7 +1697,8 @@ class CGOptions {
 #define SET_END(SET) ((SET).end())
 #define IS_STR_IN_SET(SET, NAME) (SET_FIND(SET, NAME) != SET_END(SET))
 
-#define CG_DEBUG_FUNC(f)                                                               \
+#define \
+    CG_DEBUG_FUNC(f)                                                               \
     (!maplebe::CGOptions::GetDumpPhases().empty() && maplebe::CGOptions::IsDumpFunc((f).GetName()) &&   \
      maplebe::CGOptions::GetDumpPhases().find(PhaseName()) != maplebe::CGOptions::GetDumpPhases().end())
 #ifndef TRACE_PHASE

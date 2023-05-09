@@ -18,43 +18,41 @@ O2 = {
     "compile": [
         Java2dex(
             jar_file=[
-                "${MAPLE_BUILD_OUTPUT}/ops/third_party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar",
-                "${MAPLE_BUILD_OUTPUT}/ops/third_party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar"
+                "${OUT_ROOT}/target/product/public/third-party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar",
+                "${OUT_ROOT}/target/product/public/third-party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar"
             ],
             outfile="${APP}.dex",
             infile=["${APP}.java","${EXTRA_JAVA_FILE}"]
         ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            option="-mplt ${MAPLE_BUILD_OUTPUT}/libjava-core/host-x86_64-O2/libcore-all.mplt --rc",
-            infile="${APP}.dex",
-            outfile="${APP}.mpl"
-        ),
         Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
+            maple="${OUT_ROOT}/target/product/maple_arm64/bin/maple",
+            run=["dex2mpl", "mplipa", "me", "mpl2mpl", "mplcg"],
             option={
-                "me": "--O2 --quiet",
-                "mpl2mpl": "--O2 --quiet --regnativefunc --no-nativeopt --maplelinker --emitVtableImpl",
-                "mplcg": "--O2 --quiet --no-pie --fPIC --verbose-asm --maplelinker"
+                "dex2mpl": "--mplt ${OUT_ROOT}/target/product/maple_arm64/lib/host-x86_64-O2/libcore-all.mplt -dexcatch  -inlinefunclist=${OUT_ROOT}/target/product/public/lib/codetricks/profile.pv/to_inline.list -j=16 -j100 -litprofile=${OUT_ROOT}/target/product/public/lib/codetricks/profile.pv/meta.list -refine-catch -staticstringcheck",
+                "mplipa": "--effectipa --quiet",
+                "me": "--O2 --quiet --inlinefunclist=${OUT_ROOT}/target/product/public/lib/codetricks/profile.pv/inline_funcs.list --no-nativeopt --no-ignoreipa --enable-ea",
+                "mpl2mpl": "--O2 --quiet --regnativefunc --no-nativeopt --maplelinker --maplelinker-nolocal --dump-muid --check_cl_invocation=${OUT_ROOT}/target/product/public/lib/codetricks/profile.pv/classloaderInvocation.list --emitVtableImpl",
+                "mplcg": "--O2 --quiet --no-pie --verbose-asm --fPIC --gen-c-macro-def --duplicate_asm_list=${OUT_ROOT}/target/product/public/lib/codetricks/asm/duplicateFunc.s --maplelinker --gsrc --nativeopt --replaceasm"
             },
-            global_option="",
-            infiles=["${APP}.mpl"]
+            global_option="--save-temps",
+            infile="${APP}.dex"
         ),
         Linker(
             lib="host-x86_64-O2",
+            model="arm64",
+            infile="${APP}"
         )
     ],
     "run": [
         Mplsh(
-            qemu="${OUT_ROOT}/tools/bin/qemu-aarch64",
+            qemu="/usr/bin/qemu-aarch64",
             qemu_libc="/usr/aarch64-linux-gnu",
             qemu_ld_lib=[
-                "${MAPLE_BUILD_OUTPUT}/ops/third_party",
-                "${MAPLE_BUILD_OUTPUT}/ops/host-x86_64-O2",
+                "${OUT_ROOT}/target/product/maple_arm64/third-party",
+                "${OUT_ROOT}/target/product/maple_arm64/lib/host-x86_64-O2",
                 "./"
             ],
-            mplsh="${MAPLE_BUILD_OUTPUT}/ops/mplsh",
+            mplsh="${OUT_ROOT}/target/product/maple_arm64/bin/mplsh",
             garbage_collection_kind="RC",
             xbootclasspath="libcore-all.so",
             infile="${APP}.so",
@@ -68,14 +66,14 @@ O2 = {
             env={
                 "MAPLE_REPORT_RC_LEAK": "1"
             },
-            qemu="${OUT_ROOT}/tools/bin/qemu-aarch64",
+            qemu="/usr/bin/qemu-aarch64",
             qemu_libc="/usr/aarch64-linux-gnu",
             qemu_ld_lib=[
-                "${MAPLE_BUILD_OUTPUT}/ops/third_party",
-                "${MAPLE_BUILD_OUTPUT}/ops/host-x86_64-O2",
+                "${OUT_ROOT}/target/product/maple_arm64/third-party",
+                "${OUT_ROOT}/target/product/maple_arm64/lib/host-x86_64-O2",
                 "./"
             ],
-            mplsh="${MAPLE_BUILD_OUTPUT}/ops/mplsh",
+            mplsh="${OUT_ROOT}/target/product/maple_arm64/bin/mplsh",
             garbage_collection_kind="RC",
             xbootclasspath="libcore-all.so",
             infile="${APP}.so",
@@ -87,19 +85,19 @@ O2 = {
         ),
         Mplsh(
             env={
-                "MAPLE_VERIFY_RC": "1"
+                "MAPLE_VERIFY_RC": "1",
             },
-            qemu="${OUT_ROOT}/tools/bin/qemu-aarch64",
+            qemu="/usr/bin/qemu-aarch64",
             qemu_libc="/usr/aarch64-linux-gnu",
             qemu_ld_lib=[
-                "${MAPLE_BUILD_OUTPUT}/ops/third_party",
-                "${MAPLE_BUILD_OUTPUT}/ops/host-x86_64-O2",
+                "${OUT_ROOT}/target/product/maple_arm64/third-party",
+                "${OUT_ROOT}/target/product/maple_arm64/lib/host-x86_64-O2",
                 "./"
             ],
-            mplsh="${MAPLE_BUILD_OUTPUT}/ops/mplsh",
+            mplsh="${OUT_ROOT}/target/product/maple_arm64/bin/mplsh",
             garbage_collection_kind="RC",
-            xbootclasspath="libcore-all.so",
             infile="${APP}.so",
+            xbootclasspath="libcore-all.so",
             redirection="rcverify.log"
         ),
         CheckRegContain(

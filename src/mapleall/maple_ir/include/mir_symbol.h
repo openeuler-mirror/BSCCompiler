@@ -19,10 +19,10 @@
 #include "mir_preg.h"
 #include "src_position.h"
 
+namespace maple {
 constexpr int kScopeLocal = 2;   // the default scope level for function variables
 constexpr int kScopeGlobal = 1;  // the scope level for global variables
 
-namespace maple {
 enum MIRSymKind {
   kStInvalid,
   kStVar,
@@ -270,7 +270,7 @@ class MIRSymbol {
   }
 
   bool IsReadOnly() const {
-    return kScFstatic == storageClass && kStConst == sKind;
+    return storageClass == kScFstatic && sKind == kStConst;
   }
 
   bool IsConst() const {

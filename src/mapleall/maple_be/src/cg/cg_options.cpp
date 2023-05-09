@@ -13,31 +13,30 @@
  * See the Mulan PSL v2 for more details.
  */
 
-#include "driver_options.h"
-
 #include <string>
+#include "driver_options.h"
 
 namespace opts::cg {
 
 maplecl::Option<bool> fpie({"-fpie", "--fpie"},
-                          "  --fpie                          \tGenerate position-independent executable in small mode\n"
+                          "  --fpie               \tGenerate position-independent executable in small mode\n"
                           "  --no-pie/-fno-pie\n",
                           {cgCategory, driverCategory, ldCategory},
                           maplecl::DisableEvery({"-fno-pie", "--no-pie"}));
 
 maplecl::Option<bool> fPIE({"-fPIE", "--fPIE"},
-                          "  --fPIE                          \tGenerate position-independent executable in large mode\n"
+                          "  --fPIE                   \tGenerate position-independent executable in large mode\n"
                           "  --no-pie/-fno-pie\n",
                           {cgCategory, driverCategory, ldCategory});
 
 maplecl::Option<bool> fpic({"-fpic", "--fpic"},
-                           "  --fpic                     \tGenerate position-independent shared library in small mode\n"
+                           "  --fpic              \tGenerate position-independent shared library in small mode\n"
                            "  --no-pic/-fno-pic\n",
                            {cgCategory, driverCategory, ldCategory},
                            maplecl::DisableEvery({"-fno-pic", "--no-pic"}));
 
 maplecl::Option<bool> fPIC({"-fPIC", "--fPIC"},
-                           "  --fPIC                     \tGenerate position-independent shared library in large mode\n"
+                           "  --fPIC              \tGenerate position-independent shared library in large mode\n"
                            "  --no-pic/-fno-pic\n",
                            {cgCategory, driverCategory, ldCategory});
 
@@ -86,7 +85,7 @@ maplecl::Option<bool> replaceAsm({"--replaceasm"},
                                  maplecl::DisableWith("--no-replaceasm"));
 
 maplecl::Option<bool> generalRegOnly({"--general-reg-only"},
-                                     " --general-reg-only           \tdisable floating-point or Advanced SIMD registers\n"
+                                     " --general-reg-only     \tdisable floating-point or Advanced SIMD registers\n"
                                      " --no-general-reg-only\n",
                                      {cgCategory},
                                      maplecl::DisableWith("--no-general-reg-only"));
@@ -164,13 +163,13 @@ maplecl::Option<bool> lsraOptcallee({"--lsra-optcallee"},
                                     maplecl::DisableWith("--no-lsra-optcallee"));
 
 maplecl::Option<bool> calleeregsPlacement({"--calleeregs-placement"},
-                                          "  --calleeregs-placement      \tOptimize placement of callee-save registers\n"
+                                          "  --calleeregs-placement   \tOptimize placement of callee-save registers\n"
                                           "  --no-calleeregs-placement\n",
                                           {cgCategory},
                                           maplecl::DisableWith("--no-calleeregs-placement"));
 
 maplecl::Option<bool> ssapreSave({"--ssapre-save"},
-                                 "  --ssapre-save                \tUse ssapre algorithm to save callee-save registers\n"
+                                 "  --ssapre-save          \tUse ssapre algorithm to save callee-save registers\n"
                                  "  --no-ssapre-save\n",
                                  {cgCategory},
                                  maplecl::DisableWith("--no-ssapre-save"));
@@ -320,7 +319,7 @@ maplecl::Option<bool> gdwarf({"--gdwarf"},
                              {cgCategory});
 
 maplecl::Option<bool> gsrc({"--gsrc"},
-                           "  --gsrc                      \tUse original source file instead of mpl file for debugging\n",
+                           "  --gsrc               \tUse original source file instead of mpl file for debugging\n",
                            {cgCategory});
 
 maplecl::Option<bool> gmixedsrc({"--gmixedsrc"},
@@ -357,7 +356,7 @@ maplecl::Option<bool> constFold({"--const-fold"},
                                 maplecl::DisableWith("--no-const-fold"));
 
 maplecl::Option<std::string> ehExclusiveList({"--eh-exclusive-list"},
-                                             "  --eh-exclusive-list         \tFor generating gold files in unit testing\n"
+                                             "  --eh-exclusive-list     \tFor generating gold files in unit testing\n"
                                              "                              \t--eh-exclusive-list=list_file\n",
                                              {cgCategory});
 
@@ -396,7 +395,7 @@ maplecl::Option<uint64_t> lsraOverlap({"--lsra-overlap"},
                                       {cgCategory});
 
 maplecl::Option<uint8_t> remat({"--remat"},
-                               "  --remat                     \tEnable rematerialization during register allocation\n"
+                               "  --remat                 \tEnable rematerialization during register allocation\n"
                                "                              \t     0: no rematerialization (default)\n"
                                "                              \t  >= 1: rematerialize constants\n"
                                "                              \t  >= 2: rematerialize addresses\n"
@@ -428,11 +427,11 @@ maplecl::Option<std::string> skipPhases({"--skip-phases"},
                                         {cgCategory, driverCategory});
 
 maplecl::Option<std::string> skipFrom({"--skip-from"},
-                                      "  --skip-from=PHASENAME       \tSkip the rest phases from PHASENAME(included)\n",
+                                      "  --skip-from=PHASENAME     \tSkip the rest phases from PHASENAME(included)\n",
                                       {cgCategory});
 
 maplecl::Option<std::string> skipAfter({"--skip-after"},
-                                       "  --skip-after=PHASENAME      \tSkip the rest phases after PHASENAME(excluded)\n",
+                                       "  --skip-after=PHASENAME    \tSkip the rest phases after PHASENAME(excluded)\n",
                                        {cgCategory});
 
 maplecl::Option<std::string> dumpFunc({"--dump-func"},
@@ -454,15 +453,15 @@ maplecl::Option<bool> useBarriersForVolatile({"--use-barriers-for-volatile"},
                                              maplecl::DisableWith("--no-use-barriers-for-volatile"));
 
 maplecl::Option<std::string> range({"--range"},
-                                   "  --range=NUM0,NUM1           \tOptimize only functions in the range [NUM0, NUM1]\n",
+                                   "  --range=NUM0,NUM1         \tOptimize only functions in the range [NUM0, NUM1]\n",
                                    {cgCategory});
 
 maplecl::Option<uint8_t> fastAlloc({"--fast-alloc"},
-                                   "  --fast-alloc=[0/1]          \tO2 RA fast mode, set to 1 to spill all registers\n",
+                                   "  --fast-alloc=[0/1]        \tO2 RA fast mode, set to 1 to spill all registers\n",
                                    {cgCategory});
 
 maplecl::Option<std::string> spillRange({"--spill_range"},
-                                        "  --spill_range=NUM0,NUM1     \tO2 RA spill registers in the range [NUM0, NUM1]\n",
+                                        "  --spill_range=NUM0,NUM1 \tO2 RA spill registers in the range [NUM0, NUM1]\n",
                                         {cgCategory});
 
 maplecl::Option<bool> dupBb({"--dup-bb"},
@@ -489,7 +488,7 @@ maplecl::Option<std::string> cyclePatternList({"--cycle-pattern-list"},
                                               {cgCategory});
 
 maplecl::Option<std::string> duplicateAsmList({"--duplicate_asm_list"},
-                                              "  --duplicate_asm_list        \tDuplicate asm functions to delete plt call\n"
+                                              "  --duplicate_asm_list   \tDuplicate asm functions to delete plt call\n"
                                               "                              \t--duplicate_asm_list=list_file\n",
                                               {driverCategory, cgCategory});
 
@@ -571,10 +570,11 @@ maplecl::Option<bool> omitFramePointer({"--omit-frame-pointer", "-fomit-frame-po
                                        maplecl::DisableEvery({"--no-omit-frame-pointer", "-fno-omit-frame-pointer"}));
 
 maplecl::Option<bool> omitLeafFramePointer({"--omit-leaf-frame-pointer", "-momit-leaf-frame-pointer"},
-                                       " --omit-leaf-frame-pointer          \t do not use frame pointer for leaf func\n"
+                                       " --omit-leaf-frame-pointer       \t do not use frame pointer for leaf func\n"
                                        " --no-omit-leaf-frame-pointer\n",
                                        {cgCategory, driverCategory},
-                                       maplecl::DisableEvery({"--no-omit-leaf-frame-pointer", "-mno-omit-leaf-frame-pointer"}));
+                                       maplecl::DisableEvery({"--no-omit-leaf-frame-pointer",
+                                                                  "-mno-omit-leaf-frame-pointer"}));
 
 maplecl::Option<bool> fastMath({"--fast-math"},
                                "  --fast-math                  \tPerform fast math\n"
@@ -635,39 +635,46 @@ maplecl::Option<uint32_t> alignMaxBbSize({"--align-max-bb-size"},
                                          {cgCategory});
 
 maplecl::Option<uint32_t> loopAlignPow({"--loop-align-pow"},
-                                       " --loop-align-pow=NUM           \tO2 loop bb align pow (NUM == 0, no loop-align)\n",
+                                       " --loop-align-pow=NUM     \tO2 loop bb align pow (NUM == 0, no loop-align)\n",
                                        {cgCategory});
 
 maplecl::Option<uint32_t> jumpAlignPow({"--jump-align-pow"},
-                                       " --jump-align-pow=NUM           \tO2 jump bb align pow (NUM == 0, no jump-align)\n",
+                                       " --jump-align-pow=NUM     \tO2 jump bb align pow (NUM == 0, no jump-align)\n",
                                        {cgCategory});
 
 maplecl::Option<uint32_t> funcAlignPow({"--func-align-pow"},
-                                       " --func-align-pow=NUM           \tO2 func bb align pow (NUM == 0, no func-align)\n",
+                                       " --func-align-pow=NUM     \tO2 func bb align pow (NUM == 0, no func-align)\n",
                                        {cgCategory});
 maplecl::Option<bool> litePgoGen({"--lite-pgo-gen"},
                                  " --lite-pgo-gen           \tinstrumentation CG bb and generate bb-cnt info\n"
                                  "  --no-lite-pgo-gen\n",
-                                 {cgCategory},
+                                 {driverCategory, cgCategory},
                                  maplecl::DisableWith("--no-lite-pgo-gen"));
 maplecl::Option<std::string> instrumentationFile ({"--instrumentation-file"},
-                                                  "--instrumentation-file=filepath \t instrumentation file output path\n",
-                                                  {cgCategory});
+                                                  "--instrumentation-file=filepath \t instrumentation file output "
+                                                  "path\n",
+                                                  {driverCategory, cgCategory});
 maplecl::Option<std::string> litePgoWhiteList ({"--lite-pgo-white-list"},
-                                                "--lite-pgo-white-list=filepath \t instrumentation function white list\n",
-                                                {cgCategory});
+                                               "--lite-pgo-white-list=filepath \t instrumentation function white "
+                                               "list\n",
+                                               {driverCategory, cgCategory});
 maplecl::Option<std::string> litePgoOutputFunc ({"--lite-pgo-output-func"},
-                                                 "--lite-pgo-output-func=function name \t generate lite profile at the exit of the output function[default none]\n",
-                                                 {cgCategory});
+                                                "--lite-pgo-output-func=function name \t generate lite profile "
+                                                "at the exit of the output function[default none]\n",
+                                                {driverCategory, cgCategory});
+
 maplecl::Option<std::string> litePgoFile({"--lite-pgo-file"},
                                          " --lite-pgo-file=filepath          \t lite pgo guide file\n",
-                                         {cgCategory});
+                                         {driverCategory, cgCategory});
 maplecl::Option<std::string> functionPriority({"--function-priority"},
-                                         " --function-priority=filepath          \t when profile data is given, priority suffix is added to section name in order to improve code locality\n",
-                                         {cgCategory});
+                                              " --function-priority=filepath          \t when profile data is given,"
+                                              "priority suffix is added to section name in order to "
+                                              "improve code locality\n",
+                                              {cgCategory});
 maplecl::Option<bool> litePgoVerify({"--lite-pgo-verify"},
-		                     " --lite-pgo-verify             \tverify lite-pgo data strictly, abort when encountering mismatch data(default:skip)\n"
-		                     "  --no-lite-pgo-verify\n",
-				     {cgCategory},
-		                     maplecl::DisableWith("--no-lite-pgo-verify"));
+		                          " --lite-pgo-verify             \tverify lite-pgo data strictly, abort when "
+                                    "encountering mismatch data(default:skip)\n"
+		                                "  --no-lite-pgo-verify\n",
+                                    {driverCategory, cgCategory},
+		                                maplecl::DisableWith("--no-lite-pgo-verify"));
 }

@@ -14,8 +14,6 @@
  */
 #include "verify_mark.h"
 #include "verification.h"
-#include "verify_annotation.h"
-#include "utils.h"
 
 namespace maple {
 #ifdef NOT_USED

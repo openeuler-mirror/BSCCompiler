@@ -840,7 +840,7 @@ class OpMeExpr : public MeExpr {
   // binary
   OpMeExpr(int32 exprID, Opcode o, PrimType t, MeExpr *opnd0, MeExpr *opnd1, bool order = true)
       : MeExpr(exprID, kMeOpOp, o, t, 2), tyIdx(TyIdx(0)) {
-    if (order == true) {
+    if (order) {
       SetOpndCheck(0, opnd0);
       SetOpndCheck(1, opnd1);
     } else {
@@ -1538,7 +1538,7 @@ class MeStmt {
     stmtAttrs.SetAttr(STMTATTR_mayTailcall);
   }
 
-  bool GetMayTailCall() {
+  bool GetMayTailCall() const {
     return stmtAttrs.GetAttr(STMTATTR_mayTailcall);
   }
 
@@ -1758,7 +1758,7 @@ class AssignMeStmt : public MeStmt {
     return needIncref;
   }
 
-  void SetNeedIncref(bool value = true) override {
+  void SetNeedIncref(bool value) override {
     needIncref = value;
   }
 
@@ -1953,7 +1953,7 @@ class MaydassignMeStmt : public MeStmt {
     return needIncref;
   }
 
-  void SetNeedIncref(bool val = true) override {
+  void SetNeedIncref(bool val) override {
     needIncref = val;
   }
 
@@ -2097,7 +2097,7 @@ class IassignMeStmt : public MeStmt {
     return needIncref;
   }
 
-  void SetNeedIncref(bool val = true) override {
+  void SetNeedIncref(bool val) override {
     needIncref = val;
   }
 
@@ -2333,7 +2333,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return &chiList;
   }
 
-  void SetChiListAndUpdateBase(MapleMap<OStIdx, ChiMeNode *> &list) {
+  void SetChiListAndUpdateBase(const MapleMap<OStIdx, ChiMeNode *> &list) {
     chiList = list;
     for (auto &chiNode : chiList) {
       chiNode.second->SetBase(this);
@@ -2348,7 +2348,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return &mustDefList;
   }
 
-  void SetMustDefListAndUpdateBase(MapleVector<MustDefMeNode> &list) {
+  void SetMustDefListAndUpdateBase(const MapleVector<MustDefMeNode> &list) {
     mustDefList = list;
     for (auto &mustDef : mustDefList) {
       mustDef.SetBase(this);
@@ -2760,6 +2760,8 @@ class UnaryMeStmt : public MeStmt {
   explicit UnaryMeStmt(const UnaryMeStmt *umestmt) : MeStmt(umestmt->GetOp()), opnd(umestmt->opnd) {}
 
   ~UnaryMeStmt() override = default;
+  
+  UnaryMeStmt(const UnaryMeStmt &other) = default;
 
   size_t NumMeStmtOpnds() const override {
     return kOperandNumUnary;
@@ -2787,6 +2789,7 @@ class UnaryMeStmt : public MeStmt {
 
  private:
   MeExpr *opnd = nullptr;
+  UnaryMeStmt &operator=(const UnaryMeStmt &other) = default;
 };
 
 class SafetyCallCheckMeStmt {
@@ -2912,6 +2915,8 @@ class GotoMeStmt : public MeStmt {
  public:
   explicit GotoMeStmt(const StmtNode *stt) : MeStmt(stt), offset(static_cast<const GotoNode*>(stt)->GetOffset()) {}
   explicit GotoMeStmt(const GotoMeStmt &condGoto) : MeStmt(MeStmt(condGoto.GetOp())), offset(condGoto.GetOffset()) {}
+  GotoMeStmt& operator=(const GotoMeStmt &condGoto) = default;
+
   explicit GotoMeStmt(uint32 o) : MeStmt(OP_goto), offset(o) {}
 
   ~GotoMeStmt() override = default;

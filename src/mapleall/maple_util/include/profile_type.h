@@ -15,6 +15,7 @@
 #ifndef PROFILE_TYPE_H
 #define PROFILE_TYPE_H
 
+#include <cstdint>
 /* Anonymous namespace to restrict visibility of utility functions */
 namespace {
 enum ProfileFileType : uint8_t {

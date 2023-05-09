@@ -201,6 +201,7 @@ class Insn {
   }
 
   Operand *GetMemOpnd() const;
+  uint32 GetMemOpndIdx() const;
 
   void SetMemOpnd(MemOperand *memOpnd);
 

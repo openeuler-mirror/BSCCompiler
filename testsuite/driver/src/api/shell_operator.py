@@ -46,7 +46,8 @@ class ShellOperator(object):
         final_command = self.command
         if variables is not None:
             for variable in variables.keys():
-                final_command = final_command.replace("${" + variable + "}", variables[variable])
+                if "${" + variable + "}" in final_command:
+                    final_command = final_command.replace("${" + variable + "}", variables[variable])
         final_command += self.get_redirection()
         final_command += self.get_check_command()
         return final_command

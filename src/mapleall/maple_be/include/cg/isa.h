@@ -23,7 +23,7 @@ namespace maplebe {
 // For verify & split insn
 #define VERIFY_INSN(INSN) (INSN)->VerifySelf()
 #define SPLIT_INSN(INSN, FUNC) \
-  (INSN)->SplitSelf(FUNC->IsAfterRegAlloc(), FUNC->GetInsnBuilder(), FUNC->GetOpndBuilder())
+  (INSN)->SplitSelf((FUNC)->IsAfterRegAlloc(), (FUNC)->GetInsnBuilder(), (FUNC)->GetOpndBuilder())
 // circular dependency exists, no other choice
 class Insn;
 class InsnBuilder;
@@ -150,7 +150,7 @@ enum AbstractMOP : MOperator {
 
 #define DEF_MIR_INTRINSIC(op, ...) op,
 enum VectorIntrinsicID {
-  #include "intrinsic_vector_new.def"
+#include "intrinsic_vector_new.def"
 #undef DEF_MIR_INTRINSIC
   kVectorIntrinsicLast
 };
@@ -338,20 +338,22 @@ struct InsnDesc {
     return (properties & SPINTRINSIC) != 0;
   }
   bool IsComment() const {
-    return properties & ISCOMMENT;
+    return (properties & ISCOMMENT) != 0;
   }
   MOperator GetOpc() const {
     return opc;
   }
+
   bool Verify(const MapleVector<Operand *> &opnds) const {
     if (!validFunc) {
       return true;
     }
-    if(opnds.size() != opndMD.size()){
+    if (opnds.size() != opndMD.size()) {
       CHECK_FATAL_FALSE("The size of opnds is wrong.");
     }
     return validFunc(opnds);
   }
+
   void Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) const {
     if (!splitFunc) {
       return;

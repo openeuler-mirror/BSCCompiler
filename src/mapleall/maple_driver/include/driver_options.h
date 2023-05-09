@@ -164,7 +164,7 @@ extern maplecl::Option<bool> oWdoublePromotion;
 extern maplecl::Option<bool> oWduplicateDeclSpecifier;
 extern maplecl::Option<bool> oWduplicatedBranches;
 extern maplecl::Option<bool> oWduplicatedCond;
-extern maplecl::Option<bool> oWeak_reference_mismatches;
+extern maplecl::Option<std::string> oWeak_reference_mismatches;
 extern maplecl::Option<bool> oWeffc;
 extern maplecl::Option<bool> oWemptyBody;
 extern maplecl::Option<bool> oWendifLabels;
@@ -1867,6 +1867,7 @@ extern maplecl::Option<bool> oFobjcStd;
 extern maplecl::Option<bool> oFobjcSjljExceptions;
 extern maplecl::Option<bool> oFrandomSeed;
 extern maplecl::Option<bool> tlsAggressiveOpt;
+extern maplecl::Option<bool> staticLibmplpgo;
 
 /* ##################### STRING Options ############################################################### */
 

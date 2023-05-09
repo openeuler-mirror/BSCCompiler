@@ -81,7 +81,7 @@ void TailCallOpt::TailCallBBOpt(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, B
   }
 
   for (auto tmpBB : bb.GetPreds()) {
-    if (tmpBB->GetSuccs().size() != 1 || !tmpBB->GetEhSuccs().empty() ||
+    if (tmpBB->GetId() == bb.GetId() || tmpBB->GetSuccs().size() != 1 || !tmpBB->GetEhSuccs().empty() ||
         (tmpBB->GetKind() != BB::kBBFallthru && tmpBB->GetKind() != BB::kBBGoto)) {
       continue;
     }
@@ -134,7 +134,7 @@ bool TailCallOpt::DoTailCallOpt() {
     if (cgFunc.GetCleanupBB() != nullptr && cgFunc.GetCleanupBB()->GetPrev() != nullptr) {
       exitBB = cgFunc.GetCleanupBB()->GetPrev();
     } else {
-      exitBB = cgFunc.GetLastBB()->GetPrev();
+      exitBB = cgFunc.GetLastBB();
     }
   } else {
     exitBB = cgFunc.GetExitBBsVec().front();
@@ -214,7 +214,7 @@ void TailCallOpt::TideExitBB() {
 
 void TailCallOpt::Run() {
   stackProtect = cgFunc.GetNeedStackProtect();
-  if (CGOptions::DoTailCallOpt()) { 
+  if (CGOptions::DoTailCallOpt()) {
     (void)DoTailCallOpt(); // return value == "no call instr/only or 1 tailcall"
   }
   if (cgFunc.GetMirModule().IsCModule() && !exitBB2CallSitesMap.empty()) {

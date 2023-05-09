@@ -120,7 +120,7 @@ class ImpExpr {
 // blksize gives the size of the memory block in bytes; there are (blksize+3)/4
 // words; 1 bit for each word, so the bit vector's length in bytes is
 // ((blksize+3)/4+7)/8
-static inline uint32 BlockSize2BitVectorSize(uint32 blkSize) {
+inline uint32 BlockSize2BitVectorSize(uint32 blkSize) {
   uint32 bitVectorLen = ((blkSize + 3) / 4 + 7) / 8;
   return ((bitVectorLen + 3) >> 2) << 2;  // round up to word boundary
 }
@@ -696,11 +696,11 @@ class MIRModule {
 
   // now we use the full path name as the ankor name. Maybe a better way later.
   void SetTlsAnchorHashString() {
-    std::string fileName = GetFileName();
-    std::replace(fileName.begin(), fileName.end(), '.', '$');
-    std::replace(fileName.begin(), fileName.end(), '/', '$');
-    std::replace(fileName.begin(), fileName.end(), '-', '$');
-    tlsAnchorHashString = fileName;
+    std::string fName = GetFileName();
+    std::replace(fName.begin(), fName.end(), '.', '$');
+    std::replace(fName.begin(), fName.end(), '/', '$');
+    std::replace(fName.begin(), fName.end(), '-', '$');
+    tlsAnchorHashString = fName;
   }
 
   std::string &GetTlsAnchorHashString() {

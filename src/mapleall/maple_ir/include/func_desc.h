@@ -19,12 +19,13 @@ namespace maple {
 
 enum class FI {
   kUnknown = 0,
+  kNoDirectGlobleAccess,  // no global memory access without parameters
   kPure,      // means this function will not modify any global memory.
   kConst,     // means this function will not read/modify any global memory.
 };
 
 static std::string kFIStr[] = {
-    "kUnknown", "kPure", "kConst"
+    "kUnknown", "kNoDirectGlobleAccess", "kPure", "kConst"
 };
 
 enum class RI {
@@ -114,6 +115,10 @@ struct FuncDesc {
     return funcInfo == FI::kPure;
   }
 
+  bool NoDirectGlobleAccess() const {
+    return funcInfo == FI::kNoDirectGlobleAccess;
+  }
+
   bool IsReturnNoAlias() const {
     return returnInfo == RI::kNoAlias;
   }
@@ -121,23 +126,8 @@ struct FuncDesc {
     return returnInfo >= RI::kAliasParam0;
   }
 
-  size_t EnumToIndex(const RI &ri) const {
-    switch (ri) {
-      case RI::kAliasParam0: return 0;
-      case RI::kAliasParam1: return 1;
-      case RI::kAliasParam2: return 2;
-      case RI::kAliasParam3: return 3;
-      case RI::kAliasParam4: return 4;
-      case RI::kAliasParam5: return 5;
-      default: {
-        CHECK_FATAL(false, "Impossible.");
-      }
-    }
-  }
-
-  size_t ReturnParamX() const {
+  void CheckReturnInfo() const {
     CHECK_FATAL(returnInfo >= RI::kAliasParam0, "Impossible.");
-    return EnumToIndex(returnInfo);
   }
 
   const PI GetParamInfo(size_t index) const {
@@ -177,6 +167,10 @@ struct FuncDesc {
 
   void SetFuncInfo(const FI fi) {
     funcInfo = fi;
+  }
+
+  const FI &GetFuncInfo() const {
+    return funcInfo;
   }
 
   void SetFuncInfoNoBetterThan(const FI fi) {

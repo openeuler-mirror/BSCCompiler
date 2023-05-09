@@ -16,12 +16,14 @@
 #ifndef MAPLE_UTIL_INCLUDE_INT128
 #define MAPLE_UTIL_INCLUDE_INT128
 
+#include "mpl_logging.h"
 #include "securec.h"
 #include "types_def.h"
 
 namespace maple {
 using Int128ElemTy = uint64;
 constexpr size_t kInt128ElemNum = 2;
+constexpr size_t kInt128BitSize = 128;
 using Int128Arr = Int128ElemTy[kInt128ElemNum];
 
 class Int128Util {

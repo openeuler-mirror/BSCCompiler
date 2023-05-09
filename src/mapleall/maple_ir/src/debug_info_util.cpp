@@ -13,15 +13,10 @@
  * See the MulanPSL - 2.0 for more details.
  */
 
-#include <cstring>
 #include "mir_builder.h"
-#include "printing.h"
-#include "maple_string.h"
-#include "namemangler.h"
 #include "debug_info.h"
 #include "global_tables.h"
 #include "mir_type.h"
-#include "mpl_logging.h"
 
 namespace maple {
 #define TOSTR(s) #s

@@ -42,6 +42,7 @@ set(src_mapleallUT
     stacktrace_test.cpp
     maple_string_test.cpp
     int128_val_test.cpp
+    int128_lexer.cpp
     float128_ut_test.cpp
 )
 

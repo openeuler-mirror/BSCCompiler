@@ -745,5 +745,15 @@ class ASTUOAddrOfLabelExprStmt : public ASTStmt {
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
 };
+
+class ASTMemberExprStmt : public ASTStmt {
+ public:
+  explicit ASTMemberExprStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtMemberExpr) {}
+  ~ASTMemberExprStmt() override = default;
+
+ private:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+};
+
 }  // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_STMT_H

@@ -18,16 +18,7 @@
 #include <utility>
 #include <vector>
 #include <map>
-#include "opcodes.h"
-#include "prim_types.h"
-#include "mir_type.h"
-#include "mir_const.h"
-#include "mir_symbol.h"
-#include "mir_nodes.h"
-#include "mir_module.h"
-#include "mir_preg.h"
-#include "mir_function.h"
-#include "printing.h"
+#include "mir_builder.h"
 #include "opcode_info.h"
 #include "global_tables.h"
 

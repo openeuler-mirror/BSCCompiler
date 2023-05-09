@@ -27,7 +27,7 @@ PregIdx LMBCLowerer::GetSpecialRegFromSt(const MIRSymbol *sym) {
     CHECK(sym->GetStIndex() < memlayout->sym_alloc_table.size(),
           "index out of range in LMBCLowerer::GetSpecialRegFromSt");
     SymbolAlloc *symalloc = &memlayout->sym_alloc_table[sym->GetStIndex()];
-    if (symalloc->mem_segment->kind == MS_FPbased) {
+    if (symalloc->memSegment->kind == MS_FPbased) {
       specreg = -kSregFp;
     } else {
       CHECK_FATAL(false, "LMBCLowerer::LowerDread: bad memory layout for local variable");
@@ -41,7 +41,7 @@ PregIdx LMBCLowerer::GetSpecialRegFromSt(const MIRSymbol *sym) {
   return specreg;
 }
 
-BaseNode *LMBCLowerer::LowerAddrof(AddrofNode *expr) {
+BaseNode *LMBCLowerer::LowerAddrof(const AddrofNode *expr) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(expr->GetStIdx());
   ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
@@ -159,7 +159,7 @@ BaseNode *LMBCLowerer::LowerIread(const IreadNode &expr) {
   return mirBuilder->CreateExprTypeCvt(OP_cvt, expr.GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
 }
 
-BaseNode *LMBCLowerer::LowerIaddrof(IaddrofNode *expr) {
+BaseNode *LMBCLowerer::LowerIaddrof(const IaddrofNode *expr) {
   int32 offset = 0;
   if (expr->GetFieldID() != 0) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr->GetTyIdx());
@@ -204,7 +204,7 @@ BaseNode *LMBCLowerer::LowerExpr(BaseNode *expr) {
 }
 
 // lower using OP_blkassignoff
-void LMBCLowerer::LowerAggDassign(const DassignNode &dsnode, MIRType *lhsty,
+void LMBCLowerer::LowerAggDassign(const DassignNode &dsnode, const MIRType *lhsty,
                                   int32 offset, BlockNode *newblk) {
   BaseNode *rhs = dsnode.Opnd(0);
   CHECK_FATAL(rhs->GetOpCode() == OP_dread || rhs->GetOpCode() == OP_iread,
@@ -451,7 +451,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
   newblk->AddStatement(stmt);
 }
 
-void LMBCLowerer::FixPrototype4FirstArgReturn(IcallNode *icall) const {
+void LMBCLowerer::FixPrototype4FirstArgReturn(const IcallNode *icall) const {
   MIRFuncType *ftype = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icall->GetRetTyIdx()));
   if (!ftype->FirstArgReturn()) {
     return;

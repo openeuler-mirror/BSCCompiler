@@ -124,7 +124,7 @@ bool LoopScalarAnalysisResult::NormalizationWithByteCount(std::vector<CRNode*> &
       if (value % static_cast<int8>(byteSize) != 0) {
         return false;
       }
-      value = value / byteSize;
+      value = value / static_cast<int64>(byteSize);
       crNodeVector[i] = GetOrCreateCRConstNode(nullptr, value);
       continue;
     }
@@ -134,10 +134,10 @@ bool LoopScalarAnalysisResult::NormalizationWithByteCount(std::vector<CRNode*> &
         return false;
       }
       auto value = static_cast<CRConstNode*>(crMulNode->GetOpnd(0))->GetConstValue();
-      if (value % byteSize != 0) {
+      if (value % static_cast<int64>(byteSize) != 0) {
         return false;
       }
-      value = value / byteSize;
+      value = value / static_cast<int64>(byteSize);
       if (value == 1) {
         crNodeVector[i] = crMulNode->GetOpnd(1);
       } else {

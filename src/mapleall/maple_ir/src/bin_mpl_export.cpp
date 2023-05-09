@@ -713,14 +713,14 @@ void BinaryMplExport::OutputFunction(PUIdx puIdx) {
   }
   //  store Side Effect for each func
   if (func2SEMap) {
-    uint32 isSee = func->IsIpaSeen() == true ? 1 : 0;
-    uint32 isPure = func->IsPure() == true ? 1 : 0;
-    uint32 noDefArg = func->IsNoDefArgEffect() == true ? 1 : 0;
-    uint32 noDef = func->IsNoDefEffect() == true ? 1 : 0;
-    uint32 noRetGlobal = func->IsNoRetGlobal() == true ? 1 : 0;
-    uint32 noThr = func->IsNoThrowException() == true ? 1 : 0;
-    uint32 noRetArg = func->IsNoRetArg() == true ? 1 : 0;
-    uint32 noPriDef = func->IsNoPrivateDefEffect() == true ? 1 : 0;
+    uint32 isSee = func->IsIpaSeen() ? 1 : 0;
+    uint32 isPure = func->IsPure() ? 1 : 0;
+    uint32 noDefArg = func->IsNoDefArgEffect() ? 1 : 0;
+    uint32 noDef = func->IsNoDefEffect() ? 1 : 0;
+    uint32 noRetGlobal = func->IsNoRetGlobal() ? 1 : 0;
+    uint32 noThr = func->IsNoThrowException() ? 1 : 0;
+    uint32 noRetArg = func->IsNoRetArg() ? 1 : 0;
+    uint32 noPriDef = func->IsNoPrivateDefEffect() ? 1 : 0;
     uint32 i = 0;
     uint8 se = noThr << i++;
     se |= noRetGlobal << i++;
@@ -1123,7 +1123,7 @@ void BinaryMplExport::WriteEnumField(uint64 contentIdx) {
     OutputEnumeration(mirEnum);
     size++;
   }
-  Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
+  Fixup(totalSizeIdx, static_cast<uint32>(buf.size() - totalSizeIdx));
   Fixup(outEnumSizeIdx, size);
   WriteNum(~kBinEnumStart);
   return;
@@ -1330,7 +1330,7 @@ void BinaryMplExport::OutputType(const TyIdx &tyIdx) {
   }
 }
 
-void BinaryMplExport::OutputEnumeration(MIREnum *mirEnum) {
+void BinaryMplExport::OutputEnumeration(const MIREnum *mirEnum) {
   WriteNum(kBinEnumeration);
   Write(static_cast<uint8>(mirEnum->GetPrimType()));
   OutputStr(mirEnum->GetNameIdx());

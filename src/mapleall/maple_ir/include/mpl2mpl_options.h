@@ -18,8 +18,6 @@
 
 #include "cl_option.h"
 
-#include <string>
-
 namespace opts::mpl2mpl {
 
 extern maplecl::Option<std::string> dumpPhase;

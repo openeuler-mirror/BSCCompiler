@@ -1601,7 +1601,7 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
 
 // update init/stride/upper nodes of doloop
 // now hack code to widen const stride with value "vecFactor * original stride"
-void LoopVectorization::widenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
+void LoopVectorization::WidenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
   if (tp->vBound) {
     if (tp->vBound->incrNode) {
       doloop->SetIncrExpr(tp->vBound->incrNode);
@@ -1627,7 +1627,7 @@ void LoopVectorization::widenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
 void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
   // LogInfo::MapleLogger() << "\n**** dump doloopnode ****\n";
   // step 1: handle loop low/upper/stride
-  widenDoloop(doloop, tp);
+  WidenDoloop(doloop, tp);
 
   // step 2: insert dup stmt before doloop
   if ((!tp->vecInfo->uniformNodes.empty()) ||

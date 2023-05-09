@@ -97,15 +97,7 @@ void SideEffect::PropParamInfoFromCallee(const MeStmt &call, MIRFunction &callee
 
 void SideEffect::PropAllInfoFromCallee(const MeStmt &call, MIRFunction &callee) {
   const FuncDesc &desc = callee.GetFuncDesc();
-  if (!desc.IsPure() && !desc.IsConst()) {
-    curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
-  }
-  if (desc.IsPure()) {
-    curFuncDesc->SetFuncInfoNoBetterThan(FI::kPure);
-  }
-  if (desc.IsConst()) {
-    curFuncDesc->SetFuncInfoNoBetterThan(FI::kConst);
-  }
+  curFuncDesc->SetFuncInfoNoBetterThan(desc.GetFuncInfo());
   PropParamInfoFromCallee(call, callee);
 }
 
@@ -138,6 +130,9 @@ void SideEffect::DealWithMayUse(MeStmt &stmt) {
 }
 
 void SideEffect::DealWithStmt(MeStmt &stmt) {
+  if (stmt.GetOp() == OP_asm) {
+    curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+  }
   for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
     DealWithOperand(stmt.GetOpnd(i));
   }
@@ -366,7 +361,7 @@ void SideEffect::AnalysisFormalOst() {
       }
       if (meExpr->GetMeOp() == kMeOpAddrof) {
         curFuncDesc->SetParamInfoNoBetterThan(formalIndex, PI::kUnknown);
-        curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+        curFuncDesc->SetFuncInfoNoBetterThan(FI::kNoDirectGlobleAccess);
         continue;
       }
       CHECK_FATAL(meExpr->IsScalar(), "must be me scalar");
@@ -382,7 +377,7 @@ void SideEffect::AnalysisFormalOst() {
         } else {
           analysisLater.insert(std::make_pair(ost, formalIndex));
           curFuncDesc->SetParamInfoNoBetterThan(formalIndex, PI::kWriteMemoryOnly);
-          curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+          curFuncDesc->SetFuncInfoNoBetterThan(FI::kNoDirectGlobleAccess);
         }
         continue;
       }
@@ -392,9 +387,35 @@ void SideEffect::AnalysisFormalOst() {
           curFuncDesc->SetFuncInfoNoBetterThan(FI::kPure);
         } else {
           curFuncDesc->SetParamInfoNoBetterThan(formalIndex, PI::kUnknown);
-          curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+          curFuncDesc->SetFuncInfoNoBetterThan(FI::kNoDirectGlobleAccess);
         }
       }
+    }
+  }
+}
+
+inline static bool IsComplicatedType(const MIRType &type) {
+  return type.IsIncomplete() || type.GetPrimType() == PTY_agg;
+}
+
+void SideEffect::FilterComplicatedPrametersForNoGlobalAccess(MeFunction &f) {
+  if (!curFuncDesc->NoDirectGlobleAccess()) {
+    return;
+  }
+  for (auto &formalDef : f.GetMirFunc()->GetFormalDefVec()) {
+    auto *formalSym = formalDef.formalSym;
+    auto *formalType = formalSym->GetType();
+    if (IsComplicatedType(*formalType)) {
+      curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+      break;
+    }
+    if (!formalType->IsMIRPtrType()) {
+      continue;
+    }
+    auto *pointToType = static_cast<MIRPtrType*>(formalType)->GetPointedType();
+    if (IsComplicatedType(*pointToType) || pointToType->IsMIRPtrType()) {
+      curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+      break;
     }
   }
 }
@@ -416,6 +437,7 @@ bool SideEffect::Perform(MeFunction &f) {
       DealWithStmt(stmt);
     }
   }
+  FilterComplicatedPrametersForNoGlobalAccess(f);
   return !curFuncDesc->Equals(oldDesc);
 }
 

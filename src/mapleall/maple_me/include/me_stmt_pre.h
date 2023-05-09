@@ -24,14 +24,14 @@ class MeStmtPre : public SSAEPre {
  public:
   // a symbol is a candidate for ssaupdate if its ostidx key exists in the map;
   // the mapped set gives bbs where dassign's are inserted by stmtpre for the symbol
-  MeStmtPre(MeFunction &func, IRMap &map, Dominance &dom, MemPool &memPool, MemPool &mp2, uint32 limit)
-      : SSAEPre(map, dom, memPool, mp2, kStmtPre, limit, true, false),
+  MeStmtPre(MeFunction &func, IRMap &map, Dominance &dom, Dominance &pdom, MemPool &memPool, MemPool &mp2, uint32 limit)
+      : SSAEPre(map, dom, pdom, memPool, mp2, kStmtPre, limit, true, false),
         candsForSSAUpdate(std::less<OStIdx>()),
         func(&func),
         versionStackVec(ssaTab->GetOriginalStTable().GetOriginalStVector().size(), nullptr, ssaPreAllocator.Adapter()),
         useOccurMap(std::less<OStIdx>(), ssaPreAllocator.Adapter()) {}
 
-  virtual ~MeStmtPre() = default;
+  ~MeStmtPre() override = default;
   bool ScreenPhiBB(BBId) const override {
     return true;
   }
@@ -53,7 +53,7 @@ class MeStmtPre : public SSAEPre {
   void Finalize1() override;
   void Finalize2() override {};
   // fully available (replaces downsafety, canbeavail and later under SSAFRE)
-  void ResetFullyAvail(MePhiOcc &occ);
+  void ResetFullyAvail(MePhiOcc &occ) const;
   void ComputeFullyAvail();
   // rename phase
   bool AllVarsSameVersion(const MeRealOcc &realOcc1, const MeRealOcc &realOcc2) const override;
@@ -76,6 +76,10 @@ class MeStmtPre : public SSAEPre {
   void DoSSAFRE() override;
   BB *GetBB(BBId id) const override {
     return func->GetCfg()->GetBBFromID(id);
+  }
+
+  BB *GetBB(uint32 id) const {
+    return func->GetCfg()->GetBBFromID(BBId(id));
   }
 
   PUIdx GetPUIdx() const override {

@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "reg_alloc_color_ra.h"
+#include <limits>
 #include "cg.h"
 #include "mir_lower.h"
 #include "securec.h"
@@ -265,7 +266,7 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   if (cgFunc->GetCG()->IsLmbc()) {
     lr.SetRematLevel(kRematOff);
     regno_t spSaveReg = cgFunc->GetSpSaveReg();
-    if (spSaveReg && lr.GetRegNO() == spSaveReg) {
+    if (spSaveReg != 0 && lr.GetRegNO() == spSaveReg) {
       /*  For lmbc, %fp and %sp are frame pointer and stack pointer respectively, unlike
        *  non-lmbc where %fp and %sp can be of the same.
        *  With alloca() potentially changing %sp, lmbc creates another register to act
@@ -334,7 +335,7 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   lr.SetNumDefs(numDefs);
   lr.SetNumUses(numUses);
   if (isSpSave) {
-    lr.SetPriority(MAXFLOAT);
+    lr.SetPriority(std::numeric_limits<float>::max());
     lr.SetIsSpSave();
     return;
   }
@@ -2085,7 +2086,7 @@ void GraphColorRegAllocator::UpdateLocalRegDefUseCount(regno_t regNO, LocalRegAl
   if (usedIt != localRa.GetUseInfo().end() && !isDef) {
     /* reg use, decrement count */
     ASSERT(usedIt->second > 0, "Incorrect local ra info");
-    localRa.SetUseInfoElem(regNO, usedIt->second - 1);
+    localRa.SetUseInfoElem(regNO, static_cast<uint16>(usedIt->second - 1));
     if (regInfo->IsVirtualRegister(regNO) && localRa.IsInRegAssigned(regNO)) {
       localRa.IncUseInfoElem(localRa.GetRegAssignmentItem(regNO));
     }
@@ -2098,7 +2099,7 @@ void GraphColorRegAllocator::UpdateLocalRegDefUseCount(regno_t regNO, LocalRegAl
   if (defIt != localRa.GetDefInfo().end() && isDef) {
     /* reg def, decrement count */
     ASSERT(defIt->second > 0, "Incorrect local ra info");
-    localRa.SetDefInfoElem(regNO, defIt->second - 1);
+    localRa.SetDefInfoElem(regNO, static_cast<uint16>(defIt->second - 1));
     if (regInfo->IsVirtualRegister(regNO) && localRa.IsInRegAssigned(regNO)) {
       localRa.IncDefInfoElem(localRa.GetRegAssignmentItem(regNO));
     }
@@ -2443,7 +2444,7 @@ MemOperand *GraphColorRegAllocator::GetCommonReuseMem(const MapleSet<regno_t> &c
 }
 
 /* See if any of the non-conflict LR is spilled and use its memOpnd. */
-MemOperand *GraphColorRegAllocator::GetReuseMem(const LiveRange &lr) {
+MemOperand *GraphColorRegAllocator::GetReuseMem(const LiveRange &lr) const {
   if (cgFunc->GetMirModule().GetSrcLang() != kSrcLangC) {
     return nullptr;
   }
@@ -2482,7 +2483,7 @@ MemOperand *GraphColorRegAllocator::GetReuseMem(const LiveRange &lr) {
 MemOperand *GraphColorRegAllocator::GetSpillMem(uint32 vregNO, uint32 spillSize, bool isDest,
                                                 Insn &insn, regno_t regNO, bool &isOutOfRange) {
   MemOperand *memOpnd = cgFunc->GetOrCreatSpillMem(vregNO, spillSize);
-  if (cgFunc->GetCG()->IsLmbc() && cgFunc->GetSpSaveReg()) {
+  if (cgFunc->GetCG()->IsLmbc() && cgFunc->GetSpSaveReg() != 0) {
     LiveRange *lr = lrMap[cgFunc->GetSpSaveReg()];
     RegOperand *baseReg = nullptr;
     if (lr == nullptr) {
@@ -3400,8 +3401,8 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(const Insn &insn) {
         }
       }
     } else if (opnd->IsRegister()) {
-      bool isDef = md->GetOpndDes(static_cast<int>(opndIdx))->IsRegDef();
-      bool isUse = md->GetOpndDes(static_cast<int>(opndIdx))->IsRegUse();
+      bool isDef = md->GetOpndDes(opndIdx)->IsRegDef();
+      bool isUse = md->GetOpndDes(opndIdx)->IsRegUse();
       RegOperand *ropnd = static_cast<RegOperand*>(opnd);
       if (regInfo->IsUnconcernedReg(*ropnd)) {
         continue;

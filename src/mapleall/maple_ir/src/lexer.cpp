@@ -20,6 +20,7 @@
 #include "mir_module.h"
 #include "securec.h"
 #include "utils.h"
+#include "int128_util.h"
 
 namespace maple {
 int32 HexCharToDigit(char c) {
@@ -89,9 +90,9 @@ void MIRLexer::PrepareForFile(const std::string &filename) {
   kind = TK_invalid;
 }
 
-void MIRLexer::UpdateDbgMsg(uint32 lineNum) {
+void MIRLexer::UpdateDbgMsg(uint32 dbgLineNum) {
   if (dbgInfo) {
-    dbgInfo->UpdateMsg(lineNum, line.c_str());
+    dbgInfo->UpdateMsg(dbgLineNum, line.c_str());
   }
 }
 
@@ -196,22 +197,23 @@ TokenKind MIRLexer::GetHexConst(uint32 valStart, bool negative) {
     name = line.substr(valStart, curIdx - valStart);
     return TK_invalid;
   }
-  uint64 tmp = static_cast<uint32>(HexCharToDigit(c));
+  IntVal tmp(static_cast<uint64>(HexCharToDigit(c)), kInt128BitSize, negative);
   c = GetNextCurrentCharWithUpperCheck();
   while (isxdigit(c)) {
     tmp = (tmp << 4) + static_cast<uint32>(HexCharToDigit(c));
     c = GetNextCurrentCharWithUpperCheck();
   }
-  theIntVal = static_cast<int64>(static_cast<uint64>(tmp));
   if (negative) {
-    theIntVal = -theIntVal;
+    tmp = -tmp;
   }
+  theIntVal = tmp.Trunc(PTY_i64).GetExtValue();
   theFloatVal = static_cast<float>(theIntVal);
   theDoubleVal = static_cast<double>(theIntVal);
   if (negative && theIntVal == 0) {
     theFloatVal = -theFloatVal;
     theDoubleVal = -theDoubleVal;
   }
+  theInt128Val.Assign(tmp);
   name = line.substr(valStart, curIdx - valStart);
   return TK_intconst;
 }
@@ -246,17 +248,16 @@ TokenKind MIRLexer::GetLongHexConst(uint32 valStart, bool negative) {
 }
 
 TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
-  auto negOrSelf = [negative](uint64 val) { return negative ? ~val + 1 : val; };
-
-  theIntVal = static_cast<int64>(HexCharToDigit(GetCharAtWithUpperCheck(curIdx)));
-
-  int64 radix = theIntVal == 0 ? 8 : 10;
-
-  char c = GetNextCurrentCharWithUpperCheck();
-
-  for (theIntVal = static_cast<int64>(negOrSelf(static_cast<uint64>(theIntVal)));
-      isdigit(c); c = GetNextCurrentCharWithUpperCheck()) {
-    theIntVal = (theIntVal * radix) + static_cast<int64>(negOrSelf(static_cast<uint32>(HexCharToDigit(c))));
+  char c = GetCharAtWithUpperCheck(curIdx);
+  if (!isxdigit(c)) {
+    name = line.substr(valStart, curIdx - valStart);
+    return TK_invalid;
+  }
+  uint64 radix = HexCharToDigit(c) == 0 ? 8 : 10;
+  IntVal tmp(static_cast<uint64>(0), kInt128BitSize, negative);
+  while (isdigit(c)) {
+    tmp = (tmp * radix) + static_cast<uint64>(HexCharToDigit(c));
+    c = GetNextCurrentCharWithUpperCheck();
   }
 
   if (c == 'u' || c == 'U') {  // skip 'u' or 'U'
@@ -275,6 +276,12 @@ TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
 
   name = line.substr(valStart, curIdx - valStart);
 
+  if (negative) {
+    tmp = -tmp;
+  }
+
+  theInt128Val.Assign(tmp);
+  theIntVal = tmp.Trunc(PTY_u64).GetExtValue();
   if (negative) {
     theFloatVal = static_cast<float>(static_cast<int64>(theIntVal));
     theDoubleVal = static_cast<double>(static_cast<int64>(theIntVal));

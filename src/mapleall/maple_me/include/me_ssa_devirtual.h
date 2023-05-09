@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -23,13 +23,14 @@ class MeSSADevirtual : public SSADevirtual {
  public:
   MeSSADevirtual(MemPool &memPool, MIRModule &mod, MeFunction &func, IRMap &irMap, KlassHierarchy &kh, Dominance &dom,
                  bool skipReturnTypeOpt)
-      : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetCfg()->GetAllBBs().size(), skipReturnTypeOpt), func(&func) {}
+      : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetCfg()->GetAllBBs().size(), skipReturnTypeOpt),
+        func(&func) {}
   MeSSADevirtual(MemPool &memPool, MIRModule &mod, MeFunction &func, IRMap &irMap, KlassHierarchy &kh, Dominance &dom,
                  Clone &clone, bool skipReturnTypeOpt)
       : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetCfg()->GetAllBBs().size(), clone, skipReturnTypeOpt),
         func(&func) {}
 
-  ~MeSSADevirtual() = default;
+  ~MeSSADevirtual() override = default;
 
  protected:
   BB *GetBB(BBId id) const override {
@@ -44,17 +45,6 @@ class MeSSADevirtual : public SSADevirtual {
   MeFunction *func;
 };
 
-class MeDoSSADevirtual : public MeFuncPhase {
- public:
-  explicit MeDoSSADevirtual(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoSSADevirtual() = default;
-
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *frm, ModuleResultMgr *mrm) override;
-
-  virtual std::string PhaseName() const override {
-    return "ssadevirt";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MESSADevirtual, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MESSADEVIRTUAL_H

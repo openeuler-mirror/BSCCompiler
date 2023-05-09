@@ -35,7 +35,7 @@ static uint32 maxUnitIdx = 0;
 
 class CommonScheduleInfo {
  public:
-  CommonScheduleInfo(MemPool &memPool)
+  explicit CommonScheduleInfo(MemPool &memPool)
       : csiAlloc(&memPool), candidates(csiAlloc.Adapter()), schedResults(csiAlloc.Adapter()) {}
   ~CommonScheduleInfo() = default;
 
@@ -62,7 +62,7 @@ class CommonScheduleInfo {
   void EraseNodeFromCandidates(const DepNode *depNode) {
     for (auto iter = candidates.begin(); iter != candidates.end(); ++iter) {
       if (*iter == depNode) {
-        (void )candidates.erase(iter);
+        candidates.erase(iter);
         return;
       }
     }
@@ -165,7 +165,7 @@ class ListScheduler {
   void DumpDelay() const;
   void DumpEStartLStartOfAllNodes();
   void DumpDepNodeInfo(const BB &curBB, MapleVector<DepNode*> &nodes, const std::string state) const;
-  void DumpReservation(DepNode &depNode) const;
+  void DumpReservation(const DepNode &depNode) const;
 
   void EraseNodeFromReadyList(const DepNode *depNode) {
     for (auto iter = readyList.begin(); iter != readyList.end(); ++iter) {
@@ -287,7 +287,7 @@ class ListScheduler {
    * The function ptr that computes instruction priority based on heuristic rules,
    * list-scheduler provides default implementations and supports customization by other schedulers
    */
-  SchedRankFunctor rankScheduleInsns= nullptr;
+  SchedRankFunctor rankScheduleInsns = nullptr;
   bool doDelayHeuristics = true;  // true: compute delay;  false: compute eStart & lStart
   std::string phaseName;   // for dumping log
   /*

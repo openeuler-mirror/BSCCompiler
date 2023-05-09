@@ -607,7 +607,7 @@ class MIRFloat128Const : public MIRConst {
     };
     // if long double value is too huge to be represented in double, then return inf
     if (GetExponent() - ldouble_exp_offset > double_max_exp) {
-      return GetSign() ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
+      return GetSign() != 0 ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
     }
     // if long double value us too small to be represented in double, then return 0.0
     else if (GetExponent() - ldouble_exp_offset < double_min_exp - double_mantissa_bits) {

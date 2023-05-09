@@ -17,6 +17,7 @@
 #define MAPLE_ME_INCLUDE_ME_TAILCALL_H
 #include "maple_phase.h"
 #include "me_function.h"
+#include "mempool_allocator.h"
 namespace maple {
 
 // This file will mark the callstmts as maytailcall of current function if they have no
@@ -25,6 +26,7 @@ namespace maple {
 // for doing tailcall, we will do further analysis on the back-end
 class TailcallOpt : public AnalysisResult {
  public:
+  ~TailcallOpt() override = default;
   TailcallOpt(MeFunction &f, MemPool &mempool);
 
   void Walk();
@@ -32,8 +34,9 @@ class TailcallOpt : public AnalysisResult {
 
  private:
   MeFunction &func;
-  std::vector<MeStmt *> callCands;
-  std::vector<int> escapedPoints;
+  MapleAllocator tailcallAlloc;
+  MapleVector<MeStmt *> callCands;
+  MapleVector<int> escapedPoints;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(METailcall, MeFunction)

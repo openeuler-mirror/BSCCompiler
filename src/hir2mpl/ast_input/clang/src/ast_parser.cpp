@@ -166,6 +166,7 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
     STMT_CASE(DeclRefExpr);
     STMT_CASE(UnaryExprOrTypeTraitExpr);
     STMT_CASE(AddrLabelExpr);
+    STMT_CASE(MemberExpr);
     default: {
       CHECK_FATAL(false, "ASTStmt: %s NIY", stmt.getStmtClassName());
       return nullptr;
@@ -674,6 +675,16 @@ ASTStmt *ASTParser::ProcessStmtLabelStmt(MapleAllocator &allocator, const clang:
 
 ASTStmt *ASTParser::ProcessStmtAddrLabelExpr(MapleAllocator &allocator, const clang::AddrLabelExpr &expr) {
   ASTUOAddrOfLabelExprStmt *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTUOAddrOfLabelExprStmt>(allocator);
+  CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
+  ASTExpr *astExpr = ProcessExpr(allocator, &expr);
+  CHECK_FATAL(astExpr != nullptr, "astExpr is nullptr");
+  astStmt->SetCallAlloca(astExpr->IsCallAlloca());
+  astStmt->SetASTExpr(astExpr);
+  return astStmt;
+}
+
+ASTStmt *ASTParser::ProcessStmtMemberExpr(MapleAllocator &allocator, const clang::MemberExpr &expr) {
+  ASTMemberExprStmt *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTMemberExprStmt>(allocator);
   CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
   ASTExpr *astExpr = ProcessExpr(allocator, &expr);
   CHECK_FATAL(astExpr != nullptr, "astExpr is nullptr");

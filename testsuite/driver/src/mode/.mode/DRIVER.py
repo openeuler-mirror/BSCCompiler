@@ -22,6 +22,13 @@ DRIVER = {
             inputs="${APP}"
         )
     ],
+    "compileWithCsmith": [
+        Driver(
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            global_option="${OPTION} -I ${MAPLE_ROOT}/testsuite/c_test/csmith_test/runtime_x86",
+            inputs="${APP}"
+        )
+    ],
     "compileWithGcc": [
         Driver(
             maple="${OUT_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ",

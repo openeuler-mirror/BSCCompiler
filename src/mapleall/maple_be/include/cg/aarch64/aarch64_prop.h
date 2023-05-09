@@ -128,7 +128,7 @@ class A64ConstProp {
   bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT) const;
   bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;
   bool BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;
-  bool ReplaceCmpToCmn(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const;
+  bool ReplaceCmpToCmn(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;
 
   MemPool *constPropMp;
   CGFunc *cgFunc;

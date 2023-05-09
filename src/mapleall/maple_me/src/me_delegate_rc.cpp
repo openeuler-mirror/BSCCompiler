@@ -62,7 +62,7 @@ const std::set<maple::MIRIntrinsicID> canThrowIntrinsicsList {
     maple::INTRN_JAVA_THROW_ARITHMETIC,
     maple::INTRN_JAVA_THROW_CLASSCAST,
 };
-const std::set<std::string> whitelistFunc {
+const std::set<std::string> kWhiteListFunc {
 #include "rcwhitelist.def"
 };
 const size_t kMinIdxInVec = 2;
@@ -440,7 +440,7 @@ void DelegateRC::DelegateRCTemp(MeStmt &stmt) {
     }
     case OP_return: {
       std::string funcName = func.GetMirFunc()->GetName();
-      if (whitelistFunc.find(funcName) != whitelistFunc.end()) {
+      if (kWhiteListFunc.find(funcName) != kWhiteListFunc.end()) {
         break;
       }
       auto &retStmt = static_cast<RetMeStmt&>(stmt);
