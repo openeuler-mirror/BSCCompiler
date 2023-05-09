@@ -25,7 +25,9 @@ class BaseSchedule {
  public:
   BaseSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, bool doDelay = false)
       : schedMP(mp), schedAlloc(&mp), cgFunc(f), cda(cdAna), doDelayHeu(doDelay) {}
-  virtual ~BaseSchedule() = default;
+  virtual ~BaseSchedule() {
+    listScheduler = nullptr;
+  }
 
   virtual void Run() = 0;
   void DoLocalSchedule(CDGRegion &region);

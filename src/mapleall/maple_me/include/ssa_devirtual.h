@@ -24,7 +24,7 @@ namespace maple {
 class SSADevirtual {
  public:
   static bool debug;
-  SSADevirtual(MemPool &memPool, const MIRModule &currMod, IRMap &irMap, KlassHierarchy &currKh,
+  SSADevirtual(MemPool &memPool, const MIRModule &currMod, const IRMap &irMap, KlassHierarchy &currKh,
                Dominance &currDom, size_t bbVecSize, bool skipReturnTypeOpt)
       : devirtualAlloc(&memPool),
         mod(&currMod),
@@ -78,7 +78,7 @@ class SSADevirtual {
  private:
   MapleAllocator devirtualAlloc;
   const MIRModule *mod;
-  IRMap *irMap;
+  const IRMap *irMap;
   KlassHierarchy *kh;
   Dominance *dom;
   MapleVector<bool> bbVisited;  // needed because dominator tree is a DAG in wpo

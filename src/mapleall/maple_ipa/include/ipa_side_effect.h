@@ -28,6 +28,7 @@ class SideEffect {
     vstsValueAliasWithFormal.resize(std::min(meFunc->GetMirFunc()->GetFormalCount(), kMaxParamCount));
   }
   ~SideEffect() {
+    callGraph = nullptr;
     alias = nullptr;
     dom = nullptr;
     meFunc = nullptr;

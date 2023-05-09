@@ -62,7 +62,8 @@ class LoopVecInfo {
   void ResetStmtRHSTypeSize() { currentRHSTypeSize = 0; }
   bool UpdateRHSTypeSize(PrimType ptype); // record rhs node typesize
   // used when profileUse is true
-  void UpdateDoloopProfData(MIRFunction *mirFunc, const DoloopNode *doLoop, int32_t vecLanes, bool isRemainder = false);
+  void UpdateDoloopProfData(MIRFunction &mirFunc, const DoloopNode *doLoop,
+                            int32_t vecLanes, bool isRemainder = false) const;
   uint32_t largestTypeSize;  // largest size type in vectorizable stmtnodes
   uint32_t smallestTypeSize;  // smallest size type in vectorizable stmtnodes
   uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt
@@ -130,21 +131,21 @@ class LoopVectorization {
 
   void Perform();
   void TransformLoop();
-  void VectorizeDoLoop(DoloopNode *, LoopTransPlan*);
-  void VectorizeStmt(BaseNode *, LoopTransPlan *);
-  void VectorizeExpr(BaseNode *, LoopTransPlan *, MapleVector<BaseNode *>&, uint32_t);
-  MIRType *GenVecType(PrimType sPrimType, uint8_t lanes) const;
+  void VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp);
+  void VectorizeStmt(BaseNode *node, LoopTransPlan *tp);
+  void VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVector<BaseNode *> &vectorizedNode, uint32_t depth);
+  MIRType *GenVecType(PrimType sPrimType, uint8 lanes) const;
   IntrinsicopNode *GenDupScalarExpr(BaseNode *scalar, PrimType vecPrimType);
-  bool ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BaseNode *x);
-  bool Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BlockNode *block);
-  void widenDoloop(DoloopNode *doloop, LoopTransPlan *);
-  DoloopNode *PrepareDoloop(DoloopNode *, LoopTransPlan *);
-  DoloopNode *GenEpilog(DoloopNode *) const;
+  bool ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo *vecInfo, BaseNode *x);
+  bool Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo *vecInfo, BlockNode *block);
+  void widenDoloop(DoloopNode *doloop, LoopTransPlan *tp);
+  DoloopNode *PrepareDoloop(DoloopNode *doloop, LoopTransPlan *tp);
+  DoloopNode *GenEpilog(DoloopNode *doloop) const;
   const MemPool *GetLocalMp() const { return localMP; }
   const MapleMap<DoloopNode *, LoopTransPlan *> *GetVecPlans() const { return &vecPlans; }
   std::string PhaseName() const { return "lfoloopvec"; }
-  bool CanConvert(uint32_t, uint32_t) const;
-  bool CanAdjustRhsConstType(PrimType, ConstvalNode *);
+  bool CanConvert(uint32_t lshtypeSize, uint32_t rhstypeSize) const;
+  bool CanAdjustRhsConstType(PrimType targetType, ConstvalNode *rhs);
   bool IsReductionOp(Opcode op) const;
   bool CanWidenOpcode(const BaseNode *target, PrimType opndType) const;
   IntrinsicopNode *GenSumVecStmt(BaseNode *vecTemp, PrimType vecPrimType);
@@ -168,7 +169,7 @@ class LoopVectorization {
   RegreadNode *GenVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
   bool IassignIsReduction(IassignNode *iassign, LoopVecInfo* vecInfo);
   RegreadNode *GetorNewVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
-  MIRType *VectorizeIassignLhs(IassignNode &iassign, const LoopTransPlan *tp) const;
+  MIRType *VectorizeIassignLhs(IassignNode &iassign, const LoopTransPlan &tp) const;
   void VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp);
   void GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes);
 

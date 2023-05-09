@@ -32,7 +32,7 @@ class ChainingPattern : public OptimizationPattern {
     patternName = "BB Chaining";
     dotColor = kCfgoChaining;
   }
-  virtual ~ChainingPattern() = default;
+  ~ChainingPattern() override = default;
 
   bool Optimize(BB &curBB) override;
 
@@ -53,7 +53,7 @@ class SequentialJumpPattern : public OptimizationPattern {
     dotColor = kCfgoSj;
   }
 
-  virtual ~SequentialJumpPattern() = default;
+  ~SequentialJumpPattern() override = default;
   bool Optimize(BB &curBB) override;
 
  protected:
@@ -70,7 +70,7 @@ class FlipBRPattern : public OptimizationPattern {
     dotColor = kCfgoFlipCond;
   }
 
-  virtual ~FlipBRPattern() = default;
+  ~FlipBRPattern() override = default;
   bool Optimize(BB &curBB) override;
 
   CfgoPhase GetPhase() const {
@@ -97,7 +97,7 @@ class UnreachBBPattern : public OptimizationPattern {
     func.GetTheCFG()->FindAndMarkUnreachable(*cgFunc);
   }
 
-  virtual ~UnreachBBPattern() = default;
+  ~UnreachBBPattern() override = default;
   bool Optimize(BB &curBB) override;
 };
 
@@ -112,7 +112,7 @@ class DuplicateBBPattern : public OptimizationPattern {
     dotColor = kCfgoDup;
   }
 
-  virtual ~DuplicateBBPattern() = default;
+  ~DuplicateBBPattern() override = default;
   bool Optimize(BB &curBB) override;
 
  private:
@@ -129,7 +129,7 @@ class EmptyBBPattern : public OptimizationPattern {
     dotColor = kCfgoEmpty;
   }
 
-  virtual ~EmptyBBPattern() = default;
+  ~EmptyBBPattern() override = default;
   bool Optimize(BB &curBB) override;
 };
 
@@ -139,7 +139,7 @@ class CFGOptimizer : public Optimizer {
     name = "CFGO";
   }
 
-  virtual ~CFGOptimizer() = default;
+  ~CFGOptimizer() override = default;
   CfgoPhase GetPhase() const {
     return phase;
   }

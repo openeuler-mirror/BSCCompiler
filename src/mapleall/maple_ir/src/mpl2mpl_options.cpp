@@ -75,7 +75,7 @@ maplecl::Option<bool> inlineOpt({"--inline"},
                            "  --inline                    \tEnable function inlining\n"
                            "  --no-inline                 \tDisable function inlining\n",
                            {driverCategory, mpl2mplCategory},
-                           maplecl::DisableWith("--no-inline"));
+                           maplecl::DisableEvery({"-fno-inline", "--no-inline"}));
 
 maplecl::Option<bool> ipaClone({"--ipa-clone"},
                           "  --ipa-clone                 \tEnable ipa constant_prop and clone\n"
@@ -343,22 +343,22 @@ maplecl::Option<uint32_t> buildApp({"--build-app"},
                               "  --build-app[=0,1,2]         \tbuild the app dex"
                               " 0:off, 1:method1, 2:method2, ignore:method1\n",
                               {mpl2mplCategory},
-                              maplecl::optionalValue, maplecl::Init(1));
+                              maplecl::kOptionalValue, maplecl::Init(1));
 
 maplecl::Option<bool> partialAot({"--partialAot"},
                             "  --partialAot               \tenerate the detailed information for the partialAot\n",
                             {mpl2mplCategory},
-                            maplecl::optionalValue);
+                            maplecl::kOptionalValue);
 
 maplecl::Option<uint32_t> decoupleInit({"--decouple-init"},
                                   "  --decouple-init          \tdecouple the constructor method\n",
                                   {mpl2mplCategory},
-                                  maplecl::optionalValue, maplecl::Init(1));
+                                  maplecl::kOptionalValue, maplecl::Init(1));
 
 maplecl::Option<std::string> sourceMuid({"--source-muid"},
                                    "  --source-muid=""            \tWrite the source file muid into the mpl file\n",
                                    {mpl2mplCategory},
-                                   maplecl::optionalValue);
+                                   maplecl::kOptionalValue);
 
 maplecl::Option<bool> deferredVisit({"--deferred-visit"},
                                "  --deferred-visit            \tGenerate deferred MCC call for undefined type\n"
@@ -418,7 +418,7 @@ maplecl::Option<std::string> appPackageName({"--app-package-name"},
                                        "  --app-package-name          \tSet APP package name\n"
                                        "                              \t--app-package-name=package_name\n",
                                        {mpl2mplCategory},
-                                       maplecl::optionalValue);
+                                       maplecl::kOptionalValue);
 
 maplecl::Option<std::string> checkClInvocation({"--check_cl_invocation"},
                                           "  --check_cl_invocation       \tFor classloader invocation checking\n"
@@ -463,7 +463,7 @@ maplecl::Option<bool> genPGOReport({"--gen-pgo-report"},
 maplecl::Option<uint32_t> inlineCache({"--inlineCache"},
                                  "  --inlineCache            \tbuild inlineCache 0,1,2,3\n",
                                  {mpl2mplCategory},
-                                 maplecl::optionalValue, maplecl::Init(0));
+                                 maplecl::kOptionalValue, maplecl::Init(0));
 
 maplecl::Option<bool> noComment({"--no-comment"},
                            "  --no-comment             \tbuild inlineCache 0:off, 1:open\n",

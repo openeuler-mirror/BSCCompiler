@@ -179,7 +179,7 @@ std::set<uint32> Insn::GetDefRegs() const {
   return defRegNOs;
 }
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
 void Insn::Check() const {
   if (!md) {
     CHECK_FATAL(false, " need machine description for target insn ");
@@ -193,10 +193,11 @@ void Insn::Check() const {
 }
 #endif
 
-Insn *Insn::Clone(const MemPool &memPool) const {
+Insn *Insn::Clone(const MemPool /* &memPool */) const {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
+
 Operand *Insn::GetCallTargetOperand() const {
   ASSERT(IsCall() || IsTailCall(), "should be call");
   return &GetOperand(kInsnFirstOpnd);
@@ -207,7 +208,6 @@ ListOperand *Insn::GetCallArgumentOperand() {
   ASSERT(GetOperand(1).IsList(), "should be list");
   return &static_cast<ListOperand&>(GetOperand(kInsnSecondOpnd));
 }
-
 
 void Insn::CommuteOperands(uint32 dIndex, uint32 sIndex) {
   Operand *tempCopy = opnds[sIndex];

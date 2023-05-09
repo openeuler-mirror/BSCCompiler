@@ -56,6 +56,7 @@ class ValidBitOpt {
     cgDce = f.GetCG()->CreateCGDce(mp, f, info);
   }
   virtual ~ValidBitOpt() {
+    memPool = nullptr;
     cgFunc = nullptr;
     ssaInfo = nullptr;
     regll = nullptr;

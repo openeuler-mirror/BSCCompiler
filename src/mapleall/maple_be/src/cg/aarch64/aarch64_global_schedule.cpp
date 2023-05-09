@@ -133,7 +133,7 @@ void AArch64GlobalSchedule::FinishScheduling(CDGNode &cdgNode) {
       // Remove the instruction & depNode from the candidate BB
       bb->RemoveInsn(*depNode->GetInsn());
       // Append the instruction of candidateBB
-      curBB->AppendOtherBBInsn(*bb, *depNode->GetInsn());
+      curBB->AppendOtherBBInsn(*depNode->GetInsn());
     } else {
       // Append debug & comment infos of curBB
       for (auto commentInsn : depNode->GetComments()) {

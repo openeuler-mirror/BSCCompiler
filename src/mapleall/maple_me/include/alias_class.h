@@ -243,7 +243,7 @@ class AliasClass : public AnalysisResult {
 
  private:
   bool CallHasNoSideEffectOrPrivateDefEffect(const CallNode &stmt, FuncAttrKind attrKind) const;
-  const FuncDesc &GetFuncDescFromCallStmt(const CallNode &stmt) const;
+  const FuncDesc &GetFuncDescFromCallStmt(const CallNode &callstmt) const;
   bool CallHasNoPrivateDefEffect(StmtNode *stmt) const;
   void RecordAliasAnalysisInfo(const VersionSt &vst);
   VersionSt *FindOrCreateVstOfExtraLevOst(
@@ -265,7 +265,7 @@ class AliasClass : public AnalysisResult {
   void CollectMayUseForNextLevel(const VersionSt &vst, OstPtrSet &mayUseOsts,
                                  const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayUseForIntrnCallOpnd(const StmtNode &stmt, OstPtrSet &mayDefOsts, OstPtrSet &mayUseOsts);
-  void CollectMayDefUseForIthOpnd(const VersionSt &vst, OstPtrSet &mayUseOsts,
+  void CollectMayDefUseForIthOpnd(const VersionSt &vstOfIthOpnd, OstPtrSet &mayUseOsts,
                                   const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayDefUseForCallOpnd(const StmtNode &stmt,
                                    OstPtrSet &mayDefOsts, OstPtrSet &mayUseOsts,
@@ -284,7 +284,7 @@ class AliasClass : public AnalysisResult {
   void CollectMayDefForDassign(const StmtNode &stmt, OstPtrSet &mayDefOsts);
   void InsertMayDefNode(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart, StmtNode &stmt, BBId bbid);
   void InsertMayDefDassign(StmtNode &stmt, BBId bbid);
-  bool IsEquivalentField(TyIdx tyIdxA, FieldID fldA, TyIdx tyIdxB, FieldID fldB) const;
+  bool IsEquivalentField(TyIdx tyIdxA, FieldID fieldA, TyIdx tyIdxB, FieldID fieldB) const;
   bool IsAliasInfoEquivalentToExpr(const AliasInfo &ai, const BaseNode *expr);
   void CollectMayDefForIassign(StmtNode &stmt, OstPtrSet &mayDefOsts);
   void InsertMayDefNodeExcludeFinalOst(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart,
@@ -294,7 +294,7 @@ class AliasClass : public AnalysisResult {
   void InsertMayUseNodeExcludeFinalOst(const OstPtrSet &mayUseOsts, AccessSSANodes *ssaPart);
   void InsertMayDefUseIntrncall(StmtNode &stmt, BBId bbid);
   void InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid);
-  void InsertMayDefUseAsm(StmtNode &stmt, const BBId bbid);
+  void InsertMayDefUseAsm(StmtNode &stmt, const BBId bbID);
   virtual BB *GetBB(BBId id) = 0;
   void ProcessIdsAliasWithRoot(const std::set<unsigned int> &idsAliasWithRoot, std::vector<unsigned int> &newGroups);
   int GetOffset(const Klass &super, const Klass &base) const;

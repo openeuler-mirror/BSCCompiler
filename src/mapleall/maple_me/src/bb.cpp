@@ -17,6 +17,7 @@
 #include "me_ssa.h"
 #include "mempool_allocator.h"
 #include "ver_symbol.h"
+#include "mir_lower.h"
 
 namespace maple {
 std::string BB::StrAttribute() const {
@@ -343,6 +344,59 @@ void BB::MoveAllSuccToPred(BB *newPred, BB *commonExit) {
       }
     }
   }
+}
+
+bool BB::IsImmediateUnlikelyBB() const {
+  if (pred.size() != 1 || pred[0]->GetKind() != kBBCondGoto) {
+    return false;
+  }
+  auto *condBB = pred[0];
+  auto *unlikelySucc = condBB->GetUnlikelySuccOfCondBB();
+  return unlikelySucc == this;
+}
+
+bool BB::IsImmediateLikelyBB() const {
+  if (pred.size() != 1 || pred[0]->GetKind() != kBBCondGoto) {
+    return false;
+  }
+  auto *condBB = pred[0];
+  auto *likelySucc = condBB->GetLikelySuccOfCondBB();
+  return likelySucc == this;
+}
+
+BB *BB::GetUnlikelySuccOfCondBB() {
+  CHECK_FATAL(kind == kBBCondGoto, "expect a condBB");
+  // The probability of jumping to targetBB
+  int32 branchProb = -1;
+  if (!meStmtList.empty()) {  // for MEIR BB
+    auto *condMeStmt = static_cast<CondGotoMeStmt*>(GetLastMe());
+    branchProb = condMeStmt->GetBranchProb();
+  } else if (!stmtNodeList.empty()) {  // for MapleIR BB
+    auto &condStmt = static_cast<CondGotoNode&>(GetLast());
+    branchProb = condStmt.GetBranchProb();
+  } else {
+    CHECK_FATAL_FALSE("a condBB should be never empty");
+  }
+  auto *fallthruBB = GetSucc(0); // The first successor of condBB is always the fallthrough BB
+  auto *targetBB = GetSucc(1);   // The second successor of condBB is always the target BB
+  if (branchProb == kProbUnlikely) {
+    return targetBB;
+  }
+  if (branchProb == kProbLikely) {
+    return fallthruBB;
+  }
+  return nullptr;
+}
+
+BB *BB::GetLikelySuccOfCondBB() {
+  auto *unlikelySucc = GetUnlikelySuccOfCondBB();
+  if (unlikelySucc == nullptr) {
+    return nullptr;
+  }
+  auto *fallthruBB = GetSucc(0); // The first successor of condBB is always the fallthrough BB
+  auto *targetBB = GetSucc(1);   // The second successor of condBB is always the target BB
+  auto *likelySucc = (unlikelySucc == targetBB) ? fallthruBB : targetBB;
+  return likelySucc;
 }
 
 void BB::FindReachableBBs(std::vector<bool> &visitedBBs) const {

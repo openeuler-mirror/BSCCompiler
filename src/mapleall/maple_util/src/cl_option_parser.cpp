@@ -161,7 +161,7 @@ template <typename T>
 RetCode Option<T>::ParseDigit(size_t &argsIndex,
                               const std::deque<std::string_view> &args,
                               KeyArg &keyArg) {
-  static_assert(digitalCheck<T>, "Expected (u)intXX types");
+  static_assert(kDigitalCheck<T>, "Expected (u)intXX types");
 
   RetCode err = RetCode::noError;
   size_t indexIncCnt = 0;

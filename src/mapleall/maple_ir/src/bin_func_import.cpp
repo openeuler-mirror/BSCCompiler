@@ -401,7 +401,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
     case OP_intrinsicopwithtype: {
       IntrinsicopNode *intrnNode =
           mod.CurFuncCodeMemPool()->New<IntrinsicopNode>(func->GetCodeMPAllocator(), OP_intrinsicopwithtype, typ);
-      intrnNode->SetIntrinsic((MIRIntrinsicID)ReadNum());
+      intrnNode->SetIntrinsic(static_cast<MIRIntrinsicID>(ReadNum()));
       intrnNode->SetTyIdx(ImportType());
       auto n = static_cast<uint32>(ReadNum());
       for (uint32 i = 0; i < n; ++i) {
@@ -518,7 +518,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_iassignoff: {
         IassignoffNode *s = func->GetCodeMemPool()->New<IassignoffNode>();
-        s->SetPrimType((PrimType)Read());
+        s->SetPrimType(static_cast<PrimType>(Read()));
         s->SetOffset(static_cast<int32>(ReadNum()));
         s->SetOpnd(ImportExpression(func), kFirstOpnd);
         s->SetOpnd(ImportExpression(func), kSecondOpnd);
@@ -664,7 +664,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       case OP_intrinsiccallassigned:
       case OP_xintrinsiccallassigned: {
         IntrinsiccallNode *s = func->GetCodeMemPool()->New<IntrinsiccallNode>(mod, op);
-        s->SetIntrinsic((MIRIntrinsicID)ReadNum());
+        s->SetIntrinsic(static_cast<MIRIntrinsicID>(ReadNum()));
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = static_cast<uint8>(ReadNum());
         s->SetNumOpnds(numOpr);
@@ -682,7 +682,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_intrinsiccallwithtype: {
         IntrinsiccallNode *s = func->GetCodeMemPool()->New<IntrinsiccallNode>(mod, op);
-        s->SetIntrinsic((MIRIntrinsicID)ReadNum());
+        s->SetIntrinsic(static_cast<MIRIntrinsicID>(ReadNum()));
         s->SetTyIdx(ImportType());
         numOpr = static_cast<uint8>(ReadNum());
         s->SetNumOpnds(numOpr);
@@ -694,7 +694,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_intrinsiccallwithtypeassigned: {
         IntrinsiccallNode *s = func->GetCodeMemPool()->New<IntrinsiccallNode>(mod, op);
-        s->SetIntrinsic((MIRIntrinsicID)ReadNum());
+        s->SetIntrinsic(static_cast<MIRIntrinsicID>(ReadNum()));
         s->SetTyIdx(ImportType());
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = static_cast<uint8>(ReadNum());

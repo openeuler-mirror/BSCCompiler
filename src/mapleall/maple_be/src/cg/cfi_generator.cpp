@@ -121,6 +121,9 @@ void GenCfi::Run() {
   }
 
   GenerateEndDirective(*(cgFunc.GetLastBB()));
+  if (cgFunc.GetLastBB()->IsUnreachable()) {
+    cgFunc.SetExitBBLost(true);
+  }
 }
 
 bool CgGenCfi::PhaseRun(maplebe::CGFunc &f) {

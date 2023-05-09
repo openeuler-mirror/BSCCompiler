@@ -51,7 +51,7 @@ class MeCFG : public AnalysisResult {
       }
     }
 
-  ~MeCFG() = default;
+  ~MeCFG() override = default;
 
   bool IfReplaceWithAssertNonNull(const BB &bb) const;
   void ReplaceWithAssertnonnull();
@@ -289,6 +289,7 @@ class MeCFG : public AnalysisResult {
   void SetBBTryBBMap(BB *currBB, BB *tryBB) {
     endTryBB2TryBB[currBB] = tryBB;
   }
+
   void SetTryBBByOtherEndTryBB(BB *endTryBB, BB *otherTryBB) {
     endTryBB2TryBB[endTryBB] = endTryBB2TryBB[otherTryBB];
   }

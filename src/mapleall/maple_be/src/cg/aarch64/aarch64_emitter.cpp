@@ -632,6 +632,9 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     /* Emit a label for calculating method size */
     (void)emitter.Emit(".Label.end." + funcStName + ":\n");
   }
+  if (cgFunc.GetExitBBLost()) {
+    EmitAArch64CfiInsn(emitter, cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_endproc));
+  }
   if (boundaryBB) {
     (void)emitter.Emit("\t.size\t" + funcStName + ".cold, .-").Emit(funcStName + ".cold\n");
   } else {

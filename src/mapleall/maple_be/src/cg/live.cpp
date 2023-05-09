@@ -106,6 +106,9 @@ void LiveAnalysis::BuildInOutforFunc() {
     ++iteration;
     hasChange = false;
     FOR_ALL_BB_REV(bb, cgFunc) {
+      if (!bb || bb->IsUnreachable() || !bb->GetLiveOut() || !bb->GetLiveIn()) {
+        continue;
+      }
       if (!GenerateLiveOut(*bb) && bb->GetInsertUse()) {
         continue;
       }
@@ -242,6 +245,9 @@ void LiveAnalysis::GetBBDefUse(BB &bb) const {
         bool isUse = opndDesc->IsRegUse();
         CollectLiveInfo(bb, opnd, isDef, isUse);
       }
+    }
+    if (insn->GetSSAImpDefOpnd() != nullptr) {
+      CollectLiveInfo(bb, *insn->GetSSAImpDefOpnd(), true, false);
     }
   }
 }

@@ -194,35 +194,6 @@ void Simplify::SimplifyCallAssigned(StmtNode &stmt, BlockNode &block) {
 }
 
 constexpr uint32 kUpperLimitOfFieldNum = 10;
-static MIRStructType *GetDassignedStructType(const DassignNode *dassign, MIRFunction *func) {
-  const auto &lhsStIdx = dassign->GetStIdx();
-  auto lhsSymbol = func->GetLocalOrGlobalSymbol(lhsStIdx);
-  ASSERT_NOT_NULL(lhsSymbol);
-  auto lhsAggType = lhsSymbol->GetType();
-  ASSERT_NOT_NULL(lhsAggType);
-  if (!lhsAggType->IsStructType()) {
-    return nullptr;
-  }
-  if (lhsAggType->GetKind() == kTypeUnion) {  // no need to split union's field
-    return nullptr;
-  }
-  auto lhsFieldID = dassign->GetFieldID();
-  if (lhsFieldID != 0) {
-    CHECK_FATAL(lhsAggType->IsStructType(), "only struct has non-zero fieldID");
-    lhsAggType = static_cast<MIRStructType *>(lhsAggType)->GetFieldType(lhsFieldID);
-    if (!lhsAggType->IsStructType()) {
-      return nullptr;
-    }
-    if (lhsAggType->GetKind() == kTypeUnion) {  // no need to split union's field
-      return nullptr;
-    }
-  }
-  if (static_cast<MIRStructType *>(lhsAggType)->NumberOfFieldIDs() > kUpperLimitOfFieldNum) {
-    return nullptr;
-  }
-  return static_cast<MIRStructType *>(lhsAggType);
-}
-
 static MIRStructType *GetIassignedStructType(const IassignNode *iassign) {
   auto ptrTyIdx = iassign->GetTyIdx();
   auto *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTyIdx);
@@ -310,31 +281,23 @@ static StmtNode *SplitAggCopy(const AssignType *assignNode, MIRStructType *struc
   return newAssign;
 }
 
-static StmtNode *SplitDassignAggCopy(DassignNode *dassign, BlockNode *block, MIRFunction *func) {
-  auto *rhs = dassign->GetRHS();
-  if (rhs->GetPrimType() != PTY_agg) {
-    return nullptr;
-  }
-
-  auto *lhsAggType = GetDassignedStructType(dassign, func);
-  if (lhsAggType == nullptr) {
-    return nullptr;
-  }
-
-  if (rhs->GetOpCode() == OP_dread) {
-    auto *lhsSymbol = func->GetLocalOrGlobalSymbol(dassign->GetStIdx());
-    auto *rhsSymbol = func->GetLocalOrGlobalSymbol(static_cast<DreadNode *>(rhs)->GetStIdx());
-    ASSERT_NOT_NULL(lhsSymbol);
-    ASSERT_NOT_NULL(rhsSymbol);
-    if (!lhsSymbol->IsLocal() && !rhsSymbol->IsLocal()) {
-      return nullptr;
+static bool RegularSplittableAgg(MIRStructType &aggType) {
+  FieldID id = 1;
+  while (id <= static_cast<FieldID>(aggType.NumberOfFieldIDs())) {
+    auto *fieldType = aggType.GetFieldType(id);
+    if (fieldType->IsMIRStructType()) {
+      ++id;
+      continue;
     }
-
-    return SplitAggCopy<DreadNode>(dassign, lhsAggType, block, func);
-  } else if (rhs->GetOpCode() == OP_iread) {
-    return SplitAggCopy<IreadNode>(dassign, lhsAggType, block, func);
+    if (!fieldType->IsScalarType() && !fieldType->IsMIRPtrType()) {
+      return false;
+    }
+    if (GetRegPrimType(fieldType->GetPrimType()) != fieldType->GetPrimType()) {
+      return false;
+    }
+    ++id;
   }
-  return nullptr;
+  return true;
 }
 
 static StmtNode *SplitIassignAggCopy(IassignNode *iassign, BlockNode *block, MIRFunction *func) {
@@ -345,6 +308,10 @@ static StmtNode *SplitIassignAggCopy(IassignNode *iassign, BlockNode *block, MIR
 
   auto *lhsAggType = GetIassignedStructType(iassign);
   if (lhsAggType == nullptr) {
+    return nullptr;
+  }
+
+  if (!RegularSplittableAgg(*lhsAggType)) {
     return nullptr;
   }
 
@@ -619,10 +586,7 @@ void Simplify::ProcessStmt(StmtNode &stmt) {
       break;
     }
     case OP_dassign: {
-      auto *newStmt = SplitDassignAggCopy(static_cast<DassignNode *>(&stmt), currBlock, currFunc);
-      if (newStmt) {
-        ProcessBlock(*newStmt);
-      } else if (opts::aggressiveTlsLocalDynamicOpt || maplebe::CGOptions::IsShlib()) {
+      if (opts::aggressiveTlsLocalDynamicOpt || maplebe::CGOptions::IsShlib()) {
         MIRSymbol *symbol = currFunc->GetLocalOrGlobalSymbol(static_cast<DassignNode *>(&stmt)->GetStIdx());
         if (symbol && symbol->IsThreadLocal() && symbol->GetStorageClass() != kScExtern &&
             (opts::aggressiveTlsLocalDynamicOpt || symbol->IsHiddenVisibility())) {

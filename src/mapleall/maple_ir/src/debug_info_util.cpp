@@ -13,6 +13,7 @@
  * See the MulanPSL - 2.0 for more details.
  */
 
+#include <cstring>
 #include "mir_builder.h"
 #include "printing.h"
 #include "maple_string.h"
@@ -20,85 +21,64 @@
 #include "debug_info.h"
 #include "global_tables.h"
 #include "mir_type.h"
-#include <cstring>
-#include "securec.h"
 #include "mpl_logging.h"
 
 namespace maple {
-
 #define TOSTR(s) #s
 // utility functions to get the string from tag value etc.
 // GetDwTagName(unsigned n)
 const char *GetDwTagName(unsigned n) {
   switch (n) {
-#define HANDLE_DW_TAG(ID, NAME, VERSION, VENDOR, KIND) case DW_TAG_##NAME: return TOSTR(DW_TAG_##NAME);
-#include "Dwarf.def"
+#define DW_TAG(ID, NAME) case DW_TAG_##NAME: return TOSTR(DW_TAG_##NAME);
+#include "dwarf.def"
     case DW_TAG_lo_user: return "DW_TAG_lo_user";
     case DW_TAG_hi_user: return "DW_TAG_hi_user";
     case DW_TAG_user_base: return "DW_TAG_user_base";
+    default: return nullptr;
   }
-  return 0;
 }
 
 // GetDwFormName(unsigned n)
 const char *GetDwFormName(unsigned n) {
   switch (n) {
-#define HANDLE_DW_FORM(ID, NAME, VERSION, VENDOR) case DW_FORM_##NAME: return TOSTR(DW_FORM_##NAME);
-#include "Dwarf.def"
+#define DW_FORM(ID, NAME) case DW_FORM_##NAME: return TOSTR(DW_FORM_##NAME);
+#include "dwarf.def"
     case DW_FORM_lo_user: return "DW_FORM_lo_user";
+    default: return nullptr;
   }
-  return 0;
 }
 
 // GetDwAtName(unsigned n)
 const char *GetDwAtName(unsigned n) {
   switch (n) {
-#define HANDLE_DW_AT(ID, NAME, VERSION, VENDOR)  case DW_AT_##NAME: return TOSTR(DW_AT_##NAME);
-#include "Dwarf.def"
+#define DW_AT(ID, NAME)  case DW_AT_##NAME: return TOSTR(DW_AT_##NAME);
+#include "dwarf.def"
     case DW_AT_lo_user: return "DW_AT_lo_user";
+    default: return nullptr;
   }
-  return 0;
 }
 
 // GetDwOpName(unsigned n)
 const char *GetDwOpName(unsigned n) {
   switch (n) {
-#define HANDLE_DW_OP(ID, NAME, VERSION, VENDOR) case DW_OP_##NAME: return TOSTR(DW_OP_##NAME);
-#include "Dwarf.def"
-    // case DW_OP_lo_user: return "DW_OP_lo_user"; // DW_OP_GNU_push_tls_address
+#define DW_OP(ID, NAME) case DW_OP_##NAME: return TOSTR(DW_OP_##NAME);
+#include "dwarf.def"
     case DW_OP_hi_user: return "DW_OP_hi_user";
-    case DW_OP_LLVM_fragment: return "DW_OP_LLVM_fragment";
-    case DW_OP_LLVM_convert: return "DW_OP_LLVM_convert";
-    case DW_OP_LLVM_tag_offset: return "DW_OP_LLVM_tag_offset";
-    case DW_OP_LLVM_entry_value: return "DW_OP_LLVM_entry_value";
+    default: return nullptr;
   }
-  return 0;
 }
 
 #define DW_ATE_void 0x20
 // GetDwAteName(unsigned n)
 const char *GetDwAteName(unsigned n) {
   switch (n) {
-#define HANDLE_DW_ATE(ID, NAME, VERSION, VENDOR) case DW_ATE_##NAME: return TOSTR(DW_ATE_##NAME);
-#include "Dwarf.def"
+#define DW_ATE(ID, NAME) case DW_ATE_##NAME: return TOSTR(DW_ATE_##NAME);
+#include "dwarf.def"
     case DW_ATE_lo_user: return "DW_ATE_lo_user";
     case DW_ATE_hi_user: return "DW_ATE_hi_user";
     case DW_ATE_void: return "DW_ATE_void";
+    default: return nullptr;
   }
-  return 0;
-}
-
-// GetDwCfaName(unsigned n)
-const char *GetDwCfaName(unsigned n) {
-  switch (n) {
-#define HANDLE_DW_CFA(ID, NAME) case DW_CFA_##NAME: return TOSTR(DW_CFA_##NAME);
-#define HANDLE_DW_CFA_PRED(ID, NAME, ARCH) case DW_CFA_##NAME: return TOSTR(DW_CFA_##NAME);
-#include "Dwarf.def"
-    // case DW_CFA_extended: return "DW_CFA_extended"; // DW_CFA_nop
-    case DW_CFA_lo_user: return "DW_CFA_lo_user";
-    case DW_CFA_hi_user: return "DW_CFA_hi_user";
-  }
-  return 0;
 }
 
 DwAte GetAteFromPTY(PrimType pty) {
@@ -136,5 +116,4 @@ DwAte GetAteFromPTY(PrimType pty) {
       return DW_ATE_void;
   }
 }
-
 }  // namespace maple

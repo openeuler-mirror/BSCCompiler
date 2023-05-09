@@ -361,7 +361,9 @@ class ASTIndirectGotoStmt : public ASTStmt {
 class ASTSwitchStmt : public ASTStmt {
  public:
   explicit ASTSwitchStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtSwitch) {}
-  ~ASTSwitchStmt() override = default;
+  ~ASTSwitchStmt() override {
+    condStmt = nullptr;
+  }
 
   void SetCondStmt(ASTStmt *cond) {
     condStmt = cond;
@@ -412,7 +414,9 @@ class ASTSwitchStmt : public ASTStmt {
 class ASTCaseStmt : public ASTStmt {
  public:
   explicit ASTCaseStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtCase) {}
-  ~ASTCaseStmt() override = default;
+  ~ASTCaseStmt() override {
+    subStmt = nullptr;
+  }
 
   void SetLHS(ASTExpr *l) {
     lhs = l;
@@ -466,7 +470,9 @@ class ASTCaseStmt : public ASTStmt {
 class ASTDefaultStmt : public ASTStmt {
  public:
   explicit ASTDefaultStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtDefault) {}
-  ~ASTDefaultStmt() override = default;
+  ~ASTDefaultStmt() override {
+    child = nullptr;
+  }
 
   void SetChildStmt(ASTStmt* ch) {
     child = ch;

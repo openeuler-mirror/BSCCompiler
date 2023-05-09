@@ -219,7 +219,7 @@ class MIRSymbol {
 
   bool IsTypeVolatile(int fieldID) const;
 
-  bool NeedGOT(bool isPIE) const;
+  bool NeedGOT(bool doPIE) const;
 
   bool IsThreadLocal() const {
     return typeAttrs.GetAttr(ATTR_tls_static) || typeAttrs.GetAttr(ATTR_tls_dynamic);

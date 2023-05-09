@@ -22,7 +22,7 @@ namespace maple {
 class JavaEHLowerer : public FuncOptimizeImpl {
  public:
   JavaEHLowerer(MIRModule &mod, KlassHierarchy *kh, bool dump) : FuncOptimizeImpl(mod, kh, dump) {}
-  ~JavaEHLowerer() = default;
+  ~JavaEHLowerer() override = default;
 
   FuncOptimizeImpl *Clone() override {
     return new JavaEHLowerer(*this);

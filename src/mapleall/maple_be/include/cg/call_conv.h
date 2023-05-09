@@ -17,6 +17,7 @@
 
 #include "types_def.h"
 #include "becommon.h"
+#include "isa.h"
 
 namespace maplebe {
 using namespace maple;

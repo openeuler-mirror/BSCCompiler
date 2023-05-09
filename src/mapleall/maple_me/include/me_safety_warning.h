@@ -38,7 +38,7 @@ class MESafetyWarning : public MapleFunctionPhase<MeFunction> {
     return createMP->New<MESafetyWarning>(createMP);
   }
 
-  bool PhaseRun(MeFunction &f) override;
+  bool PhaseRun(MeFunction &meFunction) override;
   std::string PhaseName() const override;
 
  private:

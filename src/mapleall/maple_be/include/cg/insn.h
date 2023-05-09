@@ -571,7 +571,7 @@ class Insn {
     return isPhiMovInsn;
   }
 
-  Insn *Clone(const MemPool &memPool) const;
+  Insn *Clone(const MemPool /* &memPool */) const;
 
   void SetInsnDescrption(const InsnDesc &newMD) {
     md = &newMD;

@@ -75,7 +75,9 @@ class FuncOptimizeIterator : public MplScheduler {
    public:
     explicit Task(MIRFunction &func) : function(&func) {}
 
-    ~Task() override = default;
+    ~Task() override {
+      function = nullptr;
+    }
 
    protected:
     int RunImpl(MplTaskParam *param) override {

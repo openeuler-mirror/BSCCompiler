@@ -65,14 +65,14 @@ MemOperand &AArch64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol,
   return static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(symbol, offset, opndSize);
 }
 
-Operand *AArch64MPIsel::SelectFloatingConst(MIRConst &mirConst, PrimType primType, const BaseNode &parent) const {
+Operand *AArch64MPIsel::SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) const {
   CHECK_FATAL(primType == PTY_f64 || primType == PTY_f32, "wrong const");
   AArch64CGFunc *a64Func = static_cast<AArch64CGFunc*>(cgFunc);
   if (primType == PTY_f64) {
-    auto *dblConst = safe_cast<MIRDoubleConst>(mirConst);
+    auto *dblConst = safe_cast<MIRDoubleConst>(floatingConst);
     return a64Func->HandleFmovImm(primType, dblConst->GetIntValue(), *dblConst, parent);
   } else {
-    auto *floatConst = safe_cast<MIRFloatConst>(mirConst);
+    auto *floatConst = safe_cast<MIRFloatConst>(floatingConst);
     return a64Func->HandleFmovImm(primType, floatConst->GetIntValue(), *floatConst, parent);
   }
 }
@@ -101,12 +101,12 @@ void AArch64MPIsel::SelectReturn(bool noOpnd) {
   }
 }
 
-void AArch64MPIsel::CreateCallStructParamPassByStack(const MemOperand &memOpnd, uint32 symSize, int32 baseOffset) {
+void AArch64MPIsel::CreateCallStructParamPassByStack(const MemOperand &addrOpnd, uint32 symSize, int32 baseOffset) {
   uint32 copyTime = RoundUp(symSize, GetPointerSize()) / GetPointerSize();
   for (uint32 i = 0; i < copyTime; ++i) {
     MemOperand &addrMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize);
-    addrMemOpnd.SetBaseRegister(*memOpnd.GetBaseRegister());
-    ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*memOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));
+    addrMemOpnd.SetBaseRegister(*addrOpnd.GetBaseRegister());
+    ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*addrOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));
     newImmOpnd.SetValue(newImmOpnd.GetValue() + i * GetPointerSize());
     addrMemOpnd.SetOffsetOperand(newImmOpnd);
     RegOperand &spOpnd = cgFunc->GetOpndBuilder()->CreatePReg(RSP, k64BitSize, kRegTyInt);
@@ -309,7 +309,7 @@ Insn &AArch64MPIsel::AppendCall(AArch64MOP_t mOp, Operand &targetOpnd,
   return callInsn;
 }
 
-void AArch64MPIsel::SelectCalleeReturn(const MIRType *retType, ListOperand &retOpnds) {
+void AArch64MPIsel::SelectCalleeReturn(const MIRType *retType, ListOperand &retOpnds) const {
   if (retType == nullptr) {
     return;
   }
@@ -585,8 +585,8 @@ void AArch64MPIsel::SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0,
   a64func->SelectMinOrMax(isMin, resOpnd, opnd0, opnd1, primType);
 }
 
-Operand *AArch64MPIsel::SelectIntrinsicOpWithOneParam(const IntrinsicopNode &intrnNode, std::string name, Operand &opnd0,
-    const BaseNode &parent) {
+Operand *AArch64MPIsel::SelectIntrinsicOpWithOneParam(const IntrinsicopNode &intrnNode, std::string name,
+    Operand &opnd0, const BaseNode /* &parent */) {
   PrimType ptype = intrnNode.Opnd(0)->GetPrimType();
   Operand *opnd = &opnd0;
   AArch64CGFunc *a64func = static_cast<AArch64CGFunc*>(cgFunc);

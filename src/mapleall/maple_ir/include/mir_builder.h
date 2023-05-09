@@ -152,7 +152,7 @@ class MIRBuilder {
   // for creating Expression
   ConstvalNode *CreateConstval(MIRConst *mirConst);
   ConstvalNode *CreateIntConst(uint64 val, PrimType pty);
-  ConstvalNode *CreateInt128Const(const uint64 *value, PrimType pty);
+  ConstvalNode *CreateInt128Const(const Int128ElemTy *value, PrimType pty);
   ConstvalNode *CreateFloatConst(float val);
   ConstvalNode *CreateDoubleConst(double val);
   ConstvalNode *CreateFloat128Const(const uint64 *val);
@@ -340,7 +340,7 @@ class MIRBuilder {
 class MIRBuilderExt : public MIRBuilder {
  public:
   explicit MIRBuilderExt(MIRModule *module, pthread_mutex_t *mutex = nullptr);
-  virtual ~MIRBuilderExt() = default;
+  ~MIRBuilderExt() override = default;
 
   void SetCurrentFunction(MIRFunction &func) override {
     curFunction = &func;

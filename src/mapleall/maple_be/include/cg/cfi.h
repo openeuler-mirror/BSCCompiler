@@ -69,7 +69,7 @@ class CfiInsn : public maplebe::Insn {
       maplebe::Operand &opnd2)
       : Insn(memPool, op, opnd0, opnd1, opnd2) {}
 
-  ~CfiInsn() = default;
+  ~CfiInsn() override = default;
 
   bool IsMachineInstruction() const override {
     return false;
@@ -91,12 +91,10 @@ class CfiInsn : public maplebe::Insn {
 
   bool IsRegDefined(maplebe::regno_t regNO) const override {
     CHECK_FATAL(false, "cfi do not def regs");
-    return false;
   }
 
   std::set<uint32> GetDefRegs() const override{
     CHECK_FATAL(false, "cfi do not def regs");
-    return std::set<uint32>();
   }
 
   uint32 GetBothDefUseOpnd() const override {
@@ -111,7 +109,7 @@ class RegOperand : public maplebe::OperandVisitable<RegOperand> {
  public:
   RegOperand(uint32 no, uint32 size) : OperandVisitable(kOpdRegister, size), regNO(no) {}
 
-  ~RegOperand() = default;
+  ~RegOperand() override = default;
   using OperandVisitable<RegOperand>::OperandVisitable;
 
   uint32 GetRegisterNO() const {
@@ -137,7 +135,7 @@ class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
  public:
   ImmOperand(int64 val, uint32 size) : OperandVisitable(kOpdImmediate, size), val(val) {}
 
-  ~ImmOperand() = default;
+  ~ImmOperand() override = default;
   using OperandVisitable<ImmOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
@@ -164,7 +162,7 @@ class SymbolOperand : public maplebe::OperandVisitable<SymbolOperand> {
   SymbolOperand(const maple::MIRSymbol &mirSymbol, uint8 size)
       : OperandVisitable(kOpdStImmediate, size),
         symbol(&mirSymbol) {}
-  ~SymbolOperand() {
+  ~SymbolOperand() override {
     symbol = nullptr;
   }
   using OperandVisitable<SymbolOperand>::OperandVisitable;
@@ -191,7 +189,7 @@ class StrOperand : public maplebe::OperandVisitable<StrOperand> {
  public:
   StrOperand(const std::string &str, MemPool &memPool) : OperandVisitable(kOpdString, 0), str(str, &memPool) {}
 
-  ~StrOperand() = default;
+  ~StrOperand() override = default;
   using OperandVisitable<StrOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
@@ -219,7 +217,7 @@ class LabelOperand : public maplebe::OperandVisitable<LabelOperand> {
   LabelOperand(const std::string &parent, LabelIdx labIdx, MemPool &memPool)
       : OperandVisitable(kOpdBBAddress, 0), parentFunc(parent, &memPool), labelIndex(labIdx) {}
 
-  ~LabelOperand() = default;
+  ~LabelOperand() override = default;
   using OperandVisitable<LabelOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
@@ -254,7 +252,7 @@ class CFIOpndEmitVisitor : public maplebe::OperandVisitorBase,
                                                            LabelOperand> {
  public:
   explicit CFIOpndEmitVisitor(maplebe::Emitter &asmEmitter) : emitter(asmEmitter) {}
-  virtual ~CFIOpndEmitVisitor() = default;
+  ~CFIOpndEmitVisitor() override = default;
  protected:
   maplebe::Emitter &emitter;
  private:

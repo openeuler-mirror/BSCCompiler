@@ -69,7 +69,7 @@ class McSSAPre : public SSAPre {
         occ2RGNodeMap(ssaPreAllocator.Adapter()),
         maxFlowRoutes(ssaPreAllocator.Adapter()),
         minCut(ssaPreAllocator.Adapter()) {}
-  virtual ~McSSAPre() = default;
+  ~McSSAPre() override = default;
 
   void ApplyMCSSAPRE();
   void SetPreUseProfileLimit(uint32 n) { preUseProfileLimit = n; }

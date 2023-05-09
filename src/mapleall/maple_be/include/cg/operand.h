@@ -1040,6 +1040,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
         lsOpnd(memOpnd.lsOpnd),
         symbol(memOpnd.symbol),
         memoryOrder(memOpnd.memoryOrder),
+        accessSize(memOpnd.accessSize),
         addrMode(memOpnd.addrMode),
         isStackMem(memOpnd.isStackMem),
         isStackArgMem(memOpnd.isStackArgMem) {}
@@ -1320,7 +1321,6 @@ class MemOperand : public OperandVisitable<MemOperand> {
     } else {
       return false;
     }
-    return true;
   }
 
   bool NeedFixIndex() const {

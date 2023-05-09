@@ -30,6 +30,7 @@ class DataDepBase {
       : memPool(memPool), alloc(&memPool), cgFunc(func), mad(mad),
         beforeRA(!cgFunc.IsAfterRegAlloc()), isIntra(isIntraAna) {}
   virtual ~DataDepBase() {
+    curRegion = nullptr;
     curCDGNode = nullptr;
   }
 

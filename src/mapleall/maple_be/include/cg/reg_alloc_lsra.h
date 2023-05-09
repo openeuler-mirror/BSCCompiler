@@ -469,7 +469,7 @@ class LSRALinearScanRegAllocator : public RegAllocator {
   void ComputeLiveInterval();
   void FindLowestPrioInActive(LiveInterval *&targetLi, RegType regType = kRegTyInt, bool startRa = false);
   void LiveIntervalAnalysis();
-  bool OpndNeedAllocation(const Insn &insn, Operand &opnd, bool isDef, uint32 insnNum);
+  bool OpndNeedAllocation(Operand &opnd, bool isDef, uint32 insnNum);
   void InsertParamToActive(Operand &opnd);
   void InsertToActive(Operand &opnd, uint32 insnNum);
   void ReturnPregToSet(const LiveInterval &li, uint32 preg);

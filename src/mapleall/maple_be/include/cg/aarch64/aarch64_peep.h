@@ -986,7 +986,9 @@ class MulImmToShiftPattern : public CGPeepPattern {
  public:
   MulImmToShiftPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~MulImmToShiftPattern() override = default;
+  ~MulImmToShiftPattern() override {
+    movInsn = nullptr;
+  }
   std::string GetPatternName() override {
     return "MulImmToShiftPattern";
   }
@@ -1033,7 +1035,7 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
   MOperator GetNewMemMop(MOperator mop) const;
   Insn *GenerateMemPairInsn(MOperator newMop, RegOperand &curDestOpnd, RegOperand &prevDestOpnd,
                             MemOperand &combineMemOpnd, bool isCurDestFirst);
-  bool FindUseX16AfterInsn(BB &bb, const Insn &curInsn);
+  bool FindUseX16AfterInsn(const Insn &curInsn);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) const;
 
   bool doAggressiveCombine = false;
@@ -1347,7 +1349,9 @@ class AndCmpBranchesToCsetPattern : public CGPeepPattern {
  public:
   AndCmpBranchesToCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~AndCmpBranchesToCsetPattern() override = default;
+  ~AndCmpBranchesToCsetPattern() override {
+    prevCmpInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1605,7 +1609,7 @@ class AddCmpZeroAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
- bool CheckAddCmpZeroCheckAdd(const Insn &previnsn, const Insn &insn);
+ bool CheckAddCmpZeroCheckAdd(const Insn &prevInsn, const Insn &insn);
  bool CheckAddCmpZeroContinue(const Insn &insn, RegOperand &opnd);
  bool CheckAddCmpZeroCheckCond(const Insn &insn);
  Insn* CheckAddCmpZeroAArch64Pattern(Insn &insn, RegOperand &opnd);
@@ -1623,7 +1627,9 @@ class ComplexExtendWordLslPattern : public CGPeepPattern {
  public:
   ComplexExtendWordLslPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
       : CGPeepPattern(cgFunc, currBB, currInsn) {}
-  ~ComplexExtendWordLslPattern() override = default;
+  ~ComplexExtendWordLslPattern() override {
+    useInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
@@ -1652,7 +1658,9 @@ class AddCmpZeroPatternSSA : public CGPeepPattern {
  public:
   AddCmpZeroPatternSSA(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~AddCmpZeroPatternSSA() override = default;
+  ~AddCmpZeroPatternSSA() override {
+    prevAddInsn = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {

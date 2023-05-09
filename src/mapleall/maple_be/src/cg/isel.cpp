@@ -476,7 +476,7 @@ Operand *HandleMax(const BaseNode /* &parent */, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectMax(static_cast<BinaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)),
                         *iSel.HandleExpr(expr, *expr.Opnd(1)));
 }
-Operand *HandleRetype(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleRetype(const BaseNode /* &parent */, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectRetype(static_cast<TypeCvtNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)));
 }
 

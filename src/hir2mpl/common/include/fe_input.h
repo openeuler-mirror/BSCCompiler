@@ -97,7 +97,7 @@ class FEInputUnitVariable : public FEInputUnit {
 class FEInputUnitStruct : public FEInputUnit {
  public:
   explicit FEInputUnitStruct(MapleAllocator &alloc);
-  virtual ~FEInputUnitStruct() override = default;
+  ~FEInputUnitStruct() override = default;
   MIRTypeKind GetMIRTypeKind() const {
     return typeKind;
   }

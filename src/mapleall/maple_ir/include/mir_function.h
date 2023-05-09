@@ -671,7 +671,7 @@ class MIRFunction {
     body = node;
   }
 
-  bool HasBody() {
+  bool HasBody() const {
     return body != nullptr;
   }
 
@@ -1421,7 +1421,7 @@ class MIRFunction {
   // count; the bitvector's size is given by
   // BlockSize2BitvectorSize(frameSize)
   // removed. label table size
-  // lbl2stmt table, removed;
+  // lbl2stmt table, removed,
   // to hold unmangled class and function names
   MeFunction *meFunc = nullptr;
   EAConnectionGraph *eacg = nullptr;

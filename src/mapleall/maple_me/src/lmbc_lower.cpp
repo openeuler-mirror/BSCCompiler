@@ -204,9 +204,9 @@ BaseNode *LMBCLowerer::LowerExpr(BaseNode *expr) {
 }
 
 // lower using OP_blkassignoff
-void LMBCLowerer::LowerAggDassign(const DassignNode *dsnode, MIRType *lhsty,
+void LMBCLowerer::LowerAggDassign(const DassignNode &dsnode, MIRType *lhsty,
                                   int32 offset, BlockNode *newblk) {
-  BaseNode *rhs = dsnode->Opnd(0);
+  BaseNode *rhs = dsnode.Opnd(0);
   CHECK_FATAL(rhs->GetOpCode() == OP_dread || rhs->GetOpCode() == OP_iread,
               "LowerAggDassign: rhs inconsistent");
   // change rhs to address of rhs
@@ -218,7 +218,7 @@ void LMBCLowerer::LowerAggDassign(const DassignNode *dsnode, MIRType *lhsty,
   rhs->SetPrimType(GetLoweredPtrType());
   // generate lhs address expression
   BaseNode *lhs = nullptr;
-  MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->GetStIdx());
+  MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode.GetStIdx());
   ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
   if (!symbol->LMBCAllocateOffSpecialReg()) {
@@ -280,7 +280,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
       newblk->AddStatement(iassignoff);
     }
   } else {
-    LowerAggDassign(dsnode, symty, offset, newblk);
+    LowerAggDassign(*dsnode, symty, offset, newblk);
   }
 }
 
@@ -311,9 +311,9 @@ void LMBCLowerer::LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk) {
   }
 }
   // lower using OP_blkassignoff
-void LMBCLowerer::LowerAggIassign(IassignNode *iassign, const MIRType *lhsty,
+void LMBCLowerer::LowerAggIassign(const IassignNode &iassign, const MIRType *lhsty,
                                   int32 offset, BlockNode &newblk) const {
-  BaseNode *rhs = iassign->rhs;
+  BaseNode *rhs = iassign.rhs;
   CHECK_FATAL(rhs->GetOpCode() == OP_dread || rhs->GetOpCode() == OP_iread ||
               rhs->GetOpCode() == OP_ireadoff || rhs->GetOpCode() == OP_ireadfpoff,
               "LowerAggIassign: rhs inconsistent");
@@ -341,7 +341,7 @@ void LMBCLowerer::LowerAggIassign(IassignNode *iassign, const MIRType *lhsty,
   BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(offset,
                                                                                   lhsty->GetSize());
   bass->SetAlign(lhsty->GetAlign());
-  bass->SetBOpnd(iassign->addrExpr, 0);
+  bass->SetBOpnd(iassign.addrExpr, 0);
   bass->SetBOpnd(rhs, 1);
   newblk.AddStatement(bass);
 }
@@ -372,7 +372,7 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
                                                                   iassign->rhs);
     newblk->AddStatement(iassignoff);
   } else {
-    LowerAggIassign(iassign, type, offset, *newblk);
+    LowerAggIassign(*iassign, type, offset, *newblk);
   }
 }
 

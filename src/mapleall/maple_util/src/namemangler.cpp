@@ -221,11 +221,14 @@ std::string DecodeName(const std::string &name) {
         str16.clear();
         i++;
         c = static_cast<unsigned char>(namePtr[i++]);
-        uint8_t b1 = (c <= '9') ? c - kZeroAsciiNum : c - kaAsciiNum + kNumLimit;
+        uint8_t b1 = (c <= '9') ? static_cast<uint8_t>(c - kZeroAsciiNum) :
+                                  static_cast<uint8_t>(c - kaAsciiNum + kNumLimit);
         c = static_cast<unsigned char>(namePtr[i++]);
-        uint8_t b2 = (c <= '9') ? c - kZeroAsciiNum : c - kaAsciiNum + kNumLimit;
+        uint8_t b2 = (c <= '9') ? static_cast<uint8_t>(c - kZeroAsciiNum) :
+                                  static_cast<uint8_t>(c - kaAsciiNum + kNumLimit);
         c = static_cast<unsigned char>(namePtr[i++]);
-        uint8_t b3 = (c <= '9') ? c - kZeroAsciiNum : c - kaAsciiNum + kNumLimit;
+        uint8_t b3 = (c <= '9') ? static_cast<uint8_t>(c - kZeroAsciiNum) :
+                                  static_cast<uint8_t>(c - kaAsciiNum + kNumLimit);
         c = static_cast<unsigned char>(namePtr[i++]);
         uint8_t b4 = (c <= '9') ? static_cast<uint8_t>(c - kZeroAsciiNum) :
                                   static_cast<uint8_t>(c - kaAsciiNum + kNumLimit);
@@ -247,7 +250,7 @@ std::string DecodeName(const std::string &name) {
         }
       } else {
         c = static_cast<unsigned char>(namePtr[i++]);
-        unsigned int v = (c <= '9') ? c - kZeroAsciiNum : c - kAAsciiNum + kNumLimit;
+        unsigned int v = static_cast<unsigned int>((c <= '9') ? c - kZeroAsciiNum : c - kAAsciiNum + kNumLimit);
         unsigned int asc = v << kCodeOffset;
         if (i >= nameLen) {
           break;

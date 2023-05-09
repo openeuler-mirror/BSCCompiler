@@ -1040,7 +1040,7 @@ MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, RegType regT
   if (spillMemOpnds[spillIdx] == nullptr) {
     regno_t reg = cgFunc->NewVReg(kRegTyInt, k64BitSize);
     // spillPre or spillPost need maxSize for spill
-    // so, for int, spill 64-bit; for float, spill 128-bit;
+    // so, for int, spill 64-bit; for float, spill 128-bit
     spillMemOpnds[spillIdx] = cgFunc->GetOrCreatSpillMem(reg,
         (regType == kRegTyInt) ? k64BitSize : k128BitSize);
   }
@@ -2522,7 +2522,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   MemOperand *spillMem = CreateSpillMem(spillIdx, regOpnd.GetRegisterType(), kSpillMemPre);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
 
-  // for int, must str 64-bit; for float, must str 128-bit;
+  // for int, must str 64-bit; for float, must str 128-bit
   uint32 strSize = (regOpnd.GetRegisterType() == kRegTyInt) ? k64BitSize : k128BitSize;
   PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), strSize);
   bool isOutOfRange = false;
@@ -2573,7 +2573,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
   MemOperand *spillMem = CreateSpillMem(spillIdx, regOpnd.GetRegisterType(), kSpillMemPost);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
 
-  // for int, must ldr 64-bit; for float, must ldr 128-bit;
+  // for int, must ldr 64-bit; for float, must ldr 128-bit
   uint32 ldrSize = (regOpnd.GetRegisterType() == kRegTyInt) ? k64BitSize : k128BitSize;
   PrimType stype = GetPrimTypeFromRegTyAndRegSize(regOpnd.GetRegisterType(), ldrSize);
   bool isOutOfRange = false;
@@ -4528,7 +4528,7 @@ bool GraphColorRegAllocator::AllocateRegisters() {
    */
   regInfo->Fini();
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   int32 cnt = 0;
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {

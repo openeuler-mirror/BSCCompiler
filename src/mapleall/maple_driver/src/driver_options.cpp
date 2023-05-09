@@ -347,7 +347,7 @@ maplecl::Option<bool> aggressiveTlsLocalDynamicOpt({"--tls-local-dynamic-opt"},
 maplecl::Option<std::string> help({"--help", "-h"},
     "  --help                   \tPrint help\n",
     {driverCategory},
-    maplecl::optionalValue);
+    maplecl::kOptionalValue);
 
 maplecl::Option<std::string> infile({"--infile"},
     "  --infile file1,file2,file3  \tInput files.\n",
@@ -463,8 +463,8 @@ maplecl::Option<std::string> saveTempOpt({"--save-temps"},
     "                              \t--save-temps Save all intermediate files.\n"
     "                              \t--save-temps=file1,file2,file3 Save the\n"
     "                              \ttarget files.\n",
-    {driverCategory},
-    maplecl::optionalValue);
+    {driverCategory, clangCategory},
+    maplecl::kOptionalValue);
 
 maplecl::Option<std::string> target({"--target", "-target"},
     "  --target=<arch><abi>        \tDescribe target platform\n"
@@ -508,7 +508,7 @@ maplecl::Option<std::string> sysRoot({"--sysroot"},
 
 maplecl::Option<std::string> specs({"-specs"},
     "  -specs <value>    \tOverride built-in specs with the contents of <file>.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, asCategory, ldCategory});
 
 maplecl::Option<std::string> folder({"-tmp-folder"},
     "  -tmp-folder    \tsave former folder when generating multiple output.\n",

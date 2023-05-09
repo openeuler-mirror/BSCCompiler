@@ -23,6 +23,7 @@ class AArch64CombineRedundantX16Opt {
  public:
   explicit AArch64CombineRedundantX16Opt(CGFunc &func) : aarFunc(static_cast<AArch64CGFunc&>(func)) {}
   ~AArch64CombineRedundantX16Opt() {
+    recentX16DefPrevInsns = nullptr;
     recentX16DefInsn = nullptr;
   }
 

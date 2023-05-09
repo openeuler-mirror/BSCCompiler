@@ -649,6 +649,14 @@ maplecl::Option<bool> layoutwithpredict({"--layoutwithpredict"},
                                    {meCategory},
                                    maplecl::DisableWith("--no-layoutwithpredict"));
 
+maplecl::Option<bool> layoutColdPath({"--layout-cold-path"},
+                                   "  --layout-cold-path"
+                                   "        \tEnable layouting cold blocks (such as unlikely) out of hot path\n"
+                                   "  --no-layout-cold-path"
+                                   "     \tDisable layouting cold blocks (such as unlikely) out of hot path\n",
+                                   {meCategory},
+                                   maplecl::DisableWith("--no-layout-cold-path"));
+
 maplecl::Option<uint32_t> veclooplimit({"--veclooplimit"},
                                   "  --veclooplimit             \tApply vectorize loops only up to NUM \n"
                                   "                              \t--veclooplimit=NUM\n",

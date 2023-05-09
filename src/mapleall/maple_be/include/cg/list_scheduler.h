@@ -104,7 +104,9 @@ class ListScheduler {
       : listSchedMp(memPool), listSchedAlloc(&memPool), cgFunc(func),
         doDelayHeuristics(delayHeu), phaseName(std::move(pName)),
         waitingQueue(listSchedAlloc.Adapter()), readyList(listSchedAlloc.Adapter()) {}
-  virtual ~ListScheduler() = default;
+  virtual ~ListScheduler() {
+    mad = nullptr;
+  }
 
   std::string PhaseName() const {
     if (phaseName.empty()) {

@@ -126,6 +126,7 @@ extern maplecl::Option<uint32_t> sinkPUlimit;
 extern maplecl::Option<bool> loopvec;
 extern maplecl::Option<bool> seqvec;
 extern maplecl::Option<bool> layoutwithpredict;
+extern maplecl::Option<bool> layoutColdPath;
 extern maplecl::Option<uint32_t> veclooplimit;
 extern maplecl::Option<uint32_t> ivoptslimit;
 extern maplecl::Option<std::string> acquireFunc;

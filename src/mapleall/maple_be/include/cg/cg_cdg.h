@@ -39,6 +39,7 @@ class CDGNode {
       : id(nId), bb(&bb), outEdges(alloc.Adapter()), inEdges(alloc.Adapter()),
         lastComments(alloc.Adapter()), dataNodes(alloc.Adapter()), cfiInsns(alloc.Adapter()) {}
   virtual ~CDGNode() {
+    topoPredInRegion = nullptr;
     lastFrameDef = nullptr;
     bb = nullptr;
     regUses = nullptr;
@@ -554,7 +555,9 @@ class CDGRegion {
  public:
   CDGRegion(CDGRegionId rId, MapleAllocator &alloc)
       : id(rId), memberNodes(alloc.Adapter()), cdEdges(alloc.Adapter()) {}
-  virtual ~CDGRegion() = default;
+  virtual ~CDGRegion() {
+    root = nullptr;
+  }
 
   CDGRegionId GetRegionId() {
     return id;

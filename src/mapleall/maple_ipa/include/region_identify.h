@@ -37,7 +37,9 @@ class RegionCandidate {
  public:
   RegionCandidate(StmtInfoId startId, StmtInfoId endId, StmtInfo *start, StmtInfo *end, MIRFunction* function)
       : startId(startId), endId(endId), start(start), end(end), function(function), length(endId - startId + 1) {}
-  virtual ~RegionCandidate() = default;
+  virtual ~RegionCandidate() {
+    function = nullptr;
+  }
   void CollectRegionInputAndOutput(StmtInfo &stmtInfo, CollectIpaInfo &ipaInfo);
   const bool HasDefinitionOutofRegion(DefUsePositions &defUse) const;
   bool HasJumpOutOfRegion(StmtInfo &stmtInfo, bool isStart);
@@ -235,7 +237,9 @@ class RegionGroup {
 class RegionIdentify {
  public:
   explicit RegionIdentify(CollectIpaInfo *ipaInfo) : ipaInfo(ipaInfo) {}
-  virtual ~RegionIdentify() = default;
+  virtual ~RegionIdentify() {
+    ipaInfo = nullptr;
+  }
   void RegionInit();
   std::vector<RegionGroup> &GetRegionGroups() {
     return regionGroups;

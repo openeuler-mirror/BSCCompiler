@@ -22,6 +22,7 @@
 #endif
 #include "insn.h"
 #include "sparse_datainfo.h"
+#include "base_graph_node.h"
 
 /* Maple IR headers */
 #include "mir_nodes.h"
@@ -76,7 +77,7 @@ class CGFuncLoops;
 class CGFunc;
 class CDGNode;
 
-class BB {
+class BB : public maple::BaseGraphNode {
  public:
   enum BBKind : uint8 {
     kBBFallthru,  /* default */
@@ -92,7 +93,7 @@ class BB {
   };
 
   BB(uint32 bbID, MapleAllocator &mallocator)
-      : id(bbID),
+      : BaseGraphNode(bbID),  // id(bbID),
         kind(kBBFallthru), /* kBBFallthru default kind */
         labIdx(MIRLabelTable::GetDummyLabel()),
         preds(mallocator.Adapter()),
@@ -195,7 +196,7 @@ class BB {
     internalFlag1++;
   }
 
-  void AppendOtherBBInsn(BB &other, Insn &insn) {
+  void AppendOtherBBInsn(Insn &insn) {
     if (insn.GetPrev() != nullptr) {
       insn.GetPrev()->SetNext(insn.GetNext());
     }
@@ -296,13 +297,16 @@ class BB {
   /* Number of instructions excluding DbgInsn and comments */
   int32 NumInsn() const;
   uint32 GetId() const {
-    return id;
+    return GetID();
   }
   uint32 GetLevel() const {
     return level;
   }
   void SetLevel(uint32 arg) {
     level = arg;
+  }
+  FreqType GetNodeFrequency() const override {
+    return static_cast<FreqType>(frequency);
   }
   uint32 GetFrequency() const {
     return frequency;
@@ -386,7 +390,7 @@ class BB {
     FOR_BB_INSNS_REV(insn, this) {
 #if TARGAARCH64
       if (insn->IsMachineInstruction() && !AArch64isa::IsPseudoInstruction(insn->GetMachineOpcode())) {
-#elif TARGX86_64
+#elif defined(TARGX86_64) && TARGX86_64
       if (insn->IsMachineInstruction()) {
 #endif
         return insn;
@@ -421,6 +425,30 @@ class BB {
   const std::size_t GetSuccsSize() const {
     return succs.size();
   }
+
+  // override interface of BaseGraphNode
+  const std::string GetIdentity() final {
+    return "BBId: " + std::to_string(GetID());
+  }
+
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) const final {
+    outNodes.resize(succs.size(), nullptr);
+    std::copy(succs.begin(), succs.end(), outNodes.begin());
+  }
+
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) final {
+    static_cast<const BB *>(this)->GetOutNodes(outNodes);
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) const final {
+    inNodes.resize(preds.size(), nullptr);
+    std::copy(preds.begin(), preds.end(), inNodes.begin());
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) final {
+    static_cast<const BB *>(this)->GetInNodes(inNodes);
+  }
+
   const MapleList<BB*> &GetEhPreds() const {
     return ehPreds;
   }
@@ -816,6 +844,16 @@ class BB {
     succsFreq.resize(succs.size());
   }
 
+  FreqType GetEdgeFrequency(const BaseGraphNode &node) const override {
+    auto edgeFreq = GetEdgeFreq(static_cast<const BB&>(node));
+    return static_cast<FreqType>(edgeFreq);
+  }
+
+  FreqType GetEdgeFrequency(size_t idx) const override {
+    auto edgeFreq = GetEdgeFreq(idx);
+    return static_cast<FreqType>(edgeFreq);
+  }
+
   uint64 GetEdgeFreq(const BB &bb) const {
     auto iter = std::find(succs.begin(), succs.end(), &bb);
     if (iter == std::end(succs) || succs.size() > succsFreq.size()) {
@@ -878,9 +916,26 @@ class BB {
     succsProfFreq[idx] = freq;
   }
 
+  bool HasMachineInsn() {
+    FOR_BB_INSNS(insn, this) {
+      if (insn->IsMachineInstruction()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool IsAdrpLabel() const {
+    return isAdrpLabel;
+  }
+
+  void SetIsAdrpLabel() {
+    isAdrpLabel = true;
+  }
+
  private:
   static const std::string bbNames[kBBLast];
-  uint32 id;
+  //uint32 id;
   uint32 level = 0;
   uint32 frequency = 0;
   FreqType profFreq = 0; // profileUse
@@ -971,6 +1026,8 @@ class BB {
   uint32 alignNopNum = 0;
 
   CDGNode *cdgNode = nullptr;
+
+  bool isAdrpLabel = false; // Indicate whether the address of this BB is referenced by adrp_label insn
 };  /* class BB */
 
 struct BBIdCmp {

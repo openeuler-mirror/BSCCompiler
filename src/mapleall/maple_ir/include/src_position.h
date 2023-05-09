@@ -15,6 +15,7 @@
 #ifndef MAPLE_IR_INCLUDE_SRC_POSITION_H
 #define MAPLE_IR_INCLUDE_SRC_POSITION_H
 #include "mpl_logging.h"
+#include "types_def.h"
 
 namespace maple {
 // to store source position information
@@ -155,6 +156,30 @@ class SrcPosition {
     return loc;
   }
 
+  void SetInlinedLineNum(uint32 line) {
+    inlinedLineNum = line;
+  }
+
+  void SetInlinedFileNum(uint32 line) {
+    inlinedFileNum = line;
+  }
+
+  void SetInlinedFuncStrIdx(const GStrIdx &idx) {
+    strIdx = idx;
+  }
+
+  uint32 GetInlinedLineNum() const {
+    return inlinedLineNum;
+  }
+
+  uint32 GetInlinedFileNum() const {
+    return inlinedFileNum;
+  }
+
+  const GStrIdx &GetInlinedFuncStrIdx() const {
+    return strIdx;
+  }
+
  private:
   union {
     struct {
@@ -168,6 +193,9 @@ class SrcPosition {
   } u;
   uint32 lineNum;     // line number of original src file, like foo.java
   uint32 mplLineNum;  // line number of mpl file
+  uint32 inlinedLineNum = 0;
+  uint32 inlinedFileNum = 0;
+  GStrIdx strIdx;
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_SRC_POSITION_H

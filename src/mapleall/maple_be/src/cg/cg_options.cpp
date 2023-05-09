@@ -15,8 +15,6 @@
 
 #include "driver_options.h"
 
-#include <bits/stdint-uintn.h>
-#include <cstdint>
 #include <string>
 
 namespace opts::cg {
@@ -417,7 +415,7 @@ maplecl::Option<bool> dumpCfg({"--dump-cfg"},
 maplecl::Option<std::string> target({"--target"},
                                     "  --target=TARGETMACHINE \t generate code for TARGETMACHINE\n",
                                     {cgCategory},
-                                    maplecl::optionalValue);
+                                    maplecl::kOptionalValue);
 
 maplecl::Option<std::string> dumpPhases({"--dump-phases"},
                                         "  --dump-phases=PHASENAME,..."
@@ -595,6 +593,12 @@ maplecl::Option<bool> cgSsa({"--cg-ssa"},
                             "  --no-cg-ssa\n",
                             {cgCategory},
                             maplecl::DisableWith("--no-cg-ssa"));
+
+maplecl::Option<bool> layoutColdPath({"--layout-cold-path"},
+                                     "  --layout-cold-path                     \tLayout cold path out of hot path\n"
+                                     "  --no-layout-cold-path\n",
+                                     {cgCategory},
+                                     maplecl::DisableWith("--no-layout-cold-path"));
 
 maplecl::Option<bool> globalSchedule({"--global-schedule"},
                                      "  --global-schedule                     \tPerform global schedule\n"

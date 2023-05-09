@@ -19,6 +19,7 @@
 
 namespace maple {
 namespace utils {
+const int kNumLimit = 10;
 constexpr int32_t kAAsciiNum = 65;
 constexpr int32_t kaAsciiNum = 97;
 
@@ -74,10 +75,10 @@ struct ToDigitImpl<16, T> {
       return c - '0';
     }
     if (c >= 'a' && c <= 'f') {
-      return c - kaAsciiNum + 10;
+      return static_cast<char>(c - kaAsciiNum + kNumLimit);
     }
     if (c >= 'A' && c <= 'F') {
-      return c - kAAsciiNum + 10;
+      return static_cast<char>(c - kAAsciiNum + kNumLimit);
     }
     return std::numeric_limits<T>::max();
   }

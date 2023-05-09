@@ -36,7 +36,9 @@ class JumpThreading {
         stmtCostAnalyzer(costAnalyzer), cands(candsTem) {
     path = std::make_unique<std::vector<BB*>>();
   }
-  ~JumpThreading() = default;
+  ~JumpThreading() {
+    loops = nullptr;
+  }
 
   void Execute();
 

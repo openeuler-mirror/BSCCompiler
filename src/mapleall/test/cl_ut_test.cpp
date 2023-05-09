@@ -120,8 +120,8 @@ namespace testopts {
   maplecl::Option<std::string> equalStr({"--eqstr"}, "");
   maplecl::Option<int32_t> equalDig({"--eqdig"}, "");
 
-  maplecl::Option<int32_t> reqVal({"--reqval"}, "", maplecl::requiredValue, maplecl::Init(-42));
-  maplecl::Option<int32_t> optVal({"--optval"}, "", maplecl::optionalValue, maplecl::Init(-42));
+  maplecl::Option<int32_t> reqVal({"--reqval"}, "", maplecl::kRequiredValue, maplecl::Init(-42));
+  maplecl::Option<int32_t> optVal({"--optval"}, "", maplecl::kOptionalValue, maplecl::Init(-42));
   maplecl::Option<int32_t> woVal({"--woval"}, "", maplecl::disallowedValue, maplecl::Init(-42));
 
   maplecl::Option<bool> cat1Opt1({"--c1opt1"}, "", {testCategory1});

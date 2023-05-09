@@ -28,6 +28,7 @@ set(src_libmplutil
     src/error_code.cpp
     src/thread_env.cpp
     src/mpl_int_val.cpp
+    src/chain_layout.cpp
     src/mpl_profdata.cpp
     src/suffix_array.cpp
     src/mpl_posix_sighandler.cpp
@@ -44,6 +45,11 @@ add_library(libmplutil STATIC ${src_libmplutil})
 target_include_directories(libmplutil PRIVATE
   ${MAPLEALL_ROOT}/maple_util/include
   ${MAPLEALL_ROOT}/maple_ir/include
+  ${MAPLEALL_ROOT}/maple_me/include
+  ${MAPLEALL_ROOT}/mpl2mpl/include
+  ${MAPLEALL_ROOT}/maple_phase/include
+  ${MAPLEALL_ROOT}/maple_be/include/cg
+  ${MAPLEALL_ROOT}/maple_be/include/be
   ${MAPLEALL_ROOT}/mempool/include
   ${MAPLEALL_ROOT}/maple_driver/include
   ${MAPLEALL_ROOT}/maple_pgo/include

@@ -90,7 +90,7 @@ class BinaryMplImport {
   void Reset();
   void SkipTotalSize();
   void ImportFieldsOfStructType(FieldVector &fields, uint32 methodSize);
-  MIRType &InsertInTypeTables(MIRType &ptype);
+  MIRType &InsertInTypeTables(MIRType &type);
   void InsertInHashTable(MIRType &type);
   void SetupEHRootType();
   void UpdateMethodSymbols();

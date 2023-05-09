@@ -1089,7 +1089,7 @@ bool ValueRangePropagation::IsOverflowAfterMul(T lhs, T rhs, PrimType pty) const
   if (lhs == 0 || rhs == 0) {
     return false;
   }
-  if (lhs >= 0 && rhs >= 0) {
+  if (lhs > 0 && rhs > 0) {
     return (GetMaxNumber(pty) / lhs) < rhs;
   }
   if (lhs < 0 && rhs < 0) {
@@ -1800,7 +1800,7 @@ void ValueRangePropagation::UpdateTryAttribute(BB &bb) {
 
 // Insert the ost of phi opnds to their def bbs.
 void ValueRangePropagation::InsertOstOfPhi2Cands(
-    BB &bb, size_t i, ScalarMeExpr *updateSSAExceptTheScalarExpr,
+    BB &bb, size_t i, const ScalarMeExpr *updateSSAExceptTheScalarExpr,
     std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr, bool setPhiIsDead) {
   for (auto &it : bb.GetMePhiList()) {
     if (setPhiIsDead) {
@@ -2187,7 +2187,6 @@ std::unique_ptr<ValueRange> ValueRangePropagation::RemWithValueRange(const BB &b
     Bound upper = Bound(nullptr, upperRes, opMeExpr.GetPrimType());
     return std::make_unique<ValueRange>(lower, upper, kLowerAndUpper);
   }
-  return nullptr;
 }
 
 // Create valueRange when deal with OP_rem.
@@ -2944,7 +2943,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::NegValueRange(
 }
 
 ValueRange *ValueRangePropagation::DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr,
-    uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs, uint32 maxThreshold) {
+    uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs) {
   auto *opnd = expr.GetOpnd(0);
   if (!foundExprs.insert(opnd->GetExprID()).second) {
     return nullptr;
@@ -2962,7 +2961,7 @@ ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(const BB &bb, MeE
     uint32 &numberOfRecursions, std::unordered_set<int32> &foundExprs, uint32 maxThreshold) {
   auto op = expr.GetOp();
   if (op == OP_neg) {
-    return DealWithNegWhenFindValueRange(bb, expr, numberOfRecursions, foundExprs, maxThreshold);
+    return DealWithNegWhenFindValueRange(bb, expr, numberOfRecursions, foundExprs);
   }
   if (!IsCompareHasReverseOp(op) || expr.GetNumOpnds() != kNumOperands) {
     return nullptr;
@@ -4368,7 +4367,7 @@ MeExpr &ValueRangePropagation::GetVersionOfOpndInPred(const BB &pred, const BB &
 // a2 = a1 + 1 ignore def point a2 when judge the way has def point from begin to end
 //  |
 // bb2
-// if (a2 < 1)
+// if a2 < 1
 bool ValueRangePropagation::CanIgnoreTheDefPoint(const MeStmt &stmt, const BB &end, const ScalarMeExpr &expr) const {
   if (end.GetKind() != kBBCondGoto) {
     return false;

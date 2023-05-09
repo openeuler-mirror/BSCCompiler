@@ -660,6 +660,18 @@ class CGOptions {
     return doCGSSA && !flavorLmbc;
   }
 
+  static void DisableLayoutColdPath() {
+    doLayoutColdPath = false;
+  }
+
+  static void EnableLayoutColdPath() {
+    doLayoutColdPath = true;
+  }
+
+  static bool DoLayoutColdPath() {
+    return doLayoutColdPath;
+  }
+
   static void DisableGlobalSchedule() {
     doGlobalSchedule = false;
   }
@@ -1580,6 +1592,7 @@ class CGOptions {
   static bool cgBigEndian;
   static bool doEBO;
   static bool doCGSSA;
+  static bool doLayoutColdPath;
   static bool doGlobalSchedule;
   static bool doLocalSchedule;
   static bool doVerifySchedule;

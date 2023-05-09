@@ -16,6 +16,7 @@
 #define MAPLEBE_INCLUDE_CG_ASM_INFO_H
 
 #include "maple_string.h"
+#include "types_def.h"
 
 namespace maplebe {
 enum AsmLabel : uint8 {
@@ -150,7 +151,7 @@ class AsmInfo {
   explicit AsmInfo(MemPool &memPool)
 #if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
       : asmCmnt("\t//\t", &memPool),
-#elif TARGARM32
+#elif defined(TARGARM32) && TARGARM32
       : asmCmnt("\t@\t", &memPool),
 #else
       : asmCmnt("\t#\t", &memPool),

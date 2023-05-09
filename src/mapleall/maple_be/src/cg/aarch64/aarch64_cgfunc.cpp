@@ -1796,7 +1796,7 @@ void AArch64CGFunc::SelectAggDassign(const DassignNode &stmt) {
     int64 lhsOffsetVal = lhsOffstOpnd->GetValue();
     bool rhsIsLo12 = (rhsBaseMemOpnd->GetAddrMode() == MemOperand::kLo12Li);
     bool lhsIsLo12 = (lhsBaseMemOpnd->GetAddrMode() == MemOperand::kLo12Li);
-    if (lhsSize > kParmMemcpySize) {
+    if (lhsSize > kParmMemcpySize * 2) {  // expand to doule size of memcpy limit size
       std::vector<Operand*> opndVec;
       RegOperand *regResult = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
       opndVec.push_back(regResult);  /* result */
@@ -1933,7 +1933,7 @@ void AArch64CGFunc::SelectAggDassign(const DassignNode &stmt) {
     CHECK_NULL_FATAL(lhsOffstOpnd);
     int64 lhsOffsetVal = lhsOffstOpnd->GetValue();
     bool lhsIsLo12 = (lhsBaseMemOpnd->GetAddrMode() == MemOperand::kLo12Li);
-    if (lhsSize > kParmMemcpySize) {
+    if (lhsSize > kParmMemcpySize * 2) {  // expand to doule size of memcpy limit size
       std::vector<Operand*> opndVec;
       RegOperand *regResult = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
       opndVec.push_back(regResult);  /* result */
@@ -2302,8 +2302,7 @@ MIRType *AArch64CGFunc::LmbcGetAggTyFromCallSite(StmtNode *stmt, std::vector<TyI
 }
 
 // return true if blkassignoff for return, false otherwise
-bool AArch64CGFunc::LmbcSmallAggForRet(const BaseNode &bNode, const Operand &src, int32 offset,
-                                       bool skip1) {
+bool AArch64CGFunc::LmbcSmallAggForRet(const BaseNode &bNode, const Operand &src, int32 offset, bool skip1) {
   PrimType pTy;
   uint32 size = 0;
   auto regno = static_cast<AArch64reg>(static_cast<const RegOperand&>(src).GetRegisterNumber());
@@ -2563,7 +2562,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
         static_cast<uint32>(GetBecommon().GetJClassFieldOffset(*structType, stmt.GetFieldID()).byteOffset) :
         static_cast<uint32>(structType->GetFieldOffsetFromBaseAddr(stmt.GetFieldID()).byteOffset);
   } else if (lhsType->GetKind() == kTypeArray) {
-#if DEBUG
+#if defined(DEBUG) && DEBUG
     MIRArrayType *arrayLhsType = static_cast<MIRArrayType*>(lhsType);
     /* access an array element */
     MIRType *lhsType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(arrayLhsType->GetElemTyIdx());
@@ -2573,7 +2572,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
            "unexpected array element type in iassign");
 #endif
   } else if (lhsType->GetKind() == kTypeFArray) {
-#if DEBUG
+#if defined(DEBUG) && DEBUG
     MIRFarrayType *farrayLhsType = static_cast<MIRFarrayType*>(lhsType);
     /* access an array element */
     MIRType *lhsElemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(farrayLhsType->GetElemTyIdx());
@@ -2618,7 +2617,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
     CHECK_NULL_FATAL(rhsOffstOpnd);
     int64 rhsOffsetVal = rhsOffstOpnd->GetValue();
     bool rhsIsLo12 = (rhsBaseMemOpnd->GetAddrMode() == MemOperand::kLo12Li);
-    if (lhsSize > kParmMemcpySize) {
+    if (lhsSize > kParmMemcpySize * 2) {  // expand to doule size of memcpy limit size
       std::vector<Operand*> opndVec;
       RegOperand *regResult = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
       opndVec.push_back(regResult);  /* result */
@@ -2735,7 +2734,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
     alignUsed = std::min(lhsAlign, rhsAlign);
     ASSERT(alignUsed != 0, "expect non-zero");
     uint32 copySize = GetAggCopySize(rhsOffset, lhsOffset, alignUsed);
-    if (lhsSize > kParmMemcpySize) {
+    if (lhsSize > kParmMemcpySize * 2) {  // expand to doule size of memcpy limit size
       std::vector<Operand*> opndVec;
       RegOperand *regResult = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
       opndVec.push_back(regResult);  /* result */
@@ -3255,6 +3254,7 @@ Operand &AArch64CGFunc::SelectAddrofLabel(AddroflabelNode &expr, const BaseNode 
                       (instrSize == k2ByteSize) ? PTY_u16 : PTY_u8;
   Operand &dst = GetOrCreateResOperand(parent, primType);
   Operand &immOpnd = CreateImmOperand(expr.GetOffset(), k64BitSize, false);
+  AddAdrpLabel(expr.GetOffset());
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_adrp_label, dst, immOpnd));
   return dst;
 }
@@ -7730,8 +7730,7 @@ void AArch64CGFunc::SelectParmListPreprocessForAggregate(BaseNode &argExpr, int3
 }
 
 // Stage B - Pre-padding and extension of arguments
-bool AArch64CGFunc::SelectParmListPreprocess(StmtNode &naryNode, size_t start, bool isCallNative,
-                                             std::vector<ParamDesc> &argsDesc,
+bool AArch64CGFunc::SelectParmListPreprocess(StmtNode &naryNode, size_t start, std::vector<ParamDesc> &argsDesc,
                                              const MIRFunction *callee) {
   bool hasSpecialArg = false;
   int32 structCopyOffset = GetMaxParamStackSize() - GetStructCopySize();
@@ -7880,7 +7879,7 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
   auto [callee, calleeType] = GetCalleeFunction(naryNode);
 
   std::vector<ParamDesc> argsDesc;
-  bool hasSpecialArg = SelectParmListPreprocess(naryNode, opndIdx, isCallNative, argsDesc, callee);
+  bool hasSpecialArg = SelectParmListPreprocess(naryNode, opndIdx, argsDesc, callee);
   BB *curBBrecord = GetCurBB();
   BB *tmpBB = nullptr;
   if (hasSpecialArg) {
@@ -9740,11 +9739,11 @@ Insn &AArch64CGFunc::GenerateLocalLongCallAfterInsn(const MIRSymbol &func, ListO
  *  srcOpnds   : list operand of the function need to be called
  * Return: the 'blr' instruction
  */
-Insn &AArch64CGFunc::GenerateGlobalNopltCallAfterInsn(const MIRSymbol &sym, ListOperand &srcOpnds) {
-  MIRFunction *func = sym.GetValue().mirFunc;
+Insn &AArch64CGFunc::GenerateGlobalNopltCallAfterInsn(const MIRSymbol &funcSym, ListOperand &srcOpnds) {
+  MIRFunction *func = funcSym.GetValue().mirFunc;
   if (func && func->IsDefaultVisibility() &&
       ((CGOptions::IsPIE() && !func->GetBody()) || (CGOptions::IsShlib() && !func->IsStatic()))) {
-    StImmOperand &stOpnd = CreateStImmOperand(sym, 0, 0);
+    StImmOperand &stOpnd = CreateStImmOperand(funcSym, 0, 0);
     RegOperand *tmpReg = nullptr;
     if (!IsAfterRegAlloc()) {
       tmpReg = &CreateRegisterOperandOfType(PTY_u64);
@@ -9759,7 +9758,7 @@ Insn &AArch64CGFunc::GenerateGlobalNopltCallAfterInsn(const MIRSymbol &sym, List
     GetCurBB()->SetHasCall();
     return callInsn;
   } else {
-    Operand &targetOpnd = GetOrCreateFuncNameOpnd(sym);
+    Operand &targetOpnd = GetOrCreateFuncNameOpnd(funcSym);
     Insn &callInsn = GetInsnBuilder()->BuildInsn(MOP_xbl, targetOpnd, srcOpnds);
     GetCurBB()->AppendInsn(callInsn);
     GetCurBB()->SetHasCall();
@@ -10320,7 +10319,7 @@ void AArch64CGFunc::SelectIntrinsicCall(IntrinsiccallNode &intrinsicCallNode) {
       SelectStackRestore(intrinsicCallNode);
       return;
     case INTRN_C___builtin_division_exception:
-      SelectCDIVException(intrinsicCallNode);
+      SelectCDIVException();
       return;
     default:
       break;
@@ -11372,7 +11371,7 @@ void AArch64CGFunc::SelectStackRestore(const IntrinsiccallNode &intrnNode) {
   GetCurBB()->AppendInsn(restoreInsn);
 }
 
-void AArch64CGFunc::SelectCDIVException(const IntrinsiccallNode &intrnNode) {
+void AArch64CGFunc::SelectCDIVException() {
   uint32 breakImm = 1000;
   ImmOperand &immOpnd = CreateImmOperand(breakImm, maplebe::k16BitSize, false);
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_brk, immOpnd));

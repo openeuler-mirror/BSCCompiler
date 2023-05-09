@@ -195,6 +195,9 @@ void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
     chkBB->RemoveInsn(*lastInsn);
     bb.AppendInsn(*lastInsn);
   }
+  if (&bb == cgFunc.GetFirstBB()) {
+    cgFunc.SetFirstBB(*chkBB);
+  }
   chkBB->AppendBBInsns(*(cgFunc.GetCurBB()));
   bb.PrependBB(*chkBB);
   chkBB->PushBackSuccs(bb);

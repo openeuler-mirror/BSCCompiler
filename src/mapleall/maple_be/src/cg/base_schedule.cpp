@@ -26,7 +26,7 @@ void BaseSchedule::InitInsnIdAndLocInsn() {
     bb->SetLastLoc(bb->GetPrev() ? bb->GetPrev()->GetLastLoc() : nullptr);
     FOR_BB_INSNS(insn, bb) {
       insn->SetId(id++);
-#if DEBUG
+#if defined(DEBUG) && DEBUG
       insn->AppendComment(" Insn id: " + std::to_string(insn->GetId()));
 #endif
       if (insn->IsImmaterialInsn() && !insn->IsComment()) {

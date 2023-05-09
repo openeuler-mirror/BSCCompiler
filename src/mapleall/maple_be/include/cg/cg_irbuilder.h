@@ -72,8 +72,8 @@ class OperandBuilder {
   OfstOperand &CreateOfst(int64 offset, uint32 size, MemPool *mp = nullptr);
   MemOperand &CreateMem(uint32 size, MemPool *mp = nullptr);
   MemOperand &CreateMem(RegOperand &baseOpnd, int64 offset, uint32 size, MemPool *mp = nullptr);
-  MemOperand &CreateMem(uint32 size, RegOperand &baseOpnd, ImmOperand &offImm, MemPool *mp = nullptr);
-  MemOperand &CreateMem(uint32 size, RegOperand &baseOpnd, ImmOperand &offImm, const MIRSymbol &symbol,
+  MemOperand &CreateMem(uint32 size, RegOperand &baseOpnd, ImmOperand &ofstOperand, MemPool *mp = nullptr);
+  MemOperand &CreateMem(uint32 size, RegOperand &baseOpnd, ImmOperand &ofstOperand, const MIRSymbol &symbol,
                         MemPool *mp = nullptr);
   BitShiftOperand &CreateBitShift(BitShiftOperand::ShiftOp op, uint32 amount, uint32 bitLen, MemPool *mp = nullptr);
   RegOperand &CreateVReg(uint32 size, RegType type, MemPool *mp = nullptr);

@@ -208,7 +208,7 @@ void TryCatchBlocksLower::RecoverBasicBlock() {
         break;
       }
       case OP_catch: {
-#if DEBUG
+#if defined(DEBUG) && DEBUG
         StmtNode *ss = stmt->GetPrev();
         while ((ss != nullptr) && (ss->GetOpCode() == OP_comment)) {
           ss = ss->GetPrev();
@@ -678,7 +678,7 @@ void TryCatchBlocksLower::PalceCatchSeenSofar(BBT &insertAfter) {
           lastBB = lastBB->GetFallthruBranch();
         }
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
         BBT::ValidateStmtList(bodyFirst);
 #endif
         if (lastBB->GetFallthruBranch() != nullptr) {
@@ -826,7 +826,7 @@ void TryCatchBlocksLower::TraverseBBList() {
       if (tryEndTryBlock.GetEndTryBB()->GetLastStmt() == body.GetLast()) {
         bodyEndWithEndTry = true;
       }
-#if DEBUG
+#if defined(DEBUG) && DEBUG
       for (size_t i = 0; i < tryEndTryBlock.GetEnclosedBBsSize(); ++i) {
         CHECK_FATAL(tryEndTryBlock.GetEnclosedBBsElem(i), "there should not be nullptr in enclosedBBs");
       }
@@ -837,7 +837,7 @@ void TryCatchBlocksLower::TraverseBBList() {
       BBT *insertAfter = FindInsertAfterBB();
       PlaceRelocatedBB(*insertAfter);
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
       CHECK_FATAL(body.GetLast()->GetNext() == nullptr, "the next of body's last should be nullptr");
       BBT::ValidateStmtList(bodyFirst);
 #endif

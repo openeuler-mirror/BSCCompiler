@@ -42,7 +42,7 @@ static inline bool IsMoveWidableImmediateCopy(uint64 val, uint32 bitLen) {
   }
   // 0x00000000HHHH0000 or 0x000000000000HHHH, return true
   return ((val & ((static_cast<uint64>(0xffff)) << k16BitSize)) == val ||
-          (val & ((static_cast<uint64>(0xffff)) << 0)) == val);
+          (val & static_cast<uint64>(0xffff)) == val);
 }
 namespace aarch64 {
 bool IsBitmaskImmediate(uint64 val, uint32 bitLen);

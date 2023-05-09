@@ -130,6 +130,7 @@ bool MeOption::seqVec = true;
 bool MeOption::enableLFO = true;
 uint8 MeOption::rematLevel = 2;
 bool MeOption::layoutWithPredict = true;  // optimize output layout using branch prediction
+bool MeOption::layoutColdPath = false;  // layout cold blocks (such as unlikely) out of hot path
 SafetyCheckMode MeOption::npeCheckMode = SafetyCheckMode::kNoCheck;
 bool MeOption::isNpeCheckAll = false;
 SafetyCheckMode MeOption::boundaryCheckMode = SafetyCheckMode::kNoCheck;
@@ -421,6 +422,7 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(enableLFO, opts::me::lfo);
   maplecl::CopyIfEnabled(rematLevel, opts::me::remat);
   maplecl::CopyIfEnabled(layoutWithPredict, opts::me::layoutwithpredict);
+  maplecl::CopyIfEnabled(layoutColdPath, opts::me::layoutColdPath);
   maplecl::CopyIfEnabled(vecLoopLimit, opts::me::veclooplimit);
   maplecl::CopyIfEnabled(ivoptsLimit, opts::me::ivoptslimit);
   maplecl::CopyIfEnabled(unifyRets, opts::me::unifyrets);

@@ -16,7 +16,7 @@
 #include <string>
 #if TARGAARCH64
 #include "aarch64_operand.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_operand.h"
 #endif
 #include "schedule.h"

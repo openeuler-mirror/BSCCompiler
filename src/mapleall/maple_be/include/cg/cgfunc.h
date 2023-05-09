@@ -34,6 +34,7 @@
 #include "maple_phase_manager.h"
 /* Maple MP header */
 #include "mempool_allocator.h"
+#include "safe_cast.h"
 
 namespace maplebe {
 constexpr int32 kBBLimit = 100000;
@@ -178,6 +179,7 @@ class CGFunc {
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   virtual void LmbcGenSaveSpForAlloca() = 0;
   void RemoveUnreachableBB();
+  void MarkAdrpLabelBB();
   Insn &BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum);
   Insn &BuildScopeInsn(int64 id, bool isEnd);
   void GenerateLoc(StmtNode &stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
@@ -1310,6 +1312,13 @@ class CGFunc {
     return true;
   }
 
+  void SetExitBBLost(bool val) {
+    exitBBLost = val;
+  }
+  bool GetExitBBLost() {
+    return exitBBLost;
+  }
+
  protected:
   uint32 firstNonPregVRegNO;
   VregInfo vReg;                          /* for assigning a number for each CG virtual register */
@@ -1447,6 +1456,14 @@ class CGFunc {
     return newMem;
   }
 
+  void AddAdrpLabel(LabelIdx label) {
+    (void)adrpLabels.emplace_back(label);
+  }
+
+  MapleVector<LabelIdx> &GetAdrpLabels() {
+    return adrpLabels;
+  }
+
  private:
   CGFunc &operator=(const CGFunc &cgFunc);
   CGFunc(const CGFunc&);
@@ -1511,6 +1528,13 @@ class CGFunc {
 
   /* cross reference isel class pointer */
   MPISel *isel = nullptr;
+
+  // mark exitBB is unreachable
+  bool exitBBLost = false;
+
+  // Record adrp address labels when generating instructions,
+  // only used in MarkArdpLabelBB of handlefunction
+  MapleVector<LabelIdx> adrpLabels;
 };  /* class CGFunc */
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLayoutFrame, maplebe::CGFunc)

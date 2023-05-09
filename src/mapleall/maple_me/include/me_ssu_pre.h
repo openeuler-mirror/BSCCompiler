@@ -36,10 +36,10 @@ class SOcc {
   virtual ~SOcc() = default;
 
   virtual void Dump() const = 0;
-  bool IsPostDominate(Dominance *dom, const SOcc *occ) const {
+  bool IsPostDominate(Dominance *pdom, const SOcc *occ) const {
     CHECK_NULL_FATAL(occ);
-    CHECK_NULL_FATAL(dom);
-    return dom->PostDominate(mirBB, occ->mirBB);
+    CHECK_NULL_FATAL(pdom);
+    return pdom->Dominate(mirBB, occ->mirBB);
   }
 
   SOccType GetOccTy() const {
@@ -91,7 +91,7 @@ class SRealOcc : public SOcc {
       : SOcc(kSOccReal, *s.GetBB()), meStmt(&s), vMeExpr(&v), realFromDef(false), redundant(true) {}
   SRealOcc(BB &bb, VarMeExpr &v)
       : SOcc(kSOccReal, bb), meStmt(nullptr), vMeExpr(&v), realFromDef(false), redundant(true) {}
-  virtual ~SRealOcc() = default;
+  ~SRealOcc() override = default;
   void Dump() const override {
     LogInfo::MapleLogger() << "RealOcc at bb" << GetBB().GetBBId();
     if (realFromDef) {
@@ -138,8 +138,8 @@ class SLambdaResOcc : public SOcc {
   explicit SLambdaResOcc(BB &bb)
       : SOcc(kSOccLambdaRes, bb), useLambdaOcc(nullptr), hasRealUse(false), insertHere(false) {}
 
-  virtual ~SLambdaResOcc() = default;
-  void Dump() const {
+  ~SLambdaResOcc() override = default;
+  void Dump() const override {
     LogInfo::MapleLogger() << "LambdaResOcc at bb" << GetBB().GetBBId() << " classId" << GetClassId();
   }
 
@@ -178,12 +178,12 @@ class SLambdaOcc : public SOcc {
   SLambdaOcc(BB &bb, MapleAllocator &alloc)
       : SOcc(kSOccLambda, bb), isUpsafe(true), isCanBeAnt(true), isEarlier(true), lambdaRes(alloc.Adapter()) {}
 
-  virtual ~SLambdaOcc() = default;
+  ~SLambdaOcc() override = default;
   bool WillBeAnt() const {
     return isCanBeAnt && !isEarlier;
   }
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "LambdaOcc at bb" << GetBB().GetBBId() << " classId" << GetClassId() << " Lambda[";
     for (size_t i = 0; i < lambdaRes.size(); i++) {
       lambdaRes[i]->Dump();
@@ -233,8 +233,8 @@ class SEntryOcc : public SOcc {
  public:
   explicit SEntryOcc(BB &bb) : SOcc(kSOccEntry, bb) {}
 
-  virtual ~SEntryOcc() = default;
-  void Dump() const {
+  ~SEntryOcc() override = default;
+  void Dump() const override {
     LogInfo::MapleLogger() << "EntryOcc at bb" << GetBB().GetBBId();
   }
 };
@@ -243,8 +243,8 @@ class SUseOcc : public SOcc {
  public:
   explicit SUseOcc(BB &bb) : SOcc(kSOccUse, bb) {}
 
-  virtual ~SUseOcc() = default;
-  void Dump() const {
+  ~SUseOcc() override = default;
+  void Dump() const override {
     LogInfo::MapleLogger() << "UseOcc at bb" << GetBB().GetBBId();
   }
 };
@@ -253,7 +253,7 @@ class SPhiOcc : public SOcc {
  public:
   SPhiOcc(BB &bb, MePhiNode &p, VarMeExpr &v) : SOcc(kSOccPhi, bb), phi(&p), vMeExpr(&v) {};
 
-  virtual ~SPhiOcc() = default;
+  ~SPhiOcc() override = default;
 
   MePhiNode *GetPhiNode() {
     return phi;
@@ -271,7 +271,7 @@ class SPhiOcc : public SOcc {
     return vMeExpr;
   }
 
-  void Dump() const {
+  void Dump() const override {
     LogInfo::MapleLogger() << "PhiOcc at bb" << GetBB().GetBBId();
   }
 
@@ -346,7 +346,7 @@ class MeSSUPre {
     kSubsumePre
   } preKind;
 
-  MeSSUPre(MeFunction &f, Dominance &dom, MemPool &memPool, PreKind kind, bool enabledDebug)
+  MeSSUPre(MeFunction &f, Dominance &dom, Dominance &pdom, MemPool &memPool, PreKind kind, bool enabledDebug)
       : preKind(kind),
         func(&f),
         cfg(f.GetCfg()),
@@ -354,6 +354,7 @@ class MeSSUPre {
         irMap(f.GetIRMap()),
         mirModule(&f.GetMeSSATab()->GetModule()),
         dom(&dom),
+        pdom(&pdom),
         spreMp(&memPool),
         spreAllocator(&memPool),
         workCandMap(std::less<OStIdx>(), spreAllocator.Adapter()),
@@ -389,8 +390,8 @@ class MeSSUPre {
   void Rename();
   // step 1 methods
   void GetIterPdomFrontier(const BB *bb, MapleSet<uint32> *pdfset) const {
-    for (BBId bbid : dom->iterPdomFrontier[bb->GetBBId()]) {
-      (void)pdfset->insert(dom->GetPdtDfnItem(bbid));
+    for (auto bbid : pdom->GetIterDomFrontier(bb->GetID())) {
+      (void)pdfset->insert(pdom->GetDtDfnItem(bbid));
     }
   }
 
@@ -413,6 +414,7 @@ class MeSSUPre {
   MeIRMap *irMap;
   MIRModule *mirModule;
   Dominance *dom;
+  Dominance *pdom;
   MemPool *spreMp;
   MapleAllocator spreAllocator;
   MapleMap<OStIdx, SpreWorkCand*> workCandMap;

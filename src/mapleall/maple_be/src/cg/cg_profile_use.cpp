@@ -33,7 +33,7 @@ void CgProfUse::setupProf() {
                (static_cast<int64_t>(funcProf->GetStmtFreq(bb->GetLastStmt()->GetStmtID())) >= 0)) {
       bb->SetProfFreq(funcProf->GetStmtFreq(bb->GetLastStmt()->GetStmtID()));
     } else {
-#if DEBUG
+#if defined(DEBUG) && DEBUG
       if (!CGOptions::IsQuiet()) {
         LogInfo::MapleLogger() << "BB" << bb->GetId() << " : frequency undetermined\n";
       }

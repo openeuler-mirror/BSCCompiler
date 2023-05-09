@@ -872,7 +872,7 @@ class IntVal {
   static constexpr uint8 wordBitSize = sizeof(uint64) * CHAR_BIT;
   static constexpr uint64 allOnes = uint64(~0);
 
-  uint16 width;
+  uint16 width = 0;
   bool sign;
 };
 

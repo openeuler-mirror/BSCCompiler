@@ -475,6 +475,11 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       ASSERT(serialADM->CheckAnalysisInfoEmpty(), "clean adm before function run");
       MIRFunction *mirFunc = *it;
       if (mirFunc->GetBody() == nullptr) {
+        if (mirFunc->GetAttr(FUNCATTR_visibility_hidden)) {
+          (void)cg->GetEmitter()->Emit("\t.hidden\t").Emit(mirFunc->GetName()).Emit("\n");
+        } else if (mirFunc->GetAttr(FUNCATTR_visibility_protected)) {
+          (void)cg->GetEmitter()->Emit("\t.protected\t").Emit(mirFunc->GetName()).Emit("\n");
+        }
         continue;
       }
 

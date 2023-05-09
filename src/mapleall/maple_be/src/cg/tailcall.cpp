@@ -23,7 +23,7 @@ using namespace maple;
  *  Remove redundant mov and mark optimizable bl/blr insn in the BB.
  *  Return value: true to call this modified block again.
  */
-bool TailCallOpt::OptimizeTailBB(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, const BB &exitBB) const {
+bool TailCallOpt::OptimizeTailBB(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns) const {
   Insn *lastInsn = bb.GetLastInsn();
   if (bb.NumInsn() == 1 && lastInsn->IsMachineInstruction() &&
       !AArch64isa::IsPseudoInstruction(lastInsn->GetMachineOpcode()) && !InsnIsCallCand(*bb.GetLastInsn())) {
@@ -76,7 +76,7 @@ bool TailCallOpt::OptimizeTailBB(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, 
 void TailCallOpt::TailCallBBOpt(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, BB &exitBB) {
   /* callsite also in the return block as in "if () return; else foo();"
      call in the exit block */
-  if (!bb.IsEmpty() && !OptimizeTailBB(bb, callInsns, exitBB)) {
+  if (!bb.IsEmpty() && !OptimizeTailBB(bb, callInsns)) {
     return;
   }
 
@@ -86,7 +86,7 @@ void TailCallOpt::TailCallBBOpt(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, B
       continue;
     }
 
-    if (OptimizeTailBB(*tmpBB, callInsns, exitBB)) {
+    if (OptimizeTailBB(*tmpBB, callInsns)) {
       TailCallBBOpt(*tmpBB, callInsns, exitBB);
     }
   }
@@ -194,7 +194,6 @@ void TailCallOpt::ConvertToTailCalls(MapleSet<Insn*, InsnIdCmp> &callInsnsMap) {
         (void)cgFunc.EraseExitBBsVec(it);
         cgFunc.GetTheCFG()->RemoveBB(*sBB);
       }
-      break;
     }
   }
 }

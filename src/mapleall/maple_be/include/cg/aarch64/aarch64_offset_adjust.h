@@ -29,7 +29,9 @@ class AArch64FPLROffsetAdjustment : public FrameFinalize {
         isLmbc(aarchCGFunc->GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc),
         stackBaseReg((isLmbc || aarchCGFunc->UseFP()) ? R29 : RSP) {}
 
-  ~AArch64FPLROffsetAdjustment() override = default;
+  ~AArch64FPLROffsetAdjustment() override {
+    aarchCGFunc = nullptr;
+  }
 
   void Run() override;
 

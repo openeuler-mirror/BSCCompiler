@@ -19,6 +19,7 @@
 #include "becommon.h"
 #include "call_conv.h"
 #include "aarch64_isa.h"
+#include "aarch64_abi.h"
 
 namespace maplebe {
 using namespace maple;

@@ -12,11 +12,14 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
 */
+#ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_MOP_SPLIT_H
+#define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_MOP_SPLIT_H
 
+namespace maplebe {
 // Supply a new reg operand for insn split process, which type is kRegTyInt for immediate.
 // Before regalloc: create a new virtual reg;
 // After regalloc: use R16 to be a temporary physical reg.
-RegOperand *GetSplitBaseReg(bool isAfterRegAlloc, bool is64Bits, OperandBuilder *opndBuilder) {
+static inline RegOperand *GetSplitBaseReg(bool isAfterRegAlloc, bool is64Bits, OperandBuilder *opndBuilder) {
   RegOperand *resOpnd = nullptr;
   if (!isAfterRegAlloc) {
     resOpnd = &opndBuilder->CreateVReg((is64Bits? k64BitSize : k32BitSize), kRegTyInt);
@@ -29,7 +32,8 @@ RegOperand *GetSplitBaseReg(bool isAfterRegAlloc, bool is64Bits, OperandBuilder 
 // Judging valid range of the immediate by passing in bitLen & forPair parameter, return the closest valid value to
 // ofstVal, getting the remainder simultaneously. The valid value will be input in new memopnd, and the remainder
 // will be input in add insn.
-ImmOperand &SplitGetRemained(const MemOperand &memOpnd, uint32 bitLen, int64 ofstVal, bool forPair, OperandBuilder *opndBuilder) {
+static inline ImmOperand &SplitGetRemained(const MemOperand &memOpnd, uint32 bitLen, int64 ofstVal, bool forPair,
+    OperandBuilder *opndBuilder) {
   // opndVal == Q0 * 32760(16380) + R0
   // R0 == Q1 * 8(4) + R1
   // ADDEND == Q0 * 32760(16380) + R1
@@ -75,7 +79,8 @@ ImmOperand &SplitGetRemained(const MemOperand &memOpnd, uint32 bitLen, int64 ofs
 // If #imm value out of range 2^24, insn will be split as follows:
 // add  x0, x1, #imm    ====>    mov  x2, #imm
 //                               add  x0, x1, x2
-void AddInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void AddInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   if (insn->VerifySelf()) { return; }
   Operand *opnd0 = &insn->GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn->GetOperand(kInsnSecondOpnd);
@@ -135,7 +140,7 @@ void AddInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *
     // #imm2 = #imm1 >> shift
     // addrrrs do not support sp
     if (bitNum <= k16BitSize && regNO0 != RSP) {
-      int64 newImm = (static_cast<uint64>(immVal) >> static_cast<uint32>(tail0bitNum)) & 0xFFFF;
+      int64 newImm = static_cast<int64>((static_cast<uint64>(immVal) >> static_cast<uint32>(tail0bitNum)) & 0xFFFF);
       ImmOperand &immOpnd1 = opndBuilder->CreateImm(k16BitSize, newImm, false);
       mOpCode = is64Bits ? MOP_xmovri64 : MOP_wmovri32;
       Insn &movInsn = insnBuilder->BuildInsn(mOpCode, *movOpnd, immOpnd1);
@@ -144,7 +149,8 @@ void AddInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *
       mOpCode = is64Bits ? MOP_xaddrrrs : MOP_waddrrrs;
       // bitLen means bitshiftopnd size: 64bits -> 6, 32bits ->5
       uint32 bitLen = is64Bits ? k6BitSize : k5BitSize;
-      BitShiftOperand &bitShiftOpnd = opndBuilder->CreateBitShift(BitShiftOperand::kShiftLSL, static_cast<uint32>(tail0bitNum), bitLen);
+      BitShiftOperand &bitShiftOpnd = opndBuilder->CreateBitShift(BitShiftOperand::kShiftLSL,
+          static_cast<uint32>(tail0bitNum), bitLen);
       Insn &newInsn = insnBuilder->BuildInsn(mOpCode, *opnd0, *opnd1, *movOpnd, bitShiftOpnd);
       newInsn.SetBB(bb);
       bb->ReplaceInsn(*insn, newInsn);
@@ -166,7 +172,8 @@ void AddInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *
 }
 
 // Split Sub Insn sub reg, reg, #imm, the same split steps as add
-void SubInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void SubInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   if (insn->VerifySelf()) { return; }
   Operand *opnd0 = &insn->GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn->GetOperand(kInsnSecondOpnd);
@@ -228,7 +235,7 @@ void SubInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *
     // #imm2 = #imm1 >> shift
     // subrrrs supports sp, so do not need to check whether regNo is RSP
     if (bitNum <= k16BitSize) {
-      int64 newImm = (static_cast<uint64>(immVal) >> static_cast<uint32>(tail0bitNum)) & 0xFFFF;
+      int64 newImm = static_cast<int64>((static_cast<uint64>(immVal) >> static_cast<uint32>(tail0bitNum)) & 0xFFFF);
       ImmOperand &immOpnd1 = opndBuilder->CreateImm(k16BitSize, newImm, false);
       mOpCode = is64Bits ? MOP_xmovri64 : MOP_wmovri32;
       Insn &movInsn = insnBuilder->BuildInsn(mOpCode, *movOpnd, immOpnd1);
@@ -237,7 +244,8 @@ void SubInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *
       mOpCode = is64Bits ? MOP_xsubrrrs : MOP_wsubrrrs;
       // bitLen means bitshiftopnd size: 64bits -> 6, 32bits ->5
       uint32 bitLen = is64Bits ? k6BitSize : k5BitSize;
-      BitShiftOperand &bitShiftOpnd = opndBuilder->CreateBitShift(BitShiftOperand::kShiftLSL, static_cast<uint32>(tail0bitNum), bitLen);
+      BitShiftOperand &bitShiftOpnd = opndBuilder->CreateBitShift(BitShiftOperand::kShiftLSL,
+          static_cast<uint32>(tail0bitNum), bitLen);
       Insn &newInsn = insnBuilder->BuildInsn(mOpCode, *opnd0, *opnd1, *movOpnd, bitShiftOpnd);
       newInsn.SetBB(bb);
       bb->ReplaceInsn(*insn, newInsn);
@@ -263,7 +271,8 @@ void SubInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *
 // adds/subs  x0, x1, #imm    ====>    mov        x2, #imm
 //                                     adds/subs  x0, x1, x2
 // isAdds: true -> adds, false -> subs
-void AddsSubsInsnSplit(Insn *insn, bool isAdds, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void AddsSubsInsnSplit(Insn *insn, bool isAdds, bool is64Bits, bool isAfterRegAlloc,
+    InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
   if (insn->VerifySelf()) { return; }
   Operand *opnd0 = &insn->GetOperand(kInsnFirstOpnd);
   Operand *opnd1 = &insn->GetOperand(kInsnSecondOpnd);
@@ -292,7 +301,8 @@ void AddsSubsInsnSplit(Insn *insn, bool isAdds, bool is64Bits, bool isAfterRegAl
 // Split Add/Sub Insn with BitShiftOperand (LSL 12), steps as follows:
 // add/sub  x0, x1, #imm, LSL 12   ====>   add/sub  x0, x1, #newimm   ====>   Add/SubInsnSplit
 // isAdd: true -> add, false -> sub
-void AddSubWithLslSplit(Insn *insn, bool isAdd, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void AddSubWithLslSplit(Insn *insn, bool isAdd, bool is64Bits, bool isAfterRegAlloc,
+    InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
   if (insn->VerifySelf()) { return; }
   uint32 size = is64Bits ? k64BitSize : k32BitSize;
   ImmOperand &immOpnd = static_cast<ImmOperand&>(insn->GetOperand(kInsnThirdOpnd));
@@ -303,9 +313,10 @@ void AddSubWithLslSplit(Insn *insn, bool isAdd, bool is64Bits, bool isAfterRegAl
     return;
   }
   BB *bb = insn->GetBB();
-  ImmOperand &newImmOpnd = opndBuilder->CreateImm(size, immOpnd.GetValue() << k12BitSize);
+  ImmOperand &newImmOpnd = opndBuilder->CreateImm(size, static_cast<uint64>(immOpnd.GetValue()) << k12BitSize);
   MOperator mOpCode = is64Bits ? (isAdd ? MOP_xaddrri12 : MOP_xsubrri12) : (isAdd ? MOP_waddrri12 : MOP_wsubrri12);
-  Insn &newInsn = insnBuilder->BuildInsn(mOpCode, insn->GetOperand(kInsnFirstOpnd), insn->GetOperand(kInsnSecondOpnd), newImmOpnd);
+  Insn &newInsn = insnBuilder->BuildInsn(mOpCode, insn->GetOperand(kInsnFirstOpnd),
+      insn->GetOperand(kInsnSecondOpnd), newImmOpnd);
   newInsn.SetBB(bb);
   bb->ReplaceInsn(*insn, newInsn);
   if (!newInsn.VerifySelf()) {
@@ -314,7 +325,8 @@ void AddSubWithLslSplit(Insn *insn, bool isAdd, bool is64Bits, bool isAfterRegAl
 }
 
 // Split memoperand with invalid offset value to a new valid memoperand and add insn with remainder.
-MemOperand &MemOfstSplitWithAdd(const MemOperand &memOpnd, uint32 bitLen, bool isAfterRegAlloc, Insn *insn, bool forPair, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline MemOperand &MemOfstSplitWithAdd(const MemOperand &memOpnd, uint32 bitLen, bool isAfterRegAlloc,
+    Insn *insn, bool forPair, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
   ASSERT((memOpnd.GetAddrMode() == MemOperand::kBOI), "expect kBOI memOpnd");
   ASSERT(memOpnd.IsIntactIndexed(), "expect intactIndexed memOpnd");
   BB *bb = insn->GetBB();
@@ -340,14 +352,16 @@ MemOperand &MemOfstSplitWithAdd(const MemOperand &memOpnd, uint32 bitLen, bool i
 
 // Split a load/store insn with invalid offset value to a new valid insn and add insn.
 // idx: memOperand index of insn
-void LoadStoreInsnSplit(Insn *insn, uint32 idx, bool forPair, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void LoadStoreInsnSplit(Insn *insn, uint32 idx, bool forPair, bool isAfterRegAlloc,
+    InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
   if (insn->VerifySelf()) { return; }
   MemOperand &memOpnd = static_cast<MemOperand&>(insn->GetOperand(idx));
   if (!(memOpnd.GetAddrMode() == MemOperand::kBOI && memOpnd.IsIntactIndexed())) {
     return;
   }
   uint32 bitLen = insn->GetDesc()->GetOpndDes(idx)->GetSize();
-  MemOperand &newMemOpnd = MemOfstSplitWithAdd(memOpnd, bitLen, isAfterRegAlloc, insn, forPair, insnBuilder, opndBuilder);
+  MemOperand &newMemOpnd = MemOfstSplitWithAdd(memOpnd, bitLen, isAfterRegAlloc, insn, forPair,
+      insnBuilder, opndBuilder);
   insn->SetOperand(idx, newMemOpnd);
 }
 
@@ -355,7 +369,8 @@ void LoadStoreInsnSplit(Insn *insn, uint32 idx, bool forPair, bool isAfterRegAll
 // of the same type, because we don`t know when the result is out of range and changes flags. The solution is:
 // ccmp  <Xn>, #<imm>, #<nzcv>, <cond>    ====>    mov   <Xm>, #<imm>
 //                                                 ccmp  <Xn>, <Xm>, #<nzcv>, <cond>
-void CondCompareInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void CondCompareInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   if (insn->VerifySelf()) { return; }
   ImmOperand &immOpnd = static_cast<ImmOperand&>(insn->GetOperand(kInsnSecondOpnd));
   MOperator mOpCode = MOP_undef;
@@ -374,7 +389,8 @@ void CondCompareInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc, InsnB
 }
 
 // split mov w0, #imm to mov and movk
-void MOP_wmovri32Split(Insn *curInsn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wmovri32Split(Insn *curInsn, bool /* isAfterRegAlloc */, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   if (curInsn->VerifySelf()) { return; }
   RegOperand &destReg = static_cast<RegOperand&>(curInsn->GetOperand(kInsnFirstOpnd));
   int64 immVal = static_cast<ImmOperand&>(curInsn->GetOperand(kInsnSecondOpnd)).GetValue();
@@ -386,7 +402,8 @@ void MOP_wmovri32Split(Insn *curInsn, bool isAfterRegAlloc, InsnBuilder *insnBui
   (void)bb->InsertInsnBefore(*curInsn, movInsn);
   uint64 chunkVal1 = (static_cast<uint64>(immVal) >> k16BitSize) & 0x0000FFFFULL;
   ImmOperand &src16 = opndBuilder->CreateImm(k16BitSize, static_cast<int64>(chunkVal1), false);
-  BitShiftOperand *lslOpnd = &opndBuilder->CreateBitShift(BitShiftOperand::kShiftLSL, static_cast<uint32>(k16BitSize), 6);
+  BitShiftOperand *lslOpnd = &opndBuilder->CreateBitShift(BitShiftOperand::kShiftLSL,
+      static_cast<uint32>(k16BitSize), 6);
   Insn &movkInsn = insnBuilder->BuildInsn(MOP_wmovkri16, destReg, src16, *lslOpnd);
   movkInsn.SetBB(bb);
   (void)bb->InsertInsnBefore(*curInsn, movkInsn);
@@ -394,11 +411,12 @@ void MOP_wmovri32Split(Insn *curInsn, bool isAfterRegAlloc, InsnBuilder *insnBui
 }
 
 // split mov x0, #imm to movz/movn and movk
-void MOP_xmovri64Split(Insn *curInsn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xmovri64Split(Insn *curInsn, bool /* isAfterRegAlloc */,
+    InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
   if (curInsn->VerifySelf()) { return; }
   RegOperand &destReg = static_cast<RegOperand&>(curInsn->GetOperand(kInsnFirstOpnd));
   int64 immVal = static_cast<ImmOperand&>(curInsn->GetOperand(kInsnSecondOpnd)).GetValue();
-  bool useMovz = BetterUseMOVZ(immVal);
+  bool useMovz = BetterUseMOVZ(static_cast<uint64>(immVal));
   bool useMovk = false;
   // get lower 32 bits of the immediate
   uint64 chunkLval = static_cast<uint64>(immVal) & 0xFFFFFFFFULL;
@@ -445,186 +463,234 @@ void MOP_xmovri64Split(Insn *curInsn, bool isAfterRegAlloc, InsnBuilder *insnBui
   bb->RemoveInsn(*curInsn);
 }
 
-void MOP_xaddrri24Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xaddrri24Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   AddSubWithLslSplit(insn, true, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xaddrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xaddrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   AddInsnSplit(insn, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xaddsrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xaddsrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   AddsSubsInsnSplit(insn, true, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_waddrri24Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_waddrri24Split(Insn *insn, bool isAfterRegAlloc,
+    InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
   AddSubWithLslSplit(insn, true, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_waddrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_waddrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   AddInsnSplit(insn, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_waddsrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_waddsrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   AddsSubsInsnSplit(insn, true, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xsubrri24Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xsubrri24Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   AddSubWithLslSplit(insn, false, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xsubrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xsubrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   SubInsnSplit(insn, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xsubsrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xsubsrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   AddsSubsInsnSplit(insn, false, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wsubrri24Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wsubrri24Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   AddSubWithLslSplit(insn, false, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wsubrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wsubrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   SubInsnSplit(insn, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wsubsrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wsubsrri12Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   AddsSubsInsnSplit(insn, false, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wldrsbSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wldrsbSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xldrsbSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xldrsbSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wldrbSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wldrbSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wldrshSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wldrshSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xldrshSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xldrshSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xldrswSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xldrswSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wldrhSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wldrhSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_bldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_bldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_hldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_hldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_sldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_sldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_dldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_dldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_qldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_qldrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xldpswSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xldpswSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_sldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_sldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_dldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_dldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_qldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_qldpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wccmpriicSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wccmpriicSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   CondCompareInsnSplit(insn, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xccmpriicSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xccmpriicSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   CondCompareInsnSplit(insn, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wstrbSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wstrbSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wstrhSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wstrhSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_sstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_sstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_dstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_dstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_qstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_qstrSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnSecondOpnd, false, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_wstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_wstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_xstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_xstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_sstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_sstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_dstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_dstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
 
-void MOP_qstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+static inline void MOP_qstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder,
+    OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
+}  /* namespace maplebe */
+#endif /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_MOP_SPLIT_H */

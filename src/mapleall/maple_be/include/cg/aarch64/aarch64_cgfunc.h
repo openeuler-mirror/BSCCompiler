@@ -371,7 +371,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, PrimType oType);
   void SelectStackSave();
   void SelectStackRestore(const IntrinsiccallNode &intrnNode);
-  void SelectCDIVException(const IntrinsiccallNode &intrnNode);
+  void SelectCDIVException();
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);
   void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 
@@ -885,8 +885,7 @@ class AArch64CGFunc : public CGFunc {
                           int32 structCopyOffset, bool isArgUnused);
   void SelectParmListPreprocessForAggregate(BaseNode &argExpr, int32 &structCopyOffset,
                                             std::vector<ParamDesc> &argsDesc, bool isArgUnused);
-  bool SelectParmListPreprocess(StmtNode &naryNode, size_t start, bool isCallNative,
-                                std::vector<ParamDesc> &argsDesc,
+  bool SelectParmListPreprocess(StmtNode &naryNode, size_t start, std::vector<ParamDesc> &argsDesc,
                                 const MIRFunction *callee = nullptr);
   void SelectClearStackCallParmList(const StmtNode &naryNode, ListOperand &srcOpnds,
                                     std::vector<int64> &stackPostion);
@@ -954,7 +953,7 @@ class AArch64CGFunc : public CGFunc {
                                bool isIntactIndexed, bool isPostIndexed, bool isPreIndexed) const;
   Insn &GenerateGlobalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds);
   Insn &GenerateLocalLongCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds);
-  Insn &GenerateGlobalNopltCallAfterInsn(const MIRSymbol &func, ListOperand &srcOpnds);
+  Insn &GenerateGlobalNopltCallAfterInsn(const MIRSymbol &funcSym, ListOperand &srcOpnds);
   bool IsDuplicateAsmList(const MIRSymbol &sym) const;
   RegOperand *CheckStringIsCompressed(BB &bb, RegOperand &str, int32 countOffset, PrimType countPty,
                                       LabelIdx jumpLabIdx);

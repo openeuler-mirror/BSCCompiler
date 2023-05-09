@@ -58,9 +58,9 @@ bool CGOptions::optForSize = false;
 bool CGOptions::enableHotColdSplit = false;
 uint32 CGOptions::alignMinBBSize = 16;
 uint32 CGOptions::alignMaxBBSize = 96;
-uint32 CGOptions::loopAlignPow = 3;
-uint32 CGOptions::jumpAlignPow = 3;
-uint32 CGOptions::funcAlignPow = 6;
+uint32 CGOptions::loopAlignPow = 4;
+uint32 CGOptions::jumpAlignPow = 5;
+uint32 CGOptions::funcAlignPow = 5;
 bool CGOptions::liteProfGen = false;
 bool CGOptions::liteProfUse = false;
 bool CGOptions::liteProfVerify = false;
@@ -80,6 +80,7 @@ bool CGOptions::useBarriersForVolatile = true;
 bool CGOptions::exclusiveEH = false;
 bool CGOptions::doEBO = false;
 bool CGOptions::doCGSSA = false;
+bool CGOptions::doLayoutColdPath = false;
 bool CGOptions::doGlobalSchedule = false;
 bool CGOptions::doLocalSchedule = false;
 bool CGOptions::doVerifySchedule = false;
@@ -679,6 +680,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::cgSsa ? EnableCGSSA() : DisableCGSSA();
   }
 
+  if (opts::cg::layoutColdPath.IsEnabledByUser()) {
+    opts::cg::layoutColdPath ? EnableLayoutColdPath() : DisableLayoutColdPath();
+  }
+
   if (opts::cg::globalSchedule.IsEnabledByUser()) {
     opts::cg::globalSchedule ? EnableGlobalSchedule() : DisableGlobalSchedule();
   }
@@ -897,7 +902,7 @@ void CGOptions::EnableO2() {
   SetOption(kUseUnwindTables);
   ClearOption(kUseStackProtectorStrong);
   ClearOption(kUseStackProtectorAll);
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   doPreLSRAOpt = false;
   doLocalRefSpill = false;
   doCalleeToSpill = false;

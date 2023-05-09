@@ -406,7 +406,7 @@ class EACGPointerNode : public EACGBaseNode {
   EACGPointerNode(MIRModule *md, MapleAllocator *alloc, EAConnectionGraph &ec, MeExpr *expr, EAStatus initialEas, int i,
                   int indirectL)
       : EACGBaseNode(md, alloc, kPointerNode, ec, expr, initialEas, i), indirectLevel(indirectL) {};
-  ~EACGPointerNode() = default;
+  ~EACGPointerNode() override = default;
 
   void SetLocation(Location *loc) {
     this->locInfo = loc;
@@ -474,7 +474,7 @@ class EACGObjectNode : public EACGBaseNode {
     (void)pointsBy.insert(this);
     (void)pointsTo.insert(this);
   };
-  ~EACGObjectNode() = default;
+  ~EACGObjectNode() override = default;
   bool IsPhantom() const {
     return isPhantom;
   };
@@ -559,7 +559,7 @@ class EACGRefNode : public EACGBaseNode {
         isStaticField(isS),
         sym(nullptr),
         version(0) {};
-  ~EACGRefNode() = default;
+  ~EACGRefNode() override = default;
   bool IsStaticRef() const {
     return isStaticField;
   };
@@ -606,7 +606,7 @@ class EACGFieldNode : public EACGBaseNode {
     (void)belongsTo.insert(bt);
   };
 
-  ~EACGFieldNode() = default;
+  ~EACGFieldNode() override = default;
 
   FieldID GetFieldID() const {
     return fieldID;
@@ -665,7 +665,7 @@ class EACGActualNode : public EACGBaseNode {
         isPhantom(isPh),
         argIdx(aI),
         callSiteInfo(callSite) {};
-  ~EACGActualNode() = default;
+  ~EACGActualNode() override = default;
 
   bool IsReturn() const {
     return isReturn;

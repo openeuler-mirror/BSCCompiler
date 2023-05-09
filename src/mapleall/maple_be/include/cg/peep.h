@@ -93,7 +93,9 @@ class CGPeepHole {
       : cgFunc(&f),
         peepMemPool(memPool),
         ssaInfo(cgssaInfo) {}
-  virtual ~CGPeepHole() = default;
+  virtual ~CGPeepHole() {
+    ssaInfo = nullptr;
+  }
 
   virtual void Run() = 0;
   virtual bool DoSSAOptimize(BB &bb, Insn &insn) = 0;

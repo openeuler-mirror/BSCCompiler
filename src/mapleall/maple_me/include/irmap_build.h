@@ -43,11 +43,11 @@ class IRMapBuild {
 
   MeExpr *BuildLHSVar(const VersionSt &vst, DassignMeStmt &defMeStmt);
   MeExpr *BuildLHSReg(const VersionSt &vst, AssignMeStmt &defMeStmt, const RegassignNode &regassign);
-  void BuildChiList(MeStmt&, TypeOfMayDefList&, MapleMap<OStIdx, ChiMeNode*>&);
-  void BuildMustDefList(MeStmt &meStmt, TypeOfMustDefList&, MapleVector<MustDefMeNode>&);
-  void BuildMuList(TypeOfMayUseList&, MapleMap<OStIdx, ScalarMeExpr*>&);
-  void BuildPhiMeNode(BB&);
-  void SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode, bool atparm, bool noProp);
+  void BuildChiList(MeStmt &meStmt, TypeOfMayDefList &mayDefNodes, MapleMap<OStIdx, ChiMeNode*> &outList);
+  void BuildMustDefList(MeStmt &meStmt, TypeOfMustDefList &mustDefList, MapleVector<MustDefMeNode> &mustDefMeList);
+  void BuildMuList(TypeOfMayUseList &mayUseList, MapleMap<OStIdx, ScalarMeExpr*> &muList);
+  void BuildPhiMeNode(BB &bb);
+  void SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode, bool atParm, bool noProp);
 
   std::unique_ptr<OpMeExpr> BuildOpMeExpr(const BaseNode &mirNode) const {
     auto meExpr = std::make_unique<OpMeExpr>(kInvalidExprID, mirNode.GetOpCode(),
@@ -76,7 +76,7 @@ class IRMapBuild {
   std::unique_ptr<MeExpr> BuildNaryMeExprForArray(const BaseNode &mirNode) const;
   std::unique_ptr<MeExpr> BuildNaryMeExprForIntrinsicop(const BaseNode &mirNode) const;
   std::unique_ptr<MeExpr> BuildNaryMeExprForIntrinsicWithType(const BaseNode &mirNode) const;
-  MeExpr *BuildExpr(BaseNode&, bool atParm, bool noProp);
+  MeExpr *BuildExpr(BaseNode &mirNode, bool atParm, bool noProp);
   static void InitMeExprBuildFactory();
 
   MeStmt *BuildMeStmtWithNoSSAPart(StmtNode &stmt);
@@ -92,7 +92,7 @@ class IRMapBuild {
   MeStmt *BuildThrowMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart);
   MeStmt *BuildSyncMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart);
   MeStmt *BuildAsmMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart);
-  MeStmt *BuildMeStmt(StmtNode&);
+  MeStmt *BuildMeStmt(StmtNode &stmt);
   static void InitMeStmtFactory();
 
   IRMap *irMap;

@@ -18,7 +18,7 @@
 #include "aarch64_ico.h"
 #include "aarch64_isa.h"
 #include "aarch64_insn.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_ico.h"
 #include "riscv64_isa.h"
 #include "riscv64_insn.h"
@@ -67,7 +67,7 @@ bool CgIco::PhaseRun(maplebe::CGFunc &f) {
 #if TARGAARCH64 || TARGRISCV64
   ico = memPool->New<AArch64IfConversionOptimizer>(f, *memPool);
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   ico = memPool->New<Arm32IfConversionOptimizer>(f, *memPool);
 #endif
   const std::string &funcClass = f.GetFunction().GetBaseClassName();

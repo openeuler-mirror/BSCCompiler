@@ -659,7 +659,18 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
 
   int32 numIndex = static_cast<int>(array.NumOpnds()) - 1;
   MIRArrayType *curArrayType = arrayType;
-  BaseNode *resNode = NodeConvert(array.GetPrimType(), *array.GetIndex(0));
+  // OP_CG_array_elem_add process in handlefunc is not suitable for CModule
+  // so here we add a forced type conversion to make it avoid OP_CG_array_elem_add
+  BaseNode *resNode = nullptr;
+  if (mirModule.IsCModule()) {
+    resNode = mirModule.CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt);
+    static_cast<TypeCvtNode *>(resNode)->SetFromType(array.GetIndex(0)->GetPrimType());
+    static_cast<TypeCvtNode *>(resNode)->SetPrimType(array.GetPrimType());
+    static_cast<TypeCvtNode *>(resNode)->SetOpnd(array.GetIndex(0), 0);
+  } else {
+    resNode = NodeConvert(array.GetPrimType(), *array.GetIndex(0));
+  }
+
   if (dim > 1) {
     BaseNode *prevNode = nullptr;
     for (int i = 0; (i < dim) && (i < numIndex); i++) {
@@ -2481,7 +2492,7 @@ void CGLowerer::LowerTryCatchBlocks(BlockNode &body) {
     return;
   }
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   BBT::ValidateStmtList(nullptr, nullptr);
 #endif
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "CreateNewBB mempool");
@@ -2752,7 +2763,7 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
   if (expr.GetOpCode() != OP_intrinsicop && expr.GetPrimType() == PTY_u1) {
 #if TARGAARCH64
     expr.SetPrimType(PTY_i32);
-#elif TARGX86_64
+#elif defined(TARGX86_64) && TARGX86_64
     expr.SetPrimType(PTY_u8);
 #else
     CHECK_FATAL(false, "target not supported");

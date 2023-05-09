@@ -14,7 +14,6 @@
  */
 #include "lexer.h"
 #include <cmath>
-#include <climits>
 #include <cstdlib>
 #include "mpl_logging.h"
 #include "debug_info.h"

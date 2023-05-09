@@ -36,7 +36,7 @@ X64_LITECG_ME_O2 = {
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             run=["me", "mplcg"],
             option={
-                "me": "-O2 --skip-phases=slp --no-mergestmts --quiet",
+                "me": "-O2 --skip-phases=slp,sra --no-mergestmts --quiet",
                 "mplcg": "-Olitecg --verbose-asm --verbose-cg --fPIC"
             },
             global_option="--genVtableImpl --save-temps",

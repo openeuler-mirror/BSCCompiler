@@ -15,7 +15,6 @@
 #ifndef HIR2MPL_BC_INPUT_INCLUDE_BC_UTIL_H
 #define HIR2MPL_BC_INPUT_INCLUDE_BC_UTIL_H
 #include <string>
-#include <vector>
 #include <map>
 #include <unordered_set>
 #include "types_def.h"

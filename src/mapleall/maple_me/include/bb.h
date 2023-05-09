@@ -96,7 +96,7 @@ class BB : public BaseGraphNode {
     succ.pop_back();
   }
 
-  virtual ~BB() = default;
+  ~BB() override = default;
   SCCNode<BB> *GetSCCNode() {
     return sccNode;
   }
@@ -327,6 +327,18 @@ class BB : public BaseGraphNode {
     return kind == kBBReturn && !stmtNodeList.empty() && stmtNodeList.back().GetOpCode() == OP_return;
   }
 
+  // Whether the BB is the first BB of UNLIKELY path (inferred from __builtin_expect) and it has only 1 predecessor.
+  bool IsImmediateUnlikelyBB() const;
+  // Whether the BB is the first BB of LIKELY path (inferred from __builtin_expect) and it has only 1 predecessor.
+  bool IsImmediateLikelyBB() const;
+
+  // The kind of current BB must be kBBCondGoto (denoted as condBB)
+  // Return the UNLIKELY successor of condBB (inferred from __builtin_expect)
+  // Return nullptr if there is no builtin_expect info.
+  BB *GetUnlikelySuccOfCondBB();
+  // Same as `GetUnlikelySuccOfCondBB` but returns the LIKELY successor.
+  BB *GetLikelySuccOfCondBB();
+
   void FindReachableBBs(std::vector<bool> &visitedBBs) const;
   void FindWillExitBBs(std::vector<bool> &visitedBBs) const;
   const PhiNode *PhiofVerStInserted(const VersionSt &versionSt) const;
@@ -365,6 +377,10 @@ class BB : public BaseGraphNode {
 
   void SetBBLabel(LabelIdx idx) {
     bbLabel = idx;
+  }
+
+  FreqType GetNodeFrequency() const override {
+    return frequency;
   }
 
   FreqType GetFrequency() const {
@@ -508,6 +524,14 @@ class BB : public BaseGraphNode {
 
   void ClearMePhiList() {
     mePhiList.clear();
+  }
+
+  FreqType GetEdgeFrequency(const BaseGraphNode &node) const override {
+    return GetEdgeFreq(static_cast<const BB*>(&node));
+  }
+
+  FreqType GetEdgeFrequency(size_t idx) const override {
+    return GetEdgeFreq(idx);
   }
 
   FreqType GetEdgeFreq(const BB *bb) const {

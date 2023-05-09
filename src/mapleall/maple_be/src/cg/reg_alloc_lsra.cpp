@@ -1733,7 +1733,7 @@ RegOperand *LSRALinearScanRegAllocator::HandleSpillForInsn(const Insn &insn, Ope
   return newOpnd;
 }
 
-bool LSRALinearScanRegAllocator::OpndNeedAllocation(const Insn &insn, Operand &opnd, bool isDef, uint32 insnNum) {
+bool LSRALinearScanRegAllocator::OpndNeedAllocation(Operand &opnd, bool isDef, uint32 insnNum) {
   if (!opnd.IsRegister()) {
     return false;
   }
@@ -1997,7 +1997,7 @@ void LSRALinearScanRegAllocator::AssignPhysRegsForInsn(Insn &insn) {
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<ListOperand&>(opnd);
       for (auto op : listOpnd.GetOperands()) {
-        if (!OpndNeedAllocation(insn, *op, isDef, insn.GetId())) {
+        if (!OpndNeedAllocation(*op, isDef, insn.GetId())) {
           continue;
         }
         if (isDef && !fastAlloc) {
@@ -2030,7 +2030,7 @@ void LSRALinearScanRegAllocator::AssignPhysRegsForInsn(Insn &insn) {
       Operand *offset = memOpnd.GetIndexRegister();
       isDef = false;
       if (base != nullptr) {
-        if (OpndNeedAllocation(insn, *base, isDef, insn.GetId())) {
+        if (OpndNeedAllocation(*base, isDef, insn.GetId())) {
           newOpnd = AssignPhysRegs(*base, insn);
           if (newOpnd == nullptr) {
             SetOperandSpill(*base);
@@ -2039,7 +2039,7 @@ void LSRALinearScanRegAllocator::AssignPhysRegsForInsn(Insn &insn) {
         }
       }
       if (offset != nullptr) {
-        if (!OpndNeedAllocation(insn, *offset, isDef, insn.GetId())) {
+        if (!OpndNeedAllocation(*offset, isDef, insn.GetId())) {
           continue;
         }
         newOpnd = AssignPhysRegs(*offset, insn);
@@ -2048,7 +2048,7 @@ void LSRALinearScanRegAllocator::AssignPhysRegsForInsn(Insn &insn) {
         }
       }
     } else {
-      if (!OpndNeedAllocation(insn, opnd, isDef, insn.GetId())) {
+      if (!OpndNeedAllocation(opnd, isDef, insn.GetId())) {
         continue;
       }
       if (isDef && !fastAlloc) {

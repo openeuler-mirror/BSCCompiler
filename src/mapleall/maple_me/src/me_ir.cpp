@@ -937,7 +937,7 @@ void MePhiNode::Dump(const IRMap *irMap) const {
   LogInfo::MapleLogger() << '\n';
 }
 
-void VarMeExpr::Dump(const IRMap *irMap, int32) const {
+void VarMeExpr::Dump(const IRMap *irMap, int32 /* indent */) const {
   CHECK_NULL_FATAL(irMap);
   LogInfo::MapleLogger() << "VAR ";
   GetOst()->Dump();

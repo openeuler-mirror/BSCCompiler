@@ -15,7 +15,6 @@
 #ifndef MAPLE_ME_INCLUDE_ME_IRMAP_H
 #define MAPLE_ME_INCLUDE_ME_IRMAP_H
 #include "me_option.h"
-#include "me_phase.h"
 #include "ssa_tab.h"
 #include "me_function.h"
 #include "irmap.h"
@@ -30,7 +29,7 @@ class MeIRMap : public IRMap {
     SetDumpStmtNum(MeOption::stmtNum);
   }
 
-  ~MeIRMap() = default;
+  ~MeIRMap() override = default;
 
   BB *GetBB(BBId id) override {
     return cfg->GetBBFromID(id);

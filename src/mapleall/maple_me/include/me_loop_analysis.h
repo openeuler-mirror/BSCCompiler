@@ -131,7 +131,7 @@ class IdentifyLoops : public AnalysisResult {
         meLoops(meLoopAlloc.Adapter()),
         bbLoopParent(func.GetCfg()->GetAllBBs().size(), nullptr, meLoopAlloc.Adapter()) {}
 
-  virtual ~IdentifyLoops() = default;
+  ~IdentifyLoops() override = default;
 
   const MapleVector<LoopDesc*> &GetMeLoops() const {
     return meLoops;

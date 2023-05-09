@@ -1831,7 +1831,7 @@ bool MIRParser::ParseLoc() {
   return true;
 }
 
-bool MIRParser::ParseLocStmt(StmtNodePtr&) {
+bool MIRParser::ParseLocStmt(StmtNodePtr &stmt) {
   return ParseLoc();
 }
 

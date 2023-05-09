@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2023] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -39,7 +39,7 @@ class LiteProfile {
   bool HandleLitePGOFile(const std::string &fileName, const std::string &moduleName);
   bool HandleLitePgoWhiteList(const std::string &fileName) const;
   BBInfo *GetFuncBBProf(const std::string &funcName);
-  bool isExtremelyCold(const std::string &funcName) {
+  bool IsExtremelyCold(const std::string &funcName) {
     return extremelyColdFuncs.count(funcName);
   }
   static bool IsInWhiteList(const std::string &funcName) {

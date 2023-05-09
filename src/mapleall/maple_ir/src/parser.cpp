@@ -150,12 +150,14 @@ PrimType MIRParser::GetPrimitiveType(TokenKind tk) const {
 
 MIRIntrinsicID MIRParser::GetIntrinsicID(TokenKind tk) const {
   switch (tk) {
-    default:
 #define DEF_MIR_INTRINSIC(P, NAME, NUM_INSN, INTRN_CLASS, RETURN_TYPE, ...) \
     case TK_##P:                                                  \
       return INTRN_##P;
 #include "intrinsics.def"
 #undef DEF_MIR_INTRINSIC
+    default:
+      ASSERT(false, "\n =====GetIntrinsicID failed===== \n");
+      return INTRN_UNDEFINED;
   }
 }
 
@@ -2605,7 +2607,7 @@ bool MIRParser::ParseScope() {
   return status;
 }
 
-bool MIRParser::ParseScopeStmt(StmtNodePtr&) {
+bool MIRParser::ParseScopeStmt(StmtNodePtr &stmt) {
   return ParseScope();
 }
 
@@ -2696,7 +2698,7 @@ bool MIRParser::ParseAlias() {
   return true;
 }
 
-bool MIRParser::ParseAliasStmt(StmtNodePtr&) {
+bool MIRParser::ParseAliasStmt(StmtNodePtr &stmt) {
   return ParseAlias();
 }
 
@@ -3408,10 +3410,6 @@ bool MIRParser::ParseMPLT(std::ifstream &mpltFile, const std::string &importFile
   while (!atEof) {
     TokenKind tokenKind = lexer.GetTokenKind();
     switch (tokenKind) {
-      default: {
-        Error("expect func or var but get ");
-        return false;
-      }
       case TK_eof:
         atEof = true;
         break;
@@ -3432,6 +3430,10 @@ bool MIRParser::ParseMPLT(std::ifstream &mpltFile, const std::string &importFile
           return false;
         }
         break;
+      }
+      default: {
+        Error("expect func or var but get ");
+        return false;
       }
     }
   }

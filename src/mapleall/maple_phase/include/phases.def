@@ -71,6 +71,7 @@ ADDMAPLEMEPHASE("autovec", CLANG && MeOption::optLevel >= 3 && MeOption::enableL
 ADDMAPLEMEPHASE("lfounroll", CLANG && MeOption::optLevel >= 2 && MeOption::enableLFO &&
                              MeOption::boundaryCheckMode == SafetyCheckMode::kNoCheck)
 ADDMAPLEMEPHASE("mecfgbuild", MeOption::optLevel >= 2 || JAVALANG)
+ADDMAPLEMEPHASE("sra", MeOption::optLevel >= 2 && CLANG)
 ADDMAPLEMEPHASE("optimizeCFGNoSSA", CLANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("codefactoring", CLANG && MeOption::optForSize)
 ADDMAPLEMEPHASE("bypatheh", JAVALANG && MeOption::optLevel >= 2)

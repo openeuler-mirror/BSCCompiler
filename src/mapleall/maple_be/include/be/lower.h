@@ -69,6 +69,7 @@ class CGLowerer {
   }
 
   ~CGLowerer() {
+    funcProfData = nullptr;
     mirBuilder = nullptr;
     currentBlock = nullptr;
   }

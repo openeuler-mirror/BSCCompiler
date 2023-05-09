@@ -55,7 +55,9 @@ class StmtInfo {
       CreateHashCandidate();
     }
   }
-  virtual ~StmtInfo() = default;
+  virtual ~StmtInfo() {
+    stmt = nullptr;
+  }
 
   bool IsValid() {
     switch (hashCandidate[0]) {

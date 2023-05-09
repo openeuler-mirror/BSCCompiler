@@ -256,6 +256,27 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn) const {
         }
         break;
       }
+      case MOP_xaddrrr: {
+        // Later when use of SP or FP is refacored, this case can be omitted
+        RegOperand *offsetReg = nullptr;
+        Insn *newInsn = nullptr;
+        if (static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP) {
+          offsetReg = &static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+        } else if (static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetRegisterNumber() == RSP) {
+          offsetReg = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+        } else {
+          break;
+        }
+        if (insn.GetOperand(kInsnSecondOpnd).GetSize() == k64BitSize) {
+          ImmOperand &offsetImm = aarchCGFunc->CreateImmOperand(offset, k64BitSize, false);
+          newInsn = &aarchCGFunc->GetInsnBuilder()->BuildInsn(MOP_xaddrri12, *offsetReg, *offsetReg, offsetImm);
+        } else {
+          ImmOperand &offsetImm = aarchCGFunc->CreateImmOperand(offset, k32BitSize, false);
+          newInsn = &aarchCGFunc->GetInsnBuilder()->BuildInsn(MOP_waddrri12, *offsetReg, *offsetReg, offsetImm);
+        }
+        (void)insn.GetBB()->InsertInsnBefore(insn, *newInsn);
+        break;
+      }
       default:
         insn.Dump();
         CHECK_FATAL(false, "Unexpect offset adjustment insn");

@@ -112,7 +112,7 @@ class MIRScope {
 
   bool IsSubScope(const MIRScope *scp) const;
   bool HasJoinScope(const MIRScope *scp1, const MIRScope *scp2) const;
-  bool HasSameRange(const MIRScope *s1, const MIRScope *s2) const;
+  bool HasSameRange(const MIRScope *scp1, const MIRScope *scp2) const;
 
   unsigned GetId() const {
     return id;

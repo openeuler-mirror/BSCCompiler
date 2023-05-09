@@ -2840,7 +2840,7 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
       bb.InsertInsnAfter(*prevContiInsn, *combineInsn);
       if (!(static_cast<AArch64CGFunc&>(*cgFunc).IsOperandImmValid(newMop, combineMemOpnd,
                                                                    isPairAfterCombine ? kInsnThirdOpnd : kInsnSecondOpnd))) {
-        if (FindUseX16AfterInsn(bb, *prevContiInsn)) {
+        if (FindUseX16AfterInsn(*prevContiInsn)) {
           /* Do not combine Insns when x16 was used after curInsn */
           bb.RemoveInsn(*combineInsn);
           return;
@@ -2869,7 +2869,7 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool CombineContiLoadAndStorePattern::FindUseX16AfterInsn(BB &bb, const Insn &curInsn) {
+bool CombineContiLoadAndStorePattern::FindUseX16AfterInsn(const Insn &curInsn) {
   for (Insn *cursor = curInsn.GetNext(); cursor != nullptr; cursor = cursor->GetNext()) {
     if (!cursor->IsMachineInstruction()) {
       continue;

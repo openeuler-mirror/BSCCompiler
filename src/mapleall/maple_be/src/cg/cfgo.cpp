@@ -793,26 +793,46 @@ bool FlipBRPattern::Optimize(BB &curBB) {
 
 /* remove a basic block that contains nothing */
 bool EmptyBBPattern::Optimize(BB &curBB) {
-  if (curBB.IsUnreachable()) {
+  // Can not remove the BB whose address is referenced by adrp_label insn
+  if (curBB.IsUnreachable() || curBB.IsAdrpLabel()) {
     return false;
   }
   /* Empty bb and it's not a cleanupBB/returnBB/lastBB/catchBB. */
-  if (curBB.GetPrev() != nullptr && !curBB.IsCleanup() &&
-      ((curBB.GetFirstInsn() == nullptr && curBB.GetLastInsn() == nullptr) ||
-      (curBB.GetFirstInsn()->IsDbgInsn() && curBB.GetLastInsn() == curBB.GetFirstInsn())) &&
-      &curBB != cgFunc->GetLastBB() &&
-      curBB.GetKind() != BB::kBBReturn && !IsLabelInLSDAOrSwitchTable(curBB.GetLabIdx())) {
+  if (curBB.GetPrev() == nullptr || curBB.IsCleanup() || &curBB == cgFunc->GetLastBB() ||
+      curBB.GetKind() == BB::kBBReturn || IsLabelInLSDAOrSwitchTable(curBB.GetLabIdx())) {
+    return false;
+  }
+
+  if (curBB.GetFirstInsn() == nullptr && curBB.GetLastInsn() == nullptr) {
+    // empty BB
     Log(curBB.GetId());
     if (checkOnly) {
       return false;
     }
-
     BB *sucBB = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
     if (sucBB == nullptr || sucBB->IsCleanup()) {
       return false;
     }
     cgFunc->GetTheCFG()->RemoveBB(curBB);
-    /* removeBB may do nothing. since no need to repeat, always ret false here. */
+    // removeBB may do nothing. since no need to repeat, always ret false here.
+    return false;
+  } else if (!curBB.HasMachineInsn()) {
+    // BB only has dbg insn
+    Log(curBB.GetId());
+    if (checkOnly) {
+      return false;
+    }
+    BB *sucBB = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
+    if (sucBB == nullptr || sucBB->IsCleanup()) {
+      return false;
+    }
+    // For Now We try to sink first conservatively.
+    // All dbg insns should not be dropped. Later hoist or copy case should be considered.
+    if (curBB.NumSuccs() == 1) {
+      BB *succBB = curBB.GetSuccs().front();
+      succBB->InsertAtBeginning(curBB);
+      cgFunc->GetTheCFG()->RemoveBB(curBB);
+    }
     return false;
   }
   return false;

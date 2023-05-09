@@ -29,6 +29,7 @@ class MIRLexer {
  public:
   MIRLexer(DebugInfo *debugInfo, MapleAllocator &alloc);
   ~MIRLexer() {
+    dbgInfo = nullptr;
     airFile = nullptr;
     if (airFileInternal.is_open()) {
       airFileInternal.close();

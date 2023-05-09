@@ -406,7 +406,9 @@ class OpndEmitVisitor : public OperandVisitorBase,
   explicit OpndEmitVisitor(Emitter &asmEmitter, const OpndDesc *operandProp)
       : emitter(asmEmitter),
         opndProp(operandProp) {}
-  virtual ~OpndEmitVisitor() = default;
+  virtual ~OpndEmitVisitor() {
+    opndProp = nullptr;
+  }
   uint8 GetSlot() {
     return slot;
   }

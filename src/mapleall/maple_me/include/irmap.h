@@ -53,16 +53,16 @@ class IRMap : public AnalysisResult {
         vst2Decrefs(irMapAlloc.Adapter()),
         exprUseInfo(&memPool) {}
 
-  virtual ~IRMap() = default;
+  ~IRMap() override = default;
   virtual BB *GetBB(BBId id) = 0;
   virtual BB *GetBBForLabIdx(LabelIdx lidx, PUIdx pidx = 0) = 0;
   MeExpr *HashMeExpr(MeExpr &meExpr);
   IvarMeExpr *BuildLHSIvarFromIassMeStmt(IassignMeStmt &iassignMeStmt);
   IvarMeExpr *BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx &tyIdx, FieldID fieldID);
   IvarMeExpr *BuildLHSIvar(MeExpr &baseAddr, IassignMeStmt &iassignMeStmt, FieldID fieldID);
-  MeExpr *CreateAddrofMeExpr(MeExpr&);
-  MeExpr *CreateAddroffuncMeExpr(PUIdx PuIdx);
-  MeExpr *CreateAddrofMeExprFromSymbol(MIRSymbol& sym, PUIdx  puIdx);
+  MeExpr *CreateAddrofMeExpr(MeExpr &expr);
+  MeExpr *CreateAddroffuncMeExpr(PUIdx puIdx);
+  MeExpr *CreateAddrofMeExprFromSymbol(MIRSymbol &st, PUIdx  puIdx);
   MeExpr *CreateIaddrofMeExpr(FieldID fieldId, TyIdx tyIdx, MeExpr *base);
   MeExpr *CreateIvarMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base);
   NaryMeExpr *CreateNaryMeExpr(const NaryMeExpr &nMeExpr);
@@ -74,18 +74,18 @@ class IRMap : public AnalysisResult {
   }
   RegMeExpr *CreateRegRefMeExpr(const MeExpr &meExpr);
   VarMeExpr *GetOrCreateZeroVersionVarMeExpr(OriginalSt &ost);
-  VarMeExpr *CreateNewVar(GStrIdx strIdx, PrimType primType, bool isGlobal);
+  VarMeExpr *CreateNewVar(GStrIdx strIdx, PrimType pType, bool isGlobal);
   VarMeExpr *CreateNewLocalRefVarTmp(GStrIdx strIdx, TyIdx tIdx);
 
   // for creating RegMeExpr
-  RegMeExpr *CreateRegMeExprVersion(OriginalSt&);
+  RegMeExpr *CreateRegMeExprVersion(OriginalSt &pregOSt);
   RegMeExpr *CreateRegMeExprVersion(const RegMeExpr &regx) {
     return CreateRegMeExprVersion(*regx.GetOst());
   }
 
   ScalarMeExpr *CreateRegOrVarMeExprVersion(OStIdx ostIdx);
-  RegMeExpr *CreateRegMeExpr(PrimType);
-  RegMeExpr *CreateRegMeExpr(MIRType&);
+  RegMeExpr *CreateRegMeExpr(PrimType pType);
+  RegMeExpr *CreateRegMeExpr(MIRType &mirType);
   RegMeExpr *CreateRegMeExpr(const MeExpr &meexpr) {
     MIRType *mirType = meexpr.GetType();
     if (mirType == nullptr || mirType->GetPrimType() == PTY_agg) {
@@ -97,8 +97,8 @@ class IRMap : public AnalysisResult {
     return CreateRegMeExpr(*mirType);
   }
 
-  MeExpr *ReplaceMeExprExpr(MeExpr&, const MeExpr&, MeExpr&);
-  bool ReplaceMeExprStmt(MeStmt&, const MeExpr&, MeExpr&);
+  MeExpr *ReplaceMeExprExpr(MeExpr &origExpr, const MeExpr &meExpr, MeExpr &repExpr);
+  bool ReplaceMeExprStmt(MeStmt &meStmt, const MeExpr &meExpr, MeExpr &repexpr);
   MeExpr *GetMeExprByVerID(uint32 verid) const {
     return verst2MeExprTable[verid];
   }
@@ -112,10 +112,11 @@ class IRMap : public AnalysisResult {
     return meExpr;
   }
 
-  IassignMeStmt *CreateIassignMeStmt(TyIdx, IvarMeExpr&, MeExpr&, const MapleMap<OStIdx, ChiMeNode*>&);
-  AssignMeStmt *CreateAssignMeStmt(ScalarMeExpr&, MeExpr&, BB&);
+  IassignMeStmt *CreateIassignMeStmt(TyIdx tyIdx, IvarMeExpr &lhs, MeExpr &rhs,
+      const MapleMap<OStIdx, ChiMeNode*> &clist);
+  AssignMeStmt *CreateAssignMeStmt(ScalarMeExpr &lhs, MeExpr &rhs, BB &currBB);
   void InsertMeStmtBefore(BB&, MeStmt&, MeStmt&);
-  MePhiNode *CreateMePhi(ScalarMeExpr&);
+  MePhiNode *CreateMePhi(ScalarMeExpr &meExpr);
 
   void DumpBB(const BB &bb) {
     int i = 0;
@@ -131,15 +132,15 @@ class IRMap : public AnalysisResult {
   virtual void SetCurFunction(const BB&) {}
 
   MeExpr *CreateIntConstMeExpr(const IntVal &value, PrimType pType);
-  MeExpr *CreateIntConstMeExpr(int64, PrimType);
-  MeExpr *CreateConstMeExpr(PrimType, MIRConst&);
-  MeExpr *CreateMeExprUnary(Opcode, PrimType, MeExpr&);
-  MeExpr *CreateMeExprBinary(Opcode, PrimType, MeExpr&, MeExpr&);
-  MeExpr *CreateMeExprCompare(Opcode, PrimType, PrimType, MeExpr&, MeExpr&);
-  MeExpr *CreateMeExprSelect(PrimType, MeExpr&, MeExpr&, MeExpr&);
-  MeExpr *CreateMeExprTypeCvt(PrimType, PrimType, MeExpr&);
-  MeExpr *CreateMeExprRetype(PrimType, TyIdx, MeExpr&);
-  MeExpr *CreateMeExprExt(Opcode, PrimType, uint32, MeExpr&);
+  MeExpr *CreateIntConstMeExpr(int64 value, PrimType pType);
+  MeExpr *CreateConstMeExpr(PrimType pType, MIRConst &mirConst);
+  MeExpr *CreateMeExprUnary(Opcode op, PrimType pType, MeExpr &expr0);
+  MeExpr *CreateMeExprBinary(Opcode op, PrimType pType, MeExpr &expr0, MeExpr &expr1);
+  MeExpr *CreateMeExprCompare(Opcode op, PrimType resptyp, PrimType opndptyp, MeExpr &opnd0, MeExpr &opnd1);
+  MeExpr *CreateMeExprSelect(PrimType pType, MeExpr &expr0, MeExpr &expr1, MeExpr &expr2);
+  MeExpr *CreateMeExprTypeCvt(PrimType pType, PrimType opndptyp, MeExpr &opnd0);
+  MeExpr *CreateMeExprRetype(PrimType pType, TyIdx tyIdx, MeExpr &opnd);
+  MeExpr *CreateMeExprExt(Opcode op, PrimType pType, uint32 bitsSize, MeExpr &opnd);
   UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd);
   UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition *src);
   RetMeStmt *CreateRetMeStmt(MeExpr *opnd);
@@ -196,7 +197,7 @@ class IRMap : public AnalysisResult {
   }
 
   template <class T, typename... Arguments>
-  T *New(Arguments&&... args) {
+  T *New(Arguments&&... args) const {
     return irMapAlloc.GetMemPool()->New<T>(std::forward<Arguments>(args)...);
   }
 
@@ -309,9 +310,9 @@ class IRMap : public AnalysisResult {
   bool dumpStmtNum = false;
   BB *curBB = nullptr;  // current maple_me::BB being visited
 
-  bool ReplaceMeExprStmtOpnd(uint32, MeStmt&, const MeExpr&, MeExpr&);
-  void PutToBucket(uint32, MeExpr&);
-  const BB *GetFalseBrBB(const CondGotoMeStmt&);
+  bool ReplaceMeExprStmtOpnd(uint32 opndID, MeStmt &meStmt, const MeExpr &meExpr, MeExpr &repExpr);
+  void PutToBucket(uint32 hashIdx, MeExpr &meExpr);
+  const BB *GetFalseBrBB(const CondGotoMeStmt &condgoto);
   MeExpr *ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &newExpr, size_t opndsSize, const MeExpr &meExpr, MeExpr &repExpr);
   MeExpr *SimplifyCompareSameExpr(OpMeExpr *opmeexpr);
   bool IfMeExprIsU1Type(const MeExpr *expr) const;

@@ -176,7 +176,7 @@ class MIRAddrofConst : public MIRConst {
   MIRAddrofConst(StIdx sy, FieldID fi, MIRType &ty, int32 ofst)
       : MIRConst(ty, kConstAddrof), stIdx(sy), fldID(fi), offset(ofst) {}
 
-  ~MIRAddrofConst() = default;
+  ~MIRAddrofConst() override = default;
 
   StIdx GetSymbolIndex() const {
     return stIdx;
@@ -213,7 +213,7 @@ class MIRAddroffuncConst : public MIRConst {
   MIRAddroffuncConst(PUIdx idx, MIRType &ty)
       : MIRConst(ty, kConstAddrofFunc), puIdx(idx) {}
 
-  ~MIRAddroffuncConst() = default;
+  ~MIRAddroffuncConst() override = default;
 
   PUIdx GetValue() const {
     return puIdx;
@@ -236,7 +236,7 @@ class MIRLblConst : public MIRConst {
   MIRLblConst(LabelIdx val, PUIdx pidx, MIRType &type)
       : MIRConst(type, kConstLblConst), value(val), puIdx(pidx) {}
 
-  ~MIRLblConst() = default;
+  ~MIRLblConst() override = default;
 
   void Dump(const MIRSymbolTable *localSymTab) const override;
   bool operator==(const MIRConst &rhs) const override;
@@ -264,7 +264,7 @@ class MIRStrConst : public MIRConst {
 
   MIRStrConst(const std::string &str, MIRType &type);
 
-  ~MIRStrConst() = default;
+  ~MIRStrConst() override = default;
 
   void Dump(const MIRSymbolTable *localSymTab) const override;
   bool operator==(const MIRConst &rhs) const override;
@@ -291,7 +291,7 @@ class MIRStr16Const : public MIRConst {
   MIRStr16Const(const U16StrIdx &val, MIRType &type) : MIRConst(type, kConstStr16Const), value(val) {}
 
   MIRStr16Const(const std::u16string &str, MIRType &type);
-  ~MIRStr16Const() = default;
+  ~MIRStr16Const() override = default;
 
   static PrimType GetPrimType() {
     return kPrimType;
@@ -320,25 +320,25 @@ class MIRFloatConst : public MIRConst {
     value.floatValue = val;
   }
 
-  ~MIRFloatConst() = default;
+  ~MIRFloatConst() override = default;
 
   std::pair<uint64, uint64> GetFloat128Value() const {
     // check special values
-    if (std::isinf(value.floatValue) && ((static_cast<uint64>(value.intValue) & (1ull << 31)) >> 31) == 0x0) {
+    if (std::isinf(value.floatValue) && ((static_cast<uint32>(value.intValue) & (1U << 31)) >> 31) == 0x0) {
       return {0x7fff000000000000, 0x0};
-    } else if (std::isinf(value.floatValue) && ((static_cast<uint64>(value.intValue) & (1ull << 31)) >> 31) == 0x1) {
+    } else if (std::isinf(value.floatValue) && ((static_cast<uint32>(value.intValue) & (1U << 31)) >> 31) == 0x1) {
       return {0xffff000000000000, 0x0};
-    } else if ((static_cast<uint64>(value.intValue) ^ (0x1 << 31)) == 0x0) {
+    } else if ((static_cast<uint32>(value.intValue) ^ (0x1 << 31)) == 0x0) {
       return {0x8000000000000000, 0x0};
-    } else if ((static_cast<uint64>(value.intValue) ^ 0x0) == 0x0) {
+    } else if ((static_cast<uint32>(value.intValue) ^ 0x0) == 0x0) {
       return {0x0, 0x0};
     } else if (std::isnan(value.floatValue)) {
       return {0x7fff800000000000, 0x0};
     }
 
-    uint64 sign = (static_cast<uint64>(value.intValue) & (1ull << 31)) >> 31;
-    uint64 exp = (static_cast<uint64>(value.intValue) & (0x7f800000)) >> 23;
-    uint64 mantiss = static_cast<uint64>(value.intValue) & (0x007fffff);
+    uint64 sign = (static_cast<uint32>(value.intValue) & (1U << 31)) >> 31;
+    uint64 exp = (static_cast<uint32>(value.intValue) & (0x7f800000)) >> 23;
+    uint64 mantiss = static_cast<uint32>(value.intValue) & (0x007fffff);
 
     const int float_exp_offset = 0x7f;
     const int float_min_exp = -0x7e;
@@ -357,7 +357,7 @@ class MIRFloatConst : public MIRConst {
 
       uint64 ldouble_exp = float_min_exp - (num_pos + 1) + ldouble_exp_offset;
       int num_ldouble_mantiss_bits = float_mantiss_bits - static_cast<int64>((num_pos + 1));
-      uint64 ldouble_mantiss_mask = (1 << num_ldouble_mantiss_bits) - 1;
+      uint64 ldouble_mantiss_mask = (1 << static_cast<uint64>(num_ldouble_mantiss_bits)) - 1;
       uint64 ldouble_mantiss = mantiss & ldouble_mantiss_mask;
       uint64 high_byte = (sign << 63 | (ldouble_exp << 48) | (ldouble_mantiss << (25 + num_pos + 1)));
       uint64 low_byte = 0;
@@ -431,7 +431,7 @@ class MIRDoubleConst : public MIRConst {
     value.dValue = val;
   }
 
-  ~MIRDoubleConst() = default;
+  ~MIRDoubleConst() override = default;
 
   uint32 GetIntLow32() const {
     auto unsignVal = static_cast<uint64>(value.intValue);
@@ -461,14 +461,14 @@ class MIRDoubleConst : public MIRConst {
     uint64 exp = (static_cast<uint64>(value.intValue) & (0x7ff0000000000000)) >> 52;
     uint64 mantiss = static_cast<uint64>(value.intValue) & (0x000fffffffffffff);
 
-    const int double_exp_offset = 0x3ff;
-    const int double_min_exp = -0x3fe;
+    const int32 double_exp_offset = 0x3ff;
+    const int32 double_min_exp = -0x3fe;
     const int double_mantiss_bits = 52;
 
-    const int ldouble_exp_offset = 0x3fff;
+    const int32 ldouble_exp_offset = 0x3fff;
 
     if (exp > 0x0 && exp < 0x7ff) {
-      uint64 ldouble_exp = static_cast<uint64>(static_cast<int>(exp) - double_exp_offset + ldouble_exp_offset);
+      uint64 ldouble_exp = static_cast<uint32>(static_cast<int32>(exp) - double_exp_offset + ldouble_exp_offset);
       uint64 ldouble_mantiss_first_bits = mantiss >> 4;
       uint64 ldouble_mantiss_second_bits = (mantiss & 0xf) << 60;
 
@@ -479,10 +479,10 @@ class MIRDoubleConst : public MIRConst {
       int num_pos = 0;
       for (; ((mantiss >> (51 - num_pos)) & 0x1) != 1; ++num_pos) {};
 
-      uint64 ldouble_exp = static_cast<uint64>(double_min_exp - (num_pos + 1) + ldouble_exp_offset);
+      uint64 ldouble_exp = static_cast<uint32>(double_min_exp - (num_pos + 1) + ldouble_exp_offset);
 
       int num_ldouble_mantiss_bits = double_mantiss_bits - (num_pos + 1);
-      uint64 ldouble_mantiss_mask = (1ull << num_ldouble_mantiss_bits) - 1;
+      uint64 ldouble_mantiss_mask = (1ULL << num_ldouble_mantiss_bits) - 1;
       uint64 ldouble_mantiss = mantiss & ldouble_mantiss_mask;
       uint64 ldouble_mantiss_high_bits = 0;
       if (4 - (num_pos + 1) > 0) {
@@ -566,7 +566,7 @@ class MIRFloat128Const : public MIRConst {
     val[1] = val_[1];
   }
 
-  ~MIRFloat128Const() = default;
+  ~MIRFloat128Const() override = default;
 
   const unsigned int *GetWordPtr() const {
     union ValPtrs {
@@ -620,7 +620,8 @@ class MIRFloat128Const : public MIRConst {
        * and then with '|' add remain 4 bits to get full double mantiss
        */
       uint64 double_mantiss = ((val[0] & 0x0000ffffffffffff) << 4) | (val[1] >> 60);
-      uint64 double_exp = static_cast<uint64>(GetExponent() - ldouble_exp_offset + double_exp_offset);
+      uint64 double_exp = static_cast<uint64>(static_cast<uint>(GetExponent() -
+                                                                ldouble_exp_offset + double_exp_offset));
       uint64 double_sign = GetSign();
       union HexVal data;
       data.doubleHex = (double_sign << (k64BitSize - 1)) | (double_exp << double_mantissa_bits) | double_mantiss;
@@ -686,8 +687,7 @@ class MIRFloat128Const : public MIRConst {
     return static_cast<value_type>(val);
   }
 
-  void SetValue(long double val) const {
-    (void)val;
+  void SetValue(long double /* val */) const {
     CHECK_FATAL(false, "Cant't use This Interface with This Object");
   }
 
@@ -704,7 +704,7 @@ class MIRAggConst : public MIRConst {
         constVec(mod.GetMPAllocator().Adapter()),
         fieldIdVec(mod.GetMPAllocator().Adapter()) {}
 
-  ~MIRAggConst() = default;
+  ~MIRAggConst() override = default;
 
   MIRConst *GetAggConstElement(unsigned int fieldId) {
     for (size_t i = 0; i < fieldIdVec.size(); ++i) {
@@ -815,7 +815,7 @@ class MIRStConst : public MIRConst {
     return res;
   }
 
-  ~MIRStConst() = default;
+  ~MIRStConst() override = default;
 
  private:
   MapleVector<MIRSymbol*> stVec;    // symbols that in the st const

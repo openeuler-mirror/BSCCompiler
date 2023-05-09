@@ -1178,7 +1178,9 @@ class MIRStructType : public MIRType {
 
   MIRStructType(MIRTypeKind typeKind, GStrIdx strIdx) : MIRType(typeKind, PTY_agg, strIdx) {}
 
-  ~MIRStructType() override = default;
+  ~MIRStructType() override {
+    alias = nullptr;
+  }
 
   bool IsStructType() const override {
     return true;

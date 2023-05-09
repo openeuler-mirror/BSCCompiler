@@ -68,7 +68,7 @@ class CastInfo {
 class MeExprCastInfo : public CastInfo<MeExpr> {
  public:
   explicit MeExprCastInfo(MeExpr *expr) : CastInfo(expr) {}
-  ~MeExprCastInfo() = default;
+  ~MeExprCastInfo() override = default;
 
   Opcode GetOp() override {
     return expr->GetOp();
@@ -81,7 +81,6 @@ class MeExprCastInfo : public CastInfo<MeExpr> {
         return static_cast<const OpMeExpr*>(expr)->GetBitsSize();
       default:
         CHECK_FATAL(false, "NYI");
-        break;
     }
   }
 
@@ -104,7 +103,6 @@ class MeExprCastInfo : public CastInfo<MeExpr> {
       }
       default:
         CHECK_FATAL(false, "NYI");
-        break;
     }
   }
 };
@@ -112,7 +110,7 @@ class MeExprCastInfo : public CastInfo<MeExpr> {
 class BaseNodeCastInfo : public CastInfo<BaseNode> {
  public:
   explicit BaseNodeCastInfo(BaseNode *expr) : CastInfo(expr) {}
-  ~BaseNodeCastInfo() = default;
+  ~BaseNodeCastInfo() override = default;
 
   Opcode GetOp() override {
     return expr->GetOpCode();
@@ -125,7 +123,6 @@ class BaseNodeCastInfo : public CastInfo<BaseNode> {
         return static_cast<const ExtractbitsNode*>(expr)->GetBitsSize();
       default:
         CHECK_FATAL(false, "NYI");
-        break;
     }
   }
 
@@ -159,7 +156,6 @@ class BaseNodeCastInfo : public CastInfo<BaseNode> {
       }
       default:
         CHECK_FATAL(false, "NYI");
-        break;
     }
   }
 };

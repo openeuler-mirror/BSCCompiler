@@ -332,7 +332,7 @@ void BB::Dump() const {
       LogInfo::MapleLogger() << " taken";
     }
   }
-  LogInfo::MapleLogger() << "> <" << id << "> ";
+  LogInfo::MapleLogger() << "> <" << GetID() << "> ";
   if (isCleanup) {
     LogInfo::MapleLogger() << "[is_cleanup] ";
   }
@@ -341,11 +341,11 @@ void BB::Dump() const {
   }
   LogInfo::MapleLogger() << "succs ";
   for (auto *bb : succs) {
-    LogInfo::MapleLogger() << bb->id << " ";
+    LogInfo::MapleLogger() << bb->GetID() << " ";
   }
   LogInfo::MapleLogger() << "preds ";
   for (auto *bb : preds) {
-    LogInfo::MapleLogger() << bb->id << " ";
+    LogInfo::MapleLogger() << bb->GetID() << " ";
   }
   LogInfo::MapleLogger() << "frequency:" << frequency << "===\n";
 

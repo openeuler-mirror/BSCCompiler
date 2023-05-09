@@ -35,7 +35,9 @@ class CgProfUse {
       : cgFunc(&f), memPool(&mp), alloc(&mp), allEdges(alloc.Adapter()),
         BB2InEdges(alloc.Adapter()), BB2OutEdges(alloc.Adapter()) {}
 
-  virtual ~CgProfUse() = default;
+  virtual ~CgProfUse() {
+    memPool = nullptr;
+  }
 
   void setupProf();
 

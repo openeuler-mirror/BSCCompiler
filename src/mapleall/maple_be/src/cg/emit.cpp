@@ -250,6 +250,7 @@ void Emitter::EmitFileInfo(const std::string &fileName) {
       }
     }
   }
+  Emit("\n");
   free(curDirName);
 
   EmitInlineAsmSection();
@@ -404,7 +405,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
         size = std::to_string(mirType->GetSize());
       }
       (void)Emit(asmInfo->GetComm()).Emit(symName).Emit(", ").Emit(size).Emit(", ");
-#if PECOFF
+#if defined(PECOFF) && PECOFF
 #if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGARM32) && TARGARM32) || (defined(TARGARK) && TARGARK) ||\
     (defined(TARGRISCV64) && TARGRISCV64)
       std::string align = std::to_string(static_cast<int>(log2(mirType->GetAlign())));
@@ -652,8 +653,9 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
       buf[kThirdChar] = 0;
       Emit(buf);
     } else {
-      /* all others, print as number */
-      int ret = snprintf_s(buf, sizeof(buf), k4BitSize, "\\%03o", static_cast<uint16>(*str) & 0xFF);
+      // all others, print as number
+      int ret = snprintf_s(buf, sizeof(buf), k4BitSize, "\\%03o",
+                           static_cast<uint16>(static_cast<unsigned char>(*str)) & 0xFF);
       if (ret < 0) {
         FATAL(kLncFatal, "snprintf_s failed");
       }
@@ -1813,7 +1815,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
     if (structType.GetKind() == kTypeStruct) {
       elemConst = structCt.GetAggConstElement(i + 1);
     } else {
-      elemConst = structCt.GetAggConstElement(static_cast<int32>(fieldIdx));
+      elemConst = structCt.GetAggConstElement(fieldIdx);
     }
     MIRType *elemType = structType.GetElemType(i);
     if (structType.GetKind() == kTypeUnion) {
@@ -1831,8 +1833,8 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
         elemConst = zeroFill;
       }
       OffsetPair offsetPair = structType.GetFieldOffsetFromBaseAddr(fieldIdx);
-      uint64 fieldOffset = static_cast<uint64>(offsetPair.byteOffset) * static_cast<uint64>(charBitWidth) +
-          static_cast<uint64>(offsetPair.bitOffset);
+      uint64 fieldOffset = static_cast<uint32>(offsetPair.byteOffset) * static_cast<uint64>(charBitWidth) +
+          static_cast<uint32>(offsetPair.bitOffset);
       EmitBitFieldConstant(*sEmitInfo, *elemConst, nextElemType, fieldOffset);
     } else {
       if (elemConst != nullptr) {
@@ -2601,6 +2603,15 @@ void Emitter::EmitGlobalVariable() {
       if (mirSymbol->IsThreadLocal() && opts::aggressiveTlsLocalDynamicOpt) {
         globalTlsBssVec.emplace_back(mirSymbol);
         continue;
+      }
+      // emit visibility if symbol is global
+      if (mirSymbol->GetStorageClass() == kScGlobal) {
+        SetVariableVisibility(mirSymbol);
+        if (mirSymbol->GetAttr(ATTR_visibility_hidden)) {
+          EmitAsmLabel(*mirSymbol, kAsmHidden);
+        } else if (mirSymbol->GetAttr(ATTR_visibility_protected)) {
+          EmitAsmLabel(*mirSymbol, kAsmProtected);
+        }
       }
       EmitUninitializedSymbol(*mirSymbol);
       continue;

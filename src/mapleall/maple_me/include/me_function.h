@@ -31,7 +31,7 @@
 namespace maple {
 class MeCFG;  // circular dependency exists, no other choice
 class MeIRMap;  // circular dependency exists, no other choice
-#if DEBUG
+#if defined(DEBUG) && DEBUG
 extern MIRModule *globalMIRModule;
 extern MeFunction *globalFunc;
 extern MeIRMap *globalIRMap;

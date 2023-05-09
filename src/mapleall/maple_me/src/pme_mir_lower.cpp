@@ -222,14 +222,14 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       preMeFunc->label2IfInfo.insert(std::make_pair(elselabelidx, ifInfo));
     }
 
-    bool fallthru_from_then = true;
+    bool fallthruFromThen = true;
     if (!thenempty) {
       blk->AppendStatementsFromBlock(*ifstmt.GetThenPart());
-      fallthru_from_then = !OpCodeNoFallThrough(ifstmt.GetThenPart()->GetLast()->GetOpCode());
+      fallthruFromThen = !OpCodeNoFallThrough(ifstmt.GetThenPart()->GetLast()->GetOpCode());
     }
     LabelIdx endlabelidx = 0;
 
-    if (fallthru_from_then) {
+    if (fallthruFromThen) {
       GotoNode *gotostmt = mirModule.CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
       endlabelidx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('e');
       mirFunc->GetLabelTab()->AddToStringLabelMap(endlabelidx);
@@ -268,7 +268,7 @@ BlockNode *PreMeMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       blk->AppendStatementsFromBlock(*ifstmt.GetElsePart());
     }
 
-    if (fallthru_from_then) {
+    if (fallthruFromThen) {
       labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
       labstmt->SetLabelIdx(endlabelidx);
       if (!elseempty) {

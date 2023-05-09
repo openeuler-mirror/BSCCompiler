@@ -29,8 +29,8 @@ struct AArch64AlignInfo {
   uint32 alignMinBBSize = 16;
   uint32 alignMaxBBSize = 96;
   /* default loop & jump align power, related to the target machine.  eg. 2^5 */
-  uint32 loopAlign = 3;
-  uint32 jumpAlign = 3;
+  uint32 loopAlign = 4;
+  uint32 jumpAlign = 5;
   /* record func_align_power in CGFunc */
 };
 

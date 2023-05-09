@@ -502,7 +502,7 @@ class TypeTable {
 
   void CreateMirTypeNodeAt(MIRType &pType, TyIdx tyIdxUsed, MIRModule *module, bool isObject, bool isIncomplete);
   MIRType *CreateAndUpdateMirTypeNode(MIRType &pType);
-  MIRType *GetOrCreateStructOrUnion(const std::string &name, const FieldVector &fields, const FieldVector &printFields,
+  MIRType *GetOrCreateStructOrUnion(const std::string &name, const FieldVector &fields, const FieldVector &parentFields,
                                     MIRModule &module, bool forStruct = true,
                                     const TypeAttrs &attrs = TypeAttrs());
   MIRType *GetOrCreateClassOrInterface(const std::string &name, MIRModule &module, bool forClass);
@@ -656,10 +656,10 @@ class FPConstTable {
   void PostInit();
   MIRFloatConst *DoGetOrCreateFloatConst(float floatVal);
   MIRDoubleConst *DoGetOrCreateDoubleConst(double doubleVal);
-  MIRFloat128Const *DoGetOrCreateFloat128Const(const uint64_t*);
+  MIRFloat128Const *DoGetOrCreateFloat128Const(const uint64_t *v);
   MIRFloatConst *DoGetOrCreateFloatConstThreadSafe(float floatVal);
   MIRDoubleConst *DoGetOrCreateDoubleConstThreadSafe(double doubleVal);
-  MIRFloat128Const *DoGetOrCreateFloat128ConstThreadSafe(const uint64_t*);
+  MIRFloat128Const *DoGetOrCreateFloat128ConstThreadSafe(const uint64_t *v);
   std::shared_timed_mutex floatMtx;
   std::shared_timed_mutex doubleMtx;
   std::shared_timed_mutex ldoubleMtx;

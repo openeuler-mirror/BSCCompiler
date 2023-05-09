@@ -74,10 +74,10 @@ ArrayNode *PreMeEmitter::ConvertToArray(BaseNode &x, TyIdx ptrTyIdx) {
   arryNode->SetNumOpnds(2);
   preMeExprExtensionMap[arryNode] = preMeExprExtensionMap[&x];
   // update opnds' parent info if it has
-  if (preMeExprExtensionMap[opnd0]) {
+  if (preMeExprExtensionMap[opnd0] != nullptr) {
     preMeExprExtensionMap[opnd0]->SetParent(arryNode);
   }
-  if (preMeExprExtensionMap[indexOpnd]) {
+  if (preMeExprExtensionMap[indexOpnd] != nullptr) {
     preMeExprExtensionMap[indexOpnd]->SetParent(arryNode);
   }
   return arryNode;

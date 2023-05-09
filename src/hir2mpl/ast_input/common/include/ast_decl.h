@@ -322,7 +322,9 @@ class ASTVar : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTVar;
   }
-  virtual ~ASTVar() override = default;
+  virtual ~ASTVar() override {
+    variableArrayExpr = nullptr;
+  }
 
   void SetInitExpr(ASTExpr *init) {
     initExpr = init;
@@ -437,7 +439,9 @@ class ASTTypedefDecl : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTTypedefDecl;
   }
-  ~ASTTypedefDecl() override = default;
+  ~ASTTypedefDecl() override {
+    subTypedefDecl = nullptr;
+  }
 
   void SetSubTypedefDecl(ASTTypedefDecl *decl) {
     subTypedefDecl = decl;

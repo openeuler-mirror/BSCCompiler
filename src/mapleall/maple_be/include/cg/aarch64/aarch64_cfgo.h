@@ -22,7 +22,7 @@ class AArch64CFGOptimizer : public CFGOptimizer {
  public:
   AArch64CFGOptimizer(CGFunc &func, MemPool &memPool)
       : CFGOptimizer(func, memPool) {}
-  ~AArch64CFGOptimizer() = default;
+  ~AArch64CFGOptimizer() override = default;
   void InitOptimizePatterns() override;
 };
 
@@ -30,12 +30,12 @@ class AArch64FlipBRPattern : public FlipBRPattern {
  public:
   explicit AArch64FlipBRPattern(CGFunc &func)
       : FlipBRPattern(func) {}
-  ~AArch64FlipBRPattern() = default;
+  ~AArch64FlipBRPattern() override = default;
 
  private:
   uint32 GetJumpTargetIdx(const Insn &insn) override;
   MOperator FlipConditionOp(MOperator flippedOp) override;
 };
-}  /* namespace maplebe */
+}  // namespace maplebe
 
-#endif  /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_CFGO_H */
+#endif  // MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_CFGO_H

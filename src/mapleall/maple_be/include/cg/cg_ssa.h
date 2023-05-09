@@ -274,7 +274,7 @@ class SSAOperandVisitor : public OperandVisitorBase,
  public:
   SSAOperandVisitor(Insn &cInsn, const OpndDesc &cDes, uint32 idx) : insn(&cInsn), opndDes(&cDes), idx(idx) {}
   SSAOperandVisitor() = default;
-  virtual ~SSAOperandVisitor() = default;
+  ~SSAOperandVisitor() override = default;
   void SetInsnOpndInfo(Insn &cInsn, const OpndDesc &cDes, uint32 index) {
     insn = &cInsn;
     opndDes = &cDes;
@@ -292,7 +292,7 @@ class SSAOperandDumpVisitor : public OperandVisitorBase,
                               public OperandVisitor<PhiOperand> {
  public:
   explicit SSAOperandDumpVisitor(const MapleUnorderedMap<regno_t, VRegVersion*> &allssa) : allSSAOperands(allssa) {}
-  virtual ~SSAOperandDumpVisitor() = default;
+  ~SSAOperandDumpVisitor() override = default;
   void SetHasDumped() {
     hasDumped = true;
   }

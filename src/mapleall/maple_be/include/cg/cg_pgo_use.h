@@ -113,11 +113,8 @@ class CGProfUse {
         domInfo(dom),
         bbSplit(newbbinsplit),
         instrumenter(mp),
-        bb2chain(puAlloc.Adapter()),
-        readyToLayoutChains(puAlloc.Adapter()),
         layoutBBs(puAlloc.Adapter()),
-        laidOut(puAlloc.Adapter()),
-        frequencyReversePostOrderBBList(puAlloc.Adapter()) {}
+        laidOut(puAlloc.Adapter()) {}
 
   bool ApplyPGOData();
   void LayoutBBwithProfile();
@@ -128,22 +125,6 @@ class CGProfUse {
   DomAnalysis *domInfo = nullptr;
   MapleSet<uint32> bbSplit;
  private:
-  struct BBOrderEle {
-    BBOrderEle(uint32 f, uint32 rpoIdx, BB *ibb)
-        : frequency(f),
-          reversePostOrderIdx(rpoIdx),
-          bb(ibb) {}
-    uint32 frequency;
-    uint32 reversePostOrderIdx;
-    BB* bb;
-    bool operator < (const BBOrderEle &bbEle) const {
-      if (frequency == bbEle.frequency) {
-        return  reversePostOrderIdx < bbEle.reversePostOrderIdx;
-      } else {
-        return frequency > bbEle.frequency;
-      }
-    }
-  };
   PGOInstrumentTemplate<maplebe::BB, maple::BBUseEdge<maplebe::BB>> instrumenter;
   std::unordered_map<uint32, BBUseInfo<maplebe::BB>*> bbProfileInfo;
 
@@ -159,34 +140,15 @@ class CGProfUse {
   BBUseInfo<maplebe::BB> *GetOrCreateBBUseInfo(const maplebe::BB &bb, bool notCreate = false);
   void SetEdgeCount(maple::BBUseEdge<maplebe::BB> &e, size_t count);
 
-  /* functions && members for PGO layout */
-  void BuildChainForFunc();
-  void BuildChainForLoops();
-  void BuildChainForLoop(CGFuncLoops &loop, MapleVector<bool> *context);
-  void InitBBChains();
-  void DoBuildChain(const BB &header, BBChain &chain, const MapleVector<bool> *context);
-  BB *GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> *context, bool considerBetterPred);
-  BB *FindBestStartBBForLoop(CGFuncLoops &loop, const MapleVector<bool> *context);
-
-  bool IsBBInCurrContext(const BB &bb, const MapleVector<bool> *context) const;
-  bool IsCandidateSucc(const BB &bb, const BB &succ, const MapleVector<bool> *context);
-  bool HasBetterLayoutPred(const BB &bb, const BB &succ) const;
-
   void AddBBProf(BB &bb);
   void AddBB(BB &bb);
   void ReTargetSuccBB(BB &bb, BB &fallthru);
   void ChangeToFallthruFromGoto(BB &bb) const;
   LabelIdx GetOrCreateBBLabIdx(BB &bb) const;
 
-  void InitFrequencyReversePostOrderBBList();
-
-  MapleVector<BBChain*> bb2chain;
-  MapleSet<BBChain*> readyToLayoutChains;
   bool debugChainLayout = false;
-  uint32 rpoSearchPos = 0;   // reverse post order search beginning position
   MapleVector<BB*> layoutBBs;  // gives the determined layout order
   MapleVector<bool> laidOut;   // indexed by bbid to tell if has been laid out
-  MapleSet<BBOrderEle> frequencyReversePostOrderBBList; // frequency first, post order second;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPgoUse, maplebe::CGFunc)

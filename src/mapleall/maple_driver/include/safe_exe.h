@@ -116,7 +116,7 @@ class SafeExe {
         ldLibPath += "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
       }
     }
-    std::tie(argv, argIndex) = GenerateUnixArguments(cmd, mplOptions, options, compileeFlag);
+    std::tie(argv, argIndex) = GenerateUnixArguments(cmd, options, compileeFlag);
     if (opts::debug) {
       LogInfo::MapleLogger() << "Run: " << cmd;
       for (auto &opt : options) {
@@ -301,8 +301,8 @@ class SafeExe {
     return tmpArgs;
   }
 
-  static std::tuple<char **, size_t> GenerateUnixArguments(const std::string &cmd, const MplOptions &mplOptions,
-                                                        const std::vector<MplOption> &options, Compilee compileeFlag) {
+  static std::tuple<char **, size_t> GenerateUnixArguments(const std::string &cmd,
+      const std::vector<MplOption> &options, Compilee compileeFlag) {
     /* argSize=2, because we reserve 1st arg as exe binary, and another arg as last nullptr arg */
     size_t argSize = 2;
 

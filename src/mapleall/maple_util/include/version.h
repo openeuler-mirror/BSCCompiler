@@ -64,7 +64,7 @@ class Version {
 #ifdef ANDROID
   // compatible for Android build script
   static constexpr const uint32_t kMajorVersion = 4;
-#elif MAJOR_VERSION
+#elif defined(MAJOR_VERSION) && MAJOR_VERSION
   static constexpr const uint32_t kMajorVersion = MAJOR_VERSION;
 #else // MAJOR_VERSION
   static constexpr const uint32_t kMajorVersion = 1;

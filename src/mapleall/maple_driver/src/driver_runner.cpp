@@ -325,7 +325,7 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
   theMIRModule = theModule;
   if (withDwarf && !theModule->IsWithDbgInfo()) {
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
-#if DEBUG
+#if defined(DEBUG) && DEBUG
     if (cgOptions) {
       cgOptions->SetOption(CGOptions::kVerboseAsm);
     }

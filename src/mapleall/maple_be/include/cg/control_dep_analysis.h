@@ -38,6 +38,7 @@ class ControlDepAnalysis {
         nonPdomEdges(cdgAlloc.Adapter()), curCondNumOfBB(cdgAlloc.Adapter()),
         phaseName(std::move(pName)), isSingleBB(isSingle) {}
   virtual ~ControlDepAnalysis() {
+    dom = nullptr;
     fcdg = nullptr;
     cfgMST = nullptr;
     tmpMemPool = nullptr;

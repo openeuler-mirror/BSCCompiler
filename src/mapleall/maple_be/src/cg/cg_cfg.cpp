@@ -325,6 +325,11 @@ bool CGCFG::BBJudge(const BB &first, const BB &second) const {
   if (first.GetKind() == BB::kBBReturn || second.GetKind() == BB::kBBReturn) {
     return false;
   }
+  // If the address of firstBB or secondBB is referenced by adrp_label insn,
+  // it can not be merged
+  if (first.IsAdrpLabel() || second.IsAdrpLabel()) {
+    return false;
+  }
   if (&first == &second) {
     return false;
   }
@@ -632,7 +637,11 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
   } else {
     cgFunc->SetLastBB(*curBB.GetPrev());
   }
-  curBB.GetPrev()->SetNext(curBB.GetNext());
+  if (curBB.GetPrev() != nullptr) {
+    curBB.GetPrev()->SetNext(curBB.GetNext());
+  } else {
+    cgFunc->SetFirstBB(*curBB.GetNext());
+  }
   cgFunc->ClearBBInVec(curBB.GetId());
   /* remove callsite */
   EHFunc *ehFunc = cgFunc->GetEHFunc();

@@ -37,7 +37,7 @@ void AArch64IfConversionOptimizer::InitOptimizePatterns() {
 
 /* build ccmp Insn */
 Insn *AArch64ICOPattern::BuildCcmpInsn(ConditionCode ccCode, ConditionCode ccCode2,
-    const Insn &cmpInsn, Insn *&moveInsn, bool reverse) const {
+    const Insn &cmpInsn, Insn *&moveInsn) const {
   Operand &opnd0 = cmpInsn.GetOperand(kInsnFirstOpnd);
   Operand &opnd1 = cmpInsn.GetOperand(kInsnSecondOpnd);
   Operand &opnd2 = cmpInsn.GetOperand(kInsnThirdOpnd);
@@ -758,7 +758,7 @@ void AArch64ICOIfThenElsePattern::RevertMoveInsns(BB *bb, Insn *prevInsnInBB, In
 }
 
 Insn *AArch64ICOIfThenElsePattern::MoveSetInsn2CmpBB(Insn &toBeRremoved2CmpBB, BB &currBB,
-    std::vector<Operand*> &anotherBranchDestRegs, std::map<Operand*, std::vector<Operand*>> &destSrcMap) const {
+    std::map<Operand*, std::vector<Operand*>> &destSrcMap) const {
   // When moving the instruction to the front of cmp, need to create a new register because it may change the semantics:
   // cmpBB:                        cmpBB:
   //                                 uxth  w2, w1 (change)
@@ -878,15 +878,13 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB *ifBB, BB *elseBB, BB &joinBB) {
   if (insnInElseBBToBeRremovedOutOfCurrBB != nullptr) {
     prevInsnInElseBB = insnInElseBBToBeRremovedOutOfCurrBB->GetPrev();
     ASSERT_NOT_NULL(elseBB);
-    newInsnOfElseBB = MoveSetInsn2CmpBB(
-        *insnInElseBBToBeRremovedOutOfCurrBB, *elseBB, ifDestRegs, elseDestSrcMap);
+    newInsnOfElseBB = MoveSetInsn2CmpBB(*insnInElseBBToBeRremovedOutOfCurrBB, *elseBB, elseDestSrcMap);
     UpdateTemps(elseDestRegs, elseSetInsn, elseDestSrcMap, *insnInElseBBToBeRremovedOutOfCurrBB, newInsnOfElseBB);
   }
   if (insnInIfBBToBeRremovedOutOfCurrBB != nullptr) {
     prevInsnInIfBB = insnInIfBBToBeRremovedOutOfCurrBB->GetPrev();
     ASSERT_NOT_NULL(ifBB);
-    newInsnOfIfBB = MoveSetInsn2CmpBB(
-        *insnInIfBBToBeRremovedOutOfCurrBB, *ifBB, elseDestRegs, ifDestSrcMap);
+    newInsnOfIfBB = MoveSetInsn2CmpBB(*insnInIfBBToBeRremovedOutOfCurrBB, *ifBB, ifDestSrcMap);
     UpdateTemps(ifDestRegs, ifSetInsn, ifDestSrcMap, *insnInIfBBToBeRremovedOutOfCurrBB, newInsnOfIfBB);
   }
 
@@ -1020,7 +1018,8 @@ bool AArch64ICOIfThenElsePattern::Optimize(BB &curBB) {
   }
   if (elseBB != nullptr &&
       (CGCFG::InLSDA(elseBB->GetLabIdx(), cgFunc->GetEHFunc()) ||
-       CGCFG::InSwitchTable(elseBB->GetLabIdx(), *cgFunc))) {
+       CGCFG::InSwitchTable(elseBB->GetLabIdx(), *cgFunc) ||
+       !elseBB->HasMachineInsn())) {
     return false;
   }
 
@@ -1193,7 +1192,7 @@ bool AArch64ICOSameCondPattern::DoOpt(BB &firstIfBB, BB &secondIfBB) const {
   ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
   Insn *movInsn = nullptr;
   /* build ccmp Insn */
-  Insn *ccmpInsn = BuildCcmpInsn(ccCode, ccCode2, *cmpInsn2, movInsn, fallthruIsSendIfBB);
+  Insn *ccmpInsn = BuildCcmpInsn(ccCode, ccCode2, *cmpInsn2, movInsn);
   if (ccmpInsn == nullptr) {
     return false;
   }

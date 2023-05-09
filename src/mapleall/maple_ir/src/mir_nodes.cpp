@@ -290,7 +290,7 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
   if (fromFreqs.count(GetStmtID()) > 0) {
     FreqType oldFreq = fromFreqs[GetStmtID()];
     FreqType newFreq;
-    if (updateOp & kUpdateUnrollRemainderFreq) {
+    if (updateOp & static_cast<uint32_t>(kUpdateUnrollRemainderFreq)) {
       newFreq = denom > 0 ? (oldFreq * numer % static_cast<int64_t>(denom)) : oldFreq;
     } else {
       newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / static_cast<int64_t>(denom)) : oldFreq);

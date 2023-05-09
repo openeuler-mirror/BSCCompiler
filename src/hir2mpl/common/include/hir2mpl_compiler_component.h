@@ -26,7 +26,7 @@ namespace maple {
 class FEFunctionProcessTask : public MplTask {
  public:
   explicit FEFunctionProcessTask(std::unique_ptr<FEFunction> argFunction);
-  virtual ~FEFunctionProcessTask() override = default;
+  ~FEFunctionProcessTask() override = default;
 
  protected:
   int RunImpl(MplTaskParam *param) override;
@@ -40,7 +40,7 @@ class FEFunctionProcessSchedular : public MplScheduler {
  public:
   explicit FEFunctionProcessSchedular(const std::string &name)
       : MplScheduler(name) {}
-  virtual ~FEFunctionProcessSchedular() override = default;
+  ~FEFunctionProcessSchedular() override = default;
   void AddFunctionProcessTask(std::unique_ptr<FEFunction> function);
   void SetDumpTime(bool arg) {
     dumpTime = arg;

@@ -42,7 +42,7 @@ class TailCallOpt {
   void Run();
   bool DoTailCallOpt();
   void TideExitBB();
-  bool OptimizeTailBB(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, const BB &exitBB) const;
+  bool OptimizeTailBB(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns) const;
   void TailCallBBOpt(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, BB &exitBB);
   void ConvertToTailCalls(MapleSet<Insn*, InsnIdCmp> &callInsnsMap);
   MapleMap<BB*, MapleSet<Insn*, InsnIdCmp>, BBIdCmp> &GetExitBB2CallSitesMap() {

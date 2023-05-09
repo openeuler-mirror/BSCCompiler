@@ -1462,7 +1462,8 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       loops(allocator.Adapter()),
       lmbcParamVec(allocator.Adapter()),
       scpIdSet(allocator.Adapter()),
-      shortFuncName(cg.ExtractFuncName(mirFunc.GetName()) + "." + std::to_string(funcId), &memPool) {
+      shortFuncName(cg.ExtractFuncName(mirFunc.GetName()) + "." + std::to_string(funcId), &memPool),
+      adrpLabels(allocator.Adapter()) {
   mirModule.SetCurFunction(&func);
   SetMemlayout(*GetCG()->CreateMemLayout(memPool, beCommon, func, allocator));
   GetMemlayout()->SetCurrFunction(*this);
@@ -1578,6 +1579,14 @@ void CGFunc::RemoveUnreachableBB() {
         (void)noReturnCallBBVec.erase(it);
       }
     }
+  }
+}
+
+void CGFunc::MarkAdrpLabelBB() {
+  for (auto lIdx : GetAdrpLabels()) {
+    BB *targetBB = GetBBFromLab2BBMap(lIdx);
+    ASSERT_NOT_NULL(targetBB);
+    targetBB->SetIsAdrpLabel();
   }
 }
 
@@ -2105,6 +2114,7 @@ void CGFunc::HandleFunction() {
   theCFG = memPool->New<CGCFG>(*this);
   theCFG->MarkLabelTakenBB();
   theCFG->BuildCFG();
+  MarkAdrpLabelBB();
   RemoveUnreachableBB();
   AddCommonExitBB();
   if (mirModule.GetSrcLang() != kSrcLangC) {

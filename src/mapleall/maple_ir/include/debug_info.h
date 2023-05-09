@@ -341,7 +341,7 @@ class DBGDie {
   virtual ~DBGDie() {}
   void AddSubVec(DBGDie *die);
   void AddAttr(DBGDieAttr *attr);
-  void AddAttr(DwAt at, DwForm form, uint64 val, bool keep = true);
+  void AddAttr(DwAt at, DwForm form, uint64 val, bool keepFlag = true);
   void AddSimpLocAttr(DwAt at, DwForm form, DwOp op, uint64 val);
   void AddGlobalLocAttr(DwAt at, DwForm form, uint64 val);
   void AddFrmBaseAttr(DwAt at, DwForm form);
@@ -782,7 +782,7 @@ class DebugInfo {
   DBGDie *GetLocalDie(GStrIdx strIdx);
 
   LabelIdx GetLabelIdx(GStrIdx strIdx);
-  LabelIdx GetLabelIdx(MIRFunction *func, GStrIdx strIdx);
+  LabelIdx GetLabelIdx(MIRFunction *func, GStrIdx strIdx) const;
   void SetLabelIdx(const GStrIdx &strIdx, LabelIdx labIdx);
   void SetLabelIdx(MIRFunction *func, const GStrIdx &strIdx, LabelIdx labIdx);
   void InsertBaseTypeMap(const std::string &inputName, const std::string &outpuName, PrimType type);
@@ -839,7 +839,7 @@ class DebugInfo {
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
   DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
   DBGDie *GetOrCreateEnumTypeDie(uint32 idx);
-  DBGDie *GetOrCreateEnumTypeDie(MIREnum *mirEnum);
+  DBGDie *GetOrCreateEnumTypeDie(const MIREnum *mirEnum);
   DBGDie *GetOrCreateTypeByNameDie(const MIRType &type);
 
   GStrIdx GetPrimTypeCName(PrimType pty);

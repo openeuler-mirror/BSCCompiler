@@ -678,7 +678,7 @@ DBGDie *DebugInfo::GetGlobalDie(const GStrIdx &strIdx) {
   unsigned idx = strIdx.GetIdx();
   auto it = globalStridxDieIdMap.find(idx);
   if (it != globalStridxDieIdMap.end()) {
-    return idDieMap[it->second];
+    return idDieMap.at(it->second);
   }
   return nullptr;
 }
@@ -704,8 +704,8 @@ void DebugInfo::SetLabelIdx(MIRFunction *func, const GStrIdx &strIdx, LabelIdx l
   (funcLstrIdxLabIdxMap[func])[strIdx.GetIdx()] = labIdx;
 }
 
-LabelIdx DebugInfo::GetLabelIdx(MIRFunction *func, GStrIdx strIdx) {
-  LabelIdx labidx = (funcLstrIdxLabIdxMap[func])[strIdx.GetIdx()];
+LabelIdx DebugInfo::GetLabelIdx(MIRFunction *func, GStrIdx strIdx) const {
+  LabelIdx labidx = (funcLstrIdxLabIdxMap.at(func)).at(strIdx.GetIdx());
   return labidx;
 }
 
@@ -1202,12 +1202,12 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateEnumTypeDie(unsigned idx) {
+DBGDie *DebugInfo::GetOrCreateEnumTypeDie(uint32 idx) {
   MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[idx];
   return GetOrCreateEnumTypeDie(mirEnum);
 }
 
-DBGDie *DebugInfo::GetOrCreateEnumTypeDie(MIREnum *mirEnum) {
+DBGDie *DebugInfo::GetOrCreateEnumTypeDie(const MIREnum *mirEnum) {
   uint32 sid = mirEnum->GetNameIdx().GetIdx();
   auto it = stridxDieIdMap.find(sid);
   if (it != stridxDieIdMap.end()) {

@@ -71,7 +71,7 @@ SECUREC_ATTRIBUTE(7, 8) void LogInfo::EmitLogForDevelop(enum LogTags tag, enum L
   va_start(l, fmt);
 
   int lenBack = vsnprintf_s(buf + lenFront, static_cast<size_t>(kMaxLogLen - lenFront),
-                            static_cast<size_t>(kMaxLogLen - lenFront - 1), fmt, l);
+                            static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront) - 1), fmt, l);
   if (lenBack == -1) {
     WARN(kLncWarn, "vsnprintf_s  failed ");
     va_end(l);
@@ -79,7 +79,7 @@ SECUREC_ATTRIBUTE(7, 8) void LogInfo::EmitLogForDevelop(enum LogTags tag, enum L
   }
   if (outMode != 0) {
     int eNum = snprintf_s(buf + lenFront + lenBack, static_cast<size_t>(kMaxLogLen - lenFront - lenBack),
-                          static_cast<size_t>(kMaxLogLen - lenFront - lenBack - 1),
+                          static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront - lenBack) - 1),
                           " [%s] [%s:%d]", func.c_str(), file.c_str(), line);
     if (eNum == -1) {
       WARN(kLncWarn, "snprintf_s failed");
@@ -87,8 +87,10 @@ SECUREC_ATTRIBUTE(7, 8) void LogInfo::EmitLogForDevelop(enum LogTags tag, enum L
       return;
     }
   } else {
-    int eNum = snprintf_s(buf + lenFront + lenBack, static_cast<size_t>(kMaxLogLen - lenFront - lenBack),
-                          static_cast<size_t>(kMaxLogLen - lenFront - lenBack - 1), " [%s]", func.c_str());
+    int eNum = snprintf_s(buf + lenFront + lenBack,
+                          static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront - lenBack)),
+                          static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront - lenBack) - 1),
+                          " [%s]", func.c_str());
     if (eNum == -1) {
       WARN(kLncWarn, "snprintf_s failed");
       va_end(l);

@@ -88,7 +88,7 @@ class MePrediction : public AnalysisResult {
         backEdges(tmpAlloc.Adapter()),
         predictDebug(false) {}
 
-  virtual ~MePrediction() = default;
+  ~MePrediction() override = default;
   Edge *FindEdge(const BB &src, const BB &dest) const;
   bool IsBackEdge(const Edge &edge) const;
   Predictor ReturnPrediction(const MeExpr *meExpr, Prediction &prediction) const;

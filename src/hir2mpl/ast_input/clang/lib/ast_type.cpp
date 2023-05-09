@@ -536,13 +536,13 @@ MIRType *LibAstFile::CvtVectorType(const clang::QualType srcType) {
   MIRType *destType = nullptr;
   auto elemTypeSize = elemType->GetSize();
   uint32_t vecSize = static_cast<uint32_t>(numElems * elemTypeSize * 8);
-  CHECK_FATAL(!(vecSize & (vecSize - 1)), "VectorSize is not Multiples of 2");
+  CHECK_FATAL((vecSize & (vecSize - 1)) == 0, "VectorSize is not Multiples of 2");
   if (vecSize > kMaxPrimTypeSize) {
     uint32_t arrayLen = vecSize / kMaxPrimTypeSize;
     numElems = numElems / arrayLen;
   }
-  auto powOf2NumElements = static_cast<size_t>(__builtin_ctz(numElems));
-  auto powOf2ElementByteSize = static_cast<size_t>(__builtin_ctzl(elemType->GetSize()));
+  auto powOf2NumElements = static_cast<size_t>(static_cast<int64>(__builtin_ctz(numElems)));
+  auto powOf2ElementByteSize = static_cast<size_t>(static_cast<int64>(__builtin_ctzl(elemType->GetSize())));
   auto isSigned = IsPrimitiveUnsigned(elemType->GetPrimType()) ? 1ULL : 0ULL;
   auto primType = vectorTypeMap[powOf2NumElements][powOf2ElementByteSize][isSigned];
   CHECK_FATAL(primType != PTY_begin, "unexpected vector type");
@@ -550,7 +550,7 @@ MIRType *LibAstFile::CvtVectorType(const clang::QualType srcType) {
   if (vecSize > kMaxPrimTypeSize) {
     uint32_t arrayLen = vecSize / kMaxPrimTypeSize;
     uint32_t vecLen = vecSize / (arrayLen * elemType->GetSize() * 8);
-    return CvtVectorSizeType(*elemType, destType, arrayLen, vecLen, numElems * elemTypeSize);
+    return CvtVectorSizeType(*elemType, destType, arrayLen, vecLen, static_cast<uint32>(numElems * elemTypeSize));
   }
   return destType;
 }

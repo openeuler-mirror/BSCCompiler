@@ -735,12 +735,9 @@ class OptimizeBB {
     ContinuousCondBrInfo(CondGotoMeStmt &s1, CondGotoMeStmt &s2, OpMeExpr &expr1, OpMeExpr &expr2) :
         stmt1(&s1), stmt2(&s2), opMeExpr1(&expr1), opMeExpr2(&expr2) {}
 
-    void operator=(const ContinuousCondBrInfo &brInfo) {
-      stmt1 = brInfo.stmt1;
-      stmt2 = brInfo.stmt2;
-      opMeExpr1 = brInfo.opMeExpr1;
-      opMeExpr2 = brInfo.opMeExpr2;
-    }
+    ContinuousCondBrInfo(const ContinuousCondBrInfo&) = default;
+    maple::OptimizeBB::ContinuousCondBrInfo& operator=(const ContinuousCondBrInfo&) = default;
+
     CondGotoMeStmt *stmt1 = nullptr;
     CondGotoMeStmt *stmt2 = nullptr;
     OpMeExpr *opMeExpr1 = nullptr;
@@ -1980,7 +1977,6 @@ BranchResult InferSuccCondBrFromPredCond(const MeExpr *predCond, const MeExpr *s
 //      succ  ...
 //      /  \
 //    ftBB  gtBB
-//
 // If succ's cond can be inferred from pred's cond, pred can skip succ and branches to one of succ's successors directly
 // Here we deal with two cases:
 // 1. pred's cond is the same as succ's
@@ -2108,7 +2104,7 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
     if (cfg->UpdateCFGFreq()) {
       int idx = pred.GetSuccIndex(*newBB);
       ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
-      FreqType freq = pred.GetEdgeFreq(static_cast<size_t>(idx));
+      FreqType freq = pred.GetEdgeFreq(static_cast<size_t>(static_cast<uint>(idx)));
       newBB->SetFrequency(freq);
       newBB->PushBackSuccFreq(freq);
       // update frequency of succ because one of its pred is removed
@@ -2120,7 +2116,7 @@ bool OptimizeBB::SkipRedundantCond(BB &pred, BB &succ) {
       BB *affectedBB = (tfBranch == kBrTrue) ? stfSucc.first : stfSucc.second;
       idx = succ.GetSuccIndex(*affectedBB);
       ASSERT(idx >= 0 && idx < succ.GetSucc().size(), "sanity check");
-      FreqType oldedgeFreq = succ.GetSuccFreq()[static_cast<uint32>(idx)];
+      FreqType oldedgeFreq = succ.GetSuccFreq()[static_cast<uint32>(static_cast<uint>(idx))];
       if (oldedgeFreq >= freq) {
         succ.SetSuccFreq(idx, oldedgeFreq - freq);
       } else {

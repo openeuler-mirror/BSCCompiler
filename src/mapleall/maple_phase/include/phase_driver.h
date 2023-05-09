@@ -39,7 +39,10 @@ class PhaseDriver : public MplScheduler {
    public:
     explicit Task(void *currTarget, void *currParamEx = nullptr) : target(currTarget), paramException(currParamEx) {}
 
-    ~Task() override = default;
+    ~Task() override {
+      paramException = nullptr;
+      target = nullptr;
+    }
 
    protected:
     int RunImpl(MplTaskParam *param) override {
@@ -58,7 +61,10 @@ class PhaseDriver : public MplScheduler {
   };
 
   explicit PhaseDriver(const std::string &phaseName);
-  ~PhaseDriver() override = default;
+  ~PhaseDriver() override {
+    module = nullptr;
+    phaseImpl = nullptr;
+  }
 
   void RunAll(MIRModule *currModule, int thread, bool bSeq = false);
   virtual void RunSerial();
