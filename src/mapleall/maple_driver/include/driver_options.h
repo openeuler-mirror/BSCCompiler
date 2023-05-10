@@ -2067,6 +2067,9 @@ extern maplecl::Option<std::string> oFtemplateDepthE;
 extern maplecl::Option<std::string> functionReorderAlgorithm;
 extern maplecl::Option<std::string> functionReorderProfile;
 extern maplecl::Option<std::string> oA;
+#ifdef ENABLE_MAPLE_SAN
+extern maplecl::Option<std::string> sanitizer;
+#endif
 
 /* ##################### DIGITAL Options ############################################################### */
 

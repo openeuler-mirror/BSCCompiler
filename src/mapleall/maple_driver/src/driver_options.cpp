@@ -543,6 +543,11 @@ maplecl::Option<std::string> functionReorderProfile({"--function-reorder-profile
                                                     "          \t profile for function reorder\n",
                                                     {driverCategory, cgCategory});
 
+#ifdef ENABLE_MAPLE_SAN
+maplecl::Option<std::string> sanitizer({"-fsanitize"},
+                            " -fsanitize=address   \tEnable AddressSanitizer.\n",
+                            {driverCategory, meCategory});
+#endif
 /* ##################### DIGITAL Options ############################################################### */
 
 maplecl::Option<uint32_t> helpLevel({"--level"},

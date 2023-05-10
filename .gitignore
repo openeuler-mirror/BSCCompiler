@@ -28,4 +28,5 @@ libjava-core
 output
 compile_commands.json
 testsuite/tools*
+test/c_test/sanitizer/juliet_test_suite
 *__pycache__*

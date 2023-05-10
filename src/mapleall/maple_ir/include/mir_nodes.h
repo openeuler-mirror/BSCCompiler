@@ -2261,6 +2261,22 @@ class DassignoffNode : public UnaryStmtNode {
     UnaryStmtNode::SetOpnd(rhs, 0);
   }
 
+  StIdx GetStIdx() const {
+    return stIdx;
+  }
+
+  void SetStIdx(StIdx s) {
+    stIdx = s;
+  }
+
+  int32 GetOffset() {
+    return offset;
+  }
+
+  void SetOffset(int32 o) {
+    offset = o;
+  }
+
  public:
   StIdx stIdx;
   int32 offset = 0;

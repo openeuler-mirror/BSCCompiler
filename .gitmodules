@@ -1,0 +1,3 @@
+[submodule "test/c_test/sanitizer/juliet_test_suite"]
+	path = test/c_test/sanitizer/juliet_test_suite
+	url = https://gitee.com/huaijinwang/OpenArkCompiler_ASAN_juliet_test_suite.git

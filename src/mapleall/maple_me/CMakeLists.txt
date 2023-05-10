@@ -30,6 +30,7 @@ set(inc_dir
   ${MAPLEALL_ROOT}/maple_be/include/ad
   ${MAPLEALL_ROOT}/maple_be/include/ad/target
   ${MAPLE_BUILD_OUTPUT}/common/target
+  ${MAPLEALL_ROOT}/maple_san/include
 )
 
 set(src_libmplme
