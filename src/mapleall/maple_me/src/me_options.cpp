@@ -12,12 +12,8 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#include "driver_options.h"
-
-#include <bits/stdint-uintn.h>
-#include <stdint.h>
 #include <string>
+#include "driver_options.h"
 
 namespace opts::me {
 
@@ -52,7 +48,8 @@ maplecl::Option<std::string> range({"--range"},
                               {meCategory});
 
 maplecl::Option<std::string> pgoRange({"--pgorange"},
-                              "  --pglrange                  \tUse profile-guided optimizations only for funcid in the range [NUM0, NUM1]\n"
+                              "  --pglrange                  \tUse profile-guided optimizations only for funcid "
+                              "in the range [NUM0, NUM1]\n"
                               "                              \t--pgorange=NUM0,NUM1\n",
                               {meCategory});
 
@@ -214,8 +211,9 @@ maplecl::Option<uint32_t> eprepulimit({"--eprepulimit"},
                                  "                              \t--eprepulimit=NUM\n",
                                  {meCategory});
 
-maplecl::Option<uint32_t> epreuseprofilelimit({"--epreuseprofilelimit"},
-                                 "  --epreuseprofilelimit       \tMake EPRE take advantage of profile data only for the first NUM expressions\n"
+maplecl::Option<uint32_t> epreUseProfileLimit({"--epreuseprofilelimit"},
+                                 "  --epreuseprofilelimit       \tMake EPRE take advantage of profile data only "
+                                 "for the first NUM expressions\n"
                                  "                              \t--epreuseprofilelimit=NUM\n",
                                  {meCategory});
 
@@ -650,6 +648,14 @@ maplecl::Option<bool> layoutwithpredict({"--layoutwithpredict"},
                                    "     \tDisable optimizing output layout using branch prediction\n",
                                    {meCategory},
                                    maplecl::DisableWith("--no-layoutwithpredict"));
+
+maplecl::Option<bool> layoutColdPath({"--layout-cold-path"},
+                                   "  --layout-cold-path"
+                                   "        \tEnable layouting cold blocks (such as unlikely) out of hot path\n"
+                                   "  --no-layout-cold-path"
+                                   "     \tDisable layouting cold blocks (such as unlikely) out of hot path\n",
+                                   {meCategory},
+                                   maplecl::DisableWith("--no-layout-cold-path"));
 
 maplecl::Option<uint32_t> veclooplimit({"--veclooplimit"},
                                   "  --veclooplimit             \tApply vectorize loops only up to NUM \n"

@@ -29,20 +29,24 @@ Insn &InsnBuilder::BuildInsn(MOperator opCode, const InsnDesc &idesc) {
 
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0) {
   const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
-  return BuildInsn(opCode, tMd).AddOpndChain(o0);
+  Insn &result = BuildInsn(opCode, tMd).AddOpndChain(o0);
+  return result;
 }
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0, Operand &o1) {
   const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
-  return BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1);
+  Insn &result = BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1);
+  return result;
 }
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2) {
   const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
-  return BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2);
+  Insn &result = BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2);
+  return result;
 }
 
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2, Operand &o3) {
   const InsnDesc &tMd = Globals::GetInstance()->GetTarget()->GetTargetMd(opCode);
-  return BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2).AddOpndChain(o3);
+  Insn &result = BuildInsn(opCode, tMd).AddOpndChain(o0).AddOpndChain(o1).AddOpndChain(o2).AddOpndChain(o3);
+  return result;
 }
 
 Insn &InsnBuilder::BuildInsn(MOperator opCode, Operand &o0, Operand &o1, Operand &o2, Operand &o3, Operand &o4) {
@@ -89,6 +93,10 @@ ImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, MemPool *mp) {
   return mp ? *mp->New<ImmOperand>(value, size, false) : *alloc.New<ImmOperand>(value, size, false);
 }
 
+ImmOperand &OperandBuilder::CreateImm(uint32 size, int64 value, bool isSigned, MemPool *mp) {
+  return mp ? *mp->New<ImmOperand>(value, size, isSigned) : *alloc.New<ImmOperand>(value, size, isSigned);
+}
+
 ImmOperand &OperandBuilder::CreateImm(const MIRSymbol &symbol, int64 offset, int32 relocs, MemPool *mp) {
   return mp ? *mp->New<ImmOperand>(symbol, offset, relocs, false) :
       *alloc.New<ImmOperand>(symbol, offset, relocs, false);
@@ -125,6 +133,13 @@ MemOperand &OperandBuilder::CreateMem(uint32 size, RegOperand &baseOpnd, ImmOper
   return *alloc.New<MemOperand>(size, baseOpnd, ofstOperand, symbol);
 }
 
+BitShiftOperand &OperandBuilder::CreateBitShift(BitShiftOperand::ShiftOp op, uint32 amount, uint32 bitLen, MemPool *mp) {
+  if (mp != nullptr) {
+    return *mp->New<BitShiftOperand>(op, amount, bitLen);
+  }
+  return *alloc.New<BitShiftOperand>(op, amount, bitLen);
+}
+
 RegOperand &OperandBuilder::CreateVReg(uint32 size, RegType type, MemPool *mp) {
   regno_t vRegNO = virtualReg.GetNextVregNO(type, size / k8BitSize);
   RegOperand &rp = mp ? *mp->New<RegOperand>(vRegNO, size, type) : *alloc.New<RegOperand>(vRegNO, size, type);
@@ -146,11 +161,11 @@ ListOperand &OperandBuilder::CreateList(MemPool *mp) {
   return mp ? *mp->New<ListOperand>(alloc) : *alloc.New<ListOperand>(alloc);
 }
 
-FuncNameOperand &OperandBuilder::CreateFuncNameOpnd(MIRSymbol &symbol, MemPool *mp){
+FuncNameOperand &OperandBuilder::CreateFuncNameOpnd(MIRSymbol &symbol, MemPool *mp) {
   return mp ? *mp->New<FuncNameOperand>(symbol) : *alloc.New<FuncNameOperand>(symbol);
 }
 
-LabelOperand &OperandBuilder::CreateLabel(const char *parent, LabelIdx idx, MemPool *mp){
+LabelOperand &OperandBuilder::CreateLabel(const char *parent, LabelIdx idx, MemPool *mp) {
   return mp ? *mp->New<LabelOperand>(parent, idx, *mp) : *alloc.New<LabelOperand>(parent, idx, *alloc.GetMemPool());
 }
 

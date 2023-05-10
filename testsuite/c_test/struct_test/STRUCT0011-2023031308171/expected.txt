@@ -1,0 +1,9 @@
+sizeof(union) = 8
+byte 1 of u = 0
+byte 2 of u = 0
+byte 3 of u = 0
+byte 4 of u = 255
+byte 5 of u = 127
+byte 6 of u = 0
+byte 7 of u = 0
+byte 8 of u = 0

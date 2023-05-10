@@ -89,8 +89,8 @@ void RCItem::Dump() {
 }
 
 RCItem *AnalyzeRC::FindOrCreateRCItem(OriginalSt &ost) {
-  auto mapIt = rcItemsMap.find(ost.GetIndex());
-  if (mapIt != rcItemsMap.end()) {
+  const auto mapIt = std::as_const(rcItemsMap).find(ost.GetIndex());
+  if (mapIt != rcItemsMap.cend()) {
     return mapIt->second;
   }
   RCItem *rcItem = analyzeRCMp->New<RCItem>(ost, analyzeRCAllocator);
@@ -258,7 +258,7 @@ void AnalyzeRC::RenameRefPtrs(BB *bb) {
   TraverseStmt(*bb);
   // recursive call in preorder traversal of dominator tree
   ASSERT(bb->GetBBId() < dominance.GetDomChildrenSize(), "index out of range in AnalyzeRC::RenameRefPtrs");
-  const auto &domChildren = dominance.GetDomChildren(bb->GetBBId());
+  const auto &domChildren = dominance.GetDomChildren(bb->GetID());
   for (const auto &childBBId : domChildren) {
     RenameRefPtrs(cfg->GetAllBBs().at(childBBId));
   }
@@ -390,7 +390,7 @@ bool AnalyzeRC::NeedDecRef(const VarMeExpr &var) const {
 // among the arguments in the intrinsiccall to INTRN_CLEANUP_LOCALREFVARS, those
 // that are zero version are not live, and can be deleted; if the number of
 // arguments left are > `kCleanupLocalRefVarsLimit`, delete the intrinsiccall.
-void AnalyzeRC::RemoveUnneededCleanups() {
+void AnalyzeRC::RemoveUnneededCleanups() const {
   for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
     auto &meStmts = bb->GetMeStmts();
     if (meStmts.empty() || meStmts.back().GetOp() != OP_return) {
@@ -425,7 +425,7 @@ void AnalyzeRC::RemoveUnneededCleanups() {
 }
 
 void AnalyzeRC::Run() {
-  if (func.GetHints() & kPlacementRCed) {
+  if ((func.GetHints() & kPlacementRCed) != 0) {
     skipLocalRefVars = true;
   } else {
     func.SetHints(func.GetHints() | kAnalyzeRCed);
@@ -449,7 +449,7 @@ void MEAnalyzeRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MEAnalyzeRC::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   ASSERT(dom != nullptr, "dominance phase has problem");
   auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
   ASSERT(aliasClass != nullptr, "aliasClass phase has problem");

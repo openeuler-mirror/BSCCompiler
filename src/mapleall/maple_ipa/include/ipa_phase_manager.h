@@ -30,7 +30,9 @@ class IpaSccPM : public SccPM {
   void Init(MIRModule &m);
   bool PhaseRun(MIRModule &m) override;
   PHASECONSTRUCTOR(IpaSccPM);
-  ~IpaSccPM() override {}
+  ~IpaSccPM() override {
+    ipaInfo = nullptr;
+  }
   std::string PhaseName() const override;
   CollectIpaInfo *GetResult() {
     return ipaInfo;

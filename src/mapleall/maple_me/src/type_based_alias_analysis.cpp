@@ -37,7 +37,7 @@ MIRType *GetFieldType(MIRStructType *strucType, FieldID fieldId) {
   fieldsType[0] = strucType;
   size_t i = 1;
   while (i < fieldNum) {
-    MIRType *fieldType = strucType->GetFieldType(i);
+    MIRType *fieldType = strucType->GetFieldType(static_cast<FieldID>(i));
     MIRStructType *structFieldType = fieldType->EmbeddedStructType();
     if (structFieldType != nullptr) {
       (void)GetFieldType(structFieldType, 0); // build sub-struct
@@ -152,8 +152,8 @@ bool IsFieldTypeOfArrayType(ArrayType *arrayType, MIRType *checkedType) {
 
 class FieldTypeComparator {
  public:
-  FieldTypeComparator(MIRType *type) : checkedType(type) {}
-  bool operator() (MIRType *fieldType) {
+  explicit FieldTypeComparator(MIRType *type) : checkedType(type) {}
+  bool operator() (MIRType *fieldType) const {
     if (fieldType == checkedType) {
       return true;
     }
@@ -344,12 +344,12 @@ bool IsPointerInterconvertible(const MIRPtrType &ptrTypeA, const MIRPtrType &ptr
   //     bit-field, then to the unit in which it resides), and vice versa.
   std::set<const MIRType *> initialMemType;
   GetInitialMemType(*pointedTypeA, initialMemType);
-  if (initialMemType.count(pointedTypeB)) {
+  if (initialMemType.count(pointedTypeB) != 0) {
     return true;
   }
   initialMemType.clear();
   GetInitialMemType(*pointedTypeB, initialMemType);
-  if (initialMemType.count(pointedTypeA)) {
+  if (initialMemType.count(pointedTypeA) != 0) {
     return true;
   }
   return false;
@@ -381,8 +381,8 @@ bool IsTypeCompatible(MIRType *typeA, MIRType *typeB) {
     }
     return false;
   }
-  if (TypeBasedAliasAnalysis::IsFieldTypeOfAggType(typeA, typeB) ||
-      TypeBasedAliasAnalysis::IsFieldTypeOfAggType(typeB, typeA)) {
+  if (TypeBasedAliasAnalysis::IsFieldTypeOfAggType(typeA, *typeB) ||
+      TypeBasedAliasAnalysis::IsFieldTypeOfAggType(typeB, *typeA)) {
     return true;
   }
   return false;
@@ -417,18 +417,18 @@ static void GetPossibleFieldID(MIRType *aggType, MIRType *checkedType, std::vect
     MIRType *fieldType = fieldsTypeVec[i];
 
     if (fieldType == checkedType) {
-      fieldIDs.emplace_back(i);
+      (void)fieldIDs.emplace_back(i);
       continue;
     }
     if (IsPrimitiveScalar(checkedType->GetPrimType()) &&
         fieldType->GetPrimType() == checkedType->GetPrimType()) {
-      fieldIDs.emplace_back(i);
+      (void)fieldIDs.emplace_back(i);
       continue;
     }
     if (fieldType->IsMIRArrayType()) {
       if (static_cast<MIRArrayType *>(fieldType)->GetElemType() == checkedType ||
           (checkedType->IsMIRArrayType() && IsArrayTypeCompatible(fieldType, checkedType))) {
-        fieldIDs.emplace_back(i);
+        (void)fieldIDs.emplace_back(i);
       }
     }
   }
@@ -555,7 +555,7 @@ bool TypeWithSameSizeEmbedded(MIRType *aggType, MIRType *checkedType) {
 // when aggTypeB is embedded in aggTypeA, check if ostA alias with ostB.
 bool MayAliasForAggTypeNest(MIRType *aggTypeA, const OriginalSt *ostA, MIRType *aggTypeB, const OriginalSt *ostB) {
   MIRType *typeA = ostA->GetType();
-  if (TypeBasedAliasAnalysis::IsFieldTypeOfAggType(typeA, aggTypeB)) { // aggTypeB is field type of typeA
+  if (TypeBasedAliasAnalysis::IsFieldTypeOfAggType(typeA, *aggTypeB)) { // aggTypeB is field type of typeA
     return true;
   }
   FieldID fieldIdB = ostB->GetFieldID();
@@ -595,7 +595,7 @@ bool MayAliasOstAndType(const OriginalSt *ost, MIRType *checkedType) {
   }
   if (sizeA < sizeB) { // fieldNumA <= fieldNumB is also true implicitly.
     // check if aggType can be embedded in checkedType
-    return TypeBasedAliasAnalysis::IsFieldTypeOfAggType(checkedType, aggType);
+    return TypeBasedAliasAnalysis::IsFieldTypeOfAggType(checkedType, *aggType);
   } else if (sizeA == sizeB) {
     if (fieldNumA == fieldNumB) { // <[1] <$struct>> and <$struct> has same size and fieldNum
       if (aggType->GetKind() == kTypeArray) {
@@ -610,8 +610,9 @@ bool MayAliasOstAndType(const OriginalSt *ost, MIRType *checkedType) {
     }
   } else { // sizeA > sizeB (fieldNumA >= fieldNumB is also true implicitly)
     // check if checkedType can be embedded in aggType, and overlap with ost
-    if ((ostType->GetPrimType() == PTY_agg && TypeBasedAliasAnalysis::IsFieldTypeOfAggType(ostType, checkedType)) ||
-        (checkedType->GetPrimType() == PTY_agg && TypeBasedAliasAnalysis::IsFieldTypeOfAggType(checkedType, ostType))) {
+    if ((ostType->GetPrimType() == PTY_agg && TypeBasedAliasAnalysis::IsFieldTypeOfAggType(ostType, *checkedType)) ||
+        (checkedType->GetPrimType() == PTY_agg && TypeBasedAliasAnalysis::IsFieldTypeOfAggType(checkedType,
+                                                                                               *ostType))) {
       return true;
     }
     MIRStructType *structType = aggType->EmbeddedStructType();
@@ -684,7 +685,8 @@ static bool MayMemoryOverlap(
   auto getValidOffsetValue = [](const OriginalSt &ost, const MIRType *aggType) {
     auto fieldId = ost.GetFieldID();
     auto &offset = ost.GetOffset();
-    if (!aggType || (offset.val < static_cast<int32>(GetTypeBitSize(*aggType)) && (!offset.IsInvalid() || fieldId))) {
+    if (!aggType || (offset.val < static_cast<int32>(GetTypeBitSize(*aggType)) &&
+        (!offset.IsInvalid() || fieldId != 0))) {
       return static_cast<int64>(offset.val);
     }
     return aggType->GetBitOffsetFromBaseAddr(fieldId);
@@ -776,33 +778,32 @@ static bool MayAliasForVirtualOstOfVoidPtr(
   return IsMemoryOverlap(offsetA, GetTypeBitSize(*ostA.GetType()), offsetB, GetTypeBitSize(*ostB.GetType()));
 }
 
-bool TypeBasedAliasAnalysis::IsFieldTypeOfAggType(MIRType *aggType, MIRType *checkedType) {
+bool TypeBasedAliasAnalysis::IsFieldTypeOfAggType(MIRType *aggType, MIRType &checkedType) {
   ASSERT_NOT_NULL(aggType);
-  if (aggType == checkedType) {
+  if (aggType == &checkedType) {
     return true;
   }
   if (aggType->GetPrimType() != PTY_agg) {
     return false;
   }
-  ASSERT_NOT_NULL(checkedType);
-  if (aggType->GetSize() < checkedType->GetSize() || aggType->NumberOfFieldIDs() < checkedType->NumberOfFieldIDs()) {
+  if (aggType->GetSize() < checkedType.GetSize() || aggType->NumberOfFieldIDs() < checkedType.NumberOfFieldIDs()) {
     return false;
   }
   if (compatibleTypeCache.find(aggType) != compatibleTypeCache.end()) {
     auto &fieldsTypeMap = compatibleTypeCache[aggType];
-    if (fieldsTypeMap.find(checkedType) != fieldsTypeMap.end()) {
-      return fieldsTypeMap[checkedType];
+    if (fieldsTypeMap.find(&checkedType) != fieldsTypeMap.end()) {
+      return fieldsTypeMap[&checkedType];
     }
   }
   bool res = false;
   if (aggType->IsStructType()) {
-    res = IsFieldTypeOfStructType(static_cast<MIRStructType*>(aggType), checkedType);
+    res = IsFieldTypeOfStructType(static_cast<MIRStructType*>(aggType), &checkedType);
   } else if (aggType->GetKind() == kTypeArray) {
-    res = IsFieldTypeOfArrayType(static_cast<MIRArrayType*>(aggType), checkedType);
+    res = IsFieldTypeOfArrayType(static_cast<MIRArrayType*>(aggType), &checkedType);
   } else if (aggType->GetKind() == kTypeFArray) {
-    res = IsFieldTypeOfArrayType(static_cast<MIRFarrayType*>(aggType), checkedType);
+    res = IsFieldTypeOfArrayType(static_cast<MIRFarrayType*>(aggType), &checkedType);
   }
-  (void)compatibleTypeCache[aggType].emplace(checkedType, res);
+  (void)compatibleTypeCache[aggType].emplace(&checkedType, res);
   return res;
 }
 
@@ -872,10 +873,10 @@ bool TypeBasedAliasAnalysis::MayAliasTBAAForC(const OriginalSt *ostA, const Orig
   if (MayAliasForVirtualOstOfVoidPtr(*ostA, *aggTypeA, *ostB, *aggTypeB)) {
     return true;
   }
-  if (IsFieldTypeOfAggType(aggTypeA, aggTypeB)) { // aggTypeB is embedded in aggTypeA
+  if (IsFieldTypeOfAggType(aggTypeA, *aggTypeB)) { // aggTypeB is embedded in aggTypeA
     return MayAliasForAggTypeNest(aggTypeA, ostA, aggTypeB, ostB);
   }
-  if (IsFieldTypeOfAggType(aggTypeB, aggTypeA)) {
+  if (IsFieldTypeOfAggType(aggTypeB, *aggTypeA)) {
     return MayAliasForAggTypeNest(aggTypeB, ostB, aggTypeA, ostA);
   }
   return false;
@@ -883,7 +884,7 @@ bool TypeBasedAliasAnalysis::MayAliasTBAAForC(const OriginalSt *ostA, const Orig
 
 // return true if can filter this aliasElemOst, otherwise return false;
 bool TypeBasedAliasAnalysis::FilterAliasElemOfRHSForIassign(
-    const OriginalSt *aliasElemOst, const OriginalSt *lhsOst, const OriginalSt *rhsOst) {
+    const OriginalSt &aliasElemOst, const OriginalSt &lhsOst, const OriginalSt &rhsOst) {
   if (!MeOption::tbaa) {
     return false;
   }
@@ -892,6 +893,6 @@ bool TypeBasedAliasAnalysis::FilterAliasElemOfRHSForIassign(
   // if rhs is not alias with rhs, their memories completely not overlap.
   // Rhs may def itself if they overlap, but its value is the same as before.
   // So we skip inserting maydef for ost the same as rhs here
-  return (aliasElemOst == rhsOst && rhsOst->GetTyIdx() == lhsOst->GetTyIdx());
+  return (&aliasElemOst == &rhsOst && rhsOst.GetTyIdx() == lhsOst.GetTyIdx());
 }
 } // namespace maple

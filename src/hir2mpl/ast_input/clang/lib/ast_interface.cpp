@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ast_interface.h"
+#include <string>
 #include "mpl_logging.h"
 #include "ast_util.h"
 #include "fe_utils.h"
@@ -323,6 +324,40 @@ void LibAstFile::CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericA
   }
 }
 
+void LibAstFile::SetAttrVisibility(const clang::DeclaratorDecl &decl, GenericAttrs &genAttrs) const {
+  if (decl.getLinkageAndVisibility().isVisibilityExplicit()) {
+    auto visibilityInfo = decl.getLinkageAndVisibility().getVisibility();
+    switch (visibilityInfo) {
+      case clang::Visibility::HiddenVisibility:
+        genAttrs.SetAttr(GENATTR_visibility_hidden);
+        break;
+      case clang::Visibility::ProtectedVisibility:
+        genAttrs.SetAttr(GENATTR_visibility_protected);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+void LibAstFile::SetAttrTLSModel(const clang::VarDecl &decl, GenericAttrs &genAttrs) const {
+  if (decl.hasAttr<clang::TLSModelAttr>()) {
+    const clang::TLSModelAttr *tlsAttr = decl.getAttr<clang::TLSModelAttr>();
+    const std::string tlsModelName = tlsAttr->getModel().str();
+    if (tlsModelName == "local-exec") {
+      genAttrs.SetAttr(GENATTR_local_exec);
+    } else if (tlsModelName == "local-dynamic") {
+      genAttrs.SetAttr(GENATTR_local_dynamic);
+    } else if (tlsModelName == "initial-exec") {
+      genAttrs.SetAttr(GENATTR_initial_exec);
+    } else if (tlsModelName == "global-dynamic") {
+      genAttrs.SetAttr(GENATTR_global_dynamic);
+    } else {
+      CHECK_FATAL(false, "TLSMODE: %s is not support", tlsModelName.c_str());
+    }
+  }
+}
+
 void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
   if (decl.isVirtualAsWritten()) {
@@ -419,18 +454,7 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
       genAttrs.ResetAttr(GENATTR_extern);
     }
   }
-  if (decl.getLinkageAndVisibility().isVisibilityExplicit()) {
-    auto visibilityInfo = decl.getLinkageAndVisibility().getVisibility();
-    switch (visibilityInfo) {
-      case clang::Visibility::HiddenVisibility:
-        genAttrs.SetAttr(GENATTR_visibility_hidden);
-        break;
-      case clang::Visibility::ProtectedVisibility:
-        genAttrs.SetAttr(GENATTR_visibility_protected);
-        break;
-      default: break;
-    }
-  }
+  SetAttrVisibility(decl, genAttrs);
   CheckUnsupportedFuncAttrs(decl);
 }
 
@@ -456,18 +480,8 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) cons
 
 void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
-  if (decl.getLinkageAndVisibility().isVisibilityExplicit()) {
-    auto visibilityInfo = decl.getLinkageAndVisibility().getVisibility();
-    switch (visibilityInfo) {
-      case clang::Visibility::HiddenVisibility:
-        genAttrs.SetAttr(GENATTR_visibility_hidden);
-        break;
-      case clang::Visibility::ProtectedVisibility:
-        genAttrs.SetAttr(GENATTR_visibility_protected);
-        break;
-      default: break;
-    }
-  }
+  SetAttrVisibility(decl, genAttrs);
+  SetAttrTLSModel(decl, genAttrs);
   // handle __thread
   if (decl.getTLSKind() == clang::VarDecl::TLS_Static) {
     genAttrs.SetAttr(GENATTR_tls_static);
@@ -582,7 +596,44 @@ void LibAstFile::EmitQualifierName(const clang::QualType qualType, std::stringst
   }
 }
 
+void LibAstFile::BuildFieldName(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl) {
+  std::string canonicalTypeName = fieldDecl.getType().getCanonicalType().getAsString();
+  std::string fieldName = GetMangledName(fieldDecl);
+  if (fieldName.empty() && fieldDecl.isAnonymousStructOrUnion()) {
+    fieldName = GetOrCreateMappedUnnamedName(*(fieldDecl.getType()->getAsRecordDecl()));
+  }
+  FEUtils::EraseFileNameforClangTypeStr(canonicalTypeName);
+  recordLayoutStr << fieldName << "-" << canonicalTypeName;
+  const auto *fieldRDcl = fieldDecl.getType()->getAsRecordDecl();
+  if (fieldRDcl != nullptr) {
+    recordLayoutStr << ":{";
+    for (const auto field : fieldRDcl->fields()) {
+      BuildFieldName(recordLayoutStr, *field);
+    }
+    recordLayoutStr << "}";
+  }
+  recordLayoutStr << ",";
+}
+
 const std::string LibAstFile::GetOrCreateMappedUnnamedName(const clang::Decl &decl) {
+  if (FEOptions::GetInstance().GetWPAA()) {
+    std::stringstream recordLayoutStr;
+    const clang::RecordDecl *myRecordDecl = nullptr;
+    if (const auto *fieldDecl = llvm::dyn_cast<clang::FieldDecl>(&decl)) {
+      myRecordDecl = fieldDecl->getType()->getAsRecordDecl();
+    } else if (const auto *recordDecl = llvm::dyn_cast<clang::RecordDecl>(&decl)) {
+      myRecordDecl = recordDecl;
+    }
+    if (myRecordDecl) {
+      recordLayoutStr << myRecordDecl->getKindName().str() << ":{";
+      for (const auto field : myRecordDecl->fields()) {
+        BuildFieldName(recordLayoutStr, *field);
+      }
+      recordLayoutStr << "}";
+    }
+    return "unnamed." + FEUtils::GetHashStr(recordLayoutStr.str());
+  }
+
   uint32 uid;
   if (FEOptions::GetInstance().GetFuncInlineSize() != 0 && !decl.getLocation().isMacroID()) {
     // use loc as key for wpaa mode
@@ -660,30 +711,39 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringst
   } else {
     ss << GetOrCreateMappedUnnamedName(*recordDecl);
   }
-  if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    std::string recordStr = recordDecl->getDefinition() == nullptr ? "" : GetRecordLayoutString(*recordDecl);
-    std::string filename = astContext->getSourceManager().getFilename(recordDecl->getLocation()).str();
-    ss << FEUtils::GetFileNameHashStr(filename + recordStr);
+  if (FEOptions::GetInstance().GetFuncInlineSize() != 0 || FEOptions::GetInstance().GetWPAA()) {
+    std::string layout = recordDecl->getDefinition() == nullptr ? "" : GetRecordLayoutString(*recordDecl);
+    ss << FEUtils::GetFileNameHashStr(layout);
   }
   CHECK_FATAL(ss.rdbuf()->in_avail() != 0, "stringstream is empty");
+}
+void LibAstFile::BuildFieldLayoutString(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl) {
+  std::string canonicalTypeName = fieldDecl.getType().getCanonicalType().getAsString();
+  std::string fieldName = GetMangledName(fieldDecl);
+  if (fieldName.empty() && fieldDecl.isAnonymousStructOrUnion()) {
+    fieldName = GetOrCreateMappedUnnamedName(fieldDecl);
+  }
+
+  FEUtils::EraseFileNameforClangTypeStr(canonicalTypeName);
+  recordLayoutStr << fieldName << "-" << canonicalTypeName;
+  const auto *fieldCl = fieldDecl.getType()->getAsRecordDecl();
+  if (fieldCl != nullptr) {
+    recordLayoutStr << ":{";
+    for (const auto field : fieldCl->fields()) {
+      BuildFieldLayoutString(recordLayoutStr, *field);
+    }
+    recordLayoutStr << "}";
+  }
+  recordLayoutStr << ",";
 }
 
 std::string LibAstFile::GetRecordLayoutString(const clang::RecordDecl &recordDecl) {
   std::stringstream recordLayoutStr;
-  const clang::ASTRecordLayout &recordLayout = GetContext()->getASTRecordLayout(&recordDecl);
-  unsigned int fieldCount = recordLayout.getFieldCount();
-  uint64_t recordSize = static_cast<uint64_t>(recordLayout.getSize().getQuantity());
-  recordLayoutStr << std::to_string(fieldCount) << std::to_string(recordSize);
-  clang::RecordDecl::field_iterator it = recordDecl.field_begin();
-  for (unsigned i = 0, e = recordLayout.getFieldCount(); i != e; ++i, ++it) {
-    const clang::FieldDecl *fieldDecl = *it;
-    recordLayoutStr << std::to_string(recordLayout.getFieldOffset(i));
-    std::string fieldName = GetMangledName(*fieldDecl);
-    if (fieldName.empty()) {
-      fieldName = GetOrCreateMappedUnnamedName(*fieldDecl);
-    }
-    recordLayoutStr << fieldName;
+  recordLayoutStr << recordDecl.getKindName().str() << ":{";
+  for (auto field : recordDecl.fields()) {
+    BuildFieldLayoutString(recordLayoutStr, *field);
   }
+  recordLayoutStr << "}";
   return recordLayoutStr.str();
 }
 
@@ -699,4 +759,96 @@ std::string LibAstFile::GetTypedefNameFromUnnamedStruct(const clang::RecordDecl 
   }
   return std::string();
 }
-} // namespace maple
+// with macro enpanded, preproceeded code
+std::string LibAstFile::GetSourceText(const clang::Stmt &stmt) {
+  std::string s;
+  llvm::raw_string_ostream sos(s);
+  clang::PrintingPolicy pp(astContext->getLangOpts());
+  stmt.printPretty(sos, nullptr, pp);
+  sos.flush();
+  return s;
+}
+
+// non preproceeded code
+std::string LibAstFile::GetSourceTextRaw(const clang::SourceRange range, const clang::SourceManager &sm) const {
+  clang::LangOptions lo;
+  auto startLoc = sm.getSpellingLoc(range.getBegin());
+  auto lastTokenLoc = sm.getSpellingLoc(range.getEnd());
+  auto endLoc = clang::Lexer::getLocForEndOfToken(lastTokenLoc, 0, sm, lo);
+  auto printableRange = clang::SourceRange{startLoc, endLoc};
+  return clang::Lexer::getSourceText(clang::CharSourceRange::getCharRange(printableRange), sm, clang::LangOptions())
+      .str();
+}
+
+// when function is considered unique, return true;
+bool LibAstFile::CheckAndBuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl,
+                                                   std::stringstream &funcNameStream,
+                                                   std::unordered_set<int64_t> &visitedCalls) {
+  if (!funcDecl.isStatic()) {
+    return false;
+  }
+  if (!funcDecl.getBody()) {
+    return false;
+  }
+  std::string funcSignature = BuildStaticFunctionSignature(funcDecl);
+  funcNameStream << funcSignature << "{";
+  std::string funcSourceCode = "";
+  funcSourceCode = GetSourceText(*(funcDecl.getBody()));
+  funcNameStream << funcSourceCode << "};";
+  CallCollector collector = CallCollector(astContext);
+
+  collector.TraverseStmt(funcDecl.getBody());
+  if (collector.IsNeedToBeUniq()) {
+    return true;
+  }
+  auto callExprs = collector.GetCallExprs();
+  funcNameStream << "->${";
+  for (auto const &pair : callExprs) {
+    if (visitedCalls.count(pair.first) > 0) {
+      // recursive call
+      continue;
+    }
+    (void)visitedCalls.insert(pair.first);
+    if (const clang::FunctionDecl *currentFuncDecl = pair.second->getDirectCallee()) {
+      if (CheckAndBuildStaticFunctionLayout(*currentFuncDecl, funcNameStream, visitedCalls)) {
+        return true;
+      }
+    }
+  }
+  funcNameStream << "}$, ";
+  return false;
+}
+
+void LibAstFile::BuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl, std::string &funcName) {
+  std::stringstream funcNameStream;
+  funcNameStream << funcName;
+  std::unordered_set<int64_t> visitedCalls;
+  if (CheckAndBuildStaticFunctionLayout(funcDecl, funcNameStream, visitedCalls)) {
+    funcName = funcName + ".static_involved" + this->GetAstFileNameHashStr();
+  } else {
+    funcName = funcName + FEUtils::GetFileNameHashStr(funcNameStream.str());
+  }
+}
+
+std::string LibAstFile::BuildStaticFunctionSignature(const clang::FunctionDecl &funcDecl) {
+  std::string signature;
+  signature += funcDecl.getReturnType().getCanonicalType().getAsString();
+  signature += " ";
+  signature += funcDecl.getNameAsString();
+  signature += "(";
+
+  // If the function definition is a noprototype declaration,
+  // which is allowed in c99, the parameter information will not be recorded, as well as func(void);
+  if (const auto *funcType = funcDecl.getType()->getAs<clang::FunctionProtoType>()) {
+    for (unsigned int i = 0; i < funcType->getNumParams(); i++) {
+      const auto paramType = funcType->getParamType(i).getCanonicalType();
+      signature += paramType.getAsString() + ",";
+    }
+    if (signature.back() == ',') {
+      signature.pop_back();
+    }
+  }
+  signature += ");";
+  return signature;
+}
+}  // namespace maple

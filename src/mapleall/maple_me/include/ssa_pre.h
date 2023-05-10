@@ -163,7 +163,7 @@ class SSAPre {
     }
     return phiOcc->IsMCWillBeAvail();
   }
-  bool OKToInsert(MePhiOpndOcc *phiOpnd);
+  bool OKToInsert(MePhiOpndOcc &phiOpnd) const;
   virtual void Finalize1();
   void SetSave(MeOccur &defX);
   void SetReplacement(MePhiOcc &occ, MeOccur &repDef);

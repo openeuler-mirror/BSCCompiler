@@ -27,7 +27,6 @@
 #endif
 
 #include <unistd.h>
-#include <sys/types.h>
 #include <cstdlib>
 #include "error_code.h"
 #include "mpl_logging.h"
@@ -59,6 +58,7 @@ class SafeExe {
     }
     // end of arguments sentinel is nullptr
     argv[vectorArgs.size()] = nullptr;
+    fflush(nullptr);
     pid_t pid = fork();
     ErrorCode ret = kErrorNoError;
     if (pid == 0) {
@@ -75,10 +75,11 @@ class SafeExe {
       // parent process
       int status = -1;
       waitpid(pid, &status, 0);
-      if (!WIFEXITED(static_cast<uint>(status))) {
+      auto exitStatus = static_cast<uint32>(status);
+      if (!WIFEXITED(exitStatus)) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
-      } else if (WEXITSTATUS(status) != 0) {
+      } else if (WEXITSTATUS(exitStatus) != 0) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
       }
@@ -97,35 +98,47 @@ class SafeExe {
     char **argv;
     Compilee compileeFlag = Compilee::unKnow;
     std::string ldLibPath = "";
-    int index = cmd.find_last_of("-");
-    if (index > 0 && cmd.substr(index) == "-gcc") {
+    size_t index = cmd.find_last_of("-");
+    if (index > 0 && index < cmd.size() && cmd.substr(index) == "-gcc") {
       compileeFlag = Compilee::gcc;
-    } else if (cmd.find("hir2mpl", 0) != -1) {
+      for (auto &opt : options) {
+        if (opt.GetKey() == "-c") {
+          compileeFlag = Compilee::unKnow;
+        }
+      }
+    } else if (StringUtils::GetStrAfterLast(cmd, kFileSeperatorStr) == "hir2mpl" ||
+               StringUtils::GetStrAfterLast(cmd, kFileSeperatorStr) == "clang") {
       compileeFlag = Compilee::hir2mpl;
-      ldLibPath += mplOptions.GetExeFolder().substr(0, mplOptions.GetExeFolder().length() - 4);
-      ldLibPath += "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
+      if (FileUtils::SafeGetenv(kMapleRoot) != "") {
+        ldLibPath += FileUtils::SafeGetenv(kMapleRoot) + "/build/tools/hpk/:";
+        ldLibPath += FileUtils::SafeGetenv(kMapleRoot) + "/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
+      } else {
+        ldLibPath += mplOptions.GetExeFolder().substr(0, mplOptions.GetExeFolder().length() - 4);
+        ldLibPath += "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
+      }
     }
-    std::tie(argv, argIndex) = GenerateUnixArguments(cmd, mplOptions, options, compileeFlag);
+    std::tie(argv, argIndex) = GenerateUnixArguments(cmd, options, compileeFlag);
     if (opts::debug) {
       LogInfo::MapleLogger() << "Run: " << cmd;
       for (auto &opt : options) {
         LogInfo::MapleLogger() << " " << opt.GetKey() << " " << opt.GetValue();
       }
       if (compileeFlag == Compilee::gcc) {
-        for (auto &opt : mplOptions.GetLinkInputFiles()) {
+        for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
           LogInfo::MapleLogger() << " " << opt;
         }
       }
       LogInfo::MapleLogger() << "\n";
     }
 
+    fflush(nullptr);
     pid_t pid = fork();
     ErrorCode ret = kErrorNoError;
     if (pid == 0) {
       // child process
       fflush(nullptr);
       if (compileeFlag == Compilee::hir2mpl) {
-        std::string ld_path =":";
+        std::string ld_path = ":";
         if (FileUtils::SafeGetenv(kLdLibPath) != "") {
           ld_path += FileUtils::SafeGetenv(kLdLibPath);
           ldLibPath += ld_path;
@@ -145,9 +158,10 @@ class SafeExe {
       // parent process
       int status = -1;
       waitpid(pid, &status, 0);
-      if (!WIFEXITED(static_cast<uint>(status))) {
+      auto exitStatus = static_cast<uint32>(status);
+      if (!WIFEXITED(exitStatus)) {
         ret = kErrorCompileFail;
-      } else if (WEXITSTATUS(status) != 0) {
+      } else if (WEXITSTATUS(exitStatus) != 0) {
         ret = kErrorCompileFail;
       }
 
@@ -155,6 +169,11 @@ class SafeExe {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: ";
         for (auto &opt : options) {
           LogInfo::MapleLogger() << opt.GetKey() << " " << opt.GetValue() << " ";
+        }
+        if (compileeFlag == Compilee::gcc) {
+          for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
+            LogInfo::MapleLogger() << opt << " ";
+          }
         }
         LogInfo::MapleLogger() << "\n";
       }
@@ -284,16 +303,16 @@ class SafeExe {
     return tmpArgs;
   }
 
-  static std::tuple<char **, size_t> GenerateUnixArguments(const std::string &cmd, const MplOptions &mplOptions,
-                                                        const std::vector<MplOption> &options, Compilee compileeFlag) {
+  static std::tuple<char **, size_t> GenerateUnixArguments(const std::string &cmd,
+      const std::vector<MplOption> &options, Compilee compileeFlag) {
     /* argSize=2, because we reserve 1st arg as exe binary, and another arg as last nullptr arg */
     size_t argSize = 2;
 
     /* Calculate how many args are needed.
      * (* 2) is needed, because we have key and value arguments in each option
      */
-    if (compileeFlag == Compilee::gcc && mplOptions.GetLinkInputFiles().size() > 0) {
-      argSize += mplOptions.GetLinkInputFiles().size();
+    if (compileeFlag == Compilee::gcc && maplecl::CommandLine::GetCommandLine().GetLinkOptions().size() > 0) {
+      argSize += maplecl::CommandLine::GetCommandLine().GetLinkOptions().size();
     }
     argSize += options.size() * 2;
 
@@ -304,8 +323,8 @@ class SafeExe {
     // copy args
     auto cmdSize = cmd.size() + 1; // +1 for NUL terminal
     argv[0] = new char[cmdSize];
-    strncpy_s(argv[0], cmdSize, cmd.c_str(), cmdSize); // c_str includes NUL terminal
-
+    errno_t errSafe = strncpy_s(argv[0], cmdSize, cmd.c_str(), cmdSize); // c_str includes NUL terminal
+    CHECK_FATAL(errSafe == EOK, "strncpy_s failed");
     /* Allocate and fill all arguments */
     for (auto &opt : options) {
       auto key = opt.GetKey();
@@ -316,24 +335,27 @@ class SafeExe {
 
       if (keySize != 1) {
         argv[argIndex] = new char[keySize];
-        strncpy_s(argv[argIndex], keySize, key.c_str(), keySize);
+        errSafe = strncpy_s(argv[argIndex], keySize, key.c_str(), keySize);
+        CHECK_FATAL(errSafe == EOK, "strncpy_s failed");
         ++argIndex;
       }
 
       if (valSize != 1) {
         argv[argIndex] = new char[valSize];
-        strncpy_s(argv[argIndex], valSize, val.c_str(), valSize);
+        errSafe = strncpy_s(argv[argIndex], valSize, val.c_str(), valSize);
+        CHECK_FATAL(errSafe == EOK, "strncpy_s failed");
         ++argIndex;
       }
     }
 
     if (compileeFlag == Compilee::gcc) {
-      for (auto &opt : mplOptions.GetLinkInputFiles()) {
+      for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
         auto keySize = opt.size() + 1;
 
         if (keySize != 1) {
           argv[argIndex] = new char[keySize];
-          strncpy_s(argv[argIndex], keySize, opt.c_str(), keySize);
+          errSafe = strncpy_s(argv[argIndex], keySize, opt.c_str(), keySize);
+          CHECK_FATAL(errSafe == EOK, "strncpy_s failed");
           ++argIndex;
         }
       }

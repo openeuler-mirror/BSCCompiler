@@ -91,7 +91,7 @@ int64 GInline::GetFunctionStaticInsns(MIRFunction &func) const {
 
 int64 GInline::ComputeTotalSize() const {
   int64 total = 0;
-  for (auto it = cg->Begin(); it != cg->End(); ++it) {
+  for (auto it = cg->CBegin(); it != cg->CEnd(); ++it) {
     MIRFunction *func = it->first;
     if (func->GetBody() == nullptr) {
       continue;
@@ -218,7 +218,7 @@ void GInline::PrintGInlineReport() const {
 }
 
 // We try to inline shallow small callee (especially with inline attr), ignoring overall growth limit
-bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) {
+bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) const {
   auto ifCode = callSiteNode.GetCallInfo()->GetInlineFailedCode();
   if (ifCode == kIfcInlineList || ifCode == kIfcInlineListCallsite || ifCode == kIfcHardCoded ||
       ifCode == kIfcProfileHotCallsite) {
@@ -254,14 +254,14 @@ bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) {
 
 void GInline::PrepareCallsiteSet() {
   // Init callsite set
-  for (auto it = cg->Begin(); it != cg->End(); ++it) {
+  for (auto it = cg->CBegin(); it != cg->CEnd(); ++it) {
     CGNode *node = it->second;
-    for (auto &edge : node->GetCallee()) {
-      CallInfo *info = edge.first;
+    for (auto edgeIter = node->GetCallee().cbegin(); edgeIter != node->GetCallee().cend(); ++edgeIter) {
+      CallInfo *info = edgeIter->first;
       if (!ConsiderInlineCallsite(*info, 0)) {
         continue;
       }
-      CHECK_FATAL(edge.second->size() == 1, "Call stmt has only one candidate.");
+      CHECK_FATAL(edgeIter->second->size() == 1, "Call stmt has only one candidate.");
       InsertNewCallSite(*info, 0);
     }
   }
@@ -330,7 +330,7 @@ void GInline::InlineCallsiteSet() {
       heapNode->Dump();
       LogInfo::MapleLogger() << (ignoreLimit ? " ignoreLimit\n" : "\n");
     }
-    auto *transformer = alloc.New<InlineTransformer>(kGreedyInline, *caller, *callee, *callNode, true, cg);
+    auto *transformer = alloc.New<InlineTransformer>(kGreedyInline, *caller, *callee, *callNode, dumpDetail, cg);
     std::vector<CallInfo*> newCallInfo;
     bool inlined = transformer->PerformInline(&newCallInfo);
     if (dumpDetail && !newCallInfo.empty()) {
@@ -405,7 +405,7 @@ void GInline::CleanupInline() {
   InlineListInfo::Clear();
   BlockCallBackMgr::ClearCallBacks();
   // Release all inline summary
-  for (auto *func : module.GetFunctionList()) {
+  for (auto *func : std::as_const(module.GetFunctionList())) {
     if (func != nullptr) {
       func->DiscardInlineSummary();
     }

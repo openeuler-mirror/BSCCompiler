@@ -26,7 +26,7 @@ namespace maple {
 class FEFunctionProcessTask : public MplTask {
  public:
   explicit FEFunctionProcessTask(std::unique_ptr<FEFunction> argFunction);
-  virtual ~FEFunctionProcessTask() = default;
+  ~FEFunctionProcessTask() override = default;
 
  protected:
   int RunImpl(MplTaskParam *param) override;
@@ -40,7 +40,7 @@ class FEFunctionProcessSchedular : public MplScheduler {
  public:
   explicit FEFunctionProcessSchedular(const std::string &name)
       : MplScheduler(name) {}
-  virtual ~FEFunctionProcessSchedular() = default;
+  ~FEFunctionProcessSchedular() override = default;
   void AddFunctionProcessTask(std::unique_ptr<FEFunction> function);
   void SetDumpTime(bool arg) {
     dumpTime = arg;
@@ -139,6 +139,7 @@ class HIR2MPLCompilerComponent {
   std::list<FEInputEnumHelper*> enumHelpers;
   std::unique_ptr<FEFunctionPhaseResult> phaseResultTotal;
   std::set<FEFunction*> compileFailedFEFunctions;
+  std::vector<FEInputMethodHelper*> globalLTOFuncHelpers;
 };
 }  // namespace maple
 #endif

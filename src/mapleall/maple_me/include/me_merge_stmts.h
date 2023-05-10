@@ -29,19 +29,19 @@ class MergeStmts {
   void MergeMeStmts();
 
  private:
-  int32 GetStructFieldBitSize(const MIRStructType *structType, FieldID fieldID);
-  void mergeIassigns(vOffsetStmt& iassignCandidates);
-  void mergeDassigns(vOffsetStmt& dassignCandidates);
-  int32 GetPointedTypeBitSize(TyIdx ptrTypeIdx);
-  IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2,
+  int32 GetStructFieldBitSize(const MIRStructType *structType, FieldID fieldID) const;
+  void MergeIassigns(vOffsetStmt& iassignCandidates);
+  void MergeDassigns(vOffsetStmt& dassignCandidates);
+  int32 GetPointedTypeBitSize(TyIdx ptrTypeIdx) const;
+  IassignMeStmt *GenSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2,
                                 const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
-  IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr &valMeExpr,
+  IassignMeStmt *GenSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr &valMeExpr,
                                 const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
   void GenShortSet(MeExpr *dstMeExpr, uint32 offset, const MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
                    IntrinsiccallMeStmt* memsetCallStmt,
                    const MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi);
-  void simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt);
-  void simdMemset(IntrinsiccallMeStmt* memsetCallStmt);
+  void SimdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt);
+  void SimdMemset(IntrinsiccallMeStmt* memsetCallStmt);
 
   MeFunction &func;
 };

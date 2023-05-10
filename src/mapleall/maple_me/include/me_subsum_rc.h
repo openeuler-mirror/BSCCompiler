@@ -31,13 +31,13 @@ class DassignStmtPtrComparator {
 
 class SubsumRC : public MeSSUPre {
  public:
-  SubsumRC(MeFunction &f, Dominance &dom, MemPool &mp, bool enabledDebug)
-      : MeSSUPre(f, dom, mp, kSubsumePre, enabledDebug),
+  SubsumRC(MeFunction &f, Dominance &dom, Dominance &pdom, MemPool &mp, bool enabledDebug)
+      : MeSSUPre(f, dom, pdom, mp, kSubsumePre, enabledDebug),
         candMap(spreAllocator.Adapter()),
         bbVisited(f.GetCfg()->GetAllBBs().size(), false, spreAllocator.Adapter()),
         verstCantSubsum(f.GetIRMap()->GetVerst2MeExprTable().size(), false, spreAllocator.Adapter()) {}
 
-  virtual ~SubsumRC() = default;
+  ~SubsumRC() override = default;
   void RunSSUPre();
 
  protected:

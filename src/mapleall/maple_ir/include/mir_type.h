@@ -35,7 +35,12 @@ using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;
 using FieldPair = std::pair<GStrIdx, TyIdxFieldAttrPair>;
 using FieldVector = std::vector<FieldPair>;
 using MIRTypePtr = MIRType*;
-
+// if it is a bitfield, byteoffset gives the offset of the container for
+// extracting the bitfield and bitoffset is with respect to the current byte
+struct OffsetPair {
+  int32 byteOffset;
+  int32 bitOffset;
+};
 constexpr size_t kMaxArrayDim = 20;
 const std::string kJstrTypeName = "constStr";
 constexpr uint32 kInvalidFieldNum = UINT32_MAX;
@@ -53,6 +58,7 @@ extern const char *GetPrimTypeName(PrimType primType);
 extern const char *GetPrimTypeJavaName(PrimType primType);
 extern int64 MinValOfSignedInteger(PrimType primType);
 extern PrimType GetVecElemPrimType(PrimType primType);
+// size in bits
 constexpr uint32 k0BitSize = 0;
 constexpr uint32 k1BitSize = 1;
 constexpr uint32 k2BitSize = 2;
@@ -65,6 +71,19 @@ constexpr uint32 k10BitSize = 10;
 constexpr uint32 k16BitSize = 16;
 constexpr uint32 k32BitSize = 32;
 constexpr uint32 k64BitSize = 64;
+// size in bytes
+constexpr uint32 k0ByteSize = 0;
+constexpr uint32 k1ByteSize = 1;
+constexpr uint32 k2ByteSize = 2;
+constexpr uint32 k3ByteSize = 3;
+constexpr uint32 k4ByteSize = 4;
+constexpr uint32 k5ByteSize = 5;
+constexpr uint32 k8ByteSize = 8;
+constexpr uint32 k9ByteSize = 9;
+constexpr uint32 k10ByteSize = 10;
+constexpr uint32 k16ByteSize = 16;
+constexpr uint32 k32ByteSize = 32;
+constexpr uint32 k64ByteSize = 64;
 
 inline const std::string kDbgLong = "long.";
 inline const std::string kDbgULong = "Ulong.";
@@ -123,6 +142,10 @@ inline bool IsPossible32BitAddress(PrimType tp) {
 
 inline bool MustBeAddress(PrimType tp) {
   return (tp == PTY_ptr || tp == PTY_ref || tp == PTY_a64 || tp == PTY_a32);
+}
+
+inline bool IsInt128Ty(PrimType type) {
+  return type == PTY_u128 || type == PTY_i128;
 }
 
 inline bool IsPrimitivePureScalar(PrimType type) {
@@ -518,8 +541,12 @@ class StmtAttrs {
   StmtAttrs &operator=(const StmtAttrs &p) = default;
   ~StmtAttrs() = default;
 
-  void SetAttr(StmtAttrKind x) {
-    attrFlag |= (1u << static_cast<unsigned int>(x));
+  void SetAttr(StmtAttrKind x, bool flag = true) {
+    if (flag) {
+      attrFlag |= (1u << static_cast<unsigned int>(x));
+    } else {
+      attrFlag &= ~(1u << static_cast<unsigned int>(x));
+    }
   }
 
   bool GetAttr(StmtAttrKind x) const {
@@ -1070,7 +1097,7 @@ class MIRArrayType : public MIRType {
   bool HasFields() const override;
   uint32 NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
-  size_t ElemNumber();
+  size_t ElemNumber() const;
 
  private:
   TyIdx eTyIdx{ 0 };
@@ -1151,7 +1178,9 @@ class MIRStructType : public MIRType {
 
   MIRStructType(MIRTypeKind typeKind, GStrIdx strIdx) : MIRType(typeKind, PTY_agg, strIdx) {}
 
-  ~MIRStructType() override = default;
+  ~MIRStructType() override {
+    alias = nullptr;
+  }
 
   bool IsStructType() const override {
     return true;
@@ -1523,6 +1552,8 @@ class MIRStructType : public MIRType {
 
   int64 GetBitOffsetFromBaseAddr(FieldID fieldID) const override;
 
+  OffsetPair GetFieldOffsetFromBaseAddr(FieldID fieldID) const;
+
   bool HasPadding() const;
 
   void SetAlias(MIRAlias *mirAlias) {
@@ -1531,6 +1562,8 @@ class MIRStructType : public MIRType {
   MIRAlias *GetAlias() const {
     return alias;
   }
+
+  bool HasZeroWidthBitField() const;
 
  protected:
   FieldVector fields{};
@@ -1559,8 +1592,10 @@ class MIRStructType : public MIRType {
   FieldPair TraverseToField(GStrIdx fieldStrIdx) const ;
   bool HasVolatileFieldInFields(const FieldVector &fieldsOfStruct) const;
   bool HasTypeParamInFields(const FieldVector &fieldsOfStruct) const;
-  int64 GetBitOffsetFromUnionBaseAddr(FieldID fieldID) const;
-  int64 GetBitOffsetFromStructBaseAddr(FieldID fieldID) const;
+  // compute the offset of the field given by fieldID within the struct type
+  OffsetPair GetFieldOffsetFromStructBaseAddr(FieldID fieldID) const;
+  // compute the offset of the field given by fieldID within the union type
+  OffsetPair GetFieldOffsetFromUnionBaseAddr(FieldID fieldID) const;
   MIRAlias *alias = nullptr;
 };
 
@@ -1925,8 +1960,19 @@ class MIRFuncType : public MIRType {
   explicit MIRFuncType(const GStrIdx &strIdx)
       : MIRType(kTypeFunction, PTY_ptr, strIdx) {}
 
-  MIRFuncType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecTy, const std::vector<TypeAttrs> &vecAt,
+  MIRFuncType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecTy,
+              const std::vector<TypeAttrs> &vecAt, const FuncAttrs &funcAttrsIn,
               const TypeAttrs &retAttrsIn)
+      : MIRType(kTypeFunction, PTY_ptr),
+        funcAttrs(funcAttrsIn),
+        retTyIdx(retTyIdx),
+        paramTypeList(vecTy),
+        paramAttrsList(vecAt),
+        retAttrs(retAttrsIn) {}
+
+  // Deprecated
+  MIRFuncType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecTy,
+              const std::vector<TypeAttrs> &vecAt, const TypeAttrs &retAttrsIn)
       : MIRType(kTypeFunction, PTY_ptr),
         retTyIdx(retTyIdx),
         paramTypeList(vecTy),
@@ -2004,6 +2050,7 @@ class MIRFuncType : public MIRType {
     return funcAttrs.GetAttr(FUNCATTR_varargs);
   }
 
+  // Deprecated, set this attribute during construction.
   void SetVarArgs() {
     funcAttrs.SetAttr(FUNCATTR_varargs);
   }
@@ -2012,8 +2059,13 @@ class MIRFuncType : public MIRType {
     return funcAttrs.GetAttr(FUNCATTR_firstarg_return);
   }
 
+  // Deprecated, set this attribute during construction.
   void SetFirstArgReturn() {
     funcAttrs.SetAttr(FUNCATTR_firstarg_return);
+  }
+
+  const FuncAttrs &GetFuncAttrs() const {
+    return funcAttrs;
   }
 
   const TypeAttrs &GetRetAttrs() const {
@@ -2066,7 +2118,7 @@ class MIRTypeByName : public MIRType {
   size_t GetHashIndex() const override {
     constexpr uint8 idxShift = 2;
     uint8 nameIsLocalValue = nameIsLocal ? 1 : 0;
-    return ((static_cast<size_t>(nameStrIdx) << idxShift) + nameIsLocalValue + (typeKind << kShiftNumOfTypeKind)) %
+    return ((static_cast<uint32>(nameStrIdx) << idxShift) + nameIsLocalValue + (typeKind << kShiftNumOfTypeKind)) %
            kTypeHashLength;
   }
 };
@@ -2197,6 +2249,14 @@ inline size_t GetTypeBitSize(const MIRType &type) {
 }
 
 MIRType *GetElemType(const MIRType &arrayType);
+
+#ifdef TARGAARCH64
+bool IsHomogeneousAggregates(const MIRType &ty, PrimType &primType, size_t &elemNum,
+                             bool firstDepth = true);
+#endif  // TARGAARCH64
+bool IsParamStructCopyToMemory(const MIRType &ty);
+bool IsReturnInMemory(const MIRType &ty);
+void UpdateMIRFuncTypeFirstArgRet();
 #endif  // MIR_FEATURE_FULL
 }  // namespace maple
 

@@ -120,7 +120,7 @@ void DefaultO0RegAllocator::InitAvailReg() {
   }
 }
 
-void DefaultO0RegAllocator::CheckLiveAndReleaseReg(regno_t preg, regno_t vreg , const Insn &cInsn) {
+void DefaultO0RegAllocator::CheckLiveAndReleaseReg(regno_t preg, regno_t vreg, const Insn &cInsn) {
   /* record defined register number in this insn */
   multiDefForInsn.emplace(preg);
   uint32 id = GetRegLivenessId(vreg);

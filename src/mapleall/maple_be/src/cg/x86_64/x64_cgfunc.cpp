@@ -495,11 +495,6 @@ Operand *X64CGFunc::SelectLoadArrayClassCache(MIRSymbol &st, int64 offset, PrimT
 void X64CGFunc::GenerateYieldpoint(BB &bb) {
   CHECK_FATAL(false, "NIY");
 }
-Operand &X64CGFunc::ProcessReturnReg(PrimType primType, int32 sReg) {
-  CHECK_FATAL(false, "NIY");
-  Operand *a;
-  return *a;
-}
 Operand &X64CGFunc::GetOrCreateRflag() {
   CHECK_FATAL(false, "NIY");
   Operand *a;
@@ -548,7 +543,7 @@ RegOperand &X64CGFunc::GetOrCreateFramePointerRegOperand() {
   return *a;
 }
 RegOperand &X64CGFunc::GetOrCreateStackBaseRegOperand() {
-  return GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerSize() * kBitsPerByte, kRegTyInt);
+  return GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerBitSize(), kRegTyInt);
 }
 RegOperand &X64CGFunc::GetZeroOpnd(uint32 size) {
   CHECK_FATAL(false, "NIY");
@@ -576,9 +571,15 @@ void X64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn 
 void X64CGFunc::CleanupDeadMov(bool dump) {
   CHECK_FATAL(false, "NIY");
 }
+
 void X64CGFunc::GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realCallerSave) {
-  CHECK_FATAL(false, "NIY");
+  for (uint32 i = x64::kRinvalid; i <= x64::kMaxRegNum; ++i) {
+    if (x64::IsCallerSaveReg(static_cast<X64reg>(i))) {
+      realCallerSave.insert(i);
+    }
+  }
 }
+
 bool X64CGFunc::IsFrameReg(const RegOperand &opnd) const {
   CHECK_FATAL(false, "NIY");
   return false;
@@ -761,7 +762,7 @@ RegOperand *X64CGFunc::GetBaseReg(const maplebe::SymbolAlloc &symAlloc) {
   ASSERT(((sgKind == kMsArgsRegPassed) || (sgKind == kMsLocals) || (sgKind == kMsRefLocals) ||
       (sgKind == kMsArgsToStkPass) || (sgKind == kMsArgsStkPassed)), "NIY");
   if (sgKind == kMsLocals || sgKind == kMsArgsRegPassed || sgKind == kMsArgsStkPassed) {
-    return &GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerSize() * kBitsPerByte, kRegTyInt);
+    return &GetOpndBuilder()->CreatePReg(x64::RBP, GetPointerBitSize(), kRegTyInt);
   } else {
     CHECK_FATAL(false, "NIY sgKind");
   }
@@ -820,7 +821,7 @@ MemOperand *X64CGFunc::GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) {
     }
 
     RegOperand &baseOpnd = GetOrCreateStackBaseRegOperand();
-    int32 offset = GetOrCreatSpillRegLocation(vrNum);
+    int32 offset = GetOrCreatSpillRegLocation(vrNum, memBitSize / kBitsPerByte);
     MemOperand *memOpnd = &GetOpndBuilder()->CreateMem(baseOpnd, offset, memBitSize);
     spillRegMemOperands.emplace(std::pair<regno_t, MemOperand*>(vrNum, memOpnd));
     return memOpnd;
@@ -829,20 +830,18 @@ MemOperand *X64CGFunc::GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) {
   }
 }
 
+RegOperand *X64CGFunc::SelectIntrinsicOpLoadTlsAnchor(const IntrinsicopNode& intrinsicopNode,
+                                                          const BaseNode &parent) {
+  CHECK_FATAL_FALSE("Tls anchor not supported in x86_64 yet");
+  return nullptr;
+}
+
 void X64OpndDumpVisitor::Visit(maplebe::RegOperand *v) {
   DumpOpndPrefix();
   LogInfo::MapleLogger() << "reg ";
   DumpRegInfo(*v);
   DumpSize(*v);
-  const OpndDesc *regDesc = GetOpndDesc();
-  LogInfo::MapleLogger() << " [";
-  if (regDesc->IsRegDef()) {
-    LogInfo::MapleLogger() << "DEF ";
-  }
-  if (regDesc->IsRegUse()) {
-    LogInfo::MapleLogger() << "USE";
-  }
-  LogInfo::MapleLogger() << "]";
+  DumpOpndDesc();
   DumpOpndSuffix();
 }
 
@@ -878,9 +877,10 @@ void X64OpndDumpVisitor::DumpRegInfo(maplebe::RegOperand &v) {
   if (v.GetRegisterNumber() > kBaseVirtualRegNO) {
     LogInfo::MapleLogger() << "V" << v.GetRegisterNumber();
   } else {
-    bool r32 = (v.GetSize() == k32BitSize);
+    uint32 regType = (v.GetSize() == k32BitSize) ? X64CG::kR32List : X64CG::kR64List;
     LogInfo::MapleLogger() << "%"
-                           << X64CG::intRegNames[(r32 ? X64CG::kR32List : X64CG::kR64List)][v.GetRegisterNumber()];
+                           << X64CG::intRegNames[regType][v.GetRegisterNumber()]
+                           << " R" << v.GetRegisterNumber();
   }
 }
 
@@ -898,10 +898,12 @@ void X64OpndDumpVisitor::Visit(maplebe::ListOperand *v) {
 
   MapleList<RegOperand*> opndList = v->GetOperands();
   for (auto it = opndList.begin(); it != opndList.end();) {
-    (*it)->Dump();
-    LogInfo::MapleLogger() << (++it == opndList.end() ? "" : " ,");
+    LogInfo::MapleLogger() << "reg ";
+    DumpRegInfo(*(*it));
+    DumpSize(*(*it));
+    LogInfo::MapleLogger() << (++it == opndList.end() ? "" : ", ");
   }
-  DumpSize(*v);
+  DumpOpndDesc();
   DumpOpndSuffix();
 }
 

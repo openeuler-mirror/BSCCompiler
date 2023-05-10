@@ -37,7 +37,7 @@ class FEIRVarName : public FEIRVar {
   FEIRVarName(const std::string &argName, std::unique_ptr<FEIRType> argType, bool argWithType = false)
       : FEIRVarName(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(argName), std::move(argType), argWithType) {}
 
-  virtual ~FEIRVarName() = default;
+  ~FEIRVarName() override = default;
 
  protected:
   std::string GetNameImpl(const MIRType &mirType) const override;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2023] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,6 +34,8 @@
 #include "aarch64_pgo_gen.h"
 #include "aarch64_MPISel.h"
 #include "aarch64_standardize.h"
+#include "aarch64_global_schedule.h"
+#include "aarch64_local_schedule.h"
 #include "aarch64_aggressive_opt.h"
 
 namespace maplebe {
@@ -201,14 +203,22 @@ class AArch64CG : public CG {
   CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64Dce>(mp, f, ssaInfo);
   }
-  ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
-    return mp.New<AArch64ValidBitOpt>(f, ssaInfo);
+  ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const override {
+    return mp.New<AArch64ValidBitOpt>(mp, f, ssaInfo, ll);
   }
   RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64RedundantComputeElim>(f, ssaInfo, mp);
   }
   TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64TailCallOpt>(mp, f);
+  }
+  GlobalSchedule *CreateGlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
+                                       InterDataDepAnalysis &idda) const override {
+    return mp.New<AArch64GlobalSchedule>(mp, f, cda, idda);
+  }
+  LocalSchedule *CreateLocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
+                                     InterDataDepAnalysis &idda) const override {
+    return mp.New<AArch64LocalSchedule>(mp, f, cda, idda);
   }
   CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64CFGOptimizer>(f, mp);
@@ -222,7 +232,7 @@ class AArch64CG : public CG {
   Standardize *CreateStandardize(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64Standardize>(f);
   }
-  virtual CGAggressiveOpt *CreateAggressiveOpt(MemPool &mp, CGFunc &f) const override {
+  CGAggressiveOpt *CreateAggressiveOpt(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64AggressiveOpt>(f);
   }
   /* Return the copy operand id of reg1 if it is an insn who just do copy from reg1 to reg2.

@@ -41,8 +41,7 @@ void ProfileGen::CreateModProfDesc() {
   TyIdx ptrTyIdx = GlobalTables::GetTypeTable().GetPtr()->GetTypeIndex();
   MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
   MIRType *voidPtrTy = GlobalTables::GetTypeTable().GetVoidPtr();
-  TyIdx charPtrTyIdx = GlobalTables::GetTypeTable().
-                           GetOrCreatePointerType(TyIdx(PTY_u8))->GetTypeIndex();
+  TyIdx charPtrTyIdx = GlobalTables::GetTypeTable().GetOrCreatePointerType(TyIdx(PTY_u8))->GetTypeIndex();
 
   // Ref: __gcov_merge_add (gcov_type *, unsigned)
   MIRType *retTy = GlobalTables::GetTypeTable().GetVoid();
@@ -137,7 +136,7 @@ void ProfileGen::CreateModProfDesc() {
 
   modProfDescSymMirConst->AddItem(mergeFuncsMirConst, 7);
 
-  uint32 numOfFunc = validFuncs.size();
+  uint64 numOfFunc = validFuncs.size();
   MIRIntConst *nfuncsMirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(numOfFunc, *u32Ty);
   modProfDescSymMirConst->AddItem(nfuncsMirConst, 8);
 
@@ -206,7 +205,7 @@ void ProfileGen::CreateFuncProfDesc() {
       continue;
     }
 
-    uint64  nCtrs = f->GetNumCtrs();
+    uint32 nCtrs = f->GetNumCtrs();
     MIRSymbol *ctrTblSym = f->GetProfCtrTbl();
 
     // Initialization of counter table
@@ -280,7 +279,7 @@ void ProfileGen::CreateFuncProfDesc() {
 }
 
 void ProfileGen::CreateFuncProfDescTbl() {
-  uint tblSize = validFuncs.size();
+  size_t tblSize = validFuncs.size();
   if (tblSize == 0) {
     funcProfDescTbl = nullptr;
     return;
@@ -288,7 +287,8 @@ void ProfileGen::CreateFuncProfDescTbl() {
 
   // Create function descriptor table
   MIRType *funcProfDescPtrTy = GlobalTables::GetTypeTable().GetOrCreatePointerType(funcProfDescs[0]->GetTyIdx());
-  MIRType *arrOffuncProfDescPtrTy = GlobalTables::GetTypeTable().GetOrCreateArrayType(*funcProfDescPtrTy, tblSize);
+  MIRType *arrOffuncProfDescPtrTy = GlobalTables::GetTypeTable().GetOrCreateArrayType(*funcProfDescPtrTy,
+      static_cast<uint32>(tblSize));
   std::string fileName = mod.GetFileName();
   MIRSymbol *funcProfDescTblSym = mod.GetMIRBuilder()->CreateGlobalDecl(
       namemangler::kprefixProfFuncDescTbl + FlatenName(fileName), *arrOffuncProfDescPtrTy, kScFstatic);
@@ -337,10 +337,10 @@ void ProfileGen::CreateInitProc() {
   gccProfInitArgSym->SetTyIdx(argPtrTy->GetTypeIndex());
   gccProfInitProtoTy->AddArgument(gccProfInitArgSym);
 
-  MapleVector<BaseNode*> ActArg(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+  MapleVector<BaseNode*> actArg(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   AddrofNode *addrModProfDesc = mirBuilder->CreateExprAddrof(0, *modProfDesc);
-  ActArg.push_back(addrModProfDesc);
-  CallNode *callGInit = mirBuilder->CreateStmtCall(gccProfInitProtoTy->GetPuidx(), ActArg);
+  actArg.push_back(addrModProfDesc);
+  CallNode *callGInit = mirBuilder->CreateStmtCall(gccProfInitProtoTy->GetPuidx(), actArg);
 
   BlockNode *block = mplProfInit->GetCodeMemPool()->New<BlockNode>();
   block->AddStatement(callGInit);
@@ -367,8 +367,8 @@ void ProfileGen::CreateExitProc() {
   MIRFunction *gccProfExitProtoTy = mirBuilder->GetOrCreateFunction(namemangler::kGCCProfExit, voidTy->GetTypeIndex());
   gccProfExitProtoTy->AllocSymTab();
 
-  MapleVector<BaseNode*> ActArg(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-  CallNode *callGExit = mirBuilder->CreateStmtCall(gccProfExitProtoTy->GetPuidx(), ActArg);
+  MapleVector<BaseNode*> actArg(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+  CallNode *callGExit = mirBuilder->CreateStmtCall(gccProfExitProtoTy->GetPuidx(), actArg);
 
   BlockNode *block = mplProfExit->GetCodeMemPool()->New<BlockNode>();
   block->AddStatement(callGExit);

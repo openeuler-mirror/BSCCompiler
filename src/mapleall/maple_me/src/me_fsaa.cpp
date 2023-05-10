@@ -169,10 +169,7 @@ bool AccessSameMemory(const IreadSSANode &iread, const MayDefNode &maydef) {
 // if the pointer represented by vst is found to have a unique pointer value,
 // return the BB of the definition
 BB *FSAA::FindUniquePointerValueDefBB(VersionSt *vst) {
-  if (vst->IsInitVersion()) {
-    return nullptr;
-  }
-  if (vst->GetDefType() != VersionSt::kAssign) {
+  if (vst->IsInitVersion() || vst->GetDefType() != VersionSt::kAssign) {
     return nullptr;
   }
   UnaryStmtNode *ass = static_cast<UnaryStmtNode *>(vst->GetAssignNode());
@@ -223,7 +220,7 @@ void FSAA::EraseMayDefItem(TypeOfMayDefList &mayDefNodes, MapleMap<OStIdx, MayDe
   }
 }
 
-bool FSAA::IfChiSameAsRHS(const VersionSt &chiOpnd, const VersionSt &rhsVst, const BaseNode &rhsOrigSrc) {
+bool FSAA::IfChiSameAsRHS(const VersionSt &chiOpnd, const VersionSt &rhsVst, const BaseNode &rhsOrigSrc) const {
   bool isSame = (rhsVst.GetIndex()  == chiOpnd.GetIndex());
   if (!isSame) {
     const BaseNode *aliasOrigSrc = GetOriginalDefExpr(chiOpnd);
@@ -374,7 +371,7 @@ bool MEFSAA::PhaseRun(MeFunction &f) {
   if (fsaa.needUpdateSSA) {
     ssa->runRenameOnly = true;
     ssa->UpdateDom(dom); // dom info may be set invalid in dse when cfg is modified
-    ssa->RenameAllBBs(cfg);
+    ssa->RenameAllBBs(*cfg);
     ssa->VerifySSA();
 
     if (DEBUGFUNC_NEWPM(f)) {

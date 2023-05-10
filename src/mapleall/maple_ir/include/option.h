@@ -123,7 +123,7 @@ class Options {
   static bool mapleLinker;
   static bool dumpMuidFile;
   static bool emitVtableImpl;
-#if MIR_JAVA
+#if defined(MIR_JAVA) && MIR_JAVA
   static bool skipVirtualMethod;
 #endif
   // Ready to be deleted.
@@ -192,6 +192,7 @@ class Options {
   static bool doOutline;
   static size_t outlineThreshold;
   static size_t outlineRegionMax;
+  static bool tailcall;
 
  private:
   void DecideMpl2MplRealLevel() const;

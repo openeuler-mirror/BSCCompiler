@@ -40,9 +40,6 @@ Operand *HandleDread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
 Operand *HandleRegread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   auto &regReadNode = static_cast<RegreadNode&>(expr);
-  if (regReadNode.GetRegIdx() == -kSregRetval0 || regReadNode.GetRegIdx() == -kSregRetval1) {
-    return &cgFunc.ProcessReturnReg(regReadNode.GetPrimType(), -(regReadNode.GetRegIdx()));
-  }
   return cgFunc.SelectRegread(regReadNode);
 }
 
@@ -635,6 +632,10 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     // int
     case INTRN_C_ffs:
       return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "ffs");
+    case INTRN_C_fmaxl:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_f128, "fmaxl");
+    case INTRN_C_fminl:
+      return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_f128, "fminl");
     // libc mem* and str* functions as intrinsicops
     case INTRN_C_memcmp:
       return cgFunc.SelectIntrinsicOpWithNParams(intrinsicopNode, PTY_i32, "memcmp");
@@ -980,6 +981,10 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_mov_narrow_v4i32: case INTRN_vector_mov_narrow_v4u32:
     case INTRN_vector_mov_narrow_v8i16: case INTRN_vector_mov_narrow_v8u16:
       return HandleVectorMovNarrow(intrinsicopNode, cgFunc);
+
+    case INTRN_C___tls_get_tbss_anchor: case INTRN_C___tls_get_tdata_anchor:
+      return cgFunc.SelectIntrinsicOpLoadTlsAnchor(intrinsicopNode, parent);
+
     default: {
       if (!intrinsicDesc.IsVectorOp()) {
         CHECK_FATAL(false, "Unsupported intrinsicop.");
@@ -1457,7 +1462,8 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       loops(allocator.Adapter()),
       lmbcParamVec(allocator.Adapter()),
       scpIdSet(allocator.Adapter()),
-      shortFuncName(cg.ExtractFuncName(mirFunc.GetName()) + "." + std::to_string(funcId), &memPool) {
+      shortFuncName(cg.ExtractFuncName(mirFunc.GetName()) + "." + std::to_string(funcId), &memPool),
+      adrpLabels(allocator.Adapter()) {
   mirModule.SetCurFunction(&func);
   SetMemlayout(*GetCG()->CreateMemLayout(memPool, beCommon, func, allocator));
   GetMemlayout()->SetCurrFunction(*this);
@@ -1573,6 +1579,14 @@ void CGFunc::RemoveUnreachableBB() {
         (void)noReturnCallBBVec.erase(it);
       }
     }
+  }
+}
+
+void CGFunc::MarkAdrpLabelBB() {
+  for (auto lIdx : GetAdrpLabels()) {
+    BB *targetBB = GetBBFromLab2BBMap(lIdx);
+    ASSERT_NOT_NULL(targetBB);
+    targetBB->SetIsAdrpLabel();
   }
 }
 
@@ -1706,7 +1720,7 @@ void CGFunc::CreateLmbcFormalParamInfo() {
       }
       primType = type->GetPrimType();
       offset = stackOffset;
-      typeSize = static_cast<uint32>(GetBecommon().GetTypeSize(tyIdx));
+      typeSize = static_cast<uint32>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetSize());
       stackOffset += (typeSize + 7) & (-8);
       LmbcFormalParamInfo *info = GetMemoryPool()->New<LmbcFormalParamInfo>(primType, offset, typeSize);
       lmbcParamVec.push_back(info);
@@ -2100,6 +2114,7 @@ void CGFunc::HandleFunction() {
   theCFG = memPool->New<CGCFG>(*this);
   theCFG->MarkLabelTakenBB();
   theCFG->BuildCFG();
+  MarkAdrpLabelBB();
   RemoveUnreachableBB();
   AddCommonExitBB();
   if (mirModule.GetSrcLang() != kSrcLangC) {
@@ -2248,7 +2263,7 @@ void CGFunc::ClearLoopInfo() {
 }
 
 void CGFunc::DumpCFGToDot(const std::string &fileNamePrefix) {
-  std::ofstream file(fileNamePrefix + GetName());
+  std::ofstream file(fileNamePrefix + GetName() + ".dot");
   file << "digraph {" << std::endl;
   for (auto *bb : GetAllBBs()) {
     if (bb == nullptr) {
@@ -2286,6 +2301,20 @@ void CGFunc::PatchLongBranch() {
       continue;
     }
     InsertJumpPad(insn);
+  }
+}
+
+// Cgirverify phase function: all insns will be verified before cgemit.
+void CGFunc::VerifyAllInsn() {
+  FOR_ALL_BB(bb, this) {
+    FOR_BB_INSNS(insn, bb) {
+      if(!VERIFY_INSN(insn)) {
+        LogInfo::MapleLogger() << "Illegal insn is:\n";
+        insn->Dump();
+        LogInfo::MapleLogger() << "Function name is:\n" << GetName() << "\n";
+        CHECK_FATAL_FALSE("The problem is illegal insn, info is above.");
+      }
+    }
   }
 }
 
@@ -2353,4 +2382,13 @@ bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFixCFLocOsft, dbgfixcallframeoffsets)
+
+bool CgVerify::PhaseRun(maplebe::CGFunc &f) {
+  f.VerifyAllInsn();
+  if (!f.GetCG()->GetCGOptions().DoEmitCode() || f.GetCG()->GetCGOptions().DoDumpCFG()) {
+    f.DumpCFG();
+  }
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER(CgVerify, cgirverify)
 }  /* namespace maplebe */

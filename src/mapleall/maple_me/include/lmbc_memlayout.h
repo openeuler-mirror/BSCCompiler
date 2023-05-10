@@ -24,7 +24,7 @@
 
 namespace maple {
 
-typedef enum {
+enum MemSegmentKind {
   MS_unknown,
   MS_upformal,  // for the incoming parameters that are passed on the caller's stack
   MS_formal,    // for the incoming parameters that are passed in registers
@@ -33,13 +33,13 @@ typedef enum {
   MS_FPbased,   // addressed via offset from the frame pointer
   MS_GPbased,   // addressed via offset from the global pointer
   MS_largeStructActual, // for storing large struct actuals passed by value for ARM CPU
-} MemSegmentKind;
+};
 
 class MemSegment;
 
 // describes where a symbol is allocated
 struct SymbolAlloc {
-  MemSegment *mem_segment = nullptr;
+  MemSegment *memSegment = nullptr;
   int32 offset = 0;
 };  // class SymbolAlloc
 
@@ -66,9 +66,7 @@ class LMBCMemLayout {
     sym_alloc_table.resize(f->GetSymTab()->GetSymbolTableSize());
   }
 
-  ~LMBCMemLayout() {
-    func = nullptr;
-  }
+  ~LMBCMemLayout() = default;
 
   void LayoutStackFrame(void);
   int32 StackFrameSize(void) const {

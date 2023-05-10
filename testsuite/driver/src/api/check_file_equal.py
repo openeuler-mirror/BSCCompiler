@@ -17,8 +17,8 @@ from api.shell_operator import ShellOperator
 
 class CheckFileEqual(ShellOperator):
 
-    def __init__(self, file1, file2, return_value_list=None, redirection=None):
-        super().__init__(return_value_list, redirection)
+    def __init__(self, file1, file2, return_value_list=None):
+        super().__init__(return_value_list)
         self.file1 = file1
         self.file2 = file2
 

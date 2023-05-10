@@ -178,7 +178,7 @@ void MeStmtPre::Finalize1() {
         auto *phiOpnd = static_cast<MePhiOpndOcc*>(occ);
         MePhiOcc *phiOcc = phiOpnd->GetDefPhiOcc();
         if (phiOcc->IsWillBeAvail()) {
-          if (OKToInsert(phiOpnd)) {
+          if (OKToInsert(*phiOpnd)) {
             // insert the current expression at the end of the block containing phiOpnd
             if (phiOpnd->GetBB()->GetSucc().size() > 1) {
               CHECK_FATAL(!workCand->Redo2HandleCritEdges(), "Finalize1: insertion at critical edge; aborting");
@@ -593,8 +593,8 @@ void MeStmtPre::CreateSortedOccs() {
        stmtWkCand->GetTheMeStmt()->GetVarLHS() != nullptr && !stmtWkCand->LHSIsFinal()) {
     VarMeExpr *lhsVar = static_cast<VarMeExpr*>(stmtWkCand->GetTheMeStmt()->GetVarLHS());
     OStIdx ostIdx = lhsVar->GetOstIdx();
-    auto uMapIt = useOccurMap.find(ostIdx);
-    CHECK_FATAL(uMapIt != useOccurMap.end(), "MeStmtPre::CreateSortedOccs: missing entry in useOccurMap");
+    auto uMapIt = std::as_const(useOccurMap).find(ostIdx);
+    CHECK_FATAL(uMapIt != useOccurMap.cend(), "MeStmtPre::CreateSortedOccs: missing entry in useOccurMap");
     useDfns = uMapIt->second;
   } else {
     // create empty MapleSet<uint32> to be pointed to by use_dfns
@@ -768,8 +768,8 @@ void MeStmtPre::CreateSortedOccs() {
 void MeStmtPre::ConstructUseOccurMapExpr(uint32 bbDfn, const MeExpr &meExpr) {
   if (meExpr.GetMeOp() == kMeOpVar) {
     OStIdx ostIdx = static_cast<const VarMeExpr*>(&meExpr)->GetOstIdx();
-    auto mapIt = useOccurMap.find(ostIdx);
-    if (mapIt == useOccurMap.end()) {
+    auto mapIt = std::as_const(useOccurMap).find(ostIdx);
+    if (mapIt == useOccurMap.cend()) {
       return;
     }
     MapleSet<uint32> *bbDfnSet = mapIt->second;

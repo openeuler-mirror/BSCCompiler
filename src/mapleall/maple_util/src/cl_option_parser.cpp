@@ -33,11 +33,6 @@ bool IsPrefixDetected(const std::string_view &opt) {
     return true;
   }
 
-  /* -Wl is linker option */
-  if (opt.substr(0, 3) == "-Wl") { // 3: length of -Wl option
-    return false;
-  }
-
   /* It should be "--" or "-" */
   return (opt[0] == '-');
 }
@@ -130,7 +125,7 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
   if (keyArg.rawArg == "-o" && keyArg.val == "-") {
     keyArg.val = "/dev/stdout";
   }
-  if (keyArg.rawArg == "-D" && keyArg.val.find("_FORTIFY_SOURCE") != keyArg.val.npos) {
+  if (keyArg.rawArg == "-D" && keyArg.val.find("_FORTIFY_SOURCE") != std::string::npos) {
     static std::string tmp(keyArg.val);
     tmp += " -O2 ";
     keyArg.val = tmp;
@@ -144,12 +139,7 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
   }
 
   if (IsJoinedValPermitted() && (GetValue() != "")) {
-    if (keyArg.key == "-Wl") {
-      // 3 is length of -Wl
-      SetValue(GetValue() + std::string(keyArg.val).substr(3));
-    } else {
-      SetValue(GetValue() + " " + std::string(keyArg.key) + " " + std::string(keyArg.val));
-    }
+    SetValue(GetValue() + " " + std::string(keyArg.key) + " " + std::string(keyArg.val));
   } else {
     SetValue(std::string(keyArg.val));
   }
@@ -171,7 +161,7 @@ template <typename T>
 RetCode Option<T>::ParseDigit(size_t &argsIndex,
                               const std::deque<std::string_view> &args,
                               KeyArg &keyArg) {
-  static_assert(digitalCheck<T>, "Expected (u)intXX types");
+  static_assert(kDigitalCheck<T>, "Expected (u)intXX types");
 
   RetCode err = RetCode::noError;
   size_t indexIncCnt = 0;

@@ -62,12 +62,12 @@ class CollectIpaInfo {
   bool CollectBrImportantExpression(const MeStmt &meStmt, uint32 &index) const;
   void TransformStmtToIntegerSeries(MeStmt &meStmt);
   DefUsePositions &GetDefUsePositions(OriginalSt &ost, StmtInfoId position);
-  void CollectDefUsePosition(ScalarMeExpr &var, StmtInfoId position,
+  void CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId position,
       std::unordered_set<ScalarMeExpr*> &cycleCheck);
   void CollectJumpInfo(MeStmt &meStmt);
   void SetLabel(size_t currStmtInfoId, LabelIdx label);
   StmtInfoId GetRealFirstStmtInfoId(BB &bb);
-  void TraverseMeExpr(MeExpr &meExpr, StmtInfoId position,
+  void TraverseMeExpr(MeExpr &meExpr, StmtInfoId stmtInfoId,
       std::unordered_set<ScalarMeExpr*> &cycleCheck);
   void TraverseMeStmt(MeStmt &meStmt);
   bool CollectSwitchImportantExpression(const MeStmt &meStmt, uint32 &index) const;
@@ -94,7 +94,7 @@ class CollectIpaInfo {
     return ++currNewStmtIndex;
   }
 
-  uint GetTotalStmtInfoCount() {
+  uint GetTotalStmtInfoCount() const {
     return currNewStmtIndex;
   }
 

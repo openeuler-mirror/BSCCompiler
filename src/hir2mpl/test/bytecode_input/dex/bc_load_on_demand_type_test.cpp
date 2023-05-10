@@ -16,7 +16,7 @@
 #include <cstdlib>
 #include "hir2mpl_ut_environment.h"
 #define private public
-#include "bc_compiler_component.h"
+#include "bc_compiler_component-inl.h"
 #undef private
 #include "dexfile_factory.h"
 #include "dex_pragma.h"

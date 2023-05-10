@@ -33,6 +33,8 @@ class BB;
 class CG;
 class Emitter;
 class DepNode;
+class InsnBuilder;
+class OperandBuilder;
 
 struct VectorRegSpec {
   VectorRegSpec() : vecLane(-1), vecLaneMax(0), vecElementSize(0), compositeOpnds(0) {}
@@ -176,17 +178,30 @@ class Insn {
     return retSize;
   }
 
+  // Insn Function: check legitimacy of opnds.
+  bool VerifySelf() const {
+    if (this->IsCfiInsn() || this->IsDbgInsn()) {
+      return true;
+    }
+    return md->Verify(opnds);
+  }
+
+  void SplitSelf(bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) {
+    md->Split(this, isAfterRegAlloc, insnBuilder, opndBuilder);
+  }
+
   virtual bool IsMachineInstruction() const;
 
-  bool OpndIsDef(uint32 id) const;
+  bool OpndIsDef(uint32 opndId) const;
 
-  bool OpndIsUse(uint32 id) const;
+  bool OpndIsUse(uint32 opndId) const;
 
   virtual bool IsPCLoad() const {
     return false;
   }
 
   Operand *GetMemOpnd() const;
+  uint32 GetMemOpndIdx() const;
 
   void SetMemOpnd(MemOperand *memOpnd);
 
@@ -506,6 +521,14 @@ class Insn {
     return !isCallReturnUnsigned;
   }
 
+  void SetMayTailCall() {
+    mayTailCall = true;
+  }
+
+  bool GetMayTailCall() const {
+    return mayTailCall;
+  }
+
   void SetRetType(RetType retTy) {
     this->retType = retTy;
   }
@@ -549,7 +572,7 @@ class Insn {
     return isPhiMovInsn;
   }
 
-  Insn *Clone(const MemPool &memPool) const;
+  Insn *Clone(const MemPool /* &memPool */) const;
 
   void SetInsnDescrption(const InsnDesc &newMD) {
     md = &newMD;
@@ -664,6 +687,7 @@ class Insn {
   bool asmDefCondCode = false;
   bool asmModMem = false;
   bool needSplit = false;
+  bool mayTailCall = false;
 
   /* for dynamic language to mark reference counting */
   int32 refSkipIdx = -1;

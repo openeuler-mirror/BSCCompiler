@@ -54,8 +54,8 @@ class HIR2MPLOptions {
   bool ProcessVersion(const maplecl::OptionInterface &) const;
 
   // input control options
-  bool ProcessInClass(const maplecl::OptionInterface &mpltSys) const;
-  bool ProcessInJar(const maplecl::OptionInterface &mpltApk) const;
+  bool ProcessInClass(const maplecl::OptionInterface &inClass) const;
+  bool ProcessInJar(const maplecl::OptionInterface &inJar) const;
   bool ProcessInDex(const maplecl::OptionInterface &inDex) const;
   bool ProcessInAST(const maplecl::OptionInterface &inAst) const;
   bool ProcessInMAST(const maplecl::OptionInterface &inMast) const;
@@ -97,6 +97,7 @@ class HIR2MPLOptions {
   bool ProcessEnableVariableArray(const maplecl::OptionInterface &) const;
   bool ProcessFuncInlineSize(const maplecl::OptionInterface &funcInliceSize) const;
   bool ProcessWPAA(const maplecl::OptionInterface &) const;
+  bool ProcessFM(const maplecl::OptionInterface &) const;
 
   // ast compiler options
   bool ProcessUseSignedChar(const maplecl::OptionInterface &) const;

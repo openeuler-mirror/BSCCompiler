@@ -83,22 +83,22 @@ bool SSARename2Preg::VarMeExprIsRenameCandidate(const VarMeExpr &varMeExpr) cons
   return true;
 }
 
-RegMeExpr *SSARename2Preg::CreatePregForVar(const VarMeExpr *varMeExpr) {
-  auto primType = varMeExpr->GetPrimType();
+RegMeExpr *SSARename2Preg::CreatePregForVar(const VarMeExpr &varMeExpr) {
+  auto primType = varMeExpr.GetPrimType();
   RegMeExpr *curtemp = nullptr;
   if (primType != PTY_ref) {
     curtemp = meirmap->CreateRegMeExpr(primType);
   } else {
-    curtemp = meirmap->CreateRegMeExpr(*varMeExpr->GetType());
+    curtemp = meirmap->CreateRegMeExpr(*varMeExpr.GetType());
   }
   OriginalSt *pregOst = curtemp->GetOst();
-  if (varMeExpr->IsZeroVersion()) {
+  if (varMeExpr.IsZeroVersion()) {
     pregOst->SetZeroVersionIndex(curtemp->GetVstIdx());
   }
-  const OriginalSt *ost = varMeExpr->GetOst();
+  const OriginalSt *ost = varMeExpr.GetOst();
   pregOst->SetIsFormal(ost->IsFormal());
   sym2reg_map[ost->GetIndex()] = pregOst;
-  (void)vstidx2reg_map.emplace(std::make_pair(varMeExpr->GetExprID(), curtemp));
+  (void)vstidx2reg_map.emplace(std::make_pair(varMeExpr.GetExprID(), curtemp));
   // set fields in MIRPreg to support rematerialization
   MIRPreg *preg = pregOst->GetMIRPreg();
   preg->SetOp(OP_dread);
@@ -152,10 +152,10 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varMeExpr) {
 
   auto *ost = varMeExpr->GetOst();
   CHECK_FATAL(ost != nullptr, "null ptr check");
-  auto varOst2RegOstIt = sym2reg_map.find(ost->GetIndex());
+  auto varOst2RegOstIt = std::as_const(sym2reg_map).find(ost->GetIndex());
   RegMeExpr *regForVarMeExpr = nullptr;
-  if (varOst2RegOstIt == sym2reg_map.end()) {
-    regForVarMeExpr = CreatePregForVar(varMeExpr);
+  if (varOst2RegOstIt == sym2reg_map.cend()) {
+    regForVarMeExpr = CreatePregForVar(*varMeExpr);
   } else {
     OriginalSt *pregOst = varOst2RegOstIt->second;
     CHECK_FATAL(pregOst != nullptr, "null ptr check");
@@ -201,31 +201,31 @@ RegMeExpr *SSARename2Preg::FindOrCreatePregForVarPhiOpnd(const VarMeExpr *varMeE
 }
 
 // update regphinode operands
-void SSARename2Preg::UpdateRegPhi(MePhiNode *mevarphinode, MePhiNode *regphinode,
+void SSARename2Preg::UpdateRegPhi(MePhiNode &mevarphinode, MePhiNode &regphinode,
                                   const VarMeExpr *lhs) {
   // update phi's opnds
-  for (uint32 i = 0; i < mevarphinode->GetOpnds().size(); i++) {
-    auto *opndexpr = mevarphinode->GetOpnds()[i];
+  for (uint32 i = 0; i < mevarphinode.GetOpnds().size(); i++) {
+    auto *opndexpr = mevarphinode.GetOpnds()[i];
     ASSERT(opndexpr->GetOst()->GetIndex() == lhs->GetOst()->GetIndex(), "phi is not correct");
     CHECK_FATAL(opndexpr->GetMeOp() == kMeOpVar, "opnd of Var-PhiNode must be VarMeExpr");
     RegMeExpr *opndtemp = FindOrCreatePregForVarPhiOpnd(static_cast<VarMeExpr*>(opndexpr));
-    regphinode->GetOpnds().push_back(opndtemp);
+    regphinode.GetOpnds().push_back(opndtemp);
   }
   (void)lhs;
 }
 
-bool SSARename2Preg::Rename2PregPhi(MePhiNode *mevarphinode, MapleMap<OStIdx, MePhiNode *> &regPhiList) {
-  VarMeExpr *lhs = static_cast<VarMeExpr*>(mevarphinode->GetLHS());
+bool SSARename2Preg::Rename2PregPhi(MePhiNode &mevarphinode, MapleMap<OStIdx, MePhiNode *> &regPhiList) {
+  VarMeExpr *lhs = static_cast<VarMeExpr*>(mevarphinode.GetLHS());
   SetupParmUsed(lhs);
   RegMeExpr *lhsreg = RenameVar(lhs);
   if (lhsreg == nullptr) {
     return false;
   }
   MePhiNode *regphinode = meirmap->CreateMePhi(*lhsreg);
-  regphinode->SetDefBB(mevarphinode->GetDefBB());
-  UpdateRegPhi(mevarphinode, regphinode, lhs);
-  regphinode->SetIsLive(mevarphinode->GetIsLive());
-  mevarphinode->SetIsLive(false);
+  regphinode->SetDefBB(mevarphinode.GetDefBB());
+  UpdateRegPhi(mevarphinode, *regphinode, lhs);
+  regphinode->SetIsLive(mevarphinode.GetIsLive());
+  mevarphinode.SetIsLive(false);
 
   (void) regPhiList.insert(std::make_pair(lhsreg->GetOst()->GetIndex(), regphinode));
   return true;
@@ -237,11 +237,13 @@ void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeex
   if (varreg != nullptr) {
     if (varreg->GetPrimType() != varmeexpr->GetPrimType()) {
       varreg = meirmap->CreateMeExprTypeCvt(varmeexpr->GetPrimType(), varreg->GetPrimType(), *varreg);
-    } else if (static_cast<ScalarMeExpr*>(varreg)->IsZeroVersion() && GetPrimTypeSize(varreg->GetPrimType()) < 4) {
+    } else if (static_cast<ScalarMeExpr*>(varreg)->IsZeroVersion() &&
+               GetPrimTypeSize(varreg->GetPrimType()) < k4BitSize) {
       // if reading garbage, need to truncate the garbage value
       Opcode extOp = IsSignedInteger(varreg->GetPrimType()) ? OP_sext : OP_zext;
       varreg = meirmap->CreateMeExprUnary(extOp, GetRegPrimType(varreg->GetPrimType()), *varreg);
-      static_cast<OpMeExpr *>(varreg)->SetBitsSize(static_cast<uint8>(GetPrimTypeSize(varmeexpr->GetPrimType()) * 8));
+      static_cast<OpMeExpr *>(varreg)->SetBitsSize(
+          static_cast<uint8>(GetPrimTypeSize(varmeexpr->GetPrimType()) * k8BitSize));
     }
     (void)meirmap->ReplaceMeExprStmt(*mestmt, *varmeexpr, *varreg);
   }
@@ -493,7 +495,7 @@ void SSARename2Preg::RunSelf() {
         ++phiListIt;
         continue;
       }
-      if (!Rename2PregPhi(phiListIt->second, regPhiList)) {
+      if (!Rename2PregPhi(*(phiListIt->second), regPhiList)) {
         ++phiListIt;
         continue;
       }

@@ -63,7 +63,7 @@ class Profile {
   bool CheckReflectionStrHot(const std::string &str, uint8 &layoutType) const;
   void InitPreHot();
   // default get all kind profile
-  bool DeCompress(const std::string &path, const std::string &dexName, ProfileType type = kAll);
+  bool DeCompress(const std::string &path, const std::string &dexNameInner, ProfileType type = kAll);
   const std::unordered_map<std::string, FuncItem> &GetFunctionProf() const;
   bool GetFunctionBBProf(const std::string &funcName, BBInfo &result);
   size_t GetLiteralProfileSize() const;
@@ -114,7 +114,7 @@ class Profile {
   void ParseReflectionStr(const char *data, int32 fileNum);
   void ParseFunc(const char *data, int32 fileNum);
   void ParseLiteral(const char *data, const char *end);
-  void ParseIRFuncDesc(const char *data, int fileNum);
+  void ParseIRFuncDesc(const char *data, int32 fileNum);
   void ParseCounterTab(const char *data, int32 fileNum);
 };
 }  // namespace maple

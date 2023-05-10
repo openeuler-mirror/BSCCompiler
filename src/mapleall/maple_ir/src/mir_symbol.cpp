@@ -29,8 +29,9 @@ uint32 MIRSymbol::lastPrintedLineNum = 0;
 uint16 MIRSymbol::lastPrintedColumnNum = 0;
 
 bool MIRSymbol::NeedGOT(bool doPIE) const {
-  return (storageClass == kScExtern) || (!doPIE && ((storageClass == kScGlobal) ||
-          (sKind == kStFunc && !GetFunction()->GetFuncAlias()->IsStatic())));
+  return (storageClass == kScExtern) ||
+      (!doPIE && ((storageClass == kScGlobal) || (sKind == kStFunc && !GetFunction()->GetFuncAlias()->IsStatic()))) ||
+      (sKind == kStFunc && !GetFunction()->IsStatic() && !GetFunction()->HasBody());
 }
 
 bool MIRSymbol::IsTypeVolatile(int fieldID) const {

@@ -17,6 +17,7 @@
 #define MAPLEBE_INCLUDE_CG_X86_64_MEMLAYOUT_H
 
 #include "memlayout.h"
+#include "x64_abi.h"
 
 namespace maplebe {
 class X64SymbolAlloc : public SymbolAlloc {
@@ -68,6 +69,10 @@ class X64SymbolAlloc : public SymbolAlloc {
  * ||----------------------------|
  * | PREV_FP, PREV_LR           |
  * ||----------------------------|<- Frame Pointer
+ * | GR Arg Save Area           |
+ * ||----------------------------|
+ * | VR Arg Save Area           |
+ * ||----------------------------|
  * | callee-saved registers     |
  * ||----------------------------|
  * | empty space. should have   |
@@ -85,13 +90,11 @@ class X64SymbolAlloc : public SymbolAlloc {
 class X64MemLayout : public MemLayout {
  public:
   X64MemLayout(BECommon &b, MIRFunction &f, MapleAllocator &mallocator)
-      : MemLayout(b, f, mallocator) {}
+      : MemLayout(b, f, mallocator, kX64StackPtrAlignment) {}
 
   ~X64MemLayout() override = default;
 
-  uint32 ComputeStackSpaceRequirementForCall(StmtNode &stmtNode, int32 &aggCopySize, bool isIcall) override {
-    return 0;
-  }
+  uint32 ComputeStackSpaceRequirementForCall(StmtNode &stmtNode, int32 &aggCopySize, bool isIcall) override;
   void LayoutStackFrame(int32 &structCopySize, int32 &maxParmStackSize) override;
 
   uint64 StackFrameSize() const;
@@ -103,24 +106,51 @@ class X64MemLayout : public MemLayout {
    * "Pseudo-registers can be regarded as local variables of a
    * primitive type whose addresses are never taken"
    */
-  virtual void AssignSpillLocationsToPseudoRegisters() override {}
+  virtual void AssignSpillLocationsToPseudoRegisters() override;
 
-  virtual SymbolAlloc *AssignLocationToSpillReg(regno_t vrNum) override {
-    return nullptr;
+  uint32 GetSizeOfSpillReg() const {
+    return segSpillReg.GetSize();
   }
 
   uint32 GetSizeOfLocals() const {
     return segLocals.GetSize();
   }
+
+  void SetSizeOfGRSaveArea(uint32 sz) {
+    segGrSaveArea.SetSize(sz);
+  }
+
+  uint32 GetSizeOfGRSaveArea() const {
+    return segGrSaveArea.GetSize();
+  }
+
+  inline void SetSizeOfVRSaveArea(uint32 sz) {
+    segVrSaveArea.SetSize(sz);
+  }
+
+  uint32 GetSizeOfVRSaveArea() const {
+    return segVrSaveArea.GetSize();
+  }
+
+  int32 GetGRSaveAreaBaseLoc();
+  int32 GetVRSaveAreaBaseLoc();
  private:
-  // Layout function
+  /* Layout function */
   void LayoutFormalParams();
   void LayoutLocalVariables();
+  void LayoutVarargParams();
 
-  // util function
+  /* util function */
   void SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) const;
+  void LayoutReturnRef(int32 &structCopySize, int32 &maxParmStackSize);
 
   MemSegment segLocals = MemSegment(kMsLocals);  /* these are accessed via Frame Pointer */
+  MemSegment segGrSaveArea = MemSegment(kMsGrSaveArea);
+  MemSegment segVrSaveArea = MemSegment(kMsVrSaveArea);
+
+  SymbolAlloc *CreateSymbolAlloc() const override {
+    return memAllocator->GetMemPool()->New<X64SymbolAlloc>();
+  }
 };
 }
 #endif // MAPLEBE_INCLUDE_CG_X86_64_MEMLAYOUT_H

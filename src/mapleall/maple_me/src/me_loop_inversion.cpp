@@ -119,9 +119,9 @@ bool MeLoopInversion::NeedConvert(MeFunction *func, BB &bb, BB &pred, MapleAlloc
   return true;
 }
 
-void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bool> &swapSuccs) {
+void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bool> &swapSuccs) const {
   // if bb->fallthru is in loopbody, latchBB need convert condgoto and make original target as its fallthru
-  bool swapSuccOfLatch = (swapSuccs.find(std::make_pair(&bb, &pred)) != swapSuccs.cend());
+  bool swapSuccOfLatch = (std::as_const(swapSuccs).find(std::make_pair(&bb, &pred)) != swapSuccs.cend());
   if (isDebugFunc) {
     LogInfo::MapleLogger() << "***loop convert: backedge bb->id " << bb.GetBBId() << " pred->id " << pred.GetBBId();
     if (swapSuccOfLatch) {
@@ -136,7 +136,7 @@ void MeLoopInversion::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, 
   latchBB->SetAttributes(kBBAttrIsInLoop);  // latchBB is inloop
   // update newBB frequency : copy predBB succFreq as latch frequency
   if (func.GetCfg()->UpdateCFGFreq()) {
-    int idx = pred.GetSuccIndex(bb);
+    int64 idx = pred.GetSuccIndex(bb);
     ASSERT(idx >= 0 && idx < pred.GetSucc().size(), "sanity check");
     FreqType freq = pred.GetEdgeFreq(static_cast<size_t>(idx));
     latchBB->SetFrequency(freq);

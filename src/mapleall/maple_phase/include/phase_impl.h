@@ -23,7 +23,7 @@ namespace maple {
 class FuncOptimizeImpl : public MplTaskParam {
  public:
   explicit FuncOptimizeImpl(MIRModule &mod, KlassHierarchy *kh = nullptr, bool currTrace = false);
-  ~FuncOptimizeImpl();
+  ~FuncOptimizeImpl() override;
   // Each phase needs to implement its own Clone
   virtual FuncOptimizeImpl *Clone() = 0;
   MIRModule &GetMIRModule() {
@@ -75,7 +75,9 @@ class FuncOptimizeIterator : public MplScheduler {
    public:
     explicit Task(MIRFunction &func) : function(&func) {}
 
-    ~Task() = default;
+    ~Task() override {
+      function = nullptr;
+    }
 
    protected:
     int RunImpl(MplTaskParam *param) override {
@@ -93,7 +95,7 @@ class FuncOptimizeIterator : public MplScheduler {
   };
 
   FuncOptimizeIterator(const std::string &phaseName, std::unique_ptr<FuncOptimizeImpl> phaseImpl);
-  ~FuncOptimizeIterator();
+  ~FuncOptimizeIterator() override;
   virtual void Run(uint32 threadNum = 1, bool isSeq = false);
 
  protected:

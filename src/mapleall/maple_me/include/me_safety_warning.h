@@ -38,13 +38,13 @@ class MESafetyWarning : public MapleFunctionPhase<MeFunction> {
     return createMP->New<MESafetyWarning>(createMP);
   }
 
-  bool PhaseRun(MeFunction &f) override;
+  bool PhaseRun(MeFunction &meFunction) override;
   std::string PhaseName() const override;
 
  private:
   void GetAnalysisDependence(maple::AnalysisDep &aDep) const override;
   bool IsStaticModeForOp(Opcode op) const;
-  SafetyWarningHandler *FindHandler(Opcode op);
+  SafetyWarningHandler *FindHandler(Opcode op) const;
 
   SafetyWarningHandlers *realNpeHandleMap;
   SafetyWarningHandlers *realBoundaryHandleMap;

@@ -30,6 +30,7 @@ const std::string FEUtils::kFloat = "F";
 const std::string FEUtils::kDouble = "D";
 const std::string FEUtils::kVoid = "V";
 const std::string FEUtils::kThis = "_this";
+const std::string FEUtils::kDotDot = "/..";
 const std::string FEUtils::kMCCStaticFieldGetBool   = "MCC_StaticFieldGetBool";
 const std::string FEUtils::kMCCStaticFieldGetByte   = "MCC_StaticFieldGetByte";
 const std::string FEUtils::kMCCStaticFieldGetShort  = "MCC_StaticFieldGetShort";
@@ -193,14 +194,59 @@ uint32 FEUtils::GetSequentialNumber() {
   return unnamedSymbolIdx++;
 }
 
-std::string FEUtils::GetFileNameHashStr(const std::string &fileName, uint32 seed) {
-  const char *name = fileName.c_str();
+// erase ".." in fileName
+std::string FEUtils::NormalizeFileName(std::string fileName) {
+  auto locOfDotDot = fileName.find(kDotDot);
+  if (locOfDotDot == std::string::npos) {
+    return fileName;
+  }
+
+  constexpr char forwardSlash = '/';
+  // slash, '/', before ".." must not be the first character.
+  if (locOfDotDot <= 1 || fileName[locOfDotDot] != forwardSlash) {
+    return fileName;
+  }
+
+  // calculate position of the slash before the backed-up directory.
+  auto locOfBackedDir = fileName.rfind(forwardSlash, locOfDotDot - 1);
+  if (locOfBackedDir == std::string::npos) {
+    return fileName;
+  }
+
+  // erase the backed-up directory and ".." from fileName.
+  // For example,
+  // /home/usrname/backed-up-dir/../nextDir/*.c  ==>
+  // /home/usrname/nextDir/*.c
+  constexpr size_t charNumNeedSkip = 3U;
+  (void) fileName.erase(fileName.begin() + static_cast<long>(locOfBackedDir),
+                        fileName.begin() + static_cast<long>(locOfDotDot + charNumNeedSkip));
+  return NormalizeFileName(fileName);
+}
+
+// struct __pthread_cond_s::(anonymous at /opt/RTOS/208.2.0//bits/thread-shared-types.h:97:5)
+// ==> struct __pthread_cond_s
+void FEUtils::EraseFileNameforClangTypeStr(std::string &typeStr) {
+  auto start = typeStr.find(':');
+  auto end = typeStr.find(')');
+  if (start == std::string::npos || end == std::string::npos) {
+    return;
+  }
+  (void) typeStr.erase(start, (end - start) + 1U);
+}
+
+std::string FEUtils::GetHashStr(const std::string &str, uint32 seed) {
+  const char *name = str.c_str();
   uint32 hash = 0;
-  while (*name) {
+  while (*name != 0) {
     uint8_t uName = *name++;
     hash = hash * seed + uName;
   }
-  return kRenameKeyWord + std::to_string(hash);
+  return std::to_string(hash);
+}
+
+std::string FEUtils::GetFileNameHashStr(const std::string &fileName, uint32 seed) {
+  std::string result = kRenameKeyWord + GetHashStr(fileName, seed);
+  return result;
 }
 
 std::string FEUtils::GetSequentialName(const std::string &prefix) {
@@ -320,6 +366,10 @@ MIRConst *FEUtils::CreateImplicitConst(MIRType *type) {
     case PTY_f64: {
       return FEManager::GetModule().GetMemPool()->New<MIRDoubleConst>(
           0, *GlobalTables::GetTypeTable().GetPrimType(PTY_f64));
+    }
+    case PTY_f128: {
+      return FEManager::GetModule().GetMemPool()->New<MIRFloat128Const>(
+          nullptr, *GlobalTables::GetTypeTable().GetPrimType(PTY_f128));
     }
     case PTY_ptr: {
       return GlobalTables::GetIntConstTable().GetOrCreateIntConst(

@@ -477,7 +477,7 @@ void PostDomAnalysis::GeneratePdomTreeDot() {
     }
     pdomFile << "  BB_" << bb->GetId();
     pdomFile << "[label= \"";
-    if (bb == cgFunc.GetFirstBB()) {
+    if (bb == cgFunc.GetCommonEntryBB()) {
       pdomFile << "ENTRY\n";
     }
     pdomFile << "BB_" << bb->GetId() << "\"];\n";
@@ -534,12 +534,17 @@ MAPLE_ANALYSIS_PHASE_REGISTER(CgDomAnalysis, domanalysis)
 
 bool CgPostDomAnalysis::PhaseRun(maplebe::CGFunc &f) {
   MemPool *pdomMemPool = GetPhaseMemPool();
+  /* Currently, using the dummyBB which is created at the beginning of constructing CGFunc, as the commonEntryBB */
+  f.GetCommonEntryBB()->PushBackSuccs(*f.GetFirstBB());
+  f.GetFirstBB()->PushBackPreds(*f.GetCommonEntryBB());
   pdomAnalysis = pdomMemPool->New<PostDomAnalysis>(f, *pdomMemPool, *pdomMemPool, f.GetAllBBs(),
-                                                   *f.GetFirstBB(), *f.GetCommonExitBB());
+                                                   *f.GetCommonEntryBB(), *f.GetCommonExitBB());
   pdomAnalysis->Compute();
   if (CG_DEBUG_FUNC(f)) {
     pdomAnalysis->Dump();
   }
+  f.GetCommonEntryBB()->ClearSuccs();
+  f.GetFirstBB()->ClearPreds();
   return false;
 }
 MAPLE_ANALYSIS_PHASE_REGISTER(CgPostDomAnalysis, pdomanalysis)

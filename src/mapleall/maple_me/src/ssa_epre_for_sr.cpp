@@ -49,13 +49,13 @@ ScalarMeExpr* SSAEPre::ResolveAllInjuringDefs(ScalarMeExpr *regx) const {
   return answer;
 }
 
-bool SSAEPre::OpndInDefOcc(const MeExpr *opnd, MeOccur *defocc, uint32 i) const {
-  if (defocc->GetOccType() == kOccReal) {
-    MeRealOcc *defrealocc = static_cast<MeRealOcc *>(defocc);
+bool SSAEPre::OpndInDefOcc(const MeExpr &opnd, MeOccur &defocc, uint32 i) const {
+  if (defocc.GetOccType() == kOccReal) {
+    MeRealOcc *defrealocc = static_cast<MeRealOcc *>(&defocc);
     MeExpr *defexpr = defrealocc->GetMeExpr();
-    return opnd == defexpr->GetOpnd(i);
+    return (&opnd) == defexpr->GetOpnd(i);
   } else { // kOccPhi
-    return DefVarDominateOcc(opnd, *defocc);
+    return DefVarDominateOcc(&opnd, defocc);
   }
 }
 
@@ -92,7 +92,7 @@ void SSAEPre::SRSetNeedRepair(MeOccur *useocc, std::set<MeStmt *> *needRepairInj
     if (curopnd->GetMeOp() != kMeOpVar && curopnd->GetMeOp() != kMeOpReg) {
       continue;
     }
-    if (!OpndInDefOcc(curopnd, defocc, i)) {
+    if (!OpndInDefOcc(*curopnd, *defocc, i)) {
       ScalarMeExpr *varx = static_cast<ScalarMeExpr *>(curopnd);
       needRepairInjuringDefs->insert(varx->GetDefStmt());
     }
@@ -111,28 +111,28 @@ static int64 GetIncreAmtAndRhsScalar(MeExpr *x, ScalarMeExpr *&rhsScalar) {
   return (opexpr->GetOp() == OP_sub) ? -amt : amt;
 }
 
-MeExpr* SSAEPre::InsertRepairStmt(MeExpr *temp, int64 increAmt, MeStmt *injuringDef) const {
+MeExpr* SSAEPre::InsertRepairStmt(MeExpr &temp, int64 increAmt, MeStmt &injuringDef) const {
   MeExpr *rhs = nullptr;
   if (increAmt >= 0) {
-    rhs = irMap->CreateMeExprBinary(OP_add, temp->GetPrimType(), *temp,
-                                    *irMap->CreateIntConstMeExpr(increAmt, temp->GetPrimType()));
+    rhs = irMap->CreateMeExprBinary(OP_add, temp.GetPrimType(), temp,
+                                    *irMap->CreateIntConstMeExpr(increAmt, temp.GetPrimType()));
   } else {
-    rhs = irMap->CreateMeExprBinary(OP_sub, temp->GetPrimType(), *temp,
-                                    *irMap->CreateIntConstMeExpr(-increAmt, temp->GetPrimType()));
+    rhs = irMap->CreateMeExprBinary(OP_sub, temp.GetPrimType(), temp,
+                                    *irMap->CreateIntConstMeExpr(-increAmt, temp.GetPrimType()));
   }
-  BB *bb = injuringDef->GetBB();
+  BB *bb = injuringDef.GetBB();
   MeStmt *newstmt = nullptr;
-  if (temp->GetMeOp() == kMeOpReg) {
-    RegMeExpr *newreg = irMap->CreateRegMeExprVersion(*static_cast<RegMeExpr *>(temp));
+  if (temp.GetMeOp() == kMeOpReg) {
+    RegMeExpr *newreg = irMap->CreateRegMeExprVersion(*static_cast<RegMeExpr *>(&temp));
     newstmt = irMap->CreateAssignMeStmt(*newreg, *rhs, *bb);
     static_cast<AssignMeStmt *>(newstmt)->isIncDecStmt = true;
-    bb->InsertMeStmtAfter(injuringDef, newstmt);
+    bb->InsertMeStmtAfter(&injuringDef, newstmt);
     return newreg;
   } else {
-    VarMeExpr *newvar = irMap->CreateVarMeExprVersion(*static_cast<VarMeExpr *>(temp));
+    VarMeExpr *newvar = irMap->CreateVarMeExprVersion(*static_cast<VarMeExpr *>(&temp));
     newstmt = irMap->CreateAssignMeStmt(*newvar, *rhs, *bb);
     static_cast<DassignMeStmt *>(newstmt)->isIncDecStmt = true;
-    bb->InsertMeStmtAfter(injuringDef, newstmt);
+    bb->InsertMeStmtAfter(&injuringDef, newstmt);
     return newvar;
   }
 }
@@ -147,7 +147,6 @@ static MeExpr *FindLaterRepairedTemp(const MeExpr *temp, const MeStmt *injuringD
     ass = static_cast<AssignMeStmt *>(ass->GetNext());
   }
   CHECK_FATAL(false, "FindLaterRepairedTemp: failed to find repair statement");
-  return nullptr;
 }
 
 MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
@@ -159,36 +158,35 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
   AssignMeStmt *ass = static_cast<AssignMeStmt *>(scalarx->GetDefStmt());
   CHECK_FATAL(ass->isIncDecStmt, "SRRepairOpndInjuries: not an inc/dec statement");
   MeStmt *latestInjuringDef = ass;
-  if (repairedInjuringDefs->count(ass) == 0) {
-    repairedInjuringDefs->insert(ass);
-    bool done = false;
-    int64 increAmt = 0;
-    ScalarMeExpr *rhsScalar = nullptr;
-    do {
-      increAmt += GetIncreAmtAndRhsScalar(ass->GetRHS(), rhsScalar);
-      if (OpndInDefOcc(rhsScalar, defocc, static_cast<uint32>(i))) {
-        done = true;
-      } else {
-        scalarx = rhsScalar;
-        ass = static_cast<AssignMeStmt *>(scalarx->GetDefStmt());
-        CHECK_FATAL(ass->isIncDecStmt, "SRRepairOpndInjuries: not an inc/dec statement");
-        done = needRepairInjuringDefs->count(ass) == 1;
-        if (done) {
-          if (repairedInjuringDefs->count(ass) == 0) {
-            repairedTemp = SRRepairOpndInjuries(scalarx, defocc, i, tempAtDef, needRepairInjuringDefs,
-                                                repairedInjuringDefs);
-          }
-          repairedTemp = FindLaterRepairedTemp(repairedTemp, ass);
-        }
-      }
-    } while (!done);
-    // generate the increment statement at latestInjuringDef
-    repairedTemp = InsertRepairStmt(repairedTemp, increAmt * workCand->GetTheMeExpr()->SRMultiplier(scalarx->GetOst()),
-                                    latestInjuringDef);
-  } else {
-    // find the last repair increment statement
+  if (repairedInjuringDefs->count(ass) != 0) {
     repairedTemp = FindLaterRepairedTemp(repairedTemp, latestInjuringDef);
+    return repairedTemp;
   }
+  repairedInjuringDefs->insert(ass);
+  bool done = false;
+  int64 increAmt = 0;
+  ScalarMeExpr *rhsScalar = nullptr;
+  do {
+    increAmt += GetIncreAmtAndRhsScalar(ass->GetRHS(), rhsScalar);
+    if (OpndInDefOcc(*rhsScalar, *defocc, static_cast<uint32>(i))) {
+      done = true;
+    } else {
+      scalarx = rhsScalar;
+      ass = static_cast<AssignMeStmt *>(scalarx->GetDefStmt());
+      CHECK_FATAL(ass->isIncDecStmt, "SRRepairOpndInjuries: not an inc/dec statement");
+      done = needRepairInjuringDefs->count(ass) == 1;
+      if (done) {
+        if (repairedInjuringDefs->count(ass) == 0) {
+          repairedTemp = SRRepairOpndInjuries(scalarx, defocc, i, tempAtDef, needRepairInjuringDefs,
+                                              repairedInjuringDefs);
+        }
+        repairedTemp = FindLaterRepairedTemp(repairedTemp, ass);
+      }
+    }
+  } while (!done);
+  // generate the increment statement at latestInjuringDef
+  repairedTemp = InsertRepairStmt(*repairedTemp, increAmt * workCand->GetTheMeExpr()->SRMultiplier(scalarx->GetOst()),
+                                  *latestInjuringDef);
   return repairedTemp;
 }
 
@@ -240,7 +238,7 @@ MeExpr* SSAEPre::SRRepairInjuries(MeOccur *useocc,
         continue;
       }
     }
-    if (!OpndInDefOcc(curopnd, defocc, i)) {
+    if (!OpndInDefOcc(*curopnd, *defocc, i)) {
       repairedTemp = SRRepairOpndInjuries(curopnd, defocc, i, repairedTemp, needRepairInjuringDefs,
                                           repairedInjuringDefs);
     }

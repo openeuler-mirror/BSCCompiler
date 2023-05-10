@@ -17,6 +17,7 @@
 
 #include "becommon.h"
 #include "cg_option.h"
+#include "aarch64/aarch64_imm_valid.h"
 #include "visitor_common.h"
 
 /* maple_ir */
@@ -32,8 +33,6 @@ namespace maplebe {
 class OpndDesc;
 class Emitter;
 
-bool IsBitSizeImmediate(uint64 val, uint32 bitLen, uint32 nLowerZeroBits);
-bool IsBitmaskImmediate(uint64 val, uint32 bitLen);
 bool IsMoveWidableImmediate(uint64 val, uint32 bitLen);
 bool BetterUseMOVZ(uint64 val);
 
@@ -471,20 +470,20 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     return relocs;
   }
 
-  bool IsInBitSize(uint8 size, uint8 nLowerZeroBits) const {
-    return maplebe::IsBitSizeImmediate(static_cast<uint64>(value), size, nLowerZeroBits);
+  bool IsInBitSize(uint32 size, uint32 nLowerZeroBits) const {
+    return IsBitSizeImmediate(static_cast<uint64>(value), size, nLowerZeroBits);
   }
 
   bool IsBitmaskImmediate() const {
     ASSERT(!IsZero(), " 0 is reserved for bitmask immediate");
     ASSERT(!IsAllOnes(), " -1 is reserved for bitmask immediate");
-    return maplebe::IsBitmaskImmediate(static_cast<uint64>(value), static_cast<uint32>(size));
+    return maplebe::aarch64::IsBitmaskImmediate(static_cast<uint64>(value), static_cast<uint32>(size));
   }
 
   bool IsBitmaskImmediate(uint32 destSize) const {
     ASSERT(!IsZero(), " 0 is reserved for bitmask immediate");
     ASSERT(!IsAllOnes(), " -1 is reserved for bitmask immediate");
-    return maplebe::IsBitmaskImmediate(static_cast<uint64>(value), static_cast<uint32>(destSize));
+    return maplebe::aarch64::IsBitmaskImmediate(static_cast<uint64>(value), static_cast<uint32>(destSize));
   }
 
   bool IsSingleInstructionMovable() const {
@@ -800,6 +799,10 @@ class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
     return extendOp;
   }
 
+  uint32 GetValue() const {
+    return shiftAmount;
+  }
+
   bool Less(const Operand &right) const override;
 
   void Dump() const override {
@@ -841,10 +844,10 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
  public:
   enum ShiftOp : uint8 {
     kUndef,
-    kLSL, /* logical shift left */
-    kLSR, /* logical shift right */
-    kASR, /* arithmetic shift right */
-    kROR, /* rotate shift right */
+    kShiftLSL, /* logical shift left */
+    kShiftLSR, /* logical shift right */
+    kShiftASR, /* arithmetic shift right */
+    kShiftROR, /* rotate shift right */
   };
 
   /* bitlength is equal to 5 or 6 */
@@ -883,6 +886,10 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
 
   ShiftOp GetShiftOp() const {
     return shiftOp;
+  }
+
+  uint32 GetValue() const {
+    return GetShiftAmount();
   }
 
   void Dump() const override {
@@ -1033,6 +1040,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
         lsOpnd(memOpnd.lsOpnd),
         symbol(memOpnd.symbol),
         memoryOrder(memOpnd.memoryOrder),
+        accessSize(memOpnd.accessSize),
         addrMode(memOpnd.addrMode),
         isStackMem(memOpnd.isStackMem),
         isStackArgMem(memOpnd.isStackArgMem) {}
@@ -1289,7 +1297,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
   std::string GetExtendAsString() const {
     if (addrMode == kBOL) {
       CHECK_NULL_FATAL(lsOpnd);
-      CHECK_FATAL(lsOpnd->GetShiftOp() == BitShiftOperand::kLSL, "check bitshiftop!");
+      CHECK_FATAL(lsOpnd->GetShiftOp() == BitShiftOperand::kShiftLSL, "check bitshiftop!");
       return "LSL";
     } else if (addrMode == kBOE) {
       CHECK_NULL_FATAL(exOpnd);
@@ -1313,7 +1321,6 @@ class MemOperand : public OperandVisitable<MemOperand> {
     } else {
       return false;
     }
-    return true;
   }
 
   bool NeedFixIndex() const {
@@ -1873,7 +1880,7 @@ class OpndDumpVisitor : public OperandVisitorBase,
 
  protected:
   virtual void DumpOpndPrefix() {
-    LogInfo::MapleLogger() << " (opnd:";
+    LogInfo::MapleLogger() << "(opnd:";
   }
   virtual void DumpOpndSuffix() {
     LogInfo::MapleLogger() << " )";
@@ -1885,6 +1892,19 @@ class OpndDumpVisitor : public OperandVisitorBase,
     return opndDesc;
   }
 
+  void DumpOpndDesc() const {
+    LogInfo::MapleLogger() << " [";
+    if (opndDesc->IsDef()) {
+      LogInfo::MapleLogger() << "DEF";
+    }
+    if (opndDesc->IsDef() && opndDesc->IsUse()) {
+      LogInfo::MapleLogger() << ",";
+    }
+    if (opndDesc->IsUse()) {
+      LogInfo::MapleLogger() << "USE";
+    }
+    LogInfo::MapleLogger() << "]";
+  }
  private:
   const OpndDesc *opndDesc;
 };

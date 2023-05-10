@@ -23,7 +23,7 @@
 // perform the actual optimization.
 namespace maple {
 template <typename Func>
-void ScalarReplacement::IterateStmt(StmtNode *stmt, Func const &applyFunc) {
+void ScalarReplacement::IterateStmt(StmtNode *stmt, Func const &applyFunc) const {
   if (!stmt) {
     return;
   }
@@ -59,7 +59,7 @@ void ScalarReplacement::IterateStmt(StmtNode *stmt, Func const &applyFunc) {
 }
 
 template <typename Func>
-BaseNode *ScalarReplacement::IterateExpr(StmtNode *stmt, BaseNode *expr, Func const &applyFunc) {
+BaseNode *ScalarReplacement::IterateExpr(StmtNode *stmt, BaseNode *expr, Func const &applyFunc) const {
   if (!expr) {
     return expr;
   }
@@ -198,15 +198,15 @@ bool ScalarReplacement::CanBeReplaced(const StmtVec *refs) const {
   return true;
 }
 
-BaseNode *ScalarReplacement::ReplaceDassignDread(StmtNode *stmt, BaseNode *opnd) {
+BaseNode *ScalarReplacement::ReplaceDassignDread(StmtNode &stmt, BaseNode *opnd) const {
   if (!opnd) {
     // opnd nullptr means to handle the statment itself
-    if (stmt->GetOpCode() == OP_dassign) {
-      DassignNode *dassignNode = static_cast<DassignNode*>(stmt);
-      if (dassignNode->GetStIdx() == curSym->GetStIdx() && dassignNode->GetFieldID() == curFieldid) {
+    if (stmt.GetOpCode() == OP_dassign) {
+      DassignNode &dassignNode = static_cast<DassignNode&>(stmt);
+      if (dassignNode.GetStIdx() == curSym->GetStIdx() && dassignNode.GetFieldID() == curFieldid) {
         // Update to the new scalar
-        dassignNode->SetStIdx(newScalarSym->GetStIdx());
-        dassignNode->SetFieldID(0);
+        dassignNode.SetStIdx(newScalarSym->GetStIdx());
+        dassignNode.SetFieldID(0);
       }
     }
   } else if (opnd->GetOpCode() == OP_dread || opnd->GetOpCode() == OP_addrof) {
@@ -252,7 +252,7 @@ void ScalarReplacement::ReplaceWithScalar(const StmtVec *refs) {
       AppendLocalRefCleanup(newScalarSym);
     }
     for (StmtNode *stmt : (*refs)) {
-      IterateStmt(stmt, [this](StmtNode *stmt, BaseNode *expr) { return this->ReplaceDassignDread(stmt, expr); });
+      IterateStmt(stmt, [this](StmtNode *stmt, BaseNode *expr) { return this->ReplaceDassignDread(*stmt, expr); });
     }
   }
 }

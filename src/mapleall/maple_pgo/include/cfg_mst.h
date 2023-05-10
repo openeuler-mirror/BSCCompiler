@@ -23,7 +23,9 @@ template <class Edge, class BB>
 class CFGMST {
  public:
   explicit CFGMST(MemPool &mp) : mp(&mp), alloc(&mp), allEdges(alloc.Adapter()), bbGroups(alloc.Adapter()) {}
-  virtual ~CFGMST() = default;
+  virtual ~CFGMST() {
+    mp = nullptr;
+  }
   void ComputeMST(BB *commonEntry, BB *commonExit);
   void BuildEdges(BB *commonEntry, BB *commonExit);
   void SortEdges();

@@ -14,14 +14,12 @@
  */
 #ifndef MAPLE_IR_INCLUDE_PRIM_TYPES_H
 #define MAPLE_IR_INCLUDE_PRIM_TYPES_H
-#include "types_def.h"
 #include "cfg_primitive_types.h"
 
 namespace maple {
 class PrimitiveType {
  public:
-  // we need implicit conversion from PrimType to PrimitiveType, so there is no explicit keyword here.
-  PrimitiveType(PrimType type) : property(GetPrimitiveTypeProperty(type)) {}
+  explicit PrimitiveType(PrimType type) : property(GetPrimitiveTypeProperty(type)) {}
   ~PrimitiveType() = default;
 
   PrimType GetType() const {
@@ -29,34 +27,34 @@ class PrimitiveType {
   }
 
   bool IsInteger() const {
-    return property.isInteger;
+    return property.IsInteger();
   }
   bool IsUnsigned() const {
-    return property.isUnsigned;
+    return property.IsUnsigned();
   }
   bool IsAddress() const {
-    return property.isAddress;
+    return property.IsAddress();
   }
   bool IsFloat() const {
-    return property.isFloat;
+    return property.IsFloat();
   }
   bool IsPointer() const {
-    return property.isPointer;
+    return property.IsPointer();
   }
   bool IsDynamic() const {
-    return property.isDynamic;
+    return property.IsDynamic();
   }
   bool IsSimple() const {
-    return property.isSimple;
+    return property.IsSimple();
   }
   bool IsDynamicAny() const {
-    return property.isDynamicAny;
+    return property.IsDynamicAny();
   }
   bool IsDynamicNone() const {
-    return property.isDynamicNone;
+    return property.IsDynamicNone();
   }
   bool IsVector() const {
-    return property.isVector;
+    return property.IsVector();
   }
 
  private:

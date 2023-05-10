@@ -39,6 +39,7 @@ class ICOPattern : public OptimizationPattern {
 
  protected:
   Insn *FindLastCmpInsn(BB &bb) const;
+  std::vector<LabelOperand*> GetLabelOpnds(const Insn &insn) const;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgIco, maplebe::CGFunc)

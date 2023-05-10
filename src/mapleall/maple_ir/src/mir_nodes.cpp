@@ -35,10 +35,10 @@ const int32 CondGotoNode::probAll = 10000;
 
 const char *GetIntrinsicName(MIRIntrinsicID intrn) {
   switch (intrn) {
-    default:
 #define DEF_MIR_INTRINSIC(STR, NAME, NUM_INSN, INTRN_CLASS, RETURN_TYPE, ...) \
-  case INTRN_##STR:                                                           \
-    return #STR;
+    case INTRN_##STR:                                                           \
+      return #STR;
+    default:
 #include "intrinsics.def"
 #undef DEF_MIR_INTRINSIC
   }
@@ -284,13 +284,13 @@ BlockNode *BlockNode::CloneTreeWithSrcPosition(const MIRModule &mod, const GStrI
 BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     std::unordered_map<uint32_t, FreqType>& toFreqs,
     std::unordered_map<uint32_t, FreqType>& fromFreqs,
-    FreqType numer, uint64_t denom, uint32_t updateOp) {
+    FreqType numer, FreqType denom, uint32_t updateOp) {
   auto *nnode = allocator.GetMemPool()->New<BlockNode>();
   nnode->SetStmtID(stmtIDNext++);
   if (fromFreqs.count(GetStmtID()) > 0) {
     FreqType oldFreq = fromFreqs[GetStmtID()];
     FreqType newFreq;
-    if (updateOp & kUpdateUnrollRemainderFreq) {
+    if ((updateOp & static_cast<uint32_t>(kUpdateUnrollRemainderFreq)) != 0) {
       newFreq = denom > 0 ? (oldFreq * numer % static_cast<int64_t>(denom)) : oldFreq;
     } else {
       newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / static_cast<int64_t>(denom)) : oldFreq);
@@ -298,7 +298,7 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
     toFreqs[nnode->GetStmtID()] = (newFreq > 0 || (numer == 0)) ? newFreq : 1;
     if ((updateOp & kUpdateOrigFreq) != 0) {  // upateOp & 1 : update from
       int64_t left = static_cast<int64_t>(((oldFreq - newFreq) > 0 || (oldFreq == 0)) ? (oldFreq - newFreq) : 1);
-      fromFreqs[GetStmtID()] = static_cast<int64_t>(left);
+      fromFreqs[GetStmtID()] = left;
     }
   }
   for (auto &stmt : stmtNodeList) {
@@ -308,14 +308,17 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
           (static_cast<BlockNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     } else if (stmt.GetOpCode() == OP_if) {
       newStmt = static_cast<StmtNode*>(
-          (static_cast<IfStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
+          (static_cast<IfStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs,
+                                                                static_cast<uint64_t>(numer), denom, updateOp));
     } else if (stmt.GetOpCode() == OP_while) {
       newStmt = static_cast<StmtNode*>(
           (static_cast<WhileStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator,
-                                                                   toFreqs, fromFreqs, numer, denom, updateOp));
+                                                                   toFreqs, fromFreqs, static_cast<uint64_t>(numer),
+                                                                   denom, updateOp));
     } else if (stmt.GetOpCode() == OP_doloop) {
       newStmt = static_cast<StmtNode*>(
-          (static_cast<DoloopNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
+          (static_cast<DoloopNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs,
+                                                                static_cast<uint64_t>(numer), denom, updateOp));
     } else {
       newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
       if (fromFreqs.count(stmt.GetStmtID()) > 0) {
@@ -327,10 +330,10 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
           newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / static_cast<int64_t>(denom)) : oldFreq);
         }
         toFreqs[newStmt->GetStmtID()] =
-            (newFreq > 0 || oldFreq == 0 || numer == 0) ? static_cast<int64_t>(newFreq) : 1;
+            (newFreq > 0 || oldFreq == 0 || numer == 0) ? newFreq : 1;
         if ((updateOp & kUpdateOrigFreq) != 0) {
-          FreqType left = static_cast<int64_t>(((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1);
-          fromFreqs[stmt.GetStmtID()] = static_cast<int64_t>(left);
+          FreqType left = static_cast<FreqType>(((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1);
+          fromFreqs[stmt.GetStmtID()] = left;
         }
       }
     }
@@ -600,7 +603,7 @@ void ArrayNode::Dump(int32 indent) const {
   NaryOpnds::Dump(indent);
 }
 
-bool ArrayNode::IsSameBase(ArrayNode *arry) {
+bool ArrayNode::IsSameBase(const ArrayNode *arry) const {
   ASSERT(arry != nullptr, "null ptr check");
   if (arry == this) {
     return true;
@@ -911,7 +914,7 @@ void TryNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << " {";
   for (size_t i = 0; i < offsets.size(); ++i) {
     uint32 offset = offsets[i];
-    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName((LabelIdx)offset);
+    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName(static_cast<LabelIdx>(offset));
   }
   LogInfo::MapleLogger() << " }\n";
 }
@@ -2685,6 +2688,34 @@ bool BinaryNode::IsSameContent(const BaseNode *node) const {
   } else {
     return false;
   }
+}
+
+bool RetypeNode::IsSameContent(const BaseNode *node) const {
+  auto *retyeNode = dynamic_cast<const RetypeNode*>(node);
+  if (!retyeNode) {
+    return false;
+  }
+  if (retyeNode == this) {
+    return true;
+  }
+  if (retyeNode->tyIdx == tyIdx && TypeCvtNode::IsSameContent(node)) {
+    return true;
+  }
+  return false;
+}
+
+bool ExtractbitsNode::IsSameContent(const BaseNode *node) const {
+  auto *extractNode = dynamic_cast<const ExtractbitsNode*>(node);
+  if (!extractNode) {
+    return false;
+  }
+  if (extractNode == this) {
+    return true;
+  }
+  if (extractNode->bitsSize == bitsSize && extractNode->bitsOffset == bitsOffset && UnaryNode::IsSameContent(node)) {
+    return true;
+  }
+  return false;
 }
 
 bool ConstvalNode::IsSameContent(const BaseNode *node) const {

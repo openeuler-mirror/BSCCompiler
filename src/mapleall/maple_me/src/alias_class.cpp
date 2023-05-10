@@ -179,6 +179,9 @@ void AliasClass::RecordAliasAnalysisInfo(const VersionSt &vst) {
     }
   }
 
+  if (ost.GetPointerVstIdx() && IsAddrofVstNextLevNotAllDefSeen(ost.GetPointerVstIdx())) {
+    SetNextLevNotAllDefsSeen(vst.GetIndex());
+  }
   if ((ost.IsFormal() && !IsRestrictPointer(&ost) && ost.GetIndirectLev() >= 0) || ost.GetIndirectLev() > 0) {
     SetNextLevNotAllDefsSeen(vst.GetIndex());
   }
@@ -252,7 +255,7 @@ static void UpdateFieldIdAndPtrType(const MIRType &baseType, FieldID baseFieldId
     return;
   }
   MIRType *baseMemType = static_cast<const MIRPtrType&>(baseType).GetPointedType();
-  if (baseMemType->GetKind() != kTypeStruct || !TypeBasedAliasAnalysis::IsFieldTypeOfAggType(baseMemType, memType)) {
+  if (baseMemType->GetKind() != kTypeStruct || !TypeBasedAliasAnalysis::IsFieldTypeOfAggType(baseMemType, *memType)) {
     return;
   }
   auto *structType = static_cast<MIRStructType*>(baseMemType);
@@ -298,7 +301,7 @@ VersionSt *AliasClass::FindOrCreateVstOfExtraLevOst(
   FieldID baseFieldId = aliasInfoOfBaseAddress.fieldID;
   UpdateFieldIdAndPtrType(*baseType, baseFieldId, offset, newTyIdx, fieldId);
 
-  auto *nextLevOst = ssaTab.FindOrCreateExtraLevOst(vstOfBaseAddress, newTyIdx, fieldId, offset, isNextLevelArrayType);
+  auto *nextLevOst = ssaTab.FindOrCreateExtraLevOst(*vstOfBaseAddress, newTyIdx, fieldId, offset, isNextLevelArrayType);
   ASSERT(nextLevOst != nullptr, "failed in creating next-level-ost");
   auto *zeroVersionOfNextLevOst = ssaTab.GetVerSt(nextLevOst->GetZeroVersionIndex());
   RecordAliasAnalysisInfo(*zeroVersionOfNextLevOst);
@@ -468,13 +471,21 @@ AliasInfo AliasClass::CreateAliasInfoExpr(BaseNode &expr) {
 void AliasClass::SetNotAllDefsSeenForMustDefs(const StmtNode &callas) {
   MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtsSSAPart().GetMustDefNodesOf(callas);
   for (auto &mustDef : mustDefs) {
-    RecordAliasAnalysisInfo(*mustDef.GetResult());
-    SetNextLevNotAllDefsSeen(mustDef.GetResult()->GetIndex());
+    auto *vst = mustDef.GetResult();
+    if (!vst) {
+      continue;
+    }
+    if (vst->GetOst()->GetType()->GetPrimType() == PTY_agg) {
+      auto &prevLevVst = FindOrCreateVstOfAddrofOSt(*vst->GetOst());
+      SetAddrofVstNextLevNotAllDefsSeen(prevLevVst.GetIndex());
+    }
+    RecordAliasAnalysisInfo(*vst);
+    SetNextLevNotAllDefsSeen(vst->GetIndex());
   }
 }
 
 void AliasClass::ApplyUnionForElementsInCopiedArray() {
-  for (auto *ost : lhsWithUndefinedOffsets) {
+  for (auto *ost : ostWithUndefinedOffsets) {
     auto *prevLevOfLHSOst = ssaTab.GetVerSt(ost->GetPointerVstIdx());
     if (!prevLevOfLHSOst) {
       continue;
@@ -503,41 +514,45 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
       preLevOfRHSOst = &FindOrCreateVstOfAddrofOSt(*rhsost);
     }
 
-    MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsost->GetTyIdx());
-    MIRStructType *mirStructType = static_cast<MIRStructType *>(mirType);
+    MIRStructType *mirStructType = static_cast<MIRStructType *>(lhsost->GetType());
     FieldID numFieldIDs = static_cast<FieldID>(mirStructType->NumberOfFieldIDs());
-    auto tyIdxOfPrevLevOst = preLevOfLHSOst->GetOst()->GetTyIdx();
+    auto tyIdxOfLhsPrevLevOst = lhsost->GetPrevLevelPointerType()->GetTypeIndex();
+    auto tyIdxOfRhsPrevLevOst = rhsost->GetPrevLevelPointerType()->GetTypeIndex();
     for (FieldID fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
       MIRType *fieldType = mirStructType->GetFieldType(fieldID);
       if (!IsPotentialAddress(fieldType->GetPrimType())) {
         continue;
       }
-      OffsetType offset(mirStructType->GetBitOffsetFromBaseAddr(fieldID));
 
-      auto fieldOstLHS = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(
-          preLevOfLHSOst, tyIdxOfPrevLevOst, fieldType, fieldID, offset);
-      auto fieldOstRHS = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(
-          preLevOfRHSOst, tyIdxOfPrevLevOst, fieldType, fieldID, offset);
+      auto offset = OffsetType(mirStructType->GetBitOffsetFromBaseAddr(fieldID));
+      auto lhsFieldOffset = offset + lhsost->GetOffset();
+      auto rhsFieldOffset = offset + rhsost->GetOffset();
+      auto lhsFieldID = fieldID + lhsost->GetFieldID();
+      auto rhsFieldID = fieldID + rhsost->GetFieldID();
+      auto *fieldOstLHS = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(
+          preLevOfLHSOst, tyIdxOfLhsPrevLevOst, fieldType, lhsFieldID, lhsFieldOffset);
+      auto *fieldOstRHS = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(
+          preLevOfRHSOst, tyIdxOfRhsPrevLevOst, fieldType, rhsFieldID, rhsFieldOffset);
+
       if (fieldOstLHS == nullptr && fieldOstRHS == nullptr) {
         continue;
       }
       if (fieldOstLHS == nullptr) {
-        auto ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(lhsost->GetTyIdx());
         fieldOstLHS = ssaTab.GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-            preLevOfLHSOst, ptrType->GetTypeIndex(), fieldID, offset);
+            *preLevOfLHSOst, tyIdxOfLhsPrevLevOst, lhsFieldID, lhsFieldOffset);
       }
       if (fieldOstRHS == nullptr) {
-        auto ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(rhsost->GetTyIdx());
         fieldOstRHS = ssaTab.GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-            preLevOfRHSOst, ptrType->GetTypeIndex(), fieldID, offset);
+            *preLevOfRHSOst, tyIdxOfRhsPrevLevOst, rhsFieldID, rhsFieldOffset);
       }
-
       auto *zeroVersionStOfFieldOstLHS = ssaTab.GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstLHS);
-      RecordAliasAnalysisInfo(*zeroVersionStOfFieldOstLHS);
-
       auto *zeroVersionStOfFieldOstRHS = ssaTab.GetVersionStTable().GetOrCreateZeroVersionSt(*fieldOstRHS);
       RecordAliasAnalysisInfo(*zeroVersionStOfFieldOstRHS);
-
+      RecordAliasAnalysisInfo(*zeroVersionStOfFieldOstLHS);
+      if (IsNextLevNotAllDefsSeen(fieldOstLHS->GetZeroVersionIndex())) {
+        ASSERT_NOT_NULL(fieldOstRHS);
+        SetNextLevNotAllDefsSeen(fieldOstRHS->GetZeroVersionIndex());
+      }
       CHECK_FATAL(fieldOstLHS, "fieldOstLHS is nullptr!");
       CHECK_FATAL(fieldOstRHS, "fieldOstRHS is nullptr!");
       unionFind.Union(fieldOstLHS->GetZeroVersionIndex(), fieldOstRHS->GetZeroVersionIndex());
@@ -592,6 +607,7 @@ void AliasClass::ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, 
     return;
   }
 
+  auto *lhsOst = lhsVst.GetOst();
   auto *rhsOst = rhsVst->GetOst();
   if (rhsOst->GetIndirectLev() < 0) {
     for (auto *ost : *ssaTab.GetOriginalStTable().GetNextLevelOstsOfVst(rhsVst)) {
@@ -599,23 +615,28 @@ void AliasClass::ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, 
     }
   }
 
-  if (mirModule.IsCModule()) {
-    auto *lhsOst = lhsVst.GetOst();
+  auto collectAggsForLaterUnion = [lhsOst, rhsOst, this] () {
+    if (!mirModule.IsCModule()) {
+      return;
+    }
+    // ost with invlid offset should be union with all other osts with same prev level
+    if (lhsOst->GetOffset().IsInvalid()) {
+      ostWithUndefinedOffsets.push_back(lhsOst);
+    }
+    if (rhsOst->GetOffset().IsInvalid()) {
+      ostWithUndefinedOffsets.push_back(rhsOst);
+    }
+    // collect osts assigned with struct/union to prop their field properties
     TyIdx lhsTyIdx = lhsOst->GetTyIdx();
     TyIdx rhsTyIdx = rhsOst->GetTyIdx();
     MIRType *rhsType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsTyIdx);
-    if (lhsTyIdx == rhsTyIdx &&
-        (rhsType->GetKind() == kTypeStruct || rhsType->GetKind() == kTypeUnion)) {
-      if (lhsOst->GetIndex() < rhsOst->GetIndex()) {
-        aggsToUnion[lhsOst] = rhsOst;
-      } else {
-        aggsToUnion[rhsOst] = lhsOst;
-      }
+    auto rhsTypeKind = rhsType->GetKind();
+    if (lhsTyIdx != rhsTyIdx || (rhsTypeKind != kTypeStruct && rhsTypeKind != kTypeUnion)) {
+      return;
     }
-    if (lhsOst->GetOffset().IsInvalid()) {
-      lhsWithUndefinedOffsets.push_back(lhsOst);
-    }
-  }
+    aggsToUnion.insert(std::make_pair(lhsOst, rhsOst));
+  };
+  collectAggsForLaterUnion();
 
   if (rhsOst->GetIndirectLev() > 0 || IsNotAllDefsSeen(rhsOst->GetIndex())) {
     SetNextLevNotAllDefsSeen(lhsVst.GetIndex());
@@ -623,8 +644,7 @@ void AliasClass::ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, 
   }
   PrimType rhsPtyp = rhsOst->GetType()->GetPrimType();
   if (!(IsPrimitiveInteger(rhsPtyp) && GetPrimTypeSize(rhsPtyp) == GetPrimTypeSize(PTY_ptr)) ||
-      kOpcodeInfo.NotPure(rhs.GetOpCode()) ||
-      HasMallocOpnd(&rhs) ||
+      kOpcodeInfo.NotPure(rhs.GetOpCode()) || HasMallocOpnd(&rhs) ||
       (rhs.GetOpCode() == OP_addrof && IsReadOnlyOst(*rhsOst))) {
     return;
   }
@@ -669,7 +689,11 @@ void AliasClass::SetPtrOpndsNextLevNADS(unsigned int start, unsigned int end,
   }
 }
 
-void AliasClass::SetAggPtrFieldsNextLevNADS(const OriginalSt &ost) {
+void AliasClass::SetAggPtrFieldsNextLevNADS(const VersionSt &vst) {
+  auto &ost = *(vst.GetOst());
+  if (IsNextLevNotAllDefsSeen(vst.GetIndex()) && ost.GetIndirectLev() > 0) {
+    return;
+  }
   MIRTypeKind typeKind = ost.GetType()->GetKind();
   if (typeKind == kTypeStruct || typeKind == kTypeUnion || typeKind == kTypeStructIncomplete) {
     auto *structType = static_cast<MIRStructType*>(ost.GetType());
@@ -727,12 +751,10 @@ void AliasClass::SetAggOpndPtrFieldsNextLevNADS(MapleVector<BaseNode*> &opnds) {
       continue;
     }
     AliasInfo aInfo = CreateAliasInfoExpr(*opnd);
-    if (aInfo.vst == nullptr ||
-        (IsNextLevNotAllDefsSeen(aInfo.vst->GetIndex()) &&
-         aInfo.vst->GetOst()->GetIndirectLev() > 0)) {
+    if (!aInfo.vst) {
       continue;
     }
-    SetAggPtrFieldsNextLevNADS(*aInfo.vst->GetOst());
+    SetAggPtrFieldsNextLevNADS(*aInfo.vst);
   }
 }
 
@@ -740,12 +762,10 @@ void AliasClass::SetPtrFieldsOfAggNextLevNADS(const BaseNode *opnd, const Versio
   if (opnd->GetPrimType() != PTY_agg) {
     return;
   }
-  if (vst == nullptr ||
-      (IsNextLevNotAllDefsSeen(vst->GetIndex()) &&
-       vst->GetOst()->GetIndirectLev() > 0)) {
+  if (!vst) {
     return;
   }
-  SetAggPtrFieldsNextLevNADS(*vst->GetOst());
+  SetAggPtrFieldsNextLevNADS(*vst);
 }
 
 // Iteratively propagate type unsafe info to next level.
@@ -838,7 +858,7 @@ void AliasClass::PropagateTypeUnsafe() {
 }
 
 // type may be potential address type like u64/ptr etc.
-bool AliasClass::IsAddrTypeConsistent(MIRType *typeA, MIRType *typeB) const {
+bool AliasClass::IsAddrTypeConsistent(const MIRType *typeA, const MIRType *typeB) const {
   if (typeA == nullptr || typeB == nullptr) {
     return false;
   }
@@ -849,8 +869,8 @@ bool AliasClass::IsAddrTypeConsistent(MIRType *typeA, MIRType *typeB) const {
     return false;
   }
   // <* [N] elemType> and <* elemType> are consistent
-  MIRType *pointedTypeA = static_cast<MIRPtrType *>(typeA)->GetPointedType();
-  MIRType *pointedTypeB = static_cast<MIRPtrType *>(typeB)->GetPointedType();
+  MIRType *pointedTypeA = static_cast<const MIRPtrType *>(typeA)->GetPointedType();
+  MIRType *pointedTypeB = static_cast<const MIRPtrType *>(typeB)->GetPointedType();
   if (pointedTypeA->IsMIRArrayType()) {
     pointedTypeA = static_cast<MIRArrayType *>(pointedTypeA)->GetElemType();
   }
@@ -974,38 +994,127 @@ void AliasClass::ApplyUnionForIntrinsicCall(const IntrinsiccallNode &intrinsicCa
   }
 }
 
+void AliasClass::ApplyUnionForDirectAssign(const StmtNode &stmt) {
+  // RHS
+  ASSERT_NOT_NULL(stmt.Opnd(0));
+  AliasInfo rhsAinfo = CreateAliasInfoExpr(*stmt.Opnd(0));
+  // LHS
+  auto *lhsVst = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt);
+  OriginalSt *lhsOst = lhsVst->GetOst();
+  if (lhsOst->GetFieldID() != 0) {
+    (void)FindOrCreateVstOfAddrofOSt(*lhsOst);
+  }
+  RecordAliasAnalysisInfo(*lhsVst);
+  ApplyUnionForDassignCopy(*lhsVst, rhsAinfo.vst, *stmt.Opnd(0));
+  SetTypeUnsafeForAddrofUnion(rhsAinfo.vst);
+}
+
+void AliasClass::ApplyUnionForIndirectAssign(const StmtNode &stmt) {
+  auto &iassignNode = static_cast<const IassignNode&>(stmt);
+  AliasInfo rhsAinfo = CreateAliasInfoExpr(*iassignNode.Opnd(1));
+  bool isNextLevelArrayType = iassignNode.GetLHSType()->GetKind() == kTypeArray;
+  auto *lhsVst = FindOrCreateVstOfExtraLevOst(
+      *iassignNode.Opnd(0), iassignNode.GetTyIdx(), iassignNode.GetFieldID(), false, isNextLevelArrayType);
+  if (lhsVst != nullptr) {
+    ApplyUnionForDassignCopy(*lhsVst, rhsAinfo.vst, *iassignNode.Opnd(1));
+  }
+  SetTypeUnsafeForAddrofUnion(rhsAinfo.vst);
+  if (iassignNode.IsExpandedFromArrayOfCharFunc()) {
+    TypeBasedAliasAnalysis::SetVstValueTypeUnsafe(lhsVst->GetOst()->GetPointerVstIdx());
+  }
+}
+
+void AliasClass::ApplyUnionForCommonDirectCalls(StmtNode &stmt) {
+  const FuncDesc &desc = GetFuncDescFromCallStmt(static_cast<CallNode&>(stmt));
+  bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
+  for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
+    const AliasInfo &ainfo = CreateAliasInfoExpr(*stmt.Opnd(i));
+    // no need to solve args that are not used or readSelfOnly.
+    if (desc.IsArgUnused(i)) {
+      continue;
+    }
+    if (desc.IsReturnNoAlias() && desc.IsArgReadSelfOnly(i)) {
+      continue;
+    }
+    if (desc.IsReturnNoAlias() && desc.IsArgReadMemoryOnly(i) &&
+        ainfo.vst != nullptr && ssaTab.GetNextLevelOsts(*ainfo.vst) != nullptr) {
+      // Arg reads memory, we should set mayUse(*arg) here.
+      // If it has next level, memory alias of its nextLev will be inserted to MayUse later.
+      // If it has no next level, no elements will be inserted thru this arg.
+      continue;
+    }
+    SetPtrOpndNextLevNADS(*stmt.Opnd(i), ainfo.vst, hasnoprivatedefeffect);
+    SetPtrFieldsOfAggNextLevNADS(stmt.Opnd(i), ainfo.vst);
+    if (!desc.NoDirectGlobleAccess()) {
+      continue;
+    }
+    auto *vst = ainfo.vst;
+    if (!vst) {
+      continue;
+    }
+    auto *mirType = vst->GetOst()->GetType();
+    if (mirType->IsMIRPtrType()) {
+      (void)FindOrCreateVstOfExtraLevOst(*stmt.Opnd(i), mirType->GetTypeIndex(), 0, true, false);
+    }
+  }
+}
+
+void AliasClass::ApplyUnionForJavaSpecialCalls(StmtNode &stmt) {
+  const FuncDesc &desc = GetFuncDescFromCallStmt(static_cast<CallNode&>(stmt));
+  bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
+  for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
+    const AliasInfo &ainfo = CreateAliasInfoExpr(*stmt.Opnd(i));
+    if (ainfo.vst == nullptr) {
+      continue;
+    }
+    if (i == 0) {
+      continue;
+    }
+    // no need to solve args that are not used.
+    if (desc.IsArgUnused(i)) {
+      continue;
+    }
+    if (hasnoprivatedefeffect && ainfo.vst->GetOst()->IsPrivate()) {
+      continue;
+    }
+    if (!IsPotentialAddress(stmt.Opnd(i)->GetPrimType())) {
+      continue;
+    }
+    if (stmt.Opnd(i)->GetOpCode() == OP_addrof && IsReadOnlyOst(*ainfo.vst->GetOst())) {
+      continue;
+    }
+    SetNextLevNotAllDefsSeen(ainfo.vst->GetIndex());
+  }
+}
+
+void AliasClass::ApplyUnionForCallAssigned(const StmtNode &stmt) {
+  if (!kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
+    return;
+  }
+  if (stmt.GetOpCode() == OP_callassigned) {
+    auto &callStmt = static_cast<const CallNode&>(stmt);
+    auto *mirFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
+    if (mirFunc != nullptr && mirFunc->GetFuncDesc().IsReturnNoAlias()) {
+      MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtsSSAPart().GetMustDefNodesOf(callStmt);
+      for (auto &mustDef : mustDefs) {
+        RecordAliasAnalysisInfo(*mustDef.GetResult());
+      }
+      return;
+    }
+  }
+  SetNotAllDefsSeenForMustDefs(stmt);
+}
+
 void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
   switch (stmt.GetOpCode()) {
     case OP_maydassign:
     case OP_dassign:
     case OP_regassign: {
-      // RHS
-      ASSERT_NOT_NULL(stmt.Opnd(0));
-      AliasInfo rhsAinfo = CreateAliasInfoExpr(*stmt.Opnd(0));
-      // LHS
-      auto *lhsVst = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt);
-      OriginalSt *lhsOst = lhsVst->GetOst();
-      if (lhsOst->GetFieldID() != 0) {
-        (void)FindOrCreateVstOfAddrofOSt(*lhsOst);
-      }
-      RecordAliasAnalysisInfo(*lhsVst);
-      ApplyUnionForDassignCopy(*lhsVst, rhsAinfo.vst, *stmt.Opnd(0));
-      SetTypeUnsafeForAddrofUnion(rhsAinfo.vst);
+      ApplyUnionForDirectAssign(stmt);
       return;
     }
     case OP_iassign: {
-      auto &iassignNode = static_cast<IassignNode&>(stmt);
-      AliasInfo rhsAinfo = CreateAliasInfoExpr(*iassignNode.Opnd(1));
-      bool isNextLevelArrayType = iassignNode.GetLHSType()->GetKind() == kTypeArray;
-      auto *lhsVst = FindOrCreateVstOfExtraLevOst(
-          *iassignNode.Opnd(0), iassignNode.GetTyIdx(), iassignNode.GetFieldID(), false, isNextLevelArrayType);
-      if (lhsVst != nullptr) {
-        ApplyUnionForDassignCopy(*lhsVst, rhsAinfo.vst, *iassignNode.Opnd(1));
-      }
-      SetTypeUnsafeForAddrofUnion(rhsAinfo.vst);
-      if (iassignNode.IsExpandedFromArrayOfCharFunc()) {
-        TypeBasedAliasAnalysis::SetVstValueTypeUnsafe(lhsVst->GetOst()->GetPointerVstIdx());
-      }
+      ApplyUnionForIndirectAssign(stmt);
       return;
     }
     case OP_throw: {
@@ -1015,27 +1124,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
     case OP_call:
     case OP_callassigned: {
-      const FuncDesc &desc = GetFuncDescFromCallStmt(static_cast<CallNode&>(stmt));
-      bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
-      for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
-        const AliasInfo &ainfo = CreateAliasInfoExpr(*stmt.Opnd(i));
-        // no need to solve args that are not used or readSelfOnly.
-        if (desc.IsArgUnused(i)) {
-          continue;
-        }
-        if (desc.IsReturnNoAlias() && desc.IsArgReadSelfOnly(i)) {
-          continue;
-        }
-        if (desc.IsReturnNoAlias() && desc.IsArgReadMemoryOnly(i) &&
-            ainfo.vst != nullptr && ssaTab.GetNextLevelOsts(*ainfo.vst) != nullptr) {
-          // Arg reads memory, we should set mayUse(*arg) here.
-          // If it has next level, memory alias of its nextLev will be inserted to MayUse later.
-          // If it has no next level, no elements will be inserted thru this arg.
-          continue;
-        }
-        SetPtrOpndNextLevNADS(*stmt.Opnd(i), ainfo.vst, hasnoprivatedefeffect);
-        SetPtrFieldsOfAggNextLevNADS(stmt.Opnd(i), ainfo.vst);
-      }
+      ApplyUnionForCommonDirectCalls(stmt);
       break;
     }
     case OP_virtualcall:
@@ -1052,31 +1141,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     case OP_interfaceicallassigned:
     case OP_customcallassigned:
     case OP_polymorphiccallassigned: {
-      const FuncDesc &desc = GetFuncDescFromCallStmt(static_cast<CallNode&>(stmt));
-      bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
-      for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
-        const AliasInfo &ainfo = CreateAliasInfoExpr(*stmt.Opnd(i));
-        if (ainfo.vst == nullptr) {
-          continue;
-        }
-        if (i == 0) {
-          continue;
-        }
-        // no need to solve args that are not used.
-        if (desc.IsArgUnused(i)) {
-          continue;
-        }
-        if (hasnoprivatedefeffect && ainfo.vst->GetOst()->IsPrivate()) {
-          continue;
-        }
-        if (!IsPotentialAddress(stmt.Opnd(i)->GetPrimType())) {
-          continue;
-        }
-        if (stmt.Opnd(i)->GetOpCode() == OP_addrof && IsReadOnlyOst(*ainfo.vst->GetOst())) {
-          continue;
-        }
-        SetNextLevNotAllDefsSeen(ainfo.vst->GetIndex());
-      }
+      ApplyUnionForJavaSpecialCalls(stmt);
       break;
     }
     case OP_asm:
@@ -1106,20 +1171,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       break;
     }
   }
-  if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
-    if (stmt.GetOpCode() == OP_callassigned) {
-      auto &callStmt = static_cast<CallNode&>(stmt);
-      auto *mirFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
-      if (mirFunc != nullptr && mirFunc->GetFuncDesc().IsReturnNoAlias()) {
-        MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtsSSAPart().GetMustDefNodesOf(callStmt);
-        for (auto &mustDef : mustDefs) {
-          RecordAliasAnalysisInfo(*mustDef.GetResult());
-        }
-        return;
-      }
-    }
-    SetNotAllDefsSeenForMustDefs(stmt);
-  }
+  ApplyUnionForCallAssigned(stmt);
 }
 
 void AliasClass::ApplyUnionForPhi(const PhiNode &phi) {
@@ -2246,7 +2298,7 @@ void AliasClass::CollectMayDefForIassign(StmtNode &stmt, OstPtrSet &mayDefOsts) 
       if (!MayAliasBasicAA(ostOfLhs, aliasedOst)) {
         continue;
       }
-      if (TypeBasedAliasAnalysis::FilterAliasElemOfRHSForIassign(aliasedOst, ostOfLhs, rhsOst)) {
+      if (TypeBasedAliasAnalysis::FilterAliasElemOfRHSForIassign(*aliasedOst, *ostOfLhs, *rhsOst)) {
         continue;
       }
     }
@@ -2325,7 +2377,7 @@ void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt, BBId bbid) {
   AccessSSANodes *theSSAPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
   for (uint32 ostIdx : aliasSet) {
     OriginalSt *aliasOst = ssaTab.GetOriginalStFromID(OStIdx(ostIdx));
-    if (!aliasOst->IsFinal()) {
+    if (aliasOst && !aliasOst->IsFinal()) {
       VersionSt *vst0 = ssaTab.GetVerSt(aliasOst->GetZeroVersionIndex());
       CHECK_FATAL(theSSAPart, "theSSAPart is nullptr!");
       theSSAPart->InsertMayUseNode(MayUseNode(vst0));
@@ -2459,7 +2511,7 @@ void AliasClass::CollectMayUseForIntrnCallOpnd(const StmtNode &stmt,
     bool writeOpnd = intrinDesc->WriteNthOpnd(opndId);
     if (mayDefUseOsts.size() == 0 && writeOpnd) {
       // create next-level ost as it not seen before
-      auto nextLevOst = ssaTab.FindOrCreateExtraLevOst(vst, vst->GetOst()->GetTyIdx(), 0, OffsetType(0));
+      auto nextLevOst = ssaTab.FindOrCreateExtraLevOst(*vst, vst->GetOst()->GetTyIdx(), 0, OffsetType(0));
       CHECK_FATAL(nextLevOst != nullptr, "Failed to create next-level ost");
       auto *zeroVersionOfNextLevOst = ssaTab.GetVerSt(nextLevOst->GetZeroVersionIndex());
       RecordAliasAnalysisInfo(*zeroVersionOfNextLevOst);
@@ -2550,18 +2602,22 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCal
   const FuncDesc *desc = nullptr;
   if (isDirectCall) {
     desc = &GetFuncDescFromCallStmt(static_cast<CallNode&>(stmt));
-    hasSideEffect = !desc->IsPure() && !desc->IsConst();
+    hasSideEffect = desc->GetFuncInfo() < FI::kNoDirectGlobleAccess;
   }
   auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
   OstPtrSet mayDefOstsA;
   OstPtrSet mayUseOstsA;
   OstPtrSet mustNotDefOsts;
   OstPtrSet mustNotUseOsts;
+  bool mayUseNads = desc == nullptr || (!desc->NoDirectGlobleAccess() && !desc->IsConst());
+  bool mayDefNads = hasSideEffect;
   // 1. collect mayDefs and mayUses caused by callee-opnds
   CollectMayDefUseForCallOpnd(stmt, mayDefOstsA, mayUseOstsA, mustNotDefOsts, mustNotUseOsts);
   // 2. collect mayDefs and mayUses caused by not_all_def_seen_ae
-  OstPtrSetSub(nadsOsts, mustNotUseOsts, mayUseOstsA);
-  if (hasSideEffect) {
+  if (mayUseNads) {
+    OstPtrSetSub(nadsOsts, mustNotUseOsts, mayUseOstsA);
+  }
+  if (mayDefNads) {
     OstPtrSetSub(nadsOsts, mustNotDefOsts, mayDefOstsA);
   }
   // insert mayuse node caused by opnd and not_all_def_seen_ae.
@@ -2572,11 +2628,11 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCal
   // 3. insert mayDefs and mayUses caused by globalsAffectedByCalls
   OstPtrSet mayDefUseOfGOsts;
   CollectMayUseFromGlobalsAffectedByCalls(mayDefUseOfGOsts);
-  if (desc == nullptr || !desc->IsConst()) {
+  if (mayUseNads) {
     InsertMayUseNode(mayDefUseOfGOsts, ssaPart);
   }
   // insert may def node, if the callee has side-effect.
-  if (hasSideEffect) {
+  if (mayDefNads) {
     InsertMayDefNodeExcludeFinalOst(mayDefUseOfGOsts, ssaPart, stmt, bbid);
   }
   if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {

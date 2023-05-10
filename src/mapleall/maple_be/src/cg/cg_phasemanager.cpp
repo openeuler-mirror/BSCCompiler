@@ -19,7 +19,6 @@
 #include "args.h"
 #include "label_creation.h"
 #include "driver_options.h"
-#include "expand128floats.h"
 #include "isel.h"
 #include "offset_adjust.h"
 #include "alignment.h"
@@ -28,6 +27,7 @@
 #include "reg_alloc.h"
 #include "target_info.h"
 #include "standardize.h"
+#include "cg_callgraph_reorder.h"
 #if defined(TARGAARCH64) && TARGAARCH64
 #include "aarch64_emitter.h"
 #include "aarch64_cg.h"
@@ -66,6 +66,129 @@ void DumpMIRFunc(MIRFunction &func, const char *msg, bool printAlways = false, c
 }
 
 } /* anonymous namespace */
+
+// a tricky implementation of accessing TLS symbol
+// call to __tls_get_addr has been arranged at init_array of specific so/exec
+// the TLSLD entry of the module will be recorded in a global accessable symbol
+void PrepareForWarmupDynamicTLS(MIRModule &m) {
+  if (m.GetTdataVarOffset().empty() && m.GetTbssVarOffset().empty()) {
+    return;
+  }
+  auto *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
+  auto *anchorMirConst = m.GetMemPool()->New<MIRIntConst>(0, *ptrType);
+
+  ArgVector formals(m.GetMPAllocator().Adapter());
+  MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
+  auto *tlsWarmup = m.GetMIRBuilder()->CreateFunction("__tls_address_warmup_" + m.GetTlsAnchorHashString(),
+      *voidTy, formals);
+  auto *warmupBody = tlsWarmup->GetCodeMempool()->New<BlockNode>();
+  MIRSymbol *tempAnchorSym = nullptr;
+  AddrofNode *tlsAddrNode = nullptr;
+  DassignNode *dassignNode = nullptr;
+
+  if (!m.GetTdataVarOffset().empty()) {
+    auto *tdataAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tdata_addr_" + m.GetTlsAnchorHashString(),
+        *ptrType);
+    tdataAnchorSym->SetKonst(anchorMirConst);
+    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tdata_start_" + m.GetTlsAnchorHashString(), *ptrType);
+    tempAnchorSym->SetIsDeleted();
+    tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
+    dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
+    dassignNode->SetStIdx(tdataAnchorSym->GetStIdx());
+    dassignNode->SetFieldID(0);
+    dassignNode->SetOpnd(tlsAddrNode, 0);
+    warmupBody->AddStatement(dassignNode);
+  }
+
+  if (!m.GetTbssVarOffset().empty()) {
+    auto *tbssAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tbss_addr_" + m.GetTlsAnchorHashString(), *ptrType);
+    tbssAnchorSym->SetKonst(anchorMirConst);
+    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tbss_start_" + m.GetTlsAnchorHashString(), *ptrType);
+    tempAnchorSym->SetIsDeleted();
+    tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
+    dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
+    dassignNode->SetStIdx(tbssAnchorSym->GetStIdx());
+    dassignNode->SetFieldID(0);
+    dassignNode->SetOpnd(tlsAddrNode, 0);
+    warmupBody->AddStatement(dassignNode);
+  }
+
+  tlsWarmup->SetBody(warmupBody);
+  tlsWarmup->SetAttr(FUNCATTR_section);
+  tlsWarmup->GetFuncAttrs().SetPrefixSectionName(".init_array");
+  m.AddFunction(tlsWarmup);
+}
+
+
+// calculate all local dynamic TLS offset from the anchor
+void CalculateWarmupDynamicTLS(MIRModule &m) {
+  size_t size = GlobalTables::GetGsymTable().GetSymbolTableSize();
+  MIRType *mirType = nullptr;
+  uint64 tdataOffset = 0;
+  uint64 tbssOffset = 0;
+  MapleMap<const MIRSymbol*, uint64> &tdataVarOffset = m.GetTdataVarOffset();
+  MapleMap<const MIRSymbol*, uint64> &tbssVarOffset = m.GetTbssVarOffset();
+
+  for (auto it = m.GetFunctionList().begin(); it != m.GetFunctionList().end(); ++it) {
+    MIRFunction *mirFunc = *it;
+    if (mirFunc->GetBody() == nullptr || mirFunc->GetSymTab() == nullptr) {
+      continue;
+    }
+    MIRSymbolTable *lSymTab = mirFunc->GetSymTab();
+    size_t lsize = lSymTab->GetSymbolTableSize();
+    for (size_t i = 0; i < lsize; i++) {
+      const MIRSymbol *mirSymbol = lSymTab->GetSymbolFromStIdx(static_cast<uint32>(i));
+      mirType = mirSymbol->GetType();
+      uint64 align = 0;
+      if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+          mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
+        align = k8ByteSize;
+      } else {
+        align = mirType->GetAlign();
+      }
+      if (mirSymbol == nullptr || mirSymbol->GetStorageClass() != kScPstatic) {
+        continue;
+      }
+      if (mirSymbol->IsThreadLocal()) {
+        if (!mirSymbol->IsConst()) {
+          tbssOffset = RoundUp(tbssOffset, align);
+          tbssVarOffset[mirSymbol] = tbssOffset;
+          tbssOffset += mirType->GetSize();
+        } else {
+          tdataOffset = RoundUp(tdataOffset, align);
+          tdataVarOffset[mirSymbol] = tdataOffset;
+          tdataOffset += mirType->GetSize();
+        }
+      }
+    }
+  }
+
+  for (size_t i = 0; i < size; ++i) {
+    const MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
+    if (mirSymbol == nullptr || mirSymbol->GetStorageClass() == kScExtern) {
+      continue;
+    }
+    mirType = mirSymbol->GetType();
+    uint64 align = 0;
+    if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+        mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
+      align = k8ByteSize;
+    } else {
+      align = mirType->GetAlign();
+    }
+    if (mirSymbol->IsThreadLocal()) {
+      if (!mirSymbol->IsConst()) {
+        tbssOffset = RoundUp(tbssOffset, align);
+        tbssVarOffset[mirSymbol] = tbssOffset;
+        tbssOffset += mirType->GetSize();
+      } else {
+        tdataOffset = RoundUp(tdataOffset, align);
+        tdataVarOffset[mirSymbol] = tdataOffset;
+        tdataOffset += mirType->GetSize();
+      }
+    }
+  }
+}
 
 void CgFuncPM::GenerateOutPutFile(MIRModule &m) const {
   CHECK_FATAL(cg != nullptr, "cg is null");
@@ -237,6 +360,21 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) const {
 }
 
 void InitFunctionPriority(std::map<std::string, uint32> &prioritylist) {
+  std::string reorderAlgo = CGOptions::GetFunctionReorderAlgorithm();
+  if (!reorderAlgo.empty()) {
+    std::string reorderProfile = CGOptions::GetFunctionReorderProfile();
+    if (reorderProfile.empty()) {
+      LogInfo::MapleLogger() << "WARN: function reorder need profile"
+                             << "\n";
+    }
+    if (reorderAlgo == "call-chain-clustering") {
+      prioritylist = ReorderAccordingProfile(reorderProfile);
+    } else {
+      LogInfo::MapleLogger() << "WARN: function reorder algorithm no support"
+                             << "\n";
+    }
+    return;
+  }
   if (CGOptions::GetFunctionPriority() != "") {
     std::string fileName = CGOptions::GetFunctionPriority();
     std::ifstream in(fileName);
@@ -264,12 +402,34 @@ void InitFunctionPriority(std::map<std::string, uint32> &prioritylist) {
   }
 }
 
-void MarkFunctionPriority(std::map<std::string, uint32> &prioritylist, CGFunc &f) {
+static void MarkFunctionPriority(std::map<std::string, uint32> &prioritylist, CGFunc &f) {
   if (!prioritylist.empty()) {
     if (prioritylist.count(f.GetName()) != 0) {
       f.SetPriority(prioritylist[f.GetName()]);
     }
   }
+}
+
+static std::optional<MapleList<MIRFunction *>> ReorderFunction(MIRModule &m,
+                                                                 const std::map<std::string, uint32> &priorityList) {
+  if (!opts::linkerTimeOpt.IsEnabledByUser()) {
+    return std::nullopt;
+  }
+  if (priorityList.empty()) {
+    return std::nullopt;
+  }
+  MapleList<MIRFunction *> reorderdFunctionList(m.GetMPAllocator().Adapter());
+  std::vector<MIRFunction *> hotFunctions(priorityList.size());
+  for (auto f : m.GetFunctionList()) {
+    if (priorityList.find(f->GetName()) != priorityList.end()) {
+      CHECK_FATAL(hotFunctions.size() > priorityList.at(f->GetName()) - 1, "func priority out of range");
+      hotFunctions[priorityList.at(f->GetName()) - 1] = f;
+    } else {
+      reorderdFunctionList.push_back(f);
+    }
+  }
+  std::copy(hotFunctions.begin(), hotFunctions.end(), std::back_inserter(reorderdFunctionList));
+  return reorderdFunctionList;
 }
 
 /* =================== new phase manager ===================  */
@@ -292,6 +452,13 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
     std::map<std::string, uint32> priorityList;
     InitFunctionPriority(priorityList);
 
+    auto reorderedFunctions = ReorderFunction(m, priorityList);
+
+    if (opts::aggressiveTlsLocalDynamicOpt) {
+      m.SetTlsAnchorHashString();
+      PrepareForWarmupDynamicTLS(m);
+    }
+
     uint32 countFuncId = 0;
     unsigned long rangeNum = 0;
 
@@ -300,10 +467,19 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 
     auto admMempool = AllocateMemPoolInPhaseManager("cg phase manager's analysis data manager mempool");
     auto *serialADM = GetManagerMemPool()->New<AnalysisDataManager>(*(admMempool.get()));
-    for (auto it = m.GetFunctionList().begin(); it != m.GetFunctionList().end(); ++it) {
+    auto *funcList = &m.GetFunctionList();
+    if (reorderedFunctions) {
+      funcList = &reorderedFunctions.value();
+    }
+    for (auto it = funcList->begin(); it != funcList->end(); ++it) {
       ASSERT(serialADM->CheckAnalysisInfoEmpty(), "clean adm before function run");
       MIRFunction *mirFunc = *it;
       if (mirFunc->GetBody() == nullptr) {
+        if (mirFunc->GetAttr(FUNCATTR_visibility_hidden)) {
+          (void)cg->GetEmitter()->Emit("\t.hidden\t").Emit(mirFunc->GetName()).Emit("\n");
+        } else if (mirFunc->GetAttr(FUNCATTR_visibility_protected)) {
+          (void)cg->GetEmitter()->Emit("\t.protected\t").Emit(mirFunc->GetName()).Emit("\n");
+        }
         continue;
       }
 
@@ -324,12 +500,6 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       }
       /* LowerIR. */
       m.SetCurFunction(mirFunc);
-
-      if (opts::expand128Floats) {
-        DumpMIRFunc(*mirFunc, "************* before Expand128Floats **************");
-        Expand128Floats expand128Floats(m);
-        expand128Floats.ProcessFunc(mirFunc);
-      }
 
       if (cg->DoConstFold()) {
         DumpMIRFunc(*mirFunc, "************* before ConstantFold **************");
@@ -414,12 +584,9 @@ void CgFuncPM::InitProfile(MIRModule &m)  const {
     }
   }
   if (!CGOptions::GetLiteProfile().empty()) {
-    bool handleSucc = m.GetLiteProfile().HandleLitePGOFile(CGOptions::GetLiteProfile(), m.GetFileName());
-    CHECK_FATAL(handleSucc, "Error: Open Lite PGO input file failed");
-    if (!handleSucc) {
-      LogInfo::MapleLogger() << "WARN: Handle Lite PGO input file " << CGOptions::GetLiteProfile() <<
-                                "failed in mplcg\n";
-    }
+    bool handleSucc = m.GetLiteProfile().HandleLitePGOFile(CGOptions::GetLiteProfile(), m);
+    CHECK_FATAL(handleSucc, "Error: Handle Lite PGO input file ",
+                CGOptions::GetLiteProfile().c_str(), "failed in mplcg");
   }
 }
 
@@ -463,7 +630,7 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
 
 #if TARGAARCH64
   if (!m.IsCModule()) {
-    CGOptions::EnableFramePointer();
+    CGOptions::SetFramePointer(CGOptions::kAllFP);
   }
 #endif
 }

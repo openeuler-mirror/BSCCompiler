@@ -138,15 +138,15 @@ class MeProfUse : public PGOInstrument<BBUseEdge> {
     return succCalcuAllEdgeFreq;
   }
   bool MapleProfRun();
-  void CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag);
+  void CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag) const;
  private:
   bool IsAllZero(Profile::BBInfo &result) const;
-  void SetEdgeCount(BBUseEdge &edge, FreqType value);
-  void SetEdgeCount(MapleVector<BBUseEdge*> &edges, FreqType value);
+  void SetEdgeCount(BBUseEdge &edge, FreqType value) const;
+  void SetEdgeCount(MapleVector<BBUseEdge*> &edges, FreqType value) const;
   void ComputeEdgeFreq();
   void InitBBEdgeInfo();
-  void ComputeBBFreq(BBUseInfo &bbInfo, bool &changed);
-  FuncProfInfo *GetFuncData();
+  void ComputeBBFreq(BBUseInfo &bbInfo, bool &changed) const;
+  FuncProfInfo *GetFuncData() const;
 
   FreqType SumEdgesCount(const MapleVector<BBUseEdge*> &edges) const;
   BBUseInfo *GetBBUseInfo(const BB &bb) const;

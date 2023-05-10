@@ -48,7 +48,7 @@ class DbgInsn : public maplebe::Insn {
       maplebe::Operand &opnd2)
       : Insn(memPool, op, opnd0, opnd1, opnd2) {}
 
-  ~DbgInsn() = default;
+  ~DbgInsn() override = default;
 
   bool IsMachineInstruction() const override {
     return false;
@@ -92,7 +92,7 @@ class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
  public:
   explicit ImmOperand(int64 val) : OperandVisitable(kOpdImmediate, 32), val(val) {}
 
-  ~ImmOperand() = default;
+  ~ImmOperand() override = default;
   using OperandVisitable<ImmOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
@@ -119,7 +119,7 @@ class DBGOpndEmitVisitor : public maplebe::OperandVisitorBase,
                            public maplebe::OperandVisitor<ImmOperand> {
  public:
   explicit DBGOpndEmitVisitor(maplebe::Emitter &asmEmitter): emitter(asmEmitter) {}
-  virtual ~DBGOpndEmitVisitor() = default;
+  ~DBGOpndEmitVisitor() override = default;
  protected:
   maplebe::Emitter &emitter;
  private:

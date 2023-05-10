@@ -33,7 +33,7 @@ class MeSSA : public SSA, public AnalysisResult {
         AnalysisResult(&memPool),
         func(&func), eDebug(enabledDebug) {}
 
-  ~MeSSA() = default;
+  ~MeSSA() override = default;
 
   void VerifySSA() const;
   void InsertIdentifyAssignments(IdentifyLoops *identloops);

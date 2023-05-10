@@ -18,7 +18,7 @@
 #include "aarch64_ico.h"
 #include "aarch64_isa.h"
 #include "aarch64_insn.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_ico.h"
 #include "riscv64_isa.h"
 #include "riscv64_insn.h"
@@ -47,6 +47,16 @@ Insn *ICOPattern::FindLastCmpInsn(BB &bb) const {
   return nullptr;
 }
 
+std::vector<LabelOperand*> ICOPattern::GetLabelOpnds(const Insn &insn) const {
+  std::vector<LabelOperand*> labelOpnds;
+  for (uint32 i = 0; i < insn.GetOperandSize(); i++) {
+    if (insn.GetOperand(i).IsLabelOpnd()) {
+      labelOpnds.emplace_back(static_cast<LabelOperand*>(&insn.GetOperand(i)));
+    }
+  }
+  return labelOpnds;
+}
+
 bool CgIco::PhaseRun(maplebe::CGFunc &f) {
   LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   if (ICO_DUMP_NEWPM) {
@@ -57,13 +67,19 @@ bool CgIco::PhaseRun(maplebe::CGFunc &f) {
 #if TARGAARCH64 || TARGRISCV64
   ico = memPool->New<AArch64IfConversionOptimizer>(f, *memPool);
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   ico = memPool->New<Arm32IfConversionOptimizer>(f, *memPool);
 #endif
   const std::string &funcClass = f.GetFunction().GetBaseClassName();
   const std::string &funcName = f.GetFunction().GetBaseFuncName();
   std::string name = funcClass + funcName;
   ico->Run(name);
+  if (ico->IsOptimized()) {
+    // This phase modifies the cfg, which affects the loop analysis result,
+    // so we need to run loop-analysis again.
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
+    (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+  }
   if (ICO_DUMP_NEWPM) {
     DotGenerator::GenerateDot("ico-after", f, f.GetMirModule());
   }

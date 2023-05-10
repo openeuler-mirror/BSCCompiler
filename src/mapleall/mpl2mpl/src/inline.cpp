@@ -327,7 +327,7 @@ void MInline::InlineCalls(CGNode &node) {
   } while (changed && currInlineDepth < Options::inlineDepth && GetNumStmtsOfFunc(*func) <= kBigFuncNumStmts);
 }
 
-bool MInline::CalleeReturnValueCheck(StmtNode &stmtNode, CallNode &callStmt) {
+bool MInline::CalleeReturnValueCheck(StmtNode &stmtNode, CallNode &callStmt) const {
   NaryStmtNode &returnNode = static_cast<NaryStmtNode&>(stmtNode);
   if (!kOpcodeInfo.IsCallAssigned(callStmt.GetOpCode()) && returnNode.NumOpnds() == 0) {
     return true;
@@ -468,7 +468,7 @@ void MInline::AdjustInlineThreshold(const MIRFunction &caller, MIRFunction &call
   }
 }
 
-bool MInline::IsSmallCalleeForEarlyInline(MIRFunction &callee, int32 *outInsns = nullptr) {
+bool MInline::IsSmallCalleeForEarlyInline(MIRFunction &callee, int32 *outInsns = nullptr) const {
   MemPool tempMemPool(memPoolCtrler, "");
   StmtCostAnalyzer stmtCostAnalyzer(&tempMemPool, &callee);
   int32 insns = 0;
@@ -520,8 +520,8 @@ InlineResult MInline::AnalyzeCallee(const MIRFunction &caller, MIRFunction &call
 }
 
 void MInline::PostInline(MIRFunction &caller) {
-  auto it = funcToCostMap.find(&caller);
-  if (it != funcToCostMap.end()) {
+  auto it = std::as_const(funcToCostMap).find(&caller);
+  if (it != funcToCostMap.cend()) {
     (void)funcToCostMap.erase(it);
   }
 }

@@ -34,13 +34,6 @@
 #include "debug_info.h"
 #include "alignment.h"
 
-namespace maple {
-const char *GetDwTagName(unsigned n);
-const char *GetDwFormName(unsigned n);
-const char *GetDwAtName(unsigned n);
-const char *GetDwOpName(unsigned n);
-}  /* namespace maple */
-
 #if defined(TARGRISCV64) && TARGRISCV64
 #define CMNT "\t# "
 #else
@@ -241,6 +234,7 @@ class Emitter {
     return *this;
   }
 
+  void InsertAnchor(std::string anchorName, int64 offset); // provide anchor in specific postion for better assembly
   void EmitLabelRef(LabelIdx labIdx);
   void EmitStmtLabel(LabelIdx labIdx);
   void EmitLabelPair(const LabelPair &pairLabel);
@@ -266,7 +260,7 @@ class Emitter {
   void EmitDIDebugRangesSection();
   void EmitDIDebugLineSection();
   void EmitDIDebugStrSection();
-  MIRFunction *GetDwTagSubprogram(const MapleVector<DBGDieAttr*> &attrvec, DebugInfo &di);
+  MIRFunction *GetDwTagSubprogram(const MapleVector<DBGDieAttr*> &attrvec, DebugInfo &di) const;
   void EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTag tagName, DebugInfo *di);
   void EmitDIFormSpecification(unsigned int dwform);
   void EmitDIFormSpecification(const DBGDieAttr *attr) {
@@ -359,7 +353,9 @@ class Emitter {
   void EmitDWRef(const std::string &name);
   void InitRangeIdx2PerfixStr();
   void EmitAddressString(const std::string &address);
-  void EmitAliasAndRef(const MIRSymbol &sym); /* handle function symbol which has alias and weak ref */
+  void EmitAliasAndRef(const MIRSymbol &sym); // handle function symbol which has alias and weak ref
+  // collect all global TLS together -- better perfomance for local dynamic
+  void EmitTLSBlock(const std::vector<MIRSymbol*> &tdataVec, const std::vector<MIRSymbol*> &tbssVec);
 
   CG *cg;
   MOperator currentMop = UINT_MAX;
@@ -380,6 +376,10 @@ class Emitter {
 #endif
   MapleMap<DBGDie*, LabelIdx> labdie2labidxTable;
   MapleMap<uint32_t, std::string> fileMap;
+
+  // for global warmup localDynamicOpt
+  std::vector<MIRSymbol*> globalTlsDataVec;
+  std::vector<MIRSymbol*> globalTlsBssVec;
 };
 
 class OpndEmitVisitor : public OperandVisitorBase,
@@ -396,9 +396,13 @@ class OpndEmitVisitor : public OperandVisitorBase,
                                                ExtendShiftOperand,
                                                CommentOperand> {
  public:
-  explicit OpndEmitVisitor(Emitter &asmEmitter): emitter(asmEmitter) {}
-  virtual ~OpndEmitVisitor() = default;
-  uint8 GetSlot() {
+  explicit OpndEmitVisitor(Emitter &asmEmitter, const OpndDesc *operandProp)
+      : emitter(asmEmitter),
+        opndProp(operandProp) {}
+  ~OpndEmitVisitor() override {
+    opndProp = nullptr;
+  }
+  uint8 GetSlot() const {
     return slot;
   }
   void SetSlot(uint8 startIndex) {
@@ -419,6 +423,7 @@ class OpndEmitVisitor : public OperandVisitorBase,
    * asm {{destReg0, destReg2 ...}, srcReg}          -----> slot = 0
    */
   uint8 slot = 255;
+  const OpndDesc *opndProp;
 };
 }  /* namespace maplebe */
 

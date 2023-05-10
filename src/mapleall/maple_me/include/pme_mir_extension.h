@@ -27,9 +27,9 @@ class PreMeMIRExtension {
     MeStmt *mestmt;
   };
 
-  explicit PreMeMIRExtension (BaseNode *p) : parent(p), meexpr(nullptr) {}
-  PreMeMIRExtension (BaseNode *p, MeExpr *expr) : parent(p), meexpr(expr) {}
-  PreMeMIRExtension (BaseNode *p, MeStmt *stmt) : parent(p), mestmt(stmt) {}
+  explicit PreMeMIRExtension(BaseNode *p) : parent(p), meexpr(nullptr) {}
+  PreMeMIRExtension(BaseNode *p, MeExpr *expr) : parent(p), meexpr(expr) {}
+  PreMeMIRExtension(BaseNode *p, MeStmt *stmt) : parent(p), mestmt(stmt) {}
   virtual ~PreMeMIRExtension() = default;
   BaseNode *GetParent() { return parent; }
   MeExpr *GetMeExpr()   { return meexpr; }

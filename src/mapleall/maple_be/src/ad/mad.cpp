@@ -16,7 +16,7 @@
 #include <string>
 #if TARGAARCH64
 #include "aarch64_operand.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_operand.h"
 #endif
 #include "schedule.h"
@@ -278,6 +278,9 @@ bool AluShiftBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
   return &(defInsn.GetOperand(kInsnFirstOpnd)) != &(useInsn.GetOperand(kInsnSecondOpnd));
 }
 
+/*
+ * AccumulatorBypass: from multiplier to summator
+ */
 bool AccumulatorBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
   /*
    * hook condition

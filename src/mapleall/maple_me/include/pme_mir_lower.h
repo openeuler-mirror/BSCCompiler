@@ -27,7 +27,7 @@ class PreMeMIRLower : public MIRLower {
       : MIRLower(mod, f->GetMirFunc()),
         func(f),
         preMeFunc(f->GetPreMeFunc()) {}
-  virtual ~PreMeMIRLower() = default;
+  ~PreMeMIRLower() override = default;
 
   BlockNode *LowerWhileStmt(WhileStmtNode &whileStmt) override;
   BlockNode *LowerIfStmt(IfStmtNode &ifstmt, bool recursive = true) override;

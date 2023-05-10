@@ -928,7 +928,7 @@ class InlineSummaryCollector {
     inlineSummary = func->GetMirFunc()->GetOrCreateInlineSummary();
   }
 
-  void PreparePredicateForBB(BB &bb) {
+  void PreparePredicateForBB(const BB &bb) {
     auto bbId = bb.GetBBId().get();
     if (allBBPred[bbId] == nullptr) {
       allBBPred[bbId] = tmpAlloc.New<BBPredicate>(tmpAlloc);

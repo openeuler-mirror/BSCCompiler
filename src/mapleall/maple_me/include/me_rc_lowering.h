@@ -55,36 +55,36 @@ class RCLowering {
   void TraverseAllStmts(BB &bb);
   void RestoreVersionRecords(std::map<OStIdx, size_t> &savedStackSize);
   void UnmarkNotNeedDecRefOpnds();
-  void EpreFixup(BB &bb);
+  void EpreFixup(BB &bb) const;
   void BBLower(BB &bb);
   void CreateCleanupIntrinsics();
   void HandleArguments();
   void CompactRC(BB &bb);
-  void CompactIncAndDec(const MeStmt &incStmt, const MeStmt &decStmt);
-  void CompactIncAndDecReset(const MeStmt &incStmt, const MeStmt &resetStmt);
-  void ReplaceDecResetWithDec(MeStmt &prevStmt, const MeStmt &stmt);
-  void CompactAdjacentDecReset(const MeStmt &prevStmt, const MeStmt &stmt);
+  void CompactIncAndDec(MeStmt &incStmt, MeStmt &decStmt);
+  void CompactIncAndDecReset(MeStmt &incStmt, MeStmt &resetStmt);
+  void ReplaceDecResetWithDec(MeStmt &prevStmt, MeStmt &stmt);
+  void CompactAdjacentDecReset(MeStmt &prevStmt, MeStmt &stmt);
   // create new symbol from name and return its ost
-  OriginalSt *RetrieveOSt(const std::string &name, bool isLocalrefvar) const;
+  OriginalSt *RetrieveOSt(const std::string &name, bool isLocalRefVar) const;
   // create new symbol from temp name and return its VarMeExpr
   // new symbols are stored in a set
-  VarMeExpr *CreateNewTmpVarMeExpr(bool isLocalrefvar);
+  VarMeExpr *CreateNewTmpVarMeExpr(bool isLocalRefVar);
   VarMeExpr *CreateVarMeExprFromSym(MIRSymbol &sym) const;
   // return true if the rhs is simple so we can adjust RC count before assignments
-  bool RCFirst(MeExpr &rhs);
+  bool RCFirst(MeExpr &rhs) const;
   IntrinsiccallMeStmt *GetVarRHSHandleStmt(const MeStmt &stmt);
   IntrinsiccallMeStmt *GetIvarRHSHandleStmt(const MeStmt &stmt);
-  MIRIntrinsicID PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID index = INTRN_UNDEFINED);
+  MIRIntrinsicID PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId = INTRN_UNDEFINED) const;
   IntrinsiccallMeStmt *CreateRCIntrinsic(MIRIntrinsicID intrnID, const MeStmt &stmt, std::vector<MeExpr*> &opnds,
                                          bool assigned = false);
-  MeExpr *HandleIncRefAndDecRefStmt(const MeStmt &stmt);
+  MeExpr *HandleIncRefAndDecRefStmt(MeStmt &stmt);
   void InitializedObjectFields(MeStmt &stmt);
   bool IsInitialized(IvarMeExpr &ivar);
   void PreprocessAssignMeStmt(MeStmt &stmt);
   void HandleAssignMeStmtRHS(MeStmt &stmt);
-  void HandleAssignMeStmtRegLHS(const MeStmt &stmt);
-  void HandleAssignToGlobalVar(const MeStmt &stmt);
-  void HandleAssignToLocalVar(const MeStmt &stmt, MeExpr *pendingDec);
+  void HandleAssignMeStmtRegLHS(MeStmt &stmt);
+  void HandleAssignToGlobalVar(MeStmt &stmt);
+  void HandleAssignToLocalVar(MeStmt &stmt, MeExpr *pendingDec);
   void HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec);
   void HandleAssignMeStmtIvarLHS(MeStmt &stmt);
   void HandleCallAssignedMeStmt(MeStmt &stmt, MeExpr *pendingDec);
@@ -92,7 +92,7 @@ class RCLowering {
   void HandleRetOfCallAssignedMeStmt(MeStmt &stmt, MeExpr &pendingDec);
   void HandleReturnVar(RetMeStmt &ret);
   void HandleReturnGlobal(RetMeStmt &ret);
-  void HandleReturnRegread(const RetMeStmt &ret);
+  void HandleReturnRegread(RetMeStmt &ret);
   void HandleReturnFormal(RetMeStmt &ret);
   void HandleReturnIvar(RetMeStmt &ret);
   void HandleReturnReg(RetMeStmt &ret);
@@ -101,15 +101,15 @@ class RCLowering {
   void HandleReturnStmt();
   void HandleAssignMeStmt(MeStmt &stmt, MeExpr *pendingDec);
   void HandlePerManent(MeStmt &stmt);
-  bool HasCallOrBranch(const MeStmt &from, const MeStmt &to);
+  bool HasCallOrBranch(const MeStmt &from, const MeStmt &to) const;
   MIRIntrinsicID SelectWriteBarrier(const MeStmt &stmt);
-  MIRType *GetArrayNodeType(const VarMeExpr &var);
-  void CheckArrayStore(const IntrinsiccallMeStmt &writeRefCall);
+  MIRType *GetArrayNodeType(const VarMeExpr &var) const;
+  void CheckArrayStore(IntrinsiccallMeStmt &writeRefCall);
   void FastLowerThrowStmt(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites);
   void FastLowerRetStmt(MeStmt &stmt);
   void FastLowerRetVar(RetMeStmt &stmt);
   void FastLowerRetIvar(RetMeStmt &stmt);
-  void FastLowerRetReg(const RetMeStmt &stmt);
+  void FastLowerRetReg(RetMeStmt &stmt);
   void FastLowerAssignToVar(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites);
   void FastLowerAssignToIvar(MeStmt &stmt);
   void FastLowerCallAssignedStmt(MeStmt &stmt);

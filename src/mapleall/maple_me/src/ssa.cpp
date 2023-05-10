@@ -44,7 +44,7 @@ bool IsLocalTopLevelOst(const OriginalSt &ost) {
 }
 
 void SSA::InsertPhiForDefBB(size_t bbid, VersionSt *vst) {
-  for (BBId dfBBId : dom->GetDomFrontier(bbid)) {
+  for (auto dfBBId : dom->GetDomFrontier(bbid)) {
     BB *phiBB = bbVec[dfBBId];
     CHECK_FATAL(phiBB != nullptr, "MeSSA::InsertPhiNode: non-existent BB for definition");
     auto successTag = phiBB->InsertPhi(&ssaTab->GetVersAlloc(), vst);
@@ -258,15 +258,15 @@ void SSA::RenamePhiUseInSucc(const BB &bb) const {
   }
 }
 
-void SSA::RenameAllBBs(const MeCFG *cfg) {
+void SSA::RenameAllBBs(const MeCFG &cfg) {
   // renameMP is a tmp mempool, will be release after rename.
   auto renameMP = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "ssa-rename-mempool");
   MapleAllocator renameAlloc(renameMP.get());
   InitRenameStack(ssaTab->GetOriginalStTable(), ssaTab->GetVersionStTable(), renameAlloc);
   // recurse down dominator tree in pre-order traversal
-  auto *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
-  for (BBId child : *children) {
-    RenameBB(*cfg->GetBBFromID(child));
+  auto *children = &dom->GetDomChildren(cfg.GetCommonEntryBB()->GetID());
+  for (auto child : *children) {
+    RenameBB(*cfg.GetBBFromID(BBId(child)));
   }
   vstStacks = nullptr;
 }
@@ -286,8 +286,8 @@ void SSA::RenameBB(BB &bb) {
   RenamePhiUseInSucc(bb);
   // Rename child in Dominator Tree.
   ASSERT(bb.GetBBId() < dom->GetDomChildrenSize(), "index out of range in MeSSA::RenameBB");
-  const auto &children = dom->GetDomChildren(bb.GetBBId());
-  for (const BBId &child : children) {
+  const auto &children = dom->GetDomChildren(bb.GetID());
+  for (const auto &child : children) {
     RenameBB(*bbVec[child]);
   }
   for (size_t i = 1; i < GetVstStacks().size(); ++i) {

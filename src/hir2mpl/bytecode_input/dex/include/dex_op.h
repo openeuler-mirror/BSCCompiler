@@ -651,7 +651,7 @@ class DexOpBinaryOpLit : public DexOp {
 };
 
 // 0xfa ~ 0xfb
-class DexOpInvokePolymorphic: public DexOpInvoke {
+class DexOpInvokePolymorphic : public DexOpInvoke {
  public:
   DexOpInvokePolymorphic(MapleAllocator &allocatorIn, uint32 pcIn, DexOpCode opcodeIn);
   ~DexOpInvokePolymorphic() = default;

@@ -52,6 +52,10 @@ class RedundantComputeElim;
 class TailCallOpt;
 class Rematerializer;
 class CGProfGen;
+class GlobalSchedule;
+class LocalSchedule;
+class ControlDepAnalysis;
+class InterDataDepAnalysis;
 class CGAggressiveOpt;
 
 class Globals {
@@ -87,11 +91,15 @@ class Globals {
     return mad;
   }
 
-  void SetOptimLevel(int32 opLevel) {
+  void ClearMAD() {
+    mad = nullptr;
+  }
+
+  void SetOptimLevel(uint32 opLevel) {
     optimLevel = opLevel;
   }
 
-  int32 GetOptimLevel() const {
+  uint32 GetOptimLevel() const {
     return optimLevel;
   }
 
@@ -101,7 +109,7 @@ class Globals {
  private:
   BECommon *beCommon = nullptr;
   MAD *mad = nullptr;
-  int32 optimLevel = 0;
+  uint32 optimLevel = 0;
   CG *cg = nullptr;
   Globals() = default;
 };
@@ -173,7 +181,7 @@ class CG {
     return cgOption.GenerateDebugFriendlyCode();
   }
 
-  int32 GetOptimizeLevel() const {
+  uint32 GetOptimizeLevel() const {
     return cgOption.GetOptimizeLevel();
   }
 
@@ -304,9 +312,17 @@ class CG {
   virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const = 0;
   virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
-  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
+  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const = 0;
   virtual RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const = 0;
+  virtual GlobalSchedule *CreateGlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
+                                               InterDataDepAnalysis &idda) const {
+    return nullptr;
+  }
+  virtual LocalSchedule *CreateLocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
+                                             InterDataDepAnalysis &idda) const {
+    return nullptr;
+  }
   virtual LocalOpt *CreateLocalOpt(MemPool &mp, CGFunc &f, ReachingDefinition&) const {
     return nullptr;
   };

@@ -20,6 +20,14 @@
 #include "operand.h"
 
 namespace maplebe {
+// For verify & split insn
+#define VERIFY_INSN(INSN) (INSN)->VerifySelf()
+#define SPLIT_INSN(INSN, FUNC) \
+  (INSN)->SplitSelf((FUNC)->IsAfterRegAlloc(), (FUNC)->GetInsnBuilder(), (FUNC)->GetOpndBuilder())
+// circular dependency exists, no other choice
+class Insn;
+class InsnBuilder;
+class OperandBuilder;
 enum MopProperty : maple::uint8 {
   kInsnIsAbstract,
   kInsnIsMove,
@@ -142,7 +150,7 @@ enum AbstractMOP : MOperator {
 
 #define DEF_MIR_INTRINSIC(op, ...) op,
 enum VectorIntrinsicID {
-  #include "intrinsic_vector_new.def"
+#include "intrinsic_vector_new.def"
 #undef DEF_MIR_INTRINSIC
   kVectorIntrinsicLast
 };
@@ -192,10 +200,21 @@ struct InsnDesc {
     atomicNum = 1;
   };
 
-  /* for hard-coded machine description */
+  InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
+      const std::string &inName, const std::string &inFormat, uint32 anum)
+      : opc(op),
+        opndMD(opndmd),
+        properties(props),
+        latencyType(ltype),
+        name(inName),
+        format(inFormat),
+        atomicNum(anum) {
+  };
+
+  // for hard-coded machine description.
   InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
       const std::string &inName, const std::string &inFormat, uint32 anum,
-      std::function<bool(int64)> vFunc = nullptr)
+      std::function<bool(const MapleVector<Operand*>)> vFunc)
       : opc(op),
         opndMD(opndmd),
         properties(props),
@@ -206,6 +225,22 @@ struct InsnDesc {
         validFunc(vFunc) {
   };
 
+  // for hard-coded machine description.
+  InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
+      const std::string &inName, const std::string &inFormat, uint32 anum,
+      std::function<bool(const MapleVector<Operand*>)> vFunc,
+      std::function<void(Insn*, bool, InsnBuilder*, OperandBuilder*)> sFunc)
+      : opc(op),
+        opndMD(opndmd),
+        properties(props),
+        latencyType(ltype),
+        name(inName),
+        format(inFormat),
+        atomicNum(anum),
+        validFunc(vFunc),
+        splitFunc(sFunc) {
+  };
+
   MOperator opc;
   std::vector<const OpndDesc*> opndMD;
   uint64 properties;
@@ -213,7 +248,10 @@ struct InsnDesc {
   const std::string name;
   const std::string format;
   uint32 atomicNum; /* indicate how many asm instructions it will emit. */
-  std::function<bool(int64)> validFunc = nullptr; /* If insn has immOperand, this function needs to be implemented. */
+  // If insn has immOperand, this function needs to be implemented.
+  std::function<bool(const MapleVector<Operand*>)> validFunc = nullptr;
+  // If insn needs to be split, this function needs to be implemented.
+  std::function<void(Insn*, bool, InsnBuilder*, OperandBuilder*)> splitFunc = nullptr;
 
   bool IsSame(const InsnDesc &left,
       std::function<bool (const InsnDesc &left, const InsnDesc &right)> cmp) const;
@@ -300,10 +338,27 @@ struct InsnDesc {
     return (properties & SPINTRINSIC) != 0;
   }
   bool IsComment() const {
-    return properties & ISCOMMENT;
+    return (properties & ISCOMMENT) != 0;
   }
   MOperator GetOpc() const {
     return opc;
+  }
+
+  bool Verify(const MapleVector<Operand *> &opnds) const {
+    if (!validFunc) {
+      return true;
+    }
+    if (opnds.size() != opndMD.size()) {
+      CHECK_FATAL_FALSE("The size of opnds is wrong.");
+    }
+    return validFunc(opnds);
+  }
+
+  void Split(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBuilder, OperandBuilder *opndBuilder) const {
+    if (!splitFunc) {
+      return;
+    }
+    splitFunc(insn, isAfterRegAlloc, insnBuilder, opndBuilder);
   }
   const OpndDesc *GetOpndDes(size_t index) const {
     return opndMD[index];
@@ -318,12 +373,6 @@ struct InsnDesc {
   }
   bool Is64Bit() const {
     return GetOperandSize() == k64BitSize;
-  }
-  bool IsValidImmOpnd(int64 val) const {
-    if (!validFunc) {
-      return true;
-    }
-    return validFunc(val);
   }
   uint32 GetLatencyType() const {
     return latencyType;

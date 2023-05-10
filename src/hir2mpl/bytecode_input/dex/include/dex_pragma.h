@@ -39,8 +39,9 @@ class DexBCAnnotationElement {
   static uint64 GetUVal(const uint8 **data, uint8 len) {
     // get value, max 8 bytes, little-endian
     uint64 val = 0;
+    constexpr uint8 bitWidth = 3;
     for (uint8 j = 0; j <= len; j++) {
-      val |= (static_cast<uint64>(*(*data)++) << (j << 3));
+      val |= (static_cast<uint64>(*(*data)++) << (j << bitWidth));
     }
     return val;
   }

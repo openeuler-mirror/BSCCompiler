@@ -494,6 +494,14 @@ class FEOptions {
     return wpaa;
   }
 
+  void SetFuncMergeEnable(bool flag) {
+    funcMerge = flag;
+  }
+
+  bool IsEnableFuncMerge() const {
+    return funcMerge;
+  }
+
  private:
   static FEOptions options;
   // input control options
@@ -573,7 +581,7 @@ class FEOptions {
 
   uint32 funcInlineSize = 0;
   bool wpaa = false;
-
+  bool funcMerge = false;
   FEOptions();
   ~FEOptions() = default;
 };

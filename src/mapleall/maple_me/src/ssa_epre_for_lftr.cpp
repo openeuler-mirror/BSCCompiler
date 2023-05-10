@@ -20,9 +20,9 @@ namespace maple {
 // Find the SSA version of scalar at stmt by search backward for its def.
 // When reaching the beginning of BB, continue with parent BB in the dominator
 // tree.  It is assumed that scalarOst has no alias, so chi lists are skipped.
-ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) const {
-  if (scalar->GetOst()->NumSSAVersions() == 1) {
-    return scalar;
+ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr &scalar, MeStmt *stmt) const {
+  if (scalar.GetOst()->NumSSAVersions() == 1) {
+    return &scalar;
   }
   BB *bb = stmt->GetBB();
   stmt = stmt->GetPrev();
@@ -33,14 +33,14 @@ ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) con
       AssignMeStmt *asStmt = dynamic_cast<AssignMeStmt*>(stmt);
       if (asStmt != nullptr) {
         lhs = asStmt->GetLHS();
-        if (lhs->GetOst() == scalar->GetOst()) {
+        if (lhs->GetOst() == scalar.GetOst()) {
           return lhs;
         }
       } else {
         CallMeStmt *callStmt = dynamic_cast<CallMeStmt*>(stmt);
         if (callStmt != nullptr) {
           lhs = callStmt->GetAssignedLHS();
-          if (lhs != nullptr && lhs->GetOst() == scalar->GetOst()) {
+          if (lhs != nullptr && lhs->GetOst() == scalar.GetOst()) {
             return lhs;
           }
         }
@@ -49,17 +49,16 @@ ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) con
     }
     // check if there is phi
     MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
-    auto it = mePhiList.find(scalar->GetOst()->GetIndex());
+    auto it = std::as_const(mePhiList).find(scalar.GetOst()->GetIndex());
     if (it != mePhiList.cend()) {
       return it->second->GetLHS();
     }
     // set bb to its parent in dominator tree
-    bb = dom->GetDom(bb->GetBBId());
+    bb = GetBB(BBId(dom->GetDom(bb->GetID())->GetID()));
     // make stmt point to last statement in bb
     stmt = to_ptr(bb->GetMeStmts().rbegin());
   } while (true);
   CHECK_FATAL(false, "FindScalarVersion: fail to find SSA version for scalar");
-  return nullptr;
 }
 
 // one side of compare is an operand x in workCand->GetTheMeExpr() with current
@@ -120,7 +119,7 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
       if (scalarOpnd == nullptr) {
         newSide.SetOpnd(1 - i, x->GetOpnd(1 - i));
       } else {
-        scalarOpnd = FindScalarVersion(scalarOpnd, compOcc->GetMeStmt());
+        scalarOpnd = FindScalarVersion(*scalarOpnd, compOcc->GetMeStmt());
         newSide.SetOpnd(1 - i, scalarOpnd);
       }
       break;

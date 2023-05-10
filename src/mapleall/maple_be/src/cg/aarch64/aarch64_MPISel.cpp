@@ -46,7 +46,8 @@ MemOperand &AArch64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol,
     MIRStructType *structType = static_cast<MIRStructType*>(mirType);
     symType = structType->GetFieldType(fieldId)->GetPrimType();
     if (baseReg || !isCopy) {
-      fieldOffset = static_cast<uint64>(cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first);
+      fieldOffset = static_cast<uint64>(static_cast<uint32>(structType->
+                                                            GetFieldOffsetFromBaseAddr(fieldId).byteOffset));
     }
   }
   uint32 opndSz = (symType == PTY_agg) ? k64BitSize : GetPrimTypeBitSize(symType);
@@ -58,21 +59,21 @@ MemOperand &AArch64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol,
     OfstOperand *ofstOpnd = &a64func->GetOrCreateOfstOpnd(fieldOffset, k32BitSize);
     return *a64func->CreateMemOperand(opndSz, *baseReg, *ofstOpnd);
   } else {
-    return GetOrCreateMemOpndFromSymbol(symbol, opndSz, fieldOffset);
+    return GetOrCreateMemOpndFromSymbol(symbol, opndSz, static_cast<int64>(fieldOffset));
   }
 }
 MemOperand &AArch64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) const {
   return static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(symbol, offset, opndSize);
 }
 
-Operand *AArch64MPIsel::SelectFloatingConst(MIRConst &mirConst, PrimType primType, const BaseNode &parent) const {
+Operand *AArch64MPIsel::SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) const {
   CHECK_FATAL(primType == PTY_f64 || primType == PTY_f32, "wrong const");
   AArch64CGFunc *a64Func = static_cast<AArch64CGFunc*>(cgFunc);
   if (primType == PTY_f64) {
-    auto *dblConst = safe_cast<MIRDoubleConst>(mirConst);
+    auto *dblConst = safe_cast<MIRDoubleConst>(floatingConst);
     return a64Func->HandleFmovImm(primType, dblConst->GetIntValue(), *dblConst, parent);
   } else {
-    auto *floatConst = safe_cast<MIRFloatConst>(mirConst);
+    auto *floatConst = safe_cast<MIRFloatConst>(floatingConst);
     return a64Func->HandleFmovImm(primType, floatConst->GetIntValue(), *floatConst, parent);
   }
 }
@@ -101,17 +102,17 @@ void AArch64MPIsel::SelectReturn(bool noOpnd) {
   }
 }
 
-void AArch64MPIsel::CreateCallStructParamPassByStack(const MemOperand &memOpnd, uint32 symSize, int32 baseOffset) {
-  uint32 copyTime = RoundUp(symSize, GetPointerSize()) / GetPointerSize();
+void AArch64MPIsel::CreateCallStructParamPassByStack(const MemOperand &addrOpnd, uint32 symSize, int32 baseOffset) {
+  uint32 copyTime = static_cast<uint32>(RoundUp(symSize, GetPointerSize()) / GetPointerSize());
   for (uint32 i = 0; i < copyTime; ++i) {
     MemOperand &addrMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(k64BitSize);
-    addrMemOpnd.SetBaseRegister(*memOpnd.GetBaseRegister());
-    ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*memOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));
+    addrMemOpnd.SetBaseRegister(*addrOpnd.GetBaseRegister());
+    ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*addrOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));
     newImmOpnd.SetValue(newImmOpnd.GetValue() + i * GetPointerSize());
     addrMemOpnd.SetOffsetOperand(newImmOpnd);
     RegOperand &spOpnd = cgFunc->GetOpndBuilder()->CreatePReg(RSP, k64BitSize, kRegTyInt);
     Operand &stMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(spOpnd,
-        (baseOffset + i * GetPointerSize()), k64BitSize);
+        static_cast<int32>((static_cast<uint32>(baseOffset) + i * GetPointerSize())), k64BitSize);
     SelectCopy(stMemOpnd, addrMemOpnd, PTY_u64);
   }
 }
@@ -158,7 +159,7 @@ void AArch64MPIsel::SelectParmListForAggregate(BaseNode &argExpr, AArch64CallCon
 
   /* create call struct param pass */
   if (argSize > k16ByteSize || ploc.reg0 == kRinvalid) {
-    CreateCallStructParamPassByStack(memOpnd, argSize, ploc.memOffset);
+    CreateCallStructParamPassByStack(memOpnd, static_cast<uint32>(argSize), ploc.memOffset);
   } else {
     CHECK_FATAL(ploc.fpSize == 0, "Unknown call parameter state");
     CreateCallStructParamPassByReg(memOpnd, ploc.reg0, 0);
@@ -187,7 +188,7 @@ void AArch64MPIsel::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds) {
 
 bool AArch64MPIsel::IsParamStructCopy(const MIRSymbol &symbol) {
   if (symbol.GetStorageClass() == kScFormal &&
-      cgFunc->GetBecommon().GetTypeSize(symbol.GetTyIdx().GetIdx()) > k16ByteSize) {
+      GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbol.GetTyIdx().GetIdx())->GetSize() > k16ByteSize) {
     return true;
   }
   return false;
@@ -300,7 +301,7 @@ void AArch64MPIsel::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd, Opera
 }
 
 Insn &AArch64MPIsel::AppendCall(AArch64MOP_t mOp, Operand &targetOpnd,
-    ListOperand &paramOpnds, ListOperand &retOpnds) {
+    ListOperand &paramOpnds, ListOperand &retOpnds) const {
   Insn &callInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, AArch64CG::kMd[mOp]);
   callInsn.AddOpndChain(targetOpnd).AddOpndChain(paramOpnds).AddOpndChain(retOpnds);
   cgFunc->GetCurBB()->AppendInsn(callInsn);
@@ -309,7 +310,7 @@ Insn &AArch64MPIsel::AppendCall(AArch64MOP_t mOp, Operand &targetOpnd,
   return callInsn;
 }
 
-void AArch64MPIsel::SelectCalleeReturn(MIRType *retType, ListOperand &retOpnds) {
+void AArch64MPIsel::SelectCalleeReturn(const MIRType *retType, ListOperand &retOpnds) const {
   if (retType == nullptr) {
     return;
   }
@@ -344,7 +345,6 @@ void AArch64MPIsel::SelectGoto(GotoNode &stmt) {
   cgFunc->GetCurBB()->AppendInsn(jmpInsn);
   jmpInsn.AddOpndChain(targetOpnd);
   cgFunc->SetCurBBKind(BB::kBBGoto);
-  return;
 }
 
 void AArch64MPIsel::SelectIgoto(Operand &opnd0) {
@@ -353,7 +353,6 @@ void AArch64MPIsel::SelectIgoto(Operand &opnd0) {
   Insn &jmpInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, AArch64CG::kMd[mOp]);
   jmpInsn.AddOpndChain(opnd0);
   cgFunc->GetCurBB()->AppendInsn(jmpInsn);
-  return;
 }
 
 /* The second parameter in function va_start does not need to be concerned here,
@@ -423,7 +422,7 @@ void AArch64MPIsel::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOp
 
   /* load the displacement into a register by accessing memory at base + index*8 */
   AArch64CGFunc *a64func = static_cast<AArch64CGFunc*>(cgFunc);
-  BitShiftOperand &bitOpnd = a64func->CreateBitShiftOperand(BitShiftOperand::kLSL, k3BitSize, k8BitShift);
+  BitShiftOperand &bitOpnd = a64func->CreateBitShiftOperand(BitShiftOperand::kShiftLSL, k3BitSize, k8BitShift);
   Operand *disp = static_cast<AArch64CGFunc*>(cgFunc)->CreateMemOperand(k64BitSize, baseOpnd, *indexOpnd, bitOpnd);
   RegOperand &tgt = cgFunc->GetOpndBuilder()->CreateVReg(k64BitSize, kRegTyInt);
   SelectAdd(tgt, baseOpnd, *disp, PTY_u64);
@@ -466,8 +465,8 @@ void AArch64MPIsel::SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode) {
     Opcode condOp = condGotoNode.GetOpCode();
     if (condNode.GetOpCode() == OP_constval) {
       auto &constValNode = static_cast<ConstvalNode&>(condNode);
-      if (((OP_brfalse == condOp) && constValNode.GetConstVal()->IsZero()) ||
-          ((OP_brtrue == condOp) && !constValNode.GetConstVal()->IsZero())) {
+      if (((condOp == OP_brfalse) && constValNode.GetConstVal()->IsZero()) ||
+          ((condOp == OP_brtrue) && !constValNode.GetConstVal()->IsZero())) {
         auto *gotoStmt = cgFunc->GetMemoryPool()->New<GotoNode>(OP_goto);
         gotoStmt->SetOffset(condGotoNode.GetOffset());
         HandleGoto(*gotoStmt, *this);            // isel's
@@ -551,11 +550,8 @@ Operand *AArch64MPIsel::SelectRem(BinaryNode &node, Operand &opnd0, Operand &opn
   return cgFunc->SelectRem(node, opnd0, opnd1, parent);
 }
 
-Operand *AArch64MPIsel::SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode) {
-  (void)opnd0;
-  (void)opnd1;
-  (void)primType;
-  (void)opcode;
+Operand *AArch64MPIsel::SelectDivRem(RegOperand& /* opnd0 */, RegOperand& /* opnd1 */,
+                                     PrimType /* primType */, Opcode /* opcode */) const {
   CHECK_FATAL_FALSE("Invalid MPISel function");
   return nullptr;
 }
@@ -564,7 +560,7 @@ Operand *AArch64MPIsel::SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &
   return cgFunc->SelectCmpOp(node, opnd0, opnd1, parent);
 }
 
-void AArch64MPIsel::SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType) {
+void AArch64MPIsel::SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType) const {
   (void)opnd0;
   (void)opnd1;
   (void)primType;
@@ -585,8 +581,8 @@ void AArch64MPIsel::SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0,
   a64func->SelectMinOrMax(isMin, resOpnd, opnd0, opnd1, primType);
 }
 
-Operand *AArch64MPIsel::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name, Operand &opnd0,
-    const BaseNode &parent) {
+Operand *AArch64MPIsel::SelectIntrinsicOpWithOneParam(const IntrinsicopNode &intrnNode, std::string name,
+    Operand &opnd0, const BaseNode /* &parent */) {
   PrimType ptype = intrnNode.Opnd(0)->GetPrimType();
   Operand *opnd = &opnd0;
   AArch64CGFunc *a64func = static_cast<AArch64CGFunc*>(cgFunc);

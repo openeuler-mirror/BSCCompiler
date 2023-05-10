@@ -71,6 +71,13 @@ class PeepOptimizeManager {
   BB *currBB;
   Insn *currInsn;
   CGSSAInfo *ssaInfo;
+  /*
+   * The flag indicates whether the optimization pattern is successful,
+   * this prevents the next optimization pattern that processs the same mop from failing to get the validInsn,
+   * which was changed by previous pattern.
+   *
+   * Set the flag to true when the pattern optimize successfully.
+   */
   bool optSuccess = false;
 };
 
@@ -86,7 +93,9 @@ class CGPeepHole {
       : cgFunc(&f),
         peepMemPool(memPool),
         ssaInfo(cgssaInfo) {}
-  virtual ~CGPeepHole() = default;
+  virtual ~CGPeepHole() {
+    ssaInfo = nullptr;
+  }
 
   virtual void Run() = 0;
   virtual bool DoSSAOptimize(BB &bb, Insn &insn) = 0;

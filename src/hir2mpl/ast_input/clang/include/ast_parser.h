@@ -91,6 +91,7 @@ class ASTParser {
   ASTStmt *PROCESS_STMT(DeclRefExpr);
   ASTStmt *PROCESS_STMT(UnaryExprOrTypeTraitExpr);
   ASTStmt *PROCESS_STMT(AddrLabelExpr);
+  ASTStmt *PROCESS_STMT(MemberExpr);
   bool HasDefault(const clang::Stmt &stmt);
 
   // ProcessExpr
@@ -194,7 +195,7 @@ class ASTParser {
   void SetInitExprForASTVar(MapleAllocator &allocator, const clang::VarDecl &varDecl, const GenericAttrs &attrs,
                             ASTVar &astVar);
   void SetAlignmentForASTVar(const clang::VarDecl &varDecl, ASTVar &astVar) const;
-#define PROCESS_DECL(CLASS) ProcessDecl##CLASS##Decl(MapleAllocator &allocator, const clang::CLASS##Decl&)
+#define PROCESS_DECL(CLASS) ProcessDecl##CLASS##Decl(MapleAllocator &allocator, const clang::CLASS##Decl &decl)
   ASTDecl *PROCESS_DECL(Field);
   ASTDecl *PROCESS_DECL(Record);
   ASTDecl *PROCESS_DECL(Var);
@@ -263,16 +264,16 @@ class ASTParser {
   ASTExpr *BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
   bool CheckIncContinueStmtExpr(const clang::Stmt &bodyStmt) const;
-  void CheckVarNameValid(std::string varName);
+  void CheckVarNameValid(const std::string &varName) const;
   void ParserExprVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, ASTExpr &expr);
   void ParserStmtVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, std::list<ASTStmt*> &stmts);
   void SetAtomExprValType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr, ASTAtomicExpr &astExpr);
   void SetAtomExchangeType(MapleAllocator &allocator, const clang::AtomicExpr &atomicExpr, ASTAtomicExpr &astExpr);
-  clang::Expr *GetAtomValExpr(clang::Expr *valExpr);
-  clang::QualType GetPointeeType(const clang::Expr &expr);
+  clang::Expr *GetAtomValExpr(clang::Expr *valExpr) const;
+  clang::QualType GetPointeeType(const clang::Expr &expr) const;
   bool IsNeedGetPointeeType(const clang::FunctionDecl &funcDecl) const;
   MapleVector<MIRType*> CvtFuncTypeAndRetType(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
-                                              clang::QualType qualType);
+                                              const clang::QualType &qualType) const;
   void CheckAtomicClearArg(const clang::CallExpr &expr) const;
   std::string GetFuncNameFromFuncDecl(const clang::FunctionDecl &funcDecl) const;
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
@@ -289,9 +290,12 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   ASTExpr *PARSE_BUILTIIN_FUNC(Isinfsign);
   ASTExpr *PARSE_BUILTIIN_FUNC(HugeVal);
   ASTExpr *PARSE_BUILTIIN_FUNC(HugeValf);
+  ASTExpr *PARSE_BUILTIIN_FUNC(HugeVall);
   ASTExpr *PARSE_BUILTIIN_FUNC(Inf);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Infl);
   ASTExpr *PARSE_BUILTIIN_FUNC(Inff);
   ASTExpr *PARSE_BUILTIIN_FUNC(Nan);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Nanl);
   ASTExpr *PARSE_BUILTIIN_FUNC(Nanf);
   ASTExpr *PARSE_BUILTIIN_FUNC(Signbit);
   ASTExpr *PARSE_BUILTIIN_FUNC(SignBitf);
@@ -323,6 +327,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   MapleList<ASTFileScopeAsm*> &astFileScopeAsms;
   MapleList<ASTEnumDecl*> &astEnums;
   MapleMap<clang::Expr*, ASTExpr*> vlaSizeMap;
+  std::unordered_map<std::string, std::unordered_set<std::string>> structFileNameMap;
 };
 }  // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_PARSER_H

@@ -155,7 +155,7 @@ IntVal IntVal::ExtendToWideInt(uint16 newWidth, bool isSigned) const {
   }
 
   int filler = sign && GetSignBit() ? ~0 : 0;
-  if (numExtendBits && filler != 0) {
+  if (numExtendBits != 0 && filler != 0) {
     // sign-extend the last word from given value
     newValue[oldNumWords - 1] |= allOnes << (wordBitSize - numExtendBits);
   }
@@ -186,7 +186,8 @@ int BitwiseCompare(const T *lhs, const T *rhs, uint16 comparedWidth) {
     return ((lhs[i] & mask) < (rhs[i] & mask)) ? -1 : 1;
   }
 
-  while (i--) {
+  while (i != 0) {
+    i--;
     if (lhs[i] != rhs[i]) {
       return lhs[i] < rhs[i] ? -1 : 1;
     }
@@ -383,7 +384,7 @@ static void MulPart(uint64 *dst, const uint64 *src, uint64 multiplier, uint16 pa
       carry += AddCarry(dst[part + i + 1], overflow);
 
       uint16 j = part + i + 2;
-      while (carry && j < numParts) {
+      while ((carry != 0) && j < numParts) {
         carry = AddCarry(dst[j], carry);
         ++j;
       }
@@ -510,7 +511,7 @@ static void ShiftLeft(T *dst, uint16 numWords, uint16 bits) {
   uint16 shiftWords = bits / typeBitSize;
   uint8 shiftBits = bits % typeBitSize;
 
-  if (!shiftBits) {
+  if (shiftBits == 0) {
     size_t size = (numWords - shiftWords) * sizeof(T);
     errno_t err = memmove_s(dst + shiftWords, size, dst, size);
     CHECK_FATAL(err == EOK, "memmove_s failed");
@@ -562,7 +563,7 @@ static void ShiftRight(T *dst, uint16 numWords, uint16 bits, bool negRemainder =
   uint16 shiftWords = bits / typeBitSize;
   uint8 shiftBits = bits % typeBitSize;
 
-  if (!shiftBits) {
+  if (shiftBits == 0) {
     errno_t err =
         memmove_s(dst, (numWords - shiftWords) * sizeof(T), dst + shiftWords, (numWords - shiftWords) * sizeof(T));
     CHECK_FATAL(err == EOK, "memmove_s failed");
@@ -583,7 +584,7 @@ static void ShiftRight(T *dst, uint16 numWords, uint16 bits, bool negRemainder =
   errno_t err = memset_s(dst + (numWords - shiftWords), size, remainderFiller, size);
   CHECK_FATAL(err == EOK, "memset_s failed");
 
-  if (shiftBits) {
+  if (shiftBits != 0) {
     dst[numWords - (shiftWords + 1)] |= T(remainderFiller) << (typeBitSize - shiftBits);
   }
 }
@@ -639,7 +640,7 @@ static uint32 MulSubOverflow(uint32 *dst, const uint32 *src0, uint32 src1, uint1
     borrow += resOverflow;
 
     uint16 j = i + 1;
-    while (j < numWords && borrow) {
+    while (j < numWords && borrow != 0) {
       borrow = SubBorrow(dst[j], borrow);
       ++j;
     }
@@ -664,7 +665,7 @@ static uint32 MulAddOverflow(uint32 *dst, const uint32 *src0, uint32 src1, uint1
     carry += resOverflow;
 
     uint16 j = i + 1;
-    while (j < numWords && carry) {
+    while (j < numWords && carry != 0) {
       carry = AddCarry(dst[j], carry);
       ++j;
     }
@@ -721,7 +722,7 @@ static void BasecaseDivRem(uint32 *q, uint32 *r, uint32 *a, uint32 *b, uint16 n,
     auto quotientLoHi = GetLoHi(quotient);
 
     // q[j] = min(q_tmp , β − 1)
-    q[j] = quotientLoHi.hi ? uint32(~0) : quotientLoHi.lo;
+    q[j] = (quotientLoHi.hi != 0) ? uint32(~0) : quotientLoHi.lo;
 
     // calculate BShifted = B * β^m separately cos we must use them in several places
     err = memcpy_s(bShifted, (n + m) * sizeof(uint32), b, n * sizeof(uint32));
@@ -741,7 +742,7 @@ static void BasecaseDivRem(uint32 *q, uint32 *r, uint32 *a, uint32 *b, uint16 n,
       --q[j];
       borrow -= MulAddOverflow(a, bShifted, 1, n + m);
     }
-  } while (j);
+  } while (j != 0);
 
   err = memcpy_s(r, (n + m) * sizeof(uint32), a, (n + m) * sizeof(uint32));
   CHECK_FATAL(err == EOK, "memcpy_s failed");
@@ -788,9 +789,9 @@ std::pair<IntVal, IntVal> IntVal::WideUnsignedDivRem(const IntVal &delimer, cons
   // copy delimer and divisor values to uint32 arrays
   uint32 a[n + m], b[n], r[n + m], q[m + 1];
 
-  errno_t err = memcpy_s(a, (n + m) * sizeof(uint32), delimer.u.pValue, (n + m) * sizeof(uint32));
+  errno_t err = memcpy_s(a, (n + m) * sizeof(uint32), delimer.u.pValue, (n + m - 1u) * sizeof(uint32));
   CHECK_FATAL(err == EOK, "memcpy_s failed");
-  a[n + m - 1] = 0;
+  a[n + m - 1u] = 0;
 
   err = memcpy_s(b, n * sizeof(uint32), divisor.u.pValue, n * sizeof(uint32));
   CHECK_FATAL(err == EOK, "memcpy_s failed");
@@ -899,7 +900,7 @@ void IntVal::WideSetMinValue() {
 uint16 IntVal::CountLeadingOnes() const {
   // mask in neccessary because the high bits of value can be zero
   uint8 startPos = width % wordBitSize;
-  uint64 mask = startPos ? allOnes << (wordBitSize - startPos) : 0;
+  uint64 mask = (startPos != 0) ? allOnes << (wordBitSize - startPos) : 0;
 
   if (IsOneWord()) {
     return maple::CountLeadingOnes(u.value | mask) - startPos;
@@ -907,7 +908,7 @@ uint16 IntVal::CountLeadingOnes() const {
 
   uint16 i = GetNumWords() - 1;
   uint8 ones = maple::CountLeadingOnes(u.pValue[i] | mask) - startPos;
-  if (!ones) {
+  if (ones == 0) {
     return 0;
   }
 
@@ -916,7 +917,7 @@ uint16 IntVal::CountLeadingOnes() const {
   do {
     ones = maple::CountLeadingOnes(u.pValue[i]);
     count += ones;
-  } while (ones && i--);
+  } while (ones != 0 && i--);
 
   return count;
 }
@@ -948,12 +949,14 @@ uint16 IntVal::CountLeadingZeros() const {
   }
 
   uint16 count = 0;
-  uint16 i = GetNumWords() - 1;
   uint8 zeros = 0;
-  do {
+  for (int16 i = static_cast<int16>(GetNumWords() - 1); i >= 0; --i) {
     zeros = maple::CountLeadingZeros(u.pValue[i]);
     count += zeros;
-  } while ((zeros == wordBitSize) && i--);
+    if (zeros != wordBitSize) {
+      break;
+    }
+  }
 
   ASSERT(count >= emptyBits, "invalid count of leading zeros");
   return count - emptyBits;
@@ -985,7 +988,7 @@ uint16 IntVal::CountSignificantBits() const {
   if (sign) {
     nonSignificantBits = GetSignBit() ? CountLeadingOnes() : CountLeadingZeros();
     // sign bit is always significant
-    if (nonSignificantBits) {
+    if (nonSignificantBits != 0) {
       --nonSignificantBits;
     }
   } else {
@@ -1035,7 +1038,7 @@ void IntVal::Dump(std::ostream &os) const {
     uint16 numWords = GetNumWords();
     ASSERT(numWords >= numZeroWords, "invalid count of zero words");
 
-    os << std::hex << "0xL";
+    os << std::hex << "0x";
     if (numWords == numZeroWords) {
       os << "0";
     } else {

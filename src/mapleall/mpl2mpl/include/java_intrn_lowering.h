@@ -23,7 +23,12 @@ namespace maple {
 class JavaIntrnLowering : public FuncOptimizeImpl {
  public:
   JavaIntrnLowering(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~JavaIntrnLowering() override = default;
+  ~JavaIntrnLowering() override {
+    classForName3Func = nullptr;
+    classLoaderPointerToType = nullptr;
+    getCurrentClassLoaderFunc = nullptr;
+    classForName1Func = nullptr;
+  }
 
   FuncOptimizeImpl *Clone() override {
     return new JavaIntrnLowering(*this);
@@ -34,13 +39,13 @@ class JavaIntrnLowering : public FuncOptimizeImpl {
   void InitFuncs();
   void InitLists();
   void ProcessStmt(StmtNode &stmt) override;
-  void ProcessJavaIntrnMerge(StmtNode &assignNode, const IntrinsicopNode &intrinNode);
-  BaseNode *JavaIntrnMergeToCvtType(PrimType destType, PrimType srcType, BaseNode *src);
+  void ProcessJavaIntrnMerge(StmtNode &assignNode, const IntrinsicopNode &intrinNode) const;
+  BaseNode *JavaIntrnMergeToCvtType(PrimType destType, PrimType srcType, BaseNode *src) const;
   void LoadClassLoaderInvocation(const std::string &list);
   void CheckClassLoaderInvocation(const CallNode &callNode) const;
   void DumpClassLoaderInvocation(const CallNode &callNode);
   void ProcessForNameClassLoader(CallNode &callNode);
-  void ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCall);
+  void ProcessJavaIntrnFillNewArray(IntrinsiccallNode &intrinCall) const;
   std::string outFileName;
   std::unordered_set<std::string> clInterfaceSet;
   std::multimap<std::string, std::string> clInvocationMap;

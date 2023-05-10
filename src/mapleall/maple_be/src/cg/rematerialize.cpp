@@ -27,9 +27,8 @@ bool Rematerializer::IsRematerializableForAddrof(CGFunc &cgFunc, const LiveRange
   }
   /* cost too much to remat */
   if ((symbol->GetStorageClass() == kScFormal) && (symbol->GetSKind() == kStVar) &&
-      ((fieldID != 0) ||
-          (cgFunc.GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx()) >
-              k16ByteSize))) {
+      ((fieldID != 0) || (GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+          symbol->GetType()->GetTypeIndex().GetIdx())->GetSize() > k16ByteSize))) {
     return false;
   }
   if (!addrUpper && CGOptions::IsPIC() && ((symbol->GetStorageClass() == kScGlobal) ||
@@ -70,7 +69,7 @@ bool Rematerializer::IsRematerializableForDread(CGFunc &cgFunc, RematLevel remat
   if (fieldID != 0) {
     ASSERT(symbol->GetType()->IsMIRStructType(), "non-zero fieldID for non-structure");
     MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
-    offset = cgFunc.GetBecommon().GetFieldOffset(*structType, fieldID).first;
+    offset = structType->GetFieldOffsetFromBaseAddr(fieldID).byteOffset;
   }
   if (rematLev < kRematDreadGlobal && !symbol->IsLocal()) {
     return false;
@@ -127,7 +126,7 @@ std::vector<Insn*> Rematerializer::Rematerialize(CGFunc &cgFunc, RegOperand &reg
         ASSERT(symbol->GetType()->IsMIRStructType(), "non-zero fieldID for non-structure");
         MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
         symType = structType->GetFieldType(fieldID)->GetPrimType();
-        offset = cgFunc.GetBecommon().GetFieldOffset(*structType, fieldID).first;
+        offset = structType->GetFieldOffsetFromBaseAddr(fieldID).byteOffset;
       }
       return RematerializeForDread(cgFunc, regOp, offset, symType);
     }
@@ -138,7 +137,7 @@ std::vector<Insn*> Rematerializer::Rematerialize(CGFunc &cgFunc, RegOperand &reg
         ASSERT(symbol->GetType()->IsMIRStructType() || symbol->GetType()->IsMIRUnionType(),
             "non-zero fieldID for non-structure");
         MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
-        offset = cgFunc.GetBecommon().GetFieldOffset(*structType, fieldID).first;
+        offset = structType->GetFieldOffsetFromBaseAddr(fieldID).byteOffset;
       }
       return RematerializeForAddrof(cgFunc, regOp, offset);
     }

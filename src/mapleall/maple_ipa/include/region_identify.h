@@ -37,7 +37,9 @@ class RegionCandidate {
  public:
   RegionCandidate(StmtInfoId startId, StmtInfoId endId, StmtInfo *start, StmtInfo *end, MIRFunction* function)
       : startId(startId), endId(endId), start(start), end(end), function(function), length(endId - startId + 1) {}
-  virtual ~RegionCandidate() = default;
+  virtual ~RegionCandidate() {
+    function = nullptr;
+  }
   void CollectRegionInputAndOutput(StmtInfo &stmtInfo, CollectIpaInfo &ipaInfo);
   const bool HasDefinitionOutofRegion(DefUsePositions &defUse) const;
   bool HasJumpOutOfRegion(StmtInfo &stmtInfo, bool isStart);
@@ -153,7 +155,7 @@ class RegionCandidate {
     }
   }
 
-  bool IsOverlapWith(RegionCandidate &rhs) {
+  bool IsOverlapWith(RegionCandidate &rhs) const {
     return (startId >= rhs.GetStartId() && startId <= rhs.GetEndId()) ||
         (rhs.GetStartId() >= startId && rhs.GetStartId() <= endId);
   }
@@ -164,7 +166,7 @@ class RegionCandidate {
   }
 
   template<typename Functor>
-  void TraverseRegion(Functor processor) {
+  void TraverseRegion(Functor processor) const {
     auto &stmtList = start->GetCurrBlock()->GetStmtNodes();
     auto begin = StmtNodes::iterator(start->GetStmtNode());
     for (auto it = begin; it != stmtList.end() && it->GetStmtInfoId() <= endId ; ++it) {
@@ -210,7 +212,7 @@ class RegionGroup {
     return groups;
   }
 
-  uint32 GetGroupId() {
+  uint32 GetGroupId() const {
     return groupId;
   }
 
@@ -228,14 +230,16 @@ class RegionGroup {
 
  private:
   std::vector<RegionCandidate> groups;
-  uint32 groupId;
+  uint32 groupId = 0;
   int64 cost = 0;
 };
 
 class RegionIdentify {
  public:
   explicit RegionIdentify(CollectIpaInfo *ipaInfo) : ipaInfo(ipaInfo) {}
-  virtual ~RegionIdentify() = default;
+  virtual ~RegionIdentify() {
+    ipaInfo = nullptr;
+  }
   void RegionInit();
   std::vector<RegionGroup> &GetRegionGroups() {
     return regionGroups;

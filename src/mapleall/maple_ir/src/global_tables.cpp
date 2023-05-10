@@ -220,16 +220,26 @@ MIRType *TypeTable::GetOrCreateJarrayType(const MIRType &elem) {
   return typeTable.at(tyIdx);
 }
 
-MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecType,
-                                            const std::vector<TypeAttrs> &vecAttrs, bool isVarg,
+MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx,
+                                            const std::vector<TyIdx> &vecType,
+                                            const std::vector<TypeAttrs> &vecAttrs,
+                                            const FuncAttrs &funcAttrs,
                                             const TypeAttrs &retAttrs) {
-  MIRFuncType funcType(retTyIdx, vecType, vecAttrs, retAttrs);
-  if (isVarg) {
-    funcType.SetVarArgs();
-  }
+  MIRFuncType funcType(retTyIdx, vecType, vecAttrs, funcAttrs, retAttrs);
   TyIdx tyIdx = GetOrCreateMIRType(&funcType);
   ASSERT(tyIdx < typeTable.size(), "index out of range in TypeTable::GetOrCreateFunctionType");
   return typeTable.at(tyIdx);
+}
+
+
+MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecType,
+                                            const std::vector<TypeAttrs> &vecAttrs, bool isVarg,
+                                            const TypeAttrs &retAttrs) {
+  FuncAttrs funcAttrs;
+  if (isVarg) {
+    funcAttrs.SetAttr(FUNCATTR_varargs);
+  }
+  return GetOrCreateFunctionType(retTyIdx, vecType, vecAttrs, funcAttrs, retAttrs);
 }
 
 MIRType *TypeTable::GetOrCreateStructOrUnion(const std::string &name, const FieldVector &fields,
@@ -302,8 +312,16 @@ void FPConstTable::PostInit() {
 }
 
 MIRIntConst *IntConstTable::GetOrCreateIntConst(const IntVal &val, MIRType &type) {
+  PrimType pt = type.GetPrimType();
   if (ThreadEnv::IsMeParallel()) {
+    if (IsInt128Ty(pt)) {
+      return DoGetOrCreateInt128ConstTreadSafe(val.GetRawData(), type);
+    }
     return DoGetOrCreateIntConstTreadSafe(static_cast<uint64>(val.GetExtValue()), type);
+  }
+
+  if (IsInt128Ty(pt)) {
+    return DoGetOrCreateInt128Const(val.GetRawData(), type);
   }
   return DoGetOrCreateIntConst(static_cast<uint64>(val.GetExtValue()), type);
 }
@@ -324,6 +342,15 @@ MIRIntConst *IntConstTable::DoGetOrCreateIntConst(uint64 val, MIRType &type) {
   return intConstTable[key];
 }
 
+MIRIntConst *IntConstTable::DoGetOrCreateInt128Const(const Int128ElemTy *pVal, MIRType &type) {
+  Int128ConstKey key(pVal, type.GetTypeIndex());
+  if (int128ConstTable.find(key) != int128ConstTable.end()) {
+    return int128ConstTable[key];
+  }
+  int128ConstTable[key] = new MIRIntConst(pVal, type);
+  return int128ConstTable[key];
+}
+
 MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(uint64 val, MIRType &type) {
   IntConstKey key(val, type.GetTypeIndex());
   {
@@ -335,6 +362,19 @@ MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(uint64 val, MIRType &
   std::unique_lock<std::shared_timed_mutex> lock(mtx);
   intConstTable[key] = new MIRIntConst(val, type);
   return intConstTable[key];
+}
+
+MIRIntConst *IntConstTable::DoGetOrCreateInt128ConstTreadSafe(const Int128ElemTy *pVal, MIRType &type) {
+  Int128ConstKey key(pVal, type.GetTypeIndex());
+  {
+    std::shared_lock<std::shared_timed_mutex> lock(mtx);
+    if (int128ConstTable.find(key) != int128ConstTable.end()) {
+      return int128ConstTable[key];
+    }
+  }
+  std::unique_lock<std::shared_timed_mutex> lock(mtx);
+  int128ConstTable[key] = new MIRIntConst(pVal, type);
+  return int128ConstTable[key];
 }
 
 IntConstTable::~IntConstTable() {
@@ -437,9 +477,9 @@ MIRFloat128Const *FPConstTable::GetOrCreateFloat128Const(const uint64 *fvalPtr) 
     return nanFloat128Const;
   }
   if (f128Const.IsInf()) {
-    return (f128Const.GetSign()) ? minusInfFloat128Const : infFloat128Const;
+    return (f128Const.GetSign() != 0) ? minusInfFloat128Const : infFloat128Const;
   }
-  if (f128Const.IsZero() && f128Const.GetSign()) {
+  if (f128Const.IsZero() && f128Const.GetSign() != 0) {
     return minusZeroFloat128Const;
   }
   if (ThreadEnv::IsMeParallel()) {
@@ -497,7 +537,7 @@ FPConstTable::~FPConstTable() {
   for (const auto &doubleConst : doubleConstTable) {
     delete doubleConst.second;
   }
-  for(const auto &float128Const : float128ConstTable) {
+  for (const auto &float128Const : float128ConstTable) {
     delete float128Const.second;
   }
 }

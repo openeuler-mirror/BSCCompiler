@@ -16,7 +16,7 @@
 #define HIR2MPL_BC_INPUT_INCLUDE_BC_COMPILER_COMPONENT_H
 #include "fe_macros.h"
 #include "hir2mpl_compiler_component.h"
-#include "bc_input.h"
+#include "bc_input-inl.h"
 
 namespace maple {
 namespace bc {
@@ -39,7 +39,7 @@ class BCCompilerComponent : public HIR2MPLCompilerComponent {
  private:
   bool LoadOnDemandType2BCClass(const std::unordered_set<std::string> &allDepsSet,
                                 const std::unordered_set<std::string> &allDefsSet,
-                                std::list<std::unique_ptr<bc::BCClass>> &klassList);
+                                std::list<std::unique_ptr<bc::BCClass>> &klassList) const;
   bool LoadOnDemandBCClass2FEClass(const std::list<std::unique_ptr<bc::BCClass>> &klassList,
                                    std::list<std::unique_ptr<FEInputStructHelper>> &structHelpers,
                                    bool isEmitDepsMplt);
@@ -50,5 +50,4 @@ class BCCompilerComponent : public HIR2MPLCompilerComponent {
 };  // class BCCompilerComponent
 }  // namespace bc
 }  // namespace maple
-#include "bc_compiler_component-inl.h"
 #endif  // HIR2MPL_BC_INPUT_INCLUDE_BC_COMPILER_COMPONENT_H

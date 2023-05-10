@@ -54,7 +54,17 @@ class NativeFuncProperty {
 class NativeStubFuncGeneration : public FuncOptimizeImpl {
  public:
   NativeStubFuncGeneration(MIRModule &mod, KlassHierarchy *kh, bool dump);
-  ~NativeStubFuncGeneration() override = default;
+  ~NativeStubFuncGeneration() override {
+    mccSetReliableUnwindContextFunc = nullptr;
+    regTableConst = nullptr;
+    mrtDecodeRefFunc = nullptr;
+    mrtCallSlowNativeExtFunc = nullptr;
+    regFuncTabConst = nullptr;
+    mrtPostNativeFunc = nullptr;
+    mrtCheckThrowPendingExceptionFunc = nullptr;
+    regFuncSymbol = nullptr;
+    MRTPreNativeFunc = nullptr;
+  }
 
   void ProcessFunc(MIRFunction *func) override;
   void Finish() override;
@@ -93,12 +103,12 @@ class NativeStubFuncGeneration : public FuncOptimizeImpl {
   MIRSymbol *regFuncSymbol = nullptr;
   MIRAggConst *regFuncTabConst = nullptr;
   MIRFunction *MRTPreNativeFunc = nullptr;
-  MIRFunction *MRTPostNativeFunc = nullptr;
-  MIRFunction *MRTDecodeRefFunc = nullptr;
-  MIRFunction *MRTCheckThrowPendingExceptionFunc = nullptr;
-  MIRFunction *MRTCallSlowNativeFunc[kSlownativeFuncnum] = { nullptr };  // for native func which args <=8, use x0-x7
-  MIRFunction *MRTCallSlowNativeExtFunc = nullptr;
-  MIRFunction *MCCSetReliableUnwindContextFunc = nullptr;
+  MIRFunction *mrtPostNativeFunc = nullptr;
+  MIRFunction *mrtDecodeRefFunc = nullptr;
+  MIRFunction *mrtCheckThrowPendingExceptionFunc = nullptr;
+  MIRFunction *mrtCallSlowNativeFunc[kSlownativeFuncnum] = { nullptr };  // for native func which args <=8, use x0-x7
+  MIRFunction *mrtCallSlowNativeExtFunc = nullptr;
+  MIRFunction *mccSetReliableUnwindContextFunc = nullptr;
   static const std::string callSlowNativeFuncs[kSlownativeFuncnum];
 };
 

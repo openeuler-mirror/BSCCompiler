@@ -30,7 +30,9 @@ class MethodReplace : public AnalysisResult {
   MethodReplace(MIRModule *mod, MemPool *mp, MIRBuilder &builder)
       : AnalysisResult(mp), mirModule(mod), allocator(mp), mBuilder(builder) {}
 
-  ~MethodReplace() override = default;
+  ~MethodReplace() override {
+    mirModule = nullptr;
+  }
 
   void DoMethodReplace();
   void Init();

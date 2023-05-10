@@ -406,9 +406,6 @@ void ForwardPropPattern::Optimize(Insn &insn) {
 }
 
 void ForwardPropPattern::RemoveMopUxtwToMov(Insn &insn) {
-  if (CGOptions::DoCGSSA()) {
-    CHECK_FATAL(false, "check case in ssa");
-  }
   auto &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   auto &destOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   uint32 destRegNo = destOpnd.GetRegisterNumber();
@@ -543,6 +540,10 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
   }
   if (AArch64isa::IsPseudoInstruction(defInsnForSecondOpnd->GetMachineOpcode()) || defInsnForSecondOpnd->IsCall() ||
       defInsnForSecondOpnd->IsTailCall()) {
+    return false;
+  }
+  if (cgFunc.IsAfterRegAlloc() && defInsnForSecondOpnd->GetMachineOpcode() == insn.GetMachineOpcode() &&
+      static_cast<RegOperand&>(defInsnForSecondOpnd->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == firstRegNO) {
     return false;
   }
   /* unconcerned regs. */
@@ -1191,7 +1192,7 @@ bool LocalVarSaveInsnPattern::CheckLiveRange(const Insn &firstInsn) {
 }
 
 bool LocalVarSaveInsnPattern::CheckCondition(Insn &firstInsn) {
-  secondInsn = firstInsn.GetNext();
+  secondInsn = firstInsn.GetNextMachineInsn();
   if (secondInsn == nullptr) {
     return false;
   }
@@ -1438,13 +1439,13 @@ void ExtendShiftOptPattern::SelectExtendOrShift(const Insn &def) {
     case MOP_xuxtw64: extendOp = ExtendShiftOperand::kUXTW;
       break;
     case MOP_wlslrri5:
-    case MOP_xlslrri6: shiftOp = BitShiftOperand::kLSL;
+    case MOP_xlslrri6: shiftOp = BitShiftOperand::kShiftLSL;
       break;
     case MOP_xlsrrri6:
-    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kLSR;
+    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kShiftLSR;
       break;
     case MOP_xasrrri6:
-    case MOP_wasrrri5: shiftOp = BitShiftOperand::kASR;
+    case MOP_wasrrri5: shiftOp = BitShiftOperand::kShiftASR;
       break;
     default: {
       extendOp = ExtendShiftOperand::kUndef;
@@ -1478,51 +1479,86 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
       (regDefSrc.GetSize() > regOperand.GetSize() || useDefOpnd.GetSize() != size)) {
     return false;
   }
-  if ((shiftOp == BitShiftOperand::kLSR || shiftOp == BitShiftOperand::kASR) &&
+  if ((shiftOp == BitShiftOperand::kShiftLSR || shiftOp == BitShiftOperand::kShiftASR) &&
       (defSrcOpnd.GetSize() > size)) {
     return false;
   }
   regno_t defSrcRegNo = regDefSrc.GetRegisterNumber();
   /* check regDefSrc */
+  // If srcOpnd of defInsn redefine in the loop, and the curInsn which is to combine the srcOpnd is in the same loop,
+  // it can not be combined.
+  // e.g.
+  //                 BB1
+  //             sxtw R103, R112 (srcOpnd)   ---> R103 defInsn
+  //                  |
+  //                 BB3 (loop header)   ------
+  //            add R127, R126, R103, LSL 2   |   ---> can not prop R112 to R103 in this insn
+  //                  |                       |
+  //                 ...                      |
+  //                 BB11 (loop bottom)  ------
+  //            sub R112, R112, #1
   InsnSet defSrcSet = cgFunc.GetRD()->FindDefForRegOpnd(use, defSrcRegNo, true);
+  if (use.GetBB()->GetLoop() != nullptr && defInsn->GetBB() != use.GetBB()) {
+    for (auto defSrcIt = defSrcSet.begin(); defSrcIt != defSrcSet.end(); ++defSrcIt) {
+      if ((*defSrcIt)->GetBB() != use.GetBB() && (*defSrcIt)->GetBB()->GetLoop() != nullptr &&
+          (*defSrcIt)->GetBB()->GetLoop() == use.GetBB()->GetLoop() &&
+          (defInsn->GetBB()->GetLoop() == nullptr || defInsn->GetBB()->GetLoop() != (*defSrcIt)->GetBB()->GetLoop())) {
+        return false;
+      }
+    }
+  }
   /* The first defSrcInsn must be closest to useInsn */
   if (defSrcSet.empty()) {
     return false;
   }
-  Insn *defSrcInsn = *defSrcSet.begin();
-  const InsnDesc *md = defSrcInsn->GetDesc();
-  if ((size != regOperand.GetSize()) && md->IsMove()) {
-    return false;
-  }
-  if (defInsn->GetBB() == use.GetBB()) {
-    /* check replace reg def between defInsn and currInsn */
-    Insn *tmpInsn = defInsn->GetNext();
-    while (tmpInsn != &use) {
-      if (tmpInsn == defSrcInsn || tmpInsn == nullptr) {
+  // Need to check every defSrcDefInsn in defSrcSet:
+  // e.g.
+  // useOpnd: R103
+  // defSrcOpnd: R122
+  // defSrcSet: {uxtw[0], asr[1]}
+  //                   BB1
+  //              uxtw R122, R1
+  //              sxtw R103, R122   (defInsn)
+  //                    |
+  //                   BB5
+  //                  /   \
+  //                BB6    \
+  //    asr R122, R121, #1  \
+  //                  \     /
+  //                    BB7
+  //             add R135, R132, R103   (useInsn)    ==/==> can not use (R122 SXTW) instead of R103 in this add
+  for (auto *defSrcInsn : defSrcSet) {
+    const InsnDesc *md = defSrcInsn->GetDesc();
+    if ((size != regOperand.GetSize()) && md->IsMove()) {
+      return false;
+    }
+    if (defInsn->GetBB() == use.GetBB()) {
+      /* check replace reg def between defInsn and currInsn */
+      Insn *tmpInsn = defInsn->GetNext();
+      while (tmpInsn != &use) {
+        if (tmpInsn == defSrcInsn || tmpInsn == nullptr) {
+          return false;
+        }
+        tmpInsn = tmpInsn->GetNext();
+      }
+    } else { /* def use not in same BB */
+      if (defSrcInsn->GetBB() != defInsn->GetBB()) {
         return false;
       }
-      tmpInsn = tmpInsn->GetNext();
+      if (defSrcInsn->GetId() > defInsn->GetId()) {
+        return false;
+      }
     }
-  } else { /* def use not in same BB */
-    if (defSrcInsn->GetBB() != defInsn->GetBB()) {
-      return false;
+    // case:
+    // lsl w0, w0, #5
+    // eor w0, w2, w0    --->    eor w0, w2, w0, lsl 5
+    if (defSrcInsn == defInsn) {
+      InsnSet replaceRegUseSet = cgFunc.GetRD()->FindUseForRegOpnd(*defInsn, defSrcRegNo, true);
+      if (replaceRegUseSet.size() != k1BitSize) {
+        return false;
+      }
+      removeDefInsn = true;
     }
-    if (defSrcInsn->GetId() > defInsn->GetId()) {
-      return false;
-    }
-  }
-  /* case:
-   * lsl w0, w0, #5
-   * eor w0, w2, w0
-   * --->
-   * eor w0, w2, w0, lsl 5
-   */
-  if (defSrcInsn == defInsn) {
-    InsnSet replaceRegUseSet = cgFunc.GetRD()->FindUseForRegOpnd(*defInsn, defSrcRegNo, true);
-    if (replaceRegUseSet.size() != k1BitSize) {
-      return false;
-    }
-    removeDefInsn = true;
   }
   return true;
 }
@@ -1674,7 +1710,7 @@ bool ExtendShiftOptPattern::CheckCondition(Insn &insn) {
   if ((exMOpType == kExUndef) && (lsMOpType == kLsUndef)) {
     return false;
   }
-  RegOperand &regOperand = static_cast<RegOperand&>(insn.GetOperand(replaceIdx));
+  auto &regOperand = static_cast<RegOperand&>(insn.GetOperand(replaceIdx));
   if (regOperand.IsPhysicalRegister()) {
     return false;
   }
@@ -2212,10 +2248,15 @@ bool SameRHSPropPattern::CheckCondition(Insn &insn) {
   if (std::find(candidates.begin(), candidates.end(), mOp) == candidates.end()) {
     return false;
   }
+  ASSERT(insn.GetOperand(kInsnFirstOpnd).IsRegister(), "insn first operand must be register");
+  /* Do not optimize r16-related to avoid tmp-reg is redefined */
+  if (static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber() == R16) {
+    return false;
+  }
   if (!FindSameRHSInsnInBB(insn)) {
     return false;
   }
-  CHECK_FATAL(prevInsn->GetOperand(kInsnFirstOpnd).IsRegister(), "prevInsn first operand must be register");
+  ASSERT(prevInsn->GetOperand(kInsnFirstOpnd).IsRegister(), "prevInsn first operand must be register");
   if (prevInsn->GetOperand(kInsnSecondOpnd).IsRegister() &&
       RegOperand::IsSameReg(prevInsn->GetOperand(kInsnFirstOpnd), prevInsn->GetOperand(kInsnSecondOpnd))) {
     return false;
@@ -2303,10 +2344,6 @@ bool ContinuousLdrPattern::IsUsedBySameCall(Insn &insn1, Insn &insn2, Insn &insn
 
 bool ContinuousLdrPattern::IsMemValid(const MemOperand &memopnd) {
   return memopnd.GetAddrMode() == MemOperand::kBOI;
-}
-
-bool ContinuousLdrPattern::IsImmValid(MOperator mop, const ImmOperand &imm) {
-  return AArch64CG::kMd[mop].IsValidImmOpnd(imm.GetValue());
 }
 
 int64 ContinuousLdrPattern::GetMemOffsetValue(const Insn &insn) {
@@ -2407,7 +2444,8 @@ void ContinuousLdrPattern::Optimize(Insn &insn) {
     std::swap(ldpRt1, ldpRt2);
   }
 
-  if (IsImmValid(mop, *static_cast<MemOperand &>(ldpRt1->GetOperand(kSecondOpnd)).GetOffsetOperand())) {
+  Operand &opnd = ldpRt1->GetOperand(kSecondOpnd);
+  if (aarch64CGFunc.IsOperandImmValid(mop, &opnd, kThirdOpnd)) {
     auto &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mop, ldpRt1->GetOperand(kFirstOpnd),
                                                        ldpRt2->GetOperand(kFirstOpnd), ldpRt1->GetOperand(kSecondOpnd));
     auto &ubfxInsn = cgFunc.GetInsnBuilder()->BuildInsn(ubfx, currInsn->GetOperand(kFirstOpnd),

@@ -61,7 +61,11 @@ class Clone : public AnalysisResult {
       : AnalysisResult(memPool), mirModule(mod), allocator(memPool), mirBuilder(builder), kh(kh),
         replaceRetIgnored(memPool->New<ReplaceRetIgnored>(memPool)) {}
 
-  ~Clone() override = default;
+  ~Clone() override {
+    mirModule = nullptr;
+    kh = nullptr;
+    replaceRetIgnored = nullptr;
+  }
 
   static MIRSymbol *CloneLocalSymbol(const MIRSymbol &oldSym, const MIRFunction &newFunc);
   static void CloneSymbols(MIRFunction &newFunc, const MIRFunction &oldFunc);
@@ -73,8 +77,8 @@ class Clone : public AnalysisResult {
   void CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const;
   void UpdateFuncInfo(MIRFunction &newFunc);
   void CloneArgument(MIRFunction &originalFunction, ArgVector &argument) const;
-  const ReplaceRetIgnored *GetReplaceRetIgnored() const {
-    return replaceRetIgnored;
+  const ReplaceRetIgnored &GetReplaceRetIgnored() const {
+    return *replaceRetIgnored;
   }
 
   void UpdateReturnVoidIfPossible(CallMeStmt *callMeStmt, const MIRFunction &targetFunc) const;

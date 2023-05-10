@@ -286,7 +286,7 @@ bool MePrediction::PredictedByLoopHeuristic(const BB &bb) const {
 }
 
 // Sort loops first so that hanle innermost loop first in PropFreqInLoops.
-void MePrediction::SortLoops() {
+void MePrediction::SortLoops() const {
   const auto &bbId2rpoId = dom->GetReversePostOrderId();
   std::stable_sort(meLoop->GetMeLoops().begin(), meLoop->GetMeLoops().end(),
                    [&bbId2rpoId](const LoopDesc *loop1, const LoopDesc *loop2) {
@@ -590,11 +590,11 @@ void MePrediction::CombinePredForBB(const BB &bb) {
   }
   // If we have only one successor which is unknown, we can compute missing probablity.
   if (nunknown == 1) {
-    int32 prob = kProbAlways;
+    uint32 prob = static_cast<uint32>(kProbAlways);
     Edge *missing = nullptr;
     for (Edge *edge = edges[bb.GetBBId()]; edge != nullptr; edge = edge->next) {
       if (edge->probability > 0) {
-        prob -= static_cast<uint32>(edge->probability);
+        prob -= edge->probability;
       } else if (missing == nullptr) {
         missing = edge;
       } else {
@@ -602,7 +602,7 @@ void MePrediction::CombinePredForBB(const BB &bb) {
       }
     }
     CHECK_FATAL(missing != nullptr, "null ptr check");
-    missing->probability = static_cast<uint32>(prob);
+    missing->probability = prob;
     return;
   }
   EdgePrediction *preds = bbPredictions[bb.GetBBId()];

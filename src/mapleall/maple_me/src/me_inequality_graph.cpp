@@ -97,7 +97,7 @@ InequalEdge *InequalityGraph::AddEdge(ESSABaseNode &from, ESSABaseNode &to, int6
   return ePtr;
 }
 
-void InequalityGraph::AddPhiEdge(ESSABaseNode &from, ESSABaseNode &to, EdgeType type) {
+void InequalityGraph::AddPhiEdge(ESSABaseNode &from, ESSABaseNode &to, EdgeType type) const {
   std::unique_ptr<InequalEdge> edge = std::make_unique<InequalEdge>(0, type);
   CHECK_FATAL(edge != nullptr, "new failed");
   if (type == EdgeType::kUpper) {
@@ -113,7 +113,7 @@ void InequalityGraph::AddPhiEdge(ESSABaseNode &from, ESSABaseNode &to, EdgeType 
   }
 }
 
-void InequalityGraph::AddEdge(ESSABaseNode &from, ESSABaseNode &to, MeExpr &value, bool positive, EdgeType type) {
+void InequalityGraph::AddEdge(ESSABaseNode &from, ESSABaseNode &to, MeExpr &value, bool positive, EdgeType type) const {
   InequalEdge tmpEdge = InequalEdge(value, positive, type);
   if (HasEdge(from, to, tmpEdge)) {
     return;

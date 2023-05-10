@@ -20,15 +20,19 @@
 #include "bb.h"
 #include "insn.h"
 #include "cg_ssa.h"
+#include "reg_coalesce.h"
+#include "cg_dce.h"
 
 namespace maplebe {
 #define CG_VALIDBIT_OPT_DUMP CG_DEBUG_FUNC(*cgFunc)
 class ValidBitPattern {
  public:
   ValidBitPattern(CGFunc &f, CGSSAInfo &info) : cgFunc(&f), ssaInfo(&info) {}
+  ValidBitPattern(CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : cgFunc(&f), ssaInfo(&info), regll(&ll) {}
   virtual ~ValidBitPattern() {
     cgFunc = nullptr;
     ssaInfo = nullptr;
+    regll = nullptr;
   }
   std::string PhaseName() const {
     return "cgvalidbitopt";
@@ -37,20 +41,25 @@ class ValidBitPattern {
   virtual std::string GetPatternName() = 0;
   virtual bool CheckCondition(Insn &insn) = 0;
   virtual void Run(BB &bb, Insn &insn) = 0;
-  InsnSet GetAllUseInsn(const RegOperand &defReg);
+  InsnSet GetAllUseInsn(const RegOperand &defReg) const;
   void DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn);
 
  protected:
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
+  LiveIntervalAnalysis *regll = nullptr;
 };
 
 class ValidBitOpt {
  public:
-  ValidBitOpt(CGFunc &f, CGSSAInfo &info) : cgFunc(&f), ssaInfo(&info) {}
+  ValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) :memPool(&mp), cgFunc(&f), ssaInfo(&info), regll(&ll) {
+    cgDce = f.GetCG()->CreateCGDce(mp, f, info);
+  }
   virtual ~ValidBitOpt() {
+    memPool = nullptr;
     cgFunc = nullptr;
     ssaInfo = nullptr;
+    regll = nullptr;
   }
   void Run();
   static uint32 GetImmValidBit(int64 value, uint32 size) {
@@ -75,19 +84,28 @@ class ValidBitOpt {
   }
 
   template<typename VBOpt>
-  void Optimize(BB &bb, Insn &insn) const {
+  void OptimizeProp(BB &bb, Insn &insn) const {
+    VBOpt opt(*cgFunc, *ssaInfo, *regll);
+    opt.Run(bb, insn);
+  }
+
+  template<typename VBOpt>
+  void OptimizeNoProp(BB &bb, Insn &insn) const {
     VBOpt opt(*cgFunc, *ssaInfo);
     opt.Run(bb, insn);
   }
-  virtual void DoOpt(BB &bb, Insn &insn) = 0;
+  virtual void DoOpt() = 0;
   void RectifyValidBitNum();
   void RecoverValidBitNum();
   virtual void SetValidBits(Insn &insn) = 0;
   virtual bool SetPhiValidBits(Insn &insn) = 0;
 
  protected:
+  MemPool *memPool;
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
+  LiveIntervalAnalysis *regll;
+  CGDce *cgDce = nullptr;
 };
 MAPLE_FUNC_PHASE_DECLARE(CgValidBitOpt, maplebe::CGFunc)
 } /* namespace maplebe */

@@ -171,7 +171,7 @@ static AbstractIR2Target abstract2TargetTable[abstract::kMopLast] {
   {abstract::MOP_comment, {{MOP_nop, {kAbtractNone}, {}}}},
 };
 
-Operand *AArch64Standardize::GetInsnResult(Insn *insn) {
+Operand *AArch64Standardize::GetInsnResult(Insn *insn) const {
   for (uint32 i = 0; i < insn->GetOperandSize(); ++i) {
     if (insn->OpndIsDef(i)) {
       return &(insn->GetOperand(i));
@@ -181,14 +181,14 @@ Operand *AArch64Standardize::GetInsnResult(Insn *insn) {
 }
 
 Insn *AArch64Standardize::HandleTargetImm(Insn *insn, Insn *newInsn, uint32 idx, MOperator targetMop, uint8 order) {
-  const InsnDesc *md = &AArch64CG::kMd[targetMop];
-  ImmOperand &immOpnd = static_cast<ImmOperand&>(insn->GetOperand(idx));
-  if (md->IsValidImmOpnd(immOpnd.GetValue())) {
+  Operand &opnd = insn->GetOperand(idx);
+  ImmOperand &immOpnd = static_cast<ImmOperand&>(opnd);
+  AArch64CGFunc *a64func = static_cast<AArch64CGFunc*>(GetCgFunc());
+  if (a64func->IsOperandImmValid(targetMop, &opnd, idx)) {
     newInsn->SetOperand(order, immOpnd);
   } else {
     Operand *resOpnd = GetInsnResult(insn);
     CHECK_FATAL(resOpnd, "SelectTargetInsn: No result operand");
-    AArch64CGFunc *a64func = static_cast<AArch64CGFunc*>(GetCgFunc());
     BB &saveCurBB = *GetCgFunc()->GetCurBB();
     a64func->GetDummyBB()->ClearInsns();
     GetCgFunc()->SetCurBB(*a64func->GetDummyBB());

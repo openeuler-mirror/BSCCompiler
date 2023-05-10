@@ -17,6 +17,7 @@
 #include "me_ssa.h"
 #include "mempool_allocator.h"
 #include "ver_symbol.h"
+#include "mir_lower.h"
 
 namespace maple {
 std::string BB::StrAttribute() const {
@@ -135,7 +136,7 @@ bool BB::InsertPhi(MapleAllocator *alloc, VersionSt *versionSt) {
   auto status = phiList.emplace(std::make_pair(versionSt->GetOst()->GetIndex(), phiNode));
   if (status.second) {
     status.first->second.GetPhiOpnds().resize(pred.size());
-    for (int idx = 0; idx < pred.size(); ++idx) {
+    for (size_t idx = 0; idx < pred.size(); ++idx) {
       status.first->second.SetPhiOpnd(idx, *versionSt);
     }
   }
@@ -345,6 +346,59 @@ void BB::MoveAllSuccToPred(BB *newPred, BB *commonExit) {
   }
 }
 
+bool BB::IsImmediateUnlikelyBB() const {
+  if (pred.size() != 1 || pred[0]->GetKind() != kBBCondGoto) {
+    return false;
+  }
+  auto *condBB = pred[0];
+  auto *unlikelySucc = condBB->GetUnlikelySuccOfCondBB();
+  return unlikelySucc == this;
+}
+
+bool BB::IsImmediateLikelyBB() const {
+  if (pred.size() != 1 || pred[0]->GetKind() != kBBCondGoto) {
+    return false;
+  }
+  auto *condBB = pred[0];
+  auto *likelySucc = condBB->GetLikelySuccOfCondBB();
+  return likelySucc == this;
+}
+
+BB *BB::GetUnlikelySuccOfCondBB() {
+  CHECK_FATAL(kind == kBBCondGoto, "expect a condBB");
+  // The probability of jumping to targetBB
+  int32 branchProb = -1;
+  if (!meStmtList.empty()) {  // for MEIR BB
+    auto *condMeStmt = static_cast<CondGotoMeStmt*>(GetLastMe());
+    branchProb = condMeStmt->GetBranchProb();
+  } else if (!stmtNodeList.empty()) {  // for MapleIR BB
+    auto &condStmt = static_cast<CondGotoNode&>(GetLast());
+    branchProb = condStmt.GetBranchProb();
+  } else {
+    CHECK_FATAL_FALSE("a condBB should be never empty");
+  }
+  auto *fallthruBB = GetSucc(0); // The first successor of condBB is always the fallthrough BB
+  auto *targetBB = GetSucc(1);   // The second successor of condBB is always the target BB
+  if (branchProb == kProbUnlikely) {
+    return targetBB;
+  }
+  if (branchProb == kProbLikely) {
+    return fallthruBB;
+  }
+  return nullptr;
+}
+
+BB *BB::GetLikelySuccOfCondBB() {
+  auto *unlikelySucc = GetUnlikelySuccOfCondBB();
+  if (unlikelySucc == nullptr) {
+    return nullptr;
+  }
+  auto *fallthruBB = GetSucc(0); // The first successor of condBB is always the fallthrough BB
+  auto *targetBB = GetSucc(1);   // The second successor of condBB is always the target BB
+  auto *likelySucc = (unlikelySucc == targetBB) ? fallthruBB : targetBB;
+  return likelySucc;
+}
+
 void BB::FindReachableBBs(std::vector<bool> &visitedBBs) const {
   CHECK_FATAL(GetBBId() < visitedBBs.size(), "out of range in BB::FindReachableBBs");
   if (visitedBBs[GetBBId()]) {
@@ -420,6 +474,7 @@ void BB::InsertMeStmtBefore(const MeStmt *meStmt, MeStmt *inStmt) {
 }
 
 void BB::InsertMeStmtAfter(const MeStmt *meStmt, MeStmt *inStmt) {
+  CHECK_FATAL(inStmt != nullptr, "null ptr check");
   meStmtList.insertAfter(meStmt, inStmt);
   inStmt->SetBB(this);
 }
@@ -471,8 +526,11 @@ void BB::DumpMePhiList(const IRMap *irMap) {
   for (const auto &phi : mePhiList) {
     phi.second->Dump(irMap);
     int dumpVsyNum = DumpOptions::GetDumpVsyNum();
-    if (dumpVsyNum > 0 && ++count >= dumpVsyNum) {
-      break;
+    if (dumpVsyNum > 0) {
+      ++count;
+      if (count >= dumpVsyNum) {
+        break;
+      }
     }
     ASSERT(count >= 0, "mePhiList too large");
   }
@@ -494,7 +552,9 @@ void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
   }
   for (size_t i = 0; i < len; ++i) {
     FreqType sfreq = GetSuccFreq()[i];
-    FreqType scalefreq = (succFreqs == 0 ? (frequency / len) : (sfreq * frequency / succFreqs));
+    ASSERT(frequency != -1, "frequency != -1");
+    FreqType scalefreq = (succFreqs == 0 ?
+        static_cast<FreqType>(static_cast<size_t>(frequency) / len) : (sfreq * frequency / succFreqs));
     SetSuccFreq(static_cast<int>(i), scalefreq);
     // update succ frequency with new difference if needed
     if (updateBBFreqOfSucc) {

@@ -292,10 +292,18 @@ void AArch64AlignAnalysis::AddNopAfterMark() {
       Insn *detect = insn->GetPrev();
       BB *region = bb;
       while (detect != nullptr || region != aarFunc->GetFirstBB()) {
+        bool isBreak = false;
         while (detect == nullptr) {
-          ASSERT(region->GetPrev() != nullptr, "get region prev failed");
+          // If region's prev bb and detect both are nullptr, it should end the while loop.
+          if (region->GetPrev() == nullptr) {
+            isBreak = true;
+            break;
+          }
           region = region->GetPrev();
           detect = region->GetLastInsn();
+        }
+        if (isBreak) {
+          break;
         }
         if (detect->GetMachineOpcode() == MOP_xuncond || detect->GetMachineOpcode() == MOP_xret ||
             detect->GetMachineOpcode() == MOP_xbr) {

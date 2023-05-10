@@ -18,7 +18,6 @@
 #include "ast_stmt.h"
 #include "ast_decl_builder.h"
 #include "feir_builder.h"
-#include "fe_manager.h"
 #include "fe_macros.h"
 
 namespace maple {
@@ -49,7 +48,8 @@ void ASTParser::ProcessNonnullFuncPtrAttrs(MapleAllocator &allocator, const clan
     retAttr.SetAttr(ATTR_nonnull);
   }
   MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
-      funcType->GetRetTyIdx(), funcType->GetParamTypeList(), attrsVec, funcType->IsVarargs(), retAttr);
+      funcType->GetRetTyIdx(), funcType->GetParamTypeList(),
+      attrsVec, funcType->GetFuncAttrs(), retAttr);
   astVar.SetTypeDesc(MapleVector<MIRType*>({GlobalTables::GetTypeTable().GetOrCreatePointerType(
       *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))}, allocator.Adapter()));
 }
@@ -568,7 +568,8 @@ void ASTParser::ProcessBoundaryFuncPtrAttrs(MapleAllocator &allocator, const cla
   }
   if (isUpdated) {
     MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
-        funcType->GetRetTyIdx(), funcType->GetParamTypeList(), attrsVec, funcType->IsVarargs(), retAttr);
+        funcType->GetRetTyIdx(), funcType->GetParamTypeList(),
+        attrsVec, funcType->GetFuncAttrs(), retAttr);
     astDecl.SetTypeDesc(MapleVector<MIRType*>({GlobalTables::GetTypeTable().GetOrCreatePointerType(
         *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))}, allocator.Adapter()));
   }
@@ -649,7 +650,8 @@ void ASTParser::ProcessBoundaryFuncPtrAttrsByIndex(MapleAllocator &allocator, co
   }
   if (isUpdated) {
     MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
-        funcType.GetRetTyIdx(), funcType.GetParamTypeList(), attrsVec, funcType.IsVarargs(), retAttr);
+        funcType.GetRetTyIdx(), funcType.GetParamTypeList(),
+        attrsVec, funcType.GetFuncAttrs(), retAttr);
     astDecl.SetTypeDesc(MapleVector<MIRType*>({GlobalTables::GetTypeTable().GetOrCreatePointerType(
         *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))}, allocator.Adapter()));
   }
@@ -1592,7 +1594,7 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
   exprs.emplace_back(std::move(baseExpr));
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertBoundary>(OP_returnassertle, std::move(exprs));
   stmt->SetSrcLoc(stmts.back()->GetSrcLoc());
-  stmts.insert(--stmts.cend(), std::move(stmt));
+  (void)stmts.insert(--stmts.cend(), std::move(stmt));
 }
 
 void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
@@ -1684,33 +1686,11 @@ void ENCChecker::InsertBoundaryLenExprInAtts(TypeAttrs &attr, const UniqueFEIREx
 }
 
 void ENCChecker::InsertBoundaryInAtts(FieldAttrs &attr, const BoundaryInfo &boundary) {
-  attr.GetAttrBoundary().SetIsBytedLen(boundary.isBytedLen);
-  if (boundary.lenParamIdx != -1) {
-    attr.GetAttrBoundary().SetLenParamIdx(boundary.lenParamIdx);
-  }
-  if (boundary.lenExpr == nullptr) {
-    return;
-  }
-  std::list<UniqueFEIRStmt> nullStmts;
-  UniqueFEIRExpr lenExpr = boundary.lenExpr->Emit2FEExpr(nullStmts);
-  uint32 hash = lenExpr->Hash();
-  FEManager::GetTypeManager().InsertBoundaryLenExprHashMap(hash, std::move(lenExpr));  // save expr cache
-  attr.GetAttrBoundary().SetLenExprHash(hash);
+  InsertBoundaryInFieldOrFuncAtts(attr, boundary);
 }
 
 void ENCChecker::InsertBoundaryInAtts(FuncAttrs &attr, const BoundaryInfo &boundary) {
-  attr.GetAttrBoundary().SetIsBytedLen(boundary.isBytedLen);
-  if (boundary.lenParamIdx != -1) {
-    attr.GetAttrBoundary().SetLenParamIdx(boundary.lenParamIdx);
-  }
-  if (boundary.lenExpr == nullptr) {
-    return;
-  }
-  std::list<UniqueFEIRStmt> nullStmts;
-  UniqueFEIRExpr lenExpr = boundary.lenExpr->Emit2FEExpr(nullStmts);
-  uint32 hash = lenExpr->Hash();
-  FEManager::GetTypeManager().InsertBoundaryLenExprHashMap(hash, std::move(lenExpr));  // save expr cache
-  attr.GetAttrBoundary().SetLenExprHash(hash);
+  InsertBoundaryInFieldOrFuncAtts(attr, boundary);
 }
 
 // ---------------------------
@@ -1756,7 +1736,7 @@ void FEIRStmtDAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     if (stmt != nullptr) {
       stmt->SetSrcLoc(loc);
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
-      ans.insert(ans.cend(), stmtnodes.cbegin(), stmtnodes.cend());
+      (void)ans.insert(ans.cend(), stmtnodes.cbegin(), stmtnodes.cend());
     }
   }
   ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, expr, lenExpr, ans);
@@ -1787,7 +1767,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     if (stmt != nullptr) {
       stmt->SetSrcLoc(loc);
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
-      ans.insert(ans.cend(), stmtnodes.cbegin(), stmtnodes.cend());
+      (void)ans.insert(ans.cend(), stmtnodes.cbegin(), stmtnodes.cend());
     }
   }
   ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, baseExpr, lenExpr, ans);

@@ -101,7 +101,7 @@ class BaseNode : public BaseNodeT {
     numOpnds = numOpr;
   }
 
-  virtual ~BaseNode() = default;
+  ~BaseNode() override = default;
 
   virtual BaseNode *CloneTree(MapleAllocator &allocator) const {
     return allocator.GetMemPool()->New<BaseNode>(*this);
@@ -202,7 +202,7 @@ class UnaryNode : public BaseNode {
 
   UnaryNode(Opcode o, PrimType typ, BaseNode *expr) : BaseNode(o, typ, 1), uOpnd(expr) {}
 
-  virtual ~UnaryNode() override = default;
+  ~UnaryNode() override = default;
 
   void DumpOpnd(const MIRModule &mod, int32 indent) const;
   void DumpOpnd(int32 indent) const;
@@ -254,7 +254,7 @@ class TypeCvtNode : public UnaryNode {
   TypeCvtNode(Opcode o, PrimType typ, PrimType fromtyp, BaseNode *expr)
       : UnaryNode(o, typ, expr), fromPrimType(fromtyp) {}
 
-  virtual ~TypeCvtNode() = default;
+  ~TypeCvtNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -293,7 +293,7 @@ class RetypeNode : public TypeCvtNode {
   RetypeNode(PrimType typ, PrimType fromtyp, TyIdx idx, BaseNode *expr)
       : TypeCvtNode(OP_retype, typ, fromtyp, expr), tyIdx(idx) {}
 
-  virtual ~RetypeNode() = default;
+  ~RetypeNode() override = default;
   void Dump(int32 indent) const override;
   bool Verify(VerifyResult &verifyResult) const override;
 
@@ -310,6 +310,8 @@ class RetypeNode : public TypeCvtNode {
   void SetTyIdx(const TyIdx tyIdxVal) {
     tyIdx = tyIdxVal;
   }
+
+  bool IsSameContent(const BaseNode *node) const override;
 
  private:
   bool VerifyPrimTypesAndOpnd() const;
@@ -350,7 +352,7 @@ class ExtractbitsNode : public UnaryNode {
   ExtractbitsNode(Opcode o, PrimType typ, uint8 offset, uint8 size, BaseNode *expr)
       : UnaryNode(o, typ, expr), bitsOffset(offset), bitsSize(size) {}
 
-  virtual ~ExtractbitsNode() = default;
+  ~ExtractbitsNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -377,6 +379,8 @@ class ExtractbitsNode : public UnaryNode {
     bitsSize = size;
   }
 
+  bool IsSameContent(const BaseNode *node) const override;
+
  private:
   uint8 bitsOffset = 0;
   uint8 bitsSize = 0;
@@ -388,7 +392,7 @@ class GCMallocNode : public BaseNode {
 
   GCMallocNode(Opcode o, PrimType typ, TyIdx tIdx) : BaseNode(o, typ, 0), tyIdx(tIdx) {}
 
-  virtual ~GCMallocNode() = default;
+  ~GCMallocNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -424,7 +428,7 @@ class JarrayMallocNode : public UnaryNode {
 
   JarrayMallocNode(Opcode o, PrimType typ, TyIdx typeIdx, BaseNode *opnd) : UnaryNode(o, typ, opnd), tyIdx(typeIdx) {}
 
-  virtual ~JarrayMallocNode() = default;
+  ~JarrayMallocNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -458,7 +462,7 @@ class IreadNode : public UnaryNode {
   IreadNode(Opcode o, PrimType typ, TyIdx typeIdx, FieldID fid, BaseNode *expr)
       : UnaryNode(o, typ, expr), tyIdx(typeIdx), fieldID(fid) {}
 
-  virtual ~IreadNode() = default;
+  ~IreadNode() override = default;
   void Dump(int32 indent) const override;
   bool Verify() const override;
 
@@ -515,7 +519,7 @@ class IreadoffNode : public UnaryNode {
 
   IreadoffNode(PrimType ptyp, BaseNode *opnd, int32 ofst) : UnaryNode(OP_ireadoff, ptyp, opnd), offset(ofst) {}
 
-  virtual ~IreadoffNode() = default;
+  ~IreadoffNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -546,7 +550,7 @@ class IreadFPoffNode : public BaseNode {
 
   IreadFPoffNode(PrimType ptyp, int32 ofst) : BaseNode(OP_ireadfpoff, ptyp, 0), offset(ofst) {}
 
-  virtual ~IreadFPoffNode() = default;
+  ~IreadFPoffNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -615,7 +619,7 @@ class BinaryNode : public BaseNode, public BinaryOpnds {
     SetBOpnd(r, 1);
   }
 
-  virtual ~BinaryNode() = default;
+  ~BinaryNode() override = default;
 
   using BaseNode::Dump;
   void Dump(int32 indent) const override;
@@ -676,7 +680,7 @@ class CompareNode : public BinaryNode {
   CompareNode(Opcode o, PrimType typ, PrimType otype, BaseNode *l, BaseNode *r)
       : BinaryNode(o, typ, l, r), opndType(otype) {}
 
-  virtual ~CompareNode() = default;
+  ~CompareNode() override = default;
 
   using BinaryNode::Dump;
   void Dump(int32 indent) const override;
@@ -697,6 +701,14 @@ class CompareNode : public BinaryNode {
     opndType = type;
   }
 
+  bool IsSameContent(const BaseNode *node) const override {
+    if (!BinaryNode::IsSameContent(node)) {
+      return false;
+    }
+    auto compareNode = static_cast<const CompareNode *>(node);
+    return opndType == compareNode->GetOpndType();
+  }
+
  private:
   PrimType opndType = kPtyInvalid;  // type of operands.
 };
@@ -710,7 +722,7 @@ class DepositbitsNode : public BinaryNode {
   DepositbitsNode(Opcode o, PrimType typ, uint8 offset, uint8 size, BaseNode *l, BaseNode *r)
       : BinaryNode(o, typ, l, r), bitsOffset(offset), bitsSize(size) {}
 
-  virtual ~DepositbitsNode() = default;
+  ~DepositbitsNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -738,6 +750,14 @@ class DepositbitsNode : public BinaryNode {
     bitsSize = size;
   }
 
+  bool IsSameContent(const BaseNode *node) const override {
+    if (!BinaryNode::IsSameContent(node)) {
+      return false;
+    }
+    auto depositebitsNode = static_cast<const DepositbitsNode *>(node);
+    return bitsOffset == depositebitsNode->GetBitsOffset() && bitsSize == depositebitsNode->GetBitsSize();
+  }
+
  private:
   uint8 bitsOffset = 0;
   uint8 bitsSize = 0;
@@ -757,7 +777,7 @@ class ResolveFuncNode : public BinaryNode {
   ResolveFuncNode(Opcode o, PrimType typ, PUIdx pIdx, BaseNode *opnd0, BaseNode *opnd1)
       : BinaryNode(o, typ, opnd0, opnd1), puIdx(pIdx) {}
 
-  virtual ~ResolveFuncNode() = default;
+  ~ResolveFuncNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -784,6 +804,14 @@ class ResolveFuncNode : public BinaryNode {
     puIdx = idx;
   }
 
+  bool IsSameContent(const BaseNode *node) const override {
+    if (!BinaryNode::IsSameContent(node)) {
+      return false;
+    }
+    auto resolveFuncNode = static_cast<const ResolveFuncNode *>(node);
+    return puIdx == resolveFuncNode->GetPuIdx();
+  }
+
  private:
   PUIdx puIdx = 0;
 };
@@ -800,7 +828,7 @@ class TernaryNode : public BaseNode {
     topnd[2] = e2;
   }
 
-  virtual ~TernaryNode() = default;
+  ~TernaryNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -895,7 +923,7 @@ class NaryNode : public BaseNode, public NaryOpnds {
 
   NaryNode(NaryNode &node) = delete;
   NaryNode &operator=(const NaryNode &node) = delete;
-  virtual ~NaryNode() = default;
+  ~NaryNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -956,7 +984,7 @@ class IntrinsicopNode : public NaryNode {
 
   IntrinsicopNode(IntrinsicopNode &node) = delete;
   IntrinsicopNode &operator=(const IntrinsicopNode &node) = delete;
-  virtual ~IntrinsicopNode() = default;
+  ~IntrinsicopNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -1008,7 +1036,7 @@ class ConstvalNode : public BaseNode {
   explicit ConstvalNode(MIRConst *constv) : BaseNode(OP_constval), constVal(constv) {}
 
   ConstvalNode(PrimType typ, MIRConst *constv) : BaseNode(OP_constval, typ, 0), constVal(constv) {}
-  virtual ~ConstvalNode() = default;
+  ~ConstvalNode() override = default;
   void Dump(int32 indent) const override;
 
   ConstvalNode *CloneTree(MapleAllocator &allocator) const override {
@@ -1041,7 +1069,7 @@ class ConststrNode : public BaseNode {
 
   ConststrNode(PrimType typ, UStrIdx i) : BaseNode(OP_conststr, typ, 0), strIdx(i) {}
 
-  virtual ~ConststrNode() = default;
+  ~ConststrNode() override = default;
 
   void Dump(int32 indent) const override;
   bool IsSameContent(const BaseNode *node) const override;
@@ -1070,7 +1098,7 @@ class Conststr16Node : public BaseNode {
 
   Conststr16Node(PrimType typ, U16StrIdx i) : BaseNode(OP_conststr16, typ, 0), strIdx(i) {}
 
-  virtual ~Conststr16Node() = default;
+  ~Conststr16Node() override = default;
 
   void Dump(int32 indent) const override;
   bool IsSameContent(const BaseNode *node) const override;
@@ -1099,7 +1127,7 @@ class SizeoftypeNode : public BaseNode {
 
   SizeoftypeNode(PrimType type, TyIdx t) : BaseNode(OP_sizeoftype, type, 0), tyIdx(t) {}
 
-  virtual ~SizeoftypeNode() = default;
+  ~SizeoftypeNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -1129,7 +1157,7 @@ class FieldsDistNode : public BaseNode {
   FieldsDistNode(PrimType typ, TyIdx t, FieldID f1, FieldID f2)
       : BaseNode(OP_fieldsdist, typ, 0), tyIdx(t), fieldID1(f1), fieldID2(f2) {}
 
-  virtual ~FieldsDistNode() = default;
+  ~FieldsDistNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -1190,11 +1218,11 @@ class ArrayNode : public NaryNode {
 
   ArrayNode(ArrayNode &node) = delete;
   ArrayNode &operator=(const ArrayNode &node) = delete;
-  virtual ~ArrayNode() = default;
+  ~ArrayNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
-  bool IsSameBase(ArrayNode *arry);
+  bool IsSameBase(const ArrayNode *arry) const;
 
   size_t NumOpnds() const override {
     ASSERT(numOpnds == GetNopndSize(), "ArrayNode has wrong numOpnds field");
@@ -1254,7 +1282,7 @@ class AddrofNode : public BaseNode {
 
   AddrofNode(Opcode o, PrimType typ, StIdx sIdx, FieldID fid) : BaseNode(o, typ, 0), stIdx(sIdx), fieldID(fid) {}
 
-  virtual ~AddrofNode() = default;
+  ~AddrofNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -1303,7 +1331,7 @@ class DreadoffNode : public BaseNode {
 
   DreadoffNode(Opcode o, PrimType typ) : BaseNode(o, typ, 0), stIdx() {}
 
-  virtual ~DreadoffNode() = default;
+  ~DreadoffNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -1333,7 +1361,7 @@ class RegreadNode : public BaseNode {
     ptyp = primType;
   }
 
-  virtual ~RegreadNode() = default;
+  ~RegreadNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -1361,7 +1389,7 @@ class AddroffuncNode : public BaseNode {
 
   AddroffuncNode(PrimType typ, PUIdx pIdx) : BaseNode(OP_addroffunc, typ, 0), puIdx(pIdx) {}
 
-  virtual ~AddroffuncNode() = default;
+  ~AddroffuncNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -1390,7 +1418,7 @@ class AddroflabelNode : public BaseNode {
 
   explicit AddroflabelNode(uint32 ofst) : BaseNode(OP_addroflabel), offset(ofst) {}
 
-  virtual ~AddroflabelNode() = default;
+  ~AddroflabelNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -1446,7 +1474,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     ++stmtIDNext;
   }
 
-  virtual ~StmtNode() = default;
+  ~StmtNode() override = default;
 
   using BaseNode::Dump;
   void DumpBase(int32 indent) const override;
@@ -1544,19 +1572,27 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     this->stmtAttrs.AppendAttr(stmtAttr.GetTargetAttrFlag(STMTATTR_insaferegion));
   }
 
+  void SetMayTailcall(bool flag = true) {
+    stmtAttrs.SetAttr(STMTATTR_mayTailcall, flag);
+  }
+
+  bool GetMayTailCall() const {
+    return stmtAttrs.GetAttr(STMTATTR_mayTailcall);
+  }
+
   const StmtAttrs &GetStmtAttrs() const {
     return stmtAttrs;
   }
 
   void SetStmtInfoId(size_t index) {
-    stmtInfoId = index;
+    stmtInfoId = static_cast<uint32>(index);
   }
 
   const uint32 GetStmtInfoId() const {
     return stmtInfoId;
   }
 
-  bool operator==(const StmtNode &rhs) {
+  bool operator==(const StmtNode &rhs) const {
     return this == &rhs;
   }
 
@@ -1582,7 +1618,7 @@ class IassignNode : public StmtNode {
     BaseNodeT::SetNumOpnds(kOperandNumBinary);
   }
 
-  virtual ~IassignNode() = default;
+  ~IassignNode() override = default;
 
   TyIdx GetTyIdx() const {
     return tyIdx;
@@ -1680,7 +1716,7 @@ class GotoNode : public StmtNode {
 
   GotoNode(Opcode o, uint32 ofst) : StmtNode(o), offset(ofst) {}
 
-  virtual ~GotoNode() = default;
+  ~GotoNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -1710,7 +1746,7 @@ class JsTryNode : public StmtNode {
   JsTryNode(uint16 catchofst, uint16 finallyofset)
       : StmtNode(OP_jstry), catchOffset(catchofst), finallyOffset(finallyofset) {}
 
-  virtual ~JsTryNode() = default;
+  ~JsTryNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -1752,7 +1788,7 @@ class TryNode : public StmtNode {
 
   TryNode(TryNode &node) = delete;
   TryNode &operator=(const TryNode &node) = delete;
-  virtual ~TryNode() = default;
+  ~TryNode() override = default;
 
   using StmtNode::Dump;
   void Dump(int32 indent) const override;
@@ -1824,7 +1860,7 @@ class CatchNode : public StmtNode {
 
   CatchNode(CatchNode &node) = delete;
   CatchNode &operator=(const CatchNode &node) = delete;
-  virtual ~CatchNode() = default;
+  ~CatchNode() override = default;
 
   using StmtNode::Dump;
   void Dump(int32 indent) const override;
@@ -1876,7 +1912,7 @@ class CppCatchNode : public StmtNode {
 
   explicit CppCatchNode(const CppCatchNode &node) = delete;
   CppCatchNode &operator=(const CppCatchNode &node) = delete;
-  ~CppCatchNode() = default;
+  ~CppCatchNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -1919,7 +1955,7 @@ class SwitchNode : public StmtNode {
 
   SwitchNode(SwitchNode &node) = delete;
   SwitchNode &operator=(const SwitchNode &node) = delete;
-  virtual ~SwitchNode() = default;
+  ~SwitchNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -2015,7 +2051,7 @@ class MultiwayNode : public StmtNode {
 
   MultiwayNode(MultiwayNode &node) = delete;
   MultiwayNode &operator=(const MultiwayNode &node) = delete;
-  virtual ~MultiwayNode() = default;
+  ~MultiwayNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -2069,7 +2105,7 @@ class UnaryStmtNode : public StmtNode {
 
   UnaryStmtNode(Opcode o, PrimType typ, BaseNode *opnd) : StmtNode(o, typ, 1), uOpnd(opnd) {}
 
-  virtual ~UnaryStmtNode() = default;
+  ~UnaryStmtNode() override = default;
 
   using StmtNode::Dump;
   void Dump(int32 indent) const override;
@@ -2134,7 +2170,7 @@ class DassignNode : public UnaryStmtNode {
 
   DassignNode(BaseNode *opnd, StIdx idx, FieldID fieldID) : DassignNode(kPtyInvalid, opnd, idx, fieldID) {}
 
-  virtual ~DassignNode() = default;
+  ~DassignNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -2202,7 +2238,7 @@ class DassignoffNode : public UnaryStmtNode {
     stIdx = lhsStIdx;
     offset = dOffset;
   }
-  virtual ~DassignoffNode() = default;
+  ~DassignoffNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -2253,7 +2289,7 @@ class RegassignNode : public UnaryStmtNode {
   RegassignNode(PrimType primType, PregIdx idx, BaseNode *opnd)
       : UnaryStmtNode(OP_regassign, primType, opnd), regIdx(idx) {}
 
-  virtual ~RegassignNode() = default;
+  ~RegassignNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -2294,7 +2330,7 @@ class CondGotoNode : public UnaryStmtNode {
     BaseNodeT::SetNumOpnds(kOperandNumUnary);
   }
 
-  virtual ~CondGotoNode() = default;
+  ~CondGotoNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -2360,7 +2396,7 @@ class RangeGotoNode : public UnaryStmtNode {
 
   RangeGotoNode(RangeGotoNode &node) = delete;
   RangeGotoNode &operator=(const RangeGotoNode &node) = delete;
-  virtual ~RangeGotoNode() = default;
+  ~RangeGotoNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -2439,7 +2475,7 @@ class BlockNode : public StmtNode {
                                       const SrcPosition &inlinedPosition = SrcPosition());
 
   BlockNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, uint64_t denom,
+                                std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
                                 uint32_t updateOp);
 
   bool IsEmpty() const {
@@ -2503,10 +2539,11 @@ class BlockCallBack {
     if (data != nullptr) {
       data->Free();
     }
+    callBack = nullptr;
   }
 
   void Invoke(const BlockNode &oldBlock, BlockNode &newBlock,
-      const StmtNode &oldStmt, StmtNode &newStmt) {
+      const StmtNode &oldStmt, StmtNode &newStmt) const {
     if (callBack != nullptr) {
       callBack(oldBlock, newBlock, oldStmt, newStmt, data);
     }
@@ -2563,7 +2600,7 @@ class IfStmtNode : public UnaryStmtNode {
     numOpnds = kOperandNumTernary;
   }
 
-  virtual ~IfStmtNode() = default;
+  ~IfStmtNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -2590,14 +2627,16 @@ class IfStmtNode : public UnaryStmtNode {
       FreqType oldFreq = fromFreqs[GetStmtID()];
       FreqType newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * static_cast<FreqType>(numer / denom)) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
-      if (updateOp & kUpdateOrigFreq) {
+      if ((updateOp & kUpdateOrigFreq) != 0) {
         FreqType left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
       }
     }
-    node->thenPart = thenPart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
+    node->thenPart = thenPart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer),
+                                                  denom, updateOp);
     if (elsePart != nullptr) {
-      node->elsePart = elsePart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
+      node->elsePart = elsePart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer),
+                                                    denom, updateOp);
     }
     node->SetMeStmtID(GetMeStmtID());
     return node;
@@ -2652,7 +2691,7 @@ class WhileStmtNode : public UnaryStmtNode {
     BaseNodeT::SetNumOpnds(kOperandNumBinary);
   }
 
-  virtual ~WhileStmtNode() = default;
+  ~WhileStmtNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -2675,13 +2714,13 @@ class WhileStmtNode : public UnaryStmtNode {
       FreqType newFreq =
           numer == 0 ? 0 : (denom > 0 ? static_cast<int64_t>(static_cast<uint64_t>(oldFreq) * numer / denom) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
-      if (updateOp & kUpdateOrigFreq) {
+      if ((updateOp & kUpdateOrigFreq) != 0) {
         FreqType left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
       }
     }
     node->SetOpnd(Opnd(0)->CloneTree(allocator), 0);
-    node->body = body->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
+    node->body = body->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer), denom, updateOp);
     return node;
   }
 
@@ -2720,7 +2759,7 @@ class DoloopNode : public StmtNode {
         incrExpr(incrExp),
         doBody(doBody) {}
 
-  virtual ~DoloopNode() = default;
+  ~DoloopNode() override = default;
 
   void DumpDoVar(const MIRModule &mod) const;
   void Dump(int32 indent) const override;
@@ -2764,7 +2803,8 @@ class DoloopNode : public StmtNode {
     node->SetStartExpr(startExpr->CloneTree(allocator));
     node->SetContExpr(GetCondExpr()->CloneTree(allocator));
     node->SetIncrExpr(GetIncrExpr()->CloneTree(allocator));
-    node->SetDoBody(GetDoBody()->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
+    node->SetDoBody(GetDoBody()->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer),
+                                                    denom, updateOp));
     return node;
   }
 
@@ -2871,7 +2911,7 @@ class ForeachelemNode : public StmtNode {
     BaseNodeT::SetNumOpnds(kOperandNumUnary);
   }
 
-  virtual ~ForeachelemNode() = default;
+  ~ForeachelemNode() override = default;
 
   const StIdx &GetElemStIdx() const {
     return elemStIdx;
@@ -2925,7 +2965,7 @@ class BinaryStmtNode : public StmtNode, public BinaryOpnds {
  public:
   explicit BinaryStmtNode(Opcode o) : StmtNode(o, kOperandNumBinary) {}
 
-  virtual ~BinaryStmtNode() = default;
+  ~BinaryStmtNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -2968,7 +3008,7 @@ class IassignoffNode : public BinaryStmtNode {
     SetBOpnd(srcOpnd, 1);
   }
 
-  virtual ~IassignoffNode() = default;
+  ~IassignoffNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -3005,7 +3045,7 @@ class IassignFPoffNode : public UnaryStmtNode {
     UnaryStmtNode::SetOpnd(src, 0);
   }
 
-  virtual ~IassignFPoffNode() = default;
+  ~IassignFPoffNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -3050,7 +3090,7 @@ class BlkassignoffNode : public BinaryStmtNode {
     SetBOpnd(dest, 0);
     SetBOpnd(src, 1);
   }
-  ~BlkassignoffNode() = default;
+  ~BlkassignoffNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -3106,7 +3146,7 @@ class NaryStmtNode : public StmtNode, public NaryOpnds {
 
   explicit NaryStmtNode(const NaryStmtNode &node) = delete;
   NaryStmtNode &operator=(const NaryStmtNode &node) = delete;
-  virtual ~NaryStmtNode() = default;
+  ~NaryStmtNode() override = default;
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
@@ -3164,6 +3204,10 @@ class SafetyCheckStmtNode {
   explicit SafetyCheckStmtNode(GStrIdx funcNameIdx) : funcNameIdx(funcNameIdx) {}
   SafetyCheckStmtNode(const SafetyCheckStmtNode &stmtNode) : funcNameIdx(stmtNode.GetFuncNameIdx()) {}
   SafetyCheckStmtNode &operator=(const SafetyCheckStmtNode &stmtNode) {
+    // self-assignment check
+    if (funcNameIdx == stmtNode.GetFuncNameIdx()) {
+      return *this;
+    }
     funcNameIdx = stmtNode.GetFuncNameIdx();
     return *this;
   }
@@ -3334,7 +3378,9 @@ class CallNode : public NaryStmtNode {
 
   CallNode(CallNode &node) = delete;
   CallNode &operator=(const CallNode &node) = delete;
-  virtual ~CallNode() = default;
+  ~CallNode() override {
+    enclosingBlk = nullptr;
+  }
   virtual void Dump(int32 indent, bool newline) const;
   bool Verify() const override;
   MIRType *GetCallReturnType() override;
@@ -3451,7 +3497,7 @@ class IcallNode : public NaryStmtNode {
 
   IcallNode(IcallNode &node) = delete;
   IcallNode &operator=(const IcallNode &node) = delete;
-  virtual ~IcallNode() = default;
+  ~IcallNode() override = default;
 
   virtual void Dump(int32 indent, bool newline) const;
   bool Verify() const override;
@@ -3535,7 +3581,7 @@ class IntrinsiccallNode : public NaryStmtNode {
 
   IntrinsiccallNode(IntrinsiccallNode &node) = delete;
   IntrinsiccallNode &operator=(const IntrinsiccallNode &node) = delete;
-  virtual ~IntrinsiccallNode() = default;
+  ~IntrinsiccallNode() override = default;
 
   virtual void Dump(int32 indent, bool newline) const;
   bool Verify() const override;
@@ -3623,7 +3669,7 @@ class CallinstantNode : public CallNode {
 
   CallinstantNode(CallinstantNode &node) = delete;
   CallinstantNode &operator=(const CallinstantNode &node) = delete;
-  virtual ~CallinstantNode() = default;
+  ~CallinstantNode() override = default;
 
   void Dump(int32 indent, bool newline) const override;
   void Dump(int32 indent) const override {
@@ -3656,7 +3702,7 @@ class LabelNode : public StmtNode {
 
   explicit LabelNode(LabelIdx idx) : StmtNode(OP_label), labelIdx(idx) {}
 
-  virtual ~LabelNode() = default;
+  ~LabelNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -3696,7 +3742,7 @@ class CommentNode : public StmtNode {
 
   CommentNode(CommentNode &node) = delete;
   CommentNode &operator=(const CommentNode &node) = delete;
-  virtual ~CommentNode() = default;
+  ~CommentNode() override = default;
 
   void Dump(int32 indent) const override;
 
@@ -3757,7 +3803,7 @@ class AsmNode : public NaryStmtNode {
         gotoLabels(allocator.Adapter()),
         qualifiers(node.qualifiers) {}
 
-  virtual ~AsmNode() = default;
+  ~AsmNode() override = default;
 
   AsmNode *CloneTree(MapleAllocator &allocator) const override;
 

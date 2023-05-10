@@ -41,7 +41,7 @@ class MeOccur {
   MeOccur(OccType ty, int cId, BB &bb, MeOccur *df) : occTy(ty), classID(cId), mirBB(&bb), def(df) {}
   virtual ~MeOccur() = default;
   virtual void Dump(const IRMap &irMap) const;
-  void DumpOccur(IRMap &irMap);
+  void DumpOccur(IRMap &irMap) const;
   bool IsDominate(Dominance &dom, MeOccur &occ);
   const BB *GetBB() const {
     return mirBB;
@@ -109,7 +109,7 @@ class MeRealOcc : public MeOccur {
     }
   }
 
-  ~MeRealOcc() = default;
+  ~MeRealOcc() override = default;
   void Dump(const IRMap &irMap) const override;
   const MeStmt *GetMeStmt() const {
     return meStmt;
@@ -224,7 +224,7 @@ class MeInsertedOcc : public MeOccur {
   MeInsertedOcc(MeExpr *expr, MeStmt *stmt, BB &bb)
       : MeOccur(kOccInserted, 0, bb, nullptr), meExpr(expr), meStmt(stmt), savedExpr(nullptr) {}
 
-  ~MeInsertedOcc() = default;
+  ~MeInsertedOcc() override = default;
   void Dump(const IRMap &irMap) const override;
   const MeStmt *GetMeStmt() const {
     return meStmt;
@@ -283,7 +283,7 @@ class MePhiOpndOcc : public MeOccur {
     currentExpr.meStmt = nullptr;
   }
 
-  ~MePhiOpndOcc() = default;
+  ~MePhiOpndOcc() override = default;
   void Dump(const IRMap &irMap) const override;
   bool IsProcessed() const {
     return isProcessed;
@@ -392,7 +392,7 @@ class MePhiOcc : public MeOccur {
         regPhi(nullptr),
         varPhi(nullptr) {}
 
-  virtual ~MePhiOcc() = default;
+  ~MePhiOcc() override = default;
   bool IsWillBeAvail() const {
     return isCanBeAvail && !isLater;
   }
@@ -516,7 +516,7 @@ class MePhiOcc : public MeOccur {
   }
 
   bool IsOpndDefByRealOrInserted() const;
-  void Dump(const IRMap &irMap) const;
+  void Dump(const IRMap &irMap) const override;
 
  private:
   bool isDownSafe;           // default is true
@@ -687,7 +687,7 @@ class PreStmtWorkCand : public PreWorkCand {
   PreStmtWorkCand(MapleAllocator &alloc, MeStmt &meStmt, PUIdx pIdx)
       : PreWorkCand(alloc, nullptr, pIdx), theMeStmt(&meStmt), lhsIsFinal(false) {}
 
-  virtual ~PreStmtWorkCand() = default;
+  ~PreStmtWorkCand() override = default;
 
   void DumpCand(IRMap &irMap) const override {
     theMeStmt->Dump(&irMap);

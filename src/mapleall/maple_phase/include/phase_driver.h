@@ -22,7 +22,7 @@ namespace maple {
 class PhaseDriverImpl : public MplTaskParam {
  public:
   PhaseDriverImpl() = default;
-  virtual ~PhaseDriverImpl() = default;
+  ~PhaseDriverImpl() override = default;
 
   virtual void GlobalInit() {}
 
@@ -39,7 +39,10 @@ class PhaseDriver : public MplScheduler {
    public:
     explicit Task(void *currTarget, void *currParamEx = nullptr) : target(currTarget), paramException(currParamEx) {}
 
-    ~Task() = default;
+    ~Task() override {
+      paramException = nullptr;
+      target = nullptr;
+    }
 
    protected:
     int RunImpl(MplTaskParam *param) override {
@@ -58,7 +61,10 @@ class PhaseDriver : public MplScheduler {
   };
 
   explicit PhaseDriver(const std::string &phaseName);
-  virtual ~PhaseDriver() = default;
+  ~PhaseDriver() override {
+    module = nullptr;
+    phaseImpl = nullptr;
+  }
 
   void RunAll(MIRModule *currModule, int thread, bool bSeq = false);
   virtual void RunSerial();

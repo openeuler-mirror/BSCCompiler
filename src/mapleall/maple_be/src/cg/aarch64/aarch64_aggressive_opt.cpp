@@ -26,6 +26,10 @@ void AArch64CombineRedundantX16Opt::Run() {
       if (!insn->IsMachineInstruction()) {
         continue;
       }
+      if (insn->GetMachineOpcode() == MOP_c_counter) {
+        ASSERT(bb->GetFirstInsn() == insn, "invalid pgo counter-insn");
+        continue;
+      }
       if (HasUseOpndReDef(*insn)) {
         hasUseOpndReDef = true;
       }
@@ -224,7 +228,8 @@ bool AArch64CombineRedundantX16Opt::IsUseX16MemInsn(Insn &insn) {
   if (baseOpnd == nullptr || baseOpnd->GetRegisterNumber() != R16) {
     return false;
   }
-  CHECK_FATAL(memOpnd.GetAddrMode() == MemOperand::kBOI, "invalid mem instruction which uses x16");
+  CHECK_FATAL(memOpnd.GetAddrMode() == MemOperand::kBOI || memOpnd.GetAddrMode() == MemOperand::kLo12Li,
+              "invalid mem instruction which uses x16");
   return true;
 }
 
@@ -235,7 +240,7 @@ void AArch64CombineRedundantX16Opt::RecordUseX16InsnInfo(Insn &insn, MemPool *tm
   auto *x16UseInfo = tmpMp->New<UseX16InsnInfo>();
   x16UseInfo->memInsn = &insn;
   x16UseInfo->addPrevInsns = tmpMp->New<MapleVector<Insn*>>(tmpAlloc->Adapter());
-  x16UseInfo->InsertAddPrevInsns(recentX16DefPrevInsns);
+  x16UseInfo->InsertAddPrevInsns(*recentX16DefPrevInsns);
   x16UseInfo->addInsn = recentX16DefInsn;
   x16UseInfo->curAddImm = recentAddImm;
   x16UseInfo->curOfst = (ofstOpnd == nullptr ? 0 : ofstOpnd->GetOffsetValue());
@@ -297,7 +302,7 @@ void AArch64CombineRedundantX16Opt::FindCommonX16DefInsns(MemPool *tmpMp, MapleA
   }
 }
 
-void AArch64CombineRedundantX16Opt::ProcessSameAddImmCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) {
+void AArch64CombineRedundantX16Opt::ProcessSameAddImmCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) const {
   CHECK_FATAL(recentSplitUseOpnd != nullptr && recentAddImm != 0, "find split insn info failed");
   auto *newCombineInfo = tmpMp->New<CombineInfo>();
   newCombineInfo->combineAddImm = recentAddImm;
@@ -366,7 +371,7 @@ void AArch64CombineRedundantX16Opt::CombineRedundantX16DefInsns(BB &bb) {
   if (combineInfos->empty()) {
     return;
   }
-  for (uint32 i = 0; i < combineInfos->size(); ++i ) {
+  for (uint32 i = 0; i < combineInfos->size(); ++i) {
     CombineInfo *combineInfo = (*combineInfos)[i];
     if (combineInfo->combineUseInfos->size() <= 1) {
       continue;
@@ -374,7 +379,7 @@ void AArch64CombineRedundantX16Opt::CombineRedundantX16DefInsns(BB &bb) {
     UseX16InsnInfo *firstInsnInfo = (*combineInfo->combineUseInfos)[0];
     auto &oldImmOpnd = static_cast<ImmOperand&>(firstInsnInfo->addInsn->GetOperand(kInsnThirdOpnd));
     auto &commonAddImmOpnd = aarFunc.CreateImmOperand(
-        combineInfo->combineAddImm,oldImmOpnd.GetSize(), oldImmOpnd.IsSignedValue());
+        combineInfo->combineAddImm, oldImmOpnd.GetSize(), oldImmOpnd.IsSignedValue());
     uint32 size = combineInfo->addUseOpnd->GetSize();
     aarFunc.SelectAddAfterInsnBySize(firstInsnInfo->addInsn->GetOperand(kInsnFirstOpnd), *combineInfo->addUseOpnd,
                                      commonAddImmOpnd, size, false, *firstInsnInfo->addInsn);
@@ -395,7 +400,7 @@ void AArch64CombineRedundantX16Opt::CombineRedundantX16DefInsns(BB &bb) {
   }
 }
 
-bool AArch64CombineRedundantX16Opt::HasX16Def(Insn &insn) {
+bool AArch64CombineRedundantX16Opt::HasX16Def(const Insn &insn) const {
   for (uint32 defRegNo : insn.GetDefRegs()) {
     if (defRegNo == R16) {
       return true;
@@ -404,7 +409,7 @@ bool AArch64CombineRedundantX16Opt::HasX16Def(Insn &insn) {
   return false;
 }
 
-bool AArch64CombineRedundantX16Opt::HasUseOpndReDef(Insn &insn) {
+bool AArch64CombineRedundantX16Opt::HasUseOpndReDef(const Insn &insn) const {
   for (uint32 defRegNo : insn.GetDefRegs()) {
     if (recentSplitUseOpnd != nullptr && defRegNo == recentSplitUseOpnd->GetRegisterNumber()) {
       return true;
@@ -413,7 +418,7 @@ bool AArch64CombineRedundantX16Opt::HasUseOpndReDef(Insn &insn) {
   return false;
 }
 
-bool AArch64CombineRedundantX16Opt::HasX16Use(Insn &insn) {
+bool AArch64CombineRedundantX16Opt::HasX16Use(const Insn &insn) const{
   MOperator mop = insn.GetMachineOpcode();
   if (mop == MOP_wmovri32 || mop == MOP_xmovri64) {
     return false;
@@ -435,7 +440,8 @@ bool AArch64CombineRedundantX16Opt::HasX16Use(Insn &insn) {
 uint32 AArch64CombineRedundantX16Opt::GetMemSizeFromMD(Insn &insn) {
   const InsnDesc *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
   ASSERT(md != nullptr, "get md failed");
-  const OpndDesc *od = md->GetOpndDes(kInsnFirstOpnd);
+  uint32 memOpndIdx = GetMemOperandIdx(insn);
+  const OpndDesc *od = md->GetOpndDes(memOpndIdx);
   ASSERT(od != nullptr, "get od failed");
   return od->GetSize();
 }

@@ -19,10 +19,10 @@
 #include "mir_preg.h"
 #include "src_position.h"
 
+namespace maple {
 constexpr int kScopeLocal = 2;   // the default scope level for function variables
 constexpr int kScopeGlobal = 1;  // the scope level for global variables
 
-namespace maple {
 enum MIRSymKind {
   kStInvalid,
   kStVar,
@@ -219,7 +219,7 @@ class MIRSymbol {
 
   bool IsTypeVolatile(int fieldID) const;
 
-  bool NeedGOT(bool isPIE) const;
+  bool NeedGOT(bool doPIE) const;
 
   bool IsThreadLocal() const {
     return typeAttrs.GetAttr(ATTR_tls_static) || typeAttrs.GetAttr(ATTR_tls_dynamic);
@@ -270,15 +270,24 @@ class MIRSymbol {
   }
 
   bool IsReadOnly() const {
-    return kScFstatic == storageClass && kStConst == sKind;
+    return storageClass == kScFstatic && sKind == kStConst;
   }
 
   bool IsConst() const {
     return sKind == kStConst || (sKind == kStVar && value.konst != nullptr);
   }
 
+  bool IsHiddenVisibility() const {
+    return typeAttrs.GetAttr(ATTR_visibility_hidden);
+  }
+
   bool IsDefaultVisibility() const {
     return !typeAttrs.GetAttr(ATTR_visibility_hidden) && !typeAttrs.GetAttr(ATTR_visibility_protected);
+  }
+
+  bool IsDefaultTLSModel() const {
+    return IsThreadLocal() && !typeAttrs.GetAttr(ATTR_local_exec) && !typeAttrs.GetAttr(ATTR_initial_exec) &&
+        !typeAttrs.GetAttr(ATTR_local_dynamic) && !typeAttrs.GetAttr(ATTR_global_dynamic);
   }
 
   MIRType *GetType() const;
@@ -384,6 +393,24 @@ class MIRSymbol {
 
   bool IsEhIndex() const {
     return GetName() == "__eh_index__";
+  }
+
+  // check symbol is a retVar
+  bool IsReturnVar() const {
+    if (storageClass != kScAuto) {
+      return false;
+    }
+    // the prefix of the retVar symbol is 'retVar_'
+    constexpr uint32 kRetVarPrefixLength = 7;
+    if (GetName().compare(0, kRetVarPrefixLength, "retVar_") != 0) {
+      return false;
+    }
+    // retVar symbol has only one underscope
+    constexpr uint32 kRetVarUnderscopeNum = 1;
+    if (std::count(GetName().begin(), GetName().end(), '_') != kRetVarUnderscopeNum) {
+      return false;
+    }
+    return true;
   }
 
   bool HasAddrOfValues() const;

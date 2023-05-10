@@ -128,21 +128,18 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
     }
     for (const auto &val : opt->GetRawValues()) {
       if (opt->GetEqualType() == maplecl::EqualType::kWithEqual) {
-        (void)finalOptions.emplace_back(opt->GetName() + "=" + val, "");
-      } else {
-        if (opt->GetName() == "-Wl") {
-          (void)finalOptions.emplace_back(val, "");
+        auto pos = opt->GetName().find('=');
+        if (pos != std::string::npos) {
+          (void)finalOptions.emplace_back(opt->GetName() + val, "");
         } else {
-          (void)finalOptions.emplace_back(opt->GetName(), val);
+          (void)finalOptions.emplace_back(opt->GetName() + "=" + val, "");
         }
+      } else {
+        (void)finalOptions.emplace_back(opt->GetName(), val);
       }
 
       if (isDebug) {
-        if (opt->GetName() == "-Wl") {
-          LogInfo::MapleLogger() << val << " ";
-        } else {
-          LogInfo::MapleLogger() << opt->GetName() << " " << val << " ";
-        }
+        LogInfo::MapleLogger() << opt->GetName() << " " << val << " ";
       }
     }
   }
@@ -150,7 +147,7 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
   /* output file can not be specified for several last actions. As exaple:
    * If last actions are assembly tool for 2 files (to get file1.o, file2.o),
    * we can not have one output name for them. */
-  if (opts::output.IsEnabledByUser() && options.GetActions().size() == 1) {
+  if ((opts::output.IsEnabledByUser() && options.GetActions().size() == 1) || action.GetTool() == "ld") {
     /* Set output file for last compilation tool */
     if (&action == options.GetActions()[0].get()) {
       /* the tool may not support "-o" for output option */
@@ -163,6 +160,16 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
         }
       }
       AppendOutputOption(finalOptions, opts::output.GetValue());
+    }
+    if (action.GetTool() == "ld") {
+      AppendOutputOption(finalOptions, opts::output.GetValue());
+    }
+  }
+
+  /* Append -Wl option and link files. */
+  if (isDebug && toolName == "ld") {
+    for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
+      LogInfo::MapleLogger() << " " << opt;
     }
   }
 

@@ -15,7 +15,18 @@
 
 #include "mpl_int_val.h"
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+
+using namespace maple;
+using namespace testing;
+
+class MockOldIntVal : public IntVal {
+ public:
+  MockOldIntVal(uint64 val, uint16 bitWidth, bool isSigned) : IntVal(val, bitWidth, isSigned) { }
+  MOCK_METHOD1(GetSXTValue, int64(uint8));
+  static constexpr uint8 wordBitSize = sizeof(uint64) * CHAR_BIT;
+};
 
 TEST(IntVals, IncDec) {
   maple::IntVal uValInc(254, 8, false);
@@ -44,3 +55,29 @@ TEST(IntVals, IncDec) {
   ASSERT_EQ((sValDec--).GetExtValue(), -128);
   ASSERT_EQ(sValDec.GetExtValue(), 127);
 }
+
+#define DEFINE_CASE_GETSXTVALUE_BODY(size, width, value) \
+  MockOldIntVal oldVal(value, width, true); \
+  uint8 bitWidth = size ? size : width; \
+  EXPECT_CALL(oldVal, GetSXTValue(size)) \
+      .WillOnce(Return(static_cast<int64>(*oldVal.GetRawData()) << (MockOldIntVal::wordBitSize - bitWidth) \
+                                          >> (MockOldIntVal::wordBitSize - bitWidth))); \
+  EXPECT_EQ(IntVal(value, width, true).GetSXTValue(size), oldVal.GetSXTValue(size))
+
+#define DEFINE_CASE_GETSXTVALUE(size, width, unsigned_value, signed_value) \
+TEST(IntVals, GetSXTValue_size_##size##_width_##width##_unsigned) { \
+  DEFINE_CASE_GETSXTVALUE_BODY(size, width, unsigned_value); \
+} \
+ \
+TEST(IntVals, GetSXTValue_size_##size##_width_##width##_signed) { \
+  DEFINE_CASE_GETSXTVALUE_BODY(size, width, signed_value); \
+}
+
+DEFINE_CASE_GETSXTVALUE(0, 8, 0x7f, 0x80)
+DEFINE_CASE_GETSXTVALUE(0, 16, 0x7fff, 0xffff)
+DEFINE_CASE_GETSXTVALUE(0, 32, 0x70000000ULL, 0xffffffffULL)
+DEFINE_CASE_GETSXTVALUE(0, 64, 0x7000000000000000ULL, 0x8000000000000000ULL)
+
+DEFINE_CASE_GETSXTVALUE(4, 8, 0x17, 0x18)
+DEFINE_CASE_GETSXTVALUE(8, 8, 0x70, 0x80)
+DEFINE_CASE_GETSXTVALUE(64, 64, 0x7000000000000000ULL, 0x8000000000000000ULL)

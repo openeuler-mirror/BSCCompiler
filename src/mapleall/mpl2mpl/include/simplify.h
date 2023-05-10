@@ -19,7 +19,7 @@
 #include "maple_phase_manager.h"
 namespace maple {
 
-const std::map<std::string, std::string> asmMap = {
+const std::map<std::string, std::string> kAsmMap = {
 #include "asm_map.def"
 };
 
@@ -33,15 +33,15 @@ enum ErrorNumber : int32 {
 };
 
 enum OpKind {
-  MEM_OP_unknown,
-  MEM_OP_memset,
-  MEM_OP_memcpy,
-  MEM_OP_memset_s,
-  KMemOpMemcpyS,
-  SPRINTF_OP_sprintf,
-  SPRINTF_OP_sprintf_s,
-  SPRINTF_OP_snprintf_s,
-  SPRINTF_OP_vsnprintf_s
+  kMemOpUnknown,
+  kMemOpMemset,
+  kMemOpMemcpy,
+  kMemOpMemsetS,
+  kMemOpMemcpyS,
+  kSprintfOpSprintf,
+  kSprintfOpSprintfS,
+  kSprintfOpSnprintfS,
+  kSprintfOpVsnprintfS
 };
 
 // MemEntry models a memory entry with high level type information.
@@ -101,7 +101,7 @@ class SprintfBaseOper {
  public:
   explicit SprintfBaseOper(ProxyMemOp &op) : op(op) {}
   void ProcessRetValue(StmtNode &stmt, BlockNode &block, OpKind opKind, int32 retVal, bool isLowLevel);
-  bool DealWithFmtConstStr(StmtNode &stmt, BaseNode *fmt, BlockNode &block, bool isLowLevel);
+  bool DealWithFmtConstStr(StmtNode &stmt, const BaseNode *fmt, BlockNode &block, bool isLowLevel);
   static bool CheckCondIfNeedReplace(const StmtNode &stmt, uint32_t opIdx);
   static bool IsCountConst(StmtNode &stmt, uint64 &count, uint32_t opndIdx);
   StmtNode *InsertMemcpyCallStmt(const MapleVector<BaseNode *> &args, StmtNode &stmt,
@@ -112,8 +112,8 @@ class SprintfBaseOper {
   bool ReplaceSprintfWithMemcpy(StmtNode &stmt, BlockNode &block, uint32 opndIdx, uint64 copySize, bool isLowLevel);
   bool CompareDstMaxSrcSize(StmtNode &stmt, BlockNode &block, uint64 dstMax, uint64 srcSize, bool isLowLevel);
   bool CompareCountSrcSize(StmtNode &stmt, BlockNode &block, uint64 count, uint64 srcSize, bool isLowLevel);
-    bool DealWithDstOrEndZero(StmtNode &stmt, BlockNode &block, bool isLowLevel, uint64 count);
-    static bool CheckInvalidPara(uint64 count, uint64 dstMax, uint64 srcSize);
+  bool DealWithDstOrEndZero(const StmtNode &stmt, BlockNode &block, bool isLowLevel, uint64 count);
+  static bool CheckInvalidPara(uint64 count, uint64 dstMax, uint64 srcSize);
   virtual bool ReplaceSprintfIfNeeded(StmtNode &stmt, BlockNode &block, bool isLowLevel, const OpKind &opKind) {
     CHECK_FATAL(false, "NEVER REACH");
   };
@@ -149,14 +149,16 @@ class SimplifySnprintfS : public SprintfBaseOper {
 class SimplifyOp : public ProxyMemOp {
  public:
   static OpKind ComputeOpKind(StmtNode &stmt);
-  ~SimplifyOp() override = default;
+  ~SimplifyOp() override {
+    func = nullptr;
+  }
 
   explicit SimplifyOp(MemPool &memPool) : sprintfAlloc(&memPool), sprintfMap(sprintfAlloc.Adapter()) {
     auto simplifySnprintfs = sprintfAlloc.New<SimplifySnprintfS>(*this);
-    sprintfMap.emplace(SPRINTF_OP_sprintf, sprintfAlloc.New<SimplifySprintf>(*this));
-    sprintfMap.emplace(SPRINTF_OP_sprintf_s, sprintfAlloc.New<SimplifySprintfS>(*this));
-    sprintfMap.emplace(SPRINTF_OP_snprintf_s, simplifySnprintfs);
-    sprintfMap.emplace(SPRINTF_OP_vsnprintf_s, simplifySnprintfs);
+    (void)sprintfMap.emplace(kSprintfOpSprintf, sprintfAlloc.New<SimplifySprintf>(*this));
+    (void)sprintfMap.emplace(kSprintfOpSprintfS, sprintfAlloc.New<SimplifySprintfS>(*this));
+    (void)sprintfMap.emplace(kSprintfOpSnprintfS, simplifySnprintfs);
+    (void)sprintfMap.emplace(kSprintfOpVsnprintfS, simplifySnprintfs);
   }
   void SetFunction(MIRFunction *f) {
     func = f;
@@ -175,9 +177,11 @@ class SimplifyOp : public ProxyMemOp {
   }
 
   bool AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLevel);
-  bool SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLevel);
+  bool SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowLevel) const;
   bool SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel) override;
  private:
+  void FoldMemsExpr(StmtNode &stmt, uint64 &srcSize, bool &isSrcSizeConst, uint64 &dstSize,
+                    bool &isDstSizeConst) const;
   StmtNode *PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) const;
   StmtNode *PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block);
 
@@ -218,12 +222,12 @@ class Simplify : public FuncOptimizeImpl {
   bool IsConstRepalceable(const MIRConst &mirConst) const;
   bool SimplifyMathMethod(const StmtNode &stmt, BlockNode &block);
   void SimplifyCallAssigned(StmtNode &stmt, BlockNode &block);
-  StmtNode *SimplifyBitFieldWrite(const IassignNode &iass);
-  BaseNode *SimplifyBitFieldRead(IreadNode &iread);
-  StmtNode *SimplifyToSelect(MIRFunction *func, IfStmtNode *ifNode, BlockNode *block);
+  StmtNode *SimplifyBitFieldWrite(const IassignNode &iass) const;
+  BaseNode *SimplifyBitFieldRead(IreadNode &iread) const;
+  StmtNode *SimplifyToSelect(MIRFunction &func, IfStmtNode *ifNode, BlockNode *block) const;
   BaseNode *SimplifyExpr(BaseNode &expr);
-  BaseNode *ReplaceExprWithConst(DreadNode &dread);
-  MIRConst *GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirConst);
+  BaseNode *ReplaceExprWithConst(DreadNode &dread) const;
+  MIRConst *GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirConst) const;
 };
 
 MAPLE_MODULE_PHASE_DECLARE(M2MSimplify)

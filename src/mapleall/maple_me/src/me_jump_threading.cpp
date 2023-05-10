@@ -67,7 +67,7 @@ void JumpThreading::Execute() {
 
 // Insert the ost of phi opnds to their def bbs.
 void JumpThreading::InsertOstOfPhi2Cands(BB &bb, size_t i) {
-  for (auto &it : bb.GetMePhiList()) {
+  for (const auto &it : std::as_const(bb).GetMePhiList()) {
     if (i >= it.second->GetOpnds().size()) {
       break;
     }

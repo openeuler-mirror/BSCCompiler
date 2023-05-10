@@ -26,10 +26,6 @@ const std::string &MapleCombCompilerWrp::GetBinName() const {
 }
 
 std::string MapleCombCompilerWrp::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
-  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
-    return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
-      FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
-  }
   return mplOptions.GetExeFolder();
 }
 
@@ -46,7 +42,7 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &options 
    */
   defaultOptions.mplOptions[0].SetKey("--maple-phase");
   defaultOptions.mplOptions[0].SetValue("");
-  defaultOptions.mplOptions[1].SetKey("-p");
+  defaultOptions.mplOptions[1].SetKey("-tmp-folder");
   defaultOptions.mplOptions[1].SetValue(opts::onlyCompile.IsEnabledByUser() ?
                                         action.GetInputFolder() : action.GetOutputFolder());
 

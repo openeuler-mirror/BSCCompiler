@@ -438,6 +438,7 @@ StmtNode &CallMeStmt::EmitStmt(MapleAllocator &alloc) {
         StIdx stIdx = retPair.first;
         MIRSymbolTable *symbolTab = GetCurFunction()->GetSymTab();
         MIRSymbol *symbol = symbolTab->GetSymbolFromStIdx(stIdx.Idx());
+        ASSERT_NOT_NULL(symbol);
         icallNode->SetRetTyIdx(symbol->GetType()->GetTypeIndex());
         if (stIdx.Islocal()) {
           symbol->ResetIsDeleted();
@@ -503,6 +504,7 @@ StmtNode &IntrinsiccallMeStmt::EmitStmt(MapleAllocator &alloc) {
         if (stIdx.Islocal()) {
           MIRSymbolTable *symbolTab = GetCurFunction()->GetSymTab();
           MIRSymbol *symbol = symbolTab->GetSymbolFromStIdx(stIdx.Idx());
+          ASSERT_NOT_NULL(symbol);
           symbol->ResetIsDeleted();
         }
       }
@@ -526,6 +528,7 @@ StmtNode &AsmMeStmt::EmitStmt(MapleAllocator &alloc) {
       if (stIdx.Islocal()) {
         MIRSymbolTable *symbolTab = GetCurFunction()->GetSymTab();
         MIRSymbol *symbol = symbolTab->GetSymbolFromStIdx(stIdx.Idx());
+        ASSERT_NOT_NULL(symbol);
         symbol->ResetIsDeleted();
       }
     }
@@ -687,6 +690,9 @@ void BB::EmitBB(BlockNode &curblk, bool needAnotherPass) {
     stmt->SetSrcPos(meStmt.GetSrcPosition());
     stmt->SetOriginalID(meStmt.GetOriginalId());
     stmt->CopySafeRegionAttr(meStmt.GetStmtAttr());
+    if (meStmt.GetMayTailCall()) {
+      stmt->SetMayTailcall();
+    }
     curblk.AddStatement(stmt);
     if (bbFirstStmt == nullptr) {
       bbFirstStmt = stmt;

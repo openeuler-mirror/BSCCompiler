@@ -25,14 +25,6 @@
 #include "triple.h"
 
 namespace maple {
-extern const char *GetDwTagName(unsigned n);
-extern const char *GetDwFormName(unsigned n);
-extern const char *GetDwAtName(unsigned n);
-extern const char *GetDwOpName(unsigned n);
-extern const char *GetDwAteName(unsigned n);
-extern const char *GetDwCfaName(unsigned n);
-extern DwAte GetAteFromPTY(PrimType pty);
-
 constexpr uint32 kIndx2 = 2;
 constexpr uint32 kStructDBGSize = 8888;
 
@@ -242,7 +234,7 @@ void DebugInfo::Init() {
   InitBaseTypeMap();
 }
 
-GStrIdx DebugInfo::GetPrimTypeCName(PrimType pty) {
+GStrIdx DebugInfo::GetPrimTypeCName(PrimType pty) const {
   GStrIdx strIdx = GStrIdx(0);
   switch (pty) {
 #define TYPECNAME(p, n) \
@@ -443,7 +435,7 @@ void DebugInfo::HandleTypeAlias(MIRScope &scope) {
   }
 }
 
-void DebugInfo::AddAliasDies(MIRScope &scope, bool isLocal) {
+void DebugInfo::AddAliasDies(const MIRScope &scope, bool isLocal) {
   MIRFunction *func = GetCurFunction();
   const std::string &funcName = func == nullptr ? "" : func->GetName();
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
@@ -553,7 +545,7 @@ void DebugInfo::Finish() {
 void DebugInfo::BuildDebugInfoEnums() {
   auto size = GlobalTables::GetEnumTable().enumTable.size();
   for (size_t i = 0; i < size; ++i) {
-    DBGDie *die = GetOrCreateEnumTypeDie(i);
+    DBGDie *die = GetOrCreateEnumTypeDie(static_cast<uint32>(i));
     compUnit->AddSubVec(die);
   }
 }
@@ -620,7 +612,7 @@ void DebugInfo::BuildDebugInfoFunctions() {
     // function decl
     if (stridxDieIdMap.find(func->GetNameStrIdx().GetIdx()) == stridxDieIdMap.end()) {
       DBGDie *funcDie = GetOrCreateFuncDeclDie(func);
-      if (!func->GetClassTyIdx().GetIdx() && func->GetBody()) {
+      if (func->GetClassTyIdx().GetIdx() == 0 && func->GetBody()) {
         compUnit->AddSubVec(funcDie);
       }
     }
@@ -628,7 +620,7 @@ void DebugInfo::BuildDebugInfoFunctions() {
     unsigned idx = func->GetNameStrIdx().GetIdx();
     if (func->GetBody() && funcDefStrIdxDieIdMap.find(idx) == funcDefStrIdxDieIdMap.end()) {
       DBGDie *funcDie = GetOrCreateFuncDefDie(func);
-      if (!func->GetClassTyIdx().GetIdx()) {
+      if (func->GetClassTyIdx().GetIdx() == 0) {
         compUnit->AddSubVec(funcDie);
       }
     }
@@ -678,7 +670,7 @@ DBGDie *DebugInfo::GetGlobalDie(const GStrIdx &strIdx) {
   unsigned idx = strIdx.GetIdx();
   auto it = globalStridxDieIdMap.find(idx);
   if (it != globalStridxDieIdMap.end()) {
-    return idDieMap[it->second];
+    return idDieMap.at(it->second);
   }
   return nullptr;
 }
@@ -704,8 +696,8 @@ void DebugInfo::SetLabelIdx(MIRFunction *func, const GStrIdx &strIdx, LabelIdx l
   (funcLstrIdxLabIdxMap[func])[strIdx.GetIdx()] = labIdx;
 }
 
-LabelIdx DebugInfo::GetLabelIdx(MIRFunction *func, GStrIdx strIdx) {
-  LabelIdx labidx = (funcLstrIdxLabIdxMap[func])[strIdx.GetIdx()];
+LabelIdx DebugInfo::GetLabelIdx(MIRFunction *func, const GStrIdx &strIdx) const {
+  LabelIdx labidx = (funcLstrIdxLabIdxMap.at(func)).at(strIdx.GetIdx());
   return labidx;
 }
 
@@ -767,7 +759,7 @@ DBGDie *DebugInfo::GetOrCreateLabelDie(LabelIdx labid) {
   MIRFunction *func = GetCurFunction();
   CHECK(labid < func->GetLabelTab()->GetLabelTableSize(), "index out of range in DebugInfo::GetOrCreateLabelDie");
   GStrIdx strid = func->GetLabelTab()->GetSymbolFromStIdx(labid);
-  if ((funcLstrIdxDieIdMap[func]).size() &&
+  if ((funcLstrIdxDieIdMap[func]).size() > 0 &&
       (funcLstrIdxDieIdMap[func]).find(strid.GetIdx()) != (funcLstrIdxDieIdMap[func]).end()) {
     return GetLocalDie(strid);
   }
@@ -802,8 +794,8 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym) {
 
   if (isLocal) {
     MIRFunction *func = GetCurFunction();
-    if ((funcLstrIdxDieIdMap[func]).size() &&
-        (funcLstrIdxDieIdMap[func]).find(strIdx.GetIdx()) != (funcLstrIdxDieIdMap[func]).end()) {
+    if (!funcLstrIdxDieIdMap[func].empty() &&
+        funcLstrIdxDieIdMap[func].find(strIdx.GetIdx()) != funcLstrIdxDieIdMap[func].end()) {
       return GetLocalDie(strIdx);
     }
   } else {
@@ -1103,7 +1095,7 @@ DBGDie *DebugInfo::GetOrCreateTypeDieWithAttr(AttrKind attr, DBGDie *typeDie) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateTypeDieWithAttr(TypeAttrs attrs, DBGDie *typeDie) {
+DBGDie *DebugInfo::GetOrCreateTypeDieWithAttr(const TypeAttrs &attrs, DBGDie *typeDie) {
   if (attrs.GetAttr(ATTR_const)) {
     typeDie = GetOrCreateTypeDieWithAttr(ATTR_const, typeDie);
   }
@@ -1202,12 +1194,12 @@ DBGDie *DebugInfo::GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateEnumTypeDie(unsigned idx) {
+DBGDie *DebugInfo::GetOrCreateEnumTypeDie(uint32 idx) {
   MIREnum *mirEnum = GlobalTables::GetEnumTable().enumTable[idx];
   return GetOrCreateEnumTypeDie(mirEnum);
 }
 
-DBGDie *DebugInfo::GetOrCreateEnumTypeDie(MIREnum *mirEnum) {
+DBGDie *DebugInfo::GetOrCreateEnumTypeDie(const MIREnum *mirEnum) {
   uint32 sid = mirEnum->GetNameIdx().GetIdx();
   auto it = stridxDieIdMap.find(sid);
   if (it != stridxDieIdMap.end()) {
@@ -1231,7 +1223,7 @@ DBGDie *DebugInfo::GetOrCreateEnumTypeDie(MIREnum *mirEnum) {
   for (auto &elemIt : mirEnum->GetElements()) {
     DBGDie *elem = module->GetMemPool()->New<DBGDie>(module, DW_TAG_enumerator);
     elem->AddAttr(DW_AT_name, DW_FORM_strp, elemIt.first.GetIdx());
-    elem->AddAttr(DW_AT_const_value, DW_FORM_data8, elemIt.second.GetExtValue());
+    elem->AddAttr(DW_AT_const_value, DW_FORM_data8, static_cast<uint64>(elemIt.second.GetExtValue()));
     die->AddSubVec(elem);
   }
 
@@ -1338,7 +1330,7 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arrayType) {
   return die;
 }
 
-DBGDie *DebugInfo::CreateFieldDie(maple::FieldPair pair) {
+DBGDie *DebugInfo::CreateFieldDie(const maple::FieldPair &pair) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_member);
 
   const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(pair.first);
@@ -1483,7 +1475,7 @@ void DebugInfo::CreateStructTypeMethodsDies(const MIRStructType *structType, DBG
 }
 
 // shared between struct and union, also used as part by class and interface
-DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structType, bool update) {
+DBGDie *DebugInfo::CreateStructTypeDie(const GStrIdx &strIdx, const MIRStructType *structType, bool update) {
   DBGDie *die = nullptr;
   uint32 tid = structType->GetTypeIndex().GetIdx();
 
@@ -1638,7 +1630,7 @@ void DebugInfo::BuildAbbrev() {
 
 void DebugInfo::BuildDieTree() {
   for (auto it : idDieMap) {
-    if (!it.first) {
+    if (it.first == 0) {
       continue;
     }
     DBGDie *die = it.second;

@@ -27,7 +27,7 @@ PregIdx LMBCLowerer::GetSpecialRegFromSt(const MIRSymbol *sym) {
     CHECK(sym->GetStIndex() < memlayout->sym_alloc_table.size(),
           "index out of range in LMBCLowerer::GetSpecialRegFromSt");
     SymbolAlloc *symalloc = &memlayout->sym_alloc_table[sym->GetStIndex()];
-    if (symalloc->mem_segment->kind == MS_FPbased) {
+    if (symalloc->memSegment->kind == MS_FPbased) {
       specreg = -kSregFp;
     } else {
       CHECK_FATAL(false, "LMBCLowerer::LowerDread: bad memory layout for local variable");
@@ -41,14 +41,14 @@ PregIdx LMBCLowerer::GetSpecialRegFromSt(const MIRSymbol *sym) {
   return specreg;
 }
 
-BaseNode *LMBCLowerer::LowerAddrof(AddrofNode *expr) {
+BaseNode *LMBCLowerer::LowerAddrof(const AddrofNode *expr) {
   MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(expr->GetStIdx());
   ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
   int32 offset = 0;
   if (expr->GetFieldID() != 0) {
     MIRStructType *structty = static_cast<MIRStructType *>(symbol->GetType());
-    offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(expr->GetFieldID()).byteOffset;
   }
   PrimType symty = (expr->GetPrimType() == PTY_simplestr ||
                     expr->GetPrimType() == PTY_simpleobj) ? expr->GetPrimType() : GetLoweredPtrType();
@@ -73,7 +73,7 @@ BaseNode *LMBCLowerer::LowerDread(const AddrofNode *expr) {
     MIRStructType *structty = static_cast<MIRStructType *>(symbol->GetType());
     FieldPair thepair = structty->TraverseToField(expr->GetFieldID());
     symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first)->GetPrimType();
-    offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(expr->GetFieldID()).byteOffset;
   }
   if (!symbol->LMBCAllocateOffSpecialReg()) {
     BaseNode *base = mirBuilder->CreateExprDreadoff(OP_addrofoff, GetLoweredPtrType(), *symbol, 0);
@@ -149,7 +149,7 @@ BaseNode *LMBCLowerer::LowerIread(const IreadNode &expr) {
   MIRType *type = ptrType->GetPointedType();
   if (expr.GetFieldID() != 0) {
     MIRStructType *structty = static_cast<MIRStructType *>(type);
-    offset = becommon->GetFieldOffset(*structty, expr.GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(expr.GetFieldID()).byteOffset;
     type = structty->GetFieldType(expr.GetFieldID());
   }
   BaseNode *ireadoff = mirBuilder->CreateExprIreadoff(type->GetPrimType(), offset, expr.Opnd(0));
@@ -159,14 +159,14 @@ BaseNode *LMBCLowerer::LowerIread(const IreadNode &expr) {
   return mirBuilder->CreateExprTypeCvt(OP_cvt, expr.GetPrimType(), GetRegPrimType(ireadoff->GetPrimType()), *ireadoff);
 }
 
-BaseNode *LMBCLowerer::LowerIaddrof(IaddrofNode *expr) {
+BaseNode *LMBCLowerer::LowerIaddrof(const IaddrofNode *expr) {
   int32 offset = 0;
   if (expr->GetFieldID() != 0) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr->GetTyIdx());
     MIRStructType *structty =
         static_cast<MIRStructType*>(
             GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<MIRPtrType*>(type)->GetPointedTyIdx()));
-    offset = becommon->GetFieldOffset(*structty, expr->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(expr->GetFieldID()).byteOffset;
   }
   if (offset == 0) {
     return expr->Opnd(0);
@@ -204,9 +204,9 @@ BaseNode *LMBCLowerer::LowerExpr(BaseNode *expr) {
 }
 
 // lower using OP_blkassignoff
-void LMBCLowerer::LowerAggDassign(const DassignNode *dsnode, MIRType *lhsty,
+void LMBCLowerer::LowerAggDassign(const DassignNode &dsnode, const MIRType *lhsty,
                                   int32 offset, BlockNode *newblk) {
-  BaseNode *rhs = dsnode->Opnd(0);
+  BaseNode *rhs = dsnode.Opnd(0);
   CHECK_FATAL(rhs->GetOpCode() == OP_dread || rhs->GetOpCode() == OP_iread,
               "LowerAggDassign: rhs inconsistent");
   // change rhs to address of rhs
@@ -218,7 +218,7 @@ void LMBCLowerer::LowerAggDassign(const DassignNode *dsnode, MIRType *lhsty,
   rhs->SetPrimType(GetLoweredPtrType());
   // generate lhs address expression
   BaseNode *lhs = nullptr;
-  MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode->GetStIdx());
+  MIRSymbol *symbol = func->GetLocalOrGlobalSymbol(dsnode.GetStIdx());
   ASSERT_NOT_NULL(symbol);
   symbol->ResetIsDeleted();
   if (!symbol->LMBCAllocateOffSpecialReg()) {
@@ -247,7 +247,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
     ASSERT_NOT_NULL(structty);
     FieldPair thepair = structty->TraverseToField(dsnode->GetFieldID());
     symty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first);
-    offset = becommon->GetFieldOffset(*structty, dsnode->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(dsnode->GetFieldID()).byteOffset;
   }
   BaseNode *rhs = LowerExpr(dsnode->Opnd(0));
   if (rhs->GetPrimType() != PTY_agg || rhs->GetOpCode() == OP_regread) {
@@ -280,7 +280,7 @@ void LMBCLowerer::LowerDassign(DassignNode *dsnode, BlockNode *newblk) {
       newblk->AddStatement(iassignoff);
     }
   } else {
-    LowerAggDassign(dsnode, symty, offset, newblk);
+    LowerAggDassign(*dsnode, symty, offset, newblk);
   }
 }
 
@@ -311,9 +311,9 @@ void LMBCLowerer::LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk) {
   }
 }
   // lower using OP_blkassignoff
-void LMBCLowerer::LowerAggIassign(IassignNode *iassign, MIRType *lhsty,
-                                  int32 offset, BlockNode *newblk) {
-  BaseNode *rhs = iassign->rhs;
+void LMBCLowerer::LowerAggIassign(const IassignNode &iassign, const MIRType *lhsty,
+                                  int32 offset, BlockNode &newblk) const {
+  BaseNode *rhs = iassign.rhs;
   CHECK_FATAL(rhs->GetOpCode() == OP_dread || rhs->GetOpCode() == OP_iread ||
               rhs->GetOpCode() == OP_ireadoff || rhs->GetOpCode() == OP_ireadfpoff,
               "LowerAggIassign: rhs inconsistent");
@@ -341,9 +341,9 @@ void LMBCLowerer::LowerAggIassign(IassignNode *iassign, MIRType *lhsty,
   BlkassignoffNode *bass = mirModule->CurFuncCodeMemPool()->New<BlkassignoffNode>(offset,
                                                                                   lhsty->GetSize());
   bass->SetAlign(lhsty->GetAlign());
-  bass->SetBOpnd(iassign->addrExpr, 0);
+  bass->SetBOpnd(iassign.addrExpr, 0);
   bass->SetBOpnd(rhs, 1);
-  newblk->AddStatement(bass);
+  newblk.AddStatement(bass);
 }
 
 void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
@@ -355,7 +355,7 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
   if (iassign->GetFieldID() != 0) {
     MIRStructType *structty = static_cast<MIRStructType *>(
         GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx()));
-    offset = becommon->GetFieldOffset(*structty, iassign->GetFieldID()).first;
+    offset = structty->GetFieldOffsetFromBaseAddr(iassign->GetFieldID()).byteOffset;
     TyIdx ftyidx = structty->TraverseToField(iassign->GetFieldID()).second.first;
     type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftyidx);
   } else {
@@ -372,7 +372,7 @@ void LMBCLowerer::LowerIassign(IassignNode *iassign, BlockNode *newblk) {
                                                                   iassign->rhs);
     newblk->AddStatement(iassignoff);
   } else {
-    LowerAggIassign(iassign, type, offset, newblk);
+    LowerAggIassign(*iassign, type, offset, *newblk);
   }
 }
 
@@ -412,7 +412,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
       if (stmt->GetOpCode() == OP_icallproto) {
         IcallNode *icallproto = static_cast<IcallNode*>(stmt);
         funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallproto->GetRetTyIdx()));
-        paramInPrototype = (i - 1) < funcType->GetParamTypeList().size();
+        paramInPrototype = (i == 0) ? false : (i - 1) < funcType->GetParamTypeList().size();
       } else {
         CallNode *callNode = static_cast<CallNode*>(stmt);
         MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
@@ -451,7 +451,7 @@ void LMBCLowerer::LowerCall(NaryStmtNode *stmt, BlockNode *newblk) {
   newblk->AddStatement(stmt);
 }
 
-void LMBCLowerer::FixPrototype4FirstArgReturn(IcallNode *icall) {
+void LMBCLowerer::FixPrototype4FirstArgReturn(const IcallNode *icall) const {
   MIRFuncType *ftype = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(icall->GetRetTyIdx()));
   if (!ftype->FirstArgReturn()) {
     return;

@@ -24,8 +24,7 @@
 
 namespace maplebe {
 
-#define RS_DUMP 0
-#define M_LOG LogInfo::MapleLogger()
+#define RS_DUMP CG_DEBUG_FUNC(*cgFunc)
 
 #define SKIP_FPLR(REG) \
   if (REG >= R29 && REG < V8) { \
@@ -77,7 +76,7 @@ void AArch64RegSavesOpt::CollectLiveInfo(const BB &bb, const Operand &opnd, bool
   }
   if (isDef) {
     /* First def */
-    if (!IsCalleeBitSet(GetCalleeBitsDef(), bb.GetId(), regNO)) {
+    if (!IsCalleeBitSetDef(bb.GetId(), regNO)) {
       SetCalleeBit(GetCalleeBitsDef(), bb.GetId(), regNO);
     }
   }
@@ -225,12 +224,13 @@ void AArch64RegSavesOpt::GenRegDefUse() {
 
   GenAccDefs();
 
-#if RS_DUMP
-  M_LOG << "CalleeBits for " << cgFunc->GetName() << ":\n";
-  for (BBID i = 1; i < cgFunc->NumBBs(); ++i) {
-    M_LOG << i << " : " << calleeBitsDef[i] << " " << calleeBitsUse[i] << " " << calleeBitsAcc[i] << "\n";
+  if (RS_DUMP) {
+    LogInfo::MapleLogger() << "CalleeBits for " << cgFunc->GetName() << ":\n";
+    for (BBID i = 1; i < cgFunc->NumBBs(); ++i) {
+      LogInfo::MapleLogger() << i << " : " << calleeBitsDef[i] << " " <<
+          calleeBitsUse[i] << " " << calleeBitsAcc[i] << "\n";
+    }
   }
-#endif
 }
 
 bool AArch64RegSavesOpt::CheckForUseBeforeDefPath() {
@@ -248,43 +248,44 @@ bool AArch64RegSavesOpt::CheckForUseBeforeDefPath() {
     }
   }
   if (found != 0) {
-#if RS_DUMP
-  CalleeBitsType mask = 1;
-  for (uint32 i = 0; i < static_cast<uint32>(sizeof(CalleeBitsType) << k3BitSize); ++i) {
-    regno_t reg = ReverseRegBitMap(i);
-    if ((use & mask) != 0 && (acc & mask) == 0) {
-      M_LOG << "R" << (reg - 1) << " in BB" << found << " is in a use before def path\n";
+    if (RS_DUMP) {
+      CalleeBitsType mask = 1;
+      for (uint32 i = 0; i < static_cast<uint32>(sizeof(CalleeBitsType) << k3BitSize); ++i) {
+        regno_t reg = ReverseRegBitMap(i);
+        if ((use & mask) != 0 && (acc & mask) == 0) {
+          LogInfo::MapleLogger() << "R" << (reg - 1) << " in BB" <<
+              found << " is in a use before def path\n";
+        }
+        mask <<= 1;
+      }
     }
-    mask <<= 1;
-  }
-#endif
     return true;
   }
   return false;
 }
 
 void AArch64RegSavesOpt::PrintBBs() const {
-  M_LOG << "RegSaves LiveIn/Out of BFS nodes:\n";
+  LogInfo::MapleLogger() << "RegSaves LiveIn/Out of BFS nodes:\n";
   for (auto *bb : bfs->sortedBBs) {
-    M_LOG << "< === > ";
-    M_LOG << bb->GetId();
-    M_LOG << " pred:[";
+    LogInfo::MapleLogger() << "< === > ";
+    LogInfo::MapleLogger() << bb->GetId();
+    LogInfo::MapleLogger() << " pred:[";
     for (auto predBB : bb->GetPreds()) {
-      M_LOG << " " << predBB->GetId();
+      LogInfo::MapleLogger() << " " << predBB->GetId();
     }
-    M_LOG << "] succs:[";
+    LogInfo::MapleLogger() << "] succs:[";
     for (auto succBB : bb->GetSuccs()) {
-      M_LOG << " " << succBB->GetId();
+      LogInfo::MapleLogger() << " " << succBB->GetId();
     }
-    M_LOG << "]\n LiveIn of [" << bb->GetId() << "]: ";
+    LogInfo::MapleLogger() << "]\n LiveIn of [" << bb->GetId() << "]: ";
     for (auto liveIn: bb->GetLiveInRegNO()) {
-        M_LOG << liveIn << " ";
+        LogInfo::MapleLogger() << liveIn << " ";
     }
-    M_LOG << "\n LiveOut of [" << bb->GetId() << "]: ";
+    LogInfo::MapleLogger() << "\n LiveOut of [" << bb->GetId() << "]: ";
     for (auto liveOut: bb->GetLiveOutRegNO()) {
-      M_LOG << liveOut  << " ";
+      LogInfo::MapleLogger() << liveOut  << " ";
     }
-    M_LOG << "\n";
+    LogInfo::MapleLogger() << "\n";
   }
 }
 
@@ -312,19 +313,20 @@ int32 AArch64RegSavesOpt::CheckCriteria(BB *bb, regno_t reg) const {
 bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB &bb, regno_t reg) const {
   BB *aBB = GetDomInfo()->GetDom(bb.GetId());
 
-#if RS_DUMP
-  M_LOG << "Checking dom list starting " << bb.GetId() << " for saved R" << (reg - 1) << ":\n  ";
-#endif
+  if (RS_DUMP) {
+    LogInfo::MapleLogger() << "Checking dom list starting " <<
+        bb.GetId() << " for saved R" << (reg - 1) << ":\n  ";
+  }
   while (!aBB->GetPreds().empty()) {  /* can't go beyond prolog */
-#if RS_DUMP
-    M_LOG << aBB->GetId() << " ";
-#endif
+    if (RS_DUMP) {
+      LogInfo::MapleLogger() << aBB->GetId() << " ";
+    }
     int t = CheckCriteria(aBB, reg);
     if (t != 0) {
-#if RS_DUMP
-      std::string str = t == 1 ?  " saved here, skip!\n" : " has livein/out, skip!\n";
-      M_LOG << " --R" << (reg - 1) << str;
-#endif
+      if (RS_DUMP) {
+        std::string str = t == 1 ?  " saved here, skip!\n" : " has livein/out, skip!\n";
+        LogInfo::MapleLogger() << " --R" << (reg - 1) << str;
+      }
       return true;                   /* previously saved, inspect next reg */
     }
     aBB = GetDomInfo()->GetDom(aBB->GetId());
@@ -354,9 +356,10 @@ void AArch64RegSavesOpt::CheckAndRemoveBlksFromCurSavedList(SavedBBInfo &sp, con
         /* Found! Don't plan to save in abb */
         sp.RemoveBB(sbb);
         bbSavedRegs[sbb->GetId()]->RemoveSaveReg(reg);
-#if RS_DUMP
-        M_LOG << " --R" << (reg - 1) << " save removed from BB" << sbb->GetId() << "\n";
-#endif
+        if (RS_DUMP) {
+          LogInfo::MapleLogger() << " --R" << (reg - 1) << " save removed from BB" <<
+              sbb->GetId() << "\n";
+        }
         break;
       }
       abb = GetDomInfo()->GetDom(abb->GetId());
@@ -368,13 +371,14 @@ void AArch64RegSavesOpt::CheckAndRemoveBlksFromCurSavedList(SavedBBInfo &sp, con
    Save is needed for a 1st def callee-save register at its dominator block
    outside any loop. */
 void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
-#if RS_DUMP
-  M_LOG << "Determining regsave sites using dom list for " << cgFunc->GetName() << ":\n";
-#endif
+  if (RS_DUMP) {
+    LogInfo::MapleLogger() << "Determining regsave sites using dom list for " <<
+        cgFunc->GetName() << ":\n";
+  }
   for (auto *bb : bfs->sortedBBs) {
-#if RS_DUMP
-    M_LOG << "BB: " << bb->GetId() << "\n";
-#endif
+    if (RS_DUMP) {
+      LogInfo::MapleLogger() << "BB: " << bb->GetId() << "\n";
+    }
     CalleeBitsType c = GetBBCalleeBits(GetCalleeBitsDef(), bb->GetId());
     if (c == 0) {
       continue;
@@ -410,10 +414,10 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
         regSavedBBs[creg]->InsertBB(bbDom);
 
         BBID bid = bbDom->GetId();
-#if RS_DUMP
-        M_LOG << " --R" << (reg - 1);
-        M_LOG << " to save in " << bid << "\n";
-#endif
+        if (RS_DUMP) {
+          LogInfo::MapleLogger() << " --R" << (reg - 1);
+          LogInfo::MapleLogger() << " to save in " << bid << "\n";
+        }
         SavedRegInfo *ctx = GetbbSavedRegsEntry(bid);
         if (!ctx->ContainSaveReg(reg)) {
           ctx->InsertSaveReg(reg);
@@ -430,33 +434,31 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsDoms() {
 }
 
 void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
-  AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MapleAllocator sprealloc(memPool);
-#if RS_DUMP
-  M_LOG << "Determining regsave sites using ssa_pre for " << cgFunc->GetName() << ":\n";
-#endif
-  const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
-  /* do 2 regs at a time to force store pairs */
-  for (uint32 i = 0; i < callees.size(); ++i) {
-    AArch64reg reg1 = callees[i];
-    SKIP_FPLR(reg1);
-    AArch64reg reg2 = kRinvalid;
-    if ((i + 1) < callees.size()) {
-      reg2 = callees[i + 1];
-      SKIP_FPLR(reg2);
-      ++i;
+  if (RS_DUMP) {
+    LogInfo::MapleLogger() << "Determining regsave sites using ssa_pre for " <<
+        cgFunc->GetName() << ":\n";
+  }
+  AArch64RegFinder regFinder(*cgFunc, *this);
+  if (RS_DUMP) {
+    regFinder.Dump();
+  }
+  while (true) {
+    // get reg1 and reg2
+    auto [reg1, reg2] = regFinder.GetPairCalleeeReg();
+    if (reg1 == kRinvalid) {
+      break;
     }
 
     SsaPreWorkCand wkCand(&sprealloc);
     for (BBID bid = 1; bid < static_cast<BBID>(bbSavedRegs.size()); ++bid) {
       /* Set the BB occurrences of this callee-saved register */
-      if (IsCalleeBitSet(GetCalleeBitsDef(), bid, reg1) ||
-          IsCalleeBitSet(GetCalleeBitsUse(), bid, reg1)) {
+      if (IsCalleeBitSetDef(bid, reg1) || IsCalleeBitSetUse(bid, reg1)) {
         (void)wkCand.occBBs.insert(bid);
       }
       if (reg2 != kRinvalid) {
-        if (IsCalleeBitSet(GetCalleeBitsDef(), bid, reg2) ||
-            IsCalleeBitSet(GetCalleeBitsUse(), bid, reg2)) {
+        if (IsCalleeBitSetDef(bid, reg2) || IsCalleeBitSetUse(bid, reg2)) {
           (void)wkCand.occBBs.insert(bid);
         }
       }
@@ -475,29 +477,29 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
          in prolog/epilog */
       MapleVector<AArch64reg> &pe = aarchCGFunc->GetProEpilogSavedRegs();
       if (std::find(pe.begin(), pe.end(), reg1) == pe.end()) {
-        pe.push_back(reg1);
+        pe.push_back(static_cast<AArch64reg>(reg1));
       }
       if (reg2 != kRinvalid && std::find(pe.begin(), pe.end(), reg2) == pe.end()) {
-        pe.push_back(reg2);
+        pe.push_back(static_cast<AArch64reg>(reg2));
       }
-#if RS_DUMP
-      M_LOG << "Save R" << (reg1 - 1) << " n/a, do in Pro/Epilog\n";
-      if (reg2 != kRinvalid) {
-        M_LOG << "    R  " << (reg2 - 1) << " n/a, do in Pro/Epilog\n";
+      if (RS_DUMP) {
+        LogInfo::MapleLogger() << "Save R" << (reg1 - 1) << " n/a, do in Pro/Epilog\n";
+        if (reg2 != kRinvalid) {
+          LogInfo::MapleLogger() << "    R  " << (reg2 - 1) << " n/a, do in Pro/Epilog\n";
+        }
       }
-#endif
       continue;
     }
     if (!wkCand.saveAtEntryBBs.empty()) {
       for (BBID entBB : wkCand.saveAtEntryBBs) {
-#if RS_DUMP
-        std::string r = reg1 <= R28 ? "R" : "V";
-        M_LOG << "BB " << entBB << " save for : " << r << (reg1 - 1) << "\n";
-        if (reg2 != kRinvalid) {
-          std::string r2 = reg2 <= R28 ? "R" : "V";
-          M_LOG << "              : " << r2 << (reg2 - 1) << "\n";
+        if (RS_DUMP) {
+          std::string r = reg1 <= R28 ? "R" : "V";
+          LogInfo::MapleLogger() << "BB " << entBB << " save for : " << r << (reg1 - 1) << "\n";
+          if (reg2 != kRinvalid) {
+            std::string r2 = reg2 <= R28 ? "R" : "V";
+            LogInfo::MapleLogger() << "              : " << r2 << (reg2 - 1) << "\n";
+          }
         }
-#endif
         GetbbSavedRegsEntry(entBB)->InsertSaveReg(reg1);
         if (reg2 != kRinvalid) {
           GetbbSavedRegsEntry(entBB)->InsertSaveReg(reg2);
@@ -531,19 +533,19 @@ void AArch64RegSavesOpt::RevertToRestoreAtEpilog(AArch64reg reg) {
   if (std::find(pe.begin(), pe.end(), reg) == pe.end()) {
     pe.push_back(reg);
   }
-#if RS_DUMP
-      M_LOG << "Restore R" << (reg - 1) << " n/a, do in Pro/Epilog\n";
-#endif
+  if (RS_DUMP) {
+    LogInfo::MapleLogger() << "Restore R" << (reg - 1) << " n/a, do in Pro/Epilog\n";
+  }
 }
 
 /* Determine calleesave regs restore locations by calling ssu-pre,
    previous bbSavedRegs memory is cleared and restore locs recorded in it */
 void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
-  AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MapleAllocator sprealloc(memPool);
-#if RS_DUMP
-  M_LOG << "Determining Callee Restore Locations:\n";
-#endif
+  if (RS_DUMP) {
+    LogInfo::MapleLogger() << "Determining Callee Restore Locations:\n";
+  }
   const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
   for (auto reg : callees) {
     SKIP_FPLR(reg);
@@ -557,9 +559,8 @@ void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
           (void)wkCand.saveBBs.insert(bid);
         }
       }
-      /* Set the BB occurrences of this callee-saved register */
-      if (IsCalleeBitSet(GetCalleeBitsDef(), bid, reg) ||
-          IsCalleeBitSet(GetCalleeBitsUse(), bid, reg)) {
+      // Set the BB occurrences of this callee-saved register
+      if (IsCalleeBitSetDef(bid, reg) || IsCalleeBitSetUse(bid, reg)) {
         (void)wkCand.occBBs.insert(bid);
       }
     }
@@ -574,10 +575,10 @@ void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
     }
     if (!wkCand.restoreAtEntryBBs.empty() || !wkCand.restoreAtExitBBs.empty()) {
       for (BBID entBB : wkCand.restoreAtEntryBBs) {
-#if RS_DUMP
-        std::string r = reg <= R28 ? "r" : "v";
-        M_LOG << "BB " << entBB << " restore: " << r << (reg - 1) << "\n";
-#endif
+        if (RS_DUMP) {
+          std::string r = reg <= R28 ? "r" : "v";
+          LogInfo::MapleLogger() << "BB " << entBB << " restore: " << r << (reg - 1) << "\n";
+        }
         GetbbSavedRegsEntry(entBB)->InsertEntryReg(reg);
       }
       for (BBID exitBB : wkCand.restoreAtExitBBs) {
@@ -602,48 +603,28 @@ void AArch64RegSavesOpt::DetermineCalleeRestoreLocations() {
           /* otherwise, BB_FT etc */
           GetbbSavedRegsEntry(exitBB)->InsertExitReg(reg);
         }
-#if RS_DUMP
+        if (RS_DUMP) {
           std::string r = reg <= R28 ? "R" : "V";
-          M_LOG << "BB " << exitBB << " restore: " << r << (reg - 1) << "\n";
-#endif
+          LogInfo::MapleLogger() << "BB " << exitBB << " restore: " << r << (reg - 1) << "\n";
+        }
       }
     }
   }
 }
 
-int32 AArch64RegSavesOpt::FindCalleeBase() const {
-  int32 offset = static_cast<int32>(
-      (static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout())->RealStackFrameSize()) -
-      (static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* FP/LR */) -
-      (cgFunc->GetMemlayout()->SizeOfArgsToStackPass()));
-
-  if (cgFunc->GetFunction().GetAttr(FUNCATTR_varargs)) {
-    /* GR/VR save areas are above the callee save area */
-    AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc->GetMemlayout());
-    int saveareasize = static_cast<int>(RoundUp(ml->GetSizeOfGRSaveArea(), GetPointerSize() * k2BitSize) +
-        RoundUp(ml->GetSizeOfVRSaveArea(), GetPointerSize() * k2BitSize));
-    offset -= saveareasize;
-  }
-  return offset;
-}
-
-void AArch64RegSavesOpt::SetupRegOffsets() {
+int32 AArch64RegSavesOpt::GetCalleeBaseOffset() const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   const MapleVector<AArch64reg> &proEpilogRegs = aarchCGFunc->GetProEpilogSavedRegs();
-  int32 regsInProEpilog = static_cast<int32>(proEpilogRegs.size() - 2);
-  const MapleVector<AArch64reg> &callees = aarchCGFunc->GetCalleeSavedRegs();
-
-  int32 offset = FindCalleeBase();
-  for (auto reg : callees) {
-    SKIP_FPLR(reg);
-    if (std::count(proEpilogRegs.begin(), proEpilogRegs.end(), reg) != 0) {
-      continue;
-    }
-    if (regOffset.find(reg) == regOffset.end()) {
-      regOffset[reg] = static_cast<uint32>(offset + (regsInProEpilog * kBitsPerByte));
-      offset += static_cast<int32>(kIntregBytelen);
-    }
+  int32 regsInProEpilog = static_cast<int32>(proEpilogRegs.size());
+  // for RLR
+  regsInProEpilog--;
+  // for RFP
+  if (std::find(proEpilogRegs.begin(), proEpilogRegs.end(), RFP) != proEpilogRegs.end()) {
+      regsInProEpilog--;
   }
+
+  int32 offset = aarchCGFunc->GetMemlayout()->GetCalleeSaveBaseLoc();
+  return offset + (regsInProEpilog * kBitsPerByte);
 }
 
 void AArch64RegSavesOpt::InsertCalleeSaveCode() {
@@ -651,10 +632,10 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
   BB *saveBB = cgFunc->GetCurBB();
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
-#if RS_DUMP
-  M_LOG << "Inserting Save for " << cgFunc->GetName() << ":\n";
-#endif
-  int32 offset = FindCalleeBase();
+  if (RS_DUMP) {
+    LogInfo::MapleLogger() << "Inserting Save for " << cgFunc->GetName() << ":\n";
+  }
+  int32 offset = GetCalleeBaseOffset();
   for (BB *bb : bfs->sortedBBs) {
     bid = bb->GetId();
     if (bbSavedRegs[bid] != nullptr && !bbSavedRegs[bid]->GetSaveSet().empty()) {
@@ -667,17 +648,14 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
         RegType regType = AArch64isa::IsGPRegister(reg) ? kRegTyInt : kRegTyFloat;
         AArch64reg &firstHalf = AArch64isa::IsGPRegister(reg) ? intRegFirstHalf : fpRegFirstHalf;
         std::string r = reg <= R28 ? "R" : "V";
-        /* If reg not seen before, record offset and then update */
+        // assign and record stack offset to each register
         if (regOffset.find(areg) == regOffset.end()) {
-          regOffset[areg] = static_cast<uint32>(offset);
+          regOffset[areg] = offset;
           offset += static_cast<int32>(kIntregBytelen);
         }
         if (firstHalf == kRinvalid) {
           /* 1st half in reg pair */
           firstHalf = reg;
-#if RS_DUMP
-          M_LOG << r << (reg - 1) << " save in BB" << bid << "  Offset = " << regOffset[reg]<< "\n";
-#endif
         } else {
           if (regOffset[reg] == (regOffset[firstHalf] + k8ByteSize)) {
             /* firstHalf & reg consecutive, make regpair */
@@ -695,9 +673,10 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
                                                              static_cast<int32>(regOffset[reg]));
           }
           firstHalf = kRinvalid;
-#if RS_DUMP
-          M_LOG << r << (reg - 1) << " save in BB" << bid << "  Offset = " << regOffset[reg]<< "\n";
-#endif
+        }
+        if (RS_DUMP) {
+          LogInfo::MapleLogger() << r << (reg - 1) << " save in BB" <<
+              bid << "  Offset = " << regOffset[reg]<< "\n";
         }
       }
 
@@ -717,13 +696,13 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
 }
 
 void AArch64RegSavesOpt::PrintSaveLocs(AArch64reg reg) {
-  M_LOG << "  for save @BB [ ";
+  LogInfo::MapleLogger() << "  for save @BB [ ";
   for (size_t b = 1; b < bbSavedRegs.size(); ++b) {
     if (bbSavedRegs[b] != nullptr && bbSavedRegs[b]->ContainSaveReg(reg)) {
-      M_LOG << b << " ";
+      LogInfo::MapleLogger() << b << " ";
     }
   }
-  M_LOG << "]\n";
+  LogInfo::MapleLogger() << "]\n";
 }
 
 void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
@@ -731,10 +710,9 @@ void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
   BB *saveBB = cgFunc->GetCurBB();
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
-#if RS_DUMP
-  M_LOG << "Inserting Restore: \n";
-#endif
-  int32 offset = FindCalleeBase();
+  if (RS_DUMP) {
+    LogInfo::MapleLogger() << "Inserting Restore: \n";
+  }
   for (BB *bb : bfs->sortedBBs) {
     bid = bb->GetId();
     SavedRegInfo *sp = bbSavedRegs[bid];
@@ -747,12 +725,13 @@ void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
       cgFunc->SetCurBB(*aarchCGFunc->GetDummyBB());
       for (auto areg : sp->GetEntrySet()) {
         AArch64reg reg = static_cast<AArch64reg>(areg);
-        offset = static_cast<int32>(regOffset[areg]);
-#if RS_DUMP
-        std::string r = reg <= R28 ? "R" : "V";
-        M_LOG << r << (reg - 1) << " entry restore in BB " << bid << "  Saved Offset = " << offset << "\n";
-        PrintSaveLocs(reg);
-#endif
+        int32 offset = static_cast<int32>(regOffset[areg]);
+        if (RS_DUMP) {
+          std::string r = reg <= R28 ? "R" : "V";
+          LogInfo::MapleLogger() << r << (reg - 1) << " entry restore in BB " <<
+              bid << "  Saved Offset = " << offset << "\n";
+          PrintSaveLocs(reg);
+        }
 
         /* restore is always the same from saved offset */
         RegType regType = AArch64isa::IsGPRegister(reg) ? kRegTyInt : kRegTyFloat;
@@ -767,12 +746,13 @@ void AArch64RegSavesOpt::InsertCalleeRestoreCode() {
       cgFunc->SetCurBB(*aarchCGFunc->GetDummyBB());
       for (auto areg : sp->GetExitSet()) {
         AArch64reg reg = static_cast<AArch64reg>(areg);
-        offset = static_cast<int32>(regOffset[areg]);
-#if RS_DUMP
-        std::string r = reg <= R28 ? "R" : "V";
-        M_LOG << r << (reg - 1) << " exit restore in BB " << bid << " Offset = " << offset << "\n";
-        PrintSaveLocs(reg);
-#endif
+        int32 offset = static_cast<int32>(regOffset[areg]);
+        if (RS_DUMP) {
+          std::string r = reg <= R28 ? "R" : "V";
+          LogInfo::MapleLogger() << r << (reg - 1) << " exit restore in BB " <<
+              bid << " Offset = " << offset << "\n";
+          PrintSaveLocs(reg);
+        }
 
         /* restore is always single from saved offset */
         RegType regType = AArch64isa::IsGPRegister(reg) ? kRegTyInt : kRegTyFloat;
@@ -802,10 +782,10 @@ void AArch64RegSavesOpt::Run() {
   Bfs localBfs(*cgFunc, *memPool);
   bfs = &localBfs;
   bfs->ComputeBlockOrder();
-#if RS_DUMP
-  M_LOG << "##Calleeregs Placement for: " << cgFunc->GetName() << "\n";
-  PrintBBs();
-#endif
+  if (RS_DUMP) {
+    LogInfo::MapleLogger() << "##Calleeregs Placement for: " << cgFunc->GetName() << "\n";
+    PrintBBs();
+  }
 
   /* Determined 1st def and last use of all callee-saved registers used
      for all BBs */
@@ -837,23 +817,136 @@ void AArch64RegSavesOpt::Run() {
   /* Verify saves/restores are in pair */
   std::vector<regno_t> rlist = { R19, R20, R21, R22, R23, R24, R25, R26, R27, R28 };
   for (auto reg : rlist) {
-    M_LOG << "Verify calleeregs_placement data for R" << (reg - 1) << ":\n";
+    LogInfo::MapleLogger() << "Verify calleeregs_placement data for R" << (reg - 1) << ":\n";
     std::set<BB*, BBIdCmp> visited;
     uint32 saveBid = 0;
     uint32 restoreBid = 0;
     Verify(reg, cgFunc->GetFirstBB(), &visited, &saveBid, &restoreBid);
-    M_LOG << "\nVerify Done\n";
+    LogInfo::MapleLogger() << "\nVerify Done\n";
   }
 #endif
-
-  /* Assign stack offset to each shrinkwrapped register, skip over the offsets
-     for registers saved in prolog */
-  SetupRegOffsets();
 
   /* Generate callee save instrs at found sites */
   InsertCalleeSaveCode();
 
   /* Generate callee restores at found sites */
   InsertCalleeRestoreCode();
+}
+
+void AArch64RegFinder::CalcRegUsedInSameBBsMat(const CGFunc &func,
+                                               const AArch64RegSavesOpt &regSave) {
+  auto &aarchCGFunc = static_cast<const AArch64CGFunc&>(func);
+  auto regNum = aarchCGFunc.GetTargetRegInfo()->GetAllRegNum();
+  regUsedInSameBBsMat.resize(regNum, std::vector<uint32>(regNum, 0));
+
+  // regtype for distinguishing between int and fp
+  std::vector<AArch64reg> gpCallees;
+  std::vector<AArch64reg> fpCallees;
+  for (auto reg : aarchCGFunc.GetCalleeSavedRegs()) {
+    SKIP_FPLR(reg);
+    if (AArch64isa::IsGPRegister(reg)) {
+      gpCallees.push_back(reg);
+    } else {
+      fpCallees.push_back(reg);
+    }
+  }
+
+  // calc regUsedInSameBBsMat
+  // if r1 and r2 is used in same bb, ++regUsedInSameBBsMat[r1][r2]
+  auto CalcCalleeRegInSameBBWithCalleeRegVec =
+      [this, &func, &regSave](const std::vector<AArch64reg> &callees) {
+        for (BBID bid = 1; bid < static_cast<BBID>(func.NumBBs()); ++bid) {
+          std::vector<AArch64reg> usedRegs;
+          for (auto reg : callees) {
+            if (regSave.IsCalleeBitSetDef(bid, reg) || regSave.IsCalleeBitSetUse(bid, reg)) {
+              usedRegs.push_back(reg);
+            }
+          }
+          for (uint32 i = 0; i < usedRegs.size(); ++i) {
+            for (uint32 j = i + 1; j < usedRegs.size(); ++j) {
+              ++regUsedInSameBBsMat[usedRegs[i]][usedRegs[j]];
+              ++regUsedInSameBBsMat[usedRegs[j]][usedRegs[i]];
+            }
+          }
+        }
+      };
+
+  CalcCalleeRegInSameBBWithCalleeRegVec(gpCallees);
+  CalcCalleeRegInSameBBWithCalleeRegVec(fpCallees);
+}
+
+void AArch64RegFinder::CalcRegUsedInBBsNum(const CGFunc &func, const AArch64RegSavesOpt &regSave) {
+  // calc callee reg used in BBs num
+  auto &aarchCGFunc = static_cast<const AArch64CGFunc&>(func);
+  for (BBID bid = 1; bid < static_cast<BBID>(aarchCGFunc.NumBBs()); ++bid) {
+    for (auto reg : aarchCGFunc.GetCalleeSavedRegs()) {
+      SKIP_FPLR(reg);
+      if (regSave.IsCalleeBitSetDef(bid, reg) || regSave.IsCalleeBitSetUse(bid, reg)) {
+        ++regUsedInBBsNum[reg];
+      }
+    }
+  }
+}
+
+void AArch64RegFinder::SetCalleeRegUnalloc(const CGFunc &func) {
+  // set callee reg is unalloc
+  auto &aarchCGFunc = static_cast<const AArch64CGFunc&>(func);
+  for (auto reg : aarchCGFunc.GetCalleeSavedRegs()) {
+    SKIP_FPLR(reg);
+    regAlloced[reg] = false;
+  }
+}
+
+std::pair<regno_t, regno_t> AArch64RegFinder::GetPairCalleeeReg() {
+  regno_t reg1 = kRinvalid;
+  regno_t reg2 = kRinvalid;
+
+  // find max same bb num with reg1 and reg2
+  uint32 maxSameNum = 0;
+  for (uint32 i = 0; i < regUsedInSameBBsMat.size(); ++i) {
+    if (regAlloced[i]) {
+      continue;
+    }
+    for (uint32 j = i + 1; j < regUsedInSameBBsMat[i].size(); ++j) {
+      if (regAlloced[j]) {
+        continue;
+      }
+      if (regUsedInSameBBsMat[i][j] > maxSameNum) {
+        reg1 = i;
+        reg2 = j;
+        maxSameNum = regUsedInSameBBsMat[i][j];
+      }
+    }
+  }
+
+  // not found, use max RegUsedInBBsNum
+  if (reg1 == kRinvalid) {
+    reg1 = FindMaxUnallocRegUsedInBBsNum();
+  }
+  regAlloced[reg1] = true;  // set reg1 is alloced
+  if (reg2 == kRinvalid) {
+    reg2 = FindMaxUnallocRegUsedInBBsNum();
+  }
+  regAlloced[reg2] = true;  // set reg2 is alloced
+
+  return {reg1, reg2};
+}
+
+void AArch64RegFinder::Dump() const {
+  LogInfo::MapleLogger() << "Dump reg finder:\n";
+  LogInfo::MapleLogger() << "regUsedInSameBBsMat:\n";
+  for (uint32 i = 0; i < regUsedInSameBBsMat.size(); ++i) {
+    if (regAlloced[i]) {
+      continue;
+    }
+    LogInfo::MapleLogger() << "Mat[" << i << "]:";
+    for (uint32 j = 0; j < regUsedInSameBBsMat[i].size(); ++j) {
+      if (regUsedInSameBBsMat[i][j] == 0) {
+        continue;
+      }
+      LogInfo::MapleLogger() << "[" << j << ":" << regUsedInSameBBsMat[i][j] << "],";
+    }
+    LogInfo::MapleLogger() << "\n";
+  }
 }
 }  /* namespace maplebe */

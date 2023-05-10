@@ -22,12 +22,12 @@
 namespace maple {
 class MeStorePre : public MeSSUPre {
  public:
-  MeStorePre(MeFunction &f, Dominance &dom, AliasClass &ac, MemPool &memPool, bool enabledDebug)
-      : MeSSUPre(f, dom, memPool, kStorePre, enabledDebug), aliasClass(&ac), curTemp(nullptr),
+  MeStorePre(MeFunction &f, Dominance &dom, Dominance &pdom, AliasClass &ac, MemPool &memPool, bool enabledDebug)
+      : MeSSUPre(f, dom, pdom, memPool, kStorePre, enabledDebug), aliasClass(&ac), curTemp(nullptr),
         bbCurTempMap(spreAllocator.Adapter()),
         candsForSSAUpdate() {}
 
-  virtual ~MeStorePre() = default;
+  ~MeStorePre() override = default;
 
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &CandsForSSAUpdate() {
     return candsForSSAUpdate;

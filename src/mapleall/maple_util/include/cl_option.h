@@ -32,7 +32,7 @@
 namespace maplecl {
 
 template <typename T>
-constexpr inline bool digitalCheck = (std::is_same_v<std::uint8_t, T> ||
+constexpr inline bool kDigitalCheck = (std::is_same_v<std::uint8_t, T> ||
                                       std::is_same_v<std::uint16_t, T> ||
                                       std::is_same_v<std::uint32_t, T> ||
                                       std::is_same_v<std::uint64_t, T> ||
@@ -72,12 +72,12 @@ enum class EqualType {
 };
 
 /* These constexpr are needed to use short name in option description, like this:
- * maplecl::Option<int32_t> option({"--option"}, "Description", optionalValue);
+ * maplecl::Option<int32_t> option({"--option"}, "Description", kOptionalValue);
  * instead of:
  * maplecl::Option<int32_t> option({"--option"}, "Description", ValueExpectedType::kValueOptional);
  */
-constexpr ValueExpectedType optionalValue = ValueExpectedType::kValueOptional;
-constexpr ValueExpectedType requiredValue = ValueExpectedType::kValueRequired;
+constexpr ValueExpectedType kOptionalValue = ValueExpectedType::kValueOptional;
+constexpr ValueExpectedType kRequiredValue = ValueExpectedType::kValueRequired;
 constexpr ValueExpectedType disallowedValue = ValueExpectedType::kValueDisallowed;
 constexpr ValueJoinedType joinedValue = ValueJoinedType::kValueJoined;
 constexpr ValueJoinedType separatedValue = ValueJoinedType::kValueSeparated;
@@ -163,6 +163,12 @@ class OptionInterface {
     return names[0];
   }
 
+  // Used for option sorting.
+  std::string GetOptName() const {
+    assert(names.size() > 0);
+    return names[0];
+  }
+
   const std::string &GetDescription() const {
     return optDescription;
   }
@@ -229,7 +235,7 @@ class Option : public OptionInterface {
    * strding test = option1; or int dig = option2 - here will be implicit conversation.
    */
   /* implicit */
-  operator T() {
+  operator T() const {
     return GetValue();
   }
 
@@ -237,7 +243,7 @@ class Option : public OptionInterface {
                 KeyArg &keyArg) override {
     RetCode err = RetCode::noError;
     auto &key = args[argsIndex];
-    if constexpr(digitalCheck<T>) {
+    if constexpr(kDigitalCheck<T>) {
       err = ParseDigit(argsIndex, args, keyArg);
     } else if constexpr(std::is_same_v<std::string, T>) {
       err = ParseString(argsIndex, args, keyArg);
@@ -259,7 +265,7 @@ class Option : public OptionInterface {
     if (defaultValue.isSet) {
       value = defaultValue.defaultValue;
     } else {
-      if constexpr(digitalCheck<T>) {
+      if constexpr(kDigitalCheck<T>) {
         value = 0;
       } else if constexpr(std::is_same_v<std::string, T>) {
         value = "";
@@ -318,8 +324,8 @@ class Option : public OptionInterface {
   RetCode ParseString(size_t &argsIndex, const std::deque<std::string_view> &args, KeyArg &keyArg);
   RetCode ParseBool(size_t &argsIndex, const std::deque<std::string_view> &args);
 
-  void FillVal(const T &val, std::vector<std::string> &vals) {
-    if constexpr(digitalCheck<T>) {
+  void FillVal(const T &val, std::vector<std::string> &vals) const {
+    if constexpr(kDigitalCheck<T>) {
       (void)vals.emplace_back(std::to_string(val));
     } else if constexpr (std::is_same_v<std::string, T>) {
       (void)vals.emplace_back(val);

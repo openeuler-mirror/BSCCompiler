@@ -343,7 +343,7 @@ bool FEFunction::SetupFEIRStmtJavaTry(const std::string &phaseName) {
     if (stmt->GetKind() == FEIRNodeKind::kStmtPesudoJavaTry) {
       FEIRStmtPesudoJavaTry *stmtJavaTry = static_cast<FEIRStmtPesudoJavaTry*>(stmt);
       for (uint32 labelIdx : stmtJavaTry->GetCatchLabelIdxVec()) {
-        auto it = mapLabelStmt.find(labelIdx);
+        std::map<uint32, FEIRStmtPesudoLabel*>::const_iterator it = mapLabelStmt.find(labelIdx);
         CHECK_FATAL(it != mapLabelStmt.cend(), "label is not found");
         stmtJavaTry->AddCatchTarget(*(it->second));
       }
@@ -377,7 +377,7 @@ bool FEFunction::SetupFEIRStmtBranch(const std::string &phaseName) {
 }
 
 bool FEFunction::SetupFEIRStmtGoto(FEIRStmtGoto &stmt) {
-  auto it = mapLabelStmt.find(stmt.GetLabelIdx());
+  std::map<uint32, FEIRStmtPesudoLabel*>::const_iterator it = mapLabelStmt.find(stmt.GetLabelIdx());
   if (it == mapLabelStmt.cend()) {
     ERR(kLncErr, "target not found for stmt goto");
     return false;
@@ -388,7 +388,7 @@ bool FEFunction::SetupFEIRStmtGoto(FEIRStmtGoto &stmt) {
 
 bool FEFunction::SetupFEIRStmtSwitch(FEIRStmtSwitch &stmt) {
   // default target
-  auto itDefault = mapLabelStmt.find(stmt.GetDefaultLabelIdx());
+  std::map<uint32, FEIRStmtPesudoLabel*>::const_iterator itDefault = mapLabelStmt.find(stmt.GetDefaultLabelIdx());
   if (itDefault == mapLabelStmt.cend()) {
     ERR(kLncErr, "target not found for stmt goto");
     return false;
@@ -397,7 +397,7 @@ bool FEFunction::SetupFEIRStmtSwitch(FEIRStmtSwitch &stmt) {
 
   // value targets
   for (const auto &itItem : stmt.GetMapValueLabelIdx()) {
-    auto itTarget = mapLabelStmt.find(itItem.second);
+    std::map<uint32, FEIRStmtPesudoLabel*>::const_iterator itTarget = mapLabelStmt.find(itItem.second);
     if (itTarget == mapLabelStmt.cend()) {
       ERR(kLncErr, "target not found for stmt goto");
       return false;
@@ -551,7 +551,8 @@ void FEFunction::LinkBB(FEIRBB &predBB, FEIRBB &succBB) {
 }
 
 FEIRBB &FEFunction::GetFEIRBBByStmt(const FEIRStmt &stmt) {
-  auto it = feirStmtBBMap.find(&stmt);
+  std::map<const FEIRStmt*, FEIRBB*>::const_iterator it = feirStmtBBMap.find(&stmt);
+  CHECK_FATAL(it != feirStmtBBMap.cend(), "FEIRStmt cannot be found.");
   return *(it->second);
 }
 
@@ -592,9 +593,7 @@ void FEFunction::InsertCheckPointForTrys() {
       currTry = static_cast<FEIRStmtPesudoJavaTry2*>(currStmt);
       checkPointInTry = nullptr;
     }
-    if ((currTry != nullptr) &&
-        (currStmt->IsThrowable()) &&
-        ((checkPointInTry == nullptr) || currStmt->HasDef())) {
+    if ((currTry != nullptr) && (currStmt->IsThrowable()) && ((checkPointInTry == nullptr) || currStmt->HasDef())) {
       FEIRBB &currBB = GetFEIRBBByStmt(*currStmt);
       if (currStmt == currBB.GetStmtNoAuxHead()) {
         checkPointInTry = &(currBB.GetCheckPointIn());
@@ -633,12 +632,14 @@ void FEFunction::InitTrans4AllVars() {
 }
 
 FEIRStmtPesudoJavaTry2 &FEFunction::GetJavaTryByCheckPoint(FEIRStmtCheckPoint &checkPoint) {
-  auto it = checkPointJavaTryMap.find(&checkPoint);
+  std::map<FEIRStmtCheckPoint*, FEIRStmtPesudoJavaTry2*>::const_iterator it = checkPointJavaTryMap.find(&checkPoint);
+  CHECK_FATAL(it != checkPointJavaTryMap.cend(), "FEIRStmtCheckPoint cannot be found.");
   return *(it->second);
 }
 
 FEIRStmtCheckPoint &FEFunction::GetCheckPointByFEIRStmt(const FEIRStmt &stmt) {
-  auto it = feirStmtCheckPointMap.find(&stmt);
+  std::map<const FEIRStmt*, FEIRStmtCheckPoint*>::const_iterator it = feirStmtCheckPointMap.find(&stmt);
+  CHECK_FATAL(it != feirStmtCheckPointMap.cend(), "FEIRStmt cannot be found.");
   return *(it->second);
 }
 
@@ -722,7 +723,8 @@ void FEFunction::InsertDAssignStmt4TypeCvt(const FEIRVarTypeScatter &fromVar, co
 }
 
 FEIRStmt &FEFunction::GetStmtByDefVarTypeScatter(const FEIRVarTypeScatter &varTypeScatter) {
-  auto it = defVarTypeScatterStmtMap.find(&varTypeScatter);
+  std::map<const FEIRVarTypeScatter*, FEIRStmt*>::const_iterator it = defVarTypeScatterStmtMap.find(&varTypeScatter);
+  CHECK_FATAL(it != defVarTypeScatterStmtMap.cend(), "varTypeScatter cannot be found.");
   return *(it->second);
 }
 

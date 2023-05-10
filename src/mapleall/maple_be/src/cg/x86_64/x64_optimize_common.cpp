@@ -173,4 +173,10 @@ BB *X64InsnVisitor::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru, bool isTargetF
   (void)isTargetFallthru;
   return nullptr;
 }
+
+void X64InsnVisitor::ModifyFathruBBToGotoBB(BB &bb, LabelIdx labelIdx) const {
+  ASSERT(false, "not implement in X86_64");
+  (void)bb;
+  return;
+}
 }  /* namespace maplebe */

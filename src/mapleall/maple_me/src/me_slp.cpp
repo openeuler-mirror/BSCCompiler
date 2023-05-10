@@ -18,6 +18,7 @@
 #include "me_irmap.h"
 #include "me_dominance.h"
 #include "common_utils.h"
+#include "aarch64/aarch64_imm_valid.h"
 
 #define SLP_DEBUG(X) \
 do { if (debug) { LogInfo::MapleLogger() << "[SLP] "; (X); } } while (false)
@@ -43,11 +44,6 @@ const std::vector<MIRIntrinsicID> supportedIntrns = {INTRN_C_rev_4, INTRN_C_rev_
 
 std::vector<int32> *localSymOffsetTab = nullptr;
 }  // anonymous namespace
-
-namespace maple {
-using namespace maplebe;
-#include "immvalid.def"
-}
 
 namespace maple {
 // A wrapper class of meExpr with its defStmt, this can avoid repeated searches for use-def chains
@@ -76,7 +72,7 @@ class ExprWithDef {
   }
 
  private:
-  void FindDef(ScalarMeExpr *scalarExpr, BB *bb) {
+  void FindDef(const ScalarMeExpr *scalarExpr, const BB *bb) {
     if (scalarExpr->GetDefBy() != kDefByStmt) {
       return;
     }
@@ -137,14 +133,15 @@ void MemoryHelper::ExtractAddendOffset(const MeExpr &expr, bool isNeg, MemLoc &m
         CHECK_FATAL(type->GetKind() == kTypePointer, "must be");
         auto *pointedType = static_cast<MIRPtrType*>(type)->GetPointedType();
         CHECK_FATAL(pointedType->GetKind() == kTypeStruct || pointedType->GetKind() == kTypeUnion, "must be");
-        auto bitOffset = static_cast<MIRStructType*>(pointedType)->GetBitOffsetFromBaseAddr(fieldId);
+        auto bitOffset = static_cast<int32>(static_cast<MIRStructType*>(pointedType)->
+                                            GetBitOffsetFromBaseAddr(fieldId));
         memLoc.offset += (bitOffset / k8Bit);
       }
       ExtractAddendOffset(*expr.GetOpnd(0), isNeg, memLoc);
       break;
     }
     case OP_constval: {
-      auto val = static_cast<const ConstMeExpr&>(expr).GetExtIntValue();
+      auto val = static_cast<decltype(memLoc.offset)>(static_cast<const ConstMeExpr&>(expr).GetExtIntValue());
       memLoc.offset += (isNeg ? -val : val);
       break;
     }
@@ -210,7 +207,7 @@ MemLoc *MemoryHelper::GetMemLoc(VarMeExpr &var) {
   memLoc.offset = ost->GetOffset().val / k8Bit;
   memLoc.type = ost->GetType();
   memLoc.base = alloc.GetMemPool()->New<MemBasePtr>();
-  memLoc.base->SetBaseOstIdx(prevLevOst->GetIndex().get());
+  memLoc.base->SetBaseOstIdx(static_cast<int32>(prevLevOst->GetIndex().get()));
 
   // unique memLoc base
   UniqueMemLocBase(memLoc);
@@ -254,7 +251,7 @@ MemLoc *MemoryHelper::GetMemLoc(IvarMeExpr &ivar) {
     // pointedType is either kTypeStruct or kTypeUnion
     ASSERT(pointedType->GetKind() == kTypeStruct || pointedType->GetKind() == kTypeUnion, "must be");
     auto *structType = static_cast<MIRStructType*>(pointedType);
-    auto bitOffset = structType->GetBitOffsetFromBaseAddr(ivar.GetFieldID());
+    auto bitOffset = static_cast<decltype(extraOffset)>(structType->GetBitOffsetFromBaseAddr(ivar.GetFieldID()));
     extraOffset += (bitOffset / k8Bit);
   }
   extraOffset += ivar.GetOffset();
@@ -322,18 +319,18 @@ bool MemoryHelper::MustHaveNoOverlap(const MemLoc &mem1, const MemLoc &mem2) {
   }
   int32 offset1 = mem1.offset;
   int32 offset2 = mem2.offset;
-  uint32 size1 = mem1.type->GetSize();
-  uint32 size2 = mem2.type->GetSize();
+  uint32 size1 = static_cast<uint32>(mem1.type->GetSize());
+  uint32 size2 = static_cast<uint32>(mem2.type->GetSize());
   // overlapping case one:
   // mem1: |------|
   // mem2:     |------|
-  if (offset1 <= offset2 && (offset2 - offset1) < size1) {
+  if (offset1 <= offset2 && static_cast<uint32>(offset2 - offset1) < size1) {
     return false;
   }
   // overlapping case two:
   // mem1:     |------|
   // mem2: |------|
-  if (offset2 < offset1 && (offset1 - offset2) < size2) {
+  if (offset2 < offset1 && static_cast<uint32>(offset1 - offset2) < size2) {
     return false;
   }
   return true;
@@ -366,7 +363,7 @@ bool MemoryHelper::IsAllIvarConsecutive(const std::vector<MeExpr*> &ivarVec, boo
   return true;
 }
 
-int32 GetLocalSymApproximateOffset(MIRSymbol *sym, MeFunction &func) {
+int32 GetLocalSymApproximateOffset(const MIRSymbol *sym, MeFunction &func) {
   if (localSymOffsetTab == nullptr) {
     localSymOffsetTab = new std::vector<int32>();
   }
@@ -375,7 +372,7 @@ int32 GetLocalSymApproximateOffset(MIRSymbol *sym, MeFunction &func) {
   if (symIdx < offsetTab.size()) {
     return offsetTab[symIdx];
   }
-  for (uint32 i = offsetTab.size(); i <= symIdx; ++i) {
+  for (uint32 i = static_cast<uint32>(offsetTab.size()); i <= symIdx; ++i) {
     if (i == 0) {
       offsetTab.push_back(0);
       continue;
@@ -387,7 +384,7 @@ int32 GetLocalSymApproximateOffset(MIRSymbol *sym, MeFunction &func) {
     }
     // align 8 bytes
     auto sizeAfterAlign = (lastSym->GetType()->GetSize() + 7) & -8;
-    offsetTab.push_back(offsetTab[i - 1] + sizeAfterAlign);
+    offsetTab.push_back(offsetTab[i - 1] + static_cast<int32>(sizeAfterAlign));
   }
   return offsetTab[symIdx];
 }
@@ -418,14 +415,15 @@ std::optional<int32> EstimateStackOffsetOfMemLoc(MemLoc *memLoc, MeFunction &fun
   return {};
 }
 
+#if defined(TARGAARCH64) && TARGAARCH64
 // This is target-dependent function for armv8, maybe we need abstract it TargetInfo
 bool IsIntStpLdpOffsetValid(uint32 typeBitSize, int32 offset) {
   switch (typeBitSize) {
     case 32: {
-      return StrLdr32PairImmValid(offset);
+      return maplebe::StrLdr32PairImmValid(offset);
     }
     case 64: {
-      return StrLdr64PairImmValid(offset);
+      return maplebe::StrLdr64PairImmValid(offset);
     }
     default: {
       CHECK_FATAL(false, "should not be here");
@@ -434,24 +432,26 @@ bool IsIntStpLdpOffsetValid(uint32 typeBitSize, int32 offset) {
   }
   return false;
 }
+#endif
 
+#if defined(TARGAARCH64) && TARGAARCH64
 // This is target-dependent function for armv8, maybe we need abstract it TargetInfo
 bool IsVecStrLdrOffsetValid(uint32 typeBitSize, int32 offset) {
   switch (typeBitSize) {
     case 8: {
-      return StrLdr8ImmValid(offset);
+      return maplebe::StrLdr8ImmValid(offset);
     }
     case 16: {
-      return StrLdr16ImmValid(offset);
+      return maplebe::StrLdr16ImmValid(offset);
     }
     case 32: {
-      return StrLdr32ImmValid(offset);
+      return maplebe::StrLdr32ImmValid(offset);
     }
     case 64: {
-      return StrLdr64ImmValid(offset);
+      return maplebe::StrLdr64ImmValid(offset);
     }
     case 128: {
-      return StrLdr128ImmValid(offset);
+      return maplebe::StrLdr128ImmValid(offset);
     }
     default: {
       CHECK_FATAL(false, "should not be here");
@@ -460,6 +460,7 @@ bool IsVecStrLdrOffsetValid(uint32 typeBitSize, int32 offset) {
   }
   return false;
 }
+#endif
 
 // ------------------- //
 //  Assign Stmt Split  //
@@ -699,7 +700,7 @@ ScalarMeExpr* DoFindPreVersionByAlias(ScalarMeExpr &aliasPreVersion, ScalarMeExp
   ScalarMeExpr *nextExpr = nullptr;
   auto *chiList = defStmt->GetChiList();
   if (chiList != nullptr) {
-    auto it = chiList->find(targetOstIdx);
+    const auto it = std::as_const(chiList)->find(targetOstIdx);
     if (it != chiList->end()) {
       return it->second->GetRHS();
     }
@@ -864,7 +865,7 @@ class TreeNode {
       auto *minMemLoc = GetMinMemLoc();
       auto typeSize = minMemLoc->type->GetSize();
       for (auto *memLoc : memLocs) {
-        order.push_back((memLoc->offset - minMemLoc->offset) / typeSize);
+        order.push_back(static_cast<uint32>((memLoc->offset - minMemLoc->offset)) / typeSize);
       }
     } else if (firstStmt->GetRHS() != nullptr && firstStmt->GetRHS()->GetMeOp() == kMeOpIvar) {
       // Init load memLoc
@@ -876,7 +877,7 @@ class TreeNode {
       auto *minMemLoc = GetMinMemLoc();
       auto typeSize = minMemLoc->type->GetSize();
       for (auto *memLoc : memLocs) {
-        order.push_back((memLoc->offset - minMemLoc->offset) / typeSize);
+        order.push_back(static_cast<uint32>((memLoc->offset - minMemLoc->offset)) / typeSize);
       }
     }
     SetParent(parentNode);
@@ -1235,7 +1236,7 @@ class SLPTree {
   }
 
   void AddTreeNode(TreeNode *treeNode) {
-    treeNode->SetId(treeNodeVec.size());
+    treeNode->SetId(static_cast<uint32>(treeNodeVec.size()));
     treeNodeVec.push_back(treeNode);
   }
 
@@ -1313,7 +1314,7 @@ PrimType TreeNode::GetType() const {
 }
 
 uint32 TreeNode::GetBundleSize() const {
-  return GetLane() * GetPrimTypeBitSize(tree.GetType());
+  return static_cast<uint32>(GetLane() * GetPrimTypeBitSize(tree.GetType()));
 }
 
 // Only valid for load/store treeNode for now
@@ -1330,8 +1331,12 @@ int32 TreeNode::GetScalarCost() const {
         offset = stackOffset.value();
       }
     }
+#if defined(TARGAARCH64) && TARGAARCH64
     // If stp/ldp for stack memory, we think that an extra insn is always needed for preparing offset
     bool offsetValid = IsIntStpLdpOffsetValid(GetPrimTypeBitSize(GetType()), offset);
+#else
+    bool offsetValid = false;
+#endif
     if (!offsetValid) {
       cost += 1;  // invalid offset, an extra instruction is needed to prepare offset const
       if (IsStore()) {
@@ -1356,10 +1361,14 @@ int32 TreeNode::GetVectorCost() const {
   ASSERT(IsLoad() || IsStore(), "must be");
   ASSERT(CanVectorized(), "must be");
   int32 cost = 1;
+#if defined(TARGAARCH64) && TARGAARCH64
   int32 offset = GetMinMemLoc()->offset;
   if (!IsVecStrLdrOffsetValid(GetBundleSize(), offset)) {
     cost += 1;
   }
+#else
+  cost += 1;
+#endif
   return cost;
 }
 
@@ -1387,6 +1396,7 @@ int32 TreeNode::GetExternalUserCost() const {
   return externalUserCost;
 }
 
+#if defined(TARGAARCH64) && TARGAARCH64
 // Wether the constval is in the range of insn's imm field
 static bool IsConstvalInRangeOfInsnImm(ConstMeExpr *constExpr, Opcode op, uint32 typeBitSize) {
   if (constExpr->GetConstVal()->GetKind() != kConstInt) {
@@ -1396,14 +1406,14 @@ static bool IsConstvalInRangeOfInsnImm(ConstMeExpr *constExpr, Opcode op, uint32
   switch (op) {
     case OP_add:
     case OP_sub:
-      return Imm12BitValid(val);
+      return maplebe::Imm12BitValid(val);
     case OP_band:
     case OP_bior:
     case OP_bxor: {
       if (typeBitSize == 32) {
-        return Imm12BitMaskValid(val);
+        return maplebe::Imm12BitMaskValid(val);
       } else if (typeBitSize == 64) {
-        return Imm13BitMaskValid(val);
+        return maplebe::Imm13BitMaskValid(val);
       }
       break;
     }
@@ -1412,6 +1422,7 @@ static bool IsConstvalInRangeOfInsnImm(ConstMeExpr *constExpr, Opcode op, uint32
   }
   return false;
 }
+#endif
 
 int32 TreeNode::GetCost() const {
   bool isLoadOrStore = IsLoad() || IsStore();
@@ -1422,20 +1433,22 @@ int32 TreeNode::GetCost() const {
     return kHugeCost;
   }
   if (!CanVectorized()) {
-    return GetLane();
+    return static_cast<int32>(GetLane());
   }
   if (op == OP_constval) {
     if (SameExpr()) {
+#if defined(TARGAARCH64) && TARGAARCH64
       auto typeBitSize = GetPrimTypeBitSize(GetType());
       if (IsConstvalInRangeOfInsnImm(static_cast<ConstMeExpr*>(exprs[0]), GetParent()->GetOp(), typeBitSize)) {
         return 2;  // no extra constval assign insn is needed, for example, sub x1, x1, #1
       }
+#endif
       return 1;
     } else {
-      return GetLane();
+      return static_cast<int32>(GetLane());
     }
   }
-  int32 cost = -(GetLane() - 1);
+  int32 cost = -(static_cast<int32>(GetLane() - 1));
   if (op == OP_ashr) {
     // aarch64 only vector shl(register), lowering vector shr will introduce an extra vector neg instruction.
     cost += 1;
@@ -1474,7 +1487,7 @@ int32 SLPTree::GetCost() const {
   return cost;
 }
 
-void PrintTreeNode(TreeNode *node, MeFunction &func, bool inDot) {
+void PrintTreeNode(const TreeNode *node, MeFunction &func, bool inDot) {
   if (inDot) {
     LogInfo::MapleLogger() << "Node" << node->GetId() << " [shape=record" <<
         (node->GetCost() > 0 ? ",style=bold,color=red" : "") << ",label=\"{";
@@ -1534,7 +1547,7 @@ struct BlockScheduling {
     SetOrderId(stmt2, tmp);
   }
 
-  bool IsRegionEmpty(MeStmt *beginStmt, MeStmt *endStmt) const {
+  bool IsRegionEmpty(const MeStmt *beginStmt, const MeStmt *endStmt) const {
     return beginStmt == endStmt;
   }
 
@@ -1553,39 +1566,39 @@ struct BlockScheduling {
     }
   }
 
-  bool IsStmtInRegion(MeStmt *stmt, MeStmt *beginStmt, MeStmt *endStmt) {
+  bool IsStmtInRegion(MeStmt &stmt, MeStmt *beginStmt, MeStmt *endStmt) const {
     if (IsRegionEmpty(beginStmt, endStmt)) {
       return false;
     }
-    if (stmt->GetBB() != bb) {
+    if (stmt.GetBB() != bb) {
       return false;
     }
-    auto id = GetOrderId(stmt);
+    auto id = GetOrderId(&stmt);
     if (id >= GetOrderId(beginStmt) && id <= GetOrderId(endStmt)) {
       return true;
     }
     return false;
   }
 
-  MeStmt *FindAnyStmtInRegion(const std::vector<MeStmt*> &meStmtVec, MeStmt *beginStmt, MeStmt *endStmt) {
+  MeStmt *FindAnyStmtInRegion(const std::vector<MeStmt*> &meStmtVec, MeStmt *beginStmt, MeStmt *endStmt) const {
     for (auto *stmt : meStmtVec) {
-      if (IsStmtInRegion(stmt, beginStmt, endStmt)) {
+      if (IsStmtInRegion(*stmt, beginStmt, endStmt)) {
         return stmt;
       }
     }
     return nullptr;
   }
 
-  bool IsAnyStmtInRegion(const std::vector<MeStmt*> &meStmtVec, MeStmt *beginStmt, MeStmt *endStmt) {
+  bool IsAnyStmtInRegion(const std::vector<MeStmt*> &meStmtVec, MeStmt *beginStmt, MeStmt *endStmt) const {
     for (auto *stmt : meStmtVec) {
-      if (IsStmtInRegion(stmt, beginStmt, endStmt)) {
+      if (IsStmtInRegion(*stmt, beginStmt, endStmt)) {
         return true;
       }
     }
     return false;
   }
 
-  bool IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt);
+  bool IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) const;
 
   void ScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, bool needRectifyChiList = false) {
     CHECK_FATAL(stmt->GetBB() == anchor->GetBB(), "must belong to same BB");
@@ -1597,7 +1610,7 @@ struct BlockScheduling {
     }
     // should use signed id
     for (int32 id = stmtOrderId - 1; id >= anchorOrderId; --id) {
-      SwapStmts(stmt, stmtVec[id]);
+      SwapStmts(stmt, stmtVec[static_cast<uint32>(id)]);
     }
     if (debug) {
       VerifyScheduleResult(GetOrderId(stmt), GetOrderId(anchor));
@@ -1610,7 +1623,7 @@ struct BlockScheduling {
   void VerifyScheduleResult(uint32 firstOrderId, uint32 lastOrderId);
   // Collect use info from `begin` to `end` (not include `end`) in current BB
   // These use info are needed by dependency analysis and stmt scheduling
-  void RebuildUseInfo(MeStmt *begin, MeStmt *end, MapleAllocator &alloc);
+  void RebuildUseInfo(MeStmt *begin, const MeStmt *end, MapleAllocator &alloc);
   void ExtendUseInfo();
 };
 
@@ -1666,7 +1679,7 @@ void GetDependencyStmts(MeStmt *stmt, std::vector<MeStmt*> &depsOfOpnd, std::vec
   }
   auto *chiList = stmt->GetChiList();
   if (chiList != nullptr) {
-    for (auto &chiNodePair : *chiList) {
+    for (auto &chiNodePair : std::as_const(*chiList)) {
       auto *chiNode = chiNodePair.second;
       auto *defStmt = chiNode->GetRHS()->GetDefByMeStmt();
       if (defStmt != nullptr) {
@@ -1677,7 +1690,7 @@ void GetDependencyStmts(MeStmt *stmt, std::vector<MeStmt*> &depsOfOpnd, std::vec
 
   auto *muList = stmt->GetMuList();
   if (muList != nullptr) {
-    for (auto &muPair : *muList) {
+    for (auto &muPair : std::as_const(*muList)) {
       auto *mu = muPair.second;
       auto *defStmt = mu->GetDefByMeStmt();
       if (defStmt != nullptr) {
@@ -1687,24 +1700,24 @@ void GetDependencyStmts(MeStmt *stmt, std::vector<MeStmt*> &depsOfOpnd, std::vec
   }
 }
 
-void GetOstsUsed(MeExpr *expr, std::unordered_set<OriginalSt*> &ostsUsed) {
-  Opcode op = expr->GetOp();
+void GetOstsUsed(const MeExpr &expr, std::unordered_set<OriginalSt*> &ostsUsed) {
+  Opcode op = expr.GetOp();
   if (op == OP_regread) {
     // we don't need to consider defPhi, we only focus on BB level use-def
-    auto *ost = static_cast<RegMeExpr*>(expr)->GetOst();
+    auto *ost = static_cast<const RegMeExpr&>(expr).GetOst();
     ostsUsed.insert(ost);
   }
-  for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
-    auto *opnd = expr->GetOpnd(i);
-    GetOstsUsed(opnd, ostsUsed);
+  for (size_t i = 0; i < expr.GetNumOpnds(); ++i) {
+    auto *opnd = expr.GetOpnd(i);
+    GetOstsUsed(*opnd, ostsUsed);
   }
 }
 
-void GetOstsUsed(MeStmt *stmt, std::unordered_set<OriginalSt*> &ostsUsed) {
+void GetOstsUsed(const MeStmt &stmt, std::unordered_set<OriginalSt*> &ostsUsed) {
   // We only consider stmt opnd, skip chiList, because there is always no chi for preg
-  for (size_t i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
-    auto *opnd = stmt->GetOpnd(i);
-    GetOstsUsed(opnd, ostsUsed);
+  for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
+    auto *opnd = stmt.GetOpnd(i);
+    GetOstsUsed(*opnd, ostsUsed);
   }
 }
 
@@ -1713,7 +1726,7 @@ void GetUseStmtsOfChiRhs(const MeExprUseInfo &useInfo, MeStmt *stmt, std::vector
   if (chiList == nullptr) {
     return;
   }
-  for (auto &chiNodePair : *chiList) {
+  for (auto &chiNodePair : std::as_const(*chiList)) {
     auto *chiNode = chiNodePair.second;
     auto *chiRhs = chiNode->GetRHS();
     // Get use stmt of chiRhs
@@ -1755,7 +1768,7 @@ void BlockScheduling::VerifyScheduleResult(uint32 firstOrderId, uint32 lastOrder
 }
 
 // `end` may be nullptr
-void BlockScheduling::RebuildUseInfo(MeStmt *begin, MeStmt *end, MapleAllocator &alloc) {
+void BlockScheduling::RebuildUseInfo(MeStmt *begin, const MeStmt *end, MapleAllocator &alloc) {
   CHECK_NULL_FATAL(begin);
   CHECK_FATAL(begin->GetBB() == bb, "begin stmt must belong to current BB");
   exprUseInfo = alloc.New<MeExprUseInfo>(alloc.GetMemPool());
@@ -1780,9 +1793,9 @@ void BlockScheduling::ExtendUseInfo() {
   extendUseInfo = true;
 }
 
-bool BlockScheduling::IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) {
+bool BlockScheduling::IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) const {
   std::unordered_set<OriginalSt*> ostsUsed;
-  GetOstsUsed(stmt, ostsUsed);
+  GetOstsUsed(*stmt, ostsUsed);
   return ostsUsed.find(ost) != ostsUsed.end();
 }
 
@@ -2174,7 +2187,7 @@ class SLPVectorizer {
   bool DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, uint32 end, bool onlySchedule = false);
 
   bool TryScheduleTogehter(const std::vector<MeStmt*> &stmts);
-  bool BuildTree(std::vector<MeStmt*> &stmts);
+  void BuildTree(std::vector<MeStmt*> &stmts);
   TreeNode *BuildTreeRec(std::vector<ExprWithDef*> &exprVec, uint32 depth, TreeNode *parentNode);
 
   bool VectorizeTreeNode(TreeNode *treeNode);
@@ -2298,7 +2311,7 @@ void SLPVectorizer::VectorizeStores(StoreVec &storeVec) {
       continue;
     }
     // num > 2, try to vectorize storeSlice
-    VectorizeCompatibleStores(storeVec, i, j);
+    VectorizeCompatibleStores(storeVec, static_cast<uint32_t>(i), static_cast<uint32_t>(j));
     i = j;
   }
 }
@@ -2433,10 +2446,7 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
   for (uint32 i = begin; i < end; ++i) {
     stmts.push_back(storeVec[i]->stmt);
   }
-  bool res = BuildTree(stmts);
-  if (!res) {
-    CHECK_FATAL(false, "should not be here");
-  }
+  BuildTree(stmts);
   if (onlySchedule) {
     SLP_DEBUG(os << "onlySchedule save result" << std::endl);
     CodeMotionSaveSchedulingResult();
@@ -2746,8 +2756,9 @@ bool SLPVectorizer::TryScheduleTogehter(const std::vector<MeStmt*> &stmts) {
   std::sort(sortedStmts.begin(), sortedStmts.end(), [](MeStmt *a, MeStmt *b) {
     return GetOrderId(a) < GetOrderId(b);
   });
-  for (int32 i = sortedStmts.size() - 2; i >= 0; --i) {
-    bool res = blockScheduling->TryScheduleTwoStmtsTogether(sortedStmts[i], sortedStmts[i + 1]);
+  for (int32 i = static_cast<int32>(sortedStmts.size()) - 2; i >= 0; --i) { // i should be int
+    bool res = blockScheduling->TryScheduleTwoStmtsTogether(sortedStmts[static_cast<uint32>(i)],
+                                                            sortedStmts[static_cast<uint32>(i + 1)]);
     if (!res) {
       return false;  // Schedule fail
     }
@@ -2757,14 +2768,14 @@ bool SLPVectorizer::TryScheduleTogehter(const std::vector<MeStmt*> &stmts) {
 
 // Building SLP tree
 // input: sorted stmts by memLoc offset
-bool SLPVectorizer::BuildTree(std::vector<MeStmt*> &stmts) {
+void SLPVectorizer::BuildTree(std::vector<MeStmt*> &stmts) {
   tree = tmpAlloc->New<SLPTree>(*tmpAlloc, memoryHelper, func, *blockScheduling);
   SLP_DEBUG(os << "Build tree node for " << GetOpName(stmts[0]->GetOp()) << std::endl);
   CHECK_FATAL(stmts.size() >= k2BitSize, "must be");
 
   if (!TryScheduleTogehter(stmts)) {
     SLP_FAILURE_DEBUG(os << "Scheduling failure" << std::endl);
-    return true;
+    return;
   }
   SLP_DEBUG(os << "Scheduling OK, building tree node..." << std::endl);
   auto *rootNode = tree->CreateTreeNodeByStmts(stmts, nullptr);
@@ -2783,7 +2794,6 @@ bool SLPVectorizer::BuildTree(std::vector<MeStmt*> &stmts) {
     os << "===== Print tree in text foramt =====" << std::endl;
     PrintSLPTree(rootNode, func, false);
   }
-  return true;
 }
 
 TreeNode *SLPVectorizer::BuildTreeRec(std::vector<ExprWithDef*> &exprVec, uint32 depth, TreeNode *parentNode) {
@@ -2820,7 +2830,7 @@ TreeNode *SLPVectorizer::BuildTreeRec(std::vector<ExprWithDef*> &exprVec, uint32
   if (currOp == OP_intrinsicop) {
     auto intrnId = static_cast<NaryMeExpr*>(firstRealExpr)->GetIntrinsic();
     if (std::find(supportedIntrns.begin(), supportedIntrns.end(), intrnId) == supportedIntrns.end()) {
-      SLP_GATHER_DEBUG(os << "unsupported intrinsicop: " << intrnId << std::endl);
+      SLP_GATHER_DEBUG(os << "unsupported intrinsicop: " << static_cast<int>(intrnId) << std::endl);
       return tree->CreateTreeNodeByExprs(exprVec, parentNode, false);
     }
   }
@@ -2961,7 +2971,7 @@ MeExpr *BuildExprAfterVectorSetElement(MeFunction &func, RegMeExpr *vecReg,
 // Example:
 //   constants: [ 12, 35, 78, 89 ], elemSize: 8bit
 //   output: (bin) 01011001 01001110 00100011 00001100
-uint64 ConstructConstants(std::vector<int64> &constants, uint32 elemSize) {
+uint64 ConstructConstants(std::vector<uint64> &constants, uint32 elemSize) {
   uint64 res = 0;
   uint32 shift = 0;
   uint32 maskShift = 64 - elemSize;
@@ -2980,7 +2990,7 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
     return false;
   }
   PrimType elemType = tree->GetType();
-  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
+  auto *vecType = GenMergedType(tree->GetType(), static_cast<uint8>(treeNode->GetLane()));
   CHECK_NULL_FATAL(vecType);
   bool useScalarType = tree->CanTreeUseScalarTypeForConstvalIassign();
   ScalarMeExpr *lhsReg = nullptr;
@@ -2996,12 +3006,13 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
     }
     vecType = GetScalarUnsignedTypeBySize(GetPrimTypeBitSize(vecType->GetPrimType()));
     lhsReg = irMap.CreateRegMeExpr(*vecType);
-    std::vector<int64> constants(treeNode->GetExprs().size());
-    std::transform(treeNode->GetExprs().begin(), treeNode->GetExprs().end(), constants.begin(), [](MeExpr *expr) {
-      return static_cast<ConstMeExpr*>(expr)->GetExtIntValue();
+    std::vector<uint64> constants(treeNode->GetExprs().size());
+    std::transform(treeNode->GetExprs().cbegin(), treeNode->GetExprs().cend(), constants.begin(),
+        [](const MeExpr *expr) {
+          return static_cast<uint64>(static_cast<const ConstMeExpr*>(expr)->GetExtIntValue());
     });
     uint64 mergeConstval = ConstructConstants(constants, GetPrimTypeBitSize(elemType));
-    rhs = irMap.CreateIntConstMeExpr(mergeConstval, vecType->GetPrimType());
+    rhs = irMap.CreateIntConstMeExpr(static_cast<int64>(mergeConstval), vecType->GetPrimType());
   } else if (treeNode->SameExpr()) {
     if (!mergeToVecType) {
       SLP_DEBUG(os << "vector_from_scalar is not supproted for scalar mergedType" << std::endl);
@@ -3040,12 +3051,12 @@ bool SLPVectorizer::DoVectTreeNodeConstval(TreeNode *treeNode) {
   return true;
 }
 
-void SetMuListForVectorIvar(IvarMeExpr &ivar, TreeNode *treeNode, IRMap &irMap) {
-  auto &order = treeNode->GetOrder();
+void SetMuListForVectorIvar(IvarMeExpr &ivar, const TreeNode &treeNode) {
+  auto &order = treeNode.GetOrder();
   ivar.GetMuList().resize(order.size(), nullptr);
   for (size_t i = 0; i < order.size(); ++i) {
     uint32 orderIdx = order[i];
-    auto *mu = static_cast<IvarMeExpr*>(treeNode->GetMemLocs()[i]->Emit())->GetUniqueMu();
+    auto *mu = static_cast<IvarMeExpr*>(treeNode.GetMemLocs()[i]->Emit())->GetUniqueMu();
     ivar.SetMuItem(orderIdx, mu);
   }
 }
@@ -3064,7 +3075,7 @@ bool SLPVectorizer::DoVectTreeNodeIvar(TreeNode *treeNode) {
     }
     return false;
   }
-  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
+  auto *vecType = GenMergedType(tree->GetType(), static_cast<uint8>(treeNode->GetLane()));
   CHECK_NULL_FATAL(vecType);
   auto *minMem = treeNode->GetMinMemLoc();
   auto *vecPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType);
@@ -3079,7 +3090,7 @@ bool SLPVectorizer::DoVectTreeNodeIvar(TreeNode *treeNode) {
   newIvar.SetTyIdx(vecPtrType->GetTypeIndex());
   newIvar.SetPtyp(vecType->GetPrimType());
   newIvar.SetBase(newBase);
-  SetMuListForVectorIvar(newIvar, treeNode, irMap);
+  SetMuListForVectorIvar(newIvar, *treeNode);
   addrExpr = irMap.HashMeExpr(newIvar);
 
   CHECK_FATAL(addrExpr->GetMeOp() == kMeOpIvar, "only iread memLoc is supported for now");
@@ -3095,7 +3106,7 @@ bool SLPVectorizer::DoVectTreeNodeIvar(TreeNode *treeNode) {
 
 bool SLPVectorizer::DoVectTreeNodeBinary(TreeNode *treeNode) {
   CHECK_FATAL(treeNode->GetChildren().size() == 2, "must be");
-  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
+  auto *vecType = GenMergedType(tree->GetType(), static_cast<uint8>(treeNode->GetLane()));
   CHECK_NULL_FATAL(vecType);
   // Get the first vector operand
   auto &childOutStmts0 = treeNode->GetChildren()[0]->GetOutStmts();
@@ -3170,18 +3181,18 @@ bool SLPVectorizer::DoVectTreeNodeNaryReverse(TreeNode *treeNode, MIRIntrinsicID
   uint32 elementBitSize = 0;
   GetRevInfoFromScalarRevIntrnId(intrnId, rangeBitSize, elementBitSize);
   uint32 opndBitSize = GetPrimTypeBitSize(treeNode->GetType());
-  uint32 vecOpndBitSize = opndBitSize * treeNode->GetLane();
+  uint32 vecOpndBitSize = static_cast<uint32>(opndBitSize * treeNode->GetLane());
   if (vecOpndBitSize != 64 && vecOpndBitSize != 128) {
     SLP_FAILURE_DEBUG(
         os << "only v64 and v128 are allowed as vector reverse operand, but get " << vecOpndBitSize << std::endl);
     return false;
   }
-  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
+  auto *vecType = GenMergedType(tree->GetType(), static_cast<uint8>(treeNode->GetLane()));
   CHECK_NULL_FATAL(vecType);
   uint32 newNumLane = vecOpndBitSize / elementBitSize;
   auto isSign = !PrimitiveType(treeNode->GetType()).IsUnsigned();
   auto newElementType = GetIntegerPrimTypeBySizeAndSign(elementBitSize, isSign);
-  auto revVecType = GenMergedType(newElementType, newNumLane);
+  auto revVecType = GenMergedType(newElementType, static_cast<uint8>(newNumLane));
   MIRIntrinsicID vecIntrnId;
   switch (rangeBitSize) {
     case 16:
@@ -3222,7 +3233,7 @@ bool SLPVectorizer::DoVectTreeNodeIassign(TreeNode *treeNode) {
   CHECK_NULL_FATAL(minMem);
   // Use root node type for covering the following case:
   //   [(mx943), 4] : u8 = constval : u32
-  auto *vecType = GenMergedType(tree->GetType(), treeNode->GetLane());
+  auto *vecType = GenMergedType(tree->GetType(), static_cast<uint8>(treeNode->GetLane()));
   CHECK_NULL_FATAL(vecType);
   if (tree->CanTreeUseScalarTypeForConstvalIassign()) {
     vecType = GetScalarUnsignedTypeBySize(GetPrimTypeBitSize(vecType->GetPrimType()));
@@ -3297,7 +3308,7 @@ bool SLPVectorizer::DoVectTreeNodeGatherNeeded(TreeNode &treeNode) {
     return false;
   }
   auto elemType = tree->GetType();
-  auto *vecType = GenMergedType(elemType, treeNode.GetLane());
+  auto *vecType = GenMergedType(elemType, static_cast<uint8>(treeNode.GetLane()));
   CHECK_NULL_FATAL(vecType);
   auto *vecReg = irMap.CreateRegMeExpr(*vecType);
   auto exprNum = treeNode.GetExprs().size();
@@ -3378,7 +3389,6 @@ bool SLPVectorizer::VectorizeTreeNode(TreeNode *treeNode) {
       return false;
     }
   }
-  return false;
 }
 
 bool SLPVectorizer::VectorizeSLPTree() {

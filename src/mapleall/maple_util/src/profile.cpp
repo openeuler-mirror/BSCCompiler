@@ -28,7 +28,6 @@
 #include "namemangler.h"
 #include "file_layout.h"
 #include "types_def.h"
-#include "itab_util.h"
 
 namespace maple {
 constexpr uint8 Profile::stringEnd = 0x00;

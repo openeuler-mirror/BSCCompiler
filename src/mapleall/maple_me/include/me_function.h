@@ -31,7 +31,7 @@
 namespace maple {
 class MeCFG;  // circular dependency exists, no other choice
 class MeIRMap;  // circular dependency exists, no other choice
-#if DEBUG
+#if defined(DEBUG) && DEBUG
 extern MIRModule *globalMIRModule;
 extern MeFunction *globalFunc;
 extern MeIRMap *globalIRMap;
@@ -138,7 +138,7 @@ bool FilterNullPtr(Iterator it, Iterator endIt) {
   return it == endIt || *it != nullptr;
 }
 
-enum MeFuncHint {
+enum MeFuncHint : uint32 {
     kReserved      = 0x00,       // reserved
     kPlacementRCed = 0x01,       // method processed by placementrc
     kAnalyzeRCed   = 0x02,       // method processed by analyzerc

@@ -96,15 +96,29 @@ class CGOptions {
   };
 
   enum VisibilityType : uint8 {
-    kDefault,
-    kHidden,
-    kProtected
+    kDefaultVisibility,
+    kHiddenVisibility,
+    kProtectedVisibility
+  };
+
+  enum TLSModel : uint8 {
+    kDefaultTLSModel,
+    kLocalExecTLSModel,
+    kLocalDynamicTLSModel,
+    kGlobalDynamicTLSModel,
+    kInitialExecTLSModel,
   };
 
   enum EmitFileType : uint8 {
     kAsm,
     kObj,
     kEmitNone,
+  };
+
+  enum FramePointerType : uint8 {
+    kNoneFP,
+    kNonLeafFP,
+    kAllFP,
   };
   /*
    * The default CG option values are:
@@ -291,8 +305,12 @@ class CGOptions {
   void SetRange(const std::string &str, const std::string &cmd, Range &subRange) const;
   void SetTargetMachine(const std::string &str);
 
-  int32 GetOptimizeLevel() const {
+  uint32 GetOptimizeLevel() const {
     return optimizeLevel;
+  }
+
+  static bool IsOptimized() {
+    return CGOptions::GetInstance().GetOptimizeLevel() > kLevel0;
   }
 
   bool IsRunCG() const {
@@ -481,6 +499,21 @@ class CGOptions {
     duplicateAsmFile = fileName;
   }
 
+  static const std::string &GetCPU() {
+    return cpu;
+  }
+
+  static void SetCPU(const std::string &core) {
+    cpu = core;
+  }
+
+  static bool IsCortexA53() {
+    if (cpu == "cortex-a53") {
+      return true;
+    }
+    return false;
+  }
+
   static bool UseRange() {
     return range.enable;
   }
@@ -625,6 +658,38 @@ class CGOptions {
 
   static bool DoCGSSA() {
     return doCGSSA && !flavorLmbc;
+  }
+
+  static void DisableLayoutColdPath() {
+    doLayoutColdPath = false;
+  }
+
+  static void EnableLayoutColdPath() {
+    doLayoutColdPath = true;
+  }
+
+  static bool DoLayoutColdPath() {
+    return doLayoutColdPath;
+  }
+
+  static void DisableGlobalSchedule() {
+    doGlobalSchedule = false;
+  }
+
+  static void EnableGlobalSchedule() {
+    doGlobalSchedule = true;
+  }
+
+  static bool DoGlobalSchedule() {
+    return doGlobalSchedule;
+  }
+
+  static bool DoLocalSchedule() {
+    return doLocalSchedule;
+  }
+
+  static bool DoVerifySchedule() {
+    return doVerifySchedule;
   }
 
   static void DisableCalleeEnsureParam() {
@@ -1018,6 +1083,10 @@ class CGOptions {
     return picMode > kClose;
   }
 
+  static bool IsShlib() {
+    return IsPIC() && !IsPIE();
+  }
+
   void SetPICOptionHelper(CGOptions::PICMode mode) {
     SetPICMode(mode);
     SetOption(CGOptions::kGenPic);
@@ -1262,15 +1331,11 @@ class CGOptions {
     return functionSections;
   }
 
-  static void EnableFramePointer() {
-    useFramePointer = true;
+  static void SetFramePointer(FramePointerType fpType) {
+    useFramePointer = fpType;
   }
 
-  static void DisableFramePointer() {
-    useFramePointer = false;
-  }
-
-  static bool UseFramePointer() {
+  static FramePointerType UseFramePointer() {
     return useFramePointer;
   }
 
@@ -1362,6 +1427,18 @@ class CGOptions {
     return funcAlignPow;
   }
 
+ static bool DoLiteProfVerify() {
+    return liteProfVerify;
+  }
+
+  static void EnableLiteProfVerify() {
+    liteProfVerify = true;
+  }
+
+  static void DisableLiteProfVerify() {
+    liteProfVerify = false;
+  }
+
   static bool DoLiteProfGen() {
     return liteProfGen;
   }
@@ -1398,6 +1475,22 @@ class CGOptions {
     return functionProrityFile;
   }
 
+  static void SetFunctionReorderAlgorithm(std::string algorithm) {
+    functionReorderAlgorithm = algorithm;
+  }
+
+  static std::string GetFunctionReorderAlgorithm() {
+    return functionReorderAlgorithm;
+  }
+
+  static void SetFunctionReorderProfile(std::string profile) {
+    functionReorderProfile = profile;
+  }
+
+  static std::string GetFunctionReorderProfile() {
+    return functionReorderProfile;
+  }
+
   static void SetLitePgoOutputFunction(std::string iofile) {
     litePgoOutputFunction = iofile;
   }
@@ -1428,9 +1521,9 @@ class CGOptions {
 
   static void SetVisibilityType(const std::string &type) {
     if (type == "hidden" || type == "internal") {
-      visibilityType = kHidden;
+      visibilityType = kHiddenVisibility;
     } else if (type == "protected") {
-      visibilityType = kProtected;
+      visibilityType = kProtectedVisibility;
     } else {
       CHECK_FATAL(type == "default", "unsupported visibility type. Only support: default|hidden|protected|internal");
     }
@@ -1448,12 +1541,30 @@ class CGOptions {
     return noplt;
   }
 
+  static void SetTLSModel(const std::string &model) {
+    if (model == "global-dynamic") {
+      tlsModel = kGlobalDynamicTLSModel;
+    } else if (model == "local-dynamic") {
+      tlsModel = kLocalDynamicTLSModel;
+    } else if (model == "initial-exec") {
+      tlsModel = kInitialExecTLSModel;
+    } else if (model == "local-exec") {
+      tlsModel = kLocalExecTLSModel;
+    } else {
+      CHECK_FATAL_FALSE("unsupported tls model.");
+    }
+  }
+
+  static TLSModel GetTLSModel() {
+    return tlsModel;
+  }
+
  private:
   std::vector<std::string> phaseSequence;
   bool runCGFlag = true;
   bool generateObjectMap = true;
   uint32 parserOption = 0;
-  int32 optimizeLevel = 0;
+  uint32 optimizeLevel = 0;
 
   GenerateFlag generateFlag = 0;
   OptionFlag options = kUndefined;
@@ -1473,6 +1584,7 @@ class CGOptions {
   static std::string skipAfter;
   static std::string dumpFunc;
   static std::string duplicateAsmFile;
+  static std::string cpu;
   static bool optForSize;
   static bool enableHotColdSplit;
   static bool useBarriersForVolatile;
@@ -1480,6 +1592,10 @@ class CGOptions {
   static bool cgBigEndian;
   static bool doEBO;
   static bool doCGSSA;
+  static bool doLayoutColdPath;
+  static bool doGlobalSchedule;
+  static bool doLocalSchedule;
+  static bool doVerifySchedule;
   static bool calleeEnsureParam;
   static bool doIPARA;
   static bool doCFGO;
@@ -1528,7 +1644,7 @@ class CGOptions {
   /* if true generate adrp/ldr/blr */
   static bool genLongCalls;
   static bool functionSections;
-  static bool useFramePointer;
+  static FramePointerType useFramePointer;
   static bool gcOnly;
   static bool doPreSchedule;
   static bool emitBlockMarker;
@@ -1561,13 +1677,18 @@ class CGOptions {
   static uint32 funcAlignPow;
   static bool liteProfGen;
   static bool liteProfUse;
+  static bool liteProfVerify;
   static std::string litePgoOutputFunction;
   static std::string litePgoWhiteList;
   static std::string instrumentationOutPutPath;
   static std::string liteProfile;
   static std::string functionProrityFile;
+  static std::string functionReorderAlgorithm;
+  static std::string functionReorderProfile;
   static bool doAggrOpt;
   static VisibilityType visibilityType;
+  static TLSModel tlsModel;
+  static bool doTlsGlobalWarmUpOpt;
   static bool noplt;
 };
 }  /* namespace maplebe */
@@ -1576,7 +1697,8 @@ class CGOptions {
 #define SET_END(SET) ((SET).end())
 #define IS_STR_IN_SET(SET, NAME) (SET_FIND(SET, NAME) != SET_END(SET))
 
-#define CG_DEBUG_FUNC(f)                                                               \
+#define \
+    CG_DEBUG_FUNC(f)                                                               \
     (!maplebe::CGOptions::GetDumpPhases().empty() && maplebe::CGOptions::IsDumpFunc((f).GetName()) &&   \
      maplebe::CGOptions::GetDumpPhases().find(PhaseName()) != maplebe::CGOptions::GetDumpPhases().end())
 #ifndef TRACE_PHASE

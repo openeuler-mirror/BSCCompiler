@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2022] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -14,7 +14,6 @@
  */
 
 #include <cstdlib>
-#include <climits>
 
 #include "bin_mplt.h"
 #include "mir_function.h"
@@ -26,11 +25,11 @@ using namespace maple;
 
 static bool dumpit;
 
-static bool VerifyModule(MIRModule *module) {
+static bool VerifyModule(MIRModule &module) {
   bool res = true;
-  for (MIRFunction *curfunc : module->GetFunctionList()) {
+  for (MIRFunction *curfunc : module.GetFunctionList()) {
     BlockNode *block = curfunc->GetBody();
-    module->SetCurFunction(curfunc);
+    module.SetCurFunction(curfunc);
     if (dumpit) {
       curfunc->Dump(false);
     }
@@ -49,14 +48,16 @@ static void Usage(const char *pgm) {
 }
 
 int main(int argc, const char *argv[]) {
-  if (argc < 2) {
+  constexpr int32 minArgCnt = 2;
+  constexpr int32 dumpNum = 6;
+  if (argc < minArgCnt) {
     Usage(argv[0]);
     return 1;
   }
 
   const char *mirInfile = nullptr;
   for (int i = 1; i < argc; ++i) {
-    if (!strncmp(argv[i], "--dump", 6)) {
+    if (strncmp(argv[i], "--dump", dumpNum) == 0) {
       dumpit = true;
     } else if (argv[i][0] != '-') {
       mirInfile = argv[i];
@@ -89,7 +90,7 @@ int main(int argc, const char *argv[]) {
       return 1;
     }
   }
-  if (!VerifyModule(theModule)) {
+  if (!VerifyModule(*theModule)) {
     return 1;
   }
   return 0;

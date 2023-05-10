@@ -36,6 +36,7 @@ void Optimizer::Run(const std::string &funcName, bool checkOnly) {
     while (curBB != nullptr) {
       for (OptimizationPattern *p : singlePassPatterns) {
         if (p->Optimize(*curBB)) {
+          doOptWithSinglePassPatterns = true;
           flag = p->IsKeepPosition();
           p->SetKeepPosition(false);
           break;
@@ -49,6 +50,11 @@ void Optimizer::Run(const std::string &funcName, bool checkOnly) {
       }
     }
   }
+
+  // Update commonExitBB info, especially in infinite loop case.
+  // But we can not get the commonExitBB by traversal CFG, so
+  // it needs to be handled separately.
+  cgFunc->GetTheCFG()->UpdateCommonExitBBInfo();
 
   if (CGOptions::IsDumpOptimizeCommonLog()) {
     constexpr int arrSize = 80;
@@ -270,7 +276,7 @@ void DotGenerator::GenerateDot(const std::string &preFix, const CGFunc &cgFunc, 
   std::streambuf *coutBuf = std::cout.rdbuf(); /* keep original cout buffer */
   std::streambuf *buf = cfgFile.rdbuf();
   std::cout.rdbuf(buf);
-  std::string fileName = GetFileName(mod, (preFix + "-" + fname));
+  std::string fileName = GetFileName(mod, (preFix + "-" + fname + ".dot"));
 
   cfgFile.open(fileName, std::ios::trunc);
   CHECK_FATAL(cfgFile.is_open(), "Failed to open output file: %s", fileName.c_str());

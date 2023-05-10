@@ -382,7 +382,7 @@ void SSAPre::Rename() {
 
 // ================ Step 1: insert phis ================
 
-// form pih occ based on the real occ in workCand->realOccs; result is
+// form phi occ based on the real occ in workCand->realOccs; result is
 // stored in phiDfns
 void SSAPre::FormPhis() {
   for (Occ *occ : realOccs) {

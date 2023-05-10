@@ -26,12 +26,12 @@ class MeStackProtect {
   explicit MeStackProtect(MeFunction &func) : f(&func) {}
   ~MeStackProtect() = default;
   void CheckAddrofStack();
-  bool MayWriteStack();
+  bool MayWriteStack() const;
 
  private:
   bool IsMeStmtSafe(const MeStmt &stmt) const;
-  bool IsCallSafe(const MeStmt &stmt, bool isIcall, const FuncDesc *funcDesc = nullptr) const;
   bool IsIntrnCallSafe(const MeStmt &stmt) const;
+  bool IsCallSafe(const MeStmt &stmt, bool isIcall, const FuncDesc *funcDesc = nullptr) const;
   bool IsStackSymbol(const OriginalSt &ost) const;
   bool IsAddressOfStackVar(const MeExpr &expr) const;
   bool IsWriteFromSourceSafe(const MeStmt &stmt, uint64 numOfBytesToWrite) const;

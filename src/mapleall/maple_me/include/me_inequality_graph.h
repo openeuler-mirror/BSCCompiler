@@ -245,19 +245,19 @@ class ESSABaseNode {
 class ESSAVarNode : public ESSABaseNode {
  public:
   ESSAVarNode(int64 i, MeExpr &e) : ESSABaseNode(i, &e, kVarNode) {}
-  ~ESSAVarNode() = default;
+  ~ESSAVarNode() override = default;
 };
 
 class ESSAConstNode : public ESSABaseNode {
  public:
   ESSAConstNode(int64 i, int64 v) : ESSABaseNode(i, nullptr, kConstNode), value(v) {}
-  ~ESSAConstNode() = default;
+  ~ESSAConstNode() override = default;
 
   int64 GetValue() const {
     return value;
   }
 
-  virtual std::string GetExprID() const override {
+  std::string GetExprID() const override {
     return std::to_string(GetValue()) + " Const";
   }
 
@@ -268,13 +268,13 @@ class ESSAConstNode : public ESSABaseNode {
 class ESSAArrayNode : public ESSABaseNode {
  public:
   ESSAArrayNode(int64 i, MeExpr &e) : ESSABaseNode(i, &e, kArrayNode) {}
-  ~ESSAArrayNode() = default;
+  ~ESSAArrayNode() override = default;
 };
 
 class ESSAPhiNode : public ESSABaseNode {
  public:
   ESSAPhiNode(int64 i, MeExpr &e) : ESSABaseNode(i, &e, kPhiNode) {}
-  ~ESSAPhiNode() = default;
+  ~ESSAPhiNode() override = default;
 
   const std::vector<VarMeExpr*> &GetPhiOpnds() const {
     return phiOpnds;
@@ -318,8 +318,8 @@ class InequalityGraph {
   ESSAPhiNode *GetOrCreatePhiNode(MePhiNode &phiNode);
   ESSAArrayNode *GetOrCreateArrayNode(MeExpr &meExpr);
   InequalEdge *AddEdge(ESSABaseNode &from, ESSABaseNode &to, int64 value, EdgeType type) const;
-  void AddPhiEdge(ESSABaseNode &from, ESSABaseNode &to, EdgeType type);
-  void AddEdge(ESSABaseNode &from, ESSABaseNode &to, MeExpr &value, bool positive, EdgeType type);
+  void AddPhiEdge(ESSABaseNode &from, ESSABaseNode &to, EdgeType type) const;
+  void AddEdge(ESSABaseNode &from, ESSABaseNode &to, MeExpr &value, bool positive, EdgeType type) const;
   void ConnectTrivalEdge();
   void DumpDotFile(DumpType dumpType) const;
   ESSABaseNode &GetNode(const MeExpr &meExpr);

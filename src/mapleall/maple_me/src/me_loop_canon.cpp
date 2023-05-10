@@ -154,7 +154,7 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     auto *phi = phiIter->second;
     auto *phiOpnd0 = phi->GetOpnd(0);
     auto foundDiff = std::find_if(phi->GetOpnds().begin(), phi->GetOpnds().end(),
-                                  [phiOpnd0](ScalarMeExpr *opnd) { return opnd != phiOpnd0; });
+                                  [phiOpnd0](const ScalarMeExpr *opnd) { return opnd != phiOpnd0; });
     if (foundDiff == phi->GetOpnds().end()) {
       auto &opnds = splittedBB->GetMePhiList()[phiIter->first]->GetOpnds();
       // mergedBB is always the last pred of splittedBB

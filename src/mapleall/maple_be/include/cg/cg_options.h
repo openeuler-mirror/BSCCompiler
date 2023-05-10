@@ -118,10 +118,13 @@ extern maplecl::Option<std::string> filetype;
 extern maplecl::Option<bool> longCalls;
 extern maplecl::Option<bool> functionSections;
 extern maplecl::Option<bool> omitFramePointer;
+extern maplecl::Option<bool> omitLeafFramePointer;
 extern maplecl::Option<bool> fastMath;
 extern maplecl::Option<bool> tailcall;
 extern maplecl::Option<bool> alignAnalysis;
 extern maplecl::Option<bool> cgSsa;
+extern maplecl::Option<bool> layoutColdPath;
+extern maplecl::Option<bool> globalSchedule;
 extern maplecl::Option<bool> calleeEnsureParam;
 extern maplecl::Option<bool> common;
 extern maplecl::Option<bool> condbrAlign;
@@ -136,6 +139,7 @@ extern maplecl::Option<std::string> instrumentationFile;
 extern maplecl::Option<std::string> litePgoWhiteList;
 extern maplecl::Option<std::string> litePgoFile;
 extern maplecl::Option<std::string> functionPriority;
+extern maplecl::Option<bool> litePgoVerify;
 }
 
 #endif /* MAPLE_BE_INCLUDE_CG_OPTIONS_H */

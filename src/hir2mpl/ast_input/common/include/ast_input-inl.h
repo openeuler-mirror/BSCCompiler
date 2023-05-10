@@ -12,6 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "fe_timer.h"
 #include "ast_input.h"
 #include "global_tables.h"
 #include "fe_macros.h"

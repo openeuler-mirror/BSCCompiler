@@ -188,6 +188,7 @@ class MeOption {
   static bool enableLFO;
   static uint8 rematLevel;
   static bool layoutWithPredict;
+  static bool layoutColdPath;
   static bool unifyRets;
   static bool dumpCfgOfPhases;
   static bool epreUseProfile;
@@ -201,7 +202,7 @@ class MeOption {
   static SafetyCheckMode boundaryCheckMode;
   static bool safeRegionMode;
 // safety check option end
-#if MIR_JAVA
+#if defined(MIR_JAVA) && MIR_JAVA
   static std::string acquireFuncName;
   static std::string releaseFuncName;
   static unsigned int warningLevel;

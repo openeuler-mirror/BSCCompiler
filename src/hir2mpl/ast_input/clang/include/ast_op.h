@@ -136,6 +136,7 @@ enum ASTStmtOp {
 
   kASTStmtLabel,
   kASTStmtAddrOfLabelExpr,
+  kASTStmtMemberExpr,
 
   kASTStmtDo,
   kASTStmtFor,

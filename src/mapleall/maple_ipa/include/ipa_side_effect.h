@@ -28,6 +28,7 @@ class SideEffect {
     vstsValueAliasWithFormal.resize(std::min(meFunc->GetMirFunc()->GetFormalCount(), kMaxParamCount));
   }
   ~SideEffect() {
+    callGraph = nullptr;
     alias = nullptr;
     dom = nullptr;
     meFunc = nullptr;
@@ -54,6 +55,7 @@ class SideEffect {
   void SolveVarArgs(MeFunction &f) const;
   void CollectFormalOst(MeFunction &f);
   void CollectAllLevelOst(size_t vstIdx, std::set<size_t> &result);
+  void FilterComplicatedPrametersForNoGlobalAccess(MeFunction &f);
 
   std::set<std::pair<OriginalSt*, size_t>> analysisLater;
   std::vector<std::set<size_t>> vstsValueAliasWithFormal;

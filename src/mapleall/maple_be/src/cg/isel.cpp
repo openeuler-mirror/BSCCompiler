@@ -444,12 +444,12 @@ Operand *HandleAbs(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectAbs(static_cast<UnaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
 }
 
-Operand *HandleAlloca(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleAlloca(const BaseNode /* &parent */, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectAlloca(static_cast<UnaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)));
 }
 
-Operand *HandleCGArrayElemAdd(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
-  return iSel.SelectCGArrayElemAdd(static_cast<BinaryNode&>(expr), parent);
+Operand *HandleCGArrayElemAdd(const BaseNode /* &parent */, const BaseNode &expr, MPISel &iSel) {
+  return iSel.SelectCGArrayElemAdd(static_cast<const BinaryNode&>(expr));
 }
 
 void HandleAsm(StmtNode &stmt, MPISel &iSel) {
@@ -467,16 +467,16 @@ Operand *HandleSelect(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectSelect(static_cast<TernaryNode&>(expr), condOpnd, trueOpnd, falseOpnd, parent);
 }
 
-Operand *HandleMin(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleMin(const BaseNode /* &parent */, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectMin(static_cast<BinaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)),
-                        *iSel.HandleExpr(expr, *expr.Opnd(1)), parent);
+                        *iSel.HandleExpr(expr, *expr.Opnd(1)));
 }
 
-Operand *HandleMax(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleMax(const BaseNode /* &parent */, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectMax(static_cast<BinaryNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)),
-                        *iSel.HandleExpr(expr, *expr.Opnd(1)), parent);
+                        *iSel.HandleExpr(expr, *expr.Opnd(1)));
 }
-Operand *HandleRetype(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
+Operand *HandleRetype(const BaseNode /* &parent */, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectRetype(static_cast<TypeCvtNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)));
 }
 
@@ -551,7 +551,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
     case INTRN_C_ctz64:
       return iSel.SelectCctz(intrinsicopNode, *iSel.HandleExpr(expr, *expr.Opnd(0)), parent);
     default:
-      ASSERT(false, "NIY, unsupported intrinsicop.");
+      CHECK_FATAL(false, "NIY, unsupported intrinsicop.");
       return nullptr;
   }
 }
@@ -739,12 +739,12 @@ MirTypeInfo MPISel::GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType
     ASSERT((mirType->IsMIRStructType() || mirType->IsMIRUnionType()), "non-structure");
     MIRStructType *structType = static_cast<MIRStructType*>(mirType);
     mirType = structType->GetFieldType(fieldId);
-    mirTypeInfo.offset = cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first;
+    mirTypeInfo.offset = structType->GetFieldOffsetFromBaseAddr(fieldId).byteOffset;
   }
   mirTypeInfo.primType = mirType->GetPrimType();
   // aggSize for AggType
   if (mirTypeInfo.primType == maple::PTY_agg) {
-    mirTypeInfo.size = cgFunc->GetBecommon().GetTypeSize(mirType->GetTypeIndex());
+    mirTypeInfo.size = static_cast<uint32>(mirType->GetSize());
   }
   return mirTypeInfo;
 }
@@ -784,7 +784,7 @@ void MPISel::SelectDassign(const DassignNode &stmt, Operand &opndRhs) {
   return;
 }
 
-void MPISel::SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) {
+void MPISel::SelectDassignoff(const DassignoffNode &stmt, Operand &opnd0) {
   MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(stmt.stIdx);
   PrimType primType = stmt.GetPrimType();
   uint32 bitSize = GetPrimTypeBitSize(primType);
@@ -826,7 +826,7 @@ void MPISel::SelectIassignoff(const IassignoffNode &stmt) {
   SelectCopy(memOpnd, rhsReg, primType);
 }
 
-ImmOperand *MPISel::SelectIntConst(MIRIntConst &intConst, PrimType primType) const {
+ImmOperand *MPISel::SelectIntConst(const MIRIntConst &intConst, PrimType primType) const {
   return &cgFunc->GetOpndBuilder()->CreateImm(GetPrimTypeBitSize(primType), intConst.GetExtValue());
 }
 
@@ -987,7 +987,7 @@ void MPISel::SelectExtractbits(RegOperand &resOpnd, RegOperand &opnd0, uint8 bit
      * resOpnd = opnd0 & ((1 << bitSize) - 1)
      */
     ImmOperand &imm = cgFunc->GetOpndBuilder()->CreateImm(primBitSize,
-        (static_cast<int64>(1) << bitSize) - 1);
+        static_cast<int64>((1ULL << bitSize) - 1));
     SelectBand(resOpnd, opnd0, imm, primType);
   } else {
     /*
@@ -1351,7 +1351,7 @@ static inline uint64 CreateDepositBitsImm1(uint32 primBitSize, uint8 bitOffset, 
   if (bitSize + bitOffset >= primBitSize) {
     val = 0;
   } else {
-    val <<= (bitSize + bitOffset);
+    val <<= static_cast<uint>(bitSize + bitOffset);
   }
   val |= (static_cast<uint64>(1) << bitOffset) - 1;
   return val;
@@ -1378,9 +1378,9 @@ Operand *MPISel::SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, 
   /* and */
   SelectBand(resOpnd, opnd0, imm1Opnd, primType);
   if (opnd1.IsIntImmediate()) {
-    /* opnd1 is immediate, imm2 = (opnd1.val << bitOffset) & (~$imm1) */
+    // opnd1 is immediate, imm2 = (opnd1.val << bitOffset) & (~$imm1)
     int64 imm2Val = static_cast<int64>((static_cast<uint64>(static_cast<ImmOperand&>(opnd1).GetValue()) <<
-        bitOffset)) & (~imm1Val);
+        bitOffset) & (~imm1Val));
     ImmOperand &imm2Opnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize, imm2Val);
     /* or */
     SelectBior(resOpnd, resOpnd, imm2Opnd, primType);
@@ -1392,7 +1392,7 @@ Operand *MPISel::SelectDepositBits(const DepositbitsNode &node, Operand &opnd0, 
     ImmOperand &countOpnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize, bitOffset);
     SelectShift(tmpOpnd, tmpOpnd, countOpnd, OP_shl, primType, primType);
     /* and (~$imm1) */
-    ImmOperand &nonImm1Opnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize, (~imm1Val));
+    ImmOperand &nonImm1Opnd = cgFunc->GetOpndBuilder()->CreateImm(primBitSize, static_cast<int64>(~imm1Val));
     SelectBand(tmpOpnd, tmpOpnd, nonImm1Opnd, primType);
     /* or */
     SelectBior(resOpnd, resOpnd, tmpOpnd, primType);
@@ -1432,7 +1432,7 @@ Operand *MPISel::SelectAlloca(UnaryNode &node, Operand &opnd0) {
   return &resOpnd;
 }
 
-Operand *MPISel::SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent) {
+Operand *MPISel::SelectCGArrayElemAdd(const BinaryNode &node) {
   BaseNode *opnd0 = node.Opnd(0);
   BaseNode *opnd1 = node.Opnd(1);
   ASSERT(opnd1->GetOpCode() == OP_constval, "NIY, opnd1->op should be OP_constval.");
@@ -1575,7 +1575,7 @@ void MPISel::SelectBnot(Operand &resOpnd, Operand &opnd0, PrimType primType) con
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
-Operand *MPISel::SelectMin(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectMin(const BinaryNode &node, Operand &opnd0, Operand &opnd1) {
   PrimType primType = node.GetPrimType();
   RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));
@@ -1588,7 +1588,7 @@ void MPISel::SelectMin(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimTyp
 }
 
 
-Operand *MPISel::SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+Operand *MPISel::SelectMax(const BinaryNode &node, Operand &opnd0, Operand &opnd1) {
   PrimType primType = node.GetPrimType();
   RegOperand &resOpnd = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));
@@ -1600,7 +1600,7 @@ void MPISel::SelectMax(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimTyp
   SelectMinOrMax(false, resOpnd, opnd0, opnd1, primType);
 }
 
-Operand *MPISel::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
+Operand *MPISel::SelectRetype(const TypeCvtNode &node, Operand &opnd0) {
   PrimType fromType = node.Opnd(0)->GetPrimType();
   PrimType toType = node.GetPrimType();
   ASSERT(GetPrimTypeSize(fromType) == GetPrimTypeSize(toType), "retype bit widith doesn' match");
@@ -1615,13 +1615,13 @@ Operand *MPISel::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
   }
   if (IsPrimitiveInteger(fromType) && IsPrimitiveFloat(toType)) {
     RegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
-      cgFunc->GetRegTyFromPrimTy(toType));
+        cgFunc->GetRegTyFromPrimTy(toType));
     SelectCvtInt2Float(*resOpnd, opnd0, toType, fromType);
     return resOpnd;
   }
   if (IsPrimitiveFloat(fromType) && IsPrimitiveInteger(toType)) {
     RegOperand *resOpnd = &cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(toType),
-      cgFunc->GetRegTyFromPrimTy(toType));
+        cgFunc->GetRegTyFromPrimTy(toType));
     SelectCvtFloat2Int(*resOpnd, opnd0, toType, fromType);
     return resOpnd;
   }

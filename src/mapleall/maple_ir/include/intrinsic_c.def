@@ -84,6 +84,8 @@ DEF_MIR_INTRINSIC(C_ffs,\
                   "ffs", 4, INTRNISPURE, kArgTyI32, kArgTyI32)
 DEF_MIR_INTRINSIC(C_fabsl,\
                   "fabsl", 1, INTRNISPURE, kArgTyF128, kArgTyF128)
+DEF_MIR_INTRINSIC(C_fmaxl, "fmaxl", 1, INTRNISPURE, kArgTyF128, kArgTyF128, kArgTyF128)
+DEF_MIR_INTRINSIC(C_fminl, "fminl", 1, INTRNISPURE, kArgTyF128, kArgTyF128, kArgTyF128)
 DEF_MIR_INTRINSIC(C_va_start,\
                   "va_start", 10,\
                   INTRNISPURE | INTRNISSPECIAL | INTRNWRITEFIRSTOPND | INTRNREADSECONDOPND, \
@@ -327,3 +329,9 @@ DEF_MIR_INTRINSIC(C___atomic_compare_exchange_n,\
                   "__atomic_compare_exchange_n", DEFAULT_NUM_INSN, INTRNATOMIC, kArgTyU1, kArgTyPtr, kArgTyPtr, kArgTyDynany, kArgTyU1, kArgTyI32, kArgTyI32)
 DEF_MIR_INTRINSIC(C___atomic_compare_exchange,\
                   "__atomic_compare_exchange", DEFAULT_NUM_INSN, INTRNATOMIC, kArgTyU1, kArgTyPtr, kArgTyPtr, kArgTyPtr, kArgTyU1, kArgTyI32, kArgTyI32)
+
+
+DEF_MIR_INTRINSIC(C___tls_get_tbss_anchor,\
+                  "__tls_get_tbss_anchor", 5, INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyU64)
+DEF_MIR_INTRINSIC(C___tls_get_tdata_anchor,\
+                  "__tls_get_tdata_anchor", 5, INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyU64)

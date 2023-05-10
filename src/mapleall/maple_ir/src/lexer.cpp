@@ -14,13 +14,13 @@
  */
 #include "lexer.h"
 #include <cmath>
-#include <climits>
 #include <cstdlib>
 #include "mpl_logging.h"
 #include "debug_info.h"
 #include "mir_module.h"
 #include "securec.h"
 #include "utils.h"
+#include "int128_util.h"
 
 namespace maple {
 int32 HexCharToDigit(char c) {
@@ -90,9 +90,9 @@ void MIRLexer::PrepareForFile(const std::string &filename) {
   kind = TK_invalid;
 }
 
-void MIRLexer::UpdateDbgMsg(uint32 lineNum) {
+void MIRLexer::UpdateDbgMsg(uint32 dbgLineNum) {
   if (dbgInfo) {
-    dbgInfo->UpdateMsg(lineNum, line.c_str());
+    dbgInfo->UpdateMsg(dbgLineNum, line.c_str());
   }
 }
 
@@ -197,22 +197,23 @@ TokenKind MIRLexer::GetHexConst(uint32 valStart, bool negative) {
     name = line.substr(valStart, curIdx - valStart);
     return TK_invalid;
   }
-  uint64 tmp = static_cast<uint32>(HexCharToDigit(c));
+  IntVal tmp(static_cast<uint64>(HexCharToDigit(c)), kInt128BitSize, negative);
   c = GetNextCurrentCharWithUpperCheck();
   while (isxdigit(c)) {
     tmp = (tmp << 4) + static_cast<uint32>(HexCharToDigit(c));
     c = GetNextCurrentCharWithUpperCheck();
   }
-  theIntVal = static_cast<int64>(static_cast<uint64>(tmp));
   if (negative) {
-    theIntVal = -theIntVal;
+    tmp = -tmp;
   }
+  theIntVal = tmp.Trunc(PTY_i64).GetExtValue();
   theFloatVal = static_cast<float>(theIntVal);
   theDoubleVal = static_cast<double>(theIntVal);
   if (negative && theIntVal == 0) {
     theFloatVal = -theFloatVal;
     theDoubleVal = -theDoubleVal;
   }
+  theInt128Val.Assign(tmp);
   name = line.substr(valStart, curIdx - valStart);
   return TK_intconst;
 }
@@ -223,14 +224,15 @@ TokenKind MIRLexer::GetLongHexConst(uint32 valStart, bool negative) {
     name = line.substr(valStart, curIdx - valStart);
     return TK_invalid;
   }
-  __int128 tmp = 0;
+  unsigned __int128 tmp = 0;
+  uint32 buf = 0;
   while (isxdigit(c)) {
-    tmp = static_cast<uint32>(HexCharToDigit(c));
-    tmp = (static_cast<__int128>(theLongDoubleVal[1] << 4)) + tmp;
-    theLongDoubleVal[1] = static_cast<uint64>(tmp);
-    theLongDoubleVal[0] = (theLongDoubleVal[0] << 4) + (tmp >> 64);
+    buf = static_cast<uint32>(HexCharToDigit(c));
+    tmp = (tmp << 4) + buf;
     c = GetNextCurrentCharWithUpperCheck();
   }
+  theLongDoubleVal[1] = static_cast<uint64>(tmp);
+  theLongDoubleVal[0] = static_cast<uint64>(tmp >> 64);
   theIntVal = static_cast<int64>(static_cast<uint64>(theLongDoubleVal[1]));
   if (negative) {
     theIntVal = -theIntVal;
@@ -246,16 +248,16 @@ TokenKind MIRLexer::GetLongHexConst(uint32 valStart, bool negative) {
 }
 
 TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
-  auto negOrSelf = [negative](int64 val) { return negative ? ~val + 1 : val; };
-
-  theIntVal = static_cast<int64>(HexCharToDigit(GetCharAtWithUpperCheck(curIdx)));
-
-  int64 radix = theIntVal == 0 ? 8 : 10;
-
-  char c = GetNextCurrentCharWithUpperCheck();
-
-  for (theIntVal = negOrSelf(theIntVal); isdigit(c); c = GetNextCurrentCharWithUpperCheck()) {
-    theIntVal = (theIntVal * radix) + negOrSelf(static_cast<int64>(HexCharToDigit(c)));
+  char c = GetCharAtWithUpperCheck(curIdx);
+  if (!isxdigit(c)) {
+    name = line.substr(valStart, curIdx - valStart);
+    return TK_invalid;
+  }
+  uint64 radix = HexCharToDigit(c) == 0 ? 8 : 10;
+  IntVal tmp(static_cast<uint64>(0), kInt128BitSize, negative);
+  while (isdigit(c)) {
+    tmp = (tmp * radix) + static_cast<uint64>(HexCharToDigit(c));
+    c = GetNextCurrentCharWithUpperCheck();
   }
 
   if (c == 'u' || c == 'U') {  // skip 'u' or 'U'
@@ -274,6 +276,12 @@ TokenKind MIRLexer::GetIntConst(uint32 valStart, bool negative) {
 
   name = line.substr(valStart, curIdx - valStart);
 
+  if (negative) {
+    tmp = -tmp;
+  }
+
+  theInt128Val.Assign(tmp);
+  theIntVal = tmp.Trunc(PTY_u64).GetExtValue();
   if (negative) {
     theFloatVal = static_cast<float>(static_cast<int64>(theIntVal));
     theDoubleVal = static_cast<double>(static_cast<int64>(theIntVal));
@@ -487,8 +495,8 @@ TokenKind MIRLexer::GetTokenWithPrefixDoubleQuotation() {
           const uint32 hexLength = 2;
           uint8 c1 = Char2num(GetCharAtWithLowerCheck(curIdx + 1));
           uint8 c2 = Char2num(GetCharAtWithLowerCheck(curIdx + 2));
-          uint32 cNew = static_cast<uint8_t>(c1 << hexShift) + c2;
-          line[curIdx - shift] = cNew;
+          uint8 cNew = static_cast<uint8_t>(c1 << hexShift) + c2;
+          line[curIdx - shift] = static_cast<char>(cNew);
           curIdx += hexLength;
           shift += hexLength;
           break;

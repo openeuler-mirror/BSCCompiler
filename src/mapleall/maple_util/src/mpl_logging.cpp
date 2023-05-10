@@ -70,24 +70,27 @@ SECUREC_ATTRIBUTE(7, 8) void LogInfo::EmitLogForDevelop(enum LogTags tag, enum L
   va_list l;
   va_start(l, fmt);
 
-  int lenBack = vsnprintf_s(buf + lenFront, kMaxLogLen - lenFront,
-                            static_cast<size_t>(kMaxLogLen - lenFront - 1), fmt, l);
+  int lenBack = vsnprintf_s(buf + lenFront, static_cast<size_t>(kMaxLogLen - lenFront),
+                            static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront) - 1), fmt, l);
   if (lenBack == -1) {
     WARN(kLncWarn, "vsnprintf_s  failed ");
     va_end(l);
     return;
   }
   if (outMode != 0) {
-    int eNum = snprintf_s(buf + lenFront + lenBack, kMaxLogLen - lenFront - lenBack,
-                          kMaxLogLen - lenFront - lenBack - 1, " [%s] [%s:%d]", func.c_str(), file.c_str(), line);
+    int eNum = snprintf_s(buf + lenFront + lenBack, static_cast<size_t>(kMaxLogLen - lenFront - lenBack),
+                          static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront - lenBack) - 1),
+                          " [%s] [%s:%d]", func.c_str(), file.c_str(), line);
     if (eNum == -1) {
       WARN(kLncWarn, "snprintf_s failed");
       va_end(l);
       return;
     }
   } else {
-    int eNum = snprintf_s(buf + lenFront + lenBack, kMaxLogLen - lenFront - lenBack,
-                          kMaxLogLen - lenFront - lenBack - 1, " [%s]", func.c_str());
+    int eNum = snprintf_s(buf + lenFront + lenBack,
+                          static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront - lenBack)),
+                          static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront - lenBack) - 1),
+                          " [%s]", func.c_str());
     if (eNum == -1) {
       WARN(kLncWarn, "snprintf_s failed");
       va_end(l);
@@ -95,7 +98,7 @@ SECUREC_ATTRIBUTE(7, 8) void LogInfo::EmitLogForDevelop(enum LogTags tag, enum L
     }
   }
   va_end(l);
-  fprintf(outStream, "%s\n", buf);
+  (void)fprintf(outStream, "%s\n", buf);
   return;
 }
 
@@ -153,11 +156,11 @@ SECUREC_ATTRIBUTE(5, 6) void LogInfo::EmitErrorMessage(const std::string &cond, 
                                                        unsigned int line, const char *fmt, ...) const {
   char buf[kMaxLogLen];
 #ifdef _WIN32
-  int len = snprintf_s(buf, kMaxLogLen, kMaxLogLen - 1, "CHECK/CHECK_FATAL failure: %s at [%s:%d] ",
+  int len = snprintf_s(buf, kMaxLogLen, kMaxLogLen - 1, "CHECK/CHECK_FATAL failure: %s at [%s:%u] ",
                        cond.c_str(), file.c_str(), line);
 #else
   pid_t tid = syscall(SYS_gettid);
-  int len = snprintf_s(buf, kMaxLogLen, kMaxLogLen - 1, "Tid(%d): CHECK/CHECK_FATAL failure: %s at [%s:%d] ",
+  int len = snprintf_s(buf, kMaxLogLen, kMaxLogLen - 1, "Tid(%d): CHECK/CHECK_FATAL failure: %s at [%s:%u] ",
                        tid, cond.c_str(), file.c_str(), line);
 #endif
   if (len == -1) {

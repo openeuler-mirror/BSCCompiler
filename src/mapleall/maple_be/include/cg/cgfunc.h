@@ -34,6 +34,7 @@
 #include "maple_phase_manager.h"
 /* Maple MP header */
 #include "mempool_allocator.h"
+#include "safe_cast.h"
 
 namespace maplebe {
 constexpr int32 kBBLimit = 100000;
@@ -178,6 +179,7 @@ class CGFunc {
   LmbcFormalParamInfo *GetLmbcFormalParamInfo(uint32 offset);
   virtual void LmbcGenSaveSpForAlloca() = 0;
   void RemoveUnreachableBB();
+  void MarkAdrpLabelBB();
   Insn &BuildLocInsn(int64 fileNum, int64 lineNum, int64 columnNum);
   Insn &BuildScopeInsn(int64 id, bool isEnd);
   void GenerateLoc(StmtNode &stmt, SrcPosition &lastSrcPos, SrcPosition &lastMplPos);
@@ -343,7 +345,6 @@ class CGFunc {
   virtual Operand *SelectLazyLoadStatic(MIRSymbol &st, int64 offset, PrimType primType) = 0;
   virtual Operand *SelectLoadArrayClassCache(MIRSymbol &st, int64 offset, PrimType primType) = 0;
   virtual void GenerateYieldpoint(BB &bb) = 0;
-  virtual Operand &ProcessReturnReg(PrimType primType, int32 sReg) = 0;
 
   virtual Operand &GetOrCreateRflag() = 0;
   virtual const Operand *GetRflag() const = 0;
@@ -412,6 +413,9 @@ class CGFunc {
   virtual RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
   virtual RegOperand *SelectVectorMovNarrow(PrimType rType, Operand *opnd, PrimType oType) = 0;
   virtual RegOperand *SelectVectorIntrinsics(const IntrinsicopNode &intrinsicNode) = 0;
+
+  virtual RegOperand *SelectIntrinsicOpLoadTlsAnchor(const IntrinsicopNode& intrinsicopNode,
+                                                     const BaseNode &parent) = 0;
 
   virtual void HandleFuncCfg(CGCFG *cfg) { AddCommonExitBB(); }
 
@@ -535,6 +539,8 @@ class CGFunc {
   MIRSymbol *GetRetRefSymbol(BaseNode &expr);
 
   void PatchLongBranch();
+
+  void VerifyAllInsn();
 
   virtual uint32 MaxCondBranchDistance() {
     return INT_MAX;
@@ -781,6 +787,11 @@ class CGFunc {
     return commonExitBB;
   }
 
+  BB *GetCommonEntryBB() {
+    ASSERT(bbVec[0]->GetId() == 0 && bbVec[0] != firstBB, "there is no commonEntryBB");
+    return bbVec[0];
+  }
+
   LabelIdx GetFirstCGGenLabelIdx() const {
     return firstCGGenLabelIdx;
   }
@@ -801,8 +812,8 @@ class CGFunc {
     return exitBBVec.empty();
   }
 
-  void EraseExitBBsVec(MapleVector<BB*>::iterator it) {
-    exitBBVec.erase(it);
+  MapleVector<BB*>::iterator EraseExitBBsVec(MapleVector<BB*>::iterator it) {
+    return exitBBVec.erase(it);
   }
 
   void PushBackExitBBsVec(BB &bb) {
@@ -842,8 +853,16 @@ class CGFunc {
     return exitBBVec.at(index);
   }
 
+  MapleVector<BB*>::iterator EraseNoReturnCallBB(MapleVector<BB*>::iterator it) {
+    return noReturnCallBBVec.erase(it);
+  }
+
   void PushBackNoReturnCallBBsVec(BB &bb) {
     noReturnCallBBVec.emplace_back(&bb);
+  }
+
+  MapleVector<BB*> &GetNoRetCallBBVec() {
+    return noReturnCallBBVec;
   }
 
   void SetLab2BBMap(int32 index, BB &bb) {
@@ -880,7 +899,7 @@ class CGFunc {
     memLayout = &layout;
   }
 
-  RegisterInfo *GetTargetRegInfo() {
+  RegisterInfo *GetTargetRegInfo() const {
     return targetRegInfo;
   }
 
@@ -957,11 +976,11 @@ class CGFunc {
       CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
       MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
 
-      LabelIdx labelIdx = lblConst->GetValue();
-      CHECK_FATAL(switchLabelCnt[labelIdx] > 0, "error labelIdx");
-      --switchLabelCnt[labelIdx];
-      if (switchLabelCnt[labelIdx] == 0) {
-        (void)switchLabelCnt.erase(labelIdx);
+      LabelIdx tmpLabelIdx = lblConst->GetValue();
+      CHECK_FATAL(switchLabelCnt[tmpLabelIdx] > 0, "error tmpLabelIdx");
+      --switchLabelCnt[tmpLabelIdx];
+      if (switchLabelCnt[tmpLabelIdx] == 0) {
+        (void)switchLabelCnt.erase(tmpLabelIdx);
       }
     }
     (void)emitStVec.erase(id);
@@ -1085,7 +1104,7 @@ class CGFunc {
   }
 
   bool GetHasProEpilogue() const {
-    return hasProEpilogue;
+    return hasProEpilogue || useFP;
   }
 
   void SetHasProEpilogue(bool state) {
@@ -1128,7 +1147,7 @@ class CGFunc {
     }
     auto it = func.GetLastFreqMap().find(stmt.GetStmtID());
     if (it != func.GetLastFreqMap().end()) {
-      frequency = it->second;
+      frequency = static_cast<uint32>(it->second);
     }
   }
 
@@ -1161,7 +1180,7 @@ class CGFunc {
     return bb;
   }
 
-  void SetCurBBKind(BB::BBKind bbKind) const {
+  void SetCurBBKind(BB::BBKind bbKind) {
     curBB->SetKind(bbKind);
   }
 
@@ -1280,6 +1299,26 @@ class CGFunc {
     return priority;
   }
 
+  static bool UsePlt(const MIRSymbol *funcSt = nullptr) {
+    if (CGOptions::GetNoplt() || CGOptions::IsNoSemanticInterposition() ||
+        CGOptions::GetVisibilityType() == CGOptions::kHiddenVisibility) {
+      return false;
+    }
+
+    if (funcSt && funcSt->IsHiddenVisibility()) {
+      return false;
+    }
+
+    return true;
+  }
+
+  void SetExitBBLost(bool val) {
+    exitBBLost = val;
+  }
+  bool GetExitBBLost() {
+    return exitBBLost;
+  }
+
  protected:
   uint32 firstNonPregVRegNO;
   VregInfo vReg;                          /* for assigning a number for each CG virtual register */
@@ -1350,13 +1389,17 @@ class CGFunc {
     RegType regType = vRegNode.GetType();
     ASSERT(regType == kRegTyInt || regType == kRegTyFloat, "");
     uint32 size = vRegNode.GetSize();  /* in bytes */
-    ASSERT(size == sizeof(int32) || size == sizeof(int64), "");
-    return (regType == kRegTyInt ? (size == sizeof(int32) ? PTY_i32 : PTY_i64)
-                                 : (size == sizeof(float) ? PTY_f32 : PTY_f64));
+    return (regType == kRegTyInt ? (size <= sizeof(int32) ? PTY_i32 : PTY_i64) :
+                                   (size <= sizeof(float) ? PTY_f32 : PTY_f64));
   }
 
   int64 GetPseudoRegisterSpillLocation(PregIdx idx) {
     const SymbolAlloc *symLoc = memLayout->GetSpillLocOfPseduoRegister(idx);
+    return static_cast<int64>(GetBaseOffset(*symLoc));
+  }
+
+  int64 GetOrCreatSpillRegLocation(regno_t vrNum, uint32 memByteSize) {
+    auto *symLoc = GetMemlayout()->GetLocOfSpillRegister(vrNum, memByteSize);
     return static_cast<int64>(GetBaseOffset(*symLoc));
   }
 
@@ -1370,8 +1413,8 @@ class CGFunc {
 
   /* See if the symbol is a structure parameter that requires a copy. */
   bool IsParamStructCopy(const MIRSymbol &symbol) {
-    if (symbol.GetStorageClass() == kScFormal &&
-        GetBecommon().GetTypeSize(symbol.GetTyIdx().GetIdx()) > k16ByteSize) {
+    auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbol.GetTyIdx());
+    if (symbol.GetStorageClass() == kScFormal && IsParamStructCopyToMemory(*mirType)) {
       return true;
     }
     return false;
@@ -1390,17 +1433,35 @@ class CGFunc {
     }
   }
 
-  BB *CreateAtomicBuiltinBB(bool isBBIf = true) {
+  BB *CreateAtomicBuiltinBB() {
     LabelIdx atomicBBLabIdx = CreateLabel();
     BB *atomicBB = CreateNewBB();
-    if (isBBIf) {
-      atomicBB->SetKind(BB::kBBIf);
-    }
+    atomicBB->SetKind(BB::kBBIf);
     atomicBB->SetAtomicBuiltIn();
     atomicBB->AddLabel(atomicBBLabIdx);
     SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);
     GetCurBB()->AppendBB(*atomicBB);
     return atomicBB;
+  }
+
+  // clone old mem and add offset
+  // oldMem: [base, imm:12] -> newMem: [base, imm:(12 + offset)]
+  MemOperand &GetMemOperandAddOffset(const MemOperand &oldMem, uint32 offset, uint32 newSize) {
+    auto &newMem = static_cast<MemOperand&>(*oldMem.Clone(*GetMemoryPool()));
+    auto &oldOffset = *oldMem.GetOffsetOperand();
+    auto &newOffst = static_cast<ImmOperand&>(*oldOffset.Clone(*GetMemoryPool()));
+    newOffst.SetValue(oldOffset.GetValue() + offset);
+    newMem.SetOffsetOperand(newOffst);
+    newMem.SetSize(newSize);
+    return newMem;
+  }
+
+  void AddAdrpLabel(LabelIdx label) {
+    (void)adrpLabels.emplace_back(label);
+  }
+
+  MapleVector<LabelIdx> &GetAdrpLabels() {
+    return adrpLabels;
   }
 
  private:
@@ -1467,6 +1528,13 @@ class CGFunc {
 
   /* cross reference isel class pointer */
   MPISel *isel = nullptr;
+
+  // mark exitBB is unreachable
+  bool exitBBLost = false;
+
+  // Record adrp address labels when generating instructions,
+  // only used in MarkArdpLabelBB of handlefunction
+  MapleVector<LabelIdx> adrpLabels;
 };  /* class CGFunc */
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLayoutFrame, maplebe::CGFunc)
@@ -1476,6 +1544,8 @@ MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPatchLongBranch, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgFixCFLocOsft, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgVerify, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgGenCfi, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END

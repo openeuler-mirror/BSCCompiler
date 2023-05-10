@@ -14,7 +14,6 @@
  */
 #ifndef MAPLE_IR_INCLUDE_MIR_LOWER_H
 #define MAPLE_IR_INCLUDE_MIR_LOWER_H
-#include <iostream>
 
 #include "mir_builder.h"
 #include "opcodes.h"
@@ -148,7 +147,7 @@ class MIRLower {
   FuncProfInfo *GetFuncProfData() const {
     return mirFunc->GetFuncProfData();
   }
-  void CopyStmtFrequency(StmtNode *newStmt, StmtNode *oldStmt) {
+  void CopyStmtFrequency(const StmtNode *newStmt, const StmtNode *oldStmt) {
     ASSERT(GetFuncProfData() != nullptr, "nullptr check");
     if (newStmt == oldStmt) {
       return;

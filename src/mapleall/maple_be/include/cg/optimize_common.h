@@ -78,6 +78,10 @@ class Optimizer {
   void Run(const std::string &funcName, bool checkOnly = false);
   virtual void InitOptimizePatterns() = 0;
 
+  bool IsOptimized() const {
+    return doOptWithSinglePassPatterns;
+  }
+
  protected:
   CGFunc *cgFunc;
   const char *name;
@@ -87,6 +91,7 @@ class Optimizer {
   MapleVector<OptimizationPattern*> diffPassPatterns;
   /* patterns can run in a single pass of cgFunc */
   MapleVector<OptimizationPattern*> singlePassPatterns;
+  bool doOptWithSinglePassPatterns = false;
 };
 
 class OptimizeLogger {

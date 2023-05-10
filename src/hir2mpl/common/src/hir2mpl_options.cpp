@@ -83,7 +83,7 @@ bool HIR2MPLOptions::InitFactory() {
   // debug info control options
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpLevel,
                                          &HIR2MPLOptions::ProcessDumpLevel);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpTime,
+  RegisterFactoryFunction<OptionFactory>(&opts::dumpTime,
                                          &HIR2MPLOptions::ProcessDumpTime);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpComment,
                                          &HIR2MPLOptions::ProcessDumpComment);
@@ -114,7 +114,7 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessNoBarrier);
 
   // ast compiler options
-  RegisterFactoryFunction<OptionFactory>(&opts::usesignedchar,
+  RegisterFactoryFunction<OptionFactory>(&opts::useSignedChar,
                                          &HIR2MPLOptions::ProcessUseSignedChar);
 
   // On Demand Type Creation
@@ -145,8 +145,10 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessEnableVariableArray);
   RegisterFactoryFunction<OptionFactory>(&opts::funcInliceSize,
                                          &HIR2MPLOptions::ProcessFuncInlineSize);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::wpaa,
+  RegisterFactoryFunction<OptionFactory>(&opts::wpaa,
                                          &HIR2MPLOptions::ProcessWPAA);
+  RegisterFactoryFunction<OptionFactory>(&opts::fm,
+                                         &HIR2MPLOptions::ProcessFM);
 
   return true;
 }
@@ -335,7 +337,7 @@ bool HIR2MPLOptions::ProcessNoMplFile(const maplecl::OptionInterface &) const {
 
 bool HIR2MPLOptions::ProcessDumpLevel(const maplecl::OptionInterface &outputName) const {
   unsigned int arg = outputName.GetCommonValue();
-  FEOptions::GetInstance().SetDumpLevel(arg);
+  FEOptions::GetInstance().SetDumpLevel(static_cast<int>(arg));
   return true;
 }
 
@@ -438,7 +440,7 @@ bool HIR2MPLOptions::ProcessNoBarrier(const maplecl::OptionInterface &) const {
 
 // ast compiler options
 bool HIR2MPLOptions::ProcessUseSignedChar(const maplecl::OptionInterface &) const {
-  FEOptions::GetInstance().SetUseSignedChar(opts::usesignedchar);
+  FEOptions::GetInstance().SetUseSignedChar(opts::useSignedChar);
   return true;
 }
 
@@ -491,6 +493,7 @@ void HIR2MPLOptions::ProcessInputFiles(const std::vector<std::string> &inputs) c
         FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "DEX file detected: %s", inputName.c_str());
         FEOptions::GetInstance().AddInputDexFile(inputName);
         break;
+      case FEFileType::kO:
       case FEFileType::kAST:
         FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "AST file detected: %s", inputName.c_str());
         FEOptions::GetInstance().AddInputASTFile(inputName);
@@ -598,6 +601,13 @@ bool HIR2MPLOptions::ProcessWPAA(const maplecl::OptionInterface &) const {
   FEOptions::GetInstance().SetFuncInlineSize(UINT32_MAX);
   return true;
 }
+
+// func merge
+bool HIR2MPLOptions::ProcessFM(const maplecl::OptionInterface &) const {
+  FEOptions::GetInstance().SetFuncMergeEnable(true);
+  return true;
+}
+
 
 // AOT
 bool HIR2MPLOptions::ProcessAOT(const maplecl::OptionInterface &) const {

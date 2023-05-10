@@ -88,9 +88,16 @@ bool HIR2MPLCompilerComponent::ProcessDeclImpl() {
     ASSERT_NOT_NULL(helper);
     success = helper->ProcessDecl() ? success : false;
   }
-  for (FEInputMethodHelper *helper : globalFuncHelpers) {
-    ASSERT_NOT_NULL(helper);
-    success = helper->ProcessDecl() ? success : false;
+  if (!FEOptions::GetInstance().GetWPAA()) {
+    for (FEInputMethodHelper *helper : globalFuncHelpers) {
+      ASSERT_NOT_NULL(helper);
+      success = helper->ProcessDecl() ? success : false;
+    }
+  } else {
+    for (FEInputMethodHelper *helper : globalLTOFuncHelpers) {
+      ASSERT_NOT_NULL(helper);
+      success = helper->ProcessDecl() ? success : false;
+    }
   }
   for (FEInputGlobalVarHelper *helper : globalVarHelpers) {
     ASSERT_NOT_NULL(helper);
@@ -106,6 +113,8 @@ bool HIR2MPLCompilerComponent::ProcessDeclImpl() {
       success = helper->ProcessDecl() ? success : false;
     }
   }
+  // Traverse type table and update func type
+  UpdateMIRFuncTypeFirstArgRet();
   timer.StopAndDumpTimeMS("HIR2MPLCompilerComponent::ProcessDecl()");
   return success;
 }

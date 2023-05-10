@@ -267,17 +267,17 @@ MIRType *OriginalStTable::GetTypeFromBaseAddressAndFieldId(TyIdx tyIdx, FieldID 
 }
 
 OriginalSt *OriginalStTable::FindOrCreateExtraLevOriginalSt(
-    const VersionSt *vst, TyIdx tyIdx, FieldID fieldId, const OffsetType &offset, bool isFieldArrayType) {
-  if (!vst->GetOst()->IsSymbolOst() && !vst->GetOst()->IsPregOst()) {
+    const VersionSt &vst, TyIdx tyIdx, FieldID fieldId, const OffsetType &offset, bool isFieldArrayType) {
+  if (!vst.GetOst()->IsSymbolOst() && !vst.GetOst()->IsPregOst()) {
     return nullptr;
   }
 
-  auto *ost = vst->GetOst();
+  auto *ost = vst.GetOst();
   tyIdx = (tyIdx == 0u) ? ost->GetTyIdx() : tyIdx;
   MIRType *typeOfExtraLevOst = GetTypeFromBaseAddressAndFieldId(tyIdx, fieldId, isFieldArrayType);
 
   FieldID fieldIDInOst = fieldId;
-  OriginalSt *nextLevOst = FindExtraLevOriginalSt(vst, tyIdx, typeOfExtraLevOst, fieldIDInOst, offset);
+  OriginalSt *nextLevOst = FindExtraLevOriginalSt(&vst, tyIdx, typeOfExtraLevOst, fieldIDInOst, offset);
   if (nextLevOst != nullptr) {
     return nextLevOst;
   }
@@ -294,7 +294,7 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevOriginalSt(
   originalStVector.push_back(nextLevOst);
   CHECK_FATAL(ost->GetIndirectLev() < INT8_MAX, "boundary check");
   nextLevOst->SetIndirectLev(ost->GetIndirectLev() + 1);
-  nextLevOst->SetPointerVst(vst);
+  nextLevOst->SetPointerVst(&vst);
   nextLevOst->SetOffset(offset);
   nextLevOst->SetPointerTyIdx(tyIdx);
   nextLevOst->SetAddressTaken(true);
@@ -314,7 +314,7 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevOriginalSt(
   if (GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx())->PointsToConstString()) {
     nextLevOst->SetIsFinal(true);
   }
-  AddNextLevelOstOfVst(vst, nextLevOst);
+  AddNextLevelOstOfVst(&vst, nextLevOst);
   return nextLevOst;
 }
 

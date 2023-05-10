@@ -14,65 +14,13 @@
  */
 #include "copy_prop.h"
 #include "me_cfg.h"
+#include "me_hdse.h"
 
 namespace maple {
 static constexpr uint kMaxDepth = 5;
 static bool PropagatableByCopyProp(const MeExpr *newExpr) {
   ASSERT_NOT_NULL(newExpr);
   return newExpr->GetMeOp() == kMeOpReg || newExpr->GetMeOp() == kMeOpConst;
-}
-
-static bool PropagatableBaseOfIvar(const IvarMeExpr *ivar, const MeExpr *newExpr) {
-  if (PropagatableByCopyProp(newExpr)) {
-    return true;
-  }
-  if ((ivar->GetFieldID() != 0 && ivar->GetFieldID() != 1) || ivar->GetOffset() != 0) {
-    return false;
-  }
-
-#if TARGX86_64 || TARGX86 || TARGVM || TARGARM32
-  return false;
-#endif
-
-  if (newExpr->GetOp() == OP_add) {
-    auto opndA = newExpr->GetOpnd(0);
-    if (!PropagatableByCopyProp(opndA)) {
-      return false;
-    }
-
-    auto opndB = newExpr->GetOpnd(1);
-    if (PropagatableByCopyProp(opndB)) {
-      return true;
-    }
-
-    if (opndB->GetOp() == OP_cvt || opndB->GetOp() == OP_retype) {
-      if (PropagatableByCopyProp(opndB->GetOpnd(0))) {
-        return true;
-      }
-    } else if (opndB->GetOp() == OP_mul) {
-      auto opndC = opndB->GetOpnd(0);
-      if (!PropagatableByCopyProp(opndC)) {
-        return false;
-      }
-
-      auto opndD = opndB->GetOpnd(1);
-      if (opndD->GetMeOp() != kMeOpConst) {
-        return false;
-      }
-      auto constVal = static_cast<ConstMeExpr *>(opndD)->GetConstVal();
-      if (constVal->GetKind() != kConstInt) {
-        return false;
-      }
-      int64 val = static_cast<MIRIntConst*>(constVal)->GetExtValue();
-      if (val == 0 || val == GetPrimTypeSize(PTY_ptr)) {
-        return true;
-      }
-    }
-  }
-  if (newExpr->GetOp() == OP_iaddrof) {
-    return PropagatableByCopyProp(newExpr->GetOpnd(0));
-  }
-  return false;
 }
 
 static bool PropagatableOpndOfOperator(const MeExpr *meExpr, Opcode op, size_t opndId) {
@@ -303,8 +251,7 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
         return meExpr;
       }
 
-      if (!(base->GetMeOp() == kMeOpVar || base->GetMeOp() == kMeOpReg) ||
-          PropagatableBaseOfIvar(ivarMeExpr, propedExpr)) {
+      if (!(base->GetMeOp() == kMeOpVar || base->GetMeOp() == kMeOpReg) || PropagatableByCopyProp(propedExpr)) {
         isproped = true;
         IvarMeExpr newMeExpr(&irMap.GetIRMapAlloc(), -1, *ivarMeExpr);
         newMeExpr.SetBase(propedExpr);
@@ -484,6 +431,7 @@ void MECopyProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEDominance>();
   aDep.AddRequired<MEIRMapBuild>();
   aDep.AddRequired<MELoopAnalysis>();
+  aDep.AddRequired<MEAliasClass>();
   aDep.SetPreservedAll();
 }
 
@@ -508,6 +456,13 @@ bool MECopyProp::PhaseRun(maple::MeFunction &f) {
   copyProp.ReplaceSelfAssign();
   copyProp.TraversalBB(*f.GetCfg()->GetCommonEntryBB());
   useInfo.InvalidUseInfo();
+  // run hdse to remove unused stmts
+  auto *aliasClass0 = GET_ANALYSIS(MEAliasClass, f);
+  MeHDSE hdse(f, *dom, *pdom, *f.GetIRMap(), aliasClass0, DEBUGFUNC_NEWPM(f));
+  if (!MeOption::quiet) {
+    LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
+  }
+  hdse.DoHDSESafely(&f, *GetAnalysisInfoHook());
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After Copy Propagation  =============" << '\n';
     f.Dump(false);

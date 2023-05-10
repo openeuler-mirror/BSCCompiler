@@ -42,9 +42,9 @@ class GCLowering {
   void HandleAssignMeStmt(MeStmt &stmt);
   void HandleVarAssignMeStmt(MeStmt &stmt);
   void HandleIvarAssignMeStmt(MeStmt &stmt);
-  MeExpr *GetBase(IvarMeExpr &ivar);
-  MIRIntrinsicID SelectWriteBarrier(const MeStmt &stmt);
-  MIRIntrinsicID PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId);
+  MeExpr *GetBase(IvarMeExpr &ivar) const;
+  MIRIntrinsicID SelectWriteBarrier(const MeStmt &stmt) const;
+  MIRIntrinsicID PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId) const;
   void HandleWriteReferent(IassignMeStmt &stmt);
   void CheckRefs();
   void ParseCheckFlag();

@@ -47,7 +47,7 @@ void X64Emitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std::string
   }
 }
 
-void X64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
+void X64OpndEmitVisitor::Visit(maplebe::RegOperand *v, uint32 regSize) {
   ASSERT(v->IsRegister(), "NIY");
   /* check legality of register operand: reg no. should not be larger than 100 or equal to 0 */
   ASSERT(v->IsPhysicalRegister(), "register is still virtual");
@@ -55,7 +55,7 @@ void X64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
   /* Mapping with physical register after register allocation is done
    * try table-driven register mapping ? */
   uint8 regType = -1;
-  switch (v->GetSize()) {
+  switch (regSize) {
     case k8BitSize:
       regType = v->IsHigh8Bit() ? X64CG::kR8HighList : X64CG::kR8LowList;
       break;
@@ -68,11 +68,18 @@ void X64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
     case k64BitSize:
       regType = X64CG::kR64List;
       break;
+    case k128BitSize:
+      regType = X64CG::kR128List;
+      break;
     default:
       CHECK_FATAL(false, "unkown reg size");
       break;
   }
   emitter.Emit("%").Emit(X64CG::intRegNames[regType][v->GetRegisterNumber()]);
+}
+
+void X64OpndEmitVisitor::Visit(maplebe::RegOperand *v) {
+  Visit(v, opndProp->GetSize());
 }
 
 void X64OpndEmitVisitor::Visit(maplebe::ImmOperand *v) {
@@ -115,12 +122,12 @@ void X64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
     /* Emit RBP or EBP only when index register doesn't exist */
     if ((v->GetIndexRegister() != nullptr && v->GetBaseRegister()->GetRegisterNumber() != x64::RBP) ||
         v->GetIndexRegister() == nullptr) {
-      Visit(v->GetBaseRegister());
+      Visit(v->GetBaseRegister(), GetPointerBitSize());
     }
   }
   if (v->GetIndexRegister() != nullptr) {
     emitter.Emit(", ");
-    Visit(v->GetIndexRegister());
+    Visit(v->GetIndexRegister(), GetPointerBitSize());
     emitter.Emit(", ").Emit(v->GetScaleOperand()->GetValue());
   }
   emitter.Emit(")");
@@ -201,7 +208,7 @@ void DumpTargetASM(Emitter &emitter, Insn &insn) {
 
   for (int i = 0; i < size; i++) {
     Operand *opnd = &insn.GetOperand(i);
-    X64OpndEmitVisitor visitor(emitter);
+    X64OpndEmitVisitor visitor(emitter, curMd.GetOpndDes(i));
     opnd->Accept(visitor);
     if (i != size - 1) {
       emitter.Emit(",\t");

@@ -18,14 +18,13 @@
 #include "mir_module.h"
 #include "mir_nodes.h"
 #include "orig_symbol.h"
-
+#include "dominance.h"
 namespace maple {
 class BB;  // circular dependency exists, no other choice
 class MeCFG;  // circular dependency exists, no other choice
 class VersionSt;  // circular dependency exists, no other choice
 class VersionStTable;  // circular dependency exists, no other choice
 class SSATab;  // circular dependency exists, no other choice
-class Dominance;  // circular dependency exists, no other choice
 bool IsLocalTopLevelOst(const OriginalSt &ost);
 class PhiNode {
  public:
@@ -100,7 +99,7 @@ class SSA {
   virtual ~SSA() = default;
 
   virtual void InsertPhiNode();
-  void RenameAllBBs(const MeCFG *cfg);
+  void RenameAllBBs(const MeCFG &cfg);
 
   void UpdateDom(Dominance *dm) {
     dom = dm;

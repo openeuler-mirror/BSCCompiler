@@ -88,7 +88,7 @@ class MePrediction : public AnalysisResult {
         backEdges(tmpAlloc.Adapter()),
         predictDebug(false) {}
 
-  virtual ~MePrediction() = default;
+  ~MePrediction() override = default;
   Edge *FindEdge(const BB &src, const BB &dest) const;
   bool IsBackEdge(const Edge &edge) const;
   Predictor ReturnPrediction(const MeExpr *meExpr, Prediction &prediction) const;
@@ -99,7 +99,7 @@ class MePrediction : public AnalysisResult {
   void BBLevelPredictions();
   void Init();
   bool PredictedByLoopHeuristic(const BB &bb) const;
-  void SortLoops();
+  void SortLoops() const;
   void PredictLoops();
   void PredictByOpcode(BB *bb);
   void EstimateBBProb(BB &bb);

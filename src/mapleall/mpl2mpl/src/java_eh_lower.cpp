@@ -19,10 +19,10 @@
 #include "option.h"
 
 namespace {
-const std::string strDivOpnd = "__div_opnd1";
-const std::string strDivRes = "__div_res";
-const std::string strMCCThrowArrayIndexOutOfBoundsException = "MCC_ThrowArrayIndexOutOfBoundsException";
-const std::string strMCCThrowNullPointerException = "MCC_ThrowNullPointerException";
+const std::string kStrDivOpnd = "__div_opnd1";
+const std::string kStrDivRes = "__div_res";
+const std::string kStrMCCThrowArrayIndexOutOfBoundsException = "MCC_ThrowArrayIndexOutOfBoundsException";
+const std::string kStrMCCThrowNullPointerException = "MCC_ThrowNullPointerException";
 } // namespace
 
 // Do exception handling runtime insertion of runtime function call
@@ -47,7 +47,7 @@ BaseNode *JavaEHLowerer::DoLowerDiv(BinaryNode &expr, BlockNode &blknode) {
   // Store divopnd to a tmp st if not a leaf node.
   BaseNode *divOpnd = expr.Opnd(1);
   if (!divOpnd->IsLeaf()) {
-    std::string opnd1name(strDivOpnd);
+    std::string opnd1name(kStrDivOpnd);
     opnd1name.append(std::to_string(divSTIndex));
     if (useRegTmp) {
       PregIdx pregIdx = func->GetPregTab()->CreatePreg(ptype);
@@ -70,7 +70,7 @@ BaseNode *JavaEHLowerer::DoLowerDiv(BinaryNode &expr, BlockNode &blknode) {
     divStmt = mirBuilder->CreateStmtRegassign(ptype, resPregIdx, &expr);
     retExprNode = GetMIRModule().GetMIRBuilder()->CreateExprRegread(ptype, resPregIdx);
   } else {
-    std::string resName(strDivRes);
+    std::string resName(kStrDivRes);
     resName.append(std::to_string(divSTIndex++));
     MIRSymbol *divResSymbol = mirBuilder->CreateSymbol(TyIdx(ptype), resName, kStVar, kScAuto,
                                                        GetMIRModule().CurFunction(), kScopeLocal);
@@ -123,7 +123,7 @@ void JavaEHLowerer::DoLowerBoundaryCheck(IntrinsiccallNode &intrincall, BlockNod
   LabelNode *labStmt = GetMIRModule().CurFuncCodeMemPool()->New<LabelNode>();
   labStmt->SetLabelIdx(lbidx);
   MIRFunction *func =
-    GetMIRModule().GetMIRBuilder()->GetOrCreateFunction(strMCCThrowArrayIndexOutOfBoundsException, TyIdx(PTY_void));
+    GetMIRModule().GetMIRBuilder()->GetOrCreateFunction(kStrMCCThrowArrayIndexOutOfBoundsException, TyIdx(PTY_void));
   MapleVector<BaseNode*> args(GetMIRModule().GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
   CallNode *callStmt = GetMIRModule().GetMIRBuilder()->CreateStmtCall(func->GetPuidx(), args);
   newblk.AddStatement(callStmt);
@@ -194,7 +194,7 @@ BlockNode *JavaEHLowerer::DoLowerBlock(BlockNode &block) {
           auto *intConst = safe_cast<MIRIntConst>(static_cast<ConstvalNode*>(opnd0)->GetConstVal());
           CHECK_FATAL(intConst->IsZero(), "can only be zero");
           MIRFunction *func =
-            GetMIRModule().GetMIRBuilder()->GetOrCreateFunction(strMCCThrowNullPointerException, TyIdx(PTY_void));
+            GetMIRModule().GetMIRBuilder()->GetOrCreateFunction(kStrMCCThrowNullPointerException, TyIdx(PTY_void));
           func->SetNoReturn();
           MapleVector<BaseNode*> args(GetMIRModule().GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
           CallNode *callStmt = GetMIRModule().GetMIRBuilder()->CreateStmtCall(func->GetPuidx(), args);

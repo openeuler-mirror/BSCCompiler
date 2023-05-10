@@ -32,8 +32,8 @@ class ChainingPattern : public OptimizationPattern {
     patternName = "BB Chaining";
     dotColor = kCfgoChaining;
   }
-
   ~ChainingPattern() override = default;
+
   bool Optimize(BB &curBB) override;
 
  protected:
@@ -59,6 +59,8 @@ class SequentialJumpPattern : public OptimizationPattern {
  protected:
   void SkipSucBB(BB &curBB, BB &sucBB) const;
   void UpdateSwitchSucc(BB &curBB, BB &sucBB) const;
+  // If the sucBB has one invalid predBB, the sucBB can not be skipped
+  bool HasInvalidPred(BB &sucBB) const;
 };
 
 class FlipBRPattern : public OptimizationPattern {
@@ -80,7 +82,10 @@ class FlipBRPattern : public OptimizationPattern {
   CfgoPhase phase = kCfgoDefault;
 
  protected:
-  void RelocateThrowBB(BB &curBB) const;
+  void RelocateThrowBB(BB &curBB);
+ private:
+  virtual uint32 GetJumpTargetIdx(const Insn &insn) = 0;
+  virtual MOperator FlipConditionOp(MOperator flippedOp) = 0;
 };
 
 /* This class represents the scenario that the BB is unreachable. */
@@ -135,8 +140,6 @@ class CFGOptimizer : public Optimizer {
   }
 
   ~CFGOptimizer() override = default;
-  void InitOptimizePatterns() override;
-
   CfgoPhase GetPhase() const {
     return phase;
   }
@@ -146,6 +149,8 @@ class CFGOptimizer : public Optimizer {
   CfgoPhase phase = kCfgoDefault;
 };
 
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPreCfgo, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgCfgo, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPostCfgo, maplebe::CGFunc)

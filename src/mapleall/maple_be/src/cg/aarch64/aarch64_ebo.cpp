@@ -305,26 +305,16 @@ void AArch64Ebo::DefineCallerSaveRegisters(InsnInfo &insnInfo) {
   }
   ASSERT(insn->IsCall() || insn->IsTailCall(), "insn should be a call insn.");
   if (CGOptions::DoIPARA()) {
-    auto *targetOpnd = insn->GetCallTargetOperand();
-    CHECK_FATAL(targetOpnd != nullptr, "target is null in Insn::IsCallToFunctionThatNeverReturns");
-    if (targetOpnd->IsFuncNameOpnd()) {
-      FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
-      const MIRSymbol *funcSt = target->GetFunctionSymbol();
-      ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
-      MIRFunction *func = funcSt->GetFunction();
-      if (func != nullptr && func->IsReferedRegsValid()) {
-        for (auto preg : func->GetReferedRegs()) {
-          if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(preg))) {
-            continue;
-          }
-          RegOperand *opnd = &a64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(preg), k64BitSize,
-              AArch64isa::IsFPSIMDRegister(static_cast<AArch64reg>(preg)) ? kRegTyFloat : kRegTyInt);
-          OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
-          opndInfo->insnInfo = &insnInfo;
-        }
-        return;
-      }
+    std::set<regno_t> callerSaveRegs;
+    a64CGFunc->GetRealCallerSaveRegs(*insn, callerSaveRegs);
+    for (auto preg : callerSaveRegs) {
+      auto &opnd = a64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(preg),
+          k64BitSize,
+          (AArch64isa::IsFPSIMDRegister(static_cast<AArch64reg>(preg)) ? kRegTyFloat : kRegTyInt));
+      auto *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, opnd);
+      opndInfo->insnInfo = &insnInfo;
     }
+    return;
   }
   for (auto opnd : callerSaveRegTable) {
     OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
@@ -766,7 +756,9 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const ImmOperand &immOper
   ImmOperand *immOperand = &a64CGFunc->CreateImmOperand(val, opndSize, false);
   if (!immOperand->IsSingleInstructionMovable()) {
     ASSERT(res->IsRegister(), " expect a register operand");
-    static_cast<AArch64CGFunc*>(cgFunc)->SplitMovImmOpndInstruction(val, *(static_cast<RegOperand*>(res)), &insn);
+    Insn &movInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_xmovri64, *res, *immOperand);
+    bb.InsertInsnBefore(insn, movInsn);
+    SPLIT_INSN(&movInsn, cgFunc);
     bb.RemoveInsn(insn);
   } else {
     MOperator newmOp = opndSize == k64BitSize ? MOP_xmovri64 : MOP_wmovri32;
@@ -885,7 +877,7 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
     return false;
   }
   auto *newMemOp = GetOrCreateMemOperandForNewMOP(*cgFunc, *prevInsn, newPreMop);
-  if (newMemOp == nullptr) {
+  if (newMemOp == nullptr || !a64CGFunc->IsOperandImmValid(newPreMop, newMemOp, prevInsn->GetMemOpndIdx())) {
     return false;
   }
   prevInsn->SetMemOpnd(newMemOp);
@@ -986,7 +978,7 @@ bool AArch64Ebo::CombineMultiplySub(Insn &insn, OpndInfo *opndInfo, bool is64bit
   return false;
 }
 
-bool CheckInsnRefField(const Insn &insn, size_t opndIndex) {
+bool CheckInsnRefField(const Insn &insn, uint32 opndIndex) {
   if (insn.IsAccessRefField() && insn.AccessMem()) {
     Operand &opnd0 = insn.GetOperand(opndIndex);
     if (opnd0.IsRegister()) {
@@ -1219,7 +1211,7 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
           auto &immOpnd = static_cast<ImmOperand&>(insn1->GetOperand(kInsnThirdOpnd));
           uint32 xLslrriBitLen = 6;
           uint32 wLslrriBitLen = 5;
-          Operand &shiftOpnd = aarchFunc->CreateBitShiftOperand(BitShiftOperand::kLSL,
+          Operand &shiftOpnd = aarchFunc->CreateBitShiftOperand(BitShiftOperand::kShiftLSL,
               static_cast<uint32>(immOpnd.GetValue()), (opCode == MOP_xlslrri6) ? xLslrriBitLen : wLslrriBitLen);
           MOperator mOp = (is64bits ? MOP_xaddrrrs : MOP_waddrrrs);
           insn.GetBB()->ReplaceInsn(insn, cgFunc->GetInsnBuilder()->BuildInsn(mOp, res, op0, opnd1, shiftOpnd));

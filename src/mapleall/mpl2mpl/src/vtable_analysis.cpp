@@ -88,7 +88,7 @@ bool VtableAnalysis::CheckOverrideForCrossPackage(const MIRFunction &baseMethod,
 
 // If the method is not in method_table yet, add it in, otherwise update it.
 // Note: the method to add should already pass VtableCandidate test
-void VtableAnalysis::AddMethodToTable(MethodPtrVector &methodTable, MethodPair &methodPair) {
+void VtableAnalysis::AddMethodToTable(MethodPtrVector &methodTable, MethodPair &methodPair) const {
   MIRFunction *method = builder->GetFunctionFromStidx(methodPair.first);
   ASSERT_NOT_NULL(method);
   GStrIdx strIdx = method->GetBaseFuncNameWithTypeStrIdx();
@@ -574,7 +574,7 @@ void VtableAnalysis::ReplacePolymorphicInvoke(CallNode &stmt) {
   currFunc->GetBody()->ReplaceStmt1WithStmt2(&stmt, intrinCall);
 }
 
-BaseNode *VtableAnalysis::GenVtabItabBaseAddr(BaseNode &obj, bool isVirtual) {
+BaseNode *VtableAnalysis::GenVtabItabBaseAddr(BaseNode &obj, bool isVirtual) const {
   ASSERT_NOT_NULL(builder);
   BaseNode *classInfoAddress = ReflectionAnalysis::GenClassInfoAddr(&obj, *builder);
   auto *classMetadataType = static_cast<MIRStructType*>(
@@ -624,10 +624,9 @@ size_t VtableAnalysis::SearchWithoutRettype(const MIRFunction &callee, const MIR
       }
       if (isCalleeScalar || isCurrVtabScalar) {
         if (isFindMethod) {
-          CHECK_FATAL(klassHierarchy->GetKlassFromTyIdx(structType.GetTypeIndex()) != nullptr, "null ptr check");
-          LogInfo::MapleLogger() << "warning: this "
-                                 << (klassHierarchy->GetKlassFromTyIdx(structType.GetTypeIndex()))->GetKlassName()
-                                 << " has mult methods with the same function name but with different return type!\n";
+          CHECK_FATAL(klassHierarchy->GetKlassFromTyIdx(structType.GetTypeIndex()) != nullptr, "warning: this ",
+              (klassHierarchy->GetKlassFromTyIdx(structType.GetTypeIndex()))->GetKlassName().c_str(),
+              " has mult methods with the same function name but with different return type!");
           break;
         }
         entryoffset = id;
@@ -798,7 +797,7 @@ bool VtableAnalysis::CheckInterfaceImplemented(const CallNode &stmt) const {
   return false;
 }
 
-void VtableAnalysis::ReplaceInterfaceInvoke(CallNode &stmt) {
+void VtableAnalysis::ReplaceInterfaceInvoke(CallNode &stmt) const {
   CHECK_FATAL(!stmt.GetNopnd().empty(), "container check");
   if (Options::deferredVisit && !CheckInterfaceImplemented(stmt)) {
     return;

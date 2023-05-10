@@ -67,22 +67,21 @@ static bool IsFinalMethod(const MIRFunction *mirFunc) {
 TyIdx SSADevirtual::GetInferredTyIdx(MeExpr &expr) const {
   if (expr.GetMeOp() == kMeOpVar) {
     auto *varMeExpr = static_cast<VarMeExpr*>(&expr);
-    if (varMeExpr->GetInferredTyIdx() == 0u) {
-      // If varMeExpr->inferredTyIdx has not been set, we can double check
-      // if it is coming from a static final field
-      const OriginalSt *ost = varMeExpr->GetOst();
-      const MIRSymbol *mirSym = ost->GetMIRSymbol();
-      if (mirSym->IsStatic() && mirSym->IsFinal() && mirSym->GetInferredTyIdx() != kInitTyIdx &&
-          mirSym->GetInferredTyIdx() != kNoneTyIdx) {
-        varMeExpr->SetInferredTyIdx(mirSym->GetInferredTyIdx());
-      }
-      if (mirSym->GetType()->GetKind() == kTypePointer) {
-        MIRType *pointedType = (static_cast<MIRPtrType*>(mirSym->GetType()))->GetPointedType();
-        if (pointedType->GetKind() == kTypeClass) {
-          if ((static_cast<MIRClassType*>(pointedType))->IsFinal()) {
-            varMeExpr->SetInferredTyIdx(pointedType->GetTypeIndex());
-          }
-        }
+    if (varMeExpr->GetInferredTyIdx() != 0u) {
+      return varMeExpr->GetInferredTyIdx();
+    }
+    // If varMeExpr->inferredTyIdx has not been set, we can double check
+    // if it is coming from a static final field
+    const OriginalSt *ost = varMeExpr->GetOst();
+    const MIRSymbol *mirSym = ost->GetMIRSymbol();
+    if (mirSym->IsStatic() && mirSym->IsFinal() && mirSym->GetInferredTyIdx() != kInitTyIdx &&
+        mirSym->GetInferredTyIdx() != kNoneTyIdx) {
+      varMeExpr->SetInferredTyIdx(mirSym->GetInferredTyIdx());
+    }
+    if (mirSym->GetType()->GetKind() == kTypePointer) {
+      MIRType *pointedType = (static_cast<MIRPtrType*>(mirSym->GetType()))->GetPointedType();
+      if (pointedType->GetKind() == kTypeClass && (static_cast<MIRClassType*>(pointedType))->IsFinal()) {
+          varMeExpr->SetInferredTyIdx(pointedType->GetTypeIndex());
       }
     }
     return varMeExpr->GetInferredTyIdx();
@@ -363,7 +362,7 @@ void SSADevirtual::VisitVarPhiNode(MePhiNode &varPhi) {
   }
   VarMeExpr *lhsVar = static_cast<VarMeExpr*>(varPhi.GetLHS());
 
-  auto mapit = inferredTypeCandidatesMap.find(lhsVar->GetExprID());
+  const auto &mapit = std::as_const(inferredTypeCandidatesMap).find(lhsVar->GetExprID());
   if (mapit == inferredTypeCandidatesMap.cend()) {
     auto tyIdxCandidates = devirtualAlloc.GetMemPool()->New<MapleVector<TyIdx>>(devirtualAlloc.Adapter());
     inferredTypeCandidatesMap[lhsVar->GetExprID()] = tyIdxCandidates;
@@ -372,19 +371,18 @@ void SSADevirtual::VisitVarPhiNode(MePhiNode &varPhi) {
   for (size_t i = 0; i < opnds.size(); ++i) {
     VarMeExpr *opnd = static_cast<VarMeExpr *>(opnds[i]);
     PropVarInferredType(*opnd);
-    if (opnd->GetInferredTyIdx() != 0u) {
-      size_t j = 0;
-      for (; j < inferredTypeCandidates.size(); j++) {
-        if (inferredTypeCandidates.at(j) == opnd->GetInferredTyIdx()) {
-          break;
-        }
-      }
-      if (j == inferredTypeCandidates.size()) {
-        inferredTypeCandidates.push_back(opnd->GetInferredTyIdx());
-      }
-    } else {
+    if (opnd->GetInferredTyIdx() == 0u) {
       inferredTypeCandidates.clear();
       break;
+    }
+    size_t j = 0;
+    for (; j < inferredTypeCandidates.size(); j++) {
+      if (inferredTypeCandidates.at(j) == opnd->GetInferredTyIdx()) {
+        break;
+      }
+    }
+    if (j == inferredTypeCandidates.size()) {
+      inferredTypeCandidates.push_back(opnd->GetInferredTyIdx());
     }
   }
 }
@@ -666,9 +664,9 @@ void SSADevirtual::Perform(BB &entryBB) {
     BB *bb = bbList.front();
     bbList.pop();
     TraversalBB(bb);
-    const auto &domChildren = dom->GetDomChildren(bb->GetBBId());
-    for (const BBId &bbId : domChildren) {
-      bbList.push(GetBB(bbId));
+    const auto &domChildren = dom->GetDomChildren(bb->GetID());
+    for (const auto &bbId : domChildren) {
+      bbList.push(GetBB(BBId(bbId)));
     }
   }
   MIRFunction *mirFunc = GetMIRFunction();

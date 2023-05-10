@@ -34,6 +34,7 @@
 #include "fe_options.h"
 #include "feir_type_helper.h"
 #include "feir_dfg.h"
+#include "int128_util.h"
 
 namespace maple {
 class FEIRBuilder;
@@ -108,7 +109,7 @@ class FEIRStmt : public FELinkListNode {
   FEIRStmt()
       : kind(kStmt) {} // kStmt as default
 
-  virtual ~FEIRStmt() = default;
+  ~FEIRStmt() override = default;
   void RegisterDFGNodes2CheckPoint(FEIRStmtCheckPoint &checkPoint) {
     RegisterDFGNodes2CheckPointImpl(checkPoint);
   }
@@ -560,6 +561,8 @@ union ConstExprValue {
   uint64 u64 = 0;
   int64 i64;
   double f64;
+  uint64 f128[2];
+  Int128Arr i128;
 };
 
 class FEIRExprConst : public FEIRExpr {
@@ -567,10 +570,12 @@ class FEIRExprConst : public FEIRExpr {
   FEIRExprConst();
   FEIRExprConst(int64 val, PrimType argType);
   FEIRExprConst(uint64 val, PrimType argType);
+  FEIRExprConst(const IntVal &val, PrimType argType);
   explicit FEIRExprConst(uint32 val);
   explicit FEIRExprConst(float val);
   explicit FEIRExprConst(double val);
-  ~FEIRExprConst() = default;
+  explicit FEIRExprConst(const uint64_t *val);
+  ~FEIRExprConst() override = default;
   FEIRExprConst(const FEIRExprConst&) = delete;
   FEIRExprConst& operator=(const FEIRExprConst&) = delete;
 
@@ -592,7 +597,7 @@ class FEIRExprConst : public FEIRExpr {
 class FEIRExprSizeOfType : public FEIRExpr {
  public:
   explicit FEIRExprSizeOfType(UniqueFEIRType ty);
-  ~FEIRExprSizeOfType() = default;
+  ~FEIRExprSizeOfType() override = default;
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
@@ -611,7 +616,7 @@ class FEIRExprDRead : public FEIRExpr {
  public:
   explicit FEIRExprDRead(std::unique_ptr<FEIRVar> argVarSrc);
   FEIRExprDRead(std::unique_ptr<FEIRType> argType, std::unique_ptr<FEIRVar> argVarSrc);
-  ~FEIRExprDRead() = default;
+  ~FEIRExprDRead() override = default;
   void SetVarSrc(std::unique_ptr<FEIRVar> argVarSrc);
   void SetTrans(UniqueFEIRVarTrans argTrans) {
     varSrc->SetTrans(std::move(argTrans));
@@ -686,7 +691,7 @@ class FEIRExprDRead : public FEIRExpr {
 class FEIRExprRegRead : public FEIRExpr {
  public:
   FEIRExprRegRead(PrimType pty, int32 regNumIn);
-  ~FEIRExprRegRead() = default;
+  ~FEIRExprRegRead() override = default;
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
@@ -710,7 +715,9 @@ class FEIRExprAddrofConstArray : public FEIRExpr {
     std::copy(arrayIn.begin(), arrayIn.end(), std::back_inserter(array));
   }
 
-  ~FEIRExprAddrofConstArray() = default;
+  ~FEIRExprAddrofConstArray() override {
+    elemType = nullptr;
+  }
 
   uint32 GetStringLiteralSize() const {
     return static_cast<uint32>(array.size());
@@ -752,7 +759,7 @@ class FEIRExprAddrOfLabel : public FEIRExpr {
  public:
   FEIRExprAddrOfLabel(const std::string &lbName, UniqueFEIRType exprType)
       : FEIRExpr(FEIRNodeKind::kExprAddrofLabel, std::move(exprType)), labelName(lbName) {}
-  ~FEIRExprAddrOfLabel() = default;
+  ~FEIRExprAddrOfLabel() override = default;
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
@@ -779,7 +786,9 @@ class FEIRExprAddrofVar : public FEIRExpr {
       : FEIRExpr(FEIRNodeKind::kExprAddrofVar,
                  FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
         varSrc(std::move(argVarSrc)), fieldID(id) {}
-  ~FEIRExprAddrofVar() = default;
+  ~FEIRExprAddrofVar() override {
+    cst = nullptr;
+  }
 
   void SetVarValue(MIRConst *val) {
     cst = val;
@@ -822,7 +831,7 @@ class FEIRExprIAddrof : public FEIRExpr {
         ptrType(std::move(pointeeType)),
         fieldID(id),
         subExpr(std::move(expr)) {}
-  ~FEIRExprIAddrof() = default;
+  ~FEIRExprIAddrof() override = default;
 
   UniqueFEIRType GetClonedRetType() const {
     return type->Clone();
@@ -867,7 +876,7 @@ class FEIRExprAddrofFunc : public FEIRExpr {
       : FEIRExpr(FEIRNodeKind::kExprAddrofFunc,
                  FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
         funcAddr(addr) {}
-  ~FEIRExprAddrofFunc() = default;
+  ~FEIRExprAddrofFunc() override = default;
 
   const std::string &GetFuncAddr() const {
     return funcAddr;
@@ -891,7 +900,7 @@ class FEIRExprAddrofArray : public FEIRExpr {
  public:
   FEIRExprAddrofArray(UniqueFEIRType argTypeNativeArray, UniqueFEIRExpr argExprArray, const std::string &argArrayName,
                       std::list<UniqueFEIRExpr> &argExprIndexs);
-  ~FEIRExprAddrofArray() = default;
+  ~FEIRExprAddrofArray() override = default;
 
   void SetIndexsExprs(std::list<UniqueFEIRExpr> &exprs) {
     exprIndexs.clear();
@@ -948,7 +957,7 @@ class FEIRExprUnary : public FEIRExpr {
  public:
   FEIRExprUnary(Opcode argOp, std::unique_ptr<FEIRExpr> argOpnd);
   FEIRExprUnary(std::unique_ptr<FEIRType> argType, Opcode argOp, std::unique_ptr<FEIRExpr> argOpnd);
-  ~FEIRExprUnary() = default;
+  ~FEIRExprUnary() override = default;
   void SetOpnd(std::unique_ptr<FEIRExpr> argOpnd);
   const UniqueFEIRExpr &GetOpnd() const;
   static std::map<Opcode, bool> InitMapOpNestableForExprUnary();
@@ -983,7 +992,7 @@ class FEIRExprTypeCvt : public FEIRExprUnary {
  public:
   FEIRExprTypeCvt(Opcode argOp, std::unique_ptr<FEIRExpr> argOpnd);
   FEIRExprTypeCvt(std::unique_ptr<FEIRType> exprType, Opcode argOp, std::unique_ptr<FEIRExpr> argOpnd);
-  ~FEIRExprTypeCvt() = default;
+  ~FEIRExprTypeCvt() override = default;
   static std::map<Opcode, bool> InitMapOpNestableForTypeCvt();
   static Opcode ChooseOpcodeByFromVarAndToVar(const FEIRVar &fromVar, const FEIRVar &toVar);
 
@@ -1025,7 +1034,7 @@ class FEIRExprExtractBits : public FEIRExprUnary {
   FEIRExprExtractBits(Opcode argOp, PrimType argPrimType, uint8 argBitOffset, uint8 argBitSize,
                       std::unique_ptr<FEIRExpr> argOpnd);
   FEIRExprExtractBits(Opcode argOp, PrimType argPrimType, std::unique_ptr<FEIRExpr> argOpnd);
-  ~FEIRExprExtractBits() = default;
+  ~FEIRExprExtractBits() override = default;
   static std::map<Opcode, bool> InitMapOpNestableForExtractBits();
   void SetBitOffset(uint8 offset) {
     bitOffset = offset;
@@ -1118,7 +1127,7 @@ class FEIRExprBinary : public FEIRExpr {
   FEIRExprBinary(Opcode argOp, std::unique_ptr<FEIRExpr> argOpnd0, std::unique_ptr<FEIRExpr> argOpnd1);
   FEIRExprBinary(std::unique_ptr<FEIRType> exprType, Opcode argOp, std::unique_ptr<FEIRExpr> argOpnd0,
                  std::unique_ptr<FEIRExpr> argOpnd1);
-  ~FEIRExprBinary() = default;
+  ~FEIRExprBinary() override = default;
   void SetOpnd0(std::unique_ptr<FEIRExpr> argOpnd);
   void SetOpnd1(std::unique_ptr<FEIRExpr> argOpnd);
   const std::unique_ptr<FEIRExpr> &GetOpnd0() const;
@@ -1168,7 +1177,7 @@ class FEIRExprTernary : public FEIRExpr {
                   std::unique_ptr<FEIRExpr> argOpnd2);
   FEIRExprTernary(Opcode argOp, std::unique_ptr<FEIRType> argType, std::unique_ptr<FEIRExpr> argOpnd0,
                   std::unique_ptr<FEIRExpr> argOpnd1, std::unique_ptr<FEIRExpr> argOpnd2);
-  ~FEIRExprTernary() = default;
+  ~FEIRExprTernary() override = default;
   void SetOpnd(std::unique_ptr<FEIRExpr> argOpnd, uint32 idx);
 
  protected:
@@ -1199,7 +1208,7 @@ class FEIRExprTernary : public FEIRExpr {
 class FEIRExprNary : public FEIRExpr {
  public:
   explicit FEIRExprNary(Opcode argOp);
-  virtual ~FEIRExprNary() = default;
+  ~FEIRExprNary() override = default;
   void AddOpnd(std::unique_ptr<FEIRExpr> argOpnd);
   void AddOpnds(const std::vector<std::unique_ptr<FEIRExpr>> &argOpnds);
   void ResetOpnd();
@@ -1231,7 +1240,7 @@ class FEIRExprNary : public FEIRExpr {
 class FEIRExprArray : public FEIRExprNary {
  public:
   FEIRExprArray(Opcode argOp, std::unique_ptr<FEIRExpr> argArray, std::unique_ptr<FEIRExpr> argIndex);
-  ~FEIRExprArray() = default;
+  ~FEIRExprArray() override = default;
   void SetOpndArray(std::unique_ptr<FEIRExpr> opndArray);
   void SetOpndIndex(std::unique_ptr<FEIRExpr> opndIndex);
 
@@ -1257,7 +1266,7 @@ class FEIRExprIntrinsicop : public FEIRExprNary {
   FEIRExprIntrinsicop(std::unique_ptr<FEIRType> exprType, MIRIntrinsicID argIntrinsicID,
                       std::unique_ptr<FEIRType> argParamType,
                       const std::vector<std::unique_ptr<FEIRExpr>> &argOpnds);
-  ~FEIRExprIntrinsicop() = default;
+  ~FEIRExprIntrinsicop() override = default;
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
@@ -1285,7 +1294,7 @@ class FEIRExprIntrinsicopForC : public FEIRExprNary {
  public:
   FEIRExprIntrinsicopForC(std::unique_ptr<FEIRType> exprType, MIRIntrinsicID argIntrinsicID,
                           const std::vector<std::unique_ptr<FEIRExpr>> &argOpnds);
-  ~FEIRExprIntrinsicopForC() = default;
+  ~FEIRExprIntrinsicopForC() override = default;
 
   MIRIntrinsicID GetIntrinsicID() const {
     return intrinsicID;
@@ -1306,7 +1315,7 @@ class FEIRExprIntrinsicopForC : public FEIRExprNary {
 class FEIRExprJavaMerge : public FEIRExprNary {
  public:
   FEIRExprJavaMerge(std::unique_ptr<FEIRType> mergedTypeArg, const std::vector<std::unique_ptr<FEIRExpr>> &argOpnds);
-  ~FEIRExprJavaMerge() = default;
+  ~FEIRExprJavaMerge() override = default;
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
@@ -1321,7 +1330,7 @@ class FEIRExprJavaNewInstance : public FEIRExpr {
   explicit FEIRExprJavaNewInstance(UniqueFEIRType argType);
   FEIRExprJavaNewInstance(UniqueFEIRType argType, uint32 argTypeID);
   FEIRExprJavaNewInstance(UniqueFEIRType argType, uint32 argTypeID, bool argIsRcPermanent);
-  ~FEIRExprJavaNewInstance() = default;
+  ~FEIRExprJavaNewInstance() override = default;
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
@@ -1339,7 +1348,7 @@ class FEIRExprJavaNewArray : public FEIRExpr {
   FEIRExprJavaNewArray(UniqueFEIRType argArrayType, UniqueFEIRExpr argExprSize, uint32 argTypeID);
   FEIRExprJavaNewArray(UniqueFEIRType argArrayType, UniqueFEIRExpr argExprSize, uint32 argTypeID,
                        bool argIsRcPermanent);
-  ~FEIRExprJavaNewArray() = default;
+  ~FEIRExprJavaNewArray() override = default;
   void SetArrayType(UniqueFEIRType argArrayType) {
     CHECK_NULL_FATAL(argArrayType);
     arrayType = std::move(argArrayType);
@@ -1369,7 +1378,7 @@ class FEIRExprJavaNewArray : public FEIRExpr {
 class FEIRExprJavaArrayLength : public FEIRExpr {
  public:
   explicit FEIRExprJavaArrayLength(UniqueFEIRExpr argExprArray);
-  ~FEIRExprJavaArrayLength() = default;
+  ~FEIRExprJavaArrayLength() override = default;
   void SetExprArray(UniqueFEIRExpr argExprArray) {
     CHECK_NULL_FATAL(argExprArray);
     exprArray = std::move(argExprArray);
@@ -1390,7 +1399,7 @@ class FEIRExprJavaArrayLength : public FEIRExpr {
 class FEIRExprArrayLoad : public FEIRExpr {
  public:
   FEIRExprArrayLoad(UniqueFEIRExpr argExprArray, UniqueFEIRExpr argExprIndex, UniqueFEIRType argTypeArray);
-  ~FEIRExprArrayLoad() = default;
+  ~FEIRExprArrayLoad() override = default;
   const UniqueFEIRType GetElemType() const {
     UniqueFEIRType typeElem = typeArray->Clone();
     (void)typeElem->ArrayDecrDim();
@@ -1424,7 +1433,9 @@ class FEIRExprArrayLoad : public FEIRExpr {
 class FEIRExprCStyleCast : public FEIRExpr {
  public:
   FEIRExprCStyleCast(MIRType *src, MIRType *dest, UniqueFEIRExpr sub, bool isArr2Pty);
-  ~FEIRExprCStyleCast() = default;
+  ~FEIRExprCStyleCast() override {
+    destType = nullptr;
+  }
   void SetArray2Pointer(bool isArr2Ptr) {
     isArray2Pointer = isArr2Ptr;
   }
@@ -1488,7 +1499,9 @@ inline bool IsReturnAtomicOp(ASTAtomicOp atomicOp) {
 class FEIRExprAtomic : public FEIRExpr {
  public:
   FEIRExprAtomic(MIRType *ty, MIRType *ref, UniqueFEIRExpr obj, ASTAtomicOp atomOp);
-  ~FEIRExprAtomic() = default;
+  ~FEIRExprAtomic() override {
+    refType = nullptr;
+  }
 
   void SetVal1Type(MIRType *ty) {
     val1Type = ty;
@@ -1525,7 +1538,7 @@ class FEIRExprAtomic : public FEIRExpr {
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
-  TyIdx GetTyIdx(MIRBuilder &mirBuilder) const;
+  TyIdx GetTyIdx() const;
 
  private:
   MIRType *mirType = nullptr;
@@ -1547,7 +1560,7 @@ class FEIRExprAtomic : public FEIRExpr {
 class FEIRStmtNary : public FEIRStmt {
  public:
   FEIRStmtNary(Opcode opIn, std::list<std::unique_ptr<FEIRExpr>> argExprsIn);
-  virtual ~FEIRStmtNary() = default;
+  ~FEIRStmtNary() override = default;
 
   void SetOP(Opcode opIn) {
     op = opIn;
@@ -1572,7 +1585,7 @@ class FEIRStmtNary : public FEIRStmt {
 class FEIRStmtAssign : public FEIRStmt {
  public:
   FEIRStmtAssign(FEIRNodeKind argKind, std::unique_ptr<FEIRVar> argVar);
-  ~FEIRStmtAssign() = default;
+  ~FEIRStmtAssign() override = default;
   FEIRVar *GetVar() const {
     return var.get();
   }
@@ -1625,7 +1638,7 @@ class FEIRStmtAssign : public FEIRStmt {
 class FEIRStmtDAssign : public FEIRStmtAssign {
  public:
   FEIRStmtDAssign(std::unique_ptr<FEIRVar> argVar, std::unique_ptr<FEIRExpr> argExpr, int32 argFieldID = 0);
-  ~FEIRStmtDAssign() = default;
+  ~FEIRStmtDAssign() override = default;
   FEIRExpr *GetExpr() const {
     return expr.get();
   }
@@ -1660,7 +1673,7 @@ class FEIRStmtIAssign : public FEIRStmt {
         addrExpr(std::move(argAddrExpr)),
         baseExpr(std::move(argBaseExpr)),
         fieldID(id) {}
-  ~FEIRStmtIAssign() = default;
+  ~FEIRStmtIAssign() override = default;
 
  protected:
   std::list<StmtNode *> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -1689,7 +1702,7 @@ class FEIRStmtJavaTypeCheck : public FEIRStmtAssign {
                         std::unique_ptr<FEIRType> argType, CheckKind argCheckKind);
   FEIRStmtJavaTypeCheck(std::unique_ptr<FEIRVar> argVar, std::unique_ptr<FEIRExpr> argExpr,
                         std::unique_ptr<FEIRType> argType, CheckKind argCheckKind, uint32 argTypeID);
-  ~FEIRStmtJavaTypeCheck() = default;
+  ~FEIRStmtJavaTypeCheck() override = default;
 
  protected:
   std::string DumpDotStringImpl() const override;
@@ -1706,7 +1719,7 @@ class FEIRStmtJavaTypeCheck : public FEIRStmtAssign {
 class FEIRStmtJavaConstClass : public FEIRStmtAssign {
  public:
   FEIRStmtJavaConstClass(std::unique_ptr<FEIRVar> argVar, std::unique_ptr<FEIRType> argType);
-  ~FEIRStmtJavaConstClass() = default;
+  ~FEIRStmtJavaConstClass() override = default;
 
  protected:
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
@@ -1719,7 +1732,7 @@ class FEIRStmtJavaConstString : public FEIRStmtAssign {
  public:
   FEIRStmtJavaConstString(std::unique_ptr<FEIRVar> argVar, const std::string &argStrVal,
                           uint32 argFileIdx, uint32 argStringID);
-  ~FEIRStmtJavaConstString() = default;
+  ~FEIRStmtJavaConstString() override = default;
 
  protected:
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
@@ -1736,7 +1749,9 @@ class FEIRStmtJavaFillArrayData : public FEIRStmtAssign {
  public:
   FEIRStmtJavaFillArrayData(std::unique_ptr<FEIRExpr> arrayExprIn, const int8 *arrayDataIn,
                             uint32 sizeIn, const std::string &arrayNameIn);
-  ~FEIRStmtJavaFillArrayData() = default;
+  ~FEIRStmtJavaFillArrayData() override {
+    arrayData = nullptr;
+  }
 
  protected:
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
@@ -1760,7 +1775,7 @@ class FEIRStmtJavaMultiANewArray : public FEIRStmtAssign {
  public:
   FEIRStmtJavaMultiANewArray(std::unique_ptr<FEIRVar> argVar, std::unique_ptr<FEIRType> argElemType,
                              std::unique_ptr<FEIRType> argArrayType);
-  ~FEIRStmtJavaMultiANewArray() = default;
+  ~FEIRStmtJavaMultiANewArray() override = default;
   void AddVarSize(std::unique_ptr<FEIRVar> argVarSize);
   void AddVarSizeRev(std::unique_ptr<FEIRVar> argVarSize);
   void SetArrayType(std::unique_ptr<FEIRType> argArrayType) {
@@ -1793,7 +1808,7 @@ class FEIRStmtUseOnly : public FEIRStmt {
  public:
   FEIRStmtUseOnly(FEIRNodeKind argKind, Opcode argOp, std::unique_ptr<FEIRExpr> argExpr);
   FEIRStmtUseOnly(Opcode argOp, std::unique_ptr<FEIRExpr> argExpr);
-  virtual ~FEIRStmtUseOnly() = default;
+  ~FEIRStmtUseOnly() override = default;
 
   const std::unique_ptr<FEIRExpr> &GetExpr() const {
     return expr;
@@ -1848,7 +1863,7 @@ class FEIRStmtAssertNonnull : public FEIRStmtUseOnly {
   FEIRStmtAssertNonnull(Opcode argOp, std::unique_ptr<FEIRExpr> argExpr)
       : FEIRStmtUseOnly(argOp, std::move(argExpr)) {}
 
-  ~FEIRStmtAssertNonnull() = default;
+  ~FEIRStmtAssertNonnull() override = default;
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -1861,7 +1876,7 @@ class FEIRStmtCallAssertNonnull : public FEIRStmtUseOnly, public FEIRStmtSafetyC
                             size_t paramIndex)
       : FEIRStmtUseOnly(argOp, std::move(argExpr)), FEIRStmtSafetyCallAssert(funcName, paramIndex) {}
 
-  ~FEIRStmtCallAssertNonnull() = default;
+  ~FEIRStmtCallAssertNonnull() override = default;
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -1874,7 +1889,7 @@ class FEIRStmtCallAssertBoundary : public FEIRStmtNary, public FEIRStmtSafetyCal
                              size_t paramIndex)
       : FEIRStmtNary(opIn, std::move(argExprsIn)), FEIRStmtSafetyCallAssert(funcName, paramIndex) {}
 
-  ~FEIRStmtCallAssertBoundary() = default;
+  ~FEIRStmtCallAssertBoundary() override = default;
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -1885,7 +1900,7 @@ class FEIRStmtAssertBoundary : public FEIRStmtNary {
  public:
   FEIRStmtAssertBoundary(Opcode opIn,
       std::list<std::unique_ptr<FEIRExpr>> argExprsIn) : FEIRStmtNary(opIn, std::move(argExprsIn)) {}
-  ~FEIRStmtAssertBoundary() = default;
+  ~FEIRStmtAssertBoundary() override = default;
 
   void SetIsComputable(bool flag) {
     isComputable = flag;
@@ -1906,7 +1921,7 @@ class FEIRStmtAssertBoundary : public FEIRStmtNary {
 class FEIRStmtReturn : public FEIRStmtUseOnly {
  public:
   explicit FEIRStmtReturn(std::unique_ptr<FEIRExpr> argExpr);
-  ~FEIRStmtReturn() = default;
+  ~FEIRStmtReturn() override = default;
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -1919,7 +1934,7 @@ class FEIRStmtReturn : public FEIRStmtUseOnly {
 class FEIRStmtPesudoLabel : public FEIRStmt {
  public:
   explicit FEIRStmtPesudoLabel(uint32 argLabelIdx);
-  ~FEIRStmtPesudoLabel() = default;
+  ~FEIRStmtPesudoLabel() override = default;
   void GenerateLabelIdx(const MIRBuilder &mirBuilder);
 
   uint32 GetLabelIdx() const {
@@ -1946,7 +1961,7 @@ class FEIRStmtPesudoLabel2 : public FEIRStmt {
   FEIRStmtPesudoLabel2(uint32 qIdx0, uint32 qIdx1)
       : FEIRStmt(FEIRNodeKind::kStmtPesudoLabel), labelIdxOuter(qIdx0), labelIdxInner(qIdx1) {}
 
-  ~FEIRStmtPesudoLabel2() = default;
+  ~FEIRStmtPesudoLabel2() override = default;
   static LabelIdx GenMirLabelIdx(const MIRBuilder &mirBuilder, uint32 qIdx0, uint32 qIdx1);
   std::pair<uint32, uint32> GetLabelIdx() const;
   uint32 GetPos() const {
@@ -2004,7 +2019,9 @@ class FEIRStmtGoto : public FEIRStmt {
 class FEIRStmtGoto2 : public FEIRStmt {
  public:
   FEIRStmtGoto2(uint32 qIdx0, uint32 qIdx1);
-  virtual ~FEIRStmtGoto2() = default;
+  ~FEIRStmtGoto2() override {
+    stmtTarget = nullptr;
+  }
   std::pair<uint32, uint32> GetLabelIdx() const;
   uint32 GetTarget() const {
     return labelIdxInner;
@@ -2039,7 +2056,7 @@ class FEIRStmtGoto2 : public FEIRStmt {
 class FEIRStmtGotoForC : public FEIRStmt {
  public:
   explicit FEIRStmtGotoForC(const std::string &name);
-  virtual ~FEIRStmtGotoForC() = default;
+  ~FEIRStmtGotoForC() override = default;
   void SetLabelName(const std::string &name) {
     labelName = name;
   }
@@ -2075,7 +2092,7 @@ class FEIRStmtGotoForC : public FEIRStmt {
 class FEIRStmtIGoto : public FEIRStmt {
  public:
   explicit FEIRStmtIGoto(UniqueFEIRExpr expr);
-  virtual ~FEIRStmtIGoto() = default;
+  ~FEIRStmtIGoto() override = default;
 
  protected:
   bool IsFallThroughImpl() const override {
@@ -2096,7 +2113,7 @@ class FEIRStmtCondGotoForC : public FEIRStmt {
  public:
   explicit FEIRStmtCondGotoForC(UniqueFEIRExpr argExpr, Opcode op, const std::string &name)
       : FEIRStmt(FEIRNodeKind::kStmtCondGoto), expr(std::move(argExpr)), opCode(op), labelName(name) {}
-  virtual ~FEIRStmtCondGotoForC() = default;
+  ~FEIRStmtCondGotoForC() override = default;
   void SetLabelName(const std::string &name) {
     labelName = name;
   }
@@ -2129,7 +2146,7 @@ class FEIRStmtCondGotoForC : public FEIRStmt {
 class FEIRStmtCondGoto : public FEIRStmtGoto {
  public:
   FEIRStmtCondGoto(Opcode argOp, uint32 argLabelIdx, UniqueFEIRExpr argExpr);
-  ~FEIRStmtCondGoto() = default;
+  ~FEIRStmtCondGoto() override = default;
   void SetOpcode(Opcode argOp) {
     op = argOp;
   }
@@ -2166,7 +2183,7 @@ class FEIRStmtCondGoto : public FEIRStmtGoto {
 class FEIRStmtCondGoto2 : public FEIRStmtGoto2 {
  public:
   FEIRStmtCondGoto2(Opcode argOp, uint32 qIdx0, uint32 qIdx1, UniqueFEIRExpr argExpr);
-  ~FEIRStmtCondGoto2() = default;
+  ~FEIRStmtCondGoto2() override = default;
 
  protected:
   bool IsFallThroughImpl() const override {
@@ -2309,7 +2326,7 @@ class FEIRStmtSwitch2 : public FEIRStmt {
 class FEIRStmtSwitchForC : public FEIRStmt {
  public:
   FEIRStmtSwitchForC(UniqueFEIRExpr argCondExpr, bool argHasDefault);
-  ~FEIRStmtSwitchForC() = default;
+  ~FEIRStmtSwitchForC() override = default;
   void AddFeirStmt(UniqueFEIRStmt stmt) {
     subStmts.emplace_back(std::move(stmt));
   }
@@ -2345,7 +2362,7 @@ class FEIRStmtCaseForC : public FEIRStmt {
  public:
   explicit FEIRStmtCaseForC(int64 label);
   void AddCaseTag2CaseVec(int64 lCaseTag, int64 rCaseTag);
-  ~FEIRStmtCaseForC() = default;
+  ~FEIRStmtCaseForC() override = default;
   void AddFeirStmt(UniqueFEIRStmt stmt) {
     subStmts.emplace_back(std::move(stmt));
   }
@@ -2368,7 +2385,7 @@ class FEIRStmtCaseForC : public FEIRStmt {
 class FEIRStmtDefaultForC : public FEIRStmt {
  public:
   explicit FEIRStmtDefaultForC();
-  ~FEIRStmtDefaultForC() = default;
+  ~FEIRStmtDefaultForC() override = default;
   void AddFeirStmt(UniqueFEIRStmt stmt) {
     subStmts.emplace_back(std::move(stmt));
   }
@@ -2401,7 +2418,7 @@ class FEIRStmtArrayStore : public FEIRStmt {
                      UniqueFEIRType argTypeArray, UniqueFEIRExpr argExprStruct, UniqueFEIRType argTypeStruct,
                      const std::string &argArrayName);
 
-  ~FEIRStmtArrayStore() = default;
+  ~FEIRStmtArrayStore() override = default;
 
   void SetIndexsExprs(std::list<UniqueFEIRExpr> &exprs) {
     exprIndexs.clear();
@@ -2442,7 +2459,7 @@ class FEIRStmtFieldStore : public FEIRStmt {
                      bool argIsStatic);
   FEIRStmtFieldStore(UniqueFEIRVar argVarObj, UniqueFEIRVar argVarField, FEStructFieldInfo &argFieldInfo,
                      bool argIsStatic, int32 argDexFileHashCode);
-  ~FEIRStmtFieldStore() = default;
+  ~FEIRStmtFieldStore() override = default;
 
  protected:
   std::string DumpDotStringImpl() const override;
@@ -2473,7 +2490,7 @@ class FEIRStmtFieldLoad : public FEIRStmtAssign {
                     bool argIsStatic);
   FEIRStmtFieldLoad(UniqueFEIRVar argVarObj, UniqueFEIRVar argVarField, FEStructFieldInfo &argFieldInfo,
                     bool argIsStatic, int32 argDexFileHashCode);
-  ~FEIRStmtFieldLoad() = default;
+  ~FEIRStmtFieldLoad() override = default;
 
  protected:
   std::string DumpDotStringImpl() const override;
@@ -2500,7 +2517,7 @@ class FEIRStmtFieldLoad : public FEIRStmtAssign {
 class FEIRStmtCallAssign : public FEIRStmtAssign {
  public:
   FEIRStmtCallAssign(FEStructMethodInfo &argMethodInfo, Opcode argMIROp, UniqueFEIRVar argVarRet, bool argIsStatic);
-  ~FEIRStmtCallAssign() = default;
+  ~FEIRStmtCallAssign() override = default;
 
   static std::map<Opcode, Opcode> InitMapOpAssignToOp();
   static std::map<Opcode, Opcode> InitMapOpToOpAssign();
@@ -2528,7 +2545,7 @@ class FEIRStmtCallAssign : public FEIRStmtAssign {
 class FEIRStmtICallAssign : public FEIRStmtAssign {
  public:
   FEIRStmtICallAssign();
-  ~FEIRStmtICallAssign() = default;
+  ~FEIRStmtICallAssign() override = default;
 
   void SetPrototype(UniqueFEIRType type) {
     prototype = std::move(type);
@@ -2560,7 +2577,7 @@ class FEIRStmtIntrinsicCallAssign : public FEIRStmtAssign {
                               bool isInStaticFuncIn);
   FEIRStmtIntrinsicCallAssign(MIRIntrinsicID id, UniqueFEIRType typeIn, UniqueFEIRVar argVarRet,
                               uint32 typeIDIn);
-  ~FEIRStmtIntrinsicCallAssign() = default;
+  ~FEIRStmtIntrinsicCallAssign() override = default;
 
  protected:
   std::string DumpDotStringImpl() const override;
@@ -2569,7 +2586,7 @@ class FEIRStmtIntrinsicCallAssign : public FEIRStmtAssign {
 
  private:
   void ConstructArgsForInvokePolyMorphic(MIRBuilder &mirBuilder, MapleVector<BaseNode*> &intrnCallargs) const;
-  std::list<StmtNode*> GenMIRStmtsForIntrnC(MIRBuilder &mirBuilder, TyIdx tyIdx = TyIdx(0)) const;
+  std::list<StmtNode*> GenMIRStmtsForIntrnC(MIRBuilder &mirBuilder, TyIdx returnTyIdx = TyIdx(0)) const;
   std::list<StmtNode*> GenMIRStmtsForFillNewArray(MIRBuilder &mirBuilder) const;
   std::list<StmtNode*> GenMIRStmtsForInvokePolyMorphic(MIRBuilder &mirBuilder) const;
   std::list<StmtNode*> GenMIRStmtsForClintCheck(MIRBuilder &mirBuilder) const;
@@ -2590,7 +2607,7 @@ class FEIRStmtIntrinsicCallAssign : public FEIRStmtAssign {
 class FEIRStmtPesudoLOC : public FEIRStmt {
  public:
   FEIRStmtPesudoLOC(uint32 argSrcFileIdx, uint32 argLineNumber);
-  ~FEIRStmtPesudoLOC() = default;
+  ~FEIRStmtPesudoLOC() override = default;
 
  protected:
   std::string DumpDotStringImpl() const override;
@@ -2601,7 +2618,7 @@ class FEIRStmtPesudoLOC : public FEIRStmt {
 class FEIRStmtPesudoJavaTry : public FEIRStmt {
  public:
   FEIRStmtPesudoJavaTry();
-  ~FEIRStmtPesudoJavaTry() = default;
+  ~FEIRStmtPesudoJavaTry() override = default;
   void AddCatchLabelIdx(uint32 labelIdx) {
     catchLabelIdxVec.push_back(labelIdx);
   }
@@ -2631,7 +2648,7 @@ class FEIRStmtPesudoJavaTry : public FEIRStmt {
 class FEIRStmtPesudoJavaTry2 : public FEIRStmt {
  public:
   explicit FEIRStmtPesudoJavaTry2(uint32 outerIdxIn);
-  ~FEIRStmtPesudoJavaTry2() = default;
+  ~FEIRStmtPesudoJavaTry2() override = default;
   void AddCatchLabelIdx(uint32 labelIdx) {
     catchLabelIdxVec.push_back(labelIdx);
   }
@@ -2662,7 +2679,7 @@ class FEIRStmtPesudoJavaTry2 : public FEIRStmt {
 class FEIRStmtPesudoEndTry : public FEIRStmt {
  public:
   FEIRStmtPesudoEndTry();
-  ~FEIRStmtPesudoEndTry() = default;
+  ~FEIRStmtPesudoEndTry() override = default;
 
  protected:
   std::string DumpDotStringImpl() const override;
@@ -2673,7 +2690,7 @@ class FEIRStmtPesudoEndTry : public FEIRStmt {
 class FEIRStmtPesudoCatch : public FEIRStmtPesudoLabel {
  public:
   explicit FEIRStmtPesudoCatch(uint32 argLabelIdx);
-  ~FEIRStmtPesudoCatch() = default;
+  ~FEIRStmtPesudoCatch() override = default;
   void AddCatchTypeNameIdx(GStrIdx typeNameIdx);
 
  protected:
@@ -2688,7 +2705,7 @@ class FEIRStmtPesudoCatch : public FEIRStmtPesudoLabel {
 class FEIRStmtPesudoCatch2 : public FEIRStmtPesudoLabel2 {
  public:
   explicit FEIRStmtPesudoCatch2(uint32 qIdx0, uint32 qIdx1);
-  ~FEIRStmtPesudoCatch2() = default;
+  ~FEIRStmtPesudoCatch2() override = default;
   void AddCatchTypeNameIdx(GStrIdx typeNameIdx);
 
  protected:
@@ -2702,7 +2719,7 @@ class FEIRStmtPesudoCatch2 : public FEIRStmtPesudoLabel2 {
 class FEIRStmtPesudoSafe : public FEIRStmt {
  public:
   explicit FEIRStmtPesudoSafe(bool isEnd);
-  ~FEIRStmtPesudoSafe() = default;
+  ~FEIRStmtPesudoSafe() override = default;
 
  protected:
   std::string DumpDotStringImpl() const override;
@@ -2713,7 +2730,7 @@ class FEIRStmtPesudoSafe : public FEIRStmt {
 class FEIRStmtPesudoUnsafe : public FEIRStmt {
  public:
   explicit FEIRStmtPesudoUnsafe(bool isEnd);
-  ~FEIRStmtPesudoUnsafe() = default;
+  ~FEIRStmtPesudoUnsafe() override = default;
 
  protected:
   std::string DumpDotStringImpl() const override;
@@ -2726,7 +2743,7 @@ class FEIRStmtPesudoComment : public FEIRStmt {
  public:
   explicit FEIRStmtPesudoComment(FEIRNodeKind argKind = kStmtPesudoComment);
   explicit FEIRStmtPesudoComment(const std::string &argContent);
-  ~FEIRStmtPesudoComment() = default;
+  ~FEIRStmtPesudoComment() override = default;
   void SetContent(const std::string &argContent) {
     content = argContent;
   }
@@ -2742,7 +2759,7 @@ class FEIRStmtPesudoComment : public FEIRStmt {
 class FEIRStmtPesudoCommentForInst : public FEIRStmtPesudoComment {
  public:
   FEIRStmtPesudoCommentForInst();
-  ~FEIRStmtPesudoCommentForInst() = default;
+  ~FEIRStmtPesudoCommentForInst() override = default;
   void SetFileIdx(uint32 argFileIdx) {
     fileIdx = argFileIdx;
   }
@@ -2773,7 +2790,7 @@ class FEIRStmtIf : public FEIRStmt {
   FEIRStmtIf(UniqueFEIRExpr argCondExpr,
              std::list<UniqueFEIRStmt> &argThenStmts,
              std::list<UniqueFEIRStmt> &argElseStmts);
-  ~FEIRStmtIf() = default;
+  ~FEIRStmtIf() override = default;
 
   void SetCondExpr(UniqueFEIRExpr argCondExpr) {
     CHECK_NULL_FATAL(argCondExpr);
@@ -2827,7 +2844,7 @@ class FEIRStmtDoWhile : public FEIRStmt {
         opcode(argOpcode),
         condExpr(std::move(argCondExpr)),
         bodyStmts(std::move(argBodyStmts)) {}
-  ~FEIRStmtDoWhile() = default;
+  ~FEIRStmtDoWhile() override = default;
 
   const std::list<UniqueFEIRStmt> &GetBodyStmts() const {
     return bodyStmts;
@@ -2858,7 +2875,7 @@ class FEIRStmtDoWhile : public FEIRStmt {
 class FEIRStmtBreak : public FEIRStmt {
  public:
   FEIRStmtBreak(): FEIRStmt(FEIRNodeKind::kStmtBreak) {}
-  ~FEIRStmtBreak() = default;
+  ~FEIRStmtBreak() override = default;
 
   void SetBreakLabelName(std::string name) {
     breakLabelName = std::move(name);
@@ -2878,7 +2895,7 @@ class FEIRStmtBreak : public FEIRStmt {
 class FEIRStmtContinue : public FEIRStmt {
  public:
   FEIRStmtContinue(): FEIRStmt(FEIRNodeKind::kStmtContinue) {}
-  ~FEIRStmtContinue() = default;
+  ~FEIRStmtContinue() override = default;
 
   void SetLabelName(std::string name) {
     labelName = std::move(name);
@@ -2897,7 +2914,7 @@ class FEIRStmtContinue : public FEIRStmt {
 class FEIRStmtLabel : public FEIRStmt {
  public:
   explicit FEIRStmtLabel(const std::string &name) : FEIRStmt(FEIRNodeKind::kStmtLabel), labelName(name) {}
-  ~FEIRStmtLabel() = default;
+  ~FEIRStmtLabel() override = default;
 
   const std::string &GetLabelName() const {
     return labelName;
@@ -2917,7 +2934,7 @@ class FEIRStmtLabel : public FEIRStmt {
 class FEIRStmtAtomic : public FEIRStmt {
  public:
   explicit FEIRStmtAtomic(UniqueFEIRExpr expr);
-  ~FEIRStmtAtomic() = default;
+  ~FEIRStmtAtomic() override = default;
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -2928,7 +2945,7 @@ class FEIRStmtGCCAsm : public FEIRStmt {
  public:
   FEIRStmtGCCAsm(const std::string &str, bool isGotoArg, bool isVolatileArg)
       : FEIRStmt(FEIRNodeKind::kStmtGCCAsm), asmStr(str), isGoto(isGotoArg), isVolatile(isVolatileArg) {}
-  ~FEIRStmtGCCAsm() = default;
+  ~FEIRStmtGCCAsm() override = default;
 
   void SetLabels(const std::vector<std::string> &labelsArg) {
     labels = labelsArg;

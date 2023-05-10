@@ -59,7 +59,7 @@ class AArch64Standardize : public Standardize {
 
   Operand *UpdateRegister(Operand &opnd, std::map<regno_t, regno_t> &regMap, bool allocate);
   void TraverseOperands(Insn *insn, std::map<regno_t, regno_t> &regMap, bool allocate);
-  Operand *GetInsnResult(Insn *insn);
+  Operand *GetInsnResult(Insn *insn) const;
   Insn *HandleTargetImm(Insn *insn, Insn *newInsn, uint32 idx, MOperator targetMop, uint8 order);
   void SelectTargetInsn(Insn *insn);
 };

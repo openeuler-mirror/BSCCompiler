@@ -196,8 +196,8 @@ class Klass {
     clinitMethod = m;
   }
 
-  MIRSymbol *GetClassInitBridge() const {
-    return classInitBridge;
+  MIRSymbol &GetClassInitBridge() const {
+    return *classInitBridge;
   }
 
   void SetClassInitBridge(MIRSymbol *s) {
@@ -335,7 +335,9 @@ class WKTypes {
 class KlassHierarchy : public AnalysisResult {
  public:
   KlassHierarchy(MIRModule *mirmodule, MemPool *memPool);
-  ~KlassHierarchy() override = default;
+  ~KlassHierarchy() override {
+    mirModule = nullptr;
+  }
 
   // Get a class. Return nullptr it does not exist.
   Klass *GetKlassFromStrIdx(GStrIdx strIdx) const;
@@ -369,8 +371,8 @@ class KlassHierarchy : public AnalysisResult {
     return topoWorkList;
   }
 
-  const MIRModule *GetModule() const {
-    return mirModule;
+  const MIRModule &GetModule() const {
+    return *mirModule;
   }
   static bool traceFlag;
  private:
@@ -386,7 +388,7 @@ class KlassHierarchy : public AnalysisResult {
   // Get a vector of child class and implemented class
   void GetChildKlasses(const Klass &klass, std::vector<Klass*> &childKlasses) const;
   void ExceptionFlagProp(Klass &klass);
-  Klass *AddClassFlag(const std::string &name, uint32 flag);
+  Klass *AddClassFlag(const std::string &name, uint32 flag) const;
   int GetFieldIDOffsetBetweenClasses(const Klass &super, const Klass &base) const;
   void TopologicalSortKlasses();
   void MarkClassFlags();

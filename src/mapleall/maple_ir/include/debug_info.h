@@ -24,7 +24,7 @@
 #include "mir_scope.h"
 #include "namemangler.h"
 #include "lexer.h"
-#include "Dwarf.h"
+#include "dwarf.h"
 
 namespace maple {
 // for more color code: http://ascii-table.com/ansi-escape-sequences.php
@@ -90,6 +90,13 @@ using DwOp = uint32;    // for DW_OP_*
 using DwAte = uint32;   // for DW_ATE_*
 using DwForm = uint32;  // for DW_FORM_*
 using DwCfa = uint32;   // for DW_CFA_*
+
+const char *GetDwTagName(unsigned n);
+const char *GetDwFormName(unsigned n);
+const char *GetDwAtName(unsigned n);
+const char *GetDwOpName(unsigned n);
+const char *GetDwAteName(unsigned n);
+DwAte GetAteFromPTY(PrimType pty);
 
 class DBGDieAttr;
 
@@ -341,7 +348,7 @@ class DBGDie {
   virtual ~DBGDie() {}
   void AddSubVec(DBGDie *die);
   void AddAttr(DBGDieAttr *attr);
-  void AddAttr(DwAt at, DwForm form, uint64 val, bool keep = true);
+  void AddAttr(DwAt at, DwForm form, uint64 val, bool keepFlag = true);
   void AddSimpLocAttr(DwAt at, DwForm form, DwOp op, uint64 val);
   void AddGlobalLocAttr(DwAt at, DwForm form, uint64 val);
   void AddFrmBaseAttr(DwAt at, DwForm form);
@@ -623,7 +630,7 @@ class DebugInfo {
   void ClearDebugInfo();
   void Dump(int indent);
 
-  DBGDie *GetDie(const MIRFunction *func);
+  DBGDie *GetFuncDie(const MIRFunction *func, bool isDeclDie = false);
   DBGDie *GetLocalDie(MIRFunction *func, GStrIdx strIdx);
   DBGDieAttr *CreateAttr(DwAt at, DwForm form, uint64 val) const;
 
@@ -697,7 +704,7 @@ class DebugInfo {
     return parentDieStack.size();
   }
 
-  void SetErrPos(uint32 lnum, uint32 cnum) {
+  void SetErrPos(uint32 lnum, uint32 cnum) const {
     compileMsg->SetErrPos(lnum, cnum);
   }
 
@@ -782,7 +789,7 @@ class DebugInfo {
   DBGDie *GetLocalDie(GStrIdx strIdx);
 
   LabelIdx GetLabelIdx(GStrIdx strIdx);
-  LabelIdx GetLabelIdx(MIRFunction *func, GStrIdx strIdx);
+  LabelIdx GetLabelIdx(MIRFunction *func, const GStrIdx &strIdx) const;
   void SetLabelIdx(const GStrIdx &strIdx, LabelIdx labIdx);
   void SetLabelIdx(MIRFunction *func, const GStrIdx &strIdx, LabelIdx labIdx);
   void InsertBaseTypeMap(const std::string &inputName, const std::string &outpuName, PrimType type);
@@ -814,12 +821,12 @@ class DebugInfo {
   DBGDie *CreateVarDie(MIRSymbol *sym);
   DBGDie *CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx); // use alt name
   DBGDie *CreateFormalParaDie(MIRFunction *func, uint32 idx, bool isDef);
-  DBGDie *CreateFieldDie(maple::FieldPair pair);
+  DBGDie *CreateFieldDie(const maple::FieldPair &pair);
   DBGDie *CreateBitfieldDie(const MIRBitFieldType *type, const GStrIdx &sidx, uint32 &prevBits);
   void CreateStructTypeFieldsDies(const MIRStructType *structType, DBGDie *die);
   void CreateStructTypeParentFieldsDies(const MIRStructType *structType, DBGDie *die);
   void CreateStructTypeMethodsDies(const MIRStructType *structType, DBGDie *die);
-  DBGDie *CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *structType, bool update = false);
+  DBGDie *CreateStructTypeDie(const GStrIdx &strIdx, const MIRStructType *structType, bool update = false);
   DBGDie *CreateClassTypeDie(const GStrIdx &strIdx, const MIRClassType *classType);
   DBGDie *CreateInterfaceTypeDie(const GStrIdx &strIdx, const MIRInterfaceType *interfaceType);
   DBGDie *CreatePointedFuncTypeDie(MIRFuncType *fType);
@@ -833,21 +840,21 @@ class DebugInfo {
   DBGDie *GetOrCreateTypeDie(TyIdx tyidx);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
   DBGDie *GetOrCreateTypeDieWithAttr(AttrKind attr, DBGDie *typeDie);
-  DBGDie *GetOrCreateTypeDieWithAttr(TypeAttrs attrs, DBGDie *typeDie);
+  DBGDie *GetOrCreateTypeDieWithAttr(const TypeAttrs &attrs, DBGDie *typeDie);
   DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *ptrType);
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *arrayType);
   DBGDie *GetOrCreateStructTypeDie(const MIRType *type);
   DBGDie *GetOrCreateTypedefDie(GStrIdx stridx, TyIdx tyidx);
   DBGDie *GetOrCreateEnumTypeDie(uint32 idx);
-  DBGDie *GetOrCreateEnumTypeDie(MIREnum *mirEnum);
+  DBGDie *GetOrCreateEnumTypeDie(const MIREnum *mirEnum);
   DBGDie *GetOrCreateTypeByNameDie(const MIRType &type);
 
-  GStrIdx GetPrimTypeCName(PrimType pty);
+  GStrIdx GetPrimTypeCName(PrimType pty) const;
 
   void AddScopeDie(MIRScope *scope);
   DBGDie *GetAliasVarTypeDie(const MIRAliasVars &aliasVar, TyIdx tyidx);
-  void HandleTypeAlias(MIRScope *scope);
-  void AddAliasDies(MIRScope *scope, bool isLocal);
+  void HandleTypeAlias(MIRScope &scope);
+  void AddAliasDies(const MIRScope &scope, bool isLocal);
   void CollectScopePos(MIRFunction *func, MIRScope *scope);
 
   // Functions for calculating the size and offset of each DW_TAG_xxx and DW_AT_xxx

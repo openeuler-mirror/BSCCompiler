@@ -15,8 +15,31 @@
 #ifndef MAPLE_DRIVER_INCLUDE_FILE_UTILS_H
 #define MAPLE_DRIVER_INCLUDE_FILE_UTILS_H
 #include <string>
+#include "types_def.h"
+#include "mpl_logging.h"
 
 namespace maple {
+  enum class InputFileType {
+  kFileTypeNone,
+  kFileTypeClass,
+  kFileTypeJar,
+  kFileTypeAst,
+  kFileTypeCpp,
+  kFileTypeC,
+  kFileTypeDex,
+  kFileTypeMpl,
+  kFileTypeVtableImplMpl,
+  kFileTypeS,
+  kFileTypeObj,
+  kFileTypeBpl,
+  kFileTypeMeMpl,
+  kFileTypeMbc,
+  kFileTypeLmbc,
+  kFileTypeH,
+  kFileTypeI,
+  kFileTypeOast,
+};
+
 extern const std::string kFileSeperatorStr;
 extern const char kFileSeperatorChar;
 // Use char[] since getenv receives char* as parameter
@@ -25,6 +48,7 @@ constexpr char kClangPath[] = "BiShengC_Clang_Path";
 constexpr char kAsPath[] = "BiShengC_AS_Path";
 constexpr char kGccPath[] = "BiShengC_GCC_Path";
 constexpr char kLdLibPath[] = "LD_LIBRARY_PATH";
+constexpr char kGetOsVersion[] = "BiShengC_GET_OS_VERSION";
 
 class FileUtils {
  public:
@@ -46,18 +70,25 @@ class FileUtils {
   static bool IsFileExists(const std::string &filePath);
   static std::string AppendMapleRootIfNeeded(bool needRootPath, const std::string &path,
                                              const std::string &defaultRoot = "." + kFileSeperatorStr);
+  static InputFileType GetFileType(const std::string &filePath);
+  static InputFileType GetFileTypeByMagicNumber(const std::string &pathName);
+
   const std::string &GetTmpFolder() const {
     return tmpFolderPath;
   };
   static std::string GetOutPutDir();
-  bool DelTmpDir();
-  std::string GetTmpFolderPath();
+  bool DelTmpDir() const;
+  std::string GetTmpFolderPath() const;
  private:
   std::string tmpFolderPath;
   FileUtils() : tmpFolderPath(GetTmpFolderPath()) {}
   ~FileUtils() {
-    DelTmpDir();
+    if (!DelTmpDir()) {
+      maple::LogInfo::MapleLogger() << "DelTmpDir failed" << '\n';
+    };
   }
+  static const uint32 kMagicAST = 0x48435043;
+  static const uint32 kMagicELF = 0x464c457f;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_FILE_UTILS_H

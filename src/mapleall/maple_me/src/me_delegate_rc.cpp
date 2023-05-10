@@ -62,9 +62,10 @@ const std::set<maple::MIRIntrinsicID> canThrowIntrinsicsList {
     maple::INTRN_JAVA_THROW_ARITHMETIC,
     maple::INTRN_JAVA_THROW_CLASSCAST,
 };
-const std::set<std::string> whitelistFunc {
+const std::set<std::string> kWhiteListFunc {
 #include "rcwhitelist.def"
 };
+const size_t kMinIdxInVec = 2;
 }
 
 namespace maple {
@@ -313,7 +314,7 @@ RegMeExpr *DelegateRC::RHSTempDelegated(MeExpr &rhs, const MeStmt &useStmt) {
     return nullptr;
   }
   // The index number in originalStVector is bigger than two.
-  if ((func.GetHints() & kPlacementRCed) && ssaTab.GetVersionsIndicesSize(ost->GetIndex()) > 2) {
+  if ((func.GetHints() & kPlacementRCed) != 0 && ssaTab.GetVersionsIndicesSize(ost->GetIndex()) > kMinIdxInVec) {
     return nullptr;
   }
   if (rhsVar.GetDefBy() == kDefByMustDef) {
@@ -439,7 +440,7 @@ void DelegateRC::DelegateRCTemp(MeStmt &stmt) {
     }
     case OP_return: {
       std::string funcName = func.GetMirFunc()->GetName();
-      if (whitelistFunc.find(funcName) != whitelistFunc.end()) {
+      if (kWhiteListFunc.find(funcName) != kWhiteListFunc.end()) {
         break;
       }
       auto &retStmt = static_cast<RetMeStmt&>(stmt);
@@ -549,7 +550,7 @@ bool DelegateRC::CanOmitRC4LHSVar(const MeStmt &stmt, bool &onlyWithDecref) cons
       const OriginalSt *ost = theLhs->GetOst();
       if (!ost->IsLocal() || ost->IsFormal() ||
           // avoid multi-version vars because of it is hard to find the decrefreset.
-          ((func.GetHints() & kPlacementRCed) && ssaTab.GetVersionsIndicesSize(ost->GetIndex()) > 2)) {
+          ((func.GetHints() & kPlacementRCed) != 0 && ssaTab.GetVersionsIndicesSize(ost->GetIndex()) > kMinIdxInVec)) {
         return false;
       }
       if (ost->GetMIRSymbol()->IsInstrumented()) {
@@ -601,7 +602,8 @@ bool DelegateRC::CanOmitRC4LHSVar(const MeStmt &stmt, bool &onlyWithDecref) cons
         const OriginalSt *ost = theLhs->GetOst();
         if (!ost->IsLocal() || ost->IsFormal() ||
             // avoid multi-version vars because of it is hard to find the decrefreset.
-            ((func.GetHints() & kPlacementRCed) && ssaTab.GetVersionsIndicesSize(ost->GetIndex()) > 2)) {
+            ((func.GetHints() & kPlacementRCed) != 0 &&
+             ssaTab.GetVersionsIndicesSize(ost->GetIndex()) > kMinIdxInVec)) {
           return false;
         }
         if (verStCantDelegate[theLhs->GetVstIdx()]) {
@@ -678,8 +680,8 @@ void DelegateRC::RenameDelegatedRefVarUses(MeStmt &meStmt, MeExpr &meExpr) {
   }
   if (meExpr.GetMeOp() == kMeOpVar) {
     auto &varMeExpr = static_cast<VarMeExpr&>(meExpr);
-    auto it = refVar2RegMap.find(&varMeExpr);
-    if (it != refVar2RegMap.end()) {
+    const auto it = std::as_const(refVar2RegMap).find(&varMeExpr);
+    if (it != refVar2RegMap.cend()) {
       (void)irMap.ReplaceMeExprStmt(meStmt, varMeExpr, *it->second);
     }
   }
@@ -803,7 +805,7 @@ void DelegateRC::CleanUpDeadLocalRefVar(const std::set<OStIdx> &liveLocalrefvars
     }
     intrin->EraseOpnds(intrin->GetOpnds().begin() + nextPos, intrin->GetOpnds().end());
   }
-  if (func.GetHints() & kPlacementRCed) {  // delete decref if opnd not in livelocalrefvars
+  if ((func.GetHints() & kPlacementRCed) != 0) {  // delete decref if opnd not in livelocalrefvars
     auto eIt = cfg->valid_end();
     for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;

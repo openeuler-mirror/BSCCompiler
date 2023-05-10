@@ -81,6 +81,7 @@ set(src_libmplme
   src/me_toplevel_ssa.cpp
   src/me_ssa_tab.cpp
   src/me_ssa_update.cpp
+  src/me_sra.cpp
   src/me_stmt_fre.cpp
   src/me_stmt_pre.cpp
   src/me_store_pre.cpp
@@ -134,6 +135,7 @@ set(src_libmplme
   src/lmbc_memlayout.cpp
   src/lmbc_lower.cpp
   src/mc_ssa_pre.cpp
+  src/me_tailcall.cpp
 )
 
 set(src_libmplmewpo

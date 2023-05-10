@@ -2388,19 +2388,38 @@ FEIRExprConst::FEIRExprConst()
   value.u64 = 0;
 }
 
-FEIRExprConst::FEIRExprConst(int64 val, PrimType argType)
-    : FEIRExpr(FEIRNodeKind::kExprConst) {
+FEIRExprConst::FEIRExprConst(int64 val, PrimType argType) : FEIRExpr(FEIRNodeKind::kExprConst) {
   ASSERT(type != nullptr, "type is nullptr");
   type->SetPrimType(argType);
-  value.i64 = val;
+  if (IsInt128Ty(argType)) {
+    value.i128[0] = static_cast<uint64>(val);
+    value.i128[1] = val < 0 ? -1 : 0;
+  } else {
+    value.i64 = val;
+  }
   CheckRawValue2SetZero();
 }
 
-FEIRExprConst::FEIRExprConst(uint64 val, PrimType argType)
-    : FEIRExpr(FEIRNodeKind::kExprConst) {
+FEIRExprConst::FEIRExprConst(uint64 val, PrimType argType) : FEIRExpr(FEIRNodeKind::kExprConst) {
   ASSERT(type != nullptr, "type is nullptr");
   type->SetPrimType(argType);
-  value.u64 = val;
+  if (IsInt128Ty(argType)) {
+    value.i128[0] = val;
+    value.i128[1] = 0;
+  } else {
+    value.u64 = val;
+  }
+  CheckRawValue2SetZero();
+}
+
+FEIRExprConst::FEIRExprConst(const IntVal &val, PrimType argType) : FEIRExpr(FEIRNodeKind::kExprConst) {
+  ASSERT(type != nullptr, "type is nullptr");
+  type->SetPrimType(argType);
+  if (!IsInt128Ty(argType)) {
+    value.i64 = val.GetExtValue();
+  } else {
+    Int128Util::CopyInt128(value.i128, val.GetRawData());
+  }
   CheckRawValue2SetZero();
 }
 
@@ -2427,10 +2446,21 @@ FEIRExprConst::FEIRExprConst(double val)
   CheckRawValue2SetZero();
 }
 
+FEIRExprConst::FEIRExprConst(const uint64_t *val)
+    : FEIRExpr(FEIRNodeKind::kExprConst) {
+  ASSERT(type != nullptr, "type is nullptr");
+  type->SetPrimType(PTY_f128);
+  value.f128[0] = val[0];
+  value.f128[1] = val[1];
+  CheckRawValue2SetZero();
+}
+
 std::unique_ptr<FEIRExpr> FEIRExprConst::CloneImpl() const {
   std::unique_ptr<FEIRExpr> expr = std::make_unique<FEIRExprConst>();
   FEIRExprConst *exprConst = static_cast<FEIRExprConst*>(expr.get());
-  exprConst->value.u64 = value.u64;
+  constexpr size_t cpySize = sizeof(value);
+  errno_t err = memcpy_s(&exprConst->value, cpySize, &value, cpySize);
+  CHECK_FATAL(err == EOK, "memcpy_s failed");
   ASSERT(type != nullptr, "type is nullptr");
   exprConst->type->SetPrimType(type->GetPrimType());
   exprConst->CheckRawValue2SetZero();
@@ -2450,15 +2480,22 @@ BaseNode *FEIRExprConst::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
     case PTY_i16:
     case PTY_i32:
     case PTY_i64:
-    case PTY_i128:
-    case PTY_u128:
     case PTY_ref:
     case PTY_ptr:
       return mirBuilder.CreateIntConst(static_cast<uint64>(value.i64), primType);
+    case PTY_i128:
+    case PTY_u128:
+      return mirBuilder.CreateInt128Const(value.i128, primType);
     case PTY_f32:
       return mirBuilder.CreateFloatConst(value.f32);
     case PTY_f64:
       return mirBuilder.CreateDoubleConst(value.f64);
+    case PTY_f128: {
+      uint64 v[2];
+      errno_t err = memcpy_s(v, sizeof(v), value.f128, sizeof(long double));
+      CHECK_FATAL(err == EOK, "memcpy_s failed");
+      return mirBuilder.CreateFloat128Const(v);
+    }
     default:
       ERR(kLncErr, "unsupported const kind");
       return nullptr;
@@ -2471,8 +2508,10 @@ uint32 FEIRExprConst::HashImpl() const {
 }
 
 void FEIRExprConst::CheckRawValue2SetZero() {
-  if (value.u64 == 0) {
-    type->SetZero(true);
+  if (IsInt128Ty(type->GetPrimType())) {
+    type->SetZero(value.i128[0] == 0 && value.i128[1] == 0);
+  } else {
+    type->SetZero(value.u64 == 0);
   }
 }
 
@@ -3849,14 +3888,11 @@ std::unique_ptr<FEIRExpr> FEIRExprAtomic::CloneImpl() const {
   return expr;
 }
 
-TyIdx FEIRExprAtomic::GetTyIdx(MIRBuilder &mirBuilder) const {
+TyIdx FEIRExprAtomic::GetTyIdx() const {
   TyIdx typeIndex(0);
-  if (atomicOp == kAtomicOpExchange) {
-    typeIndex = val2Type->GetTypeIndex();
-  } else {
-    typeIndex = val1Type->GetTypeIndex();
+  if (refType != nullptr) {
+    typeIndex = refType->GetTypeIndex();
   }
-
   return typeIndex;
 }
 
@@ -3907,7 +3943,7 @@ BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   if (atomicOp == kAtomicOpCompareExchange || atomicOp == kAtomicOpCompareExchangeN) {
     args.emplace_back(orderFailExpr->GenMIRNode(mirBuilder));
   }
-  TyIdx typeIndex = GetTyIdx(mirBuilder);
+  TyIdx typeIndex = GetTyIdx();
   return ret ? mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicID, std::move(args), retVar, typeIndex) :
                mirBuilder.CreateStmtIntrinsicCall(intrinsicID, std::move(args), typeIndex);
 }

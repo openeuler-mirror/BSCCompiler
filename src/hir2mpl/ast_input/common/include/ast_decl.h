@@ -219,7 +219,7 @@ class ASTField : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTField;
   }
-  ~ASTField() = default;
+  ~ASTField() override = default;
   bool IsAnonymousField() const {
     return isAnonymousField;
   }
@@ -286,7 +286,7 @@ class ASTStruct : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTStruct;
   }
-  ~ASTStruct() = default;
+  ~ASTStruct() override = default;
 
   std::string GetStructName(bool mapled) const;
 
@@ -322,7 +322,9 @@ class ASTVar : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTVar;
   }
-  virtual ~ASTVar() = default;
+  virtual ~ASTVar() override {
+    variableArrayExpr = nullptr;
+  }
 
   void SetInitExpr(ASTExpr *init) {
     initExpr = init;
@@ -373,7 +375,7 @@ class ASTFileScopeAsm : public ASTDecl {
       : ASTDecl(srcFile, MapleString("", allocatorIn.GetMemPool()), MapleVector<MIRType*>(allocatorIn.Adapter())) {
     declKind = kASTFileScopeAsm;
   }
-  ~ASTFileScopeAsm() = default;
+  ~ASTFileScopeAsm() override = default;
 
   void SetAsmStr(const std::string &str) {
     asmStr = str;
@@ -395,7 +397,7 @@ class ASTEnumConstant : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTEnumConstant;
   }
-  ~ASTEnumConstant() = default;
+  ~ASTEnumConstant() override = default;
 
   void SetValue(const IntVal &val);
   const IntVal &GetValue() const;
@@ -413,7 +415,7 @@ class ASTEnumDecl : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTEnumDecl;
   }
-  ~ASTEnumDecl() = default;
+  ~ASTEnumDecl() override = default;
 
   void PushConstant(ASTEnumConstant *c) {
     consts.emplace_back(c);
@@ -437,7 +439,9 @@ class ASTTypedefDecl : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTTypedefDecl;
   }
-  ~ASTTypedefDecl() = default;
+  ~ASTTypedefDecl() override {
+    subTypedefDecl = nullptr;
+  }
 
   void SetSubTypedefDecl(ASTTypedefDecl *decl) {
     subTypedefDecl = decl;
@@ -451,7 +455,6 @@ class ASTTypedefDecl : public ASTDecl {
   void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
 
   ASTTypedefDecl* subTypedefDecl = nullptr;
-
 };
 }  // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_DECL_H

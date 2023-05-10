@@ -56,6 +56,9 @@ class CastInfo {
   bool IsInvalid() const {
     return kind == CAST_unknown;
   }
+  bool IsExtension() const {
+    return kind == CAST_sext || kind == CAST_zext;
+  }
   CastKind kind = CAST_unknown;  // CastInfo is invalid if kind is CAST_unknown
   PrimType srcType = PTY_begin;
   PrimType dstType = PTY_end;
@@ -65,7 +68,7 @@ class CastInfo {
 class MeExprCastInfo : public CastInfo<MeExpr> {
  public:
   explicit MeExprCastInfo(MeExpr *expr) : CastInfo(expr) {}
-  ~MeExprCastInfo() = default;
+  ~MeExprCastInfo() override = default;
 
   Opcode GetOp() override {
     return expr->GetOp();
@@ -78,7 +81,6 @@ class MeExprCastInfo : public CastInfo<MeExpr> {
         return static_cast<const OpMeExpr*>(expr)->GetBitsSize();
       default:
         CHECK_FATAL(false, "NYI");
-        break;
     }
   }
 
@@ -101,15 +103,14 @@ class MeExprCastInfo : public CastInfo<MeExpr> {
       }
       default:
         CHECK_FATAL(false, "NYI");
-        break;
     }
   }
 };
 
-class BaseNodeCastInfo: public CastInfo<BaseNode> {
+class BaseNodeCastInfo : public CastInfo<BaseNode> {
  public:
   explicit BaseNodeCastInfo(BaseNode *expr) : CastInfo(expr) {}
-  ~BaseNodeCastInfo() = default;
+  ~BaseNodeCastInfo() override = default;
 
   Opcode GetOp() override {
     return expr->GetOpCode();
@@ -122,7 +123,6 @@ class BaseNodeCastInfo: public CastInfo<BaseNode> {
         return static_cast<const ExtractbitsNode*>(expr)->GetBitsSize();
       default:
         CHECK_FATAL(false, "NYI");
-        break;
     }
   }
 
@@ -140,7 +140,7 @@ class BaseNodeCastInfo: public CastInfo<BaseNode> {
       case OP_regread: {
         const auto *regread = static_cast<const RegreadNode*>(expr);
         PregIdx regIdx = regread->GetRegIdx();
-        MIRPreg *preg = theMIRModule->CurFunction()->GetPregItem(regIdx);
+        const MIRPreg *preg = theMIRModule->CurFunction()->GetPregItem(regIdx);
         return preg->GetPrimType();
       }
       case OP_iread: {
@@ -148,14 +148,14 @@ class BaseNodeCastInfo: public CastInfo<BaseNode> {
         return iread->GetType()->GetPrimType();
       }
       case OP_dread: {
-         const auto *dread = static_cast<const DreadNode*>(expr);
-         StIdx stIdx = dread->GetStIdx();
-         MIRSymbol *symbol = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(stIdx);
-         return symbol->GetType()->GetPrimType();
+        const auto *dread = static_cast<const DreadNode*>(expr);
+        StIdx stIdx = dread->GetStIdx();
+        MIRSymbol *symbol = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(stIdx);
+        CHECK_NULL_FATAL(symbol);
+        return symbol->GetType()->GetPrimType();
       }
       default:
         CHECK_FATAL(false, "NYI");
-        break;
     }
   }
 };

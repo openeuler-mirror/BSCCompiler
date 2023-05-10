@@ -85,9 +85,9 @@ void Retype::DoRetype() {
     if (func->IsEmpty()) {
       continue;
     }
-    for (auto pair : func->GetAliasVarMap()) {
-      GStrIdx regNameStrIdx = pair.second.mplStrIdx;
-      reg2varGenericInfo[regNameStrIdx] = pair.second;
+    for (auto pairIter = func->GetAliasVarMap().cbegin(); pairIter != func->GetAliasVarMap().cend(); ++pairIter) {
+      GStrIdx regNameStrIdx = pairIter->second.mplStrIdx;
+      reg2varGenericInfo[regNameStrIdx] = pairIter->second;
     }
     RetypeStmt(*func);
     reg2varGenericInfo.clear();

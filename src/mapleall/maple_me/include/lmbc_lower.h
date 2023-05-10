@@ -27,22 +27,22 @@ class LMBCLowerer {
       : mirModule(mod), func(f), becommon(becmmn), mirBuilder(mod->GetMIRBuilder()),
         globmemlayout(gmemlayout), memlayout(lmemlayout) {}
 
-  PregIdx GetSpecialRegFromSt(const MIRSymbol *);
-  BaseNode *LowerAddrof(AddrofNode *);
-  BaseNode *LowerDread(const AddrofNode *);
-  BaseNode *LowerDreadoff(DreadoffNode *);
+  PregIdx GetSpecialRegFromSt(const MIRSymbol *sym);
+  BaseNode *LowerAddrof(const AddrofNode *expr);
+  BaseNode *LowerDread(const AddrofNode *expr);
+  BaseNode *LowerDreadoff(DreadoffNode *dreadoff);
   BaseNode *LowerIread(const IreadNode &expr);
-  BaseNode *LowerIaddrof(IreadNode *);
+  BaseNode *LowerIaddrof(const IreadNode *expr);
   BaseNode *LowerExpr(BaseNode *expr);
-  void LowerAggDassign(const DassignNode *, MIRType *lhsty, int32 offset, BlockNode *);
-  void LowerDassign(DassignNode *, BlockNode *);
-  void LowerDassignoff(DassignoffNode *, BlockNode *);
-  void LowerIassign(IassignNode *, BlockNode *);
-  void LowerAggIassign(IassignNode *, MIRType *type, int32 offset, BlockNode *);
+  void LowerAggDassign(const DassignNode &dsnode, const MIRType *lhsty, int32 offset, BlockNode *newblk);
+  void LowerDassign(DassignNode *dsnode, BlockNode *newblk);
+  void LowerDassignoff(DassignoffNode *dsnode, BlockNode *newblk);
+  void LowerIassign(IassignNode *iassign, BlockNode *newblk);
+  void LowerAggIassign(const IassignNode &iassign, const MIRType *lhsty, int32 offset, BlockNode &newblk) const;
   void LowerReturn(NaryStmtNode &retNode, BlockNode &newblk);
   void LowerCall(NaryStmtNode *stmt, BlockNode *newblk);
-  BlockNode *LowerBlock(BlockNode *);
-  void FixPrototype4FirstArgReturn(IcallNode *icall);
+  BlockNode *LowerBlock(BlockNode *block);
+  void FixPrototype4FirstArgReturn(const IcallNode *icall) const;
   void LowerFunction();
 
   MIRModule *mirModule;

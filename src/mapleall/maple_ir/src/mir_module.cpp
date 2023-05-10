@@ -50,7 +50,9 @@ MIRModule::MIRModule(const std::string &fn)
       puIdxFieldInitializedMap(std::less<PUIdx>(), memPoolAllocator.Adapter()),
       inliningGlobals(memPoolAllocator.Adapter()),
       partO2FuncList(memPoolAllocator.Adapter()),
-      safetyWarningMap(memPoolAllocator.Adapter()) {
+      safetyWarningMap(memPoolAllocator.Adapter()),
+      tdataVarOffset(memPoolAllocator.Adapter()),
+      tbssVarOffset(memPoolAllocator.Adapter()) {
   GlobalTables::GetGsymTable().SetModule(this);
   typeNameTab = memPool->New<MIRTypeNameTable>(memPoolAllocator);
   mirBuilder = memPool->New<MIRBuilder>(this);

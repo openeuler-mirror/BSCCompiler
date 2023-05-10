@@ -12,10 +12,13 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <vector>
+
 #include "cl_option.h"
 #include "cl_parser.h"
 
 #include "mpl_logging.h"
+#include "string_utils.h"
 
 
 using namespace maplecl;
@@ -25,26 +28,40 @@ CommandLine &CommandLine::GetCommandLine() {
   return cl;
 }
 
-OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) const {
+OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) {
   auto &str = keyArg.rawArg;
 
   for (auto joinedOption : optCategory.joinedOptions) {
     /* Joined Option (like -DMACRO) can be detected as substring (-D) in the option string */
     if (str.find(joinedOption.first) == 0) {
       size_t keySize;
-      if (joinedOption.first != "-Wl") {
+      if (joinedOption.first != "-Wl" && joinedOption.first != "-l") {
         keySize = joinedOption.first.size();
         keyArg.key = str.substr(0, keySize);
+        keyArg.val = str.substr(keySize);
       } else {
+        std::string tmp(str);
+        linkOptions.push_back(tmp);
         keySize = 0;
-        keyArg.key = "-Wl";
+        if (joinedOption.first == "-Wl") {
+          keyArg.key = "-Wl";
+        } else {
+          keyArg.key = "-l";
+        }
       }
-      keyArg.val = str.substr(keySize);
 
-      keyArg.val = str.substr(keySize);
       keyArg.isJoinedOpt = true;
       return joinedOption.second;
     }
+  }
+  std::string tempStr(str);
+  std::string tmp = maple::StringUtils::GetStrAfterLast(tempStr, ".");
+  if (tmp == "a" || tmp == "so") {
+    if (maple::StringUtils::GetStrAfterLast(tempStr, "/") == "libmplpgo.so" ||
+        maple::StringUtils::GetStrAfterLast(tempStr, "/") == "libmplpgo.a") {
+      SetHasPgoLib(true);
+    }
+    linkOptions.push_back(tempStr);
   }
 
   return nullptr;
@@ -55,16 +72,26 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
                                        KeyArg &keyArg, OptionCategory &optCategory) {
   OptionInterface *option = CheckJoinedOption(keyArg, optCategory);
   if (option != nullptr) {
-    RetCode err = option->Parse(argsIndex, args, keyArg);
-    if (err != RetCode::noError) {
-      return err;
-    }
+    if (keyArg.key != "-Wl" && keyArg.key != "-l") {
+      RetCode err = option->Parse(argsIndex, args, keyArg);
+      if (err != RetCode::noError) {
+        return err;
+      }
 
-    /* Set Option in all categories registering for this option */
-    for (auto &category : option->optCategories) {
-      category->AddEnabledOption(option);
+      /* Set Option in all categories registering for this option */
+      for (auto &category : option->optCategories) {
+        category->AddEnabledOption(option);
+      }
+    } else {
+      argsIndex++;
     }
   } else {
+    std::string tempStr(keyArg.rawArg);
+    std::string tmp = maple::StringUtils::GetStrAfterLast(tempStr, ".");
+    if (tmp == "a" || tmp == "so") {
+      argsIndex++;
+      return RetCode::noError;
+    }
     return RetCode::notRegistered;
   }
 
@@ -89,18 +116,40 @@ void CommandLine::CloseOptimize(const OptionCategory &optCategory) const {
   }
 }
 
+void CommandLine::DeleteEnabledOptions(size_t &argsIndex, const std::deque<std::string_view> &args,
+                                       const OptionCategory &optCategory) const {
+  std::map<std::string_view, std::string> picOrPie = {{"-fpic", "-fPIC"}, {"--fpic", "-fPIC"}, {"-fpie", "-fPIE"},
+                                                      {"--fpie", "-fPIE"}, {"-fPIE", "-fpie"}, {"--fPIE", "-fpie"},
+                                                      {"-fPIC", "-fpic"}, {"--fPIC", "-fpic"}};
+  auto item = optCategory.options.find(picOrPie[args[argsIndex]]);
+  item->second->UnSetEnabledByUser();
+  for (auto &category : item->second->optCategories) {
+    if (std::find(category->GetEnabledOptions().begin(), category->GetEnabledOptions().end(), item->second) !=
+                  category->GetEnabledOptions().end()) {
+      category->DeleteEnabledOption(item->second);
+    }
+  }
+}
+
 RetCode CommandLine::ParseOption(size_t &argsIndex,
                                  const std::deque<std::string_view> &args,
                                  KeyArg &keyArg, const OptionCategory &optCategory,
-                                 OptionInterface *opt) {
-  if (args[argsIndex] == "--no-pie") {
+                                 OptionInterface &opt) const {
+  if (args[argsIndex] == "--no-pie" || args[argsIndex] == "-fno-pie") {
     auto item = optCategory.options.find("-fPIE");
     item->second->SetEnabledByUser();
   }
 
-  if (args[argsIndex] == "--no-pic") {
+  if (args[argsIndex] == "--no-pic" || args[argsIndex] == "-fno-pic") {
     auto item = optCategory.options.find("-fPIC");
     item->second->SetEnabledByUser();
+  }
+
+  if (args[argsIndex] == "-fpic" || args[argsIndex] == "--fpic" ||
+      args[argsIndex] == "-fpie" || args[argsIndex] == "--fpie" ||
+      args[argsIndex] == "-fPIE" || args[argsIndex] == "--fPIE" ||
+      args[argsIndex] == "-fPIC" || args[argsIndex] == "--fPIC") {
+    DeleteEnabledOptions(argsIndex, args, optCategory);
   }
 
   if (args[argsIndex] == "--O0" || args[argsIndex] == "-O0" || args[argsIndex] == "--O1" || args[argsIndex] == "-O1" ||
@@ -109,14 +158,14 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
     CloseOptimize(optCategory);
   }
 
-  RetCode err = opt->Parse(argsIndex, args, keyArg);
+  RetCode err = opt.Parse(argsIndex, args, keyArg);
   if (err != RetCode::noError) {
     return err;
   }
 
   /* Set Option in all categories registering for this option */
-  for (auto &category : opt->optCategories) {
-    category->AddEnabledOption(opt);
+  for (auto &category : opt.optCategories) {
+    category->AddEnabledOption(&opt);
   }
 
   return RetCode::noError;
@@ -125,7 +174,7 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
 RetCode CommandLine::ParseEqualOption(size_t &argsIndex,
                                       const std::deque<std::string_view> &args,
                                       KeyArg &keyArg, OptionCategory &optCategory,
-                                      const OptionsMapType &optMap, ssize_t pos) {
+                                      const OptionsMapType &optMap, size_t pos) {
   keyArg.isEqualOpt = true;
   auto &arg = args[argsIndex];
 
@@ -134,12 +183,19 @@ RetCode CommandLine::ParseEqualOption(size_t &argsIndex,
    * As example for -Dkey=value: default splitting key="Dkey" value="value",
    * Joined option splitting key="D" value="key=value"
    */
-  auto item = optMap.find(std::string(arg.substr(0, pos)));
+  auto item = optMap.find(std::string(arg));
+  if (item == optMap.end()) {
+    item = optMap.find(std::string(arg.substr(0, pos + 1)));
+    if (item == optMap.end()) {
+      item = optMap.find(std::string(arg.substr(0, pos)));
+    }
+  }
   if (item != optMap.end()) {
     /* equal option, like --key=value */
-    keyArg.key = arg.substr(0, pos);
+    keyArg.key = (optMap.find(std::string(arg.substr(0, pos + 1))) !=  optMap.end()) ? arg.substr(0, pos + 1) :
+                  arg.substr(0, pos);
     keyArg.val = arg.substr(pos + 1);
-    return ParseOption(argsIndex, args, keyArg, optCategory, item->second);
+    return ParseOption(argsIndex, args, keyArg, optCategory, *item->second);
   } else {
     /* It can be joined option, like: -DMACRO=VALUE */
     return ParseJoinedOption(argsIndex, args, keyArg, optCategory);
@@ -152,11 +208,16 @@ RetCode CommandLine::ParseSimpleOption(size_t &argsIndex,
                                        const OptionsMapType &optMap) {
   keyArg.isEqualOpt = false;
   auto &arg = args[argsIndex];
+  if (std::string(arg) == "--lite-pgo-gen") {
+    SetUseLitePgoGen(true);
+  } else if (std::string(arg) == "--no-lite-pgo-gen") {
+    SetUseLitePgoGen(false);
+  }
 
   auto item = optMap.find(std::string(arg));
   if (item != optMap.end()) {
     /* --key or --key value */
-    return ParseOption(argsIndex, args, keyArg, optCategory, item->second);
+    return ParseOption(argsIndex, args, keyArg, optCategory, *item->second);
   } else {
     /* It can be joined option, like: -DMACRO */
     return ParseJoinedOption(argsIndex, args, keyArg, optCategory);
@@ -179,7 +240,7 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
       continue;
     }
 
-    if (arg.find("_FORTIFY_SOURCE") != arg.npos) {
+    if (arg.find("_FORTIFY_SOURCE") != std::string::npos) {
       auto item = clangCategory.options.find("-pO2ToCl");
       item->second->SetEnabledByUser();
     }
@@ -283,7 +344,11 @@ void CommandLine::BashCompletionPrinter(const OptionCategory &optCategory) const
   }
 }
 
-void CommandLine::HelpPrinter(const OptionCategory &optCategory) const {
+void CommandLine::HelpPrinter(OptionCategory &optCategory) const {
+  std::sort(optCategory.registredOptions.begin(), optCategory.registredOptions.end(),
+      [](const OptionInterface *a, const OptionInterface *b) {
+        return a->GetOptName() < b->GetOptName();
+      });
   for (auto &opt : optCategory.registredOptions) {
     if (opt->IsVisibleOption()) {
       maple::LogInfo::MapleLogger() << opt->GetDescription() << '\n';

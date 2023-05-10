@@ -458,7 +458,7 @@ void LoopUnrolling::RemoveCondGoto() {
   cfg->DeleteBasicBlock(*loop->latch);
 }
 
-bool LoopUnrolling::SplitCondGotoBB() {
+bool LoopUnrolling::SplitCondGotoBB() const {
   auto *exitBB = func->GetCfg()->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   auto *exitedBB = *(loop->inloopBB2exitBBs.cbegin()->second->cbegin());
   MeStmt *lastStmt = exitBB->GetLastMe();
@@ -530,10 +530,8 @@ LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(uint64 tri
     return kCanNotSplitCondGoto;
   }
   replicatedLoopNum = tripCount;
-  for (int64 i = 0; i < tripCount; ++i) {
-    if (i > 0) {
-      needUpdateInitLoopFreq = false;
-    }
+  for (uint64 i = 0; i < tripCount; ++i) {
+    needUpdateInitLoopFreq = false;
     CopyAndInsertBB(false);
   }
   RemoveCondGoto();

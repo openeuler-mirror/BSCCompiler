@@ -202,6 +202,28 @@ class BasicIORead {
     return file.GetLength();
   }
 
+ private:
+  template <typename T>
+  void ReadBuffer8BitLong(T *dst, uint32 length) {
+    const uint8 *p = GetSafeBuffer(length);
+    pos += length;
+    errno_t err = memcpy_s(dst, length, p, length);
+    CHECK_FATAL(err == EOK, "memcpy_s failed");
+  }
+
+  template <typename T>
+  void ReadBuffer8BitLong(T *dst, uint32 length, bool &success) {
+    const uint8 *p = GetBuffer(length);
+    if (p == nullptr) {
+      success = false;
+      return;
+    }
+    pos += length;
+    success = true;
+    errno_t err = memcpy_s(dst, length, p, length);
+    CHECK_FATAL(err == EOK, "memcpy_s failed");
+  }
+
  protected:
   BasicIOMapFile &file;
   bool isBigEndian;

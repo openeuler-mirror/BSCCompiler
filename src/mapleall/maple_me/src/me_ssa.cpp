@@ -103,8 +103,8 @@ void MeSSA::InsertIdentifyAssignments(IdentifyLoops *identloops) {
     if (aloop->exitBB == nullptr) {
       continue;
     }
-    auto it = preMeFunc->label2WhileInfo.find(headbb->GetBBLabel());
-    if (it == preMeFunc->label2WhileInfo.end()) {
+    const auto it = std::as_const(preMeFunc->label2WhileInfo).find(headbb->GetBBLabel());
+    if (it == preMeFunc->label2WhileInfo.cend()) {
       continue;
     }
     if (headbb->GetPred().size() != 2) {
@@ -168,7 +168,7 @@ void MESSA::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MESSA::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
   auto *ssaTab = GET_ANALYSIS(MESSATab, f);
   CHECK_FATAL(ssaTab != nullptr, "ssaTab phase has problem");
@@ -180,7 +180,7 @@ bool MESSA::PhaseRun(maple::MeFunction &f) {
     CHECK_FATAL(identloops != nullptr, "identloops has problem");
     ssa->InsertIdentifyAssignments(identloops);
   }
-  ssa->RenameAllBBs(cfg);
+  ssa->RenameAllBBs(*cfg);
   ssa->VerifySSA();
   if (DEBUGFUNC_NEWPM(f)) {
     ssaTab->GetVersionStTable().Dump(&ssaTab->GetModule());

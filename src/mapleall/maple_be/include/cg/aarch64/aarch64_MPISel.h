@@ -30,7 +30,7 @@ class AArch64MPIsel : public MPISel {
   void SelectReturn(NaryStmtNode &retNode) override;
   void SelectReturn(bool noOpnd) override;
   void SelectCall(CallNode &callNode) override;
-  void SelectIcall(IcallNode &icallNode, Operand &opnd0) override;
+  void SelectIcall(IcallNode &iCallNode, Operand &opnd0) override;
   Operand &ProcessReturnReg(PrimType primType, int32 sReg) override;
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
   Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) override;
@@ -40,8 +40,8 @@ class AArch64MPIsel : public MPISel {
   void SelectGoto(GotoNode &stmt) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) override;
   void SelectAggIassign(IassignNode &stmt, Operand &addrOpnd, Operand &opndRhs) override;
-  void SelectAggDassign(maplebe::MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &rOpnd,
-      const DassignNode &s) override;
+  void SelectAggDassign(maplebe::MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRh,
+      const DassignNode &stmt) override;
   void SelectAggCopy(MemOperand &lhs, MemOperand &rhs, uint32 copySize) override;
   void SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) override;
   void SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode) override;
@@ -96,8 +96,8 @@ class AArch64MPIsel : public MPISel {
   void SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, PrimType fromType, PrimType toType) override;
   void SelectCvtFloat2Int(Operand &resOpnd, Operand &srcOpnd, PrimType itype, PrimType ftype) override;
   Insn &AppendCall(AArch64MOP_t mOp, Operand &targetOpnd,
-      ListOperand &paramOpnds, ListOperand &retOpnds);
-  void SelectCalleeReturn(MIRType *retType, ListOperand &retOpnds);
+      ListOperand &paramOpnds, ListOperand &retOpnds) const;
+  void SelectCalleeReturn(const MIRType *retType, ListOperand &retOpnds) const;
 
   /* Inline function implementation of va_start */
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);
@@ -106,9 +106,9 @@ class AArch64MPIsel : public MPISel {
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);
   void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds);
   void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
-  void SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType);
+  void SelectCmp(Operand &opnd0, Operand &opnd1, PrimType primType) const;
   void SelectCmpResult(RegOperand &resOpnd, Opcode opCode, PrimType primType, PrimType primOpndType);
-  Operand *SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode);
+  Operand *SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode) const;
   RegOperand &GetTargetStackPointer(PrimType primType) override;
   RegOperand &GetTargetBasicPointer(PrimType primType) override;
   std::tuple<Operand*, size_t, MIRType*> GetMemOpndInfoFromAggregateNode(BaseNode &argExpr);
@@ -120,8 +120,8 @@ class AArch64MPIsel : public MPISel {
   bool IsParamStructCopy(const MIRSymbol &symbol);
   bool IsSymbolRequireIndirection(const MIRSymbol &symbol) override;
   void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
-  Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name, Operand &opnd0,
-                                         const BaseNode &parent);
+  Operand *SelectIntrinsicOpWithOneParam(const IntrinsicopNode &intrnNode, std::string name, Operand &opnd0,
+                                         const BaseNode /* &parent */);
   void SelectLibCallNoReturn(const std::string &funcName, std::vector<Operand*> &opndVec, PrimType primType);
   void SelectLibCallNArg(const std::string &funcName, std::vector<Operand*> &opndVec,
                          std::vector<PrimType> pt);

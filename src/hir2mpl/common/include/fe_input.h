@@ -75,7 +75,7 @@ class FEInputProgramUnit {
 class FEInputUnitMethod : public FEInputUnit {
  public:
   explicit FEInputUnitMethod(MapleAllocator &alloc);
-  ~FEInputUnitMethod() = default;
+  ~FEInputUnitMethod() override = default;
 
  protected:
   std::string GetCatagoryNameImpl() override;
@@ -86,7 +86,7 @@ class FEInputUnitMethod : public FEInputUnit {
 class FEInputUnitVariable : public FEInputUnit {
  public:
   explicit FEInputUnitVariable(MapleAllocator &alloc);
-  ~FEInputUnitVariable() = default;
+  ~FEInputUnitVariable() override = default;
 
  protected:
   std::string GetCatagoryNameImpl() override;
@@ -97,7 +97,7 @@ class FEInputUnitVariable : public FEInputUnit {
 class FEInputUnitStruct : public FEInputUnit {
  public:
   explicit FEInputUnitStruct(MapleAllocator &alloc);
-  virtual ~FEInputUnitStruct() = default;
+  ~FEInputUnitStruct() override = default;
   MIRTypeKind GetMIRTypeKind() const {
     return typeKind;
   }

@@ -15,7 +15,7 @@
 #include "dexfile_interface.h"
 #include "mpl_logging.h"
 
-namespace maple{
+namespace maple {
 void ResolvedMethodType::SignatureTypes(const std::string &mt, std::list<std::string> &types) {
   // three pointers linear scan algo
   size_t startPos = 1;  // pos 0 should be '('

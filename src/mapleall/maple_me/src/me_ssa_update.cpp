@@ -26,8 +26,8 @@ std::stack<ScalarMeExpr*> *VectorVersionStacks::GetRenameStack(OStIdx idx) {
 }
 
 std::stack<ScalarMeExpr*> *MapVersionStacks::GetRenameStack(OStIdx idx) {
-  auto it = renameWithMapStacks.find(idx);
-  if (it == renameWithMapStacks.end()) {
+  auto it = std::as_const(renameWithMapStacks).find(idx);
+  if (it == renameWithMapStacks.cend()) {
     return nullptr;
   }
   return it->second.get();
@@ -68,13 +68,11 @@ void MapVersionStacks::InitRenameStack(OStIdx idx) {
 
 void VectorVersionStacks::RecordCurrentStackSize(std::vector<std::pair<uint32, OStIdx >> &origStackSize) {
   origStackSize.resize(renameWithVectorStacks.size());
-  uint32 stackId = 0;
   for (size_t i = 0; i < renameWithVectorStacks.size(); ++i) {
     if (renameWithVectorStacks.at(i) == nullptr) {
       continue;
     }
     origStackSize[i] = std::make_pair(renameWithVectorStacks.at(i)->size(), OStIdx(i));
-    ++stackId;
   }
 }
 
@@ -151,7 +149,7 @@ void MeSSAUpdate::InsertPhis() {
   }
 }
 
-void MeSSAUpdate::RenamePhi(const BB &bb) {
+void MeSSAUpdate::RenamePhi(const BB &bb) const {
   if (bb.GetMePhiList().empty()) {
     return;
   }
@@ -304,7 +302,7 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
   }
 }
 
-void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) {
+void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) const {
   for (BB *succ : bb.GetSucc()) {
     if (succ->GetMePhiList().empty()) {
       continue;
@@ -349,7 +347,7 @@ void MeSSAUpdate::InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
   if (ssaCands == nullptr) {
     return;
   }
-  auto it = ssaCands->find(ostIdx);
+  const auto it = std::as_const(ssaCands)->find(ostIdx);
   if (it == ssaCands->end()) {
     std::unique_ptr<std::set<BBId>> bbSet = std::make_unique<std::set<BBId>>(std::less<BBId>());
     bbSet->insert(defBB.GetBBId());

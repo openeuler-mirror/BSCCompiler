@@ -43,7 +43,7 @@ class MPISel {
   Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
 
   void SelectDassign(const DassignNode &stmt, Operand &opndRhs);
-  void SelectDassignoff(DassignoffNode &stmt, Operand &opnd0);
+  void SelectDassignoff(const DassignoffNode &stmt, Operand &opnd0);
   void SelectIassign(const IassignNode &stmt, Operand &opndAddr, Operand &opndRhs);
   void SelectIassignoff(const IassignoffNode &stmt);
   RegOperand *SelectRegread(RegreadNode &expr);
@@ -58,8 +58,8 @@ class MPISel {
   virtual Operand* SelectExtractbits(const BaseNode &parent, ExtractbitsNode &node, Operand &opnd0);
   virtual Operand *SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   Operand *SelectAlloca(UnaryNode &node, Operand &opnd0);
-  Operand *SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent);
-  ImmOperand *SelectIntConst(MIRIntConst &intConst, PrimType primType) const;
+  Operand *SelectCGArrayElemAdd(const BinaryNode &node);
+  ImmOperand *SelectIntConst(const MIRIntConst &intConst, PrimType primType) const;
   void SelectCallCommon(StmtNode &stmt, const MPISel &iSel) const;
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
@@ -128,9 +128,9 @@ class MPISel {
   virtual void SelectAsm(AsmNode &node) = 0;
   virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &rOpnd, const DassignNode &s) = 0;
   Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
-  Operand *SelectMin(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  Operand *SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
-  Operand *SelectRetype(TypeCvtNode &node, Operand &opnd0);
+  Operand *SelectMin(const BinaryNode &node, Operand &opnd0, Operand &opnd1);
+  Operand *SelectMax(const BinaryNode &node, Operand &opnd0, Operand &opnd1);
+  Operand *SelectRetype(const TypeCvtNode &node, Operand &opnd0);
   void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 
   template <typename T>

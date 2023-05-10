@@ -2214,16 +2214,16 @@ uint32x4_t __builtin_mpl_vector_mulq_laneq_v4u32(uint32x4_t a, uint32x4_t b, con
 #define vmulq_laneq_u32(a, b, c)  __builtin_mpl_vector_mulq_laneq_v4u32(a, b, c)
 
 int32x4_t __builtin_mpl_vector_mull_n_v4i32(int16x4_t a, int16_t b);
-#define vmull_n_s16(a, b)  (vmull_s16(a, ((int16x4_t){b,b,b,b})))
+#define vmull_n_s16(a, b)  (vmull_s16(a, ((int16x4_t){b, b, b, b})))
 
 int64x2_t __builtin_mpl_vector_mull_n_v2i64(int32x2_t a, int32_t b);
-#define vmull_n_s32(a, b)  (vmull_s32(a, ((int32x2_t){b,b})))
+#define vmull_n_s32(a, b)  (vmull_s32(a, ((int32x2_t){b, b})))
 
 uint32x4_t __builtin_mpl_vector_mull_n_v4u32(uint16x4_t a, uint16_t b);
-#define vmull_n_u16(a, b)  (vmull_u16(a, ((uint16x4_t){b,b,b,b})))
+#define vmull_n_u16(a, b)  (vmull_u16(a, ((uint16x4_t){b, b, b, b})))
 
 uint64x2_t __builtin_mpl_vector_mull_n_v2u64(uint32x2_t a, uint32_t b);
-#define vmull_n_u32(a, b)  (vmull_u32(a, ((uint32x2_t){b,b})))
+#define vmull_n_u32(a, b)  (vmull_u32(a, ((uint32x2_t){b, b})))
 
 int32x4_t __builtin_mpl_vector_mull_high_n_v4i32(int16x8_t a, int16_t b);
 #define vmull_high_n_s16(a, b)  vmull_n_s16((vget_high_s16(a)), b)

@@ -150,12 +150,14 @@ PrimType MIRParser::GetPrimitiveType(TokenKind tk) const {
 
 MIRIntrinsicID MIRParser::GetIntrinsicID(TokenKind tk) const {
   switch (tk) {
-    default:
 #define DEF_MIR_INTRINSIC(P, NAME, NUM_INSN, INTRN_CLASS, RETURN_TYPE, ...) \
     case TK_##P:                                                  \
       return INTRN_##P;
 #include "intrinsics.def"
 #undef DEF_MIR_INTRINSIC
+    default:
+      ASSERT(false, "\n =====GetIntrinsicID failed===== \n");
+      return INTRN_UNDEFINED;
   }
 }
 
@@ -426,7 +428,7 @@ bool MIRParser::ParsePragmaElementForArray(MIRPragmaElement &elem) {
   }
   int64 size = static_cast<int64>(lexer.GetTheIntVal());
   tk = lexer.NextToken();
-  if (tk != TK_coma && size) {
+  if (tk != TK_coma && size != 0) {
     Error("parsing pragma error: expecting , but get ");
     return false;
   }
@@ -470,13 +472,13 @@ bool MIRParser::ParsePragmaElementForAnnotation(MIRPragmaElement &elem) {
     Error("parsing pragma error: expecting int but get ");
     return false;
   }
-  int64 size = static_cast<int64>(lexer.GetTheIntVal());
+  uint64 size = lexer.GetTheIntVal();
   tk = lexer.NextToken();
-  if (tk != TK_coma && size) {
+  if (tk != TK_coma && size > 0) {
     Error("parsing pragma error: expecting , but get ");
     return false;
   }
-  for (int64 i = 0; i < size; ++i) {
+  for (uint64 i = 0; i < size; ++i) {
     auto *e0 = mod.GetMemPool()->New<MIRPragmaElement>(mod);
     tk = lexer.NextToken();
     if (tk != TK_label) {
@@ -1382,11 +1384,7 @@ bool MIRParser::ParseFuncType(TyIdx &tyIdx) {
     Error("bad attribute in function ret type at ");
     return false;
   }
-  MIRFuncType functype(retTyIdx, vecTyIdx, vecAttrs, retTypeAttrs);
-  functype.funcAttrs = fAttrs;
-  if (varargs) {
-    functype.SetVarArgs();
-  }
+  MIRFuncType functype(retTyIdx, vecTyIdx, vecAttrs, fAttrs, retTypeAttrs);
   tyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&functype);
   return true;
 }
@@ -1914,9 +1912,9 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
   std::string symbolStrName = lexer.GetName();
   GStrIdx symbolStrID = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(symbolStrName);
   symbol.SetNameStrIdx(symbolStrID);
-  tk = lexer.NextToken();
+  (void)lexer.NextToken();
   if (ParseStorageClass(symbol)) {
-    lexer.NextToken();
+    (void)lexer.NextToken();
   }
   // i32
   TyIdx tyIdx(0);
@@ -1932,31 +1930,31 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
   symbol.SetTyIdx(tyIdx);
   /* parse section/register attribute from inline assembly */
   if (lexer.GetTokenKind() == TK_section) {
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_lparen) {
       Error("expect ( for section attribute but get ");
       return false;
     }
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_string) {
       Error("expect string literal for section attribute but get ");
       return false;
     }
     UStrIdx literalStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     symbol.sectionAttr = literalStrIdx;
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_rparen) {
       Error("expect ) for section attribute but get ");
       return false;
     }
-    lexer.NextToken();
+    (void)lexer.NextToken();
   } else if (lexer.GetTokenKind() == TK_asmattr) { /* Specifying Registers for Local Variables */
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_lparen) {
       Error("expect ( for register inline-asm attribute but get ");
       return false;
     }
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_string) {
       Error("expect string literal for section attribute but get ");
       return false;
@@ -1964,12 +1962,12 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
     UStrIdx literalStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     symbol.asmAttr = literalStrIdx;
 
-    lexer.NextToken();
+    (void)lexer.NextToken();
     if (lexer.GetTokenKind() != TK_rparen) {
       Error("expect ) for section attribute but get ");
       return false;
     }
-    lexer.NextToken();
+    (void)lexer.NextToken();
   }
   if (!ParseVarTypeAttrs(symbol)) {
     Error("bad type attribute in variable declaration at ");
@@ -2044,17 +2042,17 @@ bool MIRParser::ParsePrototype(MIRFunction &func, MIRSymbol &funcSymbol, TyIdx &
   }
   std::vector<TyIdx> vecTy;       // for storing the parameter types
   std::vector<TypeAttrs> vecAt;  // for storing the parameter type attributes
+  FuncAttrs funcAttrs;  // for storing the func type attributes
   // this part for parsing the argument list and return type
   if (lexer.GetTokenKind() != TK_lparen) {
     Error("expect ( for func but get ");
     return false;
   }
   // parse parameters
-  bool varArgs = false;
   TokenKind pmTk = lexer.NextToken();
   while (pmTk != TK_rparen) {
     if (pmTk == TK_dotdotdot) {
-      varArgs = true;
+      funcAttrs.SetAttr(FUNCATTR_varargs);
       func.SetVarArgs();
       pmTk = lexer.NextToken();
       if (pmTk != TK_rparen) {
@@ -2090,8 +2088,11 @@ bool MIRParser::ParsePrototype(MIRFunction &func, MIRSymbol &funcSymbol, TyIdx &
   }
   MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
   func.SetReturnStruct(*retType);
+  if (func.IsFirstArgReturn()) {
+    funcAttrs.SetAttr(FUNCATTR_firstarg_return);
+  }
   MIRType *funcType =
-      GlobalTables::GetTypeTable().GetOrCreateFunctionType(tyIdx, vecTy, vecAt, varArgs);
+      GlobalTables::GetTypeTable().GetOrCreateFunctionType(tyIdx, vecTy, vecAt, funcAttrs);
   funcTyIdx = funcType->GetTypeIndex();
   funcSymbol.SetTyIdx(funcTyIdx);
   func.SetMIRFuncType(static_cast<MIRFuncType*>(funcType));
@@ -2123,7 +2124,7 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     return false;
   }
   if (funcSymbol != nullptr && funcSymbol->GetSKind() == kStFunc &&
-      funcSymbol->IsNeedForwDecl() == true && !funcSymbol->GetFunction()->GetBody()) {
+      funcSymbol->IsNeedForwDecl() && !funcSymbol->GetFunction()->GetBody()) {
     SetSrcPos(funcSymbol->GetSrcPosition(), lexer.GetLineNum());
   }
   if (funcSymbol != nullptr) {
@@ -2606,7 +2607,7 @@ bool MIRParser::ParseScope() {
   return status;
 }
 
-bool MIRParser::ParseScopeStmt(StmtNodePtr&) {
+bool MIRParser::ParseScopeStmt(StmtNodePtr &stmt) {
   return ParseScope();
 }
 
@@ -2697,7 +2698,7 @@ bool MIRParser::ParseAlias() {
   return true;
 }
 
-bool MIRParser::ParseAliasStmt(StmtNodePtr&) {
+bool MIRParser::ParseAliasStmt(StmtNodePtr &stmt) {
   return ParseAlias();
 }
 
@@ -2931,11 +2932,11 @@ bool MIRParser::ParseMIRForFunc() {
     return false;
   }
   // when parsing function in mplt_inline file, set fromMpltInline as true.
-  if ((this->options & kParseInlineFuncBody) && curFunc) {
+  if ((this->options & kParseInlineFuncBody) != 0 && curFunc) {
     curFunc->SetFromMpltInline(true);
     return true;
   }
-  if ((this->options & kParseOptFunc) && curFunc) {
+  if ((this->options & kParseOptFunc) != 0 && curFunc) {
     curFunc->SetAttr(FUNCATTR_optimized);
     mod.AddOptFuncs(curFunc);
   }
@@ -3409,10 +3410,6 @@ bool MIRParser::ParseMPLT(std::ifstream &mpltFile, const std::string &importFile
   while (!atEof) {
     TokenKind tokenKind = lexer.GetTokenKind();
     switch (tokenKind) {
-      default: {
-        Error("expect func or var but get ");
-        return false;
-      }
       case TK_eof:
         atEof = true;
         break;
@@ -3433,6 +3430,10 @@ bool MIRParser::ParseMPLT(std::ifstream &mpltFile, const std::string &importFile
           return false;
         }
         break;
+      }
+      default: {
+        Error("expect func or var but get ");
+        return false;
       }
     }
   }
@@ -3506,7 +3507,7 @@ bool MIRParser::ParsePrototypeRemaining(MIRFunction &func, std::vector<TyIdx> &v
 }
 
 void MIRParser::EmitError(const std::string &fileName) {
-  if (!strlen(GetError().c_str())) {
+  if (strlen(GetError().c_str()) == 0) {
     return;
   }
   mod.GetDbgInfo()->EmitMsg();
@@ -3514,7 +3515,7 @@ void MIRParser::EmitError(const std::string &fileName) {
 }
 
 void MIRParser::EmitWarning(const std::string &fileName) const {
-  if (!strlen(GetWarning().c_str())) {
+  if (strlen(GetWarning().c_str()) == 0) {
     return;
   }
   WARN(kLncWarn, "%s \n%s\n", fileName.c_str(), GetWarning().c_str());

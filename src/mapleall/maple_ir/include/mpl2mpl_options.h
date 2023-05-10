@@ -17,11 +17,6 @@
 #define MAPLE_IR_INCLUDE_MPL2MPL_OPTION_H
 
 #include "cl_option.h"
-#include "cl_parser.h"
-
-#include <bits/stdint-uintn.h>
-#include <cstdint>
-#include <string>
 
 namespace opts::mpl2mpl {
 

@@ -106,6 +106,9 @@ void LiveAnalysis::BuildInOutforFunc() {
     ++iteration;
     hasChange = false;
     FOR_ALL_BB_REV(bb, cgFunc) {
+      if (!bb || bb->IsUnreachable() || !bb->GetLiveOut() || !bb->GetLiveIn()) {
+        continue;
+      }
       if (!GenerateLiveOut(*bb) && bb->GetInsertUse()) {
         continue;
       }
@@ -201,7 +204,7 @@ void LiveAnalysis::GetBBDefUse(BB &bb) const {
   if (bb.GetKind() == BB::kBBReturn) {
     GenerateReturnBBDefUse(bb);
   }
-  if (bb.IsEmpty()) {
+  if (!bb.HasMachineInsn()) {
     return;
   }
   bb.DefResetAllBit();
@@ -243,11 +246,14 @@ void LiveAnalysis::GetBBDefUse(BB &bb) const {
         CollectLiveInfo(bb, opnd, isDef, isUse);
       }
     }
+    if (insn->GetSSAImpDefOpnd() != nullptr) {
+      CollectLiveInfo(bb, *insn->GetSSAImpDefOpnd(), true, false);
+    }
   }
 }
 
-/* build use and def sets of each BB according to the type of regOpnd. */
-void LiveAnalysis::CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse) const {
+/* build use and def sets of each BB according to the type of regOpnd. bb can not be marked as const. */
+void LiveAnalysis::CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse) const {
   if (!opnd.IsRegister()) {
     return;
   }

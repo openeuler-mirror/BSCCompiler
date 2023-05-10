@@ -63,6 +63,22 @@ const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "hir2mpl",
 ErrorCode MplOptions::Parse(int argc, char **argv) {
   (void)maplecl::CommandLine::GetCommandLine().Parse(argc, argv);
   exeFolder = FileUtils::GetFileFolder(FileUtils::GetExecutable());
+  if (maplecl::CommandLine::GetCommandLine().GetUseLitePgoGen() &&
+      !maplecl::CommandLine::GetCommandLine().GetHasPgoLib()) {
+    std::string libpgoName = opts::staticLibmplpgo.IsEnabledByUser() ? "libmplpgo.a" : "libmplpgo.so";
+    std::string pgoLibPath = "";
+    if (FileUtils::SafeGetenv(kMapleRoot) != "" && FileUtils::SafeGetenv(kGetOsVersion) != "") {
+      pgoLibPath = FileUtils::SafeGetenv(kMapleRoot) + "/libpgo/lib_" +
+                   FileUtils::SafeGetenv(kGetOsVersion) + "/" + libpgoName;
+    } else {
+      std::string tmpFilePath = maple::StringUtils::GetStrBeforeLast(exeFolder, "/");
+      pgoLibPath = maple::StringUtils::GetStrBeforeLast(tmpFilePath, "/") + "/lib/libc_pgo/" + libpgoName;
+    }
+    CHECK_FATAL(FileUtils::IsFileExists(pgoLibPath), "%s not exit.", pgoLibPath.c_str());
+    std::string threadLibPath = "-lpthread";
+    maplecl::CommandLine::GetCommandLine().GetLinkOptions().push_back(pgoLibPath);
+    maplecl::CommandLine::GetCommandLine().GetLinkOptions().push_back(threadLibPath);
+  }
 
   // We should recognize O0, O2 and run options firstly to decide the real options
   ErrorCode ret = HandleEarlyOptions();
@@ -103,7 +119,8 @@ ErrorCode MplOptions::Parse(int argc, char **argv) {
 }
 
 ErrorCode MplOptions::HandleOptions() {
-  if (opts::output.IsEnabledByUser() && GetActions().size() > 1) {
+  if (opts::output.IsEnabledByUser() && inputInfos.size() > 1 &&
+     (opts::onlyCompile.IsEnabledByUser() || opts::compileWOLink.IsEnabledByUser())) {
     LogInfo::MapleLogger(kLlErr) << "Cannot specify -o with -c, -S when generating multiple output\n";
     return kErrorInvalidParameter;
   }
@@ -145,13 +162,9 @@ void MplOptions::HandleSafeOptions() {
 }
 
 ErrorCode MplOptions::HandleEarlyOptions() {
-  if (opts::version) {
+  if (opts::version || opts::oDumpversion) {
     LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
-
-    /* exit, if only one "version" option is set. Else: continue compilation */
-    if (driverCategory.GetEnabledOptions().size() == 1) {
-      return kErrorExitHelp;
-    }
+    exit(0);
   }
 
   if (opts::printDriverPhases) {
@@ -277,14 +290,21 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       UpdateRunningExe(kBinNameClang);
       newAction = std::make_unique<Action>(kBinNameClang, inputInfo, currentAction);
       currentAction = std::move(newAction);
-      if (inputFileType == InputFileType::kFileTypeH || opts::onlyPreprocess.IsEnabledByUser()) {
+      if (inputFileType == InputFileType::kFileTypeH || opts::onlyPreprocess.IsEnabledByUser() ||
+          (opts::linkerTimeOpt.IsEnabledByUser() && opts::compileWOLink.IsEnabledByUser()) ||
+           opts::oM.IsEnabledByUser() || opts::oMM.IsEnabledByUser() || opts::oMG.IsEnabledByUser() ||
+           opts::oMQ.IsEnabledByUser()) {
         return currentAction;
       }
       [[clang::fallthrough]];
+    case InputFileType::kFileTypeOast:
     case InputFileType::kFileTypeAst:
       UpdateRunningExe(kBinNameCpp2mpl);
       newAction = std::make_unique<Action>(kBinNameCpp2mpl, inputInfo, currentAction);
       currentAction = std::move(newAction);
+      if (isAllAst) {
+        return currentAction;
+      }
       break;
     case InputFileType::kFileTypeJar:
       // fall-through
@@ -365,8 +385,27 @@ ErrorCode MplOptions::DecideRunningPhases() {
   ErrorCode ret = kErrorNoError;
   std::vector<std::unique_ptr<Action>> linkActions;
   std::unique_ptr<Action> lastAction;
-
   bool isMultipleFiles = (inputInfos.size() > 1);
+
+  if (isAllAst) {
+    std::vector<std::unique_ptr<InputInfo>> tmpInputInfos;
+    for (auto &inputInfo : inputInfos) {
+      if (inputInfo->GetInputFileType() == InputFileType::kFileTypeObj) {
+        tmpInputInfos.push_back(std::move(inputInfo));
+      } else {
+        hirInputFiles.push_back(inputInfo->GetInputFile());
+      }
+    }
+    inputInfos.clear();
+    inputInfos = std::move(tmpInputInfos);
+    tmpInputInfos.clear();
+    auto lastOastInfo = hirInputFiles.back();
+    hirInputFiles.pop_back();
+    inputInfos.push_back(std::make_unique<InputInfo>(lastOastInfo));
+    inputInfos.push_back(std::make_unique<InputInfo>(InputInfo(inputInfos.back()->GetOutputFolder() + "tmp.mpl",
+                         InputFileType::kFileTypeMpl, "tmp.mpl", inputInfos.back()->GetOutputFolder(),
+                         inputInfos.back()->GetOutputFolder(), "tmp", inputInfos.back()->GetOutputFolder() + "tmp")));
+  }
 
   for (auto &inputInfo : inputInfos) {
     CHECK_FATAL(inputInfo != nullptr, "InputInfo must be created!!");
@@ -513,7 +552,7 @@ void MplOptions::DumpActionTree(const Action &action, int indents) const {
 std::string MplOptions::GetCommonOptionsStr() const {
   std::string driverOptions;
   static const std::vector<maplecl::OptionInterface *> extraExclude = {
-      &opts::run, &opts::optionOpt, &opts::infile, &opts::mpl2mplOpt, &opts::meOpt,&opts::mplcgOpt,
+      &opts::run, &opts::optionOpt, &opts::infile, &opts::mpl2mplOpt, &opts::meOpt, &opts::mplcgOpt,
       &opts::o0, &opts::o1, &opts::o2, &opts::o3, &opts::os
   };
 
@@ -521,11 +560,7 @@ std::string MplOptions::GetCommonOptionsStr() const {
     if (!(std::find(std::begin(extraExclude), std::end(extraExclude), opt) != std::end(extraExclude))) {
       for (const auto &val : opt->GetRawValues()) {
         if (!val.empty()) {
-          if (opt->GetName() == "-Wl") {
-            driverOptions += val + " ";
-          } else {
-            driverOptions += opt->GetName() + " " + val + " ";
-          }
+          driverOptions += opt->GetName() + " " + val + " ";
         } else {
           driverOptions += opt->GetName() + " ";
         }
@@ -573,14 +608,8 @@ ErrorCode MplOptions::CheckInputFiles() {
   /* Set input files directly: maple file1 file2 */
   for (auto &arg : badArgs) {
     if (FileUtils::IsFileExists(arg.first)) {
-      int inedx = static_cast<int>(arg.first.find_last_of("."));
-      std::string tmp = arg.first.substr(inedx);
-      if (tmp == ".a" || tmp == ".so") {
-        linkInputFiles.push_back(arg.first);
-      } else {
-        inputFiles.push_back(arg.first);
-        inputInfos.push_back(std::make_unique<InputInfo>(arg.first));
-      }
+      inputFiles.push_back(arg.first);
+      inputInfos.push_back(std::make_unique<InputInfo>(arg.first));
     } else {
       LogInfo::MapleLogger(kLlErr) << "Unknown option or non-existent input file: " << arg.first << "\n";
       if (!opts::ignoreUnkOpt) {
@@ -588,6 +617,22 @@ ErrorCode MplOptions::CheckInputFiles() {
       }
     }
   }
+
+  bool isOast = false;
+  bool notAstOrElf = false;
+  for (auto &inputInfo : inputInfos) {
+    if (inputInfo->GetInputFileType() == InputFileType::kFileTypeOast) {
+      isOast = true;
+    } else if (inputInfo->GetInputFileType() != InputFileType::kFileTypeObj &&
+               inputInfo->GetInputFileType() != InputFileType::kFileTypeAst) {
+      notAstOrElf = true;
+    }
+  }
+  if (isOast && notAstOrElf) {
+    LogInfo::MapleLogger(kLlErr) << "Only .o and obj files in Ir format can be compiled together." << "\n";
+    return kErrorInvalidParameter;
+  }
+  isAllAst = isOast;
 
   if (inputFiles.empty()) {
     return kErrorFileNotFound;

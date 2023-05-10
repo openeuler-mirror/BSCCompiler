@@ -97,10 +97,6 @@ maplecl::Option<uint32_t> dumpLevel({"--dump-level", "-d"},
                                "                           [3] dump debug info",
                                {hir2mplCategory});
 
-maplecl::Option<bool> dumpTime({"--dump-time", "-dump-time"},
-                          "  -dump-time             : dump time",
-                          {hir2mplCategory});
-
 maplecl::Option<bool> dumpComment({"--dump-comment", "-dump-comment"},
                              "  -dump-comment          : gen comment stmt",
                              {hir2mplCategory});
@@ -175,11 +171,6 @@ maplecl::Option<std::string> dumpFEIRCFGGraph({"-dump-cfg", "--dump-cfg"},
                                          "  -dump-cfg funcname1,funcname2\n" \
                                          "                         : dump cfg graph to dot file",
                                          {hir2mplCategory});
-
-maplecl::Option<bool> wpaa({"-wpaa", "--wpaa"},
-                      "  -dump-cfg funcname1,funcname2\n"               \
-                      "  -wpaa                  : enable whole program ailas analysis",
-                      {hir2mplCategory});
 
 maplecl::Option<bool> debug({"-debug", "--debug"},
                       "  -debug                 : dump enabled options",

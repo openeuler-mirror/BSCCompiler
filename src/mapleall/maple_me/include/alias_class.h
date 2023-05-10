@@ -129,9 +129,10 @@ class AliasClass : public AnalysisResult {
         globalsMayAffectedByClinitCheck(acAlloc.Adapter()),
         aggsToUnion(acAlloc.Adapter()),
         nadsOsts(acAlloc.Adapter()),
-        lhsWithUndefinedOffsets(acAlloc.Adapter()),
+        ostWithUndefinedOffsets(acAlloc.Adapter()),
         assignSetOfVst(acAlloc.Adapter()),
         aliasSetOfOst(acAlloc.Adapter()),
+        addrofVstNextLevNotAllDefsSeen(acAlloc.Adapter()),
         vstNextLevNotAllDefsSeen(acAlloc.Adapter()),
         ostNotAllDefsSeen(acAlloc.Adapter()),
         lessThrowAlias(lessThrowAliasParam),
@@ -167,13 +168,18 @@ class AliasClass : public AnalysisResult {
   void ApplyUnionForPhi(const PhiNode &phi);
   void ApplyUnionForIntrinsicCall(const IntrinsiccallNode &intrinsicCall);
   void ApplyUnionForCopies(StmtNode &stmt);
+  void ApplyUnionForDirectAssign(const StmtNode &stmt);
+  void ApplyUnionForIndirectAssign(const StmtNode &stmt);
+  void ApplyUnionForCommonDirectCalls(StmtNode &stmt);
+  void ApplyUnionForJavaSpecialCalls(StmtNode &stmt);
+  void ApplyUnionForCallAssigned(const StmtNode &stmt);
   void ApplyUnionForFieldsInCopiedAgg();
   void ApplyUnionForElementsInCopiedArray();
   bool IsGlobalOstTypeUnsafe(const OriginalSt &ost) const;
   void PropagateTypeUnsafe();
   void PropagateTypeUnsafeVertically(const VersionSt &vst) const;
   MIRType *GetAliasInfoRealType(const AliasInfo &ai, const BaseNode &expr);
-  bool IsAddrTypeConsistent(MIRType *typeA, MIRType *typeB) const;
+  bool IsAddrTypeConsistent(const MIRType *typeA, const MIRType *typeB) const;
   void SetTypeUnsafeForAddrofUnion(const VersionSt *vst) const;
   void SetTypeUnsafeForTypeConversion(const VersionSt *lhsVst, BaseNode *rhsExpr);
   void CreateAssignSets();
@@ -242,7 +248,7 @@ class AliasClass : public AnalysisResult {
 
  private:
   bool CallHasNoSideEffectOrPrivateDefEffect(const CallNode &stmt, FuncAttrKind attrKind) const;
-  const FuncDesc &GetFuncDescFromCallStmt(const CallNode &stmt) const;
+  const FuncDesc &GetFuncDescFromCallStmt(const CallNode &callstmt) const;
   bool CallHasNoPrivateDefEffect(StmtNode *stmt) const;
   void RecordAliasAnalysisInfo(const VersionSt &vst);
   VersionSt *FindOrCreateVstOfExtraLevOst(
@@ -252,7 +258,7 @@ class AliasClass : public AnalysisResult {
   void SetPtrOpndNextLevNADS(const BaseNode &opnd, VersionSt *vst, bool hasNoPrivateDefEffect);
   void SetPtrOpndsNextLevNADS(unsigned int start, unsigned int end, MapleVector<BaseNode*> &opnds,
                               bool hasNoPrivateDefEffect);
-  void SetAggPtrFieldsNextLevNADS(const OriginalSt &ost);
+  void SetAggPtrFieldsNextLevNADS(const VersionSt &vst);
   void SetPtrFieldsOfAggNextLevNADS(const BaseNode *opnd, const VersionSt *vst);
   void SetAggOpndPtrFieldsNextLevNADS(MapleVector<BaseNode*> &opnds);
   void ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs);
@@ -264,7 +270,7 @@ class AliasClass : public AnalysisResult {
   void CollectMayUseForNextLevel(const VersionSt &vst, OstPtrSet &mayUseOsts,
                                  const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayUseForIntrnCallOpnd(const StmtNode &stmt, OstPtrSet &mayDefOsts, OstPtrSet &mayUseOsts);
-  void CollectMayDefUseForIthOpnd(const VersionSt &vst, OstPtrSet &mayUseOsts,
+  void CollectMayDefUseForIthOpnd(const VersionSt &vstOfIthOpnd, OstPtrSet &mayUseOsts,
                                   const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayDefUseForCallOpnd(const StmtNode &stmt,
                                    OstPtrSet &mayDefOsts, OstPtrSet &mayUseOsts,
@@ -283,7 +289,7 @@ class AliasClass : public AnalysisResult {
   void CollectMayDefForDassign(const StmtNode &stmt, OstPtrSet &mayDefOsts);
   void InsertMayDefNode(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart, StmtNode &stmt, BBId bbid);
   void InsertMayDefDassign(StmtNode &stmt, BBId bbid);
-  bool IsEquivalentField(TyIdx tyIdxA, FieldID fldA, TyIdx tyIdxB, FieldID fldB) const;
+  bool IsEquivalentField(TyIdx tyIdxA, FieldID fieldA, TyIdx tyIdxB, FieldID fieldB) const;
   bool IsAliasInfoEquivalentToExpr(const AliasInfo &ai, const BaseNode *expr);
   void CollectMayDefForIassign(StmtNode &stmt, OstPtrSet &mayDefOsts);
   void InsertMayDefNodeExcludeFinalOst(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart,
@@ -293,7 +299,7 @@ class AliasClass : public AnalysisResult {
   void InsertMayUseNodeExcludeFinalOst(const OstPtrSet &mayUseOsts, AccessSSANodes *ssaPart);
   void InsertMayDefUseIntrncall(StmtNode &stmt, BBId bbid);
   void InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid);
-  void InsertMayDefUseAsm(StmtNode &stmt, const BBId bbid);
+  void InsertMayDefUseAsm(StmtNode &stmt, const BBId bbID);
   virtual BB *GetBB(BBId id) = 0;
   void ProcessIdsAliasWithRoot(const std::set<unsigned int> &idsAliasWithRoot, std::vector<unsigned int> &newGroups);
   int GetOffset(const Klass &super, const Klass &base) const;
@@ -308,6 +314,22 @@ class AliasClass : public AnalysisResult {
 
   AssignSet *GetAssignSet(const VersionSt &vst) {
     return GetAssignSet(vst.GetIndex());
+  }
+
+  bool IsAddrofVstNextLevNotAllDefSeen(size_t vstIdx) {
+    if (vstIdx >= addrofVstNextLevNotAllDefsSeen.size()) {
+      return false;
+    }
+    return addrofVstNextLevNotAllDefsSeen[vstIdx];
+  }
+
+  void SetAddrofVstNextLevNotAllDefsSeen(size_t vstIdx) {
+    if (vstIdx >= addrofVstNextLevNotAllDefsSeen.size()) {
+      size_t bufferSize = 5;
+      size_t incNum = vstIdx + bufferSize - addrofVstNextLevNotAllDefsSeen.size();
+      addrofVstNextLevNotAllDefsSeen.insert(addrofVstNextLevNotAllDefsSeen.end(), incNum, false);
+    }
+    addrofVstNextLevNotAllDefsSeen[vstIdx] = true;
   }
 
   bool IsNextLevNotAllDefsSeen(size_t vstIdx) {
@@ -350,11 +372,12 @@ class AliasClass : public AnalysisResult {
   MapleSet<OriginalSt*, OriginalSt::OriginalStPtrComparator> globalsAffectedByCalls;
   // aliased at calls; needed only when wholeProgramScope is true
   MapleSet<OStIdx> globalsMayAffectedByClinitCheck;
-  MapleMap<OriginalSt*, OriginalSt*> aggsToUnion; // aggs are copied, their fields should be unioned
+  MapleUnorderedMultiMap<OriginalSt*, OriginalSt*> aggsToUnion; // aggs are copied, their fields should be unioned
   MapleSet<OriginalSt*, OriginalSt::OriginalStPtrComparator> nadsOsts;
-  MapleVector<OriginalSt*> lhsWithUndefinedOffsets;
+  MapleVector<OriginalSt*> ostWithUndefinedOffsets;
   VstIdx2AssignSet assignSetOfVst;
   OstIdx2AliasSet aliasSetOfOst;
+  AliasAttrVec addrofVstNextLevNotAllDefsSeen;
   AliasAttrVec vstNextLevNotAllDefsSeen;
   AliasAttrVec ostNotAllDefsSeen;
 

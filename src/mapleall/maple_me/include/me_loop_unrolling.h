@@ -59,7 +59,7 @@ class LoopUnrolling {
   }
 
  private:
-  bool SplitCondGotoBB();
+  bool SplitCondGotoBB() const;
   VarMeExpr *CreateIndVarOrTripCountWithName(const std::string &name);
   void RemoveCondGoto();
 

@@ -90,8 +90,14 @@ class PEGNode {
 
   void CopyAttrFromValueAliasedNode(const PEGNode *other) {
     attr[kAliasAttrNextLevNotAllDefsSeen] =
-        attr[kAliasAttrNextLevNotAllDefsSeen] | other->attr[kAliasAttrNextLevNotAllDefsSeen];
-    attr[kAliasAttrEscaped] = attr[kAliasAttrEscaped] | other->attr[kAliasAttrEscaped];
+        attr[kAliasAttrNextLevNotAllDefsSeen] || other->attr[kAliasAttrNextLevNotAllDefsSeen];
+    attr[kAliasAttrEscaped] = attr[kAliasAttrEscaped] || other->attr[kAliasAttrEscaped];
+  }
+
+  void UpdateAttrWhenReachingGlobalNode(const PEGNode *other) {
+    attr[kAliasAttrNextLevNotAllDefsSeen] = attr[kAliasAttrNextLevNotAllDefsSeen] || other->attr[kAliasAttrGlobal];
+    attr[kAliasAttrEscaped] =
+        attr[kAliasAttrEscaped] || other->attr[kAliasAttrEscaped] || other->attr[kAliasAttrGlobal];
   }
 
   void SetMultiDefined() {
@@ -117,7 +123,7 @@ class ProgramExprGraph {
     allNodes.clear();
   }
 
-  void AddAssignEdge(PEGNode *lhs, PEGNode *rhs, OffsetType offset) {
+  void AddAssignEdge(PEGNode *lhs, PEGNode *rhs, const OffsetType &offset) const {
     lhs->AddAssignFromNode(rhs, offset);
     rhs->AddAssignToNode(lhs, offset);
   }
@@ -160,9 +166,9 @@ class PEGBuilder {
   void BuildPEG();
 
  private:
-  void UpdateAttributes();
-  PtrValueRecorder BuildPEGNodeOfDread(const AddrofSSANode *dread);
-  PtrValueRecorder BuildPEGNodeOfAddrof(const AddrofSSANode *dread);
+  void UpdateAttributes() const;
+  PtrValueRecorder BuildPEGNodeOfDread(const AddrofSSANode *dread) const;
+  PtrValueRecorder BuildPEGNodeOfAddrof(const AddrofSSANode *addrof);
   PtrValueRecorder BuildPEGNodeOfRegread(const RegreadSSANode *regread);
   PtrValueRecorder BuildPEGNodeOfIread(const IreadSSANode *iread);
   PtrValueRecorder BuildPEGNodeOfIaddrof(const IreadNode *iaddrof);
@@ -282,4 +288,4 @@ class DemandDrivenAliasAnalysis {
   bool enableDebug;
 };
 } // namespace maple
-#endif //MAPLE_ME_INCLUDE_DEMAND_DRIVEN_ALIAS_ANALYSIS_H
+#endif // MAPLE_ME_INCLUDE_DEMAND_DRIVEN_ALIAS_ANALYSIS_H

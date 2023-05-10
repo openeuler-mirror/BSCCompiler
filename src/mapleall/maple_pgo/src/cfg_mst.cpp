@@ -56,8 +56,8 @@ void CFGMST<Edge, BB>::ComputeMST(BB *commonEntry, BB *commonExit) {
     LogInfo::MapleLogger() << "only one edge find " << std::endl;
     return;
   }
-  // first,put all critial edge,with destBB is eh-handle (no such case in C)
-  // split critical edge before building mst
+  // first,put all critial edge,with destBB is eh-handle
+  // in mst,because current doesn't support split that edge
   for (auto &e : allEdges) {
     if (UnionGroups(e->GetSrcBB()->GetId(), e->GetDestBB()->GetId())) {
       e->SetInMST();
@@ -80,7 +80,7 @@ void CFGMST<Edge, BB>::AddEdge(BB *src, BB *dest, uint64 w, bool isCritical, boo
     }
   }
   if (!found) {
-    allEdges.emplace_back(mp->New<Edge>(src, dest, w, isCritical, isFake));
+    (void)allEdges.emplace_back(mp->New<Edge>(src, dest, w, isCritical, isFake));
   }
 }
 
@@ -92,7 +92,7 @@ void CFGMST<Edge, BB>::SortEdges() {
 
 template <class Edge, class BB>
 uint32 CFGMST<Edge, BB>::FindGroup(uint32 bbId) {
-  CHECK_FATAL(bbGroups.count(bbId), "unRegister bb");
+  CHECK_FATAL(bbGroups.count(bbId) != 0, "unRegister bb");
   if (bbGroups[bbId] != bbId) {
     bbGroups[bbId] = FindGroup(bbGroups[bbId]);
   }

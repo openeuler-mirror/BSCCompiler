@@ -889,7 +889,7 @@ MIRType &BinaryMplImport::InsertInTypeTables(MIRType &type) {
     } else {
       // New definition wins
       type.SetTypeIndex(prevTyIdx);
-      CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeTable().empty() == false, "container check");
+      CHECK_FATAL(!GlobalTables::GetTypeTable().GetTypeTable().empty(), "container check");
       GlobalTables::GetTypeTable().SetTypeWithTyIdx(prevTyIdx, *type.CopyMIRTypeNode());
       resultTypePtr = GlobalTables::GetTypeTable().GetTypeFromTyIdx(prevTyIdx);
       if (!IsIncomplete(*resultTypePtr)) {
@@ -1276,7 +1276,7 @@ void BinaryMplImport::ReadCgField() {
     MIRSymbol *tmpInSymbol = InSymbol(nullptr);
     CHECK_FATAL(tmpInSymbol != nullptr, "null ptr check");
     PUIdx methodPuidx = tmpInSymbol->GetFunction()->GetPuidx();
-    CHECK_FATAL(methodPuidx, "should not be 0");
+    CHECK_FATAL(methodPuidx != 0, "should not be 0");
     if (mod.GetMethod2TargetMap().find(methodPuidx) == mod.GetMethod2TargetMap().end()) {
       std::vector<CallInfo*> targetSetTmp;
       mod.AddMemToMethod2TargetMap(methodPuidx, targetSetTmp);
@@ -1555,11 +1555,11 @@ bool BinaryMplImport::ImportForSrcLang(const std::string &fname, MIRSrcLang &src
   Reset();
   ReadFileAt(fname, 0);
   int32 magic = ReadInt();
-  if (kMpltMagicNumber != magic && (kMpltMagicNumber + 0x10) != magic) {
+  if (magic != kMpltMagicNumber && magic != (kMpltMagicNumber + 0x10)) {
     buf.clear();
     return false;
   }
-  importingFromMplt = kMpltMagicNumber == magic;
+  importingFromMplt = magic == kMpltMagicNumber;
   int64 fieldID = ReadNum();
   while (fieldID != kBinFinish) {
     switch (fieldID) {
@@ -1583,11 +1583,11 @@ bool BinaryMplImport::Import(const std::string &fname, bool readSymbols, bool re
   Reset();
   ReadFileAt(fname, 0);
   int32 magic = ReadInt();
-  if (kMpltMagicNumber != magic && (kMpltMagicNumber + 0x10) != magic) {
+  if (magic != kMpltMagicNumber && magic != (kMpltMagicNumber + 0x10)) {
     buf.clear();
     return false;
   }
-  importingFromMplt = kMpltMagicNumber == magic;
+  importingFromMplt = magic == kMpltMagicNumber;
   int64 fieldID = ReadNum();
   if (readSe) {
     while (fieldID != kBinFinish) {

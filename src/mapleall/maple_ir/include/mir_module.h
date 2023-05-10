@@ -120,7 +120,7 @@ class ImpExpr {
 // blksize gives the size of the memory block in bytes; there are (blksize+3)/4
 // words; 1 bit for each word, so the bit vector's length in bytes is
 // ((blksize+3)/4+7)/8
-static inline uint32 BlockSize2BitVectorSize(uint32 blkSize) {
+inline uint32 BlockSize2BitVectorSize(uint32 blkSize) {
   uint32 bitVectorLen = ((blkSize + 3) / 4 + 7) / 8;
   return ((bitVectorLen + 3) >> 2) << 2;  // round up to word boundary
 }
@@ -694,6 +694,39 @@ class MIRModule {
 
   bool HasNotWarned(uint32 position, uint32 stmtOriginalID);
 
+  // now we use the full path name as the ankor name. Maybe a better way later.
+  void SetTlsAnchorHashString() {
+    std::string fName = GetFileName();
+    std::replace(fName.begin(), fName.end(), '.', '$');
+    std::replace(fName.begin(), fName.end(), '/', '$');
+    std::replace(fName.begin(), fName.end(), '-', '$');
+    tlsAnchorHashString = fName;
+  }
+
+  std::string &GetTlsAnchorHashString() {
+    return tlsAnchorHashString;
+  }
+
+  MapleMap<const MIRSymbol*, uint64> &GetTdataVarOffset() {
+    return tdataVarOffset;
+  }
+  MapleMap<const MIRSymbol*, uint64> &GetTbssVarOffset() {
+    return tbssVarOffset;
+  }
+
+  MIRSymbol *GetTdataAnchor() {
+    return tdataAnchor;
+  }
+  MIRSymbol *GetTbssAnchor() {
+    return tbssAnchor;
+  }
+  void SetTdataAnchor(MIRSymbol *st) {
+    tdataAnchor = st;
+  }
+  void SetTbssAnchor(MIRSymbol *st) {
+    tbssAnchor = st;
+  }
+
  private:
   void DumpTypeTreeToCxxHeaderFile(MIRType &ty, std::unordered_set<MIRType*> &dumpedClasses) const;
 
@@ -789,6 +822,12 @@ class MIRModule {
   std::map<CalleePair, std::map<double, std::vector<CallerSummary>>> calleeParamAboutDouble;
   std::map<CalleePair, std::map<float, std::vector<CallerSummary>>> calleeParamAboutFloat;
   std::map<PUIdx, std::vector<ImpExpr>> funcImportantExpr;
+
+  std::string tlsAnchorHashString = "";
+  MapleMap<const MIRSymbol*, uint64> tdataVarOffset;
+  MapleMap<const MIRSymbol*, uint64> tbssVarOffset;
+  MIRSymbol *tdataAnchor;
+  MIRSymbol *tbssAnchor;
 };
 #endif  // MIR_FEATURE_FULL
 }  // namespace maple

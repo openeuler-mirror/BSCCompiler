@@ -102,14 +102,14 @@ class IpaSideEffect {
   void GetEffectFromAllCallees(MIRFunction &baseFunc);
   bool AnalyzeReturnAllocObjVst(MeExpr&, const std::vector<MeExpr*>&);
   bool MatchPuidxAndSetSideEffects(PUIdx idx);
-  void ReadSummary();
+  void ReadSummary() const;
   void SetEffectsTrue();
-  void CopySccSideEffectToAllFunctions(SCCNode<CGNode> &scc, uint8 seMask);
+  void CopySccSideEffectToAllFunctions(SCCNode<CGNode> &scc, uint8 seMask) const;
   void GetEffectFromCallee(MIRFunction &callee, const MIRFunction &caller);
   void DumpFuncInfo(const std::string &msg, const std::string &name);
-  uint32 GetOrSetSCCNodeId(MIRFunction &func);
+  uint32 GetOrSetSCCNodeId(MIRFunction &mirfunc);
   bool IsCallingIntoSCC(uint32 sccID) const;
-  void UpdateExternalFuncSideEffects(MIRFunction &externCaller);
+  void UpdateExternalFuncSideEffects(MIRFunction &func);
   bool AnalyzeDefExpr(VersionSt &baseVar, std::vector<VersionSt*> &varVector);
   bool MEAnalyzeDefExpr(MeExpr &baseExprMe, std::vector<MeExpr*> &varVector);
   bool UpdateSideEffectWithStmt(MeStmt &meStmt,

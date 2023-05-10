@@ -172,7 +172,6 @@ void MEHdse::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEAliasClass>();
   aDep.AddRequired<MEIRMapBuild>();
   aDep.AddRequired<MELoopAnalysis>();
-  aDep.PreservedAllExcept<MEDominance>();
   aDep.PreservedAllExcept<MELoopAnalysis>();
 }
 
@@ -209,11 +208,15 @@ bool MEHdse::PhaseRun(maple::MeFunction &f) {
   if (f.hdseRuns > 2) {
     hdse.SetRemoveRedefine(true);
   }
-  hdse.DoHDSE();
+  bool isCModule = f.GetMIRModule().IsCModule();
+  hdse.DoHDSESafely(isCModule ? &f : nullptr, *GetAnalysisInfoHook());
   hdse.BackwardSubstitution();
-  MakeEmptyTrysUnreachable(f);
-  (void)f.GetCfg()->UnreachCodeAnalysis(true);
-  f.GetCfg()->WontExitAnalysis();
+  if (!isCModule) {
+    MakeEmptyTrysUnreachable(f);
+    (void)f.GetCfg()->UnreachCodeAnalysis(true);
+    f.GetCfg()->WontExitAnalysis();
+    FORCE_INVALID(MEDominance, f);
+  }
   // update frequency
   if (hdse.UpdateFreq()) {
     if (f.GetCfg()->DumpIRProfileFile()) {

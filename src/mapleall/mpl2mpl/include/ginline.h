@@ -34,8 +34,8 @@
 namespace maple {
 class CallSiteNode {
  public:
-  CallSiteNode(CallInfo *info, BadnessInfo &badnessInfo, uint32 inlineDepth)
-      : callInfo(info), badInfo(badnessInfo), depth(inlineDepth) {}
+  CallSiteNode(CallInfo *info, const BadnessInfo &badnessInfo, uint32 inlineDepth) :
+      callInfo(info), badInfo(badnessInfo), depth(inlineDepth) {}
 
   auto *GetCallInfo() const {
     return callInfo;
@@ -140,7 +140,7 @@ class GInline {
   BadnessInfo *CalcBadness(CallInfo &info);
   void InsertNewCallSite(CallInfo &info, uint32 depth);
   void UpdateCallSite(CallInfo &info);
-  bool CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode);
+  bool CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) const;
   void PrintGInlineReport() const;
 
   MapleSet<MIRFunction*> funcsToBeRemoved;

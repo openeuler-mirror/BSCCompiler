@@ -69,6 +69,7 @@ class CGLowerer {
   }
 
   ~CGLowerer() {
+    funcProfData = nullptr;
     mirBuilder = nullptr;
     currentBlock = nullptr;
   }
@@ -142,7 +143,7 @@ class CGLowerer {
   std::string GetFileNameSymbolName(const std::string &fileName) const;
 
   void SwitchAssertBoundary(StmtNode &stmt, MapleVector<BaseNode*> &argsPrintf);
-  StmtNode *CreateFflushStmt(StmtNode &stmt);
+  StmtNode *CreateFflushStmt(StmtNode &stmt) const;
 
   void LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode &newBlk, std::vector<StmtNode *> &abortNode);
 
@@ -175,7 +176,15 @@ class CGLowerer {
                      bool uselvar = false, bool isIntrinAssign = false);
   BlockNode *LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode &intrinsicCall);
   BlockNode *LowerCallAssignedStmt(StmtNode &stmt, bool uselvar = false);
-  bool LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *&nextStmt, bool &lvar, BlockNode *oldBlk);
+  /* Intrinsiccall will processe return and vector as a call separately.
+   * To be able to handle them in a unified manner, we lower intrinsiccall to Intrinsicsicop.
+   */
+  BlockNode *LowerIntrinsiccallToIntrinsicop(StmtNode &stmt);
+  bool LowerStructReturnInRegs(BlockNode &newBlk, StmtNode &stmt, const MIRSymbol &retSym);
+  void LowerStructReturnInGpRegs(BlockNode &newBlk, const StmtNode &stmt, const MIRSymbol &symbol);
+  void LowerStructReturnInFpRegs(BlockNode &newBlk, const StmtNode &stmt, const MIRSymbol &symbol,
+                                 PrimType primType, size_t elemNum);
+  bool LowerStructReturn(BlockNode &newBlk, StmtNode &stmt, bool &lvar);
   BlockNode *LowerMemop(StmtNode &stmt);
 
   BaseNode *LowerRem(BaseNode &expr, BlockNode &blk);
@@ -211,9 +220,9 @@ class CGLowerer {
   void LowerTypePtr(BaseNode &node) const;
 
   BaseNode *GetBitField(int32 byteOffset, BaseNode *baseAddr, PrimType fieldPrimType);
-  StmtNode *WriteBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
+  StmtNode *WriteBitField(const OffsetPair &byteBitOffsets, const MIRBitFieldType *fieldType,
                           BaseNode *baseAddr, BaseNode *rhs, BlockNode *block);
-  BaseNode *ReadBitField(const std::pair<int32, int32> &byteBitOffsets, const MIRBitFieldType *fieldType,
+  BaseNode *ReadBitField(const OffsetPair &byteBitOffsets, const MIRBitFieldType &fieldType,
                          BaseNode *baseAddr);
   BaseNode *LowerDreadBitfield(DreadNode &dread);
   BaseNode *LowerIreadBitfield(IreadNode &iread);

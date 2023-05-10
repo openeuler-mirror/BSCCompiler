@@ -288,7 +288,7 @@ BaseNode *LiteExpr::ConvertToMapleIR(MapleAllocator &alloc, const ArgInfoVec *ar
     if (op == OP_select) {
       auto *node1 = opnds[1]->ConvertToMapleIR(alloc, argInfoVec);
       auto *node2 = opnds[2]->ConvertToMapleIR(alloc, argInfoVec);
-      return alloc.New<TernaryNode>(op, type, node0, node1, node2);
+      return (!node1 || !node2) ? nullptr : alloc.New<TernaryNode>(op, type, node0, node1, node2);
     }
   } else {
     CHECK_FATAL(false, "NYI");
@@ -525,7 +525,7 @@ void MergeInlineSummary(MIRFunction &caller, MIRFunction &callee, const StmtNode
   auto callStmtId = callStmt.GetStmtID();
   auto &argInfosMap = callerSummary->GetArgInfosMap();
   ArgInfoVec *argInfoVec = nullptr;
-  const auto &it = argInfosMap.find(callStmtId);
+  const auto &it = std::as_const(argInfosMap).find(callStmtId);
   if (it != argInfosMap.end()) {
     argInfoVec = it->second;
   }
@@ -551,7 +551,7 @@ void InlineSummary::MergeSummary(const InlineSummary &fromSummary, uint32 callSt
   InlineEdgeSummary *callEdgeSummary = nullptr;
   int32 callFrequency = -1;
   auto *callBBPredicate = Predicate::TruePredicate();
-  const auto &eit = edgeSummaryMap.find(callStmtId);
+  const auto &eit = std::as_const(edgeSummaryMap).find(callStmtId);
   if (eit != edgeSummaryMap.end()) {
     callEdgeSummary = eit->second;
     callFrequency = callEdgeSummary->frequency;

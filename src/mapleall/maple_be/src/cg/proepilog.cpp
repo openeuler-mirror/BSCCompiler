@@ -13,15 +13,15 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "proepilog.h"
-#if TARGAARCH64
+#if defined(TARGAARCH64) && TARGAARCH64
 #include "aarch64_proepilog.h"
 #elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_proepilog.h"
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
 #include "arm32_proepilog.h"
 #endif
-#if TARGX86_64
+#if defined(TARGX86_64) && TARGX86_64
 #include "x64_proepilog.h"
 #endif
 #include "cgfunc.h"
@@ -32,13 +32,13 @@ using namespace maple;
 
 bool CgGenProEpiLog::PhaseRun(maplebe::CGFunc &f) {
   GenProEpilog *genPE = nullptr;
-#if TARGAARCH64 || TARGRISCV64
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)
   genPE = GetPhaseAllocator()->New<AArch64GenProEpilog>(f, *ApplyTempMemPool());
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   genPE = GetPhaseAllocator()->New<Arm32GenProEpilog>(f);
 #endif
-#if TARGX86_64
+#if defined(TARGX86_64) && TARGX86_64
   genPE = GetPhaseAllocator()->New<X64GenProEpilog>(f);
 #endif
   genPE->Run();

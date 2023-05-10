@@ -141,7 +141,7 @@ void X64Standardize::StdzFloatingNeg(Insn &insn) {
   uint32 bitSize = mOp == abstract::MOP_neg_f_32 ? k32BitSize : k64BitSize;
 
   // mov dest -> tmpOperand0
-  MOperator movOp = mOp == abstract::MOP_neg_f_32 ? x64::MOP_movd_fr_r : x64::MOP_movq_fr_r;
+  MOperator movOp = (mOp == abstract::MOP_neg_f_32) ? x64::MOP_movd_fr_r : x64::MOP_movq_fr_r;
   RegOperand *tmpOperand0 = &GetCgFunc()->GetOpndBuilder()->CreateVReg(bitSize, kRegTyInt);
   Insn &movInsn0 = GetCgFunc()->GetInsnBuilder()->BuildInsn(movOp, X64CG::kMd[movOp]);
   Operand &dest = insn.GetOperand(kInsnFirstOpnd);
@@ -170,6 +170,7 @@ void X64Standardize::StdzFloatingNeg(Insn &insn) {
   }
 
   // mov tmpOperand0 -> dest
+  movOp = (mOp == abstract::MOP_neg_f_32) ? x64::MOP_movd_r_fr : x64::MOP_movq_r_fr;
   Insn &movq = GetCgFunc()->GetInsnBuilder()->BuildInsn(movOp, X64CG::kMd[movOp]);
   movq.AddOpndChain(*tmpOperand0).AddOpndChain(dest);
   insn.GetBB()->InsertInsnBefore(insn, movq);

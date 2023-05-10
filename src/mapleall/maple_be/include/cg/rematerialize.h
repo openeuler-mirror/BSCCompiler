@@ -49,6 +49,7 @@ class Rematerializer {
   void SetRematLevel(RematLevel val) {
     rematLevel = val;
   }
+
   RematLevel GetRematLevel() const {
     return rematLevel;
   }

@@ -15,7 +15,6 @@
 #ifndef MAPLE_UTIL_INCLUDE_FACTORY_H
 #define MAPLE_UTIL_INCLUDE_FACTORY_H
 #include <map>
-#include <memory>
 #include <functional>
 #include <mutex>
 #include "thread_env.h"

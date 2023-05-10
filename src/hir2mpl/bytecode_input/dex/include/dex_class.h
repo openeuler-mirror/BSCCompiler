@@ -30,7 +30,7 @@ class DexClassField : public BCClassField {
       : BCClassField(klassIn, acc, nameIn, descIn),
         itemIdx(itemIdxIn),
         idx(idxIn) {}
-  ~DexClassField() = default;
+  ~DexClassField() override = default;
 
  protected:
   uint32 GetItemIdxImpl() const override;
@@ -61,7 +61,7 @@ class DexClassMethod : public BCClassMethod {
       : BCClassMethod(klassIn, acc, isVirtualIn, nameIn, descIn),
         itemIdx(itemIdxIn),
         idx(idxIn) {}
-  ~DexClassMethod() = default;
+  ~DexClassMethod() override = default;
 
  protected:
   uint32 GetItemIdxImpl() const override;

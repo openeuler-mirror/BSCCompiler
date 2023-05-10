@@ -22,6 +22,7 @@
 #endif
 #include "insn.h"
 #include "sparse_datainfo.h"
+#include "base_graph_node.h"
 
 /* Maple IR headers */
 #include "mir_nodes.h"
@@ -76,7 +77,7 @@ class CGFuncLoops;
 class CGFunc;
 class CDGNode;
 
-class BB {
+class BB : public maple::BaseGraphNode {
  public:
   enum BBKind : uint8 {
     kBBFallthru,  /* default */
@@ -92,7 +93,7 @@ class BB {
   };
 
   BB(uint32 bbID, MapleAllocator &mallocator)
-      : id(bbID),
+      : BaseGraphNode(bbID),  // id(bbID),
         kind(kBBFallthru), /* kBBFallthru default kind */
         labIdx(MIRLabelTable::GetDummyLabel()),
         preds(mallocator.Adapter()),
@@ -109,7 +110,7 @@ class BB {
         rangeGotoLabelVec(mallocator.Adapter()),
         phiInsnList(mallocator.Adapter()) {}
 
-  virtual ~BB() = default;
+  ~BB() override = default;
 
   virtual BB *Clone(MemPool &memPool) const {
     BB *bb = memPool.Clone<BB>(*this);
@@ -195,6 +196,27 @@ class BB {
     internalFlag1++;
   }
 
+  void AppendOtherBBInsn(Insn &insn) {
+    if (insn.GetPrev() != nullptr) {
+      insn.GetPrev()->SetNext(insn.GetNext());
+    }
+    if (insn.GetNext() != nullptr) {
+      insn.GetNext()->SetPrev(insn.GetPrev());
+    }
+    if (firstInsn != nullptr && lastInsn != nullptr) {
+      lastInsn->SetNext(&insn);
+      insn.SetPrev(lastInsn);
+      insn.SetNext(nullptr);
+      lastInsn = &insn;
+    } else {
+      firstInsn = lastInsn = &insn;
+      insn.SetPrev(nullptr);
+      insn.SetNext(nullptr);
+    }
+    insn.SetBB(this);
+    internalFlag1++;
+  }
+
   void ReplaceInsn(Insn &insn, Insn &newInsn);
 
   void RemoveInsn(Insn &insn);
@@ -206,7 +228,7 @@ class BB {
   void RemoveInsnSequence(Insn &insn, const Insn &nextInsn);
 
   /* prepend all insns from bb before insn */
-  void InsertBeforeInsn(BB &fromBB, Insn &beforeInsn);
+  void InsertBeforeInsn(BB &fromBB, Insn &beforeInsn) const;
 
   /* append all insns from bb into this bb */
   void AppendBBInsns(BB &bb);
@@ -275,13 +297,16 @@ class BB {
   /* Number of instructions excluding DbgInsn and comments */
   int32 NumInsn() const;
   uint32 GetId() const {
-    return id;
+    return GetID();
   }
   uint32 GetLevel() const {
     return level;
   }
   void SetLevel(uint32 arg) {
     level = arg;
+  }
+  FreqType GetNodeFrequency() const override {
+    return static_cast<FreqType>(frequency);
   }
   uint32 GetFrequency() const {
     return frequency;
@@ -295,7 +320,7 @@ class BB {
   void SetProfFreq(FreqType arg) {
     profFreq = arg;
   }
-  bool IsInColdSection() {
+  bool IsInColdSection() const {
     return inColdSection;
   }
   void SetColdSection() {
@@ -365,7 +390,7 @@ class BB {
     FOR_BB_INSNS_REV(insn, this) {
 #if TARGAARCH64
       if (insn->IsMachineInstruction() && !AArch64isa::IsPseudoInstruction(insn->GetMachineOpcode())) {
-#elif TARGX86_64
+#elif defined(TARGX86_64) && TARGX86_64
       if (insn->IsMachineInstruction()) {
 #endif
         return insn;
@@ -400,6 +425,30 @@ class BB {
   const std::size_t GetSuccsSize() const {
     return succs.size();
   }
+
+  // override interface of BaseGraphNode
+  const std::string GetIdentity() final {
+    return "BBId: " + std::to_string(GetID());
+  }
+
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) const final {
+    outNodes.resize(succs.size(), nullptr);
+    std::copy(succs.begin(), succs.end(), outNodes.begin());
+  }
+
+  void GetOutNodes(std::vector<BaseGraphNode*> &outNodes) final {
+    static_cast<const BB *>(this)->GetOutNodes(outNodes);
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) const final {
+    inNodes.resize(preds.size(), nullptr);
+    std::copy(preds.begin(), preds.end(), inNodes.begin());
+  }
+
+  void GetInNodes(std::vector<BaseGraphNode*> &inNodes) final {
+    static_cast<const BB *>(this)->GetInNodes(inNodes);
+  }
+
   const MapleList<BB*> &GetEhPreds() const {
     return ehPreds;
   }
@@ -463,8 +512,8 @@ class BB {
   void PushFrontSuccs(BB &bb) {
     succs.push_front(&bb);
   }
-  void ErasePreds(MapleList<BB*>::const_iterator it) {
-    preds.erase(it);
+  MapleList<BB*>::iterator ErasePreds(MapleList<BB*>::const_iterator it) {
+    return preds.erase(it);
   }
   void EraseSuccs(MapleList<BB*>::const_iterator it) {
     succs.erase(it);
@@ -535,8 +584,8 @@ class BB {
   CGFuncLoops *GetLoop() const {
     return loop;
   }
-  void SetLoop(CGFuncLoops &arg) {
-    loop = &arg;
+  void SetLoop(CGFuncLoops *arg) {
+    loop = arg;
   }
   bool GetLiveInChange() const {
     return liveInChange;
@@ -690,16 +739,16 @@ class BB {
   void SetLiveIn(SparseDataInfo &arg) {
     liveIn = &arg;
   }
-  void SetLiveInBit(uint32 arg) const {
+  void SetLiveInBit(uint32 arg) {
     liveIn->SetBit(arg);
   }
-  void SetLiveInInfo(const SparseDataInfo &arg) const {
+  void SetLiveInInfo(const SparseDataInfo &arg) {
     *liveIn = arg;
   }
-  void LiveInOrBits(const SparseDataInfo &arg) const {
+  void LiveInOrBits(const SparseDataInfo &arg) {
     liveIn->OrBits(arg);
   }
-  void LiveInEnlargeCapacity(uint32 arg) const {
+  void LiveInEnlargeCapacity(uint32 arg) {
     liveIn->EnlargeCapacityToAdaptSize(arg);
   }
   void LiveInClearDataInfo() {
@@ -715,13 +764,13 @@ class BB {
   void SetLiveOut(SparseDataInfo &arg) {
     liveOut = &arg;
   }
-  void SetLiveOutBit(uint32 arg) const {
+  void SetLiveOutBit(uint32 arg) {
     liveOut->SetBit(arg);
   }
-  void LiveOutOrBits(const SparseDataInfo &arg) const {
+  void LiveOutOrBits(const SparseDataInfo &arg) {
     liveOut->OrBits(arg);
   }
-  void LiveOutEnlargeCapacity(uint32 arg) const {
+  void LiveOutEnlargeCapacity(uint32 arg) {
     liveOut->EnlargeCapacityToAdaptSize(arg);
   }
   void LiveOutClearDataInfo() {
@@ -734,13 +783,13 @@ class BB {
   void SetDef(SparseDataInfo &arg) {
     def = &arg;
   }
-  void SetDefBit(uint32 arg) const {
+  void SetDefBit(uint32 arg) {
     def->SetBit(arg);
   }
-  void DefResetAllBit() const {
+  void DefResetAllBit() {
     def->ResetAllBit();
   }
-  void DefResetBit(uint32 arg) const {
+  void DefResetBit(uint32 arg) {
     def->ResetBit(arg);
   }
   void DefClearDataInfo() {
@@ -753,13 +802,13 @@ class BB {
   void SetUse(SparseDataInfo &arg) {
     use = &arg;
   }
-  void SetUseBit(uint32 arg) const {
+  void SetUseBit(uint32 arg) {
     use->SetBit(arg);
   }
-  void UseResetAllBit() const {
+  void UseResetAllBit() {
     use->ResetAllBit();
   }
-  void UseResetBit(uint32 arg) const {
+  void UseResetBit(uint32 arg) {
     use->ResetBit(arg);
   }
   void UseClearDataInfo() {
@@ -793,6 +842,16 @@ class BB {
 
   void InitEdgeFreq() {
     succsFreq.resize(succs.size());
+  }
+
+  FreqType GetEdgeFrequency(const BaseGraphNode &node) const override {
+    auto edgeFreq = GetEdgeFreq(static_cast<const BB&>(node));
+    return static_cast<FreqType>(edgeFreq);
+  }
+
+  FreqType GetEdgeFrequency(size_t idx) const override {
+    auto edgeFreq = GetEdgeFreq(idx);
+    return static_cast<FreqType>(edgeFreq);
   }
 
   uint64 GetEdgeFreq(const BB &bb) const {
@@ -857,9 +916,26 @@ class BB {
     succsProfFreq[idx] = freq;
   }
 
+  bool HasMachineInsn() {
+    FOR_BB_INSNS(insn, this) {
+      if (insn->IsMachineInstruction()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool IsAdrpLabel() const {
+    return isAdrpLabel;
+  }
+
+  void SetIsAdrpLabel() {
+    isAdrpLabel = true;
+  }
+
  private:
   static const std::string bbNames[kBBLast];
-  uint32 id;
+  // uint32 id
   uint32 level = 0;
   uint32 frequency = 0;
   FreqType profFreq = 0; // profileUse
@@ -950,6 +1026,8 @@ class BB {
   uint32 alignNopNum = 0;
 
   CDGNode *cdgNode = nullptr;
+
+  bool isAdrpLabel = false; // Indicate whether the address of this BB is referenced by adrp_label insn
 };  /* class BB */
 
 struct BBIdCmp {

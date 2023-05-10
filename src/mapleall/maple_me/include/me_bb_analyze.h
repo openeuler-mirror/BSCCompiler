@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -17,7 +17,6 @@
 #include <vector>
 #include "bb.h"
 #include "me_function.h"
-#include "me_phase.h"
 #include "me_option.h"
 #include "me_cfg.h"
 
@@ -25,9 +24,9 @@ namespace maple {
 const uint32 kPrecision = 100;
 class BBAnalyze : public AnalysisResult {
  public:
-  BBAnalyze(MemPool &memPool, MeFunction &f) : AnalysisResult(&memPool), meBBAlloc(&memPool), cfg(f.GetCfg()) {}
+  BBAnalyze(MemPool &memPool, const MeFunction &f) : AnalysisResult(&memPool), meBBAlloc(&memPool), cfg(f.GetCfg()) {}
 
-  virtual ~BBAnalyze() = default;
+  ~BBAnalyze() override = default;
 
   void SetHotAndColdBBCountThreshold();
   bool CheckBBHot(const BBId bbId) const;
@@ -42,6 +41,7 @@ class BBAnalyze : public AnalysisResult {
   uint32 coldBBCountThreshold = 0;
 };
 
+#ifdef NOT_USED
 class MeDoBBAnalyze : public MeFuncPhase {
  public:
   explicit MeDoBBAnalyze(MePhaseID id) : MeFuncPhase(id) {}
@@ -52,5 +52,6 @@ class MeDoBBAnalyze : public MeFuncPhase {
     return "bbanalyze";
   }
 };
+#endif
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_ANALYZE_H

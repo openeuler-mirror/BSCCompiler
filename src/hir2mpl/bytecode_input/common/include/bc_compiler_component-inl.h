@@ -95,7 +95,7 @@ bool BCCompilerComponent<T>::LoadOnDemandTypeImpl() {
 template <class T>
 bool BCCompilerComponent<T>::LoadOnDemandType2BCClass(const std::unordered_set<std::string> &allDepsSet,
                                                       const std::unordered_set<std::string> &allDefsSet,
-                                                      std::list<std::unique_ptr<bc::BCClass>> &klassList) {
+                                                      std::list<std::unique_ptr<bc::BCClass>> &klassList) const {
   FETimer timer;
   timer.StartAndDump("LoadOnDemandType2BCClass::Open dep dexfiles");
   bool success = true;

@@ -455,7 +455,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   }
   blk->AppendStatementsFromBlock(*doloop.GetDoBody());
   if (doloop.IsPreg()) {
-    PregIdx regIdx = (PregIdx)doloop.GetDoVarStIdx().FullIdx();
+    PregIdx regIdx = static_cast<PregIdx>(doloop.GetDoVarStIdx().FullIdx());
     MIRPreg *mirPreg = mirModule.CurFunction()->GetPregTab()->PregFromPregIdx(regIdx);
     PrimType doVarPType = mirPreg->GetPrimType();
     ASSERT(doVarPType != kPtyInvalid, "runtime check error");
@@ -560,15 +560,11 @@ BlockNode *MIRLower::LowerBlock(BlockNode &block) {
       case OP_icall: {
         if (mirModule.IsCModule()) {
           // convert to icallproto/icallprotoassigned
-          IcallNode *ic = static_cast<IcallNode *>(stmt);
+          IcallNode *ic = static_cast<IcallNode*>(stmt);
           ic->SetOpCode(stmt->GetOpCode() == OP_icall ? OP_icallproto : OP_icallprotoassigned);
           MIRFuncType *funcType = FuncTypeFromFuncPtrExpr(stmt->Opnd(0));
           CHECK_FATAL(funcType != nullptr, "MIRLower::LowerBlock: cannot find prototype for icall");
           ic->SetRetTyIdx(funcType->GetTypeIndex());
-          MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
-          if (retType->GetPrimType() == PTY_agg && retType->GetSize() > k16BitSize) {
-            funcType->funcAttrs.SetAttr(FUNCATTR_firstarg_return);
-          }
         }
         newBlock->AddStatement(stmt);
         break;
@@ -814,7 +810,7 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
           resNode = newValNode;
         }
       }
-      if (i > 0 && isConst == false) {
+      if (i > 0 && !isConst) {
         resNode = array->GetIndex(i);
       }
 

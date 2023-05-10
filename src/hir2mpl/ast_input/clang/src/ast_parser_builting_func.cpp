@@ -115,26 +115,23 @@ UniqueFEIRExpr ASTCallExpr::CreateBinaryExpr(std::list<UniqueFEIRStmt> &stmts, O
 }
 
 UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
-  // process a kind of builtinFunc
-  std::string prefix = "__builtin_mpl_vector_load";
-  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    return EmitBuiltinVectorLoad(stmts, isFinish);
-  }
-  prefix = "__builtin_mpl_vector_store";
-  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    return EmitBuiltinVectorStore(stmts, isFinish);
-  }
-  prefix = "__builtin_mpl_vector_shli";
-  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    return EmitBuiltinVectorShli(stmts, isFinish);
-  }
-  prefix = "__builtin_mpl_vector_shri";
-  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    return EmitBuiltinVectorShri(stmts, isFinish);
-  }
-  prefix = "__builtin_mpl_vector_shru";
-  if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
-    return EmitBuiltinVectorShru(stmts, isFinish);
+  // process a kind of builtinFunc & unsupport __builtin_mpl_vector_st_call function
+  using BuiltinFunc = UniqueFEIRExpr(*)(std::list<UniqueFEIRStmt> &stmtsBuiltin, bool &isFinishBuiltin,
+                                        const MapleVector<ASTExpr*> &argsBuiltin, MIRType &mirTypeBuiltin,
+                                        const std::pair<std::string, Loc> &funcMessageBuiltin);
+  static std::map<std::string, BuiltinFunc, std::greater<std::string>> builtinFuncKindMap = {
+    {"__builtin_mpl_vector_load", &EmitBuiltinVectorLoad},
+    {"__builtin_mpl_vector_store", &EmitBuiltinVectorStore},
+    {"__builtin_mpl_vector_shli", &EmitBuiltinVectorShli},
+    {"__builtin_mpl_vector_shri", &EmitBuiltinVectorShri},
+    {"__builtin_mpl_vector_shru", &EmitBuiltinVectorShru},
+    {"__builtin_mpl_vector_st", &EmitBuiltinVectorStFunc}
+  };
+  const std::pair<std::string, Loc> funcMessage = {GetFuncName(), GetSrcLoc()};
+  for (auto &it : builtinFuncKindMap) {
+    if (GetFuncName().compare(0, it.first.size(), it.first) == 0) {
+      return (it.second)(stmts, isFinish, args, *mirType, funcMessage);
+    }
   }
   // process a single builtinFunc
   auto ptrFunc = builtingFuncPtrMap.find(GetFuncName());
@@ -144,7 +141,7 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
   }
   isFinish = false;
   if (FEOptions::GetInstance().GetDumpLevel() >= FEOptions::kDumpLevelInfo) {
-    prefix = "__builtin";
+    std::string prefix = "__builtin";
     if (GetFuncName().compare(0, prefix.size(), prefix) == 0) {
       FE_INFO_LEVEL(FEOptions::kDumpLevelInfo, "%s:%d BuiltinFunc (%s) has not been implemented",
                     FEManager::GetModule().GetFileNameFromFileNum(GetSrcFileIdx()).c_str(), GetSrcFileLineNum(),
@@ -171,48 +168,78 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) c
 #include "intrinsic_vector_new.def"
 #undef DEF_MIR_INTRINSIC
 
-UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorLoad(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
-  auto argExpr = args[0]->Emit2FEExpr(stmts);
-  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*mirType);
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorLoad(std::list<UniqueFEIRStmt> &stmts, bool &isFinish,
+                                                  const MapleVector<ASTExpr*> &callArgs, MIRType &mirType,
+                                                  const std::pair<std::string, Loc> &funcMessage) {
+  (void)funcMessage;
+  auto argExpr = callArgs[0]->Emit2FEExpr(stmts);
+  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(mirType);
   UniqueFEIRType ptrType = FEIRTypeHelper::CreateTypeNative(
-      *GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirType));
+      *GlobalTables::GetTypeTable().GetOrCreatePointerType(mirType));
   isFinish = true;
   return FEIRBuilder::CreateExprIRead(std::move(type), std::move(ptrType), std::move(argExpr));
 }
 
-UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorStore(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
-  auto arg1Expr = args[0]->Emit2FEExpr(stmts);
-  auto arg2Expr = args[1]->Emit2FEExpr(stmts);
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorStore(std::list<UniqueFEIRStmt> &stmts, bool &isFinish,
+                                                   const MapleVector<ASTExpr*> &callArgs, MIRType &mirType,
+                                                   const std::pair<std::string, Loc> &funcMessage) {
+  (void)funcMessage;
+  (void)mirType;
+  auto arg1Expr = callArgs[0]->Emit2FEExpr(stmts);
+  auto arg2Expr = callArgs[1]->Emit2FEExpr(stmts);
   UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(
-      *GlobalTables::GetTypeTable().GetOrCreatePointerType(*args[1]->GetType()));
+      *GlobalTables::GetTypeTable().GetOrCreatePointerType(*callArgs[1]->GetType()));
   auto stmt = FEIRBuilder::CreateStmtIAssign(std::move(type), std::move(arg1Expr), std::move(arg2Expr));
   (void)stmts.emplace_back(std::move(stmt));
   isFinish = true;
   return nullptr;
 }
 
-UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShli(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShli(std::list<UniqueFEIRStmt> &stmts, bool &isFinish,
+                                                  const MapleVector<ASTExpr*> &callArgs, MIRType &mirType,
+                                                  const std::pair<std::string, Loc> &funcMessage) {
+  (void)funcMessage;
+  (void)mirType;
   isFinish = true;
-  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
-  auto arg1Expr = args[0]->Emit2FEExpr(stmts);
-  auto arg2Expr = args[1]->Emit2FEExpr(stmts);
+  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*callArgs[0]->GetType());
+  auto arg1Expr = callArgs[0]->Emit2FEExpr(stmts);
+  auto arg2Expr = callArgs[1]->Emit2FEExpr(stmts);
   return FEIRBuilder::CreateExprBinary(std::move(type), OP_shl, std::move(arg1Expr), std::move(arg2Expr));
 }
 
-UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShri(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShri(std::list<UniqueFEIRStmt> &stmts, bool &isFinish,
+                                                  const MapleVector<ASTExpr*> &callArgs, MIRType &mirType,
+                                                  const std::pair<std::string, Loc> &funcMessage) {
+  (void)funcMessage;
+  (void)mirType;
   isFinish = true;
-  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
-  auto arg1Expr = args[0]->Emit2FEExpr(stmts);
-  auto arg2Expr = args[1]->Emit2FEExpr(stmts);
+  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*callArgs[0]->GetType());
+  auto arg1Expr = callArgs[0]->Emit2FEExpr(stmts);
+  auto arg2Expr = callArgs[1]->Emit2FEExpr(stmts);
   return FEIRBuilder::CreateExprBinary(std::move(type), OP_ashr, std::move(arg1Expr), std::move(arg2Expr));
 }
 
-UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShru(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const {
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorShru(std::list<UniqueFEIRStmt> &stmts, bool &isFinish,
+                                                  const MapleVector<ASTExpr*> &callArgs, MIRType &mirType,
+                                                  const std::pair<std::string, Loc> &funcMessage) {
+  (void)funcMessage;
+  (void)mirType;
   isFinish = true;
-  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
-  auto arg1Expr = args[0]->Emit2FEExpr(stmts);
-  auto arg2Expr = args[1]->Emit2FEExpr(stmts);
+  UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*callArgs[0]->GetType());
+  auto arg1Expr = callArgs[0]->Emit2FEExpr(stmts);
+  auto arg2Expr = callArgs[1]->Emit2FEExpr(stmts);
   return FEIRBuilder::CreateExprBinary(std::move(type), OP_lshr, std::move(arg1Expr), std::move(arg2Expr));
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinVectorStFunc(std::list<UniqueFEIRStmt> &stmts, bool &isFinish,
+                                                    const MapleVector<ASTExpr*> &callArgs, MIRType &mirType,
+                                                    const std::pair<std::string, Loc> &funcMessage) {
+  (void)stmts;
+  (void)isFinish;
+  (void)callArgs;
+  (void)mirType;
+  FE_ERR(kLncErr, funcMessage.second, "Unsupport arm_neon intrinsic_call %s", funcMessage.first.c_str());
+  return std::make_unique<FEIRExprConst>(funcMessage.second.line);
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinVaStart(std::list<UniqueFEIRStmt> &stmts) const {
@@ -700,12 +727,15 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpect(std::list<UniqueFEIRStmt> &stmts) 
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinAbs(std::list<UniqueFEIRStmt> &stmts) const {
-  auto arg = args[0]->Emit2FEExpr(stmts);
-  CHECK_NULL_FATAL(mirType);
-  auto abs = std::make_unique<FEIRExprUnary>(FEIRTypeHelper::CreateTypeNative(*mirType), OP_abs, std::move(arg));
-  auto feType = std::make_unique<FEIRTypeNative>(*mirType);
-  abs->SetType(std::move(feType));
-  return abs;
+  if (mirType->GetPrimType() != PTY_f128) {
+    auto arg = args[0]->Emit2FEExpr(stmts);
+    CHECK_NULL_FATAL(mirType);
+    auto abs = std::make_unique<FEIRExprUnary>(FEIRTypeHelper::CreateTypeNative(*mirType), OP_abs, std::move(arg));
+    auto feType = std::make_unique<FEIRTypeNative>(*mirType);
+    abs->SetType(std::move(feType));
+    return abs;
+  }
+  return CreateIntrinsicopForC(stmts, INTRN_C_fabsl);
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinACos(std::list<UniqueFEIRStmt> &stmts) const {
@@ -785,11 +815,19 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinBswap16(std::list<UniqueFEIRStmt> &stmts)
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinFmax(std::list<UniqueFEIRStmt> &stmts) const {
-  return CreateBinaryExpr(stmts, OP_max);
+  if (mirType->GetPrimType() != PTY_f128) {
+    return CreateBinaryExpr(stmts, OP_max);
+  } else {
+    return CreateIntrinsicopForC(stmts, INTRN_C_fmaxl);
+  }
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinFmin(std::list<UniqueFEIRStmt> &stmts) const {
-  return CreateBinaryExpr(stmts, OP_min);
+  if (mirType->GetPrimType() != PTY_f128) {
+    return CreateBinaryExpr(stmts, OP_min);
+  } else {
+    return CreateIntrinsicopForC(stmts, INTRN_C_fminl);
+  }
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinLog(std::list<UniqueFEIRStmt> &stmts) const {
@@ -967,7 +1005,9 @@ ASTExpr *ASTParser::ParseBuiltinIsinfsign(MapleAllocator &allocator, const clang
   MIRType *mirType = astFile->CvtType(expr.getArg(0)->getType());
   if (mirType != nullptr) {
     PrimType type = mirType->GetPrimType();
-    if (type == PTY_f64) {
+    if (type == PTY_f128) {
+      ss << "__isinfl";
+    } else if (type == PTY_f64) {
       ss << "__isinf";
     } else if (type == PTY_f32) {
       ss << "__isinff";
@@ -986,6 +1026,18 @@ ASTExpr *ASTParser::ParseBuiltinHugeVal(MapleAllocator &allocator, const clang::
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(FloatKind::F64);
   astFloatingLiteral->SetVal(std::numeric_limits<double>::infinity());
+  return astFloatingLiteral;
+}
+
+ASTExpr *ASTParser::ParseBuiltinHugeVall(MapleAllocator &allocator, const clang::CallExpr &expr,
+                                         std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
+  (void)expr;
+  (void)ss;
+  ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
+  astFloatingLiteral->SetKind(FloatKind::F128);
+  ASTFloatingLiteral::floatArraySizes initVal = {0x0, 0x7fff000000000000};
+  astFloatingLiteral->SetVal(std::move(initVal));
   return astFloatingLiteral;
 }
 
@@ -1011,6 +1063,18 @@ ASTExpr *ASTParser::ParseBuiltinInf(MapleAllocator &allocator, const clang::Call
   return astFloatingLiteral;
 }
 
+ASTExpr *ASTParser::ParseBuiltinInfl(MapleAllocator &allocator, const clang::CallExpr &expr,
+                                     std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
+  (void)expr;
+  (void)ss;
+  ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
+  astFloatingLiteral->SetKind(FloatKind::F128);
+  ASTFloatingLiteral::floatArraySizes initVal = {0x0, 0x7fff000000000000};
+  astFloatingLiteral->SetVal(std::move(initVal));
+  return astFloatingLiteral;
+}
+
 ASTExpr *ASTParser::ParseBuiltinInff(MapleAllocator &allocator, const clang::CallExpr &expr,
                                      std::stringstream &ss, ASTCallExpr &astCallExpr) const {
   (void)astCallExpr;
@@ -1030,6 +1094,18 @@ ASTExpr *ASTParser::ParseBuiltinNan(MapleAllocator &allocator, const clang::Call
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(FloatKind::F64);
   astFloatingLiteral->SetVal(nan(""));
+  return astFloatingLiteral;
+}
+
+ASTExpr *ASTParser::ParseBuiltinNanl(MapleAllocator &allocator, const clang::CallExpr &expr,
+                                     std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)astCallExpr;
+  (void)expr;
+  (void)ss;
+  ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
+  astFloatingLiteral->SetKind(FloatKind::F128);
+  ASTFloatingLiteral::floatArraySizes initVal = {0x0, 0x7fff800000000000};
+  astFloatingLiteral->SetVal(std::move(initVal));
   return astFloatingLiteral;
 }
 
@@ -1053,6 +1129,9 @@ ASTExpr *ASTParser::ParseBuiltinSignBitf(MapleAllocator &allocator, const clang:
 ASTExpr *ASTParser::ParseBuiltinSignBitl(MapleAllocator &allocator, const clang::CallExpr &expr,
                                          std::stringstream &ss, ASTCallExpr &astCallExpr) const {
   (void)astCallExpr;
+  if (astFile->CvtType(expr.getArg(0)->getType())->GetPrimType() != PTY_f128) {
+    return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbit");
+  }
   return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbitl");
 }
 
@@ -1082,6 +1161,8 @@ ASTExpr *ASTParser::ParseBuiltinCopysignl(MapleAllocator &allocator, const clang
 
 ASTExpr *ASTParser::ParseBuiltinAtomicClear(MapleAllocator &allocator, const clang::CallExpr &expr,
                                             std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)allocator;
+  (void)ss;
   (void)astCallExpr;
   CheckAtomicClearArg(expr);
   return nullptr;
@@ -1089,6 +1170,9 @@ ASTExpr *ASTParser::ParseBuiltinAtomicClear(MapleAllocator &allocator, const cla
 
 ASTExpr *ASTParser::ParseBuiltinAtomicTestAndSet(MapleAllocator &allocator, const clang::CallExpr &expr,
                                                  std::stringstream &ss, ASTCallExpr &astCallExpr) const {
+  (void)allocator;
+  (void)ss;
+  (void)expr;
   astCallExpr.SetType(GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u8));
   return nullptr;
 }

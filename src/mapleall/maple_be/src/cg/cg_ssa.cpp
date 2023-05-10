@@ -140,7 +140,7 @@ void CGSSAInfo::RenameBB(BB &bb) {
   RenameVariablesForBB(bb.GetId());
   /* stack pop up */
   for (size_t i = 0; i < vRegStk.size(); ++i) {
-    if (vRegStk[i].empty() || !IsNewVersionPushed(i)) {
+    if (vRegStk[i].empty() || !IsNewVersionPushed(static_cast<regno_t>(i))) {
       continue;
     }
     // only need to pop top, because we only keep the newest version on the top

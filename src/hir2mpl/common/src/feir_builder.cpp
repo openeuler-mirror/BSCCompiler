@@ -197,6 +197,10 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstPtr(int64 val) {
   return std::make_unique<FEIRExprConst>(val, PTY_ptr);
 }
 
+UniqueFEIRExpr FEIRBuilder::CreateExprConstF128(const uint64_t val[2]) {
+  return std::make_unique<FEIRExprConst>(val);
+}
+
 // Create a const expr of specified prime type with fixed value.
 // Note that loss of precision, byte value is only supported.
 UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int64 val) {
@@ -212,19 +216,31 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int64 va
     case PTY_i64:
     case PTY_ptr:
     case PTY_a64:
+    case PTY_u128:
+    case PTY_i128:
       return std::make_unique<FEIRExprConst>(val, primType);
-    case PTY_f128:
-      // Not Implemented
-      CHECK_FATAL(false, "Not Implemented");
-      return nullptr;
     case PTY_f32:
       return CreateExprConstF32(static_cast<float>(val));
     case PTY_f64:
       return CreateExprConstF64(static_cast<double>(val));
+    case PTY_f128:
+      return CreateExprConstAnyScalar(PTY_f128, std::pair<uint64_t, uint64_t>({static_cast<uint64_t>(val), 0}));
     default:
       if (IsPrimitiveVector(primType)) {
         return CreateExprVdupAnyVector(primType, val);
       }
+      CHECK_FATAL(false, "unsupported const prime type");
+      return nullptr;
+  }
+}
+
+UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, std::pair<uint64_t, uint64_t> val) {
+  switch (primType) {
+    case PTY_f128: {
+      const uint64_t valArray[2] = {val.first, val.second};
+      return CreateExprConstF128(static_cast<const uint64_t *>(valArray));
+    }
+    default:
       CHECK_FATAL(false, "unsupported const prime type");
       return nullptr;
   }
@@ -618,12 +634,12 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprE
   return stmt;
 }
 
-UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
-                                                            UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType,
+UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(std::vector<UniqueFEIRExpr> expr, UniqueFEIRType arrayType,
                                                             UniqueFEIRType elemType, const std::string &argArrayName) {
-  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(exprElem), std::move(exprArray),
-                                                             std::move(exprIndex), std::move(arrayType),
-                                                             std::move(elemType), argArrayName);
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(expr[0]), // 0: exprElem
+                                                             std::move(expr[1]), // 1: exprArray
+                                                             std::move(expr[2]), // 2: exprIndex
+                                                             std::move(arrayType), std::move(elemType), argArrayName);
   return stmt;
 }
 

@@ -339,7 +339,7 @@ void ASTFunc2FEHelper::SolveReturnAndArgTypesImpl(MapleAllocator &allocator) {
   retMIRType = returnAndArgTypeNames[1];
   // skip funcType and returnType
   (void)argMIRTypes.insert(argMIRTypes.cbegin(), returnAndArgTypeNames.cbegin() + 2, returnAndArgTypeNames.cend());
-  if (retMIRType->GetPrimType() == PTY_agg && retMIRType->GetSize() > 16) {
+  if (IsReturnInMemory(*retMIRType)) {
     firstArgRet = true;
     MIRType *retPointerType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*retMIRType);
     (void)argMIRTypes.insert(argMIRTypes.cbegin(), retPointerType);

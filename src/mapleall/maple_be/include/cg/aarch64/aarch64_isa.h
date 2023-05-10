@@ -23,7 +23,6 @@ namespace maplebe {
 enum AArch64MOP_t : maple::uint32 {
 #include "abstract_mmir.def"
 #include "aarch64_md.def"
-#include "aarch64_mem_md.def"
   kMopLast
 };
 #undef DEFINE_MOP
@@ -38,7 +37,7 @@ constexpr int32 kAarch64StackPtrAlignmentInt = 16;
 constexpr int32 kOffsetAlign = 8;
 constexpr uint32 kIntregBytelen = 8; /* 64-bit */
 constexpr uint32 kFpregBytelen = 8;  /* only lower 64 bits are used */
-constexpr int kSizeOfFplr = 16;
+constexpr uint32 kSizeOfFplr = 16;
 
 enum StpLdpImmBound : int {
   kStpLdpImm64LowerBound = -512,
@@ -125,7 +124,7 @@ inline bool IsFPSIMDRegister(AArch64reg r) {
   return V0 <= r && r <= V31;
 }
 
- inline bool IsPhysicalRegister(regno_t r) {
+inline bool IsPhysicalRegister(regno_t r) {
   return r < kMaxRegNum;
 }
 
@@ -167,6 +166,14 @@ bool IsSub(const Insn &insn);
 MOperator GetMopSub2Subs(const Insn &insn);
 
 MOperator FlipConditionOp(MOperator flippedOp);
+ 
+// Function: for immediate verification, memopnd ofstvalue is returned from opnd input.
+// It's worth noting that 0 will be returned when kBOR memopnd is input.
+int64 GetMemOpndOffsetValue(Operand *o);
+
+int32 GetTail0BitNum(int64 val);
+
+int32 GetHead0BitNum(int64 val);
 } /* namespace AArch64isa */
 
 /*

@@ -14,10 +14,10 @@
  */
 #if TARGAARCH64
 #include "aarch64_global.h"
-#elif TARGRISCV64
+#elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_global.h"
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
 #include "arm32_global.h"
 #endif
 #include "reaching.h"
@@ -71,11 +71,12 @@ bool CgGlobalOpt::PhaseRun(maplebe::CGFunc &f) {
     return false;
   }
   reachingDef->SetAnalysisMode(kRDAllAnalysis);
+  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
   GlobalOpt *globalOpt = nullptr;
 #if TARGAARCH64 || TARGRISCV64
   globalOpt = GetPhaseAllocator()->New<AArch64GlobalOpt>(f);
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   globalOpt = GetPhaseAllocator()->New<Arm32GlobalOpt>(f);
 #endif
   globalOpt->Run();

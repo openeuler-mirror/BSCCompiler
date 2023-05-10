@@ -64,7 +64,9 @@ class MIRAlias {
 class MIRTypeAlias {
  public:
   explicit MIRTypeAlias(MIRModule *mod) : module(mod) {}
-  virtual ~MIRTypeAlias() = default;
+  virtual ~MIRTypeAlias() {
+    module = nullptr;
+  };
 
   bool IsEmpty() const {
     return typeAliasMap.size() == 0;
@@ -110,7 +112,7 @@ class MIRScope {
 
   bool IsSubScope(const MIRScope *scp) const;
   bool HasJoinScope(const MIRScope *scp1, const MIRScope *scp2) const;
-  bool HasSameRange(const MIRScope *s1, const MIRScope *s2) const;
+  bool HasSameRange(const MIRScope *scp1, const MIRScope *scp2) const;
 
   unsigned GetId() const {
     return id;
@@ -139,7 +141,7 @@ class MIRScope {
     alias->SetAliasVarMap(idx, vars);
   }
 
-  MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
+  MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() const {
     return alias->GetAliasVarMap();
   }
 
@@ -158,7 +160,7 @@ class MIRScope {
   SrcPosition GetScopeEndPos(const SrcPosition &pos);
   bool AddScope(MIRScope *scope);
 
-  void SetTypeAliasMap(GStrIdx gStrIdx, TyIdx tyIdx) {
+  void SetTypeAliasMap(GStrIdx gStrIdx, TyIdx tyIdx) const {
     typeAlias->SetTypeAliasMap(gStrIdx, tyIdx);
   }
 

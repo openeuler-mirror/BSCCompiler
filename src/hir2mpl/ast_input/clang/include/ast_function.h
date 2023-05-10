@@ -22,7 +22,7 @@ class ASTFunction : public FEFunction {
  public:
   ASTFunction(const ASTFunc2FEHelper &argMethodHelper, MIRFunction &mirFunc,
               const std::unique_ptr<FEFunctionPhaseResult> &argPhaseResultTotal);
-  virtual ~ASTFunction() = default;
+  ~ASTFunction() override = default;
 
  protected:
   bool GenerateGeneralStmt(const std::string &phaseName) override {

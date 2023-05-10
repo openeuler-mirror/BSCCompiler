@@ -40,7 +40,7 @@ void AArch64FPLROffsetAdjustment::Run() {
 #endif
 }
 
-void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn) {
+void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn) const {
   uint32 opndNum = insn.GetOperandSize();
   bool replaceFP = false;
   for (uint32 i = 0; i < opndNum; ++i) {
@@ -109,9 +109,7 @@ void AArch64FPLROffsetAdjustment::AdjustMemOfstVary(Insn &insn, uint32 i) const 
   if (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary) {
     bool condition = aarchCGFunc->IsOperandImmValid(insn.GetMachineOpcode(), &currMemOpnd, i);
     if (!condition) {
-      MemOperand &newMemOpnd = aarchCGFunc->SplitOffsetWithAddInstruction(
-          currMemOpnd, currMemOpnd.GetSize(), static_cast<AArch64reg>(R16), false, &insn, insn.IsLoadStorePair());
-      insn.SetOperand(i, newMemOpnd);
+      SPLIT_INSN(&insn, aarchCGFunc);
     }
   }
 }
@@ -132,7 +130,10 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
     }
   }
   if (!aarchCGFunc->IsOperandImmValid(insn.GetMachineOpcode(), &immOpnd, index)) {
-    if (insn.GetMachineOpcode() >= MOP_xaddrri24 && insn.GetMachineOpcode() <= MOP_waddrri12) {
+    if (insn.GetMachineOpcode() == MOP_xaddsrri12 || insn.GetMachineOpcode() == MOP_waddsrri12) {
+      insn.Dump();
+      CHECK_FATAL(false, "NYI, need a better away to process 'adds' ");
+    } else if (insn.GetMachineOpcode() >= MOP_xaddrri24 && insn.GetMachineOpcode() <= MOP_waddrri12) {
       PrimType destTy =
           static_cast<RegOperand &>(insn.GetOperand(kInsnFirstOpnd)).GetSize() == k64BitSize ? PTY_i64 : PTY_i32;
       RegOperand *resOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
@@ -177,9 +178,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn) const {
     memOpnd->SetOffsetOperand(*newOfstOpnd);
     uint32 i = insn.IsLoadStorePair() ? kInsnThirdOpnd : kInsnSecondOpnd;
     if (!aarchCGFunc->IsOperandImmValid(insn.GetMachineOpcode(), memOpnd, i)) {
-      MemOperand &newMemOpnd = aarchCGFunc->SplitOffsetWithAddInstruction(
-          *memOpnd, memOpnd->GetSize(), static_cast<AArch64reg>(R16), false, &insn, insn.IsLoadStorePair());
-      insn.SetOperand(i, newMemOpnd);
+      SPLIT_INSN(&insn, aarchCGFunc);
     }
   } else {
     switch (insn.GetMachineOpcode()) {
@@ -205,8 +204,11 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn) const {
       case MOP_xsubrri12: {
         ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP,
             "regNumber should be changed in AdjustmentOffsetForOpnd");
-        ImmOperand &subend = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
-        subend.SetValue(subend.GetValue() - offset);
+        auto &tempReg = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
+        auto &offsetReg = aarchCGFunc->CreateImmOperand(offset, k64BitSize, false);
+        aarchCGFunc->SelectAddAfterInsn(tempReg, insn.GetOperand(kInsnSecondOpnd),
+            offsetReg, PTY_i64, false, insn);
+        insn.SetOperand(kInsnSecondOpnd, tempReg);
         break;
       }
       case MOP_xsubrri24: {
@@ -229,6 +231,50 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn) const {
           addend.SetValue(addend.GetValue() + offset);
           AdjustmentOffsetForImmOpnd(insn, kInsnThirdOpnd); /* legalize imm opnd */
         }
+        break;
+      }
+      case MOP_xaddsrri12: {
+        ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetRegisterNumber() == RSP,
+            "regNumber should be changed in AdjustmentOffsetForOpnd");
+        auto *newAddImmOpnd = static_cast<ImmOperand*>(
+            static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd)).Clone(*cgFunc->GetMemoryPool()));
+        newAddImmOpnd->SetValue(newAddImmOpnd->GetValue() + offset);
+        insn.SetOperand(kInsnFourthOpnd, *newAddImmOpnd);
+        AdjustmentOffsetForImmOpnd(insn, kInsnFourthOpnd); /* legalize imm opnd */
+        break;
+      }
+      case MOP_waddsrri12: {
+        if (!CGOptions::IsArm64ilp32()) {
+          insn.Dump();
+          CHECK_FATAL(false, "Unexpect offset adjustment insn");
+        } else {
+          ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetRegisterNumber() == RSP,
+              "regNumber should be changed in AdjustmentOffsetForOpnd");
+          ImmOperand &addend = static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
+          addend.SetValue(addend.GetValue() + offset);
+          AdjustmentOffsetForImmOpnd(insn, kInsnFourthOpnd); /* legalize imm opnd */
+        }
+        break;
+      }
+      case MOP_xaddrrr: {
+        // Later when use of SP or FP is refacored, this case can be omitted
+        RegOperand *offsetReg = nullptr;
+        Insn *newInsn = nullptr;
+        if (static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == RSP) {
+          offsetReg = &static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+        } else if (static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetRegisterNumber() == RSP) {
+          offsetReg = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+        } else {
+          break;
+        }
+        if (insn.GetOperand(kInsnSecondOpnd).GetSize() == k64BitSize) {
+          ImmOperand &offsetImm = aarchCGFunc->CreateImmOperand(offset, k64BitSize, false);
+          newInsn = &aarchCGFunc->GetInsnBuilder()->BuildInsn(MOP_xaddrri12, *offsetReg, *offsetReg, offsetImm);
+        } else {
+          ImmOperand &offsetImm = aarchCGFunc->CreateImmOperand(offset, k32BitSize, false);
+          newInsn = &aarchCGFunc->GetInsnBuilder()->BuildInsn(MOP_waddrri12, *offsetReg, *offsetReg, offsetImm);
+        }
+        (void)insn.GetBB()->InsertInsnBefore(insn, *newInsn);
         break;
       }
       default:

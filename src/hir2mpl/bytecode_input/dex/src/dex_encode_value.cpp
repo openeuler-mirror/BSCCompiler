@@ -21,7 +21,7 @@ uint64 DexEncodeValue::GetUVal(const uint8 **data, uint8 len) const {
   // get value, max 8 bytes, little-endian
   uint64 val = 0;
   for (uint8 j = 0; j <= len; j++) {
-    val |= (static_cast<uint64>(*(*data)++) << (j << 3));
+    val |= (static_cast<uint64>(*(*data)++) << (j << 3)); // 3: left shift to 8 bytes
   }
   return val;
 }
@@ -29,8 +29,8 @@ uint64 DexEncodeValue::GetUVal(const uint8 **data, uint8 len) const {
 MIRIntConst *DexEncodeValue::ProcessIntValue(const uint8 **data, uint8 valueArg, MIRType &type) {
   // sign extended val
   uint64 val = GetUVal(data, valueArg);
-  uint32 shiftBit = static_cast<uint32>((7 - valueArg) * 8); // 7 : max shift bit args
-  CHECK_FATAL(valueArg <= 7, "shiftBit positive check");
+  CHECK_FATAL(valueArg <= kMaxShiftBitArgs, "shiftBit positive check");
+  uint32 shiftBit = static_cast<uint32>((kMaxShiftBitArgs - valueArg) * 8);
   uint64 sVal = (static_cast<int64>(val) << shiftBit) >> shiftBit;
   MIRIntConst *intCst = mp.New<MIRIntConst>(sVal, type);
   return intCst;
@@ -136,7 +136,7 @@ void DexEncodeValue::ProcessEncodedValue(const uint8 **data, uint8 valueType, ui
     case kValueDouble: {
       val = GetUVal(data, valueArg);
       // fill 0s for least significant bits
-      valBuf.u = val << ((7 - valueArg) << 3);
+      valBuf.u = val << ((kMaxShiftBitArgs - valueArg) << 3);
       cst = mp.New<MIRDoubleConst>(valBuf.d, *GlobalTables::GetTypeTable().GetDouble());
       break;
     }

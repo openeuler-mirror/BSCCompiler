@@ -17,11 +17,15 @@ from api.shell_operator import ShellOperator
 
 class CheckRegContain(ShellOperator):
 
-    def __init__(self, reg, file, return_value_list=None):
+    def __init__(self, reg, file, choice=None, return_value_list=None):
         super().__init__(return_value_list)
         self.reg = reg
         self.file = file
+        self.choice = choice
 
     def get_command(self, variables):
-        self.command = "python3 ${OUT_ROOT}/script/check.py --check=contain --str=\"" + self.reg + "\" --result=" + self.file
+        if self.choice is None:
+            self.command = "python3 ${OUT_ROOT}/target/product/public/bin/check.py --check=contain --str=\"" + self.reg + "\" --result=" + self.file
+        elif self.choice == "num":
+            self.command = "python3 ${OUT_ROOT}/target/product/public/bin/check.py --check=num  --result=" + self.file + " --str=" + self.reg + " --num=${EXPECTNUM}"
         return super().get_final_command(variables)

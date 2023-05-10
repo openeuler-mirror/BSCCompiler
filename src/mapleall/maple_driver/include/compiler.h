@@ -129,7 +129,7 @@ class Jbc2MplCompiler : public Compiler {
  public:
   explicit Jbc2MplCompiler(const std::string &name) : Compiler(name) {}
 
-  ~Jbc2MplCompiler() = default;
+  ~Jbc2MplCompiler() override = default;
 
  private:
   const std::string &GetBinName() const override;
@@ -144,7 +144,7 @@ class ClangCompiler : public Compiler {
  public:
   explicit ClangCompiler(const std::string &name) : Compiler(name) {}
 
-  ~ClangCompiler() = default;
+  ~ClangCompiler() override = default;
 
  private:
   const std::string &GetBinName() const override;
@@ -168,7 +168,7 @@ class Cpp2MplCompiler : public Compiler {
  public:
   explicit Cpp2MplCompiler(const std::string &name) : Compiler(name) {}
 
-  ~Cpp2MplCompiler() = default;
+  ~Cpp2MplCompiler() override = default;
 
  private:
   std::string GetBinPath(const MplOptions &mplOptions) const override;
@@ -186,7 +186,7 @@ class Dex2MplCompiler : public Compiler {
  public:
   explicit Dex2MplCompiler(const std::string &name) : Compiler(name) {}
 
-  ~Dex2MplCompiler() = default;
+  ~Dex2MplCompiler() override = default;
 #ifdef INTERGRATE_DRIVER
   ErrorCode Compile(MplOptions &options, const Action &action,
                     std::unique_ptr<MIRModule> &theModule) override;
@@ -211,7 +211,7 @@ class IpaCompiler : public Compiler {
  public:
   explicit IpaCompiler(const std::string &name) : Compiler(name) {}
 
-  ~IpaCompiler() = default;
+  ~IpaCompiler() override = default;
 
  private:
   const std::string &GetBinName() const override;
@@ -223,7 +223,7 @@ class MapleCombCompiler : public Compiler {
  public:
   explicit MapleCombCompiler(const std::string &name) : Compiler(name) {}
 
-  ~MapleCombCompiler() = default;
+  ~MapleCombCompiler() override = default;
 
   ErrorCode Compile(MplOptions &options, const Action &action,
                     std::unique_ptr<MIRModule> &theModule) override;
@@ -245,7 +245,7 @@ class MplcgCompiler : public Compiler {
  public:
   explicit MplcgCompiler(const std::string &name) : Compiler(name) {}
 
-  ~MplcgCompiler() = default;
+  ~MplcgCompiler() override = default;
   ErrorCode Compile(MplOptions &options, const Action &action,
                     std::unique_ptr<MIRModule> &theModule) override;
   void PrintMplcgCommand(const MplOptions &options, const Action &action, const MIRModule &md) const;
@@ -263,7 +263,7 @@ class MplcgCompiler : public Compiler {
 class MapleCombCompilerWrp : public Compiler {
  public:
   explicit MapleCombCompilerWrp(const std::string &name) : Compiler(name) {}
-  ~MapleCombCompilerWrp() = default;
+  ~MapleCombCompilerWrp() override = default;
 
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
 
@@ -282,7 +282,7 @@ class AsCompiler : public Compiler {
  public:
   explicit AsCompiler(const std::string &name) : Compiler(name) {}
 
-  ~AsCompiler() = default;
+  ~AsCompiler() override = default;
 
  private:
   std::string GetBin(const MplOptions &mplOptions) const override;
@@ -312,7 +312,7 @@ class LdCompiler : public Compiler {
  public:
   explicit LdCompiler(const std::string &name) : Compiler(name) {}
 
-  ~LdCompiler() = default;
+  ~LdCompiler() override = default;
 
  private:
   std::string GetBin(const MplOptions &mplOptions) const override;

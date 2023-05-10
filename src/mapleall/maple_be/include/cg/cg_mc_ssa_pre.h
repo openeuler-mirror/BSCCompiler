@@ -72,18 +72,20 @@ class McSSAPre : public SSAPre {
       occ2RGNodeMap(preAllocator.Adapter()),
       maxFlowRoutes(preAllocator.Adapter()),
       minCut(preAllocator.Adapter()) {}
-  ~McSSAPre() = default;
+  ~McSSAPre() {
+    sink = nullptr;
+  }
 
   void ApplyMCSSAPre();
  private:
   // step 8 willbeavail
-  void ResetMCWillBeAvail(PhiOcc *phiOcc) const;
+  void ResetMCWillBeAvail(PhiOcc *occ) const;
   void ComputeMCWillBeAvail() const;
   // step 7 max flow/min cut
-  bool AmongMinCut(RGNode *, uint32 idx) const;
+  bool AmongMinCut(const RGNode *nd, uint32 idx) const;
   void DumpRGToFile();                  // dump reduced graph to dot file
-  bool IncludedEarlier(Visit **cut, Visit *curVisit, uint32 nextRouteIdx);
-  void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route);
+  bool IncludedEarlier(Visit **cut, const Visit *curVisit, uint32 nextRouteIdx) const;
+  void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route) const;
   bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx,
                            FreqType flowSoFar);
   bool SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx, FreqType flowSoFar);
@@ -109,9 +111,9 @@ class McSSAPre : public SSAPre {
   uint32 numSourceEdges = 0;
   MapleVector<Route*> maxFlowRoutes;
   uint32 nextRGNodeId = 1;  // 0 is reserved
-  FreqType maxFlowValue;
+  FreqType maxFlowValue = 0;
   // relax maxFlowValue to avoid excessive mincut search time when number of routes is large
-  FreqType relaxedMaxFlowValue;
+  FreqType relaxedMaxFlowValue = 0;
   MapleVector<Visit*> minCut;   // an array of Visits* to represent the minCut
 };
 

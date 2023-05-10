@@ -1,6 +1,24 @@
+/*
+ * Copyright (c) [2023] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 #include "litepgo.h"
+#include <string>
 #include "itab_util.h"
 #include "lexer.h"
+#include "mempool.h"
+#include "mempool_allocator.h"
+#include "mir_module.h"
 
 namespace maple {
 bool LiteProfile::loaded = false;
@@ -22,18 +40,17 @@ LiteProfile::BBInfo *LiteProfile::GetFuncBBProf(const std::string &funcName) {
   return &item->second;
 }
 
-bool LiteProfile::HandleLitePGOFile(const std::string &fileName, const std::string &moduleName) {
+bool LiteProfile::HandleLitePGOFile(const std::string &fileName, MIRModule &m) {
   if (loaded) {
     LogInfo::MapleLogger() << "this Profile has been handled before" << '\n';
     return false;
   }
   loaded = true;
+  const std::string moduleName = m.GetFileName();
   /* init a lexer for parsing lite-pgo function data */
-  MemPool *funcDatatMp = memPoolCtrler.NewMemPool("LitePgoFuncData Mempool", true);
-  MapleAllocator funcDataMa(funcDatatMp);
-  MIRLexer funcDataLexer(nullptr, funcDataMa);
+  MIRLexer funcDataLexer(nullptr, m.GetMPAllocator());
   funcDataLexer.PrepareForFile(fileName);
-  funcDataLexer.NextToken();
+  (void)funcDataLexer.NextToken();
   bool atEof = false;
   while (!atEof) {
     TokenKind currentTokenKind = funcDataLexer.GetTokenKind();
@@ -42,26 +59,29 @@ bool LiteProfile::HandleLitePGOFile(const std::string &fileName, const std::stri
       continue;
     }
     if (currentTokenKind == TK_flavor) {
-      /* skip beginning of lite-pgo data, not implement yet */
+      /*
+       * skip beginning of lite-pgo data, not implement yet
+       * refresh profile when a new set of pgo data comes in
+       */
+      funcBBProfData.clear();
     }
     if (currentTokenKind == TK_func) {
       ParseFuncProfile(funcDataLexer, moduleName);
       continue;
     }
-    funcDataLexer.NextToken();
+    (void)funcDataLexer.NextToken();
   }
-  delete funcDatatMp;
   return true;
 }
 
 /* lite-pgo keyword format ";${keyword}" */
 static inline void ParseLitePgoKeyWord(MIRLexer &fdLexer, const std::string &keyWord) {
   /* parse counterSz */
-  fdLexer.NextToken();
+  (void)fdLexer.NextToken();
   if (fdLexer.GetTokenKind() != TK_coma) {
     CHECK_FATAL_FALSE("expect coma here  ");
   }
-  fdLexer.NextToken();
+  (void)fdLexer.NextToken();
   if (fdLexer.GetTokenKind() != TK_invalid) {
     CHECK_FATAL_FALSE("expect string after coma  ");
   }
@@ -87,18 +107,18 @@ static inline bool VerifyModuleHash(uint64 pgoId, const std::string &moduleName)
  */
 void LiteProfile::ParseFuncProfile(MIRLexer &fdLexer, const std::string &moduleName) {
   /* parse func name */
-  fdLexer.NextToken();
+  (void)fdLexer.NextToken();
   if (fdLexer.GetTokenKind() != TK_fname) {
     CHECK_FATAL_FALSE("expect function name for func");
   }
   const std::string funcName = fdLexer.GetName();
 
   /* parse funcid */
-  fdLexer.NextToken();
+  (void)fdLexer.NextToken();
   if (fdLexer.GetTokenKind() != TK_funcid) {
     CHECK_FATAL_FALSE("expect funcid here");
   }
-  fdLexer.NextToken();
+  (void)fdLexer.NextToken();
   if (fdLexer.GetTokenKind() != TK_intconst) {
     CHECK_FATAL_FALSE("expect integer after funcid  ");
   }
@@ -111,17 +131,17 @@ void LiteProfile::ParseFuncProfile(MIRLexer &fdLexer, const std::string &moduleN
     return;
   }
 
-  /* parse counterSz */
+  // parse counterSz
   ParseLitePgoKeyWord(fdLexer, "counterSz");
-  fdLexer.NextToken();
+  (void)fdLexer.NextToken();
   if (fdLexer.GetTokenKind() != TK_intconst) {
     CHECK_FATAL_FALSE("expect integer after counterSz  ");
   }
   uint64 countersize = fdLexer.GetTheIntVal();
 
-  /* parse cfghash */
+  // parse cfghash
   ParseLitePgoKeyWord(fdLexer, "cfghash");
-  fdLexer.NextToken();
+  (void)fdLexer.NextToken();
   if (fdLexer.GetTokenKind() != TK_intconst) {
     CHECK_FATAL_FALSE("expect integer after counterSz  ");
   }
@@ -130,13 +150,13 @@ void LiteProfile::ParseFuncProfile(MIRLexer &fdLexer, const std::string &moduleN
     CHECK_FATAL_FALSE("unexpect cfg hash data type");
   }
 
-  /* parse counters*/
-  fdLexer.NextToken();
+  // parse counters
+  (void)fdLexer.NextToken();
   if (fdLexer.GetTokenKind() != TK_coma) {
     CHECK_FATAL_FALSE("expect coma here  ");
   }
-  fdLexer.NextToken();
-  if (countersize) {
+  (void)fdLexer.NextToken();
+  if (countersize != 0) {
     ParseCounters(fdLexer, funcName, static_cast<uint32>(cfghash));
   } else {
     LogInfo::MapleLogger() << "LITEPGO log : func " << funcName << " ---  no counters?" << '\n';
@@ -160,7 +180,7 @@ void LiteProfile::ParseCounters(MIRLexer &fdLexer, const std::string &funcName, 
       BBInfo bbInfo(cfghash, std::move(temp));
       funcBBProfData.emplace(funcName, bbInfo);
     }
-    fdLexer.NextToken();
+    (void)fdLexer.NextToken();
   }
 }
 
@@ -170,7 +190,7 @@ bool LiteProfile::HandleLitePgoWhiteList(const std::string &fileName) const {
   MapleAllocator whitelistMa(whitelistMp);
   MIRLexer whiteListLexer(nullptr, whitelistMa);
   whiteListLexer.PrepareForFile(fileName);
-  whiteListLexer.NextToken();
+  (void)whiteListLexer.NextToken();
   bool atEof = false;
   while (!atEof) {
     TokenKind currentTokenKind = whiteListLexer.GetTokenKind();
@@ -180,7 +200,7 @@ bool LiteProfile::HandleLitePgoWhiteList(const std::string &fileName) const {
     }
     if (currentTokenKind == TK_invalid) {
       whiteList.emplace(whiteListLexer.GetName());
-      whiteListLexer.NextToken();
+      (void)whiteListLexer.NextToken();
     } else {
       CHECK_FATAL(false, "unexpected format in instrumentation white list");
       delete whitelistMp;
@@ -195,5 +215,3 @@ std::set<std::string> LiteProfile::whiteList = {};
 
 uint32 LiteProfile::bbNoThreshold = 100000;
 }
-
-

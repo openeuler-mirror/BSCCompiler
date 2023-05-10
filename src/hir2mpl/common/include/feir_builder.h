@@ -69,7 +69,9 @@ class FEIRBuilder {
   static UniqueFEIRExpr CreateExprConstF32(float val);
   static UniqueFEIRExpr CreateExprConstF64(double val);
   static UniqueFEIRExpr CreateExprConstPtr(int64 val);
+  static UniqueFEIRExpr CreateExprConstF128(const uint64_t val[2]);
   static UniqueFEIRExpr CreateExprConstAnyScalar(PrimType primType, int64 val);
+  static UniqueFEIRExpr CreateExprConstAnyScalar(PrimType primType, std::pair<uint64_t, uint64_t> val);
   static UniqueFEIRExpr CreateExprVdupAnyVector(PrimType primtype, int64 val);
   static UniqueFEIRExpr CreateExprMathUnary(Opcode op, UniqueFEIRVar var0);
   static UniqueFEIRExpr CreateExprMathUnary(Opcode op, UniqueFEIRExpr expr);
@@ -132,8 +134,8 @@ class FEIRBuilder {
   static UniqueFEIRStmt CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
                                                         std::list<UniqueFEIRExpr> exprIndexs,
                                                         UniqueFEIRType arrayType, const std::string &argArrayName);
-  static UniqueFEIRStmt CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
-                                                        UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType,
+  /* std::vector<UniqueFEIRExpr> expr stores 0: exprElem; 1: exprArray; 2: exprIndex */
+  static UniqueFEIRStmt CreateStmtArrayStoreOneStmtForC(std::vector<UniqueFEIRExpr> expr, UniqueFEIRType arrayType,
                                                         UniqueFEIRType elemType, const std::string &argArrayName);
   static std::list<UniqueFEIRStmt> CreateStmtArrayLoad(UniqueFEIRVar varElem, UniqueFEIRVar varArray,
                                                        UniqueFEIRVar varIndex);

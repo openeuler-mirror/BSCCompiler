@@ -48,7 +48,8 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
   bool CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet &replaceRegDefSet, regno_t replaceRegNo);
   bool CheckDefInsn(Insn &defInsn, Insn &currInsn);
   bool CheckNewMemOffset(const Insn &insn, MemOperand *newMemOpnd, uint32 opndIdx);
-  MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal);
+  MemOperand *HandleArithImmDef(RegOperand &replace, Operand *oldOffset, int64 defVal,
+                                VaryType varyType = kNotVary);
   MemOperand *SelectReplaceMem(Insn &defInsn, Insn &curInsn, RegOperand &base, Operand *offset);
   MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, bool isSigned);
   bool CanDoMemProp(const Insn *insn);

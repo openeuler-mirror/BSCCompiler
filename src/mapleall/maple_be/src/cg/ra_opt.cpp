@@ -28,7 +28,7 @@ bool CgRaOpt::PhaseRun(maplebe::CGFunc &f) {
   RaOpt *raOpt = nullptr;
 #if TARGAARCH64
   raOpt = memPool->New<AArch64RaOpt>(f, *memPool);
-#elif || TARGRISCV64
+#elif defined(TARGRISCV64) || TARGRISCV64
   raOpt = memPool->New<Riscv64RaOpt>(f, *memPool);
 #endif
 

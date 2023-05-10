@@ -44,7 +44,7 @@ MemOperand &X64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, Fie
     ASSERT((mirType->IsMIRStructType() || mirType->IsMIRUnionType()), "non-structure");
     MIRStructType *structType = static_cast<MIRStructType*>(mirType);
     symType = structType->GetFieldType(fieldId)->GetPrimType();
-    fieldOffset = static_cast<uint32>(cgFunc->GetBecommon().GetFieldOffset(*structType, fieldId).first);
+    fieldOffset = static_cast<uint32>(structType->GetFieldOffsetFromBaseAddr(fieldId).byteOffset);
   }
   uint32 opndSz = (symType == PTY_agg) ? k64BitSize : GetPrimTypeBitSize(symType);
   return GetOrCreateMemOpndFromSymbol(symbol, opndSz, fieldOffset);
@@ -295,7 +295,7 @@ void X64MPIsel::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, uint32
 
 bool X64MPIsel::IsParamStructCopy(const MIRSymbol &symbol) {
   if (symbol.GetStorageClass() == kScFormal &&
-      cgFunc->GetBecommon().GetTypeSize(symbol.GetTyIdx().GetIdx()) > k16ByteSize) {
+      GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbol.GetTyIdx().GetIdx())->GetSize() > k16ByteSize) {
     return true;
   }
   return false;
@@ -1090,7 +1090,7 @@ Operand *X64MPIsel::SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, 
 
 Operand *X64MPIsel::SelectDivRem(RegOperand &opnd0, RegOperand &opnd1, PrimType primType, Opcode opcode) {
   ASSERT(opcode == OP_div || opcode == OP_rem, "unsupported opcode");
-  if(IsSignedInteger(primType) || IsUnsignedInteger(primType)) {
+  if (IsSignedInteger(primType) || IsUnsignedInteger(primType)) {
     uint32 bitSize = GetPrimTypeBitSize(primType);
     /* copy dividend to eax */
     RegOperand &raxOpnd = cgFunc->GetOpndBuilder()->CreatePReg(x64::RAX, bitSize,

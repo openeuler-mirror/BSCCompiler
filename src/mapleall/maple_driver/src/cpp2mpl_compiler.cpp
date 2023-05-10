@@ -19,10 +19,6 @@
 
 namespace maple {
 std::string Cpp2MplCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const{
-  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
-    return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
-      FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
-  }
   return mplOptions.GetExeFolder();
 }
 
@@ -50,10 +46,19 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
   uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
   // 1 for option -p
   uint32_t length = len + 1;
+ 
+  if (options.GetIsAllAst()) {
+    length += options.GetHirInputFiles().size();
+    length++;
+  }
+
   if (IsUseBoundaryOption()) {
     length++;
   }
   if (IsUseNpeOption()) {
+    length++;
+  }
+  if (opts::linkerTimeOpt.IsEnabledByUser()) {
     length++;
   }
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(length), length };
@@ -69,6 +74,16 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
                                            options.GetExeFolder()));
   }
 
+  if (options.GetIsAllAst()) {
+    for (auto tmp : options.GetHirInputFiles()) {
+      defaultOptions.mplOptions[len].SetKey(tmp);
+      defaultOptions.mplOptions[len].SetValue("");
+      len++;
+    }
+    defaultOptions.mplOptions[len].SetKey("-o");
+    defaultOptions.mplOptions[len++].SetValue("tmp.mpl");
+  }
+
   defaultOptions.mplOptions[len].SetKey("--output");
   defaultOptions.mplOptions[len++].SetValue(action.GetOutputFolder());
   if (IsUseBoundaryOption()) {
@@ -78,6 +93,11 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
   }
   if (IsUseNpeOption()) {
     defaultOptions.mplOptions[len].SetKey("--npe-check-dynamic");
+    defaultOptions.mplOptions[len].SetValue("");
+    len++;
+  }
+  if (opts::linkerTimeOpt.IsEnabledByUser()) {
+    defaultOptions.mplOptions[len].SetKey("-wpaa");
     defaultOptions.mplOptions[len].SetValue("");
     len++;
   }

@@ -48,7 +48,10 @@ class FEUtils {
   static std::string GetBaseTypeName(const std::string &typeName);
   static PrimType GetPrimType(const GStrIdx &typeNameIdx);
   static uint32 GetSequentialNumber();
+  static std::string NormalizeFileName(std::string fileName);
+  static void EraseFileNameforClangTypeStr(std::string &typeStr);
   static std::string GetFileNameHashStr(const std::string &fileName, uint32 seed = 211);
+  static std::string GetHashStr(const std::string &str, uint32 seed = 211);
   static std::string GetSequentialName0(const std::string &prefix, uint32_t num);
   static std::string GetSequentialName(const std::string &prefix);
   static std::string CreateLabelName();
@@ -78,6 +81,7 @@ class FEUtils {
   static const std::string kDouble;
   static const std::string kVoid;
   static const std::string kThis;
+  static const std::string kDotDot;
   static const std::string kMCCStaticFieldGetBool;
   static const std::string kMCCStaticFieldGetByte;
   static const std::string kMCCStaticFieldGetChar;

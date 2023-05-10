@@ -82,17 +82,17 @@ class PreMeEmitter : public AnalysisResult {
   MapleMap<BaseNode *, PreMeMIRExtension *> *GetPreMeExprExtensionMap() { return &preMeExprExtensionMap; }
   FuncProfInfo *GetFuncProfData() { return mirFunc->GetFuncProfData(); }
   void SetIpaInfo(CollectIpaInfo *info) { ipaInfo = info; }
-  void UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt, BlockNode &currBlock, FreqType frequency);
-  void UpdateStmtInfoForLabelNode(LabelNode &label, BB &bb);
+  void UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt, BlockNode &currBlock, FreqType frequency) const;
+  void UpdateStmtInfoForLabelNode(LabelNode &label, BB &bb) const;
  private:
-  ArrayNode *ConvertToArray(BaseNode *x, TyIdx ptrTyIdx);
-  BaseNode *EmitPreMeExpr(MeExpr *meExpr, BaseNode *parent);
-  StmtNode* EmitPreMeStmt(MeStmt *meStmt, BaseNode *parent);
-  void EmitBB(BB *bb, BlockNode *curBlk);
-  DoloopNode *EmitPreMeDoloop(BB *meWhileBB, BlockNode *curBlk, PreMeWhileInfo *whileInfo);
-  WhileStmtNode *EmitPreMeWhile(BB *meWhileBB, BlockNode *curBlk);
+  ArrayNode *ConvertToArray(BaseNode &x, TyIdx ptrTyIdx);
+  BaseNode *EmitPreMeExpr(MeExpr &meExpr, BaseNode *parent);
+  StmtNode* EmitPreMeStmt(MeStmt &meStmt, BaseNode *parent);
+  void EmitBB(BB &bb, BlockNode &curBlk);
+  DoloopNode *EmitPreMeDoloop(BB &meWhileBB, BlockNode &curBlk, PreMeWhileInfo &whileInfo);
+  WhileStmtNode *EmitPreMeWhile(BB &meWhileBB, BlockNode &curBlk);
   uint32 Raise2PreMeWhile(uint32 curJ, BlockNode *curBlk);
-  uint32 Raise2PreMeIf(uint32 curJ, BlockNode *curBlk);
+  uint32 Raise2PreMeIf(uint32 curJ, BlockNode &curBlk);
 
   MeIRMap *meirmap;
   PreMeFunction *preMeFunc;

@@ -481,8 +481,8 @@ void MeCFG::FixMirCFG() {
     StmtNode *stmt = bb->GetTheOnlyStmtNode();
     if (stmt != nullptr) {
       // simplify the cfg removing all succs of this bb
-      for (size_t si = 0; si < bb->GetSucc().size(); ++si) {
-        BB *sucBB = bb->GetSucc(si);
+      for (int64 si = 0; si < static_cast<int64>(bb->GetSucc().size()); ++si) {
+        BB *sucBB = bb->GetSucc(static_cast<size_t>(si));
         if (sucBB->GetAttributes(kBBAttrIsCatch)) {
           sucBB->RemovePred(*bb);
           --si;
@@ -503,8 +503,8 @@ void MeCFG::FixMirCFG() {
         newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, end()));
     eIt = valid_end();
     // redirect all succs of new bb to bb
-    for (size_t si = 0; si < newBB.GetSucc().size(); ++si) {
-      BB *sucBB = newBB.GetSucc(si);
+    for (int64 si = 0; si < static_cast<int64>(newBB.GetSucc().size()); ++si) {
+      BB *sucBB = newBB.GetSucc(static_cast<size_t>(si));
       if (sucBB->GetAttributes(kBBAttrIsCatch)) {
         sucBB->ReplacePred(&newBB, bb);
         --si;
@@ -1797,7 +1797,7 @@ void MeCFG::BuildSCC() {
 }
 
 // After currBB's succ is changed, we can update currBB's target
-void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc) {
+void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc) const {
   bool forMeIR = meFunc.GetIRMap() != nullptr;
   // update statement offset if succ is goto target
   if (currBB.IsGoto()) {
@@ -1909,7 +1909,7 @@ inline void ConstructEdgeFreqForBBWith2Succs(BB &bb) {
 
 // set bb succ frequency from bb freq
 // no critical edge is expected
-void MeCFG::ConstructEdgeFreqFromBBFreq() {
+void MeCFG::ConstructEdgeFreqFromBBFreq() const {
   // set succfreqs
   auto eIt = valid_end();
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
@@ -1941,7 +1941,9 @@ void MeCFG::ConstructBBFreqFromStmtFreq() {
   }
   auto eIt = valid_end();
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
-    if ((*bIt)->IsEmpty()) continue;
+    if ((*bIt)->IsEmpty()) {
+      continue;
+    }
     StmtNode &first = (*bIt)->GetFirst();
     StmtNode &last = (*bIt)->GetLast();
     if (funcData->stmtFreqs.count(first.GetStmtID()) > 0) {

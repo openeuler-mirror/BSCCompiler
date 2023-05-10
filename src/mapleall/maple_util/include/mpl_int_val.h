@@ -84,16 +84,20 @@ class IntVal {
 
   // copy-assignment
   IntVal &operator=(const IntVal &other) {
+    // self-assignment check
+    if (this == &other) {
+      return *this;
+    }
+
     if (width == 0) {
       // Allow 'this' to be assigned with new bit-width and sign iff
       // its original bit-width is zero (i.e. the value was created by the default ctor)
-      Assign(other);
     } else {
       // Otherwise, assign only new value, but sign and width must be the same
       ASSERT(width == other.width && sign == other.sign, "different bit-width or sign");
-      Init(other.u, !other.IsOneWord());
     }
 
+    Assign(other);
     return *this;
   }
 
@@ -110,6 +114,11 @@ class IntVal {
     } else {
       ASSERT(width == other.width && sign == other.sign, "different bit-width or sign");
     }
+
+    if (!IsOneWord()) {
+      delete[] u.pValue;
+    }
+
     errno_t err = memcpy_s(&u, sizeof(u), &other.u, sizeof(other.u));
     CHECK_FATAL(err == EOK, "memcpy_s failed");
     other.width = 0;
@@ -125,6 +134,10 @@ class IntVal {
   }
 
   void Assign(const IntVal &other) {
+    if (!IsOneWord()) {
+      delete[] u.pValue;
+    }
+
     width = other.width;
     sign = other.sign;
 
@@ -148,7 +161,7 @@ class IntVal {
 
   /// @return sign or zero extended value depending on its signedness
   int64 GetExtValue(uint8 size = 0) const {
-    return sign ? GetSXTValue(size) : GetZXTValue(size);
+    return sign ? GetSXTValue(size) : static_cast<int64>(GetZXTValue(size));
   }
 
   /// @return zero extended value
@@ -156,20 +169,29 @@ class IntVal {
     ASSERT(IsOneSignificantWord(), "value doesn't fit into 64 bits");
     uint64 value = IsOneWord() ? u.value : u.pValue[0];
     // if size == 0, just return the value itself because it's already truncated for an appropriate width
-    return size ? (value << (wordBitSize - size)) >> (wordBitSize - size) : value;
+    return (size != 0) ? (value << (wordBitSize - size)) >> (wordBitSize - size) : value;
   }
 
   /// @return sign extended value
   int64 GetSXTValue(uint8 size = 0) const {
     ASSERT(IsOneSignificantWord(), "value doesn't fit into 64 bits");
     uint64 value = IsOneWord() ? u.value : u.pValue[0];
-    uint8 bitWidth = size ? size : width;
-    return static_cast<int64>(value << (wordBitSize - bitWidth)) >> (wordBitSize - bitWidth);
+    uint8 bitWidth = (size != 0) ? size : static_cast<uint8>(width);
+    ASSERT(size <= width, "size should <= %u, but got %u", width, size);
+    // Do not rely on compiler implement-defined behavior for signed integer shifting
+    uint8 shift = wordBitSize - bitWidth;
+    value <<= shift;
+    // prepare leading ones for negative value
+    uint64 leadingOnes = allOnes << ((bitWidth < wordBitSize) ? bitWidth : (wordBitSize - 1));
+    if (bitWidth != 0) {
+      return static_cast<int64>(GetBit(bitWidth - 1) ? ((value >> shift) | leadingOnes) : (value >> shift));
+    }
+    return 0;
   }
 
   /// @return true if the (most significant bit) MSB is set
   bool GetSignBit() const {
-    return GetBit(width - 1);
+    return GetBit(static_cast<uint16>(width - 1));
   }
 
   uint16 GetNumWords() const {
@@ -197,7 +219,7 @@ class IntVal {
   /// @return true if value is a power of 2 > 0
   bool IsPowerOf2() const {
     if (IsOneWord()) {
-      return u.value && !(u.value & (u.value - 1));
+      return (u.value != 0) && !(u.value & (u.value - 1));
     }
 
     return CountPopulation() == 1;
@@ -289,7 +311,7 @@ class IntVal {
       return GetExtValue() == val;
     }
 
-    return (*this == IntVal(val, width, sign));
+    return (*this == IntVal(static_cast<uint64>(val), width, sign));
   }
 
   bool operator!=(const IntVal &rhs) const {
@@ -591,7 +613,7 @@ class IntVal {
     IntVal ret = TruncOrExtend(pType);
     ASSERT(shift <= ret.width, "invalid shift value");
     if (IsOneWord()) {
-      ret.u.value = ret.GetSXTValue() >> shift;
+      ret.u.value = (IntVal(ret.GetSXTValue(), PTY_i64) >> shift).GetExtValue();
     } else {
       ret.WideAShrInPlace(shift);
     }
@@ -625,14 +647,12 @@ class IntVal {
     ASSERT(!bitWidth || !width || GetNumWords() == GetNumWords(bitWidth), "trunc to given width isn't implemented");
 
     if (IsOneWord()) {
-      u.value &= allOnes >> (wordBitSize - (bitWidth ? bitWidth : width));
+        uint16 truncWidth = (bitWidth != 0) ? bitWidth : width;
+        u.value &= allOnes >> (wordBitSize - truncWidth);
     } else {
-      uint16 truncWidth = bitWidth ? bitWidth : width;
-      for (uint16 i = 0; i < GetNumWords(); ++i) {
-        uint8 emptyBits = (truncWidth >= wordBitSize) ? 0 : truncWidth;
-        u.pValue[i] &= allOnes >> (wordBitSize - emptyBits);
-        truncWidth -= wordBitSize;
-      }
+      uint16 truncWidth = (bitWidth == 0) ? bitWidth : width;
+      uint16 lastWord = GetNumWords() - 1;
+      u.pValue[lastWord] &= allOnes >> (truncWidth % wordBitSize);
     }
 
     if (bitWidth) {
@@ -643,7 +663,7 @@ class IntVal {
   /// @return truncated value to the given bit-width
   /// @note returned value will have bit-width and sign obtained from newType
   IntVal Trunc(PrimType newType) const {
-    return Trunc(GetPrimTypeActualBitSize(newType), IsSignedInteger(newType));
+    return Trunc(static_cast<uint16>(GetPrimTypeActualBitSize(newType)), IsSignedInteger(newType));
   }
 
   IntVal Trunc(uint16 newWidth, bool isSigned) const {
@@ -657,7 +677,7 @@ class IntVal {
   /// @return sign or zero extended value depending on its signedness
   /// @note returned value will have bit-width and sign obtained from newType
   IntVal Extend(PrimType newType) const {
-    return Extend(GetPrimTypeActualBitSize(newType), IsSignedInteger(newType));
+    return Extend(static_cast<uint16>(GetPrimTypeActualBitSize(newType)), IsSignedInteger(newType));
   }
 
   IntVal Extend(uint16 newWidth, bool isSigned) const {
@@ -672,7 +692,7 @@ class IntVal {
   /// @return sign/zero extended value or truncated value depending on bit-width
   /// @note returned value will have bit-width and sign obtained from newType
   IntVal TruncOrExtend(PrimType newType) const {
-    return TruncOrExtend(GetPrimTypeActualBitSize(newType), IsSignedInteger(newType));
+    return TruncOrExtend(static_cast<uint16>(GetPrimTypeActualBitSize(newType)), IsSignedInteger(newType));
   }
 
   IntVal TruncOrExtend(uint16 newWidth, bool isSigned) const {
@@ -696,7 +716,7 @@ class IntVal {
 
  private:
   static uint8 GetNumWords(uint16 bitWidth) {
-    return (bitWidth + wordBitSize - 1) / wordBitSize;
+    return static_cast<uint8>((bitWidth + wordBitSize - 1) / wordBitSize);
   }
 
   /// @brief compare two Wide integers
@@ -787,14 +807,14 @@ class IntVal {
     if (IsOneWord()) {
       u.value = u.value | mask;
     } else {
-      uint16 word = GetNumWords(bit + 1) - 1;
+      uint16 word = static_cast<uint16>(GetNumWords(bit + 1) - 1);
       u.pValue[word] = u.pValue[word] | mask;
     }
   }
 
   /// @brief set the sign bit to one and set 'sign' to true
   void SetSignBit() {
-    SetBit(width - 1);
+    SetBit(width - static_cast<uint16>(1));
   }
 
   bool GetBit(uint16 bit) const {
@@ -803,7 +823,7 @@ class IntVal {
       return (u.value & (uint64(1) << bit)) != 0;
     }
 
-    uint8 word = GetNumWords(bit + 1) - 1;
+    uint8 word = static_cast<uint8>(GetNumWords(bit + 1) - 1);
     uint8 wordOffset = bit % wordBitSize;
 
     return (u.pValue[word] & (uint64(1) << wordOffset)) != 0;
@@ -852,7 +872,7 @@ class IntVal {
   static constexpr uint8 wordBitSize = sizeof(uint64) * CHAR_BIT;
   static constexpr uint64 allOnes = uint64(~0);
 
-  uint16 width;
+  uint16 width = 0;
   bool sign;
 };
 

@@ -17,12 +17,23 @@ from api.shell_operator import ShellOperator
 
 class Java2dex(ShellOperator):
 
-    def __init__(self, jar_file, outfile, infile, return_value_list=None, redirection=None):
+    def __init__(self, jar_file, outfile, infile, usesimplejava=False, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.jar_file = jar_file
         self.outfile = outfile
         self.infile = infile
+        self.usesimplejava = usesimplejava
+
+    def java2dex_i_output(self, variables):
+        if 'EXTRA_JAVA_FILE' in variables.keys():
+            variables['EXTRA_JAVA_FILE'] = variables['EXTRA_JAVA_FILE'].replace('[','').replace(']','').replace(',',':')
+            return ':'.join(self.infile)
+        return self.infile[0]
 
     def get_command(self, variables):
-        self.command = "bash ${OUT_ROOT}/tools/bin/java2dex  -o " + self.outfile + " -p " + ":".join(self.jar_file) + " -i " + ":".join(self.infile)
+        if not self.usesimplejava:
+            self.command = "${OUT_ROOT}/target/product/public/bin/java2dex  -o " + self.outfile + " -p " + ":".join(self.jar_file) + " -i " + self.java2dex_i_output(variables)
+        else:
+            self.command = "${OUT_ROOT}/target/product/public/bin/java2dex  -o " + self.outfile + " -p " + ":".join(self.jar_file) + " -i " + self.java2dex_i_output(variables) + " -s useSimpleJava"
+        # print(super().get_final_command(variables))
         return super().get_final_command(variables)

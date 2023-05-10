@@ -24,7 +24,7 @@ namespace maple {
 class SSADevirtual {
  public:
   static bool debug;
-  SSADevirtual(MemPool &memPool, MIRModule &currMod, IRMap &irMap, KlassHierarchy &currKh,
+  SSADevirtual(MemPool &memPool, const MIRModule &currMod, const IRMap &irMap, KlassHierarchy &currKh,
                Dominance &currDom, size_t bbVecSize, bool skipReturnTypeOpt)
       : devirtualAlloc(&memPool),
         mod(&currMod),
@@ -42,7 +42,7 @@ class SSADevirtual {
         optedInterfaceCalls(0),
         nullCheckCount(0),
         skipReturnTypeOpt(skipReturnTypeOpt) {}
-  SSADevirtual(MemPool &memPool, MIRModule &currMod, IRMap &irMap, KlassHierarchy &currKh,
+  SSADevirtual(MemPool &memPool, const MIRModule &currMod, IRMap &irMap, KlassHierarchy &currKh,
                Dominance &currDom, size_t bbVecSize, Clone &currClone, bool skipReturnTypeOpt)
       : SSADevirtual(memPool, currMod, irMap, currKh, currDom, bbVecSize, skipReturnTypeOpt) {
     clone = &currClone;
@@ -61,24 +61,24 @@ class SSADevirtual {
   }
 
   virtual BB *GetBB(BBId id) const = 0;
-  void TraversalBB(BB*);
-  void TraversalMeStmt(MeStmt &Stmt);
-  void VisitVarPhiNode(MePhiNode&);
-  void VisitMeExpr(MeExpr*) const;
-  void PropVarInferredType(VarMeExpr&) const;
-  void PropIvarInferredType(IvarMeExpr&) const;
-  void ReturnTyIdxInferring(const RetMeStmt&);
-  bool NeedNullCheck(const MeExpr&) const;
-  void InsertNullCheck(const CallMeStmt&, MeExpr&) const;
-  bool DevirtualizeCall(CallMeStmt&);
+  void TraversalBB(BB *bb);
+  void TraversalMeStmt(MeStmt &meStmt);
+  void VisitVarPhiNode(MePhiNode &varPhi);
+  void VisitMeExpr(MeExpr *meExpr) const;
+  void PropVarInferredType(VarMeExpr &varMeExpr) const;
+  void PropIvarInferredType(IvarMeExpr &ivar) const;
+  void ReturnTyIdxInferring(const RetMeStmt &retMeStmt);
+  bool NeedNullCheck(const MeExpr &receiver) const;
+  void InsertNullCheck(CallMeStmt &callStmt, MeExpr &receiver) const;
+  bool DevirtualizeCall(CallMeStmt &callStmt);
   void SSADevirtualize(CallNode &stmt);
-  void ReplaceCall(CallMeStmt&, const MIRFunction&);
+  void ReplaceCall(CallMeStmt &callStmt, const MIRFunction &targetFunc);
   TyIdx GetInferredTyIdx(MeExpr &expr) const;
 
  private:
   MapleAllocator devirtualAlloc;
-  MIRModule *mod;
-  IRMap *irMap;
+  const MIRModule *mod;
+  const IRMap *irMap;
   KlassHierarchy *kh;
   Dominance *dom;
   MapleVector<bool> bbVisited;  // needed because dominator tree is a DAG in wpo

@@ -55,7 +55,9 @@ class StmtInfo {
       CreateHashCandidate();
     }
   }
-  virtual ~StmtInfo() = default;
+  virtual ~StmtInfo() {
+    stmt = nullptr;
+  }
 
   bool IsValid() {
     switch (hashCandidate[0]) {
@@ -113,24 +115,24 @@ class StmtInfo {
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivar.GetTyIdx());
       hashCandidate.emplace_back(static_cast<MIRPtrType*>(type)->GetPointedType()->GetPrimType());
       hashCandidate.emplace_back(ivar.GetFieldID());
-      valid &= ivar.GetFieldID() == 0;
+      valid &= (ivar.GetFieldID() == 0);
     }
     if (meExpr.GetMeOp() == kMeOpVar) {
       auto &var = static_cast<VarMeExpr &>(meExpr);
       hashCandidate.emplace_back(var.GetFieldID());
-      valid &= var.GetFieldID() == 0;
+      valid &= (var.GetFieldID() == 0);
     }
     if (meExpr.GetMeOp() == kMeOpAddrof) {
       auto &addr = static_cast<AddrofMeExpr &>(meExpr);
       hashCandidate.emplace_back(addr.GetFieldID());
-      valid &= addr.GetFieldID() == 0;
+      valid &= (addr.GetFieldID() == 0);
     }
     if (meExpr.GetMeOp() == kMeOpOp) {
       auto &opExpr = static_cast<OpMeExpr &>(meExpr);
       hashCandidate.emplace_back(opExpr.GetFieldID());
       hashCandidate.emplace_back(opExpr.GetBitsOffSet());
       hashCandidate.emplace_back(opExpr.GetBitsSize());
-      valid &= opExpr.GetFieldID() == 0;
+      valid &= (opExpr.GetFieldID() == 0);
     }
     for (auto i = 0; i < meExpr.GetNumOpnds(); ++i) {
       GetExprHashCandidate(*meExpr.GetOpnd(i));

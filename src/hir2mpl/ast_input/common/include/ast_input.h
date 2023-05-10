@@ -40,8 +40,8 @@ class ASTInput {
   }
 
   void AddASTStruct(ASTStruct *astStruct) {
-    auto itor = std::find(astStructs.begin(), astStructs.end(), astStruct);
-    if (itor == astStructs.end()) {
+    auto itor = std::find(astStructs.cbegin(), astStructs.cend(), astStruct);
+    if (itor == astStructs.cend()) {
       astStructs.emplace_back(astStruct);
     }
   }

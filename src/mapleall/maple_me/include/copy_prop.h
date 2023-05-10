@@ -22,11 +22,11 @@
 namespace maple {
 class CopyProp : public Prop {
  public:
-  CopyProp(MeFunction *meFunc, MeExprUseInfo &ui, IdentifyLoops *loops, IRMap &irMap, Dominance &dom,
+  CopyProp(MeFunction *meFunc, MeExprUseInfo &ui, IdentifyLoops *loops, IRMap &irMap, Dominance &dom, Dominance &pdom,
            MemPool &memPool, uint32 bbVecSize, const PropConfig &config)
-      : Prop(irMap, dom, memPool, bbVecSize, config),
+      : Prop(irMap, dom, pdom, memPool, bbVecSize, config),
         func(meFunc), useInfo(ui), loopInfo(loops) {}
-  virtual ~CopyProp() = default;
+  ~CopyProp() override = default;
 
   void ReplaceSelfAssign();
  private:

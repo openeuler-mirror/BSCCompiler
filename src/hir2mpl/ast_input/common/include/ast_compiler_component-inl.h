@@ -87,25 +87,51 @@ void ASTCompilerComponent<T>::ParseInputStructs() {
 
 template<class T>
 void ASTCompilerComponent<T>::ParseInputFuncs() {
-  for (auto &astFunc : astInput.GetASTFuncs()) {
-    auto it = funcNameMap.find(astFunc->GetName());
-    if (it != funcNameMap.cend()) {
-      // save the function with funcbody
-      if (it->second->HasCode() && !astFunc->HasCode()) {
-        continue;
-      } else {
-        (void)funcNameMap.erase(it);
-        auto itHelper = std::find_if(std::begin(globalFuncHelpers), std::end(globalFuncHelpers),
-            [&astFunc](FEInputMethodHelper *s) -> bool {
-              return (s->GetMethodName(false) == astFunc->GetName());
-            });
-        CHECK_FATAL(itHelper != globalFuncHelpers.end(), "astFunc not found");
-        (void)globalFuncHelpers.erase(itHelper);
+  if (!FEOptions::GetInstance().GetWPAA()) {
+    for (auto &astFunc : astInput.GetASTFuncs()) {
+      auto it = funcNameMap.find(astFunc->GetName());
+      if (it != funcNameMap.cend()) {
+        // save the function with funcbody
+        if (it->second->HasCode() && !astFunc->HasCode()) {
+          continue;
+        } else {
+          (void)funcNameMap.erase(it);
+          auto itHelper = std::find_if(std::begin(globalFuncHelpers), std::end(globalFuncHelpers),
+              [&astFunc](FEInputMethodHelper *s) -> bool {
+                return (s->GetMethodName(false) == astFunc->GetName());
+              });
+          CHECK_FATAL(itHelper != globalFuncHelpers.end(), "astFunc not found");
+          (void)globalFuncHelpers.erase(itHelper);
+        }
       }
+      FEInputMethodHelper *funcHelper = allocator.GetMemPool()->New<ASTFunc2FEHelper>(allocator, *astFunc);
+      globalFuncHelpers.emplace_back(funcHelper);
+      funcNameMap.insert(std::make_pair(astFunc->GetName(), funcHelper));
     }
-    FEInputMethodHelper *funcHelper = allocator.GetMemPool()->New<ASTFunc2FEHelper>(allocator, *astFunc);
-    globalFuncHelpers.emplace_back(funcHelper);
-    funcNameMap.insert(std::make_pair(astFunc->GetName(), funcHelper));
+  } else {
+    int i = 1;
+    for (auto &astFunc : astInput.GetASTFuncs()) {
+      FETimer timer;
+      std::stringstream ss;
+      ss << "ReadASTFunc[" << (i++) << "/" << astInput.GetASTFuncs().size() << "]: " << astFunc->GetName();
+      timer.StartAndDump(ss.str());
+      auto it = funcIdxMap.find(astFunc->GetName());
+      if (it != funcIdxMap.cend()) {
+        // save the function with funcbody
+        if (it->second < globalLTOFuncHelpers.size() && globalLTOFuncHelpers[it->second]->HasCode() &&
+            !astFunc->HasCode()) {
+          continue;
+        } else {
+          FEInputMethodHelper *funcHelper = allocator.GetMemPool()->New<ASTFunc2FEHelper>(allocator, *astFunc);
+          globalLTOFuncHelpers[it->second] = funcHelper;
+        }
+      } else {
+        funcIdxMap.insert(std::make_pair(astFunc->GetName(), globalLTOFuncHelpers.size()));
+        FEInputMethodHelper *funcHelper = allocator.GetMemPool()->New<ASTFunc2FEHelper>(allocator, *astFunc);
+        globalLTOFuncHelpers.push_back(funcHelper);
+      }
+      timer.StopAndDumpTimeMS(ss.str());
+    }
   }
 }
 
@@ -144,20 +170,38 @@ bool ASTCompilerComponent<T>::ProcessFunctionSerialImpl() {
   timer.StartAndDump(ss.str());
   bool success = true;
   FE_INFO_LEVEL(FEOptions::kDumpLevelInfo, "===== Process %s =====", ss.str().c_str());
-  for (FEInputMethodHelper *methodHelper : globalFuncHelpers) {
-    ASSERT_NOT_NULL(methodHelper);
-    if (methodHelper->HasCode()) {
-      ASTFunc2FEHelper *astFuncHelper = static_cast<ASTFunc2FEHelper*>(methodHelper);
-      std::unique_ptr<FEFunction> feFunction = CreatFEFunction(methodHelper);
-      feFunction->SetSrcFileName(astFuncHelper->GetSrcFileName());
-      bool processResult = feFunction->Process();
-      if (!processResult) {
-        (void)compileFailedFEFunctions.insert(feFunction.get());
+  if (!FEOptions::GetInstance().GetWPAA()) {
+    for (FEInputMethodHelper *methodHelper : globalFuncHelpers) {
+      ASSERT_NOT_NULL(methodHelper);
+      if (methodHelper->HasCode()) {
+        ASTFunc2FEHelper *astFuncHelper = static_cast<ASTFunc2FEHelper*>(methodHelper);
+        std::unique_ptr<FEFunction> feFunction = CreatFEFunction(methodHelper);
+        feFunction->SetSrcFileName(astFuncHelper->GetSrcFileName());
+        bool processResult = feFunction->Process();
+        if (!processResult) {
+          (void)compileFailedFEFunctions.insert(feFunction.get());
+        }
+        success = success && processResult;
+        feFunction->Finish();
       }
-      success = success && processResult;
-      feFunction->Finish();
+      funcSize++;
     }
-    funcSize++;
+  } else {
+    for (FEInputMethodHelper *methodHelper : globalLTOFuncHelpers) {
+      ASSERT_NOT_NULL(methodHelper);
+      if (methodHelper->HasCode()) {
+        ASTFunc2FEHelper *astFuncHelper = static_cast<ASTFunc2FEHelper*>(methodHelper);
+        std::unique_ptr<FEFunction> feFunction = CreatFEFunction(methodHelper);
+        feFunction->SetSrcFileName(astFuncHelper->GetSrcFileName());
+        bool processResult = feFunction->Process();
+        if (!processResult) {
+          (void)compileFailedFEFunctions.insert(feFunction.get());
+        }
+        success = success && processResult;
+        feFunction->Finish();
+      }
+      funcSize++;
+    }
   }
   timer.StopAndDumpTimeMS(ss.str());
   return success;

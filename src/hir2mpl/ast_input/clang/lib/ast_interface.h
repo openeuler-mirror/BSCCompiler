@@ -53,7 +53,15 @@ class LibAstFile {
   void EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss);
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const;
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
+  void BuildFieldName(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl);
+  std::string GetSourceText(const clang::Stmt &stmt);
+  std::string GetSourceTextRaw(const clang::SourceRange range, const clang::SourceManager &sm) const;
+  std::string BuildStaticFunctionSignature(const clang::FunctionDecl &funcDecl);
+  void BuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl, std::string &funcName);
+  bool CheckAndBuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl, std::stringstream &funcNameStream,
+                                 std::unordered_set<int64_t> &visitedCalls);
   std::string GetRecordLayoutString(const clang::RecordDecl &recordDecl);
+  void BuildFieldLayoutString(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl);
   void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
                                                     TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
                                                     bool isSourceType);
@@ -73,6 +81,8 @@ class LibAstFile {
   void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const;
+  void SetAttrVisibility(const clang::DeclaratorDecl &decl, GenericAttrs &genAttrs) const;
+  void SetAttrTLSModel(const clang::VarDecl &decl, GenericAttrs &genAttrs) const;
   void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) const;
   void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
   void CheckUnsupportedVarAttrs(const clang::VarDecl &decl) const;
@@ -92,8 +102,9 @@ class LibAstFile {
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
   MIRType *CvtComplexType(const clang::QualType srcType) const;
   MIRType *CvtVectorType(const clang::QualType srcType);
-  MIRType *CvtVectorSizeType(MIRType *elemType, MIRType *destType, uint32_t arrLen, uint32_t vecLen,
-                             uint32 alignNum);
+  MIRType *CvtVectorSizeType(const MIRType &elemType, MIRType *destType, uint32_t arrLen, uint32_t vecLen,
+                             uint32 alignNum) const;
+  bool CheckSourceTypeNameNotNull(const clang::QualType &currQualType, MIRType *&elemType, bool isSourceType);
   MIRType *CvtTypedef(const clang::QualType &qualType);
   MIRType *CvtTypedefDecl(const clang::TypedefNameDecl &typedefDecl);
   bool TypeHasMayAlias(const clang::QualType srcType) const;
@@ -116,13 +127,13 @@ class LibAstFile {
   uint32 RetrieveAggTypeAlign(const clang::Type *ty) const;
 
  private:
-  MapleSet<const clang::Decl*> recordDeclSet;
+  MapleSet<const clang::Decl *> recordDeclSet;
   MapleMap<int64, uint32> unnamedSymbolMap;
   MapleMap<uint32_t, std::string> compoundLiteralExprInitSymbolMap;
   MIRModule *module = nullptr;
 
-  MapleList<clang::Decl*> &recordDecles;
-  MapleList<clang::Decl*> &enumDecles;
+  MapleList<clang::Decl *> &recordDecles;
+  MapleList<clang::Decl *> &enumDecles;
 
   clang::ASTContext *astContext = nullptr;
   clang::TranslationUnitDecl *astUnitDecl = nullptr;
@@ -132,5 +143,37 @@ class LibAstFile {
   MapleString astFileName;
   static std::map<Loc, uint32> unnamedLocMap;
 };
-} // namespace maple
-#endif // HIR2MPL_AST_FILE_INCLUDE_AST_INTERFACE_H
+
+class CallCollector : public clang::RecursiveASTVisitor<CallCollector> {
+ public:
+  explicit CallCollector(clang::ASTContext *myAstContext) : astContext(myAstContext) {}
+
+  bool VisitCallExpr(clang::CallExpr *expr) {
+    callExprs.insert(std::pair<int64_t, clang::CallExpr *>(expr->getID(*astContext), expr));
+    return true;
+  }
+
+  bool VisitDeclRefExpr(clang::DeclRefExpr *expr) {
+    if (auto *varDecl = llvm::dyn_cast<clang::VarDecl>(expr->getDecl())) {
+      if (!(varDecl->getType().isConstQualified()) && (varDecl->getStorageClass() == clang::SC_Static)) {
+        needToBeUnique = true;
+        return false;
+      }
+    }
+    return true;
+  }
+  std::map<int64_t, clang::CallExpr *> GetCallExprs() {
+    return callExprs;
+  }
+
+  bool IsNeedToBeUniq() {
+    return needToBeUnique;
+  }
+
+ private:
+  clang::ASTContext *astContext;
+  std::map<int64_t, clang::CallExpr *> callExprs;
+  bool needToBeUnique = false;
+};
+}  // namespace maple
+#endif  // HIR2MPL_AST_FILE_INCLUDE_AST_INTERFACE_H

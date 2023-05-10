@@ -21,7 +21,7 @@ namespace bc {
 class DexClass2FEHelper : public BCClass2FEHelper {
  public:
   DexClass2FEHelper(MapleAllocator &allocator, bc::BCClass &klassIn);
-  ~DexClass2FEHelper() = default;
+  ~DexClass2FEHelper() override = default;
 
  protected:
   void InitFieldHelpersImpl() override;
@@ -33,7 +33,7 @@ class DexClassField2FEHelper : public BCClassField2FEHelper {
  public:
   DexClassField2FEHelper(MapleAllocator &allocator, const BCClassField &fieldIn)
       : BCClassField2FEHelper(allocator, fieldIn) {}
-  ~DexClassField2FEHelper() = default;
+  ~DexClassField2FEHelper() override = default;
 
  protected:
   FieldAttrs AccessFlag2AttributeImpl(uint32 accessFlag) const override;
@@ -43,7 +43,7 @@ class DexClassMethod2FEHelper : public BCClassMethod2FEHelper {
  public:
   DexClassMethod2FEHelper(MapleAllocator &allocator, std::unique_ptr<BCClassMethod> &methodIn)
       : BCClassMethod2FEHelper(allocator, methodIn) {}
-  ~DexClassMethod2FEHelper() = default;
+  ~DexClassMethod2FEHelper() override = default;
 
  protected:
   FuncAttrs GetAttrsImpl() const override;

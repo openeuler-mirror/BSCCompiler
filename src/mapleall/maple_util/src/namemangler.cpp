@@ -13,23 +13,23 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "namemangler.h"
-#include <regex>
 #include <cassert>
-#include <map>
 #include <fstream>
+#include <map>
+#include <regex>
 
 namespace namemangler {
 #ifdef __MRT_DEBUG
-#define ASSERT(f) assert(f)
+#define MRT_ASSERT(f) assert(f)
 #else
-#define ASSERT(f) ((void)0)
+#define MRT_ASSERT(f) ((void)0)
 #endif
 
 const int kLocalCodebufSize = 1024;
 const int kMaxCodecbufSize = (1 << 16); // Java spec support a max name length of 64K.
 
-#define GETHEXCHAR(n) static_cast<char>((n) < 10 ? (n) + kZeroAsciiNum : (n) - 10 + 'a')
-#define GETHEXCHARU(n) static_cast<char>((n) < 10 ? (n) + '0' : (n) - 10 + 'A')
+#define GETHEXCHAR(n) static_cast<char>((n) < 10 ? static_cast<int32_t>(n) + kZeroAsciiNum : (n) - 10 + kaAsciiNum)
+#define GETHEXCHARU(n) static_cast<char>((n) < 10 ? static_cast<int32_t>(n) + kZeroAsciiNum : (n) - 10 + kAAsciiNum)
 
 bool doCompression = false;
 
@@ -221,13 +221,17 @@ std::string DecodeName(const std::string &name) {
         str16.clear();
         i++;
         c = static_cast<unsigned char>(namePtr[i++]);
-        uint8_t b1 = (c <= '9') ? c - '0' : c - 'a' + kNumLimit;
+        uint8_t b1 = (c <= '9') ? static_cast<uint8_t>(c - kZeroAsciiNum) :
+                                  static_cast<uint8_t>(c - kaAsciiNum + kNumLimit);
         c = static_cast<unsigned char>(namePtr[i++]);
-        uint8_t b2 = (c <= '9') ? c - '0' : c - 'a' + kNumLimit;
+        uint8_t b2 = (c <= '9') ? static_cast<uint8_t>(c - kZeroAsciiNum) :
+                                  static_cast<uint8_t>(c - kaAsciiNum + kNumLimit);
         c = static_cast<unsigned char>(namePtr[i++]);
-        uint8_t b3 = (c <= '9') ? c - '0' : c - 'a' + kNumLimit;
+        uint8_t b3 = (c <= '9') ? static_cast<uint8_t>(c - kZeroAsciiNum) :
+                                  static_cast<uint8_t>(c - kaAsciiNum + kNumLimit);
         c = static_cast<unsigned char>(namePtr[i++]);
-        uint8_t b4 = (c <= '9') ? static_cast<uint8_t>(c - '0') : static_cast<uint8_t>(c - 'a' + kNumLimit);
+        uint8_t b4 = (c <= '9') ? static_cast<uint8_t>(c - kZeroAsciiNum) :
+                                  static_cast<uint8_t>(c - kaAsciiNum + kNumLimit);
         uint32_t codepoint = (b1 << kCodeOffset3) | (b2 << kCodeOffset2) | (b3 << kCodeOffset) | b4;
         str16 += static_cast<char16_t>(codepoint);
         unsigned int n = UTF16ToUTF8(str, str16, 1, false);
@@ -246,13 +250,13 @@ std::string DecodeName(const std::string &name) {
         }
       } else {
         c = static_cast<unsigned char>(namePtr[i++]);
-        unsigned int v = (c <= '9') ? c - '0' : c - 'A' + kNumLimit;
+        unsigned int v = static_cast<unsigned int>((c <= '9') ? c - kZeroAsciiNum : c - kAAsciiNum + kNumLimit);
         unsigned int asc = v << kCodeOffset;
         if (i >= nameLen) {
           break;
         }
         c = static_cast<unsigned char>(namePtr[i++]);
-        v = (c <= '9') ? c - '0' : c - 'A' + kNumLimit;
+        v = (c <= '9') ? c - kZeroAsciiNum : c - kAAsciiNum + kNumLimit;
         asc += v;
 
         newName[pos++] = static_cast<char>(asc);
@@ -332,10 +336,12 @@ std::string NativeJavaName(const std::string &name, bool overLoaded) {
         // _XX: '_' followed by ascii code in hex
         c = decompressedName[i++];
         unsigned char v =
-            (c <= '9') ? static_cast<unsigned char>(c - '0') : static_cast<unsigned char>((c - 'A') + kNumLimit);
+            (c <= '9') ? static_cast<unsigned char>(c - kZeroAsciiNum) :
+                         static_cast<unsigned char>((c - kAAsciiNum) + kNumLimit);
         unsigned char asc = v << kCodeOffset;
         c = decompressedName[i++];
-        v = (c <= '9') ? static_cast<unsigned char>(c - '0') : static_cast<unsigned char>((c - 'A') + kNumLimit);
+        v = (c <= '9') ? static_cast<unsigned char>(c - kZeroAsciiNum) :
+                         static_cast<unsigned char>((c - kAAsciiNum) + kNumLimit);
         asc += v;
         if (asc == '/') {
           newName += "_";
@@ -365,7 +371,7 @@ std::string NativeJavaName(const std::string &name, bool overLoaded) {
         } else {
           printf("name = %s\n", decompressedName.c_str());
           printf("c = %c\n", asc);
-          ASSERT(false && "more cases in NativeJavaName");
+          MRT_ASSERT(false && "more cases in NativeJavaName");
         }
       }
     } else {
@@ -499,7 +505,7 @@ uint32_t GetCodePoint(const std::string &str8, uint32_t &i) {
     b = static_cast<uint32_t>(str8[i++]);
     codePoint = ((a & 0x1F) << kCodepointOffset1) | (b & 0x3F);
   } else {
-    ASSERT(false && "invalid UTF-8");
+    MRT_ASSERT(false && "invalid UTF-8");
   }
   return codePoint;
 }
@@ -534,7 +540,7 @@ unsigned UTF8ToUTF16(std::u16string &str16, const std::string &str8, unsigned sh
     count++;
     // only convert num elmements
     if (num == count) {
-      return (static_cast<char16_t>(retNum) << kCountOffset) | static_cast<char16_t>(i);
+      return (static_cast<uint32_t>(retNum) << kCountOffset) | i;
     }
   }
   return i;
@@ -555,7 +561,7 @@ void GetUnsignedLeb128Encode(std::vector<uint8_t> &dest, uint32_t value) {
 }
 
 uint32_t GetUnsignedLeb128Decode(const uint8_t **data) {
-  ASSERT(data != nullptr && "data in GetUnsignedLeb128Decode() is nullptr");
+  MRT_ASSERT(data != nullptr && "data in GetUnsignedLeb128Decode() is nullptr");
   const uint8_t *ptr = *data;
   uint32_t result = 0;
   uint32_t shift = 0;
@@ -573,7 +579,7 @@ uint32_t GetUnsignedLeb128Decode(const uint8_t **data) {
 }
 
 size_t GetUleb128Size(uint64_t v) {
-  ASSERT(v && "if v == 0, __builtin_clzll(v) is not defined");
+  MRT_ASSERT(v && "if v == 0, __builtin_clzll(v) is not defined");
   size_t clz = static_cast<size_t>(__builtin_clzll(v));
   // num of 7-bit groups
   return size_t((64 - clz + 6) / 7);
@@ -581,17 +587,27 @@ size_t GetUleb128Size(uint64_t v) {
 
 size_t GetSleb128Size(int32_t v) {
   size_t size = 0;
-  int rem = v >> kGreybackOffset;
+
+  // intended signed shift: block codedex here
+  constexpr uint32_t oneByte = 8;
+  uint32_t vShift = sizeof(v) * oneByte - kGreybackOffset;
+  uint32_t maskRem = static_cast<uint32_t>(v) >> kGreybackOffset;
+  int32_t rem = (v < 0) ? static_cast<int32_t>(maskRem | (UINT32_MAX << vShift)) : static_cast<int32_t>(maskRem);
+
   bool hasMore = true;
-  int end = ((v >= 0) ? 0 : -1);
+  int32_t end = ((v >= 0) ? 0 : -1);
+
+  uint32_t remShift = sizeof(rem) * oneByte - kGreybackOffset;
 
   while (hasMore) {
     // judege whether has more valid rem
     hasMore = (rem != end) || ((static_cast<uint32_t>(rem) & 1) !=
-        (static_cast<uint>((static_cast<uint32_t>(v) >> 6)) & 1));
+                               (static_cast<uint>((static_cast<uint32_t>(v) >> 6)) & 1));
     size++;
     v = rem;
-    rem >>= static_cast<int>(kGreybackOffset); // intended signed shift: block codedex here
+    // intended signed shift: block codedex here
+    uint32_t blockRem = static_cast<uint32_t>(rem) >> kGreybackOffset;
+    rem = (rem < 0) ? static_cast<int32_t>(blockRem | (UINT32_MAX << remShift)) : static_cast<int32_t>(blockRem);
   }
   return size;
 }
@@ -688,7 +704,7 @@ int64_t DecodeSLEB128(const uint8_t *p, unsigned *n, const uint8_t *end) {
       }
       return 0;
     }
-    value |= static_cast<int64_t>(slice << shift);
+    value = static_cast<int64_t>(static_cast<uint64_t>(value) | (slice << shift));
     shift += kGreybackOffset;
     ++p;
   } while (byte >= kOneHundredTwentyEight);

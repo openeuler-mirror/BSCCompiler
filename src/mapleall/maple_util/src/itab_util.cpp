@@ -20,7 +20,7 @@
 namespace maple {
 unsigned int DJBHash(const char *str) {
   unsigned int hash = 5381; // 5381: initial value for DJB hash algorithm
-  while (*str) {
+  while (*str != 0) {
     hash += (hash << 5) + static_cast<unsigned char>(*str++); // 5: calculate the hash code of data
   }
   return (hash & 0x7FFFFFFF);

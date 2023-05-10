@@ -38,7 +38,7 @@ class UnionFind {
 
   ~UnionFind() {
     // for the root id's, the sum of their size should be population size
-#if DEBUG
+#if defined(DEBUG) && DEBUG
     size_t sum = 0;
     for (size_t i = 0; i < num; ++i)
       if (rootIDs[i] == i) {

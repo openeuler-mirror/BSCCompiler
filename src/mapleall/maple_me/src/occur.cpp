@@ -31,7 +31,7 @@ constexpr uint32_t kOffsetNaryMeStmtOpnd = 2;
 }
 
 namespace maple {
-void MeOccur::DumpOccur(IRMap &irMap) {
+void MeOccur::DumpOccur(IRMap &irMap) const {
   MIRModule *mod = &irMap.GetSSATab().GetModule();
   mod->GetOut() << "MeOccur ";
   Dump(irMap);

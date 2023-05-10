@@ -86,7 +86,7 @@ void GCLowering::HandleVarAssignMeStmt(MeStmt &stmt) {
   stmt.GetBB()->ReplaceMeStmt(&stmt, writeRefCall);
 }
 
-MIRIntrinsicID GCLowering::SelectWriteBarrier(const MeStmt &stmt) {
+MIRIntrinsicID GCLowering::SelectWriteBarrier(const MeStmt &stmt) const {
   MeExpr *lhs = nullptr;
   if (stmt.GetOp() == OP_dassign) {
     lhs = stmt.GetLHS();
@@ -104,13 +104,13 @@ MIRIntrinsicID GCLowering::SelectWriteBarrier(const MeStmt &stmt) {
   return meOp == kMeOpVar ? INTRN_MCCWriteS : INTRN_MCCWrite;
 }
 
-static inline void CheckRemove(const MeStmt *stmt, Opcode op) {
+static void CheckRemove(MeStmt *stmt, Opcode op) {
   if (stmt != nullptr && stmt->GetOp() == op) {
     stmt->GetBB()->RemoveMeStmt(stmt);
   }
 }
 
-MIRIntrinsicID GCLowering::PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId) {
+MIRIntrinsicID GCLowering::PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId) const {
   CheckRemove(stmt.GetPrev(), OP_membarrelease);
   CheckRemove(stmt.GetNext(), OP_membarstoreload);
   return intrnId;
@@ -127,7 +127,7 @@ void GCLowering::HandleIvarAssignMeStmt(MeStmt &stmt) {
   stmt.GetBB()->ReplaceMeStmt(&stmt, writeRefCall);
 }
 
-MeExpr *GCLowering::GetBase(IvarMeExpr &ivar) {
+MeExpr *GCLowering::GetBase(IvarMeExpr &ivar) const {
   MeExpr *base = ivar.GetBase();
   CHECK_NULL_FATAL(base);
   if (!Options::buildApp || ivar.GetFieldID() != 0 || base->GetMeOp() != kMeOpReg) {
@@ -163,7 +163,7 @@ MeExpr *GCLowering::GetBase(IvarMeExpr &ivar) {
   return base;
 }
 
-void GCLowering::HandleWriteReferent(const IassignMeStmt &stmt) {
+void GCLowering::HandleWriteReferent(IassignMeStmt &stmt) {
   if (!isReferent) {
     return;
   }

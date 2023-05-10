@@ -63,11 +63,15 @@ uint32 CGOptions::jumpAlignPow = 5;
 uint32 CGOptions::funcAlignPow = 5;
 bool CGOptions::liteProfGen = false;
 bool CGOptions::liteProfUse = false;
+bool CGOptions::liteProfVerify = false;
 std::string CGOptions::liteProfile = "";
 std::string CGOptions::litePgoWhiteList = "";
 std::string CGOptions::instrumentationOutPutPath = "";
 std::string CGOptions::litePgoOutputFunction = "";
 std::string CGOptions::functionProrityFile = "";
+std::string CGOptions::functionReorderAlgorithm = "";
+std::string CGOptions::functionReorderProfile = "";
+std::string CGOptions::cpu = "cortex-a53";
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -76,6 +80,10 @@ bool CGOptions::useBarriersForVolatile = true;
 bool CGOptions::exclusiveEH = false;
 bool CGOptions::doEBO = false;
 bool CGOptions::doCGSSA = false;
+bool CGOptions::doLayoutColdPath = false;
+bool CGOptions::doGlobalSchedule = false;
+bool CGOptions::doLocalSchedule = false;
+bool CGOptions::doVerifySchedule = false;
 bool CGOptions::calleeEnsureParam = true;
 bool CGOptions::doIPARA = true;
 bool CGOptions::doCFGO = false;
@@ -111,7 +119,7 @@ CGOptions::ABIType CGOptions::abiType = kABIHard;
 CGOptions::EmitFileType CGOptions::emitFileType = kAsm;
 bool CGOptions::genLongCalls = false;
 bool CGOptions::functionSections = false;
-bool CGOptions::useFramePointer = false;
+CGOptions::FramePointerType CGOptions::useFramePointer = kNoneFP;
 bool CGOptions::gcOnly = false;
 bool CGOptions::quiet = false;
 bool CGOptions::doPatchLongBranch = false;
@@ -136,7 +144,8 @@ bool CGOptions::arm64ilp32 = false;
 bool CGOptions::noCommon = false;
 bool CGOptions::flavorLmbc = false;
 bool CGOptions::doAggrOpt = false;
-CGOptions::VisibilityType CGOptions::visibilityType = kDefault;
+CGOptions::VisibilityType CGOptions::visibilityType = kDefaultVisibility;
+CGOptions::TLSModel CGOptions::tlsModel = kDefaultTLSModel;
 bool CGOptions::noplt = false;
 
 CGOptions &CGOptions::GetInstance() {
@@ -189,9 +198,11 @@ bool CGOptions::SolveOptions(bool isDebug) {
     std::string printOpt;
     if (isDebug) {
       for (const auto &val : opt->GetRawValues()) {
-        printOpt += opt->GetName() + " " + val + " ";
+        if (opt->IsEnabledByUser()) {
+          printOpt += opt->GetName() + " " + val + " ";
+          LogInfo::MapleLogger() << "cg options: " << printOpt << '\n';
+        }
       }
-      LogInfo::MapleLogger() << "cg options: " << printOpt << '\n';
     }
   }
 
@@ -204,9 +215,9 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   if (opts::cg::fpie.IsEnabledByUser() || opts::cg::fPIE.IsEnabledByUser()) {
-    if (opts::cg::fPIE) {
+    if (opts::cg::fPIE && opts::cg::fPIE.IsEnabledByUser()) {
       SetPIEOptionHelper(kLargeMode);
-    } else if (opts::cg::fpie) {
+    } else if (opts::cg::fpie && opts::cg::fpie.IsEnabledByUser()) {
       SetPIEOptionHelper(kSmallMode);
     } else {
       SetPIEMode(kClose);
@@ -216,12 +227,12 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
     /* To avoid fpie mode being modified twice, need to ensure fpie is not opened. */
-    if(!opts::cg::fpie && !opts::cg::fPIE) {
-      if (opts::cg::fPIC) {
+    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() && ! opts::cg::fPIE.IsEnabledByUser() &&!opts::cg::fPIE) {
+      if (opts::cg::fPIC && opts::cg::fPIC.IsEnabledByUser()) {
         SetPICOptionHelper(kLargeMode);
         SetPIEMode(kClose);
         ClearOption(CGOptions::kGenPie);
-      } else if (opts::cg::fpic) {
+      } else if (opts::cg::fpic && opts::cg::fpic.IsEnabledByUser()) {
         SetPICOptionHelper(kSmallMode);
         SetPIEMode(kClose);
         ClearOption(CGOptions::kGenPie);
@@ -237,12 +248,19 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   if (opts::cg::fnoSemanticInterposition.IsEnabledByUser()) {
-    if (opts::cg::fnoSemanticInterposition && ((GeneratePositionIndependentCode() &&
-        !GeneratePositionIndependentExecutable()) || GeneratePositionIndependentExecutable())) {
+    if (opts::cg::fnoSemanticInterposition && IsShlib()) {
       EnableNoSemanticInterposition();
     } else {
       DisableNoSemanticInterposition();
     }
+  }
+
+  if (opts::linkerTimeOpt.IsEnabledByUser() && IsShlib()) {
+    EnableNoSemanticInterposition();
+  }
+
+  if (opts::ftlsModel.IsEnabledByUser()) {
+    SetTLSModel(opts::ftlsModel);
   }
 
   if (opts::cg::verboseAsm.IsEnabledByUser()) {
@@ -533,8 +551,8 @@ bool CGOptions::SolveOptions(bool isDebug) {
                           : ClearOption(CGOptions::kProEpilogueOpt);
   }
 
-  if (opts::cg::tailcall.IsEnabledByUser()) {
-    opts::cg::tailcall ? EnableTailCallOpt() : DisableTailCallOpt();
+  if (opts::tailcall.IsEnabledByUser()) {
+    opts::tailcall ? EnableTailCallOpt() : DisableTailCallOpt();
   }
 
   if (opts::cg::calleeregsPlacement.IsEnabledByUser()) {
@@ -629,8 +647,14 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::functionSections ? EnableFunctionSections() : DisableFunctionSections();
   }
 
+  if (opts::cg::omitLeafFramePointer.IsEnabledByUser()) {
+    opts::cg::omitLeafFramePointer ? SetFramePointer(kNonLeafFP) : SetFramePointer(kAllFP);
+  }
+
   if (opts::cg::omitFramePointer.IsEnabledByUser()) {
-    opts::cg::omitFramePointer ? DisableFramePointer() : EnableFramePointer();
+    opts::cg::omitFramePointer ? SetFramePointer(kNoneFP) :
+        ((!opts::cg::omitLeafFramePointer.IsEnabledByUser() || opts::cg::omitLeafFramePointer) ?
+            SetFramePointer(kNonLeafFP) : SetFramePointer(kAllFP));
   }
 
   if (opts::gcOnly.IsEnabledByUser()) {
@@ -656,6 +680,14 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::cgSsa.IsEnabledByUser()) {
     opts::cg::cgSsa ? EnableCGSSA() : DisableCGSSA();
+  }
+
+  if (opts::cg::layoutColdPath.IsEnabledByUser()) {
+    opts::cg::layoutColdPath ? EnableLayoutColdPath() : DisableLayoutColdPath();
+  }
+
+  if (opts::cg::globalSchedule.IsEnabledByUser()) {
+    opts::cg::globalSchedule ? EnableGlobalSchedule() : DisableGlobalSchedule();
   }
 
   if (opts::cg::common.IsEnabledByUser()) {
@@ -684,6 +716,9 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::litePgoGen.IsEnabledByUser()) {
     opts::cg::litePgoGen ? EnableLiteProfGen() : DisableLiteProfGen();
+  }
+  if (opts::cg::litePgoVerify.IsEnabledByUser()) {
+    opts::cg::litePgoVerify ? EnableLiteProfVerify() : DisableLiteProfVerify();
   }
 
   if (opts::cg::litePgoOutputFunc.IsEnabledByUser()) {
@@ -715,10 +750,19 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetFunctionPriority(opts::cg::functionPriority);
   }
 
+  if (opts::functionReorderAlgorithm.IsEnabledByUser()) {
+    SetFunctionReorderAlgorithm(opts::functionReorderAlgorithm);
+  }
+
+  if (opts::functionReorderProfile.IsEnabledByUser()) {
+    SetFunctionReorderProfile(opts::functionReorderProfile);
+  }
+
   if (opts::fVisibility.IsEnabledByUser()) {
     SetVisibilityType(opts::fVisibility);
   }
 
+  SetOption(kWithSrc);
   /* override some options when loc, dwarf is generated */
   if (WithLoc()) {
     SetOption(kWithSrc);
@@ -796,6 +840,8 @@ void CGOptions::EnableO0() {
   optimizeLevel = kLevel0;
   doEBO = false;
   doCGSSA = false;
+  doGlobalSchedule = false;
+  doLocalSchedule = false;
   doCFGO = false;
   doICO = false;
   doPrePeephole = false;
@@ -841,6 +887,8 @@ void CGOptions::EnableO2() {
   optimizeLevel = kLevel2;
   doEBO = true;
   doCGSSA = true;
+  doGlobalSchedule = true;
+  doLocalSchedule = true;
   doCFGO = true;
   doICO = true;
   doPrePeephole = true;
@@ -857,7 +905,7 @@ void CGOptions::EnableO2() {
   SetOption(kUseUnwindTables);
   ClearOption(kUseStackProtectorStrong);
   ClearOption(kUseStackProtectorAll);
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   doPreLSRAOpt = false;
   doLocalRefSpill = false;
   doCalleeToSpill = false;
@@ -884,6 +932,8 @@ void CGOptions::EnableLiteCG() {
   optimizeLevel = kLevelLiteCG;
   doEBO = false;
   doCGSSA = false;
+  doGlobalSchedule = false;
+  doLocalSchedule = false;
   doCFGO = false;
   doICO = false;
   doPrePeephole = false;

@@ -22,7 +22,7 @@ namespace maple {
 class ASTStruct2FEHelper : public FEInputStructHelper {
  public:
   ASTStruct2FEHelper(MapleAllocator &allocator, ASTStruct &structIn);
-  ~ASTStruct2FEHelper() = default;
+  ~ASTStruct2FEHelper() override = default;
 
   const ASTStruct &GetASTStruct() const {
     return astStruct;
@@ -52,7 +52,7 @@ class ASTGlobalVar2FEHelper : public FEInputGlobalVarHelper {
   ASTGlobalVar2FEHelper(MapleAllocator &allocatorIn, const ASTVar &varIn)
       : FEInputGlobalVarHelper(allocatorIn),
         astVar(varIn) {}
-  ~ASTGlobalVar2FEHelper() = default;
+  ~ASTGlobalVar2FEHelper() override = default;
 
  protected:
   bool ProcessDeclImpl(MapleAllocator &allocator) override;
@@ -64,7 +64,7 @@ class ASTFileScopeAsm2FEHelper : public FEInputFileScopeAsmHelper {
   ASTFileScopeAsm2FEHelper(MapleAllocator &allocatorIn, const ASTFileScopeAsm &astAsmIn)
       : FEInputFileScopeAsmHelper(allocatorIn),
         astAsm(astAsmIn) {}
-  ~ASTFileScopeAsm2FEHelper() = default;
+  ~ASTFileScopeAsm2FEHelper() override = default;
 
  protected:
   bool ProcessDeclImpl(MapleAllocator &allocator) override;
@@ -76,7 +76,7 @@ class ASTEnum2FEHelper : public FEInputEnumHelper {
   ASTEnum2FEHelper(MapleAllocator &allocatorIn, const ASTEnumDecl &astEnumIn)
       : FEInputEnumHelper(allocatorIn),
         astEnum(astEnumIn) {}
-  ~ASTEnum2FEHelper() = default;
+  ~ASTEnum2FEHelper() override = default;
 
  protected:
   bool ProcessDeclImpl(MapleAllocator &allocator) override;
@@ -88,7 +88,7 @@ class ASTStructField2FEHelper : public FEInputFieldHelper {
   ASTStructField2FEHelper(MapleAllocator &allocator, ASTField &fieldIn, MIRType &structTypeIn)
       : FEInputFieldHelper(allocator),
         field(fieldIn), structType(structTypeIn) {}
-  ~ASTStructField2FEHelper() = default;
+  ~ASTStructField2FEHelper() override = default;
 
  protected:
   bool ProcessDeclImpl(MapleAllocator &allocator) override;
@@ -104,7 +104,7 @@ class ASTFunc2FEHelper : public FEInputMethodHelper {
         func(funcIn) {
     srcLang = kSrcLangC;
   }
-  ~ASTFunc2FEHelper() = default;
+  ~ASTFunc2FEHelper() override = default;
   ASTFunc &GetMethod() const {
     return func;
   }

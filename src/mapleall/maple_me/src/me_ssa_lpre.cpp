@@ -121,7 +121,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
   realOcc.SetSavedExpr(*regOrVar);
 }
 
-MeExpr *MeSSALPre::GetTruncExpr(const VarMeExpr &theLHS, MeExpr &savedRHS) {
+MeExpr *MeSSALPre::GetTruncExpr(const VarMeExpr &theLHS, MeExpr &savedRHS) const {
   MIRType *lhsType = theLHS.GetType();
   if (theLHS.GetType()->GetKind() != kTypeBitField) {
     if (GetPrimTypeSize(theLHS.GetPrimType()) < GetPrimTypeSize(savedRHS.GetPrimType())) {
@@ -256,10 +256,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
       (void)assignedFormals.insert(ost->GetIndex());
     }
     CHECK_NULL_FATAL(meStmt.GetRHS());
-    if (ost->IsVolatile()) {
-      return;
-    }
-    if (lhs->GetPrimType() == PTY_agg) {
+    if (ost->IsVolatile() || lhs->GetPrimType() == PTY_agg) {
       return;
     }
     CreateRealOcc(meStmt, seqStmt, *lhs, false, true);
@@ -346,7 +343,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (sym->GetAsmAttr() != 0) {
         break;
       }
-      if (sym->IsInstrumented() && !(func->GetHints() & kPlacementRCed)) {
+      if (sym->IsInstrumented() && (func->GetHints() & kPlacementRCed) == 0) {
         // not doing because its SSA form is not complete
         break;
       }

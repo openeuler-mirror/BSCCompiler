@@ -48,6 +48,7 @@
 #include "me_ssa_lpre.h"
 #include "me_ssa_epre.h"
 #include "me_gvn.h"
+#include "me_sra.h"
 #include "me_stmt_pre.h"
 #include "me_store_pre.h"
 #include "me_cond_based_rc.h"
@@ -57,7 +58,6 @@
 #include "me_subsum_rc.h"
 #include "me_predict.h"
 #include "me_side_effect.h"
-#include "do_ipa_escape_analysis.h"
 #include "me_gc_lowering.h"
 #include "me_gc_write_barrier_opt.h"
 #include "preg_renamer.h"
@@ -94,6 +94,7 @@
 #include "lfo_unroll.h"
 #include "me_safety_warning.h"
 #include "me_sink.h"
+#include "me_tailcall.h"
 
 namespace maple {
 using MeFuncOptTy = MapleFunctionPhase<MeFunction>;

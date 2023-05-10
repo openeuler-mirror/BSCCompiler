@@ -14,7 +14,7 @@
  */
 #ifndef MPL_FE_DEX_INPUT_DEX_PARSER_H
 #define MPL_FE_DEX_INPUT_DEX_PARSER_H
-#include "bc_parser.h"
+#include "bc_parser-inl.h"
 #include "dex_reader.h"
 #include "dex_class.h"
 #include "types_def.h"

@@ -81,7 +81,7 @@ bool Ebo::IsFrameReg(Operand &opnd) const {
 }
 
 Operand *Ebo::GetZeroOpnd(uint32 size) const {
-#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)
   return size > k64BitSize ? nullptr : &cgFunc->GetZeroOpnd(size);
 #else
   return nullptr;
@@ -878,7 +878,7 @@ void Ebo::RemoveInsn(InsnInfo &info) const {
 #endif
 }
 
-/* Mark opnd is live between def bb and into bb. */
+/* Mark opnd is live between def bb and into bb. (parameter into & def cannot be marked as const) */
 void Ebo::MarkOpndLiveIntoBB(const Operand &opnd, BB &into, BB &def) const {
   if (live == nullptr) {
     return;
@@ -979,7 +979,7 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       /* Copies to and from the same register are not needed. */
       if (Globals::GetInstance()->GetTarget()->IsEffectiveCopy(*insn)) {
         if (HasAssignedReg(*opnd) && HasAssignedReg(insn->GetOperand(kInsnSecondOpnd)) &&
-            RegistersIdentical(*opnd, insn->GetOperand(kInsnSecondOpnd)) && 
+            RegistersIdentical(*opnd, insn->GetOperand(kInsnSecondOpnd)) &&
             insn->GetOperand(kInsnFirstOpnd).GetSize() == insn->GetOperand(kInsnSecondOpnd).GetSize()) {
           /* We may be able to get rid of the copy, but be sure that the operand is marked live into this block. */
           if ((insnInfo->origOpnd[kInsnSecondOpnd] != nullptr) && (&bb != insnInfo->origOpnd[kInsnSecondOpnd]->bb)) {

@@ -22,7 +22,7 @@ bool InlineMplt::CollectInlineInfo(uint32 inlineSize, uint32 level) {
   if (tempSet.empty()) {
     return false;
   }
-  for (auto *func : tempSet) {
+  for (auto func : std::as_const(tempSet)) {
     if (func == nullptr || func->GetBody() == nullptr || func->IsStatic() ||
         func->GetAttr(FUNCATTR_noinline) || GetFunctionSize(*func) > inlineSize) {
       continue;
@@ -233,7 +233,7 @@ void InlineMplt::DumpOptimizedFunctionTypes() {
   }
 }
 
-uint32 InlineMplt::GetFunctionSize(MIRFunction &mirFunc) {
+uint32 InlineMplt::GetFunctionSize(MIRFunction &mirFunc) const {
   auto *tempMemPool = memPoolCtrler.NewMemPool("temp mempool", false);
   StmtCostAnalyzer sca(tempMemPool, &mirFunc);
   uint32 funcSize = static_cast<uint32>(sca.GetStmtsCost(mirFunc.GetBody())) / static_cast<uint32>(kSizeScale);

@@ -55,7 +55,7 @@ class MIRParser {
   bool ParseAliasStmt(StmtNodePtr &stmt);
   bool ParseTypeAlias(MIRScope &scope);
   uint8 *ParseWordsInfo(uint32 size);
-  bool ParseSwitchCase(int64&, LabelIdx&);
+  bool ParseSwitchCase(int64 &constVal, LabelIdx &lblIdx);
   bool ParseExprOneOperand(BaseNodePtr &expr);
   bool ParseExprTwoOperand(BaseNodePtr &opnd0, BaseNodePtr &opnd1);
   bool ParseExprNaryOperand(MapleVector<BaseNode*> &opndVec);
@@ -77,7 +77,7 @@ class MIRParser {
   bool ParsePackAttrs();
   bool ParseFieldAttrs(FieldAttrs &attrs);
   bool ParseFuncAttrs(FuncAttrs &attrs);
-  void SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer &lexer) const;
+  void SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer &mirLexer) const;
   bool CheckPrimAndDerivedType(TokenKind tokenKind, TyIdx &tyIdx);
   bool ParsePrimType(TyIdx &tyIdx);
   bool ParseFarrayType(TyIdx &arrayTyIdx);
@@ -107,7 +107,7 @@ class MIRParser {
   bool ParseFunction(uint32 fileIdx = 0);
   bool ParseStorageClass(MIRSymbol &symbol) const;
   bool ParseDeclareVarInitValue(MIRSymbol &symbol);
-  bool ParseDeclareVar(MIRSymbol&);
+  bool ParseDeclareVar(MIRSymbol &symbol);
   bool ParseDeclareReg(MIRSymbol &symbol, const MIRFunction &func);
   bool ParseDeclareFormal(FormalDef &formalDef);
   bool ParsePrototypeRemaining(MIRFunction &func, std::vector<TyIdx> &vecTyIdx,

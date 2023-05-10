@@ -281,7 +281,11 @@ bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
   // find the phi for ivOst
   BB *bb = condbr->GetBB();
   MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
-  MePhiNode *ivPhiNode =  mePhiList[ivOst->GetIndex()];
+  auto itOfIVOst = mePhiList.find(ivOst->GetIndex());
+  if (itOfIVOst == mePhiList.end()) {
+    return false;
+  }
+  MePhiNode *ivPhiNode = itOfIVOst->second;
   if (ivPhiNode == nullptr) {
     return false;
   }
@@ -350,6 +354,9 @@ void IVCanon::ComputeTripCount() {
   do {
     trialsCount++;
     testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
+    if (!IsPrimitiveInteger(testExpr->GetOpndType())) {
+      return;
+    }
     // check left operand
     ScalarMeExpr *iv = testExpr->GetOpnd(0)->IsScalar() ? static_cast<ScalarMeExpr *>(testExpr->GetOpnd(0))
                                                         : nullptr;
@@ -438,6 +445,16 @@ void IVCanon::ComputeTripCount() {
     }
   }
 
+  // check first test
+  OpMeExpr firstTest(*static_cast<OpMeExpr*>(condbr->GetOpnd()), kInvalidExprID);
+  firstTest.SetOpnd(0, ivdesc->initExpr);
+  auto *testx = irMap->HashMeExpr(firstTest);
+  auto *simplified = irMap->SimplifyMeExpr(testx);
+  if (simplified != nullptr && simplified->IsZero()) {
+    return;
+  }
+  testx = simplified ? simplified : testx;
+
   // form the trip count expression
   MeExpr *testExprLHS = testExpr->GetOpnd(0);
   MeExpr *testExprRHS = testExpr->GetOpnd(1);
@@ -493,7 +510,12 @@ void IVCanon::ComputeTripCount() {
       OpMeExpr maxExpr(-1, OP_max, divPrimType, 2);
       maxExpr.SetOpnd(0, tripCount);
       maxExpr.SetOpnd(1, irMap->CreateIntConstMeExpr(0, divPrimType));
-      tripCount = irMap->HashMeExpr(maxExpr);
+      auto *hashedMax = irMap->HashMeExpr(maxExpr);
+      OpMeExpr selectExpr(-1, OP_select, divPrimType, kOperandNumTernary);
+      selectExpr.SetOpnd(kFirstOpnd, testx);
+      selectExpr.SetOpnd(kSecondOpnd, hashedMax);
+      selectExpr.SetOpnd(kThirdOpnd, irMap->CreateIntConstMeExpr(0, divPrimType));
+      tripCount = irMap->HashMeExpr(selectExpr);
     }
   }
 }
@@ -636,6 +658,10 @@ void IVCanon::PerformIVCanon() {
     phiOpndIdxOfLoopBack = 1;
   }
   CHECK_FATAL(aloop->tail == headBB->GetPred(phiOpndIdxOfLoopBack), "PerformIVCanon: tail BB inaccurate");
+  auto *useInfo = &func->GetIRMap()->GetExprUseInfo();
+  if (!useInfo->UseInfoOfScalarIsValid()) { // sink only depends on use info of scalar
+    useInfo->CollectUseInfoInFunc(func->GetIRMap(), dominance, kUseInfoOfScalar);
+  }
   // go thru the list of phis at the loop head to find all IVs
   for (std::pair<OStIdx, MePhiNode*> mapEntry: headBB->GetMePhiList()) {
     OriginalSt *ost = ssatab->GetOriginalStFromID(mapEntry.first);
@@ -644,6 +670,24 @@ void IVCanon::PerformIVCanon() {
       continue;
     }
     ScalarMeExpr *philhs = mapEntry.second->GetLHS();
+    // asm opnd is restricted to prop, so skip it
+    bool usedInAsm = false;
+    auto *useSite = useInfo->GetUseSitesOfExpr(philhs);
+    if (useSite != nullptr) {
+      for (auto &useItem : *useSite) {
+        const BB *bb = useItem.GetUseBB();
+        if (aloop->loopBBs.count(bb->GetBBId()) == 0) {
+          continue;
+        }
+        if (useItem.IsUseByStmt() && useItem.GetStmt()->GetOp() == OP_asm) {
+          usedInAsm = true;
+          break;
+        }
+      }
+    }
+    if (usedInAsm) {
+      continue;
+    }
     ScalarMeExpr *initVersion = mapEntry.second->GetOpnd(phiOpndIdxOfInit);
     ScalarMeExpr *loopbackVersion = mapEntry.second->GetOpnd(phiOpndIdxOfLoopBack);
     if (loopbackVersion != philhs && ResolveExprValue(loopbackVersion, philhs)) {
@@ -681,7 +725,7 @@ void IVCanon::PerformIVCanon() {
 }
 
 bool MELfoIVCanon::PhaseRun(MeFunction &f) {
-  Dominance *dom = GET_ANALYSIS(MEDominance, f);
+  Dominance *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   ASSERT(dom != nullptr, "dominance phase has problem");
 
   MeIRMap *irmap = GET_ANALYSIS(MEIRMapBuild, f);
@@ -726,6 +770,7 @@ bool MELfoIVCanon::PhaseRun(MeFunction &f) {
       whileInfo->canConvertDoloop = ivCanon.tripCount != nullptr;
     }
   }
+  f.GetIRMap()->GetExprUseInfo().InvalidUseInfo();
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After IV Canonicalization  =============" << endl;
     irmap->Dump();

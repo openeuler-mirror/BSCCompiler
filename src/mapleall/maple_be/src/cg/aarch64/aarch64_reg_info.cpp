@@ -25,8 +25,7 @@ void AArch64RegInfo::Init() {
     if (IsYieldPointReg(regNO)) {
       continue;
     }
-    if (regNO == R29 && !GetCurrFunction()->UseFP()) {
-      AddToAllRegs(regNO);
+    if (regNO == R29 && GetCurrFunction()->UseFP()) {
       continue;
     }
     if (!AArch64Abi::IsAvailableReg(static_cast<AArch64reg>(regNO))) {
@@ -44,7 +43,8 @@ void AArch64RegInfo::Init() {
 
 void AArch64RegInfo::Fini() {
   AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
-  a64CGFunc->AddtoCalleeSaved(RFP);
+  // add a placeholder for RFP
+  a64CGFunc->SetNumIntregToCalleeSave(a64CGFunc->GetNumIntregToCalleeSave() + 1);
   a64CGFunc->AddtoCalleeSaved(RLR);
   a64CGFunc->NoteFPLRAddedToCalleeSavedList();
 }
@@ -107,22 +107,18 @@ bool AArch64RegInfo::IsUnconcernedReg(const RegOperand &regOpnd) const {
   return IsUnconcernedReg(regNO);
 }
 
+/* r16,r17 are used besides ra. */
+bool AArch64RegInfo::IsReservedReg(regno_t regNO, bool doMultiPass) const {
+  if (!doMultiPass || GetCurrFunction()->GetMirModule().GetSrcLang() != kSrcLangC) {
+    return (regNO == R16) || (regNO == R17);
+  } else {
+    return (regNO == R16);
+  }
+}
+
 RegOperand *AArch64RegInfo::GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, maplebe::RegType kind, uint32 flag) {
   AArch64CGFunc *aarch64CgFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
   return &aarch64CgFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regNO), size, kind, flag);
-}
-
-ListOperand* AArch64RegInfo::CreateListOperand() {
-  AArch64CGFunc *aarch64CgFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
-  return (aarch64CgFunc->CreateListOpnd(*aarch64CgFunc->GetFuncScopeAllocator()));
-}
-
-Insn *AArch64RegInfo::BuildMovInstruction(Operand &opnd0, Operand &opnd1) {
-  AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
-  MOperator mop = a64CGFunc->PickMovInsn(static_cast<const RegOperand &>(opnd0),
-                                         static_cast<const RegOperand &>(opnd1));
-  Insn *newInsn = &a64CGFunc->GetInsnBuilder()->BuildInsn(mop, opnd0, opnd1);
-  return newInsn;
 }
 
 Insn *AArch64RegInfo::BuildStrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) {
@@ -133,10 +129,6 @@ Insn *AArch64RegInfo::BuildStrInsn(uint32 regSize, PrimType stype, RegOperand &p
 Insn *AArch64RegInfo::BuildLdrInsn(uint32 regSize, PrimType stype, RegOperand &phyOpnd, MemOperand &memOpnd) {
   AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(GetCurrFunction());
   return &a64CGFunc->GetInsnBuilder()->BuildInsn(a64CGFunc->PickLdInsn(regSize, stype), phyOpnd, memOpnd);
-}
-
-Insn *AArch64RegInfo::BuildCommentInsn(const std::string &comment) {
-  return &(static_cast<AArch64CGFunc*>(GetCurrFunction())->CreateCommentInsn("split around loop begin"));
 }
 
 MemOperand *AArch64RegInfo::AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum,

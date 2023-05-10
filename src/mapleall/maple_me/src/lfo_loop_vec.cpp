@@ -24,8 +24,9 @@ constexpr uint32_t maxVecSize = 128;
 
 namespace maple {
 
-void LoopVecInfo::UpdateDoloopProfData(MIRFunction *mirFunc, DoloopNode *doLoop, int32_t vecLanes, bool isRemainder) {
-  auto *profData = mirFunc->GetFuncProfData();
+void LoopVecInfo::UpdateDoloopProfData(MIRFunction &mirFunc, const DoloopNode *doLoop, int32_t vecLanes,
+                                       bool isRemainder) const {
+  auto *profData = mirFunc.GetFuncProfData();
   if (!profData) {
     return;
   }
@@ -248,7 +249,7 @@ bool LoopTransPlan::Generate(const DoloopNode *doLoop, const DoloopInfo* li, boo
       int64 tripCount = (upvalue - lowvalue) / (incrConst->GetExtValue());
       if (static_cast<uint32>(tripCount) < vecLanes) {
         tripCount = (tripCount / 4 * 4); // get closest 2^n
-        if (tripCount * vecInfo->smallestTypeSize < maplebe::k64BitSize) {
+        if (static_cast<uint32>(tripCount) * vecInfo->smallestTypeSize < maplebe::k64BitSize) {
           if (enableDebug) {
             LogInfo::MapleLogger() << "NOT VECTORIZABLE because of doLoop trip count is small \n";
           }
@@ -319,6 +320,7 @@ MIRType* LoopVectorization::GenVecType(PrimType sPrimType, uint8 lanes) const {
       }
       break;
     }
+    case PTY_u1:
     case PTY_u8: {
       if (lanes == 16) {
         vecType = GlobalTables::GetTypeTable().GetV16UInt8();
@@ -1221,7 +1223,7 @@ static bool IsCompareNode(Opcode op) {
   return false;
 }
 
-void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVector<BaseNode *>& vectorizedNode,
+void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVector<BaseNode *> &vectorizedNode,
     uint32_t depth) {
   switch (node->GetOpCode()) {
     case OP_iread: {
@@ -1321,7 +1323,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
         // opnd2 is uniform scalar and type is different from opnd1
         // widen opnd1 with same element type as opnd2
         BaseNode *newopnd1 = vecopnd1[0];
-        int opnd2ElemPrimTypeSize = GetPrimTypeSize(GetVecElemPrimType(opnd2PrimType));
+        uint32 opnd2ElemPrimTypeSize = GetPrimTypeSize(GetVecElemPrimType(opnd2PrimType));
         while (GetPrimTypeSize(GetVecElemPrimType(opnd1PrimType)) < opnd2ElemPrimTypeSize) {
           newopnd1 = GenVectorWidenOpnd(newopnd1, opnd1PrimType, false);
           opnd1PrimType = newopnd1->GetPrimType();
@@ -1465,15 +1467,15 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
 }
 
 // set lhs type to vector type and return lhs pointto type
-MIRType *LoopVectorization::VectorizeIassignLhs(IassignNode *iassign, LoopTransPlan *tp) {
-  MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
+MIRType *LoopVectorization::VectorizeIassignLhs(IassignNode &iassign, const LoopTransPlan &tp) const {
+  MIRType &mirType = GetTypeFromTyIdx(iassign.GetTyIdx());
   CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
   MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
-  MIRType *lhsvecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
+  MIRType *lhsvecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp.vecFactor);
   ASSERT(lhsvecType != nullptr, "vector type should not be null");
-  tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(lhsvecType->GetPrimType()));
+  tp.vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(lhsvecType->GetPrimType()));
   MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsvecType, PTY_ptr);
-  iassign->SetTyIdx(pvecType->GetTypeIndex());
+  iassign.SetTyIdx(pvecType->GetTypeIndex());
   return lhsvecType;
 }
 
@@ -1551,7 +1553,7 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       if (tp->vecInfo->reductionStmts.find(iassign) != tp->vecInfo->reductionStmts.end()) {
         VectorizeReductionStmt(static_cast<StmtNode *>(node), tp);
       } else {
-        MIRType *lhsptvecType = VectorizeIassignLhs(iassign, tp);
+        MIRType *lhsptvecType = VectorizeIassignLhs(*iassign, *tp);
         BaseNode *rhs = iassign->GetRHS();
         BaseNode *newrhs;
         if (tp->vecInfo->uniformVecNodes.find(rhs) != tp->vecInfo->uniformVecNodes.end()) {
@@ -1599,7 +1601,7 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
 
 // update init/stride/upper nodes of doloop
 // now hack code to widen const stride with value "vecFactor * original stride"
-void LoopVectorization::widenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
+void LoopVectorization::WidenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
   if (tp->vBound) {
     if (tp->vBound->incrNode) {
       doloop->SetIncrExpr(tp->vBound->incrNode);
@@ -1625,7 +1627,7 @@ void LoopVectorization::widenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
 void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
   // LogInfo::MapleLogger() << "\n**** dump doloopnode ****\n";
   // step 1: handle loop low/upper/stride
-  widenDoloop(doloop, tp);
+  WidenDoloop(doloop, tp);
 
   // step 2: insert dup stmt before doloop
   if ((!tp->vecInfo->uniformNodes.empty()) ||

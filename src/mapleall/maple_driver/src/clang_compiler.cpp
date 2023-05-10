@@ -92,7 +92,7 @@ bool IsUseSafeOption() {
       opts::npeDynamicCheckAll.IsEnabledByUser() || opts::boundaryDynamicCheck.IsEnabledByUser() ||
       opts::boundaryDynamicCheckSilent.IsEnabledByUser() || opts::safeRegionOption.IsEnabledByUser() ||
       opts::enableArithCheck.IsEnabledByUser() || opts::defaultSafe.IsEnabledByUser()) {
-    flag= true;
+    flag = true;
   }
   return flag;
 }
@@ -134,9 +134,16 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   }
 
   /* Set last option as -o option */
-  if (action.GetInputFileType() != InputFileType::kFileTypeH && !opts::onlyPreprocess.IsEnabledByUser()) {
-    opt[additionalLen - 1].SetKey("-o");
-    opt[additionalLen - 1].SetValue(action.GetFullOutputName() + ".ast");
+  if (action.GetInputFileType() != InputFileType::kFileTypeH && !opts::onlyPreprocess.IsEnabledByUser() &&
+      !opts::oM.IsEnabledByUser() && !opts::oMM.IsEnabledByUser() && !opts::oMG.IsEnabledByUser() &&
+      !opts::oMQ.IsEnabledByUser()) {
+    if (!opts::linkerTimeOpt.IsEnabledByUser() || !opts::compileWOLink.IsEnabledByUser()) {
+      opt[additionalLen - 1].SetKey("-o");
+      opt[additionalLen - 1].SetValue(action.GetFullOutputName() + ".ast");
+    } else {
+      opt[additionalLen - 1].SetKey("-o");
+      opt[additionalLen - 1].SetValue("./" + action.GetOutputName() + ".o");
+    }
     opt[additionalLen - 2].SetKey("-emit-ast"); // 2 is the array sequence number.
     opt[additionalLen - 2].SetValue("");
   }

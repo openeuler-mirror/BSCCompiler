@@ -29,19 +29,20 @@ template <class T>
 class BCParser : public BCParserBase {
  public:
   BCParser(uint32 fileIdxIn, const std::string &fileNameIn, const std::list<std::string> &classNamesIn);
-  ~BCParser() = default;
+  ~BCParser() override = default;
 
  protected:
-  bool OpenFileImpl();
-  uint32 CalculateCheckSumImpl(const uint8 *data, uint32 size) = 0;
-  bool ParseHeaderImpl() = 0;
-  bool VerifyImpl() = 0;
-  virtual bool RetrieveIndexTables() = 0;
-  bool RetrieveUserSpecifiedClasses(std::list<std::unique_ptr<BCClass>> &klasses) = 0;
-  bool RetrieveAllClasses(std::list<std::unique_ptr<BCClass>> &klasses) = 0;
-  bool CollectAllDepTypeNamesImpl(std::unordered_set<std::string> &depSet) = 0;
-  bool CollectMethodDepTypeNamesImpl(std::unordered_set<std::string> &depSet, BCClassMethod &bcMethod) const = 0;
-  bool CollectAllClassNamesImpl(std::unordered_set<std::string> &classSet) = 0;
+  bool OpenFileImpl() override;
+  uint32 CalculateCheckSumImpl(const uint8 *data, uint32 size) override = 0;
+  bool ParseHeaderImpl() override = 0;
+  bool VerifyImpl() override = 0;
+  virtual bool RetrieveIndexTables() override = 0;
+  bool RetrieveUserSpecifiedClasses(std::list<std::unique_ptr<BCClass>> &klasses) override = 0;
+  bool RetrieveAllClasses(std::list<std::unique_ptr<BCClass>> &klasses) override = 0;
+  bool CollectAllDepTypeNamesImpl(std::unordered_set<std::string> &depSet) override = 0;
+  bool CollectMethodDepTypeNamesImpl(std::unordered_set<std::string> &depSet, BCClassMethod &bcMethod)
+      const override = 0;
+  bool CollectAllClassNamesImpl(std::unordered_set<std::string> &classSet) override = 0;
 
   std::unique_ptr<T> reader;
 };
@@ -56,7 +57,7 @@ class MethodProcessTask : public MplTask {
         klass(argKlass),
         idxPair(argIdxPair),
         parser(argParser) {}
-  virtual ~MethodProcessTask() = default;
+  virtual ~MethodProcessTask() override = default;
 
  protected:
   int RunImpl(MplTaskParam *param) override;
@@ -93,5 +94,4 @@ class MethodProcessSchedular : public MplScheduler {
 };
 }  // namespace bc
 }  // namespace maple
-#include "bc_parser-inl.h"
 #endif  // MPL_FE_BC_INPUT_BC_PARSER_H

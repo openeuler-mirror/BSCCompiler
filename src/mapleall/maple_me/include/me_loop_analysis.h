@@ -131,7 +131,7 @@ class IdentifyLoops : public AnalysisResult {
         meLoops(meLoopAlloc.Adapter()),
         bbLoopParent(func.GetCfg()->GetAllBBs().size(), nullptr, meLoopAlloc.Adapter()) {}
 
-  virtual ~IdentifyLoops() = default;
+  ~IdentifyLoops() override = default;
 
   const MapleVector<LoopDesc*> &GetMeLoops() const {
     return meLoops;
@@ -150,10 +150,10 @@ class IdentifyLoops : public AnalysisResult {
 
   LoopDesc *CreateLoopDesc(BB &hd, BB &tail);
   void SetLoopParent4BB(const BB &bb, LoopDesc &loopDesc);
-  void SetExitBB(LoopDesc &loop);
+  void SetExitBB(LoopDesc &loop) const;
   void ProcessBB(BB *bb);
   void Dump() const;
-  void ProcessPreheaderAndLatch(LoopDesc &loop);
+  void ProcessPreheaderAndLatch(LoopDesc &loop) const;
 
  private:
   MemPool *meLoopMemPool;

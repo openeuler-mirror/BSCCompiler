@@ -19,7 +19,7 @@
 #include "me_function.h"
 #include "me_cfg.h"
 #include "me_dominance.h"
-#include "inline_analyzer.h"
+#include "stmt_cost_analyzer.h"
 #include "me_loop_analysis.h"
 #include "me_value_range_prop.h"
 
@@ -30,13 +30,15 @@ class JumpThreading {
   static bool isDebug;
 
   JumpThreading(MeFunction &meFunc, Dominance &argDom, IdentifyLoops *argLoops,
-                ValueRangePropagation &valueRangePropagation, InlineAnalyzer &inlAnalyzer,
+                ValueRangePropagation &valueRangePropagation, StmtCostAnalyzer &costAnalyzer,
                 std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &candsTem)
       : func(meFunc), dom(argDom), loops(argLoops), valueRanges(valueRangePropagation),
-        inlineAnalyzer(inlAnalyzer), cands(candsTem) {
+        stmtCostAnalyzer(costAnalyzer), cands(candsTem) {
     path = std::make_unique<std::vector<BB*>>();
   }
-  ~JumpThreading() = default;
+  ~JumpThreading() {
+    loops = nullptr;
+  }
 
   void Execute();
 
@@ -57,7 +59,7 @@ class JumpThreading {
   bool FindSubPathFromUseToDefOfExpr(BB &defBB, BB &useBB, std::vector<BB*> &subPath, std::set<BB*> &visited);
   bool CanJumpThreading(BB &bb, MeExpr &opnd0, MeExpr *opnd1 = nullptr);
   bool CanJumpThreadingWithSwitch(BB &bb, ValueRange *vrOfOpnd0);
-  bool CanJumpThreadingWithCondGoto(BB &bb, MeExpr *opnd1, ValueRange *vrOfOpnd0);
+  bool CanJumpThreadingWithCondGoto(BB &bb, MeExpr *opnd, ValueRange *vrOfOpnd0);
   void FindPathWhenDefPointInCurrBB(BB &defBB, BB &predBB, MeExpr &opnd0, MeExpr *opnd1 = nullptr);
   void FindPathWhenDefPointIsNotInCurrBB(BB &defBB, BB &useBB, MeExpr &opnd0, MeExpr *opnd1 = nullptr);
   void FindPathWhenDefByIsNotStmtAndPhi(BB &defBB, BB &predBB, CompareOpnds &cmpOpnds);
@@ -80,7 +82,7 @@ class JumpThreading {
   Dominance &dom;
   IdentifyLoops *loops;
   ValueRangePropagation &valueRanges;
-  InlineAnalyzer &inlineAnalyzer;
+  StmtCostAnalyzer &stmtCostAnalyzer;
   std::vector<std::unique_ptr<std::vector<BB*>>> paths;
   std::unique_ptr<std::vector<BB*>> path;
   std::set<BB*> visitedBBs;

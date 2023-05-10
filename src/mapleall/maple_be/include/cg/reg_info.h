@@ -100,13 +100,13 @@ class VregInfo {
     ++virtualRegCount;
     return temp;
   }
-  void Inc(uint32 v) {
+  void Inc(uint32 v) const {
     virtualRegCount += v;
   }
   uint32 GetCount() const {
     return virtualRegCount;
   }
-  void SetCount(uint32 v) {
+  void SetCount(uint32 v) const {
     /* Vreg number can only increase. */
     if (virtualRegCount < v) {
       virtualRegCount = v;
@@ -120,7 +120,7 @@ class VregInfo {
   void SetMaxRegCount(uint32 num) {
     maxRegCount = num;
   }
-  void IncMaxRegCount(uint32 num) {
+  void IncMaxRegCount(uint32 num) const {
     maxRegCount += num;
   }
 
@@ -137,16 +137,16 @@ class VregInfo {
   RegType VRegTableGetType(uint32 idx) const {
     return vRegTable[idx].GetType();
   }
-  VirtualRegNode &VRegTableElementGet(uint32 idx) {
+  VirtualRegNode &VRegTableElementGet(uint32 idx) const {
     return vRegTable[idx];
   }
   void VRegTableElementSet(uint32 idx, VirtualRegNode *node) {
     vRegTable[idx] = *node;
   }
-  void VRegTableValuesSet(uint32 idx, RegType rt, uint32 sz) {
+  void VRegTableValuesSet(uint32 idx, RegType rt, uint32 sz) const {
     new (&vRegTable[idx]) VirtualRegNode(rt, sz);
   }
-  void VRegOperandTableSet(regno_t regNO, RegOperand *rp) {
+  void VRegOperandTableSet(regno_t regNO, RegOperand *rp) const {
     vRegOperandTable[regNO] = rp;
   }
 };

@@ -75,7 +75,7 @@ void CheckCastGenerator::InitFuncs() {
   castExceptionFunc->SetAttr(FUNCATTR_nosideeffect);
 }
 
-MIRSymbol *CheckCastGenerator::GetOrCreateClassInfoSymbol(const std::string &className) {
+MIRSymbol *CheckCastGenerator::GetOrCreateClassInfoSymbol(const std::string &className) const {
   std::string classInfoName = CLASSINFO_PREFIX_STR + className;
   builder->GlobalLock();
   MIRSymbol *classInfoSymbol = builder->GetGlobalDecl(classInfoName);
@@ -306,7 +306,7 @@ void CheckCastGenerator::GenAllCheckCast() {
   }
 }
 
-BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
+BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) const {
   FieldID fieldID = builder->GetStructFieldIDFromFieldNameParentFirst(WKTypes::Util::GetJavaLangObjectType(),
                                                                       namemangler::kShadowClassName);
   BaseNode *ireadExpr =
@@ -386,7 +386,7 @@ BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
 //       }
 //     }
 //   }
-void CheckCastGenerator::AssignedCastValue(StmtNode &stmt) {
+void CheckCastGenerator::AssignedCastValue(StmtNode &stmt) const {
   if (stmt.GetOpCode() == OP_intrinsiccallwithtype) {
     return;
   }
@@ -451,10 +451,10 @@ void CheckCastGenerator::ConvertCheckCastToIsAssignableFrom(StmtNode &stmt) {
       opndArgs.push_back(objectClassReadNode);
       isAssignableFromNode =
           builder->CreateExprIntrinsicop(INTRN_JAVA_ISASSIGNABLEFROM, OP_intrinsicopwithtype, *checkType, opndArgs);
-      PregIdx IsAssignableFromResultIdx = currFunc->GetPregTab()->CreatePreg(PTY_u1);
+      PregIdx isAssignableFromResultIdx = currFunc->GetPregTab()->CreatePreg(PTY_u1);
       isAssignableFromResultAssign =
-          builder->CreateStmtRegassign(PTY_u1, IsAssignableFromResultIdx, isAssignableFromNode);
-      isAssignableFromResultReadNode = builder->CreateExprRegread(PTY_u1, IsAssignableFromResultIdx);
+          builder->CreateStmtRegassign(PTY_u1, isAssignableFromResultIdx, isAssignableFromNode);
+      isAssignableFromResultReadNode = builder->CreateExprRegread(PTY_u1, isAssignableFromResultIdx);
     } else {
       MIRSymbol *objectClassSym =
           builder->GetOrCreateLocalDecl(kObjectClassSym, *GlobalTables::GetTypeTable().GetPtr());
@@ -468,10 +468,10 @@ void CheckCastGenerator::ConvertCheckCastToIsAssignableFrom(StmtNode &stmt) {
       opndArgs.push_back(objectClassReadNode);
       isAssignableFromNode =
           builder->CreateExprIntrinsicop(INTRN_JAVA_ISASSIGNABLEFROM, OP_intrinsicopwithtype, *checkType, opndArgs);
-      MIRSymbol *IsAssignableFromResultSym =
+      MIRSymbol *isAssignableFromResultSym =
           builder->GetOrCreateLocalDecl(kIsAssignableFromResult, *GlobalTables::GetTypeTable().GetUInt1());
-      isAssignableFromResultAssign = builder->CreateStmtDassign(*IsAssignableFromResultSym, 0, isAssignableFromNode);
-      isAssignableFromResultReadNode = builder->CreateExprDread(*IsAssignableFromResultSym);
+      isAssignableFromResultAssign = builder->CreateStmtDassign(*isAssignableFromResultSym, 0, isAssignableFromNode);
+      isAssignableFromResultReadNode = builder->CreateExprDread(*isAssignableFromResultSym);
     }
 
     BaseNode *condZero = builder->CreateExprCompare(
@@ -527,7 +527,7 @@ void CheckCastGenerator::GenAllCheckCast(bool isHotFunc) {
 // Use "srcclass == targetclass" replace instanceof if target class is final.
 void CheckCastGenerator::ReplaceNoSubClassIsAssignableFrom(BlockNode &blockNode, StmtNode &stmt,
                                                            const MIRPtrType &ptrType,
-                                                           const IntrinsicopNode &intrinsicNode) {
+                                                           const IntrinsicopNode &intrinsicNode) const {
   MapleVector<BaseNode*> nopnd = intrinsicNode.GetNopnd();
   BaseNode *subClassNode = nopnd[0];
   MIRClassType &targetClassType = static_cast<MIRClassType&>(*ptrType.GetPointedType());
@@ -577,7 +577,7 @@ void CheckCastGenerator::ReplaceNoSubClassIsAssignableFrom(BlockNode &blockNode,
 }
 
 bool CheckCastGenerator::IsDefinedConstClass(const StmtNode &stmt, const MIRPtrType &targetClassType,
-                                             PregIdx &classSymPregIdx, MIRSymbol *&classSym) {
+                                             PregIdx &classSymPregIdx, MIRSymbol *&classSym) const {
   StmtNode *stmtPre = stmt.GetPrev();
   Opcode opPre = stmtPre->GetOpCode();
   if ((opPre != OP_dassign) && (opPre != OP_regassign)) {
@@ -612,7 +612,7 @@ bool CheckCastGenerator::IsDefinedConstClass(const StmtNode &stmt, const MIRPtrT
 // inline check cache, it implements __MRT_IsAssignableFromCheckCache
 void CheckCastGenerator::ReplaceIsAssignableFromUsingCache(BlockNode &blockNode, StmtNode &stmt,
                                                            const MIRPtrType &targetClassType,
-                                                           const IntrinsicopNode &intrinsicNode) {
+                                                           const IntrinsicopNode &intrinsicNode) const {
   StmtNode *resultFalse = nullptr;
   StmtNode *resultTrue = nullptr;
   StmtNode *cacheFalseClassesAssign = nullptr;
@@ -752,7 +752,8 @@ void CheckCastGenerator::CheckIsAssignableFrom(BlockNode &blockNode, StmtNode &s
   ReplaceIsAssignableFromUsingCache(blockNode, stmt, *ptrType, intrinsicNode);
 }
 
-void CheckCastGenerator::ConvertInstanceofToIsAssignableFrom(StmtNode &stmt, const IntrinsicopNode &intrinsicNode) {
+void CheckCastGenerator::ConvertInstanceofToIsAssignableFrom(StmtNode &stmt,
+                                                             const IntrinsicopNode &intrinsicNode) const {
   MIRType *targetClassType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(intrinsicNode.GetTyIdx());
   StmtNode *resultFalse = nullptr;
   StmtNode *result = nullptr;

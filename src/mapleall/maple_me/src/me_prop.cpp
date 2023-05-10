@@ -25,7 +25,7 @@
 // encounters a variable reference, it uses its SSA representation to look up
 // its assigned value and try to do the substitution.
 namespace {
-const std::set<std::string> propWhiteList {
+const std::set<std::string> kPropWhiteList {
 #define PROPILOAD(funcname) #funcname,
 #include "propiloadlist.def"
 #undef PROPILOAD
@@ -47,8 +47,11 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
     return false;
   }
   f.hpropRuns++;
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
   CHECK_NULL_FATAL(dom);
+  auto pdom = dominancePhase->GetPdomResult();
+  CHECK_NULL_FATAL(pdom);
   auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(hMap);
   bool propIloadRef = MeOption::propIloadRef;
@@ -56,7 +59,7 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
     MIRSymbol *fnSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(f.GetMirFunc()->GetStIdx().Idx());
     CHECK_FATAL(fnSt, "fnSt is nullptr");
     const std::string &funcName = fnSt->GetName();
-    propIloadRef = propWhiteList.find(funcName) != propWhiteList.end();
+    propIloadRef = kPropWhiteList.find(funcName) != kPropWhiteList.end();
     if (DEBUGFUNC_NEWPM(f)) {
       if (propIloadRef) {
         LogInfo::MapleLogger() << "propiloadref enabled because function is in white list";
@@ -67,7 +70,7 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
       MeOption::propBase, propIloadRef, MeOption::propGlobalRef, MeOption::propFinaliLoadRef,
       MeOption::propIloadRefNonParm, MeOption::propAtPhi, MeOption::propWithInverse || f.IsLfo()
   };
-  MeProp meProp(*hMap, *dom, *ApplyTempMemPool(), propConfig, MeOption::propLimit);
+  MeProp meProp(*hMap, *dom, *pdom, *ApplyTempMemPool(), propConfig, MeOption::propLimit);
   meProp.isLfo = f.IsLfo();
   meProp.TraversalBB(*f.GetCfg()->GetCommonEntryBB());
   if (DEBUGFUNC_NEWPM(f)) {

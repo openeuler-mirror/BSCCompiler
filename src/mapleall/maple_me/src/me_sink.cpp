@@ -83,10 +83,11 @@ class MeSink {
   void ProcessPhiList(BB *bb);
   void SinkStmtsInBB(BB *bb);
 
-  const BB *BestSinkBB(const BB *fromBB, const BB *toBB);
-  std::pair<const BB*, bool> CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList);
+  const BB *BestSinkBB(const BB *fromBB, const BB *toBB) const;
+  std::pair<const BB*, bool> CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList) const;
   const BB *CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar);
   void CalSinkSites();
+
   void Run();
 
  private:
@@ -265,17 +266,17 @@ bool MeSink::MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAss
     }
 
     lhs->SetDefBy(kDefByMustDef);
-    lhs->SetDefMustDef(const_cast<MustDefMeNode&>(mustDefNode));
-    const_cast<MustDefMeNode&>(mustDefNode).SetLHS(lhs);
+    lhs->SetDefMustDef(static_cast<MustDefMeNode&>(mustDefNode));
+    static_cast<MustDefMeNode&>(mustDefNode).SetLHS(lhs);
     // merge chiList of copyStmt and CallAssignStmt
     auto *chiList = assign->GetChiList();
     if (chiList != nullptr) {
       auto *chiListOfCall = assign->GetChiList();
-      for (auto &ost2chi : std::as_const(*chiList)) {
+      for (auto &ost2chi : *chiList) {
         auto it = chiListOfCall->find(ost2chi.first);
         if (it == chiListOfCall->end()) {
           (void)chiListOfCall->emplace(ost2chi.first, ost2chi.second);
-          ost2chi.second->SetBase(const_cast<MeStmt*>(callAssignStmt));
+          ost2chi.second->SetBase(static_cast<MeStmt*>(callAssignStmt));
         } else {
           it->second->SetLHS(ost2chi.second->GetLHS());
           ost2chi.second->GetLHS()->SetDefChi(*it->second);
@@ -1001,16 +1002,14 @@ static void CollectUsedScalar(MeExpr *expr, ScalarVec &scalarVec) {
       }
       break;
     }
-    default: {
-      for (size_t opndId = 0; opndId < expr->GetNumOpnds(); ++opndId) {
-        auto opnd = expr->GetOpnd(opndId);
-        if (opnd == nullptr) {
-          continue;
-        }
-        CollectUsedScalar(opnd, scalarVec);
-      }
-      break;
+    default: break;
+  }
+  for (size_t opndId = 0; opndId < expr->GetNumOpnds(); ++opndId) {
+    auto opnd = expr->GetOpnd(opndId);
+    if (opnd == nullptr) {
+      continue;
     }
+    CollectUsedScalar(opnd, scalarVec);
   }
 }
 
@@ -1052,7 +1051,7 @@ static bool BBIsEmptyOrContainsSingleGoto(const BB *bb) {
 
 // we should not sink stmt from non-loop BB into loop BB or from outter loop into inner loop.
 // if toBB is in a different loop with fromBB, return a dominator of toBB which is in the same loop with fromBB.
-const BB *MeSink::BestSinkBB(const BB *fromBB, const BB *toBB) {
+const BB *MeSink::BestSinkBB(const BB *fromBB, const BB *toBB) const {
   CHECK_FATAL(domTree->Dominate(*fromBB, *toBB), "fromBB must dom toBB");
   if (fromBB == toBB) {
     return toBB;
@@ -1086,7 +1085,8 @@ void MeSink::RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, const BB *targetB
   defStmtsSinkToBottom[targetBB->GetBBId()]->push_front(defStmt);
 }
 
-std::pair<const BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList) {
+std::pair<const BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *scalar,
+    const UseSitesType &useList) const {
   if (useList.empty()) {
     return {nullptr, false};
   }
@@ -1184,6 +1184,15 @@ const BB *MeSink::CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar) {
   } else {
     if (candSinkBB == defBB) {
       return nullptr;
+    }
+    // also try to sink to necessary succ BB
+    if (defBB->GetSucc().size() > 1) {
+      for (auto *succ : defBB->GetSucc()) {
+        if (succ != candSinkBB && domTree->Dominate(*succ, *candSinkBB)) {
+          RecordStmtSinkToHeaderOfTargetBB(defStmt, succ);
+          break;
+        }
+      }
     }
     RecordStmtSinkToHeaderOfTargetBB(defStmt, candSinkBB);
   }
@@ -1434,9 +1443,9 @@ void MeSink::Run() {
 }
 
 void MEMeSink::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-    aDep.AddRequired<MEDominance>();
-    aDep.AddRequired<MELoopAnalysis>();
-    aDep.SetPreservedAll();
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MELoopAnalysis>();
+  aDep.SetPreservedAll();
 }
 
 bool MEMeSink::PhaseRun(maple::MeFunction &f) {

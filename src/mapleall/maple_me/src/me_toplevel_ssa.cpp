@@ -35,7 +35,7 @@ void METopLevelSSA::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool METopLevelSSA::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
   auto *ssaTab = GET_ANALYSIS(MESSATab, f);
   CHECK_FATAL(ssaTab != nullptr, "ssaTab phase has problem");
@@ -45,7 +45,7 @@ bool METopLevelSSA::PhaseRun(maple::MeFunction &f) {
     cfg->DumpToFile("ssalocal-");
   }
   ssa->InsertPhiNode();
-  ssa->RenameAllBBs(cfg);
+  ssa->RenameAllBBs(*cfg);
   if (DEBUGFUNC_NEWPM(f)) {
     ssaTab->GetVersionStTable().Dump(&ssaTab->GetModule());
   }

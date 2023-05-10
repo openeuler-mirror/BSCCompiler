@@ -74,11 +74,11 @@ class FEIRScope {
   UniqueFEIRStmt GenVLAStackRestoreStmt() const;
   UniqueFEIRScope Clone() const;
 
-  void ProcessVLAStack(std::list<UniqueFEIRStmt> &stmts, bool isCallAlloca, Loc endLoc) {
-    FEIRStmt *feirStmt = GetVLASavedStackPtr();
-    if (feirStmt != nullptr) {
+  void ProcessVLAStack(std::list<UniqueFEIRStmt> &stmts, bool isCallAlloca, const Loc endLoc) {
+    FEIRStmt *vlaSavedStackStmt = GetVLASavedStackPtr();
+    if (vlaSavedStackStmt != nullptr) {
       if (isCallAlloca) {
-        feirStmt->SetIsNeedGenMir(false);
+        vlaSavedStackStmt->SetIsNeedGenMir(false);
       } else {
         auto stackRestoreStmt = GenVLAStackRestoreStmt();
         stackRestoreStmt->SetSrcLoc(endLoc);

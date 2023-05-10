@@ -235,7 +235,7 @@ bool MeCfgOpt::PreCheck(const MeCFG &cfg) const {
   return true;
 }
 
-bool MeCfgOpt::Run(MeCFG &cfg) {
+bool MeCfgOpt::Run(MeCFG &cfg) const {
   if (!PreCheck(cfg)) {
     return false;
   }

@@ -32,9 +32,6 @@
  */
 namespace maplebe {
 namespace {
-constexpr uint32 kClinitAdvanceCycle = 10;
-constexpr uint32 kAdrpLdrAdvanceCycle = 2;
-constexpr uint32 kClinitTailAdvanceCycle = 4;
 constexpr uint32 kSecondToLastNode = 2;
 }
 
@@ -158,7 +155,7 @@ void AArch64Schedule::MemoryAccessPairOpt() {
     /* add readNode's succs to readyList or memList. */
     for (auto succLink : readNode->GetSuccs()) {
       DepNode &succNode = succLink->GetTo();
-      succNode.DescreaseValidPredsSize();
+      succNode.DecreaseValidPredsSize();
       if (succNode.GetValidPredsSize() == 0) {
         ASSERT(succNode.GetState() == kNormal, "schedule state should be kNormal");
         succNode.SetState(kReady);
@@ -381,102 +378,6 @@ void AArch64Schedule::UpdateELStartsOnCycle(uint32 cycle) {
   ComputeLstart(ComputeEstart(cycle));
 }
 
-/*
- * If all unit of this node need when it be scheduling is free, this node can be scheduled,
- * Return true.
- */
-bool DepNode::CanBeScheduled() const {
-  for (uint32 i = 0; i < unitNum; ++i) {
-    Unit *unit = units[i];
-    if (unit != nullptr) {
-      if (!unit->IsFree(i)) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-/* Mark those unit that this node need occupy unit when it is being scheduled. */
-void DepNode::OccupyUnits() const {
-  for (uint32 i = 0; i < unitNum; ++i) {
-    Unit *unit = units[i];
-    if (unit != nullptr) {
-      unit->Occupy(*insn, i);
-    }
-  }
-}
-
-/* Get unit kind of this node's units[0]. */
-uint32 DepNode::GetUnitKind() const {
-  uint32 retValue = 0;
-  if ((units == nullptr) || (units[0] == nullptr)) {
-    return retValue;
-  }
-
-  switch (units[0]->GetUnitId()) {
-    case kUnitIdSlotD:
-      retValue |= kUnitKindSlot0;
-      break;
-    case kUnitIdAgen:
-    case kUnitIdSlotSAgen:
-      retValue |= kUnitKindAgen;
-      break;
-    case kUnitIdSlotDAgen:
-      retValue |= kUnitKindAgen;
-      retValue |= kUnitKindSlot0;
-      break;
-    case kUnitIdHazard:
-    case kUnitIdSlotSHazard:
-      retValue |= kUnitKindHazard;
-      break;
-    case kUnitIdCrypto:
-      retValue |= kUnitKindCrypto;
-      break;
-    case kUnitIdMul:
-    case kUnitIdSlotSMul:
-      retValue |= kUnitKindMul;
-      break;
-    case kUnitIdDiv:
-      retValue |= kUnitKindDiv;
-      break;
-    case kUnitIdBranch:
-    case kUnitIdSlotSBranch:
-      retValue |= kUnitKindBranch;
-      break;
-    case kUnitIdStAgu:
-      retValue |= kUnitKindStAgu;
-      break;
-    case kUnitIdLdAgu:
-      retValue |= kUnitKindLdAgu;
-      break;
-    case kUnitIdFpAluS:
-    case kUnitIdFpAluD:
-      retValue |= kUnitKindFpAlu;
-      break;
-    case kUnitIdFpMulS:
-    case kUnitIdFpMulD:
-      retValue |= kUnitKindFpMul;
-      break;
-    case kUnitIdFpDivS:
-    case kUnitIdFpDivD:
-      retValue |= kUnitKindFpDiv;
-      break;
-    case kUnitIdSlot0LdAgu:
-      retValue |= kUnitKindSlot0;
-      retValue |= kUnitKindLdAgu;
-      break;
-    case kUnitIdSlot0StAgu:
-      retValue |= kUnitKindSlot0;
-      retValue |= kUnitKindStAgu;
-      break;
-    default:
-      break;
-  }
-
-  return retValue;
-}
-
 /* Count unit kinds to an array. Each element of the array indicates the unit kind number of a node set. */
 void AArch64Schedule::CountUnitKind(const DepNode &depNode, uint32 array[], const uint32 arraySize) const {
   (void)arraySize;
@@ -594,7 +495,7 @@ void AArch64Schedule::SelectNode(AArch64ScheduleProcessInfo &scheduleInfo) {
     }
   }
   /* The priority of free-reg node is higher than pipeline */
-  while (!targetNode->CanBeScheduled()) {
+  while (!targetNode->IsResourceFree()) {
     scheduleInfo.IncCurrCycle();
     mad->AdvanceCycle();
   }
@@ -676,7 +577,7 @@ bool AArch64Schedule::CheckSchedulable(AArch64ScheduleProcessInfo &info) const {
     if (GetConsiderRegPressure()) {
       info.PushElemIntoAvailableReadyList(node);
     } else {
-      if (node->CanBeScheduled() && node->GetEStart() <= info.GetCurrCycle()) {
+      if (node->IsResourceFree() && node->GetEStart() <= info.GetCurrCycle()) {
         info.PushElemIntoAvailableReadyList(node);
       }
     }
@@ -1017,7 +918,7 @@ uint32 AArch64Schedule::SimulateOnly() {
     }
 
     DepNode *targetNode = nodes[i];
-    if ((currCycle >= targetNode->GetEStart()) && targetNode->CanBeScheduled()) {
+    if ((currCycle >= targetNode->GetEStart()) && targetNode->IsResourceFree()) {
       targetNode->SetSimulateCycle(currCycle);
       targetNode->OccupyUnits();
 
@@ -1073,6 +974,10 @@ void AArch64Schedule::FinalizeScheduling(BB &bb, const DataDepBase &dataDepBase)
       }
       bb.AppendInsn(*comment);
     }
+    /* Append cfi instructions. */
+    for (auto cfi : node->GetCfiInsns()) {
+      bb.AppendInsn(*cfi);
+    }
     /* Append insn */
     if (!node->GetClinitInsns().empty()) {
       for (auto clinit : node->GetClinitInsns()) {
@@ -1083,11 +988,6 @@ void AArch64Schedule::FinalizeScheduling(BB &bb, const DataDepBase &dataDepBase)
         bb.AppendInsn(*node->GetInsn()->GetPrev());
       }
       bb.AppendInsn(*node->GetInsn());
-    }
-
-    /* Append cfi instructions. */
-    for (auto cfi : node->GetCfiInsns()) {
-      bb.AppendInsn(*cfi);
     }
   }
   bb.SetLastLoc(prevLocInsn);
@@ -1180,7 +1080,7 @@ void AArch64Schedule::IterateBruteForce(DepNode &targetNode, MapleVector<DepNode
 
       /* Check if schedulable */
       for (auto node : tempAvailableList) {
-        if (node->CanBeScheduled()) {
+        if (node->IsResourceFree()) {
           availableReadyList.emplace_back(node);
         }
       }
@@ -1263,7 +1163,7 @@ uint32 AArch64Schedule::DoBruteForceSchedule() {
 void AArch64Schedule::UpdateReadyList(DepNode &targetNode, MapleVector<DepNode*> &readyList, bool updateEStart) {
   for (auto succLink : targetNode.GetSuccs()) {
     DepNode &succNode = succLink->GetTo();
-    succNode.DescreaseValidPredsSize();
+    succNode.DecreaseValidPredsSize();
     if (succNode.GetValidPredsSize() == 0) {
       readyList.emplace_back(&succNode);
       succNode.SetState(kReady);
@@ -1480,8 +1380,8 @@ void AArch64Schedule::ListScheduling(bool beforeRA) {
   }
   // construct cdgNode for each BB
   auto *cda = memPool.New<ControlDepAnalysis>(cgFunc, memPool);
-  cda->CreateAllCDGNodes();
-  ddb = memPool.New<AArch64DataDepBase>(memPool, cgFunc, *mad);
+  cda->ComputeSingleBBRegions();
+  ddb = memPool.New<AArch64DataDepBase>(memPool, cgFunc, *mad, true);
   intraDDA = memPool.New<IntraDataDepAnalysis>(memPool, cgFunc, *ddb);
   FOR_ALL_BB(bb, &cgFunc) {
     if (bb->IsUnreachable()) {

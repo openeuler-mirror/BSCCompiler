@@ -228,7 +228,7 @@ class JBCAttrCode : public JBCAttr {
 class JBCAttrStackMapTable : public JBCAttr {
  public:
   JBCAttrStackMapTable(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrStackMapTable() = default;
+  ~JBCAttrStackMapTable() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -245,7 +245,7 @@ class JBCAttrStackMapTable : public JBCAttr {
 class JBCAttrException : public JBCAttr {
  public:
   JBCAttrException(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrException() = default;
+  ~JBCAttrException() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -262,7 +262,7 @@ class JBCAttrException : public JBCAttr {
 class JBCAttrInnerClass : public JBCAttr {
  public:
   JBCAttrInnerClass(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrInnerClass() = default;
+  ~JBCAttrInnerClass() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -305,7 +305,7 @@ class JBCAttrEnclosingMethod : public JBCAttr {
 class JBCAttrSynthetic : public JBCAttr {
  public:
   JBCAttrSynthetic(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrSynthetic() = default;
+  ~JBCAttrSynthetic() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -374,7 +374,7 @@ class JBCAttrSourceDebugEx : public JBCAttr {
 class JBCAttrLineNumberTable : public JBCAttr {
  public:
   JBCAttrLineNumberTable(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrLineNumberTable() = default;
+  ~JBCAttrLineNumberTable() override = default;
   const MapleVector<attr::LineNumberTableItem*> &GetLineNums() const {
     return lineNums;
   }
@@ -394,7 +394,7 @@ class JBCAttrLineNumberTable : public JBCAttr {
 class JBCAttrLocalVariableTable : public JBCAttr {
  public:
   JBCAttrLocalVariableTable(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrLocalVariableTable() = default;
+  ~JBCAttrLocalVariableTable() override = default;
   const MapleVector<attr::LocalVariableTableItem*> &GetLocalVarInfos() const {
     return localVarInfos;
   }
@@ -414,7 +414,7 @@ class JBCAttrLocalVariableTable : public JBCAttr {
 class JBCAttrLocalVariableTypeTable : public JBCAttr {
  public:
   JBCAttrLocalVariableTypeTable(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrLocalVariableTypeTable() = default;
+  ~JBCAttrLocalVariableTypeTable() override = default;
   const MapleVector<attr::LocalVariableTypeTableItem*> &GetLocalVarTypeInfos() const {
     return localVarTypeInfos;
   }
@@ -434,7 +434,7 @@ class JBCAttrLocalVariableTypeTable : public JBCAttr {
 class JBCAttrDeprecated : public JBCAttr {
  public:
   JBCAttrDeprecated(const MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrDeprecated() = default;
+  ~JBCAttrDeprecated() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -448,7 +448,7 @@ class JBCAttrDeprecated : public JBCAttr {
 class JBCAttrRTAnnotations : public JBCAttr {
  public:
   JBCAttrRTAnnotations(MapleAllocator &allocator, JBCAttrKind kindIn, uint16 nameIdx, uint32 length);
-  virtual ~JBCAttrRTAnnotations() = default;
+  virtual ~JBCAttrRTAnnotations() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -462,13 +462,13 @@ class JBCAttrRTAnnotations : public JBCAttr {
 class JBCAttrRTVisAnnotations : public JBCAttrRTAnnotations {
  public:
   JBCAttrRTVisAnnotations(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrRTVisAnnotations() = default;
+  ~JBCAttrRTVisAnnotations() override = default;
 };
 
 class JBCAttrRTInvisAnnotations : public JBCAttrRTAnnotations {
  public:
   JBCAttrRTInvisAnnotations(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrRTInvisAnnotations() = default;
+  ~JBCAttrRTInvisAnnotations() override = default;
 };
 
 // RuntimeParamAnnoations Attribute
@@ -477,7 +477,7 @@ class JBCAttrRTInvisAnnotations : public JBCAttrRTAnnotations {
 class JBCAttrRTParamAnnotations : public JBCAttr {
  public:
   JBCAttrRTParamAnnotations(MapleAllocator &allocator, JBCAttrKind kindIn, uint16 nameIdx, uint32 length);
-  virtual ~JBCAttrRTParamAnnotations() = default;
+  virtual ~JBCAttrRTParamAnnotations() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -506,7 +506,7 @@ class JBCAttrRTInvisParamAnnotations : public JBCAttrRTParamAnnotations {
 class JBCAttrRTTypeAnnotations : public JBCAttr {
  public:
   JBCAttrRTTypeAnnotations(MapleAllocator &allocator, JBCAttrKind kindIn, uint16 nameIdx, uint32 length);
-  virtual ~JBCAttrRTTypeAnnotations() = default;
+  virtual ~JBCAttrRTTypeAnnotations() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -520,13 +520,13 @@ class JBCAttrRTTypeAnnotations : public JBCAttr {
 class JBCAttrRTVisTypeAnnotations : public JBCAttrRTTypeAnnotations {
  public:
   JBCAttrRTVisTypeAnnotations(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrRTVisTypeAnnotations() = default;
+  ~JBCAttrRTVisTypeAnnotations() override = default;
 };
 
 class JBCAttrRTInvisTypeAnnotations : public JBCAttrRTTypeAnnotations {
  public:
   JBCAttrRTInvisTypeAnnotations(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrRTInvisTypeAnnotations() = default;
+  ~JBCAttrRTInvisTypeAnnotations() override = default;
 };
 
 // AnnotationDefault Attribute
@@ -550,7 +550,7 @@ class JBCAttrAnnotationDefault : public JBCAttr {
 class JBCAttrBootstrapMethods : public JBCAttr {
  public:
   JBCAttrBootstrapMethods(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrBootstrapMethods() = default;
+  ~JBCAttrBootstrapMethods() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -567,7 +567,7 @@ class JBCAttrBootstrapMethods : public JBCAttr {
 class JBCAttrMethodParameters : public JBCAttr {
  public:
   JBCAttrMethodParameters(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
-  ~JBCAttrMethodParameters() = default;
+  ~JBCAttrMethodParameters() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;

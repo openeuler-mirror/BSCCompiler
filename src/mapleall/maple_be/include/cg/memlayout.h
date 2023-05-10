@@ -132,7 +132,7 @@ class SymbolAlloc {
 
 class MemLayout {
  public:
-  MemLayout(BECommon &beCommon, MIRFunction &mirFunc, MapleAllocator &mallocator)
+  MemLayout(BECommon &beCommon, MIRFunction &mirFunc, MapleAllocator &mallocator, uint32 kStackPtrAlignment)
       : be(beCommon),
         mirFunction(&mirFunc),
         segArgsStkPassed(kMsArgsStkPassed),
@@ -142,7 +142,8 @@ class MemLayout {
         spillLocTable(mallocator.Adapter()),
         spillRegLocMap(mallocator.Adapter()),
         localRefLocMap(std::less<StIdx>(), mallocator.Adapter()),
-        memAllocator(&mallocator) {
+        memAllocator(&mallocator),
+        stackPtrAlignment(kStackPtrAlignment) {
     symAllocTable.resize(mirFunc.GetSymTab()->GetSymbolTableSize());
   }
 
@@ -176,8 +177,6 @@ class MemLayout {
    */
   virtual void AssignSpillLocationsToPseudoRegisters() = 0;
 
-  virtual SymbolAlloc *AssignLocationToSpillReg(regno_t vrNum) = 0;
-
   virtual int32 GetCalleeSaveBaseLoc() const {
     return 0;
   }
@@ -196,11 +195,21 @@ class MemLayout {
     return spillLocTable.at(index);
   }
 
-  SymbolAlloc *GetLocOfSpillRegister(regno_t vrNum) {
+  SymbolAlloc *AssignLocationToSpillReg(regno_t vrNum, uint32 memByteSize) {
+    auto *symLoc = CreateSymbolAlloc();
+    symLoc->SetMemSegment(segSpillReg);
+    segSpillReg.SetSize(RoundUp(segSpillReg.GetSize(), memByteSize));
+    symLoc->SetOffset(segSpillReg.GetSize());
+    segSpillReg.SetSize(segSpillReg.GetSize() + memByteSize);
+    SetSpillRegLocInfo(vrNum, *symLoc);
+    return symLoc;
+  }
+
+  SymbolAlloc *GetLocOfSpillRegister(regno_t vrNum, uint32 memByteSize) {
     SymbolAlloc *loc = nullptr;
     auto pos = spillRegLocMap.find(vrNum);
     if (pos == spillRegLocMap.end()) {
-      loc = AssignLocationToSpillReg(vrNum);
+      loc = AssignLocationToSpillReg(vrNum, memByteSize);
     } else {
       loc = pos->second;
     }
@@ -255,18 +264,25 @@ class MemLayout {
     return localRefLocMap.find(symbol.GetStIdx()) != localRefLocMap.end();
   }
 
+  uint32 GetStackPtrAlignment() const {
+    return stackPtrAlignment;
+  }
  protected:
   BECommon &be;
   MIRFunction *mirFunction;
   MemSegment segArgsStkPassed;
   MemSegment segArgsRegPassed;
   MemSegment segArgsToStkPass;
+  MemSegment segSpillReg = MemSegment(kMsSpillReg);
   MapleVector<SymbolAlloc*> symAllocTable;  /* index is stindex from StIdx */
   MapleVector<SymbolAlloc*> spillLocTable;  /* index is preg idx */
   MapleUnorderedMap<regno_t, SymbolAlloc*> spillRegLocMap;
   MapleMap<StIdx, SymbolAlloc*> localRefLocMap;  /* localrefvar formals. real address passed in stack. */
   MapleAllocator *memAllocator;
   CGFunc *cgFunc = nullptr;
+  const uint32 stackPtrAlignment;
+
+  virtual SymbolAlloc *CreateSymbolAlloc() const = 0;
 };
 }  /* namespace maplebe */
 

@@ -15,9 +15,9 @@
 
 #ifndef MAPLEIR_INCLUDE_MIR_ENUMERATION_H
 #define MAPLEIR_INCLUDE_MIR_ENUMERATION_H
+#include <vector>
 #include "cfg_primitive_types.h"
 #include "mpl_int_val.h"
-#include <vector>
 
 namespace maple {
 
@@ -29,16 +29,16 @@ class MIREnum {
   ~MIREnum() = default;
 
   void NewElement(GStrIdx sidx, IntVal value) {
-    elements.push_back(EnumElem(sidx, value));
+    elements.emplace_back(EnumElem(sidx, value));
   }
 
   void AddNextElement(GStrIdx sidx) {
     if (elements.empty()) {
-      elements.push_back(EnumElem(sidx, IntVal(static_cast<uint64>(0), primType)));
+      elements.emplace_back(EnumElem(sidx, IntVal(static_cast<uint64>(0), primType)));
       return;
     }
     IntVal newValue = elements.back().second + 1;
-    elements.push_back(EnumElem(sidx, newValue));
+    elements.emplace_back(EnumElem(sidx, newValue));
   }
 
   void SetPrimType(PrimType pt) {

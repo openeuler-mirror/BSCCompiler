@@ -28,12 +28,8 @@ std::string LdCompilerBeILP32::GetBinPath(const MplOptions &mplOptions [[maybe_u
                                kAarch64BeIlp32Gcc : kAarch64BeGcc;
   std::string gccToolPath = gccPath + gccTool;
 
-  if (!FileUtils::IsFileExists(gccToolPath)) {
-    LogInfo::MapleLogger(kLlErr) << kGccBePathEnv << " environment variable must be set as the path to "
-                                 << gccTool << "\n";
-    CHECK_FATAL(false, "%s environment variable must be set as the path to %s\n",
-                kGccBePathEnv, gccTool.c_str());
-  }
+  CHECK_FATAL(FileUtils::IsFileExists(gccToolPath), "%s environment variable must be set as the path to %s\n",
+      kGccBePathEnv, gccTool.c_str());
 
   return gccPath;
 }
@@ -60,12 +56,12 @@ std::string LdCompiler::GetBin(const MplOptions &mplOptions [[maybe_unused]]) co
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
-  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
-    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/aarch64-linux-gnu-gcc";
-  } else if (FileUtils::SafeGetenv(kGccPath) != "") {
+  if (FileUtils::SafeGetenv(kGccPath) != "") {
     std::string gccPath = FileUtils::SafeGetenv(kGccPath) + " -dumpversion";
     FileUtils::CheckGCCVersion(gccPath.c_str());
     return FileUtils::SafeGetenv(kGccPath);
+  } else if (FileUtils::SafeGetenv(kMapleRoot) != "") {
+    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/aarch64-linux-gnu-gcc";
   }
   std::string gccPath = FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc") +
                                                   " -dumpversion";

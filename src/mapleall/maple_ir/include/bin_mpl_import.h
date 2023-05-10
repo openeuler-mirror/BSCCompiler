@@ -90,7 +90,7 @@ class BinaryMplImport {
   void Reset();
   void SkipTotalSize();
   void ImportFieldsOfStructType(FieldVector &fields, uint32 methodSize);
-  MIRType &InsertInTypeTables(MIRType &ptype);
+  MIRType &InsertInTypeTables(MIRType &type);
   void InsertInHashTable(MIRType &type);
   void SetupEHRootType();
   void UpdateMethodSymbols();
@@ -128,7 +128,7 @@ class BinaryMplImport {
   void ImportFuncIdInfo(MIRFunction *func);
   void ImportEnumeration();
   MIRSymbol *ImportLocalSymbol(MIRFunction *func);
-  PregIdx ImportPreg(MIRFunction *func);
+  PregIdx ImportPreg(const MIRFunction *func);
   LabelIdx ImportLabel(MIRFunction *func);
   void ImportFormalsStIdx(MIRFunction *func);
   void ImportAliasMap(MIRFunction *func);

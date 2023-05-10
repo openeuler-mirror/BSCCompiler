@@ -89,12 +89,14 @@ class GenericType : public AnnotationType {
   GenericType(const GStrIdx &strIdx, MIRType *ms, MapleAllocator &alloc)
       : AnnotationType(kGenericType, strIdx),
         mirStructType(ms),
-        GenericArg(alloc.Adapter()),
-        ArgOrder(alloc.Adapter()) {}
-  ~GenericType() override = default;
+        genericArg(alloc.Adapter()),
+        argOrder(alloc.Adapter()) {}
+  ~GenericType() override {
+    mirStructType = nullptr;
+  }
   void AddGenericPair(GenericDeclare * const k, AnnotationType *v) {
-    GenericArg[k] = v;
-    ArgOrder.push_back(v);
+    genericArg[k] = v;
+    argOrder.push_back(v);
   }
 
   MIRStructType *GetMIRStructType() const {
@@ -117,19 +119,19 @@ class GenericType : public AnnotationType {
   }
 
   MapleMap<GenericDeclare*, AnnotationType*> &GetGenericMap() {
-    return GenericArg;
+    return genericArg;
   }
 
   MapleVector<AnnotationType*> &GetGenericArg() {
-    return ArgOrder;
+    return argOrder;
   }
 
   void Dump() override;
   void ReWriteType(std::string &subClass) override;
  private:
   MIRType *mirStructType;
-  MapleMap<GenericDeclare*, AnnotationType*> GenericArg;
-  MapleVector<AnnotationType*> ArgOrder;
+  MapleMap<GenericDeclare*, AnnotationType*> genericArg;
+  MapleVector<AnnotationType*> argOrder;
 };
 
 class GenericDeclare : public AnnotationType {
@@ -137,7 +139,9 @@ class GenericDeclare : public AnnotationType {
   explicit GenericDeclare(const GStrIdx &strIdx)
       : AnnotationType(kGenericDeclare, strIdx),
         defaultType(nullptr) {}
-  ~GenericDeclare() override = default;
+  ~GenericDeclare() override {
+    defaultType = nullptr;
+  }
   AnnotationType *GetDefaultType() {
     return defaultType;
   }
@@ -150,7 +154,7 @@ class GenericDeclare : public AnnotationType {
   }
 
   std::string GetBelongToName() const {
-    if (defKind == defByStruct) {
+    if (defKind == kDefByStruct) {
       return belongsTo.structType->GetName();
     } else {
       return belongsTo.func->GetName();
@@ -160,12 +164,12 @@ class GenericDeclare : public AnnotationType {
   void Dump() override;
 
   void SetBelongToStruct(MIRStructType *s) {
-    defKind = defByStruct;
+    defKind = kDefByStruct;
     belongsTo.structType = s;
   }
 
   void SetBelongToFunc(MIRFunction *f) {
-    defKind = defByFunc;
+    defKind = kDefByFunc;
     belongsTo.func = f;
   }
 
@@ -177,11 +181,11 @@ class GenericDeclare : public AnnotationType {
   };
   DefPoint belongsTo;
   enum DefKind {
-    defByNone,
-    defByStruct,
-    defByFunc
+    kDefByNone,
+    kDefByStruct,
+    kDefByFunc
   };
-  DefKind defKind = defByNone;
+  DefKind defKind = kDefByNone;
 };
 
 class ExtendGeneric : public AnnotationType {
@@ -189,7 +193,9 @@ class ExtendGeneric : public AnnotationType {
   ExtendGeneric(AnnotationType &c, EInfo h) : AnnotationType(kExtendType, GStrIdx(0)), contains(&c), eInfo(h) {
     CHECK_FATAL(c.GetKind() != kGenericMatch, "must be");
   }
-  ~ExtendGeneric() override = default;
+  ~ExtendGeneric() override {
+    contains = nullptr;
+  }
 
   void Dump() override {
     std::cout << (eInfo == kHierarchyExtend ? '+' : (eInfo == kArrayType ? '[' : '-'));
@@ -266,7 +272,13 @@ class AnnotationAnalysis : public AnalysisResult {
           MIRType &classType = GetTypeFromTyIdx(GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(strIdx));
           dummyObj = pragmaMp.New<GenericType>(strIdx, &static_cast<MIRStructType&>(classType), pragmaAllocator);
         };
-  ~AnnotationAnalysis() override = default;
+  ~AnnotationAnalysis() override {
+    genericMatch = nullptr;
+    dummyObj = nullptr;
+    pragmaMemPool = nullptr;
+    mirModule = nullptr;
+    klassH = nullptr;
+  }
   void Run();
  private:
   void AnalysisAnnotation();

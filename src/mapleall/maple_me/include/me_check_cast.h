@@ -50,7 +50,7 @@ class CheckCast {
     }
   }
  private:
-  void RemoveRedundantCheckCast(MeStmt &stmt, BB &bb);
+  void RemoveRedundantCheckCast(MeStmt &stmt, BB &bb) const;
   bool ProvedByAnnotationInfo(const IntrinsiccallMeStmt &callNode);
   void TryToResolveCall(MeStmt &meStmt);
   bool TryToResolveVar(VarMeExpr &var, MIRStructType *callStruct = nullptr, bool checkFirst = false);
@@ -64,12 +64,12 @@ class CheckCast {
   void TryToResolveFuncGeneric(MIRFunction &callee, const CallMeStmt &callMeStmt, size_t thisIdx);
   void AddClassInheritanceInfo(MIRType &mirType);
   bool NeedChangeVarType(MIRStructType *varStruct, MIRStructType *callStruct);
-  bool ExactlyMatch(MIRStructType &varStruct, MIRStructType &callStruct);
+  bool ExactlyMatch(MIRStructType &varStruct, MIRStructType &callStruct) const;
   AnnotationType *CloneNewAnnotationType(AnnotationType *at, MIRStructType *callStruct);
   void AddNextNode(GenericNode &from, GenericNode &to) const;
-  bool RetIsGenericRelative(MIRFunction &callee);
+  bool RetIsGenericRelative(MIRFunction &callee) const;
   void DumpGenericGraph();
-  void DumpGenericNode(GenericNode &node, std::ostream &out);
+  void DumpGenericNode(GenericNode &node, std::ostream &out) const;
 
   bool ProvedBySSI(const IntrinsiccallMeStmt &callNode);
   ProveRes TraverseBackProve(MeExpr &expr, MIRType &targetType, std::set<MePhiNode*> &visitedPhi);

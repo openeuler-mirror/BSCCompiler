@@ -17,20 +17,21 @@
 #include "aarch64_cgfunc.h"
 namespace maplebe {
 void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb) {
-  int32 stackFrameSize = static_cast<int32>(
+  auto stackFrameSize = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
-  int32 argsToStkPassSize = static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
+  auto argsToStkPassSize = static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
   int32 cfiOffset = stackFrameSize;
   Insn &stackDefNextInsn = FindStackDefNextInsn(bb);
   InsertCFIDefCfaOffset(bb, stackDefNextInsn, cfiOffset);
   cfiOffset = static_cast<int32>(GetOffsetFromCFA() - argsToStkPassSize);
-  AArch64CGFunc &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
 
   if (useFP) {
     (void)bb.InsertInsnBefore(stackDefNextInsn, aarchCGFunc.CreateCfiOffsetInsn(stackBaseReg, -cfiOffset, k64BitSize));
   }
+  int32 RLROffset = static_cast<AArch64CGFunc&>(cgFunc).GetStoreFP() ? kOffset8MemPos : 0;
   (void)bb.InsertInsnBefore(stackDefNextInsn,
-                            aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffset + kOffset8MemPos, k64BitSize));
+                            aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffset + RLROffset, k64BitSize));
 
   /* change CFA register and offset */
   if (useFP) {
@@ -58,9 +59,10 @@ void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb) {
   }
 
   auto it = regsToSave.begin();
-  /* skip the first two registers */
-  CHECK_FATAL(*it == RFP, "The first callee saved reg is expected to be RFP");
-  ++it;
+  // skip the RFP
+  if (*it == RFP) {
+    ++it;
+  }
   CHECK_FATAL(*it == RLR, "The second callee saved reg is expected to be RLR");
   ++it;
   int32 offset = cgFunc.GetMemlayout()->GetCalleeSaveBaseLoc();
@@ -83,8 +85,10 @@ void AArch64GenCfi::GenerateRegisterRestoreDirective(BB &bb) {
   CHECK_NULL_FATAL(returnInsn);
   if (!regsToSave.empty()) {
     auto it = regsToSave.begin();
-    CHECK_FATAL(*it == RFP, "The first callee saved reg is expected to be RFP");
-    ++it;
+    // skip the RFP
+    if (*it == RFP ) {
+      ++it;
+    }
     CHECK_FATAL(*it == RLR, "The second callee saved reg is expected to be RLR");
     ++it;
 

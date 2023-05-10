@@ -46,7 +46,7 @@ void GCWriteBarrierOpt::Prepare() {
 void GCWriteBarrierOpt::GCLower(BB &bb, std::map<OStIdx, std::vector<MeStmt*>> &writeBarrierMap) {
   // to record stack size
   std::map<OStIdx, size_t> savedStacksize;
-  for (const auto &item : writeBarrierMap) {
+  for (const auto &item : std::as_const(writeBarrierMap)) {
     savedStacksize[item.first] = item.second.size();
   }
   for (auto &stmt : bb.GetMeStmts()) {
@@ -75,9 +75,9 @@ void GCWriteBarrierOpt::GCLower(BB &bb, std::map<OStIdx, std::vector<MeStmt*>> &
     }
   }
   visited[bb.GetBBId()] = true;
-  const auto &domChildren = dominance.GetDomChildren(bb.GetBBId());
+  const auto &domChildren = dominance.GetDomChildren(bb.GetID());
   for (const auto &childBBId : domChildren) {
-    BB *child = func.GetCfg()->GetBBFromID(childBBId);
+    BB *child = func.GetCfg()->GetBBFromID(BBId(childBBId));
     if (child == nullptr) {
       continue;
     }
@@ -147,8 +147,8 @@ bool GCWriteBarrierOpt::IsCall(const MeStmt &stmt) const {
 }
 
 bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
-  BB *startBB = start.GetBB();
-  BB *endBB = end.GetBB();
+  const BB *startBB = start.GetBB();
+  const BB *endBB = end.GetBB();
   if (startBB == endBB) {
     return HasCallBetweenStmt(start, end);
   }
@@ -158,11 +158,11 @@ bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
   if (HasCallAfterStmt(start) || HasCallBeforeStmt(end) || IsBackEdgeDest(*endBB)) {
     return true;
   }
-  const auto &domChildren = dominance.GetDomChildren(startBB->GetBBId());
-  const MapleSet<BBId> pdomChildren = dominance.GetPdomChildrenItem(endBB->GetBBId());
+  const auto &domChildren = dominance.GetDomChildren(startBB->GetID());
+  const auto pdomChildren = postDominance.GetDomChildren(endBB->GetID());
   const MapleVector<BB*> bbVec = func.GetCfg()->GetAllBBs();
   for (const auto &childBBId : domChildren) {
-    if (pdomChildren.find(childBBId) == pdomChildren.end()) {
+    if (std::find(pdomChildren.begin(), pdomChildren.end(), childBBId) == pdomChildren.end()) {
       continue;
     }
     BB *bb = bbVec.at(childBBId);
@@ -179,17 +179,17 @@ bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
   return false;
 }
 
-bool GCWriteBarrierOpt::HasCallAfterStmt(const MeStmt &stmt) {
+bool GCWriteBarrierOpt::HasCallAfterStmt(const MeStmt &stmt) const {
   const MeStmt &lastMeStmt = stmt.GetBB()->GetMeStmts().back();
   return HasCallBetweenStmt(stmt, lastMeStmt);
 }
 
-bool GCWriteBarrierOpt::HasCallBeforeStmt(const MeStmt &stmt) {
+bool GCWriteBarrierOpt::HasCallBeforeStmt(const MeStmt &stmt) const {
   const MeStmt &firstMeStmt = stmt.GetBB()->GetMeStmts().front();
   return HasCallBetweenStmt(firstMeStmt, stmt);
 }
 
-bool GCWriteBarrierOpt::HasCallBetweenStmt(const MeStmt &start, const MeStmt &end) {
+bool GCWriteBarrierOpt::HasCallBetweenStmt(const MeStmt &start, const MeStmt &end) const {
   CHECK_FATAL(start.GetBB() == end.GetBB(), "NYI.");
   for (const MeStmt *meStmt = &start; meStmt != &end; meStmt = meStmt->GetNext()) {
     if (IsCall(*meStmt)) {

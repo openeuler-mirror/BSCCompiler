@@ -26,25 +26,15 @@
 
 namespace maplebe {
 using namespace maple;
-#if TARGX86_64 || TARGAARCH64 || TARGRISCV64
-#if ILP32
-#define LOWERED_PTR_TYPE PTY_a32
-constexpr uint8 kSizeOfPtr = 4;
-#else
-#define LOWERED_PTR_TYPE PTY_a64
-constexpr uint8 kSizeOfPtr = 8;
-#endif
-#elif TARGX86 || TARGARM32 || TARGVM
-#define LOWERED_PTR_TYPE PTY_a32
-constexpr uint8 kSizeOfPtr = 4;
-#else
-#error "Unsupported target"
-#endif
 
 enum BitsPerByte : uint8 {
   kBitsPerByte = 8,
   kLog2BitsPerByte = 3
 };
+
+inline uint32 GetPointerBitSize() {
+  return GetPointerSize() * kBitsPerByte;
+}
 
 class JClassFieldInfo {  /* common java class field info */
  public:
@@ -103,7 +93,7 @@ class BECommon {
 
   void GenObjSize(const MIRClassType &classType, FILE &outFile) const;
 
-  std::pair<int32, int32> GetFieldOffset(MIRStructType &structType, FieldID fieldID);
+  OffsetPair GetJClassFieldOffset(MIRStructType &classType, FieldID fieldID) const;
 
   bool IsRefField(MIRStructType &structType, FieldID fieldID) const;
 
@@ -140,7 +130,7 @@ class BECommon {
   bool CallIsOfAttr(FuncAttrKind attr, const StmtNode *narynode) const;
 
   PrimType GetAddressPrimType() const {
-    return LOWERED_PTR_TYPE;
+    return GetLoweredPtrType();
   }
 
   /* update typeSizeTable and typeAlignTable when new type is created */
@@ -168,7 +158,7 @@ class BECommon {
     return mirModule;
   }
 
-  uint64 GetTypeSize(uint32 idx) const {
+  uint64 GetClassTypeSize(uint32 idx) const {
     return typeSizeTable.at(idx);
   }
   uint32 GetSizeOfTypeSizeTable() const {
@@ -193,9 +183,6 @@ class BECommon {
     }
   }
 
-  uint8 GetTypeAlign(uint32 idx) const {
-    return typeAlignTable.at(idx);
-  }
   size_t GetSizeOfTypeAlignTable() const {
     return typeAlignTable.size();
   }
@@ -253,6 +240,13 @@ class BECommon {
    */
   MapleUnorderedMap<MIRClassType*, JClassLayout*> jClassLayoutTable;
   MapleUnorderedMap<MIRFunction*, TyIdx> funcReturnType;
+
+  uint8 GetTypeAlign(uint32 idx) const {
+    return typeAlignTable.at(idx);
+  }
+  uint64 GetTypeSize(uint32 idx) const {
+    return typeSizeTable.at(idx);
+  }
 }; /* class BECommon */
 }  /* namespace maplebe */
 

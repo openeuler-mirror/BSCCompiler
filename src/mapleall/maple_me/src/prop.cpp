@@ -223,10 +223,10 @@ bool Prop::IsFunctionOfCurVersion(ScalarMeExpr *scalar, const ScalarMeExpr *cur)
   return InvertibleOccurrences(scalar, ass->GetRHS()) == 1;
 }
 
-static void Calc(const MeExpr *x, uint32 &count) {
+static void Calc(const MeExpr &x, uint32 &count) {
   count++;
-  for (uint32 i = 0; i < x->GetNumOpnds(); i++) {
-    Calc(x->GetOpnd(i), count);
+  for (uint32 i = 0; i < x.GetNumOpnds(); i++) {
+    Calc(*x.GetOpnd(i), count);
   }
 }
 
@@ -239,7 +239,7 @@ static void Calc(const MeExpr *x, uint32 &count) {
 Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool checkInverse,
                                    ScalarMeExpr *propagatingScalar) {
   uint32 count = 0;
-  Calc(x, count);
+  Calc(*x, count);
   if (count > kTreeNodeLimit) {
     return kPropNo;
   }
@@ -731,12 +731,9 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
     DassignMeStmt *defStmt = static_cast<DassignMeStmt*>(varMeExpr.GetDefStmt());
     ASSERT(defStmt != nullptr, "dynamic cast result is nullptr");
     MeExpr *rhs = defStmt->GetRHS();
-    if (st->GetType() && st->GetType()->GetKind() == kTypePointer) {
-      if (static_cast<MIRPtrType *>(st->GetType())->IsFunctionPtr()) {
-        if (rhs->GetMeOp() != kMeOpAddroffunc) {
+    if (st->GetType() && st->GetType()->GetKind() == kTypePointer &&
+        static_cast<MIRPtrType *>(st->GetType())->IsFunctionPtr() && rhs->GetMeOp() != kMeOpAddroffunc) {
           return varMeExpr;
-        }
-      }
     }
     uint32 treeLevelLimitUsed = kPropTreeLevel;
     if (varMeExpr.GetOst()->storesIVInitValue) {

@@ -500,9 +500,9 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
   if (updateFreq) {
     auto *callerProfData = caller.GetFuncProfData();
     auto *calleeProfData = callee.GetFuncProfData();
-    uint64 callsiteFreq = static_cast<uint64>(callerProfData->GetStmtFreq(callStmt.GetStmtID()));
+    FreqType callsiteFreq = callerProfData->GetStmtFreq(callStmt.GetStmtID());
     FreqType calleeEntryFreq = calleeProfData->GetFuncFrequency();
-    uint32_t updateOp = static_cast<uint32_t>(kKeepOrigFreq | kUpdateFreqbyScale);
+    uint32_t updateOp = static_cast<uint32_t>(kKeepOrigFreq) | static_cast<uint32_t>(kUpdateFreqbyScale);
     BlockNode *blockNode;
     if (recursiveFirstClone) {
       blockNode = funcBody.CloneTreeWithFreqs(theMIRModule->GetCurFuncCodeMPAllocator(), callerProfData->GetStmtFreqs(),
@@ -511,7 +511,7 @@ BlockNode *InlineTransformer::CloneFuncBody(BlockNode &funcBody, bool recursiveF
       blockNode = funcBody.CloneTreeWithFreqs(theMIRModule->GetCurFuncCodeMPAllocator(), callerProfData->GetStmtFreqs(),
                                               calleeProfData->GetStmtFreqs(), callsiteFreq, calleeEntryFreq, updateOp);
       // update callee left entry Frequency
-      int64_t calleeFreq = calleeProfData->GetFuncRealFrequency();
+      FreqType calleeFreq = calleeProfData->GetFuncRealFrequency();
       calleeProfData->SetFuncRealFrequency(calleeFreq - callsiteFreq);
     }
     return blockNode;
@@ -546,6 +546,97 @@ BlockNode *InlineTransformer::GetClonedCalleeBody() {
     return CloneFuncBody(*currFuncBody, false);
   } else {
     return CloneFuncBody(*callee.GetBody(), false);
+  }
+}
+
+void DoReplaceConstFormal(const MIRFunction &caller, BaseNode &parent, uint32 opndIdx, BaseNode &expr,
+    const RealArgPropCand &realArg) {
+  if (realArg.kind == RealArgPropCandKind::kVar && expr.GetOpCode() == OP_dread) {
+    auto &dread = static_cast<DreadNode&>(expr);
+    dread.SetStFullIdx(realArg.data.symbol->GetStIdx().FullIdx());
+  } else if (realArg.kind == RealArgPropCandKind::kPreg && expr.GetOpCode() == OP_regread) {
+    auto &regread = static_cast<RegreadNode&>(expr);
+    auto pregNo = static_cast<uint32>(realArg.data.symbol->GetPreg()->GetPregNo());
+    PregIdx idx = caller.GetPregTab()->GetPregIdxFromPregno(pregNo);
+    regread.SetRegIdx(idx);
+  } else if (realArg.kind == RealArgPropCandKind::kConst) {
+    MIRConst *mirConst = realArg.data.mirConst;
+    CHECK_NULL_FATAL(mirConst);
+    auto *constExpr =
+        theMIRModule->CurFuncCodeMemPool()->New<ConstvalNode>(mirConst->GetType().GetPrimType(), mirConst);
+    parent.SetOpnd(constExpr, opndIdx);
+  }
+}
+
+void InlineTransformer::TryReplaceConstFormalWithRealArg(BaseNode &parent, uint32 opndIdx,
+    MIRSymbol &formal, const RealArgPropCand &realArg, const std::pair<uint32, uint32> &offsetPair) {
+  uint32 stIdxOff = offsetPair.first;
+  uint32 regIdxOff = offsetPair.second;
+  auto &expr = *parent.Opnd(opndIdx);
+  Opcode op = expr.GetOpCode();
+  if (op == OP_dread && formal.IsVar()) {
+    auto &dread = static_cast<DreadNode&>(expr);
+    // After RenameSymbols, we should consider stIdxOff
+    uint32 newIdx = formal.GetStIndex() + stIdxOff;
+    if (dread.GetStIdx().Islocal() && dread.GetStIdx().Idx() == newIdx) {
+      DoReplaceConstFormal(caller, parent, opndIdx, expr, realArg);
+    }
+  } else if (op == OP_regread && formal.IsPreg()) {
+    auto &regread = static_cast<RegreadNode&>(expr);
+    PregIdx idx = callee.GetPregTab()->GetPregIdxFromPregno(static_cast<uint32>(formal.GetPreg()->GetPregNo()));
+    // After RenamePregs, we should consider regIdxOff
+    int32 newIdx = idx + static_cast<int32>(regIdxOff);
+    if (regread.GetRegIdx() == newIdx) {
+      DoReplaceConstFormal(caller, parent, opndIdx, expr, realArg);
+    }
+  }
+}
+
+// Propagate const formal in maple IR node (stmt and expr)
+void InlineTransformer::PropConstFormalInNode(BaseNode &baseNode, MIRSymbol &formal, const RealArgPropCand &realArg,
+    uint32 stIdxOff, uint32 regIdxOff) {
+  for (uint32 i = 0; i < baseNode.NumOpnds(); ++i) {
+    TryReplaceConstFormalWithRealArg(baseNode, i, formal, realArg, {stIdxOff, regIdxOff});
+    PropConstFormalInNode(*baseNode.Opnd(i), formal, realArg, stIdxOff, regIdxOff);
+  }
+}
+
+// Replace all accesses of `formal` in the `newBody` with the `realArg`.
+// The `stIdxOff` and `regIdxOff` are necessary for computing new stIdx/regIdx of callee's symbols/pregs
+// because symbol/preg table of caller and callee have been merged.
+void InlineTransformer::PropConstFormalInBlock(BlockNode &newBody, MIRSymbol &formal, const RealArgPropCand &realArg,
+    uint32 stIdxOff, uint32 regIdxOff) {
+  for (auto &stmt : newBody.GetStmtNodes()) {
+    switch (stmt.GetOpCode()) {
+      case OP_foreachelem: {
+        auto *subBody = static_cast<ForeachelemNode&>(stmt).GetLoopBody();
+        PropConstFormalInBlock(*subBody, formal, realArg, stIdxOff, regIdxOff);
+        break;
+      }
+      case OP_doloop: {
+        auto *subBody = static_cast<DoloopNode&>(stmt).GetDoBody();
+        PropConstFormalInBlock(*subBody, formal, realArg, stIdxOff, regIdxOff);
+        break;
+      }
+      case OP_dowhile:
+      case OP_while: {
+        auto *subBody = static_cast<WhileStmtNode&>(stmt).GetBody();
+        PropConstFormalInBlock(*subBody, formal, realArg, stIdxOff, regIdxOff);
+        break;
+      }
+      case OP_if: {
+        IfStmtNode &ifStmt = static_cast<IfStmtNode&>(stmt);
+        PropConstFormalInBlock(*ifStmt.GetThenPart(), formal, realArg, stIdxOff, regIdxOff);
+        if (ifStmt.GetElsePart() != nullptr) {
+          PropConstFormalInBlock(*ifStmt.GetElsePart(), formal, realArg, stIdxOff, regIdxOff);
+        }
+        break;
+      }
+      default: {
+        PropConstFormalInNode(stmt, formal, realArg, stIdxOff, regIdxOff);
+        break;
+      }
+    }
   }
 }
 
@@ -587,6 +678,27 @@ void InlineTransformer::AssignActualToFormal(BlockNode &newBody, uint32 stIdxOff
   return;
 }
 
+// The parameter `argExpr` is a real argument of a callStmt in the `caller`.
+// This function checks whether `argExpr` is a candidate of propagable argument.
+void RealArgPropCand::Parse(MIRFunction &caller, BaseNode &argExpr) {
+  kind = RealArgPropCandKind::kUnknown;  // reset kind
+  Opcode op = argExpr.GetOpCode();
+  if (op == OP_constval) {
+    auto *constVal = static_cast<ConstvalNode&>(argExpr).GetConstVal();
+    kind = RealArgPropCandKind::kConst;
+    data.mirConst = constVal;
+  } else if (op == OP_dread) {
+    auto stIdx = static_cast<DreadNode&>(argExpr).GetStIdx();
+    // only consider const variable
+    auto *symbol = caller.GetLocalOrGlobalSymbol(stIdx);
+    ASSERT_NOT_NULL(symbol);
+    if (symbol->GetAttr(ATTR_const)) {
+      kind = RealArgPropCandKind::kVar;
+      data.symbol = symbol;
+    }
+  }
+}
+
 void InlineTransformer::AssignActualsToFormals(BlockNode &newBody, uint32 stIdxOff, uint32 regIdxOff) {
   if (static_cast<uint32>(callStmt.NumOpnds()) != callee.GetFormalCount()) {
     LogInfo::MapleLogger() << "warning: # formal arguments != # actual arguments in the function " << callee.GetName()
@@ -605,6 +717,14 @@ void InlineTransformer::AssignActualsToFormals(BlockNode &newBody, uint32 stIdxO
     MIRSymbol *formal = callee.GetFormal(i);
     CHECK_NULL_FATAL(currBaseNode);
     CHECK_NULL_FATAL(formal);
+    // Try to prop const value/symbol of real argument to const formal
+    RealArgPropCand realArg;
+    realArg.Parse(caller, *currBaseNode);
+    if (formal->GetAttr(ATTR_const) && realArg.kind != RealArgPropCandKind::kUnknown &&
+        // Type consistency check can be relaxed further
+        formal->GetType()->GetPrimType() == realArg.GetPrimType()) {
+      PropConstFormalInBlock(newBody, *formal, realArg, stIdxOff, regIdxOff);
+    }
     AssignActualToFormal(newBody, stIdxOff, regIdxOff, *currBaseNode, *formal);
     if (updateFreq) {
       caller.GetFuncProfData()->CopyStmtFreq(newBody.GetFirst()->GetStmtID(), callStmt.GetStmtID());

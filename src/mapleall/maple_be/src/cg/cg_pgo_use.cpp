@@ -16,7 +16,13 @@
 #include "cg_critical_edge.h"
 #include "loop.h"
 #include "optimize_common.h"
+#include "chain_layout.h"
 namespace maplebe {
+void RelinkBB(BB &prev, BB &next) {
+  prev.SetNext(&next);
+  next.SetPrev(&prev);
+}
+
 bool CGProfUse::ApplyPGOData() {
   instrumenter.PrepareInstrumentInfo(f->GetFirstBB(), f->GetCommonExitBB());
   std::vector<maplebe::BB *> iBBs;
@@ -31,8 +37,12 @@ bool CGProfUse::ApplyPGOData() {
     LogInfo::MapleLogger() << "find profile for " << f->GetName() << "Failed\n";
   }
   CHECK_FATAL(bbInfo != nullptr, "Get profile Failed");
-  if (!VerifyProfiledata(iBBs, *bbInfo)) {
-    CHECK_FATAL_FALSE("Verify lite profile data Failed!");
+  if (!VerifyProfileData(iBBs, *bbInfo)) {
+    if (!CGOptions::DoLiteProfVerify()) {
+      LogInfo::MapleLogger() << "skip profile applying for " << f->GetName() << " due to out of date\n";
+    } else {
+      CHECK_FATAL_FALSE("Verify lite profile data Failed!");
+    }
     return false;
   }
 
@@ -45,26 +55,26 @@ bool CGProfUse::ApplyPGOData() {
   ComputeEdgeFreq();
 
   ApplyOnBB();
-  InitFrequencyReversePostOrderBBList();
-#if 0
-  f->GetTheCFG()->CheckCFGFreq();
-#endif
   return true;
 }
 
-bool CGProfUse::VerifyProfiledata(const std::vector<maplebe::BB *> &iBBs, LiteProfile::BBInfo &bbInfo) {
+bool CGProfUse::VerifyProfileData(const std::vector<maplebe::BB *> &iBBs, LiteProfile::BBInfo &bbInfo) {
   /* check bb size */
+  bbInfo.verified.first = true;
   if (bbInfo.counter.size() != iBBs.size()) {
     LogInfo::MapleLogger() << f->GetName() << " counter doesn't match profile counter :"
                            << bbInfo.counter.size() << " func real counter :" << iBBs.size() << '\n';
+    bbInfo.verified.second = false;
     return false;
   }
   /* check cfg hash*/
   if (bbInfo.funcHash != f->GetTheCFG()->ComputeCFGHash()) {
     LogInfo::MapleLogger() << f->GetName() << " CFG hash doesn't match profile cfghash :"
                            << bbInfo.funcHash << " func cfghash :" << f->GetTheCFG()->ComputeCFGHash() << '\n';
+    bbInfo.verified.second = false;
     return false;
   }
+  bbInfo.verified.second = true;
   return true;
 }
 
@@ -226,8 +236,13 @@ void CGProfUse::LayoutBBwithProfile() {
   /* initialize */
   laidOut.resize(f->GetAllBBs().size(), false);
   /* BB chain layout */
-  BuildChainForFunc();
-  BBChain *mainChain = bb2chain[f->GetFirstBB()->GetId()];
+  ChainLayout chainLayout(*f, *mp, debugChainLayout, *domInfo);
+  // Init layout settings for CG
+  chainLayout.SetHasRealProfile(true);
+  chainLayout.SetConsiderBetterPred(true);
+  chainLayout.BuildChainForFunc();
+  NodeChain *mainChain = chainLayout.GetNode2Chain()[f->GetFirstBB()->GetID()];
+
   for (auto bbId : bbSplit) {
     BB *cbb = f->GetBBFromID(bbId);
     CHECK_FATAL(cbb, "get bb failed");
@@ -235,19 +250,48 @@ void CGProfUse::LayoutBBwithProfile() {
   }
   std::vector<BB*> coldSection;
   std::vector<uint32> layoutID;
+  // clear next pointer for last non-split BB
+  for (auto it = mainChain->rbegin(); it != mainChain->rend(); ++it) {
+    auto *bb = static_cast<BB*>(*it);
+    if (bbSplit.count(bb->GetID()) == 0) {
+      bb->SetNext(nullptr);
+      break;
+    }
+  }
   for (auto it = mainChain->begin(); it != mainChain->end(); ++it) {
-    if (!bbSplit.count((*it)->GetId())) {
-      if ((*it)->IsInColdSection()) {
-        coldSection.emplace_back(*it);
+    auto *bb = static_cast<BB*>(*it);
+    if (!bbSplit.count(bb->GetId())) {
+      if (bb->IsInColdSection()) {
+        coldSection.emplace_back(bb);
       } else {
-        AddBBProf(**it);
-        layoutID.emplace_back((*it)->GetId());
+        AddBBProf(*bb);
+        layoutID.emplace_back(bb->GetId());
       }
     }
   }
   for (size_t i = 0; i < coldSection.size(); ++i) {
     AddBBProf(*coldSection[i]);
     layoutID.emplace_back(coldSection[i]->GetId());
+  }
+  // adjust the last BB if kind is fallthru or condtion BB
+  BB *lastBB = layoutBBs.empty() ? nullptr : layoutBBs.back();
+  if (lastBB != nullptr && !lastBB->IsEmptyOrCommentOnly()) {
+    if (lastBB->GetKind() == BB::kBBFallthru) {
+      CHECK_FATAL(lastBB->GetSuccs().size() == 1, "it is fallthru");
+      BB *targetBB = *lastBB->GetSuccs().begin();
+      BB *newBB = f->GetTheCFG()->GetInsnModifier()->CreateGotoBBAfterCondBB(*lastBB, *targetBB, targetBB == lastBB);
+      RelinkBB(*lastBB, *newBB);
+    } else if (lastBB->GetKind() == BB::kBBIf) {
+      BB *targetBB = CGCFG::GetTargetSuc(*lastBB);
+      BB *ftBB = nullptr;
+      for (BB *sucBB : lastBB->GetSuccs()) {
+        if (sucBB != targetBB) {
+          ftBB = sucBB;
+        }
+      }
+      BB *newBB = f->GetTheCFG()->GetInsnModifier()->CreateGotoBBAfterCondBB(*lastBB, *ftBB, targetBB == lastBB);
+      RelinkBB(*lastBB, *newBB);
+    }
   }
   if (debugChainLayout) {
     LogInfo::MapleLogger() << "Finish forming layout : ";
@@ -258,351 +302,6 @@ void CGProfUse::LayoutBBwithProfile() {
   }
 }
 
-void CGProfUse::InitBBChains() {
-  uint32 id = 0;
-  bb2chain.resize(f->GetAllBBs().size(), nullptr);
-  BB *commonEntry = f->GetFirstBB();
-  for (BB *curbb = commonEntry; curbb != nullptr; curbb = curbb->GetNext()) {
-    // BBChain constructor will update bb2chain
-    // attention cleanup & unreachable
-    (void)mp->New<BBChain>(puAlloc, bb2chain, *curbb, id++);
-  }
-}
-
-void CGProfUse::BuildChainForFunc() {
-  uint32 validBBNum = 0;
-  BB *commonEntry = f->GetFirstBB();
-  // attention cleanup & unreachable
-  for (BB *curbb = commonEntry; curbb != nullptr; curbb = curbb->GetNext()) {
-    if (curbb->IsUnreachable()) {
-      ASSERT(false, "check unreachable bb");
-      continue;
-    }
-    if (f->IsExitBB(*curbb)) {
-      if (curbb->GetPrev() && curbb->GetPrev()->GetKind() == BB::kBBGoto &&
-          curbb->GetPreds().empty() && curbb->GetSuccs().empty()) {
-        continue;
-      }
-    }
-    ++validBBNum;
-  }
-  // --validBBNum;  // exclude cleanup BB
-  LogInfo::MapleLogger() << "\n[Chain layout] " << f->GetName() << ", valid bb num: " << validBBNum << std::endl;
-  InitBBChains();
-  BuildChainForLoops();
-  // init ready chains for func
-  for (BB *curbb = commonEntry; curbb != nullptr; curbb = curbb->GetNext()) {
-    uint32 bbId = curbb->GetId();
-    BBChain *chain = bb2chain[bbId];
-
-    if (chain->IsReadyToLayout(nullptr)) {
-      (void)readyToLayoutChains.insert(chain);
-    }
-  }
-  BBChain *entryChain = bb2chain[commonEntry->GetId()];
-  DoBuildChain(*commonEntry, *entryChain, nullptr);
-
-  /* merge clean up */
-  if (f->GetCleanupBB()) {
-    BBChain *cleanup = bb2chain[f->GetCleanupBB()->GetId()];
-    if (readyToLayoutChains.find(cleanup) == readyToLayoutChains.end()) {
-      LogInfo::MapleLogger() << "clean up bb is not in ready layout ";
-    }
-    CHECK_FATAL(cleanup->GetHeader() == f->GetCleanupBB(), "more than one cleanup");
-    if (CGOptions::DoEnableHotColdSplit()) {
-      cleanup->GetHeader()->SetColdSection();
-    }
-    entryChain->MergeFrom(cleanup);
-  }
-  /* merge symbol label in C which is not in control flow */
-  std::vector<BB*> labelBB;
-  {
-    for (BB *curbb = commonEntry; curbb != nullptr; curbb = curbb->GetNext()) {
-      if (curbb->IsUnreachable()) {
-        /* delete unreachable bb in cfgo */
-        ASSERT(false, "check unreachable bb");
-        CHECK_FATAL_FALSE("check unreachable bb");
-        continue;
-      }
-      if (f->IsExitBB(*curbb)) {
-        if (curbb->GetPrev() && curbb->GetPrev()->GetKind() == BB::kBBGoto &&
-            curbb->GetPreds().empty() && curbb->GetSuccs().empty()) {
-          continue;
-        }
-      }
-      if (!entryChain->FindBB(*curbb)) {
-        if (curbb->GetPreds().empty() && CGCFG::InSwitchTable(curbb->GetLabIdx(), *f)) {
-          labelBB.push_back(curbb);
-        // last bb which is not in control flow
-        } else if (curbb->GetPreds().empty() && curbb->GetSuccs().empty() && f->GetLastBB() == curbb) {
-          labelBB.push_back(curbb);
-        } else {
-          LogInfo::MapleLogger() << "In function " << f->GetName() << " bb " << curbb->GetId() << "  is no in chain\n";
-        }
-      }
-    }
-
-    for (auto bb : labelBB) {
-      BBChain *labelchain = bb2chain[bb->GetId()];
-      if (readyToLayoutChains.find(labelchain) == readyToLayoutChains.end()) {
-        LogInfo::MapleLogger() << "label bb is not in ready layout ";
-      }
-      entryChain->MergeFrom(labelchain);
-      if (CGOptions::DoEnableHotColdSplit()) {
-        bb->SetColdSection();
-      }
-      bb->SetNext(nullptr);
-      bb->SetPrev(nullptr);
-    }
-  }
-
-  // To sure all of BBs have been laid out
-  CHECK_FATAL(entryChain->size() == validBBNum, "has any BB not been laid out?");
-}
-
-void CGProfUse::BuildChainForLoops() {
-  if (f->GetLoops().empty()) {
-    return;
-  }
-  auto &loops = f->GetLoops();
-  // sort loops from inner most to outer most
-  std::stable_sort(loops.begin(), loops.end(), [](const CGFuncLoops *loop1, const CGFuncLoops *loop2) {
-    return loop1->GetLoopLevel() > loop2->GetLoopLevel();
-  });
-  auto *context = mp->New<MapleVector<bool>>(f->GetAllBBs().size(), false, puAlloc.Adapter());
-  for (auto *loop : loops) {
-    BuildChainForLoop(*loop, context);
-  }
-}
-
-void CGProfUse::BuildChainForLoop(CGFuncLoops &loop, MapleVector<bool> *context) {
-  // init loop context
-  std::fill(context->begin(), context->end(), false);
-  for (auto *bbMember : loop.GetLoopMembers()) {
-    CHECK_FATAL(bbMember->GetId() < context->size(), "index out of range");
-    (*context)[bbMember->GetId()] = true;
-  }
-  // init ready chains for loop
-  for (auto *bbMember : loop.GetLoopMembers()) {
-    BBChain *chain = bb2chain[bbMember->GetId()];
-    if (chain->IsReadyToLayout(context)) {
-      (void)readyToLayoutChains.insert(chain);
-    }
-  }
-  // find loop chain starting BB
-  BB *startBB = FindBestStartBBForLoop(loop, context);
-  if (startBB == nullptr) {
-    return;  // all blocks in the loop have been laid out, just return
-  }
-  BBChain *startChain = bb2chain[startBB->GetId()];
-  DoBuildChain(*startBB, *startChain, context);
-  readyToLayoutChains.clear();
-}
-
-// Multiple loops may share the same header, we try to find the best unplaced BB in the loop
-BB *CGProfUse::FindBestStartBBForLoop(CGFuncLoops &loop, const MapleVector<bool> *context) {
-  auto *headerChain = bb2chain[loop.GetHeader()->GetId()];
-  if (headerChain->size() == 1) {
-    return loop.GetHeader();
-  }
-  // take inner loop chain tail BB as start BB
-  if (headerChain->size() > 1 && IsBBInCurrContext(*headerChain->GetTail(), context)) {
-    return headerChain->GetTail();
-  }
-  for (auto *bbMember : loop.GetLoopMembers()) {
-    if (bb2chain[bbMember->GetId()]->size() == 1) {
-      return f->GetBBFromID(bbMember->GetId());
-    }
-  }
-  return nullptr;
-}
-
-bool CGProfUse::IsBBInCurrContext(const BB &bb, const MapleVector<bool> *context) const {
-  if (context == nullptr) {
-    return true;
-  }
-  return (*context)[bb.GetId()];
-}
-
-void CGProfUse::DoBuildChain(const BB &header, BBChain &chain, const MapleVector<bool> *context) {
-  CHECK_FATAL(bb2chain[header.GetId()] == &chain, "bb2chain mis-match");
-  BB *bb = chain.GetTail();
-  BB *bestSucc = GetBestSucc(*bb, chain, context, true);
-  while (bestSucc != nullptr) {
-    BBChain *succChain = bb2chain[bestSucc->GetId()];
-    succChain->UpdateSuccChainBeforeMerged(chain, context, readyToLayoutChains);
-    chain.MergeFrom(succChain);
-    (void)readyToLayoutChains.erase(succChain);
-    bb = chain.GetTail();
-    bestSucc = GetBestSucc(*bb, chain, context, true);
-  }
-
-  if (debugChainLayout) {
-    bool inLoop = context != nullptr;
-    LogInfo::MapleLogger() << "Finish forming " << (inLoop ? "loop" : "func") << " chain: ";
-    chain.Dump();
-  }
-}
-
-BB *CGProfUse::GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> *context, bool considerBetterPred) {
-  // (1) search in succ
-  CHECK_FATAL(bb2chain[bb.GetId()] == &chain, "bb2chain mis-match");
-  uint64 bestEdgeFreq = 0;
-  BB *bestSucc = nullptr;
-  auto iterBB = bb.GetSuccsBegin();
-  for (uint32 i = 0; i < bb.GetSuccs().size(); ++i, ++iterBB) {
-    CHECK_FATAL(iterBB != bb.GetSuccsEnd(), "check unexpect BB");
-    BB *succ = *iterBB;
-    CHECK_FATAL(succ, "check Empty BB");
-    if (!IsCandidateSucc(bb, *succ, context)) {
-      continue;
-    }
-    if (considerBetterPred && HasBetterLayoutPred(bb, *succ)) {
-      continue;
-    }
-    uint64 currEdgeFreq = bb.GetEdgeFreq(i);  // attention: entryBB->succFreq[i] is always 0
-    if (bb.GetId() == 0) {  // special case for common entry BB
-      CHECK_FATAL(bb.GetSuccs().size() == 1, "common entry BB should not have more than 1 succ");
-      bestSucc = succ;
-      break;
-    }
-    if (currEdgeFreq > bestEdgeFreq) {  // find max edge freq
-      bestEdgeFreq = currEdgeFreq;
-      bestSucc = succ;
-    }
-  }
-  if (bestSucc != nullptr) {
-    if (debugChainLayout) {
-      LogInfo::MapleLogger() << "Select [range1 succ ]: ";
-      LogInfo::MapleLogger() << bb.GetId() << " -> " << bestSucc->GetId() << std::endl;
-    }
-    return bestSucc;
-  }
-
-  // (2) search in readyToLayoutChains
-  uint32 bestFreq = 0;
-  for (auto it = readyToLayoutChains.begin(); it != readyToLayoutChains.end(); ++it) {
-    BBChain *readyChain = *it;
-    BB *header = readyChain->GetHeader();
-    if (!IsCandidateSucc(bb, *header, context)) {
-      continue;
-    }
-    bool useBBFreq = false;
-    if (useBBFreq) { // use bb freq
-      if (header->GetFrequency() > bestFreq) {  // find max bb freq
-        bestFreq = header->GetFrequency();
-        bestSucc = header;
-      }
-    } else { // use edge freq
-      uint32 subBestFreq = 0;
-      for (auto *pred : header->GetPreds()) {
-        uint32 curFreq = static_cast<uint32>(pred->GetEdgeFreq(*header));
-        if (curFreq > subBestFreq) {
-          subBestFreq = curFreq;
-        }
-      }
-      if (subBestFreq > bestFreq) {
-        bestFreq = subBestFreq;
-        bestSucc = header;
-      } else if (subBestFreq == bestFreq && bestSucc != nullptr &&
-                 bb2chain[header->GetId()]->GetId() < bb2chain[bestSucc->GetId()]->GetId()) {
-        bestSucc = header;
-      }
-    }
-  }
-  if (bestSucc != nullptr) {
-    (void)readyToLayoutChains.erase(bb2chain[bestSucc->GetId()]);
-    if (debugChainLayout) {
-      LogInfo::MapleLogger() << "Select [range2 ready]: ";
-      LogInfo::MapleLogger() << bb.GetId() << " -> " << bestSucc->GetId() << std::endl;
-    }
-    return bestSucc;
-  }
-
-  // (3) search left part in context by profile
-  for (auto freRpoEle : frequencyReversePostOrderBBList) {
-    if (freRpoEle.frequency > 0) {
-      BB *candBB = freRpoEle.bb;
-      if (IsBBInCurrContext(*candBB, context) && bb2chain[candBB->GetId()] != &chain) {
-        if (debugChainLayout) {
-          LogInfo::MapleLogger() << "Select [range3 frequency ]: ";
-          LogInfo::MapleLogger() << bb.GetId() << " -> " << candBB->GetId() << std::endl;
-        }
-        return candBB;
-      }
-    } else {
-      break;
-    }
-  }
-
-  // (4) search left part in context by topological sequence
-  const auto &rpoVec = domInfo->GetReversePostOrder();
-  bool searchedAgain = false;
-  for (uint32 i = rpoSearchPos; i < rpoVec.size(); ++i) {
-    BB *candBB = rpoVec[i];
-    if (IsBBInCurrContext(*candBB, context) && bb2chain[candBB->GetId()] != &chain) {
-      rpoSearchPos = i;
-      if (debugChainLayout) {
-        LogInfo::MapleLogger() << "Select [range4 rpot ]: ";
-        LogInfo::MapleLogger() << bb.GetId() << " -> " << candBB->GetId() << std::endl;
-      }
-      if (CGOptions::DoEnableHotColdSplit()) {
-        candBB->SetColdSection();
-      }
-      return candBB;
-    }
-    if (i == rpoVec.size() - 1 && !searchedAgain) {
-      i = 0;
-      searchedAgain = true;
-    }
-  }
-  return nullptr;
-}
-
-void CGProfUse::InitFrequencyReversePostOrderBBList() {
-  const auto &rpoVec = domInfo->GetReversePostOrder();
-  for (uint32 i = 0; i < rpoVec.size(); ++i) {
-    BB *cbb = rpoVec[i];
-    BBOrderEle bbELe(cbb->GetFrequency(), i, cbb);
-    frequencyReversePostOrderBBList.emplace(bbELe);
-  }
-}
-
-bool CGProfUse::HasBetterLayoutPred(const BB &bb, const BB &succ) const {
-  auto &predList = succ.GetPreds();
-  // predList.size() may be 0 if bb is common entry BB
-  if (predList.size() <= 1) {
-    return false;
-  }
-  uint32 sumEdgeFreq = succ.GetFrequency();
-  const double hotEdgeFreqPercent = 0.6;  // should further fine tuning
-  uint64 hotEdgeFreq = static_cast<uint64>(sumEdgeFreq * hotEdgeFreqPercent);
-  // if edge freq(bb->succ) contribute more than 60% to succ block freq, no better layout pred than bb
-  for (auto predIt = predList.begin(); predIt != predList.end(); ++predIt) {
-    if (*predIt == &bb) {
-      continue;
-    }
-    uint64 edgeFreq = (*predIt)->GetEdgeFreq(succ);
-    if (edgeFreq > (sumEdgeFreq - hotEdgeFreq)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool CGProfUse::IsCandidateSucc(const BB &bb, const BB &succ, const MapleVector<bool> *context) {
-  if (!IsBBInCurrContext(succ, context)) { // succ must be in the current context (current loop or current func)
-    return false;
-  }
-  if (bb2chain[succ.GetId()] == bb2chain[bb.GetId()]) { // bb and succ should belong to different chains
-    return false;
-  }
-  if (succ.GetId() == 1) { // special case, exclude common exit BB
-    return false;
-  }
-  return true;
-}
-
 bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
   CHECK_FATAL(f.NumBBs() < LiteProfile::GetBBNoThreshold(), "stop ! bb out of range!");
   if (!LiteProfile::IsInWhiteList(f.GetName())) {
@@ -610,8 +309,7 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
   }
 
   LiteProfile::BBInfo *bbInfo = f.GetFunction().GetModule()->GetLiteProfile().GetFuncBBProf(f.GetName());
-
-  /* 
+  /*
    * Currently, If all the counters of the function are 0, the bbInfo will not be recorded in pgo data.
    * skip this case. However, it cannot distinguish which is not genereated correct. Need to be improved */
   if (!bbInfo) {
@@ -641,6 +339,13 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
   LogInfo::MapleLogger() << "Finial Layout : ";
   FOR_ALL_BB(bb, &f) {
     LogInfo::MapleLogger() << bb->GetId() << " ";
+    // Maintain head and tail BB, because emit phase still will access CFG
+    if (count == 0) {
+      f.SetFirstBB(*bb);
+    }
+    if (bb->GetNext() == nullptr) {
+      f.SetLastBB(*bb);
+    }
     count++;
     if (count > f.GetAllBBs().size()) {
       CHECK_FATAL(false, "infinte loop");
@@ -651,11 +356,6 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
 }
 
 MAPLE_TRANSFORM_PHASE_REGISTER(CgPgoUse, cgpgouse)
-
-void RelinkBB(BB &prev, BB &next) {
-  prev.SetNext(&next);
-  next.SetPrev(&prev);
-}
 
 void CGProfUse::AddBBProf(BB &bb) {
   if (layoutBBs.empty()) {
@@ -698,7 +398,7 @@ void CGProfUse::AddBBProf(BB &bb) {
     }
     CHECK_FATAL(ftBB, "find ft bb after ifBB failed");
     if (&bb == targetBB) {
-      CHECK_FATAL(!bbSplit.count(ftBB->GetId()), "check split bb");
+      CHECK_FATAL(bbSplit.count(ftBB->GetId()) == 0, "check split bb");
       LabelIdx fallthruLabel = GetOrCreateBBLabIdx(*ftBB);
       f->GetTheCFG()->GetInsnModifier()->FlipIfBB(*curBB, fallthruLabel);
     } else if (&bb != ftBB) {
@@ -731,7 +431,7 @@ void CGProfUse::ReTargetSuccBB(BB &bb, BB &fallthru) {
   bb.SetKind(BB::kBBGoto);
 }
 
-void CGProfUse::ChangeToFallthruFromGoto(BB &bb) {
+void CGProfUse::ChangeToFallthruFromGoto(BB &bb) const {
   CHECK_FATAL(bb.GetLastMachineInsn(), "Get last insn in GOTO bb failed");
   bb.RemoveInsn(*bb.GetLastMachineInsn());
   bb.SetKind(BB::kBBFallthru);

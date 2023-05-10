@@ -132,7 +132,7 @@ class CgUseOcc : public CgOccur {
       : CgOccur(kOccUse, bb, insn, opnd),
         needReload(false) {}
 
-  ~CgUseOcc() = default;
+  ~CgUseOcc() override = default;
 
   bool Reload() const {
     return needReload;
@@ -163,7 +163,7 @@ class CgUseOcc : public CgOccur {
 class CgStoreOcc : public CgOccur {
  public:
   CgStoreOcc(BB *bb, Insn *insn, Operand *opnd) : CgOccur(kOccStore, bb, insn, opnd) {}
-  ~CgStoreOcc() = default;
+  ~CgStoreOcc() override = default;
 
   bool Reload() const {
     return needReload;
@@ -194,7 +194,7 @@ class CgStoreOcc : public CgOccur {
 class CgDefOcc : public CgOccur {
  public:
   CgDefOcc(BB *bb, Insn *insn, Operand *opnd) : CgOccur(kOccDef, bb, insn, opnd) {}
-  ~CgDefOcc() = default;
+  ~CgDefOcc() override = default;
 
   bool Loaded() const {
     return needStore;
@@ -237,7 +237,7 @@ class CgPhiOcc : public CgOccur {
         isDownSafe(!bb.IsCatch()),
         phiOpnds(alloc.Adapter()) {}
 
-  virtual ~CgPhiOcc() = default;
+  ~CgPhiOcc() override = default;
 
   bool IsDownSafe() const {
     return isDownSafe;
@@ -320,7 +320,7 @@ class CgPhiOpndOcc : public CgOccur {
         hasRealUse(false),
         phiOcc(defPhi) {}
 
-  ~CgPhiOpndOcc() = default;
+  ~CgPhiOpndOcc() override = default;
 
   bool HasRealUse() const {
     return hasRealUse;

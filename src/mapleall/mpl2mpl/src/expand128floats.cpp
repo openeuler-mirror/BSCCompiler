@@ -34,7 +34,7 @@ std::unordered_map<Opcode, F128OpRes> f128OpsRes = {
   {OP_le, {OP_le, OP_gt}}
 };
 
-std::string Expand128Floats::GetSequentialName0(const std::string &prefix, uint32_t num) {
+std::string Expand128Floats::GetSequentialName0(const std::string &prefix, uint32_t num) const {
   std::stringstream ss;
   ss << prefix << num;
   return ss.str();
@@ -45,17 +45,26 @@ uint32 Expand128Floats::GetSequentialNumber() const {
   return unnamedSymbolIdx++;
 }
 
-std::string Expand128Floats::GetSequentialName(const std::string &prefix) {
+std::string Expand128Floats::GetSequentialName(const std::string &prefix) const {
   std::string name = GetSequentialName0(prefix, GetSequentialNumber());
   return name;
 }
 
-std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, const BaseNode *node) {
+std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, BaseNode *node) const {
+  CHECK_FATAL(node, "Nullptr at Expand129Floats::SelectSoftFPCall method");
   switch (opCode) {
     case OP_cvt:
     case OP_trunc:
-      if (static_cast<const TypeCvtNode*>(node)->FromType() == PTY_f128) {
-        switch (static_cast<const TypeCvtNode*>(node)->ptyp) {
+      if (static_cast<TypeCvtNode*>(node)->FromType() == PTY_f128) {
+        switch (static_cast<TypeCvtNode*>(node)->ptyp) {
+          case PTY_i8:
+          case PTY_i16:
+            node->ptyp = PTY_i32;
+            return "__fixtfsi";
+          case PTY_u8:
+          case PTY_u16:
+            node->ptyp = PTY_u32;
+            return "__fixunstfsi";
           case PTY_i32:
             return "__fixtfsi";
           case PTY_u32:
@@ -76,8 +85,22 @@ std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, const BaseNode *nod
         }
       } else if (static_cast<const TypeCvtNode*>(node)->ptyp == PTY_f128) {
         switch (static_cast<const TypeCvtNode*>(node)->FromType()) {
+          case PTY_i8:
+          case PTY_i16: {
+            auto *cvtNode = static_cast<TypeCvtNode*>(node);
+            cvtNode->SetFromType(PTY_i32);
+            cvtNode->Opnd(0)->ptyp = PTY_i32;
+            return "__floatsitf";
+          }
           case PTY_i32:
             return "__floatsitf";
+          case PTY_u8:
+          case PTY_u16: {
+            auto *cvtNode = static_cast<TypeCvtNode*>(node);
+            cvtNode->SetFromType(PTY_u32);
+            cvtNode->Opnd(0)->ptyp = PTY_u32;
+            return "__floatunsitf";
+          }
           case PTY_u32:
           case PTY_a32:
             return "__floatunsitf";

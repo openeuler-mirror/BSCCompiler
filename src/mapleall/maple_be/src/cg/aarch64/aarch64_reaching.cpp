@@ -30,13 +30,13 @@ void AArch64ReachingDefinition::InitStartGen() {
   CCLocInfo pLoc;
   for (uint32 i = 0; i < cgFunc->GetFunction().GetFormalCount(); ++i) {
     MIRType *type = cgFunc->GetFunction().GetNthParamType(i);
-    (void)parmLocator.LocateNextParm(*type, pLoc, i == 0, &cgFunc->GetFunction());
+    (void)parmLocator.LocateNextParm(*type, pLoc, i == 0, cgFunc->GetFunction().GetMIRFuncType());
     if (pLoc.reg0 == 0) {
       /* If is a large frame, parameter addressing mode is based vreg:Vra. */
       continue;
     }
 
-    uint64 symSize = cgFunc->GetBecommon().GetTypeSize(type->GetTypeIndex());
+    uint64 symSize = type->GetSize();
     if ((cgFunc->GetMirModule().GetSrcLang() == kSrcLangC) && (symSize > k8ByteSize)) {
       /* For C structure passing in one or two registers. */
       symSize = k8ByteSize;
@@ -106,7 +106,7 @@ void AArch64ReachingDefinition::InitStartGen() {
             static_cast<AArch64SymbolAlloc*>(cgFunc->GetMemlayout()->GetSymAllocInfo(firstSym->GetStIndex()));
         int32 stOffset = cgFunc->GetBaseOffset(*firstSymLoc);
         MIRType *firstType = cgFunc->GetFunction().GetNthParamType(i);
-        uint32 firstSymSize = cgFunc->GetBecommon().GetTypeSize(firstType->GetTypeIndex());
+        uint32 firstSymSize = firstType->GetSize();
         uint32 firstStackSize = firstSymSize < k4ByteSize ? k4ByteSize : firstSymSize;
 
         MemOperand *memOpnd = aarchCGFunc->CreateStackMemOpnd(RFP, stOffset, firstStackSize * kBitsPerByte);
@@ -178,7 +178,7 @@ void AArch64ReachingDefinition::AddRetPseudoInsns() {
   if (exitBBSize == 0) {
     if (cgFunc->GetCleanupBB() != nullptr && cgFunc->GetCleanupBB()->GetPrev() != nullptr) {
       AddRetPseudoInsn(*cgFunc->GetCleanupBB()->GetPrev());
-    } else {
+    } else if (!cgFunc->GetMirModule().IsCModule()) {
       AddRetPseudoInsn(*cgFunc->GetLastBB()->GetPrev());
     }
   } else {
@@ -1170,6 +1170,9 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
     CHECK_FATAL(index == nullptr, "Existing [x29 + index] Memory Address");
     ASSERT(memOpnd.GetOffsetImmediate(), "offset must be a immediate value");
     int64 offsetVal = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+    if (offsetVal > stackSize) {
+      return;
+    }
     if (offsetVal < 0) {
       offsetVal = static_cast<int64>(stackSize) + offsetVal;
     }

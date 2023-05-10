@@ -57,7 +57,7 @@ bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
   RegSavesOpt *regSavesOpt = nullptr;
 #if TARGAARCH64
   regSavesOpt = memPool->New<AArch64RegSavesOpt>(f, *memPool, *dom, *pdom);
-#elif || TARGRISCV64
+#elif defined(TARGRISCV64) || TARGRISCV64
   regSavesOpt = memPool->New<Riscv64RegSavesOpt>(f, *memPool);
 #endif
 

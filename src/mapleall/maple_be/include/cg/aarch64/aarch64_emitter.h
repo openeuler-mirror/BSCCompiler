@@ -23,7 +23,7 @@ using namespace maple;
 class AArch64AsmEmitter : public AsmEmitter {
  public:
   AArch64AsmEmitter(CG &cg, const std::string &asmFileName) : AsmEmitter(cg, asmFileName) {}
-  ~AArch64AsmEmitter() = default;
+  ~AArch64AsmEmitter() override = default;
 
   void EmitRefToMethodDesc(FuncEmitInfo &funcEmitInfo, Emitter &emitter) override;
   void EmitRefToMethodInfo(FuncEmitInfo &funcEmitInfo, Emitter &emitter) override;
@@ -57,14 +57,17 @@ class AArch64AsmEmitter : public AsmEmitter {
   void EmitStringIndexOf(Emitter &emitter, const Insn &insn) const;
   void EmitLazyBindingRoutine(Emitter &emitter, const Insn &insn) const;
   void EmitCheckThrowPendingException(Emitter &emitter) const;
-  void EmitCTlsDescRel(Emitter &emitter, const Insn &insn) const;
-  void EmitCTlsDescCall(Emitter &emitter, const Insn &insn) const;
+  void EmitCTlsDescRel(Emitter &emitter, const Insn &insn) const;  // emit instrinsic for local-exec TLS model
+  void EmitCTlsDescCall(Emitter &emitter, const Insn &insn) const; // emit instrinsic for general dynamic TLS mode
+  void EmitCTlsDescGot(Emitter &emitter, const Insn &insn) const;  // emit instrinsic for initial-exec TLS model
+  void EmitCTlsLoadTdata(Emitter &emitter, const Insn &insn) const;     // emit instrinsic for warmup-dynamic TLS model
+  void EmitCTlsLoadTbss(Emitter &emitter, const Insn &insn) const;     // emit instrinsic for warmup-dynamic TLS model
   void EmitSyncLockTestSet(Emitter &emitter, const Insn &insn) const;
 
   void PrepareVectorOperand(RegOperand *regOpnd, uint32 &compositeOpnds, Insn &insn) const;
   bool CheckInsnRefField(const Insn &insn, uint32 opndIndex) const;
 
-  void EmitCallWithLocalAlias(Emitter &emitter, FuncNameOperand &func, const std::string &mdName) const;
+  void EmitCallWithLocalAlias(Emitter &emitter, const std::string &funcName, const std::string &mdName) const;
 };
 }  /* namespace maplebe */
 

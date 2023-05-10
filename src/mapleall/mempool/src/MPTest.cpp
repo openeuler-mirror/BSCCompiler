@@ -30,21 +30,36 @@ class MyClass {
     id = currId;
     name = currName;
   };
-  ~MyClass() {};
+  ~MyClass(){};
   int id;
   std::string name;
 };
+
+void TestLocalAllocater() {
+  MemPoolCtrler mpc;
+  auto mp = std::make_unique<StackMemPool>(mpc, "");
+  LocalMapleAllocator alloc1(*mp);
+  MapleVector<int> v1({ 1, 2, 3, 4, 5 }, alloc1.Adapter());
+  {
+    LocalMapleAllocator alloc2(*mp);
+    MapleVector<int> v2({ 1, 2, 3, 4, 5 }, alloc2.Adapter());
+    {
+      LocalMapleAllocator alloc3(*mp);
+      MapleVector<int> v3({ 1, 2, 3, 4, 5 }, alloc3.Adapter());
+    }
+  }
+}
 
 int main() {
   // 1. Create a memory pool controler instance;
   MemPoolCtrler mpc;
   // 2. Create two memory pools on mpc
-  MemPool *mp1 = mpc.NewMemPool("Test Memory Pool 1");
-  MemPool *mp2 = mpc.NewMemPool("Test Memory Pool 2");
+  MemPool *mp1 = mpc.NewMemPool("Test Memory Pool 1", true /* isLocalPool */);
+  MemPool *mp2 = mpc.NewMemPool("Test Memory Pool 2", true /* isLocalPool */);
   // 3. Usage of memory pool, Malloc/Call on primitive types
   // char string
   constexpr int lengthOfHelloWorld = 12;
-  char *charP = static_cast<char*>(mp1->Malloc(lengthOfHelloWorld * sizeof(char)));
+  char *charP = static_cast<char *>(mp1->Malloc(lengthOfHelloWorld * sizeof(char)));
   errno_t cpyRes = strcpy_s(charP, lengthOfHelloWorld, "Hello world");
   if (cpyRes != 0) {
     LogInfo::MapleLogger() << "call strcpy_s failed" << std::endl;
@@ -53,7 +68,7 @@ int main() {
   LogInfo::MapleLogger() << charP << std::endl;
   // int, float, double
   constexpr int arrayLen = 10;
-  int *intP = static_cast<int*>(mp1->Calloc(arrayLen * sizeof(int)));
+  int *intP = static_cast<int *>(mp1->Calloc(arrayLen * sizeof(int)));
   CHECK_FATAL(intP, "null ptr check  ");
   for (int i = 0; i < arrayLen; ++i) {
     intP[i] = i * i;
@@ -62,9 +77,9 @@ int main() {
     LogInfo::MapleLogger() << intP[i] << " ,";
   }
   LogInfo::MapleLogger() << intP[arrayLen - 1] << std::endl;
-  float *floatP = static_cast<float*>(mp1->Malloc(arrayLen * sizeof(float)));
+  float *floatP = static_cast<float *>(mp1->Malloc(arrayLen * sizeof(float)));
   for (int i = 0; i < arrayLen; ++i) {
-    floatP[i] = 10.0 / (i + 1); // test float num is 10.0
+    floatP[i] = 10.0 / (i + 1);  // test float num is 10.0
   }
   for (int i = 0; i < arrayLen - 1; ++i) {
     LogInfo::MapleLogger() << floatP[i] << " ,";
@@ -72,10 +87,10 @@ int main() {
   LogInfo::MapleLogger() << floatP[arrayLen - 1] << std::endl;
   // 4. Allocate memory on struct
   Structure *structP = mp1->New<Structure>();
-  structP->height = 1024; // test num is 1024.
+  structP->height = 1024;  // test num is 1024.
   structP->id = 0;
-  LogInfo::MapleLogger() << "Structure: my_struct height=" << structP->height << " feet," << "id=    x" <<
-      structP->id << std::endl;
+  LogInfo::MapleLogger() << "Structure: my_struct height=" << structP->height << " feet,"
+                         << "id=    x" << structP->id << std::endl;
   // 5. Allocate memory on class constructor
   MyClass *myClass = mp1->New<MyClass>(1, "class name");
   LogInfo::MapleLogger() << "Class: my_class id=" << myClass->id << " , name=" << myClass->name << std::endl;
@@ -109,7 +124,7 @@ int main() {
   // list
   MapleList<float> myList(mpAllocator.Adapter());
   for (int i = 0; i < arrayLen; ++i) {
-    myList.push_back(1000.0 / (i + 1)); // test float num is 1000.0
+    myList.push_back(1000.0 / (i + 1));  // test float num is 1000.0
   }
   MapleList<float>::iterator listItr;
   for (listItr = myList.begin(); listItr != myList.end(); ++listItr) {
@@ -141,7 +156,9 @@ int main() {
     LogInfo::MapleLogger() << "set value =" << *setItr << std::endl;
   }
   // Delete memory pool
-  mpc.DeleteMemPool(mp1);
-  mpc.DeleteMemPool(mp2);
+  delete mp1;
+  delete mp2;
+
+  TestLocalAllocater();
   return 1;
 }

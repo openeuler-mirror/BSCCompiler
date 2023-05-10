@@ -579,7 +579,7 @@ void LSRALinearScanRegAllocator::SetupLiveInterval(Operand &opnd, Insn &insn, bo
  */
 void LSRALinearScanRegAllocator::LiveInterval::AddRange(uint32 from, uint32 to) {
   if (ranges.empty()) {
-    ranges.push_back(std::pair<uint32, uint32>(from, to));
+    ranges.emplace_back(std::pair<uint32, uint32>(from, to));
   } else {
     if (to < ranges.front().first) {
       (void)ranges.insert(ranges.cbegin(), std::pair<uint32, uint32>(from, to));
@@ -881,7 +881,7 @@ void LSRALinearScanRegAllocator::ComputeLiveIntervalForEachOperand(Insn &insn) {
    */
   for (int32 i = static_cast<int32>(opndNum - 1); i >= 0; --i) {
     Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
-    const OpndDesc *opndDesc = md->GetOpndDes(i);
+    const OpndDesc *opndDesc = md->GetOpndDes(static_cast<size_t>(i));
     ASSERT(opndDesc != nullptr, "ptr null check.");
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<const ListOperand&>(opnd);
@@ -980,11 +980,9 @@ void LSRALinearScanRegAllocator::ComputeLiveInterval() {
           static_cast<float>(li->GetFirstDef() - li->GetLastUse()));
     }
   }
-
   if (LSRA_DUMP) {
     PrintLiveIntervals();
   }
-
 }
 
 /* A physical register is freed at the end of the live interval.  Return to pool. */
@@ -1514,7 +1512,7 @@ RegOperand *LSRALinearScanRegAllocator::AssignPhysRegs(Operand &opnd, const Insn
   }
 
   if (LSRA_DUMP) {
-    uint32 activeSz = active.size();
+    size_t activeSz = active.size();
     LogInfo::MapleLogger() << "\tAssignPhysRegs-active_sz " << activeSz << "\n";
   }
 
@@ -1733,7 +1731,7 @@ RegOperand *LSRALinearScanRegAllocator::HandleSpillForInsn(const Insn &insn, Ope
   return newOpnd;
 }
 
-bool LSRALinearScanRegAllocator::OpndNeedAllocation(const Insn &insn, Operand &opnd, bool isDef, uint32 insnNum) {
+bool LSRALinearScanRegAllocator::OpndNeedAllocation(Operand &opnd, bool isDef, uint32 insnNum) {
   if (!opnd.IsRegister()) {
     return false;
   }
@@ -1933,7 +1931,7 @@ void LSRALinearScanRegAllocator::LiveIntervalAnalysis() {
       }
 
       /* 2 get interfere info, and analysis */
-      uint32 interNum = active.size();
+      size_t interNum = active.size();
       if (LSRA_DUMP) {
         LogInfo::MapleLogger() << "In insn " << insn->GetId() << ", " << interNum << " overlap live intervals.\n";
         LogInfo::MapleLogger() << "\n";
@@ -1997,7 +1995,7 @@ void LSRALinearScanRegAllocator::AssignPhysRegsForInsn(Insn &insn) {
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<ListOperand&>(opnd);
       for (auto op : listOpnd.GetOperands()) {
-        if (!OpndNeedAllocation(insn, *op, isDef, insn.GetId())) {
+        if (!OpndNeedAllocation(*op, isDef, insn.GetId())) {
           continue;
         }
         if (isDef && !fastAlloc) {
@@ -2030,7 +2028,7 @@ void LSRALinearScanRegAllocator::AssignPhysRegsForInsn(Insn &insn) {
       Operand *offset = memOpnd.GetIndexRegister();
       isDef = false;
       if (base != nullptr) {
-        if (OpndNeedAllocation(insn, *base, isDef, insn.GetId())) {
+        if (OpndNeedAllocation(*base, isDef, insn.GetId())) {
           newOpnd = AssignPhysRegs(*base, insn);
           if (newOpnd == nullptr) {
             SetOperandSpill(*base);
@@ -2039,7 +2037,7 @@ void LSRALinearScanRegAllocator::AssignPhysRegsForInsn(Insn &insn) {
         }
       }
       if (offset != nullptr) {
-        if (!OpndNeedAllocation(insn, *offset, isDef, insn.GetId())) {
+        if (!OpndNeedAllocation(*offset, isDef, insn.GetId())) {
           continue;
         }
         newOpnd = AssignPhysRegs(*offset, insn);
@@ -2048,7 +2046,7 @@ void LSRALinearScanRegAllocator::AssignPhysRegsForInsn(Insn &insn) {
         }
       }
     } else {
-      if (!OpndNeedAllocation(insn, opnd, isDef, insn.GetId())) {
+      if (!OpndNeedAllocation(opnd, isDef, insn.GetId())) {
         continue;
       }
       if (isDef && !fastAlloc) {
@@ -2444,7 +2442,7 @@ bool LSRALinearScanRegAllocator::AllocateRegisters() {
         (spillCount + callerSaveSpillCount) << " SPILL\n";
     LogInfo::MapleLogger() << "Total " << "(" << reloadCount << "+ " << callerSaveReloadCount << ") = " <<
         (reloadCount + callerSaveReloadCount) << " RELOAD\n";
-    uint32_t insertInsn = spillCount + callerSaveSpillCount + reloadCount + callerSaveReloadCount;
+    uint64 insertInsn = spillCount + callerSaveSpillCount + reloadCount + callerSaveReloadCount;
     float rate = (float(insertInsn) / float(insnNumBeforRA));
     LogInfo::MapleLogger() <<"insn Num Befor RA:"<< insnNumBeforRA <<", insert " << insertInsn <<
         " insns: " << ", insertInsn/insnNumBeforRA: "<< rate <<"\n";

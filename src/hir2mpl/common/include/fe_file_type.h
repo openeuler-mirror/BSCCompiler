@@ -29,6 +29,7 @@ class FEFileType {
     kDex,
     kAST,
     kMAST,
+    kO,
   };
 
   inline static FEFileType &GetInstance() {

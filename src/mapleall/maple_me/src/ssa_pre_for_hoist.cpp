@@ -178,7 +178,7 @@ class ExprHoist {
 
   void UpdateSuccCount(HoistSummary *hs, uint32 whichSucc, MeExpr *expr, MeOccur *occ);
   void AddToHoistWorklist(HoistSummary *hs);
-  MeOccur *GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOcc);
+  MeOccur *GetHoistedOcc(HoistSummary &hs, MeExpr *expr, MeOccur *defOcc);
   void HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId);
   int32 GetHoistedCount() const {
     return hoistedCount;
@@ -238,23 +238,23 @@ static MeExpr *GetRealExpr(MeOccur &occ) {
   }
 }
 
-MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOcc) {
-  ASSERT(hs->FullyAnticipated(), "GetHoistedOcc: cd is not fully anticipated.");
-  ASSERT(hs->candId == curCandId, "GetHoistedOcc: wrong cand.");
-  if (hs->candId == curCandId && hs->hoistedOcc) {
-    return hs->hoistedOcc;
+MeOccur *ExprHoist::GetHoistedOcc(HoistSummary &hs, MeExpr *expr, MeOccur *defOcc) {
+  ASSERT(hs.FullyAnticipated(), "GetHoistedOcc: cd is not fully anticipated.");
+  ASSERT(hs.candId == curCandId, "GetHoistedOcc: wrong cand.");
+  if (hs.candId == curCandId && hs.hoistedOcc) {
+    return hs.hoistedOcc;
   }
   MeOccur *hoistedOcc = nullptr;
   // loop up the cd chain
-  if (hs->cdHS &&
-      hs->cdHS->candId == curCandId &&
-      (hs->cdHS->occ == nullptr || (GetRealExpr(*hs->cdHS->occ) == expr)) &&
-      hs->cdHS->FullyAnticipated() &&
-      hs->DefoccAllowHoist(defOcc)) {
-    hoistedOcc = GetHoistedOcc(hs->cdHS, expr, defOcc);
+  if (hs.cdHS &&
+      hs.cdHS->candId == curCandId &&
+      (hs.cdHS->occ == nullptr || (GetRealExpr(*hs.cdHS->occ) == expr)) &&
+      hs.cdHS->FullyAnticipated() &&
+      hs.DefoccAllowHoist(defOcc)) {
+    hoistedOcc = GetHoistedOcc(*hs.cdHS, expr, defOcc);
   } else {  // already at cd chain's root
     if (defOcc &&
-        fDom->Dominate(*defOcc->GetBB(), *hs->bb) &&
+        fDom->Dominate(*defOcc->GetBB(), *hs.bb) &&
         (defOcc->GetOccType() == kOccReal ||
          (defOcc->GetOccType() == kOccPhiocc &&
           static_cast<MePhiOcc*>(defOcc)->IsWillBeAvail()))) {  // use defOcc
@@ -262,10 +262,10 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOc
     } else {  // insert a new one
       ASSERT(expr->GetExprID() != kInvalidExprID, "GetHoistedOcc: check expr hashed.");
       auto *fakeStmt = parent->irMap->CreateAssignMeStmt(*parent->irMap->CreateRegMeExpr(expr->GetPrimType()),
-                                                         *expr, *hs->bb);
-      hs->bb->InsertMeStmtLastBr(fakeStmt);
+                                                         *expr, *hs.bb);
+      hs.bb->InsertMeStmtLastBr(fakeStmt);
       auto seqStmt = 0;
-      for (auto &stmt : hs->bb->GetMeStmts()) {
+      for (auto &stmt : hs.bb->GetMeStmts()) {
         ++seqStmt;
         if (&stmt == fakeStmt) {
           break;
@@ -285,14 +285,10 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOc
       // keep dt_preorder
       for (auto iter = parent->allOccs.begin(); iter != parent->allOccs.end(); ++iter) {
         auto *occ = *iter;
-        if (fDom->GetDtDfnItem(occ->GetBB()->GetBBId()) <
-            fDom->GetDtDfnItem(newRealocc->GetBB()->GetBBId())) {
-          continue;
-        }
-        if (fDom->Dominate(*occ->GetBB(), *newRealocc->GetBB())) {
-          continue;
-        }
-        if (!fDom->Dominate(*newRealocc->GetBB(), *occ->GetBB())) {
+        if ((fDom->GetDtDfnItem(occ->GetBB()->GetBBId()) <
+             fDom->GetDtDfnItem(newRealocc->GetBB()->GetBBId())) ||
+            (fDom->Dominate(*occ->GetBB(), *newRealocc->GetBB())) ||
+            (!fDom->Dominate(*newRealocc->GetBB(), *occ->GetBB()))) {
           continue;
         }
         (void)parent->allOccs.insert(iter, newRealocc);
@@ -300,7 +296,7 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOc
       }
       newRealocc->SetIsHoisted(true);
       if (defOcc &&
-          fDom->Dominate(*defOcc->GetBB(), *hs->bb) &&
+          fDom->Dominate(*defOcc->GetBB(), *hs.bb) &&
           defOcc->GetOccType() == kOccPhiocc) {
         newRealocc->SetClassID(defOcc->GetClassID());
         newRealocc->SetDef(defOcc);
@@ -311,7 +307,7 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary *hs, MeExpr *expr, MeOccur *defOc
       hoistedOcc = newRealocc;
     }
   }
-  hs->hoistedOcc = hoistedOcc;
+  hs.hoistedOcc = hoistedOcc;
   return hoistedOcc;
 }
 
@@ -349,7 +345,7 @@ void ExprHoist::HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId) {
       }
       auto *phiOpndocc = static_cast<MePhiOpndOcc*>(occ);
       auto *phiOcc = phiOpndocc->GetDefPhiOcc();
-      if (phiOcc->IsWillBeAvail() && parent->OKToInsert(phiOpndocc)) {
+      if (phiOcc->IsWillBeAvail() && parent->OKToInsert(*phiOpndocc)) {
         if (hs->cdHS &&  // need a cd to hoist
             hs->occ == nullptr &&  // if not null, hs has been inserted
             hs->cdHS->occ != nullptr &&  // make sure there's at least one realocc at cd
@@ -380,7 +376,7 @@ void ExprHoist::HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId) {
         continue;
       }
     }
-    auto *hoistedOcc = GetHoistedOcc(hs->cdHS, realocc->GetMeExpr(), realocc->GetDef());
+    auto *hoistedOcc = GetHoistedOcc(*hs->cdHS, realocc->GetMeExpr(), realocc->GetDef());
     auto *hoistedOccDef = (hoistedOcc->GetOccType() == kOccReal && hoistedOcc->GetDef()) ? hoistedOcc->GetDef()
                                                                                          : hoistedOcc;
     if (hoistedOccDef->GetClassID() != realocc->GetClassID()) {
@@ -416,7 +412,7 @@ void ExprHoist::HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId) {
         continue;
       }
     }
-    auto *hoistedOcc = GetHoistedOcc(hs->cdHS, phiopndocc->GetCurrentMeExpr(), nullptr);
+    auto *hoistedOcc = GetHoistedOcc(*hs->cdHS, phiopndocc->GetCurrentMeExpr(), nullptr);
     auto *hoistedOccDef = (hoistedOcc->GetOccType() == kOccReal && hoistedOcc->GetDef()) ? hoistedOcc->GetDef()
                                                                                          : hoistedOcc;
     phiopndocc->SetDef(hoistedOccDef);

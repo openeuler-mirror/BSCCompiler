@@ -18,6 +18,7 @@
 #include "feir_stmt.h"
 #include "ast_expr.h"
 #include "ast_decl.h"
+#include "fe_manager.h"
 
 namespace maple {
 constexpr int64 kUndefValue = 0xdeadbeef;
@@ -90,6 +91,23 @@ class ENCChecker {
   static bool IsSafeRegion(const MIRBuilder &mirBuilder);
   static bool IsUnsafeRegion(const MIRBuilder &mirBuilder);
   static void CheckLenExpr(const ASTExpr &lenExpr, const std::list<UniqueFEIRStmt> &nullstmts);
+
+ private:
+  template <typename T>
+  static void InsertBoundaryInFieldOrFuncAtts(T &attr, const BoundaryInfo &boundary) {
+    attr.GetAttrBoundary().SetIsBytedLen(boundary.isBytedLen);
+    if (boundary.lenParamIdx != -1) {
+      attr.GetAttrBoundary().SetLenParamIdx(boundary.lenParamIdx);
+    }
+    if (boundary.lenExpr == nullptr) {
+      return;
+    }
+    std::list<UniqueFEIRStmt> nullStmts;
+    UniqueFEIRExpr lenExpr = boundary.lenExpr->Emit2FEExpr(nullStmts);
+    uint32 hash = lenExpr->Hash();
+    FEManager::GetTypeManager().InsertBoundaryLenExprHashMap(hash, std::move(lenExpr));  // save expr cache
+    attr.GetAttrBoundary().SetLenExprHash(hash);
+  }
 };  // class ENCChecker
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_ENCCHECKER_H

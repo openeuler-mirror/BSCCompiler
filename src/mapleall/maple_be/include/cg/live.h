@@ -46,7 +46,7 @@ class LiveAnalysis : public AnalysisResult {
   void ProcessListOpnd(BB &bb, Operand &opnd, bool isDef) const;
   void ProcessMemOpnd(BB &bb, Operand &opnd) const;
   void ProcessCondOpnd(BB &bb) const;
-  void CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse) const;
+  void CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool isUse) const;
 
   SparseDataInfo *NewLiveIn(uint32 maxRegCount) {
     return memPool->New<SparseDataInfo>(maxRegCount, alloc);

@@ -79,7 +79,7 @@ void MeProfUse::InitBBEdgeInfo() {
 }
 
 // If all input edges or output edges determined, caculate BB freq
-void MeProfUse::ComputeBBFreq(BBUseInfo &bbInfo, bool &changed) {
+void MeProfUse::ComputeBBFreq(BBUseInfo &bbInfo, bool &changed) const {
   FreqType count = 0;
   if (!bbInfo.GetStatus()) {
     if (bbInfo.GetUnknownOutEdges() == 0) {
@@ -149,7 +149,7 @@ void MeProfUse::ComputeEdgeFreq() {
  * this used to set the edge count for the unknown edge
  * ensure only one unkown edge in the edges
  */
-void MeProfUse::SetEdgeCount(MapleVector<BBUseEdge*> &edges, FreqType value) {
+void MeProfUse::SetEdgeCount(MapleVector<BBUseEdge*> &edges, FreqType value) const {
   for (const auto &e : edges) {
     if (!e->GetStatus()) {
       e->SetCount(value);
@@ -163,7 +163,7 @@ void MeProfUse::SetEdgeCount(MapleVector<BBUseEdge*> &edges, FreqType value) {
   CHECK(false, "can't find unkown edge");
 }
 
-void MeProfUse::SetEdgeCount(BBUseEdge &edge, FreqType value) {
+void MeProfUse::SetEdgeCount(BBUseEdge &edge, FreqType value) const {
   // edge counter already valid skip
   if (edge.GetStatus()) {
     return;
@@ -296,7 +296,7 @@ bool MeProfUse::Run() {
   return true;
 }
 
-FuncProfInfo *MeProfUse::GetFuncData() {
+FuncProfInfo *MeProfUse::GetFuncData() const {
   MplProfileData *profData = func->GetMIRModule().GetMapleProfile();
   if (!profData) {
     return nullptr;
@@ -305,7 +305,7 @@ FuncProfInfo *MeProfUse::GetFuncData() {
   return funcData;
 }
 
-void MeProfUse::CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag) {
+void MeProfUse::CheckSumFail(const uint64 hash, const uint32 expectedCheckSum, const std::string &tag) const {
   uint32 curCheckSum = static_cast<uint32>((hash >> 32) ^ (hash & 0xffffffff));
   CHECK_FATAL(curCheckSum == expectedCheckSum, "%s() %s checksum %u doesn't match the expected %u; aborting\n",
               func->GetName().c_str(), tag.c_str(), curCheckSum, expectedCheckSum);

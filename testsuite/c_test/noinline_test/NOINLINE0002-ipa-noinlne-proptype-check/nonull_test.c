@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int g;
+
 __attribute__((returns_nonnull, nonnull))
 int *testReturnPtr(int *ptr) {
   for (int i = 0; i < 10; ++i) {
@@ -24,7 +26,9 @@ int *testReturnPtr(int *ptr) {
 }
 
 __attribute__((returns_nonnull))
-extern int *getNonnullPtr();
+int *getNonnullPtr() {
+  return &g;
+}
 
 int* testy() {
   int *p =  getNonnullPtr();

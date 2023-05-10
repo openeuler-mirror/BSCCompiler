@@ -1,0 +1,2 @@
+sizeof(struct) = 4
+ok

@@ -22,7 +22,7 @@
 // based on previous analyze results. RC intrinsic will later be lowered
 // in Code Generation
 namespace {
-const std::set<std::string> whiteListFunc {
+const std::set<std::string> kWhiteListFunc {
 #include "rcwhitelist.def"
 };
 }
@@ -117,7 +117,7 @@ void RCLowering::UpdateRefVarVersions(BB &bb) {
 
   // recursive call in preorder traversal of dominator tree
   ASSERT(bb.GetBBId() < dominance->GetDomChildrenSize(), "index out of range");
-  const auto &domChildren = dominance->GetDomChildren(bb.GetBBId());
+  const auto &domChildren = dominance->GetDomChildren(bb.GetID());
   for (const auto &id : domChildren) {
     UpdateRefVarVersions(*cfg->GetAllBBs().at(id));
   }
@@ -252,7 +252,7 @@ IntrinsiccallMeStmt *RCLowering::CreateRCIntrinsic(MIRIntrinsicID intrnID, const
   return intrn;
 }
 
-MIRIntrinsicID RCLowering::PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId) {
+MIRIntrinsicID RCLowering::PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId) const {
   bool isLoad = (intrnId == INTRN_MCCLoadRefSVol || intrnId == INTRN_MCCLoadWeakVol || intrnId == INTRN_MCCLoadRefVol);
   if (isLoad) {
     CheckRemove(stmt.GetNext(), OP_membaracquire);
@@ -414,7 +414,7 @@ void RCLowering::HandleRetOfCallAssignedMeStmt(MeStmt &stmt, MeExpr &pendingDec)
   }
 }
 
-bool RCLowering::RCFirst(MeExpr &rhs) {
+bool RCLowering::RCFirst(MeExpr &rhs) const {
   // null, local var/reg read
   if (rhs.GetMeOp() == kMeOpConst) {
     return static_cast<ConstMeExpr&>(rhs).IsZero();
@@ -489,7 +489,7 @@ void RCLowering::HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec) {
   assignedPtrSym.insert(lsym);
 }
 
-MIRType *RCLowering::GetArrayNodeType(const VarMeExpr &var) {
+MIRType *RCLowering::GetArrayNodeType(const VarMeExpr &var) const {
   const MIRSymbol *arrayElemSym = var.GetOst()->GetMIRSymbol();
   MIRType *baseType = arrayElemSym->GetType();
   MIRType *arrayElemType = nullptr;
@@ -516,7 +516,7 @@ void RCLowering::CheckArrayStore(IntrinsiccallMeStmt &writeRefCall) {
     return;
   }
   MIRIntrinsicID intrnID = writeRefCall.GetIntrinsic();
-  if (!((INTRN_MCCWriteVolNoInc <= intrnID) && (INTRN_MCCWrite >= intrnID))) {
+  if (!((intrnID >= INTRN_MCCWriteVolNoInc) && (intrnID <= INTRN_MCCWrite))) {
     return;
   }
   if (writeRefCall.GetOpnd(1)->GetOp() != OP_iaddrof) {
@@ -891,7 +891,7 @@ IntrinsiccallMeStmt *FindCleanupIntrinsic(BB &bb) {
 // as a result, LoadRefField was not generated. This function fixes up the issue
 // by checking rhs to see if it is regread and then try to
 // propagate incref from current stmt back to regassign from iread which had no incref
-void RCLowering::EpreFixup(BB &bb) {
+void RCLowering::EpreFixup(BB &bb) const {
   for (auto &stmt : bb.GetMeStmts()) {
     // remove decref as mpl2mpl will insert based on ref assign
     if (!stmt.NeedIncref()) {
@@ -937,7 +937,7 @@ void RCLowering::HandleReturnVar(RetMeStmt &ret) {
     // must be regreadAtReturn
     // checking localrefvar because some objects are meta
     HandleReturnRegread(ret);
-  } else if (!((func.GetHints() & kPlacementRCed) && sym != nullptr && sym->GetStorageClass() == kScFormal &&
+  } else if (!((func.GetHints() & kPlacementRCed) != 0 && sym != nullptr && sym->GetStorageClass() == kScFormal &&
                assignedPtrSym.count(sym) > 0)) {
     // if returning formal, incref unless placementRC is used and formal is NOT reassigned
     HandleReturnFormal(ret);
@@ -1122,7 +1122,7 @@ void RCLowering::HandleReturnStmt() {
 
 void RCLowering::HandleArguments() {
   // placementRC would have already addressed formals
-  if (func.GetHints() & kPlacementRCed) {
+  if ((func.GetHints() & kPlacementRCed) != 0) {
     return;
   }
   // handle arguments, if the formal gets modified
@@ -1466,7 +1466,7 @@ void RCLowering::FastLowerThrowStmt(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exc
   if (throwVal->GetMeOp() == kMeOpVar) {
     auto *var = static_cast<VarMeExpr*>(throwVal);
     auto iter = exceptionAllocsites.find(var->GetVstIdx());
-    if (iter != exceptionAllocsites.cend()) {
+    if (iter != exceptionAllocsites.end()) {
       exceptionAllocsites.erase(iter);
     }
   }
@@ -1650,13 +1650,13 @@ bool MERCLowering::PhaseRun(maple::MeFunction &f) {
   RCLowering rcLowering(f, *kh, DEBUGFUNC_NEWPM(f));
   rcLowering.Prepare();
   if (!rcLowering.GetIsAnalyzed()) {
-    auto *dom = GET_ANALYSIS(MEDominance, f);
+    auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
     CHECK_FATAL(dom != nullptr, "dominance phase has problem");
     rcLowering.SetDominance(*dom);
   }
   MIRFunction *mirFunction = f.GetMirFunc();
   MeCFG *cfg = f.GetCfg();
-  if (whiteListFunc.find(mirFunction->GetName()) != whiteListFunc.end() ||
+  if (kWhiteListFunc.find(mirFunction->GetName()) != kWhiteListFunc.end() ||
       mirFunction->GetAttr(FUNCATTR_rclocalunowned)) {
     auto eIt = cfg->valid_end();
     for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {

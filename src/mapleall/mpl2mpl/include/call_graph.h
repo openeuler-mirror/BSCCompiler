@@ -91,14 +91,14 @@ struct Comparator<StmtNode> {
 // Information description of each callsite
 class CallInfo {
  public:
-  CallInfo(CallType type, MIRFunction *callee, StmtNode *node, uint32 ld, uint32 stmtId, bool local = false)
-      : areAllArgsLocal(local), cType(type), callee(callee), callStmt(node), loopDepth(ld), id(stmtId) {}
-  CallInfo(CallType type, MIRFunction *caller, MIRFunction &callee, StmtNode *node, uint32 ld, uint32 stmtId,
+  CallInfo(CallType type, MIRFunction *curCallee, StmtNode *node, uint32 ld, uint32 stmtId, bool local = false)
+      : areAllArgsLocal(local), cType(type), callee(curCallee), callStmt(node), loopDepth(ld), id(stmtId) {}
+  CallInfo(CallType type, MIRFunction *curCaller, MIRFunction *curCallee, StmtNode *node, uint32 ld, uint32 stmtId,
            bool local = false)
       : areAllArgsLocal(local),
         cType(type),
-        caller(caller),
-        callee(&callee),
+        caller(curCaller),
+        callee(curCallee),
         callStmt(node),
         loopDepth(ld),
         id(stmtId) {}
@@ -360,9 +360,9 @@ class CGNode : public BaseGraphNode {
   }
 
   void GetCaller(std::vector<CallInfo*> &callInfos) {
-    for (const auto &pair : callers) {
-      auto *callerNode = pair.first;
-      auto *callStmts = pair.second;
+    for (auto pairIter = callers.cbegin(); pairIter != callers.cend(); ++pairIter) {
+      auto *callerNode = pairIter->first;
+      auto *callStmts = pairIter->second;
       for (auto *callStmt : *callStmts) {
         auto *callInfo = callerNode->GetCallInfo(*callStmt);
         CHECK_NULL_FATAL(callInfo);
@@ -371,7 +371,7 @@ class CGNode : public BaseGraphNode {
     }
   }
 
-  CallInfo *GetCallInfo(StmtNode &stmtNode) {
+  CallInfo *GetCallInfo(const StmtNode &stmtNode) {
     return GetCallInfoByStmtId(stmtNode.GetStmtID());
   }
 
@@ -518,27 +518,33 @@ using Caller2Cands = std::pair<PUIdx, Callsite>;
 class CallGraph : public AnalysisResult {
  public:
   CallGraph(MIRModule &m, MemPool &memPool, MemPool &templPool, const KlassHierarchy &kh, const std::string &fn);
-  ~CallGraph() override = default;
+  ~CallGraph() override {
+    klassh = nullptr;
+    mirModule = nullptr;
+    entryNode = nullptr;
+    mirBuilder = nullptr;
+    callExternal = nullptr;
+  }
 
   void InitCallExternal() {
     callExternal = cgAlloc.GetMemPool()->New<CGNode>(static_cast<MIRFunction*>(nullptr), &cgAlloc, numOfNodes++);
   }
 
-  const CGNode *CallExternal() const {
-    return callExternal;
+  const CGNode &CallExternal() const {
+    return *callExternal;
   }
 
   void BuildCallGraph();
-  const CGNode *GetEntryNode() const {
-    return entryNode;
+  const CGNode &GetEntryNode() const {
+    return *entryNode;
   }
 
   const MapleVector<CGNode*> &GetRootNodes() const {
     return rootNodes;
   }
 
-  const KlassHierarchy *GetKlassh() const {
-    return klassh;
+  const KlassHierarchy &GetKlassh() const {
+    return *klassh;
   }
 
   const MapleVector<SCCNode<CGNode>*> &GetSCCTopVec() const {
@@ -550,11 +556,11 @@ class CallGraph : public AnalysisResult {
   }
 
   void HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uint32 loopDepth);
-  void HandleCall(BlockNode &body, CGNode &node, StmtNode &stmt, uint32 loopDepth2);
+  void HandleCall(BlockNode &body, CGNode &node, StmtNode &stmt, uint32 loopDepth);
   void HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint32 loopDepth);
   MIRType *GetFuncTypeFromFuncAddr(const BaseNode *base);
   void RecordLocalConstValue(const StmtNode *stmt);
-  CallNode *ReplaceIcallToCall(BlockNode &body, IcallNode *icall, PUIdx newPUIdx) const;
+  CallNode *ReplaceIcallToCall(BlockNode &body, IcallNode &icall, PUIdx newPUIdx) const;
   void CollectAddroffuncFromExpr(const BaseNode *expr);
   void CollectAddroffuncFromStmt(const StmtNode *stmt);
   void CollectAddroffuncFromConst(MIRConst *mirConst);
@@ -564,7 +570,7 @@ class CallGraph : public AnalysisResult {
   CGNode *GetCGNode(MIRFunction *func) const;
   CGNode *GetCGNode(const PUIdx puIdx) const;
   void UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, PUIdx calleePuidx, CallNode *call) const;
-  void UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, std::set<PUIdx> &candidate) const;
+  void UpdateCaleeCandidate(PUIdx callerPuIdx, const IcallNode *icall, const std::set<PUIdx> &candidate) const;
   SCCNode<CGNode> *GetSCCNode(MIRFunction *func) const;
   bool IsRootNode(MIRFunction *func) const;
   void UpdateCallGraphNode(CGNode &node);
@@ -585,7 +591,7 @@ class CallGraph : public AnalysisResult {
     return nodesMap.begin();
   }
 
-  iterator_const CBegin() {
+  const iterator_const CBegin() const {
     return nodesMap.cbegin();
   }
 
@@ -593,7 +599,7 @@ class CallGraph : public AnalysisResult {
     return nodesMap.end();
   }
 
-  iterator_const CEnd() {
+  const iterator_const CEnd() const {
     return nodesMap.cend();
   }
 
@@ -637,11 +643,11 @@ class CallGraph : public AnalysisResult {
   CallInfo *GenCallInfo(CallType type, MIRFunction *call, StmtNode *s, uint32 loopDepth, uint32 callsiteID) {
     MIRFunction *caller = mirModule->CurFunction();
     ASSERT_NOT_NULL(call);
-    return cgAlloc.GetMemPool()->New<CallInfo>(type, caller, *call, s, loopDepth, callsiteID);
+    return cgAlloc.GetMemPool()->New<CallInfo>(type, caller, call, s, loopDepth, callsiteID);
   }
 
   CallInfo *GenCallInfo(CallType type, MIRFunction &caller, MIRFunction &callee, StmtNode &s) {
-    return cgAlloc.GetMemPool()->New<CallInfo>(type, &caller, callee, &s, 0, s.GetStmtID());
+    return cgAlloc.GetMemPool()->New<CallInfo>(type, &caller, &callee, &s, 0, s.GetStmtID());
   }
 
   bool debugFlag = false;
@@ -670,13 +676,13 @@ class IPODevirtulize {
       : cgAlloc(memPool), mirBuilder(cgAlloc.GetMemPool()->New<MIRBuilder>(m)), klassh(kh), debugFlag(false) {}
 
   ~IPODevirtulize() = default;
-  void DevirtualFinal();
-  const KlassHierarchy *GetKlassh() const {
-    return klassh;
+  void DevirtualFinal() const;
+  const KlassHierarchy &GetKlassh() const {
+    return *klassh;
   }
 
  private:
-  void SearchDefInMemberMethods(const Klass &klass);
+  void SearchDefInMemberMethods(const Klass &klass) const;
   void SearchDefInClinit(const Klass &klass) const;
   MapleAllocator cgAlloc;
   MIRBuilder *mirBuilder;

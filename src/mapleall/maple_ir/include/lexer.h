@@ -20,6 +20,7 @@
 #include "tokens.h"
 #include "mempool_allocator.h"
 #include "mir_module.h"
+#include "mpl_int_val.h"
 
 namespace maple {
 class MIRParser;  // circular dependency exists, no other choice
@@ -29,6 +30,7 @@ class MIRLexer {
  public:
   MIRLexer(DebugInfo *debugInfo, MapleAllocator &alloc);
   ~MIRLexer() {
+    dbgInfo = nullptr;
     airFile = nullptr;
     if (airFileInternal.is_open()) {
       airFileInternal.close();
@@ -56,6 +58,10 @@ class MIRLexer {
     return name;
   }
 
+  IntVal GetTheInt128Val() const {
+    return theInt128Val;
+  }
+
   uint64 GetTheIntVal() const {
     return theIntVal;
   }
@@ -79,6 +85,7 @@ class MIRLexer {
   DebugInfo *dbgInfo = nullptr;
   // for storing the different types of constant values
   int64 theIntVal = 0;  // also indicates preg number under TK_preg
+  IntVal theInt128Val;
   float theFloatVal = 0.0;
   double theDoubleVal = 0.0;
   uint64 theLongDoubleVal[2] {0x0ULL, 0x0ULL};
@@ -124,7 +131,7 @@ class MIRLexer {
   TokenKind GetTokenWithPrefixDoubleQuotation();
   TokenKind GetTokenSpecial();
 
-  void UpdateDbgMsg(uint32 lineNum);
+  void UpdateDbgMsg(uint32 dbgLineNum);
 
   char GetCharAt(uint32 idx) const {
     return line[idx];

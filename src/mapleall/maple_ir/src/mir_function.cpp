@@ -123,9 +123,12 @@ void MIRFunction::UpdateFuncTypeAndFormals(const std::vector<MIRSymbol*> &symbol
 }
 
 void MIRFunction::UpdateFuncTypeAndFormalsAndReturnType(const std::vector<MIRSymbol*> &symbols, const TyIdx &retTyIdx,
-                                                        bool clearOldArgs) {
+                                                        bool clearOldArgs, bool firstArgRet) {
   auto *newFuncType = ReconstructFormals(symbols, clearOldArgs);
   newFuncType->SetRetTyIdx(retTyIdx);
+  if (firstArgRet) {
+    newFuncType->funcAttrs.SetAttr(FUNCATTR_firstarg_return);
+  }
   auto newFuncTypeIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(newFuncType);
   funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(newFuncTypeIdx));
   delete newFuncType;
@@ -157,21 +160,7 @@ void MIRFunction::SetReturnStruct() {
 }
 void MIRFunction::SetReturnStruct(const MIRType &retType) {
   if (retType.IsStructType()) {
-    flag |= kFuncPropRetStruct;
-  }
-}
-void MIRFunction::SetReturnStruct(const MIRType *retType) {
-  switch (retType->GetKind()) {
-    case kTypeUnion:
-    case kTypeStruct:
-    case kTypeStructIncomplete:
-    case kTypeClass:
-    case kTypeClassIncomplete:
-    case kTypeInterface:
-    case kTypeInterfaceIncomplete:
-      flag |= kFuncPropRetStruct;
-      break;
-    default:;
+    SetReturnStruct();
   }
 }
 
@@ -578,10 +567,10 @@ void MIRFunction::SetBaseClassFuncNames(GStrIdx strIdx) {
     }
     baseFuncSigStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcNameWithType);
     size_t newPos = name.find(delimiter, pos + width);
-    while (newPos < std::string::npos && (name[newPos - 1] == '_' && name[newPos - 2] != '_')) {
+    while (newPos != std::string::npos && (name[newPos - 1] == '_' && name[newPos - 2] != '_')) {
       newPos = name.find(delimiter, newPos + width);
     }
-    if (newPos != 0) {
+    if (newPos != std::string::npos && newPos > 0) {
       std::string funcName = name.substr(pos + width, newPos - pos - width);
       baseFuncStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
       std::string signature = name.substr(newPos + width, name.length() - newPos - width);

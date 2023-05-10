@@ -35,7 +35,9 @@ class CgProfUse {
       : cgFunc(&f), memPool(&mp), alloc(&mp), allEdges(alloc.Adapter()),
         BB2InEdges(alloc.Adapter()), BB2OutEdges(alloc.Adapter()) {}
 
-  virtual ~CgProfUse() = default;
+  virtual ~CgProfUse() {
+    memPool = nullptr;
+  }
 
   void setupProf();
 
@@ -92,7 +94,7 @@ class CgProfUse {
       // Type 1 inference
       uint32 knownEdges1 = 0;
       FreqType freqSum1 = 0;
-      Edge * unknownEdge1 = nullptr;
+      Edge *unknownEdge1 = nullptr;
       MapleMap<BB*, MapleVector<Edge*>>::iterator iit = BB2InEdges.find(bb);
       if ((iit != BB2InEdges.end()) && (iit->second.size() != 0)) {
         for (Edge *e : iit->second) {

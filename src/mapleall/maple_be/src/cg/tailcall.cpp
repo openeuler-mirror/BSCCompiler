@@ -19,32 +19,11 @@
 namespace maplebe {
 using namespace maple;
 
-/* tailcallopt cannot be used if stack address of this function is taken and passed,
-   not checking the passing for now, just taken */
-bool TailCallOpt::IsStackAddrTaken() {
-  FOR_ALL_BB(bb, &cgFunc) {
-    FOR_BB_INSNS_REV(insn, bb) {
-      if (!IsAddOrSubOp(insn->GetMachineOpcode())) {
-        continue;
-      }
-      for (uint32 i = 0; i < insn->GetOperandSize(); i++) {
-        if (insn->GetOperand(i).IsRegister()) {
-          RegOperand &reg = static_cast<RegOperand&>(insn->GetOperand(i));
-          if (OpndIsStackRelatedReg(reg)) {
-            return true;
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
 /*
  *  Remove redundant mov and mark optimizable bl/blr insn in the BB.
  *  Return value: true to call this modified block again.
  */
-bool TailCallOpt::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &exitBB) const {
+bool TailCallOpt::OptimizeTailBB(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns) const {
   Insn *lastInsn = bb.GetLastInsn();
   if (bb.NumInsn() == 1 && lastInsn->IsMachineInstruction() &&
       !AArch64isa::IsPseudoInstruction(lastInsn->GetMachineOpcode()) && !InsnIsCallCand(*bb.GetLastInsn())) {
@@ -72,7 +51,7 @@ bool TailCallOpt::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &e
       }
       bb.RemoveInsn(*insn);
       continue;
-    } else if (InsnIsIndirectCall(*insn)) {
+    } else if (InsnIsIndirectCall(*insn) && insn->GetMayTailCall()) {
       if (insn->GetOperand(0).IsRegister()) {
         RegOperand &reg = static_cast<RegOperand&>(insn->GetOperand(0));
         if (OpndIsCalleeSaveReg(reg)) {
@@ -81,15 +60,11 @@ bool TailCallOpt::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &e
       }
       (void)callInsns.insert(insn);
       return false;
-    } else if (InsnIsCall(*insn)) {
+    } else if (InsnIsCall(*insn) && insn->GetMayTailCall()) {
       (void)callInsns.insert(insn);
       return false;
     } else if (InsnIsUncondJump(*insn)) {
-      LabelOperand &bLab = static_cast<LabelOperand&>(insn->GetOperand(0));
-      if (exitBB.GetLabIdx() == bLab.GetLabelIndex()) {
-        continue;
-      }
-      return false;
+      continue;
     } else {
       return false;
     }
@@ -98,20 +73,20 @@ bool TailCallOpt::OptimizeTailBB(BB &bb, MapleSet<Insn*> &callInsns, const BB &e
 }
 
 /* Recursively invoke this function for all predecessors of exitBB */
-void TailCallOpt::TailCallBBOpt(BB &bb, MapleSet<Insn*> &callInsns, BB &exitBB) {
+void TailCallOpt::TailCallBBOpt(BB &bb, MapleSet<Insn*, InsnIdCmp> &callInsns, BB &exitBB) {
   /* callsite also in the return block as in "if () return; else foo();"
      call in the exit block */
-  if (!bb.IsEmpty() && !OptimizeTailBB(bb, callInsns, exitBB)) {
+  if (!bb.IsEmpty() && !OptimizeTailBB(bb, callInsns)) {
     return;
   }
 
   for (auto tmpBB : bb.GetPreds()) {
-    if (tmpBB->GetSuccs().size() != 1 || !tmpBB->GetEhSuccs().empty() ||
+    if (tmpBB->GetId() == bb.GetId() || tmpBB->GetSuccs().size() != 1 || !tmpBB->GetEhSuccs().empty() ||
         (tmpBB->GetKind() != BB::kBBFallthru && tmpBB->GetKind() != BB::kBBGoto)) {
       continue;
     }
 
-    if (OptimizeTailBB(*tmpBB, callInsns, exitBB)) {
+    if (OptimizeTailBB(*tmpBB, callInsns)) {
       TailCallBBOpt(*tmpBB, callInsns, exitBB);
     }
   }
@@ -159,7 +134,7 @@ bool TailCallOpt::DoTailCallOpt() {
     if (cgFunc.GetCleanupBB() != nullptr && cgFunc.GetCleanupBB()->GetPrev() != nullptr) {
       exitBB = cgFunc.GetCleanupBB()->GetPrev();
     } else {
-      exitBB = cgFunc.GetLastBB()->GetPrev();
+      exitBB = cgFunc.GetLastBB();
     }
   } else {
     exitBB = cgFunc.GetExitBBsVec().front();
@@ -167,11 +142,11 @@ bool TailCallOpt::DoTailCallOpt() {
   uint32 i = 1;
   size_t optCount = 0;
   do {
-    MapleSet<Insn*> callInsns(tmpAlloc.Adapter());
+    MapleSet<Insn*, InsnIdCmp> callInsns(tmpAlloc.Adapter());
     TailCallBBOpt(*exitBB, callInsns, *exitBB);
     if (callInsns.size() != 0) {
       optCount += callInsns.size();
-      (void)exitBB2CallSitesMap.emplace(exitBB, callInsns);
+      exitBB2CallSitesMap.emplace(exitBB, callInsns);
     }
     if (i < exitBBSize) {
       exitBB = cgFunc.GetExitBBsVec()[i];
@@ -185,15 +160,9 @@ bool TailCallOpt::DoTailCallOpt() {
   return nCount == optCount;
 }
 
-void TailCallOpt::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
+void TailCallOpt::ConvertToTailCalls(MapleSet<Insn*, InsnIdCmp> &callInsnsMap) {
   BB *exitBB = GetCurTailcallExitBB();
 
-  /* ExitBB is filled only by now. If exitBB has restore of SP indicating extra stack space has
-     been allocated, such as a function call with more than 8 args, argument with large aggr etc */
-  int64 argsToStkPassSize = cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
-  if (!cgFunc.HasVLAOrAlloca() && argsToStkPassSize > 0) {
-    return;
-  }
   FOR_BB_INSNS(insn, exitBB) {
     if (InsnIsAddWithRsp(*insn)) {
       return;
@@ -222,10 +191,9 @@ void TailCallOpt::ConvertToTailCalls(MapleSet<Insn*> &callInsnsMap) {
           !CGCFG::InSwitchTable(sBB->GetLabIdx(), cgFunc)) {
         auto it = std::find(cgFunc.GetExitBBsVec().begin(), cgFunc.GetExitBBsVec().end(), sBB);
         CHECK_FATAL(it != cgFunc.GetExitBBsVec().end(), "find unuse exit failed");
-        cgFunc.EraseExitBBsVec(it);
+        (void)cgFunc.EraseExitBBsVec(it);
         cgFunc.GetTheCFG()->RemoveBB(*sBB);
       }
-      break;
     }
   }
 }
@@ -234,7 +202,7 @@ void TailCallOpt::TideExitBB() {
   cgFunc.GetTheCFG()->UnreachCodeAnalysis();
   std::vector<BB*> realRets;
   for (auto *exitBB : cgFunc.GetExitBBsVec()) {
-    if (!exitBB->GetPreds().empty()) {
+    if (!exitBB->GetPreds().empty() || exitBB == cgFunc.GetFirstBB()) {
       (void)realRets.emplace_back(exitBB);
     }
   }
@@ -246,14 +214,14 @@ void TailCallOpt::TideExitBB() {
 
 void TailCallOpt::Run() {
   stackProtect = cgFunc.GetNeedStackProtect();
-  if (CGOptions::DoTailCallOpt() && !IsStackAddrTaken() && !stackProtect) {
+  if (CGOptions::DoTailCallOpt()) {
     (void)DoTailCallOpt(); // return value == "no call instr/only or 1 tailcall"
   }
   if (cgFunc.GetMirModule().IsCModule() && !exitBB2CallSitesMap.empty()) {
     cgFunc.GetTheCFG()->InitInsnVisitor(cgFunc);
     for (auto pair : exitBB2CallSitesMap) {
       BB *curExitBB = pair.first;
-      MapleSet<Insn*>& callInsnsMap = pair.second;
+      MapleSet<Insn*, InsnIdCmp>& callInsnsMap = pair.second;
       SetCurTailcallExitBB(curExitBB);
       ConvertToTailCalls(callInsnsMap);
     }

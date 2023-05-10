@@ -51,7 +51,7 @@ class MeCFG : public AnalysisResult {
       }
     }
 
-  ~MeCFG() = default;
+  ~MeCFG() override = default;
 
   bool IfReplaceWithAssertNonNull(const BB &bb) const;
   void ReplaceWithAssertnonnull();
@@ -289,6 +289,7 @@ class MeCFG : public AnalysisResult {
   void SetBBTryBBMap(BB *currBB, BB *tryBB) {
     endTryBB2TryBB[currBB] = tryBB;
   }
+
   void SetTryBBByOtherEndTryBB(BB *endTryBB, BB *otherTryBB) {
     endTryBB2TryBB[endTryBB] = endTryBB2TryBB[otherTryBB];
   }
@@ -300,11 +301,11 @@ class MeCFG : public AnalysisResult {
   }
   void BBTopologicalSort(SCCOfBBs &scc);
   void BuildSCC();
-  void UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc);
+  void UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc) const;
   void SwapBBId(BB &bb1, BB &bb2);
   void ConstructBBFreqFromStmtFreq();
   void ConstructStmtFreq();
-  void ConstructEdgeFreqFromBBFreq();
+  void ConstructEdgeFreqFromBBFreq() const;
   void UpdateEdgeFreqWithBBFreq();
   int VerifyBBFreq(bool checkFatal = false);
   void SetUpdateCFGFreq(bool b) {

@@ -267,7 +267,7 @@ class FETypeManager {
   void UpdateNameFuncMapFromTypeTable();
   void UpdateDupTypes(const GStrIdx &nameIdx, bool isInterface,
                       const std::unordered_map<GStrIdx, FEStructTypePair, GStrIdxHash>::iterator &importedTypeIt);
-  void ReleaseMIRFuncCodeMempool(std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> &map);
+  void ReleaseMIRFuncCodeMempool(std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> &map) const;
 
   // MCC function
   void InitFuncMCCGetOrInsertLiteral();

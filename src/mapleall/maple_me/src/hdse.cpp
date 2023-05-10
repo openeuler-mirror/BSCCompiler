@@ -23,6 +23,8 @@
 #include "ssa_mir_nodes.h"
 #include "utils.h"
 #include "ver_symbol.h"
+#include "maple_phase.h"
+#include "me_phase_manager.h"
 
 namespace maple {
 using namespace utils;
@@ -260,6 +262,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           ASSERT(bb.GetFrequency() >= succ0Freq, "sanity check");
           bb.GetSucc(0)->SetFrequency(bb.GetSucc(0)->GetFrequency() + (bb.GetFrequency() - succ0Freq));
         }
+        cfgChanged = true;
       }
       // A ivar contained in stmt
       if (stmt2NotNullExpr.find(mestmt) != stmt2NotNullExpr.end()) {
@@ -302,6 +305,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             bb.GetSucc().pop_back();
             bb.SetKind(kBBFallthru);
             bb.RemoveMeStmt(mestmt);
+            cfgChanged = true;
           } else {
             // change to unconditional branch
             BB *succbb = bb.GetSucc().front();
@@ -316,6 +320,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             bb.SetKind(kBBGoto);
             GotoMeStmt *gotomestmt = irMap.New<GotoMeStmt>(condbr->GetOffset());
             bb.ReplaceMeStmt(condbr, gotomestmt);
+            cfgChanged = true;
           }
           if (UpdateFreq()) {
             bb.GetSuccFreq().resize(1);
@@ -952,5 +957,22 @@ void HDSE::DoHDSE() {
     ResolveContinuousRedefine();
   }
   RemoveNotRequiredStmts();
+}
+
+void HDSE::DoHDSESafely(const MeFunction *f, AnalysisInfoHook &anaRes) {
+  DoHDSE();
+  if (!f) {
+    return;
+  }
+  if (needUNClean) {
+    (void)f->GetCfg()->UnreachCodeAnalysis(true);
+    f->GetCfg()->WontExitAnalysis();
+    anaRes.ForceEraseAnalysisPhase(f->GetUniqueID(), &MEDominance::id);
+    return;
+  }
+  if (cfgChanged) {
+    f->GetCfg()->WontExitAnalysis();
+    anaRes.ForceEraseAnalysisPhase(f->GetUniqueID(), &MEDominance::id);
+  }
 }
 }  // namespace maple

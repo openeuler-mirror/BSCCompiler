@@ -77,7 +77,7 @@ class SOcc {
 class SRealOcc : public SOcc {
  public:
   explicit SRealOcc(BB *bb) : SOcc(kSOccReal, bb) {}
-  virtual ~SRealOcc() = default;
+  ~SRealOcc() override = default;
 
   void Dump() const override {
     LogInfo::MapleLogger() << "RealOcc at bb" << cgbb->GetId();
@@ -107,7 +107,7 @@ class SLambdaOcc : public SOcc {
  public:
   SLambdaOcc(BB *bb, MapleAllocator &alloc)
       : SOcc(kSOccLambda, bb), lambdaRes(alloc.Adapter()) {}
-  virtual ~SLambdaOcc() = default;
+  ~SLambdaOcc() override = default;
 
   bool WillBeAnt() const {
     return isCanBeAnt && !isEarlier;
@@ -133,7 +133,7 @@ class SLambdaOcc : public SOcc {
 class SEntryOcc : public SOcc {
  public:
   explicit SEntryOcc(BB *bb) : SOcc(kSOccEntry, bb) {}
-  virtual ~SEntryOcc() = default;
+  ~SEntryOcc() override = default;
 
   void Dump() const override {
     LogInfo::MapleLogger() << "EntryOcc at bb" << cgbb->GetId();
@@ -143,7 +143,7 @@ class SEntryOcc : public SOcc {
 class SKillOcc : public SOcc {
  public:
   explicit SKillOcc(BB *bb) : SOcc(kSOccKill, bb) {}
-  virtual ~SKillOcc() = default;
+  ~SKillOcc() override = default;
 
   void Dump() const override {
     LogInfo::MapleLogger() << "KillOcc at bb" << cgbb->GetId();

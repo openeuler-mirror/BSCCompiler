@@ -42,11 +42,11 @@ void GenCfi::InsertCFIDefCfaOffset(BB &bb, Insn &insn, int32 &cfiOffset) {
 }
 
 void GenCfi::GenerateStartDirective(BB &bb) {
-  Insn &startprocInsn = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_startproc);
+  Insn &startProcInsn = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_startproc);
   if (bb.GetFirstInsn() != nullptr) {
-    (void)bb.InsertInsnBefore(*bb.GetFirstInsn(), startprocInsn);
+    (void)bb.InsertInsnBefore(*bb.GetFirstInsn(), startProcInsn);
   } else {
-    bb.AppendInsn(startprocInsn);
+    bb.AppendInsn(startProcInsn);
   }
 
 #if !defined(TARGARM32)
@@ -58,7 +58,7 @@ void GenCfi::GenerateStartDirective(BB &bb) {
     Insn &personality = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_personality_symbol).AddOpndChain(
         cgFunc.CreateCfiImmOperand(EHFunc::kTypeEncoding, k8BitSize)).AddOpndChain(
         cgFunc.CreateCfiStrOperand("DW.ref.__mpl_personality_v0"));
-    bb.InsertInsnAfter(startprocInsn, personality);
+    bb.InsertInsnAfter(startProcInsn, personality);
   }
 #endif
 }
@@ -121,6 +121,9 @@ void GenCfi::Run() {
   }
 
   GenerateEndDirective(*(cgFunc.GetLastBB()));
+  if (cgFunc.GetLastBB()->IsUnreachable()) {
+    cgFunc.SetExitBBLost(true);
+  }
 }
 
 bool CgGenCfi::PhaseRun(maplebe::CGFunc &f) {

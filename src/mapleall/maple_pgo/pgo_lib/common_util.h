@@ -1,3 +1,17 @@
+/*
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
 #ifndef MPLPGO_C_COMMON_UTIL_H
 #define MPLPGO_C_COMMON_UTIL_H
 #include <time.h>
@@ -15,33 +29,36 @@ typedef unsigned long long int	uint64_t;
 
 typedef long int		int64_t;
 
-#define O_RDONLY	     00
-#define O_WRONLY	     01
-#define O_RDWR		     02
+#define O_RDONLY 00
+#define O_WRONLY 01
+#define O_RDWR 02
 #ifndef O_CREAT
-#define O_CREAT	     0100	/* Not fcntl. */
+#define O_CREAT 0100          // Not fcntl.
 #endif
 #ifndef O_APPEND
-# define O_APPEND	  02000
+# define O_APPEND 02000
+#endif
+#ifndef O_TRUNC
+#define O_TRUNC 01000
 #endif
 
-#define MAP_SHARED	0x01		/* Share changes. */
-#define MAP_PRIVATE	0x02		/* Changes are private. */
-#define MAP_FIXED       0x10            /* Interpret addr exactly */
-#define MAP_ANONYMOUS	0x20		/* Don't use a file. */
+#define MAP_SHARED 0x01       // Share changes.
+#define MAP_PRIVATE	0x02      // Changes are private.
+#define MAP_FIXED 0x10        // Interpret addr exactly
+#define MAP_ANONYMOUS 0x20    // Don't use a file.
 #define MAP_ANON	MAP_ANONYMOUS
 
-# define SEEK_SET	0	/* Seek from beginning of file. */
-# define SEEK_CUR	1	/* Seek from current position. */
-# define SEEK_END	2	/* Seek from end of file. */
-#define PROT_READ	0x1		/* Page can be read. */
-#define PROT_WRITE	0x2		/* Page can be written. */
-#define PROT_EXEC	0x4		/* Page can be executed. */
-#define PROT_NONE	0x0		/* Page can not be accessed. */
-/* Flags to `msync'. */
-#define MS_ASYNC	1		/* Sync memory asynchronously. */
-#define MS_SYNC		4		/* Synchronous memory sync. */
-#define MS_INVALIDATE	2		/* Invalidate the caches. */
+# define SEEK_SET 0          // Seek from beginning of file.
+# define SEEK_CUR 1          // Seek from current position.
+# define SEEK_END 2          // Seek from end of file.
+#define PROT_READ 0x1        // Page can be read.
+#define PROT_WRITE 0x2       // Page can be written.
+#define PROT_EXEC 0x4        // Page can be executed.
+#define PROT_NONE 0x0        // Page can not be accessed.
+// Flags to `msync'.
+#define MS_ASYNC 1           // Sync memory asynchronously.
+#define MS_SYNC 4            // Synchronous memory sync.
+#define MS_INVALIDATE 2      // Invalidate the caches.
 
 /* implement in arm v8 */
 uint64_t __nanosleep(const struct timespec *req,  struct timespec *rem) {
@@ -167,11 +184,11 @@ void *__mmap(uint64_t addr, uint64_t size, uint64_t prot, uint64_t flags,
 
 void current_time_to_buf(char* buf) {
   time_t timer;
-  struct tm* tm_info;
+  struct tm tm_info;
 
   timer = time(NULL);
-  tm_info = localtime(&timer);
-  strftime(buf, TIMEBUFSIZE, "%Y-%m-%d %H:%M:%S", tm_info);
+  (void)localtime_r(&timer, &tm_info);
+  strftime(buf, TIMEBUFSIZE, "%Y-%m-%d %H:%M:%S", &tm_info);
 }
 
 #define SAVE_ALL                                                               \

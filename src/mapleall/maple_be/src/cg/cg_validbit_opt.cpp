@@ -15,9 +15,12 @@
 #include "cg_validbit_opt.h"
 #include "mempool.h"
 #include "aarch64_validbit_opt.h"
+#include "aarch64_reg_coalesce.h"
 
 namespace maplebe {
-InsnSet ValidBitPattern::GetAllUseInsn(const RegOperand &defReg) {
+
+
+InsnSet ValidBitPattern::GetAllUseInsn(const RegOperand &defReg) const {
   InsnSet allUseInsn;
   if ((ssaInfo != nullptr) && defReg.IsSSAForm()) {
     VRegVersion *defVersion = ssaInfo->FindSSAVersion(defReg.GetRegisterNumber());
@@ -126,14 +129,8 @@ void ValidBitOpt::Run() {
    * Set validbit of regOpnd before optimization
    */
   RectifyValidBitNum();
-  FOR_ALL_BB(bb, cgFunc) {
-    FOR_BB_INSNS(insn, bb) {
-      if (!insn->IsMachineInstruction()) {
-        continue;
-      }
-      DoOpt(*bb, *insn);
-    }
-  }
+  DoOpt();
+  cgDce->DoDce();
   /*
    * Recover validbit of regOpnd after optimization
    */
@@ -143,14 +140,18 @@ void ValidBitOpt::Run() {
 bool CgValidBitOpt::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
   CHECK_FATAL(ssaInfo != nullptr, "Get ssaInfo failed");
-  auto *vbOpt = f.GetCG()->CreateValidBitOpt(*GetPhaseMemPool(), f, *ssaInfo);
+  LiveIntervalAnalysis *ll = GET_ANALYSIS(CGliveIntervalAnalysis, f);
+  CHECK_FATAL(ll != nullptr, "Get ll failed");
+  auto *vbOpt = f.GetCG()->CreateValidBitOpt(*GetPhaseMemPool(), f, *ssaInfo, *ll);
   CHECK_FATAL(vbOpt != nullptr, "vbOpt instance create failed");
   vbOpt->Run();
+  ll->ClearBFS();
   return true;
 }
 
 void CgValidBitOpt::GetAnalysisDependence(AnalysisDep &aDep) const {
   aDep.AddRequired<CgSSAConstruct>();
+  aDep.AddRequired<CGliveIntervalAnalysis>();
   aDep.AddPreserved<CgSSAConstruct>();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgValidBitOpt, cgvalidbitopt)

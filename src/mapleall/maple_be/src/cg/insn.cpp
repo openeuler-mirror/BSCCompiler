@@ -46,7 +46,7 @@ bool Insn::IsBasicOp() const {
   return md ? md->IsBasicOp() : false;
 }
 bool Insn::IsConversion() const {
-  return md? md->IsConversion() : false;
+  return md ? md->IsConversion() : false;
 }
 bool Insn::IsUnaryOp() const {
   return md ? md->IsUnaryOp() : false;
@@ -108,11 +108,11 @@ bool Insn::IsLoadStorePair() const {
 bool Insn::IsLoadLabel() const {
   return md && md->IsLoad() && GetOperand(kInsnSecondOpnd).GetKind() == Operand::kOpdBBAddress;
 }
-bool Insn::OpndIsDef(uint32 id) const {
-  return md ? md->GetOpndDes(id)->IsDef() : false;
+bool Insn::OpndIsDef(uint32 opndId) const {
+  return md ? md->GetOpndDes(opndId)->IsDef() : false;
 }
-bool Insn::OpndIsUse(uint32 id) const {
-  return md ? md->GetOpndDes(id)->IsUse() : false;
+bool Insn::OpndIsUse(uint32 opndId) const {
+  return md ? md->GetOpndDes(opndId)->IsUse() : false;
 }
 bool Insn::IsClinit() const {
   return Globals::GetInstance()->GetTarget()->IsClinitInsn(mOp);
@@ -132,6 +132,16 @@ Operand *Insn::GetMemOpnd() const {
     }
   }
   return nullptr;
+}
+uint32 Insn::GetMemOpndIdx() const {
+  uint32 opndIdx = kInsnMaxOpnd;
+  for (uint32 i = 0; i < static_cast<uint32>(opnds.size()); ++i) {
+    Operand &opnd = GetOperand(i);
+    if (opnd.IsMemoryAccessOperand()) {
+      return i;
+    }
+  }
+  return opndIdx;
 }
 void Insn::SetMemOpnd(MemOperand *memOpnd) {
   for (uint32 i = 0; i < static_cast<uint32>(opnds.size()); ++i) {
@@ -179,7 +189,7 @@ std::set<uint32> Insn::GetDefRegs() const {
   return defRegNOs;
 }
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
 void Insn::Check() const {
   if (!md) {
     CHECK_FATAL(false, " need machine description for target insn ");
@@ -193,10 +203,11 @@ void Insn::Check() const {
 }
 #endif
 
-Insn *Insn::Clone(const MemPool &memPool) const {
+Insn *Insn::Clone(const MemPool /* &memPool */) const {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
+
 Operand *Insn::GetCallTargetOperand() const {
   ASSERT(IsCall() || IsTailCall(), "should be call");
   return &GetOperand(kInsnFirstOpnd);
@@ -207,7 +218,6 @@ ListOperand *Insn::GetCallArgumentOperand() {
   ASSERT(GetOperand(1).IsList(), "should be list");
   return &static_cast<ListOperand&>(GetOperand(kInsnSecondOpnd));
 }
-
 
 void Insn::CommuteOperands(uint32 dIndex, uint32 sIndex) {
   Operand *tempCopy = opnds[sIndex];

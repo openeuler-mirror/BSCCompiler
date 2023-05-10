@@ -108,7 +108,7 @@ class VstUseInfo final {
     return *useSites;
   }
 
-  VstUseSiteList *GetUseSitesOf(const VersionSt &vst) {
+  VstUseSiteList *GetUseSitesOf(const VersionSt &vst) const {
     return (*useSites)[vst.GetIndex()];
   }
 
