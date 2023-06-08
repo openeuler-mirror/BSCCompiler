@@ -277,7 +277,8 @@ enum TripCountType {
   kVarCR,
   kVarCondition,
   kCouldNotUnroll,
-  kCouldNotComputeCR
+  kCouldNotComputeCR,
+  kCouldComputeCR
 };
 
 class LoopScalarAnalysisResult {
@@ -335,6 +336,12 @@ class LoopScalarAnalysisResult {
   bool NormalizationWithByteCount(std::vector<CRNode*> &crNodeVector, uint8 byteSize);
   uint8 GetByteSize(std::vector<CRNode*> &crNodeVector) const;
   PrimType GetPrimType(std::vector<CRNode*> &crNodeVector) const;
+  TripCountType IsNeededCRNodes(std::pair<CRNode&, CRNode&> &crNodePair, CR *&cr,
+      CRConstNode *&constNode, CRNode *&conditionCRNode, CR *&itCR);
+  bool CanComputeTripCountWithCvtOpnd(const OpMeExpr &opMeExpr, Opcode op, const CR &cr,
+      const CRConstNode &constNode, uint64 &tripCountResult) const;
+  Opcode GetOpOfCond(const BB &exitBB, const MeStmt &brMeStmt, const OpMeExpr &opMeExpr) const;
+  bool CheckLoopAndExitBB(const MeFunction &func, OpMeExpr *&opMeExpr, Opcode &op) const;
 
  private:
   MeIRMap *irMap;

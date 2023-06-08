@@ -15,6 +15,12 @@
 #ifndef MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_MOP_SPLIT_H
 #define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_MOP_SPLIT_H
 
+#include "aarch64_cg.h"
+#include "aarch64_isa.h"
+#include "cg_irbuilder.h"
+#include "cgbb.h"
+#include "common_utils.h"
+
 namespace maplebe {
 // Supply a new reg operand for insn split process, which type is kRegTyInt for immediate.
 // Before regalloc: create a new virtual reg;
@@ -312,7 +318,8 @@ inline void AddSubWithLslSplit(Insn *insn, bool isAdd, bool is64Bits, bool isAft
     return;
   }
   BB *bb = insn->GetBB();
-  ImmOperand &newImmOpnd = opndBuilder->CreateImm(size, static_cast<uint64>(immOpnd.GetValue()) << k12BitSize);
+  ImmOperand &newImmOpnd = opndBuilder->CreateImm(size, static_cast<int64>(static_cast<uint64>(immOpnd.GetValue()) <<
+                                                                           k12BitSize));
   MOperator mOpCode = is64Bits ? (isAdd ? MOP_xaddrri12 : MOP_xsubrri12) : (isAdd ? MOP_waddrri12 : MOP_wsubrri12);
   Insn &newInsn = insnBuilder->BuildInsn(mOpCode, insn->GetOperand(kInsnFirstOpnd),
       insn->GetOperand(kInsnSecondOpnd), newImmOpnd);
@@ -391,7 +398,9 @@ inline void CondCompareInsnSplit(Insn *insn, bool is64Bits, bool isAfterRegAlloc
 inline void MOP_wmovri32Split(Insn *curInsn, bool /* isAfterRegAlloc */, InsnBuilder *insnBuilder,
     OperandBuilder *opndBuilder) {
   // If higher 32bits of immVal have 1, we will truncate and keep lower 32 bits.
-  int64 immVal = (static_cast<ImmOperand&>(curInsn->GetOperand(kInsnSecondOpnd)).GetValue()) & 0x00000000FFFFFFFFULL;
+  int64 immVal = static_cast<int64>(
+      static_cast<uint64>(static_cast<ImmOperand&>(curInsn->GetOperand(kInsnSecondOpnd)).GetValue()) &
+      0x00000000FFFFFFFFULL);
   ImmOperand &immOpnd = opndBuilder->CreateImm(k64BitSize, immVal, true);
   curInsn->SetOperand(kInsnSecondOpnd, immOpnd);
   if (curInsn->VerifySelf()) { return; }

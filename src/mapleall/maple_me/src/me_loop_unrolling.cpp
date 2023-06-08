@@ -97,8 +97,7 @@ void LoopUnrolling::ComputeCodeSize(const MeStmt &meStmt, uint32 &cost) {
       break;
     }
     case OP_asm: {
-      // currently skip unrolling loop with asm stmt
-      cost += kMaxCost;
+      cost += kFiveInsn;
       break;
     }
     default:
@@ -157,7 +156,7 @@ void LoopUnrolling::SetLabelWithCondGotoOrGotoBB(BB &bb, std::unordered_map<BB*,
 
 // When loop unroll times is two, use this function to update the preds and succs of the duplicate loopbody.
 void LoopUnrolling::ResetOldLabel2NewLabel(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb, const BB &exitBB,
-                                           BB &newHeadBB) {
+                                           BB &newHeadBB) const {
   if (bb.GetKind() == kBBCondGoto) {
     CHECK_FATAL(!bb.GetMeStmts().empty(), "must not be empty");
     CondGotoMeStmt &condGotoNode = static_cast<CondGotoMeStmt&>(bb.GetMeStmts().back());
@@ -198,23 +197,23 @@ void LoopUnrolling::ResetOldLabel2NewLabel2(std::unordered_map<BB*, BB*> &old2Ne
   }
 }
 
-void LoopUnrolling::ResetFrequency(const BB &curBB, const BB &succ, const BB &exitBB, BB &curCopyBB, bool copyAllLoop) {
+void LoopUnrolling::ResetFrequency(const BB &curBB, const BB &succ, const BB &exitBB, BB &curCopyBB,
+    bool copyAllLoop) const {
   if (resetFreqForUnrollWithVar && copyAllLoop) {
     if (&curBB == &exitBB && &succ == *loop->inloopBB2exitBBs.begin()->second->begin()) {
       curCopyBB.PushBackSuccFreq(loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) == 0 ? 0 : 1);
     }
     if ((&curBB == loop->latch && &succ == loop->head) || (&curBB == &exitBB && &succ == loop->latch)) {
-      curCopyBB.PushBackSuccFreq(
-          loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) == 0 ?
+      curCopyBB.PushBackSuccFreq(loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) == 0 ?
           0 : loop->head->GetFrequency() % static_cast<FreqType>(replicatedLoopNum) - 1);
     } else {
       curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) % static_cast<FreqType>(replicatedLoopNum));
     }
   } else {
-    profValid &&resetFreqForAfterInsertGoto
-        ? curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) - 1 == 0 ? curBB.GetEdgeFreq(&succ)
-                                                                       : curBB.GetEdgeFreq(&succ) - 1)
-        : curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ));
+    profValid && resetFreqForAfterInsertGoto ? curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) - 1 == 0 ?
+                                                                          curBB.GetEdgeFreq(&succ) :
+                                                                          curBB.GetEdgeFreq(&succ) - 1) :
+                                               curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ));
   }
 }
 
@@ -309,7 +308,7 @@ void LoopUnrolling::CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &ol
 }
 
 // Update frequency of old BB.
-void LoopUnrolling::ResetFrequency(BB &bb) {
+void LoopUnrolling::ResetFrequency(BB &bb) const {
   FreqType freq = bb.GetFrequency() / static_cast<FreqType>(replicatedLoopNum);
   if ((!instrumentProf) && freq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
     freq = 1;
@@ -538,7 +537,7 @@ LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(uint64 tri
   return kCanFullyUnroll;
 }
 
-void LoopUnrolling::ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, FreqType headFreq) {
+void LoopUnrolling::ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, FreqType headFreq) const {
   if (profValid) {
     newCondGotoBB.SetFrequency(headFreq);
     exitingBB.SetEdgeFreq(&exitedBB, 0);
@@ -753,7 +752,7 @@ VarMeExpr *LoopUnrolling::CreateIndVarOrTripCountWithName(const std::string &nam
 
 // i < tripcount / unrollTime
 void LoopUnrolling::UpdateCondGotoStmt(BB &bb, VarMeExpr &indVar, MeExpr &tripCount, MeExpr &unrollTimeExpr,
-                                       uint32 offset) {
+                                       uint32 offset) const {
   for (auto &stmt : bb.GetMeStmts()) {
     bb.RemoveMeStmt(&stmt);
   }
@@ -780,7 +779,7 @@ void LoopUnrolling::UpdateCondGotoBB(BB &bb, VarMeExpr &indVar, MeExpr &tripCoun
   bb.AddMeStmtFirst(irMap->CreateAssignMeStmt(*newVarLHS, *addMeExpr, bb));
 }
 
-void LoopUnrolling::ExchangeSucc(BB &partialExit) {
+void LoopUnrolling::ExchangeSucc(BB &partialExit) const {
   BB *succ0 = partialExit.GetSucc(0);
   partialExit.SetSucc(0, partialExit.GetSucc(1));
   partialExit.SetSucc(1, succ0);

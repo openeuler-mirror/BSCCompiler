@@ -71,7 +71,7 @@ class AArch64CallConvImpl {
     return (nextFloatRegNO < AArch64Abi::kNumFloatParmRegs) ? AArch64Abi::kFloatParmRegs[nextFloatRegNO++] : kRinvalid;
   }
 
-  uint64 AllocateRegisterForAgg(const MIRType &mirType, CCLocInfo &ploc, uint64 size, uint64 align);
+  uint64 AllocateRegisterForAgg(const MIRType &mirType, CCLocInfo &ploc, uint64 size, uint64 &align);
 };
 }  /* namespace maplebe */
 

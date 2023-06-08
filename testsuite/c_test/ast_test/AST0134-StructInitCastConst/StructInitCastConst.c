@@ -1,7 +1,7 @@
 // CHECK: type $S <struct {
-// CHECK-NEXT:  @x <* i32> align(8),
+// CHECK-NEXT:  @x <* i32>
 // CHECK: type $A <struct {
-// CHECK-NEXT:  @y <* i32> const align(8),
+// CHECK-NEXT:  @y <* i32> const
 
 // CHECK: var $s <$S> = [1= addrof ptr $cle.2]
 // CHECK-NEXT: $cle.2 <[3] i32> const = [1, 2, 3]

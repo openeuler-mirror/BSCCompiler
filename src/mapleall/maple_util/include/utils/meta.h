@@ -81,11 +81,10 @@ template <typename T, typename U>
 constexpr bool kConstOfV = ConstOf<T, U>::value;
 
 template <typename T, typename U>
-struct is_ncv_same
-    : public std::is_same<std::remove_cv_t<T>, std::remove_cv_t<U>>::type {};
+struct IsNcvSame : public std::is_same<std::remove_cv_t<T>, std::remove_cv_t<U>>::type {};
 
 template <typename T, typename U>
-constexpr bool kIsNcvSameV = is_ncv_same<T, U>::value;
+constexpr bool kIsNcvSameV = IsNcvSame<T, U>::value;
 
 namespace ptr {
 template <typename T, typename U, typename = std::enable_if_t<kIsPointerV<T, U>>>
@@ -95,7 +94,7 @@ template <typename T, typename U, typename = std::enable_if_t<kIsPointerV<T, U>>
 constexpr bool constOfV = ConstOf<T, U>::value;
 
 template <typename T, typename U, typename = std::enable_if_t<kIsPointerV<T, U>>>
-struct IsNcvSame : public utils::is_ncv_same<std::remove_pointer_t<T>, std::remove_pointer_t<U>>::type {};
+struct IsNcvSame : public utils::IsNcvSame<std::remove_pointer_t<T>, std::remove_pointer_t<U>>::type {};
 
 template <typename T, typename U, typename = std::enable_if_t<kIsPointerV<T, U>>>
 constexpr bool kIsNcvSameV = IsNcvSame<T, U>::value;

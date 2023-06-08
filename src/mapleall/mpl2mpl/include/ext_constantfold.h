@@ -21,6 +21,8 @@ namespace maple {
 class ExtConstantFold {
  public:
   explicit ExtConstantFold(MIRModule *mod) : mirModule(mod) {}
+  template <typename TNode>
+  void ExtFoldCommon(TNode &node);
   BaseNode *ExtFoldUnary(UnaryNode *node);
   BaseNode *ExtFoldBinary(BinaryNode *node);
   BaseNode* ExtFoldTernary(TernaryNode *node);

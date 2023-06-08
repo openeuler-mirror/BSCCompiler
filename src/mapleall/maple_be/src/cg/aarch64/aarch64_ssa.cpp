@@ -301,7 +301,7 @@ void A64OpndSSAUpdateVsitor::Visit(ListOperand *v) {
   }
 }
 
-void A64OpndSSAUpdateVsitor::UpdateRegUse(uint32 ssaIdx) const {
+void A64OpndSSAUpdateVsitor::UpdateRegUse(uint32 ssaIdx) {
   VRegVersion *curVersion = ssaInfo->FindSSAVersion(ssaIdx);
   CHECK_NULL_FATAL(curVersion);
   if (isDecrease) {

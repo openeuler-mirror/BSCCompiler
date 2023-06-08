@@ -67,7 +67,7 @@ class DriverRunner final {
 
   ErrorCode Run();
   void RunNewPM(const std::string &output, const std::string &vtableImplFile);
-  void ProcessCGPhase(const std::string &output, const std::string &originBaseName) const;
+  void ProcessCGPhase(const std::string &output, const std::string &originBaseName);
   void SetCGInfo(CGOptions *newCgOptions, const std::string &newCgInput) {
     this->cgOptions = newCgOptions;
     this->cgInput = newCgInput;

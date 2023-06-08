@@ -22,7 +22,8 @@
 namespace maplebe {
 class AArch64ValidBitOpt : public ValidBitOpt {
  public:
-  AArch64ValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : ValidBitOpt(mp, f, info, ll) {}
+  AArch64ValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll)
+      : ValidBitOpt(mp, f, info, ll) {}
   ~AArch64ValidBitOpt() override = default;
 
   void DoOpt() override;
@@ -39,7 +40,7 @@ class PropPattern : public ValidBitPattern {
   PropPattern(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : ValidBitPattern(cgFunc, info, ll) {}
   ~PropPattern() override {}
  protected:
-  void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
+  void ValidateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) const;
   void ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersion *srcVersion);
 };
 
@@ -105,6 +106,7 @@ class ExtValidBitPattern : public PropPattern {
 
  private:
   bool CheckValidCvt(const Insn &insn);
+  bool CheckRedundantUxtbUxth(Insn &insn);
   bool RealUseMopX(const RegOperand &defOpnd, InsnSet &visitedInsn);
   RegOperand *newDstOpnd = nullptr;
   RegOperand *newSrcOpnd = nullptr;
@@ -113,6 +115,13 @@ class ExtValidBitPattern : public PropPattern {
   MOperator newMop = MOP_undef;
 };
 
+// check uxtw Vreg Preg case
+// uxtw Vreg1 Preg0
+// if use of R1 is 32bit
+// ->
+// movx Vreg1 Preg0
+// make use of RA to delete redundant insn, if Vreg1 is allocated to R0
+// then the insn is removed.
 class RedundantExpandProp : public PropPattern {
  public:
   RedundantExpandProp(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : PropPattern(cgFunc, info, ll) {}
@@ -201,6 +210,7 @@ class CmpBranchesPattern : public ValidBitPattern {
   Insn *prevCmpInsn = nullptr;
   int64 newImmVal = -1;
   MOperator newMop = MOP_undef;
+  bool isEqOrNe = false;
   bool is64Bit = false;
 };
 } /* namespace maplebe */

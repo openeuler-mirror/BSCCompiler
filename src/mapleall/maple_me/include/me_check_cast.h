@@ -63,7 +63,7 @@ class CheckCast {
   void TryToResolveFuncArg(MeExpr &expr, AnnotationType &at);
   void TryToResolveFuncGeneric(MIRFunction &callee, const CallMeStmt &callMeStmt, size_t thisIdx);
   void AddClassInheritanceInfo(MIRType &mirType);
-  bool NeedChangeVarType(MIRStructType *varStruct, MIRStructType *callStruct);
+  bool NeedChangeVarType(MIRStructType *varStruct, MIRStructType *callStruct) const;
   bool ExactlyMatch(MIRStructType &varStruct, MIRStructType &callStruct) const;
   AnnotationType *CloneNewAnnotationType(AnnotationType *at, MIRStructType *callStruct);
   void AddNextNode(GenericNode &from, GenericNode &to) const;

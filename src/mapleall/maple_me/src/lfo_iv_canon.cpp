@@ -236,9 +236,8 @@ bool IVCanon::IsLoopInvariant(MeExpr *x) {
 // If the LHS of the test expression is used to store the previous value of an
 // IV before it's increment/decrement, then change the test to be based on the
 // IV.  Return true if change has taken place.
-bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
-  ASSERT_NOT_NULL(condbr);
-  OpMeExpr *testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
+bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt &condbr) const {
+  OpMeExpr *testExpr = static_cast<OpMeExpr *>(condbr.GetOpnd());
   ScalarMeExpr *scalar = testExpr->GetOpnd(0)->IsScalar() ? static_cast<ScalarMeExpr *>(testExpr->GetOpnd(0))
                                                           : nullptr;
   bool cvtOnScalar = false;
@@ -279,9 +278,9 @@ bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
   }
   OriginalSt *ivOst = rhsScalar0->GetOst();
   // find the phi for ivOst
-  BB *bb = condbr->GetBB();
+  BB *bb = condbr.GetBB();
   MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
-  auto itOfIVOst = mePhiList.find(ivOst->GetIndex());
+  const auto itOfIVOst = std::as_const(mePhiList).find(ivOst->GetIndex());
   if (itOfIVOst == mePhiList.end()) {
     return false;
   }
@@ -329,7 +328,7 @@ bool IVCanon::CheckPostIncDecFixUp(CondGotoMeStmt *condbr) {
   cmpMeExpr.SetOpnd(1, func->GetIRMap()->HashMeExpr(newCmpRHS));
   cmpMeExpr.SetOpndType(testExpr->GetOpndType());
 
-  condbr->SetOpnd(0, func->GetIRMap()->HashMeExpr(cmpMeExpr));
+  condbr.SetOpnd(0, func->GetIRMap()->HashMeExpr(cmpMeExpr));
   return true;
 }
 
@@ -423,7 +422,7 @@ void IVCanon::ComputeTripCount() {
       }
     }
     if (ivdesc == nullptr && trialsCount == 1) {
-      tryAgain = CheckPostIncDecFixUp(condbr);
+      tryAgain = CheckPostIncDecFixUp(*condbr);
     }
   } while (tryAgain && trialsCount == 1);
 
@@ -737,8 +736,8 @@ bool MELfoIVCanon::PhaseRun(MeFunction &f) {
   PreMeFunction *preMeFunc = f.GetPreMeFunc();
 
   // loop thru all the loops in reverse order so inner loops are processed first
-  for (int32 i = static_cast<int32>(identLoops->GetMeLoops().size()) - 1; i >= 0; i--) {
-    LoopDesc *aloop = identLoops->GetMeLoops()[i];
+  for (int32 i = static_cast<int32>(identLoops->GetMeLoops().size()) - 1; i >= 0; --i) {
+    LoopDesc *aloop = identLoops->GetMeLoops()[static_cast<uint32>(i)];
     BB *headbb = aloop->head;
     // check if the label has associated PreMeWhileInfo
     if (headbb->GetBBLabel() == 0) {
@@ -761,7 +760,7 @@ bool MELfoIVCanon::PhaseRun(MeFunction &f) {
     ivCanon.PerformIVCanon();
     // transfer primary IV info to whileinfo
     if (ivCanon.idxPrimaryIV != -1) {
-      IVDesc *primaryIVDesc = ivCanon.ivvec[static_cast<size_t>(ivCanon.idxPrimaryIV)];
+      IVDesc *primaryIVDesc = ivCanon.ivvec[static_cast<uint32>(ivCanon.idxPrimaryIV)];
       CHECK_FATAL(primaryIVDesc->ost->IsSymbolOst(), "primary IV cannot be preg");
       whileInfo->ivOst = primaryIVDesc->ost;
       whileInfo->initExpr = primaryIVDesc->initExpr;

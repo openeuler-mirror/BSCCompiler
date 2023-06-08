@@ -26,8 +26,8 @@ namespace maple {
 DefaultOption ClangCompilerBeILP32::GetDefaultOptions(const MplOptions &options,
                                                       const Action &action) const {
   auto &triple = Triple::GetTriple();
-  if (triple.GetArch() != Triple::ArchType::aarch64_be ||
-      triple.GetEnvironment() == Triple::EnvironmentType::UnknownEnvironment) {
+  if (triple.GetArch() != Triple::ArchType::kAarch64Be ||
+      triple.GetEnvironment() == Triple::EnvironmentType::kUnknownEnvironment) {
     CHECK_FATAL(false, "ClangCompilerBeILP32 supports only aarch64_be GNU/GNUILP32 targets\n");
   }
 
@@ -41,7 +41,7 @@ DefaultOption ClangCompilerBeILP32::GetDefaultOptions(const MplOptions &options,
   defaultOptions.mplOptions[1].SetKey("-target");
   defaultOptions.mplOptions[1].SetValue(triple.Str());
 
-  if (triple.GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+  if (triple.GetEnvironment() == Triple::EnvironmentType::kGnuIlp32) {
     defaultOptions.mplOptions[2].SetKey("--sysroot=" + FileUtils::SafeGetenv(kGccBeIlp32SysrootPathEnv));
   } else {
     defaultOptions.mplOptions[2].SetKey("--sysroot=" + FileUtils::SafeGetenv(kGccBeSysrootPathEnv));
@@ -72,13 +72,15 @@ std::string GetFormatClangPath(const MplOptions &mplOptions) {
   return clangPath;
 }
 std::string ClangCompiler::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
-  if (FileUtils::SafeGetenv(kMapleRoot) != "") {
-    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
+  if (FileUtils::SafeGetenv(kEnhancedClang) != "") {
+    return FileUtils::SafeGetenv(kEnhancedClang) + "/bin/";
+  } else if (FileUtils::SafeGetenv(kMapleRoot) != "") {
+    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced/bin/";
   } else if (FileUtils::SafeGetenv(kClangPath) != "") {
     return FileUtils::SafeGetenv(kClangPath);
   }
   std::string clangPath = GetFormatClangPath(mplOptions);
-  return clangPath + "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/";
+  return clangPath + "thirdparty/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced/bin/";
 }
 
 const std::string &ClangCompiler::GetBinName() const {
@@ -102,8 +104,8 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   uint32_t additionalLen = 1; // for -o option
 
   auto &triple = Triple::GetTriple();
-  if (triple.GetArch() != Triple::ArchType::aarch64 ||
-      triple.GetEnvironment() != Triple::EnvironmentType::GNU) {
+  if (triple.GetArch() != Triple::ArchType::kAarch64 ||
+      triple.GetEnvironment() != Triple::EnvironmentType::kGnu) {
     CHECK_FATAL(false, "Use -target option to select another toolchain\n");
   }
   if (IsUseSafeOption()) {
@@ -128,7 +130,7 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
     opt[4].SetKey("-DC_ENHANCED");
     opt[4].SetValue("");
   }
-  if (opts::passO2ToClang.IsEnabledByUser()) {
+  if (opts::passO2ToClang.IsEnabledByUser() && opts::o2.IsEnabledByUser()) {
     opt[additionalLen - 3].SetKey("-O2");
     opt[additionalLen - 3].SetValue("");
   }

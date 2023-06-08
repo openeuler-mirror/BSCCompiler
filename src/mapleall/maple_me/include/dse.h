@@ -27,11 +27,12 @@
 namespace maple {
 class DSE {
  public:
-  DSE(std::vector<BB*> &&bbVec, BB &commonEntryBB, BB &commonExitBB, SSATab &ssaTab, Dominance &postDom,
+  DSE(std::vector<BB*> &&bbVec, BB &commonEntryBB, BB &commonExitBB, SSATab &ssaTab, Dominance &dom, Dominance &postDom,
       const AliasClass *aliasClass, bool enableDebug = false, bool decouple = false, bool islfo = false)
       : enableDebug(enableDebug),
         bbVec(bbVec), commonEntryBB(commonEntryBB),
         commonExitBB(commonExitBB), ssaTab(ssaTab),
+        dom(dom),
         postDom(postDom),
         aliasInfo(aliasClass),
         bbRequired(bbVec.size(), false),
@@ -57,6 +58,7 @@ class DSE {
 
   // step 2: mark special stmt required
   void MarkSpecialStmtRequired();
+  void MarkIrreducibleBrRequired();
   void MarkStmtRequired(const StmtNode &stmt, const BB &bb);
   void MarkControlDependenceLive(const BB &bb);
   void MarkLastBranchStmtInBBRequired(const BB &bb);
@@ -90,7 +92,7 @@ class DSE {
 
   void RemoveNotRequiredStmtsInBB(BB &bb);
   void OnRemoveBranchStmt(BB &bb, const StmtNode &stmt);
-  bool IsCallReturnRemovable(const StmtNode &stmt);
+  bool IsCallReturnRemovable(const StmtNode &stmt) const;
   void CheckRemoveCallAssignedReturn(StmtNode &stmt);
 
   bool IsStmtRequired(const StmtNode &stmt) const {
@@ -123,6 +125,7 @@ class DSE {
   BB &commonEntryBB;
   BB &commonExitBB;
   SSATab &ssaTab;
+  Dominance &dom;
   Dominance &postDom;
   const AliasClass *aliasInfo;
   std::vector<bool> bbRequired;

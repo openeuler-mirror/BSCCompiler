@@ -81,7 +81,7 @@ class RegPressure {
     near = value;
   }
 
-  int32 GetIncPressure() const {
+  bool GetIncPressure() const {
     return incPressure;
   }
 

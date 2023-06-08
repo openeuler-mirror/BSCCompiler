@@ -20,6 +20,7 @@
 #include "mir_builder.h"
 #include "ast_macros.h"
 #include "fe_utils_ast.h"
+#include "driver_options.h"
 
 namespace maple {
 int ast2mplDebug = 0;
@@ -340,6 +341,45 @@ bool ASTUtil::HasTypdefType(clang::QualType qualType) {
   const auto *arrayType = llvm::dyn_cast<clang::ArrayType>(qualType);
   if (arrayType != nullptr) {
     return HasTypdefType(arrayType->getElementType());
+  }
+  return false;
+}
+ 
+// Return true if the function has GNU inline semantics.
+// You should NEVER call GetAttr(FUNCATTR_gnu_inline) directly unless you know what you are doing.
+bool ASTUtil::IsGnuInline(const GenericAttrs &attrs) {
+  // ATTENTION: When one of the following options is enabled, traditional GNU semantics for inline functions
+  // will be used. In this case, `inline` WILL BE TREATED AS `inline __attribute__((gnu_inline))`.
+  if (opts::oStd89.IsEnabledByUser() || opts::oStd90.IsEnabledByUser() || opts::oAnsi.IsEnabledByUser() ||
+      opts::oFgnu89Inline.IsEnabledByUser()) {
+    return attrs.GetAttr(GENATTR_inline);
+  }
+  return attrs.GetAttr(GENATTR_gnu_inline);
+}
+ 
+bool ASTUtil::IsInlineDefinition(const GenericAttrs &attrs) {
+  if (attrs.GetAttr(GENATTR_static)) {
+    return false;  // inline function with internal linkage should never be regarded as an inline definition.
+  }
+  if (attrs.GetAttr(GENATTR_inline) && !attrs.GetAttr(GENATTR_extern) && !IsGnuInline(attrs)) {
+    return true;
+  }
+  return false;
+}
+ 
+bool ASTUtil::IsExternGnuInline(const GenericAttrs &attrs) {
+  return attrs.GetAttr(GENATTR_extern) && IsGnuInline(attrs);
+}
+ 
+bool ASTUtil::IsFuncMustBeDeleted(const GenericAttrs &attrs) {
+  if (attrs.GetAttr(GENATTR_static)) {
+    return false;
+  }
+  if (IsInlineDefinition(attrs)) {
+    return true;
+  }
+  if (IsExternGnuInline(attrs)) {
+    return true;
   }
   return false;
 }

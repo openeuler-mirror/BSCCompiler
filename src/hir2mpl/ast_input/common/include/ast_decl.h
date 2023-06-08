@@ -85,9 +85,7 @@ class ASTDecl {
   }
 
   void SetAlign(uint32 n) {
-    if (n > align) {
-      align = n;
-    }
+    align = n;
   }
 
   uint32 GetAlign() const {
@@ -194,7 +192,7 @@ class ASTDecl {
   virtual void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {}
   bool isGlobalDecl;
   bool isParam = false;
-  uint32 align = 1; // in byte
+  uint32 align = 0; // in byte
   const MapleString srcFileName;
 
   MapleString name;
@@ -230,9 +228,11 @@ class ASTField : public ASTDecl {
 
 class ASTFunc : public ASTDecl {
  public:
-  ASTFunc(const MapleString &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
-          const GenericAttrs &genAttrsIn, const MapleVector<ASTDecl*> &paramDeclsIn, int64 funcId)
-      : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), paramDecls(paramDeclsIn), funcId(funcId) {
+  ASTFunc(const MapleString &srcFile, const MapleString &originalNameIn, const MapleString &nameIn,
+          const MapleVector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn,
+          const MapleVector<ASTDecl*> &paramDeclsIn, int64 funcId)
+      : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), paramDecls(paramDeclsIn), funcId(funcId),
+        originalName(originalNameIn) {
     genAttrs = genAttrsIn;
     declKind = kASTFunc;
   }
@@ -269,12 +269,17 @@ class ASTFunc : public ASTDecl {
     return funcId;
   }
 
+  std::string GetOriginalName() {
+    return originalName.c_str() == nullptr ? "" : originalName.c_str();
+  }
+
  private:
   // typeDesc format: [funcType, retType, arg0, arg1 ... argN]
   ASTStmt *compound = nullptr;  // func body
   MapleVector<ASTDecl*> paramDecls;
   std::pair<bool, std::string> weakrefAttr;
   int64 funcId;
+  MapleString originalName;
 };
 
 class ASTStruct : public ASTDecl {
@@ -306,10 +311,19 @@ class ASTStruct : public ASTDecl {
     return isUnion;
   }
 
+  void SetIsPack() {
+    isPack = true;
+  }
+
+  bool IsPack() const {
+    return isPack;
+  }
+
  private:
   void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
 
   bool isUnion = false;
+  bool isPack = false;
   MapleList<ASTField*> fields;
   MapleList<ASTFunc*> methods;
 };
@@ -322,7 +336,8 @@ class ASTVar : public ASTDecl {
     genAttrs = genAttrsIn;
     declKind = kASTVar;
   }
-  virtual ~ASTVar() override {
+  ~ASTVar() override {
+    initExpr = nullptr;
     variableArrayExpr = nullptr;
   }
 

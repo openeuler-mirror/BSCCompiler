@@ -142,7 +142,8 @@ BaseNode *ConstantFold::PairToExpr(PrimType resultType, const std::pair<BaseNode
   } else {
     if ((!pair.second->GetSignBit() &&
          pair.second->GetSXTValue(static_cast<uint8>(GetPrimTypeBitSize(resultType))) > 0) ||
-         pair.second->GetSXTValue() == INT64_MIN) {
+        pair.second->TruncOrExtend(resultType).IsMinValue() ||
+        pair.second->GetSXTValue() == INT64_MIN) {
       // +-a, 5 -> a + 5
       ConstvalNode *val = mirModule->GetMIRBuilder()->CreateIntConst(static_cast<uint64>(pair.second->GetExtValue()),
                                                                      resultType);
@@ -353,7 +354,7 @@ MIRIntConst *ConstantFold::FoldIntConstComparisonMIRConst(Opcode opcode, PrimTyp
       break;
     }
     case OP_ge: {
-      result = greater || equal;
+      result = (greater || equal) ? 1 : 0;
       break;
     }
     case OP_gt: {
@@ -361,7 +362,7 @@ MIRIntConst *ConstantFold::FoldIntConstComparisonMIRConst(Opcode opcode, PrimTyp
       break;
     }
     case OP_le: {
-      result = less || equal;
+      result = (less || equal) ? 1 : 0;
       break;
     }
     case OP_lt: {
@@ -638,7 +639,7 @@ bool ConstantFold::ConstValueEqual(double leftValue, double rightValue) const {
 
 template<typename T>
 bool ConstantFold::FullyEqual(T leftValue, T rightValue) const {
-  if (isinf(leftValue) && isinf(rightValue)) {
+  if (std::isinf(leftValue) && std::isinf(rightValue)) {
     // (inf == inf), add the judgement here in case of the subtraction between float type inf
     return true;
   } else {
@@ -1763,8 +1764,14 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldBinary(BinaryNode 
     PrimType cstTyp = mcst->GetType().GetPrimType();
     IntVal cst = mcst->GetValue();
     if (op == OP_add) {
-      sum = cst + rp.second;
-      result = r;
+      if (IsSignedInteger(cstTyp) && rp.second &&
+          IntegerOpIsOverflow(OP_add, cstTyp, cst.GetExtValue(), rp.second->GetExtValue())) {
+        // do not introduce signed integer overflow
+        result = NewBinaryNode(node, op, primType, l, PairToExpr(rPrimTypes, rp));
+      } else {
+        sum = cst + rp.second;
+        result = r;
+      }
     } else if (op == OP_sub && r->GetPrimType() != PTY_u1) {
       // We exclude u1 type for fixing the following wrong example:
       // before cf:
@@ -1995,6 +2002,39 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldBinary(BinaryNode 
   return std::make_pair(result, sum);
 }
 
+BaseNode *ConstantFold::SimplifyDoubleConstvalCompare(CompareNode &node, bool isRConstval, bool isGtOrLt) const{
+  if (isRConstval) {
+    ConstvalNode *constNode = static_cast<ConstvalNode*>(node.Opnd(1));
+    if (constNode->GetConstVal()->GetKind() == kConstInt && constNode->GetConstVal()->IsZero()) {
+      const CompareNode *compNode = static_cast<CompareNode*>(node.Opnd(0));
+      return mirModule->CurFuncCodeMemPool()->New<CompareNode>(Opcode(node.GetOpCode()),
+                                                               PrimType(node.GetPrimType()),
+                                                               compNode->GetOpndType(),
+                                                               compNode->Opnd(0),
+                                                               compNode->Opnd(1));
+    }
+  } else {
+    ConstvalNode *constNode = static_cast<ConstvalNode*>(node.Opnd(0));
+    if (constNode->GetConstVal()->GetKind() == kConstInt && constNode->GetConstVal()->IsZero()) {
+      const CompareNode *compNode = static_cast<CompareNode*>(node.Opnd(1));
+      if (isGtOrLt) {
+        return mirModule->CurFuncCodeMemPool()->New<CompareNode>(Opcode(node.GetOpCode()),
+                                                                 PrimType(node.GetPrimType()),
+                                                                 compNode->GetOpndType(),
+                                                                 compNode->Opnd(1),
+                                                                 compNode->Opnd(0));
+      } else {
+        return mirModule->CurFuncCodeMemPool()->New<CompareNode>(Opcode(node.GetOpCode()),
+                                                                 PrimType(node.GetPrimType()),
+                                                                 compNode->GetOpndType(),
+                                                                 compNode->Opnd(0),
+                                                                 compNode->Opnd(1));
+      }
+    }
+  }
+  return &node;
+}
+
 BaseNode *ConstantFold::SimplifyDoubleCompare(CompareNode &compareNode) const {
   // See arm manual B.cond(P2993) and FCMP(P1091)
   CompareNode *node = &compareNode;
@@ -2002,26 +2042,9 @@ BaseNode *ConstantFold::SimplifyDoubleCompare(CompareNode &compareNode) const {
   BaseNode *l = node->Opnd(0);
   BaseNode *r = node->Opnd(1);
   if (node->GetOpCode() == OP_ne || node->GetOpCode() == OP_eq) {
-    if (l->GetOpCode() == OP_cmp && r->GetOpCode() == OP_constval) {
-      ConstvalNode *constNode = static_cast<ConstvalNode*>(r);
-      if (constNode->GetConstVal()->GetKind() == kConstInt && constNode->GetConstVal()->IsZero()) {
-        const CompareNode *compNode = static_cast<CompareNode*>(l);
-        result = mirModule->CurFuncCodeMemPool()->New<CompareNode>(Opcode(node->GetOpCode()),
-                                                                   PrimType(node->GetPrimType()),
-                                                                   compNode->GetOpndType(),
-                                                                   compNode->Opnd(0),
-                                                                   compNode->Opnd(1));
-      }
-    } else if (r->GetOpCode() == OP_cmp && l->GetOpCode() == OP_constval) {
-      ConstvalNode *constNode = static_cast<ConstvalNode*>(l);
-      if (constNode->GetConstVal()->GetKind() == kConstInt && constNode->GetConstVal()->IsZero()) {
-        const CompareNode *compNode = static_cast<CompareNode*>(r);
-        result = mirModule->CurFuncCodeMemPool()->New<CompareNode>(Opcode(node->GetOpCode()),
-                                                                   PrimType(node->GetPrimType()),
-                                                                   compNode->GetOpndType(),
-                                                                   compNode->Opnd(0),
-                                                                   compNode->Opnd(1));
-      }
+    if ((l->GetOpCode() == OP_cmp && r->GetOpCode() == OP_constval) ||
+        (r->GetOpCode() == OP_cmp && l->GetOpCode() == OP_constval)) {
+      result = SimplifyDoubleConstvalCompare(*node, (l->GetOpCode() == OP_cmp && r->GetOpCode() == OP_constval));
     } else if (node->GetOpCode() == OP_ne && r->GetOpCode() == OP_constval) {
       // ne (u1 x, constValue 0)  <==> x
       ConstvalNode *constNode = static_cast<ConstvalNode*>(r);
@@ -2048,26 +2071,9 @@ BaseNode *ConstantFold::SimplifyDoubleCompare(CompareNode &compareNode) const {
       }
     }
   } else if (node->GetOpCode() == OP_gt || node->GetOpCode() == OP_lt) {
-    if (l->GetOpCode() == OP_cmp && r->GetOpCode() == OP_constval) {
-      ConstvalNode *constNode = static_cast<ConstvalNode*>(r);
-      if (constNode->GetConstVal()->GetKind() == kConstInt && constNode->GetConstVal()->IsZero()) {
-        const CompareNode *compNode = static_cast<CompareNode*>(l);
-        result = mirModule->CurFuncCodeMemPool()->New<CompareNode>(Opcode(node->GetOpCode()),
-                                                                   PrimType(node->GetPrimType()),
-                                                                   compNode->GetOpndType(),
-                                                                   compNode->Opnd(0),
-                                                                   compNode->Opnd(1));
-      }
-    } else if (r->GetOpCode() == OP_cmp && l->GetOpCode() == OP_constval) {
-      ConstvalNode *constNode = static_cast<ConstvalNode*>(l);
-      if (constNode->GetConstVal()->GetKind() == kConstInt && constNode->GetConstVal()->IsZero()) {
-        const CompareNode *compNode = static_cast<CompareNode*>(r);
-        result = mirModule->CurFuncCodeMemPool()->New<CompareNode>(Opcode(node->GetOpCode()),
-                                                                   PrimType(node->GetPrimType()),
-                                                                   compNode->GetOpndType(),
-                                                                   compNode->Opnd(1),
-                                                                   compNode->Opnd(0));
-      }
+    if ((l->GetOpCode() == OP_cmp && r->GetOpCode() == OP_constval) ||
+        (r->GetOpCode() == OP_cmp && l->GetOpCode() == OP_constval)) {
+      result = SimplifyDoubleConstvalCompare(*node, (l->GetOpCode() == OP_cmp && r->GetOpCode() == OP_constval), true);
     }
   }
   return result;

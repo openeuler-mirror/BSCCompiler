@@ -14,6 +14,7 @@
  */
 
 #include "chain_layout.h"
+#include "cg_option.h"
 
 namespace maple {
 // Multiple loops may share the same header, we try to find the best unplaced node in the loop
@@ -60,7 +61,7 @@ NodeType *NodeContext::GetBestStartBBOutOfLoop(const MapleSet<NodeChain*> &ready
   return bestStart;
 }
 
-void NodeContext::InitReadyChains(MapleSet<NodeChain*> &readyChains) {
+void NodeContext::InitReadyChains(MapleSet<NodeChain*> &readyChain) {
   // (1) Global context
   if (IsGlobal()) {
     const auto &end = func.end();
@@ -72,7 +73,7 @@ void NodeContext::InitReadyChains(MapleSet<NodeChain*> &readyChains) {
       auto nodeId = node->GetID();
       NodeChain *chain = node2chain[nodeId];
       if (chain->IsReadyToLayout(*this)) {
-        (void)readyChains.insert(chain);
+        (void)readyChain.insert(chain);
       }
     }
     return;
@@ -87,7 +88,7 @@ void NodeContext::InitReadyChains(MapleSet<NodeChain*> &readyChains) {
       }
       NodeChain *chain = node2chain[nodeId];
       if (chain->IsReadyToLayout(*this)) {
-        (void)readyChains.insert(chain);
+        (void)readyChain.insert(chain);
       }
     }
     return;
@@ -100,7 +101,7 @@ void NodeContext::InitReadyChains(MapleSet<NodeChain*> &readyChains) {
     }
     NodeChain *chain = node2chain[i];
     if (chain->IsReadyToLayout(*this)) {
-      (void)readyChains.insert(chain);
+      (void)readyChain.insert(chain);
     }
   }
 }
@@ -117,7 +118,7 @@ void ChainLayout::InitLoopsForME(IdentifyLoops &identifyLoops) {
   }
 }
 
-void ChainLayout::InitLoopsForCG(MapleVector<maplebe::CGFuncLoops*> &cgLoops) {
+void ChainLayout::InitLoopsForCG(MapleVector<maplebe::LoopDesc*> &cgLoops) {
   if (cgLoops.empty()) {
     return;
   }
@@ -127,9 +128,8 @@ void ChainLayout::InitLoopsForCG(MapleVector<maplebe::CGFuncLoops*> &cgLoops) {
     auto *cgLoop = cgLoops[i];
     auto *cgLoopWrapper = layoutAlloc.New<CGLoopWrapper>(*cgLoop);
     loops[i] = cgLoopWrapper;
-    const auto &loopBBs = cgLoop->GetLoopMembers();
-    for (auto *bb : loopBBs) {
-      (*nodesInLoop)[bb->GetID()] = true;
+    for (auto bbId : cgLoop->GetLoopBBs()) {
+      (*nodesInLoop)[bbId] = true;
     }
   }
 }
@@ -157,18 +157,27 @@ void GetAllDomChildren(DomWrapperBase &dom, uint32 bbId, std::vector<uint32> &al
   }
 }
 
-void ChainLayout::InitColdNodes() {
-  if (func.IsMeFunc()) {
-    InitColdNodesForME();
-  } else {
-    InitColdNodesForCG();
+// Reset all nodes with normal temperature
+void ChainLayout::ResetNodeTemperatures() {
+  if (nodeTemps == nullptr) {
+    nodeTemps = layoutAlloc.New<MapleVector<ExeTemperature>>(func.size(),
+        ExeTemperature::kNormal, layoutAlloc.Adapter());
   }
-  if (debugChainLayout && hasColdNode) {
+}
+
+void ChainLayout::InitNodeTemperatures() {
+  ResetNodeTemperatures();
+  if (func.IsMeFunc()) {
+    InitNodeTemperaturesForME();
+  } else {
+    InitNodeTemperaturesForCG();
+  }
+  if (debugChainLayout && hasColdOrNeverExeNode) {
     LogInfo::MapleLogger() << "Cold BBs in " << func.GetName() << ": ";
     const auto &end = func.end();
     for (auto &it = func.begin(); it != end; ++it) {
       auto *node = *it;
-      if (IsColdNode(*node)) {
+      if (GetNodeTemp(node->GetID()) == ExeTemperature::kCold) {
         LogInfo::MapleLogger() << node->GetID() << ", ";
       }
     }
@@ -176,38 +185,42 @@ void ChainLayout::InitColdNodes() {
   }
 }
 
-void ChainLayout::InitColdNodesForCG() {
+void ChainLayout::InitNodeTemperaturesForCG() {
   // If node freq is smaller than the threshold, it will be marked as cold
-  constexpr FreqType coldCntThresh = 10;
+  auto coldCntThresh = maplebe::CGOptions::GetColdPathThreshold();
   CHECK_FATAL(!func.IsMeFunc(), "must be");
   if (!hasRealProfile) {  // Only consider real profile for now
     return;
   }
   const auto &end = func.end();
+  auto entryFreq = func.GetLayoutStartNode()->GetNodeFrequency();
   for (auto &it = func.begin(); it != end; ++it) {
     auto *node = *it;
     if (node == nullptr) {
       continue;
     }
     auto nodeFreq = node->GetNodeFrequency();
-    if (nodeFreq > coldCntThresh) {
+    if (nodeFreq * static_cast<FreqType>(coldCntThresh) > entryFreq) {
       continue;
     }
-    if (coldNodes == nullptr) {
-      coldNodes = layoutAlloc.New<MapleVector<bool>>(func.size(), false, layoutAlloc.Adapter());
-    }
-    hasColdNode = true;
+    hasColdOrNeverExeNode = true;
     if (!IsNodeInLoop(*node)) {
-      hasColdNodeOutOfLoop = true;
+      hasColdOrNeverExeNodeOutOfLoop = true;
     }
-    (*coldNodes)[node->GetID()] = true;
+    // If node freq is 0, it will be marked as neverExe
+    if (markNeverExe && nodeFreq == 0) {
+      SetNodeTemp(node->GetID(), ExeTemperature::kNeverExe);
+      static_cast<maplebe::BB*>(node)->SetColdSection();
+    } else {
+      SetNodeTemp(node->GetID(), ExeTemperature::kCold);
+    }
   }
 }
 
 // Mark all cold basic block.
 // Now we only mark unlikely BB and it's all dom children as cold blocks. This can be
 // enhanced when real profile data is available.
-void ChainLayout::InitColdNodesForME() {
+void ChainLayout::InitNodeTemperaturesForME() {
   CHECK_FATAL(func.IsMeFunc(), "must be");
   std::vector<uint32> immediateColdBBs;
   const auto &end = func.end();
@@ -219,22 +232,19 @@ void ChainLayout::InitColdNodesForME() {
     auto *bb = static_cast<BB*>(node);
     if (bb->IsImmediateUnlikelyBB()) {
       immediateColdBBs.push_back(bb->GetID());
-      if (coldNodes == nullptr) {
-        coldNodes = layoutAlloc.New<MapleVector<bool>>(func.size(), false, layoutAlloc.Adapter());
-      }
-      hasColdNode = true;
+      hasColdOrNeverExeNode = true;
       if (!IsNodeInLoop(*bb)) {
-        hasColdNodeOutOfLoop = true;
+        hasColdOrNeverExeNodeOutOfLoop = true;
       }
-      (*coldNodes)[bb->GetID()] = true;
+      SetNodeTemp(bb->GetID(), ExeTemperature::kCold);
       std::vector<uint32> allChildren;
       GetAllDomChildren(dom, bb->GetID(), allChildren);
       for (auto id : allChildren) {
-        (*coldNodes)[id] = true;
+        SetNodeTemp(id, ExeTemperature::kCold);
       }
     }
   }
-  if (debugChainLayout && hasColdNode) {
+  if (debugChainLayout && hasColdOrNeverExeNode) {
     LogInfo::MapleLogger() << "Immediate Cold BBs in " << func.GetName() << ": ";
     for (auto id : immediateColdBBs) {
       LogInfo::MapleLogger() << id << ", ";
@@ -265,7 +275,7 @@ void ChainLayout::PostBuildChainForCGFunc(NodeChain &entryChain) {
       LogInfo::MapleLogger() << "clean up bb is not in ready layout ";
     }
     CHECK_FATAL(cleanup->GetHeader() == f->GetCleanupBB(), "more than one cleanup");
-    if (maplebe::CGOptions::DoEnableHotColdSplit()) {
+    if (markNeverExe) {
       auto *header = static_cast<maplebe::BB*>(cleanup->GetHeader());
       header->SetColdSection();
     }
@@ -301,7 +311,7 @@ void ChainLayout::PostBuildChainForCGFunc(NodeChain &entryChain) {
       LogInfo::MapleLogger() << "label bb is not in ready layout ";
     }
     entryChain.MergeFrom(labelchain);
-    if (maplebe::CGOptions::DoEnableHotColdSplit()) {
+    if (markNeverExe) {
       bb->SetColdSection();
     }
     bb->SetNext(nullptr);
@@ -340,10 +350,11 @@ void ChainLayout::BuildChainForFunc() {
   if (debugChainLayout) {
     LogInfo::MapleLogger() << "\n[Chain layout] " << func.GetName() << ", valid bb num: " << validBBNum << std::endl;
     LogInfo::MapleLogger() << "layoutColdPath: " << layoutColdPath << std::endl;
+    LogInfo::MapleLogger() << "markNeverExe: " << markNeverExe << std::endl;
   }
   InitChains();
-  if (layoutColdPath) {
-    InitColdNodes();
+  if (layoutColdPath || markNeverExe) {
+    InitNodeTemperatures();
   }
   const bool cgRealProfile = !func.IsMeFunc() && hasRealProfile;
   if (cgRealProfile) {
@@ -351,16 +362,21 @@ void ChainLayout::BuildChainForFunc() {
   }
 
   BuildChainForLoops();
-  BuildChainForColdPathInFunc();
+  if (layoutColdPath) {
+    BuildChainForColdOrNeverExePathInFunc(ExeTemperature::kCold);
+  }
+  if (markNeverExe) {
+    BuildChainForColdOrNeverExePathInFunc(ExeTemperature::kNeverExe);
+  }
 
   if (debugChainLayout) {
     LogInfo::MapleLogger() << "\n[BuildChainForFunc] " << func.GetName() << std::endl;
   }
   uint32 range = static_cast<uint32>(LayoutRangeKind::kRangeAll);
   if (!cgRealProfile) {
-    RemoveLayoutRange(range, { LayoutRangeKind::kRangeFreqRpoList });
+    RemoveLayoutRange(range, { LayoutRangeKind::kRangeFreqRpoList, LayoutRangeKind::kRangeNeverExePath });
   }
-  auto *entryChain = BuildChainInContext(nullptr, nullptr, range);
+  auto *entryChain = BuildChainInContext(nullptr, nullptr, range, ExeTemperature::kNormal);
   CHECK_FATAL(entryChain != nullptr, "build chain failure");
 
   PostBuildChainForCGFunc(*entryChain);
@@ -368,15 +384,17 @@ void ChainLayout::BuildChainForFunc() {
   CHECK_FATAL(entryChain->size() == validBBNum, "has any BB not been laid out?");
 }
 
-// Layout cold BBs out of loops
-void ChainLayout::BuildChainForColdPathInFunc() {
-  if (!layoutColdPath || !hasColdNodeOutOfLoop) {
+// Layout cold BBs out of loops, only for cold nodes, not for neverExe
+void ChainLayout::BuildChainForColdOrNeverExePathInFunc(ExeTemperature contextTemp) {
+  if (!hasColdOrNeverExeNodeOutOfLoop) {
     return;
   }
+  CHECK_FATAL(contextTemp == ExeTemperature::kCold || contextTemp == ExeTemperature::kNeverExe, "must be");
   auto *inBBs = layoutAlloc.GetMemPool()->New<MapleVector<bool>>(func.size(), false, layoutAlloc.Adapter());
   int32 numNodes = 0;
-  for (size_t i = 0; i < coldNodes->size(); ++i) {
-    if (!(*coldNodes)[i]) {
+  for (size_t i = 0; i < nodeTemps->size(); ++i) {
+    auto nodeTemp = GetNodeTemp(i);
+    if (nodeTemp != contextTemp) {
       continue;
     }
     auto *node = func.GetNodeById(static_cast<uint32>(i));
@@ -389,12 +407,12 @@ void ChainLayout::BuildChainForColdPathInFunc() {
     return;
   }
   if (debugChainLayout) {
-    LogInfo::MapleLogger() << "\n[BuildChainForColdPathInFunc] numBBs: " << numNodes << std::endl;
+    LogInfo::MapleLogger() << "\n[BuildChainForColdOrNeverExePathInFunc] numBBs: " << numNodes << std::endl;
   }
   uint32 range = 0;
   AddLayoutRange(range, { LayoutRangeKind::kRangeSucc, LayoutRangeKind::kRangeReadyList });
   while (numNodes > 0) {
-    auto *chain = BuildChainInContext(inBBs, nullptr, range, NodeContextTemperature::kCold);
+    auto *chain = BuildChainInContext(inBBs, nullptr, range, contextTemp);
     if (chain == nullptr) {
       break;
     }
@@ -426,45 +444,35 @@ void ChainLayout::BuildChainForLoops() {
       }
       LogInfo::MapleLogger() << std::endl;
     }
+    BuildChainForLoop(*loop, *inBBs, ExeTemperature::kNormal);
     if (layoutColdPath) {
-      BuildChainForLoop(*loop, *inBBs, NodeContextTemperature::kNonCold);
-      BuildChainForLoop(*loop, *inBBs, NodeContextTemperature::kCold);
-    } else {
-      BuildChainForLoop(*loop, *inBBs, NodeContextTemperature::kAll);
+      BuildChainForLoop(*loop, *inBBs, ExeTemperature::kCold);
+    }
+    if (markNeverExe) {
+      BuildChainForLoop(*loop, *inBBs, ExeTemperature::kNeverExe);
     }
   }
 }
 
 // Collect blocks in the given `loop` that are to be laid out.
-bool ChainLayout::FindNodesToLayoutInLoop(const LoopWrapperBase &loop, NodeContextTemperature temperature,
-    MapleVector<bool> &inBBs) {
+bool ChainLayout::FindNodesToLayoutInLoop(const LoopWrapperBase &loop, ExeTemperature temperature,
+    MapleVector<bool> &inBBs) const {
   std::fill(inBBs.begin(), inBBs.end(), false);
   bool found = false;
   std::vector<uint32> loopNodeIds;
   loop.GetLoopMembers(loopNodeIds);
   for (auto nodeId : loopNodeIds) {
-    if (temperature == NodeContextTemperature::kAll) {
+    auto nodeTemp = GetNodeTemp(nodeId);
+    if (nodeTemp == temperature) {
       inBBs[nodeId] = true;
       found = true;
-      continue;
-    }
-    bool isColdNode = IsColdNode(nodeId);
-    if (temperature == NodeContextTemperature::kCold && isColdNode) {
-      inBBs[nodeId] = true;
-      found = true;
-      continue;
-    }
-    if (temperature == NodeContextTemperature::kNonCold && !isColdNode) {
-      inBBs[nodeId] = true;
-      found = true;
-      continue;
     }
   }
   return found;
 }
 
 NodeChain *ChainLayout::BuildChainInContext(MapleVector<bool> *inBBs, LoopWrapperBase *loop, uint32 range,
-    NodeContextTemperature contextTemperature) {
+    ExeTemperature contextTemperature) {
   NodeContext context(func, node2chain, inBBs, loop, contextTemperature);
   layoutContext = &context;
   // Init ready chains
@@ -481,9 +489,12 @@ NodeChain *ChainLayout::BuildChainInContext(MapleVector<bool> *inBBs, LoopWrappe
   }
   NodeChain *startChain = node2chain[startNode->GetID()];
   DoBuildChain(*startNode, *startChain, range);
-  if (layoutContext->GetTemperature() == NodeContextTemperature::kCold) {
-    startChain->SetColdChain(true);
+  auto contextTemp = layoutContext->GetTemperature();
+  startChain->SetTemp(contextTemp);
+  if (contextTemp == ExeTemperature::kCold) {
     coldChains.push_back(startChain);
+  } else if (contextTemp == ExeTemperature::kNeverExe) {
+    neverExeChains.push_back(startChain);
   }
   MayDumpFormedChain(*startChain);
   readyToLayoutChains.clear();
@@ -491,14 +502,14 @@ NodeChain *ChainLayout::BuildChainInContext(MapleVector<bool> *inBBs, LoopWrappe
 }
 
 void ChainLayout::BuildChainForLoop(LoopWrapperBase &loop, MapleVector<bool> &inBBs,
-    NodeContextTemperature temperature) {
+    ExeTemperature temperature) {
   bool found = FindNodesToLayoutInLoop(loop, temperature, inBBs);
   if (!found) {
     return;  // inBBs is empty, just return
   }
   uint32 range = static_cast<uint32>(LayoutRangeKind::kRangeAll);
   if (func.IsMeFunc()) {
-    RemoveLayoutRange(range, { LayoutRangeKind::kRangeFreqRpoList });
+    RemoveLayoutRange(range, { LayoutRangeKind::kRangeFreqRpoList, LayoutRangeKind::kRangeNeverExePath });
   }
   (void)BuildChainInContext(&inBBs, &loop, range, temperature);
 }
@@ -543,14 +554,14 @@ bool ChainLayout::IsCandidateSucc(const NodeType &node, const NodeType &succ) co
     return false;
   }
   auto *chain = node2chain[succ.GetID()];
-  if (chain->IsColdChain()) {
-    return false;  // special case, cold chain
+  if (chain->IsColdOrNeverExe()) {
+    return false;  // special case, cold chain or neverExe chain
   }
   return true;
 }
 
 // Whether succ has a better layout pred than bb
-bool ChainLayout::HasBetterLayoutPred(const NodeType &node, NodeType &succ) {
+bool ChainLayout::HasBetterLayoutPred(const NodeType &node, NodeType &succ) const {
   std::vector<NodeType*> predList;
   succ.GetInNodes(predList);
   // predList.size() may be 0 if bb is common entry BB
@@ -577,30 +588,37 @@ bool ChainLayout::HasBetterLayoutPred(const NodeType &node, NodeType &succ) {
   return false;
 }
 
-NodeChain *ChainLayout::GetNextColdChain(const NodeChain &curChain) {
+NodeChain *ChainLayout::GetNextChain(const NodeChain &curChain, ExeTemperature temp) {
   // only for layoutInFunc
   if (!layoutContext->IsGlobal()) {
     return nullptr;
   }
-  NodeChain *nextColdChain = nullptr;
+  MapleList<NodeChain*> *chains = nullptr;
+  if (temp == ExeTemperature::kCold) {
+    chains = &coldChains;
+  } else if (temp == ExeTemperature::kNeverExe) {
+    chains = &neverExeChains;
+  } else {
+    CHECK_FATAL_FALSE("should not be here");
+  }
+  NodeChain *nextChain = nullptr;
   FreqType maxBBFreq = -1;
-  // Find the unlaid cold chain with max bb freq.
-  for (auto *coldChain : coldChains) {
-    if (coldChain == &curChain || coldChain->empty()) {
+  // Find the unlaid cold/neverExe chain with max bb freq.
+  for (auto *chain : *chains) {
+    if (chain == &curChain || chain->empty()) {
       continue;  // skip laid chain and empty chain (a empty chain may be produced by NodeChain::MergeFrom)
     }
-    auto *node = coldChain->GetHeader();
+    auto *node = chain->GetHeader();
     auto nodeFreq = node->GetNodeFrequency();
     if (nodeFreq > maxBBFreq) {
-      nextColdChain = coldChain;
+      nextChain = chain;
       maxBBFreq = nodeFreq;
     }
   }
-  if (nextColdChain == nullptr) {
+  if (nextChain == nullptr) {
     return nullptr;
   }
-  CHECK_FATAL(nextColdChain->IsColdChain(), "not cold chain");
-  return nextColdChain;
+  return nextChain;
 }
 
 NodeType *ChainLayout::FindNextNodeInSucc(NodeType &node, bool considerBetterPredForSucc) {
@@ -632,7 +650,7 @@ NodeType *ChainLayout::FindNextNodeInSucc(NodeType &node, bool considerBetterPre
   return bestSucc;
 }
 
-NodeType *ChainLayout::FindNextNodeInReadyList(NodeType &node) const {
+NodeType *ChainLayout::FindNextNodeInReadyList(const NodeType &node) const {
   NodeType *bestSucc = nullptr;
   FreqType bestFreq = 0;  // need to change to -1?
   for (auto it = readyToLayoutChains.begin(); it != readyToLayoutChains.end(); ++it) {
@@ -661,7 +679,7 @@ NodeType *ChainLayout::FindNextNodeInReadyList(NodeType &node) const {
   return bestSucc;
 }
 
-void ChainLayout::MayDumpSelectLog(const NodeType &curNode, const NodeType &nextNode, const std::string &hint) {
+void ChainLayout::MayDumpSelectLog(const NodeType &curNode, const NodeType &nextNode, const std::string &hint) const {
   if (!debugChainLayout) {
     return;
   }
@@ -692,7 +710,7 @@ NodeType *ChainLayout::FindNextNodeInRpotList(const NodeChain &chain) {
     auto *rpoNode = *(rpoBegin + static_cast<DomWrapperBase::difference_type>(i));
     auto *candNode = func.GetNodeById(rpoNode->GetID());
     auto *candChain = node2chain[candNode->GetID()];
-    if (layoutContext->Contains(*candNode) && candChain != &chain && !candChain->IsColdChain()) {
+    if (layoutContext->Contains(*candNode) && candChain != &chain && !candChain->IsColdOrNeverExe()) {
       rpoSearchPos = static_cast<uint32>(i);
       return candNode;
     }
@@ -746,13 +764,24 @@ NodeType *ChainLayout::GetBestSucc(NodeType &node, const NodeChain &chain, uint3
     }
   }
 
-  // loop cold chain
+  // cold chain
   if (IsTargetRange(range, LayoutRangeKind::kRangeColdPath)) {
-    auto *nextColdChain = GetNextColdChain(chain);
+    auto *nextColdChain = GetNextChain(chain, ExeTemperature::kCold);
     if (nextColdChain != nullptr) {
       coldChains.remove(nextColdChain);
       bestSucc = nextColdChain->GetHeader();
       MayDumpSelectLog(node, *bestSucc, "range5 cold ");
+      return bestSucc;
+    }
+  }
+
+  // neverExe chain
+  if (IsTargetRange(range, LayoutRangeKind::kRangeNeverExePath)) {
+    auto *nextNeverExeChain = GetNextChain(chain, ExeTemperature::kNeverExe);
+    if (nextNeverExeChain != nullptr) {
+      neverExeChains.remove(nextNeverExeChain);
+      bestSucc = nextNeverExeChain->GetHeader();
+      MayDumpSelectLog(node, *bestSucc, "range6 never ");
       return bestSucc;
     }
   }

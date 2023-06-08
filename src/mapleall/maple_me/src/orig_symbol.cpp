@@ -97,10 +97,10 @@ void OriginalSt::Dump() const {
 
 OriginalStTable::OriginalStTable(MemPool &memPool, MIRModule &mod)
     : alloc(&memPool),
-      mirModule(mod),
-      originalStVector({ nullptr }, alloc.Adapter()),
       mirSt2Ost(alloc.Adapter()),
       addrofSt2Ost(alloc.Adapter()),
+      mirModule(mod),
+      originalStVector({ nullptr }, alloc.Adapter()),
       preg2Ost(alloc.Adapter()),
       pType2Ost(std::less<TyIdx>(), alloc.Adapter()),
       malloc2Ost(alloc.Adapter()),

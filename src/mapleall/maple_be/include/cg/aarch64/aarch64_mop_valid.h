@@ -22,18 +22,27 @@
 namespace maplebe {
 // Immediate verification for a byte from/to memory. simm: -256 ~ 255; pimm: 0 ~ 4095.
 inline bool StrLdr8Valid(Operand *o) {
-  return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k0ByteSize,
+  return (static_cast<MemOperand *>(o)->GetAddrMode() == MemOperand::kLo12Li) ||
+         StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k0ByteSize,
                                    static_cast<MemOperand *>(o)->IsIntactIndexed());
 }
 
 // Immediate verification for half word from/to memory. simm: -256 ~ 255; pimm: 0 ~ 8190, multiple of 2.
 inline bool StrLdr16Valid(Operand *o) {
+  if (static_cast<MemOperand*>(o)->GetAddrMode() == MemOperand::kLo12Li) {
+    return (static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o)) & static_cast<int64>(k1BitSize)) ==
+           static_cast<int64>(k0BitSize);
+  }
   return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k1ByteSize,
                                    static_cast<MemOperand *>(o)->IsIntactIndexed());
 }
 
 // Immediate verification for a word from/to memory. simm: -256 ~ 255; pimm: 0 ~ 16380, multiple of 4.
 inline bool StrLdr32Valid(Operand *o) {
+  if (static_cast<MemOperand*>(o)->GetAddrMode() == MemOperand::kLo12Li) {
+    return (static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o)) & static_cast<int64>(k3BitSize)) ==
+           static_cast<int64>(k0BitSize);
+  }
   return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k2ByteSize,
                                    static_cast<MemOperand *>(o)->IsIntactIndexed());
 }
@@ -49,6 +58,10 @@ inline bool StrLdr32PairValid(Operand *o) {
 
 // Immediate verification for 2 words from/to memory. simm: -256 ~ 255; pimm: 0 ~ 32760, multiple of 8.
 inline bool StrLdr64Valid(Operand *o) {
+  if (static_cast<MemOperand*>(o)->GetAddrMode() == MemOperand::kLo12Li) {
+    return (static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o)) & static_cast<int64>(k7BitSize)) ==
+           static_cast<int64>(k0BitSize);
+  }
   return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k3ByteSize,
                                    static_cast<MemOperand *>(o)->IsIntactIndexed());
 }
@@ -64,6 +77,10 @@ inline bool StrLdr64PairValid(Operand *o) {
 
 // Immediate verification for 4 words from/to memory. simm: -256 ~ 255; pimm: 0 ~ 65520, multiple of 16.
 inline bool StrLdr128Valid(Operand *o) {
+  if (static_cast<MemOperand*>(o)->GetAddrMode() == MemOperand::kLo12Li) {
+    return (static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o)) & static_cast<int64>(k15BitSize)) ==
+           static_cast<int64>(k0BitSize);
+  }
   return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k4ByteSize,
                                    static_cast<MemOperand *>(o)->IsIntactIndexed());
 }

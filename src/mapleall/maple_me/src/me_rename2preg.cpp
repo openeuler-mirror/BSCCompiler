@@ -97,8 +97,8 @@ RegMeExpr *SSARename2Preg::CreatePregForVar(const VarMeExpr &varMeExpr) {
   }
   const OriginalSt *ost = varMeExpr.GetOst();
   pregOst->SetIsFormal(ost->IsFormal());
-  sym2reg_map[ost->GetIndex()] = pregOst;
-  (void)vstidx2reg_map.emplace(std::make_pair(varMeExpr.GetExprID(), curtemp));
+  sym2regMap[ost->GetIndex()] = pregOst;
+  (void)vstidx2regMap.emplace(std::make_pair(varMeExpr.GetExprID(), curtemp));
   // set fields in MIRPreg to support rematerialization
   MIRPreg *preg = pregOst->GetMIRPreg();
   preg->SetOp(OP_dread);
@@ -107,9 +107,9 @@ RegMeExpr *SSARename2Preg::CreatePregForVar(const VarMeExpr &varMeExpr) {
   if (ost->IsFormal()) {
     const MIRSymbol *mirst = ost->GetMIRSymbol();
     uint32 parmindex = func->GetMirFunc()->GetFormalIndex(mirst);
-    CHECK_FATAL(parm_used_vec[parmindex], "parm_used_vec not set correctly");
-    if (!reg_formal_vec[parmindex]) {
-      reg_formal_vec[parmindex] = curtemp;
+    CHECK_FATAL(parmUsedVec[parmindex], "parmUsedVec not set correctly");
+    if (!regFormalVec[parmindex]) {
+      regFormalVec[parmindex] = curtemp;
     }
   }
   ++rename2pregCount;
@@ -144,23 +144,23 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varMeExpr) {
   }
 
   varMeExpr = GetSrcOfRenameableVarMeExpr(*varMeExpr);
-  auto var2regIt = vstidx2reg_map.find(varMeExpr->GetExprID());
-  if (var2regIt != vstidx2reg_map.end()) {
+  auto var2regIt = vstidx2regMap.find(varMeExpr->GetExprID());
+  if (var2regIt != vstidx2regMap.end()) {
     // return the RegMeExpr has been created for VarMeExpr
     return var2regIt->second;
   }
 
   auto *ost = varMeExpr->GetOst();
   CHECK_FATAL(ost != nullptr, "null ptr check");
-  auto varOst2RegOstIt = std::as_const(sym2reg_map).find(ost->GetIndex());
+  auto varOst2RegOstIt = std::as_const(sym2regMap).find(ost->GetIndex());
   RegMeExpr *regForVarMeExpr = nullptr;
-  if (varOst2RegOstIt == sym2reg_map.cend()) {
+  if (varOst2RegOstIt == sym2regMap.cend()) {
     regForVarMeExpr = CreatePregForVar(*varMeExpr);
   } else {
     OriginalSt *pregOst = varOst2RegOstIt->second;
     CHECK_FATAL(pregOst != nullptr, "null ptr check");
     regForVarMeExpr = meirmap->CreateRegMeExprVersion(*pregOst);
-    (void)vstidx2reg_map.emplace(std::make_pair(varMeExpr->GetExprID(), regForVarMeExpr));
+    (void)vstidx2regMap.emplace(std::make_pair(varMeExpr->GetExprID(), regForVarMeExpr));
   }
   return regForVarMeExpr;
 }
@@ -185,18 +185,18 @@ void SSARename2Preg::Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdefli
 
 RegMeExpr *SSARename2Preg::FindOrCreatePregForVarPhiOpnd(const VarMeExpr *varMeExpr) {
   varMeExpr = GetSrcOfRenameableVarMeExpr(*varMeExpr);
-  auto varOst2RegOstIt = sym2reg_map.find(varMeExpr->GetOstIdx());
-  CHECK_FATAL(varOst2RegOstIt != sym2reg_map.end(), "PregOst must have been created for phi");
+  auto varOst2RegOstIt = sym2regMap.find(varMeExpr->GetOstIdx());
+  CHECK_FATAL(varOst2RegOstIt != sym2regMap.end(), "PregOst must have been created for phi");
 
-  auto var2regIt = vstidx2reg_map.find(varMeExpr->GetExprID());
-  if (var2regIt != vstidx2reg_map.end()) {
+  auto var2regIt = vstidx2regMap.find(varMeExpr->GetExprID());
+  if (var2regIt != vstidx2regMap.end()) {
     return var2regIt->second;
   }
 
   OriginalSt *pregOst = varOst2RegOstIt->second;
   CHECK_FATAL(pregOst != nullptr, "null ptr check");
   RegMeExpr *regForVarMeExpr = meirmap->CreateRegMeExprVersion(*pregOst);
-  (void)vstidx2reg_map.emplace(std::make_pair(varMeExpr->GetExprID(), regForVarMeExpr));
+  (void)vstidx2regMap.emplace(std::make_pair(varMeExpr->GetExprID(), regForVarMeExpr));
   return regForVarMeExpr;
 }
 
@@ -300,6 +300,14 @@ void SSARename2Preg::Rename2PregLeafLHS(MeStmt &mestmt, const VarMeExpr &varmeex
     MeSSAUpdate::InsertOstToSSACands(varreg->GetOstIdx(), *mestmt.GetBB(), &candsForSSAUpdate);
   }
   meirmap->SimplifyAssign(regssmestmt);
+
+  // Local not address taken var would be no alias relationship with other memory.
+  for (auto chiNode : *mestmt.GetChiList()) {
+    MeStmt *defMeStmt = nullptr;
+    auto *defBB = chiNode.second->GetRHS()->GetDefByBBMeStmt(*func->GetCfg(), defMeStmt);
+    // After the chi node is cleared, it needs to update the ssa.
+    MeSSAUpdate::InsertOstToSSACands(chiNode.first, *defBB, &candsForSSAUpdate);
+  }
 }
 
 void SSARename2Preg::SetupParmUsed(const VarMeExpr *varmeexpr) {
@@ -307,7 +315,7 @@ void SSARename2Preg::SetupParmUsed(const VarMeExpr *varmeexpr) {
   if (ost->IsFormal() && ost->IsSymbolOst()) {
     const MIRSymbol *mirst = ost->GetMIRSymbol();
     uint32 index = func->GetMirFunc()->GetFormalIndex(mirst);
-    parm_used_vec[index] = true;
+    parmUsedVec[index] = true;
   }
 }
 
@@ -332,7 +340,7 @@ void SSARename2Preg::Rename2PregExpr(MeStmt *mestmt, MeExpr *meexpr) {
       if (ost->IsFormal()) {
         const MIRSymbol *mirst = ost->GetMIRSymbol();
         uint32 index = func->GetMirFunc()->GetFormalIndex(mirst);
-        parm_used_vec[index] = true;
+        parmUsedVec[index] = true;
       }
       break;
     }
@@ -391,7 +399,7 @@ void SSARename2Preg::UpdateMirFunctionFormal() {
   MIRFunction *mirFunc = func->GetMirFunc();
   const MIRBuilder *mirbuilder = mirModule->GetMIRBuilder();
   for (uint32 i = 0; i < mirFunc->GetFormalDefVec().size(); i++) {
-    if (!parm_used_vec[i]) {
+    if (!parmUsedVec[i]) {
       // in this case, the paramter is not used by any statement, promote it
       MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirFunc->GetFormalDefVec()[i].formalTyIdx);
       if (mirType->GetPrimType() != PTY_agg) {
@@ -401,7 +409,7 @@ void SSARename2Preg::UpdateMirFunctionFormal() {
             mirbuilder->CreatePregFormalSymbol(mirType->GetTypeIndex(), regIdx, *mirFunc);
       }
     } else {
-      RegMeExpr *regformal = reg_formal_vec[i];
+      RegMeExpr *regformal = regFormalVec[i];
       if (regformal) {
         PregIdx regIdx = regformal->GetRegIdx();
         MIRSymbol *oldformalst = mirFunc->GetFormalDefVec()[i].formalSym;
@@ -470,8 +478,8 @@ void SSARename2Preg::CollectDefUseInfoOfOst() {
 
 void SSARename2Preg::Init() {
   size_t formalsize = func->GetMirFunc()->GetFormalDefVec().size();
-  parm_used_vec.resize(formalsize);
-  reg_formal_vec.resize(formalsize);
+  parmUsedVec.resize(formalsize);
+  regFormalVec.resize(formalsize);
 }
 
 void SSARename2Preg::RunSelf() {

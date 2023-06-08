@@ -136,7 +136,7 @@ void PregRenamer::RunSelf() {
     ASSERT(static_cast<uint32>(oldPredIdx) < firstAppearTable.size(), "oversize ");
     if (!firstAppearTable[static_cast<size_t>(static_cast<uint32>(oldPredIdx))]) {
       // use the previous register
-      firstAppearTable[static_cast<size_t>(oldPredIdx)] = true;
+      firstAppearTable[static_cast<uint32_t>(oldPredIdx)] = true;
       continue;
     }
     PregIdx newPregIdx = pregTab->ClonePreg(*pregTab->PregFromPregIdx(oldPredIdx));

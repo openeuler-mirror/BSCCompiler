@@ -51,7 +51,7 @@
 //     in decref of any object.
 namespace {
 // following intrinsics can throw exception
-const std::set<maple::MIRIntrinsicID> canThrowIntrinsicsList {
+const std::set<maple::MIRIntrinsicID> kCanThrowIntrinsicsList {
     maple::INTRN_MPL_CLINIT_CHECK,
     maple::INTRN_MPL_BOUNDARY_CHECK,
     maple::INTRN_JAVA_CLINIT_CHECK,
@@ -62,7 +62,7 @@ const std::set<maple::MIRIntrinsicID> canThrowIntrinsicsList {
     maple::INTRN_JAVA_THROW_ARITHMETIC,
     maple::INTRN_JAVA_THROW_CLASSCAST,
 };
-const std::set<std::string> kWhiteListFunc {
+const std::set<std::string> kWhitelistFunc {
 #include "rcwhitelist.def"
 };
 const size_t kMinIdxInVec = 2;
@@ -255,7 +255,7 @@ bool DelegateRC::MayThrowException(const MeStmt &stmt) const {
 
   if (IsIntrinsic(stmt)) {
     const auto &intrn = static_cast<const IntrinsiccallMeStmt&>(stmt);
-    return canThrowIntrinsicsList.find(intrn.GetIntrinsic()) != canThrowIntrinsicsList.end();
+    return kCanThrowIntrinsicsList.find(intrn.GetIntrinsic()) != kCanThrowIntrinsicsList.end();
   }
 
   if (kOpcodeInfo.IsCall(stmt.GetOp())) {
@@ -440,11 +440,11 @@ void DelegateRC::DelegateRCTemp(MeStmt &stmt) {
     }
     case OP_return: {
       std::string funcName = func.GetMirFunc()->GetName();
-      if (kWhiteListFunc.find(funcName) != kWhiteListFunc.end()) {
+      if (kWhitelistFunc.find(funcName) != kWhitelistFunc.end()) {
         break;
       }
       auto &retStmt = static_cast<RetMeStmt&>(stmt);
-      if (!retStmt.NumMeStmtOpnds()) {
+      if (retStmt.NumMeStmtOpnds() == 0) {
         break;
       }
       MeExpr *ret = retStmt.GetOpnd(0);
@@ -578,7 +578,7 @@ bool DelegateRC::CanOmitRC4LHSVar(const MeStmt &stmt, bool &onlyWithDecref) cons
           return false;
         }
         // except reset of localrefvar because of special handle throw operand
-        if ((func.GetHints() & kPlacementRCed) && theRhs->GetOp() == OP_constval) {
+        if ((func.GetHints() & kPlacementRCed) != 0 && theRhs->GetOp() == OP_constval) {
           return false;
         }
         return true;

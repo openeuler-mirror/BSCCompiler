@@ -15,7 +15,11 @@
 #ifndef MAPLE_IR_INCLUDE_CFG_PRIMITIVE_TYPES_H
 #define MAPLE_IR_INCLUDE_CFG_PRIMITIVE_TYPES_H
 
+#include "types_def.h"
+
 namespace maple {
+uint8 GetPointerSize(); // Circular include dependency with mir_type.h
+
 // Declaration of enum PrimType
 #define LOAD_ALGO_PRIMARY_TYPE
 enum PrimType {
@@ -32,6 +36,54 @@ constexpr PrimType kPtyDerived = PTY_end;
 
 struct PrimitiveTypeProperty {
   PrimType type;
+
+  PrimitiveTypeProperty(PrimType type, bool isInteger, bool isUnsigned,
+                        bool isAddress, bool isFloat, bool isPointer,
+                        bool isSimple, bool isDynamic, bool isDynamicAny,
+                        bool isDynamicNone, bool isVector) :
+                        type(type), isInteger(isInteger), isUnsigned(isUnsigned),
+                        isAddress(isAddress), isFloat(isFloat), isPointer(isPointer),
+                        isSimple(isSimple), isDynamic(isDynamic), isDynamicAny(isDynamicAny),
+                        isDynamicNone(isDynamicNone), isVector(isVector) {}
+
+  bool IsInteger() const { return isInteger; }
+  bool IsUnsigned() const { return isUnsigned; }
+
+  bool IsAddress() const {
+    if (type == PTY_u64 || type == PTY_u32) {
+      if ((type == PTY_u64 && GetPointerSize() == 8) ||
+          (type == PTY_u32 && GetPointerSize() == 4)) {
+        return true;
+      } else {
+        return false;
+      }
+    } else {
+      return isAddress;
+    }
+  }
+
+  bool IsFloat() const { return isFloat; }
+
+  bool IsPointer() const {
+    if (type == PTY_u64 || type == PTY_u32) {
+      if ((type == PTY_u64 && GetPointerSize() == 8) ||
+          (type == PTY_u32 && GetPointerSize() == 4)) {
+        return true;
+      } else {
+        return false;
+      }
+    } else {
+      return isPointer;
+    }
+  }
+
+  bool IsSimple() const { return isSimple; }
+  bool IsDynamic() const { return isDynamic; }
+  bool IsDynamicAny() const { return isDynamicAny; }
+  bool IsDynamicNone() const { return isDynamicNone; }
+  bool IsVector() const { return isVector; }
+
+ private:
   bool isInteger;
   bool isUnsigned;
   bool isAddress;

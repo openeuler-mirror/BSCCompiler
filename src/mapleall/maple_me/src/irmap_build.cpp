@@ -27,7 +27,7 @@ static constexpr uint32 kMaxRegParamNum = 8;
 using MeExprBuildFactory = FunctionFactory<Opcode, std::unique_ptr<MeExpr>, const IRMapBuild*, BaseNode&>;
 using MeStmtFactory = FunctionFactory<Opcode, MeStmt*, IRMapBuild*, StmtNode&, AccessSSANodes&>;
 
-VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) {
+VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) const {
   size_t vindex = vst.GetIndex();
   ASSERT(vindex < irMap->verst2MeExprTable.size(), "GetOrCreateVarFromVerSt: index %d is out of range", vindex);
   MeExpr *meExpr = irMap->verst2MeExprTable.at(vindex);
@@ -43,7 +43,7 @@ VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) {
   return varx;
 }
 
-RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) {
+RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) const {
   size_t vindex = vst.GetIndex();
   ASSERT(vindex < irMap->verst2MeExprTable.size(), " GetOrCreateRegFromVerSt: index %d is out of range", vindex);
   MeExpr *meExpr = irMap->verst2MeExprTable[vindex];

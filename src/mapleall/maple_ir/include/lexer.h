@@ -142,7 +142,7 @@ class MIRLexer {
   }
 
   char GetCharAtWithLowerCheck(uint32 idx) const {
-    return idx >= 0 ? line[idx] : 0;
+    return line[idx];
   }
 
   char GetCurrentCharWithUpperCheck() {

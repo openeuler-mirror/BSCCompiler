@@ -22,8 +22,8 @@ namespace maplebe {
 
 class LocalSchedule : public BaseSchedule {
  public:
-  LocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, InterDataDepAnalysis &idda)
-      : BaseSchedule(mp, f, cdAna), interDDA(idda) {}
+  LocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, DataDepAnalysis &dda)
+      : BaseSchedule(mp, f, cdAna), intraDDA(dda) {}
   ~LocalSchedule() override = default;
 
   std::string PhaseName() const {
@@ -31,14 +31,18 @@ class LocalSchedule : public BaseSchedule {
   }
   void Run() override;
   bool CheckCondition(CDGRegion &region) const;
+  void DoLocalScheduleForRegion(CDGRegion &region);
+  using BaseSchedule::DoLocalSchedule;
   void DoLocalSchedule(CDGNode &cdgNode);
 
  protected:
   void InitInCDGNode(CDGNode &cdgNode);
   virtual void FinishScheduling(CDGNode &cdgNode) = 0;
-  void DumpInsnInfoByScheduledOrder(BB &curBB) const override {};
+  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override {
+      (void)cdgNode;
+  }
 
-  InterDataDepAnalysis &interDDA;
+  DataDepAnalysis &intraDDA;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLocalSchedule, maplebe::CGFunc)

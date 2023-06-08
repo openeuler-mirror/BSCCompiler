@@ -15,12 +15,13 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "bc_util.h"
+#include "fe_utils.h"
 
 namespace maple {
 TEST(BCUtil, IsWideType) {
-  ASSERT_EQ(bc::BCUtil::IsWideType(bc::BCUtil::GetIntIdx()), false);
-  ASSERT_EQ(bc::BCUtil::IsWideType(bc::BCUtil::GetFloatIdx()), false);
-  ASSERT_EQ(bc::BCUtil::IsWideType(bc::BCUtil::GetLongIdx()), true);
-  ASSERT_EQ(bc::BCUtil::IsWideType(bc::BCUtil::GetDoubleIdx()), true);
+  ASSERT_EQ(bc::BCUtil::IsWideType(maple::FEUtils::GetIntIdx()), false);
+  ASSERT_EQ(bc::BCUtil::IsWideType(maple::FEUtils::GetFloatIdx()), false);
+  ASSERT_EQ(bc::BCUtil::IsWideType(maple::FEUtils::GetLongIdx()), true);
+  ASSERT_EQ(bc::BCUtil::IsWideType(maple::FEUtils::GetDoubleIdx()), true);
 }
 }  // namespace maple

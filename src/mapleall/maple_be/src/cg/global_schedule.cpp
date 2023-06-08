@@ -127,8 +127,8 @@ bool CgGlobalSchedule::PhaseRun(maplebe::CGFunc &f) {
   ControlDepAnalysis *cda = GET_ANALYSIS(CgControlDepAnalysis, f);
   MAD *mad = Globals::GetInstance()->GetMAD();
   auto *ddb = memPool->New<AArch64DataDepBase>(*memPool, f, *mad, false);
-  auto *idda = memPool->New<InterDataDepAnalysis>(f, *memPool, *ddb);
-  auto *globalScheduler = f.GetCG()->CreateGlobalSchedule(*memPool, f, *cda, *idda);
+  auto *dda = memPool->New<DataDepAnalysis>(f, *memPool, *ddb);
+  auto *globalScheduler = f.GetCG()->CreateGlobalSchedule(*memPool, f, *cda, *dda);
   globalScheduler->Run();
   return true;
 }

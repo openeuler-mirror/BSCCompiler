@@ -271,17 +271,14 @@ MeOccur *ExprHoist::GetHoistedOcc(HoistSummary &hs, MeExpr *expr, MeOccur *defOc
           break;
         }
       }
-      parent->CreateRealOcc(*fakeStmt, seqStmt, *expr, true);
-      MeRealOcc *newRealocc = nullptr;
+      MeRealOcc *newRealocc =
+          parent->AddRealOcc(*fakeStmt, seqStmt, *expr, true, false, *parent->workCand);
+      CHECK_NULL_FATAL(newRealocc);
       // reset realocc's pos
       for (size_t j = 0; j < parent->workCand->GetRealOccs().size(); j++) {
         auto *realocc = parent->workCand->GetRealOcc(j);
-        if (realocc->GetMeStmt() == fakeStmt) {
-          newRealocc = realocc;
-        }
         realocc->SetPosition(j);
       }
-      CHECK_NULL_FATAL(newRealocc);
       // keep dt_preorder
       for (auto iter = parent->allOccs.begin(); iter != parent->allOccs.end(); ++iter) {
         auto *occ = *iter;

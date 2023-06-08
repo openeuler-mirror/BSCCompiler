@@ -95,7 +95,7 @@ void MeProfUse::ComputeBBFreq(BBUseInfo &bbInfo, bool &changed) const {
 }
 
 /* compute all edge freq in the cfg without consider exception */
-void MeProfUse::ComputeEdgeFreq() {
+void MeProfUse::ComputeEdgeFreq() const {
   bool change = true;
   size_t pass = 0;
   MeCFG *cfg = func->GetCfg();

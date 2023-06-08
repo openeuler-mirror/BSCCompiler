@@ -193,15 +193,15 @@ BaseNode *CGLowerer::LowerIaddrof(const IreadNode &iaddrof) {
   MIRStructType *structTy = static_cast<MIRStructType*>(
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerTy->GetPointedTyIdx()));
   CHECK_FATAL(structTy != nullptr, "LowerIaddrof: non-zero fieldID for non-structure");
-  int32 offset = structTy->GetKind() == kTypeClass ?
+  uint32 offset = structTy->GetKind() == kTypeClass ?
       beCommon.GetJClassFieldOffset(*structTy, iaddrof.GetFieldID()).byteOffset :
       structTy->GetFieldOffsetFromBaseAddr(iaddrof.GetFieldID()).byteOffset;
   if (offset == 0) {
     return iaddrof.Opnd(0);
   }
   uint32 loweredPtrType = static_cast<uint32>(GetLoweredPtrType());
-  MIRIntConst *offsetConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      static_cast<uint64>(static_cast<int64>(offset)), *GlobalTables::GetTypeTable().GetTypeTable().at(loweredPtrType));
+  MIRIntConst *offsetConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(offset,
+      *GlobalTables::GetTypeTable().GetTypeTable().at(loweredPtrType));
   BaseNode *offsetNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(offsetConst);
   offsetNode->SetPrimType(GetLoweredPtrType());
 
@@ -791,16 +791,17 @@ StmtNode *CGLowerer::WriteBitField(const OffsetPair &byteBitOffsets, const MIRBi
   auto byteOffset = byteBitOffsets.byteOffset;
   auto bitOffset = byteBitOffsets.bitOffset;
   auto *builder = mirModule.GetMIRBuilder();
-  auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
+  auto *bitField = builder->CreateExprIreadoff(primType, static_cast<int32>(byteOffset), baseAddr);
   auto primTypeSize = GetPrimTypeSize(primType);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
-  if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
+  if ((bitOffset + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
-      bitOffset = (static_cast<int32>(primTypeBitSize) - bitOffset) - bitSize;
+      bitOffset = (primTypeBitSize - bitOffset) - bitSize;
     }
     auto depositBits = builder->CreateExprDepositbits(OP_depositbits, primType, static_cast<uint32>(bitOffset),
         bitSize, bitField, rhs);
-    StmtNode *iAssignoff = builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositBits);
+    StmtNode *iAssignoff = builder->CreateStmtIassignoff(primType, static_cast<int32>(byteOffset),
+                                                         baseAddr, depositBits);
     if (funcProfData) {
       funcProfData->CopyStmtFreq(iAssignoff->GetStmtID(), block->GetStmtID());
     }
@@ -814,16 +815,17 @@ StmtNode *CGLowerer::WriteBitField(const OffsetPair &byteBitOffsets, const MIRBi
   }
   auto *depositedLowerBits = builder->CreateExprDepositbits(OP_depositbits, primType,
       static_cast<uint32>(bitOffset), bitsExtracted, bitField, rhs);
-  auto *assignedLowerBits = builder->CreateStmtIassignoff(primType, byteOffset, baseAddr, depositedLowerBits);
+  auto *assignedLowerBits = builder->CreateStmtIassignoff(primType, static_cast<int32>(byteOffset),
+                                                          baseAddr, depositedLowerBits);
   block->AddStatement(assignedLowerBits);
   auto *extractedHigherBits =
       builder->CreateExprExtractbits(OP_extractbits, primType, bitsExtracted, bitsRemained, rhs);
   auto *bitFieldRemained = builder->CreateExprIreadoff(primType,
-      byteOffset + static_cast<int32>(primTypeSize), baseAddr);
+      static_cast<int32>(static_cast<int32>(byteOffset) + static_cast<int32>(primTypeSize)), baseAddr);
   auto *depositedHigherBits =
       builder->CreateExprDepositbits(OP_depositbits, primType, 0, bitsRemained, bitFieldRemained, extractedHigherBits);
   auto *assignedHigherBits = builder->CreateStmtIassignoff(primType,
-      byteOffset + static_cast<int32>(primTypeSize), baseAddr, depositedHigherBits);
+      static_cast<int32>(static_cast<int32>(byteOffset) + static_cast<int32>(primTypeSize)), baseAddr, depositedHigherBits);
   if (funcProfData) {
     funcProfData->CopyStmtFreq(assignedLowerBits->GetStmtID(), block->GetStmtID());
     funcProfData->CopyStmtFreq(assignedHigherBits->GetStmtID(), block->GetStmtID());
@@ -838,12 +840,12 @@ BaseNode *CGLowerer::ReadBitField(const OffsetPair &byteBitOffsets, const MIRBit
   auto byteOffset = byteBitOffsets.byteOffset;
   auto bitOffset = byteBitOffsets.bitOffset;
   auto *builder = mirModule.GetMIRBuilder();
-  auto *bitField = builder->CreateExprIreadoff(primType, byteOffset, baseAddr);
+  auto *bitField = builder->CreateExprIreadoff(primType, static_cast<int32>(byteOffset), baseAddr);
   auto primTypeSize = GetPrimTypeSize(primType);
   auto primTypeBitSize = GetPrimTypeBitSize(primType);
   if ((static_cast<uint32>(bitOffset) + bitSize) <= primTypeBitSize) {
     if (CGOptions::IsBigEndian()) {
-      bitOffset = (static_cast<int32>(primTypeBitSize) - bitOffset) - bitSize;
+      bitOffset = (primTypeBitSize - bitOffset) - bitSize;
     }
     return builder->CreateExprExtractbits(OP_extractbits, primType, static_cast<uint32>(bitOffset), bitSize, bitField);
   }
@@ -855,7 +857,7 @@ BaseNode *CGLowerer::ReadBitField(const OffsetPair &byteBitOffsets, const MIRBit
   auto *extractedLowerBits = builder->CreateExprExtractbits(OP_extractbits, primType,
       static_cast<uint32>(bitOffset), bitSize - bitsRemained, bitField);
   auto *bitFieldRemained = builder->CreateExprIreadoff(primType,
-      byteOffset + static_cast<int32>(primTypeSize), baseAddr);
+      static_cast<int32>(static_cast<int32>(byteOffset) + static_cast<int32>(primTypeSize)), baseAddr);
   auto *result = builder->CreateExprDepositbits(OP_depositbits, primType, bitSize - bitsRemained, bitsRemained,
       extractedLowerBits, bitFieldRemained);
   return result;
@@ -1097,7 +1099,19 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
   newBlk->AddStatement(asmNode);
 }
 
-DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
+BaseNode *CGLowerer::NeedRetypeWhenLowerCallAssigned(PrimType pType, StmtNode *&beforeStmt) {
+  if (!IsPrimitiveInteger(pType) || GetPrimTypeBitSize(pType) >= k32BitSize) {
+    return mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
+  }
+  auto newPTy = PTY_u32;
+  RegreadNode *retNode = mirModule.GetMIRBuilder()->CreateExprRegread(newPTy, -kSregRetval0);
+  auto pregIdx = GetCurrentFunc()->GetPregTab()->CreatePreg(newPTy);
+  beforeStmt = mirModule.GetMIRBuilder()->CreateStmtRegassign(newPTy, pregIdx, retNode);
+  RegreadNode *preg = mirModule.GetMIRBuilder()->CreateExprRegread(newPTy, pregIdx);
+  return mirModule.GetMIRBuilder()->CreateExprTypeCvt(OP_cvt, pType, newPTy, *preg);
+}
+
+DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID, StmtNode *&beforeStmt) {
   MIRSymbol *var;
   if (stIdx.IsGlobal()) {
     var = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
@@ -1111,7 +1125,7 @@ DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
   } else {
     pType = GlobalTables::GetTypeTable().GetTypeTable().at(var->GetTyIdx())->GetPrimType();
   }
-  RegreadNode *regRead = mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
+  auto *regRead = NeedRetypeWhenLowerCallAssigned(pType, beforeStmt);
   return mirModule.GetMIRBuilder()->CreateStmtDassign(*var, fieldID, regRead);
 }
 
@@ -1278,6 +1292,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
   if (!handledAtLowerLevel) {
     CHECK_FATAL(p2nRets.size() <= 1, "make sure p2nRets size <= 1");
     /* Create DassignStmt to save kSregRetval0. */
+    StmtNode *beforeDStmt = nullptr;
     StmtNode *dStmt = nullptr;
     MIRType *retType = nullptr;
     if (p2nRets.size() == 1) {
@@ -1299,7 +1314,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
         RegFieldPair regFieldPair = p2nRets[0].second;
         if (!regFieldPair.IsReg()) {
           uint16 fieldID = static_cast<uint16>(regFieldPair.GetFieldID());
-          DassignNode *dn = SaveReturnValueInLocal(stIdx, fieldID);
+          DassignNode *dn = SaveReturnValueInLocal(stIdx, fieldID, beforeDStmt);
           CHECK_FATAL(dn->GetFieldID() == 0, "make sure dn's fieldID return 0");
           LowerDassign(*dn, *blk);
           CHECK_FATAL(&newCall == blk->GetLast() || newCall.GetNext() == blk->GetLast(), "");
@@ -1310,7 +1325,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
           MIRPreg *mirPreg = GetCurrentFunc()->GetPregTab()->PregFromPregIdx(pregIdx);
           bool is64x1vec = beCommon.CallIsOfAttr(FUNCATTR_oneelem_simd, &newCall);
           PrimType pType = is64x1vec ? PTY_f64 : mirPreg->GetPrimType();
-          RegreadNode *regNode = mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
+          auto regNode = NeedRetypeWhenLowerCallAssigned(pType, beforeDStmt);
           RegassignNode *regAssign;
           if (is64x1vec && IsPrimitiveInteger(mirPreg->GetPrimType())) {  // not f64
             MIRType *to;
@@ -1349,6 +1364,9 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
     LowerCallStmt(newCall, dStmt, *blk, retType, uselvar, opcode == OP_intrinsiccallassigned);
     if (!uselvar && dStmt != nullptr) {
       dStmt->SetSrcPos(newCall.GetSrcPos());
+      if (beforeDStmt != nullptr) {
+        blk->AddStatement(beforeDStmt);
+      }
       blk->AddStatement(dStmt);
     }
   }

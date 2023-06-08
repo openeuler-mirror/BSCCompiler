@@ -47,13 +47,13 @@ class PeepOptimizeManager {
     }
     OptimizePattern optPattern(*cgFunc, *currBB, *currInsn, *ssaInfo);
     optPattern.Run(*currBB, *currInsn);
-    optSuccess |= optPattern.GetPatternRes();
+    optSuccess = optPattern.GetPatternRes() || optSuccess;
     if (optSuccess && optPattern.GetCurrInsn() != nullptr) {
       currInsn = optPattern.GetCurrInsn();
     }
   }
   template<typename OptimizePattern>
-  void NormalPatternOpt(bool patternEnable = false) const {
+  void NormalPatternOpt(bool patternEnable = false) {
     if (!patternEnable) {
       return;
     }
@@ -184,9 +184,9 @@ class PeepHoleOptimizer {
     cg = cgFunc->GetCG();
   }
   ~PeepHoleOptimizer() = default;
-  void Peephole0() const;
-  void PrePeepholeOpt() const;
-  void PrePeepholeOpt1() const;
+  void Peephole0();
+  void PrePeepholeOpt();
+  void PrePeepholeOpt1();
 
  private:
   CGFunc *cgFunc;

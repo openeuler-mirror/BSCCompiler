@@ -68,12 +68,20 @@ struct InlineResult {  // isInlinable result
   ~InlineResult() = default;
 };
 
+// Reasons for deleting some functions
+enum FuncMustDeleteReason {
+  kDoNotHaveToDelete = 0,          // Do have to delete, must equal 0
+  kDeleteReasonInlineDefinition,   // The function is a inline definition
+  kDeleteReasonExternGnuInline     // The function is extern gnu_inline
+};
+
+const char *GetFuncDeleteStr(FuncMustDeleteReason code);
+FuncMustDeleteReason GetReasonOfFuncMustBeDeleted(const MIRFunction &func);
 bool FuncMustBeDeleted(const MIRFunction &func);
 bool FuncMustBeEmitted(const MIRFunction &func);
 
-inline bool IsExternGnuInline(const MIRFunction &func) {
-  return func.IsExtern() && func.GetAttr(FUNCATTR_gnu_inline);
-}
+bool IsInlineDefinition(const MIRFunction &func);
+bool IsExternGnuInline(const MIRFunction &func);
 
 template <typename T>
 struct Comparator {
@@ -302,7 +310,7 @@ class CGNode : public BaseGraphNode {
     }
   }
 
-  void DelCallee(CallInfo *callInfo, CGNode *callee) {
+  void DelCallee(CallInfo * const callInfo, CGNode * const callee) {
     (void)callees[callInfo]->erase(callee);
   }
 

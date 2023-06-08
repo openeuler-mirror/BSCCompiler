@@ -19,6 +19,12 @@
 #include "mpl_logging.h"
 #include "string_utils.h"
 #include "triple.h"
+// now some tls and pic related logic have been moved me,
+// so need pic related options processed in me, to make me and cg coherent
+// when tls moved to cg as normal, the following included headers could be deleted.
+#include "cg_option.h"
+#include "cg_options.h"
+
 
 namespace maple {
 
@@ -446,6 +452,27 @@ bool MeOption::SolveOptions(bool isDebug) {
   maplecl::CopyIfEnabled(mplToolStrict, opts::me::toolstrict);
   maplecl::CopyIfEnabled(skipVirtualMethod, opts::me::skipvirtual);
 #endif
+
+  // Now some tls and pic related logic have been moved me,
+  // so we need pic related options processed in me in advance, to make me and cg coherent.
+  // When tls moved to cg as normal, these could be deleted.
+  if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
+    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() &&
+        !opts::cg::fPIE.IsEnabledByUser() && !opts::cg::fPIE) {
+      if (opts::cg::fPIC && opts::cg::fPIC.IsEnabledByUser()) {
+        maplebe::CGOptions::GetInstance().SetPICOptionHelper(maplebe::CGOptions::kLargeMode);
+        maplebe::CGOptions::SetPIEMode(maplebe::CGOptions::kClose);
+        maplebe::CGOptions::GetInstance().ClearOption(maplebe::CGOptions::kGenPie);
+      } else if (opts::cg::fpic && opts::cg::fpic.IsEnabledByUser()) {
+        maplebe::CGOptions::GetInstance().SetPICOptionHelper(maplebe::CGOptions::kSmallMode);
+        maplebe::CGOptions::SetPIEMode(maplebe::CGOptions::kClose);
+        maplebe::CGOptions::GetInstance().ClearOption(maplebe::CGOptions::kGenPie);
+      } else {
+        maplebe::CGOptions::SetPICMode(maplebe::CGOptions::kClose);
+        maplebe::CGOptions::GetInstance().ClearOption(maplebe::CGOptions::kGenPic);
+      }
+    }
+  }
 
   return true;
 }

@@ -18,111 +18,7 @@
 #include "aarch64_cg.h"
 
 namespace maplebe {
-void IntraDataDepAnalysis::Run(BB &bb, MapleVector<DepNode*> &dataNodes) {
-  if (bb.IsUnreachable()) {
-    return;
-  }
-  MemPool *localMp = memPoolCtrler.NewMemPool("intra-block dda mempool", true);
-  auto *localAlloc = new MapleAllocator(localMp);
-  InitCurNodeInfo(*localMp, *localAlloc, bb, dataNodes);
-  uint32 nodeSum = 1;
-  MapleVector<Insn*> comments(intraAlloc.Adapter());
-  const Insn *locInsn = bb.GetFirstLoc();
-  FOR_BB_INSNS(insn, &bb) {
-    if (!insn->IsMachineInstruction()) {
-      ddb.ProcessNonMachineInsn(*insn, comments, dataNodes, locInsn);
-      continue;
-    }
-    /* Add a pseudo node to separate dependence graph when appropriate */
-    ddb.SeparateDependenceGraph(dataNodes, nodeSum);
-    /* Generate a DepNode */
-    DepNode *ddgNode = ddb.GenerateDepNode(*insn, dataNodes, nodeSum, comments);
-    /* Build Dependency for may-throw insn */
-    ddb.BuildMayThrowInsnDependency(*insn);
-    /* Build Dependency for each operand of insn */
-    ddb.BuildOpndDependency(*insn);
-    /* Build Dependency for special insn */
-    ddb.BuildSpecialInsnDependency(*insn, dataNodes);
-    /* Build Dependency for ambi insn if needed */
-    ddb.BuildAmbiInsnDependency(*insn);
-    ddb.BuildAsmInsnDependency(*insn);
-    /* Update stack and heap dependency */
-    ddb.UpdateStackAndHeapDependency(*ddgNode, *insn, *locInsn);
-    if (insn->IsFrameDef()) {
-      ddb.SetLastFrameDefInsn(insn);
-    }
-    /* Separator exists */
-    uint32 separatorIndex = ddb.GetSeparatorIndex();
-    ddb.AddDependence(*dataNodes[separatorIndex], *insn->GetDepNode(), kDependenceTypeSeparator);
-    /* Update register use and register def */
-    ddb.UpdateRegUseAndDef(*insn, *ddgNode, *dataNodes[separatorIndex]);
-  }
-  AddEndSeparatorNode(bb, dataNodes);
-  ddb.CopyAndClearComments(comments);
-  ClearCurNodeInfo(localMp, localAlloc);
-}
-
-/* Init dataDepBase data struct */
-void IntraDataDepAnalysis::InitCurNodeInfo(MemPool &tmpMp, MapleAllocator &tmpAlloc, BB &bb,
-                                           MapleVector<DepNode*> &dataNodes) {
-  CDGNode *curCDGNode = bb.GetCDGNode();
-  CHECK_FATAL(curCDGNode != nullptr, "invalid cdgNode from bb");
-  ddb.SetCDGNode(curCDGNode);
-  ddb.InitCDGNodeDataInfo(tmpMp, tmpAlloc, *curCDGNode);
-  /* Analysis live-in registers in catch BB */
-  ddb.AnalysisAmbiInsns(bb);
-  /* Clear all dependence nodes and push the first separator node */
-  dataNodes.clear();
-  DepNode *pseudoSepNode = ddb.BuildSeparatorNode();
-  (void)dataNodes.emplace_back(pseudoSepNode);
-  curCDGNode->AddPseudoSepNodes(pseudoSepNode);
-  ddb.SetSeparatorIndex(0);
-
-  if (!cgFunc.IsAfterRegAlloc()) {
-    /* assume first pseudo_dependence_separator insn of current bb define live-in's registers */
-    Insn *pseudoSepInsn = pseudoSepNode->GetInsn();
-    for (auto &regNO : bb.GetLiveInRegNO()) {
-      curCDGNode->SetLatestDefInsn(regNO, pseudoSepInsn);
-      pseudoSepNode->AddDefReg(regNO);
-      pseudoSepNode->SetRegDefs(pseudoSepNode->GetDefRegnos().size(), nullptr);
-    }
-  }
-}
-
-/* Clear local mempool and data-dep-info for cur cdgNode */
-void IntraDataDepAnalysis::ClearCurNodeInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) {
-  delete tmpAlloc;
-  memPoolCtrler.DeleteMemPool(tmpMp);
-  CDGNode *curCDGNode = ddb.GetCDGNode();
-  curCDGNode->ClearDataDepInfo();
-}
-
-/* Add a separatorNode to the end of a nodes
- * before RA: add all live-out registers to Uses of this separatorNode
- */
-void IntraDataDepAnalysis::AddEndSeparatorNode(BB &bb, MapleVector<DepNode*> &nodes) {
-  CDGNode *curCDGNode = bb.GetCDGNode();
-  CHECK_FATAL(curCDGNode != nullptr, "invalid cdgNode from bb");
-  DepNode *separatorNode = ddb.BuildSeparatorNode();
-  (void)nodes.emplace_back(separatorNode);
-  curCDGNode->AddPseudoSepNodes(separatorNode);
-  ddb.BuildDepsSeparator(*separatorNode, nodes);
-
-  bool beforeRA = !cgFunc.IsAfterRegAlloc();
-  if (beforeRA) {
-    /* for all live-out register of current bb */
-    for (auto &regNO : bb.GetLiveOutRegNO()) {
-      if (curCDGNode->GetLatestDefInsn(regNO) != nullptr) {
-        curCDGNode->AppendUseInsnChain(regNO, separatorNode->GetInsn(), intraMp, beforeRA);
-        separatorNode->AddUseReg(regNO);
-        CHECK_FATAL(curCDGNode->GetUseInsnChain(regNO) != nullptr, "get useInsnChain failed");
-        separatorNode->SetRegUses(*curCDGNode->GetUseInsnChain(regNO));
-      }
-    }
-  }
-}
-
-void InterDataDepAnalysis::Run(CDGRegion &region) {
+void DataDepAnalysis::Run(CDGRegion &region) {
   MemPool *regionMp = memPoolCtrler.NewMemPool("inter-block dda mempool", true);
   auto *regionAlloc = new MapleAllocator(regionMp);
 
@@ -131,11 +27,11 @@ void InterDataDepAnalysis::Run(CDGRegion &region) {
   CHECK_FATAL(root != nullptr, "the root of region must be computed first");
   InitInfoInRegion(*regionMp, *regionAlloc, region);
 
-  /* Visit CDGNodes in the region follow the topological order of CFG */
+  // Visit CDGNodes in the region follow the topological order of CFG
   for (auto cdgNode : region.GetRegionNodes()) {
     BB *curBB = cdgNode->GetBB();
     CHECK_FATAL(curBB != nullptr, "get bb from CDGNode failed");
-    /* Init data dependence info for cur cdgNode */
+    // Init data dependence info for cur cdgNode
     InitInfoInCDGNode(*regionMp, *regionAlloc, *curBB, *cdgNode);
     const Insn *locInsn = curBB->GetFirstLoc();
     FOR_BB_INSNS(insn, curBB) {
@@ -145,12 +41,17 @@ void InterDataDepAnalysis::Run(CDGRegion &region) {
       }
       cdgNode->AccNodeSum();
       DepNode *ddgNode = ddb.GenerateDepNode(*insn, cdgNode->GetAllDataNodes(), cdgNode->GetNodeSum(), comments);
-      ddb.BuildMayThrowInsnDependency(*insn);
+      ddb.BuildMayThrowInsnDependency(*ddgNode, *insn, *locInsn);
       ddb.BuildOpndDependency(*insn);
       BuildSpecialInsnDependency(*insn, *cdgNode, region, *regionAlloc);
       ddb.BuildAmbiInsnDependency(*insn);
       ddb.BuildAsmInsnDependency(*insn);
-      ddb.UpdateStackAndHeapDependency(*ddgNode, *insn, *locInsn);
+      ddb.BuildSpecialCallDeps(*insn);
+      // For global schedule before RA, do not move the instruction before the call,
+      // avoid unnecessary callee allocation and callee save instructions.
+      if (!cgFunc.IsAfterRegAlloc()) {
+        ddb.BuildDepsLastCallInsn(*insn);
+      }
       if (insn->IsFrameDef()) {
         cdgNode->SetLastFrameDefInsn(insn);
       }
@@ -162,87 +63,31 @@ void InterDataDepAnalysis::Run(CDGRegion &region) {
   ClearInfoInRegion(regionMp, regionAlloc, region);
 }
 
-void InterDataDepAnalysis::InitInfoInRegion(MemPool &regionMp, MapleAllocator &regionAlloc, CDGRegion &region) {
+void DataDepAnalysis::InitInfoInRegion(MemPool &regionMp, MapleAllocator &regionAlloc, CDGRegion &region) {
   ddb.SetCDGRegion(&region);
   for (auto cdgNode : region.GetRegionNodes()) {
     cdgNode->InitTopoInRegionInfo(regionMp, regionAlloc);
   }
 }
 
-void InterDataDepAnalysis::InitInfoInCDGNode(MemPool &regionMp, MapleAllocator &regionAlloc, BB &bb, CDGNode &cdgNode) {
+void DataDepAnalysis::InitInfoInCDGNode(MemPool &regionMp, MapleAllocator &regionAlloc, BB &bb, CDGNode &cdgNode) {
   ddb.SetCDGNode(&cdgNode);
   ddb.InitCDGNodeDataInfo(regionMp, regionAlloc, cdgNode);
-  /* Analysis live-in registers in catch BB */
-  ddb.AnalysisAmbiInsns(bb);
-}
-
-void InterDataDepAnalysis::AddBeginSeparatorNode(CDGNode *rootNode) {
-  BB *rootBB = rootNode->GetBB();
-  CHECK_FATAL(rootBB != nullptr, "get rootBB failed");
-  /* The first separatorNode of the entire region */
-  ddb.SetSeparatorIndex(0);
-  DepNode *pseudoSepNode = ddb.BuildSeparatorNode();
-  rootNode->AddDataNode(pseudoSepNode);
-  rootNode->SetNodeSum(1);
-
-  if (!cgFunc.IsAfterRegAlloc()) {
-    Insn *pseudoSepInsn = pseudoSepNode->GetInsn();
-    for (auto regNO : rootBB->GetLiveInRegNO()) {
-      rootNode->SetLatestDefInsn(regNO, pseudoSepInsn);
-      pseudoSepNode->AddDefReg(regNO);
-      pseudoSepNode->SetRegDefs(pseudoSepNode->GetDefRegnos().size(), nullptr);
-    }
+  if (cgFunc.GetMirModule().IsJavaModule()) {
+    /* Analysis live-in registers in catch BB */
+    ddb.AnalysisAmbiInsns(bb);
   }
 }
 
-void InterDataDepAnalysis::SeparateDependenceGraph(CDGRegion &region, CDGNode &cdgNode) {
-  uint32 &nodeSum = cdgNode.GetNodeSum();
-  if ((nodeSum > 0) && (nodeSum % kMaxInsnNum == 0)) {
-    /* Add a pseudo node to separate dependence graph */
-    DepNode *separateNode = ddb.BuildSeparatorNode();
-    separateNode->SetIndex(nodeSum++);
-    cdgNode.AddDataNode(separateNode);
-    cdgNode.AddPseudoSepNodes(separateNode);
-    BuildDepsForNewSeparator(region, cdgNode, *separateNode);
-
-    cdgNode.ClearDepDataVec();
-  }
-}
-
-void InterDataDepAnalysis::BuildDepsForNewSeparator(CDGRegion &region, CDGNode &cdgNode, DepNode &newSepNode) {
-  bool hasSepInNode = false;
-  MapleVector<DepNode*> &dataNodes = cdgNode.GetAllDataNodes();
-  for (auto i = static_cast<int32>(dataNodes.size() - 1); i >= 0; --i) {
-    if (dataNodes[i]->GetType() == kNodeTypeSeparator && dataNodes.size() != 1) {
-      hasSepInNode = true;
-      break;
-    }
-    ddb.AddDependence(*dataNodes[i], newSepNode, kDependenceTypeSeparator);
-  }
-  if (!hasSepInNode) {
-    for (auto nodeId : cdgNode.GetTopoPredInRegion()) {
-      CDGNode *predNode = region.GetCDGNodeById(nodeId);
-      CHECK_FATAL(predNode != nullptr, "get cdgNode from region by id failed");
-      MapleVector<DepNode*> &predDataNodes = predNode->GetAllDataNodes();
-      for (std::size_t i = predDataNodes.size() - 1; i >= 0; --i) {
-        if (predDataNodes[i]->GetType() == kNodeTypeSeparator) {
-          break;
-        }
-        ddb.AddDependence(*predDataNodes[i], newSepNode, kDependenceTypeSeparator);
-      }
-    }
-  }
-}
-
-void InterDataDepAnalysis::BuildDepsForPrevSeparator(CDGNode &cdgNode, DepNode &depNode, CDGRegion &curRegion) {
+void DataDepAnalysis::BuildDepsForPrevSeparator(CDGNode &cdgNode, DepNode &depNode, CDGRegion &curRegion) {
   if (cdgNode.GetRegion() != &curRegion) {
     return;
   }
   DepNode *prevSepNode = nullptr;
   MapleVector<DepNode*> &dataNodes = cdgNode.GetAllDataNodes();
   for (auto i = static_cast<int32>(dataNodes.size() - 1); i >= 0; --i) {
-    if (dataNodes[i]->GetType() == kNodeTypeSeparator) {
-      prevSepNode = dataNodes[i];
+    if (dataNodes[static_cast<uint32>(i)]->GetType() == kNodeTypeSeparator) {
+      prevSepNode = dataNodes[static_cast<uint32>(i)];
       break;
     }
   }
@@ -259,8 +104,8 @@ void InterDataDepAnalysis::BuildDepsForPrevSeparator(CDGNode &cdgNode, DepNode &
   }
 }
 
-void InterDataDepAnalysis::BuildSpecialInsnDependency(Insn &insn, CDGNode &cdgNode, CDGRegion &region,
-                                                      MapleAllocator &alloc) {
+void DataDepAnalysis::BuildSpecialInsnDependency(Insn &insn, CDGNode &cdgNode, CDGRegion &region,
+                                                 MapleAllocator &alloc) {
   MapleVector<DepNode*> dataNodes(alloc.Adapter());
   for (auto nodeId : cdgNode.GetTopoPredInRegion()) {
     CDGNode *predNode = region.GetCDGNodeById(nodeId);
@@ -277,41 +122,23 @@ void InterDataDepAnalysis::BuildSpecialInsnDependency(Insn &insn, CDGNode &cdgNo
   ddb.BuildSpecialInsnDependency(insn, dataNodes);
 }
 
-void InterDataDepAnalysis::UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, CDGNode &cdgNode) {
-  /* Update reg use */
-  const auto &useRegnos = depNode.GetUseRegnos();
-  bool beforeRA = !cgFunc.IsAfterRegAlloc();
-  if (beforeRA) {
-    depNode.InitRegUsesSize(useRegnos.size());
-  }
-  for (auto regNO : useRegnos) {
-    /* Update reg use for cur depInfo */
-    cdgNode.AppendUseInsnChain(regNO, &insn, interMp, beforeRA);
+void DataDepAnalysis::UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, CDGNode &cdgNode) {
+  // Update reg use
+  const auto &useRegNos = depNode.GetUseRegnos();
+  for (auto regNO : useRegNos) {
+    cdgNode.AppendUseInsnChain(regNO, &insn, interMp);
   }
 
-  /* Update reg def */
-  const auto &defRegnos = depNode.GetDefRegnos();
-  size_t i = 0;
-  if (beforeRA) {
-    depNode.InitRegDefsSize(defRegnos.size());
-  }
-  for (const auto regNO : defRegnos) {
+  // Update reg def
+  const auto &defRegNos = depNode.GetDefRegnos();
+  for (const auto regNO : defRegNos) {
     /* Update reg def for cur depInfo */
     cdgNode.SetLatestDefInsn(regNO, &insn);
     cdgNode.ClearUseInsnChain(regNO);
-    if (beforeRA) {
-      depNode.SetRegDefs(i, nullptr);
-      if (regNO >= R0 && regNO <= R3) {
-        depNode.SetHasPreg(true);
-      } else if (regNO == R8) {
-        depNode.SetHasNativeCallRegister(true);
-      }
-    }
-    ++i;
   }
 }
 
-void InterDataDepAnalysis::UpdateReadyNodesInfo(CDGNode &cdgNode, const CDGNode &root) const {
+void DataDepAnalysis::UpdateReadyNodesInfo(CDGNode &cdgNode, const CDGNode &root) const {
   BB *bb = cdgNode.GetBB();
   CHECK_FATAL(bb != nullptr, "get bb from cdgNode failed");
   for (auto succIt = bb->GetSuccsBegin(); succIt != bb->GetSuccsEnd(); ++succIt) {
@@ -328,14 +155,7 @@ void InterDataDepAnalysis::UpdateReadyNodesInfo(CDGNode &cdgNode, const CDGNode 
   }
 }
 
-void InterDataDepAnalysis::AddEndSeparatorNode(CDGRegion &region, CDGNode &cdgNode) {
-  DepNode *separatorNode = ddb.BuildSeparatorNode();
-  cdgNode.AddDataNode(separatorNode);
-  cdgNode.AddPseudoSepNodes(separatorNode);
-  BuildDepsForNewSeparator(region, cdgNode, *separatorNode);
-}
-
-void InterDataDepAnalysis::ClearInfoInRegion(MemPool *regionMp, MapleAllocator *regionAlloc, CDGRegion &region) {
+void DataDepAnalysis::ClearInfoInRegion(MemPool *regionMp, MapleAllocator *regionAlloc, CDGRegion &region) const {
   delete regionAlloc;
   memPoolCtrler.DeleteMemPool(regionMp);
   for (auto cdgNode : region.GetRegionNodes()) {
@@ -344,7 +164,7 @@ void InterDataDepAnalysis::ClearInfoInRegion(MemPool *regionMp, MapleAllocator *
   }
 }
 
-void InterDataDepAnalysis::GenerateDataDepGraphDotOfRegion(CDGRegion &region) {
+void DataDepAnalysis::GenerateDataDepGraphDotOfRegion(CDGRegion &region) {
   bool hasExceedMaximum = (region.GetRegionNodes().size() > kMaxDumpRegionNodeNum);
   std::streambuf *coutBuf = std::cout.rdbuf();
   std::ofstream iddgFile;
@@ -359,8 +179,7 @@ void InterDataDepAnalysis::GenerateDataDepGraphDotOfRegion(CDGRegion &region) {
   (void)fileName.append(std::to_string(region.GetRegionId()));
   (void)fileName.append(".dot");
 
-  char absPath[PATH_MAX];
-  iddgFile.open(realpath(fileName.c_str(), absPath), std::ios::trunc);
+  iddgFile.open(fileName, std::ios::trunc);
   if (!iddgFile.is_open()) {
     LogInfo::MapleLogger(kLlWarn) << "fileName:" << fileName << " open failed.\n";
     return;
@@ -409,6 +228,9 @@ void InterDataDepAnalysis::GenerateDataDepGraphDotOfRegion(CDGRegion &region) {
             break;
           case kDependenceTypeSeparator:
             iddgFile << "label= \"" << "separator" << "\"";
+            break;
+          case kDependenceTypeMemAccess:
+            iddgFile << "label= \"" << "memAccess" << "\"";
             break;
           default:
             CHECK_FATAL(false, "invalid depType");

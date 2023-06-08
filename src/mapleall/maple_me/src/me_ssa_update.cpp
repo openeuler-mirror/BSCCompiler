@@ -307,7 +307,7 @@ void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) const {
     if (succ->GetMePhiList().empty()) {
       continue;
     }
-    auto predIdx = static_cast<size_t>(succ->GetPredIndex(bb));
+    auto predIdx = static_cast<uint>(succ->GetPredIndex(bb));
     CHECK_FATAL(predIdx < succ->GetPred().size(), "RenamePhiOpndsinSucc: cannot find corresponding pred");
     for (auto &pair : std::as_const(succ->GetMePhiList())) {
       auto *renameStack = rename->GetRenameStack(pair.first);

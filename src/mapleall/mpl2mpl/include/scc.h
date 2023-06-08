@@ -108,7 +108,6 @@ class SCCNode {
 
   void Setup() {
     std::vector<BaseGraphNode*> outNodes;
-    std::vector<BaseGraphNode*> inNodes;
     for (T * const &node : nodes) {
       node->GetOutNodes(outNodes);
       for (auto outIt : outNodes) {

@@ -189,10 +189,7 @@ bool FEStructFieldInfo::SearchStructFieldJava(MIRStructType &structType, MIRBuil
 bool FEStructFieldInfo::SearchStructFieldJava(const TyIdx &tyIdx, MIRBuilder &mirBuilder, bool argIsStatic,
                                               bool allowPrivate) {
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-  if (type == nullptr) {
-    return false;
-  }
-  if (type->IsIncomplete()) {
+  if (TypeIsNullOrIncomplete(type)) {
     return false;
   }
   if (type->GetKind() == kTypeClass || type->GetKind() == kTypeInterface) {
@@ -432,10 +429,7 @@ bool FEStructMethodInfo::SearchStructMethodJavaInParent(MIRStructType &structTyp
 bool FEStructMethodInfo::SearchStructMethodJava(const TyIdx &tyIdx, MIRBuilder &mirBuilder, bool argIsStatic,
                                                 bool allowPrivate) {
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-  if (type == nullptr) {
-    return false;
-  }
-  if (type->IsIncomplete()) {
+  if (TypeIsNullOrIncomplete(type)) {
     return false;
   }
   if (type->GetKind() == kTypeClass || type->GetKind() == kTypeInterface) {

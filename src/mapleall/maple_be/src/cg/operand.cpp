@@ -30,7 +30,7 @@ bool IsMoveWidableImmediate(uint64 val, uint32 bitLen) {
   }
   /* 0x00000000HHHH0000 or 0x000000000000HHHH, return true */
   return ((val & ((static_cast<uint64>(0xffff)) << k16BitSize)) == val ||
-          (val & ((static_cast<uint64>(0xffff)) << 0)) == val);
+          (val & (static_cast<uint64>(0xffff))) == val);
 }
 
 bool BetterUseMOVZ(uint64 val) {
@@ -51,7 +51,7 @@ bool BetterUseMOVZ(uint64 val) {
    * can be movable with as a single mov instruction,
    * we should not exepct either n_16zeros_chunks>=3 or n_16ones_chunks>=3
    */
-#if DEBUG
+#if defined(DEBUG) && DEBUG
   constexpr uint32 kN16ChunksCheck = 2;
   ASSERT(n16zerosChunks <= kN16ChunksCheck, "n16zerosChunks ERR");
   ASSERT(n16onesChunks <= kN16ChunksCheck, "n16onesChunks ERR");

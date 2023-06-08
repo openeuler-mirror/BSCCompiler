@@ -44,7 +44,7 @@ std::pair<RetCode, size_t> ExtractValue(size_t argsIndex,
                                         const OptionInterface &opt, KeyArg &keyArg) {
   /* The option like "--key= " does not contain a value after equal symbol */
   if (keyArg.isEqualOpt && keyArg.val.empty()) {
-    return {RetCode::valueEmpty, 0};
+    return {RetCode::kValueEmpty, 0};
   }
 
   bool canValBeSet = (keyArg.isEqualOpt || opt.IsJoinedValPermitted());
@@ -52,9 +52,9 @@ std::pair<RetCode, size_t> ExtractValue(size_t argsIndex,
    * like "--key=val" or joined option like -DValue */
   if (canValBeSet && !keyArg.val.empty()) {
     if (opt.ExpectedVal() == ValueExpectedType::kValueDisallowed) {
-      return {RetCode::unnecessaryValue, 0};
+      return {RetCode::kUnnecessaryValue, 0};
     }
-    return {RetCode::noError, 0};
+    return {RetCode::kNoError, 0};
   }
 
   /* Need to parse second command line argument to check options value */
@@ -62,7 +62,7 @@ std::pair<RetCode, size_t> ExtractValue(size_t argsIndex,
     /* Optional value can be set only with "=" like this --key=value  */
     if (opt.ExpectedVal() == ValueExpectedType::kValueDisallowed ||
         opt.ExpectedVal() == ValueExpectedType::kValueOptional) {
-      return {RetCode::noError, 0};
+      return {RetCode::kNoError, 0};
     }
 
     /* localArgsIndex is used to be sure that nobody breaks the logic by
@@ -71,12 +71,12 @@ std::pair<RetCode, size_t> ExtractValue(size_t argsIndex,
     /* Second command line argument does not exist */
     if (localArgsIndex >= args.size() || args[localArgsIndex].empty()) {
       RetCode ret = (opt.ExpectedVal() == ValueExpectedType::kValueRequired) ?
-        RetCode::valueEmpty : RetCode::noError;
+        RetCode::kValueEmpty : RetCode::kNoError;
       return {ret, 0};
     }
 
     keyArg.val = args[localArgsIndex];
-    return {RetCode::noError, 1};
+    return {RetCode::kNoError, 1};
   }
 }
 
@@ -94,35 +94,35 @@ template <> RetCode Option<bool>::ParseBool(size_t &argsIndex,
   SetValue(it == disabledNames.end());
 
   ++argsIndex;
-  return RetCode::noError;
+  return RetCode::kNoError;
 }
 
 /* NOTE: argsIndex must be incremented only if option is handled successfully */
 template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
                                                      const std::deque<std::string_view> &args,
                                                      KeyArg &keyArg) {
-  RetCode err = RetCode::noError;
+  RetCode err = RetCode::kNoError;
   size_t indexIncCnt = 0;
   std::tie(err, indexIncCnt) = ExtractValue(argsIndex, args, *this, keyArg);
-  if (err != RetCode::noError) {
+  if (err != RetCode::kNoError) {
     return err;
   }
 
   if (keyArg.val.empty()) {
     if (ExpectedVal() == ValueExpectedType::kValueRequired) {
-      return RetCode::valueEmpty;
+      return RetCode::kValueEmpty;
     }
     ++argsIndex;
-    return RetCode::noError;
+    return RetCode::kNoError;
   }
 
   /* Value is not empty but ValueDisallowed is set */
   if (ExpectedVal() == ValueExpectedType::kValueDisallowed) {
-    return RetCode::unnecessaryValue;
+    return RetCode::kUnnecessaryValue;
   }
 
   /* option -o - */
-  if (keyArg.rawArg == "-o" && keyArg.val == "-") {
+  if ((keyArg.rawArg == "-o" || keyArg.rawArg == "-o-") && keyArg.val == "-") {
     keyArg.val = "/dev/stdout";
   }
   if (keyArg.rawArg == "-D" && keyArg.val.find("_FORTIFY_SOURCE") != std::string::npos) {
@@ -130,15 +130,15 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
     tmp += " -O2 ";
     keyArg.val = tmp;
   }
-  if (!keyArg.isEqualOpt && IsPrefixDetected(keyArg.val)) {
+  if (!keyArg.isEqualOpt && IsPrefixDetected(keyArg.val) && keyArg.rawArg != "-Xlinker") {
     if (ExpectedVal() == ValueExpectedType::kValueRequired) {
-      return RetCode::valueEmpty;
+      return RetCode::kValueEmpty;
     }
     ++argsIndex;
-    return RetCode::noError;
+    return RetCode::kNoError;
   }
 
-  if (IsJoinedValPermitted() && (GetValue() != "")) {
+  if (IsJoinedValPermitted() && (GetValue() != "") && keyArg.rawArg != "-o" && keyArg.rawArg != "-o-") {
     SetValue(GetValue() + " " + std::string(keyArg.key) + " " + std::string(keyArg.val));
   } else {
     SetValue(std::string(keyArg.val));
@@ -153,7 +153,7 @@ template <> RetCode Option<std::string>::ParseString(size_t &argsIndex,
   }
 
   argsIndex += 1 + indexIncCnt; // 1 for key, indexIncCnt for Key Value from ExtractValue
-  return RetCode::noError;
+  return RetCode::kNoError;
 }
 
 /* NOTE: argsIndex must be incremented only if option is handled successfully */
@@ -163,24 +163,24 @@ RetCode Option<T>::ParseDigit(size_t &argsIndex,
                               KeyArg &keyArg) {
   static_assert(kDigitalCheck<T>, "Expected (u)intXX types");
 
-  RetCode err = RetCode::noError;
+  RetCode err = RetCode::kNoError;
   size_t indexIncCnt = 0;
   std::tie(err, indexIncCnt) = ExtractValue(argsIndex, args, *this, keyArg);
-  if (err != RetCode::noError) {
+  if (err != RetCode::kNoError) {
     return err;
   }
 
   if (keyArg.val.empty()) {
     if (ExpectedVal() == ValueExpectedType::kValueRequired) {
-      return RetCode::valueEmpty;
+      return RetCode::kValueEmpty;
     }
     ++argsIndex;
-    return RetCode::noError;
+    return RetCode::kNoError;
   }
 
   /* Value is not empty but ValueDisallowed is set */
   if (ExpectedVal() == ValueExpectedType::kValueDisallowed) {
-    return RetCode::unnecessaryValue;
+    return RetCode::kUnnecessaryValue;
   }
 
   T resDig = 0;
@@ -193,7 +193,7 @@ RetCode Option<T>::ParseDigit(size_t &argsIndex,
                std::is_same_v<uint16_t, T> ||
                std::is_same_v<uint8_t, T>) {
     if (keyArg.val.data()[0] == '-') {
-      return RetCode::incorrectValue;
+      return RetCode::kIncorrectValue;
     }
 
     udig = std::strtoull(keyArg.val.data(), &endStrPtr, 0);
@@ -211,35 +211,35 @@ RetCode Option<T>::ParseDigit(size_t &argsIndex,
   bool i8Type = std::is_same<T, int8_t>::value;
 
   if (*endStrPtr != '\0') {
-    return RetCode::incorrectValue;
+    return RetCode::kIncorrectValue;
   }
 
   if (errno != 0) {
-    return RetCode::outOfRange;
+    return RetCode::kOutOfRange;
   }
 
   if (u32Type && udig > UINT32_MAX) {
-    return RetCode::outOfRange;
+    return RetCode::kOutOfRange;
   }
 
   if (i32Type && (dig > INT32_MAX || dig < INT32_MIN)) {
-    return RetCode::outOfRange;
+    return RetCode::kOutOfRange;
   }
 
   if (u16Type && udig > UINT16_MAX) {
-    return RetCode::outOfRange;
+    return RetCode::kOutOfRange;
   }
 
   if (i16Type && (dig > INT16_MAX || dig < INT16_MIN)) {
-    return RetCode::outOfRange;
+    return RetCode::kOutOfRange;
   }
 
   if (u8Type && udig > UINT8_MAX) {
-    return RetCode::outOfRange;
+    return RetCode::kOutOfRange;
   }
 
   if (i8Type && (dig > INT8_MAX || dig < INT8_MIN)) {
-    return RetCode::outOfRange;
+    return RetCode::kOutOfRange;
   }
 
   SetValue(resDig);
@@ -252,7 +252,7 @@ RetCode Option<T>::ParseDigit(size_t &argsIndex,
   }
 
   argsIndex += 1 + indexIncCnt; // 1 for key, indexIncCnt for Key Value from ExtractValue
-  return RetCode::noError;
+  return RetCode::kNoError;
 }
 
 /* Needed to describe OptionType<>::Parse template in this .cpp file */

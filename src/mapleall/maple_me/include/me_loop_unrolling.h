@@ -65,24 +65,24 @@ class LoopUnrolling {
 
   void SetLabelWithCondGotoOrGotoBB(BB &bb, std::unordered_map<BB*, BB*> &old2NewBB, const BB &exitBB,
                                     LabelIdx oldlabIdx);
-  void ResetOldLabel2NewLabel(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb, const BB &exitBB, BB &newHeadBB);
+  void ResetOldLabel2NewLabel(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb, const BB &exitBB, BB &newHeadBB) const;
   void ResetOldLabel2NewLabel2(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb, const BB &exitBB, BB &newHeadBB);
   void CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &old2NewBB, std::set<BB*> &labelBBs,
                     const BB &exitBB, bool copyAllLoop);
   void CopyLoopBodyForProfile(BB &newHeadBB, std::unordered_map<BB*, BB*> &old2NewBB, std::set<BB*> &labelBBs,
                               const BB &exitBB, bool copyAllLoop);
   void UpdateCondGotoBB(BB &bb, VarMeExpr &indVar, MeExpr &tripCount, MeExpr &unrollTimeExpr);
-  void UpdateCondGotoStmt(BB &bb, VarMeExpr &indVar, MeExpr &tripCount, MeExpr &unrollTimeExpr, uint32 offset);
+  void UpdateCondGotoStmt(BB &bb, VarMeExpr &indVar, MeExpr &tripCount, MeExpr &unrollTimeExpr, uint32 offset) const;
   void CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &preCondGoto, uint32 unrollTime, uint32 i);
   void CopyLoopForPartial(BB &partialCondGoto, BB &exitedBB, BB &exitingBB);
   void CopyLoopForPartial(CR &cr, CRNode &varNode, uint32 j, uint32 unrollTime);
   void AddPreHeader(BB *oldPreHeader, BB *head);
   MeExpr *CreateExprWithCRNode(CRNode &crNode);
   void InsertCondGotoBB();
-  void ResetFrequency(BB &bb);
-  void ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, FreqType headFreq);
+  void ResetFrequency(BB &bb) const;
+  void ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &exitedBB, FreqType headFreq) const;
   void ResetFrequency();
-  void ResetFrequency(const BB &curBB, const BB &succ, const BB &exitBB, BB &curCopyBB, bool copyAllLoop);
+  void ResetFrequency(const BB &curBB, const BB &succ, const BB &exitBB, BB &curCopyBB, bool copyAllLoop) const;
   BB *CopyBB(BB &bb, bool isInLoop);
   void CopyLoopForPartialAndPre(BB *&newHead, BB *&newExiting);
   void CopyAndInsertBB(bool isPartial);
@@ -91,7 +91,7 @@ class LoopUnrolling {
   void CreateLableAndInsertLabelBB(BB &newHeadBB, std::set<BB*> &labelBBs);
   void AddEdgeForExitBBLastNew2OldBBEmpty(BB &exitBB, std::unordered_map<BB*, BB*> &old2NewBB, BB &newHeadBB);
   void AddEdgeForExitBB(BB &exitBB, std::unordered_map<BB*, BB*> &old2NewBB, BB &newHeadBB);
-  void ExchangeSucc(BB &partialExit);
+  void ExchangeSucc(BB &partialExit) const;
 
   bool canUnroll = true;
   MeFunction *func;

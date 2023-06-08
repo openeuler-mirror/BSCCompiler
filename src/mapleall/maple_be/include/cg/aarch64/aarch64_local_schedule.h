@@ -20,12 +20,12 @@
 namespace maplebe {
 class AArch64LocalSchedule : public LocalSchedule {
  public:
-  AArch64LocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, InterDataDepAnalysis &idda)
-      : LocalSchedule(mp, f, cdAna, idda) {}
-  ~AArch64LocalSchedule() = default;
+  AArch64LocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, DataDepAnalysis &dda)
+      : LocalSchedule(mp, f, cdAna, dda) {}
+  ~AArch64LocalSchedule() override = default;
 
   void FinishScheduling(CDGNode &cdgNode) override;
-  void DumpInsnInfoByScheduledOrder(BB &curBB) const override;
+  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override;
 };
 } /* namespace maplebe */
 

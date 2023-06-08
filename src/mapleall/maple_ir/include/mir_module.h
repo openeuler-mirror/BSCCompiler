@@ -826,8 +826,8 @@ class MIRModule {
   std::string tlsAnchorHashString = "";
   MapleMap<const MIRSymbol*, uint64> tdataVarOffset;
   MapleMap<const MIRSymbol*, uint64> tbssVarOffset;
-  MIRSymbol *tdataAnchor;
-  MIRSymbol *tbssAnchor;
+  MIRSymbol *tdataAnchor = nullptr;
+  MIRSymbol *tbssAnchor = nullptr;
 };
 #endif  // MIR_FEATURE_FULL
 }  // namespace maple

@@ -14,7 +14,6 @@
  */
 #ifndef MAPLE_ME_INCLUDE_ME_ANALYZE_H
 #define MAPLE_ME_INCLUDE_ME_ANALYZE_H
-#include <vector>
 #include "bb.h"
 #include "me_function.h"
 #include "me_option.h"

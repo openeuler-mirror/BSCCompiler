@@ -112,19 +112,19 @@ class RegionCandidate {
     groupId = id;
   }
 
-  GroupId GetGroupId() {
+  GroupId GetGroupId() const {
     return groupId;
   }
 
-  StmtInfoId GetStartId() {
+  StmtInfoId GetStartId() const {
     return startId;
   }
 
-  StmtInfoId GetEndId() {
+  StmtInfoId GetEndId() const {
     return endId;
   }
 
-  size_t GetLength() {
+  size_t GetLength() const {
     return length;
   }
 
@@ -155,7 +155,7 @@ class RegionCandidate {
     }
   }
 
-  bool IsOverlapWith(RegionCandidate &rhs) const {
+  bool IsOverlapWith(const RegionCandidate &rhs) const {
     return (startId >= rhs.GetStartId() && startId <= rhs.GetEndId()) ||
         (rhs.GetStartId() >= startId && rhs.GetStartId() <= endId);
   }
@@ -217,10 +217,10 @@ class RegionGroup {
   }
 
   void SetGroupId(GroupId id) {
-    groupId = id;
+    groupId = static_cast<uint32>(id);
   }
 
-  int64 GetCost() {
+  int64 GetCost() const {
     return cost;
   }
 
@@ -246,10 +246,10 @@ class RegionIdentify {
   }
 
  private:
-  void CreateRegionCandidates(SuffixArray &sa);
+  void CreateRegionCandidates(const SuffixArray &sa);
   void CreateRegionGroups(std::vector<RegionCandidate> &regions);
   void ClearSrcMappings();
-  bool CheckOverlapAmongGroupRegions(RegionGroup &group, RegionCandidate &region);
+  bool CheckOverlapAmongGroupRegions(RegionGroup &group, const RegionCandidate &region) const;
   bool IsRegionLegal(uint startPosition, uint endPosition);
   bool CheckCompatibilifyAmongRegionComponents(BaseNode &lhs, BaseNode& rhs);
   bool CheckCompatibilifyBetweenSrcs(BaseNode &lhs, BaseNode& rhs);

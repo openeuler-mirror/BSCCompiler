@@ -51,7 +51,7 @@ void LabelCreation::CreateStartEndLabel() const {
   /* create function's low/high pc if dwarf enabled */
   MIRFunction *func = &cgFunc->GetFunction();
   CG *cg = cgFunc->GetCG();
-  if (cg->GetCGOptions().WithDwarf()) {
+  if (cg->GetCGOptions().WithDwarf() && cgFunc->GetWithSrc()) {
     DebugInfo *di = cg->GetMIRModule()->GetDbgInfo();
     DBGDie *fdie = di->GetFuncDie(func);
     fdie->SetAttr(DW_AT_low_pc, startLblIdx);

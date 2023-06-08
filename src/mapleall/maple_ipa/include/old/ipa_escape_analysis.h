@@ -80,8 +80,9 @@ class IPAEscapeAnalysis {
   VarMeExpr *CreateEATempVarMeExpr(OriginalSt &ost) const;
   OriginalSt *CreateEATempOstWithName(const std::string &name) const;
   OriginalSt *CreateEATempOst();
-  OriginalSt *CreateEARetTempOst();
+  OriginalSt *CreateEARetTempOst() const;
   VarMeExpr *GetOrCreateEARetTempVarMeExpr(OriginalSt &ost);
+  void CountSuperclassCallAssignedOpration(MeStmt* stmt);
   void CountObjRCOperations();
   void DeleteRedundantRC();
 

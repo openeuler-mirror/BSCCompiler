@@ -120,11 +120,11 @@ void IpaSideEffect::GetEffectFromCallee(MIRFunction &callee, const MIRFunction &
     CHECK_FATAL(it != sccSe.cend(), "Sideeffect of scc must have been set.");
     uint8 mask = it->second;
 
-    hasDefArg = hasDefArg || (mask & kHasDefArg);
-    hasDef = hasDef || (mask & kHasDef);
-    hasThrException = hasThrException || (mask & kHasThrow);
-    hasRetArg = hasRetArg || (mask & kHasRetArg);
-    hasPrivateDef = hasPrivateDef || (mask & kHasPrivateDef);
+    hasDefArg = hasDefArg || ((mask & kHasDefArg) != 0);
+    hasDef = hasDef || ((mask & kHasDef) != 0);
+    hasThrException = hasThrException || ((mask & kHasThrow) != 0);
+    hasRetArg = hasRetArg || ((mask & kHasRetArg) != 0);
+    hasPrivateDef = hasPrivateDef || ((mask & kHasPrivateDef) != 0);
   } else if (callee.IsIpaSeen()) {
     notPure = notPure || !callee.IsPure();
     hasDefArg = hasDefArg || !callee.IsNoDefArgEffect();
@@ -337,13 +337,13 @@ bool IpaSideEffect::MatchPuidxAndSetSideEffects(PUIdx idx) {
     return false;
   }
   uint8 mrtSe = mrtIt->second;
-  notPure = notPure || !(mrtSe & kPure);
-  hasDefArg = hasDefArg || (mrtSe & kHasDefArg);
-  hasDef = hasDef || (mrtSe & kHasDef);
-  hasRetGlobal = hasRetGlobal || (mrtSe & kHasRetGlobal);
-  hasThrException = hasThrException || (mrtSe & kHasThrow);
-  hasRetArg = hasRetArg || (mrtSe & kHasRetArg);
-  hasPrivateDef = hasPrivateDef || (mrtSe & kHasPrivateDef);
+  notPure = notPure || ((mrtSe & kPure) == 0);
+  hasDefArg = hasDefArg || ((mrtSe & kHasDefArg) != 0);
+  hasDef = hasDef || ((mrtSe & kHasDef) != 0);
+  hasRetGlobal = hasRetGlobal || ((mrtSe & kHasRetGlobal) != 0);
+  hasThrException = hasThrException || ((mrtSe & kHasThrow) != 0);
+  hasRetArg = hasRetArg || ((mrtSe & kHasRetArg) != 0);
+  hasPrivateDef = hasPrivateDef || ((mrtSe & kHasPrivateDef) != 0);
   return true;
 }
 

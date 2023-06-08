@@ -17,7 +17,7 @@
 #elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_strldr.h"
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
 #include "arm32_strldr.h"
 #endif
 #include "reaching.h"
@@ -39,13 +39,12 @@ bool CgStoreLoadOpt::PhaseRun(maplebe::CGFunc &f) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgReachingDefinition::id);
     return false;
   }
-  (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
-
+  auto *loopInfo = GET_ANALYSIS(CgLoopAnalysis, f);
   StoreLoadOpt *storeLoadOpt = nullptr;
-#if TARGAARCH64 || TARGRISCV64
-  storeLoadOpt = GetPhaseMemPool()->New<AArch64StoreLoadOpt>(f, *GetPhaseMemPool());
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)
+  storeLoadOpt = GetPhaseMemPool()->New<AArch64StoreLoadOpt>(f, *GetPhaseMemPool(), *loopInfo);
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   storeLoadOpt = GetPhaseMemPool()->New<Arm32StoreLoadOpt>(f, *GetPhaseMemPool());
 #endif
   storeLoadOpt->Run();
@@ -53,6 +52,7 @@ bool CgStoreLoadOpt::PhaseRun(maplebe::CGFunc &f) {
 }
 void CgStoreLoadOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgReachingDefinition>();
+  aDep.AddRequired<CgLoopAnalysis>();
   aDep.SetPreservedAll();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgStoreLoadOpt, storeloadopt)

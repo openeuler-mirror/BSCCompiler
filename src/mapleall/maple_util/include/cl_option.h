@@ -78,11 +78,11 @@ enum class EqualType {
  */
 constexpr ValueExpectedType kOptionalValue = ValueExpectedType::kValueOptional;
 constexpr ValueExpectedType kRequiredValue = ValueExpectedType::kValueRequired;
-constexpr ValueExpectedType disallowedValue = ValueExpectedType::kValueDisallowed;
-constexpr ValueJoinedType joinedValue = ValueJoinedType::kValueJoined;
-constexpr ValueJoinedType separatedValue = ValueJoinedType::kValueSeparated;
-constexpr OptionVisibilityType visible = OptionVisibilityType::kVisibleOption;
-constexpr OptionVisibilityType hide = OptionVisibilityType::kHidedOption;
+constexpr ValueExpectedType kDisallowedValue = ValueExpectedType::kValueDisallowed;
+constexpr ValueJoinedType kJoinedValue = ValueJoinedType::kValueJoined;
+constexpr ValueJoinedType kSeparatedValue = ValueJoinedType::kValueSeparated;
+constexpr OptionVisibilityType kVisible = OptionVisibilityType::kVisibleOption;
+constexpr OptionVisibilityType kHide = OptionVisibilityType::kHidedOption;
 
 /* Initializer is used to set default value for an option */
 template <typename T> struct Init {
@@ -241,7 +241,7 @@ class Option : public OptionInterface {
 
   RetCode Parse(size_t &argsIndex, const std::deque<std::string_view> &args,
                 KeyArg &keyArg) override {
-    RetCode err = RetCode::noError;
+    RetCode err = RetCode::kNoError;
     auto &key = args[argsIndex];
     if constexpr(kDigitalCheck<T>) {
       err = ParseDigit(argsIndex, args, keyArg);
@@ -254,7 +254,7 @@ class Option : public OptionInterface {
       static_assert(false && (sizeof(T) != 0), "T not supported");
     }
 
-    if (err == RetCode::noError) {
+    if (err == RetCode::kNoError) {
       isEnabledByUser = true;
       rawKey = key;
     }
@@ -399,7 +399,7 @@ class Option : public OptionInterface {
 };
 
 template <typename T>
-bool operator==(Option<T>& opt, const T& arg) {
+bool operator==(const Option<T> &opt, const T &arg) {
   return (opt.GetValue() == arg);
 }
 
@@ -421,7 +421,7 @@ bool operator==(const char *arg, Option<T>& opt) {
 }
 
 template <typename T>
-void CopyIfEnabled(T &dst, maplecl::Option<T> &src) {
+void CopyIfEnabled(T &dst, const maplecl::Option<T> &src) {
   if (src.IsEnabledByUser()) {
     dst = src;
   }

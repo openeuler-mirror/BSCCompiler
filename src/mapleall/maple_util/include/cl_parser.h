@@ -27,14 +27,14 @@
 namespace maplecl {
 
 enum class RetCode {
-  noError,
-  notRegistered,
-  incorrectValue,
-  unnecessaryValue,
-  outOfRange,
-  notSupportedOptionType,
-  valueEmpty,
-  parsingErr,
+  kNoError,
+  kNotRegistered,
+  kIncorrectValue,
+  kUnnecessaryValue,
+  kOutOfRange,
+  kNotSupportedOptionType,
+  kValueEmpty,
+  kParsingErr,
 };
 
 class OptionInterface;
@@ -128,7 +128,11 @@ class CommandLine {
     return linkOptions;
   }
 
-  bool GetUseLitePgoGen() {
+  const std::vector<std::string> &GetAstInputs() const {
+    return astInputs;
+  }
+
+  bool GetUseLitePgoGen() const {
     return useLitePgoGen;
   }
 
@@ -136,7 +140,7 @@ class CommandLine {
     useLitePgoGen = flag;
   }
 
-  bool GetHasPgoLib() {
+  bool GetHasPgoLib() const {
     return hasPgoLib;
   }
 
@@ -167,6 +171,9 @@ class CommandLine {
 
   OptionCategory unSupCategory;
   std::vector<std::string> linkOptions;
+  std::vector<std::string> astInputs;
+
+  std::string specsFile = "";
 
  private:
   bool useLitePgoGen = false;
@@ -178,7 +185,7 @@ class CommandLine {
   RetCode ParseOption(size_t &argsIndex,
                       const std::deque<std::string_view> &args,
                       KeyArg &keyArg, const OptionCategory &optCategory,
-                      OptionInterface &opt) const;
+                      OptionInterface &opt);
   RetCode ParseEqualOption(size_t &argsIndex,
                            const std::deque<std::string_view> &args,
                            KeyArg &keyArg, OptionCategory &optCategory,

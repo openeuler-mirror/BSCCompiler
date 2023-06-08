@@ -21,8 +21,8 @@
 namespace maplebe {
 class AArch64GlobalSchedule : public GlobalSchedule {
  public:
-  AArch64GlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, InterDataDepAnalysis &idda)
-      : GlobalSchedule(mp, f, cdAna, idda) {}
+  AArch64GlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, DataDepAnalysis &dda)
+      : GlobalSchedule(mp, f, cdAna, dda) {}
   ~AArch64GlobalSchedule() override = default;
 
   /* Verify global scheduling */
@@ -31,7 +31,7 @@ class AArch64GlobalSchedule : public GlobalSchedule {
  protected:
   void InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp) override;
   void FinishScheduling(CDGNode &cdgNode) override;
-  void DumpInsnInfoByScheduledOrder(BB &curBB) const override;
+  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override;
 };
 } /* namespace maplebe */
 

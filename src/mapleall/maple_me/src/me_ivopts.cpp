@@ -181,8 +181,8 @@ class IVOptimizer {
   ~IVOptimizer() = default;
   void Run();
   void DumpIV(const IV &iv, int32 indent = 0) const;
-  void DumpGroup(const IVGroup &group);
-  void DumpCand(const IVCand &cand);
+  void DumpGroup(const IVGroup &group) const;
+  void DumpCand(const IVCand &cand) const;
   void DumpSet(const CandSet &set);
   bool LoopOptimized() const;
   // step1: find basic iv (the minimal inc uint)
@@ -270,7 +270,7 @@ void IVOptimizer::DumpIV(const IV &iv, int32 indent) const {
   LogInfo::MapleLogger() << "  BasicIV: " << (iv.isBasicIV ? "Yes\n" : "No\n");
 }
 
-void IVOptimizer::DumpGroup(const IVGroup &group) {
+void IVOptimizer::DumpGroup(const IVGroup &group) const {
   constexpr int32 kIndent4 = 4;
   LogInfo::MapleLogger() << "Group" << group.id << ":\n"
                          << "  Type: ";
@@ -291,7 +291,7 @@ void IVOptimizer::DumpGroup(const IVGroup &group) {
   }
 }
 
-void IVOptimizer::DumpCand(const IVCand &cand) {
+void IVOptimizer::DumpCand(const IVCand &cand) const {
   constexpr int32 kIndent2 = 2;
   LogInfo::MapleLogger() << "Candidate" << cand.id << ":\n"
                          << "  IV Name:\t%" << static_cast<RegMeExpr*>(cand.iv->expr)->GetRegIdx() << std::endl;
@@ -402,8 +402,16 @@ IV *IVOptData::GetIV(const MeExpr &expr) {
 
 bool IVOptData::IsLoopInvariant(const MeExpr &expr) {
   switch (expr.GetMeOp()) {
-    case kMeOpConst:
-      return true;
+    case kMeOpConst: {
+      if (!IsSignedInteger(expr.GetPrimType())) {
+        return true;
+      }
+      auto *mConst = static_cast<const ConstMeExpr &>(expr).GetConstVal();
+      // Intmin value always need to keep the calculation order to ensure that
+      // signed integer overflow will not be introduced. Leave it to other opts
+      // to fix those iteration variables.
+      return !static_cast<const MIRIntConst *>(mConst)->GetValue().IsMinValue();
+    }
     case kMeOpReg:
     case kMeOpVar: {
       if (expr.IsVolatile()) {
@@ -564,7 +572,8 @@ bool IVOptimizer::CreateIVFromAdd(OpMeExpr &op, MeStmt &stmt) {
   } else if (iv0 != nullptr || iv1 != nullptr) {
     auto *realIV = iv0 != nullptr ? iv0 : iv1;
     auto *opnd = iv0 != nullptr ? op.GetOpnd(1) : op.GetOpnd(0);
-    if (data->IsLoopInvariant(*opnd)) {
+    if (data->IsLoopInvariant(*opnd) &&
+        GetPrimTypeSize(realIV->base->GetPrimType()) >= GetPrimTypeSize(op.GetPrimType())) {
       auto *initValue = irMap->CreateMeExprBinary(OP_add, op.GetPrimType(),
                                                   *realIV->base, *opnd);
       auto *simplified = irMap->SimplifyMeExpr(initValue);
@@ -595,7 +604,8 @@ bool IVOptimizer::CreateIVFromMul(OpMeExpr &op, MeStmt &stmt) {
     if (opnd->IsZero()) {
       return false;
     }
-    if (data->IsLoopInvariant(*opnd)) {
+    if (data->IsLoopInvariant(*opnd) &&
+        GetPrimTypeSize(realIV->base->GetPrimType()) >= GetPrimTypeSize(op.GetPrimType())) {
       auto *initValue = irMap->CreateMeExprBinary(OP_mul, op.GetPrimType(),
                                                   *realIV->base, *opnd);
       auto *simplified = irMap->SimplifyMeExpr(initValue);
@@ -639,7 +649,8 @@ bool IVOptimizer::CreateIVFromSub(OpMeExpr &op, MeStmt &stmt) {
   } else if (iv0 != nullptr || iv1 != nullptr) {
     auto *realIV = iv0 != nullptr ? iv0 : iv1;
     auto *opnd = iv0 != nullptr ? op.GetOpnd(1) : op.GetOpnd(0);
-    if (data->IsLoopInvariant(*opnd)) {
+    if (data->IsLoopInvariant(*opnd) &&
+        GetPrimTypeSize(realIV->base->GetPrimType()) >= GetPrimTypeSize(op.GetPrimType())) {
       auto *initValue = irMap->CreateMeExprBinary(OP_sub, op.GetPrimType(),
                                                   iv0 != nullptr ? *realIV->base : *opnd,
                                                   iv0 != nullptr ? *opnd : *realIV->base);
@@ -759,6 +770,108 @@ bool IVOptimizer::CreateIVFromIaddrof(OpMeExpr &op, MeStmt &stmt) {
   return true;
 }
 
+struct ExprBound {
+  IntVal min;
+  IntVal max;
+};
+
+struct ExprRange {
+  ExprBound fallthruBound;
+  ExprBound targetBound;
+};
+
+static Opcode SwapCmpOp(Opcode swapOp) {
+  return swapOp == OP_ge ? OP_le
+                         : swapOp == OP_le ? OP_ge
+                                           : swapOp == OP_lt ? OP_gt
+                                                             : swapOp == OP_gt ? OP_lt : swapOp;
+}
+
+static bool GetRange(const MeStmt &stmt, const MeExpr &target, ExprRange &range) {
+  if (!kOpcodeInfo.IsCondBr(stmt.GetOp())) {
+    return false;
+  }
+  auto *cmp = stmt.GetOpnd(0);
+  if (!IsCompareHasReverseOp(cmp->GetOp())) {
+    return false;
+  }
+  auto *opnd0 = cmp->GetOpnd(0);
+  auto *opnd1 = cmp->GetOpnd(1);
+  if (opnd0 != &target && opnd1 != &target) {
+    return false;
+  }
+  if (opnd0->GetPrimType() != static_cast<OpMeExpr*>(cmp)->GetOpndType() ||
+      opnd1->GetPrimType() != static_cast<OpMeExpr*>(cmp)->GetOpndType()) {
+    return false;
+  }
+  auto *constant = opnd0 == &target ? opnd1 : opnd0;
+  if (constant->GetMeOp() != kMeOpConst) {
+    return false;
+  }
+  auto *intConst = static_cast<ConstMeExpr*>(constant);
+  auto type = intConst->GetPrimType();
+  bool isSigned = IsSignedInteger(type);
+  IntVal typeMin(isSigned ? static_cast<uint64>(0x1) << GetPrimTypeBitSize(type) : 0, type);
+  constexpr uint32 kRightShiftStart = 65;
+  IntVal typeMax(isSigned ? static_cast<uint64>(-1) >> (kRightShiftStart - GetPrimTypeBitSize(type)) : -1, type);
+  auto swapOp = opnd0 == &target ? cmp->GetOp() : SwapCmpOp(cmp->GetOp());
+  switch (swapOp) {
+    case OP_le:
+    case OP_lt: {
+      range.fallthruBound.max.Assign(intConst->GetIntValue() - (swapOp == OP_lt ? 1 : 0));
+      range.fallthruBound.min.Assign(typeMin);
+      range.targetBound.max.Assign(typeMax);
+      range.targetBound.min.Assign(intConst->GetIntValue() + (swapOp == OP_lt ? 0 : 1));
+      break;
+    }
+    case OP_ge:
+    case OP_gt: {
+      range.fallthruBound.max.Assign(typeMax);
+      range.fallthruBound.min.Assign(intConst->GetIntValue() + (swapOp == OP_gt ? 1 : 0));
+      range.targetBound.max.Assign(intConst->GetIntValue() - (swapOp == OP_gt ? 0 : 1));
+      range.targetBound.min.Assign(typeMin);
+      break;
+    }
+    default: return false;
+  }
+  if (range.fallthruBound.max < range.fallthruBound.min || range.targetBound.max < range.targetBound.min) {
+    return false;
+  }
+  if (stmt.GetOp() == OP_brtrue) {
+    auto tmp = range.fallthruBound;
+    range.fallthruBound = range.targetBound;
+    range.targetBound = tmp;
+  }
+  return true;
+}
+
+bool GetBound(const MeExprUseInfo &useInfo, const Dominance &dom,
+              const MeExpr &target, const MeStmt &stmt, ExprBound &bound) {
+  auto *useSite = useInfo.GetUseSitesOfExpr(&target);
+  if (!useSite) {
+    return false;
+  }
+  for (auto &use : *useSite) {
+    if (use.IsUseByPhi()) {
+      continue;
+    }
+    auto *useStmt = use.GetStmt();
+    ExprRange range;
+    if (!GetRange(*useStmt, target, range)) {
+      continue;
+    }
+    if (dom.Dominate(*useStmt->GetBB()->GetSucc(0), *stmt.GetBB())) {
+      bound = range.fallthruBound;
+      return true;
+    }
+    if (dom.Dominate(*useStmt->GetBB()->GetSucc(1), *stmt.GetBB())) {
+      bound = range.targetBound;
+      return true;
+    }
+  }
+  return false;
+}
+
 // try to cvt condition OP in condition stmt STMT to ne because it's better for optimization
 OpMeExpr *IVOptimizer::TryCvtCmp(OpMeExpr &op, MeStmt &stmt) {
   if (data->currLoop->inloopBB2exitBBs.size() != 1 ||  // do not handle multi-exit loop
@@ -804,12 +917,19 @@ OpMeExpr *IVOptimizer::TryCvtCmp(OpMeExpr &op, MeStmt &stmt) {
     // do not handle range-unknown iv
     return &op;
   }
+  bool constCmp = true;
+  int64 cmpConst = 0;
+  ExprBound bound;
   if (opnd->GetMeOp() != kMeOpConst) {
-    return &op;
-  }
-  int64 cmpConst = static_cast<ConstMeExpr*>(opnd)->GetExtIntValue();
-  if (GetPrimTypeSize(opnd->GetPrimType()) < kEightByte) {
-    cmpConst = static_cast<int64>(static_cast<int32>(cmpConst));
+    if (!GetBound(*useInfo, *dom, *opnd, stmt, bound)) {
+      return &op;
+    }
+    constCmp = false;
+  } else {
+    cmpConst = static_cast<ConstMeExpr*>(opnd)->GetExtIntValue();
+    if (GetPrimTypeSize(opnd->GetPrimType()) < kEightByte) {
+      cmpConst = static_cast<int64>(static_cast<int32>(cmpConst));
+    }
   }
   // prefer target in loop, if not, swap them
   if (fallthruInLoop) {
@@ -832,24 +952,35 @@ OpMeExpr *IVOptimizer::TryCvtCmp(OpMeExpr &op, MeStmt &stmt) {
   if ((newOp.GetOp() == OP_lt && condbr.GetOp() == OP_brtrue && stepConst == 1) ||
       (newOp.GetOp() == OP_ge && condbr.GetOp() == OP_brfalse && stepConst == 1)) {
     // case1: i < 8, i++  ===>  i != 8, i++
-    bool firstCheck = IsSignedInteger(newOp.GetOpndType()) ? baseConst <= cmpConst :
-        static_cast<uint64>(baseConst) <= static_cast<uint64>(cmpConst);
+    bool firstCheck = false;
+    if (opnd->GetMeOp() == kMeOpConst) {
+      firstCheck = IsSignedInteger(newOp.GetOpndType()) ? baseConst <= cmpConst :
+          static_cast<uint64>(baseConst) <= static_cast<uint64>(cmpConst);
+    } else {
+      firstCheck = bound.min >= static_cast<ConstMeExpr*>(iv->base)->GetIntValue();
+    }
     if (!firstCheck) {
       return &op;
     }
   } else if ((newOp.GetOp() == OP_gt && condbr.GetOp() == OP_brtrue && stepConst == -1) ||
              (newOp.GetOp() == OP_le && condbr.GetOp() == OP_brfalse && stepConst == -1)) {
     // case2: i > 8, i--  ===>  i != 8, i--
-    bool firstCheck = IsSignedInteger(newOp.GetOpndType()) ? baseConst >= cmpConst :
-        static_cast<uint64>(baseConst) >= static_cast<uint64>(cmpConst);
+    bool firstCheck = false;
+    if (opnd->GetMeOp() == kMeOpConst) {
+      firstCheck = IsSignedInteger(newOp.GetOpndType()) ? baseConst >= cmpConst :
+          static_cast<uint64>(baseConst) >= static_cast<uint64>(cmpConst);
+    } else {
+      firstCheck = bound.max >= static_cast<ConstMeExpr*>(iv->base)->GetIntValue();
+    }
     if (!firstCheck) {
       return &op;
     }
   } else if ((newOp.GetOp() == OP_le && condbr.GetOp() == OP_brtrue && stepConst == 1) ||
              (newOp.GetOp() == OP_gt && condbr.GetOp() == OP_brfalse && stepConst == 1)) {
     // case3: i <= 8, i++  ===>  i < 9, i++  ===>  i != 9, i++
-    bool overflow = IsSignedInteger(newOp.GetOpndType()) ? cmpConst == INT64_MAX : cmpConst == UINT64_MAX;
-    if (overflow) {
+    bool overflow = IsSignedInteger(newOp.GetOpndType()) ?
+        cmpConst == INT64_MAX : static_cast<uint64>(cmpConst) == UINT64_MAX;
+    if (!constCmp || overflow) {
       return &op;
     }
     cmpConst = cmpConst + stepConst;
@@ -863,7 +994,7 @@ OpMeExpr *IVOptimizer::TryCvtCmp(OpMeExpr &op, MeStmt &stmt) {
              (newOp.GetOp() == OP_lt && condbr.GetOp() == OP_brfalse && stepConst == -1)) {
     // case4: i >= 8, i--  ===>  i > 7, i--  ===>  i != 7, i--
     bool underflow = IsSignedInteger(newOp.GetOpndType()) ? cmpConst == INT64_MIN : cmpConst == 0;
-    if (underflow) {
+    if (!constCmp || underflow) {
       return &op;
     }
     cmpConst = cmpConst + stepConst;
@@ -1082,7 +1213,7 @@ void IVOptimizer::FindGeneralIVInStmt(MeStmt &stmt) {
       opnd = opted;
     }
     bool isUsedInAddr = (stmt.GetOp() == OP_iassign || stmt.GetOp() == OP_iassignoff) && i == 0;
-    isUsedInAddr |= stmt.GetOp() == OP_assertnonnull;
+    isUsedInAddr = isUsedInAddr || (stmt.GetOp() == OP_assertnonnull);
     if (FindGeneralIVInExpr(stmt, *opnd, isUsedInAddr)) {
       auto *iv = data->GetIV(*opnd);
       CHECK_FATAL(iv, "iv is nullptr!");
@@ -2254,7 +2385,7 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, cons
     }
     // move extra computation to comparedExpr
     if (extraExpr != nullptr) {
-      if (data->realIterNum == -1) {
+      if (data->realIterNum == static_cast<uint64>(-1)) {
         mayOverflow = true;
       } else {
         mayOverflow = CheckOverflow(use->comparedExpr, extraExpr, OP_sub,
@@ -2679,7 +2810,7 @@ void IVOptimizer::Run() {
       data->iterNum = tripCount;
       data->realIterNum = tripCount;
     }
-    if ((loops->GetMeLoops().size() - static_cast<size_t>(i)) > MeOption::ivoptsLimit) {
+    if ((loops->GetMeLoops().size() - static_cast<uint32>(i)) > MeOption::ivoptsLimit) {
       break;
     }
     ApplyOptimize();

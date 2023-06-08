@@ -105,14 +105,14 @@ class A64ConstProp {
         cgFunc(&f),
         ssaInfo(&sInfo),
         curInsn(&insn) {}
-  void DoOpt() const;
+  void DoOpt();
   /* false : default lsl #0 true: lsl #12 (only support 12 bit left shift in aarch64) */
   static MOperator GetRegImmMOP(MOperator regregMop, bool withLeftShift);
   static MOperator GetReversalMOP(MOperator arithMop);
   static MOperator GetFoldMopAndVal(int64 &newVal, int64 constVal, const Insn &arithInsn);
 
  private:
-  bool ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const;
+  bool ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd);
   /* use xzr/wzr in aarch64 to shrink register live range */
   void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) const;
 
@@ -123,8 +123,8 @@ class A64ConstProp {
   /* optimization */
   bool MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const;
   bool ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUInfo,
-                                   ImmOperand &constOpnd, ArithmeticType aT) const;
-  bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT) const;
+                                   ImmOperand &constOpnd, ArithmeticType aT);
+  bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT);
   bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd, ArithmeticType aT) const;
   bool ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;
   bool BitInsertReplace(DUInsnInfo &useDUInfo, const ImmOperand &constOpnd) const;
@@ -155,7 +155,7 @@ class CopyRegProp : public PropOptimizePattern {
   }
  private:
   bool IsValidCopyProp(const RegOperand &dstReg, const RegOperand &srcReg) const;
-  void VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
+  void ValidateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn);
   bool CanBePropagated(const Insn &insn) const;
   void ReplaceAllUseForCopyProp();
   VRegVersion *destVersion = nullptr;

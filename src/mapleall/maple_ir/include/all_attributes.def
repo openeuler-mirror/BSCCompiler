@@ -82,6 +82,8 @@
   ATTR(final_boundary_size)
   ATTR(tls_static)
   ATTR(tls_dynamic)
+  ATTR(packed)
+  ATTR(aligned)
 #endif
 #ifdef TYPE_ATTR
   ATTR(annotation)

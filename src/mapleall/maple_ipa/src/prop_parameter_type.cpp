@@ -12,13 +12,13 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "prop_parameter_type.h"
 #include "call_graph.h"
 #include "maple_phase.h"
 #include "maple_phase.h"
 #include "option.h"
 #include "string_utils.h"
 #include "mir_function.h"
-#include "prop_parameter_type.h"
 #include "me_dominance.h"
 
 namespace maple {
@@ -30,7 +30,7 @@ bool PropParamType::CheckOpndZero(const MeExpr *expr) const {
   return false;
 }
 
-bool PropParamType::CheckCondtionStmt(const MeStmt &meStmt) {
+bool PropParamType::CheckCondtionStmt(const MeStmt &meStmt) const {
   auto *node = meStmt.GetOpnd(0);
   auto subOpnd0 = node->GetOpnd(0);
   auto subOpnd1 = node->GetOpnd(1);
@@ -81,7 +81,7 @@ void PropParamType::ResolveCallStmt(MeStmt &meStmt) {
   MIRFunction *calledFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puidx);
 
   // If the parameter is passed through the fucntion call, we think it maybe have a judge.
-  for (auto map : *meStmt.GetMuList()) {
+  for (auto &map : std::as_const(*meStmt.GetMuList())) {
     OStIdx idx = map.first;
     SSATab *ssaTab = static_cast<MESSATab*>(dataMap.GetVaildAnalysisPhase(curFunc->GetMeFunc()->GetUniqueID(),
                                                                           &MESSATab::id))->GetResult();
@@ -187,7 +187,7 @@ void PropParamType::RunOnScc(maple::SCCNode<CGNode> &scc) {
         static_cast<MIRSymbol*>(it->first)->SetAttr(ATTR_nonnull);
         uint32 index = func->GetFormalIndex(it->first);
         if (index != 0xffffffff) {
-          FormalDef &formalDef = const_cast<FormalDef&>(func->GetFormalDefAt(index));
+          FormalDef &formalDef = func->GetFormalDefAt(index);
           formalDef.formalAttrs.SetAttr(ATTR_nonnull);
         }
       }
@@ -202,12 +202,14 @@ void PropParamType::Prop(MIRFunction &func) {
       formalMapLocal[formalSt] = PointerAttr::kPointerUndeiced;
     }
   }
-  Dominance *dom = static_cast<MEDominance*>(dataMap.GetVaildAnalysisPhase(curFunc->GetMeFunc()->GetUniqueID(),
-                                                                           &MEDominance::id))->GetResult();
-  for (auto *bb : dom->GetReversePostOrder()) {
-    if (bb == nullptr) {
+  auto dom = static_cast<MEDominance*>(
+      dataMap.GetVaildAnalysisPhase(curFunc->GetMeFunc()->GetUniqueID(), &MEDominance::id))->GetDomResult();
+  CHECK_NULL_FATAL(dom);
+  for (auto *node : dom->GetReversePostOrder()) {
+    if (node == nullptr) {
       return;
     }
+    auto bb = func.GetMeFunc()->GetCfg()->GetBBFromID(BBId(node->GetID()));
     // traversal on stmt
     for (auto &meStmt : bb->GetMeStmts()) {
       TraversalMeStmt(meStmt);
@@ -224,7 +226,7 @@ bool SCCPropParamType::PhaseRun(maple::SCCNode<CGNode> &scc) {
   MIRModule *m = ((scc.GetNodes()[0])->GetMIRFunction())->GetModule();
   auto *memPool = GetPhaseMemPool();
   MapleAllocator alloc = MapleAllocator(memPool);
-  MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<M2MCallGraph, MIRModule>(*m);
+  MaplePhase *it = GetAnalysisInfoHook()->FindOverIRAnalyisData<M2MCallGraph, MIRModule>(*m);
   CallGraph *cg = static_cast<M2MCallGraph*>(it)->GetResult();
   CHECK_FATAL(cg != nullptr, "Expecting a valid CallGraph, found nullptr");
   AnalysisDataManager *dataMap = GET_ANALYSIS(SCCPrepare, scc);

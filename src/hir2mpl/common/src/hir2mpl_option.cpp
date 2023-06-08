@@ -18,162 +18,162 @@
 namespace opts::hir2mpl {
 
 maplecl::Option<bool> help({"--help", "-h"},
-                      "  -h, -help              : print usage and exit",
-                      {hir2mplCategory});
+    "  -h, -help    : print usage and exit",
+    {hir2mplCategory});
 
 maplecl::Option<bool> version({"--version", "-v"},
-                         "  -v, -version           : print version and exit",
-                         {hir2mplCategory});
+    "  -v, -version    : print version and exit",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> mpltSys({"--mplt-sys", "-mplt-sys"},
-                                "  -mplt-sys sys1.mplt,sys2.mplt\n"
-                                "                         : input sys mplt files",
-                                {hir2mplCategory});
+    "  -mplt-sys sys1.mplt,sys2.mplt\n"
+    "    : input sys mplt files",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> mpltApk({"--mplt-apk", "-mplt-apk"},
-                                "  -mplt-apk apk1.mplt,apk2.mplt\n"
-                                "                         : input apk mplt files",
-                                {hir2mplCategory});
+    "  -mplt-apk apk1.mplt,apk2.mplt\n"
+    "    : input apk mplt files",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> mplt({"--mplt", "-mplt"},
-                             "  -mplt lib1.mplt,lib2.mplt\n"
-                             "                         : input mplt files",
-                             {hir2mplCategory});
+    "  -mplt lib1.mplt,lib2.mplt\n"
+    "    : input mplt files",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> inClass({"--in-class", "-in-class"},
-                                "  -in-class file1.jar,file2.jar\n"
-                                "                         : input class files",
-                                {hir2mplCategory});
+    "  -in-class file1.jar,file2.jar\n"
+    "    : input class files",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> inJar({"--in-jar", "-in-jar"},
-                              "  -in-jar file1.jar,file2.jar\n"
-                              "                         : input jar files",
-                              {hir2mplCategory});
+    "  -in-jar file1.jar,file2.jar\n"
+    "    : input jar files",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> inDex({"--in-dex", "-in-dex"},
-                              "  -in-dex file1.dex,file2.dex\n"
-                              "                         : input dex files",
-                              {hir2mplCategory});
+    "  -in-dex file1.dex,file2.dex\n"
+    "    : input dex files",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> inAst({"--in-ast", "-in-ast"},
-                              "  -in-ast file1.ast,file2.ast\n"
-                              "                         : input ast files",
-                              {hir2mplCategory});
+    "  -in-ast file1.ast,file2.ast\n"
+    "    : input ast files",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> inMast({"--in-mast", "-in-mast"},
-                               "  -in-mast file1.mast,file2.mast\n"
-                               "                         : input mast files",
-                               {hir2mplCategory});
+    "  -in-mast file1.mast,file2.mast\n"
+    "    : input mast files",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> output({"--output", "-p"},
-                               "  -p, -output            : output path",
-                               {hir2mplCategory});
+    "  -p, -output    : output path",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> outputName({"--output-name", "-o"},
-                                   "  -o, -output-name       : output name",
-                                   {hir2mplCategory});
+    "  -o, -output-name    : output name",
+    {hir2mplCategory});
 
 maplecl::Option<bool> mpltOnly({"--t", "-t"},
-                          "  -t                     : generate mplt only",
-                          {hir2mplCategory});
+    "  -t    : generate mplt only",
+    {hir2mplCategory});
 
 maplecl::Option<bool> asciimplt({"--asciimplt", "-asciimplt"},
-                           "  -asciimplt             : generate mplt in ascii format",
-                           {hir2mplCategory});
+    "  -asciimplt    : generate mplt in ascii format",
+    {hir2mplCategory});
 
 maplecl::Option<bool> dumpInstComment({"--dump-inst-comment", "-dump-inst-comment"},
-                                 "  -dump-inst-comment     : dump instruction comment",
-                                 {hir2mplCategory});
+    "  -dump-inst-comment    : dump instruction comment",
+    {hir2mplCategory});
 
 maplecl::Option<bool> noMplFile({"--no-mpl-file", "-no-mpl-file"},
-                           "  -no-mpl-file           : disable dump mpl file",
-                           {hir2mplCategory});
+    "  -no-mpl-file    : disable dump mpl file",
+    {hir2mplCategory});
 
 maplecl::Option<uint32_t> dumpLevel({"--dump-level", "-d"},
-                               "  -d, -dump-level xx     : debug info dump level\n"
-                               "                           [0] disable\n"
-                               "                           [1] dump simple info\n"
-                               "                           [2] dump detail info\n"
-                               "                           [3] dump debug info",
-                               {hir2mplCategory});
+    "  -d, -dump-level xx    : debug info dump level\n"
+    "    [0] disable\n"
+    "    [1] dump simple info\n"
+    "    [2] dump detail info\n"
+    "    [3] dump debug info",
+    {hir2mplCategory});
 
 maplecl::Option<bool> dumpComment({"--dump-comment", "-dump-comment"},
-                             "  -dump-comment          : gen comment stmt",
-                             {hir2mplCategory});
+    "  -dump-comment    : gen comment stmt",
+    {hir2mplCategory});
 
 maplecl::Option<bool> dumpLOC({"--dump-LOC", "-dump-LOC"},
-                         "  -dump-LOC              : gen LOC",
-                         {hir2mplCategory});
+    "  -dump-LOC    : gen LOC",
+    {hir2mplCategory});
 
 maplecl::Option<bool> dumpPhaseTime({"--dump-phase-time", "-dump-phase-time"},
-                               "  -dump-phase-time       : dump total phase time",
-                               {hir2mplCategory});
+    "  -dump-phase-time    : dump total phase time",
+    {hir2mplCategory});
 
 maplecl::Option<bool> dumpPhaseTimeDetail({"-dump-phase-time-detail", "--dump-phase-time-detail"},
-                                     "  -dump-phase-time-detail\n"      \
-                                     "                         : dump phase time for each method",
-                                     {hir2mplCategory});
+    "  -dump-phase-time-detail\n"    \
+    "    : dump phase time for each method",
+    {hir2mplCategory});
 
 maplecl::Option<bool> rc({"-rc", "--rc"},
-                    "  -rc                    : enable rc",
-                    {hir2mplCategory});
+    "  -rc    : enable rc",
+    {hir2mplCategory});
 
 maplecl::Option<bool> nobarrier({"-nobarrier", "--nobarrier"},
-                           "  -nobarrier             : no barrier",
-                           {hir2mplCategory});
+    "  -nobarrier    : no barrier",
+    {hir2mplCategory});
 
 maplecl::Option<bool> simplifyShortCircuit({"-simplify-short-circuit", "--simplify-short-circuit"},
-                                      "  -simplify-short-circuit\n"     \
-                                      "                         : enable simplify short circuit",
-                                      {hir2mplCategory});
+    "  -simplify-short-circuit\n"    \
+    "    : enable simplify short circuit",
+    {hir2mplCategory});
 
 maplecl::Option<bool> enableVariableArray({"-enable-variable-array", "--enable-variable-array"},
-                                     "  -enable-variable-array\n" \
-                                     "                         : enable variable array",
-                                     {hir2mplCategory});
+    "  -enable-variable-array\n" \
+    "    : enable variable array",
+    {hir2mplCategory});
 
 maplecl::Option<uint32_t> np({"-np", "--np"},
-                        "  -np num                : number of threads",
-                        {hir2mplCategory});
+    "  -np num    : number of threads",
+    {hir2mplCategory});
 
 maplecl::Option<bool> dumpThreadTime({"-dump-thread-time", "--dump-thread-time"},
-                                "  -dump-thread-time      : dump thread time in mpl schedular",
-                                {hir2mplCategory});
+    "  -dump-thread-time    : dump thread time in mpl schedular",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> xbootclasspath({"-Xbootclasspath", "--Xbootclasspath"},
-                                       "  -Xbootclasspath=bootclasspath\n" \
-                                       "                         : boot class path list",
-                                       {hir2mplCategory});
+    "  -Xbootclasspath=bootclasspath\n" \
+    "    : boot class path list",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> classloadercontext({"-classloadercontext", "--classloadercontext"},
-                                           "  -classloadercontext=pcl\n" \
-                                           "                         : class loader context \n" \
-                                           "                         : path class loader",
-                                           {hir2mplCategory});
+    "  -classloadercontext=pcl\n" \
+    "    : class loader context \n" \
+    "    : path class loader",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> dep({"-dep", "--dep"},
-                            "  -dep=all or func\n"                      \
-                            "                         : [all]  collect all dependent types\n" \
-                            "                         : [func] collect dependent types in function",
-                            {hir2mplCategory});
+    "  -dep=all or func\n"    \
+    "    : [all]  collect all dependent types\n" \
+    "    : [func] collect dependent types in function",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> depsamename({"-depsamename", "--depsamename"},
-                                    "  -DepSameNamePolicy=sys or src\n" \
-                                    "               : [sys] load type from sys when on-demand load same name type\n" \
-                                    "               : [src] load type from src when on-demand load same name type",
-                                    {hir2mplCategory});
+    "  -DepSameNamePolicy=sys or src\n" \
+    "    : [sys] load type from sys when on-demand load same name type\n" \
+    "    : [src] load type from src when on-demand load same name type",
+    {hir2mplCategory});
 
 maplecl::Option<bool> dumpFEIRBB({"-dump-bb", "--dump-bb"},
-                            "  -dump-bb               : dump basic blocks info",
-                            {hir2mplCategory});
+    "  -dump-bb    : dump basic blocks info",
+    {hir2mplCategory});
 
 maplecl::Option<std::string> dumpFEIRCFGGraph({"-dump-cfg", "--dump-cfg"},
-                                         "  -dump-cfg funcname1,funcname2\n" \
-                                         "                         : dump cfg graph to dot file",
-                                         {hir2mplCategory});
+    "  -dump-cfg funcname1,funcname2\n" \
+    "    : dump cfg graph to dot file",
+    {hir2mplCategory});
 
 maplecl::Option<bool> debug({"-debug", "--debug"},
-                      "  -debug                 : dump enabled options",
-                      {hir2mplCategory});
+    "  -debug    : dump enabled options",
+    {hir2mplCategory});
 
 }

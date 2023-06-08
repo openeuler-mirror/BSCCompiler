@@ -61,6 +61,7 @@ uint32 CGOptions::alignMaxBBSize = 96;
 uint32 CGOptions::loopAlignPow = 4;
 uint32 CGOptions::jumpAlignPow = 5;
 uint32 CGOptions::funcAlignPow = 5;
+uint32 CGOptions::coldPathThreshold = 10;
 bool CGOptions::liteProfGen = false;
 bool CGOptions::liteProfUse = false;
 bool CGOptions::liteProfVerify = false;
@@ -72,6 +73,7 @@ std::string CGOptions::functionProrityFile = "";
 std::string CGOptions::functionReorderAlgorithm = "";
 std::string CGOptions::functionReorderProfile = "";
 std::string CGOptions::cpu = "cortex-a53";
+bool CGOptions::doOptimizedFrameLayout = true;
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -227,7 +229,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
     /* To avoid fpie mode being modified twice, need to ensure fpie is not opened. */
-    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() && ! opts::cg::fPIE.IsEnabledByUser() &&!opts::cg::fPIE) {
+    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() && !opts::cg::fPIE.IsEnabledByUser() &&!opts::cg::fPIE) {
       if (opts::cg::fPIC && opts::cg::fPIC.IsEnabledByUser()) {
         SetPICOptionHelper(kLargeMode);
         SetPIEMode(kClose);
@@ -534,8 +536,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   if (opts::cg::nativeopt.IsEnabledByUser()) {
-    // FIXME: Disabling Looks strage: should be checked by author of the code
-    DisableNativeOpt();
+    opts::cg::nativeopt ? EnableNativeOpt() : DisableNativeOpt();
   }
 
   if (opts::cg::dupBb.IsEnabledByUser()) {
@@ -676,7 +677,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
   /* big endian can be set with several options: --target, -Be.
    * Triple takes to account all these options and allows to detect big endian with IsBigEndian() interface */
   Triple::GetTriple().IsBigEndian() ? EnableBigEndianInCG() : DisableBigEndianInCG();
-  (maple::Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) ? EnableArm64ilp32() : DisableArm64ilp32();
+  (maple::Triple::GetTriple().GetEnvironment() == Triple::kGnuIlp32) ? EnableArm64ilp32() : DisableArm64ilp32();
 
   if (opts::cg::cgSsa.IsEnabledByUser()) {
     opts::cg::cgSsa ? EnableCGSSA() : DisableCGSSA();
@@ -686,8 +687,16 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::layoutColdPath ? EnableLayoutColdPath() : DisableLayoutColdPath();
   }
 
+  if (opts::cg::coldPathThreshold.IsEnabledByUser()) {
+    SetColdPathThreshold(opts::cg::coldPathThreshold);
+  }
+
   if (opts::cg::globalSchedule.IsEnabledByUser()) {
     opts::cg::globalSchedule ? EnableGlobalSchedule() : DisableGlobalSchedule();
+  }
+
+  if (opts::cg::localSchedule.IsEnabledByUser()) {
+    opts::cg::localSchedule ? EnableLocalSchedule() : DisableLocalSchedule();
   }
 
   if (opts::cg::common.IsEnabledByUser()) {
@@ -732,9 +741,9 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetLitePgoWhiteList(opts::cg::litePgoWhiteList);
   }
 
-  if (opts::cg::instrumentationFile.IsEnabledByUser()) {
-    SetInstrumentationOutPutPath(opts::cg::instrumentationFile);
-    if (!opts::cg::instrumentationFile.GetValue().empty()) {
+  if (opts::cg::instrumentationDir.IsEnabledByUser()) {
+    SetInstrumentationOutPutPath(opts::cg::instrumentationDir);
+    if (!opts::cg::instrumentationDir.GetValue().empty()) {
       EnableLiteProfGen();
     }
   }
@@ -760,6 +769,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::fVisibility.IsEnabledByUser()) {
     SetVisibilityType(opts::fVisibility);
+  }
+
+  if (opts::cg::optimizedFrameLayout.IsEnabledByUser()) {
+    opts::cg::optimizedFrameLayout ? EnableOptimizedFrameLayout() : DisableOptimizedFrameLayout();
   }
 
   SetOption(kWithSrc);
@@ -808,7 +821,7 @@ void CGOptions::ParseCyclePattern(const std::string &fileName) const {
         classPatternContent.push_back(patternContent);
       }
       std::string className = content.substr(classStr.length());
-      CGOptions::cyclePatternMap[className] = move(classPatternContent);
+      CGOptions::cyclePatternMap[className] = std::move(classPatternContent);
     }
   }
 }
@@ -861,7 +874,7 @@ void CGOptions::EnableO0() {
   doCondBrAlign = false;
   doAggrOpt = false;
   SetOption(kUseUnwindTables);
-  if (maple::Triple::GetTriple().GetEnvironment() == Triple::GNUILP32) {
+  if (maple::Triple::GetTriple().GetEnvironment() == Triple::kGnuIlp32) {
     ClearOption(kUseStackProtectorStrong);
   } else {
     SetOption(kUseStackProtectorStrong);

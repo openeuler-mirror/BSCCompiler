@@ -120,7 +120,7 @@ struct BCReg;
 struct TypeInferItem;
 
 struct BCRegTypeItem {
-  BCRegTypeItem(const GStrIdx &idx, bool isIndeterminateIn = false, bool isFromDefIn = false)
+  explicit BCRegTypeItem(const GStrIdx &idx, bool isIndeterminateIn = false, bool isFromDefIn = false)
       : typeNameIdx(idx),
         isIndeterminate(isIndeterminateIn),
         isFromDef(isFromDefIn) {}

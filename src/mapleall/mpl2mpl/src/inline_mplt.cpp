@@ -56,7 +56,7 @@ bool InlineMplt::Forbidden(BaseNode *node, const std::pair<uint32, uint32> &inli
   if (node->GetOpCode() == OP_block) {
     auto *block = static_cast<BlockNode*>(node);
     for (auto &stmt : block->GetStmtNodes()) {
-      ret |= Forbidden(&stmt, inlineConditions, staticFuncs, globalSymbols);
+      ret = Forbidden(&stmt, inlineConditions, staticFuncs, globalSymbols) || ret;
     }
   } else if (node->GetOpCode() == OP_callassigned || node->GetOpCode() == OP_call ||
              node->GetOpCode() == OP_addroffunc) {
@@ -70,7 +70,7 @@ bool InlineMplt::Forbidden(BaseNode *node, const std::pair<uint32, uint32> &inli
         return true;
       }
       staticFuncs.push_back(newCallee);
-      ret |= Forbidden(newCallee->GetBody(), std::make_pair(inlineSize, level - 1), staticFuncs, globalSymbols);
+      ret = Forbidden(newCallee->GetBody(), std::make_pair(inlineSize, level - 1), staticFuncs, globalSymbols) || ret;
     }
   } else if (node->GetOpCode() == OP_iread) {
     IreadNode *opNode = static_cast<IreadNode*>(node);
@@ -91,7 +91,7 @@ bool InlineMplt::Forbidden(BaseNode *node, const std::pair<uint32, uint32> &inli
     }
   }
   for (size_t i = 0; i < node->NumOpnds(); ++i) {
-    ret |= Forbidden(node->Opnd(i), inlineConditions, staticFuncs, globalSymbols);
+    ret = Forbidden(node->Opnd(i), inlineConditions, staticFuncs, globalSymbols) || ret;
   }
   return ret;
 }

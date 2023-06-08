@@ -144,7 +144,7 @@ bool DSE::HasNonDeletableExpr(const StmtNode &stmt) const {
     }
     case OP_intrinsiccall: {
       for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
-        nonDeletable |= ExprNonDeletable(ToRef(stmt.Opnd(i)));
+        nonDeletable = ExprNonDeletable(ToRef(stmt.Opnd(i))) || nonDeletable;
       }
       break;
     }
@@ -198,7 +198,7 @@ void DSE::DumpStmt(const StmtNode &stmt, const std::string &msg) const {
   }
 }
 
-bool DSE::IsCallReturnRemovable(const StmtNode &stmt) {
+bool DSE::IsCallReturnRemovable(const StmtNode &stmt) const {
   if (!kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
     return false;
   }

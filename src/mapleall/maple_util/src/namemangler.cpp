@@ -250,13 +250,13 @@ std::string DecodeName(const std::string &name) {
         }
       } else {
         c = static_cast<unsigned char>(namePtr[i++]);
-        unsigned int v = static_cast<unsigned int>((c <= '9') ? c - kZeroAsciiNum : c - kAAsciiNum + kNumLimit);
+        unsigned int v = static_cast<unsigned int>((c <= '9') ? (c - kZeroAsciiNum) : (c - kAAsciiNum + kNumLimit));
         unsigned int asc = v << kCodeOffset;
         if (i >= nameLen) {
           break;
         }
         c = static_cast<unsigned char>(namePtr[i++]);
-        v = (c <= '9') ? c - kZeroAsciiNum : c - kAAsciiNum + kNumLimit;
+        v = (c <= '9') ? static_cast<uint>(c - kZeroAsciiNum) : static_cast<uint>(c - kAAsciiNum + kNumLimit);
         asc += v;
 
         newName[pos++] = static_cast<char>(asc);
@@ -336,12 +336,12 @@ std::string NativeJavaName(const std::string &name, bool overLoaded) {
         // _XX: '_' followed by ascii code in hex
         c = decompressedName[i++];
         unsigned char v =
-            (c <= '9') ? static_cast<unsigned char>(c - kZeroAsciiNum) :
-                         static_cast<unsigned char>((c - kAAsciiNum) + kNumLimit);
+            (c <= '9') ? static_cast<unsigned char>(static_cast<unsigned char>(c) - kZeroAsciiNum) :
+                         static_cast<unsigned char>((static_cast<unsigned char>(c) - kAAsciiNum) + kNumLimit);
         unsigned char asc = v << kCodeOffset;
         c = decompressedName[i++];
-        v = (c <= '9') ? static_cast<unsigned char>(c - kZeroAsciiNum) :
-                         static_cast<unsigned char>((c - kAAsciiNum) + kNumLimit);
+        v = (c <= '9') ? static_cast<unsigned char>(static_cast<unsigned char>(c) - kZeroAsciiNum) :
+                         static_cast<unsigned char>((static_cast<unsigned char>(c) - kAAsciiNum) + kNumLimit);
         asc += v;
         if (asc == '/') {
           newName += "_";
@@ -709,7 +709,7 @@ int64_t DecodeSLEB128(const uint8_t *p, unsigned *n, const uint8_t *end) {
     ++p;
   } while (byte >= kOneHundredTwentyEight);
   // Sign extend negative numbers if needed.
-  if (shift < kSixtyFour && (byte & 0x40)) {
+  if (shift < kSixtyFour && ((byte & 0x40) != 0)) {
     value = static_cast<int64_t>(static_cast<uint64_t>(value) | static_cast<uint64_t>(0xffffffffffffffff << shift));
   }
   if (n) {

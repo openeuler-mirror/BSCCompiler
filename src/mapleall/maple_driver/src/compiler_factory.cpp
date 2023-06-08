@@ -62,7 +62,7 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
 
 Toolchain *CompilerFactory::GetToolChain() {
   if (toolchain == nullptr) {
-    if (maple::Triple::GetTriple().GetArch() == Triple::ArchType::aarch64_be) {
+    if (maple::Triple::GetTriple().GetArch() == Triple::ArchType::kAarch64Be) {
       toolchain = std::make_unique<Aarch64BeILP32Toolchain>();
     } else {
       toolchain = std::make_unique<Aarch64Toolchain>();

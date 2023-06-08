@@ -881,7 +881,7 @@ void LSRALinearScanRegAllocator::ComputeLiveIntervalForEachOperand(Insn &insn) {
    */
   for (int32 i = static_cast<int32>(opndNum - 1); i >= 0; --i) {
     Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
-    const OpndDesc *opndDesc = md->GetOpndDes(static_cast<size_t>(i));
+    const OpndDesc *opndDesc = md->GetOpndDes(static_cast<uint32>(i));
     ASSERT(opndDesc != nullptr, "ptr null check.");
     if (opnd.IsList()) {
       auto &listOpnd = static_cast<const ListOperand&>(opnd);
@@ -1321,22 +1321,20 @@ uint32 LSRALinearScanRegAllocator::FindAvailablePhyReg(LiveInterval &li, const I
     if (LSRA_DUMP) {
       LogInfo::MapleLogger() << "\t\tlive interval crosses a call\n";
     }
-    if (regNO == 0) {
-      if (!li.IsInCatch() && !li.IsAllInCleanupOrFirstBB() && !calleeRegSet.empty()) {
-        /* call in live interval, use callee if available */
-        regNO = GetRegFromSet(calleeRegSet, reg0, li);
-        /* Since it is callee saved, no need to continue search */
-        li.SetShouldSave(false);
-      } else if (li.IsMultiUseInBB()) {
-        /*
-         * allocate caller save if there are multiple uses in one bb
-         * else it is no different from spilling
-         */
-        if (!callerRegSet.empty()) {
-          regNO = GetRegFromSet(callerRegSet, reg0, li);
-        } else if (!paramRegSet.empty()) {
-          regNO = GetRegFromSet(paramRegSet, reg0, li);
-        }
+    if (!li.IsInCatch() && !li.IsAllInCleanupOrFirstBB() && !calleeRegSet.empty()) {
+      /* call in live interval, use callee if available */
+      regNO = GetRegFromSet(calleeRegSet, reg0, li);
+      /* Since it is callee saved, no need to continue search */
+      li.SetShouldSave(false);
+    } else if (li.IsMultiUseInBB()) {
+      /*
+       * allocate caller save if there are multiple uses in one bb
+       * else it is no different from spilling
+       */
+      if (!callerRegSet.empty()) {
+        regNO = GetRegFromSet(callerRegSet, reg0, li);
+      } else if (!paramRegSet.empty()) {
+        regNO = GetRegFromSet(paramRegSet, reg0, li);
       }
     }
     if (regNO == 0) {

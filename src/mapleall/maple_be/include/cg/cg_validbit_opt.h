@@ -52,7 +52,8 @@ class ValidBitPattern {
 
 class ValidBitOpt {
  public:
-  ValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) :memPool(&mp), cgFunc(&f), ssaInfo(&info), regll(&ll) {
+  ValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &info, LiveIntervalAnalysis &ll) : memPool(&mp), cgFunc(&f),
+                                                                                   ssaInfo(&info), regll(&ll) {
     cgDce = f.GetCG()->CreateCGDce(mp, f, info);
   }
   virtual ~ValidBitOpt() {
@@ -84,13 +85,13 @@ class ValidBitOpt {
   }
 
   template<typename VBOpt>
-  void OptimizeProp(BB &bb, Insn &insn) const {
+  void OptimizeProp(BB &bb, Insn &insn) {
     VBOpt opt(*cgFunc, *ssaInfo, *regll);
     opt.Run(bb, insn);
   }
 
   template<typename VBOpt>
-  void OptimizeNoProp(BB &bb, Insn &insn) const {
+  void OptimizeNoProp(BB &bb, Insn &insn) {
     VBOpt opt(*cgFunc, *ssaInfo);
     opt.Run(bb, insn);
   }

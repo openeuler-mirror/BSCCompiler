@@ -23,7 +23,7 @@ namespace bc {
 class BCClass2FEHelper : public FEInputStructHelper {
  public:
   BCClass2FEHelper(MapleAllocator &allocator, BCClass &klassIn);
-  ~BCClass2FEHelper() = default;
+  ~BCClass2FEHelper() override = default;
 
  protected:
   std::string GetStructNameOrinImpl() const override;
@@ -48,7 +48,7 @@ class BCClassField2FEHelper : public FEInputFieldHelper {
   BCClassField2FEHelper(MapleAllocator &allocator, const BCClassField &fieldIn)
       : FEInputFieldHelper(allocator),
         field(fieldIn) {}
-  ~BCClassField2FEHelper() = default;
+  ~BCClassField2FEHelper() override = default;
   FieldAttrs AccessFlag2Attribute(uint32 accessFlag) const;
 
  protected:
@@ -61,7 +61,7 @@ class BCClassField2FEHelper : public FEInputFieldHelper {
 class BCClassMethod2FEHelper : public FEInputMethodHelper {
  public:
   BCClassMethod2FEHelper(MapleAllocator &allocator, std::unique_ptr<BCClassMethod> &methodIn);
-  ~BCClassMethod2FEHelper() = default;
+  ~BCClassMethod2FEHelper() override = default;
   std::unique_ptr<BCClassMethod> &GetMethod() const {
     return method;
   }
@@ -85,9 +85,9 @@ class BCClassMethod2FEHelper : public FEInputMethodHelper {
 
 class BCInputPragmaHelper : public FEInputPragmaHelper {
  public:
-  BCInputPragmaHelper(BCAnnotationsDirectory &bcAnnotationsDirectoryIn)
+  explicit BCInputPragmaHelper(BCAnnotationsDirectory &bcAnnotationsDirectoryIn)
       : bcAnnotationsDirectory(bcAnnotationsDirectoryIn) {}
-  virtual ~BCInputPragmaHelper() = default;
+  ~BCInputPragmaHelper() override = default;
 
  protected:
   std::vector<MIRPragma*> &GenerateMIRPragmasImpl() override {

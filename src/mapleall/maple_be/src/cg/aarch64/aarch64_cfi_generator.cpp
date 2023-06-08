@@ -31,7 +31,8 @@ void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb) {
   }
   int32 RLROffset = static_cast<AArch64CGFunc&>(cgFunc).GetStoreFP() ? kOffset8MemPos : 0;
   (void)bb.InsertInsnBefore(stackDefNextInsn,
-                            aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffset + RLROffset, k64BitSize));
+                            aarchCGFunc.CreateCfiOffsetInsn(RLR, static_cast<int64>(-cfiOffset + RLROffset),
+                                                            k64BitSize));
 
   /* change CFA register and offset */
   if (useFP) {
@@ -86,7 +87,7 @@ void AArch64GenCfi::GenerateRegisterRestoreDirective(BB &bb) {
   if (!regsToSave.empty()) {
     auto it = regsToSave.begin();
     // skip the RFP
-    if (*it == RFP ) {
+    if (*it == RFP) {
       ++it;
     }
     CHECK_FATAL(*it == RLR, "The second callee saved reg is expected to be RLR");

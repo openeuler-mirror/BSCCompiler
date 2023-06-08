@@ -220,7 +220,7 @@ MIRSymbol *CodeReLayout::GenStrSym(const std::string &str) {
   staticSym->SetStorageClass(kScFstatic);
   for (const char &c : newStr) {
     MIRConst *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        static_cast<uint64>(c), *GlobalTables::GetTypeTable().GetUInt8());
+        static_cast<uint64>(static_cast<unsigned char>(c)), *GlobalTables::GetTypeTable().GetUInt8());
     strTabAggConst->AddItem(newConst, 0);
   }
   staticSym->SetKonst(strTabAggConst);

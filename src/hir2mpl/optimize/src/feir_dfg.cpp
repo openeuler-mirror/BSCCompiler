@@ -56,7 +56,7 @@ void FEIRDFG::OutputUseDefChain() {
       std::cout << "empty defs";
     }
     std::cout << " ]" << std::endl;
-    it++;
+    ++it;
   }
   std::cout << "}" << std::endl;
 }
@@ -76,7 +76,7 @@ void FEIRDFG::OutputDefUseChain() {
       std::cout << "empty uses";
     }
     std::cout << " ]" << std::endl;
-    it++;
+    ++it;
   }
   std::cout << "}" << std::endl;
 }

@@ -24,7 +24,7 @@ namespace bc {
 class DexParser : public BCParser<DexReader> {
  public:
   DexParser(uint32 fileIdxIn, const std::string &fileNameIn, const std::list<std::string> &classNamesIn);
-  ~DexParser() = default;
+  ~DexParser() override = default;
   void ProcessDexClassMethod(const std::unique_ptr<DexClass> &dexClass, bool isVirtual,
                              uint32 index, std::pair<uint32, uint32> &idxPair);
   void SetDexFile(std::unique_ptr<IDexFile> iDexFileIn);

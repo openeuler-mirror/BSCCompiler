@@ -88,7 +88,7 @@ bool CGliveIntervalAnalysis::PhaseRun(maplebe::CGFunc &f) {
 }
 void CGliveIntervalAnalysis::GetAnalysisDependence(AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
-  aDep.AddRequired<CgLoopAnalysis>();
+  aDep.SetPreservedAll();
 }
 MAPLE_ANALYSIS_PHASE_REGISTER_CANSKIP(CGliveIntervalAnalysis, cgliveintervalananlysis)
 
@@ -107,7 +107,6 @@ bool CgRegCoalesce::PhaseRun(maplebe::CGFunc &f) {
 
 void CgRegCoalesce::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
-  aDep.AddRequired<CgLoopAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegCoalesce, cgregcoalesce)

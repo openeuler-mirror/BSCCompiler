@@ -150,7 +150,7 @@ ASTDecl *MapleASTParser::ProcessDeclFunctionNode(MapleAllocator &allocator, mapl
 
   GenericAttrs attrs;
   astFunc = ASTDeclsBuilder::ASTFuncBuilder(
-      allocator, fileName, funcName, typeDescIn, attrs, paramDecls, funcDecl->GetNodeId());
+      allocator, fileName, funcName, funcName, typeDescIn, attrs, paramDecls, funcDecl->GetNodeId());
   CHECK_FATAL(astFunc != nullptr, "astFunc is nullptr");
 
   maplefe::BlockNode *astBody = funcDecl->GetBody();

@@ -12,23 +12,21 @@
 * FIT FOR A PARTICULAR PURPOSE.
 * See the Mulan PSL v2 for more details.
 */
+
 #include "list_scheduler.h"
 
 namespace maplebe {
+uint32 ListScheduler::lastSchedInsnId = 0;
+
 void ListScheduler::DoListScheduling() {
   Init();
 
-  MapleVector<DepNode*> &candidates = commonSchedInfo->GetCandidates();
-  /* Set the initial earliest time of all nodes to 0 */
-  for (auto depNode : candidates) {
-    depNode->SetEStart(0);
-  }
   if (doDelayHeuristics) {
     /* Compute delay priority of all candidates */
     ComputeDelayPriority();
   }
 
-  if (LIST_SCHEDULE_DUMP) {
+  if (LIST_SCHEDULE_DUMP || isUnitTest) {
     LogInfo::MapleLogger() << "##  --- schedule bb_" << curCDGNode->GetBB()->GetId() << " ---\n\n";
     if (doDelayHeuristics) {
       DumpDelay();
@@ -37,21 +35,7 @@ void ListScheduler::DoListScheduling() {
   }
 
   /* Push depNodes whose dependencies resolved into waitingQueue */
-  auto candiIter = candidates.begin();
-  while (candiIter != candidates.end()) {
-    DepNode *candiNode = *candiIter;
-    // dependencies resolved
-    if (candiNode->GetValidPredsSize() == 0) {
-      if (LIST_SCHEDULE_DUMP) {
-        LogInfo::MapleLogger() << "insn_" << candiNode->GetInsn()->GetId() << ", ";
-      }
-      (void)waitingQueue.emplace_back(candiNode);
-      candiNode->SetState(kWaiting);
-      candiIter = commonSchedInfo->EraseIterFromCandidates(candiIter);
-    } else {
-      ++candiIter;
-    }
-  }
+  CandidateToWaitingQueue();
 
   ComputeEStart(currCycle);
 
@@ -59,26 +43,16 @@ void ListScheduler::DoListScheduling() {
   while (scheduledNodeNum < curCDGNode->GetInsnNum()) {
     UpdateInfoBeforeSelectNode();
 
-    if (LIST_SCHEDULE_DUMP) {
+    if (LIST_SCHEDULE_DUMP || isUnitTest) {
       LogInfo::MapleLogger() << "\n\n '' current cycle: " << currCycle << "\n\n";
       DumpWaitingQueue();
     }
 
     /* Push depNodes whose resources are free from waitingQueue into readyList */
-    auto waitingIter = waitingQueue.begin();
-    while (waitingIter != waitingQueue.end()) {
-      DepNode *waitingNode = *waitingIter;
-      if (waitingNode->IsResourceFree() && waitingNode->GetEStart() <= currCycle) {
-        (void)readyList.emplace_back(waitingNode);
-        waitingNode->SetState(kReady);
-        waitingIter = EraseIterFromWaitingQueue(waitingIter);
-      } else {
-        ++waitingIter;
-      }
-    }
+    WaitingQueueToReadyList();
 
-    if (LIST_SCHEDULE_DUMP) {
-      LogInfo::MapleLogger() << "    >>  ReadyList before sort: {";
+    if (LIST_SCHEDULE_DUMP || isUnitTest) {
+      LogInfo::MapleLogger() << "    >>  After waitingQueue to readyList: {";
       DumpReadyList();
     }
 
@@ -87,26 +61,32 @@ void ListScheduler::DoListScheduling() {
       advancedCycle = 1;
       continue;
     }
+
     CalculateMostUsedUnitKindCount();
+
     if (!doDelayHeuristics) {
       /* Update LStart */
       ComputeLStart();
-      if (LIST_SCHEDULE_DUMP && !doDelayHeuristics) {
+      if (LIST_SCHEDULE_DUMP || isUnitTest) {
         DumpEStartLStartOfAllNodes();
       }
     }
+
     // Sort the readyList by priority from highest to lowest
     SortReadyList();
-    if (LIST_SCHEDULE_DUMP) {
+
+    if (LIST_SCHEDULE_DUMP || isUnitTest) {
       LogInfo::MapleLogger() << "    >>  ReadyList after sort: {";
       DumpReadyList();
     }
+
     // Select the ready node with the highest priority
     DepNode *schedNode = *readyList.begin();
     CHECK_FATAL(schedNode != nullptr, "select readyNode failed");
-    if (LIST_SCHEDULE_DUMP) {
+    if (LIST_SCHEDULE_DUMP || isUnitTest) {
       LogInfo::MapleLogger() << "    >>  Select node: insn_" << schedNode->GetInsn()->GetId() << "\n\n";
     }
+
     if (schedNode->GetInsn()->GetBB()->GetId() == curCDGNode->GetBB()->GetId()) {
       scheduledNodeNum++;
     }
@@ -129,14 +109,59 @@ void ListScheduler::Init() {
   currCycle = 0;
   advancedCycle = 0;
   scheduledNodeNum = 0;
+
+  MapleVector<DepNode*> &candidates = commonSchedInfo->GetCandidates();
+  /* Set the initial earliest time of all nodes to 0 */
+  for (auto *depNode : candidates) {
+    depNode->SetEStart(0);
+  }
+
+  lastSchedInsnId = 0;
+}
+
+void ListScheduler::CandidateToWaitingQueue() {
+  MapleVector<DepNode*> &candidates = commonSchedInfo->GetCandidates();
+  auto candiIter = candidates.begin();
+  while (candiIter != candidates.end()) {
+    DepNode *candiNode = *candiIter;
+    // dependencies resolved
+    if (candiNode->GetValidPredsSize() == 0) {
+      if (LIST_SCHEDULE_DUMP || isUnitTest) {
+        LogInfo::MapleLogger() << "insn_" << candiNode->GetInsn()->GetId() << ", ";
+      }
+      (void)waitingQueue.emplace_back(candiNode);
+      candiNode->SetState(kWaiting);
+      candiIter = commonSchedInfo->EraseIterFromCandidates(candiIter);
+    } else {
+      ++candiIter;
+    }
+  }
+}
+
+void ListScheduler::WaitingQueueToReadyList() {
+  auto waitingIter = waitingQueue.begin();
+  while (waitingIter != waitingQueue.end()) {
+    DepNode *waitingNode = *waitingIter;
+    // Just check whether the current cycle is free, because
+    // the rightmost bit of occupyTable always indicates curCycle
+    if (waitingNode->IsResourceFree(1) && waitingNode->GetEStart() <= currCycle) {
+      (void)readyList.emplace_back(waitingNode);
+      waitingNode->SetState(kReady);
+      waitingIter = EraseIterFromWaitingQueue(waitingIter);
+    } else {
+      ++waitingIter;
+    }
+  }
 }
 
 void ListScheduler::UpdateInfoBeforeSelectNode() {
   while (advancedCycle > 0) {
     currCycle++;
+    // Update the occupation of cpu units
     mad->AdvanceCycle();
     advancedCycle--;
   }
+  // Fall back to the waitingQueue if the depNode in readyList has resources conflict
   UpdateNodesInReadyList();
 }
 
@@ -178,13 +203,16 @@ void ListScheduler::UpdateEStart(DepNode &schedNode) {
 void ListScheduler::UpdateInfoAfterSelectNode(DepNode &schedNode) {
   schedNode.SetState(kScheduled);
   schedNode.SetSchedCycle(currCycle);
-  schedNode.OccupyUnits();
+  auto cost = static_cast<uint32>(schedNode.GetReservation()->GetLatency());
+  schedNode.OccupyUnits(cost);
   schedNode.SetEStart(currCycle);
   commonSchedInfo->AddSchedResults(&schedNode);
+  lastSchedInsnId = schedNode.GetInsn()->GetId();
+  lastSchedNode = &schedNode;
   EraseNodeFromReadyList(&schedNode);
   UpdateAdvanceCycle(schedNode);
 
-  if (LIST_SCHEDULE_DUMP) {
+  if (LIST_SCHEDULE_DUMP || isUnitTest) {
     LogInfo::MapleLogger() << "    >>  dependencies resolved: {";
   }
   for (auto succLink : schedNode.GetSuccs()) {
@@ -192,7 +220,7 @@ void ListScheduler::UpdateInfoAfterSelectNode(DepNode &schedNode) {
     succNode.DecreaseValidPredsSize();
     // Push depNodes whose dependencies resolved from candidates into waitingQueue
     if (succNode.GetValidPredsSize() == 0 && succNode.GetState() == kCandidate) {
-      if (LIST_SCHEDULE_DUMP) {
+      if (LIST_SCHEDULE_DUMP || isUnitTest) {
         LogInfo::MapleLogger() << "insn_" << succNode.GetInsn()->GetId() << ", ";
       }
       (void)waitingQueue.emplace_back(&succNode);
@@ -203,18 +231,28 @@ void ListScheduler::UpdateInfoAfterSelectNode(DepNode &schedNode) {
 
   UpdateEStart(schedNode);
 
-  if (LIST_SCHEDULE_DUMP) {
+  if (LIST_SCHEDULE_DUMP || isUnitTest) {
     LogInfo::MapleLogger() << "}\n\n";
     DumpScheduledResult();
     LogInfo::MapleLogger() << "'' issue insn_" << schedNode.GetInsn()->GetId() << " at cycle " << currCycle << "\n\n";
   }
+
+  // Add comment
+  Insn *schedInsn = schedNode.GetInsn();
+  ASSERT(schedInsn != nullptr, "get schedInsn from schedNode failed");
+  Reservation *res = schedNode.GetReservation();
+  ASSERT(res != nullptr, "get reservation of insn failed");
+  schedInsn->AppendComment(std::string("run on cycle: ").append(std::to_string(schedNode.GetSchedCycle())).append(
+      "; ").append(std::string("cost: ")).append(std::to_string(res->GetLatency())).append("; "));
+  schedInsn->AppendComment(std::string("from bb: ").append(std::to_string(schedInsn->GetBB()->GetId())));
 }
 
 void ListScheduler::UpdateNodesInReadyList() {
   auto readyIter = readyList.begin();
   while (readyIter != readyList.end()) {
     DepNode *readyNode = *readyIter;
-    if (!readyNode->IsResourceFree() || readyNode->GetEStart() > currCycle) {
+    CHECK_NULL_FATAL(lastSchedNode);
+    if (!readyNode->IsResourceFree(1) || readyNode->GetEStart() > currCycle) {
       (void)waitingQueue.emplace_back(readyNode);
       readyNode->SetState(kWaiting);
       readyIter = EraseIterFromReadyList(readyIter);
@@ -245,17 +283,18 @@ void ListScheduler::UpdateAdvanceCycle(const DepNode &schedNode) {
 }
 
 /*
- * Compute the delay of the depNode by postorder, and
- * the delay of the leaf node is initially set to 0 or execTime
+ * Compute the delay of the depNode by postorder, which is calculated only once before scheduling,
+ * and the delay of the leaf node is initially set to 0 or execTime
  */
 void ListScheduler::ComputeDelayPriority() {
   std::vector<DepNode*> traversalList;
   MapleVector<DepNode*> &candidates = commonSchedInfo->GetCandidates();
-  for (auto depNode : candidates) {
-    depNode->SetDelay(0);
-    // Leaf node
-    if (depNode->GetSuccs().empty()) {
+  for (auto *depNode : candidates) {
+    if (depNode->GetSuccs().empty()) { // Leaf node
+      depNode->SetDelay(static_cast<uint32>(depNode->GetReservation()->GetLatency()));
       (void)traversalList.emplace_back(depNode);
+    } else {
+      depNode->SetDelay(0);
     }
   }
 
@@ -264,7 +303,7 @@ void ListScheduler::ComputeDelayPriority() {
     DepNode *depNode = traversalList.front();
     traversalList.erase(traversalList.begin());
 
-    for (const auto predLink : depNode->GetPreds()) {
+    for (const auto *predLink : depNode->GetPreds()) {
       DepNode &predNode = predLink->GetFrom();
       // Consider the cumulative effect of nodes on the critical path
       predNode.SetDelay(std::max(predLink->GetLatency() + depNode->GetDelay(), predNode.GetDelay()));
@@ -292,7 +331,9 @@ void ListScheduler::InitInfoBeforeCompEStart(uint32 cycle, std::vector<DepNode*>
 }
 
 /*
- * Compute the earliest start cycle of the instruction
+ * Compute the earliest start cycle of the instruction.
+ * Regardless of whether the LStart heuristic is used, EStart always needs to be calculated,
+ * which indicates the cycles required for an insn to wait because of the resource conflict.
  */
 void ListScheduler::ComputeEStart(uint32 cycle) {
   std::vector<DepNode*> traversalList;
@@ -303,7 +344,7 @@ void ListScheduler::ComputeEStart(uint32 cycle) {
     DepNode *depNode = traversalList.front();
     traversalList.erase(traversalList.begin());
 
-    for (const auto succLink : depNode->GetSuccs()) {
+    for (const auto *succLink : depNode->GetSuccs()) {
       DepNode &succNode = succLink->GetTo();
       succNode.DecreaseTopoPredsSize();
 
@@ -324,8 +365,10 @@ void ListScheduler::ComputeEStart(uint32 cycle) {
 
 void ListScheduler::InitInfoBeforeCompLStart(std::vector<DepNode*> &traversalList) {
   for (CDGNode *cdgNode : region->GetRegionNodes()) {
-    for (auto depNode : cdgNode->GetAllDataNodes()) {
-      depNode->SetLStart(maxEStart);
+    for (auto *depNode : cdgNode->GetAllDataNodes()) {
+      if (depNode->GetState() != kScheduled) {
+        depNode->SetLStart(maxEStart);
+      }
       depNode->SetValidSuccsSize(static_cast<uint32>(depNode->GetSuccs().size()));
       if (depNode->GetSuccs().empty()) {
         (void)traversalList.emplace_back(depNode);
@@ -335,7 +378,8 @@ void ListScheduler::InitInfoBeforeCompLStart(std::vector<DepNode*> &traversalLis
 }
 
 /*
- * Compute the latest start cycle of the instruction
+ * Compute the latest start cycle of the instruction, which
+ * is dynamically recalculated based on the current maxEStart during scheduling.
  */
 void ListScheduler::ComputeLStart() {
   maxLStart = maxEStart;
@@ -373,8 +417,8 @@ void ListScheduler::ComputeLStart() {
 /* Calculate the most used unitKind index */
 void ListScheduler::CalculateMostUsedUnitKindCount() {
   std::array<uint32, kUnitKindLast> unitKindCount = { 0 };
-  for (auto node : readyList) {
-    CountUnitKind(*node, unitKindCount);
+  for (auto *depNode : readyList) {
+    CountUnitKind(*depNode, unitKindCount);
   }
 
   uint32 maxCount = 0;
@@ -416,7 +460,12 @@ void ListScheduler::DumpReadyList() const {
   for (uint32 i = 0; i < readyList.size(); ++i) {
     Insn *readyInsn = readyList[i]->GetInsn();
     ASSERT(readyInsn != nullptr, "get insn from depNode failed");
-    LogInfo::MapleLogger() << "insn_" << readyInsn->GetId() << "(EStart: " << readyList[i]->GetEStart() << ")";
+    if (doDelayHeuristics) {
+      LogInfo::MapleLogger() << "insn_" << readyInsn->GetId() << "(Delay = " << readyList[i]->GetDelay() << ")";
+    } else {
+      LogInfo::MapleLogger() << "insn_" << readyInsn->GetId() << "(EStart = " << readyList[i]->GetEStart() <<
+          ", LStart = " << readyList[i]->GetLStart() << ")";
+    }
     if (i != readyList.size() - 1) {
       LogInfo::MapleLogger() << ", ";
     }
@@ -511,7 +560,7 @@ void ListScheduler::DumpDepNodeInfo(const BB &curBB, MapleVector<DepNode*> &node
         std::setiosflags(std::ios::right) << std::setw(10) << eStart << std::resetiosflags(std::ios::right) <<
         std::setiosflags(std::ios::right) << std::setw(10) << lStart << std::resetiosflags(std::ios::right) <<
         std::setiosflags(std::ios::right) << std::setw(8) << latency << std::resetiosflags(std::ios::right) <<
-        std::setiosflags(std::ios::right) << std::setw(15);
+        std::setiosflags(std::ios::right) << std::setw(4) << " ";
     DumpReservation(*depNode);
     LogInfo::MapleLogger() << std::resetiosflags(std::ios::right) << "\n";
   }

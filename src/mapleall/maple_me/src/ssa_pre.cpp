@@ -1507,6 +1507,22 @@ void SSAPre::CreateRealOcc(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool i
   return;
 }
 
+MeRealOcc *SSAPre::AddRealOcc(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
+                              bool insertSorted, bool isLHS, PreWorkCand &wkCand) {
+  if (wkCand.deletedFromWorkList) {
+    return nullptr;  // processed earlier; skip doing it again
+  }
+  MeRealOcc *newOcc = ssaPreMemPool->New<MeRealOcc>(&meStmt, seqStmt, &meExpr);
+  newOcc->SetIsLHS(isLHS);
+  if (insertSorted) {
+    // insert to realOccs in dt_preorder of the BBs and seq in each BB
+    wkCand.AddRealOccSorted(*dom, *newOcc, GetPUIdx());
+  } else {
+    wkCand.AddRealOccAsLast(*newOcc, GetPUIdx());
+  }
+  return newOcc;
+}
+
 void SSAPre::CreateMembarOcc(MeStmt &meStmt, int seqStmt) {
   if (preKind == kLoadPre || preKind == kAddrPre) {
     return;

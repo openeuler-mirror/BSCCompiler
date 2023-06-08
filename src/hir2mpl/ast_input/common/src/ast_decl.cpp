@@ -71,6 +71,12 @@ std::unique_ptr<FEIRVar> ASTVar::Translate2FEIRVar() const {
   feirVar->SetAttrs(genAttrs);
   feirVar->SetSrcLoc(loc);
   feirVar->SetSectionAttr(sectionAttr);
+  if (initExpr != nullptr && initExpr->GetASTOp() == kASTOpInitListExpr) {
+    ASTInitListExpr *astInitExpr = static_cast<ASTInitListExpr*>(initExpr);
+    if (astInitExpr->IsNeededOpt()) {
+      feirVar->SetNeedGlobal(true);
+    }
+  }
   if (boundary.lenExpr != nullptr) {
     std::list<UniqueFEIRStmt> nullStmts;
     UniqueFEIRExpr lenExpr = boundary.lenExpr->Emit2FEExpr(nullStmts);
@@ -177,6 +183,23 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   if (genAttrs.GetAttr(GENATTR_static) && sym->GetKonst() != nullptr) {
     return;
   }
+  UniqueFEIRStmt stmt;
+  if (feirVar->IsNeedGlobal()) {
+    MIRConst *cst = initExpr->GenerateMIRConst();
+    if (cst != nullptr && cst->GetKind() != kConstInvalid) {
+      sym->SetAttr(ATTR_static);
+      sym->SetKonst(cst);
+      const std::string globalVarSuffix = "_temp_global";
+      std::string tmpVarName = GenerateUniqueVarName() + globalVarSuffix;
+      UniqueFEIRVar tmpFeirVar = std::make_unique<FEIRVarName>(tmpVarName,
+                                                               std::make_unique<FEIRTypeNative>(*(typeDesc[0])));
+      tmpFeirVar->SetGlobal(true);
+      UniqueFEIRExpr dreadVar = FEIRBuilder::CreateExprDRead(tmpFeirVar->Clone());
+      stmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(dreadVar));
+      stmts.emplace_back(std::move(stmt));
+      return;
+    }
+  }
   UniqueFEIRExpr initFeirExpr = initExpr->Emit2FEExpr(stmts);
   if (initFeirExpr == nullptr) {
     return;
@@ -191,7 +214,6 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   }
 
   PrimType srcPrimType = initFeirExpr->GetPrimType();
-  UniqueFEIRStmt stmt;
   if (srcPrimType != feirVar->GetType()->GetPrimType() && srcPrimType != PTY_agg && srcPrimType != PTY_void) {
     auto castExpr = FEIRBuilder::CreateExprCastPrim(std::move(initFeirExpr), feirVar->GetType()->GetPrimType());
     stmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(castExpr));

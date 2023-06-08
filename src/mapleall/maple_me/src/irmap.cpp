@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "irmap.h"
+#include <cmath>
 #include <bitset>
 #include <queue>
 #include "me_ir.h"
@@ -23,7 +24,7 @@
 #include "cast_opt.h"
 
 namespace maple {
-void IRMap::UpdateIncDecAttr(MeStmt &meStmt) {
+void IRMap::UpdateIncDecAttr(MeStmt &meStmt) const {
   if (!kOpcodeInfo.AssignActualVar(meStmt.GetOp())) {
     return;
   }
@@ -54,7 +55,7 @@ void IRMap::SimplifyCastForAssign(MeStmt *assignStmt) const {
   MeCastOpt::SimplifyCastForAssign(assignStmt);
 }
 
-void IRMap::SimplifyAssign(AssignMeStmt *assignStmt) {
+void IRMap::SimplifyAssign(AssignMeStmt *assignStmt) const {
   if (assignStmt == nullptr) {
     return;
   }
@@ -624,7 +625,7 @@ MeExpr *IRMap::HashMeExpr(MeExpr &meExpr) {
         resultExpr = New<AddrofMeExpr>(exprID, meExpr.GetPrimType(), ost);
         auto pointerVstIdx = ost->GetPointerVstIdx();
         if (pointerVstIdx != kInvalidVstIdx) {
-          SetVerst2MeExprTableItem(pointerVstIdx, resultExpr);
+          SetVerst2MeExprTableItem(static_cast<uint32>(pointerVstIdx), resultExpr);
         }
         break;
       }
@@ -795,7 +796,7 @@ MePhiNode *IRMap::CreateMePhi(ScalarMeExpr &meExpr) {
   return phiMeVar;
 }
 
-IassignMeStmt *IRMap::CreateIassignMeStmt(TyIdx tyIdx, IvarMeExpr &lhs, MeExpr &rhs,
+IassignMeStmt *IRMap::CreateIassignMeStmt(const TyIdx &tyIdx, IvarMeExpr &lhs, MeExpr &rhs,
                                           const MapleMap<OStIdx, ChiMeNode*> &clist) {
   return NewInPool<IassignMeStmt>(tyIdx, &lhs, &rhs, &clist);
 }
@@ -902,16 +903,16 @@ MeExpr *IRMap::CreateMeExprExt(Opcode op, PrimType pType, uint32 bitsSize, MeExp
   return HashMeExpr(opMeExpr);
 }
 
-UnaryMeStmt *IRMap::CreateUnaryMeStmt(Opcode op, MeExpr *opnd) {
+UnaryMeStmt *IRMap::CreateUnaryMeStmt(Opcode op, MeExpr *opnd) const {
   UnaryMeStmt *unaryMeStmt = New<UnaryMeStmt>(op);
   unaryMeStmt->SetMeStmtOpndValue(opnd);
   return unaryMeStmt;
 }
 
-UnaryMeStmt *IRMap::CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition *src) {
+UnaryMeStmt *IRMap::CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition &src) const {
   UnaryMeStmt *unaryMeStmt = CreateUnaryMeStmt(op, opnd);
   unaryMeStmt->SetBB(bb);
-  unaryMeStmt->SetSrcPos(*src);
+  unaryMeStmt->SetSrcPos(src);
   return unaryMeStmt;
 }
 
@@ -923,7 +924,7 @@ RetMeStmt *IRMap::CreateRetMeStmt(MeExpr *opnd) {
   return retMeStmt;
 }
 
-GotoMeStmt *IRMap::CreateGotoMeStmt(uint32 offset, BB *bb, const SrcPosition *src) {
+GotoMeStmt *IRMap::CreateGotoMeStmt(uint32 offset, BB *bb, const SrcPosition *src) const {
   GotoMeStmt *gotoMeStmt = New<GotoMeStmt>(offset);
   gotoMeStmt->SetBB(bb);
   if (src != nullptr) {
@@ -990,7 +991,7 @@ static bool IgnoreInnerTypeCvt(PrimType typeA, PrimType typeB, PrimType typeC) {
 }
 
 // return nullptr if the result is unknow
-MeExpr *IRMap::SimplifyCompareSameExpr(OpMeExpr *opmeexpr) {
+MeExpr *IRMap::SimplifyCompareSameExpr(const OpMeExpr *opmeexpr) {
   if (IsPrimitiveVector(opmeexpr->GetPrimType())) {
     return nullptr;
   }
@@ -1019,7 +1020,7 @@ MeExpr *IRMap::SimplifyCompareSameExpr(OpMeExpr *opmeexpr) {
         if (opmeexpr->GetOpnd(0)->GetMeOp() == kMeOpConst) {
           double dVal =
               static_cast<MIRFloatConst*>(static_cast<ConstMeExpr *>(opmeexpr->GetOpnd(0))->GetConstVal())->GetValue();
-          if (isnan(dVal)) {
+          if (std::isnan(dVal)) {
             val = (opop == OP_cmpl) ? -1 : 1;
           } else {
             val = 0;
@@ -1226,10 +1227,10 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
   // (a & c1) >> c2 == (a >> c2) & (c1 >> c2)
   // try simplify when (c1 >> c2) is continuous bits 1
   // then (a & c1) >> c2 == extract (bit 1 count) bits from (c2) offset of (a)
-  auto trySimplifyToExtractbits = [this, shrExpr](MeExpr *band, ConstMeExpr *shrConst)->MeExpr* {
+  auto trySimplifyToExtractbits = [this, shrExpr](const MeExpr *band, const ConstMeExpr *shrConst)->MeExpr* {
     auto *opnd0 = band->GetOpnd(0);
     auto *opnd1 = band->GetOpnd(1);
-    auto shrOffset = static_cast<ConstMeExpr*>(shrConst)->GetExtIntValue();
+    auto shrOffset = static_cast<const ConstMeExpr*>(shrConst)->GetExtIntValue();
     if (opnd0->GetMeOp() != kMeOpConst && opnd1->GetMeOp() != kMeOpConst) {
       return nullptr;
     }
@@ -1247,7 +1248,7 @@ MeExpr *IRMap::SimplifyLshrExpr(const OpMeExpr *shrExpr) {
     } else if (bitOneCount == 0) {
       return CreateIntConstMeExpr(0, shrExpr->GetPrimType());
     } else {
-      if (bitOneCount + shrOffset > static_cast<int64>(GetPrimTypeBitSize(shrExpr->GetPrimType()))) {
+      if (static_cast<uint64>(shrOffset) > static_cast<uint64>(GetPrimTypeBitSize(shrExpr->GetPrimType()))) {
         return CreateIntConstMeExpr(0, shrExpr->GetPrimType());
       }
       auto *ret = CreateMeExprUnary(OP_extractbits, GetUnsignedPrimType(shrExpr->GetPrimType()), *opnd1);
@@ -1446,6 +1447,16 @@ MeExpr *IRMap::SimplifySubExpr(const OpMeExpr *subExpr) {
       auto newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
           static_cast<uint64>(distance), *GlobalTables::GetTypeTable().GetTypeTable()[subExprPrimType]);
       return CreateConstMeExpr(subExprPrimType, *newConst);
+    }
+  }
+
+  if (opnd0->GetOp() == OP_add) {
+    if (opnd0->GetOpnd(0) == opnd1) {
+      // a + b - a ==> b
+      return opnd0->GetOpnd(1);
+    } else if (opnd0->GetOpnd(1) == opnd1) {
+      // a + b - b ==> a
+      return opnd0->GetOpnd(0);
     }
   }
 
@@ -2165,7 +2176,7 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
     }
 
     auto &res = CollectBitparts(expr->GetOpnd(0), bps, depth + 1);
-    if (!res || bitShift > static_cast<int64_t>(res->provenance.size())) {
+    if (!res || static_cast<size_t>(bitShift) > res->provenance.size()) {
       return result;
     }
 
@@ -2176,10 +2187,10 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
     auto &bitProvenance = result->provenance;
     if (expr->GetOp() == OP_shl) {
       bitProvenance.erase(std::prev(bitProvenance.end(), bitShift), bitProvenance.end());
-      bitProvenance.insert(bitProvenance.begin(), bitShift, BitPart::kUnset);
+      bitProvenance.insert(bitProvenance.begin(), static_cast<size_t>(bitShift), BitPart::kUnset);
     } else {
       bitProvenance.erase(bitProvenance.begin(), std::next(bitProvenance.begin(), bitShift));
-      bitProvenance.insert(bitProvenance.end(), bitShift, BitPart::kUnset);
+      bitProvenance.insert(bitProvenance.end(), static_cast<size_t>(bitShift), BitPart::kUnset);
     }
 
     return result;
@@ -2214,20 +2225,20 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
 
   result = BitPart(expr, bitwidth);
   for (uint8 i = 0; i < bitwidth; ++i) {
-    result->provenance[i] = i;
+    result->provenance[i] = static_cast<int8>(i);
   }
   return result;
 }
 
 // check if the bit map of (from -> to) is symmetry about bitwidth
-static bool bitMapIsValidForReverse(uint32 from, uint32 to, uint8 bitwidth) {
+static bool BitMapIsValidForReverse(uint32 from, uint32 to, uint32 bitwidth) {
   if (from % 8 != to % 8) {
     return false;
   }
   from >>= 3;
   to >>= 3;
   bitwidth >>= 3;
-  return from == bitwidth - to - 1;
+  return from == (bitwidth - to - 1);
 }
 
 // Calculate the number of continuous binary bits as 1 and other bits must as 0.
@@ -2299,9 +2310,6 @@ bool IRMap::GetInfoOfIvar(MeExpr &expr, IreadPairInfo &info) const {
   }
   if (info.ivar->GetBase()->GetOp() == OP_iaddrof) {
     return DealWithIaddrofWhenGetInfoOfIvar(info);
-  }
-  if (!info.ivar->GetBase()->IsLeaf()) {
-    return false;
   }
   auto baseType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(info.ivar->GetTyIdx());
   ASSERT(baseType->IsMIRPtrType(), "type of iread must be ptr type");
@@ -2434,12 +2442,16 @@ MeExpr *IRMap::MergeAdjacentIread(MeExpr &opnd0, MeExpr &opnd1) {
 //      constval i32 16)))
 // dassign %_3799__c_2702_158_SECOND_6 0 (
 //    iread u32 <* u32> 0 (add a64 (dread a64 %_3799__key_SECOND_6, constval a64 8)))
-MeExpr *IRMap::ReadContinuousMemory(const OpMeExpr &opMeExpr) {
+MeExpr *IRMap::ReadContinuousMemory(const MeExpr &meExpr) {
+  if (meExpr.GetMeOp() != kMeOpOp || meExpr.GetOp() != OP_bior) {
+    return nullptr;
+  }
+  const auto &opMeExpr = static_cast<const OpMeExpr&>(meExpr);
   MeExpr *opnd0 = opMeExpr.GetOpnd(0);
   MeExpr *opnd1 = opMeExpr.GetOpnd(1);
   Opcode opcode0 = opnd0->GetOp();
   Opcode opcode1 = opnd1->GetOp();
-  if (opcode0 != OP_iread && opcode1 != OP_shl) {
+  if (opcode0 != OP_iread || opcode1 != OP_shl) {
     return nullptr;
   }
   MeExpr *shlOpnd0 = opnd1->GetOpnd(0);
@@ -2539,11 +2551,11 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
     if (bitProvenance.empty()) {
       return nullptr;
     }
-    demandBitWidth = bitProvenance.size();
+    demandBitWidth = static_cast<uint32>(bitProvenance.size());
   }
 
   for (uint8 i = 0; i < demandBitWidth; ++i) {
-    if (!bitMapIsValidForReverse(i, bitProvenance[i], demandBitWidth)) {
+    if (!BitMapIsValidForReverse(i, static_cast<uint8>(bitProvenance[i]), demandBitWidth)) {
       return nullptr;
     }
   }
@@ -2570,13 +2582,13 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
   return result;
 }
 
-static bool IsSignBitZero(MeExpr *opnd, uint64 signBit, uint64 shiftAmt) {
+static bool IsSignBitZero(const MeExpr *opnd, uint64 signBit, uint64 shiftAmt) {
   Opcode opcode = opnd->GetOp();
   uint64 knownZeroBits = 0;
   auto bitWidth = GetPrimTypeBitSize(opnd->GetPrimType());
   switch (opcode) {
     case OP_zext: {
-      auto srcBitWidth = static_cast<OpMeExpr*>(opnd)->GetBitsSize();
+      auto srcBitWidth = static_cast<const OpMeExpr*>(opnd)->GetBitsSize();
       if (srcBitWidth < bitWidth) {
         knownZeroBits |= UINT64_MAX << (bitWidth - srcBitWidth);
       }
@@ -2594,7 +2606,7 @@ static bool IsSignBitZero(MeExpr *opnd, uint64 signBit, uint64 shiftAmt) {
       break;
   }
   knownZeroBits >>= shiftAmt;
-  if (knownZeroBits & signBit) {
+  if ((knownZeroBits & signBit) != 0) {
     return true;
   }
   return false;
@@ -2610,12 +2622,12 @@ MeExpr *IRMap::SimplifyDepositbits(const OpMeExpr &opmeexpr) {
   if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
     uint8 bitsOffset = opmeexpr.GetBitsOffSet();
     uint8 bitsSize = opmeexpr.GetBitsSize();
-    uint64 mask0 = (1LLU << (bitsSize + bitsOffset)) - 1;
-    uint64 mask1 = (1LLU << bitsOffset) - 1;
+    uint64 mask0 = (1LLU << static_cast<uint32>(bitsSize + bitsOffset)) - 1;
+    uint64 mask1 = (1LLU << static_cast<uint32>(bitsOffset)) - 1;
     uint64 op0Mask = ~(mask0 ^ mask1);
     uint64 op0ExtractVal = (static_cast<uint64>(static_cast<ConstMeExpr*>(opnd0)->GetExtIntValue()) & op0Mask);
     uint64 op1ExtractVal = (static_cast<uint64>(static_cast<ConstMeExpr*>(opnd1)->GetExtIntValue()) << bitsOffset) &
-                           ((1ULL << (bitsSize + bitsOffset)) - 1);
+                           ((1ULL << static_cast<uint32>(bitsSize + bitsOffset)) - 1);
     return CreateIntConstMeExpr(static_cast<int64>(op0ExtractVal | op1ExtractVal), opmeexpr.GetPrimType());
   }
 
@@ -2699,7 +2711,7 @@ MeExpr *IRMap::SimplifyAshrMeExpr(const OpMeExpr *opmeexpr) {
     return nullptr;
   }
 
-  uint64 signBit = 1ULL << (static_cast<int64>(bitWidth) - shiftAmt - 1);
+  uint64 signBit = 1ULL << static_cast<uint64>(static_cast<int64>(bitWidth) - shiftAmt - 1);
   bool isSignBitZero = IsSignBitZero(opnd0, signBit, static_cast<uint64>(shiftAmt));
   // sign bit is known to be zero, we can replace ashr with lshr
   if (isSignBitZero) {
@@ -2880,6 +2892,7 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
         return shrexp;
       }
     }
+      [[fallthrough]];
     case OP_shl:
     case OP_max:
     case OP_min:
@@ -2889,6 +2902,7 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
         return revexp;
       }
     }
+      [[fallthrough]];
     case OP_bxor: {
       MeExpr *xorexp = SimplifyXorMeExpr(opmeexpr);
       if (xorexp != nullptr) {

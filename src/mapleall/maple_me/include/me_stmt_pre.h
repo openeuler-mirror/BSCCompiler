@@ -54,7 +54,7 @@ class MeStmtPre : public SSAEPre {
   void Finalize2() override {};
   // fully available (replaces downsafety, canbeavail and later under SSAFRE)
   void ResetFullyAvail(MePhiOcc &occ) const;
-  void ComputeFullyAvail();
+  void ComputeFullyAvail() const;
   // rename phase
   bool AllVarsSameVersion(const MeRealOcc &realOcc1, const MeRealOcc &realOcc2) const override;
   bool AllVarsSameVersionStmtFre(MeRealOcc &topOcc, MeRealOcc &curOcc) const;

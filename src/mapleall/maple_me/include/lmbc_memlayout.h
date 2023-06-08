@@ -60,23 +60,23 @@ class LMBCMemLayout {
  public:
   LMBCMemLayout(MIRFunction *f, MemSegment *segGP, MapleAllocator *mallocator)
       : func(f),
-        seg_GPbased(segGP),
-        seg_FPbased(MS_FPbased),
-        sym_alloc_table(mallocator->Adapter()) {
-    sym_alloc_table.resize(f->GetSymTab()->GetSymbolTableSize());
+        segGPbased(segGP),
+        segFPbased(MS_FPbased),
+        symAllocTable(mallocator->Adapter()) {
+    symAllocTable.resize(f->GetSymTab()->GetSymbolTableSize());
   }
 
   ~LMBCMemLayout() = default;
 
   void LayoutStackFrame(void);
   int32 StackFrameSize(void) const {
-    return -seg_FPbased.size;
+    return -segFPbased.size;
   }
 
   MIRFunction *func;
-  MemSegment *seg_GPbased;
-  MemSegment seg_FPbased;
-  MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx
+  MemSegment *segGPbased;
+  MemSegment segFPbased;
+  MapleVector<SymbolAlloc> symAllocTable;  // index is StIdx
 };
 
 class GlobalMemLayout {
@@ -84,8 +84,8 @@ class GlobalMemLayout {
   GlobalMemLayout(MIRModule *mod, MapleAllocator *mallocator);
   ~GlobalMemLayout() {}
 
-  MemSegment seg_GPbased;
-  MapleVector<SymbolAlloc> sym_alloc_table;  // index is StIdx
+  MemSegment segGPbased;
+  MapleVector<SymbolAlloc> symAllocTable;  // index is StIdx
   MIRModule *mirModule;
 };
 

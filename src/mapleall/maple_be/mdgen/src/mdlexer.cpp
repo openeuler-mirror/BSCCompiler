@@ -172,16 +172,15 @@ MDTokenKind MDLexer::GetHexConst(uint32 digitStartPos, bool isNegative) {
     }
   }
   std::string hexStr = strLine.substr(digitStartPos, curPos - digitStartPos);
-  const char *hexStrPtr = hexStr.c_str();
   errno = 0;
   constexpr int hexInDec = 16;
-  intVal = static_cast<int32>(std::strtoll(hexStrPtr, nullptr, hexInDec));
+  intVal = static_cast<int32>(std::strtoll(hexStr.c_str(), nullptr, hexInDec));
   if (errno == EINVAL) {  /* Invalid hexadecimal number */
     return ReturnError();
   }
   if (errno == ERANGE) {
     errno = 0;
-    intVal = static_cast<int32>(std::strtoll(hexStrPtr, nullptr, hexInDec));
+    intVal = static_cast<int32>(std::strtoll(hexStr.c_str(), nullptr, hexInDec));
     if (errno == EINVAL) { /* Invalid hexadecimal number */
       return ReturnError();
     }
@@ -211,10 +210,9 @@ MDTokenKind MDLexer::GetIntConst(uint32 digitStartPos, bool isNegative) {
     return ReturnError();
   }
   std::string intStr = strLine.substr(digitStartPos, curPos - digitStartPos);
-  const char *intStrPtr = intStr.c_str();
   errno = 0;
   constexpr int decInDec = 10;
-  intVal = static_cast<int32>(std::strtoll(intStrPtr, nullptr, decInDec));
+  intVal = static_cast<int32>(std::strtoll(intStr.c_str(), nullptr, decInDec));
   if (errno == ERANGE) {
     return ReturnError();
   }

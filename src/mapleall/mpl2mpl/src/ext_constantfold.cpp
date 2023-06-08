@@ -84,6 +84,19 @@ BaseNode* ExtConstantFold::DispatchFold(BaseNode *node) {
   }
 }
 
+template <typename TNode>
+void ExtConstantFold::ExtFoldCommon(TNode &node) {
+  BaseNode *result = nullptr;
+  result = DispatchFold(node.Opnd(0));
+  if (result != node.Opnd(0)) {
+    node.SetOpnd(result, 0);
+  }
+  result = DispatchFold(node.Opnd(1));
+  if (result != node.Opnd(1)) {
+    node.SetOpnd(result, 1);
+  }
+}
+
 BaseNode *ExtConstantFold::ExtFoldUnary(UnaryNode *node) {
   CHECK_NULL_FATAL(node);
   BaseNode *result = nullptr;
@@ -96,30 +109,14 @@ BaseNode *ExtConstantFold::ExtFoldUnary(UnaryNode *node) {
 
 BaseNode *ExtConstantFold::ExtFoldBinary(BinaryNode *node) {
   CHECK_NULL_FATAL(node);
-  BaseNode *result = nullptr;
-  result = DispatchFold(node->Opnd(0));
-  if (result != node->Opnd(0)) {
-    node->SetOpnd(result, 0);
-  }
-  result = DispatchFold(node->Opnd(1));
-  if (result != node->Opnd(1)) {
-    node->SetOpnd(result, 1);
-  }
+  ExtFoldCommon(*node);
   return node;
 }
 
 BaseNode* ExtConstantFold::ExtFoldTernary(TernaryNode *node) {
   CHECK_NULL_FATAL(node);
-  BaseNode *result = nullptr;
-  result = DispatchFold(node->Opnd(0));
-  if (result != node->Opnd(0)) {
-    node->SetOpnd(result, 0);
-  }
-  result = DispatchFold(node->Opnd(1));
-  if (result != node->Opnd(1)) {
-    node->SetOpnd(result, 1);
-  }
-  result = DispatchFold(node->Opnd(2));
+  ExtFoldCommon(*node);
+  BaseNode *result = DispatchFold(node->Opnd(2));
   if (result != node->Opnd(2)) {
     node->SetOpnd(result, 2);
   }

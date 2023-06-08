@@ -66,6 +66,8 @@ class StringUtils {
                                      bool isReturnEmpty = false);
   static std::string GetStrBeforeLast(const std::string &src, const std::string &target,
                                       bool isReturnEmpty = false);
+  static std::string GetStrBeforeFirst(const std::string &src, const std::string &target,
+                                       bool isReturnEmpty = false);
   static bool HasCommandInjectionChar(const std::string &s) {
     return std::regex_search(s, kCommandInjectionRegex);
   }

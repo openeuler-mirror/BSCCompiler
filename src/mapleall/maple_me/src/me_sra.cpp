@@ -252,6 +252,9 @@ void SRA::DoPartialSplit(AggGroup &group) {
   }
   for (auto &use : group.uses) {
     if (!type->GetFieldType(use->fid)->IsMIRStructType()) {
+      if (newLocal[static_cast<uint32>(use->fid)] == StIdx(0)) {
+        continue;
+      }
       if (use->access->GetOpCode() == OP_dassign) {
         static_cast<DassignNode*>(use->access)->SetStIdx(newLocal[static_cast<uint32>(use->fid)]);
         static_cast<DassignNode*>(use->access)->SetFieldID(0);

@@ -545,7 +545,7 @@ void BBLayout::FixEndTryBB(BB &bb) {
   }
 }
 
-void BBLayout::FixTryBB(BB &startTryBB, BB &nextBB) {
+void BBLayout::FixTryBB(BB &startTryBB, BB &nextBB) const {
   startTryBB.RemoveAllPred();
   for (size_t i = 0; i < nextBB.GetPred().size(); ++i) {
     nextBB.GetPred(i)->ReplaceSucc(&nextBB, &startTryBB);
@@ -650,7 +650,7 @@ void BBLayout::UpdateNewBBWithAttrTry(const BB &bb, BB &fallthru) const {
       fallthru.AddSucc(*candCatch);
     }
   }
-  ASSERT(setEHEdge, "must set eh edge");
+  CHECK_FATAL(setEHEdge, "must set eh edge");
 }
 
 // create a new fallthru that contains a goto to the original fallthru
@@ -662,6 +662,7 @@ void BBLayout::UpdateNewBBWithAttrTry(const BB &bb, BB &fallthru) const {
 BB *BBLayout::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru) {
   ASSERT(bb.GetKind() == kBBCondGoto, "CreateGotoBBAfterCondBB: unexpected BB kind");
   BB *newFallthru = cfg->NewBasicBlock();
+  laidOut.push_back(false);
   bbVisited.push_back(false);
   newFallthru->SetAttributes(kBBAttrArtificial);
   AddLaidOut(false);
@@ -768,6 +769,7 @@ void BBLayout::OptimiseCFG() {
     }
   }
   (void)cfg->UnreachCodeAnalysis(false);
+  (void)laidOut.insert(laidOut.end(), cfg->GetAllBBs().size() - laidOut.size(), false);
 
   // do 2nd fallthru optimize if succs of bb were optimized by first iteration
   for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
@@ -781,6 +783,7 @@ void BBLayout::OptimiseCFG() {
   }
   (void)cfg->UnreachCodeAnalysis(false);
   cfg->WontExitAnalysis();
+  (void)laidOut.insert(laidOut.end(), cfg->GetAllBBs().size() - laidOut.size(), false);
 }
 
 void BBLayout::SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const {
@@ -804,6 +807,7 @@ void BBLayout::LayoutWithoutProf() {
     }
     BB *nextBB = NextBB();
     if (nextBB != nullptr) {
+#if defined(DEBUG) && DEBUG
       // check try-endtry correspondence
       bool isTry = false;
       if (func.GetIRMap() != nullptr) {
@@ -813,6 +817,7 @@ void BBLayout::LayoutWithoutProf() {
         isTry = !stmtNodes.empty() && stmtNodes.front().GetOpCode() == OP_try;
       }
       ASSERT(!(isTry && GetTryOutstanding()), "cannot emit another try if last try has not been ended");
+#endif
       if (nextBB->GetAttributes(kBBAttrIsTryEnd)) {
         ASSERT(cfg->GetTryBBFromEndTryBB(nextBB) == nextBB || IsBBLaidOut(cfg->GetTryBBFromEndTryBB(nextBB)->GetBBId()),
                "cannot emit endtry bb before its corresponding try bb");

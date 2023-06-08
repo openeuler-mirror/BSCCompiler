@@ -16,6 +16,8 @@
 #include "aarch64_cgfunc.h"
 #include "aarch64_cg.h"
 
+#define CG_STACK_LAYOUT_DUMP CG_DEBUG_FUNC(*cgFunc)
+
 namespace maplebe {
 void AArch64FPLROffsetAdjustment::Run() {
   FOR_ALL_BB(bb, aarchCGFunc) {
@@ -26,18 +28,22 @@ void AArch64FPLROffsetAdjustment::Run() {
       AdjustmentOffsetForOpnd(*insn);
     }
   }
-
-#undef STKLAY_DBUG
-#ifdef STKLAY_DBUG
-  AArch64MemLayout *aarch64memlayout = static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout());
-  LogInfo::MapleLogger() << "stkpass: " << aarch64memlayout->GetSegArgsStkpass().size << "\n";
-  LogInfo::MapleLogger() << "local: " << aarch64memlayout->GetSizeOfLocals() << "\n";
-  LogInfo::MapleLogger() << "ref local: " << aarch64memlayout->GetSizeOfRefLocals() << "\n";
-  LogInfo::MapleLogger() << "regpass: " << aarch64memlayout->GetSegArgsRegPassed().size << "\n";
-  LogInfo::MapleLogger() << "regspill: " << aarch64memlayout->GetSizeOfSpillReg() << "\n";
-  LogInfo::MapleLogger() << "calleesave: " << SizeOfCalleeSaved() << "\n";
-
-#endif
+  if (CG_STACK_LAYOUT_DUMP) {
+    LogInfo::MapleLogger() << "==== func : " << cgFunc->GetName() << " stack layout" << "\n";
+    auto *aarch64memlayout = static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout());
+    LogInfo::MapleLogger() << "real framesize: " << aarch64memlayout->RealStackFrameSize() << "\n";
+    LogInfo::MapleLogger() << "gr_save: " << aarch64memlayout->GetSizeOfGRSaveArea() << "\n";
+    LogInfo::MapleLogger() << "vr_save: " << aarch64memlayout->GetSizeOfVRSaveArea() << "\n";
+    LogInfo::MapleLogger() << "stkpass: " << aarch64memlayout->GetSegArgsStkPassed().GetSize() << "\n";
+    LogInfo::MapleLogger() << "seg cold local: " << aarch64memlayout->GetSizeOfSegCold() << "\n";
+    LogInfo::MapleLogger() << "notice that calleesave size includes 16 byte fp lr!!!! \n";
+    LogInfo::MapleLogger() << "calleesave: " << static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() << "\n";
+    LogInfo::MapleLogger() << "regspill: " << aarch64memlayout->GetSizeOfSpillReg() << "\n";
+    LogInfo::MapleLogger() << "regpass: " << aarch64memlayout->GetSegArgsRegPassed().GetSize() << "\n";
+    LogInfo::MapleLogger() << "ref local: " << aarch64memlayout->GetSizeOfRefLocals() << "\n";
+    LogInfo::MapleLogger() << "local: " << aarch64memlayout->GetSizeOfLocals() << "\n";
+    LogInfo::MapleLogger() << "pass_to_callee_stk: " << aarch64memlayout->SizeOfArgsToStackPass() << "\n";
+  }
 }
 
 void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn) const {
@@ -103,7 +109,8 @@ void AArch64FPLROffsetAdjustment::AdjustMemOfstVary(Insn &insn, uint32 i) const 
   if (ofstOpnd->GetVary() == kUnAdjustVary) {
     MemLayout *memLayout = aarchCGFunc->GetMemlayout();
     ofstOpnd->AdjustOffset(static_cast<int32>(static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize() -
-                                              (isLmbc ? 0 : memLayout->SizeOfArgsToStackPass())));
+        (isLmbc ? 0 : (memLayout->SizeOfArgsToStackPass() +
+                       static_cast<AArch64MemLayout*>(memLayout)->GetSizeOfColdToStk()))));
     ofstOpnd->SetVary(kAdjustVary);
   }
   if (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary) {
@@ -118,7 +125,8 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
   auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(index));
   MemLayout *memLayout = aarchCGFunc->GetMemlayout();
   if (immOpnd.GetVary() == kUnAdjustVary) {
-    int64 ofst = static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize() - memLayout->SizeOfArgsToStackPass();
+    int64 ofst = static_cast<int64>(static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize() -
+        memLayout->SizeOfArgsToStackPass() - static_cast<AArch64MemLayout*>(memLayout)->GetSizeOfColdToStk());
     if (insn.GetMachineOpcode() == MOP_xsubrri12 || insn.GetMachineOpcode() == MOP_wsubrri12) {
       immOpnd.SetValue(immOpnd.GetValue() - ofst);
       if (immOpnd.GetValue() < 0) {
@@ -153,6 +161,15 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
         (void)insn.GetBB()->InsertInsnBefore(insn, tempMov);
         return;
       }
+    } else if (insn.GetMachineOpcode() == MOP_wubfxrri5i5 || insn.GetMachineOpcode() == MOP_xubfxrri6i6) {
+      bool is64bit = insn.GetMachineOpcode() == MOP_xubfxrri6i6;
+      MOperator movOp = is64bit ? MOP_xmovri64 : MOP_wmovri32;
+      uint32 size = is64bit ? k64BitSize : k32BitSize;
+      ImmOperand &zeroImmOpnd = aarchCGFunc->CreateImmOperand(0, size, false);
+      Insn &tempMov = cgFunc->GetInsnBuilder()->BuildInsn(movOp, insn.GetOperand(kInsnFirstOpnd), zeroImmOpnd);
+      (void)insn.GetBB()->InsertInsnBefore(insn, tempMov);
+      insn.GetBB()->RemoveInsn(insn);
+      return;
     } else {
       CHECK_FATAL(false, "NIY");
     }

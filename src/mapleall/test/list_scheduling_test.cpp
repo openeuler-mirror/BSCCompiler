@@ -1,0 +1,756 @@
+/*
+* Copyright (c) [2023] Huawei Technologies Co.,Ltd.All rights reserved.
+*
+* OpenArkCompiler is licensed under Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*
+*     http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+* FIT FOR A PARTICULAR PURPOSE.
+* See the Mulan PSL v2 for more details.
+*/
+
+#include "triple.h"
+#include "gtest/gtest.h"
+#include "mempool.h"
+#include "mpl_logging.h"
+#include "becommon.h"
+#include "cg.h"
+#include "cg_irbuilder.h"
+#include "deps.h"
+#include "cg_cdg.h"
+#include "list_scheduler.h"
+#include "data_dep_analysis.h"
+#include "control_dep_analysis.h"
+#include "aarch64_data_dep_base.h"
+#include "aarch64_local_schedule.h"
+#include "aarch64_cg.h"
+#include "aarch64_cgfunc.h"
+
+using namespace maplebe;
+#define TARGAARCH64 1
+
+class MockListScheduler {
+public:
+ MockListScheduler(MemPool *mp, MapleAllocator *alloc)
+     : memPool(mp), alloc(alloc), skMp(mp->New<StackMemPool>(memPoolCtrler, "ut_stack_mp")),
+       mirModule(mp->New<MIRModule>("ut_test_ls")), options(mp->New<CGOptions>()),
+       nameVec(mp->New<std::vector<std::string>>()),
+       patternMap(mp->New<std::unordered_map<std::string, std::vector<std::string>>>()),
+       aarCG(mp->New<AArch64CG>(*mirModule, *options, *nameVec, *patternMap)),
+       mirFunc(mirModule->GetMIRBuilder()->GetOrCreateFunction("ut_test_list_scheduling", TyIdx(PTY_void))),
+       beCommon(mp->New<BECommon>(*mirModule)) {
+   mirFunc->AllocSymTab();
+   mirFunc->AllocPregTab();
+   mirFunc->AllocLabelTab();
+
+   Globals::GetInstance()->SetTarget(*aarCG);
+   aarFunc = memPool->New<AArch64CGFunc>(*mirModule, *aarCG, *mirFunc, *beCommon, *mp, *skMp, *alloc, 0);
+
+   mad = memPool->New<MAD>();
+   ddb = memPool->New<AArch64DataDepBase>(*mp, *aarFunc, *mad, true);
+   dda = memPool->New<DataDepAnalysis>(*aarFunc, *mp, *ddb);
+   cda = memPool->New<ControlDepAnalysis>(*aarFunc, *mp, "ut_test_ls_cda");
+   aarLS = memPool->New<AArch64LocalSchedule>(*mp, *aarFunc, *cda, *dda);
+ }
+ ~MockListScheduler() = default;
+
+ AArch64CGFunc *GetAArch64CGFunc() {
+   return aarFunc;
+ }
+
+ AArch64LocalSchedule *GetAArch64LocalSchedule() {
+   return aarLS;
+ }
+
+ DataDepAnalysis *GetDataDepAnalysis() {
+   return dda;
+ }
+
+ MAD *GetMAD() {
+   return mad;
+ }
+
+ // Create CDGNode for mock BB
+ CDGNode *CreateCDGNode(maplebe::BB &bb) {
+   auto *cdgNode = memPool->New<CDGNode>(CDGNodeId(bb.GetId()), bb, *alloc);
+   bb.SetCDGNode(cdgNode);
+   auto *region = memPool->New<CDGRegion>(CDGRegionId(1), *alloc);
+   region->AddCDGNode(cdgNode);
+   cdgNode->SetRegion(*region);
+   region->SetRegionRoot(*cdgNode);
+   return cdgNode;
+ }
+
+ // Run local scheduler for mock BB
+ void DoLocalScheduleForMockBB(CDGNode &cdgNode) {
+   CDGRegion *region = cdgNode.GetRegion();
+   ASSERT_NOT_NULL(region);
+   aarLS->SetUnitTest(true);
+   aarLS->DoLocalScheduleForRegion(*region);
+ }
+
+ // Run global scheduler for mock BB
+ void DoGlobalScheduleForMockBB(CDGRegion &region) {
+   aarGS = memPool->New<AArch64GlobalSchedule>(*memPool, *aarFunc, *cda, *dda);
+   aarGS->Run();
+ }
+
+private:
+ MemPool *memPool = nullptr;
+ MapleAllocator *alloc = nullptr;
+ StackMemPool *skMp = nullptr;
+ MIRModule *mirModule = nullptr;
+ CGOptions *options = nullptr;
+ std::vector<std::string> *nameVec = nullptr;
+ std::unordered_map<std::string, std::vector<std::string>> *patternMap = nullptr;
+ AArch64CG *aarCG = nullptr;
+ MIRFunction *mirFunc = nullptr;
+ BECommon *beCommon = nullptr;
+ AArch64CGFunc *aarFunc = nullptr;
+ MAD *mad = nullptr;
+ ControlDepAnalysis *cda = nullptr;
+ AArch64DataDepBase *ddb = nullptr;
+ DataDepAnalysis *dda = nullptr;
+ AArch64LocalSchedule *aarLS = nullptr;
+ AArch64GlobalSchedule *aarGS = nullptr;
+};
+
+/*
+* Test process of list scheduling in local BB
+*/
+TEST(listSchedule, testListSchedulingInLocalBB1) {
+ Triple::GetTriple().Init();
+ auto *memPool = new MemPool(memPoolCtrler, "ut_list_schedule_mp");
+ auto *alloc = new MapleAllocator(memPool);
+ MockListScheduler mock(memPool, alloc);
+ AArch64CGFunc *aarFunc = mock.GetAArch64CGFunc();
+
+ // Mock maple BB info using gcc BB info before gcc scheduling
+ auto *curBB = memPool->New<maplebe::BB>(0, *alloc);
+ aarFunc->SetCurBB(*curBB);
+ aarFunc->SetFirstBB(*curBB);
+
+ // r314=[r313+0x1b]            (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_load
+ MOperator mop1 = MOP_wldrb;
+ auto R314 = static_cast<regno_t>(314);
+ RegOperand *dstOpnd1 = aarFunc->CreateVirtualRegisterOperand(R314, maplebe::k32BitSize, kRegTyInt);
+ auto R313 = static_cast<regno_t>(313);
+ RegOperand *baseOpnd1 = aarFunc->CreateVirtualRegisterOperand(R313, maplebe::k64BitSize, kRegTyInt);
+ maple::int64 offset1 = 27;
+ MemOperand &memOpnd1 = aarFunc->CreateMemOpnd(*baseOpnd1, offset1, maplebe::k8BitSize);
+ maplebe::Insn &insn1 = aarFunc->GetInsnBuilder()->BuildInsn(mop1, *dstOpnd1, memOpnd1);
+ insn1.SetId(1);
+ curBB->AppendInsn(insn1);
+
+ // r320=r314#0<<0x1&0x3e       cortex_a53_slot_any
+ MOperator mop2 = MOP_xubfizrri6i6;
+ auto R320 = static_cast<regno_t>(320);
+ RegOperand *dstOpnd2 = aarFunc->CreateVirtualRegisterOperand(R320, maplebe::k64BitSize, kRegTyInt);
+ ImmOperand &lsbOpnd = aarFunc->CreateImmOperand(1, maplebe::k64BitSize, false);
+ ImmOperand &widthOpnd = aarFunc->CreateImmOperand(5, maplebe::k64BitSize, false);
+ maplebe::Insn &insn2 = aarFunc->GetInsnBuilder()->BuildInsn(mop2, *dstOpnd2, *dstOpnd1, lsbOpnd, widthOpnd);
+ insn2.SetId(2);
+ curBB->AppendInsn(insn2);
+
+ // r322=r313+r320              cortex_a53_slot_any
+ MOperator mop3 = MOP_xaddrrr;
+ auto R322 = static_cast<regno_t>(322);
+ RegOperand *dstOpnd3 = aarFunc->CreateVirtualRegisterOperand(R322, maplebe::k64BitSize, kRegTyInt);
+ maplebe::Insn &insn3 = aarFunc->GetInsnBuilder()->BuildInsn(mop3, *dstOpnd3, *baseOpnd1, *dstOpnd2);
+ insn3.SetId(3);
+ curBB->AppendInsn(insn3);
+
+ // [r322+0x34]=r356            (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+ MOperator mop4 = MOP_wstrh;
+ auto R356 = static_cast<regno_t>(356);
+ RegOperand *srcOpnd4 = aarFunc->CreateVirtualRegisterOperand(R356, maplebe::k32BitSize, kRegTyInt);
+ maple::int64 offset2 = 52;
+ MemOperand &memOpnd4 = aarFunc->CreateMemOpnd(*dstOpnd3, offset2, maplebe::k16BitSize);
+ maplebe::Insn &insn4 = aarFunc->GetInsnBuilder()->BuildInsn(mop4, *srcOpnd4, memOpnd4);
+ insn4.SetId(4);
+ curBB->AppendInsn(insn4);
+
+ // r327=r314#0+0x1             cortex_a53_slot_any
+ MOperator mop5 = MOP_waddrri12;
+ auto R327 = static_cast<regno_t>(327);
+ RegOperand *dstOpnd5 = aarFunc->CreateVirtualRegisterOperand(R327, maplebe::k32BitSize, kRegTyInt);
+ ImmOperand &immOpnd5 = aarFunc->CreateImmOperand(1, maplebe::k32BitSize, false);
+ maplebe::Insn &insn5 = aarFunc->GetInsnBuilder()->BuildInsn(mop5, *dstOpnd5, *dstOpnd1, immOpnd5);
+ insn5.SetId(5);
+ curBB->AppendInsn(insn5);
+
+ // r329=r327&0x1f              cortex_a53_slot_any
+ MOperator mop6 = MOP_wandrri12;
+ auto R329 = static_cast<regno_t>(329);
+ RegOperand *dstOpnd6 = aarFunc->CreateVirtualRegisterOperand(R329, maplebe::k32BitSize, kRegTyInt);
+ ImmOperand &immOpnd6 = aarFunc->CreateImmOperand(31, maplebe::k32BitSize, false);
+ maplebe::Insn &insn6 = aarFunc->GetInsnBuilder()->BuildInsn(mop6, *dstOpnd6, *dstOpnd5, immOpnd6);
+ insn6.SetId(6);
+ curBB->AppendInsn(insn6);
+
+ // [r313+0x1b]=r329#0          (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+ MOperator mop7 = MOP_wstrb;
+ maplebe::Insn &insn7 = aarFunc->GetInsnBuilder()->BuildInsn(mop7, *dstOpnd6, memOpnd1);
+ insn7.SetId(7);
+ curBB->AppendInsn(insn7);
+
+ // pc=L291                     (cortex_a53_slot_any+cortex_a53_branch)
+ MOperator mop8 = MOP_xuncond;
+ std::string label = "ut_test_ls";
+ auto *target = memPool->New<LabelOperand>(label.c_str(), 1, *memPool);
+ maplebe::Insn &insn8 = aarFunc->GetInsnBuilder()->BuildInsn(mop8, *target);
+ insn8.SetId(8);
+ curBB->AppendInsn(insn8);
+
+ // Set max VRegNO
+ aarFunc->SetMaxVReg(380);
+
+ // Prepare data for list scheduling
+ CDGNode *cdgNode = mock.CreateCDGNode(*curBB);
+
+ // Execute local schedule using list scheduling algorithm on mock BB
+ mock.DoLocalScheduleForMockBB(*cdgNode);
+
+ delete memPool;
+ delete alloc;
+}
+
+/*
+* Test process of list scheduling in local BB
+*/
+TEST(listSchedule, testListSchedulingInLocalBB2) {
+  Triple::GetTriple().Init();
+  auto *memPool = new MemPool(memPoolCtrler, "ut_list_schedule_mp");
+  auto *alloc = new MapleAllocator(memPool);
+  MockListScheduler mock(memPool, alloc);
+  AArch64CGFunc *aarFunc = mock.GetAArch64CGFunc();
+
+  // Mock maple BB info using gcc BB info before gcc scheduling
+  auto *curBB = memPool->New<maplebe::BB>(0, *alloc);
+  aarFunc->SetCurBB(*curBB);
+  aarFunc->SetFirstBB(*curBB);
+
+  // {sp=sp-0x90;[sp-0x90]=x29;[sp-0x88]=x30;}       (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop1 = MOP_xstp;
+  RegOperand &r29 = aarFunc->GetOrCreatePhysicalRegisterOperand(R29, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &r30 = aarFunc->GetOrCreatePhysicalRegisterOperand(R30, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &sp = aarFunc->GetOrCreatePhysicalRegisterOperand(RSP, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset1 = -144;
+  MemOperand &memOpnd1 = aarFunc->CreateMemOpnd(sp, offset1, maplebe::k64BitSize);
+  memOpnd1.SetAddrMode(maplebe::MemOperand::AArch64AddressingMode::kPreIndex);
+  maplebe::Insn &insn1 = aarFunc->GetInsnBuilder()->BuildInsn(mop1, r29, r30, memOpnd1);
+  insn1.SetId(867);
+  curBB->AppendInsn(insn1);
+
+  // x29=sp+0                       cortex_a53_slot_any
+  MOperator mop2 = MOP_xaddrri12;
+  ImmOperand &imm2 = aarFunc->CreateImmOperand(0, maplebe::k64BitSize, false);
+  maplebe::Insn &insn2 = aarFunc->GetInsnBuilder()->BuildInsn(mop2, r29, sp, imm2);
+  insn2.SetId(868);
+  curBB->AppendInsn(insn2);
+
+  // [scratch]=unspec[sp,x29] 64    nothing
+  // barrier
+
+  // {[sp+0x10]=x19;[sp+0x18]=x20;}         (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop3 = MOP_xstp;
+  RegOperand &r19 = aarFunc->GetOrCreatePhysicalRegisterOperand(R19, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &r20 = aarFunc->GetOrCreatePhysicalRegisterOperand(R20, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset3 = 16;
+  MemOperand &memOpnd3 = aarFunc->CreateMemOpnd(sp, offset3, maplebe::k64BitSize);
+  maplebe::Insn &insn3 = aarFunc->GetInsnBuilder()->BuildInsn(mop3, r19, r20, memOpnd3);
+  insn3.SetId(870);
+  curBB->AppendInsn(insn3);
+
+  // {[sp+0x20]=x21;[sp+0x28]=x22;}         (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop4 = MOP_xstp;
+  RegOperand &r21 = aarFunc->GetOrCreatePhysicalRegisterOperand(R21, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &r22 = aarFunc->GetOrCreatePhysicalRegisterOperand(R22, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset4 = 32;
+  MemOperand &memOpnd4 = aarFunc->CreateMemOpnd(sp, offset4, maplebe::k64BitSize);
+  maplebe::Insn &insn4 = aarFunc->GetInsnBuilder()->BuildInsn(mop4, r21, r22, memOpnd4);
+  insn4.SetId(871);
+  curBB->AppendInsn(insn4);
+
+  // {[sp+0x30]=x23;[sp+0x38]=x24;}         (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop5 = MOP_xstp;
+  RegOperand &r23 = aarFunc->GetOrCreatePhysicalRegisterOperand(R23, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &r24 = aarFunc->GetOrCreatePhysicalRegisterOperand(R24, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset5 = 48;
+  MemOperand &memOpnd5 = aarFunc->CreateMemOpnd(sp, offset5, maplebe::k64BitSize);
+  maplebe::Insn &insn5 = aarFunc->GetInsnBuilder()->BuildInsn(mop5, r23, r24, memOpnd5);
+  insn5.SetId(872);
+  curBB->AppendInsn(insn5);
+
+  // {[sp+0x40]=x25;[sp+0x48]=x26;}         (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop6 = MOP_xstp;
+  RegOperand &r25 = aarFunc->GetOrCreatePhysicalRegisterOperand(R25, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &r26 = aarFunc->GetOrCreatePhysicalRegisterOperand(R26, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset6 = 64;
+  MemOperand &memOpnd6 = aarFunc->CreateMemOpnd(sp, offset6, maplebe::k64BitSize);
+  maplebe::Insn &insn6 = aarFunc->GetInsnBuilder()->BuildInsn(mop6, r25, r26, memOpnd6);
+  insn6.SetId(873);
+  curBB->AppendInsn(insn6);
+
+  // x23=x0                  cortex_a53_slot_any
+  MOperator mop7 = MOP_xmovrr;
+  RegOperand &r0 = aarFunc->GetOrCreatePhysicalRegisterOperand(R0, maplebe::k64BitSize, kRegTyInt);
+  maplebe::Insn &insn7 = aarFunc->GetInsnBuilder()->BuildInsn(mop7, r23, r0);
+  insn7.SetId(72);
+  curBB->AppendInsn(insn7);
+
+  // v0=const_vector         cortex_a53_slot0,cortex_a53_fp_alu_q
+  MOperator mop8 = MOP_vmovvi;
+  RegOperand &v0 = aarFunc->GetOrCreatePhysicalRegisterOperand(V0, maplebe::k128BitSize, RegType::kRegTyFloat);
+  auto *vecSpec = memPool->New<VectorRegSpec>(maple::PTY_v4i32);
+  ImmOperand &imm8 = aarFunc->CreateImmOperand(0, maplebe::k32BitSize, false);
+  maplebe::Insn &insn8 = aarFunc->GetInsnBuilder()->BuildVectorInsn(mop8, AArch64CG::kMd[mop8]);
+  (void)insn8.AddOpndChain(v0).AddOpndChain(imm8);
+  (void)insn8.PushRegSpecEntry(vecSpec);
+  insn8.SetId(86);
+  curBB->AppendInsn(insn8);
+
+  // x20=x1-0x1                     cortex_a53_slot_any
+  MOperator mop9 = MOP_wsubrri12;
+  RegOperand &r1 = aarFunc->GetOrCreatePhysicalRegisterOperand(R1, maplebe::k64BitSize, kRegTyInt);
+  ImmOperand &imm9 = aarFunc->CreateImmOperand(1, maplebe::k32BitSize, false);
+  maplebe::Insn &insn9 = aarFunc->GetInsnBuilder()->BuildInsn(mop9, r20, r1, imm9);
+  insn9.SetId(73);
+  curBB->AppendInsn(insn9);
+
+  // x0=x0+0x8                      cortex_a53_slot_any
+  MOperator mop10 = MOP_xaddrri12;
+  ImmOperand &imm10 = aarFunc->CreateImmOperand(8, maplebe::k32BitSize, false);
+  maplebe::Insn &insn10 = aarFunc->GetInsnBuilder()->BuildInsn(mop10, r0, r0, imm10);
+  insn10.SetId(74);
+  curBB->AppendInsn(insn10);
+
+  // x1=`g_mbufGlobalCtl'         (cortex_a53_single_issue+cortex_a53_ls_agen),(cortex_a53_load+cortex_a53_slot0),cortex_a53_load
+  MOperator mop11 = MOP_xadrp;
+  MIRSymbol globalCtl(1, kScopeGlobal);
+  globalCtl.SetStorageClass(kScGlobal);
+  globalCtl.SetSKind(kStVar);
+  std::string strGlobalCtl("g_mbufGlobalCtl");
+  globalCtl.SetNameStrIdx(strGlobalCtl);
+  StImmOperand &stImmOpnd11 = aarFunc->CreateStImmOperand(globalCtl, 0, 0);
+  maplebe::Insn &insn11 = aarFunc->GetInsnBuilder()->BuildInsn(mop11, r1, stImmOpnd11);
+  insn11.SetId(745);
+  curBB->AppendInsn(insn11);
+
+  // x22=unspec[[x1+low(`g_mbufGlobalCtl')]] 24 (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_load
+  MOperator mop12 = MOP_xldr;
+  OfstOperand &ofstOpnd = aarFunc->CreateOfstOpnd(*stImmOpnd11.GetSymbol(), stImmOpnd11.GetOffset(), stImmOpnd11.GetRelocs());
+  MemOperand *memOpnd12 = aarFunc->CreateMemOperand(maplebe::k64BitSize, r1, ofstOpnd, *stImmOpnd11.GetSymbol());
+  maplebe::Insn &insn12 = aarFunc->GetInsnBuilder()->BuildInsn(mop12, r22, *memOpnd12);
+  insn12.SetId(553);
+  curBB->AppendInsn(insn12);
+
+  // x20=zxn(x20)<<0x3+x0           cortex_a53_slot_any
+  MOperator mop13 = MOP_xxwaddrrre;
+  ExtendShiftOperand &uxtwOpnd = aarFunc->CreateExtendShiftOperand(ExtendShiftOperand::kUXTW, 3, maplebe::k3BitSize);
+  maplebe::Insn &insn13 = aarFunc->GetInsnBuilder()->BuildInsn(mop13, r20, r0, r20, uxtwOpnd);
+  insn13.SetId(76);
+  curBB->AppendInsn(insn13);
+
+  // x21=`g_hpfHlogLevel'          (cortex_a53_single_issue+cortex_a53_ls_agen),(cortex_a53_load+cortex_a53_slot0),cortex_a53_load
+  MOperator mop14 = MOP_xadrp;
+  MIRSymbol hlogLevel(0, kScopeGlobal);
+  hlogLevel.SetStorageClass(kScGlobal);
+  hlogLevel.SetSKind(kStVar);
+  std::string strHlog("g_hpfHlogLevel");
+  hlogLevel.SetNameStrIdx(strHlog);
+  StImmOperand &stImmOpnd14 = aarFunc->CreateStImmOperand(hlogLevel, 0, 0);
+  maplebe::Insn &insn14 = aarFunc->GetInsnBuilder()->BuildInsn(mop14, r21, stImmOpnd14);
+  insn14.SetId(645);
+  curBB->AppendInsn(insn14);
+
+  // x19=0x280                     cortex_a53_slot_any
+  MOperator mop15 = MOP_wmovri32;
+  ImmOperand &imm15 = aarFunc->CreateImmOperand(640, maplebe::k32BitSize, false);
+  maplebe::Insn &insn15 = aarFunc->GetInsnBuilder()->BuildInsn(mop15, r19, imm15);
+  insn15.SetId(506);
+  curBB->AppendInsn(insn15);
+
+  // [sp+0x50]=x27                  (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop16 = MOP_xstr;
+  RegOperand &r27 = aarFunc->GetOrCreatePhysicalRegisterOperand(R27, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset16 = 80;
+  MemOperand &memOpnd16 = aarFunc->CreateMemOpnd(sp, offset16, maplebe::k64BitSize);
+  maplebe::Insn &insn16 = aarFunc->GetInsnBuilder()->BuildInsn(mop16, r27, memOpnd16);
+  insn16.SetId(874);
+  curBB->AppendInsn(insn16);
+
+  // After RA:
+  aarFunc->SetIsAfterRegAlloc();
+  // Before RA:
+  //aarFunc->SetMaxVReg(50);
+
+  // Prepare data for list scheduling
+  CDGNode *cdgNode = mock.CreateCDGNode(*curBB);
+
+  // (1) Data dependency graph construction and execution scheduling are separated,
+  //     in which each module can be modified:
+  DataDepAnalysis *dda = mock.GetDataDepAnalysis();
+  dda->Run(*cdgNode->GetRegion());
+  // Mock consistent data dependency after running data-dep-analysis (turn on when in use)
+  for (auto *depNode : cdgNode->GetAllDataNodes()) {
+    Insn *insn = depNode->GetInsn();
+    if (insn->GetId() == 870) {
+      auto sucLinkIt = depNode->GetSuccsBegin();
+      while (sucLinkIt != depNode->GetSuccsEnd()) {
+        DepNode &succNode = (*sucLinkIt)->GetTo();
+        Insn *succInsn = succNode.GetInsn();
+        if (succInsn->GetId() == 871 || succInsn->GetId() == 872 || succInsn->GetId() == 873 ||
+            succInsn->GetId() == 874 || succInsn->GetId() == 553) { // these edges need to be removed
+          sucLinkIt = depNode->EraseSucc(sucLinkIt);
+          DepLink *succLink = *sucLinkIt;
+          succNode.ErasePred(*succLink);
+        } else {
+          ++sucLinkIt;
+        }
+      }
+    } else if (insn->GetId() == 871) {
+      auto sucLinkIt = depNode->GetSuccsBegin();
+      while (sucLinkIt != depNode->GetSuccsEnd()) {
+        DepNode &succNode = (*sucLinkIt)->GetTo();
+        Insn *succInsn = succNode.GetInsn();
+        if (succInsn->GetId() == 872 || succInsn->GetId() == 873 || succInsn->GetId() == 874) {
+          sucLinkIt = depNode->EraseSucc(sucLinkIt);
+          DepLink *succLink = *sucLinkIt;
+          succNode.ErasePred(*succLink);
+        } else {
+          ++sucLinkIt;
+        }
+      }
+    } else if (insn->GetId() == 872) {
+      auto sucLinkIt = depNode->GetSuccsBegin();
+      while (sucLinkIt != depNode->GetSuccsEnd()) {
+        DepNode &succNode = (*sucLinkIt)->GetTo();
+        Insn *succInsn = succNode.GetInsn();
+        if (succInsn->GetId() == 553 || succInsn->GetId() == 873 || succInsn->GetId() == 874) {
+          sucLinkIt = depNode->EraseSucc(sucLinkIt);
+          DepLink *succLink = *sucLinkIt;
+          succNode.ErasePred(*succLink);
+        } else {
+          ++sucLinkIt;
+        }
+      }
+    } else if (insn->GetId() == 873) {
+      auto sucLinkIt = depNode->GetSuccsBegin();
+      while (sucLinkIt != depNode->GetSuccsEnd()) {
+        DepNode &succNode = (*sucLinkIt)->GetTo();
+        Insn *succInsn = succNode.GetInsn();
+        if (succInsn->GetId() == 553 || succInsn->GetId() == 874) {
+          sucLinkIt = depNode->EraseSucc(sucLinkIt);
+          DepLink *succLink = *sucLinkIt;
+          succNode.ErasePred(*succLink);
+        } else {
+          ++sucLinkIt;
+        }
+      }
+    } else if (insn->GetId() == 553) {
+      auto sucLinkIt = depNode->GetSuccsBegin();
+      while (sucLinkIt != depNode->GetSuccsEnd()) {
+        DepNode &succNode = (*sucLinkIt)->GetTo();
+        Insn *succInsn = succNode.GetInsn();
+        if (succInsn->GetId() == 874) {
+          sucLinkIt = depNode->EraseSucc(sucLinkIt);
+          DepLink *succLink = *sucLinkIt;
+          succNode.ErasePred(*succLink);
+        } else {
+          ++sucLinkIt;
+        }
+      }
+    } else if (insn->GetId() == 745) {
+      auto sucLinkIt = depNode->GetSuccsBegin();
+      while (sucLinkIt != depNode->GetSuccsEnd()) {
+        DepNode &succNode = (*sucLinkIt)->GetTo();
+        Insn *succInsn = succNode.GetInsn();
+        if (succInsn->GetId() == 874) {
+          sucLinkIt = depNode->EraseSucc(sucLinkIt);
+          DepLink *succLink = *sucLinkIt;
+          succNode.ErasePred(*succLink);
+        } else {
+          ++sucLinkIt;
+        }
+      }
+    } else if (insn->GetId() == 645) {
+      auto sucLinkIt = depNode->GetSuccsBegin();
+      while (sucLinkIt != depNode->GetSuccsEnd()) {
+        DepNode &succNode = (*sucLinkIt)->GetTo();
+        Insn *succInsn = succNode.GetInsn();
+        if (succInsn->GetId() == 874) {
+          sucLinkIt = depNode->EraseSucc(sucLinkIt);
+          DepLink *succLink = *sucLinkIt;
+          succNode.ErasePred(*succLink);
+        } else {
+          ++sucLinkIt;
+        }
+      }
+    }
+  }
+
+  // luid of insn in gcc, same as insnId of maple
+//  insn3.SetId(6);
+//  insn4.SetId(7);
+//  insn5.SetId(8);
+//  insn6.SetId(9);
+//  insn7.SetId(10);
+//  insn8.SetId(11);
+//  insn9.SetId(12);
+//  insn10.SetId(13);
+//  insn11.SetId(14);
+//  insn12.SetId(15);
+//  insn13.SetId(16);
+//  insn14.SetId(17);
+//  insn15.SetId(18);
+//  insn16.SetId(19);
+
+  // Init in region
+  AArch64LocalSchedule *aarLS = mock.GetAArch64LocalSchedule();
+  aarLS->InitInRegion(*cdgNode->GetRegion());
+  // Do list scheduling
+  aarLS->SetUnitTest(true);
+  aarLS->DoLocalSchedule(*cdgNode);
+
+  // (2) Encapsulation method, which the data dependency graph cannot be modified:
+  // Execute local schedule using list scheduling algorithm on mock BB
+  //mock.DoLocalScheduleForMockBB(*cdgNode);
+
+  delete memPool;
+  delete alloc;
+}
+
+TEST(listSchedule, testListSchedulingInLocalBB3) {
+  Triple::GetTriple().Init();
+  auto *memPool = new MemPool(memPoolCtrler, "ut_list_schedule_mp");
+  auto *alloc = new MapleAllocator(memPool);
+  MockListScheduler mock(memPool, alloc);
+  AArch64CGFunc *aarFunc = mock.GetAArch64CGFunc();
+
+  // Mock maple BB info using gcc BB info before gcc scheduling
+  auto *curBB = memPool->New<maplebe::BB>(0, *alloc);
+  aarFunc->SetCurBB(*curBB);
+  aarFunc->SetFirstBB(*curBB);
+
+  // {[sp+0x10]=x19;[sp+0x18]=x20;} (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop3 = MOP_xstp;
+  RegOperand &sp = aarFunc->GetOrCreatePhysicalRegisterOperand(RSP, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &r19 = aarFunc->GetOrCreatePhysicalRegisterOperand(R19, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &r20 = aarFunc->GetOrCreatePhysicalRegisterOperand(R20, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset3 = 16;
+  MemOperand &memOpnd3 = aarFunc->CreateMemOpnd(sp, offset3, maplebe::k64BitSize);
+  maplebe::Insn &insn3 = aarFunc->GetInsnBuilder()->BuildInsn(mop3, r19, r20, memOpnd3);
+  insn3.SetId(1428);
+  curBB->AppendInsn(insn3);
+
+  // {[sp+0x20]=x21;[sp+0x28]=x22;} (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop4 = MOP_xstp;
+  RegOperand &r21 = aarFunc->GetOrCreatePhysicalRegisterOperand(R21, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &r22 = aarFunc->GetOrCreatePhysicalRegisterOperand(R22, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset4 = 32;
+  MemOperand &memOpnd4 = aarFunc->CreateMemOpnd(sp, offset4, maplebe::k64BitSize);
+  maplebe::Insn &insn4 = aarFunc->GetInsnBuilder()->BuildInsn(mop4, r21, r22, memOpnd4);
+  insn4.SetId(1429);
+  curBB->AppendInsn(insn4);
+
+  // {[sp+0x30]=x23;[sp+0x38]=x24;}         (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop5 = MOP_xstp;
+  RegOperand &r23 = aarFunc->GetOrCreatePhysicalRegisterOperand(R23, maplebe::k64BitSize, kRegTyInt);
+  RegOperand &r24 = aarFunc->GetOrCreatePhysicalRegisterOperand(R24, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset5 = 48;
+  MemOperand &memOpnd5 = aarFunc->CreateMemOpnd(sp, offset5, maplebe::k64BitSize);
+  maplebe::Insn &insn5 = aarFunc->GetInsnBuilder()->BuildInsn(mop5, r23, r24, memOpnd5);
+  insn5.SetId(1430);
+  curBB->AppendInsn(insn5);
+
+  // x22=unspec[0] 57    (mrs)              cortex_a53_slot_any
+  MOperator mop6 = MOP_mrs;
+  auto &tpidr = aarFunc->CreateCommentOperand("tpidr_el0");
+  maplebe::Insn &insn6 = aarFunc->GetInsnBuilder()->BuildInsn(mop6, r22, tpidr);
+  insn6.SetId(31);
+  curBB->AppendInsn(insn6);
+
+  // x21=high(`__stack_chk_guard')          cortex_a53_slot_any
+  MOperator mop7 = MOP_xadrp;
+  MIRSymbol scg(0, kScopeGlobal);
+  scg.SetStorageClass(kScGlobal);
+  scg.SetSKind(kStVar);
+  std::string strSCG("__stack_chk_guard");
+  scg.SetNameStrIdx(strSCG);
+  StImmOperand &stImmOpnd7 = aarFunc->CreateStImmOperand(scg, 0, 0);
+  maplebe::Insn &insn7 = aarFunc->GetInsnBuilder()->BuildInsn(mop7, r21, stImmOpnd7);
+  insn7.SetId(4);
+  curBB->AppendInsn(insn7);
+
+  // x20=x0                         cortex_a53_slot_any
+  MOperator mop8 = MOP_xmovrr;
+  RegOperand &r0 = aarFunc->GetOrCreatePhysicalRegisterOperand(R0, maplebe::k64BitSize, kRegTyInt);
+  maplebe::Insn &insn8 = aarFunc->GetInsnBuilder()->BuildInsn(mop8, r20, r0);
+  insn8.SetId(2);
+  curBB->AppendInsn(insn8);
+
+  // {x0=unspec[`g_fwd_thread_index'] 58;clobber x30;clobber cc;clobber x1;} (cortex_a53_slot_any+cortex_a53_branch)
+  MOperator mop9 = MOP_tls_desc_call;
+  MIRSymbol tls(0, kScopeGlobal);
+  tls.SetStorageClass(kScGlobal);
+  tls.SetSKind(kStVar);
+  std::string srtTLS("tlsdesc:g_fwd_thread_index");
+  tls.SetNameStrIdx(srtTLS);
+  StImmOperand &stImmOpnd9 = aarFunc->CreateStImmOperand(tls, 0, 0);
+  RegOperand &r1 = aarFunc->GetOrCreatePhysicalRegisterOperand(R1, maplebe::k64BitSize, kRegTyInt);
+  maplebe::Insn &insn9 = aarFunc->GetInsnBuilder()->BuildInsn(mop9, r0, r1, stImmOpnd9);
+  insn9.SetId(30);
+  curBB->AppendInsn(insn9);
+
+  // x2=unspec[[x21+low(`__stack_chk_guard')]] 24 (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_load
+  MOperator mop10 = MOP_xldr;
+  RegOperand &r2 = aarFunc->GetOrCreatePhysicalRegisterOperand(R2, maplebe::k64BitSize, kRegTyInt);
+  OfstOperand &ofstOpnd = aarFunc->CreateOfstOpnd(*stImmOpnd7.GetSymbol(), stImmOpnd7.GetOffset(), stImmOpnd7.GetRelocs());
+  MemOperand *memOpnd10 = aarFunc->CreateMemOperand(maplebe::k64BitSize, r21, ofstOpnd, *stImmOpnd7.GetSymbol());
+  maplebe::Insn &insn10 = aarFunc->GetInsnBuilder()->BuildInsn(mop10, r2, *memOpnd10);
+  insn10.SetId(5);
+  curBB->AppendInsn(insn10);
+
+  // x4=x22+x0                      cortex_a53_slot_any
+  MOperator mop11 = MOP_xaddrrr;
+  RegOperand &r4 = aarFunc->GetOrCreatePhysicalRegisterOperand(R4, maplebe::k64BitSize, kRegTyInt);
+  maplebe::Insn &insn11 = aarFunc->GetInsnBuilder()->BuildInsn(mop11, r4, r22, r0);
+  insn11.SetId(32);
+  curBB->AppendInsn(insn11);
+
+  // [sp+0x40]=x25                  (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_store
+  MOperator mop12 = MOP_xstr;
+  RegOperand &r25 = aarFunc->GetOrCreatePhysicalRegisterOperand(R25, maplebe::k64BitSize, kRegTyInt);
+  maple::int64 offset12 = 64;
+  MemOperand &memOpnd12 = aarFunc->CreateMemOpnd(sp, offset12, maplebe::k64BitSize);
+  maplebe::Insn &insn12 = aarFunc->GetInsnBuilder()->BuildInsn(mop12, r25, memOpnd12);
+  insn12.SetId(1431);
+  curBB->AppendInsn(insn12);
+
+  // x1=zxn([x22+x0])               (cortex_a53_slot_any+cortex_a53_ls_agen),cortex_a53_load
+  MOperator mop13 = MOP_wldrb;
+  MemOperand &memOpnd13 = aarFunc->CreateMemOpnd(r22, 0, maplebe::k8BitSize);
+  memOpnd13.SetIndexRegister(r0);
+  maplebe::Insn &insn13 = aarFunc->GetInsnBuilder()->BuildInsn(mop13, r1, memOpnd13);
+  insn13.SetId(33);
+  curBB->AppendInsn(insn13);
+
+  // {[x29+0xd8]=unspec[[x2]] 66;x0=0;} cortex_a53_slot_any
+  // Turn on when in use
+  /*
+   * DEFINE_MOP(MOP_ut_sps, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Reg64IS, &OpndDesc::Imm64, &OpndDesc::Imm64}, 0, kLtAlu, "stack_protect_set_di", "0,1,2,3,4", 1);
+   * MOperator mop14 = MOP_ut_sps;  // pseudo insn for unit test
+   * RegOperand &r29 = aarFunc->GetOrCreatePhysicalRegisterOperand(R29, maplebe::k64BitSize, kRegTyInt);
+   * ImmOperand &immOpnd1 = aarFunc->CreateImmOperand(216, maplebe::k64BitSize, false);
+   * ImmOperand &immOpnd2 = aarFunc->CreateImmOperand(0, maplebe::k64BitSize, false);
+   * maplebe::Insn &insn14 = aarFunc->GetInsnBuilder()->BuildInsn(mop14, r0, r2, r29, immOpnd1, immOpnd2);
+   * insn14.SetId(6);
+   * curBB->AppendInsn(insn14);
+   */
+
+  MOperator mop15 = MOP_xstr;
+  //RegOperand &r29 = aarFunc->GetOrCreatePhysicalRegisterOperand(R29, maplebe::k64BitSize, kRegTyInt);
+  int offset15 = 216;
+  MemOperand &memOpnd15 = aarFunc->CreateMemOpnd(sp, offset15, maplebe::k64BitSize);
+  maplebe::Insn &insn15 = aarFunc->GetInsnBuilder()->BuildInsn(mop15, r0, memOpnd15);
+  insn15.SetId(6);
+  curBB->AppendInsn(insn15);
+
+  // pc={(x1!=0)?L69:pc}            (cortex_a53_slot_any+cortex_a53_branch)
+  MOperator mop16 = MOP_wcbnz;
+  auto &labelOpnd = aarFunc->GetOrCreateLabelOperand(1);
+  maplebe::Insn &insn16 = aarFunc->GetInsnBuilder()->BuildInsn(mop16, r1, labelOpnd);
+  insn16.SetId(35);
+  curBB->AppendInsn(insn16);
+
+  //curBB->Dump();
+  aarFunc->SetIsAfterRegAlloc();
+
+  // Create CDGNode
+  CDGNode *cdgNode = mock.CreateCDGNode(*curBB);
+  // Build dependency
+  DataDepAnalysis *dda = mock.GetDataDepAnalysis();
+  dda->Run(*cdgNode->GetRegion());
+
+  // mock data dependency for tls (turn on when in use)
+  DepNode *depNode5 = nullptr;
+  DepNode *depNode6 = nullptr;
+  DepNode *depNode32 = nullptr;
+  for (auto *depNode : cdgNode->GetAllDataNodes()) {
+    Insn *insn = depNode->GetInsn();
+    if (insn->GetId() == 6) {
+      for (auto *succLink : depNode->GetSuccs()) {
+        DepNode &succNode = succLink->GetTo();
+        if (succNode.GetInsn()->GetId() == 35) {
+          succLink->SetLatency(3);
+          succLink->SetDepType(maplebe::kDependenceTypeOutput);
+        }
+      }
+    } else if (insn->GetId() == 5) {
+      for (auto *succLink : depNode->GetSuccs()) {
+        DepNode &succNode = succLink->GetTo();
+        if (succNode.GetInsn()->GetId() == 6) {
+          succLink->SetLatency(2);
+        }
+      }
+    }
+    if (insn->GetId() == 6) {
+      depNode6 = depNode;
+    } else if (insn->GetId() == 35) {
+      depNode32 = depNode;
+    } else if (insn->GetId() == 5) {
+      depNode5 = depNode;
+    }
+    if (insn->GetId() != 2 && insn->GetId() != 30) {
+      // delete edge to tls
+      auto sucLinkIt = depNode->GetSuccsBegin();
+      while (sucLinkIt != depNode->GetSuccsEnd()) {
+        DepNode &succNode = (*sucLinkIt)->GetTo();
+        Insn *succInsn = succNode.GetInsn();
+        if (succInsn->GetId() == 30) {
+          sucLinkIt = depNode->EraseSucc(sucLinkIt);
+          DepLink *succLink = *sucLinkIt;
+          succNode.ErasePred(*succLink);
+        } else {
+          ++sucLinkIt;
+        }
+      }
+    } else if (insn->GetId() == 30) {
+      // delete edge from tls to unrelated insn
+      auto sucLinkIt = depNode->GetSuccsBegin();
+      while (sucLinkIt != depNode->GetSuccsEnd()) {
+        DepNode &succNode = (*sucLinkIt)->GetTo();
+        Insn *succInsn = succNode.GetInsn();
+        if (succInsn->GetId() == 5 || succInsn->GetId() == 1431) {
+          sucLinkIt = depNode->EraseSucc(sucLinkIt);
+          DepLink *succLink = *sucLinkIt;
+          succNode.ErasePred(*succLink);
+        } else {
+          ++sucLinkIt;
+        }
+      }
+    }
+  }
+  auto *depLink1 = memPool->New<DepLink>(*depNode32, *depNode6, kDependenceTypeAnti);
+  depNode32->AddSucc(*depLink1);
+  depNode6->AddPred(*depLink1);
+  auto *depLink2 = memPool->New<DepLink>(*depNode5, *depNode6, kDependenceTypeTrue);
+  depLink2->SetLatency(mock.GetMAD()->GetLatency(*depNode5->GetInsn(), *depNode6->GetInsn()));
+  depNode5->AddSucc(*depLink2);
+  depNode6->AddPred(*depLink2);
+
+  // Init in region
+  AArch64LocalSchedule *aarLS = mock.GetAArch64LocalSchedule();
+  aarLS->InitInRegion(*cdgNode->GetRegion());
+  // Do list scheduling
+  aarLS->SetUnitTest(true);
+  aarLS->DoLocalSchedule(*cdgNode);
+
+  delete memPool;
+  delete alloc;
+}

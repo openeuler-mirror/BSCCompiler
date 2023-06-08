@@ -23,7 +23,7 @@
 namespace maple {
 
 class UseItem final {
-public:
+ public:
   explicit UseItem(MeStmt *useStmt) : useNode(useStmt) {}
   explicit UseItem(MePhiNode *phi) : useNode(phi) {}
 
@@ -65,7 +65,7 @@ public:
   }
   bool operator!=(const UseItem &other) const { return !(*this == other); }
 
-private:
+ private:
   template <typename T> const T *Get() const {
     assert(std::holds_alternative<T *>(useNode) && "Invalid use type.");
     return std::get<T *>(useNode);

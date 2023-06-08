@@ -21,7 +21,7 @@ namespace maple {
 static unsigned scopeId = 1;
 
 MIRScope::MIRScope(MIRModule *mod,  MIRFunction *f)
-  : module(mod), func(f), id(scopeId++), isLocal(true) {
+    : module(mod), func(f), id(scopeId++), isLocal(true) {
   alias = module->GetMemPool()->New<MIRAlias>(module);
   typeAlias = module->GetMemPool()->New<MIRTypeAlias>(module);
 }
@@ -122,20 +122,22 @@ bool MIRScope::HasSameRange(const MIRScope *scp1, const MIRScope *scp2) const {
 }
 
 SrcPosition MIRScope::GetScopeEndPos(const SrcPosition &pos) {
-  SrcPosition low  = GetRangeLow();
-  SrcPosition high = GetRangeHigh();
+  const SrcPosition &low = GetRangeLow();
+  const SrcPosition &high = GetRangeHigh();
+  if (pos.IsBf(low) || high.IsBf(pos)) {
+    return SrcPosition();
+  }
   if (pos.IsEq(low)) {
     return high;
   }
-  for (auto it : func->GetScope()->blkSrcPos) {
-    SrcPosition p  = std::get<0>(it);
-    SrcPosition pB = std::get<1>(it);
-    SrcPosition pE = std::get<2>(it);
-    if (pos.IsEq(p)) {
-      // pB < low < p < pE < high
-      if (pB.IsBfOrEq(low) &&
-          low.IsBfOrEq(p) &&
-          pE.IsBfOrEq(high)) {
+  auto itOfBlkSrcPos = func->GetScope()->blkSrcPos.find(pos);
+  if (itOfBlkSrcPos != func->GetScope()->blkSrcPos.end()) {
+    const SrcPosition &p = itOfBlkSrcPos->first;
+    for (auto it : *itOfBlkSrcPos->second) {
+      const SrcPosition &pB = it.first;
+      const SrcPosition &pE = it.second;
+      if (pB.IsBfOrEq(low) && low.IsBfOrEq(p) && pE.IsBfOrEq(high)) {
+        // pB < low < p < pE < high
         return high;
       }
     }

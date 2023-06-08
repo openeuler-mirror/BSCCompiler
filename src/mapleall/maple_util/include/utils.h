@@ -75,10 +75,10 @@ struct ToDigitImpl<16, T> {
       return c - '0';
     }
     if (c >= 'a' && c <= 'f') {
-      return static_cast<char>(c - kaAsciiNum + kNumLimit);
+      return static_cast<char>(static_cast<int32_t>(c) - kaAsciiNum + kNumLimit);
     }
     if (c >= 'A' && c <= 'F') {
-      return static_cast<char>(c - kAAsciiNum + kNumLimit);
+      return static_cast<char>(static_cast<int32_t>(c) - kAAsciiNum + kNumLimit);
     }
     return std::numeric_limits<T>::max();
   }

@@ -27,6 +27,7 @@
 namespace maple {
 constexpr uint32 kIndx2 = 2;
 constexpr uint32 kStructDBGSize = 8888;
+const uint64 kDeadbeef = 0xdeadbeef;
 
 // DBGDie methods
 DBGDie::DBGDie(MIRModule *m, DwTag tag)
@@ -224,7 +225,14 @@ bool DBGAbbrevEntry::Equalto(DBGAbbrevEntry *entry) {
 
 // DebugInfo methods
 void DebugInfo::Init() {
-  mplSrcIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(module->GetFileName());
+  // strip file name
+  std::string fileName = module->GetFileName();
+  std::string::size_type pos = fileName.find_last_of('/') + 1;
+  if (pos != std::string::npos) {
+    (void)fileName.erase(0, pos);
+  }
+
+  mplSrcIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fileName);
   compUnit = module->GetMemPool()->New<DBGDie>(module, DW_TAG_compile_unit);
   module->SetWithDbgInfo(true);
   ResetParentDie();
@@ -270,9 +278,9 @@ void DebugInfo::InsertBaseTypeMap(const std::string &inputName, const std::strin
 }
 
 void DebugInfo::InitBaseTypeMap() {
-  InsertBaseTypeMap(kDbgLong, "long", Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_i32 : PTY_i64);
+  InsertBaseTypeMap(kDbgLong, "long", Triple::GetTriple().GetEnvironment() == Triple::kGnuIlp32 ? PTY_i32 : PTY_i64);
   InsertBaseTypeMap(kDbgULong, "unsigned long",
-                    Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_u32 : PTY_u64);
+                    Triple::GetTriple().GetEnvironment() == Triple::kGnuIlp32 ? PTY_u32 : PTY_u64);
   InsertBaseTypeMap(kDbgLongDouble, "long double", PTY_f64);
   InsertBaseTypeMap(kDbgSignedChar, "signed char", PTY_i8);
   InsertBaseTypeMap(kDbgChar, "char", PTY_i8);
@@ -806,6 +814,9 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym) {
   }
 
   DBGDie *die = CreateVarDie(sym, strIdx);
+  if (!die) {
+    return nullptr;
+  }
 
   GetParentDie()->AddSubVec(die);
   if (isLocal) {
@@ -850,6 +861,9 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx) {
   MIRType *type = sym->GetType();
   DBGDie *typeDie = GetOrCreateTypeDie(type);
   DBGDie *newDie = GetOrCreateTypeDieWithAttr(sym->GetAttrs(), typeDie);
+  if (!newDie) {
+    return nullptr;
+  }
   die->AddAttr(DW_AT_type, DW_FORM_ref4, newDie->GetId());
 
   return die;
@@ -1323,7 +1337,7 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arrayType) {
     DBGDie *rangeDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subrange_type);
     rangeDie->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId(), keep);
     // The default lower bound value for C, C++, or Java is 0
-    rangeDie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arrayType->GetSizeArrayItem(i) - 1, keep);
+    rangeDie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arrayType->GetSizeArrayItem(i) - 1UL, keep);
     die->AddSubVec(rangeDie);
   }
 
@@ -1697,8 +1711,8 @@ size_t DBGDieAttr::SizeOf(DBGDieAttr *attr) const {
       return str.length() + 1; /* terminal null byte */
     }
     case DW_FORM_exprloc: {
+      CHECK_FATAL(attr->value.u != kDeadbeef, "wrong ptr");
       DBGExprLoc *ptr = attr->value.ptr;
-      CHECK_FATAL(ptr != (DBGExprLoc*)(0xdeadbeef), "wrong ptr");
       switch (ptr->GetOp()) {
         case DW_OP_call_frame_cfa:
           return k2BitSize;  // size 1 byte + DW_OP_call_frame_cfa 1 byte
@@ -1982,7 +1996,7 @@ void DBGCompileMsgInfo::EmitMsg() {
 
   fprintf(stderr, "\n===================================================================\n");
   fprintf(stderr, "==================");
-  fprintf(stderr, BOLD YEL "  Compilation Error Diagnosis  " RESET);
+  fprintf(stderr, "\x1B[1m" "\x1B[31m" "  Compilation Error Diagnosis  " "\x1B[0m");
   fprintf(stderr, "==================\n");
   fprintf(stderr, "===================================================================\n");
   fprintf(stderr, "line %4u %s\n", lineNum[(startLine + k2BitSize) % k3BitSize],
@@ -1991,7 +2005,7 @@ void DBGCompileMsgInfo::EmitMsg() {
           reinterpret_cast<char *>(codeLine[(startLine + 1) % k3BitSize]));
   fprintf(stderr, "line %4u %s\n", lineNum[(startLine) % k3BitSize],
           reinterpret_cast<char *>(codeLine[(startLine) % k3BitSize]));
-  fprintf(stderr, BOLD RED "          %s\n" RESET, str);
+  fprintf(stderr, "\x1B[1m" "\x1B[31m" "          %s\n" "\x1B[0m", str);
   fprintf(stderr, "===================================================================\n");
 }
 }  // namespace maple

@@ -25,7 +25,7 @@
 // encounters a variable reference, it uses its SSA representation to look up
 // its assigned value and try to do the substitution.
 namespace {
-const std::set<std::string> kPropWhiteList {
+const std::set<std::string> kPropWhitelist {
 #define PROPILOAD(funcname) #funcname,
 #include "propiloadlist.def"
 #undef PROPILOAD
@@ -59,7 +59,7 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
     MIRSymbol *fnSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(f.GetMirFunc()->GetStIdx().Idx());
     CHECK_FATAL(fnSt, "fnSt is nullptr");
     const std::string &funcName = fnSt->GetName();
-    propIloadRef = kPropWhiteList.find(funcName) != kPropWhiteList.end();
+    propIloadRef = kPropWhitelist.find(funcName) != kPropWhitelist.end();
     if (DEBUGFUNC_NEWPM(f)) {
       if (propIloadRef) {
         LogInfo::MapleLogger() << "propiloadref enabled because function is in white list";

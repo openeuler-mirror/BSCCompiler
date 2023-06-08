@@ -169,7 +169,9 @@ class IntVal {
     ASSERT(IsOneSignificantWord(), "value doesn't fit into 64 bits");
     uint64 value = IsOneWord() ? u.value : u.pValue[0];
     // if size == 0, just return the value itself because it's already truncated for an appropriate width
-    return (size != 0) ? (value << (wordBitSize - size)) >> (wordBitSize - size) : value;
+    ASSERT(wordBitSize >= size, "wordBitSize should >= size");
+    return (size != 0) ?
+        (value << static_cast<uint32>(wordBitSize - size)) >> static_cast<uint32>(wordBitSize - size) : value;
   }
 
   /// @return sign extended value
@@ -179,12 +181,13 @@ class IntVal {
     uint8 bitWidth = (size != 0) ? size : static_cast<uint8>(width);
     ASSERT(size <= width, "size should <= %u, but got %u", width, size);
     // Do not rely on compiler implement-defined behavior for signed integer shifting
-    uint8 shift = wordBitSize - bitWidth;
+    uint8 shift = static_cast<uint8>(static_cast<uint32>(wordBitSize - bitWidth));
     value <<= shift;
     // prepare leading ones for negative value
-    uint64 leadingOnes = allOnes << ((bitWidth < wordBitSize) ? bitWidth : (wordBitSize - 1));
+    uint64 leadingOnes = allOnes << ((bitWidth < wordBitSize) ? bitWidth : static_cast<uint32>(wordBitSize - 1U));
     if (bitWidth != 0) {
-      return static_cast<int64>(GetBit(bitWidth - 1) ? ((value >> shift) | leadingOnes) : (value >> shift));
+      return static_cast<int64>(GetBit(static_cast<uint16>(static_cast<uint32>(bitWidth - 1U))) ?
+          ((value >> shift) | leadingOnes) : (value >> shift));
     }
     return 0;
   }
@@ -201,7 +204,7 @@ class IntVal {
   /// @return true if all bits are 1
   bool AreAllBitsOne() const {
     if (IsOneWord()) {
-      return u.value == (allOnes >> (wordBitSize - width));
+      return u.value == (allOnes >> static_cast<uint32>(wordBitSize - width));
     }
 
     return CountTrallingOnes() == width;
@@ -219,7 +222,7 @@ class IntVal {
   /// @return true if value is a power of 2 > 0
   bool IsPowerOf2() const {
     if (IsOneWord()) {
-      return (u.value != 0) && !(u.value & (u.value - 1));
+      return (u.value != 0ULL) && ((u.value & (u.value - 1)) == 0);
     }
 
     return CountPopulation() == 1;
@@ -613,7 +616,7 @@ class IntVal {
     IntVal ret = TruncOrExtend(pType);
     ASSERT(shift <= ret.width, "invalid shift value");
     if (IsOneWord()) {
-      ret.u.value = (IntVal(ret.GetSXTValue(), PTY_i64) >> shift).GetExtValue();
+      ret.u.value = static_cast<uint64>((IntVal(ret.GetSXTValue(), PTY_i64) >> shift).GetExtValue());
     } else {
       ret.WideAShrInPlace(shift);
     }
@@ -655,7 +658,7 @@ class IntVal {
       u.pValue[lastWord] &= allOnes >> (truncWidth % wordBitSize);
     }
 
-    if (bitWidth) {
+    if (bitWidth != 0) {
       width = bitWidth;
     }
   }

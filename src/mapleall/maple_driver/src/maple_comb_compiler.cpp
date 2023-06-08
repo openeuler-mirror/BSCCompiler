@@ -72,7 +72,6 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options, const Action &ac
   std::string runStr = "--run=";
   std::ostringstream optionStr;
   optionStr << "--option=\"";
-  std::string connectSym = "";
   bool firstComb = false;
   if (options.GetExeOptions().find(kBinNameMe) != options.GetExeOptions().end()) {
     runStr += "me";

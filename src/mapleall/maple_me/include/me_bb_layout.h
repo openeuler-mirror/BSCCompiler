@@ -112,7 +112,7 @@ class BBLayout {
 
  private:
   void FixEndTryBB(BB &bb);
-  void FixTryBB(BB &startTryBB, BB &nextBB);
+  void FixTryBB(BB &startTryBB, BB &nextBB) const;
   void DealWithStartTryBB();
   void UpdateNewBBWithAttrTry(const BB &bb, BB &fallthru) const;
   void SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const;

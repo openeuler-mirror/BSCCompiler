@@ -25,7 +25,7 @@ namespace maplebe {
 class LiveAnalysis : public AnalysisResult {
  public:
   LiveAnalysis(CGFunc &func, MemPool &memPool)
-      : AnalysisResult(&memPool), cgFunc(&func), memPool(&memPool), alloc(&memPool), stackMp(func.GetStackMemPool()) {}
+      : AnalysisResult(&memPool), cgFunc(&func), alloc(&memPool) {}
   ~LiveAnalysis() override = default;
 
   void AnalysisLive();
@@ -72,9 +72,9 @@ class LiveAnalysis : public AnalysisResult {
  protected:
   int iteration = 0;
   CGFunc *cgFunc;
-  MemPool *memPool;
   MapleAllocator alloc;
-  StackMemPool &stackMp;
+ private:
+  void RemovePhiLiveInFromSuccNotFromThisBB(BB &curBB, BB &succBB) const;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLiveAnalysis, maplebe::CGFunc)

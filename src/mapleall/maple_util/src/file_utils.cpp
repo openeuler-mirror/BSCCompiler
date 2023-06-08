@@ -17,7 +17,6 @@
 #include <climits>
 #include <fstream>
 #include <unistd.h>
-#include "string_utils.h"
 #include "mpl_logging.h"
 #include "file_utils.h"
 
@@ -54,15 +53,31 @@ std::string FileUtils::SafeGetenv(const char *envVar) {
   return tmpStr;
 }
 
-std::string FileUtils::SafeGetPath(const char *envVar, const char *name) {
-  int size = 1024;
+std::string FileUtils::ExecuteShell(const char *cmd) {
+  const int size = 1024;
   FILE *fp = nullptr;
-  char buf[size];
-  CHECK_FATAL((fp = popen(envVar, "r")) != nullptr, "Failed! Unable to find path of %s \n", name);
-  while (fgets(buf, size, fp) != nullptr) {}
+  char buf[size] = {0};
+  std::string result = "";
+  fp = popen(cmd, "r");
+  if (fp == nullptr) {
+    if (StringUtils::StartsWith(cmd, "rm -rf")) {
+      return result;
+    }
+    CHECK_FATAL((fp = popen(cmd, "r")) != nullptr, "Failed to execute shell (%s). \n", cmd);
+  }
+  while (fgets(buf, size, fp) != nullptr) {
+    result += std::string(buf);
+  }
   (void)pclose(fp);
   fp = nullptr;
-  std::string path(buf);
+  if (result[result.length() - 1] == '\n') {
+    result = result.substr(0, result.length() - 1);
+  }
+  return result;
+}
+
+std::string FileUtils::SafeGetPath(const char *envVar, const char *name) {
+  std::string path = ExecuteShell(envVar);
   CHECK_FATAL(path.find(name) != std::string::npos, "Failed! Unable to find path of %s \n", name);
   std::string tmp = name;
   size_t index = path.find(tmp) + tmp.length();
@@ -71,22 +86,9 @@ std::string FileUtils::SafeGetPath(const char *envVar, const char *name) {
 }
 
 void FileUtils::CheckGCCVersion(const char *cmd) {
-  int size = 1024;
-  FILE *fp = nullptr;
-  char buf[size];
-  CHECK_FATAL((fp = popen(cmd, "r")) != nullptr, "Failed to obtain the aarch64-linux-gnu-gcc version number.\n");
-  while (fgets(buf, size, fp) != nullptr) {}
-  (void)pclose(fp);
-  fp = nullptr;
+  std::string gccVersion = ExecuteShell(cmd);
   std::vector<std::string> ver;
-  char *p = nullptr;
-  char *pSave = nullptr;
-  p = strtok_r(buf, ".", &pSave);
-  while (p) {
-    std::string tmp = p;
-    ver.push_back(tmp);
-    p = strtok_r(nullptr, ".", &pSave);
-  }
+  StringUtils::Split(gccVersion, ver, '.');
   bool isEarlierVersion = std::stoi(ver[0].c_str()) < std::stoi("5") ||
       (std::stoi(ver[0].c_str()) == std::stoi("5") && std::stoi(ver[1].c_str()) < std::stoi("5"));
   CHECK_FATAL(!isEarlierVersion, "The aarch64-linux-gnu-gcc version cannot be earlier than 5.5.0.\n");
@@ -97,18 +99,11 @@ std::string FileUtils::GetOutPutDir() {
 }
 
 std::string FileUtils::GetTmpFolderPath() const {
-  int size = 1024;
-  FILE *fp = nullptr;
-  char buf[size];
   const char *cmd = "mktemp -d";
-  CHECK_FATAL((fp = popen(cmd, "r")) != nullptr, "Failed to create tmp folder");
-  while (fgets(buf, size, fp) != nullptr) {}
-  (void)pclose(fp);
-  fp = nullptr;
-  std::string path(buf);
+  std::string path = ExecuteShell(cmd);
   CHECK_FATAL(path.size() != 0, "Failed to create tmp folder");
   std::string tmp = "\n";
-  size_t index = path.find(tmp) == path.npos ? path.length() : path.find(tmp);
+  size_t index = path.find(tmp) == std::string::npos ? path.length() : path.find(tmp);
   path = path.substr(0, index);
   return path + "/";
 }
@@ -265,16 +260,7 @@ bool FileUtils::DelTmpDir() const {
     return true;
   }
   std::string tmp = "rm -rf " + FileUtils::GetInstance().GetTmpFolder();
-  const int size = 1024;
-  FILE *fp = nullptr;
-  char buf[size] = {0};
-  if ((fp = popen(tmp.c_str(), "r")) == nullptr) {
-    return false;
-  }
-  while (fgets(buf, size, fp) != nullptr) {}
-  (void)pclose(fp);
-  fp = nullptr;
-  std::string result(buf);
+  std::string result = ExecuteShell(tmp.c_str());
   if (result != "") {
     return false;
   }
@@ -293,6 +279,80 @@ InputFileType FileUtils::GetFileTypeByMagicNumber(const std::string &pathName) {
   file.close();
   return magic == kMagicAST ? InputFileType::kFileTypeOast : magic == kMagicELF ? InputFileType::kFileTypeObj :
                                                                                   InputFileType::kFileTypeNone;
+}
+
+char* FileUtils::LoadFile(const char *filename) {
+  size_t maxlength = 102400; // 100K
+  std::string specFile = GetRealPath(filename);
+  char *specs;
+  char *content;
+  std::ifstream readSpecFile(specFile);
+  if (!readSpecFile.is_open()) {
+    CHECK_FATAL(false, "unable to open file %s", specFile.c_str());
+    return nullptr;
+  }
+  content = FileUtils::GetInstance().GetMemPool().NewArray<char>(maxlength);
+  if (content) {
+    char buffer[maxlength];
+    size_t len = 0;
+    while (readSpecFile.getline(buffer, static_cast<long>(maxlength))) {
+      for (size_t i = 0; i < maxlength; i++) {
+        char tmp = buffer[i];
+        if (tmp == '\0') {
+          content[len] = '\n';
+          len++;
+          break;
+        }
+        content[len] = tmp;
+        len++;
+      }
+    }
+    content[len] = '\0';
+    specs = FileUtils::GetInstance().GetMemPool().NewArray<char>(++len);
+    if (!specs) {
+      CHECK_FATAL(false, "unable to open file %s", specFile.c_str());
+    }
+    for (size_t i = 0; i < len; i++) {
+      specs[i] = content[i];
+    }
+    return specs;
+  }
+  return nullptr;
+}
+
+
+bool FileUtils::GetAstFromLib(const std::string libPath, std::vector<std::string> &astInputs) {
+  bool elfFlag = false;
+  std::string binAr = "";
+  std::string cmd = "which ar";
+  std::string result = "";
+  if (SafeGetenv(kArPath) != "") {
+    binAr = SafeGetenv(kArPath);
+  } else {
+    result = ExecuteShell(cmd.c_str());
+    CHECK_FATAL((result != ""), "Unable find where is ar via cmd (which ar).");
+    binAr = result;
+  }
+  std::string realLibPath = GetRealPath(libPath);
+  cmd = binAr + " t " + realLibPath;
+  std::vector<std::string> astVec;
+  result = ExecuteShell(cmd.c_str());
+  StringUtils::Split(result, astVec, '\n');
+  for (auto tmp : astVec) {
+    if (tmp.empty()) {
+      continue;
+    }
+    cmd = binAr + " x " + realLibPath + " " + tmp;
+    CHECK_FATAL((ExecuteShell(cmd.c_str()) == ""), "Failed to execute %s.", cmd.c_str());
+    result = GetFileExtension(GetRealPath(tmp));
+    if (result == "o" && GetFileTypeByMagicNumber(GetRealPath(tmp)) == InputFileType::kFileTypeOast) {
+      cmd = binAr + " d " + realLibPath + " " + tmp;
+      astInputs.push_back(GetRealPath(tmp));
+    } else {
+      elfFlag = true;
+    }
+  }
+  return elfFlag;
 }
 
 }  // namespace maple

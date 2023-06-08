@@ -13,6 +13,7 @@
 # FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 #
+set -e
 CORE_OJ_JAR=${MAPLE_ROOT}/android/emui-10.0/out/target/common/obj/JAVA_LIBRARIES/core-oj_intermediates/classes.jar
 CORE_LIBART_JAR=${MAPLE_ROOT}/android/emui-10.0/out/target/common/obj/JAVA_LIBRARIES/core-libart_intermediates/classes.jar
 

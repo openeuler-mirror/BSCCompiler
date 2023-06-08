@@ -22,7 +22,7 @@
 // 2. sequence extract: extract a series of stmts into one common block and merge
 //                      all predecessors and successors to this block
 namespace maple {
-struct cmpByBBID {
+struct CmpByBBID {
   bool operator()(BB* bb1, BB* bb2) const {
     return bb1->GetBBId() < bb2->GetBBId();
   }
@@ -33,7 +33,6 @@ class FactoringOptimizer {
   FactoringOptimizer(MeFunction &f, bool enableDebug)
       : func(f),
         cfg(f.GetCfg()),
-        codeMP(f.GetMirFunc()->GetCodeMemPool()),
         codeMPAlloc(&f.GetMirFunc()->GetCodeMemPoolAllocator()),
         mirBuilder(f.GetMIRModule().GetMIRBuilder()),
         dumpDetail(enableDebug) {}
@@ -41,15 +40,14 @@ class FactoringOptimizer {
   bool IsCFGChanged() const {
     return isCFGChanged;
   }
-  bool IsIdenticalStmt(StmtNode *stmt1, StmtNode *stmt2);
-  void SinkStmtsInCands(std::map<BB*, StmtNode*, cmpByBBID> &cands);
+  bool IsIdenticalStmt(StmtNode *stmt1, StmtNode *stmt2) const;
+  void SinkStmtsInCands(std::map<BB*, StmtNode*, CmpByBBID> &cands);
   void DoSink(BB *bb);
   void RunLocalFactoring();
 
  private:
   MeFunction &func;
   MeCFG *cfg;
-  MemPool *codeMP;
   MapleAllocator *codeMPAlloc;
   MIRBuilder *mirBuilder;
   bool dumpDetail = false;
@@ -61,7 +59,7 @@ static bool IsConstOp(Opcode op) {
   return op == OP_constval || op == OP_conststr || op == OP_conststr;
 }
 
-bool FactoringOptimizer::IsIdenticalStmt(StmtNode *stmt1, StmtNode *stmt2) {
+bool FactoringOptimizer::IsIdenticalStmt(StmtNode *stmt1, StmtNode *stmt2) const {
   auto op = stmt1->GetOpCode();
   if (op != stmt2->GetOpCode()) {
     return false;
@@ -192,7 +190,7 @@ bool FactoringOptimizer::IsIdenticalStmt(StmtNode *stmt1, StmtNode *stmt2) {
   return true;
 }
 
-void FactoringOptimizer::SinkStmtsInCands(std::map<BB *, StmtNode *, cmpByBBID> &cands) {
+void FactoringOptimizer::SinkStmtsInCands(std::map<BB *, StmtNode *, CmpByBBID> &cands) {
   BB *succ = cands.begin()->first->GetSucc(0);
   BB *sinkBB = nullptr;
   if (succ->GetPred().size() == cands.size()) {
@@ -281,7 +279,7 @@ void FactoringOptimizer::DoSink(BB *bb) {
     return;
   }
   auto *succ = bb->GetSucc(0);
-  std::map<BB*, StmtNode*, cmpByBBID> cands;
+  std::map<BB*, StmtNode*, CmpByBBID> cands;
   cands.emplace(bb, identifyStmt);
   // check other pred's last stmt
   for (auto *pred : succ->GetPred()) {

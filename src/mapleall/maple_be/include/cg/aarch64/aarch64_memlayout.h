@@ -165,6 +165,10 @@ class AArch64MemLayout : public MemLayout {
     return segLocals.GetSize();
   }
 
+  uint32 GetSizeOfCold() const {
+    return segCold.GetSize();
+  }
+
   void SetSizeOfGRSaveArea(uint32 sz) {
     segGrSaveArea.SetSize(sz);
   }
@@ -185,6 +189,8 @@ class AArch64MemLayout : public MemLayout {
     return segRefLocals.GetSize();
   }
 
+  uint64 GetSizeOfColdToStk() const;
+  bool IsSegMentVaried(const MemSegment *seg) const;
   int32 GetRefLocBaseLoc() const;
   int32 GetGRSaveAreaBaseLoc() const;
   int32 GetVRSaveAreaBaseLoc() const;
@@ -205,6 +211,8 @@ class AArch64MemLayout : public MemLayout {
   void LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, std::vector<MIRSymbol*> &returnDelays);
   void LayoutEAVariales(std::vector<MIRSymbol*> &tempVar);
   void LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays, int32 &structCopySize, int32 &maxParmStackSize);
+  // layout small local near sp, otherwise, above spill region
+  void LayoutLocalsInSize(const MIRSymbol &mirSym);
 
   SymbolAlloc *CreateSymbolAlloc() const override {
     return memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();

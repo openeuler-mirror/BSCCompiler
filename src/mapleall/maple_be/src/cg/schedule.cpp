@@ -17,7 +17,7 @@
 #elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_schedule.h"
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
 #include "arm32_schedule.h"
 #endif
 #include "cg.h"
@@ -56,7 +56,7 @@ RegType RegPressureSchedule::GetRegisterType(regno_t reg) const {
 }
 
 /* Get amount of every physical register */
-void RegPressureSchedule::BuildPhyRegInfo(const std::vector<int32> &regNumVec) const {
+void RegPressureSchedule::BuildPhyRegInfo(const std::vector<int32> &regNumVec) {
   FOR_ALL_REGCLASS(i) {
     physicalRegNum[i] = regNumVec[i];
   }
@@ -144,7 +144,7 @@ bool RegPressureSchedule::DepNodePriorityCmp(const DepNode *node1, const DepNode
 
   int32 numCall1 = node1->GetNumCall();
   int32 numCall2 = node2->GetNumCall();
-  if (node1->GetIncPressure() == true && node2->GetIncPressure() == true) {
+  if (node1->GetIncPressure() && node2->GetIncPressure()) {
     if (numCall1 != numCall2) {
       return numCall1 > numCall2;
     }
@@ -888,10 +888,10 @@ bool CgPreScheduling::PhaseRun(maplebe::CGFunc &f) {
   live->ResetLiveSet();
 
   Schedule *schedule = nullptr;
-#if TARGAARCH64 || TARGRISCV64
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)
   schedule = GetPhaseAllocator()->New<AArch64Schedule>(f, *GetPhaseMemPool(), *live, PhaseName());
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   schedule = GetPhaseAllocator()->New<Arm32Schedule>(f, *GetPhaseMemPool(), *live, PhaseName());
 #endif
   schedule->ListScheduling(true);
@@ -920,10 +920,10 @@ bool CgScheduling::PhaseRun(maplebe::CGFunc &f) {
   live->ResetLiveSet();
 
   Schedule *schedule = nullptr;
-#if TARGAARCH64 || TARGRISCV64
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)
   schedule = GetPhaseAllocator()->New<AArch64Schedule>(f, *GetPhaseMemPool(), *live, PhaseName());
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   schedule = GetPhaseAllocator()->New<Arm32Schedule>(f, *GetPhaseMemPool(), *live, PhaseName());
 #endif
   schedule->ListScheduling(false);

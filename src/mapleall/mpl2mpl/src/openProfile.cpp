@@ -18,7 +18,7 @@
 #include "update_mplt.h"
 
 
-  // namespace maple
+// namespace maple
 namespace maple {
 void M2MOpenprofile::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.SetPreservedAll();
@@ -34,20 +34,4 @@ bool M2MOpenprofile::PhaseRun(maple::MIRModule &m) {
   return false;
 }
 
-
-bool M2MUpdateMplt::PhaseRun(MIRModule &m) {
-  auto *cg = GET_ANALYSIS(M2MCallGraph, m);
-  CHECK_FATAL(cg != nullptr, "Expecting a valid CallGraph, found nullptr.");
-  BinaryMplt *binMplt = m.GetBinMplt();
-  CHECK_FATAL(binMplt != nullptr, "Expecting a valid binMplt, found nullptr.");
-  UpdateMplt update;
-  update.UpdateCgField(*binMplt, *cg);
-  delete m.GetBinMplt();
-  m.SetBinMplt(nullptr);
-  return false;
-}
-
-void M2MUpdateMplt::GetAnalysisDependence(AnalysisDep &aDep) const {
-  aDep.AddRequired<M2MCallGraph>();
-}
 }

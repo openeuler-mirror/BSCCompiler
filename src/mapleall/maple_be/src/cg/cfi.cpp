@@ -20,7 +20,7 @@ using maplebe::Operand;
 using maplebe::MOperator;
 using maplebe::CG;
 using maplebe::Emitter;
-using maplebe::OpndProp;
+using maplebe::OpndDesc;
 
 struct CfiDescr {
   const std::string name;
@@ -39,7 +39,7 @@ static CfiDescr cfiDescrTable[kOpCfiLast + 1] = {
 #undef ARM_DIRECTIVES_DEFINE
   { ".cfi_undef", 0, { Operand::kOpdUndef, Operand::kOpdUndef, Operand::kOpdUndef } }
 };
-#if TARGAARCH64 || TARGRISCV64
+
 void CfiInsn::Dump() const {
   MOperator mOp = GetMachineOpcode();
   CfiDescr &cfiDescr = cfiDescrTable[mOp];
@@ -52,58 +52,53 @@ void CfiInsn::Dump() const {
   LogInfo::MapleLogger() << "\n";
 }
 
-bool CfiInsn::Check() const {
+#if defined(DEBUG) && DEBUG
+void CfiInsn::Check() const {
   CfiDescr &cfiDescr = cfiDescrTable[GetMachineOpcode()];
   /* cfi instruction's 3rd /4th/5th operand must be null */
   for (uint32 i = 0; i < static_cast<uint32>(cfiDescr.opndCount); ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.GetKind() != cfiDescr.opndTypes[i]) {
-      ASSERT(false, "incorrect operand");
-      return false;
+      CHECK_FATAL(false, "incorrect operand in cfi insn");
     }
   }
-  return true;
 }
-
 #endif
-
-void RegOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop [[maybe_unused]]) const {
-  emitter.Emit(regNO);
-}
 
 void RegOperand::Dump() const {
   LogInfo::MapleLogger() << "reg: " << regNO << "[ size: " << GetSize() << "] ";
-}
-
-void ImmOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *prop [[maybe_unused]]) const {
-  emitter.Emit(val);
 }
 
 void ImmOperand::Dump() const {
   LogInfo::MapleLogger() << "imm: " << val << "[ size: " << GetSize() << "] ";
 }
 
-void StrOperand::Emit(maplebe::Emitter &emitter, const maplebe::OpndProp *opndProp) const {
-  (void)opndProp;
-  emitter.Emit(str);
-}
-
 void StrOperand::Dump() const {
   LogInfo::MapleLogger() << str;
 }
 
-void LabelOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
-  (void)opndProp;
+void LabelOperand::Dump() const {
+  LogInfo::MapleLogger() << "label:" << labelIndex;
+}
+void CFIOpndEmitVisitor::Visit(RegOperand *v) {
+  emitter.Emit(v->GetRegisterNO());
+}
+void CFIOpndEmitVisitor::Visit(ImmOperand *v) {
+  emitter.Emit(v->GetValue());
+}
+void CFIOpndEmitVisitor::Visit(SymbolOperand *v) {
+  CHECK_FATAL(false, "NIY");
+}
+void CFIOpndEmitVisitor::Visit(StrOperand *v) {
+  emitter.Emit(v->GetStr());
+}
+void CFIOpndEmitVisitor::Visit(LabelOperand *v) {
   if (emitter.GetCG()->GetMIRModule()->IsCModule()) {
     PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
     const char *idx = strdup(std::to_string(pIdx).c_str());
-    emitter.Emit(".label.").Emit(idx).Emit("__").Emit(labelIndex);
+    emitter.Emit(".label.").Emit(idx).Emit("__").Emit(v->GetIabelIdx());
   } else {
-    emitter.Emit(".label.").Emit(parentFunc).Emit(labelIndex);
+    emitter.Emit(".label.").Emit(v->GetParentFunc()).Emit(v->GetIabelIdx());
   }
-}
-
-void LabelOperand::Dump() const {
-  LogInfo::MapleLogger() << "label:" << labelIndex;
 }
 }  /* namespace cfi */

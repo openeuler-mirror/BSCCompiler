@@ -154,7 +154,7 @@ void AnalyzeRC::IdentifyRCStmts() {
         if (lhsRef->GetMeOp() == kMeOpVar) {
           // insert a decref statement
           UnaryMeStmt *decrefStmt = irMap.CreateUnaryMeStmt(
-              OP_decref, GetZeroVersionVarMeExpr(static_cast<const VarMeExpr&>(*lhsRef)), &bb, &stmt.GetSrcPosition());
+              OP_decref, GetZeroVersionVarMeExpr(static_cast<const VarMeExpr&>(*lhsRef)), &bb, stmt.GetSrcPosition());
           // insertion position is before stmt
           bb.InsertMeStmtBefore(&stmt, decrefStmt);
         } else {
@@ -177,7 +177,7 @@ void AnalyzeRC::IdentifyRCStmts() {
             }
             ASSERT(xit != iass.GetChiList()->end(), "IdentifyRCStmts: failed to find corresponding chi node");
             UnaryMeStmt *decrefStmt = irMap.CreateUnaryMeStmt(
-                OP_decref, irMap.HashMeExpr(ivarMeExpr), &bb, &stmt.GetSrcPosition());
+                OP_decref, irMap.HashMeExpr(ivarMeExpr), &bb, stmt.GetSrcPosition());
             // insertion position is before stmt
             bb.InsertMeStmtBefore(&stmt, decrefStmt);
             ost = GetOriginalSt(*decrefStmt->GetOpnd());
@@ -470,7 +470,7 @@ bool MEAnalyzeRC::PhaseRun(maple::MeFunction &f) {
   if (!MeOption::noDelegateRC && MeOption::rcLowering && MeOption::optLevel > 0) {
     GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MEDelegateRC::id, f);
   }
-  if (!MeOption::noCondBasedRC && !(f.GetHints() & kPlacementRCed) &&
+  if (!MeOption::noCondBasedRC && (f.GetHints() & kPlacementRCed) == 0 &&
       MeOption::rcLowering && MeOption::optLevel > 0) {
     GetAnalysisInfoHook()->ForceRunTransFormPhase<MeFuncOptTy, MeFunction>(&MECondBasedRC::id, f);
   }

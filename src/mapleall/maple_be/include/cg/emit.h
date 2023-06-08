@@ -234,7 +234,8 @@ class Emitter {
     return *this;
   }
 
-  void InsertAnchor(std::string anchorName, int64 offset); // provide anchor in specific postion for better assembly
+  // provide anchor in specific postion for better assembly
+  void InsertAnchor(const std::string &anchorName, int64 offset);
   void EmitLabelRef(LabelIdx labIdx);
   void EmitStmtLabel(LabelIdx labIdx);
   void EmitLabelPair(const LabelPair &pairLabel);
@@ -339,7 +340,9 @@ class Emitter {
         localStrPtr(cg.GetMIRModule()->GetMPAllocator().Adapter()),
         hugeSoTargets(cg.GetMIRModule()->GetMPAllocator().Adapter()),
         labdie2labidxTable(std::less<DBGDie*>(), cg.GetMIRModule()->GetMPAllocator().Adapter()),
-        fileMap(std::less<uint32_t>(), cg.GetMIRModule()->GetMPAllocator().Adapter()) {
+        fileMap(std::less<uint32_t>(), cg.GetMIRModule()->GetMPAllocator().Adapter()),
+        globalTlsDataVec(cg.GetMIRModule()->GetMPAllocator().Adapter()),
+        globalTlsBssVec(cg.GetMIRModule()->GetMPAllocator().Adapter()) {
     outStream.open(fileName, std::ios::trunc);
     MIRModule &mirModule = *cg.GetMIRModule();
     memPool = mirModule.GetMemPool();
@@ -355,7 +358,7 @@ class Emitter {
   void EmitAddressString(const std::string &address);
   void EmitAliasAndRef(const MIRSymbol &sym); // handle function symbol which has alias and weak ref
   // collect all global TLS together -- better perfomance for local dynamic
-  void EmitTLSBlock(const std::vector<MIRSymbol*> &tdataVec, const std::vector<MIRSymbol*> &tbssVec);
+  void EmitTLSBlock(const MapleVector<MIRSymbol*> &tdataVec, const MapleVector<MIRSymbol*> &tbssVec);
 
   CG *cg;
   MOperator currentMop = UINT_MAX;
@@ -363,7 +366,7 @@ class Emitter {
   const AsmInfo *asmInfo = nullptr;
   std::ofstream outStream;
   MemPool *memPool = nullptr;
-  uint32 arraySize;
+  size_t arraySize;
   bool isFlexibleArray;
   MapleSet<UStrIdx> stringPtr;
   MapleVector<UStrIdx> localStrPtr;
@@ -378,8 +381,8 @@ class Emitter {
   MapleMap<uint32_t, std::string> fileMap;
 
   // for global warmup localDynamicOpt
-  std::vector<MIRSymbol*> globalTlsDataVec;
-  std::vector<MIRSymbol*> globalTlsBssVec;
+  MapleVector<MIRSymbol*> globalTlsDataVec;
+  MapleVector<MIRSymbol*> globalTlsBssVec;
 };
 
 class OpndEmitVisitor : public OperandVisitorBase,

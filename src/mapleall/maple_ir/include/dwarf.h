@@ -16,6 +16,8 @@
 #ifndef MAPLE_IR_INCLUDE_DWARF_H
 #define MAPLE_IR_INCLUDE_DWARF_H
 
+#include <cstdint>
+
 enum Tag : uint16_t {
 #define DW_TAG(ID, NAME) DW_TAG_##NAME = (ID),
 #include "dwarf.def"
@@ -48,7 +50,8 @@ enum TypeKind : uint8_t {
 #define DW_ATE(ID, NAME) DW_ATE_##NAME = (ID),
 #include "dwarf.def"
   DW_ATE_lo_user = 0x80,
-  DW_ATE_hi_user = 0xff
+  DW_ATE_hi_user = 0xff,
+  DW_ATE_void = 0x20
 };
 
 enum AccessAttribute {

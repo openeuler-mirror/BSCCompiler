@@ -36,7 +36,7 @@ class ClassLoaderInfo {
 
 class ClassLoaderContext {
  public:
-  ClassLoaderContext(MemPool &mpIn) : mp(mpIn) {}
+  explicit ClassLoaderContext(MemPool &mpIn) : mp(mpIn) {}
   virtual ~ClassLoaderContext() {
     loaderChain = nullptr;
   }

@@ -67,8 +67,8 @@ class X64CG : public CG {
     return mp.New<X64Standardize>(f);
   }
 
-  CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f) const override {
-    return mp.New<X64CFGOptimizer>(f, mp);
+  CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f, LoopAnalysis &loop) const override {
+    return mp.New<X64CFGOptimizer>(f, mp, loop);
   }
 
   Rematerializer *CreateRematerializer(MemPool &mp) const override {
@@ -89,9 +89,10 @@ class X64CG : public CG {
   /* NOTE: Consider making be_common a field of CG. */
   void GenerateObjectMaps(BECommon &beCommon) override;
 
-  AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const override {
+  AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f, LoopAnalysis &loop) const override {
     (void)mp;
     (void)f;
+    (void)loop;
     return nullptr;
   }
   /* Init SubTarget optimization */

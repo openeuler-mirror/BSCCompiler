@@ -125,6 +125,7 @@ extern maplecl::Option<bool> alignAnalysis;
 extern maplecl::Option<bool> cgSsa;
 extern maplecl::Option<bool> layoutColdPath;
 extern maplecl::Option<bool> globalSchedule;
+extern maplecl::Option<bool> localSchedule;
 extern maplecl::Option<bool> calleeEnsureParam;
 extern maplecl::Option<bool> common;
 extern maplecl::Option<bool> condbrAlign;
@@ -133,13 +134,15 @@ extern maplecl::Option<uint32_t> alignMaxBbSize;
 extern maplecl::Option<uint32_t> loopAlignPow;
 extern maplecl::Option<uint32_t> jumpAlignPow;
 extern maplecl::Option<uint32_t> funcAlignPow;
+extern maplecl::Option<uint32_t> coldPathThreshold;
 extern maplecl::Option<bool> litePgoGen;
 extern maplecl::Option<std::string> litePgoOutputFunc;
-extern maplecl::Option<std::string> instrumentationFile;
+extern maplecl::Option<std::string> instrumentationDir;
 extern maplecl::Option<std::string> litePgoWhiteList;
 extern maplecl::Option<std::string> litePgoFile;
 extern maplecl::Option<std::string> functionPriority;
 extern maplecl::Option<bool> litePgoVerify;
+extern maplecl::Option<bool> optimizedFrameLayout;
 }
 
 #endif /* MAPLE_BE_INCLUDE_CG_OPTIONS_H */

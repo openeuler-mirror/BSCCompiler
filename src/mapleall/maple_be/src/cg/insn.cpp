@@ -57,6 +57,9 @@ bool Insn::IsShift() const {
 bool Insn::IsCall() const {
   return md ? md->IsCall() : false;
 }
+bool Insn::IsSpecialCall() const {
+  return md ? md->IsSpecialCall() : false;
+}
 bool Insn::IsTailCall() const {
   return md ? md->IsTailCall() : false;
 }
@@ -318,7 +321,7 @@ void Insn::Dump() const {
     Operand &opnd = GetOperand(i);
     LogInfo::MapleLogger() << " (opnd" << i << ": ";
     Globals::GetInstance()->GetTarget()->DumpTargetOperand(opnd, *md->GetOpndDes(i));
-    if (md->GetOpndDes(i)->IsVectorOperand() && IsVectorOp() && GetRegSpecList().size()) {
+    if (md->GetOpndDes(i)->IsVectorOperand() && IsVectorOp() && GetRegSpecList().size() != 0) {
       LogInfo::MapleLogger() << " ";
       (*(vectorRegSpecIter++))->Dump();
     }

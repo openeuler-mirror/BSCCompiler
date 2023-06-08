@@ -36,7 +36,9 @@ class SSATab : public AnalysisResult {
         stmtsSSAPart(versMp),
         defBBs4Ost(16, nullptr, versAlloc.Adapter()) {}
 
-  ~SSATab() = default;
+  ~SSATab() override {
+    func = nullptr;
+  }
 
   BaseNode *CreateSSAExpr(BaseNode *expr);
   void CreateSSAStmt(StmtNode &stmt, const BB *curbb);
@@ -213,7 +215,7 @@ class SSATab : public AnalysisResult {
   void CollectIterNextLevel(size_t vstIdx, OstPtrSet &resultOsts);
  private:
   MIRModule &mirModule;
-  MeFunction *func;
+  MeFunction *func = nullptr;
   MapleAllocator versAlloc;
   VersionStTable versionStTable;  // this uses special versMp because it will be freed earlier
   OriginalStTable originalStTable;

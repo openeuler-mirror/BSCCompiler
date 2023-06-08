@@ -247,6 +247,8 @@ class MIRFunction {
     return funcAttrs.GetAttr(FUNCATTR_inline);
   }
 
+  bool IsGnuInline() const;
+
   bool IsExtern() const {
     return funcAttrs.GetAttr(FUNCATTR_extern);
   }
@@ -656,7 +658,7 @@ class MIRFunction {
       pregTab = module->GetMemPool()->New<MIRPregTable>(&module->GetMPAllocator());
     }
   }
-  
+
   const MIRPreg *GetPregItem(PregIdx idx) const {
     return pregTab->PregFromPregIdx(idx);
   }
@@ -1343,6 +1345,14 @@ class MIRFunction {
     ReleaseCodeMemory();
   }
 
+  void SetWithSrc(bool var) {
+    withSrc = var;
+  }
+
+  bool GetWithSrc() const {
+    return withSrc;
+  }
+
  private:
   MIRModule *module;     // the module that owns this function
   PUIdx puIdx = 0;           // the PU index of this function
@@ -1382,6 +1392,7 @@ class MIRFunction {
   bool referedRegsValid = false;
   bool hasVlaOrAlloca = false;
   bool withLocInfo = true;
+  bool withSrc = true;
   bool isVisited = false;   // only used in inline phase.
   bool isDirty = false;
   bool fromMpltInline = false;  // Whether this function is imported from mplt_inline file or not.

@@ -16,7 +16,7 @@
 #include "func_desc.h"
 #include "inline_analyzer.h"
 namespace maple {
-const std::map<std::string, FuncDesc> whiteList = {
+const std::map<std::string, FuncDesc> kWhitelist = {
 #include "func_desc.def"
 };
 
@@ -28,15 +28,15 @@ const FuncDesc &SideEffect::GetFuncDesc(MIRFunction &f) {
   if (!Options::sideEffectWhiteList) {
     return f.GetFuncDesc();
   }
-  auto it = whiteList.find(f.GetName());
-  if (it != whiteList.end()) {
+  auto it = kWhitelist.find(f.GetName());
+  if (it != kWhitelist.end()) {
     return it->second;
   }
   return f.GetFuncDesc();
 }
 
 const std::map<std::string, FuncDesc> &SideEffect::GetWhiteList() {
-  return whiteList;
+  return kWhitelist;
 }
 
 void SideEffect::ParamInfoUpdater(size_t vstIdx, const PI &calleeParamInfo) {

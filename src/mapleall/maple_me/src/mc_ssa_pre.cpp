@@ -111,14 +111,14 @@ void McSSAPre::DumpRGToFile() {
   LogInfo::MapleLogger().rdbuf(buf);
   rgFile.open(fileName, std::ios::trunc);
   rgFile << "digraph {\n";
-  for (uint32 i = 0; i < sink->pred.size(); i++) {
+  for (uint32 i = 0; i < sink->pred.size(); ++i) {
     RGNode *pre = sink->pred[i];
     rgFile << "real" << pre->id << " -> " << "\"sink\nmaxflow " << maxFlowValue << "\";\n";
   }
   MapleUnorderedMap<MeOccur*, RGNode*>::iterator it = occ2RGNodeMap.begin();
-  for (; it != occ2RGNodeMap.end(); it++) {
+  for (; it != occ2RGNodeMap.end(); ++it) {
     RGNode *rgNode = it->second;
-    for (uint32 i = 0; i < rgNode->pred.size(); i++) {
+    for (uint32 i = 0; i < rgNode->pred.size(); ++i) {
       RGNode *pre = rgNode->pred[i];
       if (pre != source) {
         if (pre->occ->GetOccType() == kOccPhiocc) {
@@ -189,7 +189,7 @@ bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> 
   } while (visitIdx != 1);
   // update cutSet with visited nodes lower than visitIdx
   if (visitIdx != 1) {
-    for (size_t i = visitIdx - 1; i > 0; i--) {
+    for (size_t i = visitIdx - 1; i > 0; --i) {
       cutSet.insert(curRoute->visits[i].node->id);
     }
   }
@@ -236,7 +236,7 @@ bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet
   } while (visitIdx != 1);
   // update cutSet with visited nodes lower than visitIdx
   if (visitIdx != 1) {
-    for (size_t i = visitIdx - 1; i > 0; i--) {
+    for (size_t i = visitIdx - 1; i > 0; --i) {
       cutSet.insert(curRoute->visits[i].node->id);
     }
   }
@@ -311,7 +311,7 @@ void McSSAPre::DetermineMinCut() {
   // remove duplicates in the cut to form mincut
   minCut.push_back(cut[0]);
   size_t duplicatedVisits = 0;
-  for (uint32 i = 1; i < maxFlowRoutes.size(); i++) {
+  for (uint32 i = 1; i < maxFlowRoutes.size(); ++i) {
     if (cut[i] != cut[i - 1]) {
       minCut.push_back(cut[i]);
     } else {
@@ -334,10 +334,10 @@ void McSSAPre::DetermineMinCut() {
 bool McSSAPre::VisitANode(RGNode &node, Route *route, std::vector<bool> &visitedNodes) {
   ASSERT(node.pred.size() != 0, "McSSAPre::VisitANode: no connection to source node");
   // if any pred is the source and there's capacity to reach it, return success
-  for (uint32 i = 0; i < node.pred.size(); i++) {
+  for (uint32 i = 0; i < node.pred.size(); ++i) {
     if (node.pred[i] == source && node.inEdgesCap[i] > node.usedCap[i]) {
       // if there is another pred never taken that also reaches source, use that instead
-      for (uint32 k = i + 1; k < node.pred.size(); k++) {
+      for (uint32 k = i + 1; k < node.pred.size(); ++k) {
         if (node.pred[k] == source && node.usedCap[k] == 0 && node.inEdgesCap[k] > 0) {
           route->visits.emplace_back(Visit(&node, k));
           return true;
@@ -480,7 +480,7 @@ void McSSAPre::AddSingleSink() {
   sink = perCandMemPool->New<RGNode>(&perCandAllocator, nextRGNodeId++, nullptr);
   size_t numToSink = 0;
   MapleUnorderedMap<MeOccur*, RGNode*>::iterator it = occ2RGNodeMap.begin();
-  for (; it != occ2RGNodeMap.end(); it++) {
+  for (; it != occ2RGNodeMap.end(); ++it) {
     if (it->first->GetOccType() != kOccReal) {
       continue;
     }

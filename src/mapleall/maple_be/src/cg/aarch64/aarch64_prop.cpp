@@ -76,7 +76,7 @@ void AArch64Prop::TargetProp(Insn &insn) {
   a64StrLdrProp.DoOpt();
 }
 
-void A64ConstProp::DoOpt() const {
+void A64ConstProp::DoOpt() {
   if (curInsn->GetMachineOpcode() == MOP_wmovri32 || curInsn->GetMachineOpcode() == MOP_xmovri64) {
     Operand &destOpnd = curInsn->GetOperand(kInsnFirstOpnd);
     CHECK_FATAL(destOpnd.IsRegister(), "must be reg operand");
@@ -213,7 +213,7 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch (sOp) {
         case BitShiftOperand::kShiftLSL: {
-          newVal = constVal + static_cast<int64>((static_cast<unsigned>(constVal)) << amount);
+          newVal = constVal + static_cast<int64>((static_cast<uint64>(constVal)) << amount);
           break;
         }
         case BitShiftOperand::kShiftLSR: {
@@ -244,15 +244,15 @@ MOperator A64ConstProp::GetFoldMopAndVal(int64 &newVal, int64 constVal, const In
       BitShiftOperand::ShiftOp sOp = shiftOpnd.GetShiftOp();
       switch (sOp) {
         case BitShiftOperand::kShiftLSL: {
-          newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal)) << amount);
+          newVal = constVal - static_cast<int64>((static_cast<uint64>(constVal)) << amount);
           break;
         }
         case BitShiftOperand::kShiftLSR: {
-          newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal) >> amount));
+          newVal = constVal - static_cast<int64>((static_cast<uint64>(constVal) >> amount));
           break;
         }
         case BitShiftOperand::kShiftASR: {
-          newVal = constVal - static_cast<int64>((static_cast<unsigned>(constVal) >> amount));
+          newVal = constVal - static_cast<int64>((static_cast<uint64>(constVal) >> amount));
           break;
         }
         default:
@@ -297,7 +297,7 @@ bool A64ConstProp::MovConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd)
 }
 
 bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUInfo,
-                                               ImmOperand &constOpnd, ArithmeticType aT) const {
+                                               ImmOperand &constOpnd, ArithmeticType aT) {
   MOperator curMop = useInsn.GetMachineOpcode();
   MOperator newMop = GetRegImmMOP(curMop, false);
   auto useOpndInfoIt = useDUInfo.GetOperands().cbegin();
@@ -317,11 +317,8 @@ bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUI
   if (newInsn == nullptr && (aT == kAArch64Add || aT == kAArch64Sub)) {
     auto *tempImm = static_cast<ImmOperand*>(constOpnd.Clone(*constPropMp));
     /* try aarch64 imm shift mode */
-    tempImm->SetValue(static_cast<uint64>(tempImm->GetValue()) >> 12);
-    if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd) &&
-        CGOptions::GetInstance().GetOptimizeLevel() < static_cast<int32>(CGOptions::kLevel0)) {
-      ASSERT(false, "NIY");
-    }
+    tempImm->SetValue(static_cast<int64>(static_cast<uint64>(tempImm->GetValue()) >> 12));
+    // ISSUE233: It can prop after 12 shifts to the right.
     auto *zeroImm = &(static_cast<AArch64CGFunc*>(cgFunc)->
       CreateImmOperand(0, constOpnd.GetSize(), true));
     /* value in immOpnd is signed */
@@ -351,7 +348,7 @@ bool A64ConstProp::ArithConstReplaceForOneOpnd(Insn &useInsn, DUInsnInfo &useDUI
   return true;
 }
 
-bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT) const {
+bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, ImmOperand &constOpnd, ArithmeticType aT) {
   Insn *useInsn = useDUInfo.GetInsn();
   CHECK_FATAL(useInsn != nullptr, "get useInsn failed");
   if (useDUInfo.GetOperands().size() == 1) {
@@ -432,7 +429,7 @@ bool A64ConstProp::ShiftConstReplace(DUInsnInfo &useDUInfo, const ImmOperand &co
   return false;
 }
 
-bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) const {
+bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
   MOperator curMop = useDUInfo.GetInsn()->GetMachineOpcode();
   switch (curMop) {
     case MOP_xmovrr:
@@ -1820,7 +1817,7 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
       }
       if (destReg.IsSSAForm() && srcReg.IsSSAForm()) {
         if (destReg.GetSize() != srcReg.GetSize()) {
-          VaildateImplicitCvt(destReg, srcReg, insn);
+          ValidateImplicitCvt(destReg, srcReg, insn);
           return false;
         }
         if (destReg.GetValidBitsNum() >= srcReg.GetValidBitsNum()) {
@@ -1915,7 +1912,7 @@ void CopyRegProp::Optimize(Insn &insn) {
   }
 }
 
-void CopyRegProp::VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) {
+void CopyRegProp::ValidateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) {
   ASSERT(movInsn.GetMachineOpcode() == MOP_xmovrr || movInsn.GetMachineOpcode() == MOP_wmovrr, "NIY explicit CVT");
   if (destReg.GetSize() == k64BitSize && srcReg.GetSize() == k32BitSize) {
     movInsn.SetMOP(AArch64CG::kMd[MOP_xuxtw64]);
@@ -1990,6 +1987,13 @@ bool FpSpConstProp::CheckCondition(Insn &insn) {
       ASSERT(fpSpBase == nullptr, " unexpect for both sp fp using ");
       fpSpBase = &a64CGFunc.GetOrCreatePhysicalRegisterOperand(RFP, k64BitSize, kRegTyInt);
     }
+    // vary reg prop
+    if (insn.GetMachineOpcode() == MOP_xaddrri12 || insn.GetMachineOpcode() == MOP_xsubrri12) {
+      auto &regOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      if (regOpnd1.IsOfVary()) {
+        fpSpBase = static_cast<RegOperand*>(regOpnd1.Clone(*a64CGFunc.GetMemoryPool()));
+      }
+    }
     if (fpSpBase == nullptr) {
       return false;
     }
@@ -2001,6 +2005,11 @@ bool FpSpConstProp::CheckCondition(Insn &insn) {
       }
     } else if (insn.GetMachineOpcode() == MOP_xsubrri12) {
       aT = kAArch64Sub;
+      auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+      // sub can not prop vary imm
+      if (immOpnd.GetVary() == kUnAdjustVary) {
+        return false;
+      }
       if (GetValidSSAInfo(insn.GetOperand(kInsnFirstOpnd))) {
         shiftOpnd = &static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
         return true;
@@ -2061,6 +2070,10 @@ void FpSpConstProp::PropInMem(DUInsnInfo &useDUInfo, Insn &useInsn) {
             useInsn.SetMemOpnd(newMem);
             useDUInfo.DecreaseDU(useOpndIt->first);
             replaced->CheckDeadUse(useInsn);
+            auto *newRegVersion = optSsaInfo->FindSSAVersion(newMem->GetBaseRegister()->GetRegisterNumber());
+            if (newRegVersion != nullptr) {
+              newRegVersion->AddUseInsn(*optSsaInfo, useInsn, useOpndIt->first);
+            }
           }
         }
       }
@@ -2092,6 +2105,10 @@ void FpSpConstProp::PropInArith(DUInsnInfo &useDUInfo, Insn &useInsn, Arithmetic
     }
     if (curVal.GetVary() == kUnAdjustVary || shiftOpnd->GetVary() == kUnAdjustVary) {
       newVal.SetVary(kUnAdjustVary);
+    }
+    // can not prop unvary imm to  sub
+    if (newVal.GetVary() == kUnAdjustVary && useInsn.GetMachineOpcode() == MOP_xsubrri12) {
+      return;
     }
     if (static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(useMop, &newVal, kInsnThirdOpnd)) {
       Insn &newInsn =
@@ -2321,10 +2338,23 @@ ImmOperand &A64ConstFoldPattern::GetNewImmOpnd(const ImmOperand &immOpnd, int64 
 }
 
 void A64ConstFoldPattern::ReplaceWithNewInsn(Insn &insn, const ImmOperand &immOpnd, int64 newImmVal) {
+  ASSERT(insn.GetOperand(kInsnThirdOpnd).IsImmediate(), "check this insn");
+  auto &useImmOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
   auto &a64Func = static_cast<AArch64CGFunc&>(cgFunc);
   MOperator curMop = insn.GetMachineOpcode();
   MOperator newMop = GetNewMop(newImmVal < 0, curMop);
+  VaryType resVaryType = kNotVary;
+  if (immOpnd.GetVary() == kUnAdjustVary && useImmOpnd.GetVary() == kUnAdjustVary) {
+    return;
+  }
+  if (immOpnd.GetVary() == kUnAdjustVary || useImmOpnd.GetVary() == kUnAdjustVary) {
+    resVaryType = kUnAdjustVary;
+  }
+  if (resVaryType == kUnAdjustVary && optType != kPositive) {
+    return;
+  }
   ImmOperand &newImmOpnd = GetNewImmOpnd(immOpnd, newImmVal);
+  newImmOpnd.SetVary(resVaryType);
   if (!a64Func.IsOperandImmValid(newMop, &newImmOpnd, kInsnThirdOpnd)) {
     return;
   }
@@ -2364,13 +2394,16 @@ int64 A64ConstFoldPattern::GetNewImmVal(const Insn &insn, const ImmOperand &defI
       newImmVal = -defImmOpnd.GetValue() - useImmOpnd.GetValue();
       break;
     case kLogicalAnd:
-      newImmVal = static_cast<uint64>(defImmOpnd.GetValue()) & static_cast<uint64>(useImmOpnd.GetValue());
+      newImmVal = static_cast<int64>(
+          static_cast<uint64>(defImmOpnd.GetValue()) & static_cast<uint64>(useImmOpnd.GetValue()));
       break;
     case kLogicalOrr:
-      newImmVal = static_cast<uint64>(defImmOpnd.GetValue()) | static_cast<uint64>(useImmOpnd.GetValue());
+      newImmVal = static_cast<int64>(
+          static_cast<uint64>(defImmOpnd.GetValue()) | static_cast<uint64>(useImmOpnd.GetValue()));
       break;
     case kLogicalEor:
-      newImmVal = static_cast<uint64>(defImmOpnd.GetValue()) ^ static_cast<uint64>(useImmOpnd.GetValue());
+      newImmVal = static_cast<int64>(
+          static_cast<uint64>(defImmOpnd.GetValue()) ^ static_cast<uint64>(useImmOpnd.GetValue()));
       break;
     default:
       CHECK_FATAL(false, "can not be here");
@@ -2381,8 +2414,14 @@ int64 A64ConstFoldPattern::GetNewImmVal(const Insn &insn, const ImmOperand &defI
 void A64ConstFoldPattern::Optimize(Insn &insn) {
   ASSERT(defInsn->GetOperand(kInsnThirdOpnd).IsImmediate(), "check this insn");
   auto &defImmOpnd = static_cast<ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+  ASSERT(insn.GetOperand(kInsnThirdOpnd).IsImmediate(), "check this insn");
+  auto &useImmOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
   int64 newImmVal = GetNewImmVal(insn, defImmOpnd);
   if (newImmVal == 0 && optType != kLogicalAnd && optType != kLogicalOrr && optType != kLogicalEor) {
+    // when one of the imm is unvary, should not do prop , 0 (unvary) will be adjust in frame finalize.
+    if (useImmOpnd.GetVary() == kUnAdjustVary || defImmOpnd.GetVary() == kUnAdjustVary) {
+      return;
+    }
     VRegVersion *dstVersion = optSsaInfo->FindSSAVersion(dstOpnd->GetRegisterNumber());
     VRegVersion *srcVersion = optSsaInfo->FindSSAVersion(srcOpnd->GetRegisterNumber());
     CHECK_FATAL(dstVersion != nullptr, "get dstVersion failed");

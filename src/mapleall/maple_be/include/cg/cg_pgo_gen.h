@@ -34,7 +34,7 @@ class CGProfGen {
   virtual void InstrumentBB(BB &bb, MIRSymbol &countTab, uint32 offset) = 0;
 
   static void CreateProfInitExitFunc(MIRModule &m);
-  static void CreateProfFileSym(MIRModule &m, const std::string &outputPath, const std::string &symName);
+  static void CreateProfFileSym(MIRModule &m, std::string &outputPath, const std::string &symName);
   static void CreateChildTimeSym(MIRModule &m, const std::string &symName);
  protected:
   CGFunc *f;

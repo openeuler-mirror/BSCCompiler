@@ -879,11 +879,11 @@ class AArch64CGFunc : public CGFunc {
   std::pair<MIRFunction*, MIRFuncType*> GetCalleeFunction(StmtNode &naryNode) const;
   Operand *GetSymbolAddressOpnd(const MIRSymbol &sym, int32 offset, bool useMem);
   void SelectStructMemcpy(RegOperand &destOpnd, RegOperand &srcOpnd, uint32 structSize);
-  void SelectStructCopy(MemOperand &destOpnd, MemOperand &srcOpnd, uint32 structSize);
+  void SelectStructCopy(MemOperand &destOpnd, const MemOperand &srcOpnd, uint32 structSize);
   Operand *GetAddrOpndWithBaseNode(const BaseNode &argExpr, const MIRSymbol &sym, uint32 offset,
                                    bool useMem = true);
   void GetAggregateDescFromAggregateNode(BaseNode &argExpr, AggregateDesc &aggDesc);
-  void SelectParamPreCopy(const BaseNode &argExpr, AggregateDesc &aggDesc, uint32 mirSize,
+  void SelectParamPreCopy(const BaseNode &argExpr, const AggregateDesc &aggDesc, uint32 mirSize,
                           int32 structCopyOffset, bool isArgUnused);
   void SelectParmListPreprocessForAggregate(BaseNode &argExpr, int32 &structCopyOffset,
                                             std::vector<ParamDesc> &argsDesc, bool isArgUnused);
@@ -967,8 +967,9 @@ class AArch64CGFunc : public CGFunc {
                                           AArch64isa::MemoryOrdering memOrd);
   MemOperand &CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset);
   std::string GenerateMemOpndVerbose(const Operand &src) const;
-  RegOperand *PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal, RegOperand &baseReg);
-  RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd);
+  RegOperand *PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal,
+                                     RegOperand &baseReg, VaryType varyType);
+  RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd, VaryType varyType);
   RegOperand *PrepareMemcpyParamOpnd(uint64 copySize, PrimType dType);
   Insn *AggtStrLdrInsert(bool bothUnion, Insn *lastStrLdr, Insn &newStrLdr);
   MemOperand &CreateMemOpndForStatic(const MIRSymbol &symbol, int64 offset, uint32 size, bool needLow12,

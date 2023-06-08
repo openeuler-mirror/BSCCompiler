@@ -54,6 +54,8 @@ enum MemSegmentKind : uint8 {
   /* local (auto) variables */
   kMsRefLocals,
   kMsLocals,
+  // segment which is accessed rarely
+  kMsCold,
   kMsSpillReg,
   /*
    * In between kMsLocals and MS_args_to_stackpass, we allocate
@@ -198,7 +200,7 @@ class MemLayout {
   SymbolAlloc *AssignLocationToSpillReg(regno_t vrNum, uint32 memByteSize) {
     auto *symLoc = CreateSymbolAlloc();
     symLoc->SetMemSegment(segSpillReg);
-    segSpillReg.SetSize(RoundUp(segSpillReg.GetSize(), memByteSize));
+    segSpillReg.SetSize(static_cast<uint32>(RoundUp(segSpillReg.GetSize(), memByteSize)));
     symLoc->SetOffset(segSpillReg.GetSize());
     segSpillReg.SetSize(segSpillReg.GetSize() + memByteSize);
     SetSpillRegLocInfo(vrNum, *symLoc);
@@ -222,6 +224,10 @@ class MemLayout {
 
   uint32 SizeOfArgsRegisterPassed() const {
     return segArgsRegPassed.GetSize();
+  }
+
+  uint32 GetSizeOfSegCold() const {
+    return segCold.GetSize();
   }
 
   BECommon &GetBECommon() {
@@ -273,6 +279,7 @@ class MemLayout {
   MemSegment segArgsStkPassed;
   MemSegment segArgsRegPassed;
   MemSegment segArgsToStkPass;
+  MemSegment segCold = MemSegment(kMsCold);
   MemSegment segSpillReg = MemSegment(kMsSpillReg);
   MapleVector<SymbolAlloc*> symAllocTable;  /* index is stindex from StIdx */
   MapleVector<SymbolAlloc*> spillLocTable;  /* index is preg idx */

@@ -169,7 +169,7 @@ class PEGBuilder {
   void UpdateAttributes() const;
   PtrValueRecorder BuildPEGNodeOfDread(const AddrofSSANode *dread) const;
   PtrValueRecorder BuildPEGNodeOfAddrof(const AddrofSSANode *addrof);
-  PtrValueRecorder BuildPEGNodeOfRegread(const RegreadSSANode *regread);
+  PtrValueRecorder BuildPEGNodeOfRegread(const RegreadSSANode *regread) const;
   PtrValueRecorder BuildPEGNodeOfIread(const IreadSSANode *iread);
   PtrValueRecorder BuildPEGNodeOfIaddrof(const IreadNode *iaddrof);
   PtrValueRecorder BuildPEGNodeOfAdd(const BinaryNode *binaryNode);

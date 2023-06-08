@@ -60,20 +60,20 @@ const std::string BCUtil::kADouble = "AD";
 const std::string BCUtil::kAJavaObjectName = "ALjava/lang/Object;";
 
 bool BCUtil::IsWideType(const GStrIdx &name) {
-  return name == GetDoubleIdx() || name == GetLongIdx();
+  return name == FEUtils::GetDoubleIdx() || name == FEUtils::GetLongIdx();
 }
 
 bool BCUtil::IsMorePrecisePrimitiveType(const GStrIdx &name0, const GStrIdx &name1) {
   static std::vector<GStrIdx> typeWidthMap = {
-      BCUtil::GetVoidIdx(),
-      BCUtil::GetBooleanIdx(),
-      BCUtil::GetByteIdx(),
-      BCUtil::GetCharIdx(),
-      BCUtil::GetShortIdx(),
-      BCUtil::GetIntIdx(),
-      BCUtil::GetFloatIdx(),
-      BCUtil::GetLongIdx(),
-      BCUtil::GetDoubleIdx()
+      FEUtils::GetVoidIdx(),
+      FEUtils::GetBooleanIdx(),
+      FEUtils::GetByteIdx(),
+      FEUtils::GetCharIdx(),
+      FEUtils::GetShortIdx(),
+      FEUtils::GetIntIdx(),
+      FEUtils::GetFloatIdx(),
+      FEUtils::GetLongIdx(),
+      FEUtils::GetDoubleIdx()
   };
   if (name0 == name1) {
     return false;
@@ -95,31 +95,31 @@ bool BCUtil::IsMorePrecisePrimitiveType(const GStrIdx &name0, const GStrIdx &nam
 }
 
 PrimType BCUtil::GetPrimType(const GStrIdx &typeNameIdx) {
-  if (typeNameIdx == BCUtil::GetBooleanIdx()) {
+  if (typeNameIdx == FEUtils::GetBooleanIdx()) {
     return PTY_u1;
   }
-  if (typeNameIdx == BCUtil::GetByteIdx()) {
+  if (typeNameIdx == FEUtils::GetByteIdx()) {
     return PTY_i8;
   }
-  if (typeNameIdx == BCUtil::GetShortIdx()) {
+  if (typeNameIdx == FEUtils::GetShortIdx()) {
     return PTY_i16;
   }
-  if (typeNameIdx == BCUtil::GetCharIdx()) {
+  if (typeNameIdx == FEUtils::GetCharIdx()) {
     return PTY_u16;
   }
-  if (typeNameIdx == BCUtil::GetIntIdx()) {
+  if (typeNameIdx == FEUtils::GetIntIdx()) {
     return PTY_i32;
   }
-  if (typeNameIdx == BCUtil::GetLongIdx()) {
+  if (typeNameIdx == FEUtils::GetLongIdx()) {
     return PTY_i64;
   }
-  if (typeNameIdx == BCUtil::GetFloatIdx()) {
+  if (typeNameIdx == FEUtils::GetFloatIdx()) {
     return PTY_f32;
   }
-  if (typeNameIdx == BCUtil::GetDoubleIdx()) {
+  if (typeNameIdx == FEUtils::GetDoubleIdx()) {
     return PTY_f64;
   }
-  if (typeNameIdx == BCUtil::GetVoidIdx()) {
+  if (typeNameIdx == FEUtils::GetVoidIdx()) {
     return PTY_void;
   }
   // Wide, Primitive, Agg

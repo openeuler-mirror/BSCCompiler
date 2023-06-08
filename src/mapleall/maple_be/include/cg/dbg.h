@@ -39,6 +39,8 @@ class DbgInsn : public maplebe::Insn {
  public:
   DbgInsn(MemPool &memPool, maplebe::MOperator op) : Insn(memPool, op) {}
 
+  DbgInsn(const DbgInsn& other) : maplebe::Insn(other) {}
+
   DbgInsn(MemPool &memPool, maplebe::MOperator op, maplebe::Operand &opnd0) : Insn(memPool, op, opnd0) {}
 
   DbgInsn(MemPool &memPool, maplebe::MOperator op, maplebe::Operand &opnd0, maplebe::Operand &opnd1)

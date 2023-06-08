@@ -361,7 +361,7 @@ class Dominance {
       PostOrderWalk(*suc, pid, visitedMap);
     }
     ASSERT(nodeId < postOrderIDVec.size(), "index out of range");
-    postOrderIDVec[nodeId] = pid++;
+    postOrderIDVec[nodeId] = static_cast<int32>(pid++);
   }
 
   void ComputeDtPreorder(const BaseGraphNode &node, size_t &num) {

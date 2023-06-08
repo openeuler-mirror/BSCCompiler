@@ -47,9 +47,8 @@
  ADDTARGETPHASE("clearrdinfo", (CGOptions::DoStoreLoadOpt()) || CGOptions::DoGlobalOpt());
 
  ADDTARGETPHASE("prepeephole1", CGOptions::DoPrePeephole());
- ADDTARGETPHASE("ebo1", CGOptions::DoEBO());
- ADDTARGETPHASE("globalschedule", false);
- ADDTARGETPHASE("prescheduling", !GetMIRModule()->IsJavaModule() && CGOptions::DoPreSchedule());
+ ADDTARGETPHASE("ebo", CGOptions::DoEBO());
+ ADDTARGETPHASE("globalschedule", GetMIRModule()->IsCModule() && CGOptions::DoGlobalSchedule());
  ADDTARGETPHASE("raopt", CGOptions::DoPreLSRAOpt());
  ADDTARGETPHASE("cgsplitcriticaledge", GetMIRModule()->IsCModule() && CGOptions::DoRegSavesOpt());
  ADDTARGETPHASE("regalloc", true);
@@ -65,12 +64,11 @@
  ADDTARGETPHASE("framefinalize", true);
  ADDTARGETPHASE("cfgo", GetMIRModule()->IsCModule() && CGOptions::DoCFGO());
  ADDTARGETPHASE("peephole0", CGOptions::DoPeephole());
- ADDTARGETPHASE("postebo", CGOptions::DoEBO());
+ ADDTARGETPHASE("ebo", CGOptions::DoEBO());
  ADDTARGETPHASE("postcfgo", CGOptions::DoCFGO());
  ADDTARGETPHASE("cgpostpeephole", CGOptions::DoPeephole());
  ADDTARGETPHASE("yieldpoint", GetMIRModule()->IsJavaModule() && CGOptions::IsInsertYieldPoint());
- ADDTARGETPHASE("localschedule", false);
- ADDTARGETPHASE("scheduling", CGOptions::DoSchedule());
+ ADDTARGETPHASE("localschedule", GetMIRModule()->IsCModule() && CGOptions::DoLocalSchedule());
  ADDTARGETPHASE("cgsplitcriticaledge", CGOptions::DoLiteProfGen());
  ADDTARGETPHASE("cgpgogen", CGOptions::DoLiteProfGen());
  ADDTARGETPHASE("cgpgouse", CGOptions::DoLiteProfUse());

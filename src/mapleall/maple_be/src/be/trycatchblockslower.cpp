@@ -717,7 +717,7 @@ void TryCatchBlocksLower::PalceCatchSeenSofar(BBT &insertAfter) {
           lastBB->SetLastStmt(*gotoStmt);
           lastBB->SetFallthruBranch(nullptr);
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
           CHECK_FATAL(body.GetLast()->GetNext() == nullptr, "the next of body's last should be nullptr");
           BBT::ValidateStmtList(bodyFirst);
 #endif
@@ -746,7 +746,7 @@ void TryCatchBlocksLower::PalceCatchSeenSofar(BBT &insertAfter) {
         jcb->GetFirstStmt()->SetPrev(nullptr);
         lastBB->GetLastStmt()->SetNext(nullptr);
 
-#if DEBUG
+#if defined(DEBUG) && DEBUG
         CHECK_FATAL(body.GetLast()->GetNext() == nullptr, "the next of body's last should be nullptr");
         BBT::ValidateStmtList(body.GetFirst(), jcb->GetFirstStmt());
 #endif
@@ -859,7 +859,7 @@ void TryCatchBlocksLower::TraverseBBList() {
       /* close the try that is open */
       tryEndTryBlock.SetStartTryBB(nullptr);
     }
-#if DEBUG
+#if defined(DEBUG) && DEBUG
     CHECK_FATAL(body.GetLast()->GetNext() == nullptr, "the next of body's last should be nullptr");
     BBT::ValidateStmtList(bodyFirst);
 #endif

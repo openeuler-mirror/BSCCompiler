@@ -282,9 +282,10 @@ std::string FEIRStmtAssign::DumpDotStringImpl() const {
 }
 
 // ---------- FEStmtDAssign ----------
-FEIRStmtDAssign::FEIRStmtDAssign(std::unique_ptr<FEIRVar> argVar, std::unique_ptr<FEIRExpr> argExpr, int32 argFieldID)
+FEIRStmtDAssign::FEIRStmtDAssign(std::unique_ptr<FEIRVar> argVar, std::unique_ptr<FEIRExpr> argExpr, int32 argFieldID,
+                                 int32 lenId)
     : FEIRStmtAssign(FEIRNodeKind::kStmtDAssign, std::move(argVar)),
-      fieldID(argFieldID) {
+      fieldID(argFieldID), lenFieldID(lenId) {
   SetExpr(std::move(argExpr));
 }
 
@@ -2198,7 +2199,8 @@ std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsForClintCheck(MIRBu
   return ans;
 }
 
-std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsForIntrnC(MIRBuilder &mirBuilder, TyIdx returnTyIdx) const {
+std::list<StmtNode*> FEIRStmtIntrinsicCallAssign::GenMIRStmtsForIntrnC(MIRBuilder &mirBuilder,
+                                                                       const TyIdx &returnTyIdx) const {
   std::list<StmtNode*> ans;
   MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
   if (exprList != nullptr) {
@@ -2615,7 +2617,7 @@ const FEIRType &FEIRExprDRead::GetTypeRefImpl() const {
 // ---------- FEIRExprIRead ----------
 std::unique_ptr<FEIRExpr> FEIRExprIRead::CloneImpl() const {
   std::unique_ptr<FEIRExprIRead> expr = std::make_unique<FEIRExprIRead>(type->Clone(), ptrType->Clone(),
-                                                                        fieldID, subExpr->Clone());
+                                                                        fieldID, lenFieldID, subExpr->Clone());
   return expr;
 }
 

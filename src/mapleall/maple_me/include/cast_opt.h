@@ -181,7 +181,7 @@ class MeCastOpt : public CastOpt {
   static MeExpr *SimplifyCastPair(IRMap &irMap, const MeExprCastInfo &firstCastInfo,
                                   const MeExprCastInfo &secondCastInfo);
   static MeExpr *SimplifyCastSingle(IRMap &irMap, const MeExprCastInfo &castInfo);
-  static MeExpr *TransformCvtU1ToNe(IRMap &irMap, OpMeExpr *cvtExpr);
+  static MeExpr *TransformCvtU1ToNe(IRMap &irMap, const OpMeExpr *cvtExpr);
 };
 
 class MapleCastOpt : public CastOpt {

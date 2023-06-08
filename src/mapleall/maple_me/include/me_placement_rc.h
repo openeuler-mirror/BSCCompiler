@@ -30,7 +30,7 @@ class PlacementRC : public MeSSUPre {
   // Step 6 methods
   UnaryMeStmt *GenIncrefAtEntry(OriginalSt &ost) const;
   UnaryMeStmt *GenerateDecrefreset(OStIdx ostIdx, BB &bb) const;
-  void CollectDecref(VarMeExpr *var, MeStmt *decrefStmt);
+  void CollectDecref(VarMeExpr *var, MeStmt *decrefStmt) const;
   void HandleThrowOperand(SRealOcc &realOcc, ThrowMeStmt &thwStmt);
   void CheckAndInsert(BB &bb, SOcc *occ);
   bool GoStraightToThrow(const BB &bb) const;
@@ -52,7 +52,7 @@ class PlacementRC : public MeSSUPre {
   void UpdateCatchBlocks2Insert(const BB &lastUseBB);
   void ReplaceOpndWithReg(MeExpr &opnd, BB &lastUseBB, const SRealOcc &realOcc, uint32 idx) const;
   void HandleCanInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt &decrefStmt, BB &lastUseBB);
-  void HandleCannotInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt &decrefStmt, BB &lastUseBB);
+  void HandleCannotInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt &decrefStmt, BB &lastUseBB) const;
   void CodeMotionForSLambdares(SLambdaResOcc &lambdaResOcc);
   void CodeMotionForReal(SOcc &occ, UnaryMeStmt *entryIncref);
   void SetNeedIncref(MeStmt &stmt) const;

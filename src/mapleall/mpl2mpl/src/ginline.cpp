@@ -133,6 +133,8 @@ void GInline::InsertNewCallSite(CallInfo &info, uint32 depth) {
   if (dumpDetail) {
     LogInfo::MapleLogger() << "Enqueue ";
     callsiteNode->Dump();
+    const char *hint = GetInlineFailedStr(info.GetInlineFailedCode());
+    LogInfo::MapleLogger() << ", " << hint;
     LogInfo::MapleLogger() << std::endl;
   }
 }

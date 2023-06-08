@@ -32,7 +32,7 @@ static int PrintHelpAndExit() {
   return 1;
 }
 
-void ParseCommandLine(int argc, char **argv) {
+static void ParseCommandLine(int argc, char **argv) {
   int opt;
   int gOptionIndex = 0;
   std::string optStr = "s:o:";
@@ -56,7 +56,7 @@ void ParseCommandLine(int argc, char **argv) {
   }
 }
 
-bool GenSchedFiles(const std::string &fileName, const std::string &fileDir) {
+static bool GenSchedFiles(const std::string &fileName, const std::string &fileDir) {
   maple::MemPool *schedInfoMemPool = memPoolCtrler.NewMemPool("schedInfoMp", false /* isLcalPool */);
   MDClassRange moduleData("Schedule");
   MDParser parser(moduleData, schedInfoMemPool);

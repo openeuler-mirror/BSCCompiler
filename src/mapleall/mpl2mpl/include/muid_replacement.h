@@ -112,12 +112,15 @@ class MUIDReplacement : public FuncOptimizeImpl {
   void ReplaceAddroffuncConst(MIRConst *&entry, uint32 fieldID, bool isVtab);
   void ReplaceFuncTable(const std::string &name);
   void ReplaceAddrofConst(MIRConst *&entry, bool muidIndex32Mod = false);
+  void ReplaceAddrofConstByCreatingNewIntConst(MIRAggConst &aggrC, uint32 i);
   void ReplaceDataTable(const std::string &name);
   void ReplaceDirectInvokeOrAddroffunc(MIRFunction &currentFunc, StmtNode &stmt);
+  ArrayNode *LoadSymbolPointer(const MIRSymbol &mirSymbol);
   void ReplaceDassign(MIRFunction &currentFunc, const DassignNode &dassignNode);
   void ReplaceDreadStmt(MIRFunction *currentFunc, StmtNode *stmt);
   void ClearVtabItab(const std::string &name);
   void ReplaceDecoupleKeyTable(MIRAggConst *oldConst);
+  bool IsMIRAggConstNull(MIRSymbol *tabSym) const;
   void ReplaceFieldTypeTable(const std::string &name);
   BaseNode *ReplaceDreadExpr(MIRFunction *currentFunc, StmtNode *stmt, BaseNode *expr);
   BaseNode *ReplaceDread(MIRFunction &currentFunc, const StmtNode *stmt, BaseNode *opnd);
@@ -139,6 +142,7 @@ class MUIDReplacement : public FuncOptimizeImpl {
   void ReplaceFieldMetaStaticAddr(const MIRSymbol &mirSymbol, uint32 index) const;
   void CollectFuncAndDataFromKlasses();
   void CollectFuncAndDataFromGlobalTab();
+  void HandleUndefFuncAndClassInfo(PUIdx puidx, StmtNode &stmt);
   void CollectFuncAndDataFromFuncList();
   void GenerateCompilerVersionNum();
   int64 GetDefOrUndefOffsetWithMask(uint64 offset, bool isDef, bool muidIndex32Mod = false) const;

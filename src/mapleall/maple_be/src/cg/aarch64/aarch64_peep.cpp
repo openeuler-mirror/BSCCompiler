@@ -19,6 +19,7 @@
 #include "cg_option.h"
 #include "aarch64_utils.h"
 #include "cg_irbuilder.h"
+#include "aarch64_cg.h"
 
 namespace maplebe {
 #define JAVALANG (cgFunc->GetMirModule().IsJavaModule())
@@ -149,6 +150,7 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_beq:
     case MOP_bne: {
       manager->Optimize<AndCmpBranchesToTbzPattern>(true);
+      manager->Optimize<AndAndCmpBranchesToTstPattern>(true);
       break;
     }
     case MOP_wcsetrc:
@@ -261,20 +263,6 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
   return manager->OptSuccess();
 }
 
-bool ContinuousCmpCsetPattern::CheckCondCode(const CondOperand &condOpnd) const {
-  switch (condOpnd.GetCode()) {
-    case CC_NE:
-    case CC_EQ:
-    case CC_LT:
-    case CC_GE:
-    case CC_GT:
-    case CC_LE:
-      return true;
-    default:
-      return false;
-  }
-}
-
 bool ContinuousCmpCsetPattern::CheckCondition(Insn &insn) {
   MOperator curMop = insn.GetMachineOpcode();
   if (curMop != MOP_wcsetrc && curMop != MOP_xcsetrc) {
@@ -312,7 +300,7 @@ bool ContinuousCmpCsetPattern::CheckCondition(Insn &insn) {
     return false;
   }
   auto &condOpnd1 = static_cast<CondOperand&>(prevCsetInsn1->GetOperand(kInsnSecondOpnd));
-  if (!CheckCondCode(condOpnd1)) {
+  if (!AArch64isa::CheckCondCode(condOpnd1)) {
     return false;
   }
   auto &ccReg1 = static_cast<RegOperand&>(prevCsetInsn1->GetOperand(kInsnThirdOpnd));
@@ -337,7 +325,7 @@ void ContinuousCmpCsetPattern::Run(BB &bb, Insn &insn) {
   if (reverse) {
     MOperator prevCsetMop = prevCsetInsn1->GetMachineOpcode();
     auto &prevCsetCondOpnd = static_cast<CondOperand&>(prevCsetInsn1->GetOperand(kInsnSecondOpnd));
-    CondOperand &newCondOpnd = aarFunc->GetCondOperand(GetReverseCC(prevCsetCondOpnd.GetCode()));
+    CondOperand &newCondOpnd = aarFunc->GetCondOperand(AArch64isa::GetReverseCC(prevCsetCondOpnd.GetCode()));
     regno_t tmpRegNO = 0;
     auto *tmpDefOpnd = aarFunc->CreateVirtualRegisterOperand(tmpRegNO,
         resOpnd.GetSize(), static_cast<RegOperand&>(resOpnd).GetRegisterType());
@@ -750,7 +738,7 @@ bool CselToCsetPattern::IsOpndDefByZero(const Insn &insn) const {
     case MOP_wmovri32:
     case MOP_xmovri64: {
       auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
-      return immOpnd.GetValue() == 0;
+      return immOpnd.IsZero();
     }
     default:
       return false;
@@ -763,10 +751,67 @@ bool CselToCsetPattern::IsOpndDefByOne(const Insn &insn) const {
     return false;
   }
   auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  return immOpnd.GetValue() == 1;
+  return immOpnd.IsOne();
+}
+
+bool CselToCsetPattern::IsOpndDefByAllOnes(const Insn &insn) const {
+  MOperator movMop = insn.GetMachineOpcode();
+  if ((movMop != MOP_wmovri32) && (movMop != MOP_xmovri64)) {
+    return false;
+  }
+  bool is32Bits = (insn.GetOperandSize(kInsnFirstOpnd) == k32BitSize);
+  auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  return immOpnd.IsAllOnes() || (is32Bits && immOpnd.IsAllOnes32bit()) ;
+}
+
+bool CselToCsetPattern::CheckZeroCondition(const Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop != MOP_wcselrrrc && curMop != MOP_xcselrrrc) {
+    return false;
+  }
+  RegOperand &useReg1 = static_cast<RegOperand &>(insn.GetOperand(kInsnSecondOpnd));
+  RegOperand &useReg2 = static_cast<RegOperand &>(insn.GetOperand(kInsnThirdOpnd));
+  if ((useReg1.GetRegisterNumber() == RZR && useReg2.GetRegisterNumber() == RZR) ||
+      (useReg1.GetRegisterNumber() != RZR && useReg2.GetRegisterNumber() != RZR)) {
+    return false;
+  }
+  isZeroBefore = (useReg1.GetRegisterNumber() == RZR);
+  useReg = isZeroBefore ? &useReg2 : &useReg1;
+  if (ssaInfo) {
+    prevMovInsn = ssaInfo->GetDefInsn(*useReg);
+  } else {
+    prevMovInsn = insn.GetPreviousMachineInsn();
+  }
+  if (prevMovInsn == nullptr) {
+    return false;
+  }
+  MOperator prevMop = prevMovInsn->GetMachineOpcode();
+  if (prevMop != MOP_wmovri32 && prevMop != MOP_xmovri64) {
+    return false;
+  }
+  if (prevMovInsn->GetOperandSize(kInsnFirstOpnd) != insn.GetOperandSize(kInsnFirstOpnd)) {
+    return false;
+  }
+  if (!ssaInfo && (useReg->GetRegisterNumber() !=
+                   static_cast<RegOperand &>(prevMovInsn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber())) {
+    return false;
+  }
+  ImmOperand &immOpnd = static_cast<ImmOperand &>(prevMovInsn->GetOperand(kInsnSecondOpnd));
+  isOne = immOpnd.IsOne();
+  isAllOnes = (prevMop == MOP_xmovri64 && immOpnd.IsAllOnes()) || (prevMop == MOP_wmovri32 && immOpnd.IsAllOnes32bit());
+  if (!isOne && !isAllOnes) {
+    return false;
+  }
+  return true;
 }
 
 bool CselToCsetPattern::CheckCondition(Insn &insn) {
+  if (CheckZeroCondition(insn)) {
+    return true;
+  }
+  if (!ssaInfo) {
+    return false;
+  }
   MOperator curMop = insn.GetMachineOpcode();
   if (curMop != MOP_wcselrrrc && curMop != MOP_xcselrrrc) {
     return false;
@@ -794,28 +839,94 @@ bool CselToCsetPattern::CheckCondition(Insn &insn) {
   return true;
 }
 
+Insn *CselToCsetPattern::BuildCondSetInsn(const Insn &cselInsn) const {
+  RegOperand &dest = static_cast<RegOperand &>(cselInsn.GetOperand(kInsnFirstOpnd));
+  bool is32Bits = (cselInsn.GetOperandSize(kInsnFirstOpnd) == k32BitSize);
+  ConditionCode ccCode = static_cast<CondOperand &>(cselInsn.GetOperand(kInsnFourthOpnd)).GetCode();
+  ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
+  AArch64CGFunc *func = static_cast<AArch64CGFunc *>(cgFunc);
+  Operand &rflag = func->GetOrCreateRflag();
+  if (isZeroBefore) {
+    CondOperand &cond = func->GetCondOperand(AArch64isa::GetReverseCC(ccCode));
+    if (isOne) {
+      return &cgFunc->GetInsnBuilder()->BuildInsn((is32Bits ? MOP_wcsetrc : MOP_xcsetrc), dest, cond, rflag);
+    } else if (isAllOnes) {
+      return &cgFunc->GetInsnBuilder()->BuildInsn((is32Bits ? MOP_wcsetmrc : MOP_xcsetmrc), dest, cond, rflag);
+    }
+  } else {
+    CondOperand &cond = func->GetCondOperand(ccCode);
+    if (isOne) {
+      return &cgFunc->GetInsnBuilder()->BuildInsn((is32Bits ? MOP_wcsetrc : MOP_xcsetrc), dest, cond, rflag);
+    } else if (isAllOnes) {
+      return &cgFunc->GetInsnBuilder()->BuildInsn((is32Bits ? MOP_wcsetmrc : MOP_xcsetmrc), dest, cond, rflag);
+    }
+  }
+  return nullptr;
+}
+
+void CselToCsetPattern::ZeroRun(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  Insn *newInsn = BuildCondSetInsn(insn);
+  if (newInsn == nullptr) {
+    return;
+  }
+  bb.ReplaceInsn(insn, *newInsn);
+  if (ssaInfo) {
+    // update ssa info
+    ssaInfo->ReplaceInsn(insn, *newInsn);
+  } else if (static_cast<RegOperand &>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber() ==
+             useReg->GetRegisterNumber()) {
+    bb.RemoveInsn(*prevMovInsn);
+  }
+  optSuccess = true;
+  SetCurrInsn(newInsn);
+  // dump pattern info
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn *> prevs;
+    prevs.emplace_back(prevMovInsn);
+    DumpAfterPattern(prevs, &insn, newInsn);
+  }
+}
+
 void CselToCsetPattern::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
   }
+  if (CheckZeroCondition(insn)) {
+    ZeroRun(bb, insn);
+    return;
+  }
   Operand &dstOpnd = insn.GetOperand(kInsnFirstOpnd);
-  MOperator newMop = (dstOpnd.GetSize() == k64BitSize ? MOP_xcsetrc : MOP_wcsetrc);
+  uint32 dstOpndSize = insn.GetOperandSize(kInsnFirstOpnd);
+  MOperator newMop = MOP_undef;
   Operand &condOpnd = insn.GetOperand(kInsnFourthOpnd);
   Operand &rflag = insn.GetOperand(kInsnFifthOpnd);
   Insn *newInsn = nullptr;
-  if (IsOpndDefByOne(*prevMovInsn1) && IsOpndDefByZero(*prevMovInsn2)) {
+  if (IsOpndDefByZero(*prevMovInsn2)) {
+    if (IsOpndDefByOne(*prevMovInsn1)) {
+      newMop = (dstOpndSize == k64BitSize ? MOP_xcsetrc : MOP_wcsetrc);
+    } else if (IsOpndDefByAllOnes(*prevMovInsn1)) {
+      newMop = (dstOpndSize == k64BitSize ? MOP_xcsetmrc : MOP_wcsetmrc);
+    }
     newInsn = &(cgFunc->GetInsnBuilder()->BuildInsn(newMop, dstOpnd, condOpnd, rflag));
-  } else if (IsOpndDefByZero(*prevMovInsn1) && IsOpndDefByOne(*prevMovInsn2)) {
+  } else if (IsOpndDefByZero(*prevMovInsn1)) {
     auto &origCondOpnd = static_cast<CondOperand&>(condOpnd);
-    ConditionCode inverseCondCode = GetReverseCC(origCondOpnd.GetCode());
+    ConditionCode inverseCondCode = AArch64isa::GetReverseCC(origCondOpnd.GetCode());
     if (inverseCondCode == kCcLast) {
       return;
     }
     auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
     CondOperand &inverseCondOpnd = aarFunc->GetCondOperand(inverseCondCode);
+    if (IsOpndDefByOne(*prevMovInsn2)) {
+      newMop = (dstOpndSize == k64BitSize ? MOP_xcsetrc : MOP_wcsetrc);
+    } else if (IsOpndDefByAllOnes(*prevMovInsn1)) {
+      newMop = (dstOpndSize == k64BitSize ? MOP_xcsetmrc : MOP_wcsetmrc);
+    }
     newInsn = &(cgFunc->GetInsnBuilder()->BuildInsn(newMop, dstOpnd, inverseCondOpnd, rflag));
   }
-  if (newInsn == nullptr) {
+  if (newMop == MOP_undef || newInsn == nullptr) {
     return;
   }
   bb.ReplaceInsn(insn, *newInsn);
@@ -1018,14 +1129,107 @@ void AndCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
+bool AndAndCmpBranchesToTstPattern::CheckAndSelectPattern(const Insn &currInsn) {
+  MOperator curMop = currInsn.GetMachineOpcode();
+  MOperator prevAndMop = prevAndInsn->GetMachineOpcode();
+  MOperator prevPrevAndMop = prevPrevAndInsn->GetMachineOpcode();
+  if (prevAndMop != prevPrevAndMop) {
+    return false;
+  }
+  auto &prevAndImmOpnd = static_cast<ImmOperand&>(prevAndInsn->GetOperand(kInsnThirdOpnd));
+  auto &prevPrevAndImmOpnd = static_cast<ImmOperand&>(prevPrevAndInsn->GetOperand(kInsnThirdOpnd));
+  if (prevAndImmOpnd.GetValue() == prevPrevAndImmOpnd.GetValue() &&
+      ((static_cast<uint64>(prevAndImmOpnd.GetValue()) & static_cast<uint64>(prevAndImmOpnd.GetValue() + 1)) == 0) &&
+      ((static_cast<uint64>(prevPrevAndImmOpnd.GetValue()) &
+       static_cast<uint64>(prevPrevAndImmOpnd.GetValue() + 1)) == 0)) {
+    bool isWOrX = (prevAndMop == MOP_wandrri12 && prevPrevAndMop == MOP_wandrri12);
+    newEorMop = isWOrX ? MOP_weorrrr : MOP_xeorrrr;
+    tstImmVal = prevAndImmOpnd.GetValue();
+    switch (curMop) {
+      case MOP_bne:
+        newTstMop = isWOrX ? MOP_wtstri32 : MOP_xtstri64;
+        break;
+      default:
+        return false;
+    }
+    return true;
+  }
+  return false;
+}
+bool AndAndCmpBranchesToTstPattern::CheckCondition(Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop != MOP_bne) {
+    return false;
+  }
+  auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  prevCmpInsn = ssaInfo->GetDefInsn(ccReg);
+  if (prevCmpInsn == nullptr) {
+    return false;
+  }
+  MOperator prevCmpMop = prevCmpInsn->GetMachineOpcode();
+  if (prevCmpMop != MOP_wcmprr && prevCmpMop != MOP_xcmprr) {
+    return false;
+  }
+  auto &cmpFirstReg = static_cast<RegOperand&>(prevCmpInsn->GetOperand(kInsnSecondOpnd));
+  auto &cmpSecondReg = static_cast<RegOperand&>(prevCmpInsn->GetOperand(kInsnThirdOpnd));
+  prevAndInsn = ssaInfo->GetDefInsn(cmpSecondReg);
+  prevPrevAndInsn = ssaInfo->GetDefInsn(cmpFirstReg);
+  if (prevAndInsn == nullptr || prevPrevAndInsn == nullptr) {
+    return false;
+  }
+  MOperator prevAndMop = prevAndInsn->GetMachineOpcode();
+  if (prevAndMop != MOP_wandrri12 && prevAndMop != MOP_xandrri13) {
+    return false;
+  }
+  MOperator prevPrevAndMop = prevPrevAndInsn->GetMachineOpcode();
+  if (prevPrevAndMop != MOP_wandrri12 && prevPrevAndMop != MOP_xandrri13) {
+    return false;
+  }
+  if (!CheckAndSelectPattern(insn)) {
+    return false;
+  }
+  return true;
+}
+void AndAndCmpBranchesToTstPattern ::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  auto *a64Func = static_cast<AArch64CGFunc*>(cgFunc);
+  regno_t tmpRegNO = 0;
+  Operand &andOpnd = prevAndInsn->GetOperand(kInsnSecondOpnd);
+  auto *tmpDefOpnd = a64Func->CreateVirtualRegisterOperand(tmpRegNO, andOpnd.GetSize(),
+                                                           static_cast<RegOperand&>(andOpnd).GetRegisterType());
+  Insn &newEorInsn = cgFunc->GetInsnBuilder()->BuildInsn(newEorMop, *tmpDefOpnd,
+                                                         prevPrevAndInsn->GetOperand(kInsnSecondOpnd),
+                                                         prevAndInsn->GetOperand(kInsnSecondOpnd));
+  BB *preCmpBB = prevCmpInsn->GetBB();
+  (void)preCmpBB->InsertInsnBefore(*prevCmpInsn, newEorInsn);
+  /* update ssa info */
+  ssaInfo->CreateNewInsnSSAInfo(newEorInsn);
+  ImmOperand &tstImmOpnd = a64Func->CreateImmOperand(tstImmVal, k8BitSize, false);
+  Insn &newTstInsn = cgFunc->GetInsnBuilder()->BuildInsn(newTstMop, prevCmpInsn->GetOperand(kInsnFirstOpnd),
+                                                         newEorInsn.GetOperand(kInsnFirstOpnd), tstImmOpnd);
+  bb.ReplaceInsn(*prevCmpInsn, newTstInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(*prevCmpInsn, newTstInsn);
+  optSuccess = true;
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevPrevAndInsn);
+    prevs.emplace_back(prevAndInsn);
+    prevs.emplace_back(prevCmpInsn);
+    DumpAfterPattern(prevs, &newEorInsn, &newTstInsn);
+  }
+}
 bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
   MOperator currMop = currInsn.GetMachineOpcode();
-  MOperator prevMop = prevInsn->GetMachineOpcode();
+  MOperator prevMop = preInsn->GetMachineOpcode();
   switch (prevMop) {
     case MOP_wcmpri:
     case MOP_xcmpri: {
-      regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
-      auto &immOpnd = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+      regOpnd = &static_cast<RegOperand&>(preInsn->GetOperand(kInsnSecondOpnd));
+      auto &immOpnd = static_cast<ImmOperand&>(preInsn->GetOperand(kInsnThirdOpnd));
       if (immOpnd.GetValue() != 0) {
         return false;
       }
@@ -1043,15 +1247,15 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
     }
     case MOP_wcmprr:
     case MOP_xcmprr: {
-      auto &regOpnd0 = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
-      auto &regOpnd1 = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+      auto &regOpnd0 = static_cast<RegOperand&>(preInsn->GetOperand(kInsnSecondOpnd));
+      auto &regOpnd1 = static_cast<RegOperand&>(preInsn->GetOperand(kInsnThirdOpnd));
       if (!IsZeroRegister(regOpnd0) && !IsZeroRegister(regOpnd1)) {
         return false;
       }
       switch (currMop) {
         case MOP_bge:
           if (IsZeroRegister(regOpnd1)) {
-            regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+            regOpnd = &static_cast<RegOperand&>(preInsn->GetOperand(kInsnSecondOpnd));
             newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbz : MOP_xtbz;
           } else {
             return false;
@@ -1059,7 +1263,7 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
           break;
         case MOP_ble:
           if (IsZeroRegister(regOpnd0)) {
-            regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+            regOpnd = &static_cast<RegOperand&>(preInsn->GetOperand(kInsnThirdOpnd));
             newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbz : MOP_xtbz;
           } else {
             return false;
@@ -1067,7 +1271,7 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
           break;
         case MOP_blt:
           if (IsZeroRegister(regOpnd1)) {
-            regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+            regOpnd = &static_cast<RegOperand&>(preInsn->GetOperand(kInsnSecondOpnd));
             newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbnz : MOP_xtbnz;
           } else {
             return false;
@@ -1075,7 +1279,7 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
           break;
         case MOP_bgt:
           if (IsZeroRegister(regOpnd0)) {
-            regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+            regOpnd = &static_cast<RegOperand&>(preInsn->GetOperand(kInsnThirdOpnd));
             newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbnz : MOP_xtbnz;
           } else {
             return false;
@@ -1099,11 +1303,11 @@ bool ZeroCmpBranchesToTbzPattern::CheckCondition(Insn &insn) {
   }
   CHECK_FATAL(insn.GetOperand(kInsnSecondOpnd).IsLabel(), "must be labelOpnd");
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  prevInsn = ssaInfo->GetDefInsn(ccReg);
-  if (prevInsn == nullptr) {
+  preInsn = ssaInfo->GetDefInsn(ccReg);
+  if (preInsn == nullptr) {
     return false;
   }
-  MOperator prevMop = prevInsn->GetMachineOpcode();
+  MOperator prevMop = preInsn->GetMachineOpcode();
   if (prevMop != MOP_wcmpri && prevMop != MOP_xcmpri && prevMop != MOP_wcmprr && prevMop != MOP_xcmprr) {
     return false;
   }
@@ -1131,15 +1335,15 @@ void ZeroCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
-    prevs.emplace_back(prevInsn);
+    prevs.emplace_back(preInsn);
     DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }
 
-bool LsrAndToUbfxPattern::CheckIntersectedCondition(Insn &insn, Insn &prevInsn) {
+bool LsrAndToUbfxPattern::CheckIntersectedCondition(const Insn &insn) {
   MOperator curMop = insn.GetMachineOpcode();
-  MOperator prevMop = prevInsn.GetMachineOpcode();
-  int64 lsb = static_cast<ImmOperand&>(prevInsn.GetOperand(kInsnThirdOpnd)).GetValue();
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  int64 lsb = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd)).GetValue();
   int64 width = __builtin_popcountll(static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue());
   if (lsb + width <= k32BitSize) {
     return true;
@@ -1171,7 +1375,7 @@ bool LsrAndToUbfxPattern::CheckCondition(Insn &insn) {
     return false;
   }
   if (((curMop == MOP_wandrri12 && prevMop == MOP_xlsrrri6) || (curMop == MOP_xandrri13 && prevMop == MOP_wlsrrri5)) &&
-    !CheckIntersectedCondition(insn, *prevInsn)) {
+    !CheckIntersectedCondition(insn)) {
     return false;
   }
   auto &andDstReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
@@ -1520,6 +1724,16 @@ bool CombineSameArithmeticPattern::CheckCondition(Insn &insn) {
   int64 curImm = curImmOpnd.GetValue();
   newImmOpnd = &aarFunc->CreateImmOperand(prevImmOpnd.GetValue() + curImmOpnd.GetValue(),
                                           curImmOpnd.GetSize(), curImmOpnd.IsSignedValue());
+  // prop vary attr
+  if (prevImmOpnd.GetVary() == kUnAdjustVary && curImmOpnd.GetVary() == kUnAdjustVary) {
+    return false;
+  }
+  if (prevImmOpnd.GetVary() == kUnAdjustVary || curImmOpnd.GetVary() == kUnAdjustVary) {
+    newImmOpnd->SetVary(kUnAdjustVary);
+  }
+  if (prevImmOpnd.GetVary() == kAdjustVary || curImmOpnd.GetVary() == kAdjustVary) {
+    newImmOpnd->SetVary(kAdjustVary);
+  }
   switch (curMop) {
     case MOP_wlsrrri5:
     case MOP_wasrrri5:
@@ -2314,8 +2528,13 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
      * execute before RA: manager->NormalPatternOpt<>(!cgFunc->IsAfterRegAlloc())
      * execute after RA: manager->NormalPatternOpt<>(cgFunc->IsAfterRegAlloc())
      */
+    case MOP_wubfxrri5i5: {
+      manager->NormalPatternOpt<UbfxAndCbzToTbzPattern>(!cgFunc->IsAfterRegAlloc());
+      break;
+    }
     case MOP_xubfxrri6i6: {
       manager->NormalPatternOpt<UbfxToUxtwPattern>(!cgFunc->IsAfterRegAlloc());
+      manager->NormalPatternOpt<UbfxAndCbzToTbzPattern>(!cgFunc->IsAfterRegAlloc());
       break;
     }
     case MOP_xmovzri16: {
@@ -2427,6 +2646,11 @@ void AArch64CGPeepHole::DoNormalOptimize(BB &bb, Insn &insn) {
     case MOP_xaddrri12:
     case MOP_xsubrri12: {
       manager->NormalPatternOpt<AddSubMergeLdStPattern>(cgFunc->IsAfterRegAlloc());
+      break;
+    }
+    case MOP_wcselrrrc:
+    case MOP_xcselrrrc: {
+      manager->NormalPatternOpt<CselToCsetPattern>(cgFunc->IsAfterRegAlloc());
       break;
     }
     default:
@@ -2855,7 +3079,7 @@ void CombineContiLoadAndStorePattern::Run(BB &bb, Insn &insn) {
     MemOperand *combineMemOpnd = (curOfstVal < prevOfstVal) ? curMemOpnd : prevMemOpnd;
     if (IsValidNormalLoadOrStorePattern(insn, *prevContiInsn, *curMemOpnd, curOfstVal, prevOfstVal)) {
       /* Process normal mem pair */
-      MOperator newMop = GetNewMemMop(insn.GetMachineOpcode());
+      MOperator newMop = GetMopPair(insn.GetMachineOpcode(), true);
       Insn *combineInsn = GenerateMemPairInsn(newMop, curDestOpnd, prevDestOpnd, *combineMemOpnd,
                                               curOfstVal < prevOfstVal);
       ASSERT(combineInsn != nullptr, "create combineInsn failed");
@@ -2928,7 +3152,7 @@ Insn *CombineContiLoadAndStorePattern::GenerateMemPairInsn(MOperator newMop, Reg
     combineInsn = (isCurDestFirst) ? &cgFunc->GetInsnBuilder()->BuildInsn(newMop, curDestOpnd,
                                                                           prevDestOpnd, combineMemOpnd) :
                                      &cgFunc->GetInsnBuilder()->BuildInsn(newMop, prevDestOpnd,
-                                                                        curDestOpnd, combineMemOpnd);
+                                                                          curDestOpnd, combineMemOpnd);
   } else { /* for strb/strh --> strh/str, curDestOpnd == preDestOpnd */
     combineInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, curDestOpnd, combineMemOpnd);
     combineMemOpnd.SetSize(newMop == MOP_wstrh ? maplebe::k16BitSize : maplebe::k32BitSize);
@@ -3008,38 +3232,6 @@ bool CombineContiLoadAndStorePattern::IsValidStackArgLoadOrStorePattern(const In
   return false;
 }
 
-MOperator CombineContiLoadAndStorePattern::GetNewMemMop(MOperator mop) const {
-  switch (mop) {
-    case MOP_xldr:
-      return MOP_xldp;
-    case MOP_wldr:
-      return MOP_wldp;
-    case MOP_xstr:
-      return MOP_xstp;
-    case MOP_wstr:
-      return MOP_wstp;
-    case MOP_dldr:
-      return MOP_dldp;
-    case MOP_qldr:
-      return MOP_qldp;
-    case MOP_sldr:
-      return MOP_sldp;
-    case MOP_dstr:
-      return MOP_dstp;
-    case MOP_sstr:
-      return MOP_sstp;
-    case MOP_qstr:
-      return MOP_qstp;
-    case MOP_wstrb:
-      return MOP_wstrh;
-    case MOP_wstrh:
-      return MOP_wstr;
-    default:
-      ASSERT(false, "should not run here");
-      return MOP_undef;
-  }
-}
-
 void CombineContiLoadAndStorePattern::RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) const {
   /* keep the comment */
   Insn *nn = prevInsn.GetNextMachineInsn();
@@ -3083,8 +3275,7 @@ void EliminateSpecifcSXTPattern::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   auto &regOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto &regOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  if (&insn != bb.GetFirstInsn() && regOpnd0.GetRegisterNumber() == regOpnd1.GetRegisterNumber() &&
-      prevInsn->IsMachineInstruction()) {
+  if (regOpnd0.GetRegisterNumber() == regOpnd1.GetRegisterNumber() && prevInsn->IsMachineInstruction()) {
     if (prevInsn->GetMachineOpcode() == MOP_wmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
       auto &dstMovOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
       if (dstMovOpnd.GetRegisterNumber() != regOpnd1.GetRegisterNumber()) {
@@ -3155,20 +3346,6 @@ void EliminateSpecifcUXTPattern::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   auto &regOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto &regOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  if (prevInsn->IsCall() &&
-      prevInsn->GetIsCallReturnUnsigned() &&
-      regOpnd0.GetRegisterNumber() == regOpnd1.GetRegisterNumber() &&
-      (regOpnd1.GetRegisterNumber() == R0 || regOpnd1.GetRegisterNumber() == V0)) {
-    uint32 retSize = prevInsn->GetRetSize();
-    if (retSize > 0 &&
-        ((thisMop == MOP_xuxtb32 && retSize <= k1ByteSize) ||
-         (thisMop == MOP_xuxth32 && retSize <= k2ByteSize) ||
-         (thisMop == MOP_xuxtw64 && retSize <= k4ByteSize))) {
-      bb.RemoveInsn(insn);
-      optSuccess = true;
-    }
-    return;
-  }
   if (&insn == bb.GetFirstInsn() || regOpnd0.GetRegisterNumber() != regOpnd1.GetRegisterNumber() ||
       !prevInsn->IsMachineInstruction()) {
     return;
@@ -4864,7 +5041,7 @@ bool AddSubMergeLdStPattern::CheckCondition(Insn &insn) {
   return isAddSubFront || isLdStFront;
 }
 
-bool AddSubMergeLdStPattern::CheckIfCanBeMerged(Insn *adjacentInsn, Insn &insn) {
+bool AddSubMergeLdStPattern::CheckIfCanBeMerged(const Insn *adjacentInsn, const Insn &insn) {
   if (adjacentInsn == nullptr || adjacentInsn->IsVectorOp() || (!adjacentInsn->AccessMem())) {
     return false;
   }
@@ -4937,8 +5114,8 @@ void AddSubMergeLdStPattern::Run(BB &bb, Insn &insn) {
     if (insnUseReg->GetRegisterNumber() == RSP) {
       newInsn->SetStackDef(true);
     }
-    (void)bb.ReplaceInsn(*insnToBeReplaced, *newInsn);
-    (void)bb.RemoveInsn(insn);
+    bb.ReplaceInsn(*insnToBeReplaced, *newInsn);
+    bb.RemoveInsn(insn);
   }
 }
 
@@ -4968,8 +5145,12 @@ void UbfxAndCbzToTbzPattern::Run(BB& /* bb */, Insn &insn) {
   Insn *newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, opnd2, imm3, label);
   BB *useInsnBB = useInsn->GetBB();
   useInsnBB->ReplaceInsn(*useInsn, *newInsn);
-  /* update ssa info */
-  ssaInfo->ReplaceInsn(*useInsn, *newInsn);
+  if (ssaInfo) {
+    // update ssa info
+    ssaInfo->ReplaceInsn(*useInsn, *newInsn);
+  } else {
+    useInsnBB->RemoveInsn(insn);
+  }
   optSuccess = true;
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -4981,13 +5162,25 @@ void UbfxAndCbzToTbzPattern::Run(BB& /* bb */, Insn &insn) {
 bool UbfxAndCbzToTbzPattern::CheckCondition(Insn &insn) {
   ImmOperand &imm4 = static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
   RegOperand &opnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  InsnSet useInsns = GetAllUseInsn(opnd1);
-  if (useInsns.size() != 1) {
-    return false;
+  if (ssaInfo) {
+    InsnSet useInsns = GetAllUseInsn(opnd1);
+    if (useInsns.size() != 1) {
+      return false;
+    }
+    useInsn = *useInsns.begin();
+  } else {
+    useInsn = insn.GetNextMachineInsn();
   }
-  useInsn = *useInsns.begin();
   if (useInsn == nullptr) {
     return false;
+  }
+  if (!ssaInfo) {
+    regno_t regNO1 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+    regno_t regNO2 = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+    if ((regNO1 != regNO2) ||
+        IfOperandIsLiveAfterInsn(static_cast<RegOperand &>(insn.GetOperand(kInsnFirstOpnd)), *useInsn)) {
+      return false;
+    }
   }
   if (imm4.GetValue() == 1) {
     switch (useInsn->GetMachineOpcode()) {

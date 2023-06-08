@@ -22,9 +22,9 @@ namespace maplebe {
 
 class GlobalSchedule : public BaseSchedule {
  public:
-  GlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, InterDataDepAnalysis &idda)
-      : BaseSchedule(mp, f, cdAna), interDDA(idda) {}
-  virtual ~GlobalSchedule() = default;
+  GlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cdAna, DataDepAnalysis &dda)
+      : BaseSchedule(mp, f, cdAna), interDDA(dda) {}
+  ~GlobalSchedule() override = default;
 
   std::string PhaseName() const {
     return "globalschedule";
@@ -41,9 +41,11 @@ class GlobalSchedule : public BaseSchedule {
   virtual void InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp) = 0;
   virtual void FinishScheduling(CDGNode &cdgNode) = 0;
   void ClearCDGNodeInfo(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp);
-  void DumpInsnInfoByScheduledOrder(BB &curBB) const override {};
+  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override {
+    (void)cdgNode;
+  }
 
-  InterDataDepAnalysis &interDDA;
+  DataDepAnalysis &interDDA;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgGlobalSchedule, maplebe::CGFunc)

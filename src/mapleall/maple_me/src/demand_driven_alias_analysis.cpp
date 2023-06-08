@@ -170,7 +170,7 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfDread(const AddrofSSANode
   return PtrValueRecorder(pegNode, 0, OffsetType(0));
 }
 
-PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfRegread(const RegreadSSANode *regread) {
+PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfRegread(const RegreadSSANode *regread) const {
   auto *vst = regread->GetSSAVar();
   if (vst->GetOst()->IsSpecialPreg()) {
     return PtrValueRecorder(nullptr, 0, OffsetType(0));
@@ -1007,12 +1007,12 @@ void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
       auto *nextLevOstOfTo = nextLevNodeOfTo->vst->GetOst();
       OffsetType offsetStartA = OffsetFromPrevLevNode(nextLevNodeOfTo) + offset;
       OffsetType offsetEndA = static_cast<OffsetType>(offsetStartA +
-          nextLevOstOfTo->GetType()->GetSize() * kBitNumInOneByte);
+          static_cast<int64>(nextLevOstOfTo->GetType()->GetSize() * kBitNumInOneByte));
       for (auto *nextLevNodeOfSrc : srcNode->nextLevNodes) {
         auto *nextLevOstOfSrc = nextLevNodeOfSrc->vst->GetOst();
         OffsetType offsetStartB = OffsetFromPrevLevNode(nextLevNodeOfSrc);
         OffsetType offsetEndB = static_cast<OffsetType>(offsetStartB +
-            nextLevOstOfSrc->GetType()->GetSize() * kBitNumInOneByte);
+            static_cast<int64>(nextLevOstOfSrc->GetType()->GetSize() * kBitNumInOneByte));
         if (MemOverlapAccordingOffset(offsetStartA, offsetEndA, offsetStartB, offsetEndB)) {
           AddAlias(nextLevOstOfTo, nextLevOstOfSrc);
           for (const auto &reachItem : *ReachSetOf(nextLevNodeOfSrc)) {

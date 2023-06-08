@@ -13,174 +13,205 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "aarch64_cg.h"
-#include "aarch64_operand.h"
 #include "pressure.h"
-#include "cg_irbuilder.h"     
+#include "cg_irbuilder.h"
 #include "aarch64_data_dep_base.h"
 
-
-/* For building dependence graph, The entry is AArch64DataDepBase::Run. */
 namespace maplebe {
-void AArch64DataDepBase::InitCDGNodeDataInfo(MemPool &mp, MapleAllocator &alloc, CDGNode &cdgNode) {
-  uint32 maxRegNum = (cgFunc.IsAfterRegAlloc() ? AArch64reg::kAllRegNum : cgFunc.GetMaxVReg());
-  cdgNode.InitDataDepInfo(mp, alloc, maxRegNum);
-}
-
-void AArch64DataDepBase::ReplaceDepNodeWithNewInsn(DepNode &firstNode, DepNode &secondNode, Insn& newInsn,
-                                                   bool isFromClinit) const {
-  if (isFromClinit) {
-    firstNode.AddClinitInsn(*firstNode.GetInsn());
-    firstNode.AddClinitInsn(*secondNode.GetInsn());
-    firstNode.SetCfiInsns(secondNode.GetCfiInsns());
-  } else {
-    for (Insn *insn : secondNode.GetCfiInsns()) {
-      firstNode.AddCfiInsn(*insn);
-    }
-    for (Insn *insn : secondNode.GetComments()) {
-      firstNode.AddComments(*insn);
-    }
-    secondNode.ClearComments();
-  }
-  firstNode.SetInsn(newInsn);
-  Reservation *rev = mad.FindReservation(newInsn);
-  CHECK_FATAL(rev != nullptr, "reservation is nullptr.");
-  firstNode.SetReservation(*rev);
-  firstNode.SetUnits(rev->GetUnit());
-  firstNode.SetUnitNum(rev->GetUnitNum());
-  newInsn.SetDepNode(firstNode);
-}
-
-void AArch64DataDepBase::ClearDepNodeInfo(DepNode &depNode) const {
-  Insn &insn = cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_pseudo_none);
-  insn.SetDepNode(depNode);
-  Reservation *seRev = mad.FindReservation(insn);
-  depNode.SetInsn(insn);
-  depNode.SetType(kNodeTypeEmpty);
-  depNode.SetReservation(*seRev);
-  depNode.SetUnitNum(0);
-  depNode.ClearCfiInsns();
-  depNode.SetUnits(nullptr);
-}
-
-/* Combine (adrpldr & clinit_tail) to clinit. */
-void AArch64DataDepBase::CombineClinit(DepNode &firstNode, DepNode &secondNode, bool isAcrossSeparator) {
-  ASSERT(firstNode.GetInsn()->GetMachineOpcode() == MOP_adrp_ldr, "first insn should be adrpldr");
-  ASSERT(secondNode.GetInsn()->GetMachineOpcode() == MOP_clinit_tail, "second insn should be clinit_tail");
-  ASSERT(firstNode.GetCfiInsns().empty(), "There should not be any comment/cfi instructions between clinit.");
-  ASSERT(secondNode.GetComments().empty(), "There should not be any comment/cfi instructions between clinit.");
-  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(
-      MOP_clinit, firstNode.GetInsn()->GetOperand(0), firstNode.GetInsn()->GetOperand(1));
-  newInsn.SetId(firstNode.GetInsn()->GetId());
-  /* Replace first node with new insn. */
-  ReplaceDepNodeWithNewInsn(firstNode, secondNode, newInsn, true);
-  /* Clear second node information. */
-  ClearDepNodeInfo(secondNode);
-  CombineDependence(firstNode, secondNode, isAcrossSeparator);
-}
-
 /*
- * Combine memory access pair:
- *   1.ldr to ldp.
- *   2.str to stp.
+ * It is a yield point if loading from a dedicated
+ * register holding polling page address:
+ * ldr  wzr, [RYP]
  */
-void AArch64DataDepBase::CombineMemoryAccessPair(DepNode &firstNode, DepNode &secondNode, bool useFirstOffset) {
-  ASSERT(firstNode.GetInsn(), "the insn of first Node should not be nullptr");
-  ASSERT(secondNode.GetInsn(), "the insn of second Node should not be nullptr");
-  MOperator thisMop = firstNode.GetInsn()->GetMachineOpcode();
-  MOperator mopPair = GetMopPair(thisMop);
-  ASSERT(mopPair != 0, "mopPair should not be zero");
-  Operand *opnd0 = nullptr;
-  Operand *opnd1 = nullptr;
-  Operand *opnd2 = nullptr;
-  if (useFirstOffset) {
-    opnd0 = &(firstNode.GetInsn()->GetOperand(0));
-    opnd1 = &(secondNode.GetInsn()->GetOperand(0));
-    opnd2 = &(firstNode.GetInsn()->GetOperand(1));
-  } else {
-    opnd0 = &(secondNode.GetInsn()->GetOperand(0));
-    opnd1 = &(firstNode.GetInsn()->GetOperand(0));
-    opnd2 = &(secondNode.GetInsn()->GetOperand(1));
+static bool IsYieldPoint(const Insn &insn) {
+  if (insn.IsLoad() && !insn.IsLoadLabel()) {
+    auto mem = static_cast<MemOperand*>(insn.GetMemOpnd());
+    return (mem != nullptr && mem->GetBaseRegister() != nullptr && mem->GetBaseRegister()->GetRegisterNumber() == RYP);
   }
-  Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mopPair, *opnd0, *opnd1, *opnd2);
-  newInsn.SetId(firstNode.GetInsn()->GetId());
-  std::string newComment;
-  const MapleString &comment = firstNode.GetInsn()->GetComment();
-  if (comment.c_str() != nullptr) {
-    newComment += comment.c_str();
-  }
-  const MapleString &secondComment = secondNode.GetInsn()->GetComment();
-  if (secondComment.c_str() != nullptr) {
-    newComment += "  ";
-    newComment += secondComment.c_str();
-  }
-  if ((newComment.c_str() != nullptr) && (strlen(newComment.c_str()) > 0)) {
-    newInsn.SetComment(newComment);
-  }
-  /* Replace first node with new insn. */
-  ReplaceDepNodeWithNewInsn(firstNode, secondNode, newInsn, false);
-  /* Clear second node information. */
-  ClearDepNodeInfo(secondNode);
-  CombineDependence(firstNode, secondNode, false, true);
+  return false;
+}
+
+static bool IsLazyLoad(MOperator op) {
+  return (op == MOP_lazy_ldr) || (op == MOP_lazy_ldr_static) || (op == MOP_lazy_tail);
 }
 
 bool AArch64DataDepBase::IsFrameReg(const RegOperand &opnd) const {
   return (opnd.GetRegisterNumber() == RFP) || (opnd.GetRegisterNumber() == RSP);
 }
 
-MemOperand *AArch64DataDepBase::BuildNextMemOperandByByteSize(const MemOperand &aarchMemOpnd, uint32 byteSize) const {
-  MemOperand *nextMemOpnd = nullptr;
-  RegOperand *nextBaseReg = aarchMemOpnd.GetBaseRegister();
-  CHECK_NULL_FATAL(nextBaseReg);
-  ImmOperand *offsetOperand = static_cast<ImmOperand*>(aarchMemOpnd.GetOffset());
-  int32 offsetVal = offsetOperand ? static_cast<int32>(offsetOperand->GetValue()) : 0;
-  int32 nextOffVal = offsetVal + static_cast<int32>(byteSize);
-  ImmOperand *nextOffOperand = memPool.New<ImmOperand>(nextOffVal, k32BitSize, true);
-  CHECK_NULL_FATAL(nextOffOperand);
-  nextMemOpnd = memPool.New<MemOperand>(aarchMemOpnd.GetSize(), *nextBaseReg,
-                                        *nextOffOperand, aarchMemOpnd.GetAddrMode());
-  return nextMemOpnd;
+void AArch64DataDepBase::InitCDGNodeDataInfo(MemPool &mp, MapleAllocator &alloc, CDGNode &cdgNode) {
+  uint32 maxRegNum = (cgFunc.IsAfterRegAlloc() ? AArch64reg::kAllRegNum : cgFunc.GetMaxVReg());
+  cdgNode.InitDataDepInfo(mp, alloc, maxRegNum);
 }
 
-/* Get the second memory access operand of stp/ldp instructions. */
-MemOperand *AArch64DataDepBase::GetNextMemOperand(const Insn &insn, const MemOperand &aarchMemOpnd) const {
-  MemOperand *nextMemOpnd = nullptr;
-  switch (insn.GetMachineOpcode()) {
-    case MOP_wldp:
-    case MOP_sldp:
-    case MOP_xldpsw:
-    case MOP_wstp:
-    case MOP_sstp: {
-      nextMemOpnd = BuildNextMemOperandByByteSize(aarchMemOpnd, k4ByteSize);
-      break;
-    }
-    case MOP_xldp:
-    case MOP_dldp:
-    case MOP_xstp:
-    case MOP_dstp: {
-      nextMemOpnd = BuildNextMemOperandByByteSize(aarchMemOpnd, k8ByteSize);
-      break;
-    }
-    default:
-      break;
+// Simply distinguish irrelevant stack memory
+bool AArch64DataDepBase::NeedBuildDepsForStackMem(const Insn &memInsn1, const Insn &memInsn2) const {
+  auto *memOpnd1 = static_cast<MemOperand*>(memInsn1.GetMemOpnd());
+  auto *memOpnd2 = static_cast<MemOperand*>(memInsn2.GetMemOpnd());
+  // Not here to consider StImmOperand
+  if (memOpnd1 == nullptr || memOpnd2 == nullptr) {
+    return true;
   }
 
-  return nextMemOpnd;
+  if (memOpnd1->GetAddrMode() != MemOperand::kBOI || memOpnd2->GetAddrMode() != MemOperand::kBOI) {
+    return true;
+  }
+
+  RegOperand *baseOpnd1 = memOpnd1->GetBaseRegister();
+  RegOperand *baseOpnd2 = memOpnd2->GetBaseRegister();
+  if (baseOpnd1 == nullptr || baseOpnd2 == nullptr) {
+    return true;
+  }
+
+  // Currently, only the stack memory is judged
+  if (baseOpnd1->GetRegisterNumber() != RSP || baseOpnd2->GetRegisterNumber() != RSP) {
+    return true;
+  }
+
+  OfstOperand *ofstOpnd1 = memOpnd1->GetOffsetImmediate();
+  OfstOperand *ofstOpnd2 = memOpnd2->GetOffsetImmediate();
+
+  uint32 memByteSize1 = memInsn1.GetMemoryByteSize();
+  uint32 memByteSize2 = memInsn2.GetMemoryByteSize();
+
+  int64 memByteBoundary1 = ofstOpnd1->GetOffsetValue() + static_cast<int64>(memByteSize1);
+  int64 memByteBoundary2 = ofstOpnd2->GetOffsetValue() + static_cast<int64>(memByteSize2);
+  // no overlap
+  // sp      ofst2               ofst1           ofst2--->
+  //  |________|__memsize2__|_____|___memsize1___|__________
+  if (ofstOpnd2->GetOffsetValue() >= memByteBoundary1 || memByteBoundary2 <= ofstOpnd1->GetOffsetValue() ||
+      ofstOpnd1->GetOffsetValue() >= memByteBoundary2 || memByteBoundary1 <= ofstOpnd2->GetOffsetValue()) {
+    return false;
+  }
+  return true;
+}
+
+// Simply distinguish irrelevant memory between global variable heap memory and stack memory
+bool AArch64DataDepBase::NeedBuildDepsForHeapMem(const Insn &memInsn1, const Insn &memInsn2) const {
+  // Heap insn may not be memory operation, e.g. tls_desc_call,
+  // we just build the dependency on the register for the instruction clobber.
+  if (memInsn1.GetMachineOpcode() == MOP_tls_desc_call || memInsn2.GetMachineOpcode() == MOP_tls_desc_call) {
+    return false;
+  }
+
+  auto *memOpnd1 = static_cast<MemOperand*>(memInsn1.GetMemOpnd());
+  auto *memOpnd2 = static_cast<MemOperand*>(memInsn2.GetMemOpnd());
+
+  MOperator mop1 = memInsn1.GetMachineOpcode();
+  MOperator mop2 = memInsn2.GetMachineOpcode();
+  // Need not build mem dependency for adrp ?
+  if (memOpnd1 == nullptr && memOpnd2 == nullptr) {
+    if (mop1 == MOP_xadrp && mop2 == MOP_xadrp) {
+      return false;
+    }
+  } else if (memOpnd1 == nullptr && mop1 == MOP_xadrp && memOpnd2 != nullptr) {
+    RegOperand *baseOpnd2 = memOpnd2->GetBaseRegister();
+    CHECK_NULL_FATAL(baseOpnd2);
+    if (baseOpnd2->GetRegisterNumber() == RSP) {
+      return false;
+    }
+  } else if (memOpnd2 == nullptr && mop2 == MOP_xadrp && memOpnd1 != nullptr) {
+    RegOperand *baseOpnd1 = memOpnd1->GetBaseRegister();
+    CHECK_NULL_FATAL(baseOpnd1);
+    if (baseOpnd1->GetRegisterNumber() == RSP) {
+      return false;
+    }
+  }
+
+  if (memOpnd1 == nullptr || memOpnd2 == nullptr) {
+    return true;
+  }
+
+  // BaseRegister may be nullptr
+  // e.g.
+  // ldr (opnd0:  reg:V34 [F] Sz: [64]) (opnd1: Mem: size:64  isStack:0-0 literal: .LB_HppPacketLossStat3)
+  RegOperand *baseOpnd1 = memOpnd1->GetBaseRegister();
+  RegOperand *baseOpnd2 = memOpnd2->GetBaseRegister();
+  if (memOpnd1->GetAddrMode() == MemOperand::kBOI && memOpnd2->GetAddrMode() == MemOperand::kLo12Li) {
+    Insn *baseDefInsn2 = curCDGNode->GetLatestDefInsn(baseOpnd2->GetRegisterNumber());
+    if (baseOpnd1 != nullptr && (baseOpnd1->GetRegisterNumber() == RSP || baseOpnd1->GetRegisterNumber() == RFP) &&
+        baseDefInsn2 != nullptr && baseDefInsn2->GetMachineOpcode() == MOP_xadrp) {
+      return false;
+    }
+  } else if (memOpnd2->GetAddrMode() == MemOperand::kBOI && memOpnd1->GetAddrMode() == MemOperand::kLo12Li) {
+    Insn *baseDefInsn1 = curCDGNode->GetLatestDefInsn(baseOpnd1->GetRegisterNumber());
+    if (baseOpnd2 != nullptr && (baseOpnd2->GetRegisterNumber() == RSP || baseOpnd2->GetRegisterNumber() == RFP) &&
+        baseDefInsn1 != nullptr && baseDefInsn1->GetMachineOpcode() == MOP_xadrp) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void AArch64DataDepBase::BuildDepsForMemDefCommon(Insn &insn, CDGNode &cdgNode) {
+  // Stack memory
+  // Build anti dependency
+  MapleVector<Insn*> &stackUses = cdgNode.GetStackUseInsns();
+  for (auto *stackUse : stackUses) {
+    // the insn may be stack memory or heap use memory
+    if (NeedBuildDepsForStackMem(insn, *stackUse) && NeedBuildDepsForHeapMem(insn, *stackUse)) {
+      AddDependence(*stackUse->GetDepNode(), *insn.GetDepNode(), kDependenceTypeAnti);
+    }
+  }
+  // Build output dependency
+  MapleVector<Insn*> &stackDefs = cdgNode.GetStackDefInsns();
+  for (auto *stackDef : stackDefs) {
+    // the insn may be stack memory or heap use memory
+    if (NeedBuildDepsForStackMem(insn, *stackDef) && NeedBuildDepsForHeapMem(insn, *stackDef)) {
+      AddDependence(*stackDef->GetDepNode(), *insn.GetDepNode(), kDependenceTypeOutput);
+    }
+  }
+  // Heap memory
+  // Build anti dependency
+  MapleVector<Insn*> &heapUses = cdgNode.GetHeapUseInsns();
+  for (auto *heapUse : heapUses) {
+    if (NeedBuildDepsForHeapMem(insn, *heapUse)) {
+      AddDependence(*heapUse->GetDepNode(), *insn.GetDepNode(), kDependenceTypeAnti);
+    }
+  }
+  // Build output dependency
+  MapleVector<Insn*> &heapDefs = cdgNode.GetHeapDefInsns();
+  for (auto *heapDef : heapDefs) {
+    if (NeedBuildDepsForHeapMem(insn, *heapDef)) {
+      AddDependence(*heapDef->GetDepNode(), *insn.GetDepNode(), kDependenceTypeOutput);
+    }
+  }
+}
+
+void AArch64DataDepBase::BuildDepsForMemUseCommon(Insn &insn, CDGNode &cdgNode) {
+  // Build dependency for stack memory access
+  MapleVector<Insn*> &stackDefs = cdgNode.GetStackDefInsns();
+  for (auto *stackDef : stackDefs) {
+    // The insn may be stack memory or heap memory
+    if ((stackDef->IsCall() && stackDef->GetMachineOpcode() != MOP_tls_desc_call) ||
+        (NeedBuildDepsForStackMem(insn, *stackDef) && NeedBuildDepsForHeapMem(insn, *stackDef))) {
+      AddDependence(*stackDef->GetDepNode(), *insn.GetDepNode(), kDependenceTypeTrue);
+    }
+  }
+  // Build dependency for heap memory access
+  MapleVector<Insn*> &heapDefs = cdgNode.GetHeapDefInsns();
+  for (auto *heapDef : heapDefs) {
+    if (NeedBuildDepsForHeapMem(insn, *heapDef)) {
+      AddDependence(*heapDef->GetDepNode(), *insn.GetDepNode(), kDependenceTypeTrue);
+    }
+  }
 }
 
 /*
  * Build data dependence of symbol memory access.
  * Memory access with symbol must be a heap memory access.
  */
-void AArch64DataDepBase::BuildDepsAccessStImmMem(Insn &insn, bool isDest) {
-  if (isDest) {
-    AddDependence4InsnInVectorByType(curCDGNode->GetHeapUseInsns(), insn, kDependenceTypeAnti);
-    /* Build output dependence */
-    AddDependence4InsnInVectorByType(curCDGNode->GetHeapDefInsns(), insn, kDependenceTypeOutput);
-    curCDGNode->AddHeapDefInsn(&insn);
-  } else {
-    AddDependence4InsnInVectorByType(curCDGNode->GetHeapDefInsns(), insn, kDependenceTypeTrue);
-    curCDGNode->AddHeapUseInsn(&insn);
+void AArch64DataDepBase::BuildDepsAccessStImmMem(Insn &insn) {
+  for (auto *heapDef : curCDGNode->GetHeapDefInsns()) {
+    if (NeedBuildDepsForHeapMem(*heapDef, insn)) {
+      AddDependence(*heapDef->GetDepNode(), *insn.GetDepNode(), kDependenceTypeMemAccess);
+    }
   }
+
+  curCDGNode->AddHeapUseInsn(&insn);
+
+  // Build dependency for membar insn
   Insn *membarInsn = curCDGNode->GetMembarInsn();
   if (membarInsn != nullptr) {
     AddDependence(*membarInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeMembar);
@@ -203,88 +234,76 @@ void AArch64DataDepBase::BuildDepsMemBar(Insn &insn) {
   curCDGNode->SetMembarInsn(&insn);
 }
 
-/* Build data dependence of stack memory and heap memory uses */
-void AArch64DataDepBase::BuildDepsUseMem(Insn &insn, MemOperand &aarchMemOpnd) {
-  aarchMemOpnd.SetAccessSize(insn.GetMemoryByteSize());
-  RegOperand *baseRegister = aarchMemOpnd.GetBaseRegister();
-  MemOperand *nextMemOpnd = GetNextMemOperand(insn, aarchMemOpnd);
+/*
+ * Build data dependence of stack memory and heap memory read:
+ * for memOpnd, do not build the true dependency, and identify it by a special mem dependency.
+ */
+void AArch64DataDepBase::BuildDepsUseMem(Insn &insn, MemOperand &memOpnd) {
+  memOpnd.SetAccessSize(insn.GetMemoryByteSize());
+
   if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
-    /* Stack memory address */
-    MapleVector<Insn*> &stackDefs = curCDGNode->GetStackDefInsns();
-    for (auto defInsn : stackDefs) {
-      if (defInsn->IsCall() || NeedBuildDepsMem(aarchMemOpnd, nextMemOpnd, *defInsn)) {
-        AddDependence(*defInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeTrue);
-      }
-    }
-    /* Heap memory address */
-    MapleVector<Insn*> &heapDefs = curCDGNode->GetHeapDefInsns();
-    AddDependence4InsnInVectorByType(heapDefs, insn, kDependenceTypeTrue);
+    BuildDepsForMemUseCommon(insn, *curCDGNode);
   } else if (curRegion->GetRegionRoot() != curCDGNode) {
-    BuildInterBlockMemDefUseDependency(*insn.GetDepNode(), aarchMemOpnd, nextMemOpnd, false);
+    BuildInterBlockMemDefUseDependency(*insn.GetDepNode(), false);
   }
-  if (((baseRegister != nullptr) && IsFrameReg(*baseRegister)) || aarchMemOpnd.IsStackMem()) {
+
+  // Record mem insn
+  RegOperand *baseRegister = memOpnd.GetBaseRegister();
+  if ((baseRegister != nullptr && IsFrameReg(*baseRegister)) || memOpnd.IsStackMem()) {
     curCDGNode->AddStackUseInsn(&insn);
   } else {
     curCDGNode->AddHeapUseInsn(&insn);
   }
+
+  // Build dependency for membar insn
   Insn *membarInsn = curCDGNode->GetMembarInsn();
   if (membarInsn != nullptr) {
     AddDependence(*membarInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeMembar);
   } else if (!isIntra && curRegion->GetRegionRoot() != curCDGNode) {
-    BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false,
-                                             kDependenceTypeMembar, kMembar);
+    BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeMembar, kMembar);
   }
 }
 
-/* Build data dependence of stack memory and heap memory definitions */
-void AArch64DataDepBase::BuildDepsDefMem(Insn &insn, MemOperand &aarchMemOpnd) {
-  RegOperand *baseRegister = aarchMemOpnd.GetBaseRegister();
-  ASSERT(baseRegister != nullptr, "baseRegister shouldn't be null here");
-  MemOperand *nextMemOpnd = GetNextMemOperand(insn, aarchMemOpnd);
-  aarchMemOpnd.SetAccessSize(insn.GetMemoryByteSize());
+// Build data dependency of stack memory and heap memory definitions
+// We do not need build output dependence for write-write, because of transitivity:
+// e.g.
+//   write1 [mem1]  ---
+//        | access    |
+//   read   [mem1]    X   (transitivity)
+//        | anti      |
+//   write2 [mem1]  ---
+void AArch64DataDepBase::BuildDepsDefMem(Insn &insn, MemOperand &memOpnd) {
+  RegOperand *baseRegister = memOpnd.GetBaseRegister();
+  ASSERT_NOT_NULL(baseRegister);
+  memOpnd.SetAccessSize(insn.GetMemoryByteSize());
 
   if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
-    /* Build anti dependence */
-    MapleVector<Insn*> &stackUses = curCDGNode->GetStackUseInsns();
-    for (auto *stackUse : stackUses) {
-      if (NeedBuildDepsMem(aarchMemOpnd, nextMemOpnd, *stackUse)) {
-        AddDependence(*stackUse->GetDepNode(), *insn.GetDepNode(), kDependenceTypeAnti);
-      }
-    }
-    /* Build output dependence */
-    MapleVector<Insn*> &stackDefs = curCDGNode->GetStackDefInsns();
-    for (auto stackDef : stackDefs) {
-      if (stackDef->IsCall() || NeedBuildDepsMem(aarchMemOpnd, nextMemOpnd, *stackDef)) {
-        AddDependence(*stackDef->GetDepNode(), *insn.GetDepNode(), kDependenceTypeOutput);
-      }
-    }
-    /* Heap memory
-   * Build anti dependence
-   */
-    MapleVector<Insn*> &heapUses = curCDGNode->GetHeapUseInsns();
-    AddDependence4InsnInVectorByType(heapUses, insn, kDependenceTypeAnti);
-    /* Build output dependence */
-    MapleVector<Insn*> &heapDefs = curCDGNode->GetHeapDefInsns();
-    AddDependence4InsnInVectorByType(heapDefs, insn, kDependenceTypeOutput);
+    BuildDepsForMemDefCommon(insn, *curCDGNode);
 
-    /* Memory definition can not across may-throw insns */
-    MapleVector<Insn*> &mayThrows = curCDGNode->GetMayThrowInsns();
-    AddDependence4InsnInVectorByType(mayThrows, insn, kDependenceTypeThrow);
+    // Memory definition can not across may-throw insns for java
+    if (cgFunc.GetMirModule().IsJavaModule()) {
+      MapleVector<Insn*> &mayThrows = curCDGNode->GetMayThrowInsns();
+      AddDependence4InsnInVectorByType(mayThrows, insn, kDependenceTypeThrow);
+    }
   } else if (curRegion->GetRegionRoot() != curCDGNode) {
-    BuildInterBlockMemDefUseDependency(*insn.GetDepNode(), aarchMemOpnd, nextMemOpnd, true);
-    BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeThrow, kMayThrows);
+    BuildInterBlockMemDefUseDependency(*insn.GetDepNode(), true);
+
+    if (cgFunc.GetMirModule().IsJavaModule()) {
+      BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeThrow, kMayThrows);
+    }
   }
 
   if (baseRegister->GetRegisterNumber() == RSP) {
     Insn *lastCallInsn = curCDGNode->GetLastCallInsn();
-    if (lastCallInsn != nullptr) {
-      /* Build a dependence between stack passed arguments and call */
+    if (lastCallInsn != nullptr && lastCallInsn->GetMachineOpcode() != MOP_tls_desc_call) {
+      // Build a dependence between stack passed arguments and call
       AddDependence(*lastCallInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);
     } else if (!isIntra && curRegion->GetRegionRoot() != curCDGNode) {
       BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeControl, kLastCall);
     }
   }
 
+  // Build membar dependence
   Insn *membarInsn = curCDGNode->GetMembarInsn();
   if (membarInsn != nullptr) {
     AddDependence(*membarInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeMembar);
@@ -292,72 +311,12 @@ void AArch64DataDepBase::BuildDepsDefMem(Insn &insn, MemOperand &aarchMemOpnd) {
     BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeMembar, kMembar);
   }
 
-  /* Update cur cdgNode info */
-  if (IsFrameReg(*baseRegister) || aarchMemOpnd.IsStackMem()) {
+  // Update cur cdgNode info of def-memory insn
+  if (IsFrameReg(*baseRegister) || memOpnd.IsStackMem()) {
     curCDGNode->AddStackDefInsn(&insn);
   } else {
     curCDGNode->AddHeapDefInsn(&insn);
   }
-}
-
-static bool NoAlias(const MemOperand &leftOpnd, const MemOperand &rightOpnd) {
-  if (leftOpnd.GetAddrMode() == MemOperand::kBOI && rightOpnd.GetAddrMode() == MemOperand::kBOI) {
-    if (leftOpnd.GetBaseRegister()->GetRegisterNumber() == RFP ||
-        rightOpnd.GetBaseRegister()->GetRegisterNumber() == RFP) {
-      Operand *ofstOpnd = leftOpnd.GetOffsetOperand();
-      Operand *rofstOpnd = rightOpnd.GetOffsetOperand();
-      ASSERT(ofstOpnd != nullptr, "offset operand should not be null.");
-      ASSERT(rofstOpnd != nullptr, "offset operand should not be null.");
-      auto *ofst = static_cast<ImmOperand*>(ofstOpnd);
-      auto *rofst = static_cast<ImmOperand*>(rofstOpnd);
-      ASSERT(ofst != nullptr, "CG internal error, invalid type.");
-      ASSERT(rofst != nullptr, "CG internal error, invalid type.");
-      return (!ofst->ValueEquals(*rofst));
-    }
-  }
-  return false;
-}
-
-static bool NoOverlap(const MemOperand &leftOpnd, const MemOperand &rightOpnd) {
-  if (leftOpnd.GetAddrMode() != MemOperand::kBOI || rightOpnd.GetAddrMode() != MemOperand::kBOI ||
-      !leftOpnd.IsIntactIndexed() || !rightOpnd.IsIntactIndexed()) {
-    return false;
-  }
-  if (leftOpnd.GetBaseRegister()->GetRegisterNumber() != RFP ||
-      rightOpnd.GetBaseRegister()->GetRegisterNumber() != RFP) {
-    return false;
-  }
-  int64 ofset1 = leftOpnd.GetOffsetOperand()->GetValue();
-  int64 ofset2 = rightOpnd.GetOffsetOperand()->GetValue();
-  if (ofset1 < ofset2) {
-    return ((ofset1 + static_cast<int8>(leftOpnd.GetAccessSize())) <= ofset2);
-  } else {
-    return ((ofset2 + static_cast<int8>(rightOpnd.GetAccessSize())) <= ofset1);
-  }
-}
-
-/* Return true if memInsn's memOpnd no alias with memOpnd and nextMemOpnd */
-bool AArch64DataDepBase::NeedBuildDepsMem(const MemOperand &memOpnd,
-                                          const MemOperand *nextMemOpnd,
-                                          const Insn &memInsn) const {
-  auto *memOpndOfmemInsn = static_cast<MemOperand*>(memInsn.GetMemOpnd());
-  if (!NoAlias(memOpnd, *memOpndOfmemInsn) ||
-      ((nextMemOpnd != nullptr) && !NoAlias(*nextMemOpnd, *memOpndOfmemInsn))) {
-    return true;
-  }
-  if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC && !memInsn.IsCall()) {
-    CHECK_FATAL(memInsn.GetMemOpnd() != nullptr, "invalid MemOpnd");
-    static_cast<MemOperand*>(memInsn.GetMemOpnd())->SetAccessSize(memInsn.GetMemoryByteSize());
-    return (!NoOverlap(memOpnd, *memOpndOfmemInsn));
-  }
-  MemOperand *nextMemOpndOfmemInsn = GetNextMemOperand(memInsn, *memOpndOfmemInsn);
-  if (nextMemOpndOfmemInsn != nullptr) {
-    if (!NoAlias(memOpnd, *nextMemOpndOfmemInsn) ||
-        ((nextMemOpnd != nullptr) && !NoAlias(*nextMemOpnd, *nextMemOpndOfmemInsn))) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /*
@@ -366,7 +325,7 @@ bool AArch64DataDepBase::NeedBuildDepsMem(const MemOperand &memOpnd,
  * also a conditional register may be modified by a call.
  */
 void AArch64DataDepBase::BuildCallerSavedDeps(Insn &insn) {
-  /* Build anti dependence and output dependence. */
+  // Build anti dependence and output dependence
   for (uint32 i = R0; i <= R9; ++i) {
     BuildDepsDefReg(insn, i);
   }
@@ -387,27 +346,6 @@ void AArch64DataDepBase::BuildCallerSavedDeps(Insn &insn) {
   /* For condition operand, such as NE, EQ, and so on. */
   if (cgFunc.GetRflag() != nullptr) {
     BuildDepsDefReg(insn, kRFLAG);
-  }
-}
-
-/*
- * Build dependence between stack-define-instruction that deal with call-insn's args and a call-instruction.
- * insn : a call instruction (call/tail-call)
- */
-void AArch64DataDepBase::BuildStackPassArgsDeps(Insn &insn) {
-  MapleVector<Insn*> &stackDefs = curCDGNode->GetStackDefInsns();
-  for (auto stackDefInsn : stackDefs) {
-    if (stackDefInsn->IsCall()) {
-      continue;
-    }
-    Operand *opnd = stackDefInsn->GetMemOpnd();
-    ASSERT(opnd->IsMemoryAccessOperand(), "make sure opnd is memOpnd");
-    auto *memOpnd = static_cast<MemOperand*>(opnd);
-    CHECK_FATAL(memOpnd != nullptr, "memOpnd should not be nullptr");
-    RegOperand *baseReg = memOpnd->GetBaseRegister();
-    if ((baseReg != nullptr) && (baseReg->GetRegisterNumber() == RSP)) {
-      AddDependence(*stackDefInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);
-    }
   }
 }
 
@@ -437,6 +375,7 @@ void AArch64DataDepBase::BuildDepsDirtyHeap(Insn &insn) {
   /* Build output dependence */
   MapleVector<Insn*> &heapDefs = curCDGNode->GetHeapDefInsns();
   AddDependence4InsnInVectorByType(heapDefs, insn, kDependenceTypeOutput);
+
   Insn *membarInsn = curCDGNode->GetMembarInsn();
   if (membarInsn != nullptr) {
     AddDependence(*membarInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeMembar);
@@ -474,19 +413,6 @@ void AArch64DataDepBase::AnalysisAmbiInsns(BB &bb) {
 }
 
 /*
- * It is a yieldpoint if loading from a dedicated
- * register holding polling page address:
- * ldr  wzr, [RYP]
- */
-static bool IsYieldPoint(const Insn &insn) {
-  if (insn.IsLoad() && !insn.IsLoadLabel()) {
-    auto mem = static_cast<MemOperand*>(insn.GetMemOpnd());
-    return (mem != nullptr && mem->GetBaseRegister() != nullptr && mem->GetBaseRegister()->GetRegisterNumber() == RYP);
-  }
-  return false;
-}
-
-/*
  * Build data dependence of memory operand.
  * insn : an instruction with the memory access operand.
  * opnd : the memory access operand.
@@ -495,12 +421,14 @@ static bool IsYieldPoint(const Insn &insn) {
 void AArch64DataDepBase::BuildMemOpndDependency(Insn &insn, Operand &opnd, const OpndDesc &regProp) {
   ASSERT(opnd.IsMemoryAccessOperand(), "opnd must be memory Operand");
   auto *memOpnd = static_cast<MemOperand*>(&opnd);
+
+  // Build dependency for register of memOpnd
   RegOperand *baseRegister = memOpnd->GetBaseRegister();
   if (baseRegister != nullptr) {
     regno_t regNO = baseRegister->GetRegisterNumber();
     BuildDepsUseReg(insn, regNO);
     if (memOpnd->IsPostIndexed() || memOpnd->IsPreIndexed()) {
-      /* Base operand has changed. */
+      // Base operand has redefined
       BuildDepsDefReg(insn, regNO);
     }
   }
@@ -509,13 +437,17 @@ void AArch64DataDepBase::BuildMemOpndDependency(Insn &insn, Operand &opnd, const
     regno_t regNO = indexRegister->GetRegisterNumber();
     BuildDepsUseReg(insn, regNO);
   }
+
+  // Build dependency for mem access
   if (regProp.IsUse()) {
     BuildDepsUseMem(insn, *memOpnd);
   } else {
     BuildDepsDefMem(insn, *memOpnd);
     BuildDepsAmbiInsn(insn);
   }
-  if (IsYieldPoint(insn)) {
+
+  // Build dependency for yield point in java
+  if (cgFunc.GetMirModule().IsJavaModule() && IsYieldPoint(insn)) {
     BuildDepsMemBar(insn);
     BuildDepsDefReg(insn, kRFLAG);
   }
@@ -531,10 +463,8 @@ void AArch64DataDepBase::BuildOpndDependency(Insn &insn) {
     const OpndDesc *regProp = md->opndMD[i];
     if (opnd.IsMemoryAccessOperand()) {
       BuildMemOpndDependency(insn, opnd, *regProp);
-    } else if (opnd.IsStImmediate()) {
-      if (mOp != MOP_xadrpl12) {
-        BuildDepsAccessStImmMem(insn, false);
-      }
+    } else if (opnd.IsStImmediate() && mOp != MOP_xadrpl12) {
+      BuildDepsAccessStImmMem(insn);
     } else if (opnd.IsRegister()) {
       auto &regOpnd = static_cast<RegOperand&>(opnd);
       regno_t regNO = regOpnd.GetRegisterNumber();
@@ -556,7 +486,6 @@ void AArch64DataDepBase::BuildOpndDependency(Insn &insn) {
       }
     } else if (opnd.IsList()) {
       auto &listOpnd = static_cast<const ListOperand&>(opnd);
-      /* Build true dependences */
       for (auto &lst : listOpnd.GetOperands()) {
         regno_t regNO = lst->GetRegisterNumber();
         BuildDepsUseReg(insn, regNO);
@@ -565,43 +494,54 @@ void AArch64DataDepBase::BuildOpndDependency(Insn &insn) {
   }
 }
 
-static bool IsLazyLoad(MOperator op) {
-  return (op == MOP_lazy_ldr) || (op == MOP_lazy_ldr_static) || (op == MOP_lazy_tail);
+/*
+ * Build dependencies in some special cases for MOP_xbl
+ */
+void AArch64DataDepBase::BuildSpecialBLDepsForJava(Insn &insn) {
+  ASSERT(insn.GetMachineOpcode() == MOP_xbl, "invalid insn");
+  auto &target = static_cast<FuncNameOperand&>(insn.GetOperand(0));
+  if ((target.GetName() == "MCC_InitializeLocalStackRef") || (target.GetName() == "MCC_ClearLocalStackRef") ||
+      (target.GetName() == "MCC_DecRefResetPair")) {
+    // Write stack memory
+    BuildDepsDirtyStack(insn);
+  } else if ((target.GetName() == "MCC_CleanupLocalStackRef_NaiveRCFast") ||
+             (target.GetName() == "MCC_CleanupLocalStackRefSkip_NaiveRCFast") ||
+             (target.GetName() == "MCC_CleanupLocalStackRefSkip")) {
+    // Use Stack Memory
+    BuildDepsUseStack(insn);
+  }
+}
+
+
+// Build dependencies for call insns which do not obey standard call procedure
+void AArch64DataDepBase::BuildSpecialCallDeps(Insn &insn) {
+  if (insn.IsSpecialCall()) {
+    // The runtime model uses to implement this originates in the IA-64 processor-specific ABI
+    // It is not available everywhere !!!
+    // for tls_desc_call, which clobber r0, r1, cc reg according to call convention rules,
+    // and the blr will write the LR reg.
+    if (insn.GetMachineOpcode() == MOP_tls_desc_call) {
+      BuildDepsDefReg(insn, RLR);
+      BuildDepsDefReg(insn, kRFLAG);
+    }
+  }
 }
 
 /*
- * Build dependences in some special issue (stack/heap/throw/clinit/lazy binding/control flow).
- * insn :  an instruction.
- * depNode : insn's depNode.
- * nodes : the dependence nodes include insn's depNode.
+ * Build dependencies in some special cases (stack/heap/throw/clinit/lazy binding/control flow)
  */
 void AArch64DataDepBase::BuildSpecialInsnDependency(Insn &insn, const MapleVector<DepNode*> &nodes) {
   const InsnDesc *md = insn.GetDesc();
   MOperator mOp = insn.GetMachineOpcode();
   if (insn.IsCall() || insn.IsTailCall()) {
-    /* Caller saved registers */
+    // Build caller saved registers dependency
     BuildCallerSavedDeps(insn);
-    BuildStackPassArgsDeps(insn);
-
-    if (mOp == MOP_xbl) {
-      auto &target = static_cast<FuncNameOperand&>(insn.GetOperand(0));
-      if ((target.GetName() == "MCC_InitializeLocalStackRef") ||
-          (target.GetName() == "MCC_ClearLocalStackRef") ||
-          (target.GetName() == "MCC_DecRefResetPair")) {
-        /* Write stack memory */
-        BuildDepsDirtyStack(insn);
-      } else if ((target.GetName() == "MCC_CleanupLocalStackRef_NaiveRCFast") ||
-                 (target.GetName() == "MCC_CleanupLocalStackRefSkip_NaiveRCFast") ||
-                 (target.GetName() == "MCC_CleanupLocalStackRefSkip")) {
-        /* Use Stack Memory */
-        BuildDepsUseStack(insn);
-      } else if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC) {
-        /* potential C aliasing */
-        BuildDepsDirtyStack(insn);
-      }
-    }
+    BuildDepsDirtyStack(insn);
     BuildDepsDirtyHeap(insn);
     BuildDepsAmbiInsn(insn);
+    if (mOp == MOP_xbl) {
+      BuildSpecialBLDepsForJava(insn);
+    }
     BuildDepsLastCallInsn(insn);
   } else if (insn.IsClinit() || IsLazyLoad(insn.GetMachineOpcode()) ||
              insn.GetMachineOpcode() == MOP_arrayclass_cache_ldr) {
@@ -611,7 +551,7 @@ void AArch64DataDepBase::BuildSpecialInsnDependency(Insn &insn, const MapleVecto
       BuildDepsDefReg(insn, R16);
       BuildDepsDefReg(insn, R17);
     }
-  } else if ((mOp == MOP_xret) || md->IsBranch()) {
+  } else if (mOp == MOP_xret || md->IsBranch()) {
     BuildDepsControlAll(insn, nodes);
   } else if (insn.IsMemAccessBar()) {
     BuildDepsMemBar(insn);
@@ -621,108 +561,65 @@ void AArch64DataDepBase::BuildSpecialInsnDependency(Insn &insn, const MapleVecto
 }
 
 void AArch64DataDepBase::BuildAsmInsnDependency(Insn &insn) {
-  if (!insn.IsAsmInsn()) {
-    return;
+  Insn *asmInsn = curCDGNode->GetInlineAsmInsn();
+  if (asmInsn != nullptr) {
+    // Due to the possible undefined behavior of users, we conservatively restrict
+    // the instructions under the asm-insn to be moved above this instruction,
+    // by building dependency edges on asm-insn and all subsequent instructions.
+    // e.g.
+    // asm volatile ( "mov x2, %[a]\n\t"
+    //                "sub x2, x2, %[a]\n\t"
+    //                "orr x3, x2, %[a]\n\t"
+    //                :
+    //                : [a] "I" (1)
+    //                : "x2"
+    // It only identifies that clobber x2.
+    AddDependence(*asmInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);
   }
-  ASSERT(insn.GetOperand(kInsnSecondOpnd).IsList(), "invalid opnd of asm insn");
-  ASSERT(insn.GetOperand(kInsnThirdOpnd).IsList(), "invalid opnd of asm insn");
-  ASSERT(insn.GetOperand(kInsnFourthOpnd).IsList(), "invalid opnd of asm insn");
-  auto &outputList = static_cast<ListOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  auto &clobberList = static_cast<ListOperand&>(insn.GetOperand(kInsnThirdOpnd));
-  auto &inputList = static_cast<ListOperand&>(insn.GetOperand(kInsnFourthOpnd));
-  for (auto *defOpnd : outputList.GetOperands()) {
-    if (defOpnd == nullptr) {
-      continue;
-    }
-    BuildDepsDefReg(insn, defOpnd->GetRegisterNumber());
-  }
-  for (auto *defOpnd : clobberList.GetOperands()) {
-    if (defOpnd == nullptr) {
-      continue;
-    }
-    BuildDepsDefReg(insn, defOpnd->GetRegisterNumber());
-  }
-  for (auto *useOpnd : inputList.GetOperands()) {
-    if (useOpnd == nullptr) {
-      continue;
-    }
-    BuildDepsUseReg(insn, useOpnd->GetRegisterNumber());
-  }
-}
 
-void AArch64DataDepBase::UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, DepNode &sepNode) {
-  /* Update reg use */
-  const auto &useRegnos = depNode.GetUseRegnos();
-  if (beforeRA) {
-    depNode.InitRegUsesSize(useRegnos.size());
-  }
-  for (auto regNO : useRegnos) {
-    // Update reg use for cur depInfo
-    curCDGNode->AppendUseInsnChain(regNO, &insn, memPool, beforeRA);
-    if (beforeRA) {
-      CHECK_FATAL(curCDGNode->GetUseInsnChain(regNO)->insn != nullptr, "get useInsn failed");
-      depNode.SetRegUses(*curCDGNode->GetUseInsnChain(regNO));
-      if (curCDGNode->GetLatestDefInsn(regNO) == nullptr) {
-        curCDGNode->SetLatestDefInsn(regNO, sepNode.GetInsn());
-        sepNode.AddDefReg(regNO);
-        sepNode.SetRegDefs(sepNode.GetDefRegnos().size(),curCDGNode->GetUseInsnChain(regNO));
+  if (insn.IsAsmInsn()) {
+    ASSERT(insn.GetOperand(kInsnSecondOpnd).IsList(), "invalid opnd of asm insn");
+    ASSERT(insn.GetOperand(kInsnThirdOpnd).IsList(), "invalid opnd of asm insn");
+    ASSERT(insn.GetOperand(kInsnFourthOpnd).IsList(), "invalid opnd of asm insn");
+    auto &outputList = static_cast<ListOperand&>(insn.GetOperand(kInsnSecondOpnd));
+    auto &clobberList = static_cast<ListOperand&>(insn.GetOperand(kInsnThirdOpnd));
+    auto &inputList = static_cast<ListOperand&>(insn.GetOperand(kInsnFourthOpnd));
+    for (auto *defOpnd : outputList.GetOperands()) {
+      if (defOpnd == nullptr) {
+        continue;
       }
+      BuildDepsDefReg(insn, defOpnd->GetRegisterNumber());
     }
-  }
-
-  /* Update reg def */
-  const auto &defRegnos = depNode.GetDefRegnos();
-  size_t i = 0;
-  if (beforeRA) {
-    depNode.InitRegDefsSize(defRegnos.size());
-  }
-  for (const auto regNO : defRegnos) {
-    // Update reg def for cur depInfo
-    curCDGNode->SetLatestDefInsn(regNO, &insn);
-    curCDGNode->ClearUseInsnChain(regNO);
-    if (beforeRA) {
-      depNode.SetRegDefs(i, nullptr);
-      if (regNO >= R0 && regNO <= R3) {
-        depNode.SetHasPreg(true);
-      } else if (regNO == R8) {
-        depNode.SetHasNativeCallRegister(true);
+    for (auto *defOpnd : clobberList.GetOperands()) {
+      if (defOpnd == nullptr) {
+        continue;
       }
+      BuildDepsDefReg(insn, defOpnd->GetRegisterNumber());
     }
-    ++i;
+    for (auto *useOpnd : inputList.GetOperands()) {
+      if (useOpnd == nullptr) {
+        continue;
+      }
+      BuildDepsUseReg(insn, useOpnd->GetRegisterNumber());
+    }
+    curCDGNode->SetInlineAsmInsn(&insn);
   }
 }
 
-/* Build a pseudo node to separate data dependence graph */
-DepNode *AArch64DataDepBase::BuildSeparatorNode() {
-  Insn &pseudoSepInsn = cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_pseudo_dependence_seperator);
-  pseudoSepInsn.SetId(separatorIndex);
-  auto *separatorNode = memPool.New<DepNode>(pseudoSepInsn, alloc);
-  separatorNode->SetType(kNodeTypeSeparator);
-  pseudoSepInsn.SetDepNode(*separatorNode);
-  if (beforeRA) {
-    auto *regPressure = memPool.New<RegPressure>(alloc);
-    separatorNode->SetRegPressure(*regPressure);
-    separatorNode->InitPressure();
-  }
-  return separatorNode;
-}
-
-void AArch64DataDepBase::BuildInterBlockMemDefUseDependency(DepNode &depNode, MemOperand &memOpnd,
-                                                            MemOperand *nextMemOpnd, bool isMemDef) {
+void AArch64DataDepBase::BuildInterBlockMemDefUseDependency(DepNode &depNode, bool isMemDef) {
   CHECK_FATAL(!isIntra, "must be inter block data dependence analysis");
   CHECK_FATAL(curRegion->GetRegionRoot() != curCDGNode, "for the root node, cross-BB search is not required");
   BB *curBB = curCDGNode->GetBB();
   CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
-  std::vector<bool> visited(curRegion->GetMaxBBIdInRegion(), false);
+  std::vector<bool> visited(curRegion->GetMaxBBIdInRegion() + 1, false);
   if (isMemDef) {
-    BuildPredPathMemDefDependencyDFS(*curBB, visited, depNode, memOpnd, nextMemOpnd);
+    BuildPredPathMemDefDependencyDFS(*curBB, visited, depNode);
   } else {
-    BuildPredPathMemUseDependencyDFS(*curBB, visited, depNode, memOpnd, nextMemOpnd);
+    BuildPredPathMemUseDependencyDFS(*curBB, visited, depNode);
   }
 }
 
-void AArch64DataDepBase::BuildPredPathMemDefDependencyDFS(BB &curBB, std::vector<bool> &visited, DepNode &depNode,
-                                                          MemOperand &memOpnd, MemOperand *nextMemOpnd) {
+void AArch64DataDepBase::BuildPredPathMemDefDependencyDFS(BB &curBB, std::vector<bool> &visited, DepNode &depNode) {
   if (visited[curBB.GetId()]) {
     return;
   }
@@ -733,42 +630,25 @@ void AArch64DataDepBase::BuildPredPathMemDefDependencyDFS(BB &curBB, std::vector
   if (region->GetRegionId() != curRegion->GetRegionId()) {
     return;
   }
+
+  visited[curBB.GetId()] = true;
+
+  BuildDepsForMemDefCommon(*depNode.GetInsn(), *cdgNode);
+
   // Ignore back-edge
   if (cdgNode == curRegion->GetRegionRoot()) {
     return;
   }
-  visited[curBB.GetId()] = true;
-  MapleVector<Insn*> &stackUses = cdgNode->GetStackUseInsns();
-  for (auto *stackUse : stackUses) {
-    if (NeedBuildDepsMem(memOpnd, nextMemOpnd, *stackUse)) {
-      AddDependence(*stackUse->GetDepNode(), depNode, kDependenceTypeAnti);
-    }
-  }
-  /* Build output dependence */
-  MapleVector<Insn*> &stackDefs = cdgNode->GetStackDefInsns();
-  for (auto stackDef : stackDefs) {
-    if (stackDef->IsCall() || NeedBuildDepsMem(memOpnd, nextMemOpnd, *stackDef)) {
-      AddDependence(*stackDef->GetDepNode(), depNode, kDependenceTypeOutput);
-    }
-  }
-  /* Heap memory
-   * Build anti dependence
-   */
-  MapleVector<Insn*> &heapUses = curCDGNode->GetHeapUseInsns();
-  AddDependence4InsnInVectorByType(heapUses, *depNode.GetInsn(), kDependenceTypeAnti);
-  /* Build output dependence */
-  MapleVector<Insn*> &heapDefs = curCDGNode->GetHeapDefInsns();
-  AddDependence4InsnInVectorByType(heapDefs, *depNode.GetInsn(), kDependenceTypeOutput);
+
   for (auto predIt = curBB.GetPredsBegin(); predIt != curBB.GetPredsEnd(); ++predIt) {
     // Ignore back-edge of self-loop
     if (*predIt != &curBB) {
-      BuildPredPathMemDefDependencyDFS(**predIt, visited, depNode, memOpnd, nextMemOpnd);
+      BuildPredPathMemDefDependencyDFS(**predIt, visited, depNode);
     }
   }
 }
 
-void AArch64DataDepBase::BuildPredPathMemUseDependencyDFS(BB &curBB, std::vector<bool> &visited, DepNode &depNode,
-                                                          MemOperand &memOpnd, MemOperand *nextMemOpnd) {
+void AArch64DataDepBase::BuildPredPathMemUseDependencyDFS(BB &curBB, std::vector<bool> &visited, DepNode &depNode) {
   if (visited[curBB.GetId()]) {
     return;
   }
@@ -780,16 +660,9 @@ void AArch64DataDepBase::BuildPredPathMemUseDependencyDFS(BB &curBB, std::vector
     return;
   }
   visited[curBB.GetId()] = true;
-  /* Stack memory address */
-  MapleVector<Insn*> &stackDefs = cdgNode->GetStackDefInsns();
-  for (auto stackDef : stackDefs) {
-    if (stackDef->IsCall() || NeedBuildDepsMem(memOpnd, nextMemOpnd, *stackDef)) {
-      AddDependence(*stackDef->GetDepNode(), depNode, kDependenceTypeTrue);
-    }
-  }
-  /* Heap memory address */
-  MapleVector<Insn*> &heapDefs = cdgNode->GetHeapDefInsns();
-  AddDependence4InsnInVectorByType(heapDefs, *depNode.GetInsn(), kDependenceTypeTrue);
+
+  BuildDepsForMemUseCommon(*depNode.GetInsn(), *cdgNode);
+
   // Ignore back-edge
   if (cdgNode == curRegion->GetRegionRoot()) {
     return;
@@ -797,7 +670,7 @@ void AArch64DataDepBase::BuildPredPathMemUseDependencyDFS(BB &curBB, std::vector
   for (auto predIt = curBB.GetPredsBegin(); predIt != curBB.GetPredsEnd(); ++predIt) {
     // Ignore back-edge of self-loop
     if (*predIt != &curBB) {
-      BuildPredPathMemUseDependencyDFS(**predIt, visited, depNode, memOpnd, nextMemOpnd);
+      BuildPredPathMemUseDependencyDFS(**predIt, visited, depNode);
     }
   }
 }

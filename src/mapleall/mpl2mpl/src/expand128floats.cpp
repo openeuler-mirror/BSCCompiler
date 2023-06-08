@@ -158,42 +158,42 @@ std::string Expand128Floats::SelectSoftFPCall(Opcode opCode, BaseNode *node) con
 }
 
 void Expand128Floats::ReplaceOpNode(BlockNode *block, BaseNode *baseNode, size_t opndId,
-                                    BaseNode *currNode, MIRFunction *func, StmtNode *stmt) {
-  auto opCode = currNode->GetOpCode();
+                                    BaseNode &currNode, MIRFunction *func, StmtNode *stmt) const {
+  auto opCode = currNode.GetOpCode();
 
   PrimType pType;
   if (std::find(cmpOps.begin(), cmpOps.end(), opCode) == cmpOps.end()) {
-    pType = currNode->ptyp;
+    pType = currNode.ptyp;
   } else {
     pType = PTY_i32;
   }
 
   MapleVector<BaseNode*> args(builder->GetCurrentFuncCodeMpAllocator()->Adapter());
   if (opCode == OP_cvt || opCode == OP_trunc) {
-    TypeCvtNode* cvtNode = static_cast<TypeCvtNode*>(currNode);
-    if (cvtNode->FromType() == PTY_f128 || cvtNode->ptyp == PTY_f128) {
-      args.push_back(currNode->Opnd(0));
+    TypeCvtNode &cvtNode = static_cast<TypeCvtNode&>(currNode);
+    if (cvtNode.FromType() == PTY_f128 || cvtNode.ptyp == PTY_f128) {
+      args.push_back(currNode.Opnd(0));
     } else {
       return;
     }
   } else {
     bool opndIsF128 = false;
-    for (size_t i = 0; i < currNode->numOpnds; ++i) {
-      if (currNode->Opnd(i)->ptyp == PTY_f128) {
+    for (size_t i = 0; i < currNode.numOpnds; ++i) {
+      if (currNode.Opnd(i)->ptyp == PTY_f128) {
         opndIsF128 = true;
         break;
       }
     }
-    if (!opndIsF128 && currNode->ptyp != PTY_f128) {
+    if (!opndIsF128 && currNode.ptyp != PTY_f128) {
       return;
     }
-    for (size_t i = 0; i < currNode->numOpnds; ++i) {
-      args.push_back(currNode->Opnd(i));
+    for (size_t i = 0; i < currNode.numOpnds; ++i) {
+      args.push_back(currNode.Opnd(i));
     }
   }
-  Opcode currOpCode = currNode->GetOpCode();
-  std::string funcName = SelectSoftFPCall(currOpCode, currNode);
-  auto cvtFunc = builder->GetOrCreateFunction(funcName, TyIdx(currNode->ptyp));
+  Opcode currOpCode = currNode.GetOpCode();
+  std::string funcName = SelectSoftFPCall(currOpCode, &currNode);
+  auto cvtFunc = builder->GetOrCreateFunction(funcName, TyIdx(currNode.ptyp));
   cvtFunc->SetAttr(FUNCATTR_public);
   cvtFunc->SetAttr(FUNCATTR_extern);
   cvtFunc->SetAttr(FUNCATTR_used);
@@ -207,7 +207,7 @@ void Expand128Floats::ReplaceOpNode(BlockNode *block, BaseNode *baseNode, size_t
                                                 args, stubFuncRet, OP_callassigned);
   block->InsertBefore(stmt, opCall);
 
-  auto cvtDread = builder->CreateDread(*stubFuncRet, currNode->ptyp);
+  auto cvtDread = builder->CreateDread(*stubFuncRet, currNode.ptyp);
   if (!kOpcodeInfo.IsCompare(currOpCode)) {
     baseNode->SetOpnd(cvtDread, opndId);
   } else {
@@ -235,7 +235,7 @@ bool Expand128Floats::CheckAndUpdateOp(BlockNode *block, BaseNode *node,
   for (size_t i = 0; i < nOp; ++i) {
     bool isCvt = CheckAndUpdateOp(block, node->Opnd(i), func, stmt);
     if (isCvt) {
-      ReplaceOpNode(block, node, i, node->Opnd(i), func, stmt);
+      ReplaceOpNode(block, node, i, *node->Opnd(i), func, stmt);
     }
   }
 
@@ -271,7 +271,7 @@ void Expand128Floats::ProcessBody(BlockNode *block, StmtNode *stmt, MIRFunction 
         ProcessBody(block, iNode->GetElsePart(), func);
         if (CheckAndUpdateOp(block, stmt->Opnd(0), func, stmt)) {
             ReplaceOpNode(block, stmt, 0,
-                          static_cast<StmtNode*>(stmt->Opnd(0)), func, stmt);
+                          static_cast<StmtNode&>(*stmt->Opnd(0)), func, stmt);
         }
         break;
       }
@@ -281,13 +281,14 @@ void Expand128Floats::ProcessBody(BlockNode *block, StmtNode *stmt, MIRFunction 
         break;
       }
 
+      case OP_dowhile:
       case OP_while: {
         auto *wNode = static_cast<WhileStmtNode*>(stmt);
         ASSERT(block != nullptr, "null ptr check!");
         ProcessBody(block, wNode->GetBody(), func);
         if (CheckAndUpdateOp(block, stmt->Opnd(0), func, stmt)) {
             ReplaceOpNode(block, stmt, 0,
-                          static_cast<StmtNode*>(stmt->Opnd(0)), func, stmt);
+                          static_cast<StmtNode&>(*stmt->Opnd(0)), func, stmt);
         }
         break;
       }
@@ -298,7 +299,7 @@ void Expand128Floats::ProcessBody(BlockNode *block, StmtNode *stmt, MIRFunction 
           bool isCvt = CheckAndUpdateOp(block, stmt->Opnd(i), func, stmt);
           if (isCvt) {
             ReplaceOpNode(block, stmt, i,
-                          static_cast<StmtNode*>(stmt->Opnd(i)), func, stmt);
+                          static_cast<StmtNode&>(*stmt->Opnd(i)), func, stmt);
           }
         }
         break;

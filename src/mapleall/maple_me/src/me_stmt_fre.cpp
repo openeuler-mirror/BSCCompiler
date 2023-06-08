@@ -33,7 +33,7 @@ void MeStmtPre::ResetFullyAvail(MePhiOcc &occ) const {
 }
 
 // the fullyavail attribute is stored in the isCanBeAvail field
-void MeStmtPre::ComputeFullyAvail() {
+void MeStmtPre::ComputeFullyAvail() const {
   for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
     MePhiOcc *phiOcc = *it;
     // reset canbeavail if any phi operand is null

@@ -165,7 +165,7 @@ class MeFunction : public FuncEmit {
   void DumpFunction() const;
   void DumpFunctionNoSSA() const;
   void DumpMayDUFunction() const;
-  void Dump(bool DumpSimpIr = false) const;
+  void Dump(bool dumpSimpIr = false) const;
   void IPAPrepare();
   virtual void Prepare();
   void Verify() const;

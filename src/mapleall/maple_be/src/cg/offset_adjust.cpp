@@ -18,7 +18,7 @@
 #elif defined(TARGRISCV64) && TARGRISCV64
 #include "riscv64_offset_adjust.h"
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
 #include "arm32_offset_adjust.h"
 #endif
 
@@ -31,7 +31,7 @@ bool CgFrameFinalize::PhaseRun(maplebe::CGFunc &f) {
 #if TARGAARCH64 || TARGRISCV64
   offsetAdjustment = GetPhaseAllocator()->New<AArch64FPLROffsetAdjustment>(f);
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   offsetAdjustment = GetPhaseAllocator()->New<Arm32FPLROffsetAdjustment>(f);
 #endif
   offsetAdjustment->Run();

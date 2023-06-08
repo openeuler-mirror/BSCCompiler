@@ -49,11 +49,13 @@ Def Unit : kUnitIdFpMulHi {Primary};
 Def Unit : kUnitIdFpDivLo {Primary};
 Def Unit : kUnitIdFpDivHi {Primary};
 
+// S: single (or)
 Def Unit : kUnitIdSlotS {Or, [kUnitIdSlot0, kUnitIdSlot1]};
 Def Unit : kUnitIdFpAluS {Or, [kUnitIdFpAluLo, kUnitIdFpAluHi]};
 Def Unit : kUnitIdFpMulS {Or, [kUnitIdFpMulLo, kUnitIdFpMulHi]};
 Def Unit : kUnitIdFpDivS {Or, [kUnitIdFpDivLo, kUnitIdFpDivHi]};
 
+// D: double (and)
 Def Unit : kUnitIdSlotD {And, [kUnitIdSlot0, kUnitIdSlot1]};
 Def Unit : kUnitIdFpAluD {And, [kUnitIdFpAluLo, kUnitIdFpAluHi]};
 Def Unit : kUnitIdFpMulD {And, [kUnitIdFpMulLo, kUnitIdFpMulHi]};
@@ -78,10 +80,10 @@ Def Reservation : kLtMul {4, [kUnitIdSlotS, kUnitIdMul]};
 Def Reservation : kLtDiv {4, [kUnitIdSlot0, kUnitIdDiv, kUnitIdDiv]};
 Def Reservation : kLtLoad1 {4, [kUnitIdSlotSAgen, kUnitIdLdAgu]};
 Def Reservation : kLtStore1 {2, [kUnitIdSlotSAgen, kUnitIdStAgu]};
-Def Reservation : kLtLoad2 {4, [kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitIdLdAgu]};
-Def Reservation : kLtStore2 {2, [ kUnitIdSlotSAgen, kUnitIdStAgu]};
-Def Reservation : kLtLoad3plus {6, [kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitIdLdAgu]};
-Def Reservation : kLtStore3plus {2, [kUnitIdSlotDAgen, kUnitIdSlot0StAgu, kUnitIdStAgu]};
+Def Reservation : kLtLoad2 {4, [kUnitIdSlotSAgen, kUnitIdLdAgu]};
+Def Reservation : kLtStore2 {2, [kUnitIdSlotSAgen, kUnitIdStAgu]};
+Def Reservation : kLtLoad3plus {6, [kUnitIdSlotSAgen, kUnitIdLdAgu]};
+Def Reservation : kLtStore3plus {2, [kUnitIdSlotSAgen, kUnitIdStAgu]};
 Def Reservation : kLtBranch {0, [kUnitIdSlotSBranch]};
 Def Reservation : kLtFpalu {4, [kUnitIdSlotS, kUnitIdFpAluS]};
 Def Reservation : kLtFconst {2, [kUnitIdSlotS, kUnitIdFpAluS]};
@@ -97,7 +99,7 @@ Def Reservation : kLtFLoadMany {4, [kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitId
 Def Reservation : kLtFStore64 {0, [kUnitIdSlotSAgen, kUnitIdStAgu]};
 Def Reservation : kLtFStoreMany {0, [kUnitIdSlotSAgen, kUnitIdSlot0StAgu, kUnitIdStAgu]};
 Def Reservation : kLtAdvsimdAlu {4, [kUnitIdSlotS, kUnitIdFpAluS]};
-Def Reservation : kLtAdvsimdAluQ {4, [kUnitIdSlot0, kUnitIdFpAluD]};
+Def Reservation : kLtAdvsimdAluQ {5, [kUnitIdSlot0, kUnitIdFpAluD]};
 Def Reservation : kLtAdvsimdMul {4, [kUnitIdSlotS, kUnitIdFpMulS]};
 Def Reservation : kLtAdvsimdMulQ {4, [kUnitIdSlot0, kUnitIdFpMulD]};
 Def Reservation : kLtAdvsimdDivS {14, [kUnitIdSlot0, kUnitIdFpMulS, kUnitIdFpDivS]};
@@ -123,12 +125,12 @@ Def Bypass  {1, [kLtShiftReg], [kLtShift, kLtShiftReg, kLtAluShift, kLtAluShiftR
 Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg], [kLtAlu]};
 Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShift], AluShift};
 Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShiftReg], AluShift};
-Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShift]};
-Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShiftReg]};
+Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShift]};
+Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShiftReg]};
 Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluExtr]};
 Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtShift]};
 Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtShiftReg]};
-Def Bypass  {2, [kLtMul], [kLtMul], Accumulator};
+Def Bypass  {1, [kLtMul], [kLtMul], Accumulator};
 Def Bypass  {2, [kLtMul], [kLtAlu]};
 Def Bypass  {3, [kLtMul], [kLtAluShift, kLtAluShiftReg, kLtAluExtr, kLtShift, kLtShiftReg]};
 Def Bypass  {2, [kLtLoad1], [kLtAlu]};

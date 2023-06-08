@@ -560,9 +560,9 @@ void BB::UpdateEdgeFreqs(bool updateBBFreqOfSucc) {
     if (updateBBFreqOfSucc) {
       auto *succBBLoc = GetSucc(i);
       FreqType diffFreq = scalefreq - sfreq;
-      FreqType succBBnewFreq = static_cast<int64>(succBBLoc->GetFrequency()) + diffFreq;
+      FreqType succBBnewFreq = succBBLoc->GetFrequency() + diffFreq;
       if (succBBnewFreq >= 0) {
-        succBBLoc->SetFrequency(static_cast<uint64>(succBBnewFreq));
+        succBBLoc->SetFrequency(succBBnewFreq);
       }
     }
   }

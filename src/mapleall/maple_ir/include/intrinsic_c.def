@@ -332,6 +332,6 @@ DEF_MIR_INTRINSIC(C___atomic_compare_exchange,\
 
 
 DEF_MIR_INTRINSIC(C___tls_get_tbss_anchor,\
-                  "__tls_get_tbss_anchor", 5, INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyU64)
+                  "__tls_get_tbss_anchor", 5, INTRNATOMIC , kArgTyU64)
 DEF_MIR_INTRINSIC(C___tls_get_tdata_anchor,\
-                  "__tls_get_tdata_anchor", 5, INTRNNOSIDEEFFECT | INTRNISPURE, kArgTyU64)
+                  "__tls_get_tdata_anchor", 5, INTRNATOMIC , kArgTyU64)

@@ -21,7 +21,7 @@
 namespace maplebe {
 class YieldPointInsertion {
  public:
-  explicit YieldPointInsertion(CGFunc &func) : cgFunc(&func) {}
+  explicit YieldPointInsertion(CGFunc &func, LoopAnalysis &loop) : cgFunc(func), loopInfo(loop) {}
 
   virtual ~YieldPointInsertion() = default;
 
@@ -32,10 +32,12 @@ class YieldPointInsertion {
   }
 
  protected:
-  CGFunc *cgFunc;
+  CGFunc &cgFunc;
+  LoopAnalysis &loopInfo;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgYieldPointInsertion, maplebe::CGFunc)
+OVERRIDE_DEPENDENCE
 MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 

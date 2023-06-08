@@ -24,9 +24,10 @@
 namespace maplebe {
 class AlignAnalysis {
  public:
-  AlignAnalysis(CGFunc &func, MemPool &memP)
-      : cgFunc(&func),
+  AlignAnalysis(CGFunc &func, MemPool &memP, LoopAnalysis &loop)
+      : cgFunc(func),
         alignAllocator(&memP),
+        loopInfo(loop),
         loopHeaderBBs(alignAllocator.Adapter()),
         jumpTargetBBs(alignAllocator.Adapter()),
         alignInfos(alignAllocator.Adapter()),
@@ -74,8 +75,9 @@ class AlignAnalysis {
   }
 
  protected:
-  CGFunc *cgFunc;
+  CGFunc &cgFunc;
   MapleAllocator alignAllocator;
+  LoopAnalysis &loopInfo;
   MapleUnorderedSet<BB*> loopHeaderBBs;
   MapleUnorderedSet<BB*> jumpTargetBBs;
   MapleUnorderedMap<BB*, uint32> alignInfos;
@@ -83,6 +85,7 @@ class AlignAnalysis {
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgAlignAnalysis, maplebe::CGFunc)
+OVERRIDE_DEPENDENCE
 MAPLE_FUNC_PHASE_DECLARE_END
 } /* namespace maplebe */
 

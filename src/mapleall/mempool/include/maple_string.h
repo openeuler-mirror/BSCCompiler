@@ -23,6 +23,14 @@
 namespace maple {
 class MapleString {
  public:
+  struct MapleStringHash {
+    std::size_t operator()(const MapleString &mapleString) const {
+      const char* cStr = mapleString.c_str();
+      std::string hashS = (cStr == nullptr) ? "" : cStr;
+      return std::hash<std::string>{}(hashS);
+    }
+  };
+
   MapleString() = default;
   explicit MapleString(MemPool *currMp) : memPool(currMp) {}
   MapleString(const MapleString &str);

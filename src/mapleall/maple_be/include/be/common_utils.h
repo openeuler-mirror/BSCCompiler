@@ -40,6 +40,7 @@ constexpr uint32 k6BitSize = 6;
 constexpr uint32 k7BitSize = 7;
 constexpr uint32 k8BitSize = 8;
 constexpr uint32 k12BitSize = 12;
+constexpr uint32 k15BitSize = 15;
 constexpr uint32 k16BitSize = 16;
 constexpr uint32 k24BitSize = 24;
 constexpr uint32 k32BitSize = 32;
@@ -248,41 +249,6 @@ enum ConditionCode : uint8 {
   kCcLast
 };
 
-inline ConditionCode GetReverseCC(ConditionCode cc) {
-  switch (cc) {
-    case CC_NE:
-      return CC_EQ;
-    case CC_EQ:
-      return CC_NE;
-    case CC_HS:
-      return CC_LO;
-    case CC_LO:
-      return CC_HS;
-    case CC_MI:
-      return CC_PL;
-    case CC_PL:
-      return CC_MI;
-    case CC_VS:
-      return CC_VC;
-    case CC_VC:
-      return CC_VS;
-    case CC_HI:
-      return CC_LS;
-    case CC_LS:
-      return CC_HI;
-    case CC_LT:
-      return CC_GE;
-    case CC_GE:
-      return CC_LT;
-    case CC_GT:
-      return CC_LE;
-    case CC_LE:
-      return CC_GT;
-    default:
-      CHECK_FATAL(0, "unknown condition code");
-  }
-  return kCcLast;
-}
 inline ConditionCode GetReverseBasicCC(ConditionCode cc) {
   switch (cc) {
     case CC_NE:

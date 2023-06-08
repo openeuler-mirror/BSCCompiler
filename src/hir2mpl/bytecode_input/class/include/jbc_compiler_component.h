@@ -22,7 +22,7 @@
 namespace maple {
 class JBCCompilerComponent : public HIR2MPLCompilerComponent {
  public:
-  JBCCompilerComponent(MIRModule &module);
+  explicit JBCCompilerComponent(MIRModule &module);
   ~JBCCompilerComponent() override;
 
  protected:

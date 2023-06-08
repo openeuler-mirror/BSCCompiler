@@ -99,8 +99,6 @@ bool BCCompilerComponent<T>::LoadOnDemandType2BCClass(const std::unordered_set<s
   FETimer timer;
   timer.StartAndDump("LoadOnDemandType2BCClass::Open dep dexfiles");
   bool success = true;
-  ClassLoaderContext *classLoaderContext = nullptr;
-  const ClassLoaderInfo *classLoader = nullptr;
   std::vector<std::unique_ptr<bc::DexParser>> bootClassPaths;
   std::string spec = FEOptions::GetInstance().GetXBootClassPath();
   if (!spec.empty()) {  // Xbootclasspath
@@ -110,10 +108,6 @@ bool BCCompilerComponent<T>::LoadOnDemandType2BCClass(const std::unordered_set<s
   spec = FEOptions::GetInstance().GetClassLoaderContext();
   if (!spec.empty()) {  // PCL
     INFO(kLncInfo, "PCL=%s", spec.c_str());
-    classLoaderContext = ClassLoaderContext::Create(spec, *mp);
-    if (classLoaderContext != nullptr) {
-      classLoader = classLoaderContext->GetClassLoader();
-    }
   }
   timer.StopAndDumpTimeMS("LoadOnDemandType2BCClass::Open dep dexfiles");
   ClassLinker *classLinker = mp->New<ClassLinker>(bootClassPaths);
@@ -173,7 +167,7 @@ bool BCCompilerComponent<T>::LoadOnDemandBCClass2FEClass(
       FEManager::GetTypeManager().SetMirImportedTypes(FETypeFlag::kSrcMplt);
       break;
   }
-  for (uint32 i = 1; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
+  for (size_t i = 1; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
     MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbol(i);
     if ((symbol != nullptr) && (symbol->GetSKind() == kStFunc)) {
       symbol->SetIsImportedDecl(true);

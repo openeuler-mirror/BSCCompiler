@@ -100,7 +100,7 @@ class HDSE {
   void PropagateUseLive(MeExpr &meExpr);
   void DetermineUseCounts(MeExpr *x);
   void CheckBackSubsCandidacy(DassignMeStmt *dass);
-  void UpdateChiUse(MeStmt *stmt);
+  void UpdateChiUse(MeStmt *stmt) const;
   void RemoveNotRequiredStmtsInBB(BB &bb);
   template <class VarOrRegPhiNode>
   void MarkPhiRequired(VarOrRegPhiNode &mePhiNode);

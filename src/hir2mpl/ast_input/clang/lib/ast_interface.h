@@ -54,7 +54,7 @@ class LibAstFile {
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const;
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
   void BuildFieldName(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl);
-  std::string GetSourceText(const clang::Stmt &stmt);
+  std::string GetSourceText(const clang::Stmt &stmt) const;
   std::string GetSourceTextRaw(const clang::SourceRange range, const clang::SourceManager &sm) const;
   std::string BuildStaticFunctionSignature(const clang::FunctionDecl &funcDecl);
   void BuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl, std::string &funcName);
@@ -89,6 +89,7 @@ class LibAstFile {
   void CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs) const;
   void CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) const;
   void CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
+  void CollectTypeAttrs(const clang::NamedDecl &decl, TypeAttrs &typeAttrs) const;
   MIRType *CvtPrimType(const clang::QualType qualType, bool isSourceType = false) const;
   PrimType CvtPrimType(const clang::BuiltinType::Kind kind, bool isSourceType) const;
   MIRType *CvtPrimType2SourceType(const clang::BuiltinType::Kind kind) const;
@@ -149,7 +150,7 @@ class CallCollector : public clang::RecursiveASTVisitor<CallCollector> {
   explicit CallCollector(clang::ASTContext *myAstContext) : astContext(myAstContext) {}
 
   bool VisitCallExpr(clang::CallExpr *expr) {
-    callExprs.insert(std::pair<int64_t, clang::CallExpr *>(expr->getID(*astContext), expr));
+    (void)callExprs.emplace(expr->getID(*astContext), expr);
     return true;
   }
 
@@ -166,7 +167,7 @@ class CallCollector : public clang::RecursiveASTVisitor<CallCollector> {
     return callExprs;
   }
 
-  bool IsNeedToBeUniq() {
+  bool IsNeedToBeUniq() const {
     return needToBeUnique;
   }
 

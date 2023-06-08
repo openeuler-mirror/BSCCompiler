@@ -113,7 +113,7 @@ class ReplaceRegOpndVisitor : public OperandVisitorBase,
         idx(cIdx),
         oldReg(&oldR),
         newReg(&newR) {}
-  virtual ~ReplaceRegOpndVisitor() = default;
+  ~ReplaceRegOpndVisitor() override = default;
 
  protected:
   CGFunc *cgFunc;

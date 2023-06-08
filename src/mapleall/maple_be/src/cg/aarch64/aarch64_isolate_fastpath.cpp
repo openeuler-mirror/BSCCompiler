@@ -160,7 +160,7 @@ bool AArch64IsolateFastPath::BackwardFindDependency(BB &ifbb, std::set<regno_t> 
           insn->IsStore() || insn->IsStorePair()) {
         /* fast path finding fails */
         if (insn != ifbb.GetLastInsn() && (insn->IsBranch() || insn->IsCall() ||
-            insn->IsStore() || insn->IsStorePair())) {
+            insn->IsStore() || insn->IsStorePair() || insn->IsSpecialCall())) {
           bl = true;
         }
         (void)InsertInsnRegs(*insn, true, vecSourceRegs, true, vecTargetRegs);

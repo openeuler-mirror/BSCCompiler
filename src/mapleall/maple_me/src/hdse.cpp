@@ -76,7 +76,7 @@ void HDSE::CheckBackSubsCandidacy(DassignMeStmt *dass) {
 
 // STMT is going to be deleted, need to update the use of chi lhs defined by STMT
 // This is used to fix `ResolveContinuousRedefine()`
-void HDSE::UpdateChiUse(MeStmt *stmt) {
+void HDSE::UpdateChiUse(MeStmt *stmt) const {
   if (!stmt->GetChiList() || stmt->GetChiList()->empty()) {
     return;
   }
@@ -669,7 +669,7 @@ bool HDSE::HasNonDeletableExpr(const MeStmt &meStmt) const {
     }
     case OP_intrinsiccall: {
       for (size_t i = 0; i < meStmt.NumMeStmtOpnds(); ++i) {
-        nonDeletable |= ExprNonDeletable(ToRef(meStmt.GetOpnd(i)));
+        nonDeletable = ExprNonDeletable(ToRef(meStmt.GetOpnd(i))) || nonDeletable;
       }
       break;
     }

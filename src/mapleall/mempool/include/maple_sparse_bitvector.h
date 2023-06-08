@@ -96,7 +96,7 @@ template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
     for (unsigned i = 0; i < kBitWordNum; i++) {
       BitWord oldBitWord = bitVector[i];
       bitVector[i] &= rhs.bitVector[i];
-      changed |= (oldBitWord != bitVector[i]);
+      changed = changed || (oldBitWord != bitVector[i]);
       if (bitVector[i] != 0) {
         allzero = false;
       }
@@ -110,7 +110,7 @@ template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
     for (unsigned i = 0; i < kBitWordNum; i++) {
       BitWord oldBitWord = bitVector[i];
       bitVector[i] |= rhs.bitVector[i];
-      changed |= (oldBitWord != bitVector[i]);
+      changed = changed || (oldBitWord != bitVector[i]);
     }
     return changed;
   }
@@ -122,7 +122,7 @@ template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
     for (unsigned i = 0; i < kBitWordNum; i++) {
       BitWord oldBitWord = bitVector[i];
       bitVector[i] &= ~rhs.bitVector[i];
-      changed |= (oldBitWord != bitVector[i]);
+      changed = changed || (oldBitWord != bitVector[i]);
       if (bitVector[i] != 0) {
         allzero = false;
       }
@@ -254,7 +254,7 @@ class MapleSparseBitVector {
         ++iter2;
       } else if (iter1->GetIndex() == iter2->GetIndex()) {
         bool becameZero;
-        changed |= iter1->And(*iter2, becameZero);
+        changed = iter1->And(*iter2, becameZero) || changed;
         if (becameZero) {
           ElementListIterator iterTmp = iter1;
           ++iter1;
@@ -297,7 +297,7 @@ class MapleSparseBitVector {
         ++iter2;
         changed = true;
       } else if (iter1->GetIndex() == iter2->GetIndex()) {
-        changed |= iter1->Or(*iter2);
+        changed = iter1->Or(*iter2) || changed;
         ++iter1;
         ++iter2;
       } else {
@@ -368,7 +368,7 @@ class MapleSparseBitVector {
         ++iter2;
       } else if (iter1->GetIndex() == iter2->GetIndex()) {
         bool becameZero;
-        changed |= iter1->Diff(*iter2, becameZero);
+        changed = iter1->Diff(*iter2, becameZero) || changed;
         if (becameZero) {
           ElementListIterator iterTmp = iter1;
           ++iter1;

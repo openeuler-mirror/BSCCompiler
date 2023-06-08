@@ -503,14 +503,12 @@ MIRFloat128Const *FPConstTable::DoGetOrCreateFloat128Const(const uint64_t *v) {
 
 MIRFloat128Const *FPConstTable::DoGetOrCreateFloat128ConstThreadSafe(const uint64_t *v) {
   {
-    std::shared_lock<std::shared_timed_mutex> lock(ldoubleMtx);
     const auto it = float128ConstTable.find({v[0], v[1]});
     if (it != float128ConstTable.cend()) {
       return it->second;
     }
   }
   // create a new one
-  std::unique_lock<std::shared_timed_mutex> lock(ldoubleMtx);
   std::pair<uint64, uint64> f128Pair = {v[0], v[1]};
   auto *ldConst = new MIRFloat128Const(v,
                                        *GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_f128)));

@@ -20,8 +20,8 @@
 #include "x64_abi.h"
 
 namespace maplebe {
-static const std::map<regno_t, uint32> x64IntParamsRegIdx =
-    {{x64::RAX, 0}, {x64::RDI, 1}, {x64::RSI, 2}, {x64::RDX, 3}, {x64::RCX, 4}, {x64::R8, 5}, {x64::R9, 6}};
+static const std::map<regno_t, uint32> x64IntParamsRegIdx = {
+    {x64::RAX, 0}, {x64::RDI, 1}, {x64::RSI, 2}, {x64::RDX, 3}, {x64::RCX, 4}, {x64::R8, 5}, {x64::R9, 6}};
 
 class X64RegInfo : public RegisterInfo {
  public:

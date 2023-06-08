@@ -31,6 +31,7 @@ void AArch64IfConversionOptimizer::InitOptimizePatterns() {
   singlePassPatterns.emplace_back(memPool->New<AArch64ICOIfThenElsePattern>(*cgFunc));
   if (cgFunc->GetMirModule().IsCModule()) {
     singlePassPatterns.emplace_back(memPool->New<AArch64ICOSameCondPattern>(*cgFunc));
+    singlePassPatterns.emplace_back(memPool->New<AArch64ICOCondSetPattern>(*cgFunc));
   }
   singlePassPatterns.emplace_back(memPool->New<AArch64ICOMorePredsPattern>(*cgFunc));
 }
@@ -228,6 +229,16 @@ Insn *AArch64ICOPattern::BuildCondSet(const Insn &branch, RegOperand &reg, bool 
   return &func->GetInsnBuilder()->BuildInsn(mopCode, reg, cond, rflag);
 }
 
+Insn *AArch64ICOPattern::BuildCondSetMask(const Insn &branch, RegOperand &reg, bool inverse) const {
+  ConditionCode ccCode = Encode(branch.GetMachineOpcode(), inverse);
+  ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
+  AArch64CGFunc *func = static_cast<AArch64CGFunc*>(cgFunc);
+  CondOperand &cond = func->GetCondOperand(ccCode);
+  Operand &rflag = func->GetOrCreateRflag();
+  MOperator mopCode = (reg.GetSize() == k64BitSize) ? MOP_xcsetmrc : MOP_wcsetmrc;
+  return &func->GetInsnBuilder()->BuildInsn(mopCode, reg, cond, rflag);
+}
+
 Insn *AArch64ICOPattern::BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1,
                                       RegOperand &src2) const {
   ConditionCode ccCode = Encode(branch.GetMachineOpcode(), false);
@@ -373,7 +384,7 @@ bool AArch64ICOIfThenElsePattern::BuildCondMovInsn(const BB &bb,
                                                    const DestSrcMap &destSrcTempMap,
                                                    bool elseBBIsProcessed,
                                                    std::vector<Insn*> &generateInsn,
-                                                   const Insn *toBeRremoved2CmpBB) const {
+                                                   const Insn *toBeRremoved2CmpBB) {
   Insn *branchInsn = cgFunc->GetTheCFG()->FindLastCondBrInsn(*cmpBB);
   FOR_BB_INSNS_CONST(insn, (&bb)) {
     if (!insn->IsMachineInstruction() || insn->IsBranch()) {
@@ -456,7 +467,7 @@ bool AArch64ICOIfThenElsePattern::CheckHasSameDest(std::vector<Insn*> &lInsn, st
 bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Operand*,
     std::vector<Operand*>> &destSrcMap, std::vector<Operand*> &src,
     std::map<Operand*, Insn*> &dest2InsnMap, Insn *&toBeRremovedOutOfCurrBB) const {
-  /* src was modified in this blcok earlier */
+  // src was modified in this block earlier
   for (auto srcOpnd : src) {
     if (srcOpnd->IsRegister()) {
       auto &srcReg = static_cast<const RegOperand&>(*srcOpnd);
@@ -558,10 +569,12 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std
     }
 
     if (flagOpnd != nullptr) {
-      RegOperand *flagReg = static_cast<RegOperand*>(flagOpnd);
-      regno_t flagRegNO = flagReg->GetRegisterNumber();
-      if (bb->GetLiveOut()->TestBit(flagRegNO)) {
-        return false;
+      if (bb->GetLiveOut()->TestBit(static_cast<RegOperand*>(flagOpnd)->GetRegisterNumber())) {
+        if (toBeRremovedOutOfCurrBB == nullptr && static_cast<RegOperand*>(flagOpnd)->IsVirtualRegister()) {
+          toBeRremovedOutOfCurrBB = insn;
+        } else {
+          return false;
+        }
       }
     }
 
@@ -569,8 +582,9 @@ bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, std
       return false;
     }
 
-    if (insn != toBeRremovedOutOfCurrBB) {
-      if (IsExpansionMOperator(*insn)) {
+    if (!IsMovMOperator(*insn) && insn != toBeRremovedOutOfCurrBB) {
+      if (cmpBB->GetLiveOut()->TestBit(static_cast<RegOperand*>(dest)->GetRegisterNumber()) ||
+          IsExpansionMOperator(*insn)) {
         if (toBeRremovedOutOfCurrBB == nullptr && static_cast<RegOperand*>(dest)->IsVirtualRegister()) {
           toBeRremovedOutOfCurrBB = insn;
         } else {
@@ -626,7 +640,7 @@ bool AArch64ICOIfThenElsePattern::CheckModifiedInCmpInsn(const Insn &insn, bool 
 // else bb:                        else bb:
 //   lsr  w2, w0, #1 (change)
 //   mov  w4, w2                     mov  w4, w1 (change)
-bool AArch64ICOIfThenElsePattern::DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB) const {
+bool AArch64ICOIfThenElsePattern::DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB) {
   auto firstInsnOfIfBB = ifBB.GetFirstMachineInsn();
   auto firstInsnOfElseBB = elseBB.GetFirstMachineInsn();
   if (firstInsnOfIfBB == nullptr || firstInsnOfElseBB == nullptr) {
@@ -761,7 +775,7 @@ void AArch64ICOIfThenElsePattern::RevertMoveInsns(BB *bb, Insn *prevInsnInBB, In
 }
 
 Insn *AArch64ICOIfThenElsePattern::MoveSetInsn2CmpBB(Insn &toBeRremoved2CmpBB, BB &currBB,
-    std::map<Operand*, std::vector<Operand*>> &destSrcMap) const {
+    std::map<Operand*, std::vector<Operand*>> &destSrcMap) {
   // When moving the instruction to the front of cmp, need to create a new register because it may change the semantics:
   // cmpBB:                        cmpBB:
   //                                 uxth  w2, w1 (change)
@@ -832,22 +846,16 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB *ifBB, BB *elseBB, BB &joinBB) {
                                            insnInIfBBToBeRremovedOutOfCurrBB))) {
     return false;
   }
-  if (insnInElseBBToBeRremovedOutOfCurrBB != nullptr &&
-      !CheckModifiedInCmpInsn(*insnInElseBBToBeRremovedOutOfCurrBB, true)) {
-    return false;
-  }
-  if (insnInIfBBToBeRremovedOutOfCurrBB != nullptr &&
-      !CheckModifiedInCmpInsn(*insnInIfBBToBeRremovedOutOfCurrBB, true)) {
-    return false;
-  }
   // If ifBB and elseBB are the same bb, there is no need to move statement forward.
   if (ifBB == elseBB &&
       (insnInElseBBToBeRremovedOutOfCurrBB != nullptr || insnInIfBBToBeRremovedOutOfCurrBB != nullptr)) {
     return false;
   }
-  if (!CheckHasSameDest(ifSetInsn, elseSetInsn) || !CheckHasSameDest(elseSetInsn, ifSetInsn) ||
-      !CheckHasSameDestSize(ifSetInsn, elseSetInsn)) {
-    return false;
+  if (ifBB != nullptr && elseBB != nullptr) {
+    if (!CheckHasSameDest(ifSetInsn, elseSetInsn) || !CheckHasSameDest(elseSetInsn, ifSetInsn) ||
+        !CheckHasSameDestSize(ifSetInsn, elseSetInsn)) {
+      return false;
+    }
   }
 
   size_t count = elseDestRegs.size();
@@ -979,6 +987,7 @@ bool AArch64ICOIfThenElsePattern::DoOpt(BB *ifBB, BB *elseBB, BB &joinBB) {
       !maplebe::CGCFG::InLSDA(joinBB.GetLabIdx(), cgFunc->GetEHFunc()) &&
       cgFunc->GetTheCFG()->CanMerge(*cmpBB, joinBB)) {
     maplebe::CGCFG::MergeBB(*cmpBB, joinBB, *cgFunc);
+    cmpBB->SetLiveOut(*joinBB.GetLiveOut());  // joinBB is merged into cmpBB, the cmpBB's liveOut need update
     keepPosition = true;
   }
   return true;
@@ -1345,6 +1354,10 @@ bool AArch64ICOMorePredsPattern::DoOpt(BB &gotoBB) const {
   if (!CheckGotoBB(gotoBB, movInsn)) {
     return false;
   }
+  // Now First BB should not be removed, because CFG need the first BB with no Preds
+  if (gotoBB.GetPreds().empty()) {
+    return false;
+  }
   /* Check all preBB, Exclude gotoBBs that cannot be optimized. */
   for (BB *preBB : gotoBB.GetPreds()) {
     Insn *condBr = cgFunc->GetTheCFG()->FindLastCondBrInsn(*preBB);
@@ -1379,6 +1392,153 @@ bool AArch64ICOMorePredsPattern::DoOpt(BB &gotoBB) const {
   }
   /* Remove branches and merge gotoBB */
   cgFunc->GetTheCFG()->RemoveBB(gotoBB);
+  return true;
+}
+
+// this BBGoto only has one mov insn and one branch insn
+bool AArch64ICOCondSetPattern::CheckMovGotoBB(BB &gtBB) {
+  if (gtBB.GetKind() != BB::kBBGoto) {
+    return false;
+  }
+  std::vector<Insn *> movInsn;
+  FOR_BB_INSNS(insn, &gtBB) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    if (insn->IsMove()) {
+      movInsn.push_back(insn);
+      continue;
+    }
+    if (insn->GetId() != gtBB.GetLastInsn()->GetId()) {
+      return false;
+    } else if (insn->GetMachineOpcode() != MOP_xuncond) {
+      return false;
+    }
+    brInsn = insn;
+    ASSERT(brInsn != nullptr, "brInsn should not be nullptr");
+  }
+  if (movInsn.size() != k1BitSize) {
+    return false;
+  }
+  firstMovInsn = movInsn.front();
+  if (!firstMovInsn->GetOperand(kInsnSecondOpnd).IsImmediate()) {
+    return false;
+  }
+  return true;
+}
+
+// this BBft only has one mov insn
+bool AArch64ICOCondSetPattern::CheckMovFallthruBB(BB &ftBB) {
+  if (ftBB.GetKind() != BB::kBBFallthru) {
+    return false;
+  }
+  std::vector<Insn *> movInsn;
+  FOR_BB_INSNS(insn, &ftBB) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    if (insn->IsMove()) {
+      movInsn.push_back(insn);
+      continue;
+    }
+    if (insn->IsMachineInstruction() && !insn->IsMove()) {
+      return false;
+    }
+  }
+  if (movInsn.size() != k1BitSize) {
+    return false;
+  }
+  secondMovInsn = movInsn.front();
+  if (!secondMovInsn->GetOperand(kInsnSecondOpnd).IsImmediate()) {
+    return false;
+  }
+  return true;
+}
+
+bool AArch64ICOCondSetPattern::Optimize(BB &curBB) {
+  if (curBB.GetKind() != BB::kBBIf) {
+    return false;
+  }
+  curBrInsn = cgFunc->GetTheCFG()->FindLastCondBrInsn(curBB);
+  if (curBrInsn == nullptr || !CheckMop(curBrInsn->GetMachineOpcode())) {
+    return false;
+  }
+  firstMovBB = curBB.GetNext();
+  secondMovBB = CGCFG::GetTargetSuc(curBB);
+  if (firstMovBB == nullptr || secondMovBB == nullptr) {
+    return false;
+  }
+  if (firstMovBB->GetPreds().size() > k1BitSize && secondMovBB->GetPreds().size() > k1BitSize) {
+    return false;
+  }
+  if (!(CheckMovGotoBB(*firstMovBB) && CheckMovFallthruBB(*secondMovBB))) {
+    return false;
+  }
+  regno_t regNO1 = static_cast<RegOperand &>(firstMovInsn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  regno_t regNO2 = static_cast<RegOperand &>(secondMovInsn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  if (regNO1 != regNO2) {
+    return false;
+  }
+  if (firstMovInsn->GetOperandSize(kInsnFirstOpnd) != secondMovInsn->GetOperandSize(kInsnFirstOpnd)) {
+    return false;
+  }
+  auto &gotoLabel = static_cast<LabelOperand &>(brInsn->GetOperand(brInsn->GetOperandSize() - 1));
+  if (gotoLabel.GetLabelIndex() != secondMovBB->GetNext()->GetLabIdx()) {
+    return false;
+  }
+  return DoOpt(curBB);
+}
+
+Insn *AArch64ICOCondSetPattern::BuildNewInsn(ImmOperand &immOpnd1, ImmOperand &immOpnd2, Insn &bInsn, RegOperand &dest,
+                                             bool is32Bits) const {
+  if (immOpnd1.IsZero()) {
+    if (immOpnd2.IsOne()) {
+      return BuildCondSet(bInsn, dest, false);
+    } else if (immOpnd2.IsAllOnes() || (is32Bits && immOpnd2.IsAllOnes32bit())) {
+      return BuildCondSetMask(bInsn, dest, false);
+    }
+  } else if (immOpnd2.IsZero()) {
+    if (immOpnd1.IsOne()) {
+      return BuildCondSet(bInsn, dest, true);
+    } else if (immOpnd1.IsAllOnes() || (is32Bits && immOpnd1.IsAllOnes32bit())) {
+      return BuildCondSetMask(bInsn, dest, true);
+    }
+  }
+  return nullptr;
+}
+
+bool AArch64ICOCondSetPattern::DoOpt(BB &curBB) const {
+  std::vector<LabelOperand *> labelOpnd = GetLabelOpnds(*curBrInsn);
+  if (labelOpnd.size() != 1) {
+    return false;
+  }
+  RegOperand &dest = static_cast<RegOperand &>(firstMovInsn->GetOperand(kInsnFirstOpnd));
+  ImmOperand &immOpnd1 = static_cast<ImmOperand &>(firstMovInsn->GetOperand(kInsnSecondOpnd));
+  ImmOperand &immOpnd2 = static_cast<ImmOperand &>(secondMovInsn->GetOperand(kInsnSecondOpnd));
+  Insn *newInsn =
+      BuildNewInsn(immOpnd1, immOpnd2, *curBrInsn, dest, (firstMovInsn->GetOperandSize(kInsnFirstOpnd) == k32BitSize));
+  if (newInsn == nullptr) {
+    return false;
+  }
+  // destBB is destination of both mov bb, which is '.L.1827__42:' in pattern1
+  BB *destBB =
+      cgFunc->GetBBFromLab2BBMap(static_cast<LabelOperand &>(brInsn->GetOperand(kInsnFirstOpnd)).GetLabelIndex());
+  Insn &newBrInsn = cgFunc->GetInsnBuilder()->BuildInsn(brInsn->GetMachineOpcode(), brInsn->GetOperand(kInsnFirstOpnd));
+  curBB.ReplaceInsn(*curBrInsn, *newInsn);
+  curBB.AppendInsn(newBrInsn);
+  curBB.SetKind(BB::kBBGoto);
+  curBB.RemoveFromSuccessorList(*firstMovBB);
+  curBB.RemoveFromSuccessorList(*secondMovBB);
+  curBB.PushBackSuccs(*destBB);
+  firstMovBB->RemoveFromPredecessorList(curBB);
+  if (firstMovBB->GetPreds().empty()) {
+    cgFunc->GetTheCFG()->RemoveBB(*firstMovBB);
+  }
+  secondMovBB->RemoveFromPredecessorList(curBB);
+  if (secondMovBB->GetPreds().empty()) {
+    cgFunc->GetTheCFG()->RemoveBB(*secondMovBB);
+  }
+  destBB->PushBackPreds(curBB);
   return true;
 }
 

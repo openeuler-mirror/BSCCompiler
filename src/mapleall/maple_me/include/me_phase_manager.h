@@ -14,7 +14,6 @@
  */
 #ifndef MAPLE_ME_INCLUDE_ME_PHASE_MANAGER_H
 #define MAPLE_ME_INCLUDE_ME_PHASE_MANAGER_H
-#include <vector>
 #include <string>
 #include "mempool.h"
 #include "mempool_allocator.h"
@@ -43,7 +42,6 @@
 #include "me_rename2preg.h"
 #include "me_loop_unrolling.h"
 #include "me_cfg_opt.h"
-#include "meconstprop.h"
 #include "me_bb_analyze.h"
 #include "me_ssa_lpre.h"
 #include "me_ssa_epre.h"
@@ -78,11 +76,11 @@
 #include "me_ivopts.h"
 #include "code_factoring.h"
 #include "me_slp.h"
+#include "me_simplifyexpr.h"
 #if MIR_JAVA
 #include "sync_select.h"
 #endif  // MIR_JAVA
 #include "me_ssa_tab.h"
-#include "mpl_timer.h"
 #include "constantfold.h"
 #include "me_verify.h"
 #include "lfo_inject_iv.h"
@@ -117,10 +115,10 @@ class MeFuncPM : public FunctionPM {
 
   bool PhaseRun(MIRModule &m) override;
  private:
-  bool SkipFuncForMe(const MIRFunction &func, uint64 range);
+  bool SkipFuncForMe(const MIRFunction &func, uint64 range) const;
   bool FuncLevelRun(MeFunction &meFunc, AnalysisDataManager &serialADM);
   void GetAnalysisDependence(AnalysisDep &aDep) const override;
-  void DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore);
+  void DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore) const;
   virtual void DoPhasesPopulate(const MIRModule &mirModule);
 
   std::string meInput = "";

@@ -273,13 +273,13 @@ class MePhiOpndOcc : public MeOccur {
  public:
   explicit MePhiOpndOcc(BB &bb)
       : MeOccur(kOccPhiopnd, 0, bb, nullptr),
+        phiOpnd4Temp(nullptr),
         isProcessed(false),
         hasRealUse(false),
         isInsertedOcc(false),
         isPhiOpndReload(false),
         isMCInsert(false),
-        defPhiOcc(nullptr),
-        phiOpnd4Temp(nullptr) {
+        defPhiOcc(nullptr) {
     currentExpr.meStmt = nullptr;
   }
 
@@ -361,6 +361,8 @@ class MePhiOpndOcc : public MeOccur {
     currentExpr.meStmt = &stmt;
   }
 
+  MeExpr *phiOpnd4Temp; // must be a VarMeExpr/RegMeExpr, set in CodeMotion phase
+
  private:
   bool isProcessed;
   bool hasRealUse;
@@ -372,8 +374,6 @@ class MePhiOpndOcc : public MeOccur {
     MeExpr *meExpr;  // the current expression at the end of the block containing this PhiOpnd
     MeStmt *meStmt;  // which will be inserted during finalize
   } currentExpr;
- public:
-  MeExpr *phiOpnd4Temp; // must be a VarMeExpr/RegMeExpr, set in CodeMotion phase
 };
 
 class MePhiOcc : public MeOccur {
@@ -536,17 +536,17 @@ class MePhiOcc : public MeOccur {
 class PreWorkCand {
  public:
   PreWorkCand(MapleAllocator &alloc, MeExpr *meExpr, PUIdx pIdx)
-      : next(nullptr),
+      : isSRCand(false),
+        onlyInvariantOpnds(false),
+        deletedFromWorkList(false),
+        applyMinCut(false),
+        next(nullptr),
         realOccs(alloc.Adapter()),
         theMeExpr(meExpr),
         puIdx(pIdx),
         hasLocalOpnd(false),
         redo2HandleCritEdges(false),
-        needLocalRefVar(false),
-        isSRCand(false),
-        onlyInvariantOpnds(false),
-        deletedFromWorkList(false),
-        applyMinCut(false)  {
+        needLocalRefVar(false) {
     ASSERT(pIdx != 0, "PreWorkCand: initial puIdx cannot be 0");
   }
 
@@ -662,6 +662,11 @@ class PreWorkCand {
     needLocalRefVar = need;
   }
 
+  bool isSRCand : 1;                // is a strength reduction candidate
+  bool onlyInvariantOpnds : 1;      // all operands have only 1 SSA version
+  bool deletedFromWorkList : 1;     // processed by SSAPRE already
+  bool applyMinCut : 1;             // if using mc-ssapre for this candidate
+
  private:
   void InsertRealOccAt(MeRealOcc &occ, const MapleVector<MeRealOcc*>::iterator it, PUIdx pIdx);
   PreWorkCand *next;
@@ -675,11 +680,6 @@ class PreWorkCand {
   bool redo2HandleCritEdges : 1;  // redo to make critical edges affect canbevail
   bool needLocalRefVar : 1;       // for the candidate, if necessary to introduce
                                   // localrefvar in addition to the temp register to for saving the value
- public:
-  bool isSRCand : 1;                // is a strength reduction candidate
-  bool onlyInvariantOpnds : 1;      // all operands have only 1 SSA version
-  bool deletedFromWorkList : 1;     // processed by SSAPRE already
-  bool applyMinCut : 1;             // if using mc-ssapre for this candidate
 };
 
 class PreStmtWorkCand : public PreWorkCand {

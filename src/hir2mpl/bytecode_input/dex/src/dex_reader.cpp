@@ -296,7 +296,7 @@ std::unique_ptr<std::list<std::unique_ptr<BCCatchInfo>>> DexReader::ConstructBCC
     std::make_unique<std::list<std::unique_ptr<BCCatchInfo>>>();
   for (const auto catchHandlerItem : catchHandlerItems) {
     // Use V (void) catch <any> exceptions
-    GStrIdx exceptionNameIdx = catchHandlerItem.IsCatchAllHandlerType() ? BCUtil::GetVoidIdx() :
+    GStrIdx exceptionNameIdx = catchHandlerItem.IsCatchAllHandlerType() ? FEUtils::GetVoidIdx() :
         GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
             namemangler::EncodeName(iDexFile->GetStringByTypeIndex(catchHandlerItem.GetHandlerTypeIdx())));
     std::unique_ptr<BCCatchInfo> catchInfo = std::make_unique<DEXCatchInfo>(

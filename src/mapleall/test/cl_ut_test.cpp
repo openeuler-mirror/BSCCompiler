@@ -59,25 +59,25 @@ template <>
 maplecl::RetCode maplecl::Option<UTCLType>::Parse(size_t &argsIndex,
     const std::deque<std::string_view> &args, KeyArg &keyArg) {
   utCLTypeChecker = true;
-  RetCode err = maplecl::RetCode::noError;
+  RetCode err = maplecl::RetCode::kNoError;
 
   if (args[argsIndex] != "--uttype") {
-    return maplecl::RetCode::parsingErr;
+    return maplecl::RetCode::kParsingErr;
   }
 
   size_t localArgsIndex = argsIndex + 1;
   /* Second command line argument does not exist */
   if (localArgsIndex >= args.size() || args[localArgsIndex].empty()) {
-    return RetCode::valueEmpty;
+    return RetCode::kValueEmpty;
   }
 
   /* In this example, the value of UTCLType must be --UTCLTypeOption */
   if (args[localArgsIndex] == "--UTCLTypeOption") {
     argsIndex += 2; /* 1 for Option Key, 1 for Value */
-    err = maplecl::RetCode::noError;
+    err = maplecl::RetCode::kNoError;
     SetValue(UTCLType("--UTCLTypeOption"));
   } else {
-    err = maplecl::RetCode::valueEmpty;
+    err = maplecl::RetCode::kValueEmpty;
   }
 
   return err;
@@ -114,15 +114,15 @@ namespace testopts {
 
   maplecl::Option<bool> enable({"--enable"}, "", maplecl::Init(true), maplecl::DisableWith("--no-enable"));
 
-  maplecl::Option<std::string> macro({"-JOIN"}, "", maplecl::joinedValue);
-  maplecl::Option<int32_t> joindig({"--joindig"}, "", maplecl::joinedValue);
+  maplecl::Option<std::string> macro({"-JOIN"}, "", maplecl::kJoinedValue);
+  maplecl::Option<int32_t> joindig({"--joindig"}, "", maplecl::kJoinedValue);
 
   maplecl::Option<std::string> equalStr({"--eqstr"}, "");
   maplecl::Option<int32_t> equalDig({"--eqdig"}, "");
 
   maplecl::Option<int32_t> reqVal({"--reqval"}, "", maplecl::kRequiredValue, maplecl::Init(-42));
   maplecl::Option<int32_t> optVal({"--optval"}, "", maplecl::kOptionalValue, maplecl::Init(-42));
-  maplecl::Option<int32_t> woVal({"--woval"}, "", maplecl::disallowedValue, maplecl::Init(-42));
+  maplecl::Option<int32_t> woVal({"--woval"}, "", maplecl::kDisallowedValue, maplecl::Init(-42));
 
   maplecl::Option<bool> cat1Opt1({"--c1opt1"}, "", {testCategory1});
   maplecl::Option<bool> cat12Opt({"--c12opt"}, "", {testCategory1, testCategory2});
@@ -157,7 +157,7 @@ TEST(clOptions, boolOpt) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   bool isSet = testopts::booloptEnabled;
   ASSERT_EQ(isSet, true);
@@ -166,7 +166,7 @@ TEST(clOptions, boolOpt) {
   ASSERT_EQ(isSet, false);
 }
 
-/* ################# "Set and Comapare Options" Test #####################
+/* ################# "Set and Compare Options" Test #####################
  * ####################################################################### */
 
 TEST(clOptions, comparableOpt1) {
@@ -181,7 +181,7 @@ TEST(clOptions, comparableOpt1) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   std::string lStr = "data";
   int32_t lDig = 42;
@@ -217,12 +217,12 @@ TEST(clOptions, IncorrectVal) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 1);
   ASSERT_EQ(badArgs[0].first, "--str");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::valueEmpty);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kValueEmpty);
 
   bool isSet = (testopts::booloptEnabled == true);
   ASSERT_EQ(isSet, true);
@@ -246,7 +246,7 @@ TEST(clOptions, digitTestMaxVal) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   uint8_t uint8Dig = testopts::testUint8;
   ASSERT_EQ(uint8Dig, (1 << 8) - 1);
@@ -277,14 +277,14 @@ TEST(clOptions, digitTestNegativeVal1) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 2);
   ASSERT_EQ(badArgs[0].first, "--uint32");
   ASSERT_EQ(badArgs[1].first, "-10");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::incorrectValue);
-  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kIncorrectValue);
+  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::kNotRegistered);
 }
 
 TEST(clOptions, digitTestNegativeVal2) {
@@ -297,14 +297,14 @@ TEST(clOptions, digitTestNegativeVal2) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 2);
   ASSERT_EQ(badArgs[0].first, "--uint64");
   ASSERT_EQ(badArgs[1].first, "-10");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::incorrectValue);
-  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kIncorrectValue);
+  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::kNotRegistered);
 }
 
 TEST(clOptions, digitTestNegativeVal3) {
@@ -318,7 +318,7 @@ TEST(clOptions, digitTestNegativeVal3) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   int64_t int64Dig = testopts::testInt64;
   ASSERT_EQ(int64Dig, LLONG_MIN);
@@ -334,14 +334,14 @@ TEST(clOptions, digitIncorrectPrefix) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 2);
   ASSERT_EQ(badArgs[0].first, "--int32");
   ASSERT_EQ(badArgs[1].first, "--10");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::incorrectValue);
-  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kIncorrectValue);
+  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::kNotRegistered);
 }
 
 TEST(clOptions, digitIncorrectVal) {
@@ -354,14 +354,14 @@ TEST(clOptions, digitIncorrectVal) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 2);
   ASSERT_EQ(badArgs[0].first, "--int32");
   ASSERT_EQ(badArgs[1].first, "INCORRECT");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::incorrectValue);
-  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kIncorrectValue);
+  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::kNotRegistered);
 }
 
 /* ################# "Set out of range Value in Option" Test #############
@@ -377,14 +377,14 @@ TEST(clOptions, digitTestOutOfRange1) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 2);
   ASSERT_EQ(badArgs[0].first, "--int32");
   ASSERT_EQ(badArgs[1].first, "-2147483649");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::outOfRange);
-  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kOutOfRange);
+  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::kNotRegistered);
 }
 
 TEST(clOptions, digitTestOutOfRange2) {
@@ -399,7 +399,7 @@ TEST(clOptions, digitTestOutOfRange2) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 6);
@@ -409,12 +409,12 @@ TEST(clOptions, digitTestOutOfRange2) {
   ASSERT_EQ(badArgs[3].first, "65536");
   ASSERT_EQ(badArgs[4].first, "--uint8");
   ASSERT_EQ(badArgs[5].first, "256");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::outOfRange);
-  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::notRegistered);
-  ASSERT_EQ(badArgs[2].second, maplecl::RetCode::outOfRange);
-  ASSERT_EQ(badArgs[3].second, maplecl::RetCode::notRegistered);
-  ASSERT_EQ(badArgs[4].second, maplecl::RetCode::outOfRange);
-  ASSERT_EQ(badArgs[5].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kOutOfRange);
+  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::kNotRegistered);
+  ASSERT_EQ(badArgs[2].second, maplecl::RetCode::kOutOfRange);
+  ASSERT_EQ(badArgs[3].second, maplecl::RetCode::kNotRegistered);
+  ASSERT_EQ(badArgs[4].second, maplecl::RetCode::kOutOfRange);
+  ASSERT_EQ(badArgs[5].second, maplecl::RetCode::kNotRegistered);
 }
 
 TEST(clOptions, digitTestOutOfRange3) {
@@ -427,14 +427,14 @@ TEST(clOptions, digitTestOutOfRange3) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 2);
   ASSERT_EQ(badArgs[0].first, "--int64");
   ASSERT_EQ(badArgs[1].first, "-9223372036854775809");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::outOfRange);
-  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kOutOfRange);
+  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::kNotRegistered);
 }
 
 TEST(clOptions, digitTestOutOfRange4) {
@@ -447,14 +447,14 @@ TEST(clOptions, digitTestOutOfRange4) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 2);
   ASSERT_EQ(badArgs[0].first, "--uint64");
   ASSERT_EQ(badArgs[1].first, "18446744073709551616");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::outOfRange);
-  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kOutOfRange);
+  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::kNotRegistered);
 }
 
 /* ################# Check double option name definition #################
@@ -469,7 +469,7 @@ TEST(clOptions, doubleDef1) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   bool isSet = testopts::doubleDefinedOpt;
   ASSERT_EQ(isSet, true);
@@ -484,7 +484,7 @@ TEST(clOptions, doubleDef2) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   bool isSet = testopts::doubleDefinedOpt;
   ASSERT_EQ(isSet, true);
@@ -501,7 +501,7 @@ TEST(clOptions, defaultVal) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   /* Default Options are not set in command line but initialized with default value */
   bool isSet = testopts::defaultBool;
@@ -528,7 +528,7 @@ TEST(clOptions, disableOpt1) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   bool isSet = testopts::enable;
   ASSERT_EQ(isSet, true);
@@ -544,7 +544,7 @@ TEST(clOptions, disableOpt2) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   bool isSet = testopts::enable;
   ASSERT_EQ(isSet, false);
@@ -564,7 +564,7 @@ TEST(clOptions, joinedOpt) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   std::string joinOpt = testopts::macro;
   ASSERT_EQ(joinOpt, "MACRO");
@@ -587,7 +587,7 @@ TEST(clOptions, equalOpt) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   std::string equalStr = testopts::equalStr;
   ASSERT_EQ(equalStr, "EQUALSTRING");
@@ -607,16 +607,16 @@ TEST(clOptions, equalOptErr) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   /* --woval must not contain any key values, so 20 will be handled as second key */
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 2);
   ASSERT_EQ(badArgs[0].first, "--eqstr=");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::valueEmpty);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kValueEmpty);
 
   ASSERT_EQ(badArgs[1].first, "--eqdig=");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::valueEmpty);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kValueEmpty);
 }
 
 TEST(clOptions, joinedEqualOpt) {
@@ -629,7 +629,7 @@ TEST(clOptions, joinedEqualOpt) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   std::string joinOpt = testopts::macro;
   ASSERT_EQ(joinOpt, "MACRO -JOIN TEST=20");
@@ -649,12 +649,12 @@ TEST(clOptions, expectedVal1) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 1);
   ASSERT_EQ(badArgs[0].first, "--reqval");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::incorrectValue);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kIncorrectValue);
 
   bool isSet = testopts::booloptEnabled;
   ASSERT_EQ(isSet, true);
@@ -670,7 +670,7 @@ TEST(clOptions, expectedVal2) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   int32_t equalDig = testopts::reqVal;
   ASSERT_EQ(equalDig, 20);
@@ -686,7 +686,7 @@ TEST(clOptions, expectedVal3) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   int32_t equalDig = testopts::optVal;
   ASSERT_EQ(equalDig, -42);
@@ -702,7 +702,7 @@ TEST(clOptions, expectedVal4) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   int32_t equalDig = testopts::optVal;
   ASSERT_EQ(equalDig, 20);
@@ -718,7 +718,7 @@ TEST(clOptions, expectedVal5) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 }
 
 TEST(clOptions, expectedVal6) {
@@ -736,7 +736,7 @@ TEST(clOptions, expectedVal6) {
   ASSERT_EQ(testopts::optVal.IsEnabledByUser(), false);
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   ASSERT_EQ(testopts::booloptEnabled.GetValue(), true);
   ASSERT_EQ(testopts::optVal.IsEnabledByUser(), true);
@@ -753,13 +753,13 @@ TEST(clOptions, expectedVal7) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   /* --woval must not contain any key values, so 20 will be handled as second key */
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 1);
   ASSERT_EQ(badArgs[0].first, "20");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kNotRegistered);
 }
 
 TEST(clOptions, expectedVal8) {
@@ -772,12 +772,12 @@ TEST(clOptions, expectedVal8) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 1);
   ASSERT_EQ(badArgs[0].first, "--woval=20");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::unnecessaryValue);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kUnnecessaryValue);
 }
 
 TEST(clOptions, expectedVal9) {
@@ -790,7 +790,7 @@ TEST(clOptions, expectedVal9) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   int32_t equalDig = testopts::woVal;
   ASSERT_EQ(equalDig, -42);
@@ -809,12 +809,12 @@ TEST(clOptions, optCategory1) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, testopts::defaultCategory);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 1);
   ASSERT_EQ(badArgs[0].first, "--c1opt1");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kNotRegistered);
 }
 
 TEST(clOptions, optCategory2) {
@@ -828,7 +828,7 @@ TEST(clOptions, optCategory2) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, testopts::testCategory1);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   bool isSet = testopts::cat1Opt1;
   ASSERT_EQ(isSet, true);
@@ -847,7 +847,7 @@ TEST(clOptions, optCategory3) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv, testopts::testCategory2);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   bool isSet = testopts::cat12Opt;
   ASSERT_EQ(isSet, true);
@@ -868,14 +868,14 @@ TEST(clOptions, ownOptionType1) {
   ASSERT_EQ(utCLTypeChecker, false);
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   ASSERT_EQ(utCLTypeChecker, true);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 1);
   ASSERT_EQ(badArgs[0].first, "--uttype");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::valueEmpty);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kValueEmpty);
 }
 
 TEST(clOptions, ownOptionType2) {
@@ -891,16 +891,16 @@ TEST(clOptions, ownOptionType2) {
   ASSERT_EQ(utCLTypeChecker, false);
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::parsingErr);
+  ASSERT_EQ(err, maplecl::RetCode::kParsingErr);
 
   ASSERT_EQ(utCLTypeChecker, true);
 
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
   ASSERT_EQ(badArgs.size(), 2);
   ASSERT_EQ(badArgs[0].first, "--uttype");
-  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::valueEmpty);
+  ASSERT_EQ(badArgs[0].second, maplecl::RetCode::kValueEmpty);
   ASSERT_EQ(badArgs[1].first, "TEST");
-  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::notRegistered);
+  ASSERT_EQ(badArgs[1].second, maplecl::RetCode::kNotRegistered);
 }
 
 TEST(clOptions, ownOptionType3) {
@@ -916,7 +916,7 @@ TEST(clOptions, ownOptionType3) {
   ASSERT_EQ(utCLTypeChecker, false);
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   ASSERT_EQ(utCLTypeChecker, true);
   UTCLType opt = testopts::uttype;
@@ -959,7 +959,7 @@ TEST(clOptions, optList1) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   auto strVals = testopts::vecString.GetValues();
   ASSERT_EQ(strVals.size(), 3);
@@ -1004,7 +1004,7 @@ TEST(clOptions, optList2) {
   ASSERT_EQ(testopts::vecStringDef.GetValues()[0], "Default");
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   ASSERT_EQ(testopts::vecStringDef.GetValues().size(), 2);
   ASSERT_EQ(testopts::vecDigDef.GetValues().size(), 2);
@@ -1032,7 +1032,7 @@ TEST(clOptions, common) {
   int argc = (sizeof(argv) / sizeof(argv[0])) - 1;
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   maplecl::OptionInterface *commonOpt = &testopts::common;
   std::string val = commonOpt->GetCommonValue();
@@ -1063,7 +1063,7 @@ TEST(clOptions, copyifenabled) {
   ASSERT_EQ(testopts::testUint8.IsEnabledByUser(), false);
 
   auto err = maplecl::CommandLine::GetCommandLine().Parse(argc, (char **)argv);
-  ASSERT_EQ(err, maplecl::RetCode::noError);
+  ASSERT_EQ(err, maplecl::RetCode::kNoError);
 
   bool boole = false, boold = false;
   std::string strTmp = "";

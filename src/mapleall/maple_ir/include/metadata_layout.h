@@ -169,7 +169,7 @@ struct MByteRef {
   static constexpr intptr_t kEncodedOffsetMin = kPositiveOffsetBias + kOffsetMin;
   static constexpr intptr_t kEncodedOffsetMax = kPositiveOffsetBias + kOffsetMax;
 #else
-  enum {
+  enum BiasBit : uint64_t {
     kBiasBitPosition = sizeof(refVal) * 8 - 4, // the most significant 4 bits
   };
 
@@ -271,7 +271,7 @@ extern "C" uint8_t classInitProtectRegion[];
 
 // Note there is no state to indicate a class is already initialized.
 // Any state beyond listed below is treated as initialized.
-enum ClassInitState {
+enum ClassInitState : uint8_t {
   kClassInitStateMin = 0,
   kClassUninitialized = 1,
   kClassInitializing = 2,
@@ -280,7 +280,7 @@ enum ClassInitState {
   kClassInitStateMax = 4,
 };
 
-enum SEGVAddr {
+enum SEGVAddr : size_t {
   kSEGVAddrRangeStart = kPageSize + 0,
 
   // Note any readable address is treated as Initialized.
@@ -349,5 +349,4 @@ template<typename M, typename C>
 inline void MRTSetMetadataShadow(M *meta, C cls) {
   meta->shadow = static_cast<MetaRef>(reinterpret_cast<uintptr_t>(cls));
 }
-
 #endif // METADATA_LAYOUT_H

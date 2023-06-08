@@ -23,13 +23,13 @@ void AArch64YieldPointInsertion::Run() {
 }
 
 void AArch64YieldPointInsertion::InsertYieldPoint() const {
-  AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   std::string refQueueName = "Ljava_2Flang_2Fref_2FReference_3B_7C_3Cinit_3E_7C_"
                              "28Ljava_2Flang_2FObject_3BLjava_2Flang_2Fref_2FReferenceQueue_3B_29V";
-  if (!CGOptions::IsGCOnly() && (aarchCGFunc->GetName() == refQueueName)) {
+  if (!CGOptions::IsGCOnly() && (aarchCGFunc.GetName() == refQueueName)) {
     /* skip insert yieldpoint in reference constructor, avoid rc verify issue */
-    ASSERT(aarchCGFunc->GetYieldPointInsn() != nullptr, "the entry yield point has been inserted");
-    aarchCGFunc->GetYieldPointInsn()->GetBB()->RemoveInsn(*aarchCGFunc->GetYieldPointInsn());
+    ASSERT(aarchCGFunc.GetYieldPointInsn() != nullptr, "the entry yield point has been inserted");
+    aarchCGFunc.GetYieldPointInsn()->GetBB()->RemoveInsn(*aarchCGFunc.GetYieldPointInsn());
     return;
   }
 
@@ -37,13 +37,13 @@ void AArch64YieldPointInsertion::InsertYieldPoint() const {
    * do not insert yieldpoint in function that not saved X30 into stack,
    * because X30 will be changed after yieldpoint is taken.
    */
-  if (!aarchCGFunc->GetHasProEpilogue()) {
-    ASSERT (aarchCGFunc->GetYieldPointInsn() != nullptr, "the entry yield point has been inserted");
-    aarchCGFunc->GetYieldPointInsn()->GetBB()->RemoveInsn(*aarchCGFunc->GetYieldPointInsn());
+  if (!aarchCGFunc.GetHasProEpilogue()) {
+    ASSERT (aarchCGFunc.GetYieldPointInsn() != nullptr, "the entry yield point has been inserted");
+    aarchCGFunc.GetYieldPointInsn()->GetBB()->RemoveInsn(*aarchCGFunc.GetYieldPointInsn());
     return;
   }
   /* skip if no GetFirstbb(). */
-  if (aarchCGFunc->GetFirstBB() == nullptr) {
+  if (aarchCGFunc.GetFirstBB() == nullptr) {
     return;
   }
   /*
@@ -51,12 +51,13 @@ void AArch64YieldPointInsertion::InsertYieldPoint() const {
    * of localrefvars in HandleRCCall.
    * for BBs after firstbb.
    */
-  for (BB *bb = aarchCGFunc->GetFirstBB()->GetNext(); bb != nullptr; bb = bb->GetNext()) {
-    /* insert a yieldpoint at beginning if BB is BackEdgeDest. */
-    if (bb->IsBackEdgeDest()) {
-      aarchCGFunc->GetDummyBB()->ClearInsns();
-      aarchCGFunc->GenerateYieldpoint(*aarchCGFunc->GetDummyBB());
-      bb->InsertAtBeginning(*aarchCGFunc->GetDummyBB());
+  for (BB *bb = aarchCGFunc.GetFirstBB()->GetNext(); bb != nullptr; bb = bb->GetNext()) {
+    // insert a yieldpoint at loop header bb
+    auto *loop = loopInfo.GetBBLoopParent(bb->GetId());
+    if (loop != nullptr && loop->GetHeader().GetId() == bb->GetId()) {
+      aarchCGFunc.GetDummyBB()->ClearInsns();
+      aarchCGFunc.GenerateYieldpoint(*aarchCGFunc.GetDummyBB());
+      bb->InsertAtBeginning(*aarchCGFunc.GetDummyBB());
     }
   }
 }

@@ -273,11 +273,11 @@ void CheckCastGenerator::GenCheckCast(StmtNode &stmt) {
       fromType = GlobalTables::GetTypeTable().GetTypeTable()[PTY_ptr];
     }
   }
-  ASSERT((fromType->GetPrimType() == maple::PTY_ptr || fromType->GetPrimType() == maple::PTY_ref),
-         "unknown fromType! check it!");
-  ASSERT(GlobalTables::GetTypeTable().GetTypeFromTyIdx(callNode->GetTyIdx())->GetPrimType() == maple::PTY_ptr ||
-         GlobalTables::GetTypeTable().GetTypeFromTyIdx(callNode->GetTyIdx())->GetPrimType() == maple::PTY_ref,
-         "unknown fromType! check it!");
+  CHECK_FATAL((fromType->GetPrimType() == maple::PTY_ptr || fromType->GetPrimType() == maple::PTY_ref),
+              "unknown fromType! check it!");
+  CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeFromTyIdx(callNode->GetTyIdx())->GetPrimType() == maple::PTY_ptr ||
+              GlobalTables::GetTypeTable().GetTypeFromTyIdx(callNode->GetTyIdx())->GetPrimType() == maple::PTY_ref,
+              "unknown fromType! check it!");
   CHECK_FATAL(!callNode->GetReturnVec().empty(), "container check");
   CallReturnPair callReturnPair = callNode->GetReturnVec()[0];
   StmtNode *assignReturnTypeNode = nullptr;
@@ -736,7 +736,7 @@ void CheckCastGenerator::ReplaceIsAssignableFromUsingCache(BlockNode &blockNode,
 }
 
 void CheckCastGenerator::CheckIsAssignableFrom(BlockNode &blockNode, StmtNode &stmt,
-                                               const IntrinsicopNode &intrinsicNode) {
+                                               const IntrinsicopNode &intrinsicNode) const {
   MIRType *targetClassType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(intrinsicNode.GetTyIdx());
   auto *ptrType = static_cast<MIRPtrType*>(targetClassType);
   MIRType *ptype = ptrType->GetPointedType();
@@ -828,7 +828,7 @@ void CheckCastGenerator::OptimizeInstanceof() {
   }
 }
 
-void CheckCastGenerator::OptimizeIsAssignableFrom() {
+void CheckCastGenerator::OptimizeIsAssignableFrom() const {
   StmtNode *stmt = currFunc->GetBody()->GetFirst();
   StmtNode *next = nullptr;
   while (stmt != nullptr) {
@@ -858,6 +858,21 @@ void CheckCastGenerator::OptimizeIsAssignableFrom() {
   }
 }
 
+StmtNode *PreCheckCast::GetAssignRet(IntrinsiccallNode &callnode) {
+  BaseNode *opnd = callnode.Opnd(0);
+  ASSERT(!callnode.GetReturnVec().empty(), "container check");
+  CallReturnPair callretpair = callnode.GetCallReturnPair(0);
+  StmtNode *assignRet = nullptr;
+  if (!callretpair.second.IsReg()) {
+    assignRet = builder->CreateStmtDassign(callretpair.first, callretpair.second.GetFieldID(), opnd);
+  } else {
+    PregIdx pregidx = callretpair.second.GetPregIdx();
+    MIRPreg *mirpreg = currFunc->GetPregTab()->PregFromPregIdx(pregidx);
+    assignRet = builder->CreateStmtRegassign(mirpreg->GetPrimType(), pregidx, opnd);
+  }
+  return assignRet;
+}
+
 void PreCheckCast::ProcessFunc(MIRFunction *func) {
   if (func->IsEmpty()) {
     return;
@@ -879,16 +894,7 @@ void PreCheckCast::ProcessFunc(MIRFunction *func) {
     ASSERT(callnode->GetNopndSize() == 1, "");
     BaseNode *opnd = callnode->Opnd(0);
     if (opnd->op == OP_constval) {
-      ASSERT(!callnode->GetReturnVec().empty(), "container check");
-      CallReturnPair callretpair = callnode->GetCallReturnPair(0);
-      StmtNode *assignRet = nullptr;
-      if (!callretpair.second.IsReg()) {
-        assignRet = builder->CreateStmtDassign(callretpair.first, callretpair.second.GetFieldID(), opnd);
-      } else {
-        PregIdx pregidx = callretpair.second.GetPregIdx();
-        MIRPreg *mirpreg = currFunc->GetPregTab()->PregFromPregIdx(pregidx);
-        assignRet = builder->CreateStmtRegassign(mirpreg->GetPrimType(), pregidx, opnd);
-      }
+      StmtNode *assignRet = GetAssignRet(*callnode);
       func->GetBody()->ReplaceStmt1WithStmt2(stmt, assignRet);
       continue;
     }
@@ -896,16 +902,7 @@ void PreCheckCast::ProcessFunc(MIRFunction *func) {
     if (opnd->GetPrimType() != PTY_ref && opnd->GetPrimType() != PTY_ptr) {
       continue;
     }
-    ASSERT(!callnode->GetReturnVec().empty(), "container check");
-    CallReturnPair callretpair = callnode->GetCallReturnPair(0);
-    StmtNode *assignRet = nullptr;
-    if (!callretpair.second.IsReg()) {
-      assignRet = builder->CreateStmtDassign(callretpair.first, callretpair.second.GetFieldID(), opnd);
-    } else {
-      PregIdx pregidx = callretpair.second.GetPregIdx();
-      MIRPreg *mirpreg = currFunc->GetPregTab()->PregFromPregIdx(pregidx);
-      assignRet = builder->CreateStmtRegassign(mirpreg->GetPrimType(), pregidx, opnd);
-    }
+    StmtNode *assignRet = GetAssignRet(*callnode);
     func->GetBody()->InsertAfter(stmt, assignRet);
     StmtNode *newCall = builder->CreateStmtIntrinsicCall(callnode->GetIntrinsic(), callnode->GetNopnd(),
                                                          callnode->GetTyIdx());

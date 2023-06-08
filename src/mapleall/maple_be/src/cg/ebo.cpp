@@ -576,6 +576,7 @@ bool Ebo::ForwardPropagateOpnd(Insn &insn, Operand *&opnd, uint32 opndIndex,
   opndInfo = opndInfo->replacementInfo;
 
   /* constant prop. */
+  CHECK_NULL_FATAL(opnd);
   if (opnd->IsIntImmediate() && oldOpnd->IsRegister()) {
     if (DoConstProp(insn, opndIndex, *opnd)) {
       DecRef(*origInfos.at(opndIndex));
@@ -1227,18 +1228,18 @@ void Ebo::Run() {
 }
 
 /* === new pm === */
-bool CgEbo0::PhaseRun(maplebe::CGFunc &f) {
+bool CgEbo::PhaseRun(maplebe::CGFunc &f) {
   if (EBO_DUMP_NEWPM) {
-    DotGenerator::GenerateDot("ebo0", f, f.GetMirModule());
+    DotGenerator::GenerateDot("ebo", f, f.GetMirModule(), f.GetMirModule().IsJavaModule());
   }
   LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   MemPool *eboMp = GetPhaseMemPool();
   Ebo *ebo = nullptr;
 #if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
-  ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, true, PhaseName());
+  ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, !f.IsAfterRegAlloc(), PhaseName());
 #endif
 #if defined(TARGARM32) && TARGARM32
-  ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, true, "ebo0");
+  ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, !f.IsAfterRegAlloc(), "ebo");
 #endif
   ebo->Run();
   /* the live range info may changed, so invalid the info. */
@@ -1248,63 +1249,9 @@ bool CgEbo0::PhaseRun(maplebe::CGFunc &f) {
   return true;
 }
 
-void CgEbo0::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+void CgEbo::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.AddPreserved<CgLoopAnalysis>();
 }
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgEbo0, ebo)
-
-bool CgEbo1::PhaseRun(maplebe::CGFunc &f) {
-  if (EBO_DUMP_NEWPM) {
-    DotGenerator::GenerateDot(PhaseName(), f, f.GetMirModule(), true);
-  }
-  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
-  MemPool *eboMp = GetPhaseMemPool();
-  Ebo *ebo = nullptr;
-#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
-  ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, true, PhaseName());
-#endif
-#if defined(TARGARM32) && TARGARM32
-  ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, true, PhaseName());
-#endif
-  ebo->Run();
-  /* the live range info may changed, so invalid the info. */
-  if (live != nullptr) {
-    live->ClearInOutDataInfo();
-  }
-  return true;
-}
-
-void CgEbo1::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-  aDep.AddRequired<CgLiveAnalysis>();
-  aDep.AddPreserved<CgLoopAnalysis>();
-}
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgEbo1, ebo1)
-
-bool CgPostEbo::PhaseRun(maplebe::CGFunc &f) {
-  if (EBO_DUMP_NEWPM) {
-    DotGenerator::GenerateDot(PhaseName(), f, f.GetMirModule());
-  }
-  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
-  MemPool *eboMp = GetPhaseMemPool();
-  Ebo *ebo = nullptr;
-#if TARGAARCH64 || (defined(TARGRISCV64) && TARGRISCV64)
-  ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, false, PhaseName());
-#endif
-#if defined(TARGARM32) && TARGARM32
-  ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, false, PhaseName());
-#endif
-  ebo->Run();
-  /* the live range info may changed, so invalid the info. */
-  if (live != nullptr) {
-    live->ClearInOutDataInfo();
-  }
-  return true;
-}
-
-void CgPostEbo::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-  aDep.AddRequired<CgLiveAnalysis>();
-  aDep.AddPreserved<CgLoopAnalysis>();
-}
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPostEbo, postebo)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgEbo, ebo)
 }  /* namespace maplebe */

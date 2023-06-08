@@ -32,18 +32,7 @@ void LocalSchedule::Run() {
     if (region == nullptr || !CheckCondition(*region)) {
       continue;
     }
-    CDGNode *cdgNode = region->GetRegionRoot();
-    BB *bb = cdgNode->GetBB();
-    ASSERT(bb != nullptr, "get bb from cdgNode failed");
-    if (bb->IsAtomicBuiltInBB()) {
-      continue;
-    }
-    interDDA.Run(*region);
-    InitInRegion(*region);
-    if (LOCAL_SCHEDULE_DUMP) {
-      DumpRegionInfoBeforeSchedule(*region);
-    }
-    DoLocalSchedule(*cdgNode);
+    DoLocalScheduleForRegion(*region);
   }
 }
 
@@ -67,21 +56,43 @@ bool LocalSchedule::CheckCondition(CDGRegion &region) const {
   return true;
 }
 
+void LocalSchedule::DoLocalScheduleForRegion(CDGRegion &region) {
+  CDGNode *cdgNode = region.GetRegionRoot();
+  BB *bb = cdgNode->GetBB();
+  ASSERT(bb != nullptr, "get bb from cdgNode failed");
+  if (bb->IsAtomicBuiltInBB()) {
+    return;
+  }
+  intraDDA.Run(region);
+  if (LOCAL_SCHEDULE_DUMP) {
+    intraDDA.GenerateDataDepGraphDotOfRegion(region);
+  }
+  InitInRegion(region);
+  if (LOCAL_SCHEDULE_DUMP || isUnitTest) {
+    DumpRegionInfoBeforeSchedule(region);
+  }
+  DoLocalSchedule(*cdgNode);
+}
+
 void LocalSchedule::DoLocalSchedule(CDGNode &cdgNode) {
-  listScheduler = schedMP.New<ListScheduler>(schedMP, cgFunc, false, "localschedule");
+  if (LOCAL_SCHEDULE_DUMP || isUnitTest) {
+    DumpCDGNodeInfoBeforeSchedule(cdgNode);
+  }
+  listScheduler = schedMP.New<ListScheduler>(schedMP, cgFunc, true, "localschedule");
   InitInCDGNode(cdgNode);
   listScheduler->SetCDGRegion(*cdgNode.GetRegion());
   listScheduler->SetCDGNode(cdgNode);
+  listScheduler->SetUnitTest(isUnitTest);
   listScheduler->DoListScheduling();
   FinishScheduling(cdgNode);
-  if (LOCAL_SCHEDULE_DUMP) {
+  if (LOCAL_SCHEDULE_DUMP || isUnitTest) {
     DumpCDGNodeInfoAfterSchedule(cdgNode);
   }
 }
 
 void LocalSchedule::InitInCDGNode(CDGNode &cdgNode) {
   commonSchedInfo = schedMP.New<CommonScheduleInfo>(schedMP);
-  for (auto depNode : cdgNode.GetAllDataNodes()) {
+  for (auto *depNode : cdgNode.GetAllDataNodes()) {
     commonSchedInfo->AddCandidates(depNode);
     depNode->SetState(kCandidate);
   }
@@ -107,9 +118,9 @@ bool CgLocalSchedule::PhaseRun(maplebe::CGFunc &f) {
   auto *cda = memPool->New<ControlDepAnalysis>(f, *memPool, "localschedule", true);
   cda->Run();
   MAD *mad = Globals::GetInstance()->GetMAD();
-  auto *ddb = memPool->New<AArch64DataDepBase>(*memPool, f, *mad, false);
-  auto *idda = memPool->New<InterDataDepAnalysis>(f, *memPool, *ddb);
-  auto *localScheduler = f.GetCG()->CreateLocalSchedule(*memPool, f, *cda, *idda);
+  auto *ddb = memPool->New<AArch64DataDepBase>(*memPool, f, *mad, true);
+  auto *dda = memPool->New<DataDepAnalysis>(f, *memPool, *ddb);
+  auto *localScheduler = f.GetCG()->CreateLocalSchedule(*memPool, f, *cda, *dda);
   localScheduler->Run();
   return true;
 }

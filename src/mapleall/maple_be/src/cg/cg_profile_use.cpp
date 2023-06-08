@@ -17,7 +17,7 @@
 #include "optimize_common.h"
 
 namespace maplebe {
-void CgProfUse::setupProf() {
+void CgProfUse::SetupProf() {
   FuncProfInfo *funcProf = cgFunc->GetFunction().GetFuncProfData();
   if (funcProf == nullptr) {
     return;
@@ -69,7 +69,7 @@ void CgProfUse::setupProf() {
 
 bool CGProfUse::PhaseRun(maplebe::CGFunc &f) {
   CgProfUse cgprofuse(f, *GetPhaseMemPool());
-  cgprofuse.setupProf();
+  cgprofuse.SetupProf();
 
 #if defined(DEBUG) && DEBUG
   if (CGOptions::FuncFilter(f.GetName())) {

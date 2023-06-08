@@ -22,7 +22,7 @@
 namespace maplebe {
 /* local Handle functions in isel, do not delete or move */
 void HandleGoto(StmtNode &stmt, MPISel &iSel);
-void HandleLabel(StmtNode &stmt, const MPISel &iSel);
+void HandleLabel(StmtNode &stmt, MPISel &iSel);
 
 void AArch64MPIsel::HandleFuncExit() const {
   BlockNode *block = cgFunc->GetFunction().GetBody();
@@ -62,11 +62,11 @@ MemOperand &AArch64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol,
     return GetOrCreateMemOpndFromSymbol(symbol, opndSz, static_cast<int64>(fieldOffset));
   }
 }
-MemOperand &AArch64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) const {
+MemOperand &AArch64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) {
   return static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(symbol, offset, opndSize);
 }
 
-Operand *AArch64MPIsel::SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) const {
+Operand *AArch64MPIsel::SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) {
   CHECK_FATAL(primType == PTY_f64 || primType == PTY_f32, "wrong const");
   AArch64CGFunc *a64Func = static_cast<AArch64CGFunc*>(cgFunc);
   if (primType == PTY_f64) {
@@ -124,7 +124,7 @@ void AArch64MPIsel::CreateCallStructParamPassByReg(const MemOperand &memOpnd, re
   ImmOperand &newImmOpnd = static_cast<ImmOperand&>(*memOpnd.GetOffsetOperand()->Clone(*cgFunc->GetMemoryPool()));
   newImmOpnd.SetValue(newImmOpnd.GetValue() + parmNum * GetPointerSize());
   addrMemOpnd.SetOffsetOperand(newImmOpnd);
-  paramPassByReg.push_back({&parmOpnd, &addrMemOpnd, PTY_a64});
+  paramPassByReg.emplace_back(&parmOpnd, &addrMemOpnd, PTY_a64);
 }
 
 std::tuple<Operand*, size_t, MIRType*> AArch64MPIsel::GetMemOpndInfoFromAggregateNode(BaseNode &argExpr) {
@@ -364,7 +364,6 @@ void AArch64MPIsel::SelectCVaStart(const IntrinsiccallNode &intrnNode) {
 
 void AArch64MPIsel::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
   MIRIntrinsicID intrinsic = intrinsiccallNode.GetIntrinsic();
-
   if (intrinsic == INTRN_C_va_start) {
     SelectCVaStart(intrinsiccallNode);
     return;

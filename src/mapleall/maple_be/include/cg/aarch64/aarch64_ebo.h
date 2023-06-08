@@ -76,7 +76,6 @@ class AArch64Ebo : public Ebo {
   /* The number of elements in callerSaveRegTable must less then 45. */
   static constexpr int32 kMaxCallerSaveReg = 45;
   MOperator ExtLoadSwitchBitSize(MOperator lowMop) const;
-  bool CheckCondCode(const CondOperand &cond) const;
   bool CombineMultiplyAdd(Insn *insn, const Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd,
                           bool is64bits, bool isFp) const;
   bool CheckCanDoMadd(Insn &insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp) const;

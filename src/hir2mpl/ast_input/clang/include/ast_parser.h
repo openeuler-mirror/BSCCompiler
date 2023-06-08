@@ -27,12 +27,21 @@ class ASTParser {
   ASTParser(MapleAllocator &allocatorIn, uint32 fileIdxIn, const std::string &fileNameIn,
             MapleList<ASTStruct*> &astStructsIn, MapleList<ASTFunc*> &astFuncsIn, MapleList<ASTVar*> &astVarsIn,
             MapleList<ASTFileScopeAsm*> &astFileScopeAsmsIn, MapleList<ASTEnumDecl*> &astEnumsIn)
-      : fileIdx(fileIdxIn), fileName(fileNameIn, allocatorIn.GetMemPool()), globalVarDecles(allocatorIn.Adapter()),
-        funcDecles(allocatorIn.Adapter()), recordDecles(allocatorIn.Adapter()),
-        globalEnumDecles(allocatorIn.Adapter()), globalTypeDefDecles(allocatorIn.Adapter()),
-        globalFileScopeAsm(allocatorIn.Adapter()), astStructs(astStructsIn), astFuncs(astFuncsIn),
-        astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn), astEnums(astEnumsIn),
-        vlaSizeMap(allocatorIn.Adapter()) {}
+      : fileIdx(fileIdxIn),
+        fileName(fileNameIn, allocatorIn.GetMemPool()),
+        globalVarDecles(allocatorIn.Adapter()),
+        funcDecles(allocatorIn.Adapter()),
+        recordDecles(allocatorIn.Adapter()),
+        globalEnumDecles(allocatorIn.Adapter()),
+        globalTypeDefDecles(allocatorIn.Adapter()),
+        globalFileScopeAsm(allocatorIn.Adapter()),
+        astStructs(astStructsIn),
+        astFuncs(astFuncsIn),
+        astVars(astVarsIn),
+        astFileScopeAsms(astFileScopeAsmsIn),
+        astEnums(astEnumsIn),
+        vlaSizeMap(allocatorIn.Adapter()),
+        structFileNameMap(allocatorIn.Adapter()) {}
   virtual ~ASTParser() = default;
   bool OpenFile(MapleAllocator &allocator);
   bool Release(MapleAllocator &allocator) const;
@@ -53,7 +62,7 @@ class ASTParser {
   // ProcessStmt
   ASTStmt *ProcessStmt(MapleAllocator &allocator, const clang::Stmt &stmt);
   ASTStmt *ProcessFunctionBody(MapleAllocator &allocator, const clang::CompoundStmt &compoundStmt);
-#define PROCESS_STMT(CLASS) ProcessStmt##CLASS(MapleAllocator&, const clang::CLASS&)
+#define PROCESS_STMT(CLASS) ProcessStmt##CLASS(MapleAllocator &allocator, const clang::CLASS &expr)
   ASTStmt *PROCESS_STMT(AttributedStmt);
   ASTStmt *PROCESS_STMT(UnaryOperator);
   ASTStmt *PROCESS_STMT(BinaryOperator);
@@ -138,6 +147,8 @@ class ASTParser {
                                        ASTBinaryOperatorExpr &astBinOpExpr, ASTExpr &astRExpr, ASTExpr &astLExpr);
   ASTExpr *SolvePointerSubPointerOperation(MapleAllocator &allocator, const clang::BinaryOperator &bo,
                                            ASTBinaryOperatorExpr &astBinOpExpr) const;
+  void SetFieldLenNameInMemberExpr(MapleAllocator &allocator, ASTMemberExpr &astMemberExpr,
+      const clang::FieldDecl &fieldDecl);
 #define PROCESS_EXPR(CLASS) ProcessExpr##CLASS(MapleAllocator&, const clang::CLASS&)
   ASTExpr *PROCESS_EXPR(UnaryOperator);
   ASTExpr *PROCESS_EXPR(AddrLabelExpr);
@@ -257,6 +268,7 @@ class ASTParser {
   uint32 GetSizeFromQualType(const clang::QualType qualType) const;
   ASTExpr *GetSizeOfExpr(MapleAllocator &allocator, const clang::UnaryExprOrTypeTraitExpr &expr,
                          clang::QualType qualType);
+  uint32_t GetNumsOfInitListExpr(const clang::InitListExpr &expr);
   ASTExpr *GetSizeOfType(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *GetTypeSizeFromQualType(MapleAllocator &allocator, const clang::QualType qualType);
   uint32_t GetAlignOfType(const clang::QualType currQualType, clang::UnaryExprOrTypeTrait exprKind) const;
@@ -327,7 +339,8 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   MapleList<ASTFileScopeAsm*> &astFileScopeAsms;
   MapleList<ASTEnumDecl*> &astEnums;
   MapleMap<clang::Expr*, ASTExpr*> vlaSizeMap;
-  std::unordered_map<std::string, std::unordered_set<std::string>> structFileNameMap;
+
+  MapleUnorderedMap<MapleString, MapleVector<MapleString>, MapleString::MapleStringHash> structFileNameMap;
 };
 }  // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_PARSER_H

@@ -43,7 +43,7 @@ class DeleteRegUseVisitor : public OperandVisitorBase,
                             public OperandVisitor<PhiOperand> {
  public:
   DeleteRegUseVisitor(CGSSAInfo &cgSSAInfo, uint32 dInsnID) : deleteInsnId(dInsnID), ssaInfo(&cgSSAInfo) {}
-  virtual ~DeleteRegUseVisitor() = default;
+  ~DeleteRegUseVisitor() override = default;
 
  protected:
   CGSSAInfo *GetSSAInfo() {

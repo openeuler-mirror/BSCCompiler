@@ -15,6 +15,7 @@
 #include "simplify.h"
 #include <iostream>
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <initializer_list>
 #include "constantfold.h"
@@ -561,7 +562,14 @@ BaseNode *LocalDynamicTLSOptDread(const DreadNode &dread, MIRFunction &func) {
 BaseNode *LocalDynamicTLSOptAddrof(const AddrofNode &addrofNode, MIRFunction &func) {
   MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
   MIRSymbol *lhsSymbol = func.GetLocalOrGlobalSymbol(addrofNode.GetStIdx());
-  ConstvalNode *offset = mirBuilder->CreateIntConst(GetTLSVarOffset(*func.GetModule(), *lhsSymbol), PTY_u64);
+  int32 fieldIdx = addrofNode.GetFieldID();
+  uint64 fieldOffset = 0;
+  if (fieldIdx != 0) {
+    MIRStructType* structType = static_cast<MIRStructType *>(lhsSymbol->GetType());
+    fieldOffset = static_cast<uint64>(structType->GetFieldOffsetFromBaseAddr(fieldIdx).byteOffset);
+  }
+  ConstvalNode *offset = mirBuilder->CreateIntConst(GetTLSVarOffset(*func.GetModule(), *lhsSymbol) + fieldOffset,
+                                                    PTY_u64);
   MIRType *addrsType = GlobalTables::GetTypeTable().GetUInt64();
 
   MapleVector<BaseNode*> args0(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
@@ -573,6 +581,7 @@ BaseNode *LocalDynamicTLSOptAddrof(const AddrofNode &addrofNode, MIRFunction &fu
   }
   BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
                                                               tlsAnchor, offset);
+
   return addTlsGlobalOffset;
 }
 
@@ -761,6 +770,22 @@ bool Simplify::IsConstRepalceable(const MIRConst &mirConst) const {
   }
 }
 
+static size_t GetRealFieldsSize(MIRType &currType) {
+  auto *currStructType = currType.EmbeddedStructType();
+  if (!currStructType) {
+    return 0;
+  }
+  auto fieldSize = currStructType->GetFieldsSize();
+  for (auto field : currStructType->GetFields()) {
+    auto tyIdx = field.second.first;
+    auto *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+    if (type->EmbeddedStructType()) {
+      fieldSize += GetRealFieldsSize(*type);
+    }
+  }
+  return fieldSize;
+}
+
 MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirConst) const {
   FieldID currFieldId = 1;
   MIRConst *resultConst = nullptr;
@@ -770,12 +795,12 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirCon
   bool isUpperLayerUnion = false;
   std::function<void(MIRConst *, MIRType *)> traverseAgg = [&] (MIRConst *currConst, MIRType *currType) {
     if (currType->GetKind() == kTypeArray) {
-      currFieldId += static_cast<FieldID>(currType->EmbeddedStructType()->GetFieldsSize());
+      currFieldId += static_cast<FieldID>(GetRealFieldsSize(*currType));
       return;
     }
-    if (isUpperLayerUnion && (!currConst || currConst->GetKind() != kConstAggConst)) {
-      reached = currFieldId == fieldId;
-      resultConst = reached ? currConst : resultConst;
+    if (!currConst || currConst->GetKind() != kConstAggConst) {
+      reached = isUpperLayerUnion ? currFieldId == fieldId : true;
+      resultConst = isUpperLayerUnion ? (reached ? currConst : resultConst) : &mirConst;
       return;
     }
     auto *currAggConst = safe_cast<MIRAggConst>(currConst);
@@ -1285,6 +1310,21 @@ void MemEntry::ExpandMemsetLowLevel(int64 byte, uint64 size, MIRFunction &func, 
   block.RemoveStmt(&stmt);
 }
 
+static bool DimIsOneOrSizeOverFour(const MIRArrayType &arrayType, bool debug, OpKind memOpKind) {
+  // We only consider array with dim == 1 now, and element type must be primitive type
+  if (arrayType.GetDim() != 1 || (arrayType.GetElemType()->GetKind() != kTypeScalar &&
+      arrayType.GetElemType()->GetKind() != kTypePointer)) {
+    MayPrintLog(debug, false, memOpKind, "array dim != 1 or array elements are not primtive type");
+    return false;
+  }
+  MIRType *elemType = arrayType.GetElemType();
+  if (elemType->GetSize() < 4) {
+    MayPrintLog(debug, false, memOpKind, "element size < 4, don't expand it to  avoid to genearte lots of strb/strh");
+    return false;
+  }
+  return true;
+}
+
 // Lower memset(MemEntry, byte, size) into a series of assign stmts and replace callStmt in the block
 // with these assign stmts
 bool MemEntry::ExpandMemset(int64 byte, uint64 size, MIRFunction &func,
@@ -1383,18 +1423,12 @@ bool MemEntry::ExpandMemset(int64 byte, uint64 size, MIRFunction &func,
       InsertBeforeAndMayPrintStmt(block, stmt, debug, fieldAssign);
     }
   } else if (memKind == kMemEntryArray) {
-    // We only consider array with dim == 1 now, and element type must be primitive type
     auto *arrayType = static_cast<MIRArrayType*>(memType);
-    if (arrayType->GetDim() != 1 || (arrayType->GetElemType()->GetKind() != kTypeScalar &&
-        arrayType->GetElemType()->GetKind() != kTypePointer)) {
-      MayPrintLog(debug, false, memOpKind, "array dim != 1 or array elements are not primtive type");
+    // We only consider array with dim == 1 now, and element type must be primitive type
+    if (!DimIsOneOrSizeOverFour(*arrayType, debug, memOpKind)) {
       return false;
     }
     MIRType *elemType = arrayType->GetElemType();
-    if (elemType->GetSize() < 4) {
-      MayPrintLog(debug, false, memOpKind, "element size < 4, don't expand it to  avoid to genearte lots of strb/strh");
-      return false;
-    }
     uint64 elemCnt = static_cast<uint64>(arrayType->GetSizeArrayItem(0));
     if (elemType->GetSize() * elemCnt != size) {
       MayPrintLog(debug, false, memOpKind, "array size not equal");
@@ -1547,18 +1581,12 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, uint64 copySize, MIRFunction
     }
     InsertBeforeAndMayPrintStmt(block, stmt, debug, newAssign);
   } else if (memKind == kMemEntryArray) {
-    // We only consider array with dim == 1 now, and element type must be primitive type
     auto *arrayType = static_cast<MIRArrayType*>(memType);
-    if (arrayType->GetDim() != 1 || (arrayType->GetElemType()->GetKind() != kTypeScalar &&
-        arrayType->GetElemType()->GetKind() != kTypePointer)) {
-      MayPrintLog(debug, false, memOpKind, "array dim != 1 or array elements are not primtive type");
+    // We only consider array with dim == 1 now, and element type must be primitive type
+    if (!DimIsOneOrSizeOverFour(*arrayType, debug, memOpKind)) {
       return false;
     }
     MIRType *elemType = arrayType->GetElemType();
-    if (elemType->GetSize() < 4) {
-      MayPrintLog(debug, false, memOpKind, "element size < 4, don't expand it to  avoid to genearte lots of strb/strh");
-      return false;
-    }
     size_t elemCnt = arrayType->GetSizeArrayItem(0);
     if (elemType->GetSize() * elemCnt != copySize) {
       MayPrintLog(debug, false, memOpKind, "array size not equal");
@@ -2051,7 +2079,7 @@ StmtNode *SimplifyOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) c
     block.RemoveStmt(&stmt);
     return nullptr;
   } else {
-    LabelIdx dstSizeCheckLabIdx, srcSizeCheckLabIdx, nullPtrLabIdx;
+    LabelIdx dstSizeCheckLabIdx, srcSizeCheckLabIdx, nullPtrLabIdx = std::numeric_limits<uint32>::max();
     if (!isDstSizeConst) {
       // check if dst size is greater than maxlen
       dstSizeCheckLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
@@ -2500,11 +2528,12 @@ static void CalculateLocalDynamicTLS(MIRModule &m) {
       mirType = mirSymbol->GetType();
       if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
           mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
-        align = k8ByteSize;
+        align = std::max<uint32>(k8ByteSize, mirType->GetAlign());
       } else {
         align = mirType->GetAlign();
       }
       if (mirSymbol->IsThreadLocal()) {
+        mirSymbol->SetAccessByMem(true);
         mirType = mirSymbol->GetType();
         if (!mirSymbol->IsConst()) {
           if (!m.GetTbssAnchor() && !opts::aggressiveTlsLocalDynamicOpt) {
@@ -2531,11 +2560,12 @@ static void CalculateLocalDynamicTLS(MIRModule &m) {
       continue;
     }
     if (mirSymbol->IsThreadLocal() && (opts::aggressiveTlsLocalDynamicOpt || mirSymbol->IsHiddenVisibility())) {
+      mirSymbol->SetAccessByMem(true);
       mirType = mirSymbol->GetType();
       uint32 align = 0;
       if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
           mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
-        align = k8ByteSize;
+        align = std::max<uint32>(k8ByteSize, mirType->GetAlign());
       } else {
         align = mirType->GetAlign();
       }

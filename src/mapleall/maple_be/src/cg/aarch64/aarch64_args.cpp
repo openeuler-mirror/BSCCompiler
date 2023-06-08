@@ -52,8 +52,9 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
         [this, baseOpnd, &offset, sym, symLoc](AArch64reg reg, PrimType primType) {
       RegOperand &regOpnd = aarFunc->GetOrCreatePhysicalRegisterOperand(reg,
           GetPrimTypeBitSize(primType), aarFunc->GetRegTyFromPrimTy(primType));
-      OfstOperand &ofstOpnd = aarFunc->CreateOfstOpnd(offset, k32BitSize);
-      if (symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
+      OfstOperand &ofstOpnd = aarFunc->CreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
+      AArch64MemLayout *memLayout = static_cast<AArch64MemLayout*>(aarFunc->GetMemlayout());
+      if (memLayout->IsSegMentVaried(symLoc->GetMemSegment())) {
         ofstOpnd.SetVary(kUnAdjustVary);
       }
       auto *memOpnd = aarFunc->CreateMemOperand(GetPrimTypeBitSize(primType), *baseOpnd, ofstOpnd);
@@ -94,7 +95,8 @@ void AArch64MoveRegArgs::MoveLocalRefVarToRefLocals(MIRSymbol &mirSym) const {
   MemOperand &memOpnd = aarFunc->GetOrCreateMemOpnd(mirSym, 0, bitSize, true);
   RegOperand *regOpnd = nullptr;
   if (mirSym.IsPreg()) {
-    PregIdx pregIdx = aarFunc->GetFunction().GetPregTab()->GetPregIdxFromPregno(mirSym.GetPreg()->GetPregNo());
+    PregIdx pregIdx = aarFunc->GetFunction().GetPregTab()->GetPregIdxFromPregno(
+        static_cast<uint32>(mirSym.GetPreg()->GetPregNo()));
     regOpnd = &aarFunc->GetOrCreateVirtualRegisterOperand(aarFunc->GetVirtualRegNOFromPseudoRegIdx(pregIdx));
   } else {
     regOpnd = &aarFunc->GetOrCreateVirtualRegisterOperand(aarFunc->NewVReg(kRegTyInt, k8ByteSize));
@@ -113,7 +115,8 @@ void AArch64MoveRegArgs::LoadStackArgsToVReg(MIRSymbol &mirSym) const {
   uint32 byteSize = GetPrimTypeSize(stype);
   uint32 bitSize = byteSize * kBitsPerByte;
   MemOperand &memOpnd = aarFunc->GetOrCreateMemOpnd(mirSym, 0, bitSize);
-  PregIdx pregIdx = aarFunc->GetFunction().GetPregTab()->GetPregIdxFromPregno(mirSym.GetPreg()->GetPregNo());
+  PregIdx pregIdx = aarFunc->GetFunction().GetPregTab()->GetPregIdxFromPregno(
+      static_cast<uint32>(mirSym.GetPreg()->GetPregNo()));
   RegOperand &dstRegOpnd = aarFunc->GetOrCreateVirtualRegisterOperand(
       aarFunc->GetVirtualRegNOFromPseudoRegIdx(pregIdx));
   Insn &insn = aarFunc->GetInsnBuilder()->BuildInsn(
@@ -137,7 +140,8 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const CCLocInfo &ploc, MIRSymbol &mirSym
   PrimType sType = mirSym.GetType()->GetPrimType();
   uint32 byteSize = GetPrimTypeSize(sType);
   uint32 srcBitSize = ((byteSize < k4ByteSize) ? k4ByteSize : byteSize) * kBitsPerByte;
-  PregIdx pregIdx = aarFunc->GetFunction().GetPregTab()->GetPregIdxFromPregno(mirSym.GetPreg()->GetPregNo());
+  PregIdx pregIdx = aarFunc->GetFunction().GetPregTab()->GetPregIdxFromPregno(
+      static_cast<uint32>(mirSym.GetPreg()->GetPregNo()));
   RegOperand &dstRegOpnd =
       aarFunc->GetOrCreateVirtualRegisterOperand(aarFunc->GetVirtualRegNOFromPseudoRegIdx(pregIdx));
   dstRegOpnd.SetSize(srcBitSize);

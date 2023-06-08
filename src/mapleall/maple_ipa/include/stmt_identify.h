@@ -134,7 +134,7 @@ class StmtInfo {
       hashCandidate.emplace_back(opExpr.GetBitsSize());
       valid &= (opExpr.GetFieldID() == 0);
     }
-    for (auto i = 0; i < meExpr.GetNumOpnds(); ++i) {
+    for (size_t i = 0; i < meExpr.GetNumOpnds(); ++i) {
       GetExprHashCandidate(*meExpr.GetOpnd(i));
     }
   }
@@ -187,7 +187,7 @@ class StmtInfo {
     return true;
   }
 
-  const uint8 GetHashCandidateAt(uint index) const {
+  const uint8 GetHashCandidateAt(size_t index) const {
     return hashCandidate[index];
   }
 
@@ -207,12 +207,11 @@ class StmtInfo {
     frequency = freq;
   }
 
-  DefUsePositions &GetDefUsePositions(OriginalSt &ost) {
+  DefUsePositions &GetDefUsePositions(const OriginalSt &ost) {
     if (ost.IsPregOst()) {
-      return regDefUse.insert({ost.GetPregIdx(), DefUsePositions(allocator)}).first->second;
+      return regDefUse.emplace(ost.GetPregIdx(), DefUsePositions(allocator)).first->second;
     } else {
-      return symbolDefUse.insert(
-          {ost.GetMIRSymbol()->GetStIdx(), DefUsePositions(allocator)}).first->second;
+      return symbolDefUse.emplace(ost.GetMIRSymbol()->GetStIdx(), DefUsePositions(allocator)).first->second;
     }
   }
 

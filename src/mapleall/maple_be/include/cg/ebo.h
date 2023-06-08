@@ -247,9 +247,7 @@ class Ebo {
   bool optSuccess = false;
 };
 
-MAPLE_FUNC_PHASE_DECLARE(CgEbo0, maplebe::CGFunc)
-MAPLE_FUNC_PHASE_DECLARE(CgEbo1, maplebe::CGFunc)
-MAPLE_FUNC_PHASE_DECLARE(CgPostEbo, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE(CgEbo, maplebe::CGFunc)
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_EBO_H */

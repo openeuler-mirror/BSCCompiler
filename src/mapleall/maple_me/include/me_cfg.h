@@ -326,7 +326,7 @@ class MeCFG : public AnalysisResult {
   void ConvertPhiList2IdentityAssigns(BB &meBB) const;
   void ConvertMePhiList2IdentityAssigns(BB &meBB) const;
   bool IsStartTryBB(BB &meBB) const;
-  void FixTryBB(BB &startBB, BB &nextBB);
+  void FixTryBB(BB &startBB, BB &nextBB) const;
   void SetTryBlockInfo(const StmtNode *nextStmt, StmtNode *tryStmt, BB *lastTryBB, BB *curBB, BB *newBB);
 
   void VerifySCC();

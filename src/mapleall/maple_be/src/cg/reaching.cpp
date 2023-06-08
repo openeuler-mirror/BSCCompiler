@@ -1449,7 +1449,7 @@ bool CgReachingDefinition::PhaseRun(maplebe::CGFunc &f) {
 #if TARGAARCH64 || TARGRISCV64
   reachingDef = GetPhaseAllocator()->New<AArch64ReachingDefinition>(f, *GetPhaseMemPool());
 #endif
-#if TARGARM32
+#if defined(TARGARM32) && TARGARM32
   reachingDef = GetPhaseAllocator()->New<Arm32ReachingDefinition>(f, *GetPhaseMemPool());
 #endif
   reachingDef->SetAnalysisMode(kRDAllAnalysis);

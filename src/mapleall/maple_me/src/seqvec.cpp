@@ -279,7 +279,7 @@ void SeqVectorize::DumpCandidates(const MeExpr &base, const StoreList &storelist
 
 void SeqVectorize::CollectStores(IassignNode *iassign) {
   // if no hass information, the node may be changed by loopvec, skip
-  if ((*PreMeStmtExtensionMap)[iassign->GetStmtID()] == nullptr) {
+  if ((*preMeStmtExtensionMap)[iassign->GetStmtID()] == nullptr) {
     return;
   }
   // if point to type is not integer, skip
@@ -297,7 +297,7 @@ void SeqVectorize::CollectStores(IassignNode *iassign) {
     return;
   }
   // compare base address with store list
-  PreMeMIRExtension *lfoP = (*PreMeStmtExtensionMap)[iassign->GetStmtID()];
+  PreMeMIRExtension *lfoP = (*preMeStmtExtensionMap)[iassign->GetStmtID()];
   IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(lfoP->GetMeStmt());
   IvarMeExpr *ivarMeExpr = iassMeStmt->GetLHSVal();
   MeExpr *base = ivarMeExpr->GetBase();
@@ -498,10 +498,10 @@ bool SeqVectorize::IsStmtDataIndependent(const IassignMeStmt *s1, const IassignM
 }
 
 bool SeqVectorize::CanSeqVec(const IassignNode *s1, const IassignNode *s2, bool reverse) {
-  PreMeMIRExtension *lfoP1 = (*PreMeStmtExtensionMap)[s1->GetStmtID()];
+  PreMeMIRExtension *lfoP1 = (*preMeStmtExtensionMap)[s1->GetStmtID()];
   IassignMeStmt *iassMeStmt1 = static_cast<IassignMeStmt *>(lfoP1->GetMeStmt());
   IvarMeExpr *lhsMeExpr1 = iassMeStmt1->GetLHSVal();
-  PreMeMIRExtension *lfoP2 = (*PreMeStmtExtensionMap)[s2->GetStmtID()];
+  PreMeMIRExtension *lfoP2 = (*preMeStmtExtensionMap)[s2->GetStmtID()];
   IassignMeStmt *iassMeStmt2 = static_cast<IassignMeStmt *>(lfoP2->GetMeStmt());
   IvarMeExpr *lhsMeExpr2 = iassMeStmt2->GetLHSVal();
   MIRType &mirType = GetTypeFromTyIdx(s1->GetTyIdx());
@@ -560,7 +560,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
     MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType, PTY_ptr);
     iassign->SetTyIdx(pvecType->GetTypeIndex());
 
-    PreMeMIRExtension *lfoP = (*PreMeStmtExtensionMap)[iassign->GetStmtID()];
+    PreMeMIRExtension *lfoP = (*preMeStmtExtensionMap)[iassign->GetStmtID()];
     BaseNode *parent = lfoP->GetParent();
     CHECK_FATAL(parent && parent->GetOpCode() == OP_block, "unexpect parent type");
     BlockNode *blockParent = static_cast<BlockNode *>(parent);
@@ -637,11 +637,11 @@ void SeqVectorize::LegalityCheckAndTransform(const StoreList &storelist) {
   }
   ResetRhsStatus(); // reset rhs is const flag
   for (int i = static_cast<int>(len) - 1; i >= 0; --i) {
-    IassignNode *store1 = storelist[i];
+    IassignNode *store1 = storelist[static_cast<uint>(i)];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));
     cands.push_back(store1);
     for (int j = i - 1; j >= 0; --j) {
-      IassignNode *store2 = storelist[j];
+      IassignNode *store2 = storelist[static_cast<uint>(j)];
       if (CanSeqVec(cands.back(), store2, true)) {
         cands.push_back(store2);
       }

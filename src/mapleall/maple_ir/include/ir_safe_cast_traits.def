@@ -110,14 +110,14 @@ REGISTER_SAFE_CAST(BinaryNode, from.GetOpCode() == OP_add ||
                                instance_of<DepositbitsNode>(from) ||
                                instance_of<ResolveFuncNode>(from));
 REGISTER_SAFE_CAST(CompareNode, from.GetOpCode() == OP_eq ||
-                                from.GetOpCode() = OP_ge ||
-                                from.GetOpCode() = OP_gt ||
-                                from.GetOpCode() = OP_le ||
-                                from.GetOpCode() = OP_lt ||
-                                from.GetOpCode() = OP_ne ||
-                                from.GetOpCode() = OP_cmp ||
-                                from.GetOpCode() = OP_cmpl ||
-                                from.GetOpCode() = OP_cmpg);
+                                from.GetOpCode() == OP_ge ||
+                                from.GetOpCode() == OP_gt ||
+                                from.GetOpCode() == OP_le ||
+                                from.GetOpCode() == OP_lt ||
+                                from.GetOpCode() == OP_ne ||
+                                from.GetOpCode() == OP_cmp ||
+                                from.GetOpCode() == OP_cmpl ||
+                                from.GetOpCode() == OP_cmpg);
 REGISTER_SAFE_CAST(DepositbitsNode, from.GetOpCode() == OP_depositbits);
 REGISTER_SAFE_CAST(ResolveFuncNode, from.GetOpCode() == OP_resolveinterfacefunc ||
                                     from.GetOpCode() == OP_resolvevirtualfunc);

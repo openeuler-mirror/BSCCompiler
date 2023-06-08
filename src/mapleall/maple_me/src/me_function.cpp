@@ -124,9 +124,9 @@ void MeFunction::DumpMayDUFunction() const {
   }
 }
 
-void MeFunction::Dump(bool DumpSimpIr) const {
+void MeFunction::Dump(bool dumpSimpIr) const {
   LogInfo::MapleLogger() << ">>>>> Dump IR for Function " << mirFunc->GetName() << "<<<<<\n";
-  if (irmap == nullptr || DumpSimpIr) {
+  if (irmap == nullptr || dumpSimpIr) {
     LogInfo::MapleLogger() << "no ssa or irmap info, just dump simp function\n";
     DumpFunction();
     return;

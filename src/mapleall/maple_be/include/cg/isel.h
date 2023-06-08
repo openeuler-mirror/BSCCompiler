@@ -36,7 +36,7 @@ class MPISel {
 
   void DoMPIS();
 
-  CGFunc *GetCurFunc() const {
+  CGFunc *GetCurFunc() {
     return cgFunc;
   }
 
@@ -60,7 +60,7 @@ class MPISel {
   Operand *SelectAlloca(UnaryNode &node, Operand &opnd0);
   Operand *SelectCGArrayElemAdd(const BinaryNode &node);
   ImmOperand *SelectIntConst(const MIRIntConst &intConst, PrimType primType) const;
-  void SelectCallCommon(StmtNode &stmt, const MPISel &iSel) const;
+  void SelectCallCommon(StmtNode &stmt, MPISel &iSel) const;
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   Operand *SelectShift(const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
@@ -79,7 +79,7 @@ class MPISel {
   virtual void SelectIcall(IcallNode &icallNode, Operand &opnd0) = 0;
   virtual void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd1, const BaseNode &parent) = 0;
-  virtual Operand *SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) const = 0;
+  virtual Operand *SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) = 0;
   virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) = 0;
   virtual Operand *SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) = 0;
   virtual Operand *SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) = 0;
@@ -134,7 +134,7 @@ class MPISel {
   void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
 
   template <typename T>
-  Operand *SelectLiteral(T &c, MIRFunction &func, uint32 labelIdx) const {
+  Operand *SelectLiteral(T &c, MIRFunction &func, uint32 labelIdx) {
     MIRSymbol *st = func.GetSymTab()->CreateSymbol(kScopeLocal);
     std::string lblStr(".LB_");
     MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
@@ -165,7 +165,7 @@ class MPISel {
   void SelectCvtFloat2Int(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
   PrimType GetIntegerPrimTypeFromSize(bool isSigned, uint32 bitSize) const;
   std::pair<FieldID, MIRType*> GetFieldIdAndMirTypeFromMirNode(const BaseNode &node);
-  MirTypeInfo GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType *mirType);
+  MirTypeInfo GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType *mirType) const;
   MirTypeInfo GetMirTypeInfoFromMirNode(const BaseNode &node);
   MemOperand *GetOrCreateMemOpndFromIreadNode(const IreadNode &expr, PrimType primType, int offset);
 
@@ -179,13 +179,13 @@ class MPISel {
     return false;
   }
  private:
-  StmtNode *HandleFuncEntry() const;
+  StmtNode *HandleFuncEntry();
   void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opndRhs);
   void SelectDassignStruct(MIRSymbol &symbol, MemOperand &symbolMem, Operand &opndRhs);
   virtual void HandleFuncExit() const = 0;
   virtual MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId = 0,
                                                    RegOperand *baseReg = nullptr) = 0;
-  virtual MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) const = 0;
+  virtual MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) = 0;
   virtual Operand &GetTargetRetOperand(PrimType primType, int32 sReg) = 0;
   void SelectBasicOp(Operand &resOpnd, Operand &opnd0, Operand &opnd1, MOperator mOp, PrimType primType);
   /*

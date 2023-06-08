@@ -62,15 +62,15 @@ class UnionFind {
     return ++num;
   }
 
-  unsigned int NewMember(uint32 id) {
+  unsigned int NewMember(size_t id) {
     if (id + 1 >= rootIDs.size()) {
       size_t oldSize = rootIDs.size();
       uint incNum = static_cast<uint>(id + 2 - rootIDs.size());
       num += incNum;
       rootIDs.insert(rootIDs.end(), incNum, 0);
       sizeOfClass.insert(sizeOfClass.end(), incNum, 1);
-      for (uint i = oldSize; i < rootIDs.size(); ++i) {
-        rootIDs[i] = i;  // new member is its own root
+      for (size_t i = oldSize; i < rootIDs.size(); ++i) {
+        rootIDs[i] = static_cast<uint32>(i);  // new member is its own root
       }
     }
     return num;
@@ -115,7 +115,7 @@ class UnionFind {
     return sizeOfClass[i] == 1;
   }
 
-  inline bool Find(unsigned int id) const {
+  inline bool Find(size_t id) const {
     return rootIDs.size() > id;
   }
 

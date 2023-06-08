@@ -105,6 +105,14 @@ class FEIRVar {
     isGlobal = arg;
   }
 
+  bool IsNeedGlobal() const {
+    return isNeedGlobal;
+  }
+
+  void SetNeedGlobal(bool arg) {
+    isNeedGlobal = arg;
+  }
+
   bool IsDef() const {
     return isDef;
   }
@@ -204,6 +212,7 @@ class FEIRVar {
   Loc loc = {0, 0, 0};
   std::string sectionAttr;
   std::unique_ptr<FEIRExpr> boundaryLenExpr;
+  bool isNeedGlobal = false;
 };
 
 using UniqueFEIRVar = std::unique_ptr<FEIRVar>;

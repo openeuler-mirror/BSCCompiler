@@ -102,7 +102,7 @@ class RCLowering {
   void HandleAssignMeStmt(MeStmt &stmt, MeExpr *pendingDec);
   void HandlePerManent(MeStmt &stmt);
   bool HasCallOrBranch(const MeStmt &from, const MeStmt &to) const;
-  MIRIntrinsicID SelectWriteBarrier(const MeStmt &stmt);
+  MIRIntrinsicID SelectWriteBarrier(const MeStmt &stmt) const;
   MIRType *GetArrayNodeType(const VarMeExpr &var) const;
   void CheckArrayStore(IntrinsiccallMeStmt &writeRefCall);
   void FastLowerThrowStmt(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites);

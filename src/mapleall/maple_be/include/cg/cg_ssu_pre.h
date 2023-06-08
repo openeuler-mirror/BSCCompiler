@@ -92,7 +92,7 @@ class SLambdaOcc;
 class SLambdaResOcc : public SOcc {
  public:
   explicit SLambdaResOcc(BB *bb): SOcc(kSOccLambdaRes, bb) {}
-  virtual ~SLambdaResOcc() = default;
+  ~SLambdaResOcc() override = default;
 
   void Dump() const override {
     LogInfo::MapleLogger() << "LambdaResOcc at bb" << cgbb->GetId() << " classId" << classId;

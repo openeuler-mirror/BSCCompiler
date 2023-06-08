@@ -75,6 +75,7 @@ class MIRParser {
   bool CheckAlignTk();
   bool ParseAlignAttrs(TypeAttrs &tA);
   bool ParsePackAttrs();
+  bool ParsePackedAttrs();
   bool ParseFieldAttrs(FieldAttrs &attrs);
   bool ParseFuncAttrs(FuncAttrs &attrs);
   void SetAttrContent(FuncAttrs &attrs, FuncAttrKind x, const MIRLexer &mirLexer) const;

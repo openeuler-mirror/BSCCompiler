@@ -42,7 +42,7 @@ void McSSAPre::ResetMCWillBeAvail(PhiOcc *occ) const {
   }
 }
 
-void McSSAPre::ComputeMCWillBeAvail() const {
+void McSSAPre::ComputeMCWillBeAvail() {
   if (minCut.size() == 0) {
     for (PhiOcc *phiOcc : phiOccs) {
       phiOcc->isMCWillBeAvail = phiOcc->isFullyAvail;
@@ -178,7 +178,7 @@ bool McSSAPre::SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> 
   } while (visitIdx != 1);
   // update cutSet with visited nodes lower than visitIdx
   if (visitIdx != 1) {
-    for (uint i = visitIdx - 1; i > 0; i--) {
+    for (size_t i = visitIdx - 1; i > 0; i--) {
       cutSet.insert(curRoute->visits[i].node->id);
     }
   }
@@ -225,7 +225,7 @@ bool McSSAPre::SearchMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet
   } while (visitIdx != 1);
   // update cutSet with visited nodes lower than visitIdx
   if (visitIdx != 1) {
-    for (uint i = visitIdx - 1; i > 0; --i) {
+    for (size_t i = visitIdx - 1; i > 0; --i) {
       cutSet.insert(curRoute->visits[i].node->id);
     }
   }
@@ -527,7 +527,7 @@ void McSSAPre::GraphReduction() {
   for (PhiOcc *phiOcc : phiOccs) {
     if (phiOcc->isPartialAnt && !phiOcc->isFullyAvail) {
       RGNode *newRGNode = preMp->New<RGNode>(&preAllocator, nextRGNodeId++, phiOcc);
-      occ2RGNodeMap.insert(std::pair(phiOcc, newRGNode));
+      occ2RGNodeMap.emplace(std::pair(phiOcc, newRGNode));
       numPhis++;
     }
   }
@@ -713,9 +713,9 @@ void McSSAPre::ApplyMCSSAPre() {
   }
 }
 
-void DoProfileGuidedSavePlacement(CGFunc *f, DomAnalysis *dom, SsaPreWorkCand *workCand) {
+void DoProfileGuidedSavePlacement(CGFunc *f, DomAnalysis *dom, LoopAnalysis *loop, SsaPreWorkCand *workCand) {
   MemPool *tempMP = memPoolCtrler.NewMemPool("cg_mc_ssa_pre", true);
-  McSSAPre cgssapre(f, dom, tempMP, workCand, false /*asEarlyAsPossible*/, false /*enabledDebug*/);
+  McSSAPre cgssapre(f, dom, loop, tempMP, workCand, false /* asEarlyAsPossible */, false /* enabledDebug */);
 
   cgssapre.ApplyMCSSAPre();
 

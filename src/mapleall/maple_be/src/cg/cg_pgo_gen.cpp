@@ -84,13 +84,13 @@ static inline MIRSymbol *GetOrCreateFuncInfoTbl(MIRModule &m, const std::vector<
 
   MIRType *funcProfInfoPtrTy = GlobalTables::GetTypeTable().GetOrCreatePointerType(funcProfInfoTy->GetTypeIndex());
   MIRType *arrOfFuncInfoPtrTy = GlobalTables::GetTypeTable().GetOrCreateArrayType(
-      *funcProfInfoPtrTy, validFuncs.size());
+      *funcProfInfoPtrTy, static_cast<uint32>(validFuncs.size()));
   sym = m.GetMIRBuilder()->CreateGlobalDecl(useName, *arrOfFuncInfoPtrTy, kScFstatic);
   auto *funcInfoTblMirConst = m.GetMemPool()->New<MIRAggConst>(m, *arrOfFuncInfoPtrTy);
   for (size_t i = 0; i < allFuncInfoSym.size(); ++i) {
     auto *funcInfoMirConst = m.GetMemPool()->New<MIRAddrofConst>(
         allFuncInfoSym[i]->GetStIdx(), 0, *GlobalTables::GetTypeTable().GetPtr());
-    funcInfoTblMirConst->AddItem(funcInfoMirConst, i);
+    funcInfoTblMirConst->AddItem(funcInfoMirConst, static_cast<uint32>(i));
   }
   sym->SetKonst(funcInfoTblMirConst);
   return sym;
@@ -145,9 +145,12 @@ static inline MIRSymbol *GetOrCreateModuleInfo(MIRModule &m, const std::vector<M
   return sym;
 }
 
-void CGProfGen::CreateProfFileSym(MIRModule &m, const std::string &outputPath, const std::string &symName) {
+void CGProfGen::CreateProfFileSym(MIRModule &m, std::string &outputPath, const std::string &symName) {
   auto *mirBuilder = m.GetMIRBuilder();
   auto *charPtrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_a64));
+  if (!outputPath.empty() && outputPath.back() != '/') {
+    outputPath.append("/");
+  }
   const std::string finalName = outputPath + "mpl_lite_pgo.data";
   auto *modNameMirConst = m.GetMemPool()->New<MIRStrConst>(finalName, *charPtrType);
   auto *funcPtrSym = mirBuilder->GetOrCreateGlobalDecl(symName, *charPtrType);
@@ -173,15 +176,17 @@ void CGProfGen::CreateChildTimeSym(maple::MIRModule &m, const std::string &symNa
 
 void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   std::vector<MIRFunction *> validFuncs;
-  for (MIRFunction *f : std::as_const(m.GetFunctionList())) {
-    validFuncs.push_back(f);
+  for (MIRFunction *mirF : std::as_const(m.GetFunctionList())) {
+    validFuncs.push_back(mirF);
   }
   /* call entry in libmplpgo.so */
   auto profEntry = std::string("__" + LiteProfile::FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) + "_init");
   ArgVector formals(m.GetMPAllocator().Adapter());
   MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
   auto *newEntry  = m.GetMIRBuilder()->CreateFunction(profEntry, *voidTy, formals);
+  newEntry->SetWithSrc(false);
   auto *initInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_init", TyIdx(PTY_void));
+  initInSo->SetWithSrc(false);
   auto *entryBody = newEntry->GetCodeMempool()->New<BlockNode>();
   auto &entryAlloc = newEntry->GetCodeMempoolAllocator();
   auto *callMINode = newEntry->GetCodeMempool()->New<CallNode>(entryAlloc, OP_call, initInSo->GetPuidx());
@@ -197,7 +202,9 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   /* call setup in mplpgo.so if it needs mutex && dump in child process */
   auto profSetup = std::string("__" + LiteProfile::FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) +  "_setup");
   auto *newSetup = m.GetMIRBuilder()->CreateFunction(profSetup, *voidTy, formals);
+  newSetup->SetWithSrc(false);
   auto *setupInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_setup", TyIdx(PTY_void));
+  setupInSo->SetWithSrc(false);
   auto *setupBody = newSetup->GetCodeMempool()->New<BlockNode>();
   auto &setupAlloc = newSetup->GetCodeMempoolAllocator();
   setupBody->AddStatement(newSetup->GetCodeMempool()->New<CallNode>(setupAlloc, OP_call, setupInSo->GetPuidx()));
@@ -209,7 +216,9 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   /* call exit in libmplpgo.so */
   auto profExit = std::string("__" + LiteProfile::FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) + "_exit");
   auto *newExit = m.GetMIRBuilder()->CreateFunction(profExit, *voidTy, formals);
+  newExit->SetWithSrc(false);
   auto *exitInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_exit", TyIdx(PTY_void));
+  exitInSo->SetWithSrc(false);
   auto *exitBody = newExit->GetCodeMempool()->New<BlockNode>();
   auto &exitAlloc = newExit->GetCodeMempoolAllocator();
   exitBody->AddStatement(newExit->GetCodeMempool()->New<CallNode>(exitAlloc, OP_call, exitInSo->GetPuidx()));

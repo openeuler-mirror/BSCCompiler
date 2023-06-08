@@ -32,7 +32,7 @@ uint32 AArch64CallConvImpl::FloatParamRegRequired(MIRStructType &structType, uin
 
 static void AllocateHomogeneousAggregatesRegister(CCLocInfo &ploc, const AArch64reg *regList,
                                                   uint32 maxRegNum, PrimType baseType,
-                                                  uint32 allocNum, uint32 begin = 0) {
+                                                  uint32 allocNum, [[maybe_unused]]uint32 begin = 0) {
   CHECK_FATAL(allocNum + begin - 1 < maxRegNum, "NIY, out of range.");
   if (allocNum >= kOneRegister) {
     ploc.reg0 = regList[begin++];
@@ -50,12 +50,12 @@ static void AllocateHomogeneousAggregatesRegister(CCLocInfo &ploc, const AArch64
     ploc.reg3 = regList[begin++];
     ploc.primTypeOfReg3 = baseType;
   }
-  ploc.regCount = allocNum;
+  ploc.regCount = static_cast<uint8>(allocNum);
 }
 
 void AArch64CallConvImpl::InitCCLocInfo(CCLocInfo &ploc) const {
   ploc.Clear();
-  ploc.memOffset = nextStackArgAdress;
+  ploc.memOffset = static_cast<int32>(nextStackArgAdress);
 }
 
 // instantiated with the type of the function return value, it describes how
@@ -112,11 +112,12 @@ void AArch64CallConvImpl::LocateRetVal(const MIRType &retType, CCLocInfo &ploc) 
 }
 
 uint64 AArch64CallConvImpl::AllocateRegisterForAgg(const MIRType &mirType, CCLocInfo &ploc,
-                                                   uint64 size, uint64 align) {
+                                                   uint64 size, uint64 &align) {
   uint64 aggCopySize = 0;
   PrimType baseType = PTY_begin;
   size_t elemNum = 0;
   if (IsHomogeneousAggregates(mirType, baseType, elemNum)) {
+    align = GetPrimTypeSize(baseType);
     if ((nextFloatRegNO + elemNum - 1) < AArch64Abi::kNumFloatParmRegs) {
       // C.2  If the argument is an HFA or an HVA and there are sufficient unallocated SIMD and
       //      Floating-point registers (NSRN + number of members <= 8), then the argument is
@@ -124,8 +125,8 @@ uint64 AArch64CallConvImpl::AllocateRegisterForAgg(const MIRType &mirType, CCLoc
       //      the HFA or HVA). The NSRN is incremented by the number of registers used.
       //      The argument has now been allocated
       AllocateHomogeneousAggregatesRegister(ploc, AArch64Abi::kFloatReturnRegs,
-          AArch64Abi::kNumFloatParmRegs, baseType, elemNum, nextFloatRegNO);
-      nextFloatRegNO += elemNum;
+          AArch64Abi::kNumFloatParmRegs, baseType, static_cast<uint32>(elemNum), nextFloatRegNO);
+      nextFloatRegNO = static_cast<uint32>(nextFloatRegNO + elemNum);
     } else {
       // C.3  If the argument is an HFA or an HVA then the NSRN is set to 8 and the size of the
       //      argument is rounded up to the nearest multiple of 8 bytes.
@@ -139,7 +140,7 @@ uint64 AArch64CallConvImpl::AllocateRegisterForAgg(const MIRType &mirType, CCLoc
     // large struct, a pointer to the copy is used
     ploc.reg0 = AllocateGPRegister();
     ploc.primTypeOfReg0 = PTY_a64;
-    ploc.memSize = k8ByteSize;
+    ploc.memSize = k8ByteSizeInt;
     aggCopySize = RoundUp(size, k8ByteSize);
   }
   return aggCopySize;

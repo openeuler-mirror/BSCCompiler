@@ -24,8 +24,6 @@
 
 namespace maplebe {
 
-#define BBID uint32
-
 /* Saved callee-save reg info */
 class SavedRegInfo {
  public:
@@ -113,10 +111,11 @@ class SavedBBInfo {
 
 class AArch64RegSavesOpt : public RegSavesOpt {
  public:
-  AArch64RegSavesOpt(CGFunc &func, MemPool &pool, DomAnalysis &dom, PostDomAnalysis &pdom)
+  AArch64RegSavesOpt(CGFunc &func, MemPool &pool, DomAnalysis &dom, PostDomAnalysis &pdom, LoopAnalysis &loop)
       : RegSavesOpt(func, pool),
-        domInfo(&dom),
-        pDomInfo(&pdom),
+        domInfo(dom),
+        pDomInfo(pdom),
+        loopInfo(loop),
         bbSavedRegs(alloc.Adapter()),
         regSavedBBs(alloc.Adapter()),
         regOffset(alloc.Adapter()),
@@ -165,11 +164,11 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   void Run() override;
 
   DomAnalysis *GetDomInfo() const {
-    return domInfo;
+    return &domInfo;
   }
 
   PostDomAnalysis *GetPostDomInfo() const {
-    return pDomInfo;
+    return &pDomInfo;
   }
 
   Bfs *GetBfs() const {
@@ -253,8 +252,9 @@ class AArch64RegSavesOpt : public RegSavesOpt {
   }
 
  private:
-  DomAnalysis *domInfo;
-  PostDomAnalysis *pDomInfo;
+  DomAnalysis &domInfo;
+  PostDomAnalysis &pDomInfo;
+  LoopAnalysis &loopInfo;
   Bfs *bfs = nullptr;
   CalleeBitsType *calleeBitsDef = nullptr;
   CalleeBitsType *calleeBitsUse = nullptr;

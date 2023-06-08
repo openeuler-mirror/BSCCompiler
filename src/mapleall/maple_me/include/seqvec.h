@@ -26,12 +26,12 @@ class SeqVectorize {
  public:
   SeqVectorize(MemPool *localmp, PreMeEmitter *lfoEmit, bool debug = false)
       : localMP(localmp), localAlloc(localmp),
-        codeMP(lfoEmit->GetCodeMP()), codeMPAlloc(lfoEmit->GetCodeMPAlloc()),
-        mirFunc(lfoEmit->GetMirFunction()),
-        meIRMap(lfoEmit->GetMeIRMap()),
+        codeMP(&lfoEmit->GetCodeMP()), codeMPAlloc(&lfoEmit->GetCodeMPAlloc()),
+        mirFunc(&lfoEmit->GetMirFunction()),
+        meIRMap(&lfoEmit->GetMeIRMap()),
         stores(localAlloc.Adapter()), enableDebug(debug) {
-    PreMeStmtExtensionMap = lfoEmit->GetPreMeStmtExtensionMap();
-    PreMeExprExtensionMap = lfoEmit->GetPreMeExprExtensionMap();
+    preMeStmtExtensionMap = lfoEmit->GetPreMeStmtExtensionMap();
+    preMeExprExtensionMap = lfoEmit->GetPreMeExprExtensionMap();
   }
   virtual ~SeqVectorize() = default;
   void Perform();
@@ -58,10 +58,10 @@ class SeqVectorize {
   MapleAllocator *codeMPAlloc;
   MIRFunction *mirFunc;
   MeIRMap *meIRMap;
-  // point to PreMeStmtExtensionMap of PreMeEmitter, key is stmtID
-  MapleMap<uint32_t, PreMeMIRExtension *>  *PreMeStmtExtensionMap;
-  // point to PreMeExprExtensionMap of PreMeEmitter, key is mirnode
-  MapleMap<BaseNode *, PreMeMIRExtension *> *PreMeExprExtensionMap;
+  // point to preMeStmtExtensionMap of PreMeEmitter, key is stmtID
+  MapleMap<uint32_t, PreMeMIRExtension *>  *preMeStmtExtensionMap;
+  // point to preMeExprExtensionMap of PreMeEmitter, key is mirnode
+  MapleMap<BaseNode *, PreMeMIRExtension *> *preMeExprExtensionMap;
   StoreListMap stores;
   uint32_t currRhsStatus = 0; // unset
   bool enableDebug = true;

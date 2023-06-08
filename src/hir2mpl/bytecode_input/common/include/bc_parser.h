@@ -36,7 +36,7 @@ class BCParser : public BCParserBase {
   uint32 CalculateCheckSumImpl(const uint8 *data, uint32 size) override = 0;
   bool ParseHeaderImpl() override = 0;
   bool VerifyImpl() override = 0;
-  virtual bool RetrieveIndexTables() override = 0;
+  bool RetrieveIndexTables() override = 0;
   bool RetrieveUserSpecifiedClasses(std::list<std::unique_ptr<BCClass>> &klasses) override = 0;
   bool RetrieveAllClasses(std::list<std::unique_ptr<BCClass>> &klasses) override = 0;
   bool CollectAllDepTypeNamesImpl(std::unordered_set<std::string> &depSet) override = 0;
@@ -57,7 +57,7 @@ class MethodProcessTask : public MplTask {
         klass(argKlass),
         idxPair(argIdxPair),
         parser(argParser) {}
-  virtual ~MethodProcessTask() override = default;
+  ~MethodProcessTask() override = default;
 
  protected:
   int RunImpl(MplTaskParam *param) override;
@@ -74,7 +74,7 @@ class MethodProcessTask : public MplTask {
 template <class T, class V>
 class MethodProcessSchedular : public MplScheduler {
  public:
-  MethodProcessSchedular(const std::string &name)
+  explicit MethodProcessSchedular(const std::string &name)
       : MplScheduler(name) {}
   ~MethodProcessSchedular() override {
     FEConfigParallel::GetInstance().RunThreadIDCleanUp();

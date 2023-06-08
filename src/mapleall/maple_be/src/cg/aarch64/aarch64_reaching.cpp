@@ -106,7 +106,7 @@ void AArch64ReachingDefinition::InitStartGen() {
             static_cast<AArch64SymbolAlloc*>(cgFunc->GetMemlayout()->GetSymAllocInfo(firstSym->GetStIndex()));
         int32 stOffset = cgFunc->GetBaseOffset(*firstSymLoc);
         MIRType *firstType = cgFunc->GetFunction().GetNthParamType(i);
-        uint32 firstSymSize = firstType->GetSize();
+        uint32 firstSymSize = static_cast<uint32>(firstType->GetSize());
         uint32 firstStackSize = firstSymSize < k4ByteSize ? k4ByteSize : firstSymSize;
 
         MemOperand *memOpnd = aarchCGFunc->CreateStackMemOpnd(RFP, stOffset, firstStackSize * kBitsPerByte);

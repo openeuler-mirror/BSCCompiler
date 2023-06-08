@@ -12,9 +12,9 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <memory>
 #include "compiler.h"
 #include "default_options.def"
-#include <memory>
 #ifdef INTERGRATE_DRIVER
 #include "dex2mpl_runner.h"
 #include "mir_function.h"
@@ -25,7 +25,8 @@ const std::string &Dex2MplCompiler::GetBinName() const {
   return kBinNameDex2mpl;
 }
 
-DefaultOption Dex2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
+DefaultOption Dex2MplCompiler::GetDefaultOptions(const MplOptions &options,
+                                                 const Action &action [[maybe_unused]]) const {
   uint32_t len = 0;
   MplOption *kDex2mplDefaultOptions = nullptr;
 
@@ -55,13 +56,13 @@ DefaultOption Dex2MplCompiler::GetDefaultOptions(const MplOptions &options, cons
   return defaultOptions;
 }
 
-void Dex2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+void Dex2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions [[maybe_unused]], const Action &action,
                                           std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".mpl");
   tempFiles.push_back(action.GetFullOutputName() + ".mplt");
 }
 
-std::unordered_set<std::string> Dex2MplCompiler::GetFinalOutputs(const MplOptions &mplOptions,
+std::unordered_set<std::string> Dex2MplCompiler::GetFinalOutputs(const MplOptions &mplOptions [[maybe_unused]],
                                                                  const Action &action) const {
   auto finalOutputs = std::unordered_set<std::string>();
   (void)finalOutputs.insert(action.GetFullOutputName() + ".mpl");
@@ -189,7 +190,6 @@ void Dex2MplCompiler::PostDex2Mpl(std::unique_ptr<MIRModule> &theModule) const {
 void Dex2MplCompiler::PrintCommand(const MplOptions &options, const Action &action) const {
   std::string runStr = "--run=";
   std::string optionStr = "--option=\"";
-  std::string connectSym = "";
   if (options.GetExeOptions().find(kBinNameDex2mpl) != options.GetExeOptions().end()) {
     runStr += "dex2mpl";
     auto inputDex2mplOptions = options.GetExeOptions().find(kBinNameDex2mpl);

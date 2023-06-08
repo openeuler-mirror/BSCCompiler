@@ -129,7 +129,7 @@ class VregInfo {
     vRegTable.resize(sz);
   }
   uint32 VRegTableSize() const {
-    return vRegTable.size();
+    return static_cast<uint32>(vRegTable.size());
   }
   uint32 VRegTableGetSize(uint32 idx) const {
     return vRegTable[idx].GetSize();

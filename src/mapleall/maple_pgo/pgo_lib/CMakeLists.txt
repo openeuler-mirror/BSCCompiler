@@ -4,9 +4,11 @@ project(mplpgo_c C)
 set(CMAKE_C_STANDARD 99)
 
 set(MAPLE_ROOT $ENV{MAPLE_ROOT})
-set(SYS_NAME $ENV{BiShengC_GET_OS_VERSION})
+set(SYS_NAME $ENV{BISHENGC_GET_OS_VERSION})
 set(GCC_LINARO_PATH ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0)
 set(CMAKE_C_COMPILER ${GCC_LINARO_PATH}/bin/aarch64-linux-gnu-gcc)
+
+add_compile_options(-fpic -O2)
 
 add_library(mplpgo SHARED mplpgo.c mplpgo.h common_util.h)
 add_library(mplpgo_static STATIC mplpgo.c mplpgo.h common_util.h)

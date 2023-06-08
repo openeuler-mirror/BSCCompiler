@@ -33,19 +33,19 @@ typedef struct {
 } FOO2;
 #pragma pack(pop)
 #pragma pack(pop)
-// CHECK: type {{.*}} <struct pack(1)
+// CHECK: type {{.*}} <struct packed
 typedef struct {
   char c1;
   int i;
   char c2;
 }__attribute__ ((packed)) FOO3;
-// CHECK: type $foo1{{.*}} <struct pack(1)
+// CHECK: type $foo1{{.*}} <struct packed
 struct foo1 {
   char c1;
   int i;
   char c2;
 } __attribute__ ((packed));
-// CHECK: type $foo2{{.*}} <struct pack(1)
+// CHECK: type $foo2{{.*}} <struct packed pack(2)
 #pragma pack(push, 2)
 struct foo2 {
   char c1;
@@ -55,7 +55,7 @@ struct foo2 {
 #pragma pack(pop)
 struct foo3 {
   char c1;
-  // CHECK: i {{.*}} pack(1)
+  // CHECK: i {{.*}} packed
   int i  __attribute__ ((packed));
   char c2;
 };
@@ -63,15 +63,15 @@ struct foo3 {
 #pragma pack(push, 2)
 struct foo4 {
   char c1;
-  // CHECK: i {{.*}} pack(1)
+  // CHECK: i {{.*}} packed
   int i  __attribute__ ((packed));
   char c2;
 };
 #pragma pack(pop)
-// CHECK: type $foo5{{.*}} <struct pack(1)
+// CHECK: type $foo5{{.*}} <struct packed
 struct foo5 {
   char c1;
-  // CHECK: i {{.*}} pack(1)
+  // CHECK: i {{.*}} packed
   int i  __attribute__ ((packed));
   char c2;
 } __attribute__ ((packed));

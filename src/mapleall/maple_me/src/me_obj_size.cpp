@@ -356,7 +356,10 @@ size_t OBJSize::DealWithIaddrof(const MeExpr &opnd, int64 type, bool getSizeOfWh
       static_cast<uint64>(typeOfBase->GetBitOffsetFromBaseAddr(fieldIDOfIaddrof) / kBitsPerByte);
 }
 
-bool OBJSize::DealWithOpnd(const MeExpr &opnd, std::set<MePhiNode*> &visitedPhi) const {
+bool OBJSize::DealWithOpnd(MeExpr &opnd, std::set<MePhiNode*> &visitedPhi) const {
+  if (PhiOpndIsDefPointOfOtherPhi(opnd, visitedPhi)) {
+    return true;
+  }
   for (uint8 i = 0; i < opnd.GetNumOpnds(); ++i) {
     if (PhiOpndIsDefPointOfOtherPhi(*opnd.GetOpnd(i), visitedPhi)) {
       return true;
@@ -394,7 +397,6 @@ bool OBJSize::PhiOpndIsDefPointOfOtherPhi(MeExpr &expr, std::set<MePhiNode*> &vi
       return true;
     }
     (void)visitedPhi.insert(phi);
-    std::set<MeExpr*> res;
     for (auto *phiOpnd : phi->GetOpnds()) {
       if (PhiOpndIsDefPointOfOtherPhi(*phiOpnd, visitedPhi)) {
         return true;

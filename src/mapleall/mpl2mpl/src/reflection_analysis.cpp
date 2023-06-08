@@ -356,16 +356,16 @@ uint32 GetClassAccessFlags(const MIRStructType &classType) {
     }
   }
 
-  int32 accessFlag = 0;
+  uint32 accessFlag = 0;
   for (const MIRPragma *prag : classType.GetPragmaVec()) {
     if (prag->GetKind() == kPragmaClass) {
       const MapleVector<MIRPragmaElement*> elemVector = prag->GetElementVector();
       for (MIRPragmaElement *elem : elemVector) {
         const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(elem->GetNameStrIdx());
         if (name == kAccessFlags) {
-          accessFlag = elem->GetI32Val();
-          accessFlag |= static_cast<int32>((originAF & static_cast<uint32>(kModPublic)) <<
-                                           static_cast<uint32>(kModifierAFOriginPublic - 1));
+          accessFlag = static_cast<uint32>(elem->GetI32Val());
+          accessFlag |= (originAF & static_cast<uint32>(kModPublic)) <<
+                        static_cast<uint32>(kModifierAFOriginPublic - 1);
           return static_cast<uint32>(accessFlag);
         }
       }
@@ -1103,7 +1103,6 @@ void ReflectionAnalysis::GenFieldOffsetConst(MIRAggConst &newConst, const Klass 
     FieldID fldID = mirBuilder.GetStructFieldIDFromNameAndTypeParentFirstFoundInChild(
         *mirClassType, originFieldname, fieldP.second.first);
     // set LSB 0, and set LSB 1 in muid_replacement
-    CHECK_FATAL(fldID <= INT32_MAX, "filedId out of range");
     fldID = fldID * 2;
     mirBuilder.AddIntFieldConst(type, newConst, metaFieldID, fldID);
   }
@@ -1586,7 +1585,7 @@ void ReflectionAnalysis::GenAnnotation(std::map<int, int> &idxNumMap, std::strin
       if (paramnumArray != nullptr) {
         int8 x = JudgePara(classType);
         CHECK_FATAL(paramIndex != nullptr, "null ptr check");
-        if (x && paragName.find(kInitFuntionStr) != std::string::npos) {
+        if (x != 0 && paragName.find(kInitFuntionStr) != std::string::npos) {
           (*paramnumArray)[(*paramIndex)++] = prag->GetParamNum() + x;
         } else {
           (*paramnumArray)[(*paramIndex)++] = prag->GetParamNum();
@@ -1606,7 +1605,8 @@ void ReflectionAnalysis::GenAnnotation(std::map<int, int> &idxNumMap, std::strin
   }
 }
 
-uint32 ReflectionAnalysis::GetAnnoCstrIndex(std::map<int, int> &idxNumMap, const std::string &annoArr, bool isField) {
+uint32 ReflectionAnalysis::GetAnnoCstrIndex(std::map<int, int> &idxNumMap,
+                                            const std::string &annoArr, bool isField) const {
   size_t annoNum = idxNumMap.size();
   uint32 signatureIdx = 0;
   if (annoNum == 0) {
@@ -1816,7 +1816,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
   flag = isColdClass ? (flag | kClassIscoldclass) : flag;
   flag = klass.HasFlag(kClassRuntimeVerify) ? (flag | kClassRuntimeVerify) : flag;
   flag = (Options::lazyBinding && !isLibcore) ? (flag | kClassLazyBindingClass) : flag;
-  flag = Options::buildApp ? flag | kClassNeedDecouple : flag;
+  flag = Options::buildApp != Options::kNoDecouple ? flag | kClassNeedDecouple : flag;
   mirBuilder.AddIntFieldConst(classMetadataROType, *newConst, fieldID++, flag);
   // @numofsuperclasses
   CHECK_FATAL(superClassSize <= 0xffff, "Error:the size of superClass is too big");
@@ -1826,7 +1826,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
 #endif  // USE_32BIT_REF
   // @modifier: For class fill ClassAccessFlags.
   uint32 modifier = GetClassAccessFlags(*structType);
-  modifier |= (isLocalClass << (kModifierLocalClass - 1));
+  modifier |= ((isLocalClass ? 1u : 0u) << (kModifierLocalClass - 1));
   modifier |= (1 << (kModifierLocalClassVaild - 1));
 
   mirBuilder.AddIntFieldConst(classMetadataROType, *newConst, fieldID++, modifier);
@@ -1873,7 +1873,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
 #endif  // USE_32BIT_REF
   // @itab
   GStrIdx strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(ITAB_PREFIX_STR + klass.GetKlassName());
-  if (strIdx != 0u && !Options::buildApp) {
+  if (strIdx != 0u && Options::buildApp == Options::kNoDecouple) {
     MIRSymbol *itableSymbolType = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
     mirBuilder.AddAddrofFieldConst(classMetadataType, *newConst, fieldID++, *itableSymbolType);
   } else {
@@ -1881,7 +1881,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
   }
   // @vtab
   strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(VTAB_PREFIX_STR + klass.GetKlassName());
-  if (strIdx != 0u && !Options::buildApp) {
+  if (strIdx != 0u && Options::buildApp == Options::kNoDecouple) {
     MIRSymbol *vtableSymbolType = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
     mirBuilder.AddAddrofFieldConst(classMetadataType, *newConst, fieldID++, *vtableSymbolType);
   } else {
@@ -1903,7 +1903,8 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
 
   // Set default value to class initialization state.
   if (klassH->NeedClinitCheckRecursively(klass)) {
-    mirBuilder.AddIntFieldConst(classMetadataType, *newConst, fieldID++, kSEGVAddrForClassUninitialized);
+    mirBuilder.AddIntFieldConst(classMetadataType, *newConst, fieldID++,
+                                static_cast<int64>(kSEGVAddrForClassUninitialized));
   } else {
     // If this class and its parents do not have <clinit> method, we do not do clinit-check for this class,
     // thus the class initialization state is modified to "Initialized".
@@ -2224,7 +2225,7 @@ void ReflectionAnalysis::Run() {
   if (Options::profileFunc) {
     mirModule->GetProfile().SetProfileMode();
   }
-  isLazyBindingOrDecouple = (Options::lazyBinding && !isLibcore) || Options::buildApp;
+  isLazyBindingOrDecouple = (Options::lazyBinding && !isLibcore) || Options::buildApp != Options::kNoDecouple;
   MarkWeakMethods();
   GenMetadataType(*mirModule);
   const MapleVector<Klass*> &klasses = klassH->GetTopoSortedKlasses();

@@ -112,7 +112,7 @@ class IRMap : public AnalysisResult {
     return meExpr;
   }
 
-  IassignMeStmt *CreateIassignMeStmt(TyIdx tyIdx, IvarMeExpr &lhs, MeExpr &rhs,
+  IassignMeStmt *CreateIassignMeStmt(const TyIdx &tyIdx, IvarMeExpr &lhs, MeExpr &rhs,
       const MapleMap<OStIdx, ChiMeNode*> &clist);
   AssignMeStmt *CreateAssignMeStmt(ScalarMeExpr &lhs, MeExpr &rhs, BB &currBB);
   void InsertMeStmtBefore(BB&, MeStmt&, MeStmt&);
@@ -141,10 +141,10 @@ class IRMap : public AnalysisResult {
   MeExpr *CreateMeExprTypeCvt(PrimType pType, PrimType opndptyp, MeExpr &opnd0);
   MeExpr *CreateMeExprRetype(PrimType pType, TyIdx tyIdx, MeExpr &opnd);
   MeExpr *CreateMeExprExt(Opcode op, PrimType pType, uint32 bitsSize, MeExpr &opnd);
-  UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd);
-  UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition *src);
+  UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd) const;
+  UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition &src) const;
   RetMeStmt *CreateRetMeStmt(MeExpr *opnd);
-  GotoMeStmt *CreateGotoMeStmt(uint32 offset, BB *bb, const SrcPosition *src = nullptr);
+  GotoMeStmt *CreateGotoMeStmt(uint32 offset, BB *bb, const SrcPosition *src = nullptr) const;
   IntrinsiccallMeStmt *CreateIntrinsicCallMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds,
                                                  TyIdx tyIdx = TyIdx());
   IntrinsiccallMeStmt *CreateIntrinsicCallAssignedMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds,
@@ -164,7 +164,7 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyAddExpr(const OpMeExpr *addExpr);
   MeExpr *SimplifyMulExpr(const OpMeExpr *mulExpr);
   MeExpr *SimplifyCmpExpr(OpMeExpr *cmpExpr);
-  MeExpr *SimplifySelExpr(const OpMeExpr *selExpr);
+  static MeExpr *SimplifySelExpr(const OpMeExpr *selExpr);
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyOrMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyAshrMeExpr(const OpMeExpr *opmeexpr);
@@ -173,18 +173,18 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyExtractbits(const OpMeExpr &opmeexpr);
   MeExpr *SimplifyMeExpr(MeExpr *x);
   void SimplifyCastForAssign(MeStmt *assignStmt) const;
-  void SimplifyAssign(AssignMeStmt *assignStmt);
+  void SimplifyAssign(AssignMeStmt *assignStmt) const;
   MeExpr *SimplifyCast(MeExpr *expr);
   MeExpr* SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar);
   MeExpr *SimplifyIvarWithAddrofBase(IvarMeExpr *ivar);
   MeExpr *GetSimplifiedVarForIvarWithAddrofBase(OriginalSt &ost, IvarMeExpr &ivar);
   MeExpr *SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar);
   MeExpr *SimplifyIvar(IvarMeExpr *ivar, bool lhsIvar);
-  void UpdateIncDecAttr(MeStmt &meStmt);
+  void UpdateIncDecAttr(MeStmt &meStmt) const;
   static MIRType *GetArrayElemType(const MeExpr &opnd);
   bool DealWithIaddrofWhenGetInfoOfIvar(IreadPairInfo &info) const;
   bool GetInfoOfIvar(MeExpr &expr, IreadPairInfo &info) const;
-  MeExpr *ReadContinuousMemory(const OpMeExpr &opMeExpr);
+  MeExpr *ReadContinuousMemory(const MeExpr &meExpr);
   MeExpr *OptBandWithIread(MeExpr &opnd0, MeExpr &opnd1);
   MeExpr *MergeAdjacentIread(MeExpr &opnd0, MeExpr &opnd1);
   bool GetIreadsInfo(MeExpr &opnd0, MeExpr &opnd1, IreadPairInfo &info0, IreadPairInfo &info1) const;
@@ -240,7 +240,7 @@ class IRMap : public AnalysisResult {
     return verst2MeExprTable[i];
   }
 
-  void SetVerst2MeExprTableItem(uint32 i, MeExpr *expr) {
+  void SetVerst2MeExprTableItem(size_t i, MeExpr *expr) {
     verst2MeExprTable[i] = expr;
   }
 
@@ -314,7 +314,7 @@ class IRMap : public AnalysisResult {
   void PutToBucket(uint32 hashIdx, MeExpr &meExpr);
   const BB *GetFalseBrBB(const CondGotoMeStmt &condgoto);
   MeExpr *ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &newExpr, size_t opndsSize, const MeExpr &meExpr, MeExpr &repExpr);
-  MeExpr *SimplifyCompareSameExpr(OpMeExpr *opmeexpr);
+  MeExpr *SimplifyCompareSameExpr(const OpMeExpr *opmeexpr);
   bool IfMeExprIsU1Type(const MeExpr *expr) const;
 };
 }  // namespace maple

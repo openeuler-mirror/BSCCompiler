@@ -136,6 +136,7 @@ set(src_libmplme
   src/lmbc_lower.cpp
   src/mc_ssa_pre.cpp
   src/me_tailcall.cpp
+  src/me_simplifyexpr.cpp
 )
 
 set(src_libmplmewpo

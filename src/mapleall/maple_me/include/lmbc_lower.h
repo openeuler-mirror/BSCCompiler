@@ -27,12 +27,12 @@ class LMBCLowerer {
       : mirModule(mod), func(f), becommon(becmmn), mirBuilder(mod->GetMIRBuilder()),
         globmemlayout(gmemlayout), memlayout(lmemlayout) {}
 
-  PregIdx GetSpecialRegFromSt(const MIRSymbol *sym);
+  PregIdx GetSpecialRegFromSt(const MIRSymbol &sym) const;
   BaseNode *LowerAddrof(const AddrofNode *expr);
   BaseNode *LowerDread(const AddrofNode *expr);
   BaseNode *LowerDreadoff(DreadoffNode *dreadoff);
-  BaseNode *LowerIread(const IreadNode &expr);
-  BaseNode *LowerIaddrof(const IreadNode *expr);
+  BaseNode *LowerIread(const IreadNode &expr) const;
+  BaseNode *LowerIaddrof(const IreadNode &expr) const;
   BaseNode *LowerExpr(BaseNode *expr);
   void LowerAggDassign(const DassignNode &dsnode, const MIRType *lhsty, int32 offset, BlockNode *newblk);
   void LowerDassign(DassignNode *dsnode, BlockNode *newblk);

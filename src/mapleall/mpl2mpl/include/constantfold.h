@@ -138,6 +138,7 @@ class ConstantFold : public FuncOptimizeImpl {
   UnaryNode *NewUnaryNode(UnaryNode *old, Opcode op, PrimType primType, BaseNode *expr) const;
   std::pair<BaseNode*, std::optional<IntVal>> DispatchFold(BaseNode *node);
   BaseNode *PairToExpr(PrimType resultType, const std::pair<BaseNode*, std::optional<IntVal>> &pair) const;
+  BaseNode *SimplifyDoubleConstvalCompare(CompareNode &node, bool isRConstval, bool isGtOrLt = false) const;
   BaseNode *SimplifyDoubleCompare(CompareNode &compareNode) const;
   CompareNode *FoldConstComparisonReverse(Opcode opcode, PrimType resultType, PrimType opndType,
                                           BaseNode &l, BaseNode &r) const;

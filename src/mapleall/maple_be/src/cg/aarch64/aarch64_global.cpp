@@ -55,9 +55,10 @@ static bool IsZeroRegister(const Operand &opnd) {
 }
 
 void AArch64GlobalOpt::Run() {
-  OptimizeManager optManager(cgFunc);
+  OptimizeManager optManager(cgFunc, loopInfo);
   bool hasSpillBarrier = (cgFunc.NumBBs() > kMaxBBNum) || (cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum);
   if (cgFunc.IsAfterRegAlloc()) {
+    optManager.Optimize<ReturnExtend>();
     optManager.Optimize<SameRHSPropPattern>();
     optManager.Optimize<BackPropPattern>();
     if (CGOptions::CalleeEnsureParam()) {
@@ -849,6 +850,59 @@ void BackPropPattern::Run() {
   } while (!modifiedBB.empty());
 }
 
+void ReturnExtend::Run() {
+  if (!cgFunc.GetMirModule().IsCModule()) {
+    return;
+  }
+  FOR_ALL_BB(bb, &cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      if (!CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
+    }
+  }
+}
+
+bool ReturnExtend::CheckCondition(Insn &insn) {
+  MOperator mop = insn.GetMachineOpcode();
+  if (mop != MOP_xuxtw64 && mop != MOP_xuxth32 && mop != MOP_xuxtb32) {
+    return false;
+  }
+  PrimType returnType = cgFunc.GetFunction().GetReturnType()->GetPrimType();
+  if (!IsPrimitiveInteger(returnType)) {
+    return false;
+  }
+  uint32 retSize = GetPrimTypeBitSize(returnType);
+  if ((mop == MOP_xuxtw64 && retSize > k32BitSize) || (mop == MOP_xuxth32 && retSize > k16BitSize) ||
+      (mop == MOP_xuxtb32 && retSize > k8BitSize)) {
+    return false;
+  }
+  auto regNo1 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  auto regNo2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber();
+  if (regNo1 != regNo2) {
+    return false;
+  }
+  auto useInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, regNo1, true);
+  for (auto useInsn : useInsnSet) {
+    if (useInsn->GetMachineOpcode() != MOP_pseudo_ret_int) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void ReturnExtend::Optimize(Insn &insn) {
+  insn.GetBB()->RemoveInsn(insn);
+}
+
+void ReturnExtend::Init() {
+  return;
+}
+
 bool CmpCsetPattern::CheckCondition(Insn &insn) {
   nextInsn = insn.GetNextMachineInsn();
   if (nextInsn == nullptr || !insn.IsMachineInstruction()) {
@@ -954,7 +1008,7 @@ void CselPattern::Optimize(Insn &insn) {
     cgFunc.GetRD()->InitGenUse(bb, false);
   } else if (OpndDefByZero(insn, kInsnSecondOpnd) && OpndDefByOne(insn, kInsnThirdOpnd)) {
     auto &originCond = static_cast<CondOperand&>(cond);
-    ConditionCode inverseCondCode = GetReverseCC(originCond.GetCode());
+    ConditionCode inverseCondCode = AArch64isa::GetReverseCC(originCond.GetCode());
     if (inverseCondCode == kCcLast) {
       return;
     }
@@ -1498,11 +1552,13 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
   //                 BB11 (loop bottom)  ------
   //            sub R112, R112, #1
   InsnSet defSrcSet = cgFunc.GetRD()->FindDefForRegOpnd(use, defSrcRegNo, true);
-  if (use.GetBB()->GetLoop() != nullptr && defInsn->GetBB() != use.GetBB()) {
+  auto *useLoop = loopInfo.GetBBLoopParent(use.GetBB()->GetId());
+  if (useLoop != nullptr && defInsn->GetBB() != use.GetBB()) {
+    auto *defLoop = loopInfo.GetBBLoopParent(defInsn->GetBB()->GetId());
     for (auto defSrcIt = defSrcSet.begin(); defSrcIt != defSrcSet.end(); ++defSrcIt) {
-      if ((*defSrcIt)->GetBB() != use.GetBB() && (*defSrcIt)->GetBB()->GetLoop() != nullptr &&
-          (*defSrcIt)->GetBB()->GetLoop() == use.GetBB()->GetLoop() &&
-          (defInsn->GetBB()->GetLoop() == nullptr || defInsn->GetBB()->GetLoop() != (*defSrcIt)->GetBB()->GetLoop())) {
+      auto *defSrcLoop = loopInfo.GetBBLoopParent((*defSrcIt)->GetBB()->GetId());
+      if ((*defSrcIt)->GetBB() != use.GetBB() && defSrcLoop != nullptr && defSrcLoop == useLoop &&
+          (defLoop == nullptr || defLoop != defSrcLoop)) {
         return false;
       }
     }
@@ -1730,6 +1786,19 @@ bool ExtendShiftOptPattern::CheckCondition(Insn &insn) {
   SelectExtendOrShift(*defInsn);
   /* defInsn must be shift or extend */
   if ((extendOp == ExtendShiftOperand::kUndef) && (shiftOp == BitShiftOperand::kUndef)) {
+    return false;
+  }
+  /* If the size of the use point in sxtb is greater than the size of the def point,
+   * optimization cannot be carried out, for example:
+   * sxtb   w6, w2
+   * cmp    x3, x6
+   * ==>
+   * cmp    x3, w2, SXTB
+   */
+  if ((extendOp == ExtendShiftOperand::kSXTB ||
+       extendOp == ExtendShiftOperand::kSXTH ||
+       extendOp == ExtendShiftOperand::kSXTW) &&
+      (defInsn->GetOperandSize(0) < insn.GetOperandSize(replaceIdx))) {
     return false;
   }
   return CheckDefUseInfo(insn, regOperand.GetSize());
@@ -2339,7 +2408,7 @@ bool ContinuousLdrPattern::IsUsedBySameCall(Insn &insn1, Insn &insn2, Insn &insn
   if (usesite3.size() != 1 || !((*usesite3.begin())->IsCall() || (*usesite3.begin())->IsTailCall())) {
     return false;
   }
-  return (*usesite1.begin())->GetId() == (*usesite2.begin())->GetId() && (*usesite3.begin())->GetId();
+  return (*usesite1.begin())->GetId() == (*usesite2.begin())->GetId() && ((*usesite3.begin())->GetId() != 0);
 }
 
 bool ContinuousLdrPattern::IsMemValid(const MemOperand &memopnd) {

@@ -171,10 +171,10 @@ static AbstractIR2Target abstract2TargetTable[abstract::kMopLast] {
   {abstract::MOP_comment, {{MOP_nop, {kAbtractNone}, {}}}},
 };
 
-Operand *AArch64Standardize::GetInsnResult(Insn *insn) const {
-  for (uint32 i = 0; i < insn->GetOperandSize(); ++i) {
-    if (insn->OpndIsDef(i)) {
-      return &(insn->GetOperand(i));
+Operand *AArch64Standardize::GetInsnResult(const Insn &insn) const {
+  for (uint32 i = 0; i < insn.GetOperandSize(); ++i) {
+    if (insn.OpndIsDef(i)) {
+      return &(insn.GetOperand(i));
     }
   }
   return nullptr;
@@ -187,7 +187,7 @@ Insn *AArch64Standardize::HandleTargetImm(Insn *insn, Insn *newInsn, uint32 idx,
   if (a64func->IsOperandImmValid(targetMop, &opnd, idx)) {
     newInsn->SetOperand(order, immOpnd);
   } else {
-    Operand *resOpnd = GetInsnResult(insn);
+    Operand *resOpnd = GetInsnResult(*insn);
     CHECK_FATAL(resOpnd, "SelectTargetInsn: No result operand");
     BB &saveCurBB = *GetCgFunc()->GetCurBB();
     a64func->GetDummyBB()->ClearInsns();

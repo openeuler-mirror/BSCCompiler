@@ -41,22 +41,27 @@ bool CgRegSavesOpt::PhaseRun(maplebe::CGFunc &f) {
   /* Perform dom analysis, result to be inserted into AArch64RegSavesOpt object */
   DomAnalysis *dom = nullptr;
   PostDomAnalysis *pdom = nullptr;
+  LoopAnalysis *loop = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel1 &&
       f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
     MaplePhase *phase = GetAnalysisInfoHook()->
         ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgDomAnalysis::id, f);
     dom = static_cast<CgDomAnalysis*>(phase)->GetResult();
-    CHECK_FATAL(dom != nullptr, "null ptr check");
     phase = GetAnalysisInfoHook()->
         ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgPostDomAnalysis::id, f);
     pdom = static_cast<CgPostDomAnalysis*>(phase)->GetResult();
-    CHECK_FATAL(pdom != nullptr, "null ptr check");
+    phase = GetAnalysisInfoHook()->
+        ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+    loop = static_cast<CgLoopAnalysis*>(phase)->GetResult();
   }
 
   MemPool *memPool = GetPhaseMemPool();
   RegSavesOpt *regSavesOpt = nullptr;
 #if TARGAARCH64
-  regSavesOpt = memPool->New<AArch64RegSavesOpt>(f, *memPool, *dom, *pdom);
+  CHECK_FATAL(dom != nullptr, "null ptr check");
+  CHECK_FATAL(pdom != nullptr, "null ptr check");
+  CHECK_FATAL(loop != nullptr, "null ptr check");
+  regSavesOpt = memPool->New<AArch64RegSavesOpt>(f, *memPool, *dom, *pdom, *loop);
 #elif defined(TARGRISCV64) || TARGRISCV64
   regSavesOpt = memPool->New<Riscv64RegSavesOpt>(f, *memPool);
 #endif

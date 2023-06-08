@@ -80,7 +80,7 @@ class BCClassField : public BCClassElem {
  public:
   BCClassField(const BCClass &klassIn, uint32 acc, const std::string &nameIn, const std::string &descIn)
       : BCClassElem(klassIn, acc, nameIn, descIn) {}
-  ~BCClassField() = default;
+  ~BCClassField() override = default;
 
  protected:
   uint32 GetItemIdxImpl() const override = 0;
@@ -142,8 +142,13 @@ class BCClassMethod : public BCClassElem {
       : BCClassElem(klassIn, acc, nameIn, descIn), isVirtual(isVirtualIn),
         methodMp(FEUtils::NewMempool("MemPool for BCClassMethod", true /* isLcalPool */)),
         allocator(methodMp) {}
-  ~BCClassMethod() {
+  ~BCClassMethod() override {
     methodMp = nullptr;
+    pcBCInstructionMap = nullptr;
+    instPos = nullptr;
+#ifdef DEBUG
+    pSrcPosInfo = nullptr;
+#endif
   }
   void SetPCBCInstructionMap(MapleMap<uint32, BCInstruction*> *mapIn) {
     pcBCInstructionMap = mapIn;
@@ -267,7 +272,7 @@ class BCClassMethod : public BCClassElem {
   // isPermanent is true means the rc annotation @Permanent is used
   bool isPermanent = false;
 
-  MemPool *methodMp;
+  MemPool *methodMp = nullptr;
   MapleAllocator allocator;
 };
 

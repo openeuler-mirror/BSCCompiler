@@ -277,10 +277,10 @@ void InlineListInfo::Prepare() {
     (void)excludedCallees.insert(strIdx);
   }
 
-  std::set<std::string> kWhiteListFunc {
+  std::set<std::string> kWhitelistFunc {
 #include "rcwhitelist.def"
   };
-  for (auto it = kWhiteListFunc.begin(); it != kWhiteListFunc.end(); ++it) {
+  for (auto it = kWhitelistFunc.begin(); it != kWhitelistFunc.end(); ++it) {
     GStrIdx strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(*it);
     (void)rcWhiteList.insert(strIdx);
   }
@@ -318,10 +318,6 @@ bool InlineAnalyzer::FuncInlinable(const MIRFunction &func) {
     }
   }
   return true;
-}
-
-static inline bool IsExternInlineFunc(const MIRFunction &func) {
-  return func.GetAttr(FUNCATTR_extern) && func.GetAttr(FUNCATTR_inline);
 }
 
 static bool IsFinalMethod(const MIRFunction &mirFunc) {
@@ -503,6 +499,9 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
   if (callee.GetAttr(FUNCATTR_noinline)) {
     return {false, kIfcDeclaredNoinline};
   }
+  if (!earlyInline && caller.GetPuidx() == callee.GetPuidx()) {
+    return {false, kIfcGinlineRecursiveCall};
+  }
   if (IsExternGnuInline(callee)) {
     if (earlyInline) {
       return depth == 0 ? std::pair{true, kIfcExternGnuInlineCalleeDepth0} :
@@ -517,10 +516,6 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
   // When callee is unsafe but callStmt is in safe region
   if (MeOption::safeRegionMode && (callStmt.IsInSafeRegion() || caller.IsSafe()) && (callee.IsUnSafe())) {
     return {false, kIfcUnsafeRegion};
-  }
-  // For extern inline function, we check nothing
-  if (IsExternInlineFunc(callee)) {
-    return {true, kIfcDeclaredExternInline};
   }
   // For hardCoded function, we check nothing.
   const auto &hardCodedCallee = InlineListInfo::GetHardCodedCallees();

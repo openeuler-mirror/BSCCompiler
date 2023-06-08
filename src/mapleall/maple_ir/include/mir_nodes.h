@@ -15,6 +15,7 @@
 #ifndef MAPLE_IR_INCLUDE_MIR_NODES_H
 #define MAPLE_IR_INCLUDE_MIR_NODES_H
 #include <atomic>
+#include <limits>
 #include <sstream>
 #include <utility>
 
@@ -1603,7 +1604,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   uint32 stmtID;          // a unique ID assigned to it
   uint32 stmtOriginalID;  // first define id, no change when clone, need copy when emit from MeStmt
   uint32 meStmtID = 0;    // Need copy when emit from MeStmt, attention:this just for two stmt(if && call)
-  uint32 stmtInfoId = -1u;
+  uint32 stmtInfoId = std::numeric_limits<uint32>::max();
   mutable bool isLive = false;  // only used for dse to save compile time
                                 // mutable to keep const-ness at most situation
   StmtAttrs stmtAttrs;
@@ -2206,6 +2207,7 @@ class DassignNode : public UnaryStmtNode {
   StIdx GetStIdx() const {
     return stIdx;
   }
+
   void SetStIdx(StIdx s) {
     stIdx = s;
   }
@@ -2269,7 +2271,7 @@ class DassignoffNode : public UnaryStmtNode {
     stIdx = s;
   }
 
-  int32 GetOffset() {
+  int32 GetOffset() const {
     return offset;
   }
 
@@ -2618,25 +2620,23 @@ class IfStmtNode : public UnaryStmtNode {
   }
 
   IfStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                 std::unordered_map<uint32_t, FreqType> &fromFreqs, uint64_t numer, uint64_t denom,
+                                 std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
                                  uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<IfStmtNode>(*this);
     node->SetStmtID(stmtIDNext++);
     node->SetOpnd(Opnd()->CloneTree(allocator), 0);
     if (fromFreqs.count(GetStmtID()) > 0) {
       FreqType oldFreq = fromFreqs[GetStmtID()];
-      FreqType newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * static_cast<FreqType>(numer / denom)) : oldFreq);
+      FreqType newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
       if ((updateOp & kUpdateOrigFreq) != 0) {
         FreqType left = ((oldFreq - newFreq) > 0 || oldFreq == 0) ? (oldFreq - newFreq) : 1;
         fromFreqs[GetStmtID()] = left;
       }
     }
-    node->thenPart = thenPart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer),
-                                                  denom, updateOp);
+    node->thenPart = thenPart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
     if (elsePart != nullptr) {
-      node->elsePart = elsePart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer),
-                                                    denom, updateOp);
+      node->elsePart = elsePart->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
     }
     node->SetMeStmtID(GetMeStmtID());
     return node;
@@ -2705,14 +2705,14 @@ class WhileStmtNode : public UnaryStmtNode {
   }
 
   WhileStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                    std::unordered_map<uint32_t, FreqType> &fromFreqs, uint64_t numer, uint64_t denom,
+                                    std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
                                     uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<WhileStmtNode>(*this);
     node->SetStmtID(stmtIDNext++);
     if (fromFreqs.count(GetStmtID()) > 0) {
       FreqType oldFreq = fromFreqs[GetStmtID()];
       FreqType newFreq =
-          numer == 0 ? 0 : (denom > 0 ? static_cast<int64_t>(static_cast<uint64_t>(oldFreq) * numer / denom) : oldFreq);
+          numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
       toFreqs[node->GetStmtID()] = (newFreq > 0 || numer == 0) ? newFreq : 1;
       if ((updateOp & kUpdateOrigFreq) != 0) {
         FreqType left = (oldFreq - newFreq) > 0 ? (oldFreq - newFreq) : 1;
@@ -2720,7 +2720,7 @@ class WhileStmtNode : public UnaryStmtNode {
       }
     }
     node->SetOpnd(Opnd(0)->CloneTree(allocator), 0);
-    node->body = body->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer), denom, updateOp);
+    node->body = body->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp);
     return node;
   }
 
@@ -2776,7 +2776,7 @@ class DoloopNode : public StmtNode {
   }
 
   DoloopNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                 std::unordered_map<uint32_t, FreqType> &fromFreqs, uint64_t numer, uint64_t denom,
+                                 std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
                                  uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<DoloopNode>(*this);
     node->SetStmtID(stmtIDNext++);
@@ -2784,14 +2784,13 @@ class DoloopNode : public StmtNode {
       FreqType oldFreq = fromFreqs[GetStmtID()];
       FreqType newFreq = oldFreq;
       if ((updateOp & kUpdateFreqbyScale) != 0) {  // used in inline/clone
-        newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * static_cast<FreqType>(numer / denom)) : oldFreq);
+        newFreq = numer == 0 ? 0 : (denom > 0 ? (oldFreq * numer / denom) : oldFreq);
       } else if ((updateOp & kUpdateUnrolledFreq) != 0) {  // used in unrolled part
         FreqType bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
-        newFreq = denom > 0 ? (bodyFreq * static_cast<FreqType>(numer / denom) + (oldFreq - bodyFreq)) : oldFreq;
+        newFreq = denom > 0 ? ((bodyFreq * numer / denom) + (oldFreq - bodyFreq)) : oldFreq;
       } else if ((updateOp & kUpdateUnrollRemainderFreq) != 0) {  // used in unrolled remainder
         FreqType bodyFreq = fromFreqs[GetDoBody()->GetStmtID()];
-        newFreq = denom > 0 ? (((bodyFreq * static_cast<FreqType>(numer)) % static_cast<FreqType>(denom)) +
-            (oldFreq - bodyFreq)) : oldFreq;
+        newFreq = denom > 0 ? (((bodyFreq * numer) % denom) + (oldFreq - bodyFreq)) : oldFreq;
       }
       toFreqs[node->GetStmtID()] = newFreq;
       ASSERT(oldFreq >= newFreq, "sanity check");
@@ -2803,8 +2802,7 @@ class DoloopNode : public StmtNode {
     node->SetStartExpr(startExpr->CloneTree(allocator));
     node->SetContExpr(GetCondExpr()->CloneTree(allocator));
     node->SetIncrExpr(GetIncrExpr()->CloneTree(allocator));
-    node->SetDoBody(GetDoBody()->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, static_cast<FreqType>(numer),
-                                                    denom, updateOp));
+    node->SetDoBody(GetDoBody()->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     return node;
   }
 
@@ -3073,15 +3071,12 @@ using IassignPCoffNode = IassignFPoffNode;
 
 class BlkassignoffNode : public BinaryStmtNode {
  public:
-  BlkassignoffNode() : BinaryStmtNode(OP_blkassignoff) {
+  BlkassignoffNode() : BinaryStmtNode(OP_blkassignoff), alignLog2(0), offset(0) {
     ptyp = PTY_agg;
-    ptyp = PTY_agg;
-    alignLog2 = 0;
-    offset = 0;
   }
-  explicit BlkassignoffNode(int32 ofst, int32 bsize) : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
+  explicit BlkassignoffNode(int32 ofst, int32 bsize)
+      : BinaryStmtNode(OP_blkassignoff), alignLog2(0), offset(ofst), blockSize(bsize) {
     ptyp = PTY_agg;
-    alignLog2 = 0;
   }
   explicit BlkassignoffNode(int32 ofst, int32 bsize, BaseNode *dest, BaseNode *src)
       : BinaryStmtNode(OP_blkassignoff), offset(ofst), blockSize(bsize) {
@@ -3205,7 +3200,7 @@ class SafetyCheckStmtNode {
   SafetyCheckStmtNode(const SafetyCheckStmtNode &stmtNode) : funcNameIdx(stmtNode.GetFuncNameIdx()) {}
   SafetyCheckStmtNode &operator=(const SafetyCheckStmtNode &stmtNode) {
     // self-assignment check
-    if (funcNameIdx == stmtNode.GetFuncNameIdx()) {
+    if (this == &stmtNode) {
       return *this;
     }
     funcNameIdx = stmtNode.GetFuncNameIdx();
@@ -3640,7 +3635,7 @@ class IntrinsiccallNode : public NaryStmtNode {
     return &returnValues;
   }
 
-  CallReturnPair &GetCallReturnPair(uint32 i) {
+  CallReturnPair &GetCallReturnPair(size_t i) {
     ASSERT(i < returnValues.size(), "array index out of range");
     return returnValues.at(i);
   }

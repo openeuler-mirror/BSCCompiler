@@ -1,5 +1,5 @@
 /*
-* Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+* Copyright (c) [2023] Huawei Technologies Co.,Ltd.All rights reserved.
 *
 * OpenArkCompiler is licensed under Mulan PSL v2.
 * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,21 +30,25 @@ class BaseSchedule {
   }
 
   virtual void Run() = 0;
+  void InitInRegion(CDGRegion &region) const;
   void DoLocalSchedule(CDGRegion &region);
-  bool DoDelayHeu() {
+  bool DoDelayHeu() const {
     return doDelayHeu;
   }
   void SetDelayHeu() {
     doDelayHeu = true;
   }
+  void SetUnitTest(bool flag) {
+    isUnitTest = flag;
+  }
 
  protected:
   void InitInsnIdAndLocInsn();
-  void InitInRegion(CDGRegion &region) const;
+  uint32 CaculateOriginalCyclesOfBB(CDGNode &cdgNode) const;
   void DumpRegionInfoBeforeSchedule(CDGRegion &region) const;
   void DumpCDGNodeInfoBeforeSchedule(CDGNode &cdgNode) const;
   void DumpCDGNodeInfoAfterSchedule(CDGNode &cdgNode) const;
-  virtual void DumpInsnInfoByScheduledOrder(BB &curBB) const = 0;
+  virtual void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const = 0;
 
   MemPool &schedMP;
   MapleAllocator schedAlloc;
@@ -53,6 +57,7 @@ class BaseSchedule {
   CommonScheduleInfo *commonSchedInfo = nullptr;
   ListScheduler *listScheduler = nullptr;
   bool doDelayHeu = false;
+  bool isUnitTest = false;
 };
 } /* namespace maplebe */
 

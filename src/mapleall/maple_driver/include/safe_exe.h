@@ -36,9 +36,9 @@
 
 namespace maple {
 enum class Compilee {
-  gcc,
-  hir2mpl,
-  unKnow
+  kGcc,
+  kHir2mpl,
+  kUnknown
 };
 
 class SafeExe {
@@ -96,25 +96,26 @@ class SafeExe {
                                  const std::vector<MplOption> &options) {
     size_t argIndex;
     char **argv;
-    Compilee compileeFlag = Compilee::unKnow;
+    Compilee compileeFlag = Compilee::kUnknown;
     std::string ldLibPath = "";
     size_t index = cmd.find_last_of("-");
     if (index > 0 && index < cmd.size() && cmd.substr(index) == "-gcc") {
-      compileeFlag = Compilee::gcc;
+      compileeFlag = Compilee::kGcc;
       for (auto &opt : options) {
         if (opt.GetKey() == "-c") {
-          compileeFlag = Compilee::unKnow;
+          compileeFlag = Compilee::kUnknown;
         }
       }
     } else if (StringUtils::GetStrAfterLast(cmd, kFileSeperatorStr) == "hir2mpl" ||
                StringUtils::GetStrAfterLast(cmd, kFileSeperatorStr) == "clang") {
-      compileeFlag = Compilee::hir2mpl;
+      compileeFlag = Compilee::kHir2mpl;
       if (FileUtils::SafeGetenv(kMapleRoot) != "") {
         ldLibPath += FileUtils::SafeGetenv(kMapleRoot) + "/build/tools/hpk/:";
-        ldLibPath += FileUtils::SafeGetenv(kMapleRoot) + "/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
+        ldLibPath += FileUtils::SafeGetenv(kMapleRoot) + \
+					 "/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced/lib";
       } else {
         ldLibPath += mplOptions.GetExeFolder().substr(0, mplOptions.GetExeFolder().length() - 4);
-        ldLibPath += "thirdparty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib";
+        ldLibPath += "thirdparty/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced/lib";
       }
     }
     std::tie(argv, argIndex) = GenerateUnixArguments(cmd, options, compileeFlag);
@@ -123,7 +124,7 @@ class SafeExe {
       for (auto &opt : options) {
         LogInfo::MapleLogger() << " " << opt.GetKey() << " " << opt.GetValue();
       }
-      if (compileeFlag == Compilee::gcc) {
+      if (compileeFlag == Compilee::kGcc) {
         for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
           LogInfo::MapleLogger() << " " << opt;
         }
@@ -137,7 +138,7 @@ class SafeExe {
     if (pid == 0) {
       // child process
       fflush(nullptr);
-      if (compileeFlag == Compilee::hir2mpl) {
+      if (compileeFlag == Compilee::kHir2mpl) {
         std::string ld_path = ":";
         if (FileUtils::SafeGetenv(kLdLibPath) != "") {
           ld_path += FileUtils::SafeGetenv(kLdLibPath);
@@ -170,7 +171,7 @@ class SafeExe {
         for (auto &opt : options) {
           LogInfo::MapleLogger() << opt.GetKey() << " " << opt.GetValue() << " ";
         }
-        if (compileeFlag == Compilee::gcc) {
+        if (compileeFlag == Compilee::kGcc) {
           for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
             LogInfo::MapleLogger() << opt << " ";
           }
@@ -311,7 +312,7 @@ class SafeExe {
     /* Calculate how many args are needed.
      * (* 2) is needed, because we have key and value arguments in each option
      */
-    if (compileeFlag == Compilee::gcc && maplecl::CommandLine::GetCommandLine().GetLinkOptions().size() > 0) {
+    if (compileeFlag == Compilee::kGcc && maplecl::CommandLine::GetCommandLine().GetLinkOptions().size() > 0) {
       argSize += maplecl::CommandLine::GetCommandLine().GetLinkOptions().size();
     }
     argSize += options.size() * 2;
@@ -348,10 +349,9 @@ class SafeExe {
       }
     }
 
-    if (compileeFlag == Compilee::gcc) {
+    if (compileeFlag == Compilee::kGcc) {
       for (auto &opt : maplecl::CommandLine::GetCommandLine().GetLinkOptions()) {
         auto keySize = opt.size() + 1;
-
         if (keySize != 1) {
           argv[argIndex] = new char[keySize];
           errSafe = strncpy_s(argv[argIndex], keySize, opt.c_str(), keySize);
@@ -363,7 +363,6 @@ class SafeExe {
 
     // end of arguments sentinel is nullptr
     argv[argIndex] = nullptr;
-
     return std::make_tuple(argv, argIndex);
   }
 };

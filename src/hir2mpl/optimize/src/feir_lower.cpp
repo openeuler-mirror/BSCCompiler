@@ -153,7 +153,7 @@ void FEIRLower::LowerIfStmt(FEIRStmtIf &ifStmt, FEIRStmt *ptrTail) {
 }
 
 // for/dowhile/while stmts
-void FEIRLower::ProcessLoopStmt(FEIRStmtDoWhile &stmt, FEIRStmt *ptrTail) {
+void FEIRLower::ProcessLoopStmt(const FEIRStmtDoWhile &stmt, FEIRStmt *ptrTail) {
   FEIRStmt *bodyHead = nullptr;
   FEIRStmt *bodyTail = nullptr;
   if (!stmt.GetBodyStmts().empty()) {

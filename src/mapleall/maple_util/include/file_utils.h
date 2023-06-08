@@ -17,6 +17,8 @@
 #include <string>
 #include "types_def.h"
 #include "mpl_logging.h"
+#include "mempool.h"
+#include "string_utils.h"
 
 namespace maple {
   enum class InputFileType {
@@ -45,10 +47,14 @@ extern const char kFileSeperatorChar;
 // Use char[] since getenv receives char* as parameter
 constexpr char kMapleRoot[] = "MAPLE_ROOT";
 constexpr char kClangPath[] = "BiShengC_Clang_Path";
+constexpr char kClangPathPure[] = "PURE_CLANG_PATH";
 constexpr char kAsPath[] = "BiShengC_AS_Path";
 constexpr char kGccPath[] = "BiShengC_GCC_Path";
 constexpr char kLdLibPath[] = "LD_LIBRARY_PATH";
-constexpr char kGetOsVersion[] = "BiShengC_GET_OS_VERSION";
+constexpr char kGetOsVersion[] = "BISHENGC_GET_OS_VERSION";
+constexpr char kArPath[] = "BiShengC_AR_PATH";
+constexpr char kEnhancedClang[] = "ENHANCED_CLANG_PATH";
+constexpr char kGccLibPath[] = "BiShengC_GCC_LibPath";
 
 class FileUtils {
  public:
@@ -72,17 +78,26 @@ class FileUtils {
                                              const std::string &defaultRoot = "." + kFileSeperatorStr);
   static InputFileType GetFileType(const std::string &filePath);
   static InputFileType GetFileTypeByMagicNumber(const std::string &pathName);
+  static char* LoadFile(const char *filename);
+  static std::string ExecuteShell(const char *cmd);
+  static bool GetAstFromLib(const std::string libPath, std::vector<std::string> &astInputs);
 
   const std::string &GetTmpFolder() const {
     return tmpFolderPath;
+  };
+
+  MemPool &GetMemPool() {
+    return *tempMP;
   };
   static std::string GetOutPutDir();
   bool DelTmpDir() const;
   std::string GetTmpFolderPath() const;
  private:
   std::string tmpFolderPath;
-  FileUtils() : tmpFolderPath(GetTmpFolderPath()) {}
+  MemPool *tempMP = nullptr;
+  FileUtils() : tmpFolderPath(GetTmpFolderPath()), tempMP(memPoolCtrler.NewMemPool("file_utils", true)) {}
   ~FileUtils() {
+    memPoolCtrler.DeleteMemPool(tempMP);
     if (!DelTmpDir()) {
       maple::LogInfo::MapleLogger() << "DelTmpDir failed" << '\n';
     };

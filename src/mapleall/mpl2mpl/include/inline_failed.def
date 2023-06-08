@@ -18,8 +18,6 @@
 // we should mark kIFT_FinalOk carefully, because it will ignore most size limits
 DEF_IF(kIfcOk, kIFT_FinalOk, "[ok] normally inlined")
 
-DEF_IF(kIfcDeclaredExternInline, kIFT_FinalOk, "[ok] callee is declared 'extern inline'")
-
 DEF_IF(kIfcDeclaredAlwaysInline, kIFT_FinalOk, "[ok] callee is declared 'always_inline'")
 
 DEF_IF(kIfcHardCoded, kIFT_FinalOk, "[ok] callee is hard coded to be inlined")

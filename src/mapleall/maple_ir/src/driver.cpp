@@ -26,7 +26,7 @@
 
 using namespace maple;
 
-std::unordered_set<std::string> dumpFuncSet = {};
+static std::unordered_set<std::string> dumpFuncSet = {};
 
 #if MIR_FEATURE_FULL
 

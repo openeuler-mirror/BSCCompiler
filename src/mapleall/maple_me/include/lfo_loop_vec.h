@@ -113,12 +113,12 @@ class LoopVectorization {
  public:
   LoopVectorization(MemPool *localmp, PreMeEmitter *lfoEmit, LfoDepInfo *depinfo, bool debug = false)
       : localAlloc(localmp), vecPlans(localAlloc.Adapter()) {
-    mirFunc = lfoEmit->GetMirFunction();
-    PreMeStmtExtensionMap = lfoEmit->GetPreMeStmtExtensionMap();
-    PreMeExprExtensionMap = lfoEmit->GetPreMeExprExtensionMap();
+    mirFunc = &lfoEmit->GetMirFunction();
+    preMeStmtExtensionMap = lfoEmit->GetPreMeStmtExtensionMap();
+    preMeExprExtensionMap = lfoEmit->GetPreMeExprExtensionMap();
     depInfo = depinfo;
-    codeMP = lfoEmit->GetCodeMP();
-    codeMPAlloc = lfoEmit->GetCodeMPAlloc();
+    codeMP = &lfoEmit->GetCodeMP();
+    codeMPAlloc = &lfoEmit->GetCodeMPAlloc();
     localMP = localmp;
     const0Node = nullptr;
     initIVv4Sym = nullptr;
@@ -138,14 +138,14 @@ class LoopVectorization {
   IntrinsicopNode *GenDupScalarExpr(BaseNode *scalar, PrimType vecPrimType);
   bool ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo *vecInfo, BaseNode *x);
   bool Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo *vecInfo, BlockNode *block);
-  void WidenDoloop(DoloopNode *doloop, LoopTransPlan *tp);
+  void WidenDoloop(DoloopNode &doloop, const LoopTransPlan &tp) const;
   DoloopNode *PrepareDoloop(DoloopNode *doloop, LoopTransPlan *tp);
   DoloopNode *GenEpilog(DoloopNode *doloop) const;
   const MemPool *GetLocalMp() const { return localMP; }
   const MapleMap<DoloopNode *, LoopTransPlan *> *GetVecPlans() const { return &vecPlans; }
   std::string PhaseName() const { return "lfoloopvec"; }
   bool CanConvert(uint32_t lshtypeSize, uint32_t rhstypeSize) const;
-  bool CanAdjustRhsConstType(PrimType targetType, ConstvalNode *rhs);
+  static bool CanAdjustRhsConstType(PrimType targetType, ConstvalNode *rhs);
   bool IsReductionOp(Opcode op) const;
   bool CanWidenOpcode(const BaseNode *target, PrimType opndType) const;
   IntrinsicopNode *GenSumVecStmt(BaseNode *vecTemp, PrimType vecPrimType);
@@ -162,22 +162,22 @@ class LoopVectorization {
   IntrinsicopNode *GenVectorNarrowLowNode(BaseNode *opnd, PrimType opndPrimType);
   void GenWidenBinaryExpr(Opcode binOp, MapleVector<BaseNode *>& opnd0Vec,
                           MapleVector<BaseNode *>& opnd1Vec, MapleVector<BaseNode *>& vectorizedNode);
-  BaseNode* ConvertNodeType(bool cvtSigned, BaseNode *n);
+  BaseNode* ConvertNodeType(bool cvtSigned, BaseNode *n) const;
   MIRIntrinsicID GenVectorAbsSublID(MIRIntrinsicID intrnID) const;
   static uint32_t vectorizedLoop;
  private:
   RegreadNode *GenVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
-  bool IassignIsReduction(IassignNode *iassign, LoopVecInfo* vecInfo);
+  bool IassignIsReduction(IassignNode &iassign, LoopVecInfo &vecInfo) const;
   RegreadNode *GetorNewVectorReductionVar(StmtNode *stmt, LoopTransPlan *tp);
   MIRType *VectorizeIassignLhs(IassignNode &iassign, const LoopTransPlan &tp) const;
   void VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp);
   void GenConstVar(LoopVecInfo *vecInfo, uint8_t vecLanes);
 
   MIRFunction *mirFunc;
-  // point to PreMeStmtExtensionMap of PreMeEmitter, key is stmtID
-  MapleMap<uint32_t, PreMeMIRExtension *>  *PreMeStmtExtensionMap;
-  // point to PreMeExprExtensionMap of PreMeEmitter, key is mirnode
-  MapleMap<BaseNode *, PreMeMIRExtension *> *PreMeExprExtensionMap;
+  // point to preMeStmtExtensionMap of PreMeEmitter, key is stmtID
+  MapleMap<uint32_t, PreMeMIRExtension *>  *preMeStmtExtensionMap;
+  // point to preMeExprExtensionMap of PreMeEmitter, key is mirnode
+  MapleMap<BaseNode *, PreMeMIRExtension *> *preMeExprExtensionMap;
   LfoDepInfo *depInfo;
   MemPool *codeMP;    // point to mirfunction codeMp
   MapleAllocator *codeMPAlloc;

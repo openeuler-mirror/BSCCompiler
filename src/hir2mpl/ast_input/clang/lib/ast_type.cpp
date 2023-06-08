@@ -95,7 +95,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSou
     case clang::BuiltinType::UInt:
       return PTY_u32;
     case clang::BuiltinType::ULong:
-      return Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_u32 : PTY_u64;
+      return Triple::GetTriple().GetEnvironment() == Triple::kGnuIlp32 ? PTY_u32 : PTY_u64;
     case clang::BuiltinType::ULongLong:
       return PTY_u64;
     case clang::BuiltinType::UInt128:
@@ -111,7 +111,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind, bool isSou
     case clang::BuiltinType::Int:
       return PTY_i32;
     case clang::BuiltinType::Long:
-      return Triple::GetTriple().GetEnvironment() == Triple::GNUILP32 ? PTY_i32 : PTY_i64;
+      return Triple::GetTriple().GetEnvironment() == Triple::kGnuIlp32 ? PTY_i32 : PTY_i64;
     case clang::BuiltinType::LongLong:
       return PTY_i64;
     case clang::BuiltinType::Int128:

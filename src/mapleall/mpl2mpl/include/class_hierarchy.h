@@ -196,7 +196,7 @@ class Klass {
     clinitMethod = m;
   }
 
-  MIRSymbol &GetClassInitBridge() const {
+  MIRSymbol &GetClassInitBridge() {
     return *classInitBridge;
   }
 
@@ -248,7 +248,7 @@ class Klass {
 
   void AddMethod(MIRFunction &func) {
     methods.push_front(&func);
-    strIdx2Method.insert({ func.GetBaseFuncNameWithTypeStrIdx(), &func });
+    (void)strIdx2Method.emplace(func.GetBaseFuncNameWithTypeStrIdx(), &func);
   }
 
   void DelMethod(const MIRFunction &func);

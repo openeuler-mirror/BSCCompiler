@@ -29,24 +29,169 @@ namespace maplebe {
 /* Prefer max delay priority */
 class CompareDelay {
  public:
-  int operator() (const DepNode &node1, const DepNode &node2) {
+  int operator() (const DepNode &node1, const DepNode &node2) const {
     return static_cast<int>(node1.GetDelay() - node2.GetDelay());
   }
+};
+
+/*
+ * To make better use of cpu cache prefetch:
+ * 1. if both insns are memory operation and have same base address (same base register), prefer lowest offset
+ * 2. if one insn is store and the other is not memory operation, prefer non-memory-insn scheduled before store
+ * 3. if one insn is load and the other is not memory operation, prefer load scheduled before non-memory-insn
+ */
+class CompareDataCache {
+ public:
+  int operator() (const DepNode &node1, const DepNode &node2) {
+    Insn *insn1 = node1.GetInsn();
+    ASSERT_NOT_NULL(insn1);
+    Insn *insn2 = node2.GetInsn();
+    ASSERT_NOT_NULL(insn2);
+    // Exclude adrp
+    if (insn1->IsMemAccess() && insn2->IsMemAccess()) {
+      auto *memOpnd1 = static_cast<MemOperand*>(insn1->GetMemOpnd());
+      auto *memOpnd2 = static_cast<MemOperand*>(insn2->GetMemOpnd());
+      if (memOpnd1 != nullptr && memOpnd2 != nullptr) { // Exclude load address
+        if (memOpnd1->GetAddrMode() == MemOperand::kBOI && memOpnd2->GetAddrMode() == MemOperand::kBOI) {
+          RegOperand *baseOpnd1 = memOpnd1->GetBaseRegister();
+          ASSERT_NOT_NULL(baseOpnd1);
+          RegOperand *baseOpnd2 = memOpnd2->GetBaseRegister();
+          ASSERT_NOT_NULL(baseOpnd2);
+          if (baseOpnd1->GetRegisterNumber() == baseOpnd2->GetRegisterNumber()) {
+            ImmOperand *ofstOpnd1 = memOpnd1->GetOffsetOperand();
+            ImmOperand *ofstOpnd2 = memOpnd2->GetOffsetOperand();
+            if (ofstOpnd1 == nullptr && ofstOpnd2 == nullptr) {
+              return 0;
+            } else if (ofstOpnd1 == nullptr) {
+              return 1;
+            } else if (ofstOpnd2 == nullptr) {
+              return -1;
+            } else {
+              return static_cast<int>(ofstOpnd2->GetValue() - ofstOpnd1->GetValue());
+            }
+          }
+        } else {
+          // Schedule load before store
+          if ((insn1->IsLoad() || insn1->IsLoadPair()) && (insn2->IsStore() || insn2->IsStorePair())) {
+            return 1;
+          } else if ((insn2->IsLoad() || insn2->IsLoadPair()) && (insn1->IsStore() || insn1->IsStorePair())) {
+            return -1;
+          }
+        }
+      }
+    }
+    else if (insn1->IsMemAccess()) {
+      if (insn1->IsLoad() || insn1->IsLoadPair()) {
+        return 1;
+      } else {
+        return -1;
+      }
+    } else if (insn2->IsMemAccess()) {
+      if (insn2->IsLoad() || insn2->IsLoadPair()) {
+        return -1;
+      } else {
+        return 1;
+      }
+    }
+    return 0;
+  }
+};
+
+/*
+ * Prefer the class of the edges of two insn and last scheduled insn with the highest class number:
+ * 1. true dependency
+ * 2. anti/output dependency
+ * 3. the rest of the dependency
+ * 4. independent of last scheduled insn
+ */
+class CompareClassOfLastScheduledNode {
+ public:
+  explicit CompareClassOfLastScheduledNode(uint32 lsid) : lastSchedInsnId(lsid) {}
+  ~CompareClassOfLastScheduledNode() = default;
+
+  int operator() (const DepNode &node1, const DepNode &node2) const {
+    DepType type1 = kDependenceTypeNone;
+    DepType type2 = kDependenceTypeNone;
+    for (auto *predLink : node1.GetPreds()) {
+      DepNode &predNode = predLink->GetFrom();
+      if (lastSchedInsnId != 0 && predNode.GetInsn()->GetId() == lastSchedInsnId) {
+        type1 = predLink->GetDepType();
+      }
+    }
+    for (auto *predLink : node2.GetPreds()) {
+      DepNode &predNode = predLink->GetFrom();
+      if (lastSchedInsnId != 0 && predNode.GetInsn()->GetId() == lastSchedInsnId) {
+        type2 = predLink->GetDepType();
+      }
+    }
+    CHECK_FATAL(type1 != kDependenceTypeSeparator && type2 != kDependenceTypeSeparator, "invalid dependency type");
+
+    uint32 typeClass1 = 0;
+    switch (type1) {
+      case kDependenceTypeTrue:
+        typeClass1 = 1;
+        break;
+      case kDependenceTypeAnti:
+      case kDependenceTypeOutput:
+        typeClass1 = 2;
+        break;
+      case kDependenceTypeSeparator:
+        CHECK_FATAL(false, "invalid dependency type");
+        break;
+      case kDependenceTypeNone:
+        typeClass1 = 4;
+        break;
+      default:
+        typeClass1 = 3;
+        break;
+    }
+
+    uint32 typeClass2 = 0;
+    switch (type2) {
+      case kDependenceTypeTrue:
+        typeClass2 = 1;
+        break;
+      case kDependenceTypeAnti:
+      case kDependenceTypeOutput:
+        typeClass2 = 2;
+        break;
+      case kDependenceTypeSeparator:
+        CHECK_FATAL(false, "invalid dependency type");
+      case kDependenceTypeNone:
+        typeClass2 = 4;
+        break;
+      default:
+        typeClass2 = 3;
+        break;
+    }
+
+    return static_cast<int>(typeClass1 - typeClass2);
+  }
+
+  uint32 lastSchedInsnId = 0;
 };
 
 /* Prefer min eStart */
 class CompareEStart {
  public:
-  int operator() (const DepNode &node1, const DepNode &node2) {
+  int operator() (const DepNode &node1, const DepNode &node2) const {
     return static_cast<int>(node2.GetEStart() - node1.GetEStart());
   }
 };
 
-/* Prefer less lStart */
+/* Prefer min lStart */
 class CompareLStart {
  public:
-  int operator() (const DepNode &node1, const DepNode &node2) {
+  int operator() (const DepNode &node1, const DepNode &node2) const {
     return static_cast<int>(node2.GetLStart() - node1.GetLStart());
+  }
+};
+
+/* Prefer max cost of insn */
+class CompareCost {
+ public:
+  int operator() (const DepNode &node1, const DepNode &node2) {
+    return (node1.GetReservation()->GetLatency() - node2.GetReservation()->GetLatency());
   }
 };
 
@@ -55,7 +200,7 @@ class CompareUnitKindNum {
  public:
   explicit CompareUnitKindNum(uint32 maxUnitIndex) : maxUnitIdx(maxUnitIndex) {}
 
-  int operator() (const DepNode &node1, const DepNode &node2) {
+  int operator() (const DepNode &node1, const DepNode &node2) const {
     bool use1 = IsUseUnitKind(node1);
     bool use2 = IsUseUnitKind(node2);
     if ((use1 && use2) || (!use1 && !use2)) {
@@ -105,7 +250,7 @@ class CompareSlotType {
 /* Prefer more succNodes */
 class CompareSuccNodeSize {
  public:
-  int operator() (const DepNode &node1, const DepNode &node2) {
+  int operator() (const DepNode &node1, const DepNode &node2) const {
     return static_cast<int>(node1.GetSuccs().size() - node2.GetSuccs().size());
   }
 };

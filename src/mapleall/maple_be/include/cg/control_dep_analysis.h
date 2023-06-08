@@ -29,8 +29,8 @@ namespace maplebe {
 class ControlDepAnalysis {
  public:
   ControlDepAnalysis(CGFunc &func, MemPool &memPool, MemPool &tmpPool, DomAnalysis &d, PostDomAnalysis &pd,
-                     CFGMST<BBEdge<maplebe::BB>, maplebe::BB> *cfgmst, std::string pName = "")
-      : cgFunc(func), dom(&d), pdom(&pd), cfgMST(cfgmst), cdgMemPool(memPool), tmpMemPool(&tmpPool),
+                     LoopAnalysis &lp, CFGMST<BBEdge<maplebe::BB>, maplebe::BB> *cfgmst, std::string pName = "")
+      : cgFunc(func), dom(&d), pdom(&pd), loop(&lp), cfgMST(cfgmst), cdgMemPool(memPool),
         cdgAlloc(&memPool), tmpAlloc(&tmpPool), nonPdomEdges(tmpAlloc.Adapter()),
         curCondNumOfBB(tmpAlloc.Adapter()), phaseName(std::move(pName)) {}
   ControlDepAnalysis(CGFunc &func, MemPool &memPool, std::string pName = "", bool isSingle = true)
@@ -41,8 +41,8 @@ class ControlDepAnalysis {
     dom = nullptr;
     fcdg = nullptr;
     cfgMST = nullptr;
-    tmpMemPool = nullptr;
     pdom = nullptr;
+    loop = nullptr;
   }
 
   std::string PhaseName() const {
@@ -85,17 +85,17 @@ class ControlDepAnalysis {
   void ConstructFCDG();
   void ComputeRegions(bool doCDRegion);
   void ComputeGeneralNonLinearRegions();
-  void FindInnermostLoops(std::vector<CGFuncLoops*> &innermostLoops, std::unordered_map<CGFuncLoops*, bool> &visited,
-                          CGFuncLoops *loop);
+  void FindInnermostLoops(std::vector<LoopDesc*> &innermostLoops, std::unordered_map<LoopDesc*, bool> &visited,
+                          LoopDesc *lp);
   void FindFallthroughPath(std::vector<CDGNode*> &regionMembers, BB *curBB, bool isRoot);
   void CreateRegionForSingleBB();
-  bool AddRegionNodesInTopologicalOrder(CDGRegion &region, CDGNode &root, const MapleVector<BB*> &members);
+  bool AddRegionNodesInTopologicalOrder(CDGRegion &region, CDGNode &root, const MapleSet<BBID> &members);
   void ComputeSameCDRegions(bool considerNonDep);
   void ComputeRegionForCurNode(uint32 curBBId, std::vector<bool> &visited);
   void CreateAndDivideRegion(uint32 pBBId);
   void ComputeRegionForNonDepNodes();
   CDGRegion *FindExistRegion(CDGNode &node) const;
-  bool IsISEqualToCDs(CDGNode &parent, CDGNode &child);
+  bool IsISEqualToCDs(CDGNode &parent, CDGNode &child) const;
   void MergeRegions(CDGNode &mergeNode, CDGNode &candiNode);
 
   CDGEdge *BuildControlDependence(const BB &fromBB, const BB &toBB, int32 condition);
@@ -132,9 +132,9 @@ class ControlDepAnalysis {
   CGFunc &cgFunc;
   DomAnalysis *dom = nullptr;
   PostDomAnalysis *pdom = nullptr;
+  LoopAnalysis *loop = nullptr;
   CFGMST<BBEdge<maplebe::BB>, maplebe::BB> *cfgMST = nullptr;
   MemPool &cdgMemPool;
-  MemPool *tmpMemPool = nullptr;
   MapleAllocator cdgAlloc;
   MapleAllocator tmpAlloc;
   MapleVector<BBEdge<maplebe::BB>*> nonPdomEdges;
@@ -150,8 +150,7 @@ ControlDepAnalysis *GetResult() {
   return cda;
 }
 ControlDepAnalysis *cda = nullptr;
- private:
-  void GetAnalysisDependence(maple::AnalysisDep &aDep) const override;
+OVERRIDE_DEPENDENCE
 MAPLE_FUNC_PHASE_DECLARE_END
 } /* namespace maplebe */
 

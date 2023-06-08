@@ -28,7 +28,7 @@ class AArch64GenCfi : public GenCfi  {
       stackBaseReg = useFP ? R29 : RSP;
     }
   }
-  ~AArch64GenCfi() = default;
+  ~AArch64GenCfi() override = default;
 
  private:
   void GenerateRegisterSaveDirective(BB &bb) override;

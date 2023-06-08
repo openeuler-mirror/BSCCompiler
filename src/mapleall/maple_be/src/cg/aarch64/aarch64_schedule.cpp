@@ -17,8 +17,7 @@
 #include <ctime>
 #include "aarch64_cg.h"
 #include "aarch64_operand.h"
-#include "aarch64_data_dep_base.h"
-#include "control_dep_analysis.h"
+#include "aarch64_dependence.h"
 #include "pressure.h"
 
 /*
@@ -215,7 +214,7 @@ void AArch64Schedule::FindAndCombineMemoryAccessPair(const std::vector<DepNode*>
           memList[0]->GetInsn()->Dump();
           (*it)->GetInsn()->Dump();
         }
-        ddb->CombineMemoryAccessPair(*memList[0], **it, nextOffsetVal > currOffsetVal);
+        depAnalysis->CombineMemoryAccessPair(*memList[0], **it, nextOffsetVal > currOffsetVal);
         if (LIST_SCHED_DUMP_REF) {
           LogInfo::MapleLogger() << "To: " << "\n";
           memList[0]->GetInsn()->Dump();
@@ -236,7 +235,7 @@ void AArch64Schedule::ClinitPairOpt() {
 
     if ((*it)->GetInsn()->GetMachineOpcode() == MOP_adrp_ldr) {
       if ((*nextIt)->GetInsn()->GetMachineOpcode() == MOP_clinit_tail) {
-        ddb->CombineClinit(**it, **(nextIt), false);
+        depAnalysis->CombineClinit(**it, **(nextIt), false);
       } else if ((*nextIt)->GetType() == kNodeTypeSeparator) {
         nextIt = std::next(nextIt, 1);
         if (nextIt == nodes.end()) {
@@ -244,7 +243,7 @@ void AArch64Schedule::ClinitPairOpt() {
         }
         if ((*nextIt)->GetInsn()->GetMachineOpcode() == MOP_clinit_tail) {
           /* Do something. */
-          ddb->CombineClinit(**it, **(nextIt), true);
+          depAnalysis->CombineClinit(**it, **(nextIt), true);
         }
       }
     }
@@ -282,13 +281,13 @@ uint32 AArch64Schedule::ComputeEstart(uint32 cycle) {
     /* Check validPredsSize. */
     for (uint32 i = lastSeparatorIndex; i <= maxIndex; ++i) {
       DepNode *node = nodes[i];
-      int32 schedNum = 0;
+      uint32 schedNum = 0;
       for (const auto *predLink : node->GetPreds()) {
         if (predLink->GetFrom().GetState() == kScheduled) {
           ++schedNum;
         }
       }
-      ASSERT((node->GetPreds().size() - schedNum) == node->GetValidPredsSize(), "validPredsSize error.");
+      CHECK_FATAL((node->GetPreds().size() - schedNum) == node->GetValidPredsSize(), "validPredsSize error.");
     }
   }
 
@@ -646,7 +645,8 @@ uint32 AArch64Schedule::DoSchedule() {
   ASSERT(scheduleInfo.SizeOfScheduledNodes() == nodes.size(), "CG internal error, Not all nodes scheduled.");
 
   nodes.clear();
-  (void)nodes.insert(nodes.cbegin(), scheduleInfo.GetScheduledNodes().cbegin(), scheduleInfo.GetScheduledNodes().cend());
+  (void)nodes.insert(nodes.cbegin(), scheduleInfo.GetScheduledNodes().cbegin(),
+                     scheduleInfo.GetScheduledNodes().cend());
   /* the second to last node is the true last node, because the last is kNodeTypeSeparator node */
   ASSERT(nodes.size() - 2 >= 0, "size of nodes should be greater than or equal 2");
   return (nodes[nodes.size() - 2]->GetSchedCycle());
@@ -705,7 +705,7 @@ AArch64Schedule::CSRResult AArch64Schedule::DoCSR(DepNode &node1, DepNode &node2
       }
     }
   }
-  auto findFreeRegNode = [&](bool isInt)->CSRResult {
+  auto findFreeRegNode = [&scheduleInfo, &node1, &node2](bool isInt)->CSRResult {
     auto freeRegNodes = isInt ? scheduleInfo.GetFreeIntRegNodeSet() : scheduleInfo.GetFreeFpRegNodeSet();
     if (freeRegNodes.find(&node1) != freeRegNodes.end() && freeRegNodes.find(&node2) == freeRegNodes.end()) {
       return kNode1;
@@ -962,7 +962,7 @@ uint32 AArch64Schedule::SimulateOnly() {
 }
 
 /* Restore dependence graph to normal CGIR */
-void AArch64Schedule::FinalizeScheduling(BB &bb, const DataDepBase &dataDepBase) {
+void AArch64Schedule::FinalizeScheduling(BB &bb, const DepAnalysis &depAnalysis) {
   bb.ClearInsns();
 
   const Insn *prevLocInsn = (bb.GetPrev() != nullptr ? bb.GetPrev()->GetLastLoc() : nullptr);
@@ -992,11 +992,9 @@ void AArch64Schedule::FinalizeScheduling(BB &bb, const DataDepBase &dataDepBase)
   }
   bb.SetLastLoc(prevLocInsn);
 
-  for (auto lastComment : dataDepBase.GetLastComments()) {
+  for (auto lastComment : depAnalysis.GetLastComments()) {
     bb.AppendInsn(*lastComment);
   }
-  dataDepBase.ClearLastComments();
-  nodes.clear();
 }
 
 /* For every node of nodes, update it's bruteForceSchedCycle. */
@@ -1013,7 +1011,7 @@ void AArch64Schedule::IterateBruteForce(DepNode &targetNode, MapleVector<DepNode
   /* Save states. */
   constexpr int32 unitSize = 31;
   ASSERT(unitSize == mad->GetAllUnitsSize(), "CG internal error.");
-  std::vector<uint32> occupyTable;
+  std::vector<std::bitset<32>> occupyTable;
   occupyTable.resize(unitSize, 0);
   mad->SaveStates(occupyTable, unitSize);
 
@@ -1185,14 +1183,14 @@ void AArch64Schedule::UpdateReadyList(DepNode &targetNode, MapleVector<DepNode*>
 /* For every node of nodes, dump it's Depdence information. */
 void AArch64Schedule::DumpDepGraph(const MapleVector<DepNode*> &nodes) const {
   for (auto node : nodes) {
-    ddb->DumpDepNode(*node);
+    depAnalysis->DumpDepNode(*node);
     LogInfo::MapleLogger() << "---------- preds ----------" << "\n";
     for (auto pred : node->GetPreds()) {
-      ddb->DumpDepLink(*pred, &(pred->GetFrom()));
+      depAnalysis->DumpDepLink(*pred, &(pred->GetFrom()));
     }
     LogInfo::MapleLogger() << "---------- succs ----------" << "\n";
     for (auto succ : node->GetSuccs()) {
-      ddb->DumpDepLink(*succ, &(succ->GetTo()));
+      depAnalysis->DumpDepLink(*succ, &(succ->GetTo()));
     }
     LogInfo::MapleLogger() << "---------------------------" << "\n";
   }
@@ -1378,11 +1376,7 @@ void AArch64Schedule::ListScheduling(bool beforeRA) {
   if (beforeRA) {
     RegPressure::SetMaxRegClassNum(kRegisterLast);
   }
-  // construct cdgNode for each BB
-  auto *cda = memPool.New<ControlDepAnalysis>(cgFunc, memPool);
-  cda->ComputeSingleBBRegions();
-  ddb = memPool.New<AArch64DataDepBase>(memPool, cgFunc, *mad, true);
-  intraDDA = memPool.New<IntraDataDepAnalysis>(memPool, cgFunc, *ddb);
+  depAnalysis = memPool.New<AArch64DepAnalysis>(cgFunc, memPool, *mad, beforeRA);
   FOR_ALL_BB(bb, &cgFunc) {
     if (bb->IsUnreachable()) {
       continue;
@@ -1390,7 +1384,7 @@ void AArch64Schedule::ListScheduling(bool beforeRA) {
     if (bb->IsAtomicBuiltInBB()) {
       continue;
     }
-    intraDDA->Run(*bb, nodes);
+    depAnalysis->Run(*bb, nodes);
 
     if (LIST_SCHED_DUMP_REF) {
       GenerateDot(*bb, nodes);
@@ -1417,7 +1411,7 @@ void AArch64Schedule::ListScheduling(bool beforeRA) {
       }
     }
 
-    FinalizeScheduling(*bb, *ddb);
+    FinalizeScheduling(*bb, *depAnalysis);
   }
 }
 }  /* namespace maplebe */

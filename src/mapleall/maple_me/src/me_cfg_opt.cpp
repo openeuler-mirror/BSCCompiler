@@ -256,7 +256,7 @@ bool MeCfgOpt::Run(MeCFG &cfg) const {
         continue;
       }
       const auto *condGotoMeStmt = static_cast<const CondGotoMeStmt*>(condMeStmt);
-      if (bbLeft->GetBBLabel() && bbLeft->GetBBLabel() == condGotoMeStmt->GetOffset()) {
+      if (bbLeft->GetBBLabel() != 0 && bbLeft->GetBBLabel() == condGotoMeStmt->GetOffset()) {
         BB *tmpBB = bbLeft;
         bbLeft = bbRight;
         bbRight = tmpBB;

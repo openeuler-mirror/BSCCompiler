@@ -40,10 +40,8 @@ void ControlDepAnalysis::BuildCFGInfo() {
   for (auto cfgEdge : cfgMST->GetAllEdges()) {
     BB *srcBB = cfgEdge->GetSrcBB();
     BB *destBB = cfgEdge->GetDestBB();
-    for (auto loop : cgFunc.GetLoops()) {
-      if (loop->IsBackEdge(*srcBB, *destBB)) {
-        cfgEdge->SetIsBackEdge();
-      }
+    if (loop->IsBackEdge(*srcBB, *destBB)) {
+      cfgEdge->SetIsBackEdge();
     }
   }
   // denote the condition on CFGEdge except for back-edge
@@ -165,11 +163,10 @@ void ControlDepAnalysis::ComputeRegions(bool doCDRegion) {
 void ControlDepAnalysis::ComputeGeneralNonLinearRegions() {
   /* If ebo phase was removed, must recalculate loop info */
   /* 1. Find all innermost loops */
-  std::vector<CGFuncLoops*> innermostLoops;
-  std::unordered_map<CGFuncLoops*, bool> visited;
-  MapleVector<CGFuncLoops*> &loopInfos = cgFunc.GetLoops();
-  for (auto loop : loopInfos) {
-    FindInnermostLoops(innermostLoops, visited, loop);
+  std::vector<LoopDesc*> innermostLoops;
+  std::unordered_map<LoopDesc*, bool> visited;
+  for (auto lp : loop->GetLoops()) {
+    FindInnermostLoops(innermostLoops, visited, lp);
   }
 
   /* 2. Find reducible loops as a region */
@@ -195,28 +192,28 @@ void ControlDepAnalysis::ComputeGeneralNonLinearRegions() {
      * The above case may cause loop-carried dependency instructions to be scheduled, and currently this
      * dependency is not considered.
      */
-    if (innerLoop->GetBackedge().size() > 1) {
+    if (innerLoop->GetBackEdges().size() > 1) {
       continue;
     }
 
     bool isReducible = true;
-    BB *header = innerLoop->GetHeader();
-    for (auto member : innerLoop->GetLoopMembers()) {
-      if (!dom->Dominate(*header, *member)) {
+    auto &header = innerLoop->GetHeader();
+    for (auto memberId : innerLoop->GetLoopBBs()) {
+      if (!dom->Dominate(header, *cgFunc.GetBBFromID(memberId))) {
         isReducible = false;
       }
     }
     if (isReducible) {
       auto *region = cdgMemPool.New<CDGRegion>(CDGRegionId(lastRegionId++), cdgAlloc);
-      CDGNode *headerNode = header->GetCDGNode();
+      CDGNode *headerNode = header.GetCDGNode();
       CHECK_FATAL(headerNode != nullptr, "get cdgNode from bb failed");
       region->SetRegionRoot(*headerNode);
-      for (auto member : innerLoop->GetLoopMembers()) {
-        CDGNode *memberNode = member->GetCDGNode();
+      for (auto memberId : innerLoop->GetLoopBBs()) {
+        CDGNode *memberNode = cgFunc.GetBBFromID(memberId)->GetCDGNode();
         CHECK_FATAL(memberNode != nullptr, "get cdgNode from bb failed");
         memberNode->SetRegion(*region);
       }
-      if (AddRegionNodesInTopologicalOrder(*region, *headerNode, innerLoop->GetLoopMembers())) {
+      if (AddRegionNodesInTopologicalOrder(*region, *headerNode, innerLoop->GetLoopBBs())) {
         fcdg->AddRegion(*region);
       }
     }
@@ -292,19 +289,19 @@ void ControlDepAnalysis::CreateRegionForSingleBB() {
 /*
  * Recursive search for innermost loop
  */
-void ControlDepAnalysis::FindInnermostLoops(std::vector<CGFuncLoops*> &innermostLoops,
-                                            std::unordered_map<CGFuncLoops*, bool> &visited, CGFuncLoops *loop) {
-  if (loop == nullptr) {
+void ControlDepAnalysis::FindInnermostLoops(std::vector<LoopDesc*> &innermostLoops,
+                                            std::unordered_map<LoopDesc*, bool> &visited, LoopDesc *lp) {
+  if (lp == nullptr) {
     return;
   }
-  auto it = visited.find(loop);
+  auto it = visited.find(lp);
   if (it != visited.end() && it->second) {
     return;
   }
-  visited.emplace(loop, true);
-  const MapleVector<CGFuncLoops*> &innerLoops = loop->GetInnerLoops();
+  visited.emplace(lp, true);
+  const auto &innerLoops = lp->GetChildLoops();
   if (innerLoops.empty()) {
-    innermostLoops.emplace_back(loop);
+    innermostLoops.emplace_back(lp);
   } else {
     for (auto innerLoop : innerLoops) {
       FindInnermostLoops(innermostLoops, visited, innerLoop);
@@ -313,9 +310,10 @@ void ControlDepAnalysis::FindInnermostLoops(std::vector<CGFuncLoops*> &innermost
 }
 
 bool ControlDepAnalysis::AddRegionNodesInTopologicalOrder(CDGRegion &region, CDGNode &root,
-                                                          const MapleVector<BB*> &members) {
+                                                          const MapleSet<BBID> &members) {
   /* Init predSum for memberNode except for root in region */
-  for (auto bb : members) {
+  for (auto bbId : members) {
+    auto *bb = cgFunc.GetBBFromID(bbId);
     CDGNode *cdgNode = bb->GetCDGNode();
     CHECK_FATAL(cdgNode != nullptr, "get cdgNode from bb failed");
     if (cdgNode == &root) {
@@ -341,7 +339,8 @@ bool ControlDepAnalysis::AddRegionNodesInTopologicalOrder(CDGRegion &region, CDG
     topoQueue.pop();
     region.AddCDGNode(curNode);
 
-    for (auto bb : members) {
+    for (auto bbId : members) {
+      auto *bb = cgFunc.GetBBFromID(bbId);
       CDGNode *memberNode = bb->GetCDGNode();
       CHECK_FATAL(memberNode != nullptr, "get cdgNode from bb failed");
       if (memberNode == &root || memberNode->IsVisitedInTopoSort()) {
@@ -503,7 +502,7 @@ CDGRegion *ControlDepAnalysis::FindExistRegion(CDGNode &node) const {
  * Check whether the intersection(IS) of the control dependency set of the parent node (CDs)
  * and the child node is equal to the control dependency set of the parent node
  */
-bool ControlDepAnalysis::IsISEqualToCDs(CDGNode &parent, CDGNode &child) {
+bool ControlDepAnalysis::IsISEqualToCDs(CDGNode &parent, CDGNode &child) const {
   MapleVector<CDGEdge*> &parentCDs = parent.GetAllInEdges();
   MapleVector<CDGEdge*> &childCDs = child.GetAllInEdges();
   // Nodes that don't have control dependencies are processed in a unified method at last
@@ -896,6 +895,7 @@ void CgControlDepAnalysis::GetAnalysisDependence(maple::AnalysisDep &aDep) const
   aDep.AddRequired<CgDomAnalysis>();
   aDep.AddRequired<CgPostDomAnalysis>();
   aDep.AddRequired<CgLoopAnalysis>();
+  aDep.SetPreservedAll();
 }
 
 bool CgControlDepAnalysis::PhaseRun(maplebe::CGFunc &f) {
@@ -906,9 +906,12 @@ bool CgControlDepAnalysis::PhaseRun(maplebe::CGFunc &f) {
   CHECK_FATAL(domInfo != nullptr, "get result of DomAnalysis failed");
   PostDomAnalysis *pdomInfo = GET_ANALYSIS(CgPostDomAnalysis, f);
   CHECK_FATAL(pdomInfo != nullptr, "get result of PostDomAnalysis failed");
+  LoopAnalysis *loopInfo = GET_ANALYSIS(CgLoopAnalysis, f);
+  CHECK_FATAL(loopInfo != nullptr, "get result of LoopAnalysis failed");
   auto *cfgMST = cdgMemPool->New<CFGMST<BBEdge<maplebe::BB>, maplebe::BB>>(*cdgMemPool);
   cda = f.IsAfterRegAlloc() ? cdgMemPool->New<ControlDepAnalysis>(f, *cdgMemPool, "localschedule", true) :
-    cdgMemPool->New<ControlDepAnalysis>(f, *cdgMemPool, *tmpMemPool, *domInfo, *pdomInfo, cfgMST, "globalschedule");
+      cdgMemPool->New<ControlDepAnalysis>(f, *cdgMemPool, *tmpMemPool, *domInfo, *pdomInfo, *loopInfo,
+                                          cfgMST, "globalschedule");
   cda->Run();
   return true;
 }

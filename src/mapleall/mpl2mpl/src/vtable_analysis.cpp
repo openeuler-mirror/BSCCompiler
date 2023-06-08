@@ -302,7 +302,7 @@ void VtableAnalysis::GenItableDefinition(const Klass &klass) {
   for (MIRFunction *func : firstItabVec) {
     if (func != nullptr) {
       firstItabEmitArray->AddItem(
-        GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), *voidPtrType), 0);
+          GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), *voidPtrType), 0);
     } else {
       firstItabEmitArray->AddItem(zeroConst, 0);
     }
@@ -324,7 +324,7 @@ void VtableAnalysis::GenItableDefinition(const Klass &klass) {
             GlobalTables::GetIntConstTable().GetOrCreateIntConst(i, *voidPtrType), 0);
         if (secondItab[i] != nullptr) {
           secondItabEmitArray->AddItem(
-            GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(secondItab[i]->GetPuidx(), *voidPtrType), 0);
+              GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(secondItab[i]->GetPuidx(), *voidPtrType), 0);
         } else {
           // it measn it was conflict again in the second hash
           secondItabEmitArray->AddItem(oneConst, 0);

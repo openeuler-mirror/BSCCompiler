@@ -225,7 +225,7 @@ void CollectIpaInfo::Perform(MeFunction &func) {
   }
 }
 
-void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmtInfoId,
+void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId position,
     std::unordered_set<ScalarMeExpr*> &cycleCheck) {
   if (cycleCheck.find(&scalar) != cycleCheck.end()) {
     return;
@@ -235,7 +235,7 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmt
   if (!ost->IsLocal() || ost->GetIndirectLev() != 0) {
     return;
   }
-  auto &defUsePosition = stmtInfoVector[stmtInfoId].GetDefUsePositions(*ost);
+  auto &defUsePosition = stmtInfoVector[position].GetDefUsePositions(*ost);
   switch (scalar.GetDefBy()) {
     case kDefByNo: {
       if (ost->IsFormal()) {
@@ -245,7 +245,7 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmt
     }
     case kDefByPhi: {
       for (auto *scalarOpnd : scalar.GetDefPhi().GetOpnds()) {
-        CollectDefUsePosition(static_cast<ScalarMeExpr&>(*scalarOpnd), stmtInfoId, cycleCheck);
+        CollectDefUsePosition(static_cast<ScalarMeExpr&>(*scalarOpnd), position, cycleCheck);
       }
       break;
     }
@@ -255,10 +255,10 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId stmt
       defUsePosition.definePositions.push_back(defStmtInfoId);
       if (scalar.GetDefBy() != kDefByChi && defStmtInfoId != kInvalidIndex) {
         auto &defUsePositionOfDefStmt = stmtInfoVector[defStmtInfoId].GetDefUsePositions(*ost);
-        defUsePositionOfDefStmt.usePositions.push_back(stmtInfoId);
+        defUsePositionOfDefStmt.usePositions.push_back(position);
         break;
       }
-      CollectDefUsePosition(*scalar.GetDefChi().GetRHS(), stmtInfoId, cycleCheck);
+      CollectDefUsePosition(*scalar.GetDefChi().GetRHS(), position, cycleCheck);
       break;
     }
   }

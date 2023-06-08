@@ -28,11 +28,6 @@
 
 namespace maple {
 // for more color code: http://ascii-table.com/ansi-escape-sequences.php
-#define RESET "\x1B[0m"
-#define BOLD "\x1B[1m"
-#define RED "\x1B[31m"
-#define GRN "\x1B[32m"
-#define YEL "\x1B[33m"
 
 const uint32 kDbgDefaultVal = 0xdeadbeef;
 #define HEX(val) std::hex << "0x" << (val) << std::dec

@@ -13,8 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "string_utils.h"
-#include <cstddef>
-#include <iostream>
 
 namespace maple {
 std::string StringUtils::Trim(const std::string &src) {
@@ -52,6 +50,14 @@ std::string StringUtils::GetStrAfterLast(const std::string &src, const std::stri
 
 std::string StringUtils::GetStrBeforeLast(const std::string &src, const std::string &target, bool isReturnEmpty) {
   size_t pos = src.find_last_of(target);
+  if (pos == std::string::npos) {
+    return isReturnEmpty ? "" : src;
+  }
+  return src.substr(0, pos);
+}
+
+std::string StringUtils::GetStrBeforeFirst(const std::string &src, const std::string &target, bool isReturnEmpty) {
+  size_t pos = src.find_first_of(target);
   if (pos == std::string::npos) {
     return isReturnEmpty ? "" : src;
   }

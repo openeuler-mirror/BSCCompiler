@@ -27,25 +27,25 @@ class Triple {
  public:
   /* Currently, only aarch64 is supported */
   enum ArchType {
-    UnknownArch,
-    aarch64,
-    aarch64_be,
-    LastArchType
+    kUnknownArch,
+    kAarch64,
+    kAarch64Be,
+    kLastArchType
   };
 
   /* Currently, only ILP32 and LP64 are supported */
   enum EnvironmentType {
-    UnknownEnvironment,
-    GNU,
-    GNUILP32,
-    LastEnvironmentType
+    kUnknownEnvironment,
+    kGnu,
+    kGnuIlp32,
+    kLastEnvironmentType
   };
 
   ArchType GetArch() const { return arch; }
   EnvironmentType GetEnvironment() const { return environment; }
 
   bool IsBigEndian() const {
-    return (GetArch() == ArchType::aarch64_be);
+    return (GetArch() == ArchType::kAarch64Be);
   }
 
   std::string Str() const;
@@ -67,10 +67,10 @@ class Triple {
   ArchType arch;
   EnvironmentType environment;
 
-  Triple() : arch(UnknownArch), environment(UnknownEnvironment) {}
+  Triple() : arch(kUnknownArch), environment(kUnknownEnvironment) {}
 
-  Triple::ArchType ParseArch(std::string_view archStr) const;
-  Triple::EnvironmentType ParseEnvironment(std::string_view archStr) const;
+  Triple::ArchType ParseArch(const std::string_view archStr) const;
+  Triple::EnvironmentType ParseEnvironment(const std::string_view archStr) const;
 };
 
 } // namespace maple

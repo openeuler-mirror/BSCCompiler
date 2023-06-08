@@ -175,7 +175,14 @@ MIRSymbol *FEIRVar::GenerateLocalMIRSymbolImpl(MIRBuilder &builder) const {
   HIR2MPL_PARALLEL_FORBIDDEN();
   MIRType *mirType = type->GenerateMIRTypeAuto();
   std::string name = GetName(*mirType);
-  MIRSymbol *mirSymbol = builder.GetOrCreateLocalDecl(name, *mirType);
+  MIRSymbol *mirSymbol;
+  if (isNeedGlobal) {
+    const std::string globalVarSuffix = "_temp_global";
+    name = name + globalVarSuffix;
+    mirSymbol = builder.GetOrCreateGlobalDecl(name, *mirType);
+  } else {
+    mirSymbol = builder.GetOrCreateLocalDecl(name, *mirType);
+  }
   auto attrs = genAttrs.ConvertToTypeAttrs();
   ENCChecker::InsertBoundaryLenExprInAtts(attrs, boundaryLenExpr);
   if (attrs.GetAttr(ATTR_static)) {

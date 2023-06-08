@@ -35,6 +35,7 @@ set(src_libmplutil
 )
 
 set(src_libcommandline
+    src/set_spec.cpp
     src/cl_option.cpp
     src/cl_option_parser.cpp
     src/cl_parser.cpp
@@ -74,6 +75,10 @@ set_target_properties(libmplutil PROPERTIES
 add_library(libcommandline STATIC ${src_libcommandline})
 target_include_directories(libcommandline PRIVATE
     ${MAPLEALL_ROOT}/maple_util/include
+    ${MAPLEALL_ROOT}/maple_ir/include
+    ${THIRD_PARTY_ROOT}/bounds_checking_function/include
+    ${MAPLEALL_ROOT}/mempool/include
+    ${MAPLEALL_ROOT}/maple_driver/include
     include
 )
 set_target_properties(libcommandline PROPERTIES 

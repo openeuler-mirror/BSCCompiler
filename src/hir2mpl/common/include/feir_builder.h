@@ -47,7 +47,8 @@ class FEIRBuilder {
   // Expr
   static UniqueFEIRExpr CreateExprSizeOfType(UniqueFEIRType ty);
   static UniqueFEIRExpr CreateExprDRead(UniqueFEIRVar srcVar);
-  static UniqueFEIRExpr CreateExprDReadAggField(UniqueFEIRVar srcVar, FieldID fieldID, UniqueFEIRType fieldType);
+  static UniqueFEIRExpr CreateExprDReadAggField(UniqueFEIRVar srcVar, FieldID fieldID,
+                                                UniqueFEIRType fieldType, FieldID lenFieldID = 0);
   static UniqueFEIRExpr CreateExprAddrofLabel(const std::string &lbName, UniqueFEIRType exprTy);
   static UniqueFEIRExpr CreateExprAddrofVar(UniqueFEIRVar srcVar);
   static UniqueFEIRExpr CreateExprAddrofFunc(const std::string &addr);
@@ -55,7 +56,7 @@ class FEIRBuilder {
                                               UniqueFEIRExpr argExprArray, std::string argArrayName,
                                               std::list<UniqueFEIRExpr> &argExprIndexs);
   static UniqueFEIRExpr CreateExprIRead(UniqueFEIRType returnType, UniqueFEIRType ptrType,
-                                        UniqueFEIRExpr expr, FieldID id = 0);
+                                        UniqueFEIRExpr expr, FieldID id = 0, FieldID lenId = 0);
   static UniqueFEIRExpr CreateExprTernary(Opcode op, UniqueFEIRType type, UniqueFEIRExpr cExpr,
                                           UniqueFEIRExpr tExpr, UniqueFEIRExpr fExpr);
   static UniqueFEIRExpr CreateExprConstRefNull();

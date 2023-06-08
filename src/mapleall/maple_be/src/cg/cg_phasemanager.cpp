@@ -315,7 +315,8 @@ void CgFuncPM::SweepUnusedStaticSymbol(MIRModule &m) const {
   for (size_t i = 0; i < size; ++i) {
     MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
     if (mirSymbol != nullptr && (mirSymbol->GetSKind() == kStVar || mirSymbol->GetSKind() == kStConst) &&
-        (mirSymbol->GetStorageClass() == kScFstatic || mirSymbol->GetStorageClass() == kScPstatic)) {
+        (mirSymbol->GetStorageClass() == kScFstatic || mirSymbol->GetStorageClass() == kScPstatic) &&
+        !mirSymbol->GetAccessByMem()) {
       mirSymbol->SetIsDeleted();
     }
   }
@@ -411,7 +412,7 @@ static void MarkFunctionPriority(std::map<std::string, uint32> &prioritylist, CG
 }
 
 static std::optional<MapleList<MIRFunction *>> ReorderFunction(MIRModule &m,
-                                                                 const std::map<std::string, uint32> &priorityList) {
+                                                               const std::map<std::string, uint32> &priorityList) {
   if (!opts::linkerTimeOpt.IsEnabledByUser()) {
     return std::nullopt;
   }
@@ -520,7 +521,7 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       CHECK_FATAL(cgFunc != nullptr, "Create CG Function failed in cg_phase_manager");
       CG::SetCurCGFunc(*cgFunc);
       MarkFunctionPriority(priorityList, *cgFunc);
-      if (cgOptions->WithDwarf()) {
+      if (cgOptions->WithDwarf() && cgFunc->GetWithSrc()) {
         cgFunc->SetDebugInfo(m.GetDbgInfo());
       }
       /* Run the cg optimizations phases. */
@@ -655,7 +656,7 @@ void CgFuncPM::DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc) const {
   if (m.GetFlavor() <= kFeProduced) {
     mirLower->SetLowerCG();
     mirLower->SetMirFunc(&mirFunc);
-    mirLower->SetOptLevel(CGOptions::GetInstance().GetOptimizeLevel());
+    mirLower->SetOptLevel(static_cast<uint8>(CGOptions::GetInstance().GetOptimizeLevel()));
 
     DumpMIRFunc(mirFunc, "************* before MIRLowerer **************");
     mirLower->LowerFunc(mirFunc);

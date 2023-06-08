@@ -23,7 +23,7 @@
 #include "ea_connection_graph.h"
 
 namespace maple {
-enum : uint8 {
+enum BinKind : uint8 {
   kBinString = 1,
   kBinUsrString = kBinString,
   kBinInitConst = 2,

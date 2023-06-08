@@ -149,8 +149,8 @@ class Insn {
     return *opnds[index];
   }
 
-  void ResizeOpnds(uint32 newSize) {
-    opnds.resize(static_cast<std::size_t>(newSize));
+  void ResizeOpnds(size_t newSize) {
+    opnds.resize(newSize);
   }
 
   uint32 GetOperandSize() const {
@@ -206,6 +206,7 @@ class Insn {
   void SetMemOpnd(MemOperand *memOpnd);
 
   bool IsCall() const;
+  bool IsSpecialCall() const;
   bool IsTailCall() const;
   bool IsAsmInsn() const;
   bool IsClinit() const;

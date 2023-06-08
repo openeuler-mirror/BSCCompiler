@@ -35,10 +35,10 @@ bool CgRaOpt::PhaseRun(maplebe::CGFunc &f) {
   if (raOpt) {
     LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
     live->ResetLiveSet();
-    MaplePhase *phase = GetAnalysisInfoHook()->
-        ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgDomAnalysis::id, f);
-    DomAnalysis *dom = static_cast<CgDomAnalysis*>(phase)->GetResult();
+    auto *dom = GET_ANALYSIS(CgDomAnalysis, f);
     raOpt->SetDomInfo(dom);
+    auto *loop = GET_ANALYSIS(CgLoopAnalysis, f);
+    raOpt->SetLoopInfo(*loop);
     raOpt->Run();
     /* the live range info may changed, so invalid the info. */
     if (live != nullptr) {
@@ -49,6 +49,8 @@ bool CgRaOpt::PhaseRun(maplebe::CGFunc &f) {
 }
 void CgRaOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
+  aDep.AddRequired<CgDomAnalysis>();
+  aDep.AddRequired<CgLoopAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgRaOpt, raopt)

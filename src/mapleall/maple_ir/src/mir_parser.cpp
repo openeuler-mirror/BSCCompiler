@@ -1831,7 +1831,7 @@ bool MIRParser::ParseLoc() {
   return true;
 }
 
-bool MIRParser::ParseLocStmt(StmtNodePtr &stmt) {
+bool MIRParser::ParseLocStmt([[maybe_unused]] StmtNodePtr &stmt) {
   return ParseLoc();
 }
 
@@ -2137,7 +2137,7 @@ static Opcode GetUnaryOp(TokenKind tk) {
   switch (tk) {
 #define UNARYOP(P) \
   case TK_##P:     \
-    return OP_##P;
+    return OP_##P
 #include "unary_op.def"
 #undef UNARYOP
     default:
@@ -2149,7 +2149,7 @@ static Opcode GetBinaryOp(TokenKind tk) {
   switch (tk) {
 #define BINARYOP(P) \
   case TK_##P:      \
-    return OP_##P;
+    return OP_##P
 #include "binary_op.def"
 #undef BINARYOP
     default:

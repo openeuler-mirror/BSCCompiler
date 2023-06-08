@@ -58,33 +58,47 @@ class ContinuousCmpCsetPattern : public CGPeepPattern {
   }
 
  private:
-  bool CheckCondCode(const CondOperand &condOpnd) const;
   Insn *prevCmpInsn = nullptr;
   Insn *prevCsetInsn1 = nullptr;
   Insn *prevCmpInsn1 = nullptr;
   bool reverse = false;
 };
 
-/*
- * Example 1)
- *  mov w5, #1
- *   ...
- *  mov w0, #0
- *  csel w5, w5, w0, NE    ===> cset w5, NE
- *
- * Example 2)
- *  mov w5, #0
- *   ...
- *  mov w0, #1
- *  csel w5, w5, w0, NE    ===> cset w5,EQ
- *
- * conditions:
- * 1. mov_imm1 value is 0(1) && mov_imm value is 1(0)
- */
+// Condition: mov_imm1 value is 0(1/-1) && mov_imm value is 1/-1(0)
+//
+// Pattern 1: Two mov insn + One csel insn
+//
+// Example 1:
+//   mov w5, #1
+//   ...
+//   mov w0, #0
+//   csel w5, w5, w0, NE    ===> cset   w5, NE
+//
+// Example 2:
+//   mov w5, #0
+//   ...
+//   mov w0, #-1
+//   csel w5, w5, w0, NE    ===> csetm  w5, EQ
+//
+// Pattern 2: One mov insn + One csel insn with RZR
+//
+// Example 1:
+//   mov   w0, #4294967295
+//   ......                       ====>        csetm  w1, EQ
+//   csel  w1, w0, wzr, EQ
+//
+// Example 2:
+//   mov   w0, #1
+//   ......                       ====>        cset   w1, LE
+//   csel  w1, wzr, w0, GT
+//
+
 class CselToCsetPattern : public CGPeepPattern {
  public:
   CselToCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  CselToCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~CselToCsetPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -95,8 +109,17 @@ class CselToCsetPattern : public CGPeepPattern {
  private:
   bool IsOpndDefByZero(const Insn &insn) const;
   bool IsOpndDefByOne(const Insn &insn) const;
+  bool IsOpndDefByAllOnes(const Insn &insn) const;
+  bool CheckZeroCondition(const Insn &insn);
+  Insn* BuildCondSetInsn(const Insn &cselInsn) const;
+  void ZeroRun(BB &bb, Insn &insn);
+  bool isOne = false;
+  bool isAllOnes = false;
+  bool isZeroBefore = false;
+  Insn *prevMovInsn = nullptr;
   Insn *prevMovInsn1 = nullptr;
   Insn *prevMovInsn2 = nullptr;
+  RegOperand *useReg = nullptr;
 };
 
 /*
@@ -366,7 +389,7 @@ class ZeroCmpBranchesToTbzPattern : public CGPeepPattern {
 
  private:
   bool CheckAndSelectPattern(const Insn &currInsn);
-  Insn *prevInsn = nullptr;
+  Insn *preInsn = nullptr;
   MOperator newMop = MOP_undef;
   RegOperand *regOpnd = nullptr;
 };
@@ -475,7 +498,7 @@ class AddSubMergeLdStPattern : public CGPeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
   private:
-  bool CheckIfCanBeMerged(Insn *adjacentInsn, Insn &insn);
+  bool CheckIfCanBeMerged(const Insn *adjacentInsn, const Insn &insn);
   Insn *nextInsn = nullptr;
   Insn *prevInsn = nullptr;
   Insn *insnToBeReplaced = nullptr;
@@ -860,7 +883,7 @@ class LsrAndToUbfxPattern : public CGPeepPattern {
   ~LsrAndToUbfxPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
-  bool CheckIntersectedCondition(Insn &insn, Insn &prevInsn);
+  bool CheckIntersectedCondition(const Insn &insn);
   std::string GetPatternName() override {
     return "LsrAndToUbfxPattern";
   }
@@ -953,6 +976,8 @@ class UbfxAndCbzToTbzPattern : public CGPeepPattern {
  public:
   UbfxAndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  UbfxAndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
   ~UbfxAndCbzToTbzPattern() override {
     useInsn = nullptr;
   }
@@ -1067,7 +1092,6 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
                                        int64 curOfstVal, int64 prevOfstVal);
   bool IsValidStackArgLoadOrStorePattern(const Insn &curInsn, const Insn &prevInsn, const MemOperand &curMemOpnd,
                                          const MemOperand &prevMemOpnd, int64 curOfstVal, int64 prevOfstVal) const;
-  MOperator GetNewMemMop(MOperator mop) const;
   Insn *GenerateMemPairInsn(MOperator newMop, RegOperand &curDestOpnd, RegOperand &prevDestOpnd,
                             MemOperand &combineMemOpnd, bool isCurDestFirst);
   bool FindUseX16AfterInsn(const Insn &curInsn) const;
@@ -1397,7 +1421,33 @@ class AndCmpBranchesToCsetPattern : public CGPeepPattern {
   Insn *prevAndInsn = nullptr;
   Insn *prevCmpInsn = nullptr;
 };
-
+/*
+ * and	x0, x0, #281474976710655    ====> eor	x0, x0, x1
+ * and	x1, x1, #281474976710655          tst	x0, 281474976710655
+ * cmp	x0, x1                            bne	.L.5187__150
+ * bne	.L.5187__150
+*/
+class AndAndCmpBranchesToTstPattern : public CGPeepPattern {
+ public:
+  AndAndCmpBranchesToTstPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~AndAndCmpBranchesToTstPattern() override {
+    prevCmpInsn = nullptr;
+  }
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "AndAndCmpBranchesToCsetPattern";
+  }
+ private:
+  bool CheckAndSelectPattern(const Insn &currInsn);
+  Insn *prevPrevAndInsn = nullptr;
+  Insn *prevAndInsn = nullptr;
+  Insn *prevCmpInsn = nullptr;
+  MOperator newTstMop = MOP_undef;
+  MOperator newEorMop = MOP_undef;
+  int64 tstImmVal = -1;
+};
 /*
  * cbnz w0, @label
  * ....

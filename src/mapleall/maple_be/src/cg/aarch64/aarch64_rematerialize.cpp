@@ -31,9 +31,9 @@ bool AArch64Rematerializer::IsRematerializableForConstval(int64 val, uint32 bitL
   return IsBitmaskImmediate(uval, bitLen);
 }
 
-bool AArch64Rematerializer::IsRematerializableForDread(int32 offset) const {
+bool AArch64Rematerializer::IsRematerializableForDread(uint64 offset) const {
   /* check stImm.GetOffset() is in addri12 */
-  return IsBitSizeImmediate(static_cast<uint64>(static_cast<int64>(offset)), kMaxImmVal12Bits, 0);
+  return IsBitSizeImmediate(offset, kMaxImmVal12Bits, 0);
 }
 
 std::vector<Insn*> AArch64Rematerializer::RematerializeForConstval(CGFunc &cgFunc,
@@ -58,6 +58,10 @@ std::vector<Insn*> AArch64Rematerializer::RematerializeForAddrof(CGFunc &cgFunc,
     SymbolAlloc *symLoc = cgFunc.GetMemlayout()->GetSymAllocInfo(symbol->GetStIndex());
     ImmOperand *offsetOp = &cgFunc.GetOpndBuilder()->CreateImm(k64BitSize,
         static_cast<int64>(cgFunc.GetBaseOffset(*symLoc)) + offset);
+    AArch64MemLayout *memLayout = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout());
+    if (memLayout->IsSegMentVaried(symLoc->GetMemSegment())) {
+      offsetOp->SetVary(kUnAdjustVary);
+    }
     Insn *insn = &cgFunc.GetInsnBuilder()->BuildInsn(MOP_xaddrri12, regOp,
         *cgFunc.GetBaseReg(*symLoc), *offsetOp);
     if (cgFunc.GetCG()->GenerateVerboseCG()) {
@@ -68,7 +72,7 @@ std::vector<Insn*> AArch64Rematerializer::RematerializeForAddrof(CGFunc &cgFunc,
   } else {
     Insn *insn = &cgFunc.GetInsnBuilder()->BuildInsn(MOP_xadrp, regOp, stImm);
     insns.push_back(insn);
-    if (!addrUpper && CGOptions::IsPIC() && symbol->NeedGOT(CGOptions::IsPIE())) {
+    if (!addrUpper && symbol->NeedGOT(CGOptions::IsPIC(), CGOptions::IsPIE())) {
       /* ldr     x0, [x0, #:got_lo12:globalVar] */
       OfstOperand &offsetOp = a64Func.CreateOfstOpnd(*symbol, offset, 0);
       MemOperand *memOpnd = a64Func.CreateMemOperand(GetPointerBitSize(), regOp, offsetOp, *symbol);

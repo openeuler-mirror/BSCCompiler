@@ -24,7 +24,7 @@ static const std::string kAarch64BeGcc = "aarch64_be-linux-gnu-gcc";
 
 std::string LdCompilerBeILP32::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
   std::string gccPath = FileUtils::SafeGetenv(kGccBePathEnv) + "/";
-  const std::string &gccTool = Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32 ?
+  const std::string &gccTool = Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::kGnuIlp32 ?
                                kAarch64BeIlp32Gcc : kAarch64BeGcc;
   std::string gccToolPath = gccPath + gccTool;
 
@@ -35,7 +35,7 @@ std::string LdCompilerBeILP32::GetBinPath(const MplOptions &mplOptions [[maybe_u
 }
 
 const std::string &LdCompilerBeILP32::GetBinName() const {
-  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::kGnuIlp32) {
     return kAarch64BeIlp32Gcc;
   } else {
     return kAarch64BeGcc;
@@ -45,7 +45,7 @@ const std::string &LdCompilerBeILP32::GetBinName() const {
 std::string LdCompilerBeILP32::GetBin(const MplOptions &mplOptions [[maybe_unused]]) const {
   auto binPath = GetBinPath(mplOptions);
 
-  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::kGnuIlp32) {
     return binPath + kAarch64BeIlp32Gcc;
   } else {
     return binPath + kAarch64BeGcc;

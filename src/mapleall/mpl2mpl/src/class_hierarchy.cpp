@@ -514,7 +514,7 @@ const std::string &KlassHierarchy::GetLCA(const std::string &name1, const std::s
 
 void KlassHierarchy::AddKlasses() {
   for (MIRType *type : GlobalTables::GetTypeTable().GetTypeTable()) {
-#if DEBUG
+#if defined(DEBUG) && DEBUG
     if (type != nullptr) {
       MIRTypeKind kd = type->GetKind();
       if (kd == kTypeStructIncomplete || kd == kTypeClassIncomplete || kd == kTypeInterfaceIncomplete)
@@ -526,7 +526,7 @@ void KlassHierarchy::AddKlasses() {
     if (Options::deferredVisit2 && type && (type->IsIncomplete())) {
       GStrIdx stridx = type->GetNameStrIdx();
       std::string strName = GlobalTables::GetStrTable().GetStringFromStrIdx(stridx);
-#if DEBUG
+#if defined(DEBUG) && DEBUG
       LogInfo::MapleLogger() << "Waring: " << strName << " INCOMPLETE \n";
 #endif
       if (strName == namemangler::kClassMetadataTypeName) {

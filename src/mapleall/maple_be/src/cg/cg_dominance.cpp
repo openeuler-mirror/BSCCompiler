@@ -28,7 +28,7 @@ void DomAnalysis::PostOrderWalk(const BB &bb, int32 &pid, MapleVector<bool> &vis
     return;
   }
   visitedMap[bb.GetId()] = true;
-  for (const BB *suc : bb.GetSuccs()) {
+  for (const auto *suc : bb.GetAllSuccs()) {
     PostOrderWalk(*suc, pid, visitedMap);
   }
   ASSERT(bb.GetId() < postOrderIDVec.size(), "index out of range in Dominance::PostOrderWalk");
@@ -67,7 +67,7 @@ BB *DomAnalysis::Intersect(BB &bb1, const BB &bb2) {
 }
 
 bool DominanceBase::CommonEntryBBIsPred(const BB &bb) const {
-  for (const BB *suc : commonEntryBB.GetSuccs()) {
+  for (const auto *suc : commonEntryBB.GetAllSuccs()) {
     if (suc == &bb) {
       return true;
     }
@@ -87,20 +87,20 @@ void DomAnalysis::ComputeDominance() {
         continue;
       }
       BB *pre = nullptr;
-      auto it = bb->GetPredsBegin();
-      if (CommonEntryBBIsPred(*bb) || bb->GetPreds().empty()) {
+      auto preds = bb->GetAllPreds();
+      if (CommonEntryBBIsPred(*bb) || preds.empty()) {
         pre = &commonEntryBB;
       } else {
-        pre = *it;
+        pre = preds[0];
       }
-      ++it;
-      while ((GetDom(pre->GetId()) == nullptr || pre == bb) && it != bb->GetPredsEnd()) {
-        pre = *it;
-        ++it;
+      size_t j = 1;
+      while ((GetDom(pre->GetId()) == nullptr || pre == bb) && j < preds.size()) {
+        pre = preds[j];
+        ++j;
       }
       BB *newIDom = pre;
-      for (; it != bb->GetPredsEnd(); ++it) {
-        pre = *it;
+      for (; j < preds.size(); ++j) {
+        pre = preds[j];
         if (GetDom(pre->GetId()) != nullptr && pre != bb) {
           newIDom = Intersect(*pre, *newIDom);
         }
@@ -119,11 +119,12 @@ void DomAnalysis::ComputeDomFrontiers() {
     if (bb == nullptr || bb == &commonExitBB) {
       continue;
     }
-    if (bb->GetPreds().size() < kBBVectorInitialSize) {
+    auto preds = bb->GetAllPreds();
+    if (preds.size() < kBBVectorInitialSize) {
       continue;
     }
-    for (BB *pre : bb->GetPreds()) {
-      BB *runner = pre;
+    for (const auto *pre : preds) {
+      const auto *runner = pre;
       while (runner != nullptr && runner != GetDom(bb->GetId()) && runner != &commonEntryBB) {
         if (!HasDomFrontier(runner->GetId(), bb->GetId())) {
           domFrontier[runner->GetId()].push_back(bb->GetId());
@@ -144,12 +145,13 @@ void DomAnalysis::ComputeDomFrontiers() {
   //  / \  ^
   // |   | |
   // 5-->6--
-  for (BB *succ : commonEntryBB.GetSuccs()) {
-    if (succ->GetPreds().size() != 1) { // Only deal with one pred bb.
+  for (const auto *succ : commonEntryBB.GetAllSuccs()) {
+    auto preds = succ->GetAllPreds();
+    if (preds.size() != 1) { // Only deal with one pred bb.
       continue;
     }
-    for (BB *pre : succ->GetPreds()) {
-      BB *runner = pre;
+    for (const auto  *pre : preds) {
+      const auto *runner = pre;
       while (runner != GetDom(succ->GetId()) && runner != &commonEntryBB && runner != succ) {
         if (!HasDomFrontier(runner->GetId(), succ->GetId())) {
           domFrontier[runner->GetId()].push_back(succ->GetId());
@@ -266,7 +268,7 @@ void PostDomAnalysis::PdomPostOrderWalk(const BB &bb, int32 &pid, MapleVector<bo
     return;
   }
   visitedMap[bb.GetId()] = true;
-  for (BB *pre : bb.GetPreds()) {
+  for (const auto *pre : bb.GetAllPreds()) {
     PdomPostOrderWalk(*pre, pid, visitedMap);
   }
   ASSERT(bb.GetId() < pdomPostOrderIDVec.size(), "index out of range in  Dominance::PdomPostOrderWalk");
@@ -313,24 +315,23 @@ void PostDomAnalysis::ComputePostDominance() {
     for (size_t i = 1; i < pdomReversePostOrder.size(); ++i) {
       BB *bb = pdomReversePostOrder[i];
       BB *suc = nullptr;
-      auto it = bb->GetSuccsBegin();
-      if (cgFunc.IsExitBB(*bb) || bb->GetSuccs().empty() ||
-          (bb->IsWontExit() && bb->GetKind() == BB::kBBGoto)) {
+      auto succs = bb->GetAllSuccs();
+      if (cgFunc.IsExitBB(*bb) || succs.empty() || (bb->IsWontExit() && bb->GetKind() == BB::kBBGoto)) {
         suc = &commonExitBB;
       } else {
-        suc = *it;
+        suc = succs[0];
       }
-      ++it;
-      while ((GetPdom(suc->GetId()) == nullptr || suc == bb) && it != bb->GetSuccsEnd()) {
-        suc = *it;
-        ++it;
+      size_t j = 1;
+      while ((GetPdom(suc->GetId()) == nullptr || suc == bb) && j < succs.size()) {
+        suc = succs[j];
+        ++j;
       }
       if (GetPdom(suc->GetId()) == nullptr) {
         suc = &commonExitBB;
       }
       BB *newIDom = suc;
-      for (; it != bb->GetSuccsEnd(); ++it) {
-        suc = *it;
+      for (; j < succs.size(); ++j) {
+        suc = succs[j];
         if (GetPdom(suc->GetId()) != nullptr && suc != bb) {
           newIDom = PdomIntersect(*suc, *newIDom);
         }
@@ -350,11 +351,12 @@ void PostDomAnalysis::ComputePdomFrontiers() {
     if (bb == nullptr || bb == &commonEntryBB) {
       continue;
     }
-    if (bb->GetSuccs().size() < kBBVectorInitialSize) {
+    auto succs = bb->GetAllSuccs();
+    if (succs.size() < kBBVectorInitialSize) {
       continue;
     }
-    for (BB *suc : bb->GetSuccs()) {
-      BB *runner = suc;
+    for (const auto *suc : succs) {
+      const auto *runner = suc;
       while (runner != GetPdom(bb->GetId()) && runner != &commonEntryBB &&
           GetPdom(runner->GetId()) != nullptr) {   // add infinite loop code limit
         if (!HasPdomFrontier(runner->GetId(), bb->GetId())) {
@@ -462,8 +464,7 @@ void PostDomAnalysis::GeneratePdomTreeDot() {
   (void)fileName.append(cgFunc.GetName());
   (void)fileName.append(".dot");
 
-  char absPath[PATH_MAX];
-  pdomFile.open(realpath(fileName.c_str(), absPath), std::ios::trunc);
+  pdomFile.open(fileName, std::ios::trunc);
   if (!pdomFile.is_open()) {
     LogInfo::MapleLogger(kLlWarn) << "fileName:" << fileName << " open failed.\n";
     return;

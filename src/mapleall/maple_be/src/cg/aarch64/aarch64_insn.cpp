@@ -188,7 +188,8 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
       RegOperand *baseReg = v->GetBaseRegister();
       EmitIntReg(*baseReg, k64BitSize);
       CHECK_NULL_FATAL(v->GetSymbol());
-      if (CGOptions::IsPIC()  && (v->GetSymbol()->NeedGOT(CGOptions::IsPIE()) || v->GetSymbol()->IsThreadLocal())) {
+      if ((CGOptions::IsPIC() && v->GetSymbol()->IsThreadLocal()) || 
+          v->GetSymbol()->NeedGOT(CGOptions::IsPIC(), CGOptions::IsPIE())) {
         std::string gotEntry = "";
         if (v->GetSymbol()->IsThreadLocal()) {
           gotEntry = ", #:tlsdesc_lo12:";
@@ -345,7 +346,7 @@ void A64OpndEmitVisitor::Visit(const MIRSymbol &symbol, int64 offset) {
   CHECK_FATAL(opndProp != nullptr, "opndProp is nullptr in  StImmOperand::Emit");
   const bool isThreadLocal = symbol.IsThreadLocal();
   const bool isLiteralLow12 = opndProp->IsLiteralLow12();
-  const bool hasGotEntry = CGOptions::IsPIC() && symbol.NeedGOT(CGOptions::IsPIE());
+  const bool hasGotEntry = symbol.NeedGOT(CGOptions::IsPIC(), CGOptions::IsPIE());
   bool hasPrefix = false;
   if (isThreadLocal) {
     (void)emitter.Emit(":tlsdesc");
@@ -416,7 +417,7 @@ void A64OpndEmitVisitor::Visit(OfstOperand *v) {
     return;
   }
   const MIRSymbol *symbol = v->GetSymbol();
-  if (CGOptions::IsPIC() && symbol->NeedGOT(CGOptions::IsPIE())) {
+  if (symbol->NeedGOT(CGOptions::IsPIC(), CGOptions::IsPIE())) {
     if (CGOptions::GetPICMode() == CGOptions::kLargeMode) {
       (void)emitter.Emit(":got:" + symbol->GetName());
     } else if (CGOptions::GetPICMode() == CGOptions::kSmallMode) {
@@ -491,9 +492,15 @@ void A64OpndDumpVisitor::Visit(ImmOperand *v) {
     LogInfo::MapleLogger() << "+offset:" << v->GetValue();
   } else {
     LogInfo::MapleLogger() << "imm:" << v->GetValue();
-  }
-  if (v->GetVary() == kUnAdjustVary) {
-    LogInfo::MapleLogger() << " vary";
+    if (v->GetVary() == kNotVary) {
+      LogInfo::MapleLogger() << " notVary";
+    } else if (v->GetVary() == kUnAdjustVary) {
+      LogInfo::MapleLogger() << " unVary";
+    } else if (v->GetVary() == kAdjustVary) {
+      LogInfo::MapleLogger() << " Varied";
+    } else {
+      CHECK_FATAL_FALSE("not expect");
+    }
   }
 }
 

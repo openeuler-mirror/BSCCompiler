@@ -22,7 +22,7 @@ namespace bc {
 class BCIO : public BasicIOMapFile {
  public:
   explicit BCIO(const std::string &fileName);
-  ~BCIO() = default;
+  ~BCIO() override = default;
 
   static bool IsBigEndian() {
     union {

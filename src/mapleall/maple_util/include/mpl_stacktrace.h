@@ -118,8 +118,8 @@ class Frame {
 
     link_map *linkMap = static_cast<link_map *>(extraInfo);
 
-    filename = info.dli_fname ? std::string(info.dli_fname) : "??";
-    name = info.dli_sname ? demangle(info.dli_sname) : "??";
+    filename = info.dli_fname ? std::string(info.dli_fname) : std::string("??");
+    name = info.dli_sname ? demangle(info.dli_sname) : std::string("??");
     linkAddr = static_cast<uintptr_t>(linkMap->l_addr);
 #else
     return;
@@ -151,7 +151,7 @@ class Stacktrace {
     return *this;
   }
 
-  Stacktrace(const Stacktrace &&st) : frames(std::move(st.frames)) {}
+  Stacktrace(Stacktrace &&st) : frames(std::move(st.frames)) {}
 
   Stacktrace &operator=(const Stacktrace &&st) {
     /* self-assignment check */

@@ -51,7 +51,7 @@ class FuncSection {
   uint64 size;
 };
 
-static std::vector<Cluster> clusters;
+static std::vector<Cluster> clusters = {};
 static std::vector<FuncSection> funcs;
 
 // reading function profile of the following format:
@@ -66,7 +66,7 @@ static void ReadProfile(const std::string &path) {
   std::string line;
   std::map<std::string, uint32> funcName2Cluster;
   auto getOrCreateNode = [&funcName2Cluster](const FuncSection &f) {
-    auto res = funcName2Cluster.insert({f.funcName, clusters.size()});
+    auto res = funcName2Cluster.emplace(f.funcName, clusters.size());
     if (res.second) {
       clusters.emplace_back(clusters.size(), f.size, f.weight);
       funcs.push_back(f);
@@ -153,7 +153,7 @@ std::map<std::string, uint32> ReorderAccordingProfile(const std::string &path) {
     c.leader = leader;
     MergeClusters(dst, leader, c, idx);
   }
-  auto iter = std::remove_if(sortedIdx.begin(), sortedIdx.end(), [](uint32 idx) { return clusters[idx].size <= 0; });
+  auto iter = std::remove_if(sortedIdx.begin(), sortedIdx.end(), [](uint32 idx) { return clusters[idx].size == 0; });
   sortedIdx.erase(iter, sortedIdx.end());
 
   std::stable_sort(sortedIdx.begin(), sortedIdx.end(),

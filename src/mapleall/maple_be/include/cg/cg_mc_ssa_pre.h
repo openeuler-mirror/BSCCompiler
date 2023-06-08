@@ -19,7 +19,7 @@
 
 namespace maplebe {
 
-extern void DoProfileGuidedSavePlacement(CGFunc *f, DomAnalysis *dom, SsaPreWorkCand *workCand);
+extern void DoProfileGuidedSavePlacement(CGFunc *f, DomAnalysis *dom, LoopAnalysis *loop, SsaPreWorkCand *workCand);
 
 // for representing a node in the reduced SSA graph
 class RGNode {
@@ -59,7 +59,7 @@ class Visit {
 class Route {
   friend class McSSAPre;
  public:
-  Route(MapleAllocator *alloc) : visits(alloc->Adapter()) {}
+  explicit Route(MapleAllocator *alloc) : visits(alloc->Adapter()) {}
  private:
   MapleVector<Visit> visits;
   FreqType flowValue = 0;
@@ -67,8 +67,9 @@ class Route {
 
 class McSSAPre : public SSAPre {
  public:
-  McSSAPre(CGFunc *cgfunc, DomAnalysis *dm, MemPool *memPool, SsaPreWorkCand *wkcand, bool aeap, bool enDebug)
-    : SSAPre(cgfunc, dm, memPool, wkcand, aeap, enDebug),
+  McSSAPre(CGFunc *cgfunc, DomAnalysis *dm, LoopAnalysis *loop, MemPool *memPool, SsaPreWorkCand *wkcand,
+           bool aeap, bool enDebug)
+    : SSAPre(cgfunc, dm, loop, memPool, wkcand, aeap, enDebug),
       occ2RGNodeMap(preAllocator.Adapter()),
       maxFlowRoutes(preAllocator.Adapter()),
       minCut(preAllocator.Adapter()) {}
@@ -80,7 +81,7 @@ class McSSAPre : public SSAPre {
  private:
   // step 8 willbeavail
   void ResetMCWillBeAvail(PhiOcc *occ) const;
-  void ComputeMCWillBeAvail() const;
+  void ComputeMCWillBeAvail();
   // step 7 max flow/min cut
   bool AmongMinCut(const RGNode *nd, uint32 idx) const;
   void DumpRGToFile();                  // dump reduced graph to dot file

@@ -140,7 +140,8 @@ class TypeTable {
   }
 
   MIRType *GetTypeFromTyIdx(TyIdx tyIdx) {
-    return const_cast<MIRType*>(const_cast<const TypeTable*>(this)->GetTypeFromTyIdx(tyIdx));
+    CHECK_FATAL(tyIdx < typeTable.size(), "array index out of range");
+    return typeTable.at(tyIdx);
   }
   const MIRType *GetTypeFromTyIdx(TyIdx tyIdx) const {
     CHECK_FATAL(tyIdx < typeTable.size(), "array index out of range");
@@ -808,7 +809,7 @@ class GSymbolTable {
     return symbolTable.size();
   }
 
-  MIRSymbol *GetSymbol(uint32 idx) const {
+  MIRSymbol *GetSymbol(size_t idx) const {
     ASSERT(idx < symbolTable.size(), "array index out of range");
     return symbolTable.at(idx);
   }

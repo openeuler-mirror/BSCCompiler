@@ -215,7 +215,7 @@ bool MeSink::OstHasNotBeenDefined(const OriginalSt *ost) {
     if (ver == nullptr) {
       continue;
     }
-    if (static_cast<size_t>(ver->GetExprID()) == ost->GetZeroVersionIndex()) {
+    if (static_cast<uint32>(ver->GetExprID()) == ost->GetZeroVersionIndex()) {
       continue;
     }
 
@@ -337,9 +337,9 @@ DefUseInfoOfPhi MeSink::DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarM
       auto notProcessedPhi = processedPhi.insert(defPhi).second;
       if (notProcessedPhi) {
         const auto &defineInfo = DefAndUseInfoOfPhiOpnds(defPhi, defStmts, processedPhi, phisUseCurrPhiOpnds);
-        defInfo.allOpndsUsedOnlyInPhi &= defineInfo.allOpndsUsedOnlyInPhi;
-        defInfo.allOpndsDefedByStmt &= defineInfo.allOpndsDefedByStmt;
-        defInfo.opndsHasIdenticalVal &= defineInfo.opndsHasIdenticalVal;
+        defInfo.allOpndsUsedOnlyInPhi = defineInfo.allOpndsUsedOnlyInPhi && defInfo.allOpndsUsedOnlyInPhi;
+        defInfo.allOpndsDefedByStmt = defineInfo.allOpndsDefedByStmt && defInfo.allOpndsDefedByStmt;
+        defInfo.opndsHasIdenticalVal = defineInfo.opndsHasIdenticalVal && defInfo.opndsHasIdenticalVal;
         if (defInfo.opndsHasIdenticalVal &&
             (defInfo.valueExpr == nullptr || ExprsHasSameValue(defInfo.valueExpr, defineInfo.valueExpr))) {
           defInfo.valueExpr = defineInfo.valueExpr;
@@ -1124,7 +1124,7 @@ std::pair<const BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *
 
   bool useSitesDomByCandSinkBB = true;
   for (auto &useSite : useList) {
-    useSitesDomByCandSinkBB &= (candSinkBB != useSite.GetUseBB() || useSite.IsUseByPhi());
+    useSitesDomByCandSinkBB = useSitesDomByCandSinkBB && (candSinkBB != useSite.GetUseBB() || useSite.IsUseByPhi());
   }
 
   return {candSinkBB, useSitesDomByCandSinkBB};

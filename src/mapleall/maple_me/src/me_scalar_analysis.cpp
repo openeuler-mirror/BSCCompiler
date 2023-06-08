@@ -16,6 +16,7 @@
 #include <iostream>
 #include <algorithm>
 #include "me_loop_analysis.h"
+#include "me_value_range_prop.h"
 
 namespace maple {
 bool LoopScalarAnalysisResult::enableDebug = false;
@@ -255,7 +256,7 @@ MeExpr *LoopScalarAnalysisResult::TryToResolveScalar(MeExpr &expr, std::set<MePh
         return nullptr;
       }
       if (tmp != &dummyExpr) {
-        constRes.insert(tmp);
+        (void)constRes.insert(tmp);
       }
     }
     if (constRes.size() == 1) {
@@ -898,9 +899,6 @@ bool LoopScalarAnalysisResult::HasUnknownCRNode(CRNode &crNode, CRNode *&result)
 // b and d is loopInvarirant
 CRNode *LoopScalarAnalysisResult::CreateSimpleCRForPhi(const MePhiNode &phiNode,
                                                        VarMeExpr &startExpr, const VarMeExpr &backEdgeExpr) {
-  if (loop == nullptr) {
-    return nullptr;
-  }
   if (backEdgeExpr.GetDefBy() != kDefByStmt) {
     return nullptr;
   }
@@ -1161,7 +1159,7 @@ bool IsLegal(MeStmt &meStmt) {
   }
   MeExpr *opnd1 = opMeExpr->GetOpnd(0);
   MeExpr *opnd2 = opMeExpr->GetOpnd(1);
-  if (!IsPrimitivePureScalar(opnd1->GetPrimType()) || !IsPrimitivePureScalar(opnd2->GetPrimType())) {
+  if (!IsPrimitiveInteger(opnd1->GetPrimType()) || !IsPrimitiveInteger(opnd2->GetPrimType())) {
     return false;
   }
   return true;
@@ -1399,97 +1397,142 @@ void LoopScalarAnalysisResult::DumpTripCount(const CR &cr, int32 value, const Me
   LogInfo::MapleLogger() << "==========Dump CR End=========\n";
 }
 
-TripCountType LoopScalarAnalysisResult::ComputeTripCount(const MeFunction &func, uint64 &tripCountResult,
-                                                         CRNode *&conditionCRNode, CR *&itCR) {
-  if (loop == nullptr) {
+TripCountType LoopScalarAnalysisResult::IsNeededCRNodes(
+    std::pair<CRNode&, CRNode&> &crNodePair, CR *&cr, CRConstNode *&constNode, CRNode *&conditionCRNode, CR *&itCR) {
+  if (crNodePair.first.GetCRType() == kCRNode && crNodePair.second.GetCRType() == kCRConstNode) {
+    cr = static_cast<CR*>(&crNodePair.first);
+    constNode = static_cast<CRConstNode*>(&crNodePair.second);
+  } else if (crNodePair.second.GetCRType() == kCRNode && crNodePair.first.GetCRType() == kCRConstNode) {
+    cr = static_cast<CR*>(&crNodePair.second);
+    constNode = static_cast<CRConstNode*>(&crNodePair.first);
+  } else if (crNodePair.first.GetCRType() == kCRNode && crNodePair.second.GetCRType() == kCRNode) {
+    return kCouldNotUnroll; // can not compute tripcount
+  } else if (crNodePair.first.GetCRType() == kCRNode || crNodePair.second.GetCRType() == kCRNode) {
+    if (crNodePair.first.GetCRType() == kCRNode) {
+      conditionCRNode = &crNodePair.second;
+      itCR = static_cast<CR*>(&crNodePair.first);
+    } else if (crNodePair.second.GetCRType() == kCRNode) {
+      conditionCRNode = &crNodePair.first;
+      itCR = static_cast<CR*>(&crNodePair.second);
+    } else {
+      CHECK_FATAL(false, "impossible");
+    }
+    if (enableDebug) {
+      DumpTripCount(*itCR, 0, conditionCRNode->GetExpr());
+    }
+    return kVarCondition;
+  } else {
     return kCouldNotComputeCR;
   }
-  enableDebug = false;
+  return kCouldComputeCR;
+}
+
+bool LoopScalarAnalysisResult::CanComputeTripCountWithCvtOpnd(
+    const OpMeExpr &opMeExpr, Opcode op, const CR &cr, const CRConstNode &constNode, uint64 &tripCountResult) const {
+  auto &opnd = *opMeExpr.GetOpnd(0);
+  auto initConst = static_cast<const CRConstNode*>(cr.GetOpnd(0))->GetConstValue();
+  auto strideConst = static_cast<const CRConstNode*>(cr.GetOpnd(1))->GetConstValue();
+  if (strideConst == 0) {
+    // If stride is 0, can not compute tripCount.
+    return false;
+  }
+  auto exitConst = constNode.GetConstValue();
+  tripCountResult = ComputeTripCountWithSimpleConstCR(
+      op, IsSignedInteger(opMeExpr.GetOpndType()), exitConst, initConst, strideConst);
+  if (opnd.GetOp() != OP_cvt) {
+    return true;
+  }
+  auto &cvtOpnd = static_cast<OpMeExpr&>(opnd);
+  auto toType = cvtOpnd.GetPrimType();
+  auto fromType = cvtOpnd.GetOpndType();
+  if (!Bound(initConst, toType).IsEqual(Bound(initConst, fromType), toType) ||
+      !Bound(strideConst, toType).IsEqual(Bound(strideConst, fromType), toType) ||
+      !Bound(exitConst, toType).IsEqual(Bound(exitConst, fromType), toType) ||
+      !Bound(tripCountResult, toType).IsEqual(Bound(tripCountResult, fromType), toType)) {
+    return false;
+  }
+  return true;
+}
+
+Opcode LoopScalarAnalysisResult::GetOpOfCond(const BB &exitBB, const MeStmt &brMeStmt, const OpMeExpr &opMeExpr) const {
+  if (loop->Has(*exitBB.GetSucc(0)) && !loop->Has(*exitBB.GetSucc(1))) {
+    return (brMeStmt.GetOp() == OP_brtrue) ? GetReverseCmpOp(opMeExpr.GetOp()) : opMeExpr.GetOp();
+  } else if (loop->Has(*exitBB.GetSucc(1)) && !loop->Has(*exitBB.GetSucc(0))) {
+    return (brMeStmt.GetOp() == OP_brtrue) ? opMeExpr.GetOp() : GetReverseCmpOp(opMeExpr.GetOp());
+  } else {
+    return OP_undef;
+  }
+}
+
+bool LoopScalarAnalysisResult::CheckLoopAndExitBB(const MeFunction &func, OpMeExpr *&opMeExpr, Opcode &op) const {
+  if (loop == nullptr) {
+    return false;
+  }
   BB *exitBB = func.GetCfg()->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
-  if (exitBB->GetKind() == kBBCondGoto && IsLegal(*(exitBB->GetLastMe()))) {
-    auto *brMeStmt = static_cast<CondGotoMeStmt*>(exitBB->GetLastMe());
-    BB *brTarget = exitBB->GetSucc(1);
-    CHECK_FATAL(brMeStmt->GetOffset() == brTarget->GetBBLabel(), "must be");
-    auto *opMeExpr = static_cast<OpMeExpr*>(brMeStmt->GetOpnd());
-    Opcode op = OP_undef;
-    if (loop->Has(*exitBB->GetSucc(0)) && !loop->Has(*exitBB->GetSucc(1))) {
-      op = (brMeStmt->GetOp() == OP_brtrue) ? GetReverseCmpOp(opMeExpr->GetOp()) : opMeExpr->GetOp();
-    } else if (loop->Has(*exitBB->GetSucc(1)) && !loop->Has(*exitBB->GetSucc(0))) {
-      op = (brMeStmt->GetOp() == OP_brtrue) ? opMeExpr->GetOp() : GetReverseCmpOp(opMeExpr->GetOp());
-    } else {
-      return kCouldNotComputeCR;
-    }
-    MeExpr *opnd1 = opMeExpr->GetOpnd(0);
-    MeExpr *opnd2 = opMeExpr->GetOpnd(1);
-    if (!IsPrimitiveInteger(opMeExpr->GetOpndType())) {
-      return kCouldNotComputeCR;
-    }
-    CRNode *crNode1 = GetOrCreateCRNode(*opnd1);
-    CRNode *crNode2 = GetOrCreateCRNode(*opnd2);
-    CR *cr = nullptr;
-    CRConstNode *constNode = nullptr;
-    if (crNode1 != nullptr && crNode2 != nullptr) {
-      if (crNode1->GetCRType() == kCRNode && crNode2->GetCRType() == kCRConstNode) {
-        cr = static_cast<CR*>(crNode1);
-        constNode = static_cast<CRConstNode*>(crNode2);
-      } else if (crNode2->GetCRType() == kCRNode && crNode1->GetCRType() == kCRConstNode) {
-        cr = static_cast<CR*>(crNode2);
-        constNode = static_cast<CRConstNode*>(crNode1);
-      } else if (crNode1->GetCRType() == kCRNode && crNode2->GetCRType() == kCRNode) {
-        return kCouldNotUnroll; // can not compute tripcount
-      } else if (crNode1->GetCRType() == kCRNode || crNode2->GetCRType() == kCRNode) {
-        if (crNode1->GetCRType() == kCRNode) {
-          conditionCRNode = crNode2;
-          itCR = static_cast<CR*>(crNode1);
-        } else if (crNode2->GetCRType() == kCRNode) {
-          conditionCRNode = crNode1;
-          itCR = static_cast<CR*>(crNode2);
-        } else {
-          CHECK_FATAL(false, "impossible");
-        }
-        if (enableDebug) {
-          DumpTripCount(*itCR, 0, conditionCRNode->GetExpr());
-        }
-        return kVarCondition;
-      } else {
-        return kCouldNotComputeCR;
-      }
-    } else {
-      return kCouldNotComputeCR;
-    }
-    CHECK_FATAL(constNode != nullptr, "constNode is nullptr");
-    if (enableDebug) {
-      CHECK_FATAL(constNode != nullptr, "constNode should not be nullptr");
-      DumpTripCount(*cr, static_cast<int32>(constNode->GetConstValue()), nullptr);
-    }
-    CHECK_FATAL(cr != nullptr, "cr should not be nullptr");
-    for (auto opnd : cr->GetOpnds()) {
-      if (opnd->GetCRType() != kCRConstNode) {
-        conditionCRNode = constNode;
-        itCR = cr;
-        return kVarCR;
-      }
-    }
-    CHECK_FATAL(cr != nullptr, "nullptr check");
-    CHECK_FATAL(cr->GetOpndsSize() > 1, "impossible");
-    if (cr->GetOpndsSize() == 2) { // cr has two opnds like {1, + 1}
-      if (crNode1->GetCRType() == kCRConstNode) {
-        // swap comparison to make const always being right
-        op = op == OP_ge ? OP_le
-                         : op == OP_le ? OP_ge
-                                       : op == OP_lt ? OP_gt
-                                                     : op == OP_gt ? OP_lt
-                                                                   : op;
-      }
-      tripCountResult = ComputeTripCountWithSimpleConstCR(op, IsSignedInteger(opMeExpr->GetOpndType()),
-                                                          constNode->GetConstValue(),
-                                                          static_cast<CRConstNode*>(cr->GetOpnd(0))->GetConstValue(),
-                                                          static_cast<CRConstNode*>(cr->GetOpnd(1))->GetConstValue());
-      return (tripCountResult == 0) ? kCouldNotUnroll : kConstCR;
-    } else {
-      return kCouldNotComputeCR;
+  if (exitBB->GetKind() != kBBCondGoto || !IsLegal(*(exitBB->GetLastMe()))) {
+    return false;
+  }
+  auto *brMeStmt = static_cast<CondGotoMeStmt*>(exitBB->GetLastMe());
+  BB *brTarget = exitBB->GetSucc(1);
+  CHECK_FATAL(brMeStmt->GetOffset() == brTarget->GetBBLabel(), "must be");
+  opMeExpr = static_cast<OpMeExpr*>(brMeStmt->GetOpnd());
+  op = GetOpOfCond(*exitBB, *brMeStmt, *opMeExpr);
+  if (op == OP_undef || !IsPrimitiveInteger(opMeExpr->GetOpndType())) {
+    return false;
+  }
+  return true;
+}
+
+TripCountType LoopScalarAnalysisResult::ComputeTripCount(const MeFunction &func, uint64 &tripCountResult,
+                                                         CRNode *&conditionCRNode, CR *&itCR) {
+  OpMeExpr *opMeExpr = nullptr;
+  Opcode op = OP_undef;
+  if (!CheckLoopAndExitBB(func, opMeExpr, op)) {
+    return kCouldNotUnroll;
+  }
+  MeExpr *opnd1 = opMeExpr->GetOpnd(0);
+  MeExpr *subOpnd = nullptr;
+  if (opnd1->GetOp() == OP_cvt) {
+    subOpnd = opnd1->GetOpnd(0);
+  }
+  MeExpr *opnd2 = opMeExpr->GetOpnd(1);
+  CRNode *crNode1 = (subOpnd != nullptr) ? GetOrCreateCRNode(*subOpnd) : GetOrCreateCRNode(*opnd1);
+  CRNode *crNode2 = GetOrCreateCRNode(*opnd2);
+  if (crNode1 == nullptr || crNode2 == nullptr) {
+    return kCouldNotComputeCR;
+  }
+  std::pair<CRNode&, CRNode&> crNodePair(*crNode1, *crNode2);
+  CR *cr = nullptr;
+  CRConstNode *constNode = nullptr;
+  auto res = IsNeededCRNodes(crNodePair, cr, constNode, conditionCRNode, itCR);
+  if (res != kCouldComputeCR) {
+    return res;
+  }
+  if (constNode == nullptr || cr == nullptr || cr->GetOpndsSize() != kNumOpnds) {
+    // cr has two opnds like {1, + 1}
+    return kCouldNotComputeCR;
+  }
+  if (enableDebug) {
+    DumpTripCount(*cr, static_cast<int32>(constNode->GetConstValue()), nullptr);
+  }
+  for (auto opnd : cr->GetOpnds()) {
+    if (opnd->GetCRType() != kCRConstNode) {
+      conditionCRNode = constNode;
+      itCR = cr;
+      return kVarCR;
     }
   }
-  return kCouldNotUnroll;
+  if (crNode1->GetCRType() == kCRConstNode) {
+    // swap comparison to make const always being right
+    op = op == OP_ge ? OP_le
+                     : op == OP_le ? OP_ge
+                                   : op == OP_lt ? OP_gt
+                                                 : op == OP_gt ? OP_lt
+                                                               : op;
+  }
+  if (!CanComputeTripCountWithCvtOpnd(*opMeExpr, op, *cr, *constNode, tripCountResult)) {
+    return kCouldNotComputeCR;
+  }
+  return (tripCountResult == 0) ? kCouldNotUnroll : kConstCR;
 }
 }  // namespace maple

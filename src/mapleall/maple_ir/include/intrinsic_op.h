@@ -82,7 +82,7 @@ namespace maple {
   case INTRN_C___sync_nand_and_fetch_4: \
   case INTRN_C___sync_nand_and_fetch_8
 
-enum MIRIntrinsicID {
+enum MIRIntrinsicID : uint32 {
 #define DEF_MIR_INTRINSIC(STR, NAME, NUM_INSN, INTRN_CLASS, RETURN_TYPE, ...) INTRN_##STR,
 #include "intrinsics.def"
 #undef DEF_MIR_INTRINSIC

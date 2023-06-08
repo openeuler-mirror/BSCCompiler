@@ -42,6 +42,9 @@ void PrintErrorMessage(int ret) {
     case kErrorNotImplement:
       ERR(kLncErr, "Not Implement!");
       break;
+    case kErrorUnKnownFileType:
+      ERR(kLncErr, "File Format Not Recognized!");
+      break;
     default:
       break;
   }

@@ -14,7 +14,7 @@
  */
 #ifndef MAPLE_IR_INCLUDE_MIR_CONST_H
 #define MAPLE_IR_INCLUDE_MIR_CONST_H
-#include <math.h>
+#include <cmath>
 #include <utility>
 #include <limits>
 #include "mir_type.h"
@@ -106,7 +106,7 @@ class MIRIntConst : public MIRConst {
            "Constant is tried to be constructed with non-integral type or bit-width is not appropriate for it");
   }
 
-  MIRIntConst(MIRType &type) : MIRConst(type, kConstInvalid) {}
+  explicit MIRIntConst(MIRType &type) : MIRConst(type, kConstInvalid) {}
 
   /// @return number of used bits in the value
   uint16 GetActualBitWidth() const;
@@ -330,7 +330,7 @@ class MIRFloatConst : public MIRConst {
       return {0xffff000000000000, 0x0};
     } else if ((static_cast<uint32>(value.intValue) ^ (0x1 << 31)) == 0x0) {
       return {0x8000000000000000, 0x0};
-    } else if ((static_cast<uint32>(value.intValue) ^ 0x0) == 0x0) {
+    } else if (value.intValue == 0x0) {
       return {0x0, 0x0};
     } else if (std::isnan(value.floatValue)) {
       return {0x7fff800000000000, 0x0};
@@ -343,25 +343,25 @@ class MIRFloatConst : public MIRConst {
     const int float_exp_offset = 0x7f;
     const int float_min_exp = -0x7e;
     const int float_mantiss_bits = 23;
-    const int ldouble_exp_offset = 0x3fff;
+    const int ldoubleExpOffset = 0x3fff;
 
     if (exp > 0x0 && exp < 0xff) {
-      uint64 ldouble_exp = static_cast<uint64>(static_cast<int>(exp) - float_exp_offset + ldouble_exp_offset);
-      uint64 ldouble_mantiss_first_bits = mantiss << 25;
-      uint64 low_byte = 0x0;
-      uint64 high_byte = (sign << 63) | (ldouble_exp << 48) | (ldouble_mantiss_first_bits);
-      return {high_byte, low_byte};
+      uint64 ldoubleExp = static_cast<uint64>(static_cast<int>(exp) - float_exp_offset + ldoubleExpOffset);
+      uint64 ldoubleMantissFirstBits = mantiss << 25;
+      uint64 lowByte = 0x0;
+      uint64 highByte = (sign << 63) | (ldoubleExp << 48) | (ldoubleMantissFirstBits);
+      return {highByte, lowByte};
     } else if (exp == 0x0) {
-      size_t num_pos = 0;
-      for (; ((mantiss >> (22 - num_pos)) & 0x1) != 1; ++num_pos) {};
+      int num_pos = 0;
+      for (; ((mantiss >> static_cast<uint32>(22 - num_pos)) & 0x1) != 1; ++num_pos) {};
 
-      uint64 ldouble_exp = float_min_exp - (num_pos + 1) + ldouble_exp_offset;
-      int num_ldouble_mantiss_bits = float_mantiss_bits - static_cast<int64>((num_pos + 1));
-      uint64 ldouble_mantiss_mask = (1 << static_cast<uint64>(num_ldouble_mantiss_bits)) - 1;
-      uint64 ldouble_mantiss = mantiss & ldouble_mantiss_mask;
-      uint64 high_byte = (sign << 63 | (ldouble_exp << 48) | (ldouble_mantiss << (25 + num_pos + 1)));
-      uint64 low_byte = 0;
-      return {high_byte, low_byte};
+      uint64 ldoubleExp = static_cast<uint32>(float_min_exp - (num_pos + 1) + ldoubleExpOffset);
+      int numLdoubleMantissBits = float_mantiss_bits - (num_pos + 1);
+      uint64 ldoubleMantissMask = (1 << static_cast<uint64>(numLdoubleMantissBits)) - 1;
+      uint64 ldoubleMantiss = mantiss & ldoubleMantissMask;
+      uint64 highByte = (sign << 63 | (ldoubleExp << 48) | (ldoubleMantiss << static_cast<uint32>(25 + num_pos + 1)));
+      uint64 lowByte = 0;
+      return {highByte, lowByte};
     } else {
       CHECK_FATAL(false, "Unexpected exponent value in GetFloat128Value method of MIRFloatConst class");
     }
@@ -451,7 +451,7 @@ class MIRDoubleConst : public MIRConst {
       return {0xffff000000000000, 0x0};
     } else if ((static_cast<uint64>(value.intValue) ^ (1ull << 63)) == 0x0) {
       return {0x8000000000000000, 0x0};
-    } else if ((static_cast<uint64>(value.intValue) ^ 0x0) == 0x0) {
+    } else if (value.intValue == 0x0) {
       return {0x0, 0x0};
     } else if (std::isnan(value.dValue)) {
       return {0x7fff800000000000, 0x0};
@@ -461,43 +461,43 @@ class MIRDoubleConst : public MIRConst {
     uint64 exp = (static_cast<uint64>(value.intValue) & (0x7ff0000000000000)) >> 52;
     uint64 mantiss = static_cast<uint64>(value.intValue) & (0x000fffffffffffff);
 
-    const int32 double_exp_offset = 0x3ff;
-    const int32 double_min_exp = -0x3fe;
-    const int double_mantiss_bits = 52;
+    const int32 doubleExpOffset = 0x3ff;
+    const int32 doubleMinExp = -0x3fe;
+    const int doubleMantissBits = 52;
 
-    const int32 ldouble_exp_offset = 0x3fff;
+    const int32 ldoubleExpOffset = 0x3fff;
 
     if (exp > 0x0 && exp < 0x7ff) {
-      uint64 ldouble_exp = static_cast<uint32>(static_cast<int32>(exp) - double_exp_offset + ldouble_exp_offset);
-      uint64 ldouble_mantiss_first_bits = mantiss >> 4;
-      uint64 ldouble_mantiss_second_bits = (mantiss & 0xf) << 60;
+      uint64 ldoubleExp = static_cast<uint32>(static_cast<int32>(exp) - doubleExpOffset + ldoubleExpOffset);
+      uint64 ldoubleMantissFirstBits = mantiss >> 4;
+      uint64 ldoubleMantissSecondBits = (mantiss & 0xf) << 60;
 
-      uint64 low_byte = ldouble_mantiss_second_bits;
-      uint64 high_byte = (sign << 63) | (ldouble_exp << 48) | (ldouble_mantiss_first_bits);
-      return {high_byte, low_byte};
+      uint64 lowByte = ldoubleMantissSecondBits;
+      uint64 highByte = (sign << 63) | (ldoubleExp << 48) | (ldoubleMantissFirstBits);
+      return {highByte, lowByte};
     } else if (exp == 0x0) {
       int num_pos = 0;
-      for (; ((mantiss >> (51 - num_pos)) & 0x1) != 1; ++num_pos) {};
+      for (; ((mantiss >> static_cast<uint32>(51 - num_pos)) & 0x1) != 1; ++num_pos) {};
 
-      uint64 ldouble_exp = static_cast<uint32>(double_min_exp - (num_pos + 1) + ldouble_exp_offset);
+      uint64 ldoubleExp = static_cast<uint32>(doubleMinExp - (num_pos + 1) + ldoubleExpOffset);
 
-      int num_ldouble_mantiss_bits = double_mantiss_bits - (num_pos + 1);
-      uint64 ldouble_mantiss_mask = (1ULL << num_ldouble_mantiss_bits) - 1;
-      uint64 ldouble_mantiss = mantiss & ldouble_mantiss_mask;
-      uint64 ldouble_mantiss_high_bits = 0;
+      int numLdoubleMantissBits = doubleMantissBits - (num_pos + 1);
+      uint64 ldoubleMantissMask = (1ULL << static_cast<uint32>(numLdoubleMantissBits)) - 1;
+      uint64 ldoubleMantiss = mantiss & ldoubleMantissMask;
+      uint64 ldoubleMantissHighBits = 0;
       if (4 - (num_pos + 1) > 0) {
-        ldouble_mantiss_high_bits = ldouble_mantiss >> (4 - (num_pos + 1));
+        ldoubleMantissHighBits = ldoubleMantiss >> static_cast<uint32>(4 - (num_pos + 1));
       } else {
-        ldouble_mantiss_high_bits = ldouble_mantiss << std::abs(4 - (num_pos + 1));
+        ldoubleMantissHighBits = ldoubleMantiss << static_cast<uint32>(std::abs(4 - (num_pos + 1)));
       }
 
-      uint64 high_byte = (sign << 63) | (ldouble_exp << 48) | ldouble_mantiss_high_bits;
-      uint64 low_byte = 0;
-      if ((64 - num_ldouble_mantiss_bits) + 48 < 64) {
-        low_byte = ldouble_mantiss << ((64 - num_ldouble_mantiss_bits) + 48);
+      uint64 highByte = (sign << 63) | (ldoubleExp << 48) | ldoubleMantissHighBits;
+      uint64 lowByte = 0;
+      if ((64 - numLdoubleMantissBits) + 48 < 64) {
+        lowByte = ldoubleMantiss << static_cast<uint32>((64 - numLdoubleMantissBits) + 48);
       }
 
-      return {high_byte, low_byte};
+      return {highByte, lowByte};
     } else {
       CHECK_FATAL(false, "Unexpected exponent value in GetFloat128Value method of MIRDoubleConst class");
     }
@@ -557,8 +557,13 @@ class MIRFloat128Const : public MIRConst {
   using value_type = const uint64 *;
 
   MIRFloat128Const(const uint64 *val_, MIRType &type) : MIRConst(type, kConstFloat128Const) {
-    val[0] = val_[0];
-    val[1] = val_[1];
+    if (val_) {
+      val[0] = val_[0];
+      val[1] = val_[1];
+    } else {
+      val[0] = 0x0;
+      val[1] = 0x0;
+    }
   }
 
   MIRFloat128Const(const uint64 (&val_)[2], MIRType &type) : MIRConst(type, kConstFloat128Const) {
@@ -595,45 +600,45 @@ class MIRFloat128Const : public MIRConst {
       return std::numeric_limits<double>::quiet_NaN();
     }
 
-    const int double_exp_offset = 0x3ff;
-    const int double_max_exp = 0x3ff;
-    const int double_min_exp = -0x3fe;
-    const int double_mantissa_bits = 52;
+    const int doubleExpOffset = 0x3ff;
+    const int doubleMaxExp = 0x3ff;
+    const int doubleMinExp = -0x3fe;
+    const int doubleMantissaBits = 52;
 
-    const int ldouble_exp_offset = 0x3fff;
+    const int ldoubleExpOffset = 0x3fff;
     union HexVal {
       double doubleVal;
       uint64 doubleHex;
     };
     // if long double value is too huge to be represented in double, then return inf
-    if (GetExponent() - ldouble_exp_offset > double_max_exp) {
+    if (GetExponent() - ldoubleExpOffset > doubleMaxExp) {
       return GetSign() != 0 ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
     }
     // if long double value us too small to be represented in double, then return 0.0
-    else if (GetExponent() - ldouble_exp_offset < double_min_exp - double_mantissa_bits) {
+    else if (GetExponent() - ldoubleExpOffset < doubleMinExp - doubleMantissaBits) {
       return 0.0;
     }
     // if we can convert long double to normal double
-    else if (GetExponent() - ldouble_exp_offset >= double_min_exp) {
+    else if (GetExponent() - ldoubleExpOffset >= doubleMinExp) {
       /*
        * we take first 48 bits of double mantiss from first long double byte
        * and then with '|' add remain 4 bits to get full double mantiss
        */
-      uint64 double_mantiss = ((val[0] & 0x0000ffffffffffff) << 4) | (val[1] >> 60);
-      uint64 double_exp = static_cast<uint64>(static_cast<uint>(GetExponent() -
-                                                                ldouble_exp_offset + double_exp_offset));
-      uint64 double_sign = GetSign();
+      uint64 doubleMantiss = ((val[0] & 0x0000ffffffffffff) << 4) | (val[1] >> 60);
+      uint64 doubleExp = static_cast<uint64>(static_cast<uint>(GetExponent() -
+                                                                ldoubleExpOffset + doubleExpOffset));
+      uint64 doubleSign = GetSign();
       union HexVal data;
-      data.doubleHex = (double_sign << (k64BitSize - 1)) | (double_exp << double_mantissa_bits) | double_mantiss;
+      data.doubleHex = (doubleSign << (k64BitSize - 1)) | (doubleExp << doubleMantissaBits) | doubleMantiss;
       return data.doubleVal;
     }
     // if we can convert long double to subnormal double
     else {
-      uint64 double_mantiss = ((val[0] & 0x0000ffffffffffff) << 4) | (val[1] >> 60) | 0x0010000000000000;
-      double_mantiss = double_mantiss >> (double_min_exp - (GetExponent() - ldouble_exp_offset));
-      uint64 double_sign = GetSign();
+      uint64 doubleMantiss = ((val[0] & 0x0000ffffffffffff) << 4) | (val[1] >> 60) | 0x0010000000000000;
+      doubleMantiss = doubleMantiss >> static_cast<uint32>(doubleMinExp - (GetExponent() - ldoubleExpOffset));
+      uint64 doubleSign = GetSign();
       union HexVal data;
-      data.doubleHex = (double_sign << (k64BitSize - 1)) | double_mantiss;
+      data.doubleHex = (doubleSign << (k64BitSize - 1)) | doubleMantiss;
       return data.doubleVal;
     }
   }

@@ -32,8 +32,13 @@ set(deps_maple
   libmplmewpo
   libmpl2mpl
   libmaple
-  libmplsan
 )
+
+if(ENABLE_MAPLE_SAN)
+   list(APPEND deps_maple
+           maple_san)
+endif(ENABLE_MAPLE_SAN)
+
 
 set(inc_dirs
     ${MAPLEALL_ROOT}/maple_be/include/cg
@@ -373,8 +378,3 @@ set_target_properties(maple PROPERTIES
 )
 
 message("deps_maplegen: ${deps_maplegen}")
-
-
-
-
-

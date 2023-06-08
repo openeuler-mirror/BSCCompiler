@@ -311,7 +311,7 @@ bool MeStackProtect::IsMeStmtSafe(const MeStmt &stmt) const {
  * - write stack variables given its address (iassign & intrinsiccall)
  * Note: Arguments are not considered as stack variables here
  */
-void MeStackProtect::CheckAddrofStack() {
+void MeStackProtect::CheckAddrofStack() const {
   auto *mirFunc = f->GetMirFunc();
   mirFunc->CheckMayWriteToAddrofStack();
   mirFunc->UnsetMayWriteToAddrofStack();  // reset it before analysis

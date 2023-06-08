@@ -23,7 +23,7 @@ namespace bc {
 TEST(DexClass, TestTryCatch) {
   std::unique_ptr<BCCatchInfo> catchInfo1 =
       std::make_unique<DEXCatchInfo>(0x0023, BCUtil::GetJavaExceptionNameMplIdx(), false);
-  std::unique_ptr<BCCatchInfo> catchInfo2 = std::make_unique<DEXCatchInfo>(0x0021, BCUtil::GetVoidIdx(), true);
+  std::unique_ptr<BCCatchInfo> catchInfo2 = std::make_unique<DEXCatchInfo>(0x0021, FEUtils::GetVoidIdx(), true);
   ASSERT_EQ(catchInfo1->GetHandlerAddr(), 0x0023);
   std::cout << GlobalTables::GetStrTable().GetStringFromStrIdx(catchInfo1->GetExceptionNameIdx()) <<std::endl;
   ASSERT_EQ(GlobalTables::GetStrTable().GetStringFromStrIdx(catchInfo1->GetExceptionNameIdx()),

@@ -29,10 +29,10 @@ class SSARename2Preg {
         ssaTab(f->GetMeSSATab()),
         mirModule(&f->GetMIRModule()),
         aliasclass(alias),
-        sym2reg_map(std::less<OStIdx>(), alloc.Adapter()),
-        vstidx2reg_map(alloc.Adapter()),
-        parm_used_vec(alloc.Adapter()),
-        reg_formal_vec(alloc.Adapter()),
+        sym2regMap(std::less<OStIdx>(), alloc.Adapter()),
+        vstidx2regMap(alloc.Adapter()),
+        parmUsedVec(alloc.Adapter()),
+        regFormalVec(alloc.Adapter()),
         ostDefedByChi(ssaTab->GetOriginalStTableSize(), false, alloc.Adapter()),
         ostDefedByDassign(ssaTab->GetOriginalStTableSize(), false, alloc.Adapter()),
         ostUsedByDread(ssaTab->GetOriginalStTableSize(), false, alloc.Adapter()),
@@ -75,11 +75,11 @@ class SSARename2Preg {
   SSATab *ssaTab;
   MIRModule *mirModule;
   AliasClass *aliasclass;
-  MapleMap<OStIdx, OriginalSt *> sym2reg_map;      // map var to reg in original symbol
-  MapleUnorderedMap<int32, RegMeExpr *> vstidx2reg_map;  // maps the VarMeExpr's exprID to RegMeExpr
-  MapleVector<bool> parm_used_vec;                       // if parameter is not used, it's false, otherwise true
-  // if the parameter got promoted, the nth of func->mirFunc->_formal is the nth of reg_formal_vec, otherwise nullptr;
-  MapleVector<RegMeExpr *> reg_formal_vec;
+  MapleMap<OStIdx, OriginalSt *> sym2regMap;      // map var to reg in original symbol
+  MapleUnorderedMap<int32, RegMeExpr *> vstidx2regMap;  // maps the VarMeExpr's exprID to RegMeExpr
+  MapleVector<bool> parmUsedVec;                       // if parameter is not used, it's false, otherwise true
+  // if the parameter got promoted, the nth of func->mirFunc->_formal is the nth of regFormalVec, otherwise nullptr;
+  MapleVector<RegMeExpr *> regFormalVec;
   MapleVector<bool> ostDefedByChi;
   MapleVector<bool> ostDefedByDassign;
   MapleVector<bool> ostUsedByDread;

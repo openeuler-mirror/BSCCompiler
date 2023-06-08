@@ -249,7 +249,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
     if (stmt->GetDefaultLabel() == 0) {
       localBlk->AddStatement(rangeGoto);
     } else {
-      cmpNode = BuildCmpNode(OP_le, switchItems[static_cast<uint32>(start)].second);
+      cmpNode = BuildCmpNode(OP_le, static_cast<uint32>(switchItems[static_cast<uint32>(start)].second));
       ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
       ifStmt->GetThenPart()->AddStatement(rangeGoto);
       if (Options::profileUse && funcProfData != nullptr) {
@@ -261,8 +261,10 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
       localBlk->AppendStatementsFromBlock(*mirLowerer.LowerIfStmt(*ifStmt, false));
     }
     if (start < end) {
-      lowBlockNodeChecked = (stmt->GetCasePair(switchItems[static_cast<uint32>(start)].second).first + 1 ==
-                       stmt->GetCasePair(switchItems[static_cast<uint32>(start) + 1].first).first);
+      lowBlockNodeChecked = (stmt->GetCasePair(
+          static_cast<size_t>(static_cast<uint32>(switchItems[static_cast<uint32>(start)].second))).first + 1 ==
+          stmt->GetCasePair(static_cast<size_t>(static_cast<uint32>(
+          switchItems[static_cast<uint32>(start) + 1].first))).first);
     }
     ++start;
   }
@@ -287,7 +289,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
     if (stmt->GetDefaultLabel() == 0) {
       localBlk->AddStatement(rangeGoto);
     } else {
-      cmpNode = BuildCmpNode(OP_ge, switchItems[static_cast<size_t>(end)].first);
+      cmpNode = BuildCmpNode(OP_ge, static_cast<uint32>(switchItems[static_cast<uint32>(end)].first));
       ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
       ifStmt->GetThenPart()->AddStatement(rangeGoto);
       if (Options::profileUse && funcProfData != nullptr) {
@@ -300,10 +302,10 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
     }
     if (start < end) {
       highBlockNodeChecked =
-          (stmt->GetCasePair(switchItems[static_cast<uint32>(end)].first).first - 1 ==
-           stmt->GetCasePair(switchItems[static_cast<uint32>(end) - 1].first).first) ||
-          (stmt->GetCasePair(switchItems[static_cast<uint32>(end)].first).first - 1 ==
-           stmt->GetCasePair(switchItems[static_cast<uint32>(end) - 1].second).first);
+          (stmt->GetCasePair(static_cast<uint32>(switchItems[static_cast<uint32>(end)].first)).first - 1 ==
+           stmt->GetCasePair(static_cast<uint32>(switchItems[static_cast<uint32>(end) - 1].first)).first) ||
+          (stmt->GetCasePair(static_cast<uint32>(switchItems[static_cast<uint32>(end)].first)).first - 1 ==
+           stmt->GetCasePair(static_cast<uint32>(switchItems[static_cast<uint32>(end) - 1].second)).first);
     }
     --end;
   }
@@ -424,7 +426,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
                       : (highestTag + lowestTag) / 2;
   /* find the mid-point in switch_items between start and end */
   int32 mid = start;
-  while (stmt->GetCasePair(switchItems[static_cast<uint32>(mid)].first).first < middleTag) {
+  while (stmt->GetCasePair(static_cast<uint32>(switchItems[static_cast<uint32>(mid)].first)).first < middleTag) {
     ++mid;
   }
   ASSERT(mid >= start, "switch lowering logic mid should greater than or equal start");
@@ -433,10 +435,11 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   if (stmt->GetDefaultLabel() != 0) {
     cmpNode = BuildCmpNode(OP_lt, static_cast<uint32>(switchItems[static_cast<uint32>(mid)].first));
     ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
-    bool leftHighBNdChecked = (stmt->GetCasePair(static_cast<uint32>(switchItems.at(mid - 1).first)).first + 1 ==
-                               stmt->GetCasePair(static_cast<uint32>(switchItems.at(mid).first)).first) ||
-                              (stmt->GetCasePair(static_cast<uint32>(switchItems.at(mid - 1).second)).first + 1 ==
-                               stmt->GetCasePair(static_cast<uint32>(switchItems.at(mid).first)).first);
+    bool leftHighBNdChecked = (
+        stmt->GetCasePair(static_cast<uint32>(switchItems.at(static_cast<uint32>(mid - 1)).first)).first + 1 ==
+        stmt->GetCasePair(static_cast<uint32>(switchItems.at(static_cast<uint32>(mid)).first)).first) ||
+        (stmt->GetCasePair(static_cast<uint32>(switchItems.at(static_cast<uint32>(mid - 1)).second)).first + 1 ==
+        stmt->GetCasePair(static_cast<uint32>(switchItems.at(static_cast<uint32>(mid)).first)).first);
     if (Options::profileUse && funcProfData != nullptr) {
       ifStmt->SetThenPart(BuildCodeForSwitchItems(start, mid - 1, lowBlockNodeChecked, leftHighBNdChecked,
           SumFreq(static_cast<uint32>(start), static_cast<uint32>(mid) - 1)));

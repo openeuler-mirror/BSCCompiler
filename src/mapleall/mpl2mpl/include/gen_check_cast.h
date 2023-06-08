@@ -29,6 +29,7 @@ class PreCheckCast : public FuncOptimizeImpl {
     return new PreCheckCast(*this);
   }
 
+  StmtNode *GetAssignRet(IntrinsiccallNode &callnode);
   void ProcessFunc(MIRFunction *func) override;
 };
 
@@ -61,8 +62,8 @@ class CheckCastGenerator : public FuncOptimizeImpl {
   MIRSymbol *GetOrCreateClassInfoSymbol(const std::string &className) const;
   void GenAllCheckCast(bool isHotFunc);
   void OptimizeInstanceof();
-  void OptimizeIsAssignableFrom();
-  void CheckIsAssignableFrom(BlockNode &blockNode, StmtNode &stmt, const IntrinsicopNode &intrinsicNode);
+  void OptimizeIsAssignableFrom() const;
+  void CheckIsAssignableFrom(BlockNode &blockNode, StmtNode &stmt, const IntrinsicopNode &intrinsicNode) const;
   void ConvertCheckCastToIsAssignableFrom(StmtNode &stmt);
   void AssignedCastValue(StmtNode &stmt) const;
   void ConvertInstanceofToIsAssignableFrom(StmtNode &stmt, const IntrinsicopNode &intrinsicNode) const;

@@ -185,8 +185,8 @@ class AArch64CG : public CG {
   MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64MoveRegArgs>(f);
   }
-  AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const override {
-    return mp.New<AArch64AlignAnalysis>(f, mp);
+  AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f, LoopAnalysis &loop) const override {
+    return mp.New<AArch64AlignAnalysis>(f, mp, loop);
   }
   CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const override {
     return mp.New<AArch64CGSSAInfo>(f, da, mp, tmp);
@@ -213,15 +213,15 @@ class AArch64CG : public CG {
     return mp.New<AArch64TailCallOpt>(mp, f);
   }
   GlobalSchedule *CreateGlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
-                                       InterDataDepAnalysis &idda) const override {
-    return mp.New<AArch64GlobalSchedule>(mp, f, cda, idda);
+                                       DataDepAnalysis &dda) const override {
+    return mp.New<AArch64GlobalSchedule>(mp, f, cda, dda);
   }
   LocalSchedule *CreateLocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
-                                     InterDataDepAnalysis &idda) const override {
-    return mp.New<AArch64LocalSchedule>(mp, f, cda, idda);
+                                     DataDepAnalysis &dda) const override {
+    return mp.New<AArch64LocalSchedule>(mp, f, cda, dda);
   }
-  CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f) const override {
-    return mp.New<AArch64CFGOptimizer>(f, mp);
+  CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f, LoopAnalysis &loop) const override {
+    return mp.New<AArch64CFGOptimizer>(f, mp, loop);
   }
   Rematerializer *CreateRematerializer(MemPool &mp) const override {
     return mp.New<AArch64Rematerializer>();

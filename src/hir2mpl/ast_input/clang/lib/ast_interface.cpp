@@ -29,7 +29,6 @@ const std::unordered_map<clang::attr::Kind, std::string> kUnsupportedFuncAttrsMa
     {clang::attr::ARMInterrupt, "arm_interrupt"},
     {clang::attr::AnyX86Interrupt, "x86_interrupt"},
     {clang::attr::Naked, "naked"},
-    {clang::attr::AllocAlign, "alloc_align"},
     {clang::attr::AssumeAligned, "assume_aligned"},
     {clang::attr::Flatten, "flatten"},
     {clang::attr::Cold, "cold"},
@@ -103,15 +102,7 @@ std::string LibAstFile::GetMangledName(const clang::NamedDecl &decl) const {
     mangledName = decl.getNameAsString();
   } else {
     llvm::raw_string_ostream ostream(mangledName);
-    if (llvm::isa<clang::CXXConstructorDecl>(&decl)) {
-      const auto *ctor = static_cast<const clang::CXXConstructorDecl*>(&decl);
-      mangleContext->mangleCtorBlock(ctor, static_cast<clang::CXXCtorType>(0), nullptr, ostream);
-    } else if (llvm::isa<clang::CXXDestructorDecl>(&decl)) {
-      const auto *dtor = static_cast<const clang::CXXDestructorDecl*>(&decl);
-      mangleContext->mangleDtorBlock(dtor, static_cast<clang::CXXDtorType>(0), nullptr, ostream);
-    } else {
-      mangleContext->mangleName(&decl, ostream);
-    }
+    mangleContext->mangleName(&decl, ostream);
     ostream.flush();
   }
   return mangledName;
@@ -515,11 +506,20 @@ void LibAstFile::CheckUnsupportedVarAttrs(const clang::VarDecl &decl) const {
               unsupportedVarAttrs.c_str());
 }
 
+void LibAstFile::CollectTypeAttrs(const clang::NamedDecl &decl, TypeAttrs &typeAttrs) const {
+  const clang::AttrVec &typeAttrVec = decl.getAttrs();
+  for (const auto *attr : typeAttrVec) {
+    clang::attr::Kind attrKind = attr->getKind();
+    if (attrKind == clang::attr::Aligned) {
+      typeAttrs.SetAttr(ATTR_aligned);
+    }
+  }
+}
+
 void LibAstFile::CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs) const {
   clang::PackedAttr *packedAttr = decl.getAttr<clang::PackedAttr>();
   if (packedAttr != nullptr) {
-    genAttrs.SetAttr(GENATTR_pack);
-    genAttrs.InsertIntContentMap(GENATTR_pack, 1); // 1 byte
+    genAttrs.SetAttr(GENATTR_packed);
   }
   clang::MaxFieldAlignmentAttr *maxFieldAlignAttr = decl.getAttr<clang::MaxFieldAlignmentAttr>();
   if (maxFieldAlignAttr != nullptr) {
@@ -554,8 +554,11 @@ void LibAstFile::CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &g
   CollectAttrs(decl, genAttrs, access);
   clang::PackedAttr *packedAttr = decl.getAttr<clang::PackedAttr>();
   if (packedAttr != nullptr) {
-    genAttrs.SetAttr(GENATTR_pack);
-    genAttrs.InsertIntContentMap(GENATTR_pack, 1); // 1 byte
+    genAttrs.SetAttr(GENATTR_packed);
+  }
+  clang::AlignedAttr *alignedAttr = decl.getAttr<clang::AlignedAttr>();
+  if (alignedAttr != nullptr) {
+    genAttrs.SetAttr(GENATTR_aligned);
   }
 }
 
@@ -675,7 +678,7 @@ const std::string LibAstFile::GetDeclName(const clang::NamedDecl &decl, bool isR
 void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss) {
   clang::RecordDecl *recordDecl = recordType.getDecl();
   std::string str = recordType.desugar().getAsString();
-  if (!recordDecl->isAnonymousStructOrUnion() && str.find("anonymous") == std::string::npos) {
+  if (!recordDecl->isAnonymousStructOrUnion() && str.find("unnamed") == std::string::npos) {
     clang::DeclContext *ctx = recordDecl->getDeclContext();
     MapleStack<clang::NamedDecl*> nsStack(module->GetMPAllocator().Adapter());
     while (!ctx->isTranslationUnit()) {
@@ -760,7 +763,7 @@ std::string LibAstFile::GetTypedefNameFromUnnamedStruct(const clang::RecordDecl 
   return std::string();
 }
 // with macro enpanded, preproceeded code
-std::string LibAstFile::GetSourceText(const clang::Stmt &stmt) {
+std::string LibAstFile::GetSourceText(const clang::Stmt &stmt) const {
   std::string s;
   llvm::raw_string_ostream sos(s);
   clang::PrintingPolicy pp(astContext->getLangOpts());

@@ -32,7 +32,7 @@ class LfoUnrollOneLoop {
         doloopInfo(doinfo),
         doloop(doinfo->doloop),
         mirModule(&f->meFunc->GetMIRModule()),
-        codeMP(preEm->GetCodeMP()),
+        codeMP(&preEm->GetCodeMP()),
         mirBuilder(mirModule->GetMIRBuilder()) {}
   ~LfoUnrollOneLoop() = default;
   BaseNode *CloneIVNode();

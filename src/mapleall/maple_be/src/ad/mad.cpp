@@ -14,6 +14,7 @@
  */
 #include "mad.h"
 #include <string>
+#include <algorithm>
 #if TARGAARCH64
 #include "aarch64_operand.h"
 #elif defined(TARGRISCV64) && TARGRISCV64
@@ -27,14 +28,15 @@ const std::string kUnitName[] = {
 #include "mplad_unit_name.def"
   "None",
 };
+
 /* Unit */
 Unit::Unit(enum UnitId theUnitId)
-    : unitId(theUnitId), unitType(kUnitTypePrimart), occupancyTable(0), compositeUnits() {
+    : unitId(theUnitId), unitType(kUnitTypePrimart), occupancyTable(), compositeUnits() {
   MAD::AddUnit(*this);
 }
 
 Unit::Unit(enum UnitType theUnitType, enum UnitId theUnitId, int numOfUnits, ...)
-    : unitId(theUnitId), unitType(theUnitType), occupancyTable(0) {
+    : unitId(theUnitId), unitType(theUnitType), occupancyTable() {
   ASSERT(numOfUnits > 1, "CG internal error, composite unit with less than 2 unit elements.");
   va_list ap;
   va_start(ap, numOfUnits);
@@ -53,30 +55,30 @@ std::string Unit::GetName() const {
   return kUnitName[GetUnitId()];
 }
 
-/* Check if unit is free at next "cycle" cycle. */
-bool Unit::IsFree(uint32 cycle) const {
-  if (GetUnitType() == kUnitTypeOr) {
-    for (auto unit : compositeUnits) {
-      if (unit->IsFree(cycle)) {
+/* Check whether the unit is free from the current cycle(bit 0) to the cost */
+bool Unit::IsFree(uint32 cost) const {
+  if (unitType == kUnitTypeOr) {
+    for (auto *unit : compositeUnits) {
+      if (unit->IsFree(cost)) {
         return true;
       }
     }
     return false;
   } else if (GetUnitType() == kUnitTypeAnd) {
-    for (auto unit : compositeUnits) {
-      if (!unit->IsFree(cycle)) {
+    for (auto *unit : compositeUnits) {
+      if (!unit->IsFree(cost)) {
         return false;
       }
     }
     return true;
   }
-  if ((occupancyTable & (1u << cycle)) != 0) {
-    return false;
-  }
-  return true;
+  return ((occupancyTable & std::bitset<32>((1u << cost) - 1)) == 0);
 }
 
-/* Occupy unit at next "cycle" cycle. */
+/*
+ * Old interface:
+ * Occupy unit for cost cycles
+ */
 void Unit::Occupy(const Insn &insn, uint32 cycle) {
   if (GetUnitType() == kUnitTypeOr) {
     for (auto unit : GetCompositeUnits()) {
@@ -94,7 +96,39 @@ void Unit::Occupy(const Insn &insn, uint32 cycle) {
     }
     return;
   }
-  occupancyTable |= (1u << cycle);
+  occupancyTable |= (1ull << cycle);
+}
+
+/*
+ * New interface for list-scheduler:
+ * Occupy unit for cost cycles
+ */
+void Unit::Occupy(uint32 cost, std::vector<bool> &visited) {
+  if (visited[unitId]) {
+    return;
+  }
+  visited[unitId] = true;
+  if (unitType == kUnitTypeOr) { // occupy any functional unit
+    for (auto *unit : compositeUnits) {
+      if (unit->IsFree(cost)) {
+        unit->Occupy(cost, visited);
+        return;
+      }
+    }
+    CHECK_FATAL(false, "Or-type units should have one free unit");
+  } else if (unitType == kUnitTypeAnd) { // occupy all functional units
+    for (auto *unit : compositeUnits) {
+      unit->Occupy(cost, visited);
+    }
+    return;
+  }
+  // Single unit
+  // For slot0 and slot1, only occupy one cycle
+  if (unitId == kUnitIdSlot0 || unitId == kUnitIdSlot1) {
+    occupancyTable |= 1;
+  } else {
+    occupancyTable |= ((1u << cost) - 1);
+  }
 }
 
 /* Advance all units one cycle */
@@ -129,7 +163,7 @@ void Unit::Dump(int indent) const {
   LogInfo::MapleLogger() << "occupancyTable = " << occupancyTable << '\n';
 }
 
-uint32 Unit::GetOccupancyTable() const {
+std::bitset<32> Unit::GetOccupancyTable() const {
   return occupancyTable;
 }
 
@@ -195,11 +229,8 @@ int MAD::BypassLatency(const Insn &def, const Insn &use) const {
   ASSERT(def.GetLatencyType() < kLtLast, "out of range");
   ASSERT(use.GetLatencyType() < kLtLast, "out of range");
   BypassVector &bypassVec = bypassArrays[def.GetLatencyType()][use.GetLatencyType()];
-  for (auto bypass : bypassVec) {
-    if (bypass->CanBypass(def, use)) {
-      latency = bypass->GetLatency();
-      break;
-    }
+  for (auto *bypass : bypassVec) {
+    latency = std::min(latency, bypass->GetLatency());
   }
   return latency;
 }
@@ -222,7 +253,7 @@ void MAD::ReleaseAllUnits() const {
   }
 }
 
-void MAD::SaveStates(std::vector<uint32> &occupyTable, int size) const {
+void MAD::SaveStates(std::vector<std::bitset<32>> &occupyTable, int size) const {
   int i = 0;
   for (auto unit : allUnits) {
     CHECK_FATAL(i < size, "unit number error");
@@ -240,21 +271,15 @@ void MAD::InitBypass() const {
 #include "mplad_bypass_define.def"
 }
 
-bool MAD::IsSlot0Free() const {
-  if (GetUnitByUnitId(kUnitIdSlot0)->IsFree(0)) {
-    return false;
-  }
-  return true;
-}
-
+/*
+ * check whether all slots are used,
+ * the bit 0 of occupyTable indicates the current cycle, so the cost(arg) is 1
+ */
 bool MAD::IsFullIssued() const {
-  if (GetUnitByUnitId(kUnitIdSlot0)->IsFree(0) || GetUnitByUnitId(kUnitIdSlot1)->IsFree(0)) {
-    return false;
-  }
-  return true;
+  return !GetUnitByUnitId(kUnitIdSlot0)->IsFree(1) && !GetUnitByUnitId(kUnitIdSlot1)->IsFree(1);
 }
 
-void MAD::RestoreStates(std::vector<uint32> &occupyTable, int size) const {
+void MAD::RestoreStates(std::vector<std::bitset<32>> &occupyTable, int size) const {
   int i = 0;
   for (auto unit : allUnits) {
     CHECK_FATAL(i < size, "unit number error");

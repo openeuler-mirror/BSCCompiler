@@ -27,12 +27,12 @@ constexpr size_t kVarargSaveAreaSize = 192;
 
 void LMBCMemLayout::LayoutStackFrame(void) {
   if (func->IsVarargs()) {
-    seg_FPbased.size -= kVarargSaveAreaSize;
+    segFPbased.size -= kVarargSaveAreaSize;
   }
 
   // allocate the local variables
   size_t symtabsize = func->GetSymTab()->GetSymbolTableSize();
-  for (size_t i = 0; i < symtabsize; i++) {
+  for (uint32 i = 0; i < symtabsize; i++) {
     MIRSymbol *sym = func->GetSymTab()->GetSymbolFromStIdx(i);
     if (!sym) {
       continue;
@@ -42,30 +42,32 @@ void LMBCMemLayout::LayoutStackFrame(void) {
     }
     if (sym->GetStorageClass() == kScPstatic && sym->LMBCAllocateOffSpecialReg()) {
       uint32 stindex = sym->GetStIndex();
-      sym_alloc_table[stindex].memSegment = seg_GPbased;
-      seg_GPbased->size = static_cast<int32>(maplebe::RoundUp(seg_GPbased->size, sym->GetType()->GetAlign()));
-      sym_alloc_table[stindex].offset = seg_GPbased->size;
-      seg_GPbased->size += static_cast<int32>(sym->GetType()->GetSize());
+      symAllocTable[stindex].memSegment = segGPbased;
+      segGPbased->size = static_cast<int32>(maplebe::RoundUp(static_cast<uint32>(segGPbased->size),
+                                                             sym->GetType()->GetAlign()));
+      symAllocTable[stindex].offset = segGPbased->size;
+      segGPbased->size += static_cast<int32>(sym->GetType()->GetSize());
     }
     if (sym->GetStorageClass() != kScAuto) {
       continue;
     }
     uint32 stindex = sym->GetStIndex();
-    sym_alloc_table[stindex].memSegment = &seg_FPbased;
-    seg_FPbased.size -= static_cast<int32>(sym->GetType()->GetSize());
-    seg_FPbased.size = static_cast<int32>(maplebe::RoundDown(seg_FPbased.size, sym->GetType()->GetAlign()));
-    sym_alloc_table[stindex].offset = seg_FPbased.size;
+    symAllocTable[stindex].memSegment = &segFPbased;
+    segFPbased.size -= static_cast<int32>(sym->GetType()->GetSize());
+    segFPbased.size = static_cast<int32>(maplebe::RoundDown(static_cast<uint32>(segFPbased.size),
+                                                            sym->GetType()->GetAlign()));
+    symAllocTable[stindex].offset = segFPbased.size;
   }
 }
 
 GlobalMemLayout::GlobalMemLayout(MIRModule *mod, MapleAllocator *mallocator)
-    : seg_GPbased(MS_GPbased), sym_alloc_table(mallocator->Adapter()), mirModule(mod) {
+    : segGPbased(MS_GPbased), symAllocTable(mallocator->Adapter()), mirModule(mod) {
   size_t symtabsize = GlobalTables::GetGsymTable().GetSymbolTableSize();
-  sym_alloc_table.resize(symtabsize);
+  symAllocTable.resize(symtabsize);
   MIRSymbol *sym = nullptr;
   // allocate the global variables ordered based on alignments
   for (uint32 curalign = 8; curalign != 0; curalign >>= 1) {
-    for (size_t i = 0; i < symtabsize; i++) {
+    for (uint32 i = 0; i < symtabsize; i++) {
       sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
       if (!sym) {
         continue;
@@ -80,14 +82,16 @@ GlobalMemLayout::GlobalMemLayout(MIRModule *mod, MapleAllocator *mallocator)
         continue;
       }
       uint32 stindex = sym->GetStIndex();
-      sym_alloc_table[stindex].memSegment = &seg_GPbased;
-      seg_GPbased.size = static_cast<int32>(maplebe::RoundUp(seg_GPbased.size, sym->GetType()->GetAlign()));
-      sym_alloc_table[stindex].offset = seg_GPbased.size;
-      seg_GPbased.size += static_cast<int32>(sym->GetType()->GetSize());
+      symAllocTable[stindex].memSegment = &segGPbased;
+      segGPbased.size = static_cast<int32>(maplebe::RoundUp(static_cast<uint32>(segGPbased.size),
+                                                            sym->GetType()->GetAlign()));
+      symAllocTable[stindex].offset = segGPbased.size;
+      segGPbased.size += static_cast<int32>(sym->GetType()->GetSize());
     }
   }
-  seg_GPbased.size = static_cast<int32>(maplebe::RoundUp(seg_GPbased.size, GetPrimTypeSize(PTY_ptr)));
-  mirModule->SetGlobalMemSize(seg_GPbased.size);
+  segGPbased.size = static_cast<int32>(maplebe::RoundUp(static_cast<uint32>(segGPbased.size),
+      GetPrimTypeSize(PTY_ptr)));
+  mirModule->SetGlobalMemSize(static_cast<uint32>(segGPbased.size));
 }
 
 }  // namespace maple

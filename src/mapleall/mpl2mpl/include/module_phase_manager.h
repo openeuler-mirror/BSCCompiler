@@ -22,11 +22,11 @@
 #include "ipa_clone.h"
 #include "call_graph.h"
 #include "verification.h"
-#include "verify_mark.h"
 #include "inline.h"
 #include "ginline.h"
 #include "outline.h"
 #include "method_replace.h"
+#include "verify_memorder.h"
 #if MIR_JAVA
 #include "native_stub_func.h"
 #include "vtable_analysis.h"

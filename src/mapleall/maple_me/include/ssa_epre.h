@@ -15,6 +15,7 @@
 #ifndef MAPLE_ME_INCLUDE_SSAEPRE_H
 #define MAPLE_ME_INCLUDE_SSAEPRE_H
 #include "mc_ssa_pre.h"
+#include "safe_cast.h"
 
 namespace maple {
 class SSAEPre : public McSSAPre {
@@ -23,7 +24,7 @@ class SSAEPre : public McSSAPre {
           uint32 limit, bool includeRef, bool lhsIvar)
       : McSSAPre(map, dom, pdom, memPool, mp2, kind, limit), epreIncludeRef(includeRef), enableLHSIvar(lhsIvar) {}
 
-  virtual ~SSAEPre() = default;
+  ~SSAEPre() override = default;
 
  private:
   MeExpr *GetTruncExpr(const IvarMeExpr &theLHS, MeExpr &savedRHS) const;

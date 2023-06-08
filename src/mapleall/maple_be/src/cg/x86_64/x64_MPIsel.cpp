@@ -50,7 +50,7 @@ MemOperand &X64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, Fie
   return GetOrCreateMemOpndFromSymbol(symbol, opndSz, fieldOffset);
 }
 
-MemOperand &X64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) const {
+MemOperand &X64MPIsel::GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) {
   MIRStorageClass storageClass = symbol.GetStorageClass();
   MemOperand *result = nullptr;
   RegOperand *stackBaseReg = nullptr;
@@ -417,8 +417,7 @@ void X64MPIsel::SelectLibCallNArg(const std::string &funcName, std::vector<Opera
   CCLocInfo ploc;
   for (size_t i = 0; i < opndVec.size(); ++i) {
     ASSERT(pt[i] != PTY_void, "primType check");
-    MIRType *ty;
-    ty = GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(pt[i])];
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeTable()[static_cast<size_t>(pt[i])];
     Operand *stOpnd = opndVec[i];
     ASSERT(stOpnd->IsRegister(), "exp result should be reg");
     RegOperand *expRegOpnd = static_cast<RegOperand*>(stOpnd);
@@ -465,7 +464,7 @@ void X64MPIsel::SelectLibCallNArg(const std::string &funcName, std::vector<Opera
   return;
 }
 
-Operand *X64MPIsel::SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) const {
+Operand *X64MPIsel::SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) {
   CHECK_FATAL(primType == PTY_f64 || primType == PTY_f32, "wrong const");
   uint32 labelIdxTmp = cgFunc->GetLabelIdx();
   Operand *result = nullptr;
@@ -757,7 +756,6 @@ void X64MPIsel::SelectCVaStart(const IntrinsiccallNode &intrnNode) {
 
 void X64MPIsel::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
   MIRIntrinsicID intrinsic = intrinsiccallNode.GetIntrinsic();
-
   if (intrinsic == INTRN_C_va_start) {
     SelectCVaStart(intrinsiccallNode);
     return;

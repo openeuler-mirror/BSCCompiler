@@ -88,51 +88,6 @@ class BCUtil {
   static const std::string kADouble;
   static const std::string kAJavaObjectName;
 
-  static inline GStrIdx &GetBooleanIdx() {
-    static GStrIdx booleanIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kBoolean);
-    return booleanIdx;
-  }
-
-  static inline GStrIdx &GetIntIdx() {
-    static GStrIdx intIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kInt);
-    return intIdx;
-  }
-
-  static inline GStrIdx &GetLongIdx() {
-    static GStrIdx longIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kLong);
-    return longIdx;
-  }
-
-  static inline GStrIdx &GetFloatIdx() {
-    static GStrIdx floatIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kFloat);
-    return floatIdx;
-  }
-
-  static inline GStrIdx &GetDoubleIdx() {
-    static GStrIdx doubleIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kDouble);
-    return doubleIdx;
-  }
-
-  static inline GStrIdx &GetByteIdx() {
-    static GStrIdx byteIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kByte);
-    return byteIdx;
-  }
-
-  static inline GStrIdx &GetCharIdx() {
-    static GStrIdx charIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kChar);
-    return charIdx;
-  }
-
-  static inline GStrIdx &GetShortIdx() {
-    static GStrIdx shortIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kShort);
-    return shortIdx;
-  }
-
-  static inline GStrIdx &GetVoidIdx() {
-    static GStrIdx voidIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kVoid);
-    return voidIdx;
-  }
-
   static inline GStrIdx &GetJavaObjectNameMplIdx() {
     static GStrIdx javaObjectNameMplIdx =
         GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(namemangler::EncodeName(kJavaObjectName));

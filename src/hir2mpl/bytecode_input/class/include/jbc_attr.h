@@ -158,8 +158,6 @@ class JBCAttrConstantValue : public JBCAttr {
 
 // Code Attribute
 // ref: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.7.3
-class JBCAttrLocalVariableInfo;
-class JBCOp;
 class JBCAttrCode : public JBCAttr {
  public:
   JBCAttrCode(MapleAllocator &allocator, uint16 nameIdx, uint32 length);
@@ -448,7 +446,7 @@ class JBCAttrDeprecated : public JBCAttr {
 class JBCAttrRTAnnotations : public JBCAttr {
  public:
   JBCAttrRTAnnotations(MapleAllocator &allocator, JBCAttrKind kindIn, uint16 nameIdx, uint32 length);
-  virtual ~JBCAttrRTAnnotations() override = default;
+  ~JBCAttrRTAnnotations() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -477,7 +475,7 @@ class JBCAttrRTInvisAnnotations : public JBCAttrRTAnnotations {
 class JBCAttrRTParamAnnotations : public JBCAttr {
  public:
   JBCAttrRTParamAnnotations(MapleAllocator &allocator, JBCAttrKind kindIn, uint16 nameIdx, uint32 length);
-  virtual ~JBCAttrRTParamAnnotations() override = default;
+  ~JBCAttrRTParamAnnotations() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;
@@ -506,7 +504,7 @@ class JBCAttrRTInvisParamAnnotations : public JBCAttrRTParamAnnotations {
 class JBCAttrRTTypeAnnotations : public JBCAttr {
  public:
   JBCAttrRTTypeAnnotations(MapleAllocator &allocator, JBCAttrKind kindIn, uint16 nameIdx, uint32 length);
-  virtual ~JBCAttrRTTypeAnnotations() override = default;
+  ~JBCAttrRTTypeAnnotations() override = default;
 
  protected:
   bool ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, const JBCConstPool &constPool) override;

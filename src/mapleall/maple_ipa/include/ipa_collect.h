@@ -14,6 +14,7 @@
  */
 #ifndef MAPLE_IPA_INCLUDE_COLLECT_IPA_INFO_H
 #define MAPLE_IPA_INCLUDE_COLLECT_IPA_INFO_H
+#include <limits>
 #include "mir_nodes.h"
 #include "mir_builder.h"
 #include "call_graph.h"
@@ -77,9 +78,9 @@ class CollectIpaInfo {
   void Perform(MeFunction &func);
   void Dump();
 
-  void PushInvalidKeyBack(uint invalidKey) {
+  void PushInvalidKeyBack(StmtIndex invalidKey) {
     integerString.emplace_back(invalidKey);
-    stmtInfoVector.emplace_back(StmtInfo(nullptr, -1u, allocator));
+    stmtInfoVector.emplace_back(StmtInfo(nullptr, std::numeric_limits<uint32>::max(), allocator));
   }
 
   MapleVector<size_t> &GetIntegerString() {
@@ -90,11 +91,11 @@ class CollectIpaInfo {
     return stmtInfoVector;
   }
 
-  uint GetCurrNewStmtIndex() {
+  StmtIndex GetCurrNewStmtIndex() {
     return ++currNewStmtIndex;
   }
 
-  uint GetTotalStmtInfoCount() const {
+  StmtIndex GetTotalStmtInfoCount() const {
     return currNewStmtIndex;
   }
 

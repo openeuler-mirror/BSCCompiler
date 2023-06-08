@@ -22,7 +22,7 @@
 // based on previous analyze results. RC intrinsic will later be lowered
 // in Code Generation
 namespace {
-const std::set<std::string> kWhiteListFunc {
+const std::set<std::string> kWhitelistFunc {
 #include "rcwhitelist.def"
 };
 }
@@ -742,7 +742,7 @@ bool RCLowering::HasCallOrBranch(const MeStmt &from, const MeStmt &to) const {
 // align with order in rcinsertion, otherwise missing weak volatile
 // note that we are generating INTRN_MCCWriteNoRC so write_barrier is supported,
 // otherwise iassign would be enough.
-MIRIntrinsicID RCLowering::SelectWriteBarrier(const MeStmt &stmt) {
+MIRIntrinsicID RCLowering::SelectWriteBarrier(const MeStmt &stmt) const {
   bool incWithLHS = stmt.NeedIncref();
   bool decWithLHS = stmt.NeedDecref();
   MeExpr *lhs = nullptr;
@@ -1656,7 +1656,7 @@ bool MERCLowering::PhaseRun(maple::MeFunction &f) {
   }
   MIRFunction *mirFunction = f.GetMirFunc();
   MeCFG *cfg = f.GetCfg();
-  if (kWhiteListFunc.find(mirFunction->GetName()) != kWhiteListFunc.end() ||
+  if (kWhitelistFunc.find(mirFunction->GetName()) != kWhitelistFunc.end() ||
       mirFunction->GetAttr(FUNCATTR_rclocalunowned)) {
     auto eIt = cfg->valid_end();
     for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {

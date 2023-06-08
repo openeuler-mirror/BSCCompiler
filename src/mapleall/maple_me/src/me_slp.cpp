@@ -786,7 +786,7 @@ void RecoverStmtIds(BB &bb, const std::vector<uint32> &buffer) {
   }
 }
 
-uint32 GetOrderId(MeStmt *stmt) {
+uint32 GetOrderId(const MeStmt *stmt) {
   if (stmt == nullptr) {
     return UINT32_MAX;
   }
@@ -1530,6 +1530,7 @@ struct BlockScheduling {
   bool extendUseInfo = false;
   bool irModified = false;  // If IR is modified when scheduled, we must save scheduling result
   bool debug = false;
+  bool rebuildUseInfo = true;
 
   std::vector<MeStmt*> &GetStmtVec() {
     return stmtVec;
@@ -1556,6 +1557,7 @@ struct BlockScheduling {
   }
 
   void Init() {
+    irModified = false;
     SaveAndRenumberStmtIds(*bb, stmtIdBuffer);
     stmtVec.clear();
     stmtVec.reserve(stmtIdBuffer.size());
@@ -1598,7 +1600,7 @@ struct BlockScheduling {
     return false;
   }
 
-  bool IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) const;
+  bool IsOstUsedByStmt(OriginalSt *ost, const MeStmt &stmt) const;
 
   void ScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, bool needRectifyChiList = false) {
     CHECK_FATAL(stmt->GetBB() == anchor->GetBB(), "must belong to same BB");
@@ -1623,7 +1625,7 @@ struct BlockScheduling {
   void VerifyScheduleResult(uint32 firstOrderId, uint32 lastOrderId);
   // Collect use info from `begin` to `end` (not include `end`) in current BB
   // These use info are needed by dependency analysis and stmt scheduling
-  void RebuildUseInfo(MeStmt *begin, const MeStmt *end, MapleAllocator &alloc);
+  void RebuildUseInfo(MapleAllocator &alloc);
   void ExtendUseInfo();
 };
 
@@ -1768,18 +1770,18 @@ void BlockScheduling::VerifyScheduleResult(uint32 firstOrderId, uint32 lastOrder
 }
 
 // `end` may be nullptr
-void BlockScheduling::RebuildUseInfo(MeStmt *begin, const MeStmt *end, MapleAllocator &alloc) {
-  CHECK_NULL_FATAL(begin);
-  CHECK_FATAL(begin->GetBB() == bb, "begin stmt must belong to current BB");
-  exprUseInfo = alloc.New<MeExprUseInfo>(alloc.GetMemPool());
-  auto *useSites = alloc.New<MapleVector<ExprUseInfoPair>>(alloc.Adapter());
-  exprUseInfo->SetUseSites(useSites);
-  auto *stmt = begin;
-  while (stmt != nullptr && stmt != end) {
-    exprUseInfo->CollectUseInfoInStmt(stmt);
-    stmt = stmt->GetNext();
+void BlockScheduling::RebuildUseInfo(MapleAllocator &alloc) {
+  if (!rebuildUseInfo) {
+    return;
   }
+  if (!exprUseInfo) {
+    exprUseInfo = alloc.New<MeExprUseInfo>(alloc.GetMemPool());
+    exprUseInfo->SetUseSites(alloc.New<MapleVector<ExprUseInfoPair>>(alloc.Adapter()));
+  }
+  exprUseInfo->GetUseSites().clear();
+  exprUseInfo->CollectUseInfoInBB(bb);
   exprUseInfo->SetState(kUseInfoOfScalar);
+  rebuildUseInfo = false;
 }
 
 void BlockScheduling::ExtendUseInfo() {
@@ -1793,9 +1795,9 @@ void BlockScheduling::ExtendUseInfo() {
   extendUseInfo = true;
 }
 
-bool BlockScheduling::IsOstUsedByStmt(OriginalSt *ost, MeStmt *stmt) const {
+bool BlockScheduling::IsOstUsedByStmt(OriginalSt *ost, const MeStmt &stmt) const {
   std::unordered_set<OriginalSt*> ostsUsed;
-  GetOstsUsed(*stmt, ostsUsed);
+  GetOstsUsed(stmt, ostsUsed);
   return ostsUsed.find(ost) != ostsUsed.end();
 }
 
@@ -1844,7 +1846,7 @@ bool BlockScheduling::CanScheduleStmtBefore(MeStmt *stmt, MeStmt *anchor, SchedF
   if (stmt->GetOp() == OP_regassign) {
     auto *defOst = static_cast<AssignMeStmt*>(stmt)->GetLHS()->GetOst();
     for (size_t id = anchorOrderId; id < stmtOrderId; ++id) {
-      if (IsOstUsedByStmt(defOst, stmtVec[id])) {
+      if (IsOstUsedByStmt(defOst, *stmtVec[id])) {
         failReason = SchedFailReason::kSchedFailPregWAR;
         SLP_DEBUG(os << "Found WAR: stmt" << GetOrderId(stmtVec[id]) << " uses ost ");
         if (debug) {
@@ -2184,6 +2186,7 @@ class SLPVectorizer {
   void VectorizeStores(StoreVec &storeVec);
   void VectorizeCompatibleStores(StoreVec &storeVec, uint32 begin, uint32 end);
   void VectorizeConsecutiveStores(StoreVec &storeVec, uint32 begin, uint32 end);
+  void DoCodeMotion(bool vectorized);
   bool DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, uint32 end, bool onlySchedule = false);
 
   bool TryScheduleTogehter(const std::vector<MeStmt*> &stmts);
@@ -2241,8 +2244,9 @@ void SLPVectorizer::Run() {
 }
 
 void SLPVectorizer::ProcessBB(BB &bb) {
-  blockScheduling = nullptr;
   currBB = &bb;
+  auto bs = BlockScheduling(func, currBB, memoryHelper, debug);
+  blockScheduling = &bs;
   vectorizedStmts.clear();
   CollectSeedStmts();
   FilterAndSortSeedStmts();
@@ -2428,45 +2432,31 @@ void SLPVectorizer::VectorizeConsecutiveStores(StoreVec &storeVec, uint32 begin,
   }
 }
 
-// input: consecutive compatible stores
-// Try to vectorize storeVec[begin, begin + vf)
-bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, uint32 end, bool onlySchedule) {
-  uint32 vf = end - begin;
-  SLP_DEBUG(os << "====== DoVectorizeSlicedStores [" << begin << ", " << end << ") vf = " << vf << std::endl);
-  // Init blockScheduling if needed
-  auto bsPtr = std::make_unique<BlockScheduling>(func, currBB, memoryHelper, debug);
-  blockScheduling = bsPtr.get();
-  SLP_DEBUG(os << "Init BlockScheduling for BB" << currBB->GetBBId() << std::endl);
-  blockScheduling->Init();
-  // Rebuild currBB use info before building tree
-  // Rebuild if needed
-  blockScheduling->RebuildUseInfo(currBB->GetFirstMe(), nullptr, *tmpAlloc);
-
-  std::vector<MeStmt*> stmts;
-  for (uint32 i = begin; i < end; ++i) {
-    stmts.push_back(storeVec[i]->stmt);
-  }
-  BuildTree(stmts);
-  if (onlySchedule) {
-    SLP_DEBUG(os << "onlySchedule save result" << std::endl);
-    CodeMotionSaveSchedulingResult();
-    return true;
-  }
-
-  bool vectorized = VectorizeSLPTree();
-  // If we can use stp instruction, don't need to replace scalar stmts with vector stmts
+void SLPVectorizer::DoCodeMotion(bool vectorized) {
   if (vectorized) {
     SLP_DEBUG(os << "CodeMotionVectorize" << std::endl);
     MarkStmtsVectorizedInTree();
     CodeMotionVectorize();
-  } else if (blockScheduling->irModified) {
+    blockScheduling->rebuildUseInfo = true;
+    return;
+  }
+
+  if (blockScheduling->irModified) {
     // If IR have been modified after scheduling (such as chiList), scheduling result must be saved
     SLP_DEBUG(os << "CodeMotionSaveSchedulingResult" << std::endl);
     CodeMotionSaveSchedulingResult();
-  } else if (tree->CanTreeUseStp()) {
+    blockScheduling->rebuildUseInfo = true;
+    return;
+  }
+
+  if (tree->CanTreeUseStp()) {
     SLP_DEBUG(os << "CodeMotionReorderStoresAndLoads" << std::endl);
     CodeMotionReorderStoresAndLoads();
-  } else if (tree->GetSize() > k2BitSize) {
+    blockScheduling->rebuildUseInfo = true;
+    return;
+  }
+
+  if (tree->GetSize() > k2BitSize) {
     bool hasLoadStorePair = false;
     for (auto *treeNode : tree->GetNodes()) {
       if (treeNode->CanNodeUseLoadStorePair()) {
@@ -2477,8 +2467,35 @@ bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, ui
     if (hasLoadStorePair) {
       SLP_DEBUG(os << "CodeMotionSaveSchedulingResult" << std::endl);
       CodeMotionSaveSchedulingResult();  // Save scheduling result to put load/store pair together
+      blockScheduling->rebuildUseInfo = true;
     }
   }
+}
+
+// input: consecutive compatible stores
+// Try to vectorize storeVec[begin, begin + vf)
+bool SLPVectorizer::DoVectorizeSlicedStores(StoreVec &storeVec, uint32 begin, uint32 end, bool onlySchedule) {
+  uint32 vf = end - begin;
+  SLP_DEBUG(os << "====== DoVectorizeSlicedStores [" << begin << ", " << end << ") vf = " << vf << std::endl);
+  // Init blockScheduling if needed
+  SLP_DEBUG(os << "Init BlockScheduling for BB" << currBB->GetBBId() << std::endl);
+  blockScheduling->Init();
+  // Rebuild currBB use info before building tree
+  // Rebuild if needed
+  blockScheduling->RebuildUseInfo(*tmpAlloc);
+  std::vector<MeStmt*> stmts;
+  for (uint32 i = begin; i < end; ++i) {
+    stmts.push_back(storeVec[i]->stmt);
+  }
+  BuildTree(stmts);
+  if (onlySchedule) {
+    SLP_DEBUG(os << "onlySchedule save result" << std::endl);
+    CodeMotionSaveSchedulingResult();
+    return true;
+  }
+  auto vectorized = VectorizeSLPTree();
+  DoCodeMotion(vectorized);
+  // If we can use stp instruction, don't need to replace scalar stmts with vector stmts
   return vectorized;
 }
 

@@ -28,10 +28,18 @@ using namespace namemangler;
 uint32 MIRSymbol::lastPrintedLineNum = 0;
 uint16 MIRSymbol::lastPrintedColumnNum = 0;
 
-bool MIRSymbol::NeedGOT(bool doPIE) const {
-  return (storageClass == kScExtern) ||
-      (!doPIE && ((storageClass == kScGlobal) || (sKind == kStFunc && !GetFunction()->GetFuncAlias()->IsStatic()))) ||
-      (sKind == kStFunc && !GetFunction()->IsStatic() && !GetFunction()->HasBody());
+bool MIRSymbol::NeedGOT(bool isPIC, bool isPIE) const {
+  if (!isPIC) {
+    return false;
+  } else if (isPIC && !isPIE) {
+    return (storageClass == kScExtern) ||
+           ((storageClass == kScGlobal) || (sKind == kStFunc && !GetFunction()->GetFuncAlias()->IsStatic())) ||
+           (sKind == kStFunc && !GetFunction()->IsStatic() && !GetFunction()->HasBody());
+  } else if (isPIC && isPIE) {
+    return (!IsConst() && ((storageClass == kScGlobal) || (storageClass == kScExtern))) ||
+           (sKind == kStFunc && !GetFunction()->IsStatic() && !GetFunction()->HasBody());
+  }
+  return false;
 }
 
 bool MIRSymbol::IsTypeVolatile(int fieldID) const {

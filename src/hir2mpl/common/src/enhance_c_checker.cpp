@@ -1528,22 +1528,19 @@ UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExprInField(const UniqueFEIRExpr &l
   }
   // boundary length expr -> actual dread/iread length field expr
   if (lenExpr->GetKind() == kExprDRead) {
-    std::string lenName = lenExpr->GetVarUses().front()->GetNameRaw();
-    uint32 fieldID = 0;
-    bool flag = FEManager::GetMIRBuilder().TraverseToNamedField(
-        baseType, GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lenName), fieldID);
-    if (!flag) {
+    FieldID lenFieldID = dstExpr->GetLenFieldID();
+    if (lenFieldID == 0) {
       return nullptr;
     }
-    MIRType *reType = FEUtils::GetStructFieldType(&baseType, static_cast<FieldID>(fieldID));
+    MIRType *reType = FEUtils::GetStructFieldType(&baseType, lenFieldID);
     UniqueFEIRType reFEType = FEIRTypeHelper::CreateTypeNative(*reType);
     if (dstExpr->GetKind() == kExprDRead) {
       return FEIRBuilder::CreateExprDReadAggField(
-          dstExpr->GetVarUses().front()->Clone(), static_cast<FieldID>(fieldID), std::move(reFEType));
+          dstExpr->GetVarUses().front()->Clone(), lenFieldID, std::move(reFEType));
     } else if (dstExpr->GetKind() == kExprIRead) {
       FEIRExprIRead *iread = static_cast<FEIRExprIRead*>(dstExpr.get());
       return FEIRBuilder::CreateExprIRead(
-          std::move(reFEType), iread->GetClonedPtrType(), iread->GetClonedOpnd(), static_cast<FieldID>(fieldID));
+          std::move(reFEType), iread->GetClonedPtrType(), iread->GetClonedOpnd(), lenFieldID);
     } else {
       return nullptr;
     }
@@ -1720,7 +1717,7 @@ void FEIRStmtDAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     FieldPair fieldPair = structType->TraverseToFieldRef(tmpID);
     UniqueFEIRType fieldType = FEIRTypeHelper::CreateTypeNative(
         *GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first));
-    dstExpr = FEIRBuilder::CreateExprDReadAggField(var->Clone(), fieldID, std::move(fieldType));
+    dstExpr = FEIRBuilder::CreateExprDReadAggField(var->Clone(), fieldID, std::move(fieldType), lenFieldID);
     // Get the boundary attr(i.e. boundary length expr cache) of field
     lenExpr = ENCChecker::GetBoundaryLenExprCache(fieldPair.second.second);
     if (lenExpr != nullptr) {
@@ -1754,7 +1751,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
   FieldPair fieldPair = static_cast<MIRStructType*>(baseType)->TraverseToFieldRef(tmpID);
   MIRType *dstType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
   UniqueFEIRExpr dstExpr = FEIRBuilder::CreateExprIRead(
-      FEIRTypeHelper::CreateTypeNative(*dstType), addrType->Clone(), addrExpr->Clone(), fieldID);
+      FEIRTypeHelper::CreateTypeNative(*dstType), addrType->Clone(), addrExpr->Clone(), fieldID, lenFieldID);
   // Get the boundary attr (i.e. boundary length expr cache) of field
   UniqueFEIRExpr lenExpr = ENCChecker::GetBoundaryLenExprCache(fieldPair.second.second);
   if (lenExpr != nullptr) {
@@ -1903,7 +1900,7 @@ void ENCChecker::ReplaceBoundaryErr(const MIRBuilder &mirBuilder, const FEIRStmt
            ENCChecker::GetNthStr(callAssert->GetParamIndex()).c_str());
   } else if (op == OP_returnassertle) {
     MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
-    if (curFunction->GetName() != kBoundsBuiltFunc) {
+    if (curFunction->GetName().find(kBoundsBuiltFunc) == std::string::npos) {
       FE_ERR(kLncErr, stmt->GetSrcLoc(), "boundaryless pointer returned from %s that requires a boundary pointer",
              curFunction->GetName().c_str());
     }

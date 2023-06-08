@@ -20,7 +20,7 @@
 #include "union_find.h"
 
 namespace maple {
-constexpr int64 bitsPerByte = 8;
+constexpr int64 kBitsPerByte = 8;
 
 inline bool IsMemoryOverlap(OffsetType startA, int64 sizeA, OffsetType startB, int64 sizeB) {
   // A : |---------|
@@ -261,7 +261,7 @@ class AliasClass : public AnalysisResult {
   void SetAggPtrFieldsNextLevNADS(const VersionSt &vst);
   void SetPtrFieldsOfAggNextLevNADS(const BaseNode *opnd, const VersionSt *vst);
   void SetAggOpndPtrFieldsNextLevNADS(MapleVector<BaseNode*> &opnds);
-  void ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs);
+  void ApplyUnionForDassignCopy(const VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs);
   bool SetNextLevNADSForEscapePtr(const VersionSt &lhsVst, BaseNode &rhs);
   void UnionNextLevelOfAliasOst(OstPtrSet &ostsToUnionNextLev);
   VersionSt *FindOrCreateDummyNADSVst();
@@ -289,7 +289,7 @@ class AliasClass : public AnalysisResult {
   void CollectMayDefForDassign(const StmtNode &stmt, OstPtrSet &mayDefOsts);
   void InsertMayDefNode(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart, StmtNode &stmt, BBId bbid);
   void InsertMayDefDassign(StmtNode &stmt, BBId bbid);
-  bool IsEquivalentField(TyIdx tyIdxA, FieldID fieldA, TyIdx tyIdxB, FieldID fieldB) const;
+  bool IsEquivalentField(const TyIdx &tyIdxA, FieldID fieldA, const TyIdx &tyIdxB, FieldID fieldB) const;
   bool IsAliasInfoEquivalentToExpr(const AliasInfo &ai, const BaseNode *expr);
   void CollectMayDefForIassign(StmtNode &stmt, OstPtrSet &mayDefOsts);
   void InsertMayDefNodeExcludeFinalOst(OstPtrSet &mayDefOsts, AccessSSANodes *ssaPart,

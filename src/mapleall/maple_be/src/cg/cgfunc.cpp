@@ -1440,6 +1440,7 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       labelMap(std::less<LabelIdx>(), allocator.Adapter()),
       vregsToPregsMap(std::less<regno_t>(), allocator.Adapter()),
       hasVLAOrAlloca(mirFunc.HasVlaOrAlloca()),
+      withSrc(mirFunc.GetWithSrc()),
       dbgParamCallFrameLocations(allocator.Adapter()),
       dbgLocalCallFrameLocations(allocator.Adapter()),
       cg(&cg),
@@ -1459,7 +1460,6 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       sortedBBs(allocator.Adapter()),
       lrVec(allocator.Adapter()),
 #endif  /* TARGARM32 */
-      loops(allocator.Adapter()),
       lmbcParamVec(allocator.Adapter()),
       scpIdSet(allocator.Adapter()),
       shortFuncName(cg.ExtractFuncName(mirFunc.GetName()) + "." + std::to_string(funcId), &memPool),
@@ -1475,14 +1475,14 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
   SetHasAlloca(func.HasVlaOrAlloca());
 
   dummyBB = CreateNewBB();
-  vReg.SetCount(kBaseVirtualRegNO + func.GetPregTab()->Size());
+  vReg.SetCount(static_cast<uint32>(kBaseVirtualRegNO + func.GetPregTab()->Size()));
   firstNonPregVRegNO = vReg.GetCount();
   /* maximum register count initial be increased by 1024 */
   SetMaxRegNum(vReg.GetCount() + 1024);
   if (func.GetMayWriteToAddrofStack()) {
     SetStackProtectInfo(kAddrofStack);
   }
-  vReg.vRegOperandTable.clear();
+  maplebe::VregInfo::vRegOperandTable.clear();
 
   insnBuilder = memPool.New<InsnBuilder>(memPool);
   opndBuilder = memPool.New<OperandBuilder>(memPool, func.GetPregTab()->Size());
@@ -1636,7 +1636,7 @@ void CGFunc::GenerateScopeLabel(StmtNode &stmt, SrcPosition &lastSrcPos, bool &p
   /* insert lable for scope begin and end .LScp.1B .LScp.1E */
   MIRFunction &mirFunc = GetFunction();
   DebugInfo *dbgInfo = GetMirModule().GetDbgInfo();
-  if (cg->GetCGOptions().WithDwarf() && stmt.op != OP_comment) {
+  if (cg->GetCGOptions().WithDwarf() && GetWithSrc() && stmt.op != OP_comment) {
     SrcPosition newSrcPos = stmt.GetSrcPos();
     if (!newSrcPos.IsValid()) {
       return;
@@ -2194,10 +2194,6 @@ void CGFunc::DumpBBInfo(const BB *bb) const {
   }
 
   LogInfo::MapleLogger() << "> <" << bb->GetId() << "> ";
-  if (bb->GetLoop()) {
-    LogInfo::MapleLogger() << "[Loop level " << bb->GetLoop()->GetLoopLevel();
-    LogInfo::MapleLogger() << ", head BB " <<  bb->GetLoop()->GetHeader()->GetId() << "]";
-  }
   if (bb->IsCleanup()) {
     LogInfo::MapleLogger() << "[is_cleanup] ";
   }
@@ -2247,21 +2243,6 @@ void CGFunc::DumpCGIR() const {
   }
 }
 
-void CGFunc::DumpLoop() const {
-  for (const auto *lp : loops) {
-    lp->PrintLoops(*lp);
-  }
-}
-
-void CGFunc::ClearLoopInfo() {
-  loops.clear();
-  loops.shrink_to_fit();
-  FOR_ALL_BB(bb, this) {
-    bb->ClearLoopPreds();
-    bb->ClearLoopSuccs();
-  }
-}
-
 void CGFunc::DumpCFGToDot(const std::string &fileNamePrefix) {
   std::ofstream file(fileNamePrefix + GetName() + ".dot");
   file << "digraph {" << std::endl;
@@ -2308,7 +2289,7 @@ void CGFunc::PatchLongBranch() {
 void CGFunc::VerifyAllInsn() {
   FOR_ALL_BB(bb, this) {
     FOR_BB_INSNS(insn, bb) {
-      if(!VERIFY_INSN(insn)) {
+      if (!VERIFY_INSN(insn)) {
         LogInfo::MapleLogger() << "Illegal insn is:\n";
         insn->Dump();
         LogInfo::MapleLogger() << "Function name is:\n" << GetName() << "\n";
@@ -2376,7 +2357,7 @@ bool CgPatchLongBranch::PhaseRun(maplebe::CGFunc &f) {
 MAPLE_TRANSFORM_PHASE_REGISTER(CgPatchLongBranch, patchlongbranch)
 
 bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
-  if (f.GetCG()->GetCGOptions().WithDwarf()) {
+  if (f.GetCG()->GetCGOptions().WithDwarf() && f.GetWithSrc()) {
     f.DBGFixCallFrameLocationOffsets();
   }
   return false;

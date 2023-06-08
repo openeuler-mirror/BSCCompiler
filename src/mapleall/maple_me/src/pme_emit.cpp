@@ -24,7 +24,7 @@
 namespace maple {
 // convert x to use OP_array if possible; return nullptr if unsuccessful;
 // ptrTyIdx is the high level pointer type of x
-ArrayNode *PreMeEmitter::ConvertToArray(BaseNode &x, TyIdx ptrTyIdx) {
+ArrayNode *PreMeEmitter::ConvertToArray(BaseNode &x, const TyIdx &ptrTyIdx) {
   if (x.GetOpCode() != OP_add) {
     return nullptr;
   }
@@ -839,15 +839,15 @@ DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB &meWhileBB, BlockNode &curBlk, PreM
   ASSERT_NOT_NULL(lastmestmt);
   CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
               "EmitPreMeDoLoop: there are other statements at while header bb");
-  DoloopNode *Doloopnode = codeMP->New<DoloopNode>();
+  DoloopNode *loopNodeNew = codeMP->New<DoloopNode>();
   PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(&curBlk);
   pmeExt->mestmt = lastmestmt;
-  preMeStmtExtensionMap[Doloopnode->GetStmtID()] = pmeExt;
-  Doloopnode->SetDoVarStIdx(whileInfo.ivOst->GetMIRSymbol()->GetStIdx());
+  preMeStmtExtensionMap[loopNodeNew->GetStmtID()] = pmeExt;
+  loopNodeNew->SetDoVarStIdx(whileInfo.ivOst->GetMIRSymbol()->GetStIdx());
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
-  Doloopnode->SetStartExpr(EmitPreMeExpr(*whileInfo.initExpr, Doloopnode));
-  Doloopnode->SetContExpr(EmitPreMeExpr(*condGotostmt->GetOpnd(), Doloopnode));
-  CompareNode *compare = static_cast<CompareNode *>(Doloopnode->GetCondExpr());
+  loopNodeNew->SetStartExpr(EmitPreMeExpr(*whileInfo.initExpr, loopNodeNew));
+  loopNodeNew->SetContExpr(EmitPreMeExpr(*condGotostmt->GetOpnd(), loopNodeNew));
+  CompareNode *compare = static_cast<CompareNode *>(loopNodeNew->GetCondExpr());
   if (compare->Opnd(0)->GetOpCode() == OP_cvt && compare->Opnd(0)->Opnd(0)->GetOpCode() == OP_cvt) {
     PrimType resPrimType = compare->Opnd(0)->GetPrimType();
     PrimType opndPrimType = static_cast<TypeCvtNode*>(compare->Opnd(0))->FromType();
@@ -858,21 +858,21 @@ DoloopNode *PreMeEmitter::EmitPreMeDoloop(BB &meWhileBB, BlockNode &curBlk, PreM
     }
   }
   BlockNode *dobodyNode = codeMP->New<BlockNode>();
-  Doloopnode->SetDoBody(dobodyNode);
-  PreMeMIRExtension *doloopExt = preMeMP->New<PreMeMIRExtension>(Doloopnode);
+  loopNodeNew->SetDoBody(dobodyNode);
+  PreMeMIRExtension *doloopExt = preMeMP->New<PreMeMIRExtension>(loopNodeNew);
   preMeStmtExtensionMap[dobodyNode->GetStmtID()] = doloopExt;
   MIRIntConst *intConst =
       mirFunc->GetModule()->GetMemPool()->New<MIRIntConst>(whileInfo.stepValue, *whileInfo.ivOst->GetType());
   ConstvalNode *constnode = codeMP->New<ConstvalNode>(intConst->GetType().GetPrimType(), intConst);
   preMeExprExtensionMap[constnode] = doloopExt;
-  Doloopnode->SetIncrExpr(constnode);
-  Doloopnode->SetIsPreg(false);
-  curBlk.AddStatement(Doloopnode);
+  loopNodeNew->SetIncrExpr(constnode);
+  loopNodeNew->SetIsPreg(false);
+  curBlk.AddStatement(loopNodeNew);
   // add stmtfreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(Doloopnode->GetStmtID(), meWhileBB.GetFrequency());
+    GetFuncProfData()->SetStmtFreq(loopNodeNew->GetStmtID(), meWhileBB.GetFrequency());
   }
-  return Doloopnode;
+  return loopNodeNew;
 }
 
 WhileStmtNode *PreMeEmitter::EmitPreMeWhile(BB &meWhileBB, BlockNode &curBlk) {
@@ -880,21 +880,21 @@ WhileStmtNode *PreMeEmitter::EmitPreMeWhile(BB &meWhileBB, BlockNode &curBlk) {
   ASSERT_NOT_NULL(lastmestmt);
   CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
               "EmitPreMeWhile: there are other statements at while header bb");
-  WhileStmtNode *Whilestmt = codeMP->New<WhileStmtNode>(OP_while);
+  WhileStmtNode *whileStmtNew = codeMP->New<WhileStmtNode>(OP_while);
   PreMeMIRExtension *pmeExt = preMeMP->New<PreMeMIRExtension>(&curBlk);
-  preMeStmtExtensionMap[Whilestmt->GetStmtID()] = pmeExt;
+  preMeStmtExtensionMap[whileStmtNew->GetStmtID()] = pmeExt;
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
-  Whilestmt->SetOpnd(EmitPreMeExpr(*condGotostmt->GetOpnd(), Whilestmt), 0);
+  whileStmtNew->SetOpnd(EmitPreMeExpr(*condGotostmt->GetOpnd(), whileStmtNew), 0);
   BlockNode *whilebodyNode = codeMP->New<BlockNode>();
-  PreMeMIRExtension *whilenodeExt = preMeMP->New<PreMeMIRExtension>(Whilestmt);
+  PreMeMIRExtension *whilenodeExt = preMeMP->New<PreMeMIRExtension>(whileStmtNew);
   preMeStmtExtensionMap[whilebodyNode->GetStmtID()] = whilenodeExt;
-  Whilestmt->SetBody(whilebodyNode);
+  whileStmtNew->SetBody(whilebodyNode);
   // add stmtfreq
   if (GetFuncProfData()) {
-    GetFuncProfData()->SetStmtFreq(Whilestmt->GetStmtID(), meWhileBB.GetFrequency());
+    GetFuncProfData()->SetStmtFreq(whileStmtNew->GetStmtID(), meWhileBB.GetFrequency());
   }
-  curBlk.AddStatement(Whilestmt);
-  return Whilestmt;
+  curBlk.AddStatement(whileStmtNew);
+  return whileStmtNew;
 }
 
 uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curJ, BlockNode *curBlk) {
@@ -999,8 +999,8 @@ uint32 PreMeEmitter::Raise2PreMeIf(uint32 curJ, BlockNode &curBlk) {
     // | brtrue (1) | expectTrue (1) | expectFalse (0) |
     // | brfalse(0) | expectFalse(0) | expectTrue  (1) |
     // XNOR
-    uint32 val = !(static_cast<uint32>(mestmt->GetOp() == OP_brtrue) ^
-        (static_cast<uint32>((condgoto->GetBranchProb() == kProbLikely))));
+    uint32 val = static_cast<uint32>(static_cast<uint32>(mestmt->GetOp() == OP_brtrue) ==
+                                     static_cast<uint32>(condgoto->GetBranchProb() == kProbLikely));
     MIRIntConst *constVal = GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *type);
     ConstvalNode *constNode = codeMP->New<ConstvalNode>(constVal->GetType().GetPrimType(), constVal);
     expectNode->GetNopnd().push_back(constNode);

@@ -18,7 +18,7 @@ namespace maplebe {
 void AArch64ProfGen::InstrumentBB(BB &bb, MIRSymbol &countTab, uint32 offset) {
   regno_t freeUseRegNo = R30;
   for (regno_t reg = R8; reg < R29; ++reg) {
-    if (!bb.GetLiveInRegNO().count(reg) && reg != R16) {
+    if (bb.GetLiveInRegNO().count(reg) == 0 && reg != R16) {
       freeUseRegNo = reg;
       break;
     }

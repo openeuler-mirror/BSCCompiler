@@ -136,7 +136,6 @@ class MIRScope {
     range.first = low;
     range.second = high;
   }
-
   void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
     alias->SetAliasVarMap(idx, vars);
   }
@@ -153,8 +152,14 @@ class MIRScope {
     if (pos.LineNum() == 0 || posB.LineNum() == 0 || posE.LineNum() == 0) {
       return;
     }
-    std::tuple<SrcPosition, SrcPosition, SrcPosition> srcPos(pos, posB, posE);
-    blkSrcPos.push_back(srcPos);
+    if (blkSrcPos.find(pos) == blkSrcPos.end()) {
+      auto point = module->GetMPAllocator().New<MapleMap<SrcPosition, SrcPosition, BlkSrcPosCompare>>(
+          module->GetMPAllocator().Adapter());
+      point->emplace(std::pair<SrcPosition, SrcPosition>(posB, posE));
+      blkSrcPos.emplace(std::pair<SrcPosition, MapleMap<SrcPosition, SrcPosition, BlkSrcPosCompare>*>(pos, point));
+    } else {
+      blkSrcPos[pos]->emplace(std::pair<SrcPosition, SrcPosition>(posB, posE));
+    }
   }
 
   SrcPosition GetScopeEndPos(const SrcPosition &pos);
@@ -185,6 +190,21 @@ class MIRScope {
   void Dump() const;
 
  private:
+  struct BlkSrcPosCompare {
+    bool operator()(const SrcPosition &src1, const SrcPosition &src2) const {
+      if (src1.FileNum() != src2.FileNum()) {
+        return src1.FileNum() < src2.FileNum();
+      }
+      if (src1.LineNum() < src2.LineNum()) {
+        return true;
+      } else if (src1.LineNum() == src2.LineNum()) {
+        return src1.Column() < src2.Column();
+      } else {
+        return false;
+      }
+    }
+  };
+
   MIRModule *module;
   MIRFunction *func;
   unsigned id;
@@ -194,7 +214,8 @@ class MIRScope {
   MIRTypeAlias *typeAlias = nullptr;
   // subscopes' range should be disjoint
   MapleVector<MIRScope*> subScopes { module->GetMPAllocator().Adapter() };
-  MapleVector<std::tuple<SrcPosition, SrcPosition, SrcPosition>> blkSrcPos { module->GetMPAllocator().Adapter() };
+  MapleMap<SrcPosition, MapleMap<SrcPosition, SrcPosition, BlkSrcPosCompare>*, BlkSrcPosCompare> blkSrcPos {
+    module->GetMPAllocator().Adapter() };
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_MIR_SCOPE_H

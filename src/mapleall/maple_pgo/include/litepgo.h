@@ -41,10 +41,10 @@ class LiteProfile {
   bool HandleLitePgoWhiteList(const std::string &fileName) const;
   BBInfo *GetFuncBBProf(const std::string &funcName);
   bool IsExtremelyCold(const std::string &funcName) {
-    return extremelyColdFuncs.count(funcName);
+    return extremelyColdFuncs.count(funcName) == 1;
   }
   static bool IsInWhiteList(const std::string &funcName) {
-    return whiteList.empty() ? true : (whiteList.count(funcName) != 0);
+    return kWhitelist.empty() ? true : (kWhitelist.count(funcName) != 0);
   }
   static uint32 GetBBNoThreshold() {
     return bbNoThreshold;
@@ -52,7 +52,7 @@ class LiteProfile {
   static std::string FlatenName(const std::string &name);
 
  private:
-  static std::set<std::string> whiteList;
+  static std::set<std::string> kWhitelist;
   static uint32 bbNoThreshold;
   static bool loaded;
   bool debugPrint = false;

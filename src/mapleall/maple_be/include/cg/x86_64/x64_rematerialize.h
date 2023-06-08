@@ -26,7 +26,7 @@ class X64Rematerializer : public Rematerializer {
   bool IsRematerializableForConstval(int64 val, uint32 bitLen) const override {
     return false;
   }
-  bool IsRematerializableForDread(int32 offset) const override {
+  bool IsRematerializableForDread(uint64 offset) const override {
     return false;
   }
 

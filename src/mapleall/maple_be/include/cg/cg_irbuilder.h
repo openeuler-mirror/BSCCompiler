@@ -19,6 +19,7 @@
 #include "reg_info.h"
 #include "insn.h"
 #include "operand.h"
+#include "cg_irbuilder.h"
 
 namespace maplebe {
 class InsnBuilder {

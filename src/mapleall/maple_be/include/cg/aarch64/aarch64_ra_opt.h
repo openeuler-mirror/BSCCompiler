@@ -100,7 +100,7 @@ class RaX0Opt {
 
 class ParamRegOpt {
  public:
-  ParamRegOpt(CGFunc *func, DomAnalysis *dom) : cgFunc(func), domInfo(dom) {}
+  ParamRegOpt(CGFunc &func, DomAnalysis &dom, const LoopAnalysis &loop) : cgFunc(func), domInfo(dom), loopInfo(loop) {}
   ~ParamRegOpt() = default;
 
   void HandleParamReg();
@@ -114,8 +114,9 @@ class ParamRegOpt {
   }
 
  private:
-  CGFunc *cgFunc;
-  DomAnalysis *domInfo;
+  CGFunc &cgFunc;
+  DomAnalysis &domInfo;
+  const LoopAnalysis &loopInfo;
   bool dumpInfo = false;
 };
 
@@ -137,7 +138,8 @@ class VregRenameInfo {
 
 class VregRename {
  public:
-  VregRename(CGFunc *func, MemPool *pool) : cgFunc(func), memPool(pool), alloc(pool), renameInfo(alloc.Adapter()) {
+  VregRename(CGFunc *func, MemPool *pool, LoopAnalysis &loop)
+      : cgFunc(func), memPool(pool), alloc(pool), loopInfo(&loop), renameInfo(alloc.Adapter()) {
     renameInfo.resize(cgFunc->GetMaxRegNum());
     ccRegno = static_cast<RegOperand *>(&cgFunc->GetOrCreateRflag())->GetRegisterNumber();
   }
@@ -146,10 +148,10 @@ class VregRename {
   void PrintRenameInfo(regno_t regno) const;
   void PrintAllRenameInfo() const;
 
-  void RenameFindLoopVregs(const CGFuncLoops *loop);
-  void RenameFindVregsToRename(const CGFuncLoops *loop);
+  void RenameFindLoopVregs(const LoopDesc &loop);
+  void RenameFindVregsToRename(const LoopDesc &loop);
   bool IsProfitableToRename(const VregRenameInfo *info) const;
-  void RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop);
+  void RenameProfitableVreg(RegOperand &ropnd, const LoopDesc &loop);
   void RenameGetFuncVregInfo();
   void UpdateVregInfo(regno_t vreg, BB *bb, bool isInner, bool isDef);
   void VregLongLiveRename();
@@ -158,6 +160,7 @@ class VregRename {
   MemPool *memPool = nullptr;
   MapleAllocator alloc;
   Bfs *bfs = nullptr;
+  LoopAnalysis *loopInfo = nullptr;
   MapleVector<VregRenameInfo*> renameInfo;
   uint32 maxRegnoSeen = 0;
   regno_t ccRegno = 0;

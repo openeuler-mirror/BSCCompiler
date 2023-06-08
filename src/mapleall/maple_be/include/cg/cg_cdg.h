@@ -50,6 +50,7 @@ class CDGNode {
     membarInsn = nullptr;
     pseudoSepNodes = nullptr;
     lastCallInsn = nullptr;
+    inlineAsmInsn = nullptr;
     regDefs = nullptr;
     stackDefs = nullptr;
     region = nullptr;
@@ -137,7 +138,7 @@ class CDGNode {
     isVisitedInTopoSort = isVisited;
   }
 
-  bool IsVisitedInTopoSort() {
+  bool IsVisitedInTopoSort() const {
     return isVisitedInTopoSort;
   }
 
@@ -189,6 +190,14 @@ class CDGNode {
     lastFrameDef = frameInsn;
   }
 
+  Insn *GetInlineAsmInsn() {
+    return inlineAsmInsn;
+  }
+
+  void SetInlineAsmInsn(Insn *asmInsn) {
+    inlineAsmInsn = asmInsn;
+  }
+
   void InitTopoInRegionInfo(MemPool &tmpMp, MapleAllocator &tmpAlloc) {
     topoPredInRegion = tmpMp.New<MapleSet<CDGNodeId>>(tmpAlloc.Adapter());
   }
@@ -217,6 +226,7 @@ class CDGNode {
     membarInsn = nullptr;
     lastCallInsn = nullptr;
     lastFrameDef = nullptr;
+    inlineAsmInsn = nullptr;
     lastComments.clear();
 
     regDefs = nullptr;
@@ -235,6 +245,7 @@ class CDGNode {
     membarInsn = nullptr;
     lastCallInsn = nullptr;
     lastFrameDef = nullptr;
+    inlineAsmInsn = nullptr;
 
     for (auto &regDef : *regDefs) {
       regDef = nullptr;
@@ -263,7 +274,7 @@ class CDGNode {
     return (*regUses)[regNO];
   }
 
-  void AppendUseInsnChain(regno_t regNO, Insn *useInsn, MemPool &mp, bool beforeRA) {
+  void AppendUseInsnChain(regno_t regNO, Insn *useInsn, MemPool &mp) const {
     CHECK_FATAL(useInsn != nullptr, "invalid useInsn");
     auto *newUse = mp.New<RegList>();
     newUse->insn = useInsn;
@@ -272,13 +283,6 @@ class CDGNode {
     RegList *headUse = (*regUses)[regNO];
     if (headUse == nullptr) {
       (*regUses)[regNO] = newUse;
-      if (beforeRA) {
-        Insn *defInsn = (*regDefs)[regNO];
-        if (defInsn != nullptr) {
-          DepNode *depNode = defInsn->GetDepNode();
-          depNode->SetRegDefs(regNO, newUse);
-        }
-      }
     } else {
       while (headUse->next != nullptr) {
         headUse = headUse->next;
@@ -299,7 +303,7 @@ class CDGNode {
     stackUses->emplace_back(stackInsn);
   }
 
-  MapleVector<Insn*> &GetStackDefInsns() const {
+  MapleVector<Insn*> &GetStackDefInsns() {
     return *stackDefs;
   }
 
@@ -392,7 +396,7 @@ class CDGNode {
     (void)cfiInsns.emplace_back(cfiInsn);
   }
 
-  void RemoveDepNodeFromDataNodes(DepNode &depNode) {
+  void RemoveDepNodeFromDataNodes(const DepNode &depNode) {
     for (auto iter = dataNodes.begin(); iter != dataNodes.end(); ++iter) {
       if (*iter == &depNode) {
         void(dataNodes.erase(iter));
@@ -457,6 +461,7 @@ class CDGNode {
   Insn *membarInsn = nullptr;
   Insn *lastCallInsn = nullptr;
   Insn *lastFrameDef = nullptr;
+  Insn *inlineAsmInsn = nullptr;
   MapleVector<Insn*> *regDefs = nullptr; // the index is regNO, record the latest defInsn in the curBB
   MapleVector<RegList*> *regUses = nullptr; // the index is regNO
   MapleVector<Insn*> *stackUses = nullptr;

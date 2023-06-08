@@ -43,7 +43,7 @@ namespace maple {
 // Recompute hitrate in percent to our representation.
 #define HITRATE(VAL) (static_cast<int>((VAL) * kProbBase + kHitRateOffset) / kHitRateDivisor)
 #define DEF_PREDICTOR(ENUM, NAME, HITRATE) { NAME, HITRATE },
-const PredictorInfo MePrediction::predictorInfo[kEndPrediction + 1] = {
+const PredictorInfo MePrediction::predictorInfo[static_cast<uint32>(kEndPrediction) + 1] = {
 #include "me_predict.def"
   // Upper bound on predictors.
   { nullptr, 0 }
@@ -529,7 +529,7 @@ void MePrediction::CombinePredForBB(const BB &bb) {
     uint32 all = kProbAlways;
     uint32 nEdges = 0;
     uint32 unlikelyCount = 0;
-    Edge *edge = edges[bb.GetBBId()];
+    Edge *edge = edges.at(bb.GetBBId());
     for (Edge *e = edge; e != nullptr; e = e->next) {
       if (e->probability > 0) {
         CHECK_FATAL(e->probability <= all, "e->probability is greater than all");

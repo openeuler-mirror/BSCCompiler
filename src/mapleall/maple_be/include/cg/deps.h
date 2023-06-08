@@ -20,17 +20,18 @@
 #include "pressure.h"
 namespace maplebe {
 #define PRINT_STR_VAL(STR, VAL) \
-  (LogInfo::MapleLogger() << std::left << std::setw(12) << (STR) << VAL << " | ");
+  (LogInfo::MapleLogger() << std::left << std::setw(12) << (STR) << (VAL) << " | ")
 #define PRINT_VAL(VAL) \
-  (LogInfo::MapleLogger() << std::left << std::setw(12) << VAL << " | ");
+  (LogInfo::MapleLogger() << std::left << std::setw(12) << (VAL) << " | ")
 
 enum DepType : uint8 {
   kDependenceTypeTrue,
   kDependenceTypeOutput,
   kDependenceTypeAnti,
   kDependenceTypeControl,
+  kDependenceTypeMemAccess, // for dependencies between insns of def-use memory operations (alternative true dependency)
   kDependenceTypeMembar,
-  kDependenceTypeThrow,
+  kDependenceTypeThrow,  // using in java
   kDependenceTypeSeparator,
   kDependenceTypeNone
 };
@@ -40,6 +41,7 @@ inline const std::array<std::string, kDependenceTypeNone + 1> kDepTypeName = {
   "output-dep",
   "anti-dep",
   "control-dep",
+  "memaccess-dep",
   "membar-dep",
   "throw-dep",
   "separator-dep",
@@ -58,6 +60,13 @@ enum ScheduleState : uint8 {
   kWaiting,
   kReady,
   kScheduled,
+};
+
+enum SimulateState : uint8 {
+  kStateUndef,
+  kRunning, // the instruction is running
+  kRetired, // the instruction is executed and returns result
+  kUndefined,
 };
 
 class DepNode;
@@ -114,9 +123,10 @@ class DepNode {
   virtual ~DepNode() = default;
 
   /*
- * If all unit of this node need when it be scheduling is free, this node can be scheduled,
- * Return true.
- */
+   * Old interface:
+   * If all unit of this node need when it is scheduled is free, this node can be scheduled,
+   * return true.
+   */
   bool IsResourceFree() const {
     for (uint32 i = 0; i < unitNum; ++i) {
       Unit *unit = units[i];
@@ -129,12 +139,48 @@ class DepNode {
     return true;
   }
 
-  /* Mark those unit that this node need occupy unit when it is being scheduled. */
+  /*
+   * Old interface:
+   * Mark those unit needed being occupied when an instruction is scheduled
+   */
   void OccupyUnits() {
     for (uint32 i = 0; i < unitNum; ++i) {
       Unit *unit = units[i];
       if (unit != nullptr) {
         unit->Occupy(*insn, i);
+      }
+    }
+  }
+
+  /*
+   * New interface using in list-scheduler:
+   * If all unit of this node need when it is scheduled is free, this node can be scheduled,
+   * return true.
+   */
+  bool IsResourceFree(uint32 cost) const {
+    for (uint32 i = 0; i < unitNum; ++i) {
+      const Unit *unit = units[i];
+      if (unit != nullptr) {
+        if (!unit->IsFree(cost)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /*
+   * New interface using in list-scheduler:
+   * Mark those unit needed being occupied when an instruction is scheduled
+   */
+  void OccupyUnits(uint32 cost) {
+    // Indicates whether the unit has been occupied by the current schedule insn
+    // and the index is unitId
+    std::vector<bool> visited(kUnitIdLast);
+    for (uint32 i = 0; i < unitNum; ++i) {
+      Unit *unit = units[i];
+      if (unit != nullptr && !visited[unit->GetUnitId()]) {
+        unit->Occupy(cost, visited);
       }
     }
   }
@@ -333,6 +379,12 @@ class DepNode {
   const MapleVector<DepLink*> &GetPreds() const {
     return preds;
   }
+  MapleVector<DepLink*>::iterator GetPredsBegin() {
+    return preds.begin();
+  }
+  MapleVector<DepLink*>::iterator GetPredsEnd() {
+    return preds.end();
+  }
   void ReservePreds(size_t size) {
     preds.reserve(size);
   }
@@ -342,8 +394,24 @@ class DepNode {
   void RemovePred() {
     preds.pop_back();
   }
-  const MapleVector<DepLink*> &GetSuccs() const{
+  // For mock data dependency graph, do not use in normal process
+  void ErasePred(const DepLink &predLink) {
+    for (auto iter = preds.begin(); iter != preds.end(); ++iter) {
+      DepNode &predNode = (*iter)->GetFrom();
+      if (predNode.GetInsn()->GetId() == predLink.GetFrom().GetInsn()->GetId()) {
+        (void)preds.erase(iter);
+        return;
+      }
+    }
+  }
+  const MapleVector<DepLink*> &GetSuccs() const {
     return succs;
+  }
+  MapleVector<DepLink*>::iterator GetSuccsBegin() {
+    return succs.begin();
+  }
+  MapleVector<DepLink*>::iterator GetSuccsEnd() {
+    return succs.end();
   }
   void ReserveSuccs(size_t size) {
     succs.reserve(size);
@@ -353,6 +421,10 @@ class DepNode {
   }
   void RemoveSucc() {
     succs.pop_back();
+  }
+  // For mock data dependency graph
+  MapleVector<DepLink*>::iterator EraseSucc(const MapleVector<DepLink*>::iterator iter) {
+    return succs.erase(iter);
   }
   const MapleVector<Insn*> &GetComments() const {
     return comments;
@@ -426,7 +498,7 @@ class DepNode {
     regPressure->SetRegDefs(idx, regList);
   }
 
-  int32 GetIncPressure() const {
+  bool GetIncPressure() const {
     return regPressure->GetIncPressure();
   }
   void SetIncPressure(bool value) const {
@@ -534,6 +606,22 @@ class DepNode {
     return defRegnos;
   }
 
+  void SetSimulateState(SimulateState simulateState) {
+    simuState = simulateState;
+  }
+
+  const SimulateState GetSimulateState() const {
+    return simuState;
+  }
+
+  void SetSimulateIssueCycle(uint32 cycle) {
+    simulateIssueCycle = cycle;
+  }
+
+  const uint32 GetSimulateIssueCycle() const {
+    return simulateIssueCycle;
+  }
+
  private:
   Insn *insn;
   Unit * const *units;
@@ -578,6 +666,9 @@ class DepNode {
 
   /* For register pressure analysis */
   RegPressure *regPressure;
+
+  SimulateState simuState = kUndefined;  // For calculating original cycles of BB
+  uint32 simulateIssueCycle = 0; // For calculating original cycles of BB, record the cycle when the insn issuing
 };
 }  /* namespace maplebe */
 

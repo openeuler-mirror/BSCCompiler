@@ -13,12 +13,14 @@
  * See the Mulan PSL v2 for more details.
  */
 #include <vector>
+#include <algorithm>
 
 #include "cl_option.h"
 #include "cl_parser.h"
 
 #include "mpl_logging.h"
 #include "string_utils.h"
+#include "set_spec.h"
 
 
 using namespace maplecl;
@@ -74,7 +76,7 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
   if (option != nullptr) {
     if (keyArg.key != "-Wl" && keyArg.key != "-l") {
       RetCode err = option->Parse(argsIndex, args, keyArg);
-      if (err != RetCode::noError) {
+      if (err != RetCode::kNoError) {
         return err;
       }
 
@@ -90,12 +92,12 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
     std::string tmp = maple::StringUtils::GetStrAfterLast(tempStr, ".");
     if (tmp == "a" || tmp == "so") {
       argsIndex++;
-      return RetCode::noError;
+      return RetCode::kNoError;
     }
-    return RetCode::notRegistered;
+    return RetCode::kNotRegistered;
   }
 
-  return RetCode::noError;
+  return RetCode::kNoError;
 }
 
 void CommandLine::CloseOptimize(const OptionCategory &optCategory) const {
@@ -134,7 +136,7 @@ void CommandLine::DeleteEnabledOptions(size_t &argsIndex, const std::deque<std::
 RetCode CommandLine::ParseOption(size_t &argsIndex,
                                  const std::deque<std::string_view> &args,
                                  KeyArg &keyArg, const OptionCategory &optCategory,
-                                 OptionInterface &opt) const {
+                                 OptionInterface &opt) {
   if (args[argsIndex] == "--no-pie" || args[argsIndex] == "-fno-pie") {
     auto item = optCategory.options.find("-fPIE");
     item->second->SetEnabledByUser();
@@ -159,16 +161,21 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
   }
 
   RetCode err = opt.Parse(argsIndex, args, keyArg);
-  if (err != RetCode::noError) {
+  if (err != RetCode::kNoError) {
     return err;
   }
 
-  /* Set Option in all categories registering for this option */
-  for (auto &category : opt.optCategories) {
-    category->AddEnabledOption(&opt);
+  if (keyArg.rawArg == "-Xlinker") {
+    linkOptions.push_back(std::string(keyArg.rawArg));
+    linkOptions.push_back(std::string(keyArg.val));
+  } else {
+    /* Set Option in all categories registering for this option */
+    for (auto &category : opt.optCategories) {
+      category->AddEnabledOption(&opt);
+    }
   }
 
-  return RetCode::noError;
+  return RetCode::kNoError;
 }
 
 RetCode CommandLine::ParseEqualOption(size_t &argsIndex,
@@ -226,7 +233,7 @@ RetCode CommandLine::ParseSimpleOption(size_t &argsIndex,
 
 RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
                                      OptionCategory &optCategory) {
-  RetCode err = RetCode::noError;
+  RetCode err = RetCode::kNoError;
 
   /* badCLArgs contains option parsing errors for each incorrect option.
    * We should clear old badCLArgs results. */
@@ -252,7 +259,7 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
     if (pos != std::string::npos) {
       ASSERT(pos > 0, "CG internal error, composite unit with less than 2 unit elements.");
       err = ParseEqualOption(argsIndex, args, keyArg, optCategory, optCategory.options, pos);
-      if (err != RetCode::noError) {
+      if (err != RetCode::kNoError) {
         (void)badCLArgs.emplace_back(args[argsIndex], err);
         ++argsIndex;
         wasError = true;
@@ -263,7 +270,7 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
     /* option like "--key value" or "--key" */
     else {
       err = ParseSimpleOption(argsIndex, args, keyArg, optCategory, optCategory.options);
-      if (err != RetCode::noError) {
+      if (err != RetCode::kNoError) {
         (void)badCLArgs.emplace_back(args[argsIndex], err);
         ++argsIndex;
         wasError = true;
@@ -279,7 +286,7 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
   }
 
   if (wasError) {
-    return RetCode::parsingErr;
+    return RetCode::kParsingErr;
   }
 
   return err;
@@ -292,16 +299,36 @@ RetCode CommandLine::Parse(int argc, char **argv, OptionCategory &optCategory) {
   }
 
   if (argc == 0 || *argv == nullptr) {
-    return RetCode::noError;
+    return RetCode::kNoError;
   }
 
   std::deque<std::string_view> args;
   while (argc > 0 && *argv != nullptr) {
-    (void)args.emplace_back(*argv);
-    ++argv;
-    --argc;
+    std::string tmp = *argv;
+    if (maple::StringUtils::GetStrAfterLast(tmp, ".") == "a") {
+      if (maple::FileUtils::GetAstFromLib(tmp, astInputs)) {
+        (void)args.emplace_back(*argv);
+      }
+    } else {
+      (void)args.emplace_back(*argv);
+    }
+    if (tmp == "-specs") {
+      ++argv;
+      --argc;
+      specsFile = *argv;
+    } else {
+      if (tmp.find("-specs=") != std::string::npos) {
+        specsFile = maple::StringUtils::GetStrAfterLast(tmp, "=");
+      }
+      ++argv;
+      --argc;
+    }
   }
-
+  for (auto astFile = GetAstInputs().begin(); astFile != GetAstInputs().end(); ++astFile) {
+    std::string_view tmp(*astFile);
+    (void)args.emplace_back(tmp);
+  }
+  maple::SetSpec::SetUpSpecs(args, specsFile);
   return HandleInputArgs(args, optCategory);
 }
 
@@ -347,7 +374,17 @@ void CommandLine::BashCompletionPrinter(const OptionCategory &optCategory) const
 void CommandLine::HelpPrinter(OptionCategory &optCategory) const {
   std::sort(optCategory.registredOptions.begin(), optCategory.registredOptions.end(),
       [](const OptionInterface *a, const OptionInterface *b) {
-        return a->GetOptName() < b->GetOptName();
+        std::string optName1 = a->GetOptName();
+        if (!maple::StringUtils::StartsWith(optName1, "--")) {
+          optName1 = "-" + optName1;
+        }
+        std::string optName2 = b->GetOptName();
+        if (!maple::StringUtils::StartsWith(optName2, "--")) {
+          optName2 = "-" + optName2;
+        }
+        (void)std::transform(optName1.begin(), optName1.end(), optName1.begin(), ::toupper);
+        (void)std::transform(optName2.begin(), optName2.end(), optName2.begin(), ::toupper);
+        return optName1 < optName2;
       });
   for (auto &opt : optCategory.registredOptions) {
     if (opt->IsVisibleOption()) {

@@ -146,7 +146,7 @@ enum StackMapFrameItemTag : uint8 {
 class StackMapFrameItem : public JBCAttrItem {
  public:
   StackMapFrameItem(uint8 frameTypeIn, StackMapFrameItemTag tagIn);
-  virtual ~StackMapFrameItem() override = default;
+  ~StackMapFrameItem() override = default;
   static std::map<StackMapFrameItemTag, std::string> InitTagName();
   static std::string TagName(StackMapFrameItemTag tag);
   static StackMapFrameItemTag FrameType2Tag(uint8 frameType);
@@ -423,7 +423,7 @@ class LocalVariableTypeTableItem : public JBCAttrItem {
 class ElementValueItem : public JBCAttrItem {
  public:
   ElementValueItem(ElementValueKind kindIn, char tagIn);
-  virtual ~ElementValueItem() override = default;
+  ~ElementValueItem() override = default;
   static std::map<char, ElementValueKind> InitTagKindMap();
   static std::map<ElementValueKind, std::string> InitKindNameMap();
   static std::string KindName(ElementValueKind kind);
@@ -690,7 +690,7 @@ enum TargetInfoItemType : uint8 {
 class TargetInfoItem : public JBCAttrItem {
  public:
   explicit TargetInfoItem(TargetInfoItemTag tagIn);
-  virtual ~TargetInfoItem() override = default;
+  ~TargetInfoItem() override = default;
   static std::map<TargetInfoItemType, TargetInfoItemTag> InitTypeTagMap();
   static TargetInfoItemTag TargetType2Tag(TargetInfoItemType type);
   static TargetInfoItem *NewItem(MapleAllocator &allocator, BasicIORead &io, TargetInfoItemType targetType);

@@ -543,6 +543,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     /* should refer to function attribute */
     (void)emitter.Emit("\t.globl\t").Emit(funcStName).Emit("\n");
     /* if no visibility set individually, set it to be same as the -fvisibility value */
+    CHECK_NULL_FATAL(func);
     if (!func->IsStatic() && func->IsDefaultVisibility()) {
       switch (CGOptions::GetVisibilityType()) {
         case CGOptions::kHiddenVisibility:
@@ -590,9 +591,6 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   /* emit instructions */
   FOR_ALL_BB(bb, &aarchCGFunc) {
     if (bb->IsUnreachable()) {
-      continue;
-    }
-    if (bb == aarchCGFunc.GetFirstBB() && bb->IsEmpty()) {
       continue;
     }
     if (currCG->GenerateVerboseCG()) {
@@ -1079,11 +1077,10 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
   auto &list7 = static_cast<ListConstraintOperand&>(insn.GetOperand(kAsmInputRegPrefixOpnd));
   MapleString asmStr = static_cast<StringOperand&>(insn.GetOperand(kAsmStringOpnd)).GetComment();
   std::string stringToEmit;
-  size_t sidx = 0;
   auto isMemAccess = [](char c)->bool {
     return c == '[';
   };
-  auto emitRegister = [&](const char *p, bool isInt, uint32 regNO, bool unDefRegSize)->void {
+  auto emitRegister = [&stringToEmit,&isMemAccess](const char *p, bool isInt, uint32 regNO, bool unDefRegSize)->void {
     if (isMemAccess(p[0])) {
       stringToEmit += "[x";
       AsmStringOutputRegNum(isInt, regNO, R0, V0, stringToEmit);
@@ -1170,7 +1167,6 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
       }
       default:
         stringToEmit += asmStr[i];
-        sidx++;
     }
   }
   (void)emitter.Emit(stringToEmit);

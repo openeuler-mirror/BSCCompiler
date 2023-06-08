@@ -20,6 +20,7 @@
 #include "string_utils.h"
 #include "ipa_side_effect.h"
 #include "inline_summary.h"
+#include "driver_options.h"
 
 namespace {
 using namespace maple;
@@ -143,6 +144,18 @@ LabelIdx MIRFunction::GetOrCreateLableIdxFromName(const std::string &name) {
     GetLabelTab()->AddToStringLabelMap(labelIdx);
   }
   return labelIdx;
+}
+
+// Return true if the function has GNU inline semantics.
+// You should NEVER call GetAttr(FUNCATTR_gnu_inline) directly unless you know what you are doing.
+bool MIRFunction::IsGnuInline() const {
+  // ATTENTION: When one of the following options is enabled, traditional GNU semantics for inline functions
+  // will be used. In this case, `inline` WILL BE TREATED AS `inline __attribute__((gnu_inline))`.
+  if (opts::oStd89.IsEnabledByUser() || opts::oStd90.IsEnabledByUser() || opts::oAnsi.IsEnabledByUser() ||
+      opts::oFgnu89Inline.IsEnabledByUser()) {
+    return IsInline();
+  }
+  return funcAttrs.GetAttr(FUNCATTR_gnu_inline);
 }
 
 bool MIRFunction::HasCall() const {

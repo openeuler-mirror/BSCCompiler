@@ -32,7 +32,7 @@ hir2mpl -h to view available options
 
 First, use java2dex to generate the required xxx.dex file from xxx.java.
 
-bash ${OUT_ROOT}/tools/bin/java2dex  -o xxx.dex -p <classpath> -i xxx.java
+bash ${MAPLE_ROOT}/tools/bin/java2dex  -o xxx.dex -p <classpath> -i xxx.java
 
 If the xxx.dex file depends on other files, use the -mplt command to add the depended file.
 

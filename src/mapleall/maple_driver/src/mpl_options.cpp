@@ -62,6 +62,21 @@ const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "hir2mpl",
 
 ErrorCode MplOptions::Parse(int argc, char **argv) {
   (void)maplecl::CommandLine::GetCommandLine().Parse(argc, argv);
+  // Check -version -h option
+  ErrorCode ret = HandleEarlyOptions();
+  if (ret != kErrorNoError) {
+    return ret;
+  }
+  // Check whether the input files were valid
+  ret = CheckInputFiles();
+  if (ret != kErrorNoError) {
+    return ret;
+  }
+  // We should recognize O0, O2 and run options firstly to decide the real options
+  ret = HandleOptimizationLevelOptions();
+  if (ret != kErrorNoError) {
+    return ret;
+  }
   exeFolder = FileUtils::GetFileFolder(FileUtils::GetExecutable());
   if (maplecl::CommandLine::GetCommandLine().GetUseLitePgoGen() &&
       !maplecl::CommandLine::GetCommandLine().GetHasPgoLib()) {
@@ -78,18 +93,6 @@ ErrorCode MplOptions::Parse(int argc, char **argv) {
     std::string threadLibPath = "-lpthread";
     maplecl::CommandLine::GetCommandLine().GetLinkOptions().push_back(pgoLibPath);
     maplecl::CommandLine::GetCommandLine().GetLinkOptions().push_back(threadLibPath);
-  }
-
-  // We should recognize O0, O2 and run options firstly to decide the real options
-  ErrorCode ret = HandleEarlyOptions();
-  if (ret != kErrorNoError) {
-    return ret;
-  }
-
-  /* Check whether the input files were valid */
-  ret = CheckInputFiles();
-  if (ret != kErrorNoError) {
-    return ret;
   }
 
   // Decide runningExes for default options(O0, O2) by input files
@@ -161,7 +164,7 @@ void MplOptions::HandleSafeOptions() {
   }
 }
 
-ErrorCode MplOptions::HandleEarlyOptions() {
+ErrorCode MplOptions::HandleEarlyOptions() const {
   if (opts::version || opts::oDumpversion) {
     LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
     exit(0);
@@ -176,18 +179,18 @@ ErrorCode MplOptions::HandleEarlyOptions() {
     if (auto it = exeCategories.find(opts::help.GetValue()); it != exeCategories.end()) {
       maplecl::CommandLine::GetCommandLine().HelpPrinter(*it->second);
     } else {
-      maple::LogInfo::MapleLogger() << "USAGE: maple [options]\n\n"
-        "  Example 1: <Maple bin path>/maple --run=me:mpl2mpl:mplcg "
-        "--option=\"[MEOPT]:[MPL2MPLOPT]:[MPLCGOPT]\"\n"
-        "                                    --mplt=MPLTPATH inputFile.mpl\n"
-        "  Example 2: <Maple bin path>/maple -O2 --mplt=mpltPath inputFile.dex\n\n"
+      maple::LogInfo::MapleLogger() << "USAGE: maple [options] file...\n\n"
+        "  Example: <Maple bin path>/maple -O2 --mplt=mpltPath inputFile.dex\n\n"
         "==============================\n"
-        "  Options:\n";
+        "Options:\n";
       maplecl::CommandLine::GetCommandLine().HelpPrinter();
     }
     return kErrorExitHelp;
   }
+  return kErrorNoError;
+}
 
+ErrorCode MplOptions::HandleOptimizationLevelOptions() {
   if (opts::o0.IsEnabledByUser() ||
       opts::o1.IsEnabledByUser() ||
       opts::o2.IsEnabledByUser() ||
@@ -413,8 +416,10 @@ ErrorCode MplOptions::DecideRunningPhases() {
     lastAction = DecideRunningPhasesByType(inputInfo.get(), isMultipleFiles);
 
     /* Add a message interface for correct exit with compilation error. And use it here instead of CHECK_FATAL. */
-    CHECK_FATAL(lastAction != nullptr, "Incorrect input file type: %s",
-                inputInfo->GetInputFile().c_str());
+    if (lastAction == nullptr) {
+      ret = kErrorUnKnownFileType;
+      return ret;
+    }
 
     if (inputInfo->GetInputFileType() == InputFileType::kFileTypeObj && (opts::compileWOLink.IsEnabledByUser() ||
         opts::onlyCompile.IsEnabledByUser())) {
@@ -668,31 +673,31 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
     ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO1ForC,
                                sizeof(kMpl2MplDefaultOptionsO1ForC) / sizeof(MplOption));
     } else if (opts::o2.IsEnabledByUser() || opts::o3.IsEnabledByUser()) {
-    if (opts::withIpa) {
-      UpdateRunningExe(kBinNameMplipa);
-    }
-    if (srcLang != kSrcLangC) {
-      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2,
-                                 sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
-      if (ret != kErrorNoError) {
-        return ret;
+      if (opts::withIpa) {
+        UpdateRunningExe(kBinNameMplipa);
       }
-      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
-                                 sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
-    } else {
-      if (opts::o3.IsEnabledByUser()) {
-        ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO3ForC,
-                                   sizeof(kMeDefaultOptionsO3ForC) / sizeof(MplOption));
+      if (srcLang != kSrcLangC) {
+        ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2,
+                                   sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
+                                   sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
       } else {
-        ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2ForC,
-                                   sizeof(kMeDefaultOptionsO2ForC) / sizeof(MplOption));
+        if (opts::o3.IsEnabledByUser()) {
+          ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO3ForC,
+                                     sizeof(kMeDefaultOptionsO3ForC) / sizeof(MplOption));
+        } else {
+          ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2ForC,
+                                     sizeof(kMeDefaultOptionsO2ForC) / sizeof(MplOption));
+        }
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2ForC,
+                                   sizeof(kMpl2MplDefaultOptionsO2ForC) / sizeof(MplOption));
       }
-      if (ret != kErrorNoError) {
-        return ret;
-      }
-      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2ForC,
-                                 sizeof(kMpl2MplDefaultOptionsO2ForC) / sizeof(MplOption));
-    }
   } else if (opts::os.IsEnabledByUser()) {
     if (srcLang == kSrcLangJava) {
       return kErrorNotImplement;
@@ -930,7 +935,6 @@ void MplOptions::PrintCommand(const Action * const action) {
 
 void MplOptions::ConnectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb,
                                std::string &runStr) {
-  std::string connectSym = "";
   if (exeOptions.find(exeName) != exeOptions.end()) {
     if (!firstComb) {
       runStr += (":" + exeName);

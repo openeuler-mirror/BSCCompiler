@@ -199,7 +199,7 @@ bool LiteProfile::HandleLitePgoWhiteList(const std::string &fileName) const {
       continue;
     }
     if (currentTokenKind == TK_invalid) {
-      whiteList.emplace(whiteListLexer.GetName());
+      kWhitelist.emplace(whiteListLexer.GetName());
       (void)whiteListLexer.NextToken();
     } else {
       CHECK_FATAL(false, "unexpected format in instrumentation white list");
@@ -207,11 +207,14 @@ bool LiteProfile::HandleLitePgoWhiteList(const std::string &fileName) const {
       return false;
     }
   }
+  if (kWhitelist.empty()) {
+    kWhitelist.emplace("__mpl_litepgo_fake_handled_func");
+  }
   delete whitelistMp;
   return true;
 }
 
-std::set<std::string> LiteProfile::whiteList = {};
+std::set<std::string> LiteProfile::kWhitelist = {};
 
 uint32 LiteProfile::bbNoThreshold = 100000;
 }

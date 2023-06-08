@@ -106,19 +106,23 @@ UniqueFEIRExpr FEIRBuilder::CreateExprDRead(UniqueFEIRVar srcVar) {
   return expr;
 }
 
-UniqueFEIRExpr FEIRBuilder::CreateExprDReadAggField(UniqueFEIRVar srcVar, FieldID fieldID, UniqueFEIRType fieldType) {
+UniqueFEIRExpr FEIRBuilder::CreateExprDReadAggField(UniqueFEIRVar srcVar, FieldID fieldID,
+                                                    UniqueFEIRType fieldType, FieldID lenFieldID) {
   CHECK_FATAL(srcVar != nullptr && srcVar->GetType()->GetPrimType() == PTY_agg,
               "var type must be struct type, %u", srcVar->GetType()->GetPrimType());
   UniqueFEIRExpr expr = std::make_unique<FEIRExprDRead>(std::move(srcVar));
   expr->SetFieldID(fieldID);
   expr->SetFieldType(std::move(fieldType));
+  if (lenFieldID != 0) {
+    expr->SetLenFieldID(lenFieldID);
+  }
   return expr;
 }
 
 UniqueFEIRExpr FEIRBuilder::CreateExprIRead(UniqueFEIRType returnType, UniqueFEIRType ptrType,
-                                            UniqueFEIRExpr expr, FieldID id /* optional parameters */) {
+                                            UniqueFEIRExpr expr, FieldID id, FieldID lenId /* optional parameters */) {
   UniqueFEIRExpr feirExpr = std::make_unique<FEIRExprIRead>(std::move(returnType), std::move(ptrType),
-                                                            id, std::move(expr));
+                                                            id, lenId, std::move(expr));
   return feirExpr;
 }
 

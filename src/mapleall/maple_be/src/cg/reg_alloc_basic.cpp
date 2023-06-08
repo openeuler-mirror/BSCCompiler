@@ -58,10 +58,12 @@ Operand *DefaultO0RegAllocator::HandleMemOpnd(Operand &opnd) {
   Operand *res = nullptr;
   if (memOpnd->GetBaseRegister() != nullptr) {
     res = AllocSrcOpnd(*memOpnd->GetBaseRegister());
+    CHECK_NULL_FATAL(res);
     memOpnd->SetBaseRegister(static_cast<RegOperand&>(*res));
   }
   if (memOpnd->GetIndexRegister() != nullptr) {
     res = AllocSrcOpnd(*memOpnd->GetIndexRegister());
+    CHECK_NULL_FATAL(res);
     memOpnd->SetIndexRegister(static_cast<RegOperand&>(*res));
   }
   (void)allocatedSet.insert(&opnd);
@@ -157,7 +159,7 @@ bool DefaultO0RegAllocator::AllocatePhysicalRegister(const RegOperand &opnd) {
     if (!availRegSet[reg]) {
       continue;
     }
-    if (multiDefForInsn.count(reg)) {
+    if (multiDefForInsn.count(reg) != 0) {
       continue;
     }
 

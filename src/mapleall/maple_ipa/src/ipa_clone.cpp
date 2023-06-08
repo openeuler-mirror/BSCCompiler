@@ -47,19 +47,6 @@ bool IpaClone::IsBrCondOrIf(Opcode op) const {
   return op == OP_brfalse || op == OP_brtrue || op == OP_if;
 }
 
-MIRSymbol *IpaClone::IpaCloneLocalSymbol(const MIRSymbol &oldSym, const MIRFunction &newFunc) {
-  MemPool *newMP = newFunc.GetDataMemPool();
-  MIRSymbol *newSym = newMP->New<MIRSymbol>(oldSym);
-  if (oldSym.GetSKind() == kStConst) {
-    newSym->SetKonst(oldSym.GetKonst()->Clone(*newMP));
-  } else if (oldSym.GetSKind() == kStPreg) {
-    newSym->SetPreg(newMP->New<MIRPreg>(*oldSym.GetPreg()));
-  } else if (oldSym.GetSKind() == kStFunc) {
-    CHECK_FATAL(false, "%s has unexpected local func symbol", oldSym.GetName().c_str());
-  }
-  return newSym;
-}
-
 void IpaClone::IpaCloneSymbols(MIRFunction &newFunc, const MIRFunction &oldFunc) {
   size_t symTabSize = oldFunc.GetSymbolTabSize();
   for (size_t i = oldFunc.GetFormalCount() + 1; i < symTabSize; ++i) {
@@ -67,7 +54,7 @@ void IpaClone::IpaCloneSymbols(MIRFunction &newFunc, const MIRFunction &oldFunc)
     if (sym == nullptr) {
       continue;
     }
-    MIRSymbol *newSym = IpaCloneLocalSymbol(*sym, newFunc);
+    MIRSymbol *newSym = Clone::CloneLocalSymbol(*sym, newFunc);
     if (!newFunc.GetSymTab()->AddStOutside(newSym)) {
       CHECK_FATAL(false, "%s already existed in func %s", sym->GetName().c_str(), newFunc.GetName().c_str());
     }
@@ -87,7 +74,7 @@ void IpaClone::IpaClonePregTable(MIRFunction &newFunc, const MIRFunction &oldFun
   size_t pregTableSize = oldFunc.GetPregTab()->Size();
   MIRPregTable *newPregTable = newFunc.GetPregTab();
   for (size_t i = 0; i < pregTableSize; ++i) {
-    MIRPreg *temp = const_cast<MIRPreg*>(oldFunc.GetPregTab()->GetPregTableItem(static_cast<uint32>(i)));
+    const MIRPreg *temp = oldFunc.GetPregTab()->GetPregTableItem(static_cast<uint32>(i));
     if (temp != nullptr) {
       PregIdx id = newPregTable->CreatePreg(temp->GetPrimType(), temp->GetMIRType());
       MIRPreg *newPreg = newPregTable->PregFromPregIdx(id);
@@ -368,7 +355,7 @@ void IpaClone::RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, in
 // 1. clone Function && replace the condtion
 // 2. modify the callsite and update the call_graph
 void IpaClone::DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramIndex,
-                                   std::map<uint32, std::vector<int64_t>> &evalMap) const {
+                                   std::map<uint32, std::vector<int64_t>> &evalMap) {
   uint32 puidx = curFunc->GetPuidx();
   CalleePair keyPair(puidx, paramIndex);
   auto &calleeInfo = mirModule->GetCalleeParamAboutInt();

@@ -455,6 +455,14 @@ class FEIRExpr {
     return GetFieldIDImpl();
   }
 
+  FieldID GetLenFieldID() const {
+    return GetLenFieldIDImpl();
+  }
+
+  void SetLenFieldID(FieldID fieldID) {
+    return SetLenFieldIDImpl(fieldID);
+  }
+
   void SetFieldID(FieldID fieldID) {
     return SetFieldIDImpl(fieldID);
   }
@@ -513,6 +521,14 @@ class FEIRExpr {
   virtual const FEIRType &GetTypeRefImpl() const {
     ASSERT(GetTypeImpl() != nullptr, "type is nullptr");
     return *GetTypeImpl();
+  }
+
+  virtual FieldID GetLenFieldIDImpl() const {
+    CHECK_FATAL(false, "unsupported in base class");
+  }
+
+  virtual void SetLenFieldIDImpl(FieldID fieldID) {
+    CHECK_FATAL(false, "unsupported in base class");
   }
 
   virtual FieldID GetFieldIDImpl() const {
@@ -667,6 +683,9 @@ class FEIRExprDRead : public FEIRExpr {
   FieldID GetFieldIDImpl() const override {
     return fieldID;
   }
+  FieldID GetLenFieldIDImpl() const override {
+    return lenFieldID;
+  }
 
   void SetFieldTypeImpl(std::unique_ptr<FEIRType> type) override {
     fieldType = std::move(type);
@@ -674,6 +693,10 @@ class FEIRExprDRead : public FEIRExpr {
 
   void SetFieldIDImpl(FieldID argFieldID) override {
     fieldID = argFieldID;
+  }
+
+  void SetLenFieldIDImpl(FieldID argFieldID) override {
+    lenFieldID = argFieldID;
   }
 
   uint32 HashImpl() const override {
@@ -684,6 +707,7 @@ class FEIRExprDRead : public FEIRExpr {
  private:
   std::unique_ptr<FEIRVar> varSrc;
   FieldID fieldID = 0;
+  FieldID lenFieldID = 0;
   std::unique_ptr<FEIRType> fieldType;
 };
 
@@ -1069,10 +1093,10 @@ class FEIRExprExtractBits : public FEIRExprUnary {
 // ---------- FEIRExprIRead ----------
 class FEIRExprIRead : public FEIRExpr {
  public:
-  FEIRExprIRead(UniqueFEIRType returnType, UniqueFEIRType pointeeType, FieldID id, UniqueFEIRExpr expr)
+  FEIRExprIRead(UniqueFEIRType returnType, UniqueFEIRType pointeeType, FieldID id, FieldID lenId, UniqueFEIRExpr expr)
       : FEIRExpr(FEIRNodeKind::kExprIRead, std::move(returnType)),
         ptrType(std::move(pointeeType)),
-        fieldID(id),
+        fieldID(id), lenFieldID(lenId),
         subExpr(std::move(expr)) {}
   ~FEIRExprIRead() override = default;
 
@@ -1102,6 +1126,10 @@ class FEIRExprIRead : public FEIRExpr {
     return fieldID;
   }
 
+  FieldID GetLenFieldIDImpl() const override {
+    return lenFieldID;
+  }
+
   void SetFieldIDImpl(FieldID argFieldID) override {
     fieldID = argFieldID;
   }
@@ -1118,6 +1146,7 @@ class FEIRExprIRead : public FEIRExpr {
  private:
   UniqueFEIRType ptrType = nullptr;
   FieldID fieldID = 0;
+  FieldID lenFieldID = 0;
   UniqueFEIRExpr subExpr = nullptr;
 };
 
@@ -1637,7 +1666,8 @@ class FEIRStmtAssign : public FEIRStmt {
 // ---------- FEIRStmtDAssign ----------
 class FEIRStmtDAssign : public FEIRStmtAssign {
  public:
-  FEIRStmtDAssign(std::unique_ptr<FEIRVar> argVar, std::unique_ptr<FEIRExpr> argExpr, int32 argFieldID = 0);
+  FEIRStmtDAssign(std::unique_ptr<FEIRVar> argVar, std::unique_ptr<FEIRExpr> argExpr, int32 argFieldID = 0,
+                  int32 lenId = 0);
   ~FEIRStmtDAssign() override = default;
   FEIRExpr *GetExpr() const {
     return expr.get();
@@ -1662,17 +1692,19 @@ class FEIRStmtDAssign : public FEIRStmtAssign {
 
   std::unique_ptr<FEIRExpr> expr;
   FieldID fieldID;
+  FieldID lenFieldID;
 };
 
 // ---------- FEIRStmtIAssign ----------
 class FEIRStmtIAssign : public FEIRStmt {
  public:
-  FEIRStmtIAssign(UniqueFEIRType argAddrType, UniqueFEIRExpr argAddrExpr, UniqueFEIRExpr argBaseExpr, FieldID id)
+  FEIRStmtIAssign(UniqueFEIRType argAddrType, UniqueFEIRExpr argAddrExpr, UniqueFEIRExpr argBaseExpr, FieldID id,
+                  FieldID lenId = 0)
       : FEIRStmt(FEIRNodeKind::kStmtIAssign),
         addrType(std::move(argAddrType)),
         addrExpr(std::move(argAddrExpr)),
         baseExpr(std::move(argBaseExpr)),
-        fieldID(id) {}
+        fieldID(id), lenFieldID(lenId) {}
   ~FEIRStmtIAssign() override = default;
 
  protected:
@@ -1688,6 +1720,7 @@ class FEIRStmtIAssign : public FEIRStmt {
   UniqueFEIRExpr addrExpr;
   UniqueFEIRExpr baseExpr;
   FieldID fieldID;
+  FieldID lenFieldID;
 };
 
 // ---------- FEIRStmtJavaTypeCheck ----------
@@ -2586,7 +2619,7 @@ class FEIRStmtIntrinsicCallAssign : public FEIRStmtAssign {
 
  private:
   void ConstructArgsForInvokePolyMorphic(MIRBuilder &mirBuilder, MapleVector<BaseNode*> &intrnCallargs) const;
-  std::list<StmtNode*> GenMIRStmtsForIntrnC(MIRBuilder &mirBuilder, TyIdx returnTyIdx = TyIdx(0)) const;
+  std::list<StmtNode*> GenMIRStmtsForIntrnC(MIRBuilder &mirBuilder, const TyIdx &returnTyIdx = TyIdx(0)) const;
   std::list<StmtNode*> GenMIRStmtsForFillNewArray(MIRBuilder &mirBuilder) const;
   std::list<StmtNode*> GenMIRStmtsForInvokePolyMorphic(MIRBuilder &mirBuilder) const;
   std::list<StmtNode*> GenMIRStmtsForClintCheck(MIRBuilder &mirBuilder) const;

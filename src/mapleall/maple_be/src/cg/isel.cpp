@@ -188,14 +188,14 @@ void HandleIassignoff(StmtNode &stmt, MPISel &iSel) {
   iSel.SelectIassignoff(iassignoffNode);
 }
 
-void HandleLabel(StmtNode &stmt, const MPISel &iSel) {
+void HandleLabel(StmtNode &stmt, MPISel &iSel) {
   CGFunc *cgFunc = iSel.GetCurFunc();
   ASSERT(stmt.GetOpCode() == OP_label, "error");
   auto &label = static_cast<LabelNode&>(stmt);
   BB *newBB = cgFunc->StartNewBBImpl(false, label);
   newBB->SetKind(BB::kBBFallthru);
   newBB->AddLabel(label.GetLabelIdx());
-  cgFunc->SetLab2BBMap(static_cast<int32>(newBB->GetLabIdx()), *newBB);
+  cgFunc->SetLab2BBMap(newBB->GetLabIdx(), *newBB);
   cgFunc->SetCurBB(*newBB);
 
   if (cgFunc->GetCleanupLabel() == &label) {
@@ -258,7 +258,7 @@ void HandleReturn(StmtNode &stmt, MPISel &iSel) {
   cgFunc->SetCurBB(*cgFunc->StartNewBB(retNode));
 }
 
-void HandleComment(StmtNode &stmt [[maybe_unused]], MPISel &iSel [[maybe_unused]]) {
+void HandleComment(const StmtNode &stmt [[maybe_unused]], const MPISel &iSel [[maybe_unused]]) {
   return;
 }
 
@@ -374,7 +374,7 @@ Operand *HandleTrunc(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   return iSel.SelectCvt(parent, static_cast<TypeCvtNode&>(expr), *iSel.HandleExpr(expr, *expr.Opnd(0)));
 }
 
-Operand *HandleConstVal(const BaseNode &parent, BaseNode &expr, const MPISel &iSel) {
+Operand *HandleConstVal(const BaseNode &parent, BaseNode &expr, MPISel &iSel) {
   auto &constValNode = static_cast<ConstvalNode&>(expr);
   MIRConst *mirConst = constValNode.GetConstVal();
   ASSERT(mirConst != nullptr, "get constval of constvalnode failed");
@@ -658,7 +658,7 @@ PrimType MPISel::GetIntegerPrimTypeFromSize(bool isSigned, uint32 bitSize) const
   return isSigned ? signedPrimType[index] : unsignedPrimType[index];
 }
 
-void MPISel::SelectCallCommon(StmtNode &stmt, const MPISel &iSel) const {
+void MPISel::SelectCallCommon(StmtNode &stmt, MPISel &iSel) const {
   CGFunc *cgFuncTemp = iSel.GetCurFunc();
   if (cgFuncTemp->GetCurBB()->GetKind() != BB::kBBFallthru) {
     cgFuncTemp->SetCurBB(*cgFuncTemp->StartNewBB(stmt));
@@ -732,14 +732,14 @@ std::pair<FieldID, MIRType*> MPISel::GetFieldIdAndMirTypeFromMirNode(const BaseN
   return {fieldId, mirType};
 }
 
-MirTypeInfo MPISel::GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType *mirType) {
+MirTypeInfo MPISel::GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType *mirType) const {
   MirTypeInfo mirTypeInfo;
   /* fixup primType and offset */
   if (fieldId != 0) {
     ASSERT((mirType->IsMIRStructType() || mirType->IsMIRUnionType()), "non-structure");
     MIRStructType *structType = static_cast<MIRStructType*>(mirType);
     mirType = structType->GetFieldType(fieldId);
-    mirTypeInfo.offset = structType->GetFieldOffsetFromBaseAddr(fieldId).byteOffset;
+    mirTypeInfo.offset = static_cast<int32>(structType->GetFieldOffsetFromBaseAddr(fieldId).byteOffset);
   }
   mirTypeInfo.primType = mirType->GetPrimType();
   // aggSize for AggType
@@ -1461,7 +1461,7 @@ Operand *MPISel::SelectCGArrayElemAdd(const BinaryNode &node) {
   }
 }
 
-StmtNode *MPISel::HandleFuncEntry() const {
+StmtNode *MPISel::HandleFuncEntry() {
   MIRFunction &mirFunc = cgFunc->GetFunction();
   BlockNode *block = mirFunc.GetBody();
 

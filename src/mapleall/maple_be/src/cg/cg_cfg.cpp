@@ -101,7 +101,8 @@ void CGCFG::BuildCFG() {
          * An intrinsic BB append a MOP_wcbnz instruction at the end, check
          * AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode *intrinsiccallNode) for details
          */
-        if (!curBB->GetLastInsn()->IsBranch()) {
+        CHECK_NULL_FATAL(curBB->GetLastMachineInsn());
+        if (!curBB->GetLastMachineInsn()->IsBranch()) {
           break;
         }
       /* else fall through */
@@ -413,11 +414,11 @@ void CGCFG::MergeBB(BB &merger, BB &mergee, CGFunc &func) {
 }
 
 void CGCFG::MergeBB(BB &merger, BB &mergee) {
-  if (merger.GetKind() == BB::kBBGoto) {
-    if (!merger.GetLastInsn()->IsBranch()) {
+  if (merger.GetKind() == BB::kBBGoto && merger.GetLastMachineInsn() != nullptr) {
+    if (!merger.GetLastMachineInsn()->IsBranch()) {
       CHECK_FATAL(false, "unexpected insn kind");
     }
-    merger.RemoveInsn(*merger.GetLastInsn());
+    merger.RemoveInsn(*merger.GetLastMachineInsn());
   }
   merger.AppendBBInsns(mergee);
   if (mergee.GetPrev() != nullptr) {
@@ -651,7 +652,7 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
   }
 
   /* If bb is removed, the related die information needs to be updated. */
-  if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
+  if (cgFunc->GetCG()->GetCGOptions().WithDwarf() && cgFunc->GetWithSrc()) {
     DebugInfo *di = cgFunc->GetCG()->GetMIRModule()->GetDbgInfo();
     DBGDie *fdie = di->GetFuncDie(&cgFunc->GetFunction());
     CHECK_FATAL(fdie != nullptr, "fdie should not be nullptr");

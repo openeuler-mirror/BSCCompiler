@@ -150,7 +150,8 @@ bool AArch64Ebo::IsGlobalNeeded(Insn &insn) const {
 
   std::set<uint32> defRegs = insn.GetDefRegs();
   for (auto defRegNo : defRegs) {
-    if (defRegNo == RZR || defRegNo == RSP || ((defRegNo == RFP || defRegNo == R29) && CGOptions::UseFramePointer())) {
+    if (defRegNo == RZR || defRegNo == RSP || ((defRegNo == RFP || defRegNo == R29) &&
+                                               CGOptions::UseFramePointer() != 0)) {
       return true;
     }
   }
@@ -556,7 +557,7 @@ bool AArch64Ebo::Csel2Cset(Insn &insn, const MapleVector<Operand*> &opnds) {
         }
       } else {
         auto &cond = static_cast<CondOperand&>(condOperand);
-        if (!CheckCondCode(cond)) {
+        if (!AArch64isa::CheckCondCode(cond)) {
           return false;
         }
         CondOperand &reverseCond = a64CGFunc->GetCondOperand(GetReverseCond(cond));
@@ -670,9 +671,24 @@ bool AArch64Ebo::SimplifyConstOperand(Insn &insn, const MapleVector<Operand*> &o
         return result;
       }
       Operand &prevOpnd0 = prev->GetOperand(kInsnSecondOpnd);
+      // do not prop x16 register
+      if (prevOpnd0.IsRegister() && static_cast<RegOperand&>(prevOpnd0).GetRegisterNumber() == R16) {
+        return result;
+      }
+      // prop vary attr
       ImmOperand &imm0 = static_cast<ImmOperand&>(prev->GetOperand(kInsnThirdOpnd));
       int64_t val = imm0.GetValue() + immOpnd->GetValue();
-      ImmOperand &imm1 = a64CGFunc->CreateImmOperand(val, opndSize, imm0.IsSignedValue());
+      VaryType resVaryType = kNotVary;
+      if (imm0.GetVary() == kUnAdjustVary && immOpnd->GetVary() == kUnAdjustVary) {
+        return result;
+      }
+      if (imm0.GetVary() == kUnAdjustVary || immOpnd->GetVary() == kUnAdjustVary) {
+        resVaryType = kUnAdjustVary;
+      }
+      if (imm0.GetVary() == kAdjustVary || immOpnd->GetVary() == kAdjustVary) {
+        resVaryType = kAdjustVary;
+      }
+      ImmOperand &imm1 = a64CGFunc->CreateImmOperand(val, opndSize, imm0.IsSignedValue(), resVaryType);
       if (imm1.IsInBitSize(kMaxImmVal24Bits, 0) && (imm1.IsInBitSize(kMaxImmVal12Bits, 0) ||
                                                     imm1.IsInBitSize(kMaxImmVal12Bits, kMaxImmVal12Bits))) {
         MOperator mOp = (opndSize == k64BitSize ? MOP_xaddrri12 : MOP_waddrri12);
@@ -702,21 +718,6 @@ ConditionCode AArch64Ebo::GetReverseCond(const CondOperand &cond) const {
       CHECK_FATAL(false, "Not support yet.");
   }
   return kCcLast;
-}
-
-/* return true if cond == CC_LE */
-bool AArch64Ebo::CheckCondCode(const CondOperand &cond) const {
-  switch (cond.GetCode()) {
-    case CC_NE:
-    case CC_EQ:
-    case CC_LT:
-    case CC_GE:
-    case CC_GT:
-    case CC_LE:
-      return true;
-    default:
-      return false;
-  }
 }
 
 bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const ImmOperand &immOperand0,
@@ -880,13 +881,18 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
   if (newMemOp == nullptr || !a64CGFunc->IsOperandImmValid(newPreMop, newMemOp, prevInsn->GetMemOpndIdx())) {
     return false;
   }
-  prevInsn->SetMemOpnd(newMemOp);
+
   if (is64bits && idx <= SXTW && idx >= SXTB) {
+    // To avoid modifying def opnd beacause there is not all use info of opnd in ebo.
+    if (newPreMop != ExtLoadSwitchBitSize(newPreMop)) {
+      return false;
+    }
     newPreMop = ExtLoadSwitchBitSize(newPreMop);
     auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
     prevDstOpnd.SetSize(k64BitSize);
     prevDstOpnd.SetValidBitsNum(k64BitSize);
   }
+  prevInsn->SetMemOpnd(newMemOp);
   prevInsn->SetMOP(AArch64CG::kMd[newPreMop]);
   MOperator movOp = is64bits ? MOP_xmovrr : MOP_wmovrr;
   if (insn->GetMachineOpcode() == MOP_wandrri12 ||
@@ -1348,7 +1354,7 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
             if (((opc1 == MOP_xcsetrc) || (opc1 == MOP_wcsetrc)) &&
                 static_cast<ImmOperand&>(cmp1->GetOperand(kInsnThirdOpnd)).IsZero()) {
               CondOperand &cond1 = static_cast<CondOperand&>(csetInsn->GetOperand(kInsnSecondOpnd));
-              if (!CheckCondCode(cond1)) {
+              if (!AArch64isa::CheckCondCode(cond1)) {
                 return false;
               }
               if (EBO_DUMP) {

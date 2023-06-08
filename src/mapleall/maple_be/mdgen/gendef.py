@@ -30,7 +30,7 @@ def Gendef(execTool, mdFiles, outputDir, asanLib=None):
       if asanLib is not None:
         asanEnv = asanLib.split("=")
         localEnv[asanEnv[0]] = asanEnv[1]
-        print("env :" + str(asanEnv))
+        print("env :{}".format(str(asanEnv)))
       subprocess.check_call(shlex.split(mdCmd), shell = False, env = localEnv)
     else:
       tdList.append(i)
@@ -89,4 +89,3 @@ def main():
 
 if __name__ == "__main__":
   main()
-

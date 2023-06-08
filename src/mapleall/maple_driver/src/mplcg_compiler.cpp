@@ -103,7 +103,6 @@ void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const Action &a
                                       const MIRModule &md) const {
   std::string runStr = "--run=";
   std::string optionStr = "--option=\"";
-  std::string connectSym = "";
   if (options.GetExeOptions().find(kBinNameMplcg) != options.GetExeOptions().end()) {
     runStr += "mplcg";
     auto it = options.GetExeOptions().find(kBinNameMplcg);
@@ -132,7 +131,7 @@ ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) const {
   /* use maple flags to set cg flags */
   if (opts::withDwarf) {
     cgOption.SetOption(CGOptions::kWithDwarf);
-#if DEBUG
+#if defined(DEBUG) && DEBUG
     cgOption.SetOption(CGOptions::kVerboseAsm);
 #endif
   }
@@ -226,9 +225,9 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, const Action &action,
       }
     }
     timer.Stop();
-  if (opts::debug) {
-    LogInfo::MapleLogger() << "Mplcg Parser consumed " << timer.ElapsedMilliseconds() << "ms\n";
-  }
+    if (opts::debug) {
+      LogInfo::MapleLogger() << "Mplcg Parser consumed " << timer.ElapsedMilliseconds() << "ms\n";
+    }
   }
   SetOutputFileName(options, action, *theModule);
   theModule->SetInputFileName(fileName);

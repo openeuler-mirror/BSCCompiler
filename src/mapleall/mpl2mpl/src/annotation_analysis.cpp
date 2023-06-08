@@ -217,30 +217,26 @@ void AnnotationParser::InitClassGenericDeclare(MemPool &pragmaMemPool, MIRStruct
   }
 }
 
+void AnnotationAnalysis::GetATokenKind(AnnotationParser &aParser, MIRStructType *sType, ATokenKind &t) {
+  while (t != kTemplateEnd) {
+    aParser.BackOne();
+    (void)ReadInGenericType(aParser, sType);
+    t = aParser.GetNextToken();
+  }
+  CHECK_FATAL(t == kTemplateEnd, "must be");
+  t = aParser.GetNextToken();
+}
+
 void AnnotationAnalysis::ByPassFollowingInfo(AnnotationParser &aParser, MIRStructType *sType) {
   ATokenKind t = aParser.GetNextToken();
   if (t == kTemplateStart) {
-    t = aParser.GetNextToken();
-    while (t != kTemplateEnd) {
-      aParser.BackOne();
-      (void)ReadInGenericType(aParser, sType);
-      t = aParser.GetNextToken();
-    }
-    CHECK_FATAL(t == kTemplateEnd, "must be");
-    t = aParser.GetNextToken();
+    GetATokenKind(aParser, sType, t);
   }
   while (t == kSubClass) {
     (void)aParser.GetNextClassName(true);
     t = aParser.GetNextToken();
     if (t == kTemplateStart) {
-      t = aParser.GetNextToken();
-      while (t != kTemplateEnd) {
-        aParser.BackOne();
-        (void)ReadInGenericType(aParser, sType);
-        t = aParser.GetNextToken();
-      }
-      CHECK_FATAL(t == kTemplateEnd, "must be");
-      t = aParser.GetNextToken();
+      GetATokenKind(aParser, sType, t);
     }
   }
   CHECK_FATAL(t == kSemiComma, "must be");
@@ -277,14 +273,7 @@ AnnotationType *AnnotationAnalysis::ReadInGenericType(AnnotationParser &aParser,
           AnnotationType *tmp = ReadInGenericType(aParser, sType);
           gt->AddGenericPair(gdVector[i], tmp);
         }
-        t = aParser.GetNextToken();
-        while (t != kTemplateEnd) {
-          aParser.BackOne();
-          (void)ReadInGenericType(aParser, sType);
-          t = aParser.GetNextToken();
-        }
-        CHECK_FATAL(t == kTemplateEnd, "must be");
-        t = aParser.GetNextToken();
+        GetATokenKind(aParser, sType, t);
       }
       while (t == kSubClass) {
         std::string subClassName = aParser.GetNextClassName(true);
@@ -297,14 +286,7 @@ AnnotationType *AnnotationAnalysis::ReadInGenericType(AnnotationParser &aParser,
             AnnotationType *tmp = ReadInGenericType(aParser, sType);
             gt->AddGenericPair(gdTmpVector[i], tmp);
           }
-          t = aParser.GetNextToken();
-          while (t != kTemplateEnd) {
-            aParser.BackOne();
-            (void)ReadInGenericType(aParser, sType);
-            t = aParser.GetNextToken();
-          }
-          CHECK_FATAL(t == kTemplateEnd, "must be");
-          t = aParser.GetNextToken();
+          GetATokenKind(aParser, sType, t);
         }
       }
       CHECK_FATAL(t == kSemiComma, "must be");

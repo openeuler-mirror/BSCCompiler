@@ -284,6 +284,10 @@ MIRType *FEIRTypeDefault::GenerateMIRTypeForPrim() const {
       return GlobalTables::GetTypeTable().GetRef();
     case PTY_ptr:
       return GlobalTables::GetTypeTable().GetPtr();
+    case PTY_u128:
+      return GlobalTables::GetTypeTable().GetUInt128();
+    case PTY_i128:
+      return GlobalTables::GetTypeTable().GetInt128();
     default:
       CHECK_FATAL(false, "unsupported prim type");
   }

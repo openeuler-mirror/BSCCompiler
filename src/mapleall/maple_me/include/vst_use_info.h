@@ -85,7 +85,7 @@ class VstUseItem final {
 
 using VstUseSiteList = MapleList<VstUseItem>;
 
-enum VstUnseInfoState {
+enum VstUnseInfoState : uint8 {
   kVstUseInfoInvalid = 0,
   kVstUseInfoTopLevelVst = 1,
   kVstUseInfoAddrTakenVst = 2
@@ -98,7 +98,7 @@ class VstUseInfo final {
   ~VstUseInfo() = default;
 
   bool IsUseInfoOfTopLevelValid() const {
-    return useInfoState & kVstUseInfoTopLevelVst;
+    return ((static_cast<uint8>(useInfoState) & static_cast<uint8>(kVstUseInfoTopLevelVst)) != 0);
   }
   bool IsUseInfoInvalid() const {
     return useInfoState == kVstUseInfoInvalid;
@@ -108,7 +108,7 @@ class VstUseInfo final {
     return *useSites;
   }
 
-  VstUseSiteList *GetUseSitesOf(const VersionSt &vst) const {
+  VstUseSiteList *GetUseSitesOf(const VersionSt &vst) {
     return (*useSites)[vst.GetIndex()];
   }
 

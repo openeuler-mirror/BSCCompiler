@@ -59,7 +59,7 @@ void MeSplitCEdge::UpdateNewBBInTry(const MeFunction &func, BB &newBB, const BB 
       newBB.AddSucc(*candCatch);
     }
   }
-  ASSERT(setEHEdge, "must set eh edge");
+  CHECK_FATAL(setEHEdge, "must set eh edge");
 }
 
 void MeSplitCEdge::UpdateGotoLabel(BB &newBB, MeFunction &func, BB &pred, BB &succ) const {

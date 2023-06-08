@@ -20,10 +20,10 @@
 
 namespace maple {
 // For controlling cast elimination
-static constexpr bool simplifyCastExpr = true;
-static constexpr bool simplifyCastAssign = true;
+static constexpr bool kSimplifyCastExpr = true;
+static constexpr bool kSimplifyCastAssign = true;
 // This is not safe because handlefunction may ignore necessary implicit intTrunc, so we skip it now.
-static constexpr bool mapleSimplifyZextU32 = false;
+static constexpr bool kMapleSimplifyZextU32 = false;
 
 CastKind GetCastKindByTwoType(PrimType fromType, PrimType toType) {
   // This is a workaround, we don't optimize `cvt u1 xx <expr>` because it will be converted to
@@ -194,7 +194,7 @@ void CastOpt::DoComputeCastInfo(CastInfo<T> &castInfo, bool isMeExpr) {
 }
 
 static constexpr auto kNumCastKinds = static_cast<uint32>(CAST_unknown);
-static const uint8 castMatrix[kNumCastKinds][kNumCastKinds] = {
+static const uint8 kCastMatrix[kNumCastKinds][kNumCastKinds] = {
     // i        i  f  f     r  -+
     // t        n  p  t  f  e   |
     // r  z  s  t  2  r  p  t   +- secondCastKind
@@ -211,7 +211,7 @@ static const uint8 castMatrix[kNumCastKinds][kNumCastKinds] = {
     {  5, 7, 7,11, 6, 6, 6, 1 },  // retype     -+
 };
 
-// This function determines whether to eliminate a cast pair according to castMatrix
+// This function determines whether to eliminate a cast pair according to kCastMatrix
 // Input is a cast pair like this:
 //   secondCastKind dstType midType2 (firstCastKind midType1 srcType)
 // If the function returns a valid resultCastKind, the cast pair can be optimized to:
@@ -220,7 +220,7 @@ static const uint8 castMatrix[kNumCastKinds][kNumCastKinds] = {
 // ATTENTION: This function may modify srcType
 int CastOpt::IsEliminableCastPair(CastKind firstCastKind, CastKind secondCastKind,
                                   PrimType dstType, PrimType midType2, PrimType midType1, PrimType &srcType) {
-  int castCase = castMatrix[firstCastKind][secondCastKind];
+  int castCase = kCastMatrix[firstCastKind][secondCastKind];
   uint32 srcSize = GetPrimTypeActualBitSize(srcType);
   uint32 midSize1 = GetPrimTypeActualBitSize(midType1);
   uint32 midSize2 = GetPrimTypeActualBitSize(midType2);
@@ -351,7 +351,7 @@ int CastOpt::IsEliminableCastPair(CastKind firstCastKind, CastKind secondCastKin
       CHECK_FATAL(false, "invalid cast pair");
     }
     default: {
-      CHECK_FATAL(false, "can not be here, is castMatrix wrong?");
+      CHECK_FATAL(false, "can not be here, is kCastMatrix wrong?");
     }
   }
 }
@@ -482,7 +482,7 @@ MeExpr *MeCastOpt::SimplifyCastPair(IRMap &irMap, const MeExprCastInfo &firstCas
 
 // Return a simplified expr if succeed, return nullptr if fail
 MeExpr *MeCastOpt::SimplifyCast(IRMap &irMap, MeExpr *expr) {
-  if (!simplifyCastExpr) {
+  if (!kSimplifyCastExpr) {
     return nullptr;
   }
   Opcode op = expr->GetOp();
@@ -522,7 +522,7 @@ MeExpr *MeCastOpt::SimplifyCast(IRMap &irMap, MeExpr *expr) {
 }
 
 void MeCastOpt::SimplifyCastForAssign(MeStmt *assignStmt) {
-  if (!simplifyCastAssign) {
+  if (!kSimplifyCastAssign) {
     return;
   }
   Opcode stmtOp = assignStmt->GetOp();
@@ -577,7 +577,7 @@ void MeCastOpt::SimplifyCastForAssign(MeStmt *assignStmt) {
   }
 }
 
-MeExpr *MeCastOpt::TransformCvtU1ToNe(IRMap &irMap, OpMeExpr *cvtExpr) {
+MeExpr *MeCastOpt::TransformCvtU1ToNe(IRMap &irMap, const OpMeExpr *cvtExpr) {
   MeExpr *opnd = cvtExpr->GetOpnd(0);
   PrimType fromType = cvtExpr->GetOpndType();
   // Convert `cvt u1 xx <expr>` to `ne u1 xx (<expr>, constval xx 0)`
@@ -667,7 +667,7 @@ BaseNode *MapleCastOpt::SimplifyCastSingle(MIRBuilder &mirBuilder, const BaseNod
       return mirBuilder.CreateConstval(cst);
     }
   }
-  if (mapleSimplifyZextU32) {
+  if (kMapleSimplifyZextU32) {
     // zextTo32 + read  ==>  read 32
     if (castInfo.kind == CAST_zext && (opndOp == OP_iread || opndOp == OP_regread || opndOp == OP_dread)) {
       uint32 dstSize = GetPrimTypeActualBitSize(castInfo.dstType);

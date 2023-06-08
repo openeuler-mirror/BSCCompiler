@@ -24,10 +24,6 @@ enum class FI {
   kConst,     // means this function will not read/modify any global memory.
 };
 
-static std::string kFIStr[] = {
-    "kUnknown", "kNoDirectGlobleAccess", "kPure", "kConst"
-};
-
 enum class RI {
   kUnknown = 0,   // for ptr value, don't know anything.
   kNoAlias,       // for ptr value, no alias with any other ptr when this method is returned. As in malloc.
@@ -39,17 +35,6 @@ enum class RI {
   kAliasParam5,
 };
 
-static std::string kRIStr[] = {
-    "kUnknown",
-    "kNoAlias",
-    "kAliasParam0",
-    "kAliasParam1",
-    "kAliasParam2",
-    "kAliasParam3",
-    "kAliasParam4",
-    "kAliasParam5"
-};
-
 enum class PI {
   kUnknown = 0,       // for ptr param, may read/write every level memory.
   kReadWriteMemory,   // for ptr param, only read & write the memory it points to.
@@ -57,15 +42,6 @@ enum class PI {
   kReadMemoryOnly,    // for ptr param, only read the memory it points to.
   kReadSelfOnly,      // for ptr param, only read the ptr itself, do not dereference.
   kUnused,            // this param is not used in this function.
-};
-
-static std::string kPIStr[] = {
-    "kUnknown",
-    "kReadWriteMemory",
-    "kWriteMemoryOnly",
-    "kReadMemoryOnly",
-    "kReadSelfOnly",
-    "kUnused"
 };
 
 // most function has less than 6 parameters.
@@ -201,6 +177,17 @@ struct FuncDesc {
   }
 
   void Dump(size_t numParam = kMaxParamCount) {
+    const std::string kFIStr[] = {
+        "kUnknown", "kNoDirectGlobleAccess", "kPure", "kConst"
+    };
+    const std::string kRIStr[] = {
+        "kUnknown", "kNoAlias",
+        "kAliasParam0", "kAliasParam1", "kAliasParam2",
+        "kAliasParam3", "kAliasParam4", "kAliasParam5"
+    };
+    const std::string kPIStr[] = {
+        "kUnknown", "kReadWriteMemory", "kWriteMemoryOnly", "kReadMemoryOnly", "kReadSelfOnly", "kUnused"
+    };
     auto dumpCount = numParam > kMaxParamCount ? kMaxParamCount : numParam;
     LogInfo::MapleLogger() << kFIStr[static_cast<size_t>(funcInfo)]
                            << " " << kRIStr[static_cast<size_t>(returnInfo)];

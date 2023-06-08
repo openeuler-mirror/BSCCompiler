@@ -39,7 +39,7 @@ class Expand128Floats : public FuncOptimizeImpl {
   std::string GetSequentialName(const std::string &prefix) const;
   std::string SelectSoftFPCall(Opcode opCode, BaseNode *node) const;
   void ReplaceOpNode(BlockNode *block, BaseNode *baseNode, size_t opndId,
-                     BaseNode *currNode, MIRFunction *func, StmtNode *stmt);
+                     BaseNode &currNode, MIRFunction *func, StmtNode *stmt) const;
   bool CheckAndUpdateOp(BlockNode *block, BaseNode *node,
                         MIRFunction *func, StmtNode *stmt);
   void ProcessBody(BlockNode *block, MIRFunction *func);

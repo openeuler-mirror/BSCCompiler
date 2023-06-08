@@ -130,7 +130,7 @@ void MeLoopCanon::SplitPreds(const std::vector<BB*> &splitList, BB *splittedBB, 
     for (auto &phiIter : std::as_const(mergedBB->GetMePhiList())) {
       // replace phi opnd
       phiIter.second->GetOpnds().push_back(splittedBB->GetMePhiList().at(phiIter.first)->
-          GetOpnd(static_cast<size_t>(pos)));
+          GetOpnd(static_cast<uint>(pos)));
     }
     splittedBB->RemovePhiOpnd(pos);
     if (updateFreqs) {
@@ -277,7 +277,7 @@ void MeLoopCanon::InsertExitBB(LoopDesc &loop) {
           freq = curBB->GetSuccFreq()[static_cast<uint32>(idx)];
         }
         curBB->ReplaceSucc(succ, newExitBB);
-        succ->AddPred(*newExitBB, static_cast<size_t>(pos));
+        succ->AddPred(*newExitBB, static_cast<uint>(pos));
         if (updateFreqs) {
           newExitBB->SetFrequency(freq);
           newExitBB->PushBackSuccFreq(freq);

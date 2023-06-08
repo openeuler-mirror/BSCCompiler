@@ -90,24 +90,25 @@ class AArch64CombineRedundantX16Opt {
   bool IsEndOfSegment(Insn &insn, bool hasX16Def);
   void ComputeRecentAddImm();
   void RecordRecentSplitInsnInfo(Insn &insn);
-  bool IsUseX16MemInsn(Insn &insn);
+  bool IsUseX16MemInsn(const Insn &insn) const;
   void RecordUseX16InsnInfo(Insn &insn, MemPool *tmpMp, MapleAllocator *tmpAlloc);
   void ComputeValidAddImmInterval(UseX16InsnInfo &x16UseInfo, bool isPair);
   void FindCommonX16DefInsns(MemPool *tmpMp, MapleAllocator *tmpAlloc);
   void ProcessSameAddImmCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) const;
-  void ProcessIntervalIntersectionCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc);
+  void ProcessIntervalIntersectionCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) const;
   void CombineRedundantX16DefInsns(BB &bb);
 
   bool HasX16Def(const Insn &insn) const;
   bool HasX16Use(const Insn &insn) const;
   bool HasUseOpndReDef(const Insn &insn) const;
-  uint32 GetMemSizeFromMD(Insn &insn);
-  RegOperand *GetAddUseOpnd(Insn &insn);
-  uint32 GetMemOperandIdx(Insn &insn);
-  int64 GetAddImmValue(Insn &insn);
-  CombineInfo *CreateCombineInfo(int64 addImm, uint32 startIdx, uint32 endIdx, MemPool *tmpMp, MapleAllocator *tmpAlloc);
+  uint32 GetMemSizeFromMD(const Insn &insn) const;
+  RegOperand *GetAddUseOpnd(const Insn &insn);
+  uint32 GetMemOperandIdx(const Insn &insn) const;
+  int64 GetAddImmValue(const Insn &insn) const;
+  CombineInfo *CreateCombineInfo(int64 addImm, uint32 startIdx, uint32 endIdx, MemPool &tmpMp,
+                                 MapleAllocator *tmpAlloc) const;
   void RoundInterval(int64 &minInv, int64 &maxInv, uint32 startIdx, uint32 endIdx);
-  bool IsImmValidWithMemSize(uint32 memSize, int64 imm);
+  bool IsImmValidWithMemSize(uint32 memSize, int64 imm) const;
 
   AArch64CGFunc &aarFunc;
   SegmentInfo *segmentInfo = nullptr;

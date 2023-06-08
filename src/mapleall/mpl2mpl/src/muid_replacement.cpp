@@ -286,6 +286,19 @@ void MUIDReplacement::CollectSuperClassArraySymbolData() {
   }
 }
 
+void MUIDReplacement::HandleUndefFuncAndClassInfo(PUIdx puidx, StmtNode &stmt) {
+  if (puidx != 0) {
+    MIRFunction *undefMIRFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puidx);
+    if (undefMIRFunc->GetBody() == nullptr && (undefMIRFunc->IsJava() || !undefMIRFunc->GetBaseClassName().empty())) {
+      if (CheckFunctionIsUsed(*undefMIRFunc)) {
+        AddUndefFunc(undefMIRFunc);
+      }
+    }
+  }
+  // Some stmt requires classinfo but is lowered in CG. Handle them here.
+  CollectImplicitUndefClassInfo(stmt);
+}
+
 void MUIDReplacement::CollectFuncAndDataFromFuncList() {
   // Iterate function bodies
   for (MIRFunction *mirFunc : std::as_const(GetMIRModule().GetFunctionList())) {
@@ -319,17 +332,7 @@ void MUIDReplacement::CollectFuncAndDataFromFuncList() {
         default:
           break;
       }
-      if (puidx != 0) {
-        MIRFunction *undefMIRFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puidx);
-        if (undefMIRFunc->GetBody() == nullptr &&
-            (undefMIRFunc->IsJava() || !undefMIRFunc->GetBaseClassName().empty())) {
-          if (CheckFunctionIsUsed(*undefMIRFunc)) {
-            AddUndefFunc(undefMIRFunc);
-          }
-        }
-      }
-      // Some stmt requires classinfo but is lowered in CG. Handle them here.
-      CollectImplicitUndefClassInfo(*stmt);
+      HandleUndefFuncAndClassInfo(puidx, *stmt);
       stmt = stmt->GetNext();
     }
   }
@@ -451,16 +454,7 @@ void MUIDReplacement::CollectFuncAndData() {
         default:
           break;
       }
-      if (puidx != 0) {
-        MIRFunction *undefMIRFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puidx);
-        if (!undefMIRFunc->GetBody() && (undefMIRFunc->IsJava() || !undefMIRFunc->GetBaseClassName().empty())) {
-          if (CheckFunctionIsUsed(*undefMIRFunc)) {
-            AddUndefFunc(undefMIRFunc);
-          }
-        }
-      }
-      // Some stmt requires classinfo but is lowered in CG. Handle them here.
-      CollectImplicitUndefClassInfo(*stmt);
+      HandleUndefFuncAndClassInfo(puidx, *stmt);
       stmt = stmt->GetNext();
     }
   }
@@ -1241,15 +1235,16 @@ void MUIDReplacement::ReplaceAddroffuncConst(MIRConst *&entry, uint32 fieldID, b
   entry = constNode;
 }
 
+bool MUIDReplacement::IsMIRAggConstNull(MIRSymbol *tabSym) const {
+  return (tabSym == nullptr) || (tabSym->GetKonst() == nullptr);
+}
+
 void MUIDReplacement::ReplaceFieldTypeTable(const std::string &name) {
   MIRSymbol *tabSym = GetSymbolFromName(name);
-  if (tabSym == nullptr) {
+  if (IsMIRAggConstNull(tabSym)) {
     return;
   }
   auto *oldConst = safe_cast<MIRAggConst>(tabSym->GetKonst());
-  if (oldConst == nullptr) {
-    return;
-  }
   for (MIRConst *&oldTabEntry : oldConst->GetConstVec()) {
     CHECK_NULL_FATAL(oldTabEntry);
     if (oldTabEntry->GetKind() == kConstAggConst) {
@@ -1276,30 +1271,31 @@ void MUIDReplacement::ReplaceFieldTypeTable(const std::string &name) {
   }
 }
 
+void MUIDReplacement::ReplaceAddrofConstByCreatingNewIntConst(MIRAggConst &aggrC, uint32 i) {
+  ReplaceAddrofConst(aggrC.GetConstVecItem(i));
+  MIRConstPtr mirConst = aggrC.GetConstVecItem(i);
+  if (mirConst->GetKind() == kConstInt) {
+    MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+        static_cast<uint64>(static_cast<MIRIntConst*>(mirConst)->GetExtValue()), mirConst->GetType());
+    aggrC.SetItem(i, newIntConst, i + 1);
+  } else {
+    aggrC.SetFieldIdOfElement(i, i + 1);
+  }
+}
+
 void MUIDReplacement::ReplaceDataTable(const std::string &name) {
   MIRSymbol *tabSym = GetSymbolFromName(name);
-  if (tabSym == nullptr) {
+  if (IsMIRAggConstNull(tabSym)) {
     return;
   }
   auto *oldConst = safe_cast<MIRAggConst>(tabSym->GetKonst());
-  if (oldConst == nullptr) {
-    return;
-  }
   for (MIRConst *&oldTabEntry : oldConst->GetConstVec()) {
     CHECK_NULL_FATAL(oldTabEntry);
     if (oldTabEntry->GetKind() == kConstAggConst) {
       auto *aggrC = static_cast<MIRAggConst*>(oldTabEntry);
       for (uint32 i = 0; i < static_cast<uint32>(aggrC->GetConstVec().size()); ++i) {
         CHECK_NULL_FATAL(aggrC->GetConstVecItem(i));
-        ReplaceAddrofConst(aggrC->GetConstVecItem(i));
-        MIRConstPtr mirConst = aggrC->GetConstVecItem(i);
-        if (mirConst->GetKind() == kConstInt) {
-          MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-              static_cast<uint64>(static_cast<MIRIntConst*>(mirConst)->GetExtValue()), mirConst->GetType());
-          aggrC->SetItem(i, newIntConst, i + 1);
-        } else {
-          aggrC->SetFieldIdOfElement(i, i + 1);
-        }
+        ReplaceAddrofConstByCreatingNewIntConst(*aggrC, i);
       }
     } else if (oldTabEntry->GetKind() == kConstAddrof) {
       ReplaceAddrofConst(oldTabEntry);
@@ -1320,15 +1316,7 @@ void MUIDReplacement::ReplaceDecoupleKeyTable(MIRAggConst* oldConst) {
         if (aggrC->GetConstVecItem(i)->GetKind() == kConstAggConst) {
           ReplaceDecoupleKeyTable(safe_cast<MIRAggConst>(aggrC->GetConstVecItem(i)));
         } else {
-          ReplaceAddrofConst(aggrC->GetConstVecItem(i));
-          MIRConstPtr mirConst = aggrC->GetConstVecItem(i);
-          if (mirConst->GetKind() == kConstInt) {
-            MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-                static_cast<uint64>(static_cast<MIRIntConst*>(mirConst)->GetExtValue()), mirConst->GetType());
-            aggrC->SetItem(i, newIntConst, i + 1);
-          } else {
-            aggrC->SetFieldIdOfElement(i, i + 1);
-          }
+          ReplaceAddrofConstByCreatingNewIntConst(*aggrC, i);
         }
       }
     } else if (oldTabEntry->GetKind() == kConstAddrof) {
@@ -1485,6 +1473,28 @@ void MUIDReplacement::ReplaceDirectInvokeOrAddroffunc(MIRFunction &currentFunc, 
   }
 }
 
+ArrayNode *MUIDReplacement::LoadSymbolPointer(const MIRSymbol &mirSymbol) {
+  // Load the symbol pointer
+  AddrofNode *baseExpr = nullptr;
+  uint32 index = 0;
+  MIRArrayType *arrayType = nullptr;
+  if (mirSymbol.GetStorageClass() != kScExtern) {
+    // Local static member is accessed through dataDefTab
+    baseExpr = builder->CreateExprAddrof(0, *dataDefTabSym);
+    index = FindIndexFromDefTable(mirSymbol, false);
+    arrayType = static_cast<MIRArrayType*>(dataDefTabSym->GetType());
+  } else {
+    // External static member is accessed through dataUndefTab
+    baseExpr = builder->CreateExprAddrof(0, *dataUndefTabSym);
+    index = FindIndexFromUndefTable(mirSymbol, false);
+    arrayType = static_cast<MIRArrayType*>(dataUndefTabSym->GetType());
+  }
+  ConstvalNode *offsetExpr = GetConstvalNode(index);
+  ArrayNode *arrayExpr = builder->CreateExprArray(*arrayType, baseExpr, offsetExpr);
+  arrayExpr->SetBoundsCheck(false);
+  return arrayExpr;
+}
+
 void MUIDReplacement::ReplaceDassign(MIRFunction &currentFunc, const DassignNode &dassignNode) {
   MIRSymbol *mirSymbol = currentFunc.GetLocalOrGlobalSymbol(dassignNode.GetStIdx());
   ASSERT_NOT_NULL(mirSymbol);
@@ -1493,25 +1503,8 @@ void MUIDReplacement::ReplaceDassign(MIRFunction &currentFunc, const DassignNode
   }
   // Add a comment to store the original symbol name
   currentFunc.GetBody()->InsertBefore(&dassignNode, builder->CreateStmtComment("Assign to: " + mirSymbol->GetName()));
-  // Load the symbol pointer
-  AddrofNode *baseExpr = nullptr;
-  uint32 index = 0;
-  MIRArrayType *arrayType = nullptr;
-  if (mirSymbol->GetStorageClass() != kScExtern) {
-    // Local static member is accessed through dataDefTab
-    baseExpr = builder->CreateExprAddrof(0, *dataDefTabSym);
-    index = FindIndexFromDefTable(*mirSymbol, false);
-    arrayType = static_cast<MIRArrayType*>(dataDefTabSym->GetType());
-  } else {
-    // External static member is accessed through dataUndefTab
-    baseExpr = builder->CreateExprAddrof(0, *dataUndefTabSym);
-    index = FindIndexFromUndefTable(*mirSymbol, false);
-    arrayType = static_cast<MIRArrayType*>(dataUndefTabSym->GetType());
-  }
-  ConstvalNode *offsetExpr = GetConstvalNode(index);
-  ArrayNode *arrayExpr = builder->CreateExprArray(*arrayType, baseExpr, offsetExpr);
-  arrayExpr->SetBoundsCheck(false);
-  MIRType *elemType = arrayType->GetElemType();
+  ArrayNode *arrayExpr = LoadSymbolPointer(*mirSymbol);
+  MIRType *elemType = static_cast<MIRArrayType*>(arrayExpr->GetArrayType(GlobalTables::GetTypeTable()))->GetElemType();
   MIRType *mVoidPtr = GlobalTables::GetTypeTable().GetVoidPtr();
   CHECK_FATAL(mVoidPtr != nullptr, "null ptr check");
   BaseNode *ireadPtrExpr =
@@ -1710,25 +1703,8 @@ BaseNode *MUIDReplacement::ReplaceDread(MIRFunction &currentFunc, const StmtNode
   }
   // Add a comment to store the original symbol name
   currentFunc.GetBody()->InsertBefore(stmt, builder->CreateStmtComment("Read from: " + mirSymbol->GetName()));
-  // Load the symbol pointer
-  AddrofNode *baseExpr = nullptr;
-  uint32 index = 0;
-  MIRArrayType *arrayType = nullptr;
-  if (mirSymbol->GetStorageClass() != kScExtern) {
-    // Local static member is accessed through dataDefTab
-    baseExpr = builder->CreateExprAddrof(0, *dataDefTabSym);
-    index = FindIndexFromDefTable(*mirSymbol, false);
-    arrayType = static_cast<MIRArrayType*>(dataDefTabSym->GetType());
-  } else {
-    // External static member is accessed through dataUndefTab
-    baseExpr = builder->CreateExprAddrof(0, *dataUndefTabSym);
-    index = FindIndexFromUndefTable(*mirSymbol, false);
-    arrayType = static_cast<MIRArrayType*>(dataUndefTabSym->GetType());
-  }
-  ConstvalNode *offsetExpr = GetConstvalNode(index);
-  ArrayNode *arrayExpr = builder->CreateExprArray(*arrayType, baseExpr, offsetExpr);
-  arrayExpr->SetBoundsCheck(false);
-  MIRType *elemType = arrayType->GetElemType();
+  ArrayNode *arrayExpr = LoadSymbolPointer(*mirSymbol);
+  MIRType *elemType = static_cast<MIRArrayType*>(arrayExpr->GetArrayType(GlobalTables::GetTypeTable()))->GetElemType();
   BaseNode *ireadPtrExpr =
       builder->CreateExprIread(*GlobalTables::GetTypeTable().GetVoidPtr(),
                                *GlobalTables::GetTypeTable().GetOrCreatePointerType(*elemType), 1, arrayExpr);
@@ -1942,7 +1918,8 @@ void MUIDReplacement::GenerateTables() {
   // Replace undef entries in vtab/itab/reflectionMetaData
   for (Klass *klass : klassHierarchy->GetTopoSortedKlasses()) {
     ReplaceFieldTypeTable(namemangler::kFieldsInfoPrefixStr + klass->GetKlassName());
-    if (Options::buildApp && !Options::genVtabAndItabForDecouple && klass->GetNeedDecoupling()) {
+    if (Options::buildApp != Options::kNoDecouple && !Options::genVtabAndItabForDecouple &&
+        klass->GetNeedDecoupling()) {
       ClearVtabItab(VTAB_PREFIX_STR + klass->GetKlassName());
       ClearVtabItab(ITAB_PREFIX_STR + klass->GetKlassName());
       ClearVtabItab(ITAB_CONFLICT_PREFIX_STR + klass->GetKlassName());

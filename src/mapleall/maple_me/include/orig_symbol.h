@@ -351,7 +351,9 @@ class SymbolFieldPair {
  public:
   SymbolFieldPair(const StIdx &stIdx, FieldID fld, const TyIdx &tyIdx,
                   const OffsetType &offset = OffsetType(kOffsetUnknown))
-      : stIdx(stIdx), fldIDAndOffset((static_cast<int64>(offset.val) << 32U) + fld), tyIdx(tyIdx) {}
+      : stIdx(stIdx),
+        fldIDAndOffset(static_cast<FieldID>(static_cast<uint64>(static_cast<uint32>(offset.val)) << 32U) + fld),
+        tyIdx(tyIdx) {}
   ~SymbolFieldPair() = default;
   bool operator==(const SymbolFieldPair& pairA) const {
     return (pairA.stIdx == stIdx) && (pairA.fldIDAndOffset == fldIDAndOffset) && (tyIdx == pairA.tyIdx);
@@ -407,7 +409,11 @@ class OriginalStTable {
     return originalStVector[id];
   }
   OriginalSt *GetOriginalStFromID(OStIdx id, bool checkFirst = false) {
-    return const_cast<OriginalSt *>(const_cast<const OriginalStTable*>(this)->GetOriginalStFromID(id, checkFirst));
+    if (checkFirst && id >= originalStVector.size()) {
+      return nullptr;
+    }
+    ASSERT(id < originalStVector.size(), "symbol table index out of range");
+    return originalStVector[id];
   }
 
   size_t Size() const {
@@ -494,15 +500,15 @@ class OriginalStTable {
   void AddNextLevelOstOfVst(size_t vstIdx, OriginalSt *ost);
   void AddNextLevelOstOfVst(const VersionSt *vst, OriginalSt *ost);
   void Dump();
- private:
+
   MapleAllocator alloc;
+  MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> mirSt2Ost;
+  MapleUnorderedMap<StIdx, OStIdx> addrofSt2Ost;
+
+ private:
   MIRModule &mirModule;
   MapleVector<OriginalSt*> originalStVector;  // the vector that map a OriginalSt's index to its pointer
   // mir symbol to original table, this only exists for no-original variables.
- public:
-  MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> mirSt2Ost;
-  MapleUnorderedMap<StIdx, OStIdx> addrofSt2Ost;
- private:
   MapleUnorderedMap<PregIdx, OStIdx> preg2Ost;
   // mir type to virtual variables in original table. this only exists for no-original variables.
   MapleMap<TyIdx, OStIdx> pType2Ost;

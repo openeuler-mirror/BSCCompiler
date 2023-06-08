@@ -303,7 +303,7 @@ class LogInfo {
     }                                                                                      \
   } while (0)
 
-#define CHECK_NULL_FATAL(ptr) CHECK_FATAL(ptr != nullptr, "Failed with nullptr.")
+#define CHECK_NULL_FATAL(ptr) CHECK_FATAL((ptr) != nullptr, "Failed with nullptr.")
 
 #if ENABLE_ASSERT
 #define ASSERT(cond, fmt, ...)                                                      \

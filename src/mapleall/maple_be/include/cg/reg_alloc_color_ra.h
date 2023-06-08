@@ -767,7 +767,7 @@ class LiveRange {
     rematerializer->SetRematerializable(opcode, symbol, fieldId, addrUp);
   }
 
-  void CopyRematerialization(const LiveRange &lr) const {
+  void CopyRematerialization(const LiveRange &lr) {
     *rematerializer = *lr.GetRematerializer();
   }
 
@@ -779,8 +779,8 @@ class LiveRange {
     isSpSave = true;
   }
 
-  bool IsRematerializable(CGFunc &cgFunc, RematLevel rematLev) const {
-    return rematerializer->IsRematerializable(cgFunc, rematLev, *this);
+  bool IsRematerializable(CGFunc &cgFunc, RematLevel rematLev, const LoopAnalysis &loopInfo) const {
+    return rematerializer->IsRematerializable(cgFunc, rematLev, *this, loopInfo);
   }
   std::vector<Insn*> Rematerialize(CGFunc &cgFunc, RegOperand &regOp) const {
     return rematerializer->Rematerialize(cgFunc, regOp, *this);
@@ -1190,9 +1190,10 @@ class SplitBBInfo {
 
 class GraphColorRegAllocator : public RegAllocator {
  public:
-  GraphColorRegAllocator(CGFunc &cgFunc, MemPool &memPool, DomAnalysis &dom)
+  GraphColorRegAllocator(CGFunc &cgFunc, MemPool &memPool, DomAnalysis &dom, LoopAnalysis &loop)
       : RegAllocator(cgFunc, memPool),
         domInfo(dom),
+        loopInfo(loop),
         bbVec(alloc.Adapter()),
         vregLive(alloc.Adapter()),
         pregLive(alloc.Adapter()),
@@ -1332,7 +1333,7 @@ class GraphColorRegAllocator : public RegAllocator {
   void LocalRegisterAllocator(bool doAllocate);
   MemOperand *GetSpillOrReuseMem(LiveRange &lr, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
-  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, RegOperand &phyOpnd,
+  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, bool isDef, RegOperand &phyOpnd,
                                 uint32 spillIdx, bool needSpill);
   MemOperand *GetConsistentReuseMem(const MapleSet<regno_t> &conflict,
                                     const std::set<MemOperand*> &usedMemOpnd, uint32 size,
@@ -1369,12 +1370,12 @@ class GraphColorRegAllocator : public RegAllocator {
   void MarkUsedRegs(Operand &opnd, MapleBitVector &usedRegMask) const;
   bool FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, const Insn &insn,
                                   MapleBitVector &usedRegMask);
-  void SplitVregAroundLoop(const CGFuncLoops &loop, const std::vector<LiveRange*> &lrs,
+  void SplitVregAroundLoop(const LoopDesc &loop, const std::vector<LiveRange*> &lrs,
                            BB &headerPred, BB &exitSucc, const std::set<regno_t> &cands);
-  bool LoopNeedSplit(const CGFuncLoops &loop, std::set<regno_t> &cands);
+  bool LoopNeedSplit(const LoopDesc &loop, std::set<regno_t> &cands);
   bool LrGetBadReg(const LiveRange &lr) const;
-  void AnalysisLoopPressureAndSplit(const CGFuncLoops &loop);
-  void AnalysisLoop(const CGFuncLoops &loop);
+  void AnalysisLoopPressureAndSplit(const LoopDesc &loop);
+  void AnalysisLoop(const LoopDesc &loop);
   void OptCallerSave();
   void FinalizeRegisters();
   void GenerateSpillFillRegs(const Insn &insn);
@@ -1391,27 +1392,27 @@ class GraphColorRegAllocator : public RegAllocator {
                        const MapleVector<LiveRange*> &delayed) const;
   void AddCalleeUsed(regno_t regNO, RegType regType);
   bool AssignColorToLr(LiveRange &lr, bool isDelayed = false);
-  void PruneLrForSplit(LiveRange &lr, BB &bb, bool remove, std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
-                       std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop);
+  void PruneLrForSplit(LiveRange &lr, BB &bb, bool remove, std::set<LoopDesc*, LoopDesc::LoopDescCmp> &candidateInLoop,
+                       std::set<LoopDesc*, LoopDesc::LoopDescCmp> &defInLoop);
   bool UseIsUncovered(const BB &bb, const BB &startBB, std::vector<bool> &visitedBB);
   void FindUseForSplit(LiveRange &lr, SplitBBInfo &bbInfo, bool &remove,
-                       std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
-                       std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop);
+                       std::set<LoopDesc*, LoopDesc::LoopDescCmp> &candidateInLoop,
+                       std::set<LoopDesc*, LoopDesc::LoopDescCmp> &defInLoop);
   void FindBBSharedInSplit(LiveRange &lr,
-                           const std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
-                           std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop);
+                           const std::set<LoopDesc*, LoopDesc::LoopDescCmp> &candidateInLoop,
+                           std::set<LoopDesc*, LoopDesc::LoopDescCmp> &defInLoop);
   void ComputeBBForNewSplit(LiveRange &newLr, LiveRange &origLr);
   void ClearLrBBFlags(const std::set<BB*, SortedBBCmpFunc> &member) const;
   void ComputeBBForOldSplit(LiveRange &newLr, LiveRange &origLr);
   bool LrCanBeColored(const LiveRange &lr, const BB &bbAdded, std::unordered_set<regno_t> &conflictRegs);
   void MoveLrBBInfo(LiveRange &oldLr, LiveRange &newLr, BB &bb) const;
-  bool ContainsLoop(const CGFuncLoops &loop, const std::set<CGFuncLoops*, CGFuncLoopCmp> &loops) const;
-  void GetAllLrMemberLoops(const LiveRange &lr, std::set<CGFuncLoops*, CGFuncLoopCmp> &loops);
+  bool ContainsLoop(const LoopDesc &loop, const std::set<LoopDesc*, LoopDesc::LoopDescCmp> &loops) const;
+  void GetAllLrMemberLoops(const LiveRange &lr, std::set<LoopDesc*, LoopDesc::LoopDescCmp> &loops);
   bool SplitLrShouldSplit(const LiveRange &lr);
   bool SplitLrFindCandidateLr(LiveRange &lr, LiveRange &newLr, std::unordered_set<regno_t> &conflictRegs);
-  void SplitLrHandleLoops(LiveRange &lr, LiveRange &newLr, const std::set<CGFuncLoops*, CGFuncLoopCmp> &origLoops,
-                          const std::set<CGFuncLoops*, CGFuncLoopCmp> &newLoops);
-  void SplitLrFixNewLrCallsAndRlod(LiveRange &newLr, const std::set<CGFuncLoops*, CGFuncLoopCmp> &origLoops);
+  void SplitLrHandleLoops(LiveRange &lr, LiveRange &newLr, const std::set<LoopDesc*, LoopDesc::LoopDescCmp> &origLoops,
+                          const std::set<LoopDesc*, LoopDesc::LoopDescCmp> &newLoops);
+  void SplitLrFixNewLrCallsAndRlod(LiveRange &newLr, const std::set<LoopDesc*, LoopDesc::LoopDescCmp> &origLoops);
   void SplitLrFixOrigLrCalls(LiveRange &lr) const;
   void SplitLrUpdateInterference(LiveRange &lr);
   void SplitLrUpdateRegInfo(const LiveRange &origLr, LiveRange &newLr,
@@ -1422,6 +1423,7 @@ class GraphColorRegAllocator : public RegAllocator {
   static constexpr uint16 kMaxUint16 = 0x7fff;
 
   DomAnalysis &domInfo;
+  LoopAnalysis &loopInfo;
   MapleVector<BB*> bbVec;
   MapleUnorderedSet<regno_t> vregLive;
   MapleUnorderedSet<regno_t> pregLive;
@@ -1480,16 +1482,15 @@ class GraphColorRegAllocator : public RegAllocator {
 
 class CallerSavePre : public CGPre {
  public:
-  CallerSavePre(GraphColorRegAllocator * regAlloc, CGFunc &cgfunc, DomAnalysis &currDom,
+  CallerSavePre(GraphColorRegAllocator &regAlloc, CGFunc &cgfunc, DomAnalysis &currDom, const LoopAnalysis &loop,
                 MemPool &memPool, MemPool &mp2, PreKind kind, uint32 limit)
       : CGPre(currDom, memPool, mp2, kind, limit),
-        func(&cgfunc),
+        func(cgfunc),
+        loopInfo(loop),
         regAllocator(regAlloc),
         loopHeadBBs(ssaPreAllocator.Adapter()) {}
 
   ~CallerSavePre() override {
-    func = nullptr;
-    regAllocator = nullptr;
     workLr = nullptr;
   }
   void ApplySSAPRE();
@@ -1507,20 +1508,21 @@ class CallerSavePre : public CGPre {
   void DumpWorkCandAndOcc();
 
   BB *GetBB(uint32 id) const override {
-    return func->GetBBFromID(id);
+    return func.GetBBFromID(id);
   }
 
   PUIdx GetPUIdx() const override {
-    return func->GetFunction().GetPuidx();
+    return func.GetFunction().GetPuidx();
   }
 
   bool IsLoopHeadBB(uint32 bbId) const {
     return loopHeadBBs.find(bbId) != loopHeadBBs.end();
   }
-  CGFunc *func;
+  CGFunc &func;
+  const LoopAnalysis &loopInfo;
   bool dump = false;
   LiveRange *workLr = nullptr;
-  GraphColorRegAllocator *regAllocator;
+  GraphColorRegAllocator &regAllocator;
   MapleSet<uint32> loopHeadBBs;
   bool beyondLimit = false;
 };

@@ -23,7 +23,7 @@ static const std::string kAarch64BeAs = "aarch64_be-linux-gnu-gcc";
 
 std::string AsCompilerBeILP32::GetBinPath(const MplOptions &mplOptions [[maybe_unused]]) const {
   std::string gccPath = FileUtils::SafeGetenv(kGccBePathEnv) + "/";
-  const std::string &gccTool = Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32 ?
+  const std::string &gccTool = Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::kGnuIlp32 ?
                                kAarch64BeIlp32As : kAarch64BeAs;
   std::string gccToolPath = gccPath + gccTool;
 
@@ -38,7 +38,7 @@ std::string AsCompilerBeILP32::GetBinPath(const MplOptions &mplOptions [[maybe_u
 }
 
 const std::string &AsCompilerBeILP32::GetBinName() const {
-  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::kGnuIlp32) {
     return kAarch64BeIlp32As;
   } else {
     return kAarch64BeAs;
@@ -48,7 +48,7 @@ const std::string &AsCompilerBeILP32::GetBinName() const {
 std::string AsCompilerBeILP32::GetBin(const MplOptions &mplOptions [[maybe_unused]]) const {
   auto binPath = GetBinPath(mplOptions);
 
-  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+  if (Triple::GetTriple().GetEnvironment() == Triple::EnvironmentType::kGnuIlp32) {
     return binPath + kAarch64BeIlp32As;
   } else {
     return binPath + kAarch64BeAs;
@@ -57,24 +57,24 @@ std::string AsCompilerBeILP32::GetBin(const MplOptions &mplOptions [[maybe_unuse
 
 DefaultOption AsCompilerBeILP32::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   auto &triple = Triple::GetTriple();
-  if (triple.GetArch() != Triple::ArchType::aarch64_be ||
-      triple.GetEnvironment() == Triple::EnvironmentType::UnknownEnvironment) {
+  if (triple.GetArch() != Triple::ArchType::kAarch64Be ||
+      triple.GetEnvironment() == Triple::EnvironmentType::kUnknownEnvironment) {
     CHECK_FATAL(false, "ClangCompilerBeILP32 supports only aarch64_be GNU/GNUILP32 targets\n");
   }
 
   uint32_t len = 2; // for -o and -c options
-  if (triple.GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+  if (triple.GetEnvironment() == Triple::EnvironmentType::kGnuIlp32) {
     ++len; // for -mabi=ilp32
   }
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
-  int i = 0;
+  size_t i = 0;
   defaultOptions.mplOptions[i].SetKey("-o");
   defaultOptions.mplOptions[i++].SetValue(action.GetFullOutputName() + ".o");
   defaultOptions.mplOptions[i].SetKey("-c");
   defaultOptions.mplOptions[i++].SetValue("");
 
-  if (triple.GetEnvironment() == Triple::EnvironmentType::GNUILP32) {
+  if (triple.GetEnvironment() == Triple::EnvironmentType::kGnuIlp32) {
     defaultOptions.mplOptions[i].SetKey("-mabi=ilp32");
     defaultOptions.mplOptions[i++].SetValue("");
   }

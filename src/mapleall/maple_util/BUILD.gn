@@ -34,6 +34,7 @@ src_libmplutil = [
 ]
 
 src_libcommandline = [
+  "src/set_spec.cpp",
   "src/cl_option.cpp",
   "src/cl_option_parser.cpp",
   "src/cl_parser.cpp",
@@ -55,6 +56,10 @@ include_libmplutil = [
 
 include_libcommandline = [
   "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]

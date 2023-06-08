@@ -72,6 +72,10 @@ class FEStructElemInfo {
   const std::string &GetSignatureName() const {
     return GlobalTables::GetStrTable().GetStringFromStrIdx(structElemNameIdx.type);
   }
+  
+  bool TypeIsNullOrIncomplete(MIRType *type) const {
+    return (type == nullptr) || type->IsIncomplete();
+  }
 
   bool IsStatic() const {
     return isStatic;

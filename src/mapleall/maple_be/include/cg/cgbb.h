@@ -73,9 +73,10 @@ namespace maplebe {
   for (Insn * (INSN) = LAST_INSN(BLOCK), *(NEXT) = (INSN) ? PREV_INSN(INSN) : nullptr; (INSN) != nullptr; \
        (INSN) = (NEXT), (NEXT) = (INSN) ? PREV_INSN(INSN) : nullptr)
 
-class CGFuncLoops;
 class CGFunc;
 class CDGNode;
+
+using BBID = uint32;
 
 class BB : public maple::BaseGraphNode {
  public:
@@ -92,7 +93,7 @@ class BB : public maple::BaseGraphNode {
     kBBLast
   };
 
-  BB(uint32 bbID, MapleAllocator &mallocator)
+  BB(BBID bbID, MapleAllocator &mallocator)
       : BaseGraphNode(bbID),  // id(bbID),
         kind(kBBFallthru), /* kBBFallthru default kind */
         labIdx(MIRLabelTable::GetDummyLabel()),
@@ -100,8 +101,6 @@ class BB : public maple::BaseGraphNode {
         succs(mallocator.Adapter()),
         ehPreds(mallocator.Adapter()),
         ehSuccs(mallocator.Adapter()),
-        loopPreds(mallocator.Adapter()),
-        loopSuccs(mallocator.Adapter()),
         succsFreq(mallocator.Adapter()),
         succsProfFreq(mallocator.Adapter()),
         liveInRegNO(mallocator.Adapter()),
@@ -258,10 +257,6 @@ class BB : public maple::BaseGraphNode {
     return false;
   }
 
-  bool IsBackEdgeDest() const {
-    return !loopPreds.empty();
-  }
-
   void RemoveFromPredecessorList(const BB &bb) {
     for (auto i = preds.begin(); i != preds.end(); ++i) {
       if (*i == &bb) {
@@ -296,7 +291,7 @@ class BB : public maple::BaseGraphNode {
 
   /* Number of instructions excluding DbgInsn and comments */
   int32 NumInsn() const;
-  uint32 GetId() const {
+  BBID GetId() const {
     return GetID();
   }
   uint32 GetLevel() const {
@@ -410,6 +405,9 @@ class BB : public maple::BaseGraphNode {
   bool IsLastInsn(const Insn *insn) const{
     return (lastInsn == insn);
   }
+  bool IsLastMachineInsn(const Insn *insn) {
+    return (GetLastMachineInsn() == insn);
+  }
   void InsertPred(const MapleList<BB*>::iterator &it, BB &bb) {
     preds.insert(it, &bb);
   }
@@ -424,6 +422,30 @@ class BB : public maple::BaseGraphNode {
   }
   const std::size_t GetSuccsSize() const {
     return succs.size();
+  }
+
+  // get curBB's all preds
+  std::vector<BB*> GetAllPreds() const {
+    std::vector<BB*> allPreds;
+    for (auto *pred : preds) {
+      allPreds.push_back(pred);
+    }
+    for (auto *pred : ehPreds) {
+      (void)allPreds.push_back(pred);
+    }
+    return allPreds;
+  }
+
+  // get curBB's all succs
+  std::vector<BB*> GetAllSuccs() const {
+    std::vector<BB*> allSuccs;
+    for (auto *suc : succs) {
+      allSuccs.push_back(suc);
+    }
+    for (auto *suc : ehSuccs) {
+      (void)allSuccs.push_back(suc);
+    }
+    return allSuccs;
   }
 
   // override interface of BaseGraphNode
@@ -455,15 +477,6 @@ class BB : public maple::BaseGraphNode {
   const MapleList<BB*> &GetEhSuccs() const {
     return ehSuccs;
   }
-  const MapleList<BB*> &GetLoopPreds() const {
-    return loopPreds;
-  }
-  MapleList<BB*> &GetLoopSuccs() {
-    return loopSuccs;
-  }
-  const MapleList<BB*> &GetLoopSuccs() const {
-    return loopSuccs;
-  }
   MapleList<BB*>::iterator GetPredsBegin() {
     return preds.begin();
   }
@@ -472,9 +485,6 @@ class BB : public maple::BaseGraphNode {
   }
   MapleList<BB*>::iterator GetEhPredsBegin() {
     return ehPreds.begin();
-  }
-  MapleList<BB*>::iterator GetLoopSuccsBegin() {
-    return loopSuccs.begin();
   }
   MapleList<BB*>::iterator GetPredsEnd() {
     return preds.end();
@@ -485,26 +495,23 @@ class BB : public maple::BaseGraphNode {
   MapleList<BB*>::iterator GetEhPredsEnd() {
     return ehPreds.end();
   }
-  MapleList<BB*>::iterator GetLoopSuccsEnd() {
-    return loopSuccs.end();
-  }
   void PushBackPreds(BB &bb) {
-    preds.push_back(&bb);
+    MapleList<BB *>::iterator it = find(preds.begin(), preds.end(), &bb);
+    if (it == preds.end()) {
+      preds.push_back(&bb);
+    }
   }
   void PushBackSuccs(BB &bb) {
-    succs.push_back(&bb);
+    MapleList<BB *>::iterator it = find(succs.begin(), succs.end(), &bb);
+    if (it == succs.end()) {
+      succs.push_back(&bb);
+    }
   }
   void PushBackEhPreds(BB &bb) {
     ehPreds.push_back(&bb);
   }
   void PushBackEhSuccs(BB &bb) {
     ehSuccs.push_back(&bb);
-  }
-  void PushBackLoopPreds(BB &bb) {
-    loopPreds.push_back(&bb);
-  }
-  void PushBackLoopSuccs(BB &bb) {
-    loopSuccs.push_back(&bb);
   }
   void PushFrontPreds(BB &bb) {
     preds.push_front(&bb);
@@ -542,12 +549,6 @@ class BB : public maple::BaseGraphNode {
   void ClearEhSuccs() {
     ehSuccs.clear();
   }
-  void ClearLoopPreds() {
-    loopPreds.clear();
-  }
-  void ClearLoopSuccs() {
-    loopSuccs.clear();
-  }
   const MapleSet<regno_t> &GetLiveInRegNO() const {
     return liveInRegNO;
   }
@@ -580,12 +581,6 @@ class BB : public maple::BaseGraphNode {
   }
   void ClearLiveOutRegNO() {
     liveOutRegNO.clear();
-  }
-  CGFuncLoops *GetLoop() const {
-    return loop;
-  }
-  void SetLoop(CGFuncLoops *arg) {
-    loop = arg;
   }
   bool GetLiveInChange() const {
     return liveInChange;
@@ -935,7 +930,6 @@ class BB : public maple::BaseGraphNode {
 
  private:
   static const std::string bbNames[kBBLast];
-  // uint32 id
   uint32 level = 0;
   uint32 frequency = 0;
   FreqType profFreq = 0; // profileUse
@@ -953,15 +947,12 @@ class BB : public maple::BaseGraphNode {
   MapleList<BB*> succs;
   MapleList<BB*> ehPreds;
   MapleList<BB*> ehSuccs;
-  MapleList<BB*> loopPreds;
-  MapleList<BB*> loopSuccs;
   MapleVector<uint64> succsFreq;
   MapleVector<FreqType> succsProfFreq;
   bool inColdSection = false; /* for bb splitting */
   /* this is for live in out analysis */
   MapleSet<regno_t> liveInRegNO;
   MapleSet<regno_t> liveOutRegNO;
-  CGFuncLoops *loop = nullptr;
   bool liveInChange = false;
   bool isCritical = false;
   bool insertUse = false;
@@ -1044,10 +1035,12 @@ class Bfs {
       : cgfunc(&cgFunc),
         memPool(&memPool),
         alloc(&memPool),
+        cycleSuccs(alloc.Adapter()),
         visitedBBs(alloc.Adapter()),
         sortedBBs(alloc.Adapter()) {}
   ~Bfs() = default;
 
+  void SeekCycles();
   bool AllPredBBVisited(const BB &bb, long &level) const;
   BB *MarkStraightLineBBInBFS(BB *bb);
   BB *SearchForStraightLineBBs(BB &bb);
@@ -1057,6 +1050,7 @@ class Bfs {
   CGFunc *cgfunc;
   MemPool *memPool;
   MapleAllocator alloc;
+  MapleVector<MapleSet<BBID>> cycleSuccs;   // bb's succs in cycle
   MapleVector<bool> visitedBBs;
   MapleVector<BB*> sortedBBs;
 };

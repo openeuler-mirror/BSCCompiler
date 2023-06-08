@@ -57,10 +57,6 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
 #ifdef RA_PERF_ANALYSIS
   auto start = std::chrono::system_clock::now();
 #endif
-  if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
-    (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
-  }
-
   /* dom Analysis */
   DomAnalysis *dom = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0 &&
@@ -68,7 +64,13 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
         &CgDomAnalysis::id, f);
     dom = static_cast<CgDomAnalysis*>(it)->GetResult();
-    CHECK_FATAL(dom != nullptr, "null ptr check");
+  }
+
+  LoopAnalysis *loop = nullptr;
+  if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
+    MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
+        &CgLoopAnalysis::id, f);
+    loop = static_cast<CgLoopAnalysis*>(it)->GetResult();
   }
 
 #ifdef RA_PERF_ANALYSIS
@@ -105,18 +107,20 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel0) {
       regAllocator = phaseMp->New<DefaultO0RegAllocator>(f, *phaseMp);
     } else if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevelLiteCG) {
-#if TARGX86_64
+#if defined(TARGX86_64) && TARGX86_64
       regAllocator = phaseMp->New<LSRALinearScanRegAllocator>(f, *phaseMp);
 #endif
-#if TARGAARCH64
+#if defined(TARGAARCH64) && TARGAARCH64
       maple::LogInfo::MapleLogger(kLlErr) << "Error: -LiteCG option is unsupported for aarch64.\n";
 #endif
     } else {
       if (f.GetCG()->GetCGOptions().DoLinearScanRegisterAllocation()) {
         regAllocator = phaseMp->New<LSRALinearScanRegAllocator>(f, *phaseMp);
       } else if (f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
+        CHECK_FATAL(dom != nullptr, "null ptr check");
+        CHECK_FATAL(loop != nullptr, "null ptr check");
         tempMP = memPoolCtrler.NewMemPool("colrRA", true);
-        regAllocator = phaseMp->New<GraphColorRegAllocator>(f, *tempMP, *dom);
+        regAllocator = phaseMp->New<GraphColorRegAllocator>(f, *tempMP, *dom, *loop);
       } else {
         maple::LogInfo::MapleLogger(kLlErr) <<
             "Warning: We only support Linear Scan and GraphColor register allocation\n";
@@ -154,9 +158,6 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     cleanupUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 #endif
     memPoolCtrler.DeleteMemPool(tempMP);
-  }
-  if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
   }
 
 #ifdef RA_PERF_ANALYSIS

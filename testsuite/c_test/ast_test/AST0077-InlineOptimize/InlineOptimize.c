@@ -15,13 +15,14 @@
 typedef void (*func)();
 
 // CHECK:     type $TypeC_MNO[[# IDX:]] <struct {
-// CHECK-NEXT:  @c i32 align(4),
-// CHECK-NEXT:  @b <$TypeB_MNO[[# IDX:]]> align(4)}>
+// CHECK-NEXT:  @c i32
+// CHECK-NEXT:  @b <$TypeB_MNO[[# IDX:]]> asmattr}>
 // CHECK-NEXT:type $TypeB_MNO[[# IDX:]] <struct {
-// CHECK-NEXT:  @b i32 align(4),
-// CHECK-NEXT:  @a <$TypeA_MNO[[# IDX:]]> align(4)}>
+// CHECK-NEXT:  @b i32
+// CHECK-NEXT:  @a <$TypeA_MNO[[# IDX:]]> asmattr}>
 // CHECK-NEXT:type $TypeA_MNO[[# IDX:]] <struct {
-// CHECK-NEXT:  @a i32 align(4)}>
+// CHECK-NEXT:  @a i32 asmattr}>
+// CHECK: func &func5 public used noinline () void
 struct TypeA {
   int a;
 };
@@ -36,18 +37,18 @@ struct TypeC {
   struct TypeB b;
 };
 
+// CHECK: var $a_MNO[[# IDX:]] fstatic i32 static used = 1
 static int a = 1;
-
+// CHECK-NOT: func &func1_MNO[[# IDX:]] public static used () void
 static void func1() {
   a++;
 }
 
-// CHECK: func &func2_MNO[[# IDX:]] public static used () void
+// CHECK-NOT: func &func2_MNO[[# IDX:]] public static used () void
 static void func2() {
   a++;
 }
 
-// CHECK: func &func5 public used noinline () void
 __attribute__((noinline))
 void func5() {
 }
@@ -55,16 +56,16 @@ void func5() {
 // CHECK: func &func3_MNO[[# IDX:]] public static used () void
 static void func3() {
   a++;
-  func2();
   func f = func5;
   f();
 }
-
+// CHECK: func &func4 public () void
 void func4() {
   func3();
   struct TypeC c = {1};
 }
 
+// CHECK-NOT: func &main public noinline () i32
 __attribute__((noinline))
 int main() {
   char *str = "123";

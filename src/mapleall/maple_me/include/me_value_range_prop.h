@@ -439,9 +439,9 @@ class ValueRange {
             range.pair.lower.GetVar() == range.pair.upper.GetVar());
   }
 
-  bool IsConstant() const {
+  bool IsConstant(bool exceptNotEqual = false) const {
     return (rangeType == kEqual && range.bound.GetVar() == nullptr) ||
-           (rangeType == kNotEqual && range.bound.GetVar() == nullptr) ||
+           (!exceptNotEqual && rangeType == kNotEqual && range.bound.GetVar() == nullptr) ||
            (rangeType == kLowerAndUpper && range.pair.lower.GetVar() == nullptr &&
             range.pair.lower.GetVar() == range.pair.upper.GetVar() &&
             range.pair.lower.GetConstant() == range.pair.upper.GetConstant());
@@ -612,8 +612,8 @@ class ValueRangePropagation {
 
   ValueRange *GetVRAfterCvt(ValueRange &vr, PrimType pty) const;
 
-  ValueRange *FindValueRangeInCaches(
-      BBId bbID, int32 exprID, uint32 &numberOfRecursions, uint32 maxThreshold, PrimType pty) {
+  ValueRange *FindValueRangeInCaches(const BBId &bbID, int32 exprID, uint32 &numberOfRecursions, uint32 maxThreshold,
+      PrimType pty) {
     if (numberOfRecursions++ > maxThreshold) {
       return nullptr;
     }
@@ -726,12 +726,12 @@ class ValueRangePropagation {
     return false;
   }
 
-  void JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueRange &vrOfRHS,
+  void JudgeEqual(const MeExpr &expr, ValueRange &vrOfLHS, ValueRange &vrOfRHS,
                   std::unique_ptr<ValueRange> &valueRangePtr) const;
 
   // The pairOfExprs map collects the exprs which have the same valueRange in bbs,
   // the pair of expr and preExpr is element of pairOfExprs.
-  ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr, uint32 &numberOfRecursions,
+  ValueRange *FindValueRangeWithCompareOp(const BB &bb, const MeExpr &expr, uint32 &numberOfRecursions,
       std::unordered_set<int32> &foundExprs, uint32 maxThreshold);
 
   void DealWithPhi(const BB &bb);
@@ -748,8 +748,9 @@ class ValueRangePropagation {
   bool AddOrSubWithConstant(PrimType primType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res) const;
   std::unique_ptr<ValueRange> NegValueRange(const BB &bb, MeExpr &opnd, uint32 &numberOfRecursions,
       std::unordered_set<int32> &foundExprs);
-  bool AddOrSubWithBound(Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op) const;
-  std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant) const;
+  bool AddOrSubWithBound(PrimType pTy, Bound oldBound, Bound &resBound, int64 rhsConstant, Opcode op) const;
+  std::unique_ptr<ValueRange> AddOrSubWithValueRange(
+      PrimType pTy, Opcode op, ValueRange &valueRange, int64 rhsConstant) const;
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
       Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight) const;
   std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const OpMeExpr &opMeExpr);
@@ -769,10 +770,10 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> MergeValueRangeOfPhiOperands(const BB &bb, MePhiNode &mePhiNode);
   void ReplaceBoundForSpecialLoopRangeValue(LoopDesc &loop, ValueRange &valueRangeOfIndex, bool upperIsSpecial);
   std::unique_ptr<ValueRange> CreateValueRangeForMonotonicIncreaseVar(
-      const LoopDesc &loop, BB &exitBB, const BB &bb, OpMeExpr &opMeExpr,
+      const LoopDesc &loop, BB &exitBB, const BB &bb, const OpMeExpr &opMeExpr,
       MeExpr &opnd1, Bound &initBound, int64 stride);
   std::unique_ptr<ValueRange> CreateValueRangeForMonotonicDecreaseVar(
-      const LoopDesc &loop, BB &exitBB, const BB &bb, OpMeExpr &opMeExpr,
+      const LoopDesc &loop, BB &exitBB, const BB &bb, const OpMeExpr &opMeExpr,
       MeExpr &opnd1, Bound &initBound, int64 stride);
   void CreateValueRangeForLeOrLt(const MeExpr &opnd, const ValueRange *leftRange, Bound newRightUpper,
                                  Bound newRightLower, const BB &trueBranch, const BB &falseBranch, bool isAccurate);
@@ -800,7 +801,7 @@ class ValueRangePropagation {
   void UpdateTryAttribute(BB &bb);
   void GetTrueAndFalseBranch(Opcode op, BB &bb, BB *&trueBranch, BB *&falseBranch) const;
   Opcode GetTheOppositeOp(Opcode op) const;
-  bool GetValueRangeOfCondGotoOpnd(const BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
+  bool GetValueRangeOfCondGotoOpnd(const BB &bb, const OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
   bool ConditionBBCanBeDeletedAfterOPNeOrEq(BB &bb, ValueRange &leftRange, ValueRange &rightRange, BB &falseBranch,
                                             BB &trueBranch);
@@ -838,7 +839,7 @@ class ValueRangePropagation {
                      std::map<MeExpr*, std::pair<int64, PrimType>> &expr2ConstantValue);
   void ReplaceOpndWithConstMeExpr(const BB &bb, MeStmt &stmt);
   bool OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &condGotoBB) const;
-  void GetValueRangeForUnsignedInt(const BB &bb, OpMeExpr &opMeExpr, const MeExpr &opnd, ValueRange *&valueRange,
+  void GetValueRangeForUnsignedInt(const BB &bb, const OpMeExpr &opMeExpr, const MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
   void GetValueRangeOfCRNode(const BB &bb, CRNode &opndOfCRNode, std::unique_ptr<ValueRange> &resValueRange,
                              PrimType pTypeOfArray);
@@ -863,8 +864,8 @@ class ValueRangePropagation {
   bool DealWithCVT(const BB &bb, MeStmt &stmt, OpMeExpr &opMeExpr);
   bool IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(
           const ValueRange &leftRange, ValueRange &rightRange, bool isLower) const;
-  bool DealWithSpecialCondGoto(const BB &bb, OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange,
-                               CondGotoMeStmt &brMeStmt);
+  bool DealWithSpecialCondGoto(const BB &bb, const OpMeExpr &opMeExpr, const ValueRange &leftRange,
+                               ValueRange &rightRange, CondGotoMeStmt &brMeStmt);
   void UpdateOrDeleteValueRange(const MeExpr &opnd, std::unique_ptr<ValueRange> valueRange, const BB &branch);
   void Insert2UnreachableBBs(BB &unreachableBB);
   void DeleteThePhiNodeWhichOnlyHasOneOpnd(BB &bb, ScalarMeExpr *updateSSAExceptTheScalarExpr,
@@ -894,7 +895,7 @@ class ValueRangePropagation {
   void MergeValueRangeOfPhiOperands(const LoopDesc &loop, const BB &bb,
       std::vector<std::unique_ptr<ValueRange>> &valueRangeOfInitExprs, size_t indexOfInitExpr);
   std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int64 stride, Bound &initBound) const;
-  bool MergeVrOrInitAndBackedge(MePhiNode &mePhiNode, ValueRange &vrOfInitExpr,
+  bool MergeVrOrInitAndBackedge(const MePhiNode &mePhiNode, ValueRange &vrOfInitExpr,
       ValueRange &valueRange, Bound &resBound) const;
   void ReplaceUsePoints(MePhiNode *phi);
   void CreateVRWithBitsSize(const BB &bb, const OpMeExpr &opMeExpr);
@@ -903,7 +904,7 @@ class ValueRangePropagation {
   Opcode GetOpAfterSwapThePositionsOfTwoOperands(Opcode op) const;
   bool IsSubOpndOfExpr(const MeExpr &expr, const MeExpr &subExpr) const;
   void UpdateProfile(BB &pred, BB &bb, const BB &targetBB) const;
-  void CalculateVROfSubOpnd(BBId bbID, const MeExpr &opnd, ValueRange &valueRange);
+  void CalculateVROfSubOpnd(const BBId bbID, const MeExpr &opnd, ValueRange &valueRange);
   void CreateValueRangeForSubOpnd(const MeExpr &opnd, const BB &trueBranch, const BB &falseBranch,
       ValueRange &resTrueBranchVR, ValueRange &resFalseBranchVR);
   ValueRange *DealWithNegWhenFindValueRange(const BB &bb, const MeExpr &expr,
@@ -917,6 +918,7 @@ class ValueRangePropagation {
   bool IsOverflowAfterMul(T lhs, T rhs, PrimType pty) const;
   bool HasDefPointInPred(const BB &begin, const BB &end, const ScalarMeExpr &opnd) const;
   bool CanIgnoreTheDefPoint(const MeStmt &stmt, const BB &end, const ScalarMeExpr &expr) const;
+  bool GetVROfBandOpnd(const BB &bb, const OpMeExpr &opMeExpr, MeExpr &opnd);
 
   MeFunction &func;
   MeIRMap &irMap;

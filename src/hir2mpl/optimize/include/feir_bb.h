@@ -136,7 +136,7 @@ class FEIRBB : public FELinkListNode {
   }
 
   FEIRStmtCheckPoint &GetCheckPointOut() const {
-    return *(checkPointOut.get());;
+    return *(checkPointOut.get());
   }
 
   void AddCheckPoint(std::unique_ptr<FEIRStmtCheckPoint> checkPoint) {

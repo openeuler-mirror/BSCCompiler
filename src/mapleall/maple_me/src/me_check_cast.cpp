@@ -427,7 +427,7 @@ bool CheckCast::ExactlyMatch(MIRStructType &varStruct, MIRStructType &callStruct
   return true;
 }
 
-bool CheckCast::NeedChangeVarType(MIRStructType *varStruct, MIRStructType *callStruct) {
+bool CheckCast::NeedChangeVarType(MIRStructType *varStruct, MIRStructType *callStruct) const {
   if (callStruct == nullptr) {
     return false;
   }

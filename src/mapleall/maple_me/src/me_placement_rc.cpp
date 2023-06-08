@@ -16,7 +16,7 @@
 #include "me_irmap_build.h"
 
 namespace {
-const std::set<std::string> kWhiteListFunc {
+const std::set<std::string> kWhitelistFunc {
 #include "rcwhitelist.def"
 };
 }
@@ -49,7 +49,7 @@ UnaryMeStmt *PlacementRC::GenIncrefAtEntry(OriginalSt &ost) const {
   return incRefStmt;
 }
 
-void PlacementRC::CollectDecref(VarMeExpr *var, MeStmt *decrefStmt) {
+void PlacementRC::CollectDecref(VarMeExpr *var, MeStmt *decrefStmt) const {
   if (var == nullptr || decrefStmt == nullptr) {
     return;
   }
@@ -525,7 +525,7 @@ void PlacementRC::HandleCanInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt 
   lastUseBB.InsertMeStmtAfter(realOcc.GetStmt(), &decrefStmt);
 }
 
-void PlacementRC::HandleCannotInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt &decrefStmt, BB &lastUseBB) {
+void PlacementRC::HandleCannotInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt &decrefStmt, BB &lastUseBB) const {
   for (size_t i = 0; i < realOcc.GetStmt()->NumMeStmtOpnds(); i++) {
     MeExpr *curOpnd = realOcc.GetStmt()->GetOpnd(i);
     if (!curOpnd->SymAppears(realOcc.GetVar()->GetOstIdx())) {
@@ -890,7 +890,7 @@ void MEPlacementRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 
 bool MEPlacementRC::PhaseRun(maple::MeFunction &f) {
   std::string funcName = f.GetName();
-  if (kWhiteListFunc.find(funcName) != kWhiteListFunc.end() || f.GetMirFunc()->GetAttr(FUNCATTR_rclocalunowned)) {
+  if (kWhitelistFunc.find(funcName) != kWhitelistFunc.end() || f.GetMirFunc()->GetAttr(FUNCATTR_rclocalunowned)) {
     return false;
   }
   auto *cfg = GET_ANALYSIS(MEMeCfg, f);

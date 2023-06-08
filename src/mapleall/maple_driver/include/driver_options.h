@@ -164,7 +164,6 @@ extern maplecl::Option<bool> oWdoublePromotion;
 extern maplecl::Option<bool> oWduplicateDeclSpecifier;
 extern maplecl::Option<bool> oWduplicatedBranches;
 extern maplecl::Option<bool> oWduplicatedCond;
-extern maplecl::Option<std::string> oWeak_reference_mismatches;
 extern maplecl::Option<bool> oWeffc;
 extern maplecl::Option<bool> oWemptyBody;
 extern maplecl::Option<bool> oWendifLabels;
@@ -1909,6 +1908,9 @@ extern maplecl::Option<std::string> march;
 extern maplecl::Option<std::string> sysRoot;
 extern maplecl::Option<std::string> specs;
 extern maplecl::Option<std::string> folder;
+#ifdef ENABLE_MAPLE_SAN
+extern maplecl::Option<std::string> sanitizer;
+#endif
 extern maplecl::Option<std::string> imacros;
 extern maplecl::Option<std::string> fdiagnosticsColor;
 extern maplecl::Option<std::string> mtlsSize;
@@ -2067,14 +2069,13 @@ extern maplecl::Option<std::string> oFtemplateDepthE;
 extern maplecl::Option<std::string> functionReorderAlgorithm;
 extern maplecl::Option<std::string> functionReorderProfile;
 extern maplecl::Option<std::string> oA;
-#ifdef ENABLE_MAPLE_SAN
-extern maplecl::Option<std::string> sanitizer;
-#endif
+extern maplecl::Option<std::string> oWeakReferenceMismatches;
 
 /* ##################### DIGITAL Options ############################################################### */
 
 extern maplecl::Option<uint32_t> helpLevel;
 extern maplecl::Option<uint32_t> funcInliceSize;
+extern maplecl::Option<uint32_t> initOptNum;
 
 /* ##################### Warnings Options ############################################################### */
 

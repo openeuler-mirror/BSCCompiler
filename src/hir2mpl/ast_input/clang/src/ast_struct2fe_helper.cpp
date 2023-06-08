@@ -57,8 +57,11 @@ void ASTStruct2FEHelper::InitMethodHelpersImpl() {
 }
 
 TypeAttrs ASTStruct2FEHelper::GetStructAttributeFromInputImpl() const {
-  GenericAttrs attrs = astStruct.GetGenericAttrs();
-  return attrs.ConvertToTypeAttrs();
+  TypeAttrs typeAttrs = astStruct.GetGenericAttrs().ConvertToTypeAttrs();
+  if (astStruct.GetAlign() != 0) {
+    typeAttrs.SetAlign(astStruct.GetAlign());
+  }
+  return typeAttrs;
 }
 
 ASTStruct2FEHelper::ASTStruct2FEHelper(MapleAllocator &allocator, ASTStruct &structIn)

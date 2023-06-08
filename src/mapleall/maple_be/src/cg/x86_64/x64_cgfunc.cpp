@@ -830,8 +830,8 @@ MemOperand *X64CGFunc::GetOrCreatSpillMem(regno_t vrNum, uint32 memSize) {
   }
 }
 
-RegOperand *X64CGFunc::SelectIntrinsicOpLoadTlsAnchor(const IntrinsicopNode& intrinsicopNode,
-                                                          const BaseNode &parent) {
+RegOperand *X64CGFunc::SelectIntrinsicOpLoadTlsAnchor(const IntrinsicopNode& /* intrinsicopNode */,
+                                                      const BaseNode& /* parent */) {
   CHECK_FATAL_FALSE("Tls anchor not supported in x86_64 yet");
   return nullptr;
 }

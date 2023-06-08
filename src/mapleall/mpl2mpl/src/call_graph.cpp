@@ -102,32 +102,67 @@ InlineFailedType GetInlineFailedType(InlineFailedCode code) {
   return inlineFailedTypeTable[code];
 }
 
-// Functions that is available externally are never emitted into the object file. They exist to allow
-// inlining and other optimizations to take place given knownledge of the definition.
-bool IsAvailableExternally(const MIRFunction &func) {
+// Q1: What is `inline definition`?
+// A1: If all of the file scope declarations for a function in a translation unit INCLUDE
+// the `inline` function specifier WITHOUT `extern`, then the definition in that translation
+// unit is an inline definition. (see C99 standard 6.7.4 semantics 6 for details)
+// For `inline definition` defined by C99 standard, no stand-alone object code is emitted.
+// An inline definition does not provide an external definition for the function, and
+// does not forbid an external definition in another translation unit. It is unspecified
+// whether a call to the function uses the inline definition or the external definition.
+bool IsInlineDefinition(const MIRFunction &func) {
   if (func.IsStatic()) {
-    return false;
+    return false;  // inline function with internal linkage should never be regarded as an inline definition.
   }
-  // An inline non-static function without declaration dose not provide external definition
-  // for the function and does not forbid an external definition in another translation unit.
-  // So we should delete it from current translation unit.
-  if (func.IsInline() && !func.GetAttr(FUNCATTR_gnu_inline) && !func.IsExtern()) {
-    return true;
-  }
-  // If the function is declared extern gnu_inline, then this definition of the function is used only for inlining.
-  // In no case is the function compiled as a standalone function, not even if you take its address explicitly.
-  if (IsExternGnuInline(func)) {
+  if (func.IsInline() && !func.IsExtern() && !func.IsGnuInline()) {
     return true;
   }
   return false;
 }
 
+bool IsExternGnuInline(const MIRFunction &func) {
+  return func.IsExtern() && func.IsGnuInline();
+}
+
+const char *GetFuncDeleteStr(FuncMustDeleteReason code) {
+  switch (code) {
+    case kDoNotHaveToDelete: {
+      return "do not have to delete";
+    }
+    case kDeleteReasonInlineDefinition: {
+      return "inline definition";
+    }
+    case kDeleteReasonExternGnuInline: {
+      return "extern gnu_inline";
+    }
+    default:
+      CHECK_FATAL_FALSE("should not be here");
+  }
+  return "";
+}
+
+FuncMustDeleteReason GetReasonOfFuncMustBeDeleted(const MIRFunction &func) {
+  if (func.IsStatic()) {
+    return kDoNotHaveToDelete;
+  }
+  if (IsInlineDefinition(func)) {
+    return kDeleteReasonInlineDefinition;
+  }
+  // If the function is declared extern gnu_inline, then this definition of the function is used only for inlining.
+  // In no case is the function compiled as a standalone function, not even if you take its address explicitly.
+  if (IsExternGnuInline(func)) {
+    return kDeleteReasonExternGnuInline;
+  }
+  return kDoNotHaveToDelete;
+}
+
 bool FuncMustBeDeleted(const MIRFunction &func) {
-  return IsAvailableExternally(func);
+  auto reason = GetReasonOfFuncMustBeDeleted(func);
+  return reason != kDoNotHaveToDelete;
 }
 
 bool FuncMustBeEmitted(const MIRFunction &func) {
-  if (func.GetAttr(FUNCATTR_gnu_inline)) {
+  if (func.IsGnuInline()) {
     return !func.IsExtern();  // Don't be surprised, this is semantics of the GNU legacy inlining extension to C89
   }
   return func.IsExtern();
@@ -831,11 +866,28 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
   node.AddCallsite(*callInfo, nullptr);
   if (icallToFix.find(funcType->GetTypeIndex()) == icallToFix.end()) {
     auto *tempSet = tempAlloc.GetMemPool()->New<MapleSet<Caller2Cands>>(tempAlloc.Adapter());
-    icallToFix.insert({funcType->GetTypeIndex(), tempSet});
+    (void)icallToFix.emplace(funcType->GetTypeIndex(), tempSet);
   }
   CHECK_FATAL(CurFunction()->GetPuidx() == static_cast<uint32>(node.GetPuIdx()), "Error");
   Callsite callSite = {callInfo, node.GetCallee().at(callInfo)};
-  icallToFix.at(funcType->GetTypeIndex())->insert({node.GetPuIdx(), callSite});
+  (void)icallToFix.at(funcType->GetTypeIndex())->emplace(node.GetPuIdx(), callSite);
+}
+
+MapleVector<MIRFunction*> *SearchImplinterfaces(Klass *klass, const MIRFunction &calleeFunc) {
+  if (klass == nullptr) { // Fix CI
+    return nullptr;
+  }
+  MapleVector<MIRFunction*> *cands = klass->GetCandidates(calleeFunc.GetBaseFuncNameWithTypeStrIdx());
+  // continue to search its implinterfaces
+  if (cands == nullptr) {
+    for (Klass *implInterface : klass->GetImplInterfaces()) {
+      cands = implInterface->GetCandidates(calleeFunc.GetBaseFuncNameWithTypeStrIdx());
+      if (cands != nullptr && !cands->empty()) {
+        return cands;
+      }
+    }
+  }
+  return cands;
 }
 
 void CallGraph::HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uint32 loopDepth) {
@@ -950,20 +1002,7 @@ void CallGraph::HandleBody(MIRFunction &func, BlockNode &body, CGNode &node, uin
           // init CallNode enclosingBlock for inlininig
           static_cast<CallNode*>(stmt)->SetEnclosingBlock(&body);
           MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleePUIdx);
-          Klass *klass = klassh->GetKlassFromFunc(calleeFunc);
-          if (klass == nullptr) {  // Fix CI
-            continue;
-          }
-          MapleVector<MIRFunction*> *cands = klass->GetCandidates(calleeFunc->GetBaseFuncNameWithTypeStrIdx());
-          // continue to search its implinterfaces
-          if (cands == nullptr) {
-            for (Klass *implInterface : klass->GetImplInterfaces()) {
-              cands = implInterface->GetCandidates(calleeFunc->GetBaseFuncNameWithTypeStrIdx());
-              if (cands != nullptr && !cands->empty()) {
-                break;
-              }
-            }
-          }
+          MapleVector<MIRFunction*> *cands = SearchImplinterfaces(klassh->GetKlassFromFunc(calleeFunc), *calleeFunc);
           if (cands == nullptr || cands->empty()) {
             continue;  // Fix CI
           }
@@ -1315,6 +1354,28 @@ void IPODevirtulize::SearchDefInMemberMethods(const Klass &klass) const {
   }
 }
 
+void ResetInferredTypeWithCondition(std::vector<MIRSymbol*> inferredSymbols, const CallNode &calleeNode,
+                                    MIRFunction &func, StmtNode &stmt) {
+  for (size_t i = 0; i < calleeNode.GetNopndSize(); ++i) {
+    BaseNode *node = calleeNode.GetNopndAt(i);
+    CHECK_NULL_FATAL(node);
+    if (node->GetOpCode() != OP_dread) {
+      continue;
+    }
+    MIRSymbol *tmpSymbol = func.GetLocalOrGlobalSymbol(static_cast<DreadNode*>(node)->GetStIdx());
+    ResetInferredType(inferredSymbols, tmpSymbol);
+  }
+  Opcode op = stmt.GetOpCode();
+  if (op == OP_interfacecallassigned || op == OP_virtualcallassigned) {
+    CallNode &callNode = static_cast<CallNode&>(stmt);
+    for (size_t i = 0; i < callNode.GetReturnVec().size(); ++i) {
+      StIdx stIdx = callNode.GetReturnPair(i).first;
+      MIRSymbol *tmpSymbol = func.GetLocalOrGlobalSymbol(stIdx);
+      ResetInferredType(inferredSymbols, tmpSymbol);
+    }
+  }
+}
+
 void DoDevirtual(const Klass &klass, const KlassHierarchy &klassh) {
   MIRClassType *classType = static_cast<MIRClassType*>(klass.GetMIRStructType());
   for (auto &func : klass.GetMethods()) {
@@ -1412,24 +1473,7 @@ void DoDevirtual(const Klass &klass, const KlassHierarchy &klassh) {
                   }
                 }
                 if (hasDevirtualed) {
-                  for (size_t i = 0; i < calleeNode->GetNopndSize(); ++i) {
-                    BaseNode *node = calleeNode->GetNopndAt(i);
-                    CHECK_NULL_FATAL(node);
-                    if (node->GetOpCode() != OP_dread) {
-                      continue;
-                    }
-                    dreadNode = static_cast<DreadNode*>(node);
-                    MIRSymbol *tmpSymbol = func->GetLocalOrGlobalSymbol(dreadNode->GetStIdx());
-                    ResetInferredType(inferredSymbols, tmpSymbol);
-                  }
-                  if (op == OP_interfacecallassigned || op == OP_virtualcallassigned) {
-                    CallNode *callNode = static_cast<CallNode*>(stmt);
-                    for (size_t i = 0; i < callNode->GetReturnVec().size(); ++i) {
-                      StIdx stIdx = callNode->GetReturnPair(i).first;
-                      MIRSymbol *tmpSymbol = func->GetLocalOrGlobalSymbol(stIdx);
-                      ResetInferredType(inferredSymbols, tmpSymbol);
-                    }
-                  }
+                  ResetInferredTypeWithCondition(inferredSymbols, *calleeNode, *func, *stmt);
                   break;
                 }
                 // Search default function in interfaces
@@ -1575,23 +1619,7 @@ void DoDevirtual(const Klass &klass, const KlassHierarchy &klassh) {
                       << GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleeNode->GetPUIdx())->GetName()
                       << '\n';
                 }
-                for (size_t i = 0; i < calleeNode->GetNopndSize(); ++i) {
-                  BaseNode *node = calleeNode->GetNopndAt(i);
-                  if (node->GetOpCode() != OP_dread) {
-                    continue;
-                  }
-                  dreadNode = static_cast<DreadNode*>(node);
-                  MIRSymbol *tmpSymbol = func->GetLocalOrGlobalSymbol(dreadNode->GetStIdx());
-                  ResetInferredType(inferredSymbols, tmpSymbol);
-                }
-                if (op == OP_interfacecallassigned || op == OP_virtualcallassigned) {
-                  CallNode *callNode = static_cast<CallNode*>(stmt);
-                  for (size_t i = 0; i < callNode->GetReturnVec().size(); ++i) {
-                    StIdx stIdx = callNode->GetReturnPair(i).first;
-                    MIRSymbol *tmpSymbol = func->GetLocalOrGlobalSymbol(stIdx);
-                    ResetInferredType(inferredSymbols, tmpSymbol);
-                  }
-                }
+                ResetInferredTypeWithCondition(inferredSymbols, *calleeNode, *func, *stmt);
                 break;
               }
             }
@@ -1689,20 +1717,7 @@ void CallGraph::ReadCallGraphFromMplt() {
         node->AddCallsite(**itInner, calleeNode);
       } else if (info->GetCallType() == kCallTypeSuperCall) {
         const MIRFunction *calleeFunc = info->GetFunc();
-        Klass *klass = klassh->GetKlassFromFunc(calleeFunc);
-        if (klass == nullptr) {  // Fix CI
-          continue;
-        }
-        MapleVector<MIRFunction*> *cands = klass->GetCandidates(calleeFunc->GetBaseFuncNameWithTypeStrIdx());
-        // continue to search its implinterfaces
-        if (cands == nullptr) {
-          for (Klass *implInterface : klass->GetImplInterfaces()) {
-            cands = implInterface->GetCandidates(calleeFunc->GetBaseFuncNameWithTypeStrIdx());
-            if (cands != nullptr && !cands->empty()) {
-              break;
-            }
-          }
-        }
+        MapleVector<MIRFunction*> *cands = SearchImplinterfaces(klassh->GetKlassFromFunc(calleeFunc), *calleeFunc);
         if (cands == nullptr || cands->empty()) {
           continue;  // Fix CI
         }
@@ -2068,9 +2083,16 @@ bool M2MFuncDeleter::PhaseRun(maple::MIRModule &m) {
   const bool debug = TRACE_MAPLE_PHASE;
   while (iter != funcList.end()) {
     auto *func = *iter;
-    if (func != nullptr && FuncMustBeDeleted(*func)) {
+    if (func == nullptr) {
+      ++iter;
+      continue;
+    }
+    auto reasonCode = GetReasonOfFuncMustBeDeleted(*func);
+    if (reasonCode != kDoNotHaveToDelete) {
       if (debug) {
-        LogInfo::MapleLogger() << "[funcdeleter] delete func: " << func->GetName() << std::endl;
+        const char *reasonStr = GetFuncDeleteStr(reasonCode);
+        LogInfo::MapleLogger() << "[funcdeleter] delete func: " << func->GetName() <<
+            ", reason: " << reasonStr << std::endl;
       }
       func->Delete();
       iter = funcList.erase(iter);

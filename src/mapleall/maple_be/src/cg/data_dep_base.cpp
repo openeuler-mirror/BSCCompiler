@@ -32,88 +32,45 @@ void DataDepBase::ProcessNonMachineInsn(Insn &insn, MapleVector<Insn*> &comments
   }
 }
 
-/*
- * If the instruction's number of current basic block more than kMaxDependenceNum,
- * then insert some pseudo separator node to split basic block.
- */
-void DataDepBase::SeparateDependenceGraph(MapleVector<DepNode*> &nodes, uint32 &nodeSum) {
-  if ((nodeSum > 0) && ((nodeSum % kMaxDependenceNum) == 0)) {
-    ASSERT(nodeSum == nodes.size(), "CG internal error, nodeSum should equal to nodes.size.");
-    /* Add a pseudo node to separate dependence graph */
-    DepNode *separatorNode = BuildSeparatorNode();
-    separatorNode->SetIndex(nodeSum);
-    (void)nodes.emplace_back(separatorNode);
-    curCDGNode->AddPseudoSepNodes(separatorNode);
-    BuildDepsSeparator(*separatorNode, nodes);
-
-    if (beforeRA) {
-      /* for all live-out register of current bb */
-      BB *curBB = curCDGNode->GetBB();
-      CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
-      for (auto &regNO : curBB->GetLiveOutRegNO()) {
-        if (curCDGNode->GetLatestDefInsn(regNO) != nullptr) {
-          curCDGNode->AppendUseInsnChain(regNO, separatorNode->GetInsn(), memPool, beforeRA);
-          separatorNode->AddUseReg(regNO);
-          CHECK_FATAL(curCDGNode->GetUseInsnChain(regNO)->insn != nullptr, "get useInsn failed");
-          separatorNode->SetRegUses(*curCDGNode->GetUseInsnChain(regNO));
-        }
-      }
-    }
-    curCDGNode->ClearDepDataVec();
-    separatorIndex = nodeSum++;
-  }
-}
-
-/*
- * Generate a data depNode.
- * insn  : create depNode for the instruction.
- * nodes : a vector to store depNode.
- * nodeSum  : the new depNode's index.
- * comments : those comment insn between last no-comment's insn and insn.
- */
-DepNode *DataDepBase::GenerateDepNode(Insn &insn, MapleVector<DepNode*> &nodes,
-                                      uint32 &nodeSum, MapleVector<Insn*> &comments) {
-  Reservation *rev = mad.FindReservation(insn);
-  ASSERT(rev != nullptr, "get reservation of insn failed");
-  auto *depNode = memPool.New<DepNode>(insn, alloc, rev->GetUnit(), rev->GetUnitNum(), *rev);
-  if (beforeRA) {
-    auto *regPressure = memPool.New<RegPressure>(alloc);
-    depNode->SetRegPressure(*regPressure);
-    depNode->InitPressure();
-  }
-  depNode->SetIndex(nodeSum++);
-  (void)nodes.emplace_back(depNode);
-  insn.SetDepNode(*depNode);
-
-  constexpr size_t vectorSize = 5;
-  depNode->ReservePreds(vectorSize);
-  depNode->ReserveSuccs(vectorSize);
-
-  if (!comments.empty()) {
-    depNode->SetComments(comments);
-    comments.clear();
-  }
-  return depNode;
-}
-
 void DataDepBase::BuildDepsLastCallInsn(Insn &insn) {
   Insn *lastCallInsn = curCDGNode->GetLastCallInsn();
-  if (lastCallInsn != nullptr) {
+  if (lastCallInsn != nullptr && lastCallInsn->GetMachineOpcode() != MOP_tls_desc_call) {
     AddDependence(*lastCallInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);
   }
   curCDGNode->SetLastCallInsn(&insn);
 }
 
-void DataDepBase::BuildMayThrowInsnDependency(Insn &insn) {
-  /* Build dependency for may throw insn */
-  if (insn.MayThrow()) {
-    BuildDepsMayThrowInsn(insn);
-    Insn *lastFrameDef = curCDGNode->GetLastFrameDefInsn();
-    if (lastFrameDef != nullptr) {
-      AddDependence(*lastFrameDef->GetDepNode(), *insn.GetDepNode(), kDependenceTypeThrow);
-    } else if (!isIntra && curRegion->GetRegionRoot() != curCDGNode) {
-      BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeThrow, kLastFrameDef);
-    }
+/* Build dependency for may throw insn */
+void DataDepBase::BuildMayThrowInsnDependency(DepNode &depNode, Insn &insn, const Insn &locInsn) {
+  if (!insn.MayThrow() || !cgFunc.GetMirModule().IsJavaModule()) {
+    return;
+  }
+
+  depNode.SetLocInsn(locInsn);
+  curCDGNode->AddMayThrowInsn(&insn);
+  // Build dependency in local BB
+  if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
+    // Build dependency between may-throw-insn and ambiguous-insn
+    AddDependence4InsnInVectorByType(curCDGNode->GetAmbiguousInsns(), insn, kDependenceTypeThrow);
+    // Build dependency between may-throw-insn and stack-def-insn
+    AddDependence4InsnInVectorByType(curCDGNode->GetStackDefInsns(), insn, kDependenceTypeThrow);
+    // Build dependency between may-throw-insn and heap-def-insn
+    AddDependence4InsnInVectorByType(curCDGNode->GetHeapDefInsns(), insn, kDependenceTypeThrow);
+  } else if (curRegion->GetRegionRoot() != curCDGNode) {
+    // Build dependency across BB
+    // Build dependency between may-throw-insn and ambiguous-insn
+    BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeThrow, kAmbiguous);
+    // Build dependency between may-throw-insn and stack-def-insn
+    BuildInterBlockSpecialDataInfoDependency(depNode, false, kDependenceTypeThrow, kStackDefs);
+    // Build dependency between may-throw-insn and heap-def-insn
+    BuildInterBlockSpecialDataInfoDependency(depNode, false, kDependenceTypeThrow, kHeapDefs);
+  }
+  // Build dependency between may-throw-insn and last-frame-def-insn
+  Insn *lastFrameDef = curCDGNode->GetLastFrameDefInsn();
+  if (lastFrameDef != nullptr) {
+    AddDependence(*lastFrameDef->GetDepNode(), *insn.GetDepNode(), kDependenceTypeThrow);
+  } else if (!isIntra && curRegion->GetRegionRoot() != curCDGNode) {
+    BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeThrow, kLastFrameDef);
   }
 }
 
@@ -147,35 +104,19 @@ void DataDepBase::BuildDepsBetweenControlRegAndCall(Insn &insn, bool isDest) {
 /* Build control data dependence for branch/ret instructions */
 void DataDepBase::BuildDepsControlAll(Insn &insn, const MapleVector<DepNode*> &nodes) {
   DepNode *depNode = insn.GetDepNode();
-  if (isIntra) {
-    for (uint32 i = separatorIndex; i < depNode->GetIndex(); ++i) {
-      AddDependence(*nodes[i], *depNode, kDependenceTypeControl);
-    }
-  } else {
-    for (auto dataNode : nodes) {
-      AddDependence(*dataNode, *depNode, kDependenceTypeControl);
-    }
+  // For write/read mem instructions, we build output dependency between them and branch instructions
+  for (auto *heapDef : curCDGNode->GetHeapDefInsns()) {
+    AddDependence(*heapDef->GetDepNode(), *depNode, kDependenceTypeOutput);
   }
-}
-
-/* A pseudo separator node depends all the other nodes */
-void DataDepBase::BuildDepsSeparator(DepNode &newSepNode, MapleVector<DepNode*> &nodes) {
-  uint32 nextSepIndex = (separatorIndex + kMaxDependenceNum) < nodes.size() ? (separatorIndex + kMaxDependenceNum)
-                                                                            : static_cast<uint32>(nodes.size() - 1);
-  newSepNode.ReservePreds(nextSepIndex - separatorIndex);
-  newSepNode.ReserveSuccs(nextSepIndex - separatorIndex);
-  for (uint32 i = separatorIndex; i < nextSepIndex; ++i) {
-    AddDependence(*nodes[i], newSepNode, kDependenceTypeSeparator);
+  for (auto *heapUse : curCDGNode->GetHeapUseInsns()) {
+    AddDependence(*heapUse->GetDepNode(), *depNode, kDependenceTypeOutput);
   }
-}
-
-/* Build data dependence of may throw instructions */
-void DataDepBase::BuildDepsMayThrowInsn(Insn &insn) {
-  if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
-    MapleVector<Insn*> &ambiInsns = curCDGNode->GetAmbiguousInsns();
-    AddDependence4InsnInVectorByType(ambiInsns, insn, kDependenceTypeThrow);
-  } else if (curRegion->GetRegionRoot() != curCDGNode) {
-    BuildInterBlockSpecialDataInfoDependency(*insn.GetDepNode(), false, kDependenceTypeThrow, kAmbiguous);
+  for (auto *stackDef : curCDGNode->GetStackDefInsns()) {
+    AddDependence(*stackDef->GetDepNode(), *depNode, kDependenceTypeOutput);
+  }
+  // For rest instructions, we build control dependency
+  for (auto *dataNode : nodes) {
+    AddDependence(*dataNode, *depNode, kDependenceTypeControl);
   }
 }
 
@@ -184,6 +125,9 @@ void DataDepBase::BuildDepsMayThrowInsn(Insn &insn) {
  * ambiguous instruction: instructions that can not across may throw instructions
  */
 void DataDepBase::BuildDepsAmbiInsn(Insn &insn) {
+  if (!cgFunc.GetMirModule().IsJavaModule()) {
+    return;
+  }
   if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
     MapleVector<Insn*> &mayThrows = curCDGNode->GetMayThrowInsns();
     AddDependence4InsnInVectorByType(mayThrows, insn, kDependenceTypeThrow);
@@ -239,22 +183,6 @@ void DataDepBase::BuildDepsUseReg(Insn &insn, regno_t regNO) {
   }
 }
 
-/* Update stack and heap dependency */
-void DataDepBase::UpdateStackAndHeapDependency(DepNode &depNode, Insn &insn, const Insn &locInsn) {
-  if (!insn.MayThrow()) {
-    return;
-  }
-  depNode.SetLocInsn(locInsn);
-  curCDGNode->AddMayThrowInsn(&insn);
-  if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
-    AddDependence4InsnInVectorByType(curCDGNode->GetStackDefInsns(), insn, kDependenceTypeThrow);
-    AddDependence4InsnInVectorByType(curCDGNode->GetHeapDefInsns(), insn, kDependenceTypeThrow);
-  } else if (curRegion->GetRegionRoot() != curCDGNode) {
-    BuildInterBlockSpecialDataInfoDependency(depNode, false, kDependenceTypeThrow, kStackDefs);
-    BuildInterBlockSpecialDataInfoDependency(depNode, false, kDependenceTypeThrow, kHeapDefs);
-  }
-}
-
 /* For inter data dependence analysis */
 void DataDepBase::BuildInterBlockDefUseDependency(DepNode &curDepNode, regno_t regNO, DepType depType,
                                                   bool isDef) {
@@ -262,7 +190,7 @@ void DataDepBase::BuildInterBlockDefUseDependency(DepNode &curDepNode, regno_t r
   CHECK_FATAL(curRegion->GetRegionRoot() != curCDGNode, "for the root node, cross-BB search is not required");
   BB *curBB = curCDGNode->GetBB();
   CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
-  std::vector<bool> visited(curRegion->GetMaxBBIdInRegion(), false);
+  std::vector<bool> visited(curRegion->GetMaxBBIdInRegion() + 1, false);
   if (isDef) {
     BuildPredPathDefDependencyDFS(*curBB, visited, curDepNode, regNO, depType);
   } else {
@@ -338,8 +266,35 @@ void DataDepBase::BuildInterBlockSpecialDataInfoDependency(DepNode &curDepNode, 
   CHECK_FATAL(curRegion->GetRegionRoot() != curCDGNode, "for the root node, cross-BB search is not required");
   BB *curBB = curCDGNode->GetBB();
   CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
-  std::vector<bool> visited(curRegion->GetMaxBBIdInRegion(), false);
+  std::vector<bool> visited(curRegion->GetMaxBBIdInRegion() + 1, false);
   BuildPredPathSpecialDataInfoDependencyDFS(*curBB, visited, needCmp, curDepNode, depType, infoType);
+}
+
+/*
+ * Generate a data depNode.
+ * insn  : create depNode for the instruction.
+ * nodes : a vector to store depNode.
+ * nodeSum  : the new depNode's index.
+ * comments : those comment insn between last no-comment's insn and insn.
+ */
+DepNode *DataDepBase::GenerateDepNode(Insn &insn, MapleVector<DepNode*> &nodes,
+                                      uint32 &nodeSum, MapleVector<Insn*> &comments) {
+  Reservation *rev = mad.FindReservation(insn);
+  ASSERT(rev != nullptr, "get reservation of insn failed");
+  auto *depNode = memPool.New<DepNode>(insn, alloc, rev->GetUnit(), rev->GetUnitNum(), *rev);
+  depNode->SetIndex(nodeSum++);
+  (void)nodes.emplace_back(depNode);
+  insn.SetDepNode(*depNode);
+
+  constexpr size_t vectorSize = 5;
+  depNode->ReservePreds(vectorSize);
+  depNode->ReserveSuccs(vectorSize);
+
+  if (!comments.empty()) {
+    depNode->SetComments(comments);
+    comments.clear();
+  }
+  return depNode;
 }
 
 void DataDepBase::BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vector<bool> &visited, bool needCmp,
@@ -422,12 +377,14 @@ void DataDepBase::BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vect
       break;
     }
     case kMayThrows: {
+      CHECK_FATAL(cgFunc.GetMirModule().IsJavaModule(), "do not need build dependency for throw");
       visited[curBB.GetId()] = true;
       MapleVector<Insn*> &mayThrows = cdgNode->GetMayThrowInsns();
       AddDependence4InsnInVectorByType(mayThrows, *depNode.GetInsn(), depType);
       break;
     }
     case kAmbiguous: {
+      CHECK_FATAL(cgFunc.GetMirModule().IsJavaModule(), "do not need build dependency for ambiguous");
       visited[curBB.GetId()] = true;
       MapleVector<Insn*> &ambiInsns = cdgNode->GetAmbiguousInsns();
       AddDependence4InsnInVectorByType(ambiInsns, *depNode.GetInsn(), depType);
@@ -451,23 +408,37 @@ void DataDepBase::BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vect
 }
 
 /*
- * Add data dependence edge :
- *   Two data dependence node has a unique edge.
- *   True data dependence overwrites other dependence.
+ * Build data dependency edge from FromNode to ToNode:
+ *  Two data dependency node has a unique edge.
+ *  These two dependencies will set the latency on the dependency edge:
+ *   1. True data dependency overwrites other dependency;
+ *   2. Output data dependency overwrites other dependency except true dependency;
+ *  The latency of the other dependencies is 0.
  */
 void DataDepBase::AddDependence(DepNode &fromNode, DepNode &toNode, DepType depType) {
-  /* Can not build a self loop dependence */
+  // Can not build a self loop dependence
   if (&fromNode == &toNode) {
     return;
   }
-  /* Check if exist edge */
+  // Check if exist edge between the two node
   if (!fromNode.GetSuccs().empty()) {
     DepLink *depLink = fromNode.GetSuccs().back();
     if (&(depLink->GetTo()) == &toNode) {
+      // If there exists edges, only replace with the true or output dependency
       if (depLink->GetDepType() != kDependenceTypeTrue && depType == kDependenceTypeTrue) {
-        /* Has existed edge, replace it */
         depLink->SetDepType(kDependenceTypeTrue);
+        // Set latency on true dependency edge:
+        // 1. if there exists bypass between defInsn and useInsn, the latency of dependency is bypass default;
+        // 2. otherwise, the latency of dependency is cost of defInsn
         depLink->SetLatency(static_cast<uint32>(mad.GetLatency(*fromNode.GetInsn(), *toNode.GetInsn())));
+      } else if (depLink->GetDepType() != kDependenceTypeOutput && depType == kDependenceTypeOutput) {
+        depLink->SetDepType(kDependenceTypeOutput);
+        // Set latency on output dependency edge:
+        // 1. set (fromInsn_default_latency - toInsn_default_latency), if it > 0;
+        // 2. set 1 by default.
+        int latency = (fromNode.GetReservation()->GetLatency() - toNode.GetReservation()->GetLatency()) > 0 ?
+                       fromNode.GetReservation()->GetLatency() - toNode.GetReservation()->GetLatency() : 1;
+        depLink->SetLatency(static_cast<uint32>(latency));
       }
       return;
     }
@@ -475,6 +446,10 @@ void DataDepBase::AddDependence(DepNode &fromNode, DepNode &toNode, DepType depT
   auto *depLink = memPool.New<DepLink>(fromNode, toNode, depType);
   if (depType == kDependenceTypeTrue) {
     depLink->SetLatency(static_cast<uint32>(mad.GetLatency(*fromNode.GetInsn(), *toNode.GetInsn())));
+  } else if (depType == kDependenceTypeOutput) {
+    int latency = (fromNode.GetReservation()->GetLatency() - toNode.GetReservation()->GetLatency()) > 0 ?
+                   fromNode.GetReservation()->GetLatency() - toNode.GetReservation()->GetLatency() : 1;
+    depLink->SetLatency(static_cast<uint32>(latency));
   }
   fromNode.AddSucc(*depLink);
   toNode.AddPred(*depLink);
@@ -494,55 +469,6 @@ void DataDepBase::AddDependence4InsnInVectorByTypeAndCmp(MapleVector<Insn*> &ins
   }
 }
 
-/* Combine two data dependence nodes to one */
-void DataDepBase::CombineDependence(DepNode &firstNode, const DepNode &secondNode, bool isAcrossSeparator,
-                                    bool isMemCombine) {
-  if (isAcrossSeparator) {
-    /* Clear all latency of the second node. */
-    for (auto predLink : secondNode.GetPreds()) {
-      predLink->SetLatency(0);
-    }
-    for (auto succLink : secondNode.GetSuccs()) {
-      succLink->SetLatency(0);
-    }
-    return;
-  }
-  std::set<DepNode*> uniqueNodes;
-
-  for (auto predLink : firstNode.GetPreds()) {
-    if (predLink->GetDepType() == kDependenceTypeTrue) {
-      predLink->SetLatency(
-          static_cast<uint32>(mad.GetLatency(*predLink->GetFrom().GetInsn(), *firstNode.GetInsn())));
-    }
-    (void)uniqueNodes.insert(&predLink->GetFrom());
-  }
-  for (auto predLink : secondNode.GetPreds()) {
-    if (&predLink->GetFrom() != &firstNode) {
-      if (uniqueNodes.insert(&(predLink->GetFrom())).second) {
-        AddDependence(predLink->GetFrom(), firstNode, predLink->GetDepType());
-      }
-    }
-    predLink->SetLatency(0);
-  }
-  uniqueNodes.clear();
-  for (auto succLink : firstNode.GetSuccs()) {
-    if (succLink->GetDepType() == kDependenceTypeTrue) {
-      succLink->SetLatency(
-          static_cast<uint32>(mad.GetLatency(*succLink->GetFrom().GetInsn(), *firstNode.GetInsn())));
-    }
-    (void)uniqueNodes.insert(&(succLink->GetTo()));
-  }
-  for (auto succLink : secondNode.GetSuccs()) {
-    if (uniqueNodes.insert(&(succLink->GetTo())).second) {
-      AddDependence(firstNode, succLink->GetTo(), succLink->GetDepType());
-      if (isMemCombine) {
-        succLink->GetTo().IncreaseValidPredsSize();
-      }
-    }
-    succLink->SetLatency(0);
-  }
-}
-
 /* Remove self data dependence (self loop) in data dependence graph. */
 void DataDepBase::RemoveSelfDeps(Insn &insn) {
   DepNode *node = insn.GetDepNode();
@@ -554,7 +480,7 @@ void DataDepBase::RemoveSelfDeps(Insn &insn) {
 
 /* Check if regNO is in ehInRegs. */
 bool DataDepBase::IfInAmbiRegs(regno_t regNO) const {
-  if (!curCDGNode->HasAmbiRegs()) {
+  if (!curCDGNode->HasAmbiRegs() || !cgFunc.GetMirModule().IsJavaModule()) {
     return false;
   }
   MapleSet<regno_t> &ehInRegs = curCDGNode->GetEhInRegs();
@@ -568,39 +494,5 @@ bool DataDepBase::IfInAmbiRegs(regno_t regNO) const {
 const std::string &DataDepBase::GetDepTypeName(DepType depType) const {
   ASSERT(depType <= kDependenceTypeNone, "array boundary check failed");
   return kDepTypeName[depType];
-}
-
-/* Print data dep node information */
-void DataDepBase::DumpDepNode(const DepNode &node) const {
-  node.GetInsn()->Dump();
-  uint32 num = node.GetUnitNum();
-  LogInfo::MapleLogger() << "unit num : " << num << ", ";
-  for (uint32 i = 0; i < num; ++i) {
-    const Unit *unit = node.GetUnitByIndex(i);
-    if (unit != nullptr) {
-      PRINT_VAL(unit->GetName());
-    } else {
-      PRINT_VAL("none");
-    }
-  }
-  LogInfo::MapleLogger() << '\n';
-  node.DumpSchedInfo();
-  if (beforeRA) {
-    node.DumpRegPressure();
-  }
-}
-
-/* Print dep link information */
-void DataDepBase::DumpDepLink(const DepLink &link, const DepNode *node) const {
-  PRINT_VAL(GetDepTypeName(link.GetDepType()));
-  PRINT_STR_VAL("Latency: ", link.GetLatency());
-  if (node != nullptr) {
-    node->GetInsn()->Dump();
-    return;
-  }
-  LogInfo::MapleLogger() << "from : ";
-  link.GetFrom().GetInsn()->Dump();
-  LogInfo::MapleLogger() << "to : ";
-  link.GetTo().GetInsn()->Dump();
 }
 } /* namespace maplebe */

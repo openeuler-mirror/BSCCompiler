@@ -32,7 +32,8 @@ void AArch64InsnVisitor::ModifyJumpTarget(Operand &targetOperand, BB &bb) {
     CHECK_FATAL(modified, "ModifyJumpTarget: Could not change jump target");
     return;
   }
-  bb.GetLastInsn()->SetOperand(AArch64isa::GetJumpTargetIdx(*bb.GetLastInsn()), targetOperand);
+  CHECK_NULL_FATAL(bb.GetLastMachineInsn());
+  bb.GetLastMachineInsn()->SetOperand(AArch64isa::GetJumpTargetIdx(*bb.GetLastMachineInsn()), targetOperand);
 }
 
 void AArch64InsnVisitor::ModifyJumpTarget(maple::LabelIdx targetLabel, BB &bb) {
@@ -40,8 +41,10 @@ void AArch64InsnVisitor::ModifyJumpTarget(maple::LabelIdx targetLabel, BB &bb) {
 }
 
 void AArch64InsnVisitor::ModifyJumpTarget(BB &newTarget, BB &bb) {
-  ModifyJumpTarget(newTarget.GetLastInsn()->GetOperand(
-      AArch64isa::GetJumpTargetIdx(*newTarget.GetLastInsn())), bb);
+  if (newTarget.GetLastMachineInsn() != nullptr) {
+    ModifyJumpTarget(newTarget.GetLastMachineInsn()->GetOperand(
+        AArch64isa::GetJumpTargetIdx(*newTarget.GetLastMachineInsn())), bb);
+  }
 }
 
 Insn *AArch64InsnVisitor::CloneInsn(Insn &originalInsn) {

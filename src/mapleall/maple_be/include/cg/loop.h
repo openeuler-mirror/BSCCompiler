@@ -15,295 +15,187 @@
 #ifndef MAPLEBE_INCLUDE_CG_LOOP_H
 #define MAPLEBE_INCLUDE_CG_LOOP_H
 
-#include "cg_phase.h"
-#include "cgbb.h"
-#include "insn.h"
+#include "cgfunc.h"
+#include "cg_dominance.h"
 #include "maple_phase.h"
 
 namespace maplebe {
-class LoopHierarchy {
+class LoopDesc {
  public:
-  struct HeadIDCmp {
-    bool operator()(const LoopHierarchy *loopHierarchy1, const LoopHierarchy *loopHierarchy2) const {
-      CHECK_NULL_FATAL(loopHierarchy1);
-      CHECK_NULL_FATAL(loopHierarchy2);
-      return (loopHierarchy1->GetHeader()->GetId() < loopHierarchy2->GetHeader()->GetId());
+  struct LoopDescCmp {
+    bool operator()(const LoopDesc *loop1, const LoopDesc *loop2) const {
+      CHECK_NULL_FATAL(loop1);
+      CHECK_NULL_FATAL(loop2);
+      return (loop1->GetHeader().GetId() < loop2->GetHeader().GetId());
     }
   };
 
-  explicit LoopHierarchy(MemPool &memPool)
-      : loopMp(memPool),
-        loopAlloc(&memPool),
-        otherLoopEntries(loopAlloc.Adapter()),
-        loopMembers(loopAlloc.Adapter()),
-        backedge(loopAlloc.Adapter()),
-        backBBEdges(loopAlloc.Adapter()),
-        exits(loopAlloc.Adapter()),
-        innerLoops(loopAlloc.Adapter()) {}
+  LoopDesc(MapleAllocator &allocator, BB &head)
+      : alloc(allocator),
+        header(head),
+        loopBBs(alloc.Adapter()),
+        exitBBs(alloc.Adapter()),
+        backEdges(alloc.Adapter()),
+        childLoops(alloc.Adapter()) {}
 
-  virtual ~LoopHierarchy() = default;
+  ~LoopDesc() = default;
 
-  BB *GetHeader() const {
+  void Dump() const;
+
+  BB &GetHeader() {
     return header;
   }
-  const MapleSet<BB*, BBIdCmp> &GetLoopMembers() const {
-    return loopMembers;
-  }
-  const MapleSet<BB*, BBIdCmp> &GetBackedge() const {
-    return backedge;
-  }
-  const MapleUnorderedMap<BB*, MapleSet<BB*>*> &GetBackBBEdges() const {
-    return backBBEdges;
-  }
-  MapleSet<BB*, BBIdCmp> &GetBackedgeNonConst() {
-    return backedge;
-  }
-  const MapleSet<BB*, BBIdCmp> &GetExits() const {
-    return exits;
-  }
-  const MapleSet<LoopHierarchy*, HeadIDCmp> &GetInnerLoops() const {
-    return innerLoops;
-  }
-  const LoopHierarchy *GetOuterLoop() const {
-    return outerLoop;
-  }
-  LoopHierarchy *GetOuterLoop() {
-    return outerLoop;
-  }
-  LoopHierarchy *GetPrev() {
-    return prev;
-  }
-  LoopHierarchy *GetNext() {
-    return next;
+
+  const BB &GetHeader() const {
+    return header;
   }
 
-  MapleSet<BB*, BBIdCmp>::iterator EraseLoopMembers(MapleSet<BB*, BBIdCmp>::iterator it) {
-    return loopMembers.erase(it);
-  }
-  void InsertLoopMembers(BB &bb) {
-    (void)loopMembers.insert(&bb);
-  }
-  void InsertBackedge(BB &bb) {
-    (void)backedge.insert(&bb);
-  }
-  void InsertBackBBEdge(BB &backBB, BB &headerBB) {
-    auto backIt = backBBEdges.find(&backBB);
-    if (backIt == backBBEdges.end()) {
-      auto *headBBSPtr = loopMp.New<MapleSet<BB*>>(loopAlloc.Adapter());
-      headBBSPtr->insert(&headerBB);
-      backBBEdges.emplace(&backBB, headBBSPtr);
-    } else {
-      backIt->second->insert(&headerBB);
-    }
-  }
-  void InsertExit(BB &bb) {
-    (void)exits.insert(&bb);
-  }
-  void InsertInnerLoops(LoopHierarchy &loop) {
-    (void)innerLoops.insert(&loop);
-  }
-  void SetHeader(BB &bb) {
-    header = &bb;
-  }
-  void SetOuterLoop(LoopHierarchy &loop) {
-    outerLoop = &loop;
-  }
-  void SetPrev(LoopHierarchy *loop) {
-    prev = loop;
-  }
-  void SetNext(LoopHierarchy *loop) {
-    next = loop;
-  }
-  void PrintLoops(const std::string &name) const;
-  MapleSet<BB*, BBIdCmp> GetOtherLoopEntries() const {
-    return otherLoopEntries;
+  // get all bbIds in the loop
+  const MapleSet<BBID> &GetLoopBBs() const {
+    return loopBBs;
   }
 
-  void InsertBBToOtherLoopEntries(BB * const &insertBB) {
-    (void)otherLoopEntries.insert(insertBB);
-  }
-  void EraseBBFromOtherLoopEntries(BB * const &eraseBB) {
-    (void)otherLoopEntries.erase(eraseBB);
+  // check whether the BB exists in the current loop
+  bool Has(const BB &bb) const {
+    return loopBBs.find(bb.GetId()) != loopBBs.end();
   }
 
- protected:
-  LoopHierarchy *prev = nullptr;
-  LoopHierarchy *next = nullptr;
+  void InsertLoopBBs(const BB &bb) {
+    (void)loopBBs.insert(bb.GetId());
+  }
 
+  const MapleSet<BBID> &GetExitBBs() const {
+    return exitBBs;
+  }
+
+  void InsertExitBBs(const BB &bb) {
+    (void)exitBBs.insert(bb.GetId());
+  }
+
+  void InsertBackEdges(const BB &bb) {
+    (void)backEdges.insert(bb.GetId());
+  }
+
+  // check whether from->to is the back edge of the current loop
+  bool IsBackEdge(const BB &from, const BB &to) const {
+    return (to.GetId() == header.GetId()) && (backEdges.find(from.GetId()) != backEdges.end());
+  }
+
+  // get the BBId of all back edges
+  const MapleSet<BBID> &GetBackEdges() const {
+    return backEdges;
+  }
+
+  const LoopDesc *GetParentLoop() const {
+    return parentLoop;
+  }
+
+  LoopDesc *GetParentLoop() {
+    return parentLoop;
+  }
+
+  void SetParentLoop(LoopDesc &loop) {
+    parentLoop = &loop;
+  }
+
+  uint32 GetNestDepth() const {
+    return nestDepth;
+  }
+
+  void SetNestDepth(uint32 depth) {
+    nestDepth = depth;
+  }
+
+  const MapleSet<LoopDesc*, LoopDescCmp> &GetChildLoops() const {
+    return childLoops;
+  }
+
+  void InsertChildLoops(LoopDesc &loop) {
+    (void)childLoops.insert(&loop);
+  }
  private:
-  MemPool &loopMp;
-  MapleAllocator loopAlloc;
-  BB *header = nullptr;
-  MapleSet<BB*, BBIdCmp> otherLoopEntries;
-  MapleSet<BB*, BBIdCmp> loopMembers;
-  MapleSet<BB*, BBIdCmp> backedge;
-  MapleUnorderedMap<BB*, MapleSet<BB*>*> backBBEdges; // <backBB, headerBBs>
-  MapleSet<BB*, BBIdCmp> exits;
-  MapleSet<LoopHierarchy*, HeadIDCmp> innerLoops;
-  LoopHierarchy *outerLoop = nullptr;
+  MapleAllocator &alloc;
+  BB &header;                     // BB's header
+  MapleSet<BBID> loopBBs;         // BBs in loop
+  MapleSet<BBID> exitBBs;         // loop exit BBs
+  MapleSet<BBID> backEdges;       // loop back edges, backBB -> headBB
+  LoopDesc *parentLoop = nullptr; // points to its closest nesting loop
+  uint32 nestDepth = 1;           // the nesting depth
+  MapleSet<LoopDesc*, LoopDescCmp> childLoops;
 };
 
-class LoopFinder : public AnalysisResult {
+class LoopAnalysis : public AnalysisResult {
  public:
-  LoopFinder(CGFunc &func, MemPool &mem)
-      : AnalysisResult(&mem),
-        cgFunc(&func),
-        memPool(&mem),
-        loopMemPool(memPool),
-        visitedBBs(loopMemPool.Adapter()),
-        sortedBBs(loopMemPool.Adapter()),
-        dfsBBs(loopMemPool.Adapter()),
-        onPathBBs(loopMemPool.Adapter()),
-        recurseVisited(loopMemPool.Adapter())
-        {}
+  LoopAnalysis(CGFunc &func, MemPool &memPool, DomAnalysis &domInfo)
+      : AnalysisResult(&memPool),
+        alloc(&memPool),
+        cgFunc(func),
+        dom(domInfo),
+        loops(alloc.Adapter()),
+        bbLoopParent(cgFunc.GetAllBBSize(), nullptr, alloc.Adapter()) {}
 
-  ~LoopFinder() override = default;
+  ~LoopAnalysis() override = default;
 
-  void FormLoop(BB &headBB, BB &backBB);
-  void SeekBackEdge(BB &bb, MapleList<BB*> succs);
-  void SeekCycles();
-  void MarkExtraEntryAndEncl();
-  bool HasSameHeader(const LoopHierarchy &lp1, const LoopHierarchy &lp2) const;
-  void MergeLoops() const;
-  void SortLoops();
-  void UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer);
-  void UpdateOuterLoop(LoopHierarchy *loop);
-  void CreateInnerLoop(LoopHierarchy &inner, LoopHierarchy &outer);
-  void DetectInnerLoop();
-  void UpdateCGFunc() const;
-  void FormLoopHierarchy();
+  const MapleVector<LoopDesc*> &GetLoops() const {
+    return loops;
+  }
 
- private:
-  CGFunc *cgFunc;
-  MemPool *memPool;
-  MapleAllocator loopMemPool;
-  MapleVector<bool> visitedBBs;
-  MapleVector<BB*> sortedBBs;
-  MapleStack<BB*> dfsBBs;
-  MapleVector<bool> onPathBBs;
-  MapleVector<bool> recurseVisited;
-  LoopHierarchy *loops = nullptr;
-};
+  MapleVector<LoopDesc*> &GetLoops() {
+    return loops;
+  }
 
-class CGFuncLoops {
- public:
-  explicit CGFuncLoops(MemPool &memPool)
-      : loopMemPool(&memPool),
-        multiEntries(loopMemPool.Adapter()),
-        loopMembers(loopMemPool.Adapter()),
-        backedge(loopMemPool.Adapter()),
-        backBBEdges(loopMemPool.Adapter()),
-        exits(loopMemPool.Adapter()),
-        innerLoops(loopMemPool.Adapter()) {}
-
-  ~CGFuncLoops() = default;
-
-  void CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &iLoops,
-                                  const MapleVector<BB*> &loopMem) const;
-  void CheckLoops() const;
-  void PrintLoops(const CGFuncLoops &funcLoop) const;
-  bool IsBBLoopMember(const BB *bb) const;
-  bool IsBackEdge(const BB &fromBB, const BB &toBB) const {
-    auto backIt = backBBEdges.find(fromBB.GetId());
-    if (backIt == backBBEdges.end()) {
-      return false;
+  // get the loop to which the BB belong, null -> not in loop.
+  LoopDesc *GetBBLoopParent(BBID bbID) const {
+    if (bbID >= bbLoopParent.size()) {
+      return nullptr;
     }
-    for (auto headId : backIt->second) {
-      if (toBB.GetId() == headId) {
-        return true;
+    return bbLoopParent[bbID];
+  }
+
+  // check whether from->to is the back edge
+  bool IsBackEdge(const BB &from, const BB &to) const {
+    auto *loop = GetBBLoopParent(to.GetId());
+    if (loop && loop->IsBackEdge(from, to)) {
+      return true;
+    }
+    loop = GetBBLoopParent(from.GetId());
+    return loop && loop->IsBackEdge(from, to);
+  }
+
+  void Analysis();
+
+  void Dump() const {
+    LogInfo::MapleLogger() << "Dump LoopAnalysis Result:\n";
+    for (const auto *loop : loops) {
+      loop->Dump();
+    }
+    for (BBID bbId = 0; bbId < bbLoopParent.size(); ++bbId) {
+      if (bbLoopParent[bbId] == nullptr) {
+        continue;
       }
-    }
-    return false;
-  }
-
-  const BB *GetHeader() const {
-    return header;
-  }
-  BB *GetHeader() {
-    return header;
-  }
-  const MapleVector<BB*> &GetMultiEntries() const {
-    return multiEntries;
-  }
-  const MapleVector<BB*> &GetLoopMembers() const {
-    return loopMembers;
-  }
-  const MapleVector<BB*> &GetBackedge() const {
-    return backedge;
-  }
-  const MapleUnorderedMap<uint32, MapleSet<uint32>> &GetBackBBEdges() const {
-    return backBBEdges;
-  }
-  const MapleVector<BB*> &GetExits() const {
-    return exits;
-  }
-  const MapleVector<CGFuncLoops*> &GetInnerLoops() const {
-    return innerLoops;
-  }
-  const CGFuncLoops *GetOuterLoop() const {
-    return outerLoop;
-  }
-  uint32 GetLoopLevel() const {
-    return loopLevel;
-  }
-  void AddMultiEntries(BB &bb) {
-    multiEntries.emplace_back(&bb);
-  }
-  void AddLoopMembers(BB &bb) {
-    loopMembers.emplace_back(&bb);
-  }
-  void AddBackedge(BB &bb) {
-    backedge.emplace_back(&bb);
-  }
-  void AddBackBBEdge(const BB &backBB, const BB &headerBB) {
-    auto backIt = backBBEdges.find(backBB.GetId());
-    if (backIt == backBBEdges.end()) {
-      MapleSet<uint32> toBBs(loopMemPool.Adapter());
-      toBBs.insert(headerBB.GetId());
-      backBBEdges.emplace(backBB.GetId(), toBBs);
-    } else {
-      backIt->second.insert(headerBB.GetId());
+      LogInfo::MapleLogger() << "BB " << bbId << " in loop " << bbLoopParent[bbId]->GetHeader().GetId() << "\n";
     }
   }
-  void AddExit(BB &bb) {
-    exits.emplace_back(&bb);
-  }
-  void AddInnerLoops(CGFuncLoops &loop) {
-    innerLoops.emplace_back(&loop);
-  }
-  void SetHeader(BB &bb) {
-    header = &bb;
-  }
-  void SetOuterLoop(CGFuncLoops &loop) {
-    outerLoop = &loop;
-  }
-  void SetLoopLevel(uint32 val) {
-    loopLevel = val;
-  }
-
  private:
-  MapleAllocator loopMemPool;
-  BB *header = nullptr;
-  MapleVector<BB*> multiEntries;
-  MapleVector<BB*> loopMembers;
-  MapleVector<BB*> backedge;
-  MapleUnorderedMap<uint32, MapleSet<uint32>> backBBEdges; // <backBBId, headerBBIds> (<fromBBId, toBBIds>)
-  MapleVector<BB*> exits;
-  MapleVector<CGFuncLoops*> innerLoops;
-  CGFuncLoops *outerLoop = nullptr;
-  uint32 loopLevel = 0;
-};
+  MapleAllocator alloc;
+  CGFunc &cgFunc;
+  DomAnalysis &dom;
+  MapleVector<LoopDesc*> loops;         // all loops in func
+  MapleVector<LoopDesc*> bbLoopParent;  // gives closest nesting loop for each bb
 
-struct CGFuncLoopCmp {
-  bool operator()(const CGFuncLoops *lhs, const CGFuncLoops *rhs) const {
-    CHECK_NULL_FATAL(lhs);
-    CHECK_NULL_FATAL(rhs);
-    return lhs->GetHeader()->GetId() < rhs->GetHeader()->GetId();
-  }
+  LoopDesc *GetOrCreateLoopDesc(BB &headBB);
+  void SetLoopParent4BB(const BB &bb, LoopDesc &loopDesc);
+  void SetExitBBs(LoopDesc &loop) const;
+  void ProcessBB(BB &bb);
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLoopAnalysis, maplebe::CGFunc);
+  LoopAnalysis *GetResult() {
+    return loop;
+  }
+  LoopAnalysis *loop = nullptr;
+OVERRIDE_DEPENDENCE
 MAPLE_FUNC_PHASE_DECLARE_END
-}  /* namespace maplebe */
+}  // namespace maplebe
 
-#endif  /* MAPLEBE_INCLUDE_CG_LOOP_H */
+#endif  // MAPLEBE_INCLUDE_CG_LOOP_H

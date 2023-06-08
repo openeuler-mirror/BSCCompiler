@@ -164,7 +164,7 @@ bool CGPeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &in
         continue;
       }
       const InsnDesc *md = nextInsn->GetDesc();
-      auto *regProp = (md->opndMD[static_cast<size_t>(i)]);
+      auto *regProp = (md->opndMD[static_cast<uint32>(i)]);
       bool isUse = regProp->IsUse();
       /* if noUse Redefined, no need to check live-out. */
       return isUse;
@@ -269,7 +269,7 @@ ReturnType CGPeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb
     int32 lastOpndId = static_cast<int32>(insn->GetOperandSize() - 1);
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
-      auto *regProp = (md->opndMD[static_cast<size_t>(i)]);
+      auto *regProp = (md->opndMD[static_cast<uint32>(i)]);
       if (opnd.IsConditionCode()) {
         if (regOpnd.GetRegisterNumber() == kRFLAG) {
           bool isUse = regProp->IsUse();
@@ -378,7 +378,7 @@ bool PeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn
         continue;
       }
       const InsnDesc *md = nextInsn->GetDesc();
-      auto *regProp = (md->opndMD[static_cast<size_t>(i)]);
+      auto *regProp = (md->opndMD[static_cast<uint32>(i)]);
       bool isUse = regProp->IsUse();
       /* if noUse Redefined, no need to check live-out. */
       return isUse;
@@ -483,7 +483,7 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
     int32 lastOpndId = static_cast<int32>(insn->GetOperandSize() - 1);
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
-      auto *regProp = (md->opndMD[static_cast<size_t>(i)]);
+      auto *regProp = (md->opndMD[static_cast<uint32>(i)]);
       if (opnd.IsConditionCode()) {
         if (regOpnd.GetRegisterNumber() == kRFLAG) {
           bool isUse = regProp->IsUse();
@@ -598,7 +598,7 @@ void PeepOptimizer::Run() {
 
 int32 PeepOptimizer::index = 0;
 
-void PeepHoleOptimizer::Peephole0() const {
+void PeepHoleOptimizer::Peephole0() {
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "peepholeOptObj");
   PeepOptimizer peepOptimizer(*cgFunc, memPool.get());
 #if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)
@@ -609,7 +609,7 @@ void PeepHoleOptimizer::Peephole0() const {
 #endif
 }
 
-void PeepHoleOptimizer::PrePeepholeOpt() const {
+void PeepHoleOptimizer::PrePeepholeOpt() {
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "peepholeOptObj");
   PeepOptimizer peepOptimizer(*cgFunc, memPool.get());
 #if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)
@@ -620,7 +620,7 @@ void PeepHoleOptimizer::PrePeepholeOpt() const {
 #endif
 }
 
-void PeepHoleOptimizer::PrePeepholeOpt1() const {
+void PeepHoleOptimizer::PrePeepholeOpt1() {
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "peepholeOptObj");
   PeepOptimizer peepOptimizer(*cgFunc, memPool.get());
 #if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)

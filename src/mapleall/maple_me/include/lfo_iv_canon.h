@@ -63,7 +63,7 @@ class IVCanon {
   void FindPrimaryIV();
   bool IsLoopInvariant(MeExpr *x);
   void CanonEntryValues();
-  bool CheckPostIncDecFixUp(CondGotoMeStmt *condbr);
+  bool CheckPostIncDecFixUp(CondGotoMeStmt &condbr) const;
   void ComputeTripCount();
   void CanonExitValues();
   void ReplaceSecondaryIVPhis();

@@ -5,8 +5,8 @@ typedef struct S S;
 
 struct S1 {
   int a;
-  // CHECK: @fp1 <* <func firstarg_return (<* <$S>>,u8) void>> align(8),
-  // CHECK-NEXT: @fp2 <[2] <* <func firstarg_return (<* <$S>>,u8) void>>> align(8),
+  // CHECK: @fp1 <* <func firstarg_return (<* <$S>>,u8) void>>
+  // CHECK-NEXT: @fp2 <[2] <* <func firstarg_return (<* <$S>>,u8) void>>>
   S(*fp1)(char);
   S(*fp2[2])(char);
   int b;
@@ -14,8 +14,8 @@ struct S1 {
 
 union S2 {
   int a;
-  // CHECK: @fp1 <* <func firstarg_return (<* <$S>>,u8) void>> align(8),
-  // CHECK-NEXT: @fp2 <[2] <* <func firstarg_return (<* <$S>>,u8) void>>> align(8),
+  // CHECK: @fp1 <* <func firstarg_return (<* <$S>>,u8) void>>
+  // CHECK-NEXT: @fp2 <[2] <* <func firstarg_return (<* <$S>>,u8) void>>>
   S(*fp1)(char);
   S(*fp2[2])(char);
   int b;

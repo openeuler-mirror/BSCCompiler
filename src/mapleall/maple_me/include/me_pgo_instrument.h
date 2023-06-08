@@ -157,7 +157,7 @@ class PGOInstrument {
     return linenoHash;
   }
 
-  void ClearBBGroupInfo() {
+  void ClearBBGroupInfo() const {
     auto eIt = func->GetCfg()->valid_end();
     for (auto bIt = func->GetCfg()->valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;

@@ -27,7 +27,7 @@
 namespace maple {
 constexpr uint32 kTypeHashLength = 12289;  // hash length for mirtype, ref: planetmath.org/goodhashtableprimes
 const std::string kRenameKeyWord = "_MNO";  // A static symbol name will be renamed as oriname_MNOxxx.
-const uint8 kAlignBase = 1; // alignment base
+const uint8 kAlignBase = 0; // alignment base
 
 class FieldAttrs;  // circular dependency exists, no other choice
 class MIRAlias;
@@ -38,9 +38,10 @@ using MIRTypePtr = MIRType*;
 // if it is a bitfield, byteoffset gives the offset of the container for
 // extracting the bitfield and bitoffset is with respect to the current byte
 struct OffsetPair {
-  int32 byteOffset;
-  int32 bitOffset;
+  uint32 byteOffset;
+  uint32 bitOffset;
 };
+using FieldOffsetVector = std::vector<OffsetPair>;
 constexpr size_t kMaxArrayDim = 20;
 const std::string kJstrTypeName = "constStr";
 constexpr uint32 kInvalidFieldNum = UINT32_MAX;
@@ -365,7 +366,7 @@ class TypeAttrs {
   }
 
   void SetAlign(uint32 x) {
-    ASSERT((~(x - kAlignBase) & x) == x, "SetAlign called with non-power-of-2");
+    ASSERT((~(x - 1) & x) == x, "SetAlign called with non-power-of-2");
     attrAlign = 0;
     while (x != kAlignBase) {
       x >>= 1;
@@ -374,15 +375,15 @@ class TypeAttrs {
   }
 
   uint32 GetAlign() const {
-    if (attrAlign == 0) {
+    if (attrAlign == 1) { // align(1)
       return 1;
     }
     uint32 res = 1;
     uint32 exp = attrAlign;
-    do {
+    while (exp > 1) { // calculate align(x)
       --exp;
       res *= 2;
-    } while (exp != 0);
+    }
     return res;
   }
 
@@ -425,6 +426,10 @@ class TypeAttrs {
   }
 
   bool IsPacked() const {
+    return GetAttr(ATTR_packed);
+  }
+  
+  bool HasPack() const {
     return GetAttr(ATTR_pack);
   }
 
@@ -475,7 +480,7 @@ class FieldAttrs {
   }
 
   void SetAlign(uint32 x) {
-    ASSERT((~(x - kAlignBase) & x) == x, "SetAlign called with non-power-of-2");
+    ASSERT((~(x - 1) & x) == x, "SetAlign called with non-power-of-2");
     attrAlign = 0;
     while (x != kAlignBase) {
       x >>= 1;
@@ -484,7 +489,16 @@ class FieldAttrs {
   }
 
   uint32 GetAlign() const {
-    return 1U << attrAlign;
+    if (attrAlign == 1) { // align(1)
+      return 1;
+    }
+    uint32 res = 1;
+    uint32 exp = attrAlign;
+    while (exp > 1) { // calculate align(x)
+      --exp;
+      res *= 2;
+    }
+    return res;
   }
 
   bool operator==(const FieldAttrs &tA) const {
@@ -517,9 +531,12 @@ class FieldAttrs {
   }
 
   bool IsPacked() const {
-    return GetAttr(FLDATTR_pack);
+    return GetAttr(FLDATTR_packed);
   }
 
+  bool HasAligned() const {
+    return GetAttr(FLDATTR_aligned) || attrAlign != 0;
+  }
  private:
   uint8 attrAlign = 0;  // alignment in bytes is 2 to the power of attrAlign
   uint32 attrFlag = 0;
@@ -892,6 +909,18 @@ class MIRType {
     return false;
   }
 
+  TypeAttrs &GetTypeAttrs() {
+    return typeAttrs;
+  }
+
+  const TypeAttrs &GetTypeAttrs() const {
+    return typeAttrs;
+  }
+
+  void SetTypeAttrs(const TypeAttrs &attrs) {
+    typeAttrs = attrs;
+  }
+
   bool ValidateClassOrInterface(const std::string &className, bool noWarning) const;
   bool IsOfSameType(MIRType &type);
   const std::string &GetName() const;
@@ -920,6 +949,7 @@ class MIRType {
   bool nameIsLocal = false;  // needed when printing the type name
   TyIdx tyIdx{ 0 };
   GStrIdx nameStrIdx{ 0 };  // name in global string table
+  TypeAttrs typeAttrs;
 };
 
 class MIRPtrType : public MIRType {
@@ -943,18 +973,6 @@ class MIRPtrType : public MIRType {
   }
   void SetPointedTyIdx(TyIdx idx) {
     pointedTyIdx = idx;
-  }
-
-  TypeAttrs &GetTypeAttrs() {
-    return typeAttrs;
-  }
-
-  const TypeAttrs &GetTypeAttrs() const {
-    return typeAttrs;
-  }
-
-  void SetTypeAttrs(const TypeAttrs &attrs) {
-    typeAttrs = attrs;
   }
 
   bool EqualTo(const MIRType &type) const override;
@@ -997,7 +1015,6 @@ class MIRPtrType : public MIRType {
   std::string GetCompactMplTypeName() const override;
  private:
   TyIdx pointedTyIdx;
-  TypeAttrs typeAttrs;
 };
 
 class MIRArrayType : public MIRType {
@@ -1026,11 +1043,11 @@ class MIRArrayType : public MIRType {
   }
 
   uint32 GetSizeArrayItem(uint32 n) const {
-    CHECK_FATAL((n >= 0 && n < kMaxArrayDim), "out of bound of array!");
+    CHECK_FATAL(n < kMaxArrayDim, "out of bound of array!");
     return sizeArray[n];
   }
   void SetSizeArrayItem(uint32 idx, uint32 value) {
-    CHECK_FATAL((idx >= 0 && idx < kMaxArrayDim), "out of bound of array!");
+    CHECK_FATAL(idx < kMaxArrayDim, "out of bound of array!");
     sizeArray[idx] = value;
   }
 
@@ -1045,18 +1062,6 @@ class MIRArrayType : public MIRType {
   }
   void SetDim(uint16 newDim) {
     this->dim = newDim;
-  }
-
-  const TypeAttrs &GetTypeAttrs() const {
-    return typeAttrs;
-  }
-
-  TypeAttrs &GetTypeAttrs() {
-    return typeAttrs;
-  }
-
-  void SetTypeAttrs(const TypeAttrs &attrs) {
-    typeAttrs = attrs;
   }
 
   MIRType *GetElemType() const;
@@ -1103,7 +1108,6 @@ class MIRArrayType : public MIRType {
   TyIdx eTyIdx{ 0 };
   uint16 dim = 0;
   std::array<uint32, kMaxArrayDim> sizeArray{ {0} };
-  TypeAttrs typeAttrs;
   mutable uint32 fieldsNum = kInvalidFieldNum;
   mutable size_t size = kInvalidSize;
 };
@@ -1357,18 +1361,6 @@ class MIRStructType : public MIRType {
     return std::find(fields.begin(), fields.end(), fieldPair) != fields.end();
   }
 
-  TypeAttrs &GetTypeAttrs() {
-    return typeAttrs;
-  }
-
-  const TypeAttrs &GetTypeAttrs() const {
-    return typeAttrs;
-  }
-
-  void SetTypeAttrs(const TypeAttrs &attrs) {
-    typeAttrs = attrs;
-  }
-
   bool HasVolatileField() const override;
   bool HasTypeParam() const override;
   bool EqualTo(const MIRType &type) const override;
@@ -1564,6 +1556,12 @@ class MIRStructType : public MIRType {
   }
 
   bool HasZeroWidthBitField() const;
+  void AddFieldLayout(OffsetPair pair) {
+    fieldLayout.push_back(pair);
+  }
+  std::vector<OffsetPair> GetFieldLayout() {
+    return fieldLayout;
+  }
 
  protected:
   FieldVector fields{};
@@ -1584,19 +1582,16 @@ class MIRStructType : public MIRType {
   std::vector<GenericDeclare*> genericDeclare;
   std::map<GStrIdx, AnnotationType*> fieldGenericDeclare;
   std::vector<GenericType*> inheritanceGeneric;
-  TypeAttrs typeAttrs;
   mutable uint32 fieldsNum = kInvalidFieldNum;
   mutable size_t size = kInvalidSize;
-
+  mutable std::vector<OffsetPair> fieldLayout;
  private:
   FieldPair TraverseToField(GStrIdx fieldStrIdx) const ;
   bool HasVolatileFieldInFields(const FieldVector &fieldsOfStruct) const;
   bool HasTypeParamInFields(const FieldVector &fieldsOfStruct) const;
-  // compute the offset of the field given by fieldID within the struct type
-  OffsetPair GetFieldOffsetFromStructBaseAddr(FieldID fieldID) const;
-  // compute the offset of the field given by fieldID within the union type
-  OffsetPair GetFieldOffsetFromUnionBaseAddr(FieldID fieldID) const;
   MIRAlias *alias = nullptr;
+  void ComputeUnionLayout();
+  void ComputeLayout();
 };
 
 // java array type, must not be nested inside another aggregate

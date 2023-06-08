@@ -17,7 +17,6 @@
 #define MAPLEBE_INCLUDE_CG_LIST_SCHEDULER_H
 
 #include <utility>
-
 #include "cg.h"
 #include "deps.h"
 #include "cg_cdg.h"
@@ -25,7 +24,7 @@
 
 namespace maplebe {
 #define LIST_SCHEDULE_DUMP CG_DEBUG_FUNC(cgFunc)
-typedef bool (*SchedRankFunctor)(const DepNode *node1, const DepNode *node2);
+using SchedRankFunctor = bool(*)(const DepNode *node1, const DepNode *node2);
 
 constexpr uint32 kClinitAdvanceCycle = 12;
 constexpr uint32 kAdrpLdrAdvanceCycle = 4;
@@ -39,20 +38,6 @@ class CommonScheduleInfo {
       : csiAlloc(&memPool), candidates(csiAlloc.Adapter()), schedResults(csiAlloc.Adapter()) {}
   ~CommonScheduleInfo() = default;
 
-  bool IsDepNodeInCandidates(const CDGNode &curCDGNode, const DepNode &depNode) {
-    ASSERT(depNode.GetInsn() != nullptr, "get insn from depNode failed");
-    ASSERT(curCDGNode.GetBB() != nullptr, "get bb from cdgNode failed");
-    if (depNode.GetInsn()->GetBB()->GetId() == curCDGNode.GetBB()->GetId()) {
-      return true;
-    }
-    for (auto candiNode : candidates) {
-      if (&depNode == candiNode) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   MapleVector<DepNode*> &GetCandidates() {
     return candidates;
   }
@@ -62,7 +47,7 @@ class CommonScheduleInfo {
   void EraseNodeFromCandidates(const DepNode *depNode) {
     for (auto iter = candidates.begin(); iter != candidates.end(); ++iter) {
       if (*iter == depNode) {
-        candidates.erase(iter);
+        (void)candidates.erase(iter);
         return;
       }
     }
@@ -76,7 +61,7 @@ class CommonScheduleInfo {
   void AddSchedResults(DepNode *depNode) {
     (void)schedResults.emplace_back(depNode);
   }
-  std::size_t GetSchedResultsSize() {
+  std::size_t GetSchedResultsSize() const {
     return schedResults.size();
   }
 
@@ -147,9 +132,14 @@ class ListScheduler {
   uint32 GetMaxDelay() const {
     return maxDelay;
   }
+  void SetUnitTest(bool flag) {
+    isUnitTest = flag;
+  }
 
  protected:
   void Init();
+  void CandidateToWaitingQueue();
+  void WaitingQueueToReadyList();
   void InitInfoBeforeCompEStart(uint32 cycle, std::vector<DepNode*> &traversalList);
   void InitInfoBeforeCompLStart(std::vector<DepNode*> &traversalList);
   void UpdateInfoBeforeSelectNode();
@@ -179,52 +169,38 @@ class ListScheduler {
     return readyList.erase(depIter);
   }
 
-  void EraseNodeFromWaitingQueue(const DepNode *depNode) {
-    for (auto iter = waitingQueue.begin(); iter != waitingQueue.end(); ++iter) {
-      if (*iter == depNode) {
-        (void)waitingQueue.erase(iter);
-        return;
-      }
-    }
-  }
   MapleVector<DepNode*>::iterator EraseIterFromWaitingQueue(MapleVector<DepNode*>::iterator depIter) {
     return waitingQueue.erase(depIter);
   }
 
   /*
-   * Sort by priority in descending order,
-   * that is the first node in list has the highest priority
+   * Default rank readyList function by delay heuristic,
+   * which uses delay as algorithm of computing priority
    */
-  static bool CriticalPathRankScheduleInsns(const DepNode *node1, const DepNode *node2) {
+  static bool DelayRankScheduleInsns(const DepNode *node1, const DepNode *node2) {
     // p as an acronym for priority
-    CompareLStart compareLStart;
-    int p1 = compareLStart(*node1, *node2);
+    CompareDelay compareDelay;
+    int p1 = compareDelay(*node1, *node2);
     if (p1 != 0) {
       return p1 > 0;
     }
 
-    CompareEStart compareEStart;
-    int p2 = compareEStart(*node1, *node2);
+    CompareDataCache compareDataCache;
+    int p2 = compareDataCache(*node1, *node2);
     if (p2 != 0) {
       return p2 > 0;
     }
 
-    CompareSuccNodeSize compareSuccNodeSize;
-    int p3 = compareSuccNodeSize(*node1, *node2);
+    CompareClassOfLastScheduledNode compareClassOfLSN(lastSchedInsnId);
+    int p3 = compareClassOfLSN(*node1, *node2);
     if (p3 != 0) {
       return p3 > 0;
     }
 
-    CompareUnitKindNum compareUnitKindNum(maxUnitIdx);
-    int p4 = compareUnitKindNum(*node1, *node2);
+    CompareSuccNodeSize compareSuccNodeSize;
+    int p4 = compareSuccNodeSize(*node1, *node2);
     if (p4 != 0) {
       return p4 > 0;
-    }
-
-    CompareSlotType compareSlotType;
-    int p5 = compareSlotType(*node1, *node2);
-    if (p5 != 0) {
-      return p5 > 0;
     }
 
     CompareInsnID compareInsnId;
@@ -238,38 +214,51 @@ class ListScheduler {
   }
 
   /*
-   * Rank function by delay heuristic
+   * Sort by priority in descending order, which use LStart as algorithm of computing priority,
+   * that is the first node in list has the highest priority
    */
-  static bool DelayRankScheduleInsns(const DepNode *node1, const DepNode *node2) {
+  static bool CriticalPathRankScheduleInsns(const DepNode *node1, const DepNode *node2) {
     // p as an acronym for priority
-    CompareDelay compareDelay;
-    int p1 = compareDelay(*node1, *node2);
+    CompareLStart compareLStart;
+    int p1 = compareLStart(*node1, *node2);
     if (p1 != 0) {
       return p1 > 0;
     }
 
-    CompareSuccNodeSize compareSuccNodeSize;
-    int p2 = compareSuccNodeSize(*node1, *node2);
+    CompareCost compareCost;
+    int p2 = compareCost(*node1, *node2);
     if (p2 != 0) {
       return p2 > 0;
     }
 
-    CompareUnitKindNum compareUnitKindNum(maxUnitIdx);
-    int p3 = compareUnitKindNum(*node1, *node2);
+    CompareEStart compareEStart;
+    int p3 = compareEStart(*node1, *node2);
     if (p3 != 0) {
       return p3 > 0;
     }
 
-    CompareSlotType compareSlotType;
-    int p4 = compareSlotType(*node1, *node2);
+    CompareSuccNodeSize compareSuccNodeSize;
+    int p4 = compareSuccNodeSize(*node1, *node2);
     if (p4 != 0) {
       return p4 > 0;
     }
 
-    CompareInsnID compareInsnId;
-    int p5 = compareInsnId(*node1, *node2);
+    CompareUnitKindNum compareUnitKindNum(maxUnitIdx);
+    int p5 = compareUnitKindNum(*node1, *node2);
     if (p5 != 0) {
       return p5 > 0;
+    }
+
+    CompareSlotType compareSlotType;
+    int p6 = compareSlotType(*node1, *node2);
+    if (p6 != 0) {
+      return p6 > 0;
+    }
+
+    CompareInsnID compareInsnId;
+    int p7 = compareInsnId(*node1, *node2);
+    if (p7 != 0) {
+      return p7 > 0;
     }
 
     // default
@@ -304,7 +293,10 @@ class ListScheduler {
   uint32 maxEStart = 0;      // Update when the eStart of depNodes are recalculated
   uint32 maxLStart = 0;      // Ideal total cycles that is equivalent to critical path length
   uint32 maxDelay = 0;       // Ideal total cycles that is equivalent to max delay
-  uint32 scheduledNodeNum = 0;
+  uint32 scheduledNodeNum = 0;  // The number of instructions that are scheduled
+  static uint32 lastSchedInsnId;  // Last scheduled insnId, for heuristic function
+  DepNode *lastSchedNode = nullptr;  // Last scheduled node
+  bool isUnitTest = false;
 };
 } /* namespace maplebe */
 

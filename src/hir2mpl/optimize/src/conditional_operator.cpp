@@ -43,7 +43,7 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
     return false;
   }
 
-  auto ReplaceBackStmt = [dstPty, fieldID, &var](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
+  auto replaceBackStmt = [dstPty, fieldID, &var](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
     auto dassignStmt = static_cast<FEIRStmtDAssign*>(stmts.back().get());
     UniqueFEIRExpr srcExpr = dassignStmt->GetExpr()->Clone();
     PrimType srcPty = srcExpr->GetPrimType();
@@ -67,8 +67,8 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
   };
 
   FEIRStmtIf *ifStmt = static_cast<FEIRStmtIf*>(stmts.back().get());
-  ReplaceBackStmt(ifStmt->GetThenStmt(), *ifStmt);
-  ReplaceBackStmt(ifStmt->GetElseStmt(), *ifStmt);
+  replaceBackStmt(ifStmt->GetThenStmt(), *ifStmt);
+  replaceBackStmt(ifStmt->GetElseStmt(), *ifStmt);
   return true;
 }
 
@@ -77,7 +77,7 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
     return false;
   }
 
-  auto ReplaceBackStmt = [](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
+  auto replaceBackStmt = [](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
     auto dassignStmt = static_cast<FEIRStmtDAssign*>(stmts.back().get());
     auto stmt = std::make_unique<FEIRStmtReturn>(dassignStmt->GetExpr()->Clone());
     stmt->SetSrcLoc(srcStmt.GetSrcLoc());
@@ -86,8 +86,8 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
   };
 
   FEIRStmtIf *ifStmt = static_cast<FEIRStmtIf*>(stmts.back().get());
-  ReplaceBackStmt(ifStmt->GetThenStmt(), *ifStmt);
-  ReplaceBackStmt(ifStmt->GetElseStmt(), *ifStmt);
+  replaceBackStmt(ifStmt->GetThenStmt(), *ifStmt);
+  replaceBackStmt(ifStmt->GetElseStmt(), *ifStmt);
   return true;
 }
 }

@@ -32,8 +32,8 @@ enum MemPropMode : uint8 {
 
 class AArch64StoreLoadOpt : public StoreLoadOpt {
  public:
-  AArch64StoreLoadOpt(CGFunc &func, MemPool &memPool)
-      : StoreLoadOpt(func, memPool), localAlloc(&memPool), str2MovMap(localAlloc.Adapter()) {}
+  AArch64StoreLoadOpt(CGFunc &func, MemPool &memPool, LoopAnalysis &loop)
+      : StoreLoadOpt(func, memPool), localAlloc(&memPool), loopInfo(loop), str2MovMap(localAlloc.Adapter()) {}
   ~AArch64StoreLoadOpt() override = default;
   void Run() final;
   void DoStoreLoadOpt();
@@ -69,6 +69,7 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
   bool HasMemBarrier(const Insn &ldrInsn, const Insn &strInsn) const;
   bool IsAdjacentBB(Insn &defInsn, Insn &curInsn) const;
   MapleAllocator localAlloc;
+  LoopAnalysis &loopInfo;
   /* the max number of mov insn to optimize. */
   static constexpr uint8 kMaxMovNum = 2;
   MapleMap<Insn*, Insn*[kMaxMovNum]> str2MovMap;

@@ -59,8 +59,8 @@ BaseNode &ConstMeExpr::EmitExpr(MapleAllocator &alloc) {
   // if int const has been promoted from dyn int const, remove the type tag
   if (IsPrimitiveInteger(exprConst->GetPrimType())) {
     auto *intConst = safe_cast<MIRIntConst>(exprConst->GetConstVal());
-    MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(intConst->GetExtValue(),
-        intConst->GetType());
+    MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+        static_cast<uint64>(intConst->GetExtValue()), intConst->GetType());
     exprConst->SetConstVal(newIntConst);
   }
   return *exprConst;
@@ -261,7 +261,7 @@ BaseNode &IvarMeExpr::EmitExpr(MapleAllocator &alloc) {
     ireadNode->SetOpnd(&base->EmitExpr(alloc), 0);
   } else {
     auto *mirType = GlobalTables::GetTypeTable().GetInt32();
-    auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(offset, *mirType);
+    auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<uint32>(offset), *mirType);
     auto *constValNode = alloc.New<ConstvalNode>(mirType->GetPrimType(), mirConst);
     auto *newAddrNode =
         alloc.New<BinaryNode>(OP_add, base->GetPrimType(), &(base->EmitExpr(alloc)), constValNode);
@@ -291,7 +291,7 @@ StmtNode &DassignMeStmt::EmitStmt(MapleAllocator &alloc) {
     int32 offset = (GetVarLHS()->GetOst()->GetOffset().val) / 8;
     PrimType rhsType = GetRHS()->GetPrimType();
     int64 val = static_cast<ConstMeExpr *>(GetRHS())->GetExtIntValue();
-    ConstvalNode *rhsNode = theMIRModule->GetMIRBuilder()->CreateIntConst(val, rhsType);
+    ConstvalNode *rhsNode = theMIRModule->GetMIRBuilder()->CreateIntConst(static_cast<uint64>(val), rhsType);
     DassignoffNode *dassignoffNode = alloc.New<DassignoffNode>(lhsStIdx, offset, rhsType, rhsNode);
     return *dassignoffNode;
   } else {
@@ -360,13 +360,14 @@ StmtNode &IassignMeStmt::EmitStmt(MapleAllocator &alloc) {
       addrNode = &lhsVar->GetBase()->EmitExpr(alloc);
     } else {
       MIRType *mirType = GlobalTables::GetTypeTable().GetInt32();
-      MIRIntConst *mirOffsetConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lhsVar->GetOffset(), *mirType);
+      MIRIntConst *mirOffsetConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+          static_cast<uint32>(lhsVar->GetOffset()), *mirType);
       ConstvalNode *offsetNode = alloc.New<ConstvalNode>(mirType->GetPrimType(), mirOffsetConst);
       addrNode = alloc.New<BinaryNode>(
           OP_add, lhsVar->GetBase()->GetPrimType(), &(lhsVar->GetBase()->EmitExpr(alloc)), offsetNode);
     }
     int64 val = static_cast<ConstMeExpr *>(GetOpnd(1))->GetExtIntValue();
-    ConstvalNode *rhsNode = theMIRModule->GetMIRBuilder()->CreateIntConst(val, rhsType);
+    ConstvalNode *rhsNode = theMIRModule->GetMIRBuilder()->CreateIntConst(static_cast<uint64>(val), rhsType);
     IassignoffNode *iassignoffNode = alloc.New<IassignoffNode>(rhsType, offset, addrNode, rhsNode);
     return *iassignoffNode;
   } else {
@@ -377,7 +378,8 @@ StmtNode &IassignMeStmt::EmitStmt(MapleAllocator &alloc) {
       iassignNode->SetAddrExpr(&lhsVar->GetBase()->EmitExpr(alloc));
     } else {
       auto *mirType = GlobalTables::GetTypeTable().GetInt32();
-      auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lhsVar->GetOffset(), *mirType);
+      auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+          static_cast<uint32>(lhsVar->GetOffset()), *mirType);
       auto *constValNode = alloc.New<ConstvalNode>(mirType->GetPrimType(), mirConst);
       auto *newAddrNode = alloc.New<BinaryNode>(
           OP_add, lhsVar->GetBase()->GetPrimType(), &(lhsVar->GetBase()->EmitExpr(alloc)), constValNode);

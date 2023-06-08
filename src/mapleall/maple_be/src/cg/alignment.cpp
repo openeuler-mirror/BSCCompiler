@@ -32,7 +32,8 @@ void AlignAnalysis::AnalysisAlignment() {
 }
 
 void AlignAnalysis::Dump() {
-  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc->GetFunction().GetStIdx().Idx());
+  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc.GetFunction().GetStIdx().Idx());
+  ASSERT(funcSt != nullptr, "null ptr check");
   LogInfo::MapleLogger() << "\n********* alignment for " << funcSt->GetName() << " *********\n";
   LogInfo::MapleLogger() << "------ jumpTargetBBs: " << jumpTargetBBs.size() << " total ------\n";
   for (auto *jumpLabel : jumpTargetBBs) {
@@ -72,7 +73,8 @@ void AlignAnalysis::Dump() {
     if (loopHeader->GetLabIdx() != MIRLabelTable::GetDummyLabel()) {
       LogInfo::MapleLogger() << "[labeled with " << loopHeader->GetLabIdx() << "]> ===\n";
     }
-    LogInfo::MapleLogger() << "\tLoop Level: " << loopHeader->GetLoop()->GetLoopLevel() << "\n";
+    auto *loop = loopInfo.GetBBLoopParent(loopHeader->GetId());
+    LogInfo::MapleLogger() << "\tLoop Level: " << loop->GetNestDepth() << "\n";
     FOR_BB_INSNS_CONST(insn, loopHeader) {
       insn->Dump();
     }
@@ -90,12 +92,18 @@ void AlignAnalysis::Dump() {
   }
 }
 
+void CgAlignAnalysis::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<CgLoopAnalysis>();
+  aDep.SetPreservedAll();
+}
+
 bool CgAlignAnalysis::PhaseRun(maplebe::CGFunc &func) {
   if (ALIGN_ANALYZE_DUMP_NEWPW) {
     DotGenerator::GenerateDot("alignanalysis", func, func.GetMirModule(), true, func.GetName());
   }
+  auto *loopInfo = GET_ANALYSIS(CgLoopAnalysis, func);
   MemPool *alignMemPool = GetPhaseMemPool();
-  AlignAnalysis *alignAnalysis = func.GetCG()->CreateAlignAnalysis(*alignMemPool, func);
+  AlignAnalysis *alignAnalysis = func.GetCG()->CreateAlignAnalysis(*alignMemPool, func, *loopInfo);
 
   CHECK_FATAL(alignAnalysis != nullptr, "AlignAnalysis instance create failure");
   alignAnalysis->AnalysisAlignment();

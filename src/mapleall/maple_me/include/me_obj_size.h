@@ -34,7 +34,7 @@ class OBJSize {
   void Execute();
 
  private:
-  size_t IsInvalidSize(size_t size) const {
+  bool IsInvalidSize(size_t size) const {
     return size == static_cast<uint64>(-1);
   }
 
@@ -53,7 +53,7 @@ class OBJSize {
   size_t DealWithAddrof(const MeExpr &opnd, bool getSizeOfWholeVar) const;
   size_t DealWithDread(MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) const;
   size_t DealWithIaddrof(const MeExpr &opnd, int64 type, bool getSizeOfWholeVar) const;
-  bool DealWithOpnd(const MeExpr &opnd, std::set<MePhiNode*> &visitedPhi) const;
+  bool DealWithOpnd(MeExpr &opnd, std::set<MePhiNode*> &visitedPhi) const;
   bool PhiOpndIsDefPointOfOtherPhi(MeExpr& expr, std::set<MePhiNode *>& visitedPhi) const;
 
   MeFunction &func;

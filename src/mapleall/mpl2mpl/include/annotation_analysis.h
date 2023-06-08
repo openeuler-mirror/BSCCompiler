@@ -291,6 +291,7 @@ class AnnotationAnalysis : public AnalysisResult {
   void AAForClassInfo(MIRStructType &structType);
   void AAForFuncVarInfo(MIRStructType &structType);
   void AnalysisAnnotationForFuncLocalVar(MIRFunction &func, AnnotationParser &aParser, MIRStructType &structType);
+  void GetATokenKind(AnnotationParser &aParser, MIRStructType *sType, ATokenKind &t);
   void ByPassFollowingInfo(AnnotationParser &aParser, MIRStructType *sType);
   MIRModule *mirModule;
   MapleAllocator tmpAllocator;

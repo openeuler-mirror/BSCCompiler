@@ -21,10 +21,10 @@ namespace maplebe {
 class AArch64Rematerializer : public Rematerializer {
  public:
   AArch64Rematerializer() = default;
-  virtual ~AArch64Rematerializer() = default;
+  ~AArch64Rematerializer() override = default;
  private:
   bool IsRematerializableForConstval(int64 val, uint32 bitLen) const override;
-  bool IsRematerializableForDread(int32 offset) const override;
+  bool IsRematerializableForDread(uint64 offset) const override;
 
   std::vector<Insn*> RematerializeForConstval(CGFunc &cgFunc, RegOperand &regOp,
       const LiveRange &lr) override;

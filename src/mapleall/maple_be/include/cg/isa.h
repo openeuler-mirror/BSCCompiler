@@ -38,6 +38,7 @@ enum MopProperty : maple::uint8 {
   kInsnIsLoadAddress,
   kInsnIsAtomic,
   kInsnIsCall,
+  kInsnIsSpecialCall,
   kInsnIsTailCall,
   kInsnIsConversion,
   kInsnIsCondDef,
@@ -72,6 +73,7 @@ using regno_t = uint32_t;
 #define ISLOADADDR (1ULL << kInsnIsLoadAddress)
 #define ISATOMIC (1ULL << kInsnIsAtomic)
 #define ISCALL (1ULL << kInsnIsCall)
+#define ISSPCALL (1ULL << kInsnIsSpecialCall)
 #define ISTAILCALL (1ULL << kInsnIsTailCall)
 #define ISCONVERSION (1ULL << kInsnIsConversion)
 #define ISCONDDEF (1ULL << kInsnIsCondDef)
@@ -258,6 +260,10 @@ struct InsnDesc {
 
   bool IsCall() const {
     return (properties & ISCALL) != 0;
+  }
+  // call insn does not obey standard call procedure!
+  bool IsSpecialCall() const {
+    return (properties & ISSPCALL) != 0;
   }
   bool IsTailCall() const {
     return (properties & ISTAILCALL) != 0;

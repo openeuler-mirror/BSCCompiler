@@ -17,6 +17,7 @@
 #define MAPLEBE_INCLUDE_CG_REMATERIALIZE_H
 
 #include "cgfunc.h"
+#include "loop.h"
 
 namespace maplebe {
 enum RematLevel {
@@ -58,7 +59,7 @@ class Rematerializer {
     return op;
   }
 
-  bool IsRematerializable(CGFunc &cgFunc, RematLevel rematLev, const LiveRange &lr) const;
+  bool IsRematerializable(CGFunc &cgFunc, RematLevel rematLev, const LiveRange &lr, const LoopAnalysis &loopInfo) const;
   std::vector<Insn*> Rematerialize(CGFunc &cgFunc, RegOperand &regOp, const LiveRange &lr);
 
  protected:
@@ -72,11 +73,11 @@ class Rematerializer {
   bool addrUpper = false;             /* indicates the upper bits of an addrof */
 
  private:
-  bool IsRematerializableForAddrof(CGFunc &cgFunc, const LiveRange &lr) const;
+  bool IsRematerializableForAddrof(CGFunc &cgFunc, const LiveRange &lr, const LoopAnalysis &loopInfo) const;
   virtual bool IsRematerializableForDread(CGFunc &cgFunc, RematLevel rematLev) const;
 
   virtual bool IsRematerializableForConstval(int64 val, uint32 bitLen) const = 0;
-  virtual bool IsRematerializableForDread(int32 offset) const = 0;
+  virtual bool IsRematerializableForDread(uint64 offset) const = 0;
 
   virtual std::vector<Insn*> RematerializeForConstval(CGFunc &cgFunc, RegOperand &regOp,
       const LiveRange &lr) = 0;

@@ -18,6 +18,7 @@
 #include "clang/AST/RecordLayout.h"
 #include "mir_type.h"
 #include "ast_macros.h"
+#include "generic_attrs.h"
 
 namespace maple {
 extern int ast2mplDebug;
@@ -51,6 +52,10 @@ class ASTUtil {
   static std::string AdjustFuncName(std::string funcName);
   static bool InsertFuncSet(const GStrIdx &idx);
   static bool HasTypdefType(clang::QualType qualType);
+  static bool IsGnuInline(const GenericAttrs &attrs);
+  static bool IsInlineDefinition(const GenericAttrs &attrs);
+  static bool IsExternGnuInline(const GenericAttrs &attrs);
+  static bool IsFuncMustBeDeleted(const GenericAttrs &attrs);
 
   template <typename Range, typename Value = typename Range::value_type>
   static std::string Join(const Range &elements, const char *delimiter) {

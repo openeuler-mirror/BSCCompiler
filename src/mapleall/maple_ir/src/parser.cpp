@@ -1050,6 +1050,7 @@ bool MIRParser::ParseTypeAttrs(TypeAttrs &attrs) {
 #undef NOCONTENT_ATTR
 // parse attr with no content
       case TK_align: {
+        attrs.SetAttr(ATTR_aligned);
         if (!ParseAlignAttrs(attrs)) {
           return false;
         }
@@ -1089,14 +1090,8 @@ bool MIRParser::ParseFieldAttrs(FieldAttrs &attrs) {
         if (!CheckAlignTk()) {
           return false;
         }
+        attrs.SetAttr(FLDATTR_aligned);
         attrs.SetAlign(lexer.GetTheIntVal());
-        break;
-      }
-      case TK_pack: {
-        attrs.SetAttr(FLDATTR_pack);
-        if (!ParsePackAttrs()) {
-          return false;
-        }
         break;
       }
       default:
@@ -1333,14 +1328,12 @@ bool MIRParser::ParseFuncType(TyIdx &tyIdx) {
   std::vector<TyIdx> vecTyIdx;
   std::vector<TypeAttrs> vecAttrs;
   TokenKind tokenKind = lexer.NextToken();
-  bool varargs = false;
   while (tokenKind != TK_rparen) {
     if (tokenKind == TK_dotdotdot) {
       if (vecTyIdx.size() == 0) {
         Error("variable arguments can only appear after fixed parameters ");
         return false;
       }
-      varargs = true;
       tokenKind = lexer.NextToken();
       if (tokenKind != TK_rparen) {
         Error("expect ) after ... but get");
@@ -2607,7 +2600,7 @@ bool MIRParser::ParseScope() {
   return status;
 }
 
-bool MIRParser::ParseScopeStmt(StmtNodePtr &stmt) {
+bool MIRParser::ParseScopeStmt([[maybe_unused]] StmtNodePtr &stmt) {
   return ParseScope();
 }
 
@@ -2698,7 +2691,7 @@ bool MIRParser::ParseAlias() {
   return true;
 }
 
-bool MIRParser::ParseAliasStmt(StmtNodePtr &stmt) {
+bool MIRParser::ParseAliasStmt([[maybe_unused]] StmtNodePtr &stmt) {
   return ParseAlias();
 }
 

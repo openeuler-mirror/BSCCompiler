@@ -169,7 +169,7 @@ static constexpr int kFieldIDOfFuncAddrInClassMeta = 8;
 static constexpr int kFieldIDOfFuncAddrInClassMeta = 6;
 #endif
 bool SSAEPre::ReserveCalFuncAddrForDecouple(MeExpr &meExpr) const {
-  if (!Options::buildApp) {
+  if (Options::buildApp == 0) {
     return false;
   }
   bool virtualFuncAddr = false;

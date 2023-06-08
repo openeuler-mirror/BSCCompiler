@@ -55,8 +55,9 @@ class CGProfGen;
 class GlobalSchedule;
 class LocalSchedule;
 class ControlDepAnalysis;
-class InterDataDepAnalysis;
+class DataDepAnalysis;
 class CGAggressiveOpt;
+class LoopAnalysis;
 
 class Globals {
  public:
@@ -95,11 +96,11 @@ class Globals {
     mad = nullptr;
   }
 
-  void SetOptimLevel(uint32 opLevel) {
+  void SetOptimLevel(CGOptions::OptimizeLevel opLevel) {
     optimLevel = opLevel;
   }
 
-  uint32 GetOptimLevel() const {
+  CGOptions::OptimizeLevel GetOptimLevel() const {
     return optimLevel;
   }
 
@@ -109,7 +110,7 @@ class Globals {
  private:
   BECommon *beCommon = nullptr;
   MAD *mad = nullptr;
-  uint32 optimLevel = 0;
+  CGOptions::OptimizeLevel optimLevel = CGOptions::kLevel0;
   CG *cg = nullptr;
   Globals() = default;
 };
@@ -298,7 +299,7 @@ class CG {
     return nullptr;
   };
   virtual MoveRegArgs *CreateMoveRegArgs(MemPool &mp, CGFunc &f) const  = 0;
-  virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f) const = 0;
+  virtual AlignAnalysis *CreateAlignAnalysis(MemPool &mp, CGFunc &f, LoopAnalysis &loop) const = 0;
   virtual MPISel *CreateMPIsel(MemPool &mp, AbstractIRBuilder &aIRBuilder, CGFunc &f) const {
     return nullptr;
   }
@@ -312,21 +313,22 @@ class CG {
   virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const = 0;
   virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
-  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const = 0;
+  virtual ValidBitOpt *CreateValidBitOpt(MemPool &mp, CGFunc &f,
+                                         CGSSAInfo &ssaInfo, LiveIntervalAnalysis &ll) const = 0;
   virtual RedundantComputeElim *CreateRedundantCompElim(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
   virtual TailCallOpt *CreateCGTailCallOpt(MemPool &mp, CGFunc &f) const = 0;
   virtual GlobalSchedule *CreateGlobalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
-                                               InterDataDepAnalysis &idda) const {
+                                               DataDepAnalysis &dda) const {
     return nullptr;
   }
   virtual LocalSchedule *CreateLocalSchedule(MemPool &mp, CGFunc &f, ControlDepAnalysis &cda,
-                                             InterDataDepAnalysis &idda) const {
+                                             DataDepAnalysis &dda) const {
     return nullptr;
   }
   virtual LocalOpt *CreateLocalOpt(MemPool &mp, CGFunc &f, ReachingDefinition&) const {
     return nullptr;
   };
-  virtual CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f) const {
+  virtual CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f, LoopAnalysis &loop) const {
     return nullptr;
   }
   virtual CGProfGen *CreateCGProfGen(MemPool &mp, CGFunc &f) const {

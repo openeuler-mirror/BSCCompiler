@@ -574,7 +574,7 @@ bool MeCFG::IsStartTryBB(maple::BB &meBB) const {
   return (!meBB.GetStmtNodes().empty() && meBB.GetStmtNodes().front().GetOpCode() == OP_try);
 }
 
-void MeCFG::FixTryBB(maple::BB &startBB, maple::BB &nextBB) {
+void MeCFG::FixTryBB(maple::BB &startBB, maple::BB &nextBB) const {
   startBB.RemoveAllPred();
   for (size_t i = 0; i < nextBB.GetPred().size(); ++i) {
     nextBB.GetPred(i)->ReplaceSucc(&nextBB, &startBB);
@@ -863,7 +863,7 @@ void MeCFG::VerifyLabels() const {
       LabelIdx targetLabIdx = switchStmt.GetDefaultLabel();
       BB *bb = GetLabelBBAt(targetLabIdx);
       if (targetLabIdx == 0) {
-        ASSERT(bb == nullptr, "undefined label in switch");
+        CHECK_FATAL(bb == nullptr, "undefined label in switch");
       }
       for (size_t j = 0; j < switchStmt.GetSwitchTable().size(); ++j) {
         targetLabIdx = switchStmt.GetCasePair(j).second;

@@ -738,7 +738,7 @@ static void BasecaseDivRem(uint32 *q, uint32 *r, uint32 *a, uint32 *b, uint16 n,
     // while A < 0
     [[maybe_unused]] constexpr int maxCounter = 2;
     for (uint8 counter = 0; borrow != 0; ++counter) {
-      ASSERT(counter < maxCounter, "loop must execute no more than twice");
+      CHECK_FATAL(counter < maxCounter, "loop must execute no more than twice");
       --q[j];
       borrow -= MulAddOverflow(a, bShifted, 1, n + m);
     }
@@ -900,7 +900,7 @@ void IntVal::WideSetMinValue() {
 uint16 IntVal::CountLeadingOnes() const {
   // mask in neccessary because the high bits of value can be zero
   uint8 startPos = width % wordBitSize;
-  uint64 mask = (startPos != 0) ? allOnes << (wordBitSize - startPos) : 0;
+  uint64 mask = (startPos != 0) ? allOnes << static_cast<uint8>(wordBitSize - startPos) : 0;
 
   if (IsOneWord()) {
     return maple::CountLeadingOnes(u.value | mask) - startPos;
@@ -917,7 +917,7 @@ uint16 IntVal::CountLeadingOnes() const {
   do {
     ones = maple::CountLeadingOnes(u.pValue[i]);
     count += ones;
-  } while (ones != 0 && i--);
+  } while (ones != 0 && i-- != 0);
 
   return count;
 }

@@ -71,7 +71,7 @@ enum class MethodProperty : uint32 {
   kFlag,
   kArgsize,
 #ifndef USE_32BIT_REF
-  padding
+  kPadding
 #endif
 };
 
@@ -253,7 +253,7 @@ class ReflectionAnalysis : public AnalysisResult {
   void ConvertMapleClassName(const std::string &mplClassName, std::string &javaDsp) const;
 
   int GetDeflateStringIdx(const std::string &subStr, bool needSpecialFlag) const;
-  uint32 GetAnnoCstrIndex(std::map<int, int> &idxNumMap, const std::string &annoArr, bool isField);
+  uint32 GetAnnoCstrIndex(std::map<int, int> &idxNumMap, const std::string &annoArr, bool isField) const;
   uint16 GetMethodInVtabIndex(const Klass &klass, const MIRFunction &func) const;
   void GetSignatureTypeNames(std::string &signature, std::vector<std::string> &typeNames);
   MIRSymbol *GetClinitFuncSymbol(const Klass &klass) const;

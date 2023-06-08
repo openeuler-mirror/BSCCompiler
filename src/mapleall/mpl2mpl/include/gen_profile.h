@@ -62,7 +62,7 @@ class ProfileGen {
   void CreateInitProc();
   void CreateExitProc();
   void Run();
-  std::vector<MIRFunction *> getValidFuncs() { return validFuncs; }
+  std::vector<MIRFunction *> GetValidFuncs() { return validFuncs; }
 
  private:
     MIRModule &mod;

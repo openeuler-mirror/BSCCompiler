@@ -29,7 +29,6 @@ const MaplePhaseInfo* MaplePhaseRegister::GetPhaseByID(MaplePhaseID id) {
     return passInfoMap.find(id)->second;
   } else  {
     CHECK_FATAL(false, "This phase has not been registered");
-    return passInfoMap.end()->second;
   }
 }
 

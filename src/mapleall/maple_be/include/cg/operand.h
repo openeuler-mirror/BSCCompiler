@@ -458,7 +458,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     return memPool.Clone<ImmOperand>(*this);
   }
 
-  const MIRSymbol *GetSymbol() const {
+  virtual const MIRSymbol *GetSymbol() const {
     return symbol;
   }
 
@@ -662,6 +662,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     }
     return (value == op.GetValue() && isSigned == op.IsSignedValue());
   }
+
   bool IsFmov() const {
     return isFmov;
   }
@@ -716,7 +717,8 @@ class OfstOperand : public ImmOperand {
     return offsetType == kSymbolImmediateOffset;
   }
 
-  const MIRSymbol *GetSymbol() const {
+  using ImmOperand::GetSymbol;
+  const MIRSymbol *GetSymbol() const override {
     return symbol;
   }
 
@@ -964,7 +966,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
       kScale,
   };
 
-  MemOperand(uint32 size)
+  explicit MemOperand(uint32 size)
       : OperandVisitable(Operand::kOpdMem, size),
         symbol(nullptr),
         addrMode(kAddrModeUndef) {}
@@ -1361,7 +1363,7 @@ class MemOperand : public OperandVisitable<MemOperand> {
 class LabelOperand : public OperandVisitable<LabelOperand> {
  public:
   LabelOperand(const char *parent, LabelIdx labIdx, MemPool &mp)
-      : OperandVisitable(kOpdBBAddress, 0), labelIndex(labIdx), parentFunc(parent, &mp), orderID(-1u) {}
+      : OperandVisitable(kOpdBBAddress, 0), labelIndex(labIdx), parentFunc(parent, &mp), orderID(-1) {}
 
   ~LabelOperand() override = default;
   using OperandVisitable<LabelOperand>::OperandVisitable;

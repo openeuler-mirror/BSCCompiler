@@ -135,7 +135,7 @@ static bool IsRestrictPointer(const OriginalSt *ost) {
   auto type = symbol->GetType();
   auto isStruct = type->IsStructType();
   CHECK_FATAL(isStruct || !MeOption::tbaa, "must be struct type under strict-aliasing rules");
-  return static_cast<MIRStructType*>(type)->IsFieldRestrict(fieldId);;
+  return static_cast<MIRStructType*>(type)->IsFieldRestrict(fieldId);
 }
 
 bool AliasClass::CallHasNoPrivateDefEffect(StmtNode *stmt) const {
@@ -179,7 +179,7 @@ void AliasClass::RecordAliasAnalysisInfo(const VersionSt &vst) {
     }
   }
 
-  if (ost.GetPointerVstIdx() && IsAddrofVstNextLevNotAllDefSeen(ost.GetPointerVstIdx())) {
+  if ((ost.GetPointerVstIdx() != 0) && IsAddrofVstNextLevNotAllDefSeen(ost.GetPointerVstIdx())) {
     SetNextLevNotAllDefsSeen(vst.GetIndex());
   }
   if ((ost.IsFormal() && !IsRestrictPointer(&ost) && ost.GetIndirectLev() >= 0) || ost.GetIndirectLev() > 0) {
@@ -410,7 +410,7 @@ AliasInfo AliasClass::CreateAliasInfoExpr(BaseNode &expr) {
       } else {
         ASSERT(expr.GetOpCode() == OP_add, "Wrong operation!");
       }
-      OffsetType newOffset = aliasInfo.offset + static_cast<uint64>(constVal) * static_cast<uint64>(bitsPerByte);
+      OffsetType newOffset = aliasInfo.offset + static_cast<uint64>(constVal) * static_cast<uint64>(kBitsPerByte);
       return AliasInfo(aliasInfo.vst, aliasInfo.fieldID, newOffset);
     }
     case OP_array: {
@@ -598,7 +598,7 @@ bool AliasClass::SetNextLevNADSForEscapePtr(const VersionSt &lhsVst, BaseNode &r
   return false;
 }
 
-void AliasClass::ApplyUnionForDassignCopy(VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs) {
+void AliasClass::ApplyUnionForDassignCopy(const VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs) {
   if (SetNextLevNADSForEscapePtr(lhsVst, rhs)) {
     return;
   }
@@ -919,7 +919,7 @@ MIRType *AliasClass::GetAliasInfoRealType(const AliasInfo &ai, const BaseNode &e
       return GetAliasInfoRealType(CreateAliasInfoExpr(*expr.Opnd(2)), *expr.Opnd(2));
     }
     default: {
-      return nullptr;
+      CHECK_FATAL(false, "GetAliasInfoRealType failed");
     }
   }
 }
@@ -1198,7 +1198,7 @@ void AliasClass::CreateAssignSets() {
       auto maxVstIdx = (vstIdx > vstIdxOfRoot) ? vstIdx : vstIdxOfRoot;
       if (maxVstIdx >= assignSetOfVst.size()) {
         constexpr uint32 bufferSize = 10;
-        uint32 incNum = maxVstIdx + bufferSize - assignSetOfVst.size();
+        size_t incNum = maxVstIdx + bufferSize - assignSetOfVst.size();
         assignSetOfVst.insert(assignSetOfVst.end(), incNum, nullptr);
       }
       if (assignSetOfVst[vstIdxOfRoot] == nullptr) {
@@ -1282,7 +1282,7 @@ void AliasClass::UnionNextLevelOfAliasOst(OstPtrSet &ostsToUnionNextLev) {
           continue;
         }
 
-        const auto &nextLevelOstCollector = [&](size_t vstIdx) -> void {
+        const auto &nextLevelOstCollector = [&mayAliasOsts, this](size_t vstIdx) -> void {
           auto *nextLevOsts = ssaTab.GetNextLevelOsts(vstIdx);
           if (nextLevOsts != nullptr) {
             mayAliasOsts.insert(nextLevOsts->begin(), nextLevOsts->end());
@@ -2087,7 +2087,7 @@ void AliasClass::CollectMayUseFromFormals(OstPtrSet &mayUseOsts, bool needToBeRe
         continue;
       }
 
-      const auto &collectNextLevelOsts = [&](size_t vstIdx) {
+      const auto &collectNextLevelOsts = [&mayUseOsts, this](size_t vstIdx) {
         auto *nextLevelOsts = ssaTab.GetNextLevelOsts(vstIdx);
         if (nextLevelOsts == nullptr) {
           return;
@@ -2235,7 +2235,7 @@ void AliasClass::InsertMayDefDassign(StmtNode &stmt, BBId bbid) {
   InsertMayDefNode(mayDefOsts, ssaTab.GetStmtsSSAPart().SSAPartOf(stmt), stmt, bbid);
 }
 
-bool AliasClass::IsEquivalentField(TyIdx tyIdxA, FieldID fieldA, TyIdx tyIdxB, FieldID fieldB) const {
+bool AliasClass::IsEquivalentField(const TyIdx &tyIdxA, FieldID fieldA, const TyIdx &tyIdxB, FieldID fieldB) const {
   if (mirModule.IsJavaModule() && tyIdxA != tyIdxB) {
     (void)klassHierarchy->UpdateFieldID(tyIdxA, tyIdxB, fieldA);
   }
@@ -2347,7 +2347,7 @@ void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt, BBId bbid) {
     BaseNode *addrBase = stmt.Opnd(i);
     if (addrBase->IsSSANode()) {
       VersionSt *vst = static_cast<SSANode*>(addrBase)->GetSSAVar();
-      const auto &collectAliasedOsts = [&](const OStIdx &ostIdx) {
+      const auto &collectAliasedOsts = [&aliasSet, this](const OStIdx &ostIdx) {
         auto *aliasSetOfCurOSt = GetAliasSet(ostIdx);
         if (aliasSetOfCurOSt == nullptr) {
           return;

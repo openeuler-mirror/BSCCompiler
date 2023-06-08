@@ -172,16 +172,6 @@ void AArch64RegSavesOpt::ProcessOperands(const Insn &insn, const BB &bb) {
   } /* for all operands */
 }
 
-static bool IsBackEdge(const BB* bb, BB* targ) {
-  CGFuncLoops *loop = bb->GetLoop();
-  if (loop != nullptr && loop->GetHeader() == bb) {
-    if (find(loop->GetBackedge().begin(), loop->GetBackedge().end(), targ) != loop->GetBackedge().end()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 void AArch64RegSavesOpt::GenAccDefs() {
   /* Set up accumulated callee def bits in all blocks */
   for (auto bb : bfs->sortedBBs) {
@@ -192,7 +182,7 @@ void AArch64RegSavesOpt::GenAccDefs() {
       int64 n = -1;
       CalleeBitsType tmp = static_cast<CalleeBitsType>(n);
       for (auto pred : bb->GetPreds()) {
-        if (IsBackEdge(bb, pred)) {
+        if (loopInfo.IsBackEdge(*pred, *bb)) {
           continue;
         }
         tmp &= GetBBCalleeBits(GetCalleeBitsAcc(), pred->GetId());
@@ -336,7 +326,7 @@ bool AArch64RegSavesOpt::AlreadySavedInDominatorList(const BB &bb, regno_t reg) 
 
 BB* AArch64RegSavesOpt::FindLoopDominator(BB *bb, regno_t reg, bool &done) const {
   BB *bbDom = bb;
-  while (bbDom->GetLoop() != nullptr) {
+  while (loopInfo.GetBBLoopParent(bbDom->GetId()) != nullptr) {
     bbDom = GetDomInfo()->GetDom(bbDom->GetId());
     if (CheckCriteria(bbDom, reg) != 0) {
       done = true;
@@ -464,9 +454,9 @@ void AArch64RegSavesOpt::DetermineCalleeSaveLocationsPre() {
       }
     }
     if (cgFunc->GetFunction().GetFuncProfData() == nullptr) {
-      DoSavePlacementOpt(cgFunc, GetDomInfo(), &wkCand);
+      DoSavePlacementOpt(cgFunc, GetDomInfo(), &loopInfo, &wkCand);
     } else {
-      DoProfileGuidedSavePlacement(cgFunc, GetDomInfo(), &wkCand);
+      DoProfileGuidedSavePlacement(cgFunc, GetDomInfo(), &loopInfo, &wkCand);
     }
     if (wkCand.saveAtEntryBBs.empty()) {
       /* something gone wrong, skip this reg */
@@ -657,11 +647,11 @@ void AArch64RegSavesOpt::InsertCalleeSaveCode() {
           /* 1st half in reg pair */
           firstHalf = reg;
         } else {
-          if (regOffset[reg] == (regOffset[firstHalf] + k8ByteSize)) {
+          if (regOffset[reg] == (regOffset[firstHalf] + k8ByteSizeInt)) {
             /* firstHalf & reg consecutive, make regpair */
             AArch64GenProEpilog::AppendInstructionPushPair(*cgFunc, firstHalf, reg, regType,
                                                            static_cast<int32>(regOffset[firstHalf]));
-          } else if (regOffset[firstHalf] == (regOffset[reg] + k8ByteSize)) {
+          } else if (regOffset[firstHalf] == (regOffset[reg] + k8ByteSizeInt)) {
             /* reg & firstHalf consecutive, make regpair */
             AArch64GenProEpilog::AppendInstructionPushPair(*cgFunc, reg, firstHalf, regType,
                                                            static_cast<int32>(regOffset[reg]));

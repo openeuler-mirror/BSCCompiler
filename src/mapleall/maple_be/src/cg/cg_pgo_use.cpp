@@ -24,22 +24,22 @@ void RelinkBB(BB &prev, BB &next) {
 }
 
 bool CGProfUse::ApplyPGOData() {
-  instrumenter.PrepareInstrumentInfo(f->GetFirstBB(), f->GetCommonExitBB());
+  instrumenter.PrepareInstrumentInfo(f.GetFirstBB(), f.GetCommonExitBB());
   std::vector<maplebe::BB *> iBBs;
-  instrumenter.GetInstrumentBBs(iBBs, f->GetFirstBB());
+  instrumenter.GetInstrumentBBs(iBBs, f.GetFirstBB());
 
   /* skip large bb function currently due to offset in ldr/store */
   if (iBBs.size() > kMaxPimm8) {
     return false;
   }
-  LiteProfile::BBInfo *bbInfo = f->GetFunction().GetModule()->GetLiteProfile().GetFuncBBProf(f->GetName());
+  LiteProfile::BBInfo *bbInfo = f.GetFunction().GetModule()->GetLiteProfile().GetFuncBBProf(f.GetName());
   if (bbInfo == nullptr) {
-    LogInfo::MapleLogger() << "find profile for " << f->GetName() << "Failed\n";
+    LogInfo::MapleLogger() << "find profile for " << f.GetName() << "Failed\n";
   }
   CHECK_FATAL(bbInfo != nullptr, "Get profile Failed");
   if (!VerifyProfileData(iBBs, *bbInfo)) {
     if (!CGOptions::DoLiteProfVerify()) {
-      LogInfo::MapleLogger() << "skip profile applying for " << f->GetName() << " due to out of date\n";
+      LogInfo::MapleLogger() << "skip profile applying for " << f.GetName() << " due to out of date\n";
     } else {
       CHECK_FATAL_FALSE("Verify lite profile data Failed!");
     }
@@ -62,15 +62,15 @@ bool CGProfUse::VerifyProfileData(const std::vector<maplebe::BB *> &iBBs, LitePr
   /* check bb size */
   bbInfo.verified.first = true;
   if (bbInfo.counter.size() != iBBs.size()) {
-    LogInfo::MapleLogger() << f->GetName() << " counter doesn't match profile counter :"
+    LogInfo::MapleLogger() << f.GetName() << " counter doesn't match profile counter :"
                            << bbInfo.counter.size() << " func real counter :" << iBBs.size() << '\n';
     bbInfo.verified.second = false;
     return false;
   }
   /* check cfg hash*/
-  if (bbInfo.funcHash != f->GetTheCFG()->ComputeCFGHash()) {
-    LogInfo::MapleLogger() << f->GetName() << " CFG hash doesn't match profile cfghash :"
-                           << bbInfo.funcHash << " func cfghash :" << f->GetTheCFG()->ComputeCFGHash() << '\n';
+  if (bbInfo.funcHash != f.GetTheCFG()->ComputeCFGHash()) {
+    LogInfo::MapleLogger() << f.GetName() << " CFG hash doesn't match profile cfghash :"
+                           << bbInfo.funcHash << " func cfghash :" << f.GetTheCFG()->ComputeCFGHash() << '\n';
     bbInfo.verified.second = false;
     return false;
   }
@@ -113,7 +113,7 @@ void CGProfUse::InitBBEdgeInfo() {
 void CGProfUse::ComputeEdgeFreq() {
   bool change = true;
   size_t times = 0;
-  BB *commonEntry = f->GetFirstBB();
+  BB *commonEntry = f.GetFirstBB();
   while (change) {
     change = false;
     times++;
@@ -155,12 +155,12 @@ void CGProfUse::ComputeEdgeFreq() {
   }
   if (debugChainLayout) {
     LogInfo::MapleLogger() << "parse all edges in " << times << " times" << '\n';
-    LogInfo::MapleLogger() << f->GetName() << " succ compute all edges " << '\n';
+    LogInfo::MapleLogger() << f.GetName() << " succ compute all edges " << '\n';
   }
 }
 
 void CGProfUse::ApplyOnBB() {
-  BB *commonEntry = f->GetFirstBB();
+  BB *commonEntry = f.GetFirstBB();
   for (BB *curbb = commonEntry; curbb != nullptr; curbb = curbb->GetNext()) {
     /* skip isolated bb */
     if (curbb->GetSuccs().empty() && curbb->GetPreds().empty()) {
@@ -172,14 +172,14 @@ void CGProfUse::ApplyOnBB() {
       CHECK_FATAL(false, "");
     }
     curbb->SetFrequency(static_cast<uint32>(useInfo->GetCount()));
-    if (curbb == f->GetCommonExitBB()) {
+    if (curbb == f.GetCommonExitBB()) {
       continue;
     }
     curbb->InitEdgeFreq();
     auto outEdges = useInfo->GetOutEdges();
     for (auto *e : outEdges) {
       auto *destBB = e->GetDestBB();
-      if (destBB == f->GetCommonExitBB()) {
+      if (destBB == f.GetCommonExitBB()) {
         continue;
       }
       curbb->SetEdgeFreq(*destBB, e->GetCount());
@@ -226,27 +226,40 @@ BBUseInfo<maplebe::BB> *CGProfUse::GetOrCreateBBUseInfo(const maplebe::BB &bb, b
     return item->second;
   } else {
     CHECK_FATAL(!notCreate, "do not create new bb useinfo in this case");
-    auto *newInfo = mp->New<BBUseInfo<maplebe::BB>>(*mp);
+    auto *newInfo = mp.New<BBUseInfo<maplebe::BB>>(mp);
     (void)bbProfileInfo.emplace(std::make_pair(bb.GetId(), newInfo));
     return newInfo;
   }
 }
 
+static void DumpCGBBChainWithColdness(NodeChain &chain) {
+  LogInfo::MapleLogger() << "\nDumpCGBBChainWithColdness: ";
+  for (auto it = chain.begin(); it != chain.end(); ++it) {
+    auto *bb = static_cast<BB*>(*it);
+    LogInfo::MapleLogger() << bb->GetID();
+    if (bb->IsInColdSection()) {
+      LogInfo::MapleLogger() << "!";
+    }
+    LogInfo::MapleLogger() << " ";
+  }
+  LogInfo::MapleLogger() << std::endl;
+}
+
 void CGProfUse::LayoutBBwithProfile() {
   /* initialize */
-  laidOut.resize(f->GetAllBBs().size(), false);
+  laidOut.resize(f.GetAllBBs().size(), false);
   /* BB chain layout */
-  ChainLayout chainLayout(*f, *mp, debugChainLayout, *domInfo);
+  ChainLayout chainLayout(f, mp, debugChainLayout, domInfo, loopInfo);
   // Init layout settings for CG
   chainLayout.SetHasRealProfile(true);
   chainLayout.SetConsiderBetterPred(true);
   chainLayout.BuildChainForFunc();
-  NodeChain *mainChain = chainLayout.GetNode2Chain()[f->GetFirstBB()->GetID()];
+  NodeChain *mainChain = chainLayout.GetNode2Chain()[f.GetFirstBB()->GetID()];
 
   for (auto bbId : bbSplit) {
-    BB *cbb = f->GetBBFromID(bbId);
+    BB *cbb = f.GetBBFromID(bbId);
     CHECK_FATAL(cbb, "get bb failed");
-    f->GetTheCFG()->ReverseCriticalEdge(*cbb);
+    f.GetTheCFG()->ReverseCriticalEdge(*cbb);
   }
   std::vector<BB*> coldSection;
   std::vector<uint32> layoutID;
@@ -258,9 +271,12 @@ void CGProfUse::LayoutBBwithProfile() {
       break;
     }
   }
+  if (debugChainLayout) {
+    DumpCGBBChainWithColdness(*mainChain);
+  }
   for (auto it = mainChain->begin(); it != mainChain->end(); ++it) {
     auto *bb = static_cast<BB*>(*it);
-    if (!bbSplit.count(bb->GetId())) {
+    if (bbSplit.count(bb->GetId()) == 0) {
       if (bb->IsInColdSection()) {
         coldSection.emplace_back(bb);
       } else {
@@ -279,7 +295,7 @@ void CGProfUse::LayoutBBwithProfile() {
     if (lastBB->GetKind() == BB::kBBFallthru) {
       CHECK_FATAL(lastBB->GetSuccs().size() == 1, "it is fallthru");
       BB *targetBB = *lastBB->GetSuccs().begin();
-      BB *newBB = f->GetTheCFG()->GetInsnModifier()->CreateGotoBBAfterCondBB(*lastBB, *targetBB, targetBB == lastBB);
+      BB *newBB = f.GetTheCFG()->GetInsnModifier()->CreateGotoBBAfterCondBB(*lastBB, *targetBB, targetBB == lastBB);
       RelinkBB(*lastBB, *newBB);
     } else if (lastBB->GetKind() == BB::kBBIf) {
       BB *targetBB = CGCFG::GetTargetSuc(*lastBB);
@@ -289,7 +305,7 @@ void CGProfUse::LayoutBBwithProfile() {
           ftBB = sucBB;
         }
       }
-      BB *newBB = f->GetTheCFG()->GetInsnModifier()->CreateGotoBBAfterCondBB(*lastBB, *ftBB, targetBB == lastBB);
+      BB *newBB = f.GetTheCFG()->GetInsnModifier()->CreateGotoBBAfterCondBB(*lastBB, *ftBB, targetBB == lastBB);
       RelinkBB(*lastBB, *newBB);
     }
   }
@@ -305,6 +321,7 @@ void CGProfUse::LayoutBBwithProfile() {
 bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
   CHECK_FATAL(f.NumBBs() < LiteProfile::GetBBNoThreshold(), "stop ! bb out of range!");
   if (!LiteProfile::IsInWhiteList(f.GetName())) {
+    CGOptions::DisableLiteProfUse();
     return false;
   }
 
@@ -313,6 +330,7 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
    * Currently, If all the counters of the function are 0, the bbInfo will not be recorded in pgo data.
    * skip this case. However, it cannot distinguish which is not genereated correct. Need to be improved */
   if (!bbInfo) {
+    CGOptions::DisableLiteProfUse();
     return false;
   }
 
@@ -323,20 +341,26 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
   split->SplitCriticalEdges();
   MapleSet<uint32> newbbinsplit = split->CopyNewBBInfo();
 
-  MaplePhase *it = GetAnalysisInfoHook()->
+  MaplePhase *domPhase = GetAnalysisInfoHook()->
       ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgDomAnalysis::id, f);
-  auto *domInfo = static_cast<CgDomAnalysis*>(it)->GetResult();
+  auto *domInfo = static_cast<CgDomAnalysis*>(domPhase)->GetResult();
 
-  (void)GetAnalysisInfoHook()->
+  MaplePhase *loopPhase = GetAnalysisInfoHook()->
       ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+  auto *loopInfo = static_cast<CgLoopAnalysis*>(loopPhase)->GetResult();
 
   CHECK_FATAL(domInfo, "find dom failed");
-  CGProfUse pUse(f, *memPool, domInfo, newbbinsplit);
+  CHECK_FATAL(loopInfo, "find dom failed");
+  const bool debug = CG_DEBUG_FUNC(f);
+  CGProfUse pUse(f, *memPool, *domInfo, *loopInfo, newbbinsplit, debug);
   if (pUse.ApplyPGOData()) {
+    CGOptions::EnableLiteProfUse();
     pUse.LayoutBBwithProfile();
+  } else {
+    CGOptions::DisableLiteProfUse();
   }
   uint64 count = 0;
-  LogInfo::MapleLogger() << "Finial Layout : ";
+  LogInfo::MapleLogger() << f.GetName() << " Final Layout : ";
   FOR_ALL_BB(bb, &f) {
     LogInfo::MapleLogger() << bb->GetId() << " ";
     // Maintain head and tail BB, because emit phase still will access CFG
@@ -365,7 +389,7 @@ void CGProfUse::AddBBProf(BB &bb) {
   BB *curBB = layoutBBs.back();
   if ((curBB->GetKind() == BB::kBBFallthru || curBB->GetKind() == BB::kBBGoto) && !curBB->GetSuccs().empty()) {
     BB *targetBB = curBB->GetSuccs().front();
-    CHECK_FATAL(!bbSplit.count(targetBB->GetId()), "check split bb");
+    CHECK_FATAL(bbSplit.count(targetBB->GetId()) == 0, "check split bb");
     if (curBB->GetKind() == BB::kBBFallthru && (&bb != targetBB)) {
       ReTargetSuccBB(*curBB, *targetBB);
     } else if (curBB->GetKind() == BB::kBBGoto && (&bb == targetBB)) {
@@ -400,10 +424,10 @@ void CGProfUse::AddBBProf(BB &bb) {
     if (&bb == targetBB) {
       CHECK_FATAL(bbSplit.count(ftBB->GetId()) == 0, "check split bb");
       LabelIdx fallthruLabel = GetOrCreateBBLabIdx(*ftBB);
-      f->GetTheCFG()->GetInsnModifier()->FlipIfBB(*curBB, fallthruLabel);
+      f.GetTheCFG()->GetInsnModifier()->FlipIfBB(*curBB, fallthruLabel);
     } else if (&bb != ftBB) {
-      CHECK_FATAL(!bbSplit.count(targetBB->GetId()), "check split bb");
-      BB *newBB = f->GetTheCFG()->GetInsnModifier()->CreateGotoBBAfterCondBB(*curBB, *ftBB, targetBB == ftBB);
+      CHECK_FATAL(bbSplit.count(targetBB->GetId()) == 0, "check split bb");
+      BB *newBB = f.GetTheCFG()->GetInsnModifier()->CreateGotoBBAfterCondBB(*curBB, *ftBB, targetBB == ftBB);
       CHECK_FATAL(newBB, "create goto failed");
       if (curBB->IsInColdSection()) {
         newBB->SetColdSection();
@@ -427,7 +451,7 @@ void CGProfUse::AddBBProf(BB &bb) {
 
 void CGProfUse::ReTargetSuccBB(BB &bb, BB &fallthru) {
   LabelIdx fallthruLabel = GetOrCreateBBLabIdx(fallthru);
-  f->GetTheCFG()->GetInsnModifier()->ReTargetSuccBB(bb, fallthruLabel);
+  f.GetTheCFG()->GetInsnModifier()->ReTargetSuccBB(bb, fallthruLabel);
   bb.SetKind(BB::kBBGoto);
 }
 
@@ -440,9 +464,9 @@ void CGProfUse::ChangeToFallthruFromGoto(BB &bb) const {
 LabelIdx CGProfUse::GetOrCreateBBLabIdx(BB &bb) const {
   LabelIdx bbLabel = bb.GetLabIdx();
   if (bbLabel == MIRLabelTable::GetDummyLabel()) {
-    bbLabel = f->CreateLabel();
+    bbLabel = f.CreateLabel();
     bb.SetLabIdx(bbLabel);
-    f->SetLab2BBMap(bbLabel, bb);
+    f.SetLab2BBMap(bbLabel, bb);
   }
   return bbLabel;
 }

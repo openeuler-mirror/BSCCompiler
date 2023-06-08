@@ -53,7 +53,7 @@ class MeLoopWrapper : public LoopWrapperBase {
     nodeIds.resize(loopBBs.size(), 0);
     size_t i = 0;
     for (const auto &bbId : loopBBs) {
-      nodeIds[i] = bbId.GetIdx();
+      nodeIds[i] = static_cast<uint32>(bbId.GetIdx());
       ++i;
     }
   }
@@ -68,30 +68,30 @@ class MeLoopWrapper : public LoopWrapperBase {
 
 class CGLoopWrapper : public LoopWrapperBase {
  public:
-  explicit CGLoopWrapper(maplebe::CGFuncLoops &cgLoop) : loop(cgLoop) {}
+  explicit CGLoopWrapper(maplebe::LoopDesc &cgLoop) : loop(cgLoop) {}
 
   ~CGLoopWrapper() override = default;
 
   NodeType *GetHeader() override {
-    return loop.GetHeader();
+    return &loop.GetHeader();
   }
 
   void GetLoopMembers(std::vector<uint32> &nodeIds) const override {
-    const auto &loopBBs = loop.GetLoopMembers();
+    const auto &loopBBs = loop.GetLoopBBs();
     nodeIds.resize(loopBBs.size(), 0);
     size_t i = 0;
-    for (const auto *bb : loopBBs) {
-      nodeIds[i] = bb->GetID();
+    for (const auto bbId : loopBBs) {
+      nodeIds[i] = bbId;
       ++i;
     }
   }
 
   uint32 GetLoopDepth() const override {
-    return loop.GetLoopLevel();
+    return loop.GetNestDepth();
   }
 
  private:
-  maplebe::CGFuncLoops &loop;
+  maplebe::LoopDesc &loop;
 };
 
 class NodeIterBase {
@@ -106,7 +106,7 @@ class NodeIterBase {
 
   virtual ~NodeIterBase() = default;
 
-  virtual value_type operator*() const = 0;
+  virtual value_type operator*() = 0;
   virtual self &operator++() = 0;
   virtual bool operator==(const self &rhs) const = 0;
   virtual bool operator!=(const self &rhs) const = 0;
@@ -119,7 +119,7 @@ class MeBBIter : public NodeIterBase {
     nodePtr = nullptr;
   }
 
-  value_type operator*() const override {
+  value_type operator*() override {
     return *nodePtr;
   }
 
@@ -146,7 +146,7 @@ class CGBBIter : public NodeIterBase {
 
   ~CGBBIter() override = default;
 
-  value_type operator*() const override {
+  value_type operator*() override {
     return node;
   }
 
@@ -438,10 +438,10 @@ class CGDomWrapper : public DomWrapperBase {
 };
 
 // Temperature of a layout context
-enum class NodeContextTemperature {
-  kAll,     // Context contains both cold and non-cold BBs
-  kCold,    // Context only contains cold BBs
-  kNonCold  // Context only contains non-cold BBs
+enum class ExeTemperature : uint32 {
+  kNormal = 0x01,     // normal BBs
+  kCold = 0x02,       // cold BBs, unlikely executed
+  kNeverExe = 0x04,   // never executed indicated by real profile
 };
 
 // Range of a layout context
@@ -451,12 +451,13 @@ enum class NodeContextKind {
   kLocalOutOfLoop    // Context is a local range not in any loops. `inBBs` is valid, `loop` is nullptr.
 };
 
-enum class LayoutRangeKind: uint32 {
+enum class LayoutRangeKind : uint32 {
   kRangeSucc = 0x01,
   kRangeReadyList = 0x02,
   kRangeFreqRpoList = 0x04,
   kRangeRpotList = 0x08,
   kRangeColdPath = 0x10,
+  kRangeNeverExePath = 0x20,
   kRangeAll = UINT32_MAX
 };
 
@@ -465,7 +466,7 @@ class NodeChain;  // circular dependency exists, no other choice
 class NodeContext {
  public:
   NodeContext(FuncWrapperBase &curFunc, MapleVector<NodeChain*> &node2chainParam,
-              MapleVector<bool> *inVec, LoopWrapperBase *curLoop, NodeContextTemperature temp)
+              MapleVector<bool> *inVec, LoopWrapperBase *curLoop, ExeTemperature temp)
       : func(curFunc), node2chain(node2chainParam), inNodes(inVec), loop(curLoop), temperature(temp) {
     if (inNodes == nullptr) {
       kind = NodeContextKind::kGlobal;
@@ -489,7 +490,7 @@ class NodeContext {
     }
   }
 
-  NodeContextTemperature GetTemperature() const {
+  ExeTemperature GetTemperature() const {
     return temperature;
   }
 
@@ -542,7 +543,7 @@ class NodeContext {
   // context or a local context out of any loops).
   LoopWrapperBase *loop = nullptr;
   // See enum ContextTemperature for details
-  NodeContextTemperature temperature = NodeContextTemperature::kAll;
+  ExeTemperature temperature = ExeTemperature::kNormal;
   // See enum ContextKind for details
   NodeContextKind kind = NodeContextKind::kGlobal;
 };
@@ -588,12 +589,16 @@ class NodeChain {
     return id;
   }
 
-  bool IsColdChain() const {
-    return isCold;
+  ExeTemperature GetTemp() const {
+    return temp;
   }
 
-  void SetColdChain(bool cold) {
-    isCold = cold;
+  void SetTemp(ExeTemperature temperature) {
+    temp = temperature;
+  }
+
+  bool IsColdOrNeverExe() const {
+    return temp == ExeTemperature::kCold || temp == ExeTemperature::kNeverExe;
   }
 
   NodeType *GetHeader() {
@@ -613,7 +618,7 @@ class NodeChain {
 
   // update unlaidPredCnt if needed. The chain is ready to layout only if unlaidPredCnt == 0
   bool IsReadyToLayout(const NodeContext &context) {
-    if (IsColdChain()) {
+    if (IsColdOrNeverExe()) {
       return false;  // All cold chains are saved in `coldChains`, should not be added in ready chain list
     }
     MayRecalculateUnlaidPredCnt(context);
@@ -670,8 +675,10 @@ class NodeChain {
         LogInfo::MapleLogger() << ", ";
       }
     }
-    if (isCold) {
+    if (temp == ExeTemperature::kCold) {
       LogInfo::MapleLogger() << " (cold chain)";
+    } else if (temp == ExeTemperature::kNeverExe) {
+      LogInfo::MapleLogger() << " (neverExe chain)";
     }
     LogInfo::MapleLogger() << std::endl;
   }
@@ -711,7 +718,7 @@ class NodeChain {
   MapleVector<NodeType*> nodeVec;
   MapleVector<NodeChain*> &node2chain;
   bool isCacheValid = false;  // whether unlaidPredCnt is trustable
-  bool isCold = false;  // set true if the chain is within a loop and starts with a unlikely head
+  ExeTemperature temp = ExeTemperature::kNormal;  // temperature of this chain
 };
 
 struct NodeOrderElem {
@@ -737,10 +744,11 @@ struct NodeOrderElem {
 class ChainLayout {
  public:
   ChainLayout(MeFunction &meFunc, MemPool &memPool, bool enabledDebug, IdentifyLoops &identifyLoops, Dominance &meDom)
-      : ChainLayout(&meFunc, nullptr, memPool, enabledDebug, &identifyLoops, &meDom, nullptr) {}
+      : ChainLayout(&meFunc, nullptr, memPool, enabledDebug, &identifyLoops, &meDom, nullptr, nullptr) {}
 
-  ChainLayout(maplebe::CGFunc &cgFunc, MemPool &memPool, bool enabledDebug, maplebe::DomAnalysis &cgDom)
-      : ChainLayout(nullptr, &cgFunc, memPool, enabledDebug, nullptr, nullptr, &cgDom) {}
+  ChainLayout(maplebe::CGFunc &cgFunc, MemPool &memPool, bool enabledDebug, maplebe::DomAnalysis &cgDom,
+              maplebe::LoopAnalysis &cgLoop)
+      : ChainLayout(nullptr, &cgFunc, memPool, enabledDebug, nullptr, nullptr, &cgDom, &cgLoop) {}
 
   ~ChainLayout() = default;
 
@@ -758,16 +766,32 @@ class ChainLayout {
     considerBetterPred = val;
   }
 
+  void SetNodeTemp(uint32 nodeId, ExeTemperature temp) {
+    CHECK_FATAL(nodeTemps != nullptr, "nodeTemps should have been reset");
+    CHECK_FATAL(nodeId < nodeTemps->size(), "container check");
+    (*nodeTemps)[nodeId] = temp;
+  }
+
+  ExeTemperature GetNodeTemp(uint32 nodeId) const {
+    if (nodeTemps == nullptr) {
+      return ExeTemperature::kNormal;
+    }
+    CHECK_FATAL(nodeId < nodeTemps->size(), "container check");
+    return (*nodeTemps)[nodeId];
+  }
+
  private:
   using NodePredicate = bool(*)(NodeType&);
   ChainLayout(MeFunction *meFunc, maplebe::CGFunc *cgFunc, MemPool &memPool, bool enabledDebug,
-      IdentifyLoops *identifyLoops, Dominance *meDom, maplebe::DomAnalysis *cgDom)
+              IdentifyLoops *identifyLoops, Dominance *meDom, maplebe::DomAnalysis *cgDom,
+              maplebe::LoopAnalysis *cgLoop)
       : layoutAlloc(&memPool),
         func(meFunc != nullptr ? static_cast<FuncWrapperBase&>(*layoutAlloc.New<MeFuncWrapper>(*meFunc, memPool)) :
                                  static_cast<FuncWrapperBase&>(*layoutAlloc.New<CGFuncWrapper>(*cgFunc, memPool))),
         node2chain(layoutAlloc.Adapter()),
         loops(layoutAlloc.Adapter()),
         coldChains(layoutAlloc.Adapter()),
+        neverExeChains(layoutAlloc.Adapter()),
         readyToLayoutChains(layoutAlloc.Adapter()),
         dom(meFunc != nullptr ? static_cast<DomWrapperBase&>(*layoutAlloc.New<MeDomWrapper>(*meDom)) :
                                 static_cast<DomWrapperBase&>(*layoutAlloc.New<CGDomWrapper>(*cgDom))),
@@ -782,35 +806,27 @@ class ChainLayout {
         layoutColdPath = true;
       }
     } else {
-      CHECK_NULL_FATAL(cgFunc);
-      InitLoopsForCG(cgFunc->GetLoops());
+      CHECK_NULL_FATAL(cgLoop);
+      InitLoopsForCG(cgLoop->GetLoops());
       if (cgLayoutColdPath) {
         layoutColdPath = true;
+      }
+      if (maplebe::CGOptions::DoEnableHotColdSplit()) {
+        markNeverExe = true;
       }
     }
   }
 
-  void InitLoopsForME(IdentifyLoops &meLoops);
-  void InitLoopsForCG(MapleVector<maplebe::CGFuncLoops*> &cgLoops);
+  void InitLoopsForME(IdentifyLoops &identifyLoops);
+  void InitLoopsForCG(MapleVector<maplebe::LoopDesc*> &cgLoops);
   void InitChains();
-  void InitColdNodes();
-  void InitColdNodesForME();
-  void InitColdNodesForCG();
+  void ResetNodeTemperatures();
+  void InitNodeTemperatures();
+  void InitNodeTemperaturesForME();
+  void InitNodeTemperaturesForCG();
   void InitFreqRpoNodeList();
 
-  bool IsColdNode(const NodeType &node) const {
-    return IsColdNode(node.GetID());
-  }
-
-  bool IsColdNode(uint32 nodeId) const {
-    if (coldNodes == nullptr) {
-      return false;  // No cold nodes info, always return false.
-    }
-    CHECK_FATAL(nodeId < coldNodes->size(), "node id out of range");
-    return (*coldNodes)[nodeId];
-  }
-
-  bool IsNodeInLoop(const NodeType &node) {
+  bool IsNodeInLoop(const NodeType &node) const {
     if (nodesInLoop != nullptr) {
       return (*nodesInLoop)[node.GetID()];
     }
@@ -821,34 +837,35 @@ class ChainLayout {
   }
 
   void BuildChainForLoops();
-  void BuildChainForLoop(LoopWrapperBase &loop, MapleVector<bool> &inBBs, NodeContextTemperature temperature);
-  void BuildChainForColdPathInFunc();
+  void BuildChainForLoop(LoopWrapperBase &loop, MapleVector<bool> &inBBs, ExeTemperature temperature);
+  void BuildChainForColdOrNeverExePathInFunc(ExeTemperature contextTemp);
   NodeChain *BuildChainInContext(MapleVector<bool> *inBBs, LoopWrapperBase *loop, uint32 range,
-      NodeContextTemperature contextTemperature = NodeContextTemperature::kAll);
-  bool FindNodesToLayoutInLoop(const LoopWrapperBase &loop, NodeContextTemperature temperature,
-      MapleVector<bool> &inBBs);
+      ExeTemperature contextTemperature);
+  bool FindNodesToLayoutInLoop(const LoopWrapperBase &loop, ExeTemperature temperature,
+      MapleVector<bool> &inBBs) const;
   void PostBuildChainForCGFunc(NodeChain &entryChain);
   void DoBuildChain(const NodeType &header, NodeChain &chain, uint32 range);
 
   NodeType *GetBestSucc(NodeType &node, const NodeChain &chain, uint32 range, bool considerBetterPredForSucc);
   NodeType *FindNextNodeInSucc(NodeType &node, bool considerBetterPredForSucc);
-  NodeType *FindNextNodeInReadyList(NodeType &node) const;
+  NodeType *FindNextNodeInReadyList(const NodeType &node) const;
   NodeType *FindNextNodeInRpotList(const NodeChain &chain);
   NodeType *FindNextNodeInFreqRpotList(const NodeChain &chain) const;
-  void MayDumpSelectLog(const NodeType &curNode, const NodeType &nextNode, const std::string &hint);
+  void MayDumpSelectLog(const NodeType &curNode, const NodeType &nextNode, const std::string &hint) const;
   void MayDumpFormedChain(const NodeChain &chain) const;
-  NodeChain *GetNextColdChain(const NodeChain &curChain);
+  NodeChain *GetNextChain(const NodeChain &curChain, ExeTemperature temp);
   bool IsCandidateSucc(const NodeType &node, const NodeType &succ) const;
-  bool HasBetterLayoutPred(const NodeType &node, NodeType &succ);
+  bool HasBetterLayoutPred(const NodeType &node, NodeType &succ) const;
 
   MapleAllocator layoutAlloc;
   FuncWrapperBase &func;
   MapleVector<NodeChain*> node2chain;   // mapping node id to the chain that the node belongs to
   MapleVector<LoopWrapperBase*> loops;
   NodeContext *layoutContext = nullptr;
-  MapleVector<bool> *coldNodes = nullptr;  // to mark cold Nodes
+  MapleVector<ExeTemperature> *nodeTemps = nullptr;  // record temperature for each node
   MapleVector<bool> *nodesInLoop = nullptr;  // only for cgBB, because meBB has kBBAttrIsInLoop
-  MapleList<NodeChain*> coldChains;  // collect unlikely chain in loop
+  MapleList<NodeChain*> coldChains;  // unlikely chain
+  MapleList<NodeChain*> neverExeChains;  // chains that will never be executed
   MapleSet<NodeChain*> readyToLayoutChains;
   DomWrapperBase &dom;
   MapleSet<NodeOrderElem> freqRpoNodeList;  // frequency reverse post order node list
@@ -856,12 +873,13 @@ class ChainLayout {
   bool debugChainLayout = false;
   bool hasRealProfile = false;
   bool considerBetterPred = false;
-  bool hasColdNode = false;
-  bool hasColdNodeOutOfLoop = false;
+  bool hasColdOrNeverExeNode = false;
+  bool hasColdOrNeverExeNodeOutOfLoop = false;
   // outline cold blocks such as unlikely or rarely executed blocks according to real profile.
   const bool meLayoutColdPath = false;
   const bool cgLayoutColdPath = false;
   bool layoutColdPath = false;
+  bool markNeverExe = false;  // whether mark nodes that will never be executed, for cg hotcoldsplit
 };
 }  // namespace maple
 #endif  // MAPLE_UTIL_INCLUDE_CHAIN_LAYOUT_H

@@ -125,9 +125,8 @@ void MakeEmptyTrysUnreachable(MeFunction &func) {
           for (size_t k = 0; k < targetBB->GetPred().size(); ++k) {
             if (targetBB->GetPred(k) == endTry) {
               // push additional phi operand for each phi at targetbb
-              auto phiIter = targetBB->GetMePhiList().begin();
-              for (; phiIter != targetBB->GetMePhiList().end(); ++phiIter) {
-                MePhiNode *meVarPhi = phiIter->second;
+              for (const auto &mePhi : std::as_const(targetBB->GetMePhiList())) {
+                MePhiNode *meVarPhi = mePhi.second;
                 meVarPhi->GetOpnds().push_back(meVarPhi->GetOpnds()[k]);
               }
             }

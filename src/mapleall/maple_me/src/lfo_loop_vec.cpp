@@ -20,9 +20,9 @@
 #include "mir_builder.h"
 #include "common_utils.h"
 
-constexpr uint32_t maxVecSize = 128;
-
 namespace maple {
+
+constexpr uint32_t kMaxVecSize = 128;
 
 void LoopVecInfo::UpdateDoloopProfData(MIRFunction &mirFunc, const DoloopNode *doLoop, int32_t vecLanes,
                                        bool isRemainder) const {
@@ -33,6 +33,7 @@ void LoopVecInfo::UpdateDoloopProfData(MIRFunction &mirFunc, const DoloopNode *d
   FreqType doloopFreq = profData->GetStmtFreq(doLoop->GetStmtID());
   FreqType tempFreq;
   BlockNode *body = doLoop->GetDoBody();
+  CHECK_FATAL(!body->GetStmtNodes().empty(), "empty stmtNodeList");
   FreqType bodyFreq = profData->GetStmtFreq(body->GetStmtID());
   if (isRemainder) {
     // update doLoop node in remainder
@@ -41,9 +42,7 @@ void LoopVecInfo::UpdateDoloopProfData(MIRFunction &mirFunc, const DoloopNode *d
     // update doLoop body freq in remainder
     profData->SetStmtFreq(body->GetStmtID(), (bodyFreq % vecLanes));
     // update stmtlist in doloopbody
-    if (body->GetFirst()) {
-      profData->SetStmtFreq(body->GetFirst()->GetStmtID(), (bodyFreq % vecLanes));
-    }
+    profData->SetStmtFreq(body->GetFirst()->GetStmtID(), (bodyFreq % vecLanes));
     if (body->GetLast() && (body->GetFirst() != body->GetLast())) {
       profData->SetStmtFreq(body->GetLast()->GetStmtID(), (bodyFreq % vecLanes));
     }
@@ -54,9 +53,7 @@ void LoopVecInfo::UpdateDoloopProfData(MIRFunction &mirFunc, const DoloopNode *d
     // update doLoop body freq
     profData->SetStmtFreq(body->GetStmtID(), (bodyFreq / vecLanes));
     // update stmtlist in doloopbody
-    if (body->GetFirst()) {
-      profData->SetStmtFreq(body->GetFirst()->GetStmtID(), (tempFreq / vecLanes));
-    }
+    profData->SetStmtFreq(body->GetFirst()->GetStmtID(), (tempFreq / vecLanes));
     if (body->GetLast() && (body->GetFirst() != body->GetLast())) {
       profData->SetStmtFreq(body->GetLast()->GetStmtID(), (tempFreq / vecLanes));
     }
@@ -112,7 +109,7 @@ void LoopTransPlan::GenerateBoundInfo(const DoloopNode *doLoop, const DoloopInfo
   BaseNode *upNode = condNode->Opnd(1);
 
   MIRIntConst *newIncr = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      vecFactor * incrConst->GetExtValue(), *typeInt);
+      static_cast<uint64>(vecFactor * incrConst->GetExtValue()), *typeInt);
   ConstvalNode *newIncrNode = codeMP->New<ConstvalNode>(PTY_i32, newIncr);
   PrimType newOpndtype = (static_cast<CompareNode *>(condNode))->GetOpndType() == PTY_ptr ? PTY_i64 : PTY_i32;
   if (initNode->IsConstval()) {
@@ -133,7 +130,7 @@ void LoopTransPlan::GenerateBoundInfo(const DoloopNode *doLoop, const DoloopInfo
         vBound = localMP->New<LoopBound>(nullptr, nullptr, newIncrNode);
       } else {
         // trip count is not vector lane aligned
-        int64 newupval = (upvalue - lowvalue) / newIncrVal * newIncrVal + lowvalue;
+        uint64 newupval = static_cast<uint64>((upvalue - lowvalue) / newIncrVal * newIncrVal + lowvalue);
         MIRIntConst *newUpConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(newupval, *typeInt);
         ConstvalNode *newUpNode = codeMP->New<ConstvalNode>(PTY_i32, newUpConst);
         vBound = localMP->New<LoopBound>(nullptr, newUpNode, newIncrNode);
@@ -182,7 +179,7 @@ void LoopTransPlan::GenerateBoundInfo(const DoloopNode *doLoop, const DoloopInfo
 // generate best plan for current doloop
 bool LoopTransPlan::Generate(const DoloopNode *doLoop, const DoloopInfo* li, bool enableDebug) {
   // vector length / type size
-  vecLanes = maxVecSize / (vecInfo->largestTypeSize);
+  vecLanes = kMaxVecSize / (vecInfo->largestTypeSize);
   vecFactor = vecLanes;
   // return false if small type has no builtin vector type
   if (vecFactor * vecInfo->smallestTypeSize < maplebe::k64BitSize) {
@@ -618,7 +615,8 @@ IntrinsicopNode *LoopVectorization::GenVectorGetLow(BaseNode *vecNode, PrimType 
 }
 
 // vector add long oper0 and oper1 have same types
-IntrinsicopNode *LoopVectorization::GenVectorAddw(BaseNode *oper0, BaseNode *oper1, PrimType op1Type, bool highPart) {
+IntrinsicopNode *LoopVectorization::GenVectorAddw(BaseNode *oper0, BaseNode *oper1, PrimType op1Type,
+                                                  bool highPart) {
   MIRIntrinsicID intrnID = INTRN_vector_addw_low_v8i8;
   MIRType *resType = nullptr;
   switch (op1Type) {
@@ -667,7 +665,8 @@ IntrinsicopNode *LoopVectorization::GenVectorAddw(BaseNode *oper0, BaseNode *ope
 }
 
 // Subtract Long
-IntrinsicopNode *LoopVectorization::GenVectorSubl(BaseNode *oper0, BaseNode *oper1, PrimType op1Type, bool highPart) {
+IntrinsicopNode *LoopVectorization::GenVectorSubl(BaseNode *oper0, BaseNode *oper1, PrimType op1Type,
+    bool highPart) {
   MIRIntrinsicID intrnID = INTRN_vector_subl_low_v8i8;
   MIRType *resType = nullptr;
   switch (op1Type) {
@@ -1090,7 +1089,7 @@ void LoopVectorization::GenWidenBinaryExpr(Opcode binOp,
     PrimType opnd0PrimType = opnd0->GetPrimType();
     PrimType opnd1PrimType = opnd1->GetPrimType();
     // widen type need high/low part
-    if ((GetPrimTypeSize(opnd0PrimType) * 8) == maxVecSize) {
+    if ((GetPrimTypeSize(opnd0PrimType) * 8) == kMaxVecSize) {
       IntrinsicopNode *getLowop0Intrn = GenVectorGetLow(opnd0, opnd0PrimType);
       IntrinsicopNode *getLowop1Intrn = GenVectorGetLow(opnd1, opnd1PrimType);
       IntrinsicopNode *widenOpLow = GenVectorWidenIntrn(getLowop0Intrn, getLowop1Intrn, getLowop0Intrn->GetPrimType(),
@@ -1106,7 +1105,7 @@ void LoopVectorization::GenWidenBinaryExpr(Opcode binOp,
 }
 
 // insert retype/cvt if sign/unsign
-BaseNode *LoopVectorization::ConvertNodeType(bool cvtSigned, BaseNode *n) {
+BaseNode *LoopVectorization::ConvertNodeType(bool cvtSigned, BaseNode *n) const {
   MIRType *opcodetype = nullptr;
   MIRType *nodetype = GenVecType(GetVecElemPrimType(n->GetPrimType()),
                                  static_cast<uint8>(GetVecLanes(n->GetPrimType())));
@@ -1181,8 +1180,8 @@ RegreadNode *LoopVectorization::GenVectorReductionVar(StmtNode *stmt, LoopTransP
     MIRSymbol *lhsSym = mirFunc->GetLocalOrGlobalSymbol(redStIdx);
     lhsType = GetTypeFromTyIdx(lhsSym->GetTyIdx()).GetPrimType();
     uint32_t lhstypesize = GetPrimTypeSize(lhsType) * 8;
-    uint32_t lhsMaxLanes = ((maxVecSize / lhstypesize) < tp->vecFactor) ?
-                            (maxVecSize / lhstypesize) : tp->vecFactor;
+    uint32_t lhsMaxLanes = ((kMaxVecSize / lhstypesize) < tp->vecFactor) ?
+                            (kMaxVecSize / lhstypesize) : tp->vecFactor;
     lhsLanes = static_cast<uint8>(lhsMaxLanes);
   } else {
     IassignNode *iassign = static_cast<IassignNode *>(stmt);
@@ -1442,7 +1441,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       } else {
         MapleVector<BaseNode *> vecopnd(localAlloc.Adapter());
         const uint8 tnodeSize = 3;
-        for (int i = 0; i < tnodeSize; i++) {
+        for (size_t i = 0; i < tnodeSize; i++) {
           BaseNode *opnd = tnode->Opnd(i);
           if (tp->vecInfo->uniformVecNodes.find(opnd) != tp->vecInfo->uniformVecNodes.end()) {
             vecopnd.push_back(tp->vecInfo->uniformVecNodes[opnd]);
@@ -1481,7 +1480,7 @@ MIRType *LoopVectorization::VectorizeIassignLhs(IassignNode &iassign, const Loop
 
 void LoopVectorization::VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp) {
   MapleVector<BaseNode *> vecOpnd(localAlloc.Adapter());
-  PreMeMIRExtension *lfopart = (*PreMeStmtExtensionMap)[stmt->GetStmtID()];
+  PreMeMIRExtension *lfopart = (*preMeStmtExtensionMap)[stmt->GetStmtID()];
   BlockNode *doloopbody = static_cast<BlockNode *>(lfopart->GetParent());
   RegreadNode *regReadlhsvec = GetorNewVectorReductionVar(stmt, tp);
   tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType()));
@@ -1496,7 +1495,7 @@ void LoopVectorization::VectorizeReductionStmt(StmtNode *stmt, LoopTransPlan *tp
   }
   // use widen intrinsic
   if ((GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) * 8 * tp->vecFactor) >
-      maxVecSize) {
+      kMaxVecSize) {
     BaseNode *currVecNode = nullptr;
     PrimType currVecType;
     for (size_t i = 0; i < vecOpnd.size(); i++) {
@@ -1601,16 +1600,16 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
 
 // update init/stride/upper nodes of doloop
 // now hack code to widen const stride with value "vecFactor * original stride"
-void LoopVectorization::WidenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
-  if (tp->vBound) {
-    if (tp->vBound->incrNode) {
-      doloop->SetIncrExpr(tp->vBound->incrNode);
+void LoopVectorization::WidenDoloop(DoloopNode &doloop, const LoopTransPlan &tp) const {
+  if (tp.vBound) {
+    if (tp.vBound->incrNode) {
+      doloop.SetIncrExpr(tp.vBound->incrNode);
     }
-    if (tp->vBound->lowNode) {
-      doloop->SetStartExpr(tp->vBound->lowNode);
+    if (tp.vBound->lowNode) {
+      doloop.SetStartExpr(tp.vBound->lowNode);
     }
-    if (tp->vBound->upperNode) {
-      BinaryNode *cmpn = static_cast<BinaryNode *>(doloop->GetCondExpr());
+    if (tp.vBound->upperNode) {
+      BinaryNode *cmpn = static_cast<BinaryNode *>(doloop.GetCondExpr());
       // remove equal condition included in compare
       // updated upper node consider equal condition
       if (cmpn->GetOpCode() == OP_le) {
@@ -1618,7 +1617,7 @@ void LoopVectorization::WidenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
       } else if (cmpn->GetOpCode() == OP_ge) {
         cmpn->SetOpCode(OP_gt);
       }
-      cmpn->SetBOpnd(tp->vBound->upperNode, 1);
+      cmpn->SetBOpnd(tp.vBound->upperNode, 1);
     }
   }
 }
@@ -1627,12 +1626,12 @@ void LoopVectorization::WidenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
 void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
   // LogInfo::MapleLogger() << "\n**** dump doloopnode ****\n";
   // step 1: handle loop low/upper/stride
-  WidenDoloop(doloop, tp);
+  WidenDoloop(*doloop, *tp);
 
   // step 2: insert dup stmt before doloop
   if ((!tp->vecInfo->uniformNodes.empty()) ||
       (!tp->vecInfo->ivNodes.empty())) {
-    PreMeMIRExtension *lfopart = (*PreMeStmtExtensionMap)[doloop->GetStmtID()];
+    PreMeMIRExtension *lfopart = (*preMeStmtExtensionMap)[doloop->GetStmtID()];
     BaseNode *parent = lfopart->GetParent();
     ASSERT(parent && (parent->GetOpCode() == OP_block), "nullptr check");
     BlockNode *pblock = static_cast<BlockNode *>(parent);
@@ -1687,7 +1686,8 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
         ConstvalNode *constnode = static_cast<ConstvalNode *>(incrNode);
         MIRIntConst *incrconst = static_cast<MIRIntConst *>(constnode->GetConstVal());
         MIRIntConst *newConst =
-            GlobalTables::GetIntConstTable().GetOrCreateIntConst(incrconst->GetExtValue(), *elemType);
+            GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<uint64>(incrconst->GetExtValue()),
+                                                                 *elemType);
         incrNode = codeMP->New<ConstvalNode>(elemType->GetPrimType(), newConst);
       }
       BaseNode *incrhs = codeMP->New<BinaryNode>(OP_add, vecType->GetPrimType(), regreadNode, incrNode);
@@ -1708,7 +1708,7 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
   // step 4: insert stmts before/after doloop
   if (!tp->vecInfo->beforeLoopStmts.empty() ||
       !tp->vecInfo->afterLoopStmts.empty()) {
-    PreMeMIRExtension *lfopart = (*PreMeStmtExtensionMap)[doloop->GetStmtID()];
+    PreMeMIRExtension *lfopart = (*preMeStmtExtensionMap)[doloop->GetStmtID()];
     BaseNode *parent = lfopart->GetParent();
     ASSERT(parent && (parent->GetOpCode() == OP_block), "nullptr check");
     BlockNode *pblock = static_cast<BlockNode *>(parent);
@@ -1750,7 +1750,7 @@ DoloopNode *LoopVectorization::PrepareDoloop(DoloopNode *doloop, LoopTransPlan *
     // update loop low bound
     edoloop->SetStartExpr(tp->eBound->lowNode);
     // add epilog after doloop
-    PreMeMIRExtension *lfoInfo = (*PreMeStmtExtensionMap)[doloop->GetStmtID()];
+    PreMeMIRExtension *lfoInfo = (*preMeStmtExtensionMap)[doloop->GetStmtID()];
     ASSERT(lfoInfo, "nullptr check");
     BaseNode *parent = lfoInfo->GetParent();
     ASSERT(parent && (parent->GetOpCode() ==  OP_block), "nullptr check");
@@ -1832,7 +1832,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
       bool r1Uniform = doloopInfo->IsLoopInvariant2(x->Opnd(1));
       bool isvectorizable = false;
       if (r0Uniform && r1Uniform) {
-        PreMeMIRExtension* lfopart = (*PreMeExprExtensionMap)[x];
+        PreMeMIRExtension* lfopart = (*preMeExprExtensionMap)[x];
         CHECK_FATAL(lfopart, "nullptr check");
         BaseNode *parent = lfopart->GetParent();
         if (parent && parent->GetOpCode() == OP_array && x == parent->Opnd(0)) {
@@ -2006,15 +2006,15 @@ bool LoopVectorization::CanAdjustRhsConstType(PrimType targetType, ConstvalNode 
 // a[3] += vectorizable(opnd1)
 // a better way is to promote a[3] as a scalar before premeemit
 // scalar will be identified as reduction variable
-bool LoopVectorization::IassignIsReduction(IassignNode *iassign, LoopVecInfo* vecInfo) {
-  if (IsReductionOp(iassign->GetRHS()->GetOpCode()) &&
-      ((static_cast<BinaryNode *>(iassign->GetRHS()))->GetBOpnd(0)->GetOpCode() == OP_iread)) {
-    auto *stmtP = (*PreMeStmtExtensionMap)[iassign->GetStmtID()];
+bool LoopVectorization::IassignIsReduction(IassignNode &iassign, LoopVecInfo &vecInfo) const {
+  if (IsReductionOp(iassign.GetRHS()->GetOpCode()) &&
+      ((static_cast<BinaryNode *>(iassign.GetRHS()))->GetBOpnd(0)->GetOpCode() == OP_iread)) {
+    auto *stmtP = (*preMeStmtExtensionMap)[iassign.GetStmtID()];
     IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(stmtP->GetMeStmt());
     IvarMeExpr *ivarlhsExpr = iassMeStmt->GetLHSVal();
-    auto *rhsOpnd0 = (*PreMeExprExtensionMap)[(static_cast<BinaryNode *>(iassign->GetRHS()))->GetBOpnd(0)];
-    BaseNode *rhsOpnd1 = iassign->GetRHS()->Opnd(1);
-    PrimType lhsmirType = (static_cast<MIRPtrType*>(&GetTypeFromTyIdx(iassign->GetTyIdx())))
+    auto *rhsOpnd0 = (*preMeExprExtensionMap)[(static_cast<BinaryNode *>(iassign.GetRHS()))->GetBOpnd(0)];
+    BaseNode *rhsOpnd1 = iassign.GetRHS()->Opnd(1);
+    PrimType lhsmirType = (static_cast<MIRPtrType*>(&GetTypeFromTyIdx(iassign.GetTyIdx())))
         ->GetPointedType()->GetPrimType();
     PrimType rhsOpnd1Type = rhsOpnd1->GetPrimType();
     if (ivarlhsExpr && rhsOpnd0 && rhsOpnd0->GetMeExpr() &&
@@ -2022,8 +2022,8 @@ bool LoopVectorization::IassignIsReduction(IassignNode *iassign, LoopVecInfo* ve
       IvarMeExpr *ivarrhs0Expr = static_cast<IvarMeExpr *>(rhsOpnd0->GetMeExpr());
       if ((ivarlhsExpr->GetBase() == ivarrhs0Expr->GetBase()) &&
           (lhsmirType == rhsOpnd1Type)) {
-        vecInfo->vecStmtIDs.insert((iassign)->GetStmtID());
-        vecInfo->reductionStmts.insert(iassign);
+        vecInfo.vecStmtIDs.insert(iassign.GetStmtID());
+        vecInfo.reductionStmts.insert(&iassign);
         return true;
       }
     }
@@ -2032,7 +2032,7 @@ bool LoopVectorization::IassignIsReduction(IassignNode *iassign, LoopVecInfo* ve
 }
 
 // assumed to be inside innermost loop
-bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInfo, BlockNode *block) {
+bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo *vecInfo, BlockNode *block) {
   StmtNode *stmt = block->GetFirst();
   while (stmt != nullptr) {
     // reset vecInfo
@@ -2087,7 +2087,7 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           }
         }
         // check lhs is used like reduction variable
-        if (lhsUseAsScalar && (!IassignIsReduction(iassign, vecInfo))) {
+        if (lhsUseAsScalar && (!IassignIsReduction(*iassign, *vecInfo))) {
           if (enableDebug) {
             LogInfo::MapleLogger() << "NOT VECTORIZABLE because of lhs is scalar\n";
           }
@@ -2246,10 +2246,10 @@ void LoopVectorization::Perform() {
     }
     LoopVecInfo *vecInfo = localMP->New<LoopVecInfo>(localAlloc);
     if (mapit->second->HasTrueDepOnly() > 0) {
-      vecInfo->minTrueDepDist = mapit->second->HasTrueDepOnly();
+      vecInfo->minTrueDepDist = static_cast<int16>(mapit->second->HasTrueDepOnly());
     }
     if (mapit->second->HasAntiDepOnly() < 0) {
-      vecInfo->maxAntiDepDist = mapit->second->HasAntiDepOnly();
+      vecInfo->maxAntiDepDist = static_cast<int16>(mapit->second->HasAntiDepOnly());
     }
     bool vectorizable = Vectorizable(mapit->second, vecInfo, mapit->first->GetDoBody());
     if (vectorizable) {

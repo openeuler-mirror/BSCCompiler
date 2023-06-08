@@ -208,11 +208,10 @@ void Emitter::EmitFileInfo(const std::string &fileName) {
 
   path = curDirName;
   path.append("/").append(fileName);
-  /* strip path before out/ */
-  std::string out = "/out/";
-  size_t pos = path.find(out.c_str(), 0, out.length());
+  // strip path
+  std::string::size_type pos = path.find_last_of('/') + 1;
   if (pos != std::string::npos) {
-    path.erase(0, pos + 1);
+    path.erase(0, pos);
   }
   std::string irFile("\"");
   irFile.append(path).append("\"");
@@ -406,6 +405,9 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
     }
     case kAsmZero: {
       uint64 size = mirType->GetSize();
+      if (isFlexibleArray) {
+        size += arraySize;
+      }
       EmitNullConstant(size);
       return;
     }
@@ -713,7 +715,7 @@ void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect) {
   const std::string ustr = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirStrConst.GetValue());
   size_t len = ustr.size();
   if (isFlexibleArray) {
-    arraySize += static_cast<uint32>(len) + 1;
+    arraySize += len + 1;
   }
   EmitStr(ustr, false, false);
 }
@@ -841,7 +843,7 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
       if (symAddr.GetFieldID() > 1) {
         MIRStructType *structType = static_cast<MIRStructType *>(symAddrSym->GetType());
         ASSERT(structType != nullptr, "EmitScalarConstant: non-zero fieldID for non-structure");
-        int32 offset = structType->GetFieldOffsetFromBaseAddr(symAddr.GetFieldID()).byteOffset;
+        uint32 offset = structType->GetFieldOffsetFromBaseAddr(symAddr.GetFieldID()).byteOffset;
         (void)Emit(" + ").Emit(offset);
       }
       break;
@@ -1336,7 +1338,7 @@ int64 Emitter::GetFieldOffsetValue(const std::string &className, const MIRIntCon
     ASSERT_NOT_NULL(Globals::GetInstance()->GetBECommon());
     OffsetPair fieldOffsetPair = Globals::GetInstance()->GetBECommon()->
         GetJClassFieldOffset(structType, static_cast<FieldID>(fieldIdx));
-    int64 fieldOffset = fieldOffsetPair.byteOffset * static_cast<int64>(charBitWidth) + fieldOffsetPair.bitOffset;
+    int64 fieldOffset = static_cast<int64>(fieldOffsetPair.byteOffset * charBitWidth + fieldOffsetPair.bitOffset);
     return fieldOffset;
   }
 }
@@ -1883,7 +1885,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
       uint8 nextAlign = static_cast<uint8>(nextElemType->GetAlign());
       auto fieldAttr = structType.GetFields()[i + 1].second.second;
       nextAlign = std::max(nextAlign, static_cast<uint8>(fieldAttr.GetAlign()));
-      nextAlign = static_cast<uint8>(fieldAttr.IsPacked() ? 1 : std::min(nextAlign, structPack));
+      nextAlign = fieldAttr.IsPacked() ? 1 : std::min(nextAlign, structPack);
       ASSERT(nextAlign != 0, "expect non-zero");
       /* append size, append 0 when align need. */
       uint64 totalSize = sEmitInfo->GetTotalSize();
@@ -1904,7 +1906,9 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
     subStructFieldCounts = static_cast<uint32>(beCommon->GetStructFieldCount(structType.GetTypeIndex()));
   }
 
-  isFlexibleArray = false;
+  if (isFlexibleArray) {
+    return;
+  }
   uint64 opSize = size - sEmitInfo->GetTotalSize();
   if (opSize != 0) {
     EmitNullConstant(opSize);
@@ -2392,6 +2396,16 @@ void Emitter::EmitUninitializedSymbolsWithPrefixSection(const MIRSymbol &symbol,
   } else if (symbol.GetStorageClass() == kScGlobal) {
     EmitAsmLabel(symbol, kAsmGlbl);
   }
+  if (symbol.GetType()->GetKind() == kTypeStruct) {
+    isFlexibleArray =
+        Globals::GetInstance()->GetBECommon()->GetHasFlexibleArray(symbol.GetType()->GetTypeIndex().GetIdx());
+    if (isFlexibleArray) {
+      auto structType = static_cast<MIRStructType*>(symbol.GetType());
+      auto lastFieldID = structType->GetFields().size() - 1;
+      arraySize = structType->GetElemType(lastFieldID)->GetSize();
+    }
+  }
+
   EmitAsmLabel(symbol, kAsmAlign);
   EmitAsmLabel(symbol, kAsmSyname);
   EmitAsmLabel(symbol, kAsmZero);
@@ -3142,7 +3156,7 @@ void Emitter::EmitMethodFieldSequential(const MIRSymbol &mirSymbol,
 //  tdata symbols
 //  tbss anchor
 //  tbss symbols
-void Emitter::EmitTLSBlock(const std::vector<MIRSymbol*> &tdataVec, const std::vector<MIRSymbol*> &tbssVec) {
+void Emitter::EmitTLSBlock(const MapleVector<MIRSymbol*> &tdataVec, const MapleVector<MIRSymbol*> &tbssVec) {
   if (!tdataVec.empty()) {
     Emit("\t.section\t.tdata,\"awT\",@progbits\n");
     Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
@@ -3202,7 +3216,7 @@ void Emitter::EmitTLSBlock(const std::vector<MIRSymbol*> &tdataVec, const std::v
   return;
 }
 
-void Emitter::InsertAnchor(std::string anchorName, int64 offset) {
+void Emitter::InsertAnchor(const std::string &anchorName, int64 offset) {
   Emit(asmInfo->GetSet()).Emit("\t.").Emit(anchorName).Emit(",.");
   Emit(" + ").Emit(offset).Emit("\n");
 }
@@ -3366,6 +3380,7 @@ MIRFunction *Emitter::GetDwTagSubprogram(const MapleVector<DBGDieAttr*> &attrvec
 }
 
 void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTag tagName, DebugInfo *di) {
+  CHECK_NULL_FATAL(attr);
   MapleVector<DBGDieAttr*> &attrvec = die->GetAttrVec();
 
   static MIRFunction *lastMIRFunc = nullptr;
@@ -3672,7 +3687,7 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
 
     for (size_t i = 0; i < diae->GetAttrPairs().size(); i += k2ByteSize) {
       DBGDieAttr *attr = LFindAttribute(die->GetAttrVec(), DwAt(apl[i]));
-      ASSERT_NOT_NULL(attr);
+      CHECK_NULL_FATAL(attr);
       if (!attr->GetKeep()) {
         continue;
       }
@@ -3703,8 +3718,10 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
           emitter->Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(attr->GetId()).c_str());
         } else if (apl[i] == DW_AT_data_member_location) {
           emitter->Emit(" : ");
-          emitter->Emit(apl[i + 1]).Emit("  attr= ");
-          emitter->EmitHexUnsigned(uintptr_t(attr));
+          emitter->Emit(apl[i + 1]);
+#if defined(DEBUG)
+          emitter->Emit("  attr= ").EmitHexUnsigned(uintptr_t(attr));
+#endif
         }
       }
       emitter->Emit("\n");

@@ -111,7 +111,6 @@ void X64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
       if (v->GetOffsetOperand()->GetValue() != 0) {
         emitter.Emit("+").Emit(v->GetOffsetOperand()->GetValue());
       }
-
     } else {
       /* general offset */
       emitter.Emit(v->GetOffsetOperand()->GetValue());

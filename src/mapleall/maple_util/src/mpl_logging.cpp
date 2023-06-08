@@ -33,8 +33,8 @@ const char *kLongLogLevels[] = { [kLlDbg] = "D",      [kLlLog] = "L",     [kLlIn
                                  [kLlWarn] = "Warn ", [kLlErr] = "Error", [kLlFatal] = "Fatal" };
 
 const char *tags[] = {
-  [kLtThread] = "TR",
-  [kLtLooper] = "LP",
+    [kLtThread] = "TR",
+    [kLtLooper] = "LP",
 };
 
 SECUREC_ATTRIBUTE(7, 8) void LogInfo::EmitLogForDevelop(enum LogTags tag, enum LogLevel ll, const std::string &file,
@@ -70,16 +70,17 @@ SECUREC_ATTRIBUTE(7, 8) void LogInfo::EmitLogForDevelop(enum LogTags tag, enum L
   va_list l;
   va_start(l, fmt);
 
-  int lenBack = vsnprintf_s(buf + lenFront, static_cast<size_t>(kMaxLogLen - lenFront),
-                            static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront) - 1), fmt, l);
+  int lenBack = vsnprintf_s(buf + lenFront, kMaxLogLen - static_cast<uint32_t>(lenFront),
+                            kMaxLogLen - static_cast<uint32_t>(lenFront) - 1, fmt, l);
   if (lenBack == -1) {
     WARN(kLncWarn, "vsnprintf_s  failed ");
     va_end(l);
     return;
   }
   if (outMode != 0) {
-    int eNum = snprintf_s(buf + lenFront + lenBack, static_cast<size_t>(kMaxLogLen - lenFront - lenBack),
-                          static_cast<size_t>(kMaxLogLen - static_cast<uint32_t>(lenFront - lenBack) - 1),
+    int eNum = snprintf_s(buf + lenFront + lenBack,
+                          kMaxLogLen - static_cast<uint32_t>(lenFront) - static_cast<uint32_t>(lenBack),
+                          kMaxLogLen - static_cast<uint32_t>(lenFront - lenBack) - 1,
                           " [%s] [%s:%d]", func.c_str(), file.c_str(), line);
     if (eNum == -1) {
       WARN(kLncWarn, "snprintf_s failed");

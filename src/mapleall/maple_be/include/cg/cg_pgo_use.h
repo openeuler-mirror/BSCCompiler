@@ -17,6 +17,8 @@
 #include "cgfunc.h"
 #include "instrument.h"
 #include "cg_dominance.h"
+#include "loop.h"
+
 namespace maplebe {
 class BBChain {
  public:
@@ -106,23 +108,27 @@ class BBChain {
 
 class CGProfUse {
  public:
-  CGProfUse(CGFunc &curF, MemPool &mp, DomAnalysis *dom, const MapleSet<uint32> &newbbinsplit)
-      : f(&curF),
-        mp(&mp),
+  CGProfUse(CGFunc &curF, MemPool &mp, DomAnalysis &dom, LoopAnalysis &loop, const MapleSet<uint32> &newbbinsplit,
+            bool debug = false)
+      : f(curF),
+        mp(mp),
         puAlloc(&mp),
         domInfo(dom),
+        loopInfo(loop),
         bbSplit(newbbinsplit),
         instrumenter(mp),
+        debugChainLayout(debug),
         layoutBBs(puAlloc.Adapter()),
         laidOut(puAlloc.Adapter()) {}
 
   bool ApplyPGOData();
   void LayoutBBwithProfile();
  protected:
-  CGFunc *f;
-  MemPool *mp;
+  CGFunc &f;
+  MemPool &mp;
   MapleAllocator puAlloc;
-  DomAnalysis *domInfo = nullptr;
+  DomAnalysis &domInfo;
+  LoopAnalysis &loopInfo;
   MapleSet<uint32> bbSplit;
  private:
   PGOInstrumentTemplate<maplebe::BB, maple::BBUseEdge<maplebe::BB>> instrumenter;

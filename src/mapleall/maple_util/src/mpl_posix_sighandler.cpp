@@ -23,6 +23,7 @@
 
 #include <cerrno>
 #include <cstdlib>
+#include <array>
 
 #include "mpl_logging.h"
 #include "mpl_stacktrace.h"
@@ -91,7 +92,7 @@ void SigHandler::SetTimer(int seconds) {
     }
   };
 
-  if (setitimer(ITIMER_REAL, &timeValue, nullptr) != 0) {
+  if (setitimer(static_cast<__itimer_which_t>(ITIMER_REAL), &timeValue, nullptr) != 0) {
     LogInfo::MapleLogger(kLlErr) << "setitimer failed with " << errno << std::endl;
     exit(EXIT_FAILURE);
   }

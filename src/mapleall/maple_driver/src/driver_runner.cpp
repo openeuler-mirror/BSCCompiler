@@ -39,9 +39,9 @@ using namespace maplebe;
 
 #define RELEASE(pointer)      \
   do {                        \
-    if (pointer != nullptr) { \
-      delete pointer;         \
-      pointer = nullptr;      \
+    if ((pointer) != nullptr) { \
+      delete (pointer);         \
+      (pointer) = nullptr;      \
     }                         \
   } while (0)
 
@@ -320,7 +320,7 @@ void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &output, const st
   }
 }
 
-void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &originBaseName) const {
+void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &originBaseName) {
   CHECK_MODULE();
   theMIRModule = theModule;
   if (withDwarf && !theModule->IsWithDbgInfo()) {

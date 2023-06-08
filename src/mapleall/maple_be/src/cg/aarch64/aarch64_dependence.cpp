@@ -243,7 +243,7 @@ void AArch64DepAnalysis::CombineMemoryAccessPair(DepNode &firstNode, DepNode &se
   ASSERT(firstNode.GetInsn(), "the insn of first Node should not be nullptr");
   ASSERT(secondNode.GetInsn(), "the insn of second Node should not be nullptr");
   MOperator thisMop = firstNode.GetInsn()->GetMachineOpcode();
-  MOperator mopPair = GetMopPair(thisMop);
+  MOperator mopPair = GetMopPair(thisMop, false);
   ASSERT(mopPair != 0, "mopPair should not be zero");
   Operand *opnd0 = nullptr;
   Operand *opnd1 = nullptr;

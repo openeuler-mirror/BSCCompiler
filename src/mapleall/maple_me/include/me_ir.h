@@ -17,6 +17,7 @@
 #include <array>
 #include "orig_symbol.h"
 #include "bb.h"
+#include "safe_cast.h"
 
 namespace maple {
 class PhiNode;    // circular dependency exists, no other choice
@@ -570,7 +571,7 @@ class ConstMeExpr : public MeExpr {
       const IntVal &intValConst = intConst->GetValue();
       if (!intValConst.IsOneSignificantWord()) {
         const uint64 *val = intValConst.GetRawData();
-        return std::hash<uint64>{}(val[0]) ^ std::hash<uint64>{}(val[1]);
+        return static_cast<uint32>(std::hash<uint64>{}(val[0]) ^ std::hash<uint64>{}(val[1]));
       } else {
         return static_cast<uint32>(intValConst.GetExtValue());
       }
@@ -894,10 +895,6 @@ class OpMeExpr : public MeExpr {
 
   void SetOpnd(size_t idx, MeExpr *x) override {
     SetOpndCheck(idx, x);
-  }
-
-  PrimType GetOpndType() {
-    return opndType;
   }
 
   PrimType GetOpndType() const {
@@ -1255,10 +1252,6 @@ class NaryMeExpr : public MeExpr {
         depth++;
       }
     }
-  }
-
-  bool GetBoundCheck() {
-    return boundCheck;
   }
 
   bool GetBoundCheck() const {

@@ -130,7 +130,7 @@ void GCLowering::HandleIvarAssignMeStmt(MeStmt &stmt) {
 MeExpr *GCLowering::GetBase(IvarMeExpr &ivar) const {
   MeExpr *base = ivar.GetBase();
   CHECK_NULL_FATAL(base);
-  if (!Options::buildApp || ivar.GetFieldID() != 0 || base->GetMeOp() != kMeOpReg) {
+  if (Options::buildApp == 0 || ivar.GetFieldID() != 0 || base->GetMeOp() != kMeOpReg) {
     return base;
   }
   MeExpr *expr = base;

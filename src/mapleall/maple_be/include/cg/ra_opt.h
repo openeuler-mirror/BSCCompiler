@@ -43,10 +43,14 @@ class RaOpt {
     domInfo = curDom;
   }
 
+  void SetLoopInfo(LoopAnalysis &loop) {
+    loopInfo = &loop;
+  }
  protected:
   CGFunc *cgFunc;
   MemPool *memPool;
   DomAnalysis *domInfo = nullptr;
+  LoopAnalysis *loopInfo = nullptr;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgRaOpt, maplebe::CGFunc)

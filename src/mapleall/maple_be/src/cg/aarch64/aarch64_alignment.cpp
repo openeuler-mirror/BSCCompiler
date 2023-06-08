@@ -17,20 +17,16 @@
 #include "loop.h"
 #include "aarch64_cg.h"
 #include "cg_option.h"
-#include "aarch64_alignment.h"
 #include "cg_irbuilder.h"
+#include "aarch64_alignment.h"
 
 namespace maplebe {
 void AArch64AlignAnalysis::FindLoopHeader() {
-  MapleVector<CGFuncLoops*> loops = aarFunc->GetLoops();
-  if (loops.empty()) {
+  if (loopInfo.GetLoops().empty()) {
     return;
   }
-  for (const auto *loop : loops) {
-    const BB *header = loop->GetHeader();
-    if (header != nullptr) {
-      InsertLoopHeaderBBs(const_cast<BB &>(*header));
-    }
+  for (auto *loop : loopInfo.GetLoops()) {
+    InsertLoopHeaderBBs(loop->GetHeader());
   }
 }
 
@@ -97,7 +93,7 @@ void AArch64AlignAnalysis::ComputeLoopAlign() {
     return;
   }
   for (BB *bb : loopHeaderBBs) {
-    if (bb == cgFunc->GetFirstBB() || IsIncludeCall(*bb) || !IsInSizeRange(*bb)) {
+    if (bb == cgFunc.GetFirstBB() || IsIncludeCall(*bb) || !IsInSizeRange(*bb)) {
       continue;
     }
     bb->SetNeedAlign(true);
@@ -121,7 +117,7 @@ void AArch64AlignAnalysis::ComputeJumpAlign() {
     return;
   }
   for (BB *bb : jumpTargetBBs) {
-    if (bb == cgFunc->GetFirstBB() || !IsInSizeRange(*bb) || HasFallthruEdge(*bb)) {
+    if (bb == cgFunc.GetFirstBB() || !IsInSizeRange(*bb) || HasFallthruEdge(*bb)) {
       continue;
     }
     bb->SetNeedAlign(true);

@@ -32,31 +32,14 @@
 namespace maplebe {
 constexpr uint32 kMaxDumpRegionNodeNum = 6;
 
-/* Analyze IntraBlock Data Dependence */
-class IntraDataDepAnalysis {
+// Create data dependence of region, include:
+// inter-data-dependence-analysis (cross-bb) and
+// intra-data-dependence-analysis (in-bb)
+class DataDepAnalysis {
  public:
-  IntraDataDepAnalysis(MemPool &mp, CGFunc &f, DataDepBase &dataDepBase)
-      : intraMp(mp), intraAlloc(&mp), cgFunc(f), ddb(dataDepBase) {}
-  virtual ~IntraDataDepAnalysis() = default;
-
-  void Run(BB &bb, MapleVector<DepNode*> &dataNodes);
-  void InitCurNodeInfo(MemPool &tmpMp, MapleAllocator &tmpAlloc, BB &bb, MapleVector<DepNode*> &dataNodes);
-  void ClearCurNodeInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc);
-  void AddEndSeparatorNode(BB &bb, MapleVector<DepNode*> &nodes);
-
- private:
-  MemPool &intraMp;
-  MapleAllocator intraAlloc;
-  CGFunc &cgFunc;
-  DataDepBase &ddb;
-};
-
-/* Analyze InterBlock Data Dependence */
-class InterDataDepAnalysis {
- public:
-  InterDataDepAnalysis(CGFunc &f, MemPool &memPool, DataDepBase &dataDepBase)
+  DataDepAnalysis(CGFunc &f, MemPool &memPool, DataDepBase &dataDepBase)
       : cgFunc(f), interMp(memPool), interAlloc(&memPool), ddb(dataDepBase) {}
-  virtual ~InterDataDepAnalysis() = default;
+  virtual ~DataDepAnalysis() = default;
 
   void Run(CDGRegion &region);
   void GenerateDataDepGraphDotOfRegion(CDGRegion &region);
@@ -64,14 +47,10 @@ class InterDataDepAnalysis {
  protected:
   void InitInfoInRegion(MemPool &regionMp, MapleAllocator &regionAlloc, CDGRegion &region);
   void InitInfoInCDGNode(MemPool &regionMp, MapleAllocator &regionAlloc, BB &bb, CDGNode &cdgNode);
-  void ClearInfoInRegion(MemPool *regionMp, MapleAllocator *regionAlloc, CDGRegion &region);
-  void AddBeginSeparatorNode(CDGNode *rootNode);
-  void SeparateDependenceGraph(CDGRegion &region, CDGNode &cdgNode);
-  void BuildDepsForNewSeparator(CDGRegion &region, CDGNode &cdgNode, DepNode &newSepNode);
+  void ClearInfoInRegion(MemPool *regionMp, MapleAllocator *regionAlloc, CDGRegion &region) const;
   void BuildDepsForPrevSeparator(CDGNode &cdgNode, DepNode &depNode, CDGRegion &curRegion);
   void BuildSpecialInsnDependency(Insn &insn, CDGNode &cdgNode, CDGRegion &region, MapleAllocator &alloc);
   void UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, CDGNode &cdgNode);
-  void AddEndSeparatorNode(CDGRegion &region, CDGNode &cdgNode);
   void UpdateReadyNodesInfo(CDGNode &cdgNode, const CDGNode &root) const;
 
  private:

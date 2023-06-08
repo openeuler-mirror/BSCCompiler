@@ -67,6 +67,7 @@ set(src_libmpl2mpl
     src/method_replace.cpp
     src/mpl_profdata_parser.cpp
     src/target_info.cpp
+    src/verify_memorder.cpp
 )
 
 #libmpl2mpl

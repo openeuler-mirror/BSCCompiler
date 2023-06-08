@@ -33,7 +33,6 @@ class IpaClone : public AnalysisResult {
     curFunc = nullptr;
   }
 
-  static MIRSymbol *IpaCloneLocalSymbol(const MIRSymbol &oldSym, const MIRFunction &newFunc);
   static void IpaCloneSymbols(MIRFunction &newFunc, const MIRFunction &oldFunc);
   static void IpaCloneLabels(MIRFunction &newFunc, const MIRFunction &oldFunc);
   static void IpaClonePregTable(MIRFunction &newFunc, const MIRFunction &oldFunc);
@@ -47,7 +46,7 @@ class IpaClone : public AnalysisResult {
   void IpaCloneArgument(MIRFunction &originalFunction, ArgVector &argument) const;
   void RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, int64_t value) const;
   void DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramIndex, std::map<uint32,
-                           std::vector<int64_t>> &evalMap) const;
+                           std::vector<int64_t>> &evalMap);
   void ReplaceIfCondtion(MIRFunction *newFunc, std::vector<ImpExpr> &result, uint64_t res) const;
   void RemoveSwitchCase(MIRFunction &newFunc, SwitchNode &switchStmt, std::vector<int64_t> &calleeValue) const;
   void RemoveUnneedSwitchCase(MIRFunction &newFunc, std::vector<ImpExpr> &result,

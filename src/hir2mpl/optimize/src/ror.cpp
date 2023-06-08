@@ -110,7 +110,7 @@ bool Ror::IsRorLshrOpnd(const UniqueFEIRExpr &expr, bool inShl) {
     return false;
   }
 
-  auto SetShiftBaseExpr = [inShl, this](const UniqueFEIRExpr &expr) {
+  auto setShiftBaseExpr = [inShl, this](const UniqueFEIRExpr &expr) {
     if (inShl) {
       lShiftBaseExpr = expr->Clone();
     } else {
@@ -119,9 +119,9 @@ bool Ror::IsRorLshrOpnd(const UniqueFEIRExpr &expr, bool inShl) {
   };
 
   if (GetConstVal(binExpr->GetOpnd0())) {
-    SetShiftBaseExpr(binExpr->GetOpnd1());
+    setShiftBaseExpr(binExpr->GetOpnd1());
   } else if (GetConstVal(binExpr->GetOpnd1())) {
-    SetShiftBaseExpr(binExpr->GetOpnd0());
+    setShiftBaseExpr(binExpr->GetOpnd0());
   } else {
     return false;
   }

@@ -143,7 +143,7 @@ class MeProfUse : public PGOInstrument<BBUseEdge> {
   bool IsAllZero(Profile::BBInfo &result) const;
   void SetEdgeCount(BBUseEdge &edge, FreqType value) const;
   void SetEdgeCount(MapleVector<BBUseEdge*> &edges, FreqType value) const;
-  void ComputeEdgeFreq();
+  void ComputeEdgeFreq() const;
   void InitBBEdgeInfo();
   void ComputeBBFreq(BBUseInfo &bbInfo, bool &changed) const;
   FuncProfInfo *GetFuncData() const;

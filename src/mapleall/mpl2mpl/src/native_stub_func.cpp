@@ -393,7 +393,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
                                  *GlobalTables::GetTypeTable().GetPtr(),
                                  readFlag, builder->CreateIntConst(kInvalidCode, PTY_ptr));
 #elif defined(TARGX86_64)
-  regReadExpr = nullptr;
+  delete regReadExpr;
   BaseNode *checkRegExpr = nullptr;
   return;
 #endif
@@ -636,7 +636,7 @@ void NativeStubFuncGeneration::GenerateRegTable() {
 }
 
 bool NativeStubFuncGeneration::IsStaticBindingListMode() const {
-  return (Options::staticBindingList != "" && Options::staticBindingList.length());
+  return ((Options::staticBindingList != "") && (Options::staticBindingList.length() != 0));
 }
 
 void NativeStubFuncGeneration::InitStaticBindingMethodList() {

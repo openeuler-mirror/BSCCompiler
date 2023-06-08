@@ -74,9 +74,9 @@ void DexOpMove::SetVAImpl(uint32 num) {
   vA.isDef = true;
   GStrIdx typeNameIdx;
   if (kDexOpMove <= opcode && opcode <= kDexOpMove16) {
-    typeNameIdx = BCUtil::GetIntIdx();
+    typeNameIdx = FEUtils::GetIntIdx();
   } else if (kDexOpMoveWide <= opcode && opcode <= kDexOpMoveWide16) {
-    typeNameIdx = BCUtil::GetLongIdx();
+    typeNameIdx = FEUtils::GetLongIdx();
   } else if (kDexOpMoveObject <= opcode && opcode <= kDexOpMoveObject16) {
     typeNameIdx = BCUtil::GetJavaObjectNameMplIdx();
   } else {
@@ -216,7 +216,7 @@ void DexOpConst::SetVBImpl(uint32 num) {
     vA.regValue->primValue.raw32 = num;
   }
   if (!isWide) {
-    vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, BCUtil::GetIntIdx());
+    vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, FEUtils::GetIntIdx());
   }
 }
 
@@ -225,7 +225,7 @@ void DexOpConst::SetWideVBImpl(uint64 num) {
     vA.regValue->primValue.raw64 = num;
   }
   if (isWide) {
-    vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, BCUtil::GetLongIdx());
+    vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, FEUtils::GetLongIdx());
   }
 }
 
@@ -236,9 +236,9 @@ std::list<UniqueFEIRStmt> DexOpConst::EmitToFEIRStmtsImpl() {
   vATmp.regNum = vA.regNum;
   GStrIdx typeNameIdx;
   if (isWide) {
-    typeNameIdx = BCUtil::GetLongIdx();
+    typeNameIdx = FEUtils::GetLongIdx();
   } else {
-    typeNameIdx = BCUtil::GetIntIdx();
+    typeNameIdx = FEUtils::GetIntIdx();
   }
   vATmp.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vATmp, typeNameIdx, true);
   switch (opcode) {
@@ -440,7 +440,7 @@ void DexOpInstanceOf::SetVAImpl(uint32 num) {
   vA.regNum = num;
   vA.isDef = true;
   defedRegs.emplace_back(&vA);
-  vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, BCUtil::GetBooleanIdx());
+  vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, FEUtils::GetBooleanIdx());
 }
 
 void DexOpInstanceOf::SetVBImpl(uint32 num) {
@@ -477,7 +477,7 @@ void DexOpArrayLength::SetVAImpl(uint32 num) {
   vA.regNum = num;
   vA.isDef = true;
   defedRegs.emplace_back(&vA);
-  vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, BCUtil::GetIntIdx());
+  vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, FEUtils::GetIntIdx());
 }
 
 void DexOpArrayLength::SetVBImpl(uint32 num) {
@@ -552,7 +552,7 @@ void DexOpNewArray::SetVAImpl(uint32 num) {
 
 void DexOpNewArray::SetVBImpl(uint32 num) {
   vB.regNum = num;
-  vB.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetIntIdx());
+  vB.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetIntIdx());
   usedRegs.emplace_back(&vB);
 }
 
@@ -647,7 +647,7 @@ DexOpFillArrayData::DexOpFillArrayData(MapleAllocator &allocatorIn, uint32 pcIn,
 
 void DexOpFillArrayData::SetVAImpl(uint32 num) {
   vA.regNum = num;
-  vA.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetVoidIdx(), true);
+  vA.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetVoidIdx(), true);
   usedRegs.emplace_back(&vA);
 }
 
@@ -743,7 +743,7 @@ DexOpSwitch::DexOpSwitch(MapleAllocator &allocatorIn, uint32 pcIn, DexOpCode opc
 
 void DexOpSwitch::SetVAImpl(uint32 num) {
   vA.regNum = num;
-  vA.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetIntIdx());
+  vA.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetIntIdx());
   usedRegs.emplace_back(&vA);
 }
 
@@ -805,19 +805,19 @@ void DexOpCompare::SetVAImpl(uint32 num) {
   vA.regNum = num;
   vA.isDef = true;
   defedRegs.emplace_back(&vA);
-  vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, BCUtil::GetIntIdx());
+  vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, FEUtils::GetIntIdx());
 }
 
 void DexOpCompare::SetVBImpl(uint32 num) {
   vB.regNum = num;
   GStrIdx typeNameIdx;
   if (opcode == kDexOpCmplFloat || opcode == kDexOpCmpgFloat) {
-    typeNameIdx = BCUtil::GetFloatIdx();
+    typeNameIdx = FEUtils::GetFloatIdx();
   } else if (opcode == kDexOpCmplDouble || opcode == kDexOpCmpgDouble) {
-    typeNameIdx = BCUtil::GetDoubleIdx();
+    typeNameIdx = FEUtils::GetDoubleIdx();
   } else {
     // kDexOpCmpLong
-    typeNameIdx = BCUtil::GetLongIdx();
+    typeNameIdx = FEUtils::GetLongIdx();
   }
   vB.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(typeNameIdx);
   usedRegs.emplace_back(&vB);
@@ -851,13 +851,13 @@ DexOpIfTest::DexOpIfTest(MapleAllocator &allocatorIn, uint32 pcIn, DexOpCode opc
 
 void DexOpIfTest::SetVAImpl(uint32 num) {
   vA.regNum = num;
-  vA.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetIntIdx(), true);
+  vA.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetIntIdx(), true);
   usedRegs.emplace_back(&vA);
 }
 
 void DexOpIfTest::SetVBImpl(uint32 num) {
   vB.regNum = num;
-  vB.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetIntIdx(), true);
+  vB.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetIntIdx(), true);
   usedRegs.emplace_back(&vB);
 }
 
@@ -904,11 +904,11 @@ std::list<UniqueFEIRStmt> DexOpIfTest::EmitToFEIRStmtsImpl() {
   // All primitive var should be compared in i32.
   if (vATmp.GetPrimType() != PTY_ref) {
     if (vATmp.GetPrimType() != PTY_i32) {
-      exprA = std::make_unique<FEIRExprTypeCvt>(std::make_unique<FEIRTypeDefault>(PTY_i32, BCUtil::GetIntIdx()),
+      exprA = std::make_unique<FEIRExprTypeCvt>(std::make_unique<FEIRTypeDefault>(PTY_i32, FEUtils::GetIntIdx()),
                                                 OP_cvt, std::move(exprA));
     }
     if (vBTmp.GetPrimType() != PTY_i32) {
-      exprB = std::make_unique<FEIRExprTypeCvt>(std::make_unique<FEIRTypeDefault>(PTY_i32, BCUtil::GetIntIdx()),
+      exprB = std::make_unique<FEIRExprTypeCvt>(std::make_unique<FEIRTypeDefault>(PTY_i32, FEUtils::GetIntIdx()),
                                                 OP_cvt, std::move(exprB));
     }
   }
@@ -926,7 +926,7 @@ DexOpIfTestZ::DexOpIfTestZ(MapleAllocator &allocatorIn, uint32 pcIn, DexOpCode o
 
 void DexOpIfTestZ::SetVAImpl(uint32 num) {
   vA.regNum = num;
-  vA.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetIntIdx(), true);
+  vA.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetIntIdx(), true);
   usedRegs.emplace_back(&vA);
 }
 
@@ -985,7 +985,7 @@ void DexOpAget::SetVBImpl(uint32 num) {
 
 void DexOpAget::SetVCImpl(uint32 num) {
   vC.regNum = num;
-  vC.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetIntIdx());
+  vC.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetIntIdx());
   usedRegs.emplace_front(&vC);
 }
 
@@ -997,13 +997,13 @@ void DexOpAget::ParseImpl(BCClassMethod &method) {
   switch (opcode) {
     case kDexOpAget: {
       // int or float
-      elemTypeNameIdx = BCUtil::GetIntIdx();
+      elemTypeNameIdx = FEUtils::GetIntIdx();
       usedTypeNameIdx = BCUtil::GetAIntIdx();
       isIndeterminateType = true;
       break;
     }
     case kDexOpAgetWide: {
-      elemTypeNameIdx = BCUtil::GetLongIdx();
+      elemTypeNameIdx = FEUtils::GetLongIdx();
       usedTypeNameIdx = BCUtil::GetALongIdx();
       isIndeterminateType = true;
       break;
@@ -1015,22 +1015,22 @@ void DexOpAget::ParseImpl(BCClassMethod &method) {
       break;
     }
     case kDexOpAgetBoolean: {
-      elemTypeNameIdx = BCUtil::GetBooleanIdx();
+      elemTypeNameIdx = FEUtils::GetBooleanIdx();
       usedTypeNameIdx = BCUtil::GetABooleanIdx();
       break;
     }
     case kDexOpAgetByte: {
-      elemTypeNameIdx = BCUtil::GetByteIdx();
+      elemTypeNameIdx = FEUtils::GetByteIdx();
       usedTypeNameIdx = BCUtil::GetAByteIdx();
       break;
     }
     case kDexOpAgetChar: {
-      elemTypeNameIdx = BCUtil::GetCharIdx();
+      elemTypeNameIdx = FEUtils::GetCharIdx();
       usedTypeNameIdx = BCUtil::GetACharIdx();
       break;
     }
     case kDexOpAgetShort: {
-      elemTypeNameIdx = BCUtil::GetShortIdx();
+      elemTypeNameIdx = FEUtils::GetShortIdx();
       usedTypeNameIdx = BCUtil::GetAShortIdx();
       break;
     }
@@ -1086,7 +1086,7 @@ void DexOpAput::SetVBImpl(uint32 num) {
 
 void DexOpAput::SetVCImpl(uint32 num) {
   vC.regNum = num;
-  vC.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetIntIdx());
+  vC.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetIntIdx());
   usedRegs.emplace_back(&vC);
 }
 
@@ -1098,13 +1098,13 @@ void DexOpAput::ParseImpl(BCClassMethod &method) {
   switch (opcode) {
     case kDexOpAput: {
       // Int or float
-      elemTypeNameIdx = BCUtil::GetIntIdx();
+      elemTypeNameIdx = FEUtils::GetIntIdx();
       usedTypeNameIdx = BCUtil::GetAIntIdx();
       isIndeterminate = true;
       break;
     }
     case kDexOpAputWide: {
-      elemTypeNameIdx = BCUtil::GetLongIdx();
+      elemTypeNameIdx = FEUtils::GetLongIdx();
       usedTypeNameIdx = BCUtil::GetALongIdx();
       isIndeterminate = true;
       break;
@@ -1116,22 +1116,22 @@ void DexOpAput::ParseImpl(BCClassMethod &method) {
       break;
     }
     case kDexOpAputBoolean: {
-      elemTypeNameIdx = BCUtil::GetBooleanIdx();
+      elemTypeNameIdx = FEUtils::GetBooleanIdx();
       usedTypeNameIdx = BCUtil::GetABooleanIdx();
       break;
     }
     case kDexOpAputByte: {
-      elemTypeNameIdx = BCUtil::GetByteIdx();
+      elemTypeNameIdx = FEUtils::GetByteIdx();
       usedTypeNameIdx = BCUtil::GetAByteIdx();
       break;
     }
     case kDexOpAputChar: {
-      elemTypeNameIdx = BCUtil::GetCharIdx();
+      elemTypeNameIdx = FEUtils::GetCharIdx();
       usedTypeNameIdx = BCUtil::GetACharIdx();
       break;
     }
     case kDexOpAputShort: {
-      elemTypeNameIdx = BCUtil::GetShortIdx();
+      elemTypeNameIdx = FEUtils::GetShortIdx();
       usedTypeNameIdx = BCUtil::GetAShortIdx();
       break;
     }
@@ -1531,27 +1531,27 @@ std::list<UniqueFEIRStmt> DexOpUnaryOp::EmitToFEIRStmtsImpl() {
 
 std::map<uint8, std::tuple<Opcode, GStrIdx, GStrIdx>> DexOpUnaryOp::InitOpcodeMapForUnary() {
   std::map<uint8, std::tuple<Opcode, GStrIdx, GStrIdx>> ans;
-  ans[kDexOpIntToLong] = std::make_tuple(OP_cvt, BCUtil::GetLongIdx(), BCUtil::GetIntIdx());
-  ans[kDexOpIntToFloat] = std::make_tuple(OP_cvt, BCUtil::GetFloatIdx(), BCUtil::GetIntIdx());
-  ans[kDexOpIntToDouble] = std::make_tuple(OP_cvt, BCUtil::GetDoubleIdx(), BCUtil::GetIntIdx());
-  ans[kDexOpLongToInt] = std::make_tuple(OP_cvt, BCUtil::GetIntIdx(), BCUtil::GetLongIdx());
-  ans[kDexOpLongToFloat] = std::make_tuple(OP_cvt, BCUtil::GetFloatIdx(), BCUtil::GetLongIdx());
-  ans[kDexOpLongToDouble] = std::make_tuple(OP_cvt, BCUtil::GetDoubleIdx(), BCUtil::GetLongIdx());
-  ans[kDexOpFloatToInt] = std::make_tuple(OP_cvt, BCUtil::GetIntIdx(), BCUtil::GetFloatIdx());
-  ans[kDexOpFloatToLong] = std::make_tuple(OP_cvt, BCUtil::GetLongIdx(), BCUtil::GetFloatIdx());
-  ans[kDexOpFloatToDouble] = std::make_tuple(OP_cvt, BCUtil::GetDoubleIdx(), BCUtil::GetFloatIdx());
-  ans[kDexOpDoubleToInt] = std::make_tuple(OP_cvt, BCUtil::GetIntIdx(), BCUtil::GetDoubleIdx());
-  ans[kDexOpDoubleToLong] = std::make_tuple(OP_cvt, BCUtil::GetLongIdx(), BCUtil::GetDoubleIdx());
-  ans[kDexOpDoubleToFloat] = std::make_tuple(OP_cvt, BCUtil::GetFloatIdx(), BCUtil::GetDoubleIdx());
-  ans[kDexOpIntToByte] = std::make_tuple(OP_sext, BCUtil::GetByteIdx(), BCUtil::GetIntIdx());
-  ans[kDexOpIntToChar] = std::make_tuple(OP_zext, BCUtil::GetCharIdx(), BCUtil::GetIntIdx());
-  ans[kDexOpIntToShort] = std::make_tuple(OP_sext, BCUtil::GetShortIdx(), BCUtil::GetIntIdx());
-  ans[kDexOpNegInt] = std::make_tuple(OP_neg, BCUtil::GetIntIdx(), BCUtil::GetIntIdx());
-  ans[kDexOpNotInt] = std::make_tuple(OP_bnot, BCUtil::GetIntIdx(), BCUtil::GetIntIdx());
-  ans[kDexOpNegLong] = std::make_tuple(OP_neg, BCUtil::GetLongIdx(), BCUtil::GetLongIdx());
-  ans[kDexOpNotLong] = std::make_tuple(OP_bnot, BCUtil::GetLongIdx(), BCUtil::GetLongIdx());
-  ans[kDexOpNegFloat] = std::make_tuple(OP_neg, BCUtil::GetFloatIdx(), BCUtil::GetFloatIdx());
-  ans[kDexOpNegDouble] = std::make_tuple(OP_neg, BCUtil::GetDoubleIdx(), BCUtil::GetDoubleIdx());
+  ans[kDexOpIntToLong] = std::make_tuple(OP_cvt, FEUtils::GetLongIdx(), FEUtils::GetIntIdx());
+  ans[kDexOpIntToFloat] = std::make_tuple(OP_cvt, FEUtils::GetFloatIdx(), FEUtils::GetIntIdx());
+  ans[kDexOpIntToDouble] = std::make_tuple(OP_cvt, FEUtils::GetDoubleIdx(), FEUtils::GetIntIdx());
+  ans[kDexOpLongToInt] = std::make_tuple(OP_cvt, FEUtils::GetIntIdx(), FEUtils::GetLongIdx());
+  ans[kDexOpLongToFloat] = std::make_tuple(OP_cvt, FEUtils::GetFloatIdx(), FEUtils::GetLongIdx());
+  ans[kDexOpLongToDouble] = std::make_tuple(OP_cvt, FEUtils::GetDoubleIdx(), FEUtils::GetLongIdx());
+  ans[kDexOpFloatToInt] = std::make_tuple(OP_cvt, FEUtils::GetIntIdx(), FEUtils::GetFloatIdx());
+  ans[kDexOpFloatToLong] = std::make_tuple(OP_cvt, FEUtils::GetLongIdx(), FEUtils::GetFloatIdx());
+  ans[kDexOpFloatToDouble] = std::make_tuple(OP_cvt, FEUtils::GetDoubleIdx(), FEUtils::GetFloatIdx());
+  ans[kDexOpDoubleToInt] = std::make_tuple(OP_cvt, FEUtils::GetIntIdx(), FEUtils::GetDoubleIdx());
+  ans[kDexOpDoubleToLong] = std::make_tuple(OP_cvt, FEUtils::GetLongIdx(), FEUtils::GetDoubleIdx());
+  ans[kDexOpDoubleToFloat] = std::make_tuple(OP_cvt, FEUtils::GetFloatIdx(), FEUtils::GetDoubleIdx());
+  ans[kDexOpIntToByte] = std::make_tuple(OP_sext, FEUtils::GetByteIdx(), FEUtils::GetIntIdx());
+  ans[kDexOpIntToChar] = std::make_tuple(OP_zext, FEUtils::GetCharIdx(), FEUtils::GetIntIdx());
+  ans[kDexOpIntToShort] = std::make_tuple(OP_sext, FEUtils::GetShortIdx(), FEUtils::GetIntIdx());
+  ans[kDexOpNegInt] = std::make_tuple(OP_neg, FEUtils::GetIntIdx(), FEUtils::GetIntIdx());
+  ans[kDexOpNotInt] = std::make_tuple(OP_bnot, FEUtils::GetIntIdx(), FEUtils::GetIntIdx());
+  ans[kDexOpNegLong] = std::make_tuple(OP_neg, FEUtils::GetLongIdx(), FEUtils::GetLongIdx());
+  ans[kDexOpNotLong] = std::make_tuple(OP_bnot, FEUtils::GetLongIdx(), FEUtils::GetLongIdx());
+  ans[kDexOpNegFloat] = std::make_tuple(OP_neg, FEUtils::GetFloatIdx(), FEUtils::GetFloatIdx());
+  ans[kDexOpNegDouble] = std::make_tuple(OP_neg, FEUtils::GetDoubleIdx(), FEUtils::GetDoubleIdx());
   return ans;
 }
 
@@ -1565,13 +1565,13 @@ void DexOpBinaryOp::SetVAImpl(uint32 num) {
   defedRegs.emplace_back(&vA);
   GStrIdx typeNameIdx; // typeName of A, B, C are same
   if (kDexOpAddInt <= opcode && opcode <= kDexOpUshrInt) {
-    typeNameIdx = BCUtil::GetIntIdx();
+    typeNameIdx = FEUtils::GetIntIdx();
   } else if (kDexOpAddLong <= opcode && opcode <= kDexOpUshrLong) {
-    typeNameIdx = BCUtil::GetLongIdx();
+    typeNameIdx = FEUtils::GetLongIdx();
   } else if (kDexOpAddFloat <= opcode && opcode <= kDexOpRemFloat) {
-    typeNameIdx = BCUtil::GetFloatIdx();
+    typeNameIdx = FEUtils::GetFloatIdx();
   } else if (kDexOpAddDouble <= opcode && opcode <= kDexOpRemDouble) {
-    typeNameIdx = BCUtil::GetDoubleIdx();
+    typeNameIdx = FEUtils::GetDoubleIdx();
   } else {
     CHECK_FATAL(false, "Invalid opcode: 0x%x in DexOpBinaryOp", opcode);
   }
@@ -1587,7 +1587,7 @@ void DexOpBinaryOp::SetVBImpl(uint32 num) {
 void DexOpBinaryOp::SetVCImpl(uint32 num) {
   vC.regNum = num;
   if (kDexOpShlLong <= opcode && opcode <= kDexOpUshrLong) {
-    vC.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetIntIdx());
+    vC.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetIntIdx());
   } else {
     vC.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(*(vA.regTypeItem));
   }
@@ -1629,19 +1629,19 @@ void DexOpBinaryOp2Addr::SetVAImpl(uint32 num) {
   GStrIdx typeNameAIdx;
   GStrIdx typeNameBIdx;
   if (kDexOpAddInt2Addr <= opcode && opcode <= kDexOpUshrInt2Addr) {
-    typeNameAIdx = BCUtil::GetIntIdx();
+    typeNameAIdx = FEUtils::GetIntIdx();
     typeNameBIdx = typeNameAIdx;
   } else if (kDexOpAddLong2Addr <= opcode && opcode <= kDexOpXorLong2Addr) {
-    typeNameAIdx = BCUtil::GetLongIdx();
+    typeNameAIdx = FEUtils::GetLongIdx();
     typeNameBIdx = typeNameAIdx;
   } else if (kDexOpShlLong2Addr <= opcode && opcode <= kDexOpUshrLong2Addr) {
-    typeNameAIdx = BCUtil::GetLongIdx();
-    typeNameBIdx = BCUtil::GetIntIdx();
+    typeNameAIdx = FEUtils::GetLongIdx();
+    typeNameBIdx = FEUtils::GetIntIdx();
   } else if (kDexOpAddFloat2Addr <= opcode && opcode <= kDexOpRemFloat2Addr) {
-    typeNameAIdx = BCUtil::GetFloatIdx();
+    typeNameAIdx = FEUtils::GetFloatIdx();
     typeNameBIdx = typeNameAIdx;
   } else if (kDexOpAddDouble2Addr <= opcode && opcode <= kDexOpRemDouble2Addr) {
-    typeNameAIdx = BCUtil::GetDoubleIdx();
+    typeNameAIdx = FEUtils::GetDoubleIdx();
     typeNameBIdx = typeNameAIdx;
   } else {
     CHECK_FATAL(false, "Invalid opcode: 0x%x in DexOpBinaryOp2Addr", opcode);
@@ -1688,12 +1688,12 @@ void DexOpBinaryOpLit::SetVAImpl(uint32 num) {
   vA.regNum = num;
   vA.isDef = true;
   defedRegs.emplace_back(&vA);
-  vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, BCUtil::GetIntIdx());
+  vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, FEUtils::GetIntIdx());
 }
 
 void DexOpBinaryOpLit::SetVBImpl(uint32 num) {
   vB.regNum = num;
-  vB.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(BCUtil::GetIntIdx());
+  vB.regTypeItem = allocator.GetMemPool()->New<BCRegTypeItem>(FEUtils::GetIntIdx());
   usedRegs.emplace_back(&vB);
 }
 

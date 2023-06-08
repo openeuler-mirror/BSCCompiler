@@ -22,22 +22,25 @@ namespace maple {
 class ASTDecl;
 class ASTFunc;
 class ASTStmt;
+
+union Value {
+  uint64 f128[2];
+  Int128Arr i128;
+  uint8 u8;
+  uint16 u16;
+  uint32 u32;
+  uint64 u64;
+  int8 i8;
+  int16 i16;
+  int32 i32;
+  float f32;
+  int64 i64;
+  double f64;
+  UStrIdx strIdx;
+};
+
 struct ASTValue {
-  union Value {
-    uint64 f128[2];
-    Int128Arr i128;
-    uint8 u8;
-    uint16 u16;
-    uint32 u32;
-    uint64 u64;
-    int8 i8;
-    int16 i16;
-    int32 i32;
-    float f32;
-    int64 i64;
-    double f64;
-    UStrIdx strIdx;
-  } val = {{0, 0}};
+  Value val = {{0, 0}};
   PrimType pty = PTY_begin;
 
   PrimType GetPrimType() const {
@@ -755,6 +758,14 @@ class ASTInitListExpr : public ASTExpr {
     return elemLen;
   }
 
+  bool IsNeededOpt() const {
+    return isNeededOpt;
+  }
+
+  void SetNeededOpt(bool flag) {
+    isNeededOpt = flag;
+  }
+
  private:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -813,6 +824,7 @@ class ASTInitListExpr : public ASTExpr {
   bool isTransparent = false;
   bool hasVectorType = false;
   mutable bool isGenerating = false;
+  bool isNeededOpt = false;
 };
 
 class ASTBinaryConditionalOperator : public ASTExpr {
@@ -1027,8 +1039,8 @@ class ASTArraySubscriptExpr : public ASTExpr {
     arrayType = ty;
   }
 
-  MIRType *GetArrayType() const {
-    return arrayType;
+  MIRType &GetArrayType() {
+    return *arrayType;
   }
 
   size_t CalculateOffset() const;
@@ -1095,7 +1107,7 @@ class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {
 class ASTMemberExpr : public ASTExpr {
  public:
   explicit ASTMemberExpr(MapleAllocator &allocatorIn) : ASTExpr(allocatorIn, kASTMemberExpr),
-      memberName("", allocatorIn.GetMemPool()) {}
+      memberName("", allocatorIn.GetMemPool()), lenName("", allocatorIn.GetMemPool()) {}
   ~ASTMemberExpr() override {
     baseExpr = nullptr;
   }
@@ -1110,6 +1122,14 @@ class ASTMemberExpr : public ASTExpr {
 
   void SetMemberName(std::string name) {
     memberName = std::move(name);
+  }
+
+  std::string GetLenName() const {
+    return lenName.c_str() == nullptr ? "" : lenName.c_str();
+  }
+
+  void SetLenName(std::string name) {
+    lenName = std::move(name);
   }
 
   std::string GetMemberName() const {
@@ -1148,6 +1168,10 @@ class ASTMemberExpr : public ASTExpr {
     return fieldOffsetBits;
   }
 
+  void SetIsMulAlignAttr(bool flag) {
+    isMulAlignAttr = flag;
+  }
+
  private:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -1156,10 +1180,12 @@ class ASTMemberExpr : public ASTExpr {
 
   ASTExpr *baseExpr = nullptr;
   MapleString memberName;
+  MapleString lenName;
   MIRType *memberType = nullptr;
   MIRType *baseType = nullptr;
   bool isArrow = false;
   uint64 fieldOffsetBits = 0;
+  bool isMulAlignAttr = false;
 };
 
 class ASTDesignatedInitUpdateExpr : public ASTExpr {
@@ -1225,6 +1251,12 @@ class ASTAssignExpr : public ASTBinaryOperatorExpr {
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+  UniqueFEIRExpr EmitIntrinsicop2FEExprImpl(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr &leftFEExpr,
+                                            UniqueFEIRExpr &rightFEExpr, ASTExpr &leftExpr) const;
+  UniqueFEIRExpr EmitDRead2FEExprImpl(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr &leftFEExpr,
+                                      UniqueFEIRExpr &rightFEExpr) const;
+  UniqueFEIRExpr EmitIRead2FEExprImpl(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr &leftFEExpr,
+                                      UniqueFEIRExpr &rightFEExpr) const;
   void GetActualRightExpr(UniqueFEIRExpr &right, const UniqueFEIRExpr &left) const;
   bool IsInsertNonnullChecking(const UniqueFEIRExpr &rExpr) const;
   bool isCompoundAssign = false;
@@ -1587,8 +1619,20 @@ class ASTIntegerLiteral : public ASTExpr {
     val.Assign(valIn);
   }
 
-  void SetVal(uint64 valIn) {
+  void SetVal(int64 valIn) {
     val = valIn;
+  }
+
+  void SetIsSizeOf(bool flag) {
+    isSizeOf = flag;
+  }
+
+  void SetIsAlignOf(bool flag) {
+    isAlignOf = flag;
+  }
+
+  void SetVarNameIdx(const GStrIdx &varIdxIn) {
+    varNameIdx = varIdxIn;
   }
 
  protected:
@@ -1598,6 +1642,9 @@ class ASTIntegerLiteral : public ASTExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 
   IntVal val;
+  bool isSizeOf = false;
+  bool isAlignOf = false;
+  GStrIdx varNameIdx;
 };
 
 enum class FloatKind {

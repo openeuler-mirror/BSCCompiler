@@ -112,49 +112,14 @@ std::string DotGenerator::GetFileName(const MIRModule &mirModule, const std::str
   return fileName;
 }
 
-static bool IsBackEdgeForLoop(const CGFuncLoops &loop, const BB &from, const BB &to) {
-  const BB *header = loop.GetHeader();
-  if (header->GetId() == to.GetId()) {
-    for (auto *be : loop.GetBackedge()) {
-      if (be->GetId() == from.GetId()) {
-        return true;
-      }
-    }
-  }
-  for (auto *inner : loop.GetInnerLoops()) {
-    if (IsBackEdgeForLoop(*inner, from, to)) {
-      return true;
-    }
-  }
-  return false;
-}
-bool DotGenerator::IsBackEdge(const CGFunc &cgFunction, const BB &from, const BB &to) {
-  for (const auto *loop : cgFunction.GetLoops()) {
-    if (IsBackEdgeForLoop(*loop, from, to)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 void DotGenerator::DumpEdge(const CGFunc &cgFunction, std::ofstream &cfgFileOfStream, bool isIncludeEH) {
   FOR_ALL_BB_CONST(bb, &cgFunction) {
     for (auto *succBB : bb->GetSuccs()) {
-      cfgFileOfStream << "BB" << bb->GetId();
-      cfgFileOfStream << " -> "
-              << "BB" << succBB->GetId();
+      cfgFileOfStream << "BB" << bb->GetId() << " -> " << "BB" << succBB->GetId();
       if (Options::profileUse) {
-        if (IsBackEdge(cgFunction, *bb, *succBB)) {
-          cfgFileOfStream << " [color=red,label=" << bb->GetEdgeProfFreq(*succBB) << "]";
-        } else {
-          cfgFileOfStream << " [color=green,label=" << bb->GetEdgeProfFreq(*succBB) << "]";
-        }
+        cfgFileOfStream << " [color=green,label=" << bb->GetEdgeProfFreq(*succBB) << "]";
       } else {
-        if (IsBackEdge(cgFunction, *bb, *succBB)) {
-          cfgFileOfStream << " [color=red]";
-        } else {
-          cfgFileOfStream << " [color=green]";
-        }
+        cfgFileOfStream << " [color=green]";
       }
       cfgFileOfStream << ";\n";
     }

@@ -40,7 +40,7 @@ BECommon::BECommon(MIRModule &mod)
     }
 
   if (mirModule.IsJavaModule()) {
-    for (uint32 i = 0; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
+    for (size_t i = 0; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
       MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbol(i);
       if (sym == nullptr) {
         continue;
@@ -208,7 +208,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
      */
     if ((j != 0) && ((j + 1) == fields.size()) &&
         (fieldType->GetKind() == kTypeArray) &&
-        (GetTypeSize(fieldTyIdx.GetIdx()) == 0)) {
+        (static_cast<MIRArrayType*>(fieldType)->IsIncompleteArray())) {
       SetHasFlexibleArray(tyIdx.GetIdx(), true);
     }
   }
@@ -527,7 +527,7 @@ void BECommon::GenFieldOffsetMap(MIRClassType &classType, FILE &outFile) {
 
     OffsetPair p = GetJClassFieldOffset(classType, i);
     CHECK_FATAL(p.bitOffset == 0, "expect p.second equals 0");
-    (void)fprintf(&outFile, "__MRT_CLASS_FIELD(%s, %s, %d, %lu)\n", className.c_str(), fieldName.c_str(),
+    (void)fprintf(&outFile, "__MRT_CLASS_FIELD(%s, %s, %u, %lu)\n", className.c_str(), fieldName.c_str(),
         p.bitOffset, fieldSize);
   }
 }
@@ -560,7 +560,7 @@ OffsetPair BECommon::GetJClassFieldOffset(MIRStructType &classType, FieldID fiel
   CHECK_FATAL(HasJClassLayout(static_cast<MIRClassType&>(classType)), "Cannot found java class layout information");
   const JClassLayout &layout = GetJClassLayout(static_cast<MIRClassType&>(classType));
   CHECK_FATAL(static_cast<uint32>(fieldID) - 1 < layout.size(), "subscript out of range");
-  return {static_cast<int32>(layout[fieldID - 1].GetOffset()), 0};
+  return {static_cast<uint32>(layout[static_cast<unsigned long>(fieldID) - 1].GetOffset()), 0};
 }
 
 bool BECommon::TyIsInSizeAlignTable(const MIRType &ty) const {

@@ -21,7 +21,7 @@ namespace maplebe {
  * Get the ldp/stp corresponding to ldr/str
  * mop : a ldr or str machine operator
  */
-MOperator GetMopPair(MOperator mop) {
+MOperator GetMopPair(MOperator mop, bool isIncludeStrbStrh) {
   switch (mop) {
     case MOP_xldr:
       return MOP_xldp;
@@ -43,6 +43,10 @@ MOperator GetMopPair(MOperator mop) {
       return MOP_sstp;
     case MOP_qstr:
       return MOP_qstp;
+    case MOP_wstrb:
+      return isIncludeStrbStrh ? MOP_wstrh : MOP_undef;
+    case MOP_wstrh:
+      return isIncludeStrbStrh ? MOP_wstr : MOP_undef;
     default:
       ASSERT(false, "should not run here");
       return MOP_undef;
@@ -95,6 +99,10 @@ MOperator FlipConditionOp(MOperator flippedOp) {
       return AArch64MOP_t::MOP_bvs;
     case AArch64MOP_t::MOP_bvs:
       return AArch64MOP_t::MOP_bvc;
+    case AArch64MOP_t::MOP_bcc:
+      return AArch64MOP_t::MOP_bcs;
+    case AArch64MOP_t::MOP_bcs:
+      return AArch64MOP_t::MOP_bcc;
     default:
       break;
   }
@@ -196,6 +204,7 @@ int64 GetMemOpndOffsetValue(Operand *o) {
   if (memOpnd->GetAddrMode() == MemOperand::kBOR) {
     return 0;
   }
+  // Offset value of kBOI & kLo12Li can be got.
   OfstOperand *ofStOpnd = memOpnd->GetOffsetImmediate();
   int64 offsetValue = ofStOpnd ? ofStOpnd->GetOffsetValue() : 0LL;
   return offsetValue;
@@ -206,14 +215,14 @@ int64 GetMemOpndOffsetValue(Operand *o) {
 int32 GetTail0BitNum(int64 val) {
   uint32 bitNum = 0;
   for (; bitNum < k64BitSize; bitNum++) {
-    if ((static_cast<uint64>(1) << static_cast<uint32>(bitNum)) & static_cast<uint64>(val)) {
+    if (((1ULL << bitNum) & static_cast<uint64>(val)) != 0) {
       break;
     }
   }
   if (bitNum == k64BitSize) {
     return -1;
   }
-  return bitNum;
+  return static_cast<int32>(bitNum);
 }
 
 // Returns the number of leading 0-bits in x, starting at the most significant bit position.
@@ -221,15 +230,66 @@ int32 GetTail0BitNum(int64 val) {
 int32 GetHead0BitNum(int64 val) {
   uint32 bitNum = 0;
   for (; bitNum < k64BitSize; bitNum++) {
-    if ((0x8000000000000000ULL >> static_cast<uint32>(bitNum)) & static_cast<uint64>(val)) {
+    if (((0x8000000000000000ULL >> bitNum) & static_cast<uint64>(val)) != 0) {
       break;
     }
   }
   if (bitNum == k64BitSize) {
     return -1;
   }
-  return bitNum;
+  return static_cast<int32>(bitNum);
 }
+
+ConditionCode GetReverseCC(ConditionCode cc) {
+  switch (cc) {
+    case CC_NE:
+      return CC_EQ;
+    case CC_EQ:
+      return CC_NE;
+    case CC_HS:
+      return CC_LO;
+    case CC_LO:
+      return CC_HS;
+    case CC_MI:
+      return CC_PL;
+    case CC_PL:
+      return CC_MI;
+    case CC_VS:
+      return CC_VC;
+    case CC_VC:
+      return CC_VS;
+    case CC_HI:
+      return CC_LS;
+    case CC_LS:
+      return CC_HI;
+    case CC_LT:
+      return CC_GE;
+    case CC_GE:
+      return CC_LT;
+    case CC_GT:
+      return CC_LE;
+    case CC_LE:
+      return CC_GT;
+    default:
+      CHECK_FATAL(0, "unknown condition code");
+  }
+  return kCcLast;
+}
+
+bool CheckCondCode(const CondOperand &condOpnd) {
+  switch (condOpnd.GetCode()) {
+    case CC_NE:
+    case CC_EQ:
+    case CC_LT:
+    case CC_GE:
+    case CC_GT:
+    case CC_LE:
+      return true;
+    default:
+      return false;
+  }
+}
+
 
 } /* namespace AArch64isa */
 }  /* namespace maplebe */

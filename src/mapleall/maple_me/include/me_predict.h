@@ -64,7 +64,7 @@ using BuiltinExpectInfo = std::vector<std::pair<CondGotoMeStmt*, int32>>;
 // Emistimate frequency for MeFunction.
 class MePrediction : public AnalysisResult {
  public:
-  static const PredictorInfo predictorInfo[kEndPrediction + 1];
+  static const PredictorInfo predictorInfo[static_cast<uint32>(kEndPrediction) + 1];
   static void VerifyFreq(const MeFunction &meFunc);
   static void RebuildFreq(MeFunction &meFunc, Dominance &newDom, Dominance &newPdom, IdentifyLoops &newMeLoop,
       BuiltinExpectInfo *expectInfo = nullptr);

@@ -305,7 +305,7 @@ class CGOptions {
   void SetRange(const std::string &str, const std::string &cmd, Range &subRange) const;
   void SetTargetMachine(const std::string &str);
 
-  uint32 GetOptimizeLevel() const {
+  OptimizeLevel GetOptimizeLevel() const {
     return optimizeLevel;
   }
 
@@ -682,6 +682,14 @@ class CGOptions {
 
   static bool DoGlobalSchedule() {
     return doGlobalSchedule;
+  }
+
+  static void DisableLocalSchedule() {
+    doLocalSchedule = false;
+  }
+
+  static void EnableLocalSchedule() {
+    doLocalSchedule = true;
   }
 
   static bool DoLocalSchedule() {
@@ -1427,6 +1435,14 @@ class CGOptions {
     return funcAlignPow;
   }
 
+  static void SetColdPathThreshold(uint32 thresh) {
+    coldPathThreshold = thresh;
+  }
+
+  static uint32 GetColdPathThreshold() {
+    return coldPathThreshold;
+  }
+
  static bool DoLiteProfVerify() {
     return liteProfVerify;
   }
@@ -1457,6 +1473,10 @@ class CGOptions {
 
   static void EnableLiteProfUse() {
     liteProfUse = true;
+  }
+
+  static void DisableLiteProfUse() {
+    liteProfUse = false;
   }
 
   static void SetLiteProfile(std::string pgofile) {
@@ -1559,12 +1579,24 @@ class CGOptions {
     return tlsModel;
   }
 
+  static void EnableOptimizedFrameLayout() {
+    doOptimizedFrameLayout = true;
+  }
+
+  static void DisableOptimizedFrameLayout() {
+    doOptimizedFrameLayout = false;
+  }
+
+  static bool DoOptimizedFrameLayout() {
+    return doOptimizedFrameLayout;
+  }
+
  private:
   std::vector<std::string> phaseSequence;
   bool runCGFlag = true;
   bool generateObjectMap = true;
   uint32 parserOption = 0;
-  uint32 optimizeLevel = 0;
+  OptimizeLevel optimizeLevel = kLevel0;
 
   GenerateFlag generateFlag = 0;
   OptionFlag options = kUndefined;
@@ -1675,6 +1707,7 @@ class CGOptions {
   static uint32 loopAlignPow;
   static uint32 jumpAlignPow;
   static uint32 funcAlignPow;
+  static uint32 coldPathThreshold;
   static bool liteProfGen;
   static bool liteProfUse;
   static bool liteProfVerify;
@@ -1690,6 +1723,7 @@ class CGOptions {
   static TLSModel tlsModel;
   static bool doTlsGlobalWarmUpOpt;
   static bool noplt;
+  static bool doOptimizedFrameLayout;
 };
 }  /* namespace maplebe */
 

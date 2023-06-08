@@ -155,7 +155,7 @@ class AArch64Schedule : public Schedule {
   void ListScheduling(bool beforeRA) override;
   void BruteForceScheduling(const BB &bb);
   void SimulateScheduling(const BB &bb);
-  void FinalizeScheduling(BB &bb, const DataDepBase &dataDepBase) override;
+  void FinalizeScheduling(BB &bb, const DepAnalysis &depAnalysis) override;
   uint32 ComputeEstart(uint32 cycle) override;
   void ComputeLstart(uint32 maxEstart) override;
   void UpdateELStartsOnCycle(uint32 cycle) override;

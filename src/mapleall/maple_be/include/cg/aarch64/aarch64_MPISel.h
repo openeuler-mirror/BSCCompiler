@@ -36,7 +36,7 @@ class AArch64MPIsel : public MPISel {
   Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) override;
   Operand *SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;
   Operand *SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) override;
-  Operand *SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) const override;
+  Operand *SelectFloatingConst(MIRConst &floatingConst, PrimType primType, const BaseNode &parent) override;
   void SelectGoto(GotoNode &stmt) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) override;
   void SelectAggIassign(IassignNode &stmt, Operand &addrOpnd, Operand &opndRhs) override;
@@ -92,8 +92,9 @@ class AArch64MPIsel : public MPISel {
  private:
   MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, FieldID fieldId = 0,
                                            RegOperand *baseReg = nullptr) override;
-  MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) const override;
+  MemOperand &GetOrCreateMemOpndFromSymbol(const MIRSymbol &symbol, uint32 opndSize, int64 offset) override;
   void SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, PrimType fromType, PrimType toType) override;
+  using MPISel::SelectCvtFloat2Int;
   void SelectCvtFloat2Int(Operand &resOpnd, Operand &srcOpnd, PrimType itype, PrimType ftype) override;
   Insn &AppendCall(AArch64MOP_t mOp, Operand &targetOpnd,
       ListOperand &paramOpnds, ListOperand &retOpnds) const;

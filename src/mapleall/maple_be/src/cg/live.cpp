@@ -47,12 +47,37 @@ void LiveAnalysis::InitAndGetDefUse() {
   }
 }
 
-/* Out[BB] = Union all of In[Succs(BB)] */
+void LiveAnalysis::RemovePhiLiveInFromSuccNotFromThisBB(BB &curBB, BB &succBB) const {
+  if (succBB.GetPhiInsns().empty()) {
+    return;
+  }
+  LocalMapleAllocator allocator(cgFunc->GetStackMemPool());
+  SparseDataInfo tempPhiIn(succBB.GetLiveIn()->GetMaxRegNum(), allocator);
+  tempPhiIn.ResetAllBit();
+  for (auto phiInsnIt : succBB.GetPhiInsns()) {
+    auto &phiList = static_cast<PhiOperand&>(phiInsnIt.second->GetOperand(kInsnSecondOpnd));
+    for (auto phiOpndIt : phiList.GetOperands()) {
+      uint32 fBBId = phiOpndIt.first;
+      ASSERT(fBBId != 0, "GetFromBBID = 0");
+      if (fBBId != curBB.GetId()) {
+        regno_t regNo = phiOpndIt.second->GetRegisterNumber();
+        tempPhiIn.SetBit(regNo);
+      }
+    }
+  }
+  curBB.GetLiveOut()->Difference(tempPhiIn);
+}
+
+// Out[BB] = Union all of In[Succs(BB)]
+//
+// in ssa form
+// Out[BB] = Union all of In[Succs(BB)] Except Phi use reg dont from this BB
 bool LiveAnalysis::GenerateLiveOut(BB &bb) const {
   const auto bbLiveOutBak(bb.GetLiveOut()->GetInfo());
   for (auto succBB : bb.GetSuccs()) {
     if (succBB->GetLiveInChange() && !succBB->GetLiveIn()->NoneBit()) {
       bb.LiveOutOrBits(*succBB->GetLiveIn());
+      RemovePhiLiveInFromSuccNotFromThisBB(bb, *succBB);
     }
     if (!succBB->GetEhSuccs().empty()) {
       for (auto ehSuccBB : succBB->GetEhSuccs()) {
@@ -70,7 +95,7 @@ bool LiveAnalysis::GenerateLiveOut(BB &bb) const {
 
 /* In[BB] = use[BB] Union (Out[BB]-def[BB]) */
 bool LiveAnalysis::GenerateLiveIn(BB &bb) {
-  LocalMapleAllocator allocator(stackMp);
+  LocalMapleAllocator allocator(cgFunc->GetStackMemPool());
   const auto bbLiveInBak(bb.GetLiveIn()->GetInfo());
   if (!bb.GetInsertUse()) {
     bb.SetLiveInInfo(*bb.GetUse());
@@ -167,7 +192,7 @@ void LiveAnalysis::DealWithInOutOfCleanupBB() {
 }
 
 void LiveAnalysis::InsertInOutOfCleanupBB() {
-  LocalMapleAllocator allocator(stackMp);
+  LocalMapleAllocator allocator(cgFunc->GetStackMemPool());
   const BB *cleanupBB = cgFunc->GetCleanupBB();
   if (cleanupBB == nullptr) {
     return;
@@ -257,7 +282,7 @@ void LiveAnalysis::CollectLiveInfo(BB &bb, const Operand &opnd, bool isDef, bool
   if (!opnd.IsRegister()) {
     return;
   }
-  const RegOperand &regOpnd = static_cast<const RegOperand&>(opnd);
+  auto &regOpnd = static_cast<const RegOperand&>(opnd);
   regno_t regNO = regOpnd.GetRegisterNumber();
   RegType regType = regOpnd.GetRegisterType();
   if (regType == kRegTyVary) {

@@ -23,7 +23,6 @@ namespace {
   constexpr size_t kRegionInputLimit = 8;
   constexpr size_t kRegionOutputLimit = 1;
   constexpr size_t kRegionMinValidStmtNumber = 4;
-  constexpr size_t kRegionMaxStmtNumber = 512;
 }
 
 namespace maple {
@@ -142,9 +141,9 @@ void RegionIdentify::RegionInit() {
   CreateRegionCandidates(sa);
 }
 
-void RegionIdentify::CreateRegionCandidates(SuffixArray &sa) {
+void RegionIdentify::CreateRegionCandidates(const SuffixArray &sa) {
   for (auto *subStrings : sa.GetRepeatedSubStrings()) {
-    if (subStrings->GetLength() > kRegionMaxStmtNumber) {
+    if (subStrings->GetLength() > Options::outlineRegionMax) {
       delete subStrings;
       continue;
     }
@@ -214,7 +213,7 @@ StmtInfo *RegionIdentify::GetNearestNonnullStmtInfo(StmtInfoId index, bool forwa
   return &stmtInfoVector[index];
 }
 
-bool RegionIdentify::CheckOverlapAmongGroupRegions(RegionGroup &group, RegionCandidate &region) {
+bool RegionIdentify::CheckOverlapAmongGroupRegions(RegionGroup &group, const RegionCandidate &region) const {
   for (auto &groupedRegion : group.GetGroups()) {
     if (region.IsOverlapWith(groupedRegion)) {
       return true;
@@ -327,6 +326,9 @@ bool RegionIdentify::CheckCompatibilifyAmongRegionComponents(BaseNode &lhs, Base
 }
 
 bool RegionIdentify::HasSameStructure(RegionCandidate &lhs, RegionCandidate &rhs) {
+  if (lhs.GetRegionInPuts().size() != rhs.GetRegionInPuts().size()) {
+    return false;
+  }
   if (lhs.GetRegionOutPuts().size() != rhs.GetRegionOutPuts().size()) {
     return false;
   }

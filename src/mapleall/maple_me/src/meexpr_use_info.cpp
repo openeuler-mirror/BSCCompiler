@@ -141,7 +141,7 @@ void MeExprUseInfo::CollectUseInfoInFunc(IRMap *irMap, Dominance *domTree, MeExp
   allocator.SetMemPool(irMap->GetIRMapAlloc().GetMemPool());
   useSites = irMap->New<MapleVector<ExprUseInfoPair>>(allocator.Adapter());
   if (irMap->GetExprID() >= 0) {
-    useSites->resize(static_cast<size_t>(irMap->GetExprID() + 1));
+    useSites->resize(static_cast<uint32>(irMap->GetExprID() + 1));
   }
   useInfoState = state;
 

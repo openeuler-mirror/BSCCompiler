@@ -22,7 +22,7 @@
 #include "me_stack_protect.h"
 
 namespace {
-const std::set<std::string> kPropWhiteList {
+const std::set<std::string> kPropWhitelist {
 #define PROPILOAD(funcName) #funcName,
 #include "propiloadlist.def"
 #undef PROPILOAD
@@ -98,7 +98,7 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
       (eprePULimitSpecified && puCount != MeOption::eprePULimit) ? UINT32_MAX : MeOption::epreLimit;
   MemPool *ssaPreMemPool = ApplyTempMemPool();
   bool epreIncludeRef = MeOption::epreIncludeRef;
-  if (!MeOption::gcOnly && kPropWhiteList.find(f.GetName()) != kPropWhiteList.end()) {
+  if (!MeOption::gcOnly && kPropWhitelist.find(f.GetName()) != kPropWhitelist.end()) {
     epreIncludeRef = false;
   }
   MeSSAEPre ssaPre(f, *irMap, *dom, *pdom, kh, *ssaPreMemPool, *ApplyTempMemPool(), epreLimitUsed, epreIncludeRef,

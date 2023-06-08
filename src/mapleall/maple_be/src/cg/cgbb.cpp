@@ -397,32 +397,75 @@ BB *BB::GetValidPrev() {
   return pre;
 }
 
-bool Bfs::AllPredBBVisited(const BB &bb, long &level) const {
-  bool isAllPredsVisited = true;
-  for (const auto *predBB : bb.GetPreds()) {
-    /* See if pred bb is a loop back edge */
-    bool isBackEdge = false;
-    for (const auto *loopBB : predBB->GetLoopSuccs()) {
-      if (loopBB == &bb) {
-        isBackEdge = true;
-        break;
+void Bfs::SeekCycles() {
+  MapleVector<bool> visited(cgfunc->NumBBs(), false, alloc.Adapter());
+  MapleVector<bool> onPath(cgfunc->NumBBs(), false, alloc.Adapter());
+  MapleStack<BB*> workStack(alloc.Adapter());
+
+  // searching for succsBB in the same cycle as BB
+  auto seekCycleSuccs = [this, &visited, &onPath, &workStack](const BB &bb, const MapleList<BB*> succs) {
+    for (auto *succBB : succs) {
+      if (!visited[succBB->GetId()]) {
+        workStack.push(succBB);
+      } else {
+        if (onPath[succBB->GetId()]) {
+          (void)cycleSuccs[bb.GetId()].insert(succBB->GetId());
+        }
       }
     }
-    if (!isBackEdge && !visitedBBs[predBB->GetId()]) {
+  };
+
+  // searhing workStack BBs cycle
+  auto seekCycles = [&visited, &onPath, &workStack, &seekCycleSuccs]() {
+    while (!workStack.empty()) {
+      auto *bb = workStack.top();
+      if (visited[bb->GetId()]) {
+        onPath[bb->GetId()] = false;
+        workStack.pop();
+        continue;
+      }
+
+      visited[bb->GetId()] = true;
+      onPath[bb->GetId()] = true;
+      seekCycleSuccs(*bb, bb->GetSuccs());
+      seekCycleSuccs(*bb, bb->GetEhSuccs());
+    }
+  };
+
+  bool changed = false;
+  do {
+    changed = false;
+    FOR_ALL_BB(bb, cgfunc) {
+      if (!visited[bb->GetId()]) {
+        workStack.push(bb);
+        seekCycles();
+        changed = true;
+      }
+    }
+  } while (changed);
+}
+
+bool Bfs::AllPredBBVisited(const BB &bb, long &level) const {
+  // check pred bb is in cycle
+  auto predBBInCycle = [this](const BB &bb, const BB &predBB) {
+    for (auto bbId : cycleSuccs[predBB.GetId()]) {
+      if (bb.GetId() == bbId) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  bool isAllPredsVisited = true;
+  for (const auto *predBB : bb.GetPreds()) {
+    if (!predBBInCycle(bb, *predBB) && !visitedBBs[predBB->GetId()]) {
       isAllPredsVisited = false;
       break;
     }
     level = std::max(level, predBB->GetInternalFlag2());
   }
   for (const auto *predEhBB : bb.GetEhPreds()) {
-    bool isBackEdge = false;
-    for (const auto *loopBB : predEhBB->GetLoopSuccs()) {
-      if (loopBB == &bb) {
-        isBackEdge = true;
-        break;
-      }
-    }
-    if (!isBackEdge && !visitedBBs[predEhBB->GetId()]) {
+    if (!predBBInCycle(bb, *predEhBB) && !visitedBBs[predEhBB->GetId()]) {
       isAllPredsVisited = false;
       break;
     }
@@ -522,12 +565,11 @@ void Bfs::BFS(BB &curBB) {
 }
 
 void Bfs::ComputeBlockOrder() {
-  visitedBBs.clear();
+  cycleSuccs.assign(cgfunc->NumBBs(), MapleSet<BBID>(alloc.Adapter()));
+  SeekCycles();
+
   sortedBBs.clear();
-  visitedBBs.resize(cgfunc->NumBBs());
-  for (uint32 i = 0; i < cgfunc->NumBBs(); ++i) {
-    visitedBBs[i] = false;
-  }
+  visitedBBs.assign(cgfunc->NumBBs(), false);
   BB *cleanupBB = nullptr;
   FOR_ALL_BB(bb, cgfunc) {
     bb->SetInternalFlag1(0);

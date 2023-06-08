@@ -13,8 +13,8 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ipa_escape_analysis.h"
-#include "me_cfg.h"
 #include <algorithm>
+#include "me_cfg.h"
 
 namespace maple {
 constexpr maple::uint32 kInvalid = 0xffffffff;
@@ -77,7 +77,7 @@ static bool IsVirtualVar(const SSATab &ssaTab, const VarMeExpr &expr) {
 }
 
 static bool IsInWhiteList(const MIRFunction &func) {
-  std::vector<std::string> whiteList = {
+  std::vector<std::string> kWhitelist = {
       "MCC_Reflect_Check_Casting_Array",
       "MCC_Reflect_Check_Casting_NoArray",
       "MCC_ThrowStringIndexOutOfBoundsException",
@@ -103,7 +103,7 @@ static bool IsInWhiteList(const MIRFunction &func) {
       "getpriority",
       "setpriority"
   };
-  for (std::string name : whiteList) {
+  for (std::string name : kWhitelist) {
     if (func.GetName() == name) {
       // close all the whitelist
       return false;
@@ -628,7 +628,7 @@ void IPAEscapeAnalysis::UpdateEscConnGraphWithStmt(MeStmt &stmt) {
       if (mdass->GetChiList()->empty() || !IsExprRefOrPtr(*mdass->GetRHS())) {
         break;
       }
-      for (std::pair<OStIdx, ChiMeNode*> it : *mdass->GetChiList()) {
+      for (auto &it : std::as_const(*mdass->GetChiList())) {
         ChiMeNode *chi = it.second;
         CHECK_FATAL(IsExprRefOrPtr(*chi->GetLHS()), "type mis-match");
         EACGRefNode *lhsNode = GetOrCreateCGRefNodeForVar(*static_cast<VarMeExpr *>(chi->GetLHS()), false);
@@ -1198,7 +1198,7 @@ OriginalSt *IPAEscapeAnalysis::CreateEATempOst() {
   return CreateEATempOstWithName(name);
 }
 
-OriginalSt *IPAEscapeAnalysis::CreateEARetTempOst() {
+OriginalSt *IPAEscapeAnalysis::CreateEARetTempOst() const {
   std::string name = std::string("__EARetTemp__");
   return CreateEATempOstWithName(name);
 }
@@ -1337,6 +1337,68 @@ void IPAEscapeAnalysis::ProcessRetStmt() {
   }
 }
 
+void IPAEscapeAnalysis::CountSuperclassCallAssignedOpration(MeStmt *stmt) {
+  CallMeStmt *callMeStmt = static_cast<CallMeStmt*>(stmt);
+
+  // If a function has no reference parameter or return value, then skip it.
+  if (IsNoSideEffect(*callMeStmt)) {
+    return;
+  }
+  MIRFunction &calleeCandidate = callMeStmt->GetTargetFunction();
+  std::string fName = calleeCandidate.GetName();
+  if (fName == "MCC_GetOrInsertLiteral" || fName == "MCC_GetCurrentClassLoader" ||
+      fName == "Native_Thread_currentThread" || fName == "Native_java_lang_StringFactory_newStringFromBytes___3BIII" ||
+      fName == "Native_java_lang_StringFactory_newStringFromChars__II_3C" ||
+      fName == "Native_java_lang_StringFactory_newStringFromString__Ljava_lang_String_2" ||
+      fName == "Native_java_lang_String_intern__" || fName == "MCC_StringAppend" ||
+      fName == "MCC_StringAppend_StringInt" ||
+      fName == "MCC_StringAppend_StringJcharString" ||
+      fName == "MCC_StringAppend_StringString") {
+    return;
+  }
+  const MapleVector<MeExpr*> &opnds = callMeStmt->GetOpnds();
+  const size_t size = opnds.size();
+
+  bool isOptIcall = (callMeStmt->GetOp() == OP_interfaceicallassigned ||
+      callMeStmt->GetOp() == OP_virtualicallassigned);
+  size_t firstParmIdx = (isOptIcall ? 1 : 0);
+
+  bool isSpecialCall = false;
+  if (fName == "Native_java_lang_Object_clone_Ljava_lang_Object__" ||
+      fName == "Native_java_lang_String_concat__Ljava_lang_String_2" ||
+      fName == "Ljava_2Flang_2FAbstractStringBuilder_3B_7CappendCLONEDignoreret_7C_28Ljava_2Flang_2FString_3B_29V" ||
+      StartWith(fName, "Ljava_2Flang_2FAbstractStringBuilder_3B_7Cappend_7C") ||
+      StartWith(fName, "Ljava_2Flang_2FStringBuilder_3B_7Cappend_7C")) {
+    CallMeStmt *call = static_cast<CallMeStmt*>(callMeStmt);
+    CHECK_FATAL(call->GetMustDefList() != nullptr, "funcName: %s", fName.c_str());
+    CHECK_FATAL(call->GetMustDefList()->size() <= 1, "funcName: %s", fName.c_str());
+    if (call->GetMustDefList() != nullptr && call->GetMustDefList()->size() == 0) {
+        return;
+    }
+    isSpecialCall = true;
+  }
+
+  for (size_t i = firstParmIdx; i < size; ++i) {
+    MeExpr *var = opnds[i];
+    // we only solve reference node.
+    if (!IsExprRefOrPtr(*var) || var->GetOp() == OP_add) {
+      continue;
+    }
+    CHECK_NULL_FATAL(eaCG->GetCGNodeFromExpr(var));
+    std::vector<EACGBaseNode*> nodes;
+    GetCGNodeForMeExpr(nodes, *var, *callMeStmt, false);
+    CHECK_FATAL(nodes.size() > 0, "the size must not be zero");
+    for (EACGBaseNode *refNode : nodes) {
+      for (auto objNode : refNode->GetPointsToSet()) {
+        objNode->IncresRCOperations();
+      }
+    }
+    if (isSpecialCall) {
+      break;
+    }
+  }
+}
+
 void IPAEscapeAnalysis::CountObjRCOperations() {
   MeCFG *cfg = func->GetCfg();
   for (BB *bb : cfg->GetAllBBs()) {
@@ -1420,69 +1482,7 @@ void IPAEscapeAnalysis::CountObjRCOperations() {
         case OP_call:
         case OP_callassigned:
         case OP_superclasscallassigned: {
-          CallMeStmt *callMeStmt = static_cast<CallMeStmt*>(stmt);
-
-          // If a function has no reference parameter or return value, then skip it.
-          if (IsNoSideEffect(*callMeStmt)) {
-            break;
-          }
-          MIRFunction &calleeCandidate = callMeStmt->GetTargetFunction();
-          std::string fName = calleeCandidate.GetName();
-          if (fName == "MCC_GetOrInsertLiteral" ||
-              fName == "MCC_GetCurrentClassLoader" ||
-              fName == "Native_Thread_currentThread" ||
-              fName == "Native_java_lang_StringFactory_newStringFromBytes___3BIII" ||
-              fName == "Native_java_lang_StringFactory_newStringFromChars__II_3C" ||
-              fName == "Native_java_lang_StringFactory_newStringFromString__Ljava_lang_String_2" ||
-              fName == "Native_java_lang_String_intern__" ||
-              fName == "MCC_StringAppend" ||
-              fName == "MCC_StringAppend_StringInt" ||
-              fName == "MCC_StringAppend_StringJcharString" ||
-              fName == "MCC_StringAppend_StringString") {
-            break;
-          }
-          const MapleVector<MeExpr*> &opnds = callMeStmt->GetOpnds();
-          const size_t size = opnds.size();
-
-          bool isOptIcall =
-              (callMeStmt->GetOp() == OP_interfaceicallassigned || callMeStmt->GetOp() == OP_virtualicallassigned);
-          size_t firstParmIdx = (isOptIcall ? 1 : 0);
-
-          bool isSpecialCall = false;
-          if (fName == "Native_java_lang_Object_clone_Ljava_lang_Object__" ||
-              fName == "Native_java_lang_String_concat__Ljava_lang_String_2" ||
-              fName ==
-                  "Ljava_2Flang_2FAbstractStringBuilder_3B_7CappendCLONEDignoreret_7C_28Ljava_2Flang_2FString_3B_29V" ||
-              StartWith(fName, "Ljava_2Flang_2FAbstractStringBuilder_3B_7Cappend_7C") ||
-              StartWith(fName, "Ljava_2Flang_2FStringBuilder_3B_7Cappend_7C")) {
-            CallMeStmt *call = static_cast<CallMeStmt*>(callMeStmt);
-            CHECK_FATAL(call->GetMustDefList() != nullptr, "funcName: %s", fName.c_str());
-            CHECK_FATAL(call->GetMustDefList()->size() <= 1, "funcName: %s", fName.c_str());
-            if (call->GetMustDefList() != nullptr && call->GetMustDefList()->size() == 0) {
-              break;
-            }
-            isSpecialCall = true;
-          }
-
-          for (size_t i = firstParmIdx; i < size; ++i) {
-            MeExpr *var = opnds[i];
-            // we only solve reference node.
-            if (!IsExprRefOrPtr(*var) || var->GetOp() == OP_add) {
-              continue;
-            }
-            CHECK_NULL_FATAL(eaCG->GetCGNodeFromExpr(var));
-            std::vector<EACGBaseNode*> nodes;
-            GetCGNodeForMeExpr(nodes, *var, *callMeStmt, false);
-            CHECK_FATAL(nodes.size() > 0, "the size must not be zero");
-            for (EACGBaseNode *refNode : nodes) {
-              for (auto objNode : refNode->GetPointsToSet()) {
-                objNode->IncresRCOperations();
-              }
-            }
-            if (isSpecialCall) {
-              break;
-            }
-          }
+          CountSuperclassCallAssignedOpration(stmt);
           break;
         }
         case OP_intrinsiccallwithtypeassigned: {

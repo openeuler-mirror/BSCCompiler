@@ -157,7 +157,7 @@ class SSAPre {
   }
   virtual void CodeMotion();
   // step 5 Finalize methods
-  bool WillBeAvail(MePhiOcc *phiOcc) const {
+  bool WillBeAvail(const MePhiOcc *phiOcc) const {
     if (!workCand->applyMinCut) {
       return phiOcc->IsWillBeAvail();
     }
@@ -222,6 +222,8 @@ class SSAPre {
 
   bool CheckIfAnyLocalOpnd(const MeExpr &meExpr) const;
   void CreateRealOcc(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool insertSorted, bool isLHS = false);
+  MeRealOcc *AddRealOcc(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
+                        bool insertSorted, bool isLHS, PreWorkCand &wkCand);
   virtual bool ScreenPhiBB(BBId bbId) const = 0;
   virtual bool EpreLocalRefVar() const {
     return false;

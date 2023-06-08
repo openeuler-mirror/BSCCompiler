@@ -219,7 +219,7 @@ class MIRSymbol {
 
   bool IsTypeVolatile(int fieldID) const;
 
-  bool NeedGOT(bool doPIE) const;
+  bool NeedGOT(bool isPIC, bool isPIE) const;
 
   bool IsThreadLocal() const {
     return typeAttrs.GetAttr(ATTR_tls_static) || typeAttrs.GetAttr(ATTR_tls_dynamic);
@@ -531,6 +531,14 @@ class MIRSymbol {
   UStrIdx asmAttr { 0 }; // if not 0, the string for the name in C's asm attribute
   UStrIdx sectionAttr { 0 }; // if not 0, the string for the name in C's section attribute
 
+  bool GetAccessByMem() const {
+    return accessByMem;
+  }
+
+  void SetAccessByMem(bool val) {
+    accessByMem = val;
+  }
+
   // Please keep order of the fields, avoid paddings.
  private:
   TyIdx tyIdx{ 0 };
@@ -549,6 +557,7 @@ class MIRSymbol {
   bool appearsInCode = false;  // only used for kStFunc
   bool hasPotentialAssignment = false; // for global static vars, init as false and will be set true
                                        // if assigned by stmt or the address of itself is taken
+  bool accessByMem = false;  // temporary used for tls var the access of which have been transformed to mem offset
   StIdx stIdx { 0, 0 };
   TypeAttrs typeAttrs;
   GStrIdx nameStrIdx{ 0 };

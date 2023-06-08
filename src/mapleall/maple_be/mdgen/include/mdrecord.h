@@ -163,7 +163,7 @@ class VecElement : public MDElement {
 
   ~VecElement() override = default;
 
-  void appendElement(MDElement *curElement) {
+  void AppendElement(MDElement *curElement) {
     vecData.emplace_back(curElement);
   }
 

@@ -194,7 +194,7 @@ class MapleAllocatorAdapter<void> {
   using pointer = void*;
   using const_pointer = const void*;
   template <typename U>
-  struct rebind {
+  struct Rebind {
     using other = MapleAllocatorAdapter<U>;
   };
 
@@ -224,7 +224,7 @@ class MapleAllocatorAdapter {
   using size_type = size_t;
   using difference_type = std::ptrdiff_t;
   template <typename U>
-  struct rebind {
+  struct Rebind {
     using other = MapleAllocatorAdapter<U>;
   };
 

@@ -1352,13 +1352,16 @@ void UpdateMplt::UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) const {
   int64 cgStart = binImport.GetContent(kBinCgStart);
   ASSERT(cgStart != 0, "Should be updated in import processing.");
   binImport.SetBufI(cgStart);
+#if defined(DEBUG) && DEBUG
   int64 checkReadNum = binImport.ReadNum();
-  ASSERT(checkReadNum == kBinCgStart, "Should be cg start point.");
+  CHECK_FATAL(checkReadNum == kBinCgStart, "Should be cg start point.");
   int32 totalSize = binImport.ReadInt();
   constexpr int32 headLen = 4;
   binImport.SetBufI(binImport.GetBufI() + totalSize - headLen);
   checkReadNum = binImport.ReadNum();
   ASSERT(checkReadNum == ~kBinCgStart, "Should be end of cg.");
+#endif
+
   binExport.Init();
   std::map<GStrIdx, uint8> tmp;
   binExport.func2SEMap = &tmp;

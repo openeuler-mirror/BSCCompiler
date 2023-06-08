@@ -29,7 +29,7 @@ int Compiler::Exe(const MplOptions &mplOptions, const Action &action,
     ostrStream << GetBinPath(mplOptions) << GetBinName();
   }
   std::string binPath = ostrStream.str();
-  return SafeExe::Exe(binPath, mplOptions, options);
+  return static_cast<int>(SafeExe::Exe(binPath, mplOptions, options));
 }
 
 std::string Compiler::GetBinPath(const MplOptions &mplOptions) const {
@@ -127,19 +127,18 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
       continue;
     }
     for (const auto &val : opt->GetRawValues()) {
+      std::string optName = "";
       if (opt->GetEqualType() == maplecl::EqualType::kWithEqual) {
-        auto pos = opt->GetName().find('=');
-        if (pos != std::string::npos) {
-          (void)finalOptions.emplace_back(opt->GetName() + val, "");
-        } else {
-          (void)finalOptions.emplace_back(opt->GetName() + "=" + val, "");
-        }
+        optName = StringUtils::GetStrBeforeFirst(opt->rawKey, "=", true) == opt->GetName() ? opt->GetName() :
+          StringUtils::GetStrBeforeLast(opt->rawKey, "=", true);
+        (void)finalOptions.emplace_back(optName + "=" + val, "");
       } else {
-        (void)finalOptions.emplace_back(opt->GetName(), val);
+        optName = opt->GetName();
+        (void)finalOptions.emplace_back(optName, val);
       }
 
       if (isDebug) {
-        LogInfo::MapleLogger() << opt->GetName() << " " << val << " ";
+        LogInfo::MapleLogger() << optName << " " << val << " ";
       }
     }
   }

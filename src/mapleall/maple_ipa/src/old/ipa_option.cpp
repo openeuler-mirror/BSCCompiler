@@ -12,15 +12,16 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "ipa_option.h"
 #include "driver_options.h"
 #include "file_utils.h"
-#include "ipa_option.h"
 #include "mpl_logging.h"
+#include "triple.h"
 
 namespace maple {
 
 namespace opts::ipa {
-  maplecl::Option<bool> help({"--help", "-h"},
+  const maplecl::Option<bool> help({"--help", "-h"},
                         "  -h --help                   \tPrint usage and exit.Available command names:\n",
                         {ipaCategory});
 
@@ -36,11 +37,11 @@ namespace opts::ipa {
                              "  --effectipa                 \tEnable method side effect for ipa\n",
                              {ipaCategory});
 
-  maplecl::Option<std::string> inlinefunclist({"--inlinefunclist", "-inlinefunclist"},
+  const maplecl::Option<std::string> inlinefunclist({"--inlinefunclist", "-inlinefunclist"},
                                          "  --inlinefunclist=           \tInlining related configuration\n",
                                          {ipaCategory});
 
-  maplecl::Option<bool> quiet({"--quiet", "-quiet"},
+  const maplecl::Option<bool> quiet({"--quiet", "-quiet"},
                          "  --quiet                     \tDisable out debug info\n",
                          {ipaCategory});
 }
@@ -51,6 +52,12 @@ IpaOption &IpaOption::GetInstance() {
 }
 
 bool IpaOption::SolveOptions() const {
+  if (::opts::target.IsEnabledByUser()) {
+    Triple::GetTriple().Init(::opts::target.GetValue());
+  } else {
+    Triple::GetTriple().Init();
+  }
+
   if (opts::ipa::help.IsEnabledByUser()) {
     maplecl::CommandLine::GetCommandLine().HelpPrinter(ipaCategory);
     return false;

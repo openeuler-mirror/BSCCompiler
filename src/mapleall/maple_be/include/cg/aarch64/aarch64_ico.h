@@ -31,12 +31,13 @@ class AArch64IfConversionOptimizer : public IfConversionOptimizer {
 class AArch64ICOPattern : public ICOPattern {
  public:
   explicit AArch64ICOPattern(CGFunc &func) : ICOPattern(func) {}
-  ~AArch64ICOPattern() override = default;
+  virtual ~AArch64ICOPattern() = default;
  protected:
   ConditionCode Encode(MOperator mOp, bool inverse) const;
   Insn *BuildCmpInsn(const Insn &condBr) const;
   Insn *BuildCcmpInsn(ConditionCode ccCode, ConditionCode ccCode2, const Insn &cmpInsn, Insn *&moveInsn) const;
   Insn *BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse) const;
+  Insn *BuildCondSetMask(const Insn &branch, RegOperand &reg, bool inverse) const;
   Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2) const;
   static uint32 GetNZCV(ConditionCode ccCode, bool inverse);
   bool CheckMop(MOperator mOperator) const;
@@ -68,7 +69,7 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   bool Optimize(BB &curBB) override;
  protected:
   bool BuildCondMovInsn(const BB &bb, const DestSrcMap &destSrcTempMap, bool elseBBIsProcessed,
-                        std::vector<Insn*> &generateInsn, const Insn *toBeRremoved2CmpBB) const;
+                        std::vector<Insn*> &generateInsn, const Insn *toBeRremoved2CmpBB);
   bool DoOpt(BB *ifBB, BB *elseBB, BB &joinBB);
   void GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest, RegOperand &destReg,
                           std::vector<Insn*> &generateInsn) const;
@@ -83,11 +84,11 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   bool CheckCondMoveBB(BB *bb, std::map<Operand*, std::vector<Operand*>> &destSrcMap,
       std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn, Insn *&toBeRremovedOutOfCurrBB) const;
   bool CheckModifiedInCmpInsn(const Insn &insn, bool movInsnBeforeCmp = false) const;
-  bool DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB) const;
+  bool DoHostBeforeDoCselOpt(BB &ifBB, BB &elseBB);
   void UpdateTemps(std::vector<Operand*> &destRegs, std::vector<Insn*> &setInsn,
       std::map<Operand*, std::vector<Operand*>> &destSrcMap, const Insn &oldInsn, Insn *newInsn) const;
   Insn *MoveSetInsn2CmpBB(Insn &toBeRremoved2CmpBB, BB &currBB,
-      std::map<Operand *, std::vector<Operand *>> &destSrcMap) const;
+      std::map<Operand *, std::vector<Operand *>> &destSrcMap);
   void RevertMoveInsns(BB *bb, Insn *prevInsnInBB, Insn *newInsnOfBB,
       Insn *insnInBBToBeRremovedOutOfCurrBB) const;
   bool IsExpansionMOperator(const Insn &insn) const;
@@ -143,6 +144,55 @@ class AArch64ICOMorePredsPattern : public AArch64ICOPattern {
   bool DoOpt(BB &gotoBB) const;
   bool CheckGotoBB(BB &gotoBB, std::vector<Insn*> &movInsn) const;
   bool MovToCsel(std::vector<Insn*> &movInsn, std::vector<Insn*> &cselInsn, const Insn &branchInsn) const;
+};
+
+// Pattern1: If (cmp) then (mov w0, #-1|#4294967295) else (mov w0, 0) ==> csetm
+//
+// .L.1827__5:
+//     cmp	w0, w1
+//     beq	.L.1827__40
+// .L.1827__29:
+//     mov	w0, #0                           .L.1827__5:
+//     b	  .L.1827__42                          cmp	  w0, w1
+// ......                      =====>            csetm	w0, eq
+// .L.1827__40:                                  b      .L.1827__42
+//     mov	w0, #-1
+// .L.1827__42:
+// ......
+//
+// Pattern2: If (cmp) then (mov w0, #1) else (mov w0, 0) ==> cset
+//
+// .L.1698__6:
+//     cmp	w0, w1
+//     bne	.L.1698__8                       .L.1698__6:
+// .L.1698__7:                                   cmp	w0, w1
+//     mov	w0, #1             =====>            cset	w0, eq
+//     b	.L.1698__10                            b	.L.1698__10
+// ......
+// .L.1698__8:
+//     mov	w0, #0
+// .L.1698__10:
+// ......
+//
+class AArch64ICOCondSetPattern : public AArch64ICOPattern {
+ public:
+  explicit AArch64ICOCondSetPattern(CGFunc &func) : AArch64ICOPattern(func) {}
+  ~AArch64ICOCondSetPattern() override = default;
+  bool Optimize(BB &curBB) override;
+ protected:
+  bool DoOpt(BB &curBB) const;
+  bool CheckMovGotoBB(BB &gtBB);
+  bool CheckMovFallthruBB(BB &ftBB);
+  Insn *BuildNewInsn(ImmOperand &immOpnd1, ImmOperand &immOpnd2, Insn &bInsn, RegOperand &dest, bool is32Bits) const;
+ private:
+  BB *firstMovBB = nullptr;
+  BB *secondMovBB = nullptr;
+  Insn *firstMovInsn = nullptr;
+  Insn *secondMovInsn = nullptr;
+  // curBrInsn is last branch insn in curBB, which is 'beq .L.1827__40' in pattern1 above.
+  Insn *curBrInsn = nullptr;
+  // brInsn is last branch insn in firstMovBB, which is 'b .L.1827__42' in pattern1 above.
+  Insn *brInsn = nullptr;
 };
 }  /* namespace maplebe */
 

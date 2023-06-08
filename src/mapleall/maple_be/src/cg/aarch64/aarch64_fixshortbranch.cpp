@@ -128,7 +128,7 @@ void AArch64FixShortBranch::FixShortBranches() const {
   } while (change);
 }
 
-uint32 GetLabelIdx(Insn &insn) {
+uint32 GetLabelIdx(const Insn &insn) {
   uint32 res = 0;
   uint32 foundCount = 0;
   for (uint32 i = 0; i < insn.GetOperandSize(); ++i) {

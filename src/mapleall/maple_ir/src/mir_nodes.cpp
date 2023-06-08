@@ -308,17 +308,14 @@ BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
           (static_cast<BlockNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     } else if (stmt.GetOpCode() == OP_if) {
       newStmt = static_cast<StmtNode*>(
-          (static_cast<IfStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs,
-                                                                static_cast<uint64_t>(numer), denom, updateOp));
+          (static_cast<IfStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     } else if (stmt.GetOpCode() == OP_while) {
       newStmt = static_cast<StmtNode*>(
-          (static_cast<WhileStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator,
-                                                                   toFreqs, fromFreqs, static_cast<uint64_t>(numer),
+          (static_cast<WhileStmtNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer,
                                                                    denom, updateOp));
     } else if (stmt.GetOpCode() == OP_doloop) {
       newStmt = static_cast<StmtNode*>(
-          (static_cast<DoloopNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs,
-                                                                static_cast<uint64_t>(numer), denom, updateOp));
+          (static_cast<DoloopNode*>(&stmt))->CloneTreeWithFreqs(allocator, toFreqs, fromFreqs, numer, denom, updateOp));
     } else {
       newStmt = static_cast<StmtNode*>(stmt.CloneTree(allocator));
       if (fromFreqs.count(stmt.GetStmtID()) > 0) {

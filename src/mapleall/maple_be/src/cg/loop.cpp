@@ -13,671 +13,142 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "loop.h"
-#include "cg.h"
 #include "optimize_common.h"
 
+// This phase analyses the CFG and identify the loops. The implementation is
+// based on the idea that, given two basic block a and b, if b is a's pred and
+// a dominates b, then there is a loop from a to b. Loop identification is done
+// in a preorder traversal of the dominator tree. In this order, outer loop is
+// always detected before its nested loop(s). The building of the LoopDesc data
+// structure takes advantage of this ordering.
 namespace maplebe {
-#define LOOP_ANALYSIS_DUMP_NEWPM CG_DEBUG_FUNC(f)
-
-static void PrintLoopInfo(const LoopHierarchy &loop) {
-  LogInfo::MapleLogger() << "header " << loop.GetHeader()->GetId();
-  if (loop.GetOtherLoopEntries().size() != 0) {
-    LogInfo::MapleLogger() << " multi-header ";
-    for (auto en : loop.GetOtherLoopEntries()) {
-      LogInfo::MapleLogger() << en->GetId() << " ";
+void LoopDesc::Dump() const {
+  LogInfo::MapleLogger() << "LoopDesc:" << header.GetId() << ", nest depth:" << nestDepth;
+  if (parentLoop != nullptr) {
+    LogInfo::MapleLogger() << ", parent:" << parentLoop->GetHeader().GetId();
+  }
+  LogInfo::MapleLogger() << "\n\tbackedge:";
+  for (auto bbId : backEdges) {
+    LogInfo::MapleLogger() << bbId << " ";
+  }
+  LogInfo::MapleLogger() << "\n\tmembers:";
+  for (auto bbId : loopBBs) {
+    LogInfo::MapleLogger() << bbId << " ";
+  }
+  LogInfo::MapleLogger() << "\n\texitBB:";
+  for (auto bbId : exitBBs) {
+    LogInfo::MapleLogger() << bbId << " ";
+  }
+  if (!childLoops.empty()) {
+    LogInfo::MapleLogger() << "\n\tchild loops:";
+    for (auto *childLoop : childLoops) {
+      LogInfo::MapleLogger() << childLoop->GetHeader().GetId() << " ";
     }
   }
-  if (loop.GetOuterLoop() != nullptr) {
-    LogInfo::MapleLogger() << " parent " << loop.GetOuterLoop()->GetHeader()->GetId();
-  }
-  LogInfo::MapleLogger() << " backedge ";
-  for (auto *bb : loop.GetBackedge()) {
-    LogInfo::MapleLogger() << bb->GetId() << " ";
-  }
-  LogInfo::MapleLogger() << "\n members ";
-  for (auto *bb : loop.GetLoopMembers()) {
-    LogInfo::MapleLogger() << bb->GetId() << " ";
-  }
-  if (!loop.GetInnerLoops().empty()) {
-    LogInfo::MapleLogger() << "\n inner_loop_headers ";
-    for (auto *inner : loop.GetInnerLoops()) {
-      LogInfo::MapleLogger() << inner->GetHeader()->GetId() << " ";
-    }
-  }
-  LogInfo::MapleLogger() << "\n";
+  LogInfo::MapleLogger() << "\n\n";
 }
 
-static void PrintInner(const LoopHierarchy &loop, uint32 level) {
-  for (auto *inner : loop.GetInnerLoops()) {
-    LogInfo::MapleLogger() << "loop-level-" << level << "\n";
-    PrintLoopInfo(*inner);
-    PrintInner(*inner, level + 1);
+LoopDesc *LoopAnalysis::GetOrCreateLoopDesc(BB &headBB) {
+  auto *loop = bbLoopParent[headBB.GetId()];
+  if (loop == nullptr || loop->GetHeader().GetId() != headBB.GetId()) {
+    // If the headBB is not in loop or loop's header is not the headBB, create a new loop.
+    loop = alloc.New<LoopDesc>(alloc, headBB);
+    loops.push_back(loop);
   }
+  return loop;
 }
 
-void LoopHierarchy::PrintLoops(const std::string &name) const {
-  LogInfo::MapleLogger() << name << "\n";
-  for (const LoopHierarchy *loop = this; loop != nullptr; loop = loop->next) {
-    PrintLoopInfo(*loop);
+void LoopAnalysis::SetLoopParent4BB(const BB &bb, LoopDesc &loopDesc) {
+  if (bbLoopParent[bb.GetId()] != nullptr && bbLoopParent[bb.GetId()] != &loopDesc) {
+    if (loopDesc.GetParentLoop() == nullptr) {
+      loopDesc.SetParentLoop(*bbLoopParent[bb.GetId()]);
+      ASSERT_NOT_NULL(loopDesc.GetParentLoop());
+      loopDesc.GetParentLoop()->InsertChildLoops(loopDesc);
+      loopDesc.SetNestDepth(loopDesc.GetParentLoop()->GetNestDepth() + 1);
+    }
   }
-  for (const LoopHierarchy *loop = this; loop != nullptr; loop = loop->next) {
-    PrintInner(*loop, 1);
-  }
+  loopDesc.InsertLoopBBs(bb);
+  bbLoopParent[bb.GetId()] = &loopDesc;
 }
 
-void CGFuncLoops::CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &iLoops,
-                                             const MapleVector<BB*> &loopMem) const {
-  for (auto iloop : iLoops) {
-    CHECK_FATAL(iloop->loopMembers.size() > 0, "Empty loop");
-    for (auto bb: iloop->loopMembers) {
-      if (find(loopMem.begin(), loopMem.end(), bb) != loopMem.end()) {
-        LogInfo::MapleLogger() << "Error: inconsistent loop member";
-        CHECK_FATAL(0, "loop member overlap with inner loop");
-      }
-    }
-    CheckOverlappingInnerLoops(iloop->innerLoops, loopMem);
-  }
-}
-
-void CGFuncLoops::CheckLoops() const {
-  // Make sure backedge -> header relationship holds
-  for (auto bEdge: backedge) {
-    if (find(bEdge->GetSuccs().begin(), bEdge->GetSuccs().end(), header) == bEdge->GetSuccs().end()) {
-      bool inOtherEntry = false;
-      for (auto entry: multiEntries) {
-        if (find(bEdge->GetSuccs().begin(), bEdge->GetSuccs().end(), entry) != bEdge->GetSuccs().end()) {
-          inOtherEntry = true;
-          break;
-        }
-      }
-      if (!inOtherEntry) {
-        if (find(bEdge->GetEhSuccs().begin(), bEdge->GetEhSuccs().end(), header) == bEdge->GetEhSuccs().end()) {
-          LogInfo::MapleLogger() << "Error: inconsistent loop backedge";
-          CHECK_FATAL(0, "loop backedge does not go to loop header");
-        }
-      }
-    }
-    if (find(header->GetPreds().begin(), header->GetPreds().end(), bEdge) == header->GetPreds().end()) {
-      bool inOtherEntry = false;
-      for (auto entry: multiEntries) {
-        if (find(entry->GetPreds().begin(), entry->GetPreds().end(), bEdge) != entry->GetPreds().end()) {
-          inOtherEntry = true;
-          break;
-        }
-      }
-      if (!inOtherEntry) {
-        if (find(header->GetEhPreds().begin(), header->GetEhPreds().end(), bEdge) == header->GetEhPreds().end()) {
-          LogInfo::MapleLogger() << "Error: inconsistent loop header";
-          CHECK_FATAL(0, "loop header does not have a backedge");
-        }
-      }
-    }
-  }
-
-  // Make sure containing loop members do not overlap
-  CheckOverlappingInnerLoops(innerLoops, loopMembers);
-
-  if (!innerLoops.empty()) {
-    for (auto lp : innerLoops) {
-      lp->CheckLoops();
-    }
-  }
-}
-
-void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
-  LogInfo::MapleLogger() << "loop_level(" << funcLoop.loopLevel << ") ";
-  LogInfo::MapleLogger() << "header " << funcLoop.GetHeader()->GetId() << " ";
-  if (funcLoop.multiEntries.size() != 0) {
-    LogInfo::MapleLogger() << "other-header ";
-    for (auto bb : funcLoop.multiEntries) {
-      LogInfo::MapleLogger() << bb->GetId() << " ";
-    }
-  }
-  if (funcLoop.GetOuterLoop() != nullptr) {
-    LogInfo::MapleLogger() << "parent " << funcLoop.GetOuterLoop()->GetHeader()->GetId() << " ";
-  }
-  LogInfo::MapleLogger() << "backedge ";
-  for (auto *bb : funcLoop.GetBackedge()) {
-    LogInfo::MapleLogger() << bb->GetId() << " ";
-  }
-  LogInfo::MapleLogger() << "\n members ";
-  for (auto *bb : funcLoop.GetLoopMembers()) {
-    LogInfo::MapleLogger() << bb->GetId() << " ";
-  }
-  LogInfo::MapleLogger() << "\n exits ";
-  for (auto *bb : funcLoop.GetExits()) {
-    LogInfo::MapleLogger() << bb->GetId() << " ";
-  }
-  LogInfo::MapleLogger() << "\n";
-  if (!funcLoop.GetInnerLoops().empty()) {
-    LogInfo::MapleLogger() << " inner_loop_headers ";
-    for (auto *inner : funcLoop.GetInnerLoops()) {
-      LogInfo::MapleLogger() << inner->GetHeader()->GetId() << " ";
-    }
-    LogInfo::MapleLogger() << "\n";
-    for (auto *inner : funcLoop.GetInnerLoops()) {
-      PrintLoops(*inner);
-    }
-  }
-}
-
-bool CGFuncLoops::IsBBLoopMember(const BB *bb) const {
-  return (*(std::find(loopMembers.begin(), loopMembers.end(), bb)) == bb);
-}
-
-// partial loop body found with formLoop is NOT really needed in down stream
-//       It should be simplied later
-void LoopFinder::FormLoop(BB &headBB, BB &backBB) {
-  LoopHierarchy *simpleLoop = memPool->New<LoopHierarchy>(*memPool);
-
-  if (&headBB != &backBB) {
-    ASSERT(!dfsBBs.empty(), "dfsBBs is empty");
-    ASSERT(onPathBBs[headBB.GetId()], "headBB is not on execution path");
-    std::stack<BB*> tempStk;
-
-    tempStk.push(dfsBBs.top());
-    dfsBBs.pop();
-
-    while (tempStk.top() != &headBB && !dfsBBs.empty()) {
-      tempStk.push(dfsBBs.top());
-      dfsBBs.pop();
-    }
-
-    while (!tempStk.empty()) {
-      BB *topBB = tempStk.top();
-      tempStk.pop();
-
-      if (onPathBBs[topBB->GetId()]) {
-        simpleLoop->InsertLoopMembers(*topBB);
-      }
-      dfsBBs.push(topBB);
-    }
-  }
-  // Note: backBB is NOT on dfsBBs
-  simpleLoop->InsertLoopMembers(backBB);
-  simpleLoop->SetHeader(headBB);
-  simpleLoop->InsertBackedge(backBB);
-  simpleLoop->InsertBackBBEdge(backBB, headBB);
-
-  if (loops) {
-    loops->SetPrev(simpleLoop);
-  }
-  simpleLoop->SetNext(loops);
-  loops = simpleLoop;
-}
-
-void LoopFinder::SeekBackEdge(BB &bb, MapleList<BB*> succs) {
-  for (const auto succBB : succs) {
-    if (!visitedBBs[succBB->GetId()]) {
-      dfsBBs.push(succBB);
-    } else {
-      if (onPathBBs[succBB->GetId()]) {
-        FormLoop(*succBB, bb);
-        bb.PushBackLoopSuccs(*succBB);
-        succBB->PushBackLoopPreds(bb);
-      }
-    }
-  }
-}
-
-void LoopFinder::SeekCycles() {
-  while (!dfsBBs.empty()) {
-    BB *bb = dfsBBs.top();
-    if (visitedBBs[bb->GetId()]) {
-      onPathBBs[bb->GetId()] = false;
-      dfsBBs.pop();
-      continue;
-    }
-
-    visitedBBs[bb->GetId()] = true;
-    onPathBBs[bb->GetId()] = true;
-    SeekBackEdge(*bb, bb->GetSuccs());
-    SeekBackEdge(*bb, bb->GetEhSuccs());
-  }
-}
-
-void LoopFinder::MarkExtraEntryAndEncl() {
-  ASSERT(dfsBBs.empty(), "dfsBBs is NOT empty");
-  std::vector<BB *> loopEnclosure;
-  loopEnclosure.resize(cgFunc->NumBBs());
-  std::vector<bool> startProcess;
-  startProcess.resize(cgFunc->NumBBs());
-  std::vector<BB *> origEntries;
-  origEntries.resize(cgFunc->NumBBs());
-  std::vector<BB *> newEntries;
-  newEntries.resize(cgFunc->NumBBs());
-
-  for (LoopHierarchy *loop = loops; loop != nullptr; loop = loop->GetNext()) {
-    fill(visitedBBs.begin(), visitedBBs.end(), false);
-    fill(loopEnclosure.begin(), loopEnclosure.end(), nullptr);
-    fill(startProcess.begin(), startProcess.end(), false);
-    fill(origEntries.begin(), origEntries.end(), nullptr);
-    fill(newEntries.begin(), newEntries.end(), nullptr);
-
-    for (auto *bb : loop->GetLoopMembers()) {
-      loopEnclosure[bb->GetId()] = bb;
-    }
-    origEntries[loop->GetHeader()->GetId()] = loop->GetHeader();
-
-    // Form loop closure from the primary entry. At end collect all other entries
-    bool changed = false;
-    dfsBBs.push(loop->GetHeader());
-    while (true) {
-      while (!dfsBBs.empty()) {
-        BB *bb = dfsBBs.top();
-        visitedBBs[bb->GetId()] = true;
-        if (startProcess[bb->GetId()]) {
-          dfsBBs.pop();
-          for (const auto succBB : bb->GetSuccs()) {
-            if (loopEnclosure[bb->GetId()] == nullptr &&
-                loopEnclosure[succBB->GetId()] != nullptr &&
-                succBB != loop->GetHeader()) {
-              changed = true;
-              loopEnclosure[bb->GetId()] = bb;
-              break;
-            }
-          }
-          continue;
-        } else {
-          startProcess[bb->GetId()] = true;
-          for (const auto succBB : bb->GetSuccs()) {
-            if (!visitedBBs[succBB->GetId()]) {
-              dfsBBs.push(succBB);
-            }
-          }
-        }
-      }
-
-      // Repeat till no new item is added in
-      if (changed) {
-        dfsBBs.push(loop->GetHeader());
-        changed = false;
-        fill(visitedBBs.begin(), visitedBBs.end(), false);
-        fill(startProcess.begin(), startProcess.end(), false);
+void LoopAnalysis::SetExitBBs(LoopDesc &loop) const {
+  // if loopBBs succs not in the loop, the succs is the loop's exitBB
+  for (auto bbId : loop.GetLoopBBs()) {
+    auto *bb = cgFunc.GetBBFromID(bbId);
+    for (auto *succ : bb->GetAllSuccs()) {
+      if (loop.Has(*succ)) {
         continue;
       }
-
-      // Collect all entries
-      bool foundNewEntry = false;
-      fill(visitedBBs.begin(), visitedBBs.end(), false);
-      FOR_ALL_BB(bb, cgFunc) {
-        if (!visitedBBs[bb->GetId()]) {
-          dfsBBs.push(bb);
-          visitedBBs[bb->GetId()] = true;
-          while (!dfsBBs.empty()) {
-            BB *currBB = dfsBBs.top();
-            visitedBBs[currBB->GetId()] = true;
-            dfsBBs.pop();
-            for (const auto succBB : currBB->GetSuccs()) {
-              // check if entering a loop.
-              if ((loopEnclosure[succBB->GetId()] != nullptr) &&
-                  (loopEnclosure[currBB->GetId()] == nullptr)) {
-                newEntries[succBB->GetId()] = succBB;
-                if (origEntries[succBB->GetId()] == nullptr) {
-                  foundNewEntry = true;
-                }
-              }
-              if (!visitedBBs[succBB->GetId()]) {
-                dfsBBs.push(succBB);
-              }
-            }
-          }
-        }
-      }
-      if (foundNewEntry) {
-        origEntries = newEntries;
-        for (const auto bb : newEntries) {
-          if (bb != nullptr) {
-            dfsBBs.push(bb);
-          }
-        }
-        fill(visitedBBs.begin(), visitedBBs.end(), false);
-        fill(startProcess.begin(), startProcess.end(), false);
-        fill(newEntries.begin(), newEntries.end(), nullptr);
-      } else {
-        break;
-      }
-    }
-
-    // Setup loop body
-    for (size_t id = 0; id < loopEnclosure.size(); id++) {
-      if (loopEnclosure[id] != nullptr) {
-        loop->InsertLoopMembers(*loopEnclosure[id]);
-      }
-    }
-
-    // Setup head and extra entries
-    for (const auto bb : newEntries) {
-      if (bb != nullptr) {
-        loop->InsertBBToOtherLoopEntries(bb);
-      }
-    }
-    loop->EraseBBFromOtherLoopEntries(loop->GetHeader());
-  }
-}
-
-bool LoopFinder::HasSameHeader(const LoopHierarchy &lp1, const LoopHierarchy &lp2) const {
-  if (lp1.GetHeader() == lp2.GetHeader()) {
-    return true;
-  }
-  for (auto other1 : lp1.GetOtherLoopEntries()) {
-    if (lp2.GetHeader() == other1) {
-      return true;
-    }
-    for (auto other2 : lp2.GetOtherLoopEntries()) {
-      if (other2 == other1) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-void LoopFinder::MergeLoops() const {
-  for (LoopHierarchy *loopHierarchy1 = loops; loopHierarchy1 != nullptr; loopHierarchy1 = loopHierarchy1->GetNext()) {
-    for (LoopHierarchy *loopHierarchy2 = loopHierarchy1->GetNext(); loopHierarchy2 != nullptr;
-         loopHierarchy2 = loopHierarchy2->GetNext()) {
-      // Different loop bodies imply different loops
-      bool sameLoop = true;
-      if (loopHierarchy1->GetLoopMembers().size() == loopHierarchy2->GetLoopMembers().size()) {
-        for (auto *bb : loopHierarchy2->GetLoopMembers()) {
-          if (find(loopHierarchy1->GetLoopMembers().begin(), loopHierarchy1->GetLoopMembers().end(), bb) ==
-              loopHierarchy1->GetLoopMembers().end()) {
-            sameLoop = false;
-            break;
-          }
-        }
-        if (sameLoop) {
-          for (auto *bb : loopHierarchy1->GetLoopMembers()) {
-            if (find(loopHierarchy2->GetLoopMembers().begin(), loopHierarchy2->GetLoopMembers().end(), bb) ==
-                loopHierarchy2->GetLoopMembers().end()) {
-              sameLoop = false;
-              break;
-            }
-          }
-        }
-        if (sameLoop) {
-          loopHierarchy2->GetPrev()->SetNext(loopHierarchy2->GetNext());
-          if (loopHierarchy2->GetNext() != nullptr) {
-            loopHierarchy2->GetNext()->SetPrev(loopHierarchy2->GetPrev());
-          }
-          continue;
-        }
-      }
-      if (!HasSameHeader(*loopHierarchy1, *loopHierarchy2)) {
-        continue;
-      }
-      for (auto *bb : loopHierarchy2->GetLoopMembers()) {
-        loopHierarchy1->InsertLoopMembers(*bb);
-      }
-      if (loopHierarchy1->GetHeader() != loopHierarchy2->GetHeader()) {
-        loopHierarchy1->InsertBBToOtherLoopEntries(loopHierarchy2->GetHeader());
-      }
-      for (auto bb : loopHierarchy2->GetOtherLoopEntries()) {
-        if (loopHierarchy1->GetHeader() != bb) {
-          loopHierarchy1->InsertBBToOtherLoopEntries(bb);
-        }
-      }
-      for (auto *bb : loopHierarchy2->GetBackedge()) {
-        loopHierarchy1->InsertBackedge(*bb);
-      }
-      loopHierarchy2->GetPrev()->SetNext(loopHierarchy2->GetNext());
-      if (loopHierarchy2->GetNext() != nullptr) {
-        loopHierarchy2->GetNext()->SetPrev(loopHierarchy2->GetPrev());
-      }
+      loop.InsertExitBBs(*succ);
     }
   }
 }
 
-void LoopFinder::SortLoops() {
-  LoopHierarchy *head = nullptr;
-  LoopHierarchy *next1 = nullptr;
-  LoopHierarchy *next2 = nullptr;
-  bool swapped;
-  do {
-    swapped = false;
-    for (LoopHierarchy *loopHierarchy1 = loops; loopHierarchy1 != nullptr;) {
-      /* remember loopHierarchy1's prev in case if loopHierarchy1 moved */
-      head = loopHierarchy1;
-      next1 = loopHierarchy1->GetNext();
-      for (LoopHierarchy *loopHierarchy2 = loopHierarchy1->GetNext(); loopHierarchy2 != nullptr;) {
-        next2 = loopHierarchy2->GetNext();
-
-        if (loopHierarchy1->GetLoopMembers().size() > loopHierarchy2->GetLoopMembers().size()) {
-          if (head->GetPrev() == nullptr) {
-            /* remove loopHierarchy2 from list */
-            loopHierarchy2->GetPrev()->SetNext(loopHierarchy2->GetNext());
-            if (loopHierarchy2->GetNext() != nullptr) {
-              loopHierarchy2->GetNext()->SetPrev(loopHierarchy2->GetPrev());
-            }
-            /* link loopHierarchy2 as head */
-            loops = loopHierarchy2;
-            loopHierarchy2->SetPrev(nullptr);
-            loopHierarchy2->SetNext(head);
-            head->SetPrev(loopHierarchy2);
-          } else {
-            loopHierarchy2->GetPrev()->SetNext(loopHierarchy2->GetNext());
-            if (loopHierarchy2->GetNext() != nullptr) {
-              loopHierarchy2->GetNext()->SetPrev(loopHierarchy2->GetPrev());
-            }
-            head->GetPrev()->SetNext(loopHierarchy2);
-            loopHierarchy2->SetPrev(head->GetPrev());
-            loopHierarchy2->SetNext(head);
-            head->SetPrev(loopHierarchy2);
-          }
-          head = loopHierarchy2;
-          swapped = true;
-        }
-        loopHierarchy2 = next2;
-      }
-      loopHierarchy1 = next1;
-    }
-  } while (swapped);
-}
-
-void LoopFinder::UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer) {
-  if (outer == nullptr) {
+void LoopAnalysis::ProcessBB(BB &bb) {
+  if (&bb == cgFunc.GetCommonExitBB()) {
     return;
   }
-  for (auto ito = outer->GetLoopMembers().begin(); ito != outer->GetLoopMembers().end();) {
-    if (*ito == bb) {
-      ito = outer->EraseLoopMembers(ito);
-    } else {
-      ++ito;
+
+  // generate loop based on the dom information
+  for (auto *pred : bb.GetAllPreds()) {
+    if (!dom.Dominate(bb, *pred)) {
+      continue;
     }
-  }
-  if (outer->GetOuterLoop() != nullptr) {
-    UpdateOuterForInnerLoop(bb, outer->GetOuterLoop());
-  }
-}
-
-void LoopFinder::UpdateOuterLoop(LoopHierarchy *loop) {
-  for (auto inner : loop->GetInnerLoops()) {
-    UpdateOuterLoop(inner);
-  }
-  for (auto *bb : loop->GetLoopMembers()) {
-    UpdateOuterForInnerLoop(bb, loop->GetOuterLoop());
-  }
-}
-
-void LoopFinder::CreateInnerLoop(LoopHierarchy &inner, LoopHierarchy &outer) {
-  outer.InsertInnerLoops(inner);
-  inner.SetOuterLoop(outer);
-  if (loops == &inner) {
-    loops = inner.GetNext();
-  } else {
-    LoopHierarchy *prev = loops;
-    for (LoopHierarchy *loopHierarchy1 = loops->GetNext(); loopHierarchy1 != nullptr;
-         loopHierarchy1 = loopHierarchy1->GetNext()) {
-      if (loopHierarchy1 == &inner) {
-        prev->SetNext(prev->GetNext()->GetNext());
+    auto *loop = GetOrCreateLoopDesc(bb);
+    loop->InsertBackEdges(*pred);
+    std::list<BB*> bodyList;
+    bodyList.push_back(pred);
+    while (!bodyList.empty()) {
+      auto *curBB = bodyList.front();
+      bodyList.pop_front();
+      // skip bb or if it has already been dealt with
+      if (curBB == &bb || loop->Has(*curBB)) {
+        continue;
       }
-      prev = loopHierarchy1;
-    }
-  }
-}
-
-static void FindLoopExits(LoopHierarchy *loop) {
-  for (auto *bb : loop->GetLoopMembers()) {
-    for (auto succ : bb->GetSuccs()) {
-      if (find(loop->GetLoopMembers().begin(), loop->GetLoopMembers().end(), succ) == loop->GetLoopMembers().end()) {
-        loop->InsertExit(*bb);
+      SetLoopParent4BB(*curBB, *loop);
+      for (auto *curPred : curBB->GetAllPreds()) {
+        bodyList.push_back(curPred);
       }
     }
+    SetLoopParent4BB(bb, *loop);
+    SetExitBBs(*loop);
   }
-  for (auto *inner : loop->GetInnerLoops()) {
-    FindLoopExits(inner);
+
+  // process dom tree
+  for (auto domChildBBId : dom.GetDomChildren(bb.GetId())) {
+    ProcessBB(*cgFunc.GetBBFromID(domChildBBId));
   }
 }
 
-void LoopFinder::DetectInnerLoop() {
-  for (LoopHierarchy *loop = loops; loop != nullptr; loop = loop->GetNext()) {
-    FindLoopExits(loop);
-  }
-  bool innerCreated;
-  do {
-    innerCreated = false;
-    for (LoopHierarchy *loopHierarchy1 = loops; loopHierarchy1 != nullptr;
-         loopHierarchy1 = loopHierarchy1->GetNext()) {
-      for (LoopHierarchy *loopHierarchy2 = loopHierarchy1->GetNext(); loopHierarchy2 != nullptr;
-           loopHierarchy2 = loopHierarchy2->GetNext()) {
-        if (loopHierarchy1->GetHeader() != loopHierarchy2->GetHeader()) {
-          const auto &loopHierarchy2Members = loopHierarchy2->GetLoopMembers();
-          if (find(loopHierarchy2Members.begin(), loopHierarchy2Members.end(), loopHierarchy1->GetHeader()) !=
-              loopHierarchy2Members.end()) {
-            bool allin = true;
-            // Make sure body is included
-            for (auto *bb1 : loopHierarchy1->GetLoopMembers()) {
-              if (find(loopHierarchy2Members.begin(), loopHierarchy2Members.end(), bb1) ==
-                  loopHierarchy2Members.end()) {
-                allin = false;
-                break;
-              }
-            }
-            if (allin) {
-              CreateInnerLoop(*loopHierarchy1, *loopHierarchy2);
-              innerCreated = true;
-            }
-          }
-          if (innerCreated) {
-            break;
-          }
-        }
-      }
-      if (innerCreated) {
-        break;
-      }
+void LoopAnalysis::Analysis() {
+  std::vector<BB*> entryBBs;
+  FOR_ALL_BB(bb, (&cgFunc)) {
+    if (bb->GetAllPreds().size() == 0) {
+      entryBBs.push_back(bb);
     }
-  } while (innerCreated);
+  }
 
-  for (LoopHierarchy *outer = loops; outer != nullptr; outer = outer->GetNext()) {
-    UpdateOuterLoop(outer);
+  for (auto *bb : entryBBs) {
+    ProcessBB(*bb);
   }
 }
 
-static void CopyLoopInfo(const LoopHierarchy &from, CGFuncLoops &to, CGFuncLoops *parent, MemPool &memPool) {
-  to.SetHeader(*from.GetHeader());
-  for (auto bb : from.GetOtherLoopEntries()) {
-    to.AddMultiEntries(*bb);
-  }
-  for (auto *bb : from.GetLoopMembers()) {
-    to.AddLoopMembers(*bb);
-    bb->SetLoop(&to);
-  }
-  for (auto *bb : from.GetBackedge()) {
-    to.AddBackedge(*bb);
-  }
-  for (auto &backPair : from.GetBackBBEdges()) {
-    CHECK_FATAL(backPair.first != nullptr, "get invalid backEdge info");
-    CHECK_FATAL(!backPair.second->empty(), "get invalid backEdge info");
-    for (auto headers : *(backPair.second)) {
-      to.AddBackBBEdge(*backPair.first, *headers);
-    }
-  }
-  for (auto *bb : from.GetExits()) {
-    to.AddExit(*bb);
-  }
-  if (!from.GetInnerLoops().empty()) {
-    for (auto *inner : from.GetInnerLoops()) {
-      auto *floop = memPool.New<CGFuncLoops>(memPool);
-      to.AddInnerLoops(*floop);
-      floop->SetLoopLevel(to.GetLoopLevel() + 1);
-      CopyLoopInfo(*inner, *floop, &to, memPool);
-    }
-  }
-  if (parent != nullptr) {
-    to.SetOuterLoop(*parent);
-  }
-}
-
-void LoopFinder::UpdateCGFunc() const {
-  for (LoopHierarchy *loop = loops; loop != nullptr; loop = loop->GetNext()) {
-    auto *floop = cgFunc->GetMemoryPool()->New<CGFuncLoops>(*cgFunc->GetMemoryPool());
-    cgFunc->PushBackLoops(*floop);
-    floop->SetLoopLevel(1);    /* top level */
-    CopyLoopInfo(*loop, *floop, nullptr, *cgFunc->GetMemoryPool());
-  }
-}
-
-void LoopFinder::FormLoopHierarchy() {
-  visitedBBs.clear();
-  visitedBBs.resize(cgFunc->NumBBs(), false);
-  sortedBBs.clear();
-  sortedBBs.resize(cgFunc->NumBBs(), nullptr);
-  onPathBBs.clear();
-  onPathBBs.resize(cgFunc->NumBBs(), false);
-
-  FOR_ALL_BB(bb, cgFunc) {
-    bb->SetLevel(0);
-    // Loop analysis inserts info into common objects in the entire CG phase(CGFunc & BB ...),
-    // before re-analysis, the info must be cleared.
-    // It needs to be rectified in the future, infos after loop analysis are stored in the result,
-    // instead of the common object.
-    bb->SetLoop(nullptr);
-  }
-  bool changed;
-  do {
-    changed = false;
-    FOR_ALL_BB(bb, cgFunc) {
-      if (!visitedBBs[bb->GetId()]) {
-        dfsBBs.push(bb);
-        SeekCycles();
-        changed = true;
-      }
-    }
-  } while (changed);
-
-  MarkExtraEntryAndEncl();
-  /*
-   * FIX : Should merge the partial loops at the time of initial
-   * construction.  And make the linked list as a sorted set,
-   * then the merge and sort phases below can go away.
-   *
-   * Start merging the loops with the same header
-   */
-  MergeLoops();
-  /* order loops from least number of members */
-  SortLoops();
-  DetectInnerLoop();
-  UpdateCGFunc();
+void CgLoopAnalysis::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<CgDomAnalysis>();
+  aDep.SetPreservedAll();
 }
 
 bool CgLoopAnalysis::PhaseRun(maplebe::CGFunc &f) {
-  f.ClearLoopInfo();
-  MemPool *loopMemPool = GetPhaseMemPool();
-  LoopFinder *loopFinder = loopMemPool->New<LoopFinder>(f, *loopMemPool);
-  loopFinder->FormLoopHierarchy();
-
-  if (LOOP_ANALYSIS_DUMP_NEWPM) {
-    /* do dot gen after detection so the loop backedge can be properly colored using the loop info */
+  auto *domInfo = GET_ANALYSIS(CgDomAnalysis, f);
+  auto *memPool = GetPhaseMemPool();
+  loop = memPool->New<LoopAnalysis>(f, *memPool, *domInfo);
+  loop->Analysis();
+  if (CG_DEBUG_FUNC(f)) {
+    loop->Dump();
+    // do dot gen after detection so the loop backedge can be properly colored using the loop info
     DotGenerator::GenerateDot("buildloop", f, f.GetMirModule(), true, f.GetName());
   }
-#if DEBUG
-  for (const auto *lp : f.GetLoops()) {
-    lp->CheckLoops();
-  }
-#endif
   return false;
 }
 MAPLE_ANALYSIS_PHASE_REGISTER(CgLoopAnalysis, loopanalysis)
-}  /* namespace maplebe */
+}  // namespace maplebe

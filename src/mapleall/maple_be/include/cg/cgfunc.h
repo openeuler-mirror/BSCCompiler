@@ -88,6 +88,7 @@ class SpillMemOperandSet {
 };
 
 class MPISel;
+class LoopAnalysis;
 
 #if defined(TARGARM32) && TARGARM32
 class LiveRange;
@@ -204,14 +205,16 @@ class CGFunc {
   void SetMaxRegNum(uint32 num) {
     vReg.SetMaxRegCount(num);
   }
-  void IncMaxRegNum(uint32 num) {
+  void IncMaxRegNum(uint32 num) const {
     vReg.IncMaxRegCount(num);
+  }
+  // Attention! Do not invoke this interface in other processes except unit-test
+  void SetMaxVReg(uint32 num) const {
+    vReg.SetCount(num);
   }
   void DumpCFG() const;
   void DumpBBInfo(const BB *bb) const;
   void DumpCGIR() const;
-  void DumpLoop() const;
-  void ClearLoopInfo();
   Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
   virtual void DetermineReturnTypeofCall() = 0;
   /* handle rc reset */
@@ -431,8 +434,8 @@ class CGFunc {
   };
   LabelIdx CreateLabel();
 
-  RegOperand *GetVirtualRegisterOperand(regno_t vRegNO) {
-    std::unordered_map<regno_t, RegOperand*> &vRegOperandTable = vReg.vRegOperandTable;
+  RegOperand *GetVirtualRegisterOperand(regno_t vRegNO) const {
+    std::unordered_map<regno_t, RegOperand*> &vRegOperandTable = VregInfo::vRegOperandTable;
     auto it = vRegOperandTable.find(vRegNO);
     return it == vRegOperandTable.end() ? nullptr : it->second;
   }
@@ -441,7 +444,7 @@ class CGFunc {
     return *memPool->New<cfi::ImmOperand>(val, size);
   }
 
-  Operand &CreateCfiStrOperand(const std::string &str) const {
+  Operand &CreateCfiStrOperand(const std::string &str) {
     return *memPool->New<cfi::StrOperand>(str, *memPool);
   }
 
@@ -865,7 +868,7 @@ class CGFunc {
     return noReturnCallBBVec;
   }
 
-  void SetLab2BBMap(int32 index, BB &bb) {
+  void SetLab2BBMap(LabelIdx index, BB &bb) {
     lab2BBMap[index] = &bb;
   }
 
@@ -993,18 +996,6 @@ class CGFunc {
     return (switchLabelCnt.find(label) != switchLabelCnt.end());
   }
 
-  MapleVector<CGFuncLoops*> &GetLoops() {
-    return loops;
-  }
-
-  const MapleVector<CGFuncLoops*> GetLoops() const {
-    return loops;
-  }
-
-  void PushBackLoops(CGFuncLoops &loop) {
-    loops.emplace_back(&loop);
-  }
-
   MapleVector<LmbcFormalParamInfo*> &GetLmbcParamVec() {
     return lmbcParamVec;
   }
@@ -1100,7 +1091,7 @@ class CGFunc {
   }
 
   regno_t GetVirtualRegNOFromPseudoRegIdx(PregIdx idx) const {
-    return regno_t(idx + kBaseVirtualRegNO);
+    return regno_t(static_cast<regno_t>(idx) + kBaseVirtualRegNO);
   }
 
   bool GetHasProEpilogue() const {
@@ -1319,6 +1310,10 @@ class CGFunc {
     return exitBBLost;
   }
 
+  bool GetWithSrc() const {
+    return withSrc;
+  }
+
  protected:
   uint32 firstNonPregVRegNO;
   VregInfo vReg;                          /* for assigning a number for each CG virtual register */
@@ -1346,6 +1341,7 @@ class CGFunc {
   bool isAfterRegAlloc = false;
   bool isAggParamInReg = false;
   bool hasTakenLabel = false;
+  bool withSrc = true;
   uint32 frequency = 0;
   DebugInfo *debugInfo = nullptr;  /* debugging info */
   MapleVector<DBGExprLoc*> dbgParamCallFrameLocations;
@@ -1412,7 +1408,7 @@ class CGFunc {
   }
 
   /* See if the symbol is a structure parameter that requires a copy. */
-  bool IsParamStructCopy(const MIRSymbol &symbol) {
+  bool IsParamStructCopy(const MIRSymbol &symbol) const {
     auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbol.GetTyIdx());
     if (symbol.GetStorageClass() == kScFormal && IsParamStructCopyToMemory(*mirType)) {
       return true;
@@ -1439,7 +1435,7 @@ class CGFunc {
     atomicBB->SetKind(BB::kBBIf);
     atomicBB->SetAtomicBuiltIn();
     atomicBB->AddLabel(atomicBBLabIdx);
-    SetLab2BBMap(static_cast<int32>(atomicBBLabIdx), *atomicBB);
+    SetLab2BBMap(atomicBBLabIdx, *atomicBB);
     GetCurBB()->AppendBB(*atomicBB);
     return atomicBB;
   }
@@ -1456,11 +1452,11 @@ class CGFunc {
     return newMem;
   }
 
+  // Only use for handlefunction
   void AddAdrpLabel(LabelIdx label) {
     (void)adrpLabels.emplace_back(label);
   }
-
-  MapleVector<LabelIdx> &GetAdrpLabels() {
+  const MapleVector<LabelIdx> &GetAdrpLabels() {
     return adrpLabels;
   }
 
@@ -1506,7 +1502,6 @@ class CGFunc {
   MapleVector<BB*> sortedBBs;
   MapleVector<LiveRange*> lrVec;
 #endif  /* TARGARM32 */
-  MapleVector<CGFuncLoops*> loops;
   MapleVector<LmbcFormalParamInfo*> lmbcParamVec;
   CGCFG *theCFG = nullptr;
   MapleSet<uint32> scpIdSet;

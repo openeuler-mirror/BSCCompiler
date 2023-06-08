@@ -14,7 +14,9 @@
  */
 #ifndef MAPLEBE_INCLUDE_AD_MAD_H
 #define MAPLEBE_INCLUDE_AD_MAD_H
+
 #include <vector>
+#include <bitset>
 #include "types_def.h"
 #include "mpl_logging.h"
 #include "insn.h"
@@ -70,15 +72,16 @@ class Unit {
   const std::vector<Unit*> &GetCompositeUnits() const;
 
   std::string GetName() const;
-  bool IsFree(uint32 cycle) const;
-  void Occupy(const Insn &insn, uint32 cycle);
+  bool IsFree(uint32 cost) const;
+  void Occupy(const Insn &insn, uint32 cycle); // old interface
+  void Occupy(uint32 cost, std::vector<bool> &visited); // new interface
   void Release();
   void AdvanceCycle();
   void Dump(int indent = 0) const;
-  maple::uint32 GetOccupancyTable() const;
+  std::bitset<32> GetOccupancyTable() const;
 
-  void SetOccupancyTable(maple::uint32 table) {
-    occupancyTable = table;
+  void SetOccupancyTable(std::bitset<32> value) {
+    occupancyTable = value;
   }
 
  private:
@@ -86,7 +89,8 @@ class Unit {
 
   enum UnitId unitId;
   enum UnitType unitType;
-  maple::uint32 occupancyTable;
+  // using 32-bit vector simulating resource occupation, the LSB always indicates the current cycle by AdvanceCycle
+  std::bitset<32> occupancyTable;
   std::vector<Unit*> compositeUnits;
 };
 
@@ -170,15 +174,14 @@ class MAD {
   void InitParallelism() const;
   void InitReservation() const;
   void InitBypass() const;
-  bool IsSlot0Free() const;
   bool IsFullIssued() const;
   int GetLatency(const Insn &def, const Insn &use) const;
   int DefaultLatency(const Insn &insn) const;
   Reservation *FindReservation(const Insn &insn) const;
   void AdvanceCycle() const;
   void ReleaseAllUnits() const;
-  void SaveStates(std::vector<maple::uint32> &occupyTable, int size) const;
-  void RestoreStates(std::vector<maple::uint32> &occupyTable, int size) const;
+  void SaveStates(std::vector<std::bitset<32>> &occupyTable, int size) const;
+  void RestoreStates(std::vector<std::bitset<32>> &occupyTable, int size) const;
 
   int GetMaxParallelism() const {
     return parallelism;

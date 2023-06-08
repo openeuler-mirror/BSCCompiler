@@ -63,7 +63,7 @@ const char *GetDwOpName(unsigned n) {
   }
 }
 
-#define DW_ATE_void 0x20
+const unsigned kDwAteVoid = 0x20;
 // GetDwAteName(unsigned n)
 const char *GetDwAteName(unsigned n) {
   switch (n) {
@@ -71,7 +71,7 @@ const char *GetDwAteName(unsigned n) {
 #include "dwarf.def"
     case DW_ATE_lo_user: return "DW_ATE_lo_user";
     case DW_ATE_hi_user: return "DW_ATE_hi_user";
-    case DW_ATE_void: return "DW_ATE_void";
+    case kDwAteVoid: return "kDwAteVoid";
     default: return nullptr;
   }
 }
@@ -106,9 +106,9 @@ DwAte GetAteFromPTY(PrimType pty) {
     case PTY_c128:
       return DW_ATE_complex_float;
     case PTY_void:
-      return DW_ATE_void;
+      return kDwAteVoid;
     default:
-      return DW_ATE_void;
+      return kDwAteVoid;
   }
 }
 }  // namespace maple

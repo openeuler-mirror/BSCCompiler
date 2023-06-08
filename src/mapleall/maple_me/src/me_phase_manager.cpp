@@ -28,7 +28,7 @@ bool MeFuncPM::genMapleBC = false;
 bool MeFuncPM::genLMBC = false;
 bool MeFuncPM::timePhases = false;
 
-void MeFuncPM::DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore) {
+void MeFuncPM::DumpMEIR(const MeFunction &f, const std::string phaseName, bool isBefore) const {
   bool dumpFunc = MeOption::DumpFunc(f.GetName());
   bool dumpPhase = MeOption::DumpPhase(phaseName);
   if (MeOption::dumpBefore && dumpFunc && dumpPhase && isBefore) {
@@ -52,7 +52,7 @@ void MeFuncPM::DumpMEIR(const MeFunction &f, const std::string phaseName, bool i
   }
 }
 
-bool MeFuncPM::SkipFuncForMe(const MIRFunction &func, uint64 range) {
+bool MeFuncPM::SkipFuncForMe(const MIRFunction &func, uint64 range) const {
   if (func.IsEmpty() || (MeOption::useRange && (range < MeOption::range[0] || range > MeOption::range[1]))) {
     return true;
   }
@@ -156,17 +156,17 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
       cgLower.LowerFunc(*func);
       MemPool *layoutMp = memPoolCtrler.NewMemPool("layout mempool", true);
       MapleAllocator layoutAlloc(layoutMp);
-      LMBCMemLayout localMemLayout(func, &globalMemLayout.seg_GPbased, &layoutAlloc);
+      LMBCMemLayout localMemLayout(func, &globalMemLayout.segGPbased, &layoutAlloc);
       localMemLayout.LayoutStackFrame();
       LMBCLowerer lmbcLowerer(&m, &beCommon, func, &globalMemLayout, &localMemLayout);
       lmbcLowerer.LowerFunction();
       func->SetFrameSize(static_cast<uint32>(localMemLayout.StackFrameSize()));
       memPoolCtrler.DeleteMemPool(layoutMp);
     }
-    globalMemLayout.seg_GPbased.size =
-        static_cast<int32>(maplebe::RoundUp(static_cast<uint64>(static_cast<int64>(globalMemLayout.seg_GPbased.size)),
+    globalMemLayout.segGPbased.size =
+        static_cast<int32>(maplebe::RoundUp(static_cast<uint64>(static_cast<int64>(globalMemLayout.segGPbased.size)),
         GetPrimTypeSize(PTY_ptr)));
-    m.SetGlobalMemSize(globalMemLayout.seg_GPbased.size);
+    m.SetGlobalMemSize(static_cast<uint32>(globalMemLayout.segGPbased.size));
     // output .lmbc
     BinaryMplt binMplt(m);
     std::string modFileName = m.GetFileName();
@@ -286,6 +286,6 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEPlacementRC, placementrc)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEDse, dse)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEABCOpt, abcopt)
 MAPLE_TRANSFORM_PHASE_REGISTER(MEEmit, meemit)
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(ProfileGenEmit, profgenEmit);
-
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(ProfileGenEmit, profgenEmit)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESimplifyExpr, simplifyexpr);
 }  // namespace maple

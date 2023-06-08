@@ -17,7 +17,8 @@
 #include "reg_alloc_color_ra.h"
 
 namespace maplebe {
-bool Rematerializer::IsRematerializableForAddrof(CGFunc &cgFunc, const LiveRange &lr) const {
+bool Rematerializer::IsRematerializableForAddrof(CGFunc &cgFunc, const LiveRange &lr,
+                                                 const LoopAnalysis &loopInfo) const {
   const MIRSymbol *symbol = rematInfo.sym;
   if (symbol->IsDeleted()) {
     return false;
@@ -39,10 +40,10 @@ bool Rematerializer::IsRematerializableForAddrof(CGFunc &cgFunc, const LiveRange
     for (auto luIt: lr.GetLuMap()) {
       BB *bb = cgFunc.GetBBFromID(luIt.first);
       LiveUnit *curLu = luIt.second;
-      if (bb->GetLoop() != nullptr && curLu->GetUseNum() != 0) {
+      if (loopInfo.GetBBLoopParent(bb->GetId()) != nullptr && curLu->GetUseNum() != 0) {
         useInLoop = true;
       }
-      if (bb->GetLoop() == nullptr && curLu->GetDefNum() != 0) {
+      if (loopInfo.GetBBLoopParent(bb->GetId()) == nullptr && curLu->GetDefNum() != 0) {
         defOutLoop = true;
       }
     }
@@ -65,7 +66,7 @@ bool Rematerializer::IsRematerializableForDread(CGFunc &cgFunc, RematLevel remat
     /* cost too much to remat. */
     return false;
   }
-  int32 offset = 0;
+  uint32 offset = 0;
   if (fieldID != 0) {
     ASSERT(symbol->GetType()->IsMIRStructType(), "non-zero fieldID for non-structure");
     MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
@@ -78,7 +79,7 @@ bool Rematerializer::IsRematerializableForDread(CGFunc &cgFunc, RematLevel remat
 }
 
 bool Rematerializer::IsRematerializable(CGFunc &cgFunc, RematLevel rematLev,
-    const LiveRange &lr) const {
+                                        const LiveRange &lr, const LoopAnalysis &loopInfo) const {
   if (rematLev == kRematOff) {
     return false;
   }
@@ -98,7 +99,7 @@ bool Rematerializer::IsRematerializable(CGFunc &cgFunc, RematLevel rematLev,
       if (rematLev < kRematAddr) {
         return false;
       }
-      return IsRematerializableForAddrof(cgFunc, lr);
+      return IsRematerializableForAddrof(cgFunc, lr, loopInfo);
     }
     case OP_dread: {
       if (rematLev < kRematDreadLocal) {
@@ -126,7 +127,7 @@ std::vector<Insn*> Rematerializer::Rematerialize(CGFunc &cgFunc, RegOperand &reg
         ASSERT(symbol->GetType()->IsMIRStructType(), "non-zero fieldID for non-structure");
         MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
         symType = structType->GetFieldType(fieldID)->GetPrimType();
-        offset = structType->GetFieldOffsetFromBaseAddr(fieldID).byteOffset;
+        offset = static_cast<int32>(structType->GetFieldOffsetFromBaseAddr(fieldID).byteOffset);
       }
       return RematerializeForDread(cgFunc, regOp, offset, symType);
     }
@@ -137,7 +138,7 @@ std::vector<Insn*> Rematerializer::Rematerialize(CGFunc &cgFunc, RegOperand &reg
         ASSERT(symbol->GetType()->IsMIRStructType() || symbol->GetType()->IsMIRUnionType(),
             "non-zero fieldID for non-structure");
         MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
-        offset = structType->GetFieldOffsetFromBaseAddr(fieldID).byteOffset;
+        offset = static_cast<int32>(structType->GetFieldOffsetFromBaseAddr(fieldID).byteOffset);
       }
       return RematerializeForAddrof(cgFunc, regOp, offset);
     }

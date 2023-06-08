@@ -340,7 +340,8 @@ class MplOptions {
   ErrorCode HandleOptions();
   void HandleSafeOptions();
   void HandleExtraOptions();
-  ErrorCode HandleEarlyOptions();
+  ErrorCode HandleEarlyOptions() const;
+  ErrorCode HandleOptimizationLevelOptions();
   ErrorCode DecideRunningPhases();
   ErrorCode DecideRunningPhases(const std::vector<std::string> &runExes);
   std::unique_ptr<Action> DecideRunningPhasesByType(const InputInfo *const inputInfo, bool isMultipleFiles);
