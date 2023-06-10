@@ -31,7 +31,12 @@ export PATH=${curdir}/tools/cmake/bin:${curdir}/tools/ninja:$PATH
 
 export MAPLE_ROOT=${curdir}
 export SPEC=${MAPLE_ROOT}/testsuite/c_test/spec_test
-export LD_LIBRARY_PATH=${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib:${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib:${LD_LIBRARY_PATH}
+# enhanced clang patch, LD_LIBRARY_PATH
+export ENHANCED_CLANG_PATH=${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced
+export PURE_CLANG_PATH=${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced
+export LLVM_PATH=${MAPLE_ROOT}/third_party/llvm-15.0.4.src
+
+export LD_LIBRARY_PATH=${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib:${ENHANCED_CLANG_PATH}/lib:${LD_LIBRARY_PATH}
 export SPECPERLLIB=${SPEC}/bin/lib:${SPEC}/bin:${SPEC}/SPEC500-perlbench_r/data/all/input/lib:${SPEC}/SPEC500-perlbench_r/t/lib
 export CASE_ROOT=${curdir}/testsuite
 export OUT_ROOT=${curdir}/output
