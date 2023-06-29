@@ -192,12 +192,13 @@ fi
 
 mkdir -p ${TOOL_BIN_PATH}
 ln -s -f ${MAPLE_ROOT}/../ThirdParty/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced ${MAPLE_ROOT}/tools
+ln -s -f ${MAPLE_ROOT}/../ThirdParty/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-pure ${MAPLE_ROOT}/tools
 ln -s -f ${MAPLE_ROOT}/../ThirdParty/llvm-15.0.4.src ${MAPLE_ROOT}/third_party/llvm-15.0.4.src
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced/bin/clang++ ${TOOL_BIN_PATH}/clang++
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced/bin/clang ${TOOL_BIN_PATH}/clang
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-enhanced/bin/FileCheck ${TOOL_BIN_PATH}/FileCheck
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-pure/bin/clang++ ${TOOL_BIN_PATH}/clang++
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-pure/bin/clang ${TOOL_BIN_PATH}/clang
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-pure/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-pure/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-15.0.4-x86_64-linux-gnu-ubuntu-18.04-pure/bin/FileCheck ${TOOL_BIN_PATH}/FileCheck
 ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 ln -s -f ${MAPLE_ROOT}/build/java2dex ${TOOL_BIN_PATH}/java2dex
 ln -s -f ${MAPLE_ROOT}/tools/r8-d81513/d8/lib ${MAPLE_ROOT}/tools/lib

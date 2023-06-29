@@ -65,7 +65,7 @@ set(PROJECT_BINARY_DIR ${MAPLE_BUILD_OUTPUT}/lib)
 
 
 #--------------------------------- toolchain -------------------------------------
-set(CLANG_PATH ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04)
+set(CLANG_PATH $ENV{ENHANCED_CLANG_PATH})
 set(LLVMINC ${CLANG_PATH}/include)
 set(LLVMLIBDIR ${CLANG_PATH}/lib)
 set(CFE_SRC_DIR ${MAPLE_ROOT}/../third_party/clang-10.0.0.src)
