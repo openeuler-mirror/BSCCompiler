@@ -1,0 +1,1454 @@
+diff --git a/clang/include/clang/AST/ASTDumper.h b/clang/include/clang/AST/ASTDumper.h
+index a154bc2db3a7..a75bcea190c2 100644
+--- a/clang/include/clang/AST/ASTDumper.h
++++ b/clang/include/clang/AST/ASTDumper.h
+@@ -43,6 +43,7 @@ public:
+   void VisitFunctionTemplateDecl(const FunctionTemplateDecl *D);
+   void VisitClassTemplateDecl(const ClassTemplateDecl *D);
+   void VisitVarTemplateDecl(const VarTemplateDecl *D);
++  void VisitCompoundStmt(const CompoundStmt *Node);
+ };
+ 
+ } // namespace clang
+diff --git a/clang/include/clang/AST/Decl.h b/clang/include/clang/AST/Decl.h
+index fb87a75a1241..28d099fc1f0b 100644
+--- a/clang/include/clang/AST/Decl.h
++++ b/clang/include/clang/AST/Decl.h
+@@ -2112,6 +2112,14 @@ public:
+     return hasBody(Definition);
+   }
+ 
++  void setSafeSpecifier(SafeScopeSpecifier SafeSpec) {
++    FunctionDeclBits.SafeSpecifier = SafeSpec;
++  }
++
++  SafeScopeSpecifier getSafeSpecifier() const {
++    return (SafeScopeSpecifier) FunctionDeclBits.SafeSpecifier;
++  }
++
+   /// Returns whether the function has a trivial body that does not require any
+   /// specific codegen.
+   bool hasTrivialBody() const;
+diff --git a/clang/include/clang/AST/DeclBase.h b/clang/include/clang/AST/DeclBase.h
+index d1193161fd75..dabd3bedc71a 100644
+--- a/clang/include/clang/AST/DeclBase.h
++++ b/clang/include/clang/AST/DeclBase.h
+@@ -1642,6 +1642,8 @@ class DeclContext {
+     /// have a body, once we're done parsing it.
+     uint64_t WillHaveBody : 1;
+ 
++    uint64_t SafeSpecifier : 2;
++
+     /// Indicates that this function is a multiversioned
+     /// function using attribute 'target'.
+     uint64_t IsMultiVersion : 1;
+diff --git a/clang/include/clang/AST/Stmt.h b/clang/include/clang/AST/Stmt.h
+index 49a66a1ea5b8..87a4951ebf9c 100644
+--- a/clang/include/clang/AST/Stmt.h
++++ b/clang/include/clang/AST/Stmt.h
+@@ -1415,9 +1415,13 @@ class CompoundStmt final
+   /// The location of the closing "}".
+   SourceLocation RBraceLoc;
+ 
+-  CompoundStmt(ArrayRef<Stmt *> Stmts, FPOptionsOverride FPFeatures,
+-               SourceLocation LB, SourceLocation RB);
+-  explicit CompoundStmt(EmptyShell Empty) : Stmt(CompoundStmtClass, Empty) {}
++  SafeScopeSpecifier SafeSpec;
++  SourceLocation SafeLoc;
++
++  CompoundStmt(ArrayRef<Stmt *> Stmts, FPOptionsOverride FPFeatures, SourceLocation LB, SourceLocation RB,
++               SafeScopeSpecifier SafeSpec = SS_None, SourceLocation SafeLoc = SourceLocation());
++  explicit CompoundStmt(EmptyShell Empty) : Stmt(CompoundStmtClass, Empty),
++                                            SafeSpec(SS_None), SafeLoc() {}
+ 
+   void setStmts(ArrayRef<Stmt *> Stmts);
+ 
+@@ -1434,11 +1438,13 @@ class CompoundStmt final
+ public:
+   static CompoundStmt *Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
+                               FPOptionsOverride FPFeatures, SourceLocation LB,
+-                              SourceLocation RB);
++                              SourceLocation RB,
++                              SafeScopeSpecifier SafeSpec = SS_None,
++                              SourceLocation SafeLoc = SourceLocation());
+ 
+   // Build an empty compound statement with a location.
+   explicit CompoundStmt(SourceLocation Loc)
+-      : Stmt(CompoundStmtClass), LBraceLoc(Loc), RBraceLoc(Loc) {
++      : Stmt(CompoundStmtClass), RBraceLoc(Loc), SafeSpec(SS_None), SafeLoc() {
+     CompoundStmtBits.NumStmts = 0;
+     CompoundStmtBits.HasFPFeatures = 0;
+   }
+@@ -1532,6 +1538,18 @@ public:
+     return const_cast<CompoundStmt *>(this)->getStmtExprResult();
+   }
+ 
++  SafeScopeSpecifier getSafeSpecifier() const {
++    return SafeSpec;
++  }
++
++  void setSafeSpecifier(SafeScopeSpecifier spec) {
++    SafeSpec = spec;
++  }
++
++  SourceLocation getSafeSpecifierLoc() const {
++    return SafeLoc;
++  }
++
+   SourceLocation getBeginLoc() const { return LBraceLoc; }
+   SourceLocation getEndLoc() const { return RBraceLoc; }
+ 
+diff --git a/clang/include/clang/Basic/Attr.td b/clang/include/clang/Basic/Attr.td
+index d61f3583281d..f9faec770851 100644
+--- a/clang/include/clang/Basic/Attr.td
++++ b/clang/include/clang/Basic/Attr.td
+@@ -1942,8 +1942,8 @@ def NoSplitStack : InheritableAttr {
+ 
+ def NonNull : InheritableParamAttr {
+   let Spellings = [GCC<"nonnull">];
+-  let Subjects = SubjectList<[ObjCMethod, HasFunctionProto, ParmVar], WarnDiag,
+-                             "functions, methods, and parameters">;
++  let Subjects = SubjectList<[ObjCMethod, HasFunctionProto, ParmVar, Var, Field], WarnDiag,
++                             "functions, methods, and parameters (EnhanceC: additional applies to vars and fields)">;
+   let Args = [VariadicParamIdxArgument<"Args">];
+   let AdditionalMembers = [{
+     bool isNonNull(unsigned IdxAST) const {
+@@ -1961,7 +1961,7 @@ def NonNull : InheritableParamAttr {
+ 
+ def ReturnsNonNull : InheritableAttr {
+   let Spellings = [GCC<"returns_nonnull">];
+-  let Subjects = SubjectList<[ObjCMethod, Function]>;
++  let Subjects = SubjectList<[ObjCMethod, Function, Var, Field]>;
+   let Documentation = [ReturnsNonNullDocs];
+ }
+ 
+@@ -4047,3 +4047,80 @@ def FunctionReturnThunks : InheritableAttr,
+   let Subjects = SubjectList<[Function]>;
+   let Documentation = [FunctionReturnThunksDocs];
+ }
++// EnhanceC attributes
++def Count : InheritableParamAttr {
++  let Spellings = [GNU<"count">];
++  let Subjects = SubjectList<[Function, ParmVar, Field, Var]>;
++  let Documentation = [Undocumented];
++  let Args = [ExprArgument<"LenExpr">, VariadicParamIdxArgument<"Index">];
++  let InheritEvenIfAlreadyPresent = 1;
++  let LateParsed = 1;
++  let TemplateDependent = 1;
++}
++
++def ReturnsCount : InheritableAttr {
++  let Spellings = [GNU<"returns_count">];
++  let Subjects = SubjectList<[Function, Var, Field]>;
++  let Documentation = [Undocumented];
++  let Args = [ExprArgument<"LenExpr">];
++  let InheritEvenIfAlreadyPresent = 1;
++  let LateParsed = 1;
++  let TemplateDependent = 1;
++}
++
++def CountIndex : InheritableParamAttr {
++  let Spellings = [GNU<"count_index">];
++  let Subjects = SubjectList<[Function, ParmVar, Field, Var]>;
++  let Documentation = [Undocumented];
++  let Args = [ParamIdxArgument<"LenVarIndex">, VariadicParamIdxArgument<"Index">];
++  let InheritEvenIfAlreadyPresent = 1;
++  let TemplateDependent = 1;
++}
++
++def ReturnsCountIndex : InheritableAttr {
++  let Spellings = [GNU<"returns_count_index">];
++  let Subjects = SubjectList<[Function, Field, Var]>;
++  let Documentation = [Undocumented];
++  let Args = [ParamIdxArgument<"LenVarIndex">];
++  let InheritEvenIfAlreadyPresent = 1;
++  let TemplateDependent = 1;
++}
++
++// byte_count
++def ByteCount : InheritableParamAttr {
++  let Spellings = [GNU<"byte_count">];
++  let Subjects = SubjectList<[Function, ParmVar, Field, Var]>;
++  let Documentation = [Undocumented];
++  let Args = [ExprArgument<"LenExpr">, VariadicParamIdxArgument<"Index">];
++  let InheritEvenIfAlreadyPresent = 1;
++  let LateParsed = 1;
++  let TemplateDependent = 1;
++}
++
++def ReturnsByteCount : InheritableAttr {
++  let Spellings = [GNU<"returns_byte_count">];
++  let Subjects = SubjectList<[Function, Var, Field]>;
++  let Documentation = [Undocumented];
++  let Args = [ExprArgument<"LenExpr">];
++  let InheritEvenIfAlreadyPresent = 1;
++  let LateParsed = 1;
++  let TemplateDependent = 1;
++}
++
++def ByteCountIndex : InheritableParamAttr {
++  let Spellings = [GNU<"byte_count_index">];
++  let Subjects = SubjectList<[Function, ParmVar, Field, Var]>;
++  let Documentation = [Undocumented];
++  let Args = [ParamIdxArgument<"LenVarIndex">, VariadicParamIdxArgument<"Index">];
++  let InheritEvenIfAlreadyPresent = 1;
++  let TemplateDependent = 1;
++}
++
++def ReturnsByteCountIndex : InheritableAttr {
++  let Spellings = [GNU<"returns_byte_count_index">];
++  let Subjects = SubjectList<[Function, Var, Field]>;
++  let Documentation = [Undocumented];
++  let Args = [ParamIdxArgument<"LenVarIndex">];
++  let InheritEvenIfAlreadyPresent = 1;
++  let TemplateDependent = 1;
++}
+diff --git a/clang/include/clang/Basic/DiagnosticSemaKinds.td b/clang/include/clang/Basic/DiagnosticSemaKinds.td
+index cb460401eb47..045e443db8a2 100644
+--- a/clang/include/clang/Basic/DiagnosticSemaKinds.td
++++ b/clang/include/clang/Basic/DiagnosticSemaKinds.td
+@@ -3087,9 +3087,22 @@ def err_attribute_only_once_per_parameter : Error<
+   "%0 attribute can only be applied once per parameter">;
+ def err_mismatched_uuid : Error<"uuid does not match previous declaration">;
+ def note_previous_uuid : Note<"previous uuid specified here">;
++// EnhanceC
+ def warn_attribute_pointers_only : Warning<
+-  "%0 attribute only applies to%select{| constant}1 pointer arguments">,
++  "(EnhanceC) %0 attribute only applies to%select{| constant}1 pointer arguments, vars or fields)">,
+   InGroup<IgnoredAttributes>;
++def warn_attribute_no_pointers : Warning<
++  "(EnhanceC) %0 attribute applied to function with no pointer arguments">,
++  InGroup<IgnoredAttributes>;
++def err_attribute_redundant_pointers : Error<
++  "(EnhanceC) %0 attribute applied to function with more than one pointer arguments, "
++  "please specify the index argument in the %0 attribute">;
++def warn_attribute_function_pointer : Warning<
++  "(EnhanceC) %0 attribute applied to function and function type pointer">,
++  InGroup<IgnoredAttributes>;
++def err_attribute_zero_pointer : Error<
++  "(EnhanceC) %0 attribute: The number of pointer arguments index cannot be zero">;
++
+ def err_attribute_pointers_only : Error<warn_attribute_pointers_only.Text>;
+ def err_attribute_integers_only : Error<
+   "%0 attribute argument may only refer to a function parameter of integer "
+diff --git a/clang/include/clang/Basic/Specifiers.h b/clang/include/clang/Basic/Specifiers.h
+index 7657ae36d21b..65f8852c40a3 100644
+--- a/clang/include/clang/Basic/Specifiers.h
++++ b/clang/include/clang/Basic/Specifiers.h
+@@ -390,6 +390,12 @@ namespace clang {
+     }
+     llvm_unreachable("Unknown AccessSpecifier");
+   }
++
++  enum SafeScopeSpecifier {
++    SS_None = 0,
++    SS_Safe = 1,
++    SS_Unsafe = 2,
++  };
+ } // end namespace clang
+ 
+ #endif // LLVM_CLANG_BASIC_SPECIFIERS_H
+diff --git a/clang/include/clang/Basic/TokenKinds.def b/clang/include/clang/Basic/TokenKinds.def
+index 84fc0893c8b5..077ceb41e715 100644
+--- a/clang/include/clang/Basic/TokenKinds.def
++++ b/clang/include/clang/Basic/TokenKinds.def
+@@ -714,6 +714,10 @@ ALIAS("_uuidof"          , __uuidof     , KEYMS | KEYBORLAND)
+ ALIAS("_virtual_inheritance", __virtual_inheritance, KEYMSCOMPAT)
+ ALIAS("_w64"             , __w64        , KEYMSCOMPAT)
+ 
++// safe region key word
++KEYWORD(__Safe__                      , KEYALL)
++KEYWORD(__Unsafe__                    , KEYALL)
++
+ // Borland Extensions which should be disabled in strict conformance mode.
+ ALIAS("_pascal"      , __pascal   , KEYBORLAND)
+ 
+@@ -794,6 +798,11 @@ ANNOTATION(decltype)     // annotation for a decltype expression,
+ // one 'pragma_unused' annotation token followed by the argument token.
+ PRAGMA_ANNOTATION(pragma_unused)
+ 
++// Annotations for SAFE pragma
++// The lexer produces these so that they only take effect when the parser
++// handles #pragma SAFE ... directives.
++PRAGMA_ANNOTATION(pragma_safe)
++
+ // Annotation for #pragma GCC visibility...
+ // The lexer produces these so that they only take effect when the parser
+ // handles them.
+diff --git a/clang/include/clang/Parse/Parser.h b/clang/include/clang/Parse/Parser.h
+index 41bfc9f48ecc..e6cd5659e63f 100644
+--- a/clang/include/clang/Parse/Parser.h
++++ b/clang/include/clang/Parse/Parser.h
+@@ -216,6 +216,7 @@ class Parser : public CodeCompletionHandler {
+   std::unique_ptr<PragmaHandler> MaxTokensHerePragmaHandler;
+   std::unique_ptr<PragmaHandler> MaxTokensTotalPragmaHandler;
+   std::unique_ptr<PragmaHandler> RISCVPragmaHandler;
++  std::unique_ptr<PragmaHandler> SafeHandler;
+ 
+   std::unique_ptr<CommentHandler> CommentSemaHandler;
+ 
+@@ -790,6 +791,8 @@ private:
+ 
+   void HandlePragmaAttribute();
+ 
++  void HandlePragmaSafe();
++
+   /// GetLookAheadToken - This peeks ahead N tokens and returns that token
+   /// without consuming any tokens.  LookAhead(0) returns 'Tok', LookAhead(1)
+   /// returns the token after Tok, etc.
+@@ -2092,7 +2095,9 @@ private:
+                                     unsigned ScopeFlags);
+   void ParseCompoundStatementLeadingPragmas();
+   bool ConsumeNullStmt(StmtVector &Stmts);
+-  StmtResult ParseCompoundStatementBody(bool isStmtExpr = false);
++  StmtResult ParseCompoundStatementBody(bool isStmtExpr = false,
++                                        SafeScopeSpecifier SafeSpec = SS_None,
++                                        SourceLocation SafeLoc = SourceLocation());
+   bool ParseParenExprOrCondition(StmtResult *InitStmt,
+                                  Sema::ConditionResult &CondResult,
+                                  SourceLocation Loc, Sema::ConditionKind CK,
+diff --git a/clang/include/clang/Sema/DeclSpec.h b/clang/include/clang/Sema/DeclSpec.h
+index 21d4a53d8e22..2a23d068e592 100644
+--- a/clang/include/clang/Sema/DeclSpec.h
++++ b/clang/include/clang/Sema/DeclSpec.h
+@@ -367,6 +367,10 @@ private:
+   /// ExplicitSpecifier - Store information about explicit spicifer.
+   ExplicitSpecifier FS_explicit_specifier;
+ 
++  SafeScopeSpecifier FS_safe_specified;
++
++  SourceLocation FS_safe_loc;
++
+   // attributes.
+   ParsedAttributes Attrs;
+ 
+@@ -434,6 +438,8 @@ public:
+         FS_noreturn_specified(false), Friend_specified(false),
+         ConstexprSpecifier(
+             static_cast<unsigned>(ConstexprSpecKind::Unspecified)),
++        FS_explicit_specifier(),
++        FS_safe_specified(SS_None), FS_safe_loc(),
+         Attrs(attrFactory), writtenBS(), ObjCQualifiers(nullptr) {}
+ 
+   // storage-class-specifier
+@@ -589,6 +595,14 @@ public:
+                : SourceRange(FS_explicitLoc);
+   }
+ 
++  SafeScopeSpecifier getSafeSpecifier() const {
++    return FS_safe_specified;
++  }
++
++  SourceLocation getSafeSpecifierLoc() const {
++    return FS_safe_loc;
++  }
++
+   bool isNoreturnSpecified() const { return FS_noreturn_specified; }
+   SourceLocation getNoreturnSpecLoc() const { return FS_noreturnLoc; }
+ 
+@@ -602,6 +616,8 @@ public:
+     FS_explicit_specifier = ExplicitSpecifier();
+     FS_explicitLoc = SourceLocation();
+     FS_explicitCloseParenLoc = SourceLocation();
++    FS_safe_specified = SS_None;
++    FS_safe_loc = SourceLocation();
+     FS_noreturn_specified = false;
+     FS_noreturnLoc = SourceLocation();
+   }
+@@ -738,6 +754,8 @@ public:
+                                SourceLocation CloseParenLoc);
+   bool setFunctionSpecNoreturn(SourceLocation Loc, const char *&PrevSpec,
+                                unsigned &DiagID);
++  bool setFunctionSafeSpecifier(SourceLocation Loc, const char *&PrevSpec,
++                                unsigned &DiagID, SafeScopeSpecifier SafeSpec);
+ 
+   bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
+                      unsigned &DiagID);
+diff --git a/clang/include/clang/Sema/Sema.h b/clang/include/clang/Sema/Sema.h
+index 681a76dfa56a..6e70a9573fdf 100644
+--- a/clang/include/clang/Sema/Sema.h
++++ b/clang/include/clang/Sema/Sema.h
+@@ -4899,7 +4899,28 @@ public:
+   void ActOnAfterCompoundStatementLeadingPragmas();
+   void ActOnFinishOfCompoundStmt();
+   StmtResult ActOnCompoundStmt(SourceLocation L, SourceLocation R,
+-                               ArrayRef<Stmt *> Elts, bool isStmtExpr);
++                               ArrayRef<Stmt *> Elts, bool isStmtExpr,
++                               SafeScopeSpecifier SafeSpec = SS_None,
++                               SourceLocation SafeLoc = SourceLocation());
++
++private:
++  SafeScopeSpecifier PragmaSafeInfo = SS_None;
++
++public:
++  enum PragmaSafeStatus {
++    PSS_On,
++    PSS_Off,
++  };
++
++  void ActOnPragmaSafe(PragmaSafeStatus St);
++
++  SafeScopeSpecifier GetPragmaSafeInfo() {
++    return PragmaSafeInfo;
++  }
++
++  void SetPragmaSafeInfo(SafeScopeSpecifier SafeSpec) {
++    PragmaSafeInfo = SafeSpec;
++  }
+ 
+   /// A RAII object to enter scope of a compound statement.
+   class CompoundScopeRAII {
+diff --git a/clang/lib/AST/ASTDumper.cpp b/clang/lib/AST/ASTDumper.cpp
+index c6df61f79e2e..839f57e2bb25 100644
+--- a/clang/lib/AST/ASTDumper.cpp
++++ b/clang/lib/AST/ASTDumper.cpp
+@@ -143,6 +143,17 @@ void ASTDumper::VisitVarTemplateDecl(const VarTemplateDecl *D) {
+   dumpTemplateDecl(D, false);
+ }
+ 
++void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
++  VisitStmt(Node);
++  SafeScopeSpecifier SafeSpec = Node->getSafeSpecifier();
++
++  if (SafeSpec == SS_Safe) {
++    OS << " safe";
++  } else if (SafeSpec == SS_Unsafe) {
++    OS << " unsafe";
++  }
++}
++
+ //===----------------------------------------------------------------------===//
+ // Type method implementations
+ //===----------------------------------------------------------------------===//
+diff --git a/clang/lib/AST/ASTImporter.cpp b/clang/lib/AST/ASTImporter.cpp
+index 0273e5068371..0bb572b0f61d 100644
+--- a/clang/lib/AST/ASTImporter.cpp
++++ b/clang/lib/AST/ASTImporter.cpp
+@@ -6368,10 +6368,17 @@ ExpectedStmt ASTNodeImporter::VisitCompoundStmt(CompoundStmt *S) {
+   if (!ToRBracLocOrErr)
+     return ToRBracLocOrErr.takeError();
+ 
++  ExpectedSLoc ToSafeSpecifierLocOrErr = import(S->getSafeSpecifierLoc());
++  if (!ToSafeSpecifierLocOrErr)
++    return ToSafeSpecifierLocOrErr.takeError();
++
+   FPOptionsOverride FPO =
+       S->hasStoredFPFeatures() ? S->getStoredFPFeatures() : FPOptionsOverride();
+-  return CompoundStmt::Create(Importer.getToContext(), ToStmts, FPO,
+-                              *ToLBracLocOrErr, *ToRBracLocOrErr);
++
++  return CompoundStmt::Create(
++      Importer.getToContext(), ToStmts, FPO,
++      *ToLBracLocOrErr, *ToRBracLocOrErr,
++      S->getSafeSpecifier(), *ToSafeSpecifierLocOrErr);
+ }
+ 
+ ExpectedStmt ASTNodeImporter::VisitCaseStmt(CaseStmt *S) {
+diff --git a/clang/lib/AST/Decl.cpp b/clang/lib/AST/Decl.cpp
+index aaba4345587b..94d1cad0317c 100644
+--- a/clang/lib/AST/Decl.cpp
++++ b/clang/lib/AST/Decl.cpp
+@@ -2967,6 +2967,7 @@ FunctionDecl::FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC,
+   FunctionDeclBits.UsesFPIntrin = UsesFPIntrin;
+   FunctionDeclBits.HasSkippedBody = false;
+   FunctionDeclBits.WillHaveBody = false;
++  FunctionDeclBits.SafeSpecifier = SS_None;
+   FunctionDeclBits.IsMultiVersion = false;
+   FunctionDeclBits.IsCopyDeductionCandidate = false;
+   FunctionDeclBits.HasODRHash = false;
+diff --git a/clang/lib/AST/ExprConstant.cpp b/clang/lib/AST/ExprConstant.cpp
+index 9d92c848ccb8..cd852a076d81 100644
+--- a/clang/lib/AST/ExprConstant.cpp
++++ b/clang/lib/AST/ExprConstant.cpp
+@@ -10686,6 +10686,8 @@ static bool EvaluateArrayNewConstructExpr(EvalInfo &Info, LValue &This,
+ 
+ // Return true iff the given array filler may depend on the element index.
+ static bool MaybeElementDependentArrayFiller(const Expr *FillerExpr) {
++  if (!FillerExpr)
++    return false;
+   // For now, just allow non-class value-initialization and initialization
+   // lists comprised of them.
+   if (isa<ImplicitValueInitExpr>(FillerExpr))
+@@ -14843,6 +14845,8 @@ static bool Evaluate(APValue &Result, EvalInfo &Info, const Expr *E) {
+ /// an object can indirectly refer to subobjects which were initialized earlier.
+ static bool EvaluateInPlace(APValue &Result, EvalInfo &Info, const LValue &This,
+                             const Expr *E, bool AllowNonLiteralTypes) {
++  if (!E)
++    return false;
+   assert(!E->isValueDependent());
+ 
+   if (!AllowNonLiteralTypes && !CheckLiteralType(Info, E, &This))
+diff --git a/clang/lib/AST/Stmt.cpp b/clang/lib/AST/Stmt.cpp
+index 8eae04d0d9fd..955556b6230a 100644
+--- a/clang/lib/AST/Stmt.cpp
++++ b/clang/lib/AST/Stmt.cpp
+@@ -362,8 +362,9 @@ int64_t Stmt::getID(const ASTContext &Context) const {
+ }
+ 
+ CompoundStmt::CompoundStmt(ArrayRef<Stmt *> Stmts, FPOptionsOverride FPFeatures,
+-                           SourceLocation LB, SourceLocation RB)
+-    : Stmt(CompoundStmtClass), LBraceLoc(LB), RBraceLoc(RB) {
++                           SourceLocation LB, SourceLocation RB,
++                           SafeScopeSpecifier SafeSpec, SourceLocation SafeLoc)
++    : Stmt(CompoundStmtClass), LBraceLoc(LB), RBraceLoc(RB), SafeSpec(SafeSpec), SafeLoc(SafeLoc) {
+   CompoundStmtBits.NumStmts = Stmts.size();
+   CompoundStmtBits.HasFPFeatures = FPFeatures.requiresTrailingStorage();
+   setStmts(Stmts);
+@@ -380,12 +381,12 @@ void CompoundStmt::setStmts(ArrayRef<Stmt *> Stmts) {
+ 
+ CompoundStmt *CompoundStmt::Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
+                                    FPOptionsOverride FPFeatures,
+-                                   SourceLocation LB, SourceLocation RB) {
++                                   SourceLocation LB, SourceLocation RB,
++                                   SafeScopeSpecifier SafeSpec, SourceLocation SafeLoc) {
+   void *Mem =
+-      C.Allocate(totalSizeToAlloc<Stmt *, FPOptionsOverride>(
+-                     Stmts.size(), FPFeatures.requiresTrailingStorage()),
+-                 alignof(CompoundStmt));
+-  return new (Mem) CompoundStmt(Stmts, FPFeatures, LB, RB);
++      C.Allocate(totalSizeToAlloc<Stmt *, FPOptionsOverride>(Stmts.size(),  FPFeatures.requiresTrailingStorage()),
++      alignof(CompoundStmt));
++  return new (Mem) CompoundStmt(Stmts, FPFeatures, LB, RB, SafeSpec, SafeLoc);
+ }
+ 
+ CompoundStmt *CompoundStmt::CreateEmpty(const ASTContext &C, unsigned NumStmts,
+diff --git a/clang/lib/AST/TextNodeDumper.cpp b/clang/lib/AST/TextNodeDumper.cpp
+index 22643d4edbec..853a678545ef 100644
+--- a/clang/lib/AST/TextNodeDumper.cpp
++++ b/clang/lib/AST/TextNodeDumper.cpp
+@@ -1684,6 +1684,12 @@ void TextNodeDumper::VisitFunctionDecl(const FunctionDecl *D) {
+   if (D->isIneligibleOrNotSelected())
+     OS << (isa<CXXDestructorDecl>(D) ? " not_selected" : " ineligible");
+ 
++  if (D->getSafeSpecifier() == SS_Safe) {
++    OS << " safe";
++  } else if (D->getSafeSpecifier() == SS_Unsafe) {
++    OS << " unsafe";
++  }
++
+   if (const auto *FPT = D->getType()->getAs<FunctionProtoType>()) {
+     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+     switch (EPI.ExceptionSpec.Type) {
+diff --git a/clang/lib/Basic/Targets/AArch64.cpp b/clang/lib/Basic/Targets/AArch64.cpp
+index 8d8972c1613a..8c38e11aae07 100644
+--- a/clang/lib/Basic/Targets/AArch64.cpp
++++ b/clang/lib/Basic/Targets/AArch64.cpp
+@@ -64,7 +64,8 @@ StringRef AArch64TargetInfo::getArchProfile() const {
+ AArch64TargetInfo::AArch64TargetInfo(const llvm::Triple &Triple,
+                                      const TargetOptions &Opts)
+     : TargetInfo(Triple), ABI("aapcs") {
+-  if (getTriple().isOSOpenBSD()) {
++  if (getTriple().isOSOpenBSD() ||
++      getTriple().getEnvironment() == llvm::Triple::GNUILP32) {
+     Int64Type = SignedLongLong;
+     IntMaxType = SignedLongLong;
+   } else {
+@@ -79,7 +80,8 @@ AArch64TargetInfo::AArch64TargetInfo(const llvm::Triple &Triple,
+   HasLegalHalfType = true;
+   HasFloat16 = true;
+ 
+-  if (Triple.isArch64Bit())
++  if (Triple.isArch64Bit() &&
++      getTriple().getEnvironment() != llvm::Triple::GNUILP32)
+     LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
+   else
+     LongWidth = LongAlign = PointerWidth = PointerAlign = 32;
+@@ -264,10 +266,15 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
+     Builder.defineMacro("__ELF__");
+ 
+   // Target properties.
+-  if (!getTriple().isOSWindows() && getTriple().isArch64Bit()) {
++  if (!getTriple().isOSWindows() && getTriple().isArch64Bit() &&
++      getTriple().getEnvironment() != llvm::Triple::GNUILP32) {
+     Builder.defineMacro("_LP64");
+     Builder.defineMacro("__LP64__");
+   }
++  if (getTriple().getEnvironment() == llvm::Triple::GNUILP32) {
++    Builder.defineMacro("_ILP32");
++    Builder.defineMacro("__ILP32__");
++  }
+ 
+   std::string CodeModel = getTargetOpts().CodeModel;
+   if (CodeModel == "default")
+@@ -886,9 +893,14 @@ void AArch64leTargetInfo::setDataLayout() {
+     if(getTriple().isArch32Bit())
+       resetDataLayout("e-m:o-p:32:32-i64:64-i128:128-n32:64-S128", "_");
+     else
+-      resetDataLayout("e-m:o-i64:64-i128:128-n32:64-S128", "_");
+-  } else
+-    resetDataLayout("e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128");
++      resetDataLayout("e-m:o-i64:64-i128:128-n32:64-S128");
++  } else {
++    if (getTriple().getEnvironment() == llvm::Triple::GNUILP32)
++      resetDataLayout(
++          "e-m:e-p:32:32-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128");
++    else
++      resetDataLayout("e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128");
++  }
+ }
+ 
+ void AArch64leTargetInfo::getTargetDefines(const LangOptions &Opts,
+@@ -911,7 +923,11 @@ void AArch64beTargetInfo::getTargetDefines(const LangOptions &Opts,
+ 
+ void AArch64beTargetInfo::setDataLayout() {
+   assert(!getTriple().isOSBinFormatMachO());
+-  resetDataLayout("E-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128");
++  if (getTriple().getEnvironment() == llvm::Triple::GNUILP32)
++    resetDataLayout(
++        "E-m:e-p:32:32-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128");
++  else
++    resetDataLayout("E-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128");
+ }
+ 
+ WindowsARM64TargetInfo::WindowsARM64TargetInfo(const llvm::Triple &Triple,
+diff --git a/clang/lib/Parse/ParseDecl.cpp b/clang/lib/Parse/ParseDecl.cpp
+index aef9909a7c97..7c94c236a1da 100644
+--- a/clang/lib/Parse/ParseDecl.cpp
++++ b/clang/lib/Parse/ParseDecl.cpp
+@@ -2631,7 +2631,7 @@ void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
+ static bool isValidAfterIdentifierInDeclarator(const Token &T) {
+   return T.isOneOf(tok::l_square, tok::l_paren, tok::r_paren, tok::semi,
+                    tok::comma, tok::equal, tok::kw_asm, tok::l_brace,
+-                   tok::colon);
++                   tok::colon, tok::kw___Safe__, tok::kw___Unsafe__);
+ }
+ 
+ /// ParseImplicitInt - This method is called when we have an non-typename
+@@ -4127,6 +4127,22 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
+                                      PrevSpec, DiagID, Policy);
+       break;
+ 
++    // safe-specifier:
++    case tok::kw___Safe__:
++    case tok::kw___Unsafe__: {
++      if (GetLookAheadToken(1).is(tok::l_square)) {
++        goto DoneWithDeclSpec;
++      } else if (GetLookAheadToken(1).is(tok::l_brace)) {
++        break;
++      } else {
++        SafeScopeSpecifier SafeSpec = SS_Unsafe;
++        if (Tok.is(tok::kw___Safe__)) {
++          SafeSpec = SS_Safe;
++        }
++        isInvalid = DS.setFunctionSafeSpecifier(Loc, PrevSpec, DiagID, SafeSpec);
++        break;
++      }
++    }
+     // class-specifier:
+     case tok::kw_class:
+     case tok::kw_struct:
+diff --git a/clang/lib/Parse/ParsePragma.cpp b/clang/lib/Parse/ParsePragma.cpp
+index 74fa70379858..7a1c87d30be4 100644
+--- a/clang/lib/Parse/ParsePragma.cpp
++++ b/clang/lib/Parse/ParsePragma.cpp
+@@ -338,6 +338,12 @@ struct PragmaAttributeHandler : public PragmaHandler {
+   ParsedAttributes AttributesForPragmaAttribute;
+ };
+ 
++struct PragmaSafeHandler : public PragmaHandler {
++  PragmaSafeHandler() : PragmaHandler("SAFE") {}
++  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
++                    Token &FirstToken) override;
++};
++
+ struct PragmaMaxTokensHereHandler : public PragmaHandler {
+   PragmaMaxTokensHereHandler() : PragmaHandler("max_tokens_here") {}
+   void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+@@ -508,6 +514,9 @@ void Parser::initializePragmaHandlers() {
+     RISCVPragmaHandler = std::make_unique<PragmaRISCVHandler>(Actions);
+     PP.AddPragmaHandler("clang", RISCVPragmaHandler.get());
+   }
++
++  SafeHandler.reset(new PragmaSafeHandler());
++  PP.AddPragmaHandler(SafeHandler.get());
+ }
+ 
+ void Parser::resetPragmaHandlers() {
+@@ -637,6 +646,9 @@ void Parser::resetPragmaHandlers() {
+     PP.RemovePragmaHandler("clang", RISCVPragmaHandler.get());
+     RISCVPragmaHandler.reset();
+   }
++
++  PP.RemovePragmaHandler(SafeHandler.get());
++  SafeHandler.reset();
+ }
+ 
+ /// Handle the annotation token produced for #pragma unused(...)
+@@ -1896,6 +1908,14 @@ void Parser::HandlePragmaAttribute() {
+   }
+ }
+ 
++void Parser::HandlePragmaSafe() {
++  assert(Tok.is(tok::annot_pragma_safe));
++  Sema::PragmaSafeStatus St = static_cast<Sema::PragmaSafeStatus>(
++    reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
++  (void)ConsumeAnnotationToken();
++  Actions.ActOnPragmaSafe(St);
++}
++
+ // #pragma GCC visibility comes in two variants:
+ //   'push' '(' [visibility] ')'
+ //   'pop'
+@@ -3889,6 +3909,37 @@ void PragmaAttributeHandler::HandlePragma(Preprocessor &PP,
+                       /*DisableMacroExpansion=*/false, /*IsReinject=*/false);
+ }
+ 
++void PragmaSafeHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
++                                     Token &Tok) {
++  PP.Lex(Tok);
++  Sema::PragmaSafeStatus St = Sema::PSS_On;
++
++  if (!Tok.is(tok::identifier)) {
++    return;
++  }
++
++  IdentifierInfo *II = Tok.getIdentifierInfo();
++  if (II->isStr("ON"))
++    St = Sema::PSS_On;
++  else if (II->isStr("OFF"))
++    St = Sema::PSS_Off;
++  else
++    return;
++
++  PP.Lex(Tok);
++  if (Tok.isNot(tok::eod))
++    PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol) << "SAFE";
++
++  MutableArrayRef<Token> Toks(PP.getPreprocessorAllocator().Allocate<Token>(1), 1);
++  Toks[0].startToken();
++  Toks[0].setKind(tok::annot_pragma_safe);
++  Toks[0].setLocation(Tok.getLocation());
++  Toks[0].setAnnotationEndLoc(Tok.getLocation());
++  Toks[0].setAnnotationValue(
++      reinterpret_cast<void *>(static_cast<uintptr_t>(St)));
++  PP.EnterTokenStream(Toks, true, false);
++}
++
+ // Handle '#pragma clang max_tokens 12345'.
+ void PragmaMaxTokensHereHandler::HandlePragma(Preprocessor &PP,
+                                               PragmaIntroducer Introducer,
+diff --git a/clang/lib/Parse/ParseStmt.cpp b/clang/lib/Parse/ParseStmt.cpp
+index 1f6c74aeae7e..5f866402a1ad 100644
+--- a/clang/lib/Parse/ParseStmt.cpp
++++ b/clang/lib/Parse/ParseStmt.cpp
+@@ -225,6 +225,7 @@ Retry:
+     LLVM_FALLTHROUGH;
+   }
+ 
++Default:
+   default: {
+     bool HaveAttrs = !CXX11Attrs.empty() || !GNUAttrs.empty();
+     auto IsStmtAttr = [](ParsedAttr &Attr) { return Attr.isStmtAttr(); };
+@@ -264,6 +265,14 @@ Retry:
+     return ParseExprStatement(StmtCtx);
+   }
+ 
++  case tok::kw___Safe__:
++  case tok::kw___Unsafe__: {
++    Token Next = NextToken();
++    if (Next.is(tok::l_brace))
++      return ParseCompoundStatement();
++    goto Default;
++  }
++
+   case tok::kw___attribute: {
+     GNUAttributeLoc = Tok.getLocation();
+     ParseGNUAttributes(GNUAttrs);
+@@ -483,6 +492,10 @@ Retry:
+   case tok::annot_pragma_attribute:
+     HandlePragmaAttribute();
+     return StmtEmpty();
++
++  case tok::annot_pragma_safe:
++    HandlePragmaSafe();
++    return StmtEmpty();
+   }
+ 
+   // If we reached this code, the statement must end in a semicolon.
+@@ -956,6 +969,18 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
+ ///
+ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
+                                           unsigned ScopeFlags) {
++  // Add security scope identification processing.
++  SafeScopeSpecifier SafeSpec = SS_None;
++  SourceLocation SafeLoc;
++
++  if (Tok.is(tok::kw___Safe__)) {
++    SafeSpec = SS_Safe;
++    SafeLoc = ConsumeToken();
++  } else if (Tok.is(tok::kw___Unsafe__)) {
++    SafeSpec = SS_Unsafe;
++    SafeLoc = ConsumeToken();
++  }
++
+   assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
+ 
+   // Enter a scope to hold everything within the compound stmt.  Compound
+@@ -963,7 +988,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
+   ParseScope CompoundScope(this, ScopeFlags);
+ 
+   // Parse the statements in the body.
+-  return ParseCompoundStatementBody(isStmtExpr);
++  return ParseCompoundStatementBody(isStmtExpr, SafeSpec, SafeLoc);
+ }
+ 
+ /// Parse any pragmas at the start of the compound expression. We handle these
+@@ -1025,6 +1050,9 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
+     case tok::annot_pragma_dump:
+       HandlePragmaDump();
+       break;
++    case tok::annot_pragma_safe:
++      HandlePragmaSafe();
++      break;
+     default:
+       checkForPragmas = false;
+       break;
+@@ -1086,7 +1114,7 @@ StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
+ /// ActOnCompoundStmt action.  This expects the '{' to be the current token, and
+ /// consume the '}' at the end of the block.  It does not manipulate the scope
+ /// stack.
+-StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
++StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr, SafeScopeSpecifier SafeSpec, SourceLocation SafeLoc) {
+   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
+                                 Tok.getLocation(),
+                                 "in compound statement ('{}')");
+@@ -1227,7 +1255,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
+     CloseLoc = T.getCloseLocation();
+ 
+   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
+-                                   Stmts, isStmtExpr);
++                                   Stmts, isStmtExpr, SafeSpec, SafeLoc);
+ }
+ 
+ /// ParseParenExprOrCondition:
+diff --git a/clang/lib/Parse/Parser.cpp b/clang/lib/Parse/Parser.cpp
+index fd044660845b..58a759f7f1ca 100644
+--- a/clang/lib/Parse/Parser.cpp
++++ b/clang/lib/Parse/Parser.cpp
+@@ -623,6 +623,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
+     HandlePragmaUnused();
+     return false;
+ 
++  case tok::annot_pragma_safe:
++    HandlePragmaSafe();
++    return false;
++
+   case tok::kw_export:
+     switch (NextToken().getKind()) {
+     case tok::kw_module:
+diff --git a/clang/lib/Sema/DeclSpec.cpp b/clang/lib/Sema/DeclSpec.cpp
+index d4dc790c008a..a4d864950771 100644
+--- a/clang/lib/Sema/DeclSpec.cpp
++++ b/clang/lib/Sema/DeclSpec.cpp
+@@ -462,7 +462,7 @@ unsigned DeclSpec::getParsedSpecifiers() const {
+     Res |= PQ_TypeSpecifier;
+ 
+   if (FS_inline_specified || FS_virtual_specified || hasExplicitSpecifier() ||
+-      FS_noreturn_specified || FS_forceinline_specified)
++      FS_noreturn_specified || FS_forceinline_specified || FS_safe_specified)
+     Res |= PQ_FunctionSpecifier;
+   return Res;
+ }
+@@ -1059,6 +1059,24 @@ bool DeclSpec::setFunctionSpecNoreturn(SourceLocation Loc,
+   return false;
+ }
+ 
++bool DeclSpec::setFunctionSafeSpecifier(SourceLocation Loc,
++                                        const char *&PrevSpec,
++                                        unsigned &DiagID,
++                                        SafeScopeSpecifier SafeSpec) {
++  if (FS_safe_specified == SS_None) {
++    FS_safe_specified = SafeSpec;
++    FS_safe_loc = Loc;
++    return false;
++  } else if (FS_safe_specified == SS_Safe) {
++    PrevSpec = "safe";
++  } else if (FS_safe_specified == SS_Unsafe) {
++    PrevSpec = "unsafe";
++  } else {
++    PrevSpec = "";
++  }
++  return true;
++}
++
+ bool DeclSpec::SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
+                              unsigned &DiagID) {
+   if (Friend_specified) {
+diff --git a/clang/lib/Sema/SemaDecl.cpp b/clang/lib/Sema/SemaDecl.cpp
+index 75ffa8b0a90a..e2199e5f9f69 100644
+--- a/clang/lib/Sema/SemaDecl.cpp
++++ b/clang/lib/Sema/SemaDecl.cpp
+@@ -9473,6 +9473,12 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
+                                               isVirtualOkay);
+   if (!NewFD) return nullptr;
+ 
++  SafeScopeSpecifier FuncSpec = D.getDeclSpec().getSafeSpecifier();
++  if (FuncSpec == SS_None) {
++    FuncSpec = GetPragmaSafeInfo();
++  }
++  NewFD->setSafeSpecifier(FuncSpec);
++
+   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
+     NewFD->setTopLevelDeclInObjCContainer();
+ 
+diff --git a/clang/lib/Sema/SemaDeclAttr.cpp b/clang/lib/Sema/SemaDeclAttr.cpp
+index 838fd48357fb..64f1a75e054c 100644
+--- a/clang/lib/Sema/SemaDeclAttr.cpp
++++ b/clang/lib/Sema/SemaDeclAttr.cpp
+@@ -1576,6 +1576,77 @@ static bool attrNonNullArgCheck(Sema &S, QualType T, const ParsedAttr &AL,
+   return true;
+ }
+ 
++// EnhanceC
++template <typename AttrInfo>
++static bool checkFunctionTypeIndex(
++    Sema &S, const Decl *D, const AttrInfo &AI, unsigned AttrArgNum,
++    const Expr *IdxExpr, ParamIdx &Idx, const FunctionProtoType *Proto) {
++
++  unsigned NumParams = Proto->getNumParams();
++
++  Optional<llvm::APSInt> IdxInt;
++  if (IdxExpr->isTypeDependent() || IdxExpr->isValueDependent() ||
++      !(IdxInt = IdxExpr->getIntegerConstantExpr(S.Context))) {
++    S.Diag(getAttrLoc(AI), diag::err_attribute_argument_n_type)
++        << &AI << AttrArgNum << AANT_ArgumentIntegerConstant
++        << IdxExpr->getSourceRange();
++    return false;
++  }
++
++  unsigned IdxSource = IdxInt->getLimitedValue(UINT_MAX);
++  if (IdxSource < 1 || (!Proto->isVariadic() && IdxSource > NumParams)) {
++    S.Diag(getAttrLoc(AI), diag::err_attribute_argument_out_of_bounds)
++        << &AI << AttrArgNum << IdxExpr->getSourceRange();
++    return false;
++  }
++
++  Idx = ParamIdx(IdxSource, D);
++  return true;
++}
++
++static void handleNonNullFuncPtrParams(Sema &S, Decl *D, const ParsedAttr &AL, QualType Ty) {
++  const FunctionProtoType *Proto = nullptr;
++  if (Ty->isFunctionPointerType() || Ty->isBlockPointerType())
++    Ty = Ty->getPointeeType();
++  const FunctionType *FT = Ty->getAs<FunctionType>();
++  if (FT)
++    Proto = dyn_cast<FunctionProtoType>(FT);
++  if (Proto == nullptr)
++    return;
++  SmallVector<ParamIdx, 8> NonNullArgs;
++  for (unsigned I = 0; I < AL.getNumArgs(); ++I) {
++    Expr *Ex = AL.getArgAsExpr(I);
++    ParamIdx Idx;
++    if (!checkFunctionTypeIndex(S, D, AL, I + 1, Ex, Idx, Proto))
++      return;
++
++    // Is the function type argument a pointer type
++    if (!attrNonNullArgCheck(
++            S, Proto->getParamType(Idx.getASTIndex()), AL,
++            Ex->getSourceRange(),
++            SourceRange()))
++      continue;
++
++    NonNullArgs.push_back(Idx);
++  }
++  ParamIdx *Start = NonNullArgs.data();
++  unsigned Size = NonNullArgs.size();
++  llvm::array_pod_sort(Start, Start + Size);
++  D->addAttr(::new (S.Context) NonNullAttr(S.Context, AL, Start, Size));
++}
++
++static void handleNonNullAttrVarAndField(Sema &S, Decl *D, const ParsedAttr &AL) {
++  const auto *VD = dyn_cast<clang::ValueDecl>(D);
++  if (VD == nullptr ||
++      !attrNonNullArgCheck(S, VD->getType(), AL, SourceRange(), D->getSourceRange())) {
++    return;
++  }
++  if (VD->getType()->isFunctionPointerType() && AL.getNumArgs() > 0)
++    handleNonNullFuncPtrParams(S, D, AL, VD->getType());
++  else
++    D->addAttr(::new (S.Context) NonNullAttr(S.Context, AL, nullptr, 0));
++}
++
+ static void handleNonNullAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+   SmallVector<ParamIdx, 8> NonNullArgs;
+   for (unsigned I = 0; I < AL.getNumArgs(); ++I) {
+@@ -1639,6 +1710,22 @@ static void handleNonNullAttrParameter(Sema &S, ParmVarDecl *D,
+   D->addAttr(::new (S.Context) NonNullAttr(S.Context, AL, nullptr, 0));
+ }
+ 
++static void handleReturnsNonNullFuncPtr(Sema &S, Decl *D, const ParsedAttr &AL) {
++  const auto *VD = dyn_cast<clang::ValueDecl>(D);
++  if (VD == nullptr || !VD->getType()->isFunctionPointerType()) {
++    S.Diag(AL.getLoc(), diag::warn_attribute_function_pointer) << AL;
++    return;
++  }
++  QualType Ty = VD->getType()->getPointeeType();
++  const FunctionType *FT = Ty->getAs<FunctionType>();
++  if (FT == nullptr)
++    return;
++  if (!attrNonNullArgCheck(S, FT->getReturnType(), AL, SourceRange(), D->getSourceRange(), true)) {
++    return;
++  }
++  D->addAttr(::new (S.Context) ReturnsNonNullAttr(S.Context, AL));
++}
++
+ static void handleReturnsNonNullAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+   QualType ResultType = getFunctionOrMethodResultType(D);
+   SourceRange SR = getFunctionOrMethodResultSourceRange(D);
+@@ -8295,6 +8382,296 @@ EnforceTCBLeafAttr *Sema::mergeEnforceTCBLeafAttr(
+       *this, D, AL);
+ }
+ 
++//===----------------------------------------------------------------------===//
++// EnhanceC Attribute
++//===----------------------------------------------------------------------===//
++
++// If no indexs were specified to `count` attribute and only one pointer argument in function
++// then the argument have the attribute; warn if there aren't any or more than one pointer argument.
++// Skip this check if the attribute came from a macro expansion or a template instantiation.
++static void checkPtrArgsInDefaultAttrIdx(SmallVector<ParamIdx, 8> &Args, Sema &S, Decl *D, const ParsedAttr &AL) {
++  if (Args.empty() && AL.getLoc().isFileID() && !S.inTemplateInstantiation()) {
++    bool AnyPointers = isFunctionOrMethodVariadic(D);
++    unsigned PtrNum = 0;
++    for (unsigned I = 0, E = getFunctionOrMethodNumParams(D);
++         I != E; ++I) {
++      QualType T = getFunctionOrMethodParamType(D, I);
++      if (T->isDependentType() || S.isValidPointerAttrType(T)) {
++        AnyPointers = true;
++        PtrNum++;
++      }
++    }
++
++    if (!AnyPointers)
++      S.Diag(AL.getLoc(), diag::warn_attribute_no_pointers) << AL;
++    else if (AnyPointers && PtrNum > 1)
++      S.Diag(AL.getLoc(), diag::err_attribute_redundant_pointers) << AL;
++  }
++}
++
++static SmallVector<ParamIdx, 8> handleFuncPtrParams(Sema &S, Decl *D, const ParsedAttr &AL, QualType Ty) {
++  const FunctionProtoType *Proto = nullptr;
++  SmallVector<ParamIdx, 8> Args;
++  if (Ty->isFunctionPointerType() || Ty->isBlockPointerType())
++    Ty = Ty->getPointeeType();
++  const FunctionType *FT = Ty->getAs<FunctionType>();
++  if (FT)
++    Proto = dyn_cast<FunctionProtoType>(FT);
++  if (Proto == nullptr)
++    return Args;
++
++  for (unsigned I = 1; I < AL.getNumArgs(); ++I) {
++    Expr *Ex = AL.getArgAsExpr(I);
++    ParamIdx Idx;
++    if (!checkFunctionTypeIndex(S, D, AL, I + 1, Ex, Idx, Proto))
++      continue;
++
++    // Is the function type argument a pointer type
++    if (!attrNonNullArgCheck(
++            S, Proto->getParamType(Idx.getASTIndex()), AL,
++            Ex->getSourceRange(),
++            SourceRange()))
++      continue;
++
++    Args.push_back(Idx);
++  }
++  return Args;
++}
++
++// `count` attribute
++static void handleCountFuncPtrParams(Sema &S, Decl *D, const ParsedAttr &AL, QualType Ty, Expr *LenExpr, bool isByte) {
++  SmallVector<ParamIdx, 8> CountArgs = handleFuncPtrParams(S, D, AL, Ty);
++  unsigned Size = CountArgs.size();
++  if (Size == 0) {
++    return;
++  }
++  ParamIdx *Start = CountArgs.data();
++  llvm::array_pod_sort(Start, Start + Size);
++  if (isByte)
++    D->addAttr(::new (S.Context) ByteCountAttr(S.Context, AL, LenExpr, Start, Size));
++  else
++    D->addAttr(::new (S.Context) CountAttr(S.Context, AL, LenExpr, Start, Size));
++}
++
++static void handleCountAttr(Sema &S, Decl *D, const ParsedAttr &AL, bool isByte = false) {
++  const auto *VD = dyn_cast<clang::ValueDecl>(D);
++  if (VD != nullptr &&
++      !attrNonNullArgCheck(S, VD->getType(), AL, SourceRange(), D->getSourceRange())) {
++    return;
++  }
++  // The first argument as `LenExpr` must exist
++  Expr *LenExpr = AL.getArgAsExpr(0);
++  if (VD->getType()->isFunctionPointerType() && AL.getNumArgs() > 1) {
++    handleCountFuncPtrParams(S, D, AL, VD->getType(), LenExpr, isByte);
++  } else {
++    if (isByte)
++      D->addAttr(::new (S.Context) ByteCountAttr(S.Context, AL, LenExpr));
++    else
++      D->addAttr(::new (S.Context) CountAttr(S.Context, AL, LenExpr));
++  }
++}
++
++static void handleCountAttrFunc(Sema &S, Decl *D, const ParsedAttr &AL, bool isByte = false) {
++  SmallVector<ParamIdx, 8> CountArgs;
++  // The first argument as `LenExpr` must exist
++  Expr *LenExpr = AL.getArgAsExpr(0);
++  for (unsigned I = 1; I < AL.getNumArgs(); ++I) {
++    Expr *Ex = AL.getArgAsExpr(I);
++    ParamIdx Idx;
++    if (!checkFunctionOrMethodParameterIndex(S, D, AL, I + 1, Ex, Idx))
++      return;
++    // Is the function argument a pointer type?
++    if (Idx.getASTIndex() < getFunctionOrMethodNumParams(D) &&
++        !attrNonNullArgCheck(
++            S, getFunctionOrMethodParamType(D, Idx.getASTIndex()), AL,
++            Ex->getSourceRange(),
++            getFunctionOrMethodParamRange(D, Idx.getASTIndex())))
++      continue;
++
++    CountArgs.push_back(Idx);
++  }
++
++  checkPtrArgsInDefaultAttrIdx(CountArgs, S, D, AL);
++  ParamIdx *Start = CountArgs.data();
++  unsigned Size = CountArgs.size();
++  llvm::array_pod_sort(Start, Start + Size);
++  if (isByte)
++    D->addAttr(::new (S.Context) ByteCountAttr(S.Context, AL, LenExpr, Start, Size));
++  else
++    D->addAttr(::new (S.Context) CountAttr(S.Context, AL, LenExpr, Start, Size));
++  
++}
++
++// `returns_count` attribute
++static void handleReturnsCountAttr(Sema &S, Decl *D, const ParsedAttr &AL, bool isByte = false) {
++  QualType ResultType = getFunctionOrMethodResultType(D);
++  SourceRange SR = getFunctionOrMethodResultSourceRange(D);
++  if (!attrNonNullArgCheck(S, ResultType, AL, SourceRange(), SR,
++                           /* isReturnValue */ true))
++    return;
++  Expr *LenExpr = AL.getArgAsExpr(0);
++
++  if (isByte)
++    D->addAttr(::new (S.Context) ReturnsByteCountAttr(S.Context, AL, LenExpr));
++  else
++    D->addAttr(::new (S.Context) ReturnsCountAttr(S.Context, AL, LenExpr));
++}
++
++static void handleReturnsCountFuncPtr(Sema &S, Decl *D, const ParsedAttr &AL, bool isByte = false) {
++  const auto *VD = dyn_cast<clang::ValueDecl>(D);
++  if (VD == nullptr || !VD->getType()->isFunctionPointerType()) {
++    S.Diag(AL.getLoc(), diag::warn_attribute_function_pointer) << AL;
++    return;
++  }
++  QualType Ty = VD->getType()->getPointeeType();
++  const FunctionType *FT = Ty->getAs<FunctionType>();
++  if (FT == nullptr)
++    return;
++  if (!attrNonNullArgCheck(S, FT->getReturnType(), AL, SourceRange(), D->getSourceRange(), true)) {
++    return;
++  }
++  Expr *LenExpr = AL.getArgAsExpr(0);
++  if (isByte)
++    D->addAttr(::new (S.Context) ReturnsByteCountAttr(S.Context, AL, LenExpr));
++  else
++    D->addAttr(::new (S.Context) ReturnsCountAttr(S.Context, AL, LenExpr));
++}
++
++// `count_index` attribute
++static void handleCountIndexFuncPtrParams(Sema &S, Decl *D, const ParsedAttr &AL, QualType Ty, const ParamIdx &LenIdx, bool isByte) {
++  SmallVector<ParamIdx, 8> CountIndexArgs = handleFuncPtrParams(S, D, AL, Ty);
++  unsigned Size = CountIndexArgs.size();
++  if (Size == 0) {
++    return;
++  }
++  ParamIdx *Start = CountIndexArgs.data();
++  llvm::array_pod_sort(Start, Start + Size);
++  if (isByte)
++    D->addAttr(::new (S.Context) ByteCountIndexAttr(S.Context, AL, LenIdx, Start, Size));
++  else
++    D->addAttr(::new (S.Context) CountIndexAttr(S.Context, AL, LenIdx, Start, Size));
++}
++
++static void handleCountIndexAttr(Sema &S, Decl *D, const ParsedAttr &AL, bool isByte = false) {
++  const auto *VD = dyn_cast<clang::ValueDecl>(D);
++  if (VD != nullptr &&
++      !attrNonNullArgCheck(S, VD->getType(), AL, SourceRange(), D->getSourceRange())) {
++    return;
++  }
++
++  const Expr *LenVarIdxExpr = AL.getArgAsExpr(0);
++  int Idx;
++  // Parameter indices are 1-indexed, hence Index=1
++  if (!checkPositiveIntArgument(S, AL, LenVarIdxExpr, Idx, /*Idx=*/1))
++    return;
++  ParamIdx LenVarIdx(Idx, D);
++
++  if (VD->getType()->isFunctionPointerType() && AL.getNumArgs() > 1) {
++    handleCountIndexFuncPtrParams(S, D, AL, VD->getType(), LenVarIdx, isByte);
++  } else {
++    if (dyn_cast<clang::ParmVarDecl>(D) == nullptr) {
++      S.Diag(AL.getLoc(), diag::warn_attribute_function_pointer) << AL;
++      return;
++    }
++    if (isByte)
++      D->addAttr(::new (S.Context) ByteCountIndexAttr(S.Context, AL, LenVarIdx));
++    else
++      D->addAttr(::new (S.Context) CountIndexAttr(S.Context, AL, LenVarIdx));
++  }
++}
++
++static void handleCountIndexAttrFunc(Sema &S, Decl *D, const ParsedAttr &AL, bool isByte = false) {
++  if (AL.getNumArgs() == 1) {
++    S.Diag(AL.getLoc(), diag::err_attribute_zero_pointer) << AL;
++    return;
++  }
++  // The first argument as `LenVarIndex` must be integer type
++  ParamIdx LenVarIdx;
++  const Expr *LenExpr = AL.getArgAsExpr(0);
++  if (!checkFunctionOrMethodParameterIndex(S, D, AL, 1, LenExpr, LenVarIdx))
++    return;
++  const ParmVarDecl *Param = dyn_cast<FunctionDecl>(D)->getParamDecl(LenVarIdx.getASTIndex());
++  if (!Param->getType()->isIntegerType()) {
++    SourceLocation SrcLoc = LenExpr->getBeginLoc();
++    S.Diag(SrcLoc, diag::err_attribute_integers_only) << AL << Param->getSourceRange();
++    return;
++  }
++
++  SmallVector<ParamIdx, 8> CountIndexArgs;
++  for (unsigned I = 1; I < AL.getNumArgs(); ++I) {
++    Expr *Ex = AL.getArgAsExpr(I);
++    ParamIdx Idx;
++    if (!checkFunctionOrMethodParameterIndex(S, D, AL, I + 1, Ex, Idx))
++      return;
++    // Is the function argument a pointer type?
++    if (Idx.getASTIndex() < getFunctionOrMethodNumParams(D) &&
++        !attrNonNullArgCheck(
++            S, getFunctionOrMethodParamType(D, Idx.getASTIndex()), AL,
++            Ex->getSourceRange(),
++            getFunctionOrMethodParamRange(D, Idx.getASTIndex())))
++      continue;
++
++    CountIndexArgs.push_back(Idx);
++  }
++
++  checkPtrArgsInDefaultAttrIdx(CountIndexArgs, S, D, AL);
++  unsigned Size = CountIndexArgs.size();
++  ParamIdx *Start = CountIndexArgs.data();
++  llvm::array_pod_sort(Start, Start + Size);
++  if (isByte)
++    D->addAttr(::new (S.Context) ByteCountIndexAttr(S.Context, AL, LenVarIdx, Start, Size));
++  else
++    D->addAttr(::new (S.Context) CountIndexAttr(S.Context, AL, LenVarIdx, Start, Size));
++}
++
++// `returns_count_index` attribute
++static void handleReturnsCountIndexAttr(Sema &S, Decl *D, const ParsedAttr &AL, bool isByte = false) {
++  QualType ResultType = getFunctionOrMethodResultType(D);
++  SourceRange SR = getFunctionOrMethodResultSourceRange(D);
++  if (!attrNonNullArgCheck(S, ResultType, AL, SourceRange(), SR,
++                           /* isReturnValue */ true))
++    return;
++  const Expr *LenVarIdxExpr = AL.getArgAsExpr(0);
++  ParamIdx LenVarIdx;
++  if (!checkFunctionOrMethodParameterIndex(S, D, AL, 1, LenVarIdxExpr, LenVarIdx))
++    return;
++  const ParmVarDecl *Param = dyn_cast<FunctionDecl>(D)->getParamDecl(LenVarIdx.getASTIndex());
++  if (!Param->getType()->isIntegerType()) {
++    SourceLocation SrcLoc = LenVarIdxExpr->getBeginLoc();
++    S.Diag(SrcLoc, diag::err_attribute_integers_only) << AL << Param->getSourceRange();
++    return;
++  }
++  if (isByte)
++    D->addAttr(::new (S.Context) ReturnsByteCountIndexAttr(S.Context, AL, LenVarIdx));
++  else
++    D->addAttr(::new (S.Context) ReturnsCountIndexAttr(S.Context, AL, LenVarIdx));
++}
++
++static void handleReturnsCountIndexFuncPtr(Sema &S, Decl *D, const ParsedAttr &AL, bool isByte = false) {
++  const auto *VD = dyn_cast<clang::ValueDecl>(D);
++  if (VD == nullptr || !VD->getType()->isFunctionPointerType()) {
++    S.Diag(AL.getLoc(), diag::warn_attribute_function_pointer) << AL;
++    return;
++  }
++  QualType Ty = VD->getType()->getPointeeType();
++  const FunctionType *FT = Ty->getAs<FunctionType>();
++  if (FT == nullptr)
++    return;
++  if (!attrNonNullArgCheck(S, FT->getReturnType(), AL, SourceRange(), D->getSourceRange(), true)) {
++    return;
++  }
++  const Expr *LenVarIdxExpr = AL.getArgAsExpr(0);
++  int Idx;
++  // Parameter indices are 1-indexed, hence Index=1
++  if (!checkPositiveIntArgument(S, AL, LenVarIdxExpr, Idx, /*Idx=*/1))
++    return;
++  ParamIdx LenVarIdx(Idx, D);
++  if (isByte)
++    D->addAttr(::new (S.Context) ReturnsByteCountIndexAttr(S.Context, AL, LenVarIdx));
++  else
++    D->addAttr(::new (S.Context) ReturnsCountIndexAttr(S.Context, AL, LenVarIdx));
++}
++
+ //===----------------------------------------------------------------------===//
+ // Top Level Sema Entry Points
+ //===----------------------------------------------------------------------===//
+@@ -8625,11 +9002,16 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
+   case ParsedAttr::AT_NonNull:
+     if (auto *PVD = dyn_cast<ParmVarDecl>(D))
+       handleNonNullAttrParameter(S, PVD, AL);
++    else if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleNonNullAttrVarAndField(S, D, AL);
+     else
+       handleNonNullAttr(S, D, AL);
+     break;
+   case ParsedAttr::AT_ReturnsNonNull:
+-    handleReturnsNonNullAttr(S, D, AL);
++    if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleReturnsNonNullFuncPtr(S, D, AL);
++    else
++      handleReturnsNonNullAttr(S, D, AL);
+     break;
+   case ParsedAttr::AT_NoEscape:
+     handleNoEscapeAttr(S, D, AL);
+@@ -9093,6 +9475,63 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
+   case ParsedAttr::AT_UsingIfExists:
+     handleSimpleAttribute<UsingIfExistsAttr>(S, D, AL);
+     break;
++
++  // EnhanceC attribute
++  case ParsedAttr::AT_Count:
++    if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleCountAttr(S, D, AL);
++    else
++      handleCountAttrFunc(S, D, AL);
++    break;
++
++  case ParsedAttr::AT_ReturnsCount:
++    if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleReturnsCountFuncPtr(S, D, AL);
++    else
++      handleReturnsCountAttr(S, D, AL);
++    break;
++
++  case ParsedAttr::AT_CountIndex:
++    if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleCountIndexAttr(S, D, AL);
++    else
++      handleCountIndexAttrFunc(S, D, AL);
++    break;
++
++  case ParsedAttr::AT_ReturnsCountIndex:
++    if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleReturnsCountIndexFuncPtr(S, D, AL);
++    else
++      handleReturnsCountIndexAttr(S, D, AL);
++    break;
++
++  case ParsedAttr::AT_ByteCount:
++    if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleCountAttr(S, D, AL, true);
++    else
++      handleCountAttrFunc(S, D, AL, true);
++    break;
++
++  case ParsedAttr::AT_ReturnsByteCount:
++    if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleReturnsCountFuncPtr(S, D, AL, true);
++    else
++      handleReturnsCountAttr(S, D, AL, true);
++    break;
++
++  case ParsedAttr::AT_ByteCountIndex:
++    if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleCountIndexAttr(S, D, AL, true);
++    else
++      handleCountIndexAttrFunc(S, D, AL, true);
++    break;
++
++  case ParsedAttr::AT_ReturnsByteCountIndex:
++    if ((dyn_cast<VarDecl>(D) != nullptr) || dyn_cast<FieldDecl>(D) != nullptr)
++      handleReturnsCountIndexFuncPtr(S, D, AL, true);
++    else
++      handleReturnsCountIndexAttr(S, D, AL, true);
++    break;
+   }
+ }
+ 
+diff --git a/clang/lib/Sema/SemaStmt.cpp b/clang/lib/Sema/SemaStmt.cpp
+index c6ca10c0342c..4878f8765e93 100644
+--- a/clang/lib/Sema/SemaStmt.cpp
++++ b/clang/lib/Sema/SemaStmt.cpp
+@@ -407,7 +407,8 @@ sema::CompoundScopeInfo &Sema::getCurCompoundScope() const {
+ }
+ 
+ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
+-                                   ArrayRef<Stmt *> Elts, bool isStmtExpr) {
++                                   ArrayRef<Stmt *> Elts, bool isStmtExpr,
++                                   SafeScopeSpecifier SafeSpec, SourceLocation SafeLoc) {
+   const unsigned NumElts = Elts.size();
+ 
+   // If we're in C mode, check that we don't have any decls after stmts.  If
+@@ -451,7 +452,13 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
+                       : getCurCompoundScope().InitialFPFeatures;
+   FPOptionsOverride FPDiff = getCurFPFeatures().getChangesFrom(FPO);
+ 
+-  return CompoundStmt::Create(Context, Elts, FPDiff, L, R);
++  // return CompoundStmt::Create(Context, Elts, FPDiff, L, R);
++  return CompoundStmt::Create(Context, Elts, FPDiff, L, R, SafeSpec, SafeLoc);
++}
++
++void Sema::ActOnPragmaSafe(PragmaSafeStatus St) {
++  SafeScopeSpecifier spec = St == PSS_On ? SS_Safe : SS_Unsafe;
++  SetPragmaSafeInfo(spec);
+ }
+ 
+ ExprResult
+diff --git a/clang/lib/Serialization/ASTReaderDecl.cpp b/clang/lib/Serialization/ASTReaderDecl.cpp
+index 73800191dfc1..8610df05b7a5 100644
+--- a/clang/lib/Serialization/ASTReaderDecl.cpp
++++ b/clang/lib/Serialization/ASTReaderDecl.cpp
+@@ -909,6 +909,7 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
+   // after everything else is read.
+ 
+   FD->setStorageClass(static_cast<StorageClass>(Record.readInt()));
++  FD->setSafeSpecifier(static_cast<SafeScopeSpecifier>(Record.readInt()));
+   FD->setInlineSpecified(Record.readInt());
+   FD->setImplicitlyInline(Record.readInt());
+   FD->setVirtualAsWritten(Record.readInt());
+diff --git a/clang/lib/Serialization/ASTReaderStmt.cpp b/clang/lib/Serialization/ASTReaderStmt.cpp
+index e0ae019bf803..08d592d1b9b0 100644
+--- a/clang/lib/Serialization/ASTReaderStmt.cpp
++++ b/clang/lib/Serialization/ASTReaderStmt.cpp
+@@ -154,6 +154,7 @@ void ASTStmtReader::VisitCompoundStmt(CompoundStmt *S) {
+   unsigned NumStmts = Record.readInt();
+   unsigned HasFPFeatures = Record.readInt();
+   assert(S->hasStoredFPFeatures() == HasFPFeatures);
++  S->setSafeSpecifier(static_cast<SafeScopeSpecifier>(Record.readInt()));
+   while (NumStmts--)
+     Stmts.push_back(Record.readSubStmt());
+   S->setStmts(Stmts);
+diff --git a/clang/lib/Serialization/ASTWriterDecl.cpp b/clang/lib/Serialization/ASTWriterDecl.cpp
+index 35b8db27bd0e..3d181c144ab9 100644
+--- a/clang/lib/Serialization/ASTWriterDecl.cpp
++++ b/clang/lib/Serialization/ASTWriterDecl.cpp
+@@ -547,6 +547,7 @@ void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
+   // FunctionDecl's body is handled last at ASTWriterDecl::Visit,
+   // after everything else is written.
+   Record.push_back(static_cast<int>(D->getStorageClass())); // FIXME: stable encoding
++  Record.push_back(D->getSafeSpecifier());
+   Record.push_back(D->isInlineSpecified());
+   Record.push_back(D->isInlined());
+   Record.push_back(D->isVirtualAsWritten());
+diff --git a/clang/lib/Serialization/ASTWriterStmt.cpp b/clang/lib/Serialization/ASTWriterStmt.cpp
+index 5e5a86ee01a2..ce622a1991da 100644
+--- a/clang/lib/Serialization/ASTWriterStmt.cpp
++++ b/clang/lib/Serialization/ASTWriterStmt.cpp
+@@ -82,6 +82,7 @@ void ASTStmtWriter::VisitCompoundStmt(CompoundStmt *S) {
+   VisitStmt(S);
+   Record.push_back(S->size());
+   Record.push_back(S->hasStoredFPFeatures());
++  Record.push_back(S->getSafeSpecifier());
+   for (auto *CS : S->body())
+     Record.AddStmt(CS);
+   if (S->hasStoredFPFeatures())

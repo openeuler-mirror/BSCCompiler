@@ -39,6 +39,7 @@ declare_args() {
 
 # Define global args
 MAPLE_ROOT = getenv("MAPLE_ROOT")
+ENHANCED_CLANG_PATH = getenv("ENHANCED_CLANG_PATH")
 ANDROID_ROOT = "${MAPLE_ROOT}/android"
 AOSP_ROOT = "${MAPLE_ROOT}/third_party/aosp_modified"
 MAPLE_BUILD_TYPE = getenv("MAPLE_BUILD_TYPE")

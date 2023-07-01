@@ -28,6 +28,7 @@ set(COV_CHECK "1")
 # env args
 set(MAPLE_ROOT $ENV{MAPLE_ROOT})
 set(ANDROID_ROOT ${MAPLE_ROOT}/android)
+set(ENHANCED_CLANG_PATH $ENV{ENHANCED_CLANG_PATH})
 set(AOSP_ROOT ${MAPLE_ROOT}/third_party/aosp_modified)
 set(MAPLE_BUILD_TYPE $ENV{MAPLE_BUILD_TYPE})
 set(MAPLE_BUILD_OUTPUT $ENV{MAPLE_BUILD_OUTPUT})
@@ -65,7 +66,8 @@ set(PROJECT_BINARY_DIR ${MAPLE_BUILD_OUTPUT}/lib)
 
 
 #--------------------------------- toolchain -------------------------------------
-set(CLANG_PATH ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04)
+# ENHANCED_CLANG_PATH
+set(CLANG_PATH ${ENHANCED_CLANG_PATH})
 set(LLVMINC ${CLANG_PATH}/include)
 set(LLVMLIBDIR ${CLANG_PATH}/lib)
 set(CFE_SRC_DIR ${MAPLE_ROOT}/../third_party/clang-10.0.0.src)
@@ -100,10 +102,12 @@ if(${CMAKE_BUILD_TYPE} STREQUAL "RELEASE")
         "${CMAKE_C_FLAGS} -O2 -fno-strict-aliasing -D_FORTIFY_SOURCE=2")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "DEBUG")
     add_definitions("-DDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g3 -gdwarf-4")
+    set(CMAKE_C_FLAGS_DEBUG "-g3 -gdwarf-4")
     set(CMAKE_CXX_FLAGS
-        "${CMAKE_CXX_FLAGS} -O0 -g3 -ftrapv -fstack-check")
+        "${CMAKE_CXX_FLAGS} -O0 -ftrapv -fstack-check")
     set(CMAKE_C_FLAGS
-        "${CMAKE_C_FLAGS} -O0 -g3 -ftrapv -fstack-check")
+        "${CMAKE_C_FLAGS} -O0 -ftrapv -fstack-check")
     if(${target_toolchain} STREQUAL "//build/toolchain:clang")
         set(CMAKE_CXX_FLAGS
             "${CMAKE_CXX_FLAGS} -fno-limit-debug-info")
@@ -160,7 +164,7 @@ endif()
 
 if(${ASAN} STREQUAL 1)
     add_definitions(" -fsanitize=address ")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -ldl ${LLVMLIBDIR}/libclang_rt.asan-x86_64.a")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -ldl ${LLVMLIBDIR}/clang/15.0.4/lib/x86_64-unknown-linux-gnu/libclang_rt.asan.a")
 endif()
 
 if(${COV} STREQUAL 1)

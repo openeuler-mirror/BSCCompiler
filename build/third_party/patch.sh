@@ -18,7 +18,7 @@ THIRD_PARTY_PATH=$MAPLE_ROOT/third_party
 TOOLS_PATH=$MAPLE_ROOT/build/third_party
 AOSP_PATH=$THIRD_PARTY_PATH/aosp_10.0.0_r35
 AOSP_GN_PATH=$TOOLS_PATH/aosp_gn
-LLVM_PATH=$THIRD_PARTY_PATH/llvm-12.0.0.src
+LLVM_PATH=$THIRD_PARTY_PATH/llvm-15.0.4.src
 MODIFIED_AOSP_PATH=$THIRD_PARTY_PATH/aosp_modified
 MODIFIED_LLVM_PATH=$THIRD_PARTY_PATH/llvm_modified
 
@@ -41,6 +41,10 @@ function install_patch {
     patch -p0 < $TOOLS_PATH/art_001.patch
     mkdir -p include/
     cp -r ${MAPLE_ROOT}/src/hir2mpl/bytecode_input/dex/include/string_view_format.h include/
+
+    cd $MODIFIED_LLVM_PATH
+    # llvm_enhancedc_001.patch 重新生成llvm 15的 C增强特性 的patch
+    patch -p1 < $TOOLS_PATH/llvm_enhancec_001.patch
 
     #add third_party gn
     cp -f $AOSP_GN_PATH/art/libdexfile/BUILD.gn $MODIFIED_AOSP_PATH/art/libdexfile/

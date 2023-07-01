@@ -14,8 +14,10 @@
  */
 #include_next <stdio.h>
 #ifndef __STDIO_C_ENHANCED_H
-#if !defined __need_FILE && !defined __need___FILE
+// no stdio header guard if (defined __need_FILE or defined __need___FILE => !defined STDIO_H)
+#ifdef _STDIO_H
 #define __STDIO_C_ENHANCED_H
+#ifdef C_ENHANCED
 #include "c_enhanced.h"
 #include <stdarg.h>
 
@@ -35,5 +37,6 @@ CNTI(2, 1)
 SAFE char *fgets(char *__restrict str, int, FILE *__restrict);
 #endif
 
-#endif
+#endif // C_ENHANCED
+#endif // _STDIO_H
 #endif // __STDIO_C_ENHANCED_H
