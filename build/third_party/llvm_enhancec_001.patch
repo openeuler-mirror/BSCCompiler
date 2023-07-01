@@ -99,10 +99,10 @@ index 49a66a1ea5b8..87a4951ebf9c 100644
    SourceLocation getEndLoc() const { return RBraceLoc; }
  
 diff --git a/clang/include/clang/Basic/Attr.td b/clang/include/clang/Basic/Attr.td
-index a8f10c632e0f..d903091a7d76 100644
+index d61f3583281d..f9faec770851 100644
 --- a/clang/include/clang/Basic/Attr.td
 +++ b/clang/include/clang/Basic/Attr.td
-@@ -1982,8 +1982,8 @@ def NoSplitStack : InheritableAttr {
+@@ -1942,8 +1942,8 @@ def NoSplitStack : InheritableAttr {
  
  def NonNull : InheritableParamAttr {
    let Spellings = [GCC<"nonnull">];
@@ -113,7 +113,7 @@ index a8f10c632e0f..d903091a7d76 100644
    let Args = [VariadicParamIdxArgument<"Args">];
    let AdditionalMembers = [{
      bool isNonNull(unsigned IdxAST) const {
-@@ -2001,7 +2001,7 @@ def NonNull : InheritableParamAttr {
+@@ -1961,7 +1961,7 @@ def NonNull : InheritableParamAttr {
  
  def ReturnsNonNull : InheritableAttr {
    let Spellings = [GCC<"returns_nonnull">];
@@ -122,7 +122,7 @@ index a8f10c632e0f..d903091a7d76 100644
    let Documentation = [ReturnsNonNullDocs];
  }
  
-@@ -4101,3 +4101,80 @@ def FunctionReturnThunks : InheritableAttr,
+@@ -4047,3 +4047,80 @@ def FunctionReturnThunks : InheritableAttr,
    let Subjects = SubjectList<[Function]>;
    let Documentation = [FunctionReturnThunksDocs];
  }
@@ -204,7 +204,7 @@ index a8f10c632e0f..d903091a7d76 100644
 +  let TemplateDependent = 1;
 +}
 diff --git a/clang/include/clang/Basic/DiagnosticSemaKinds.td b/clang/include/clang/Basic/DiagnosticSemaKinds.td
-index d22bf6bea136..bb356f65831a 100644
+index cb460401eb47..045e443db8a2 100644
 --- a/clang/include/clang/Basic/DiagnosticSemaKinds.td
 +++ b/clang/include/clang/Basic/DiagnosticSemaKinds.td
 @@ -3087,9 +3087,22 @@ def err_attribute_only_once_per_parameter : Error<
@@ -276,7 +276,7 @@ index 84fc0893c8b5..077ceb41e715 100644
  // The lexer produces these so that they only take effect when the parser
  // handles them.
 diff --git a/clang/include/clang/Parse/Parser.h b/clang/include/clang/Parse/Parser.h
-index 00c1209bc2bf..6dcb8ef1319a 100644
+index 41bfc9f48ecc..e6cd5659e63f 100644
 --- a/clang/include/clang/Parse/Parser.h
 +++ b/clang/include/clang/Parse/Parser.h
 @@ -216,6 +216,7 @@ class Parser : public CodeCompletionHandler {
@@ -296,7 +296,7 @@ index 00c1209bc2bf..6dcb8ef1319a 100644
    /// GetLookAheadToken - This peeks ahead N tokens and returns that token
    /// without consuming any tokens.  LookAhead(0) returns 'Tok', LookAhead(1)
    /// returns the token after Tok, etc.
-@@ -2102,7 +2105,9 @@ private:
+@@ -2092,7 +2095,9 @@ private:
                                      unsigned ScopeFlags);
    void ParseCompoundStatementLeadingPragmas();
    bool ConsumeNullStmt(StmtVector &Stmts);
@@ -308,7 +308,7 @@ index 00c1209bc2bf..6dcb8ef1319a 100644
                                   Sema::ConditionResult &CondResult,
                                   SourceLocation Loc, Sema::ConditionKind CK,
 diff --git a/clang/include/clang/Sema/DeclSpec.h b/clang/include/clang/Sema/DeclSpec.h
-index 8125a9ff9f10..887a8d829ef4 100644
+index 21d4a53d8e22..2a23d068e592 100644
 --- a/clang/include/clang/Sema/DeclSpec.h
 +++ b/clang/include/clang/Sema/DeclSpec.h
 @@ -367,6 +367,10 @@ private:
@@ -355,7 +355,7 @@ index 8125a9ff9f10..887a8d829ef4 100644
      FS_noreturn_specified = false;
      FS_noreturnLoc = SourceLocation();
    }
-@@ -749,6 +765,8 @@ public:
+@@ -738,6 +754,8 @@ public:
                                 SourceLocation CloseParenLoc);
    bool setFunctionSpecNoreturn(SourceLocation Loc, const char *&PrevSpec,
                                 unsigned &DiagID);
@@ -365,7 +365,7 @@ index 8125a9ff9f10..887a8d829ef4 100644
    bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                       unsigned &DiagID);
 diff --git a/clang/include/clang/Sema/Sema.h b/clang/include/clang/Sema/Sema.h
-index 0f9d9f7b9105..fee1b0f6754c 100644
+index 681a76dfa56a..6e70a9573fdf 100644
 --- a/clang/include/clang/Sema/Sema.h
 +++ b/clang/include/clang/Sema/Sema.h
 @@ -4899,7 +4899,28 @@ public:
@@ -457,7 +457,7 @@ index aaba4345587b..94d1cad0317c 100644
    FunctionDeclBits.IsCopyDeductionCandidate = false;
    FunctionDeclBits.HasODRHash = false;
 diff --git a/clang/lib/AST/ExprConstant.cpp b/clang/lib/AST/ExprConstant.cpp
-index ae29aa7029f4..c16c43167403 100644
+index 9d92c848ccb8..cd852a076d81 100644
 --- a/clang/lib/AST/ExprConstant.cpp
 +++ b/clang/lib/AST/ExprConstant.cpp
 @@ -10686,6 +10686,8 @@ static bool EvaluateArrayNewConstructExpr(EvalInfo &Info, LValue &This,
@@ -469,7 +469,7 @@ index ae29aa7029f4..c16c43167403 100644
    // For now, just allow non-class value-initialization and initialization
    // lists comprised of them.
    if (isa<ImplicitValueInitExpr>(FillerExpr))
-@@ -14850,6 +14852,8 @@ static bool Evaluate(APValue &Result, EvalInfo &Info, const Expr *E) {
+@@ -14843,6 +14845,8 @@ static bool Evaluate(APValue &Result, EvalInfo &Info, const Expr *E) {
  /// an object can indirectly refer to subobjects which were initialized earlier.
  static bool EvaluateInPlace(APValue &Result, EvalInfo &Info, const LValue &This,
                              const Expr *E, bool AllowNonLiteralTypes) {
@@ -602,7 +602,7 @@ index 8d8972c1613a..8c38e11aae07 100644
  
  WindowsARM64TargetInfo::WindowsARM64TargetInfo(const llvm::Triple &Triple,
 diff --git a/clang/lib/Parse/ParseDecl.cpp b/clang/lib/Parse/ParseDecl.cpp
-index 8f291086d263..328e85375aa1 100644
+index aef9909a7c97..7c94c236a1da 100644
 --- a/clang/lib/Parse/ParseDecl.cpp
 +++ b/clang/lib/Parse/ParseDecl.cpp
 @@ -2631,7 +2631,7 @@ void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
@@ -614,7 +614,7 @@ index 8f291086d263..328e85375aa1 100644
  }
  
  /// ParseImplicitInt - This method is called when we have an non-typename
-@@ -4142,6 +4142,22 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
+@@ -4127,6 +4127,22 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                       PrevSpec, DiagID, Policy);
        break;
  
@@ -728,7 +728,7 @@ index 74fa70379858..7a1c87d30be4 100644
  void PragmaMaxTokensHereHandler::HandlePragma(Preprocessor &PP,
                                                PragmaIntroducer Introducer,
 diff --git a/clang/lib/Parse/ParseStmt.cpp b/clang/lib/Parse/ParseStmt.cpp
-index dd7905b18c8c..cd3335784c30 100644
+index 1f6c74aeae7e..5f866402a1ad 100644
 --- a/clang/lib/Parse/ParseStmt.cpp
 +++ b/clang/lib/Parse/ParseStmt.cpp
 @@ -225,6 +225,7 @@ Retry:
@@ -822,7 +822,7 @@ index dd7905b18c8c..cd3335784c30 100644
  
  /// ParseParenExprOrCondition:
 diff --git a/clang/lib/Parse/Parser.cpp b/clang/lib/Parse/Parser.cpp
-index c974a3da1332..a93304563c8b 100644
+index fd044660845b..58a759f7f1ca 100644
 --- a/clang/lib/Parse/Parser.cpp
 +++ b/clang/lib/Parse/Parser.cpp
 @@ -623,6 +623,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
@@ -875,7 +875,7 @@ index d4dc790c008a..a4d864950771 100644
                               unsigned &DiagID) {
    if (Friend_specified) {
 diff --git a/clang/lib/Sema/SemaDecl.cpp b/clang/lib/Sema/SemaDecl.cpp
-index f248a156b8a4..4aae73758da0 100644
+index 75ffa8b0a90a..e2199e5f9f69 100644
 --- a/clang/lib/Sema/SemaDecl.cpp
 +++ b/clang/lib/Sema/SemaDecl.cpp
 @@ -9473,6 +9473,12 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
@@ -892,7 +892,7 @@ index f248a156b8a4..4aae73758da0 100644
      NewFD->setTopLevelDeclInObjCContainer();
  
 diff --git a/clang/lib/Sema/SemaDeclAttr.cpp b/clang/lib/Sema/SemaDeclAttr.cpp
-index a5162bf919d2..e0f3dae9d4fb 100644
+index 838fd48357fb..64f1a75e054c 100644
 --- a/clang/lib/Sema/SemaDeclAttr.cpp
 +++ b/clang/lib/Sema/SemaDeclAttr.cpp
 @@ -1576,6 +1576,77 @@ static bool attrNonNullArgCheck(Sema &S, QualType T, const ParsedAttr &AL,
@@ -996,9 +996,9 @@ index a5162bf919d2..e0f3dae9d4fb 100644
  static void handleReturnsNonNullAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
    QualType ResultType = getFunctionOrMethodResultType(D);
    SourceRange SR = getFunctionOrMethodResultSourceRange(D);
-@@ -8443,6 +8530,296 @@ static void handleRISCVMRetAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
- #endif
- 
+@@ -8295,6 +8382,296 @@ EnforceTCBLeafAttr *Sema::mergeEnforceTCBLeafAttr(
+       *this, D, AL);
+ }
  
 +//===----------------------------------------------------------------------===//
 +// EnhanceC Attribute
@@ -1293,7 +1293,7 @@ index a5162bf919d2..e0f3dae9d4fb 100644
  //===----------------------------------------------------------------------===//
  // Top Level Sema Entry Points
  //===----------------------------------------------------------------------===//
-@@ -8773,11 +9150,16 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
+@@ -8625,11 +9002,16 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
    case ParsedAttr::AT_NonNull:
      if (auto *PVD = dyn_cast<ParmVarDecl>(D))
        handleNonNullAttrParameter(S, PVD, AL);
@@ -1311,10 +1311,10 @@ index a5162bf919d2..e0f3dae9d4fb 100644
      break;
    case ParsedAttr::AT_NoEscape:
      handleNoEscapeAttr(S, D, AL);
-@@ -9273,6 +9655,63 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
-     handleRISCVNoRelaxVarAttr(S, D, AL);
+@@ -9093,6 +9475,63 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
+   case ParsedAttr::AT_UsingIfExists:
+     handleSimpleAttribute<UsingIfExistsAttr>(S, D, AL);
      break;
- #endif
 +
 +  // EnhanceC attribute
 +  case ParsedAttr::AT_Count:
