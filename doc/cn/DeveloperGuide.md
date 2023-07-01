@@ -20,7 +20,10 @@ source build/envsetup.sh arm release
 make setup
 make
 ```
-**请注意：**近期升级语言前端工具链clang至版本15后：
+
+**请注意：**
+近期升级语言前端工具链clang至版本15后：
+
 ```
 在OpenArkCompiler同级目录ThirdParty下：git pull
 如果遇到冲突，建议直接删除ThirdParty目录，在上述make setup阶段会重新拉取最新的ThirdParty
