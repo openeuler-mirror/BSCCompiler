@@ -184,12 +184,12 @@ java-core-def: install
 install: maple dex2mpl_install irbuild hir2mpl mplverf
 	$(shell mkdir -p $(INSTALL_DIR)/ops/linker/; \
 	mkdir -p $(INSTALL_DIR)/lib/libc_enhanced/include/; \
+	mkdir -p $(INSTALL_DIR)/lib/include/; \
+	rsync -a -L $(MAPLE_ROOT)/src/hir2mpl/ast_input/clang/lib/sys/ $(INSTALL_DIR)/lib/include/; \
+	rsync -a -L $(MAPLE_ROOT)/libc_enhanced/include/ $(INSTALL_DIR)/lib/libc_enhanced/include/; \
 	rsync -a -L $(MRT_ROOT)/maplert/linker/maplelld.so.lds $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin; \
-	rsync -a -L $(MAPLE_BIN_DIR)/java2jar $(INSTALL_DIR)/bin/; \
-	cp -rf $(MAPLE_ROOT)/tools $(INSTALL_DIR)/../; \
-	rsync -a -L $(MAPLE_ROOT)/libc_enhanced/include/ $(INSTALL_DIR)/lib/libc_enhanced/include/; \
-	rsync -a -L $(MAPLE_ROOT)/src/hir2mpl/ast_input/clang/lib/sys/ $(INSTALL_DIR)/lib/include/;)
+	rsync -a -L $(MAPLE_BIN_DIR)/java2jar $(INSTALL_DIR)/bin/;)
 
 .PHONY: all
 all: install libcore
