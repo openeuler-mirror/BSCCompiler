@@ -42,6 +42,10 @@ function install_patch {
     mkdir -p include/
     cp -r ${MAPLE_ROOT}/src/hir2mpl/bytecode_input/dex/include/string_view_format.h include/
 
+    cd $MODIFIED_LLVM_PATH
+    # llvm_enhancedc_001.patch 重新生成llvm 15的 C增强特性 的patch
+    patch -p1 < $TOOLS_PATH/llvm_enhancec_001.patch
+
     #add third_party gn
     cp -f $AOSP_GN_PATH/art/libdexfile/BUILD.gn $MODIFIED_AOSP_PATH/art/libdexfile/
     cp -f $AOSP_GN_PATH/system/core/libziparchive/BUILD.gn $MODIFIED_AOSP_PATH/system/core/libziparchive/
