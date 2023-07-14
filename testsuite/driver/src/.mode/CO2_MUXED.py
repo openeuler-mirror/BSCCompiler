@@ -18,8 +18,10 @@ from api import *
 
 CO2_MUXED = {
     "compile": [
-        C2ast(
-            clang="${ENHANCED_CLANG_PATH}/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.o",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
@@ -27,38 +29,25 @@ CO2_MUXED = {
                 "../lib/include",
                 "${MAPLE_ROOT}/testsuite/c_test/csmith_test/runtime_x86"
             ],
-            option="--target=aarch64 -U __SIZEOF_INT128__ -Wno-error=int-conversion",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O2 --quiet",
-                "mpl2mpl": "-O2",
-                "mplcg": "-O2 --fPIC --quiet"
-            },
-            global_option="",
-            infiles=["${APP}.mpl"]
-        ),
-	Shell("${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc -std=c99 -o ${APP}.o -c ${APP}.s")
+            option="-O2 -fPIC -c -lpthread -lm ${option} -Wno-error=int-conversion"
+        )
     ],
     "link": [
-        Shell("${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc -std=gnu99 -no-pie *.o  -lm -o a.out")
+        MapleDriver(
+            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
+            infiles=["${APP}"],
+            outfile="${TARGET}.out",
+            option="-std=gnu99 -lm -L${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/",
+            extra_opt="-no-pie"
+        )
     ],
     "run": [
         Shell(
-            "${MAPLE_ROOT}/tools/bin/qemu-aarch64 -L ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc a.out > output.log 2>&1"
+            "${MAPLE_ROOT}/tools/bin/qemu-aarch64 -L ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc ${APP}.out > output.log 2>&1"
         ),
         CheckFileEqual(
             file1="output.log",
             file2="expected.txt"
-	)
+        )
     ]
 }

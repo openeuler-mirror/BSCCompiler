@@ -20,7 +20,7 @@ namespace maplebe {
 using namespace maple;
 
 // external interface to look for pure float struct
-uint32 AArch64CallConvImpl::FloatParamRegRequired(MIRStructType &structType, uint32 &fpSize) const {
+uint32 AArch64CallConvImpl::FloatParamRegRequired(const MIRStructType &structType, uint32 &fpSize) {
   PrimType baseType = PTY_begin;
   size_t elemNum = 0;
   if (!IsHomogeneousAggregates(structType, baseType, elemNum)) {
@@ -47,7 +47,7 @@ static void AllocateHomogeneousAggregatesRegister(CCLocInfo &ploc, const AArch64
     ploc.primTypeOfReg2 = baseType;
   }
   if (allocNum >= kFourRegister) {
-    ploc.reg3 = regList[begin++];
+    ploc.reg3 = regList[begin];
     ploc.primTypeOfReg3 = baseType;
   }
   ploc.regCount = static_cast<uint8>(allocNum);
@@ -101,10 +101,10 @@ void AArch64CallConvImpl::LocateRetVal(const MIRType &retType, CCLocInfo &ploc) 
   if (retSize <= k16ByteSize) {
     // agg size <= 16-byte or int128, return in x0-x1
     ploc.reg0 = AArch64Abi::kIntReturnRegs[0];
-    ploc.primTypeOfReg0 = PTY_u64;
+    ploc.primTypeOfReg0 = (retSize <= k4ByteSize && !CGOptions::IsBigEndian()) ? PTY_u32 : PTY_u64;
     if (retSize > k8ByteSize) {
       ploc.reg1 = AArch64Abi::kIntReturnRegs[1];
-      ploc.primTypeOfReg1 = PTY_u64;
+      ploc.primTypeOfReg1 = (retSize <= k12ByteSize && !CGOptions::IsBigEndian()) ? PTY_u32 : PTY_u64;
     }
     ploc.regCount = retSize <= k8ByteSize ? kOneRegister : kTwoRegister;
     return;
@@ -135,6 +135,18 @@ uint64 AArch64CallConvImpl::AllocateRegisterForAgg(const MIRType &mirType, CCLoc
     }
   } else if (size <= k16ByteSize) {
     // small struct, passed by general purpose register
+    // B.6 If the argument is an alignment adjusted type its value is passed as a copy of the actual
+    //     value. The copy will have an alignment defined as follows:
+    //     (1) For a Fundamental Data Type, the alignment is the natural alignment of that type,
+    //         after any promotions.
+    //     (2) For a Composite Type, the alignment of the copy will have 8-byte alignment if its
+    //         natural alignment is <= 8 and 16-byte alignment if its natural alignment is >= 16.
+    //     The alignment of the copy is used for applying marshaling rules.
+    if (mirType.GetUnadjustedAlign() <= k8ByteSize) {
+      align = k8ByteSize;
+    } else {
+      align = k16ByteSize;
+    }
     AllocateGPRegister(mirType, ploc, size, align);
   } else {
     // large struct, a pointer to the copy is used
@@ -236,7 +248,7 @@ static void SetupCCLocInfoRegCount(CCLocInfo &ploc) {
 // LocateNextParm is then checked against a function parameter list.  All other calls
 // of LocateNextParm are against caller's argument list must not have isFirst set,
 // or it will be checking the caller's enclosing function.
-uint64 AArch64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &ploc, bool isFirst, MIRFuncType *tFunc) {
+uint64 AArch64CallConvImpl::LocateNextParm(const MIRType &mirType, CCLocInfo &ploc, bool isFirst, MIRFuncType *tFunc) {
   InitCCLocInfo(ploc);
 
   uint64 typeSize = mirType.GetSize();

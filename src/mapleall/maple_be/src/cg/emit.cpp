@@ -125,10 +125,8 @@ using namespace cfi;
 
 void Emitter::EmitLabelRef(LabelIdx labIdx) {
   PUIdx pIdx = GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
-  char *idx = strdup(std::to_string(pIdx).c_str());
+  std::string idx = std::to_string(pIdx);
   outStream << ".L." << idx << "__" << labIdx;
-  free(idx);
-  idx = nullptr;
 }
 
 void Emitter::EmitStmtLabel(LabelIdx labIdx) {
@@ -145,10 +143,8 @@ void Emitter::EmitLabelPair(const LabelPair &pairLabel) {
 }
 
 void Emitter::EmitLabelForFunc(const MIRFunction *func, LabelIdx labIdx) {
-  char *idx = strdup(std::to_string(func->GetPuidx()).c_str());
+  std::string idx = std::to_string(func->GetPuidx());
   outStream << ".L." << idx << "__" << labIdx;
-  free(idx);
-  idx = nullptr;
 }
 
 AsmLabel Emitter::GetTypeAsmInfoName(PrimType primType) const {
@@ -170,6 +166,9 @@ AsmLabel Emitter::GetTypeAsmInfoName(PrimType primType) const {
     case k16ByteSize:
       if (primType == PTY_f128) {
         return kAsmWord;
+      }
+      if (IsInt128Ty(primType)) {
+        return kAsmXWord;
       }
       return kAsmValue;
     default:
@@ -334,7 +333,11 @@ void Emitter::EmitAsmLabel(AsmLabel label) {
       return;
     }
     case kAsmWord: {
-      Emit(asmInfo->GetWord());
+      (void)Emit(asmInfo->GetWord());
+      return;
+    }
+    case kAsmXWord: {
+      (void)Emit(asmInfo->GetXWord());
       return;
     }
     case kAsmLong: {
@@ -449,33 +452,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       return;
     }
     case kAsmAlign: {
-      uint8 align = mirSymbol.GetAttrs().GetAlignValue();
-      if (align == 0) {
-        if (mirSymbol.GetType()->GetKind() == kTypeStruct ||
-            mirSymbol.GetType()->GetKind() == kTypeClass ||
-            mirSymbol.GetType()->GetKind() == kTypeArray ||
-            mirSymbol.GetType()->GetKind() == kTypeUnion) {
-#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
-          return;
-#else
-          uint8 alignMin = 0;
-          if (mirSymbol.GetType()->GetAlign() > 0) {
-            alignMin = static_cast<uint8>(log2(mirSymbol.GetType()->GetAlign()));
-          }
-          align = std::max<uint8>(kAlignOfU8, alignMin);
-#endif
-        } else {
-          align = static_cast<uint8>(mirSymbol.GetType()->GetAlign());
-#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGARM32) && TARGARM32) || (defined(TARGARK) && TARGARK) ||\
-    (defined(TARGRISCV64) && TARGRISCV64)
-          if (CGOptions::IsArm64ilp32() && mirSymbol.GetType()->GetPrimType() == PTY_a32) {
-            align = kAlignOfU8;
-          } else {
-            align = static_cast<uint8>(log2(align));
-          }
-#endif
-        }
-      }
+      uint8 align = mirSymbol.GetSymbolAlign(CGOptions::IsArm64ilp32());
       Emit(asmInfo->GetAlign());
       Emit(std::to_string(align));
       Emit("\n");
@@ -759,12 +736,24 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
       if (intCt.GetActualBitWidth() > sizeInBits) {
         intCt.Trunc(sizeInBits);
       }
-      if (flag32) {
-        EmitAsmLabel(AsmLabel::kAsmLong);
+
+      if (sizeInBits <= k64BitSize) {
+        if (flag32) {
+          EmitAsmLabel(AsmLabel::kAsmLong);
+        } else {
+          EmitAsmLabel(asmName);
+        }
+        Emit(intCt.GetValue());
       } else {
-        EmitAsmLabel(asmName);
+        const IntVal &intVal = intCt.GetValue();
+        const uint64 *value = intVal.GetRawData();
+        for (int part = 0; part < intVal.GetNumWords(); ++part) {
+          EmitAsmLabel(asmName);
+          (void)Emit(static_cast<int64>(value[part]));
+          Emit("\n");
+        }
       }
-      Emit(intCt.GetValue());
+
       if (isFlexibleArray) {
         arraySize += (sizeInBits / kBitsPerByte);
       }
@@ -2397,12 +2386,13 @@ void Emitter::EmitUninitializedSymbolsWithPrefixSection(const MIRSymbol &symbol,
     EmitAsmLabel(symbol, kAsmGlbl);
   }
   if (symbol.GetType()->GetKind() == kTypeStruct) {
+    ASSERT_NOT_NULL(Globals::GetInstance()->GetBECommon());
     isFlexibleArray =
         Globals::GetInstance()->GetBECommon()->GetHasFlexibleArray(symbol.GetType()->GetTypeIndex().GetIdx());
     if (isFlexibleArray) {
       auto structType = static_cast<MIRStructType*>(symbol.GetType());
       auto lastFieldID = structType->GetFields().size() - 1;
-      arraySize = structType->GetElemType(lastFieldID)->GetSize();
+      arraySize = structType->GetElemType(static_cast<uint32>(lastFieldID))->GetSize();
     }
   }
 
@@ -3673,7 +3663,8 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
     CHECK_FATAL(diae != nullptr, "diae is null in Emitter::EmitDIDebugInfoSection");
     MapleVector<uint32> &apl = diae->GetAttrPairs();  /* attribute pair list */
 
-    std::string sfile, spath;
+    std::string sfile;
+    std::string spath;
     if (diae->GetTag() == DW_TAG_compile_unit && sfile.empty()) {
       /* get full source path from fileMap[2] */
       if (emitter->GetFileMap().size() > k2ByteSize) {  /* have src file map */

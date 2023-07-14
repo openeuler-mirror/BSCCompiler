@@ -171,7 +171,7 @@ void RegionIdentify::CreateRegionCandidates(const SuffixArray &sa) {
 void RegionIdentify::CreateRegionGroups(std::vector<RegionCandidate> &regions) {
   for (size_t i = 0; i < regions.size(); ++i) {
     auto &currRegion = regions[i];
-    if (currRegion.GetGroupId() != kInvalidIndex) {
+    if (currRegion.GetGroupId() != utils::kInvalidIndex) {
       continue;
     }
     auto currGroup = RegionGroup();

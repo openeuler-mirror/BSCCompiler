@@ -46,7 +46,6 @@ enum MeExprOp : uint8 {
 };  // cache the op to avoid dynamic cast
 
 constexpr int kInvalidExprID = -1;
-constexpr size_t kInvalidIndex = std::numeric_limits<size_t>::max();
 class MeExpr {
  public:
   MeExpr(int32 exprId, MeExprOp meop, Opcode op, PrimType t, size_t n)
@@ -1545,7 +1544,7 @@ class MeStmt {
  private:
   uint32 originalId = 0xdeadbeef;
   uint32 meStmtId = 0xdeadbeef;
-  size_t stmtInfoId = kInvalidIndex;
+  size_t stmtInfoId = utils::kInvalidIndex;
   Opcode op;
   bool isLive = true;
   BB *bb = nullptr;
@@ -1808,6 +1807,7 @@ class AssignMeStmt : public MeStmt {
   ScalarMeExpr *lhs = nullptr;
   bool needIncref = false;  // to be determined by analyzerc phase
   bool needDecref = false;  // to be determined by analyzerc phase
+
  public:
   bool isIncDecStmt = false;  // has the form of an increment or decrement stmt
 };
@@ -2655,6 +2655,10 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
     return retPType;
   }
 
+  IntrinDesc &GetIntrinsicDescription() const {
+    return IntrinDesc::intrinTable[intrinsic];
+  }
+
  private:
   MIRIntrinsicID intrinsic;
   TyIdx tyIdx;
@@ -2753,7 +2757,7 @@ class UnaryMeStmt : public MeStmt {
   explicit UnaryMeStmt(const UnaryMeStmt *umestmt) : MeStmt(umestmt->GetOp()), opnd(umestmt->opnd) {}
 
   ~UnaryMeStmt() override = default;
-  
+
   UnaryMeStmt(const UnaryMeStmt &other) = default;
 
   size_t NumMeStmtOpnds() const override {
@@ -2871,14 +2875,22 @@ class CallAssertNonnullMeStmt : public UnaryMeStmt, public SafetyCallCheckMeStmt
   explicit CallAssertNonnullMeStmt(const CallAssertNonnullStmtNode *stt)
       : UnaryMeStmt(stt), SafetyCallCheckMeStmt(stt->GetFuncNameIdx(), stt->GetParamIndex(),
                                                 stt->GetStmtFuncNameIdx()) {}
+
   CallAssertNonnullMeStmt(Opcode o, GStrIdx funcNameIdx, size_t paramIndex, GStrIdx stmtFuncNameIdx)
       : UnaryMeStmt(o), SafetyCallCheckMeStmt(funcNameIdx, paramIndex, stmtFuncNameIdx) {}
-  explicit CallAssertNonnullMeStmt(const CallAssertNonnullMeStmt &stt)
+
+  CallAssertNonnullMeStmt(const CallAssertNonnullMeStmt &stt)
       : UnaryMeStmt(stt), SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
+
   explicit CallAssertNonnullMeStmt(const CallAssertNonnullMeStmt *stt)
       : UnaryMeStmt(*stt), SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(*stt)) {}
+
   ~CallAssertNonnullMeStmt() override = default;
+
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
+
+ private:
+  CallAssertNonnullMeStmt& operator=(const CallAssertNonnullMeStmt &condGoto) = delete;
 };
 
 class AssertBoundaryMeStmt : public NaryMeStmt, public SafetyCheckMeStmt {
@@ -2979,6 +2991,7 @@ class CondGotoMeStmt : public UnaryMeStmt {
   StmtNode &EmitStmt(MapleAllocator &alloc) override;
 
  private:
+  CondGotoMeStmt& operator=(const CondGotoMeStmt &condGoto) = delete;
   uint32 offset;  // the label
   int32 branchProb = -1;  // branch probability, a negative number indicates that the probability is invalid
 };

@@ -150,5 +150,47 @@ class FEIRBuilder {
   static std::string EmitVLACleanupStmts(FEFunction &feFunction, const std::string &labelName, const Loc &loc);
   static void EmitVLACleanupStmts(const FEFunction &feFunction, std::list<UniqueFEIRStmt> &stmts);
 };  // class FEIRBuilder
+
+inline MIRIntrinsicID GetVectorIntrinsic(PrimType primtype) {
+  MIRIntrinsicID intrinsic;
+  switch (primtype) {
+#define SET_VDUP(TY)                                                          \
+    case PTY_##TY:                                                            \
+      intrinsic = INTRN_vector_from_scalar_##TY;                              \
+      break
+
+    SET_VDUP(v2i64);
+    SET_VDUP(v4i32);
+    SET_VDUP(v8i16);
+    SET_VDUP(v16i8);
+    SET_VDUP(v2u64);
+    SET_VDUP(v4u32);
+    SET_VDUP(v8u16);
+    SET_VDUP(v16u8);
+    SET_VDUP(v2f64);
+    SET_VDUP(v4f32);
+    SET_VDUP(v2i32);
+    SET_VDUP(v4i16);
+    SET_VDUP(v8i8);
+    SET_VDUP(v2u32);
+    SET_VDUP(v4u16);
+    SET_VDUP(v8u8);
+    SET_VDUP(v2f32);
+    case PTY_i64:
+    case PTY_v1i64:
+      intrinsic = INTRN_vector_from_scalar_v1i64;
+      break;
+    case PTY_u64:
+    case PTY_v1u64:
+      intrinsic = INTRN_vector_from_scalar_v1u64;
+      break;
+    case PTY_f64:
+      intrinsic = INTRN_vector_from_scalar_v1f64;
+      break;
+    default:
+      CHECK_FATAL(false, "Unhandled vector type in GetVectorIntrinsic");
+  }
+  return intrinsic;
+}
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_FEIR_BUILDER_H

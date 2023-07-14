@@ -44,8 +44,8 @@ const char *GetIntrinsicName(MIRIntrinsicID intrn) {
   }
 }
 
-const char *BaseNode::GetOpName() const {
-  return kOpcodeInfo.GetTableItemAt(GetOpCode()).name.c_str();
+const std::string &BaseNode::GetOpName() const {
+  return kOpcodeInfo.GetTableItemAt(GetOpCode()).name;
 }
 
 bool BaseNode::MayThrowException() const {
@@ -583,7 +583,10 @@ const BaseNode *ArrayNode::GetDim(const MIRModule &mod, TypeTable &tt, int i) co
   return mod.CurFuncCodeMemPool()->New<ConstvalNode>(mirConst);
 }
 BaseNode *ArrayNode::GetDim(const MIRModule &mod, TypeTable &tt, int i) {
-  return const_cast<BaseNode*>(const_cast<const ArrayNode*>(this)->GetDim(mod, tt, i));
+  auto *arrayType = static_cast<MIRArrayType*>(GetArrayType(tt));
+  auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+      static_cast<uint64>(i), *tt.GetTypeFromTyIdx(arrayType->GetElemTyIdx()));
+  return mod.CurFuncCodeMemPool()->New<ConstvalNode>(mirConst);
 }
 
 void ArrayNode::Dump(int32 indent) const {
@@ -1206,11 +1209,10 @@ MIRType *CallNode::GetCallReturnType() {
   return mirFunc->GetReturnType();
 }
 
-const MIRSymbol *CallNode::GetCallReturnSymbol(const MIRModule &mod) const {
-  if (!kOpcodeInfo.IsCallAssigned(GetOpCode())) {
+const MIRSymbol *GetCallOrIcallNodeReturnSymbol(Opcode op, const CallReturnVector &nRets, const MIRModule &mod) {
+  if (!kOpcodeInfo.IsCallAssigned(op)) {
     return nullptr;
   }
-  const CallReturnVector &nRets = this->GetReturnVec();
   if (nRets.size() == 1) {
     StIdx stIdx = nRets.begin()->first;
     RegFieldPair regFieldPair = nRets.begin()->second;
@@ -1221,6 +1223,10 @@ const MIRSymbol *CallNode::GetCallReturnSymbol(const MIRModule &mod) const {
     }
   }
   return nullptr;
+}
+
+const MIRSymbol *CallNode::GetCallReturnSymbol(const MIRModule &mod) const {
+  return GetCallOrIcallNodeReturnSymbol(op, this->GetReturnVec(), mod);
 }
 
 void CallNode::Dump(int32 indent, bool newline) const {
@@ -1257,20 +1263,7 @@ MIRType *IcallNode::GetCallReturnType() {
 }
 
 const MIRSymbol *IcallNode::GetCallReturnSymbol(const MIRModule &mod) const {
-  if (!kOpcodeInfo.IsCallAssigned(GetOpCode())) {
-    return nullptr;
-  }
-  const CallReturnVector &nRets = this->GetReturnVec();
-  if (nRets.size() == 1) {
-    StIdx stIdx = nRets.begin()->first;
-    RegFieldPair regFieldPair = nRets.begin()->second;
-    if (!regFieldPair.IsReg()) {
-      const MIRFunction *mirFunc = mod.CurFunction();
-      const MIRSymbol *st = mirFunc->GetLocalOrGlobalSymbol(stIdx);
-      return st;
-    }
-  }
-  return nullptr;
+  return GetCallOrIcallNodeReturnSymbol(op, this->GetReturnVec(), mod);
 }
 
 void IcallNode::Dump(int32 indent, bool newline) const {
@@ -1330,8 +1323,8 @@ void CallinstantNode::Dump(int32 indent, bool newline) const {
   }
 }
 
-void BlockNode::Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab, bool withInfo,
-                     bool isFuncbody, MIRFlavor flavor) const {
+void BlockNode::DoDump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab, bool withInfo,
+                       bool isFuncbody, MIRFlavor flavor) const {
   if (!withInfo) {
     LogInfo::MapleLogger() << " {\n";
   }

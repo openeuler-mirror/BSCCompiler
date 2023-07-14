@@ -145,7 +145,7 @@ MOperator PickLdStInsn(bool isLoad, uint32 bitSize, PrimType primType, AArch64is
   }
 
   /* __builtin_ffs(x) returns: 0 -> 0, 1 -> 1, 2 -> 2, 4 -> 3, 8 -> 4 */
-  if ((IsPrimitiveInteger(primType) || primType == PTY_agg) && !IsPrimitiveVector(primType))  {
+  if ((IsPrimitiveInteger(primType) || primType == PTY_agg) && !IsPrimitiveVector(primType) && !IsInt128Ty(primType)) {
     MOperator(*table)[kIntByteSizeDimension];
     if (isLoad) {
       table = (memOrd == AArch64isa::kMoAcquire) ? ldIsAcq : ldIs;
@@ -280,7 +280,8 @@ MOperator AArch64CGFunc::PickMovBetweenRegs(PrimType destType, PrimType srcType)
     return GetPrimTypeSize(srcType) == k8ByteSize ? MOP_vmovuu : MOP_vmovvv;
   }
   if (IsPrimitiveInteger(destType) && IsPrimitiveInteger(srcType)) {
-    return GetPrimTypeSize(srcType) <= k4ByteSize ? MOP_wmovrr : MOP_xmovrr;
+    auto size = GetPrimTypeSize(srcType);
+    return size <= k4ByteSize ? MOP_wmovrr : (size < k16ByteSize ? MOP_xmovrr : MOP_vmovvv);
   }
   if (IsPrimitiveFloat(destType) && IsPrimitiveFloat(srcType)) {
     auto primTypeSize = GetPrimTypeSize(srcType);
@@ -1746,16 +1747,17 @@ void AArch64CGFunc::SelectAggDassign(const DassignNode &stmt) {
   uint32 lhsOffset = 0;
   MIRType *lhsType = lhsSymbol->GetType();
   bool bothUnion = false;
+  uint32 lhsAlign = lhsType->GetAlign();
   if (stmt.GetFieldID() != 0) {
     MIRStructType *structType = static_cast<MIRStructType*>(lhsSymbol->GetType());
     ASSERT(structType != nullptr, "SelectAggDassign: non-zero fieldID for non-structure");
     lhsType = structType->GetFieldType(stmt.GetFieldID());
+    lhsAlign = structType->GetFieldTypeAlign(stmt.GetFieldID());
     lhsOffset = structType->GetKind() == kTypeClass ?
         static_cast<uint32>(GetBecommon().GetJClassFieldOffset(*structType, stmt.GetFieldID()).byteOffset) :
         static_cast<uint32>(structType->GetFieldOffsetFromBaseAddr(stmt.GetFieldID()).byteOffset);
     bothUnion = bothUnion || (structType->GetKind() == kTypeUnion);
   }
-  uint32 lhsAlign = lhsType->GetAlign();
   uint64 lhsSize = lhsType->GetSize();
 
   uint32 rhsAlign;
@@ -2040,49 +2042,7 @@ void AArch64CGFunc::SelectAggDassign(const DassignNode &stmt) {
       lhsSizeCovered += newAlignUsed;
     }
   } else {
-    ASSERT(stmt.GetRHS()->op == OP_regread, "SelectAggDassign: NYI");
-    bool isRet = false;
-    if (lhsType->GetKind() == kTypeStruct || lhsType->GetKind() == kTypeUnion) {
-      RegreadNode *rhsregread = static_cast<RegreadNode*>(stmt.GetRHS());
-      PregIdx pregIdx = rhsregread->GetRegIdx();
-      if (IsSpecialPseudoRegister(pregIdx)) {
-        if ((-pregIdx) == kSregRetval0) {
-          AArch64CallConvImpl parmlocator(GetBecommon());
-          CCLocInfo pLoc;
-          PrimType retPtype;
-          RegType regType;
-          uint32 memSize;
-          uint32 regSize;
-          parmlocator.LocateRetVal(*lhsType, pLoc);
-          AArch64reg r[kFourRegister];
-          r[0] = static_cast<AArch64reg>(pLoc.reg0);
-          r[1] = static_cast<AArch64reg>(pLoc.reg1);
-          r[2] = static_cast<AArch64reg>(pLoc.reg2);
-          r[3] = static_cast<AArch64reg>(pLoc.reg3);
-          if (pLoc.numFpPureRegs > 0) {
-            regSize = (pLoc.fpSize == k4ByteSize) ? k32BitSize : k64BitSize;
-            memSize = pLoc.fpSize;
-            retPtype = (pLoc.fpSize == k4ByteSize) ? PTY_f32 : PTY_f64;
-            regType = kRegTyFloat;
-          } else {
-            regSize = k64BitSize;
-            memSize = k8BitSize;
-            retPtype = PTY_u64;
-            regType = kRegTyInt;
-          }
-          for (uint32 i = 0; i < kFourRegister; ++i) {
-            if (r[i] == kRinvalid) {
-              break;
-            }
-            RegOperand &parm = GetOrCreatePhysicalRegisterOperand(r[i], regSize, regType);
-            Operand &mOpnd = GetOrCreateMemOpnd(*lhsSymbol, memSize * i, regSize);
-            GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(PickStInsn(regSize, retPtype), parm, mOpnd));
-          }
-          isRet = true;
-        }
-      }
-    }
-    CHECK_FATAL(isRet, "SelectAggDassign: NYI");
+    CHECK_FATAL(false, "SelectAggDassign: NYI");
   }
 }
 
@@ -2465,7 +2425,7 @@ uint32 AArch64CGFunc::LmbcTotalRegsUsed() {
    If blassign is not for argument, this function simply memcpy */
 void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand &src) {
   CHECK_FATAL(src.GetKind() == Operand::kOpdRegister, "blkassign src type not in register");
-  std::vector<TyIdx> *parmList;
+  std::vector<TyIdx> *parmList = nullptr;
   if (GetLmbcArgInfo() == nullptr) {
     LmbcArgInfo *p = memPool->New<LmbcArgInfo>(*GetFuncScopeAllocator());
     SetLmbcArgInfo(p);
@@ -2509,7 +2469,8 @@ void AArch64CGFunc::SelectBlkassignoff(BlkassignoffNode &bNode, Operand &src) {
     bool isPair;
     for (uint32 sz = static_cast<uint32>(bNode.blockSize); sz > 0;) {
       isPair = false;
-      MOperator ldOp, stOp;
+      MOperator ldOp;
+      MOperator stOp;
       if (sz >= k16ByteSize) {
         sz -= k16ByteSize;
         inc = k16ByteSize;
@@ -2564,10 +2525,12 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
   MIRType *stmtType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(stmt.GetTyIdx());
   MIRPtrType *lhsPointerType = static_cast<MIRPtrType*>(stmtType);
   MIRType *lhsType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsPointerType->GetPointedTyIdx());
+  uint32 lhsAlign = lhsType->GetAlign();
   if (stmt.GetFieldID() != 0) {
     MIRStructType *structType = static_cast<MIRStructType*>(lhsType);
     ASSERT(structType != nullptr, "SelectAggIassign: non-zero fieldID for non-structure");
     lhsType = structType->GetFieldType(stmt.GetFieldID());
+    lhsAlign =  structType->GetFieldTypeAlign(stmt.GetFieldID());
     lhsOffset = structType->GetKind() == kTypeClass ?
         static_cast<uint32>(GetBecommon().GetJClassFieldOffset(*structType, stmt.GetFieldID()).byteOffset) :
         static_cast<uint32>(structType->GetFieldOffsetFromBaseAddr(stmt.GetFieldID()).byteOffset);
@@ -2577,6 +2540,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
     /* access an array element */
     MIRType *lhsType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(arrayLhsType->GetElemTyIdx());
     MIRTypeKind typeKind = lhsType->GetKind();
+    lhsAlign = lhsType->GetAlign();
     ASSERT(((typeKind == kTypeScalar) || (typeKind == kTypeStruct) || (typeKind == kTypeClass) ||
             (typeKind == kTypePointer)),
            "unexpected array element type in iassign");
@@ -2592,7 +2556,6 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) {
            "unexpected array element type in iassign");
 #endif
   }
-  uint32 lhsAlign = lhsType->GetAlign();
   uint64 lhsSize = lhsType->GetSize();
 
   uint32 rhsAlign;
@@ -3016,6 +2979,13 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
 
 RegOperand *AArch64CGFunc::SelectRegread(RegreadNode &expr) {
   PregIdx pregIdx = expr.GetRegIdx();
+
+  if (IsInt128Ty(expr.GetPrimType())) {
+    Operand &low = GetOrCreatePhysicalRegisterOperand(R0, k64BitSize, GetRegTyFromPrimTy(PTY_u64));
+    Operand &high = GetOrCreatePhysicalRegisterOperand(R1, k64BitSize, GetRegTyFromPrimTy(PTY_u64));
+    return &CombineInt128({low, high});
+  }
+
   if (IsSpecialPseudoRegister(pregIdx)) {
     /* if it is one of special registers */
     return &GetOrCreateSpecialRegisterOperand(-pregIdx, expr.GetPrimType());
@@ -3480,7 +3450,8 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
   }
 
   MemOperand *memOpnd =
-      CreateMemOpndOrNull(destType, expr, *expr.Opnd(0), static_cast<int>(offset) + extraOffset, memOrd);
+      CreateMemOpndOrNull(destType, expr, *expr.Opnd(0),
+                          static_cast<int64>(static_cast<int>(offset) + extraOffset), memOrd);
   if (aggParamReg != nullptr) {
     isAggParamInReg = false;
     return aggParamReg;
@@ -3556,10 +3527,23 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
 }
 
 Operand *AArch64CGFunc::SelectIntConst(MIRIntConst &intConst, const BaseNode &parent) {
-  PrimType primType = intConst.GetType().GetPrimType();
-  if (kOpcodeInfo.IsCompare(parent.GetOpCode())) {
-    primType = static_cast<const CompareNode&>(parent).GetOpndType();
+  auto primType = intConst.GetType().GetPrimType();
+  if (IsInt128Ty(primType)) {
+    auto immTy = PTY_u64;
+    const uint64 *value = intConst.GetValue().GetRawData();
+    Operand &lowImm = CreateImmOperand(immTy, static_cast<int64>(value[0]));
+    Operand &highImm = CreateImmOperand(immTy, static_cast<int64>(value[1]));
+    return &CombineInt128({lowImm, highImm});
   }
+
+  if (kOpcodeInfo.IsCompare(parent.GetOpCode())) {
+    PrimType compNodePrimTy = static_cast<const CompareNode &>(parent).GetOpndType();
+    // don't promote int128 types
+    if (!IsInt128Ty(compNodePrimTy)) {
+      primType = compNodePrimTy;
+    }
+  }
+
   return &CreateImmOperand(intConst.GetExtValue(), GetPrimTypeBitSize(primType), false);
 }
 
@@ -3843,7 +3827,7 @@ void AArch64CGFunc::SelectIgoto(Operand *opnd0) {
 }
 
 void AArch64CGFunc::SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &origOpnd0,
-                                   Operand &origOpnd1, PrimType primType, bool signedCond) {
+                                   Operand &origOpnd1, PrimType primType, bool signedCond, int32 prob) {
   Operand *opnd0 = &origOpnd0;
   Operand *opnd1 = &origOpnd1;
   opnd0 = &LoadIntoRegister(origOpnd0, primType);
@@ -3891,7 +3875,9 @@ void AArch64CGFunc::SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcod
 
   bool isSigned = IsPrimitiveInteger(primType) ? IsSignedInteger(primType) : (signedCond ? true : false);
   MOperator jmpOperator = PickJmpInsn(jmpOp, cmpOp, isFloat, isSigned);
-  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(jmpOperator, rflag, targetOpnd));
+  Insn &jmpInsn = GetInsnBuilder()->BuildInsn(jmpOperator, rflag, targetOpnd);
+  jmpInsn.SetProb(prob);
+  GetCurBB()->AppendInsn(jmpInsn);
 }
 
 /*
@@ -3997,8 +3983,13 @@ void AArch64CGFunc::SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &
     cmpOp = OP_ne;
     pType = condNode->GetPrimType();
   }
+
   bool signedCond = IsSignedInteger(pType) || IsPrimitiveFloat(pType);
-  SelectCondGoto(targetOpnd, stmt.GetOpCode(), cmpOp, opnd0, opnd1, pType, signedCond);
+  if (!IsInt128Ty(pType)) {
+    SelectCondGoto(targetOpnd, stmt.GetOpCode(), cmpOp, opnd0, opnd1, pType, signedCond, stmt.GetBranchProb());
+  } else {
+    SelectCondGotoInt128(targetOpnd, stmt.GetOpCode(), cmpOp, opnd0, opnd1, signedCond);
+  }
 }
 
 void AArch64CGFunc::SelectGoto(GotoNode &stmt) {
@@ -4007,8 +3998,53 @@ void AArch64CGFunc::SelectGoto(GotoNode &stmt) {
   GetCurBB()->SetKind(BB::kBBGoto);
 }
 
+void AArch64CGFunc::SelectAdds(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
+  auto dsize = (GetPrimTypeBitSize(primType) == k64BitSize) ? k64BitSize : k32BitSize;
+  RegOperand &regOpnd0 = LoadIntoRegister(opnd0, true /* isIntTy */, dsize);
+  RegOperand &regOpnd1 = LoadIntoRegister(opnd1, true /* isIntTy */, dsize);
+
+  MOperator mOp = (dsize == k64BitSize) ? MOP_xaddsrrr : MOP_waddsrrr;
+  Operand &rflag = GetOrCreateRflag();
+  auto &insn = GetInsnBuilder()->BuildInsn(mOp, rflag, resOpnd, regOpnd0, regOpnd1);
+  GetCurBB()->AppendInsn(insn);
+}
+
+void AArch64CGFunc::SelectSubs(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
+  auto dsize = (GetPrimTypeBitSize(primType) == k64BitSize) ? k64BitSize : k32BitSize;
+  RegOperand &regOpnd0 = LoadIntoRegister(opnd0, true /* isIntTy */, dsize);
+  RegOperand &regOpnd1 = LoadIntoRegister(opnd1, true /* isIntTy */, dsize);
+
+  MOperator mOp = (dsize == k64BitSize) ? MOP_xsubsrrr : MOP_wsubsrrr;
+  Operand &rflag = GetOrCreateRflag();
+  auto &insn = GetInsnBuilder()->BuildInsn(mOp, rflag, resOpnd, regOpnd0, regOpnd1);
+  GetCurBB()->AppendInsn(insn);
+}
+
+void AArch64CGFunc::SelectAdc(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
+  SelectCarryOperator(true /* isAdc */, resOpnd, opnd0, opnd1, primType);
+}
+
+void AArch64CGFunc::SelectSbc(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
+  SelectCarryOperator(false /* isAdc */, resOpnd, opnd0, opnd1, primType);
+}
+
+void AArch64CGFunc::SelectCarryOperator(bool isAdc, Operand &resOpnd, Operand &opnd0, Operand &opnd1,
+                                        PrimType primType) {
+  auto dsize = (GetPrimTypeBitSize(primType) == k64BitSize) ? k64BitSize : k32BitSize;
+  RegOperand &regOpnd0 = LoadIntoRegister(opnd0, true /* isIntTy */, dsize);
+  RegOperand &regOpnd1 = LoadIntoRegister(opnd1, true /* isIntTy */, dsize);
+  Operand &rflag = GetOrCreateRflag();
+
+  MOperator mOp = (dsize == k64BitSize) ? (isAdc ? MOP_xadcrrr : MOP_xsbcrrr) : (isAdc ? MOP_wadcrrr : MOP_wsbcrrr);
+  auto &insn = GetInsnBuilder()->BuildInsn(mOp, rflag, resOpnd, regOpnd0, regOpnd1);
+  GetCurBB()->AppendInsn(insn);
+}
+
 Operand *AArch64CGFunc::SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
+  if (IsInt128Ty(dtype)) {
+    return SelectAddInt128(opnd0, node.Opnd(0)->GetPrimType(), opnd1, node.Opnd(1)->GetPrimType());
+  }
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
   bool is64Bits = (dsize == k64BitSize);
@@ -4185,6 +4221,9 @@ void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
 
 Operand *AArch64CGFunc::SelectSub(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
+  if (IsInt128Ty(dtype)) {
+    return SelectSubInt128(opnd0, node.Opnd(0)->GetPrimType(), opnd1, node.Opnd(1)->GetPrimType());
+  }
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
   bool is64Bits = (dsize == k64BitSize);
@@ -4207,6 +4246,10 @@ Operand *AArch64CGFunc::SelectSub(BinaryNode &node, Operand &opnd0, Operand &opn
 
 Operand *AArch64CGFunc::SelectMpy(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
+  if (IsInt128Ty(dtype)) {
+    return SelectMpyInt128(opnd0, node.Opnd(0)->GetPrimType(), opnd1, node.Opnd(1)->GetPrimType());
+  }
+
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
   bool is64Bits = (dsize == k64BitSize);
@@ -4224,6 +4267,15 @@ Operand *AArch64CGFunc::SelectMpy(BinaryNode &node, Operand &opnd0, Operand &opn
     SelectMpy(*resOpnd, opnd0, opnd1, primType);
   }
   return resOpnd;
+}
+
+void AArch64CGFunc::SelectMulh(bool isSigned, Operand &resOpnd, Operand &opnd0, Operand &opnd1) {
+  auto pTy = isSigned ? PTY_i64 : PTY_u64;  // MULH supports only 64-bits registers
+  Operand &regOpnd0 = LoadIntoRegister(opnd0, pTy);
+  Operand &regOpnd1 = LoadIntoRegister(opnd1, pTy);
+  MOperator mOp = isSigned ? MOP_smulh : MOP_umulh;
+  auto &insn = GetInsnBuilder()->BuildInsn(mOp, resOpnd, regOpnd0, regOpnd1);
+  GetCurBB()->AppendInsn(insn);
 }
 
 void AArch64CGFunc::SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
@@ -4368,6 +4420,7 @@ void AArch64CGFunc::SelectDiv(Operand &resOpnd, Operand &origOpnd0, Operand &opn
 
 Operand *AArch64CGFunc::SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
+  ASSERT(!IsInt128Ty(dtype), "int128 division must be lowered");
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
   bool is64Bits = (dsize == k64BitSize);
@@ -4513,6 +4566,7 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
 
 Operand *AArch64CGFunc::SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
+  ASSERT(!IsInt128Ty(dtype), "int128 division must be lowered");
   ASSERT(IsPrimitiveInteger(dtype), "wrong type for rem");
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
@@ -4673,6 +4727,10 @@ Operand *AArch64CGFunc::SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &
   if (IsPrimitiveVector(node.GetPrimType())) {
     resOpnd = SelectVectorCompare(
         &opnd0, node.Opnd(0)->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(), node.GetOpCode());
+  } else if (IsInt128Ty(node.GetPrimType()) || IsInt128Ty(node.GetOpndType())) {
+    resOpnd = &GetOrCreateResOperand(parent, node.GetPrimType());
+    SelectInt128Compare(*resOpnd, opnd0, node.Opnd(0)->GetPrimType(), opnd1, node.Opnd(1)->GetPrimType(),
+                        node.GetOpCode(), IsSignedInteger(node.GetOpndType()));
   } else {
     resOpnd = &GetOrCreateResOperand(parent, node.GetPrimType());
     SelectCmpOp(*resOpnd, opnd0, opnd1, node.GetOpCode(), node.GetOpndType(), parent);
@@ -4774,6 +4832,11 @@ void AArch64CGFunc::SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1,
 Operand *AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, const BinaryNode &node, Operand &opnd0,
                                                Operand &opnd1, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
+  if (IsInt128Ty(dtype)) {
+    return SelectRelationOperatorInt128(operatorCode, opnd0, node.Opnd(0)->GetPrimType(), opnd1,
+                                        node.Opnd(1)->GetPrimType());
+  }
+
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
   bool is64Bits = (dsize == k64BitSize);
@@ -5026,6 +5089,9 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
     resOpnd = SelectVectorShiftImm(dtype, opd0, &opnd1, static_cast<int32>(sConst), opcode);
   } else if ((IsPrimitiveVector(dtype)) && !opnd1.IsConstImmediate()) {
     resOpnd = SelectVectorShift(dtype, opd0, otyp0, &opnd1, node.Opnd(1)->GetPrimType(), opcode);
+  } else if (IsInt128Ty(dtype)) {
+    ShiftDirection direct = (opcode == OP_lshr) ? kShiftLright : ((opcode == OP_ashr) ? kShiftAright : kShiftLeft);
+    resOpnd = SelectShiftInt128(opnd0, opnd1, direct);
   } else {
     PrimType primType = isFloat ? dtype : (is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32));
     resOpnd = &GetOrCreateResOperand(parent, primType);
@@ -5054,14 +5120,45 @@ Operand *AArch64CGFunc::SelectRor(BinaryNode &node, Operand &opnd0, Operand &opn
   return resOpnd;
 }
 
-void AArch64CGFunc::SelectBxorShift(Operand &resOpnd, Operand *opnd0, Operand *opnd1, Operand &opnd2,
+void AArch64CGFunc::SelectBandShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, BitShiftOperand &shiftOp,
                                     PrimType primType) {
-  opnd0 = &LoadIntoRegister(*opnd0, primType);
-  opnd1 = &LoadIntoRegister(*opnd1, primType);
+  SelectRelationShiftOperator(kAND, resOpnd, opnd0, opnd1, shiftOp, primType);
+}
+
+void AArch64CGFunc::SelectBiorShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, BitShiftOperand &shiftOp,
+                                    PrimType primType) {
+  SelectRelationShiftOperator(kIOR, resOpnd, opnd0, opnd1, shiftOp, primType);
+}
+
+void AArch64CGFunc::SelectBxorShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, BitShiftOperand &shiftOp,
+                                    PrimType primType) {
+  SelectRelationShiftOperator(kEOR, resOpnd, opnd0, opnd1, shiftOp, primType);
+}
+
+void AArch64CGFunc::SelectRelationShiftOperator(RelationOperator operatorCode, Operand &resOpnd, Operand &opnd0,
+                                                Operand &opnd1, BitShiftOperand &shiftOp, PrimType primType) {
+  RegOperand &regOpnd0 = LoadIntoRegister(opnd0, primType);
+  RegOperand &regOpnd1 = LoadIntoRegister(opnd1, primType);
+
   uint32 dsize = GetPrimTypeBitSize(primType);
   bool is64Bits = (dsize == k64BitSize);
-  MOperator mopBxor = is64Bits ? MOP_xeorrrrs : MOP_weorrrrs;
-  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopBxor, resOpnd, *opnd0, *opnd1, opnd2));
+
+  MOperator mOp = MOP_undef;
+  switch (operatorCode) {
+    case kAND:
+      mOp = is64Bits ? MOP_xandrrrs : MOP_wandrrrs;
+      break;
+    case kIOR:
+      mOp = is64Bits ? MOP_xiorrrrs : MOP_wiorrrrs;
+      break;
+    case kEOR:
+      mOp = is64Bits ? MOP_xeorrrrs : MOP_weorrrrs;
+      break;
+    default:
+      break;
+  }
+
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, resOpnd, regOpnd0, regOpnd1, shiftOp));
 }
 
 void AArch64CGFunc::SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, ShiftDirection direct,
@@ -5114,6 +5211,15 @@ void AArch64CGFunc::SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1
   }
 
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopShift, resOpnd, *firstOpnd, opnd1));
+}
+
+void AArch64CGFunc::SelectTst(Operand &opnd0, Operand &opnd1, uint32 size) {
+  auto mOpCode = opnd1.IsImmediate() ? (size <= k32BitSize ? MOP_wtstri32 : MOP_xtstri64)
+                                     : (size <= k32BitSize ? MOP_wtstrr : MOP_xtstrr);
+
+  Operand &rflag = GetOrCreateRflag();
+  Insn &insn = GetInsnBuilder()->BuildInsn(mOpCode, rflag, opnd0, opnd1);
+  GetCurBB()->AppendInsn(insn);
 }
 
 Operand *AArch64CGFunc::SelectAbsSub(Insn &lastInsn, const UnaryNode &node, Operand &newOpnd0) {
@@ -5185,20 +5291,24 @@ Operand *AArch64CGFunc::SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNo
   bool is64Bits = (GetPrimTypeBitSize(dtype) == k64BitSize);
   bool isSigned = IsSignedInteger(dtype);
   RegOperand *resOpnd = nullptr;
-  if (!IsPrimitiveVector(dtype)) {
+  if (IsPrimitiveVector(dtype)) {
+    /* vector operand */
+    resOpnd = SelectVectorNot(dtype, &opnd0);
+  } else if (IsInt128Ty(dtype)) {
+    resOpnd = SelectBnotInt128(opnd0);
+  } else {
     /* promoted type */
     PrimType primType = is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32);
     resOpnd = &GetOrCreateResOperand(parent, primType);
-
-    Operand &newOpnd0 = LoadIntoRegister(opnd0, primType);
-
-    uint32 mopBnot = is64Bits ? MOP_xnotrr : MOP_wnotrr;
-    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopBnot, *resOpnd, newOpnd0));
-  } else {
-    /* vector operand */
-    resOpnd = SelectVectorNot(dtype, &opnd0);
+    SelectBnot(*resOpnd, opnd0, primType);
   }
   return resOpnd;
+}
+
+void AArch64CGFunc::SelectBnot(Operand &resOpnd, Operand &opnd, PrimType primType) {
+  Operand &opnd1 = LoadIntoRegister(opnd, primType);
+  uint32 mopBnot = (GetPrimTypeBitSize(primType) == k64BitSize) ? MOP_xnotrr : MOP_wnotrr;
+  GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopBnot, resOpnd, opnd1));
 }
 
 Operand *AArch64CGFunc::SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) {
@@ -5225,64 +5335,77 @@ Operand *AArch64CGFunc::SelectRegularBitFieldLoad(ExtractbitsNode &node, const B
   return result;
 }
 
-Operand *AArch64CGFunc::SelectExtractbits(ExtractbitsNode &node, Operand &srcOpnd, const BaseNode &parent) {
-  uint8 bitOffset = node.GetBitsOffset();
-  uint8 bitSize = node.GetBitsSize();
-  RegOperand *srcVecRegOperand = static_cast<RegOperand*>(&srcOpnd);
-  if (srcVecRegOperand && srcVecRegOperand->IsRegister() && (srcVecRegOperand->GetSize() == k128BitSize)) {
-    if ((bitSize == k8BitSize || bitSize == k16BitSize || bitSize == k32BitSize || bitSize == k64BitSize) &&
-        (bitOffset % bitSize) == k0BitSize) {
-      uint32 lane = bitOffset / bitSize;
-      PrimType srcVecPtype;
-      if (bitSize == k64BitSize) {
-        srcVecPtype = PTY_v2u64;
-      } else if (bitSize == k32BitSize) {
-        srcVecPtype = PTY_v4u32;
-      } else if (bitSize == k16BitSize) {
-        srcVecPtype = PTY_v8u16;
-      } else {
-        srcVecPtype = PTY_v16u8;
-      }
-      RegOperand *resRegOperand = SelectVectorGetElement(node.GetPrimType(),
-          &srcOpnd, srcVecPtype, static_cast<int32>(lane));
-      return resRegOperand;
-    } else {
-      CHECK_FATAL(false, "NYI");
-    }
-  }
-  PrimType dtype = node.GetPrimType();
-  RegOperand &resOpnd = GetOrCreateResOperand(parent, dtype);
-  bool isSigned = (node.GetOpCode() == OP_sext) ? true : (node.GetOpCode() == OP_zext) ? false : IsSignedInteger(dtype);
+void AArch64CGFunc::SelectExtractbits(Operand &resOpnd, uint8 offset, uint8 size, Operand &srcOpnd, PrimType dtype,
+                                      Opcode extOp) {
+  bool isSigned = (extOp == OP_sext) ? true : (extOp == OP_zext) ? false : IsSignedInteger(dtype);
   bool is64Bits = (GetPrimTypeBitSize(dtype) == k64BitSize);
   uint32 immWidth = is64Bits ? kMaxImmVal13Bits : kMaxImmVal12Bits;
   Operand &opnd0 = LoadIntoRegister(srcOpnd, dtype);
-  if (bitOffset == 0) {
-    if (!isSigned && (bitSize < immWidth)) {
-      SelectBand(resOpnd, opnd0, CreateImmOperand(static_cast<int64>((static_cast<uint64>(1) << bitSize) - 1),
-          immWidth, false), dtype);
-      return &resOpnd;
+  if (offset == 0) {
+    if (!isSigned && (size < immWidth)) {
+      SelectBand(resOpnd, opnd0,
+                 CreateImmOperand(static_cast<int64>((static_cast<uint64>(1) << size) - 1), immWidth, false), dtype);
+      return;
     } else {
       MOperator mOp = MOP_undef;
-      if (bitSize == k8BitSize) {
-        mOp = is64Bits ? (isSigned ? MOP_xsxtb64 : MOP_undef) :
-            (isSigned ? MOP_xsxtb32 : (opnd0.GetSize() == k32BitSize ? MOP_xuxtb32 : MOP_undef));
-      } else if (bitSize == k16BitSize) {
-        mOp = is64Bits ? (isSigned ? MOP_xsxth64 : MOP_undef) :
-            (isSigned ? MOP_xsxth32 : (opnd0.GetSize() == k32BitSize ? MOP_xuxth32 : MOP_undef));
-      } else if (bitSize == k32BitSize) {
+      if (size == k8BitSize) {
+        mOp = is64Bits ? (isSigned ? MOP_xsxtb64 : MOP_undef)
+                       : (isSigned ? MOP_xsxtb32 : (opnd0.GetSize() == k32BitSize ? MOP_xuxtb32 : MOP_undef));
+      } else if (size == k16BitSize) {
+        mOp = is64Bits ? (isSigned ? MOP_xsxth64 : MOP_undef)
+                       : (isSigned ? MOP_xsxth32 : (opnd0.GetSize() == k32BitSize ? MOP_xuxth32 : MOP_undef));
+      } else if (size == k32BitSize) {
         mOp = is64Bits ? (isSigned ? MOP_xsxtw64 : MOP_xuxtw64) : MOP_wmovrr;
       }
       if (mOp != MOP_undef) {
         GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, resOpnd, opnd0));
-        return &resOpnd;
+        return;
       }
     }
   }
   uint32 mopBfx =
       is64Bits ? (isSigned ? MOP_xsbfxrri6i6 : MOP_xubfxrri6i6) : (isSigned ? MOP_wsbfxrri5i5 : MOP_wubfxrri5i5);
-  ImmOperand &immOpnd1 = CreateImmOperand(bitOffset, k8BitSize, false);
-  ImmOperand &immOpnd2 = CreateImmOperand(bitSize, k8BitSize, false);
+  ImmOperand &immOpnd1 = CreateImmOperand(offset, k8BitSize, false);
+  ImmOperand &immOpnd2 = CreateImmOperand(size, k8BitSize, false);
   GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopBfx, resOpnd, opnd0, immOpnd1, immOpnd2));
+}
+
+Operand *AArch64CGFunc::SelectExtractbits(ExtractbitsNode &node, Operand &srcOpnd, const BaseNode &parent) {
+  uint8 bitOffset = node.GetBitsOffset();
+  uint8 bitSize = node.GetBitsSize();
+
+  PrimType dtype = node.GetPrimType();
+  if (IsInt128Ty(dtype)) {
+    return SelectExtractbitsInt128(bitOffset, bitSize, srcOpnd, node.GetOpCode());
+  }
+
+  RegOperand *srcVecRegOperand = static_cast<RegOperand*>(&srcOpnd);
+  if (srcVecRegOperand && srcVecRegOperand->IsRegister() && (srcVecRegOperand->GetSize() == k128BitSize)) {
+    if (srcVecRegOperand && srcVecRegOperand->IsRegister() && (srcVecRegOperand->GetSize() == k128BitSize)) {
+      if ((bitSize == k8BitSize || bitSize == k16BitSize || bitSize == k32BitSize || bitSize == k64BitSize) &&
+          (bitOffset % bitSize) == k0BitSize) {
+        uint32 lane = bitOffset / bitSize;
+        PrimType srcVecPtype;
+        if (bitSize == k64BitSize) {
+          srcVecPtype = PTY_v2u64;
+        } else if (bitSize == k32BitSize) {
+          srcVecPtype = PTY_v4u32;
+        } else if (bitSize == k16BitSize) {
+          srcVecPtype = PTY_v8u16;
+        } else {
+          srcVecPtype = PTY_v16u8;
+        }
+        RegOperand *resRegOperand =
+            SelectVectorGetElement(node.GetPrimType(), &srcOpnd, srcVecPtype, static_cast<int32>(lane));
+        return resRegOperand;
+      } else {
+        CHECK_FATAL(false, "NYI");
+      }
+    }
+  }
+
+  RegOperand &resOpnd = GetOrCreateResOperand(parent, dtype);
+  SelectExtractbits(resOpnd, bitOffset, bitSize, srcOpnd, dtype, node.GetOpCode());
   return &resOpnd;
 }
 
@@ -5306,35 +5429,43 @@ inline bool IsMoveWideKeepable(int64 offsetVal, uint32 bitOffset, uint32 bitSize
 }
 
 /* we use the fact that A ^ B ^ A == B, A ^ 0 = A */
-Operand *AArch64CGFunc::SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1,
-                                          const BaseNode &parent) {
-  uint32 bitOffset = node.GetBitsOffset();
-  uint32 bitSize = node.GetBitsSize();
-  PrimType regType = node.GetPrimType();
-  bool is64Bits = GetPrimTypeBitSize(regType) == k64BitSize;
-  // deposit does not define opnd0 but bfi does, so we need an extra copy to keep opnd0 wont de defined
-  Operand *result = &GetOrCreateResOperand(parent, regType);
-  SelectCopy(*result, regType, opnd0, regType);
+void AArch64CGFunc::SelectDepositBits(Operand &resOpnd, uint8 offset, uint8 size, Operand &opnd0, Operand &opnd1,
+                                      PrimType primType) {
+  bool is64Bits = GetPrimTypeBitSize(primType) == k64BitSize;
+  SelectCopy(resOpnd, primType, opnd0, primType);
   /*
    * if operand 1 is immediate and fits in MOVK, use it
    * MOVK Wd, #imm{, LSL #shift} ; 32-bit general registers
    * MOVK Xd, #imm{, LSL #shift} ; 64-bit general registers
    */
   if (opnd1.IsIntImmediate() &&
-      IsMoveWideKeepable(static_cast<ImmOperand&>(opnd1).GetValue(), bitOffset, bitSize, is64Bits)) {
-    RegOperand &resOpnd = GetOrCreateResOperand(parent, regType);
-    SelectCopy(resOpnd, regType, *result, regType);
-    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn((is64Bits ? MOP_xmovkri16 : MOP_wmovkri16), resOpnd, opnd1,
-                                                       *GetLogicalShiftLeftOperand(bitOffset, is64Bits)));
-    return &resOpnd;
+      IsMoveWideKeepable(static_cast<ImmOperand &>(opnd1).GetValue(), offset, size, is64Bits)) {
+    MOperator mOp = is64Bits ? MOP_xmovkri16 : MOP_wmovkri16;
+    GetCurBB()->AppendInsn(
+        GetInsnBuilder()->BuildInsn(mOp, resOpnd, opnd1, *GetLogicalShiftLeftOperand(offset, is64Bits)));
   } else {
-    Operand &movOpnd = LoadIntoRegister(opnd1, regType);
+    Operand &movOpnd = LoadIntoRegister(opnd1, primType);
     uint32 mopBfi = is64Bits ? MOP_xbfirri6i6 : MOP_wbfirri5i5;
-    ImmOperand &immOpnd1 = CreateImmOperand(bitOffset, k8BitSize, false);
-    ImmOperand &immOpnd2 = CreateImmOperand(bitSize, k8BitSize, false);
-    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopBfi, *result, movOpnd, immOpnd1, immOpnd2));
-    return result;
+    ImmOperand &immOpnd1 = CreateImmOperand(offset, k8BitSize, false);
+    ImmOperand &immOpnd2 = CreateImmOperand(size, k8BitSize, false);
+    GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mopBfi, resOpnd, movOpnd, immOpnd1, immOpnd2));
   }
+}
+
+Operand *AArch64CGFunc::SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1,
+                                          const BaseNode &parent) {
+  auto offset = node.GetBitsOffset();
+  auto size = node.GetBitsSize();
+  PrimType dtype = node.GetPrimType();
+
+  if (IsInt128Ty(dtype)) {
+    return SelectDepositBitsInt128(offset, size, opnd0, opnd1);
+  }
+
+  Operand &resOpnd = GetOrCreateResOperand(parent, dtype);
+  SelectDepositBits(resOpnd, offset, size, opnd0, opnd1, dtype);
+
+  return &resOpnd;
 }
 
 Operand *AArch64CGFunc::SelectLnot(UnaryNode &node, Operand &srcOpnd, const BaseNode &parent) {
@@ -5351,7 +5482,12 @@ Operand *AArch64CGFunc::SelectNeg(UnaryNode &node, Operand &opnd0, const BaseNod
   PrimType dtype = node.GetPrimType();
   bool is64Bits = (GetPrimTypeBitSize(dtype) == k64BitSize);
   RegOperand *resOpnd = nullptr;
-  if (!IsPrimitiveVector(dtype)) {
+  if (IsInt128Ty(dtype)) {
+    resOpnd = SelectNegInt128(opnd0);
+  } else if (IsPrimitiveVector(dtype)) {
+    /* vector operand */
+    resOpnd = SelectVectorNeg(dtype, &opnd0);
+  } else {
     PrimType primType;
     if (IsPrimitiveFloat(dtype)) {
       primType = dtype;
@@ -5360,9 +5496,6 @@ Operand *AArch64CGFunc::SelectNeg(UnaryNode &node, Operand &opnd0, const BaseNod
     }
     resOpnd = &GetOrCreateResOperand(parent, primType);
     SelectNeg(*resOpnd, opnd0, primType);
-  } else {
-    /* vector operand */
-    resOpnd = SelectVectorNeg(dtype, &opnd0);
   }
   return resOpnd;
 }
@@ -5801,14 +5934,9 @@ void AArch64CGFunc::SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, Pri
  */
 void AArch64CGFunc::SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, Operand *opnd0, PrimType fromType,
                                      PrimType toType) {
+  ASSERT(!IsInt128Ty(fromType) && !IsInt128Ty(toType), "unexpected cvt");
   uint32 fsize = GetPrimTypeBitSize(fromType);
-  if (fromType == PTY_i128 || fromType == PTY_u128) {
-    fsize = k64BitSize;
-  }
   uint32 tsize = GetPrimTypeBitSize(toType);
-  if (toType == PTY_i128 || toType == PTY_u128) {
-    tsize = k64BitSize;
-  }
   bool isExpand = tsize > fsize;
   bool is64Bit = (tsize == k64BitSize);
   if ((parent != nullptr) && opnd0->IsIntImmediate() &&
@@ -5955,8 +6083,11 @@ Operand *AArch64CGFunc::SelectCvt(const BaseNode &parent, TypeCvtNode &node, Ope
   if (fromType == toType) {
     return &opnd0;  /* noop */
   }
+
   Operand *resOpnd = &GetOrCreateResOperand(parent, toType);
-  if (IsPrimitiveFloat(toType) && IsPrimitiveInteger(fromType)) {
+  if (IsInt128Ty(fromType) || IsInt128Ty(toType)) {
+    SelectInt128Cvt(resOpnd, opnd0, fromType, toType);
+  } else if (IsPrimitiveFloat(toType) && IsPrimitiveInteger(fromType)) {
     SelectCvtInt2Float(*resOpnd, opnd0, toType, fromType);
   } else if (IsPrimitiveFloat(fromType) && IsPrimitiveInteger(toType)) {
     SelectCvtFloat2Int(*resOpnd, opnd0, toType, fromType);
@@ -5965,7 +6096,7 @@ Operand *AArch64CGFunc::SelectCvt(const BaseNode &parent, TypeCvtNode &node, Ope
   } else if (IsPrimitiveVector(toType) || IsPrimitiveVector(fromType)) {
     CHECK_FATAL(IsPrimitiveVector(toType) && IsPrimitiveVector(fromType), "Invalid vector cvt operands");
     SelectVectorCvt(resOpnd, toType, &opnd0, fromType);
-  } else {  /* both are float type */
+  } else { /* both are float type */
     SelectCvtFloat2Float(*resOpnd, opnd0, fromType, toType);
   }
   return resOpnd;
@@ -5973,6 +6104,8 @@ Operand *AArch64CGFunc::SelectCvt(const BaseNode &parent, TypeCvtNode &node, Ope
 
 Operand *AArch64CGFunc::SelectTrunc(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) {
   PrimType ftype = node.FromType();
+  ASSERT(!IsInt128Ty(node.GetPrimType()), "trunc must be lowered");
+
   bool is64Bits = (GetPrimTypeBitSize(node.GetPrimType()) == k64BitSize);
   PrimType itype = (is64Bits) ? (IsSignedInteger(node.GetPrimType()) ? PTY_i64 : PTY_u64)
                               : (IsSignedInteger(node.GetPrimType()) ? PTY_i32 : PTY_u32);  /* promoted type */
@@ -6957,6 +7090,7 @@ void AArch64CGFunc::GenerateYieldpoint(BB &bb) {
 }
 
 Operand &AArch64CGFunc::GetTargetRetOperand(PrimType primType, int32 sReg) {
+  ASSERT(!IsInt128Ty(primType), "NIY");
   if (IsSpecialPseudoRegister(-sReg)) {
     return GetOrCreateSpecialRegisterOperand(sReg, primType);
   }
@@ -7771,8 +7905,7 @@ void AArch64CGFunc::SelectParmListPreprocessForAggregate(BaseNode &argExpr, int3
   // B.4  If the argument type is a Composite Type that is larger than 16 bytes,
   //      then the argument is copied to memory allocated by the caller
   //      and the argument is replaced by a pointer to the copy.
-  uint32 align = aggDesc.mirType->GetAlign() > k8ByteSize ? k16ByteSize : k8ByteSize;
-  structCopyOffset = static_cast<int32>(RoundUp(static_cast<uint32>(structCopyOffset), align));
+  structCopyOffset = static_cast<int32>(RoundUp(static_cast<uint32>(structCopyOffset), k8ByteSize));
 
   SelectParamPreCopy(argExpr, aggDesc, static_cast<uint32>(mirSize), structCopyOffset, isArgUnused);
 
@@ -7903,6 +8036,14 @@ void AArch64CGFunc::SelectParmListPassByStack(const MIRType &mirType, Operand &o
     return;
   }
 
+  if (IsInt128Ty(mirType.GetPrimType())) {
+    ASSERT(!preCopyed, "NIY");
+    MemOperand &mem = CreateMemOpnd(RSP, memOffset, GetPrimTypeBitSize(PTY_u128));
+    mem.SetStackArgMem(true);
+    SelectCopy(mem, PTY_u128, opnd, PTY_u128);
+    return;
+  }
+
   PrimType primType = preCopyed ? PTY_a64 : mirType.GetPrimType();
   CHECK_FATAL(primType != PTY_i128 && primType != PTY_u128, "NIY, i128 is unsupported");
   auto &valReg = LoadIntoRegister(opnd, primType);
@@ -7973,6 +8114,8 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bo
     if (ploc.reg0 != kRinvalid) {  // load to the register.
       if (mirType->GetPrimType() == PTY_agg && !preCopyed) {
         SelectParmListSmallStruct(*mirType, ploc, *opnd, srcOpnds);
+      } else if (IsInt128Ty(mirType->GetPrimType())) {
+        SelectParmListForInt128(*opnd, srcOpnds, ploc);
       } else {
         CHECK_FATAL(ploc.reg1 == kRinvalid, "NIY");
         auto &phyReg = GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(ploc.reg0),
@@ -8563,7 +8706,16 @@ void AArch64CGFunc::SelectReturn(Operand *opnd0) {
   AArch64CallConvImpl retLocator(GetBecommon());
   CCLocInfo retMech;
   retLocator.LocateRetVal(*retTyp, retMech);
-  if ((retMech.GetRegCount() > 0) && (opnd0 != nullptr)) {
+  if (IsInt128Ty(GetFunction().GetReturnType()->GetPrimType())) {
+    auto opnd = SplitInt128(*opnd0);
+    ASSERT(retMech.GetRegCount() == 2, "");
+    AArch64reg retReg0 = static_cast<AArch64reg>(retMech.GetReg0());
+    auto &reg0 = GetOrCreatePhysicalRegisterOperand(retReg0, k64BitSize, kRegTyInt);
+    SelectCopy(reg0, retMech.GetPrimTypeOfReg0(), opnd.low, PTY_u64);
+    AArch64reg retReg1 = static_cast<AArch64reg>(retMech.GetReg1());
+    auto &reg1 = GetOrCreatePhysicalRegisterOperand(retReg1, k64BitSize, kRegTyInt);
+    SelectCopy(reg1, retMech.GetPrimTypeOfReg1(), opnd.high, PTY_u64);
+  } else if ((retMech.GetRegCount() > 0) && (opnd0 != nullptr)) {
     RegType regTyp = is64x1vec ? kRegTyFloat : GetRegTyFromPrimTy(retMech.GetPrimTypeOfReg0());
     PrimType oriPrimType = is64x1vec ? GetFunction().GetReturnType()->GetPrimType() : retMech.GetPrimTypeOfReg0();
     AArch64reg retReg = static_cast<AArch64reg>(retMech.GetReg0());
@@ -9097,7 +9249,8 @@ MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, const Bas
   if (addendExpr->GetOpCode() != OP_mul || !IsPrimitiveInteger(ptype)) {
     return nullptr;
   }
-  BaseNode *indexExpr, *scaleExpr;
+  BaseNode *indexExpr;
+  BaseNode *scaleExpr;
   indexExpr = addendExpr->Opnd(0);
   scaleExpr = addendExpr->Opnd(1);
   if (scaleExpr->GetOpCode() != OP_constval) {
@@ -9116,8 +9269,9 @@ MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, const Bas
     return nullptr;
   }
   /* 8 is 1 << 3; 4 is 1 << 2; 2 is 1 << 1; 1 is 1 << 0 */
-  uint32 shift = (unsignedScale == 8) ? 3 : ((unsignedScale == 4) ? 2 : ((unsignedScale == 2) ? 1 : 0));
-  RegOperand &base = static_cast<RegOperand&>(LoadIntoRegister(*AArchHandleExpr(addrExpr, *baseExpr), PTY_a64));
+  ASSERT(IsPowerOf2(unsignedScale), "must be power of two");
+  uint32 shift = (unsignedScale == 0) ? 0 : static_cast<uint32>(__builtin_ctz(unsignedScale));
+  RegOperand &base = static_cast<RegOperand &>(LoadIntoRegister(*HandleExpr(addrExpr, *baseExpr), PTY_a64));
   TypeCvtNode *typeCvtNode = static_cast<TypeCvtNode*>(indexExpr);
   PrimType fromType = typeCvtNode->FromType();
   PrimType toType = typeCvtNode->GetPrimType();
@@ -9768,61 +9922,46 @@ Insn &AArch64CGFunc::GenerateLocalLongCallAfterInsn(const MIRSymbol &func, ListO
   return *callInsn;
 }
 
-/*
- * Generate early bond pic call for "-fno-plt"
- *  for "-fPIC"
- *  adrp  VRx, :got:symbol
- *  ldr VRx, [VRx, #:got_lo12:symbol]
- *  blr VRx
- *
- *  for "-fpic"
- *  adrp  VRx, _GLOBAL_OFFSET_TABLE_
- *  ldr VRx, [VRx, #:gotpage_lo15:symbol]
- *  blr VRx
- *
- * Input:
- *  insn       : insert new instruction after the 'insn'
- *  func       : the symbol of the function need to be called
- *  srcOpnds   : list operand of the function need to be called
- * Return: the 'blr' instruction
- */
+// Generate early bond pic call for "-fno-plt"
+//  for "-fPIC"
+//  adrp  VRx, :got:symbol
+//  ldr VRx, [VRx, #:got_lo12:symbol]
+//  blr VRx
+//  for "-fpic"
+//  adrp  VRx, _GLOBAL_OFFSET_TABLE_
+//  ldr VRx, [VRx, #:gotpage_lo15:symbol]
+//  blr VRx
+// Input:
+//  funcSym    : the symbol of the function need to be called
+//  srcOpnds   : list operand of the function need to be called
+// Return: the 'blr' instruction
 Insn &AArch64CGFunc::GenerateGlobalNopltCallAfterInsn(const MIRSymbol &funcSym, ListOperand &srcOpnds) {
-  MIRFunction *func = funcSym.GetValue().mirFunc;
-  if (func && func->IsDefaultVisibility() &&
-      ((CGOptions::IsPIE() && !func->GetBody()) || (CGOptions::IsShlib() && !func->IsStatic()))) {
-    StImmOperand &stOpnd = CreateStImmOperand(funcSym, 0, 0);
-    RegOperand *tmpReg = nullptr;
-    if (!IsAfterRegAlloc()) {
-      tmpReg = &CreateRegisterOperandOfType(PTY_u64);
-    } else {
-      // After RA, we use reserved X16 as tmpReg.
-      // Utill now it will not clobber other X16 def
-      tmpReg = &GetOrCreatePhysicalRegisterOperand(R16, maple::k64BitSize, kRegTyInt);
-    }
-    SelectAddrof(*tmpReg, stOpnd);
-    Insn &callInsn = GetInsnBuilder()->BuildInsn(MOP_xblr, *tmpReg, srcOpnds);
-    GetCurBB()->AppendInsn(callInsn);
-    GetCurBB()->SetHasCall();
-    return callInsn;
+  StImmOperand &stOpnd = CreateStImmOperand(funcSym, 0, 0);
+  RegOperand *tmpReg = nullptr;
+  if (!IsAfterRegAlloc()) {
+    tmpReg = &CreateRegisterOperandOfType(PTY_u64);
   } else {
-    Operand &targetOpnd = GetOrCreateFuncNameOpnd(funcSym);
-    Insn &callInsn = GetInsnBuilder()->BuildInsn(MOP_xbl, targetOpnd, srcOpnds);
-    GetCurBB()->AppendInsn(callInsn);
-    GetCurBB()->SetHasCall();
-    return callInsn;
+    // After RA, we use reserved X16 as tmpReg.
+    // Utill now it will not clobber other X16 def
+    tmpReg = &GetOrCreatePhysicalRegisterOperand(R16, maple::k64BitSize, kRegTyInt);
   }
+  SelectAddrof(*tmpReg, stOpnd);
+  Insn &callInsn = GetInsnBuilder()->BuildInsn(MOP_xblr, *tmpReg, srcOpnds);
+  GetCurBB()->AppendInsn(callInsn);
+  GetCurBB()->SetHasCall();
+  return callInsn;
 }
 
 Insn &AArch64CGFunc::AppendCall(const MIRSymbol &sym, ListOperand &srcOpnds) {
   Insn *callInsn = nullptr;
+  MIRFunction *mirFunc = sym.GetFunction();
   if (CGOptions::IsLongCalls()) {
-    MIRFunction *mirFunc = sym.GetFunction();
     if (IsDuplicateAsmList(sym) || (mirFunc && mirFunc->GetAttr(FUNCATTR_local))) {
       callInsn = &GenerateLocalLongCallAfterInsn(sym, srcOpnds);
     } else {
       callInsn = &GenerateGlobalLongCallAfterInsn(sym, srcOpnds);
     }
-  } else if (CGOptions::GetNoplt())  {
+  } else if (CGOptions::IsNoPlt() && mirFunc && mirFunc->CanDoNoPlt(CGOptions::IsShlib(), CGOptions::IsPIE())) {
     callInsn = &GenerateGlobalNopltCallAfterInsn(sym, srcOpnds);
   } else {
     Operand &targetOpnd = GetOrCreateFuncNameOpnd(sym);
@@ -10029,7 +10168,7 @@ void AArch64CGFunc::GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize) {
       vReg.GetSize() == k64BitSize ? MOP_xstr : MOP_wstr, vReg, *strOpnd));
 
   /* __gr_offs */
-  int32 offs = - static_cast<int32>(grAreaSize);
+  int32 offs = -static_cast<int32>(grAreaSize);
   offsOpnd = &CreateImmOperand(offs, k32BitSize, false);
   RegOperand *tmpReg = &CreateRegisterOperandOfType(PTY_i32); /* offs value to be assigned (rhs) */
   SelectCopyImm(*tmpReg, *offsOpnd, PTY_i32);
@@ -12511,7 +12650,7 @@ RegOperand *AArch64CGFunc::SelectVectorIntrinsics(const IntrinsicopNode &intrins
     auto *opndExpr = intrinsicOp.Opnd(static_cast<uint32>(opndId));
     auto *opnd = AArchHandleExpr(intrinsicOp, *opndExpr);
     auto &intrinsicDesc = IntrinDesc::intrinTable[intrinsicId];
-    if (intrinsicDesc.argTypes[opndId + 1] == kArgTyPtr) {
+    if (intrinsicDesc.argInfo[opndId].argType == kArgTyPtr) {
       ASSERT(opnd->IsRegister(), "NIY, must be register");
       auto *regOpnd = static_cast<RegOperand*>(opnd);
       (void)insn.AddOpndChain(CreateMemOpnd(*regOpnd, 0, GetPrimTypeBitSize(resultType)));
@@ -12586,4 +12725,544 @@ void AArch64CGFunc::HandleFuncCfg(CGCFG *cfg) {
   }
   NeedStackProtect();
 }
+
+AArch64CGFunc::SplittedInt128 AArch64CGFunc::SplitInt128(Operand &opnd) {
+  ASSERT(opnd.IsRegister() && opnd.GetSize() == k128BitSize, "expected 128-bits register opnd");
+  auto vecTy = PTY_v2u64;
+  auto scTy = PTY_u64;
+  Operand &low = *SelectVectorGetElement(scTy, &opnd, vecTy, 0);
+  Operand &high = *SelectVectorGetElement(scTy, &opnd, vecTy, 1);
+  return {low, high};
+}
+
+RegOperand &AArch64CGFunc::CombineInt128(const SplittedInt128 parts) {
+  RegOperand &resOpnd = CreateRegisterOperandOfType(PTY_v2u64);
+  CombineInt128(resOpnd, parts);
+  return resOpnd;
+}
+
+void AArch64CGFunc::CombineInt128(Operand &resOpnd, const SplittedInt128 parts) {
+  auto vecTy = PTY_v2u64;
+  auto scTy = PTY_u64;
+  auto *tmpOpnd = SelectVectorFromScalar(vecTy, &parts.low, scTy);
+  SelectCopy(resOpnd, vecTy, *SelectVectorSetElement(&parts.high, scTy, tmpOpnd, vecTy, 1), vecTy);
+}
+
+void AArch64CGFunc::SelectParmListForInt128(Operand &opnd, ListOperand &srcOpnds, const CCLocInfo &ploc) {
+  ASSERT(ploc.reg0 != kRinvalid && ploc.reg1 != kRinvalid, "");
+
+  auto splitOpnd = SplitInt128(opnd);
+  auto reg0 = static_cast<AArch64reg>(ploc.reg0);
+  auto reg1 = static_cast<AArch64reg>(ploc.reg1);
+  RegOperand &low = GetOrCreatePhysicalRegisterOperand(reg0, k64BitSize, kRegTyInt);
+  RegOperand &high = GetOrCreatePhysicalRegisterOperand(reg1, k64BitSize, kRegTyInt);
+
+  auto cpyTy = PTY_u64;
+  SelectCopy(low, cpyTy, splitOpnd.low, cpyTy);
+  SelectCopy(high, cpyTy, splitOpnd.high, cpyTy);
+
+  srcOpnds.PushOpnd(low);
+  srcOpnds.PushOpnd(high);
+}
+
+AArch64CGFunc::SplittedInt128 AArch64CGFunc::GetSplittedInt128(Operand &opnd, PrimType opndType) {
+  ASSERT(IsPrimitiveInteger(opndType), "unexpected prim type");
+
+  if (IsInt128Ty(opndType)) {
+    ASSERT(opnd.IsRegister(), "NIY");
+    return SplitInt128(opnd);
+  }
+
+  bool isSigned = IsSignedInteger(opndType);
+  auto pTy = isSigned ? PTY_i64 : PTY_u64;
+  Operand *lowRes = &CreateRegisterOperandOfType(pTy);
+  SelectCvtInt2Int(nullptr, lowRes, &opnd, opndType, pTy);
+
+  RegOperand *highRes = nullptr;
+  if (isSigned) {
+    highRes = &CreateRegisterOperandOfType(pTy);
+    SelectShift(*highRes, *lowRes, CreateImmOperand(pTy, k64BitSize - 1), kShiftAright, pTy);
+  } else {
+    highRes = &GetZeroOpnd(k64BitSize);
+  }
+
+  return {*lowRes, *highRes};
+}
+
+void AArch64CGFunc::SelectInt128Cvt(Operand *&resOpnd, Operand &opnd0, PrimType fromType, PrimType toType) {
+  ASSERT(IsInt128Ty(fromType) || IsInt128Ty(toType), "unexpected prim type");
+
+  if (IsInt128Ty(toType) && IsInt128Ty(fromType)) {
+    resOpnd = &opnd0;
+  } else if (IsInt128Ty(fromType) && IsPrimitiveInteger(toType)) {
+    // truncate int128
+    Operand *lowOpnd0 = SelectVectorGetElement(PTY_u64, &opnd0, PTY_v2u64, 0);
+    SelectCvtInt2Int(nullptr, resOpnd, lowOpnd0, PTY_u64, toType);
+  } else if (IsPrimitiveInteger(fromType) && IsInt128Ty(toType)) {
+    // extend int128
+    auto res = GetSplittedInt128(opnd0, fromType);
+    CombineInt128(*resOpnd, res);
+  } else if (IsPrimitiveFloat(fromType) || IsPrimitiveFloat(toType)) {
+    ASSERT(false, "cvt from/to float must be lowered");
+  } else {
+    ASSERT(false, "NIY cvt from %s to %s", GetPrimTypeName(fromType), GetPrimTypeName(toType));
+  }
+}
+
+RegOperand *AArch64CGFunc::SelectShiftInt128(Operand &opnd0, Operand &opnd1, ShiftDirection direct) {
+  ASSERT(opnd0.IsRegister() && opnd0.GetSize() == k128BitSize, "unexpected opnd");
+  RegOperand &resOpnd = CreateRegisterOperandOfType(PTY_u128);
+
+  if (opnd1.IsImmediate()) {
+    SelectShiftInt128Imm(resOpnd, opnd0, opnd1, direct);
+  } else if (opnd1.IsRegister()) {
+    switch (direct) {
+      case kShiftLeft:
+        SelectShlInt128(resOpnd, opnd0, opnd1);
+        break;
+      case kShiftLright:
+        SelectShrInt128(resOpnd, opnd0, opnd1, false);
+        break;
+      case kShiftAright:
+        SelectShrInt128(resOpnd, opnd0, opnd1, true);
+        break;
+      default:
+        ASSERT(false, "unexpected shift direction");
+    }
+  } else {
+    ASSERT(false, "NIY");
+  }
+
+  return &resOpnd;
+}
+
+void AArch64CGFunc::SelectShiftInt128Imm(Operand &resOpnd, Operand &opnd0, Operand &opnd1, ShiftDirection direct) {
+  ASSERT(opnd1.IsImmediate(), "immediate opnd expected");
+
+  auto opnd = SplitInt128(opnd0);
+
+  uint32 shift = static_cast<uint32>(static_cast<ImmOperand &>(opnd1).GetValue());
+  bool wordShift = (shift / k64BitSize) > 0;
+  uint32 bitShift = shift % k64BitSize;
+
+  auto pTy = PTY_u64;
+
+  bool isShl = (direct == kShiftLeft);
+
+  Operand *lowRes = nullptr;
+  Operand *highRes = nullptr;
+
+  if (wordShift) {
+    lowRes = isShl ? &GetZeroOpnd(pTy) : &opnd.high;
+    highRes = isShl ? &opnd.low : &GetZeroOpnd(pTy);
+
+    // sign-extend
+    if (direct == kShiftAright) {
+      lowRes = &opnd.high;
+      highRes = &CreateRegisterOperandOfType(pTy);
+      SelectShift(*highRes, opnd.high, CreateImmOperand(pTy, k64BitSize - 1), kShiftAright, pTy);
+    }
+  } else {
+    lowRes = &opnd.low;
+    highRes = &opnd.high;
+  }
+
+  if (bitShift != 0) {
+    Operand &lowOp = *lowRes;
+    Operand &highOp = *highRes;
+
+    lowRes = &CreateRegisterOperandOfType(pTy);
+    highRes = &CreateRegisterOperandOfType(pTy);
+
+    RegOperand &tmp = CreateRegisterOperandOfType(pTy);
+
+    Operand &opndPart0 = isShl ? highOp : lowOp;
+    Operand &opndPart1 = isShl ? lowOp : highOp;
+    Operand &resPart0 = isShl ? *highRes : *lowRes;
+    Operand &resPart1 = isShl ? *lowRes : *highRes;
+    auto &shiftOp = CreateBitShiftOperand(isShl ? BitShiftOperand::kShiftLSR : BitShiftOperand::kShiftLSL,
+                                          k64BitSize - bitShift, k64BitSize);
+
+    SelectShift(tmp, opndPart0, CreateImmOperand(pTy, bitShift), direct, pTy);
+    SelectBiorShift(resPart0, tmp, opndPart1, shiftOp, pTy);
+    SelectShift(resPart1, opndPart1, CreateImmOperand(pTy, bitShift), direct, pTy);
+  }
+
+  CombineInt128(resOpnd, {*lowRes, *highRes});
+}
+
+void AArch64CGFunc::SelectShlInt128(Operand &resOpnd, Operand &origOpnd0, Operand &shiftVal) {
+  auto opnd0 = SplitInt128(origOpnd0);
+
+  auto pTy = PTY_u64;
+  RegOperand &tmp0 = CreateRegisterOperandOfType(pTy);
+  RegOperand &tmp1 = CreateRegisterOperandOfType(pTy);
+  RegOperand &tmp2 = CreateRegisterOperandOfType(pTy);
+
+  RegOperand &lowRes = CreateRegisterOperandOfType(pTy);
+  RegOperand &highRes = CreateRegisterOperandOfType(pTy);
+
+  SelectShift(tmp0, opnd0.high, shiftVal, kShiftLeft, pTy);
+  SelectMvn(tmp1, shiftVal, PTY_u32);
+  SelectShift(tmp2, opnd0.low, CreateImmOperand(pTy, 1), kShiftLright, pTy);
+  SelectShift(tmp1, tmp2, tmp1, kShiftLright, pTy);
+  SelectBior(tmp0, tmp0, tmp1, pTy);
+  SelectShift(tmp1, opnd0.low, shiftVal, kShiftLeft, pTy);
+  SelectTst(shiftVal, CreateImmOperand(pTy, k64BitSize), k64BitSize);
+  SelectAArch64Select(highRes, tmp1, tmp0, GetCondOperand(CC_NE), true, k64BitSize);
+  SelectAArch64Select(lowRes, GetZeroOpnd(k64BitSize), tmp1, GetCondOperand(CC_NE), true, k64BitSize);
+
+  CombineInt128(resOpnd, {lowRes, highRes});
+}
+
+void AArch64CGFunc::SelectShrInt128(Operand &resOpnd, Operand &origOpnd0, Operand &shiftVal, bool isAShr) {
+  auto opnd0 = SplitInt128(origOpnd0);
+
+  auto pTy = PTY_u64;
+  RegOperand &tmp0 = CreateRegisterOperandOfType(pTy);
+  RegOperand &tmp1 = CreateRegisterOperandOfType(pTy);
+  RegOperand &tmp2 = CreateRegisterOperandOfType(pTy);
+
+  RegOperand &lowRes = CreateRegisterOperandOfType(pTy);
+  RegOperand &highRes = CreateRegisterOperandOfType(pTy);
+
+  SelectShift(tmp0, opnd0.low, shiftVal, kShiftLright, pTy);
+  SelectMvn(tmp1, shiftVal, PTY_u32);
+  SelectShift(tmp2, opnd0.high, CreateImmOperand(pTy, 1), kShiftLeft, pTy);
+  SelectShift(tmp1, tmp2, tmp1, kShiftLeft, pTy);
+  SelectBior(tmp0, tmp0, tmp1, pTy);
+  SelectShift(tmp1, opnd0.high, shiftVal, isAShr ? kShiftAright : kShiftLright, pTy);
+  SelectTst(shiftVal, CreateImmOperand(pTy, k64BitSize), k64BitSize);
+  SelectAArch64Select(lowRes, tmp1, tmp0, GetCondOperand(CC_NE), true, k64BitSize);
+
+  // sign-extend AShr result
+  if (!isAShr) {
+    SelectShift(tmp0, opnd0.low, CreateImmOperand(pTy, k64BitSize - 1), kShiftAright, pTy);
+  }
+
+  SelectAArch64Select(highRes, GetZeroOpnd(k64BitSize), tmp1, GetCondOperand(CC_NE), true, k64BitSize);
+
+  CombineInt128(resOpnd, {lowRes, highRes});
+}
+
+RegOperand *AArch64CGFunc::SelectAddInt128(Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1, PrimType opnd1Ty) {
+  auto opnd0 = GetSplittedInt128(origOpnd0, opnd0Ty);
+  auto opnd1 = GetSplittedInt128(origOpnd1, opnd1Ty);
+
+  RegOperand &lowRes = CreateRegisterOperandOfType(PTY_u64);
+  RegOperand &highRes = CreateRegisterOperandOfType(PTY_u64);
+
+  SelectAdds(lowRes, opnd0.low, opnd1.low, PTY_u64);
+  SelectAdc(highRes, opnd0.high, opnd1.high, PTY_u64);
+
+  return &CombineInt128({lowRes, highRes});
+}
+
+RegOperand *AArch64CGFunc::SelectSubInt128(Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1, PrimType opnd1Ty) {
+  auto opnd0 = GetSplittedInt128(origOpnd0, opnd0Ty);
+  auto opnd1 = GetSplittedInt128(origOpnd1, opnd1Ty);
+
+  RegOperand &lowRes = CreateRegisterOperandOfType(PTY_u64);
+  RegOperand &highRes = CreateRegisterOperandOfType(PTY_u64);
+
+  SelectSubs(lowRes, opnd0.low, opnd1.low, PTY_u64);
+  SelectSbc(highRes, opnd0.high, opnd1.high, PTY_u64);
+
+  return &CombineInt128({lowRes, highRes});
+}
+
+RegOperand *AArch64CGFunc::SelectMpyInt128(Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1, PrimType opnd1Ty) {
+  auto opnd0 = GetSplittedInt128(origOpnd0, opnd0Ty);
+  auto opnd1 = GetSplittedInt128(origOpnd1, opnd1Ty);
+
+  RegOperand &tmpReg = CreateRegisterOperandOfType(PTY_u64);
+  RegOperand &lowRes = CreateRegisterOperandOfType(PTY_u64);
+  RegOperand &highRes = CreateRegisterOperandOfType(PTY_u64);
+
+  SelectMulh(false, tmpReg, opnd0.low, opnd1.low);
+  SelectMadd(tmpReg, opnd0.high, opnd1.low, tmpReg, PTY_u64);
+  SelectMadd(highRes, opnd1.high, opnd0.low, tmpReg, PTY_u64);
+
+  SelectMpy(lowRes, opnd0.low, opnd1.low, PTY_u64);
+
+  return &CombineInt128({lowRes, highRes});
+}
+
+// set result to zero if origOpnd0 != origOpnd1
+void AArch64CGFunc::SelectInt128CompNeq(Operand &result, Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1,
+                                        PrimType opnd1Ty) {
+  auto opnd0 = GetSplittedInt128(origOpnd0, opnd0Ty);
+  auto opnd1 = GetSplittedInt128(origOpnd1, opnd1Ty);
+
+  Operand &tmpReg0 = CreateRegisterOperandOfType(PTY_u64);
+  Operand &tmpReg1 = CreateRegisterOperandOfType(PTY_u64);
+
+  SelectBxor(tmpReg0, opnd0.low, opnd1.low, PTY_u64);
+  SelectBxor(tmpReg1, opnd0.high, opnd1.high, PTY_u64);
+  SelectBior(result, tmpReg0, tmpReg1, PTY_u64);
+}
+
+// set result to zero if origOpnd0 < origOpnd1
+void AArch64CGFunc::SelectInt128CompLt(Operand &result, Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1,
+                                       PrimType opnd1Ty, bool signedCond) {
+  auto opnd0 = GetSplittedInt128(origOpnd0, opnd0Ty);
+  auto opnd1 = GetSplittedInt128(origOpnd1, opnd1Ty);
+
+  // opnd0 < opnd1 <=> (opnd0.hi < opnd1.hi) || (opnd0.hi == opnd1.hi && opnd0.low < opnd1.low)
+
+  // set flag if opnd0.hi < opnd1.hi
+  Operand &highLO = CreateRegisterOperandOfType(PTY_u64);
+  // set flag if opnd0.hi == opnd1.hi
+  Operand &highEQ = CreateRegisterOperandOfType(PTY_u64);
+  // set flag if opnd0.low < opnd1.low
+  Operand &lowLO = CreateRegisterOperandOfType(PTY_u64);
+
+  SelectAArch64Cmp(opnd0.high, opnd1.high, /* isIntType */ true, k64BitSize);
+  SelectAArch64CSet(highLO, GetCondOperand(signedCond ? CC_LT : CC_LO), /* is64Bits */ false);
+
+  SelectAArch64Cmp(opnd0.high, opnd1.high, /* isIntType */ true, k64BitSize);
+  SelectAArch64CSet(highEQ, GetCondOperand(CC_EQ), /* is64Bits */ false);
+
+  SelectAArch64Cmp(opnd0.low, opnd1.low, /* isIntType */ true, k64BitSize);
+  SelectAArch64CSet(lowLO, GetCondOperand(CC_LO), /* is64Bits */ false);
+
+  // result = highLO || (highEQ && lowLO)
+  SelectBand(result, highEQ, lowLO, PTY_u64);
+  SelectBior(result, result, highLO, PTY_u64);
+}
+
+void AArch64CGFunc::SelectCondGotoInt128(LabelOperand &label, Opcode jmpOp, Opcode cmpOp, Operand &opnd0,
+                                         Operand &opnd1, bool signedCond) {
+  RegOperand &resComp = CreateRegisterOperandOfType(PTY_u64);
+
+  auto int128Ty = signedCond ? PTY_i128 : PTY_u128;
+  SelectInt128Compare(resComp, opnd0, int128Ty, opnd1, int128Ty, cmpOp, signedCond);
+
+  MOperator mOpBranch = (jmpOp == OP_brtrue) ? MOP_xcbnz : MOP_xcbz;
+  auto &bInsn = GetInsnBuilder()->BuildInsn(mOpBranch, resComp, label);
+  GetCurBB()->AppendInsn(bInsn);
+}
+
+void AArch64CGFunc::SelectInt128Compare(Operand &resOpnd, Operand &lhs, PrimType lhsTy, Operand &rhs, PrimType rhsTy,
+                                        Opcode opcode, bool isSigned) {
+  ConditionCode cond = kCcLast;
+  switch (opcode) {
+    case OP_eq:
+      SelectInt128CompNeq(resOpnd, lhs, lhsTy, rhs, rhsTy);
+      cond = CC_EQ;
+      break;
+    case OP_ne:
+      SelectInt128CompNeq(resOpnd, lhs, lhsTy, rhs, rhsTy);
+      cond = CC_NE;
+      break;
+    case OP_lt:
+      SelectInt128CompLt(resOpnd, lhs, lhsTy, rhs, rhsTy, isSigned);
+      cond = CC_NE;
+      break;
+    case OP_gt:
+      // lhs < rhs  <=>  rhs > lhs
+      SelectInt128CompLt(resOpnd, rhs, rhsTy, lhs, lhsTy, isSigned);
+      cond = CC_NE;
+      break;
+    case OP_le:
+      // lhs <= rhs <=> !(rhs < lhs)
+      SelectInt128CompLt(resOpnd, rhs, rhsTy, lhs, lhsTy, isSigned);
+      cond = CC_EQ;
+      break;
+    case OP_ge:
+      // lhs >= rhs <=> !(lhs < rhs)
+      SelectInt128CompLt(resOpnd, lhs, lhsTy, rhs, rhsTy, isSigned);
+      cond = CC_EQ;
+      break;
+    default:
+      ASSERT(false, "unexpected opcode");
+  }
+
+  SelectAArch64Cmp(resOpnd, GetZeroOpnd(k64BitSize), true /* isIntType */, k64BitSize);
+  SelectAArch64CSet(resOpnd, GetCondOperand(cond), true /* is64Bits */);
+}
+
+Operand *AArch64CGFunc::SelectRelationOperatorInt128(RelationOperator operatorCode, Operand &origOpnd0, PrimType oty0,
+                                                     Operand &origOpnd1, PrimType oty1) {
+  auto opnd0 = GetSplittedInt128(origOpnd0, oty0);
+  auto opnd1 = GetSplittedInt128(origOpnd1, oty1);
+
+  RegOperand &lowRes = CreateRegisterOperandOfType(PTY_u64);
+  RegOperand &highRes = CreateRegisterOperandOfType(PTY_u64);
+
+  SelectRelationOperator(operatorCode, lowRes, opnd0.low, opnd1.low, PTY_u64);
+  SelectRelationOperator(operatorCode, highRes, opnd0.high, opnd1.high, PTY_u64);
+
+  return &CombineInt128({lowRes, highRes});
+}
+
+RegOperand *AArch64CGFunc::SelectBnotInt128(Operand &origOpnd) {
+  auto opnd = SplitInt128(origOpnd);
+
+  RegOperand &lowRes = CreateRegisterOperandOfType(PTY_u64);
+  RegOperand &highRes = CreateRegisterOperandOfType(PTY_u64);
+
+  SelectBnot(lowRes, opnd.low, PTY_u64);
+  SelectBnot(highRes, opnd.high, PTY_u64);
+
+  return &CombineInt128({lowRes, highRes});
+}
+
+RegOperand *AArch64CGFunc::SelectNegInt128(Operand &origOpnd) {
+  auto opnd = SplitInt128(origOpnd);
+
+  // -opnd  <=> 0 - opnd
+  RegOperand &lowRes = CreateRegisterOperandOfType(PTY_u64);
+  RegOperand &highRes = CreateRegisterOperandOfType(PTY_u64);
+
+  SelectSubs(lowRes, GetZeroOpnd(k64BitSize), opnd.low, PTY_u64);
+  SelectSbc(highRes, GetZeroOpnd(k64BitSize), opnd.high, PTY_u64);
+
+  return &CombineInt128({lowRes, highRes});
+}
+
+RegOperand *AArch64CGFunc::SelectExtractbitsInt128(uint8 bitOffset, uint8 bitSize, Operand &srcOpnd, Opcode extOp) {
+  ASSERT(srcOpnd.IsRegister() && srcOpnd.GetSize() == k128BitSize, "NIY extractbits");
+  ASSERT(bitSize + bitOffset <= k128BitSize, "illegal extractbits");
+
+  auto opnd = SplitInt128(srcOpnd);
+  Operand &lowSrc = opnd.low;
+  Operand &highSrc = opnd.high;
+
+  PrimType pTy = PTY_u64;
+  Operand *lowRes = nullptr;
+  Operand *highRes = nullptr;
+
+  if (bitOffset < k64BitSize && (bitOffset + bitSize) <= k64BitSize) {
+    // extract bits only from low part
+    // |  low      |   high      |
+    // ^   ^      ^
+    // |off| size |
+    lowRes = &CreateRegisterOperandOfType(pTy);
+    SelectExtractbits(*lowRes, bitOffset, bitSize, lowSrc, pTy, extOp);
+    highRes = &GetZeroOpnd(k64BitSize);
+  } else if (bitOffset >= k64BitSize && bitSize <= k64BitSize) {
+    // extract bits only from high part
+    // |  low      |   high      |
+    // ^            ^      ^
+    // |    off     | size |
+    lowRes = &CreateRegisterOperandOfType(pTy);
+    SelectExtractbits(*lowRes, bitOffset - k64BitSize, bitSize, highSrc, pTy, extOp);
+    highRes = &GetZeroOpnd(k64BitSize);
+  } else {
+    // extract bits from each parts
+    // |  low    |   high    |
+    // ^      ^         ^
+    // | off  |  size   |
+
+    // get bits from low part
+    Operand &tmpReg0 = CreateRegisterOperandOfType(pTy);
+    uint32 bitSizeFromLow = k64BitSize - bitOffset;
+    SelectExtractbits(tmpReg0, bitOffset, static_cast<uint8>(bitSizeFromLow), lowSrc, pTy, OP_zext);
+
+    // get bits from high part
+    Operand &tmpReg1 = CreateRegisterOperandOfType(PTY_u64);
+    uint8 bitSizeFromHigh = static_cast<uint8>(bitOffset + bitSize - k64BitSize);
+    SelectExtractbits(tmpReg1, static_cast<uint8>(0), bitSizeFromHigh, highSrc, pTy, OP_zext);
+
+    if (bitSizeFromLow != k64BitSize) {
+      lowRes = &CreateRegisterOperandOfType(pTy);
+      auto &shiftOp = CreateBitShiftOperand(BitShiftOperand::kShiftLSL, bitSizeFromLow, k64BitSize);
+      SelectBiorShift(*lowRes, tmpReg0, tmpReg1, shiftOp, pTy);
+    } else {
+      lowRes = &tmpReg0;
+    }
+
+    if (bitSizeFromLow + bitSizeFromHigh <= k64BitSize) {
+      highRes = &GetZeroOpnd(k64BitSize);
+    } else {
+      highRes = &CreateRegisterOperandOfType(pTy);
+      SelectShift(*highRes, tmpReg1, CreateImmOperand(pTy, bitOffset), kShiftLright, pTy);
+    }
+  }
+
+  return &CombineInt128({*lowRes, *highRes});
+}
+
+RegOperand *AArch64CGFunc::SelectDepositBitsInt128(uint8 offset, uint8 size, Operand &opnd0, Operand &opnd1) {
+  ASSERT(opnd0.IsRegister() && opnd0.GetSize() == k128BitSize, "NIY depositbits");
+  ASSERT(opnd1.IsRegister() && opnd1.GetSize() == k128BitSize, "NIY depositbits");
+  ASSERT(offset + size <= k128BitSize, "incorrect depositbits");
+
+  auto opnd = SplitInt128(opnd0);
+  Operand &lowOpnd0 = opnd.low;
+  Operand &highOpnd0 = opnd.high;
+
+  auto splitOpnd1 = SplitInt128(opnd1);
+  Operand &lowOpnd1 = splitOpnd1.low;
+  Operand &highOpnd1 = splitOpnd1.high;
+
+  Operand *lowRes = nullptr;
+  Operand *highRes = nullptr;
+
+  if (size <= k64BitSize) {
+    if (offset < k64BitSize && (offset + size) <= k64BitSize) {
+      // deposit from low part
+      // |  low      |   high      |
+      // ^   ^      ^
+      // |off| size |
+      lowRes = &CreateRegisterOperandOfType(PTY_u64);
+      SelectDepositBits(*lowRes, offset, size, lowOpnd0, lowOpnd1, PTY_u64);
+      highRes = &highOpnd0;
+    } else if (offset >= k64BitSize) {
+      // deposit from high part
+      // |  low      |   high      |
+      // ^             ^      ^
+      // |    off      | size |
+      highRes = &CreateRegisterOperandOfType(PTY_u64);
+      SelectDepositBits(*highRes, offset - k64BitSize, size, highOpnd0, lowOpnd1, PTY_u64);
+      lowRes = &lowOpnd0;
+    } else if (offset < k64BitSize && (offset + size) > k64BitSize) {
+      // deposit from each part
+      // |  low    |   high    |
+      // ^      ^         ^
+      // | off  |  size   |
+
+      lowRes = &CreateRegisterOperandOfType(PTY_u64);
+      uint8 deposToLow = k64BitSize - offset;
+      SelectDepositBits(*lowRes, offset, deposToLow, lowOpnd0, lowOpnd1, PTY_u64);
+
+      highRes = &CreateRegisterOperandOfType(PTY_u64);
+      uint8 deposToHigh = size + offset - k64BitSize;
+      Operand &shiftedOpnd1 = CreateRegisterOperandOfType(PTY_u64);
+      SelectShift(shiftedOpnd1, lowOpnd1, CreateImmOperand(PTY_u64, offset), kShiftLright, PTY_u64);
+      SelectDepositBits(*highRes, 0, deposToHigh, highOpnd0, shiftedOpnd1, PTY_u64);
+    } else {
+      ASSERT(false, "NIY depositbits %d, %d", offset, size);
+    }
+  } else {  // size > k64BitSize
+    lowRes = &CreateRegisterOperandOfType(PTY_u64);
+    highRes = &CreateRegisterOperandOfType(PTY_u64);
+
+    if (offset == 0) {
+      SelectDepositBits(*lowRes, 0, k64BitSize, lowOpnd0, lowOpnd1, PTY_u64);
+      SelectDepositBits(*highRes, 0, size - k64BitSize, highOpnd0, highOpnd1, PTY_u64);
+    } else {
+      // result:
+      // |  low      |   high    |
+      // ^      ^    ^     ^    ^
+      // | off  |  a |  b  | c  |
+      // a + b + c = size
+
+      auto a = k64BitSize - offset;
+      SelectDepositBits(*lowRes, offset, static_cast<uint8>(a), lowOpnd0, lowOpnd1, PTY_u64);
+
+      auto b = offset;
+      Operand &tmpReg = CreateRegisterOperandOfType(PTY_u64);
+      SelectShift(tmpReg, lowOpnd1, CreateImmOperand(PTY_u64, static_cast<int64>(a)), kShiftLright, PTY_u64);
+      SelectDepositBits(*highRes, static_cast<uint8>(0), b, highOpnd0, tmpReg, PTY_u64);
+
+      auto c = size - k64BitSize;
+      SelectDepositBits(*highRes, b, static_cast<uint8>(c), *highRes, highOpnd1, PTY_u64);
+    }
+  }
+
+  return &CombineInt128({*lowRes, *highRes});
+}
+
 }  /* namespace maplebe */

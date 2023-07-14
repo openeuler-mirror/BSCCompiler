@@ -99,6 +99,7 @@ std::list<UniqueFEIRStmt> ASTReturnStmt::Emit2FEStmtImpl() const {
   }
   FEIRBuilder::EmitVLACleanupStmts(FEManager::GetCurrentFEFunction(), stmts);
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtReturn>(std::move(feExpr));
+  stmt->SetActulReturnStmt(true);
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }

@@ -536,7 +536,7 @@ bool SeqVectorize::CanSeqVec(const IassignNode *s1, const IassignNode *s2, bool 
 }
 
 static uint32 PreviousPowerOfTwo(unsigned int x) {
-  return 1U << ((sizeof(x) * 8 - 1) - static_cast<uint64>(__builtin_clz(x)));
+  return 1U << ((sizeof(x) * 8 - 1) - static_cast<uint>(__builtin_clz(x)));
 }
 
 void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {

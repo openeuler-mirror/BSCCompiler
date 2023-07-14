@@ -434,17 +434,9 @@ static std::optional<MapleList<MIRFunction *>> ReorderFunction(MIRModule &m,
 }
 
 /* =================== new phase manager ===================  */
-#ifdef RA_PERF_ANALYSIS
-#include "reg_alloc_lsra.h"
-#endif
-
 bool CgFuncPM::PhaseRun(MIRModule &m) {
   CreateCGAndBeCommon(m);
   bool changed = false;
-  /* reserve static symbol for debugging */
-  if (!cgOptions->WithDwarf()) {
-    SweepUnusedStaticSymbol(m);
-  }
   if (cgOptions->IsRunCG()) {
     GenerateOutPutFile(m);
 
@@ -535,12 +527,6 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       CGOptions::DisableInRange();
     }
     PostOutPut(m);
-#ifdef RA_PERF_ANALYSIS
-    if (cgOptions->IsEnableTimePhases()) {
-      printLSRATime();
-      printRATime();
-    }
-#endif
   } else {
     LogInfo::MapleLogger(kLlErr) << "Skipped generating .s because -no-cg is given" << '\n';
   }
@@ -766,5 +752,4 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgAlignAnalysis, alignanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFrameFinalize, framefinalize)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgYieldPointInsertion, yieldpoint)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgGenProEpiLog, generateproepilog)
-MAPLE_TRANSFORM_PHASE_REGISTER(CgIsolateFastPath, isolatefastpath)
 }  /* namespace maplebe */

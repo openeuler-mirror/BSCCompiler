@@ -137,6 +137,8 @@ set(src_libmplme
   src/mc_ssa_pre.cpp
   src/me_tailcall.cpp
   src/me_simplifyexpr.cpp
+  src/me_combine_expr.cpp
+  src/me_expr_utils.cpp
 )
 
 set(src_libmplmewpo
@@ -149,7 +151,6 @@ set(src_libmplmewpo
   src/irmap_build.cpp
   src/irmap_emit.cpp
   src/me_ir.cpp
-  src/orig_symbol.cpp
   src/ssa.cpp
   src/ssa_mir_nodes.cpp
   src/ssa_tab.cpp

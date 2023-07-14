@@ -33,9 +33,9 @@ class AArch64ScheduleProcessInfo : public ScheduleProcessInfo {
   ~AArch64ScheduleProcessInfo() override  = default;
 
   /* recover register type which is not recorded in live analysis */
-  static RegType GetRegisterType(CGFunc &f, regno_t regNO);
-  void VaryLiveRegSet(CGFunc &f, regno_t regNO, bool isInc);
-  void VaryFreeRegSet(CGFunc &f, std::set<regno_t> regNOs, DepNode &node);
+  static RegType GetRegisterType(const CGFunc &f, regno_t regNO);
+  void VaryLiveRegSet(const CGFunc &f, regno_t regNO, bool isInc);
+  void VaryFreeRegSet(const CGFunc &f, std::set<regno_t> regNOs, DepNode &node);
 
   uint32 GetFreeIntRegs(DepNode &node) {
     return (freeIntRegNodeSet.count(&node)) > 0 ? freeIntRegNodeSet.find(&node)->second : 0;

@@ -23,6 +23,7 @@
 #include "mpl_logging.h"
 #include "orig_symbol.h"
 #include "types_def.h"
+#include "me_expr_utils.h"
 
 namespace maple {
 namespace {
@@ -451,6 +452,7 @@ bool CompareBBContent(BB *bb1, BB *bb2) {
         if (offset1 != offset2) {
           return false;
         }
+        break;
       }
       case OP_return:
         break;
@@ -635,81 +637,64 @@ bool UnreachBBAnalysis(const maple::MeFunction &f) {
 }
 }  // anonymous namespace
 
-// contains only one valid goto stmt
-bool HasOnlyMeGotoStmt(BB &bb) {
-  if (IsMeEmptyBB(bb) || !bb.IsGoto()) {
+bool MplStmtVisitor(BB &bb, const std::function<bool(BB&)> &bbMatcher,
+                    const std::function<bool(StmtNode&)> &stmtMatcher) {
+  if (bb.IsEmpty() || !bbMatcher(bb)) {
+    return false;
+  }
+  StmtNode *stmt = &bb.GetFirst();
+  while (stmt != nullptr && stmt->GetOpCode() == OP_comment) {
+    stmt = stmt->GetRealNext();
+  }
+  return stmt != nullptr && stmtMatcher(*stmt);
+}
+
+bool MeStmtVisitor(BB &bb, std::function<bool(BB&)> bbMatcher, std::function<bool(MeStmt&)> stmtMatcher) {
+  if (bb.IsMeStmtEmpty() || !bbMatcher(bb)) {
     return false;
   }
   MeStmt *stmt = bb.GetFirstMe();
-  // Skip comment stmt
   while (stmt != nullptr && stmt->GetOp() == OP_comment) {
     stmt = stmt->GetNextMeStmt();
   }
-  return (stmt->GetOp() == OP_goto);
+  return stmt != nullptr && stmtMatcher(*stmt);
+}
+
+// contains only one valid goto stmt
+bool HasOnlyMeGotoStmt(BB &bb) {
+  return MeStmtVisitor(bb,
+                       [](const BB &bb) { return bb.IsGoto(); },
+                       [](const MeStmt &stmt) { return stmt.GetOp() == OP_goto; });
 }
 
 // contains only one valid goto mpl stmt
 bool HasOnlyMplGotoStmt(BB &bb) {
-  if (IsMplEmptyBB(bb) || !bb.IsGoto()) {
-    return false;
-  }
-  StmtNode *stmt = &bb.GetFirst();
-  // Skip comment stmt
-  if (stmt != nullptr && stmt->GetOpCode() == OP_comment) {
-    stmt = stmt->GetRealNext();
-  }
-  return (stmt->GetOpCode() == OP_goto);
+  return MplStmtVisitor(bb,
+                        [](const BB &bb) { return bb.IsGoto(); },
+                        [](const StmtNode &stmt) { return stmt.GetOpCode() == OP_goto; });
 }
 
 // contains only one valid condgoto stmt
 bool HasOnlyMeCondGotoStmt(BB &bb) {
-  if (IsMeEmptyBB(bb) || bb.GetKind() != kBBCondGoto) {
-    return false;
-  }
-  MeStmt *stmt = bb.GetFirstMe();
-  // Skip comment stmt
-  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
-    stmt = stmt->GetNextMeStmt();
-  }
-  return (stmt != nullptr && kOpcodeInfo.IsCondBr(stmt->GetOp()));
+  return MeStmtVisitor(bb,
+                       [](const BB &bb) { return bb.GetKind() == kBBCondGoto; },
+                       [](const MeStmt &stmt) { return kOpcodeInfo.IsCondBr(stmt.GetOp()); });
 }
 
 // contains only one valid condgoto mpl stmt
 bool HasOnlyMplCondGotoStmt(BB &bb) {
-  if (IsMplEmptyBB(bb) || bb.GetKind() != kBBCondGoto) {
-    return false;
-  }
-  StmtNode *stmt = &bb.GetFirst();
-  // Skip comment stmt
-  if (stmt != nullptr && stmt->GetOpCode() == OP_comment) {
-    stmt = stmt->GetRealNext();
-  }
-  return (stmt != nullptr && kOpcodeInfo.IsCondBr(stmt->GetOpCode()));
+  return MplStmtVisitor(bb,
+                        [](const BB &bb) { return bb.GetKind() == kBBCondGoto; },
+                        [](const StmtNode &stmt) { return kOpcodeInfo.IsCondBr(stmt.GetOpCode()); });
 }
 
 bool IsMeEmptyBB(BB &bb) {
-  if (bb.IsMeStmtEmpty()) {
-    return true;
-  }
-  MeStmt *stmt = bb.GetFirstMe();
-  // Skip comment stmt
-  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
-    stmt = stmt->GetNextMeStmt();
-  }
-  return stmt == nullptr;
+  return !MeStmtVisitor(bb, [](auto&) { return true; }, [](auto&) { return true; });
 }
 
 // contains no valid mpl stmt
 bool IsMplEmptyBB(BB &bb) {
-  if (bb.IsEmpty()) {
-    return true;
-  }
-  StmtNode *stmt = &bb.GetFirst();
-  // Skip comment stmt
-  if (stmt != nullptr && stmt->GetOpCode() == OP_comment) {
-    stmt = stmt->GetRealNext();
-  }
-  return stmt == nullptr;
+  return !MplStmtVisitor(bb, [](auto&) { return true; }, [](auto&) { return true; });
 }
 
 // pred-connecting-succ
@@ -1649,12 +1634,15 @@ bool OptimizeBB::CondBranchToSelect() {
   }
   (void)BranchBB2UncondBB(*currBB);
   // update phi
-  if (jointBB->GetPred().size() == 1) {  // jointBB has only currBB as its pred
+  if (resLHS->IsVolatile()) {
+    // volatile symbols do not need phi, skip
+  } else if (jointBB->GetPred().size() == 1) {  // jointBB has only currBB as its pred
     // just remove phinode
     jointBB->GetMePhiList().erase(resLHS->GetOstIdx());
   } else {
     // set phi opnd as resLHS
     MePhiNode *phiNode = jointBB->GetMePhiList()[resLHS->GetOstIdx()];
+    ASSERT_NOT_NULL(phiNode);
     int predIdx = GetRealPredIdx(*jointBB, *currBB);
     ASSERT(predIdx != -1, "[FUNC: %s]currBB is not a pred of jointBB", funcName.c_str());
     phiNode->SetOpnd(static_cast<uint>(predIdx), resLHS);
@@ -1864,7 +1852,7 @@ bool OptimizeBB::FoldCondBranchWithPredAdjacentIread() {
   if (foldExpr1 == nullptr || foldExpr2 == nullptr || foldExpr1->GetPrimType() != foldExpr2->GetPrimType()) {
     auto optBand1 = irmap->OptBandWithIread(*brInfo.opMeExpr1->GetOpnd(0), *brInfo.opMeExpr2->GetOpnd(0));
     auto optBand2 = irmap->OptBandWithIread(*brInfo.opMeExpr1->GetOpnd(1), *brInfo.opMeExpr2->GetOpnd(1));
-    if (optBand1 == nullptr || optBand2 == nullptr|| optBand1->GetPrimType() != optBand2->GetPrimType()) {
+    if (optBand1 == nullptr || optBand2 == nullptr || optBand1->GetPrimType() != optBand2->GetPrimType()) {
       return false;
     }
     MeExpr *newOpMeExpr = irmap->CreateMeExprCompare(brInfo.opMeExpr1->GetOp(), brInfo.opMeExpr1->GetPrimType(),
@@ -2555,17 +2543,6 @@ bool OptimizeBB::OptimizeSwitchBB() {
   currBB->SetKind(kBBGoto);
   SetBBRunAgain();
   return true;
-}
-
-MIRIntConst *GetIntConst(MeExpr &expr) {
-  if (expr.GetMeOp() != kMeOpConst) {
-    return nullptr;
-  }
-  auto cval = static_cast<ConstMeExpr &>(expr).GetConstVal();
-  if (cval->GetKind() != kConstInt) {
-    return nullptr;
-  }
-  return static_cast<MIRIntConst *>(cval);
 }
 
 MeExpr *SimplifyByVrp(MeIRMap &irmap, const MeExpr &expr1, const MeExpr &expr2, Opcode op) {

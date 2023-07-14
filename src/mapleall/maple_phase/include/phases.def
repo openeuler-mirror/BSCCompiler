@@ -20,10 +20,12 @@ ADDMODULEPHASE("outline", CLANG && Options::doOutline)
 
 // ginline
 ADDMODULEPHASE("ginline", CLANG && Options::O2 && Options::useInline && !Options::profileUse && Options::enableGInline)
+ADDMODULEPHASE("CallTargetReplace", CLANG && opts::linkerTimeOpt.IsEnabledByUser() &&
+                                    (!Options::profileUse && !Options::profileGen))
 // run callgraph, simplify, constantfold again after ginline
 ADDMODULEPHASE("callgraph", CLANG && Options::O2 && Options::useInline && Options::enableGInline)
 ADDMODULEPHASE("simplify", CLANG && Options::O2 && !Options::genLMBC && Options::enableGInline)
-ADDMODULEPHASE("Expand128Floats", CLANG)
+ADDMODULEPHASE("LegalizeNumericTypes", CLANG)
 ADDMODULEPHASE("ConstantFold", CLANG && Options::O2 && Options::enableGInline)
 
 ADDMODULEPHASE("inline", CLANG && (Options::O2 && Options::useInline && Options::profileUse))
@@ -40,7 +42,7 @@ ADDMODULEPHASE("VtableImpl", JAVALANG)
 ADDMODULEPHASE("CodeReLayout", MeOption::optLevel == 2 && JAVALANG)
 ADDMODULEPHASE("javaehlower", JAVALANG)
 ADDMODULEPHASE("MUIDReplacement", JAVALANG)
-ADDMODULEPHASE("Expand128Floats", true)
+ADDMODULEPHASE("LegalizeNumericTypes", true)
 ADDMAPLEMEPHASE("VerifyMemorder", true)
 ADDMODULEPHASE("ConstantFold", JAVALANG || Options::O2)
 #endif
@@ -88,6 +90,7 @@ ADDMAPLEMEPHASE("ssaprop", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("aliasclass", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("ssa", MeOption::optLevel >= 2 || JAVALANG)
 ADDMAPLEMEPHASE("dse", MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("combineexpr", MeOption::optLevel >= 2 && CLANG)
 ADDMAPLEMEPHASE("analyzector", JAVALANG)
 ADDMAPLEMEPHASE("abcopt", false && JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("loopcanon", MeOption::optLevel >= 2)

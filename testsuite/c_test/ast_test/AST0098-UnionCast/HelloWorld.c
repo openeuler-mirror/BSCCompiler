@@ -14,6 +14,7 @@
  */
 #include <stdio.h>
 
+// CHECK: [[# FILENUM:]] "{{.*}}/HelloWorld.c"
 struct tree_string
 {
   char str[1];
@@ -26,12 +27,15 @@ union tree_node
 
 char *Foo (char *str)
 {
+  // CHECK: LOC {{.*}} 32 17
+  // CHECK-NEXT:   dassign %anon.union.78 2 (dread ptr %str)
   char *str1 = ((union {const char * _q; char * _nq;}) str)._nq;
   return str1;
 }
-
 char *Foo1 (union tree_node * num_string)
 {
+  // CHECK: LOC {{.*}} 39 16
+  // CHECK-NEXT:   dassign %anon.union.80 1 (iaddrof ptr <* <$tree_node_MNO2304581391>> 2 (dread ptr %__t_40_63))
   char *str = ((union {const char * _q; char * _nq;})
                ((const char *)(({ __typeof (num_string) const __t
                                      = num_string;  __t; })

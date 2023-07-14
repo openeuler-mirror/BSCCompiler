@@ -48,7 +48,7 @@ void FEFunctionProcessSchedular::AddFunctionProcessTask(std::unique_ptr<FEFuncti
 void FEFunctionProcessSchedular::CallbackThreadMainStart() {
   std::thread::id tid = std::this_thread::get_id();
   if (FEOptions::GetInstance().GetDumpLevel() >= FEOptions::kDumpLevelInfoDebug) {
-    INFO(kLncInfo, "Start Run Thread (tid=%lx)", tid);
+    INFO(kLncInfo, "Start Run Thread (tid=%lx)", std::hash<std::thread::id>()(tid));
   }
   FEConfigParallel::GetInstance().RegisterRunThreadID(tid);
 }

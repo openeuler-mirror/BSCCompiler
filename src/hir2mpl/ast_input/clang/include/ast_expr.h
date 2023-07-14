@@ -23,24 +23,23 @@ class ASTDecl;
 class ASTFunc;
 class ASTStmt;
 
-union Value {
-  uint64 f128[2];
-  Int128Arr i128;
-  uint8 u8;
-  uint16 u16;
-  uint32 u32;
-  uint64 u64;
-  int8 i8;
-  int16 i16;
-  int32 i32;
-  float f32;
-  int64 i64;
-  double f64;
-  UStrIdx strIdx;
-};
-
 struct ASTValue {
-  Value val = {{0, 0}};
+  union Value {
+    uint64 f128[2];
+    Int128Arr i128;
+    uint8 u8;
+    uint16 u16;
+    uint32 u32;
+    uint64 u64;
+    int8 i8;
+    int16 i16;
+    int32 i32;
+    float f32;
+    int64 i64;
+    double f64;
+    UStrIdx strIdx;
+  } val = {.f128 = {0, 0}};
+
   PrimType pty = PTY_begin;
 
   PrimType GetPrimType() const {
@@ -278,6 +277,18 @@ class ASTCastExpr : public ASTExpr {
     isVectorSplat = flag;
   }
 
+  void SetPartOfExplicitCast(bool flag) {
+    isPartOfExplicitCast = flag;
+  }
+
+  void SetPartOfCastType(MIRType *castType) {
+    partOfCastType = castType;
+  }
+
+  void SetTargetFieldName(const std::string &fieldName) {
+    targetFieldName = fieldName;
+  }
+
  protected:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -300,6 +311,7 @@ class ASTCastExpr : public ASTExpr {
   ASTExpr *child = nullptr;
   MIRType *src = nullptr;
   MIRType *dst = nullptr;
+  MIRType *partOfCastType = nullptr;
   bool isNeededCvt = false;
   bool isBitCast = false;
   MIRType *complexType = nullptr;
@@ -309,6 +321,8 @@ class ASTCastExpr : public ASTExpr {
   bool isBuilinFunc = false;
   bool isUnoinCast = false;
   bool isVectorSplat = false;
+  bool isPartOfExplicitCast = false;
+  std::string targetFieldName;
 };
 
 class ASTDeclRefExpr : public ASTExpr {
@@ -1168,10 +1182,6 @@ class ASTMemberExpr : public ASTExpr {
     return fieldOffsetBits;
   }
 
-  void SetIsMulAlignAttr(bool flag) {
-    isMulAlignAttr = flag;
-  }
-
  private:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -1185,7 +1195,6 @@ class ASTMemberExpr : public ASTExpr {
   MIRType *baseType = nullptr;
   bool isArrow = false;
   uint64 fieldOffsetBits = 0;
-  bool isMulAlignAttr = false;
 };
 
 class ASTDesignatedInitUpdateExpr : public ASTExpr {
@@ -1283,8 +1292,11 @@ class ASTBOPtrMemExpr : public ASTBinaryOperatorExpr {
 class ASTCallExpr : public ASTExpr {
  public:
   explicit ASTCallExpr(MapleAllocator &allocatorIn)
-      : ASTExpr(allocatorIn, kASTOpCall), args(allocatorIn.Adapter()), funcName("", allocatorIn.GetMemPool()),
-        varName(FEUtils::GetSequentialName("retVar_"), allocatorIn.GetMemPool()) {}
+      : ASTExpr(allocatorIn, kASTOpCall),
+        args(allocatorIn.Adapter()),
+        funcName("", allocatorIn.GetMemPool()),
+        varName(FEUtils::GetSequentialName("retVar_"), allocatorIn.GetMemPool()),
+        returnVarAttrs(allocatorIn) {}
   ~ASTCallExpr() override {
     funcDecl = nullptr;
   }
@@ -1344,11 +1356,11 @@ class ASTCallExpr : public ASTExpr {
     funcDecl = decl;
   }
 
-  void SetReturnVarAttrs(const GenericAttrs &attrs) {
+  void SetReturnVarAttrs(const MapleGenericAttrs &attrs) {
     returnVarAttrs = attrs;
   }
 
-  const GenericAttrs &GetReturnVarAttrs() const {
+  const MapleGenericAttrs &GetReturnVarAttrs() const {
     return returnVarAttrs;
   }
 
@@ -1561,7 +1573,7 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
   bool isIcall = false;
   MapleString varName;
   ASTFunc *funcDecl = nullptr;
-  GenericAttrs returnVarAttrs;
+  MapleGenericAttrs returnVarAttrs;
 };
 
 class ASTParenExpr : public ASTExpr {

@@ -16,8 +16,8 @@
 #include "cgbb.h"
 #include "cg.h"
 #include "loop.h"
+#include "cg_predict.h"
 #include "mpl_logging.h"
-
 /*
  * This phase traverses all basic block of cgFunc and finds special
  * basic block patterns, like continuous fallthrough basic block, continuous
@@ -44,8 +44,8 @@ bool ChainingPattern::NoInsnBetween(const BB &from, const BB &to) const {
 
 /* return true if insns in bb1 and bb2 are the same except the last goto insn. */
 bool ChainingPattern::DoSameThing(const BB &bb1, const Insn &last1, const BB &bb2, const Insn &last2) const {
-  const Insn *insn1 = bb1.GetFirstInsn();
-  const Insn *insn2 = bb2.GetFirstInsn();
+  const Insn *insn1 = bb1.GetFirstMachineInsn();
+  const Insn *insn2 = bb2.GetFirstMachineInsn();
   while (insn1 != nullptr && insn1 != last1.GetNext() && insn2 != nullptr && insn2 != last2.GetNext()) {
     if (!insn1->IsMachineInstruction()) {
       insn1 = insn1->GetNext();
@@ -72,7 +72,7 @@ bool ChainingPattern::DoSameThing(const BB &bb1, const Insn &last1, const BB &bb
     insn1 = insn1->GetNextMachineInsn();
     insn2 = insn2->GetNextMachineInsn();
   }
-  return (insn1 == last1.GetNext() && insn2 == last2.GetNext());
+  return (insn1 == last1.GetNextMachineInsn() && insn2 == last2.GetNextMachineInsn());
 }
 
 /*
@@ -156,8 +156,7 @@ bool ChainingPattern::RemoveGotoInsn(BB &curBB, BB &sucBB) {
   }
   if (&sucBB != curBB.GetNext()) {
     ASSERT(curBB.GetNext() != nullptr, "nullptr check");
-    curBB.RemoveSuccs(sucBB);
-    curBB.PushBackSuccs(*curBB.GetNext());
+    curBB.ReplaceSucc(sucBB, *curBB.GetNext());
     curBB.GetNext()->PushBackPreds(curBB);
     sucBB.RemovePreds(curBB);
   }
@@ -192,9 +191,12 @@ bool ChainingPattern::ClearCurBBAndResetTargetBB(BB &curBB, BB &sucBB) {
       }
     }
     ASSERT(br != nullptr, "goto BB has no branch");
-    last1 = br->GetPrev();
+    last1 = br->GetPreviousMachineInsn();
   }
-  if (last1 == nullptr || !DoSameThing(*newTarget, *last1, curBB, *brInsn->GetPrev())) {
+  if (last1 == nullptr) {
+    return false;
+  }
+  if (!DoSameThing(*newTarget, *last1, curBB, *brInsn->GetPreviousMachineInsn())) {
     return false;
   }
 
@@ -502,8 +504,7 @@ bool SequentialJumpPattern::HasInvalidPred(BB &sucBB) const {
 void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) const {
   BB *gotoTarget = CGCFG::GetTargetSuc(sucBB);
   CHECK_FATAL(gotoTarget != nullptr, "gotoTarget is null in SequentialJumpPattern::SkipSucBB");
-  curBB.RemoveSuccs(sucBB);
-  curBB.PushBackSuccs(*gotoTarget);
+  curBB.ReplaceSucc(sucBB, *gotoTarget);
   sucBB.RemovePreds(curBB);
   gotoTarget->PushBackPreds(curBB);
   // If the sucBB needs to be skipped, all preds of the sucBB must skip it and update cfg info.
@@ -539,9 +540,8 @@ void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) const {
     } else if (predBB->GetKind() == BB::kBBRangeGoto) {
       UpdateSwitchSucc(*predBB, sucBB);
     }
-    predBB->RemoveSuccs(sucBB);
+    predBB->ReplaceSucc(sucBB, *gotoTarget);
     sucBB.RemovePreds(*predBB);
-    predBB->PushBackSuccs(*gotoTarget);
     gotoTarget->PushBackPreds(*predBB);
   }
   cgFunc->GetTheCFG()->FlushUnReachableStatusAndRemoveRelations(sucBB, *cgFunc);
@@ -707,12 +707,10 @@ bool FlipBRPattern::Optimize(BB &curBB) {
         it = curBB.GetSuccsBegin();
         CHECK_FATAL(*it != nullptr, "nullptr check");
         if (*it == brBB) {
-          curBB.EraseSuccs(it);
-          curBB.PushBackSuccs(*tgtBB);
+          curBB.ReplaceSucc(it, *tgtBB);
         } else {
           ++it;
-          curBB.EraseSuccs(it);
-          curBB.PushFrontSuccs(*tgtBB);
+          curBB.ReplaceSucc(it, *tgtBB);
         }
         for (it = tgtBB->GetPredsBegin(); it != tgtBB->GetPredsEnd(); ++it) {
           if (*it == ftBB) {
@@ -788,15 +786,12 @@ bool FlipBRPattern::Optimize(BB &curBB) {
       brInsn->SetOperand(gotoTargetIdx, condTarget);
       auto it = ftBB->GetSuccsBegin();
       BB *loopHeadBB = *it;
-
-      curBB.RemoveSuccs(*brBB);
+      curBB.ReplaceSucc(*brBB, *loopHeadBB);
       brBB->RemovePreds(curBB);
-      ftBB->RemoveSuccs(*loopHeadBB);
+      ftBB->ReplaceSucc(*loopHeadBB, *brBB);
       loopHeadBB->RemovePreds(*ftBB);
 
-      curBB.PushBackSuccs(*loopHeadBB);
       loopHeadBB->PushBackPreds(curBB);
-      ftBB->PushBackSuccs(*brBB);
       brBB->PushBackPreds(*ftBB);
     } else {
       RelocateThrowBB(curBB);

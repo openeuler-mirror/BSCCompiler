@@ -112,6 +112,7 @@ void CGCFG::BuildCFG() {
         curBB->PushBackSuccs(*fallthruBB);
         fallthruBB->PushBackPreds(*curBB);
         Insn *branchInsn = curBB->GetLastMachineInsn();
+        int32 prob = branchInsn->GetProb();
         CHECK_FATAL(branchInsn != nullptr, "machine instruction must be exist in ifBB");
         ASSERT(branchInsn->IsCondBranch(), "must be a conditional branch generated from an intrinsic");
         /* Assume the last non-null operand is the branch target */
@@ -122,7 +123,7 @@ void CGCFG::BuildCFG() {
         auto &labelOpnd = static_cast<LabelOperand&>(lastOpnd);
         BB *brToBB = cgFunc->GetBBFromLab2BBMap(labelOpnd.GetLabelIndex());
         if (fallthruBB->GetId() != brToBB->GetId()) {
-          curBB->PushBackSuccs(*brToBB);
+          curBB->PushBackSuccs(*brToBB, prob);
           brToBB->PushBackPreds(*curBB);
         }
         break;
@@ -207,7 +208,7 @@ static inline uint32 CRC32Compute(uint32_t crc, uint32 val) {
 }
 
 uint32 CGCFG::ComputeCFGHash() {
-  uint32 hash = 0xfffffffful;
+  uint32 hash = 0xffffffffUL;
   FOR_ALL_BB(bb, cgFunc) {
     hash = CRC32Compute (hash, bb->GetId());
     for (BB *sucBB : bb->GetSuccs()) {
@@ -445,10 +446,9 @@ void CGCFG::MergeBB(BB &merger, BB &mergee) {
   for (BB *bb : mergee.GetSuccs()) {
     bb->RemovePreds(mergee);
     bb->PushBackPreds(merger);
-    merger.PushBackSuccs(*bb);
+    merger.PushBackSuccs(*bb, mergee.GetEdgeProb(*bb));
   }
   merger.SetKind(mergee.GetKind());
-  merger.SetNeedRestoreCfi(mergee.IsNeedRestoreCfi());
   mergee.SetNext(nullptr);
   mergee.SetPrev(nullptr);
   mergee.ClearPreds();
@@ -614,11 +614,11 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) const {
         insnVisitor->ModifyJumpTarget(targetLabel, *preBB);
       }
       if (fallthruSuc != nullptr && !fallthruSuc->IsPredecessor(*preBB)) {
-        preBB->PushBackSuccs(*fallthruSuc);
+        preBB->PushBackSuccs(*fallthruSuc, preBB->GetEdgeProb(curBB));
         fallthruSuc->PushBackPreds(*preBB);
       }
       if (sucBB != nullptr && !sucBB->IsPredecessor(*preBB)) {
-        preBB->PushBackSuccs(*sucBB);
+        preBB->PushBackSuccs(*sucBB, preBB->GetEdgeProb(curBB));
         sucBB->PushBackPreds(*preBB);
       }
       preBB->RemoveSuccs(curBB);
@@ -967,16 +967,16 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) const {
   }
   newBB.PushBackSuccs(succ);
 
-  /* connext pred -> newBB */
+  /* connect pred -> newBB */
   for (auto it = pred.GetSuccsBegin(); it != pred.GetSuccsEnd(); ++it) {
     if (*it == &succ) {
       auto origIt = it;
       pred.EraseSuccs(it);
       if (origIt != succ.GetSuccsBegin()) {
         --origIt;
-        pred.InsertSucc(origIt, newBB);
+        pred.InsertSucc(origIt, newBB, pred.GetEdgeProb(succ));
       } else {
-        pred.PushFrontSuccs(newBB);
+        pred.PushFrontSuccs(newBB, pred.GetEdgeProb(succ));
       }
       break;
     }
@@ -1035,8 +1035,7 @@ BB *CGCFG::BreakCriticalEdge(BB &pred, BB &succ) const {
         cgFunc->ClearBBInVec(newBB->GetId());
         return nullptr;
       } else {
-        cgFunc->GetLastBB()->AppendBB(*newBB);
-        cgFunc->SetLastBB(*newBB);
+        cgFunc->GetLastBB()->PrependBB(*newBB);
       }
     } else {
       exitBB->AppendBB(*newBB);
@@ -1119,10 +1118,15 @@ void CGCFG::ReverseCriticalEdge(BB &cbb) {
     ASSERT(0, "unexpeced bb kind in BreakCriticalEdge");
   }
 
+  // Remove edge freq before removing bb.
+  pred->RemoveEdgeFreq(cbb);
   pred->RemoveSuccs(cbb);
   pred->PushBackSuccs(*succ);
   succ->RemovePreds(cbb);
   succ->PushBackPreds(*pred);
+  // Maintain the frequency of the edge.
+  pred->InitEdgeFreq();
+  pred->SetEdgeFreq(*succ, cbb.GetFrequency());
 }
 #endif
 

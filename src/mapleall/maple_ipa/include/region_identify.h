@@ -181,7 +181,7 @@ class RegionCandidate {
   StmtInfo* end;
   MIRFunction *function;
   size_t length;
-  GroupId groupId = kInvalidIndex;
+  GroupId groupId = utils::kInvalidIndex;
   std::set<SymbolRegPair> regionOutputs;
   std::set<SymbolRegPair> regionInputs;
   std::unordered_set<BaseNode*> stmtJumpToEnd;

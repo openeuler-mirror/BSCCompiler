@@ -26,7 +26,8 @@ enum ErrorCode {
   kErrorToolNotFound,
   kErrorCompileFail,
   kErrorNotImplement,
-  kErrorUnKnownFileType
+  kErrorUnKnownFileType,
+  kErrorCreateFile
 };
 
 void PrintErrorMessage(int ret);

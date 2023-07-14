@@ -21,6 +21,7 @@
 #include "constantfold.h"
 #include "lower.h"
 #include "me_phase_manager.h"
+#include "ipa_phase_manager.h"
 #include "lfo_loop_vec.h"
 #include "seqvec.h"
 
@@ -283,11 +284,13 @@ void DriverRunner::RunNewPM(const std::string &output, const std::string &vtable
   MeFuncPM::genMapleBC = genMapleBC;
   MeFuncPM::genLMBC = genLMBC;
   MeFuncPM::timePhases = timePhases;
+  IpaSccPM::timePhases = timePhases;
   MPLTimer timer;
   timer.Start();
   topLevelPhaseManager->DoPhasesPopulate(*theModule);
   topLevelPhaseManager->Run(*theModule);
   if (timePhases) {
+    LogInfo::MapleLogger() << "================== TopLevelPM ==================";
     topLevelPhaseManager->DumpPhaseTime();
   }
   // emit after module phase
@@ -323,14 +326,6 @@ void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &output, const st
 void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &originBaseName) {
   CHECK_MODULE();
   theMIRModule = theModule;
-  if (withDwarf && !theModule->IsWithDbgInfo()) {
-    theMIRModule->GetDbgInfo()->BuildDebugInfo();
-#if defined(DEBUG) && DEBUG
-    if (cgOptions) {
-      cgOptions->SetOption(CGOptions::kVerboseAsm);
-    }
-#endif
-  }
   if (cgOptions == nullptr) {
     return;
   }
@@ -342,9 +337,6 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
   theModule->SetBaseName(originBaseName);
   theModule->SetOutputFileName(output);
   cgOptions->SetDefaultOptions(*theModule);
-  if (timePhases) {
-    CGOptions::EnableTimePhases();
-  }
   Globals::GetInstance()->SetOptimLevel(cgOptions->GetOptimizeLevel());
   MAD mad;
   Globals::GetInstance()->SetMAD(mad);
@@ -358,8 +350,21 @@ void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &
   }
   /* It is a specifc work around  (need refactor) */
   cgfuncPhaseManager->SetCGOptions(cgOptions);
+  // reserve static symbol in O0 debugging + temp flag for GDB testsuite
+  if (!((opts::o0 || opts::o0.IsEnabledByUser()) && opts::noOptO0)) {
+    cgfuncPhaseManager->SweepUnusedStaticSymbol(*theModule);
+  }
+  if (withDwarf && !theModule->IsWithDbgInfo()) {
+    theMIRModule->GetDbgInfo()->BuildDebugInfo();
+#if defined(DEBUG) && DEBUG
+    if (cgOptions) {
+      cgOptions->SetOption(CGOptions::kVerboseAsm);
+    }
+#endif
+  }
   (void) cgfuncPhaseManager->PhaseRun(*theModule);
   if (timePhases) {
+    LogInfo::MapleLogger() << "==================  CGFuncPM  ==================";
     cgfuncPhaseManager->DumpPhaseTime();
   }
   timer.Stop();

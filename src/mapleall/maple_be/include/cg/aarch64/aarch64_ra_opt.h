@@ -16,9 +16,7 @@
 #ifndef MAPLEBE_INCLUDE_CG_AARCH64RAOPT_H
 #define MAPLEBE_INCLUDE_CG_AARCH64RAOPT_H
 
-#include "cg.h"
 #include "ra_opt.h"
-#include "aarch64_cg.h"
 #include "aarch64_insn.h"
 #include "aarch64_operand.h"
 
@@ -80,11 +78,16 @@ class X0OptInfo {
   regno_t renameReg;
 };
 
-class RaX0Opt {
+class RaX0Opt : public RaOptPattern {
  public:
-  explicit RaX0Opt(CGFunc* func) : cgFunc(func)  {}
-  ~RaX0Opt() = default;
+  RaX0Opt(CGFunc &func, MemPool &pool, bool dump = false)
+      : RaOptPattern(func, pool, dump) {}
+  ~RaX0Opt() override = default;
 
+  void Run() override {
+    PropagateX0();
+  }
+ private:
   bool PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const;
   bool PropagateRenameReg(Insn &nInsn, const X0OptInfo &optVal) const;
   bool PropagateX0DetectX0(const Insn &insn, X0OptInfo &optVal) const;
@@ -93,31 +96,20 @@ class RaX0Opt {
   bool PropagateX0ForCurrBb(BB &bb, const X0OptInfo &optVal) const;
   void PropagateX0ForNextBb(BB &nextBb, const X0OptInfo &optVal) const;
   void PropagateX0();
-
- private:
-  CGFunc *cgFunc;
 };
 
-class ParamRegOpt {
+class AArch64LRSplitForSink : public LRSplitForSink {
  public:
-  ParamRegOpt(CGFunc &func, DomAnalysis &dom, const LoopAnalysis &loop) : cgFunc(func), domInfo(dom), loopInfo(loop) {}
-  ~ParamRegOpt() = default;
+  AArch64LRSplitForSink(CGFunc &func, MemPool &pool, DomAnalysis &dom, LoopAnalysis &loop, bool dump)
+      : LRSplitForSink(func, pool, dom, loop, dump) {}
 
-  void HandleParamReg();
-  void CollectRefBBs(RegOperand &movDest, std::set<uint32> &refBBs);
-  void TryToSplitParamReg(RegOperand &movDest, Insn &posInsn);
-  BB* GetCommondDom(std::set<uint32> &refBBs) const;
-  bool DominatorAll(uint32 domBB, std::set<uint32> &refBBs) const;
-  void SplitAtDomBB(RegOperand &movDest, BB &domBB, Insn &posInsn) const;
-  void SetDumpInfo(bool val) {
-    dumpInfo = val;
-  }
-
+  ~AArch64LRSplitForSink() override = default;
  private:
-  CGFunc &cgFunc;
-  DomAnalysis &domInfo;
-  const LoopAnalysis &loopInfo;
-  bool dumpInfo = false;
+  // collect registers which will be split.
+  // for aarch64, now only param dest reg will be split
+  void CollectSplitRegs() override;
+
+  Insn &GenMovInsn(RegOperand &dest, RegOperand &src) override;
 };
 
 class VregRenameInfo {
@@ -136,15 +128,19 @@ class VregRenameInfo {
   uint8 innerMostloopLevelSeen = 0;
 };
 
-class VregRename {
+class VregRename : public RaOptPattern {
  public:
-  VregRename(CGFunc *func, MemPool *pool, LoopAnalysis &loop)
-      : cgFunc(func), memPool(pool), alloc(pool), loopInfo(&loop), renameInfo(alloc.Adapter()) {
-    renameInfo.resize(cgFunc->GetMaxRegNum());
-    ccRegno = static_cast<RegOperand *>(&cgFunc->GetOrCreateRflag())->GetRegisterNumber();
+  VregRename(CGFunc &func, MemPool &pool, LoopAnalysis &loop, bool dump = false)
+      : RaOptPattern(func, pool, dump), loopInfo(loop), renameInfo(alloc.Adapter()) {
+    renameInfo.resize(cgFunc.GetMaxRegNum());
+    ccRegno = static_cast<RegOperand *>(&cgFunc.GetOrCreateRflag())->GetRegisterNumber();
   }
-  ~VregRename() = default;
+  ~VregRename() override = default;
 
+  void Run() override {
+    VregLongLiveRename();
+  }
+ private:
   void PrintRenameInfo(regno_t regno) const;
   void PrintAllRenameInfo() const;
 
@@ -156,11 +152,7 @@ class VregRename {
   void UpdateVregInfo(regno_t vreg, BB *bb, bool isInner, bool isDef);
   void VregLongLiveRename();
 
-  CGFunc *cgFunc = nullptr;
-  MemPool *memPool = nullptr;
-  MapleAllocator alloc;
-  Bfs *bfs = nullptr;
-  LoopAnalysis *loopInfo = nullptr;
+  LoopAnalysis &loopInfo;
   MapleVector<VregRenameInfo*> renameInfo;
   uint32 maxRegnoSeen = 0;
   regno_t ccRegno = 0;
@@ -168,11 +160,11 @@ class VregRename {
 
 class AArch64RaOpt : public RaOpt {
  public:
-  AArch64RaOpt(CGFunc &func, MemPool &pool) : RaOpt(func, pool) {}
+  AArch64RaOpt(CGFunc &func, MemPool &pool, DomAnalysis &dom, LoopAnalysis &loop)
+      : RaOpt(func, pool, dom, loop) {}
   ~AArch64RaOpt() override = default;
-  void Run() override;
 
- private:
+  void InitializePatterns() override;
 };
 }  /* namespace maplebe */
 

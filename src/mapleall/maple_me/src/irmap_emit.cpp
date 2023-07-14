@@ -16,11 +16,45 @@
 #include "me_ir.h"
 #include "irmap.h"
 #include "mir_builder.h"
+#include "mir_nodes.h"
 #include "orig_symbol.h"
+#include "mem_reference_table.h"
 
 namespace maple {
 static MIRFunction *GetCurFunction() {
   return theMIRModule->CurFunction();
+}
+
+static void CollectMemDefUseInfo(StmtNode &stmt, MeStmt &meStmt) {
+  auto *memReferenceTable = GetCurFunction()->GetMemReferenceTable();
+  if (!memReferenceTable) {
+    return;
+  }
+  auto *memDefUse = memReferenceTable->GetOrCreateMemDefUseFromBaseNode(&stmt);
+  if (meStmt.GetMuList()) {
+    for (auto pair : *meStmt.GetMuList()) {
+      (void)memDefUse->GetUseSet().insert(pair.first);
+    }
+  }
+  if (meStmt.GetChiList()) {
+    for (auto pair : *meStmt.GetChiList()) {
+      (void)memDefUse->GetDefSet().insert(pair.first);
+    }
+  }
+}
+
+static void CollectMemMu(IreadNode &iread, IvarMeExpr &ivar) {
+  auto *memReferenceTable = GetCurFunction()->GetMemReferenceTable();
+  if (!memReferenceTable) {
+    return;
+  }
+  auto *memDefUse = memReferenceTable->GetOrCreateMemDefUseFromBaseNode(&iread);
+  for (auto *scalar : ivar.GetMuList()) {
+    if (!scalar) {
+      continue;
+    }
+    (void)memDefUse->GetUseSet().insert(scalar->GetOstIdx());
+  }
 }
 
 bool VarMeExpr::IsValidVerIdx() const {
@@ -272,6 +306,7 @@ BaseNode &IvarMeExpr::EmitExpr(MapleAllocator &alloc) {
   ASSERT(ireadNode->GetPrimType() != kPtyInvalid, "");
   ASSERT(tyIdx != 0, "wrong tyIdx for iread node in me emit");
   ireadNode->SetTyIdx(tyIdx);
+  CollectMemMu(*ireadNode, *this);
   return *ireadNode;
 }
 
@@ -689,6 +724,7 @@ void BB::EmitBB(BlockNode &curblk, bool needAnotherPass) {
       }
     }
     StmtNode *stmt = &meStmt.EmitStmt(GetCurFunction()->GetCodeMPAllocator());
+    CollectMemDefUseInfo(*stmt, meStmt);
     stmt->SetSrcPos(meStmt.GetSrcPosition());
     stmt->SetOriginalID(meStmt.GetOriginalId());
     stmt->CopySafeRegionAttr(meStmt.GetStmtAttr());

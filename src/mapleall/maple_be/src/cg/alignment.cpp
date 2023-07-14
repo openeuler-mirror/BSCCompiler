@@ -22,12 +22,28 @@ namespace maplebe {
 #define ALIGN_ANALYZE_DUMP_NEWPW CG_DEBUG_FUNC(func)
 
 void AlignAnalysis::AnalysisAlignment() {
-  FindLoopHeader();
-  FindJumpTarget();
+  // If pgo is enabled, we analysis alignment on specific by frequency.
+  if (CGOptions::DoLiteProfUse() && CGOptions::DoPgoCodeAlign()) {
+    LiteProfile::BBInfo *bbInfo = cgFunc.GetFunction().GetModule()->GetLiteProfile().GetFuncBBProf(cgFunc.GetName());
+    if (bbInfo == nullptr) {
+      LogInfo::MapleLogger() << cgFunc.GetName() << " is not in white list in pgo use\n";
+      return;
+    }
+    FindLoopHeaderByFrequency();
+    FindJumpTargetByFrequency();
+  } else {
+    FindLoopHeaderByDefault();
+    FindJumpTargetByDefault();
+  }
+
   ComputeLoopAlign();
   ComputeJumpAlign();
+
   if (CGOptions::DoCondBrAlign()) {
     ComputeCondBranchAlign();
+  }
+  if (CGOptions::DoLoopAlign() && !loopHeaderBBs.empty()) {
+    AddNopForLoop();
   }
 }
 

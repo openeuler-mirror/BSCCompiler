@@ -226,7 +226,7 @@ class Dominance {
       if (postOrderNo == -1) {
         continue;
       }
-      reversePostOrder[maxPostOrderID - static_cast<size_t>(postOrderNo)] = nodeVec[i];
+      reversePostOrder[maxPostOrderID - static_cast<uint32>(postOrderNo)] = nodeVec[i];
     }
   }
 

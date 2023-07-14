@@ -202,10 +202,21 @@ class MIRModule {
     return inlineSummaryAlloc;
   }
 
+  MapleAllocator &GetMemReferenceTableAllocator() {
+    return memReferenceTableAllocator;
+  }
+
   void ReleaseInlineSummaryAlloc() noexcept {
     if (inlineSummaryAlloc.GetMemPool() != nullptr) {
       delete inlineSummaryAlloc.GetMemPool();
       inlineSummaryAlloc.SetMemPool(nullptr);
+    }
+  }
+
+  void ReleaseMemReferenceAllocator() noexcept {
+    if (memReferenceTableAllocator.GetMemPool()) {
+      delete memReferenceTableAllocator.GetMemPool();
+      memReferenceTableAllocator.SetMemPool(nullptr);
     }
   }
 
@@ -644,7 +655,7 @@ class MIRModule {
     return dbgInfo;
   }
 
-  MIRScope *GetScope() const {
+  MIRScope *GetScope() {
     return scope;
   }
 
@@ -735,6 +746,7 @@ class MIRModule {
   MapleAllocator memPoolAllocator;
   MapleAllocator pragmaMemPoolAllocator;
   MapleAllocator inlineSummaryAlloc;      // For allocating function inline summary
+  MapleAllocator memReferenceTableAllocator;      // For allocating function inline summary
   MapleList<MIRFunction*> functionList;  // function table in the order of the appearance of function bodies; it
   // excludes prototype-only functions
   MapleVector<std::string> importedMplt;

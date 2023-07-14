@@ -81,6 +81,9 @@ bool MeStackProtect::IsDefInvolveAddressOfStackVar(const ScalarMeExpr &expr, std
     }
     case kDefByStmt: {
       const auto defStmt = expr.GetDefStmt();
+      if (!RecordExpr(visitedDefs, *defStmt->GetLHS())) {
+        return false;
+      }
       return IsPointToAddressOfStackVar(*defStmt->GetRHS(), visitedDefs);
     }
     case kDefByNo: {

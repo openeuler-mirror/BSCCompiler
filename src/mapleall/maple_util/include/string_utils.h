@@ -60,6 +60,9 @@ class StringUtils {
   static void Split(const std::string &src, std::unordered_set<std::string> &container, char delim);
 
   static std::string Trim(const std::string &src);
+  static std::string LTrim(const std::string &src);
+  static std::string RTrim(const std::string &src);
+  static std::string TrimWhitespace(const std::string &src);
   static std::string Replace(const std::string &src, const std::string &target, const std::string &replacement);
   static std::string Append(const std::string &src, const std::string &target, const std::string &spliter);
   static std::string GetStrAfterLast(const std::string &src, const std::string &target,

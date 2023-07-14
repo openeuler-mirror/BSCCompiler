@@ -76,8 +76,13 @@ static void ReadProfile(const std::string &path) {
 
   while (std::getline(fs, line)) {
     std::istringstream ss(line);
-    std::string calleeName, callerName;
-    uint64 calleeSize, callerSize, calleeWeight, callerWeight, edgeWeight;
+    std::string calleeName;
+    std::string callerName;
+    uint64 calleeSize;
+    uint64 callerSize;
+    uint64 calleeWeight;
+    uint64 callerWeight;
+    uint64 edgeWeight;
     ss >> calleeName >> calleeWeight >> calleeSize >> callerName >> callerWeight >> callerSize >> edgeWeight;
     if (!ss) {
       LogInfo::MapleLogger() << "WARN: unexpected format in Function Priority File" << '\n';
@@ -110,7 +115,8 @@ static uint32 GetLeader(uint32 src) {
 }
 
 static void MergeClusters(Cluster &dst, uint32 dstIdx, Cluster &src, uint32 srcIdx) {
-  uint32 tail1 = dst.prev, tail2 = src.prev;
+  uint32 tail1 = dst.prev;
+  uint32 tail2 = src.prev;
   dst.prev = tail2;
   clusters[tail2].next = dstIdx;
   src.prev = tail1;

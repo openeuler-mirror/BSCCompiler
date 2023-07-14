@@ -73,7 +73,7 @@ class McSSAPre : public SSAPre {
       occ2RGNodeMap(preAllocator.Adapter()),
       maxFlowRoutes(preAllocator.Adapter()),
       minCut(preAllocator.Adapter()) {}
-  ~McSSAPre() {
+  ~McSSAPre() override {
     sink = nullptr;
   }
 
@@ -85,7 +85,7 @@ class McSSAPre : public SSAPre {
   // step 7 max flow/min cut
   bool AmongMinCut(const RGNode *nd, uint32 idx) const;
   void DumpRGToFile();                  // dump reduced graph to dot file
-  bool IncludedEarlier(Visit **cut, const Visit *curVisit, uint32 nextRouteIdx) const;
+  bool IncludedEarlier(Visit * const *cut, const Visit *curVisit, uint32 nextRouteIdx) const;
   void RemoveRouteNodesFromCutSet(std::unordered_multiset<uint32> &cutSet, Route *route) const;
   bool SearchRelaxedMinCut(Visit **cut, std::unordered_multiset<uint32> &cutSet, uint32 nextRouteIdx,
                            FreqType flowSoFar);

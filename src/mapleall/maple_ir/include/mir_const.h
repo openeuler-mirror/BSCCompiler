@@ -40,6 +40,14 @@ enum MIRConstKind {
   kConstStConst
 };
 
+constexpr int32 kDoubleLength = 64;
+constexpr int32 kFirstBits = 4;
+constexpr int32 kDoubleSignPos = 63;
+constexpr int32 kDoubleExpShiftBits = 48;
+constexpr int32 kDoubleExpLeftBits = 16;
+constexpr int32 kDoubleExpPos = 51;
+constexpr int32 kFloatSignPos = 31;
+constexpr int32 kFloatExpPos = 22;
 class MIRConst {
  public:
   explicit MIRConst(MIRType &type, MIRConstKind constKind = kConstInvalid)
@@ -324,11 +332,13 @@ class MIRFloatConst : public MIRConst {
 
   std::pair<uint64, uint64> GetFloat128Value() const {
     // check special values
-    if (std::isinf(value.floatValue) && ((static_cast<uint32>(value.intValue) & (1U << 31)) >> 31) == 0x0) {
+    if (std::isinf(value.floatValue) &&
+        ((static_cast<uint32>(value.intValue) & (1U << kFloatSignPos)) >> kFloatSignPos) == 0x0) {
       return {0x7fff000000000000, 0x0};
-    } else if (std::isinf(value.floatValue) && ((static_cast<uint32>(value.intValue) & (1U << 31)) >> 31) == 0x1) {
+    } else if (std::isinf(value.floatValue) &&
+        ((static_cast<uint32>(value.intValue) & (1U << kFloatSignPos)) >> kFloatSignPos) == 0x1) {
       return {0xffff000000000000, 0x0};
-    } else if ((static_cast<uint32>(value.intValue) ^ (0x1 << 31)) == 0x0) {
+    } else if ((static_cast<uint32>(value.intValue) ^ (1U << kFloatSignPos)) == 0x0) {
       return {0x8000000000000000, 0x0};
     } else if (value.intValue == 0x0) {
       return {0x0, 0x0};
@@ -336,30 +346,31 @@ class MIRFloatConst : public MIRConst {
       return {0x7fff800000000000, 0x0};
     }
 
-    uint64 sign = (static_cast<uint32>(value.intValue) & (1U << 31)) >> 31;
+    uint64 sign = (static_cast<uint32>(value.intValue) & (1U << kFloatSignPos)) >> kFloatSignPos;
     uint64 exp = (static_cast<uint32>(value.intValue) & (0x7f800000)) >> 23;
     uint64 mantiss = static_cast<uint32>(value.intValue) & (0x007fffff);
 
-    const int float_exp_offset = 0x7f;
-    const int float_min_exp = -0x7e;
-    const int float_mantiss_bits = 23;
-    const int ldoubleExpOffset = 0x3fff;
+    const int64 floatExpOffset = 0x7f;
+    const int64 floatMinExp = -0x7e;
+    const int64 floatMantissBits = 23;
+    const int64 ldoubleExpOffset = 0x3fff;
 
     if (exp > 0x0 && exp < 0xff) {
-      uint64 ldoubleExp = static_cast<uint64>(static_cast<int>(exp) - float_exp_offset + ldoubleExpOffset);
+      uint64 ldoubleExp = static_cast<uint64>(static_cast<int64>(exp) - floatExpOffset + ldoubleExpOffset);
       uint64 ldoubleMantissFirstBits = mantiss << 25;
       uint64 lowByte = 0x0;
-      uint64 highByte = (sign << 63) | (ldoubleExp << 48) | (ldoubleMantissFirstBits);
+      uint64 highByte = (sign << kDoubleSignPos) | (ldoubleExp << kDoubleExpShiftBits) | (ldoubleMantissFirstBits);
       return {highByte, lowByte};
     } else if (exp == 0x0) {
-      int num_pos = 0;
-      for (; ((mantiss >> static_cast<uint32>(22 - num_pos)) & 0x1) != 1; ++num_pos) {};
+      int32 numPos = 0;
+      for (; ((mantiss >> static_cast<uint32>(kFloatExpPos - numPos)) & 0x1) != 1; ++numPos) {};
 
-      uint64 ldoubleExp = static_cast<uint32>(float_min_exp - (num_pos + 1) + ldoubleExpOffset);
-      int numLdoubleMantissBits = float_mantiss_bits - (num_pos + 1);
-      uint64 ldoubleMantissMask = (1 << static_cast<uint64>(numLdoubleMantissBits)) - 1;
+      uint64 ldoubleExp = static_cast<uint64>(floatMinExp - (numPos + 1) + ldoubleExpOffset);
+      int64 numLdoubleMantissBits = floatMantissBits - (numPos + 1);
+      uint64 ldoubleMantissMask = (1ULL << static_cast<uint64>(numLdoubleMantissBits)) - 1;
       uint64 ldoubleMantiss = mantiss & ldoubleMantissMask;
-      uint64 highByte = (sign << 63 | (ldoubleExp << 48) | (ldoubleMantiss << static_cast<uint32>(25 + num_pos + 1)));
+      uint64 highByte = ((sign << kDoubleSignPos) | (ldoubleExp << kDoubleExpShiftBits)) |
+          (ldoubleMantiss << static_cast<uint32>(25 + numPos + 1));
       uint64 lowByte = 0;
       return {highByte, lowByte};
     } else {
@@ -445,11 +456,13 @@ class MIRDoubleConst : public MIRConst {
 
   std::pair<uint64, uint64> GetFloat128Value() const {
     // check special values
-    if (std::isinf(value.dValue) && ((static_cast<uint64>(value.intValue) & (1ull << 63)) >> 63) == 0x0) {
+    if (std::isinf(value.dValue) &&
+        ((static_cast<uint64>(value.intValue) & (1ULL << kDoubleSignPos)) >> kDoubleSignPos) == 0x0) {
       return {0x7fff000000000000, 0x0};
-    } else if (std::isinf(value.dValue) && ((static_cast<uint64>(value.intValue) & (1ull << 63)) >> 63) == 0x1) {
+    } else if (std::isinf(value.dValue) &&
+        ((static_cast<uint64>(value.intValue) & (1ULL << kDoubleSignPos)) >> kDoubleSignPos) == 0x1) {
       return {0xffff000000000000, 0x0};
-    } else if ((static_cast<uint64>(value.intValue) ^ (1ull << 63)) == 0x0) {
+    } else if ((static_cast<uint64>(value.intValue) ^ (1ULL << kDoubleSignPos)) == 0x0) {
       return {0x8000000000000000, 0x0};
     } else if (value.intValue == 0x0) {
       return {0x0, 0x0};
@@ -457,7 +470,7 @@ class MIRDoubleConst : public MIRConst {
       return {0x7fff800000000000, 0x0};
     }
 
-    uint64 sign = (static_cast<uint64>(value.intValue) & (1ull << 63)) >> 63;
+    uint64 sign = (static_cast<uint64>(value.intValue) & (1ULL << kDoubleSignPos)) >> kDoubleSignPos;
     uint64 exp = (static_cast<uint64>(value.intValue) & (0x7ff0000000000000)) >> 52;
     uint64 mantiss = static_cast<uint64>(value.intValue) & (0x000fffffffffffff);
 
@@ -469,32 +482,32 @@ class MIRDoubleConst : public MIRConst {
 
     if (exp > 0x0 && exp < 0x7ff) {
       uint64 ldoubleExp = static_cast<uint32>(static_cast<int32>(exp) - doubleExpOffset + ldoubleExpOffset);
-      uint64 ldoubleMantissFirstBits = mantiss >> 4;
+      uint64 ldoubleMantissFirstBits = mantiss >> kFirstBits;
       uint64 ldoubleMantissSecondBits = (mantiss & 0xf) << 60;
 
       uint64 lowByte = ldoubleMantissSecondBits;
-      uint64 highByte = (sign << 63) | (ldoubleExp << 48) | (ldoubleMantissFirstBits);
+      uint64 highByte = (sign << kDoubleSignPos) | (ldoubleExp << kDoubleExpShiftBits) | (ldoubleMantissFirstBits);
       return {highByte, lowByte};
     } else if (exp == 0x0) {
-      int num_pos = 0;
-      for (; ((mantiss >> static_cast<uint32>(51 - num_pos)) & 0x1) != 1; ++num_pos) {};
+      int numPos = 0;
+      for (; ((mantiss >> static_cast<uint32>(kDoubleExpPos - numPos)) & 0x1) != 1; ++numPos) {};
 
-      uint64 ldoubleExp = static_cast<uint32>(doubleMinExp - (num_pos + 1) + ldoubleExpOffset);
+      uint64 ldoubleExp = static_cast<uint32>(doubleMinExp - (numPos + 1) + ldoubleExpOffset);
 
-      int numLdoubleMantissBits = doubleMantissBits - (num_pos + 1);
+      int numLdoubleMantissBits = doubleMantissBits - (numPos + 1);
       uint64 ldoubleMantissMask = (1ULL << static_cast<uint32>(numLdoubleMantissBits)) - 1;
       uint64 ldoubleMantiss = mantiss & ldoubleMantissMask;
       uint64 ldoubleMantissHighBits = 0;
-      if (4 - (num_pos + 1) > 0) {
-        ldoubleMantissHighBits = ldoubleMantiss >> static_cast<uint32>(4 - (num_pos + 1));
+      if (kFirstBits - (numPos + 1) > 0) {
+        ldoubleMantissHighBits = ldoubleMantiss >> static_cast<uint32>(kFirstBits - (numPos + 1));
       } else {
-        ldoubleMantissHighBits = ldoubleMantiss << static_cast<uint32>(std::abs(4 - (num_pos + 1)));
+        ldoubleMantissHighBits = ldoubleMantiss << static_cast<uint32>(std::abs(kFirstBits - (numPos + 1)));
       }
 
-      uint64 highByte = (sign << 63) | (ldoubleExp << 48) | ldoubleMantissHighBits;
+      uint64 highByte = (sign << kDoubleSignPos) | (ldoubleExp << kDoubleExpShiftBits) | ldoubleMantissHighBits;
       uint64 lowByte = 0;
-      if ((64 - numLdoubleMantissBits) + 48 < 64) {
-        lowByte = ldoubleMantiss << static_cast<uint32>((64 - numLdoubleMantissBits) + 48);
+      if ((kDoubleLength - numLdoubleMantissBits) + kDoubleExpShiftBits < kDoubleLength) {
+        lowByte = ldoubleMantiss << static_cast<uint32>((kDoubleLength - numLdoubleMantissBits) + kDoubleExpShiftBits);
       }
 
       return {highByte, lowByte};
@@ -588,15 +601,15 @@ class MIRFloat128Const : public MIRConst {
 
   double GetDoubleValue() const {
     // check special values: -0, +-inf, NaN
-    if (val[1] == 0x0 && val[0] == (1ull << 63)) {
+    if (val[1] == 0x0 && val[0] == (1ULL << kDoubleSignPos)) {
       return -0.0;
     } else if (val[1] == 0x0 && val[0] == 0x0) {
       return 0.0;
-    } else if (val[1] == 0x0 && val[0] == 0x7fff000000000000ull) {
+    } else if (val[1] == 0x0 && val[0] == 0x7fff000000000000ULL) {
       return std::numeric_limits<double>::infinity();
-    } else if (val[1] == 0x0 && val[0] == 0xffff000000000000ull) {
+    } else if (val[1] == 0x0 && val[0] == 0xffff000000000000ULL) {
       return -std::numeric_limits<double>::infinity();
-    } else if ((val[0] >> 48) == 0x7fff && (val[0] << 16 != 0x0 || val[1] != 0x0)) {
+    } else if ((val[0] >> kDoubleExpShiftBits) == 0x7fff && (val[0] << kDoubleExpLeftBits != 0x0 || val[1] != 0x0)) {
       return std::numeric_limits<double>::quiet_NaN();
     }
 
@@ -624,7 +637,7 @@ class MIRFloat128Const : public MIRConst {
        * we take first 48 bits of double mantiss from first long double byte
        * and then with '|' add remain 4 bits to get full double mantiss
        */
-      uint64 doubleMantiss = ((val[0] & 0x0000ffffffffffff) << 4) | (val[1] >> 60);
+      uint64 doubleMantiss = ((val[0] & 0x0000ffffffffffff) << kFirstBits) | (val[1] >> 60);
       uint64 doubleExp = static_cast<uint64>(static_cast<uint>(GetExponent() -
                                                                 ldoubleExpOffset + doubleExpOffset));
       uint64 doubleSign = GetSign();
@@ -634,7 +647,7 @@ class MIRFloat128Const : public MIRConst {
     }
     // if we can convert long double to subnormal double
     else {
-      uint64 doubleMantiss = ((val[0] & 0x0000ffffffffffff) << 4) | (val[1] >> 60) | 0x0010000000000000;
+      uint64 doubleMantiss = ((val[0] & 0x0000ffffffffffff) << kFirstBits) | (val[1] >> 60) | 0x0010000000000000;
       doubleMantiss = doubleMantiss >> static_cast<uint32>(doubleMinExp - (GetExponent() - ldoubleExpOffset));
       uint64 doubleSign = GetSign();
       union HexVal data;
@@ -644,15 +657,15 @@ class MIRFloat128Const : public MIRConst {
   }
 
   int GetExponent() const {
-    return (val[0] & 0x7fff000000000000) >> 48;
+    return (val[0] & 0x7fff000000000000) >> kDoubleExpShiftBits;
   }
 
   unsigned GetSign() const {
-    return (val[0] & (1ull << 63)) >> 63;
+    return (val[0] & (1ULL << kDoubleSignPos)) >> kDoubleSignPos;
   }
 
   bool IsZero() const override {
-    return (val[0] == 0x0 && val[1] == 0x0) || (val[0] == (1ull << 63) && val[1] == 0x0);
+    return (val[0] == 0x0 && val[1] == 0x0) || (val[0] == (1ULL << kDoubleSignPos) && val[1] == 0x0);
   }
 
   bool IsOne() const override {
@@ -660,11 +673,11 @@ class MIRFloat128Const : public MIRConst {
   };
 
   bool IsNan() const {
-    return ((val[0] >> 48) == 0x7fff && (val[0] << 16 != 0x0 || val[1] != 0x0));
+    return ((val[0] >> kDoubleExpShiftBits) == 0x7fff && (val[0] << kDoubleExpLeftBits != 0x0 || val[1] != 0x0));
   }
 
   bool IsInf() const {
-    return (val[0] == 0x7fff000000000000ull && val[1] == 0x0) || (val[0] == 0xffff000000000000ull && val[1] == 0x0);
+    return (val[0] == 0x7fff000000000000ULL && val[1] == 0x0) || (val[0] == 0xffff000000000000ULL && val[1] == 0x0);
   }
 
   bool IsAllBitsOne() const {
@@ -679,9 +692,8 @@ class MIRFloat128Const : public MIRConst {
 
   void Dump(const MIRSymbolTable *localSymTab) const override;
 
-  long double GetValue() {
-    CHECK_FATAL(false, "Can't cast f128 to any standard type");
-    return *reinterpret_cast<long double*>(&val[0]);
+  const long double GetValue() const {
+    return *reinterpret_cast<const long double*>(&val[0]);
   }
 
   std::pair<uint64, uint64> GetFloat128Value() const {

@@ -477,8 +477,6 @@ class CGFunc {
       case PTY_a32:
       case PTY_a64:
       case PTY_ptr:
-      case PTY_i128:
-      case PTY_u128:
       case PTY_agg:
         return kRegTyInt;
       case PTY_f32:
@@ -503,6 +501,8 @@ class CGFunc {
       case PTY_v16u8:
       case PTY_v1i64:
       case PTY_v1u64:
+      case PTY_i128:
+      case PTY_u128:
         return kRegTyFloat;
       default:
         ASSERT(false, "Unexpected pty");
@@ -752,14 +752,6 @@ class CGFunc {
     return returnBB;
   }
 
-  void SetPrologureBB(BB &bb) {
-    prologureBB = &bb;
-  }
-
-  BB *GetPrologureBB() {
-    return prologureBB != nullptr ? prologureBB : firstBB;
-  }
-
   void SetReturnBB(BB &bb) {
     returnBB = &bb;
     returnBB->SetKind(BB::kBBReturn);
@@ -953,8 +945,7 @@ class CGFunc {
     MIRSymbol *st = GetEmitSt(bb.GetId());
     MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
     MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<TyIdx>(PTY_a64));
-    MIRConst *mirConst = GetMemoryPool()->New<MIRLblConst>(newLabelIdx,
-        GetFunction().GetPuidx(), *etype);
+    MIRConst *mirConst = GetMemoryPool()->New<MIRLblConst>(newLabelIdx, GetFunction().GetPuidx(), *etype);
     for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
       CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
       MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
@@ -1213,6 +1204,10 @@ class CGFunc {
     return isParam ? dbgParamCallFrameLocations : dbgLocalCallFrameLocations;
   }
 
+  bool HasIrrScc() const {
+    return hasIrrScc;
+  }
+
   bool HasAsm() const {
     return hasAsm;
   }
@@ -1244,6 +1239,10 @@ class CGFunc {
 
   void SetHasAsm() {
     hasAsm = true;
+  }
+
+  void SetHasIrrScc() {
+    hasIrrScc = true;
   }
 
   void SetStackProtectInfo(StackProtectKind kind) {
@@ -1291,13 +1290,16 @@ class CGFunc {
   }
 
   static bool UsePlt(const MIRSymbol *funcSt = nullptr) {
-    if (CGOptions::GetNoplt() || CGOptions::IsNoSemanticInterposition() ||
-        CGOptions::GetVisibilityType() == CGOptions::kHiddenVisibility) {
+    if (CGOptions::IsNoSemanticInterposition() || CGOptions::GetVisibilityType() == CGOptions::kHiddenVisibility) {
       return false;
     }
 
     if (funcSt && funcSt->IsHiddenVisibility()) {
       return false;
+    }
+
+    if (CGOptions::IsNoPlt() && funcSt && funcSt->GetFunction()) {
+      return !funcSt->GetFunction()->CanDoNoPlt(CGOptions::IsShlib(), CGOptions::IsPIE());
     }
 
     return true;
@@ -1479,7 +1481,6 @@ class CGFunc {
   LabelNode *endLabel = nullptr;      /* end label of the function */
 
   BB *firstBB = nullptr;
-  BB *prologureBB = nullptr;  /* the BB to placing prologure's instructions(callee save/cfi) */
   BB *returnBB = nullptr;
   BB *cleanupBB = nullptr;
   BB *lastBB = nullptr;
@@ -1512,6 +1513,7 @@ class CGFunc {
   uint32 nextSpillLocation = 0;
   regno_t spSaveReg = 0;
 
+  bool hasIrrScc = false;
   bool hasAsm = false;
   bool useFP = true;
   bool seenFP = true;
@@ -1547,8 +1549,6 @@ MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgEmission, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgGenProEpiLog, maplebe::CGFunc)
-MAPLE_FUNC_PHASE_DECLARE_END
-MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgIsolateFastPath, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 #endif  /* MAPLEBE_INCLUDE_CG_CGFUNC_H */

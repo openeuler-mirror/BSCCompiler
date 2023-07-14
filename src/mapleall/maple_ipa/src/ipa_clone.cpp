@@ -102,7 +102,7 @@ MIRFunction *IpaClone::IpaCloneFunction(MIRFunction &originalFunction, const std
   newFunc->GetFuncSymbol()->SetAppearsInCode(true);
   newFunc->SetPuidxOrigin(newFunc->GetPuidx());
   if (originalFunction.GetBody() != nullptr) {
-    CopyFuncInfo(originalFunction, *newFunc);
+    maple::CopyFuncInfo(originalFunction, *newFunc, mirBuilder);
     newFunc->SetBody(
         originalFunction.GetBody()->CloneTree(newFunc->GetCodeMempoolAllocator()));
     IpaCloneSymbols(*newFunc, originalFunction);
@@ -142,7 +142,7 @@ MIRFunction *IpaClone::IpaCloneFunctionWithFreq(MIRFunction &originalFunction,
   // update real left frequency
   origProfData->SetFuncRealFrequency(origProfData->GetFuncRealFrequency() - callSiteFreq);
   if (originalFunction.GetBody() != nullptr) {
-    CopyFuncInfo(originalFunction, *newFunc);
+    maple::CopyFuncInfo(originalFunction, *newFunc, mirBuilder);
     BlockNode *newbody = originalFunction.GetBody()->CloneTreeWithFreqs(newFunc->GetCodeMempoolAllocator(),
         newProfData->GetStmtFreqs(), origProfData->GetStmtFreqs(),
         callSiteFreq, /* numer */
@@ -163,30 +163,6 @@ void IpaClone::IpaCloneArgument(MIRFunction &originalFunction, ArgVector &argume
   for (size_t i = 0; i < originalFunction.GetFormalCount(); ++i) {
     auto &formalName = originalFunction.GetFormalName(i);
     argument.emplace_back(ArgPair(formalName, originalFunction.GetNthParamType(i)));
-  }
-}
-
-void IpaClone::CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const {
-  const auto &funcNameIdx = newFunc.GetBaseFuncNameStrIdx();
-  const auto &fullNameIdx = newFunc.GetNameStrIdx();
-  const auto &classNameIdx = newFunc.GetBaseClassNameStrIdx();
-  const static auto &metaFullNameIdx = mirBuilder.GetOrCreateStringIndex(kFullNameStr);
-  const static auto &metaClassNameIdx = mirBuilder.GetOrCreateStringIndex(kClassNameStr);
-  const static auto &metaFuncNameIdx = mirBuilder.GetOrCreateStringIndex(kFuncNameStr);
-  MIRInfoVector &fnInfo = originalFunction.GetInfoVector();
-  const MapleVector<bool> &infoIsString = originalFunction.InfoIsString();
-  size_t size = fnInfo.size();
-  for (size_t i = 0; i < size; ++i) {
-    if (fnInfo[i].first == metaFullNameIdx) {
-      newFunc.PushbackMIRInfo(std::pair<GStrIdx, uint32>(fnInfo[i].first, fullNameIdx));
-    } else if (fnInfo[i].first == metaFuncNameIdx) {
-      newFunc.PushbackMIRInfo(std::pair<GStrIdx, uint32>(fnInfo[i].first, funcNameIdx));
-    } else if (fnInfo[i].first == metaClassNameIdx) {
-      newFunc.PushbackMIRInfo(std::pair<GStrIdx, uint32>(fnInfo[i].first, classNameIdx));
-    } else {
-      newFunc.PushbackMIRInfo(std::pair<GStrIdx, uint32>(fnInfo[i].first, fnInfo[i].second));
-    }
-    newFunc.PushbackIsString(infoIsString[i]);
   }
 }
 

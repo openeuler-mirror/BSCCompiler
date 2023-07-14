@@ -298,7 +298,7 @@ void ASTFunc2FEHelper::SolveFunctionArguments() const {
   if (firstArgRet) {
     ASTDecl *returnParamVar = ASTDeclsBuilder::GetInstance(allocator).ASTVarBuilder(allocator,
         MapleString("", allocator.GetMemPool()),
-        "first_arg_return", MapleVector<MIRType*>({}, allocator.Adapter()), GenericAttrs());
+        "first_arg_return", MapleVector<MIRType*>({}, allocator.Adapter()), MapleGenericAttrs(allocator));
     returnParamVar->SetIsParam(true);
     (void)paramDecls.insert(paramDecls.cbegin(), returnParamVar);
   }

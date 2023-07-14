@@ -31,7 +31,7 @@ class FEIRVarNameTest : public FEIRTestBase {
 };
 
 TEST_F(FEIRVarNameTest, FEIRVarInAST) {
-  GenericAttrs attrs;
+  MapleGenericAttrs attrs(allocator);
   attrs.SetAttr(GENATTR_const);
   MIRType *type = GlobalTables::GetTypeTable().GetInt32();
   auto astVar = ASTDeclsBuilder::GetInstance(allocator).ASTVarBuilder(allocator, MapleString("foo.c", mp), "a",

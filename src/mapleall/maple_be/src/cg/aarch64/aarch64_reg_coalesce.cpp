@@ -20,10 +20,6 @@
 #include "aarch64_cgfunc.h"
 #include "aarch64_cg.h"
 
-/*
- * This phase implements if-conversion optimization,
- * which tries to convert conditional branches into cset/csel instructions
- */
 namespace maplebe {
 
 #define REGCOAL_DUMP CG_DEBUG_FUNC(*cgFunc)

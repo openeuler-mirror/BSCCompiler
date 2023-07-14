@@ -29,7 +29,7 @@ class PreCheckCast : public FuncOptimizeImpl {
     return new PreCheckCast(*this);
   }
 
-  StmtNode *GetAssignRet(IntrinsiccallNode &callnode);
+  StmtNode *GetAssignRet(IntrinsiccallNode &callnode) const;
   void ProcessFunc(MIRFunction *func) override;
 };
 
@@ -62,15 +62,15 @@ class CheckCastGenerator : public FuncOptimizeImpl {
   MIRSymbol *GetOrCreateClassInfoSymbol(const std::string &className) const;
   void GenAllCheckCast(bool isHotFunc);
   void OptimizeInstanceof();
-  void OptimizeIsAssignableFrom() const;
-  void CheckIsAssignableFrom(BlockNode &blockNode, StmtNode &stmt, const IntrinsicopNode &intrinsicNode) const;
+  void OptimizeIsAssignableFrom();
+  void CheckIsAssignableFrom(BlockNode &blockNode, StmtNode &stmt, const IntrinsicopNode &intrinsicNode);
   void ConvertCheckCastToIsAssignableFrom(StmtNode &stmt);
   void AssignedCastValue(StmtNode &stmt) const;
   void ConvertInstanceofToIsAssignableFrom(StmtNode &stmt, const IntrinsicopNode &intrinsicNode) const;
   void ReplaceNoSubClassIsAssignableFrom(BlockNode &blockNode, StmtNode &stmt, const MIRPtrType &ptrType,
                                          const IntrinsicopNode &intrinsicNode) const;
   void ReplaceIsAssignableFromUsingCache(BlockNode &blockNode, StmtNode &stmt, const MIRPtrType &targetClassType,
-                                         const IntrinsicopNode &intrinsicNode) const;
+                                         const IntrinsicopNode &intrinsicNode);
   bool IsDefinedConstClass(const StmtNode &stmt, const MIRPtrType &targetClassType,
                            PregIdx &classSymPregIdx, MIRSymbol *&classSym) const;
   MIRType *pointerObjType = nullptr;

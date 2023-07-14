@@ -123,7 +123,7 @@ class BaseNode : public BaseNodeT {
     return kOpcodeInfo.GetTableItemAt(GetOpCode()).instrucSize;
   }
 
-  const char *GetOpName() const;
+  const std::string &GetOpName() const;
   bool MayThrowException() const;
   size_t NumOpnds() const override {
     return numOpnds;
@@ -2462,13 +2462,13 @@ class BlockNode : public StmtNode {
   void InsertAfter(const StmtNode *stmtNode1, StmtNode *stmtNode2);   // Insert ss2 after ss1 in current block.
   // insert all the stmts in inblock to the current block after stmt1
   void InsertBlockAfter(BlockNode &inblock, const StmtNode *stmt1);
-  void Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab, bool withInfo, bool isFuncbody,
-            MIRFlavor flavor) const;
+  void DoDump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab, bool withInfo,
+      bool isFuncbody, MIRFlavor flavor) const;
   bool Verify() const override;
   bool Verify(VerifyResult &verifyResult) const override;
 
   void Dump(int32 indent) const override {
-    Dump(indent, nullptr, nullptr, false, false, kFlavorUnknown);
+    DoDump(indent, nullptr, nullptr, false, false, kFlavorUnknown);
   }
 
   BlockNode *CloneTree(MapleAllocator &allocator) const override;
@@ -2551,7 +2551,7 @@ class BlockCallBack {
     }
   }
 
-  CallBack GetCallBack() const {
+  CallBack GetCallBack() {
     return callBack;
   }
 
@@ -3228,10 +3228,6 @@ class SafetyCallCheckStmtNode {
  public:
   SafetyCallCheckStmtNode(GStrIdx callFuncNameIdx, size_t paramIndex, GStrIdx stmtFuncNameIdx)
       : callFuncNameIdx(callFuncNameIdx), paramIndex(paramIndex), stmtFuncNameIdx(stmtFuncNameIdx) {}
-  explicit SafetyCallCheckStmtNode(const SafetyCallCheckStmtNode &stmtNode)
-      : callFuncNameIdx(stmtNode.GetFuncNameIdx()),
-        paramIndex(stmtNode.GetParamIndex()),
-        stmtFuncNameIdx(stmtNode.GetStmtFuncNameIdx()) {}
 
   virtual ~SafetyCallCheckStmtNode() = default;
 
@@ -3251,6 +3247,12 @@ class SafetyCallCheckStmtNode {
   void Dump() const {
     LogInfo::MapleLogger() << " <&" << GetFuncName() << ", " << paramIndex << ", &" << GetStmtFuncName() << ">";
   }
+ protected:
+  SafetyCallCheckStmtNode(const SafetyCallCheckStmtNode &stmtNode)
+      : callFuncNameIdx(stmtNode.GetFuncNameIdx()),
+        paramIndex(stmtNode.GetParamIndex()),
+        stmtFuncNameIdx(stmtNode.GetStmtFuncNameIdx()) {}
+  SafetyCallCheckStmtNode &operator=(const SafetyCallCheckStmtNode &stmtNode);
 
  private:
   GStrIdx callFuncNameIdx;
@@ -3638,6 +3640,10 @@ class IntrinsiccallNode : public NaryStmtNode {
   CallReturnPair &GetCallReturnPair(size_t i) {
     ASSERT(i < returnValues.size(), "array index out of range");
     return returnValues.at(i);
+  }
+
+  IntrinDesc &GetIntrinsicDescription() const {
+    return IntrinDesc::intrinTable[intrinsic];
   }
 
  private:

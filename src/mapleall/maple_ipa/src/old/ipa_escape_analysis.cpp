@@ -235,11 +235,11 @@ bool IPAEscapeAnalysis::IsSpecialEscapedObj(const MeExpr &alloc) const {
   return false;
 }
 
-EACGRefNode *IPAEscapeAnalysis::GetOrCreateCGRefNodeForReg(RegMeExpr &reg, bool createObjNode) {
-  EACGBaseNode *node = eaCG->GetCGNodeFromExpr(&reg);
+EACGRefNode *IPAEscapeAnalysis::GetOrCreateCGRefNode(MeExpr *expr, bool createObjNode) {
+  EACGBaseNode *node = eaCG->GetCGNodeFromExpr(expr);
   EACGRefNode *refNode = nullptr;
   if (node == nullptr) {
-    refNode = eaCG->CreateReferenceNode(&reg, kNoEscape, false);
+    refNode = eaCG->CreateReferenceNode(expr, kNoEscape, false);
     cgChangedInSCC = true;
   } else {
     refNode = static_cast<EACGRefNode*>(node);
@@ -249,6 +249,10 @@ EACGRefNode *IPAEscapeAnalysis::GetOrCreateCGRefNodeForReg(RegMeExpr &reg, bool 
     (void)refNode->AddOutNode(*objNode);
   }
   return refNode;
+}
+
+EACGRefNode *IPAEscapeAnalysis::GetOrCreateCGRefNodeForReg(RegMeExpr &reg, bool createObjNode) {
+  return GetOrCreateCGRefNode(&reg, createObjNode);
 }
 
 EACGRefNode *IPAEscapeAnalysis::GetOrCreateCGRefNodeForAddrof(AddrofMeExpr &var, bool createObjNode) {
@@ -256,19 +260,7 @@ EACGRefNode *IPAEscapeAnalysis::GetOrCreateCGRefNodeForAddrof(AddrofMeExpr &var,
     eaCG->UpdateExprOfGlobalRef(&var);
     return eaCG->GetGlobalReference();
   }
-  EACGBaseNode *node = eaCG->GetCGNodeFromExpr(&var);
-  EACGRefNode *refNode = nullptr;
-  if (node == nullptr) {
-    refNode = eaCG->CreateReferenceNode(&var, kNoEscape, false);
-    cgChangedInSCC = true;
-  } else {
-    refNode = static_cast<EACGRefNode*>(node);
-  }
-  if (node == nullptr && createObjNode) {
-    EACGObjectNode *objNode = GetOrCreateCGObjNode(nullptr, nullptr, refNode->GetEAStatus());
-    (void)refNode->AddOutNode(*objNode);
-  }
-  return refNode;
+  return GetOrCreateCGRefNode(&var, createObjNode);
 }
 
 EACGRefNode *IPAEscapeAnalysis::GetOrCreateCGRefNodeForVar(VarMeExpr &var, bool createObjNode) {
@@ -276,19 +268,7 @@ EACGRefNode *IPAEscapeAnalysis::GetOrCreateCGRefNodeForVar(VarMeExpr &var, bool 
     eaCG->UpdateExprOfGlobalRef(&var);
     return eaCG->GetGlobalReference();
   }
-  EACGBaseNode *node = eaCG->GetCGNodeFromExpr(&var);
-  EACGRefNode *refNode = nullptr;
-  if (node == nullptr) {
-    refNode = eaCG->CreateReferenceNode(&var, kNoEscape, false);
-    cgChangedInSCC = true;
-  } else {
-    refNode = static_cast<EACGRefNode*>(node);
-  }
-  if (node == nullptr && createObjNode) {
-    EACGObjectNode *objNode = GetOrCreateCGObjNode(nullptr, nullptr, refNode->GetEAStatus());
-    (void)refNode->AddOutNode(*objNode);
-  }
-  return refNode;
+  return GetOrCreateCGRefNode(&var, createObjNode);
 }
 
 EACGRefNode *IPAEscapeAnalysis::GetOrCreateCGRefNodeForVarOrReg(MeExpr &var, bool createObjNode) {

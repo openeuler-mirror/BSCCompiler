@@ -781,26 +781,15 @@ void PEGBuilder::UpdateAttributes() const {
       }
       if (node->attr[kAliasAttrNotAllDefsSeen]) {
         for (auto *nextLevNode : node->nextLevNodes) {
-          auto &attr = nextLevNode->attr;
-          if (!attr[kAliasAttrNotAllDefsSeen]) {
-            attr[kAliasAttrNotAllDefsSeen] = true;
-            changed = true;
-          }
+          changed |= nextLevNode->UpdateAttr(kAliasAttrNotAllDefsSeen);
         }
         for (const auto &assignFrom : node->assignFrom) {
-          auto &attr = assignFrom.pegNode->attr;
-          if (!attr[kAliasAttrEscaped]) {
-            attr[kAliasAttrEscaped] = true;
-            changed = true;
-          }
+          changed |= assignFrom.pegNode->UpdateAttr(kAliasAttrEscaped);
+          changed |= assignFrom.pegNode->UpdateAttr(kAliasAttrNextLevNotAllDefsSeen);
         }
         // update alias attribute of assign-to nodes
         for (const auto &assignTo : node->assignTo) {
-          auto &attr = assignTo.pegNode->attr;
-          if (!attr[kAliasAttrNextLevNotAllDefsSeen]) {
-            attr[kAliasAttrNextLevNotAllDefsSeen] = true;
-            changed = true;
-          }
+          changed |= assignTo.pegNode->UpdateAttr(kAliasAttrNextLevNotAllDefsSeen);
         }
         // AliasAttrNotAllDefsSeen is the most conservative attribute, we can stop to update other attr.
         continue;
@@ -808,49 +797,36 @@ void PEGBuilder::UpdateAttributes() const {
 
       if (node->attr[kAliasAttrNextLevNotAllDefsSeen]) {
         for (auto *nextLevNode : node->nextLevNodes) {
-          auto &attr = nextLevNode->attr;
-          if (!attr[kAliasAttrNotAllDefsSeen]) {
-            attr[kAliasAttrNotAllDefsSeen] = true;
-            changed = true;
-          }
+          changed |= nextLevNode->UpdateAttr(kAliasAttrNotAllDefsSeen);
+        }
+        for (const auto &assignFrom : node->assignFrom) {
+          changed |= assignFrom.pegNode->UpdateAttr(kAliasAttrNextLevNotAllDefsSeen);
+        }
+        // update alias attribute of assign-to nodes
+        for (const auto &assignTo : node->assignTo) {
+          changed |= assignTo.pegNode->UpdateAttr(kAliasAttrNextLevNotAllDefsSeen);
         }
       }
 
       if (node->attr[kAliasAttrGlobal]) {
         for (auto *nextLevNode : node->nextLevNodes) {
-          auto &attr = nextLevNode->attr;
-          if (!attr[kAliasAttrNotAllDefsSeen]) {
-            attr[kAliasAttrNotAllDefsSeen] = true;
-            changed = true;
-          }
+          changed |= nextLevNode->UpdateAttr(kAliasAttrNotAllDefsSeen);
         }
       }
 
       if (node->attr[kAliasAttrFormal]) {
         for (auto *nextLevNode : node->nextLevNodes) {
-          auto &attr = nextLevNode->attr;
-          if (!attr[kAliasAttrNotAllDefsSeen]) {
-            attr[kAliasAttrNotAllDefsSeen] = true;
-            changed = true;
-          }
+          changed |= nextLevNode->UpdateAttr(kAliasAttrNotAllDefsSeen);
         }
       }
 
       // update alias attribute of next-level nodes
       if (node->attr[kAliasAttrEscaped]) {
         for (auto *nextLevNode : node->nextLevNodes) {
-          auto &attr = nextLevNode->attr;
-          if (!attr[kAliasAttrNextLevNotAllDefsSeen]) {
-            attr[kAliasAttrNextLevNotAllDefsSeen] = true;
-            changed = true;
-          }
+          changed |= nextLevNode->UpdateAttr(kAliasAttrNotAllDefsSeen);
         }
         for (auto &assignFrom : node->assignFrom) {
-          auto &attr = assignFrom.pegNode->attr;
-          if (!attr[kAliasAttrEscaped]) {
-            attr[kAliasAttrEscaped] = true;
-            changed = true;
-          }
+          changed |= assignFrom.pegNode->UpdateAttr(kAliasAttrEscaped);
         }
       }
 

@@ -114,7 +114,6 @@ void X64GenProEpilog::GenerateProlog(BB &bb) {
   auto &x64CGFunc = static_cast<X64CGFunc&>(cgFunc);
   BB *formerCurBB = cgFunc.GetCurBB();
   x64CGFunc.GetDummyBB()->ClearInsns();
-  x64CGFunc.GetDummyBB()->SetIsProEpilog(true);
   cgFunc.SetCurBB(*x64CGFunc.GetDummyBB());
 
   /* push %rbp */
@@ -147,7 +146,6 @@ void X64GenProEpilog::GenerateProlog(BB &bb) {
   GeneratePushUnnamedVarargRegs();
 
   bb.InsertAtBeginning(*x64CGFunc.GetDummyBB());
-  x64CGFunc.GetDummyBB()->SetIsProEpilog(false);
   cgFunc.SetCurBB(*formerCurBB);
 }
 
@@ -155,7 +153,6 @@ void X64GenProEpilog::GenerateEpilog(BB &bb) {
   auto &x64CGFunc = static_cast<X64CGFunc&>(cgFunc);
   BB *formerCurBB = cgFunc.GetCurBB();
   x64CGFunc.GetDummyBB()->ClearInsns();
-  x64CGFunc.GetDummyBB()->SetIsProEpilog(true);
   cgFunc.SetCurBB(*x64CGFunc.GetDummyBB());
 
   GenerateCalleeSavedRegs(false);
@@ -183,7 +180,6 @@ void X64GenProEpilog::GenerateEpilog(BB &bb) {
   cgFunc.GetCurBB()->AppendInsn(retInsn);
 
   bb.AppendBBInsns(*x64CGFunc.GetDummyBB());
-  x64CGFunc.GetDummyBB()->SetIsProEpilog(false);
   cgFunc.SetCurBB(*formerCurBB);
 }
 

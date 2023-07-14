@@ -16,6 +16,7 @@
 #include "error_code.h"
 #include "mpl_options.h"
 #include "mpl_sighandler.h"
+#include "parse_spec.h"
 
 using namespace maple;
 
@@ -25,7 +26,10 @@ int main(int argc, char **argv) {
   MplOptions mplOptions;
   int ret = static_cast<int>(mplOptions.Parse(argc, argv));
   if (ret == kErrorNoError) {
-    ret = CompilerFactory::GetInstance().Compile(mplOptions);
+    ret = static_cast<int>(ParseSpec::GetOptFromSpecsByGcc(argc, argv, mplOptions));
+  }
+  if (ret == kErrorNoError) {
+    ret = static_cast<int>(CompilerFactory::GetInstance().Compile(mplOptions));
   }
   PrintErrorMessage(ret);
   return ret;

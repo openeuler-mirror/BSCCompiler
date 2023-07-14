@@ -31,7 +31,7 @@ void PropPattern::ValidateImplicitCvt(RegOperand &destReg, const RegOperand &src
 }
 
 // prop ssa info and change implicit cvt to uxtw / ubfx
-void PropPattern::ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersion *srcVersion) {
+void PropPattern::ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersion *srcVersion) const {
   MapleUnorderedMap<uint32, DUInsnInfo*> useList = destVersion->GetAllUseInsns();
   ssaInfo->ReplaceAllUse(destVersion, srcVersion);
   for (auto it = useList.begin(); it != useList.end(); ++it)  {
@@ -366,6 +366,15 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       }
       break;
     }
+    case MOP_wubfizrri5i5:
+    case MOP_xubfizrri6i6: {
+      auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+      auto &lsb = static_cast<ImmOperand &>(insn.GetOperand(kInsnThirdOpnd));
+      auto &width = static_cast<ImmOperand &>(insn.GetOperand(kInsnFourthOpnd));
+      uint32 newVB = lsb.GetValue() + width.GetValue();
+      dstOpnd.SetValidBitsNum(newVB);
+      break;
+    }
     default:
       break;
   }
@@ -427,9 +436,11 @@ bool AndValidBitPattern::CheckCondition(Insn &insn) {
   auto &andImm = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
   int64 immVal = andImm.GetValue();
   uint32 validBit = srcReg->GetValidBitsNum();
-  if (validBit == k8BitSize && immVal == 0xFF) {
+  if (validBit <= k8BitSize && immVal == 0xFF) {
     return true;
-  } else if (validBit == k16BitSize && immVal == 0xFFFF) {
+  } else if (validBit <= k16BitSize && immVal == 0xFFFF) {
+    return true;
+  } else if (validBit <= k32BitSize && immVal == 0xFFFFFFFF) {
     return true;
   }
   /* and R287[32], R286[64], #255 */
@@ -509,7 +520,7 @@ bool ExtValidBitPattern::RealUseMopX(const RegOperand &defOpnd, InsnSet &visited
 // uxth R0 R1 (redundant)
 // rev R2 R0
 // if there are insns that only use 8/16 bit of the register ,this pattern should be expanded.
-bool ExtValidBitPattern::CheckRedundantUxtbUxth(Insn &insn) {
+bool ExtValidBitPattern::CheckRedundantUxtbUxth(const Insn &insn) {
   RegOperand *destOpnd = nullptr;
   RegOperand *srcOpnd = nullptr;
   std::set<MOperator> checkMops;

@@ -97,7 +97,7 @@ class ValidBitOpt {
   }
   virtual void DoOpt() = 0;
   void RectifyValidBitNum();
-  void RecoverValidBitNum();
+  void SetValidBitToOpndSize();
   virtual void SetValidBits(Insn &insn) = 0;
   virtual bool SetPhiValidBits(Insn &insn) = 0;
 

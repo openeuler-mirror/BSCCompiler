@@ -546,7 +546,7 @@ PrimType FEIRStmtJavaFillArrayData::ProcessArrayElemPrimType() const {
   return elemPrimType;
 }
 
-MIRSymbol *FEIRStmtJavaFillArrayData::ProcessArrayElemData(const MIRBuilder &mirBuilder, PrimType elemPrimType) const {
+MIRSymbol *FEIRStmtJavaFillArrayData::ProcessArrayElemData(MIRBuilder &mirBuilder, PrimType elemPrimType) const {
   // specify size for const array
   uint32 sizeIn = size;
   MIRType *arrayTypeWithSize = GlobalTables::GetTypeTable().GetOrCreateArrayType(
@@ -559,7 +559,7 @@ MIRSymbol *FEIRStmtJavaFillArrayData::ProcessArrayElemData(const MIRBuilder &mir
   return arrayVar;
 }
 
-MIRAggConst *FEIRStmtJavaFillArrayData::FillArrayElem(const MIRBuilder &mirBuilder, PrimType elemPrimType,
+MIRAggConst *FEIRStmtJavaFillArrayData::FillArrayElem(MIRBuilder &mirBuilder, PrimType elemPrimType,
                                                       MIRType &arrayTypeWithSize, uint32 elemSize) const {
   MemPool *mp = mirBuilder.GetMirModule().GetMemPool();
   MIRModule &module = mirBuilder.GetMirModule();
@@ -820,7 +820,8 @@ std::list<StmtNode*> FEIRStmtCallAssertNonnull::GenMIRStmtsImpl(MIRBuilder &mirB
 std::list<StmtNode*> FEIRStmtCallAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
   StmtNode *stmt = nullptr;
-  auto args = ENCChecker::ReplaceBoundaryChecking(mirBuilder, this);
+  auto lenExpr = ENCChecker::GetGlobalOrFieldLenExprInExpr(mirBuilder, GetArgExprs().back()->Clone());
+  auto args = ENCChecker::ReplaceBoundaryChecking(mirBuilder, this, std::move(lenExpr));
   if (args.size() > 0) {
     GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetFuncName());
     stmt = mirBuilder.CreateStmtCallAssertBoundary(op, std::move(args), stridx, GetParamIndex(),
@@ -836,7 +837,12 @@ std::list<StmtNode*> FEIRStmtCallAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mir
 std::list<StmtNode*> FEIRStmtAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
   StmtNode *stmt = nullptr;
-  auto args = ENCChecker::ReplaceBoundaryChecking(mirBuilder, this);
+  auto lenExpr = ENCChecker::GetGlobalOrFieldLenExprInExpr(mirBuilder, GetArgExprs().back()->Clone());
+  // do not insert check in flex array without len info
+  if (lenExpr == nullptr && IsFlexibleArray()) {
+    return stmts;
+  }
+  auto args = ENCChecker::ReplaceBoundaryChecking(mirBuilder, this, std::move(lenExpr));
   if (args.size() > 0) {
     stmt = mirBuilder.CreateStmtAssertBoundary(op, std::move(args), mirBuilder.GetCurrentFunction()->GetNameStrIdx());
   }
@@ -852,6 +858,26 @@ FEIRStmtReturn::FEIRStmtReturn(std::unique_ptr<FEIRExpr> argExpr)
       isFallThru = true;
     }
 
+void FEIRStmtReturn::InsertFuncReturnChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
+  UniqueFEIRExpr baseExpr = ENCChecker::FindBaseExprInPointerOperation(expr);
+  uint32 lenHash = mirBuilder.GetCurrentFunction()->GetAttrs().GetAttrBoundary().GetLenExprHash();
+  auto lenExpr = FEManager::GetTypeManager().GetBoundaryLenExprFromMap(lenHash);
+  if (baseExpr != nullptr && lenExpr != nullptr) {
+    if (mirBuilder.GetCurrentFunction()->GetAttrs().GetAttrBoundary().GetLenParamIdx() != -1) {
+      UniqueFEIRVar retSizeVar = FEIRBuilder::CreateVarNameForC("_boundary.return.size", lenExpr->GetType()->Clone());
+      lenExpr = FEIRBuilder::CreateExprDRead(std::move(retSizeVar));
+    }
+    lenExpr = FEIRBuilder::CreateExprBinary(OP_add, expr->Clone(), std::move(lenExpr));
+    std::list<UniqueFEIRExpr> exprs;
+    (void)exprs.emplace_back(std::move(lenExpr));
+    (void)exprs.emplace_back(std::move(baseExpr));
+    UniqueFEIRStmt returnAssertStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_returnassertle, std::move(exprs));
+    returnAssertStmt->SetSrcLoc(expr->GetLoc());
+    std::list<StmtNode*> stmts = returnAssertStmt->GenMIRStmts(mirBuilder);
+    ans.splice(ans.end(), stmts);
+  }
+}
+
 std::list<StmtNode*> FEIRStmtReturn::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> ans;
   StmtNode *mirStmt = nullptr;
@@ -860,15 +886,18 @@ std::list<StmtNode*> FEIRStmtReturn::GenMIRStmtsImpl(MIRBuilder &mirBuilder) con
   } else {
     BaseNode *srcNode = expr->GenMIRNode(mirBuilder);
     if (mirBuilder.GetCurrentFunction()->IsFirstArgReturn()) {
-      MIRSymbol *firstArgRetSym = mirBuilder.GetCurrentFunction()->GetFormal(0);
-      BaseNode *addrNode = mirBuilder.CreateDread(*firstArgRetSym, PTY_ptr);
-      StmtNode *iNode = mirBuilder.CreateStmtIassign(*firstArgRetSym->GetType(), 0, addrNode, srcNode);
-      ans.emplace_back(iNode);
+      if (IsActualReturn()) {
+        MIRSymbol *firstArgRetSym = mirBuilder.GetCurrentFunction()->GetFormal(0);
+        BaseNode *addrNode = mirBuilder.CreateDread(*firstArgRetSym, PTY_ptr);
+        StmtNode *iNode = mirBuilder.CreateStmtIassign(*firstArgRetSym->GetType(), 0, addrNode, srcNode);
+        ans.emplace_back(iNode);
+      }
       mirStmt = mirBuilder.CreateStmtReturn(nullptr);
     } else {
       InsertNonnullChecking(mirBuilder, ans);
       ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, loc);
       ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, loc);
+      InsertFuncReturnChecking(mirBuilder, ans);
       mirStmt = mirBuilder.CreateStmtReturn(srcNode);
     }
   }
@@ -1385,7 +1414,7 @@ void FEIRStmtArrayStore::InitTrans4AllVarsImpl() {
 }
 
 std::list<StmtNode*> FEIRStmtArrayStore::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
-  CHECK_FATAL(((exprIndex == nullptr) && (exprIndexs.size() != 0))||
+  CHECK_FATAL(((exprIndex == nullptr) && (exprIndexs.size() != 0)) ||
               (exprIndex->GetKind() == kExprDRead) ||
               (exprIndex->GetKind() == kExprConst), "only support dread/const expr for exprIndex");
   MIRType *ptrMIRArrayType = typeArray->GenerateMIRType(false);
@@ -2668,6 +2697,7 @@ BaseNode *FEIRExprAddrofConstArray::GenMIRNodeImpl(MIRBuilder &mirBuilder) const
   MIRSymbol *arrayVar = mirBuilder.GetOrCreateGlobalDecl(arrayName, *arrayTypeWithSize);
   arrayVar->SetAttr(ATTR_readonly);
   arrayVar->SetStorageClass(kScFstatic);
+  arrayVar->SetAttr(ATTR_const);
   MIRModule &module = mirBuilder.GetMirModule();
   MIRAggConst *val = module.GetMemPool()->New<MIRAggConst>(module, *arrayTypeWithSize);
   for (uint32 i = 0; i < array.size(); ++i) {
@@ -2697,7 +2727,9 @@ BaseNode *FEIRExprAddrOfLabel::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 
 // ---------- FEIRExprIAddrof ----------
 std::unique_ptr<FEIRExpr> FEIRExprIAddrof::CloneImpl() const {
-  return std::make_unique<FEIRExprIAddrof>(ptrType->Clone(), fieldID, subExpr->Clone());
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprIAddrof>(ptrType->Clone(), fieldID, subExpr->Clone());
+  expr->SetLenFieldID(lenFieldID);
+  return expr;
 }
 
 std::vector<FEIRVar*> FEIRExprIAddrof::GetVarUsesImpl() const {
@@ -2723,6 +2755,7 @@ BaseNode *FEIRExprIAddrof::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 std::unique_ptr<FEIRExpr> FEIRExprAddrofVar::CloneImpl() const {
   UniqueFEIRExpr expr = std::make_unique<FEIRExprAddrofVar>(varSrc->Clone());
   expr->SetFieldID(fieldID);
+  expr->SetLenFieldID(lenFieldID);
   return expr;
 }
 

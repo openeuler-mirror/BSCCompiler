@@ -63,14 +63,13 @@ class CGProp {
 
 class PropOptimizeManager {
  public:
-  ~PropOptimizeManager() = default;
   template<typename PropOptimizePattern>
-  void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo, LiveIntervalAnalysis *ll) const {
+  static void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo, LiveIntervalAnalysis *ll) {
     PropOptimizePattern optPattern(cgFunc, cgssaInfo, ll);
     optPattern.Run();
   }
   template<typename PropOptimizePattern>
-  void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) const {
+  static void Optimize(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) {
     PropOptimizePattern optPattern(cgFunc, cgssaInfo);
     optPattern.Run();
   }

@@ -60,6 +60,10 @@ class UseItem final {
     ref++;
   }
 
+  void DecreaseRef() {
+    ref--;
+  }
+
   bool operator==(const UseItem &other) const {
     return useNode == other.useNode;
   }
@@ -104,7 +108,12 @@ class MeExprUseInfo final {
   template<class T>
   void AddUseSiteOfExpr(MeExpr *expr, T *useSite);
 
+  template<class T>
+  void DelUseSiteOfExpr(MeExpr *expr, T *useSite);
+
   void CollectUseInfoInExpr(MeExpr *expr, MeStmt *stmt);
+  void DelUseInfoInExpr(MeExpr *expr, MeStmt *stmt);
+  void ReplaceUseInfoInExpr(MeExpr *old, MeExpr *newExpr);
   void CollectUseInfoInStmt(MeStmt *stmt);
   void CollectUseInfoInBB(BB *bb);
 

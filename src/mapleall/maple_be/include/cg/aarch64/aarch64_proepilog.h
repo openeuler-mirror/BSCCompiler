@@ -23,13 +23,21 @@
 #include "aarch64_insn.h"
 
 namespace maplebe {
-using namespace maple;
+class AArch64ProEpilogAnalysis : public ProEpilogAnalysis {
+ public:
+  AArch64ProEpilogAnalysis(CGFunc &func, MemPool &pool, DomAnalysis &dom, PostDomAnalysis &pdom, LoopAnalysis &loop)
+      : ProEpilogAnalysis(func, pool, dom, pdom, loop) {}
+  ~AArch64ProEpilogAnalysis() override = default;
+
+  bool NeedProEpilog() override;
+};
 
 class AArch64GenProEpilog : public GenProEpilog {
  public:
-  AArch64GenProEpilog(CGFunc &func, MemPool &memPool)
+  AArch64GenProEpilog(CGFunc &func, MemPool &memPool, const ProEpilogSaveInfo *proepiSaveInfo = nullptr)
       : GenProEpilog(func),
-        tmpAlloc(&memPool) {
+        tmpAlloc(&memPool),
+        saveInfo(proepiSaveInfo) {
     useFP = func.UseFP();
     if (func.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc) {
       stackBaseReg = RFP;
@@ -63,6 +71,7 @@ class AArch64GenProEpilog : public GenProEpilog {
   void GenStackGuard();
   void AddStackGuard(BB &bb);
   void GenStackGuardCheckInsn(BB &bb);
+  BB &GetOrGenStackGuardCheckFailBB(BB &bb);
   void AppendInstructionAllocateCallFrame(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void AppendInstructionAllocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty);
   void GeneratePushRegs();
@@ -84,18 +93,12 @@ class AArch64GenProEpilog : public GenProEpilog {
                                                        RegType rty);
   Insn &AppendInstructionForAllocateOrDeallocateCallFrame(int64 argsToStkPassSize, AArch64reg reg0, AArch64reg reg1,
                                                           RegType rty, bool isAllocate);
-  void SetFastPathReturnBB(BB *bb) {
-    bb->SetFastPathReturn(true);
-    fastPathReturnBB = bb;
-  }
-  BB *GetFastPathReturnBB() {
-    return fastPathReturnBB;
-  }
+
   MapleAllocator tmpAlloc;
+  const ProEpilogSaveInfo *saveInfo = nullptr;
   static constexpr const int32 kOffset8MemPos = 8;
   static constexpr const int32 kOffset16MemPos = 16;
 
-  BB *fastPathReturnBB = nullptr;
   bool useFP = false;
   // To be compatible with previous code more easily，we use storeFP boolean to indicate the case
   // (1) use FP to address
@@ -104,6 +107,7 @@ class AArch64GenProEpilog : public GenProEpilog {
   bool storeFP = false;
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */
   AArch64reg stackBaseReg = RFP;
+  BB *stackChkFailBB = nullptr;     // only one stack check fail BB is need
 };
 }  /* namespace maplebe */
 

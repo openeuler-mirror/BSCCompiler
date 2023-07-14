@@ -51,7 +51,7 @@ struct VectorRegSpec {
       vecElementSize(eleSize),
       compositeOpnds(compositeOpnds) {}
 
-  void Dump() {
+  void Dump() const {
     if (vecElementSize == 0) {
       return;
     }
@@ -85,6 +85,7 @@ class Insn {
   };
   /* MCC_DecRefResetPair clear 2 stack position, MCC_ClearLocalStackRef clear 1 stack position */
   static constexpr uint8 kMaxStackOffsetSize = 2;
+  static constexpr int32 kUnknownProb = -1;
 
   Insn(MemPool &memPool, MOperator opc)
       : mOp(opc),
@@ -310,6 +311,14 @@ class Insn {
     isStackDef = flag;
   }
 
+  bool IsStackRevert() const {
+    return isStackRevert;
+  }
+
+  void SetStackRevert(bool flag) {
+    isStackRevert = flag;
+  }
+
   bool IsAsmDefCondCode() const {
     return asmDefCondCode;
   }
@@ -461,14 +470,6 @@ class Insn {
 
   uint32 GetNopNum() const {
     return nopNum;
-  }
-
-  void SetNeedSplit(bool flag) {
-    needSplit = flag;
-  }
-
-  bool IsNeedSplit() const {
-    return needSplit;
   }
 
   void SetIsThrow(bool isThrowVal) {
@@ -625,6 +626,12 @@ class Insn {
   void ClearRegSpecList() {
     regSpecList.clear();
   }
+  int32 GetProb() {
+    return probability;
+  }
+  void SetProb(int prob) {
+    probability = prob;
+  }
 
   VectorRegSpec *GetAndRemoveRegSpecFromList();
 
@@ -684,10 +691,10 @@ class Insn {
   bool isSpill = false;   /* used as hint for optimization */
   bool isReload = false;  /* used as hint for optimization */
   bool isFrameDef = false;
-  bool isStackDef = false;
+  bool isStackDef = false;    // def sp in prolog
+  bool isStackRevert = false;  // revert sp in epilog
   bool asmDefCondCode = false;
   bool asmModMem = false;
-  bool needSplit = false;
   bool mayTailCall = false;
 
   /* for dynamic language to mark reference counting */
@@ -700,6 +707,8 @@ class Insn {
    * indicate whether the version has been processed.
    */
   bool processRHS = false;
+  // for jmp insn, probability is the prob for jumping
+  int32 probability = kUnknownProb; 
 };
 
 struct InsnIdCmp {

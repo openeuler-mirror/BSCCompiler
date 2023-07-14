@@ -29,6 +29,7 @@ MIRModule::MIRModule(const std::string &fn)
       memPoolAllocator(memPool),
       pragmaMemPoolAllocator(pragmaMemPool),
       inlineSummaryAlloc(memPoolCtrler.NewMemPool("inline summary mempool", false)),
+      memReferenceTableAllocator(memPoolCtrler.NewMemPool("mem table mempool", false)),
       functionList(memPoolAllocator.Adapter()),
       importedMplt(memPoolAllocator.Adapter()),
       typeDefOrder(memPoolAllocator.Adapter()),
@@ -73,6 +74,7 @@ MIRModule::~MIRModule() {
   // inlineSummaryAlloc is supposed to be released just after inlining.
   // The following code is to ensure unexpected memory leak.
   ReleaseInlineSummaryAlloc();
+  ReleaseMemReferenceAllocator();
 }
 
 MemPool *MIRModule::CurFuncCodeMemPool() const {
@@ -114,6 +116,19 @@ void MIRModule::AddSymbol(StIdx stIdx) {
 void MIRModule::AddSymbol(const MIRSymbol *s) {
   ASSERT(s != nullptr, "s is null");
   AddSymbol(s->GetStIdx());
+}
+
+void PrintTypedefInfo(const GStrIdx &idx, const MIRType &type) {
+  const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(idx);
+  LogInfo::MapleLogger() << "type $" << name << " ";
+  if (type.GetKind() == kTypeByName) {
+    LogInfo::MapleLogger() << "void";
+  } else if (type.GetNameStrIdx() == idx) {
+    type.Dump(1, true);
+  } else {
+    type.Dump(1);
+  }
+  LogInfo::MapleLogger() << '\n';
 }
 
 void MIRModule::DumpGlobals(bool emitStructureType) const {
@@ -239,7 +254,6 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
   if (flavor < kMmpl || flavor >= kFlavorLmbc) {
     for (auto it = typeDefOrder.begin(); it != typeDefOrder.end(); ++it) {
       TyIdx tyIdx = typeNameTab->GetTyIdxFromGStrIdx(*it);
-      const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(*it);
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
       ASSERT(type != nullptr, "type should not be nullptr here");
       bool isStructType = type->IsStructType();
@@ -254,15 +268,7 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
         }
       }
 
-      LogInfo::MapleLogger() << "type $" << name << " ";
-      if (type->GetKind() == kTypeByName) {
-        LogInfo::MapleLogger() << "void";
-      } else if (type->GetNameStrIdx() == *it) {
-        type->Dump(1, true);
-      } else {
-        type->Dump(1);
-      }
-      LogInfo::MapleLogger() << '\n';
+      PrintTypedefInfo(*it, *type);
     }
     if (someSymbolNeedForwDecl) {
       // an extra pass thru the global symbol table to print forward decl
@@ -400,7 +406,6 @@ void MIRModule::DumpToFile(const std::string &fileNameStr, bool emitStructureTyp
 void MIRModule::DumpDefType() {
   for (auto it = typeDefOrder.begin(); it != typeDefOrder.end(); ++it) {
     TyIdx tyIdx = typeNameTab->GetTyIdxFromGStrIdx(*it);
-    const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(*it);
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
     ASSERT(type != nullptr, "type should not be nullptr here");
     bool isStructType = type->IsStructType();
@@ -410,15 +415,7 @@ void MIRModule::DumpDefType() {
         continue;
       }
     }
-    LogInfo::MapleLogger() << "type $" << name << " ";
-    if (type->GetKind() == kTypeByName) {
-      LogInfo::MapleLogger() << "void";
-    } else if (type->GetNameStrIdx() == *it) {
-      type->Dump(1, true);
-    } else {
-      type->Dump(1);
-    }
-    LogInfo::MapleLogger() << '\n';
+    PrintTypedefInfo(*it, *type);
   }
 }
 

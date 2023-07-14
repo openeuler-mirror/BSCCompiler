@@ -374,6 +374,7 @@ void ExprHoist::HoistExpr(const MapleVector<MeOccur*> &allOccs, int32 candId) {
       }
     }
     auto *hoistedOcc = GetHoistedOcc(*hs->cdHS, realocc->GetMeExpr(), realocc->GetDef());
+    ASSERT_NOT_NULL(hoistedOcc);
     auto *hoistedOccDef = (hoistedOcc->GetOccType() == kOccReal && hoistedOcc->GetDef()) ? hoistedOcc->GetDef()
                                                                                          : hoistedOcc;
     if (hoistedOccDef->GetClassID() != realocc->GetClassID()) {

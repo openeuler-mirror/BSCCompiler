@@ -143,11 +143,19 @@ class CallInfo {
     return callee;
   }
 
-  MIRFunction *GetCaller() const {
+  const MIRFunction *GetCaller() const {
     return caller;
   }
 
-  MIRFunction *GetCallee() const {
+  MIRFunction *GetCaller() {
+    return caller;
+  }
+
+  MIRFunction &GetCallee() const {
+    return *callee;
+  }
+
+  MIRFunction *GetCallee() {
     return callee;
   }
 
@@ -707,5 +715,6 @@ OVERRIDE_DEPENDENCE
 MAPLE_MODULE_PHASE_DECLARE_END
 MAPLE_MODULE_PHASE_DECLARE(M2MIPODevirtualize)
 MAPLE_MODULE_PHASE_DECLARE(M2MFuncDeleter)
+MAPLE_MODULE_PHASE_DECLARE(M2MCallTargetReplace)
 }  // namespace maple
 #endif  // MPL2MPL_INCLUDE_CALLGRAPH_H

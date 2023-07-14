@@ -17,13 +17,17 @@
 namespace maplebe {
 void AArch64ProfGen::InstrumentBB(BB &bb, MIRSymbol &countTab, uint32 offset) {
   regno_t freeUseRegNo = R30;
+  auto *a64Func = static_cast<AArch64CGFunc *>(f);
   for (regno_t reg = R8; reg < R29; ++reg) {
     if (bb.GetLiveInRegNO().count(reg) == 0 && reg != R16) {
-      freeUseRegNo = reg;
-      break;
+      if (!AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg)) ||
+          (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg)) &&
+           a64Func->IsUsedCalleeSavedReg(static_cast<AArch64reg>(reg)))) {
+        freeUseRegNo = reg;
+        break;
+      }
     }
   }
-  auto *a64Func = static_cast<AArch64CGFunc*>(f);
   StImmOperand &funcPtrSymOpnd = a64Func->CreateStImmOperand(countTab, 0, 0);
   RegOperand &tempRegOpnd = a64Func->GetOrCreatePhysicalRegisterOperand(
       static_cast<AArch64reg>(freeUseRegNo), k64BitSize, kRegTyInt);

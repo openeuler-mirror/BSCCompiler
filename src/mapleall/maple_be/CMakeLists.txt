@@ -109,8 +109,8 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/aarch64/aarch64_validbit_opt.cpp
         src/cg/aarch64/aarch64_rce.cpp
         src/cg/aarch64/aarch64_cfgo.cpp
+        src/cg/aarch64/aarch64_dup.cpp
         src/cg/aarch64/aarch64_pgo_gen.cpp
-        src/cg/aarch64/aarch64_isolate_fastpath.cpp
         src/cg/aarch64/aarch64_rematerialize.cpp
         src/cg/aarch64/aarch64_MPISel.cpp
         src/cg/aarch64/aarch64_standardize.cpp
@@ -134,9 +134,11 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/reg_coalesce.cpp
         src/cg/global.cpp
         src/cg/ico.cpp
+        src/cg/dup_tail.cpp
         src/cg/peep.cpp
         src/cg/pressure.cpp
         src/cg/reaching.cpp
+        src/cg/cg_predict.cpp
         src/cg/schedule.cpp
         src/cg/strldr.cpp
         src/cg/cg_dominance.cpp
@@ -189,11 +191,15 @@ if(${TARGET} STREQUAL "x86_64")
         src/cg/peep.cpp
         src/cg/alignment.cpp
         src/cg/reaching.cpp
+        src/cg/cg_predict.cpp
         src/cg/local_opt.cpp
         src/cg/cfgo.cpp
         src/cg/cg_dominance.cpp
         src/cg/cg_pre.cpp
         src/cg/cg_occur.cpp
+        src/cg/cg_ssu_pre.cpp
+        src/cg/cg_ssa_pre.cpp
+        src/cg/cg_mc_ssa_pre.cpp
         src/cg/cg_pgo_gen.cpp
     )
 endif()
@@ -284,7 +290,6 @@ set(src_libcg
     src/cg/reg_alloc_lsra.cpp
     src/cg/reg_alloc_color_ra.cpp
     src/cg/proepilog.cpp
-    src/cg/isolate_fastpath.cpp
     src/cg/rematerialize.cpp
     src/cg/cg.cpp
     src/cg/isa.cpp

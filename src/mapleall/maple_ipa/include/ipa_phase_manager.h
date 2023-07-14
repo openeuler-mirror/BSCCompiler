@@ -33,6 +33,7 @@ class IpaSccPM : public SccPM {
   ~IpaSccPM() override {
     ipaInfo = nullptr;
   }
+  static bool timePhases;
   std::string PhaseName() const override;
   CollectIpaInfo *GetResult() {
     return ipaInfo;
@@ -50,7 +51,7 @@ class SCCPrepare : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManag
   std::string PhaseName() const override;
   PHASECONSTRUCTOR(SCCPrepare);
   bool PhaseRun(SCCNode<CGNode> &scc) override;
-  void Dump(const MeFunction &f, const std::string phaseName) const;
+  void DumpSCCPrepare(const MeFunction &f, const std::string phaseName) const;
   AnalysisDataManager *GetResult() {
     return result;
   }
@@ -65,7 +66,7 @@ class SCCEmit : public MapleSccPhase<SCCNode<CGNode>>, public MaplePhaseManager 
   std::string PhaseName() const override;
   PHASECONSTRUCTOR(SCCEmit);
   bool PhaseRun(SCCNode<CGNode> &scc) override;
-  void Dump(MeFunction &f, const std::string phaseName) const;
+  void DumpSCCEmit(MeFunction &f, const std::string phaseName) const;
  private:
   void GetAnalysisDependence(maple::AnalysisDep &aDep) const override;
 };

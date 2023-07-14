@@ -1037,7 +1037,7 @@ BB *BBLayout::NextBBProf(BB &bb) {
   return GetBBFromEdges();
 }
 
-void BBLayout::RebuildFreq() {
+void BBLayout::RebuildFreq(BuiltinExpectInfo *expectInfo) {
   auto *hook = phase->GetAnalysisInfoHook();
   hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MEDominance::id);
   hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MELoopAnalysis::id);
@@ -1051,14 +1051,15 @@ void BBLayout::RebuildFreq() {
                hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MELoopAnalysis::id, func))
                ->GetResult();
   if (!cfg->UpdateCFGFreq()) {
-    MePrediction::RebuildFreq(func, *dom, *pdom, *meLoop);
+    MePrediction::RebuildFreq(func, *dom, *pdom, *meLoop, expectInfo);
   }
 }
 
 void BBLayout::LayoutWithProf(bool useChainLayout) {
   OptimiseCFG();
   // We rebuild freq after OptimiseCFG
-  RebuildFreq();
+  BuiltinExpectInfo savedExpectInfo;
+  RebuildFreq(&savedExpectInfo);
   if (enabledDebug) {
     cfg->DumpToFile("cfgopt", false, true);
   }
@@ -1096,6 +1097,7 @@ void BBLayout::LayoutWithProf(bool useChainLayout) {
       (void)CreateGotoBBAfterCondBB(*lastBB, *fallthru);
     }
   }
+  MePrediction::RecoverBuiltinExpectInfo(savedExpectInfo);
 }
 
 void BBLayout::RunLayout() {

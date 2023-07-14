@@ -146,7 +146,7 @@ class PGOInstrument {
       }
     }
     uint32 hashCode = DJBHash(ss.str().c_str());
-    return (allEdgeSize << edgeSizeInfoShift) | hashCode;
+    return (allEdgeSize << kEdgeSizeInfoShift) | hashCode;
   }
 
   uint64 ComputeLinenoHash() const {
@@ -168,7 +168,7 @@ class PGOInstrument {
  protected:
   bool dump;
  private:
-  static constexpr uint32 edgeSizeInfoShift = 32;
+  static constexpr uint32 kEdgeSizeInfoShift = 32;
   CFGMST<Edge> mst;
   MeFunction *func;
   MemPool *mp;

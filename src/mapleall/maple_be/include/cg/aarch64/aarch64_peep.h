@@ -123,6 +123,32 @@ class CselToCsetPattern : public CGPeepPattern {
 };
 
 /*
+ *  mov w1, #1
+ *  csel w2, w1, w0, EQ    ===> csinc w2, w0, WZR, NE
+ *
+ *  mov w1, #1
+ *  csel w2, w0, w1, EQ     ===> csinc w2, w0, WZR, EQ
+ */
+class CselToCsincRemoveMovPattern : public CGPeepPattern {
+ public:
+  CselToCsincRemoveMovPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~CselToCsincRemoveMovPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "CselToCsincRemoveMovPattern";
+  }
+
+ private:
+  bool IsOpndMovOneAndNewOpndOpt(const Insn &curInsn);
+  Insn *prevMovInsn = nullptr;
+  RegOperand *newSecondOpnd = nullptr;
+  CondOperand *cond = nullptr;
+  bool needReverseCond = false;
+};
+
+/*
  *  cset w0, HS
  *  add w2, w1, w0    ===> cinc w2, w1, hs
  *
@@ -499,6 +525,7 @@ class AddSubMergeLdStPattern : public CGPeepPattern {
 
   private:
   bool CheckIfCanBeMerged(const Insn *adjacentInsn, const Insn &insn);
+  Insn *FindRegInBB(const Insn &insn, bool isAbove) const;
   Insn *nextInsn = nullptr;
   Insn *prevInsn = nullptr;
   Insn *insnToBeReplaced = nullptr;
@@ -844,8 +871,8 @@ class SimplifyMulArithmeticPattern : public CGPeepPattern {
     kFNeg,
     kArithmeticTypeSize
   };
-  static constexpr uint8 newMopNum = 2;
-  MOperator curMop2NewMopTable[kArithmeticTypeSize][newMopNum] = {
+  static constexpr uint8 kNewMopNum = 2;
+  MOperator curMop2NewMopTable[kArithmeticTypeSize][kNewMopNum] = {
       /* {32bit_mop, 64bit_mop} */
       {MOP_undef,     MOP_undef},        /* kUndef  */
       {MOP_wmaddrrrr, MOP_xmaddrrrr},    /* kAdd    */

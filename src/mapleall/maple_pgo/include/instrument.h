@@ -30,11 +30,11 @@ class BBEdge {
 
   ~BBEdge() = default;
 
-  BB *GetSrcBB() const {
+  BB *GetSrcBB() {
     return srcBB;
   }
 
-  BB *GetDestBB() const {
+  BB *GetDestBB() {
     return destBB;
   }
 

@@ -93,17 +93,18 @@ void CGProfUse::InitBBEdgeInfo() {
       continue;
     }
     BB *src = e->GetSrcBB();
+    BB *dest = e->GetDestBB();
     BBUseInfo<BB> *srcUseInfo = GetOrCreateBBUseInfo(*src, true);
+    BBUseInfo<BB> *destUseInfo = GetOrCreateBBUseInfo(*dest, true);
     if (srcUseInfo->GetStatus() && srcUseInfo->GetOutEdgeSize() == 1) {
       SetEdgeCount(*e, srcUseInfo->GetCount());
-    } else {
-      BB *dest = e->GetDestBB();
-      auto destUseInfo = GetOrCreateBBUseInfo(*dest, true);
-      if (destUseInfo->GetStatus() && destUseInfo->GetInEdgeSize() == 1) {
-        SetEdgeCount(*e, destUseInfo->GetCount());
-      }
+    } else if (destUseInfo->GetStatus() && destUseInfo->GetInEdgeSize() == 1) {
+      SetEdgeCount(*e, destUseInfo->GetCount());
     }
     if (e->GetStatus()) {
+      continue;
+    }
+    if (srcUseInfo->GetStatus() || destUseInfo->GetStatus()) {
       continue;
     }
     SetEdgeCount(*e, 0);
@@ -176,7 +177,7 @@ void CGProfUse::ApplyOnBB() {
       continue;
     }
     curbb->InitEdgeFreq();
-    auto outEdges = useInfo->GetOutEdges();
+    auto &outEdges = useInfo->GetOutEdges();
     for (auto *e : outEdges) {
       auto *destBB = e->GetDestBB();
       if (destBB == f.GetCommonExitBB()) {
@@ -253,6 +254,12 @@ void CGProfUse::LayoutBBwithProfile() {
   // Init layout settings for CG
   chainLayout.SetHasRealProfile(true);
   chainLayout.SetConsiderBetterPred(true);
+  FOR_ALL_BB(bb, &f) {
+    if (bb->IsWontExit() && !(bb->GetPreds().empty() && bb->GetSuccs().empty())) {
+      chainLayout.SetMarkNeverExe(false);
+      break;
+    }
+  }
   chainLayout.BuildChainForFunc();
   NodeChain *mainChain = chainLayout.GetNode2Chain()[f.GetFirstBB()->GetID()];
 
@@ -339,7 +346,7 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
   f.GetTheCFG()->InitInsnVisitor(f);
   split->CollectCriticalEdges();
   split->SplitCriticalEdges();
-  MapleSet<uint32> newbbinsplit = split->CopyNewBBInfo();
+  auto &newbbinsplit = split->GetNewBBInfo();
 
   MaplePhase *domPhase = GetAnalysisInfoHook()->
       ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgDomAnalysis::id, f);
@@ -375,6 +382,7 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
       CHECK_FATAL(false, "infinte loop");
     }
   }
+
   LogInfo::MapleLogger() << std::endl;
   return false;
 }
@@ -383,6 +391,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgPgoUse, cgpgouse)
 
 void CGProfUse::AddBBProf(BB &bb) {
   if (layoutBBs.empty()) {
+    f.SetFirstBB(bb);
     AddBB(bb);
     return;
   }

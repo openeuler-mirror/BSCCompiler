@@ -20,25 +20,31 @@
 #endif
 
 namespace maplebe {
-Insn &GenCfi::FindStackDefNextInsn(BB &bb) const {
+Insn *GenCfi::FindStackDefInsn(BB &bb) const {
   FOR_BB_INSNS(insn, &bb) {
     if (insn->IsStackDef()) {
-      if (insn->GetNext() == nullptr) {
-        auto &comment = cgFunc.GetOpndBuilder()->CreateComment("stack alloc end");
-        bb.AppendInsn(cgFunc.GetInsnBuilder()->BuildCommentInsn(comment));
-      }
-      return *(insn->GetNext());
+      return insn;
     }
   }
-  CHECK_FATAL(false, "bb need a stackdef insn");
+  return nullptr;
 }
 
-void GenCfi::InsertCFIDefCfaOffset(BB &bb, Insn &insn, int32 &cfiOffset) {
+Insn *GenCfi::FinsStackRevertInsn(BB &bb) const {
+  FOR_BB_INSNS_REV(insn, &bb) {
+    if (insn->IsStackRevert()) {
+      return insn;
+    }
+  }
+  return nullptr;
+}
+
+Insn *GenCfi::InsertCFIDefCfaOffset(BB &bb, Insn &insn, int32 &cfiOffset) {
   cfiOffset = AddtoOffsetFromCFA(cfiOffset);
   Insn &cfiInsn = cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_def_cfa_offset).AddOpndChain(
       cgFunc.CreateCfiImmOperand(cfiOffset, k64BitSize));
-  (void)bb.InsertInsnBefore(insn, cfiInsn);
+  (void)bb.InsertInsnAfter(insn, cfiInsn);
   cgFunc.SetDbgCallFrameOffset(cfiOffset);
+  return &cfiInsn;
 }
 
 void GenCfi::GenerateStartDirective(BB &bb) {
@@ -110,12 +116,15 @@ void GenCfi::Run() {
   InsertFirstLocation(*startBB);
 
   if (cgFunc.GetHasProEpilogue()) {
-    GenerateRegisterSaveDirective(*(cgFunc.GetPrologureBB()));
-
     FOR_ALL_BB(bb, &cgFunc) {
-      if (!bb->IsFastPathReturn() && bb->IsNeedRestoreCfi()) {
+      auto *stackDefInsn = FindStackDefInsn(*bb);
+      if (stackDefInsn != nullptr) {
+        GenerateRegisterSaveDirective(*bb, *stackDefInsn);
+      }
+      auto *stackRevertInsn = FinsStackRevertInsn(*bb);
+      if (stackRevertInsn != nullptr) {
         GenerateRegisterStateDirective(*bb);
-        GenerateRegisterRestoreDirective(*bb);
+        GenerateRegisterRestoreDirective(*bb, *stackRevertInsn);
       }
     }
   }

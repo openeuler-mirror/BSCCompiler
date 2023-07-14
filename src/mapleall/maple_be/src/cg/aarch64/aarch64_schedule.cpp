@@ -659,7 +659,7 @@ struct RegisterInfoUnit {
   uint32 ccRegNum = 0;
 };
 
-RegisterInfoUnit GetDepNodeDefType(const DepNode &depNode, CGFunc &f) {
+RegisterInfoUnit GetDepNodeDefType(const DepNode &depNode, const CGFunc &f) {
   RegisterInfoUnit rIU;
   for (auto defRegNO : depNode.GetDefRegnos()) {
     RegType defRegTy = AArch64ScheduleProcessInfo::GetRegisterType(f, defRegNO);
@@ -1268,7 +1268,7 @@ void AArch64Schedule::GenerateDot(const BB &bb, const MapleVector<DepNode*> &nod
   std::cout.rdbuf(coutBuf);
 }
 
-RegType AArch64ScheduleProcessInfo::GetRegisterType(CGFunc &f, regno_t regNO) {
+RegType AArch64ScheduleProcessInfo::GetRegisterType(const CGFunc &f, regno_t regNO) {
   if (AArch64isa::IsPhysicalRegister(regNO)) {
     if (AArch64isa::IsGPRegister(static_cast<AArch64reg>(regNO))) {
       return kRegTyInt;
@@ -1284,7 +1284,7 @@ RegType AArch64ScheduleProcessInfo::GetRegisterType(CGFunc &f, regno_t regNO) {
   }
 }
 
-void AArch64ScheduleProcessInfo::VaryLiveRegSet(CGFunc &f, regno_t regNO, bool isInc) {
+void AArch64ScheduleProcessInfo::VaryLiveRegSet(const CGFunc &f, regno_t regNO, bool isInc) {
   RegType registerTy = GetRegisterType(f, regNO);
   if (registerTy == kRegTyInt || registerTy == kRegTyVary) {
     isInc ? IncIntLiveRegSet(regNO) : DecIntLiveRegSet(regNO);
@@ -1294,7 +1294,7 @@ void AArch64ScheduleProcessInfo::VaryLiveRegSet(CGFunc &f, regno_t regNO, bool i
   /* consider other type register */
 }
 
-void AArch64ScheduleProcessInfo::VaryFreeRegSet(CGFunc &f, std::set<regno_t> regNOs, DepNode &node) {
+void AArch64ScheduleProcessInfo::VaryFreeRegSet(const CGFunc &f, std::set<regno_t> regNOs, DepNode &node) {
   for (auto regNO : regNOs) {
     RegType registerTy = GetRegisterType(f, regNO);
     if (registerTy == kRegTyInt || registerTy == kRegTyVary /* memory base register must be int */) {

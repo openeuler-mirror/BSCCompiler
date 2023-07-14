@@ -295,6 +295,9 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       if (!config.propagateGlobalRef && st->IsGlobal() && !st->IsFinal() && !st->IgnoreRC()) {
         return kPropNo;
       }
+      if (st->IsUnionReplaceCand()) {
+        return kPropNo;
+      }
       if (LocalToDifferentPU(st->GetStIdx(), *fromBB)) {
         return kPropNo;
       }

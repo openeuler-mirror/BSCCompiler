@@ -274,7 +274,7 @@ class CDGNode {
     return (*regUses)[regNO];
   }
 
-  void AppendUseInsnChain(regno_t regNO, Insn *useInsn, MemPool &mp) const {
+  void AppendUseInsnChain(regno_t regNO, Insn *useInsn, MemPool &mp) {
     CHECK_FATAL(useInsn != nullptr, "invalid useInsn");
     auto *newUse = mp.New<RegList>();
     newUse->insn = useInsn;

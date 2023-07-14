@@ -83,7 +83,7 @@ void AArch64CombineRedundantX16Opt::ResetInsnId() {
   }
 }
 
-bool AArch64CombineRedundantX16Opt::IsEndOfSegment(Insn &insn, bool hasX16Def) {
+bool AArch64CombineRedundantX16Opt::IsEndOfSegment(const Insn &insn, bool hasX16Def) {
   if (insn.IsCall() || (IsUseX16MemInsn(insn) && (recentSplitUseOpnd == nullptr || isSpecialX16Def))) {
     clearX16Def = true;
     return true;
@@ -91,7 +91,6 @@ bool AArch64CombineRedundantX16Opt::IsEndOfSegment(Insn &insn, bool hasX16Def) {
   if (!hasX16Def) {
     return false;
   }
-  CHECK_FATAL(insn.GetDefRegs().size() == 1, "invalid x16 def instruction");
   MOperator curMop = insn.GetMachineOpcode();
   if (curMop != MOP_waddrri12 && curMop != MOP_xaddrri12 && curMop != MOP_waddrri24 && curMop != MOP_xaddrri24 &&
       curMop != MOP_waddrrr && curMop != MOP_xaddrrr && curMop != MOP_wmovri32 && curMop != MOP_xmovri64 &&
@@ -294,7 +293,7 @@ void AArch64CombineRedundantX16Opt::ComputeValidAddImmInterval(UseX16InsnInfo &x
   x16UseInfo.maxValidAddImm = x16UseInfo.originalOfst - minValidOfst;
 }
 
-void AArch64CombineRedundantX16Opt::FindCommonX16DefInsns(MemPool *tmpMp, MapleAllocator *tmpAlloc) {
+void AArch64CombineRedundantX16Opt::FindCommonX16DefInsns(MemPool *tmpMp, MapleAllocator *tmpAlloc) const {
   if (isSameAddImm) {
     ProcessSameAddImmCombineInfo(tmpMp, tmpAlloc);
   } else {

@@ -32,7 +32,7 @@ uint32 MergeStmts::GetStructFieldBitSize(const MIRStructType *structType, FieldI
 uint32 MergeStmts::GetPointedTypeBitSize(const TyIdx &ptrTypeIdx) const {
   MIRPtrType *ptrMirType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTypeIdx));
   MIRType *pointedMirType = ptrMirType->GetPointedType();
-  return static_cast<uint32>(pointedMirType->GetSize() * 8);
+  return static_cast<uint32>(pointedMirType->GetSize() * k8BitSize);
 }
 
 // Candidate stmts LHS must cover contiguous memory and RHS expr must be const

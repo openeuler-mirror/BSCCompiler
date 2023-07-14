@@ -931,12 +931,12 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         auto &iass = static_cast<IassignMeStmt&>(stmt);
         auto *lhs = iass.GetLHSVal();
         auto *rhs = iass.GetRHS();
-        const static auto identicalAssign = [](const IvarMeExpr *lhs, const IvarMeExpr *rhs) -> bool {
+        const static auto kIdenticalAssign = [](const IvarMeExpr *lhs, const IvarMeExpr *rhs) -> bool {
           return lhs->GetOp() == rhs->GetOp() && lhs->GetBase() == rhs->GetBase() &&
                  lhs->GetPrimType() == rhs->GetPrimType() && lhs->GetTyIdx() == rhs->GetTyIdx() &&
                  lhs->GetOffset() == rhs->GetOffset() && lhs->GetFieldID() == rhs->GetFieldID();
         };
-        if (rhs->GetMeOp() == kMeOpIvar && identicalAssign(lhs, static_cast<IvarMeExpr*>(rhs))) {
+        if (rhs->GetMeOp() == kMeOpIvar && kIdenticalAssign(lhs, static_cast<IvarMeExpr*>(rhs))) {
           RemoveUnnecessaryAssign(stmt);
         }
         VersionStackChiListUpdate(*iass.GetChiList());

@@ -180,8 +180,8 @@ bool CopyProp::CanPropSingleUse(const ScalarMeExpr &lhs, const MeExpr &rhs) {
   }
   int32 badPropCnt = 0;
   CheckLiveRange(rhs, badPropCnt);
-  static const int32 allowedBPC = 2;
-  return badPropCnt <= allowedBPC;
+  static const int32 kAllowedBPC = 2;
+  return badPropCnt <= kAllowedBPC;
 }
 
 void CopyProp::ReplaceSelfAssign() {

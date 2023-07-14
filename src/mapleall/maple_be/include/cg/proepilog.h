@@ -17,8 +17,81 @@
 #include "cg_phase.h"
 #include "cgfunc.h"
 #include "insn.h"
+#include "cg_dominance.h"
+#include "loop.h"
 
 namespace maplebe {
+struct ProEpilogSaveInfo {
+  ProEpilogSaveInfo(MapleAllocator &alloc) : prologBBs(alloc.Adapter()), epilogBBs(alloc.Adapter()) {}
+
+  ~ProEpilogSaveInfo() = default;
+
+  void Dump() {
+    LogInfo::MapleLogger() << "prolog will saved at BB ";
+    for (auto bbId : prologBBs) {
+      LogInfo::MapleLogger() << bbId << " ";
+    }
+    LogInfo::MapleLogger() << "entry!\n";
+
+    LogInfo::MapleLogger() << "epilog will saved at BB ";
+    for (auto bbId : epilogBBs) {
+      LogInfo::MapleLogger() << bbId << " ";
+    }
+    LogInfo::MapleLogger() << "exit!\n";
+  }
+
+  void Clear() {
+    prologBBs.clear();
+    epilogBBs.clear();
+  }
+
+  MapleSet<BBID> prologBBs;   // will be inserted prolog at entry
+  MapleSet<BBID> epilogBBs;   // will be inserted epilog at exit
+};
+
+class ProEpilogAnalysis {
+ public:
+  ProEpilogAnalysis(CGFunc &func, MemPool &pool, DomAnalysis &dom, PostDomAnalysis &pdom, LoopAnalysis &loop)
+    : cgFunc(func), memPool(pool), alloc(&pool), domInfo(dom), pdomInfo(pdom), loopInfo(loop), saveInfo(alloc) {}
+
+  virtual ~ProEpilogAnalysis() = default;
+
+  std::string PhaseName() const {
+    return "proepiloganalysis";
+  }
+
+  virtual bool NeedProEpilog() {
+    return true;
+  }
+
+  void Analysis();
+
+  const ProEpilogSaveInfo &GetProEpilogSaveInfo() const {
+    return saveInfo;
+  }
+ protected:
+  CGFunc &cgFunc;
+  MemPool &memPool;
+  MapleAllocator alloc;
+  DomAnalysis &domInfo;
+  PostDomAnalysis &pdomInfo;
+  LoopAnalysis &loopInfo;
+  ProEpilogSaveInfo saveInfo;
+
+  bool PrologBBHoist(const MapleSet<BBID> &saveBBs);
+};
+
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgProEpilogAnalysis, maplebe::CGFunc);
+const ProEpilogSaveInfo *GetResult() const {
+  if (proepilogAnalysis == nullptr) {
+    return nullptr;
+  }
+  return &proepilogAnalysis->GetProEpilogSaveInfo();
+}
+ProEpilogAnalysis *proepilogAnalysis = nullptr;
+OVERRIDE_DEPENDENCE
+MAPLE_FUNC_PHASE_DECLARE_END
+
 class GenProEpilog {
  public:
   explicit GenProEpilog(CGFunc &func) : cgFunc(func) {}
@@ -50,7 +123,6 @@ class GenProEpilog {
 
   CGFunc &cgFunc;
   int64 offsetFromCfa = 0; /* SP offset from Call Frame Address */
-  bool stackProtect = false;
 };
 }  /* namespace maplebe */
 

@@ -121,7 +121,7 @@ MIRFunction *Clone::CloneFunction(MIRFunction &originalFunction, const std::stri
   newFunc->SetFuncAttrs(originalFunction.GetFuncAttrs());
   newFunc->SetBaseClassFuncNames(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName));
   if (originalFunction.GetBody() != nullptr) {
-    CopyFuncInfo(originalFunction, *newFunc);
+    maple::CopyFuncInfo(originalFunction, *newFunc, mirBuilder);
     MIRFunction *originalCurrFunction = mirBuilder.GetCurrentFunctionNotNull();
     mirBuilder.SetCurrentFunction(*newFunc);
     newFunc->SetBody(
@@ -137,30 +137,6 @@ void Clone::CloneArgument(MIRFunction &originalFunction, ArgVector &argument) co
   for (size_t i = 0; i < originalFunction.GetFormalCount(); ++i) {
     auto &formalName = originalFunction.GetFormalName(i);
     argument.push_back(ArgPair(formalName, originalFunction.GetNthParamType(i)));
-  }
-}
-
-void Clone::CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const {
-  auto funcNameIdx = newFunc.GetBaseFuncNameStrIdx();
-  auto fullNameIdx = newFunc.GetNameStrIdx();
-  auto classNameIdx = newFunc.GetBaseClassNameStrIdx();
-  auto metaFullNameIdx = mirBuilder.GetOrCreateStringIndex(kFullNameStr);
-  auto metaClassNameIdx = mirBuilder.GetOrCreateStringIndex(kClassNameStr);
-  auto metaFuncNameIdx = mirBuilder.GetOrCreateStringIndex(kFuncNameStr);
-  MIRInfoVector &fnInfo = originalFunction.GetInfoVector();
-  const MapleVector<bool> &infoIsString = originalFunction.InfoIsString();
-  size_t size = fnInfo.size();
-  for (size_t i = 0; i < size; ++i) {
-    if (fnInfo[i].first == metaFullNameIdx) {
-      newFunc.PushbackMIRInfo(std::pair<GStrIdx, uint32>(fnInfo[i].first, fullNameIdx));
-    } else if (fnInfo[i].first == metaFuncNameIdx) {
-      newFunc.PushbackMIRInfo(std::pair<GStrIdx, uint32>(fnInfo[i].first, funcNameIdx));
-    } else if (fnInfo[i].first == metaClassNameIdx) {
-      newFunc.PushbackMIRInfo(std::pair<GStrIdx, uint32>(fnInfo[i].first, classNameIdx));
-    } else {
-      newFunc.PushbackMIRInfo(std::pair<GStrIdx, uint32>(fnInfo[i].first, fnInfo[i].second));
-    }
-    newFunc.PushbackIsString(infoIsString[i]);
   }
 }
 

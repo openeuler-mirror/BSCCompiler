@@ -308,7 +308,8 @@ void MUIDReplacement::CollectFuncAndDataFromFuncList() {
     StmtNode *stmt = mirFunc->GetBody()->GetFirst();
     while (stmt != nullptr) {
       PUIdx puidx = 0;
-      switch (stmt->GetOpCode()) {
+      Opcode op = stmt->GetOpCode();
+      switch (op) {
         case OP_call:
         case OP_callassigned: {
           puidx = static_cast<CallNode*>(stmt)->GetPUIdx();
@@ -1235,7 +1236,7 @@ void MUIDReplacement::ReplaceAddroffuncConst(MIRConst *&entry, uint32 fieldID, b
   entry = constNode;
 }
 
-bool MUIDReplacement::IsMIRAggConstNull(MIRSymbol *tabSym) const {
+bool MUIDReplacement::IsMIRAggConstNull(const MIRSymbol *tabSym) const {
   return (tabSym == nullptr) || (tabSym->GetKonst() == nullptr);
 }
 

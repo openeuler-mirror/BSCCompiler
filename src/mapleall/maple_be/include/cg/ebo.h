@@ -138,7 +138,6 @@ class Ebo {
     --info.refCount;
   }
 
-  void EnlargeSpaceForLA(Insn &csetInsn) const;
   bool IsSaveReg(const Operand &opnd) const;
   bool IsFrameReg(Operand &opnd) const;
   bool OperandEqual(const Operand &op1, const Operand &op2) const;

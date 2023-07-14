@@ -28,6 +28,7 @@
 
 #include <unistd.h>
 #include <cstdlib>
+#include <fcntl.h>
 #include "error_code.h"
 #include "mpl_logging.h"
 #include "mpl_options.h"
@@ -84,7 +85,69 @@ class SafeExe {
         ret = kErrorCompileFail;
       }
     }
+    for (size_t j = 0; j < vectorArgs.size(); ++j) {
+      delete [] argv[j];
+    }
+    delete [] argv;
+    return ret;
+  }
 
+  static ErrorCode HandleCommand(const std::string &cmd, const std::string &args, std::string &result) {
+    std::vector<std::string> vectorArgs = ParseArgsVector(cmd, args);
+    // extra space for exe name and args
+    char **argv = new char *[vectorArgs.size() + 1];
+    // argv[0] is program name
+    // copy args
+    for (size_t j = 0; j < vectorArgs.size(); ++j) {
+      size_t strLength = vectorArgs[j].size();
+      argv[j] = new char[strLength + 1];
+      strncpy_s(argv[j], strLength + 1, vectorArgs[j].c_str(), strLength);
+      argv[j][strLength] = '\0';
+    }
+    // end of arguments sentinel is nullptr
+    argv[vectorArgs.size()] = nullptr;
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+      return kErrorCompileFail;
+    }
+    fflush(nullptr);
+    pid_t pid = fork();
+    ErrorCode ret = kErrorNoError;
+    if (pid == 0) {
+      // child process
+      fflush(nullptr);
+      (void)close(pipefd[0]);
+      (void)dup2(pipefd[1], STDERR_FILENO);
+      if (execv(cmd.c_str(), argv) < 0) {
+        for (size_t j = 0; j < vectorArgs.size(); ++j) {
+          delete [] argv[j];
+        }
+        delete [] argv;
+        (void)close(pipefd[1]);
+        exit(1);
+      }
+      (void)close(pipefd[1]);
+    } else {
+      // parent process
+      int status = -1;
+      char buf[1] = {0};
+      (void)close(pipefd[1]);
+      // read one char on time
+      for (;;) {
+        ssize_t retCode = read(pipefd[ 0], buf, sizeof(buf));
+        if (retCode ==  0) {
+          break;
+        }
+        result.push_back(buf[0]);
+      }
+      (void)close(pipefd[0]);
+      waitpid(pid, &status, 0);
+      auto exitStatus = static_cast<uint32>(status);
+      if (!WIFEXITED(exitStatus) || WEXITSTATUS(exitStatus) != 0) {
+        LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
+        ret = kErrorCompileFail;
+      }
+    }
     for (size_t j = 0; j < vectorArgs.size(); ++j) {
       delete [] argv[j];
     }
@@ -139,10 +202,10 @@ class SafeExe {
       // child process
       fflush(nullptr);
       if (compileeFlag == Compilee::kHir2mpl) {
-        std::string ld_path = ":";
+        std::string ldPath = ":";
         if (FileUtils::SafeGetenv(kLdLibPath) != "") {
-          ld_path += FileUtils::SafeGetenv(kLdLibPath);
-          ldLibPath += ld_path;
+          ldPath += FileUtils::SafeGetenv(kLdLibPath);
+          ldLibPath += ldPath;
         }
         setenv("LD_LIBRARY_PATH", ldLibPath.c_str(), 1);
       }
@@ -269,12 +332,24 @@ class SafeExe {
 #endif
 
   static ErrorCode Exe(const std::string &cmd, const std::string &args) {
-    LogInfo::MapleLogger() << "Starting:" << cmd << args << '\n';
+    LogInfo::MapleLogger() << "Starting:" << cmd << " " << args << '\n';
     if (StringUtils::HasCommandInjectionChar(cmd) || StringUtils::HasCommandInjectionChar(args)) {
       LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
       return kErrorCompileFail;
     }
     ErrorCode ret = HandleCommand(cmd, args);
+    return ret;
+  }
+
+  static ErrorCode Exe(const std::string &cmd, const std::string &args, std::string &result) {
+    if (opts::debug) {
+      LogInfo::MapleLogger() << "Starting:" << cmd << " " << args << '\n';
+    }
+    if (StringUtils::HasCommandInjectionChar(cmd) || StringUtils::HasCommandInjectionChar(args)) {
+      LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
+      return kErrorCompileFail;
+    }
+    ErrorCode ret = HandleCommand(cmd, args, result);
     return ret;
   }
 

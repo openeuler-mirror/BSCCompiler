@@ -18,6 +18,8 @@
 #include "cgfunc.h"
 #include "cg_irbuilder.h"
 
+#define PROEPILOG_DUMP CG_DEBUG_FUNC(cgFunc)
+
 namespace maplebe {
 using namespace maple;
 
@@ -65,18 +67,17 @@ inline void AppendInstructionTo(Insn &insn, CGFunc &func) {
 }
 }
 
-bool AArch64GenProEpilog::NeedProEpilog() {
+static inline bool AArch64NeedProEpilog(CGFunc &cgFunc) {
   if (cgFunc.GetMirModule().GetSrcLang() != kSrcLangC) {
     return true;
   } else if (cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) || cgFunc.HasVLAOrAlloca()) {
     return true;
   }
-  bool funcHasCalls = false;
-  /* note that tailcall insn is not a call */
+  // note that tailcall insn is not a call
   FOR_ALL_BB(bb, &cgFunc) {
     FOR_BB_INSNS_REV(insn, bb) {
       if (insn->IsMachineInstruction() && (insn->IsCall() || insn->IsSpecialCall())) {
-        funcHasCalls = true;
+        return true;
       }
     }
   }
@@ -85,13 +86,21 @@ bool AArch64GenProEpilog::NeedProEpilog() {
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
   size_t calleeSavedRegSize = kOneRegister;
   CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot LR ?");
-  if (funcHasCalls || regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() ||
+  if (regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() ||
       static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout())->GetSizeOfLocals() > 0 ||
       static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout())->GetSizeOfCold() > 0 ||
       cgFunc.GetFunction().GetAttr(FUNCATTR_callersensitive)) {
     return true;
   }
   return false;
+}
+
+bool AArch64ProEpilogAnalysis::NeedProEpilog() {
+  return AArch64NeedProEpilog(cgFunc);
+}
+
+bool AArch64GenProEpilog::NeedProEpilog() {
+  return AArch64NeedProEpilog(cgFunc);
 }
 
 // RealStackFrameSize - [GR,16] - [VR,16] - 8 (from fp to stack protect area)
@@ -144,12 +153,11 @@ void AArch64GenProEpilog::GenStackGuard() {
 }
 
 void AArch64GenProEpilog::AddStackGuard(BB &bb) {
-  if (!stackProtect) {
+  if (!cgFunc.GetNeedStackProtect()) {
     return;
   }
   BB *formerCurBB = cgFunc.GetCurBB();
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  aarchCGFunc.GetDummyBB()->SetIsProEpilog(true);
   GenStackGuard();
   RegOperand &stAddrOpnd =
     aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerBitSize(), kRegTyInt);
@@ -159,12 +167,34 @@ void AArch64GenProEpilog::AddStackGuard(BB &bb) {
   cgFunc.GetCurBB()->AppendInsn(tmpInsn);
 
   bb.InsertAtBeginning(*aarchCGFunc.GetDummyBB());
-  aarchCGFunc.GetDummyBB()->SetIsProEpilog(false);
   cgFunc.SetCurBB(*formerCurBB);
 }
 
+BB &AArch64GenProEpilog::GetOrGenStackGuardCheckFailBB(BB &bb) {
+  if (stackChkFailBB != nullptr) {
+    return *stackChkFailBB;
+  }
+  BB *formerCurBB = cgFunc.GetCurBB();
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+
+  // create new check fail BB
+  auto failLable = aarchCGFunc.CreateLabel();
+  stackChkFailBB = aarchCGFunc.CreateNewBB(failLable, bb.IsUnreachable(), BB::kBBFallthru, bb.GetFrequency());
+  cgFunc.SetCurBB(*stackChkFailBB);
+  MIRSymbol *failFunc = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
+      GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_fail")));
+  ListOperand *srcOpnds = aarchCGFunc.CreateListOpnd(*cgFunc.GetFuncScopeAllocator());
+  Insn &callInsn = aarchCGFunc.AppendCall(*failFunc, *srcOpnds);
+  callInsn.SetDoNotRemove(true);
+  ASSERT_NOT_NULL(cgFunc.GetLastBB());
+  cgFunc.GetLastBB()->PrependBB(*stackChkFailBB);
+
+  cgFunc.SetCurBB(*formerCurBB);
+  return *stackChkFailBB;
+}
+
 void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
-  if (!stackProtect) {
+  if (!cgFunc.GetNeedStackProtect()) {
     return;
   }
 
@@ -181,20 +211,15 @@ void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   cgFunc.GetCurBB()->AppendInsn(newInsn);
 
   cgFunc.SelectBxor(stAddrOpnd, stAddrOpnd, checkOp, PTY_u64);
-  LabelIdx failLable = aarchCGFunc.CreateLabel();
-  aarchCGFunc.SelectCondGoto(aarchCGFunc.GetOrCreateLabelOperand(failLable), OP_brtrue, OP_ne,
-                             stAddrOpnd, aarchCGFunc.CreateImmOperand(0, k64BitSize, false), PTY_u64, false);
+  auto &failBB = GetOrGenStackGuardCheckFailBB(bb);
+  aarchCGFunc.SelectCondGoto(aarchCGFunc.GetOrCreateLabelOperand(failBB.GetLabIdx()), OP_brtrue, OP_ne,
+                             stAddrOpnd, aarchCGFunc.CreateImmOperand(0, k64BitSize, false), PTY_u64, false, BB::kUnknownProb);
 
   auto chkBB = cgFunc.CreateNewBB(bb.GetLabIdx(), bb.IsUnreachable(), BB::kBBIf, bb.GetFrequency());
   chkBB->AppendBBInsns(bb);
   bb.ClearInsns();
-  Insn *lastInsn = chkBB->GetLastInsn();
-  while (lastInsn != nullptr && (!lastInsn->IsMachineInstruction() ||
-                                 AArch64isa::IsPseudoInstruction(lastInsn->GetMachineOpcode()))) {
-    lastInsn = lastInsn->GetPrev();
-  }
-  bool isTailCall = lastInsn == nullptr ? false : lastInsn->IsTailCall();
-  if (isTailCall) {
+  auto *lastInsn = chkBB->GetLastMachineInsn();
+  if (lastInsn != nullptr && (lastInsn->IsTailCall() || lastInsn->IsBranch())) {
     chkBB->RemoveInsn(*lastInsn);
     bb.AppendInsn(*lastInsn);
   }
@@ -206,8 +231,7 @@ void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   chkBB->PushBackSuccs(bb);
   auto &originPreds = bb.GetPreds();
   for (auto pred : originPreds) {
-    pred->RemoveSuccs(bb);
-    pred->PushBackSuccs(*chkBB);
+    pred->ReplaceSucc(bb, *chkBB);
     chkBB->PushBackPreds(*pred);
   }
   LabelIdx nextLable = aarchCGFunc.CreateLabel();
@@ -215,21 +239,8 @@ void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   cgFunc.SetLab2BBMap(nextLable, bb);
   bb.ClearPreds();
   bb.PushBackPreds(*chkBB);
-
-  BB *newBB = aarchCGFunc.CreateNewBB(failLable, bb.IsUnreachable(), BB::kBBGoto, bb.GetFrequency());
-  cgFunc.SetCurBB(*newBB);
-  MIRSymbol *failFunc = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
-      GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_fail")));
-  ListOperand *srcOpnds = aarchCGFunc.CreateListOpnd(*cgFunc.GetFuncScopeAllocator());
-  Insn &callInsn = aarchCGFunc.AppendCall(*failFunc, *srcOpnds);
-  callInsn.SetDoNotRemove(true);
-  LabelOperand &targetOpnd = cgFunc.GetOrCreateLabelOperand(bb.GetLabIdx());
-  newBB->AppendInsn(cgFunc.GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd));
-  bb.AppendBB(*newBB);
-  chkBB->PushBackSuccs(*newBB);
-  newBB->PushBackPreds(*chkBB);
-  newBB->PushBackSuccs(bb);
-  bb.PushBackPreds(*newBB);
+  chkBB->PushBackSuccs(failBB);
+  failBB.PushBackPreds(*chkBB);
 
   cgFunc.SetCurBB(*formerCurBB);
 }
@@ -720,17 +731,20 @@ void AArch64GenProEpilog::AppendInstructionStackCheck(AArch64reg reg, RegType rt
 }
 
 void AArch64GenProEpilog::GenerateProlog(BB &bb) {
+  if (!cgFunc.GetHasProEpilogue()) {
+    return;
+  }
+  if (PROEPILOG_DUMP) {
+    LogInfo::MapleLogger() << "generate prolog at BB " << bb.GetId() << "\n";
+  }
+
+  AddStackGuard(bb);
+
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   BB *formerCurBB = cgFunc.GetCurBB();
   aarchCGFunc.GetDummyBB()->ClearInsns();
-  aarchCGFunc.GetDummyBB()->SetIsProEpilog(true);
   cgFunc.SetCurBB(*aarchCGFunc.GetDummyBB());
-
-  bool hasProEpilogue = cgFunc.GetHasProEpilogue();
-  if (!hasProEpilogue) {
-    return;
-  }
 
   // insert .loc for function
   if (currCG->GetCGOptions().WithLoc() && (!currCG->GetMIRModule()->IsCModule())) {
@@ -809,10 +823,13 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
   }
   bb.InsertAtBeginning(*aarchCGFunc.GetDummyBB());
   cgFunc.SetCurBB(*formerCurBB);
-  aarchCGFunc.GetDummyBB()->SetIsProEpilog(false);
 }
 
 void AArch64GenProEpilog::GenerateRet(BB &bb) {
+  auto *lastInsn = bb.GetLastMachineInsn();
+  if (lastInsn != nullptr && (lastInsn->IsTailCall() || lastInsn->IsBranch())) {
+    return;
+  }
   /* Insert the loc insn before ret insn
      so that the breakpoint can break at the end of the block's reverse parenthesis line. */
   SrcPosition pos = cgFunc.GetFunction().GetScope()->GetRangeHigh();
@@ -928,6 +945,7 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, 
     Insn &deallocInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
     cgFunc.GetCurBB()->AppendInsn(deallocInsn);
   }
+  cgFunc.GetCurBB()->GetLastInsn()->SetStackRevert(true);
 }
 
 void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty) {
@@ -984,6 +1002,7 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
     Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
     aarchCGFunc.SelectAdd(spOpnd, spOpnd, immOpnd, PTY_u64);
   }
+  cgFunc.GetCurBB()->GetLastInsn()->SetStackRevert(true);
 }
 
 void AArch64GenProEpilog::GeneratePopRegs() {
@@ -1101,7 +1120,6 @@ void AArch64GenProEpilog::AppendJump(const MIRSymbol &funcSymbol) {
 void AArch64GenProEpilog::AppendBBtoEpilog(BB &epilogBB, BB &newBB) {
   if (epilogBB.GetPreds().empty() && &epilogBB != cgFunc.GetFirstBB() &&
       cgFunc.GetMirModule().IsCModule() && CGOptions::DoTailCallOpt()) {
-    epilogBB.SetNeedRestoreCfi(false);
     Insn &junk = cgFunc.GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_pseudo_none);
     epilogBB.AppendInsn(junk);
     return;
@@ -1109,33 +1127,24 @@ void AArch64GenProEpilog::AppendBBtoEpilog(BB &epilogBB, BB &newBB) {
   FOR_BB_INSNS(insn, &newBB) {
     insn->SetDoNotRemove(true);
   }
-  Insn *lastInsn = epilogBB.GetLastInsn();
-  while (lastInsn != nullptr && (!lastInsn->IsMachineInstruction() ||
-                                 AArch64isa::IsPseudoInstruction(lastInsn->GetMachineOpcode()))) {
-    lastInsn = lastInsn->GetPrev();
-  }
-  bool isTailCall = lastInsn == nullptr ? false : lastInsn->IsTailCall();
-  if (isTailCall) {
-    Insn *retInsn = newBB.GetLastInsn();
-    if (retInsn != nullptr && retInsn->GetMachineOpcode() == MOP_xret) {
-      newBB.RemoveInsn(*retInsn);
-    }
+  auto *lastInsn = epilogBB.GetLastMachineInsn();
+  if (lastInsn != nullptr && (lastInsn->IsTailCall() || lastInsn->IsBranch())) {
     epilogBB.RemoveInsn(*lastInsn);
     epilogBB.AppendBBInsns(newBB);
     epilogBB.AppendInsn(*lastInsn);
   } else {
     epilogBB.AppendBBInsns(newBB);
   }
-  epilogBB.SetNeedRestoreCfi(true);
 }
 
 void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
   if (!cgFunc.GetHasProEpilogue()) {
-    if (!bb.GetPreds().empty() && !TestPredsOfRetBB(bb)) {
-      GenerateRet(bb);
-    }
     return;
   }
+  if (PROEPILOG_DUMP) {
+    LogInfo::MapleLogger() << "generate epilog at BB " << bb.GetId() << "\n";
+  }
+
   /* generate stack protected instruction */
   GenStackGuardCheckInsn(bb);
 
@@ -1143,7 +1152,6 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
   CG *currCG = cgFunc.GetCG();
   BB *formerCurBB = cgFunc.GetCurBB();
   aarchCGFunc.GetDummyBB()->ClearInsns();
-  aarchCGFunc.GetDummyBB()->SetIsProEpilog(true);
   cgFunc.SetCurBB(*aarchCGFunc.GetDummyBB());
   Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
   Operand &fpOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(stackBaseReg, k64BitSize, kRegTyInt);
@@ -1172,6 +1180,7 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
       if (stackFrameSize > 0) {
         Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
         aarchCGFunc.SelectAdd(spOpnd, spOpnd, immOpnd, PTY_u64);
+        aarchCGFunc.GetCurBB()->GetLastInsn()->SetStackRevert(true);
       }
     }
   }
@@ -1180,14 +1189,12 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
     AppendJump(*(currCG->GetDebugTraceExitFunction()));
   }
 
-  GenerateRet(*(cgFunc.GetCurBB()));
   AppendBBtoEpilog(bb, *cgFunc.GetCurBB());
   if (cgFunc.GetCurBB()->GetHasCfi()) {
     bb.SetHasCfi();
   }
 
   cgFunc.SetCurBB(*formerCurBB);
-  aarchCGFunc.GetDummyBB()->SetIsProEpilog(false);
 }
 
 void AArch64GenProEpilog::GenerateEpilogForCleanup(BB &bb) {
@@ -1205,12 +1212,7 @@ void AArch64GenProEpilog::GenerateEpilogForCleanup(BB &bb) {
 void AArch64GenProEpilog::Run() {
   CHECK_FATAL(cgFunc.GetFunction().GetBody()->GetFirst()->GetOpCode() == OP_label,
               "The first statement should be a label");
-  stackProtect = cgFunc.GetNeedStackProtect();
-  cgFunc.SetHasProEpilogue(NeedProEpilog());
-  if (cgFunc.GetHasProEpilogue()) {
-    AddStackGuard(*(cgFunc.GetFirstBB()));
-  }
-
+  // update exitBB
   if (cgFunc.IsExitBBsVecEmpty()) {
     if (cgFunc.GetCleanupBB() != nullptr && cgFunc.GetCleanupBB()->GetPrev() != nullptr) {
       cgFunc.PushBackExitBBsVec(*cgFunc.GetCleanupBB()->GetPrev());
@@ -1219,18 +1221,33 @@ void AArch64GenProEpilog::Run() {
     }
   }
 
-  GenerateProlog(*(cgFunc.GetPrologureBB()));
+  cgFunc.SetHasProEpilogue(NeedProEpilog());
+  if (saveInfo == nullptr || saveInfo->prologBBs.empty()) {
+    // not run proepilog analysis or analysis failed, insert proepilog at firstBB and exitBB
+    GenerateProlog(*(cgFunc.GetFirstBB()));
 
-  for (auto *exitBB : cgFunc.GetExitBBsVec()) {
-    // Do not generate epilog in fast-path-return BB
-    if (exitBB->IsFastPathReturn()) {
-      continue;
+    for (auto *exitBB : cgFunc.GetExitBBsVec()) {
+      GenerateEpilog(*exitBB);
     }
-    GenerateEpilog(*exitBB);
+
+    if (cgFunc.GetFunction().IsJava()) {
+      GenerateEpilogForCleanup(*(cgFunc.GetCleanupBB()));
+    }
+  } else {
+    CHECK_FATAL(cgFunc.GetMirModule().IsCModule(), "NIY, only support C");
+    for (auto bbId : saveInfo->prologBBs) {
+      GenerateProlog(*cgFunc.GetBBFromID(bbId));
+    }
+    for (auto bbId : saveInfo->epilogBBs) {
+      GenerateEpilog(*cgFunc.GetBBFromID(bbId));
+    }
   }
 
-  if (cgFunc.GetFunction().IsJava()) {
-    GenerateEpilogForCleanup(*(cgFunc.GetCleanupBB()));
+  // insert ret insn for exitBB
+  for (auto *exitBB : cgFunc.GetExitBBsVec()) {
+    if (cgFunc.GetHasProEpilogue() || (!exitBB->GetPreds().empty() && !TestPredsOfRetBB(*exitBB))) {
+      GenerateRet(*exitBB);
+    }
   }
 }
 }  /* namespace maplebe */

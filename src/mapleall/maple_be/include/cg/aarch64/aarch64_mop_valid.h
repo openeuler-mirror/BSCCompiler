@@ -798,7 +798,7 @@ inline bool MOP_wwcmprreValid(const MapleVector<Operand*> &opnds) {
 
 inline bool MOP_xcmpriValid(const MapleVector<Operand*> &opnds) {
   bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ?
-      Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+      Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
@@ -866,7 +866,7 @@ inline bool MOP_wwcmnrreValid(const MapleVector<Operand*> &opnds) {
 
 inline bool MOP_xcmnriValid(const MapleVector<Operand*> &opnds) {
   bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ?
-      Imm16BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+      Imm12BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
   return checkThird;
 }
 
@@ -886,7 +886,7 @@ inline bool MOP_xwcmnrreValid(const MapleVector<Operand*> &opnds) {
 inline bool MOP_wtbnzValid(const MapleVector<Operand*> &opnds) {
   // Is the bit number to be tested, in the range 0 to 63
   bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ?
-      BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+      BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
   return checkSecond;
 }
 
@@ -898,9 +898,9 @@ inline bool MOP_xtbnzValid(const MapleVector<Operand*> &opnds) {
 }
 
 inline bool MOP_wtbzValid(const MapleVector<Operand*> &opnds) {
-  // Is the bit number to be tested, in the range 0 to 63
+  // Is the bit number to be tested, in the range 0 to 31
   bool checkSecond = (opnds[kInsnSecondOpnd] != nullptr) ?
-      BitShift6BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
+      BitShift5BitValidImm(static_cast<ImmOperand*>(opnds[kInsnSecondOpnd])->GetValue()) : true;
   return checkSecond;
 }
 

@@ -16,34 +16,32 @@
 #include "aarch64_memlayout.h"
 #include "aarch64_cgfunc.h"
 namespace maplebe {
-void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb) {
+void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb, Insn &stackDefInsn) {
   auto stackFrameSize = static_cast<int32>(
       static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   auto argsToStkPassSize = static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
   int32 cfiOffset = stackFrameSize;
-  Insn &stackDefNextInsn = FindStackDefNextInsn(bb);
-  InsertCFIDefCfaOffset(bb, stackDefNextInsn, cfiOffset);
+  auto *curInsn = InsertCFIDefCfaOffset(bb, stackDefInsn, cfiOffset);
   cfiOffset = static_cast<int32>(GetOffsetFromCFA() - argsToStkPassSize);
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
 
   if (useFP) {
-    (void)bb.InsertInsnBefore(stackDefNextInsn, aarchCGFunc.CreateCfiOffsetInsn(stackBaseReg, -cfiOffset, k64BitSize));
+    curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiOffsetInsn(stackBaseReg, -cfiOffset, k64BitSize));
   }
   int32 RLROffset = static_cast<AArch64CGFunc&>(cgFunc).GetStoreFP() ? kOffset8MemPos : 0;
-  (void)bb.InsertInsnBefore(stackDefNextInsn,
-                            aarchCGFunc.CreateCfiOffsetInsn(RLR, static_cast<int64>(-cfiOffset + RLROffset),
-                                                            k64BitSize));
+  curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiOffsetInsn(RLR, static_cast<int64>(-cfiOffset + RLROffset),
+                                                                      k64BitSize));
 
   /* change CFA register and offset */
   if (useFP) {
     bool isLmbc = cgFunc.GetMirModule().GetFlavor() == MIRFlavor::kFlavorLmbc;
     if ((argsToStkPassSize > 0) || isLmbc) {
-      (void)bb.InsertInsnBefore(stackDefNextInsn, aarchCGFunc.CreateCfiDefCfaInsn(stackBaseReg,
+      curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiDefCfaInsn(stackBaseReg,
           static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
           static_cast<uint32>(argsToStkPassSize), k64BitSize));
     } else {
-      (void)bb.InsertInsnBefore(
-          stackDefNextInsn, cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_def_cfa_register).AddOpndChain(
+      curInsn = bb.InsertInsnAfter(*curInsn,
+          cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_def_cfa_register).AddOpndChain(
               cgFunc.CreateCfiRegOperand(stackBaseReg, k64BitSize)));
     }
   }
@@ -71,19 +69,18 @@ void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb) {
     AArch64reg reg = *it;
     stackFrameSize -= static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
     cfiOffset = stackFrameSize - offset;
-    (void)bb.InsertInsnBefore(stackDefNextInsn, aarchCGFunc.CreateCfiOffsetInsn(reg, -cfiOffset, k64BitSize));
+    curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiOffsetInsn(reg, -cfiOffset, k64BitSize));
     /* On AArch64, kIntregBytelen == 8 */
     offset += static_cast<int32>(kIntregBytelen);
   }
 }
 
-void AArch64GenCfi::GenerateRegisterRestoreDirective(BB &bb) {
+void AArch64GenCfi::GenerateRegisterRestoreDirective(BB &bb, Insn &stackRevertInsn) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   auto &regsToSave = (aarchCGFunc.GetProEpilogSavedRegs().empty()) ?
       aarchCGFunc.GetCalleeSavedRegs() : aarchCGFunc.GetProEpilogSavedRegs();
+  auto *curInsn = &stackRevertInsn;
 
-  Insn *returnInsn = bb.GetLastMachineInsn();
-  CHECK_NULL_FATAL(returnInsn);
   if (!regsToSave.empty()) {
     auto it = regsToSave.begin();
     // skip the RFP
@@ -96,16 +93,16 @@ void AArch64GenCfi::GenerateRegisterRestoreDirective(BB &bb) {
     if (!CGOptions::IsNoCalleeCFI()) {
       for (; it != regsToSave.end(); ++it) {
         AArch64reg reg = *it;
-        (void)bb.InsertInsnBefore(*returnInsn, aarchCGFunc.CreateCfiRestoreInsn(reg, k64BitSize));
+        curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiRestoreInsn(reg, k64BitSize));
       }
     }
 
     if (useFP) {
-      (void)bb.InsertInsnBefore(*returnInsn, aarchCGFunc.CreateCfiRestoreInsn(stackBaseReg, k64BitSize));
+      curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiRestoreInsn(stackBaseReg, k64BitSize));
     }
-    (void)bb.InsertInsnBefore(*returnInsn, aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
+    curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
   }
   /* in aarch64 R31 is sp */
-  (void)bb.InsertInsnBefore(*returnInsn, aarchCGFunc.CreateCfiDefCfaInsn(R31, 0, k64BitSize));
+  curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiDefCfaInsn(R31, 0, k64BitSize));
 }
 } /* maplebe */

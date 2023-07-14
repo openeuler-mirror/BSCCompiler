@@ -581,7 +581,7 @@ class FEOptions {
 
   uint32 funcInlineSize = 0;
   bool wpaa = false;
-  bool funcMerge = false;
+  bool funcMerge = true;
   FEOptions();
   ~FEOptions() = default;
 };

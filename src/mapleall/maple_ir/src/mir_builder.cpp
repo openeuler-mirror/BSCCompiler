@@ -206,7 +206,7 @@ void MIRBuilder::SetStructFieldIDFromFieldName(MIRStructType &structType, const 
 }
 
 // create a function named str
-MIRFunction *MIRBuilder::GetOrCreateFunction(const std::string &str, TyIdx retTyIdx) {
+MIRFunction *MIRBuilder::GetOrCreateFunction(const std::string &str, const TyIdx &retTyIdx, bool *isNewCreated) {
   GStrIdx strIdx = GetStringIndex(str);
   MIRSymbol *funcSt = nullptr;
   if (strIdx != 0u) {
@@ -220,6 +220,9 @@ MIRFunction *MIRBuilder::GetOrCreateFunction(const std::string &str, TyIdx retTy
   } else {
     strIdx = GetOrCreateStringIndex(str);
     funcSt = CreateSymbol(TyIdx(0), strIdx, kStFunc, kScText, nullptr, kScopeGlobal);
+  }
+  if (isNewCreated != nullptr) {
+    *isNewCreated = true;
   }
   auto *fn = mirModule->GetMemPool()->New<MIRFunction>(mirModule, funcSt->GetStIdx());
   fn->SetPuidx(GlobalTables::GetFunctionTable().GetFuncTable().size());
@@ -885,7 +888,7 @@ IcallNode *MIRBuilder::CreateStmtIcallprotoAssigned(const MapleVector<BaseNode*>
                ret.GetStorageClass() == kScExtern || ret.GetStorageClass() == kScGlobal),
               "unknown classtype! check it!");
   nrets.emplace_back(CallReturnPair(ret.GetStIdx(), RegFieldPair(0, 0)));
-  stmt->SetNumOpnds(args.size());
+  stmt->SetNumOpnds(static_cast<uint8>(args.size()));
   stmt->GetNopnd().resize(stmt->GetNumOpnds());
   stmt->SetReturnVec(nrets);
   for (size_t i = 0; i < stmt->GetNopndSize(); ++i) {

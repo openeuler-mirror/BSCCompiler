@@ -111,6 +111,9 @@ class PreMeEmitter : public AnalysisResult {
   ArrayNode *ConvertToArray(BaseNode &x, const TyIdx &ptrTyIdx);
   BaseNode *EmitPreMeExpr(MeExpr &meExpr, BaseNode *parent);
   StmtNode* EmitPreMeStmt(MeStmt &meStmt, BaseNode *parent);
+  template <typename Stmt, typename Node>
+  void SetAssertBoundaryNode(const MeStmt &meStmt, const Stmt *assertBoundaryStmt,
+                             Node *assertBoundaryNode, PreMeMIRExtension *pmeExt);
   void EmitBB(BB &bb, BlockNode &curBlk);
   DoloopNode *EmitPreMeDoloop(BB &meWhileBB, BlockNode &curBlk, PreMeWhileInfo &whileInfo);
   WhileStmtNode *EmitPreMeWhile(BB &meWhileBB, BlockNode &curBlk);
