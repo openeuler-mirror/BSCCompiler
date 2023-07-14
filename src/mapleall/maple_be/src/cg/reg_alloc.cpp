@@ -24,43 +24,14 @@
 #include "cg.h"
 
 namespace maplebe {
-
-#ifdef RA_PERF_ANALYSIS
-static long loopAnalysisUS = 0;
-static long liveAnalysisUS = 0;
-static long createRAUS = 0;
-static long raUS = 0;
-static long cleanupUS = 0;
-static long totalUS = 0;
-extern void printRATime() {
-  std::cout << "============================================================\n";
-  std::cout << "               RA sub-phase time information              \n";
-  std::cout << "============================================================\n";
-  std::cout << "loop analysis cost: " << loopAnalysisUS << "us \n";
-  std::cout << "live analysis cost: " << liveAnalysisUS << "us \n";
-  std::cout << "create RA cost: " << createRAUS << "us \n";
-  std::cout << "doRA cost: " << raUS << "us \n";
-  std::cout << "cleanup cost: " << cleanupUS << "us \n";
-  std::cout << "RA total cost: " << totalUS << "us \n";
-  std::cout << "============================================================\n";
-}
-#endif
-
 bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
   bool success = false;
 
-#ifdef RA_PERF_ANALYSIS
-  auto begin = std::chrono::system_clock::now();
-#endif
-
-  /* loop Analysis */
-#ifdef RA_PERF_ANALYSIS
-  auto start = std::chrono::system_clock::now();
-#endif
   /* dom Analysis */
   DomAnalysis *dom = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0 &&
       f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
+    RA_TIMER_REGISTER(dom, "RA Dom");
     MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
         &CgDomAnalysis::id, f);
     dom = static_cast<CgDomAnalysis*>(it)->GetResult();
@@ -68,24 +39,18 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
 
   LoopAnalysis *loop = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
+    RA_TIMER_REGISTER(loop, "RA Loop");
     MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
         &CgLoopAnalysis::id, f);
     loop = static_cast<CgLoopAnalysis*>(it)->GetResult();
   }
 
-#ifdef RA_PERF_ANALYSIS
-  auto end = std::chrono::system_clock::now();
-  loopAnalysisUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
-
   while (!success) {
     MemPool *phaseMp = GetPhaseMemPool();
-#ifdef RA_PERF_ANALYSIS
-    start = std::chrono::system_clock::now();
-#endif
     /* live analysis */
     LiveAnalysis *live = nullptr;
     if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
+      RA_TIMER_REGISTER(live, "RA Live");
       MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
           &CgLiveAnalysis::id, f);
       live = static_cast<CgLiveAnalysis*>(it)->GetResult();
@@ -93,14 +58,6 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
       /* revert liveanalysis result container. */
       live->ResetLiveSet();
     }
-#ifdef RA_PERF_ANALYSIS
-    end = std::chrono::system_clock::now();
-    liveAnalysisUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
-
-#ifdef RA_PERF_ANALYSIS
-    start = std::chrono::system_clock::now();
-#endif
     /* create register allocator */
     RegAllocator *regAllocator = nullptr;
     MemPool *tempMP = nullptr;
@@ -126,26 +83,12 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
             "Warning: We only support Linear Scan and GraphColor register allocation\n";
       }
     }
-#ifdef RA_PERF_ANALYSIS
-    end = std::chrono::system_clock::now();
-    createRAUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
-
-#ifdef RA_PERF_ANALYSIS
-    start = std::chrono::system_clock::now();
-#endif
+    RA_TIMER_REGISTER(ra, "RA Time");
     /* do register allocation */
     CHECK_FATAL(regAllocator != nullptr, "regAllocator is null in CgDoRegAlloc::Run");
     f.SetIsAfterRegAlloc();
     success = regAllocator->AllocateRegisters();
-#ifdef RA_PERF_ANALYSIS
-    end = std::chrono::system_clock::now();
-    raUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
 
-#ifdef RA_PERF_ANALYSIS
-    start = std::chrono::system_clock::now();
-#endif
     /* the live range info may changed, so invalid the info. */
     if (live != nullptr) {
       live->ClearInOutDataInfo();
@@ -153,17 +96,10 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0) {
       GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLiveAnalysis::id);
     }
-#ifdef RA_PERF_ANALYSIS
-    end = std::chrono::system_clock::now();
-    cleanupUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
     memPoolCtrler.DeleteMemPool(tempMP);
   }
 
-#ifdef RA_PERF_ANALYSIS
-  end = std::chrono::system_clock::now();
-  totalUS += std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
-#endif
+  RA_TIMER_PRINT(f.GetName());
   return false;
 }
 }  /* namespace maplebe */

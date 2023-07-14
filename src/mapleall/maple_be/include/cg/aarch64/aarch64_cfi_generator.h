@@ -31,8 +31,8 @@ class AArch64GenCfi : public GenCfi  {
   ~AArch64GenCfi() override = default;
 
  private:
-  void GenerateRegisterSaveDirective(BB &bb) override;
-  void GenerateRegisterRestoreDirective(BB &bb) override;
+  void GenerateRegisterSaveDirective(BB &bb, Insn &stackDefInsn) override;
+  void GenerateRegisterRestoreDirective(BB &bb, Insn &stackRevertInsn) override;
 
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */
   AArch64reg stackBaseReg = RFP;

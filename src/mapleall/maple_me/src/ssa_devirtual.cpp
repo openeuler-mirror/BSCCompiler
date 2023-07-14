@@ -25,7 +25,7 @@
 namespace maple {
 bool SSADevirtual::debug = false;
 static bool NonNullRetValue(const MIRFunction &called) {
-  static const std::unordered_set<std::string> nonNullRetValueFuncs = {
+  static const std::unordered_set<std::string> kNonNullRetValueFuncs = {
       "Ljava_2Futil_2FArrayList_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
       "Ljava_2Futil_2FHashSet_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
       "Lsun_2Fsecurity_2Fjca_2FProviderList_24ServiceList_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
@@ -36,7 +36,7 @@ static bool NonNullRetValue(const MIRFunction &called) {
       "Ljava_2Futil_2Fconcurrent_2FConcurrentSkipListMap_24KeySet_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
       "Ljava_2Futil_2FCollections_24CheckedCollection_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B"
   };
-  return nonNullRetValueFuncs.find(called.GetName()) != nonNullRetValueFuncs.end();
+  return kNonNullRetValueFuncs.find(called.GetName()) != kNonNullRetValueFuncs.end();
 }
 
 static bool MaybeNull(const MeExpr &expr) {

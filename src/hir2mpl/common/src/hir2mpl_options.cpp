@@ -603,8 +603,8 @@ bool HIR2MPLOptions::ProcessWPAA(const maplecl::OptionInterface &) const {
 }
 
 // func merge
-bool HIR2MPLOptions::ProcessFM(const maplecl::OptionInterface &) const {
-  FEOptions::GetInstance().SetFuncMergeEnable(true);
+bool HIR2MPLOptions::ProcessFM(const maplecl::OptionInterface &fmOpt) const {
+  FEOptions::GetInstance().SetFuncMergeEnable(fmOpt.GetCommonValue());
   return true;
 }
 

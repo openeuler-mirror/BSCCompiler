@@ -65,6 +65,7 @@ class FormalDef {
 class InlineSummary;  // circular dependency exists, no other choice
 class MeFunction;  // circular dependency exists, no other choice
 class EAConnectionGraph;  // circular dependency exists, no other choice
+class MemReferenceTable;
 class MIRFunction {
  public:
   MIRFunction(MIRModule *mod, StIdx idx)
@@ -343,6 +344,13 @@ class MIRFunction {
 
   bool IsDefaultVisibility() const {
     return !funcAttrs.GetAttr(FUNCATTR_visibility_hidden) && !funcAttrs.GetAttr(FUNCATTR_visibility_protected);
+  }
+
+  bool CanDoNoPlt(bool isShlib, bool isPIE) const {
+    if (IsDefaultVisibility() && ((isPIE && !GetBody()) || (isShlib && !IsStatic()))) {
+      return true;
+    }
+    return false;
   }
 
   void SetVarArgs() {
@@ -630,7 +638,7 @@ class MIRFunction {
     CHECK_FATAL(typeNameTab != nullptr, "typeNameTab is nullptr");
     return typeNameTab->GetTyIdxFromGStrIdx(idx);
   }
-  void SetGStrIdxToTyIdx(GStrIdx gStrIdx, TyIdx tyIdx) const {
+  void SetGStrIdxToTyIdx(const GStrIdx &gStrIdx, const TyIdx &tyIdx) const {
     CHECK_FATAL(typeNameTab != nullptr, "typeNameTab is nullptr");
     typeNameTab->SetGStrIdxToTyIdx(gStrIdx, tyIdx);
   }
@@ -1293,6 +1301,18 @@ class MIRFunction {
 
   InlineSummary *GetOrCreateInlineSummary();
 
+  MemReferenceTable *GetMemReferenceTable() {
+    return memReferenceTable;
+  }
+
+  void DiscardMemReferenceTable() {
+    memReferenceTable = nullptr;
+  }
+
+  void CreateMemReferenceTable();
+
+  MemReferenceTable *GetOrCreateMemReferenceTable();
+
   void SetFuncProfData(FuncProfInfo *data) {
     funcProfData = data;
   }
@@ -1456,6 +1476,7 @@ class MIRFunction {
   uint64 cfgChksum = 0;
   FuncProfInfo *funcProfData = nullptr;
   InlineSummary *inlineSummary = nullptr;
+  MemReferenceTable *memReferenceTable = nullptr;
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);
   bool mayWriteToAddrofStack = false;

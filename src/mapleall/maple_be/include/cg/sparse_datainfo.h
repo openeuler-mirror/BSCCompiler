@@ -118,10 +118,6 @@ class SparseDataInfo {
     info.Clear();
   }
 
-  void EnlargeCapacityToAdaptSize(uint32 /* bitNO */) const {
-    /* add one more size for each enlarge action */
-  }
-
   void ClearDataInfo() {
     info.Clear();
   }

@@ -14,8 +14,11 @@
  */
 #ifndef MAPLE_IR_INCLUDE_INTRINSICS_H
 #define MAPLE_IR_INCLUDE_INTRINSICS_H
+#include <vector>
 #include "prim_types.h"
 #include "intrinsic_op.h"
+#include "side_effect_info.h"
+#include "utils.h"
 
 namespace maple {
 enum IntrinProperty : uint32 {
@@ -24,6 +27,7 @@ enum IntrinProperty : uint32 {
   kIntrnIsJsUnary,
   kIntrnIsJsBinary,
   kIntrnIsJava,
+  kIntrnIsCBuiltin,
   kIntrnIsJavaUnary,
   kIntrnIsJavaBinary,
   kIntrnIsReturnStruct,
@@ -35,6 +39,7 @@ enum IntrinProperty : uint32 {
   kIntrnIsRC,
   kIntrnIsSpecial,
   kIntrnIsVector,
+  kIntrnMembarrier,
   // the opnd is marked as "WRITE" but not "READ" => write only
   // the opnd is marked as "READ" but not "WRITE" => read only
   // the opnd is marked with nothing but has side effect => write & read
@@ -116,6 +121,7 @@ constexpr uint32 INTRNISJS = 1U << kIntrnIsJs;
 constexpr uint32 INTRNISJSUNARY = 1U << kIntrnIsJsUnary;
 constexpr uint32 INTRNISJSBINARY = 1U << kIntrnIsJsBinary;
 constexpr uint32 INTRNISJAVA = 1U << kIntrnIsJava;
+constexpr uint32 INTRNISCBUILTIN = 1U << kIntrnIsCBuiltin;
 constexpr uint32 INTRNNOSIDEEFFECT = 1U << kIntrnNoSideEffect;
 constexpr uint32 INTRNRETURNSTRUCT = 1U << kIntrnIsReturnStruct;
 constexpr uint32 INTRNLOADMEM = 1U << kIntrnIsLoadMem;
@@ -125,6 +131,7 @@ constexpr uint32 INTRNATOMIC = 1U << kIntrnIsAtomic;
 constexpr uint32 INTRNISRC = 1U << kIntrnIsRC;
 constexpr uint32 INTRNISSPECIAL = 1U << kIntrnIsSpecial;
 constexpr uint32 INTRNISVECTOR = 1U << kIntrnIsVector;
+constexpr uint32 INTRNMEMBARRIER = 1U << kIntrnMembarrier;
 constexpr uint32 INTRNWRITEFIRSTOPND = 1U << kIntrnWriteFirstOpnd;
 constexpr uint32 INTRNWRITESECONDOPND = 1U << kIntrnWriteSecondOpnd;
 constexpr uint32 INTRNWRITETHIRDOPND = 1U << kIntrnWriteThirdOpnd;
@@ -139,18 +146,56 @@ constexpr uint32 INTRNREADFIFTHOPND = 1U << kIntrnReadFifthOpnd;
 constexpr uint32 INTRNREADSIXTHOPND = 1U << kIntrnReadSixthOpnd;
 class MIRType;    // circular dependency exists, no other choice
 class MIRModule;  // circular dependency exists, no other choice
+
+struct IntrinArgInfo {
+  IntrinArgInfo(IntrinArgType type) : argType(type) {}
+
+  IntrinArgInfo(IntrinArgType type, MemEffect effect) : argType(type) {
+    SetMemEffectAttr(effect);
+  }
+
+  IntrinArgInfo(IntrinArgType type, std::vector<MemEffect> effects) : argType(type) {
+    for (auto effect : effects) {
+      SetMemEffectAttr(effect);
+    }
+  }
+
+  void SetMemEffectAttr(MemEffect effect) {
+    argSideEffectAttr[static_cast<size_t>(effect)] = true;
+  }
+
+  bool GetMemEffectAttr(MemEffect effect) const {
+    return argSideEffectAttr[static_cast<size_t>(effect)];
+  }
+
+  IntrinArgType argType;
+  MemEffectAttr argSideEffectAttr = { 0 };
+};
+
+struct IntrinReturnInfo {
+  IntrinReturnInfo(IntrinArgType type) : returnType(type) {}
+  IntrinReturnInfo(IntrinArgType type, AliasLevelInfo info) : returnType(type), returnAliasInfo(info) {}
+  IntrinArgType returnType;
+  AliasLevelInfo returnAliasInfo = AliasLevelInfo::kNoAlias;
+};
+
 struct IntrinDesc {
   static constexpr int kMaxArgsNum = 7;
   const char *name;
   size_t numInsn;
   uint32 properties;
-  IntrinArgType argTypes[1 + kMaxArgsNum];  // argTypes[0] is the return type
+  IntrinReturnInfo returnInfo;
+  std::vector<IntrinArgInfo> argInfo;
   bool IsJS() const {
     return static_cast<bool>(properties & INTRNISJS);
   }
 
   bool IsJava() const {
     return static_cast<bool>(properties & INTRNISJAVA);
+  }
+
+  bool IsCBuiltIn() const {
+    return static_cast<bool>(properties & INTRNISCBUILTIN);
   }
 
   bool IsJsUnary() const {
@@ -201,14 +246,17 @@ struct IntrinDesc {
     return static_cast<bool>(properties & INTRNISVECTOR);
   }
 
+  bool IsMemoryBarrier() const {
+    return static_cast<bool>(properties & INTRNMEMBARRIER);
+  }
+
   size_t GetNumInsn() const {
     return numInsn;
   }
 
-  bool IsNthOpndMarkedToWrite(uint32 opndIdx) const;
-  bool IsNthOpndMarkedToRead(uint32 opndIdx) const;
   bool ReadNthOpnd(uint32 opndIdx) const;
   bool WriteNthOpnd(uint32 opndIdx) const;
+  bool ReturnNthOpnd(uint32 opndIdx) const;
   MIRType *GetReturnType() const;
   MIRType *GetArgType(uint32 index) const;
   MIRType *GetTypeFromArgTy(IntrinArgType argType) const;

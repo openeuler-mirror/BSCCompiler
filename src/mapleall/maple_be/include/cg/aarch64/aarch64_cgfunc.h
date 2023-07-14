@@ -25,7 +25,6 @@
 #include "aarch64_reg_info.h"
 #include "aarch64_optimize_common.h"
 #include "aarch64_call_conv.h"
-
 namespace maplebe {
 class LmbcArgInfo {
  public:
@@ -143,7 +142,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectParmList(StmtNode &naryNode, ListOperand &srcOpnds, bool isCallNative = false);
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
   void SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &origOpnd0,
-                      Operand &origOpnd1, PrimType primType, bool signedCond);
+                      Operand &origOpnd1, PrimType primType, bool signedCond, int32 prob);
   void SelectCondSpecialCase1(CondGotoNode &stmt, BaseNode &expr) override;
   void SelectCondSpecialCase2(const CondGotoNode &stmt, BaseNode &expr) override;
   void SelectGoto(GotoNode &stmt) override;
@@ -209,6 +208,11 @@ class AArch64CGFunc : public CGFunc {
 
   void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   Operand *SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
+  void SelectAdds(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
+  void SelectSubs(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
+  void SelectAdc(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
+  void SelectSbc(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
+  void SelectCarryOperator(bool isAdc, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
   Operand &SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent) override;
   void SelectMadd(Operand &resOpnd, Operand &opndM0, Operand &opndM1, Operand &opnd1, PrimType primType) override;
   Operand *SelectMadd(BinaryNode &node, Operand &opndM0, Operand &opndM1, Operand &opnd1,
@@ -224,8 +228,9 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   void SelectNand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
-
-  void SelectBxorShift(Operand &resOpnd, Operand *opnd0, Operand *opnd1, Operand &opnd2, PrimType primType);
+  void SelectBandShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, BitShiftOperand &shiftOp, PrimType primType);
+  void SelectBiorShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, BitShiftOperand &shiftOp, PrimType primType);
+  void SelectBxorShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, BitShiftOperand &shiftOp, PrimType primType);
   Operand *SelectLand(BinaryNode &node, Operand &lhsOpnd, Operand &rhsOpnd, const BaseNode &parent) override;
   Operand *SelectLor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent,
                      bool parentIsBr = false) override;
@@ -246,6 +251,8 @@ class AArch64CGFunc : public CGFunc {
   void SelectAArch64CSINV(Operand &res, Operand &o0, Operand &o1, CondOperand &cond, bool is64Bits);
   void SelectAArch64CSINC(Operand &res, Operand &o0, Operand &o1, CondOperand &cond, bool is64Bits);
   void SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1, ShiftDirection direct, PrimType primType);
+  void SelectTst(Operand &opnd0, Operand &opnd1, uint32 size);
+  void SelectMulh(bool isSigned, Operand &resOpnd, Operand &opnd0, Operand &opnd1);
   Operand *SelectMpy(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   /* method description contains method information which is metadata for reflection. */
@@ -261,9 +268,12 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectAbsSub(Insn &lastInsn, const UnaryNode &node, Operand &newOpnd0);
   Operand *SelectAbs(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
+  void SelectBnot(Operand &resOpnd, Operand &opnd, PrimType primType);
   Operand *SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
+  void SelectExtractbits(Operand &resOpnd, uint8 offset, uint8 size, Operand &srcOpnd, PrimType dtype, Opcode extOp);
   Operand *SelectExtractbits(ExtractbitsNode &node, Operand &srcOpnd, const BaseNode &parent) override;
   Operand *SelectRegularBitFieldLoad(ExtractbitsNode &node, const BaseNode &parent) override;
+  void SelectDepositBits(Operand &resOpnd, uint8 offset, uint8 size, Operand &opnd0, Operand &opnd1, PrimType primType);
   Operand *SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) override;
   Operand *SelectLnot(UnaryNode &node, Operand &srcOpnd, const BaseNode &parent) override;
   Operand *SelectNeg(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
@@ -385,6 +395,35 @@ class AArch64CGFunc : public CGFunc {
     return origTyp == PTY_v1i64 || origTyp == PTY_v1u64 ? PTY_f64 : origTyp;
   }
 
+  struct SplittedInt128 {
+    Operand &low;
+    Operand &high;
+  };
+
+  struct SplittedInt128 SplitInt128(Operand &opnd);
+  RegOperand &CombineInt128(const SplittedInt128 parts);
+  void CombineInt128(Operand &resOpnd, const SplittedInt128 parts);
+  SplittedInt128 GetSplittedInt128(Operand &opnd, PrimType opndType);
+  void SelectInt128Cvt(Operand *&resOpnd, Operand &opnd0, PrimType fromType, PrimType toType);
+  RegOperand *SelectShiftInt128(Operand &opnd0, Operand &opnd1, ShiftDirection direct);
+  void SelectShiftInt128Imm(Operand &resOpnd, Operand &opnd0, Operand &opnd1, ShiftDirection direct);
+  void SelectShlInt128(Operand &resOpnd, Operand &origOpnd0, Operand &shiftVal);
+  void SelectShrInt128(Operand &resOpnd, Operand &origOpnd0, Operand &shiftVal, bool isAShr);
+  RegOperand *SelectAddInt128(Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1, PrimType opnd1Ty);
+  RegOperand *SelectSubInt128(Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1, PrimType opnd1Ty);
+  RegOperand *SelectMpyInt128(Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1, PrimType opnd1Ty);
+  RegOperand *SelectBnotInt128(Operand &origOpnd);
+  RegOperand *SelectNegInt128(Operand &origOpnd);
+  void SelectInt128CompNeq(Operand &result, Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1, PrimType opnd1Ty);
+  void SelectInt128CompLt(Operand &result, Operand &origOpnd0, PrimType opnd0Ty, Operand &origOpnd1, PrimType opnd1Ty,
+                          bool signedCond);
+  void SelectCondGotoInt128(LabelOperand &label, Opcode jmpOp, Opcode cmpOp, Operand &opnd0, Operand &opnd1,
+                            bool signedCond);
+  void SelectInt128Compare(Operand &resOpnd, Operand &lhs, PrimType lhsTy, Operand &rhs, PrimType rhsTy, Opcode opcode,
+                           bool isSigned);
+  void SelectParmListForInt128(Operand &opnd, ListOperand &srcOpnds, const CCLocInfo &ploc);
+  RegOperand *SelectExtractbitsInt128(uint8 bitOffset, uint8 bitSize, Operand &srcOpnd, Opcode extOp);
+  RegOperand *SelectDepositBitsInt128(uint8 offset, uint8 size, Operand &opnd0, Operand &opnd1);
   ImmOperand &CreateImmOperand(PrimType ptyp, int64 val) override {
     if (ptyp == PTY_f32 || ptyp == PTY_f64) {
       ASSERT(val == 0, "val must be 0!");
@@ -560,6 +599,13 @@ class AArch64CGFunc : public CGFunc {
 
   const MapleVector<AArch64reg> &GetCalleeSavedRegs() const {
     return calleeSavedRegs;
+  }
+
+  bool IsUsedCalleeSavedReg(AArch64reg reg) {
+    if (std::find(calleeSavedRegs.begin(), calleeSavedRegs.end(), reg) != calleeSavedRegs.end()) {
+      return true;
+    }
+    return false;
   }
 
   Insn *GetYieldPointInsn() {
@@ -899,6 +945,10 @@ class AArch64CGFunc : public CGFunc {
                               PrimType primType);
   MOperator SelectRelationMop(RelationOperator operatorCode, RelationOperatorOpndPattern opndPattern, bool is64Bits,
                               bool isBitmaskImmediate, bool isBitNumLessThan16) const;
+  Operand *SelectRelationOperatorInt128(RelationOperator operatorCode, Operand &origOpnd0, PrimType oty0,
+                                        Operand &origOpnd1, PrimType oty1);
+  void SelectRelationShiftOperator(RelationOperator operatorCode, Operand &resOpnd, Operand &opnd0, Operand &opnd1,
+                                   BitShiftOperand &shiftOp, PrimType primType);
   Operand *SelectMinOrMax(bool isMin, const BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent);
   Operand *SelectRoundLibCall(RoundType roundType, const TypeCvtNode &node, Operand &opnd0);
   Operand *SelectRoundOperator(RoundType roundType, const TypeCvtNode &node, Operand &opnd0, const BaseNode &parent);

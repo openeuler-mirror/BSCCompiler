@@ -116,6 +116,11 @@ class PhaseTimeHandler {
   void RunBeforePhase(const MaplePhaseInfo &pi);
   void RunAfterPhase(const MaplePhaseInfo &pi);
   void DumpPhasesTime();
+  void Clear() {
+    multiTimers.clear();
+    originOrder.clear();
+    phaseTimeRecord.clear();
+  }
  private:
   MapleAllocator allocator;
   MapleMap<std::string, long> phaseTimeRecord;
@@ -124,6 +129,7 @@ class PhaseTimeHandler {
   MPLTimer timer;
   bool isMultithread = false;
   MapleMap<std::thread::id, MPLTimer*> multiTimers;
+  uint32 depth = 0;   // Nested timer is invalid, make sure only the outermost timer is valid.
 };
 
 // usasge :: analysis dependency

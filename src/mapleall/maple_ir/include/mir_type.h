@@ -43,7 +43,6 @@ struct OffsetPair {
 };
 using FieldOffsetVector = std::vector<OffsetPair>;
 constexpr size_t kMaxArrayDim = 20;
-const std::string kJstrTypeName = "constStr";
 constexpr uint32 kInvalidFieldNum = UINT32_MAX;
 constexpr size_t kInvalidSize = UINT64_MAX;
 #if MIR_FEATURE_FULL
@@ -428,7 +427,7 @@ class TypeAttrs {
   bool IsPacked() const {
     return GetAttr(ATTR_packed);
   }
-  
+
   bool HasPack() const {
     return GetAttr(ATTR_pack);
   }
@@ -472,11 +471,11 @@ class FieldAttrs {
   }
 
   void SetAttr(FieldAttrKind x) {
-    attrFlag |= (1u << static_cast<unsigned int>(x));
+    attrFlag |= (1U << static_cast<uint32>(x));
   }
 
   bool GetAttr(FieldAttrKind x) const {
-    return (attrFlag & (1u << static_cast<unsigned int>(x))) != 0;
+    return (attrFlag & (1U << static_cast<uint32>(x))) != 0;
   }
 
   void SetAlign(uint32 x) {
@@ -832,6 +831,10 @@ class MIRType {
   }
 
   virtual uint32 GetAlign() const {
+    return GetPrimTypeSize(primType);
+  }
+
+  virtual uint32 GetUnadjustedAlign() const {
     return GetPrimTypeSize(primType);
   }
 
@@ -1439,6 +1442,7 @@ class MIRStructType : public MIRType {
 
   size_t GetSize() const override;
   uint32 GetAlign() const override;
+  uint32 GetUnadjustedAlign() const override;
 
   size_t GetHashIndex() const override {
     constexpr uint8 attrShift = 3;
@@ -1551,17 +1555,25 @@ class MIRStructType : public MIRType {
   void SetAlias(MIRAlias *mirAlias) {
     alias = mirAlias;
   }
-  MIRAlias *GetAlias() const {
+
+  const MIRAlias *GetAlias() const {
+    return alias;
+  }
+
+  MIRAlias *GetAlias() {
     return alias;
   }
 
   bool HasZeroWidthBitField() const;
-  void AddFieldLayout(OffsetPair pair) {
+  void AddFieldLayout(const OffsetPair &pair) {
     fieldLayout.push_back(pair);
   }
-  std::vector<OffsetPair> GetFieldLayout() {
+  std::vector<OffsetPair> GetFieldLayout() const {
     return fieldLayout;
   }
+
+  uint32 GetFieldTypeAlignByFieldPair(const FieldPair &fieldPair);
+  uint32 GetFieldTypeAlign(FieldID fieldID);
 
  protected:
   FieldVector fields{};

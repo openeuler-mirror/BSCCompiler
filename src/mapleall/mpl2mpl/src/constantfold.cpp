@@ -262,22 +262,7 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::DispatchFold(BaseNode 
     case OP_iread:
       return FoldIread(static_cast<IreadNode*>(node));
     case OP_add:
-    case OP_ashr:
-    case OP_band:
-    case OP_bior:
-    case OP_bxor:
-    case OP_cand:
-    case OP_cior:
-    case OP_div:
-    case OP_land:
-    case OP_lior:
-    case OP_lshr:
-    case OP_max:
-    case OP_min:
-    case OP_mul:
-    case OP_rem:
-    case OP_shl:
-    case OP_sub:
+    OP_CASE_GROUP:
       return FoldBinary(static_cast<BinaryNode*>(node));
     case OP_eq:
     case OP_ne:
@@ -822,7 +807,8 @@ MIRIntConst *ConstantFold::FoldIntConstUnaryMIRConst(Opcode opcode, PrimType res
       break;
     }
     case OP_lnot: {
-      result = { result == 0, resultType };
+      uint64 resultInt = result == 0 ? 1 : 0;
+      result = {resultInt, resultType};
       break;
     }
     case OP_neg: {
@@ -1262,6 +1248,11 @@ MIRConst *ConstantFold::FoldTypeCvtMIRConst(const MIRConst &cst, PrimType fromTy
     // do not fold
     return nullptr;
   }
+  if (fromType == PTY_f128 || toType == PTY_f128) {
+    // folding while Cvt float128 is not supported yet
+    return nullptr;
+  }
+
   if (IsPrimitiveInteger(fromType) && IsPrimitiveInteger(toType)) {
     MIRConst *toConst = nullptr;
     uint32 fromSize = GetPrimTypeBitSize(fromType);
@@ -2722,8 +2713,26 @@ class ConstIntSet {
 // generate an interval from meExpr
 std::optional<ConstIntSet> GenerateIntSet(const OpMeExpr &meExpr, PrimType type) {
   auto opnd1 = meExpr.GetOpnd(1);
-  auto intVal = static_cast<ConstMeExpr *>(opnd1)->GetIntValue().TruncOrExtend(type);
+  auto c = static_cast<ConstMeExpr *>(opnd1)->GetIntValue();
+  auto intVal = c.TruncOrExtend(type);
+  auto valueType = meExpr.GetOpnd(0)->GetPrimType();
   auto res = std::make_optional<ConstIntSet>();
+  if (type != valueType && intVal.Trunc(valueType).GetZXTValue() != c.GetZXTValue()) {
+    if (meExpr.GetOp() == OP_eq) {
+      res->isEmpty = true;
+      return res;
+    }
+    if (meExpr.GetOp() == OP_ne) {
+      res->isFull = true;
+      return res;
+    }
+    if (IsSignedInteger(valueType) && intVal.GetSignBit()) {
+      intVal.SetMinValue();
+    } else {
+      intVal.SetMaxValue();
+    }
+  }
+
   bool isSigned = intVal.IsSigned();
   uint16 width = intVal.GetBitWidth();
   switch (meExpr.GetOp()) {
@@ -2791,6 +2800,10 @@ std::optional<ConstIntSet> Union(ConstIntSet s1, ConstIntSet s2) {
   if (s1.isEmpty || s2.isEmpty) {
     s3 = s1.isEmpty ? s2 : s1;
     return s3;
+  }
+
+  if (s1.lower.IsSigned() != s2.lower.IsSigned()) {
+    return std::nullopt;
   }
 
   if (s2.lower > s2.upper || s1.upper.IsMaxValue()) {
@@ -2932,17 +2945,19 @@ MeExpr *ConstantFold::FoldCmpExpr(IRMap &irMap, const MeExpr &cmp1, const MeExpr
     return nullptr;
   }
   auto value = cmp1.GetOpnd(0);
-  auto type = value->GetPrimType();
-  auto constValType = cmp1.GetOpnd(1)->GetPrimType();
-  if (type != constValType && IsUnsignedInteger(constValType)) {
-    type = constValType;
+  auto type1 = static_cast<const OpMeExpr&>(cmp1).GetOpndType();
+  auto type2 = static_cast<const OpMeExpr&>(cmp2).GetOpndType();
+  if (type1 != type2) {
+    return nullptr;
   }
+  auto type = type1;
+  if (IsUnsignedInteger(value->GetPrimType())) {
+    type = GetUnsignedPrimType(type1);
+  }
+
   auto s1 = GenerateIntSet(static_cast<const OpMeExpr &>(cmp1), type);
   auto s2 = GenerateIntSet(static_cast<const OpMeExpr &>(cmp2), type);
   if (!s1 || !s2) {
-    return nullptr;
-  }
-  if (s1->lower.IsSigned() != s2->lower.IsSigned()) {
     return nullptr;
   }
   // if foldType is AND, we could do union instead of intersection
@@ -2952,6 +2967,9 @@ MeExpr *ConstantFold::FoldCmpExpr(IRMap &irMap, const MeExpr &cmp1, const MeExpr
   }
   auto s3 = Union(*s1, *s2);
   if (!s3) {
+    if (s1->lower.IsSigned() != s2->lower.IsSigned()) {
+      return nullptr;
+    }
     // s3 is not continuous, the size of s1 and s2 must be same
     if (s1->upper - s1->lower != s2->upper - s2->lower) {
       return nullptr;

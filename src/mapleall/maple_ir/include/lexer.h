@@ -62,7 +62,7 @@ class MIRLexer {
     return theInt128Val;
   }
 
-  uint64 GetTheIntVal() const {
+  int64 GetTheIntVal() const {
     return theIntVal;
   }
 

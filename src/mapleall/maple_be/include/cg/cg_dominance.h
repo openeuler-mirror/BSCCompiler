@@ -60,6 +60,7 @@ class DomAnalysis : public DominanceBase {
               BB &commonExitBB)
       : DominanceBase(func, memPool, tmpPool, bbVec, commonEntryBB, commonExitBB),
         postOrderIDVec(bbVec.size() + 1, -1, tmpAllocator.Adapter()),
+        reversePostOrderId(tmpAllocator.Adapter()),
         reversePostOrder(tmpAllocator.Adapter()),
         doms(bbVec.size() + 1, nullptr, domAllocator.Adapter()),
         domFrontier(bbVec.size() + 1, MapleVector<uint32>(domAllocator.Adapter()), domAllocator.Adapter()),
@@ -84,6 +85,16 @@ class DomAnalysis : public DominanceBase {
 
   MapleVector<BB *> &GetReversePostOrder() {
     return reversePostOrder;
+  }
+
+  const MapleVector<uint32> &GetReversePostOrderId() {
+    if (reversePostOrderId.empty()) {
+      reversePostOrderId.resize(bbVec.size() + 1, 0);
+      for (size_t id = 0; id < reversePostOrder.size(); ++id) {
+        reversePostOrderId[reversePostOrder[id]->GetID()] = static_cast<uint32>(id);
+      }
+    }
+    return reversePostOrderId;
   }
 
   MapleVector<uint32> &GetDtPreOrder() {
@@ -145,11 +156,25 @@ class DomAnalysis : public DominanceBase {
     return domChildren.size();
   }
 
+  BB *GetCommonDom(BB &bb1, BB &bb2) {
+    if (&bb1 == &GetCommonEntryBB() || &bb2 == &GetCommonEntryBB()) {
+      return &GetCommonEntryBB();
+    }
+    if (Dominate(bb1, bb2)) {
+      return &bb1;
+    }
+    if (Dominate(bb2, bb1)) {
+      return &bb2;
+    }
+    auto *domBB = GetDom(bb1.GetID());
+    return (domBB != nullptr ? GetCommonDom(*domBB, bb2) : nullptr);
+  }
  private:
   void PostOrderWalk(const BB &bb, int32 &pid, MapleVector<bool> &visitedMap);
   BB *Intersect(BB &bb1, const BB &bb2);
 
   MapleVector<int32> postOrderIDVec;   // index is bb id
+  MapleVector<uint32> reversePostOrderId;  // gives position of each node in reversePostOrder
   MapleVector<BB *> reversePostOrder;  // an ordering of the BB in reverse postorder
   MapleVector<BB *> doms;              // index is bb id; immediate dominator for each BB
   MapleVector<MapleVector<uint32>> domFrontier;   // index is bb id

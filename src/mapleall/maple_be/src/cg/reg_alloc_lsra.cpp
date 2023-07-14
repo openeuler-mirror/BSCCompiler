@@ -42,28 +42,6 @@ static uint32 insnNumBeforRA = 0;
 
 #undef LSRA_GRAPH
 
-#ifdef RA_PERF_ANALYSIS
-static long bfsUS = 0;
-static long liveIntervalUS = 0;
-static long holesUS = 0;
-static long lsraUS = 0;
-static long finalizeUS = 0;
-static long totalUS = 0;
-
-extern void printLSRATime() {
-  std::cout << "============================================================\n";
-  std::cout << "               LSRA sub-phase time information              \n";
-  std::cout << "============================================================\n";
-  std::cout << "BFS BB sorting cost: " << bfsUS << "us \n";
-  std::cout << "live interval computing cost: " << liveIntervalUS << "us \n";
-  std::cout << "live range approximation cost: " << holesUS << "us \n";
-  std::cout << "LSRA cost: " << lsraUS << "us \n";
-  std::cout << "finalize cost: " << finalizeUS << "us \n";
-  std::cout << "LSRA total cost: " << totalUS << "us \n";
-  std::cout << "============================================================\n";
-}
-#endif
-
 /*
  * This LSRA implementation is an interpretation of the [Poletto97] paper.
  * BFS BB ordering is used to order the instructions.  The live intervals are vased on
@@ -690,6 +668,7 @@ void LSRALinearScanRegAllocator::BuildIntervalRangesForEachOperand(const Insn &i
 
 /* Support finding holes by searching for ranges where holes exist. */
 void LSRALinearScanRegAllocator::BuildIntervalRanges() {
+  RA_TIMER_REGISTER(lsra, "LSRA BuildIntervalRanges");
   size_t bbIdx = bfs->sortedBBs.size();
   if (bbIdx == 0) {
     return;
@@ -911,6 +890,7 @@ void LSRALinearScanRegAllocator::ComputeLiveIntervalForEachOperand(Insn &insn) {
 }
 
 void LSRALinearScanRegAllocator::ComputeLiveInterval() {
+  RA_TIMER_REGISTER(lsra, "LSRA ComputeLiveInterval");
   calleeUseCnt.resize(regInfo->GetAllRegNum());
   liveIntervalsArray.resize(cgFunc->GetMaxVReg());
   /* LiveInterval queue for each param/return register */
@@ -1889,6 +1869,7 @@ void LSRALinearScanRegAllocator::FindLowestPrioInActive(LiveInterval *&targetLi,
 
 /* Calculate the weight of a live interval for pre-spill and flexible spill */
 void LSRALinearScanRegAllocator::LiveIntervalAnalysis() {
+  RA_TIMER_REGISTER(lsra, "LSRA LiveIntervalAnalysis");
   for (uint32 bbIdx = 0; bbIdx < bfs->sortedBBs.size(); ++bbIdx) {
     BB *bb = bfs->sortedBBs[bbIdx];
 
@@ -2187,6 +2168,7 @@ void LSRALinearScanRegAllocator::CheckSpillCallee() {
 
 /* Iterate through all instructions and change the vreg to preg. */
 void LSRALinearScanRegAllocator::FinalizeRegisters() {
+  RA_TIMER_REGISTER(lsra, "LSRA FinalizeRegisters");
   CheckSpillCallee();
   for (BB *bb : bfs->sortedBBs) {
     intBBDefMask = 0;
@@ -2302,6 +2284,7 @@ void LSRALinearScanRegAllocator::SetAllocMode() {
 }
 
 void LSRALinearScanRegAllocator::LinearScanRegAllocator() {
+  RA_TIMER_REGISTER(lsra, "LSRA LinearScanRegAllocator");
   if (LSRA_DUMP) {
     PrintParamQueue("Initial param queue");
     PrintCallQueue("Initial call queue");
@@ -2357,19 +2340,13 @@ void LSRALinearScanRegAllocator::LinearScanRegAllocator() {
 bool LSRALinearScanRegAllocator::AllocateRegisters() {
   cgFunc->SetIsAfterRegAlloc();
   SetAllocMode();
-#ifdef RA_PERF_ANALYSIS
-  auto begin = std::chrono::system_clock::now();
-#endif
   if (LSRA_DUMP) {
     const MIRModule &mirModule = cgFunc->GetMirModule();
     DotGenerator::GenerateDot("RA", *cgFunc, mirModule);
     DotGenerator::GenerateDot("RAe", *cgFunc, mirModule, true);
     LogInfo::MapleLogger() << "Entering LinearScanRegAllocator\n";
   }
-/* ================= ComputeBlockOrder =============== */
-#ifdef RA_PERF_ANALYSIS
-  auto start = std::chrono::system_clock::now();
-#endif
+
   /*
    * The basic blocks are sorted into a linear order for allocation.
    * initialize block ordering
@@ -2380,59 +2357,22 @@ bool LSRALinearScanRegAllocator::AllocateRegisters() {
   Bfs localBfs(*cgFunc, *memPool);
   bfs = &localBfs;
   bfs->ComputeBlockOrder();
-#ifdef RA_PERF_ANALYSIS
-  auto end = std::chrono::system_clock::now();
-  bfsUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
 
-/* ================= LiveInterval =============== */
-#ifdef RA_PERF_ANALYSIS
-  start = std::chrono::system_clock::now();
-#endif
   ComputeLiveInterval();
-
 #ifdef LSRA_GRAPH
   PrintLiveRanges();
 #endif
 
   LiveIntervalAnalysis();
-#ifdef RA_PERF_ANALYSIS
-  end = std::chrono::system_clock::now();
-  liveIntervalUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
 
-/* ================= LiveRange =============== */
-#ifdef RA_PERF_ANALYSIS
-  start = std::chrono::system_clock::now();
-#endif
   /* using live interval + holes to approximate live ranges */
   BuildIntervalRanges();
-#ifdef RA_PERF_ANALYSIS
-  end = std::chrono::system_clock::now();
-  holesUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
-/* ================= InitFreeRegPool =============== */
+
   InitFreeRegPool();
 
-/* ================= LinearScanRegAllocator =============== */
-#ifdef RA_PERF_ANALYSIS
-  start = std::chrono::system_clock::now();
-#endif
   LinearScanRegAllocator();
-#ifdef RA_PERF_ANALYSIS
-  end = std::chrono::system_clock::now();
-  lsraUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
 
-#ifdef RA_PERF_ANALYSIS
-  start = std::chrono::system_clock::now();
-#endif
   FinalizeRegisters();
-#ifdef RA_PERF_ANALYSIS
-  end = std::chrono::system_clock::now();
-  finalizeUS += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-#endif
-
   if (LSRA_DUMP) {
     LogInfo::MapleLogger() << "Total " << spillCount << " spillCount in " << cgFunc->GetName() << " \n";
     LogInfo::MapleLogger() << "Total " << reloadCount << " reloadCount\n";
@@ -2447,12 +2387,6 @@ bool LSRALinearScanRegAllocator::AllocateRegisters() {
   }
 
   bfs = nullptr; /* bfs is not utilized outside the function. */
-
-#ifdef RA_PERF_ANALYSIS
-  end = std::chrono::system_clock::now();
-  totalUS += std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
-#endif
-
   return true;
 }
 

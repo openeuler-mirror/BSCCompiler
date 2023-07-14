@@ -21,10 +21,6 @@
 #endif
 #include "cg.h"
 
-/*
- * This phase implements if-conversion optimization,
- * which tries to convert conditional branches into cset/csel instructions
- */
 namespace maplebe {
 
 void LiveIntervalAnalysis::Run() {

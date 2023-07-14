@@ -102,7 +102,7 @@ class MDLexer {
   MDTokenKind GetFloatConst();
 
  private:
-  static constexpr int maxNumLength = 10;
+  static constexpr int kMaxNumLength = 10;
   std::ifstream *mdFile = nullptr;
   std::ifstream mdFileInternal;
   uint32 lineNumber = 0;                                 /* current Processing Line */

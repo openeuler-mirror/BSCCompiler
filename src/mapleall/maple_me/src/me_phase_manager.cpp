@@ -18,6 +18,7 @@
 #include "lower.h"
 #include "lmbc_memlayout.h"
 #include "lmbc_lower.h"
+#include "me_combine_expr.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -177,6 +178,7 @@ bool MeFuncPM::PhaseRun(maple::MIRModule &m) {
     binMplt.Export(filestem + ".lmbc", nullptr);
   }
   if (MeFuncPM::timePhases) {
+    LogInfo::MapleLogger() << "==================  MeFuncPM  ==================";
     DumpPhaseTime();
   }
   return changed;
@@ -288,4 +290,5 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEABCOpt, abcopt)
 MAPLE_TRANSFORM_PHASE_REGISTER(MEEmit, meemit)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(ProfileGenEmit, profgenEmit)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESimplifyExpr, simplifyexpr);
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MECombineExpr, combineexpr);
 }  // namespace maple

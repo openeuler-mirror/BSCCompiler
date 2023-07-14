@@ -307,7 +307,7 @@ void AArch64MemLayout::LayoutFormalParams() {
 // ||----------------------------|
 // | args to pass through stack |
 // ||----------------------------|
-static const uint64 localAreaSizeThreshold = 0;
+static const uint64 kLocalAreaSizeThreshold = 0;
 void AArch64MemLayout::LayoutLocalsInSize(const MIRSymbol &mirSym) {
   TyIdx tyIdx = mirSym.GetTyIdx();
   SymbolAlloc *symLoc = symAllocTable[mirSym.GetStIndex()];
@@ -315,7 +315,7 @@ void AArch64MemLayout::LayoutLocalsInSize(const MIRSymbol &mirSym) {
   uint32 align = ty->GetAlign();
   uint32 tSize = 0;
   MemSegment *currentSeg = &segLocals;
-  if (segLocals.GetSize() < localAreaSizeThreshold) {
+  if (segLocals.GetSize() < kLocalAreaSizeThreshold) {
     symLoc->SetMemSegment(segLocals);
   } else {
     symLoc->SetMemSegment(segCold);

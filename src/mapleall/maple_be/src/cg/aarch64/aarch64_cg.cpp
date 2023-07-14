@@ -15,6 +15,7 @@
 #include "aarch64_cg.h"
 #include "aarch64_mop_split.h"
 #include "aarch64_mop_valid.h"
+#include "aarch64_mop_register_limit.h"
 #include "mir_builder.h"
 #include "becommon.h"
 #include "label_creation.h"

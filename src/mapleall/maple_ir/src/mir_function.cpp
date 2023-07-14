@@ -21,6 +21,7 @@
 #include "ipa_side_effect.h"
 #include "inline_summary.h"
 #include "driver_options.h"
+#include "mem_reference_table.h"
 
 namespace {
 using namespace maple;
@@ -43,9 +44,7 @@ const MIRSymbol *MIRFunction::GetFuncSymbol() const {
   return GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolTableIdx.Idx());
 }
 MIRSymbol *MIRFunction::GetFuncSymbol() {
-  const MIRFunction *mirFunc = const_cast<const MIRFunction*>(this);
-  ASSERT(mirFunc != nullptr, "null ptr check");
-  return const_cast<MIRSymbol*>(mirFunc->GetFuncSymbol());
+  return GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolTableIdx.Idx());
 }
 
 const std::string &MIRFunction::GetName() const {
@@ -85,7 +84,7 @@ const MIRType *MIRFunction::GetReturnType() const {
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
 }
 MIRType *MIRFunction::GetReturnType() {
-  return const_cast<MIRType*>(const_cast<const MIRFunction*>(this)->GetReturnType());
+  return GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
 }
 const MIRType *MIRFunction::GetClassType() const {
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(classTyIdx);
@@ -96,7 +95,7 @@ const MIRType *MIRFunction::GetNthParamType(size_t i) const {
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetParamTypeList()[i]);
 }
 MIRType *MIRFunction::GetNthParamType(size_t i) {
-  return const_cast<MIRType*>(const_cast<const MIRFunction*>(this)->GetNthParamType(i));
+  return GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetParamTypeList()[i]);
 }
 
 // reconstruct formals, and return a new MIRFuncType
@@ -382,9 +381,9 @@ void MIRFunction::Dump(bool withoutBody) {
     StmtNode::lastPrintedLineNum = 0;
     StmtNode::lastPrintedColumnNum = 0;
     ResetInfoPrinted();  // this ensures funcinfo will be printed
-    GetBody()->Dump(0, module->GetFlavor() == kMmpl ? nullptr : GetSymTab(),
-                    module->GetFlavor() < kMmpl ? GetPregTab() : nullptr, false,
-                    true, module->GetFlavor());  // Dump body
+    GetBody()->DoDump(0, module->GetFlavor() == kMmpl ? nullptr : GetSymTab(),
+                      module->GetFlavor() < kMmpl ? GetPregTab() : nullptr, false,
+                      true, module->GetFlavor());  // Dump body
   } else {
     LogInfo::MapleLogger() << '\n';
   }
@@ -595,11 +594,12 @@ void MIRFunction::SetBaseClassFuncNames(GStrIdx strIdx) {
 }
 
 const MIRSymbol *MIRFunction::GetLocalOrGlobalSymbol(const StIdx &idx, bool checkFirst) const {
-  return idx.Islocal() ? GetSymbolTabItem(idx.Idx(), checkFirst)
-                       : GlobalTables::GetGsymTable().GetSymbolFromStidx(idx.Idx(), checkFirst);
+  return idx.Islocal() ?
+      GetSymbolTabItem(idx.Idx(), checkFirst) : GlobalTables::GetGsymTable().GetSymbolFromStidx(idx.Idx(), checkFirst);
 }
 MIRSymbol *MIRFunction::GetLocalOrGlobalSymbol(const StIdx &idx, bool checkFirst) {
-  return const_cast<MIRSymbol*>(const_cast<const MIRFunction*>(this)->GetLocalOrGlobalSymbol(idx, checkFirst));
+  return idx.Islocal() ?
+      GetSymbolTabItem(idx.Idx(), checkFirst) : GlobalTables::GetGsymTable().GetSymbolFromStidx(idx.Idx(), checkFirst);
 }
 
 const MIRType *MIRFunction::GetNodeType(const BaseNode &node) const {
@@ -688,6 +688,19 @@ InlineSummary *MIRFunction::GetOrCreateInlineSummary() {
     inlineSummary = inlineSummaryAlloc.New<InlineSummary>(inlineSummaryAlloc, this);
   }
   return GetInlineSummary();
+}
+
+void MIRFunction::CreateMemReferenceTable() {
+  auto &memReferenceTableAllocator = module->GetMemReferenceTableAllocator();
+  CHECK_FATAL(memReferenceTableAllocator.GetMemPool() != nullptr, "memReferenceTableAllocator has been released?");
+  memReferenceTable = memReferenceTableAllocator.New<MemReferenceTable>(memReferenceTableAllocator, *this);
+}
+
+MemReferenceTable *MIRFunction::GetOrCreateMemReferenceTable() {
+  if (memReferenceTable == nullptr) {
+    CreateMemReferenceTable();
+  }
+  return GetMemReferenceTable();
 }
 
 void MIRFunction::NewBody() {

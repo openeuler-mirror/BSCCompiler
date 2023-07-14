@@ -315,7 +315,7 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
     retStmt->SetSrcLoc(endLoc);
     stmts.emplace_back(std::move(retStmt));
   }
-  InsertBoundaryCheckingInRet(stmts);
+  SaveReturnBoundarySizeInHeadFunc(stmts);
   return stmts;
 }
 

@@ -18,7 +18,7 @@ namespace maplebe {
 void RedundantComputeElim::Dump(const Insn *insn1, const Insn *insn2) const {
   CHECK_FATAL(insn1 && insn2, "dump insn is null");
   LogInfo::MapleLogger() << ">>>>>> SameRHSInsnPair in BB(" <<
-      insn1->GetBB()->GetId() << ") at {" << g_count << "} <<<<<<\n";
+      insn1->GetBB()->GetId() << ") at {" << kGcount << "} <<<<<<\n";
   insn1->Dump();
   insn2->Dump();
 }

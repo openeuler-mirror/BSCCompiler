@@ -45,14 +45,15 @@ struct BoundaryInfo {
 
 class ASTDecl {
  public:
-  ASTDecl(const MapleString &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn)
-      : isGlobalDecl(false), srcFileName(srcFile), name(nameIn), typeDesc(typeDescIn) {}
+  ASTDecl(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &nameIn, const
+          MapleVector<MIRType*> &typeDescIn)
+      : isGlobalDecl(false), srcFileName(srcFile), name(nameIn), typeDesc(typeDescIn), genAttrs(allocatorIn) {}
   virtual ~ASTDecl() = default;
   const std::string GetSrcFileName() const;
   const std::string GetName() const;
   const MapleVector<MIRType*> &GetTypeDesc() const;
   void SetTypeDesc(const MapleVector<MIRType*> &typeVecIn);
-  GenericAttrs GetGenericAttrs() const {
+  MapleGenericAttrs GetGenericAttrs() const {
     return genAttrs;
   }
 
@@ -197,7 +198,7 @@ class ASTDecl {
 
   MapleString name;
   MapleVector<MIRType*> typeDesc;
-  GenericAttrs genAttrs;
+  MapleGenericAttrs genAttrs;
   Loc loc = { 0, 0, 0 };
   uint32 isMacroID = false;
   DeclKind declKind = kASTDecl;
@@ -211,9 +212,9 @@ class ASTDecl {
 
 class ASTField : public ASTDecl {
  public:
-  ASTField(const MapleString &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
-           const GenericAttrs &genAttrsIn, bool isAnonymous = false)
-      : ASTDecl(srcFile, nameIn, typeDescIn), isAnonymousField(isAnonymous) {
+  ASTField(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &nameIn,
+           const MapleVector<MIRType*> &typeDescIn, const MapleGenericAttrs &genAttrsIn, bool isAnonymous = false)
+      : ASTDecl(allocatorIn, srcFile, nameIn, typeDescIn), isAnonymousField(isAnonymous) {
     genAttrs = genAttrsIn;
     declKind = kASTField;
   }
@@ -228,10 +229,13 @@ class ASTField : public ASTDecl {
 
 class ASTFunc : public ASTDecl {
  public:
-  ASTFunc(const MapleString &srcFile, const MapleString &originalNameIn, const MapleString &nameIn,
-          const MapleVector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn,
+  ASTFunc(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &originalNameIn,
+          const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn, const MapleGenericAttrs &genAttrsIn,
           const MapleVector<ASTDecl*> &paramDeclsIn, int64 funcId)
-      : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), paramDecls(paramDeclsIn), funcId(funcId),
+      : ASTDecl(allocatorIn, srcFile, nameIn, typeDescIn),
+        compound(nullptr),
+        paramDecls(paramDeclsIn),
+        funcId(funcId),
         originalName(originalNameIn) {
     genAttrs = genAttrsIn;
     declKind = kASTFunc;
@@ -248,7 +252,7 @@ class ASTFunc : public ASTDecl {
   std::vector<std::unique_ptr<FEIRVar>> GenArgVarList() const;
   std::list<UniqueFEIRStmt> EmitASTStmtToFEIR() const;
   std::list<UniqueFEIRStmt> InitArgsBoundaryVar(MIRFunction &mirFunc) const;
-  void InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) const;
+  void SaveReturnBoundarySizeInHeadFunc(std::list<UniqueFEIRStmt> &stmts) const;
 
   void SetWeakrefAttr(const std::pair<bool, std::string> &attr) {
     weakrefAttr = attr;
@@ -285,8 +289,8 @@ class ASTFunc : public ASTDecl {
 class ASTStruct : public ASTDecl {
  public:
   ASTStruct(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &nameIn,
-            const MapleVector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn),
+            const MapleVector<MIRType*> &typeDescIn, const MapleGenericAttrs &genAttrsIn)
+      : ASTDecl(allocatorIn, srcFile, nameIn, typeDescIn),
         isUnion(false), fields(allocatorIn.Adapter()), methods(allocatorIn.Adapter()) {
     genAttrs = genAttrsIn;
     declKind = kASTStruct;
@@ -330,9 +334,9 @@ class ASTStruct : public ASTDecl {
 
 class ASTVar : public ASTDecl {
  public:
-  ASTVar(const MapleString &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
-         const GenericAttrs &genAttrsIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn) {
+  ASTVar(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &nameIn,
+         const MapleVector<MIRType*> &typeDescIn, const MapleGenericAttrs &genAttrsIn)
+      : ASTDecl(allocatorIn, srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
     declKind = kASTVar;
   }
@@ -387,7 +391,8 @@ class ASTVar : public ASTDecl {
 class ASTFileScopeAsm : public ASTDecl {
  public:
   ASTFileScopeAsm(MapleAllocator &allocatorIn, const MapleString &srcFile)
-      : ASTDecl(srcFile, MapleString("", allocatorIn.GetMemPool()), MapleVector<MIRType*>(allocatorIn.Adapter())) {
+      : ASTDecl(allocatorIn, srcFile, MapleString("", allocatorIn.GetMemPool()),
+                MapleVector<MIRType*>(allocatorIn.Adapter())) {
     declKind = kASTFileScopeAsm;
   }
   ~ASTFileScopeAsm() override = default;
@@ -406,9 +411,9 @@ class ASTFileScopeAsm : public ASTDecl {
 
 class ASTEnumConstant : public ASTDecl {
  public:
-  ASTEnumConstant(const MapleString &srcFile, const MapleString &nameIn, const MapleVector<MIRType*> &typeDescIn,
-                  const GenericAttrs &genAttrsIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn) {
+  ASTEnumConstant(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &nameIn,
+                  const MapleVector<MIRType*> &typeDescIn, const MapleGenericAttrs &genAttrsIn)
+      : ASTDecl(allocatorIn, srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
     declKind = kASTEnumConstant;
   }
@@ -425,8 +430,8 @@ class ASTEnumConstant : public ASTDecl {
 class ASTEnumDecl : public ASTDecl {
  public:
   ASTEnumDecl(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &nameIn,
-              const MapleVector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn), consts(allocatorIn.Adapter()) {
+              const MapleVector<MIRType*> &typeDescIn, const MapleGenericAttrs &genAttrsIn)
+      : ASTDecl(allocatorIn, srcFile, nameIn, typeDescIn), consts(allocatorIn.Adapter()) {
     genAttrs = genAttrsIn;
     declKind = kASTEnumDecl;
   }
@@ -448,9 +453,9 @@ class ASTEnumDecl : public ASTDecl {
 
 class ASTTypedefDecl : public ASTDecl {
  public:
-  ASTTypedefDecl(const MapleString &srcFile, const MapleString &nameIn,
-                 const MapleVector<MIRType*> &typeDescIn, const GenericAttrs &genAttrsIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn) {
+  ASTTypedefDecl(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &nameIn,
+                 const MapleVector<MIRType*> &typeDescIn, const MapleGenericAttrs &genAttrsIn)
+      : ASTDecl(allocatorIn, srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
     declKind = kASTTypedefDecl;
   }

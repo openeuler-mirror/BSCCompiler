@@ -49,7 +49,7 @@ template <unsigned bitVectorSize = 64> struct MapleSparseBitVectorElement {
   }
 
   bool Test(unsigned idx) const {
-    return bitVector[idx / kBitWordSize] & (1ULL << (idx % kBitWordSize));
+    return ((bitVector[idx / kBitWordSize] & (1ULL << (idx % kBitWordSize))) != 0);
   }
 
   bool Empty() const {

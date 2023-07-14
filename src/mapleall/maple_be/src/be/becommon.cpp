@@ -541,14 +541,14 @@ void BECommon::GenObjSize(const MIRClassType &classType, FILE &outFile) const {
 
   TyIdx parentTypeIdx = classType.GetParentTyIdx();
   MIRType *parentType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(parentTypeIdx);
-  const char *parentName = nullptr;
+  std::string parentName;
   if (parentType != nullptr) {
     MIRClassType *parentClass = static_cast<MIRClassType*>(parentType);
-    parentName = parentClass->GetName().c_str();
+    parentName = parentClass->GetName();
   } else {
     parentName = "THIS_IS_ROOT";
   }
-  fprintf(&outFile, "__MRT_CLASS(%s, %" PRIu64 ", %s)\n", className.c_str(), objSize, parentName);
+  fprintf(&outFile, "__MRT_CLASS(%s, %" PRIu64 ", %s)\n", className.c_str(), objSize, parentName.c_str());
 }
 
 // compute the offset of the field given by fieldID within the java class

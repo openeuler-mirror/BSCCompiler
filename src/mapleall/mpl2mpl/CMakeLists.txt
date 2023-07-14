@@ -44,7 +44,7 @@ set(src_libmpl2mpl
     src/vtable_impl.cpp
     src/class_hierarchy.cpp
     src/class_hierarchy_phase.cpp
-    src/expand128floats.cpp
+    src/legalize_numeric_types.cpp
     src/constantfold.cpp
     src/ext_constantfold.cpp
     src/coderelayout.cpp

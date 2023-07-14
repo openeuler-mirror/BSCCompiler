@@ -189,8 +189,7 @@ void ReflectionAnalysis::GenFieldTypeClassInfo(const MIRType &type, const Klass 
         classInfo = CLASSINFO_PREFIX_STR + classTypeSecond->GetName();
         isClass = true;
       } else {
-        CHECK_FATAL(false, "In class %s: field %s 's type is UNKNOWN", klass.GetKlassName().c_str(),
-                    fieldName.c_str());
+        CHECK_FATAL(false, "In class %s: field %s 's type is UNKNOWN", klass.GetKlassName().c_str(), fieldName.c_str());
       }
       break;
     }
@@ -1066,7 +1065,8 @@ MIRSymbol *ReflectionAnalysis::GenMethodsMetaData(const Klass &klass, bool isHot
     methodinfoVec.push_back(std::make_pair(&methodPair, -1));
   }
 
-  std::unordered_map<uint32, std::string> baseNameMp, fullNameMp;
+  std::unordered_map<uint32, std::string> baseNameMp;
+  std::unordered_map<uint32, std::string> fullNameMp;
   GenAllMethodHash(methodinfoVec, baseNameMp, fullNameMp);
   // Sort constVec by hashcode.
   HashCodeComparator comparator(baseNameMp, fullNameMp);

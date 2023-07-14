@@ -102,6 +102,7 @@ bool IsUseSafeOption() {
 static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
                                      const Action &action, const MplOptions &options) {
   uint32_t additionalLen = 1; // for -o option
+  uint32_t index = 0;
 
   auto &triple = Triple::GetTriple();
   if (triple.GetArch() != Triple::ArchType::kAarch64 ||
@@ -116,38 +117,44 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   if (opts::passO2ToClang.IsEnabledByUser()) {
     additionalLen += 1;
   }
+  if (opts::oMD.IsEnabledByUser() && (opts::compileWOLink.IsEnabledByUser() || opts::onlyCompile.IsEnabledByUser())) {
+    additionalLen += 1;
+  }
   opt = std::make_unique<MplOption[]>(additionalLen);
 
-  opt[0].SetKey("-target");
-  opt[0].SetValue(triple.Str());
-  opt[1].SetKey("-isystem");
-  opt[1].SetValue(GetFormatClangPath(options) + "lib/libc_enhanced/include");
-  opt[2].SetKey("-isystem");
-  opt[2].SetValue(GetFormatClangPath(options) + "lib/include");
-  opt[3].SetKey("-U");
-  opt[3].SetValue("__SIZEOF_INT128__");
+  auto setMplOption = [&opt](const std::string &key, const std::string &value, uint32_t index) {
+    opt[index].SetKey(key);
+    opt[index].SetValue(value);
+  };
+
+  setMplOption("-target", triple.Str(), index++);
+  setMplOption("-isystem", GetFormatClangPath(options) + "lib/libc_enhanced/include", index++);
+  setMplOption("-isystem", GetFormatClangPath(options) + "lib/include", index++);
+  setMplOption("-U", "__SIZEOF_INT128__", index++);
   if (IsUseSafeOption()) {
-    opt[4].SetKey("-DC_ENHANCED");
-    opt[4].SetValue("");
+    setMplOption("-DC_ENHANCED", "", index++);
   }
   if (opts::passO2ToClang.IsEnabledByUser() && opts::o2.IsEnabledByUser()) {
-    opt[additionalLen - 3].SetKey("-O2");
-    opt[additionalLen - 3].SetValue("");
+    setMplOption("-O2", "", index++);
   }
 
+  if (opts::oMD.IsEnabledByUser() && (opts::compileWOLink.IsEnabledByUser() || opts::onlyCompile.IsEnabledByUser())) {
+    if (opts::onlyCompile.IsEnabledByUser()) {
+      setMplOption("-S", "", index++);
+    } else {
+      setMplOption("-c", "", index++);
+    }
+  }
   /* Set last option as -o option */
   if (action.GetInputFileType() != InputFileType::kFileTypeH && !opts::onlyPreprocess.IsEnabledByUser() &&
       !opts::oM.IsEnabledByUser() && !opts::oMM.IsEnabledByUser() && !opts::oMG.IsEnabledByUser() &&
       !opts::oMQ.IsEnabledByUser()) {
     if (!opts::linkerTimeOpt.IsEnabledByUser() || !opts::compileWOLink.IsEnabledByUser()) {
-      opt[additionalLen - 1].SetKey("-o");
-      opt[additionalLen - 1].SetValue(action.GetFullOutputName() + ".ast");
+      setMplOption("-o", action.GetFullOutputName() + ".ast", index++);
     } else {
-      opt[additionalLen - 1].SetKey("-o");
-      opt[additionalLen - 1].SetValue("./" + action.GetOutputName() + ".o");
+      setMplOption("-o", "./" + action.GetOutputName() + ".o", index++);
     }
-    opt[additionalLen - 2].SetKey("-emit-ast"); // 2 is the array sequence number.
-    opt[additionalLen - 2].SetValue("");
+    setMplOption("-emit-ast", "", index);
   }
 
   return additionalLen;

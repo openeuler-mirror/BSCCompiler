@@ -139,8 +139,21 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
   }
   if (!aarchCGFunc->IsOperandImmValid(insn.GetMachineOpcode(), &immOpnd, index)) {
     if (insn.GetMachineOpcode() == MOP_xaddsrri12 || insn.GetMachineOpcode() == MOP_waddsrri12) {
-      insn.Dump();
-      CHECK_FATAL(false, "NYI, need a better away to process 'adds' ");
+      bool is64bit = insn.GetOperand(kInsnFirstOpnd).GetSize() == k64BitSize;
+      MOperator tempMovOp = is64bit ? MOP_xmovri64 : MOP_wmovri32;
+      MOperator tempAddsOp = is64bit ? MOP_xaddsrrr : MOP_waddsrrr;
+      RegOperand &ccOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+      RegOperand &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+      RegOperand &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      Insn &tempMov = cgFunc->GetInsnBuilder()->BuildInsn(tempMovOp, dstOpnd, immOpnd);
+      Insn &tempAdds = cgFunc->GetInsnBuilder()->BuildInsn(tempAddsOp, ccOpnd, dstOpnd, srcOpnd, dstOpnd);
+      (void)insn.GetBB()->InsertInsnBefore(insn, tempMov);
+      if (!VERIFY_INSN(&tempMov)) {
+        SPLIT_INSN(&tempMov, cgFunc);
+      }
+      (void)insn.GetBB()->InsertInsnBefore(insn, tempAdds);
+      insn.GetBB()->RemoveInsn(insn);
+      return;
     } else if (insn.GetMachineOpcode() >= MOP_xaddrri24 && insn.GetMachineOpcode() <= MOP_waddrri12) {
       PrimType destTy =
           static_cast<RegOperand &>(insn.GetOperand(kInsnFirstOpnd)).GetSize() == k64BitSize ? PTY_i64 : PTY_i32;
@@ -171,6 +184,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
       insn.GetBB()->RemoveInsn(insn);
       return;
     } else {
+      insn.Dump();
       CHECK_FATAL(false, "NIY");
     }
   }

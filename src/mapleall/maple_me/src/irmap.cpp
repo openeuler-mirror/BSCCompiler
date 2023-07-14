@@ -22,6 +22,7 @@
 #include "mir_builder.h"
 #include "constantfold.h"
 #include "cast_opt.h"
+#include "me_expr_utils.h"
 
 namespace maple {
 void IRMap::UpdateIncDecAttr(MeStmt &meStmt) const {
@@ -1292,7 +1293,7 @@ static MeExpr *SimplifyBandWithConst(IRMap &irMap, const OpMeExpr &bandExpr) {
     auto opExpr = static_cast<OpMeExpr*>(opnd0);
     auto offset = opExpr->GetBitsOffSet();
     auto size = opExpr->GetBitsSize();
-    if (offset == 0 && (1ull << size) > c1.GetZXTValue()) {
+    if (offset == 0UL && (1ULL << size) > c1.GetZXTValue()) {
       return irMap.CreateMeExprBinary(OP_band, bandExpr.GetPrimType(), *opnd0->GetOpnd(0), *opnd1);
     }
   }
@@ -1316,11 +1317,11 @@ static MeExpr *DoBandEliminate(const OpMeExpr &bandExpr) {
   if (expr2->GetMeOp() != kMeOpConst) {
     return nullptr;
   }
-  auto srcType = expr1->GetPrimType();
+  auto srcType = opnd0->GetPrimType();
   auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetIntValue().TruncOrExtend(srcType);
   auto c2 = static_cast<ConstMeExpr *>(expr2)->GetIntValue().TruncOrExtend(srcType);
   auto c3 = ~c1.TruncOrExtend(srcType);
-  if (c2.GetZXTValue() >= GetPrimTypeBitSize(expr1->GetPrimType())) {
+  if (c2.GetZXTValue() >= GetPrimTypeActualBitSize(expr1->GetPrimType())) {
     return nullptr;
   }
   if (opnd0->GetOp() == OP_lshr) {
@@ -1362,6 +1363,11 @@ MeExpr *IRMap::SimplifyBandExpr(const OpMeExpr *bandExpr) {
     return opnd0;
   }
 
+  // should be simplified by const fold
+  if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+    return nullptr;
+  }
+
   if (MeExpr *res = SimplifyBandWithConst(*this, *bandExpr)) {
     return res;
   }
@@ -1371,6 +1377,10 @@ MeExpr *IRMap::SimplifyBandExpr(const OpMeExpr *bandExpr) {
   }
 
   if (MeExpr *res = PullOutZext(*this, *bandExpr)) {
+    return res;
+  }
+
+  if (MeExpr *res = SimplifyMultiUseByDemanded(*this, *bandExpr)) {
     return res;
   }
 
@@ -2087,7 +2097,7 @@ class BitPart {
 
   // the source oprand.
   MeExpr *provider;
-  // provenance[A] = B means that bit A in Provider becomes bit B in the result of expression.
+  // provenance[A] = B means that bit B in Provider becomes bit A in the result of expression.
   std::vector<int8> provenance;
 
   static constexpr int kUnset = -1;
@@ -2223,6 +2233,26 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
     return result;
   }
 
+  if (opcode == OP_intrinsicop) {
+    auto incID = static_cast<NaryMeExpr *>(expr)->GetIntrinsic();
+    if (incID < INTRN_C_rev16_2 || incID > INTRN_C_bswap64) {
+      return result;
+    }
+    auto &res = CollectBitparts(expr->GetOpnd(0), bps, depth + 1);
+    if (!res) {
+      return result;
+    }
+    result = BitPart(res->provider, bitwidth);
+    auto byteWidth = bitwidth / k8BitSize;
+    for (uint32 byteIdx = 0; byteIdx < byteWidth; ++byteIdx) {
+      for (uint32 bitIdx = 0; bitIdx < k8BitSize; ++bitIdx) {
+        result->provenance[byteIdx * k8BitSize + bitIdx] =
+            res->provenance[(bitwidth - (byteIdx + 1) * k8BitSize) + bitIdx];
+      }
+    }
+    return result;
+  }
+
   result = BitPart(expr, bitwidth);
   for (uint8 i = 0; i < bitwidth; ++i) {
     result->provenance[i] = static_cast<int8>(i);
@@ -2232,12 +2262,12 @@ std::optional<BitPart> &CollectBitparts(MeExpr *expr, std::map<MeExpr *, std::op
 
 // check if the bit map of (from -> to) is symmetry about bitwidth
 static bool BitMapIsValidForReverse(uint32 from, uint32 to, uint32 bitwidth) {
-  if (from % 8 != to % 8) {
+  if (from % k8BitSize != to % k8BitSize) {
     return false;
   }
-  from >>= 3;
-  to >>= 3;
-  bitwidth >>= 3;
+  from >>= k3BitSize;
+  to >>= k3BitSize;
+  bitwidth >>= k3BitSize;
   return from == (bitwidth - to - 1);
 }
 
@@ -2478,14 +2508,23 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
   if (opcode != OP_bior) {
     return nullptr;
   }
+  MeExpr *opnd0 = opmeexpr->GetOpnd(0);
+  MeExpr *opnd1 = opmeexpr->GetOpnd(1);
+
+  // should be simplified by const fold
+  if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+    return nullptr;
+  }
 
   if (MeExpr *res = PullOutZext(*this, *opmeexpr)) {
     return res;
   }
 
+  if (MeExpr *res = SimplifyMultiUseByDemanded(*this, *opmeexpr)) {
+    return res;
+  }
+
   auto bitwidth = GetPrimTypeBitSize(opmeexpr->GetPrimType());
-  MeExpr *opnd0 = opmeexpr->GetOpnd(0);
-  MeExpr *opnd1 = opmeexpr->GetOpnd(1);
   Opcode opcode0 = opnd0->GetOp();
   Opcode opcode1 = opnd1->GetOp();
 
@@ -2554,7 +2593,13 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
     demandBitWidth = static_cast<uint32>(bitProvenance.size());
   }
 
+  IntVal demandedBits(IntVal::kAllOnes, demandBitWidth, false);
+
   for (uint8 i = 0; i < demandBitWidth; ++i) {
+    if (bitProvenance[i] == BitPart::kUnset) {
+      demandedBits.ClearBit(i);
+      continue;
+    }
     if (!BitMapIsValidForReverse(i, static_cast<uint8>(bitProvenance[i]), demandBitWidth)) {
       return nullptr;
     }
@@ -2576,6 +2621,10 @@ MeExpr *IRMap::SimplifyOrMeExpr(OpMeExpr *opmeexpr) {
   }
 
   auto provider = res->provider;
+  if (!demandedBits.AreAllBitsOne()) {
+    provider =
+        CreateMeExprBinary(OP_band, demandType, *provider, *CreateIntConstMeExpr(demandedBits.ByteSwap(), demandType));
+  }
   NaryMeExpr revExpr(&irMapAlloc, kInvalidExprID, OP_intrinsicop, demandType, 1, TyIdx(0), intrin, false);
   revExpr.PushOpnd(provider);
   auto result = CreateNaryMeExpr(revExpr);
@@ -2727,12 +2776,21 @@ MeExpr *IRMap::SimplifyXorMeExpr(OpMeExpr *opmeexpr) {
     return nullptr;
   }
 
+  auto opnd0 = opmeexpr->GetOpnd(0);
+  auto opnd1 = opmeexpr->GetOpnd(1);
+  // should be simplified by const fold
+  if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+    return nullptr;
+  }
+
   if (MeExpr *res = PullOutZext(*this, *opmeexpr)) {
     return res;
   }
 
-  auto opnd0 = opmeexpr->GetOpnd(0);
-  auto opnd1 = opmeexpr->GetOpnd(1);
+  if (MeExpr *res = SimplifyMultiUseByDemanded(*this, *opmeexpr)) {
+    return res;
+  }
+
   // (X & C) ^ (Y & C) --> (X ^ Y) & C
   if (opnd0->GetOp() == OP_band && opnd1->GetOp() == OP_band) {
     auto constExpr1 = opnd0->GetOpnd(1);

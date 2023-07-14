@@ -1376,7 +1376,8 @@ GCC01375-g.torture.execute-pr84339
 GCC01376-g.torture.execute-pr84478
 GCC01377-g.torture.execute-pr84521
 GCC01378-g.torture.execute-pr84524
-GCC01379-g.torture.execute-pr84748
+# pr84748 was disabled due to int128 isn't fully supported
+# GCC01379-g.torture.execute-pr84748
 # GCC01380-g.torture.execute-pr85095
 GCC01381-g.torture.execute-pr85156
 # GCC01382-g.torture.execute-pr85169

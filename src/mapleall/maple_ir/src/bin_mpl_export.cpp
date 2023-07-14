@@ -508,7 +508,7 @@ void BinaryMplExport::OutputFieldPair(const FieldPair &fp) {
   OutputStr(fp.first);          // GStrIdx
   OutputType(fp.second.first);  // TyIdx
   FieldAttrs fa = fp.second.second;
-  WriteNum(fa.GetAttrFlag());
+  WriteNum(static_cast<int64>(fa.GetAttrFlag()));
   WriteNum(fa.GetAlignValue());
   if (fa.GetAttr(FLDATTR_static) && fa.GetAttr(FLDATTR_final) &&
       (fa.GetAttr(FLDATTR_public) || fa.GetAttr(FLDATTR_protected))) {
@@ -909,7 +909,9 @@ void BinaryMplExport::WriteSeField() {
             GlobalTables::GetGsymTable().GetSymbolFromStrIdx(GlobalTables::GetStrTable().GetStrIdxFromName(funcStr));
         MIRFunction *func = (funcSymbol != nullptr) ? GetMIRModule().GetMIRBuilder()->GetFunctionFromSymbol(*funcSymbol)
                                                     : nullptr;
-        OutputType(func->GetReturnTyIdx());
+        if (func != nullptr) {
+          OutputType(func->GetReturnTyIdx());
+        }
       }
       ++size;
     }

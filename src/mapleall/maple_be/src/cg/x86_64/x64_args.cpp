@@ -61,12 +61,6 @@ void X64MoveRegArgs::CollectRegisterArgs(std::map<uint32, X64reg> &argsList,
     if (ploc.reg1 == kRinvalid) {
       continue;
     }
-    if (ploc.numFpPureRegs) {
-      uint32 index = i;
-      numFpRegs[index] = ploc.numFpPureRegs;
-      fpSize[index] = ploc.fpSize;
-      continue;
-    }
     pairReg[i] = static_cast<X64reg>(ploc.reg1);
   }
 }

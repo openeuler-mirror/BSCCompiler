@@ -993,14 +993,6 @@ void MePrediction::SavePredictResultIntoCfg() {
       BB &destBB = edge->dest;
       srcBB.SetEdgeFreq(&destBB, edge->frequency);
       // Set branchProb for condgoto stmt
-      if (srcBB.GetKind() == kBBCondGoto && &destBB == srcBB.GetSucc(1)) {
-        auto *lastMeStmt = srcBB.GetLastMe();
-        if (lastMeStmt != nullptr) {
-          Opcode op = lastMeStmt->GetOp();
-          CHECK_FATAL(op == OP_brtrue || op == OP_brfalse, "must be");
-          static_cast<CondGotoMeStmt*>(lastMeStmt)->SetBranchProb(static_cast<int32>(edge->probability));
-        }
-      }
       edge = edge->next;
     }
   }

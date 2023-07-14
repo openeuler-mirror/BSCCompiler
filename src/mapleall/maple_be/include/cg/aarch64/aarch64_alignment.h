@@ -41,22 +41,34 @@ class AArch64AlignAnalysis : public AlignAnalysis {
   }
   ~AArch64AlignAnalysis() override = default;
 
-  void FindLoopHeader() override;
-  void FindJumpTarget() override;
+  void FindLoopHeaderByDefault() override;
+  void FindJumpTargetByDefault() override;
   void ComputeLoopAlign() override;
   void ComputeJumpAlign() override;
   void ComputeCondBranchAlign() override;
+  uint32 ComputeBBAlignNopNum(BB &bb, uint32 addr) const;
+  void FindLoopHeaderByFrequency() override;
+  void FindJumpTargetByFrequency() override;
   bool MarkCondBranchAlign();
   bool MarkShortBranchSplit();
   void AddNopAfterMark();
   void UpdateInsnId();
   uint32 GetAlignRange(uint32 alignedVal, uint32 addr) const;
+  void ComputeInsnAddr();
+  bool MarkForLoop();
+  Insn* FindTargetIsland(BB &bb) const;
+  void AddNopForLoopAfterMark();
+  void AddNopForLoop() override;
+  uint32 GetInlineAsmInsnNum(const Insn &insn) const;
 
   /* filter condition */
   bool IsIncludeCall(BB &bb) override;
   bool IsInSizeRange(BB &bb) override;
   bool HasFallthruEdge(BB &bb) override;
   bool IsInSameAlignedRegion(uint32 addr1, uint32 addr2, uint32 alignedRegionSize) const;
+  uint64 GetFreqThreshold() const;
+  uint64 GetFallThruFreq(const BB &bb) const;
+  uint64 GetBranchFreq(const BB &bb) const;
 
  private:
   AArch64CGFunc *aarFunc = nullptr;

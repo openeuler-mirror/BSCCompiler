@@ -59,6 +59,10 @@ inline constexpr bool IsBranch(Opcode opcode) {
           opcode == OP_igoto);
 }
 
+inline constexpr bool IsShift(Opcode opcode) {
+  return (opcode >= OP_ashr && opcode <= OP_shl);
+}
+
 inline constexpr bool IsLogicalShift(Opcode opcode) {
   return (opcode == OP_lshr || opcode == OP_shl);
 }

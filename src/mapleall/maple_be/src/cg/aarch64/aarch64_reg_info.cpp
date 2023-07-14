@@ -77,7 +77,7 @@ bool AArch64RegInfo::IsCalleeSavedReg(regno_t regno) const {
 }
 bool AArch64RegInfo::IsYieldPointReg(regno_t regno) const {
   /* when yieldpoint is enabled, x19 is reserved. */
-  if (GetCurrFunction()->GetCG()->GenYieldPoint()) {
+  if (CGOptions::GetInstance().GenYieldPoint()) {
     return (static_cast<AArch64reg>(regno) == RYP);
   }
   return false;
@@ -109,7 +109,7 @@ bool AArch64RegInfo::IsUnconcernedReg(const RegOperand &regOpnd) const {
 
 /* r16,r17 are used besides ra. */
 bool AArch64RegInfo::IsReservedReg(regno_t regNO, bool doMultiPass) const {
-  if (!doMultiPass || GetCurrFunction()->GetMirModule().GetSrcLang() != kSrcLangC) {
+  if (!doMultiPass || Globals::GetInstance()->GetTarget()->GetMIRModule()->GetSrcLang() != kSrcLangC) {
     return (regNO == R16) || (regNO == R17);
   } else {
     return (regNO == R16);

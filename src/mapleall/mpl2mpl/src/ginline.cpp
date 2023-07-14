@@ -233,12 +233,12 @@ bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) const {
   if (depth > Options::ginlineMaxDepthIgnoreGrowthLimit) {
     return false;
   }
-  auto *callee = callSiteNode.GetCallInfo()->GetCallee();
+  auto &callee = callSiteNode.GetCallInfo()->GetCallee();
   uint32 thresholdSmallFunc = Options::ginlineSmallFunc;
   uint32 relaxThreshold = 1;
   if (CalleeCanBeRemovedIfInlined(*callSiteNode.GetCallInfo(), *cg)) {
     relaxThreshold = Options::ginlineRelaxSmallFuncCanbeRemoved;
-  } else if (callee->IsInline()) {
+  } else if (callee.IsInline()) {
     constexpr uint32 defaultRelaxForInlineNormalFreq = 2;
     relaxThreshold = callSiteNode.GetCallFreqPercent() >= 1 ?
         Options::ginlineRelaxSmallFuncDecalredInline : defaultRelaxForInlineNormalFreq;
@@ -274,7 +274,7 @@ void GInline::PrepareCallsiteSet() {
   }
 }
 
-void GInline::AfterInlineSuccess(const CallSiteNode &heapNode, const std::vector<CallInfo*> &newCallInfo,
+void GInline::AfterInlineSuccess(CallSiteNode &heapNode, const std::vector<CallInfo*> &newCallInfo,
     bool canBeRemoved, int64 lastSize) {
   ++totalSuccessCnt;
   CallInfo *callsite = heapNode.GetCallInfo();

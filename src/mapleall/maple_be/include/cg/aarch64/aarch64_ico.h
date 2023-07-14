@@ -31,7 +31,7 @@ class AArch64IfConversionOptimizer : public IfConversionOptimizer {
 class AArch64ICOPattern : public ICOPattern {
  public:
   explicit AArch64ICOPattern(CGFunc &func) : ICOPattern(func) {}
-  virtual ~AArch64ICOPattern() = default;
+  ~AArch64ICOPattern() override = default;
  protected:
   ConditionCode Encode(MOperator mOp, bool inverse) const;
   Insn *BuildCmpInsn(const Insn &condBr) const;
@@ -62,7 +62,9 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
     const std::map<Operand*, std::vector<Operand*>> &elseDestSrcMap;
   };
 
-  explicit AArch64ICOIfThenElsePattern(CGFunc &func) : AArch64ICOPattern(func) {}
+  explicit AArch64ICOIfThenElsePattern(CGFunc &func) : AArch64ICOPattern(func) {
+    patternName = "IfthenElsePattern";
+  }
   ~AArch64ICOIfThenElsePattern() override {
     cmpBB = nullptr;
   }
@@ -114,7 +116,9 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
  * */
 class AArch64ICOSameCondPattern : public AArch64ICOPattern {
  public:
-  explicit AArch64ICOSameCondPattern(CGFunc &func) : AArch64ICOPattern(func) {}
+  explicit AArch64ICOSameCondPattern(CGFunc &func) : AArch64ICOPattern(func) {
+    patternName = "SameCondPattern";
+  }
   ~AArch64ICOSameCondPattern() override = default;
   bool Optimize(BB &secondIfBB) override;
  protected:
@@ -137,7 +141,9 @@ class AArch64ICOSameCondPattern : public AArch64ICOPattern {
  * */
 class AArch64ICOMorePredsPattern : public AArch64ICOPattern {
  public:
-  explicit AArch64ICOMorePredsPattern(CGFunc &func) : AArch64ICOPattern(func) {}
+  explicit AArch64ICOMorePredsPattern(CGFunc &func) : AArch64ICOPattern(func) {
+    patternName = "ICOMorePredsPattern";
+  }
   ~AArch64ICOMorePredsPattern() override = default;
   bool Optimize(BB &curBB) override;
  protected:
@@ -176,14 +182,17 @@ class AArch64ICOMorePredsPattern : public AArch64ICOPattern {
 //
 class AArch64ICOCondSetPattern : public AArch64ICOPattern {
  public:
-  explicit AArch64ICOCondSetPattern(CGFunc &func) : AArch64ICOPattern(func) {}
+  explicit AArch64ICOCondSetPattern(CGFunc &func) : AArch64ICOPattern(func) {
+    patternName = "ICOCondSetPattern";
+  }
   ~AArch64ICOCondSetPattern() override = default;
   bool Optimize(BB &curBB) override;
  protected:
-  bool DoOpt(BB &curBB) const;
+  bool DoOpt(BB &curBB);
   bool CheckMovGotoBB(BB &gtBB);
   bool CheckMovFallthruBB(BB &ftBB);
-  Insn *BuildNewInsn(ImmOperand &immOpnd1, ImmOperand &immOpnd2, Insn &bInsn, RegOperand &dest, bool is32Bits) const;
+  Insn *BuildNewInsn(const ImmOperand &immOpnd1, const ImmOperand &immOpnd2, const Insn &bInsn,
+                     RegOperand &dest, bool is32Bits) const;
  private:
   BB *firstMovBB = nullptr;
   BB *secondMovBB = nullptr;

@@ -21,13 +21,13 @@ void AArch64RedundantComputeElim::Run() {
       continue;
     }
     bool opt;
-    g_count = 0;
+    kGcount = 0;
     do {
       /* reset hashSeed and hashSet */
       g_hashSeed = 0;
       candidates.clear();
       opt = DoOpt(bb);
-      ++g_count;
+      ++kGcount;
     } while (opt);
   }
   if (CG_RCE_DUMP) {

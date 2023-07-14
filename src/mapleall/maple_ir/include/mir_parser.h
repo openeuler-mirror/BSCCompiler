@@ -114,6 +114,12 @@ class MIRParser {
   bool ParsePrototypeRemaining(MIRFunction &func, std::vector<TyIdx> &vecTyIdx,
                                std::vector<TypeAttrs> &vecAttrs, bool &varArgs);
 
+  bool GetStIdxForStmtDassignOrDassignoffNode(StIdx &stidx);
+  bool SetRHSExprForStmtDassignOrDassignoffNode(UnaryStmtNode &assignStmt);
+  LabelIdx GetLabIdxForGotoOrBrNode();
+  bool SetDataForIntrinsiccallNode(IntrinsiccallNode &intrnCallNode, bool isAssigned);
+  bool AddLabelForTryOrJsTryNode(LabelIdx &labidx, const GStrIdx &stridx);
+
   // Stmt Parser
   bool ParseStmtDassign(StmtNodePtr &stmt);
   bool ParseStmtDassignoff(StmtNodePtr &stmt);
@@ -182,6 +188,11 @@ class MIRParser {
   bool ParseStmtGosub(StmtNodePtr &stmt);
   bool ParseStmtAsm(StmtNodePtr &stmt);
   bool ParseStmtSafeRegion(StmtNodePtr &stmt);
+
+  bool SetPrimTypeAndStIdxForDreadOrDreadoffNode(BaseNode &dexpr, StIdx &stidx);
+  bool SetBOpndForBinaryOrCompareNode(BinaryNode &addExpr);
+  bool SetPrimTypeAndOffsetForIreadoffOrIreadFPoffNode(BaseNode &iReadOff, bool isIreadoff);
+  bool SetStIdxForAddrofOrAddrofoffNode(BaseNode &aNode, StIdx &stidx);
 
   // Expression Parser
   bool ParseExpression(BaseNodePtr &expr);

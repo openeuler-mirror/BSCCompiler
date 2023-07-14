@@ -138,6 +138,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
     }
     case kBinKindConstAddrofLabel: {
       LabelIdx lidx = ImportLabel(func);
+      CHECK_NULL_FATAL(func);
       PUIdx puIdx = func->GetPuidx();
       MIRLblConst *lblConst = memPool->New<MIRLblConst>(lidx, puIdx, *type);
       (void)func->GetLabelTab()->addrTakenLabels.insert(lidx);

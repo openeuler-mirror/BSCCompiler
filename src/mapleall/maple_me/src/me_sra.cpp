@@ -532,12 +532,17 @@ void SRA::RemoveUnsplittable() {
     }
 
     bool notCopyUse = false;
+    bool notCanon = false;
     size_t useCount = 0;
     for (auto &use : group->uses) {
       auto *fieldTy = static_cast<MIRStructType*>(symbol->GetType())->GetFieldType(use->fid);
       if (IsPrimitiveScalar(fieldTy->GetPrimType())) {
         useCount++;
         continue;
+      }
+      if (!notCanon && fieldTy->GetSize() != k1ByteSize && fieldTy->GetSize() != k2ByteSize &&
+          fieldTy->GetSize() != k4ByteSize && fieldTy->GetSize() != k8ByteSize) {
+        notCanon = true;
       }
       if (use->parent->GetOpCode() != OP_dassign && use->parent->GetOpCode() != OP_iassign) {
         notCopyUse = true;
@@ -555,6 +560,11 @@ void SRA::RemoveUnsplittable() {
       it = groups.erase(it);
       continue;
     }
+    if (symbol->GetType()->GetKind() == kTypeUnion) {
+      symbol->SeUnionReplaceCand(!notCanon && symbol->GetType()->GetSize() <= GetPointerSize());
+      it = groups.erase(it);
+      continue;
+    }
     ++it;
   }
 }
@@ -566,7 +576,7 @@ void SRA::CollectCandidates() {
       continue;
     }
     auto *type = symbol->GetType();
-    if (type->GetKind() != kTypeStruct) {
+    if (type->GetKind() != kTypeStruct  && type->GetKind() != kTypeUnion) {
       continue;
     }
     auto group = std::make_unique<AggGroup>();

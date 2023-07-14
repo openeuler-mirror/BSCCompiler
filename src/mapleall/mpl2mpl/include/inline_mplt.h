@@ -21,6 +21,12 @@
 #include "mir_function.h"
 
 namespace maple {
+struct FuncComparator {
+  bool operator()(const MIRFunction *lhs, const MIRFunction *rhs) const {
+    return lhs->GetPuidx() < rhs->GetPuidx();
+  }
+};
+
 class InlineMplt {
  public:
   explicit InlineMplt(MIRModule &module) : mirModule(module) {}
@@ -43,7 +49,7 @@ class InlineMplt {
   uint32 GetFunctionSize(MIRFunction &mirFunc) const;
 
  private:
-  std::set<MIRFunction*> optimizedFuncs;
+  std::set<MIRFunction*, FuncComparator> optimizedFuncs;
   std::set<TyIdx> optimizedFuncsType;
   std::set<uint32_t> inliningGlobals;
   MIRModule &mirModule;

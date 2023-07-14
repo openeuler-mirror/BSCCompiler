@@ -49,6 +49,10 @@ class MIRAlias {
     aliasVarMap[idx] = vars;
   }
 
+  const MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() const {
+    return aliasVarMap;
+  }
+
   MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
     return aliasVarMap;
   }
@@ -155,10 +159,11 @@ class MIRScope {
     if (blkSrcPos.find(pos) == blkSrcPos.end()) {
       auto point = module->GetMPAllocator().New<MapleMap<SrcPosition, SrcPosition, BlkSrcPosCompare>>(
           module->GetMPAllocator().Adapter());
-      point->emplace(std::pair<SrcPosition, SrcPosition>(posB, posE));
-      blkSrcPos.emplace(std::pair<SrcPosition, MapleMap<SrcPosition, SrcPosition, BlkSrcPosCompare>*>(pos, point));
+      (void)point->emplace(std::pair<SrcPosition, SrcPosition>(posB, posE));
+      (void)blkSrcPos.emplace(
+          std::pair<SrcPosition, MapleMap<SrcPosition, SrcPosition, BlkSrcPosCompare>*>(pos, point));
     } else {
-      blkSrcPos[pos]->emplace(std::pair<SrcPosition, SrcPosition>(posB, posE));
+      (void)blkSrcPos[pos]->emplace(std::pair<SrcPosition, SrcPosition>(posB, posE));
     }
   }
 

@@ -687,20 +687,20 @@ class OfstOperand : public ImmOperand {
   /* only for symbol offset */
   OfstOperand(const MIRSymbol &mirSymbol, uint32 size, int32 relocs)
       : ImmOperand(kOpdOffset, 0, size, true, kNotVary, false),
-        offsetType(kSymbolOffset), symbol(&mirSymbol), relocs(relocs) {}
+        offsetType(kSymbolOffset), ofSymbol(&mirSymbol), reloc(relocs) {}
   /* only for Immediate offset */
   OfstOperand(int64 val, uint32 size, VaryType isVar = kNotVary)
       : ImmOperand(kOpdOffset, static_cast<int64>(val), size, true, isVar, false),
-        offsetType(kImmediateOffset), symbol(nullptr), relocs(0) {}
+        offsetType(kImmediateOffset), ofSymbol(nullptr), reloc(0) {}
   /* for symbol and Immediate offset */
   OfstOperand(const MIRSymbol &mirSymbol, int64 val, uint32 size, int32 relocs, VaryType isVar = kNotVary)
       : ImmOperand(kOpdOffset, val, size, true, isVar, false),
         offsetType(kSymbolImmediateOffset),
-        symbol(&mirSymbol),
-        relocs(relocs) {}
+        ofSymbol(&mirSymbol),
+        reloc(relocs) {}
 
   ~OfstOperand() override {
-    symbol = nullptr;
+    ofSymbol = nullptr;
   }
 
   Operand *Clone(MemPool &memPool) const override {
@@ -719,11 +719,11 @@ class OfstOperand : public ImmOperand {
 
   using ImmOperand::GetSymbol;
   const MIRSymbol *GetSymbol() const override {
-    return symbol;
+    return ofSymbol;
   }
 
   const std::string &GetSymbolName() const {
-    return symbol->GetName();
+    return ofSymbol->GetName();
   }
 
   int64 GetOffsetValue() const {
@@ -739,14 +739,14 @@ class OfstOperand : public ImmOperand {
   }
 
   bool operator==(const OfstOperand &opnd) const {
-    return (offsetType == opnd.offsetType && symbol == opnd.symbol &&
-            ImmOperand::operator==(opnd) && relocs == opnd.relocs);
+    return (offsetType == opnd.offsetType && ofSymbol == opnd.ofSymbol &&
+            ImmOperand::operator==(opnd) && relocs == opnd.reloc);
   }
 
   bool operator<(const OfstOperand &opnd) const {
     return (offsetType < opnd.offsetType ||
-            (offsetType == opnd.offsetType && symbol < opnd.symbol) ||
-            (offsetType == opnd.offsetType && symbol == opnd.symbol && GetValue() < opnd.GetValue()));
+            (offsetType == opnd.offsetType && ofSymbol < opnd.ofSymbol) ||
+            (offsetType == opnd.offsetType && ofSymbol == opnd.ofSymbol && GetValue() < opnd.GetValue()));
   }
 
   void Dump() const override {
@@ -759,13 +759,13 @@ class OfstOperand : public ImmOperand {
   }
 
   std::string GetHashContent() const override {
-    return ImmOperand::GetHashContent() + std::to_string(offsetType) + std::to_string(relocs);
+    return ImmOperand::GetHashContent() + std::to_string(offsetType) + std::to_string(reloc);
   }
 
  private:
   OfstType offsetType;
-  const MIRSymbol *symbol;
-  int32 relocs;
+  const MIRSymbol *ofSymbol;
+  int32 reloc;
 };
 
 class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
@@ -1320,6 +1320,8 @@ class MemOperand : public OperandVisitable<MemOperand> {
       return amount == k2BitSize;
     } else if (size == k64BitSize) {
       return amount == k3BitSize;
+    } else if (size == k128BitSize) {
+      return amount == k4BitSize;
     } else {
       return false;
     }

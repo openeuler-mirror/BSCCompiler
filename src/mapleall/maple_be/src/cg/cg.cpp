@@ -14,6 +14,7 @@
  */
 #include <set>
 #include "emit.h"
+#include "proepilog.h"
 
 namespace maplebe {
 using namespace maple;
@@ -294,5 +295,10 @@ const std::string CG::ExtractFuncName(const std::string &str) const {
     return "clinit";
   }
   return funcName;
+}
+
+ProEpilogAnalysis *CG::CreateProEpilogAnalysis(MemPool &mp, CGFunc &f, DomAnalysis &dom, PostDomAnalysis &pdom,
+                                               LoopAnalysis &loop) const {
+  return mp.New<ProEpilogAnalysis>(f, mp, dom, pdom, loop);
 }
 }  /* namespace maplebe */

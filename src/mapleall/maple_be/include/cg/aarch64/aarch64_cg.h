@@ -37,6 +37,9 @@
 #include "aarch64_global_schedule.h"
 #include "aarch64_local_schedule.h"
 #include "aarch64_aggressive_opt.h"
+#include "aarch64_dup.h"
+#include "aarch64_ra_opt.h"
+#include "aarch64_proepilog.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -223,6 +226,9 @@ class AArch64CG : public CG {
   CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f, LoopAnalysis &loop) const override {
     return mp.New<AArch64CFGOptimizer>(f, mp, loop);
   }
+  DupTailOptimizer *CreateDupTailOptimizer(MemPool &mp, CGFunc &f) const override {
+    return mp.New<AArch64DupTailOptimizer>(f, mp);
+  }
   Rematerializer *CreateRematerializer(MemPool &mp) const override {
     return mp.New<AArch64Rematerializer>();
   }
@@ -235,6 +241,14 @@ class AArch64CG : public CG {
   CGAggressiveOpt *CreateAggressiveOpt(MemPool &mp, CGFunc &f) const override {
     return mp.New<AArch64AggressiveOpt>(f);
   }
+  RaOpt *CreateRaOptimizer(MemPool &mp, CGFunc &f, DomAnalysis &dom, LoopAnalysis &loop) const override {
+    return mp.New<AArch64RaOpt>(f, mp, dom, loop);
+  }
+  ProEpilogAnalysis *CreateProEpilogAnalysis(MemPool &mp, CGFunc &f, DomAnalysis &dom, PostDomAnalysis &pdom,
+                                             LoopAnalysis &loop) const override {
+    return mp.New<AArch64ProEpilogAnalysis>(f, mp, dom, pdom, loop);
+  }
+
   /* Return the copy operand id of reg1 if it is an insn who just do copy from reg1 to reg2.
  * i. mov reg2, reg1
  * ii. add/sub reg2, reg1, 0/zero register
@@ -252,7 +266,7 @@ class AArch64CG : public CG {
   };
 
   static const InsnDesc kMd[kMopLast];
-  static constexpr MOperator movBetweenOpnds[kIndex2][kIndex2][kIndex2][kIndex2] = {
+  static constexpr MOperator kMovBetweenOpnds[kIndex2][kIndex2][kIndex2][kIndex2] = {
     {
       { {MOP_wmovrr, MOP_undef}, {MOP_xvmovrs, MOP_undef} },
       { {MOP_undef, MOP_xmovrr}, {MOP_undef, MOP_xvmovrd} }
@@ -279,7 +293,7 @@ class AArch64CG : public CG {
     auto isLeftReg64Bits = leftReg.GetSize() == k64BitSize ? 1 : 0;
     auto isRightRegFloat = rightReg.GetRegisterType() == kRegTyFloat ? 1 : 0;
     auto isRightReg64Bits = rightReg.GetSize() == k64BitSize ? 1 : 0;
-    auto mop = movBetweenOpnds[isLeftRegFloat][isLeftReg64Bits][isRightRegFloat][isRightReg64Bits];
+    auto mop = kMovBetweenOpnds[isLeftRegFloat][isLeftReg64Bits][isRightRegFloat][isRightReg64Bits];
     if (mop == MOP_undef) {
       return;
     }

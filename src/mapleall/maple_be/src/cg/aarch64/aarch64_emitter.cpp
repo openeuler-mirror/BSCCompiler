@@ -1080,7 +1080,7 @@ void AArch64AsmEmitter::EmitInlineAsm(Emitter &emitter, const Insn &insn) const 
   auto isMemAccess = [](char c)->bool {
     return c == '[';
   };
-  auto emitRegister = [&stringToEmit,&isMemAccess](const char *p, bool isInt, uint32 regNO, bool unDefRegSize)->void {
+  auto emitRegister = [&stringToEmit, &isMemAccess](const char *p, bool isInt, uint32 regNO, bool unDefRegSize)->void {
     if (isMemAccess(p[0])) {
       stringToEmit += "[x";
       AsmStringOutputRegNum(isInt, regNO, R0, V0, stringToEmit);

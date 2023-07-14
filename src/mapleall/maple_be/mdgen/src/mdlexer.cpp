@@ -167,7 +167,7 @@ MDTokenKind MDLexer::GetHexConst(uint32 digitStartPos, bool isNegative) {
   while (isxdigit(c)) {
     c = GetNextChar();
     ++loopDepth;
-    if (loopDepth > maxNumLength) {
+    if (loopDepth > kMaxNumLength) {
       return ReturnError();
     }
   }
@@ -201,7 +201,7 @@ MDTokenKind MDLexer::GetIntConst(uint32 digitStartPos, bool isNegative) {
   while (isdigit(c)) {
     c = GetNextChar();
     ++loopDepth;
-    if (loopDepth > maxNumLength) {
+    if (loopDepth > kMaxNumLength) {
       return ReturnError();
     }
   }

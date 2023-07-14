@@ -35,7 +35,7 @@ class MapleAllocator {
   virtual ~MapleAllocator() = default;
 
   // Get adapter for use in STL containers. See arena_containers.h .
-  const MapleAllocatorAdapter<void> Adapter();
+  inline const MapleAllocatorAdapter<void> Adapter();
   virtual void *Alloc(size_t bytes) {
     return (memPool != nullptr) ? memPool->Malloc(bytes) : nullptr;
   }

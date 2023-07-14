@@ -31,7 +31,8 @@ class DefaultO0RegAllocator : public RegAllocator {
         allocatedSet(std::less<Operand*>(), alloc.Adapter()),
         regLiveness(alloc.Adapter()),
         rememberRegs(alloc.Adapter()),
-        multiDefForInsn(alloc.Adapter()) {
+        multiDefForInsn(alloc.Adapter()),
+        regsLimit(alloc.Adapter()) {
     availRegSet.resize(regInfo->GetAllRegNum());
   }
 
@@ -61,9 +62,9 @@ class DefaultO0RegAllocator : public RegAllocator {
   bool CheckRangesOverlap(const std::pair<uint32, uint32> &range1,
                           const MapleVector<std::pair<uint32, uint32>> &ranges2) const;
   void SetupRegLiveness(BB *bb);
-  void SetupRegLiveness(const MemOperand &opnd, uint32 insnId);
-  void SetupRegLiveness(ListOperand &opnd, uint32 insnId, bool isDef);
-  void SetupRegLiveness(const RegOperand &opnd, uint32 insnId, bool isDef);
+  void SetupRegLiveness(const MemOperand &opnd, const Insn &insn, uint32 opndIdx);
+  void SetupRegLiveness(const ListOperand &opnd, const Insn &insn, bool isDef, uint32 opndIdx);
+  void SetupRegLiveness(const RegOperand &opnd, const Insn &insn, bool isDef, uint32 opndIdx);
 
   MapleSet<regno_t> calleeSaveUsed;
   MapleVector<bool> availRegSet;
@@ -73,7 +74,7 @@ class DefaultO0RegAllocator : public RegAllocator {
   MapleMap<regno_t, MapleVector<std::pair<uint32, uint32>>> regLiveness;
   MapleVector<regno_t> rememberRegs;
   MapleSet<regno_t > multiDefForInsn;   /* record multiple def operands in one insn*/
-
+  MapleMap<regno_t, std::pair<regno_t, regno_t>> regsLimit;
  private:
   /* check live of physical and original vreg, release it if there is no overlap */
   void CheckLiveAndReleaseReg(

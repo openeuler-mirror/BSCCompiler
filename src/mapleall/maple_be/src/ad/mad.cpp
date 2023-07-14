@@ -96,7 +96,7 @@ void Unit::Occupy(const Insn &insn, uint32 cycle) {
     }
     return;
   }
-  occupancyTable |= (1ull << cycle);
+  occupancyTable |= (1ULL << cycle);
 }
 
 /*

@@ -514,6 +514,10 @@ size_t OBJSize::ComputeObjectSizeWithType(MeExpr &opnd, int64 type) const {
       if (constMeExpr.GetConstVal()->GetKind() != kConstInt) {
         return kInvalidDestSize;
       }
+      if (IsPrimitivePoint(opnd.GetPrimType()) && opnd.IsZero()) {
+        // Can not compute the size of null, return kInvalidDestSize.
+        return kInvalidDestSize;
+      }
       return static_cast<ConstMeExpr&>(opnd).GetIntValue().GetZXTValue();
     }
     case OP_conststr: {

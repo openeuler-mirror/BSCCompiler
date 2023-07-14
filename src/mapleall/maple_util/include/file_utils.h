@@ -15,9 +15,9 @@
 #ifndef MAPLE_DRIVER_INCLUDE_FILE_UTILS_H
 #define MAPLE_DRIVER_INCLUDE_FILE_UTILS_H
 #include <string>
+#include <fstream>
 #include "types_def.h"
 #include "mpl_logging.h"
-#include "mempool.h"
 #include "string_utils.h"
 
 namespace maple {
@@ -78,26 +78,23 @@ class FileUtils {
                                              const std::string &defaultRoot = "." + kFileSeperatorStr);
   static InputFileType GetFileType(const std::string &filePath);
   static InputFileType GetFileTypeByMagicNumber(const std::string &pathName);
-  static char* LoadFile(const char *filename);
   static std::string ExecuteShell(const char *cmd);
   static bool GetAstFromLib(const std::string libPath, std::vector<std::string> &astInputs);
+  static bool CreateFile(const std::string &file);
+  static std::string GetGccBin();
+  static bool Rmdirs(const std::string &dirPath);
 
   const std::string &GetTmpFolder() const {
     return tmpFolderPath;
   };
 
-  MemPool &GetMemPool() {
-    return *tempMP;
-  };
   static std::string GetOutPutDir();
   bool DelTmpDir() const;
   std::string GetTmpFolderPath() const;
  private:
   std::string tmpFolderPath;
-  MemPool *tempMP = nullptr;
-  FileUtils() : tmpFolderPath(GetTmpFolderPath()), tempMP(memPoolCtrler.NewMemPool("file_utils", true)) {}
+  FileUtils() : tmpFolderPath(GetTmpFolderPath()) {}
   ~FileUtils() {
-    memPoolCtrler.DeleteMemPool(tempMP);
     if (!DelTmpDir()) {
       maple::LogInfo::MapleLogger() << "DelTmpDir failed" << '\n';
     };

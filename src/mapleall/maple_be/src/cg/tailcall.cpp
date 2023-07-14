@@ -213,7 +213,6 @@ void TailCallOpt::TideExitBB() {
 }
 
 void TailCallOpt::Run() {
-  stackProtect = cgFunc.GetNeedStackProtect();
   if (CGOptions::DoTailCallOpt()) {
     (void)DoTailCallOpt(); // return value == "no call instr/only or 1 tailcall"
   }

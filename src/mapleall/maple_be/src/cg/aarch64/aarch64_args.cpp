@@ -52,7 +52,7 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
         [this, baseOpnd, &offset, sym, symLoc](AArch64reg reg, PrimType primType) {
       RegOperand &regOpnd = aarFunc->GetOrCreatePhysicalRegisterOperand(reg,
           GetPrimTypeBitSize(primType), aarFunc->GetRegTyFromPrimTy(primType));
-      OfstOperand &ofstOpnd = aarFunc->CreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
+      OfstOperand &ofstOpnd = aarFunc->CreateOfstOpnd(static_cast<uint64>(static_cast<int64>(offset)), k32BitSize);
       AArch64MemLayout *memLayout = static_cast<AArch64MemLayout*>(aarFunc->GetMemlayout());
       if (memLayout->IsSegMentVaried(symLoc->GetMemSegment())) {
         ofstOpnd.SetVary(kUnAdjustVary);

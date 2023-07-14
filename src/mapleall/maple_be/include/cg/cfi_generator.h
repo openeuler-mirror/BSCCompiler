@@ -30,8 +30,10 @@ class GenCfi {
   void Run();
 
  protected:
-  void InsertCFIDefCfaOffset(BB &bb, Insn &insn, int32 &cfiOffset); /* cfiOffset in-out */
-  Insn &FindStackDefNextInsn(BB &bb) const;
+  Insn *InsertCFIDefCfaOffset(BB &bb, Insn &insn, int32 &cfiOffset); /* cfiOffset in-out */
+
+  Insn *FindStackDefInsn(BB &bb) const;
+  Insn *FinsStackRevertInsn(BB &bb) const;
 
   /* CFI related routines */
   int64 GetOffsetFromCFA() const {
@@ -56,8 +58,8 @@ class GenCfi {
   void GenerateStartDirective(BB &bb);
   void GenerateEndDirective(BB &bb);
   void GenerateRegisterStateDirective(BB &bb);
-  virtual void GenerateRegisterSaveDirective(BB &bb) {}
-  virtual void GenerateRegisterRestoreDirective(BB &bb) {}
+  virtual void GenerateRegisterSaveDirective(BB &bb, Insn &stackDefInsn) {}
+  virtual void GenerateRegisterRestoreDirective(BB &bb, Insn &stackRevertInsn) {}
 
   /* It inserts a start location information for each function in debugging mode */
   void InsertFirstLocation(BB &bb);

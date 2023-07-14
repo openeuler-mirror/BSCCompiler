@@ -539,6 +539,43 @@ class MIRSymbol {
     accessByMem = val;
   }
 
+  bool IsUnionReplaceCand() const {
+    return unionReplaceCand;
+  }
+
+  void SeUnionReplaceCand(bool set) {
+    unionReplaceCand = set;
+  }
+
+  uint8 GetSymbolAlign(bool isArm64ilp32) const {
+    uint8 align = GetAttrs().GetAlignValue();
+    if (align == 0) {
+      if (GetType()->GetKind() == kTypeStruct || GetType()->GetKind() == kTypeClass ||
+          GetType()->GetKind() == kTypeArray || GetType()->GetKind() == kTypeUnion) {
+#if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
+        return align;
+#else
+        uint8 alignMin = 0;
+        if (GetType()->GetAlign() > 0) {
+          alignMin = static_cast<uint8>(log2(GetType()->GetAlign()));
+        }
+        align = std::max<uint8>(3, alignMin); // 3: alignment in bytes of uint8
+#endif
+      } else {
+        align = static_cast<uint8>(GetType()->GetAlign());
+#if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGARM32) && TARGARM32) ||\
+    (defined(TARGARK) && TARGARK) || (defined(TARGRISCV64) && TARGRISCV64)
+        if (isArm64ilp32 && GetType()->GetPrimType() == PTY_a32) {
+          align = 3; // 3: alignment in bytes of uint8
+        } else {
+          align = static_cast<uint8>(log2(align));
+        }
+#endif
+      }
+    }
+    return align;
+  }
+
   // Please keep order of the fields, avoid paddings.
  private:
   TyIdx tyIdx{ 0 };
@@ -558,6 +595,7 @@ class MIRSymbol {
   bool hasPotentialAssignment = false; // for global static vars, init as false and will be set true
                                        // if assigned by stmt or the address of itself is taken
   bool accessByMem = false;  // temporary used for tls var the access of which have been transformed to mem offset
+  bool unionReplaceCand = false;
   StIdx stIdx { 0, 0 };
   TypeAttrs typeAttrs;
   GStrIdx nameStrIdx{ 0 };

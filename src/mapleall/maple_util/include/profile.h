@@ -52,7 +52,7 @@ class Profile {
     ~BBInfo() = default;
   };
 
-  static const uint8 stringEnd;
+  static const uint8 kStringEnd;
   void InitTestData();
   bool CheckFuncHot(const std::string &funcName) const;
   bool CheckMethodHot(const std::string &className) const;

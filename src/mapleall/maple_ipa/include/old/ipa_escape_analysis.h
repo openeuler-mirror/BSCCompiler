@@ -52,6 +52,7 @@ class IPAEscapeAnalysis {
  private:
   TyIdx GetAggElemType(const MIRType &aggregate) const;
   bool IsSpecialEscapedObj(const MeExpr &alloc) const;
+  EACGRefNode *GetOrCreateCGRefNode(MeExpr *expr, bool createObjNode);
   EACGRefNode *GetOrCreateCGRefNodeForVar(VarMeExpr &var, bool createObjNode = false);
   EACGRefNode *GetOrCreateCGRefNodeForAddrof(AddrofMeExpr &var, bool createObjNode = false);
   EACGRefNode *GetOrCreateCGRefNodeForReg(RegMeExpr &reg, bool createObjNode = false);

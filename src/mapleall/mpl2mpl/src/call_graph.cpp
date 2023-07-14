@@ -18,6 +18,7 @@
 #include "retype.h"
 #include "string_utils.h"
 #include "inline_summary.h"
+#include "phase_impl.h"
 
 //                   Call Graph Analysis
 // This phase is a foundation phase of compilation. This phase build
@@ -170,7 +171,7 @@ bool FuncMustBeEmitted(const MIRFunction &func) {
 
 const std::string CallInfo::GetCalleeName() const {
   if ((cType >= kCallTypeCall) && (cType <= kCallTypeInterfaceCall)) {
-    MIRFunction &mirf = *GetCallee();
+    MIRFunction &mirf = GetCallee();
     return mirf.GetName();
   } else if (cType == kCallTypeIcall) {
     return "IcallUnknown";
@@ -746,7 +747,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
         }
         if (symbol->GetKonst()->GetKind() == kConstAggConst) {
           auto *aggConst = static_cast<MIRAggConst*>(symbol->GetKonst());
-          auto *elem = aggConst->GetAggConstElement(dread->GetFieldID());
+          auto *elem = aggConst->GetAggConstElement(static_cast<uint32>(dread->GetFieldID()));
           if (elem->GetKind() == kConstAddrofFunc) {
             auto *addrofFuncConst = static_cast<MIRAddroffuncConst*>(elem);
             stmt = ReplaceIcallToCall(body, *icall, addrofFuncConst->GetValue());
@@ -873,7 +874,7 @@ void CallGraph::HandleICall(BlockNode &body, CGNode &node, StmtNode *stmt, uint3
   (void)icallToFix.at(funcType->GetTypeIndex())->emplace(node.GetPuIdx(), callSite);
 }
 
-MapleVector<MIRFunction*> *SearchImplinterfaces(Klass *klass, const MIRFunction &calleeFunc) {
+MapleVector<MIRFunction*> *SearchImplinterfaces(const Klass *klass, const MIRFunction &calleeFunc) {
   if (klass == nullptr) { // Fix CI
     return nullptr;
   }
@@ -1246,17 +1247,14 @@ void IPODevirtulize::SearchDefInMemberMethods(const Klass &klass) const {
     return;
   }
   ASSERT(!initMethods.empty(), "Must have initializor");
-  StmtNode *stmtNext = nullptr;
   for (size_t i = 0; i < initMethods.size(); ++i) {
     MIRFunction *func = initMethods[i];
     if (func->GetBody() == nullptr) {
       continue;
     }
     std::vector<MIRSymbol*> gcmallocSymbols;
-    for (StmtNode *stmt = func->GetBody()->GetFirst(); stmt != nullptr; stmt = stmtNext) {
-      stmtNext = stmt->GetNext();
-      Opcode op = stmt->GetOpCode();
-      switch (op) {
+    for (StmtNode *stmt = func->GetBody()->GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
+      switch (stmt->GetOpCode()) {
         case OP_comment:
           break;
         case OP_dassign: {
@@ -2105,5 +2103,78 @@ bool M2MFuncDeleter::PhaseRun(maple::MIRModule &m) {
 
 void M2MFuncDeleter::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.PreservedAllExcept<M2MCallGraph>();
+}
+
+class CallTargetReplace : public FuncOptimizeImpl {
+ public:
+  explicit CallTargetReplace(MIRModule &module, bool dump)
+      : FuncOptimizeImpl(module, nullptr, dump), mirModule(module) {}
+
+  FuncOptimizeImpl *Clone() override {
+    CHECK_FATAL(false, "should not be Cloned");
+  }
+
+ protected:
+  void ProcessStmt(StmtNode &stmt) override;
+
+ private:
+  void InitMIRBuilder() {
+    mirBuilder = mirModule.GetMemPool()->New<MIRBuilder>(&mirModule);
+  }
+  bool ReplaceCallTargetWithExternalFunc(CallNode &callStmt);
+  MIRModule &mirModule;
+  MIRBuilder *mirBuilder = nullptr;
+  uint32 replacedCnt = 0;
+};
+
+// replace call target that must be deleted and has been mangled before with its orig external version
+// return true if replacing occured.
+bool CallTargetReplace::ReplaceCallTargetWithExternalFunc(CallNode &callStmt) {
+  auto *targetFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
+  CHECK_NULL_FATAL(targetFunc);
+  if (!FuncMustBeDeleted(*targetFunc)) {
+    return false;
+  }
+  const auto &funcName = targetFunc->GetName();
+  size_t index = funcName.rfind(kRenameKeyWord);
+  if (index == std::string::npos) {
+    return false;
+  }
+  std::string externalFuncName = funcName.substr(0, index);
+  if (mirBuilder == nullptr) {
+    InitMIRBuilder();
+  }
+  auto *externalFunc = mirBuilder->GetFunctionFromName(externalFuncName);
+  CHECK_FATAL(externalFunc != nullptr, "externalFunc should not be null");
+  callStmt.SetPUIdx(externalFunc->GetPuidx());
+  if (dump) {
+    LogInfo::MapleLogger() << "[CallTargetReplace] replace " << funcName << " with " << externalFuncName;
+    LogInfo::MapleLogger() << std::endl;
+  }
+  return true;
+}
+
+void CallTargetReplace::ProcessStmt(StmtNode &stmt) {
+  Opcode op = stmt.GetOpCode();
+  if (op == OP_call || op == OP_callassigned) {
+    auto &callStmt = static_cast<CallNode&>(stmt);
+    bool result = ReplaceCallTargetWithExternalFunc(callStmt);
+    if (result) {
+      ++replacedCnt;
+    }
+  }
+}
+
+void M2MCallTargetReplace::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.PreservedAllExcept<M2MCallGraph>();
+}
+
+bool M2MCallTargetReplace::PhaseRun(maple::MIRModule &m) {
+  std::unique_ptr<FuncOptimizeImpl> funcOptImpl = std::make_unique<CallTargetReplace>(m, TRACE_MAPLE_PHASE);
+  ASSERT_NOT_NULL(funcOptImpl);
+  FuncOptimizeIterator opt(PhaseName(), std::move(funcOptImpl));
+  opt.Init();
+  opt.Run();
+  return true;
 }
 }  // namespace maple

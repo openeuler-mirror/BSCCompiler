@@ -28,7 +28,6 @@ using namespace maple;
 
 const std::string kMplcgVersion = "";
 
-bool CGOptions::timePhases = false;
 std::string CGOptions::targetArch = "";
 std::unordered_set<std::string> CGOptions::dumpPhases = {};
 std::unordered_set<std::string> CGOptions::skipPhases = {};
@@ -74,6 +73,14 @@ std::string CGOptions::functionReorderAlgorithm = "";
 std::string CGOptions::functionReorderProfile = "";
 std::string CGOptions::cpu = "cortex-a53";
 bool CGOptions::doOptimizedFrameLayout = true;
+bool CGOptions::doPgoCodeAlign = false;
+// Select fraction of the maximal frequency of executions of basic block in function given basic block get alignment.
+uint32 CGOptions::alignThreshold = 100;
+// Loops iterating at least selected number of iterations will get loop alignment.
+uint32 CGOptions::alignLoopIterations = 4;
+// percentage of frequency of first bb, if the freq of edge to retbb >= dupFreqThreshold, retbb will be duplicated.
+uint32 CGOptions::dupFreqThreshold = 100;
+
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -128,7 +135,7 @@ bool CGOptions::doPatchLongBranch = false;
 bool CGOptions::doPreSchedule = false;
 bool CGOptions::emitBlockMarker = true;
 bool CGOptions::inRange = false;
-bool CGOptions::doPreLSRAOpt = false;
+bool CGOptions::doPreRAOpt = false;
 bool CGOptions::doLocalRefSpill = false;
 bool CGOptions::doCalleeToSpill = false;
 bool CGOptions::doRegSavesOpt = false;
@@ -141,6 +148,7 @@ bool CGOptions::generalRegOnly = false;
 bool CGOptions::fastMath = false;
 bool CGOptions::doAlignAnalysis = false;
 bool CGOptions::doCondBrAlign = false;
+bool CGOptions::doLoopAlign = false;
 bool CGOptions::cgBigEndian = false;
 bool CGOptions::arm64ilp32 = false;
 bool CGOptions::noCommon = false;
@@ -229,7 +237,7 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
     /* To avoid fpie mode being modified twice, need to ensure fpie is not opened. */
-    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() && !opts::cg::fPIE.IsEnabledByUser() &&!opts::cg::fPIE) {
+    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() && !opts::cg::fPIE.IsEnabledByUser() && !opts::cg::fPIE) {
       if (opts::cg::fPIC && opts::cg::fPIC.IsEnabledByUser()) {
         SetPICOptionHelper(kLargeMode);
         SetPIEMode(kClose);
@@ -292,10 +300,6 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::range.IsEnabledByUser()) {
     SetRange(opts::cg::range, "--range", GetRange());
-  }
-
-  if (opts::cg::timePhases.IsEnabledByUser()) {
-    opts::cg::timePhases ? EnableTimePhases() : DisableTimePhases();
   }
 
   if (opts::cg::dumpFunc.IsEnabledByUser()) {
@@ -487,8 +491,8 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::hotcoldsplit ? EnableHotColdSplit() : DisableHotColdSplit();
   }
 
-  if (opts::cg::prelsra.IsEnabledByUser()) {
-    opts::cg::prelsra ? EnablePreLSRAOpt() : DisablePreLSRAOpt();
+  if (opts::cg::preraopt.IsEnabledByUser()) {
+    opts::cg::preraopt ? EnablePreRAOpt() : DisablePreRAOpt();
   }
 
   if (opts::cg::lsraLvarspill.IsEnabledByUser()) {
@@ -674,6 +678,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
     opts::cg::condbrAlign ? EnableCondBrAlign() : DisableCondBrAlign();
   }
 
+  if (opts::cg::loopAlign.IsEnabledByUser()) {
+    opts::cg::loopAlign ? EnableLoopAlign() : DisableLoopAlign();
+  }
+
   /* big endian can be set with several options: --target, -Be.
    * Triple takes to account all these options and allows to detect big endian with IsBigEndian() interface */
   Triple::GetTriple().IsBigEndian() ? EnableBigEndianInCG() : DisableBigEndianInCG();
@@ -776,6 +784,23 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   SetOption(kWithSrc);
+
+  if (opts::cg::pgoCodeAlign.IsEnabledByUser()) {
+    EnablePgoCodeAlign();
+  }
+
+  if (opts::cg::alignThreshold.IsEnabledByUser()) {
+    SetAlignThreshold(opts::cg::alignThreshold);
+  }
+
+  if (opts::cg::alignLoopIterations.IsEnabledByUser()) {
+    SetAlignLoopIterations(opts::cg::alignLoopIterations);
+  }
+
+  if (opts::cg::dupFreqThreshold.IsEnabledByUser()) {
+    SetDupFreqThreshold(opts::cg::dupFreqThreshold);
+  }
+
   /* override some options when loc, dwarf is generated */
   if (WithLoc()) {
     SetOption(kWithSrc);
@@ -861,7 +886,7 @@ void CGOptions::EnableO0() {
   doPeephole = false;
   doStoreLoadOpt = false;
   doGlobalOpt = false;
-  doPreLSRAOpt = false;
+  doPreRAOpt = false;
   doLocalRefSpill = false;
   doCalleeToSpill = false;
   doPreSchedule = false;
@@ -872,6 +897,7 @@ void CGOptions::EnableO0() {
   doWriteRefFieldOpt = false;
   doAlignAnalysis = false;
   doCondBrAlign = false;
+  doLoopAlign = false;
   doAggrOpt = false;
   SetOption(kUseUnwindTables);
   if (maple::Triple::GetTriple().GetEnvironment() == Triple::kGnuIlp32) {
@@ -886,7 +912,7 @@ void CGOptions::EnableO0() {
 
 void CGOptions::EnableO1() {
   optimizeLevel = kLevel1;
-  doPreLSRAOpt = true;
+  doPreRAOpt = true;
   doCalleeToSpill = true;
   doTailCallOpt = true;
   SetOption(kConstFold);
@@ -912,6 +938,7 @@ void CGOptions::EnableO2() {
   doSchedule = true;
   doAlignAnalysis = true;
   doCondBrAlign = true;
+  doLoopAlign = true;
   doRetMerge = true;
   doAggrOpt = true;
   SetOption(kConstFold);
@@ -919,14 +946,14 @@ void CGOptions::EnableO2() {
   ClearOption(kUseStackProtectorStrong);
   ClearOption(kUseStackProtectorAll);
 #if defined(TARGARM32) && TARGARM32
-  doPreLSRAOpt = false;
+  doPreRAOpt = false;
   doLocalRefSpill = false;
   doCalleeToSpill = false;
   doWriteRefFieldOpt = false;
   doTailCallOpt = false;
   ClearOption(kProEpilogueOpt);
 #else
-  doPreLSRAOpt = true;
+  doPreRAOpt = true;
   doLocalRefSpill = true;
   doCalleeToSpill = true;
   doRegSavesOpt = true;
@@ -937,8 +964,8 @@ void CGOptions::EnableO2() {
   SetOption(kProEpilogueOpt);
 #endif
 
-  /* O2 performs expand128Floats optimization on mpl2mpl (O0 does it on codegen) */
-  opts::expand128Floats.SetValue(false);
+  /* O2 performs legalizeNumericTypes optimization on mpl2mpl (O0 does it on codegen) */
+  opts::legalizeNumericTypes.SetValue(false);
 }
 
 void CGOptions::EnableLiteCG() {
@@ -953,7 +980,7 @@ void CGOptions::EnableLiteCG() {
   doPeephole = false;
   doStoreLoadOpt = false;
   doGlobalOpt = false;
-  doPreLSRAOpt = false;
+  doPreRAOpt = false;
   doLocalRefSpill = false;
   doCalleeToSpill = false;
   doPreSchedule = false;

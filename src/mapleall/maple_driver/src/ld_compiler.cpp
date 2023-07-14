@@ -53,21 +53,7 @@ std::string LdCompilerBeILP32::GetBin(const MplOptions &mplOptions [[maybe_unuse
 }
 
 std::string LdCompiler::GetBin(const MplOptions &mplOptions [[maybe_unused]]) const {
-#ifdef ANDROID
-  return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
-#else
-  if (FileUtils::SafeGetenv(kGccPath) != "") {
-    std::string gccPath = FileUtils::SafeGetenv(kGccPath) + " -dumpversion";
-    FileUtils::CheckGCCVersion(gccPath.c_str());
-    return FileUtils::SafeGetenv(kGccPath);
-  } else if (FileUtils::SafeGetenv(kMapleRoot) != "") {
-    return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/aarch64-linux-gnu-gcc";
-  }
-  std::string gccPath = FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc") +
-                                                  " -dumpversion";
-  FileUtils::CheckGCCVersion(gccPath.c_str());
-  return FileUtils::SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc");
-#endif
+  return FileUtils::GetGccBin();
 }
 
 // Required to use ld instead of gcc; ld will be implemented later

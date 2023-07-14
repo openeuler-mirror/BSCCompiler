@@ -31,17 +31,21 @@ class AlignAnalysis {
         loopHeaderBBs(alignAllocator.Adapter()),
         jumpTargetBBs(alignAllocator.Adapter()),
         alignInfos(alignAllocator.Adapter()),
-        sameTargetBranches(alignAllocator.Adapter()) {}
+        sameTargetBranches(alignAllocator.Adapter()),
+        splitInsns(alignAllocator.Adapter()) {}
 
   virtual ~AlignAnalysis() = default;
 
   void AnalysisAlignment();
   void Dump();
-  virtual void FindLoopHeader() = 0;
-  virtual void FindJumpTarget() = 0;
+  virtual void FindLoopHeaderByDefault() = 0;
+  virtual void FindJumpTargetByDefault() = 0;
   virtual void ComputeLoopAlign() = 0;
   virtual void ComputeJumpAlign() = 0;
   virtual void ComputeCondBranchAlign() = 0;
+  virtual void AddNopForLoop() = 0;
+  virtual void FindLoopHeaderByFrequency() = 0;
+  virtual void FindJumpTargetByFrequency() = 0;
 
   /* filter condition */
   virtual bool IsIncludeCall(BB &bb) = 0;
@@ -82,6 +86,17 @@ class AlignAnalysis {
   MapleUnorderedSet<BB*> jumpTargetBBs;
   MapleUnorderedMap<BB*, uint32> alignInfos;
   MapleUnorderedMap<LabelIdx, uint32> sameTargetBranches;
+
+  /* jump insn might be split due to short branch */
+  bool IsSplitInsn(Insn &insn) {
+    return splitInsns.count(&insn);
+  }
+  void MarkSplitInsn(Insn &insn) {
+    splitInsns.emplace(&insn);
+  }
+
+ private:
+  MapleUnorderedSet<Insn*> splitInsns;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgAlignAnalysis, maplebe::CGFunc)

@@ -30,8 +30,6 @@ constexpr uint32 kClinitAdvanceCycle = 12;
 constexpr uint32 kAdrpLdrAdvanceCycle = 4;
 constexpr uint32 kClinitTailAdvanceCycle = 6;
 
-static uint32 maxUnitIdx = 0;
-
 class CommonScheduleInfo {
  public:
   explicit CommonScheduleInfo(MemPool &memPool)
@@ -213,57 +211,7 @@ class ListScheduler {
     return true;
   }
 
-  /*
-   * Sort by priority in descending order, which use LStart as algorithm of computing priority,
-   * that is the first node in list has the highest priority
-   */
-  static bool CriticalPathRankScheduleInsns(const DepNode *node1, const DepNode *node2) {
-    // p as an acronym for priority
-    CompareLStart compareLStart;
-    int p1 = compareLStart(*node1, *node2);
-    if (p1 != 0) {
-      return p1 > 0;
-    }
-
-    CompareCost compareCost;
-    int p2 = compareCost(*node1, *node2);
-    if (p2 != 0) {
-      return p2 > 0;
-    }
-
-    CompareEStart compareEStart;
-    int p3 = compareEStart(*node1, *node2);
-    if (p3 != 0) {
-      return p3 > 0;
-    }
-
-    CompareSuccNodeSize compareSuccNodeSize;
-    int p4 = compareSuccNodeSize(*node1, *node2);
-    if (p4 != 0) {
-      return p4 > 0;
-    }
-
-    CompareUnitKindNum compareUnitKindNum(maxUnitIdx);
-    int p5 = compareUnitKindNum(*node1, *node2);
-    if (p5 != 0) {
-      return p5 > 0;
-    }
-
-    CompareSlotType compareSlotType;
-    int p6 = compareSlotType(*node1, *node2);
-    if (p6 != 0) {
-      return p6 > 0;
-    }
-
-    CompareInsnID compareInsnId;
-    int p7 = compareInsnId(*node1, *node2);
-    if (p7 != 0) {
-      return p7 > 0;
-    }
-
-    // default
-    return true;
-  }
+  static bool CriticalPathRankScheduleInsns(const DepNode *node1, const DepNode *node2);
 
   MemPool &listSchedMp;
   MapleAllocator listSchedAlloc;

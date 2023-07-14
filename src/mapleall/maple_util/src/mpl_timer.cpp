@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mpl_timer.h"
-#include <chrono>
 
 namespace maple {
 MPLTimer::MPLTimer() = default;
@@ -28,15 +27,15 @@ void MPLTimer::Stop() {
   endTime = std::chrono::system_clock::now();
 }
 
-long MPLTimer::Elapsed() {
+long MPLTimer::Elapsed() const {
   return std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
 }
 
-long MPLTimer::ElapsedMilliseconds() {
+long MPLTimer::ElapsedMilliseconds() const {
   return std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
 }
 
-long MPLTimer::ElapsedMicroseconds() {
+long MPLTimer::ElapsedMicroseconds() const {
   return std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime).count();
 }
 }

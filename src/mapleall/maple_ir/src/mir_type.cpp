@@ -569,7 +569,7 @@ const char *GetPrimTypeJavaName(PrimType primType) {
     case PTY_void:
       return "V";
     case PTY_constStr:
-      return kJstrTypeName.c_str();
+      return "constStr";
     case kPtyInvalid:
       return "invalid";
     default:
@@ -806,9 +806,9 @@ static constexpr uint64 RoundUpConst(uint64 offset, uint32 align) {
 }
 
 static constexpr uint32 RoundUpConst(uint32 offset, uint32 align) {
-  uint32 tempFirst = -align;
-  uint32 tempSecond = offset + align - 1;
-  return tempFirst & tempSecond;
+  int32 tempFirst = -static_cast<int32>(align);
+  int32 tempSecond = static_cast<int32>(offset + align - 1);
+  return static_cast<uint32>(tempFirst) & static_cast<uint32>(tempSecond);
 }
 
 static inline uint64 RoundUp(uint64 offset, uint32 align) {
@@ -1327,9 +1327,42 @@ size_t MIRStructType::GetSize() const {
   return size;
 }
 
+// Used to determine date alignment in ABI.
+// In fact, this alignment of type should be in the context of language/ABI, not MIRType.
+// For simplicity, we implement it in MIRType now.
+// Need check why "packed" is within the context of ABI.
+uint32 MIRStructType::GetUnadjustedAlign() const {
+  if (fields.size() == 0) {
+    return 1u;
+  }
+  uint32 maxAlign = 1;
+  uint32 maxZeroBitFieldAlign = 1;
+  auto structPack = GetTypeAttrs().GetPack();
+  auto packed = GetTypeAttrs().IsPacked();
+  for (size_t i = 0; i < fields.size(); ++i) {
+    TyIdxFieldAttrPair tfap = GetTyidxFieldAttrPair(i);
+    MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first);
+    auto originAlign = fieldType->GetKind() != kTypeBitField ? fieldType->GetAlign() :
+        GetPrimTypeSize(fieldType->GetPrimType());
+    uint32 fieldAlign = (packed || tfap.second.IsPacked()) ? static_cast<uint32>(1U) :
+        std::min(originAlign, structPack);
+    fieldAlign = tfap.second.HasAligned() ? std::max(fieldAlign, tfap.second.GetAlign()) : fieldAlign;
+    fieldAlign = GetTypeAttrs().HasPack() ? std::min(GetTypeAttrs().GetPack(), fieldAlign) : fieldAlign;
+    CHECK_FATAL(fieldAlign != 0, "expect fieldAlign not equal 0");
+    maxAlign = std::max(maxAlign, fieldAlign);
+    if (fieldType->IsMIRBitFieldType() && static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize() == 0) {
+      maxZeroBitFieldAlign = std::max(maxZeroBitFieldAlign, GetPrimTypeSize(fieldType->GetPrimType()));
+    }
+  }
+  if (HasZeroWidthBitField()) {
+    return std::max(maxZeroBitFieldAlign, maxAlign);
+  }
+  return maxAlign;
+}
+
 uint32 MIRStructType::GetAlign() const {
   if (fields.size() == 0) {
-    return 1;
+    return std::max(1u, GetTypeAttrs().GetAlign());
   }
   uint32 maxAlign = 1;
   uint32 maxZeroBitFieldAlign = 1;
@@ -1354,6 +1387,23 @@ uint32 MIRStructType::GetAlign() const {
     return std::max(GetTypeAttrs().GetAlign(), std::max(maxZeroBitFieldAlign, maxAlign));
   }
   return std::max(GetTypeAttrs().GetAlign(), maxAlign);
+}
+
+
+uint32 MIRStructType::GetFieldTypeAlignByFieldPair(const FieldPair &fieldPair) {
+  MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
+  auto fieldAttr = fieldPair.second.second;
+  auto fieldTypeAlign = fieldType->GetKind() == kTypeBitField ? GetPrimTypeSize(fieldType->GetPrimType()) :
+      fieldType->GetAlign();
+  auto fieldPacked = GetTypeAttrs().IsPacked() || fieldAttr.IsPacked();
+  auto fieldAlign = fieldPacked ? 1u : fieldTypeAlign;
+  fieldAlign = fieldAttr.HasAligned() ? std::max(fieldAlign, fieldAttr.GetAlign()) : fieldAlign;
+  return GetTypeAttrs().HasPack() ? std::min(GetTypeAttrs().GetPack(), fieldAlign) : fieldAlign;
+}
+
+uint32 MIRStructType::GetFieldTypeAlign(FieldID fieldID) {
+  const FieldPair &fieldPair = TraverseToFieldRef(fieldID);
+  return GetFieldTypeAlignByFieldPair(fieldPair);
 }
 
 void MIRStructType::DumpFieldsAndMethods(int indent, bool hasMethod) const {
@@ -2053,20 +2103,15 @@ void MIRStructType::ComputeLayout() {
   }
   uint32 allocedSize = 0; // space need for all fields before currentField
   uint32 allocedBitSize = 0;
-  auto pack = GetTypeAttrs().GetPack();
   auto hasPack = GetTypeAttrs().HasPack();
   auto packed = GetTypeAttrs().IsPacked();
   constexpr uint8 bitsPerByte = 8; // 8 bits per byte
-  for (uint32 j = 0; j < fields.size(); ++j) {
-    TyIdx fieldTyIdx = fields[j].second.first;
-    auto fieldAttr = fields[j].second.second;
+  for (FieldPair filedPair : fields) {
+    TyIdx fieldTyIdx = filedPair.second.first;
+    auto fieldAttr = filedPair.second.second;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
-    auto fieldTypeAlign = fieldType->GetKind() == kTypeBitField ? GetPrimTypeSize(fieldType->GetPrimType()) :
-        fieldType->GetAlign();
     auto fieldPacked = packed || fieldAttr.IsPacked();
-    auto fieldAlign = fieldPacked ? 1u : fieldTypeAlign;
-    fieldAlign = fieldAttr.HasAligned() ? std::max(fieldAlign, fieldAttr.GetAlign()) : fieldAlign;
-    fieldAlign = hasPack ? std::min(pack, fieldAlign) : fieldAlign;
+    uint32 fieldAlign = GetFieldTypeAlignByFieldPair(filedPair);
     uint32 fieldAlignBits = fieldAlign * bitsPerByte;
     OffsetPair pair;
     uint32 fieldBitSize;

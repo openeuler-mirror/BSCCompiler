@@ -266,6 +266,14 @@ class FEIRStmt : public FELinkListNode {
     isNeedGenMir = needGen;
   }
 
+  void SetActulReturnStmt(bool isActual) {
+    isActualReturn = isActual;
+  }
+
+  bool IsActualReturn() const {
+    return isActualReturn;
+  }
+
  protected:
   virtual std::string DumpDotStringImpl() const;
   virtual void DumpImpl(const std::string &prefix) const;
@@ -323,6 +331,7 @@ class FEIRStmt : public FELinkListNode {
   bool isAuxPost = false;
   bool isThrowable = false;
   bool isEnhancedChecking = true;
+  bool isActualReturn = false;
   std::vector<FEIRStmt*> extraPreds;
   std::vector<FEIRStmt*> extraSuccs;
 
@@ -527,7 +536,7 @@ class FEIRExpr {
     CHECK_FATAL(false, "unsupported in base class");
   }
 
-  virtual void SetLenFieldIDImpl(FieldID fieldID) {
+  virtual void SetLenFieldIDImpl(FieldID fieldID [[maybe_unused]]) {
     CHECK_FATAL(false, "unsupported in base class");
   }
 
@@ -535,11 +544,11 @@ class FEIRExpr {
     CHECK_FATAL(false, "unsupported in base class");
   }
 
-  virtual void SetFieldIDImpl(FieldID fieldID) {
+  virtual void SetFieldIDImpl(FieldID fieldID [[maybe_unused]]) {
     CHECK_FATAL(false, "unsupported in base class");
   }
 
-  virtual void SetFieldTypeImpl(std::unique_ptr<FEIRType> fieldType) {
+  virtual void SetFieldTypeImpl(std::unique_ptr<FEIRType> fieldType [[maybe_unused]]) {
     CHECK_FATAL(false, "unsupported in base class");
   }
 
@@ -806,10 +815,10 @@ class FEIRExprAddrofVar : public FEIRExpr {
                  FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
         varSrc(std::move(argVarSrc)) {}
 
-  FEIRExprAddrofVar(std::unique_ptr<FEIRVar> argVarSrc, FieldID id)
+  FEIRExprAddrofVar(std::unique_ptr<FEIRVar> argVarSrc, FieldID id, FieldID lenId = 0)
       : FEIRExpr(FEIRNodeKind::kExprAddrofVar,
                  FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
-        varSrc(std::move(argVarSrc)), fieldID(id) {}
+        varSrc(std::move(argVarSrc)), fieldID(id), lenFieldID(lenId) {}
   ~FEIRExprAddrofVar() override {
     cst = nullptr;
   }
@@ -835,6 +844,14 @@ class FEIRExprAddrofVar : public FEIRExpr {
     fieldID = id;
   }
 
+  FieldID GetLenFieldIDImpl() const override {
+    return lenFieldID;
+  }
+
+  void SetLenFieldIDImpl(FieldID argFieldID) override {
+    lenFieldID = argFieldID;
+  }
+
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
            (static_cast<uint32>(fieldID) << kOtherShift) + varSrc->Hash();
@@ -843,17 +860,18 @@ class FEIRExprAddrofVar : public FEIRExpr {
  private:
   std::unique_ptr<FEIRVar> varSrc;
   FieldID fieldID = 0;
+  FieldID lenFieldID = 0;
   MIRConst *cst = nullptr;
 };
 
 // ---------- FEIRExprIAddrof ----------
 class FEIRExprIAddrof : public FEIRExpr {
  public:
-  FEIRExprIAddrof(UniqueFEIRType pointeeType, FieldID id, UniqueFEIRExpr expr)
+  FEIRExprIAddrof(UniqueFEIRType pointeeType, FieldID id, UniqueFEIRExpr expr, FieldID lenId = 0)
       : FEIRExpr(FEIRNodeKind::kExprIAddrof,
                  FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
         ptrType(std::move(pointeeType)),
-        fieldID(id),
+        fieldID(id), lenFieldID(lenId),
         subExpr(std::move(expr)) {}
   ~FEIRExprIAddrof() override = default;
 
@@ -882,6 +900,14 @@ class FEIRExprIAddrof : public FEIRExpr {
     fieldID = argFieldID;
   }
 
+  FieldID GetLenFieldIDImpl() const override {
+    return lenFieldID;
+  }
+
+  void SetLenFieldIDImpl(FieldID argFieldID) override {
+    lenFieldID = argFieldID;
+  }
+
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
            (static_cast<uint32>(fieldID) << kOtherShift) + ptrType->Hash() + subExpr->Hash();
@@ -890,6 +916,7 @@ class FEIRExprIAddrof : public FEIRExpr {
  private:
   UniqueFEIRType ptrType;
   FieldID fieldID = 0;
+  FieldID lenFieldID = 0;
   UniqueFEIRExpr subExpr;
 };
 
@@ -1793,8 +1820,8 @@ class FEIRStmtJavaFillArrayData : public FEIRStmtAssign {
 
  LLT_PRIVATE:
   PrimType ProcessArrayElemPrimType() const;
-  MIRSymbol *ProcessArrayElemData(const MIRBuilder &mirBuilder, PrimType elemPrimType) const;
-  MIRAggConst *FillArrayElem(const MIRBuilder &mirBuilder, PrimType elemPrimType, MIRType &arrayTypeWithSize,
+  MIRSymbol *ProcessArrayElemData(MIRBuilder &mirBuilder, PrimType elemPrimType) const;
+  MIRAggConst *FillArrayElem(MIRBuilder &mirBuilder, PrimType elemPrimType, MIRType &arrayTypeWithSize,
                              uint32 elemSize) const;
 
   std::unique_ptr<FEIRExpr> arrayExpr;
@@ -1943,11 +1970,20 @@ class FEIRStmtAssertBoundary : public FEIRStmtNary {
     return isComputable;
   }
 
+  void SetIsFlexibleArray(bool flag) {
+    isFlexArray = flag;
+  }
+
+  bool IsFlexibleArray() const {
+    return isFlexArray;
+  }
+
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
 
  private:
   bool isComputable = false;
+  bool isFlexArray = false;
 };
 
 // ---------- FEIRStmtReturn ----------
@@ -1961,6 +1997,7 @@ class FEIRStmtReturn : public FEIRStmtUseOnly {
 
  private:
   void InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
+  void InsertFuncReturnChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
 };
 
 // ---------- FEIRStmtPesudoLabel ----------

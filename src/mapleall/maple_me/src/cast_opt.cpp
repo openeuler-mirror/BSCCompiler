@@ -711,9 +711,10 @@ BaseNode *MapleCastOpt::SimplifyCastPair(MIRBuilder &mirBuidler, const BaseNodeC
   bool isFirstCastImplicit = !IsExplicitCastOp(firstCastExpr->GetOpCode());
   if (isFirstCastImplicit) {
     // Wrong example: zext u32 u8 (iread u32 <* u16>)  =[x]=>  iread u32 <* u16>
+    // Wrong example: sext u32  8 (iread u32 <*  u8>)  =[x]=>  iread u32 <*  u8>
     // srcType may be modified, we should use origSrcType
     if (resultCastKind != CAST_unknown && dstType == midType1 &&
-        GetPrimTypeActualBitSize(midType2) >= GetPrimTypeActualBitSize(origSrcType)) {
+        GetPrimTypeActualBitSize(midType2) > GetPrimTypeActualBitSize(origSrcType)) {
       return firstCastExpr;
     } else {
       return nullptr;

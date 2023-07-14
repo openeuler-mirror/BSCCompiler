@@ -32,74 +32,11 @@ inline bool IsMemoryOverlap(OffsetType startA, int64 sizeA, OffsetType startB, i
          startB < (startA + sizeA);
 }
 
-class AliasElem {
-  friend class AliasClass;
+class OstHash {
  public:
-  AliasElem(uint32 i, OriginalSt &origst)
-      : id(i),
-        ost(origst) {}
-
-  ~AliasElem() = default;
-
-  void Dump() const;
-
-  uint32 GetClassID() const {
-    return id;
+  const uint32 operator() (const OriginalSt *ost) const {
+    return ost->GetIndex().GetIdx();
   }
-
-  OriginalSt &GetOriginalSt() {
-    return ost;
-  }
-  const OriginalSt &GetOriginalSt() const {
-    return ost;
-  }
-
-  OriginalSt *GetOst() {
-    return &ost;
-  }
-
-  bool IsNotAllDefsSeen() const {
-    return notAllDefsSeen;
-  }
-  void SetNotAllDefsSeen(bool allDefsSeen) {
-    notAllDefsSeen = allDefsSeen;
-  }
-
-  bool IsNextLevNotAllDefsSeen() const {
-    return nextLevNotAllDefsSeen;
-  }
-  void SetNextLevNotAllDefsSeen(bool allDefsSeen) {
-    nextLevNotAllDefsSeen = allDefsSeen;
-  }
-
-  const MapleSet<unsigned int> *GetClassSet() const {
-    return classSet;
-  }
-
-  void AddClassToSet(unsigned int classId) {
-    (void)classSet->emplace(classId);
-  }
-
-  void SetClassSet(MapleSet<unsigned int> *newClassSet) {
-    classSet = newClassSet;
-  }
-
-  const MapleSet<unsigned int> *GetAssignSet() const {
-    return assignSet;
-  }
-
-  void AddAssignToSet(unsigned int classId) {
-    (void)assignSet->emplace(classId);
-  }
-
- private:
-  uint32 id;  // the original alias class id, before any union; start from 0
-  OriginalSt &ost;
-  bool notAllDefsSeen = false;         // applied to current level; unused for lev -1
-  bool nextLevNotAllDefsSeen = false;  // remember that next level's elements need to be made notAllDefsSeen
-  MapleSet<unsigned int> *classSet = nullptr;    // points to the set of members of its class; nullptr for
-                                                 // single-member classes
-  MapleSet<unsigned int> *assignSet = nullptr;   // points to the set of members that have assignments among themselves
 };
 
 // this is only for use as return value of CreateAliasInfoExpr()
@@ -146,7 +83,6 @@ class AliasClass : public AnalysisResult {
   using VstIdx2AssignSet = MapleVector<AssignSet*>; // index is VersionSt index
   using AliasSet = MapleSet<unsigned>; // value is OStIdx
   using OstIdx2AliasSet = MapleVector<AliasSet*>; // index is OStIdx
-  using Vst2AliasElem = MapleVector<AliasElem*>; // index is VersionSt index
   using AliasAttrVec = MapleVector<bool>; // index is OStIdx/VersionSt index
 
   void SetAnalyzedOstNum(size_t num) {
@@ -262,6 +198,7 @@ class AliasClass : public AnalysisResult {
   void SetPtrFieldsOfAggNextLevNADS(const BaseNode *opnd, const VersionSt *vst);
   void SetAggOpndPtrFieldsNextLevNADS(MapleVector<BaseNode*> &opnds);
   void ApplyUnionForDassignCopy(const VersionSt &lhsVst, VersionSt *rhsVst, BaseNode &rhs);
+  bool EfficientUnionTarget(const OriginalSt &ost, const BaseNode &expr);
   bool SetNextLevNADSForEscapePtr(const VersionSt &lhsVst, BaseNode &rhs);
   void UnionNextLevelOfAliasOst(OstPtrSet &ostsToUnionNextLev);
   VersionSt *FindOrCreateDummyNADSVst();
@@ -332,6 +269,11 @@ class AliasClass : public AnalysisResult {
     addrofVstNextLevNotAllDefsSeen[vstIdx] = true;
   }
 
+  bool HasNextLevelNotAllDefSeen(size_t vstIdx) {
+    auto *ost = ssaTab.GetVerSt(vstIdx)->GetOst();
+    return ost->GetIndirectLev() > 0 || IsNotAllDefsSeen(ost->GetIndex()) || IsNextLevNotAllDefsSeen(vstIdx);
+  }
+
   bool IsNextLevNotAllDefsSeen(size_t vstIdx) {
     if (vstIdx >= vstNextLevNotAllDefsSeen.size()) {
       return false;
@@ -372,7 +314,8 @@ class AliasClass : public AnalysisResult {
   MapleSet<OriginalSt*, OriginalSt::OriginalStPtrComparator> globalsAffectedByCalls;
   // aliased at calls; needed only when wholeProgramScope is true
   MapleSet<OStIdx> globalsMayAffectedByClinitCheck;
-  MapleUnorderedMultiMap<OriginalSt*, OriginalSt*> aggsToUnion; // aggs are copied, their fields should be unioned
+  // aggs are copied, their fields should be unioned
+  MapleUnorderedMultiMap<OriginalSt*, OriginalSt*, OstHash> aggsToUnion;
   MapleSet<OriginalSt*, OriginalSt::OriginalStPtrComparator> nadsOsts;
   MapleVector<OriginalSt*> ostWithUndefinedOffsets;
   VstIdx2AssignSet assignSetOfVst;

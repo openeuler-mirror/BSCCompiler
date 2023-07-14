@@ -29,7 +29,10 @@ void DumpModule(const MIRModule &mod, const std::string phaseName, bool isBefore
   MIRFunction *func = nullptr;
   if (Options::DumpFunc()) {
     GStrIdx gStrIdxOfFunc = GlobalTables::GetStrTable().GetStrIdxFromName(Options::dumpFunc);
-    func = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(gStrIdxOfFunc)->GetFunction();
+    MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(gStrIdxOfFunc);
+    if (symbol != nullptr) {
+      func = symbol->GetFunction();
+    }
   }
   bool dumpPhase = Options::DumpPhase(phaseName);
   if (Options::dumpBefore && dumpPhase && isBefore) {
@@ -54,10 +57,7 @@ void DumpModule(const MIRModule &mod, const std::string phaseName, bool isBefore
 }
 
 void MEBETopLevelManager::InitFuncDescWithWhiteList(const maple::MIRModule &mod) {
-  if (!Options::sideEffectWhiteList) {
-    return;
-  }
-  for (auto &pair : SideEffect::GetWhiteList()) {
+  for (auto &pair : *IpaSideEffectAnalyzer::GetWhiteList()) {
     auto *funcSymbol =
         GlobalTables::GetGsymTable().GetSymbolFromStrIdx(GlobalTables::GetStrTable().GetStrIdxFromName(pair.first));
     MIRFunction *func = nullptr;
@@ -125,6 +125,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(M2MGInline, ginline)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MOutline, outline)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MIPODevirtualize, ipodevirtulize)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MFuncDeleter, funcdeleter)
+MAPLE_TRANSFORM_PHASE_REGISTER(M2MCallTargetReplace, CallTargetReplace)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MMethodReplace, methodreplace)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MScalarReplacement, ScalarReplacement)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MOpenprofile, openprofile)
@@ -141,7 +142,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(M2MSimplify, simplify)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MUpdateMplt, updatemplt)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MReflectionAnalysis, reflectionanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MVtableImpl, VtableImpl)
-MAPLE_TRANSFORM_PHASE_REGISTER(M2MExpand128Floats, Expand128Floats)
+MAPLE_TRANSFORM_PHASE_REGISTER(M2MLegalizeNumericTypes, LegalizeNumericTypes)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MConstantFold, ConstantFold)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MVtableAnalysis, vtableanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(M2MVerifyMemorder, VerifyMemorder)

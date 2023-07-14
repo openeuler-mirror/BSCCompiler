@@ -191,7 +191,13 @@ struct IntrinsicDesc {
   std::unordered_map<int32, IntrinsicOpndDesc> opndDescMap;
 };
 
+constexpr std::pair<regno_t, regno_t> kInvalidRegLimit = {-1, -1};
+
 struct InsnDesc {
+  using ImmValidFunc = std::function<bool(const MapleVector<Operand*>)>;
+  using SplitFunc = std::function<void(Insn*, bool, InsnBuilder*, OperandBuilder*)>;
+  using RegisterRangeLimitFunc = std::function<std::pair<regno_t, regno_t>(const Insn&, uint32)>;
+
   InsnDesc(MOperator op, const std::string &inName, const std::string &inFormat)
       : opc(op),
         name(inName),
@@ -215,8 +221,8 @@ struct InsnDesc {
 
   // for hard-coded machine description.
   InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
-      const std::string &inName, const std::string &inFormat, uint32 anum,
-      std::function<bool(const MapleVector<Operand*>)> vFunc)
+           const std::string &inName, const std::string &inFormat, uint32 anum,
+           const ImmValidFunc &vFunc)
       : opc(op),
         opndMD(opndmd),
         properties(props),
@@ -229,9 +235,22 @@ struct InsnDesc {
 
   // for hard-coded machine description.
   InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
-      const std::string &inName, const std::string &inFormat, uint32 anum,
-      std::function<bool(const MapleVector<Operand*>)> vFunc,
-      std::function<void(Insn*, bool, InsnBuilder*, OperandBuilder*)> sFunc)
+           const std::string &inName, const std::string &inFormat, uint32 anum,
+           const RegisterRangeLimitFunc &vFunc)
+      : opc(op),
+        opndMD(opndmd),
+        properties(props),
+        latencyType(ltype),
+        name(inName),
+        format(inFormat),
+        atomicNum(anum),
+        regLimitFunc(vFunc) {
+  };
+
+  // for hard-coded machine description.
+  InsnDesc(MOperator op, std::vector<const OpndDesc*> opndmd, uint64 props, uint64 ltype,
+           const std::string &inName, const std::string &inFormat, uint32 anum,
+           const ImmValidFunc &vFunc, const SplitFunc &sFunc)
       : opc(op),
         opndMD(opndmd),
         properties(props),
@@ -251,9 +270,11 @@ struct InsnDesc {
   const std::string format;
   uint32 atomicNum; /* indicate how many asm instructions it will emit. */
   // If insn has immOperand, this function needs to be implemented.
-  std::function<bool(const MapleVector<Operand*>)> validFunc = nullptr;
+  ImmValidFunc validFunc = nullptr;
   // If insn needs to be split, this function needs to be implemented.
-  std::function<void(Insn*, bool, InsnBuilder*, OperandBuilder*)> splitFunc = nullptr;
+  SplitFunc splitFunc = nullptr;
+  // If insn has a limit on the register range, this function needs to be implemented.
+  RegisterRangeLimitFunc regLimitFunc = nullptr;
 
   bool IsSame(const InsnDesc &left,
       std::function<bool (const InsnDesc &left, const InsnDesc &right)> cmp) const;
@@ -366,6 +387,14 @@ struct InsnDesc {
     }
     splitFunc(insn, isAfterRegAlloc, insnBuilder, opndBuilder);
   }
+
+  std::pair<regno_t, regno_t> GetRegisterLimit(const Insn &insn, uint32 opndIdx) const {
+    if (!regLimitFunc) {
+      return kInvalidRegLimit;
+    }
+    return regLimitFunc(insn, opndIdx);
+  }
+
   const OpndDesc *GetOpndDes(size_t index) const {
     return opndMD[index];
   }

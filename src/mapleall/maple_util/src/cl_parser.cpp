@@ -20,10 +20,21 @@
 
 #include "mpl_logging.h"
 #include "string_utils.h"
-#include "set_spec.h"
+#include "file_utils.h"
 
 
 using namespace maplecl;
+
+
+// clear joined option in clangCategory
+void OptionCategory::ClearJoinedOpt() {
+  std::vector<OptionInterface*> enabledOptionsBak = enabledOptions;
+  for (size_t index = 0; index < enabledOptionsBak.size(); index++) {
+    if (enabledOptionsBak[index]->IsJoinedValPermitted()) {
+      enabledOptionsBak[index]->Clear();
+    }
+  }
+}
 
 CommandLine &CommandLine::GetCommandLine() {
   static CommandLine cl;
@@ -154,6 +165,18 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
     DeleteEnabledOptions(argsIndex, args, optCategory);
   }
 
+  if (args[argsIndex] == "-fpic" || args[argsIndex] == "--fpic" ||
+      args[argsIndex] == "-fPIC" || args[argsIndex] == "--fPIC") {
+    auto item = optCategory.options.find("-fPIE");
+    if (item != optCategory.options.end()) {
+      item->second->UnSetEnabledByUser();
+    }
+    item = optCategory.options.find("-fpie");
+    if (item != optCategory.options.end()) {
+      item->second->UnSetEnabledByUser();
+    }
+  }
+
   if (args[argsIndex] == "--O0" || args[argsIndex] == "-O0" || args[argsIndex] == "--O1" || args[argsIndex] == "-O1" ||
       args[argsIndex] == "--O2" || args[argsIndex] == "-O2" || args[argsIndex] == "--O3" || args[argsIndex] == "-O3" ||
       args[argsIndex] == "--Os" || args[argsIndex] == "-Os") {
@@ -247,6 +270,11 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
       continue;
     }
 
+    if (arg == "-march=armv8-a+crc") {
+      maple::LogInfo::MapleLogger(maple::kLlWarn) << "Warning: "
+                                                  << "The crc instruction is not fully implemented!" << '\n';
+    }
+
     if (arg.find("_FORTIFY_SOURCE") != std::string::npos) {
       auto item = clangCategory.options.find("-pO2ToCl");
       item->second->SetEnabledByUser();
@@ -312,23 +340,13 @@ RetCode CommandLine::Parse(int argc, char **argv, OptionCategory &optCategory) {
     } else {
       (void)args.emplace_back(*argv);
     }
-    if (tmp == "-specs") {
-      ++argv;
-      --argc;
-      specsFile = *argv;
-    } else {
-      if (tmp.find("-specs=") != std::string::npos) {
-        specsFile = maple::StringUtils::GetStrAfterLast(tmp, "=");
-      }
-      ++argv;
-      --argc;
-    }
+    ++argv;
+    --argc;
   }
   for (auto astFile = GetAstInputs().begin(); astFile != GetAstInputs().end(); ++astFile) {
     std::string_view tmp(*astFile);
     (void)args.emplace_back(tmp);
   }
-  maple::SetSpec::SetUpSpecs(args, specsFile);
   return HandleInputArgs(args, optCategory);
 }
 

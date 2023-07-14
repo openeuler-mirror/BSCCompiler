@@ -131,10 +131,10 @@ class PtrListRefIterator {
 
   PtrListRefIterator() = default;
 
-  explicit PtrListRefIterator(pointer _Ptr) : ptr(_Ptr) {}
+  explicit PtrListRefIterator(pointer pointr) : ptr(pointr) {}
 
   template <typename U, typename = std::enable_if_t<std::is_same<U, std::remove_const_t<T>>::value>>
-  PtrListRefIterator(const PtrListRefIterator<U> &_Iter) : ptr(_Iter.d()) {}
+  PtrListRefIterator(const PtrListRefIterator<U> &iter) : ptr(iter.d()) {}
 
   ~PtrListRefIterator() = default;
 
@@ -201,9 +201,9 @@ class PtrListRef {
   using const_reverse_iterator = ReversePtrListRefIterator<const_iterator>;
 
   PtrListRef() = default;
-  explicit PtrListRef(pointer _Value) : first(_Value), last(_Value) {}
+  explicit PtrListRef(pointer value) : first(value), last(value) {}
 
-  PtrListRef(pointer _First, pointer _Last) : first(_First), last(_Last == nullptr ? _First : _Last) {}
+  PtrListRef(pointer firster, pointer laster) : first(firster), last(laster == nullptr ? firster : laster) {}
 
   ~PtrListRef() = default;
 
@@ -275,27 +275,27 @@ class PtrListRef {
     return first == nullptr;
   }
 
-  void update_front(pointer _Value) {
-    if (_Value != nullptr) {
-      _Value->SetPrev(nullptr);
+  void update_front(pointer value) {
+    if (value != nullptr) {
+      value->SetPrev(nullptr);
     }
-    this->first = _Value;
+    this->first = value;
   }
 
-  void push_front(pointer _Value) {
+  void push_front(pointer val) {
     if (this->last == nullptr) {
-      this->first = _Value;
-      this->last = _Value;
-      ASSERT(_Value != nullptr, "null ptr check");
-      _Value->SetPrev(nullptr);
-      _Value->SetNext(nullptr);
+      this->first = val;
+      this->last = val;
+      ASSERT(val != nullptr, "null ptr check");
+      val->SetPrev(nullptr);
+      val->SetNext(nullptr);
     } else {
       ASSERT(this->first != nullptr, "null ptr check");
-      this->first->SetPrev(_Value);
-      ASSERT(_Value != nullptr, "null ptr check");
-      _Value->SetPrev(nullptr);
-      _Value->SetNext(this->first);
-      this->first = _Value;
+      this->first->SetPrev(val);
+      ASSERT(val != nullptr, "null ptr check");
+      val->SetPrev(nullptr);
+      val->SetNext(this->first);
+      this->first = val;
     }
   }
 
@@ -310,24 +310,24 @@ class PtrListRef {
     }
   }
 
-  void update_back(pointer _Value) {
-    if (_Value != nullptr) {
-      _Value->SetNext(nullptr);
+  void update_back(pointer val) {
+    if (val != nullptr) {
+      val->SetNext(nullptr);
     }
-    this->last = _Value;
+    this->last = val;
   }
 
-  void push_back(pointer _Value) {
+  void push_back(pointer val) {
     if (this->last == nullptr) {
-      this->first = _Value;
-      this->last = _Value;
-      _Value->SetPrev(nullptr);
+      this->first = val;
+      this->last = val;
+      val->SetPrev(nullptr);
     } else {
-      this->last->SetNext(_Value);
-      _Value->SetPrev(this->last);
-      this->last = _Value;
+      this->last->SetNext(val);
+      val->SetPrev(this->last);
+      this->last = val;
     }
-    _Value->SetNext(nullptr);
+    val->SetNext(nullptr);
   }
 
   void pop_back() {
@@ -344,69 +344,69 @@ class PtrListRef {
     }
   }
 
-  void insert(const_iterator _Where, pointer _Value) {
-    if (_Where == const_iterator(this->first)) {
-      this->push_front(_Value);
-    } else if (_Where == this->cend()) {
-      this->push_back(_Value);
+  void insert(const_iterator where, pointer value) {
+    if (where == const_iterator(this->first)) {
+      this->push_front(value);
+    } else if (where == this->cend()) {
+      this->push_back(value);
     } else {
       // `_Where` stands for the position, however we made the data and node combined, so a const_cast is needed.
-      auto *ptr = const_cast<T*>(&*_Where);
-      _Value->SetPrev(ptr->GetPrev());
-      _Value->SetNext(ptr);
-      _Value->GetPrev()->SetNext(_Value);
-      ptr->SetPrev(_Value);
+      auto *ptr = const_cast<T*>(&*where);
+      value->SetPrev(ptr->GetPrev());
+      value->SetNext(ptr);
+      value->GetPrev()->SetNext(value);
+      ptr->SetPrev(value);
     }
   }
 
-  void insert(const_pointer _Where, pointer _Value) {
-    this->insert(const_iterator(_Where), _Value);
+  void insert(const_pointer where, pointer val) {
+    this->insert(const_iterator(where), val);
   }
 
-  void insertAfter(const_iterator _Where, pointer _Value) {
-    if (_Where == const_iterator(nullptr)) {
-      this->push_front(_Value);
-    } else if (_Where == const_iterator(this->last)) {
-      this->push_back(_Value);
+  void insertAfter(const_iterator where, pointer val) {
+    if (where == const_iterator(nullptr)) {
+      this->push_front(val);
+    } else if (where == const_iterator(this->last)) {
+      this->push_back(val);
     } else {
       // `_Where` stands for the position, however we made the data and node combined, so a const_cast is needed.
-      auto *ptr = const_cast<T*>(&*_Where);
-      ASSERT(_Value != nullptr, "null ptr check");
-      _Value->SetPrev(ptr);
-      _Value->SetNext(ptr->GetNext());
-      _Value->GetNext()->SetPrev(_Value);
-      ptr->SetNext(_Value);
+      auto *ptr = const_cast<T*>(&*where);
+      ASSERT(val != nullptr, "null ptr check");
+      val->SetPrev(ptr);
+      val->SetNext(ptr->GetNext());
+      val->GetNext()->SetPrev(val);
+      ptr->SetNext(val);
     }
   }
 
-  void insertAfter(const_pointer _Where, pointer _Value) {
-    this->insertAfter(const_iterator(_Where), _Value);
+  void insertAfter(const_pointer where, pointer val) {
+    this->insertAfter(const_iterator(where), val);
   }
 
-  void splice(const_iterator _Where, PtrListRef &_Other) {
-    ASSERT(!_Other.empty(), "NYI");
+  void splice(const_iterator where, PtrListRef &other) {
+    ASSERT(!other.empty(), "NYI");
     if (this->empty()) {
-      this->first = &(_Other.front());
-      this->last = &(_Other.back());
-    } else if (_Where == this->cend() || _Where == const_iterator(this->last)) {
+      this->first = &(other.front());
+      this->last = &(other.back());
+    } else if (where == this->cend() || where == const_iterator(this->last)) {
       ASSERT(this->last != nullptr, "null ptr check");
-      this->last->SetNext(&(_Other.front()));
-      _Other.front().SetPrev(this->last);
-      this->last = &(_Other.back());
+      this->last->SetNext(&(other.front()));
+      other.front().SetPrev(this->last);
+      this->last = &(other.back());
     } else {
-      ASSERT(to_ptr(_Where) != nullptr, "null ptr check");
-      ASSERT(_Where->GetNext() != nullptr, "null ptr check");
+      ASSERT(to_ptr(where) != nullptr, "null ptr check");
+      ASSERT(where->GetNext() != nullptr, "null ptr check");
       // `_Where` stands for the position, however we made the data and node combined, so a const_cast is needed.
-      auto *ptr = const_cast<T*>(&*_Where);
-      _Other.front().SetPrev(ptr);
-      _Other.back().SetNext(ptr->GetNext());
-      ptr->GetNext()->SetPrev(&(_Other.back()));
-      ptr->SetNext(&(_Other.front()));
+      auto *ptr = const_cast<T*>(&*where);
+      other.front().SetPrev(ptr);
+      other.back().SetNext(ptr->GetNext());
+      ptr->GetNext()->SetPrev(&(other.back()));
+      ptr->SetNext(&(other.front()));
     }
   }
 
-  void splice(const_pointer _Where, PtrListRef &_Other) {
-    splice(const_iterator(_Where), _Other);
+  void splice(const_pointer where, PtrListRef &other) {
+    splice(const_iterator(where), other);
   }
 
   void clear() {
@@ -414,22 +414,22 @@ class PtrListRef {
     this->last = nullptr;
   }
 
-  iterator erase(const_iterator _Where) {
-    if (_Where == this->cbegin() && _Where == this->rbegin().base()) {
+  iterator erase(const_iterator where) {
+    if (where == this->cbegin() && where == this->rbegin().base()) {
       this->first = nullptr;
       this->last = nullptr;
-    } else if (_Where == this->cbegin()) {
+    } else if (where == this->cbegin()) {
       // `_Where` stands for the position, however we made the data and node combined, so a const_cast is needed.
-      auto *ptr = const_cast<T*>(&*_Where);
+      auto *ptr = const_cast<T*>(&*where);
       this->first = ptr->GetNext();
       ASSERT(this->first != nullptr, "null ptr check");
       this->first->SetPrev(nullptr);
-    } else if (_Where == this->rbegin().base()) {
+    } else if (where == this->rbegin().base()) {
       pop_back();
     } else {
-      ASSERT(_Where->GetPrev() != nullptr, "null ptr check");
+      ASSERT(where->GetPrev() != nullptr, "null ptr check");
       // `_Where` stands for the position, however we made the data and node combined, so a const_cast is needed.
-      auto *ptr = const_cast<T*>(&*_Where);
+      auto *ptr = const_cast<T*>(&*where);
       ptr->GetPrev()->SetNext(ptr->GetNext());
       if (ptr->GetNext()) {
         ptr->GetNext()->SetPrev(ptr->GetPrev());
@@ -438,8 +438,8 @@ class PtrListRef {
     return iterator(nullptr);
   }
 
-  iterator erase(const_pointer _Where) {
-    return this->erase(const_iterator(_Where));
+  iterator erase(const_pointer where) {
+    return this->erase(const_iterator(where));
   }
 
   void set_first(T *f) {

@@ -198,7 +198,8 @@ class ASTParser {
   MapleVector<ASTDecl*> SolveFuncParameterDecls(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                                                 MapleVector<MIRType*> &typeDescIn, std::list<ASTStmt*> &stmts,
                                                 bool needBody);
-  GenericAttrs SolveFunctionAttributes(const clang::FunctionDecl &funcDecl, std::string &funcName) const;
+  MapleGenericAttrs SolveFunctionAttributes(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                       std::string &funcName) const;
   ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
   ASTStmt *SolveFunctionBody(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc,
                              const std::list<ASTStmt*> &stmts);
@@ -218,7 +219,7 @@ class ASTParser {
   ASTDecl *PROCESS_DECL(Label);
   ASTDecl *PROCESS_DECL(StaticAssert);
   ASTDecl *ProcessDeclFunctionDecl(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
-                                   bool needBody = false);
+                                   bool needBody = false, bool needDefDeMangledVer = false);
   static ASTExpr *GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr &expr, uint32 typeSize);
   static ASTExpr *GetSizeMulExpr(MapleAllocator &allocator, ASTExpr &expr, ASTExpr &ptrSizeExpr);
 
@@ -288,6 +289,9 @@ class ASTParser {
                                               const clang::QualType &qualType) const;
   void CheckAtomicClearArg(const clang::CallExpr &expr) const;
   std::string GetFuncNameFromFuncDecl(const clang::FunctionDecl &funcDecl) const;
+  bool IsMemberTypeHasMulAlignAttr(const clang::Expr &expr) const;
+  ASTFunc *BuildAstFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                        std::list<ASTStmt*> &implicitStmts, bool needDefDeMangledVer, bool needBody);
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
                                                    std::stringstream &ss, ASTCallExpr &astCallExpr) const;
 static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();

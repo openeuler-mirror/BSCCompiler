@@ -79,7 +79,8 @@ class ENCChecker {
   static void CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRType &addrType, FieldID fieldID,
                                           const Loc &loc);
   static void CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr, const Loc &loc);
-  static MapleVector<BaseNode*> ReplaceBoundaryChecking(MIRBuilder &mirBuilder, const FEIRStmtNary *stmt);
+  static MapleVector<BaseNode*> ReplaceBoundaryChecking(MIRBuilder &mirBuilder, const FEIRStmtNary *stmt,
+                                                        UniqueFEIRExpr lenExpr);
   static void ReplaceBoundaryErr(const MIRBuilder &mirBuilder, const FEIRStmtNary *stmt);
   static UniqueFEIRExpr GetBoundaryLenExprCache(uint32 hash);
   static UniqueFEIRExpr GetBoundaryLenExprCache(const TypeAttrs &attr);

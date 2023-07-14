@@ -146,6 +146,24 @@ class ConstantFold : public FuncOptimizeImpl {
   CFConfig cfc;
 };
 
+#define OP_CASE_GROUP \
+  case OP_ashr: \
+  case OP_band: \
+  case OP_bior: \
+  case OP_bxor: \
+  case OP_cand: \
+  case OP_cior: \
+  case OP_div:  \
+  case OP_land: \
+  case OP_lior: \
+  case OP_lshr: \
+  case OP_max:  \
+  case OP_min:  \
+  case OP_mul:  \
+  case OP_rem:  \
+  case OP_shl:  \
+  case OP_sub
+
 MAPLE_MODULE_PHASE_DECLARE(M2MConstantFold)
 }  // namespace maple
 #endif  // MPL2MPL_INCLUDE_CONSTANTFOLD_H

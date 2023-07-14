@@ -14,34 +14,34 @@
  */
 #ifndef MAPLE_IPA_INCLUDE_IPASIDEEFFECT_H
 #define MAPLE_IPA_INCLUDE_IPASIDEEFFECT_H
+#include "me_ir.h"
 #include "me_phase_manager.h"
 #include "ipa_phase_manager.h"
 
 namespace maple {
-class SideEffect {
+class IpaSideEffectAnalyzer {
  public:
-  SideEffect(MeFunction *meFunc, Dominance *dom, AliasClass *alias, CallGraph *cg)
+  IpaSideEffectAnalyzer(MeFunction &meFunc, Dominance *dom, AliasClass *alias, CallGraph *cg)
       : meFunc(meFunc), dom(dom), alias(alias), callGraph(cg) {
     defGlobal = false;
     defArg = false;
     useGlobal = false;
-    vstsValueAliasWithFormal.resize(std::min(meFunc->GetMirFunc()->GetFormalCount(), kMaxParamCount));
+    vstsValueAliasWithFormal.resize(std::min(meFunc.GetMirFunc()->GetFormalCount(), kMaxParamCount));
   }
-  ~SideEffect() {
+  ~IpaSideEffectAnalyzer() {
     callGraph = nullptr;
     alias = nullptr;
     dom = nullptr;
-    meFunc = nullptr;
     curFuncDesc = nullptr;
   }
   bool Perform(MeFunction &f);
   static const FuncDesc &GetFuncDesc(MeFunction &f);
   static const FuncDesc &GetFuncDesc(MIRFunction &f);
-  static const std::map<std::string, FuncDesc> &GetWhiteList();
+  static const std::map<std::string, FuncDesc> *GetWhiteList();
 
  private:
   void DealWithOperand(MeExpr *expr);
-  void DealWithOst(OStIdx ostIdx);
+  void DealWithOst(const OStIdx &ostIdx);
   void DealWithStmt(MeStmt &stmt);
   void DealWithMayUse(MeStmt &stmt);
   void DealWithMayDef(MeStmt &stmt);
@@ -51,6 +51,7 @@ class SideEffect {
   void ParamInfoUpdater(size_t vstIdx, const PI &calleeParamInfo);
   void DealWithOst(const OriginalSt *ost);
   void DealWithReturn(const RetMeStmt &retMeStmt) const;
+  void DealWithIcall(MeStmt &stmt);
   void AnalysisFormalOst();
   void SolveVarArgs(MeFunction &f) const;
   void CollectFormalOst(MeFunction &f);
@@ -59,7 +60,7 @@ class SideEffect {
 
   std::set<std::pair<OriginalSt*, size_t>> analysisLater;
   std::vector<std::set<size_t>> vstsValueAliasWithFormal;
-  MeFunction *meFunc = nullptr;
+  MeFunction &meFunc;
   FuncDesc *curFuncDesc = nullptr;
   Dominance *dom = nullptr;
   AliasClass *alias = nullptr;

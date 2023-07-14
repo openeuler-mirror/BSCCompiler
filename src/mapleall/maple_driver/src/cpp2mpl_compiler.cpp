@@ -98,8 +98,7 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
   }
   if (opts::linkerTimeOpt.IsEnabledByUser()) {
     defaultOptions.mplOptions[len].SetKey("-wpaa");
-    defaultOptions.mplOptions[len].SetValue("");
-    len++;
+    defaultOptions.mplOptions[len].SetValue(""); // if new option is added, needs len++
   }
   return defaultOptions;
 }

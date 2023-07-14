@@ -794,6 +794,20 @@ class LiveRange {
     return rematerializer;
   }
 
+  bool IsVaildRegister(regno_t reg) const {
+    if (regLimit != kInvalidRegLimit) {
+      return (reg >= regLimit.first) && (reg <= regLimit.second);
+    }
+    return true;
+  }
+
+  void SetRegisterLimit(const std::pair<regno_t, regno_t> &limit) {
+    regLimit = limit;
+  }
+
+  const std::pair<regno_t, regno_t> &GetRegisterLimit() const {
+    return regLimit;
+  }
  private:
   MapleAllocator *lrAlloca;
   regno_t regNO = 0;
@@ -826,6 +840,7 @@ class LiveRange {
   bool isNonLocal = true;
   bool isSpSave = false;              /* contain SP in case of alloca */
   Rematerializer *rematerializer = nullptr;
+  std::pair<regno_t, regno_t> regLimit = kInvalidRegLimit;  // first <= regLimit <= second
 };
 
 /* One per bb, to communicate local usage to global RA */
@@ -1197,7 +1212,7 @@ class GraphColorRegAllocator : public RegAllocator {
         bbVec(alloc.Adapter()),
         vregLive(alloc.Adapter()),
         pregLive(alloc.Adapter()),
-        lrMap(alloc.Adapter()),
+        lrMap(cgFunc.GetMaxVReg(), nullptr, alloc.Adapter()),
         localRegVec(alloc.Adapter()),
         bbRegInfo(alloc.Adapter()),
         unconstrained(alloc.Adapter()),
@@ -1224,6 +1239,9 @@ class GraphColorRegAllocator : public RegAllocator {
       uint32 cnt = 0;
       FOR_ALL_BB(bb, &cgFunc) {
         FOR_BB_INSNS(insn, bb) {
+          if (insn->IsImmaterialInsn() || !insn->IsMachineInstruction()) {
+            continue;
+          }
           ++cnt;
         }
       }
@@ -1247,14 +1265,9 @@ class GraphColorRegAllocator : public RegAllocator {
   };
 
   LiveRange *GetLiveRange(regno_t regNO) const {
-    auto it = lrMap.find(regNO);
-    if (it != lrMap.end()) {
-      return it->second;
-    } else {
-      return nullptr;
-    }
+    return lrMap[regNO];
   }
-  const MapleMap<regno_t, LiveRange*> &GetLrMap() const {
+  const MapleVector<LiveRange*> &GetLrMap() const {
     return lrMap;
   }
   Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, RegOperand &phyOpnd, bool forCall = false);
@@ -1276,6 +1289,13 @@ class GraphColorRegAllocator : public RegAllocator {
     }
   };
 
+  struct RegOpndInfo {
+    RegOpndInfo(RegOperand &opnd, uint32 size, uint32 idx) : regOpnd(opnd), regSize(size), opndIdx(idx) {}
+    RegOperand &regOpnd;
+    uint32 regSize = 0;
+    uint32 opndIdx = -1;
+  };
+
   void PrintLiveRanges() const;
   void PrintLocalRAInfo(const std::string &str) const;
   void PrintBBAssignInfo() const;
@@ -1288,11 +1308,10 @@ class GraphColorRegAllocator : public RegAllocator {
   LiveRange *CreateLiveRangeAllocateAndUpdate(regno_t regNO, const BB &bb, uint32 currId);
   void CreateLiveRange(regno_t regNO, const BB &bb, bool isDef, uint32 currId, bool updateCount);
   void SetupLiveRangeByPhysicalReg(const Insn &insn, regno_t regNO, bool isDef);
-  void SetupLiveRangeByRegOpnd(const Insn &insn, const RegOperand &regOpnd, uint32 regSize, bool isDef);
+  void SetupLiveRangeByRegOpnd(const Insn &insn, const RegOpndInfo &regOpndInfo, bool isDef);
   void ComputeLiveRangeByLiveOut(BB &bb, uint32 currPoint);
   void ComputeLiveRangeByLiveIn(BB &bb, uint32 currPoint);
   void UpdateAdjMatrixByLiveIn(BB &bb, AdjMatrix &adjMat);
-  using RegOpndInfo = std::pair<RegOperand*, uint32>;  // first is opnd, second is regSize
   void CollectRegOpndInfo(const Insn &insn, std::vector<RegOpndInfo> &defOpnds,
                           std::vector<RegOpndInfo> &useOpnds);
   void UpdateCallInfo(uint32 bbId, uint32 currPoint, const Insn &insn);
@@ -1382,8 +1401,6 @@ class GraphColorRegAllocator : public RegAllocator {
   RegOperand *CreateSpillFillCode(const RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef = false);
   bool SpillLiveRangeForSpills();
   void FinalizeSpSaveReg();
-
-  MapleVector<LiveRange*>::iterator GetHighPriorityLr(MapleVector<LiveRange*> &lrSet) const;
   void UpdateForbiddenForNeighbors(const LiveRange &lr) const;
   void UpdatePregvetoForNeighbors(const LiveRange &lr) const;
   regno_t FindColorForLr(const LiveRange &lr) const;
@@ -1427,7 +1444,7 @@ class GraphColorRegAllocator : public RegAllocator {
   MapleVector<BB*> bbVec;
   MapleUnorderedSet<regno_t> vregLive;
   MapleUnorderedSet<regno_t> pregLive;
-  MapleMap<regno_t, LiveRange*> lrMap;
+  MapleVector<LiveRange*> lrMap;
   MapleVector<LocalRaInfo*> localRegVec;  /* local reg info for each bb, no local reg if null */
   MapleVector<BBAssignInfo*> bbRegInfo;   /* register assignment info for each bb */
   MapleVector<LiveRange*> unconstrained;

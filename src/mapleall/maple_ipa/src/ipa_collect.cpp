@@ -239,7 +239,7 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId posi
   switch (scalar.GetDefBy()) {
     case kDefByNo: {
       if (ost->IsFormal()) {
-        defUsePosition.definePositions.push_back(kInvalidIndex);
+        defUsePosition.definePositions.push_back(utils::kInvalidIndex);
       }
       break;
     }
@@ -253,7 +253,7 @@ void CollectIpaInfo::CollectDefUsePosition(ScalarMeExpr &scalar, StmtInfoId posi
       CHECK_FATAL(scalar.GetDefByMeStmt() != nullptr, "nullptr check");
       auto defStmtInfoId = scalar.GetDefByMeStmt()->GetStmtInfoId();
       defUsePosition.definePositions.push_back(defStmtInfoId);
-      if (scalar.GetDefBy() != kDefByChi && defStmtInfoId != kInvalidIndex) {
+      if (scalar.GetDefBy() != kDefByChi && defStmtInfoId != utils::kInvalidIndex) {
         auto &defUsePositionOfDefStmt = stmtInfoVector[defStmtInfoId].GetDefUsePositions(*ost);
         defUsePositionOfDefStmt.usePositions.push_back(position);
         break;

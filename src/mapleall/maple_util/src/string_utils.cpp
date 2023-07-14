@@ -20,6 +20,20 @@ std::string StringUtils::Trim(const std::string &src) {
   return std::regex_replace(src, std::regex("\\s+"), "");
 }
 
+std::string StringUtils::LTrim(const std::string &src) {
+  size_t start = src.find_first_not_of(" ");
+  return (start == std::string::npos) ? "" : src.substr(start);
+}
+
+std::string StringUtils::RTrim(const std::string &src) {
+  size_t end = src.find_last_not_of(" ");
+  return (end == std::string::npos) ? "" : src.substr(0, end + 1);
+}
+
+std::string StringUtils::TrimWhitespace(const std::string &src) {
+  return RTrim(LTrim(src));
+}
+
 std::string StringUtils::Replace(const std::string &src, const std::string &target,
                                  const std::string &replacement) {
   std::string::size_type replaceLen = replacement.size();

@@ -31,7 +31,6 @@ struct CCLocInfo {
   int32 memOffset = 0;
   int32 memSize = 0;
   uint32 fpSize = 0;
-  uint32 numFpPureRegs = 0;
   uint8 regCount = 0;             /* number of registers <= 2 storing the return value */
   PrimType primTypeOfReg0;    /* the primitive type stored in reg0 */
   PrimType primTypeOfReg1;    /* the primitive type stored in reg1 */
@@ -46,7 +45,6 @@ struct CCLocInfo {
     memOffset = 0;
     memSize = 0;
     fpSize = 0;
-    numFpPureRegs = 0;
     regCount = 0;
     primTypeOfReg0 = PTY_begin;
     primTypeOfReg1 = PTY_begin;

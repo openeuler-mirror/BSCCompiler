@@ -97,7 +97,7 @@ class HIR2MPLOptions {
   bool ProcessEnableVariableArray(const maplecl::OptionInterface &) const;
   bool ProcessFuncInlineSize(const maplecl::OptionInterface &funcInliceSize) const;
   bool ProcessWPAA(const maplecl::OptionInterface &) const;
-  bool ProcessFM(const maplecl::OptionInterface &) const;
+  bool ProcessFM(const maplecl::OptionInterface &fmOpt) const;
 
   // ast compiler options
   bool ProcessUseSignedChar(const maplecl::OptionInterface &) const;

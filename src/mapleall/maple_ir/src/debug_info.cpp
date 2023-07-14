@@ -298,10 +298,8 @@ void DebugInfo::InitBaseTypeMap() {
 void DebugInfo::SetupCU() {
   compUnit->SetWithChildren(true);
   /* Add the Producer (Compiler) Information */
-  const char *producer = strdup((std::string("Maple Version ") + Version::GetVersionStr()).c_str());
+  std::string producer = "Maple Version " + Version::GetVersionStr();
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(producer);
-  delete producer;
-  producer = nullptr;
   compUnit->AddAttr(DW_AT_producer, DW_FORM_strp, strIdx.GetIdx());
 
   /* Source Languate  */
@@ -1333,7 +1331,7 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arrayType) {
   }
   typeDie = GetOrCreateTypeDie(TyIdx(PTY_u32));
   bool keep = !arrayType->IsIncompleteArray();
-  for (auto i = 0; i < dim; ++i) {
+  for (uint32 i = 0; i < dim; ++i) {
     DBGDie *rangeDie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subrange_type);
     rangeDie->AddAttr(DW_AT_type, DW_FORM_ref4, typeDie->GetId(), keep);
     // The default lower bound value for C, C++, or Java is 0
@@ -1447,7 +1445,7 @@ void DebugInfo::CreateStructTypeFieldsDies(const MIRStructType *structType, DBGD
       die->AddSubVec(fieldDie);
 
       // update field type with alias info
-      MIRAlias *alias = structType->GetAlias();
+      const MIRAlias *alias = structType->GetAlias();
       if (!alias) {
         continue;
       }
@@ -2000,11 +1998,11 @@ void DBGCompileMsgInfo::EmitMsg() {
   fprintf(stderr, "==================\n");
   fprintf(stderr, "===================================================================\n");
   fprintf(stderr, "line %4u %s\n", lineNum[(startLine + k2BitSize) % k3BitSize],
-          reinterpret_cast<char *>(codeLine[(startLine + k2BitSize) % k3BitSize]));
+          static_cast<unsigned char *>(codeLine[(startLine + k2BitSize) % k3BitSize]));
   fprintf(stderr, "line %4u %s\n", lineNum[(startLine + 1) % k3BitSize],
-          reinterpret_cast<char *>(codeLine[(startLine + 1) % k3BitSize]));
+          static_cast<unsigned char *>(codeLine[(startLine + 1) % k3BitSize]));
   fprintf(stderr, "line %4u %s\n", lineNum[(startLine) % k3BitSize],
-          reinterpret_cast<char *>(codeLine[(startLine) % k3BitSize]));
+          static_cast<unsigned char *>(codeLine[(startLine) % k3BitSize]));
   fprintf(stderr, "\x1B[1m" "\x1B[31m" "          %s\n" "\x1B[0m", str);
   fprintf(stderr, "===================================================================\n");
 }

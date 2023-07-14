@@ -40,7 +40,6 @@ class LiveAnalysis : public AnalysisResult {
   void InsertInOutOfCleanupBB();
   void ResetLiveSet();
   void ClearInOutDataInfo();
-  void EnlargeSpaceForLiveAnalysis(BB &currBB);
   void GetBBDefUse(BB &bb) const;
   void ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) const;
   void ProcessListOpnd(BB &bb, Operand &opnd, bool isDef) const;
