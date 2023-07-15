@@ -56,10 +56,10 @@ class CFGMST {
  private:
   uint32 FindGroup(uint32 bbId);
   bool UnionGroups(uint32 srcId, uint32 destId);
-  static constexpr int normalEdgeWeight = 2;
-  static constexpr int exitEdgeWeight = 3;
-  static constexpr int fakeExitEdgeWeight = 4;
-  static constexpr int criticalEdgeWeight = 4;
+  static constexpr int kNormalEdgeWeight = 2;
+  static constexpr int kExitEdgeWeight = 3;
+  static constexpr int kFakeExitEdgeWeight = 4;
+  static constexpr int kCriticalEdgeWeight = 4;
   MemPool *mp;
   MapleAllocator alloc;
   MapleVector<Edge*> allEdges;

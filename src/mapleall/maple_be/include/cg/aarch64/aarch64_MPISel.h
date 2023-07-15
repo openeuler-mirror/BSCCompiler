@@ -117,7 +117,6 @@ class AArch64MPIsel : public MPISel {
   void CreateCallStructParamPassByReg(const MemOperand &memOpnd, regno_t regNo, uint32 parmNum);
   void CreateCallStructParamPassByStack(const MemOperand &addrOpnd, uint32 symSize, int32 baseOffset);
   void SelectAggCopyReturn(const MIRSymbol &symbol, MIRType &symbolType, uint64 symbolSize);
-  uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
   bool IsParamStructCopy(const MIRSymbol &symbol);
   bool IsSymbolRequireIndirection(const MIRSymbol &symbol) override;
   void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;

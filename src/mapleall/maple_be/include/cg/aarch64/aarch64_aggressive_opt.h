@@ -87,13 +87,13 @@ class AArch64CombineRedundantX16Opt {
   void InitSegmentInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc);
   void ClearSegmentInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc);
   void ResetInsnId();
-  bool IsEndOfSegment(Insn &insn, bool hasX16Def);
+  bool IsEndOfSegment(const Insn &insn, bool hasX16Def);
   void ComputeRecentAddImm();
   void RecordRecentSplitInsnInfo(Insn &insn);
   bool IsUseX16MemInsn(const Insn &insn) const;
   void RecordUseX16InsnInfo(Insn &insn, MemPool *tmpMp, MapleAllocator *tmpAlloc);
   void ComputeValidAddImmInterval(UseX16InsnInfo &x16UseInfo, bool isPair);
-  void FindCommonX16DefInsns(MemPool *tmpMp, MapleAllocator *tmpAlloc);
+  void FindCommonX16DefInsns(MemPool *tmpMp, MapleAllocator *tmpAlloc) const;
   void ProcessSameAddImmCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) const;
   void ProcessIntervalIntersectionCombineInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc) const;
   void CombineRedundantX16DefInsns(BB &bb);

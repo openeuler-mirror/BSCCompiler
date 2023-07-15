@@ -24,8 +24,10 @@ inline const std::string kCfgoAlways = "green";
 inline const std::string kCfgoUnreach = "yellow";
 inline const std::string kCfgoDup = "orange";
 inline const std::string kCfgoEmpty = "purple";
-inline const std::string kIcoIte = "blue"; /* if conversion optimization, if-then-else */
-inline const std::string kIcoIt = "grey";  /* if conversion optimization, if-then-else */
+inline const std::string kIcoIte = "blue"; // if conversion optimization, if-then-else
+inline const std::string kIcoIt = "grey";  // if conversion optimization, if-then-else
+inline const std::string kDup = "maize";   // dup optimization
+
 
 class OptimizationPattern {
  public:
@@ -48,7 +50,6 @@ class OptimizationPattern {
     return (ehFunc != nullptr && maplebe::CGCFG::InLSDA(label, ehFunc)) ||
             cgFunc->GetTheCFG()->InSwitchTable(label, *cgFunc);
   }
-
   void Search2Op(bool noOptimize);
   virtual bool Optimize(BB &curBB) = 0;
 

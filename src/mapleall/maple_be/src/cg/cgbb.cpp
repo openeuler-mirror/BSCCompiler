@@ -274,6 +274,25 @@ int32 BB::NumInsn() const {
   return bbSize;
 }
 
+// Number of instructions excluding DbgInsn , comments and pseudo insns
+int32 BB::NumMachineInsn() const {
+  int32 bbSize = 0;
+  FOR_BB_INSNS_CONST(i, this) {
+    if (i->IsImmaterialInsn() || i->IsDbgInsn()) {
+      continue;
+    }
+  #if TARGAARCH64
+    if (!i->IsMachineInstruction() || AArch64isa::IsPseudoInstruction(i->GetMachineOpcode())) {
+  #elif defined(TARGX86_64) && TARGX86_64
+    if (!i->IsMachineInstruction()) {
+  #endif
+      continue;
+    }
+    ++bbSize;
+  }
+  return bbSize;
+}
+
 bool BB::IsInPhiList(regno_t regNO) {
   for (auto &phiInsnIt : std::as_const(phiInsnList)) {
     Insn *phiInsn = phiInsnIt.second;

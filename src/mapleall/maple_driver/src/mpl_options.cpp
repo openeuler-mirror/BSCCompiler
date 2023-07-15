@@ -402,9 +402,9 @@ ErrorCode MplOptions::DecideRunningPhases() {
     inputInfos.clear();
     inputInfos = std::move(tmpInputInfos);
     tmpInputInfos.clear();
-    auto lastOastInfo = hirInputFiles.back();
-    hirInputFiles.pop_back();
-    inputInfos.push_back(std::make_unique<InputInfo>(lastOastInfo));
+    auto frontOastInfo = hirInputFiles.front();
+    (void)hirInputFiles.erase(hirInputFiles.begin());
+    inputInfos.push_back(std::make_unique<InputInfo>(frontOastInfo));
     inputInfos.push_back(std::make_unique<InputInfo>(InputInfo(inputInfos.back()->GetOutputFolder() + "tmp.mpl",
                          InputFileType::kFileTypeMpl, "tmp.mpl", inputInfos.back()->GetOutputFolder(),
                          inputInfos.back()->GetOutputFolder(), "tmp", inputInfos.back()->GetOutputFolder() + "tmp")));

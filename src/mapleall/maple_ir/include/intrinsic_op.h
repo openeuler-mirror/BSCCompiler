@@ -15,6 +15,8 @@
 #ifndef MAPLE_IR_INCLUDE_INTRINSIC_OP_H
 #define MAPLE_IR_INCLUDE_INTRINSIC_OP_H
 
+#include "types_def.h"
+
 namespace maple {
 #define CASE_INTRN_C_SYNC \
   case INTRN_C___sync_add_and_fetch_1: \

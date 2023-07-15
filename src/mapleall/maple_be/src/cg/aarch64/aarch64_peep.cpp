@@ -188,6 +188,7 @@ bool AArch64CGPeepHole::DoSSAOptimize(BB &bb, Insn &insn) {
     case MOP_wcselrrrc:
     case MOP_xcselrrrc: {
       manager->Optimize<CselToCsetPattern>(true);
+      manager->Optimize<CselToCsincRemoveMovPattern>(true);
       break;
     }
     case MOP_wiorrrr:
@@ -515,7 +516,7 @@ bool LdrCmpPattern::SetInsns() {
   }
   ldr1 = ldr2->GetPreviousMachineInsn();
   /* ldr1 must be firstInsn in currBB */
-  if (currInsn->GetBB()->GetFirstInsn() != ldr1) {
+  if (currInsn->GetBB()->GetFirstMachineInsn() != ldr1) {
     return false;
   }
   if (!IsBne(currInsn->GetNextMachineInsn())) {
@@ -528,10 +529,10 @@ bool LdrCmpPattern::SetInsns() {
   if ((prevBB == nullptr) || (predBBs.size() != 1) || (prevBB != *predBBs.begin())) {
     return false;
   }
-  if (!IsBne(prevBB->GetLastInsn())) {
+  if (!IsBne(prevBB->GetLastMachineInsn())) {
     return false;
   }
-  bne2 = prevBB->GetLastInsn();
+  bne2 = prevBB->GetLastMachineInsn();
   if (!IsCmp(bne2->GetPreviousMachineInsn())) {
     return false;
   }
@@ -943,6 +944,81 @@ void CselToCsetPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
+bool CselToCsincRemoveMovPattern::IsOpndMovOneAndNewOpndOpt(const Insn &curInsn) {
+  auto &insnThirdOpnd = static_cast<RegOperand&>(curInsn.GetOperand(kInsnThirdOpnd));
+  auto &insnSecondOpnd = static_cast<RegOperand&>(curInsn.GetOperand(kInsnSecondOpnd));
+  auto &origCondOpnd = static_cast<CondOperand&>(curInsn.GetOperand(kInsnFourthOpnd));
+  Insn *insnThirdOpndDefInsn = ssaInfo->GetDefInsn(insnThirdOpnd);
+  Insn *insnSecondOpndDefInsn = ssaInfo->GetDefInsn(insnSecondOpnd);
+  if (insnThirdOpndDefInsn == nullptr || insnSecondOpndDefInsn == nullptr) {
+    return false;
+  }
+  MOperator insnThirdOpndDefMop = insnThirdOpndDefInsn->GetMachineOpcode();
+  MOperator insnSecondOpndDefMop = insnSecondOpndDefInsn->GetMachineOpcode();
+  if (insnThirdOpndDefMop == MOP_wmovri32 || insnThirdOpndDefMop == MOP_xmovri64) {
+    prevMovInsn = insnThirdOpndDefInsn;
+  } else if (insnSecondOpndDefMop == MOP_wmovri32 || insnSecondOpndDefMop == MOP_xmovri64){
+    prevMovInsn = insnSecondOpndDefInsn;
+    needReverseCond = true;
+  } else {
+    return false;
+  }
+  auto &prevMovImmOpnd = static_cast<ImmOperand&>(prevMovInsn->GetOperand(kInsnSecondOpnd));
+  auto val = prevMovImmOpnd.GetValue();
+  if (val != 1) {
+    return false;
+  }
+  if (needReverseCond) {
+    newSecondOpnd = &insnThirdOpnd;
+    ConditionCode inverseCondCode = AArch64isa::GetReverseCC(origCondOpnd.GetCode());
+    if (inverseCondCode == kCcLast) {
+      return false;
+    }
+    auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    CondOperand &inverseCondOpnd = aarFunc->GetCondOperand(inverseCondCode);
+    cond = &inverseCondOpnd;
+  } else {
+    newSecondOpnd = &insnSecondOpnd;
+    cond = &origCondOpnd;
+  }
+  return true;
+}
+
+bool CselToCsincRemoveMovPattern::CheckCondition(Insn &insn) {
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop != MOP_xcselrrrc && curMop != MOP_wcselrrrc) {
+    return false;
+  }
+  if (!IsOpndMovOneAndNewOpndOpt(insn)) {
+    return false;
+  }
+  return true;
+}
+
+void CselToCsincRemoveMovPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  uint32 dstOpndSize = insn.GetOperandSize(kInsnFirstOpnd);
+  MOperator newMop = (dstOpndSize == k64ByteSize) ? MOP_xcsincrrrc : MOP_wcsincrrrc;
+  Operand &ccReg = insn.GetOperand(kInsnFifthOpnd);
+  RegOperand &zeroOpnd = cgFunc->GetZeroOpnd(dstOpndSize);
+  auto &insnFirstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, insnFirstOpnd, *static_cast<RegOperand*>(newSecondOpnd),
+                                                      zeroOpnd, *static_cast<CondOperand*>(cond), ccReg);
+  bb.ReplaceInsn(insn, newInsn);
+  // updata ssa info
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  optSuccess = true;
+  SetCurrInsn(&newInsn);
+  // dump pattern info
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn *> prevs;
+    prevs.emplace_back(prevMovInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
+  }
+}
+
 bool CsetToCincPattern::CheckDefInsn(const RegOperand &opnd, Insn &insn) {
   Insn *tempDefInsn = ssaInfo->GetDefInsn(opnd);
   if (tempDefInsn != nullptr && tempDefInsn->GetBB()->GetId() == insn.GetBB()->GetId()) {
@@ -1115,6 +1191,9 @@ void AndCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
   ImmOperand &tbzImmOpnd = aarFunc->CreateImmOperand(tbzImmVal, k8BitSize, false);
   Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(
       newMop, prevAndInsn->GetOperand(kInsnSecondOpnd), tbzImmOpnd, labelOpnd);
+  if (!VERIFY_INSN(&newInsn)) {
+    return;
+  }
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -1327,6 +1406,9 @@ void ZeroCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
       (regOpnd->GetSize() <= k32BitSize) ? (k32BitSize - 1) : (k64BitSize - 1), k8BitSize, false);
   auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *static_cast<RegOperand*>(regOpnd), bitOpnd, labelOpnd);
+  if (!VERIFY_INSN(&newInsn)) {
+    return;
+  }
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -1649,6 +1731,7 @@ bool AndCbzToTbzPattern::CheckCondition(Insn &insn) {
 
 void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   auto *aarchFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  bool isDeleted = false;
   if (!CheckCondition(insn)) {
     return;
   }
@@ -1678,20 +1761,47 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   }
   auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   ImmOperand &tbzImm = aarchFunc->CreateImmOperand(tbzVal, k8BitSize, false);
-  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
-                                                      tbzImm, labelOpnd);
-  bb.ReplaceInsn(insn, newInsn);
+  Insn *newInsn = nullptr;
+  // if bit offset is invalid (implicit zero), then it should be a unconditional branch
+  if(!aarchFunc->IsOperandImmValid(newMop, &tbzImm, kInsnSecondOpnd)) {
+    // cfg adjustment in ssa is complicate, so we just bypass this pattern if imm is invalid.
+    if (ssaInfo) {
+      return;
+    }
+    if (newMop == MOP_wtbz) {
+      newInsn = &aarchFunc->GetInsnBuilder()->BuildInsn(MOP_xuncond, labelOpnd);
+      BB *bbFt = bb.GetNext();
+      bbFt->RemovePreds(bb);
+      bb.SetKind(BB::kBBGoto);
+      bb.RemoveSuccs(*bbFt);
+    } else if (newMop == MOP_wtbnz) {
+      BB *targetBB = cgFunc->GetBBFromLab2BBMap(labelOpnd.GetLabelIndex());
+      targetBB->RemovePreds(bb);
+      bb.SetKind(BB::kBBFallthru);
+      bb.RemoveSuccs(*targetBB);
+      bb.RemoveInsn(insn);
+      isDeleted = true;
+    } else {
+      CHECK_FATAL(false, "only wtbz/wtbnz can have invalid imm");
+    }
+  } else {
+    newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
+                                                   tbzImm, labelOpnd);
+  }
+  if (!isDeleted) {
+    bb.ReplaceInsn(insn, *newInsn);
+    SetCurrInsn(newInsn);
+  }
   if (ssaInfo) {
     /* update ssa info */
-    ssaInfo->ReplaceInsn(insn, newInsn);
+    ssaInfo->ReplaceInsn(insn, *newInsn);
   }
   optSuccess = true;
-  SetCurrInsn(&newInsn);
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
     prevs.emplace_back(prevInsn);
-    DumpAfterPattern(prevs, &insn, &newInsn);
+    DumpAfterPattern(prevs, &insn, newInsn);
   }
 }
 
@@ -2138,7 +2248,7 @@ void ElimSpecificExtensionPattern::ReplaceExtWithMov(Insn &currInsn) {
 }
 
 void ElimSpecificExtensionPattern::ElimExtensionAfterMov(Insn &insn) {
-  if (&insn == currBB->GetFirstInsn() || extTypeIdx == AND) {
+  if (&insn == currBB->GetFirstMachineInsn() || extTypeIdx == AND) {
     return;
   }
   auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
@@ -2354,7 +2464,7 @@ void ElimSpecificExtensionPattern::Run(BB& /* bb */, Insn &insn) {
 }
 
 void OneHoleBranchPattern::FindNewMop(const BB &bb, const Insn &insn) {
-  if (&insn != bb.GetLastInsn()) {
+  if (&insn != bb.GetLastMachineInsn()) {
     return;
   }
   MOperator thisMop = insn.GetMachineOpcode();
@@ -2422,6 +2532,9 @@ void OneHoleBranchPattern::Run(BB &bb, Insn &insn) {
     ImmOperand &oneHoleOpnd = aarch64CGFunc->CreateImmOperand(0, k8BitSize, false);
     auto &regOperand = static_cast<RegOperand&>(prePrevInsn->GetOperand(kInsnSecondOpnd));
     Insn &newTbzInsn = cgFunc->GetInsnBuilder()->BuildInsn(newOp, regOperand, oneHoleOpnd, label);
+    if (!VERIFY_INSN(&newTbzInsn)) {
+    return;
+    }
     bb.ReplaceInsn(insn, newTbzInsn);
     ssaInfo->ReplaceInsn(insn, newTbzInsn);
     optSuccess = true;
@@ -3346,7 +3459,7 @@ void EliminateSpecifcUXTPattern::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   auto &regOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto &regOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  if (&insn == bb.GetFirstInsn() || regOpnd0.GetRegisterNumber() != regOpnd1.GetRegisterNumber() ||
+  if (&insn == bb.GetFirstMachineInsn() || regOpnd0.GetRegisterNumber() != regOpnd1.GetRegisterNumber() ||
       !prevInsn->IsMachineInstruction()) {
     return;
   }
@@ -3426,7 +3539,7 @@ bool FmovRegPattern::CheckCondition(Insn &insn) {
   if (nextInsn == nullptr) {
     return false;
   }
-  if (&insn == insn.GetBB()->GetFirstInsn()) {
+  if (&insn == insn.GetBB()->GetFirstMachineInsn()) {
     return false;
   }
   prevInsn = insn.GetPrev();
@@ -3670,7 +3783,8 @@ void CbnzToCbzPattern::Run(BB &bb, Insn &insn) {
 
 bool ContiLDRorSTRToSameMEMPattern::CheckCondition(Insn &insn) {
   prevInsn = insn.GetPrev();
-  while (prevInsn != nullptr && prevInsn->GetMachineOpcode() == 0 && prevInsn != insn.GetBB()->GetFirstInsn()) {
+  while (prevInsn != nullptr && (prevInsn->GetMachineOpcode() == 0 || !prevInsn->IsMachineInstruction()) &&
+         prevInsn != insn.GetBB()->GetFirstMachineInsn()) {
     prevInsn = prevInsn->GetPrev();
   }
   if (!insn.IsMachineInstruction() || prevInsn == nullptr) {
@@ -3749,7 +3863,7 @@ void ContiLDRorSTRToSameMEMPattern::Run(BB &bb, Insn &insn) {
       newOp = (reg1.GetSize() <= k32BitSize) ? MOP_xvmovs : MOP_xvmovd;
     }
     Insn *nextInsn = insn.GetNext();
-    while (nextInsn != nullptr && nextInsn->GetMachineOpcode() == 0 && nextInsn != bb.GetLastInsn()) {
+    while (nextInsn != nullptr && nextInsn->GetMachineOpcode() == 0 && nextInsn != bb.GetLastMachineInsn()) {
       nextInsn = nextInsn->GetNext();
     }
     bool moveSameReg = false;
@@ -4203,7 +4317,7 @@ bool DeleteMovAfterCbzOrCbnzAArch64::OpndDefByMovZero(const Insn &insn) const {
 /* check whether predefine insn of first operand of test_insn is exist in current BB */
 bool DeleteMovAfterCbzOrCbnzAArch64::NoPreDefine(Insn &testInsn) const {
   Insn *nextInsn = nullptr;
-  for (Insn *insn = testInsn.GetBB()->GetFirstInsn(); insn != nullptr && insn != &testInsn; insn = nextInsn) {
+  for (Insn *insn = testInsn.GetBB()->GetFirstMachineInsn(); insn != nullptr && insn != &testInsn; insn = nextInsn) {
     nextInsn = insn->GetNextMachineInsn();
     if (!insn->IsMachineInstruction()) {
       continue;
@@ -5019,6 +5133,9 @@ void NormRevTbzToTbzPattern::Run(BB &bb, Insn &insn) {
   MOperator useMop = tbzInsn->GetMachineOpcode();
   Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(useMop, insn.GetOperand(kInsnSecondOpnd),
                                                       newImmOpnd, tbzInsn->GetOperand(kInsnThirdOpnd));
+  if (!VERIFY_INSN(&newInsn)) {
+    return;
+  }
   bb.ReplaceInsn(*tbzInsn, newInsn);
   optSuccess = true;
   /* dump pattern info */
@@ -5029,9 +5146,30 @@ void NormRevTbzToTbzPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
+Insn *AddSubMergeLdStPattern::FindRegInBB(const Insn &insn, bool isAbove) const {
+  regno_t regNO = static_cast<RegOperand &>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  for (Insn *resInsn = isAbove ? insn.GetPreviousMachineInsn() : insn.GetNextMachineInsn(); resInsn != nullptr;
+       resInsn = isAbove ? resInsn->GetPreviousMachineInsn() : resInsn->GetNextMachineInsn()) {
+    if (resInsn->GetDesc()->IsCall() || resInsn->GetDesc()->IsInlineAsm() || resInsn->GetDesc()->IsSpecialIntrinsic()) {
+      return nullptr;
+    }
+    if (resInsn->ScanReg(regNO)) {
+      return resInsn;
+    }
+  }
+  return nullptr;
+}
+
 bool AddSubMergeLdStPattern::CheckCondition(Insn &insn) {
-  nextInsn = insn.GetNextMachineInsn();
-  prevInsn = insn.GetPreviousMachineInsn();
+  insnDefReg = &static_cast<RegOperand &>(insn.GetOperand(kInsnFirstOpnd));
+  insnUseReg = &static_cast<RegOperand &>(insn.GetOperand(kInsnSecondOpnd));
+  regno_t insnDefRegNO = insnDefReg->GetRegisterNumber();
+  regno_t insnUseRegNO = insnUseReg->GetRegisterNumber();
+  if (insnDefRegNO != insnUseRegNO) {
+    return false;
+  }
+  nextInsn = FindRegInBB(insn, false);
+  prevInsn = FindRegInBB(insn, true);
   isAddSubFront = CheckIfCanBeMerged(nextInsn, insn);
   isLdStFront = CheckIfCanBeMerged(prevInsn, insn);
   // If prev & next all can be merged, only one will be merged, otherwise #imm will be add/sub twice.
@@ -5041,7 +5179,7 @@ bool AddSubMergeLdStPattern::CheckCondition(Insn &insn) {
   return isAddSubFront || isLdStFront;
 }
 
-bool AddSubMergeLdStPattern::CheckIfCanBeMerged(const Insn *adjacentInsn, const Insn &insn) {
+bool AddSubMergeLdStPattern::CheckIfCanBeMerged(const Insn *adjacentInsn, const Insn& /* insn */) {
   if (adjacentInsn == nullptr || adjacentInsn->IsVectorOp() || (!adjacentInsn->AccessMem())) {
     return false;
   }
@@ -5052,17 +5190,13 @@ bool AddSubMergeLdStPattern::CheckIfCanBeMerged(const Insn *adjacentInsn, const 
   }
   MemOperand *memOpnd = &static_cast<MemOperand &>(opnd);
   // load/store memopnd offset value must be #0
-  if (memOpnd->GetAddrMode() != MemOperand::kBOI ||
-      AArch64isa::GetMemOpndOffsetValue(memOpnd) != static_cast<int64>(k0BitSize)) {
+  if (memOpnd->GetAddrMode() != MemOperand::kBOI || AArch64isa::GetMemOpndOffsetValue(memOpnd) != 0) {
     return false;
   }
-  insnDefReg = &static_cast<RegOperand &>(insn.GetOperand(kInsnFirstOpnd));
-  insnUseReg = &static_cast<RegOperand &>(insn.GetOperand(kInsnSecondOpnd));
   RegOperand *memUseReg = memOpnd->GetBaseRegister();
   regno_t insnDefRegNO = insnDefReg->GetRegisterNumber();
-  regno_t insnUseRegNO = insnUseReg->GetRegisterNumber();
   regno_t memUseRegNO = memUseReg->GetRegisterNumber();
-  if ((insnDefRegNO != memUseRegNO) || (insnDefRegNO != insnUseRegNO) || (insnUseRegNO != memUseRegNO)) {
+  if (insnDefRegNO != memUseRegNO) {
     return false;
   }
   // When load/store insn def & use regno are the same, it will trigger unpredictable transfer with writeback.
@@ -5143,6 +5277,9 @@ void UbfxAndCbzToTbzPattern::Run(BB& /* bb */, Insn &insn) {
     return;
   }
   Insn *newInsn = &cgFunc->GetInsnBuilder()->BuildInsn(newMop, opnd2, imm3, label);
+  if (!VERIFY_INSN(newInsn)) {
+    return;
+  }
   BB *useInsnBB = useInsn->GetBB();
   useInsnBB->ReplaceInsn(*useInsn, *newInsn);
   if (ssaInfo) {

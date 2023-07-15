@@ -39,7 +39,7 @@
 #include "muid_replacement.h"
 #include "gen_check_cast.h"
 #include "coderelayout.h"
-#include "expand128floats.h"
+#include "legalize_numeric_types.h"
 #include "constantfold.h"
 #include "preme.h"
 #include "scalarreplacement.h"

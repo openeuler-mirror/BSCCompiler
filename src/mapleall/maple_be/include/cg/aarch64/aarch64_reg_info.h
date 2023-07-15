@@ -27,6 +27,18 @@ class AArch64RegInfo : public RegisterInfo {
 
   ~AArch64RegInfo() override = default;
 
+  // float 128-bit register has caller store, so pref alloced caller-save registers.
+  bool IsPrefCallerSaveRegs(RegType type, uint32 size) const override {
+    return (type == kRegTyFloat && size == k128BitSize);
+  }
+
+  // Additionally, only the bottom 64 bits of each value stored in v8-v15 need to be preserved 8;
+  // it is the responsibility of the caller to preserve larger values.
+  // Refer to Procedure Call Standard for the Arm 64-bit Architecture (AArch64) 2022Q3.  $6.1.2
+  bool IsCallerSavePartRegister(regno_t regNO,  uint32 size) const override {
+    return (regNO >= V8 && regNO <= V15) && size == k128BitSize;
+  }
+
   bool IsGPRegister(regno_t regNO) const override {
     return AArch64isa::IsGPRegister(static_cast<AArch64reg>(regNO));
   }
@@ -51,7 +63,7 @@ class AArch64RegInfo : public RegisterInfo {
       return true;
     }
     /* when yieldpoint is enabled, the RYP(x19) can not be used. */
-    if (GetCurrFunction()->GetCG()->GenYieldPoint() && (regNO == RYP)) {
+    if (CGOptions::GetInstance().GenYieldPoint() && (regNO == RYP)) {
       return true;
     }
     return false;

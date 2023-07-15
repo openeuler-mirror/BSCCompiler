@@ -21,6 +21,7 @@
 #include "me_cfg.h"
 #include "constantfold.h"
 #include "me_merge_stmts.h"
+#include "mem_reference_table.h"
 
 namespace maple {
 void MEEmit::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
@@ -79,6 +80,7 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
       mirFunction->ReleaseCodeMemory();
       mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from IRMap::Emit()"));
       mirFunction->SetBody(mirFunction->GetCodeMempool()->New<BlockNode>());
+      mirFunction->CreateMemReferenceTable();
       if (Options::profileUse && mirFunction->GetFuncProfData()) {
         mirFunction->GetFuncProfData()->SetStmtFreq(mirFunction->GetBody()->GetStmtID(),
             mirFunction->GetFuncProfData()->entryFreq);

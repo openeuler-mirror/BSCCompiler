@@ -21,22 +21,29 @@
 #include "aarch64_alignment.h"
 
 namespace maplebe {
-void AArch64AlignAnalysis::FindLoopHeader() {
+void AArch64AlignAnalysis::FindLoopHeaderByDefault() {
   if (loopInfo.GetLoops().empty()) {
     return;
   }
   for (auto *loop : loopInfo.GetLoops()) {
-    InsertLoopHeaderBBs(loop->GetHeader());
+    BB &header = loop->GetHeader();
+    if (&header == aarFunc->GetFirstBB() || IsIncludeCall(header) || !IsInSizeRange(header)) {
+      continue;
+    }
+    InsertLoopHeaderBBs(header);
   }
 }
 
-void AArch64AlignAnalysis::FindJumpTarget() {
+void AArch64AlignAnalysis::FindJumpTargetByDefault() {
   MapleUnorderedMap<LabelIdx, BB*> label2BBMap = aarFunc->GetLab2BBMap();
   if (label2BBMap.empty()) {
     return;
   }
   for (auto &iter : label2BBMap) {
     BB *jumpBB = iter.second;
+    if (jumpBB == aarFunc->GetFirstBB() || !IsInSizeRange(*jumpBB) || HasFallthruEdge(*jumpBB)) {
+      continue;
+    }
     if (jumpBB != nullptr) {
       InsertJumpTargetBBs(*jumpBB);
     }
@@ -93,9 +100,6 @@ void AArch64AlignAnalysis::ComputeLoopAlign() {
     return;
   }
   for (BB *bb : loopHeaderBBs) {
-    if (bb == cgFunc.GetFirstBB() || IsIncludeCall(*bb) || !IsInSizeRange(*bb)) {
-      continue;
-    }
     bb->SetNeedAlign(true);
     if (CGOptions::GetLoopAlignPow() == 0) {
       return;
@@ -117,9 +121,6 @@ void AArch64AlignAnalysis::ComputeJumpAlign() {
     return;
   }
   for (BB *bb : jumpTargetBBs) {
-    if (bb == cgFunc.GetFirstBB() || !IsInSizeRange(*bb) || HasFallthruEdge(*bb)) {
-      continue;
-    }
     bb->SetNeedAlign(true);
     if (CGOptions::GetJumpAlignPow() == 0) {
       return;
@@ -148,16 +149,56 @@ bool AArch64AlignAnalysis::IsInSameAlignedRegion(uint32 addr1, uint32 addr2, uin
   return (((addr1 - 1) * kInsnSize) / alignedRegionSize) == (((addr2 - 1) * kInsnSize) / alignedRegionSize);
 }
 
+uint32 AArch64AlignAnalysis::ComputeBBAlignNopNum(BB &bb, uint32 addr) const {
+  uint32 alignedVal = (1U << bb.GetAlignPower());
+  uint32 alignNopNum = GetAlignRange(alignedVal, addr);
+  bb.SetAlignNopNum(alignNopNum);
+  return alignNopNum;
+}
+
+uint64 AArch64AlignAnalysis::GetFreqThreshold() const {
+  uint32 alignThreshold = CGOptions::GetAlignThreshold();
+  if (alignThreshold < 1 || alignThreshold > 100) { // 1: min value, 100: max value
+    alignThreshold = 100; // 100: default value
+  }
+  uint64 freqMax = 0;
+  FOR_ALL_BB(bb, aarFunc) {
+    if (bb != nullptr && bb->GetFrequency() > freqMax) {
+      freqMax = bb->GetFrequency();
+    }
+  }
+
+  return freqMax / alignThreshold;
+}
+
+uint64 AArch64AlignAnalysis::GetFallThruFreq(const BB &bb) const {
+  uint64 fallthruFreq = 0;
+  for (BB *pred : bb.GetPreds()) {
+    if (pred == bb.GetPrev()) {
+      fallthruFreq += pred->GetEdgeFreq(bb);
+      break;
+    }
+  }
+  return fallthruFreq;
+}
+
+uint64 AArch64AlignAnalysis::GetBranchFreq(const BB &bb) const {
+  uint64 branchFreq = 0;
+  for (BB *pred : bb.GetPreds()) {
+    if (pred != bb.GetPrev()) {
+      branchFreq += pred->GetEdgeFreq(bb);
+    }
+  }
+  return branchFreq;
+}
+
 bool AArch64AlignAnalysis::MarkCondBranchAlign() {
   sameTargetBranches.clear();
   uint32 addr = 0;
   bool change = false;
   FOR_ALL_BB(bb, aarFunc) {
     if (bb != nullptr && bb->IsBBNeedAlign()) {
-      uint32 alignedVal = (1U << bb->GetAlignPower());
-      uint32 alignNopNum = GetAlignRange(alignedVal, addr);
-      addr += alignNopNum;
-      bb->SetAlignNopNum(alignNopNum);
+      addr += ComputeBBAlignNopNum(*bb, addr);
     }
     FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction()) {
@@ -165,7 +206,7 @@ bool AArch64AlignAnalysis::MarkCondBranchAlign() {
       }
       addr += insn->GetAtomicNum();
       MOperator mOp = insn->GetMachineOpcode();
-      if ((mOp == MOP_wtbz || mOp == MOP_wtbnz || mOp == MOP_xtbz || mOp == MOP_xtbnz) && insn->IsNeedSplit()) {
+      if ((mOp == MOP_wtbz || mOp == MOP_wtbnz || mOp == MOP_xtbz || mOp == MOP_xtbnz) && IsSplitInsn(*insn)) {
         ++addr;
       }
       if (!insn->IsCondBranch() || insn->GetOperandSize() == 0) {
@@ -214,9 +255,11 @@ void AArch64AlignAnalysis::UpdateInsnId() {
   uint32 id = 0;
   FOR_ALL_BB(bb, aarFunc) {
     if (bb != nullptr && bb->IsBBNeedAlign()) {
-      uint32 alignedVal = 1U << (bb->GetAlignPower());
-      uint32 range = GetAlignRange(alignedVal, id);
-      id = id + (range > kAlignPseudoSize ? range : kAlignPseudoSize);
+      if (!(CGOptions::DoLoopAlign() && loopHeaderBBs.find(bb) != loopHeaderBBs.end())) {
+        uint32 alignedVal = 1U << (bb->GetAlignPower());
+        uint32 range = GetAlignRange(alignedVal, id);
+        id = id + (range > kAlignPseudoSize ? range : kAlignPseudoSize);
+      }
     }
     FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction()) {
@@ -227,7 +270,7 @@ void AArch64AlignAnalysis::UpdateInsnId() {
         id += insn->GetNopNum();
       }
       MOperator mOp = insn->GetMachineOpcode();
-      if ((mOp == MOP_wtbz || mOp == MOP_wtbnz || mOp == MOP_xtbz || mOp == MOP_xtbnz) && insn->IsNeedSplit()) {
+      if ((mOp == MOP_wtbz || mOp == MOP_wtbnz || mOp == MOP_xtbz || mOp == MOP_xtbnz) && IsSplitInsn(*insn)) {
         ++id;
       }
       insn->SetId(id);
@@ -253,7 +296,7 @@ bool AArch64AlignAnalysis::MarkShortBranchSplit() {
         if (mOp != MOP_wtbz && mOp != MOP_wtbnz && mOp != MOP_xtbz && mOp != MOP_xtbnz) {
           continue;
         }
-        if (insn->IsNeedSplit()) {
+        if (IsSplitInsn(*insn)) {
           continue;
         }
         auto &labelOpnd = static_cast<LabelOperand&>(insn->GetOperand(kInsnThirdOpnd));
@@ -262,7 +305,7 @@ bool AArch64AlignAnalysis::MarkShortBranchSplit() {
         }
         split = true;
         change = true;
-        insn->SetNeedSplit(split);
+        MarkSplitInsn(*insn);
       }
     }
   } while (split);
@@ -361,5 +404,217 @@ void AArch64AlignAnalysis::ComputeCondBranchAlign() {
     }
   }
   AddNopAfterMark();
+}
+
+uint32 AArch64AlignAnalysis::GetInlineAsmInsnNum(const Insn &insn) const {
+  uint32 num = 0;
+  MapleString asmStr = static_cast<StringOperand&>(insn.GetOperand(kAsmStringOpnd)).GetComment();
+  // If there are multiple insns, add \n\t after each insn to separate them in general.
+  for (size_t i = 0; (i = asmStr.find('\n', i)) != std::string::npos; i++) {
+    num++;
+  }
+
+  size_t index = asmStr.length();
+  index = index > 0 ? --index : 0;
+  while (index > 0) {
+    if ((asmStr[index] >= 'A' && asmStr[index] <= 'Z') || (asmStr[index] >= 'a' && asmStr[index] <= 'z')) {
+      break;
+    }
+    index--;
+    if (index == 0) {
+      break;
+    }
+  }
+  // The last instruction in inline asm does not use a newline character.
+  if (index > 0 && asmStr.find('\n', index) == std::string::npos) {
+    num++;
+  }
+
+  return num;
+}
+
+void AArch64AlignAnalysis::ComputeInsnAddr() {
+  uint32 addr = 0;
+  FOR_ALL_BB(bb, aarFunc) {
+    if (bb != nullptr && bb->IsBBNeedAlign()) {
+      addr += ComputeBBAlignNopNum(*bb, addr);
+    }
+
+    FOR_BB_INSNS(insn, bb) {
+      if (insn == nullptr || !insn->IsMachineInstruction()) {
+        continue;
+      }
+
+      MOperator mOp = insn->GetMachineOpcode();
+      if (mOp == MOP_asm) {
+        addr += GetInlineAsmInsnNum(*insn);
+      } else {
+        addr += insn->GetAtomicNum();
+      }
+      if ((mOp == MOP_wtbz || mOp == MOP_wtbnz || mOp == MOP_xtbz || mOp == MOP_xtbnz) && IsSplitInsn(*insn)) {
+        ++addr;
+      }
+      insn->SetAddress(addr);
+    }
+  }
+}
+
+bool AArch64AlignAnalysis::MarkForLoop() {
+  if (loopHeaderBBs.empty()) {
+    return false;
+  }
+
+  ComputeInsnAddr();
+  bool changed = false;
+  for (BB *header: loopHeaderBBs) {
+    if (!header->IsBBNeedAlign()) {
+      continue;
+    }
+    Insn *insn = header->GetFirstInsn();
+    while (insn != nullptr && !insn->IsMachineInstruction()) {
+      insn = insn->GetNext();
+    }
+
+    uint32 nopNum = header->GetAlignNopNum();
+    // Set the nop(s) on the first machine instruction of loop header bb to check whether
+    // the number of nop of bb changes after ComputeInsnAddr.
+    if (insn != nullptr && insn->IsMachineInstruction() && nopNum != 0) {
+      if (nopNum != insn->GetNopNum()) {
+        changed = true;
+        insn->SetNopNum(nopNum);
+      }
+    }
+  }
+  return changed;
+}
+
+Insn* AArch64AlignAnalysis::FindTargetIsland(BB &bb) const {
+  BB *targetBB = &bb;
+  Insn *targetInsn = targetBB->GetLastInsn();
+  while (targetInsn != nullptr || (targetBB != aarFunc->GetFirstBB() && targetBB != nullptr)) {
+    while (targetInsn == nullptr && targetBB->GetPrev() != nullptr) {
+      targetBB = targetBB->GetPrev();
+      targetInsn = targetBB->GetLastInsn();
+    }
+    if (targetInsn == nullptr && targetBB->GetPrev() == nullptr) {
+      break;
+    }
+    // Don't insert nop across aligned bb in avoid to mutual influence.
+    if (targetBB->IsBBNeedAlign() || targetInsn->GetNopNum() != 0) {
+      break;
+    }
+    if (targetInsn->GetMachineOpcode() == MOP_xuncond || targetInsn->GetMachineOpcode() == MOP_xret ||
+        targetInsn->GetMachineOpcode() == MOP_xbr) {
+      return targetInsn;
+    }
+    targetInsn = targetInsn->GetPrev();
+  }
+  return nullptr;
+}
+
+void AArch64AlignAnalysis::AddNopForLoopAfterMark() {
+  FOR_ALL_BB(bb, aarFunc) {
+    // just add nop for loop header bb
+    if (loopHeaderBBs.find(bb) == loopHeaderBBs.end()) {
+      continue;
+    }
+
+    if (!bb->IsBBNeedAlign()) {
+      continue;
+    }
+
+    if (bb->GetAlignNopNum() == 0) {
+      bb->SetNeedAlign(false);
+      bb->SetAlignPower(0);
+      continue;
+    }
+
+    BB *targetBB = bb->GetPrev();
+    uint32 nopNum = bb->GetAlignNopNum();
+    Insn *targetInsn = FindTargetIsland(*targetBB);
+    if (targetInsn != nullptr) {
+      for (uint32 i = 0; i < nopNum; i++) {
+        (void)bb->InsertInsnAfter(*targetInsn, aarFunc->GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_nop));
+      }
+    } else {
+      BB *prevBB = bb->GetPrev();
+      while (prevBB != nullptr && prevBB->GetLastInsn() == nullptr) {
+        prevBB = prevBB->GetPrev();
+      }
+      if (prevBB == nullptr) {
+        for (uint32 i = 0; i < nopNum; i++) {
+          (void)bb->InsertInsnBefore(*bb->GetFirstInsn(), aarFunc->GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_nop));
+        }
+      } else {
+        for (uint32 i = 0; i < nopNum; i++) {
+          (void)bb->InsertInsnAfter(*prevBB->GetLastInsn(),
+                                    aarFunc->GetInsnBuilder()->BuildInsn<AArch64CG>(MOP_nop));
+        }
+      }
+    }
+    bb->SetNeedAlign(false);
+    bb->SetAlignPower(0);
+    bb->SetAlignNopNum(0);
+  }
+}
+
+void AArch64AlignAnalysis::AddNopForLoop() {
+  bool loopChange = false;
+  bool shortBrChange = false;
+  for (;;) {
+    loopChange = MarkForLoop();
+    if (!loopChange) {
+      break;
+    }
+    shortBrChange = MarkShortBranchSplit();
+    if (!shortBrChange) {
+      break;
+    }
+  }
+  AddNopForLoopAfterMark();
+}
+
+void AArch64AlignAnalysis::FindJumpTargetByFrequency() {
+  MapleUnorderedMap<LabelIdx, BB*> label2BBMap = aarFunc->GetLab2BBMap();
+  if (label2BBMap.empty()) {
+    return;
+  }
+
+  for (auto &iter : label2BBMap) {
+    BB *jumpBB = iter.second;
+    if (jumpBB == nullptr) {
+      continue;
+    }
+    // Select bb for alignment:
+    // 1. The bb is frequently invoked.
+    // 2. The predecessor of bb is not frequently invoked or almost never executed.
+    // 3. The jump edge is frequently invoked.
+    // The following values 2 and 10 are gcc empirical values.
+    if (!HasFallthruEdge(*jumpBB) && (GetBranchFreq(*jumpBB) >= GetFreqThreshold() || (jumpBB->GetPrev() != nullptr &&
+        jumpBB->GetFrequency() > jumpBB->GetPrev()->GetFrequency() * 10)) &&
+        jumpBB->GetPrev()->GetFrequency() <= (aarFunc->GetFirstBB()->GetFrequency() / 2)) {
+      InsertJumpTargetBBs(*jumpBB);
+    }
+  }
+}
+
+void AArch64AlignAnalysis::FindLoopHeaderByFrequency() {
+  if (loopInfo.GetLoops().empty()) {
+    return;
+  }
+
+  uint32 loopIterations = CGOptions::GetAlignLoopIterations();
+
+  for (auto *loop : loopInfo.GetLoops()) {
+    BB header = loop->GetHeader();
+    uint64 branchFreq = GetBranchFreq(header);
+    uint64 fallthruFreq = GetFallThruFreq(header);
+    // Select bb for alignment: The bb is frequently invoked.
+    if (HasFallthruEdge(header) && (branchFreq + fallthruFreq > GetFreqThreshold()) &&
+        (branchFreq > fallthruFreq * loopIterations) &&
+        !(header.GetSuccsSize() == 1 && *header.GetSuccsBegin() == aarFunc->GetLastBB())) {
+      InsertLoopHeaderBBs(header);
+    }
+  }
 }
 } /* namespace maplebe */

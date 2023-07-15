@@ -188,7 +188,7 @@ void A64OpndEmitVisitor::Visit(maplebe::MemOperand *v) {
       RegOperand *baseReg = v->GetBaseRegister();
       EmitIntReg(*baseReg, k64BitSize);
       CHECK_NULL_FATAL(v->GetSymbol());
-      if ((CGOptions::IsPIC() && v->GetSymbol()->IsThreadLocal()) || 
+      if ((CGOptions::IsPIC() && v->GetSymbol()->IsThreadLocal()) ||
           v->GetSymbol()->NeedGOT(CGOptions::IsPIC(), CGOptions::IsPIE())) {
         std::string gotEntry = "";
         if (v->GetSymbol()->IsThreadLocal()) {

@@ -61,7 +61,7 @@ class CfiInsn : public maplebe::Insn {
   CfiInsn(MemPool &memPool, maplebe::MOperator op) : Insn(memPool, op) {}
 
   CfiInsn(const CfiInsn& other) : maplebe::Insn(other) {}
-  
+
   CfiInsn(MemPool &memPool, maplebe::MOperator op, maplebe::Operand &opnd0) : Insn(memPool, op, opnd0) {}
 
   CfiInsn(MemPool &memPool, maplebe::MOperator op, maplebe::Operand &opnd0, maplebe::Operand &opnd1)

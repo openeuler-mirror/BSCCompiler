@@ -1036,6 +1036,48 @@ CRNode *LoopScalarAnalysisResult::CreateCRForPhi(const MePhiNode &phiNode) {
   }
 }
 
+// Deal with iaddrof, such as
+// ||MEIR|| assertlt
+//          opnd[0] = OP add a64 kPtyInvalid mx6
+//            opnd[0] = OP iaddrof a64 kPtyInvalid (field)2 mx2
+//              opnd[0] = VAR %retVar_37{offset:0}<0>[idx:3] (field)0 mx1
+//            opnd[1] = CONST a64 48 mx3
+//          opnd[1] = OP add a64 kPtyInvalid mx8
+//            opnd[0] = VAR %retVar_37{offset:0}<0>[idx:3] (field)0 mx1
+//            opnd[1] = CONST a64 44 mx7
+// the type of retVar_37 is struct A (int len, int fa[] __attribute__((count("len"))))
+// CRNode of mx6 is: 52 + retVar_37_mx1
+// CRNode of mx6 is: 44 + retVar_37_mx1
+CRNode *LoopScalarAnalysisResult::DealWithIaddrof(const OpMeExpr &opMeExpr, MeExpr &expr) {
+  if (opMeExpr.GetNumOpnds() != 1 || !opMeExpr.GetOpnd(0)->IsLeaf() || opMeExpr.GetBitsOffSet() % k8BitSize != 0) {
+    InsertExpr2CR(expr, nullptr);
+    return nullptr;
+  }
+  auto baseCRNode = GetOrCreateCRNode(*opMeExpr.GetOpnd(0));
+  if (baseCRNode == nullptr) {
+    InsertExpr2CR(expr, nullptr);
+    return nullptr;
+  }
+  auto fieldIDOfIaddrof = opMeExpr.GetFieldID();
+  auto *typeOfBase = GlobalTables::GetTypeTable().GetTypeFromTyIdx(opMeExpr.GetTyIdx());
+  if (typeOfBase->GetKind() == kTypePointer) {
+    typeOfBase = static_cast<MIRPtrType*>(typeOfBase)->GetPointedType();
+  }
+  if (typeOfBase->GetKind() != kTypeStruct) {
+    InsertExpr2CR(expr, nullptr);
+    return nullptr;
+  }
+  auto offset = static_cast<MIRStructType*>(typeOfBase)->GetBitOffsetFromBaseAddr(fieldIDOfIaddrof);
+  if (static_cast<uint64>(offset) % static_cast<uint64>(k8BitSize) != 0) {
+    InsertExpr2CR(expr, nullptr);
+    return nullptr;
+  }
+  offset = (offset + static_cast<int64>(static_cast<uint64>(opMeExpr.GetBitsOffSet()))) /
+      static_cast<int64>(static_cast<uint64>(k8BitSize));
+  auto offsetConstCR = GetOrCreateCRConstNode(nullptr, offset);
+  return ComputeCRNodeWithOperator(expr, *baseCRNode, *offsetConstCR, OP_add);
+}
+
 CRNode *LoopScalarAnalysisResult::DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &expr) {
   OpMeExpr &opMeExpr = static_cast<OpMeExpr&>(currOpMeExpr);
   switch (opMeExpr.GetOp()) {
@@ -1072,7 +1114,7 @@ CRNode *LoopScalarAnalysisResult::DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &e
       return nullptr;
     }
     case OP_iaddrof: {
-      return GetOrCreateCRNode(*opMeExpr.GetOpnd(0));
+      return DealWithIaddrof(opMeExpr, expr);
     }
     case OP_rem: {
       return GetOrCreateCRVarNode(expr);

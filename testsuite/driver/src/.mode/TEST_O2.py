@@ -37,6 +37,14 @@ TEST_O2 = {
     "link": [
         MapleDriver(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP2}.o"],
+            outfile="a.out",
+            option="-w -L. -l${LIB} -Wl,-rpath=."
+        )
+    ],
+    "link2": [
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
             infiles=["${APP2}.o","${APP3}.o"],
             outfile="a.out",
             option="-w -L. -l${LIB} -Wl,-rpath=."

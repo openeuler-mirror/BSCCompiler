@@ -49,7 +49,7 @@ class LibAstFile {
   std::string GetMangledName(const clang::NamedDecl &decl) const;
   const std::string GetOrCreateMappedUnnamedName(const clang::Decl &decl);
   const std::string GetDeclName(const clang::NamedDecl &decl, bool isRename = false);
-  void EmitTypeName(const clang::QualType qualType, std::stringstream &ss);
+  void EmitTypeName(MapleAllocator &allocatorIn, const clang::QualType qualType, std::stringstream &ss);
   void EmitTypeName(const clang::RecordType &recordType, std::stringstream &ss);
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss) const;
   std::string GetTypedefNameFromUnnamedStruct(const clang::RecordDecl &recoDecl) const;
@@ -62,52 +62,59 @@ class LibAstFile {
                                  std::unordered_set<int64_t> &visitedCalls);
   std::string GetRecordLayoutString(const clang::RecordDecl &recordDecl);
   void BuildFieldLayoutString(std::stringstream &recordLayoutStr, const clang::FieldDecl &fieldDecl);
-  void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
+  void CollectBaseEltTypeAndSizesFromConstArrayDecl(MapleAllocator &allocator, const clang::QualType &currQualType,
+                                                    MIRType *&elemType,
                                                     TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
                                                     bool isSourceType);
-  void CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &currQualType, MIRType *&elemType,
-                                                  TypeAttrs &elemAttr, uint8_t &dim, bool isSourceType);
-  void CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(const clang::QualType currQualType, MIRType *&elemType,
-                                                           TypeAttrs &elemAttr, std::vector<uint32_t> &operands,
-                                                           bool isSourceType);
-  void CollectBaseEltTypeFromArrayDecl(const clang::QualType &currQualType, MIRType *&elemType, TypeAttrs &elemAttr,
-                                       bool isSourceType = false);
-  void GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs, bool isConst = true) const;
-  void GetSClassAttrs(const clang::StorageClass storageClass, GenericAttrs &genAttrs) const;
-  void GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
-  void GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const;
-  void GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const;
-  void GetQualAttrs(const clang::QualType &qualType, GenericAttrs &genAttrs, bool isSourceType) const;
-  void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
-  void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
+  void CollectBaseEltTypeAndDimFromVariaArrayDecl(MapleAllocator &allocator, const clang::QualType &currQualType,
+                                                  MIRType *&elemType, TypeAttrs &elemAttr, uint8_t &dim,
+                                                  bool isSourceType);
+  void CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(MapleAllocator &allocator,
+                                                           const clang::QualType currQualType,
+                                                           MIRType *&elemType, TypeAttrs &elemAttr,
+                                                           std::vector<uint32_t> &operands, bool isSourceType);
+  void CollectBaseEltTypeFromArrayDecl(MapleAllocator &allocator, const clang::QualType &currQualType,
+                                       MIRType *&elemType, TypeAttrs &elemAttr, bool isSourceType = false);
+  void GetCVRAttrs(uint32_t qualifiers, MapleGenericAttrs &genAttrs, bool isConst = true) const;
+  void GetSClassAttrs(const clang::StorageClass storageClass, MapleGenericAttrs &genAttrs) const;
+  void GetStorageAttrs(const clang::NamedDecl &decl, MapleGenericAttrs &genAttrs) const;
+  void GetAccessAttrs(AccessKind access, MapleGenericAttrs &genAttrs) const;
+  void GetQualAttrs(const clang::NamedDecl &decl, MapleGenericAttrs &genAttrs) const;
+  void GetQualAttrs(const clang::QualType &qualType, MapleGenericAttrs &genAttrs, bool isSourceType) const;
+  void CollectAttrs(const clang::NamedDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access) const;
+  void CollectFuncAttrs(const clang::FunctionDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const;
   void SetAttrVisibility(const clang::DeclaratorDecl &decl, GenericAttrs &genAttrs) const;
   void SetAttrTLSModel(const clang::VarDecl &decl, GenericAttrs &genAttrs) const;
   void CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) const;
-  void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
+  void CollectVarAttrs(const clang::VarDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access) const;
   void CheckUnsupportedVarAttrs(const clang::VarDecl &decl) const;
   void CollectRecordAttrs(const clang::RecordDecl &decl, GenericAttrs &genAttrs) const;
   void CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) const;
-  void CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) const;
+  void CollectFieldAttrs(const clang::FieldDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access) const;
   void CollectTypeAttrs(const clang::NamedDecl &decl, TypeAttrs &typeAttrs) const;
   MIRType *CvtPrimType(const clang::QualType qualType, bool isSourceType = false) const;
   PrimType CvtPrimType(const clang::BuiltinType::Kind kind, bool isSourceType) const;
   MIRType *CvtPrimType2SourceType(const clang::BuiltinType::Kind kind) const;
-  MIRType *CvtSourceType(const clang::QualType qualType);
-  MIRType *CvtType(const clang::QualType qualType, bool isSourceType = false, const clang::Type **vlaType = nullptr);
-  MIRType *CvtOtherType(const clang::QualType srcType, bool isSourceType, const clang::Type **vlaType);
-  MIRType *CvtArrayType(const clang::QualType &srcType, bool isSourceType, const clang::Type **vlaType);
-  MIRType *CvtFunctionType(const clang::QualType srcType, bool isSourceType);
-  MIRType *CvtEnumType(const clang::QualType &qualType, bool isSourceType);
-  MIRType *CvtRecordType(const clang::QualType qualType);
+  MIRType *CvtSourceType(MapleAllocator &allocator, const clang::QualType qualType);
+  MIRType *CvtType(MapleAllocator &allocator, const clang::QualType qualType, bool isSourceType = false,
+                   const clang::Type **vlaType = nullptr);
+  MIRType *CvtOtherType(MapleAllocator &allocator, const clang::QualType srcType, bool isSourceType,
+                        const clang::Type **vlaType);
+  MIRType *CvtArrayType(MapleAllocator &allocator, const clang::QualType &srcType, bool isSourceType,
+                        const clang::Type **vlaType);
+  MIRType *CvtFunctionType(MapleAllocator &allocator, const clang::QualType srcType, bool isSourceType);
+  MIRType *CvtEnumType(MapleAllocator &allocator, const clang::QualType &qualType, bool isSourceType);
+  MIRType *CvtRecordType(MapleAllocator &allocator, const clang::QualType qualType);
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
   MIRType *CvtComplexType(const clang::QualType srcType) const;
-  MIRType *CvtVectorType(const clang::QualType srcType);
+  MIRType *CvtVectorType(MapleAllocator &allocator, const clang::QualType srcType);
   MIRType *CvtVectorSizeType(const MIRType &elemType, MIRType *destType, uint32_t arrLen, uint32_t vecLen,
                              uint32 alignNum) const;
-  bool CheckSourceTypeNameNotNull(const clang::QualType &currQualType, MIRType *&elemType, bool isSourceType);
-  MIRType *CvtTypedef(const clang::QualType &qualType);
-  MIRType *CvtTypedefDecl(const clang::TypedefNameDecl &typedefDecl);
+  bool CheckSourceTypeNameNotNull(MapleAllocator &allocator, const clang::QualType &currQualType, MIRType *&elemType,
+                                  bool isSourceType);
+  MIRType *CvtTypedef(MapleAllocator &allocator, const clang::QualType &qualType);
+  MIRType *CvtTypedefDecl(MapleAllocator &allocator, const clang::TypedefNameDecl &typedefDecl);
   bool TypeHasMayAlias(const clang::QualType srcType) const;
   static bool IsOneElementVector(const clang::QualType &qualType);
   static bool IsOneElementVector(const clang::Type &type);
@@ -163,6 +170,7 @@ class CallCollector : public clang::RecursiveASTVisitor<CallCollector> {
     }
     return true;
   }
+
   std::map<int64_t, clang::CallExpr *> GetCallExprs() {
     return callExprs;
   }

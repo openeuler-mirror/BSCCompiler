@@ -22,6 +22,7 @@ namespace utils {
 const int kNumLimit = 10;
 constexpr int32_t kAAsciiNum = 65;
 constexpr int32_t kaAsciiNum = 97;
+constexpr size_t kInvalidIndex = std::numeric_limits<size_t>::max();
 
 // Operations on char
 constexpr bool IsDigit(char c) {
@@ -52,7 +53,7 @@ template <typename T>
 struct ToDigitImpl<10, T> {
   static T DoIt(char c) {
     if (utils::IsDigit(c)) {
-      return c - '0';
+      return static_cast<unsigned char>(c) - static_cast<unsigned char>('0');
     }
     return std::numeric_limits<T>::max();
   }
@@ -62,7 +63,7 @@ template <typename T>
 struct ToDigitImpl<8, T> {
   static T DoIt(char c) {
     if (c >= '0' && c < '8') {
-      return c - '0';
+      return static_cast<unsigned char>(c) - static_cast<unsigned char>('0');
     }
     return std::numeric_limits<T>::max();
   }

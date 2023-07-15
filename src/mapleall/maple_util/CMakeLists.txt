@@ -32,10 +32,11 @@ set(src_libmplutil
     src/mpl_profdata.cpp
     src/suffix_array.cpp
     src/mpl_posix_sighandler.cpp
+    src/bit_value.cpp
+    src/orig_symbol.cpp
 )
 
 set(src_libcommandline
-    src/set_spec.cpp
     src/cl_option.cpp
     src/cl_option_parser.cpp
     src/cl_parser.cpp
@@ -65,7 +66,7 @@ set(CMAKE_USE_PTHREADS_INIT 1)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 #target_link_libraries(libmplutil pthread)
-set_target_properties(libmplutil PROPERTIES 
+set_target_properties(libmplutil PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
     #    STATIC_LIBRARY_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -lpthread -ldl"
 )
@@ -76,12 +77,10 @@ add_library(libcommandline STATIC ${src_libcommandline})
 target_include_directories(libcommandline PRIVATE
     ${MAPLEALL_ROOT}/maple_util/include
     ${MAPLEALL_ROOT}/maple_ir/include
-    ${THIRD_PARTY_ROOT}/bounds_checking_function/include
-    ${MAPLEALL_ROOT}/mempool/include
     ${MAPLEALL_ROOT}/maple_driver/include
     include
 )
-set_target_properties(libcommandline PROPERTIES 
+set_target_properties(libcommandline PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${MAPLE_BUILD_OUTPUT}/lib/${HOST_ARCH}
 )
 

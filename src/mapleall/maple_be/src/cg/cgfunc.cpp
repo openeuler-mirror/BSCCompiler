@@ -24,9 +24,9 @@
 #include "factory.h"
 #include "debug_info.h"
 #include "cfgo.h"
+#include "dup_tail.h"
 #include "optimize_common.h"
 #include "me_function.h"
-
 namespace maplebe {
 using namespace maple;
 

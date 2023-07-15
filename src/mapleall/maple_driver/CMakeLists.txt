@@ -54,6 +54,7 @@ set(src_libmaple
   src/mpl_options.cpp
   src/mplcg_compiler.cpp
   src/hided_options.cpp
+  src/parse_spec.cpp
 )
 
 #libmaple

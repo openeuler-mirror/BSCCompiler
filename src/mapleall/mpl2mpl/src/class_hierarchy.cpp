@@ -214,7 +214,8 @@ bool Klass::IsVirtualMethod(const MIRFunction &func) const {
 }
 
 void Klass::CountVirtMethTopDown(const KlassHierarchy &kh) {
-  MapleVector<MIRFunction*> *vec, *pvec;
+  MapleVector<MIRFunction*> *vec;
+  MapleVector<MIRFunction*> *pvec;
   GStrIdx strIdx;
   auto *superAndImplClasses = alloc->GetMemPool()->New<MapleVector<Klass*>>(alloc->Adapter());
   // Add default methods of interface. Add them first because they have lowest
@@ -475,7 +476,8 @@ bool KlassHierarchy::NeedClinitCheckRecursively(const Klass &kl) const {
 
 // Get lowest common ancestor for two classes
 Klass *KlassHierarchy::GetLCA(Klass *klass1, Klass *klass2) const {
-  std::vector<Klass*> v1, v2;
+  std::vector<Klass*> v1;
+  std::vector<Klass*> v2;
   while (klass1 != nullptr) {
     v1.push_back(klass1);
     klass1 = klass1->GetSuperKlass();

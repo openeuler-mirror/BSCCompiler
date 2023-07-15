@@ -188,8 +188,17 @@ class RegisterInfo {
   void SetCurrFunction(CGFunc &func) {
     cgFunc = &func;
   }
-  CGFunc *GetCurrFunction() const {
+  CGFunc *GetCurrFunction() {
     return cgFunc;
+  }
+  // When some registers are allocated to the callee, the caller stores a part of the registers
+  // and the callee stores another part of the registers.
+  // For these registers, it is a better choice to assign them as caller-save registers.
+  virtual bool IsPrefCallerSaveRegs(RegType type, uint32 size) const {
+    return false;
+  }
+  virtual bool IsCallerSavePartRegister(regno_t regNO,  uint32 size) const {
+    return false;
   }
   virtual RegOperand *GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag = 0) = 0;
   virtual bool IsGPRegister(regno_t regNO) const = 0;

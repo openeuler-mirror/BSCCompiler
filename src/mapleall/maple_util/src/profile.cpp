@@ -30,7 +30,7 @@
 #include "types_def.h"
 
 namespace maple {
-constexpr uint8 Profile::stringEnd = 0x00;
+constexpr uint8 Profile::kStringEnd = 0x00;
 uint32 Profile::hotFuncCountThreshold = 0;
 bool Profile::debug = false;
 bool Profile::initialized = false;

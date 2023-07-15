@@ -766,6 +766,10 @@ class ChainLayout {
     considerBetterPred = val;
   }
 
+  void SetMarkNeverExe(bool val) {
+    markNeverExe = val;
+  }
+
   void SetNodeTemp(uint32 nodeId, ExeTemperature temp) {
     CHECK_FATAL(nodeTemps != nullptr, "nodeTemps should have been reset");
     CHECK_FATAL(nodeId < nodeTemps->size(), "container check");

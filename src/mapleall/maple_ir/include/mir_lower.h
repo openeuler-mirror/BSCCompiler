@@ -147,12 +147,12 @@ class MIRLower {
   FuncProfInfo *GetFuncProfData() const {
     return mirFunc->GetFuncProfData();
   }
-  void CopyStmtFrequency(const StmtNode *newStmt, const StmtNode *oldStmt) {
+  void CopyStmtFrequency(const StmtNode *newStmt, const StmtNode &oldStmt) {
     ASSERT(GetFuncProfData() != nullptr, "nullptr check");
-    if (newStmt == oldStmt) {
+    if (newStmt == &oldStmt) {
       return;
     }
-    FreqType freq = GetFuncProfData()->GetStmtFreq(oldStmt->GetStmtID());
+    FreqType freq = GetFuncProfData()->GetStmtFreq(oldStmt.GetStmtID());
     GetFuncProfData()->SetStmtFreq(newStmt->GetStmtID(), freq);
   }
 

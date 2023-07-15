@@ -184,8 +184,7 @@ void AArch64FixShortBranch::InsertJmpPadAtSecEnd(Insn &insn, uint32 targetLabelI
   insn.SetOperand(targetLabelIdx, padBBLabelOpnd);
 
   /* adjust CFG */
-  bb->RemoveSuccs(targetBB);
-  bb->PushBackSuccs(*padBB);
+  bb->ReplaceSucc(targetBB, *padBB);
   targetBB.RemovePreds(*bb);
   targetBB.PushBackPreds(*padBB);
   padBB->PushBackPreds(*bb);

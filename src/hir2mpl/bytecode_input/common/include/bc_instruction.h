@@ -128,6 +128,7 @@ struct BCRegTypeItem {
       : typeNameIdx(item.typeNameIdx),
         isIndeterminate(item.isIndeterminate) {}
   ~BCRegTypeItem() = default;
+  BCRegTypeItem& operator=(const BCRegTypeItem &item);
 
   PrimType GetPrimType() const;
   PrimType GetBasePrimType() const;

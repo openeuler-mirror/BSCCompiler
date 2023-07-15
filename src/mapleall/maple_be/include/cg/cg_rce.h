@@ -22,7 +22,6 @@
 
 namespace maplebe {
 #define CG_RCE_DUMP CG_DEBUG_FUNC(*cgFunc)
-static uint32 g_count = 0;
 class RedundantComputeElim {
  public:
   RedundantComputeElim(CGFunc &f, CGSSAInfo &info, MemPool &mp) : cgFunc(&f), ssaInfo(&info), rceAlloc(&mp) {}
@@ -36,6 +35,7 @@ class RedundantComputeElim {
 
   virtual void Run() = 0;
   void Dump(const Insn *insn1, const Insn *insn2) const;
+  uint32 kGcount = 0;
 
  protected:
   CGFunc *cgFunc;

@@ -2204,6 +2204,9 @@ void AndCbzPattern::Optimize(Insn &insn) {
   auto &label = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   ImmOperand &tbzImm = aarchFunc.CreateImmOperand(tbzVal, k8BitSize, false);
   Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(newMop, prevInsn->GetOperand(kInsnSecondOpnd), tbzImm, label);
+  if (!VERIFY_INSN(&newInsn)) {
+    return;
+  }
   newInsn.SetId(insn.GetId());
   bb->ReplaceInsn(insn, newInsn);
   if (GLOBAL_DUMP) {

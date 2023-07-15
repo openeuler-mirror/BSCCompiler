@@ -44,6 +44,33 @@ void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
   }
 }
 
+template <class T>
+void MeExprUseInfo::DelUseSiteOfExpr(MeExpr *expr, T *useSite) {
+  ASSERT_NOT_NULL(expr);
+  if (expr->GetExprID() == kInvalidExprID) {
+    return;
+  }
+
+  auto uintExprID = static_cast<uint32>(expr->GetExprID());
+  auto useList = (*useSites)[uintExprID].second;
+  if (useList == nullptr) {
+    return;
+  }
+  for (auto iter = useList->begin(); iter != useList->end(); ++iter) {
+    UseItem use(useSite);
+    if (*iter == use) {
+      iter->DecreaseRef();
+      if (iter->GetRef() == 0) {
+        (void)useList->erase(iter);
+      }
+      break;
+    }
+  }
+  if (useList->empty()) {
+    (*useSites)[uintExprID] = {expr, nullptr};
+  }
+}
+
 MapleList<UseItem> *MeExprUseInfo::GetUseSitesOfExpr(const MeExpr *expr) const {
   if (IsInvalid()) {
     CHECK_FATAL(false, "Expr use info is invalid");
@@ -86,6 +113,63 @@ void MeExprUseInfo::CollectUseInfoInExpr(MeExpr *expr, MeStmt *stmt) {
   for (size_t opndId = 0; opndId < expr->GetNumOpnds(); ++opndId) {
     auto opnd = expr->GetOpnd(opndId);
     CollectUseInfoInExpr(opnd, stmt);
+  }
+}
+
+void MeExprUseInfo::DelUseInfoInExpr(MeExpr *expr, MeStmt *stmt) {
+  if (expr == nullptr) {
+    return;
+  }
+  if (expr->IsScalar()) {
+    DelUseSiteOfExpr(expr, stmt);
+    return;
+  }
+  DelUseSiteOfExpr(expr, stmt);
+
+  if (expr->GetMeOp() == kMeOpIvar) {
+    for (auto *mu : static_cast<IvarMeExpr *>(expr)->GetMuList()) {
+      DelUseSiteOfExpr(mu, stmt);
+    }
+  }
+
+  for (size_t opndId = 0; opndId < expr->GetNumOpnds(); ++opndId) {
+    auto opnd = expr->GetOpnd(opndId);
+    DelUseInfoInExpr(opnd, stmt);
+  }
+}
+
+/// Replace all use site of \p old with \p newExpr, recursively
+void MeExprUseInfo::ReplaceUseInfoInExpr(MeExpr *old, MeExpr *newExpr) {
+  if (!old || !newExpr) {
+    return;
+  }
+
+  // not work for scalar, use ReplaceScalar instead
+  if (old->IsScalar() || useInfoState != kUseInfoOfAllExpr) {
+    return;
+  }
+
+  auto *useList = GetUseSitesOfExpr(old);
+
+  if (!useList || useList->empty()) {
+    return;
+  }
+
+  auto end = useList->end();
+  decltype(end) next;
+
+  for (auto it = useList->begin(); it != end; it = next) {
+    next = std::next(it);
+    auto &useSite = *it;
+
+    if (useSite.IsUseByStmt()) {
+      auto *useStmt = useSite.GetStmt();
+
+      DelUseSiteOfExpr(old, useStmt);
+      CollectUseInfoInExpr(newExpr, useStmt);
+    } else {
+      CHECK_FATAL(false, "expr's use site can't be phi");
+    }
   }
 }
 

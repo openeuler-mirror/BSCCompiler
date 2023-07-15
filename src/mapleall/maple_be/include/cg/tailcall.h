@@ -75,7 +75,6 @@ class TailCallOpt {
   CGFunc &cgFunc;
   MemPool *memPool;
   MapleAllocator tmpAlloc;
-  bool stackProtect = false;
   MapleMap<BB*, MapleSet<Insn*, InsnIdCmp>, BBIdCmp> exitBB2CallSitesMap;
   BB *curTailcallExitBB = nullptr;
 };

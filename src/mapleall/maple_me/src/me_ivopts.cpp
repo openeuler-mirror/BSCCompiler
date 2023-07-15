@@ -400,7 +400,26 @@ IV *IVOptData::GetIV(const MeExpr &expr) {
   return iter == ivs.end() ? nullptr : iter->second.get();
 }
 
+static bool MayThrowException(const MeExpr &expr) {
+  if (!expr.CouldThrowException()) {
+    return false;
+  }
+  if (expr.GetOp() != OP_div && expr.GetOp() != OP_rem) {
+    return true;
+  }
+  auto *opnd1 = expr.GetOpnd(1);
+  CHECK_NULL_FATAL(opnd1);
+  if (opnd1->GetMeOp() != kMeOpConst ||
+      static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->GetKind() != kConstInt) {
+    return true;
+  }
+  return opnd1->IsIntZero();
+}
+
 bool IVOptData::IsLoopInvariant(const MeExpr &expr) {
+  if (MayThrowException(expr)) {
+    return false;
+  }
   switch (expr.GetMeOp()) {
     case kMeOpConst: {
       if (!IsSignedInteger(expr.GetPrimType())) {
@@ -490,6 +509,14 @@ MeExpr *IVOptimizer::ResolveBasicIV(const ScalarMeExpr *backValue, ScalarMeExpr 
     return nullptr;
   }
   auto *backRhs = backValue->GetDefStmt()->GetRHS();
+  if (GetPrimTypeSize(backRhs->GetPrimType()) < GetPrimTypeSize(backValue->GetPrimType())) {
+    // There is an implicit conversion from u16 to u32, which cannot be considered as iv.
+    // ||MEIR|| regassign REGINDX:16 u32 %16 mx1626
+    //   rhs = OP sub u16 kPtyInvalid mx1625
+    //     opnd[0] = REGINDX:16 u32 %16 mx1624
+    //     opnd[1] = CONST u16 1 mx1173
+    return nullptr;
+  }
   while (backRhs->IsScalar()) {
     if (static_cast<ScalarMeExpr*>(backRhs)->GetDefBy() != kDefByStmt) {
       return nullptr;
@@ -1165,8 +1192,7 @@ bool IVOptimizer::LHSEscape(const ScalarMeExpr *lhs) {
 MeExpr *IVOptimizer::OptimizeInvariable(MeExpr *expr) {
   for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
     auto *opnd = expr->GetOpnd(i);
-    if (opnd->GetMeOp() == kMeOpOp && opnd->GetOp() != OP_div && opnd->GetOp() != OP_rem &&
-        data->IsLoopInvariant(*opnd)) {
+    if (opnd->GetMeOp() == kMeOpOp && data->IsLoopInvariant(*opnd)) {
       // move loop invariant out of current loop
       auto found = invariables.find(opnd->GetExprID());
       RegMeExpr *outValue = nullptr;
@@ -1185,8 +1211,7 @@ MeExpr *IVOptimizer::OptimizeInvariable(MeExpr *expr) {
     auto *res = OptimizeInvariable(opnd);
     expr = irMap->ReplaceMeExprExpr(*expr, *opnd, *res);
   }
-  if (expr->GetMeOp() == kMeOpOp && expr->GetOp() != OP_div && expr->GetOp() != OP_rem &&
-      data->IsLoopInvariant(*expr)) {
+  if (expr->GetMeOp() == kMeOpOp && data->IsLoopInvariant(*expr)) {
     // move loop invariant out of current loop
     auto found = invariables.find(expr->GetExprID());
     RegMeExpr *outValue = nullptr;
@@ -1630,6 +1655,9 @@ void FindScalarFactor(MeExpr &expr, OpMeExpr *parentCvt, std::unordered_map<int3
     int64 multiplier, bool needSext, bool analysis) {
   switch (expr.GetMeOp()) {
     case kMeOpConst: {
+      if (parentCvt && GetPrimTypeSize(expr.GetPrimType()) < GetPrimTypeSize(parentCvt->GetPrimType())) {
+        needSext = IsSignedInteger(expr.GetPrimType());
+      }
       int64 constVal = needSext ? static_cast<ConstMeExpr&>(expr).GetSXTIntValue() :
                                   static_cast<ConstMeExpr&>(expr).GetExtIntValue();
       auto it = record.find(kInvalidExprID);
@@ -2356,7 +2384,7 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, cons
       use->expr = hashed;
     }
     // compute extra expr after replaced by new iv
-    if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
+    if (incPos != nullptr && IsBranch(incPos->GetOp()) && use->stmt == incPos) {
       // use inc version to replace
       auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
                                                 *cand->iv->base, *cand->iv->step);
@@ -2374,7 +2402,7 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, cons
     replaceCompare = true;
   } else {
     bool mayOverflow = true;
-    if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
+    if (incPos != nullptr && IsBranch(incPos->GetOp()) && use->stmt == incPos) {
       // use inc version to replace
       auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
                                                 *cand->iv->base, *cand->iv->step);
@@ -2539,7 +2567,7 @@ void IVOptimizer::UseReplace() {
         ratio = ComputeRatioOfStep(*cand->iv->step, *use->iv->step);
         extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base,
                                            static_cast<uint64>(ratio), replaced, false);
-        if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
+        if (incPos != nullptr && IsBranch(incPos->GetOp()) && use->stmt == incPos) {
           if (extraExpr == nullptr || (extraExpr->IsLeaf() && extraExpr->GetMeOp() != kMeOpConst)) {
             auto *tmpExpr = irMap->CreateRegMeExpr(use->expr->GetPrimType());
             auto *assignStmt = irMap->CreateAssignMeStmt(*tmpExpr, *use->expr, *incPos->GetBB());
@@ -2631,7 +2659,7 @@ void IVOptimizer::UseReplace() {
     if (incPos == nullptr) {
       latchBB->AddMeStmtFirst(incStmt);
       incPos = incStmt;
-    } else if (incPos->IsCondBr()) {
+    } else if (IsBranch(incPos->GetOp())) {
       incPos->GetBB()->InsertMeStmtBefore(incPos, incStmt);
     } else {
       incPos->GetBB()->InsertMeStmtAfter(incPos, incStmt);
@@ -2771,7 +2799,7 @@ void IVOptimizer::Run() {
     useInfo->CollectUseInfoInFunc(irMap, dom, kUseInfoOfScalar);
   }
   for (int32 i = static_cast<int32>(loops->GetMeLoops().size()) - 1; i >= 0; i--) {
-    auto *loop = loops->GetMeLoops()[i];
+    auto *loop = loops->GetMeLoops()[static_cast<uint32>(i)];
     if (loop->head == nullptr || loop->preheader == nullptr || loop->latch == nullptr) {
       // not canonicalized
       continue;
@@ -2789,7 +2817,7 @@ void IVOptimizer::Run() {
     }
   }
   for (int32 i = static_cast<int32>(loops->GetMeLoops().size()) - 1; i >= 0; --i) {
-    auto *loop = loops->GetMeLoops()[i];
+    auto *loop = loops->GetMeLoops()[static_cast<uint32>(i)];
     if (loop->head == nullptr || loop->preheader == nullptr || loop->latch == nullptr) {
       // not canonicalized
       continue;

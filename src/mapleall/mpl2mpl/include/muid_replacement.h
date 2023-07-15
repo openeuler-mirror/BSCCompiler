@@ -120,7 +120,7 @@ class MUIDReplacement : public FuncOptimizeImpl {
   void ReplaceDreadStmt(MIRFunction *currentFunc, StmtNode *stmt);
   void ClearVtabItab(const std::string &name);
   void ReplaceDecoupleKeyTable(MIRAggConst *oldConst);
-  bool IsMIRAggConstNull(MIRSymbol *tabSym) const;
+  bool IsMIRAggConstNull(const MIRSymbol *tabSym) const;
   void ReplaceFieldTypeTable(const std::string &name);
   BaseNode *ReplaceDreadExpr(MIRFunction *currentFunc, StmtNode *stmt, BaseNode *expr);
   BaseNode *ReplaceDread(MIRFunction &currentFunc, const StmtNode *stmt, BaseNode *opnd);

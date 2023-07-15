@@ -28,19 +28,19 @@ void CFGMST<Edge, BB>::BuildEdges(BB *commonEntry, BB *commonExit) {
     for (auto *succBB : curbb->GetSuccs()) {
       // exitBB incoming edge allocate high weight
       if (succBB->GetKind() == BB::BBKind::kBBReturn) {
-        AddEdge(curbb, succBB, exitEdgeWeight);
+        AddEdge(curbb, succBB, kExitEdgeWeight);
         continue;
       }
       if (IsCritialEdge(curbb, succBB)) {
-        AddEdge(curbb, succBB, criticalEdgeWeight, true);
+        AddEdge(curbb, succBB, kCriticalEdgeWeight, true);
         continue;
       }
-      AddEdge(curbb, succBB, normalEdgeWeight);
+      AddEdge(curbb, succBB, kNormalEdgeWeight);
     }
   }
 
   for (BB *bb : commonExit->GetPreds()) {
-    AddEdge(bb, commonExit, fakeExitEdgeWeight, false, true);
+    AddEdge(bb, commonExit, kFakeExitEdgeWeight, false, true);
   }
   bbGroups[commonExit->GetId()] = commonExit->GetId();
   // insert fake edge to keep consistent

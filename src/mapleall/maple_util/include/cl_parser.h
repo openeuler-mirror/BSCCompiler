@@ -72,6 +72,7 @@ struct OptionCategory {
     }
   }
 
+  void ClearJoinedOpt();
   const std::vector<OptionInterface *> &GetEnabledOptions() {
     return enabledOptions;
   }

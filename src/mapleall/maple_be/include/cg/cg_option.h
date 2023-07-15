@@ -612,18 +612,6 @@ class CGOptions {
     return fastAlloc;
   }
 
-  static bool IsEnableTimePhases() {
-    return timePhases;
-  }
-
-  static void EnableTimePhases() {
-    timePhases = true;
-  }
-
-  static void DisableTimePhases() {
-    timePhases = false;
-  }
-
   static void EnableInRange() {
     inRange = true;
   }
@@ -812,11 +800,6 @@ class CGOptions {
     return doICO;
   }
 
-  static bool DoIsolateFastPath() {
-    return (CGOptions::GetInstance().DoPrologueEpilogue()) &&
-           (CGOptions::GetInstance().GetOptimizeLevel() == CGOptions::kLevel2);
-  }
-
   static void EnableStoreLoadOpt() {
     doStoreLoadOpt = true;
   }
@@ -877,6 +860,18 @@ class CGOptions {
     return doCondBrAlign;
   }
 
+  static void EnableLoopAlign() {
+    doLoopAlign = true;
+  }
+
+  static void DisableLoopAlign() {
+    doLoopAlign = false;
+  }
+
+  static bool DoLoopAlign() {
+    return doLoopAlign;
+  }
+
   static void EnableBigEndianInCG() {
     cgBigEndian = true;
   }
@@ -929,16 +924,16 @@ class CGOptions {
     return doMultiPassColorRA;
   }
 
-  static void EnablePreLSRAOpt() {
-    doPreLSRAOpt = true;
+  static void EnablePreRAOpt() {
+    doPreRAOpt = true;
   }
 
-  static void DisablePreLSRAOpt() {
-    doPreLSRAOpt = false;
+  static void DisablePreRAOpt() {
+    doPreRAOpt = false;
   }
 
-  static bool DoPreLSRAOpt() {
-    return doPreLSRAOpt;
+  static bool DoPreRAOpt() {
+    return doPreRAOpt;
   }
 
   static void EnableLocalRefSpill() {
@@ -1557,7 +1552,7 @@ class CGOptions {
     noplt = true;
   }
 
-  static bool GetNoplt() {
+  static bool IsNoPlt() {
     return noplt;
   }
 
@@ -1591,6 +1586,38 @@ class CGOptions {
     return doOptimizedFrameLayout;
   }
 
+  static void SetDupFreqThreshold(uint32 dupThres) {
+    dupFreqThreshold = dupThres;
+  }
+
+  static uint32 GetDupFreqThreshold() {
+    return dupFreqThreshold;
+  }
+
+  static void EnablePgoCodeAlign() {
+    doPgoCodeAlign = true;
+  }
+
+  static bool DoPgoCodeAlign() {
+    return doPgoCodeAlign;
+  }
+
+  static void SetAlignThreshold(uint32 alignThre) {
+    alignThreshold = alignThre;
+  }
+
+  static uint32 GetAlignThreshold() {
+    return alignThreshold;
+  }
+
+  static void SetAlignLoopIterations(uint32 loopIter) {
+    alignLoopIterations = loopIter;
+  }
+
+  static uint32 GetAlignLoopIterations() {
+    return alignLoopIterations;
+  }
+
  private:
   std::vector<std::string> phaseSequence;
   bool runCGFlag = true;
@@ -1620,7 +1647,6 @@ class CGOptions {
   static bool optForSize;
   static bool enableHotColdSplit;
   static bool useBarriersForVolatile;
-  static bool timePhases;
   static bool cgBigEndian;
   static bool doEBO;
   static bool doCGSSA;
@@ -1642,6 +1668,7 @@ class CGOptions {
   static bool doSchedule;
   static bool doAlignAnalysis;
   static bool doCondBrAlign;
+  static bool doLoopAlign;
   static bool doWriteRefFieldOpt;
   static bool doRegSavesOpt;
   static bool doTailCallOpt;
@@ -1694,7 +1721,7 @@ class CGOptions {
   static uint8 rematLevel;
   static uint8 fastAllocMode;
   static bool fastAlloc;
-  static bool doPreLSRAOpt;
+  static bool doPreRAOpt;
   static bool doLocalRefSpill;
   static bool doCalleeToSpill;
   static bool replaceASM;
@@ -1724,6 +1751,10 @@ class CGOptions {
   static bool doTlsGlobalWarmUpOpt;
   static bool noplt;
   static bool doOptimizedFrameLayout;
+  static bool doPgoCodeAlign;
+  static uint32 alignThreshold;
+  static uint32 alignLoopIterations;
+  static uint32 dupFreqThreshold;
 };
 }  /* namespace maplebe */
 

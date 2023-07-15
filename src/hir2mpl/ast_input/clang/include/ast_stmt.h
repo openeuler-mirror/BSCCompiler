@@ -146,8 +146,13 @@ class ASTReturnStmt : public ASTStmt {
   explicit ASTReturnStmt(MapleAllocator &allocatorIn) : ASTStmt(allocatorIn, kASTStmtReturn) {}
   ~ASTReturnStmt() override = default;
 
+  void SetActulReturnStmt(bool flag) {
+    actulReturnStmt = flag;
+  }
+
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+  bool actulReturnStmt = false;
 };
 
 class ASTAttributedStmt : public ASTStmt {

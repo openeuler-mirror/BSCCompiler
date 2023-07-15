@@ -18,6 +18,9 @@
 namespace maple {
 void PhaseTimeHandler::RunBeforePhase(const MaplePhaseInfo &pi) {
   (void)pi;
+  if (depth++ > 0) {
+    return;
+  }
   if (isMultithread) {
     static std::mutex mtx;
     ParallelGuard guard(mtx, true);
@@ -32,6 +35,9 @@ void PhaseTimeHandler::RunBeforePhase(const MaplePhaseInfo &pi) {
 }
 
 void PhaseTimeHandler::RunAfterPhase(const MaplePhaseInfo &pi) {
+  if (--depth > 0) {
+    return;
+  }
   static std::mutex mtx;
   ParallelGuard guard(mtx, true);
   long usedTime = 0;
@@ -77,6 +83,8 @@ void PhaseTimeHandler::DumpPhasesTime() {
      */
     timeLogger(phaseIt->first, phaseIt->second, phaseTotalTime);
   }
+  LogInfo::MapleLogger() << "================================================\n";
+  timeLogger("Total", phaseTotalTime, phaseTotalTime);
   LogInfo::MapleLogger() << "================================================\n\n";
   LogInfo::MapleLogger().unsetf(std::ios::fixed);
 }

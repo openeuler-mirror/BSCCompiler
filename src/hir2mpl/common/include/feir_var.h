@@ -165,7 +165,11 @@ class FEIRVar {
     return HashImpl();
   }
 
-  void SetAttrs(const GenericAttrs &argGenericAttrs) {
+  void SetAttrs(const StlGenericAttrs &argGenericAttrs) {
+    genAttrs = argGenericAttrs;
+  }
+
+  void SetAttrs(const MapleGenericAttrs &argGenericAttrs) {
     genAttrs = argGenericAttrs;
   }
 
@@ -208,7 +212,7 @@ class FEIRVar {
   bool isDef : 1;
   UniqueFEIRType type;
   UniqueFEIRVarTrans trans;
-  GenericAttrs genAttrs;
+  StlGenericAttrs genAttrs;
   Loc loc = {0, 0, 0};
   std::string sectionAttr;
   std::unique_ptr<FEIRExpr> boundaryLenExpr;

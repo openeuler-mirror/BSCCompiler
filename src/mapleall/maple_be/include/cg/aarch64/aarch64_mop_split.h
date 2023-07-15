@@ -703,5 +703,6 @@ inline void MOP_qstpSplit(Insn *insn, bool isAfterRegAlloc, InsnBuilder *insnBui
     OperandBuilder *opndBuilder) {
   LoadStoreInsnSplit(insn, kInsnThirdOpnd, true, isAfterRegAlloc, insnBuilder, opndBuilder);
 }
+
 }  /* namespace maplebe */
 #endif /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_MOP_SPLIT_H */

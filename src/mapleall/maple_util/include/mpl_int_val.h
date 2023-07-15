@@ -30,22 +30,15 @@ class IntVal {
     u.value = 0;
   }
 
-  IntVal(uint64 val, uint16 bitWidth, bool isSigned) : width(bitWidth), sign(isSigned) {
+  template<typename T, typename = std::enable_if_t<std::is_integral_v<std::remove_pointer_t<T>>>>
+  IntVal(T val, uint16 bitWidth, bool isSigned) : width(bitWidth), sign(isSigned) {
     Init(val);
     TruncInPlace();
   }
 
-  IntVal(const uint64 pVal[], uint16 bitWidth, bool isSigned) : width(bitWidth), sign(isSigned) {
-    Init(pVal);
-    TruncInPlace();
-  }
-
-  IntVal(uint64 val, PrimType type) : IntVal(val, GetPrimTypeActualBitSize(type), IsSignedInteger(type)) {
+  template<typename T, typename = std::enable_if_t<std::is_integral_v<std::remove_pointer_t<T>>>>
+  IntVal(T val, PrimType type) : IntVal(val, GetPrimTypeActualBitSize(type), IsSignedInteger(type)) {
     ASSERT(IsPrimitiveInteger(type) || IsPrimitiveVectorInteger(type), "Type must be integral");
-  }
-
-  IntVal(const uint64 pVal[], PrimType type) : IntVal(pVal, GetPrimTypeActualBitSize(type), IsSignedInteger(type)) {
-    ASSERT(IsPrimitiveInteger(type), "Type must be integral");
   }
 
   IntVal(const IntVal &val, PrimType type) : width(GetPrimTypeActualBitSize(type)), sign(IsSignedInteger(type)) {
@@ -169,9 +162,9 @@ class IntVal {
     ASSERT(IsOneSignificantWord(), "value doesn't fit into 64 bits");
     uint64 value = IsOneWord() ? u.value : u.pValue[0];
     // if size == 0, just return the value itself because it's already truncated for an appropriate width
-    ASSERT(wordBitSize >= size, "wordBitSize should >= size");
+    ASSERT(kWordBitSize >= size, "kWordBitSize should >= size");
     return (size != 0) ?
-        (value << static_cast<uint32>(wordBitSize - size)) >> static_cast<uint32>(wordBitSize - size) : value;
+        (value << static_cast<uint32>(kWordBitSize - size)) >> static_cast<uint32>(kWordBitSize - size) : value;
   }
 
   /// @return sign extended value
@@ -181,10 +174,10 @@ class IntVal {
     uint8 bitWidth = (size != 0) ? size : static_cast<uint8>(width);
     ASSERT(size <= width, "size should <= %u, but got %u", width, size);
     // Do not rely on compiler implement-defined behavior for signed integer shifting
-    uint8 shift = static_cast<uint8>(static_cast<uint32>(wordBitSize - bitWidth));
+    uint8 shift = static_cast<uint8>(static_cast<uint32>(kWordBitSize - bitWidth));
     value <<= shift;
     // prepare leading ones for negative value
-    uint64 leadingOnes = allOnes << ((bitWidth < wordBitSize) ? bitWidth : static_cast<uint32>(wordBitSize - 1U));
+    uint64 leadingOnes = kAllOnes << ((bitWidth < kWordBitSize) ? bitWidth : static_cast<uint32>(kWordBitSize - 1U));
     if (bitWidth != 0) {
       return static_cast<int64>(GetBit(static_cast<uint16>(static_cast<uint32>(bitWidth - 1U))) ?
           ((value >> shift) | leadingOnes) : (value >> shift));
@@ -204,7 +197,7 @@ class IntVal {
   /// @return true if all bits are 1
   bool AreAllBitsOne() const {
     if (IsOneWord()) {
-      return u.value == (allOnes >> static_cast<uint32>(wordBitSize - width));
+      return u.value == (kAllOnes >> static_cast<uint32>(kWordBitSize - width));
     }
 
     return CountTrallingOnes() == width;
@@ -246,9 +239,9 @@ class IntVal {
     return WideIsMinValue();
   }
 
-  /// @return true if the value doesn't fit in wordBitSize
+  /// @return true if the value doesn't fit in kWordBitSize
   bool IsOneWord() const {
-    return width <= wordBitSize;
+    return width <= kWordBitSize;
   }
 
   void SetMaxValue() {
@@ -260,7 +253,8 @@ class IntVal {
     sign = isSigned;
     width = bitWidth;
     if (IsOneWord()) {
-      u.value = sign ? ((uint64(1) << (width - 1)) - 1) : (allOnes >> (wordBitSize - width));
+      u.value = sign ? ((uint64(1) << static_cast<uint32>(width - 1UL)) - 1UL) :
+                       (kAllOnes >> static_cast<uint32>(kWordBitSize - width));
     } else {
       WideSetMaxValue();
     }
@@ -298,6 +292,15 @@ class IntVal {
 
   /// @return quiantity of non-zero bits
   uint16 CountPopulation() const;
+
+  /// @return true if all bits set in this IntVal are also set in rhs
+  bool IsSubsetOf(const IntVal &rhs) const {
+    ASSERT(width == rhs.width && sign == rhs.sign, "bit-width and sign must be the same");
+    if (IsOneWord()) {
+      return (u.value & ~rhs.u.value) == 0;
+    }
+    return WideIsSubsetOf(rhs);
+  }
 
   // Comparison operators that manipulate on values with the same sign and bit-width
   bool operator==(const IntVal &rhs) const {
@@ -651,11 +654,11 @@ class IntVal {
 
     if (IsOneWord()) {
         uint16 truncWidth = (bitWidth != 0) ? bitWidth : width;
-        u.value &= allOnes >> (wordBitSize - truncWidth);
+        u.value &= kAllOnes >> (kWordBitSize - truncWidth);
     } else {
       uint16 truncWidth = (bitWidth == 0) ? bitWidth : width;
-      uint16 lastWord = GetNumWords() - 1;
-      u.pValue[lastWord] &= allOnes >> (truncWidth % wordBitSize);
+      uint16 lastWord = static_cast<uint16>(GetNumWords() - 1UL);
+      u.pValue[lastWord] &= kAllOnes >> static_cast<uint32>(truncWidth % kWordBitSize);
     }
 
     if (bitWidth != 0) {
@@ -685,7 +688,7 @@ class IntVal {
 
   IntVal Extend(uint16 newWidth, bool isSigned) const {
     ASSERT(newWidth > width, "invalid size for extension");
-    if (IsOneWord() && newWidth <= wordBitSize) {
+    if (IsOneWord() && newWidth <= kWordBitSize) {
       return IntVal(GetExtValue(), newWidth, isSigned);
     }
 
@@ -702,9 +705,74 @@ class IntVal {
     return newWidth <= width ? Trunc(newWidth, isSigned) : Extend(newWidth, isSigned);
   }
 
+  IntVal ByteSwap() const{
+    if (width == k16BitSize) {
+      return IntVal(__builtin_bswap16(static_cast<uint16_t>(u.value)), width, sign);
+    }
+    if (width == k32BitSize) {
+      return IntVal(__builtin_bswap32(static_cast<uint32_t>(u.value)), width, sign);
+    }
+    if (width == k64BitSize) {
+      return IntVal(__builtin_bswap64(u.value), width, sign);
+    }
+
+    CHECK_FATAL(width % k64BitSize == 0, "unsupport bswap bit width of %d", width);
+
+    IntVal res(0, width, sign);
+    for (uint16 i = 0 ; i < GetNumWords(); ++i) {
+      res.u.pValue[i] = __builtin_bswap64(u.pValue[GetNumWords() - i - 1]);
+    }
+    return res;
+  }
+
   /// @return true if all significant bits fit into one word
   bool IsOneSignificantWord() const {
-    return IsOneWord() || (CountSignificantBits() <= wordBitSize);
+    return IsOneWord() || (CountSignificantBits() <= kWordBitSize);
+  }
+
+  /// set bits form \p low to \p high
+  void SetBits(uint16 low, uint16 high) {
+    ASSERT(high <= width, "high bit out of value range");
+    ASSERT(low <= width, "high bit out of value range");
+    ASSERT(low <= high, "low is greater than high");
+    if (low == high) {
+      return;
+    }
+    if (low < kWordBitSize && high <= kWordBitSize) {
+      uint64 mask = kAllOnes >> (kWordBitSize - (high - low));
+      mask <<= low;
+      if (IsOneWord()) {
+        u.value |= mask;
+      } else {
+        u.pValue[0] |= mask;
+      }
+    } else {
+      WideSetBits(low, high);
+    }
+  }
+
+  bool GetBit(uint16 bit) const {
+    ASSERT(bit < width, "Required bit is out of value range");
+    if (IsOneWord()) {
+      return (u.value & (uint64(1) << bit)) != 0;
+    }
+
+    uint8 word = static_cast<uint8>(GetNumWords(static_cast<uint16>(bit + 1UL)) - 1UL);
+    uint8 wordOffset = bit % kWordBitSize;
+
+    return (u.pValue[word] & (uint64(1) << wordOffset)) != 0;
+  }
+
+  /// @brief set the given bit to zero
+  void ClearBit(uint16 bit) {
+    ASSERT(bit < width, "Required bit is out of value range");
+    uint64 mask = ~(uint64(1) << (bit % kWordBitSize));
+    if (IsOneWord()) {
+      u.value = u.value & mask;
+    } else {
+      uint16 word = WordNumber(bit);
+      u.pValue[word] = u.pValue[word] & mask;
+    }
   }
 
   /// @brief get as string
@@ -717,9 +785,19 @@ class IntVal {
   /// @brief dump to ostream
   void Dump(std::ostream &os) const;
 
+  static constexpr uint64 kAllOnes = uint64(~0);
+
  private:
   static uint8 GetNumWords(uint16 bitWidth) {
-    return static_cast<uint8>((bitWidth + wordBitSize - 1) / wordBitSize);
+    return static_cast<uint8>(static_cast<uint32>(bitWidth + kWordBitSize - 1) / kWordBitSize);
+  }
+
+  static uint16 WordNumber(uint16 bitPos) {
+    return bitPos / kWordBitSize;
+  }
+
+  static uint16 BitNumber(uint16 bitPos) {
+    return bitPos % kWordBitSize;
   }
 
   /// @brief compare two Wide integers
@@ -800,13 +878,18 @@ class IntVal {
   /// @brief set max maximum value for wide integer
   void WideMinMaxValue();
 
+  bool WideIsSubsetOf(const IntVal &rhs) const;
+
+  /// set bits form \p low to \p high
+  void WideSetBits(uint16 low, uint16 high);
+
   /// @return value which sign/zero extended to wide integer
   IntVal ExtendToWideInt(uint16 newWidth, bool isSigned) const;
 
   /// @brief set the given bit to one
   void SetBit(uint16 bit) {
     ASSERT(bit < width, "Required bit is out of value range");
-    uint64 mask = uint64(1) << (bit % wordBitSize);
+    uint64 mask = uint64(1) << static_cast<uint32>(bit % kWordBitSize);
     if (IsOneWord()) {
       u.value = u.value | mask;
     } else {
@@ -817,21 +900,8 @@ class IntVal {
 
   /// @brief set the sign bit to one and set 'sign' to true
   void SetSignBit() {
-    SetBit(width - static_cast<uint16>(1));
+    SetBit(static_cast<uint16>(width - 1UL));
   }
-
-  bool GetBit(uint16 bit) const {
-    ASSERT(bit < width, "Required bit is out of value range");
-    if (IsOneWord()) {
-      return (u.value & (uint64(1) << bit)) != 0;
-    }
-
-    uint8 word = static_cast<uint8>(GetNumWords(bit + 1) - 1);
-    uint8 wordOffset = bit % wordBitSize;
-
-    return (u.pValue[word] & (uint64(1) << wordOffset)) != 0;
-  }
-
   using Storage = union U {
     uint64 value;    // Used to process the <= 64 bits values
     uint64 *pValue;  // Used to store wide values
@@ -871,10 +941,7 @@ class IntVal {
   void WideInit(const uint64 *val);
 
   Storage u;
-
-  static constexpr uint8 wordBitSize = sizeof(uint64) * CHAR_BIT;
-  static constexpr uint64 allOnes = uint64(~0);
-
+  static constexpr uint8 kWordBitSize = sizeof(uint64) * CHAR_BIT;
   uint16 width = 0;
   bool sign;
 };

@@ -173,7 +173,7 @@ uint32 LibAstFile::RetrieveAggTypeAlign(const clang::Type *ty) const {
   return 0;
 }
 
-void LibAstFile::GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs, bool isConst) const {
+void LibAstFile::GetCVRAttrs(uint32_t qualifiers, MapleGenericAttrs &genAttrs, bool isConst) const {
   if (isConst && (qualifiers & clang::Qualifiers::Const) != 0) {
     genAttrs.SetAttr(GENATTR_const);
   }
@@ -185,7 +185,7 @@ void LibAstFile::GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs, bool i
   }
 }
 
-void LibAstFile::GetSClassAttrs(const clang::StorageClass storageClass, GenericAttrs &genAttrs) const {
+void LibAstFile::GetSClassAttrs(const clang::StorageClass storageClass, MapleGenericAttrs &genAttrs) const {
   switch (storageClass) {
     case clang::SC_Extern:
     case clang::SC_PrivateExtern:
@@ -199,7 +199,7 @@ void LibAstFile::GetSClassAttrs(const clang::StorageClass storageClass, GenericA
   }
 }
 
-void LibAstFile::GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const {
+void LibAstFile::GetStorageAttrs(const clang::NamedDecl &decl, MapleGenericAttrs &genAttrs) const {
   switch (decl.getKind()) {
     case clang::Decl::Function:
     case clang::Decl::CXXMethod: {
@@ -241,7 +241,7 @@ void LibAstFile::GetStorageAttrs(const clang::NamedDecl &decl, GenericAttrs &gen
   return;
 }
 
-void LibAstFile::GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const {
+void LibAstFile::GetAccessAttrs(AccessKind access, MapleGenericAttrs &genAttrs) const {
   switch (access) {
     case kPublic:
       genAttrs.SetAttr(GENATTR_public);
@@ -261,7 +261,7 @@ void LibAstFile::GetAccessAttrs(AccessKind access, GenericAttrs &genAttrs) const
   return;
 }
 
-void LibAstFile::GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs) const {
+void LibAstFile::GetQualAttrs(const clang::NamedDecl &decl, MapleGenericAttrs &genAttrs) const {
   switch (decl.getKind()) {
     case clang::Decl::Function:
     case clang::Decl::CXXMethod:
@@ -280,12 +280,12 @@ void LibAstFile::GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAtt
   }
 }
 
-void LibAstFile::GetQualAttrs(const clang::QualType &qualType, GenericAttrs &genAttrs, bool isSourceType) const {
+void LibAstFile::GetQualAttrs(const clang::QualType &qualType, MapleGenericAttrs &genAttrs, bool isSourceType) const {
   uint32_t qualifiers = qualType.getCVRQualifiers();
   GetCVRAttrs(qualifiers, genAttrs, isSourceType);
 }
 
-void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
+void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access) const {
   GetStorageAttrs(decl, genAttrs);
   GetAccessAttrs(access, genAttrs);
   GetQualAttrs(decl, genAttrs);
@@ -349,7 +349,8 @@ void LibAstFile::SetAttrTLSModel(const clang::VarDecl &decl, GenericAttrs &genAt
   }
 }
 
-void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
+void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access)
+    const {
   CollectAttrs(decl, genAttrs, access);
   if (decl.isVirtualAsWritten()) {
     genAttrs.SetAttr(GENATTR_virtual);
@@ -469,7 +470,7 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) cons
               unsupportedFuncAttrs.c_str());
 }
 
-void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
+void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
   SetAttrVisibility(decl, genAttrs);
   SetAttrTLSModel(decl, genAttrs);
@@ -550,7 +551,7 @@ void LibAstFile::CheckUnsupportedTypeAttrs(const clang::RecordDecl &decl) const 
               unsupportedTypeAttrs.c_str());
 }
 
-void LibAstFile::CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &genAttrs, AccessKind access) const {
+void LibAstFile::CollectFieldAttrs(const clang::FieldDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access) const {
   CollectAttrs(decl, genAttrs, access);
   clang::PackedAttr *packedAttr = decl.getAttr<clang::PackedAttr>();
   if (packedAttr != nullptr) {
@@ -562,18 +563,18 @@ void LibAstFile::CollectFieldAttrs(const clang::FieldDecl &decl, GenericAttrs &g
   }
 }
 
-void LibAstFile::EmitTypeName(const clang::QualType qualType, std::stringstream &ss) {
+void LibAstFile::EmitTypeName(MapleAllocator &allocatorIn, const clang::QualType qualType, std::stringstream &ss) {
   switch (qualType->getTypeClass()) {
     case clang::Type::LValueReference: {
       ss << "R";
       const clang::QualType pointeeType = qualType->castAs<clang::ReferenceType>()->getPointeeType();
-      EmitTypeName(pointeeType, ss);
+      EmitTypeName(allocatorIn, pointeeType, ss);
       break;
     }
     case clang::Type::Pointer: {
       ss << "P";
       const clang::QualType pointeeType = qualType->castAs<clang::PointerType>()->getPointeeType();
-      EmitTypeName(pointeeType, ss);
+      EmitTypeName(allocatorIn, pointeeType, ss);
       break;
     }
     case clang::Type::Record: {
@@ -582,7 +583,7 @@ void LibAstFile::EmitTypeName(const clang::QualType qualType, std::stringstream 
     }
     default: {
       EmitQualifierName(qualType, ss);
-      MIRType *type = CvtType(qualType);
+      MIRType *type = CvtType(allocatorIn, qualType);
       ss << ASTUtil::GetTypeString(*type);
       break;
     }
@@ -787,13 +788,10 @@ std::string LibAstFile::GetSourceTextRaw(const clang::SourceRange range, const c
 bool LibAstFile::CheckAndBuildStaticFunctionLayout(const clang::FunctionDecl &funcDecl,
                                                    std::stringstream &funcNameStream,
                                                    std::unordered_set<int64_t> &visitedCalls) {
-  if (!funcDecl.isStatic()) {
-    return false;
-  }
   if (!funcDecl.getBody()) {
     return false;
   }
-  std::string funcSignature = BuildStaticFunctionSignature(funcDecl);
+  std::string funcSignature = BuildStaticFunctionSignature(*funcDecl.getDefinition());
   funcNameStream << funcSignature << "{";
   std::string funcSourceCode = "";
   funcSourceCode = GetSourceText(*(funcDecl.getBody()));

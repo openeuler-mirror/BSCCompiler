@@ -251,33 +251,7 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, std::pai
 }
 
 UniqueFEIRExpr FEIRBuilder::CreateExprVdupAnyVector(PrimType primtype, int64 val) {
-MIRIntrinsicID intrinsic;
-  switch (primtype) {
-#define SET_VDUP(TY)                                                          \
-    case PTY_##TY:                                                            \
-      intrinsic = INTRN_vector_from_scalar_##TY;                              \
-      break;
-
-    SET_VDUP(v2i64)
-    SET_VDUP(v4i32)
-    SET_VDUP(v8i16)
-    SET_VDUP(v16i8)
-    SET_VDUP(v2u64)
-    SET_VDUP(v4u32)
-    SET_VDUP(v8u16)
-    SET_VDUP(v16u8)
-    SET_VDUP(v2f64)
-    SET_VDUP(v4f32)
-    SET_VDUP(v2i32)
-    SET_VDUP(v4i16)
-    SET_VDUP(v8i8)
-    SET_VDUP(v2u32)
-    SET_VDUP(v4u16)
-    SET_VDUP(v8u8)
-    SET_VDUP(v2f32)
-    default:
-      CHECK_FATAL(false, "Unhandled vector type in CreateExprVdupAnyVector");
-  }
+  MIRIntrinsicID intrinsic = GetVectorIntrinsic(primtype);
   UniqueFEIRType feType = FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPrimType(primtype));
   UniqueFEIRExpr valExpr = CreateExprConstAnyScalar(FEUtils::GetVectorElementPrimType(primtype), val);
   std::vector<std::unique_ptr<FEIRExpr>> argOpnds;

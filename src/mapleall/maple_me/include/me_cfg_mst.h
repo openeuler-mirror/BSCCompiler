@@ -23,6 +23,7 @@ template <class Edge>
 class CFGMST {
  public:
   CFGMST(MeFunction &func, MemPool &mp, bool dump) : func(&func), mp(&mp), dump(dump) {}
+  virtual ~CFGMST() = default;
   BB *FindGroup(BB *bb);
   bool UnionGroups(BB *src, BB *dest);
   void ComputeMST();
@@ -35,7 +36,7 @@ class CFGMST {
     return allEdges;
   }
 
-  uint32 GetAllEdgesSize() const {
+  size_t GetAllEdgesSize() const {
     return allEdges.size();
   }
 
@@ -54,10 +55,10 @@ class CFGMST {
   void BuildEdges();
   void DumpEdgesInfo() const;
  private:
-  static constexpr int normalEdgeWeight = 2;
-  static constexpr int exitEdgeWeight = 3;
-  static constexpr int fakeExitEdgeWeight = 4;
-  static constexpr int criticalEdgeWeight = 4;
+  static constexpr int kNormalEdgeWeight = 2;
+  static constexpr int kExitEdgeWeight = 3;
+  static constexpr int kFakeExitEdgeWeight = 4;
+  static constexpr int kCriticalEdgeWeight = 4;
   std::vector<Edge*> allEdges;
   MeFunction *func;
   MemPool *mp;
@@ -168,19 +169,19 @@ void CFGMST<Edge>::BuildEdges() {
     for (auto *succBB : bb->GetSucc()) {
       /* exitBB incoming edge allocate high weight */
       if (succBB->GetKind() == BBKind::kBBReturn) {
-        AddEdge(bb, succBB, exitEdgeWeight);
+        AddEdge(bb, succBB, kExitEdgeWeight);
         continue;
       }
       if (IsCritialEdge(bb, succBB)) {
-        AddEdge(bb, succBB, criticalEdgeWeight, true);
+        AddEdge(bb, succBB, kCriticalEdgeWeight, true);
         continue;
       }
-      AddEdge(bb, succBB, normalEdgeWeight);
+      AddEdge(bb, succBB, kNormalEdgeWeight);
     }
   }
 
   for (BB *bb : func->GetCfg()->GetCommonExitBB()->GetPred()) {
-    AddEdge(bb, exit, fakeExitEdgeWeight, false, true);
+    AddEdge(bb, exit, kFakeExitEdgeWeight, false, true);
   }
   /* insert fake edge to keep consistent */
   AddEdge(exit, entry, UINT64_MAX, false, true);

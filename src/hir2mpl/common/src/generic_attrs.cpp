@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "generic_attrs.h"
-#include "global_tables.h"
 
 namespace maple {
 TypeAttrs GenericAttrs::ConvertToTypeAttrs() const {
@@ -38,7 +37,8 @@ TypeAttrs GenericAttrs::ConvertToTypeAttrs() const {
     }
   }
   if (GetContentFlag(GENATTR_pack)) {
-    attr.SetPack(static_cast<uint32>(std::get<int>(contentMap[GENATTR_pack])));
+    uint32 pack = GetPack(GENATTR_pack);
+    attr.SetPack(pack);
   }
   return attr;
 }
@@ -65,14 +65,16 @@ FuncAttrs GenericAttrs::ConvertToFuncAttrs() {
     }
   }
   if (GetContentFlag(GENATTR_alias)) {
-    std::string name = GlobalTables::GetStrTable().GetStringFromStrIdx(std::get<GStrIdx>(contentMap[GENATTR_alias]));
+    const std::string &name = GetAttrStrName(GENATTR_alias);
     attr.SetAliasFuncName(name);
   }
   if (GetContentFlag(GENATTR_constructor_priority)) {
-    attr.SetConstructorPriority(std::get<int>(contentMap[GENATTR_constructor_priority]));
+    int priority = GetPriority(GENATTR_constructor_priority);
+    attr.SetConstructorPriority(priority);
   }
   if (GetContentFlag(GENATTR_destructor_priority)) {
-    attr.SetDestructorPriority(std::get<int>(contentMap[GENATTR_destructor_priority]));
+    int priority = GetPriority(GENATTR_destructor_priority);
+    attr.SetDestructorPriority(priority);
   }
   return attr;
 }

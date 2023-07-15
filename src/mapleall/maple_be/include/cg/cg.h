@@ -37,6 +37,7 @@ namespace maplebe {
 class CGSSAInfo;
 class PhiEliminate;
 class DomAnalysis;
+class PostDomAnalysis;
 class CGProp;
 class CGDce;
 class AlignAnalysis;
@@ -58,6 +59,9 @@ class ControlDepAnalysis;
 class DataDepAnalysis;
 class CGAggressiveOpt;
 class LoopAnalysis;
+class DupTailOptimizer;
+class RaOpt;
+class ProEpilogAnalysis;
 
 class Globals {
  public:
@@ -331,6 +335,9 @@ class CG {
   virtual CFGOptimizer *CreateCFGOptimizer(MemPool &mp, CGFunc &f, LoopAnalysis &loop) const {
     return nullptr;
   }
+  virtual DupTailOptimizer *CreateDupTailOptimizer(MemPool &mp, CGFunc &f) const {
+    return nullptr;
+  }
   virtual CGProfGen *CreateCGProfGen(MemPool &mp, CGFunc &f) const {
     return nullptr;
   }
@@ -342,6 +349,13 @@ class CG {
   virtual CGAggressiveOpt *CreateAggressiveOpt(MemPool &mp, CGFunc &f) const {
     return nullptr;
   }
+
+  virtual RaOpt *CreateRaOptimizer(MemPool &mp, CGFunc &f, DomAnalysis &dom, LoopAnalysis &loop) const {
+    return nullptr;
+  }
+
+  virtual ProEpilogAnalysis *CreateProEpilogAnalysis(MemPool &mp, CGFunc &f, DomAnalysis &dom, PostDomAnalysis &pdom,
+                                                     LoopAnalysis &loop) const;
 
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType) const;
@@ -388,11 +402,11 @@ class CG {
   virtual bool IsClinitInsn(MOperator mOp) const = 0;
   virtual void DumpTargetOperand(Operand &opnd, const OpndDesc &opndDesc) const = 0;
 
- protected:
   const MIRModule *GetMIRModule() const {
     return mirModule;
   }
-
+  
+  protected:
   MemPool *memPool = nullptr;
   MapleAllocator allocator;
 

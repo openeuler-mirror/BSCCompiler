@@ -56,6 +56,7 @@ class Triple {
     static Triple triple;
     return triple;
   }
+
   Triple(const Triple &) = delete;
   Triple &operator=(const Triple &) = delete;
 

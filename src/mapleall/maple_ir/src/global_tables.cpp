@@ -70,6 +70,23 @@ void TypeTable::UpdateMIRType(const MIRType &pType, const TyIdx tyIdx) {
   SetTypeWithTyIdx(tyIdx, *nType);
 }
 
+void TypeTable::FillinTypeMapOrHashTable(MIRType &pType, MIRType &nType) {
+  if (pType.IsMIRPtrType()) {
+    auto &pty = static_cast<MIRPtrType&>(pType);
+    if (pty.GetTypeAttrs() == TypeAttrs()) {
+      if (pty.GetPrimType() != PTY_ref) {
+        ptrTypeMap[pty.GetPointedTyIdx()] = nType.GetTypeIndex();
+      } else {
+        refTypeMap[pty.GetPointedTyIdx()] = nType.GetTypeIndex();
+      }
+    } else {
+      (void)typeHashTable.insert(&nType);
+    }
+  } else {
+    (void)typeHashTable.insert(&nType);
+  }
+}
+
 // used only by bin_mpl_import
 void TypeTable::CreateMirTypeNodeAt(MIRType &pType, TyIdx tyIdxUsed, MIRModule *module,
                                     bool isObject, bool isIncomplete) {
@@ -77,20 +94,7 @@ void TypeTable::CreateMirTypeNodeAt(MIRType &pType, TyIdx tyIdxUsed, MIRModule *
   nType->SetTypeIndex(tyIdxUsed);
   typeTable[tyIdxUsed] = nType;
 
-  if (pType.IsMIRPtrType()) {
-    auto &pty = static_cast<MIRPtrType&>(pType);
-    if (pty.GetTypeAttrs() == TypeAttrs()) {
-      if (pty.GetPrimType() != PTY_ref) {
-        ptrTypeMap[pty.GetPointedTyIdx()] = nType->GetTypeIndex();
-      } else {
-        refTypeMap[pty.GetPointedTyIdx()] = nType->GetTypeIndex();
-      }
-    } else {
-      (void)typeHashTable.insert(nType);
-    }
-  } else {
-    (void)typeHashTable.insert(nType);
-  }
+  FillinTypeMapOrHashTable(pType, *nType);
 
   GStrIdx stridx = pType.GetNameStrIdx();
   if (stridx != 0) {
@@ -110,20 +114,8 @@ MIRType *TypeTable::CreateAndUpdateMirTypeNode(MIRType &pType) {
   nType->SetTypeIndex(TyIdx(typeTable.size()));
   typeTable.push_back(nType);
 
-  if (pType.IsMIRPtrType()) {
-    auto &pty = static_cast<MIRPtrType&>(pType);
-    if (pty.GetTypeAttrs() == TypeAttrs()) {
-      if (pty.GetPrimType() != PTY_ref) {
-        ptrTypeMap[pty.GetPointedTyIdx()] = nType->GetTypeIndex();
-      } else {
-        refTypeMap[pty.GetPointedTyIdx()] = nType->GetTypeIndex();
-      }
-    } else {
-      (void)typeHashTable.insert(nType);
-    }
-  } else {
-    (void)typeHashTable.insert(nType);
-  }
+  FillinTypeMapOrHashTable(pType, *nType);
+
   return nType;
 }
 
@@ -183,8 +175,13 @@ const MIRType *TypeTable::GetPointedTypeIfApplicable(MIRType &type) const {
   auto &ptrType = static_cast<MIRPtrType&>(type);
   return GetTypeFromTyIdx(ptrType.GetPointedTyIdx());
 }
+
 MIRType *TypeTable::GetPointedTypeIfApplicable(MIRType &type) {
-  return const_cast<MIRType*>(const_cast<const TypeTable*>(this)->GetPointedTypeIfApplicable(type));
+  if (type.GetKind() != kTypePointer) {
+    return &type;
+  }
+  auto &ptrType = static_cast<MIRPtrType&>(type);
+  return GetTypeFromTyIdx(ptrType.GetPointedTyIdx());
 }
 
 MIRArrayType *TypeTable::GetOrCreateArrayType(const MIRType &elem, uint8 dim, const uint32 *sizeArray,

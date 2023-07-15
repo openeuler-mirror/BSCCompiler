@@ -10,6 +10,14 @@ set(CMAKE_C_COMPILER ${GCC_LINARO_PATH}/bin/aarch64-linux-gnu-gcc)
 
 add_compile_options(-fpic -O2)
 
+if (SYS_NAME STREQUAL "SUSE")
+  set(CMAKE_C_COMPILER aarch64-hpe-gcc)
+elseif (SYS_NAME STREQUAL "Ubuntu")
+  set(CMAKE_C_COMPILER ${GCC_LINARO_PATH}/bin/aarch64-linux-gnu-gcc)
+else ()
+  message("error: unsupported target OS!")
+endif()
+
 add_library(mplpgo SHARED mplpgo.c mplpgo.h common_util.h)
 add_library(mplpgo_static STATIC mplpgo.c mplpgo.h common_util.h)
  

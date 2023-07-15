@@ -144,7 +144,7 @@ IntVal IntVal::ExtendToWideInt(uint16 newWidth, bool isSigned) const {
   uint16 oldNumWords = GetNumWords();
 
   uint16 newNumWords = GetNumWords(newWidth);
-  uint16 numExtendBits = static_cast<uint16>(newWidth - width) % wordBitSize;
+  uint16 numExtendBits = static_cast<uint16>(newWidth - width) % kWordBitSize;
 
   uint64 newValue[newNumWords];
   if (!IsOneWord()) {
@@ -157,7 +157,7 @@ IntVal IntVal::ExtendToWideInt(uint16 newWidth, bool isSigned) const {
   int filler = sign && GetSignBit() ? ~0 : 0;
   if (numExtendBits != 0 && filler != 0) {
     // sign-extend the last word from given value
-    newValue[oldNumWords - 1] |= allOnes << (wordBitSize - numExtendBits);
+    newValue[oldNumWords - 1] |= kAllOnes << (kWordBitSize - numExtendBits);
   }
 
   size_t size = (newNumWords - oldNumWords) * sizeof(uint64);
@@ -808,7 +808,8 @@ std::pair<IntVal, IntVal> IntVal::WideUnsignedDivRem(const IntVal &delimer, cons
 
   // copy quotient and remainder to uint64 arrays
   uint16 numWords = delimer.GetNumWords();
-  uint64 quotient[numWords], remainder[numWords];
+  uint64 quotient[numWords];
+  uint64 remainder[numWords];
   ASSERT(q[m] == 0, "must be zero because the last elem is temporary");
   CopyUint32ToUint64(quotient, numWords, q, m);
   CopyUint32ToUint64(remainder, numWords, r, n + m - 1);
@@ -836,7 +837,7 @@ std::pair<IntVal, IntVal> IntVal::WideDivRem(const IntVal &rhs) const {
   if (delimer < divisor) {
     return {IntVal(uint64(0), width, sign), *this};
   } else if (delimer == divisor) {
-    return {IntVal(isResultNeg ? allOnes : uint64(1), width, sign), IntVal(uint64(0), width, sign)};
+    return {IntVal(isResultNeg ? kAllOnes : uint64(1), width, sign), IntVal(uint64(0), width, sign)};
   }
 
   auto uRes = WideUnsignedDivRem(delimer, divisor);
@@ -875,8 +876,8 @@ void IntVal::WideSetMaxValue() {
 
   // set the sign bit
   if (sign) {
-    uint8 shift = width % wordBitSize + 1;
-    u.pValue[GetNumWords() - 1] = allOnes >> shift;
+    uint8 shift = width % kWordBitSize + 1;
+    u.pValue[GetNumWords() - 1] = kAllOnes >> shift;
   }
 
   TruncInPlace();
@@ -890,17 +891,45 @@ void IntVal::WideSetMinValue() {
 
   // set the sign bit
   if (sign) {
-    uint8 shift = (wordBitSize - (width + 1)) % wordBitSize;
+    uint8 shift = static_cast<uint8>((static_cast<int>(kWordBitSize) - (width + 1)) % static_cast<int>(kWordBitSize));
     u.pValue[GetNumWords() - 1] = uint64(1) << shift;
   }
 
   TruncInPlace();
 }
 
+bool IntVal::WideIsSubsetOf(const IntVal &rhs) const {
+  for (uint16_t i = 0; i < GetNumWords(); ++i) {
+    if ((u.pValue[i] & ~rhs.u.pValue[i]) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void IntVal::WideSetBits(uint16 low, uint16 high) {
+  auto lWord = WordNumber(low);
+  auto hWord = WordNumber(high);
+  uint64 lMask = kAllOnes << BitNumber(low);
+  if (BitNumber(high) != 0) {
+    uint64 hMask = kAllOnes >> (kWordBitSize - BitNumber(high));
+    if (lWord == hWord) {
+      lMask &= hMask;
+    } else {
+      u.pValue[hWord] |= hMask;
+    }
+  }
+  u.pValue[lWord] |= lMask;
+
+  for (uint16 i = lWord + 1; i < hWord; ++i) {
+    u.pValue[i] = kAllOnes;
+  }
+}
+
 uint16 IntVal::CountLeadingOnes() const {
   // mask in neccessary because the high bits of value can be zero
-  uint8 startPos = width % wordBitSize;
-  uint64 mask = (startPos != 0) ? allOnes << static_cast<uint8>(wordBitSize - startPos) : 0;
+  uint8 startPos = width % kWordBitSize;
+  uint64 mask = (startPos != 0) ? kAllOnes << static_cast<uint8>(kWordBitSize - startPos) : 0;
 
   if (IsOneWord()) {
     return maple::CountLeadingOnes(u.value | mask) - startPos;
@@ -929,8 +958,8 @@ uint16 IntVal::CountTrallingOnes() const {
 
   uint16 count = 0;
   uint16 i = 0;
-  while (i < GetNumWords() && u.pValue[i] == allOnes) {
-    count += wordBitSize;
+  while (i < GetNumWords() && u.pValue[i] == kAllOnes) {
+    count += kWordBitSize;
     ++i;
   }
 
@@ -942,7 +971,7 @@ uint16 IntVal::CountTrallingOnes() const {
 }
 
 uint16 IntVal::CountLeadingZeros() const {
-  uint16 emptyBits = static_cast<uint16>(wordBitSize) * GetNumWords() - width;
+  uint16 emptyBits = static_cast<uint16>((kWordBitSize * GetNumWords()) - static_cast<int>(width));
 
   if (IsOneWord()) {
     return maple::CountLeadingZeros(u.value) - emptyBits;
@@ -953,7 +982,7 @@ uint16 IntVal::CountLeadingZeros() const {
   for (int16 i = static_cast<int16>(GetNumWords() - 1); i >= 0; --i) {
     zeros = maple::CountLeadingZeros(u.pValue[i]);
     count += zeros;
-    if (zeros != wordBitSize) {
+    if (zeros != kWordBitSize) {
       break;
     }
   }
@@ -970,7 +999,7 @@ uint16 IntVal::CountTrallingZeros() const {
   uint16 count = 0;
   uint16 i = 0;
   while (i < GetNumWords() && u.pValue[i] == 0) {
-    count += wordBitSize;
+    count += kWordBitSize;
     ++i;
   }
 
@@ -1034,7 +1063,7 @@ void IntVal::Dump(std::ostream &os) const {
     }
   } else {
     constexpr size_t fillWidth = 16;
-    uint16 numZeroWords = CountLeadingZeros() / wordBitSize;
+    uint16 numZeroWords = CountLeadingZeros() / kWordBitSize;
     uint16 numWords = GetNumWords();
     ASSERT(numWords >= numZeroWords, "invalid count of zero words");
 

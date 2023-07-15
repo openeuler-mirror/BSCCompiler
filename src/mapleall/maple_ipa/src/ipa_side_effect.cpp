@@ -13,33 +13,51 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ipa_side_effect.h"
+#include "driver_options.h"
 #include "func_desc.h"
 #include "inline_analyzer.h"
+#include "me_ir.h"
+#include "opcodes.h"
 namespace maple {
-const std::map<std::string, FuncDesc> kWhitelist = {
+std::map<std::string, FuncDesc> kFullWhiteList = {
 #include "func_desc.def"
 };
 
-const FuncDesc &SideEffect::GetFuncDesc(MeFunction &f) {
-  return SideEffect::GetFuncDesc(*f.GetMirFunc());
+const std::map<std::string, FuncDesc> kBuiltinsList = {
+#include "builtins.def"
+};
+
+const std::map<std::string, FuncDesc> kBuiltinsOutSideC90List = {
+#include "builtins_outside_C90.def"
+};
+
+const FuncDesc &IpaSideEffectAnalyzer::GetFuncDesc(MeFunction &f) {
+  return IpaSideEffectAnalyzer::GetFuncDesc(*f.GetMirFunc());
 }
 
-const FuncDesc &SideEffect::GetFuncDesc(MIRFunction &f) {
-  if (!Options::sideEffectWhiteList) {
-    return f.GetFuncDesc();
-  }
-  auto it = kWhitelist.find(f.GetName());
-  if (it != kWhitelist.end()) {
+const FuncDesc &IpaSideEffectAnalyzer::GetFuncDesc(MIRFunction &f) {
+  auto it = GetWhiteList()->find(f.GetName());
+  if (it != GetWhiteList()->end()) {
     return it->second;
   }
   return f.GetFuncDesc();
 }
 
-const std::map<std::string, FuncDesc> &SideEffect::GetWhiteList() {
-  return kWhitelist;
+const std::map<std::string, FuncDesc> *IpaSideEffectAnalyzer::GetWhiteList() {
+  if (opts::oFnoBuiltin) {
+    kFullWhiteList.erase(kFullWhiteList.begin(), kFullWhiteList.end());
+    return &kFullWhiteList;
+  }
+  if (Options::sideEffectWhiteList) {
+    return &kFullWhiteList;
+  }
+  if (opts::oStd90 || opts::oAnsi) {
+    return &kBuiltinsList;
+  }
+  return &kBuiltinsOutSideC90List;
 }
 
-void SideEffect::ParamInfoUpdater(size_t vstIdx, const PI &calleeParamInfo) {
+void IpaSideEffectAnalyzer::ParamInfoUpdater(size_t vstIdx, const PI &calleeParamInfo) {
   for (size_t callerFormalIdx = 0; callerFormalIdx < vstsValueAliasWithFormal.size(); ++callerFormalIdx) {
     auto &formalValueAlias = vstsValueAliasWithFormal[callerFormalIdx];
     if (formalValueAlias.find(vstIdx) != formalValueAlias.end()) {
@@ -48,7 +66,7 @@ void SideEffect::ParamInfoUpdater(size_t vstIdx, const PI &calleeParamInfo) {
   }
 }
 
-void SideEffect::PropInfoFromOpnd(MeExpr &opnd, const PI &calleeParamInfo) {
+void IpaSideEffectAnalyzer::PropInfoFromOpnd(MeExpr &opnd, const PI &calleeParamInfo) {
   MeExpr &base = opnd.GetAddrExprBase();
   OriginalSt *ost = nullptr;
   switch (base.GetMeOp()) {
@@ -85,7 +103,7 @@ void SideEffect::PropInfoFromOpnd(MeExpr &opnd, const PI &calleeParamInfo) {
   }
 }
 
-void SideEffect::PropParamInfoFromCallee(const MeStmt &call, MIRFunction &callee) {
+void IpaSideEffectAnalyzer::PropParamInfoFromCallee(const MeStmt &call, MIRFunction &callee) {
   const FuncDesc &desc = callee.GetFuncDesc();
   size_t skipFirstOpnd = kOpcodeInfo.IsICall(call.GetOp()) ? 1 : 0;
   size_t actualParaCount = call.NumMeStmtOpnds() - skipFirstOpnd;
@@ -95,19 +113,19 @@ void SideEffect::PropParamInfoFromCallee(const MeStmt &call, MIRFunction &callee
   }
 }
 
-void SideEffect::PropAllInfoFromCallee(const MeStmt &call, MIRFunction &callee) {
+void IpaSideEffectAnalyzer::PropAllInfoFromCallee(const MeStmt &call, MIRFunction &callee) {
   const FuncDesc &desc = callee.GetFuncDesc();
   curFuncDesc->SetFuncInfoNoBetterThan(desc.GetFuncInfo());
   PropParamInfoFromCallee(call, callee);
 }
 
-void SideEffect::DealWithMayDef(MeStmt &stmt) {
+void IpaSideEffectAnalyzer::DealWithMayDef(MeStmt &stmt) {
   if (!stmt.GetChiList()) {
     return;
   }
   for (auto &chi : std::as_const(*stmt.GetChiList())) {
     auto ostIdx = chi.first;
-    auto *ost = meFunc->GetMeSSATab()->GetSymbolOriginalStFromID(ostIdx);
+    auto *ost = meFunc.GetMeSSATab()->GetSymbolOriginalStFromID(ostIdx);
     if (!ost) {
       continue;
     }
@@ -118,7 +136,7 @@ void SideEffect::DealWithMayDef(MeStmt &stmt) {
   }
 }
 
-void SideEffect::DealWithMayUse(MeStmt &stmt) {
+void IpaSideEffectAnalyzer::DealWithMayUse(MeStmt &stmt) {
   if (!stmt.GetMuList()) {
     return;
   }
@@ -129,52 +147,82 @@ void SideEffect::DealWithMayUse(MeStmt &stmt) {
   }
 }
 
-void SideEffect::DealWithStmt(MeStmt &stmt) {
-  if (stmt.GetOp() == OP_asm) {
-    curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+void IpaSideEffectAnalyzer::DealWithIcall(MeStmt &stmt) {
+  IcallMeStmt *icall = safe_cast<IcallMeStmt>(&stmt);
+  if (icall == nullptr) {
+    return;
   }
+  MIRFunction *mirFunc = meFunc.GetMirFunc();
+  CGNode *icallCGNode = callGraph->GetCGNode(mirFunc);
+  CallInfo callInfo(stmt.GetMeStmtId());
+  CHECK_NULL_FATAL(icallCGNode);
+  auto &callees = icallCGNode->GetCallee();
+  auto it = callees.find(&callInfo);
+  if (it == callees.end() || it->second->empty()) {
+    // no candidates found, process conservatively
+    for (size_t formalIdx = 1; formalIdx < icall->NumMeStmtOpnds(); ++formalIdx) {
+      PropInfoFromOpnd(*icall->GetOpnd(formalIdx), PI::kUnknown);
+    }
+  } else {
+    for (auto *cgNode : *it->second) {
+      MIRFunction *calleeFunc = cgNode->GetMIRFunction();
+      PropAllInfoFromCallee(*icall, *calleeFunc);
+    }
+  }
+}
+
+void IpaSideEffectAnalyzer::DealWithStmt(MeStmt &stmt) {
   for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
     DealWithOperand(stmt.GetOpnd(i));
   }
-  RetMeStmt *ret = safe_cast<RetMeStmt>(&stmt);
-  if (ret != nullptr) {
-    DealWithReturn(*ret);
-  }
-  CallMeStmt *call = safe_cast<CallMeStmt>(&stmt);
-  if (call != nullptr) {
-    MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(call->GetPUIdx());
-    PropAllInfoFromCallee(*call, *calleeFunc);
-  }
-  IcallMeStmt *icall = safe_cast<IcallMeStmt>(&stmt);
-  if (icall != nullptr) {
-    MIRFunction *mirFunc = meFunc->GetMirFunc();
-    CGNode *icallCGNode = callGraph->GetCGNode(mirFunc);
-    CallInfo callInfo(stmt.GetMeStmtId());
-    CHECK_NULL_FATAL(icallCGNode);
-    auto &callees = icallCGNode->GetCallee();
-    auto it = callees.find(&callInfo);
-    if (it == callees.end() || it->second->empty()) {
-      // no candidates found, process conservatively
-      for (size_t formalIdx = 1; formalIdx < icall->NumMeStmtOpnds(); ++formalIdx) {
-        PropInfoFromOpnd(*icall->GetOpnd(formalIdx), PI::kUnknown);
+  switch (stmt.GetOp()) {
+    case OP_asm: {
+      curFuncDesc->SetFuncInfoNoBetterThan(FI::kUnknown);
+      break;
+    }
+    case OP_return: {
+      DealWithReturn(static_cast<RetMeStmt&>(stmt));
+      break;
+    }
+    case OP_call:
+    case OP_callassigned: {
+      CallMeStmt *call = safe_cast<CallMeStmt>(&stmt);
+      MIRFunction *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(call->GetPUIdx());
+      PropAllInfoFromCallee(*call, *calleeFunc);
+      break;
+    }
+    case OP_icall:
+    case OP_icallproto:
+    case OP_icallassigned:
+    case OP_icallprotoassigned: {
+      DealWithIcall(stmt);
+      break;
+    }
+    case OP_intrinsiccall:
+    case OP_intrinsiccallwithtype:
+    case OP_intrinsiccallwithtypeassigned:
+    case OP_intrinsiccallassigned: {
+      auto &intrinsicCall = static_cast<IntrinsiccallMeStmt &>(stmt);
+      auto &intrinsicDesc = intrinsicCall.GetIntrinsicDescription();
+      if (!intrinsicDesc.HasNoSideEffect()) {
+        curFuncDesc->SetFuncInfoNoBetterThan(FI::kNoDirectGlobleAccess);
       }
-    } else {
-      for (auto *cgNode : *it->second) {
-        MIRFunction *calleeFunc = cgNode->GetMIRFunction();
-        PropAllInfoFromCallee(*icall, *calleeFunc);
-      }
+      break;
+    }
+    default: {
+      break;
     }
   }
   DealWithMayUse(stmt);
   DealWithMayDef(stmt);
 }
 
-void SideEffect::DealWithOst(OStIdx ostIdx) {
-  OriginalSt *ost = meFunc->GetMeSSATab()->GetSymbolOriginalStFromID(ostIdx);
+void IpaSideEffectAnalyzer::DealWithOst(const OStIdx &ostIdx) {
+  OriginalSt *ost = meFunc.GetMeSSATab()->GetSymbolOriginalStFromID(ostIdx);
   DealWithOst(ost);
 }
 
-void SideEffect::DealWithOst(const OriginalSt *ost) {
+void IpaSideEffectAnalyzer::DealWithOst(const OriginalSt *ost) {
   if (ost == nullptr) {
     return;
   }
@@ -189,7 +237,7 @@ void SideEffect::DealWithOst(const OriginalSt *ost) {
   }
 }
 
-void SideEffect::DealWithOperand(MeExpr *expr) {
+void IpaSideEffectAnalyzer::DealWithOperand(MeExpr *expr) {
   if (expr == nullptr) {
     return;
   }
@@ -217,7 +265,7 @@ void SideEffect::DealWithOperand(MeExpr *expr) {
   return;
 }
 
-void SideEffect::DealWithReturn(const RetMeStmt &retMeStmt) const {
+void IpaSideEffectAnalyzer::DealWithReturn(const RetMeStmt &retMeStmt) const {
   if (retMeStmt.NumMeStmtOpnds() == 0) {
     return;
   }
@@ -258,7 +306,7 @@ void SideEffect::DealWithReturn(const RetMeStmt &retMeStmt) const {
   std::set<size_t> result;
   alias->GetValueAliasSetOfVst(vstIdxOfRet, result);
   for (auto valueAliasVstIdx : result) {
-    auto *meExpr = meFunc->GetIRMap()->GetVerst2MeExprTableItem(static_cast<uint32>(valueAliasVstIdx));
+    auto *meExpr = meFunc.GetIRMap()->GetVerst2MeExprTableItem(static_cast<uint32>(valueAliasVstIdx));
     // meExpr of valueAliasVstIdx not created in IRMap, it must not occured in hssa-mefunction
     if (meExpr == nullptr) {
       continue;
@@ -266,7 +314,7 @@ void SideEffect::DealWithReturn(const RetMeStmt &retMeStmt) const {
     OriginalSt *aliasOst = nullptr;
     if (meExpr->GetMeOp() == kMeOpAddrof) {
       auto ostIdx = static_cast<AddrofMeExpr*>(meExpr)->GetOstIdx();
-      aliasOst = meFunc->GetMeSSATab()->GetOriginalStFromID(ostIdx);
+      aliasOst = meFunc.GetMeSSATab()->GetOriginalStFromID(ostIdx);
     } else if (meExpr->IsScalar()) {
       aliasOst = static_cast<ScalarMeExpr*>(meExpr)->GetOst();
     } else {
@@ -279,7 +327,7 @@ void SideEffect::DealWithReturn(const RetMeStmt &retMeStmt) const {
   }
 }
 
-void SideEffect::SolveVarArgs(MeFunction &f) const {
+void IpaSideEffectAnalyzer::SolveVarArgs(MeFunction &f) const {
   MIRFunction *func = f.GetMirFunc();
   if (func->IsVarargs()) {
     for (size_t i = func->GetFormalCount(); i < kMaxParamCount; ++i) {
@@ -289,9 +337,9 @@ void SideEffect::SolveVarArgs(MeFunction &f) const {
   }
 }
 
-void SideEffect::CollectAllLevelOst(size_t vstIdx, std::set<size_t> &result) {
+void IpaSideEffectAnalyzer::CollectAllLevelOst(size_t vstIdx, std::set<size_t> &result) {
   (void)result.insert(vstIdx);
-  auto *nextLevelOsts = meFunc->GetMeSSATab()->GetNextLevelOsts(vstIdx);
+  auto *nextLevelOsts = meFunc.GetMeSSATab()->GetNextLevelOsts(vstIdx);
   if (nextLevelOsts == nullptr) {
     return;
   }
@@ -302,7 +350,7 @@ void SideEffect::CollectAllLevelOst(size_t vstIdx, std::set<size_t> &result) {
   }
 }
 
-void SideEffect::CollectFormalOst(MeFunction &f) {
+void IpaSideEffectAnalyzer::CollectFormalOst(MeFunction &f) {
   MIRFunction *func = f.GetMirFunc();
   for (auto *ost : f.GetMeSSATab()->GetOriginalStTable().GetOriginalStVector()) {
     if (ost == nullptr) {
@@ -332,7 +380,7 @@ void SideEffect::CollectFormalOst(MeFunction &f) {
       alias->GetValueAliasSetOfVst(ost->GetZeroVersionIndex(), vstValueAliasFormal);
 
       for (size_t vstIdx: vstValueAliasFormal) {
-        auto *meExpr = meFunc->GetIRMap()->GetVerst2MeExprTableItem(static_cast<uint32>(vstIdx));
+        auto *meExpr = meFunc.GetIRMap()->GetVerst2MeExprTableItem(static_cast<uint32>(vstIdx));
         if (meExpr == nullptr || meExpr->GetMeOp() == kMeOpAddrof) {
           // corresponding ScalarMeExpr has not been created in irmap for vstIdx.
           CollectAllLevelOst(vstIdx, vstsValueAliasWithFormal[idx]);
@@ -351,11 +399,11 @@ void SideEffect::CollectFormalOst(MeFunction &f) {
   }
 }
 
-void SideEffect::AnalysisFormalOst() {
+void IpaSideEffectAnalyzer::AnalysisFormalOst() {
   for (size_t formalIndex = 0; formalIndex < vstsValueAliasWithFormal.size(); ++formalIndex) {
     for (size_t vstIdx : vstsValueAliasWithFormal[formalIndex]) {
       curFuncDesc->SetParamInfoNoBetterThan(formalIndex, PI::kReadSelfOnly);
-      auto *meExpr = meFunc->GetIRMap()->GetVerst2MeExprTableItem(static_cast<uint32>(vstIdx));
+      auto *meExpr = meFunc.GetIRMap()->GetVerst2MeExprTableItem(static_cast<uint32>(vstIdx));
       if (meExpr == nullptr) {
         continue;
       }
@@ -398,7 +446,7 @@ inline static bool IsComplicatedType(const MIRType &type) {
   return type.IsIncomplete() || type.GetPrimType() == PTY_agg;
 }
 
-void SideEffect::FilterComplicatedPrametersForNoGlobalAccess(MeFunction &f) {
+void IpaSideEffectAnalyzer::FilterComplicatedPrametersForNoGlobalAccess(MeFunction &f) {
   if (!curFuncDesc->NoDirectGlobleAccess()) {
     return;
   }
@@ -420,7 +468,7 @@ void SideEffect::FilterComplicatedPrametersForNoGlobalAccess(MeFunction &f) {
   }
 }
 
-bool SideEffect::Perform(MeFunction &f) {
+bool IpaSideEffectAnalyzer::Perform(MeFunction &f) {
   MIRFunction *func = f.GetMirFunc();
   curFuncDesc = &func->GetFuncDesc();
   FuncDesc oldDesc = *curFuncDesc;
@@ -475,7 +523,7 @@ bool SCCSideEffect::PhaseRun(SCCNode<CGNode> &scc) {
       CHECK_FATAL(meSSATab == meFunc->GetMeSSATab(), "IPA_PM may be wrong.");
       MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<M2MCallGraph, MIRModule>(*func->GetModule());
       CallGraph *cg = static_cast<M2MCallGraph*>(it)->GetResult();
-      SideEffect se(meFunc, dom, alias, cg);
+      IpaSideEffectAnalyzer se(*meFunc, dom, alias, cg);
       changed = changed || se.Perform(*meFunc);
     }
   }

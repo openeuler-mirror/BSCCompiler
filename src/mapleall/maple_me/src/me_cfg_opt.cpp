@@ -338,7 +338,7 @@ bool CheckAnalysisResult(const MeFunction &func) {
   return false;
 }
 
-extern void ResetDependentedSymbolLive(MIRFunction *mirFunction);
+extern void ResetDependentedSymbolLive(MIRFunction *mirFunction);  // circular dependency exists, no other choice
 
 void EmitMapleIr(MeFunction &func) {
   CHECK_FATAL(func.HasLaidOut(), "Check bb layout phase.");

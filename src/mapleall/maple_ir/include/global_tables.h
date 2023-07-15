@@ -501,6 +501,7 @@ class TypeTable {
   void PushNull() { typeTable.push_back(nullptr); }
   void PopBack() { typeTable.pop_back(); }
 
+  void FillinTypeMapOrHashTable(MIRType &pType, MIRType &nType);
   void CreateMirTypeNodeAt(MIRType &pType, TyIdx tyIdxUsed, MIRModule *module, bool isObject, bool isIncomplete);
   MIRType *CreateAndUpdateMirTypeNode(MIRType &pType);
   MIRType *GetOrCreateStructOrUnion(const std::string &name, const FieldVector &fields, const FieldVector &parentFields,

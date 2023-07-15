@@ -103,7 +103,7 @@ void ValidBitOpt::RectifyValidBitNum() {
   } while (iterate);
 }
 
-void ValidBitOpt::RecoverValidBitNum() {
+void ValidBitOpt::SetValidBitToOpndSize() {
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction() && !insn->IsPhi()) {
@@ -125,16 +125,14 @@ void ValidBitOpt::RecoverValidBitNum() {
 }
 
 void ValidBitOpt::Run() {
-  /*
-   * Set validbit of regOpnd before optimization
-   */
+  // Set validbit of regOpnd before optimization
+  // Set to opnd size in case some optimization does not handle the validbitnum correctly.
+  SetValidBitToOpndSize();
   RectifyValidBitNum();
   DoOpt();
   cgDce->DoDce();
-  /*
-   * Recover validbit of regOpnd after optimization
-   */
-  RecoverValidBitNum();
+  // Recover validbit of regOpnd after optimization
+  SetValidBitToOpndSize();
 }
 
 bool CgValidBitOpt::PhaseRun(maplebe::CGFunc &f) {

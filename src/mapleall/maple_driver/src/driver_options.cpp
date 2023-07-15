@@ -28,23 +28,23 @@ maplecl::Option<bool> ignoreUnkOpt({"--ignore-unknown-options"},
     "  --ignore-unknown-options    \tIgnore unknown compilation options\n",
     {driverCategory});
 
-maplecl::Option<bool> o0({"--O0", "-O0"},
+maplecl::Option<bool> o0({"-O0", "--O0"},
     "  -O0                         \tNo optimization. (Default)\n",
     {driverCategory});
 
-maplecl::Option<bool> o1({"--O1", "-O1"},
+maplecl::Option<bool> o1({"-O1", "--O1"},
     "  -O1                         \tDo some optimization.\n",
     {driverCategory}, maplecl::kHide);
 
-maplecl::Option<bool> o2({"--O2", "-O2"},
+maplecl::Option<bool> o2({"-O2", "--O2"},
     "  -O2                         \tDo more optimization.\n",
     {driverCategory, hir2mplCategory});
 
-maplecl::Option<bool> o3({"--O3", "-O3"},
+maplecl::Option<bool> o3({"-O3", "--O3"},
     "  -O3                         \tDo more optimization.\n",
     {driverCategory}, maplecl::kHide);
 
-maplecl::Option<bool> os({"--Os", "-Os"},
+maplecl::Option<bool> os({"-Os", "--Os"},
     "  -Os                         \tOptimize for size, based on O2.\n",
     {driverCategory});
 
@@ -64,8 +64,8 @@ maplecl::Option<bool> gcOnly({"--gconly", "-gconly"},
     {driverCategory, dex2mplCategory, meCategory, mpl2mplCategory, cgCategory},
 	maplecl::DisableWith("--no-gconly"), maplecl::kHide);
 
-maplecl::Option<bool> timePhase({"-time-phases"},
-    "  -time-phases                \tTiming phases and print percentages.\n",
+maplecl::Option<bool> timePhase({"--time-phases", "-time-phases"},
+    "  --time-phases                \tTiming phases and print percentages.\n",
     {driverCategory});
 
 maplecl::Option<bool> genMeMpl({"--genmempl"},
@@ -91,6 +91,9 @@ maplecl::Option<bool> debug({"--debug"},
 maplecl::Option<bool> withDwarf({"-g"},
     "  --debug                     \tPrint debug info.\n",
     {driverCategory, hir2mplCategory});
+maplecl::Option<bool> noOptO0({"-no-opt-O0"},
+    "  -no-opt-O0                     \tDonot do O0 opt which will interference debug.\n",
+    {driverCategory});
 
 maplecl::Option<bool> withIpa({"--with-ipa"},
     "  --with-ipa                  \tRun IPA when building.\n"
@@ -197,11 +200,11 @@ maplecl::Option<bool> inlineAsWeak({"-inline-as-weak", "--inline-as-weak"},
     "  --inline-as-weak            \tSet inline functions as weak symbols as it's in C++\n",
     {driverCategory, hir2mplCategory});
 
-maplecl::Option<bool> expand128Floats({"--expand128floats"},
-    "  --expand128floats           \tEnable expand128floats pass\n",
+maplecl::Option<bool> legalizeNumericTypes({"--legalize-numeric-types"},
+    "  --legalize-numeric-types    \tEnable legalize-numeric-types pass\n",
     {driverCategory}, maplecl::DisableWith("--no-exp nd128floats"), maplecl::kHide, maplecl::Init(true));
 
-maplecl::Option<bool> MD({"-MD"},
+maplecl::Option<bool> oMD({"-MD"},
     "  -MD                         \tWrite a depfile containing user and system headers.\n",
     {driverCategory, clangCategory});
 
@@ -266,7 +269,7 @@ maplecl::Option<bool> rdynamic({"-rdynamic"},
 
 maplecl::Option<bool> dndebug({"-DNDEBUG"},
     "  -DNDEBUG                    \t\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory, clangCategory});
 
 maplecl::Option<bool> useSignedChar({"-fsigned-char", "-usesignedchar", "--usesignedchar"},
     "  -fsigned-char               \tuse signed char\n",
@@ -313,7 +316,7 @@ maplecl::Option<bool> wpaa({"-wpaa", "--wpaa"},
 maplecl::Option<bool> fm({"-fm", "--fm"},
     "  -fm                         \tStatic function merge will be enabled only when wpaa is enabled "
     "at the same time.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, maplecl::DisableEvery({"-no-fm", "--no-fm"}));
 
 maplecl::Option<bool> dumpTime({"--dump-time", "-dump-time"},
     "  --dump-time                  \tDump time.\n",
@@ -463,6 +466,14 @@ maplecl::Option<std::string> fStrongEvalOrderE({"-fstrong-eval-order="},
 maplecl::Option<std::string> marchE({"-march="},
     "  -march=                     \tGenerate code for given CPU.\n",
     {driverCategory, clangCategory, asCategory, ldCategory, unSupCategory}, maplecl::kHide);
+
+maplecl::Option<bool> marchArmV8({"-march=armv8-a"},
+    "  -march=armv8-a              \tGenerate code for armv8-a.\n",
+    {driverCategory, clangCategory, asCategory, ldCategory});
+
+maplecl::Option<bool> marchArmV8Crc({"-march=armv8-a+crc"},
+    "  -march=armv8-a+crc          \tGenerate code for armv8-a+crc.\n",
+    {driverCategory, clangCategory, asCategory, ldCategory});
 
 maplecl::Option<std::string> sysRoot({"--sysroot"},
     "  --sysroot <value>           \tSet the root directory of the target platform.\n"
@@ -3526,7 +3537,7 @@ maplecl::Option<bool> oStdgnu98p({"-std=gnu++98"},
 
 maplecl::Option<bool> oStdgnu11({"-std=gnu11"},
     "  -std=gnu11                  \tConform to the ISO 2011 C standard with GNU extensions.\n",
-    {driverCategory, clangCategory, unSupCategory}, maplecl::kHide);
+    {driverCategory, clangCategory});
 
 maplecl::Option<bool> oStdgnu1x({"-std=gnu1x"},
     "  -std=gnu1x                  \tDeprecated in favor of -std=gnu11.\n",

@@ -41,7 +41,7 @@ class PropPattern : public ValidBitPattern {
   ~PropPattern() override {}
  protected:
   void ValidateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) const;
-  void ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersion *srcVersion);
+  void ReplaceImplicitCvtAndProp(VRegVersion *destVersion, VRegVersion *srcVersion) const;
 };
 
 /*
@@ -106,7 +106,7 @@ class ExtValidBitPattern : public PropPattern {
 
  private:
   bool CheckValidCvt(const Insn &insn);
-  bool CheckRedundantUxtbUxth(Insn &insn);
+  bool CheckRedundantUxtbUxth(const Insn &insn);
   bool RealUseMopX(const RegOperand &defOpnd, InsnSet &visitedInsn);
   RegOperand *newDstOpnd = nullptr;
   RegOperand *newSrcOpnd = nullptr;

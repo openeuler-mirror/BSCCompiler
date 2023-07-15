@@ -93,6 +93,10 @@ class InputInfo {
     return inputFolder;
   }
 
+  const std::string &GetInputName() const {
+    return inputName;
+  }
+
   const std::string &GetOutputFolder() const {
     return outputFolder;
   }
@@ -276,6 +280,10 @@ class MplOptions {
 
   const std::vector<std::string> &GetLinkInputFiles() const {
     return linkInputFiles;
+  }
+
+  const std::vector<std::unique_ptr<InputInfo>> &GetInputInfos() const {
+    return inputInfos;
   }
 
   /* return hirInputFiles when -flto. */

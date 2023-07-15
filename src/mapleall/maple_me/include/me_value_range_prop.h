@@ -788,8 +788,8 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> CopyValueRange(ValueRange &valueRange, PrimType primType = PTY_begin) const;
   bool LowerInRange(const BB &bb, Bound lowerTemp, Bound lower, bool lowerIsZero);
   bool UpperInRange(const BB &bb, Bound upperTemp, Bound upper, bool upperIsArrayLength);
-  void PrepareForSSAUpdateWhenPredBBIsRemoved(const BB &pred, BB &bb, ScalarMeExpr *updateSSAExceptTheScalarExpr,
-      std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr);
+  void PrepareForSSAUpdateWhenPredBBIsRemoved(const BB &pred, BB &bb, BB *trueBr,
+      ScalarMeExpr *updateSSAExceptTheScalarExpr, std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr);
   void InsertOstOfPhi2Cands(BB &bb, size_t i, const ScalarMeExpr *updateSSAExceptTheScalarExpr,
                             std::map<OStIdx, std::set<BB*>> &ssaupdateCandsForCondExpr, bool setPhiIsDead = false);
   void InsertOstOfPhi2Cands(BB &bb, size_t i);

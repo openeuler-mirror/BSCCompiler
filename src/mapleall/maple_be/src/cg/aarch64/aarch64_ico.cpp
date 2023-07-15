@@ -338,11 +338,8 @@ void AArch64ICOIfThenElsePattern::GenerateInsnForReg(const Insn &branchInsn, Ope
     Insn &tempInsnIf = cgFunc->GetInsnBuilder()->BuildInsn(mOp, destReg, *tReg);
     generateInsn.emplace_back(&tempInsnIf);
   } else {
-    uint32 dSize = destReg.GetSize();
     bool isIntTy = destReg.IsOfIntClass();
-    MOperator mOpCode = isIntTy ? (dSize == k64BitSize ? MOP_xcselrrrc : MOP_wcselrrrc)
-                                : (dSize == k64BitSize ? MOP_dcselrrrc : (dSize == k32BitSize ?
-                                                                          MOP_scselrrrc : MOP_hcselrrrc));
+    MOperator mOpCode = isIntTy ? MOP_xcselrrrc : MOP_dcselrrrc;
     Insn *cselInsn = BuildCondSel(branchInsn, mOpCode, destReg, *tReg, *eReg);
     CHECK_FATAL(cselInsn != nullptr, "build a csel insn failed");
     generateInsn.emplace_back(cselInsn);
@@ -1227,10 +1224,21 @@ bool AArch64ICOSameCondPattern::DoOpt(BB &firstIfBB, BB &secondIfBB) const {
   if (secondIfLabel != MIRLabelTable::GetDummyLabel()) {
     label2BBMap.erase(secondIfLabel);
   }
+  //       bb6(firstif)
+  //   / unknown \  likely
+  //  /          bb10 (secondif)
+  //  \      /  (l/u) \ unknown
+  //    bb7           bb11
+  // =>
+  //        bb6 
+  //   / unkown \ likely
+  //  \          \
+  //    bb7      bb11
+  int32 firstToSecondProb = firstIfBB.GetEdgeProb(secondIfBB);
   cgFunc->GetTheCFG()->RemoveBB(secondIfBB);
   if (nextBB->GetLabIdx() != labelOpnd1[0]->GetLabelIndex()) {
     label2BBMap.emplace(nextBB->GetLabIdx(), nextBB);
-    firstIfBB.PushFrontSuccs(*nextBB);
+    firstIfBB.PushFrontSuccs(*nextBB, firstToSecondProb);
     nextBB->PushFrontPreds(firstIfBB);
   }
   return true;
@@ -1489,8 +1497,8 @@ bool AArch64ICOCondSetPattern::Optimize(BB &curBB) {
   return DoOpt(curBB);
 }
 
-Insn *AArch64ICOCondSetPattern::BuildNewInsn(ImmOperand &immOpnd1, ImmOperand &immOpnd2, Insn &bInsn, RegOperand &dest,
-                                             bool is32Bits) const {
+Insn *AArch64ICOCondSetPattern::BuildNewInsn(const ImmOperand &immOpnd1, const ImmOperand &immOpnd2, const Insn &bInsn,
+                                             RegOperand &dest, bool is32Bits) const {
   if (immOpnd1.IsZero()) {
     if (immOpnd2.IsOne()) {
       return BuildCondSet(bInsn, dest, false);
@@ -1507,7 +1515,7 @@ Insn *AArch64ICOCondSetPattern::BuildNewInsn(ImmOperand &immOpnd1, ImmOperand &i
   return nullptr;
 }
 
-bool AArch64ICOCondSetPattern::DoOpt(BB &curBB) const {
+bool AArch64ICOCondSetPattern::DoOpt(BB &curBB) {
   std::vector<LabelOperand *> labelOpnd = GetLabelOpnds(*curBrInsn);
   if (labelOpnd.size() != 1) {
     return false;

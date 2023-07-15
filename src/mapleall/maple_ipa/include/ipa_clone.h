@@ -42,7 +42,6 @@ class IpaClone : public AnalysisResult {
   bool IsBrCondOrIf(Opcode op) const;
   void DoIpaClone();
   void InitParams();
-  void CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const;
   void IpaCloneArgument(MIRFunction &originalFunction, ArgVector &argument) const;
   void RemoveUnneedParameter(MIRFunction *newFunc, uint32 paramIndex, int64_t value) const;
   void DecideCloneFunction(std::vector<ImpExpr> &result, uint32 paramIndex, std::map<uint32,

@@ -175,10 +175,11 @@ bool DSE::StmtMustRequired(const StmtNode &stmt, const BB &bb) const {
   if (IsStmtMustRequire(op)) {
     return true;
   }
-  // atomic intrinsic call cannot be eliminated
+
+  // Cannot delete special intrinsiccalls and membarriers.
   if (op == OP_intrinsiccall) {
-    IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[static_cast<const IntrinsiccallNode &>(stmt).GetIntrinsic()];
-    if (intrinDesc->IsAtomic()) {
+    auto &intrinDesc = static_cast<const IntrinsiccallNode &>(stmt).GetIntrinsicDescription();
+    if (intrinDesc.IsMemoryBarrier() || intrinDesc.IsSpecial()) {
       return true;
     }
   }

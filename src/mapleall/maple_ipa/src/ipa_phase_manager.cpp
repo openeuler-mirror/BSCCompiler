@@ -24,9 +24,13 @@
 #define CLANG (mirModule.IsCModule())
 
 namespace maple {
+bool IpaSccPM::timePhases = false;
 void IpaSccPM::Init(MIRModule &m) {
   SetQuiet(true);
   m.SetInIPA(true);
+  if (IpaSccPM::timePhases) {
+    InitTimeHandler();
+  }
   MeOption::mergeStmts = false;
   MeOption::propDuringBuild = false;
   MeOption::layoutWithPredict = false;
@@ -92,6 +96,10 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
     ipaInfo->Dump();
   }
   m.SetInIPA(false);
+  if (IpaSccPM::timePhases) {
+    LogInfo::MapleLogger() << "==================  IpaSccPM  ==================";
+    DumpPhaseTime();
+  }
   return changed;
 }
 
@@ -122,7 +130,7 @@ void IpaSccPM::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   }
 }
 
-void SCCPrepare::Dump(const MeFunction &f, const std::string phaseName) const {
+void SCCPrepare::DumpSCCPrepare(const MeFunction &f, const std::string phaseName) const {
   if (Options::dumpIPA && (Options::dumpFunc == f.GetName() || Options::dumpFunc == "*")) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
     f.Dump(false);
@@ -131,6 +139,9 @@ void SCCPrepare::Dump(const MeFunction &f, const std::string phaseName) const {
 }
 
 bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
+  if (IpaSccPM::timePhases && Options::dumpIPA) {
+    InitTimeHandler();
+  }
   SetQuiet(true);
   AddPhase("mecfgbuild", true);
   if (Options::profileUse) {
@@ -168,13 +179,18 @@ bool SCCPrepare::PhaseRun(SCCNode<CGNode> &scc) {
       } else {
         (void)RunTransformPhase<MeFuncOptTy, MeFunction>(*phase, *result, meFunc, 1);
       }
-      Dump(meFunc, phase->PhaseName());
+      DumpSCCPrepare(meFunc, phase->PhaseName());
     }
+  }
+  if (IpaSccPM::timePhases && Options::dumpIPA) {
+    LogInfo::MapleLogger() << "================== SccPrepare ==================";
+    scc.Dump();
+    DumpPhaseTime();
   }
   return false;
 }
 
-void SCCEmit::Dump(MeFunction &f, const std::string phaseName) const {
+void SCCEmit::DumpSCCEmit(MeFunction &f, const std::string phaseName) const {
   if (Options::dumpIPA && (f.GetName() == Options::dumpFunc || Options::dumpFunc == "*")) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
     f.GetMirFunc()->Dump();
@@ -204,7 +220,7 @@ bool SCCEmit::PhaseRun(SCCNode<CGNode> &scc) {
                              << " Phase [ " << phase->PhaseName() << " ]---\n";
     }
     (void)RunAnalysisPhase<MeFuncOptTy, MeFunction>(*phase, *serialADM, *func->GetMeFunc());
-    Dump(*func->GetMeFunc(), phase->PhaseName());
+    DumpSCCEmit(*func->GetMeFunc(), phase->PhaseName());
     delete func->GetMeFunc()->GetPmeMempool();
     func->GetMeFunc()->SetPmeMempool(nullptr);
   }

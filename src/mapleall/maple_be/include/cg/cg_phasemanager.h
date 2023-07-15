@@ -37,9 +37,6 @@ class CgFuncPM : public FunctionPM {
     cgOptions = nullptr;
     cg = nullptr;
     beCommon = nullptr;
-    if (CGOptions::IsEnableTimePhases()) {
-      DumpPhaseTime();
-    }
   }
   bool PhaseRun(MIRModule &m) override;
 
@@ -53,6 +50,7 @@ class CgFuncPM : public FunctionPM {
   BECommon *GetBECommon() {
     return beCommon;
   }
+  void SweepUnusedStaticSymbol(MIRModule &m) const;
  private:
   bool FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM);
   void GenerateOutPutFile(MIRModule &m) const;
@@ -69,7 +67,6 @@ class CgFuncPM : public FunctionPM {
   void EmitDebugInfo(const MIRModule &m) const;
   void EmitFastFuncs(const MIRModule &m) const;
   bool IsFramework(MIRModule &m) const;
-  void SweepUnusedStaticSymbol(MIRModule &m) const;
 
   CG *cg = nullptr;
   BECommon *beCommon = nullptr;

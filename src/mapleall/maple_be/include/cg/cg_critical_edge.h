@@ -15,6 +15,7 @@
 #ifndef MAPLEBE_INCLUDE_CG_CRITICAL_EDGE_H
 #define MAPLEBE_INCLUDE_CG_CRITICAL_EDGE_H
 
+#include "cg.h"
 #include "cgbb.h"
 #include "insn.h"
 
@@ -24,18 +25,22 @@ class CriticalEdge {
   CriticalEdge(CGFunc &func, MemPool &mem)
       : cgFunc(&func),
         alloc(&mem),
-        criticalEdges(alloc.Adapter())
-        {}
+        criticalEdges(alloc.Adapter()),
+        newBBcreated(alloc.Adapter()) {}
 
   ~CriticalEdge() = default;
 
   void CollectCriticalEdges();
   void SplitCriticalEdges();
+  const MapleSet<uint32> &GetNewBBInfo() const {
+    return newBBcreated;
+  }
 
  private:
   CGFunc *cgFunc;
   MapleAllocator alloc;
   MapleVector<std::pair<BB*, BB*>> criticalEdges;
+  MapleSet<uint32> newBBcreated;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgCriticalEdge, maplebe::CGFunc)

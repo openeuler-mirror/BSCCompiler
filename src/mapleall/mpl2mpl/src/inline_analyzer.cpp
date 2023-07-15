@@ -572,7 +572,8 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
   }
   // for always_inline
   if (callee.GetAttr(FUNCATTR_always_inline)) {
-    if (Options::respectAlwaysInline || (&caller != &callee && FuncMustBeDeleted(callee))) {
+    // Self-recursive functions will never repsect --respect-always-inline option.
+    if (&caller != &callee && (Options::respectAlwaysInline || FuncMustBeDeleted(callee))) {
       return {true, kIfcDeclaredAlwaysInline};
     }
   }
@@ -823,22 +824,21 @@ std::optional<uint32> GetFuncSize(const MIRFunction &func) {
 
 // called before performing inline
 bool CalleeCanBeRemovedIfInlined(const CallInfo &info, const CallGraph &cg) {
-  auto *callee = info.GetCallee();
-  CHECK_NULL_FATAL(callee);
-  auto *calleeNode = cg.GetCGNode(callee);
+  auto &callee = info.GetCallee();
+  auto *calleeNode = cg.GetCGNode(&callee);
   CHECK_NULL_FATAL(calleeNode);
   bool calledOnce = calleeNode->NumberOfUses() == 1 && calleeNode->NumReferences() == 1 && !calleeNode->IsAddrTaken();
   if (!calledOnce) {
     return false;
   }
-  bool localAccess = callee->IsStatic() || (callee->IsInline() && !callee->IsExtern());
+  bool localAccess = callee.IsStatic() || (callee.IsInline() && !callee.IsExtern());
   return localAccess;
 }
 
 double ComputeUninlinedTimeCost(const CallInfo &callInfo, double callFreqPercent) {
   auto *callerSummary = callInfo.GetCaller()->GetInlineSummary();
   CHECK_NULL_FATAL(callerSummary);
-  auto *calleeSummary = callInfo.GetCallee()->GetInlineSummary();
+  auto *calleeSummary = callInfo.GetCallee().GetInlineSummary();
   CHECK_NULL_FATAL(calleeSummary);
   // `callerTime` includes time for preparing call
   const double callerTime = callerSummary->GetStaticCycles();

@@ -770,22 +770,6 @@ bool Simplify::IsConstRepalceable(const MIRConst &mirConst) const {
   }
 }
 
-static size_t GetRealFieldsSize(MIRType &currType) {
-  auto *currStructType = currType.EmbeddedStructType();
-  if (!currStructType) {
-    return 0;
-  }
-  auto fieldSize = currStructType->GetFieldsSize();
-  for (auto field : currStructType->GetFields()) {
-    auto tyIdx = field.second.first;
-    auto *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-    if (type->EmbeddedStructType()) {
-      fieldSize += GetRealFieldsSize(*type);
-    }
-  }
-  return fieldSize;
-}
-
 MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirConst) const {
   FieldID currFieldId = 1;
   MIRConst *resultConst = nullptr;
@@ -795,7 +779,7 @@ MIRConst *Simplify::GetElementConstFromFieldId(FieldID fieldId, MIRConst &mirCon
   bool isUpperLayerUnion = false;
   std::function<void(MIRConst *, MIRType *)> traverseAgg = [&] (MIRConst *currConst, MIRType *currType) {
     if (currType->GetKind() == kTypeArray) {
-      currFieldId += static_cast<FieldID>(GetRealFieldsSize(*currType));
+      currFieldId += static_cast<FieldID>(currType->NumberOfFieldIDs());
       return;
     }
     if (!currConst || currConst->GetKind() != kConstAggConst) {
@@ -2079,7 +2063,9 @@ StmtNode *SimplifyOp::PartiallyExpandMemsetS(StmtNode &stmt, BlockNode &block) c
     block.RemoveStmt(&stmt);
     return nullptr;
   } else {
-    LabelIdx dstSizeCheckLabIdx, srcSizeCheckLabIdx, nullPtrLabIdx = std::numeric_limits<uint32>::max();
+    LabelIdx dstSizeCheckLabIdx = std::numeric_limits<uint32>::max();
+    LabelIdx srcSizeCheckLabIdx = std::numeric_limits<uint32>::max();
+    LabelIdx nullPtrLabIdx = std::numeric_limits<uint32>::max();
     if (!isDstSizeConst) {
       // check if dst size is greater than maxlen
       dstSizeCheckLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
@@ -2284,7 +2270,12 @@ StmtNode *SimplifyOp::PartiallyExpandMemcpyS(StmtNode &stmt, BlockNode &block) {
     block.RemoveStmt(&stmt);
     return nullptr;
   } else {
-    LabelIdx dstSizeCheckLabIdx, srcSizeCheckLabIdx, dstNullPtrLabIdx, srcNullPtrLabIdx, addrEqLabIdx, overlapLabIdx;
+    LabelIdx dstSizeCheckLabIdx;
+    LabelIdx srcSizeCheckLabIdx;
+    LabelIdx dstNullPtrLabIdx;
+    LabelIdx srcNullPtrLabIdx;
+    LabelIdx addrEqLabIdx;
+    LabelIdx overlapLabIdx;
     if (!isDstSizeConst) {
       // check if dst size is greater than maxlen or equal to 0
       dstSizeCheckLabIdx = func->GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr

@@ -229,6 +229,11 @@ class CGLowerer {
   BaseNode *LowerIreadBitfield(IreadNode &iread);
   StmtNode *LowerDassignBitfield(DassignNode &dassign, BlockNode &newBlk);
   StmtNode *LowerIassignBitfield(IassignNode &iassign, BlockNode &newBlk);
+  StmtNode *ReplaceCommonAggAssign(DassignNode &dass, const MIRSymbol &sym);
+  BaseNode *ReplaceAggRead(BaseNode *rhs, DassignNode &dass, uint32 bitSize, MIRFunction &func);
+  StmtNode *ReplaceUnionAssign(StmtNode &stmt);
+  BaseNode *ReplaceAggAssign(BaseNode &parent, uint32 bitOffset, uint32 bitSize, PregIdx regNo, bool fromDass);
+  BaseNode *ReplaceUnionRead(BaseNode &parent, BaseNode &expr, bool fromDass = false);
 
   void LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk);
 
@@ -351,6 +356,7 @@ class CGLowerer {
   uint32 labelIdx = 0;
   static std::unordered_map<IntrinDesc*, PUIdx> intrinFuncIDs;
   static std::unordered_map<std::string, size_t> arrayClassCacheIndex;
+  std::unordered_map<StIdx, PregIdx> unionReplacePair;
   std::unordered_map<LabelIdx, FreqType> l2fMap; // Map label to frequency on profileUse
   FuncProfInfo *funcProfData = nullptr;
 };

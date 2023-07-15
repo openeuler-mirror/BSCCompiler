@@ -329,6 +329,7 @@ class LoopScalarAnalysisResult {
   CRNode *CreateCRForPhi(const MePhiNode &phiNode);
   CRNode *GetOrCreateCRNode(MeExpr &expr);
   CRNode *DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &expr);
+  CRNode *DealWithIaddrof(const OpMeExpr &opMeExpr, MeExpr &expr);
   TripCountType ComputeTripCount(const MeFunction &func, uint64 &tripCountResult, CRNode *&conditionCRNode, CR *&itCR);
   void PutTheAddrExprAtTheFirstOfVector(std::vector<CRNode*> &crNodeOperands, const MeExpr &addrExpr) const;
   CRNode &SortCROperand(CRNode &crNode, MeExpr &addrExpr);

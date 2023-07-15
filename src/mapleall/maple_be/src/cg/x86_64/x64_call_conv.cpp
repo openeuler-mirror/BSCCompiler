@@ -109,7 +109,6 @@ void X64CallConvImpl::InitCCLocInfo(CCLocInfo &pLoc) const {
   pLoc.reg3 = kRinvalid;
   pLoc.memOffset = nextStackArgAdress;
   pLoc.fpSize = 0;
-  pLoc.numFpPureRegs = 0;
 }
 
 int32 X64CallConvImpl::LocateNextParm(MIRType &mirType, CCLocInfo &pLoc, bool isFirst, MIRFunction *tFunc) {

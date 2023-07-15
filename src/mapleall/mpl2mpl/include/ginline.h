@@ -37,7 +37,11 @@ class CallSiteNode {
   CallSiteNode(CallInfo *info, const BadnessInfo &badnessInfo, uint32 inlineDepth) :
       callInfo(info), badInfo(badnessInfo), depth(inlineDepth) {}
 
-  auto *GetCallInfo() const {
+  const CallInfo *GetCallInfo() const {
+    return callInfo;
+  }
+
+  CallInfo *GetCallInfo() {
     return callInfo;
   }
 
@@ -122,7 +126,7 @@ class GInline {
   void CleanupInline();
   void InitParams();
   void PrepareCallsiteSet();
-  void AfterInlineSuccess(const CallSiteNode &heapNode, const std::vector<CallInfo*> &newCallInfo, bool canBeRemoved,
+  void AfterInlineSuccess(CallSiteNode &heapNode, const std::vector<CallInfo*> &newCallInfo, bool canBeRemoved,
       int64 lastSize);
   void InlineCallsiteSet();
   bool FuncInlinable(const MIRFunction&) const;

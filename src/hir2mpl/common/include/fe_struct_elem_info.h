@@ -73,7 +73,7 @@ class FEStructElemInfo {
     return GlobalTables::GetStrTable().GetStringFromStrIdx(structElemNameIdx.type);
   }
   
-  bool TypeIsNullOrIncomplete(MIRType *type) const {
+  bool TypeIsNullOrIncomplete(const MIRType *type) const {
     return (type == nullptr) || type->IsIncomplete();
   }
 

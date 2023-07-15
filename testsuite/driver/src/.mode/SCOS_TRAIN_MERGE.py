@@ -16,68 +16,27 @@ from api import *
 
 
 SCOS_TRAIN_MERGE = {
-    "c2ast": [
-        C2ast(
-            clang="${MAPLE_ROOT}/tools/bin/clang",
-            include_path=[
-                "${OUT_ROOT}/aarch64-clang-release/lib/include",
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include"
-            ],
-            option="--target=aarch64",
-            infile="${APP}.c",
-            outfile="${APP}.ast",
-            extra_opt="${SPEC_PARAM}"
-        )
-    ],
-    # multiple ast input
-    "ast2mpl": [
-        Hir2mpl(
-            hir2mpl="${OUT_ROOT}/aarch64-clang-release/bin/hir2mpl",
-            option="-wpaa",
-            infile="${APP}",
-            outfile="${TARGET}"
-        )
-    ],
-    "c2mpl": [
-        C2ast(
-            clang="${MAPLE_ROOT}/tools/bin/clang",
-            include_path=[
-                "${OUT_ROOT}/aarch64-clang-release/lib/include",
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include"
-            ],
-            option="--target=aarch64",
-            infile="${APP}.c",
-            outfile="${APP}.ast",
-            extra_opt="${SPEC_PARAM}"
-        ),
-        Hir2mpl(
-            hir2mpl="${OUT_ROOT}/aarch64-clang-release/bin/hir2mpl",
-            option="-enable-variable-array -wpaa",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        )
-    ],
-    "merge_mpl":[
-        Shell(
-            "cat ${APP} > ${TARGET}"
-        )
-    ],
-    "mpl2o":[
+    "compile": [
         MapleDriver(
-            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
-            infiles=["${APP}.mpl"],
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
             outfile="${APP}.o",
-            option="--Os -fPIC --no-pie -c"
+            include_path=[
+                "${MAPLE_BUILD_OUTPUT}/lib/include",
+                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
+                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include"
+            ],
+            option="--Os -fPIC -g --no-pie -flto -c",
+            extra_opt="${SPEC_PARAM}"
         )
     ],
     "link": [
         MapleDriver(
             maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
             infiles=["${APP}"],
-            outfile="${EXE}",
-            option="-std=gnu99 -no-pie -lm -L${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/"
+            outfile="${TARGET}",
+            option="-std=gnu99 --no-pie -lm -L${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/",
+            extra_opt="--Os -fPIC -g --no-pie -flto ${SPEC_PARAM}"
         )
     ],
     "cp_data":[

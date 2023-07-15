@@ -517,9 +517,11 @@ TokenKind MIRLexer::GetTokenWithPrefixDoubleQuotation() {
           const uint32 octLength = 3;
           ASSERT(curIdx + octLength < line.size(), "index out of range");
           uint32 cNew =
-              static_cast<uint8>(static_cast<uint8>(GetCharAtWithLowerCheck(curIdx + 1) - '0') << octShift2) +
-              static_cast<uint8>(static_cast<uint8>(GetCharAtWithLowerCheck(curIdx + 2) - '0') << octShift1) +
-              static_cast<uint8>(GetCharAtWithLowerCheck(curIdx + 3) - '0');
+              (static_cast<uint8>(static_cast<uint8>(GetCharAtWithLowerCheck(curIdx + 1)) - static_cast<uint8>('0')) <<
+               octShift2) +
+              (static_cast<uint8>(static_cast<uint8>(GetCharAtWithLowerCheck(curIdx + 2)) - static_cast<uint8>('0')) <<
+               octShift1) +
+              static_cast<uint8>(static_cast<uint8>(GetCharAtWithLowerCheck(curIdx + 3)) - static_cast<uint8>('0'));
           line[curIdx - shift] = cNew;
           curIdx += octLength;
           shift += octLength;

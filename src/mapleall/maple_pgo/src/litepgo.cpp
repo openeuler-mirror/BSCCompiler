@@ -122,7 +122,7 @@ void LiteProfile::ParseFuncProfile(MIRLexer &fdLexer, const std::string &moduleN
   if (fdLexer.GetTokenKind() != TK_intconst) {
     CHECK_FATAL_FALSE("expect integer after funcid  ");
   }
-  uint64 identity = fdLexer.GetTheIntVal();
+  uint64 identity = static_cast<uint64>(fdLexer.GetTheIntVal());
   if (!VerifyModuleHash(identity, moduleName)) {
     if (debugPrint) {
       LogInfo::MapleLogger() << "LITEPGO log : func " <<
@@ -137,7 +137,7 @@ void LiteProfile::ParseFuncProfile(MIRLexer &fdLexer, const std::string &moduleN
   if (fdLexer.GetTokenKind() != TK_intconst) {
     CHECK_FATAL_FALSE("expect integer after counterSz  ");
   }
-  uint64 countersize = fdLexer.GetTheIntVal();
+  int64 countersize = fdLexer.GetTheIntVal();
 
   // parse cfghash
   ParseLitePgoKeyWord(fdLexer, "cfghash");
@@ -145,7 +145,7 @@ void LiteProfile::ParseFuncProfile(MIRLexer &fdLexer, const std::string &moduleN
   if (fdLexer.GetTokenKind() != TK_intconst) {
     CHECK_FATAL_FALSE("expect integer after counterSz  ");
   }
-  uint64 cfghash = fdLexer.GetTheIntVal();
+  uint64 cfghash = static_cast<uint64>(fdLexer.GetTheIntVal());
   if (cfghash > UINT32_MAX) {
     CHECK_FATAL_FALSE("unexpect cfg hash data type");
   }
@@ -171,7 +171,7 @@ void LiteProfile::ParseCounters(MIRLexer &fdLexer, const std::string &funcName, 
     extremelyColdFuncs.emplace(funcName);
   }
   while (fdLexer.GetTokenKind() == TK_intconst) {
-    uint64 counterVal = fdLexer.GetTheIntVal();
+    uint64 counterVal = static_cast<uint64>(fdLexer.GetTheIntVal());
     if (funcBBProfData.find(funcName) != funcBBProfData.end()) {
       funcBBProfData.find(funcName)->second.counter.emplace_back(counterVal);
     } else {

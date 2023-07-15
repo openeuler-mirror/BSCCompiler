@@ -40,7 +40,7 @@ using ArgPair = std::pair<std::string, MIRType*>;
 using ArgVector = MapleVector<ArgPair>;
 class MIRBuilder {
  public:
-  enum MatchStyle {
+  enum MatchStyle : unsigned int {
     kUpdateFieldID = 0,  // do not match but traverse to update fieldID
     kMatchTopField = 1,  // match top level field only
     kMatchAnyField = 2,  // match any field
@@ -67,7 +67,11 @@ class MIRBuilder {
     return func;
   }
 
-  MIRModule &GetMirModule() const {
+  const MIRModule &GetMirModule() const {
+    return *mirModule;
+  }
+
+  MIRModule &GetMirModule() {
     return *mirModule;
   }
 
@@ -100,7 +104,7 @@ class MIRBuilder {
     return GlobalTables::GetStrTable().GetStrIdxFromName(str);
   }
 
-  MIRFunction *GetOrCreateFunction(const std::string &str, TyIdx retTyIdx);
+  MIRFunction *GetOrCreateFunction(const std::string &str, const TyIdx &retTyIdx, bool *isNewCreated = nullptr);
   MIRFunction *GetFunctionFromSymbol(const MIRSymbol &funcSymbol) const;
   MIRFunction *GetFunctionFromStidx(const StIdx &stIdx) const;
   MIRFunction *GetFunctionFromName(const std::string &str) const;

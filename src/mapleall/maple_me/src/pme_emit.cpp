@@ -136,22 +136,7 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr &meExpr, BaseNode *parent) {
       preMeExprExtensionMap[arrNode] = pmeExt;
       return arrNode;
     }
-    case OP_ashr:
-    case OP_band:
-    case OP_bior:
-    case OP_bxor:
-    case OP_cand:
-    case OP_cior:
-    case OP_div:
-    case OP_land:
-    case OP_lior:
-    case OP_lshr:
-    case OP_max:
-    case OP_min:
-    case OP_mul:
-    case OP_rem:
-    case OP_shl:
-    case OP_sub:
+    OP_CASE_GROUP:
     case OP_add: {
       OpMeExpr *opExpr = static_cast<OpMeExpr *>(&meExpr);
       BinaryNode *binNode = codeMP->New<BinaryNode>(meExpr.GetOp(), meExpr.GetPrimType());
@@ -358,6 +343,19 @@ BaseNode *PreMeEmitter::EmitPreMeExpr(MeExpr &meExpr, BaseNode *parent) {
     default:
       CHECK_FATAL(false, "NYI");
   }
+}
+
+template <typename Stmt, typename Node>
+void PreMeEmitter::SetAssertBoundaryNode(const MeStmt &meStmt, const Stmt *assertBoundaryStmt,
+                                         Node *assertBoundaryNode, PreMeMIRExtension *pmeExt) {
+  assertBoundaryNode->SetSrcPos(meStmt.GetSrcPosition());
+  for (uint32 i = 0; i < assertBoundaryStmt->GetOpnds().size(); i++) {
+    assertBoundaryNode->GetNopnd().push_back(EmitPreMeExpr(*assertBoundaryStmt->GetOpnd(i), assertBoundaryNode));
+  }
+  assertBoundaryNode->SetNumOpnds(static_cast<uint8>(assertBoundaryNode->GetNopndSize()));
+  assertBoundaryNode->CopySafeRegionAttr(meStmt.GetStmtAttr());
+  assertBoundaryNode->SetOriginalID(meStmt.GetOriginalId());
+  preMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
 }
 
 StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt &meStmt, BaseNode *parent) {
@@ -683,14 +681,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt &meStmt, BaseNode *parent) {
       CallAssertBoundaryStmtNode *assertBoundaryNode = codeMP->New<CallAssertBoundaryStmtNode>(
           *codeMPAlloc, meStmt.GetOp(), assertBoundaryStmt->GetFuncNameIdx(), assertBoundaryStmt->GetParamIndex(),
           assertBoundaryStmt->GetStmtFuncNameIdx());
-      assertBoundaryNode->SetSrcPos(meStmt.GetSrcPosition());
-      for (uint32 i = 0; i < assertBoundaryStmt->GetOpnds().size(); i++) {
-        assertBoundaryNode->GetNopnd().push_back(EmitPreMeExpr(*assertBoundaryStmt->GetOpnd(i), assertBoundaryNode));
-      }
-      assertBoundaryNode->SetNumOpnds(static_cast<uint8>(assertBoundaryNode->GetNopndSize()));
-      assertBoundaryNode->CopySafeRegionAttr(meStmt.GetStmtAttr());
-      assertBoundaryNode->SetOriginalID(meStmt.GetOriginalId());
-      preMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
+      SetAssertBoundaryNode(meStmt, assertBoundaryStmt, assertBoundaryNode, pmeExt);
       return assertBoundaryNode;
     }
     case OP_eval:
@@ -740,14 +731,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt &meStmt, BaseNode *parent) {
       AssertBoundaryMeStmt *assertBoundaryStmt = static_cast<AssertBoundaryMeStmt *>(&meStmt);
       AssertBoundaryStmtNode *assertBoundaryNode = codeMP->New<AssertBoundaryStmtNode>(
           *codeMPAlloc, meStmt.GetOp(), assertBoundaryStmt->GetFuncNameIdx());
-      assertBoundaryNode->SetSrcPos(meStmt.GetSrcPosition());
-      for (uint32 i = 0; i < assertBoundaryStmt->GetOpnds().size(); i++) {
-        assertBoundaryNode->GetNopnd().push_back(EmitPreMeExpr(*assertBoundaryStmt->GetOpnd(i), assertBoundaryNode));
-      }
-      assertBoundaryNode->SetNumOpnds(static_cast<uint8>(assertBoundaryNode->GetNopndSize()));
-      assertBoundaryNode->CopySafeRegionAttr(meStmt.GetStmtAttr());
-      assertBoundaryNode->SetOriginalID(meStmt.GetOriginalId());
-      preMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
+      SetAssertBoundaryNode(meStmt, assertBoundaryStmt, assertBoundaryNode, pmeExt);
       return assertBoundaryNode;
     }
     case OP_syncenter:
@@ -774,7 +758,7 @@ void PreMeEmitter::UpdateStmtInfoForLabelNode(LabelNode &label, BB &bb) const {
 
 void PreMeEmitter::UpdateStmtInfo(const MeStmt &meStmt, StmtNode &stmt,
                                   BlockNode &currBlock, FreqType frequency) const {
-  if (ipaInfo == nullptr || meStmt.GetStmtInfoId() == kInvalidIndex) {
+  if (ipaInfo == nullptr || meStmt.GetStmtInfoId() == utils::kInvalidIndex) {
     return;
   }
   auto &stmtInfo = ipaInfo->GetStmtInfo()[meStmt.GetStmtInfoId()];

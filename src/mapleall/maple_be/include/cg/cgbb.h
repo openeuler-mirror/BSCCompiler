@@ -30,7 +30,6 @@
 
 /* Maple MP header */
 #include "mempool_allocator.h"
-
 namespace maplebe {
 /* For get bb */
 #define FIRST_BB_OF_FUNC(FUNC) ((FUNC)->GetFirstBB())
@@ -63,6 +62,8 @@ namespace maplebe {
 
 #define FOR_BB_INSNS_REV(INSN, BLOCK) \
   for (Insn * (INSN) = LAST_INSN(BLOCK); (INSN) != nullptr; (INSN) = (INSN)->GetPrev())
+#define FOR_BB_INSNS_REV_CONST(INSN, BLOCK) \
+  for (const Insn * (INSN) = LAST_INSN(BLOCK); (INSN) != nullptr; (INSN) = (INSN)->GetPrev())
 
 /* For iterating over insns in basic block when we might remove the current insn. */
 #define FOR_BB_INSNS_SAFE(INSN, BLOCK, NEXT)                                                               \
@@ -80,6 +81,7 @@ using BBID = uint32;
 
 class BB : public maple::BaseGraphNode {
  public:
+  static constexpr int32 kUnknownProb = -1;
   enum BBKind : uint8 {
     kBBFallthru,  /* default */
     kBBIf,        /* conditional branch */
@@ -101,6 +103,7 @@ class BB : public maple::BaseGraphNode {
         succs(mallocator.Adapter()),
         ehPreds(mallocator.Adapter()),
         ehSuccs(mallocator.Adapter()),
+        succsProb(mallocator.Adapter()),
         succsFreq(mallocator.Adapter()),
         succsProfFreq(mallocator.Adapter()),
         liveInRegNO(mallocator.Adapter()),
@@ -155,6 +158,7 @@ class BB : public maple::BaseGraphNode {
     if (next != nullptr) {
       next->prev = &bb;
     }
+    succsProb[&bb] = kUnknownProb;
     next = &bb;
   }
 
@@ -165,6 +169,7 @@ class BB : public maple::BaseGraphNode {
       this->prev->next = &bb;
     }
     this->prev = &bb;
+    succsProb[&bb] = kUnknownProb;
   }
 
   Insn *InsertInsnBefore(Insn &existing, Insn &newInsn);
@@ -267,10 +272,11 @@ class BB : public maple::BaseGraphNode {
     CHECK_FATAL(false, "request to remove a non-existent element?");
   }
 
-  void RemoveFromSuccessorList(const BB &bb) {
+  void RemoveFromSuccessorList(BB &bb) {
     for (auto i = succs.begin(); i != succs.end(); ++i) {
       if (*i == &bb) {
         succs.erase(i);
+        succsProb.erase(&bb);
         return;
       }
     }
@@ -291,6 +297,7 @@ class BB : public maple::BaseGraphNode {
 
   /* Number of instructions excluding DbgInsn and comments */
   int32 NumInsn() const;
+  int32 NumMachineInsn() const;
   BBID GetId() const {
     return GetID();
   }
@@ -373,6 +380,7 @@ class BB : public maple::BaseGraphNode {
   void SetFirstInsn(Insn *arg) {
     firstInsn = arg;
   }
+
   Insn *GetFirstMachineInsn() {
     FOR_BB_INSNS(insn, this) {
       if (insn->IsMachineInstruction()) {
@@ -381,9 +389,29 @@ class BB : public maple::BaseGraphNode {
     }
     return nullptr;
   }
+  const Insn *GetFirstMachineInsn() const {
+    FOR_BB_INSNS_CONST(insn, this) {
+      if (insn->IsMachineInstruction()) {
+        return insn;
+      }
+    }
+    return nullptr;
+  }
   Insn *GetLastMachineInsn() {
     FOR_BB_INSNS_REV(insn, this) {
-#if TARGAARCH64
+#if defined(TARGAARCH64) && TARGAARCH64
+      if (insn->IsMachineInstruction() && !AArch64isa::IsPseudoInstruction(insn->GetMachineOpcode())) {
+#elif defined(TARGX86_64) && TARGX86_64
+      if (insn->IsMachineInstruction()) {
+#endif
+        return insn;
+      }
+    }
+    return nullptr;
+  }
+  const Insn *GetLastMachineInsn() const {
+    FOR_BB_INSNS_REV_CONST(insn, this) {
+#if defined(TARGAARCH64) && TARGAARCH64
       if (insn->IsMachineInstruction() && !AArch64isa::IsPseudoInstruction(insn->GetMachineOpcode())) {
 #elif defined(TARGX86_64) && TARGX86_64
       if (insn->IsMachineInstruction()) {
@@ -411,8 +439,9 @@ class BB : public maple::BaseGraphNode {
   void InsertPred(const MapleList<BB*>::iterator &it, BB &bb) {
     preds.insert(it, &bb);
   }
-  void InsertSucc(const MapleList<BB*>::iterator &it, BB &bb) {
+  void InsertSucc(const MapleList<BB*>::iterator &it, BB &bb, int32 prob = kUnknownProb) {
     succs.insert(it, &bb);
+    succsProb[&bb] = prob;
   }
   const MapleList<BB*> &GetPreds() const {
     return preds;
@@ -431,7 +460,7 @@ class BB : public maple::BaseGraphNode {
       allPreds.push_back(pred);
     }
     for (auto *pred : ehPreds) {
-      (void)allPreds.push_back(pred);
+      allPreds.push_back(pred);
     }
     return allPreds;
   }
@@ -443,7 +472,7 @@ class BB : public maple::BaseGraphNode {
       allSuccs.push_back(suc);
     }
     for (auto *suc : ehSuccs) {
-      (void)allSuccs.push_back(suc);
+      allSuccs.push_back(suc);
     }
     return allSuccs;
   }
@@ -501,10 +530,11 @@ class BB : public maple::BaseGraphNode {
       preds.push_back(&bb);
     }
   }
-  void PushBackSuccs(BB &bb) {
+  void PushBackSuccs(BB &bb, int32 prob = kUnknownProb) {
     MapleList<BB *>::iterator it = find(succs.begin(), succs.end(), &bb);
     if (it == succs.end()) {
       succs.push_back(&bb);
+      succsProb[&bb] = prob;
     }
   }
   void PushBackEhPreds(BB &bb) {
@@ -516,8 +546,9 @@ class BB : public maple::BaseGraphNode {
   void PushFrontPreds(BB &bb) {
     preds.push_front(&bb);
   }
-  void PushFrontSuccs(BB &bb) {
+  void PushFrontSuccs(BB &bb, int32 prob = kUnknownProb) {
     succs.push_front(&bb);
+    succsProb[&bb] = prob;
   }
   MapleList<BB*>::iterator ErasePreds(MapleList<BB*>::const_iterator it) {
     return preds.erase(it);
@@ -530,7 +561,21 @@ class BB : public maple::BaseGraphNode {
   }
   void RemoveSuccs(BB &bb) {
     succs.remove(&bb);
+    succsProb.erase(&bb);
   }
+
+  void ReplaceSucc(MapleList<BB*>::const_iterator it, BB &newBB) {
+    int prob = succsProb[*it];
+    EraseSuccs(it);
+    PushBackSuccs(newBB, prob);
+  }
+
+  void ReplaceSucc(BB &oldBB, BB &newBB) {
+    int prob = succsProb[&oldBB];
+    RemoveSuccs(oldBB);
+    PushBackSuccs(newBB, prob);
+  }
+
   void RemoveEhPreds(BB &bb) {
     ehPreds.remove(&bb);
   }
@@ -542,6 +587,7 @@ class BB : public maple::BaseGraphNode {
   }
   void ClearSuccs() {
     succs.clear();
+    succsProb.clear();
   }
   void ClearEhPreds() {
     ehPreds.clear();
@@ -613,12 +659,6 @@ class BB : public maple::BaseGraphNode {
   void SetWontExit(bool arg) {
     wontExit = arg;
   }
-  void SetFastPathReturn(bool arg) {
-    fastPathReturn = arg;
-  }
-  bool IsFastPathReturn() const {
-    return fastPathReturn;
-  }
   bool IsCatch() const {
     return isCatch;
   }
@@ -631,12 +671,6 @@ class BB : public maple::BaseGraphNode {
   void SetIsCleanup(bool arg) {
     isCleanup = arg;
   }
-  bool IsProEpilog() const {
-    return isProEpilog;
-  }
-  void SetIsProEpilog(bool arg) {
-    isProEpilog = arg;
-  }
   bool IsLabelTaken() const {
     return labelTaken;
   }
@@ -648,12 +682,6 @@ class BB : public maple::BaseGraphNode {
   }
   void SetHasCfi() {
     hasCfi = true;
-  }
-  bool IsNeedRestoreCfi() const {
-    return needRestoreCfi;
-  }
-  void SetNeedRestoreCfi(bool flag) {
-    needRestoreCfi = flag;
   }
   long GetInternalFlag1() const {
     return internalFlag1;
@@ -743,9 +771,6 @@ class BB : public maple::BaseGraphNode {
   void LiveInOrBits(const SparseDataInfo &arg) {
     liveIn->OrBits(arg);
   }
-  void LiveInEnlargeCapacity(uint32 arg) {
-    liveIn->EnlargeCapacityToAdaptSize(arg);
-  }
   void LiveInClearDataInfo() {
     liveIn->ClearDataInfo();
     liveIn = nullptr;
@@ -764,9 +789,6 @@ class BB : public maple::BaseGraphNode {
   }
   void LiveOutOrBits(const SparseDataInfo &arg) {
     liveOut->OrBits(arg);
-  }
-  void LiveOutEnlargeCapacity(uint32 arg) {
-    liveOut->EnlargeCapacityToAdaptSize(arg);
   }
   void LiveOutClearDataInfo() {
     liveOut->ClearDataInfo();
@@ -834,6 +856,10 @@ class BB : public maple::BaseGraphNode {
   void SetCDGNode(CDGNode *node) {
     cdgNode = node;
   }
+  
+  MapleVector<uint64> &GetSuccsFreq() {
+    return succsFreq;
+  }
 
   void InitEdgeFreq() {
     succsFreq.resize(succs.size());
@@ -878,6 +904,14 @@ class BB : public maple::BaseGraphNode {
     succsFreq[idx] = freq;
   }
 
+  void RemoveEdgeFreq(const BB &bb) {
+    auto iter = std::find(succs.cbegin(), succs.cend(), &bb);
+    CHECK_FATAL(iter != std::end(succs), "%d is not the successor of %d", bb.GetId(), this->GetId());
+    CHECK_FATAL(succs.size() == succsFreq.size(), "succfreq size doesn't match succ size");
+    const size_t idx = static_cast<size_t>(std::distance(succs.cbegin(), iter));
+    (void)succsFreq.erase(succsFreq.begin() + static_cast<MapleVector<uint64>::difference_type>(idx));
+  }
+
   void InitEdgeProfFreq() {
     succsProfFreq.resize(succs.size(), 0);
   }
@@ -909,6 +943,14 @@ class BB : public maple::BaseGraphNode {
         "succProfFreq size %d doesn't match succ size %d", succsProfFreq.size(), succs.size());
     const size_t idx = static_cast<size_t>(std::distance(succs.begin(), iter));
     succsProfFreq[idx] = freq;
+  }
+
+  void SetEdgeProb(const BB &bb, int32 prob) {
+    succsProb[&bb] = prob;
+  }
+
+  int32 GetEdgeProb(const BB &bb) const {
+    return succsProb.find(&bb)->second;
   }
 
   bool HasMachineInsn() {
@@ -947,6 +989,7 @@ class BB : public maple::BaseGraphNode {
   MapleList<BB*> succs;
   MapleList<BB*> ehPreds;
   MapleList<BB*> ehSuccs;
+  MapleMap<const BB*,int32> succsProb;
   MapleVector<uint64> succsFreq;
   MapleVector<FreqType> succsProfFreq;
   bool inColdSection = false; /* for bb splitting */
@@ -959,17 +1002,14 @@ class BB : public maple::BaseGraphNode {
   bool hasCall = false;
   bool unreachable = false;
   bool wontExit = false;
-  bool fastPathReturn = false;
   bool isCatch = false;  /* part of the catch bb, true does might also mean it is unreachable */
   /*
    * Since isCatch is set early and unreachable detected later, there
    * are some overlap here.
    */
   bool isCleanup = false;  /* true if the bb is cleanup bb. otherwise, false. */
-  bool isProEpilog = false;  /* Temporary tag for modifying prolog/epilog bb. */
   bool labelTaken = false;  /* Block label is taken indirectly and can be used to jump to it. */
   bool hasCfi = false;  /* bb contain cfi directive. */
-  bool needRestoreCfi = false;  /* add cfi insn to current bb if true */
   /*
    * Different meaning for each data flow analysis.
    * For HandleFunction(), rough estimate of num of insn created.

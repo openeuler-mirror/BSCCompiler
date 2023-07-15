@@ -986,7 +986,7 @@ ASTExpr *ASTParser::ParseBuiltinConstantP(MapleAllocator &allocator, const clang
   }
   ASTIntegerLiteral *astIntegerLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
   astIntegerLiteral->SetVal(constP);
-  astIntegerLiteral->SetType(astFile->CvtType(expr.getType()));
+  astIntegerLiteral->SetType(astFile->CvtType(allocator, expr.getType()));
   return astIntegerLiteral;
 }
 
@@ -1002,7 +1002,7 @@ ASTExpr *ASTParser::ParseBuiltinIsinfsign(MapleAllocator &allocator, const clang
   (void)allocator;
   ss.clear();
   ss.str(std::string());
-  MIRType *mirType = astFile->CvtType(expr.getArg(0)->getType());
+  MIRType *mirType = astFile->CvtType(allocator, expr.getArg(0)->getType());
   if (mirType != nullptr) {
     PrimType type = mirType->GetPrimType();
     if (type == PTY_f128) {
@@ -1129,7 +1129,7 @@ ASTExpr *ASTParser::ParseBuiltinSignBitf(MapleAllocator &allocator, const clang:
 ASTExpr *ASTParser::ParseBuiltinSignBitl(MapleAllocator &allocator, const clang::CallExpr &expr,
                                          std::stringstream &ss, ASTCallExpr &astCallExpr) const {
   (void)astCallExpr;
-  if (astFile->CvtType(expr.getArg(0)->getType())->GetPrimType() != PTY_f128) {
+  if (astFile->CvtType(allocator, expr.getArg(0)->getType())->GetPrimType() != PTY_f128) {
     return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbit");
   }
   return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbitl");

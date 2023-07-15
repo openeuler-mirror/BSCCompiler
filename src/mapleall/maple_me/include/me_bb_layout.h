@@ -19,6 +19,7 @@
 #include "maple_phase_manager.h"
 #include "me_dominance.h"
 #include "me_loop_analysis.h"
+#include "me_predict.h"
 
 namespace maple {
 class BBLayout {
@@ -116,7 +117,7 @@ class BBLayout {
   void DealWithStartTryBB();
   void UpdateNewBBWithAttrTry(const BB &bb, BB &fallthru) const;
   void SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const;
-  void RebuildFreq();
+  void RebuildFreq(BuiltinExpectInfo *expectInfo = nullptr);
 
   MeFunction &func;
   MapleAllocator layoutAlloc;

@@ -41,7 +41,7 @@ extern maplecl::Option<bool> ico;
 extern maplecl::Option<bool> storeloadopt;
 extern maplecl::Option<bool> globalopt;
 extern maplecl::Option<bool> hotcoldsplit;
-extern maplecl::Option<bool> prelsra;
+extern maplecl::Option<bool> preraopt;
 extern maplecl::Option<bool> lsraLvarspill;
 extern maplecl::Option<bool> lsraOptcallee;
 extern maplecl::Option<bool> calleeregsPlacement;
@@ -95,7 +95,6 @@ extern maplecl::Option<std::string> skipPhases;
 extern maplecl::Option<std::string> skipFrom;
 extern maplecl::Option<std::string> skipAfter;
 extern maplecl::Option<std::string> dumpFunc;
-extern maplecl::Option<bool> timePhases;
 extern maplecl::Option<bool> useBarriersForVolatile;
 extern maplecl::Option<std::string> range;
 extern maplecl::Option<uint8_t> fastAlloc;
@@ -129,6 +128,7 @@ extern maplecl::Option<bool> localSchedule;
 extern maplecl::Option<bool> calleeEnsureParam;
 extern maplecl::Option<bool> common;
 extern maplecl::Option<bool> condbrAlign;
+extern maplecl::Option<bool> loopAlign;
 extern maplecl::Option<uint32_t> alignMinBbSize;
 extern maplecl::Option<uint32_t> alignMaxBbSize;
 extern maplecl::Option<uint32_t> loopAlignPow;
@@ -143,6 +143,10 @@ extern maplecl::Option<std::string> litePgoFile;
 extern maplecl::Option<std::string> functionPriority;
 extern maplecl::Option<bool> litePgoVerify;
 extern maplecl::Option<bool> optimizedFrameLayout;
+extern maplecl::Option<bool> pgoCodeAlign;
+extern maplecl::Option<uint32_t> alignThreshold;
+extern maplecl::Option<uint32_t> alignLoopIterations;
+extern maplecl::Option<uint32_t> dupFreqThreshold;
 }
 
 #endif /* MAPLE_BE_INCLUDE_CG_OPTIONS_H */

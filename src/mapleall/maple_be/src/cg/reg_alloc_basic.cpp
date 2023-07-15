@@ -154,6 +154,12 @@ bool DefaultO0RegAllocator::AllocatePhysicalRegister(const RegOperand &opnd) {
   regno_t regStart = *regBank.begin();
   regno_t regEnd = *regBank.crbegin();
 
+  const auto regLimitIter = regsLimit.find(regNo);
+  if (regLimitIter != regsLimit.end()) {
+    regStart = regLimitIter->second.first;
+    regEnd = regLimitIter->second.second;
+  }
+
   const auto opndRegIt = regLiveness.find(regNo);
   for (regno_t reg = regStart; reg <= regEnd; ++reg) {
     if (!availRegSet[reg]) {
@@ -236,11 +242,11 @@ void DefaultO0RegAllocator::SetupRegLiveness(BB *bb) {
       const OpndDesc *opndDesc = curMd->GetOpndDes(i);
       if (opnd.IsRegister()) {
         /* def-use is processed by use */
-        SetupRegLiveness(static_cast<RegOperand&>(opnd), insn->GetId(), !opndDesc->IsUse());
+        SetupRegLiveness(static_cast<RegOperand&>(opnd), *insn, !opndDesc->IsUse(), i);
       } else if (opnd.IsMemoryAccessOperand()) {
-        SetupRegLiveness(static_cast<MemOperand&>(opnd), insn->GetId());
+        SetupRegLiveness(static_cast<MemOperand&>(opnd), *insn, i);
       } else if (opnd.IsList()) {
-        SetupRegLiveness(static_cast<ListOperand&>(opnd), insn->GetId(), opndDesc->IsDef());
+        SetupRegLiveness(static_cast<ListOperand&>(opnd), *insn, opndDesc->IsDef(), i);
       }
     }
   }
@@ -254,24 +260,24 @@ void DefaultO0RegAllocator::SetupRegLiveness(BB *bb) {
   }
 }
 
-void DefaultO0RegAllocator::SetupRegLiveness(const MemOperand &opnd, uint32 insnId) {
+void DefaultO0RegAllocator::SetupRegLiveness(const MemOperand &opnd, const Insn &insn, uint32 opndIdx) {
   /* base regOpnd is use in O0 */
   if (opnd.GetBaseRegister()) {
-    SetupRegLiveness(*opnd.GetBaseRegister(), insnId, false);
+    SetupRegLiveness(*opnd.GetBaseRegister(), insn, false, opndIdx);
   }
   /* index regOpnd must be use */
   if (opnd.GetIndexRegister()) {
-    SetupRegLiveness(*opnd.GetIndexRegister(), insnId, false);
+    SetupRegLiveness(*opnd.GetIndexRegister(), insn, false, opndIdx);
   }
 }
 
-void DefaultO0RegAllocator::SetupRegLiveness(ListOperand &opnd, uint32 insnId, bool isDef) {
+void DefaultO0RegAllocator::SetupRegLiveness(const ListOperand &opnd, const Insn &insn, bool isDef, uint32 opndIdx) {
   for (RegOperand *regOpnd : opnd.GetOperands()) {
-    SetupRegLiveness(*regOpnd, insnId, isDef);
+    SetupRegLiveness(*regOpnd, insn, isDef, opndIdx);
   }
 }
 
-void DefaultO0RegAllocator::SetupRegLiveness(const RegOperand &opnd, uint32 insnId, bool isDef) {
+void DefaultO0RegAllocator::SetupRegLiveness(const RegOperand &opnd, const Insn &insn, bool isDef, uint32 opndIdx) {
   MapleVector<std::pair<uint32, uint32>> ranges(alloc.Adapter());
   auto regLivenessIt = regLiveness.emplace(opnd.GetRegisterNumber(), ranges).first;
   auto &regLivenessRanges = regLivenessIt->second;
@@ -280,13 +286,20 @@ void DefaultO0RegAllocator::SetupRegLiveness(const RegOperand &opnd, uint32 insn
   }
   auto &regLivenessLastRange = regLivenessRanges.back();
   if (regLivenessLastRange.first == 0) {
-    regLivenessLastRange.first = insnId;
+    regLivenessLastRange.first = insn.GetId();
   }
-  regLivenessLastRange.second = insnId;
+  regLivenessLastRange.second = insn.GetId();
 
   /* create new range, only phyReg need to be segmented */
   if (isDef && regInfo->IsAvailableReg(opnd.GetRegisterNumber())) {
     regLivenessRanges.push_back(std::make_pair(0, 0));
+  }
+
+  if (regsLimit.find(opnd.GetRegisterNumber()) == regsLimit.end()) {
+    auto limit = insn.GetDesc()->GetRegisterLimit(insn, opndIdx);
+    if (limit != kInvalidRegLimit) {
+      regsLimit.emplace(opnd.GetRegisterNumber(), limit);
+    }
   }
 }
 

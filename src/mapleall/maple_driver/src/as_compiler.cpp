@@ -76,7 +76,7 @@ DefaultOption AsCompilerBeILP32::GetDefaultOptions(const MplOptions &options, co
 
   if (triple.GetEnvironment() == Triple::EnvironmentType::kGnuIlp32) {
     defaultOptions.mplOptions[i].SetKey("-mabi=ilp32");
-    defaultOptions.mplOptions[i++].SetValue("");
+    defaultOptions.mplOptions[i].SetValue(""); // if new option is added, this i needs i++
   }
 
   return defaultOptions;

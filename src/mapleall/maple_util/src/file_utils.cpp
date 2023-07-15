@@ -17,6 +17,8 @@
 #include <climits>
 #include <fstream>
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
 #include "mpl_logging.h"
 #include "file_utils.h"
 
@@ -241,6 +243,16 @@ bool FileUtils::IsFileExists(const std::string &filePath) {
   return f.good();
 }
 
+bool FileUtils::CreateFile(const std::string &file) {
+  if (IsFileExists(file)) {
+    return true;
+  }
+  std::ofstream fileCreate;
+  fileCreate.open(file);
+  fileCreate.close();
+  return IsFileExists(file);
+}
+
 std::string FileUtils::AppendMapleRootIfNeeded(bool needRootPath, const std::string &path,
                                                const std::string &defaultRoot) {
   if (!needRootPath) {
@@ -259,12 +271,7 @@ bool FileUtils::DelTmpDir() const {
   if (FileUtils::GetInstance().GetTmpFolder() == "") {
     return true;
   }
-  std::string tmp = "rm -rf " + FileUtils::GetInstance().GetTmpFolder();
-  std::string result = ExecuteShell(tmp.c_str());
-  if (result != "") {
-    return false;
-  }
-  return true;
+  return Rmdirs(FileUtils::GetInstance().GetTmpFolder());
 }
 
 InputFileType FileUtils::GetFileTypeByMagicNumber(const std::string &pathName) {
@@ -280,46 +287,6 @@ InputFileType FileUtils::GetFileTypeByMagicNumber(const std::string &pathName) {
   return magic == kMagicAST ? InputFileType::kFileTypeOast : magic == kMagicELF ? InputFileType::kFileTypeObj :
                                                                                   InputFileType::kFileTypeNone;
 }
-
-char* FileUtils::LoadFile(const char *filename) {
-  size_t maxlength = 102400; // 100K
-  std::string specFile = GetRealPath(filename);
-  char *specs;
-  char *content;
-  std::ifstream readSpecFile(specFile);
-  if (!readSpecFile.is_open()) {
-    CHECK_FATAL(false, "unable to open file %s", specFile.c_str());
-    return nullptr;
-  }
-  content = FileUtils::GetInstance().GetMemPool().NewArray<char>(maxlength);
-  if (content) {
-    char buffer[maxlength];
-    size_t len = 0;
-    while (readSpecFile.getline(buffer, static_cast<long>(maxlength))) {
-      for (size_t i = 0; i < maxlength; i++) {
-        char tmp = buffer[i];
-        if (tmp == '\0') {
-          content[len] = '\n';
-          len++;
-          break;
-        }
-        content[len] = tmp;
-        len++;
-      }
-    }
-    content[len] = '\0';
-    specs = FileUtils::GetInstance().GetMemPool().NewArray<char>(++len);
-    if (!specs) {
-      CHECK_FATAL(false, "unable to open file %s", specFile.c_str());
-    }
-    for (size_t i = 0; i < len; i++) {
-      specs[i] = content[i];
-    }
-    return specs;
-  }
-  return nullptr;
-}
-
 
 bool FileUtils::GetAstFromLib(const std::string libPath, std::vector<std::string> &astInputs) {
   bool elfFlag = false;
@@ -353,6 +320,53 @@ bool FileUtils::GetAstFromLib(const std::string libPath, std::vector<std::string
     }
   }
   return elfFlag;
+}
+
+std::string FileUtils::GetGccBin() {
+#ifdef ANDROID
+  return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
+#else
+  if (SafeGetenv(kGccPath) != "") {
+    std::string gccPath = SafeGetenv(kGccPath) + " -dumpversion";
+    CheckGCCVersion(gccPath.c_str());
+    return SafeGetenv(kGccPath);
+  } else if (SafeGetenv(kMapleRoot) != "") {
+    return SafeGetenv(kMapleRoot) + "/tools/bin/aarch64-linux-gnu-gcc";
+  }
+  std::string gccPath = SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc") + " -dumpversion";
+  CheckGCCVersion(gccPath.c_str());
+  return SafeGetPath("which aarch64-linux-gnu-gcc", "aarch64-linux-gnu-gcc");
+#endif
+}
+
+bool FileUtils::Rmdirs(const std::string &dirPath) {
+  DIR *dir = opendir(dirPath.c_str());
+  if (dir == nullptr) {
+      return false;
+  }
+  dirent *entry = nullptr;
+  while ((entry = readdir(dir)) != nullptr) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
+    }
+    std::string fullPath = std::string(dirPath) + kFileSeperatorChar + entry->d_name;
+    if (entry->d_type == DT_DIR) {
+      if (!Rmdirs(fullPath)) {
+        (void)closedir(dir);
+        return false;
+      }
+    } else {
+        if (remove(fullPath.c_str()) != 0) {
+          (void)closedir(dir);
+          return false;
+        }
+    }
+  }
+  (void)closedir(dir);
+  if (rmdir(dirPath.c_str()) != 0) {
+    return false;
+  }
+  return true;
 }
 
 }  // namespace maple

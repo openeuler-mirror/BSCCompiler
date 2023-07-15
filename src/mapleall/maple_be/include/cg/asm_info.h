@@ -33,6 +33,7 @@ enum AsmLabel : uint8 {
   kAsmShort,
   kAsmValue,
   kAsmWord,
+  kAsmXWord,
   kAsmLong,
   kAsmQuad,
   kAsmSize,
@@ -112,6 +113,10 @@ class AsmInfo {
     return asmWord;
   }
 
+  const MapleString &GetXWord() const {
+    return asmXWord;
+  }
+
   const MapleString &GetLong() const {
     return asmLong;
   }
@@ -177,6 +182,7 @@ class AsmInfo {
         asmValue("\t.value\t", &memPool),
 #endif
         asmWord("\t.word\t", &memPool),
+        asmXWord("\t.xword\t", &memPool),
 #ifdef TARGARM32
         asmLong("\t.word\t", &memPool),
 #else
@@ -211,6 +217,7 @@ class AsmInfo {
   MapleString asmShort;
   MapleString asmValue;
   MapleString asmWord;
+  MapleString asmXWord;
   MapleString asmLong;
   MapleString asmQuad;
   MapleString asmSize;

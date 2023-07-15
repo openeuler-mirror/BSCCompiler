@@ -204,9 +204,9 @@ bool MIRParser::ParseSpecialReg(PregIdx &pRegIdx) {
   size_t retValSize = strlen(kLexerStringRetval);
   if (strncmp(lexName.c_str(), kLexerStringRetval, retValSize) == 0 && (lexSize > retValSize) &&
       isdigit(lexName[retValSize])) {
-    int32 retValNo = lexName[retValSize] - '0';
+    int32 retValNo = lexName[retValSize] - static_cast<int32>('0');
     for (size_t i = retValSize + 1; (i < lexSize) && isdigit(lexName[i]); ++i) {
-      retValNo = retValNo * 10 + lexName[i] - '0';
+      retValNo = retValNo * 10 + lexName[i] - static_cast<int32>('0'); // 10: decimal digit
     }
     pRegIdx = -kSregRetval0 - retValNo;
     lexer.NextToken();
@@ -472,13 +472,13 @@ bool MIRParser::ParsePragmaElementForAnnotation(MIRPragmaElement &elem) {
     Error("parsing pragma error: expecting int but get ");
     return false;
   }
-  uint64 size = lexer.GetTheIntVal();
+  int64 size = lexer.GetTheIntVal();
   tk = lexer.NextToken();
   if (tk != TK_coma && size > 0) {
     Error("parsing pragma error: expecting , but get ");
     return false;
   }
-  for (uint64 i = 0; i < size; ++i) {
+  for (int64 i = 0; i < size; ++i) {
     auto *e0 = mod.GetMemPool()->New<MIRPragmaElement>(mod);
     tk = lexer.NextToken();
     if (tk != TK_label) {
@@ -2419,7 +2419,7 @@ bool MIRParser::ParseFuncInfo() {
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     tokenKind = lexer.NextToken();
     if (tokenKind == TK_intconst) {
-      uint32 fieldVal = lexer.GetTheIntVal();
+      uint32 fieldVal = static_cast<uint32>(lexer.GetTheIntVal());
       func->PushbackMIRInfo(MIRInfoPair(strIdx, fieldVal));
       func->PushbackIsString(false);
     } else if (tokenKind == TK_string) {
@@ -2537,7 +2537,7 @@ bool MIRParser::ParseOneScope(MIRScope &scope) {
   }
   scope.SetRange(low, high);
   nameTk = lexer.NextToken();
-  while (1) {
+  for (;;) {
     bool status = false;
     switch (lexer.GetTokenKind()) {
       case TK_ALIAS: {
@@ -3201,7 +3201,7 @@ bool MIRParser::ParseMIRForFileInfo() {
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     tk = lexer.NextToken();
     if (tk == TK_intconst) {
-      uint32 fieldVal = lexer.GetTheIntVal();
+      uint32 fieldVal = static_cast<uint32>(lexer.GetTheIntVal());
       mod.PushFileInfoPair(MIRInfoPair(strIdx, fieldVal));
       mod.PushFileInfoIsString(false);
     } else if (tk == TK_string) {
@@ -3240,7 +3240,7 @@ bool MIRParser::ParseMIRForFileData() {
     tk = lexer.NextToken();
     std::vector<uint8> data;
     while (tk == TK_intconst) {
-      uint32 fieldVal = lexer.GetTheIntVal();
+      uint32 fieldVal = static_cast<uint32>(lexer.GetTheIntVal());
       data.push_back(fieldVal);
       tk = lexer.NextToken();
     }
@@ -3267,7 +3267,7 @@ bool MIRParser::ParseMIRForSrcFileInfo() {
   }
   TokenKind tk = lexer.NextToken();
   while (tk == TK_intconst) {
-    uint32 fieldVal = lexer.GetTheIntVal();
+    uint32 fieldVal = static_cast<uint32>(lexer.GetTheIntVal());
     tk = lexer.NextToken();
     if (tk == TK_string) {
       GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());

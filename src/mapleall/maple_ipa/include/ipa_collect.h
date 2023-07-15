@@ -116,7 +116,7 @@ class CollectIpaInfo {
   MapleVector<StmtIndex> integerString;
   MapleVector<StmtInfo> stmtInfoVector;
   StmtIndex currNewStmtIndex = 0;
-  StmtIndex prevInteger = kInvalidIndex;
+  StmtIndex prevInteger = utils::kInvalidIndex;
   size_t continuousSequenceCount = 0;
 };
 MAPLE_SCC_PHASE_DECLARE_BEGIN(SCCCollectIpaInfo, maple::SCCNode<CGNode>)

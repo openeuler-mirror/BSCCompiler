@@ -139,7 +139,7 @@ void McSSAPre::DumpRGToFile() {
   LogInfo::MapleLogger() << "++++ ssapre candidate " << workCand->workCandID << " dumped to " << fileName << "\n";
 }
 
-bool McSSAPre::IncludedEarlier(Visit **cut, const Visit *curVisit, uint32 nextRouteIdx) const {
+bool McSSAPre::IncludedEarlier(Visit * const *cut, const Visit *curVisit, uint32 nextRouteIdx) const {
   uint32 i = nextRouteIdx;
   while (i != 0) {
     i--;

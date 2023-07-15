@@ -165,7 +165,7 @@ class LoopAnalysis : public AnalysisResult {
   void Analysis();
 
   void Dump() const {
-    LogInfo::MapleLogger() << "Dump LoopAnalysis Result:\n";
+    LogInfo::MapleLogger() << "Dump LoopAnalysis Result For Func " << cgFunc.GetName() << ":\n";
     for (const auto *loop : loops) {
       loop->Dump();
     }
@@ -176,6 +176,16 @@ class LoopAnalysis : public AnalysisResult {
       LogInfo::MapleLogger() << "BB " << bbId << " in loop " << bbLoopParent[bbId]->GetHeader().GetId() << "\n";
     }
   }
+
+  bool IsLoopHeaderBB(const BB &bb) const {
+    if (GetBBLoopParent(bb.GetId()) == nullptr) {
+      return false;
+    } else if (GetBBLoopParent(bb.GetId())->GetHeader().GetId() == bb.GetId()) {
+      return true;
+    }
+    return false;
+  }
+
  private:
   MapleAllocator alloc;
   CGFunc &cgFunc;

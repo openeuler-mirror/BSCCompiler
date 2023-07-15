@@ -35,6 +35,7 @@ do { if (debug) { LogInfo::MapleLogger() << "[SLP FAILURE] "; (X); } } while (fa
 namespace {
 using namespace maple;
 constexpr maple::int32 kHugeCost = 10000;  // Used for impossible vectorized node
+constexpr size_t kMaxNumStores = 1000;
 
 const std::vector<Opcode> supportedOps = {
     OP_iread, OP_ireadoff, OP_add, OP_sub, OP_constval, OP_bxor, OP_band, OP_mul, OP_intrinsicop
@@ -2269,6 +2270,10 @@ void SLPVectorizer::VectorizeStoreVecMap() {
   tmpAlloc = &stackAlloc;
   for (auto &entry : storeVecMap) {
     StoreVec &storeVec = entry.second;
+    // If the number of stores exceeds the threshold, slp will not be performed for build time considerations
+    if (storeVec.size() > kMaxNumStores) {
+      continue;
+    }
     CHECK_FATAL(storeVec.size() >= 2, "storeVec with size less than 2 should have been removed before");
     VectorizeStores(storeVec);
   }
@@ -3340,7 +3345,12 @@ bool SLPVectorizer::DoVectTreeNodeGatherNeeded(TreeNode &treeNode) {
     // Create vector intrinsicop
     NaryMeExpr naryExpr(&irMap.GetIRMapAlloc(), kInvalidExprID, OP_intrinsicop,
         vecType->GetPrimType(), 1, TyIdx(0), intrnId, false);
-    naryExpr.PushOpnd(treeNode.GetExprs()[0]);
+    MeExpr *expr0 = treeNode.GetExprs()[0];
+    // When tree node type is different from tree type, add cvt if needed
+    if (!IsNoCvtNeeded(elemType, expr0->GetPrimType())) {
+      expr0 = irMap.CreateMeExprTypeCvt(elemType, expr0->GetPrimType(), *expr0);
+    }
+    naryExpr.PushOpnd(expr0);
     vecRegNew = irMap.CreateNaryMeExpr(naryExpr);
   } else {
     vecRegNew = BuildExprAfterVectorSetElement(func, vecReg, posExprVec, elemType);

@@ -1164,11 +1164,11 @@ maplecl::Option<bool> oMfixAt697f({"-mfix-at697f"},
 
 maplecl::Option<bool> oMfixCortexA53835769({"-mfix-cortex-a53-835769"},
     "  -mfix-cortex-a53-835769     \tWorkaround for ARM Cortex-A53 Erratum number 835769.\n",
-    {driverCategory, unSupCategory}, maplecl::DisableWith("--mno-fix-cortex-a53-835769"), maplecl::kHide);
+    {driverCategory, ldCategory}, maplecl::DisableWith("-mno-fix-cortex-a53-835769"));
 
 maplecl::Option<bool> oMfixCortexA53843419({"-mfix-cortex-a53-843419"},
     "  -mfix-cortex-a53-843419     \tWorkaround for ARM Cortex-A53 Erratum number 843419.\n",
-    {driverCategory, unSupCategory}, maplecl::DisableWith("--mno-fix-cortex-a53-843419"), maplecl::kHide);
+    {driverCategory, ldCategory}, maplecl::DisableWith("-mno-fix-cortex-a53-843419"));
 
 maplecl::Option<bool> oMfixCortexM3Ldrd({"-mfix-cortex-m3-ldrd"},
     "  -mfix-cortex-m3-ldrd        \tSome Cortex-M3 cores can cause data corruption when ldrd instructions with "
@@ -1955,7 +1955,7 @@ maplecl::Option<bool> oMlow64k({"-mlow-64k"},
 maplecl::Option<bool> oMlowPrecisionRecipSqrt({"-mlow-precision-recip-sqrt"},
     "  -mlow-precision-recip-sqrt  \tEnable the reciprocal square root approximation.  Enabling this reduces precision"
     " of reciprocal square root results to about 16 bits for single precision and to 32 bits for double precision.\n",
-    {driverCategory, unSupCategory}, maplecl::DisableWith("--mno-low-precision-recip-sqrt"), maplecl::kHide);
+    {driverCategory, unSupCategory}, maplecl::DisableWith("-mno-low-precision-recip-sqrt"), maplecl::kHide);
 
 maplecl::Option<bool> oMlp64({"-mlp64"},
     "  -mlp64                      \t\n",
@@ -2502,7 +2502,7 @@ maplecl::Option<bool> oMpairedSingle({"-mpaired-single"},
 
 maplecl::Option<bool> oMpcRelativeLiteralLoads({"-mpc-relative-literal-loads"},
     "  -mpc-relative-literal-loads \tPC relative literal loads.\n",
-    {driverCategory, unSupCategory}, maplecl::kHide);
+    {driverCategory, unSupCategory}, maplecl::DisableWith("-mno-pc-relative-literal-loads"), maplecl::kHide);
 
 maplecl::Option<bool> oMpc32({"-mpc32"},
     "  -mpc32                      \t\n",
@@ -3313,7 +3313,7 @@ maplecl::Option<bool> oMstdmain({"-mstdmain"},
 
 maplecl::Option<bool> oMstrictAlign({"-mstrict-align"},
     "  -mstrict-align              \tDon't assume that unaligned accesses are handled by the system.\n",
-    {driverCategory, unSupCategory}, maplecl::DisableWith("--mno-strict-align"), maplecl::kHide);
+    {driverCategory, unSupCategory}, maplecl::DisableWith("-mno-strict-align"), maplecl::kHide);
 
 maplecl::Option<bool> oMstrictX({"-mstrict-X"},
     "  -mstrict-X                  \t\n",
@@ -3809,8 +3809,8 @@ maplecl::Option<bool> oWframeAddress({"-Wframe-address"},
     "  -Wframe-address             \tWarn when __builtin_frame_address or __builtin_return_address is used unsafely.\n",
     {driverCategory, clangCategory}, maplecl::DisableWith("-Wno-frame-address"));
 
-maplecl::Option<bool> oWframeLargerThan({"-Wframe-larger-than"},
-    "  -Wframe-larger-than         \t\n",
+maplecl::Option<uint32_t> oWframeLargerThan({"-Wframe-larger-than="},
+    "  -Wframe-larger-than=        \tWarn if a function's stack frame requires in excess of <byte-size>.\n",
     {driverCategory, clangCategory});
 
 maplecl::Option<bool> oWfreeNonheapObject({"-Wfree-nonheap-object"},

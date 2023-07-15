@@ -100,6 +100,14 @@ class PEGNode {
         attr[kAliasAttrEscaped] || other->attr[kAliasAttrEscaped] || other->attr[kAliasAttrGlobal];
   }
 
+  bool UpdateAttr(AliasAttribute newAttr) {
+    if (attr[newAttr]) {
+      return false;
+    }
+    attr[newAttr] = true;
+    return true;
+  }
+
   void SetMultiDefined() {
     multiDefed = true;
   }

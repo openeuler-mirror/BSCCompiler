@@ -438,16 +438,6 @@ void LiveAnalysis::ClearInOutDataInfo() {
   }
 }
 
-void LiveAnalysis::EnlargeSpaceForLiveAnalysis(BB &currBB) {
-  regno_t currMaxVRegNO = cgFunc->GetMaxVReg();
-  if (currMaxVRegNO >= currBB.GetLiveIn()->Size()) {
-    FOR_ALL_BB(bb, cgFunc) {
-      bb->LiveInEnlargeCapacity(currMaxVRegNO);
-      bb->LiveOutEnlargeCapacity(currMaxVRegNO);
-    }
-  }
-}
-
 bool CgLiveAnalysis::PhaseRun(maplebe::CGFunc &f) {
   MemPool *liveMemPool = GetPhaseMemPool();
   live = f.GetCG()->CreateLiveAnalysis(*liveMemPool, f);

@@ -185,6 +185,7 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
   auto *newEntry  = m.GetMIRBuilder()->CreateFunction(profEntry, *voidTy, formals);
   newEntry->SetWithSrc(false);
+  m.SetCurFunction(newEntry);
   auto *initInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_init", TyIdx(PTY_void));
   initInSo->SetWithSrc(false);
   auto *entryBody = newEntry->GetCodeMempool()->New<BlockNode>();
@@ -203,6 +204,7 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   auto profSetup = std::string("__" + LiteProfile::FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) +  "_setup");
   auto *newSetup = m.GetMIRBuilder()->CreateFunction(profSetup, *voidTy, formals);
   newSetup->SetWithSrc(false);
+  m.SetCurFunction(newSetup);
   auto *setupInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_setup", TyIdx(PTY_void));
   setupInSo->SetWithSrc(false);
   auto *setupBody = newSetup->GetCodeMempool()->New<BlockNode>();
@@ -217,6 +219,7 @@ void CGProfGen::CreateProfInitExitFunc(MIRModule &m) {
   auto profExit = std::string("__" + LiteProfile::FlatenName(m.GetFileName()) + AppendModSpecSuffix(m) + "_exit");
   auto *newExit = m.GetMIRBuilder()->CreateFunction(profExit, *voidTy, formals);
   newExit->SetWithSrc(false);
+  m.SetCurFunction(newExit);
   auto *exitInSo = m.GetMIRBuilder()->GetOrCreateFunction("__mpl_pgo_exit", TyIdx(PTY_void));
   exitInSo->SetWithSrc(false);
   auto *exitBody = newExit->GetCodeMempool()->New<BlockNode>();

@@ -24,6 +24,57 @@ int* (*func4)(int*, int*, int*)  __attribute__((byte_count(10,1,3)));
 int* (*func5)(int*, int*, int*)  __attribute__((byte_count(10,1), returns_byte_count(10)));
 int* (*func6)(int*, int*, int*)  __attribute__((byte_count(10,1,3), returns_byte_count(5)));
 int* (*func7)(int*, int*, int*)  __attribute__((count(10,1,3), returns_count(10)));
+
+/* check funcPtr has index and no index attribute at the same time */
+int* (*func8)(int*, int*, int)  __attribute__((count_index(3,1,2), returns_count(10)));
+int* (*func9)(int*, int*, int)  __attribute__((byte_count_index(3,1,2), returns_count(10)));
+int* (*func10)(int*, int*, int)  __attribute__((count_index(3,1,2), returns_byte_count(10)));
+int* (*func11)(int*, int*, int)  __attribute__((byte_count_index(3,1,2), returns_byte_count(10)));
+int* (*func12)(int*, int*, int)  __attribute__((count(3,1,2), returns_count_index(3)));
+int* (*func13)(int*, int*, int)  __attribute__((byte_count(3,1,2), returns_count_index(3)));
+int* (*func14)(int*, int*, int)  __attribute__((count(3,1,2), returns_byte_count_index(3)));
+int* (*func15)(int*, int*, int)  __attribute__((byte_count(3,1,2), returns_byte_count_index(3)));
+
+__attribute__((count_index(3,1,2), returns_count(10)))
+int *Test8(int* p, int *q, int w) {
+  return p;
+}
+
+__attribute__((byte_count_index(3,1,2), returns_count(10)))
+int *Test9(int* p, int *q, int w) {
+  return p;
+}
+
+__attribute__((count_index(3,1,2), returns_byte_count(10)))
+int *Test10(int* p, int *q, int w) {
+  return p;
+}
+
+__attribute__((byte_count_index(3,1,2), returns_byte_count(10)))
+int *Test11(int* p, int *q, int w) {
+  return p;
+}
+
+__attribute__((count(3,1,2), returns_count_index(3)))
+int *Test12(int* p, int *q, int w) {
+  return p;
+}
+
+__attribute__((byte_count(3,1,2), returns_count_index(3)))
+int *Test13(int* p, int *q, int w) {
+  return p;
+}
+
+__attribute__((count(3,1,2), returns_byte_count_index(3)))
+int *Test14(int* p, int *q, int w) {
+  return p;
+}
+
+__attribute__((byte_count(3,1,2), returns_byte_count_index(3)))
+int *Test15(int* p, int *q, int w) {
+  return p;
+}
+
 int * vc __attribute__((returns_byte_count(10)));
 
 struct AA {
@@ -88,7 +139,17 @@ int Test() {
   func1 = func6;  // CHECK: [[# @LINE ]] error:
   func1 = func7;  // CHECK: [[# @LINE ]] error:
 
-  struct AA a;
+  /* check funcPtr has index and no index attribute at the same time */
+  func8 = &Test8;  // CHECK-NOT: [[# @LINE ]] error:
+  func9 = &Test9;  // CHECK-NOT: [[# @LINE ]] error:
+  func10 = &Test10;  // CHECK-NOT: [[# @LINE ]] error:
+  func11 = &Test11;  // CHECK-NOT: [[# @LINE ]] error:
+  func12 = &Test12;  // CHECK-NOT: [[# @LINE ]] error:
+  func13 = &Test13;  // CHECK-NOT: [[# @LINE ]] error:
+  func14 = &Test14;  // CHECK-NOT: [[# @LINE ]] error:
+  func15 = &Test15;  // CHECK-NOT: [[# @LINE ]] error:
+
+   struct AA a;
   a.func1 = &Test1;  // CHECK-NOT: [[# @LINE ]] error:
   a.func1 = &Test2;  // CHECK: [[# @LINE ]] error:
   a.func1 = &Test3;  // CHECK: [[# @LINE ]] error:

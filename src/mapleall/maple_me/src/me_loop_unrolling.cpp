@@ -406,7 +406,7 @@ void LoopUnrolling::CopyAndInsertBB(bool isPartial) {
     ResetFrequency(*loop->head);
     ResetFrequency();
   }
-  profValid &&resetFreqForAfterInsertGoto
+  profValid && resetFreqForAfterInsertGoto
       ? (loop->head->GetFrequency() - 1 == 0 ? newHeadBB->SetFrequency(loop->head->GetFrequency())
                                              : newHeadBB->SetFrequency(loop->head->GetFrequency() - 1))
       : newHeadBB->SetFrequency(loop->head->GetFrequency());

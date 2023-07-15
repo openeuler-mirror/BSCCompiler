@@ -23,7 +23,8 @@ namespace maple {
 bool LibMapleAstFile::Open(const std::string &fileName) {
   std::ifstream input(fileName, std::ifstream::binary);
   input >> std::noskipws;
-  std::istream_iterator<uint8_t> s(input), e;
+  std::istream_iterator<uint8_t> s(input);
+  std::istream_iterator<uint8_t> e;
   maplefe::AstBuffer vec(s, e);
   maplefe::AstLoad loadAst;
   maplefe::ModuleNode *mod = loadAst.LoadFromAstBuf(vec);

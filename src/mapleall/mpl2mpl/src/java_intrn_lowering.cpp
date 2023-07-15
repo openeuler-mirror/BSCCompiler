@@ -143,7 +143,7 @@ void JavaIntrnLowering::CheckClassLoaderInvocation(const CallNode &callNode) con
     }
     CHECK_FATAL(false,
                 "Check ClassLoader Invocation, failed. \
-                 Please copy \"%s,%s\" into %s, and submit it to review. mpl file:%s",
+                 Please copy \"%s, %s\" into %s, and submit it to review. mpl file:%s",
                 namemangler::DecodeName(currFunc->GetName()).c_str(),
                 namemangler::DecodeName(callee->GetName()).c_str(), Options::classLoaderInvocationList.c_str(),
                 GetMIRModule().GetFileName().c_str());

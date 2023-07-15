@@ -273,6 +273,7 @@ void CheckCastGenerator::GenCheckCast(StmtNode &stmt) {
       fromType = GlobalTables::GetTypeTable().GetTypeTable()[PTY_ptr];
     }
   }
+  CHECK_NULL_FATAL(fromType);
   CHECK_FATAL((fromType->GetPrimType() == maple::PTY_ptr || fromType->GetPrimType() == maple::PTY_ref),
               "unknown fromType! check it!");
   CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeFromTyIdx(callNode->GetTyIdx())->GetPrimType() == maple::PTY_ptr ||
@@ -612,7 +613,7 @@ bool CheckCastGenerator::IsDefinedConstClass(const StmtNode &stmt, const MIRPtrT
 // inline check cache, it implements __MRT_IsAssignableFromCheckCache
 void CheckCastGenerator::ReplaceIsAssignableFromUsingCache(BlockNode &blockNode, StmtNode &stmt,
                                                            const MIRPtrType &targetClassType,
-                                                           const IntrinsicopNode &intrinsicNode) const {
+                                                           const IntrinsicopNode &intrinsicNode) {
   StmtNode *resultFalse = nullptr;
   StmtNode *resultTrue = nullptr;
   StmtNode *cacheFalseClassesAssign = nullptr;
@@ -736,7 +737,7 @@ void CheckCastGenerator::ReplaceIsAssignableFromUsingCache(BlockNode &blockNode,
 }
 
 void CheckCastGenerator::CheckIsAssignableFrom(BlockNode &blockNode, StmtNode &stmt,
-                                               const IntrinsicopNode &intrinsicNode) const {
+                                               const IntrinsicopNode &intrinsicNode) {
   MIRType *targetClassType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(intrinsicNode.GetTyIdx());
   auto *ptrType = static_cast<MIRPtrType*>(targetClassType);
   MIRType *ptype = ptrType->GetPointedType();
@@ -828,7 +829,7 @@ void CheckCastGenerator::OptimizeInstanceof() {
   }
 }
 
-void CheckCastGenerator::OptimizeIsAssignableFrom() const {
+void CheckCastGenerator::OptimizeIsAssignableFrom() {
   StmtNode *stmt = currFunc->GetBody()->GetFirst();
   StmtNode *next = nullptr;
   while (stmt != nullptr) {
@@ -858,7 +859,7 @@ void CheckCastGenerator::OptimizeIsAssignableFrom() const {
   }
 }
 
-StmtNode *PreCheckCast::GetAssignRet(IntrinsiccallNode &callnode) {
+StmtNode *PreCheckCast::GetAssignRet(IntrinsiccallNode &callnode) const {
   BaseNode *opnd = callnode.Opnd(0);
   ASSERT(!callnode.GetReturnVec().empty(), "container check");
   CallReturnPair callretpair = callnode.GetCallReturnPair(0);

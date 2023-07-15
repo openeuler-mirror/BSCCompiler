@@ -269,6 +269,7 @@ static constexpr uintptr_t kClassInitializedState = kClInitStateAddrBase + kCach
 
 extern "C" uint8_t classInitProtectRegion[];
 
+namespace {
 // Note there is no state to indicate a class is already initialized.
 // Any state beyond listed below is treated as initialized.
 enum ClassInitState : uint8_t {
@@ -292,6 +293,7 @@ enum SEGVAddr : size_t {
 
   kSEGVAddrRangeEnd,
 };
+}  // namespace
 
 struct ClassMetadata {
   // object common fields

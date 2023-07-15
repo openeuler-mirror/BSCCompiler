@@ -64,7 +64,7 @@ class OpcodeTable {
   OpcodeTable();
   ~OpcodeTable() = default;
 
-  OpcodeDesc GetTableItemAt(Opcode o) const {
+  const OpcodeDesc &GetTableItemAt(Opcode o) const {
     ASSERT(o < OP_last, "invalid opcode");
     return table[o];
   }
@@ -190,6 +190,11 @@ class OpcodeTable {
   bool IsCalcAssertBoundary(Opcode o) const {
     ASSERT(o < OP_last, "invalid opcode");
     return (o == OP_calcassertlt || o == OP_calcassertge);
+  }
+
+  bool IsAccessAssertBoundary(Opcode o) const {
+    ASSERT(o < OP_last, "invalid opcode");
+    return (o == OP_assertlt || o == OP_assertge);
   }
 
  private:

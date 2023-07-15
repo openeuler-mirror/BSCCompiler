@@ -12,7 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include<error_code.h>
+#include "error_code.h"
 #include "mpl_logging.h"
 
 namespace maple {
@@ -44,6 +44,9 @@ void PrintErrorMessage(int ret) {
       break;
     case kErrorUnKnownFileType:
       ERR(kLncErr, "File Format Not Recognized!");
+      break;
+    case kErrorCreateFile:
+      ERR(kLncErr, "Fail To Create File Under Tmpdir!");
       break;
     default:
       break;
