@@ -314,7 +314,7 @@ void AArch64LRSplitForSink::CollectSplitRegs() {
   }
   if (dumpInfo) {
     LogInfo::MapleLogger() << "find need split reg :";
-    for (auto [regno, _] : splitRegs) {
+    for (const auto &[regno, _] : std::as_const(splitRegs)) {
       LogInfo::MapleLogger() << "R" << regno << ",";
     }
     LogInfo::MapleLogger() << "\n";

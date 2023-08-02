@@ -18,18 +18,15 @@
 #include "me_function.h"
 #include "me_irmap.h"
 #include "irmap_build.h"
+#include "maple_phase_manager.h"
 
 namespace maple {
-class MeDoIRMapBuild : public MeFuncPhase {
- public:
-  explicit MeDoIRMapBuild(MePhaseID id) : MeFuncPhase(id) {}
-
-  ~MeDoIRMapBuild() = default;
-
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) override;
-  std::string PhaseName() const override {
-    return "irmapbuild";
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(MEIRMapBuild, MeFunction)
+  MeIRMap *GetResult() {
+    return irMap;
   }
-};
+  MeIRMap *irMap = nullptr;
+OVERRIDE_DEPENDENCE
+MAPLE_FUNC_PHASE_DECLARE_END
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_IRMAP_BUILD_H

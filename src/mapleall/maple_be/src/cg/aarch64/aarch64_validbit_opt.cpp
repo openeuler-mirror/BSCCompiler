@@ -138,6 +138,11 @@ void AArch64ValidBitOpt::OptPatternWithImplicitCvt(BB &bb, Insn &insn) {
       OptimizeNoProp<CmpCsetVBPattern>(bb, insn);
       break;
     }
+    case MOP_xasrrri6:
+    case MOP_wasrrri5: {
+      OptimizeNoProp<RSPattern>(bb, insn);
+      break;
+    }
     default:
       break;
   }
@@ -369,9 +374,9 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
     case MOP_wubfizrri5i5:
     case MOP_xubfizrri6i6: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-      auto &lsb = static_cast<ImmOperand &>(insn.GetOperand(kInsnThirdOpnd));
-      auto &width = static_cast<ImmOperand &>(insn.GetOperand(kInsnFourthOpnd));
-      uint32 newVB = lsb.GetValue() + width.GetValue();
+      auto &lsb = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+      auto &width = static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
+      uint32 newVB = static_cast<uint32>(lsb.GetValue() + width.GetValue());
       dstOpnd.SetValidBitsNum(newVB);
       break;
     }
@@ -557,7 +562,7 @@ bool ExtValidBitPattern::CheckValidCvt(const Insn &insn) {
     destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
     srcOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   }
-  if (insn.GetMachineOpcode() == MOP_xubfxrri6i6) {
+  if (insn.GetMachineOpcode() == MOP_xubfxrri6i6 || insn.GetMachineOpcode() == MOP_xsbfxrri6i6) {
     destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
     srcOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
     auto &lsb = static_cast<ImmOperand &>(insn.GetOperand(kInsnThirdOpnd));
@@ -575,6 +580,10 @@ bool ExtValidBitPattern::CheckValidCvt(const Insn &insn) {
       // check case:
       // uxtw R1 R0
       // uxtw R2 R1
+      // this case is forbidden becasue, these two insns would be removed and caused error.
+      // the first insn would be removed because R1's only has 32 bit use point.
+      // the second insn would be removed because R1's validbit is 32 bit (when we removed first one, we don't
+      // update the validbit of R1.)
       if (useInsn->GetMachineOpcode() == MOP_xuxtw64) {
         return false;
       }
@@ -961,5 +970,33 @@ void CmpBranchesPattern::Run(BB &bb, Insn &insn) {
     DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }
+
+bool RSPattern::CheckCondition(Insn &insn) {
+  if (!insn.GetOperand(kInsnSecondOpnd).IsRegister() && !insn.GetOperand(kInsnThirdOpnd).IsImmediate()) {
+    return false;
+  }
+  RegOperand regOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  ImmOperand &oldImmOperand = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  if (regOpnd.GetValidBitsNum() < oldImmOperand.GetValue()) {
+    newMop = insn.GetMachineOpcode() == MOP_xasrrri6 ? MOP_xmovri64 : MOP_wmovri32;
+    oldImmSize = oldImmOperand.GetSize();
+    oldImmIsSigned = oldImmOperand.IsSignedValue();
+    return true;
+  }
+  return false;
+}
+
+void RSPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  auto *aarFunc = static_cast<AArch64CGFunc *>(cgFunc);
+  ImmOperand &newImmOpnd = aarFunc->CreateImmOperand(0, oldImmSize, oldImmIsSigned); 
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd), newImmOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  // update ssa info
+  ssaInfo->ReplaceInsn(insn, newInsn);
+}
+
 } /* namespace maplebe */
 

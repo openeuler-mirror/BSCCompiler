@@ -15,8 +15,16 @@
 
  ADDTARGETPHASE("layoutstackframe", true);
  ADDTARGETPHASE("createstartendlabel", true);
+ ADDTARGETPHASE("buildehfunc", GetMIRModule()->GetSrcLang() != kSrcLangC);
  ADDTARGETPHASE("instructionselector", true);
+ ADDTARGETPHASE("instructionstandardize", true);
+ ADDTARGETPHASE("handlecfg", true);
+ ADDTARGETPHASE("moveargs", true);
+ ADDTARGETPHASE("cfgo", true);
+ ADDTARGETPHASE("localcopyprop", true);
  ADDTARGETPHASE("regalloc", true);
+ ADDTARGETPHASE("postcfgo", true);
+ ADDTARGETPHASE("cgpostpeephole", true);
  ADDTARGETPHASE("generateproepilog", true);
  /* ASM EMIT */
  ADDTARGETPHASE("cgemit", true);

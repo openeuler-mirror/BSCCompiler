@@ -35,7 +35,7 @@ struct Edge {
 
 class CgPrediction : public AnalysisResult {
  public:
-  static void VerifyFreq(CGFunc &cgFunc);
+  static void VerifyFreq(const CGFunc &cgFunc);
   CgPrediction(MemPool &memPool, MemPool &tmpPool, CGFunc &cgFunc, DomAnalysis &dom, PostDomAnalysis &pdom,
                LoopAnalysis &loops)
       : AnalysisResult(&memPool),
@@ -54,9 +54,9 @@ class CgPrediction : public AnalysisResult {
   ~CgPrediction() override = default;
   Edge *FindEdge(const BB &src, const BB &dest) const;
   bool IsBackEdge(const Edge &edge) const;
-  void NormallizeCFGProb();
-  void NormallizeBBProb(BB *bb);
-  void Verify();
+  void NormallizeCFGProb() const;
+  void NormallizeBBProb(BB &bb) const;
+  void Verify() const;
   void Init();
   bool DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb);
   void PropFreqInLoops();
@@ -67,7 +67,7 @@ class CgPrediction : public AnalysisResult {
   void SetPredictDebug(bool val);
   void SavePredictResultIntoCfg();
   void FixRedundantSuccsPreds();
-  void RemoveRedundantSuccsPreds(BB *bb);
+  void RemoveRedundantSuccsPreds(BB &bb);
 
  protected:
   MapleAllocator mePredAlloc;

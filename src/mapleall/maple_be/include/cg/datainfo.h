@@ -23,11 +23,7 @@ namespace maplebe {
 class DataInfo {
  public:
   DataInfo(uint32 bitNum, MapleAllocator &alloc)
-      : info(alloc.Adapter()) {
-    for (uint64 i = 0;i < (bitNum / kWordSize + 1); ++i) {
-      info.emplace_back(0);
-    }
-  }
+      : info((bitNum / kWordSize + 1), 0, alloc.Adapter()) {}
   DataInfo(const DataInfo &other, MapleAllocator &alloc) : info(other.info, alloc.Adapter()) {}
   DataInfo &Clone(MapleAllocator &alloc) {
     auto *dataInfo = alloc.New<DataInfo>(*this, alloc);
@@ -112,6 +108,19 @@ class DataInfo {
     for (uint32 i = 0; i != infoSize; i++) {
       info[i] |= secondInfo.GetElem(i);
     }
+  }
+
+  bool OrBitsCheck(const DataInfo &secondInfo) {
+    auto infoSize = static_cast<const uint32>(info.size());
+    ASSERT(infoSize == secondInfo.GetInfo().size(), "two dataInfo's size different");
+    bool changed = false;
+    for (uint32 i = 0; i != infoSize; i++) {
+      if (info[i] != secondInfo.GetElem(i)) {
+        changed = true;
+        info[i] |= secondInfo.GetElem(i);
+      }
+    }
+    return changed;
   }
 
   void OrDesignateBits(const DataInfo &secondInfo, uint32 infoIndex) {

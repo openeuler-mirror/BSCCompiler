@@ -173,10 +173,13 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectAtomicLoad(Operand &addrOpnd, PrimType primType, AArch64isa::MemoryOrdering memOrder);
   Operand *SelectCAtomicFetch(IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore) override;
   Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCAllocaWithAlign(IntrinsicopNode &intrinsicopNode) override;
   void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) override;
   Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode, bool isCompareExchangeN) override;
   Operand *SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) override;
   void SelectCAtomicClear(const IntrinsiccallNode &intrinsiccallNode) override;
+  void SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) override;
+  void SelectCclearCache(IntrinsiccallNode &intrinsiccallNode) override;
   void SelectMembar(StmtNode &membar) override;
   void SelectComment(CommentNode &comment) override;
 
@@ -389,7 +392,7 @@ class AArch64CGFunc : public CGFunc {
 
   void PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand **o2, PrimType &oty2);
   RegOperand *AdjustOneElementVectorOperand(PrimType oType, RegOperand *opnd);
-  bool DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId) const;
+  bool DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId, uint32 maxDistance) const;
 
   PrimType FilterOneElementVectorType(PrimType origTyp) const {
     return origTyp == PTY_v1i64 || origTyp == PTY_v1u64 ? PTY_f64 : origTyp;
@@ -800,6 +803,9 @@ class AArch64CGFunc : public CGFunc {
   void SetStoreFP(bool val) {
     storeFP = val;
   }
+  LabelIdx GetLabelInInsn(Insn &insn) override {
+    return static_cast<LabelOperand&>(insn.GetOperand(AArch64isa::GetJumpTargetIdx(insn))).GetLabelIndex();
+  }
 
  private:
   enum RelationOperator : uint8 {
@@ -969,6 +975,7 @@ class AArch64CGFunc : public CGFunc {
   bool SelectTLSModelByPreemptibility(Operand &result, StImmOperand &stImm, bool isShlib);
   void SelectAddrofThreadLocal(Operand &result, StImmOperand &stImm);
   void SelectThreadAnchor(Operand &result, StImmOperand &stImm);
+  void SelectThreadWarmup(Operand &result, StImmOperand &stImm);
   void SelectCTlsLocalDesc(Operand &result, StImmOperand &stImm);
   void SelectCTlsGlobalDesc(Operand &result, StImmOperand &stImm);
   void SelectCTlsGotDesc(Operand &result, StImmOperand &stImm);
@@ -1024,9 +1031,8 @@ class AArch64CGFunc : public CGFunc {
   Insn *AggtStrLdrInsert(bool bothUnion, Insn *lastStrLdr, Insn &newStrLdr);
   MemOperand &CreateMemOpndForStatic(const MIRSymbol &symbol, int64 offset, uint32 size, bool needLow12,
                                      RegOperand *regOp);
-  LabelIdx GetLabelInInsn(Insn &insn) override {
-    return static_cast<LabelOperand&>(insn.GetOperand(AArch64isa::GetJumpTargetIdx(insn))).GetLabelIndex();
-  }
+  Operand *DoAlloca(const BaseNode &expr, Operand &opnd0, size_t extraAlignment);
+
   void CheckAndSetStackProtectInfoWithAddrof(const MIRSymbol &symbol) {
     // 1. if me performs stack protection check, doesn't need to set stack protect
     // 2. only addressing variables on the stack, need to set stack protect

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -28,6 +30,7 @@ class LocalRun(object):
 
     def local_run_pipeline(self):
         results = {}
+        retry = self.input["retry"]
         target_parse = target_parser.common_parse.CommonParse(self.input)
         target_parse.execute()
         cases = target_parse.get_output()
@@ -51,9 +54,11 @@ class LocalRun(object):
         result_parse.result_parse()
         result_parse.gen_report()
         result_parse.print_report()
-        if result_parse.all_pass() is False and result_parse.all_failed_num + result_parse.all_timeout_num <= 20:
-            print("================ Test Again =================")
+        while not result_parse.all_pass() and retry > 1 and result_parse.all_failed_num < 20:
+            print("================ Test Again (residual retry:%d)================="%(retry - 1))
             again_suite = result_parse.get_again_suite()
+            if not again_suite:
+                sys.exit(1)
             print(again_suite)
             results = {}
             for case_name in again_suite.keys():
@@ -66,7 +71,7 @@ class LocalRun(object):
             result_parse.result_parse()
             result_parse.gen_report()
             result_parse.print_report()
-            result_parse.write_report()
-            if not result_parse.all_pass():
-                sys.exit(1)
-
+            retry -= 1
+        result_parse.write_report()
+        if not result_parse.all_pass():
+            sys.exit(1)

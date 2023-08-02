@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -12,8 +14,6 @@
 # See the Mulan PSL v2 for more details.
 #
 
-#!/usr/bin/python3
-
 import os
 import sys
 import kernel
@@ -27,6 +27,8 @@ parser.add_option("-f", "--result", dest="result", default="output.log", help="T
 parser.add_option("-s", "--str", dest="str", default="", help="This is the string used to compare")
 parser.add_option("-e", "--expected", dest="expected", default="expected.txt", help="This is the filename used to compare")
 parser.add_option("-n", "--num", dest="num", default="0", help="This is the filename used to compare")
+parser.add_option("-g", "--gnum", dest="gnum", default="0", help="This is the filename used to compare, file counts more than gnum is OK")
+
 
 (options, args) = parser.parse_args()
 
@@ -52,7 +54,14 @@ if options.check == "contain":
         print("\033[31;1m FAIL : string cannot be found in " + options.result  + "  \033[0m")
 
 if options.check == "num":
-    checkstatus = kernel.Str_CheckNum(options.result,options.str,options.num)
+    checkstatus = kernel.Str_CheckNum(options.result, options.str, options.num)
+    if checkstatus :
+        print("\033[32;1m  num check pass \033[0m")
+    else:
+        print("\033[31;1m FAIL : the number of" + options.str + "in " + options.result + " is incorrect  \033[0m")
+
+if options.check == "gnum":
+    checkstatus = kernel.Str_CheckGNum(options.result, options.str, options.gnum)
     if checkstatus :
         print("\033[32;1m  num check pass \033[0m")
     else:

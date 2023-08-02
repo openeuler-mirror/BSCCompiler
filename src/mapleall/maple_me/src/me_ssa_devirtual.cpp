@@ -24,7 +24,7 @@
 
 namespace maple {
 bool MESSADevirtual::PhaseRun(MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   ASSERT(dom != nullptr, "dominance phase has problem");
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "hssaMap has problem");

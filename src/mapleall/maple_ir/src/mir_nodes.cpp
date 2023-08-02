@@ -1126,7 +1126,7 @@ void CallAssertBoundaryStmtNode::Dump(int32 indent) const {
 void DumpCallReturns(const MIRModule &mod, CallReturnVector nrets, int32 indent) {
   const MIRFunction *mirFunc = mod.CurFunction();
   if (nrets.empty()) {
-    LogInfo::MapleLogger() << " {}\n";
+    LogInfo::MapleLogger() << " {}";
     return;
   } else if (nrets.size() == 1) {
     StIdx stIdx = nrets.begin()->first;
@@ -1137,7 +1137,7 @@ void DumpCallReturns(const MIRModule &mod, CallReturnVector nrets, int32 indent)
       FieldID fieldID = regFieldPair.GetFieldID();
       LogInfo::MapleLogger() << " { dassign ";
       LogInfo::MapleLogger() << (stIdx.Islocal() ? "%" : "$");
-      LogInfo::MapleLogger() << st->GetName() << " " << fieldID << " }\n";
+      LogInfo::MapleLogger() << st->GetName() << " " << fieldID << " }";
       return;
     } else {
       PregIdx regIdx = regFieldPair.GetPregIdx();
@@ -1145,7 +1145,7 @@ void DumpCallReturns(const MIRModule &mod, CallReturnVector nrets, int32 indent)
       ASSERT(mirPreg != nullptr, "mirPreg is null");
       LogInfo::MapleLogger() << " { regassign";
       LogInfo::MapleLogger() << " " << GetPrimTypeName(mirPreg->GetPrimType());
-      LogInfo::MapleLogger() << " %" << mirPreg->GetPregNo() << "}\n";
+      LogInfo::MapleLogger() << " %" << mirPreg->GetPregNo() << "}";
       return;
     }
   }
@@ -1171,7 +1171,7 @@ void DumpCallReturns(const MIRModule &mod, CallReturnVector nrets, int32 indent)
     }
   }
   PrintIndentation(indent + 1);
-  LogInfo::MapleLogger() << "}\n";
+  LogInfo::MapleLogger() << "}";
 }
 
 // iread expr has sideeffect, may cause derefference error
@@ -1239,11 +1239,17 @@ void CallNode::Dump(int32 indent, bool newline) const {
   MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
   LogInfo::MapleLogger() << " &" << func->GetName();
   NaryOpnds::Dump(indent);
+  bool addNewLine = false;
   if (kOpcodeInfo.IsCallAssigned(GetOpCode())) {
     DumpCallReturns(*theMIRModule, this->GetReturnVec(), indent);
+    addNewLine = true;
   } else if (newline) {
-    LogInfo::MapleLogger() << '\n';
+    addNewLine = true;
   }
+  for (auto pragmaId : *GetPragmas()) {
+    LogInfo::MapleLogger() << " !" << pragmaId;
+  }
+  LogInfo::MapleLogger() << (addNewLine ? "\n" : " ");
 }
 
 MIRType *IcallNode::GetCallReturnType() {
@@ -1275,6 +1281,7 @@ void IcallNode::Dump(int32 indent, bool newline) const {
   NaryOpnds::Dump(indent);
   if (kOpcodeInfo.IsCallAssigned(GetOpCode())) {
     DumpCallReturns(*theMIRModule, this->returnValues, indent);
+    LogInfo::MapleLogger() << "\n";
   } else if (newline) {
     LogInfo::MapleLogger() << '\n';
   }
@@ -1301,6 +1308,7 @@ void IntrinsiccallNode::Dump(int32 indent, bool newline) const {
   NaryOpnds::Dump(indent);
   if (kOpcodeInfo.IsCallAssigned(GetOpCode())) {
     DumpCallReturns(*theMIRModule, this->GetReturnVec(), indent);
+    LogInfo::MapleLogger() << "\n";
   } else if (newline) {
     LogInfo::MapleLogger() << '\n';
   }
@@ -1318,6 +1326,7 @@ void CallinstantNode::Dump(int32 indent, bool newline) const {
   NaryOpnds::Dump(indent);
   if (kOpcodeInfo.IsCallAssigned(GetOpCode())) {
     DumpCallReturns(*theMIRModule, this->GetReturnVec(), indent);
+    LogInfo::MapleLogger() << "\n";
   } else if (newline) {
     LogInfo::MapleLogger() << '\n';
   }

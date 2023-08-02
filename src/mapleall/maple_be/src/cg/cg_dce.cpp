@@ -31,7 +31,7 @@ void CGDce::DoDce() {
 
 bool CgDce::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
-  CGDce *cgDce = f.GetCG()->CreateCGDce(*GetPhaseMemPool(),f, *ssaInfo);
+  CGDce *cgDce = f.GetCG()->CreateCGDce(*GetPhaseMemPool(), f, *ssaInfo);
   cgDce->DoDce();
   return false;
 }

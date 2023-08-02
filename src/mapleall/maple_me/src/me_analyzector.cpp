@@ -82,7 +82,7 @@ void AnalyzeCtor::ProcessStmt(MeStmt &stmt) {
 }
 
 bool MEAnalyzeCtor::PhaseRun(MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   MaplePhase *it = GetAnalysisInfoHook()->GetTopLevelAnalyisData<M2MKlassHierarchy, MIRModule>(f.GetMIRModule());
   auto *kh = static_cast<M2MKlassHierarchy*>(it)->GetResult();
   ASSERT_NOT_NULL(dom);

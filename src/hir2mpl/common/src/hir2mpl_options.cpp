@@ -149,7 +149,8 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessWPAA);
   RegisterFactoryFunction<OptionFactory>(&opts::fm,
                                          &HIR2MPLOptions::ProcessFM);
-
+  RegisterFactoryFunction<OptionFactory>(&opts::oFnoBuiltin,
+                                         &HIR2MPLOptions::ProcessNoBuiltin);
   return true;
 }
 
@@ -608,6 +609,11 @@ bool HIR2MPLOptions::ProcessFM(const maplecl::OptionInterface &fmOpt) const {
   return true;
 }
 
+// no builtin
+bool HIR2MPLOptions::ProcessNoBuiltin(const maplecl::OptionInterface &) const {
+  FEOptions::GetInstance().SetNoBuiltin(true);
+  return true;
+}
 
 // AOT
 bool HIR2MPLOptions::ProcessAOT(const maplecl::OptionInterface &) const {

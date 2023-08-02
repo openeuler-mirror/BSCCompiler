@@ -16,6 +16,7 @@
 #include "me_cond_based_npc.h"
 #include "me_const.h"
 #include "me_dominance.h"
+#include "opcode_info.h"
 
 // We do two types of condition based optimization here:
 // 1. condition based null pointer check(NPC) elimination
@@ -83,8 +84,8 @@ bool MeCondBased::NullValueFromOneTestCond(const VarMeExpr &varMeExpr, const BB 
 }
 
 bool MeCondBased::NullValueFromTestCond(const VarMeExpr &varMeExpr, const BB &bb, bool expectedEq0) const {
-  MapleSet<BBId> *pdomFrt = &dominance->GetPdomFrontierItem(bb.GetBBId());
-  size_t bbSize = dominance->GetBBVecSize();
+  auto *pdomFrt = &postDominance->GetDomFrontier(bb.GetID());
+  size_t bbSize = dominance->GetNodeVecSize();
   std::vector<bool> visitedMap(bbSize, false);
   bool provenNull = false;
   MeCFG *cfg = func->GetCfg();
@@ -98,7 +99,7 @@ bool MeCondBased::NullValueFromTestCond(const VarMeExpr &varMeExpr, const BB &bb
       provenNull = true;
       break;
     }
-    pdomFrt = &dominance->GetPdomFrontierItem(cdBB.GetBBId());
+    pdomFrt = &postDominance->GetDomFrontier(cdBB.GetID());
   }
   return provenNull;
 }
@@ -151,7 +152,7 @@ bool MeCondBased::PointerWasDereferencedBefore(const VarMeExpr &var, const Unary
   // Search backward along the path in the dominator tree from BBy to BBx.
   // If it sees an iread or iassign whose base is var, then the assertnonnull can be deleted.
   MeStmt *defMeStmt = nullptr;
-  BB *bbx = var.GetDefByBBMeStmt(*dominance, defMeStmt);
+  BB *bbx = var.GetDefByBBMeStmt(*func->GetCfg(), defMeStmt);
   if (bbx == nullptr) {
     return false;
   }
@@ -164,7 +165,7 @@ bool MeCondBased::PointerWasDereferencedBefore(const VarMeExpr &var, const Unary
   if (bbx == &bb) {
     return false;
   }
-  BB *itBB = dominance->GetDom(bb.GetBBId());
+  BB *itBB = func->GetCfg()->GetBBFromID(BBId(dominance->GetDom(bb.GetID())->GetID()));
   while (itBB != bbx) {
     // check if there is an iread or iassign in itbb whose base is var
     auto &meStmts = itBB->GetMeStmts();
@@ -173,7 +174,7 @@ bool MeCondBased::PointerWasDereferencedBefore(const VarMeExpr &var, const Unary
         return true;
       }
     }
-    itBB = dominance->GetDom(itBB->GetBBId());
+    itBB = func->GetCfg()->GetBBFromID(BBId(dominance->GetDom(itBB->GetID())->GetID()));
   }
   auto &meStmts = bbx->GetMeStmts();
   for (auto itStmt = meStmts.rbegin(); to_ptr(itStmt) != defMeStmt; ++itStmt) {
@@ -228,7 +229,7 @@ void CondBasedNPC::DoCondBasedNPC() const {
   for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     for (auto &stmt : bb->GetMeStmts()) {
-      if (stmt.GetOp() != OP_assertnonnull) {
+      if (!kOpcodeInfo.IsAssertNonnull(stmt.GetOp())) {
         continue;
       }
       auto &assertMeStmt = static_cast<UnaryMeStmt&>(stmt);
@@ -249,9 +250,12 @@ void MECondBasedRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MECondBasedRC::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
-  ASSERT(dom != nullptr, "dominance phase has problem");
-  CondBasedRC condBasedRC(f, *dom);
+  auto *dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
+  ASSERT(dom != nullptr, "dominance construction has problem");
+  auto pdom = dominancePhase->GetPdomResult();
+  ASSERT(pdom != nullptr, "postdominance construction has problem");
+  CondBasedRC condBasedRC(f, *dom, *pdom);
   MeCFG *cfg = f.GetCfg();
   auto eIt = cfg->valid_end();
   for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
@@ -291,9 +295,12 @@ void MECondBasedNPC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MECondBasedNPC::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
-  ASSERT(dom != nullptr, "dominance phase has problem");
-  CondBasedNPC condBasedNPC(f, *dom);
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
+  ASSERT(dom != nullptr, "dominance construction has problem");
+  auto pdom = dominancePhase->GetPdomResult();
+  ASSERT(pdom != nullptr, "postdominance construction has problem");
+  CondBasedNPC condBasedNPC(f, *dom, *pdom);
   condBasedNPC.DoCondBasedNPC();
   return false;
 }

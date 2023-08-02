@@ -1,0 +1,4 @@
+// option name, option value, append maple root path?
+{ "-j100", "", false },
+{ "-litprofile", "out/target/product/maple_arm64/lib/codetricks/profile/meta.list", true },
+{ "-refine-catch", "", false },

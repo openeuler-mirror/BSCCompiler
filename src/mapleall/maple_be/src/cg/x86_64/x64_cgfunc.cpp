@@ -172,6 +172,12 @@ Operand *X64CGFunc::SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimTy
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }
+void X64CGFunc::SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) {
+  CHECK_FATAL(false, "NIY");
+}
+void X64CGFunc::SelectCclearCache(IntrinsiccallNode &intrinsiccallNode) {
+  CHECK_FATAL(false, "NIY");
+}
 Operand *X64CGFunc::SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
@@ -197,6 +203,10 @@ Operand *X64CGFunc::SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, SyncAnd
   return nullptr;
 }
 Operand *X64CGFunc::SelectCReturnAddress(IntrinsicopNode &intrinopNode) {
+  CHECK_FATAL(false, "NIY");
+  return nullptr;
+}
+Operand *X64CGFunc::SelectCAllocaWithAlign(IntrinsicopNode &intrinsicopNode) {
   CHECK_FATAL(false, "NIY");
   return nullptr;
 }

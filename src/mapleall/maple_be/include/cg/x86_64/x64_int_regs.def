@@ -36,12 +36,14 @@ INT_REG(6 , "B",   "",  "W", "L", "Q", true, false, true, false, false)
 INT_REG(7 , "B",   "",  "W", "L", "Q", true, false, true, false, false)
 INT_REG(8 , "B",   "",  "W", "L", "Q", true, false, true, false, false)
 INT_REG(9 , "B",   "",  "W", "L", "Q", true, false, true, false, false)
-INT_REG(10, "B",   "",  "W", "L", "Q", true, false, false, false, false)
-INT_REG(11, "B",   "",  "W", "L", "Q", true, false, false, false, false)
+INT_REG(10, "B",   "",  "W", "L", "Q", true, false, false, true, false)
+INT_REG(11, "B",   "",  "W", "L", "Q", true, false, false, true, false)
 INT_REG(12, "B",   "",  "W", "L", "Q", true, true, false, false, false)
 INT_REG(13, "B",   "",  "W", "L", "Q", true, true, false, false, false)
 INT_REG(14, "B",   "",  "W", "L", "Q", true, true, false, false, false)
 INT_REG(15, "B",   "",  "W", "L", "Q", true, true, false, false, false)
+/* instruction pointer */
+INT_REG(16, "B",   "",  "W", "L", "Q", false, false, false, false, false)
 
 /* Alias */
 INT_REG_ALIAS(AX, 0)
@@ -55,5 +57,6 @@ INT_REG_ALIAS(DI, 7)
 
 INT_REG_ALIAS(FP, 5)
 INT_REG_ALIAS(YP, 12)
-INT_REG_ALIAS(LAST_GP_REG, 15)
+INT_REG_ALIAS(IP, 16)
+INT_REG_ALIAS(LAST_GP_REG, 16)
 

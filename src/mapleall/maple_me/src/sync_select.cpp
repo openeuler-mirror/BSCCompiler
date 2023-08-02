@@ -28,8 +28,7 @@ enum class SyncKind : uint8 {
 
 class SyncSelect {
  public:
-  explicit SyncSelect(MeFunction &func)
-      : func(func) {
+  explicit SyncSelect(MeFunction &func) : func(func) {
     AddFunc(SyncKind::kDefault, "Landroid_2Fos_2FParcel_3B_7Crecycle_7C_28_29V");
   }
   ~SyncSelect() = default;
@@ -37,11 +36,10 @@ class SyncSelect {
   void SyncOptimization() {
     // deal with func white list where all syncenter use same version
     auto it = syncMap.find(func.GetName());
-    if (it != syncMap.end()) {
+    if (it != syncMap.cend()) {
       SetAllSyncKind(it->second);
     }
   }
-
  private:
   void AddFunc(SyncKind kind, const std::string &funcName) {
     syncMap[funcName] = kind;
@@ -73,11 +71,15 @@ class SyncSelect {
 }
 
 namespace maple {
-AnalysisResult *MeDoSyncSelect::Run(MeFunction *func, MeFuncResultMgr*, ModuleResultMgr*) {
-  SyncSelect(utils::ToRef(func)).SyncOptimization();
-  if (DEBUGFUNC(func)) {
-    func->Dump(true);
+bool MESyncSelect::PhaseRun(MeFunction &f) {
+  SyncSelect(f).SyncOptimization();
+  if (DEBUGFUNC_NEWPM(f)) {
+    f.Dump(true);
   }
-  return nullptr;
+  return true;
+}
+
+void MESyncSelect::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

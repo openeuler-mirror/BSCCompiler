@@ -687,7 +687,7 @@ void InlineSummary::MergeEdgeSummary(const InlineSummary &fromSummary,
     if (newFrequency == -1 || callBBFreq == -1) {
       newFrequency = -1;
     } else {
-      newFrequency = static_cast<int32>(callBBFreq * newFrequency / static_cast<int64>(kFreqBase));
+      newFrequency = static_cast<int32>(callBBFreq * newFrequency / static_cast<int64>(kCallFreqBase));
       if (newFrequency > kCallFreqMax) {
         newFrequency = kCallFreqMax;
       }
@@ -870,6 +870,34 @@ void InlineSummaryCollector::CollectArgInfo(MeFunction &meFunc) {
   }
 }
 
+static void GetAllDomChildren(Dominance &dom, uint32 bbId, std::vector<uint32> &allChildren) {
+  const auto &children = dom.GetDomChildren(bbId);
+  for (auto id : children) {
+    allChildren.push_back(id);
+    GetAllDomChildren(dom, id, allChildren);
+  }
+}
+
+void InlineSummaryCollector::InitUnlikelyBBs() {
+  const auto &rpoBBs = dom.GetReversePostOrder();
+  for (auto *node : rpoBBs) {
+    if (node == nullptr || node->GetID() <= 1) {
+      continue;
+    }
+    auto *bb = func->GetCfg()->GetBBFromID(BBId(node->GetID()));
+    if (!bb->IsImmediateUnlikelyBB()) {
+      continue;
+    }
+    (void)unlikelyBBs.insert(bb);
+    std::vector<uint32> allChildren;
+    GetAllDomChildren(dom, bb->GetID(), allChildren);
+    for (auto id : allChildren) {
+      auto *child = func->GetCfg()->GetBBFromID(BBId(id));
+      (void)unlikelyBBs.insert(child);
+    }
+  }
+}
+
 // First iteration: compute succ edge predicate for condgoto bb and switch bb
 void InlineSummaryCollector::ComputeEdgePredicate() {
   uint32 numBBs = func->GetCfg()->NumBBs();
@@ -997,7 +1025,7 @@ static void InlineAnalysisForCallStmt(const CallMeStmt &callStmt, const MIRFunct
 }
 
 std::pair<int32, double> InlineSummaryCollector::AnalyzeCondCostForStmt(MeStmt &stmt, int32 callFrequency,
-    const Predicate *bbPredClone, const BBPredicate &bbPredicate) {
+    const Predicate *bbPredClone, const BBPredicate &bbPredicate, bool isUnlikelyBB) {
   Opcode op = stmt.GetOp();
   const auto stmtInsns = stmtCostAnalyzer.EstimateNumInsns(&stmt);  // Estimated number of instructions
   const auto stmtCycles = stmtCostAnalyzer.EstimateNumCycles(&stmt);
@@ -1016,11 +1044,15 @@ std::pair<int32, double> InlineSummaryCollector::AnalyzeCondCostForStmt(MeStmt &
     }
     // Init inline edge summary
     // Does edge summary need loop depth info of callBB?
-    inlineSummary->AddEdgeSummary(stmt.GetMeStmtId(), bbPredClone, callFrequency, stmtInsns, stmtCycles);
+    auto newEdgeSummary =
+        inlineSummary->AddEdgeSummary(stmt.GetMeStmtId(), bbPredClone, callFrequency, stmtInsns, stmtCycles);
+    if (newEdgeSummary != nullptr && isUnlikelyBB) {
+      newEdgeSummary->SetAttr(CallsiteAttrKind::kUnlikely);
+    }
     InlineAnalysisForCallStmt(static_cast<CallMeStmt&>(stmt), *func->GetMirFunc(), *inlineSummary);
   } else if (op == OP_switch) {
     auto &switchStmt = static_cast<SwitchMeStmt&>(stmt);
-    constexpr size_t numSwitchCases = 4;
+    constexpr size_t numSwitchCases = 8;
     if (switchStmt.GetSwitchTable().size() >= numSwitchCases) {
       inlineSummary->SetHasBigSwitch(true);
     }
@@ -1051,6 +1083,7 @@ void InlineSummaryCollector::ComputeConditionalCost() {
       continue;
     }
     auto bb = func->GetCfg()->GetBBFromID(BBId(node->GetID()));
+    bool isUnlikelyBB = (unlikelyBBs.find(bb) != unlikelyBBs.end());
     BBPredicate *bbPredicate = allBBPred[bb->GetBBId()];
     const Predicate *bbPredClone = nullptr;
     if (debug) {
@@ -1067,7 +1100,7 @@ void InlineSummaryCollector::ComputeConditionalCost() {
         stmt = next;
         continue;
       }
-      auto cost = AnalyzeCondCostForStmt(*stmt, callFrequency, bbPredClone, *bbPredicate);
+      auto cost = AnalyzeCondCostForStmt(*stmt, callFrequency, bbPredClone, *bbPredicate, isUnlikelyBB);
       // Record static cost
       const auto stmtInsns = cost.first;
       const auto stmtCyclesWithFreq = cost.second;

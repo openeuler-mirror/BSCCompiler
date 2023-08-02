@@ -58,6 +58,9 @@
   ATTR(safed)
   ATTR(unsafed)
   ATTR(noreturn)
+  ATTR(like_macro)
+  ATTR(hot)
+  ATTR(cold)
 #endif
 #if defined(FUNC_ATTR) || defined(TYPE_ATTR)
   ATTR(abstract)
@@ -98,6 +101,7 @@
   ATTR(initial_exec)
   ATTR(local_dynamic)
   ATTR(global_dynamic)
+  ATTR(shortcc)
 #endif
 #ifdef FUNC_ATTR
   ATTR(firstarg_return)
@@ -106,6 +110,7 @@
 #ifdef STMT_ATTR
   ATTR(insaferegion)
   ATTR(mayTailcall)
+  ATTR(ignore_cost)
 #endif
   ATTR(oneelem_simd)
   ATTR(nonnull)

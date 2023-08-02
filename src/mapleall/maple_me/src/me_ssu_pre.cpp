@@ -33,7 +33,7 @@ void MeSSUPre::Finalize() {
       }
       case kSOccReal: {
         auto *realOcc = static_cast<SRealOcc*>(occ);
-        if (anticipatedDefVec[classId] == nullptr || !anticipatedDefVec[classId]->IsPostDominate(dom, occ)) {
+        if (anticipatedDefVec[classId] == nullptr || !anticipatedDefVec[classId]->IsPostDominate(pdom, occ)) {
           realOcc->SetRedundant(false);
           anticipatedDefVec[classId] = realOcc;
         } else {
@@ -260,7 +260,7 @@ void MeSSUPre::Rename() {
   // iterate thru the occurrences in order of preorder traversal of
   // post-dominator tree
   for (SOcc *occ : allOccs) {
-    while (!occStack.empty() && !occStack.top()->IsPostDominate(dom, occ)) {
+    while (!occStack.empty() && !occStack.top()->IsPostDominate(pdom, occ)) {
       occStack.pop();
     }
     switch (occ->GetOccTy()) {
@@ -386,10 +386,10 @@ void MeSSUPre::CreateSortedOccs() {
   // stored in lambdaResDfns
   std::multiset<uint32> lambdaResDfns;
   for (uint32 dfn : lambdaDfns) {
-    const BBId &bbId = dom->GetPdtPreOrderItem(dfn);
+    const auto &bbId = pdom->GetDtPreOrderItem(dfn);
     BB *bb = cfg->GetAllBBs().at(bbId);
     for (BB *succ : bb->GetSucc()) {
-      (void)lambdaResDfns.insert(dom->GetPdtDfnItem(succ->GetBBId()));
+      (void)lambdaResDfns.insert(pdom->GetDtDfnItem(succ->GetBBId()));
     }
   }
   allOccs.clear();
@@ -410,15 +410,15 @@ void MeSSUPre::CreateSortedOccs() {
   SLambdaOcc *nextLambdaOcc = nullptr;
   if (lambdaDfnIt != lambdaDfns.end()) {
     nextLambdaOcc =
-        spreMp->New<SLambdaOcc>(*cfg->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaDfnIt)), spreAllocator);
+        spreMp->New<SLambdaOcc>(*cfg->GetAllBBs().at(pdom->GetDtPreOrderItem(*lambdaDfnIt)), spreAllocator);
   }
   SLambdaResOcc *nextLambdaResOcc = nullptr;
   if (lambdaResDfnIt != lambdaResDfns.end()) {
-    nextLambdaResOcc = spreMp->New<SLambdaResOcc>(*cfg->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaResDfnIt)));
-    auto it = bb2LambdaResMap.find(dom->GetPdtPreOrderItem(*lambdaResDfnIt));
+    nextLambdaResOcc = spreMp->New<SLambdaResOcc>(*cfg->GetAllBBs().at(pdom->GetDtPreOrderItem(*lambdaResDfnIt)));
+    auto it = bb2LambdaResMap.find(BBId(pdom->GetDtPreOrderItem(*lambdaResDfnIt)));
     if (it == bb2LambdaResMap.end()) {
       std::forward_list<SLambdaResOcc*> newlist = { nextLambdaResOcc };
-      bb2LambdaResMap[dom->GetPdtPreOrderItem(*lambdaResDfnIt)] = newlist;
+      bb2LambdaResMap[BBId(pdom->GetDtPreOrderItem(*lambdaResDfnIt))] = newlist;
     } else {
       it->second.push_front(nextLambdaResOcc);
     }
@@ -429,16 +429,16 @@ void MeSSUPre::CreateSortedOccs() {
     if (nextLambdaOcc != nullptr) {
       pickedOcc = nextLambdaOcc;
     }
-    if (nextRealOcc != nullptr && (pickedOcc == nullptr || dom->GetPdtDfnItem(nextRealOcc->GetBB().GetBBId()) <
-                                   dom->GetPdtDfnItem(pickedOcc->GetBB().GetBBId()))) {
+    if (nextRealOcc != nullptr && (pickedOcc == nullptr || pdom->GetDtDfnItem(nextRealOcc->GetBB().GetBBId()) <
+                                   pdom->GetDtDfnItem(pickedOcc->GetBB().GetBBId()))) {
       pickedOcc = nextRealOcc;
     }
     if (nextLambdaResOcc != nullptr &&
-        (pickedOcc == nullptr || *lambdaResDfnIt < dom->GetPdtDfnItem(pickedOcc->GetBB().GetBBId()))) {
+        (pickedOcc == nullptr || *lambdaResDfnIt < pdom->GetDtDfnItem(pickedOcc->GetBB().GetBBId()))) {
       pickedOcc = nextLambdaResOcc;
     }
-    if (nextEntryOcc != nullptr && (pickedOcc == nullptr || dom->GetPdtDfnItem(nextEntryOcc->GetBB().GetBBId()) <
-                                    dom->GetPdtDfnItem(pickedOcc->GetBB().GetBBId()))) {
+    if (nextEntryOcc != nullptr && (pickedOcc == nullptr || pdom->GetDtDfnItem(nextEntryOcc->GetBB().GetBBId()) <
+                                    pdom->GetDtDfnItem(pickedOcc->GetBB().GetBBId()))) {
       pickedOcc = nextEntryOcc;
     }
     if (pickedOcc != nullptr) {
@@ -471,7 +471,7 @@ void MeSSUPre::CreateSortedOccs() {
           ++lambdaDfnIt;
           if (lambdaDfnIt != lambdaDfns.end()) {
             nextLambdaOcc =
-                spreMp->New<SLambdaOcc>(*cfg->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaDfnIt)), spreAllocator);
+                spreMp->New<SLambdaOcc>(*cfg->GetAllBBs().at(pdom->GetDtPreOrderItem(*lambdaDfnIt)), spreAllocator);
           } else {
             nextLambdaOcc = nullptr;
           }
@@ -481,12 +481,12 @@ void MeSSUPre::CreateSortedOccs() {
           ++lambdaResDfnIt;
           if (lambdaResDfnIt != lambdaResDfns.end()) {
             nextLambdaResOcc =
-                spreMp->New<SLambdaResOcc>(*cfg->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaResDfnIt)));
+                spreMp->New<SLambdaResOcc>(*cfg->GetAllBBs().at(pdom->GetDtPreOrderItem(*lambdaResDfnIt)));
             CHECK_NULL_FATAL(dom);
-            auto it = bb2LambdaResMap.find(dom->GetPdtPreOrderItem(*lambdaResDfnIt));
+            auto it = bb2LambdaResMap.find(BBId(pdom->GetDtPreOrderItem(*lambdaResDfnIt)));
             if (it == bb2LambdaResMap.end()) {
               std::forward_list<SLambdaResOcc*> newlist = { nextLambdaResOcc };
-              bb2LambdaResMap[dom->GetPdtPreOrderItem(*lambdaResDfnIt)] = newlist;
+              bb2LambdaResMap[BBId(pdom->GetDtPreOrderItem(*lambdaResDfnIt))] = newlist;
             } else {
               it->second.push_front(nextLambdaResOcc);
             }

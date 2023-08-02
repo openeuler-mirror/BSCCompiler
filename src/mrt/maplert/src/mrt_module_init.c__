@@ -1,0 +1,204 @@
+/*
+ * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan PSL v1.
+ * You can use this software according to the terms and conditions of the Mulan PSL v1.
+ * You may obtain a copy of Mulan PSL v1 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v1 for more details.
+ */
+
+// This file shouldn't be included in libmaplert, instead,
+// it should be linked statically into each linking target (be it an executable or a shared library)
+extern "C" {
+
+#define MRT_EXPORT __attribute__((visibility("default")))
+
+extern char *__reflection_strtab_start__;
+extern char *__reflection_strtab_end__;
+extern char *__reflection_start_hot_strtab_start__;
+extern char *__reflection_start_hot_strtab_end__;
+extern char *__reflection_both_hot_strtab_start__;
+extern char *__reflection_both_hot_strtab_end__;
+extern char *__reflection_run_hot_strtab_start__;
+extern char *__reflection_run_hot_strtab_end__;
+
+extern char *__muid_range_tab_begin__;
+extern char *__muid_range_tab_end__;
+
+extern char *__compilerVersionNumTab_begin__;
+extern char *__compilerVersionNumTab_end__;
+
+extern char *__compiler_mfile_status_begin__;
+extern char *__compiler_mfile_status_end__;
+
+extern char *__decouple_start__;
+extern char *__decouple_end__;
+
+extern char *__muid_tab_start;
+extern char *__muid_tab_end;
+extern char *__eh_frame_start;
+extern char *__eh_frame_end;
+
+extern void *mfile_rometadata_method_start;
+extern void *mfile_rometadata_method_end;
+extern void *mfile_rometadata_field_start;
+extern void *mfile_rometadata_field_end;
+extern void *mfile_romuidtab_start;
+extern void *mfile_romuidtab_end;
+
+extern void *__maple_start__;
+extern void *__maple_end__;
+
+extern char *__bb_profile_strtab_begin;
+extern char *__bb_profile_strtab_end;
+extern char *__bb_profile_tab_begin;
+extern char *__bb_profile_tab_end;
+
+MRT_EXPORT char *MRT_GetMapleStart() {
+  return (char*)&__maple_start__;
+}
+
+MRT_EXPORT char *MRT_GetMapleEnd() {
+  return (char*)&__maple_end__;
+}
+
+// version query interface;
+MRT_EXPORT char *MRT_GetVersionTabBegin() {
+  return (char*)&__compilerVersionNumTab_begin__;
+}
+
+MRT_EXPORT char *MRT_GetVersionTabEnd() {
+  return (char*)&__compilerVersionNumTab_end__;
+}
+
+MRT_EXPORT char *MRT_GetMFileStatusBegin() {
+  return (char*)&__compiler_mfile_status_begin__;
+}
+
+MRT_EXPORT char *MRT_GetMFileStatusEnd() {
+  return (char*)&__compiler_mfile_status_end__;
+}
+
+// reflection strtab query interface;
+MRT_EXPORT char *MRT_GetColdStrTabBegin() {
+  return (char*)&__reflection_strtab_start__;
+}
+
+MRT_EXPORT char *MRT_GetColdStrTabEnd() {
+  return (char*)&__reflection_strtab_end__;
+}
+
+MRT_EXPORT char *MRT_GetStartHotStrTabBegin() {
+  return (char*)&__reflection_start_hot_strtab_start__;
+}
+
+MRT_EXPORT char *MRT_GetStartHotStrTabEnd() {
+  return (char*)&__reflection_start_hot_strtab_end__;
+}
+
+MRT_EXPORT char *MRT_GetBothHotStrTabBegin() {
+  return (char*)&__reflection_both_hot_strtab_start__;
+}
+
+MRT_EXPORT char *MRT_GetBothHotStrTabEnd() {
+  return (char*)&__reflection_both_hot_strtab_end__;
+}
+
+MRT_EXPORT char *MRT_GetRunHotStrTabBegin() {
+  return (char*)&__reflection_run_hot_strtab_start__;
+}
+
+MRT_EXPORT char *MRT_GetRunHotStrTabEnd() {
+  return (char*)&__reflection_run_hot_strtab_end__;
+}
+
+MRT_EXPORT void *MRT_GetRangeTableBegin() {
+  return reinterpret_cast<void*>(&__muid_range_tab_begin__);
+}
+
+MRT_EXPORT void *MRT_GetRangeTableEnd() {
+  return reinterpret_cast<void*>(&__muid_range_tab_end__);
+}
+
+MRT_EXPORT void *MRT_GetMuidTabBegin() {
+  return reinterpret_cast<void*>(&__muid_tab_start);
+}
+
+MRT_EXPORT void *MRT_GetMuidTabEnd() {
+  return reinterpret_cast<void*>(&__muid_tab_end);
+}
+
+MRT_EXPORT void *MRT_GetDecoupleTabBegin() {
+  return reinterpret_cast<void*>(&__decouple_start__);
+}
+
+MRT_EXPORT void *MRT_GetDecoupleTabEnd() {
+  return reinterpret_cast<void*>(&__decouple_end__);
+}
+
+MRT_EXPORT void *MRT_GetEhframeStart() {
+  return reinterpret_cast<void*>(&__eh_frame_start);
+}
+
+MRT_EXPORT void *MRT_GetEhframeEnd() {
+  return reinterpret_cast<void*>(&__eh_frame_end);
+}
+
+MRT_EXPORT void *MRT_GetMFileROMetadataMethodStart() {
+  return reinterpret_cast<void*>(&mfile_rometadata_method_start);
+}
+
+MRT_EXPORT void *MRT_GetMFileROMetadataMethodEnd() {
+  return reinterpret_cast<void*>(&mfile_rometadata_method_end);
+}
+
+MRT_EXPORT void *MRT_GetMFileROMetadataFieldStart() {
+  return reinterpret_cast<void*>(&mfile_rometadata_field_start);
+}
+
+MRT_EXPORT void *MRT_GetMFileROMetadataFieldEnd() {
+  return reinterpret_cast<void*>(&mfile_rometadata_field_end);
+}
+
+MRT_EXPORT void *MRT_GetMFileROMuidtabStart() {
+  return reinterpret_cast<void*>(&mfile_romuidtab_start);
+}
+
+MRT_EXPORT void *MRT_GetMFileROMuidtabEnd() {
+  return reinterpret_cast<void*>(&mfile_romuidtab_end);
+}
+
+MRT_EXPORT void *MRT_GetBBProfileTabBegin() {
+  return reinterpret_cast<void*>(&__bb_profile_tab_begin);
+}
+
+MRT_EXPORT void *MRT_GetBBProfileTabEnd() {
+  return reinterpret_cast<void*>(&__bb_profile_tab_end);
+}
+
+MRT_EXPORT void *MRT_GetBBProfileStrTabBegin() {
+  return reinterpret_cast<void*>(&__bb_profile_strtab_begin);
+}
+
+MRT_EXPORT void *MRT_GetBBProfileStrTabEnd() {
+  return reinterpret_cast<void*>(&__bb_profile_strtab_end);
+}
+
+__attribute__((weak))
+MRT_EXPORT void MRT_PreinitModuleClasses() {
+  return ;
+}
+
+#ifdef __MUSL__ // using musl as the C library
+// gcc/llvm generated code may need symbol __dso_handle
+// which is not provided by __MUSL__. Add it here to satisfy the link requirement.
+void *__dso_handle = nullptr;
+
+#endif // __MUSL__
+} // extern "C"

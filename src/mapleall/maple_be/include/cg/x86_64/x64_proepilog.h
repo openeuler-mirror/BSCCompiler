@@ -31,7 +31,10 @@ class X64GenProEpilog : public GenProEpilog {
  private:
   void GenerateProlog(BB &bb);
   void GenerateEpilog(BB &bb);
-
+  void GenerateCalleeSavedRegs(bool isPush);
+  void GeneratePushCalleeSavedRegs(RegOperand &regOpnd, MemOperand &memOpnd, uint32 regSize);
+  void GeneratePopCalleeSavedRegs(RegOperand &regOpnd, MemOperand &memOpnd, uint32 regSize);
+  void GeneratePushUnnamedVarargRegs();
   void GeneratePushRbpInsn();
   void GenerateMovRspToRbpInsn();
   void GenerateSubFrameSizeFromRspInsn();

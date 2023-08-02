@@ -705,7 +705,12 @@ class MIRFunction {
   void SetFuncAttrs(const FuncAttrs &attrs) {
     funcAttrs = attrs;
   }
-  void SetFuncAttrs(uint64 attrFlag) {
+
+  // The template is to DISABLE any implicit type conversion to FuncAttrFlag (e.g. int64 to FuncAttrFlag).
+  // Type `T` must be FuncAttrFlag, otherwise the static_assert below will complain.
+  template <typename T>
+  void SetFuncAttrFlag(const T &attrFlag) {
+    static_assert(std::is_same<T, FuncAttrFlag>::value, "type mismatch");
     funcAttrs.SetAttrFlag(attrFlag);
   }
 

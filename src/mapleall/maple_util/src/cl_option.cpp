@@ -14,8 +14,6 @@
  */
 #include "cl_option.h"
 #include "cl_parser.h"
-#include <algorithm>
-#include <iterator>
 
 using namespace maplecl;
 

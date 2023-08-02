@@ -38,9 +38,6 @@ class LocalSchedule : public BaseSchedule {
  protected:
   void InitInCDGNode(CDGNode &cdgNode);
   virtual void FinishScheduling(CDGNode &cdgNode) = 0;
-  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override {
-      (void)cdgNode;
-  }
 
   DataDepAnalysis &intraDDA;
 };

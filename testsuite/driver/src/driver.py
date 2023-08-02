@@ -1,4 +1,6 @@
-#
+#!/usr/bin/env python
+# coding=utf-8
+
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
 # OpenArkCompiler is licensed under Mulan PSL v2.
@@ -15,8 +17,9 @@
 import os
 import sys
 import optparse
-
+import subprocess
 from env_var import EnvVar
+from basic_tools.file import get_test_and_nontest_curdir
 from pipeline.case_clean import CaseClean
 from pipeline.cicd_run import CICDRun
 from pipeline.local_run import LocalRun
@@ -40,18 +43,33 @@ target_args.add_option('--platform', dest="platform", default="qemu", help='qemu
 target_args.add_option('--clean', dest="clean", action='store_true', default=False, help='clean the path')
 target_args.add_option('--save', dest="save", action='store_true', default=False, help='save temp files')
 target_args.add_option('--cicd', dest="cicd", action='store_true', default=False, help='cicd use')
+target_args.add_option('--timeout', dest="TIMEOUT", type=int, default=300, help='control all cases timeout')
+target_args.add_option('--retry', dest="RETRY", type=int, default=2, help='control all cases retry')
 
 
 # TODO: Only Copy dirs to be used
-def prebuild(run_path):
-    if run_path is not None:
-        if os.path.exists(run_path):
-            os.system("rm -rf " + run_path)
-        os.makedirs(run_path)
-        for dir in os.listdir(EnvVar.TEST_SUITE_ROOT):
-            if dir.endswith("_test"):
-                os.system("cp " + os.path.join(EnvVar.TEST_SUITE_ROOT, dir) + "/ " + run_path + '/ -r')
-        EnvVar.TEST_SUITE_ROOT = run_path
+def prebuild(run_path, target):
+    if run_path is None:
+        return
+    test_suites, _ = get_test_and_nontest_curdir(EnvVar.TEST_SUITE_ROOT)
+    if target.startswith("testall"):
+        target_suites = test_suites
+    elif "_test" in target:
+        target_suites = [target]
+        test_suite = target.split('/')[0]
+        _, nontest_suite = get_test_and_nontest_curdir(os.path.join(EnvVar.TEST_SUITE_ROOT, test_suite))
+        # cp c_test/lib
+        for sub_nontest in nontest_suite:
+            orig_sub_nontest = os.path.join(EnvVar.TEST_SUITE_ROOT, test_suite, sub_nontest)
+            dest_sub_nontest = os.path.join(run_path, test_suite, sub_nontest)
+            subprocess.run("mkdir -p {}".format(dest_sub_nontest), shell=True, check=True)
+            subprocess.run("rsync -r {}/ {}/".format(orig_sub_nontest, dest_sub_nontest), shell=True, check=True)
+    for testsuite in target_suites:
+        orig_target = os.path.join(EnvVar.TEST_SUITE_ROOT, testsuite)
+        dest_target = os.path.join(run_path, testsuite)
+        subprocess.run("mkdir -p {}".format(dest_target), shell=True, check=True)
+        subprocess.run("rsync -r {}/ {}/ --delete".format(orig_target, dest_target), shell=True, check=True)
+    EnvVar.TEST_SUITE_ROOT = run_path
 
 
 def main(orig_args):
@@ -68,15 +86,16 @@ def main(orig_args):
         "target": opt.target,
         "jobs": opt.jobs,
         "mode": opt.mode,
-        "detail": opt.detail
+        "detail": opt.detail,
+        "timeout": opt.TIMEOUT,
+        "retry": opt.RETRY
     }
     clean = opt.clean
     save = opt.save
     cicd = opt.cicd
 
     EnvVar(sdk_root, test_suite_root, source_code_root)
-    prebuild(run_path)
-
+    prebuild(run_path, input['target'])
     if clean:
         task = CaseClean(input)
         task.case_clean_pipeline()

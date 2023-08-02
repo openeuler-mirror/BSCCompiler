@@ -128,7 +128,7 @@ bool MeBypathEH::DoBypathException(BB *tryBB, BB *catchBB, const Klass *catchCla
   return transformed;
 }
 
-StmtNode *MeBypathEH::IsSyncExit(BB &syncBB, MeFunction &func, LabelIdx secondLabel) const {
+StmtNode *MeBypathEH::IsSyncExit(BB &syncBB, const MeFunction &func, LabelIdx secondLabel) const {
   StmtNode *syncExitStmt = nullptr;
   StmtNode *stmt = syncBB.GetFirst().GetNext();
   for (; stmt != nullptr && stmt != syncBB.GetLast().GetNext(); stmt = stmt->GetNext()) {

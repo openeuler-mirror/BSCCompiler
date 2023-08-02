@@ -22,6 +22,7 @@
 #include "insn.h"
 
 namespace maplebe {
+constexpr int kOccupyWidth = 32;
 enum UnitId : maple::uint32 {
 #include "mplad_unit_id.def"
   kUnitIdLast
@@ -72,15 +73,14 @@ class Unit {
   const std::vector<Unit*> &GetCompositeUnits() const;
 
   std::string GetName() const;
-  bool IsFree(uint32 cost) const;
-  void Occupy(const Insn &insn, uint32 cycle); // old interface
-  void Occupy(uint32 cost, std::vector<bool> &visited); // new interface
+  bool IsIdle(uint32 cycle) const;
+  void Occupy(uint32 cycle);
   void Release();
-  void AdvanceCycle();
+  void AdvanceOneCycle();
   void Dump(int indent = 0) const;
-  std::bitset<32> GetOccupancyTable() const;
+  std::bitset<kOccupyWidth> GetOccupancyTable() const;
 
-  void SetOccupancyTable(std::bitset<32> value) {
+  void SetOccupancyTable(const std::bitset<kOccupyWidth> value) {
     occupancyTable = value;
   }
 
@@ -89,8 +89,8 @@ class Unit {
 
   enum UnitId unitId;
   enum UnitType unitType;
-  // using 32-bit vector simulating resource occupation, the LSB always indicates the current cycle by AdvanceCycle
-  std::bitset<32> occupancyTable;
+  // using 32-bit vector simulating resource occupation, the LSB always indicates the current cycle by AdvanceOneCycle
+  std::bitset<kOccupyWidth> occupancyTable;
   std::vector<Unit*> compositeUnits;
 };
 
@@ -178,10 +178,10 @@ class MAD {
   int GetLatency(const Insn &def, const Insn &use) const;
   int DefaultLatency(const Insn &insn) const;
   Reservation *FindReservation(const Insn &insn) const;
-  void AdvanceCycle() const;
+  void AdvanceOneCycleForAll() const;
   void ReleaseAllUnits() const;
-  void SaveStates(std::vector<std::bitset<32>> &occupyTable, int size) const;
-  void RestoreStates(std::vector<std::bitset<32>> &occupyTable, int size) const;
+  void SaveStates(std::vector<std::bitset<kOccupyWidth>> &occupyTable, int size) const;
+  void RestoreStates(std::vector<std::bitset<kOccupyWidth>> &occupyTable, int size) const;
 
   int GetMaxParallelism() const {
     return parallelism;
@@ -240,10 +240,10 @@ class AccumulatorBypass : public Bypass {
   bool CanBypass(const Insn &defInsn, const Insn &useInsn) const override;
 };
 
-class StoreBypass : public Bypass {
+class StoreAddrBypass : public Bypass {
  public:
-  StoreBypass(LatencyType d, LatencyType u, int l) : Bypass(d, u, l) {}
-  ~StoreBypass() override = default;
+  StoreAddrBypass(LatencyType d, LatencyType u, int l) : Bypass(d, u, l) {}
+  ~StoreAddrBypass() override = default;
 
   bool CanBypass(const Insn &defInsn, const Insn &useInsn) const override;
 };

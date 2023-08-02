@@ -424,9 +424,9 @@ void PropReturnAttr::Perform(MeFunction &func) {
   // before its use
   std::vector<bool> bbVisited(func.GetCfg()->GetAllBBs().size(), false);
   Dominance *dom = static_cast<MEDominance*>(dataMap.GetVaildAnalysisPhase(func.GetUniqueID(),
-                                                                           &MEDominance::id))->GetResult();
+                                                                           &MEDominance::id))->GetDomResult();
   for (auto *bb : dom->GetReversePostOrder()) {
-    TraversalBB(bb);
+    TraversalBB(func.GetCfg()->GetBBFromID(BBId(bb->GetID())));
   }
   MIRFunction *mirFunc = func.GetMirFunc();
   if (mirFunc == nullptr) {

@@ -16,6 +16,7 @@
 #include "aarch64_cg.h"
 
 namespace maplebe {
+// The main process of AArch64CombineRedundantX16Opt
 void AArch64CombineRedundantX16Opt::Run() {
   ResetInsnId();
   FOR_ALL_BB(bb, &aarFunc) {
@@ -30,27 +31,26 @@ void AArch64CombineRedundantX16Opt::Run() {
         ASSERT(bb->GetFirstInsn() == insn, "invalid pgo counter-insn");
         continue;
       }
+      // For the following case, useOpnd(x10) is redefined between two x16 definition points,
+      // so the two x16s cannot be shared, they should be in two segments of combining optimization.
+      // e.g.
+      // add x16, x10, #1024
+      // ...
+      // lsl x10, x10, #4   (x10 is redefined)
+      // ...
+      // add x16, x10, #1024
       if (HasUseOpndReDef(*insn)) {
         hasUseOpndReDef = true;
       }
       bool hasX16Def = HasX16Def(*insn);
+      // 1. The instruction ends the current segment.
       if (IsEndOfSegment(*insn, hasX16Def)) {
-        // End of segment because it is not an add split instruction but def x16, need to clear previous segment infos
-        if (segmentInfo->segUseInfos->size() > 1) {
-          FindCommonX16DefInsns(localMp, localAlloc);
-          CombineRedundantX16DefInsns(*bb);
-        }
-        if (hasX16Def) {
-          if (HasX16Use(*insn)) {
-            (void)recentX16DefPrevInsns->emplace_back(recentX16DefInsn);
-          }
-          recentSplitUseOpnd = GetAddUseOpnd(*insn);
-          recentX16DefInsn = insn;
-        }
-        ClearCurrentSegmentInfos();
+        ProcessAtEndOfSegment(*bb, *insn, hasX16Def, localMp, localAlloc);
         continue;
       }
+      // 2. The instruction does not end the current segment, but def x16 for splitting, record def info.
       if (hasX16Def) {
+        // Before the instruction, there has instructions that use the old x16 value
         if (isX16Used) {
           recentX16DefPrevInsns->clear();
         }
@@ -61,9 +61,12 @@ void AArch64CombineRedundantX16Opt::Run() {
       if (!IsUseX16MemInsn(*insn)) {
         continue;
       }
+      // 3. The instruction does not end the current segment, but use x16, then we compute split immediate and
+      //    record use info.
       ComputeRecentAddImm();
       RecordUseX16InsnInfo(*insn, localMp, localAlloc);
     }
+    // Process the last segment in bb
     if (segmentInfo->segUseInfos->size() > 1) {
       FindCommonX16DefInsns(localMp, localAlloc);
       CombineRedundantX16DefInsns(*bb);
@@ -83,9 +86,25 @@ void AArch64CombineRedundantX16Opt::ResetInsnId() {
   }
 }
 
+// We divide instructions that can share x16 value into segments, when the following scenario occurs,
+// the current segment ends, its all infos are needed to be cleared, and a new segment is started:
+// (1) meet call instruction
+// (2) meet special x16 def (not add/mov/movz/movk mops that split immediate)
+// (3) meet useOpnd has been redefined
+// e.g.
+// add x16, x2, #3072        ----
+// ldp x3, x4, [x16, #184]      |
+// ...                          |
+// add x16, x2, #3072           |
+// ldp x3, x4, [x16, #200]   ----   =====>  the first common segment
+//
+// add x16, x1, #2048        ----
+// ldp x5, x6, [x16, #8]        |
+// ...                          |
+// add x16, x1, #2048           |
+// ldp x5, x6, [x16, #16]   ----   =====>  the second common segment
 bool AArch64CombineRedundantX16Opt::IsEndOfSegment(const Insn &insn, bool hasX16Def) {
   if (insn.IsCall() || (IsUseX16MemInsn(insn) && (recentSplitUseOpnd == nullptr || isSpecialX16Def))) {
-    clearX16Def = true;
     return true;
   }
   if (!hasX16Def) {
@@ -95,7 +114,7 @@ bool AArch64CombineRedundantX16Opt::IsEndOfSegment(const Insn &insn, bool hasX16
   if (curMop != MOP_waddrri12 && curMop != MOP_xaddrri12 && curMop != MOP_waddrri24 && curMop != MOP_xaddrri24 &&
       curMop != MOP_waddrrr && curMop != MOP_xaddrrr && curMop != MOP_wmovri32 && curMop != MOP_xmovri64 &&
       curMop != MOP_wmovkri16 && curMop != MOP_xmovkri16 && curMop != MOP_wmovzri16 && curMop != MOP_xmovzri16) {
-    clearX16Def = true;
+    isIrrelevantX16Def = true;
     return true;
   }
   RegOperand *useOpnd = nullptr;
@@ -127,6 +146,38 @@ bool AArch64CombineRedundantX16Opt::IsEndOfSegment(const Insn &insn, bool hasX16
     return true;
   }
   return false;
+}
+
+void AArch64CombineRedundantX16Opt::ProcessAtEndOfSegment(BB &bb, Insn &insn, bool hasX16Def, MemPool *localMp,
+                                                          MapleAllocator *localAlloc) {
+  // If the current segment ends, we handle the x16 common optimization for the segment following
+  if (segmentInfo->segUseInfos->size() > 1) {
+    FindCommonX16DefInsns(localMp, localAlloc);
+    CombineRedundantX16DefInsns(bb);
+  }
+  std::vector<Insn*> tmpRecentX16DefPrevInsns;
+  tmpRecentX16DefPrevInsns.assign(recentX16DefPrevInsns->begin(), recentX16DefPrevInsns->end());
+  // For the instructions that both use and define x16, we need to record x16 prev define insn
+  // e.g.
+  // add x16, sp, #1, LSL #12    ----> $recentX16DefInsn
+  // add x16, x16, #512   ----> $insn
+  bool hasX16Use = HasX16Use(insn);
+  if (hasX16Use) {
+    (void)tmpRecentX16DefPrevInsns.emplace_back(recentX16DefInsn);
+  }
+  // Clear old segment infos
+  ClearCurrentSegmentInfos();
+  // Record new segment infos:
+  // if the current segment ends and the instruction defines x16 for splitting, we record data infos following
+  if (hasX16Def && !isIrrelevantX16Def) {
+    recentSplitUseOpnd = GetAddUseOpnd(insn);
+    recentX16DefInsn = &insn;
+    if (hasX16Use) {
+      recentX16DefPrevInsns->assign(tmpRecentX16DefPrevInsns.begin(), tmpRecentX16DefPrevInsns.end());
+    }
+  }
+  // Clear isIrrelevantX16Def after using
+  isIrrelevantX16Def = false;
 }
 
 void AArch64CombineRedundantX16Opt::ComputeRecentAddImm() {
@@ -220,13 +271,18 @@ bool AArch64CombineRedundantX16Opt::IsUseX16MemInsn(const Insn &insn) const {
   }
   uint32 memOpndIdx = GetMemOperandIdx(insn);
   auto &memOpnd = static_cast<MemOperand&>(insn.GetOperand(memOpndIdx));
-  if (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed()) {
-    return false;
-  }
   RegOperand *baseOpnd = memOpnd.GetBaseRegister();
   if (baseOpnd == nullptr || baseOpnd->GetRegisterNumber() != R16) {
     return false;
   }
+  // We are not allowed pre-index/post-index memory instruction that use x16 to split offset, because
+  // it implicitly redefines the x16 and it is difficult to the interval calculation and valid offset judgement,
+  // so we do not combine x16 in AddSubMergeLdStPattern of cgpostpeephole.
+  // e.g.
+  // add x16, sp, #1, LSL #12
+  // stp x27, x28, [x16, #16]!    --\->   it's wrong case
+  // If such opportunities still exist after x16 combining optimization, add related opt in this phase.
+  CHECK_FATAL(!memOpnd.IsPreIndexed() && !memOpnd.IsPostIndexed(), "dangerous insn that implicitly redefines x16");
   CHECK_FATAL(memOpnd.GetAddrMode() == MemOperand::kBOI || memOpnd.GetAddrMode() == MemOperand::kLo12Li,
               "invalid mem instruction which uses x16");
   return true;
@@ -293,6 +349,10 @@ void AArch64CombineRedundantX16Opt::ComputeValidAddImmInterval(UseX16InsnInfo &x
   x16UseInfo.maxValidAddImm = x16UseInfo.originalOfst - minValidOfst;
 }
 
+// Find the common x16 def value for all use x16 instructions in the current segment:
+// 1. If the split immediate is same, we can just use the value to combine;
+// 2. else, we calculate the valid interval for each use x16 insns and find a valid immediate within the
+//    interval that meets the multiple requirements for all use x16 insns.
 void AArch64CombineRedundantX16Opt::FindCommonX16DefInsns(MemPool *tmpMp, MapleAllocator *tmpAlloc) const {
   if (isSameAddImm) {
     ProcessSameAddImmCombineInfo(tmpMp, tmpAlloc);
@@ -311,6 +371,22 @@ void AArch64CombineRedundantX16Opt::ProcessSameAddImmCombineInfo(MemPool *tmpMp,
   (void)segmentInfo->segCombineInfos->emplace_back(newCombineInfo);
 }
 
+// The interval algorithm to find a valid common split immediate.
+// 1. |______| |______| |______|
+//    interval disjoint, no common immediate;
+// 2. |______|
+//       |______|
+//         |______|
+//    Ideally, there shares the same immediate;
+// 3. |______|          |______|
+//        |______|          |______|
+//    The first two insns can share one immediate, and the last two insns can share one different immediate;
+// 4. |______|             (1)
+//         |______|        (2)
+//               |______|  (3)
+//    (1)(2) share one immediate or (2)(3) share one immediate, we choose the first two
+// After the above calculation, we get a valid interval, then we traverse the interval and check whether the
+// offset meets the multiple requirement(e.g. <pimm>/4 or <pimm>/8 ...)
 void AArch64CombineRedundantX16Opt::ProcessIntervalIntersectionCombineInfo(MemPool *tmpMp,
                                                                            MapleAllocator *tmpAlloc) const {
   ASSERT(segmentInfo->segUseInfos != nullptr, "uninitialized useInsnInfos");
@@ -382,6 +458,7 @@ void AArch64CombineRedundantX16Opt::CombineRedundantX16DefInsns(BB &bb) {
     auto &oldImmOpnd = static_cast<ImmOperand&>(firstInsnInfo->addInsn->GetOperand(kInsnThirdOpnd));
     auto &commonAddImmOpnd = aarFunc.CreateImmOperand(
         combineInfo->combineAddImm, oldImmOpnd.GetSize(), oldImmOpnd.IsSignedValue());
+    commonAddImmOpnd.SetVary(oldImmOpnd.GetVary());
     uint32 size = combineInfo->addUseOpnd->GetSize();
     aarFunc.SelectAddAfterInsnBySize(firstInsnInfo->addInsn->GetOperand(kInsnFirstOpnd), *combineInfo->addUseOpnd,
                                      commonAddImmOpnd, size, false, *firstInsnInfo->addInsn);
@@ -560,10 +637,10 @@ void AArch64CombineRedundantX16Opt::ClearSegmentInfo(MemPool *tmpMp, MapleAlloca
   recentSplitUseOpnd = nullptr;
   recentAddImm = 0;
   isSameAddImm = true;
-  clearX16Def = false;
   isX16Used = false;
   hasUseOpndReDef = false;
   isSpecialX16Def = false;
+  isIrrelevantX16Def = false;
 }
 
 void AArch64AggressiveOpt::DoOpt() {

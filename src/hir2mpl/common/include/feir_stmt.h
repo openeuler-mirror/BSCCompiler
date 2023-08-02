@@ -35,6 +35,7 @@
 #include "feir_type_helper.h"
 #include "feir_dfg.h"
 #include "int128_util.h"
+#include "pragma_status.h"
 
 namespace maple {
 class FEIRBuilder;
@@ -1667,6 +1668,21 @@ class FEIRStmtAssign : public FEIRStmt {
     hasException = arg;
   }
 
+  void SetHasPragma(bool flag) {
+    hasPragma = flag;
+  }
+
+  bool HasPragma() const {
+    return hasPragma;
+  }
+
+  void SetPragmaPIStatus(PreferInlinePI state) {
+    pragmaPIStatus = state;
+  }
+
+  PreferInlinePI GetPragmaPIStatus() const {
+    return pragmaPIStatus;
+  }
  protected:
   bool HasDefImpl() const override {
     return ((var != nullptr) && (var.get() != nullptr));
@@ -1688,6 +1704,8 @@ class FEIRStmtAssign : public FEIRStmt {
   bool hasException;
   std::unique_ptr<FEIRVar> var = nullptr;
   std::list<UniqueFEIRExpr> exprArgs;
+  bool hasPragma = false;
+  PreferInlinePI pragmaPIStatus = PreferInlinePI::kNonePI;
 };
 
 // ---------- FEIRStmtDAssign ----------

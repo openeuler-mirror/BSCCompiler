@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -14,8 +16,6 @@
 
 import sys
 
-from case.case_executor.clean import Clean
-from case.case_executor.note_src import NoteSrc
 from case.case_executor.origin_execute import OriginExecute
 from case.case_parser.origin_parse import OriginParse
 
@@ -28,13 +28,9 @@ class OriginRun():
 
     def execute(self):
         sys.stdout.flush()
-        clean = Clean(self.input)
-        clean.execute()
-        note_src = NoteSrc(self.input)
-        note_src.execute()
         origin_parse = OriginParse(self.input)
         origin_parse.execute()
-        self.input["command_suite"] = origin_parse.get_output()
+        self.input["config"], self.input["command_suite"] = origin_parse.get_output()
         origin_execute = OriginExecute(self.input)
         origin_execute.execute()
         return origin_execute.get_output()

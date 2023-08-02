@@ -111,10 +111,13 @@ class InlineAnalyzer {
       const CallNode &callStmt, const CallGraph &cg, uint32 depth, bool earlyInline);
   static bool WantInline(CallInfo &callInfo, const CallGraph &cg, uint32 depth);
   static std::pair<bool, InlineFailedCode> WantInlineImpl(CallInfo &callInfo, const CallGraph &cg, uint32 depth);
+  static bool MustInline(const MIRFunction &caller, const MIRFunction &callee,
+                         uint32 depth = 0, bool earlyInline = false);
  private:
   static bool FuncInlinable(const MIRFunction &func);
   static bool SizeWillGrow(const CGNode &calleeNode, const CallGraph &cg);
   static bool IsSafeToInline(const MIRFunction &callee, const CallNode &callStmt);
+  static bool CheckPreferInline(const CallNode &callStmt, bool &status);
 };
 }  // namespace maple
 #endif  // MPL2MPL_INCLUDE_INLINE_ANALYZER_H

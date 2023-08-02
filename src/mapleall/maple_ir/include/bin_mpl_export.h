@@ -117,7 +117,7 @@ class BinaryMplExport {
   void OutputPragmaElement(const MIRPragmaElement &e);
   void OutputPragma(const MIRPragma &p);
   void OutputFieldPair(const FieldPair &fp);
-  void OutputMethodPair(const MethodPair &memPool);
+  void OutputMethodPair(const MethodPair &methodPair);
   void OutputFieldsOfStruct(const FieldVector &fields);
   void OutputMethodsOfStruct(const MethodVector &methods);
   void OutputStructTypeData(const MIRStructType &type);
@@ -129,6 +129,7 @@ class BinaryMplExport {
   void OutputSymbol(MIRSymbol *sym);
   void OutputEnumeration(const MIREnum *mirEnum);
   void OutputFunction(PUIdx puIdx);
+  void OutputFuncAttrFlag(const FuncAttrFlag &attrFlag);
   void OutputInterfaceTypeData(const MIRInterfaceType &type);
   void OutputSrcPos(const SrcPosition &pos);
   void OutputAliasMap(MapleMap<GStrIdx, MIRAliasVars> &aliasVarMap);

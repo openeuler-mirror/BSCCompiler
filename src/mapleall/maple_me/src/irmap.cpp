@@ -1018,18 +1018,29 @@ MeExpr *IRMap::SimplifyCompareSameExpr(const OpMeExpr *opmeexpr) {
       // cmpl/cmpg is special for cases that any of opnd is NaN
       auto opndType = opmeexpr->GetOpndType();
       if (IsPrimitiveFloat(opndType) || IsPrimitiveDynFloat(opndType)) {
-        if (opmeexpr->GetOpnd(0)->GetMeOp() == kMeOpConst) {
-          double dVal =
-              static_cast<MIRFloatConst*>(static_cast<ConstMeExpr *>(opmeexpr->GetOpnd(0))->GetConstVal())->GetValue();
-          if (std::isnan(dVal)) {
+        // other case, return nullptr because it is not sure whether any of opnd is nan.
+        if (opmeexpr->GetOpnd(0)->GetMeOp() != kMeOpConst) {
+          return nullptr;
+        }
+        double dVal = 0;
+        if (GetPrimTypeActualBitSize(opndType) == k32BitSize) {
+          dVal =
+              static_cast<MIRFloatConst *>(static_cast<ConstMeExpr *>(opmeexpr->GetOpnd(0))->GetConstVal())->GetValue();
+        } else if (GetPrimTypeActualBitSize(opndType) == k64BitSize) {
+          dVal = static_cast<MIRDoubleConst *>(static_cast<ConstMeExpr *>(opmeexpr->GetOpnd(0))->GetConstVal())
+                     ->GetValue();
+        } else {
+          CHECK_FATAL(GetPrimTypeActualBitSize(opndType) == k128BitSize, "must be");
+          if (static_cast<MIRFloat128Const *>(static_cast<ConstMeExpr *>(opmeexpr->GetOpnd(0))->GetConstVal())
+                  ->IsNan()) {
             val = (opop == OP_cmpl) ? -1 : 1;
-          } else {
-            val = 0;
+            break;
           }
+        }
+        if (std::isnan(dVal)) {
+          val = (opop == OP_cmpl) ? -1 : 1;
           break;
         }
-        // other case, return nullptr because it is not sure whether any of opnd is nan.
-        return nullptr;
       }
       val = 0;
       break;
@@ -1189,20 +1200,26 @@ static MeExpr *PullOutZext(IRMap &irMap, const OpMeExpr &meExpr) {
   MeExpr *opnd1 = meExpr.GetOpnd(1);
   if (opnd0->GetOp() == OP_zext && opnd1->GetMeOp() == kMeOpConst) {
     auto subExpr1 = opnd0->GetOpnd(0);
+    if (static_cast<OpMeExpr*>(opnd0)->GetBitsSize() < GetPrimTypeBitSize(subExpr1->GetPrimType())) {
+      return nullptr;
+    }
+    auto fromType = subExpr1->GetPrimType();
     auto op0 = static_cast<OpMeExpr *>(opnd0);
-    if (op0->GetBitsSize() < GetPrimTypeBitSize(subExpr1->GetPrimType())) {
+    if (op0->GetBitsSize() < GetPrimTypeBitSize(fromType)) {
       return nullptr;
     }
     auto c1 = static_cast<ConstMeExpr *>(opnd1)->GetIntValue();
     // It is undefined behavior when shift num not less than bit size of primtype
-    if (IsLogicalShift(meExpr.GetOp()) && GetAlignedPrimTypeBitSize(subExpr1->GetPrimType()) <= c1.GetZXTValue()) {
+    if (IsLogicalShift(meExpr.GetOp()) && GetAlignedPrimTypeBitSize(fromType) <= c1.GetZXTValue()) {
       return nullptr;
     }
 
-    // if c1 == zext(trunc(c1)), we can pull zext out
-    if (c1.GetZXTValue() == c1.Trunc(subExpr1->GetPrimType()).GetZXTValue()) {
-      auto newConst = irMap.CreateIntConstMeExpr(c1.Trunc(subExpr1->GetPrimType()), subExpr1->GetPrimType());
-      auto newExpr = irMap.CreateMeExprBinary(meExpr.GetOp(), subExpr1->GetPrimType(), *subExpr1, *newConst);
+    auto newInt = GetPrimTypeSize(opnd1->GetPrimType()) < GetPrimTypeSize(fromType) ?
+        c1.Extend(fromType) : c1.Trunc(fromType);
+    // if c1 == zext(c1), we can pull zext out
+    if (c1.GetZXTValue() == newInt.GetZXTValue()) {
+      auto newConst = irMap.CreateIntConstMeExpr(newInt, fromType);
+      auto newExpr = irMap.CreateMeExprBinary(meExpr.GetOp(), fromType, *subExpr1, *newConst);
       auto res = irMap.CreateMeExprUnary(OP_zext, meExpr.GetPrimType(), *newExpr);
       static_cast<OpMeExpr *>(res)->SetBitsSize(op0->GetBitsSize());
       return res;
@@ -2288,7 +2305,7 @@ bool IRMap::DealWithIaddrofWhenGetInfoOfIvar(IreadPairInfo &info) const {
   //  base = OP iaddrof a64 kPtyInvalid (field)15 mx433
   //   opnd[0] = REGINDX:15 a64 %15 mx388
   //  - MU: {VAR %retVar_4031{offset:0}<0>[idx:10](vstIdx:22)->{15/288}[idx:28] (field)15 mx163}
-  auto iaddrofMeExpr = static_cast<OpMeExpr*>(info.ivar->GetBase());
+  auto iaddrofMeExpr = static_cast<OpMeExpr*>(info.base);
   if (!iaddrofMeExpr->GetOpnd(0)->IsLeaf()) {
     return false;
   }
@@ -2324,9 +2341,13 @@ bool IRMap::GetInfoOfIvar(MeExpr &expr, IreadPairInfo &info) const {
   }
   // convert byte size to bit size.
   info.bitOffset = info.ivar->GetOffset() * static_cast<int32>(k8BitSize);
-  if (info.ivar->GetBase()->GetOp() == OP_add) {
-    auto opnd0 = info.ivar->GetBase()->GetOpnd(0);
-    auto opnd1 = info.ivar->GetBase()->GetOpnd(1);
+  info.base = info.ivar->GetBase();
+  if (info.base->GetOp() == OP_add) {
+    if (info.base->IsScalar() && static_cast<ScalarMeExpr*>(info.base)->GetDefBy() == kDefByStmt) {
+      info.base = static_cast<ScalarMeExpr*>(info.base)->GetDefStmt()->GetRHS();
+    }
+    auto opnd0 = info.base->GetOpnd(0);
+    auto opnd1 = info.base->GetOpnd(1);
     if (opnd1->GetMeOp() != kMeOpConst) {
       return false;
     }
@@ -2338,13 +2359,13 @@ bool IRMap::GetInfoOfIvar(MeExpr &expr, IreadPairInfo &info) const {
         info.ivar->GetType()->GetSize());
     return true;
   }
-  if (info.ivar->GetBase()->GetOp() == OP_iaddrof) {
+  if (info.base->GetOp() == OP_iaddrof) {
     return DealWithIaddrofWhenGetInfoOfIvar(info);
   }
   auto baseType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(info.ivar->GetTyIdx());
   ASSERT(baseType->IsMIRPtrType(), "type of iread must be ptr type");
   auto pointedTy = static_cast<MIRPtrType*>(baseType)->GetPointedType();
-  info.SetInfoOfIvar(*info.ivar->GetBase(), pointedTy->GetBitOffsetFromBaseAddr(info.ivar->GetFieldID()),
+  info.SetInfoOfIvar(*info.base, pointedTy->GetBitOffsetFromBaseAddr(info.ivar->GetFieldID()),
       info.ivar->GetType()->GetSize());
   return true;
 }

@@ -23,8 +23,6 @@ class AArch64ReachingDefinition : public ReachingDefinition {
  public:
   AArch64ReachingDefinition(CGFunc &func, MemPool &memPool) : ReachingDefinition(func, memPool) {}
   ~AArch64ReachingDefinition() override = default;
-  std::vector<Insn*> FindRegDefBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn,
-                                           bool findAll = false) const final;
   std::vector<Insn*> FindRegDefBetweenInsnGlobal(uint32 regNO, Insn *startInsn, Insn *endInsn) const final;
   std::vector<Insn*> FindMemDefBetweenInsn(uint32 offset, const Insn *startInsn, Insn *endInsn) const final;
   bool FindRegUseBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn, InsnSet &regUseInsnSet) const final;
@@ -46,7 +44,7 @@ class AArch64ReachingDefinition : public ReachingDefinition {
   void GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) final;
   void GenAllAsmUseRegs(BB &bb, Insn &insn, uint32 index) final;
   void GenAllCallerSavedRegs(BB &bb, Insn &insn) final;
-  bool IsRegKilledByCallInsn(const Insn &insn, regno_t regNO) const;
+  bool IsRegKilledByCallInsn(const Insn &insn, regno_t regNO) const final;
   bool KilledByCallBetweenInsnInSameBB(const Insn &startInsn, const Insn &endInsn, regno_t regNO) const final;
   void AddRetPseudoInsn(BB &bb) final;
   void AddRetPseudoInsns() final;

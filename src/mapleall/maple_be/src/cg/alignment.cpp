@@ -23,7 +23,7 @@ namespace maplebe {
 
 void AlignAnalysis::AnalysisAlignment() {
   // If pgo is enabled, we analysis alignment on specific by frequency.
-  if (CGOptions::DoLiteProfUse() && CGOptions::DoPgoCodeAlign()) {
+  if (cgFunc.HasLaidOutByPgoUse() && CGOptions::DoPgoCodeAlign()) {
     LiteProfile::BBInfo *bbInfo = cgFunc.GetFunction().GetModule()->GetLiteProfile().GetFuncBBProf(cgFunc.GetName());
     if (bbInfo == nullptr) {
       LogInfo::MapleLogger() << cgFunc.GetName() << " is not in white list in pgo use\n";

@@ -73,6 +73,7 @@ struct OptionCategory {
   }
 
   void ClearJoinedOpt();
+  void ClearOpt();
   const std::vector<OptionInterface *> &GetEnabledOptions() {
     return enabledOptions;
   }
@@ -83,6 +84,10 @@ struct OptionCategory {
     if (it != enabledOptions.end()) {
       (void)enabledOptions.erase(it);
     }
+  }
+
+  std::vector<OptionInterface *> GetEnabledOption() const {
+    return enabledOptions;
   }
 
  private:
@@ -148,6 +153,9 @@ class CommandLine {
   void SetHasPgoLib(bool flag) {
     hasPgoLib = flag;
   }
+  OptionInterface *CheckJoinedOptions(KeyArg &keyArg, OptionCategory &optCategory) const {
+    return CheckJoinedOption(keyArg, optCategory);
+  }
 
   void CloseOptimize(const OptionCategory &optCategory) const;
   void DeleteEnabledOptions(size_t &argsIndex, const std::deque<std::string_view> &args,
@@ -179,7 +187,7 @@ class CommandLine {
  private:
   bool useLitePgoGen = false;
   bool hasPgoLib = false;
-  OptionInterface *CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory);
+  OptionInterface *CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) const;
   RetCode ParseJoinedOption(size_t &argsIndex,
                             const std::deque<std::string_view> &args,
                             KeyArg &keyArg, OptionCategory &optCategory);
@@ -195,6 +203,7 @@ class CommandLine {
                             const std::deque<std::string_view> &args,
                             KeyArg &keyArg, OptionCategory &optCategory,
                             const OptionsMapType &optMap);
+  void AddLinkOption(const OptionInterface &opt, const KeyArg &keyArg);
 };
 
 }

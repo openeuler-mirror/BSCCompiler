@@ -311,10 +311,7 @@ void MInline::InlineCalls(CGNode &node) {
   if (func == nullptr || func->GetBody() == nullptr || func->IsFromMpltInline()) {
     return;
   }
-  // The caller is big enough, we don't inline any callees more
-  if (GetNumStmtsOfFunc(*func) > kBigFuncNumStmts) {
-    return;
-  }
+  isCurrCallerTooBig = GetNumStmtsOfFunc(*func) > kBigFuncNumStmts;
   bool changed = false;
   do {
     changed = false;
@@ -376,17 +373,11 @@ void MInline::InlineCallsBlock(MIRFunction &func, BlockNode &enclosingBlk, BaseN
   } else if (baseNode.GetOpCode() == OP_callassigned || baseNode.GetOpCode() == OP_call ||
              baseNode.GetOpCode() == OP_virtualcallassigned || baseNode.GetOpCode() == OP_superclasscallassigned ||
              baseNode.GetOpCode() == OP_interfacecallassigned) {
-    CallNode &callStmt = static_cast<CallNode&>(baseNode);
     if (onlyForAlwaysInline) {
       AlwaysInlineCallsBlockInternal(func, baseNode, changed);
       return;
     }
-    MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
-    // tail call opt should not prevent inlinings that must be performed (such as extern gnu_inline).
-    if (!IsExternGnuInline(*callee) && SuitableForTailCallOpt(prevStmt, static_cast<StmtNode&>(baseNode), callStmt)) {
-      return;
-    }
-    InlineCallsBlockInternal(func, baseNode, changed);
+    InlineCallsBlockInternal(func, baseNode, changed, prevStmt);
   } else if (baseNode.GetOpCode() == OP_doloop) {
     BlockNode *blk = static_cast<DoloopNode&>(baseNode).GetDoBody();
     InlineCallsBlock(func, enclosingBlk, *blk, changed, baseNode);
@@ -531,12 +522,18 @@ static inline void DumpCallsiteAndLoc(const MIRFunction &caller, const MIRFuncti
   LogInfo::MapleLogger() << callee.GetName() << " to " << caller.GetName() << " (line " << lineNum << ")\n";
 }
 
+void MInline::EndsInliningWithFailure(const std::string &failReason, const MIRFunction &caller,
+    const MIRFunction &callee, const CallNode &callStmt) const {
+  if (dumpDetail) {
+    LogInfo::MapleLogger() << "[INLINE_FAILED] " << "[" << failReason << "] ";
+    DumpCallsiteAndLoc(caller, callee, callStmt);
+  }
+}
+
 void MInline::AlwaysInlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bool &changed) {
   CallNode &callStmt = static_cast<CallNode&>(baseNode);
   MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
-  // For performance reasons, we only inline functions marked as always_inline that must be deleted.
-  if (callee->GetAttr(FUNCATTR_always_inline) && FuncMustBeDeleted(*callee) &&
-      callee != &func) {  // "self-recursive always_inline" won't be performed
+  if (InlineAnalyzer::MustInline(func, *callee)) {
     module.SetCurFunction(&func);
     if (dumpDetail && dumpFunc == func.GetName()) {
       LogInfo::MapleLogger() << "[always_inline] ";
@@ -551,9 +548,20 @@ void MInline::AlwaysInlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNo
   }
 }
 
-void MInline::InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bool &changed) {
+void MInline::InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bool &changed, BaseNode &prevStmt) {
   CallNode &callStmt = static_cast<CallNode&>(baseNode);
   MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
+  // In some cases we obviously don't want to inline, but should never violate the "MUST INLINE" rule
+  if (!InlineAnalyzer::MustInline(func, *callee, currInlineDepth, true)) {
+    if (isCurrCallerTooBig) {
+      EndsInliningWithFailure("caller is big enough", func, *callee, callStmt);
+      return;
+    }
+    if (SuitableForTailCallOpt(prevStmt, static_cast<StmtNode&>(baseNode), callStmt)) {
+      EndsInliningWithFailure("callee is suitable for tailcall opt", func, *callee, callStmt);
+      return;
+    }
+  }
   CGNode *cgNode = cg->GetCGNode(&func);
   CHECK_NULL_FATAL(cgNode);
   CallInfo *callInfo  = cgNode->GetCallInfo(callStmt);
@@ -610,10 +618,7 @@ void MInline::InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bo
       }
     }
   } else {
-    if (dumpDetail) {
-      LogInfo::MapleLogger() << "[INLINE_FAILED] " << "[" << result.reason << "] ";
-      DumpCallsiteAndLoc(func, *callee, callStmt);
-    }
+    EndsInliningWithFailure(result.reason, func, *callee, callStmt);
   }
 }
 

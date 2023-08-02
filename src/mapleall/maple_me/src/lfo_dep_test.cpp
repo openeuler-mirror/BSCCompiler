@@ -828,7 +828,7 @@ void LfoDepInfo::PerformDepTest() {
 }
 
 bool MELfoDepTest::PhaseRun(MeFunction &f) {
-  Dominance *dom = GET_ANALYSIS(MEDominance, f);
+  Dominance *dom = EXEC_ANALYSIS(MEDominance, f)->GetDomResult();
   ASSERT(dom != nullptr, "dominance phase has problem");
   PreMeEmitter *preEmit = GET_ANALYSIS(MEPreMeEmission, f);
   ASSERT(preEmit != nullptr, "lfo preemit phase has problem");

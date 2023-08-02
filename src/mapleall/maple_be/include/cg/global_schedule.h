@@ -38,12 +38,10 @@ class GlobalSchedule : public BaseSchedule {
   virtual void VerifyingSchedule(CDGRegion &region) = 0;
 
  protected:
-  virtual void InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp) = 0;
+  void InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool &cdgNodeMp);
+  void PrepareCommonSchedInfo(CDGRegion &region, CDGNode &cdgNode, MemPool &cdgNodeMp);
   virtual void FinishScheduling(CDGNode &cdgNode) = 0;
   void ClearCDGNodeInfo(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp);
-  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override {
-    (void)cdgNode;
-  }
 
   DataDepAnalysis &interDDA;
 };

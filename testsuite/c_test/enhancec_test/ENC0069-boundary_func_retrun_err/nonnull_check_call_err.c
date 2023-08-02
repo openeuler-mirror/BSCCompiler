@@ -15,9 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-__attribute__((byte_count_index(1)))
-void* malloc(size_t);
-
 __attribute__((returns_count(10)))
 int* func(int *arg) {
   int *q;

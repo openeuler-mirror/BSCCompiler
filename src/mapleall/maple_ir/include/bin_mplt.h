@@ -54,7 +54,7 @@ class BinaryMplt {
     return importFileName;
   }
 
-  void SetImportFileName(std::string fileName) {
+  void SetImportFileName(const std::string &fileName) {
     importFileName = fileName;
   }
 

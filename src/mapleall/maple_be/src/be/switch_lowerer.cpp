@@ -219,7 +219,17 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   if (start > end) {
     return localBlk;
   }
-  CondGotoNode *cGoto = nullptr;
+
+  StmtNode *cGoto = nullptr;
+  // if a switch only has 2 cases and has no default branch, lower it as a condgoto
+  if (stmt->GetDefaultLabel() == 0 && switchItems.size() == 2) {
+    cGoto = BuildCondGotoNode(switchItems[static_cast<uint32>(start)].first, OP_brtrue,
+        *BuildCmpNode(OP_eq, static_cast<uint32>(switchItems[static_cast<uint32>(start)].first)));
+    localBlk->AddStatement(cGoto);
+    cGoto = BuildGotoNode(switchItems[static_cast<uint32>(end)].first);
+    localBlk->AddStatement(cGoto);
+    return localBlk;
+  }
   RangeGotoNode *rangeGoto = nullptr;
   IfStmtNode *ifStmt = nullptr;
   CompareNode *cmpNode = nullptr;
@@ -379,7 +389,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
       while ((start <= end) && (switchItems[static_cast<uint32>(start)].second == 0)) {
         if ((start == end) && lowBlockNodeChecked && highBlockNodeChecked) {
           /* can omit the condition */
-          cGoto = reinterpret_cast<CondGotoNode*>(BuildGotoNode(switchItems[static_cast<uint32>(start)].first));
+          cGoto = BuildGotoNode(switchItems[static_cast<uint32>(start)].first);
         } else {
           cGoto = BuildCondGotoNode(switchItems[static_cast<uint32>(start)].first, OP_brtrue,
               *BuildCmpNode(OP_eq, static_cast<uint32>(switchItems[static_cast<uint32>(start)].first)));

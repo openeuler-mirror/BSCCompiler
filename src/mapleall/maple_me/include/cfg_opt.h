@@ -16,9 +16,9 @@
 #define MAPLE_ME_INCLUDE_CFG_OPT_H
 #include "bb.h"
 #include "me_cfg.h"
-#include "me_phase.h"
 #include "me_option.h"
 #include "dominance.h"
+#include "maple_phase_manager.h"
 
 namespace maple {
 class CfgOpt {
@@ -27,7 +27,7 @@ class CfgOpt {
   ~CfgOpt() = default;
   bool IsShortCircuitBB(LabelIdx labelIdx);
   bool IsShortCircuitStIdx(StIdx stIdx);
-  bool IsAssignToShortCircuit(StmtNode &stmt);
+  bool IsAssignToShortCircuit(const StmtNode &stmt);
   bool IsCompareShortCiruit(StmtNode &stmt);
   void SimplifyCondGotoStmt(CondGotoNode &condGoto) const;
   void SplitCondGotoBB(BB &bb);
@@ -45,14 +45,6 @@ class CfgOpt {
   bool cfgChanged = false;
 };
 
-class DoCfgOpt : public MeFuncPhase {
- public:
-  explicit DoCfgOpt(MePhaseID id) : MeFuncPhase(id) {}
-  virtual ~DoCfgOpt() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr*, ModuleResultMgr*) override;
-  std::string PhaseName() const override {
-    return "cfgOpt";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MECFGOPT, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_CFG_OPT_H

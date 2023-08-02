@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -27,25 +29,18 @@ HOME_PATH = os.path.dirname(os.path.dirname(os.path.dirname(cur_path)))     # ou
 
 # get test.cfg in all test cases
 def record_all_testCFG(PATH):
-    compile_record = open("compile_record.txt",'w')     # save compile command
-    run_record = open("run_record.txt",'w')             # save run command
-    for fpathe,dirs,fs in os.walk(PATH):
-        for file in fs:
-            if file == 'test.cfg':
-                f_tmp = open(os.path.join(fpathe, file),'r')
-                try:
-                    line = f_tmp.readline()
-                    while line != "":
-                        if 'compile(' in line:
-                            compile_record.write(line.strip() + " @" + fpathe + '\n')
-                        elif 'run(' in line:
-                            run_record.write(line.strip() + " @" + fpathe + '\n')
+    with open("compile_record.txt",'w') as compile_record, open("run_record.txt",'w') as run_record: # save compile command, run command
+        for fpathe,dirs,fs in os.walk(PATH):
+            for file in fs:
+                if file == 'test.cfg':
+                    with open(os.path.join(fpathe, file),'r') as f_tmp:
                         line = f_tmp.readline()
-                    f_tmp.close()
-                except:
-                    print(os.path.join(fpathe, file)+"  open fail")
-    compile_record.close()
-    run_record.close()
+                        while line != "":
+                            if 'compile(' in line:
+                                compile_record.write("{} @{}\n".format(line.strip(), fpathe))
+                            elif 'run(' in line:
+                                run_record.write("{} @{}\n".format(line.strip(), fpathe))
+                            line = f_tmp.readline()
 
 def quote2bracket_ExtraJavaFile(command, log=False):
     if type(command) != str:
@@ -55,22 +50,20 @@ def quote2bracket_ExtraJavaFile(command, log=False):
     new_command = re.sub(r'(?<=,EXTRA_JAVA_FILE=)(\"|\')', '[', new_command)    # '/" -> [
     new_command = re.sub(r'(\"|\')(?=\)|,)', ']', new_command)                  # '/" -> ]
     if log and (command != new_command):
-        print(command + " ---> " + new_command)
+        print("{} ---> {}".format(command, new_command))
     return new_command
 
 def modify_testCFG(file):
     new_commands = []
-    f = open(file,'r+')
-    lines = f.readlines()
-    f.close()
+    with open(file,'r+') as f:
+        lines = f.readlines()
     for line in lines:
         if 'compile(' in line and "EXTRA_JAVA_FILE" in line:
             new_commands.append(quote2bracket_ExtraJavaFile(line,True))
         else:
             new_commands.append(line)
-    f = open(file,'w+')
-    f.writelines(new_commands)
-    f.close()
+    with open(file,'w+') as f:
+        f.writelines(new_commands)
 
 def main():
     # record_all_testCFG(HOME_PATH)
@@ -80,7 +73,7 @@ def main():
                 try:
                     modify_testCFG(os.path.join(fpathe, file))
                 except:
-                    print(os.path.join(fpathe, file)+"  open fail")
+                    print("{}  open fail".format(os.path.join(fpathe, file)))
 
 if __name__ == '__main__':
     main()

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -27,8 +29,11 @@ class CommonParse(object):
     def __init__(self, input: dict):
         self.target = input["target"]
         self.mode = input["mode"]
+        self.default = os.environ.get("MAPLE_BUILD_TYPE")
         if os.path.exists(os.path.join(EnvVar.CONFIG_FILE_PATH, self.target + ".conf")):
             self.mode_table = ModeTable(os.path.join(EnvVar.CONFIG_FILE_PATH, self.target + ".conf"))
+        elif self.default:
+            self.mode_table = ModeTable(os.path.join(EnvVar.CONFIG_FILE_PATH, "%s.conf"%(self.default)))
         else:
             self.mode_table = ModeTable(os.path.join(EnvVar.CONFIG_FILE_PATH, "testall.conf"))
         self.cases = {}
@@ -59,6 +64,9 @@ class CommonParse(object):
             for case in list(self.cases.keys()):
                 if self.mode in self.cases[case]:
                     self.cases[case] = {self.mode}
+                elif len(self.cases) == 1:
+                    print("target has no '%s' mode! alternative modes:{%s}"%(self.mode,",".join(self.cases[case])))
+                    del self.cases[case]
                 else:
                     del self.cases[case]
 

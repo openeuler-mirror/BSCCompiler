@@ -1911,6 +1911,23 @@ std::list<StmtNode*> FEIRStmtCallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder)
   } else {
     stmtCall = mirBuilder.CreateStmtCallAssigned(methodInfo.GetPuIdx(), std::move(args), retVarSym, mirOp);
   }
+  if (HasPragma() && stmtCall != nullptr) {
+    auto &pragmas = GlobalTables::GetGPragmaTable().GetPragmaTable();
+    CPragma *pragmaPI = nullptr;
+    if (GetPragmaPIStatus() == PreferInlinePI::kPreferInlinePI) {
+      pragmaPI = GPragmaTable::CreateCPragma(CPragmaKind::PRAGMA_prefer_inline,
+                                             static_cast<uint32>(pragmas.size()), "ON");
+    } else if (GetPragmaPIStatus() == PreferInlinePI::kPreferNoInlinePI) {
+      pragmaPI = GPragmaTable::CreateCPragma(CPragmaKind::PRAGMA_prefer_inline,
+                                             static_cast<uint32>(pragmas.size()), "OFF");
+    }
+    uint32 pragmaPIIndex = pragmaPI->GetIndex();
+    if (pragmaPIIndex >= pragmas.size()) {
+      pragmas.resize(pragmaPIIndex + 1);
+      GlobalTables::GetGPragmaTable().SetPragmaItem(pragmaPIIndex, pragmaPI);
+    }
+    (void)stmtCall->GetPragmas()->emplace(pragmaPIIndex);  // prefer_inline or prefer_no_inline global id
+  }
   ans.push_back(stmtCall);
   return ans;
 }
@@ -2674,7 +2691,7 @@ FEIRExprAddrofConstArray::FEIRExprAddrofConstArray(const std::vector<uint32> &ar
                                                    const std::string &strIn)
     : FEIRExpr(FEIRNodeKind::kExprAddrof, FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
       arrayName(FEOptions::GetInstance().GetFuncInlineSize() != 0 ? FEUtils::GetSequentialName("const_array_") +
-                FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileName()) :
+                FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileNameExceptRootPath()) :
                 FEUtils::GetSequentialName("const_array_")),
       elemType(typeIn),
       str(strIn) {

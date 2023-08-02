@@ -35,6 +35,7 @@ bool IsAvailableReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return canBeAssigned;
+#include "x64_fp_simd_regs.def"
 #undef FP_SIMD_REG
     default:
       return false;
@@ -63,6 +64,7 @@ bool IsCalleeSavedReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return isCalleeSave;
+#include "x64_fp_simd_regs.def"
 #undef FP_SIMD_REG
     default:
       return false;
@@ -85,6 +87,7 @@ bool IsParamReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return isParam;
+#include "x64_fp_simd_regs.def"
 #undef FP_SIMD_REG
     default:
       return false;
@@ -107,6 +110,7 @@ bool IsSpillReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return isSpill;
+#include "x64_fp_simd_regs.def"
 #undef FP_SIMD_REG
     default:
       return false;
@@ -129,6 +133,7 @@ bool IsExtraSpillReg(X64reg reg) {
     isParam, isSpill, isExtraSpill) \
     case V##ID:                                                                   \
       return isExtraSpill;
+#include "x64_fp_simd_regs.def"
 #undef FP_SIMD_REG
     default:
       return false;

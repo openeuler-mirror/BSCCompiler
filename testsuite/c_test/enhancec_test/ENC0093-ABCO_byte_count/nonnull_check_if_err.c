@@ -28,6 +28,7 @@
 int g_arg_count = ARG_BYTE_COUNT - 1;
 
 __attribute__((count("arg_len", 1)))
+__attribute__((noinline))
 int* func(char* arg, int arg_len, int ret_len) __attribute__((returns_byte_count("ret_len")));
 
 int* func(char* arg, int arg_len, int ret_len)

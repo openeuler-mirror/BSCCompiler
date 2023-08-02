@@ -31,7 +31,7 @@ inline unsigned int* func_a(int* p)
     if (a > 1) {
         ret = NULL;
     }
-    return ret; // CHECK: [[# @LINE ]] warning: func_a return nonnull but got nullable pointer when inlined to main
+    return ret; // CHECK: [[# @LINE ]] warning: func_a return nonnull but got nullable pointer
 }
 
 unsigned int* func_b(int p)

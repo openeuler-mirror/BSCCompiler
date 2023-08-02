@@ -355,12 +355,13 @@ class MIRModule {
   const std::string &GetFileName() const {
     return fileName;
   }
+  const std::string &GetFileNameExceptRootPath() const {
+    return fltoFileName;
+  }
 
   std::string GetFileNameAsPostfix() const;
   std::string GetFileNameWithPath() const;
-  void SetFileName(const std::string &name) {
-    fileName = name;
-  }
+  void SetFileName(const std::string &name);
 
   bool IsJavaModule() const {
     return srcLang == kSrcLangJava;
@@ -718,11 +719,26 @@ class MIRModule {
     return tlsAnchorHashString;
   }
 
+  void SetTlsWarmupFunction(const std::string &s) {
+    tlsWarmupFunction = s;
+  }
+
+  const std::string &GetTlsWarmupFunction() const {
+    return tlsWarmupFunction;
+  }
+
   MapleMap<const MIRSymbol*, uint64> &GetTdataVarOffset() {
     return tdataVarOffset;
   }
   MapleMap<const MIRSymbol*, uint64> &GetTbssVarOffset() {
     return tbssVarOffset;
+  }
+  const MapleMap<const MIRSymbol*, uint64> &GetTlsVarOffset() const {
+    return tlsVarOffset;
+  }
+
+  MapleMap<const MIRSymbol*, uint64> &GetTlsVarOffset() {
+    return tlsVarOffset;
   }
 
   MIRSymbol *GetTdataAnchor() {
@@ -765,6 +781,7 @@ class MIRModule {
   MIRBuilder *mirBuilder;
   std::string entryFuncName = "";  // name of the entry function
   std::string fileName;
+  std::string fltoFileName;  // filename without rootpath
   TyIdx throwableTyIdx{0};  // a special type that is the base of java exception type. only used for java
   bool withProfileInfo = false;
 
@@ -836,10 +853,15 @@ class MIRModule {
   std::map<PUIdx, std::vector<ImpExpr>> funcImportantExpr;
 
   std::string tlsAnchorHashString = "";
+  // Where tls warmup func is inserted
+  std::string tlsWarmupFunction = "";
+  // for local dynamic, since .tdata and .tbss in one module will be seperate by the linker
   MapleMap<const MIRSymbol*, uint64> tdataVarOffset;
   MapleMap<const MIRSymbol*, uint64> tbssVarOffset;
   MIRSymbol *tdataAnchor = nullptr;
   MIRSymbol *tbssAnchor = nullptr;
+  // for warmup local dynamic + flto
+  MapleMap<const MIRSymbol*, uint64> tlsVarOffset;
 };
 #endif  // MIR_FEATURE_FULL
 }  // namespace maple

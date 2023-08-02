@@ -84,6 +84,22 @@ constexpr ValueJoinedType kSeparatedValue = ValueJoinedType::kValueSeparated;
 constexpr OptionVisibilityType kVisible = OptionVisibilityType::kVisibleOption;
 constexpr OptionVisibilityType kHide = OptionVisibilityType::kHidedOption;
 
+enum OptType : std::uint32_t {
+  KOptNone = 1U << 1,
+  KOptDriver = 1U << 2,  // Driver option.
+  KOptCommon = 1U << 3,  // Language-independent.
+  KOptFront = 1U << 4,  // Front Option.
+  KOptOptimization = 1U << 5,  // Enables an (optional) optimization.
+  KOptLd = 1U << 6,  // Ld Option.
+  KOptAs = 1U << 7,  // As Option.
+  KOptHir2mpl = 1U << 8,  // Hir2mpl Option.
+  KOptMe = 1U << 9,  // Me Option.
+  KOptMpl2mpl = 1U << 10,  // Mpl2mpl Option.
+  KOptMplcg = 1U << 11,  // Mplcg Option.
+  KOptMaple = 1U << 12,  // Maple Option.
+  KOptNotFiltering = 1U << 13,  // Front Option NeedN't Filtering.
+};
+
 /* Initializer is used to set default value for an option */
 template <typename T> struct Init {
   const T &defaultVal;
@@ -146,6 +162,10 @@ class OptionInterface {
     return valueExpected;
   }
 
+  void SetExpectedVal(ValueExpectedType value) {
+    valueExpected = value;
+  }
+
   bool IsJoinedValPermitted() const {
     return (valueJoined == ValueJoinedType::kValueJoined);
   }
@@ -181,6 +201,13 @@ class OptionInterface {
     equalSign = equal;
   }
 
+  bool HasMultipleName() const {
+    return names.size() > 1;
+  }
+  const OptType GetOptType() const {
+    return optType;
+  }
+
   std::string rawKey;
   std::vector<OptionCategory *> optCategories; // The option is registred in these categories
 
@@ -194,6 +221,7 @@ class OptionInterface {
   ValueExpectedType valueExpected = ValueExpectedType::kValueRequired;  // whether the value is expected
   ValueJoinedType valueJoined = ValueJoinedType::kValueSeparated;     // Joined option like -DMACRO
   OptionVisibilityType visibleOption = OptionVisibilityType::kVisibleOption; // Visible in Help
+  OptType optType = OptType::KOptNone;
 
   EqualType equalSign = EqualType::kWithoutEqual;
 };
@@ -356,6 +384,10 @@ class Option : public OptionInterface {
       SetDisablingAttribute(arg);
     } else if constexpr (std::is_same_v<DisableEvery, ArgT>) {
       SetDisablingAttribute(arg);
+    } else if constexpr (std::is_same_v<std::uint32_t, ArgT>) {
+      SetOptType(arg);
+    } else if constexpr (std::is_same_v<OptType, ArgT>) {
+      SetOptType(arg);
     } else {
       SetDefaultAttribute(arg);
     }
@@ -393,6 +425,14 @@ class Option : public OptionInterface {
     for (auto &val : disableWithArg.disableEvery) {
       disableWith.push_back(val);
     }
+  }
+
+  void SetOptType(const int optionType) {
+    optType = static_cast<OptType>(optionType);
+  }
+
+  void SetOptType(const OptType optionType) {
+    optType = optionType;
   }
 
   T value;

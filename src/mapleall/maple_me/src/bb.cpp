@@ -404,9 +404,18 @@ void BB::FindReachableBBs(std::vector<bool> &visitedBBs) const {
   if (visitedBBs[GetBBId()]) {
     return;
   }
-  visitedBBs[GetBBId()] = true;
-  for (const BB *bb : succ) {
-    bb->FindReachableBBs(visitedBBs);
+  std::deque<const BB*> queue;
+  queue.push_back(this);
+  while (!queue.empty()) {
+    auto bb = queue.front();
+    queue.pop_front();
+    if (visitedBBs[bb->GetID()]) {
+      continue;
+    }
+    visitedBBs[bb->GetID()] = true;
+    for (const BB *succBB : bb->GetSucc()) {
+      queue.push_back(succBB);
+    }
   }
 }
 

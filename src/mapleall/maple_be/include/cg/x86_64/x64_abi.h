@@ -28,13 +28,12 @@ constexpr int32 kNumIntReturnRegs = 2;
 constexpr int32 kNumFloatParmRegs = 8;
 constexpr int32 kNumFloatReturnRegs = 2;
 
-constexpr uint32 kNormalUseOperandNum = 3;
-constexpr uint32 kMaxInstrForCondBr = 260000;
+constexpr uint32 kNormalUseOperandNum = 2;
 
 constexpr X64reg kIntParmRegs[kNumIntParmRegs] = { R7, R6, R3, R2, R8, R9 };
 constexpr X64reg kIntReturnRegs[kNumIntReturnRegs] = { R0, R3 };
-constexpr X64reg kFloatParmRegs[kNumFloatParmRegs] = { V8, V9, V10, V11, V12, V13, V14, V15 };
-constexpr X64reg kFloatReturnRegs[kNumFloatReturnRegs] = { V8, V9 };
+constexpr X64reg kFloatParmRegs[kNumFloatParmRegs] = { V0, V1, V2, V3, V4, V5, V6, V7 };
+constexpr X64reg kFloatReturnRegs[kNumFloatReturnRegs] = { V0, V1 };
 
 /*
  * Refer to：

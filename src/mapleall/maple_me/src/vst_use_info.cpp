@@ -15,6 +15,7 @@
 
 #include "vst_use_info.h"
 #include "ssa.h"
+#include "me_cfg.h"
 
 namespace maple {
 void VstUseInfo::CollectUseInfoInExpr(BaseNode *expr, StmtNode *stmt) {
@@ -78,8 +79,8 @@ void VstUseInfo::CollectUseInfoInFunc(MeFunction *f, Dominance *dom, VstUnseInfo
   ssaTab = f->GetMeSSATab();
   useSites->resize(ssaTab->GetVersionStTable().GetVersionStVectorSize());
 
-  for (BB *bb : dom->GetReversePostOrder()) {
-    CollectUseInfoInBB(bb);
+  for (auto *bb : dom->GetReversePostOrder()) {
+    CollectUseInfoInBB(f->GetCfg()->GetBBFromID(BBId(bb->GetID())));
   }
 }
 } // namespace maple

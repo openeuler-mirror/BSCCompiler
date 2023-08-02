@@ -460,7 +460,9 @@ bool JumpThreading::CanJump2SuccOfCurrBB(
   if (!valueRanges.BrStmtInRange(bb, *vrOfOpnd0, *vrOfOpnd1, op, pType)) {
     return false;
   }
-  RegisterPath(bb, toBeJumpedBB);
+  if (registPath) {
+    RegisterPath(bb, toBeJumpedBB);
+  }
   return true;
 }
 
@@ -503,7 +505,7 @@ bool JumpThreading::CanJumpThreadingWithSwitch(BB &bb, ValueRange *vrOfOpnd0) {
   if (defalutBB == nullptr) {
     return false;
   }
-  if (vrOfOpnd0->IsConstantLowerAndUpper() && vrOfOpnd0->GetRangeType() == kEqual) {
+  if (vrOfOpnd0->IsConstantLowerAndUpper() && vrOfOpnd0->GetRangeType() == kEqual && registPath) {
     RegisterPath(bb, *defalutBB);
     return true;
   }
@@ -575,6 +577,19 @@ void JumpThreading::FindPathWhenDefByStmt(BB &useBB, CompareOpnds &cmpOpnds, boo
   ResizePath(lengthOfSubPath);
 }
 
+void JumpThreading::FindPathWhenDefBBDomPredBB(BB &bb, BB &pred, CompareOpnds &cmpOpnds, const BB &defBB) {
+  registPath = false;
+  if (dom.Dominate(defBB, pred) && (pred.GetKind() == kBBFallthru || pred.GetKind() == kBBGoto) &&
+      CanJumpThreading(pred, *cmpOpnds.first, cmpOpnds.second)) {
+    registPath = true;
+    path->push_back(&bb);
+    FindPath(pred, cmpOpnds);
+    path->pop_back();
+    return;
+  }
+  registPath = true;
+}
+
 void JumpThreading::FindPathFromUse2DefWhenOneOpndIsDefByPhi(BB &bb, BB &pred, CompareOpnds &cmpOpnds,
     size_t i, bool theFirstCmpOpndIsDefByPhi) {
   ScalarMeExpr *scalarMeExpr = theFirstCmpOpndIsDefByPhi ? static_cast<ScalarMeExpr*>(cmpOpnds.first) :
@@ -582,6 +597,7 @@ void JumpThreading::FindPathFromUse2DefWhenOneOpndIsDefByPhi(BB &bb, BB &pred, C
   auto *defPhi = &scalarMeExpr->GetDefPhi();
   auto *defBB = defPhi->GetDefBB();
   if (defBB != &bb) {
+    FindPathWhenDefBBDomPredBB(bb, pred, cmpOpnds, *defBB);
     FindPathWhenDefPointIsNotInCurrBB(*defBB, bb, *cmpOpnds.first, cmpOpnds.second);
     return;
   }

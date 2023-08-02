@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -40,8 +42,8 @@ class OriginParse(object):
                 self.timeout_suite[case_name] = self.results[case_name]["TIMEOUT"]
 
     def gen_report(self):
-        if self.all_failed_num == 0 and self.all_timeout_num == 0:
-            self.report.append("============ ALL CASE RUN SUCCESSFULLY ================")
+        if self.all_failed_num == 0 and self.all_timeout_num == 0 and len(self.results) > 0:
+            self.report.append("============ ALL CASE RUN SUCCESSFULLY case total num : " + str(self.all_passed_num) + " ================")
             return
         self.report.append("=========== case total num : " + str(
             self.all_passed_num + self.all_failed_num + self.all_timeout_num) + "  passed num : " + str(
@@ -57,19 +59,27 @@ class OriginParse(object):
                 self.report.append(case_name + ": " + ",".join(self.timeout_suite[case_name]))
 
     def print_report(self):
+        if len(self.results) == 0:
+            print("no cases run! please check your [MODE]/[testall.conf] or cur path under the $CASE_ROOT")
+            return
         for line in self.report:
             print(line)
+        if len(self.report) > 1:
+            print(self.report[0])
+
 
     def write_report(self):
         with open(EnvVar.SOURCE_CODE_ROOT + "/report.txt", "wt") as f:
             for line in self.report:
-                f.write(line)
+                f.write(line + "\n")
 
     def all_pass(self):
         return self.all_failed_num == 0 and self.all_timeout_num == 0
 
     def get_again_suite(self):
-        again_suite = self.failed_suite
+        again_suite = {}
+        for key, val in self.failed_suite.items():
+            again_suite[key] = val
         for case_name in self.timeout_suite.keys():
             if case_name in again_suite.keys():
                 again_suite[case_name] = again_suite[case_name] | self.timeout_suite[case_name]

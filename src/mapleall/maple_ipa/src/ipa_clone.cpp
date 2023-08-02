@@ -554,14 +554,38 @@ bool IpaClone::CheckImportantExprHasBr(const std::vector<ImpExpr> &exprVec) cons
   return false;
 }
 
+std::set<std::string> IpaClone::InitNoIpaFuncList() const{
+  std::set<std::string> resList;
+  if (Options::noIpaCloneFuncList.empty()) {
+    return resList;
+  }
+  std::ifstream fs(Options::noIpaCloneFuncList);
+  if (!fs) {
+    LogInfo::MapleLogger() << "WARN: failed to open " << Options::noIpaCloneFuncList << '\n';
+    return resList;
+  }
+  std::string line;
+  while (std::getline(fs, line)) {
+    if (line[0] == '#') {
+      continue;
+    }
+    (void)resList.insert(line);
+  }
+  return resList;
+}
+
 void IpaClone::DoIpaClone() {
   InitParams();
+  auto noIpaFunclist = InitNoIpaFuncList();
   for (uint32 i = 0; i < GlobalTables::GetFunctionTable().GetFuncTable().size(); ++i) {
     MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(i);
     if (func == nullptr) {
       continue;
     }
     if (Options::stackProtectorStrong && func->GetMayWriteToAddrofStack()) {
+      continue;
+    }
+    if (noIpaFunclist.count(func->GetName()) == 1) {
       continue;
     }
     curFunc = func;

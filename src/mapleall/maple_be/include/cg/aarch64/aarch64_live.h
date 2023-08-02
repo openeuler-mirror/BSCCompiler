@@ -22,17 +22,10 @@ class AArch64LiveAnalysis : public LiveAnalysis {
  public:
   AArch64LiveAnalysis(CGFunc &func, MemPool &memPool) : LiveAnalysis(func, memPool) {}
   ~AArch64LiveAnalysis() override = default;
-  void GetBBDefUse(BB &bb) override;
-  bool CleanupBBIgnoreReg(uint32 reg) override;
+  bool CleanupBBIgnoreReg(regno_t reg) override;
   void InitEhDefine(BB &bb) override;
- private:
-  void CollectLiveInfo(const BB &bb, const Operand &opnd, bool isDef, bool isUse) const;
-  void GenerateReturnBBDefUse(const BB &bb) const;
-  void ProcessCallInsnParam(const BB &bb, const Insn &insn) const;
-  void ProcessAsmListOpnd(const BB &bb, const Operand &opnd, uint32 idx) const;
-  void ProcessListOpnd(const BB &bb, const Operand &opnd) const;
-  void ProcessMemOpnd(const BB &bb, Operand &opnd) const;
-  void ProcessCondOpnd(const BB &bb) const;
+  void GenerateReturnBBDefUse(BB &bb) const override;
+  void ProcessCallInsnParam(BB &bb, const Insn &insn) const override;
 };
 }  /* namespace maplebe */
 

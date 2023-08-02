@@ -62,6 +62,7 @@ const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "hir2mpl",
 
 ErrorCode MplOptions::Parse(int argc, char **argv) {
   (void)maplecl::CommandLine::GetCommandLine().Parse(argc, argv);
+  EarlyHandlePicPie();
   // Check -version -h option
   ErrorCode ret = HandleEarlyOptions();
   if (ret != kErrorNoError) {
@@ -71,6 +72,22 @@ ErrorCode MplOptions::Parse(int argc, char **argv) {
   ret = CheckInputFiles();
   if (ret != kErrorNoError) {
     return ret;
+  }
+  bool isNeedParse = false;
+  char **argv1 = nullptr;
+  ret = LtoMergeOptions(argc, argv, &argv1, isNeedParse);
+  if (ret != kErrorNoError) {
+    return ret;
+  }
+  if (isNeedParse) {
+    driverCategory.ClearOpt();
+    (void)maplecl::CommandLine::GetCommandLine().Parse(argc, argv1);
+    for (int i = 0; i < argc; i++) {
+      delete argv1[i];
+    }
+    delete []argv1;
+    argv1 = nullptr;
+    EarlyHandlePicPie();
   }
   // We should recognize O0, O2 and run options firstly to decide the real options
   ret = HandleOptimizationLevelOptions();
@@ -84,10 +101,10 @@ ErrorCode MplOptions::Parse(int argc, char **argv) {
     std::string pgoLibPath = "";
     if (FileUtils::SafeGetenv(kMapleRoot) != "" && FileUtils::SafeGetenv(kGetOsVersion) != "") {
       pgoLibPath = FileUtils::SafeGetenv(kMapleRoot) + "/libpgo/lib_" +
-                   FileUtils::SafeGetenv(kGetOsVersion) + "/" + libpgoName;
+                   FileUtils::SafeGetenv(kGetOsVersion) + kFileSeperatorStr + libpgoName;
     } else {
-      std::string tmpFilePath = maple::StringUtils::GetStrBeforeLast(exeFolder, "/");
-      pgoLibPath = maple::StringUtils::GetStrBeforeLast(tmpFilePath, "/") + "/lib/libc_pgo/" + libpgoName;
+      std::string tmpFilePath = maple::StringUtils::GetStrBeforeLast(exeFolder, kFileSeperatorStr);
+      pgoLibPath = maple::StringUtils::GetStrBeforeLast(tmpFilePath, kFileSeperatorStr) + "/lib/libc_pgo/" + libpgoName;
     }
     CHECK_FATAL(FileUtils::IsFileExists(pgoLibPath), "%s not exit.", pgoLibPath.c_str());
     std::string threadLibPath = "-lpthread";
@@ -118,7 +135,269 @@ ErrorCode MplOptions::Parse(int argc, char **argv) {
     return ret;
   }
 
+  ret = LtoWriteOptions();
   return ret;
+}
+
+void MplOptions::EarlyHandlePicPie() const {
+  if (opts::fpic.IsEnabledByUser() || opts::fPIC.IsEnabledByUser()) {
+    // To avoid fpic mode being modified twice, need to ensure fpie is not opened.
+    if (!opts::fpie && !opts::fpie.IsEnabledByUser() && !opts::fPIE.IsEnabledByUser() && !opts::fPIE) {
+      if (opts::fPIC && opts::fPIC.IsEnabledByUser()) {
+        CGOptions::SetPICOptionHelper(maplebe::CGOptions::kLargeMode);
+        CGOptions::SetPIEMode(maplebe::CGOptions::kClose);
+      } else if (opts::fpic && opts::fpic.IsEnabledByUser()) {
+        CGOptions::SetPICOptionHelper(maplebe::CGOptions::kSmallMode);
+        CGOptions::SetPIEMode(maplebe::CGOptions::kClose);
+      } else {
+        CGOptions::SetPICMode(maplebe::CGOptions::kClose);
+      }
+    }
+  }
+  if (opts::fpie.IsEnabledByUser() || opts::fPIE.IsEnabledByUser()) {
+    if (opts::fPIE && opts::fPIE.IsEnabledByUser()) {
+      CGOptions::SetPIEOptionHelper(maplebe::CGOptions::kLargeMode);
+    } else if (opts::fpie && opts::fpie.IsEnabledByUser()) {
+      CGOptions::SetPIEOptionHelper(maplebe::CGOptions::kSmallMode);
+    } else {
+      CGOptions::SetPIEMode(maplebe::CGOptions::kClose);
+    }
+  }
+}
+
+// 4 >  item->second      means Compilation Optimization Options
+// 4 =< item->second < 7  means pic opt
+// 7 =< item->second < 10 means pie opt
+// 6 =  item->second      means -fno-pic
+constexpr int compileLevelOpt = 4;
+constexpr int picOpt = 7;
+constexpr int pieOpt = 10;
+constexpr int noPicOpt = 6;
+
+ErrorCode MplOptions::MergeOptions(std::vector<std::vector<std::string>> optVec,
+                                   std::vector<std::string> &finalOptVec) const {
+  size_t size = optVec.size();
+  int level = 0;
+  std::unordered_map<std::string, int> needMergeOp = {{"-fpic", 4}, {"-fPIC", 5}, {"-O0", 0}, {"-O1", 1}, {"-O2", 2},
+      {"-O3", 3}, {"-Os", 2}, {"-fpie", 7}, {"-fPIE", 8}, {"-fno-pie", 9}, {"-fno-pic", 6}};
+  for (size_t i = 0; i < optVec[0].size(); ++i) {
+    std::string opt = optVec[0][i];
+    auto item = needMergeOp.find(opt);
+    if (item != needMergeOp.end()) {
+      finalOptVec.push_back(opt);
+      continue;
+    }
+    for (size_t idx = 1; idx < size; ++idx) {
+      if (std::find(optVec[idx].begin(), optVec[idx].end(), opt) ==  optVec[idx].end()) {
+        return kErrorLtoInvalidParameter;
+      }
+    }
+    finalOptVec.push_back(opt);
+  }
+  for (size_t i = 1; i < optVec.size(); ++i) {
+    std::string pic = "";
+    std::string pie = "";
+    for (size_t index = 0; index < optVec[i].size(); index++) {
+      std::string opt = optVec[i][index];
+      auto item = needMergeOp.find(opt);
+      if (item != needMergeOp.end()) {
+        if (item->second < compileLevelOpt) {
+          level = item->second;
+        } else if (item->second < picOpt) {
+          pic = opt;
+        } else if (item->second < pieOpt) {
+          pie = opt;
+        }
+      } else {
+        if (std::find(finalOptVec.begin(), finalOptVec.end(), opt) ==  finalOptVec.end()) {
+          return kErrorLtoInvalidParameter;
+        }
+      }
+    }
+    for (size_t optIdx = 0; optIdx < finalOptVec.size(); ++optIdx) {
+      auto item = needMergeOp.find(finalOptVec[optIdx]);
+      if (item != needMergeOp.end()) {
+        if (item->second < compileLevelOpt) {
+          level = std::max(level, item->second);
+          finalOptVec[optIdx] = "-O" + std::to_string(level);
+        } else if (item->second < pieOpt) {
+          if (item->second == noPicOpt) {
+            continue;
+          } else if (item->second < picOpt) {
+            if (pic == "-fno-pic" || pic == "") {
+              if (pie != "") {
+                bool big = item->first == "-fPIC" && pie == "-fPIE";
+                finalOptVec[optIdx] = pie == "-fno-pie" ? "-fno-pie" : big ? "-fPIE" : "-fpie";
+              } else if (pic != "") {
+                finalOptVec[optIdx] = pic;
+              } else {
+                (void)finalOptVec.erase(std::remove(finalOptVec.begin(), finalOptVec.end(), finalOptVec[optIdx]),
+                    finalOptVec.end());
+              }
+            } else if (pic == "-fpic" && finalOptVec[optIdx] == "-fPIC") {
+              finalOptVec[optIdx] = pic;
+            }
+          } else {
+            if (pie == "-fno-pie" || pie == "") {
+              if (pic != "") {
+                if ((pic == "-fpic" || pic == "-fno-pic") && finalOptVec[optIdx] == "-fPIE") {
+                  finalOptVec[optIdx] = pic == "-fno-pic" ? "-fno-pie" : "-fpie";
+                } else if (pic == "-fno-pic") {
+                  finalOptVec[optIdx] = "-fno-pie";
+                }
+              } else if (pie != "") {
+                finalOptVec[optIdx] = pie;
+              } else {
+                (void)finalOptVec.erase(std::remove(finalOptVec.begin(), finalOptVec.end(), finalOptVec[optIdx]),
+                    finalOptVec.end());
+              }
+            } else if (pie == "-fpie" && finalOptVec[optIdx] == "-fPIE") {
+              finalOptVec[optIdx] = pie;
+            }
+          }
+        }
+      }
+    }
+  }
+  return kErrorNoError;
+}
+
+void MplOptions::AddOptions(int argc, char **argv, std::vector<std::string> &finalOptVec) const {
+  for (int i = 1; i < argc; i++) {
+    finalOptVec.push_back(std::string(*(argv + i)));
+  }
+}
+
+ErrorCode MplOptions::LtoMergeOptions(int &argc, char **argv, char ***argv1, bool &isNeedParse) {
+  if (!isAllAst) {
+    return kErrorNoError;
+  }
+  std::vector<std::vector<std::string>> optVec;
+  std::string sectionName = "LTO_OPTION";
+  std::vector<std::string> finalOptVec;
+  finalOptVec.push_back(std::string(*argv));
+  for (auto &inputFile : inputInfos) {
+    finalOptVec.push_back(inputFile->GetInputFile());
+    std::string filePath = FileUtils::GetRealPath(inputFile->GetInputFile());
+    auto item = std::find(maplecl::CommandLine::GetCommandLine().GetAstInputs().begin(),
+                          maplecl::CommandLine::GetCommandLine().GetAstInputs().end(), filePath);
+    if (item != maplecl::CommandLine::GetCommandLine().GetAstInputs().end()) {
+      continue;
+    }
+    if (inputFile->GetInputFileType() != InputFileType::kFileTypeOast) {
+      continue;
+    }
+    filePath = FileUtils::GetRealPath(inputFile->GetInputFile());
+    filePath = StringUtils::GetStrBeforeLast(filePath, ".")  + ".option";
+    if (!FileUtils::IsFileExists(filePath)) {
+      return kErrorNoOptionFile;
+    }
+    FileReader *fileReader = new FileReader(filePath);
+    std::vector<std::string> optionVec;
+    std::string optLine = fileReader->GetLine(sectionName);
+    optLine = StringUtils::GetStrAfterFirst(optLine, kWhitespaceStr);
+    StringUtils::Split(optLine, optionVec, kWhitespaceChar);
+    delete fileReader;
+    fileReader = nullptr;
+    optVec.push_back(optionVec);
+  }
+  if (optVec.empty()) {
+    return kErrorNoError;
+  }
+  isNeedParse = true;
+  ErrorCode ret = MergeOptions(optVec, finalOptVec);
+  if (ret != kErrorNoError) {
+    return ret;
+  }
+  AddOptions(argc, argv, finalOptVec);
+  argc = static_cast<int>(finalOptVec.size());
+  char **p = new char *[argc];
+  for (size_t i = 0; i < finalOptVec.size(); ++i) {
+    size_t len = finalOptVec[i].size() + 1;
+    p[i] = new char[static_cast<int>(len)];
+    strcpy_s(p[i], len, finalOptVec[i].c_str());
+  }
+  *argv1 = p;
+  return kErrorNoError;
+}
+
+void MplOptions::LtoWritePicPie(const std::string &optName, std::string &ltoOptSection, bool &pic, bool &pie) const {
+  std::string optName1 = "";
+  bool isPic = false;
+  if (!pic && (optName == "-fpic" || optName == "-fPIC")) {
+        pic = true;
+        isPic = true;
+  } else if (!pie && (optName == "-fpie" || optName == "-fPIE")) {
+        pie = true;
+  } else {
+    ltoOptSection += optName + kWhitespaceStr;
+    return;
+  }
+  if (CGOptions::GetPICMode() == maplebe::CGOptions::kClose) {
+    optName1 = isPic ? "-fno-pic" : "-fno-pie";
+  } else if (CGOptions::GetPICMode() == maplebe::CGOptions::kSmallMode) {
+    optName1 = isPic ? "-fpic" : "-fpie";
+  } else {
+    optName1 = isPic ? "-fPIC" : "-fPIE";
+  }
+  ltoOptSection += optName1 + kWhitespaceStr;
+}
+
+ErrorCode MplOptions::LtoWriteOptions() {
+  if (!(opts::linkerTimeOpt.IsEnabledByUser() && opts::compileWOLink.IsEnabledByUser())) {
+    return kErrorNoError;
+  }
+  std::string ltoOptSection = "LTO_OPTIONS: ";
+  bool pic = false;
+  bool pie = false;
+  for (size_t i = 0; i < driverCategory.GetEnabledOption().size(); ++i) {
+    auto option = driverCategory.GetEnabledOption()[i];
+    std::string optName = option->GetName();
+    if ((option->GetOptType() & (opts::kOptFront | opts::kOptDriver | opts::kOptLd)) &&
+       !(option->GetOptType() & opts::kOptNotFiltering)) {
+      continue;
+    }
+    if ((option->GetOptType() & opts::kOptNone) && optName != "-foffload-options") {
+      continue;
+    }
+    if (option->ExpectedVal() == maplecl::ValueExpectedType::kValueRequired) {
+      size_t len = option->GetRawValues().size() - 1;
+      if (option->IsJoinedValPermitted() || StringUtils::EndsWith(optName, "=")) {
+        ltoOptSection = ltoOptSection + kWhitespaceStr + optName + option->GetRawValues()[len] + kWhitespaceStr;
+      } else {
+        ltoOptSection = ltoOptSection + kWhitespaceStr + optName + "=" + option->GetRawValues()[len] + kWhitespaceStr;
+      }
+    } else {
+      LtoWritePicPie(optName, ltoOptSection, pic, pie);
+    }
+  }
+  for (auto &inputFile : inputInfos) {
+    std::string filePath = FileUtils::GetCurDirPath() + "/" + inputFile->GetInputName();
+    // xx.o -> xxx.
+    filePath.pop_back();
+    if (opts::output.IsEnabledByUser()) {
+      if (StringUtils::StartsWith(opts::output.GetValue(), "/")) {
+        filePath = opts::output.GetValue();
+        filePath.pop_back();
+      } else {
+        std::string tmp = StringUtils::GetStrBeforeLast(opts::output.GetValue(), ".");
+        filePath = FileUtils::GetCurDirPath() + kFileSeperatorStr + tmp + ".";
+      }
+    }
+    (void)filePath.append("option");
+    if (!FileUtils::CreateFile(filePath)) {
+      return kErrorCreateFile;
+    }
+    // Temporary file writing scheme. This operation is performed by the front end.
+    std::ofstream fileWrite;
+    fileWrite.open(filePath);
+    if (!fileWrite) {
+      return kErrorFileNotFound;
+    }
+    fileWrite << ltoOptSection << std::endl;
+    fileWrite.close();
+  }
+  return kErrorNoError;
 }
 
 ErrorCode MplOptions::HandleOptions() {
@@ -336,12 +615,11 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
     case InputFileType::kFileTypeBpl:
       break;
     case InputFileType::kFileTypeObj:
+    case InputFileType::kFileTypeNone:
       isNeedMplcg = false;
       isNeedMapleComb = false;
       isNeedAs = false;
       break;
-    case InputFileType::kFileTypeNone:
-      return nullptr;
     default:
       return nullptr;
   }
@@ -404,7 +682,10 @@ ErrorCode MplOptions::DecideRunningPhases() {
     tmpInputInfos.clear();
     auto frontOastInfo = hirInputFiles.front();
     (void)hirInputFiles.erase(hirInputFiles.begin());
-    inputInfos.push_back(std::make_unique<InputInfo>(frontOastInfo));
+    ret = InitInputFiles(frontOastInfo);
+    if (ret != kErrorNoError) {
+      return ret;
+    }
     inputInfos.push_back(std::make_unique<InputInfo>(InputInfo(inputInfos.back()->GetOutputFolder() + "tmp.mpl",
                          InputFileType::kFileTypeMpl, "tmp.mpl", inputInfos.back()->GetOutputFolder(),
                          inputInfos.back()->GetOutputFolder(), "tmp", inputInfos.back()->GetOutputFolder() + "tmp")));
@@ -427,8 +708,9 @@ ErrorCode MplOptions::DecideRunningPhases() {
           " linker input file unused because linking not done " << std::endl;
     }
     if ((lastAction->GetTool() == kAsFlag && !opts::compileWOLink) ||
-        (inputInfo->GetInputFileType() == InputFileType::kFileTypeObj && (!opts::compileWOLink.IsEnabledByUser() &&
-        !opts::onlyCompile.IsEnabledByUser()))) {
+        ((inputInfo->GetInputFileType() == InputFileType::kFileTypeObj ||
+          inputInfo->GetInputFileType() == InputFileType::kFileTypeNone) &&
+         (!opts::compileWOLink.IsEnabledByUser() && !opts::onlyCompile.IsEnabledByUser()))) {
       /* 1. For linking step, inputActions are all assembly actions;
        * 2. If we try to link with maple driver, inputActions are all kInputPhase objects;
        */
@@ -587,6 +869,7 @@ InputInfo *MplOptions::AllocateInputInfo(const std::string &inputFile) {
 }
 
 ErrorCode MplOptions::CheckInputFiles() {
+  ErrorCode ret = kErrorNoError;
   auto &badArgs = maplecl::CommandLine::GetCommandLine().badCLArgs;
 
   /* Set input files with --infile="file1 file2" option */
@@ -600,21 +883,26 @@ ErrorCode MplOptions::CheckInputFiles() {
 
     /* inputInfo describes each input file for driver */
     for (auto &inFile : splitsInputFiles) {
-      if (FileUtils::IsFileExists(inFile)) {
-        inputFiles.push_back(inFile);
-        inputInfos.push_back(std::make_unique<InputInfo>(inFile));
-      } else {
+      if (!FileUtils::IsFileExists(inFile)) {
         LogInfo::MapleLogger(kLlErr) << "File does not exist: " << inFile << "\n";
         return kErrorFileNotFound;
       }
+      ret = InitInputFiles(inFile);
+      if (ret != kErrorNoError) {
+        return ret;
+      }
+      (void)inputFiles.emplace_back(inFile);
     }
   }
 
   /* Set input files directly: maple file1 file2 */
   for (auto &arg : badArgs) {
     if (FileUtils::IsFileExists(arg.first)) {
-      inputFiles.push_back(arg.first);
-      inputInfos.push_back(std::make_unique<InputInfo>(arg.first));
+      ret = InitInputFiles(arg.first);
+      if (ret != kErrorNoError) {
+        return ret;
+      }
+      (void)inputFiles.emplace_back(arg.first);
     } else {
       LogInfo::MapleLogger(kLlErr) << "Unknown option or non-existent input file: " << arg.first << "\n";
       if (!opts::ignoreUnkOpt) {
@@ -642,7 +930,23 @@ ErrorCode MplOptions::CheckInputFiles() {
   if (inputFiles.empty()) {
     return kErrorFileNotFound;
   }
+  return kErrorNoError;
+}
 
+ErrorCode MplOptions::InitInputFiles(const std::string &filename) {
+  auto inputFile = std::make_unique<InputInfo>(filename);
+  if (inputFile->GetInputFileType() == InputFileType::kFileTypeNone &&
+      FileUtils::GetFileTypeByMagicNumber(filename) == InputFileType::kFileTypeOast) {
+    if (opts::linkerTimeOpt.IsEnabledByUser()) {
+      inputFile->SetInputFileType(InputFileType::kFileTypeOast);
+    } else {
+      return kErrorNeedLtoOption;
+    }
+  }
+  if (!FileUtils::IsSupportFileType(inputFile->GetInputFileType())) {
+    return kErrorUnKnownFileType;
+  }
+  (void)inputInfos.emplace_back(std::move(inputFile));
   return kErrorNoError;
 }
 

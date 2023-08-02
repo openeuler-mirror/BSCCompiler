@@ -21,6 +21,30 @@ struct A {
   short s;
 };
 
+int foo (int a, int b, int c, int d) {
+  return a + b + c + d;
+}
+
+__attribute__((count(5, 1)))
+int test (int *mac, int) {
+	// CHECK: LOC [[# FILENUM]] [[# @LINE + 5 ]]
+  // CHECK-NEXT: assertge{{.*}}
+  // CHECK: assertge{{.*}}
+  // CHECK: assertge{{.*}}
+  // CHECK: assertge{{.*}}
+	return foo(mac[0], mac[1], mac[2], mac[3]);
+}
+
+__attribute__((count(5, 1)))
+int test1 (int *mac, int) {
+	// CHECK: LOC [[# FILENUM]] [[# @LINE + 5 ]]
+  // CHECK-NEXT: assertge{{.*}}
+  // CHECK: assertge{{.*}}
+  // CHECK: assertge{{.*}}
+  // CHECK: assertge{{.*}}
+	return foo(*mac, *(mac + 1), *(mac + 2), *(mac + 3));
+}
+
 #include <stdio.h>
 int main() {
   int a[5] = {1, 2, 3, 4, 5};

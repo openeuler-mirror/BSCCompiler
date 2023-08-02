@@ -16,7 +16,7 @@
 #include "mpl_timer.h"
 
 namespace maple {
-constexpr long kAlternateUnits = 1000.0;
+constexpr long kAlternateUnits = 1000;
 thread_local PhaseDriverImpl *PhaseDriver::phaseImplLocal = nullptr;
 PhaseDriver::PhaseDriver(const std::string &phaseName)
     : MplScheduler(phaseName), module(nullptr), phaseImpl(nullptr), phaseName(phaseName) {}
@@ -53,9 +53,9 @@ void PhaseDriver::RunSerial() {
   MplTask *task = GetTaskToRun();
   while (task != nullptr) {
     MplTaskParam *paramRun = CallbackGetTaskRunParam();
-    task->Run(paramRun);
+    (void)task->Run(paramRun);
     MplTaskParam *paramFinish = CallbackGetTaskFinishParam();
-    task->Run(paramFinish);
+    (void)task->Run(paramFinish);
   }
   if (dumpTime) {
     timer.Stop();
@@ -78,7 +78,7 @@ void PhaseDriver::RunParallel(int thread, bool bSeq) {
   if (dumpTime) {
     timer.Start();
   }
-  int ret = RunTask(thread, bSeq);
+  int ret = RunTask(static_cast<uint32>(thread), bSeq);
   CHECK_FATAL(ret == 0, "RunTask failed");
   if (dumpTime) {
     timer.Stop();

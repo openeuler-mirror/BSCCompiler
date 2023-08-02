@@ -453,6 +453,13 @@ class ValueRange {
             range.pair.upper.GetVar() == nullptr);
   }
 
+  bool IsConstantBoundOrLowerAndUpper() const {
+    return (rangeType == kEqual && range.bound.GetVar() == nullptr) ||
+           (rangeType == kNotEqual && range.bound.GetVar() == nullptr) ||
+           (rangeType == kLowerAndUpper && range.pair.lower.GetVar() == nullptr &&
+            range.pair.upper.GetVar() == nullptr);
+  }
+
   bool IsGreaterThanOrEqualToZero() const {
     auto pType = GetPrimType();
     Bound zeroBound(nullptr, 0, pType);
@@ -502,6 +509,10 @@ class ValueRange {
   }
 
   bool IsEqual(ValueRange *valueRangeRight) const;
+
+  bool IsUniversalSet() const {
+    return GetLower().IsEqualToMin(GetPrimType()) && GetUpper().IsEqualToMax(GetPrimType());
+  }
 
  private:
   Range range;
@@ -554,6 +565,7 @@ class ValueRangePropagation {
   void JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
       BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts, bool &crossPhiNode);
   bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, const MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
+  ValueRange *GetMinimumRange(ValueRange *vr1, ValueRange *vr2, PrimType pTy) const;
   ValueRange *FindValueRange(const BB &bb, MeExpr &expr, uint32 &numberOfRecursionsArg,
       std::unordered_set<int32> &foundExprs, uint32 maxThreshold);
   bool BrStmtInRange(const BB &bb, const ValueRange &leftRange, const ValueRange &rightRange, Opcode op,
@@ -582,7 +594,15 @@ class ValueRangePropagation {
       const BB &bb, MeExpr &expr, uint32 maxThreshold = kRecursionThreshold) {
     uint32 numOfRecursion = 0;
     std::unordered_set<int32> foundExprs{expr.GetExprID()};
-    return FindValueRange(bb, expr, numOfRecursion, foundExprs, maxThreshold);
+    auto res = FindValueRange(bb, expr, numOfRecursion, foundExprs, maxThreshold);
+    if (res == nullptr) {
+      return res;
+    }
+    if (res->IsEqualAfterCVT(res->GetPrimType(), expr.GetPrimType())) {
+      return res;
+    }
+    return (res->GetRangeType() == kNotEqual && res->IsConstantBoundOrLowerAndUpper() &&
+        res->GetBound().IsEqualAfterCVT(res->GetPrimType(), expr.GetPrimType())) ? res : nullptr;
   }
 
  private:
@@ -693,6 +713,9 @@ class ValueRangePropagation {
     if (lhs.IsVolatile() || rhs.IsVolatile() || lhs.GetMeOp() == kMeOpConst || rhs.GetMeOp() == kMeOpConst) {
       return;
     }
+    if (GetPrimTypeSize(lhs.GetPrimType()) != GetPrimTypeSize(rhs.GetPrimType())) {
+      return;
+    }
     auto it = pairOfExprs.find(&lhs);
     if (it == pairOfExprs.end()) {
       std::map<BB*, std::set<MeExpr*, CompareExpr>, CompareBB> valueOfPairOfExprs{
@@ -761,6 +784,7 @@ class ValueRangePropagation {
   Bound Max(Bound leftBound, Bound rightBound);
   Bound Min(Bound leftBound, Bound rightBound);
   InRangeType InRange(const BB &bb, const ValueRange &rangeTemp, const ValueRange &range, bool lowerIsZero = false);
+  bool CanNotCombineVRs(const Bound &resLower, const Bound &resUpper, PrimType primType) const;
   std::unique_ptr<ValueRange> CombineTwoValueRange(const ValueRange &leftRange,
                                                    const ValueRange &rightRange, bool merge = false);
   void DealWithArrayLength(const BB &bb, MeExpr &lhs, MeExpr &rhs);
@@ -834,7 +858,7 @@ class ValueRangePropagation {
       ValueRange *rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB &condGoto);
   void CreateLabelForTargetBB(BB &pred, BB &newBB);
   size_t FindBBInSuccs(const BB &bb, const BB &succBB) const;
-  void DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &meExpr);
+  void DealWithOperand(BB &bb, MeStmt &stmt, MeExpr &meExpr);
   void CollectMeExpr(const BB &bb, MeStmt &stmt, MeExpr &meExpr,
                      std::map<MeExpr*, std::pair<int64, PrimType>> &expr2ConstantValue);
   void ReplaceOpndWithConstMeExpr(const BB &bb, MeStmt &stmt);
@@ -886,7 +910,6 @@ class ValueRangePropagation {
   bool AnalysisUnreachableForLeOrLt(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   bool AnalysisUnreachableForEqOrNe(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   bool DealWithVariableRange(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
-  std::unique_ptr<ValueRange> MergeValuerangeOfPhi(std::vector<std::unique_ptr<ValueRange>> &valueRangeOfPhi);
   std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int stride, Bound &initBound) const;
   void CreateVRForPhi(const LoopDesc &loop);
   void TravelBBs(std::vector<BB *> &reversePostOrderOfLoopBBs);
@@ -919,6 +942,15 @@ class ValueRangePropagation {
   bool HasDefPointInPred(const BB &begin, const BB &end, const ScalarMeExpr &opnd) const;
   bool CanIgnoreTheDefPoint(const MeStmt &stmt, const BB &end, const ScalarMeExpr &expr) const;
   bool GetVROfBandOpnd(const BB &bb, const OpMeExpr &opMeExpr, MeExpr &opnd);
+  bool IsNotNeededVRType(const ValueRange &vrLeft, const ValueRange &vrRight) const;
+
+  bool IsInvalidVR(const ValueRange &vr) const {
+    return vr.GetLower().IsGreaterThan(vr.GetUpper(), vr.GetPrimType());
+  }
+
+  bool CanCreateVRForExpr(const MeExpr &expr) const {
+    return !expr.IsVolatile() && IsNeededPrimType(expr.GetPrimType());
+  }
 
   MeFunction &func;
   MeIRMap &irMap;

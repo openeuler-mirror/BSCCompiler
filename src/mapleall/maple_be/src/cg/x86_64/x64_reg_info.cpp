@@ -12,9 +12,9 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "becommon.h"
-#include "x64_cgfunc.h"
 #include "x64_reg_info.h"
+#include "x64_cgfunc.h"
+#include "x64_cg.h"
 
 namespace maplebe {
 using namespace maple;
@@ -86,16 +86,6 @@ bool X64RegInfo::IsUnconcernedReg(const RegOperand &regOpnd) const {
 void X64RegInfo::Fini() {
 }
 
-ListOperand* X64RegInfo::CreateListOperand() {
-  CHECK_FATAL(false, "CreateListOperand, unsupported");
-  return nullptr;
-}
-
-Insn *X64RegInfo::BuildMovInstruction(Operand &opnd0, Operand &opnd1) {
-  CHECK_FATAL(false, "BuildMovInstruction, unsupported");
-  return nullptr;
-}
-
 RegOperand *X64RegInfo::GetOrCreatePhyRegOperand(regno_t regNO, uint32 size, RegType kind, uint32 flag) {
   return &(GetCurrFunction()->GetOpndBuilder()->CreatePReg(regNO, size, kind));
 }
@@ -146,13 +136,6 @@ Insn *X64RegInfo::BuildLdrInsn(uint32 regSize, PrimType stype, RegOperand &phyOp
   Insn &insn = GetCurrFunction()->GetInsnBuilder()->BuildInsn(mOp, X64CG::kMd[mOp]);
   insn.AddOpndChain(memOpnd).AddOpndChain(phyOpnd);
   return &insn;
-}
-
-Insn *X64RegInfo::BuildCommentInsn(const std::string &comment) {
-  CHECK_FATAL(false, "Comment Insn, unsupported");
-  CommentOperand *commentOpnd = &(GetCurrFunction()->GetOpndBuilder()->CreateComment(comment));
-  commentOpnd = nullptr;
-  return nullptr;
 }
 
 MemOperand *X64RegInfo::AdjustMemOperandIfOffsetOutOfRange(MemOperand *memOpnd, regno_t vrNum,

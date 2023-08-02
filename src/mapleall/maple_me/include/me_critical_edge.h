@@ -15,34 +15,28 @@
 #ifndef MAPLE_ME_INCLUDE_MECRITICALEDGE_H
 #define MAPLE_ME_INCLUDE_MECRITICALEDGE_H
 
-#include "me_phase.h"
 #include "bb.h"
+#include "maple_phase_manager.h"
 
 namespace maple {
 // Split critical edge
 class MeSplitCEdge {
  public:
   explicit MeSplitCEdge(bool enableDebug) : isDebugFunc(enableDebug) {}
+  virtual ~MeSplitCEdge() = default;
   void BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const;
+  static bool IsCriticalEdgeBB(const BB &bb); // Is a critical edge cut by bb
+  bool SplitCriticalEdgeForMeFunc(MeFunction &func) const; // find all critical edge in func and split
+  bool SplitCriticalEdgeForBB(MeFunction &func, BB &bb) const; // find critical edge around bb
  private:
   void UpdateGotoLabel(BB &newBB, MeFunction &func, BB &pred, BB &succ) const;
   void UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &succ) const;
-  void UpdateNewBBInTry(MeFunction &func, BB &newBB, const BB &pred) const;
-  void DealWithTryBB(MeFunction &func, BB &pred, BB &succ, BB *&newBB, bool &isInsertAfterPred) const;
+  void UpdateNewBBInTry(const MeFunction &func, BB &newBB, const BB &pred) const;
+  void DealWithTryBB(const MeFunction &func, BB &pred, BB &succ, BB *&newBB, bool &isInsertAfterPred) const;
 
   bool isDebugFunc = false;
 };
 
-class MeDoSplitCEdge : public MeFuncPhase {
- public:
-  explicit MeDoSplitCEdge(MePhaseID id) : MeFuncPhase(id) {}
-
-  ~MeDoSplitCEdge() = default;
-
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
-  std::string PhaseName() const override {
-    return "splitcriticaledge";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MESplitCEdge, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MECRITICALEDGE_H

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -23,6 +25,5 @@ class CleanRun():
     def execute(self):
         clean = Clean(self.input)
         clean.execute()
-
     def get_output(self):
         pass

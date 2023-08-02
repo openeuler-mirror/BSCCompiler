@@ -1352,7 +1352,7 @@ class GraphColorRegAllocator : public RegAllocator {
   void LocalRegisterAllocator(bool doAllocate);
   MemOperand *GetSpillOrReuseMem(LiveRange &lr, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
-  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, bool isDef, RegOperand &phyOpnd,
+  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, RegOperand &phyOpnd,
                                 uint32 spillIdx, bool needSpill);
   MemOperand *GetConsistentReuseMem(const MapleSet<regno_t> &conflict,
                                     const std::set<MemOperand*> &usedMemOpnd, uint32 size,
@@ -1390,7 +1390,7 @@ class GraphColorRegAllocator : public RegAllocator {
   bool FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, const Insn &insn,
                                   MapleBitVector &usedRegMask);
   void SplitVregAroundLoop(const LoopDesc &loop, const std::vector<LiveRange*> &lrs,
-                           BB &headerPred, BB &exitSucc, const std::set<regno_t> &cands);
+                           BB &storeBB, BB &reloadBB, const std::set<regno_t> &cands);
   bool LoopNeedSplit(const LoopDesc &loop, std::set<regno_t> &cands);
   bool LrGetBadReg(const LiveRange &lr) const;
   void AnalysisLoopPressureAndSplit(const LoopDesc &loop);

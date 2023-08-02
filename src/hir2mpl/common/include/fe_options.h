@@ -502,6 +502,13 @@ class FEOptions {
     return funcMerge;
   }
 
+  void SetNoBuiltin(bool flag) {
+    noBuiltin = flag;
+  }
+
+  bool IsNoBuiltin() const {
+    return noBuiltin;
+  }
  private:
   static FEOptions options;
   // input control options
@@ -582,6 +589,7 @@ class FEOptions {
   uint32 funcInlineSize = 0;
   bool wpaa = false;
   bool funcMerge = true;
+  bool noBuiltin = false;
   FEOptions();
   ~FEOptions() = default;
 };

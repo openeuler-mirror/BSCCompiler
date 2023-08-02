@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -13,6 +15,7 @@
 #
 
 import os
+import subprocess
 
 from case.component import Component
 from env_var import EnvVar
@@ -28,13 +31,17 @@ class SaveTmp(Component):
         all_cur_files = [file for file in os.listdir(self.case_path) if not file.endswith('_tmp@')]
         if '.raw_file_list.txt' not in all_cur_files:
             return
+        else:
+            with open(os.path.join(self.case_path, ".raw_file_list.txt")) as f:
+                raw_files = f.read().split('-----')[0].split('\n')
+        all_tmp_files = set(all_cur_files) - set(raw_files)
         tmp_folder = [int(file.split('_tmp@')[0]) for file in os.listdir(self.case_path) if file.endswith('_tmp@')]
         cur_max_folder = 0
         if tmp_folder != []:
             cur_max_folder = max(tmp_folder)
         os.mkdir(str(cur_max_folder + 1) + '_tmp@')
-        for file in all_cur_files:
-            os.system('cp -r %s %d_tmp@' % (file, cur_max_folder + 1))
+        for file in all_tmp_files:
+            subprocess.run('mv %s %d_tmp@' % (file, cur_max_folder + 1), shell=True, check=True)
 
     def get_output(self):
         pass

@@ -37,7 +37,9 @@ void DataDepBase::BuildDepsLastCallInsn(Insn &insn) {
   if (lastCallInsn != nullptr && lastCallInsn->GetMachineOpcode() != MOP_tls_desc_call) {
     AddDependence(*lastCallInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);
   }
-  curCDGNode->SetLastCallInsn(&insn);
+  if (insn.IsCall() || insn.IsTailCall()) {
+    curCDGNode->SetLastCallInsn(&insn);
+  }
 }
 
 /* Build dependency for may throw insn */
@@ -104,16 +106,6 @@ void DataDepBase::BuildDepsBetweenControlRegAndCall(Insn &insn, bool isDest) {
 /* Build control data dependence for branch/ret instructions */
 void DataDepBase::BuildDepsControlAll(Insn &insn, const MapleVector<DepNode*> &nodes) {
   DepNode *depNode = insn.GetDepNode();
-  // For write/read mem instructions, we build output dependency between them and branch instructions
-  for (auto *heapDef : curCDGNode->GetHeapDefInsns()) {
-    AddDependence(*heapDef->GetDepNode(), *depNode, kDependenceTypeOutput);
-  }
-  for (auto *heapUse : curCDGNode->GetHeapUseInsns()) {
-    AddDependence(*heapUse->GetDepNode(), *depNode, kDependenceTypeOutput);
-  }
-  for (auto *stackDef : curCDGNode->GetStackDefInsns()) {
-    AddDependence(*stackDef->GetDepNode(), *depNode, kDependenceTypeOutput);
-  }
   // For rest instructions, we build control dependency
   for (auto *dataNode : nodes) {
     AddDependence(*dataNode, *depNode, kDependenceTypeControl);

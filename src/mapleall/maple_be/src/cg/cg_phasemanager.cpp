@@ -69,9 +69,95 @@ void DumpMIRFunc(MIRFunction &func, const char *msg, bool printAlways = false, c
 
 // a tricky implementation of accessing TLS symbol
 // call to __tls_get_addr has been arranged at init_array of specific so/exec
-// the TLSLD entry of the module will be recorded in a global accessable symbol
-void PrepareForWarmupDynamicTLS(MIRModule &m) {
+// the addres of tls sections (.tbss & .tdata) will be recorded in global accessable symbols (anchors)
+// Here we store the anchor in the .data section of the object file, which is only copy in the vitual space.
+// Therefor this scheme is only feasible in one thread programe.
+void PrepareForWarmupDynamicTlsSingleThread(MIRModule &m) {
   if (m.GetTdataVarOffset().empty() && m.GetTbssVarOffset().empty()) {
+    return;
+  }
+
+  auto *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
+  auto *anchorMirConstVar = m.GetMemPool()->New<MIRIntConst>(0, *ptrType);
+
+  ArgVector formalsWarmup(m.GetMPAllocator().Adapter());
+  MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
+  auto *tlsWarmup = m.GetMIRBuilder()->CreateFunction("__tls_address_warmup_" + m.GetTlsAnchorHashString(),
+      *voidTy, formalsWarmup);
+  tlsWarmup->SetWithSrc(false);
+  auto *warmupFuncBody = tlsWarmup->GetCodeMempool()->New<BlockNode>();
+  MIRSymbol *tempAnchorSym = nullptr;
+  AddrofNode *tlsAddrNode = nullptr;
+  DassignNode *dassignNode = nullptr;
+
+  if (!m.GetTdataVarOffset().empty()) {
+    auto *tdataAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tdata_addr_" + m.GetTlsAnchorHashString(),
+        *ptrType);
+    tdataAnchorSym->SetKonst(anchorMirConstVar);
+    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tdata_start_" + m.GetTlsAnchorHashString(), *ptrType);
+    tempAnchorSym->SetIsDeleted();
+    tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
+    dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
+    dassignNode->SetStIdx(tdataAnchorSym->GetStIdx());
+    dassignNode->SetFieldID(0);
+    dassignNode->SetOpnd(tlsAddrNode, 0);
+    warmupFuncBody->AddStatement(dassignNode);
+  }
+
+  if (!m.GetTbssVarOffset().empty()) {
+    auto *tbssAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tbss_addr_" + m.GetTlsAnchorHashString(), *ptrType);
+    tbssAnchorSym->SetKonst(anchorMirConstVar);
+    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tbss_start_" + m.GetTlsAnchorHashString(), *ptrType);
+    tempAnchorSym->SetIsDeleted();
+    tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
+    dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
+    dassignNode->SetStIdx(tbssAnchorSym->GetStIdx());
+    dassignNode->SetFieldID(0);
+    dassignNode->SetOpnd(tlsAddrNode, 0);
+    warmupFuncBody->AddStatement(dassignNode);
+  }
+
+  if (opts::aggressiveTlsWarmupFunction.IsEnabledByUser()) {
+    tlsWarmup->SetBody(warmupFuncBody);
+    m.AddFunction(tlsWarmup);
+    auto *tarFunc = m.GetMIRBuilder()->GetFunctionFromName(m.GetTlsWarmupFunction());
+    CHECK_FATAL(tarFunc != nullptr, "Tls Warmup Function does not exist in the module!");
+    MapleVector<BaseNode*> arg(m.GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
+    CallNode *callWarmup = m.GetMIRBuilder()->CreateStmtCall("__tls_address_warmup_" + m.GetTlsAnchorHashString(), arg);
+    tarFunc->GetBody()->InsertFirst(callWarmup);
+  } else {
+    // put warmup func into .init_array for common testcase
+    tlsWarmup->SetBody(warmupFuncBody);
+    tlsWarmup->SetAttr(FUNCATTR_section);
+    tlsWarmup->GetFuncAttrs().SetPrefixSectionName(".init_array");
+    m.AddFunction(tlsWarmup);
+  }
+}
+
+// Another tricky implementation of accessing TLS symbol
+// This scheme is only feasible for lto module.
+// There is only one anchor for each thread, which is store in a "thread pointer related" position.
+// The actual position depends on the underlying implemention of system tls lib.
+// Now We choose to put the anchor in a reserved space of TBC struct, for elibc.
+
+// offsetTbcReservedForX86 is the offset from X86 dtv (reserved space in aarch64) to aarch64 dtv in elibc
+// in elibc, the position of X86 dtv can be used to store TLS anchor for each thread.
+// The TBC struct is defined in cbf/task/task_base/include/task_base_pub.h, the layout as below
+// TBC_AARCH64
+// {self_ptr X86_dtv(null for aarch64) prev_dtv .............................................. aarch64_dtv}
+//                   |                                                                              |
+//                   |                                                                              |
+//                   v-------------------------------224B-------------------------------------------v
+
+// TBC_RESERVED_FOR_X86 dtv is not safe for it could be used by other hack.
+// If We could put a tls symbol in the first(?) module of system,
+// We could also get a safe anchor which could produce simple tls access pattern.
+// offsetManualAnchorSymbol is the offset from dtv[0] to the artifical anchor.
+// Now this implementation is not accurate yet, so here is just a preliminary work.
+// Const defined in cg_option.h
+
+void PrepareForWarmupDynamicTlsMutiThread(MIRModule &m) {
+  if (m.GetTlsVarOffset().empty()) {
     return;
   }
   auto *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
@@ -81,42 +167,111 @@ void PrepareForWarmupDynamicTLS(MIRModule &m) {
   MIRType *voidTy = GlobalTables::GetTypeTable().GetVoid();
   auto *tlsWarmup = m.GetMIRBuilder()->CreateFunction("__tls_address_warmup_" + m.GetTlsAnchorHashString(),
       *voidTy, formals);
+  tlsWarmup->SetWithSrc(false);
   auto *warmupBody = tlsWarmup->GetCodeMempool()->New<BlockNode>();
-  MIRSymbol *tempAnchorSym = nullptr;
+  MIRSymbol *tempWarmupSym = nullptr;
   AddrofNode *tlsAddrNode = nullptr;
   DassignNode *dassignNode = nullptr;
 
-  if (!m.GetTdataVarOffset().empty()) {
-    auto *tdataAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tdata_addr_" + m.GetTlsAnchorHashString(),
-        *ptrType);
-    tdataAnchorSym->SetKonst(anchorMirConst);
-    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tdata_start_" + m.GetTlsAnchorHashString(), *ptrType);
-    tempAnchorSym->SetIsDeleted();
-    tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
-    dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
-    dassignNode->SetStIdx(tdataAnchorSym->GetStIdx());
-    dassignNode->SetFieldID(0);
-    dassignNode->SetOpnd(tlsAddrNode, 0);
-    warmupBody->AddStatement(dassignNode);
+  MIRBuilder *mirBuilder = m.GetMIRBuilder();
+  MemPool *memPool = tlsWarmup->GetCodeMempool();
+  TypeTable& tab = GlobalTables::GetTypeTable();
+  uint32 oldTypeTableSize = tab.GetTypeTableSize();
+  MIRType *u64Type = tab.GetPrimType(PTY_u64);
+  MIRType *singlePtrType = tab.GetOrCreatePointerType(*u64Type);
+  MIRType *doublePtrType = tab.GetOrCreatePointerType(*singlePtrType);
+
+  MIRSymbol *tempAnchorSym = nullptr;
+  ConstvalNode *gotOffset = nullptr;
+  ConstvalNode *dtvPtrSize = nullptr;
+  ConstvalNode *anchorOffset = nullptr;
+  MIRSymbol *idx = nullptr;
+  MIRSymbol *base = nullptr;
+
+  MIRSymbol *tempVal = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tls_addr_" + m.GetTlsAnchorHashString(), *ptrType);
+  tempVal->SetKonst(anchorMirConst);
+  tempWarmupSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tls_start_" + m.GetTlsAnchorHashString(), *ptrType);
+  tempWarmupSym->SetIsDeleted();
+  tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempWarmupSym->GetStIdx(), 0);
+  dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
+  dassignNode->SetStIdx(tempVal->GetStIdx());
+  dassignNode->SetFieldID(0);
+  dassignNode->SetOpnd(tlsAddrNode, 0);
+  warmupBody->AddStatement(dassignNode);
+
+  tempAnchorSym = mirBuilder->GetOrCreateGlobalDecl(".tls_start_" + m.GetTlsAnchorHashString(), *ptrType);
+  tempAnchorSym->SetIsDeleted();
+  DreadNode *warmupNode = memPool->New<DreadNode>(OP_dread, PTY_u64, tempAnchorSym->GetStIdx(), 0);
+  gotOffset = mirBuilder->CreateIntConst(offsetTlsParamEntry, PTY_u64);
+  BinaryNode *addNode = memPool->New<BinaryNode>(OP_add, PTY_u64, warmupNode, gotOffset);
+  TypeCvtNode *cvtNode = memPool->New<TypeCvtNode>(OP_cvt, PTY_ptr, PTY_u64, addNode);
+  IreadNode *ireadNode = memPool->New<IreadNode>(OP_iread, PTY_ptr, doublePtrType->GetTypeIndex(), 0, cvtNode);
+  IreadNode *ireadNode1 = memPool->New<IreadNode>(OP_iread, PTY_u64, singlePtrType->GetTypeIndex(), 0, ireadNode);
+  idx = mirBuilder->GetOrCreateGlobalDecl(".tls_idx_" + m.GetTlsAnchorHashString(), *u64Type);
+
+  DassignNode *dassignNode1 = memPool->New<DassignNode>(ireadNode1, idx->GetStIdx(), 0);
+  warmupBody->AddStatement(dassignNode1);
+
+  BinaryNode *addNode3 = memPool->New<BinaryNode>(OP_add, PTY_u64, ireadNode, gotOffset);
+  TypeCvtNode *cvtNode4 = memPool->New<TypeCvtNode>(OP_cvt, PTY_ptr, PTY_u64, addNode3);
+  IreadNode *ireadNode5 = memPool->New<IreadNode>(OP_iread, PTY_u64, singlePtrType->GetTypeIndex(), 0, cvtNode4);
+
+  DreadNode *dreadNode1 = memPool->New<DreadNode>(OP_dread, PTY_u64, idx->GetStIdx(), 0);
+  dtvPtrSize = mirBuilder->CreateIntConst(lslDtvEntrySize, PTY_u64);
+  BinaryNode *shlNode = memPool->New<BinaryNode>(OP_shl, PTY_u64, dreadNode1, dtvPtrSize);
+  MapleVector<BaseNode*> args0(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+  IntrinsicopNode *threadPtr =
+      mirBuilder->CreateExprIntrinsicop(maple::INTRN_C___tls_get_thread_pointer, OP_intrinsicop, *u64Type, args0);
+  TypeCvtNode *cvtNode1 = memPool->New<TypeCvtNode>(OP_cvt, PTY_ptr, PTY_u64, threadPtr);
+  IreadNode *ireadNode2 = memPool->New<IreadNode>(OP_iread, PTY_u64, singlePtrType->GetTypeIndex(), 0, cvtNode1);
+  BinaryNode *addNode2 = memPool->New<BinaryNode>(OP_add, PTY_u64, ireadNode2, shlNode);
+  TypeCvtNode *cvtNode2 = memPool->New<TypeCvtNode>(OP_cvt, PTY_ptr, PTY_u64, addNode2);
+  IreadNode *ireadNode3 = memPool->New<IreadNode>(OP_iread, PTY_u64, singlePtrType->GetTypeIndex(), 0, cvtNode2);
+  BinaryNode *addNode4 = memPool->New<BinaryNode>(OP_add, PTY_u64, ireadNode3, ireadNode5);
+  base = mirBuilder->GetOrCreateGlobalDecl(".tls_base_" + m.GetTlsAnchorHashString(), *u64Type);
+  DassignNode *dassignNode2 = memPool->New<DassignNode>(addNode4, base->GetStIdx(), 0);
+  warmupBody->AddStatement(dassignNode2);
+
+  if (opts::aggressiveTlsSafeAnchor) {
+    TypeCvtNode *cvtNode3 = memPool->New<TypeCvtNode>(OP_cvt, PTY_ptr, PTY_u64, threadPtr);
+    IreadNode *ireadNode4 = memPool->New<IreadNode>(OP_iread, PTY_u64, singlePtrType->GetTypeIndex(), 0, cvtNode3);
+    anchorOffset = mirBuilder->CreateIntConst(offsetManualAnchorSymbol, PTY_u64);
+    BinaryNode *addNode1 = memPool->New<BinaryNode>(OP_add, PTY_u64, ireadNode4, anchorOffset);
+    TypeCvtNode *cvtNode5 = memPool->New<TypeCvtNode>(OP_cvt, PTY_ptr, PTY_u64, addNode1);
+    DreadNode *dreadNode2 = memPool->New<DreadNode>(OP_dread, PTY_u64, base->GetStIdx(), 0);
+    IassignNode *iassignNode = memPool->New<IassignNode>(singlePtrType->GetTypeIndex(), 0, cvtNode5, dreadNode2);
+    warmupBody->AddStatement(iassignNode);
+  } else {
+    anchorOffset = mirBuilder->CreateIntConst(offsetTbcReservedForX86, PTY_u64);
+    BinaryNode *subNode = memPool->New<BinaryNode>(OP_sub, PTY_u64, threadPtr, anchorOffset);
+    TypeCvtNode *cvtNode3 = memPool->New<TypeCvtNode>(OP_cvt, PTY_ptr, PTY_u64, subNode);
+    DreadNode *dreadNode2 = memPool->New<DreadNode>(OP_dread, PTY_u64, base->GetStIdx(), 0);
+    IassignNode *iassignNode = memPool->New<IassignNode>(singlePtrType->GetTypeIndex(), 0, cvtNode3, dreadNode2);
+    warmupBody->AddStatement(iassignNode);
   }
 
-  if (!m.GetTbssVarOffset().empty()) {
-    auto *tbssAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl("tbss_addr_" + m.GetTlsAnchorHashString(), *ptrType);
-    tbssAnchorSym->SetKonst(anchorMirConst);
-    tempAnchorSym = m.GetMIRBuilder()->GetOrCreateGlobalDecl(".tbss_start_" + m.GetTlsAnchorHashString(), *ptrType);
-    tempAnchorSym->SetIsDeleted();
-    tlsAddrNode = tlsWarmup->GetCodeMempool()->New<AddrofNode>(OP_addrof, PTY_ptr, tempAnchorSym->GetStIdx(), 0);
-    dassignNode = tlsWarmup->GetCodeMempool()->New<DassignNode>();
-    dassignNode->SetStIdx(tbssAnchorSym->GetStIdx());
-    dassignNode->SetFieldID(0);
-    dassignNode->SetOpnd(tlsAddrNode, 0);
-    warmupBody->AddStatement(dassignNode);
+if (opts::aggressiveTlsWarmupFunction.IsEnabledByUser()) {
+    tlsWarmup->SetBody(warmupBody);
+    m.AddFunction(tlsWarmup);
+    auto *tarFunc = m.GetMIRBuilder()->GetFunctionFromName(m.GetTlsWarmupFunction());
+    CHECK_FATAL(tarFunc != nullptr, "Tls Warmup Function does not exist in the module!");
+    MapleVector<BaseNode*> arg(m.GetMIRBuilder()->GetCurrentFuncCodeMpAllocator()->Adapter());
+    CallNode *callWarmup = m.GetMIRBuilder()->CreateStmtCall("__tls_address_warmup_" + m.GetTlsAnchorHashString(), arg);
+    tarFunc->GetBody()->InsertFirst(callWarmup);
+  } else {
+    // put warmup func into .init_array for common testcase
+    tlsWarmup->SetBody(warmupBody);
+    tlsWarmup->SetAttr(FUNCATTR_section);
+    tlsWarmup->GetFuncAttrs().SetPrefixSectionName(".init_array");
+    m.AddFunction(tlsWarmup);
   }
 
-  tlsWarmup->SetBody(warmupBody);
-  tlsWarmup->SetAttr(FUNCATTR_section);
-  tlsWarmup->GetFuncAttrs().SetPrefixSectionName(".init_array");
-  m.AddFunction(tlsWarmup);
+  uint32 newTypeTableSize = tab.GetTypeTableSize();
+  if (newTypeTableSize != oldTypeTableSize) {
+    if (Globals::GetInstance() && Globals::GetInstance()->GetBECommon()) {
+      Globals::GetInstance()->GetBECommon()->AddNewTypeAfterBecommon(oldTypeTableSize, newTypeTableSize);
+    }
+  }
 }
 
 
@@ -449,7 +604,10 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 
     if (opts::aggressiveTlsLocalDynamicOpt) {
       m.SetTlsAnchorHashString();
-      PrepareForWarmupDynamicTLS(m);
+      PrepareForWarmupDynamicTlsSingleThread(m);
+    } else if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
+      m.SetTlsAnchorHashString();
+      PrepareForWarmupDynamicTlsMutiThread(m);
     }
 
     uint32 countFuncId = 0;

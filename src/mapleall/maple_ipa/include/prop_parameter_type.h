@@ -36,7 +36,7 @@ class PropParamType {
   bool CheckOpndZero(const MeExpr *expr) const;
   void ResolveCallStmt(MeStmt &meStmt);
   void InsertNullCheck(CallMeStmt &callStmt, const std::string &funcName, uint32 index, MeExpr &receiver);
-  bool CheckCondtionStmt(const MeStmt &meStmt);
+  bool CheckCondtionStmt(const MeStmt &meStmt) const;
   void ResolveIreadExpr(MeExpr &expr);
   void TraversalMeStmt(MeStmt &meStmt);
   void RunOnScc(maple::SCCNode<CGNode> &scc);

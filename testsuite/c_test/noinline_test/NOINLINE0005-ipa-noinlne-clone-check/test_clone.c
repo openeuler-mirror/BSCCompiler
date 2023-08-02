@@ -1,3 +1,4 @@
+__attribute__((noinline))
 int add(int x, int y) {
   int res = 4;
   if (y > 4) {
@@ -9,6 +10,7 @@ int add(int x, int y) {
     return res - y - x;
 }
 
+__attribute__((noinline))
 int zbh(int x) {
   int res = 0;
   for (int i = 0; i < x; i++) {
@@ -25,11 +27,13 @@ int main(int argc , char *argv[]) {
   return add(argc + x, 5) + sub(1) + add(x, 6) + sub(1) + foo(0);
 }
 
+__attribute__((noinline))
 int sub(int x) {
   return 10 - add(x, 2);
 }
 
 
+__attribute__((noinline))
 int testHello(int x) {
   int res;
   while (x > 0) {
@@ -39,6 +43,7 @@ int testHello(int x) {
   return res;
 }
 
+__attribute__((noinline))
 int foo(int *p) {
   if (p > 0) {
     if (p < 100) {

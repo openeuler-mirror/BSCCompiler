@@ -22,191 +22,195 @@ namespace opts {
 
 maplecl::Option<bool> version({"--version", "-v"},
     "  --version [command]         \tPrint version and exit.\n",
-    {driverCategory});
+    {driverCategory}, kOptDriver | kOptCommon);
 
 maplecl::Option<bool> ignoreUnkOpt({"--ignore-unknown-options"},
     "  --ignore-unknown-options    \tIgnore unknown compilation options\n",
-    {driverCategory});
+    {driverCategory}, kOptDriver | kOptMaple);
 
 maplecl::Option<bool> o0({"-O0", "--O0"},
     "  -O0                         \tNo optimization. (Default)\n",
-    {driverCategory});
+    {driverCategory}, kOptCommon | kOptOptimization);
 
 maplecl::Option<bool> o1({"-O1", "--O1"},
     "  -O1                         \tDo some optimization.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptCommon | kOptOptimization, maplecl::kHide);
 
 maplecl::Option<bool> o2({"-O2", "--O2"},
     "  -O2                         \tDo more optimization.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptCommon | kOptOptimization);
 
 maplecl::Option<bool> o3({"-O3", "--O3"},
     "  -O3                         \tDo more optimization.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptCommon | kOptOptimization, maplecl::kHide);
 
 maplecl::Option<bool> os({"-Os", "--Os"},
     "  -Os                         \tOptimize for size, based on O2.\n",
-    {driverCategory});
+    {driverCategory}, kOptCommon | kOptOptimization);
 
 maplecl::Option<bool> verify({"--verify"},
     "  --verify                    \tVerify mpl file\n",
-    {driverCategory, dex2mplCategory, mpl2mplCategory});
+    {driverCategory, dex2mplCategory, mpl2mplCategory}, kOptMaple);
 
 maplecl::Option<bool> decoupleStatic({"--decouple-static", "-decouple-static"},
     "  --decouple-static           \tDecouple the static method and field.\n"
     "  --no-decouple-static        \tDon't decouple the static method and field.\n",
     {driverCategory, dex2mplCategory, meCategory, mpl2mplCategory},
-    maplecl::DisableWith("--no-decouple-static"), maplecl::kHide);
+    maplecl::DisableWith("--no-decouple-static"), kOptMaple, maplecl::kHide);
 
 maplecl::Option<bool> gcOnly({"--gconly", "-gconly"},
     "  --gconly                    \tMake gconly is enable.\n"
     "  --no-gconly                 \tDon't make gconly is enable.\n",
     {driverCategory, dex2mplCategory, meCategory, mpl2mplCategory, cgCategory},
-	maplecl::DisableWith("--no-gconly"), maplecl::kHide);
+	maplecl::DisableWith("--no-gconly"), kOptMaple, maplecl::kHide);
 
-maplecl::Option<bool> timePhase({"--time-phases", "-time-phases"},
-    "  --time-phases                \tTiming phases and print percentages.\n",
-    {driverCategory});
+maplecl::Option<bool> timePhase({"-time-phases"},
+    "  -time-phases                \tTiming phases and print percentages.\n",
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> genMeMpl({"--genmempl"},
     "  --genmempl                  \tGenerate me.mpl file.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<bool> compileWOLink({"-c"},
     "  -c                          \tCompile the source files without linking.\n",
-    {driverCategory});
+    {driverCategory}, kOptDriver);
 
 maplecl::Option<bool> genVtable({"--genVtableImpl"},
     "  --genVtableImpl             \tGenerate VtableImpl.mpl file.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
-maplecl::Option<bool> verbose({"-verbose"},
+maplecl::Option<bool> verbose({"--verbose", "-verbose"},
     "  -verbose                    \tPrint informations.\n",
-    {driverCategory, jbc2mplCategory, hir2mplCategory, meCategory, mpl2mplCategory, cgCategory});
+    {driverCategory, jbc2mplCategory, hir2mplCategory, meCategory, mpl2mplCategory, cgCategory},
+    kOptDriver | kOptCommon);
 
 maplecl::Option<bool> debug({"--debug"},
     "  --debug                     \tPrint debug info.\n",
-    {driverCategory});
+    {driverCategory}, kOptCommon);
 
 maplecl::Option<bool> withDwarf({"-g"},
     "  --debug                     \tPrint debug info.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptCommon);
+
 maplecl::Option<bool> noOptO0({"-no-opt-O0"},
     "  -no-opt-O0                     \tDonot do O0 opt which will interference debug.\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> withIpa({"--with-ipa"},
     "  --with-ipa                  \tRun IPA when building.\n"
     "  --no-with-ipa               \n",
-    {driverCategory}, maplecl::DisableWith("--no-with-ipa"));
+    {driverCategory}, kOptMaple, maplecl::DisableWith("--no-with-ipa"));
 
 maplecl::Option<bool> npeNoCheck({"--no-npe-check"},
     "  --no-npe-check              \tDisable null pointer check (Default).\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> npeStaticCheck({"--npe-check-static"},
     "  --npe-check-static          \tEnable null pointer static check only.\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> npeDynamicCheck({"--npe-check-dynamic", "-npe-check-dynamic"},
     "  --npe-check-dynamic         \tEnable null pointer dynamic check with static warning.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptMaple);
 
 maplecl::Option<bool> npeDynamicCheckSilent({"--npe-check-dynamic-silent"},
     "  --npe-check-dynamic-silent  \tEnable null pointer dynamic without static warning.\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> npeDynamicCheckAll({"--npe-check-dynamic-all"},
     "  --npe-check-dynamic-all     \tKeep dynamic check before dereference, used with --npe-check-dynamic* options\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> boundaryNoCheck({"--no-boundary-check"},
     "  --no-boundary-check         \tDisable boundary check (Default).\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> boundaryStaticCheck({"--boundary-check-static"},
     "  --boundary-check-static     \tEnable boundary static check.\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> boundaryDynamicCheck({"--boundary-check-dynamic", "-boundary-check-dynamic"},
     "  --boundary-check-dynamic    \tEnable boundary dynamic check with static warning.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptMaple);
 
 maplecl::Option<bool> boundaryDynamicCheckSilent({"--boundary-check-dynamic-silent"},
     "  --boundary-check-dynamic-silent\n"
     "                              \tEnable boundary dynamic check without static warning\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> safeRegionOption({"--safe-region", "-safe-region"},
     "  --safe-region               \tEnable safe region.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptMaple);
 
 maplecl::Option<bool> enableArithCheck({"--boundary-arith-check"},
     "  --boundary-arith-check      \tEnable pointer arithmetic check.\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> enableCallFflush({"--boudary-dynamic-call-fflush"},
     "  --boudary-dynamic-call-fflush\tEnable call fflush function to flush boundary-dynamic-check error "
     "message to the STDOUT\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<bool> onlyCompile({"-S"},
     "  -S                          \tOnly run preprocess and compilation steps.\n",
-    {driverCategory});
+    {driverCategory}, kOptDriver);
 
 maplecl::Option<bool> printDriverPhases({"--print-driver-phases"},
     "  --print-driver-phases       \tPrint Driver Phases.\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<bool> ldStatic({"-static", "--static"},
     "  -static                     \tForce the linker to link a program statically.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> maplePhase({"--maple-phase"},
     "  --maple-phase               \tRun maple phase only\n  --no-maple-phase\n",
-    {driverCategory}, maplecl::DisableWith("--maple-toolchain"), maplecl::Init(true));
+    {driverCategory}, kOptMaple, maplecl::DisableWith("--maple-toolchain"), maplecl::Init(true));
 
 maplecl::Option<bool> genMapleBC({"--genmaplebc"},
     "  --genmaplebc                \tGenerate .mbc file.\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<bool> genLMBC({"--genlmbc"},
     "  --genlmbc                   \tGenerate .lmbc file.\n",
-    {driverCategory, mpl2mplCategory}, maplecl::kHide);
+    {driverCategory, mpl2mplCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<bool> profileGen({"--profileGen"},
     "  --profileGen                \tGenerate profile data for static languages.\n",
-    {driverCategory, meCategory, mpl2mplCategory, cgCategory}, maplecl::kHide);
+    {driverCategory, meCategory, mpl2mplCategory, cgCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<bool> profileUse({"--profileUse"},
     "  --profileUse                \tOptimize static languages with profile data.\n",
-    {driverCategory, mpl2mplCategory});
+    {driverCategory, mpl2mplCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<bool> missingProfDataIsError({"--missing-profdata-is-error"},
     "  --missing-profdata-is-error \tTreat missing profile data file as error.\n"
     "  --no-missing-profdata-is-error\n"
     "                              \tOnly warn on missing profile data file.\n",
-    {driverCategory}, maplecl::DisableWith("--no-missing-profdata-is-error"), maplecl::Init(true));
+    {driverCategory}, kOptMaple, maplecl::DisableWith("--no-missing-profdata-is-error"), maplecl::Init(true),
+    maplecl::kHide);
 
-maplecl::Option<bool> stackProtectorStrong({"--stack-protector-strong", "-fstack-protector-strong"},
-    "  --stack-protector-strong    \tAdd stack guard for some function.\n",
-    {driverCategory, meCategory, cgCategory});
+maplecl::Option<bool> stackProtectorStrong({"-fstack-protector-strong", "--stack-protector-strong"},
+    "  -fstack-protector-strong    \tAdd stack guard for some function.\n",
+    {driverCategory, meCategory, cgCategory}, kOptCommon | kOptOptimization);
 
-maplecl::Option<bool> stackProtectorAll({"--stack-protector-all"},
-    "  --stack-protector-all       \tAdd stack guard for all functions.\n",
-    {driverCategory, meCategory, cgCategory});
+maplecl::Option<bool> stackProtectorAll({"-fstack-protector-all", "--stack-protector-all"},
+    "  -fstack-protector-all       \tAdd stack guard for all functions.\n",
+    {driverCategory, meCategory, cgCategory}, kOptCommon | kOptOptimization,
+    maplecl::DisableWith("-fno-stack-protector-all"));
 
 maplecl::Option<bool> inlineAsWeak({"-inline-as-weak", "--inline-as-weak"},
     "  --inline-as-weak            \tSet inline functions as weak symbols as it's in C++\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptMaple);
 
 maplecl::Option<bool> legalizeNumericTypes({"--legalize-numeric-types"},
     "  --legalize-numeric-types    \tEnable legalize-numeric-types pass\n",
-    {driverCategory}, maplecl::DisableWith("--no-exp nd128floats"), maplecl::kHide, maplecl::Init(true));
+    {driverCategory}, kOptMaple, maplecl::DisableWith("--no-exp nd128floats"), maplecl::kHide, maplecl::Init(true));
 
 maplecl::Option<bool> oMD({"-MD"},
     "  -MD                         \tWrite a depfile containing user and system headers.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> fNoPlt({"-fno-plt"},
     "  -fno-plt                    \tDo not use the PLT to make function calls.\n",
@@ -222,32 +226,32 @@ maplecl::Option<bool> fDataSections({"-fdata-sections"},
 
 maplecl::Option<bool> fRegStructReturn({"-freg-struct-return"},
     "  -freg-struct-return         \tOverride the default ABI to return small structs in registers.\n",
-    {driverCategory});
+    {driverCategory}, kOptCommon | kOptOptimization);
 
 maplecl::Option<bool> fTreeVectorize({"-ftree-vectorize"},
     "  -ftree-vectorize            \tEnable vectorization on trees.\n",
-    {driverCategory});
+    {driverCategory}, kOptCommon | kOptOptimization);
 
 maplecl::Option<bool> gcSections({"--gc-sections"},
     "  -gc-sections                \tDiscard all sections that are not accessed in the final elf.\n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptMaple | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> copyDtNeededEntries({"--copy-dt-needed-entries"},
     "  --copy-dt-needed-entries    \tGenerate a DT_NEEDED entry for each lib that is present in the link command.\n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptMaple | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> sOpt({"-s"},
     "  -s                          \tRemove all symbol table and relocation information from the executable\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> noStdinc({"-nostdinc"},
     "  -nostdinc                   \tDo not search standard system include directories(those specified with "
     "-isystem will still be used).\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> pie({"-pie"},
     "  -pie                        \tCreate a position independent executable.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> fStrongEvalOrder({"-fstrong-eval-order"},
     "  -fstrong-eval-order         \tFollow the C++17 evaluation order requirements for assignment expressions,"
@@ -256,197 +260,210 @@ maplecl::Option<bool> fStrongEvalOrder({"-fstrong-eval-order"},
 
 maplecl::Option<bool> linkerTimeOpt({"-flto"},
     "  -flto                       \tEnable LTO in 'full' mode.\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptCommon);
 
 maplecl::Option<bool> shared({"-shared"},
     "  -shared                     \tCreate a shared library.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> rdynamic({"-rdynamic"},
     "  -rdynamic                   \tPass the flag '-export-dynamic' to the ELF linker, on targets that support it. "
     "This instructs the linker to add all symbols, not only used ones, to the dynamic symbol table.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> dndebug({"-DNDEBUG"},
     "  -DNDEBUG                    \t\n",
-    {driverCategory, ldCategory, clangCategory});
+    {driverCategory, ldCategory, clangCategory}, kOptFront | kOptLd);
 
 maplecl::Option<bool> useSignedChar({"-fsigned-char", "-usesignedchar", "--usesignedchar"},
     "  -fsigned-char               \tuse signed char\n",
-    {driverCategory, clangCategory, hir2mplCategory}, maplecl::DisableWith("-funsigned-char"));
+    {driverCategory, clangCategory, hir2mplCategory}, kOptFront | kOptNotFiltering,
+    maplecl::DisableWith("-funsigned-char"));
 
 maplecl::Option<bool> pthread({"-pthread"},
     "  -pthread                    \tDefine additional macros required for using the POSIX threads library.\n",
-    {driverCategory, clangCategory, asCategory, ldCategory});
+    {driverCategory, clangCategory, asCategory, ldCategory}, kOptFront | kOptDriver | kOptLd);
 
 maplecl::Option<bool> passO2ToClang({"-pO2ToCl"},
-    "  -pthread                    \tTmp for option -D_FORTIFY_SOURCE=1.\n",
-    {clangCategory}, maplecl::kHide);
+    "  -pthread                    \tTmp for option -D_FORTIFY_SOURCE=2.\n",
+    {clangCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<bool> defaultSafe({"-defaultSafe", "--defaultSafe"},
     "  --defaultSafe               \tTreat unmarked function or blocks as safe region by default.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptMaple);
 
 maplecl::Option<bool> onlyPreprocess({"-E"},
     "  -E                          \tPreprocess only; do not compile, assemble or link.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptDriver | kOptFront);
 
-maplecl::Option<bool> tailcall({"--tailcall", "-foptimize-sibling-calls"},
+maplecl::Option<bool> tailcall({"-foptimize-sibling-calls", "--tailcall"},
     "  --tailcall/-foptimize-sibling-calls\n"
     "                              \tDo tail call optimization.\n"
     "  --no-tailcall/-fno-optimize-sibling-calls\n",
-    {cgCategory, driverCategory}, maplecl::DisableEvery({"-fno-optimize-sibling-calls", "--no-tailcall"}));
+    {cgCategory, driverCategory}, kOptCommon | kOptOptimization,
+    maplecl::DisableEvery({"-fno-optimize-sibling-calls", "--no-tailcall"}));
 
 maplecl::Option<bool> noStdLib({"-nostdlib"},
     "  -nostdlib                   \tDo not look for object files in standard path.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> r({"-r"},
     "  -r                          \tProduce a relocatable object as output. This is also known as partial linking.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> wCCompat({"-Wc++-compat"},
     "  -Wc++-compat                \tWarn about C constructs that are not in the common subset of C and C++.\n",
-    {driverCategory, asCategory, ldCategory});
+    {driverCategory, asCategory, ldCategory}, kOptLd | kOptAs);
 
 maplecl::Option<bool> wpaa({"-wpaa", "--wpaa"},
     "  --wpaa                       \tEnable whole program ailas analysis.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptMaple);
 
 maplecl::Option<bool> fm({"-fm", "--fm"},
     "  -fm                         \tStatic function merge will be enabled only when wpaa is enabled "
     "at the same time.\n",
-    {driverCategory, hir2mplCategory}, maplecl::DisableEvery({"-no-fm", "--no-fm"}));
+    {driverCategory, hir2mplCategory}, kOptMaple, maplecl::DisableEvery({"-no-fm", "--no-fm"}));
 
 maplecl::Option<bool> dumpTime({"--dump-time", "-dump-time"},
     "  --dump-time                  \tDump time.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptMaple);
 
 maplecl::Option<bool> aggressiveTlsLocalDynamicOpt({"--tls-local-dynamic-opt"},
     "  --tls-local-dynamic-opt     \tDo aggressive tls local dynamic opt.\n",
+    {driverCategory}, kOptMaple);
+
+maplecl::Option<bool> aggressiveTlsLocalDynamicOptMultiThread({"--tls-local-dynamic-opt-multi-thread"},
+    "  --tls-local-dynamic-opt-multi-thread     \tDo aggressive tls local dynamic opt for multi thread.\n",
     {driverCategory});
 
+maplecl::Option<bool> aggressiveTlsSafeAnchor({"--tls-safe-anchor"},
+    "  --tls-safe-anchor    \taggressive tls local dynamic opt use safe site for saving anchor\n",
+    {driverCategory});
+
+maplecl::Option<std::string> aggressiveTlsWarmupFunction({"--tls-warmup-function"},
+    "  --tls-warmup-function    \taggressive tls warmup function\n",
+    {driverCategory});
 /* ##################### STRING Options ############################################################### */
 
 maplecl::Option<std::string> help({"--help", "-h"},
     "  --help                      \tPrint help\n",
-    {driverCategory}, maplecl::kOptionalValue);
+    {driverCategory}, kOptCommon | kOptDriver, maplecl::kOptionalValue);
 
 maplecl::Option<std::string> infile({"--infile"},
     "  --infile file1,file2,file3  \tInput files.\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::Option<std::string> mplt({"--mplt", "-mplt"},
     "  --mplt=file1,file2,file3    \tImport mplt files.\n",
-    {driverCategory, dex2mplCategory, jbc2mplCategory}, maplecl::kHide);
+    {driverCategory, dex2mplCategory, jbc2mplCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<std::string> partO2({"--partO2"},
     "  --partO2                    \tSet func list for O2.\n",
-    {driverCategory});
+    {driverCategory}, kOptMaple);
 
 maplecl::List<std::string> jbc2mplOpt({"--jbc2mpl-opt"},
     "  --jbc2mpl-opt               \tSet options for jbc2mpl.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> hir2mplOpt({"--hir2mpl-opt"},
     "  --hir2mpl-opt               \tSet options for hir2mpl.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> clangOpt({"--clang-opt"},
     "  --clang-opt                 \tSet options for clang as AST generator.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> asOpt({"--as-opt"},
     "  --as-opt                    \tSet options for as.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> ldOpt({"--ld-opt"},
     "  --ld-opt                    \tSet options for ld.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> dex2mplOpt({"--dex2mpl-opt"},
     "  --dex2mpl-opt               \tSet options for dex2mpl.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> mplipaOpt({"--mplipa-opt"},
     "  --mplipa-opt                \tSet options for mplipa.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> mplcgOpt({"--mplcg-opt"},
     "  --mplcg-opt                 \tSet options for mplcg.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> meOpt({"--me-opt"},
     "  --me-opt                    \tSet options for me.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> mpl2mplOpt({"--mpl2mpl-opt"},
     "  --mpl2mpl-opt               \tSet options for mpl2mpl.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<std::string> profile({"--profile"},
     "  --profile                   \tFor PGO optimization. eg: --profile=list_file.\n",
-    {driverCategory, dex2mplCategory, mpl2mplCategory, cgCategory});
+    {driverCategory, dex2mplCategory, mpl2mplCategory, cgCategory}, kOptCommon);
 
 maplecl::Option<std::string> run({"--run"},
     "  --run=cmd1:cmd2             \tThe name of executables that are going to execute. IN SEQUENCE.\nSeparated "
     "by \":\".Available exe names: jbc2mpl, me, mpl2mpl, mplcg. Input file must match the tool can handle.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<std::string> optionOpt({"--option"},
     "  --option=\"opt1:opt2\"      \tOptions for each executable, separated by \":\". The sequence must match the "
     "sequence in --run.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::List<std::string> ldLib({"-l"},
     "  -l <lib>                    \tLinks with a library file.\n",
-    {driverCategory, ldCategory}, maplecl::kJoinedValue);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kJoinedValue);
 
 maplecl::List<std::string> ldLibPath({"-L"},
     "  -L <libpath>                \tAdd directory to library search path.\n",
-    {driverCategory, ldCategory}, maplecl::kJoinedValue);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kJoinedValue);
 
 maplecl::List<std::string> enableMacro({"-D"},
     "  -D <macro>=<value>          \tDefine <macro> to <value> (or 1 if <value> omitted).\n",
-    {driverCategory, clangCategory}, maplecl::kJoinedValue);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kJoinedValue);
 
 maplecl::List<std::string> disableMacro({"-U"},
     "  -U <macro>                  \tUndefine macro <macro>.\n",
-    {driverCategory, clangCategory},  maplecl::kJoinedValue);
+    {driverCategory, clangCategory}, kOptFront,  maplecl::kJoinedValue);
 
 maplecl::List<std::string> includeDir({"-I"},
     "  -I <dir>                    \tAdd directory to include search path.\n",
-    {driverCategory, clangCategory}, maplecl::kJoinedValue);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kJoinedValue);
 
 maplecl::List<std::string> includeSystem({"-isystem"},
     "  -isystem <dir>              \tAdd directory to SYSTEM include search path.\n",
-    {driverCategory, clangCategory}, maplecl::kJoinedValue);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kJoinedValue);
 
 maplecl::Option<std::string> output({"-o"},
     "  -o <outfile>                \tPlace the output into <file>.\n",
-    {driverCategory}, maplecl::kJoinedValue, maplecl::Init("a.out"));
+    {driverCategory}, kOptMaple | kOptDriver | kOptCommon, maplecl::kJoinedValue, maplecl::Init("a.out"));
 
 maplecl::Option<std::string> saveTempOpt({"--save-temps"},
     "  --save-temps                \tDo not delete intermediate files. --save-temps Save all intermediate files.\n"
     "                              \t--save-temps=file1,file2,file3 Save the target files.\n",
-    {driverCategory, clangCategory}, maplecl::kOptionalValue);
+    {driverCategory}, kOptDriver, maplecl::kOptionalValue);
 
 maplecl::Option<std::string> target({"--target", "-target"},
     "  --target=<arch><abi>        \tDescribe target platform. Example: --target=aarch64-gnu or "
     "--target=aarch64_be-gnuilp32\n",
-    {driverCategory, clangCategory, hir2mplCategory, dex2mplCategory, ipaCategory});
+    {driverCategory, clangCategory, hir2mplCategory, dex2mplCategory, ipaCategory}, kOptFront | kOptNotFiltering);
 
 maplecl::Option<std::string> oMT({"-MT"},
     "  -MT<args>                   \tSpecify name of main file output in depfile.\n",
-    {driverCategory, clangCategory}, maplecl::kJoinedValue);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kJoinedValue);
 
 maplecl::Option<std::string> oMF({"-MF"},
     "  -MF<file>                   \tWrite depfile output from -MD, -M to <file>.\n",
-    {driverCategory, clangCategory}, maplecl::kJoinedValue);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kJoinedValue);
 
 maplecl::Option<std::string> oWl({"-Wl"},
     "  -Wl,<arg>                   \tPass the comma separated arguments in <arg> to the linker.\n",
-    {driverCategory, ldCategory}, maplecl::kJoinedValue);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kJoinedValue);
 
 maplecl::Option<std::string> linkerTimeOptE({"-flto="},
     "  -flto=<value>               \tSet LTO mode to either 'full' or 'thin'.\n",
@@ -454,9 +471,9 @@ maplecl::Option<std::string> linkerTimeOptE({"-flto="},
 
 maplecl::Option<std::string> fVisibility({"-fvisibility"},
     "  -fvisibility=[default|hidden|protected|internal]\n"
-    "                              \tSet the default symbol visibility for every global "
-    "declaration unless overridden within the code.\n",
-    {driverCategory});
+    "                              \tSet the default symbol visibility for every global declaration unless "
+    "overridden within the code.\n",
+    {driverCategory}, kOptCommon);
 
 maplecl::Option<std::string> fStrongEvalOrderE({"-fstrong-eval-order="},
     "  -fstrong-eval-order         \tFollow the C++17 evaluation order requirementsfor assignment expressions, "
@@ -465,37 +482,38 @@ maplecl::Option<std::string> fStrongEvalOrderE({"-fstrong-eval-order="},
 
 maplecl::Option<std::string> marchE({"-march="},
     "  -march=                     \tGenerate code for given CPU.\n",
-    {driverCategory, clangCategory, asCategory, ldCategory, unSupCategory}, maplecl::kHide);
+    {driverCategory, clangCategory, asCategory, ldCategory, unSupCategory},
+    kOptFront | kOptLd | kOptNotFiltering, maplecl::kHide);
 
 maplecl::Option<bool> marchArmV8({"-march=armv8-a"},
     "  -march=armv8-a              \tGenerate code for armv8-a.\n",
-    {driverCategory, clangCategory, asCategory, ldCategory});
+    {driverCategory, clangCategory, asCategory, ldCategory}, kOptFront | kOptLd | kOptNotFiltering);
 
 maplecl::Option<bool> marchArmV8Crc({"-march=armv8-a+crc"},
     "  -march=armv8-a+crc          \tGenerate code for armv8-a+crc.\n",
-    {driverCategory, clangCategory, asCategory, ldCategory});
+    {driverCategory, clangCategory, asCategory, ldCategory}, kOptFront | kOptLd | kOptNotFiltering);
 
 maplecl::Option<std::string> sysRoot({"--sysroot"},
     "  --sysroot <value>           \tSet the root directory of the target platform.\n"
     "  --sysroot=<value>           \tSet the root directory of the target platform.\n",
-    {driverCategory, clangCategory, ldCategory});
+    {driverCategory, clangCategory, ldCategory}, kOptFront | kOptDriver | kOptLd | kOptNotFiltering);
 
 maplecl::Option<std::string> specs({"-specs"},
     "  -specs <value>              \tOverride built-in specs with the contents of <file>.\n",
-    {driverCategory, asCategory, ldCategory});
+    {driverCategory, asCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<std::string> folder({"-tmp-folder"},
     "  -tmp-folder                 \tsave former folder when generating multiple output.\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<std::string> imacros({"-imacros", "--imacros"},
     "  -imacros                    \tExactly like '-include', except that any output produced by scanning FILE is "
     "thrown away.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<std::string> fdiagnosticsColor({"-fdiagnostics-color"},
     "  -fdiagnostics-color         \tUse color in diagnostics. WHEN is 'never', 'always', or 'auto'.\n",
-    {driverCategory, clangCategory, asCategory, ldCategory});
+    {driverCategory, clangCategory, asCategory, ldCategory}, kOptFront | kOptCommon | kOptLd | kOptNotFiltering);
 
 maplecl::Option<std::string> mtlsSize({"-mtls-size"},
     "  -mtls-size                  \tSpecify bit size of immediate TLS offsets. Valid values are 12, 24, 32, 48. "
@@ -505,22 +523,22 @@ maplecl::Option<std::string> mtlsSize({"-mtls-size"},
 maplecl::Option<std::string> ftlsModel({"-ftls-model"},
     "  -ftls-model=[global-dynamic|local-dynamic|initial-exec|local-exec|warmup-dynamic]\n"
     "                               \tAlter the thread-local storage model to be used.\n",
-    {driverCategory});
+    {driverCategory}, kOptCommon);
 
 maplecl::Option<std::string> functionReorderAlgorithm({"--function-reorder-algorithm"},
     "  --function-reorder-algorithm=[call-chain-clustering]\n"
     "                               \tChoose function reorder algorithm\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
 maplecl::Option<std::string> functionReorderProfile({"--function-reorder-profile"},
     "  --function-reorder-profile=filepath\n"
     "                               \tProfile for function reorder\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
 #ifdef ENABLE_MAPLE_SAN
 maplecl::Option<std::string> sanitizer({"-fsanitizer"},
     "  -fsanitizer=address          \tEnable AddressSanitizer.\n",
-    {driverCategory, meCategory});
+    {driverCategory, meCategory}, kOptMaple);
 #endif
 /* ##################### DIGITAL Options ############################################################### */
 
@@ -530,16 +548,17 @@ maplecl::Option<uint32_t> helpLevel({"--level"},
     "                              \tNUM=1: Product options\n"
     "                              \tNUM=2: Experimental options\n"
     "                              \tNUM=3: Debug options\n",
-    {driverCategory}, maplecl::kHide);
+    {driverCategory}, kOptMaple, maplecl::kHide);
 
 maplecl::Option<uint32_t> funcInliceSize({"-func-inline-size", "--func-inline-size"},
     "  --func-inline-size           \tSet func inline size.\n",
-    {driverCategory, hir2mplCategory});
+    {driverCategory, hir2mplCategory}, kOptMaple);
 
 maplecl::Option<uint32_t> initOptNum({"-initOptNum", "--initOptNum"},
     "  -initOptNum            \tif initNum > 10000, hir2mpl will Make optimization for initListElements, "
     "default value is 10000.\n",
-    {driverCategory, hir2mplCategory}, maplecl::Init(10000));
+    // 10000 is default value
+    {driverCategory, hir2mplCategory}, kOptMaple, maplecl::Init(10000));
 
 /* ##################### maple Options ############################################################### */
 
@@ -552,22 +571,22 @@ maplecl::Option<std::string> oFmaxErrors({"-fmax-errors"},
 maplecl::Option<bool> oStaticLibasan({"-static-libasan"},
     "  -static-libasan             \tThe -static-libasan option directs the MAPLE driver to link libasan statically,"
     " without necessarily linking other libraries statically.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> oStaticLiblsan({"-static-liblsan"},
     "  -static-liblsan             \tThe -static-liblsan option directs the MAPLE driver to link liblsan statically,"
     " without necessarily linking other libraries statically.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> oStaticLibtsan({"-static-libtsan"},
     "  -static-libtsan             \tThe -static-libtsan option directs the MAPLE driver to link libtsan statically, "
     "without necessarily linking other libraries statically.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> oStaticLibubsan({"-static-libubsan"},
     "  -static-libubsan            \tThe -static-libubsan option directs the MAPLE driver to link libubsan statically,"
     " without necessarily linking other libraries statically.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> oStaticLibmpx({"-static-libmpx"},
     "  -static-libmpx              \tThe -static-libmpx option directs the MAPLE driver to link libmpx statically,"
@@ -582,7 +601,7 @@ maplecl::Option<bool> oStaticLibmpxwrappers({"-static-libmpxwrappers"},
 maplecl::Option<bool> oSymbolic({"-symbolic"},
     "  -symbolic                   \tWarn about any unresolved references (unless overridden by the link editor "
     "option -Xlinker -z -Xlinker defs).\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> oFipaBitCp({"-fipa-bit-cp"},
     "  -fipa-bit-cp                \tWhen enabled, perform interprocedural bitwise constant propagation. This "
@@ -708,16 +727,16 @@ maplecl::Option<bool> oDH({"-dH"},
 
 maplecl::Option<bool> oDI({"-dI"},
     "  -dI                         \tOutput '#include' directives in addition to the result of preprocessing.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> oDM({"-dM"},
     "  -dM                         \tInstead of the normal output, generate a list of '#define' directives for all "
     "the macros defined during the execution of the preprocessor, including predefined macros. \n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> oDN({"-dN"},
     "  -dN                         \tLike -dD, but emit only the macro names, not their expansions.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> oDp({"-dp"},
     "  -dp                         \tAnnotate the assembler output with a comment indicating which pattern and "
@@ -731,7 +750,7 @@ maplecl::Option<bool> oDP({"-dP"},
 
 maplecl::Option<bool> oDU({"-dU"},
     "  -dU                         \tLike -dD except that only macros that are expanded.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> oDumpfullversion({"-dumpfullversion"},
     "  -dumpfullversion            \tPrint the full compiler version, always 3 numbers separated by dots, major,"
@@ -1035,7 +1054,7 @@ maplecl::Option<std::string> oFdisable({"-fdisable-"},
 
 maplecl::Option<bool> oFdollarsInIdentifiers({"-fdollars-in-identifiers"},
     "  -fdollars-in-identifiers    \tPermit '$' as an identifier character.\n",
-    {driverCategory, clangCategory}, maplecl::DisableWith("-fno-dollars-in-identifiers"));
+    {driverCategory, clangCategory}, kOptFront, maplecl::DisableWith("-fno-dollars-in-identifiers"));
 
 maplecl::Option<bool> oFdse({"-fdse"},
     "  -fdse                       \tUse the RTL dead store elimination pass.\n",
@@ -1418,7 +1437,7 @@ maplecl::Option<std::string> oFexcessPrecision({"-fexcess-precision="},
 
 maplecl::Option<std::string> oFexecCharset({"-fexec-charset="},
     "  -fexec-charset=             \tConvert all strings and character constants to character set <cset>.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> oFexpensiveOptimizations({"-fexpensive-optimizations"},
     "  -fexpensive-optimizations   \tPerform a number of minor, expensive optimizations.\n",
@@ -1431,7 +1450,7 @@ maplecl::Option<bool> oFextNumericLiterals({"-fext-numeric-literals"},
 
 maplecl::Option<bool> oFextendedIdentifiers({"-fextended-identifiers"},
     "  -fextended-identifiers      \tPermit universal character names (\\u and \\U) in identifiers.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> oFnoExtendedIdentifiers({"-fno-extended-identifiers"},
     "  -fno-extended-identifiers   \tDon't ermit universal character names (\\u and \\U) in identifiers.\n",
@@ -1588,7 +1607,7 @@ maplecl::Option<bool> oFinlineSmallFunctions({"-finline-small-functions"},
 
 maplecl::Option<std::string> oFinputCharset({"-finput-charset="},
     "  -finput-charset=            \tSpecify the default character set for source files.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> oFinstrumentFunctions({"-finstrument-functions"},
     "  -finstrument-functions      \tInstrument function entry and exit with profiling calls.\n",
@@ -1831,7 +1850,7 @@ maplecl::Option<bool> oFnoBranchCountReg({"-fno-branch-count-reg"},
 maplecl::Option<bool> oFnoBuiltin({"-fno-builtin", "-fno-builtin-function"},
     "  -fno-builtin                \tDon't recognize built-in functions that do not begin with '__builtin_' as"
     " prefix.\n",
-    {driverCategory, unSupCategory}, maplecl::kHide);
+    {driverCategory, hir2mplCategory}, kOptCommon | kOptOptimization | kOptMaple);
 
 maplecl::Option<bool> oFnoCanonicalSystemHeaders({"-fno-canonical-system-headers"},
     "  -fno-canonical-system-headers  \tWhen preprocessing, do not shorten system header paths with "
@@ -2147,7 +2166,7 @@ maplecl::Option<bool> oFpchDeps({"-fpch-deps"},
 
 maplecl::Option<bool> oFpchPreprocess({"-fpch-preprocess"},
     "  -fpch-preprocess            \tLook for and use PCH files even when preprocessing.\n",
-    {driverCategory, clangCategory}, maplecl::kHide);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kHide);
 
 maplecl::Option<bool> oFnoPchPreprocess({"-fno-pch-preprocess"},
     "  -fno-pch-preprocess         \tLook for and use PCH files even when preprocessing.\n",
@@ -2513,10 +2532,6 @@ maplecl::Option<bool> oFstackProtector({"-fstack-protector"},
     "  -fstack-protector           \tUse propolice as a stack protection method.\n",
     {driverCategory, unSupCategory}, maplecl::DisableWith("-fno-stack-protector"), maplecl::kHide);
 
-maplecl::Option<bool> oFstackProtectorAll({"-fstack-protector-all"},
-    "  -fstack-protector-all       \tUse a stack protection method for every function.\n",
-    {driverCategory, unSupCategory}, maplecl::DisableWith("-fno-stack-protector-all"), maplecl::kHide);
-
 maplecl::Option<bool> oFstackProtectorExplicit({"-fstack-protector-explicit"},
     "  -fstack-protector-explicit  \tUse stack protection method only for functions with the stack_protect "
     "attribute.\n",
@@ -2542,10 +2557,6 @@ maplecl::Option<bool> oFstoreMerging({"-fstore-merging"},
     "  -fstore-merging             \tMerge adjacent stores.\n",
     {driverCategory, unSupCategory}, maplecl::DisableWith("-fno-store-merging"), maplecl::kHide);
 
-maplecl::Option<bool> oFstrictAliasing({"-fstrict-aliasing"},
-    "  -fstrict-aliasing           \tAssume strict aliasing rules apply.\n",
-    {driverCategory, unSupCategory}, maplecl::kHide);
-
 maplecl::Option<bool> oFstrictEnums({"-fstrict-enums"},
     "  -fstrict-enums              \tAssume that values of enumeration type are always within the minimum range "
     "of that type.\n",
@@ -2569,7 +2580,7 @@ maplecl::Option<bool> oFsyntaxOnly({"-fsyntax-only"},
 
 maplecl::Option<std::string> oFtabstop({"-ftabstop="},
     "  -ftabstop=                  \tSet the distance between tab stops.\n",
-    {driverCategory, clangCategory}, maplecl::kHide);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kHide);
 
 maplecl::Option<std::string> oFtemplateBacktraceLimit({"-ftemplate-backtrace-limit="},
     "  -ftemplate-backtrace-limit= \tSet the maximum number of template instantiation notes for a single warning "
@@ -2791,11 +2802,11 @@ maplecl::Option<bool> oFuseCxaAtexit({"-fuse-cxa-atexit"},
 
 maplecl::Option<bool> oFuseLdBfd({"-fuse-ld=bfd"},
     "  -fuse-ld=bfd                \tUse the bfd linker instead of the default linker.\n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptCommon | kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oFuseLdGold({"-fuse-ld=gold"},
     "  -fuse-ld=gold               \tUse the gold linker instead of the default linker.\n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptCommon | kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oFuseLinkerPlugin({"-fuse-linker-plugin"},
     "  -fuse-linker-plugin         \tEnables the use of a linker plugin during link-time optimization.\n",
@@ -3042,7 +3053,7 @@ maplecl::Option<bool> oNocpp({"-nocpp"},
 
 maplecl::Option<bool> oNodefaultlibs({"-nodefaultlibs"},
     "  -nodefaultlibs              \tDo not use the standard system libraries when linking. \n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oNodevicelib({"-nodevicelib"},
     "  -nodevicelib                \t\n",
@@ -3074,7 +3085,7 @@ maplecl::Option<bool> oNoseglinkedit({"-noseglinkedit"},
 
 maplecl::Option<bool> oNostartfiles({"-nostartfiles"},
     "  -nostartfiles               \tDo not use the standard system startup files when linking. \n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oNostdinc({"-nostdinc++"},
     "  -nostdinc++                 \tDo not search standard system include directories for C++.\n",
@@ -3098,7 +3109,7 @@ maplecl::Option<bool> oP({"-p"},
 
 maplecl::Option<bool> oLargeP({"-P"},
     "  -P                          \tDo not generate #line directives.\n",
-    {driverCategory, clangCategory}, maplecl::kHide);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kHide);
 
 maplecl::Option<bool> oPagezero_size({"-pagezero_size"},
     "  -pagezero_size              \t\n",
@@ -3261,7 +3272,7 @@ maplecl::Option<bool> oSeg_addr_table_filename({"-seg_addr_table_filename"},
 maplecl::Option<bool> oSharedLibgcc({"-shared-libgcc"},
     "  -shared-libgcc              \tOn systems that provide libgcc as a shared library, these options force the use"
     " of either the shared or static version, respectively.\n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oSim({"-sim"},
     "  -sim                        \tThis option, recognized for the cris-axis-elf, arranges to link with "
@@ -3280,12 +3291,12 @@ maplecl::Option<bool> oSingle_module({"-single_module"},
 maplecl::Option<bool> oStaticLibgcc({"-static-libgcc"},
     "  -static-libgcc              \tOn systems that provide libgcc as a shared library, these options "
     "force the use of either the shared or static version, respectively.\n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oStaticLibstdc({"-static-libstdc++"},
     "  -static-libstdc++           \tWhen the g++ program is used to link a C++ program, it normally automatically "
     "links against libstdc++. \n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oSub_library({"-sub_library"},
     "  -sub_library                \t\n",
@@ -3298,7 +3309,7 @@ maplecl::Option<bool> oSub_umbrella({"-sub_umbrella"},
 maplecl::Option<std::string> oT({"-T"},
     "  -T                          \tUse script as the linker script. This option is supported by most systems "
     "using the GNU linker\n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oTargetHelp({"-target-help"},
     "  -target-help                \tPrint (on the standard output) a description of target-specific command-line "
@@ -3333,7 +3344,7 @@ maplecl::Option<bool> oTraditionalCpp({"-traditional-cpp"},
 
 maplecl::Option<bool> oTrigraphs({"-trigraphs"},
     "  -trigraphs                  \t-trigraphs   Support ISO C trigraphs.\n",
-    {driverCategory, clangCategory}, maplecl::kHide);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kHide);
 
 maplecl::Option<bool> oTwolevel_namespace({"-twolevel_namespace"},
     "  -twolevel_namespace         \t\n",
@@ -3345,7 +3356,7 @@ maplecl::Option<bool> oUmbrella({"-umbrella"},
 
 maplecl::Option<bool> oUndef({"-undef"},
     "  -undef                      \tDo not predefine system-specific and GCC-specific macros.\n",
-    {driverCategory, clangCategory}, maplecl::kHide);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kHide);
 
 maplecl::Option<bool> oUndefined({"-undefined"},
     "  -undefined                  \t\n",
@@ -3380,7 +3391,7 @@ maplecl::Option<bool> oWmisspelledIsr({"-Wmisspelled-isr"},
 maplecl::Option<std::string> oWp({"-Wp"},
     "  -Wp                         \tYou can use -Wp,option to bypass the compiler driver and pass "
     "option directly through to the preprocessor.\n",
-    {driverCategory, clangCategory}, maplecl::kJoinedValue);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kJoinedValue);
 
 maplecl::Option<bool> oWrapper({"-wrapper"},
     "  -wrapper                    \tInvoke all subcommands under a wrapper program. \n",
@@ -3400,11 +3411,11 @@ maplecl::Option<bool> oXbindNow({"-Xbind-now"},
 
 maplecl::Option<std::string> oXlinker({"-Xlinker"},
     "  -Xlinker                    \tPass option as an option to the linker. \n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<std::string> oXpreprocessor({"-Xpreprocessor"},
     "  -Xpreprocessor              \tPass option as an option to the preprocessor. \n",
-    {driverCategory, clangCategory}, maplecl::kHide);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kHide);
 
 maplecl::Option<std::string> oYm({"-Ym"},
     "  -Ym                         \tLook in the directory dir to find the M4 preprocessor. \n",
@@ -3416,12 +3427,12 @@ maplecl::Option<std::string> oYP({"-YP"},
 
 maplecl::Option<std::string> oZ({"-z"},
     "  -z                          \tPassed directly on to the linker along with the keyword keyword.\n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<std::string> oU({"-u"},
     "  -u                          \tPretend the symbol symbol is undefined, to force linking of library modules "
     "to define it. \n",
-    {driverCategory, ldCategory}, maplecl::kHide);
+    {driverCategory, ldCategory}, kOptDriver | kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oStd03({"-std=c++03"},
     "  -std=c++03                  \tConform to the ISO 1998 C++ standard revised by the 2003 technical corrigendum.\n",
@@ -3433,7 +3444,7 @@ maplecl::Option<bool> oStd0x({"-std=c++0x"},
 
 maplecl::Option<bool> oStd11({"-std=c++11"},
     "  -std=c++11                  \tConform to the ISO 2011 C++ standard.\n",
-    {driverCategory, ldCategory, clangCategory, unSupCategory}, maplecl::kHide);
+    {driverCategory, ldCategory, clangCategory, unSupCategory}, kOptLd, maplecl::kHide);
 
 maplecl::Option<bool> oStd14({"-std=c++14"},
     "  -std=c++14                  \tConform to the ISO 2014 C++ standard.\n",
@@ -3458,7 +3469,7 @@ maplecl::Option<bool> oStd98({"-std=c++98"},
 
 maplecl::Option<bool> oStd11p({"-std=c11"},
     "  -std=c11                    \tConform to the ISO 2011 C standard.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> oStdc1x({"-std=c1x"},
     "  -std=c1x                    \tDeprecated in favor of -std=c11.\n",
@@ -3537,7 +3548,7 @@ maplecl::Option<bool> oStdgnu98p({"-std=gnu++98"},
 
 maplecl::Option<bool> oStdgnu11({"-std=gnu11"},
     "  -std=gnu11                  \tConform to the ISO 2011 C standard with GNU extensions.\n",
-    {driverCategory, clangCategory});
+    {driverCategory, clangCategory}, kOptFront);
 
 maplecl::Option<bool> oStdgnu1x({"-std=gnu1x"},
     "  -std=gnu1x                  \tDeprecated in favor of -std=gnu11.\n",
@@ -3690,7 +3701,7 @@ maplecl::Option<bool> oGz({"-gz"},
 
 maplecl::Option<bool> oH({"-H"},
     "  -H                          \tPrint the name of header files as they are used.\n",
-    {driverCategory, clangCategory}, maplecl::kHide);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kHide);
 
 maplecl::Option<bool> oHeaderpad_max_install_names({"-headerpad_max_install_names"},
     "  -headerpad_max_install_names  \t\n",
@@ -3758,7 +3769,7 @@ maplecl::Option<bool> oKeep_private_externs({"-keep_private_externs"},
 
 maplecl::Option<bool> oM({"-M"},
     "  -M                          \tGenerate make dependencies.\n",
-    {driverCategory, clangCategory}, maplecl::kHide);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kHide);
 
 maplecl::Option<bool> oM1({"-m1"},
     "  -m1                         \tGenerate code for the SH1.\n",
@@ -3826,8 +3837,7 @@ maplecl::Option<bool> oM32({"-m32"},
     {driverCategory, unSupCategory}, maplecl::kHide);
 
 maplecl::Option<bool> oM32Bit({"-m32-bit"},
-    "  -m32-bit                    \tArrange for stack frame, writable data and constants to all be "
-    "32-bit.\n",
+    "  -m32-bit                    \tArrange for stack frame, writable data and constants to all be 32-bit.\n",
     {driverCategory, unSupCategory}, maplecl::kHide);
 
 maplecl::Option<bool> oM32bitDoubles({"-m32bit-doubles"},
@@ -4247,8 +4257,8 @@ maplecl::Option<bool> oMv8plus({"-mv8plus"},
     {driverCategory, unSupCategory}, maplecl::DisableWith("--mno-v8plus"), maplecl::kHide);
 
 maplecl::Option<std::string> oMveclibabi({"-mveclibabi"},
-    "  -mveclibabi                 \tSpecifies the ABI type to use for vectorizing intrinsics using an external l"
-    "ibrary. \n",
+    "  -mveclibabi                 \tSpecifies the ABI type to use for vectorizing intrinsics using an external "
+    "library. \n",
     {driverCategory, unSupCategory}, maplecl::kHide);
 
 maplecl::Option<bool> oMvect8RetInMem({"-mvect8-ret-in-mem"},
@@ -4336,7 +4346,7 @@ maplecl::Option<bool> oMwarnCellMicrocode({"-mwarn-cell-microcode"},
 maplecl::Option<std::string> oA({"-A"},
     "  -A<question>=<answer>       \tAssert the <answer> to <question>.  Putting '-' before <question> disables "
     "the <answer> to <question> assertion missing after %qs.\n",
-    {driverCategory, clangCategory}, maplecl::kJoinedValue);
+    {driverCategory, clangCategory}, kOptFront, maplecl::kJoinedValue);
 
 maplecl::Option<bool> oO({"-O"},
     "  -O                          \tReduce code size and execution time, without performing any optimizations "
@@ -4345,12 +4355,42 @@ maplecl::Option<bool> oO({"-O"},
 
 maplecl::Option<bool> oNoPie({"-no-pie"},
     "  -no-pie                     \tDon't create a position independent executable.\n",
-    {driverCategory, ldCategory});
+    {driverCategory, ldCategory}, kOptDriver | kOptLd);
 
 maplecl::Option<bool> staticLibmplpgo({"--static-libmplpgo"},
     "  --static-libmplpgo          \tStatic link using libmplpgo\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
+maplecl::Option<std::string> foffloadOptions({"-foffload-options="},
+    "  -foffload-options=          \t-foffload-options=<targets>=<options> Specify options for the offloading targets."
+    " options or targets=options missing after %qs\n",
+    {driverCategory, unSupCategory}, maplecl::kHide);
+
+maplecl::Option<std::string> rootPath({"-rootPath"},
+    "  -rootPath          \tPass tmp root path to hir2mpl\n",
+    {driverCategory, hir2mplCategory}, kOptMaple, maplecl::kHide);
+
+maplecl::Option<bool> fpie({"-fpie", "--fpie"},
+    "  --fpie                      \tGenerate position-independent executable in small mode.\n"
+    "  --no-pie/-fno-pie           \n",
+    {cgCategory, driverCategory, ldCategory}, kOptCommon | kOptLd | kOptNotFiltering,
+    maplecl::DisableEvery({"-fno-pie", "--no-pie"}));
+
+maplecl::Option<bool> fPIE({"-fPIE", "--fPIE"},
+    "  --fPIE                      \tGenerate position-independent executable in large mode.\n"
+    "  --no-pie/-fno-pie           \n",
+    {cgCategory, driverCategory, ldCategory}, kOptCommon | kOptLd | kOptNotFiltering);
+
+maplecl::Option<bool> fpic({"-fpic", "--fpic"},
+    "  --fpic                      \tGenerate position-independent shared library in small mode.\n"
+    "  --no-pic/-fno-pic           \n",
+    {cgCategory, driverCategory, ldCategory}, kOptCommon | kOptLd | kOptNotFiltering,
+    maplecl::DisableEvery({"-fno-pic", "--no-pic"}));
+
+maplecl::Option<bool> fPIC({"-fPIC", "--fPIC"},
+    "  --fPIC                      \tGenerate position-independent shared library in large mode.\n"
+    "  --no-pic/-fno-pic           \n",
+    {cgCategory, driverCategory, ldCategory}, kOptCommon | kOptLd | kOptNotFiltering);
     /* #################################################################################################### */
 
 } /* namespace opts */

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -18,9 +20,8 @@ from .string import pre_deal
 
 
 def read_file(file):
-    f = open(file, 'r')
-    source_lines = f.readlines()
-    f.close()
+    with open(file, 'r') as f:
+        source_lines = f.readlines()
     result_lines = []
     for line in source_lines:
         result_lines.append(pre_deal(line))
@@ -28,9 +29,8 @@ def read_file(file):
 
 
 def read_file_in_string(file):
-    f = open(file, 'r')
-    str = f.read()
-    f.close()
+    with open(file, 'r') as f:
+        str = f.read()
     return str
 
 
@@ -138,3 +138,15 @@ def get_sub_files(path):
         for fpathe, dirs, fs in os.walk(folder):
             all_sub_files += [os.path.join(fpathe,file) for file in fs]
     return all_sub_files
+
+def get_test_and_nontest_curdir(curdir:str, exclude_subdir=[]):
+    test_suites = []
+    nontest_suites = []
+    for subdir in os.listdir(curdir):
+        if subdir in exclude_subdir:
+            continue
+        elif subdir.endswith("_test"):
+            test_suites.append(subdir)
+        else:
+            nontest_suites.append(subdir)
+    return test_suites, nontest_suites

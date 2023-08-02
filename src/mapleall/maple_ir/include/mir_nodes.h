@@ -1581,6 +1581,14 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     return stmtAttrs.GetAttr(STMTATTR_mayTailcall);
   }
 
+  void SetIgnoreCost() {
+    stmtAttrs.SetAttr(STMTATTR_ignore_cost);
+  }
+
+  bool IsIgnoreCost() const {
+    return stmtAttrs.GetAttr(STMTATTR_ignore_cost);
+  }
+
   const StmtAttrs &GetStmtAttrs() const {
     return stmtAttrs;
   }
@@ -1595,6 +1603,14 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
 
   bool operator==(const StmtNode &rhs) const {
     return this == &rhs;
+  }
+
+  virtual MapleSet<uint32> *GetPragmas() {
+    return nullptr;
+  }
+
+  virtual const MapleSet<uint32> *GetPragmas() const {
+    return nullptr;
   }
 
  protected:
@@ -3356,12 +3372,14 @@ class CallAssertBoundaryStmtNode : public NaryStmtNode, public SafetyCallCheckSt
 // polymorphiccallassigned
 class CallNode : public NaryStmtNode {
  public:
-  CallNode(MapleAllocator &allocator, Opcode o) : NaryStmtNode(allocator, o), returnValues(allocator.Adapter()) {}
+  CallNode(MapleAllocator &allocator, Opcode o)
+      : NaryStmtNode(allocator, o), returnValues(allocator.Adapter()), pragmas(allocator.Adapter()) {}
 
   CallNode(MapleAllocator &allocator, Opcode o, PUIdx idx) : CallNode(allocator, o, idx, TyIdx()) {}
 
   CallNode(MapleAllocator &allocator, Opcode o, PUIdx idx, TyIdx tdx)
-      : NaryStmtNode(allocator, o), puIdx(idx), tyIdx(tdx), returnValues(allocator.Adapter()) {}
+      : NaryStmtNode(allocator, o), puIdx(idx), tyIdx(tdx),
+        returnValues(allocator.Adapter()), pragmas(allocator.Adapter()) {}
 
   CallNode(const MIRModule &mod, Opcode o) : CallNode(mod.GetCurFuncCodeMPAllocator(), o) {}
 
@@ -3369,7 +3387,8 @@ class CallNode : public NaryStmtNode {
       : CallNode(mod.GetCurFuncCodeMPAllocator(), o, idx, tdx) {}
 
   CallNode(MapleAllocator &allocator, const CallNode &node)
-      : NaryStmtNode(allocator, node), puIdx(node.GetPUIdx()), tyIdx(node.tyIdx), returnValues(allocator.Adapter()) {}
+      : NaryStmtNode(allocator, node), puIdx(node.GetPUIdx()), tyIdx(node.tyIdx),
+        returnValues(allocator.Adapter()), pragmas(allocator.Adapter()) {}
 
   CallNode(const MIRModule &mod, const CallNode &node) : CallNode(mod.GetCurFuncCodeMPAllocator(), node) {}
 
@@ -3392,7 +3411,20 @@ class CallNode : public NaryStmtNode {
       node->GetReturnVec().push_back(returnValues[i]);
     }
     node->SetNumOpnds(GetNopndSize());
+    node->CopyPragmas(*GetPragmas());
     return node;
+  }
+
+  MapleSet<uint32> *GetPragmas() override {
+    return &pragmas;
+  }
+
+  const MapleSet<uint32> *GetPragmas() const override {
+    return &pragmas;
+  }
+
+  void CopyPragmas(const MapleSet<uint32> &newPragmas) {
+    pragmas = newPragmas;
   }
 
   PUIdx GetPUIdx() const {
@@ -3468,6 +3500,7 @@ class CallNode : public NaryStmtNode {
   TyIdx tyIdx = TyIdx(0);
   CallReturnVector returnValues;
   BlockNode *enclosingBlk = nullptr;
+  MapleSet<uint32> pragmas;
 };
 
 // icall, icallassigned, icallproto and icallprotoassigned

@@ -161,7 +161,9 @@ void ProEpilogAnalysis::Analysis() {
       saveInfo.Clear();
       return;
     }
-    saveInfo.epilogBBs.insert(bbId);
+    if (cgFunc.GetBBFromID(bbId)->GetKind() != BB::kBBNoReturn) {
+      saveInfo.epilogBBs.insert(bbId);
+    }
   }
   for (auto bbId : swkCand.restoreAtExitBBs) {
     // saveBB post dom firstBB, it's no benefit
@@ -175,7 +177,9 @@ void ProEpilogAnalysis::Analysis() {
       saveInfo.Clear();
       return;
     }
-    saveInfo.epilogBBs.insert(bbId);
+    if (cgFunc.GetBBFromID(bbId)->GetKind() != BB::kBBNoReturn) {
+      saveInfo.epilogBBs.insert(bbId);
+    }
   }
 
   if (CG_DEBUG_FUNC(cgFunc)) {
@@ -192,7 +196,7 @@ void CgProEpilogAnalysis::GetAnalysisDependence(AnalysisDep &aDep) const {
 }
 
 bool CgProEpilogAnalysis::PhaseRun(maplebe::CGFunc &f) {
-   if (f.GetMirModule().GetSrcLang() != kSrcLangC || f.GetFunction().IsVarargs()) {
+  if (f.GetMirModule().GetSrcLang() != kSrcLangC || f.GetFunction().IsVarargs()) {
     return false;
   }
 
@@ -222,9 +226,15 @@ bool CgGenProEpiLog::PhaseRun(maplebe::CGFunc &f) {
 #if (defined(TARGAARCH64) && TARGAARCH64) || (defined(TARGRISCV64) && TARGRISCV64)
   const ProEpilogSaveInfo *saveInfo = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() > CGOptions::kLevel0 && !CGOptions::OptimizeForSize()) {
-    MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
+    auto *proepilogIt = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
         &CgProEpilogAnalysis::id, f);
-    saveInfo = static_cast<CgProEpilogAnalysis*>(it)->GetResult();
+    saveInfo = static_cast<CgProEpilogAnalysis*>(proepilogIt)->GetResult();
+
+    auto *liveIt = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
+        &CgLiveAnalysis::id, f);
+    auto *live = static_cast<CgLiveAnalysis*>(liveIt)->GetResult();
+    CHECK_FATAL(live != nullptr, "null ptr check");
+    live->ResetLiveSet();
   }
   genPE = GetPhaseAllocator()->New<AArch64GenProEpilog>(f, *ApplyTempMemPool(), saveInfo);
 #endif

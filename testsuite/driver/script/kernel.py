@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -68,13 +70,11 @@ def assertTrue(message, condition):
 def assertContain(message, filename):
     print(message)
     if os.path.isfile(filename):
-        fp = open(filename, "r")
-        strr = fp.read()
-        if(strr.find(message) != -1):
-            print(filename + " contains the string:" + message)
-            fp.close()
-            return True
-        fp.close()
+        with open(filename, "r") as fp:
+            strr = fp.read()
+            if(strr.find(message) != -1):
+                print(filename + " contains the string:" + message)
+                return True
     return False
 
 
@@ -107,25 +107,28 @@ def assertError(cmptype, name1, name2):
 def Regx_check(regx,resultfile):
     if not os.path.isfile(resultfile) and not os.path.isfile(regx):
         return False
-    fp = open(regx,"r",encoding="latin1")
-    fo = open(resultfile,"r",encoding="latin1")
-    strr = fo.read()
-    for s in fp.readlines():
-        s=s.strip()
-        if(strr.find(s) == -1):
-            fp.close()
-            fo.close()
-            return False
-    fp.close()
-    fo.close()
+    with open(regx,"r",encoding="latin1") as fp, open(resultfile,"r",encoding="latin1") as fo:
+        strr = fo.read()
+        for s in fp.readlines():
+            s=s.strip()
+            if(strr.find(s) == -1):
+                return False
     return True
 
-def Str_CheckNum(resultfile,string,num):
-    fm = open(resultfile,"r")
-    fs = fm.read()
-    strnum = re.findall(string,fs)
-    num=int(num)
-    if num != len(strnum) :
-        return False
-    fm.close()
+def Str_CheckNum(resultfile, string, num):
+    with open(resultfile,"r") as fm:
+        fs = fm.read()
+        strnum = re.findall(string,fs)
+        num=int(num)
+        if num != len(strnum) :
+            return False
+    return True
+
+def Str_CheckGNum(resultfile, string, gnum):
+    with open(resultfile,"r") as fm:
+        fs = fm.read()
+        strnum = re.findall(string,fs)
+        gnum=int(gnum)
+        if gnum >= len(strnum) :
+            return False
     return True

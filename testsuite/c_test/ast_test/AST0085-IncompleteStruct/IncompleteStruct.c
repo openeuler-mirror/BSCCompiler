@@ -41,7 +41,7 @@ void test5(foo4 foo);
 // CHECK: type $FOO7{{.*}} <structincomplete
 // CHECK: type $FOO5{{.*}} <structincomplete
 struct FOO5;
-struct FOO5 foo5;
+extern struct FOO5 foo5;
 struct FOO6{};
 struct FOO6 foo6;
 

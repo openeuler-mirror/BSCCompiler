@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -27,7 +29,7 @@ class CICDRun():
         clean.execute()
         origin_parse = OriginParse(self.input)
         origin_parse.execute()
-        self.input["command_suite"] = origin_parse.get_output()
+        self.input["config"], self.input["command_suite"] = origin_parse.get_output()
         generate_shell_script = GenerateShellScript(self.input)
         generate_shell_script.execute()
         return generate_shell_script.get_output()

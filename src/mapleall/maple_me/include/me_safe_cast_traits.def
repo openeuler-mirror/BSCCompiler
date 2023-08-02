@@ -13,6 +13,7 @@
  * See the Mulan PSL v1 for more details.
  */
 #include <safe_cast.h>
+#include "opcode_info.h"
 
 namespace maple {
 #ifdef LOAD_SAFE_CAST_FOR_ME_EXPR
@@ -74,10 +75,12 @@ REGISTER_SAFE_CAST(UnaryMeStmt, instance_of<CondGotoMeStmt>(from) ||
                                 instance_of<CondGotoMeStmt>(from) ||
                                 from.GetOp() == OP_eval ||
                                 from.GetOp() == OP_free ||
-                                from.GetOp() == OP_assertnonnull ||
+                                (kOpcodeInfo.IsAssertNonnull(from.GetOpCode()) &&
+                                 !kOpcodeInfo.IsCallAssertNonnull(from.GetOpCode())) ||
                                 from.GetOp() == OP_incref ||
                                 from.GetOp() == OP_decref ||
                                 from.GetOp() == OP_decrefreset);
+REGISTER_SAFE_CAST(SafetyCallCheckMeStmt, from.GetOpCode() == OP_callassertnonnull);
 REGISTER_SAFE_CAST(GotoMeStmt, from.GetOp() == OP_goto);
 REGISTER_SAFE_CAST(CondGotoMeStmt, from.GetOp() == OP_brtrue ||
                                    from.GetOp() == OP_brfalse);
@@ -93,7 +96,5 @@ REGISTER_SAFE_CAST(GosubMeStmt, from.GetOp() == OP_gosub);
 REGISTER_SAFE_CAST(ThrowMeStmt, from.GetOp() == OP_throw);
 REGISTER_SAFE_CAST(SyncMeStmt, from.GetOp() == OP_syncenter ||
                                from.GetOp() == OP_syncexit);
-REGISTER_SAFE_CAST(AssertMeStmt, from.GetOp() == OP_assertge ||
-                                 from.GetOp() == OP_assertlt);
 #endif
 }

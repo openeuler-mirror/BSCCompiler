@@ -54,7 +54,8 @@ enum class RealArgPropCandKind {
   kUnknown,
   kConst,
   kVar,
-  kPreg
+  kPreg,
+  kExpr,
 };
 
 // The candidate of real argument that can be propagated to callee's formal.
@@ -65,9 +66,10 @@ struct RealArgPropCand {
   union {
     MIRSymbol *symbol = nullptr;
     MIRConst *mirConst;
+    BaseNode *expr;
   } data;
 
-  void Parse(MIRFunction &caller, BaseNode &argExpr);
+  void Parse(MIRFunction &caller, bool calleeIsLikeMacro, BaseNode &argExpr);
 
   PrimType GetPrimType() const {
     if (kind == RealArgPropCandKind::kConst) {
@@ -76,6 +78,9 @@ struct RealArgPropCand {
     } else if (kind == RealArgPropCandKind::kVar || kind == RealArgPropCandKind::kPreg) {
       ASSERT_NOT_NULL(data.symbol);
       return data.symbol->GetType()->GetPrimType();
+    } else if (kind == RealArgPropCandKind::kExpr) {
+      ASSERT_NOT_NULL(data.expr);
+      return data.expr->GetPrimType();
     }
     return PTY_unknown;
   }

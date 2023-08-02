@@ -372,6 +372,12 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, MapleGenericA
   if (decl.hasAttr<clang::GNUInlineAttr>()) {
     genAttrs.SetAttr(GENATTR_gnu_inline);
   }
+  if (decl.hasAttr<clang::HotAttr>()) {
+    genAttrs.SetAttr(GENATTR_hot);
+  }
+  if (decl.hasAttr<clang::ColdAttr>()) {
+    genAttrs.SetAttr(GENATTR_cold);
+  }
   if (decl.isDefaulted()) {
     genAttrs.SetAttr(GENATTR_default);
   }
@@ -447,10 +453,10 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, MapleGenericA
     }
   }
   SetAttrVisibility(decl, genAttrs);
-  CheckUnsupportedFuncAttrs(decl);
+  VisitAllOfFuncAttrs(decl, genAttrs);
 }
 
-void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) const {
+void LibAstFile::VisitAllOfFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs) const {
   if (!decl.hasAttrs()) {
     return;
   }
@@ -458,6 +464,9 @@ void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) cons
   const clang::AttrVec &funcAttrs = decl.getAttrs();
   for (const auto *attr : funcAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
+    if (attrKind == clang::attr::FunctionLikeMacro) {
+      genAttrs.SetAttr(GENATTR_like_macro);
+    }
     auto iterator = kUnsupportedFuncAttrsMap.find(attrKind);
     if (iterator != kUnsupportedFuncAttrsMap.end()) {
       unsupportedFuncAttrs += iterator->second + " ";

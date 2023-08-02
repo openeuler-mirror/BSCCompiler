@@ -76,6 +76,13 @@ char *test13() {
   return Result_PATH;
 }
 
+char *test14() {
+  int n = 3;
+  static char Result_PATH[300] = {'l', 'e', '/', 'C', 'V', 'S', 'A', '/', 'T', 'E', 'S', 'T', 'S', 'R', 'C', '/', 'P'};
+  sprintf_s(Result_PATH, n, "%s", "run");
+  return Result_PATH;
+}
+
 int main() {
   char s[10];
   int a = test(s);
@@ -110,6 +117,11 @@ int main() {
   if (strcmp(res, "running.path") != 0) {
     abort();
   }
+  res = test14();
+  if (res[0] != '\0') {
+    abort();
+  }
+
   return 0;
 }
 

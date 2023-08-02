@@ -1,0 +1,232 @@
+/*
+ * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan PSL v1.
+ * You can use this software according to the terms and conditions of the Mulan PSL v1.
+ * You may obtain a copy of Mulan PSL v1 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v1 for more details.
+ */
+
+// predefined common classes for primitive types. should be generated.
+using namespace maplert;
+extern "C" {
+
+extern void *MRT_CLASSINFO(Ljava_2Flang_2FObject_3B);
+extern void *MRT_CLASSINFO(Ljava_2Flang_2Freflect_2FField_3B);
+extern void *MRT_CLASSINFO(Ljava_2Flang_2FCharSequence_3B);
+extern void *MRT_CLASSINFO(Ljava_2Flang_2FThreadLocal_24ThreadLocalMap_24Entry_3B);
+#ifdef __OPENJDK__
+extern void *MRT_CLASSINFO(Ljava_2Futil_2FHashtable_24Entry_3B);
+#else // libcore
+extern void *MRT_CLASSINFO(Ljava_2Futil_2FHashtable_24HashtableEntry_3B);
+extern void *MRT_CLASSINFO(Llibcore_2Freflect_2FAnnotationMember_3B);
+#endif // __OPENJDK__
+extern void *MRT_CLASSINFO(Ljava_2Futil_2FFormatter_24Flags_3B);
+extern void *MRT_CLASSINFO(Ljava_2Futil_2FHashMap_24Node_3B);
+extern void *MRT_CLASSINFO(Ljava_2Futil_2FFormatter_24FormatString_3B);
+extern void *MRT_CLASSINFO(Ljava_2Flang_2FString_3B);
+extern void *MRT_CLASSINFO(Ljava_2Flang_2FClass_3B);
+extern void *MRT_CLASSINFO(Ljava_2Flang_2Freflect_2FMethod_3B);
+extern void *MRT_CLASSINFO(Ljava_2Flang_2Fannotation_2FAnnotation_3B);
+extern void *MRT_CLASSINFO(Ljava_2Flang_2Freflect_2FConstructor_3B);
+extern void *MRT_CLASSINFO(Ljava_2Flang_2Freflect_2FParameter_3B);
+extern void *MRT_CLASSINFO(Lsun_2Fsecurity_2Futil_2FDerValue_3B);
+extern void *MRT_CLASSINFO(Lsun_2Fsecurity_2Fx509_2FAVA_3B);
+
+// These definition are from maple_ir/include/reflection_analysis.h
+#define FLAG_CLASS_PRIMITIVE    0x0001
+#define FLAG_CLASS_ARRAY        0x0002
+#define MODIFIER_PUBLIC         0x00000001
+#define MODIFIER_PRIM           0x00000411  //Abstract Final Public
+#define MODIFIER_ARRAY          0x00000411  //Abstract Final Public
+
+#define NAME_STRING_(name) #name
+#define NAME_STRING(name) ((uintptr_t)NAME_STRING_(name))
+#define NAME_CONCAT(prefix, name) prefix##name
+#define NAME_LENGTH(name) (sizeof(NAME_STRING_(name))-1)  // only for constant string
+
+extern void (*MRT_ITABLE(Ljava_2Flang_2FObject_3B))();
+extern void (*MRT_VTABLE(Ljava_2Flang_2FObject_3B))();
+extern void *MRT_FIELDS(Ljava_2Flang_2FObject_3B);
+extern void *MRT_METHODS(Ljava_2Flang_2FObject_3B);
+extern void *MRT_GCTIB(Ljava_2Flang_2FObject_3B);
+
+#ifdef USE_32BIT_REF
+#define FIELD_CLASS \
+    (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&MRT_CLASSINFO(Ljava_2Flang_2Freflect_2FField_3B))))
+#define CLASS_CLASS (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&MRT_CLASSINFO(Ljava_2Flang_2FClass_3B))))
+#define GET_OFFSET_REF(base, target) ((int32_t)((char*)(base) - (char*)(target)))
+#else
+#define FIELD_CLASS ((uintptr_t)(&MRT_CLASSINFO(Ljava_2Flang_2Freflect_2FField_3B)))
+#define CLASS_CLASS ((uintptr_t)(&MRT_CLASSINFO(Ljava_2Flang_2FClass_3B)))
+#define GET_OFFSET_REF(base, target) ((intptr_t)((char*)(base) - (char*)(target)))
+#endif //USE_32BIT_REF
+
+#define GET_OFFSET(base, target) ((uintptr_t)((char*)(base) - (char*)(target)))
+#define VTAB_OBJECT ((uintptr_t)(&MRT_VTABLE(Ljava_2Flang_2FObject_3B)))
+#define GCTIB_OBJECT ((void*)(&MRT_GCTIB(Ljava_2Flang_2FObject_3B)))
+#define GCTIB_OBJECT_ARRAY ((void*)(&MRT_GCTIB(_ArrayOfObject)))
+#define GCTIB_PRIMITIVE_ARRAY ((void*)(&MRT_GCTIB(_ArrayOfPrimitive)))
+#define FIELDS_OBJECT ((FieldMeta*)(&MRT_FIELDS(Ljava_2Flang_2FObject_3B)))
+#define FIELDS_SIZE_OBJECT 2
+#define METHODS_OBJECT ((MethodMetadata*)(&MRT_METHODS(Ljava_2Flang_2FObject_3B)))
+#define METHODS_SIZE_OBJECT 11
+// compiler will complaints about using ClassMetadata *
+#define CLASS_PRIMITIVE(name) ((uintptr_t)(&MRT_PRIMITIVECLASSINFO(name)))
+#define CLASS(name) ((uintptr_t)(&MRT_CLASSINFO(name)))
+
+#ifdef USE_32BIT_REF
+// classinfo for primitive-type classinfo itself
+#define DEFINE_PRIMITIVE_CLASSINFO_RO(name) \
+static ClassMetadataRO __primitiveclassinforo__##name = { { NAME_STRING(name) }, \
+    { 0 }, { 0 },\
+    { { 0 } },\
+    0, 0,\
+    MODIFIER_PRIM, { 0 }, { 0 } };
+
+#define DEFINE_PRIMITIVE_CLASSINFO(name, size) \
+ClassMetadata MRT_EXPORT MRT_PRIMITIVECLASSINFO(name) = { CLASS_CLASS, 0, 0, { size }, \
+    FLAG_CLASS_PRIMITIVE, 0, { 0 }, \
+    { VTAB_OBJECT }, \
+    { GET_OFFSET(GCTIB_OBJECT, &(__pinf_##name.gctib)) }, \
+    { (uint32_t)(uintptr_t)&__primitiveclassinforo__##name }, { 0 }, { (uintptr_t)&MRT_PRIMITIVECLASSINFO(name) } };
+
+// classinfo for array-of-primitive-type classinfo
+#define DEFINE_ARRAY_PRIMCLASSINFO_RO(name, reflectname, elemname) \
+static ClassMetadataRO __primitiveclassinforo__##name = { { NAME_STRING(reflectname) }, \
+    { 0 }, { 0 },\
+    { { CLASS_PRIMITIVE(elemname) } }, \
+    0, 0,\
+    MODIFIER_ARRAY, { 0 }, { 0 } };
+
+#define DEFINE_ARRAY_PRIMCLASSINFO(name, elemname, gcTIB, componentSize) \
+ClassMetadata MRT_EXPORT MRT_PRIMITIVECLASSINFO(name) = { CLASS_CLASS, 0, 0, { componentSize }, \
+    FLAG_CLASS_ARRAY, 0, { 0 }, \
+    { VTAB_OBJECT }, \
+    { GET_OFFSET(gcTIB, &(__pinf_##name.gctib)) },\
+    { (uint32_t)(uintptr_t)&__primitiveclassinforo__##name }, { 0 }, { (uintptr_t)&MRT_PRIMITIVECLASSINFO(name) } };
+
+#define REF_SIZE  4   // 4B for a single reference
+
+#else //!USE_32BIT_REF
+
+// classinfo for primitive-type classinfo itself
+#define DEFINE_PRIMITIVE_CLASSINFO_RO(name) \
+static ClassMetadataRO __primitiveclassinforo__##name = { { NAME_STRING(name) }, \
+    { 0 }, { 0 },\
+    { { 0 } },\
+    0, 0, FLAG_CLASS_PRIMITIVE, 0, 0, \
+    MODIFIER_PRIM, { 0 }, { 0 } };
+
+#define DEFINE_PRIMITIVE_CLASSINFO(name, size) \
+ClassMetadata MRT_EXPORT MRT_PRIMITIVECLASSINFO(name) = { CLASS_CLASS, 0, 0, { size }, { 0 }, \
+    { VTAB_OBJECT }, \
+    { GET_OFFSET(GCTIB_OBJECT, &(__pinf_##name.gctib)) }, \
+    { (uintptr_t)&__primitiveclassinforo__##name }, { (uintptr_t)&MRT_PRIMITIVECLASSINFO(name) } };
+
+// classinfo for array-of-primitive-type classinfo
+#define DEFINE_ARRAY_PRIMCLASSINFO_RO(name, reflectname, elemname) \
+static ClassMetadataRO __primitiveclassinforo__##name = { { NAME_STRING(reflectname) }, \
+    { 0 }, { 0 },\
+    { { CLASS_PRIMITIVE(elemname) } }, \
+    0, 0, FLAG_CLASS_ARRAY, 0, 0, \
+    MODIFIER_ARRAY, { 0 }, { 0 } };
+
+#define DEFINE_ARRAY_PRIMCLASSINFO(name, elemname, gcTIB, componentSize) \
+ClassMetadata MRT_EXPORT MRT_PRIMITIVECLASSINFO(name) = { CLASS_CLASS, 0, 0, { componentSize }, { 0 }, \
+    { VTAB_OBJECT }, \
+    { GET_OFFSET(gcTIB, &(__pinf_##name.gctib)) },\
+    { (uintptr_t)&__primitiveclassinforo__##name }, { (uintptr_t)&MRT_PRIMITIVECLASSINFO(name) } };
+
+#define REF_SIZE  8   // 8B for a single reference
+
+#endif //USE_32BIT_REF
+
+// up to 3-dim array. higher dimensional array and array of object will be
+// generated at runtime.
+#define DEFINE_PRIMITIVE_CLASSINFOS(ptype, type1d, type1dname, type2d, type2dname, type3d, type3dname, size) \
+DEFINE_PRIMITIVE_CLASSINFO_RO(ptype) \
+DEFINE_PRIMITIVE_CLASSINFO(ptype, size) \
+DEFINE_ARRAY_PRIMCLASSINFO_RO(type1d, type1dname, ptype) \
+DEFINE_ARRAY_PRIMCLASSINFO(type1d, ptype, GCTIB_PRIMITIVE_ARRAY, size) \
+DEFINE_ARRAY_PRIMCLASSINFO_RO(type2d, type2dname, type1d) \
+DEFINE_ARRAY_PRIMCLASSINFO(type2d, type1d, GCTIB_OBJECT_ARRAY, REF_SIZE) \
+DEFINE_ARRAY_PRIMCLASSINFO_RO(type3d, type3dname, type2d) \
+DEFINE_ARRAY_PRIMCLASSINFO(type3d, type2d, GCTIB_OBJECT_ARRAY, REF_SIZE) \
+static ClassMetadata *__mrt_pclasses_##ptype[4] = { &MRT_PRIMITIVECLASSINFO(ptype), &MRT_PRIMITIVECLASSINFO(type1d),\
+                                                    &MRT_PRIMITIVECLASSINFO(type2d), &MRT_PRIMITIVECLASSINFO(type3d) };
+
+DEFINE_PRIMITIVE_CLASSINFOS(Z, AZ, [Z, AAZ, [[Z, AAAZ, [[[Z, 1)
+DEFINE_PRIMITIVE_CLASSINFOS(B, AB, [B, AAB, [[B, AAAB, [[[B, 1)
+DEFINE_PRIMITIVE_CLASSINFOS(S, AS, [S, AAS, [[S, AAAS, [[[S, 2)
+DEFINE_PRIMITIVE_CLASSINFOS(C, AC, [C, AAC, [[C, AAAC, [[[C, 2)
+DEFINE_PRIMITIVE_CLASSINFOS(I, AI, [I, AAI, [[I, AAAI, [[[I, 4)
+DEFINE_PRIMITIVE_CLASSINFOS(F, AF, [F, AAF, [[F, AAAF, [[[F, 4)
+DEFINE_PRIMITIVE_CLASSINFOS(D, AD, [D, AAD, [[D, AAAD, [[[D, 8)
+DEFINE_PRIMITIVE_CLASSINFOS(J, AJ, [J, AAJ, [[J, AAAJ, [[[J, 8)
+DEFINE_PRIMITIVE_CLASSINFOS(V, AV, [V, AAV, [[V, AAAV, [[[V, 0)
+
+// classinfo for array-of-hotclass
+
+#ifdef USE_32BIT_REF
+#define DEFINE_ARRAY_CLASSINFO_RO(name, reflectname, elemname) \
+ClassMetadataRO __cinfro__##name = { { NAME_STRING(reflectname) }, \
+    { 0 }, { 0 }, \
+    { { CLASS(elemname) } }, \
+    0, 0, \
+    MODIFIER_ARRAY, { 0 }, { 0 } };
+
+// Will be registered to boot-class-loader when initialized
+#define DEFINE_ARRAY_CLASSINFO(name, componentSize) \
+ClassMetadata MRT_EXPORT MRT_CLASSINFO(name) = { CLASS_CLASS, 0, 0, { componentSize }, \
+    FLAG_CLASS_ARRAY, 0, { 0 },\
+    { VTAB_OBJECT }, \
+    { GET_OFFSET(GCTIB_OBJECT_ARRAY, &(__cinf_##name.gctib)) },\
+    { (uint32_t)(uintptr_t)&__cinfro__##name }, { 0 }, { (uintptr_t)&MRT_CLASSINFO(name) } };
+
+#else //!USE_32BIT_REF
+
+#define DEFINE_ARRAY_CLASSINFO_RO(name, reflectname, elemname) \
+ClassMetadataRO __cinfro__##name = { { NAME_STRING(reflectname) }, \
+    { 0 }, { 0 }, \
+    { { CLASS(elemname) } }, \
+    0, 0, FLAG_CLASS_ARRAY,  0, 0, \
+    MODIFIER_ARRAY, { 0 }, { 0 } };
+
+// Will be registered to boot-class-loader when initialized
+#define DEFINE_ARRAY_CLASSINFO(name, componentSize) \
+ClassMetadata MRT_EXPORT MRT_CLASSINFO(name) = { CLASS_CLASS, 0, 0, { componentSize }, { 0 },\
+    { VTAB_OBJECT }, \
+    { GET_OFFSET(GCTIB_OBJECT_ARRAY, &(__cinf_##name.gctib)) },\
+    { (uintptr_t)&__cinfro__##name }, { (uintptr_t)&MRT_CLASSINFO(name) } };
+
+#endif //USE_32BIT_REF
+
+#define DEFINE_CLASSINFOS(name, reflectname, elemname) \
+    DEFINE_ARRAY_CLASSINFO_RO(name, reflectname, elemname) \
+    DEFINE_ARRAY_CLASSINFO(name, REF_SIZE)
+
+DEFINE_CLASSINFOS(ALjava_2Flang_2FObject_3B, [Ljava/lang/Object;, Ljava_2Flang_2FObject_3B)
+DEFINE_CLASSINFOS(ALjava_2Flang_2FClass_3B, [Ljava/lang/Class;, Ljava_2Flang_2FClass_3B)
+DEFINE_CLASSINFOS(ALjava_2Flang_2FString_3B, [Ljava/lang/String;, Ljava_2Flang_2FString_3B)
+DEFINE_CLASSINFOS(ALjava_2Futil_2FFormatter_24Flags_3B, [Ljava/util/Formatter$Flags;, Ljava_2Futil_2FFormatter_24Flags_3B)
+DEFINE_CLASSINFOS(ALjava_2Futil_2FHashMap_24Node_3B, [Ljava/util/HashMap$Node;, Ljava_2Futil_2FHashMap_24Node_3B)
+DEFINE_CLASSINFOS(ALjava_2Futil_2FFormatter_24FormatString_3B, [Ljava/util/Formatter$FormatString;, Ljava_2Futil_2FFormatter_24FormatString_3B)
+DEFINE_CLASSINFOS(ALjava_2Flang_2FCharSequence_3B, [Ljava/lang/CharSequence;, Ljava_2Flang_2FCharSequence_3B)
+DEFINE_CLASSINFOS(ALjava_2Flang_2FThreadLocal_24ThreadLocalMap_24Entry_3B, [Ljava/lang/ThreadLocal$ThreadLocalMap$Entry;, Ljava_2Flang_2FThreadLocal_24ThreadLocalMap_24Entry_3B)
+DEFINE_CLASSINFOS(ALsun_2Fsecurity_2Futil_2FDerValue_3B, [Lsun/security/util/DerValue;, Lsun_2Fsecurity_2Futil_2FDerValue_3B)
+DEFINE_CLASSINFOS(ALsun_2Fsecurity_2Fx509_2FAVA_3B, [Lsun/security/x509/AVA;, Lsun_2Fsecurity_2Fx509_2FAVA_3B)
+#ifdef __OPENJDK__
+DEFINE_CLASSINFOS(ALjava_2Futil_2FHashtable_24Entry_3B, [Ljava/util/Hashtable$Entry;, Ljava_2Futil_2FHashtable_24Entry_3B)
+#else // libcore
+DEFINE_CLASSINFOS(ALjava_2Futil_2FHashtable_24HashtableEntry_3B, [Ljava/util/Hashtable$HashtableEntry;, Ljava_2Futil_2FHashtable_24HashtableEntry_3B)
+DEFINE_CLASSINFOS(ALlibcore_2Freflect_2FAnnotationMember_3B, [Llibcore/reflect/AnnotationMember;,
+                  Llibcore_2Freflect_2FAnnotationMember_3B);
+#endif // __OPENJDK__
+}

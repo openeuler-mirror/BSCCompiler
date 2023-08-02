@@ -213,6 +213,25 @@ class CmpBranchesPattern : public ValidBitPattern {
   bool isEqOrNe = false;
   bool is64Bit = false;
 };
+
+// when a register's valid bit < right shift bit, means it can only return 0
+// example:
+//   asr w0, w19, #31 (w19.vb < 31) => mov w0, #0
+class RSPattern : public ValidBitPattern {
+ public:
+  RSPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
+  ~RSPattern() override {}
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "RSPattern";
+  };
+
+ private:
+  MOperator newMop = MOP_undef;
+  uint32 oldImmSize = 0;
+  bool oldImmIsSigned = false;
+};
 } /* namespace maplebe */
 #endif  /* MAPLEBE_INCLUDE_CG_AARCH64_VALIDBIT_OPT_H */
 

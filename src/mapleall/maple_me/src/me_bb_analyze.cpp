@@ -16,7 +16,7 @@
 
 namespace maple {
   void BBAnalyze::SetHotAndColdBBCountThreshold() {
-    std::vector<uint32> times;
+    std::vector<uint64> times;
     auto eIt = cfg->valid_end();
     for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;
@@ -27,8 +27,8 @@ namespace maple {
         static_cast<uint32>(static_cast<double>(times.size()) / kPrecision * (MeOption::profileBBHotRate));
     uint32 coldIndex =
         static_cast<uint32>(static_cast<double>(times.size()) / kPrecision * (MeOption::profileBBColdRate));
-    hotBBCountThreshold = times.at(hotIndex);
-    coldBBCountThreshold = times.at(coldIndex);
+    hotBBCountThreshold = static_cast<uint32>(times.at(hotIndex));
+    coldBBCountThreshold = static_cast<uint32>(times.at(coldIndex));
   }
 
   bool BBAnalyze::CheckBBHot(const BBId bbId) const {

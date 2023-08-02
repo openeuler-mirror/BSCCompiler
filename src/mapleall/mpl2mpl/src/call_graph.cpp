@@ -79,6 +79,9 @@ void CallInfo::Dump() const {
     LogInfo::MapleLogger() << "<" << callee->GetInlineSummary()->GetStaticInsns() << ">";
   }
   LogInfo::MapleLogger() << "/id:" << id;
+  if (callTemp == CGTemp::kHot) {
+    LogInfo::MapleLogger() << "(hot)";
+  }
 }
 
 const char *GetInlineFailedStr(InlineFailedCode code) {
@@ -1786,6 +1789,80 @@ void CallGraph::FixIcallCallee() {
   }
 }
 
+// Propagate the temperature with `cgNode` as the starting point
+void PropTempForCGNode(CGNode &cgNode, double exeCnt, uint32 indent, bool debug) {
+  auto *caller = cgNode.GetMIRFunction();
+  auto *inlineSummary = caller->GetInlineSummary();
+  if (inlineSummary == nullptr) {
+    return;
+  }
+  bool hasHotAttr = caller->GetAttr(FUNCATTR_hot);
+  auto &calleeMap = cgNode.GetCallee();
+  for (auto pair : calleeMap) {
+    auto *callInfo = pair.first;
+    auto *calleeCands = pair.second;
+    if (callInfo->GetCallType() != kCallTypeCall) {
+      continue;  // Only consider direct call
+    }
+    if (calleeCands == nullptr || calleeCands->size() != 1) {
+      continue;  // Skip it if there are multiple call target candidates
+    }
+    CGNode *calleeNode = *calleeCands->begin();
+    auto *calleeFunc = calleeNode->GetMIRFunction();
+    if (calleeFunc->IsEmpty()) {
+      continue;  // Skip external function
+    }
+    auto *edgeSummary = inlineSummary->GetEdgeSummary(callInfo->GetID());
+    if (edgeSummary == nullptr) {
+      continue;  // No edge summary, frequency is not available, So skip it
+    }
+    bool isUnlikely = edgeSummary->GetAttr(CallsiteAttrKind::kUnlikely);
+    if (isUnlikely) {
+      continue;  // Skip unlikely callsite inferred from __builtin_expect
+    }
+    double freqPercent = (edgeSummary->frequency * 1.0 / kCallFreqBase);
+    double calleeExeCnt = exeCnt * freqPercent;
+    if (debug) {
+      for (uint32 i = 0; i < indent; ++i) {
+        LogInfo::MapleLogger() << ' ';
+      }
+      callInfo->Dump();
+      LogInfo::MapleLogger() << ", freq: " << freqPercent << ", exeCnt: " << calleeExeCnt << std::endl;
+    }
+    // The TOP LEVEL hot callsites have higher priority, so lower threshold is used.
+    double threshold = hasHotAttr ? 1.0 : 3.0;  // Fine tuning is possible here
+    if (calleeExeCnt < threshold) {
+      continue;
+    }
+    // Mark hot callgraph nodes and callgraph edges
+    callInfo->SetCallTemp(CGTemp::kHot);
+    cgNode.SetFuncTemp(CGTemp::kHot);
+    calleeNode->SetFuncTemp(CGTemp::kHot);
+    constexpr uint32 numSpaces = 2;
+    PropTempForCGNode(*calleeNode, calleeExeCnt, indent + numSpaces, debug);
+  }
+}
+
+// Propagate the temperature across call graph
+void CallGraph::PropTempAcrossCallGraph() {
+  const std::vector<MIRFunction*> &funcTable = GlobalTables::GetFunctionTable().GetFuncTable();
+  for (size_t index = 0; index < funcTable.size(); ++index) {
+    MIRFunction *mirFunc = funcTable.at(index);
+    if (mirFunc == nullptr || mirFunc->GetBody() == nullptr) {
+      continue;
+    }
+    auto *cgNode = GetCGNode(mirFunc);
+    if (cgNode == nullptr) {
+      continue;
+    }
+    if (cgNode->GetFuncTemp() == CGTemp::kNormal) {
+      continue;
+    }
+    constexpr double exeCntForHotFunc = 1.0;  // can tuning further
+    PropTempForCGNode(*cgNode, exeCntForHotFunc, 0, debugFlag);
+  }
+}
+
 void CallGraph::GenCallGraph() {
   ReadCallGraphFromMplt();
   GenCallGraphFromFunctionBody();
@@ -1941,6 +2018,9 @@ void CallGraph::DumpToFile(bool dumpAll) const {
 
 void CallGraph::BuildCallGraph() {
   GenCallGraph();
+  if (!Options::ignoreHotAttr) {
+    PropTempAcrossCallGraph();
+  }
   // Dump callgraph to dot file
   if (debugFlag) {
     DumpToFile(true);

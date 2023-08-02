@@ -456,15 +456,15 @@ bool MeOption::SolveOptions(bool isDebug) {
   // Now some tls and pic related logic have been moved me,
   // so we need pic related options processed in me in advance, to make me and cg coherent.
   // When tls moved to cg as normal, these could be deleted.
-  if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
-    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() &&
-        !opts::cg::fPIE.IsEnabledByUser() && !opts::cg::fPIE) {
-      if (opts::cg::fPIC && opts::cg::fPIC.IsEnabledByUser()) {
-        maplebe::CGOptions::GetInstance().SetPICOptionHelper(maplebe::CGOptions::kLargeMode);
+  if (opts::fpic.IsEnabledByUser() || opts::fPIC.IsEnabledByUser()) {
+    if (!opts::fpie && !opts::fpie.IsEnabledByUser() &&
+        !opts::fPIE.IsEnabledByUser() && !opts::fPIE) {
+      if (opts::fPIC && opts::fPIC.IsEnabledByUser()) {
+        maplebe::CGOptions::SetPICOptionHelper(maplebe::CGOptions::kLargeMode);
         maplebe::CGOptions::SetPIEMode(maplebe::CGOptions::kClose);
         maplebe::CGOptions::GetInstance().ClearOption(maplebe::CGOptions::kGenPie);
-      } else if (opts::cg::fpic && opts::cg::fpic.IsEnabledByUser()) {
-        maplebe::CGOptions::GetInstance().SetPICOptionHelper(maplebe::CGOptions::kSmallMode);
+      } else if (opts::fpic && opts::fpic.IsEnabledByUser()) {
+        maplebe::CGOptions::SetPICOptionHelper(maplebe::CGOptions::kSmallMode);
         maplebe::CGOptions::SetPIEMode(maplebe::CGOptions::kClose);
         maplebe::CGOptions::GetInstance().ClearOption(maplebe::CGOptions::kGenPie);
       } else {

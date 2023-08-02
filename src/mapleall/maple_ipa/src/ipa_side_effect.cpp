@@ -44,7 +44,7 @@ const FuncDesc &IpaSideEffectAnalyzer::GetFuncDesc(MIRFunction &f) {
 }
 
 const std::map<std::string, FuncDesc> *IpaSideEffectAnalyzer::GetWhiteList() {
-  if (opts::oFnoBuiltin) {
+  if (opts::oFnoBuiltin.IsEnabledByUser()) {
     kFullWhiteList.erase(kFullWhiteList.begin(), kFullWhiteList.end());
     return &kFullWhiteList;
   }

@@ -16,44 +16,37 @@
 #include <iostream>
 #include "me_option.h"
 #include "me_cfg.h"
+#include "base_graph_node.h"
 // This phase analyses the CFG of the given MeFunction, generates the dominator tree,
 // and the dominance frontiers of each basic block using Keith Cooper's algorithm.
 // For some backward data-flow problems, such as LiveOut,
 // the reverse CFG(The CFG with its edges reversed) is always useful,
 // so we also generates the above two structures on the reverse CFG.
 namespace maple {
-AnalysisResult *MeDoDominance::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  MeCFG *cfg = func->GetCfg();
-  if (!cfg) {
-    cfg = static_cast<MeCFG*>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
-  }
-  MemPool *memPool = NewMemPool();
-  auto *dom = memPool->New<Dominance>(*memPool, *NewMemPool(), cfg->GetAllBBs(),
-                                      *cfg->GetCommonEntryBB(), *cfg->GetCommonExitBB());
-  dom->GenPostOrderID();
-  dom->ComputeDominance();
-  dom->ComputeDomFrontiers();
-  dom->ComputeDomChildren();
-  dom->ComputeIterDomFrontiers();
-  size_t num = 0;
-  dom->ComputeDtPreorder(*cfg->GetCommonEntryBB(), num);
-  dom->GetDtPreOrder().resize(num);
-  dom->ComputeDtDfn();
+void MEDominance::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEMeCfg>();
+  aDep.SetPreservedAll();
+}
 
-  dom->PdomGenPostOrderID();
-  dom->ComputePostDominance();
-  dom->ComputePdomFrontiers();
-  dom->ComputePdomChildren();
-  dom->ComputeIterPdomFrontiers();
-  num = 0;
-  dom->ComputePdtPreorder(*cfg->GetCommonExitBB(), num);
-  dom->ResizePdtPreOrder(num);
-  dom->ComputePdtDfn();
-  if (DEBUGFUNC(func)) {
+bool MEDominance::PhaseRun(maple::MeFunction &f) {
+  MeCFG *cfg = f.GetCfg();
+  ASSERT_NOT_NULL(cfg);
+  MemPool *memPool = GetPhaseMemPool();
+  auto alloc = MapleAllocator(memPool);
+  auto nodeVec = memPool->New<MapleVector<BaseGraphNode*>>(alloc.Adapter());
+  CHECK_NULL_FATAL(nodeVec);
+  ConvertToVectorOfBasePtr<BB>(cfg->GetAllBBs(), *nodeVec);
+  dom = memPool->New<Dominance>(*memPool, *nodeVec, *cfg->GetCommonEntryBB(), *cfg->GetCommonExitBB(), false);
+  CHECK_NULL_FATAL(dom);
+  pdom = memPool->New<Dominance>(*memPool, *nodeVec, *cfg->GetCommonExitBB(), *cfg->GetCommonEntryBB(), true);
+  CHECK_NULL_FATAL(pdom);
+  dom->Init();
+  pdom->Init();
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "-----------------Dump dominance info and postdominance info---------\n";
     dom->DumpDoms();
-    dom->DumpPdoms();
+    pdom->DumpDoms();
   }
-  return dom;
+  return false;
 }
 }  // namespace maple

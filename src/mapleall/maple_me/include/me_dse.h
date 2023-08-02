@@ -20,7 +20,7 @@
 namespace maple {
 class MeDSE : public DSE {
  public:
-  MeDSE(MeFunction &func, Dominance *dom, const AliasClass *aliasClass, bool enabledDebug);
+  MeDSE(MeFunction &func, Dominance *dom, Dominance *pdom, const AliasClass *aliasClass, bool enabledDebug);
   virtual ~MeDSE() = default;
 
   void RunDSE();

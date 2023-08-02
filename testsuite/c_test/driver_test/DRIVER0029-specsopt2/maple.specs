@@ -1,0 +1,3 @@
+*cc1:
+%(cc1_cpu) -nostdinc -O0 -isystem /opt/buildtools/ylongc/hpe/aarch64/include
+

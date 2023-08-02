@@ -348,20 +348,34 @@ class Dominance {
     return false;
   }
 
-  void PostOrderWalk(const BaseGraphNode &node, size_t &pid, std::vector<bool> &visitedMap) {
-    auto nodeId = node.GetID();
-    ASSERT(nodeId < visitedMap.size(), "index out of range");
-    if (nodeVec[nodeId] == nullptr || visitedMap[nodeId]) {
-      return;
+  void PostOrderWalk(const BaseGraphNode &root, size_t &pid, std::vector<bool> &visitedMap) {
+    std::stack<const BaseGraphNode*> s;
+    s.push(&root);
+    visitedMap[root.GetID()] = true;
+    while (!s.empty()) {
+      auto node = s.top();
+      auto nodeId = node->GetID();
+      if (nodeVec[nodeId] == nullptr) {
+        s.pop();
+        continue;
+      }
+      ASSERT(nodeId < visitedMap.size() && nodeId < postOrderIDVec.size(), "index out of range");
+      bool tail = true;
+      std::vector<BaseGraphNode *> succNodes;
+      GetNextNodesToVisit(*node, succNodes);
+      for (auto succ : succNodes) {
+        if (!visitedMap[succ->GetID()]) {
+          tail = false;
+          visitedMap[succ->GetID()] = true;
+          s.push(succ);
+          break;
+        }
+      }
+      if (tail) {
+        s.pop();
+        postOrderIDVec[nodeId] = static_cast<int32>(pid++);
+      }
     }
-    visitedMap[nodeId] = true;
-    std::vector<BaseGraphNode*> succNodes;
-    GetNextNodesToVisit(node, succNodes);
-    for (const auto &suc : succNodes) {
-      PostOrderWalk(*suc, pid, visitedMap);
-    }
-    ASSERT(nodeId < postOrderIDVec.size(), "index out of range");
-    postOrderIDVec[nodeId] = static_cast<int32>(pid++);
   }
 
   void ComputeDtPreorder(const BaseGraphNode &node, size_t &num) {

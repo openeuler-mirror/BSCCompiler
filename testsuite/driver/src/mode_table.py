@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -13,6 +15,7 @@
 #
 
 import os
+import sys
 
 from basic_tools.file import read_file
 
@@ -20,6 +23,7 @@ class ModeTable(object):
 
     def __init__(self, table_file):
         global key
+        self.table_file = table_file
         mode_table_content_tmp = read_file(table_file)
         self.mode_table_content = {}
         for line in mode_table_content_tmp:
@@ -58,6 +62,9 @@ class ModeTable(object):
                 father_target = target
                 while father_target not in self.mode_table.keys():
                     father_target = os.path.dirname(father_target)
+                    if father_target == "":
+                        print("\033[31m%s have no DEFAULT_TEST_SUITE settings. pls delete this in %s\033[0m"%(target, self.table_file))
+                        sys.exit(1)
                 self.mode_table[target] = self.mode_table[father_target] - self.mode_table_content["BAN_TEST_SUITE"][target]
 
     def get_case_mode_set(self, case):

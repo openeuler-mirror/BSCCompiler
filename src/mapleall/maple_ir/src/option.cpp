@@ -42,6 +42,7 @@ bool Options::useInline = true;             // Enabled by default
 bool Options::enableGInline = true;
 bool Options::useCrossModuleInline = true;  // Enabled by default
 std::string Options::noInlineFuncList = "";
+std::string Options::noIpaCloneFuncList = "";
 std::string Options::importFileList = "";
 // These two thresholds will be scaled down if new cost module was used
 uint32 Options::inlineSmallFunctionThreshold = 80;  // Only for srcLangC, value will be reset later for other srcLang
@@ -51,6 +52,7 @@ uint32 Options::inlineDepth = 8;
 uint32 Options::inlineModuleGrowth = 10;
 uint32 Options::inlineColdFunctionThreshold = 3;
 bool Options::respectAlwaysInline = true;
+bool Options::ignoreHotAttr = true;
 bool Options::inlineToAllCallers = true;
 uint32 Options::ginlineMaxNondeclaredInlineCallee = 400;
 bool Options::ginlineAllowNondeclaredInlineSizeGrow = false;
@@ -206,6 +208,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(enableIPAClone, opts::mpl2mpl::ipaClone);
   maplecl::CopyIfEnabled(enableGInline, opts::mpl2mpl::ginlineOpt);
   maplecl::CopyIfEnabled(noInlineFuncList, opts::mpl2mpl::noInlineFunc);
+  maplecl::CopyIfEnabled(noIpaCloneFuncList, opts::mpl2mpl::noIpaCloneFunc);
   maplecl::CopyIfEnabled(importFileList, opts::mpl2mpl::importFileList);
   maplecl::CopyIfEnabled(numOfCloneVersions, opts::mpl2mpl::numOfCloneVersions);
   maplecl::CopyIfEnabled(numOfImpExprLowBound, opts::mpl2mpl::numOfImpExprLowBound);
@@ -221,6 +224,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(inlineModuleGrowth, opts::mpl2mpl::inlineModuleGrow);
   maplecl::CopyIfEnabled(inlineColdFunctionThreshold, opts::mpl2mpl::inlineColdFuncThresh);
   maplecl::CopyIfEnabled(respectAlwaysInline, opts::mpl2mpl::respectAlwaysInline);
+  maplecl::CopyIfEnabled(ignoreHotAttr, opts::mpl2mpl::ignoreHotAttr);
 
   maplecl::CopyIfEnabled(inlineToAllCallers, opts::mpl2mpl::inlineToAllCallers);
   maplecl::CopyIfEnabled(ginlineMaxNondeclaredInlineCallee, opts::mpl2mpl::ginlineMaxNondeclaredInlineCallee);

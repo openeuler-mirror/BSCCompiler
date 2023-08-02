@@ -35,6 +35,7 @@ class X64InsnVisitor : public InsnVisitor {
   LabelIdx GetJumpLabel(const Insn &insn) const override;
   bool IsCompareInsn(const Insn &insn) const override;
   bool IsCompareAndBranchInsn(const Insn &insn) const override;
+  bool IsTestAndBranchInsn(const Insn &insn) const override;
   bool IsAddOrSubInsn(const Insn &insn) const override;
   RegOperand *CreateVregFromReg(const RegOperand &pReg) override;
   void ReTargetSuccBB(BB &bb, LabelIdx newTarget) const override;

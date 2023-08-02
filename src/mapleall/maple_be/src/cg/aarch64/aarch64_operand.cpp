@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "aarch64_operand.h"
-#include <string>
 #include "aarch64_abi.h"
 #include "aarch64_cgfunc.h"
 #include "aarch64_cg.h"

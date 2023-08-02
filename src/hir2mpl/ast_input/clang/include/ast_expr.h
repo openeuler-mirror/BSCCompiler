@@ -17,6 +17,7 @@
 #include <variant>
 #include "ast_op.h"
 #include "feir_stmt.h"
+#include "pragma_status.h"
 
 namespace maple {
 class ASTDecl;
@@ -1207,6 +1208,14 @@ class ASTDesignatedInitUpdateExpr : public ASTExpr {
     initListType = nullptr;
   }
 
+  void SetConstArraySize(int64_t size) {
+    constArraySize = size;
+  }
+
+  int64_t GetConstArraySize() const {
+    return constArraySize;
+  }
+
   void SetBaseExpr(ASTExpr *astExpr) {
     baseExpr = astExpr;
   }
@@ -1246,6 +1255,7 @@ class ASTDesignatedInitUpdateExpr : public ASTExpr {
   ASTExpr *updaterExpr = nullptr;
   MIRType *initListType = nullptr;
   std::string initListVarName;
+  int64_t constArraySize = 0;
 };
 
 class ASTAssignExpr : public ASTBinaryOperatorExpr {
@@ -1364,6 +1374,14 @@ class ASTCallExpr : public ASTExpr {
     return returnVarAttrs;
   }
 
+  void SetPreferInlinePI(PreferInlinePI state) {
+    preferInlinePI = state;
+  }
+
+  PreferInlinePI GetPreferInlinePI() const {
+    return preferInlinePI;
+  }
+
   std::string CvtBuiltInFuncName(std::string builtInName) const;
   UniqueFEIRExpr ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   std::unique_ptr<FEIRStmtAssign> GenCallStmt() const;
@@ -1377,7 +1395,7 @@ class ASTCallExpr : public ASTExpr {
 
  private:
   using FuncPtrBuiltinFunc = UniqueFEIRExpr (ASTCallExpr::*)(std::list<UniqueFEIRStmt> &stmts) const;
-  static std::unordered_map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
+  static std::unordered_map<std::string, FuncPtrBuiltinFunc> &GetOrCreateBuiltinFuncPtrMap();
   static UniqueFEIRExpr EmitBuiltinVectorLoad(std::list<UniqueFEIRStmt> &stmts, bool &isFinish,
                                               const MapleVector<ASTExpr*> &callArgs, MIRType &mirType,
                                               const std::pair<std::string, Loc> &funcMessage);
@@ -1407,6 +1425,7 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Ctzl);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Clz);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Clzl);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ConstantP);
 
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Popcount);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Popcountl);
@@ -1429,11 +1448,13 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AlignDown);
 
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Alloca);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(AllocaWithAlign);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Expect);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(VaStart);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(VaEnd);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(VaCopy);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Prefetch);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ClearCache);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Abs);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ACos);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ACosf);
@@ -1565,7 +1586,7 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
 
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 
-  static std::unordered_map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
+  static std::unordered_map<std::string, FuncPtrBuiltinFunc> builtinFuncPtrMap;
   MapleVector<ASTExpr*> args;
   ASTExpr *calleeExpr = nullptr;
   MapleString funcName;
@@ -1574,6 +1595,7 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
   MapleString varName;
   ASTFunc *funcDecl = nullptr;
   MapleGenericAttrs returnVarAttrs;
+  PreferInlinePI preferInlinePI = PreferInlinePI::kNonePI;
 };
 
 class ASTParenExpr : public ASTExpr {

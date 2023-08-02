@@ -58,7 +58,7 @@ bool EACGBaseNode::AddOutNode(EACGBaseNode &newOut) {
   return hasChanged;
 }
 
-void EACGBaseNode::PropagateEAStatusForNode(const EACGBaseNode *subRoot) const {
+void EACGBaseNode::PropagateEAStatusForNode(const EACGBaseNode *subRoot [[maybe_unused]]) const {
   for (EACGBaseNode *outNode : out) {
     (void)outNode->UpdateEAStatus(eaStatus);
   }
@@ -98,7 +98,7 @@ std::string EACGBaseNode::GetName(const IRMap *irMap) const {
 
 bool EACGBaseNode::UpdatePointsTo(const std::set<EACGObjectNode*> &cPointsTo) {
   size_t oldPtSize = pointsTo.size();
-  pointsTo.insert(cPointsTo.begin(), cPointsTo.end());
+  pointsTo.insert(cPointsTo.cbegin(), cPointsTo.cend());
   if (oldPtSize == pointsTo.size()) {
     return false;
   }
@@ -208,7 +208,7 @@ bool EACGObjectNode::ReplaceByGlobalNode() {
   return true;
 }
 
-void EACGObjectNode::PropagateEAStatusForNode(const EACGBaseNode *subRoot) const {
+void EACGObjectNode::PropagateEAStatusForNode(const EACGBaseNode *subRoot [[maybe_unused]]) const {
   for (auto fieldNodePair : fieldNodes) {
     EACGFieldNode *field = fieldNodePair.second;
     (void)field->UpdateEAStatus(eaStatus);
@@ -223,8 +223,7 @@ void EACGObjectNode::DumpDotFile(std::ostream &fout, std::map<EACGBaseNode*, boo
   dumped[this] = true;
 
   std::string name = GetName(nullptr);
-  std::string label;
-  label = GetName(irMap) + " Object\\n";
+  std::string label = GetName(irMap) + " Object\\n";
   std::string color;
   GetNodeFormatInDot(label, color);
   std::string style;
@@ -234,11 +233,11 @@ void EACGObjectNode::DumpDotFile(std::ostream &fout, std::map<EACGBaseNode*, boo
     style = "bold";
   }
   fout << name << " [shape=box, label=\"" << label << "\", fontcolor=" << color << ", style=" << style << "];\n";
-  for (auto fieldPair : fieldNodes) {
+  for (auto fieldPair : std::as_const(fieldNodes)) {
     EACGBaseNode *field = fieldPair.second;
     fout << name << "->" << field->GetName(nullptr) << ";" << "\n";
   }
-  for (auto fieldPair : fieldNodes) {
+  for (auto fieldPair : std::as_const(fieldNodes)) {
     EACGBaseNode *field = fieldPair.second;
     field->DumpDotFile(fout, dumped, dumpPt, irMap);
   }
@@ -252,8 +251,7 @@ void EACGRefNode::DumpDotFile(std::ostream &fout, std::map<EACGBaseNode*, bool> 
   dumped[this] = true;
 
   std::string name = GetName(nullptr);
-  std::string label;
-  label = GetName(irMap) + " Reference\\n";
+  std::string label = GetName(irMap) + " Reference\\n";
   if (IsStaticRef()) {
     label += "Static\\n";
   }
@@ -312,8 +310,7 @@ void EACGPointerNode::DumpDotFile(std::ostream &fout, std::map<EACGBaseNode*, bo
   }
   dumped[this] = true;
   std::string name = GetName(nullptr);
-  std::string label;
-  label = GetName(irMap) + "\\nPointer Indirect Level : " + std::to_string(indirectLevel) + "\\n";
+  std::string label = GetName(irMap) + "\\nPointer Indirect Level : " + std::to_string(indirectLevel) + "\\n";
   std::string color;
   GetNodeFormatInDot(label, color);
   fout << name << " [shape=ellipse, label=\"" << label << "\", fontcolor=" << color << "];" << "\n";
@@ -388,8 +385,7 @@ void EACGFieldNode::DumpDotFile(std::ostream &fout, std::map<EACGBaseNode*, bool
   }
   dumped[this] = true;
   std::string name = GetName(nullptr);
-  std::string label;
-  label = GetName(irMap) + "\\nFIdx : " + std::to_string(GetFieldID()) + "\\n";
+  std::string label = GetName(irMap) + "\\nFIdx : " + std::to_string(GetFieldID()) + "\\n";
   std::string color;
   GetNodeFormatInDot(label, color);
   std::string style;
@@ -512,7 +508,8 @@ void EAConnectionGraph::InitGlobalNode() {
   globalRef->eaStatus = kGlobalEscape;
 }
 
-EACGObjectNode *EAConnectionGraph::CreateObjectNode(MeExpr *expr, EAStatus initialEas, bool isPh, TyIdx tyIdx) {
+EACGObjectNode *EAConnectionGraph::CreateObjectNode(MeExpr *expr, EAStatus initialEas,
+                                                    bool isPh, TyIdx tyIdx [[maybe_unused]]) {
   EACGObjectNode *newObjNode =
       new (std::nothrow) EACGObjectNode(mirModule, alloc, *this, expr, initialEas, nodes.size() + 1, isPh);
   ASSERT_NOT_NULL(newObjNode);
@@ -861,9 +858,7 @@ void EAConnectionGraph::RestoreStatus(bool old) {
 // Update caller's ConnectionGraph using callee's summary information.
 // If the callee's summary is not found, we just mark all the pointsTo nodes of caller's actual node to GlobalEscape.
 // Otherwise, we do these steps:
-//
 // 1, update caller nodes using callee's summary, new node might be added into caller's CG in this step.
-//
 // 2, update caller edges using callee's summary, new points-to edge might be added into caller's CG in this step.
 bool EAConnectionGraph::MergeCG(MapleVector<EACGBaseNode*> &caller, const MapleVector<EACGBaseNode*> *callee) {
   TrimGlobalNode();
@@ -963,7 +958,7 @@ void EAConnectionGraph::UpdateCallerNodes(const MapleVector<EACGBaseNode*> &call
 // Update caller edges using information from callee.
 void EAConnectionGraph::UpdateCallerEdges() {
   std::set<EACGObjectNode*> set;
-  for (auto pair : callee2Caller) {
+  for (auto pair : std::as_const(callee2Caller)) {
     (void)set.insert(pair.first);
   }
   for (EACGObjectNode *p : set) {

@@ -28,22 +28,26 @@
 #include "mir_module.h"
 #include "mpl_logging.h"
 #include "fe_macros.h"
+#include "driver_options.h"
 
 namespace maple {
-std::unordered_map<std::string, ASTCallExpr::FuncPtrBuiltinFunc> ASTCallExpr::InitBuiltinFuncPtrMap() {
-  std::unordered_map<std::string, FuncPtrBuiltinFunc> ans;
-#define BUILTIN_FUNC_EMIT(funcName, FuncPtrBuiltinFunc) \
-  ans[funcName] = FuncPtrBuiltinFunc;
+std::unordered_map<std::string, ASTCallExpr::FuncPtrBuiltinFunc> ASTCallExpr::builtinFuncPtrMap = {};
+std::unordered_map<std::string, ASTCallExpr::FuncPtrBuiltinFunc> &ASTCallExpr::GetOrCreateBuiltinFuncPtrMap() {
+  if (builtinFuncPtrMap.empty()) {
+#define BUILTIN_FUNC_EMIT(funcName, FuncPtrBuiltinFunc, needAdd) \
+    if (needAdd) { \
+      builtinFuncPtrMap[(funcName)] = (FuncPtrBuiltinFunc); \
+    }
 #include "builtin_func_emit.def"
 #undef BUILTIN_FUNC_EMIT
   // vector builtinfunc
-#define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...)                                \
-  ans["__builtin_mpl_"#STR] = &ASTCallExpr::EmitBuiltin##STR;
+#define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...) \
+    builtinFuncPtrMap["__builtin_mpl_"#STR] = &ASTCallExpr::EmitBuiltin##STR;
 #include "intrinsic_vector.def"
 #include "intrinsic_vector_new.def"
 #undef DEF_MIR_INTRINSIC
-
-  return ans;
+  }
+  return builtinFuncPtrMap;
 }
 
 UniqueFEIRExpr ASTCallExpr::CreateIntrinsicopForC(std::list<UniqueFEIRStmt> &stmts,
@@ -134,8 +138,9 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
     }
   }
   // process a single builtinFunc
-  auto ptrFunc = builtingFuncPtrMap.find(GetFuncName());
-  if (ptrFunc != builtingFuncPtrMap.end()) {
+  auto &builtinFuncs = GetOrCreateBuiltinFuncPtrMap();
+  auto ptrFunc = builtinFuncs.find(GetFuncName());
+  if (ptrFunc != builtinFuncs.end()) {
     isFinish = true;
     return EmitBuiltinFunc(stmts);
   }
@@ -152,7 +157,8 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinFunc(std::list<UniqueFEIRStmt> &stmts) const {
-  return (this->*(builtingFuncPtrMap[GetFuncName()]))(stmts);
+  auto &builtinFuncs = GetOrCreateBuiltinFuncPtrMap();
+  return (this->*(builtinFuncs[GetFuncName()]))(stmts);
 }
 
 #define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...)                                \
@@ -295,11 +301,11 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVaCopy(std::list<UniqueFEIRStmt> &stmts) 
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinPrefetch(std::list<UniqueFEIRStmt> &stmts) const {
-  // __builtin_prefetch is not supported, only parsing args including stmts
-  for (size_t i = 0; i <= args.size() - 1; ++i) {
-    (void)args[i]->Emit2FEExpr(stmts);
-  }
-  return nullptr;
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C_prefetch);
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinClearCache(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicCallAssignedForC(stmts, INTRN_C___clear_cache);
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinCtz(std::list<UniqueFEIRStmt> &stmts) const {
@@ -376,6 +382,10 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinAlignUp(std::list<UniqueFEIRStmt> &stmts)
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinAlignDown(std::list<UniqueFEIRStmt> &stmts) const {
   return CreateIntrinsicopForC(stmts, INTRN_C_aligndown);
+}
+
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinConstantP(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicopForC(stmts, INTRN_C_constant_p);
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinSyncAddAndFetch8(std::list<UniqueFEIRStmt> &stmts) const {
@@ -685,6 +695,10 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinAlloca(std::list<UniqueFEIRStmt> &stmts) 
   return alloca;
 }
 
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinAllocaWithAlign(std::list<UniqueFEIRStmt> &stmts) const {
+  return CreateIntrinsicopForC(stmts, INTRN_C_alloca_with_align);
+}
+
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpect(std::list<UniqueFEIRStmt> &stmts) const {
   ASSERT(args.size() == 2, "__builtin_expect requires two arguments");
   std::list<UniqueFEIRStmt> subStmts;
@@ -977,17 +991,7 @@ ASTExpr *ASTParser::ParseBuiltinClassifyType(MapleAllocator &allocator, const cl
 ASTExpr *ASTParser::ParseBuiltinConstantP(MapleAllocator &allocator, const clang::CallExpr &expr,
                                           std::stringstream &ss, ASTCallExpr &astCallExpr) const {
   (void)astCallExpr;
-  (void)ss;
-  int64 constP = expr.getArg(0)->isConstantInitializer(*astFile->GetNonConstAstContext(), false) ? 1 : 0;
-  // Pointers are not considered constant
-  if (expr.getArg(0)->getType()->isPointerType() &&
-      !llvm::isa<clang::StringLiteral>(expr.getArg(0)->IgnoreParenCasts())) {
-    constP = 0;
-  }
-  ASTIntegerLiteral *astIntegerLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  astIntegerLiteral->SetVal(constP);
-  astIntegerLiteral->SetType(astFile->CvtType(allocator, expr.getType()));
-  return astIntegerLiteral;
+  return ProcessBuiltinFuncByName(allocator, expr, ss, "__builtin_constant_p");
 }
 
 ASTExpr *ASTParser::ParseBuiltinSignbit(MapleAllocator &allocator, const clang::CallExpr &expr,

@@ -83,6 +83,7 @@ class LibAstFile {
   void GetQualAttrs(const clang::QualType &qualType, MapleGenericAttrs &genAttrs, bool isSourceType) const;
   void CollectAttrs(const clang::NamedDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access) const;
   void CollectFuncAttrs(const clang::FunctionDecl &decl, MapleGenericAttrs &genAttrs, AccessKind access) const;
+  void VisitAllOfFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs) const;
   void CollectFuncReturnVarAttrs(const clang::CallExpr &expr, GenericAttrs &genAttrs) const;
   void SetAttrVisibility(const clang::DeclaratorDecl &decl, GenericAttrs &genAttrs) const;
   void SetAttrTLSModel(const clang::VarDecl &decl, GenericAttrs &genAttrs) const;

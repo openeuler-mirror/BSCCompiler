@@ -15,7 +15,7 @@
 // option name, option value, append maple root path?
 { "--quiet", "", false  },
 { "--no-pie", "", false  },
-{ "--fpic", "", false  },
+{ "--fPIC", "", false  },
 { "--verbose-asm", "", false  },
 { "--maplelinker", "", false  },
 { "--duplicate_asm_list", "out/target/product/maple_arm64/lib/codetricks/asm/duplicateFunc.s", true },

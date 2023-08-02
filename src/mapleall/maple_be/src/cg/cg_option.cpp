@@ -103,6 +103,7 @@ bool CGOptions::doVregRename = false;
 bool CGOptions::doMultiPassColorRA = true;
 bool CGOptions::doPrePeephole = false;
 bool CGOptions::doPeephole = false;
+bool CGOptions::doPostRASink = false;
 bool CGOptions::doRetMerge = false;
 bool CGOptions::doSchedule = false;
 bool CGOptions::doWriteRefFieldOpt = false;
@@ -224,30 +225,28 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetQuiet(false);
   }
 
-  if (opts::cg::fpie.IsEnabledByUser() || opts::cg::fPIE.IsEnabledByUser()) {
-    if (opts::cg::fPIE && opts::cg::fPIE.IsEnabledByUser()) {
-      SetPIEOptionHelper(kLargeMode);
-    } else if (opts::cg::fpie && opts::cg::fpie.IsEnabledByUser()) {
-      SetPIEOptionHelper(kSmallMode);
+  if (opts::fpie.IsEnabledByUser() || opts::fPIE.IsEnabledByUser()) {
+    if (opts::fPIE && opts::fPIE.IsEnabledByUser()) {
+      SetOption(CGOptions::kGenPie);
+      SetOption(CGOptions::kGenPic);
+    } else if (opts::fpie && opts::fpie.IsEnabledByUser()) {
+      SetOption(CGOptions::kGenPie);
+      SetOption(CGOptions::kGenPic);
     } else {
-      SetPIEMode(kClose);
       ClearOption(CGOptions::kGenPie);
     }
   }
 
-  if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
+  if (opts::fpic.IsEnabledByUser() || opts::fPIC.IsEnabledByUser()) {
     /* To avoid fpie mode being modified twice, need to ensure fpie is not opened. */
-    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() && !opts::cg::fPIE.IsEnabledByUser() && !opts::cg::fPIE) {
-      if (opts::cg::fPIC && opts::cg::fPIC.IsEnabledByUser()) {
-        SetPICOptionHelper(kLargeMode);
-        SetPIEMode(kClose);
+    if (!opts::fpie && !opts::fpie.IsEnabledByUser() && !opts::fPIE.IsEnabledByUser() && !opts::fPIE) {
+      if (opts::fPIC && opts::fPIC.IsEnabledByUser()) {
+        SetOption(CGOptions::kGenPic);
         ClearOption(CGOptions::kGenPie);
-      } else if (opts::cg::fpic && opts::cg::fpic.IsEnabledByUser()) {
-        SetPICOptionHelper(kSmallMode);
-        SetPIEMode(kClose);
+      } else if (opts::fpic && opts::fpic.IsEnabledByUser()) {
+        SetOption(CGOptions::kGenPic);
         ClearOption(CGOptions::kGenPie);
       } else {
-        SetPICMode(kClose);
         ClearOption(CGOptions::kGenPic);
       }
     }
@@ -884,6 +883,7 @@ void CGOptions::EnableO0() {
   doICO = false;
   doPrePeephole = false;
   doPeephole = false;
+  doPostRASink = false;
   doStoreLoadOpt = false;
   doGlobalOpt = false;
   doPreRAOpt = false;
@@ -932,6 +932,7 @@ void CGOptions::EnableO2() {
   doICO = true;
   doPrePeephole = true;
   doPeephole = true;
+  doPostRASink = true;
   doStoreLoadOpt = true;
   doGlobalOpt = true;
   doPreSchedule = true;

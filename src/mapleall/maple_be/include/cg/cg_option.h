@@ -984,6 +984,18 @@ class CGOptions {
     return doPeephole;
   }
 
+  static void EnablePostRASink() {
+    doPostRASink = true;
+  }
+
+  static void DisablePostRASink() {
+    doPostRASink = false;
+  }
+
+  static bool DoPostRASink() {
+    return doPostRASink;
+  }
+
   static void EnableRetMerge() {
     doRetMerge = true;
   }
@@ -1090,14 +1102,12 @@ class CGOptions {
     return IsPIC() && !IsPIE();
   }
 
-  void SetPICOptionHelper(CGOptions::PICMode mode) {
+  static void SetPICOptionHelper(CGOptions::PICMode mode) {
     SetPICMode(mode);
-    SetOption(CGOptions::kGenPic);
   }
 
-  void SetPIEOptionHelper(CGOptions::PICMode mode) {
+  static void SetPIEOptionHelper(CGOptions::PICMode mode) {
     SetPIEMode(mode);
-    SetOption(CGOptions::kGenPie);
     /* Enable fpie will also set fpic to be enabled. */
     SetPICOptionHelper(mode);
   }
@@ -1664,6 +1674,7 @@ class CGOptions {
   static bool doMultiPassColorRA;
   static bool doPrePeephole;
   static bool doPeephole;
+  static bool doPostRASink;
   static bool doRetMerge;
   static bool doSchedule;
   static bool doAlignAnalysis;
@@ -1756,6 +1767,11 @@ class CGOptions {
   static uint32 alignLoopIterations;
   static uint32 dupFreqThreshold;
 };
+// Const For TLS Warmup Opt
+constexpr uint64 offsetTbcReservedForX86 = 224;
+constexpr uint64 offsetManualAnchorSymbol = 8;
+constexpr uint64 offsetTlsParamEntry = 8;       // fixed size in AARCH64
+constexpr uint64 lslDtvEntrySize = 3;           // 3 for 8B dtv in elibc, 4 for 16B dtv entry in glibc
 }  /* namespace maplebe */
 
 #define SET_FIND(SET, NAME) ((SET).find(NAME))

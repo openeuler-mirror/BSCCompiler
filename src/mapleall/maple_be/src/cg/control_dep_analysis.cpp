@@ -18,7 +18,8 @@
 
 namespace maplebe {
 void ControlDepAnalysis::Run() {
-  if (CONTROL_DEP_ANALYSIS_DUMP) {
+  // Local-scheduler(after RA) does not need pdom-analysis
+  if (CONTROL_DEP_ANALYSIS_DUMP && phaseName != "localschedule") {
     pdom->GeneratePdomTreeDot();
   }
   if (cgFunc.IsAfterRegAlloc() || isSingleBB) {
@@ -646,8 +647,7 @@ void ControlDepAnalysis::GenerateFCDGDot() const {
   (void)fileName.append(cgFunc.GetName());
   (void)fileName.append(".dot");
 
-  char absPath[PATH_MAX];
-  fcdgFile.open(realpath(fileName.c_str(), absPath), std::ios::trunc);
+  fcdgFile.open(fileName, std::ios::trunc);
   if (!fcdgFile.is_open()) {
     LogInfo::MapleLogger(kLlWarn) << "fileName:" << fileName << " open failed.\n";
     return;
@@ -718,8 +718,7 @@ void ControlDepAnalysis::GenerateCFGDot() const {
   (void)fileName.append(cgFunc.GetName());
   (void)fileName.append(".dot");
 
-  char absPath[PATH_MAX];
-  cfgFile.open(realpath(fileName.c_str(), absPath), std::ios::trunc);
+  cfgFile.open(fileName, std::ios::trunc);
   if (!cfgFile.is_open()) {
     LogInfo::MapleLogger(kLlWarn) << "fileName:" << fileName << " open failed.\n";
     return;

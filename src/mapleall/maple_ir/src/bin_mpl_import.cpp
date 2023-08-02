@@ -303,9 +303,8 @@ void BinaryMplImport::ImportMethodPair(MethodPair &memPool) {
   std::string funcName;
   ReadAsciiStr(funcName);
   TyIdx funcTyIdx = ImportType();
-  int64 x = ReadNum();
-  CHECK_FATAL(x >= 0, "ReadNum error, x: %d", x);
-  auto attrFlag = static_cast<uint64>(x);
+  FuncAttrFlag attrFlag;
+  ImportFuncAttrFlag(attrFlag);
 
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
   MIRSymbol *prevFuncSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
@@ -334,7 +333,7 @@ void BinaryMplImport::ImportMethodPair(MethodPair &memPool) {
     fn->SetMIRFuncType(funcType);
     fn->SetFileIndex(0);
     fn->SetBaseClassFuncNames(funcSt->GetNameStrIdx());
-    fn->SetFuncAttrs(attrFlag);
+    fn->SetFuncAttrFlag(attrFlag);
   }
   memPool.first.SetFullIdx(funcSt->GetStIdx().FullIdx());
   memPool.second.first.reset(funcTyIdx);
@@ -619,7 +618,9 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       size_t idx = typTab.size();
       typTab.push_back(TyIdx(0));
       type.SetRetTyIdx(ImportType());
-      type.funcAttrs.SetAttrFlag(static_cast<uint64_t>(ReadNum()));
+      FuncAttrFlag attrFlag;
+      ImportFuncAttrFlag(attrFlag);
+      type.funcAttrs.SetAttrFlag(attrFlag);
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         type.GetParamTypeList().push_back(ImportType());
@@ -779,7 +780,9 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
       MIRFuncType type(strIdx);
       type.SetNameIsLocal(nameIsLocal);
       type.SetRetTyIdx(ImportTypeNonJava());
-      type.funcAttrs.SetAttrFlag(static_cast<uint64_t>(ReadNum()));
+      FuncAttrFlag attrFlag;
+      ImportFuncAttrFlag(attrFlag);
+      type.funcAttrs.SetAttrFlag(attrFlag);
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         type.GetParamTypeList().push_back(ImportTypeNonJava());
@@ -1034,14 +1037,20 @@ PUIdx BinaryMplImport::ImportFunction() {
 
   func->SetStIdx(funcSt->GetStIdx());
   if (!inCG) {
-    func->SetFuncAttrs(ReadNum());  // merge side effect
+    FuncAttrFlag attrFlag;
+    ImportFuncAttrFlag(attrFlag);
+    func->SetFuncAttrFlag(attrFlag);  // merge side effect
   } else {
     if (!func->IsDirty()) {
       func->SetDirty(true);
-      func->SetFuncAttrs(ReadNum());  // merge side effect
+      FuncAttrFlag attrFlag;
+      ImportFuncAttrFlag(attrFlag);
+      func->SetFuncAttrFlag(attrFlag);  // merge side effect
     } else {
+      FuncAttrFlag attrFlag;
+      ImportFuncAttrFlag(attrFlag);
       FuncAttrs tmp;
-      tmp.SetAttrFlag(ReadNum());
+      tmp.SetAttrFlag(attrFlag);
       if (func->IsNoDefArgEffect() != tmp.GetAttr(FUNCATTR_nodefargeffect)) {
         tmp.SetAttr(FUNCATTR_nodefargeffect, true);
       }
@@ -1104,6 +1113,14 @@ PUIdx BinaryMplImport::ImportFunction() {
 
   mod.SetCurFunction(func);
   return func->GetPuidx();
+}
+
+void BinaryMplImport::ImportFuncAttrFlag(FuncAttrFlag &attrFlag) {
+  std::array<uint64, kNumU64InFuncAttr> dataArr;
+  for (uint32 i = 0; i < kNumU64InFuncAttr; ++i) {
+    dataArr[i] = static_cast<uint64>(ReadNum());
+  }
+  InitAttrFlag(attrFlag, dataArr);
 }
 
 inline void BinaryMplImport::SkipTotalSize() {

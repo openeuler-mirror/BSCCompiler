@@ -13,7 +13,7 @@
  * See the Mulan PSL v1 for more details.
  */
 DefType UnitType = Primary, And, Or;
-DefType BypassType = Accumulator, Store, AluShift;
+DefType BypassType = Accumulator, StoreAddr, AluShift;
 
 // Architecture name
 Class ArchitectureName <string>;
@@ -69,6 +69,7 @@ Def Unit : kUnitIdSlot0LdAgu {And, [kUnitIdSlot0, kUnitIdLdAgu]};
 Def Unit : kUnitIdSlot0StAgu {And, [kUnitIdSlot0, kUnitIdStAgu]};
 Def Unit : nothing {};
 
+// "," indicates the next cycle
 Def Reservation : kLtUndef {0};
 Def Reservation : kLtShift {2, [kUnitIdSlotS]};
 Def Reservation : kLtShiftReg {2, [ kUnitIdSlotS, kUnitIdHazard]};
@@ -109,24 +110,22 @@ Def Reservation : kLtAdvsimdDivdQ {29, [kUnitIdSlotD, kUnitIdFpMulD, kUnitIdFpDi
 Def Reservation : kLtCryptoAese {3, [kUnitIdSlot0]};
 Def Reservation : kLtCryptoAesmc {3, [kUnitIdSlotS]};
 Def Reservation : kLtClinit {14, [kUnitIdSlotS, nothing, kUnitIdSlotDAgen, kUnitIdSlot0LdAgu,
-                                     kUnitIdLdAgu, nothing, kUnitIdSlotDAgen, kUnitIdSlot0LdAgu,
-                                     kUnitIdLdAgu, nothing, kUnitIdSlotDAgen, kUnitIdSlot0LdAgu,
-                                     kUnitIdLdAgu]};
+                                  kUnitIdLdAgu, nothing, kUnitIdSlotDAgen, kUnitIdSlot0LdAgu,
+                                  kUnitIdLdAgu, nothing, kUnitIdSlotDAgen, kUnitIdSlot0LdAgu,
+                                  kUnitIdLdAgu]};
 Def Reservation : kLtAdrpLdr {6, [kUnitIdSlotS, nothing, kUnitIdSlotDAgen, kUnitIdSlot0LdAgu,
-                                     kUnitIdLdAgu]};
+                                  kUnitIdLdAgu]};
 Def Reservation : kLtClinitTail {8, [kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitIdLdAgu, nothing,
-                                        kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitIdLdAgu]};
+                                     kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitIdLdAgu]};
 Def Reservation : kLtTlsRel {6, [kUnitIdSlotS]};
 Def Reservation : kLtTlsCall {10, [kUnitIdSlotS, kUnitIdSlotDAgen, kUnitIdSlot0LdAgu, kUnitIdLdAgu]};
 
 Def Bypass  {0, [kLtShift, kLtShiftReg], [kLtAlu]};
 Def Bypass  {1, [kLtShift], [kLtShift, kLtShiftReg, kLtAluShift, kLtAluShiftReg]};
 Def Bypass  {1, [kLtShiftReg], [kLtShift, kLtShiftReg, kLtAluShift, kLtAluShiftReg]};
-Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg], [kLtAlu]};
+Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAlu]};
 Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShift], AluShift};
 Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShiftReg], AluShift};
-Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShift]};
-Def Bypass  {1, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluShiftReg]};
 Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtAluExtr]};
 Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtShift]};
 Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtShiftReg]};
@@ -136,40 +135,41 @@ Def Bypass  {3, [kLtMul], [kLtAluShift, kLtAluShiftReg, kLtAluExtr, kLtShift, kL
 Def Bypass  {2, [kLtLoad1], [kLtAlu]};
 Def Bypass  {3, [kLtLoad1], [kLtAluShift, kLtAluShiftReg, kLtAluExtr, kLtShift, kLtShiftReg]};
 Def Bypass  {3, [kLtLoad2], [kLtAlu]};
-Def Bypass  {0, [kLtAlu], [kLtStore1, kLtStore2, kLtStore3plus], Store};
-Def Bypass  {0, [kLtAluShift], [kLtStore1, kLtStore2, kLtStore3plus], Store};
-Def Bypass  {0, [kLtAluShiftReg], [kLtStore1, kLtStore2, kLtStore3plus], Store};
-Def Bypass  {0, [kLtAluExtr], [ kLtStore1, kLtStore2, kLtStore3plus], Store};
-Def Bypass  {0, [kLtShift], [kLtStore1, kLtStore2, kLtStore3plus], Store};
-Def Bypass  {0, [kLtShiftReg], [kLtStore1, kLtStore2, kLtStore3plus], Store};
-Def Bypass  {1, [kLtMul], [kLtStore1, kLtStore2, kLtStore3plus], Store};
-Def Bypass  {1, [kLtLoad1], [kLtStore1, kLtStore2, kLtStore3plus], Store};
-Def Bypass  {1, [kLtLoad2], [kLtStore1, kLtStore2, kLtStore3plus], Store};
-Def Bypass  {1, [kLtLoad3plus], [kLtStore1, kLtStore2, kLtStore3plus], Store};
+Def Bypass  {0, [kLtAlu], [kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
+Def Bypass  {0, [kLtAluShift], [kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
+Def Bypass  {0, [kLtAluShiftReg], [kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
+Def Bypass  {0, [kLtAluExtr], [ kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
+Def Bypass  {0, [kLtShift], [kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
+Def Bypass  {0, [kLtShiftReg], [kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
+Def Bypass  {1, [kLtMul], [kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
+Def Bypass  {1, [kLtLoad1], [kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
+Def Bypass  {1, [kLtLoad2], [kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
+Def Bypass  {1, [kLtLoad3plus], [kLtStore1, kLtStore2, kLtStore3plus], StoreAddr};
 Def Bypass  {0, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr, kLtShift, kLtShiftReg], [kLtR2f]};
 Def Bypass  {1, [kLtMul, kLtLoad1, kLtLoad2], [kLtR2f]};
 Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr], [kLtR2fCvt]};
 Def Bypass  {3, [kLtMul, kLtLoad1, kLtLoad2], [kLtR2fCvt]};
 Def Bypass  {0, [kLtAlu, kLtAluShift, kLtAluShiftReg, kLtAluExtr, kLtShift, kLtShiftReg], [kLtBranch]};
-Def Bypass  {1, [kLtFpalu, kLtFpmul, kLtR2f, kLtR2fCvt, kLtFconst], [kLtFpmac], Accumulator};
-Def Bypass  {1, [kLtFLoad64, kLtFLoadMany], [kLtFpmac]};
-Def Bypass  {4, [kLtFpmac], [kLtFpmac], Accumulator};
+Def Bypass  {1, [kLtFpalu, kLtFpmul, kLtFpmac, kLtR2f, kLtFLoad64, kLtFLoadMany], [kLtFpmac], Accumulator};
+Def Bypass  {4, [kLtFpalu], [kLtFpalu, kLtFpmul, kLtFpmac, kLtAdvsimdDivS, kLtAdvsimdDivD, kLtAdvsimdDivSQ, kLtAdvsimdDivdQ]};
+Def Bypass  {4, [kLtFpmul], [kLtFpalu, kLtFpmul, kLtFpmac, kLtAdvsimdDivS, kLtAdvsimdDivD, kLtAdvsimdDivSQ, kLtAdvsimdDivdQ]};
 Def Bypass  {0, [kLtCryptoAese], [kLtCryptoAesmc]};
+// Bypass of the user-defined type for {kLtClinit, kLtAdrpLdr, kLtClinitTail}
 Def Bypass  {1, [kLtShiftReg], [kLtClinit]};
 Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluExtr], [kLtClinit]};
 Def Bypass  {3, [kLtMul, kLtLoad1], [kLtClinit]};
 Def Bypass  {13, [kLtAlu], [kLtClinit]};
-Def Bypass  {11, [kLtClinit], [kLtStore1, kLtStore3plus], Store};
+Def Bypass  {11, [kLtClinit], [kLtStore1, kLtStore3plus]};
 Def Bypass  {11, [kLtClinit], [kLtR2f]};
 Def Bypass  {13, [kLtClinit], [kLtR2fCvt]};
 Def Bypass  {1, [kLtShiftReg], [kLtAdrpLdr]};
 Def Bypass  {2, [kLtAlu, kLtAluShift, kLtAluExtr], [kLtAdrpLdr]};
 Def Bypass  {3, [kLtMul, kLtLoad1], [kLtAdrpLdr]};
 Def Bypass  {5, [kLtAdrpLdr], [kLtAlu]};
-Def Bypass  {3, [kLtAdrpLdr], [kLtStore1, kLtStore3plus], Store};
+Def Bypass  {3, [kLtAdrpLdr], [kLtStore1, kLtStore3plus]};
 Def Bypass  {3, [kLtAdrpLdr], [kLtR2f]};
 Def Bypass  {5, [kLtAdrpLdr], [kLtR2fCvt]};
 Def Bypass  {7, [kLtClinitTail], [kLtAlu]};
-Def Bypass  {5, [kLtClinitTail], [kLtStore1, kLtStore3plus], Store};
+Def Bypass  {5, [kLtClinitTail], [kLtStore1, kLtStore3plus]};
 Def Bypass  {5, [kLtClinitTail], [kLtR2f]};
 Def Bypass  {7, [kLtClinitTail], [kLtR2fCvt]};

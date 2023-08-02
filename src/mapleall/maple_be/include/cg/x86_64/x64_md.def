@@ -527,5 +527,9 @@ DEFINE_MOP(MOP_cvtss2sd_r, {&OpndDesc::Reg128FS, &OpndDesc::Reg128FD},0,kLtAlu,"
 DEFINE_MOP(MOP_cvtsd2ss_r, {&OpndDesc::Reg128FS, &OpndDesc::Reg128FD},0,kLtAlu,"cvtsd2ss","0,1",1)
 
 DEFINE_MOP(MOP_ucomisd_r_r, {&OpndDesc::Reg128FS,&OpndDesc::Reg128FS},0,kLtAlu,"ucomisd","0,1",1)
+
+/* MOP_prefetch */
+DEFINE_MOP(MOP_prefetch, {&OpndDesc::Reg64IS, &OpndDesc::Imm32, &OpndDesc::Imm32}, 0, kLtUndef, "intrinsic_prefetch", "0,1,2", 1)
+
 /* pseudo operation */
 DEFINE_MOP(MOP_pseudo_ret_int, {&OpndDesc::Reg64IS},0,kLtUndef,"//MOP_pseudo_ret_int","", 0)

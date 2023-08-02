@@ -359,6 +359,8 @@ class Emitter {
   void EmitAliasAndRef(const MIRSymbol &sym); // handle function symbol which has alias and weak ref
   // collect all global TLS together -- better perfomance for local dynamic
   void EmitTLSBlock(const MapleVector<MIRSymbol*> &tdataVec, const MapleVector<MIRSymbol*> &tbssVec);
+  void EmitTLSBlockTdata(const MapleVector<MIRSymbol*> &tdataVec);
+  void EmitTLSBlockTbss(const MapleVector<MIRSymbol*> &tbssVec, bool tdataExist);
 
   CG *cg;
   MOperator currentMop = UINT_MAX;

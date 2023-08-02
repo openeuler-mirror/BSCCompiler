@@ -96,6 +96,24 @@ struct Comparator<StmtNode> {
   }
 };
 
+// Temperature for callgraph node (CGNode) and callgraph edge (CallInfo).
+// The temperature is initialized by function attr, and will be propagated across the callgraph.
+enum class CGTemp {
+  kCold,       // Unlikely executed, set it according to `cold` attr
+  kExecOnce,   // Only executed once, such as main, constructor, destructor
+  kNormal,     // The default temperature
+  kHot,        // Frequently executed, set it according to `hot` attr
+};
+
+enum class CallsiteAttrKind {
+  kUnlikely,  // callsite is in unlikely path, inferred from __builtin_expect
+  kMax
+};
+
+constexpr uint32 kNumBitInCallInfoAttr = 32;
+static_assert(static_cast<uint32>(CallsiteAttrKind::kMax) <= kNumBitInCallInfoAttr, "callInfo attr out of range");
+using CallsiteAttrFlag = std::bitset<kNumBitInCallInfoAttr>;
+
 // Information description of each callsite
 class CallInfo {
  public:
@@ -125,6 +143,14 @@ class CallInfo {
 
   uint32 GetLoopDepth() const {
     return loopDepth;
+  }
+
+  CGTemp GetCallTemp() const {
+    return callTemp;
+  }
+
+  void SetCallTemp(CGTemp temp) {
+    callTemp = temp;
   }
 
   const std::string GetCallTypeName() const;
@@ -186,6 +212,7 @@ class CallInfo {
   StmtNode *callStmt = nullptr;  // Call statement
   uint32 loopDepth = 0;
   uint32 id = 0;
+  CGTemp callTemp = CGTemp::kNormal;  // Callsite temperature
 };
 
 // Node in callgraph
@@ -220,7 +247,15 @@ class CGNode : public BaseGraphNode {
         stmtCount(0),
         nodeCount(0),
         mustNotBeInlined(false),
-        vcallCands(alloc->Adapter()) {}
+        vcallCands(alloc->Adapter()) {
+    if (mirFunc != nullptr) {
+      if (mirFunc->GetAttr(FUNCATTR_hot)) {
+        SetFuncTemp(CGTemp::kHot);
+      } else if (mirFunc->GetAttr(FUNCATTR_cold)) {
+        SetFuncTemp(CGTemp::kCold);
+      }
+    }
+  }
 
   ~CGNode() override {
     alloc = nullptr;
@@ -234,6 +269,14 @@ class CGNode : public BaseGraphNode {
 
   MIRFunction *GetMIRFunction() const {
     return mirFunc;
+  }
+
+  CGTemp GetFuncTemp() const {
+    return funcTemp;
+  }
+
+  void SetFuncTemp(CGTemp temp) {
+    funcTemp = temp;
   }
 
   void AddCallsite(CallInfo &ci, CGNode *node);
@@ -523,6 +566,7 @@ class CGNode : public BaseGraphNode {
   uint32 inlinedTimes = 0;
   uint32 recursiveLevel = 0;        // the inlined level when this func is a self-recursive func.
   BlockNode *originBody = nullptr;  // the originnal body of the func when it's a self-recursive func.
+  CGTemp funcTemp = CGTemp::kNormal;
 
   bool addrTaken = false;  // whether this function is taken address
 };
@@ -643,6 +687,7 @@ class CallGraph : public AnalysisResult {
 
  private:
   void GenCallGraph();
+  void PropTempAcrossCallGraph();
   void ReadCallGraphFromMplt();
   void GenCallGraphFromFunctionBody();
   void FixIcallCallee();

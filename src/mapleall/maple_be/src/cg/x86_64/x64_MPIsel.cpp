@@ -763,6 +763,10 @@ void X64MPIsel::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
   if (intrinsic == INTRN_C_stack_save || intrinsic == INTRN_C_stack_restore) {
     return;
   }
+  if (intrinsic == INTRN_C_prefetch) {
+    SelectCprefetch(intrinsiccallNode);
+    return;
+  }
 
   CHECK_FATAL(false, "Intrinsic %d: %s not implemented by the X64 CG.", intrinsic, GetIntrinsicName(intrinsic));
 }
@@ -1294,6 +1298,35 @@ Operand *X64MPIsel::SelectCclz(IntrinsicopNode &node, Operand &opnd0, const Base
       cgFunc->GetRegTyFromPrimTy(retType));
   SelectIntCvt(destReg, opnd, retType, origPrimType);
   return &destReg;
+}
+
+void X64MPIsel::SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) {
+  MOperator mOp = MOP_prefetch;
+  std::vector<Operand*> intrnOpnds;
+  auto opndNum = intrinsiccallNode.NumOpnds();
+  constexpr int32 opnd0Default = 0; // 0: default value of opnd0
+  constexpr int32 opnd1Default = 3; // 3: default value of opnd1
+
+  CHECK_FATAL(opndNum >= kOperandNumUnary && opndNum <= kOperandNumTernary, "wrong opndnum");
+  intrnOpnds.emplace_back(HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(kInsnFirstOpnd)));
+  if (opndNum == kOperandNumUnary) {
+    ImmOperand &imm0 = cgFunc->GetOpndBuilder()->CreateImm(GetPrimTypeBitSize(PTY_u32), opnd0Default);
+    ImmOperand &imm1 = cgFunc->GetOpndBuilder()->CreateImm(GetPrimTypeBitSize(PTY_u32), opnd1Default);
+    intrnOpnds.emplace_back(&imm0);
+    intrnOpnds.emplace_back(&imm1);
+  }
+  if (opndNum == kOperandNumBinary) {
+    ImmOperand &imm0 = cgFunc->GetOpndBuilder()->CreateImm(GetPrimTypeBitSize(PTY_u32), opnd1Default);
+    intrnOpnds.emplace_back(HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(kInsnSecondOpnd)));
+    intrnOpnds.emplace_back(&imm0);
+  }
+  if (opndNum == kOperandNumTernary) {
+    intrnOpnds.emplace_back(HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(kInsnSecondOpnd)));
+    intrnOpnds.emplace_back(HandleExpr(intrinsiccallNode, *intrinsiccallNode.Opnd(kInsnThirdOpnd)));
+  }
+
+  Insn &prefetchInsn = cgFunc->GetInsnBuilder()->BuildInsn(mOp, intrnOpnds);
+  cgFunc->GetCurBB()->AppendInsn(prefetchInsn);
 }
 
 Operand *X64MPIsel::SelectBswap(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) {

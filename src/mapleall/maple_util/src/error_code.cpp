@@ -46,7 +46,16 @@ void PrintErrorMessage(int ret) {
       ERR(kLncErr, "File Format Not Recognized!");
       break;
     case kErrorCreateFile:
-      ERR(kLncErr, "Fail To Create File Under Tmpdir!");
+      ERR(kLncErr, "Fail To Create File!");
+      break;
+    case kErrorNeedLtoOption:
+      ERR(kLncErr, "Must enter -flto option!");
+      break;
+    case kErrorNoOptionFile:
+      ERR(kLncErr, "Fail To Find Option File Under Lto!");
+      break;
+    case kErrorLtoInvalidParameter:
+      ERR(kLncErr, "The lto compilation options must be consistent.!");
       break;
     default:
       break;

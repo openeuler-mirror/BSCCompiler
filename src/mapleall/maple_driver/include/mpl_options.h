@@ -63,7 +63,7 @@ class InputInfo {
     inputFolder = FileUtils::GetFileFolder(inputFile);
     outputFolder = (inputFileType == InputFileType::kFileTypeDex || inputFileType == InputFileType::kFileTypeClass ||
         inputFileType == InputFileType::kFileTypeCpp || inputFileType == InputFileType::kFileTypeJar) ? inputFolder :
-        opts::saveTempOpt.IsEnabledByUser() ? FileUtils::GetOutPutDir() : FileUtils::GetInstance().GetTmpFolder();
+        opts::saveTempOpt.IsEnabledByUser() ? FileUtils::GetOutPutDir() : FileUtils::GetOutPutDirInTmp(inputFile);
     outputName = FileUtils::GetFileName(inputFile, false);
     fullOutput = outputFolder + outputName;
   }
@@ -109,6 +109,10 @@ class InputInfo {
     return fullOutput;
   }
 
+  const void SetInputFileType(InputFileType type) {
+    inputFileType = type;
+  }
+
  private:
   std::string inputFile = "";
   InputFileType inputFileType = InputFileType::kFileTypeNone;
@@ -137,6 +141,8 @@ class Action {
     for (auto &inAction : inActions) {
       if (inAction->GetInputFileType() == InputFileType::kFileTypeObj) {
         linkInputFiles.push_back(inAction->GetInputFolder() + inAction->GetOutputName() + ".o");
+      } else if (inAction->GetInputFileType() == InputFileType::kFileTypeNone) {
+        linkInputFiles.push_back(inAction->GetInputFile());
       } else {
         linkInputFiles.push_back(inAction->GetOutputFolder() + inAction->GetOutputName() + ".o");
       }
@@ -345,9 +351,17 @@ class MplOptions {
 
  private:
   ErrorCode CheckInputFiles();
+  ErrorCode CheckStaticLib();
+  ErrorCode InitInputFiles(const std::string &filename);
   ErrorCode HandleOptions();
+  ErrorCode LtoWriteOptions();
+  ErrorCode LtoMergeOptions(int &argc, char **argv, char ***argv1, bool &isNeedParse);
+  ErrorCode MergeOptions(std::vector<std::vector<std::string>> optVec, std::vector<std::string> &finalOptVec) const;
+  void LtoWritePicPie(const std::string &optName, std::string &ltoOptSection, bool &pic, bool &pie) const;
+  void AddOptions(int argc, char **argv, std::vector<std::string> &finalOptVec) const;
   void HandleSafeOptions();
   void HandleExtraOptions();
+  void EarlyHandlePicPie() const;
   ErrorCode HandleEarlyOptions() const;
   ErrorCode HandleOptimizationLevelOptions();
   ErrorCode DecideRunningPhases();

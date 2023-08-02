@@ -34,8 +34,11 @@ void MEIRMapBuild::GetAnalysisDependence(AnalysisDep &aDep) const {
 }
 
 bool MEIRMapBuild::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance, f);
+  auto dominancePhase = EXEC_ANALYSIS(MEDominance, f);
+  auto dom = dominancePhase->GetDomResult();
   ASSERT_NOT_NULL(dom);
+  auto pdom = dominancePhase->GetPdomResult();
+  ASSERT_NOT_NULL(pdom);
   irMap = GetPhaseAllocator()->New<MeIRMap>(f, *GetPhaseMemPool());
   f.SetIRMap(irMap);
 #if DEBUG
@@ -46,7 +49,7 @@ bool MEIRMapBuild::PhaseRun(maple::MeFunction &f) {
   if (!f.GetMIRModule().IsJavaModule() && MeOption::propDuringBuild) {
     // create propgation
     propMp = ApplyTempMemPool();
-    MeProp meprop(*irMap, *dom, *propMp, Prop::PropConfig{false, false, false, false, false, false, false});
+    MeProp meprop(*irMap, *dom, *pdom, *propMp, Prop::PropConfig{false, false, false, false, false, false, false});
     meprop.isLfo = f.IsLfo();
     IRMapBuild irmapbuild(irMap, dom, &meprop);
     std::vector<bool> bbIrmapProcessed(cfg->NumBBs(), false);

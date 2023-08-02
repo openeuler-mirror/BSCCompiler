@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# coding=utf-8
 #
 # Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
@@ -13,6 +15,7 @@
 #
 
 import os
+import subprocess
 
 from case.component import Component
 from env_var import EnvVar
@@ -34,18 +37,18 @@ class Clean(Component):
             raw_cur_files, raw_sub_files = f.read().split('\n-----\n')
         tmp_cur_files = list(set(all_cur_files) - set(raw_cur_files.split('\n')))
         if tmp_cur_files:
-            os.system('rm -rf %s'%(' '.join([os.path.join(self.case_path,f) for f in tmp_cur_files])))
+            subprocess.run('rm -rf %s'%(' '.join([os.path.join(self.case_path,f) for f in tmp_cur_files])), shell=True, check=True)
         all_sub_files = [file for file in get_sub_files(self.case_path) if '_tmp@' not in file]
         tmp_sub_files = list(set(all_sub_files) - set(raw_sub_files.split('\n')))
         if tmp_sub_files:
-            os.system('rm -rf %s'%(' '.join([os.path.join(self.case_path,f) for f in tmp_sub_files])))
+            subprocess.run('rm -rf %s'%(' '.join([os.path.join(self.case_path,f) for f in tmp_sub_files])), shell=True, check=True)
         if self.detail and (tmp_cur_files or tmp_sub_files):
             print("\033[1;32m [[ CMD : rm -rf %s ]]\033[0m"%('  '.join(tmp_cur_files + tmp_sub_files)))
 
     def rm_tmp_folders(self):
         del_file_list = [os.path.join(self.case_path,f) for f in os.listdir(self.case_path) if f.endswith("_tmp@")]
+        subprocess.run('rm -rf ' + " ".join(del_file_list), shell=True, check=True)
         if self.detail and del_file_list != []:
-            os.system('rm -rf ' + " ".join(del_file_list))
             print("\033[1;32m [[ CMD : rm -rf %s ]]\033[0m"%('  '.join(del_file_list)))
 
     def execute(self):

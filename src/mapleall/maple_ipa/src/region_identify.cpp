@@ -269,6 +269,11 @@ bool RegionIdentify::CheckCompatibilifyBetweenSrcs(BaseNode &lhs, BaseNode &rhs)
       auto rightIdx = static_cast<DreadNode&>(rhs).GetStIdx();
       return CompareSymbolStructure(leftIdx, rightIdx);
     }
+    case OP_addroffunc: {
+      auto leftIdx = static_cast<AddroffuncNode&>(lhs).GetPUIdx();
+      auto rightIdx = static_cast<AddroffuncNode&>(rhs).GetPUIdx();
+      return leftIdx == rightIdx;
+    }
     case OP_regread: {
       auto leftIdx = static_cast<RegreadNode&>(lhs).GetRegIdx();
       auto rightIdx = static_cast<RegreadNode&>(rhs).GetRegIdx();

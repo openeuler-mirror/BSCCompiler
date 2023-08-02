@@ -25,8 +25,8 @@ executable("MemPool") {
 
   deps = [
     ":libmempool",
-    "${MAPLEALL_ROOT}/maple_driver:liboption_parser",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/maple_util:libcommandline",
     "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
   ]
 }

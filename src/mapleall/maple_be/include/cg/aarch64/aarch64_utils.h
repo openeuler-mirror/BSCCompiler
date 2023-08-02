@@ -31,9 +31,8 @@ namespace maplebe {
  * @return memory operand for new load machine opcode
  *         or nullptr if memory operand can't be obtained
  */
-AArch64MemOperand *GetOrCreateMemOperandForNewMOP(CGFunc &cgFunc,
-                                                  const Insn &loadIns,
-                                                  MOperator newLoadMop);
+MemOperand *GetOrCreateMemOperandForNewMOP(CGFunc &cgFunc,
+    const Insn &loadIns, MOperator newLoadMop);
 } // namespace maplebe
 
 #endif // MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_UTILS_H

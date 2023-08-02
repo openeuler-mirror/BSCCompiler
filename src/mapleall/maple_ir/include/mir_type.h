@@ -16,6 +16,7 @@
 #define MAPLE_IR_INCLUDE_MIR_TYPE_H
 #include <algorithm>
 #include <array>
+#include <limits>
 #include "prim_types.h"
 #include "mir_pragma.h"
 #include "mpl_logging.h"
@@ -71,6 +72,7 @@ constexpr uint32 k10BitSize = 10;
 constexpr uint32 k16BitSize = 16;
 constexpr uint32 k32BitSize = 32;
 constexpr uint32 k64BitSize = 64;
+constexpr uint32 k128BitSize = 128;
 // size in bytes
 constexpr uint32 k0ByteSize = 0;
 constexpr uint32 k1ByteSize = 1;
@@ -600,20 +602,40 @@ enum FuncAttrKind : unsigned {
   FUNCATTR_Undef
 };
 
+constexpr uint32 kBitsOfU64 = std::numeric_limits<uint64>::digits;
+constexpr uint32 kNumU64InFuncAttr = 2;
+constexpr uint32 kNumBitInFuncAttr = kNumU64InFuncAttr * kBitsOfU64;
+static_assert(FUNCATTR_Undef <= kNumBitInFuncAttr, "function attr out of range");
+
+using FuncAttrFlag = std::bitset<kNumBitInFuncAttr>;
+
+// Get the index-th U64 element from attrFlag
+inline uint64 ExtractAttrFlagElement(const FuncAttrFlag &attrFlag, uint32 index) {
+  CHECK_FATAL(index < kNumU64InFuncAttr, "out of range");
+  static constexpr FuncAttrFlag mask(std::numeric_limits<uint64>::max());
+  return ((attrFlag >> (index * kBitsOfU64)) & mask).to_ullong();
+}
+
+// Init attrFlag with dataArr
+inline void InitAttrFlag(FuncAttrFlag &attrFlag, const std::array<uint64, kNumU64InFuncAttr> &dataArr) {
+  attrFlag.reset();
+  for (size_t i = 0; i < dataArr.size(); ++i) {
+    attrFlag |= (FuncAttrFlag(dataArr[i]) << (i * kBitsOfU64));
+  }
+}
+
 class FuncAttrs {
  public:
-  FuncAttrs() {
-    ASSERT(FUNCATTR_Undef <= (sizeof(uint64) << 3u), "function attr out of range");
-  }
+  FuncAttrs() = default;
   FuncAttrs(const FuncAttrs &ta) = default;
   FuncAttrs &operator=(const FuncAttrs &p) = default;
   ~FuncAttrs() = default;
 
   void SetAttr(FuncAttrKind x, bool unSet = false) {
     if (!unSet) {
-      attrFlag |= (1ULL << x);
+      attrFlag[x] = true;
     } else {
-      attrFlag &= ~(1ULL << x);
+      attrFlag[x] = false;
     }
   }
 
@@ -633,16 +655,20 @@ class FuncAttrs {
     return prefixSectionName;
   }
 
-  void SetAttrFlag(uint64 flag) {
+  // The template is to DISABLE any implicit type conversion to FuncAttrFlag (e.g. int64 to FuncAttrFlag).
+  // Type `T` must be FuncAttrFlag, otherwise the static_assert below will complain.
+  template <typename T>
+  void SetAttrFlag(const T &flag) {
+    static_assert(std::is_same<T, FuncAttrFlag>::value, "type mismatch");
     attrFlag = flag;
   }
 
-  uint64 GetAttrFlag() const {
+  const FuncAttrFlag &GetAttrFlag() const {
     return attrFlag;
   }
 
   bool GetAttr(FuncAttrKind x) const {
-    return (attrFlag & (1ULL << x)) != 0;
+    return attrFlag[x];
   }
 
   bool operator==(const FuncAttrs &tA) const {
@@ -680,7 +706,7 @@ class FuncAttrs {
   }
 
  private:
-  uint64 attrFlag = 0;
+  FuncAttrFlag attrFlag;
   std::string aliasFuncName;
   std::string prefixSectionName;
   AttrBoundary attrBoundary;  // ret boundary for EnhanceC

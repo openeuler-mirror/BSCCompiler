@@ -79,7 +79,6 @@ static std::string GetKind(PragmaValueType kind) {
 //         3 : normal type str end with '<' -- need append ';'
 //         4 : > end subvec
 //         5 : ; ignore and continue
-//
 //  2: Lfoofoofoofoo;xx  3: Lfoofoofoofoo<
 //     |             |      |            |
 //     start         end    start        end

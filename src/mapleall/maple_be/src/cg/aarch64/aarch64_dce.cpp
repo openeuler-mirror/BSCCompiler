@@ -29,17 +29,32 @@ bool AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
       return false;
     }
     std::set<uint32> defRegs = defInsn->GetDefRegs();
-    if (defRegs.size() != 1) {
-      return false;
+    std::vector<VRegVersion*> defVersions;
+    defVersions.push_back(&defVersion);
+    for (auto defRegNo : defRegs) {
+      if (defRegNo != defVersion.GetSSAvRegOpnd()->GetRegisterNumber()) {
+        VRegVersion *otherVersion = ssaInfo->FindSSAVersion(defRegNo);
+        if (!otherVersion) {  // cannot find def use for physical register, return
+          return false;
+        }
+        if (!otherVersion->GetAllUseInsns().empty()) {
+          return false;
+        }
+        defVersions.push_back(otherVersion);
+      }
     }
     uint32 bothDUIdx = defInsn->GetBothDefUseOpnd();
     if (bothDUIdx == kInsnMaxOpnd ||
         (defInsnInfo->GetOperands().count(bothDUIdx) > 0 && defInsnInfo->GetOperands().at(bothDUIdx) == 1)) {
       defInsn->GetBB()->RemoveInsn(*defInsn);
       if (defInsn->IsPhi()) {
-        defInsn->GetBB()->RemovePhiInsn(defVersion.GetOriginalRegNO());
+        for (auto dv : defVersions) {
+          defInsn->GetBB()->RemovePhiInsn(dv->GetOriginalRegNO());
+        }
       }
-      defVersion.MarkDeleted();
+      for (auto dv : defVersions) {
+        dv->MarkDeleted();
+      }
       uint32 opndNum = defInsn->GetOperandSize();
       for (uint32 i = opndNum; i > 0; --i) {
         Operand &opnd = defInsn->GetOperand(i - 1);

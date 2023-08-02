@@ -3810,18 +3810,24 @@ BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &i
   }
   if (intrnID == INTRN_C_constant_p) {
     BaseNode *opnd = intrinNode.Opnd(0);
-    int64 val = (opnd->op == OP_constval || opnd->op == OP_sizeoftype ||
-                 opnd->op == OP_conststr || opnd->op == OP_conststr16) ? 1 : 0;
+    PrimType pType = opnd->GetPrimType();
+    int64 val = ((opnd->op == OP_constval && pType != PTY_a64 && pType != PTY_a32 && pType != PTY_ptr) ||
+                  opnd->op == OP_sizeoftype || opnd->op == OP_conststr || opnd->op == OP_conststr16) ? 1 : 0;
     return mirModule.GetMIRBuilder()->CreateIntConst(static_cast<uint64>(val), PTY_i32);
   }
   if (intrnID == INTRN_C___builtin_expect) {
     return intrinNode.Opnd(0);
   }
+  if (intrnID == INTRN_C_alloca_with_align) {
+    GetCurrentFunc()->SetVlaOrAlloca(true);
+    return &intrinNode;
+  }
   if (intrinDesc.IsVectorOp() || intrinDesc.IsAtomic()) {
     return &intrinNode;
   }
 
-  if (intrnID == INTRN_C___tls_get_tbss_anchor || intrnID == INTRN_C___tls_get_tdata_anchor) {
+  if (intrnID == INTRN_C___tls_get_tbss_anchor || intrnID == INTRN_C___tls_get_tdata_anchor ||
+      intrnID == INTRN_C___tls_get_thread_pointer) {
     return &intrinNode;
   }
 

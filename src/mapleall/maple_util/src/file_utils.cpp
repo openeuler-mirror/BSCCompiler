@@ -16,6 +16,7 @@
 #include <cstring>
 #include <climits>
 #include <fstream>
+#include <random>
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -46,6 +47,15 @@ const std::string kFileSeperatorStr = kFileSeperatorWindowsStyleStr;
 const std::string kFileSeperatorStr = kFileSeperatorLinuxStyleStr;
 #endif
 
+const static TypeInfo kTypeInfos[] = {
+#define TYPE(ID, SUPPORT, ...) \
+  {InputFileType::kFileType##ID, SUPPORT,  {__VA_ARGS__}},
+#include "type.def"
+#undef TYPE
+};
+const char kWhitespaceChar = ' ';
+const std::string kWhitespaceStr = std::string(1, kWhitespaceChar);
+
 std::string FileUtils::SafeGetenv(const char *envVar) {
   const char *tmpEnvPtr = std::getenv(envVar);
   if (tmpEnvPtr == nullptr) {
@@ -53,6 +63,20 @@ std::string FileUtils::SafeGetenv(const char *envVar) {
   }
   std::string tmpStr(tmpEnvPtr);
   return tmpStr;
+}
+
+std::string FileUtils::ExecuteShell(const char *cmd, std::string workspace) {
+  if (!workspace.empty()) {
+    char buffer[PATH_MAX];
+    CHECK_FATAL(getcwd(buffer, sizeof(buffer)) != nullptr, "get current path failed");
+    CHECK_FATAL(chdir(workspace.c_str()) == 0, "change workspace failed");
+    workspace = buffer;
+  }
+  std::string result = ExecuteShell(cmd);
+  if (!workspace.empty()) {
+    CHECK_FATAL(chdir(workspace.c_str()) == 0, "change workspace failed");
+  }
+  return result;
 }
 
 std::string FileUtils::ExecuteShell(const char *cmd) {
@@ -107,21 +131,45 @@ std::string FileUtils::GetTmpFolderPath() const {
   std::string tmp = "\n";
   size_t index = path.find(tmp) == std::string::npos ? path.length() : path.find(tmp);
   path = path.substr(0, index);
-  return path + "/";
+  return path + kFileSeperatorStr;
 }
 
-std::string FileUtils::GetRealPath(const std::string &filePath) {
+void FileUtils::Mkdirs(const std::string &path, mode_t mode) {
+  size_t pos = 0;
+  while ((pos = path.find_first_of(kFileSeperatorStr, pos + 1)) != std::string::npos) {
+    std::string dir = path.substr(0, pos);
+    if (access(dir.c_str(), W_OK | R_OK) != 0) {
+      CHECK_FATAL(mkdir(dir.c_str(), mode) == 0, "Failed to create tmp folder");
+    }
+  }
+}
+
+std::string FileUtils::GetOutPutDirInTmp(const std::string &inputFile) {
+  std::string tmpDir = FileUtils::GetInstance().GetTmpFolder();
+  if (inputFile.find(kFileSeperatorStr) == std::string::npos) {
+    return tmpDir;
+  }
+  tmpDir.pop_back();
+  std::string realFilePath = FileUtils::GetRealPath(inputFile);
+  std::string fileDir = StringUtils::GetStrBeforeLast(realFilePath, kFileSeperatorStr, true) + kFileSeperatorStr;
+  std::string dirToMake = tmpDir + fileDir;
+  mode_t mode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+  Mkdirs(dirToMake, mode);
+  return dirToMake;
+}
+
+std::string FileUtils::GetRealPath(const std::string &filePath, const bool isCheck) {
+  if (filePath.size() > PATH_MAX) {
+    CHECK_FATAL(false, "invalid file path");
+  }
 #ifdef _WIN32
   char *path = nullptr;
-  if (filePath.size() > PATH_MAX  || !PathCanonicalize(path, filePath.c_str())) {
-    CHECK_FATAL(false, "invalid file path");
-  }
+  bool isReal = PathCanonicalize(path, filePath.c_str();
 #else
   char path[PATH_MAX] = {0};
-  if (filePath.size() > PATH_MAX  || realpath(filePath.c_str(), path) == nullptr) {
-    CHECK_FATAL(false, "invalid file path");
-  }
+  bool isReal = realpath(filePath.c_str(), path) != nullptr;
 #endif
+  CHECK_FATAL(!(isCheck && !isReal), "invalid file path %s", filePath.c_str());
   std::string result(path, path + strlen(path));
   return result;
 }
@@ -142,48 +190,39 @@ std::string FileUtils::GetFileExtension(const std::string &filePath) {
   return fileExtension;
 }
 
+InputFileType FileUtils::GetFileTypeByExtension(const std::string &extensionName) {
+  for (auto item : kTypeInfos) {
+    for (auto ext : item.tmpSuffix) {
+      if (ext == extensionName) {
+        return item.fileType;
+      }
+    }
+  }
+  return InputFileType::kFileTypeNone;
+}
+
 InputFileType FileUtils::GetFileType(const std::string &filePath) {
-  InputFileType fileType = InputFileType::kFileTypeNone;
   std::string extensionName = GetFileExtension(filePath);
-  if (extensionName == "class") {
-    fileType = InputFileType::kFileTypeClass;
-  } else if (extensionName == "dex") {
-    fileType = InputFileType::kFileTypeDex;
-  } else if (extensionName == "c") {
-    fileType = InputFileType::kFileTypeC;
-  } else if (extensionName == "cpp") {
-    fileType = InputFileType::kFileTypeCpp;
-  } else if (extensionName == "ast") {
-    fileType = InputFileType::kFileTypeAst;
-  } else if (extensionName == "jar") {
-    fileType = InputFileType::kFileTypeJar;
-  } else if (extensionName == "mpl" || extensionName == "bpl") {
+  InputFileType type = GetFileTypeByExtension(extensionName);
+  if (type == InputFileType::kFileTypeObj) {
+    type = GetFileTypeByMagicNumber(filePath);
+  } else if (type == InputFileType::kFileTypeMpl || type == InputFileType::kFileTypeBpl) {
     if (filePath.find("VtableImpl") == std::string::npos) {
       if (filePath.find(".me.mpl") != std::string::npos) {
-        fileType = InputFileType::kFileTypeMeMpl;
+        type = InputFileType::kFileTypeMeMpl;
       } else {
-        fileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
+        type = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
       }
     } else {
-      fileType = InputFileType::kFileTypeVtableImplMpl;
+      type = InputFileType::kFileTypeVtableImplMpl;
     }
-  } else if (extensionName == "s" || extensionName == "S") {
-    fileType = InputFileType::kFileTypeS;
-  } else if (extensionName == "o") {
-    fileType = GetFileTypeByMagicNumber(filePath);
-  } else if (extensionName == "mbc") {
-    fileType = InputFileType::kFileTypeMbc;
-  } else if (extensionName == "lmbc") {
-    fileType = InputFileType::kFileTypeLmbc;
-  } else if (extensionName == "h") {
-    fileType = InputFileType::kFileTypeH;
-  } else if (extensionName == "i") {
-    fileType = InputFileType::kFileTypeI;
-  } else if (extensionName == "oast") {
-    fileType = InputFileType::kFileTypeOast;
+  } else if (type == InputFileType::kFileTypeNone) {
+    std::string regexPattern = R"(\.(so|a)+((?:\.\d+)*)$)";
+    if (StringUtils::IsMatchAtEnd(filePath, regexPattern)) {
+      type = InputFileType::kFileTypeLib;
+    }
   }
-
-  return fileType;
+  return type;
 }
 
 std::string FileUtils::GetExecutable() {
@@ -249,8 +288,11 @@ bool FileUtils::CreateFile(const std::string &file) {
   }
   std::ofstream fileCreate;
   fileCreate.open(file);
+  if (!fileCreate) {
+    return false;
+  }
   fileCreate.close();
-  return IsFileExists(file);
+  return true;
 }
 
 std::string FileUtils::AppendMapleRootIfNeeded(bool needRootPath, const std::string &path,
@@ -284,8 +326,41 @@ InputFileType FileUtils::GetFileTypeByMagicNumber(const std::string &pathName) {
   int length = static_cast<int>(sizeof(uint32));
   (void)file.read(reinterpret_cast<char*>(&magic), length);
   file.close();
-  return magic == kMagicAST ? InputFileType::kFileTypeOast : magic == kMagicELF ? InputFileType::kFileTypeObj :
-                                                                                  InputFileType::kFileTypeNone;
+  switch (magic) {
+    case kMagicAST:
+      return InputFileType::kFileTypeOast;
+    case kMagicELF:
+      return InputFileType::kFileTypeObj;
+    default:
+      return InputFileType::kFileTypeNone;
+  }
+}
+
+bool FileUtils::IsSupportFileType(InputFileType type) {
+  for (auto item : kTypeInfos) {
+    if (item.fileType == type) {
+      return item.support;
+    }
+  }
+  return true;
+}
+
+void FileUtils::GetFileNames(const std::string path, std::vector<std::string> &filenames) {
+  DIR *pDir = nullptr;
+  struct dirent *ptr;
+  if (!(pDir = opendir(path.c_str()))) {
+    return;
+  }
+  struct stat s;
+  while ((ptr = readdir(pDir)) != nullptr) {
+    std::string filename = path + ptr->d_name;
+    if (stat(filename.c_str(), &s) == 0) {
+      if ((s.st_mode & S_IFREG) != 0) {
+        filenames.push_back(filename);
+      }
+    }
+  }
+  CHECK_FATAL(closedir(pDir) == 0, "close dir failed");
 }
 
 bool FileUtils::GetAstFromLib(const std::string libPath, std::vector<std::string> &astInputs) {
@@ -301,20 +376,18 @@ bool FileUtils::GetAstFromLib(const std::string libPath, std::vector<std::string
     binAr = result;
   }
   std::string realLibPath = GetRealPath(libPath);
-  cmd = binAr + " t " + realLibPath;
-  std::vector<std::string> astVec;
-  result = ExecuteShell(cmd.c_str());
-  StringUtils::Split(result, astVec, '\n');
-  for (auto tmp : astVec) {
-    if (tmp.empty()) {
-      continue;
-    }
-    cmd = binAr + " x " + realLibPath + " " + tmp;
-    CHECK_FATAL((ExecuteShell(cmd.c_str()) == ""), "Failed to execute %s.", cmd.c_str());
-    result = GetFileExtension(GetRealPath(tmp));
-    if (result == "o" && GetFileTypeByMagicNumber(GetRealPath(tmp)) == InputFileType::kFileTypeOast) {
-      cmd = binAr + " d " + realLibPath + " " + tmp;
-      astInputs.push_back(GetRealPath(tmp));
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::string tmpLibFolder = GetInstance().GetTmpFolder() + std::to_string(gen()) + kFileSeperatorStr;
+  mode_t mode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+  Mkdirs(tmpLibFolder, mode);
+  cmd = binAr + " x " + realLibPath;
+  CHECK_FATAL(ExecuteShell(cmd.c_str(), tmpLibFolder) == "", "Failed to execute %s.", cmd.c_str());
+  std::vector<std::string> filenames;
+  GetFileNames(tmpLibFolder, filenames);
+  for (const auto &file : filenames) {
+    if (GetFileTypeByMagicNumber(file) == InputFileType::kFileTypeOast) {
+      astInputs.push_back(file);
     } else {
       elfFlag = true;
     }
@@ -367,6 +440,45 @@ bool FileUtils::Rmdirs(const std::string &dirPath) {
     return false;
   }
   return true;
+}
+
+std::string FileUtils::GetCurDirPath() {
+  char *cwd = get_current_dir_name();
+  std::string path(cwd);
+  free(cwd);
+  cwd = nullptr;
+  return path;
+}
+
+// Just read a line from the file. It doesn't do anything more.
+// The reason for this wrapper function is to provide a single entry to
+// read file. Thus we can easily manipulate the line number, column number,
+// cursor, etc.
+// Returns true : if file is good()
+//        false : if file is not good()
+bool FileReader::ReadLine() {
+  (void)std::getline(mDefFile, mCurLine);
+  mLineNo++;
+  if (mDefFile.good()) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+std::string FileReader::GetLine(const std::string keyWord) {
+  while (ReadLine()) {
+    if (mCurLine.length() == 0) {
+      continue;
+    }
+    if (mCurLine.find(keyWord) != std::string::npos) {
+      return StringUtils::TrimWhitespace(mCurLine);
+    }
+    if (EndOfFile()) {
+      break;
+    }
+  }
+  return "";
 }
 
 }  // namespace maple

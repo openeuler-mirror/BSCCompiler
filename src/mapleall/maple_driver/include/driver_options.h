@@ -37,6 +37,20 @@ static maplecl::OptionCategory &unSupCategory = maplecl::CommandLine::GetCommand
 
 namespace opts {
 
+constexpr maplecl::OptType kOptNone = maplecl::OptType::KOptNone;
+constexpr maplecl::OptType kOptDriver = maplecl::OptType::KOptDriver;
+constexpr maplecl::OptType kOptCommon = maplecl::OptType::KOptCommon;
+constexpr maplecl::OptType kOptFront = maplecl::OptType::KOptFront;
+constexpr maplecl::OptType kOptOptimization = maplecl::OptType::KOptOptimization;
+constexpr maplecl::OptType kOptLd = maplecl::OptType::KOptLd;
+constexpr maplecl::OptType kOptAs = maplecl::OptType::KOptAs;
+constexpr maplecl::OptType kOptHir2mpl = maplecl::OptType::KOptHir2mpl;
+constexpr maplecl::OptType kOptMe = maplecl::OptType::KOptMe;
+constexpr maplecl::OptType kOptMpl2mpl = maplecl::OptType::KOptMpl2mpl;
+constexpr maplecl::OptType kOptAsOptMplcg = maplecl::OptType::KOptMplcg;
+constexpr maplecl::OptType kOptMaple = maplecl::OptType::KOptMaple;
+constexpr maplecl::OptType kOptNotFiltering = maplecl::OptType::KOptNotFiltering;
+
 /* ##################### BOOL Options ############################################################### */
 
 extern maplecl::Option<bool> version;
@@ -115,6 +129,9 @@ extern maplecl::Option<bool> wpaa;
 extern maplecl::Option<bool> fm;
 extern maplecl::Option<bool> dumpTime;
 extern maplecl::Option<bool> aggressiveTlsLocalDynamicOpt;
+extern maplecl::Option<bool> aggressiveTlsLocalDynamicOptMultiThread;
+extern maplecl::Option<bool> aggressiveTlsSafeAnchor;
+extern maplecl::Option<std::string> aggressiveTlsWarmupFunction;
 extern maplecl::Option<bool> oDumpversion;
 extern maplecl::Option<bool> oWnounusedcommandlineargument;
 extern maplecl::Option<bool> oWnoconstantconversion;
@@ -726,13 +743,11 @@ extern maplecl::Option<bool> oFssaPhiopt;
 extern maplecl::Option<bool> oFssoStruct;
 extern maplecl::Option<bool> oFstackCheck;
 extern maplecl::Option<bool> oFstackProtector;
-extern maplecl::Option<bool> oFstackProtectorAll;
 extern maplecl::Option<bool> oFstackProtectorExplicit;
 extern maplecl::Option<bool> oFstackUsage;
 extern maplecl::Option<bool> oFstats;
 extern maplecl::Option<bool> oFstdargOpt;
 extern maplecl::Option<bool> oFstoreMerging;
-extern maplecl::Option<bool> oFstrictAliasing;
 extern maplecl::Option<bool> oFstrictEnums;
 extern maplecl::Option<bool> oFstrictOverflow;
 extern maplecl::Option<bool> oFstrictVolatileBitfields;
@@ -1870,6 +1885,10 @@ extern maplecl::Option<bool> tlsAggressiveOpt;
 extern maplecl::Option<bool> staticLibmplpgo;
 extern maplecl::Option<bool> oFnoExtendedIdentifiers;
 extern maplecl::Option<bool> oFnoPchPreprocess;
+extern maplecl::Option<bool> fpie;
+extern maplecl::Option<bool> fpic;
+extern maplecl::Option<bool> fPIE;
+extern maplecl::Option<bool> fPIC;
 
 /* ##################### STRING Options ############################################################### */
 
@@ -2071,6 +2090,7 @@ extern maplecl::Option<std::string> functionReorderAlgorithm;
 extern maplecl::Option<std::string> functionReorderProfile;
 extern maplecl::Option<std::string> oA;
 extern maplecl::Option<std::string> oWeakReferenceMismatches;
+extern maplecl::Option<std::string> rootPath;
 
 /* ##################### DIGITAL Options ############################################################### */
 

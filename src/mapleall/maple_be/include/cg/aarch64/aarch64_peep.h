@@ -1114,7 +1114,8 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
    * bl foo (change memory)
    * str x21, [x19, #16]
    */
-  bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst) const;
+  bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore,
+                                int64 baseOfst, int64 baseMemRange) const;
   bool IsValidNormalLoadOrStorePattern(const Insn &insn, const Insn &prevInsn, const MemOperand &memOpnd,
                                        int64 curOfstVal, int64 prevOfstVal);
   bool IsValidStackArgLoadOrStorePattern(const Insn &curInsn, const Insn &prevInsn, const MemOperand &curMemOpnd,

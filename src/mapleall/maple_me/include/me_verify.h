@@ -28,7 +28,7 @@ class MeVerify {
   ~MeVerify() = default;
 
   void VerifyFunction();
-  void VerifyPhiNode(const BB &bb, Dominance &dom) const;
+  void VerifyPhiNode(const BB &bb, const Dominance &dom) const;
 
   static bool enableDebug;
  private:

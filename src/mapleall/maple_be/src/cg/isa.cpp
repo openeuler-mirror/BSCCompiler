@@ -15,17 +15,45 @@
 
 #include "isa.h"
 namespace maplebe {
-#define DEFINE_MOP(op,...) const OpndDescription OpndDescription::op=__VA_ARGS__;
+#define DEFINE_MOP(op, ...) const OpndDesc OpndDesc::op = __VA_ARGS__;
 #include "operand.def"
 #undef DEFINE_MOP
-#define DEFINE_MOP(op,...) {abstract::op,__VA_ARGS__},
-const InsnDescription InsnDescription::abstractId[abstract::kMopLast] = {
+#define DEFINE_MOP(op, ...) {abstract::op, __VA_ARGS__},
+const InsnDesc InsnDesc::abstractId[abstract::kMopLast] = {
 #include "abstract_mmir.def"
 };
 #undef DEFINE_MOP
 
-bool InsnDescription::IsSame(const InsnDescription &left,
-    std::function<bool (const InsnDescription &left, const InsnDescription &right)> cmp) const {
+bool InsnDesc::IsSame(const InsnDesc &left,
+    std::function<bool (const InsnDesc &left, const InsnDesc &right)> cmp) const {
   return cmp == nullptr ? false : cmp(left, *this);
+}
+
+bool InsnDesc::operator==(const InsnDesc &o) const {
+  bool opndMdEqual = true;
+  if (opndMD.size() == o.opndMD.size()) {
+    for (size_t i = 0; i < opndMD.size(); ++i) {
+      if (opndMD[i] != o.opndMD[i]) {
+        opndMdEqual = false;
+      }
+    }
+  } else {
+    opndMdEqual = false;
+  }
+  return opc == o.opc && opndMdEqual && properties == o.properties && latencyType == o.latencyType;
+}
+
+bool InsnDesc::operator<(const InsnDesc &o) const {
+  bool opndMdless = false;
+  if (opndMD.size() == o.opndMD.size()) {
+    for (size_t i = 0; i < opndMD.size(); ++i) {
+      if (opndMD[i] < o.opndMD[i]) {
+        opndMdless = true;
+      }
+    }
+  } else if (opndMD.size() <= o.opndMD.size()) {
+    opndMdless = true;
+  }
+  return (properties < o.properties) || (properties == o.properties && opndMdless);
 }
 }
