@@ -1106,19 +1106,16 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
   newBlk->AddStatement(asmNode);
 }
 
-BaseNode *CGLowerer::NeedRetypeWhenLowerCallAssigned(PrimType pType, StmtNode *&beforeStmt) {
-  if (!IsPrimitiveInteger(pType) || GetPrimTypeBitSize(pType) >= k32BitSize) {
-    return mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
+BaseNode *CGLowerer::NeedRetypeWhenLowerCallAssigned(PrimType pType) {
+  BaseNode *retNode = mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
+  if (IsPrimitiveInteger(pType) && GetPrimTypeBitSize(pType) <= k32BitSize) {
+    auto newPty = IsPrimitiveUnsigned(pType) ? PTY_u64 : PTY_i64;
+    retNode = mirModule.GetMIRBuilder()->CreateExprTypeCvt(OP_cvt, newPty, pType, *retNode);
   }
-  auto newPTy = PTY_u32;
-  RegreadNode *retNode = mirModule.GetMIRBuilder()->CreateExprRegread(newPTy, -kSregRetval0);
-  auto pregIdx = GetCurrentFunc()->GetPregTab()->CreatePreg(newPTy);
-  beforeStmt = mirModule.GetMIRBuilder()->CreateStmtRegassign(newPTy, pregIdx, retNode);
-  RegreadNode *preg = mirModule.GetMIRBuilder()->CreateExprRegread(newPTy, pregIdx);
-  return mirModule.GetMIRBuilder()->CreateExprTypeCvt(OP_cvt, pType, newPTy, *preg);
+  return retNode;
 }
 
-DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID, StmtNode *&beforeStmt) {
+DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
   MIRSymbol *var;
   if (stIdx.IsGlobal()) {
     var = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
@@ -1132,7 +1129,7 @@ DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID, Stmt
   } else {
     pType = GlobalTables::GetTypeTable().GetTypeTable().at(var->GetTyIdx())->GetPrimType();
   }
-  auto *regRead = NeedRetypeWhenLowerCallAssigned(pType, beforeStmt);
+  auto *regRead = NeedRetypeWhenLowerCallAssigned(pType);
   return mirModule.GetMIRBuilder()->CreateStmtDassign(*var, fieldID, regRead);
 }
 
@@ -1299,7 +1296,6 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
   if (!handledAtLowerLevel) {
     CHECK_FATAL(p2nRets.size() <= 1, "make sure p2nRets size <= 1");
     /* Create DassignStmt to save kSregRetval0. */
-    StmtNode *beforeDStmt = nullptr;
     StmtNode *dStmt = nullptr;
     MIRType *retType = nullptr;
     if (p2nRets.size() == 1) {
@@ -1321,7 +1317,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
         RegFieldPair regFieldPair = p2nRets[0].second;
         if (!regFieldPair.IsReg()) {
           uint16 fieldID = static_cast<uint16>(regFieldPair.GetFieldID());
-          DassignNode *dn = SaveReturnValueInLocal(stIdx, fieldID, beforeDStmt);
+          DassignNode *dn = SaveReturnValueInLocal(stIdx, fieldID);
           CHECK_FATAL(dn->GetFieldID() == 0, "make sure dn's fieldID return 0");
           LowerDassign(*dn, *blk);
           CHECK_FATAL(&newCall == blk->GetLast() || newCall.GetNext() == blk->GetLast(), "");
@@ -1332,7 +1328,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
           MIRPreg *mirPreg = GetCurrentFunc()->GetPregTab()->PregFromPregIdx(pregIdx);
           bool is64x1vec = beCommon.CallIsOfAttr(FUNCATTR_oneelem_simd, &newCall);
           PrimType pType = is64x1vec ? PTY_f64 : mirPreg->GetPrimType();
-          auto regNode = NeedRetypeWhenLowerCallAssigned(pType, beforeDStmt);
+          auto regNode = NeedRetypeWhenLowerCallAssigned(pType);
           RegassignNode *regAssign;
           if (is64x1vec && IsPrimitiveInteger(mirPreg->GetPrimType())) {  // not f64
             MIRType *to;
@@ -1371,9 +1367,6 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
     LowerCallStmt(newCall, dStmt, *blk, retType, uselvar, opcode == OP_intrinsiccallassigned);
     if (!uselvar && dStmt != nullptr) {
       dStmt->SetSrcPos(newCall.GetSrcPos());
-      if (beforeDStmt != nullptr) {
-        blk->AddStatement(beforeDStmt);
-      }
       blk->AddStatement(dStmt);
     }
   }

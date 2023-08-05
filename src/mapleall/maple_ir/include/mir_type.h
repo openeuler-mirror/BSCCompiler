@@ -20,6 +20,7 @@
 #include "prim_types.h"
 #include "mir_pragma.h"
 #include "mpl_logging.h"
+#include "simple_bit_set.h"
 #if MIR_FEATURE_FULL
 #include "mempool.h"
 #include "mempool_allocator.h"
@@ -269,14 +270,6 @@ enum MIRTypeKind : std::uint8_t {
   kTypeGenericInstant,  // type to be formed by instantiation of a generic type
 };
 
-enum AttrKind : unsigned {
-#define TYPE_ATTR
-#define ATTR(STR) ATTR_##STR,
-#include "all_attributes.def"
-#undef ATTR
-#undef TYPE_ATTR
-};
-
 class AttrBoundary {
  public:
   AttrBoundary() = default;
@@ -331,6 +324,17 @@ class AttrBoundary {
   uint32 lenExprHash = 0;
 };
 
+enum AttrKind : unsigned {
+#define TYPE_ATTR
+#define ATTR(STR) ATTR_##STR,
+#include "all_attributes.def"
+#undef ATTR
+#undef TYPE_ATTR
+  kTypeAttrNum
+};
+
+constexpr size_t kTypeAttrFlagNum = ALIGN(kTypeAttrNum, k64BitSize);
+
 class TypeAttrs {
  public:
   TypeAttrs() = default;
@@ -346,24 +350,24 @@ class TypeAttrs {
     return attrAlign;
   }
 
-  void SetAttrFlag(uint64 flag) {
+  void SetAttrFlag(SimpleBitSet<kTypeAttrFlagNum> flag) {
     attrFlag = flag;
   }
 
-  uint64 GetAttrFlag() const {
+  SimpleBitSet<kTypeAttrFlagNum> GetAttrFlag() const {
     return attrFlag;
   }
 
   void SetAttr(AttrKind x) {
-    attrFlag |= (1ULL << static_cast<unsigned int>(x));
+    attrFlag.Set(x);
   }
 
   void ResetAttr(AttrKind x) {
-    attrFlag &= ~(1ULL << static_cast<unsigned int>(x));
+    attrFlag.Reset(x);
   }
 
   bool GetAttr(AttrKind x) const {
-    return (attrFlag & (1ULL << static_cast<unsigned int>(x))) != 0;
+    return (attrFlag[x] != 0);
   }
 
   void SetAlign(uint32 x) {
@@ -435,7 +439,7 @@ class TypeAttrs {
   }
 
  private:
-  uint64 attrFlag = 0;
+  SimpleBitSet<kTypeAttrFlagNum> attrFlag;
   uint8 attrAlign = 0;  // alignment in bytes is 2 to the power of attrAlign
   uint32 attrPack = -1;  // -1 means inactive
   AttrBoundary attrBoundary;  // boundary attr for EnhanceC
@@ -447,7 +451,10 @@ enum FieldAttrKind {
 #include "all_attributes.def"
 #undef ATTR
 #undef FIELD_ATTR
+  kFieldAttrNum
 };
+
+constexpr size_t kFieldAttrFlagNum = ALIGN(kFieldAttrNum, k64BitSize);
 
 class FieldAttrs {
  public:
@@ -464,20 +471,20 @@ class FieldAttrs {
     return attrAlign;
   }
 
-  void SetAttrFlag(uint32 flag) {
+  void SetAttrFlag(SimpleBitSet<kFieldAttrFlagNum> flag) {
     attrFlag = flag;
   }
 
-  uint32 GetAttrFlag() const {
+  SimpleBitSet<kFieldAttrFlagNum> GetAttrFlag() const {
     return attrFlag;
   }
 
   void SetAttr(FieldAttrKind x) {
-    attrFlag |= (1U << static_cast<uint32>(x));
+    attrFlag.Set(x);
   }
 
   bool GetAttr(FieldAttrKind x) const {
-    return (attrFlag & (1U << static_cast<uint32>(x))) != 0;
+    return (attrFlag[x] != 0);
   }
 
   void SetAlign(uint32 x) {
@@ -540,7 +547,7 @@ class FieldAttrs {
   }
  private:
   uint8 attrAlign = 0;  // alignment in bytes is 2 to the power of attrAlign
-  uint32 attrFlag = 0;
+  SimpleBitSet<kFieldAttrFlagNum> attrFlag = 0;
   AttrBoundary attrBoundary;
 };
 
@@ -550,7 +557,10 @@ enum StmtAttrKind : unsigned {
 #include "all_attributes.def"
 #undef ATTR
 #undef STMT_ATTR
+  kStmtAttrNum
 };
+
+constexpr size_t kStmtAttrFlagNum = ALIGN(kStmtAttrNum, k64BitSize);
 
 class StmtAttrs {
  public:
@@ -561,25 +571,25 @@ class StmtAttrs {
 
   void SetAttr(StmtAttrKind x, bool flag = true) {
     if (flag) {
-      attrFlag |= (1u << static_cast<unsigned int>(x));
+      attrFlag.Set(x);
     } else {
-      attrFlag &= ~(1u << static_cast<unsigned int>(x));
+      attrFlag.Reset(x);
     }
   }
 
   bool GetAttr(StmtAttrKind x) const {
-    return (attrFlag & (1u << static_cast<unsigned int>(x))) != 0;
+    return attrFlag[x] != 0;
   }
 
-  uint32 GetTargetAttrFlag(StmtAttrKind x) const {
-    return attrFlag & (1u << static_cast<unsigned int>(x));
+  SimpleBitSet<kStmtAttrFlagNum> GetTargetAttrFlag(StmtAttrKind x) const {
+    return attrFlag & SimpleBitSet<kStmtAttrFlagNum>(1ULL << static_cast<unsigned int>(x));
   }
 
-  uint32 GetAttrFlag() const {
+  SimpleBitSet<kStmtAttrFlagNum> GetAttrFlag() const {
     return attrFlag;
   }
 
-  void AppendAttr(uint32 flag) {
+  void AppendAttr(SimpleBitSet<kStmtAttrFlagNum> flag) {
     attrFlag |= flag;
   }
 
@@ -590,7 +600,7 @@ class StmtAttrs {
   void DumpAttributes() const;
 
  private:
-  uint32 attrFlag = 0;
+  SimpleBitSet<kStmtAttrFlagNum> attrFlag = 0;
 };
 
 enum FuncAttrKind : unsigned {
@@ -802,10 +812,10 @@ class MIRType {
       : typeKind(kind), primType(pType), nameStrIdx(strIdx) {}
 
   virtual ~MIRType() = default;
-
   virtual void Dump(int indent, bool dontUseName = false) const;
   virtual void DumpAsCxx(int indent) const;
   virtual bool EqualTo(const MIRType &mirType) const;
+  bool EqualToWithAttr(const MIRType &mirType) const;
   virtual bool IsStructType() const {
     return false;
   }
@@ -1020,7 +1030,12 @@ class MIRPtrType : public MIRType {
     constexpr uint8 idxShift = 4;
     constexpr uint8 attrShift = 3;
     size_t hIdx = (static_cast<size_t>(pointedTyIdx) << idxShift) + (typeKind << kShiftNumOfTypeKind);
-    hIdx += (typeAttrs.GetAttrFlag() << attrShift) + typeAttrs.GetAlignValue();
+    size_t typeAttrsFlagSize = typeAttrs.GetAttrFlag().GetWordSize();
+    if (typeAttrsFlagSize == 1) {
+      hIdx += (typeAttrs.GetAttrFlag().GetWord(0) << attrShift) + typeAttrs.GetAlignValue();
+    } else {
+      hIdx += typeAttrs.GetAttrFlag().GetHashOfbitset() + typeAttrs.GetAlignValue();
+    }
     return hIdx % kTypeHashLength;
   }
   bool IsFunctionPtr() const {
@@ -1116,7 +1131,12 @@ class MIRArrayType : public MIRType {
       hIdx += (sizeArray[i] << i);
     }
     constexpr uint8 attrShift = 3;
-    hIdx += (typeAttrs.GetAttrFlag() << attrShift) + typeAttrs.GetAlignValue();
+    size_t typeAttrsFlagSize = typeAttrs.GetAttrFlag().GetWordSize();
+    if (typeAttrsFlagSize == 1) {
+      hIdx += (typeAttrs.GetAttrFlag().GetWord(0) << attrShift) + typeAttrs.GetAlignValue();
+    } else {
+      hIdx += typeAttrs.GetAttrFlag().GetHashOfbitset() + typeAttrs.GetAlignValue();
+    }
     return hIdx % kTypeHashLength;
   }
 
@@ -1472,8 +1492,14 @@ class MIRStructType : public MIRType {
 
   size_t GetHashIndex() const override {
     constexpr uint8 attrShift = 3;
-    return ((static_cast<size_t>(nameStrIdx) << kShiftNumOfNameStrIdx) + (typeKind << kShiftNumOfTypeKind) +
-            ((typeAttrs.GetAttrFlag() << attrShift) + typeAttrs.GetAlignValue())) % kTypeHashLength;
+    size_t hIdx = (static_cast<size_t>(nameStrIdx) << kShiftNumOfNameStrIdx) + (typeKind << kShiftNumOfTypeKind);
+    size_t typeAttrsFlagSize = typeAttrs.GetAttrFlag().GetWordSize();
+    if (typeAttrsFlagSize == 1) {
+      hIdx += (typeAttrs.GetAttrFlag().GetWord(0) << attrShift) + typeAttrs.GetAlignValue();
+    } else {
+      hIdx += typeAttrs.GetAttrFlag().GetHashOfbitset() + typeAttrs.GetAlignValue();
+    }
+    return (hIdx % kTypeHashLength);
   }
 
   virtual void ClearContents() {

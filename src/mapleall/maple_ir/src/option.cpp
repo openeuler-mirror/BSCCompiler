@@ -41,9 +41,11 @@ bool Options::inlineWithProfile = false;
 bool Options::useInline = true;             // Enabled by default
 bool Options::enableGInline = true;
 bool Options::useCrossModuleInline = true;  // Enabled by default
+bool Options::importInlineMplt = false;  // Disabled by default
 std::string Options::noInlineFuncList = "";
 std::string Options::noIpaCloneFuncList = "";
 std::string Options::importFileList = "";
+std::string Options::inlineMpltDir = "";
 // These two thresholds will be scaled down if new cost module was used
 uint32 Options::inlineSmallFunctionThreshold = 80;  // Only for srcLangC, value will be reset later for other srcLang
 uint32 Options::inlineHotFunctionThreshold = 100;   // Only for srcLangC, value will be reset later for other srcLang
@@ -210,6 +212,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(noInlineFuncList, opts::mpl2mpl::noInlineFunc);
   maplecl::CopyIfEnabled(noIpaCloneFuncList, opts::mpl2mpl::noIpaCloneFunc);
   maplecl::CopyIfEnabled(importFileList, opts::mpl2mpl::importFileList);
+  maplecl::CopyIfEnabled(inlineMpltDir, opts::mpl2mpl::inlineMpltDir);
   maplecl::CopyIfEnabled(numOfCloneVersions, opts::mpl2mpl::numOfCloneVersions);
   maplecl::CopyIfEnabled(numOfImpExprLowBound, opts::mpl2mpl::numOfImpExprLowBound);
   maplecl::CopyIfEnabled(numOfImpExprHighBound, opts::mpl2mpl::numOfImpExprHighBound);
@@ -217,6 +220,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(numOfCallSiteUpBound, opts::mpl2mpl::numOfCallSiteUpBound);
   maplecl::CopyIfEnabled(numOfConstpropValue, opts::mpl2mpl::numOfConstpropValue);
   maplecl::CopyIfEnabled(useCrossModuleInline, opts::mpl2mpl::crossModuleInline);
+  maplecl::CopyIfEnabled(importInlineMplt, opts::mpl2mpl::importInlineMplt);
   maplecl::CopyIfEnabled(inlineSmallFunctionThreshold, opts::mpl2mpl::inlineSmallFunctionThreshold);
   maplecl::CopyIfEnabled(inlineHotFunctionThreshold, opts::mpl2mpl::inlineHotFunctionThreshold);
   maplecl::CopyIfEnabled(inlineRecursiveFunctionThreshold, opts::mpl2mpl::inlineRecursiveFunctionThreshold);

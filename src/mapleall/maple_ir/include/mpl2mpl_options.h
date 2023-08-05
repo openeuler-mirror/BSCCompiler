@@ -37,6 +37,8 @@ extern maplecl::Option<std::string> noInlineFunc;
 extern maplecl::Option<std::string> noIpaCloneFunc;
 extern maplecl::Option<std::string> importFileList;
 extern maplecl::Option<bool> crossModuleInline;
+extern maplecl::Option<std::string> inlineMpltDir;
+extern maplecl::Option<bool> importInlineMplt;
 extern maplecl::Option<uint32_t> inlineSmallFunctionThreshold;
 extern maplecl::Option<uint32_t> inlineHotFunctionThreshold;
 extern maplecl::Option<uint32_t> inlineRecursiveFunctionThreshold;

@@ -4257,17 +4257,15 @@ void AndCbzBranchesToTstPattern::Run(BB &bb, Insn &insn) {
   bb.ReplaceInsn(*nextInsn, newInsnJmp);
 }
 
-/*
- * help function for DeleteMovAfterCbzOrCbnz
- * input:
- *        bb: the bb to be checked out
- *        checkCbz: to check out BB end with cbz or cbnz, if cbz, input true
- *        opnd: for MOV reg, #0, opnd indicate reg
- * return:
- *        according to cbz, return true if insn is cbz or cbnz and the first operand of cbz(cbnz) is same as input
- *      operand
- */
-bool DeleteMovAfterCbzOrCbnzAArch64::PredBBCheck(BB &bb, bool checkCbz, const Operand &opnd) const {
+// help function for DeleteMovAfterCbzOrCbnz
+// input:
+//        bb: the bb to be checked out
+//        checkCbz: to check out BB end with cbz or cbnz, if cbz, input true
+//        opnd: for MOV reg, #0, opnd indicate reg
+// return:
+//        according to cbz, return true if insn is cbz or cbnz and the first operand of cbz(cbnz) is same as input
+//        operand
+bool DeleteMovAfterCbzOrCbnzAArch64::PredBBCheck(BB &bb, bool checkCbz, const Operand &opnd, bool is64BitOnly) const {
   if (bb.GetKind() != BB::kBBIf) {
     return false;
   }
@@ -4282,10 +4280,16 @@ bool DeleteMovAfterCbzOrCbnzAArch64::PredBBCheck(BB &bb, bool checkCbz, const Op
     return false;
   }
   MOperator mOp = condBr->GetMachineOpcode();
-  if (checkCbz && mOp != MOP_wcbz && mOp != MOP_xcbz) {
+  if (is64BitOnly && checkCbz && mOp != MOP_xcbz) {
     return false;
   }
-  if (!checkCbz && mOp != MOP_xcbnz && mOp != MOP_wcbnz) {
+  if (is64BitOnly && !checkCbz && mOp != MOP_xcbnz) {
+    return false;
+  }
+  if (!is64BitOnly && checkCbz && mOp != MOP_xcbz && mOp != MOP_wcbz) {
+    return false;
+  }
+  if (!is64BitOnly && !checkCbz && mOp != MOP_xcbnz && mOp != MOP_wcbnz) {
     return false;
   }
   return RegOperand::IsSameRegNO(condBr->GetOperand(kInsnFirstOpnd), opnd);
@@ -4317,7 +4321,7 @@ bool DeleteMovAfterCbzOrCbnzAArch64::OpndDefByMovZero(const Insn &insn) const {
   }
 }
 
-/* check whether predefine insn of first operand of test_insn is exist in current BB */
+// check whether predefine insn of first operand of test_insn is exist in current BB
 bool DeleteMovAfterCbzOrCbnzAArch64::NoPreDefine(Insn &testInsn) const {
   Insn *nextInsn = nullptr;
   for (Insn *insn = testInsn.GetBB()->GetFirstMachineInsn(); insn != nullptr && insn != &testInsn; insn = nextInsn) {
@@ -4358,14 +4362,72 @@ bool DeleteMovAfterCbzOrCbnzAArch64::NoPreDefine(Insn &testInsn) const {
   }
   return true;
 }
+
+bool DeleteMovAfterCbzOrCbnzAArch64::NoMoreThan32BitUse(Insn &testInsn) const {
+  auto &testOpnd = static_cast<RegOperand&>(testInsn.GetOperand(kFirstOpnd));
+  InsnSet regUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(testInsn, kInsnFirstOpnd, false);
+  for (auto useInsn : regUseInsnSet) {
+    MOperator mop = useInsn->GetMachineOpcode();
+    if (mop == MOP_pseudo_ret_int) {
+      if (cgFunc.GetFunction().GetReturnType()->GetSize() > k4ByteSize) {
+        return false;
+      }
+      continue;
+    }
+    uint32 optSize = useInsn->GetOperandSize();
+    const InsnDesc *md = useInsn->GetDesc();
+    for (uint32 i = 0; i < optSize; i++) {
+      auto &opnd = useInsn->GetOperand(i);
+      const auto *opndDesc = md->GetOpndDes(i);
+      if (opndDesc->IsDef()) {
+        continue;
+      }
+      if (opnd.IsRegister()) {
+        auto &regOpnd = static_cast<RegOperand&>(opnd);
+        if (RegOperand::IsSameRegNO(regOpnd, testOpnd) &&
+            opndDesc->GetSize() > k32BitSize) {
+            return false;
+        }
+      } else if (opnd.IsMemoryAccessOperand()) {
+        auto &memOpnd = static_cast<MemOperand&>(opnd);
+        if (memOpnd.GetBaseRegister() != nullptr) {
+          auto *regOpnd = memOpnd.GetBaseRegister();
+          if (RegOperand::IsSameRegNO(*regOpnd, testOpnd) &&
+              regOpnd->GetSize() > k32BitSize) {
+              return false;
+          }
+        }
+        if (memOpnd.GetIndexRegister() != nullptr) {
+          auto *regOpnd = memOpnd.GetIndexRegister();
+          if (RegOperand::IsSameRegNO(*regOpnd, testOpnd) &&
+              regOpnd->GetSize() > k32BitSize) {
+              return false;
+          }
+        }
+      } else if (opnd.IsList()) {
+        auto &listOpnd = static_cast<ListOperand&>(opnd);
+        for (auto *regOpnd : std::as_const(listOpnd.GetOperands())) {
+          if (RegOperand::IsSameRegNO(*regOpnd, testOpnd) &&
+              regOpnd->GetSize() > k32BitSize) {
+              return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
 void DeleteMovAfterCbzOrCbnzAArch64::ProcessBBHandle(BB *processBB, const BB &bb, const Insn &insn) const {
   ASSERT(processBB != nullptr, "process_bb is null in ProcessBBHandle");
+  MOperator condBrMop = insn.GetMachineOpcode();
+  bool is64BitOnly = (condBrMop == MOP_xcbz || condBrMop == MOP_xcbnz);
   FOR_BB_INSNS_SAFE(processInsn, processBB, nextProcessInsn) {
     nextProcessInsn = processInsn->GetNextMachineInsn();
     if (!processInsn->IsMachineInstruction()) {
       continue;
     }
-    /* register may be a caller save register */
+    // register may be a caller save register
     if (processInsn->IsCall()) {
       break;
     }
@@ -4375,31 +4437,34 @@ void DeleteMovAfterCbzOrCbnzAArch64::ProcessBBHandle(BB *processBB, const BB &bb
     }
     bool toDoOpt = true;
     MOperator condBrMop = insn.GetMachineOpcode();
-    /* process elseBB, other preds must be cbz */
+    // process elseBB, other preds must be cbz
     if (condBrMop == MOP_wcbnz || condBrMop == MOP_xcbnz) {
-      /* check out all preds of process_bb */
+      // check out all preds of process_bb
       for (auto *processBBPred : processBB->GetPreds()) {
         if (processBBPred == &bb) {
           continue;
         }
-        if (!PredBBCheck(*processBBPred, true, processInsn->GetOperand(kInsnFirstOpnd))) {
+        if (!PredBBCheck(*processBBPred, true, processInsn->GetOperand(kInsnFirstOpnd), is64BitOnly)) {
           toDoOpt = false;
           break;
         }
       }
     } else {
-      /* process ifBB, other preds can be cbz or cbnz(one at most) */
+      // process ifBB, other preds can be cbz or cbnz(one at most)
       for (auto processBBPred : processBB->GetPreds()) {
         if (processBBPred == &bb) {
           continue;
         }
-        /* for cbnz pred, there is one at most */
+        // for cbnz pred, there is one at most
         if (!PredBBCheck(*processBBPred, processBBPred != processBB->GetPrev(),
-                         processInsn->GetOperand(kInsnFirstOpnd))) {
+                         processInsn->GetOperand(kInsnFirstOpnd), is64BitOnly)) {
           toDoOpt = false;
           break;
         }
       }
+    }
+    if (!is64BitOnly && !NoMoreThan32BitUse(*processInsn)) {
+      toDoOpt = false;
     }
     if (!toDoOpt) {
       continue;

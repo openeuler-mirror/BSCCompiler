@@ -219,6 +219,8 @@ class MIRSymbol {
 
   bool IsTypeVolatile(int fieldID) const;
 
+  // for checking if a symbol need GOT for relocation or not
+  // if any functionality needs to check GOT usage, should use this function
   bool NeedGOT(bool isPIC, bool isPIE) const;
 
   bool IsThreadLocal() const {

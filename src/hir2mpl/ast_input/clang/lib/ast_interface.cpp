@@ -648,7 +648,7 @@ const std::string LibAstFile::GetOrCreateMappedUnnamedName(const clang::Decl &de
   }
 
   uint32 uid;
-  if (FEOptions::GetInstance().GetFuncInlineSize() != 0 && !decl.getLocation().isMacroID()) {
+  if (FEOptions::GetInstance().NeedMangling() && !decl.getLocation().isMacroID()) {
     // use loc as key for wpaa mode
     Loc l = GetLOC(decl.getLocation());
     CHECK_FATAL(l.fileIdx != 0, "loc is invaild");
@@ -724,7 +724,7 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringst
   } else {
     ss << GetOrCreateMappedUnnamedName(*recordDecl);
   }
-  if (FEOptions::GetInstance().GetFuncInlineSize() != 0 || FEOptions::GetInstance().GetWPAA()) {
+  if (FEOptions::GetInstance().NeedMangling()) {
     std::string layout = recordDecl->getDefinition() == nullptr ? "" : GetRecordLayoutString(*recordDecl);
     ss << FEUtils::GetFileNameHashStr(layout);
   }

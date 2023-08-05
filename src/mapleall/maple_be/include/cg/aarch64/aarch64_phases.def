@@ -62,6 +62,7 @@
  ADDTARGETPHASE("framefinalize", true);
  ADDTARGETPHASE("cfgo", GetMIRModule()->IsCModule() && CGOptions::DoCFGO());
  ADDTARGETPHASE("peephole0", CGOptions::DoPeephole());
+ ADDTARGETPHASE("clearrdinfo", CGOptions::DoPeephole());
  ADDTARGETPHASE("ebo", CGOptions::DoEBO());
  ADDTARGETPHASE("postcfgo", CGOptions::DoCFGO());
  ADDTARGETPHASE("duptail", !CGOptions::DoLiteProfUse() && !CGOptions::DoLiteProfGen());

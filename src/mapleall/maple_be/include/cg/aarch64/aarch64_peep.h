@@ -1476,24 +1476,24 @@ class AndAndCmpBranchesToTstPattern : public CGPeepPattern {
   MOperator newEorMop = MOP_undef;
   int64 tstImmVal = -1;
 };
-/*
- * cbnz w0, @label
- * ....
- * mov  w0, #0 (elseBB)        -->this instruction can be deleted
- *
- * cbz  w0, @label
- * ....
- * mov  w0, #0 (ifBB)          -->this instruction can be deleted
- *
- * condition:
- *  1.there is not predefine points of w0 in elseBB(ifBB)
- *  2.the first opearnd of cbnz insn is same as the first Operand of mov insn
- *  3.w0 is defined by move 0
- *  4.all preds of elseBB(ifBB) end with cbnz or cbz
- *
- *  NOTE: if there are multiple preds and there is not define point of w0 in one pred,
- *        (mov w0, 0) can't be deleted, avoiding use before def.
- */
+
+// cbnz w0, @label
+// ....
+// mov  w0, #0 (elseBB)        -->this instruction can be deleted
+//
+// cbz  w0, @label
+// ....
+// mov  w0, #0 (ifBB)          -->this instruction can be deleted
+//
+// condition:
+//   1.there is not predefine points of w0 in elseBB(ifBB)
+//   2.the first opearnd of cbnz insn is same as the first Operand of mov insn
+//   3.w0 is defined by move 0
+//   4.all preds of elseBB(ifBB) end with cbnz/wcbnz or cbz/wcbz
+//   5.w0 is only used in 32bit between mov 0 and next def point if preds has wcbz/wcbnz.
+//
+//   NOTE: if there are multiple preds and there is not define point of w0 in one pred,
+//   (mov w0, 0) can't be deleted, avoiding use before def.
 class DeleteMovAfterCbzOrCbnzAArch64 : public PeepPattern {
  public:
   explicit DeleteMovAfterCbzOrCbnzAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {
@@ -1504,10 +1504,11 @@ class DeleteMovAfterCbzOrCbnzAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
-  bool PredBBCheck(BB &bb, bool checkCbz, const Operand &opnd) const;
+  bool PredBBCheck(BB &bb, bool checkCbz, const Operand &opnd, bool is64BitOnly) const;
   bool OpndDefByMovZero(const Insn &insn) const;
   bool NoPreDefine(Insn &testInsn) const;
   void ProcessBBHandle(BB *processBB, const BB &bb, const Insn &insn) const;
+  bool NoMoreThan32BitUse(Insn &testInsn) const;
   CGCFG *cgcfg = nullptr;
 };
 

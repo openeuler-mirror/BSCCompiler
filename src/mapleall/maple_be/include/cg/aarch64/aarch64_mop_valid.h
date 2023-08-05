@@ -465,6 +465,20 @@ inline bool MOP_xubfizrri6i6Valid(const MapleVector<Operand*> &opnds) {
   }
 }
 
+inline bool MOP_wsbfizrri5i5Valid(const MapleVector<Operand*> &opnds) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
+    int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
+    int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
+    return Lsb5BitValid(lsb) && Width5BitValid(width, lsb);
+  } else {
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ?
+        Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ?
+        Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    return checkThird && checkFourth;
+  }
+}
+
 inline bool MOP_xsbfizrri6i6Valid(const MapleVector<Operand*> &opnds) {
   if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
     int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();

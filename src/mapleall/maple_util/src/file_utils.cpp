@@ -21,6 +21,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include "mpl_logging.h"
+#include "securec.h"
 #include "file_utils.h"
 
 #ifdef _WIN32
@@ -448,6 +449,68 @@ std::string FileUtils::GetCurDirPath() {
   free(cwd);
   cwd = nullptr;
   return path;
+}
+
+static constexpr std::streamsize kASTHeaderSize = 4;
+static constexpr std::streamsize kBlockSize = 4;
+static constexpr std::streamsize kWordSize = 4;
+static constexpr std::streamsize koptStringIdSize = 3;
+static constexpr std::streamsize kmagicNumberSize = 4;
+static constexpr std::streamsize kControlBlockHeadSize = 8;
+static constexpr std::streamsize kOptStringHeader = 5;
+static constexpr std::streamsize kOptStringInfoSize = 4;
+static constexpr std::streamsize kOptStringId = 0x5442;
+static constexpr char kClangASTMagicNum[] = "CPCH";
+size_t FileUtils::GetIntegerFromMem(std::ifstream &fs, char *buffer, std::streamsize bufferSize,
+    bool isNeedChkOptStrId) {
+  (void)fs.read(buffer, bufferSize);
+  if (isNeedChkOptStrId) {
+    // we use optStringId first byte and second byte with last byte low 3bits(0x7U) to compare
+    buffer[bufferSize - 1] = static_cast<uint8_t>(buffer[bufferSize - 1]) & 0x7U;
+  }
+  size_t integerSize = 0;
+  errno_t ret = memcpy_s(&integerSize, sizeof(integerSize), buffer, static_cast<size_t>(bufferSize));
+  CHECK_FATAL(ret == EOK, "get Integer From Memory failed");
+  return integerSize;
+}
+
+void FileUtils::GetOptString(std::ifstream &fs, std::string &optString) {
+  (void)fs.seekg(kOptStringHeader, std::ios::cur);
+  char optStringInfo[kOptStringInfoSize];
+  std::streamsize index = kOptStringInfoSize;
+  while (index == kOptStringInfoSize) {
+    (void)fs.read(optStringInfo, static_cast<std::streamsize>(sizeof(optStringInfo)));
+    index = 0;
+    while (optStringInfo[index] != '\0' && index < kOptStringInfoSize) {
+      optString += optStringInfo[index];
+      index++;
+    }
+  }
+}
+
+std::string FileUtils::GetClangAstOptString(const std::string astFilePath) {
+  std::string optString;
+  std::ifstream fs(astFilePath);
+  if (!fs.is_open()) {
+    return "";
+  }
+  char magicNumber[kmagicNumberSize];
+  (void)fs.read(magicNumber, static_cast<std::streamsize>(sizeof(magicNumber)));
+  if (!memcmp(magicNumber, kClangASTMagicNum, sizeof(magicNumber))) {
+    (void)fs.seekg(kASTHeaderSize, std::ios::cur);
+    char blockInfoBlockSizeInfo[kBlockSize];
+    size_t blockInfoBlockSize = GetIntegerFromMem(fs, blockInfoBlockSizeInfo, kBlockSize, false);
+    (void)fs.seekg(static_cast<std::streamsize>(blockInfoBlockSize * kWordSize) + kControlBlockHeadSize, std::ios::cur);
+    char optStringId[koptStringIdSize];
+    std::streamsize optStringIdInfo =
+        static_cast<std::streamsize>(GetIntegerFromMem(fs, optStringId, koptStringIdSize, true));
+    if (optStringIdInfo == kOptStringId) {
+      GetOptString(fs, optString);
+    }
+  }
+
+  fs.close();
+  return optString;
 }
 
 // Just read a line from the file. It doesn't do anything more.

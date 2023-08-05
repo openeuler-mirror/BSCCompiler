@@ -273,7 +273,6 @@ ErrorCode MplOptions::LtoMergeOptions(int &argc, char **argv, char ***argv1, boo
     return kErrorNoError;
   }
   std::vector<std::vector<std::string>> optVec;
-  std::string sectionName = "LTO_OPTION";
   std::vector<std::string> finalOptVec;
   finalOptVec.push_back(std::string(*argv));
   for (auto &inputFile : inputInfos) {
@@ -288,17 +287,13 @@ ErrorCode MplOptions::LtoMergeOptions(int &argc, char **argv, char ***argv1, boo
       continue;
     }
     filePath = FileUtils::GetRealPath(inputFile->GetInputFile());
-    filePath = StringUtils::GetStrBeforeLast(filePath, ".")  + ".option";
-    if (!FileUtils::IsFileExists(filePath)) {
-      return kErrorNoOptionFile;
-    }
-    FileReader *fileReader = new FileReader(filePath);
     std::vector<std::string> optionVec;
-    std::string optLine = fileReader->GetLine(sectionName);
-    optLine = StringUtils::GetStrAfterFirst(optLine, kWhitespaceStr);
+    std::string optLine = FileUtils::GetClangAstOptString(filePath);
+    if (StringUtils::StartsWith(optLine, "\"") && StringUtils::EndsWith(optLine, "\"")) {
+      (void)optLine.erase(optLine.begin());
+      optLine.pop_back();
+    }
     StringUtils::Split(optLine, optionVec, kWhitespaceChar);
-    delete fileReader;
-    fileReader = nullptr;
     optVec.push_back(optionVec);
   }
   if (optVec.empty()) {
@@ -321,7 +316,7 @@ ErrorCode MplOptions::LtoMergeOptions(int &argc, char **argv, char ***argv1, boo
   return kErrorNoError;
 }
 
-void MplOptions::LtoWritePicPie(const std::string &optName, std::string &ltoOptSection, bool &pic, bool &pie) const {
+void MplOptions::LtoWritePicPie(const std::string &optName, std::string &ltoOptString, bool &pic, bool &pie) const {
   std::string optName1 = "";
   bool isPic = false;
   if (!pic && (optName == "-fpic" || optName == "-fPIC")) {
@@ -330,7 +325,7 @@ void MplOptions::LtoWritePicPie(const std::string &optName, std::string &ltoOptS
   } else if (!pie && (optName == "-fpie" || optName == "-fPIE")) {
         pie = true;
   } else {
-    ltoOptSection += optName + kWhitespaceStr;
+    ltoOptString += optName + kWhitespaceStr;
     return;
   }
   if (CGOptions::GetPICMode() == maplebe::CGOptions::kClose) {
@@ -340,63 +335,40 @@ void MplOptions::LtoWritePicPie(const std::string &optName, std::string &ltoOptS
   } else {
     optName1 = isPic ? "-fPIC" : "-fPIE";
   }
-  ltoOptSection += optName1 + kWhitespaceStr;
+  ltoOptString += optName1 + kWhitespaceStr;
 }
 
 ErrorCode MplOptions::LtoWriteOptions() {
   if (!(opts::linkerTimeOpt.IsEnabledByUser() && opts::compileWOLink.IsEnabledByUser())) {
     return kErrorNoError;
   }
-  std::string ltoOptSection = "LTO_OPTIONS: ";
+  optString = "\"";
+  isLto = true;
   bool pic = false;
   bool pie = false;
   for (size_t i = 0; i < driverCategory.GetEnabledOption().size(); ++i) {
     auto option = driverCategory.GetEnabledOption()[i];
     std::string optName = option->GetName();
-    if ((option->GetOptType() & (opts::kOptFront | opts::kOptDriver | opts::kOptLd)) &&
-       !(option->GetOptType() & opts::kOptNotFiltering)) {
+    if (((option->GetOptType() & (opts::kOptFront | opts::kOptDriver | opts::kOptLd)) != 0) &&
+        ((option->GetOptType() & opts::kOptNotFiltering) == 0)) {
       continue;
     }
-    if ((option->GetOptType() & opts::kOptNone) && optName != "-foffload-options") {
+    if (((option->GetOptType() & opts::kOptNone) != 0) && optName != "-foffload-options") {
       continue;
     }
     if (option->ExpectedVal() == maplecl::ValueExpectedType::kValueRequired) {
       size_t len = option->GetRawValues().size() - 1;
       if (option->IsJoinedValPermitted() || StringUtils::EndsWith(optName, "=")) {
-        ltoOptSection = ltoOptSection + kWhitespaceStr + optName + option->GetRawValues()[len] + kWhitespaceStr;
+        optString = optString + kWhitespaceStr + optName + option->GetRawValues()[len] + kWhitespaceStr;
       } else {
-        ltoOptSection = ltoOptSection + kWhitespaceStr + optName + "=" + option->GetRawValues()[len] + kWhitespaceStr;
+        optString = optString + kWhitespaceStr + optName + "=" + option->GetRawValues()[len] + kWhitespaceStr;
       }
     } else {
-      LtoWritePicPie(optName, ltoOptSection, pic, pie);
+      LtoWritePicPie(optName, optString, pic, pie);
     }
   }
-  for (auto &inputFile : inputInfos) {
-    std::string filePath = FileUtils::GetCurDirPath() + "/" + inputFile->GetInputName();
-    // xx.o -> xxx.
-    filePath.pop_back();
-    if (opts::output.IsEnabledByUser()) {
-      if (StringUtils::StartsWith(opts::output.GetValue(), "/")) {
-        filePath = opts::output.GetValue();
-        filePath.pop_back();
-      } else {
-        std::string tmp = StringUtils::GetStrBeforeLast(opts::output.GetValue(), ".");
-        filePath = FileUtils::GetCurDirPath() + kFileSeperatorStr + tmp + ".";
-      }
-    }
-    (void)filePath.append("option");
-    if (!FileUtils::CreateFile(filePath)) {
-      return kErrorCreateFile;
-    }
-    // Temporary file writing scheme. This operation is performed by the front end.
-    std::ofstream fileWrite;
-    fileWrite.open(filePath);
-    if (!fileWrite) {
-      return kErrorFileNotFound;
-    }
-    fileWrite << ltoOptSection << std::endl;
-    fileWrite.close();
-  }
+  optString.pop_back();
+  optString += "\"";
   return kErrorNoError;
 }
 

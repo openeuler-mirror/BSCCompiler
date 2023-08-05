@@ -171,8 +171,8 @@ class CGLowerer {
   BaseNode *LowerArray(ArrayNode &array, const BaseNode &parent);
   BaseNode *LowerCArray(ArrayNode &array);
 
-  DassignNode *SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID, StmtNode *&beforeStmt);
-  BaseNode *NeedRetypeWhenLowerCallAssigned(PrimType pType, StmtNode *&beforeStmt);
+  DassignNode *SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID);
+  BaseNode *NeedRetypeWhenLowerCallAssigned(PrimType pType);
   void LowerCallStmt(StmtNode &stmt, StmtNode *&nextStmt, BlockNode &newBlk, MIRType *retty = nullptr,
                      bool uselvar = false, bool isIntrinAssign = false);
   BlockNode *LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode &intrinsicCall);

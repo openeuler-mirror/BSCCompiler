@@ -694,10 +694,24 @@ bool CgPrePeepHole1::PhaseRun(maplebe::CGFunc &f) {
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole1, prepeephole1)
 
 bool CgPeepHole0::PhaseRun(maplebe::CGFunc &f) {
+  ReachingDefinition *reachingDef = nullptr;
+  if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2) {
+    reachingDef = GET_ANALYSIS(CgReachingDefinition, f);
+  }
+  if (reachingDef == nullptr || !f.GetRDStatus()) {
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgReachingDefinition::id);
+    return false;
+  }
+
   auto *peep = GetPhaseMemPool()->New<PeepHoleOptimizer>(&f);
   CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
   peep->Peephole0();
   return false;
+}
+
+void CgPeepHole0::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<CgReachingDefinition>();
+  aDep.SetPreservedAll();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole0, peephole0)
 #endif

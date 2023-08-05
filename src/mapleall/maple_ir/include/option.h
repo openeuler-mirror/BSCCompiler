@@ -90,6 +90,8 @@ class Options {
   static std::string noIpaCloneFuncList;
   static std::string importFileList;
   static bool useCrossModuleInline;
+  static std::string inlineMpltDir;
+  static bool importInlineMplt;
   static uint32 numOfCloneVersions;
   static uint32 numOfImpExprLowBound;
   static uint32 numOfImpExprHighBound;

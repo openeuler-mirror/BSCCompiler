@@ -399,7 +399,7 @@ void CommandLine::HelpPrinter(OptionCategory &optCategory) const {
 }
 
 void CommandLine::AddLinkOption(const OptionInterface &opt, const KeyArg &keyArg) {
-  if (!(opt.GetOptType() & KOptLd)) {
+  if ((opt.GetOptType() & KOptLd) == 0) {
     return;
   }
   if (keyArg.key == "-specs" && std::find(linkOptions.begin(), linkOptions.end(), keyArg.val) != linkOptions.end()) {

@@ -499,7 +499,11 @@ void BinaryMplImport::Reset() {
 
 TypeAttrs BinaryMplImport::ImportTypeAttrs() {
   TypeAttrs ta;
-  ta.SetAttrFlag(static_cast<uint64>(ReadNum()));
+  SimpleBitSet<kTypeAttrFlagNum> tmpTypeFlag;
+  for (size_t i = 0; i < ta.GetAttrFlag().GetWordSize(); ++i) {
+    tmpTypeFlag.SetWord(i, static_cast<uint64>(ReadNum()));
+  }
+  ta.SetAttrFlag(tmpTypeFlag);
   ta.SetAlignValue(static_cast<uint8>(ReadNum()));
   ta.SetPack(static_cast<uint32>(ReadNum()));
   return ta;
@@ -1099,7 +1103,11 @@ PUIdx BinaryMplImport::ImportFunction() {
       GStrIdx strIdx = ImportStr();
       TyIdx tyIdx = mod.IsJavaModule() ? ImportType() : ImportTypeNonJava();
       FormalDef formalDef(strIdx, nullptr, tyIdx, TypeAttrs());
-      formalDef.formalAttrs.SetAttrFlag(static_cast<uint64>(ReadNum()));
+      SimpleBitSet<kTypeAttrFlagNum> tmpTypeFlag;
+      for (size_t j = 0; j < formalDef.formalAttrs.GetAttrFlag().GetWordSize(); ++j) {
+        tmpTypeFlag.SetWord(j, static_cast<uint64>(ReadNum()));
+      }
+      formalDef.formalAttrs.SetAttrFlag(tmpTypeFlag);
       func->GetFormalDefVec().push_back(formalDef);
     }
   } else {
@@ -1107,7 +1115,11 @@ PUIdx BinaryMplImport::ImportFunction() {
     for (size_t i = 0; i < size; i++) {
       func->GetFormalDefVec()[i].formalStrIdx = ImportStr();
       func->GetFormalDefVec()[i].formalTyIdx = mod.IsJavaModule() ? ImportType() : ImportTypeNonJava();
-      func->GetFormalDefVec()[i].formalAttrs.SetAttrFlag(static_cast<uint64>(ReadNum()));
+      SimpleBitSet<kTypeAttrFlagNum> tmpTypeFlag;
+      for (size_t j = 0; j < func->GetFormalDefVec()[i].formalAttrs.GetAttrFlag().GetWordSize(); ++j) {
+        tmpTypeFlag.SetWord(j, static_cast<uint64>(ReadNum()));
+      }
+      func->GetFormalDefVec()[i].formalAttrs.SetAttrFlag(tmpTypeFlag);
     }
   }
 

@@ -24,22 +24,6 @@
 #include "opcode_info.h"
 
 namespace maple {
-std::string GetNthStr(size_t index) {
-  switch (index) {
-    case 0:
-      return "1st";
-    case 1:
-      return "2nd";
-    case 2:
-      return "3rd";
-    default: {
-      std::ostringstream oss;
-      oss << index + 1 << "th";
-      return oss.str();
-    }
-  }
-}
-
 inline static bool HandleAssertNonnull(const MeStmt &stmt, const MIRModule &mod, const MeFunction &func) {
   auto srcPosition = stmt.GetSrcPosition();
   auto &newStmt = static_cast<const AssertNonnullMeStmt &>(stmt);

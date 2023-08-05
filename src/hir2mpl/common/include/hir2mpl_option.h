@@ -31,6 +31,8 @@ extern maplecl::Option<std::string> inAst;
 extern maplecl::Option<std::string> inMast;
 extern maplecl::Option<std::string> output;
 extern maplecl::Option<std::string> outputName;
+extern maplecl::Option<std::string> inlineMpltDir;
+extern maplecl::Option<bool> exportInlineMplt;
 extern maplecl::Option<bool> mpltOnly;
 extern maplecl::Option<bool> asciimplt;
 extern maplecl::Option<bool> dumpInstComment;

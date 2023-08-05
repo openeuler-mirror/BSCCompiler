@@ -3144,7 +3144,7 @@ void Emitter::EmitMethodFieldSequential(const MIRSymbol &mirSymbol,
 
 void Emitter::EmitTLSBlockTdata(const MapleVector<MIRSymbol*> &tdataVec) {
   Emit("\t.section\t.tdata,\"awT\",@progbits\n");
-  Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
+  Emit(asmInfo->GetAlign()).Emit(kOffsetAlignmentOf128Bit).Emit("\n");
   if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
     InsertAnchor("tls_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
   } else {
@@ -3188,7 +3188,7 @@ void Emitter::EmitTLSBlockTdata(const MapleVector<MIRSymbol*> &tdataVec) {
 
 void Emitter::EmitTLSBlockTbss(const MapleVector<MIRSymbol*> &tbssVec, bool tdataExist) {
   Emit("\t.section\t.tbss,\"awT\",@nobits\n");
-  Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
+  Emit(asmInfo->GetAlign()).Emit(kOffsetAlignmentOf128Bit).Emit("\n");
   if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
     if (!tdataExist) {
       InsertAnchor("tls_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);

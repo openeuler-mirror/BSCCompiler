@@ -3077,8 +3077,9 @@ MapleGenericAttrs ASTParser::SolveFunctionAttributes(MapleAllocator &allocator, 
   astFile->CollectFuncAttrs(funcDecl, attrs, kPublic);
   // for inline optimize
   if ((attrs.GetAttr(GENATTR_static) || ASTUtil::IsFuncMustBeDeleted(attrs)) &&
-      FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    if (FEOptions::GetInstance().GetWPAA() && FEOptions::GetInstance().IsEnableFuncMerge()) {
+      FEOptions::GetInstance().NeedMangling()) {
+    if (FEOptions::GetInstance().GetWPAA() && FEOptions::GetInstance().IsEnableFuncMerge() &&
+        !FEOptions::GetInstance().IsExportInlineMplt()) {
       astFile->BuildStaticFunctionLayout(funcDecl, funcName);
     } else {
       funcName = funcName + astFile->GetAstFileNameHashStr();
@@ -3127,7 +3128,7 @@ ASTFunc *ASTParser::BuildAstFunc(MapleAllocator &allocator, const clang::Functio
     MapleVector<ASTDecl*> paramDecls = SolveFuncParameterDecls(allocator, funcDecl, typeDescIn,
                                                                implicitStmts, needBody);
     MapleGenericAttrs attrs = SolveFunctionAttributes(allocator, funcDecl, funcName);
-    bool isInlineDefinition = ASTUtil::IsFuncMustBeDeleted(attrs) && FEOptions::GetInstance().GetFuncInlineSize() != 0;
+    bool isInlineDefinition = ASTUtil::IsFuncMustBeDeleted(attrs) && FEOptions::GetInstance().NeedMangling();
     std::string originFuncName = GetFuncNameFromFuncDecl(funcDecl);
     if (needDefDeMangledVer && isInlineDefinition) {
       astFunc = ASTDeclsBuilder::GetInstance(allocator).ASTFuncBuilder(allocator, fileName, originFuncName,
@@ -3333,7 +3334,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   MapleGenericAttrs attrs(allocator);
   astFile->CollectVarAttrs(decl, attrs, kNone);
   // for inline optimize
-  if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
+  if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().NeedMangling()) {
     varName = varName + astFile->GetAstFileNameHashStr();
   }
   if (varType->IsMIRIncompleteStructType() && !attrs.GetAttr(GENATTR_extern)) {

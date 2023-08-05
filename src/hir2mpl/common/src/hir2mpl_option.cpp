@@ -73,6 +73,14 @@ maplecl::Option<std::string> outputName({"--output-name", "-o"},
     "  -o, -output-name    : output name",
     {hir2mplCategory});
 
+maplecl::Option<std::string> inlineMpltDir({"--inlinempltdir"},
+    "  --inlinempltdir    : inline mplt dir",
+    {hir2mplCategory});
+
+maplecl::Option<bool> exportInlineMplt({"--exportinlinemplt"},
+    "  --exportinlinemplt    : export inline mplt",
+    {hir2mplCategory});
+
 maplecl::Option<bool> mpltOnly({"--t", "-t"},
     "  -t    : generate mplt only",
     {hir2mplCategory});

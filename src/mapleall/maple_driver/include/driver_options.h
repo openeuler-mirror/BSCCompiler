@@ -62,7 +62,6 @@ extern maplecl::Option<bool> o3;
 extern maplecl::Option<bool> os;
 extern maplecl::Option<bool> verify;
 extern maplecl::Option<bool> decoupleStatic;
-extern maplecl::Option<bool> bigEndian;
 extern maplecl::Option<bool> gcOnly;
 extern maplecl::Option<bool> timePhase;
 extern maplecl::Option<bool> genMeMpl;
@@ -131,13 +130,11 @@ extern maplecl::Option<bool> dumpTime;
 extern maplecl::Option<bool> aggressiveTlsLocalDynamicOpt;
 extern maplecl::Option<bool> aggressiveTlsLocalDynamicOptMultiThread;
 extern maplecl::Option<bool> aggressiveTlsSafeAnchor;
-extern maplecl::Option<std::string> aggressiveTlsWarmupFunction;
 extern maplecl::Option<bool> oDumpversion;
 extern maplecl::Option<bool> oWnounusedcommandlineargument;
 extern maplecl::Option<bool> oWnoconstantconversion;
 extern maplecl::Option<bool> oWnounknownwarningoption;
 extern maplecl::Option<bool> oW;
-extern maplecl::Option<bool> oWabi;
 extern maplecl::Option<bool> oWabiTag;
 extern maplecl::Option<bool> oWaddrSpaceConvert;
 extern maplecl::Option<bool> oWaddress;
@@ -1497,7 +1494,6 @@ extern maplecl::Option<bool> oMprologueEpilogue;
 extern maplecl::Option<bool> oMprototype;
 extern maplecl::Option<bool> oMpureCode;
 extern maplecl::Option<bool> oMpushArgs;
-extern maplecl::Option<std::string> oMQ;
 extern maplecl::Option<bool> oMqClass;
 extern maplecl::Option<bool> oMquadMemory;
 extern maplecl::Option<bool> oMquadMemoryAtomic;
@@ -2091,6 +2087,8 @@ extern maplecl::Option<std::string> functionReorderProfile;
 extern maplecl::Option<std::string> oA;
 extern maplecl::Option<std::string> oWeakReferenceMismatches;
 extern maplecl::Option<std::string> rootPath;
+extern maplecl::Option<std::string> aggressiveTlsWarmupFunction;
+extern maplecl::Option<std::string> oMQ;
 
 /* ##################### DIGITAL Options ############################################################### */
 

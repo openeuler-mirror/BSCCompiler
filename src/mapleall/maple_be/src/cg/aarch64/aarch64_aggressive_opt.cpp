@@ -498,20 +498,43 @@ bool AArch64CombineRedundantX16Opt::HasUseOpndReDef(const Insn &insn) const {
   return false;
 }
 
+// 1. For recentX16DefInsn, the mop are in {movri, addrrr, addrri, addrrre}
+// 2. For other insn, we need to check every operand of insn
 bool AArch64CombineRedundantX16Opt::HasX16Use(const Insn &insn) const{
-  MOperator mop = insn.GetMachineOpcode();
-  if (mop == MOP_wmovri32 || mop == MOP_xmovri64) {
-    return false;
-  } else if (mop == MOP_waddrrr || mop == MOP_xaddrrr) {
-    auto &srcOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-    auto &srcOpnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-    if (srcOpnd1.GetRegisterNumber() == R16 || srcOpnd2.GetRegisterNumber() == R16) {
-      return true;
+  uint32 opndNum = insn.GetOperandSize();
+  for (uint32 i = 0; i < opndNum; ++i) {
+    if (!insn.OpndIsUse(i)) {
+      continue;
     }
-  } else {
-    auto &useOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-    if (useOpnd.GetRegisterNumber() == R16) {
-      return true;
+    Operand &opnd = insn.GetOperand(i);
+    switch (opnd.GetKind()) {
+      case Operand::kOpdRegister: {
+        if (static_cast<RegOperand&>(opnd).GetRegisterNumber() == R16) {
+          return true;
+        }
+        break;
+      }
+      case Operand::kOpdMem: {
+        RegOperand *baseOpnd = static_cast<MemOperand&>(opnd).GetBaseRegister();
+        if (baseOpnd != nullptr && baseOpnd->GetRegisterNumber() == R16) {
+          return true;
+        }
+        RegOperand *indexOpnd = static_cast<MemOperand&>(opnd).GetIndexRegister();
+        if (indexOpnd != nullptr && indexOpnd->GetRegisterNumber() == R16) {
+          return true;
+        }
+        break;
+      }
+      case Operand::kOpdList: {
+        for (auto *opndElem : static_cast<ListOperand&>(opnd).GetOperands()) {
+          if (opndElem->GetRegisterNumber() == R16) {
+            return true;
+          }
+        }
+        break;
+      }
+      default:
+        continue;
     }
   }
   return false;

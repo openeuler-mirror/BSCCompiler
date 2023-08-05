@@ -174,8 +174,8 @@ bool FuncMustBeEmitted(const MIRFunction &func) {
 
 const std::string CallInfo::GetCalleeName() const {
   if ((cType >= kCallTypeCall) && (cType <= kCallTypeInterfaceCall)) {
-    MIRFunction &mirf = GetCallee();
-    return mirf.GetName();
+    const MIRFunction *mirf = GetCallee();
+    return mirf->GetName();
   } else if (cType == kCallTypeIcall) {
     return "IcallUnknown";
   } else if ((cType >= kCallTypeIntrinsicCall) && (cType <= kCallTypeIntrinsicCallWithType)) {

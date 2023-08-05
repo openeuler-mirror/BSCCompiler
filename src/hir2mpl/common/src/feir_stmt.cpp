@@ -1957,7 +1957,7 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
   }
   if (ENCChecker::HasNullExpr(expr)) {
     FE_ERR(kLncErr, loc, "null passed to a callee that requires a nonnull argument[the %s argument]",
-           ENCChecker::GetNthStr(index).c_str());
+           GetNthStr(index).c_str());
     return;
   }
   if (expr->GetPrimType() == PTY_ptr) {
@@ -2077,7 +2077,7 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
     }
     if (ENCChecker::HasNullExpr(expr)) {
       FE_ERR(kLncErr, loc, "null passed to a callee that requires a nonnull argument[the %s argument]",
-             ENCChecker::GetNthStr(idx).c_str());
+             GetNthStr(idx).c_str());
       continue;
     }
     if (expr->GetPrimType() == PTY_ptr) {
@@ -2690,7 +2690,7 @@ BaseNode *FEIRExprIRead::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 FEIRExprAddrofConstArray::FEIRExprAddrofConstArray(const std::vector<uint32> &arrayIn, MIRType *typeIn,
                                                    const std::string &strIn)
     : FEIRExpr(FEIRNodeKind::kExprAddrof, FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
-      arrayName(FEOptions::GetInstance().GetFuncInlineSize() != 0 ? FEUtils::GetSequentialName("const_array_") +
+      arrayName(FEOptions::GetInstance().NeedMangling() ? FEUtils::GetSequentialName("const_array_") +
                 FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileNameExceptRootPath()) :
                 FEUtils::GetSequentialName("const_array_")),
       elemType(typeIn),

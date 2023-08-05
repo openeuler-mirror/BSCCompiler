@@ -177,8 +177,8 @@ class CallInfo {
     return caller;
   }
 
-  MIRFunction &GetCallee() const {
-    return *callee;
+  const MIRFunction *GetCallee() const {
+    return callee;
   }
 
   MIRFunction *GetCallee() {

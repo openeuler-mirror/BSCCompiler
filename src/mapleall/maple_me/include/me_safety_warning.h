@@ -17,7 +17,6 @@
 #include "me_function.h"
 #include "opcodes.h"
 namespace maple {
-std::string GetNthStr(size_t index);
 // param: assert stmt, mir module, caller function
 // return True --- delete assert stmt.
 using SafetyWarningHandler = std::function<bool(const MeStmt&, const MIRModule&, const MeFunction&)>;

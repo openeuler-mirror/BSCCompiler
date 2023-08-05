@@ -1262,6 +1262,9 @@ bool AArch64ICOSameCondPattern::CanConvertToSameCond(BB &firstIfBB, BB &secondIf
     return false;
   }
   Insn *cmpInsn2 = FindLastCmpInsn(secondIfBB);
+  if (cmpInsn2 == nullptr) {
+    return false;
+  }
   if (&cmpBrInsn1->GetOperand(kInsnFirstOpnd) != &cmpInsn2->GetOperand(kInsnSecondOpnd)) {
     return false;
   }

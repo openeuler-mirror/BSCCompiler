@@ -1137,7 +1137,7 @@ UniqueFEIRExpr ASTCompoundLiteralExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
 MIRConst *ASTCompoundLiteralExpr::GenerateMIRPtrConst() const {
   CHECK_NULL_FATAL(compoundLiteralType);
   std::string tmpName = FEUtils::GetSequentialName("cle.");
-  if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
+  if (FEOptions::GetInstance().NeedMangling()) {
     tmpName = tmpName + FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileNameExceptRootPath());
   }
   // If a var is pointer type, agg value cannot be directly assigned to it

@@ -99,6 +99,15 @@ maplecl::Option<bool> crossModuleInline({"--cross-module-inline"},
     "  --no-cross-module-inline    \tDisable cross-module inlining\n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-cross-module-inline"));
 
+maplecl::Option<std::string> inlineMpltDir({"--inlinempltdir"},
+    "  --inlinempltdir=list       \tWhere to find the inline mplt files to do cross module inline\n",
+    {mpl2mplCategory});
+
+maplecl::Option<bool> importInlineMplt({"--importinlinemplt"},
+    "  --importinlinemplt       \tImport inline mplt files to do cross module inline\n"
+    "  --no-importinlinemplt    \tDo not import inline mply files\n",
+    {mpl2mplCategory}, maplecl::DisableWith("--no-importinlinemplt"));
+
 maplecl::Option<uint32_t> inlineSmallFunctionThreshold({"--inline-small-function-threshold"},
     "  --inline-small-function-threshold=15  \tThreshold for inlining small function\n",
     {mpl2mplCategory});

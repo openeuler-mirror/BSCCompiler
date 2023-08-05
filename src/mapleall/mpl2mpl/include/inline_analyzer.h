@@ -28,7 +28,7 @@
 #include "string_utils.h"
 
 namespace maple {
-bool CalleeCanBeRemovedIfInlined(const CallInfo &info, const CallGraph &cg);
+bool CalleeCanBeRemovedIfInlined(CallInfo &info, const CallGraph &cg);
 bool CanCGNodeBeRemovedIfNoDirectCalls(const CGNode &cgNode);
 bool ShouldBeInlinedToAllCallers(const CGNode &calleeCgNode, std::vector<CallInfo*> &callInfos, const CallGraph &cg);
 std::pair<bool, int32> EstimateGrowthIfInlinedToAllCallers(const CGNode &calleeCgNode, const CallGraph &cg,

@@ -328,6 +328,9 @@ void CGProfUse::LayoutBBwithProfile() {
 }
 
 bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
+  if (Globals::GetInstance()->GetOptimLevel() < CGOptions::kLevel2) {
+    return false;
+  }
   CHECK_FATAL(f.NumBBs() < LiteProfile::GetBBNoThreshold(), "stop ! bb out of range!");
   if (!LiteProfile::IsInWhiteList(f.GetName())) {
     return false;

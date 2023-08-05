@@ -902,22 +902,22 @@ std::optional<uint32> GetFuncSize(const MIRFunction &func) {
 }
 
 // called before performing inline
-bool CalleeCanBeRemovedIfInlined(const CallInfo &info, const CallGraph &cg) {
-  auto &callee = info.GetCallee();
-  auto *calleeNode = cg.GetCGNode(&callee);
+bool CalleeCanBeRemovedIfInlined(CallInfo &info, const CallGraph &cg) {
+  auto *callee = info.GetCallee();
+  auto *calleeNode = cg.GetCGNode(callee);
   CHECK_NULL_FATAL(calleeNode);
   bool calledOnce = calleeNode->NumberOfUses() == 1 && calleeNode->NumReferences() == 1 && !calleeNode->IsAddrTaken();
   if (!calledOnce) {
     return false;
   }
-  bool localAccess = callee.IsStatic() || (callee.IsInline() && !callee.IsExtern());
+  bool localAccess = callee->IsStatic() || (callee->IsInline() && !callee->IsExtern());
   return localAccess;
 }
 
 double ComputeUninlinedTimeCost(const CallInfo &callInfo, double callFreqPercent) {
   auto *callerSummary = callInfo.GetCaller()->GetInlineSummary();
   CHECK_NULL_FATAL(callerSummary);
-  auto *calleeSummary = callInfo.GetCallee().GetInlineSummary();
+  auto *calleeSummary = callInfo.GetCallee()->GetInlineSummary();
   CHECK_NULL_FATAL(calleeSummary);
   // `callerTime` includes time for preparing call
   const double callerTime = callerSummary->GetStaticCycles();
@@ -1022,13 +1022,14 @@ void CalcBadnessImpl(CallInfo &info, const CallGraph &cg, BadnessInfo &outBadInf
   CHECK_FATAL(timeSaved >= 0, "should be");
   double scaledTimeSaved = ScaleTimeSaved(timeSaved);
 
-  auto *calleeNode = cg.GetCGNode(info.GetCallee());
+  MIRFunction *calleeFunc = info.GetCallee();
+  auto *calleeNode = cg.GetCGNode(calleeFunc);
   int32 overallGrowth = EstimateGrowthIfInlinedToAllCallers(*calleeNode, cg, nullptr).second;
   int32 overallFactor = ComputeOverallFactor(overallGrowth);
   auto badness = -scaledTimeSaved / (static_cast<double>(sizeGrowth) * combinedSize * overallFactor);
   badInfo->origBadness = badness;
   badInfo->overallGrowth = overallGrowth;
-  if (info.GetCallee()->GetAttr(FUNCATTR_inline)) {
+  if (calleeFunc->GetAttr(FUNCATTR_inline)) {
     // Scale down badness for decalared_inline callee
     constexpr uint32 factor = 4;
     badness = ScaleDownBadness(badness, factor);

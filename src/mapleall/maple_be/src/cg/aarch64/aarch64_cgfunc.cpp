@@ -1238,7 +1238,7 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
   RegOperand &baseReg = LoadIntoRegister(*opnd0, PTY_a64);
   auto &zwr = GetZeroOpnd(k32BitSize);
   auto &mem = CreateMemOpnd(baseReg, 0, k32BitSize);
-  Insn &loadRef = GetInsnBuilder()->BuildInsn(MOP_wldr, zwr, mem);
+  Insn &loadRef = GetInsnBuilder()->BuildInsn(MOP_assert_nonnull, zwr, mem);
   loadRef.SetDoNotRemove(true);
   if (GetCG()->GenerateVerboseCG()) {
     loadRef.SetComment("null pointer check");
@@ -6007,30 +6007,12 @@ void AArch64CGFunc::SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, 
                    : ((fsize == k8BitSize) ? MOP_xsxtb32 : MOP_xsxth32));
       GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, *resOpnd, *opnd0));
     } else {
-      /* Unsigned */
-      if (is64Bit) {
-        if (fsize == k8BitSize) {
-          ImmOperand &immOpnd = CreateImmOperand(0xff, k64BitSize, false);
-          GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xandrri13, *resOpnd, *opnd0, immOpnd));
-        } else if (fsize == k16BitSize) {
-          ImmOperand &immOpnd = CreateImmOperand(0xffff, k64BitSize, false);
-          GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xandrri13, *resOpnd, *opnd0, immOpnd));
-        } else {
-          GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(MOP_xuxtw64, *resOpnd, *opnd0));
-        }
-      } else {
-        ASSERT(((fsize == k8BitSize) || (fsize == k16BitSize)), "incorrect from size");
-        if (fsize == k8BitSize) {
-          static_cast<RegOperand*>(opnd0)->SetValidBitsNum(k8BitSize);
-          static_cast<RegOperand*>(resOpnd)->SetValidBitsNum(k8BitSize);
-        }
-        if (fromType == PTY_u1) {
-          static_cast<RegOperand*>(opnd0)->SetValidBitsNum(1);
-          static_cast<RegOperand*>(resOpnd)->SetValidBitsNum(1);
-        }
-        GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(
-            (fsize == k8BitSize) ? MOP_xuxtb32 : MOP_xuxth32, *resOpnd, *opnd0));
-      }
+      // Unsigned
+      ASSERT((is64Bit || (fsize == k8BitSize || fsize == k16BitSize)), "incorrect from size");
+      MOperator mOp =
+          (is64Bit ? ((fsize == k8BitSize) ? MOP_xuxtb32 : ((fsize == k16BitSize) ? MOP_xuxth32 : MOP_xuxtw64)) :
+                     ((fsize == k8BitSize) ? MOP_xuxtb32 : MOP_xuxth32));
+      GetCurBB()->AppendInsn(GetInsnBuilder()->BuildInsn(mOp, *resOpnd, *opnd0));
     }
   } else {  /* Same size or truncate */
 #ifdef CNV_OPTIMIZE
@@ -8887,7 +8869,8 @@ RegOperand &AArch64CGFunc::GetOrCreateSpecialRegisterOperand(PregIdx sregIdx, Pr
   }
   uint32 bitSize = GetPrimTypeBitSize(primType);
   bitSize = bitSize <= k32BitSize ? k32BitSize : bitSize;
-  return GetOrCreatePhysicalRegisterOperand(pReg, bitSize, GetRegTyFromPrimTy(primType));
+  auto &phyOpnd = GetOrCreatePhysicalRegisterOperand(pReg, bitSize, GetRegTyFromPrimTy(primType));
+  return SelectCopy(phyOpnd, primType, primType);   // most opt only deal vreg, so return a vreg
 }
 
 RegOperand &AArch64CGFunc::GetOrCreatePhysicalRegisterOperand(std::string &asmAttr) {

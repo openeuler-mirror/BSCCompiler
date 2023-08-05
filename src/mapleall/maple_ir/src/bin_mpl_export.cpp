@@ -508,7 +508,9 @@ void BinaryMplExport::OutputFieldPair(const FieldPair &fp) {
   OutputStr(fp.first);          // GStrIdx
   OutputType(fp.second.first);  // TyIdx
   FieldAttrs fa = fp.second.second;
-  WriteNum(static_cast<int64>(fa.GetAttrFlag()));
+  for (size_t i = 0; i < fa.GetAttrFlag().GetWordSize(); ++i) {
+    WriteNum(static_cast<int64>(fa.GetAttrFlag().GetWord(i)));
+  }
   WriteNum(fa.GetAlignValue());
   if (fa.GetAttr(FLDATTR_static) && fa.GetAttr(FLDATTR_final) &&
       (fa.GetAttr(FLDATTR_public) || fa.GetAttr(FLDATTR_protected))) {
@@ -709,7 +711,10 @@ void BinaryMplExport::OutputFunction(PUIdx puIdx) {
   for (FormalDef formalDef : func->GetFormalDefVec()) {
     OutputStr(formalDef.formalStrIdx);
     OutputType(formalDef.formalTyIdx);
-    WriteNum(static_cast<int64>(formalDef.formalAttrs.GetAttrFlag()));
+    auto tmpTypeAttrFlag = formalDef.formalAttrs.GetAttrFlag();
+    for (size_t i = 0; i < tmpTypeAttrFlag.GetWordSize(); ++i) {
+      WriteNum(static_cast<int64>(tmpTypeAttrFlag.GetWord(i)));
+    }
   }
   //  store Side Effect for each func
   if (func2SEMap) {
@@ -1307,7 +1312,10 @@ void BinaryMplExport::OutputTypePairs(const MIRInstantVectorType &type) {
 }
 
 void BinaryMplExport::OutputTypeAttrs(const TypeAttrs &ta) {
-  WriteNum(ta.GetAttrFlag());
+  auto tmpTypeAttrFlag = ta.GetAttrFlag();
+  for (size_t i = 0; i < tmpTypeAttrFlag.GetWordSize(); ++i) {
+    WriteNum(static_cast<int64>(tmpTypeAttrFlag.GetWord(i)));
+  }
   WriteNum(ta.GetAlignValue());
   WriteNum(ta.GetPack());
 }

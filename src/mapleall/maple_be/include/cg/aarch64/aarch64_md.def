@@ -382,7 +382,9 @@ DEFINE_MOP(MOP_wubfizrri5i5, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc:
 /* MOP_xubfizrri6i6 */
 DEFINE_MOP(MOP_xubfizrri6i6, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm6, &OpndDesc::Imm6}, 0, kLtAluShift, "ubfiz", "0,1,2,3", 1, MOP_xubfizrri6i6Valid)
 
-/* MOP_xsbfizrri6i6 Signed Bitfield Insert in Zero */
+/* MOP_wsbfizrri5i5 Signed Bitfield Insert in Zero */
+DEFINE_MOP(MOP_wsbfizrri5i5, {&OpndDesc::Reg32ID, &OpndDesc::Reg32IS, &OpndDesc::Imm5, &OpndDesc::Imm5}, 0, kLtAluShift, "sbfiz", "0,1,2,3", 1, MOP_wsbfizrri5i5Valid)
+/* MOP_xsbfizrri6i6 */
 DEFINE_MOP(MOP_xsbfizrri6i6, {&OpndDesc::Reg64ID, &OpndDesc::Reg64IS, &OpndDesc::Imm6, &OpndDesc::Imm6}, 0, kLtAluShift, "sbfiz", "0,1,2,3", 1, MOP_xsbfizrri6i6Valid)
 
 /* MOP_wbfirri5i5 -- Bitfield Insert */
@@ -1564,6 +1566,9 @@ DEFINE_MOP(MOP_pseudo_ret_float, {&OpndDesc::Reg64FS}, 0, kLtUndef, "//MOP_pseud
 /* MOP_pseudo_eh_def_x, */
 DEFINE_MOP(MOP_pseudo_eh_def_x, {&OpndDesc::Reg64ID}, 0, kLtUndef, "//MOP_pseudo_eh_def_x", "0", 0)
 
+/* The semantics of assert_nonnull is similar to call, and cannot be scheduled. */
+/* MOP_ret_assert_nonnull, */
+DEFINE_MOP(MOP_assert_nonnull, {&OpndDesc::Reg32ID, &OpndDesc::Mem32S}, ISLOAD | CANTHROW | ISCALL, kLtUndef, "ldr", "0,1", 1, MOP_wldrValid, MOP_wldrSplit)
 /*MOP_nop */
 DEFINE_MOP(MOP_nop, {}, ISNOP, kLtAlu, "nop", "", 1)
 

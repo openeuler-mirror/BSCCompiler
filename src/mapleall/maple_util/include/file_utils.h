@@ -89,6 +89,19 @@ class FileUtils {
     CHECK_FATAL(std::remove(path.c_str()) == 0, "remove file failed, filename: %s.", path.c_str());
   };
   static std::string GetCurDirPath();
+  static std::string GetClangAstOptString(const std::string astFilePath);
+  static size_t GetIntegerFromMem(std::ifstream &fs, char *buffer, std::streamsize bufferSize,
+      bool isNeedChkOptStrId);
+  static void GetOptString(std::ifstream &fs, std::string &optString);
+
+  static std::string GetFileNameHashStr(const std::string &str) {
+    uint32 hash = 0;
+    uint32 seed = 211;
+    for (auto name : str) {
+      hash = hash * seed + static_cast<unsigned char>(name);
+    }
+    return std::to_string(hash);
+  }
 
   const std::string &GetTmpFolder() const {
     return tmpFolderPath;

@@ -204,7 +204,7 @@ class OptionInterface {
   bool HasMultipleName() const {
     return names.size() > 1;
   }
-  const OptType GetOptType() const {
+  const std::uint32_t GetOptType() const {
     return optType;
   }
 
@@ -221,7 +221,7 @@ class OptionInterface {
   ValueExpectedType valueExpected = ValueExpectedType::kValueRequired;  // whether the value is expected
   ValueJoinedType valueJoined = ValueJoinedType::kValueSeparated;     // Joined option like -DMACRO
   OptionVisibilityType visibleOption = OptionVisibilityType::kVisibleOption; // Visible in Help
-  OptType optType = OptType::KOptNone;
+  std::uint32_t optType = OptType::KOptNone;
 
   EqualType equalSign = EqualType::kWithoutEqual;
 };
@@ -427,8 +427,8 @@ class Option : public OptionInterface {
     }
   }
 
-  void SetOptType(const int optionType) {
-    optType = static_cast<OptType>(optionType);
+  void SetOptType(const std::uint32_t optionType) {
+    optType = optionType;
   }
 
   void SetOptType(const OptType optionType) {

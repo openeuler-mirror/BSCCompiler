@@ -337,6 +337,14 @@ class MplOptions {
     return isAllAst;
   }
 
+  bool GetIsLto() const {
+    return isLto;
+  }
+
+  const std::string &GetOptString() const {
+    return optString;
+  }
+
   maplecl::OptionCategory *GetCategory(const std::string &tool) const;
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
@@ -357,7 +365,7 @@ class MplOptions {
   ErrorCode LtoWriteOptions();
   ErrorCode LtoMergeOptions(int &argc, char **argv, char ***argv1, bool &isNeedParse);
   ErrorCode MergeOptions(std::vector<std::vector<std::string>> optVec, std::vector<std::string> &finalOptVec) const;
-  void LtoWritePicPie(const std::string &optName, std::string &ltoOptSection, bool &pic, bool &pie) const;
+  void LtoWritePicPie(const std::string &optName, std::string &ltoOptString, bool &pic, bool &pie) const;
   void AddOptions(int argc, char **argv, std::vector<std::string> &finalOptVec) const;
   void HandleSafeOptions();
   void HandleExtraOptions();
@@ -398,6 +406,8 @@ class MplOptions {
   bool hasPrinted = false;
   bool generalRegOnly = false;
   bool isAllAst = false;
+  bool isLto = false;
+  std::string optString = "";
   SafetyCheckMode npeCheckMode = SafetyCheckMode::kNoCheck;
   SafetyCheckMode boundaryCheckMode = SafetyCheckMode::kNoCheck;
 

@@ -115,33 +115,29 @@ class ExtValidBitPattern : public PropPattern {
   MOperator newMop = MOP_undef;
 };
 
-// check uxtw Vreg Preg case
-// uxtw Vreg1 Preg0
-// if use of R1 is 32bit
-// ->
-// movx Vreg1 Preg0
-// make use of RA to delete redundant insn, if Vreg1 is allocated to R0
-// then the insn is removed.
+// redundant uxtw/sxtw prop, and modify all useInsn form X mop to W mop
+// case1 - uxtw vreg preg, modify utxw to wmov, not prop
+//    uxtw  R101, R0      ==>   mov   R101, R0
+//    xcbz  R101, label2        wcbz  R101, label2
+// case2 - uxtw vreg vreg, prop src
+//    uxtw  R102, R101    ==>   wcbz  R101, label2
+//    xcbz  R102, label2
 class RedundantExpandProp : public PropPattern {
  public:
-  RedundantExpandProp(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : PropPattern(cgFunc, info, ll) {}
-  ~RedundantExpandProp() override {
-    newDstOpnd = nullptr;
-    newSrcOpnd = nullptr;
-    destVersion = nullptr;
-    srcVersion = nullptr;
-  }
+  RedundantExpandProp(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : PropPattern(cgFunc, info, ll) {};
+  ~RedundantExpandProp() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
     return "RedundantExpandProp";
   }
-
  private:
-  RegOperand *newDstOpnd = nullptr;
-  RegOperand *newSrcOpnd = nullptr;
-  VRegVersion *destVersion = nullptr;
-  VRegVersion *srcVersion = nullptr;
+  bool CheckAllUseInsnCanUseMopW(const RegOperand &defOpnd, InsnSet &visitedInsn);
+  bool CheckInsnCanUseMopW(const RegOperand &defOpnd, DUInsnInfo &useInfo);
+  bool CheckOtherInsnUseMopW(const RegOperand &defOpnd, DUInsnInfo &useInfo);
+  void ModifyInsnUseMopW();
+
+  std::vector<Insn*> allUseInsns;
 };
 
 /*

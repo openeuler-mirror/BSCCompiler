@@ -97,12 +97,13 @@ DEFINE_MOP(MOP_movswl_r_r, {&OpndDesc::Reg16IS,&OpndDesc::Reg32ID},ISCONVERSION,
 /* zero extension */
 /*
  * Perhaps unexpectedly, instructions that move or generate 32-bit register values also set the upper 32 bits of the register to zero.
- * Consequently, there is no need for an instruction movzlq.
+ * But movl also will be delete, so we create movzlq instruction
  */
 DEFINE_MOP(MOP_movzbq_m_r, {&OpndDesc::Mem8S,&OpndDesc::Reg64ID},ISCONVERSION,kLtAlu,"movzbq","0,1",1)
 DEFINE_MOP(MOP_movzbq_r_r, {&OpndDesc::Reg8IS,&OpndDesc::Reg64ID},ISCONVERSION,kLtAlu,"movzbq","0,1",1)
 DEFINE_MOP(MOP_movzwq_m_r, {&OpndDesc::Mem16S,&OpndDesc::Reg64ID},ISCONVERSION,kLtAlu,"movzwq","0,1",1)
 DEFINE_MOP(MOP_movzwq_r_r, {&OpndDesc::Reg16IS,&OpndDesc::Reg64ID},ISCONVERSION,kLtAlu,"movzwq","0,1",1)
+DEFINE_MOP(MOP_movzlq_r_r, {&OpndDesc::Reg32IS,&OpndDesc::Reg32ID},ISCONVERSION,kLtAlu,"movl","0,1",1)
 /* sign extension */
 DEFINE_MOP(MOP_movsbq_m_r, {&OpndDesc::Mem8S,&OpndDesc::Reg64ID},ISCONVERSION,kLtAlu,"movsbq","0,1",1)
 DEFINE_MOP(MOP_movsbq_r_r, {&OpndDesc::Reg8IS,&OpndDesc::Reg64ID},ISCONVERSION,kLtAlu,"movsbq","0,1",1)

@@ -579,7 +579,7 @@ void IpaClone::DoIpaClone() {
   auto noIpaFunclist = InitNoIpaFuncList();
   for (uint32 i = 0; i < GlobalTables::GetFunctionTable().GetFuncTable().size(); ++i) {
     MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(i);
-    if (func == nullptr) {
+    if (func == nullptr || func->IsFromMpltInline()) {
       continue;
     }
     if (Options::stackProtectorStrong && func->GetMayWriteToAddrofStack()) {

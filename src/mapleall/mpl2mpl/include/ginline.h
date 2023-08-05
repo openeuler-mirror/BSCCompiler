@@ -144,7 +144,7 @@ class GInline {
   BadnessInfo *CalcBadness(CallInfo &info);
   void InsertNewCallSite(CallInfo &info, uint32 depth);
   void UpdateCallSite(CallInfo &info);
-  bool CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) const;
+  bool CanIgnoreGrowthLimit(CallSiteNode &callSiteNode) const;
   void PrintGInlineReport() const;
 
   MapleSet<MIRFunction*> funcsToBeRemoved;
