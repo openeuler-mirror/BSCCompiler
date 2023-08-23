@@ -122,6 +122,20 @@ class CselToCsetPattern : public CGPeepPattern {
   RegOperand *useReg = nullptr;
 };
 
+// cmp w2, w3/imm
+// csel w0, w1, w1, NE   ===> mov w0, w1
+class CselToMovPattern : public CGPeepPattern {
+ public:
+  CselToMovPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn)
+      : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~CselToMovPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "CselToMovPattern";
+  }
+};
+
 /*
  *  mov w1, #1
  *  csel w2, w1, w0, EQ    ===> csinc w2, w0, WZR, NE
@@ -1114,7 +1128,8 @@ class CombineContiLoadAndStorePattern : public CGPeepPattern {
    * bl foo (change memory)
    * str x21, [x19, #16]
    */
-  bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst) const;
+  bool IsRegNotSameMemUseInInsn(const Insn &checkInsn, const Insn &curInsn, regno_t curBaseRegNO, bool isCurStore,
+                                int64 curBaseOfst, int64 curBaseMemRange) const;
   bool IsValidNormalLoadOrStorePattern(const Insn &insn, const Insn &prevInsn, const MemOperand &memOpnd,
                                        int64 curOfstVal, int64 prevOfstVal);
   bool IsValidStackArgLoadOrStorePattern(const Insn &curInsn, const Insn &prevInsn, const MemOperand &curMemOpnd,
@@ -1467,7 +1482,10 @@ class AndAndCmpBranchesToTstPattern : public CGPeepPattern {
     return "AndAndCmpBranchesToCsetPattern";
   }
  private:
+  bool CheckCondInsn(Insn &insn);
+  Insn *CheckAndGetPrevAndDefInsn(const RegOperand &regOpnd) const;
   bool CheckAndSelectPattern(const Insn &currInsn);
+  RegOperand *ccReg = nullptr;
   Insn *prevPrevAndInsn = nullptr;
   Insn *prevAndInsn = nullptr;
   Insn *prevCmpInsn = nullptr;
@@ -1475,24 +1493,24 @@ class AndAndCmpBranchesToTstPattern : public CGPeepPattern {
   MOperator newEorMop = MOP_undef;
   int64 tstImmVal = -1;
 };
-/*
- * cbnz w0, @label
- * ....
- * mov  w0, #0 (elseBB)        -->this instruction can be deleted
- *
- * cbz  w0, @label
- * ....
- * mov  w0, #0 (ifBB)          -->this instruction can be deleted
- *
- * condition:
- *  1.there is not predefine points of w0 in elseBB(ifBB)
- *  2.the first opearnd of cbnz insn is same as the first Operand of mov insn
- *  3.w0 is defined by move 0
- *  4.all preds of elseBB(ifBB) end with cbnz or cbz
- *
- *  NOTE: if there are multiple preds and there is not define point of w0 in one pred,
- *        (mov w0, 0) can't be deleted, avoiding use before def.
- */
+
+// cbnz w0, @label
+// ....
+// mov  w0, #0 (elseBB)        -->this instruction can be deleted
+//
+// cbz  w0, @label
+// ....
+// mov  w0, #0 (ifBB)          -->this instruction can be deleted
+//
+// condition:
+//   1.there is not predefine points of w0 in elseBB(ifBB)
+//   2.the first opearnd of cbnz insn is same as the first Operand of mov insn
+//   3.w0 is defined by move 0
+//   4.all preds of elseBB(ifBB) end with cbnz/wcbnz or cbz/wcbz
+//   5.w0 is only used in 32bit between mov 0 and next def point if preds has wcbz/wcbnz.
+//
+//   NOTE: if there are multiple preds and there is not define point of w0 in one pred,
+//   (mov w0, 0) can't be deleted, avoiding use before def.
 class DeleteMovAfterCbzOrCbnzAArch64 : public PeepPattern {
  public:
   explicit DeleteMovAfterCbzOrCbnzAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {
@@ -1503,11 +1521,58 @@ class DeleteMovAfterCbzOrCbnzAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
-  bool PredBBCheck(BB &bb, bool checkCbz, const Operand &opnd) const;
+  bool PredBBCheck(BB &bb, bool checkCbz, const Operand &opnd, bool is64BitOnly) const;
   bool OpndDefByMovZero(const Insn &insn) const;
   bool NoPreDefine(Insn &testInsn) const;
   void ProcessBBHandle(BB *processBB, const BB &bb, const Insn &insn) const;
+  bool NoMoreThan32BitUse(Insn &testInsn) const;
   CGCFG *cgcfg = nullptr;
+};
+
+// we optimize the following scenarios in this pattern:
+// for example 1:
+// mov     w1, #9
+// cmp     w0, #1              =>               cmp     w0, #1
+// mov     w2, #8                               csel    w0, w0, wzr, EQ
+// csel    w0, w1, w2, EQ                       add     w0, w0, #8
+// for example 2:
+// mov     w1, #8
+// cmp     w0, #1              =>               cmp     w0, #1
+// mov     w2, #9                               cset    w0, NE
+// csel    w0, w1, w2, EQ                       add     w0, w0, #8
+// for example 3:
+// mov     w1, #3
+// cmp     w0, #4              =>               cmp     w0, #4
+// mov     w2, #7                               csel    w0, w0, wzr, EQ
+// csel    w0, w1, w2, NE                       add     w0, w0, #3
+// condition:
+//  1. The source operand of the two mov instructions are immediate operand;
+//  2. The difference value between two immediates is equal to the value being compared in the cmp insn;
+//  3. The reg w1 and w2 are not used in the instructions after csel;
+//  4. The condOpnd in csel insn must be CC_NE or CC_EQ;
+//  5. If the value in w1 is less than value in w2, condition in csel must be CC_NE, otherwise,
+//     the difference between them must be one;
+//  6. If the value in w1 is more than value in w2, condition in csel must be CC_EQ, otherwise,
+//     the difference between them must be one.
+class CombineMovInsnBeforeCSelAArch64 : public PeepPattern {
+ public:
+  explicit CombineMovInsnBeforeCSelAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~CombineMovInsnBeforeCSelAArch64() override {
+    insnMov2 = nullptr;
+    insnMov1 = nullptr;
+    cmpInsn = nullptr;
+  }
+  void Run(BB &bb, Insn &insn) override;
+
+ private:
+  bool CheckCondition(Insn &insn);
+  Insn *FindPrevMovInsn(const Insn &insn, regno_t regNo) const;
+  Insn *FindPrevCmpInsn(const Insn &insn) const;
+  Insn *insnMov2 = nullptr;
+  Insn *insnMov1 = nullptr;
+  Insn *cmpInsn = nullptr;
+  bool needReverseCond = false;
+  bool needCsetInsn = false;
 };
 
 /*
@@ -1875,6 +1940,7 @@ class AArch64PrePeepHole1 : public PeepPatternMatch {
     kAndCmpBranchesToTbzOpt,
     kComplexExtendWordLslOpt,
     kAddCmpZeroOpt,
+    kCombineMovInsnBeforeCSelOpt,
     kPeepholeOptsNum,
   };
 };

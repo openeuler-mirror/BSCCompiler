@@ -36,9 +36,12 @@ class AArch64ICOPattern : public ICOPattern {
   ConditionCode Encode(MOperator mOp, bool inverse) const;
   Insn *BuildCmpInsn(const Insn &condBr) const;
   Insn *BuildCcmpInsn(ConditionCode ccCode, ConditionCode ccCode2, const Insn &cmpInsn, Insn *&moveInsn) const;
+  Insn *BuildCcmpInsn(ConditionCode ccCode, ConditionCode ccCode2, const Insn &branchInsn, const Insn &cmpInsn) const;
+  MOperator GetBranchCondOpcode(MOperator op) const;
   Insn *BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse) const;
   Insn *BuildCondSetMask(const Insn &branch, RegOperand &reg, bool inverse) const;
   Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2) const;
+  Insn *BuildTstInsn(const Insn &branch) const;
   static uint32 GetNZCV(ConditionCode ccCode, bool inverse);
   bool CheckMop(MOperator mOperator) const;
   bool CheckMopOfCmp(MOperator mOperator) const;
@@ -63,7 +66,7 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   };
 
   explicit AArch64ICOIfThenElsePattern(CGFunc &func) : AArch64ICOPattern(func) {
-    patternName = "IfthenElsePattern";
+    patternName = "IfThenElsePattern";
   }
   ~AArch64ICOIfThenElsePattern() override {
     cmpBB = nullptr;
@@ -123,6 +126,8 @@ class AArch64ICOSameCondPattern : public AArch64ICOPattern {
   bool Optimize(BB &secondIfBB) override;
  protected:
   bool DoOpt(BB &firstIfBB, BB &secondIfBB) const;
+  bool CanConvertToSameCond(BB &firstIfBB, BB &secondIfBB) const;
+  Insn &ConvertCompBrInsnToCompInsn(const Insn &insn) const;
 };
 
 /* If-Then MorePreds pattern
@@ -203,6 +208,34 @@ class AArch64ICOCondSetPattern : public AArch64ICOPattern {
   // brInsn is last branch insn in firstMovBB, which is 'b .L.1827__42' in pattern1 above.
   Insn *brInsn = nullptr;
 };
-}  /* namespace maplebe */
+
+// .L.1676__17:
+// tbz  w1, #0, .L.1676__14               and w2, w1, #3
+// .L.1676__18:                =>         cmp w2, #3
+// tbz	w1, #1, .L.1676__14               bne .L.1676__14
+//
+// condition:
+//   1.the curBB lastInsn and the nextBB firstInsn must be xtbz/xtbnz/wtbz/wtbnz
+//   2.the curBB and the nextBB jump to the same target and test the same register
+//   3.the curBB and the nextBB test the adjacent bits
+//   4.nextBB can only have one pred
+class AArch64ICOMergeTbzPattern : public AArch64ICOPattern {
+ public:
+  explicit AArch64ICOMergeTbzPattern(CGFunc &func) : AArch64ICOPattern(func) {
+    patternName = "MergeTbzPattern";
+  }
+  ~AArch64ICOMergeTbzPattern() override {
+    lastInsnOfcurBB = nullptr;
+    firstInsnOfnextBB = nullptr;
+  }
+  bool Optimize(BB &curBB) override;
+ protected:
+  bool DoOpt(BB &curBB, BB &nextBB) const;
+  bool IsTbzOrTbnzInsn(const Insn *insn) const;
+ private:
+  Insn *lastInsnOfcurBB = nullptr;
+  Insn *firstInsnOfnextBB = nullptr;
+};
+}  // namespace maplebe
 
 #endif  /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_ICO_H */

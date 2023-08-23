@@ -52,6 +52,7 @@ const std::string FEUtils::kMCCStaticFieldSetDouble = "MCC_StaticFieldSetDouble"
 const std::string FEUtils::kMCCStaticFieldSetObject = "MCC_StaticFieldSetObject";
 
 const std::string FEUtils::kCondGoToStmtLabelNamePrefix = "shortCircuit_";
+const std::regex FEUtils::kShortCircutPrefix = std::regex("^" + FEUtils::kCondGoToStmtLabelNamePrefix + "[0-9]+$");
 
 std::vector<std::string> FEUtils::Split(const std::string &str, char delim) {
   std::vector<std::string> ans;

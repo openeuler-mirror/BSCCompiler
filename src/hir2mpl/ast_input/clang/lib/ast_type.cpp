@@ -153,22 +153,36 @@ bool LibAstFile::TypeHasMayAlias(const clang::QualType srcType) const {
 }
 
 MIRType *LibAstFile::CvtTypedef(MapleAllocator &allocator, const clang::QualType &qualType) {
-  const clang::TypedefType *typedefType = llvm::dyn_cast<clang::TypedefType>(qualType);
-  if (typedefType == nullptr) {
+  const clang::TypedefType *typeQualType = llvm::dyn_cast<clang::TypedefType>(qualType);
+  if (typeQualType == nullptr) {
     return nullptr;
+  } else {
+    return CvtTypedefDecl(allocator, *typeQualType->getDecl());
   }
-  return CvtTypedefDecl(allocator, *typedefType->getDecl());
 }
 
 MIRType *LibAstFile::CvtTypedefDecl(MapleAllocator &allocator, const clang::TypedefNameDecl &typedefDecl) {
   std::string typedefName = GetDeclName(typedefDecl, true);
-  MIRTypeByName *typdefType = nullptr;
-  clang::QualType underlyTy = typedefDecl.getCanonicalDecl()->getUnderlyingType();
-  MIRType *type = CvtType(allocator, underlyTy, true);
-  if (type != nullptr) {
-    typdefType = FEManager::GetTypeManager().CreateTypedef(typedefName, *type);
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    MIRTypeByName *typdefType = nullptr;
+    clang::QualType underlyTy = typedefDecl.getCanonicalDecl()->getUnderlyingType();
+    MIRType *type = CvtType(allocator, underlyTy, true);
+    if (type != nullptr) {
+      typdefType = FEManager::GetTypeManager().CreateTypedef(typedefName, *type);
+      return typdefType;
+    }
+  } else {
+    MIRStructType *typdefType = nullptr;
+    clang::QualType underlyCanTy = typedefDecl.getCanonicalDecl()->getUnderlyingType().getCanonicalType();
+    std::stringstream ss;
+    EmitTypeName(allocator, underlyCanTy, ss);
+    std::string name(ss.str());
+    if (!llvm::isa<clang::BuiltinType>(underlyCanTy) && typedefDecl.getMaxAlignment() != 0) {
+      typdefType = FEManager::GetTypeManager().GetOrCreateStructType(name);
+      return typdefType;
+    }
   }
-  return typdefType;
+  return nullptr;
 }
 
 MIRType *LibAstFile::CvtSourceType(MapleAllocator &allocator, const clang::QualType qualType) {
@@ -177,13 +191,24 @@ MIRType *LibAstFile::CvtSourceType(MapleAllocator &allocator, const clang::QualT
 
 MIRType *LibAstFile::CvtType(MapleAllocator &allocator, const clang::QualType qualType, bool isSourceType,
                              const clang::Type **vlaType) {
-  clang::QualType srcType = qualType.getCanonicalType();
-  if (isSourceType) {
+  clang::QualType srcType = qualType;
+  if (!isSourceType) {
+    srcType = qualType.getCanonicalType();
+  }
+  const clang::QualType srcPteType = srcType->getPointeeType();
+  if (FEOptions::GetInstance().IsDbgFriendly()) {
+    if (isSourceType) {
+      MIRType *nameType = CvtTypedef(allocator, qualType);
+      if (nameType != nullptr) {
+        return nameType;
+      }
+      srcType = qualType;
+    }
+  } else {
     MIRType *nameType = CvtTypedef(allocator, qualType);
-    if (nameType != nullptr) {
+    if (srcPteType.isNull() && nameType != nullptr) {
       return nameType;
     }
-    srcType = qualType;
   }
   if (srcType.isNull()) {
     return nullptr;
@@ -195,7 +220,6 @@ MIRType *LibAstFile::CvtType(MapleAllocator &allocator, const clang::QualType qu
   }
 
   // handle pointer types
-  const clang::QualType srcPteType = srcType->getPointeeType();
   if (!srcPteType.isNull()) {
     MIRType *mirPointeeType = CvtType(allocator, srcPteType, isSourceType, vlaType);
     if (mirPointeeType == nullptr) {
@@ -502,7 +526,8 @@ void LibAstFile::CollectBaseEltTypeFromArrayDecl(MapleAllocator &allocator, cons
   // Get alignment from the element type
   uint32 alignmentBits = astContext->getTypeAlignIfKnown(currQualType);
   if (alignmentBits != 0) {
-    if (llvm::isa<clang::TypedefType>(currQualType) && currQualType.getCanonicalType()->isBuiltinType()) {
+    if (llvm::isa<clang::TypedefType>(currQualType) && currQualType.getCanonicalType()->isBuiltinType() &&
+        elemAttr.GetAttr(ATTR_aligned)) {
       elemAttr.SetAlign(alignmentBits / 8); // bits to byte
     }
   }

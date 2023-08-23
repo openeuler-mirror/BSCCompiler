@@ -59,6 +59,10 @@ class PeepOptimizeManager {
     }
     OptimizePattern optPattern(*cgFunc, *currBB, *currInsn);
     optPattern.Run(*currBB, *currInsn);
+    optSuccess = optPattern.GetPatternRes() || optSuccess;
+    if (optSuccess && optPattern.GetCurrInsn() != nullptr) {
+      currInsn = optPattern.GetCurrInsn();
+    }
   }
   void SetOptSuccess(bool optRes) {
     optSuccess = optRes;
@@ -175,6 +179,8 @@ class CGPeepPattern {
   BB *currBB;
   Insn *currInsn;
   CGSSAInfo *ssaInfo;
+  // !!! If the pattern is optimized, set the $optSuccess to true and check before the subsequent patterns
+  // of the same mop, otherwise, the subsequent patterns of the same mop will get the old wrong instruction.
   bool optSuccess = false;
 };
 
@@ -237,6 +243,7 @@ MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPrePeepHole1, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPeepHole0, maplebe::CGFunc)
+OVERRIDE_DEPENDENCE
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPeepHole1, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END

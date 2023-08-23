@@ -42,7 +42,7 @@ class MPISel {
 
   Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
 
-  void SelectDassign(const DassignNode &stmt, Operand &opndRhs);
+  void SelectDassign(DassignNode &stmt, Operand &opndRhs);
   void SelectDassignoff(const DassignoffNode &stmt, Operand &opnd0);
   void SelectIassign(const IassignNode &stmt, Operand &opndAddr, Operand &opndRhs);
   void SelectIassignoff(const IassignoffNode &stmt);
@@ -125,8 +125,9 @@ class MPISel {
   virtual Operand *SelectCstrncmp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectCstrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectCstrrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual void SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual void SelectAsm(AsmNode &node) = 0;
-  virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &rOpnd, const DassignNode &s) = 0;
+  virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &rOpnd, DassignNode &s) = 0;
   Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
   Operand *SelectMin(const BinaryNode &node, Operand &opnd0, Operand &opnd1);
   Operand *SelectMax(const BinaryNode &node, Operand &opnd0, Operand &opnd1);

@@ -34,7 +34,7 @@ class DupPattern : public OptimizationPattern {
   }
   ~DupPattern() override = default;
   bool Optimize(BB &curBB) override;
-  uint32 GetFreqThreshold();
+  uint32 GetFreqThreshold() const;
 
   private:
     // if the ret bb's insn num > 1, we should not dup ret bb by default

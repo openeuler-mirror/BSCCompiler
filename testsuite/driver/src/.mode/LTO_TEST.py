@@ -62,6 +62,11 @@ LTO_TEST = {
             option="${linkoption}"
         )
     ],
+    "run1": [
+        Shell(
+            "${MAPLE_ROOT}/tools/bin/llvm-ar -q lib${APP}.a ${APP}.o"
+        ),
+    ],
     "run": [
         Shell(
             "${MAPLE_ROOT}/tools/bin/qemu-aarch64 -L ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc a.out > output.log 2>&1"
@@ -69,6 +74,11 @@ LTO_TEST = {
         CheckFileEqual(
             file1="output.log",
             file2="expected.txt"
+        )
+    ],
+    "justrun": [
+        Shell(
+            "${MAPLE_ROOT}/tools/bin/qemu-aarch64 -L ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc a.out > output.log 2>&1"
         )
     ]
 }

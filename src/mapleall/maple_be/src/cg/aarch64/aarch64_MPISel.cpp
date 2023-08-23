@@ -287,8 +287,7 @@ RegOperand *AArch64MPIsel::PrepareMemcpyParm(uint64 copySize) {
   return &regResult;
 }
 
-void AArch64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRh,
-    const DassignNode &stmt) {
+void AArch64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRh, DassignNode &stmt) {
   (void)lhsInfo;
   (void)symbolMem;
   (void)opndRh;
@@ -369,6 +368,10 @@ void AArch64MPIsel::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
     return;
   }
   if (intrinsic == INTRN_C_stack_save || intrinsic == INTRN_C_stack_restore) {
+    return;
+  }
+  if (intrinsic == INTRN_C_prefetch) {
+    SelectCprefetch(intrinsiccallNode);
     return;
   }
 
@@ -729,6 +732,10 @@ Operand *AArch64MPIsel::SelectCstrchr(IntrinsicopNode &node, Operand &opnd0, con
 Operand *AArch64MPIsel::SelectCstrrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) {
   CHECK_FATAL_FALSE("NYI");
   return nullptr;
+}
+
+void AArch64MPIsel::SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) {
+  cgFunc->SelectCprefetch(intrinsiccallNode);
 }
 
 Operand *AArch64MPIsel::SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &parent) {

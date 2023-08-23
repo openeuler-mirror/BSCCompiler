@@ -829,6 +829,17 @@ bool TypeBasedAliasAnalysis::MayAliasTBAAForC(const OriginalSt *ostA, const Orig
       ostA->GetIndirectLev() == 0 && ostB->GetIndirectLev() == 0) {
     return MayMemoryOverlap(*ostA, *ostB, aggTypeA, aggTypeB);
   }
+  // deal with may alias type
+  auto memMayAlias = [](const OriginalSt &ost) {
+    if (ost.GetPointerTyIdx() == 0) {
+      return false;
+    }
+    auto *ptrType = ost.GetPrevLevelPointerType();
+    return ptrType && ptrType->GetTypeAttrs().GetAttr(ATTR_may_alias);
+  };
+  if (memMayAlias(*ostA) || memMayAlias(*ostB)) {
+    return true;
+  }
   // using an lvalue expression (typically, dereferencing a pointer) of character type is legal
   // which means an object derefereced from (char *) may alias with any other type
   auto dereferencedByteType = [](const OriginalSt &ost) {

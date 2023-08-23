@@ -41,7 +41,8 @@ class ASTParser {
         astFileScopeAsms(astFileScopeAsmsIn),
         astEnums(astEnumsIn),
         vlaSizeMap(allocatorIn.Adapter()),
-        structFileNameMap(allocatorIn.Adapter()) {}
+        structFileNameMap(allocatorIn.Adapter()),
+        constantPMap(allocatorIn.Adapter()) {}
   virtual ~ASTParser() = default;
   bool OpenFile(MapleAllocator &allocator);
   bool Release(MapleAllocator &allocator) const;
@@ -56,6 +57,7 @@ class ASTParser {
   bool RetrieveGlobalTypeDef(MapleAllocator &allocator);
   bool RetrieveEnums(MapleAllocator &allocator);
 
+  bool HandleRecordAndTypedef(ASTStruct *structOrUnion);
   const std::string GetSourceFileName() const;
   const uint32 GetFileIdx() const;
 
@@ -111,6 +113,7 @@ class ASTParser {
   ASTValue *TranslateExprEval(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
   bool HasLabelStmt(const clang::Stmt *expr);
+  bool HasCallConstantP(const clang::Stmt &expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
   void SaveVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, MapleList<ASTExpr*> &vlaSizeExprs) {
     if (!type.isVariableArrayType()) {
@@ -199,7 +202,9 @@ class ASTParser {
                                                 MapleVector<MIRType*> &typeDescIn, std::list<ASTStmt*> &stmts,
                                                 bool needBody);
   MapleGenericAttrs SolveFunctionAttributes(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
-                                       std::string &funcName) const;
+                                            std::string &funcName) const;
+  bool HandleFieldToRecordType(MapleAllocator &allocator, ASTStruct &curASTStruct,
+                               const clang::DeclContext &declContext);
   ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
   ASTStmt *SolveFunctionBody(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc,
                              const std::list<ASTStmt*> &stmts);
@@ -290,6 +295,9 @@ class ASTParser {
   void CheckAtomicClearArg(const clang::CallExpr &expr) const;
   std::string GetFuncNameFromFuncDecl(const clang::FunctionDecl &funcDecl) const;
   bool IsMemberTypeHasMulAlignAttr(const clang::Expr &expr) const;
+  ASTExpr *ProcessBuiltinConstantP(const clang::Expr &expr, ASTIntegerLiteral *intExpr,
+      const llvm::APSInt intVal) const;
+  ASTExpr *ProcessFloatInEvaluateExpr(MapleAllocator &allocator, const clang::APValue constVal) const;
   ASTFunc *BuildAstFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                         std::list<ASTStmt*> &implicitStmts, bool needDefDeMangledVer, bool needBody);
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
@@ -313,9 +321,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   ASTExpr *PARSE_BUILTIIN_FUNC(Nan);
   ASTExpr *PARSE_BUILTIIN_FUNC(Nanl);
   ASTExpr *PARSE_BUILTIIN_FUNC(Nanf);
-  ASTExpr *PARSE_BUILTIIN_FUNC(Signbit);
-  ASTExpr *PARSE_BUILTIIN_FUNC(SignBitf);
-  ASTExpr *PARSE_BUILTIIN_FUNC(SignBitl);
+  ASTExpr *PARSE_BUILTIIN_FUNC(SignBit);
   ASTExpr *PARSE_BUILTIIN_FUNC(Trap);
   ASTExpr *PARSE_BUILTIIN_FUNC(IsUnordered);
   ASTExpr *PARSE_BUILTIIN_FUNC(Copysignf);
@@ -345,6 +351,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   MapleMap<clang::Expr*, ASTExpr*> vlaSizeMap;
 
   MapleUnorderedMap<MapleString, MapleVector<MapleString>, MapleString::MapleStringHash> structFileNameMap;
+  MapleMap<int64_t, const clang::Stmt *> constantPMap;
 };
 }  // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_PARSER_H

@@ -79,47 +79,194 @@ void AArch64ValidBitOpt::DoOpt() {
   }
 }
 
+// modify insn's mop from X to W
+void RedundantExpandProp::ModifyInsnUseMopW() {
+  static const std::map<MOperator, MOperator> kInsnMopX2WMap = {
+      {MOP_xcbnz, MOP_wcbnz},
+      {MOP_xcbz, MOP_wcbz},
+      {MOP_xtbnz, MOP_wtbnz},
+      {MOP_xtbz, MOP_wtbz},
+      {MOP_xubfizrri6i6, MOP_wubfizrri5i5},
+      {MOP_xsbfizrri6i6, MOP_wsbfizrri5i5},
+      {MOP_xubfxrri6i6, MOP_wubfxrri5i5},
+      {MOP_xsbfxrri6i6, MOP_wsbfxrri5i5},
+      {MOP_xcmnri, MOP_wcmnri}
+  };
+
+  for (auto *insn : needModifyInsns) {
+    auto iter = kInsnMopX2WMap.find(insn->GetMachineOpcode());
+    CHECK_FATAL(iter != kInsnMopX2WMap.end(), "insn must be modified");
+    insn->SetMOP(AArch64CG::kMd[iter->second]);
+  }
+}
+
 void RedundantExpandProp::Run(BB &bb, Insn &insn) {
   if (!CheckCondition(insn)) {
     return;
   }
-  insn.SetMOP(AArch64CG::kMd[MOP_xmovrr]);
+  ModifyInsnUseMopW();
+
+  auto &destOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  if (destOpnd.IsSSAForm() && srcOpnd.IsSSAForm()) {
+    auto *destVersion = ssaInfo->FindSSAVersion(destOpnd.GetRegisterNumber());
+    ASSERT(destVersion != nullptr, "find Version failed");
+    auto *srcVersion = ssaInfo->FindSSAVersion(srcOpnd.GetRegisterNumber());
+    ASSERT(srcVersion != nullptr, "find Version failed");
+    ReplaceImplicitCvtAndProp(destVersion, srcVersion);
+  } else {  // only change mop because there is no ssa version
+    auto &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_wmovrr, destOpnd, srcOpnd);
+    bb.ReplaceInsn(insn, newInsn);
+    ssaInfo->ReplaceInsn(insn, newInsn);
+  }
+}
+
+// check others insn can use mopW
+bool RedundantExpandProp::CheckOtherInsnUseMopW(const RegOperand &defOpnd, DUInsnInfo &useInfo) const {
+  auto defRegNO = defOpnd.GetRegisterNumber();
+  const auto *useInsn = useInfo.GetInsn();
+  for (auto [idx, count] : std::as_const(useInfo.GetOperands())) {
+    const auto &opnd = useInsn->GetOperand(idx);
+    auto *opndMd = useInsn->GetDesc()->GetOpndDes(idx);
+    if (opnd.IsRegister()) {
+      if (!opndMd->IsUse() || opnd.GetSize() != k32BitSize || opndMd->GetSize() != k32BitSize) {
+        return false;
+      }
+    } else if (opnd.IsMemoryAccessOperand()) {
+      const auto &memOpnd = static_cast<const MemOperand&>(opnd);
+      if (memOpnd.GetAddrMode() != MemOperand::kBOE && memOpnd.GetAddrMode() != MemOperand::kBOL) {
+        return false;
+      }
+      if (memOpnd.GetIndexRegister()->GetRegisterNumber() != defRegNO) {
+        return false;
+      }
+      return (memOpnd.GetIndexRegister()->GetSize() == k32BitSize);
+    } else if (opnd.IsList()) {
+      for (const auto *regOpnd : static_cast<const ListOperand&>(opnd).GetOperands()) {
+        if (regOpnd->GetRegisterNumber() == defRegNO && regOpnd->GetSize() != k32BitSize) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+bool RedundantExpandProp::CheckInsnCanUseMopW(const RegOperand &defOpnd, DUInsnInfo &useInfo) {
+  auto *useInsn = useInfo.GetInsn();
+  switch (useInsn->GetMachineOpcode()) {
+    case MOP_xcbnz:
+    case MOP_xcbz: {
+      needModifyInsns.push_back(useInsn);
+      return true;
+    }
+    case MOP_xtbnz:
+    case MOP_xtbz: {
+      ASSERT(useInsn->GetOperand(kInsnSecondOpnd).IsImmediate(), "tbz/tbnz second opnd must be immediate");
+      needModifyInsns.push_back(useInsn);
+      auto &immOpnd = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnSecondOpnd));
+      return (immOpnd.GetValue() < static_cast<int64>(k32BitSize));
+    }
+    case MOP_xubfizrri6i6:
+    case MOP_xsbfizrri6i6:
+    case MOP_xubfxrri6i6:
+    case MOP_xsbfxrri6i6: {
+      ASSERT(useInsn->GetOperand(kInsnThirdOpnd).IsImmediate(), "third opnd must be immediate");
+      ASSERT(useInsn->GetOperand(kInsnFourthOpnd).IsImmediate(), "fourth opnd must be immediate");
+      needModifyInsns.push_back(useInsn);
+      auto &lsb = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnThirdOpnd));
+      auto &width = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnFourthOpnd));
+      return (lsb.GetValue() + width.GetValue() <= k32BitSize);
+    };
+    case MOP_xcmnri: {
+      ASSERT(useInsn->GetOperand(kInsnThirdOpnd).IsImmediate(), "cmpri third opnd must be immediate");
+      needModifyInsns.push_back(useInsn);
+      auto &immOpnd = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnThirdOpnd));
+      return (immOpnd.GetValue() > INT32_MIN) && (immOpnd.GetValue() <= INT32_MAX);
+    }
+    default: {
+      return CheckOtherInsnUseMopW(defOpnd, useInfo);
+    }
+  }
+}
+
+bool RedundantExpandProp::CheckPhiSrcRegDefW(const RegOperand &regOpnd) const {
+  // all opnd of phiInsn should have the ValidBit of no more than 32 bits
+  if (regOpnd.GetValidBitsNum() <= k32BitSize) {
+    return true;
+  }
+  auto *regVersion = ssaInfo->FindSSAVersion(regOpnd.GetRegisterNumber());
+  ASSERT(regVersion != nullptr, "find Version failed");
+  if (regVersion->GetDefInsnInfo() == nullptr) {
+    return true;  // undef reg
+  }
+  auto *defInsn = regVersion->GetDefInsnInfo()->GetInsn();
+  ASSERT(defInsn != nullptr, "find defInsn failed");
+  if (defInsn->GetMachineOpcode() == MOP_wmovrr) {
+    // when mOp is wmov and src is preg, the validBit is 64-bits
+    // however, the lower 32-bits can be used for calculation
+    const auto &defUseOpnd = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
+    return !cgFunc->GetTargetRegInfo()->IsVirtualRegister(defUseOpnd);
+  }
+  return false;
+}
+
+// check defOpnd's all use-point can use mopW
+bool RedundantExpandProp::CheckAllUseInsnCanUseMopW(const RegOperand &defOpnd, InsnSet &visitedInsn) {
+  auto *defVersion = ssaInfo->FindSSAVersion(defOpnd.GetRegisterNumber());
+  ASSERT(defVersion != nullptr, "find Version failed");
+  for (auto destUseIt : defVersion->GetAllUseInsns()) {
+    auto *useInsn = destUseIt.second->GetInsn();
+    if (visitedInsn.count(useInsn) != 0) {
+      continue;
+    }
+    visitedInsn.insert(useInsn);
+    auto &propInsns = ssaInfo->GetSafePropInsns();
+    if (std::find(propInsns.begin(), propInsns.end(), useInsn->GetId()) != propInsns.end()) {
+      return false;
+    }
+    if (useInsn->IsPhi()) { // phi insn, need dfs check
+      auto &phiDefOpnd = useInsn->GetOperand(kInsnFirstOpnd);
+      CHECK_FATAL(phiDefOpnd.IsRegister(), "must be register");
+      if (!CheckAllUseInsnCanUseMopW(static_cast<RegOperand&>(phiDefOpnd), visitedInsn)) {
+        return false;
+      }
+      checkPhiInsns.emplace_back(&defOpnd, useInsn);
+    } else if (!CheckInsnCanUseMopW(defOpnd, *destUseIt.second)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool RedundantExpandProp::CheckCondition(Insn &insn) {
-  if (insn.GetMachineOpcode() != MOP_xuxtw64) {
+  ASSERT(insn.GetOperand(kInsnFirstOpnd).IsRegister(), "must be register");
+  auto &destOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  if (!destOpnd.IsSSAForm()) {
     return false;
   }
-  auto *destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  if (destOpnd != nullptr && destOpnd->IsSSAForm()) {
-      destVersion = ssaInfo->FindSSAVersion(destOpnd->GetRegisterNumber());
-      ASSERT(destVersion != nullptr, "find Version failed");
-      for (auto destUseIt : destVersion->GetAllUseInsns()) {
-        Insn *useInsn = destUseIt.second->GetInsn();
-        auto &propInsns = ssaInfo->GetSafePropInsns();
-        bool isSafeCvt = std::find(propInsns.begin(), propInsns.end(), useInsn->GetId()) != propInsns.end();
-        if (useInsn->IsPhi() || isSafeCvt) {
+  InsnSet visitedInsn;
+  visitedInsn.emplace(&insn);
+  if (!CheckAllUseInsnCanUseMopW(destOpnd, visitedInsn)) {
+    return false;
+  }
+  if (!needModifyInsns.empty()) {
+    // if insns needs to be modified, need check all phiInsnUseReg is defined as 32 bits.
+    for (auto [noNeedCheckReg, phiInsn] : std::as_const(checkPhiInsns)) {
+      ASSERT(phiInsn->GetOperand(kInsnSecondOpnd).IsPhi(), "expect phiOpnd");
+      auto &phiOpnd = static_cast<PhiOperand&>(phiInsn->GetOperand(kInsnSecondOpnd));
+      for (const auto phiOpndIt : std::as_const(phiOpnd.GetOperands())) {
+        if (phiOpndIt.second == nullptr ||
+            phiOpndIt.second->GetRegisterNumber() == noNeedCheckReg->GetRegisterNumber()) {
+          continue;
+        }
+        if (!CheckPhiSrcRegDefW(*phiOpndIt.second)) {
           return false;
         }
-        int32 lastOpndId = static_cast<int32>(useInsn->GetOperandSize() - 1);
-        const InsnDesc *md = useInsn->GetDesc();
-        // i should be int
-        for (int32 i = lastOpndId; i >= 0; --i) {
-          auto *reg = (md->opndMD[static_cast<uint32>(i)]);
-          auto &opnd = useInsn->GetOperand(static_cast<uint32>(i));
-          if (reg->IsUse() && opnd.IsRegister() &&
-              static_cast<RegOperand&>(opnd).GetRegisterNumber() == destOpnd->GetRegisterNumber()) {
-            if (opnd.GetSize() == k32BitSize && reg->GetSize() == k32BitSize) {
-              continue;
-            } else {
-              return false;
-            }
-          }
-        }
-     }
-     return true;
+      }
+    }
   }
-  return false;
+  return true;
 }
 
 // Patterns that may have implicit cvt
@@ -136,6 +283,17 @@ void AArch64ValidBitOpt::OptPatternWithImplicitCvt(BB &bb, Insn &insn) {
     case MOP_wcsetrc:
     case MOP_xcsetrc: {
       OptimizeNoProp<CmpCsetVBPattern>(bb, insn);
+      break;
+    }
+    case MOP_xasrrri6:
+    case MOP_wasrrri5: {
+      OptimizeNoProp<RSPattern>(bb, insn);
+      break;
+    }
+    case MOP_xrevrr:
+    case MOP_wrevrr:
+    case MOP_wrevrr16: {
+      OptimizeNoProp<RevCbzToCbzPattern>(bb, insn);
       break;
     }
     default:
@@ -173,7 +331,8 @@ void AArch64ValidBitOpt::OptCvt(BB &bb, Insn &insn) {
 void AArch64ValidBitOpt::OptPregCvt(BB &bb, Insn &insn) {
   MOperator curMop = insn.GetMachineOpcode();
   switch (curMop) {
-    case MOP_xuxtw64: {
+    case MOP_xuxtw64:
+    case MOP_xsxtw64: {
       OptimizeProp<RedundantExpandProp>(bb, insn);
       break;
     }
@@ -182,20 +341,28 @@ void AArch64ValidBitOpt::OptPregCvt(BB &bb, Insn &insn) {
   }
 }
 
-void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
+bool AArch64ValidBitOpt::SetValidBits(Insn &insn) {
+  bool hasChange = false;
+  auto checkChangeAndSetValidBitsNum = [&hasChange](RegOperand &dstOpnd, uint32 newVB) {
+    if (dstOpnd.GetValidBitsNum() != newVB) {
+      dstOpnd.SetValidBitsNum(newVB);
+      hasChange = true;
+    }
+  };
+
   MOperator mop = insn.GetMachineOpcode();
   switch (mop) {
     // for case sbfx 32 64
     // we can not deduce that dst opnd valid bit num;
     case MOP_xsbfxrri6i6: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-      dstOpnd.SetValidBitsNum(static_cast<uint32>(k64BitSize));
+      checkChangeAndSetValidBitsNum(dstOpnd, k64BitSize);
       break;
     }
     case MOP_wcsetrc:
     case MOP_xcsetrc: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-      dstOpnd.SetValidBitsNum(k1BitSize);
+      checkChangeAndSetValidBitsNum(dstOpnd, k1BitSize);
       break;
     }
     case MOP_wmovri32:
@@ -204,22 +371,26 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       ASSERT(srcOpnd.IsIntImmediate(), "must be ImmOperand");
       auto &immOpnd = static_cast<ImmOperand&>(srcOpnd);
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-      dstOpnd.SetValidBitsNum(GetImmValidBit(immOpnd.GetValue(), dstOpnd.GetSize()));
+      if (!cgFunc->GetTargetRegInfo()->IsVirtualRegister(dstOpnd)) {
+        return false;
+      }
+      checkChangeAndSetValidBitsNum(dstOpnd, GetImmValidBit(immOpnd.GetValue(), dstOpnd.GetSize()));
       break;
     }
     case MOP_xmovrr:
     case MOP_wmovrr: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-      if (srcOpnd.IsPhysicalRegister() || dstOpnd.IsPhysicalRegister()) {
-        return;
+      if (!cgFunc->GetTargetRegInfo()->IsVirtualRegister(dstOpnd)) {
+        return false;
       }
-      if (srcOpnd.GetRegisterNumber() == RZR) {
-        srcOpnd.SetValidBitsNum(k1BitSize);
+      uint32 newVB = srcOpnd.GetValidBitsNum();
+      if (!cgFunc->GetTargetRegInfo()->IsVirtualRegister(srcOpnd)) {
+        newVB = (srcOpnd.GetRegisterNumber() == RZR ? k1BitSize : k64BitSize);
       }
       if (!(dstOpnd.GetSize() == k64BitSize && srcOpnd.GetSize() == k32BitSize) &&
           !(dstOpnd.GetSize() == k32BitSize && srcOpnd.GetSize() == k64BitSize)) {
-        dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum());
+        checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       }
       break;
     }
@@ -231,9 +402,9 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
       if ((static_cast<int32>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
-        dstOpnd.SetValidBitsNum(k1BitSize);
+        checkChangeAndSetValidBitsNum(dstOpnd, k1BitSize);
       } else {
-        dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - static_cast<uint32>(shiftBits));
+        checkChangeAndSetValidBitsNum(dstOpnd, srcOpnd.GetValidBitsNum() - static_cast<uint32>(shiftBits));
       }
       break;
     }
@@ -246,7 +417,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
       uint32 newVB = ((srcOpnd.GetValidBitsNum() + shiftBits) > srcOpnd.GetSize()) ?
                      srcOpnd.GetSize() : (srcOpnd.GetValidBitsNum() + shiftBits);
-      dstOpnd.SetValidBitsNum(newVB);
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     case MOP_wasrrri5:
@@ -259,9 +430,9 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
         auto shiftBits = static_cast<int32>(static_cast<ImmOperand&>(opnd).GetValue());
         auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
         if ((static_cast<int32>(srcOpnd.GetValidBitsNum()) - shiftBits) <= 0) {
-          dstOpnd.SetValidBitsNum(k1BitSize);
+          checkChangeAndSetValidBitsNum(dstOpnd, k1BitSize);
         } else {
-          dstOpnd.SetValidBitsNum(srcOpnd.GetValidBitsNum() - static_cast<uint32>(shiftBits));
+          checkChangeAndSetValidBitsNum(dstOpnd, srcOpnd.GetValidBitsNum() - static_cast<uint32>(shiftBits));
         }
       }
       break;
@@ -274,14 +445,14 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       uint32 newVB = dstOpnd.GetValidBitsNum();
       newVB = (mop == MOP_xuxtb32) ? ((srcVB < k8BitSize) ? srcVB : k8BitSize) : newVB;
       newVB = (mop == MOP_xuxth32) ? ((srcVB < k16BitSize) ? srcVB : k16BitSize) : newVB;
-      dstOpnd.SetValidBitsNum(newVB);
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     case MOP_xuxtw64: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &srcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-      if (srcOpnd.GetValidBitsNum() == k32BitSize) {
-        dstOpnd.SetValidBitsNum(k32BitSize);
+      if (srcOpnd.GetValidBitsNum() <= k32BitSize) {
+        checkChangeAndSetValidBitsNum(dstOpnd, srcOpnd.GetValidBitsNum());
       }
       break;
     }
@@ -289,14 +460,14 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
     case MOP_xubfxrri6i6: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       auto &widthOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
-      dstOpnd.SetValidBitsNum(static_cast<uint32>(widthOpnd.GetValue()));
+      checkChangeAndSetValidBitsNum(dstOpnd, static_cast<uint32>(widthOpnd.GetValue()));
       break;
     }
     case MOP_wldrb:
     case MOP_wldrh: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
       uint32 newVB = (mop == MOP_wldrb) ? k8BitSize : k16BitSize;
-      dstOpnd.SetValidBitsNum(newVB);
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     case MOP_wandrrr:
@@ -305,7 +476,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       uint32 src1VB = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetValidBitsNum();
       uint32 src2VB = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValidBitsNum();
       uint32 newVB = (src1VB <= src2VB ? src1VB : src2VB);
-      dstOpnd.SetValidBitsNum(newVB);
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     case MOP_wandrri12:
@@ -315,7 +486,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       uint32 src1VB = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetValidBitsNum();
       uint32 src2VB = GetImmValidBit(immOpnd.GetValue(), dstOpnd.GetSize());
       uint32 newVB = (src1VB <= src2VB ? src1VB : src2VB);
-      dstOpnd.SetValidBitsNum(newVB);
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     case MOP_wiorrrr: {
@@ -326,7 +497,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       if (newVB > k32BitSize) {
         newVB = k32BitSize;
       }
-      dstOpnd.SetValidBitsNum(newVB);
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     case MOP_xiorrrr: {
@@ -334,7 +505,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       uint32 src1VB = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetValidBitsNum();
       uint32 src2VB = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValidBitsNum();
       uint32 newVB = (src1VB >= src2VB ? src1VB : src2VB);
-      dstOpnd.SetValidBitsNum(newVB);
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     case MOP_wiorrri12: {
@@ -346,7 +517,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       if (newVB > k32BitSize) {
         newVB = k32BitSize;
       }
-      dstOpnd.SetValidBitsNum(newVB);
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     case MOP_xiorrri13: {
@@ -355,7 +526,7 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
       uint32 src1VB = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetValidBitsNum();
       uint32 src2VB = GetImmValidBit(immOpnd.GetValue(), dstOpnd.GetSize());
       uint32 newVB = (src1VB >= src2VB ? src1VB : src2VB);
-      dstOpnd.SetValidBitsNum(newVB);
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     case MOP_wrevrr16: {
@@ -369,15 +540,16 @@ void AArch64ValidBitOpt::SetValidBits(Insn &insn) {
     case MOP_wubfizrri5i5:
     case MOP_xubfizrri6i6: {
       auto &dstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-      auto &lsb = static_cast<ImmOperand &>(insn.GetOperand(kInsnThirdOpnd));
-      auto &width = static_cast<ImmOperand &>(insn.GetOperand(kInsnFourthOpnd));
-      uint32 newVB = lsb.GetValue() + width.GetValue();
-      dstOpnd.SetValidBitsNum(newVB);
+      auto &lsb = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+      auto &width = static_cast<ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
+      uint32 newVB = static_cast<uint32>(lsb.GetValue() + width.GetValue());
+      checkChangeAndSetValidBitsNum(dstOpnd, newVB);
       break;
     }
     default:
       break;
   }
+  return hasChange;
 }
 
 bool AArch64ValidBitOpt::SetPhiValidBits(Insn &insn) {
@@ -534,13 +706,26 @@ bool ExtValidBitPattern::CheckRedundantUxtbUxth(const Insn &insn) {
     srcOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
     checkMops = {MOP_wstrb};
   }
-  if (destOpnd != nullptr && destOpnd->IsSSAForm() && srcOpnd != nullptr && srcOpnd->IsSSAForm()) {
+  if (destOpnd != nullptr && destOpnd->IsSSAForm() && srcOpnd != nullptr) {
     destVersion = ssaInfo->FindSSAVersion(destOpnd->GetRegisterNumber());
-    srcVersion = ssaInfo->FindSSAVersion(srcOpnd->GetRegisterNumber());
     ASSERT(destVersion != nullptr, "find Version failed");
     for (auto destUseIt : destVersion->GetAllUseInsns()) {
       Insn *useInsn = destUseIt.second->GetInsn();
-      if (checkMops.find(useInsn->GetMachineOpcode()) == checkMops.end()) {
+      if (useInsn->GetMachineOpcode() == MOP_wandrri12 || useInsn->GetMachineOpcode() == MOP_xandrri13) {
+        // uxtb  R101, R100
+        // and   R102, R101, #14
+        // when imm value = 0xFF, the and insn will be deleted by AndValidBitPattern
+        CHECK_FATAL(useInsn->GetOperand(kInsnThirdOpnd).IsImmediate(), "must be imm!");
+        auto &andImm = static_cast<ImmOperand&>(useInsn->GetOperand(kInsnThirdOpnd));
+        if (andImm.GetValue() < 0) {  // when immediate number is less than 0, high-bits must be 1
+          return false;
+        }
+        if (insn.GetMachineOpcode() == MOP_xuxth32 && andImm.GetValue() >= 0xFFFF) {
+          return false;
+        } else if (insn.GetMachineOpcode() == MOP_xuxtb32 && andImm.GetValue() >= 0xFF) {
+          return false;
+        }
+      } else if (checkMops.find(useInsn->GetMachineOpcode()) == checkMops.end()) {
         return false;
       }
     }
@@ -557,7 +742,7 @@ bool ExtValidBitPattern::CheckValidCvt(const Insn &insn) {
     destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
     srcOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   }
-  if (insn.GetMachineOpcode() == MOP_xubfxrri6i6) {
+  if (insn.GetMachineOpcode() == MOP_xubfxrri6i6 || insn.GetMachineOpcode() == MOP_xsbfxrri6i6) {
     destOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
     srcOpnd = &static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
     auto &lsb = static_cast<ImmOperand &>(insn.GetOperand(kInsnThirdOpnd));
@@ -575,6 +760,10 @@ bool ExtValidBitPattern::CheckValidCvt(const Insn &insn) {
       // check case:
       // uxtw R1 R0
       // uxtw R2 R1
+      // this case is forbidden becasue, these two insns would be removed and caused error.
+      // the first insn would be removed because R1's only has 32 bit use point.
+      // the second insn would be removed because R1's validbit is 32 bit (when we removed first one, we don't
+      // update the validbit of R1.)
       if (useInsn->GetMachineOpcode() == MOP_xuxtw64) {
         return false;
       }
@@ -618,8 +807,9 @@ bool ExtValidBitPattern::CheckCondition(Insn &insn) {
   switch (mOp) {
     case MOP_xuxtb32:
     case MOP_xuxth32: {
+      auto maxValidBit = (mOp == MOP_xuxtb32 ? k8BitSize : k16BitSize);
       if (CheckRedundantUxtbUxth(insn) ||
-          (static_cast<RegOperand&>(dstOpnd).GetValidBitsNum() == static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() &&
+          (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() <= maxValidBit &&
           !static_cast<RegOperand&>(srcOpnd).IsPhysicalRegister())) { // Do not optimize callee ensuring vb of parameter
         newMop = MOP_wmovrr;
         break;
@@ -629,11 +819,11 @@ bool ExtValidBitPattern::CheckCondition(Insn &insn) {
     case MOP_xuxtw64: {
       if (CheckValidCvt(insn) || (static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() <= k32BitSize &&
           !static_cast<RegOperand&>(srcOpnd).IsPhysicalRegister())) { // Do not optimize callee ensuring vb of parameter
-          if (static_cast<RegOperand&>(srcOpnd).IsSSAForm() && srcVersion != nullptr) {
-            srcVersion->SetImplicitCvt();
-          }
-          newMop = MOP_wmovrr;
-          break;
+        if (static_cast<RegOperand&>(srcOpnd).IsSSAForm() && srcVersion != nullptr) {
+          srcVersion->SetImplicitCvt();
+        }
+        newMop = MOP_wmovrr;
+        break;
       }
       return false;
     }
@@ -654,21 +844,22 @@ bool ExtValidBitPattern::CheckCondition(Insn &insn) {
       CHECK_FATAL(immOpnd2.IsImmediate(), "must be immediate");
       int64 lsb = static_cast<ImmOperand&>(immOpnd1).GetValue();
       int64 width = static_cast<ImmOperand&>(immOpnd2).GetValue();
+      auto &srcRegOpnd = static_cast<RegOperand&>(srcOpnd);
       if (CheckValidCvt(insn)) {
-        if (static_cast<RegOperand&>(srcOpnd).IsSSAForm() && srcVersion != nullptr) {
+        if (srcRegOpnd.IsSSAForm() && srcVersion != nullptr) {
           srcVersion->SetImplicitCvt();
         }
         newMop = MOP_xmovrr;
         break;
       }
-      if (lsb != 0 || static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() > width) {
+      if (lsb != 0 || srcRegOpnd.GetValidBitsNum() > width ||
+          srcRegOpnd.IsPhysicalRegister()) { // Do not optimize callee ensuring vb of parameter
         return false;
       }
-      if ((mOp == MOP_wsbfxrri5i5 || mOp == MOP_xsbfxrri6i6) &&
-          static_cast<RegOperand&>(srcOpnd).GetValidBitsNum() == width) {
+      if ((mOp == MOP_wsbfxrri5i5 || mOp == MOP_xsbfxrri6i6) && srcRegOpnd.GetValidBitsNum() == width) {
         return false;
       }
-      if (static_cast<RegOperand&>(srcOpnd).IsSSAForm() && srcVersion != nullptr) {
+      if (srcRegOpnd.IsSSAForm() && srcVersion != nullptr) {
         srcVersion->SetImplicitCvt();
       }
       if (mOp == MOP_wubfxrri5i5 || mOp == MOP_wsbfxrri5i5) {
@@ -700,17 +891,6 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
     case MOP_xubfxrri6i6:
     case MOP_wsbfxrri5i5:
     case MOP_xsbfxrri6i6: {
-      // if dest is preg, change mop because there is no ssa version for preg
-      if (newDstOpnd != nullptr && newDstOpnd->IsPhysicalRegister() && newSrcOpnd != nullptr &&
-          newSrcOpnd->IsSSAForm()) {
-        Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *newDstOpnd, *newSrcOpnd);
-        bb.ReplaceInsn(insn, newInsn);
-        ssaInfo->ReplaceInsn(insn, newInsn);
-        if (newDstOpnd->GetSize() > newSrcOpnd->GetSize() || newDstOpnd->GetSize() != newDstOpnd->GetValidBitsNum()) {
-          ssaInfo->InsertSafePropInsn(newInsn.GetId());
-        }
-        return;
-      }
       if (newDstOpnd != nullptr && newDstOpnd->IsSSAForm() && newSrcOpnd != nullptr && newSrcOpnd->IsSSAForm()) {
         destVersion = ssaInfo->FindSSAVersion(newDstOpnd->GetRegisterNumber());
         ASSERT(destVersion != nullptr, "find Version failed");
@@ -718,8 +898,16 @@ void ExtValidBitPattern::Run(BB &bb, Insn &insn) {
         ASSERT(srcVersion != nullptr, "find Version failed");
         cgFunc->InsertExtendSet(srcVersion->GetSSAvRegOpnd()->GetRegisterNumber());
         ReplaceImplicitCvtAndProp(destVersion, srcVersion);
-        return;
+      } else if (newDstOpnd != nullptr && newSrcOpnd != nullptr) {
+        // only change mop because there is no ssa version
+        Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, *newDstOpnd, *newSrcOpnd);
+        bb.ReplaceInsn(insn, newInsn);
+        ssaInfo->ReplaceInsn(insn, newInsn);
+        if (newDstOpnd->GetSize() > newSrcOpnd->GetSize() || newDstOpnd->GetSize() != newDstOpnd->GetValidBitsNum()) {
+          ssaInfo->InsertSafePropInsn(newInsn.GetId());
+        }
       }
+      break;
     }
     default:
       return;
@@ -961,5 +1149,164 @@ void CmpBranchesPattern::Run(BB &bb, Insn &insn) {
     DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }
+
+bool RSPattern::CheckCondition(Insn &insn) {
+  if (!insn.GetOperand(kInsnSecondOpnd).IsRegister() && !insn.GetOperand(kInsnThirdOpnd).IsImmediate()) {
+    return false;
+  }
+  RegOperand regOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  ImmOperand &oldImmOperand = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  if (regOpnd.GetValidBitsNum() < oldImmOperand.GetValue()) {
+    newMop = insn.GetMachineOpcode() == MOP_xasrrri6 ? MOP_xmovri64 : MOP_wmovri32;
+    oldImmSize = oldImmOperand.GetSize();
+    oldImmIsSigned = oldImmOperand.IsSignedValue();
+    return true;
+  }
+  return false;
+}
+
+void RSPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  auto *aarFunc = static_cast<AArch64CGFunc *>(cgFunc);
+  ImmOperand &newImmOpnd = aarFunc->CreateImmOperand(0, oldImmSize, oldImmIsSigned);
+  Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(newMop, insn.GetOperand(kInsnFirstOpnd), newImmOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  // update ssa info
+  ssaInfo->ReplaceInsn(insn, newInsn);
+}
+
+void RevCbzToCbzPattern::SetRevValue(MOperator mop, const uint64 &oldVal, uint64 &newVal, bool isLogicalImm16) const {
+  if (mop == MOP_wrevrr16) {
+    // 32bits mask for wrev16
+    // 0x000000FFU, 0x0000FF00U
+    newVal = (((oldVal & 0x000000FFU) << k8BitSize) | ((oldVal & 0x0000FF00U) >> k8BitSize));
+    // if rev16 use point validbit is 16bit, construct a valid imm12 number as much as possible
+    if (isLogicalImm16) {
+      newVal |= (newVal << k16BitSize);
+    }
+  } else if (mop == MOP_wrevrr) {
+    // 32bits mask for wrev
+    // 0x000000FFU, 0x0000FF00U, 0x00FF0000U, 0xFF000000U
+    newVal = (((oldVal & 0x000000FFU) << k24BitSize) | ((oldVal & 0x0000FF00U) << k8BitSize) |
+              ((oldVal & 0x00FF0000U) >> k8BitSize)  | ((oldVal & 0xFF000000U) >> k24BitSize));
+  } else if (mop == MOP_xrevrr) {
+    // 64bits mask for xrev
+    // 0x00000000000000FFULL, 0x000000000000FF00ULL, 0x0000000000FF0000ULL, 0x00000000FF000000ULL
+    // 0x000000FF00000000ULL, 0x0000FF0000000000ULL, 0x00FF000000000000ULL, 0xFF00000000000000ULL
+    newVal = (((oldVal & 0x00000000000000FFULL) << k56BitSize) |
+              ((oldVal & 0x000000000000FF00ULL) << k40BitSize) |
+              ((oldVal & 0x0000000000FF0000ULL) << k24BitSize) |
+              ((oldVal & 0x00000000FF000000ULL) << k8BitSize)  |
+              ((oldVal & 0x000000FF00000000ULL) >> k8BitSize)  |
+              ((oldVal & 0x0000FF0000000000ULL) >> k24BitSize) |
+              ((oldVal & 0x00FF000000000000ULL) >> k40BitSize) |
+              ((oldVal & 0xFF00000000000000ULL) >> k56BitSize));
+  }
+}
+
+bool RevCbzToCbzPattern::CheckCondition(Insn &insn) {
+  auto *curReg = static_cast<RegOperand*>(&(insn.GetOperand(kInsnFirstOpnd)));
+  VRegVersion *curVersion = ssaInfo->FindSSAVersion(curReg->GetRegisterNumber());
+  ASSERT(curVersion != nullptr, "find Version failed");
+  auto *useList = &(curVersion->GetAllUseInsns());
+
+  while (useList->size() == k1BitSize) {
+    Insn *nextInsn = useList->begin()->second->GetInsn();
+    if (nextInsn == nullptr) {
+      return false;
+    }
+    MOperator useMop = nextInsn->GetMachineOpcode();
+    if ((useMop == MOP_wcbz || useMop == MOP_xcbz || useMop == MOP_wcbnz || useMop == MOP_xcbnz)) {
+      cbzInsn = nextInsn;
+      return true;
+    }
+    if ((useMop == MOP_wcmpri || useMop == MOP_xcmpri)) {
+      curReg = static_cast<RegOperand*>(&(nextInsn->GetOperand(kInsnFirstOpnd)));
+      curVersion = ssaInfo->FindSSAVersion(curReg->GetRegisterNumber());
+      ASSERT(curVersion != nullptr, "find Version failed");
+      useList = &(curVersion->GetAllUseInsns());
+      if (useList->size() != k1BitSize) {
+        return false;
+      }
+      Insn *condInsn = useList->begin()->second->GetInsn();
+      if (condInsn == nullptr) {
+        return false;
+      }
+      MOperator condMop = condInsn->GetMachineOpcode();
+      if ((condMop != MOP_beq) && (condMop != MOP_bne)) {
+        return false;
+      }
+      oldInsns.push_back(nextInsn);
+      return true;
+    }
+    if (((useMop == MOP_weorrri12) || (useMop == MOP_xeorrri13) || (useMop == MOP_wandrri12) ||
+        (useMop == MOP_xandrri13) || (useMop == MOP_wiorrri12) || (useMop == MOP_xiorrri13))) {
+      oldInsns.push_back(nextInsn);
+      curReg = static_cast<RegOperand*>(&(nextInsn->GetOperand(kInsnFirstOpnd)));
+      curVersion = ssaInfo->FindSSAVersion(curReg->GetRegisterNumber());
+      ASSERT(curVersion != nullptr, "find Version failed");
+      useList = &(curVersion->GetAllUseInsns());
+      continue;
+    }
+    break;
+  }
+  return false;
+}
+
+void RevCbzToCbzPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  auto &revUseReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  MOperator revMop = insn.GetMachineOpcode();
+  bool isValidBits16 = false;
+  if ((revMop == MOP_wrevrr16) && (revUseReg.GetValidBitsNum() <= k16BitSize)) {
+    isValidBits16 = true;
+  }
+
+  for (size_t i = 0; i < oldInsns.size(); ++i) {
+    auto *oldInsn = oldInsns[i];
+    MOperator mop = oldInsn->GetMachineOpcode();
+    auto &oldImmOpnd = static_cast<ImmOperand&>(oldInsn->GetOperand(kInsnThirdOpnd));
+    uint64 oldValue = static_cast<uint64>(oldImmOpnd.GetValue());
+    uint64 newValue = 0;
+    uint32 immSize = kMaxImmVal12Bits;
+    bool isLogicalImm = true;
+    if ((mop == MOP_xcmpri) || (mop == MOP_wcmpri)) {
+      isLogicalImm = false;
+    }
+    if ((revMop == MOP_xrevrr) && isLogicalImm) {
+      immSize = kMaxImmVal13Bits;
+    }
+    SetRevValue(revMop, oldValue, newValue, (isLogicalImm && isValidBits16));
+    auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    ImmOperand &newImmOpnd = aarFunc->CreateImmOperand(static_cast<int64>(newValue), immSize, false);
+    Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(mop, oldInsn->GetOperand(kInsnFirstOpnd),
+                                                        oldInsn->GetOperand(kInsnSecondOpnd), newImmOpnd);
+    if (i == 0) {
+      newInsn.SetOperand(kInsnSecondOpnd, revUseReg);
+    }
+    if (!VERIFY_INSN(&newInsn)) {
+      return;
+    }
+    newInsns.push_back(&newInsn);
+  }
+
+  if (oldInsns.size() == 0) {
+    CHECK_FATAL(cbzInsn != nullptr, "cbzInsn can't be nullptr");
+    Insn &newInsn = cgFunc->GetInsnBuilder()->BuildInsn(cbzInsn->GetMachineOpcode(),
+                                                        revUseReg, cbzInsn->GetOperand(kInsnSecondOpnd));
+    cbzInsn->GetBB()->ReplaceInsn(*cbzInsn, newInsn);
+    ssaInfo->ReplaceInsn(*cbzInsn, newInsn);
+  }
+
+  for (size_t i = 0; i < oldInsns.size(); ++i) {
+    oldInsns[i]->GetBB()->ReplaceInsn(*oldInsns[i], *newInsns[i]);
+    ssaInfo->ReplaceInsn(*oldInsns[i], *newInsns[i]);
+  }
+}
+
 } /* namespace maplebe */
 

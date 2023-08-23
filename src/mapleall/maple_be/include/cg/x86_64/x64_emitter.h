@@ -34,6 +34,10 @@ class X64Emitter : public AsmEmitter {
   void EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std::string &name, LabelIdx labIdx) override;
   void EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) override;
   void Run(FuncEmitInfo &funcEmitInfo) override;
+
+ private:
+  void DumpTargetASM(Emitter &emitter, Insn &insn);
+  void EmitPrefetch(Emitter &emitter, const Insn &insn) const;
 };
 
 class X64OpndEmitVisitor : public OpndEmitVisitor {

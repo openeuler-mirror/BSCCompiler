@@ -148,46 +148,6 @@ void AArch64ReachingDefinition::InitEhDefine(BB &bb) {
   pseudoInsns.emplace_back(&newPseudoInsn);
 }
 
-/* insert pseudoInsns for return value R0/V0 */
-void AArch64ReachingDefinition::AddRetPseudoInsn(BB &bb) {
-  AArch64reg regNO = static_cast<AArch64CGFunc*>(cgFunc)->GetReturnRegisterNumber();
-  if (regNO == kInvalidRegNO) {
-    return;
-  }
-  if (bb.GetKind() == BB::kBBGoto) {
-    return;  /* a goto block should not have unreachable instr */
-  }
-
-  if (regNO == R0) {
-    RegOperand &regOpnd =
-        static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(regNO, k64BitSize, kRegTyInt);
-    Insn &retInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_pseudo_ret_int, regOpnd);
-    bb.AppendInsn(retInsn);
-    pseudoInsns.emplace_back(&retInsn);
-  } else if (regNO == V0) {
-    RegOperand &regOpnd =
-        static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(regNO, k64BitSize, kRegTyFloat);
-    Insn &retInsn = cgFunc->GetInsnBuilder()->BuildInsn(MOP_pseudo_ret_float, regOpnd);
-    bb.AppendInsn(retInsn);
-    pseudoInsns.emplace_back(&retInsn);
-  }
-}
-
-void AArch64ReachingDefinition::AddRetPseudoInsns() {
-  uint32 exitBBSize = cgFunc->GetExitBBsVec().size();
-  if (exitBBSize == 0) {
-    if (cgFunc->GetCleanupBB() != nullptr && cgFunc->GetCleanupBB()->GetPrev() != nullptr) {
-      AddRetPseudoInsn(*cgFunc->GetCleanupBB()->GetPrev());
-    } else if (!cgFunc->GetMirModule().IsCModule()) {
-      AddRetPseudoInsn(*cgFunc->GetLastBB()->GetPrev());
-    }
-  } else {
-    for (uint32 i = 0; i < exitBBSize; ++i) {
-      AddRetPseudoInsn(*cgFunc->GetExitBB(i));
-    }
-  }
-}
-
 void AArch64ReachingDefinition::GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) {
   for (auto &reg : static_cast<const ListOperand&>(insn.GetOperand(index)).GetOperands()) {
     regGen[bb.GetId()]->SetBit(static_cast<RegOperand *>(reg)->GetRegisterNumber());

@@ -13,15 +13,13 @@
 * See the Mulan PSL v2 for more details.
 */
 
-/*
- * Build intra/inter block data dependence graph.
- * 1: Build data dependence nodes
- * 2: Build edges between dependence nodes. Edges are:
- *   2.1) True dependence
- *   2.2) Anti dependence
- *   2.3) Output dependence
- *   2.4) Barrier dependence
- */
+// Build intra/inter block data dependence graph.
+// 1: Build data dependence nodes
+// 2: Build edges between dependence nodes. Edges are:
+//   2.1) True dependence
+//   2.2) Anti dependence
+//   2.3) Output dependence
+//   2.4) Barrier dependence
 #ifndef MAPLEBE_INCLUDE_CG_DATA_DEP_ANALYSIS_H
 #define MAPLEBE_INCLUDE_CG_DATA_DEP_ANALYSIS_H
 
@@ -59,6 +57,6 @@ class DataDepAnalysis {
   MapleAllocator interAlloc;
   DataDepBase &ddb;
 };
-} /* namespace maplebe */
+} // namespace maplebe
 
 #endif  // MAPLEBE_INCLUDE_CG_DATA_DEP_ANALYSIS_H

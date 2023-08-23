@@ -28,7 +28,7 @@
 #include "string_utils.h"
 
 namespace maple {
-bool CalleeCanBeRemovedIfInlined(const CallInfo &info, const CallGraph &cg);
+bool CalleeCanBeRemovedIfInlined(CallInfo &info, const CallGraph &cg);
 bool CanCGNodeBeRemovedIfNoDirectCalls(const CGNode &cgNode);
 bool ShouldBeInlinedToAllCallers(const CGNode &calleeCgNode, std::vector<CallInfo*> &callInfos, const CallGraph &cg);
 std::pair<bool, int32> EstimateGrowthIfInlinedToAllCallers(const CGNode &calleeCgNode, const CallGraph &cg,
@@ -36,6 +36,7 @@ std::pair<bool, int32> EstimateGrowthIfInlinedToAllCallers(const CGNode &calleeC
 bool IsFuncForbiddenToCopy(const MIRFunction &func);
 std::optional<uint32> GetFuncSize(const MIRFunction &func);
 double GetCallFreqPercent(const CallInfo &info);
+bool IsUnlikelyCallsite(const CallInfo &callInfo);
 
 // All kinds of information related to callsite badness calculation
 struct BadnessInfo {
@@ -111,10 +112,13 @@ class InlineAnalyzer {
       const CallNode &callStmt, const CallGraph &cg, uint32 depth, bool earlyInline);
   static bool WantInline(CallInfo &callInfo, const CallGraph &cg, uint32 depth);
   static std::pair<bool, InlineFailedCode> WantInlineImpl(CallInfo &callInfo, const CallGraph &cg, uint32 depth);
+  static bool MustInline(const MIRFunction &caller, const MIRFunction &callee,
+                         uint32 depth = 0, bool earlyInline = false);
  private:
   static bool FuncInlinable(const MIRFunction &func);
   static bool SizeWillGrow(const CGNode &calleeNode, const CallGraph &cg);
   static bool IsSafeToInline(const MIRFunction &callee, const CallNode &callStmt);
+  static bool CheckPreferInline(const CallNode &callStmt, bool &status);
 };
 }  // namespace maple
 #endif  // MPL2MPL_INCLUDE_INLINE_ANALYZER_H

@@ -67,10 +67,16 @@ class InlineCost {
 
   void AddInsns(NumInsns detInsns) {
     insns += detInsns;
+    if (insns < 0) {
+      insns = 0;
+    }
   }
 
   void AddCycles(NumCycles detCycles) {
     cycles += detCycles;
+    if (cycles < 0) {
+      cycles = 0;
+    }
   }
 
   void Add(NumInsns detInsns, NumCycles detCycles) {
@@ -562,9 +568,25 @@ class Predicate {
 struct InlineEdgeSummary {
   InlineEdgeSummary(const Predicate *pred, int32 freq, int32 stmtSz, int32 stmtTm)
       : predicate(pred), frequency(freq), callCost(stmtSz, stmtTm) {}
+
+  bool GetAttr(CallsiteAttrKind attrKind) const {
+    uint32 attrIndex = static_cast<uint32>(attrKind);
+    return attrFlag[attrIndex];
+  }
+
+  void SetAttr(CallsiteAttrKind attrKind, bool unSet = false) {
+    uint32 attrIndex = static_cast<uint32>(attrKind);
+    if (!unSet) {
+      attrFlag[attrIndex] = true;
+    } else {
+      attrFlag[attrIndex] = false;
+    }
+  }
+
   const Predicate *predicate = nullptr;  // predicate of the bb that contains the callStmt
   int32 frequency = -1;   // frequency of the bb that contains the callStmt, -1 means invalid frequency
   InlineCost callCost;
+  CallsiteAttrFlag attrFlag;
 };
 
 class InlineSummary {
@@ -706,12 +728,16 @@ class InlineSummary {
     argInfoVec[argIndex] = argInfo;
   }
 
-  void AddEdgeSummary(uint32 callStmtId, const Predicate *bbPredicate, int32 frequency,
+  // Return new generated edgeSummary, otherwise return nullptr
+  InlineEdgeSummary *AddEdgeSummary(uint32 callStmtId, const Predicate *bbPredicate, int32 frequency,
                       int32 insns, int32 cycles) {
     const auto &res = edgeSummaryMap.try_emplace(callStmtId, nullptr);
     if (res.second) {
-      res.first->second = summaryAlloc.New<InlineEdgeSummary>(bbPredicate, frequency, insns, cycles);
+      auto *edgeSummary = summaryAlloc.New<InlineEdgeSummary>(bbPredicate, frequency, insns, cycles);
+      res.first->second = edgeSummary;
+      return edgeSummary;
     }
+    return nullptr;
   }
 
   void RemoveEdgeSummary(uint32 callStmtId) {
@@ -907,7 +933,8 @@ class InlineSummaryCollector {
         dom(dominance),
         pdom(postDominance),
         meLoop(loop),
-        allBBPred(tmpAlloc.Adapter()) {}
+        allBBPred(tmpAlloc.Adapter()),
+        unlikelyBBs(tmpAlloc.Adapter()) {}
 
   ~InlineSummaryCollector() {
     memPoolCtrler.DeleteMemPool(tmpAlloc.GetMemPool());
@@ -935,11 +962,12 @@ class InlineSummaryCollector {
     }
   }
 
+  void InitUnlikelyBBs();
   void ComputeEdgePredicate();
   void PropBBPredicate();
   void ComputeConditionalCost();
   std::pair<int32, double> AnalyzeCondCostForStmt(MeStmt &stmt, int32 callFrequency, const Predicate *bbPredClone,
-      const BBPredicate &bbPredicate);
+      const BBPredicate &bbPredicate, bool isUnlikelyBB);
 
   void CollectInlineSummary() {
     InlineSummaryCollector::CollectArgInfo(*func);
@@ -947,6 +975,7 @@ class InlineSummaryCollector {
     if (!Options::profileUse) {  // If there is real profile, no need to predict freq
       MePrediction::RebuildFreq(*func, dom, pdom, meLoop, &savedExpectInfo);  // ipa prepare should rebuild freq before
     }
+    InitUnlikelyBBs();
     PrepareSummary();
     if (debug) {
       LogInfo::MapleLogger() << "Collect inline summary for function: " << func->GetName() << "/" <<
@@ -991,6 +1020,7 @@ class InlineSummaryCollector {
   InlineSummary *inlineSummary = nullptr;
   // All bb predicates are allocated in tmpAlloc, necessary predicates will be cloned into summaryAlloc
   MapleVector<BBPredicate*> allBBPred;
+  MapleUnorderedSet<BB*> unlikelyBBs;
   // We use `exprCache` to avoid build multiple different liteExpr for a single meExpr
   // key: meExpr, value: liteExpr and paramsUsed
   std::unordered_map<MeExpr*, std::pair<LiteExpr*, uint32>> exprCache;

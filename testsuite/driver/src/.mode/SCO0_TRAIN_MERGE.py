@@ -52,7 +52,7 @@ SCO0_TRAIN_MERGE = {
             infiles=["${APP}"],
             outfile="${TARGET}",
             option="-std=gnu99 --no-pie -lm -L${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/",
-            extra_opt="--O0 --patch-long-branch -fPIC --no-pie -flto ${SPEC_PARAM}"
+            extra_opt="${SPEC_PARAM}"
         )
     ],
     "cp_data":[

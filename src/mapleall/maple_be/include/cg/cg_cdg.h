@@ -50,7 +50,7 @@ class CDGNode {
     membarInsn = nullptr;
     pseudoSepNodes = nullptr;
     lastCallInsn = nullptr;
-    inlineAsmInsn = nullptr;
+    lastInlineAsmInsn = nullptr;
     regDefs = nullptr;
     stackDefs = nullptr;
     region = nullptr;
@@ -190,12 +190,12 @@ class CDGNode {
     lastFrameDef = frameInsn;
   }
 
-  Insn *GetInlineAsmInsn() {
-    return inlineAsmInsn;
+  Insn *GetLastInlineAsmInsn() {
+    return lastInlineAsmInsn;
   }
 
-  void SetInlineAsmInsn(Insn *asmInsn) {
-    inlineAsmInsn = asmInsn;
+  void SetLastInlineAsmInsn(Insn *asmInsn) {
+    lastInlineAsmInsn = asmInsn;
   }
 
   void InitTopoInRegionInfo(MemPool &tmpMp, MapleAllocator &tmpAlloc) {
@@ -226,7 +226,7 @@ class CDGNode {
     membarInsn = nullptr;
     lastCallInsn = nullptr;
     lastFrameDef = nullptr;
-    inlineAsmInsn = nullptr;
+    lastInlineAsmInsn = nullptr;
     lastComments.clear();
 
     regDefs = nullptr;
@@ -245,7 +245,7 @@ class CDGNode {
     membarInsn = nullptr;
     lastCallInsn = nullptr;
     lastFrameDef = nullptr;
-    inlineAsmInsn = nullptr;
+    lastInlineAsmInsn = nullptr;
 
     for (auto &regDef : *regDefs) {
       regDef = nullptr;
@@ -461,7 +461,7 @@ class CDGNode {
   Insn *membarInsn = nullptr;
   Insn *lastCallInsn = nullptr;
   Insn *lastFrameDef = nullptr;
-  Insn *inlineAsmInsn = nullptr;
+  Insn *lastInlineAsmInsn = nullptr;
   MapleVector<Insn*> *regDefs = nullptr; // the index is regNO, record the latest defInsn in the curBB
   MapleVector<RegList*> *regUses = nullptr; // the index is regNO
   MapleVector<Insn*> *stackUses = nullptr;

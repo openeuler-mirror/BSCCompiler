@@ -31,7 +31,7 @@ using namespace maple;
 
 #define CFGO_DUMP_NEWPM CG_DEBUG_FUNC(f)
 
-/* return true if to is put after from and there is no real insns between from and to, */
+// return true if to is put after from and there is no real insns between from and to
 bool ChainingPattern::NoInsnBetween(const BB &from, const BB &to) const {
   const BB *bb = nullptr;
   for (bb = from.GetNext(); bb != nullptr && bb != &to && bb != cgFunc->GetLastBB(); bb = bb->GetNext()) {
@@ -42,7 +42,7 @@ bool ChainingPattern::NoInsnBetween(const BB &from, const BB &to) const {
   return (bb == &to);
 }
 
-/* return true if insns in bb1 and bb2 are the same except the last goto insn. */
+// return true if insns in bb1 and bb2 are the same except the last goto insn.
 bool ChainingPattern::DoSameThing(const BB &bb1, const Insn &last1, const BB &bb2, const Insn &last2) const {
   const Insn *insn1 = bb1.GetFirstMachineInsn();
   const Insn *insn2 = bb2.GetFirstMachineInsn();
@@ -75,12 +75,10 @@ bool ChainingPattern::DoSameThing(const BB &bb1, const Insn &last1, const BB &bb
   return (insn1 == last1.GetNextMachineInsn() && insn2 == last2.GetNextMachineInsn());
 }
 
-/*
- * BB2 can be merged into BB1, if
- *   1. BB1's kind is fallthrough;
- *   2. BB2 has only one predecessor which is BB1 and BB2 is not the lastbb
- *   3. BB2 is neither catch BB nor switch case BB
- */
+// BB2 can be merged into BB1, if
+//   1. BB1's kind is fallthrough;
+//   2. BB2 has only one predecessor which is BB1 and BB2 is not the lastbb
+//   3. BB2 is neither catch BB nor switch case BB
 bool ChainingPattern::MergeFallthuBB(BB &curBB) {
   BB *sucBB = curBB.GetNext();
   if (sucBB == nullptr ||
@@ -114,10 +112,8 @@ bool ChainingPattern::MergeGotoBB(BB &curBB, BB &sucBB) {
 }
 
 bool ChainingPattern::MoveSuccBBAsCurBBNext(BB &curBB, BB &sucBB) {
-  /*
-   * without the judge below, there is
-   * Assembler Error: CFI state restore without previous remember
-   */
+  // without the judge below, there is
+  // Assembler Error: CFI state restore without previous remember
   if (sucBB.GetHasCfi() || (sucBB.GetFirstInsn() != nullptr && sucBB.GetFirstInsn()->IsCfiInsn())) {
     return false;
   }
@@ -125,7 +121,7 @@ bool ChainingPattern::MoveSuccBBAsCurBBNext(BB &curBB, BB &sucBB) {
   if (checkOnly) {
     return false;
   }
-  /* put sucBB as curBB's next. */
+  // put sucBB as curBB's next.
   ASSERT(sucBB.GetPrev() != nullptr, "the target of current goto BB will not be the first bb");
   sucBB.GetPrev()->SetNext(sucBB.GetNext());
   if (sucBB.GetNext() != nullptr) {
@@ -196,7 +192,7 @@ bool ChainingPattern::ClearCurBBAndResetTargetBB(BB &curBB, BB &sucBB) {
   if (last1 == nullptr) {
     return false;
   }
-  if (!DoSameThing(*newTarget, *last1, curBB, *brInsn->GetPreviousMachineInsn())) {
+  if (brInsn->GetPreviousMachineInsn() && !DoSameThing(*newTarget, *last1, curBB, *brInsn->GetPreviousMachineInsn())) {
     return false;
   }
 
@@ -225,13 +221,15 @@ bool ChainingPattern::ClearCurBBAndResetTargetBB(BB &curBB, BB &sucBB) {
   return true;
 }
 
-/*
- * Following optimizations are performed:
- * 1. Basic block merging
- * 2. unnecessary jumps elimination
- * 3. Remove duplicates Basic block.
- */
+// Following optimizations are performed:
+// 1. Basic block merging
+// 2. unnecessary jumps elimination
+// 3. Remove duplicates Basic block.
 bool ChainingPattern::Optimize(BB &curBB) {
+  if (curBB.IsUnreachable()) {
+    return false;
+  }
+
   if (curBB.GetKind() == BB::kBBFallthru) {
     return MergeFallthuBB(curBB);
   }
@@ -243,13 +241,11 @@ bool ChainingPattern::Optimize(BB &curBB) {
     }
 
     BB *sucBB = CGCFG::GetTargetSuc(curBB);
-    /*
-     * BB2 can be merged into BB1, if
-     *   1. BB1 ends with a goto;
-     *   2. BB2 has only one predecessor which is BB1
-     *   3. BB2 is of goto kind. Otherwise, the original fall through will be broken
-     *   4. BB2 is neither catch BB nor switch case BB
-     */
+    // BB2 can be merged into BB1, if
+    //   1. BB1 ends with a goto;
+    //   2. BB2 has only one predecessor which is BB1
+    //   3. BB2 is of goto kind. Otherwise, the original fall through will be broken
+    //   4. BB2 is neither catch BB nor switch case BB
     if (sucBB == nullptr || curBB.GetEhSuccs().size() != sucBB->GetEhSuccs().size()) {
       return false;
     }
@@ -267,38 +263,30 @@ bool ChainingPattern::Optimize(BB &curBB) {
         return false;
       }
       return MergeGotoBB(curBB, *sucBB);
-    } else if (sucBB != &curBB &&
-               curBB.GetNext() != sucBB &&
-               sucBB != cgFunc->GetLastBB() &&
-               !sucBB->IsPredecessor(*sucBB->GetPrev()) &&
+    } else if (sucBB != &curBB && curBB.GetNext() != sucBB &&
+               sucBB != cgFunc->GetLastBB() && !sucBB->IsPredecessor(*sucBB->GetPrev()) &&
                !(sucBB->GetNext() != nullptr && sucBB->GetNext()->IsPredecessor(*sucBB)) &&
-               !IsLabelInLSDAOrSwitchTable(sucBB->GetLabIdx()) &&
-               sucBB->GetEhSuccs().empty() &&
+               !IsLabelInLSDAOrSwitchTable(sucBB->GetLabIdx()) && sucBB->GetEhSuccs().empty() &&
                sucBB->GetKind() != BB::kBBThrow && curBB.GetNext() != nullptr) {
       return MoveSuccBBAsCurBBNext(curBB, *sucBB);
     }
-    /*
-     * Last goto instruction can be removed, if:
-     *  1. The goto target is physically the next one to current BB.
-     */
+    // Last goto instruction can be removed, if:
+    //  1. The goto target is physically the next one to current BB.
     else if (sucBB == curBB.GetNext() ||
              (NoInsnBetween(curBB, *sucBB) && !IsLabelInLSDAOrSwitchTable(curBB.GetNext()->GetLabIdx()))) {
       return RemoveGotoInsn(curBB, *sucBB);
     }
-    /*
-     * Clear curBB and target it to sucBB->GetPrev()
-     *  if sucBB->GetPrev() and curBB's insns are the same.
-     *
-     * curBB:           curBB:
-     *   insn_x0          b prevbb
-     *   b sucBB        ...
-     * ...         ==>  prevbb:
-     * prevbb:            insn_x0
-     *   insn_x0        sucBB:
-     * sucBB:
-     */
-    else if (sucBB != curBB.GetNext() &&
-             !curBB.IsSoloGoto() &&
+    // Clear curBB and target it to sucBB->GetPrev()
+    //  if sucBB->GetPrev() and curBB's insns are the same.
+    //
+    // curBB:           curBB:
+    //   insn_x0          b prevbb
+    //   b sucBB        ...
+    // ...         ==>  prevbb:
+    // prevbb:            insn_x0
+    //   insn_x0        sucBB:
+    // sucBB:
+    else if (sucBB != curBB.GetNext() && !curBB.IsSoloGoto() &&
              !IsLabelInLSDAOrSwitchTable(curBB.GetLabIdx()) &&
              sucBB->GetKind() == BB::kBBReturn &&
              sucBB->GetPreds().size() > 1 &&
@@ -311,28 +299,26 @@ bool ChainingPattern::Optimize(BB &curBB) {
   return false;
 }
 
-/*
- * curBB:             curBB:
- *   insn_x0            insn_x0
- *   b targetBB         b BB
- * ...           ==>  ...
- * targetBB:          targetBB:
- *   b BB               b BB
- * ...                ...
- * BB:                BB:
- * *------------------------------
- * curBB:             curBB:
- *   insn_x0            insn_x0
- *   cond_br brBB       cond_br BB
- * ...                ...
- * brBB:         ==>  brBB:
- *   b BB               b BB
- * ...                ...
- * BB:                BB:
- *
- * conditions:
- *   1. only goto and comment in brBB;
- */
+// curBB:             curBB:
+//   insn_x0            insn_x0
+//   b targetBB         b BB
+// ...           ==>  ...
+// targetBB:          targetBB:
+//   b BB               b BB
+// ...                ...
+// BB:                BB:
+// *------------------------------
+// curBB:             curBB:
+//   insn_x0            insn_x0
+//   cond_br brBB       cond_br BB
+// ...                ...
+// brBB:         ==>  brBB:
+//   b BB               b BB
+// ...                ...
+// BB:                BB:
+//
+// conditions:
+//   1. only goto and comment in brBB;
 bool SequentialJumpPattern::Optimize(BB &curBB) {
   if (curBB.IsUnreachable()) {
     return false;
@@ -422,7 +408,7 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) const {
   }
   cgFunc->UpdateEmitSt(curBB, sucBB.GetLabIdx(), gotoTarget->GetLabIdx());
 
-  /* connect curBB, gotoTarget */
+  // connect curBB, gotoTarget
   for (auto it = gotoTarget->GetPredsBegin(); it != gotoTarget->GetPredsEnd(); ++it) {
     if (*it == &sucBB) {
       auto origIt = it;
@@ -454,7 +440,7 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) const {
       break;
     }
   }
-  /* cut curBB -> sucBB */
+  // cut curBB -> sucBB
   for (auto it = sucBB.GetPredsBegin(); it != sucBB.GetPredsEnd(); ++it) {
     if (*it == &curBB) {
       sucBB.ErasePreds(it);
@@ -495,12 +481,10 @@ bool SequentialJumpPattern::HasInvalidPred(BB &sucBB) const {
   return false;
 }
 
-/*
- * preCond:
- * sucBB is one of curBB's successor.
- *
- * Change curBB's successor to sucBB's successor
- */
+// preCond:
+// sucBB is one of curBB's successor.
+//
+// Change curBB's successor to sucBB's successor
 void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) const {
   BB *gotoTarget = CGCFG::GetTargetSuc(sucBB);
   CHECK_FATAL(gotoTarget != nullptr, "gotoTarget is null in SequentialJumpPattern::SkipSucBB");
@@ -562,18 +546,16 @@ void SequentialJumpPattern::SkipSucBB(BB &curBB, BB &sucBB) const {
   }
 }
 
-/*
- * Found pattern
- * curBB:                      curBB:
- *       ...            ==>          ...
- *       cond_br brBB                cond1_br ftBB
- * ftBB:                       brBB:
- *       bl throwfunc                ...
- * brBB:                       retBB:
- *       ...                         ...
- * retBB:                      ftBB:
- *       ...                         bl throwfunc
- */
+// Found pattern
+// curBB:                      curBB:
+//       ...            ==>          ...
+//       cond_br brBB                cond1_br ftBB
+// ftBB:                       brBB:
+//       bl throwfunc                ...
+// brBB:                       retBB:
+//       ...                         ...
+// retBB:                      ftBB:
+//       ...                         bl throwfunc
 void FlipBRPattern::RelocateThrowBB(BB &curBB) {
   BB *ftBB = curBB.GetNext();
   CHECK_FATAL(ftBB != nullptr, "ifBB has a fall through BB");
@@ -610,18 +592,18 @@ void FlipBRPattern::RelocateThrowBB(BB &curBB) {
       }
     }
   }
-  /* get branch insn of curBB */
+  // get branch insn of curBB
   Insn *curBBBranchInsn = theCFG->FindLastCondBrInsn(curBB);
   CHECK_FATAL(curBBBranchInsn != nullptr, "curBB(it is a kBBif) has no branch");
 
-  /* Reverse the branch */
+  // Reverse the branch
   uint32 targetIdx = GetJumpTargetIdx(*curBBBranchInsn);
   MOperator mOp = FlipConditionOp(curBBBranchInsn->GetMachineOpcode());
   LabelOperand &brTarget = cgFunc->GetOrCreateLabelOperand(*ftBB);
   curBBBranchInsn->SetMOP(cgFunc->GetCG()->GetTargetMd(mOp));
   curBBBranchInsn->SetOperand(targetIdx, brTarget);
 
-  /* move ftBB after retBB */
+  // move ftBB after retBB
   curBB.SetNext(brBB);
   CHECK_NULL_FATAL(brBB);
   brBB->SetPrev(&curBB);
@@ -632,35 +614,36 @@ void FlipBRPattern::RelocateThrowBB(BB &curBB) {
   retBB->SetNext(ftBB);
 }
 
-/*
- * 1. relocate goto BB
- * Found pattern             (1) ftBB->GetPreds().size() == 1
- * curBB:                      curBB: cond1_br target
- *       ...            ==>    brBB:
- *       cond_br brBB           ...
- * ftBB:                       targetBB: (ftBB,targetBB)
- *       goto target         (2) ftBB->GetPreds().size() > 1
- * brBB:                       curBB : cond1_br ftBB
- *       ...                   brBB:
- * targetBB                      ...
- *                            ftBB
- *                            targetBB
- *
- * loopHeaderBB:              loopHeaderBB:
- *       ...                        ...
- *       cond_br loopExit:          cond_br loopHeaderBB
- * ftBB:                      ftBB:
- *       goto loopHeaderBB:         goto loopExit
- *
- * 3. relocate throw BB in RelocateThrowBB()
- */
+// 1. relocate goto BB
+// Found pattern             (1) ftBB->GetPreds().size() == 1
+// curBB:                      curBB: cond1_br target
+//       ...            ==>    brBB:
+//       cond_br brBB           ...
+// ftBB:                       targetBB: (ftBB,targetBB)
+//       goto target         (2) ftBB->GetPreds().size() > 1
+// brBB:                       curBB : cond1_br ftBB
+//       ...                   brBB:
+// targetBB                      ...
+//                            ftBB
+//                            targetBB
+//
+// loopHeaderBB:              loopHeaderBB:
+//       ...                        ...
+//       cond_br loopExit:          cond_br loopHeaderBB
+// ftBB:                      ftBB:
+//       goto loopHeaderBB:         goto loopExit
+//
+// 3. relocate throw BB in RelocateThrowBB()
 bool FlipBRPattern::Optimize(BB &curBB) {
+  if (curBB.IsUnreachable()) {
+    return false;
+  }
   if (curBB.GetKind() == BB::kBBIf && !curBB.IsEmpty()) {
     BB *ftBB = curBB.GetNext();
     ASSERT(ftBB != nullptr, "ftBB is null in  FlipBRPattern::Optimize");
     BB *brBB = CGCFG::GetTargetSuc(curBB);
     ASSERT(brBB != nullptr, "brBB is null in  FlipBRPattern::Optimize");
-    /* Check if it can be optimized */
+    // Check if it can be optimized
     if (ftBB->GetKind() == BB::kBBGoto && ftBB->GetNext() == brBB) {
       if (!ftBB->GetEhSuccs().empty()) {
         return false;
@@ -681,7 +664,7 @@ bool FlipBRPattern::Optimize(BB &curBB) {
       }
       ASSERT(brInsn != nullptr, "FlipBRPattern: ftBB has no branch");
 
-      /* Reverse the branch */
+      // Reverse the branch
       uint32 targetIdx = GetJumpTargetIdx(*curBBBranchInsn);
       MOperator mOp = FlipConditionOp(curBBBranchInsn->GetMachineOpcode());
       if (mOp == 0) {
@@ -696,12 +679,12 @@ bool FlipBRPattern::Optimize(BB &curBB) {
         curBBBranchInsn->SetMOP(cgFunc->GetCG()->GetTargetMd(mOp));
         Operand &brTarget = brInsn->GetOperand(GetJumpTargetIdx(*brInsn));
         curBBBranchInsn->SetOperand(targetIdx, brTarget);
-        /* Insert ftBB's insn at the beginning of tgtBB. */
+        // Insert ftBB's insn at the beginning of tgtBB.
         if (!ftBB->IsSoloGoto()) {
           ftBB->RemoveInsn(*brInsn);
           tgtBB->InsertAtBeginning(*ftBB);
         }
-        /* Patch pred and succ lists */
+        // Patch pred and succ lists
         ftBB->EraseSuccs(it);
         ftBB->PushBackSuccs(*brBB);
         it = curBB.GetSuccsBegin();
@@ -726,7 +709,7 @@ bool FlipBRPattern::Optimize(BB &curBB) {
           }
         }
         brBB->PushFrontPreds(*ftBB);
-        /* Remove instructions from ftBB so curBB falls thru to brBB */
+        // Remove instructions from ftBB so curBB falls thru to brBB
         ftBB->SetFirstInsn(nullptr);
         ftBB->SetLastInsn(nullptr);
         ftBB->SetKind(BB::kBBFallthru);
@@ -800,13 +783,13 @@ bool FlipBRPattern::Optimize(BB &curBB) {
   return false;
 }
 
-/* remove a basic block that contains nothing */
+// remove a basic block that contains nothing
 bool EmptyBBPattern::Optimize(BB &curBB) {
   // Can not remove the BB whose address is referenced by adrp_label insn
   if (curBB.IsUnreachable() || curBB.IsAdrpLabel()) {
     return false;
   }
-  /* Empty bb and it's not a cleanupBB/returnBB/lastBB/catchBB. */
+  // Empty bb and it's not a cleanupBB/returnBB/lastBB/catchBB.
   if (curBB.GetPrev() == nullptr || curBB.IsCleanup() || &curBB == cgFunc->GetLastBB() ||
       curBB.GetKind() == BB::kBBReturn || IsLabelInLSDAOrSwitchTable(curBB.GetLabIdx())) {
     return false;
@@ -847,20 +830,18 @@ bool EmptyBBPattern::Optimize(BB &curBB) {
   return false;
 }
 
-/*
- * remove unreachable BB
- * condition:
- *   1. unreachable BB can't have cfi instruction when postcfgo.
- */
+// remove unreachable BB
+// condition:
+//   1. unreachable BB can't have cfi instruction when postcfgo.
 bool UnreachBBPattern::Optimize(BB &curBB) {
   if (curBB.IsUnreachable()) {
     Log(curBB.GetId());
     if (checkOnly) {
       return false;
     }
-    /* if curBB in exitbbsvec,return false. */
+    // if curBB in exitbbsvec,return false.
     if (cgFunc->IsExitBB(curBB)) {
-      /* In C some bb follow noreturn calls should remain unreachable */
+      // In C some bb follow noreturn calls should remain unreachable
       curBB.SetUnreachable(cgFunc->GetMirModule().GetSrcLang() == kSrcLangC);
       return false;
     }
@@ -870,10 +851,10 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     }
 
     EHFunc *ehFunc = cgFunc->GetEHFunc();
-    /* if curBB InLSDA ,replace curBB's label with nextReachableBB before remove it. */
+    // if curBB InLSDA ,replace curBB's label with nextReachableBB before remove it.
     if (ehFunc != nullptr && ehFunc->NeedFullLSDA() &&
         CGCFG::InLSDA(curBB.GetLabIdx(), ehFunc)) {
-      /* find nextReachableBB */
+      // find nextReachableBB
       BB *nextReachableBB = nullptr;
       for (BB *bb = &curBB; bb != nullptr; bb = bb->GetNext()) {
         if (!bb->IsUnreachable()) {
@@ -891,7 +872,7 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
       ehFunc->GetLSDACallSiteTable()->UpdateCallSite(curBB, *nextReachableBB);
     }
 
-   /* Indicates whether the curBB is removed. */
+   // Indicates whether the curBB is removed
     bool isRemoved = true;
     if (curBB.GetPrev() != nullptr) {
       curBB.GetPrev()->SetNext(curBB.GetNext());
@@ -904,7 +885,7 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     if (cgFunc->GetFirstBB() == cgFunc->GetLastBB() && cgFunc->GetFirstBB() != nullptr) {
       isRemoved = false;
     }
-    /* flush after remove; */
+    // flush after remove
     for (BB *bb : curBB.GetSuccs()) {
       bb->RemovePreds(curBB);
       cgFunc->GetTheCFG()->FlushUnReachableStatusAndRemoveRelations(*bb, *cgFunc);
@@ -915,7 +896,7 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     }
     curBB.ClearSuccs();
     curBB.ClearEhSuccs();
-    /* return always be false */
+    // return always be false
     if (!isRemoved) {
       return false;
     }
@@ -936,22 +917,20 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
   return false;
 }
 
-/* BB_pred1:        BB_pred1:
- *   b curBB          insn_x0
- * ...                b BB2
- * BB_pred2:   ==>  ...
- *   b curBB        BB_pred2:
- * ...                insn_x0
- * curBB:             b BB2
- *   insn_x0        ...
- *   b BB2          curBB:
- *                    insn_x0
- *                    b BB2
- * condition:
- *   1. The number of instruct in curBB
- *        is less than THRESHOLD;
- *   2. curBB can't have cfi instruction when postcfgo.
- */
+// BB_pred1:        BB_pred1:
+//   b curBB          insn_x0
+// ...                b BB2
+// BB_pred2:   ==>  ...
+//   b curBB        BB_pred2:
+// ...                insn_x0
+// curBB:             b BB2
+//   insn_x0        ...
+//   b BB2          curBB:
+//                    insn_x0
+//                    b BB2
+// condition:
+//   1. The number of instruction in curBB is less than THRESHOLD;
+//   2. curBB can't have cfi instruction when postcfgo
 bool DuplicateBBPattern::Optimize(BB &curBB) {
   if (!cgFunc->IsAfterRegAlloc()) {
     return false;
@@ -963,7 +942,7 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
     return false;
   }
 
-  /* curBB can't be in try block */
+  // curBB can't be in try block
   if (curBB.GetKind() != BB::kBBGoto || IsLabelInLSDAOrSwitchTable(curBB.GetLabIdx()) ||
       !curBB.GetEhSuccs().empty()) {
     return false;
@@ -976,7 +955,7 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
     }
   }
 #endif
-  /* It is possible curBB jump to itself */
+  // It is possible curBB jump to itself
   uint32 numPreds = curBB.NumPreds();
   for (BB *bb : curBB.GetPreds()) {
     if (bb == &curBB) {
@@ -984,8 +963,7 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
     }
   }
 
-  if (numPreds > 1 && CGCFG::GetTargetSuc(curBB) != nullptr &&
-      CGCFG::GetTargetSuc(curBB)->NumPreds() > 1) {
+  if (numPreds > 1 && CGCFG::GetTargetSuc(curBB) != nullptr && CGCFG::GetTargetSuc(curBB)->NumPreds() > 1) {
     std::vector<BB*> candidates;
     for (BB *bb : curBB.GetPreds()) {
       if (bb->GetKind() == BB::kBBGoto && bb->GetNext() != &curBB && bb != &curBB && !bb->IsEmpty()) {
@@ -1037,7 +1015,7 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
   return false;
 }
 
-/* === new pm === */
+// === new pm ===
 void CgPreCfgo::GetAnalysisDependence(AnalysisDep &aDep) const {
   aDep.AddRequired<CgLoopAnalysis>();
 }
@@ -1107,4 +1085,4 @@ bool CgPostCfgo::PhaseRun(maplebe::CGFunc &f) {
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPostCfgo, postcfgo)
-}  /* namespace maplebe */
+}  // namespace maplebe

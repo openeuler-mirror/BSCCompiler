@@ -25,7 +25,6 @@ class PhiEliminate {
       : cgFunc(&f),
         ssaInfo(&ssaAnalysisResult),
         phiEliAlloc(&mp),
-        eliminatedBB(phiEliAlloc.Adapter()),
         replaceVreg(phiEliAlloc.Adapter()),
         remateInfoAfterSSA(phiEliAlloc.Adapter()) {
     tempRegNO = static_cast<uint32_t>(GetSSAInfo()->GetAllSSAOperands().size()) + CGSSAInfo::ssaRegNObase;
@@ -57,7 +56,6 @@ class PhiEliminate {
  private:
   void PlaceMovInPredBB(uint32 predBBId, Insn &movInsn) const;
   virtual RegOperand &CreateTempRegForCSSA(RegOperand &oriOpnd) = 0;
-  MapleSet<uint32> eliminatedBB;
   /*
    * noDef Vregs occupy the vregno_t which is used for ssa re_creating
    * first : conflicting VReg with noDef VReg  second : new_Vreg opnd to replace occupied Vreg

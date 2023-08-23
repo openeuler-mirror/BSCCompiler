@@ -72,6 +72,9 @@ bool Insn::IsDMBInsn() const {
 bool Insn::IsAtomic() const {
   return md ? md->IsAtomic() : false;
 }
+bool Insn::IsCondDef() const {
+  return md ? md->IsCondDef() : false;
+}
 bool Insn::IsVolatile() const {
   return md ? md->IsVolatile() : false;
 }
@@ -347,6 +350,23 @@ void Insn::Dump() const {
 
   if (GetNumOfRegSpec() != 0) {
     LogInfo::MapleLogger() << " (vecSpec: " << GetNumOfRegSpec() << ")";
+  }
+
+  if (referenceOsts != nullptr) {
+    LogInfo::MapleLogger() << " [";
+    for (auto iter = referenceOsts->GetDefSet().begin(); iter != referenceOsts->GetDefSet().end(); ++iter) {
+      if (iter == referenceOsts->GetDefSet().begin()) {
+        LogInfo::MapleLogger() << "memDefSet: ";
+      }
+      LogInfo::MapleLogger() << *iter << " ";
+    }
+    for (auto iter = referenceOsts->GetUseSet().begin(); iter != referenceOsts->GetUseSet().end(); ++iter) {
+      if (iter == referenceOsts->GetUseSet().begin()) {
+        LogInfo::MapleLogger() << "memUseSet: ";
+      }
+      LogInfo::MapleLogger() << *iter << " ";
+    }
+    LogInfo::MapleLogger() << "]";
   }
   LogInfo::MapleLogger() << "\n";
 }

@@ -65,15 +65,11 @@ class CommonScheduleInfo {
 
  private:
   MapleAllocator csiAlloc;
-  /*
-   * Candidate instructions list of current BB,
-   * by control flow sequence
-   */
+  // Candidate instructions list of current BB,
+  // by control flow sequence
   MapleVector<DepNode*> candidates;
-  /*
-   * Scheduled results list of current BB
-   * for global-scheduler, it stored only to the last depNode of current BB
-   */
+  // Scheduled results list of current BB
+  // for global-scheduler, it stored only to the last depNode of current BB
   MapleVector<DepNode*> schedResults;
 };
 
@@ -99,17 +95,15 @@ class ListScheduler {
     }
   }
 
-  /*
-   * The entry of list-scheduler
-   * cdgNode: current scheduled BB
-   */
+  // The entry of list-scheduler
+  // cdgNode: current scheduled BB
   void DoListScheduling();
   void ComputeDelayPriority();
-  /* Compute the earliest start cycle, update maxEStart */
+  // Compute the earliest start cycle, update maxEStart
   void ComputeEStart(uint32 cycle);
-  /* Compute the latest start cycle */
+  // Compute the latest start cycle
   void ComputeLStart();
-  /* Calculate the most used unitKind index */
+  // Calculate the most used unitKind index
   void CalculateMostUsedUnitKindCount();
 
   void SetCommonSchedInfo(CommonScheduleInfo &csi) {
@@ -171,10 +165,8 @@ class ListScheduler {
     return waitingQueue.erase(depIter);
   }
 
-  /*
-   * Default rank readyList function by delay heuristic,
-   * which uses delay as algorithm of computing priority
-   */
+  // Default rank readyList function by delay heuristic,
+  // which uses delay as algorithm of computing priority
   static bool DelayRankScheduleInsns(const DepNode *node1, const DepNode *node2) {
     // p as an acronym for priority
     CompareDelay compareDelay;
@@ -220,21 +212,15 @@ class ListScheduler {
   CDGRegion *region = nullptr; // the current region
   CDGNode *curCDGNode = nullptr;   // the current scheduled BB
   CommonScheduleInfo *commonSchedInfo = nullptr;  // common scheduling info that prepared by other scheduler
-  /*
-   * The function ptr that computes instruction priority based on heuristic rules,
-   * list-scheduler provides default implementations and supports customization by other schedulers
-   */
+  // The function ptr that computes instruction priority based on heuristic rules,
+  // list-scheduler provides default implementations and supports customization by other schedulers
   SchedRankFunctor rankScheduleInsns = nullptr;
   bool doDelayHeuristics = true;  // true: compute delay;  false: compute eStart & lStart
   std::string phaseName;   // for dumping log
-  /*
-   * A node is moved from [candidates] to [waitingQueue] when it's all data dependency are met
-   */
+  // A node is moved from [candidates] to [waitingQueue] when it's all data dependency are met
   MapleVector<DepNode*> waitingQueue;
-  /*
-   * A node is moved from [waitingQueue] to [readyList] when resources required by it are free and
-   * estart-cycle <= curr-cycle
-   */
+  // A node is moved from [waitingQueue] to [readyList] when resources required by it are free and
+  // estart-cycle <= curr-cycle
   MapleVector<DepNode*> readyList;
   uint32 currCycle = 0;      // Simulates the CPU clock during scheduling
   uint32 advancedCycle = 0;  // Using after an instruction is scheduled, record its execution cycles
@@ -246,6 +232,6 @@ class ListScheduler {
   DepNode *lastSchedNode = nullptr;  // Last scheduled node
   bool isUnitTest = false;
 };
-} /* namespace maplebe */
+} // namespace maplebe
 
 #endif  // MAPLEBE_INCLUDE_CG_LIST_SCHEDULER_H

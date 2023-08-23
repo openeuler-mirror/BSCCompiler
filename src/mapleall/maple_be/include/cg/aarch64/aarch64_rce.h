@@ -94,9 +94,6 @@ class AArch64RedundantComputeElim : public RedundantComputeElim {
             !insn1->OpndIsUse(i) && !insn2->OpndIsUse(i)) {
           continue;
         }
-        if (!opnd1.BasicEquals(opnd2)) {
-          return false;
-        }
         if (opk1 == Operand::kOpdRegister) {
           if (!static_cast<RegOperand&>(opnd1).Equals(opnd2)) {
             return false;

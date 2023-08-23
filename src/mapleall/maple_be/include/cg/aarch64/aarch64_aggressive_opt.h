@@ -30,6 +30,7 @@ class AArch64CombineRedundantX16Opt {
   void Run();
 
  private:
+  // Record memory instructions that use x16 info
   struct UseX16InsnInfo {
     void InsertAddPrevInsns(MapleVector<Insn*> &recentPrevInsns) const {
       for (auto insn : recentPrevInsns) {
@@ -37,27 +38,46 @@ class AArch64CombineRedundantX16Opt {
       }
     }
 
-    uint32 infoId = 0;
+    uint32 infoId = 0; // unique id of the info, which is accumulated
 
-    Insn *memInsn = nullptr;
+    Insn *memInsn = nullptr; // the memory instruction that use x16. e.g. ldr x1, [x16, #8]
+    // If there has x16 accumulation, record all related instructions.
+    // e.g.
+    // add x16, sp, #1, LSL #12   ---->  push in $addPrevInsns
+    // add x16, x16, #512   ----> set $addInsn
+    // str x1, [x16, #8]
     MapleVector<Insn*> *addPrevInsns = nullptr;
-    Insn *addInsn = nullptr;
+    Insn *addInsn = nullptr; // the split instruction that def x16
 
-    uint32 memSize = 0;
-    int64 originalOfst = 0;
-    int64 curOfst = 0;
-    int64 curAddImm = 0;
+    uint32 memSize = 0; // used to calculate valid offset in memory instruction
+    int64 originalOfst = 0; // the offset before optimize of memory instruction
+    int64 curOfst = 0; // the offset after optimize of memory instruction
+    int64 curAddImm = 0; // the split immediate after optimize of x16-add
 
+    // The offset of memory instruction is in a valid range,
+    // so we use min-value and max-value to indicate the valid split immediate range: [minValidAddImm, maxValidAddImm],
+    // values within the range are all valid for the current $memInsn
+    // e.g.
+    // a valid split immediate case:
+    // add x16, useOpnd, #minValidAddImm
+    // str x1, [x16, #validOffset]
     int64 minValidAddImm = 0;
     int64 maxValidAddImm = 0;
   };
 
+  // Record related info after combining optimization
   struct CombineInfo {
+    // the first found common split immediate that satisfies all memInsns in the current segment
     int64 combineAddImm = 0;
+    // e.g. add x16, x10(addUseOpnd), #1024
     RegOperand *addUseOpnd = nullptr;
+    // Because the offsets of memory insns are discrete points, and the multiple requirements must be met,
+    // therefore, there may be multiple splitting x16-def insns shared within a segment.
     MapleVector<UseX16InsnInfo*> *combineUseInfos = nullptr;
   };
 
+  // The minimum unit of the combine optimization,
+  // the instructions in it can all share the same value split by x16.
   struct SegmentInfo {
     MapleVector<UseX16InsnInfo*> *segUseInfos = nullptr;
     MapleVector<CombineInfo*> *segCombineInfos = nullptr;
@@ -70,15 +90,12 @@ class AArch64CombineRedundantX16Opt {
     }
     segmentInfo->segCombineInfos->clear();
 
-    if (clearX16Def) {
-      recentX16DefPrevInsns->clear();
-      recentX16DefInsn = nullptr;
-      recentSplitUseOpnd = nullptr;
-    }
+    recentX16DefPrevInsns->clear();
+    recentX16DefInsn = nullptr;
+    recentSplitUseOpnd = nullptr;
 
     recentAddImm = 0;
     isSameAddImm = true;
-    clearX16Def = false;
     isX16Used = false;
     hasUseOpndReDef = false;
     isSpecialX16Def = false;
@@ -88,6 +105,7 @@ class AArch64CombineRedundantX16Opt {
   void ClearSegmentInfo(MemPool *tmpMp, MapleAllocator *tmpAlloc);
   void ResetInsnId();
   bool IsEndOfSegment(const Insn &insn, bool hasX16Def);
+  void ProcessAtEndOfSegment(BB &bb, Insn &insn, bool hasX16Def, MemPool *localMp, MapleAllocator *localAlloc);
   void ComputeRecentAddImm();
   void RecordRecentSplitInsnInfo(Insn &insn);
   bool IsUseX16MemInsn(const Insn &insn) const;
@@ -117,10 +135,12 @@ class AArch64CombineRedundantX16Opt {
   RegOperand *recentSplitUseOpnd = nullptr;
   int64 recentAddImm = 0;
   bool isSameAddImm = true;
-  bool clearX16Def = false;
   bool isX16Used = false;
   bool hasUseOpndReDef = false;
   bool isSpecialX16Def = false;  // For ignoring movz/movk that def x16 pattern
+  // We only care about x16 def insns for splitting, such as add*/mov*.
+  // This filed identifies whether the x16 def insn is irrelevant, for example, ubfx/sub ...
+  bool isIrrelevantX16Def = false;
 };
 
 class AArch64AggressiveOpt : public CGAggressiveOpt {

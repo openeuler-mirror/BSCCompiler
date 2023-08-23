@@ -48,27 +48,22 @@ void AArch64InsnVisitor::ModifyJumpTarget(BB &newTarget, BB &bb) {
 }
 
 Insn *AArch64InsnVisitor::CloneInsn(Insn &originalInsn) {
-  MemPool *memPool = const_cast<MemPool*>(CG::GetCurCGFunc()->GetMemoryPool());
-  if (originalInsn.IsTargetInsn()) {
-    return memPool->Clone<Insn>(originalInsn);
+  // Use custom deep copy
+  MapleAllocator *allocator = GetCGFunc()->GetFuncScopeAllocator();
+  if (originalInsn.IsTargetInsn() || originalInsn.IsComment()) {
+    return originalInsn.CloneTree(*allocator);
   } else if (originalInsn.IsCfiInsn()) {
-    return memPool->Clone<cfi::CfiInsn>(*static_cast<cfi::CfiInsn*>(&originalInsn));
+    return static_cast<cfi::CfiInsn&>(originalInsn).CloneTree(*allocator);
   } else if (originalInsn.IsDbgInsn()) {
-    return memPool->Clone<mpldbg::DbgInsn>(*static_cast<mpldbg::DbgInsn*>(&originalInsn));
-  }
-  if (originalInsn.IsComment()) {
-    return memPool->Clone<Insn>(originalInsn);
+    return static_cast<mpldbg::DbgInsn&>(originalInsn).CloneTree(*allocator);
   }
   CHECK_FATAL(false, "Cannot clone");
-  return nullptr;
 }
 
-/*
- * Precondition: The given insn is a jump instruction.
- * Get the jump target label from the given instruction.
- * Note: MOP_xbr is a branching instruction, but the target is unknown at compile time,
- * because a register instead of label. So we don't take it as a branching instruction.
- */
+// Precondition: The given insn is a jump instruction.
+// Get the jump target label from the given instruction.
+// Note: MOP_xbr is a branching instruction, but the target is unknown at compile time,
+// because a register instead of label. So we don't take it as a branching instruction.
 LabelIdx AArch64InsnVisitor::GetJumpLabel(const Insn &insn) const {
   uint32 operandIdx = AArch64isa::GetJumpTargetIdx(insn);
   if (insn.GetOperand(operandIdx).IsLabelOpnd()) {
@@ -100,6 +95,8 @@ bool AArch64InsnVisitor::IsCompareInsn(const Insn &insn) const {
     case MOP_wcmnrr:
     case MOP_xcmnri:
     case MOP_xcmnrr:
+    case MOP_wwcmprre:
+    case MOP_xwcmprre:
       return true;
     default:
       return false;
@@ -112,6 +109,18 @@ bool AArch64InsnVisitor::IsCompareAndBranchInsn(const Insn &insn) const {
     case MOP_xcbnz:
     case MOP_wcbz:
     case MOP_xcbz:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool AArch64InsnVisitor::IsTestAndBranchInsn(const Insn &insn) const {
+  switch (insn.GetMachineOpcode()) {
+    case MOP_xtbz:
+    case MOP_wtbz:
+    case MOP_xtbnz:
+    case MOP_wtbnz:
       return true;
     default:
       return false;
@@ -174,7 +183,7 @@ BB *AArch64InsnVisitor::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru, bool isTar
   Insn &gotoInsn = GetCGFunc()->GetInsnBuilder()->BuildInsn(MOP_xuncond, targetOpnd);
   newBB->AppendInsn(gotoInsn);
 
-  /* maintain pred and succ */
+  // maintain pred and succ
   if (!isTargetFallthru) {
     fallthru.RemovePreds(bb);
   }
@@ -196,4 +205,4 @@ void AArch64InsnVisitor::ModifyFathruBBToGotoBB(BB &bb, LabelIdx labelIdx) const
   bb.AppendInsn(jumpInsn);
   bb.SetKind(BB::kBBGoto);
 }
-}  /* namespace maplebe */
+}  // namespace maplebe

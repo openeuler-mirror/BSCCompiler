@@ -119,6 +119,18 @@ Opcode MIRParser::GetOpFromToken(TokenKind tk) const {
   }
 }
 
+CPragmaKind MIRParser::GetCPragmaKindFromToken(TokenKind tk) const {
+  switch (tk) {
+#define PRAGMA(STR) \
+    case TK_##STR:  \
+      return CPragmaKind::PRAGMA_##STR;
+#include "all_pragmas.def"
+#undef PRAGMA
+    default:
+      return CPragmaKind::PRAGMA_undef;
+  }
+}
+
 static bool IsClassInterfaceTypeName(const std::string &nameStr) {
   return (!nameStr.empty() && nameStr.front() == 'L' && StringUtils::EndsWith(nameStr, "_3B"));
 }
@@ -1003,6 +1015,24 @@ bool MIRParser::ParsePackAttrs() {
   return true;
 }
 
+bool MIRParser::ParseTypeAliasAttrs(TypeAttrs &tA) {
+  if (lexer.GetTokenKind() != TK_type_alias) {
+    Error("wrong TK kind taken from file");
+    return false;
+  }
+  std::string aliasList = lexer.GetTokenString();
+  (void)lexer.NextToken();
+  while (lexer.GetTokenKind() != TK_rparen) {
+    if (lexer.GetTokenKind() == TK_gname) {
+      (void)aliasList.append(lexer.GetTokenString());
+    } else if (lexer.GetTokenKind() == TK_coma) {
+      (void)aliasList.append(",");
+    }
+    (void)lexer.NextToken();
+  }
+  tA.SetTypeAlias(aliasList);
+  return true;
+}
 // for variable declaration type attribute specification
 // it has also storage-class qualifier.
 bool MIRParser::ParseVarTypeAttrs(MIRSymbol &st) {
@@ -1024,6 +1054,13 @@ bool MIRParser::ParseVarTypeAttrs(MIRSymbol &st) {
         if (!ParseAlignAttrs(st.GetAttrs())) {
           return false;
         }
+        break;
+      }
+      case TK_type_align: {
+        if (!CheckAlignTk()) {
+          return false;
+        }
+        st.GetAttrs().SetTypeAlign(static_cast<uint32>(lexer.GetTheIntVal()));
         break;
       }
       default:
@@ -1064,6 +1101,13 @@ bool MIRParser::ParseTypeAttrs(TypeAttrs &attrs) {
         attrs.SetPack(static_cast<uint32>(lexer.GetTheIntVal()));
         break;
       }
+      case TK_type_alias: {
+        attrs.SetAttr(ATTR_type_alias);
+        if (!ParseTypeAliasAttrs(attrs)) {
+          return false;
+        }
+        break;
+      }
       default:
         return true;
     }  // switch
@@ -1092,6 +1136,14 @@ bool MIRParser::ParseFieldAttrs(FieldAttrs &attrs) {
         }
         attrs.SetAttr(FLDATTR_aligned);
         attrs.SetAlign(lexer.GetTheIntVal());
+        break;
+      }
+      case TK_type_align: {
+        if (!CheckAlignTk()) {
+          return false;
+        }
+        attrs.SetAttr(FLDATTR_type_align);
+        attrs.SetTypeAlign(static_cast<uint32>(lexer.GetTheIntVal()));
         break;
       }
       default:
@@ -1573,6 +1625,43 @@ void MIRParser::FixupForwardReferencedTypeByMap() {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(i));
     FixForwardReferencedTypeForOneAgg(type);
   }
+}
+
+bool MIRParser::ParseCPragma() {
+  if (lexer.GetTokenKind() != TK_pragma) {
+    Error("expect type but get ");
+    return false;
+  }
+  TokenKind tokenKind = lexer.NextToken();
+  if (tokenKind != TK_exclamation) {
+    Error("expect pragma index but get ");
+    return false;
+  }
+  tokenKind = lexer.NextToken();
+  if (tokenKind != TK_intconst) {
+    Error("expect pragma index but get ");
+    return false;
+  }
+  auto index = static_cast<uint64>(lexer.theIntVal);
+  auto &pragmas = GlobalTables::GetGPragmaTable().GetPragmaTable();
+  if (index >= pragmas.size()) {
+    pragmas.resize(index + 1);
+  }
+  tokenKind = lexer.NextToken();
+  auto pragmakind = GetCPragmaKindFromToken(tokenKind);
+  if (pragmakind == CPragmaKind::PRAGMA_undef) {
+    Error("expect pragma kind but get ");
+    return false;
+  }
+  tokenKind = lexer.NextToken();
+  if (tokenKind != TK_string) {
+    Error("expect string content but get ");
+    return false;
+  }
+  auto *pragma = GPragmaTable::CreateCPragma(pragmakind, static_cast<uint32>(index), lexer.name);
+  pragmas[index] = pragma;
+  (void)lexer.NextToken();
+  return true;
 }
 
 bool MIRParser::ParseTypeDefine() {
@@ -2916,6 +3005,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
   funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
   funcPtrMap[TK_ENUMERATION] = &MIRParser::ParseEnumeration;
+  funcPtrMap[TK_pragma] = &MIRParser::ParseCPragma;
   return funcPtrMap;
 }
 

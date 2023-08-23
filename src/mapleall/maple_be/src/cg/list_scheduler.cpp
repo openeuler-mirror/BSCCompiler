@@ -34,12 +34,12 @@ void ListScheduler::DoListScheduling() {
     LogInfo::MapleLogger() << "    >>  dependencies resolved: ";
   }
 
-  /* Push depNodes whose dependencies resolved into waitingQueue */
+  // Push depNodes whose dependencies resolved into waitingQueue
   CandidateToWaitingQueue();
 
   ComputeEStart(currCycle);
 
-  /* Iterate until the instructions in the current BB are scheduled */
+  // Iterate until the instructions in the current BB are scheduled
   while (scheduledNodeNum < curCDGNode->GetInsnNum()) {
     UpdateInfoBeforeSelectNode();
 
@@ -48,7 +48,7 @@ void ListScheduler::DoListScheduling() {
       DumpWaitingQueue();
     }
 
-    /* Push depNodes whose resources are free from waitingQueue into readyList */
+    // Push depNodes whose resources are free from waitingQueue into readyList
     WaitingQueueToReadyList();
 
     if (LIST_SCHEDULE_DUMP || isUnitTest) {
@@ -65,7 +65,7 @@ void ListScheduler::DoListScheduling() {
     CalculateMostUsedUnitKindCount();
 
     if (!doDelayHeuristics) {
-      /* Update LStart */
+      // Update LStart
       ComputeLStart();
       if (LIST_SCHEDULE_DUMP || isUnitTest) {
         DumpEStartLStartOfAllNodes();
@@ -111,7 +111,7 @@ void ListScheduler::Init() {
   scheduledNodeNum = 0;
 
   MapleVector<DepNode*> &candidates = commonSchedInfo->GetCandidates();
-  /* Set the initial earliest time of all nodes to 0 */
+  // Set the initial earliest time of all nodes to 0
   for (auto *depNode : candidates) {
     depNode->SetEStart(0);
   }
@@ -144,7 +144,8 @@ void ListScheduler::WaitingQueueToReadyList() {
     DepNode *waitingNode = *waitingIter;
     // Just check whether the current cycle is free, because
     // the rightmost bit of occupyTable always indicates curCycle
-    if (waitingNode->IsResourceFree(1) && waitingNode->GetEStart() <= currCycle) {
+    if (((cgFunc.IsAfterRegAlloc() && waitingNode->IsResourceIdle()) || !cgFunc.IsAfterRegAlloc()) &&
+        waitingNode->GetEStart() <= currCycle) {
       (void)readyList.emplace_back(waitingNode);
       waitingNode->SetState(kReady);
       waitingIter = EraseIterFromWaitingQueue(waitingIter);
@@ -155,10 +156,8 @@ void ListScheduler::WaitingQueueToReadyList() {
 }
 
 static uint32 kMaxUnitIdx = 0;
-  /*
-   * Sort by priority in descending order, which use LStart as algorithm of computing priority,
-   * that is the first node in list has the highest priority
-   */
+// Sort by priority in descending order, which use LStart as algorithm of computing priority,
+// that is the first node in list has the highest priority
 bool ListScheduler::CriticalPathRankScheduleInsns(const DepNode *node1, const DepNode *node2) {
   // p as an acronym for priority
   CompareLStart compareLStart;
@@ -211,7 +210,7 @@ void ListScheduler::UpdateInfoBeforeSelectNode() {
   while (advancedCycle > 0) {
     currCycle++;
     // Update the occupation of cpu units
-    mad->AdvanceCycle();
+    mad->AdvanceOneCycleForAll();
     advancedCycle--;
   }
   // Fall back to the waitingQueue if the depNode in readyList has resources conflict
@@ -256,8 +255,9 @@ void ListScheduler::UpdateEStart(DepNode &schedNode) {
 void ListScheduler::UpdateInfoAfterSelectNode(DepNode &schedNode) {
   schedNode.SetState(kScheduled);
   schedNode.SetSchedCycle(currCycle);
-  auto cost = static_cast<uint32>(schedNode.GetReservation()->GetLatency());
-  schedNode.OccupyUnits(cost);
+  if (cgFunc.IsAfterRegAlloc()) {
+    schedNode.OccupyRequiredUnits();
+  }
   schedNode.SetEStart(currCycle);
   commonSchedInfo->AddSchedResults(&schedNode);
   lastSchedInsnId = schedNode.GetInsn()->GetId();
@@ -287,7 +287,9 @@ void ListScheduler::UpdateInfoAfterSelectNode(DepNode &schedNode) {
   if (LIST_SCHEDULE_DUMP || isUnitTest) {
     LogInfo::MapleLogger() << "}\n\n";
     DumpScheduledResult();
-    LogInfo::MapleLogger() << "'' issue insn_" << schedNode.GetInsn()->GetId() << " at cycle " << currCycle << "\n\n";
+    LogInfo::MapleLogger() << "'' issue insn_" << schedNode.GetInsn()->GetId() << " [ ";
+    schedNode.GetInsn()->Dump();
+    LogInfo::MapleLogger() << " ] " << " at cycle " << currCycle << "\n\n";
   }
 
   // Add comment
@@ -305,7 +307,12 @@ void ListScheduler::UpdateNodesInReadyList() {
   while (readyIter != readyList.end()) {
     DepNode *readyNode = *readyIter;
     CHECK_NULL_FATAL(lastSchedNode);
-    if (!readyNode->IsResourceFree(1) || readyNode->GetEStart() > currCycle) {
+    // In globalSchedule before RA, we do not consider resource conflict in pipeline
+    if ((cgFunc.IsAfterRegAlloc() && !readyNode->IsResourceIdle()) || readyNode->GetEStart() > currCycle) {
+      if (LIST_SCHEDULE_DUMP || isUnitTest) {
+        LogInfo::MapleLogger() << "    >>  ReadyList -> WaitingQueue: insn_" << readyNode->GetInsn()->GetId() <<
+            " (resource conflict)\n\n";
+      }
       (void)waitingQueue.emplace_back(readyNode);
       readyNode->SetState(kWaiting);
       readyIter = EraseIterFromReadyList(readyIter);
@@ -335,10 +342,8 @@ void ListScheduler::UpdateAdvanceCycle(const DepNode &schedNode) {
   }
 }
 
-/*
- * Compute the delay of the depNode by postorder, which is calculated only once before scheduling,
- * and the delay of the leaf node is initially set to 0 or execTime
- */
+// Compute the delay of the depNode by postorder, which is calculated only once before scheduling,
+// and the delay of the leaf node is initially set to 0 or execTime
 void ListScheduler::ComputeDelayPriority() {
   std::vector<DepNode*> traversalList;
   MapleVector<DepNode*> &candidates = commonSchedInfo->GetCandidates();
@@ -383,16 +388,14 @@ void ListScheduler::InitInfoBeforeCompEStart(uint32 cycle, std::vector<DepNode*>
   }
 }
 
-/*
- * Compute the earliest start cycle of the instruction.
- * Regardless of whether the LStart heuristic is used, EStart always needs to be calculated,
- * which indicates the cycles required for an insn to wait because of the resource conflict.
- */
+// Compute the earliest start cycle of the instruction.
+// Regardless of whether the LStart heuristic is used, EStart always needs to be calculated,
+// which indicates the cycles required for an insn to wait because of the resource conflict.
 void ListScheduler::ComputeEStart(uint32 cycle) {
   std::vector<DepNode*> traversalList;
   InitInfoBeforeCompEStart(cycle, traversalList);
 
-  /* Compute the eStart of each depNode in the topology sequence */
+  // Compute the eStart of each depNode in the topology sequence
   while (!traversalList.empty()) {
     DepNode *depNode = traversalList.front();
     traversalList.erase(traversalList.begin());
@@ -430,10 +433,8 @@ void ListScheduler::InitInfoBeforeCompLStart(std::vector<DepNode*> &traversalLis
   }
 }
 
-/*
- * Compute the latest start cycle of the instruction, which
- * is dynamically recalculated based on the current maxEStart during scheduling.
- */
+// Compute the latest start cycle of the instruction, which
+// is dynamically recalculated based on the current maxEStart during scheduling.
 void ListScheduler::ComputeLStart() {
   maxLStart = maxEStart;
 
@@ -446,7 +447,7 @@ void ListScheduler::ComputeLStart() {
   std::vector<DepNode*> traversalList;
   InitInfoBeforeCompLStart(traversalList);
 
-  /* Compute the lStart of all nodes in the topology sequence */
+  // Compute the lStart of all nodes in the topology sequence
   while (!traversalList.empty()) {
     DepNode *depNode = traversalList.front();
     traversalList.erase(traversalList.begin());
@@ -467,7 +468,7 @@ void ListScheduler::ComputeLStart() {
   }
 }
 
-/* Calculate the most used unitKind index */
+// Calculate the most used unitKind index
 void ListScheduler::CalculateMostUsedUnitKindCount() {
   std::array<uint32, kUnitKindLast> unitKindCount = { 0 };
   for (auto *depNode : readyList) {
@@ -484,7 +485,7 @@ void ListScheduler::CalculateMostUsedUnitKindCount() {
   }
 }
 
-/* The index of unitKindCount is unitKind, the element of unitKindCount is count of the unitKind */
+// The index of unitKindCount is unitKind, the element of unitKindCount is count of the unitKind
 void ListScheduler::CountUnitKind(const DepNode &depNode, std::array<uint32, kUnitKindLast> &unitKindCount) const {
   uint32 unitKind = depNode.GetUnitKind();
   auto index = static_cast<uint32>(__builtin_ffs(static_cast<int>(unitKind)));
@@ -544,6 +545,7 @@ void ListScheduler::DumpDelay() const {
   ASSERT(curBB != nullptr, "get bb from cdgNode failed");
   LogInfo::MapleLogger() << "        >> Delay priority of readyList in bb_" << curBB->GetId() << "\n";
   LogInfo::MapleLogger() << "     --------------------------------------------------------\n";
+  (void)LogInfo::MapleLogger().fill(' ');
   LogInfo::MapleLogger() << "      " <<
       std::setiosflags(std::ios::left) << std::setw(8) << "insn" << std::resetiosflags(std::ios::left) <<
       std::setiosflags(std::ios::right) << std::setw(4) << "bb" << std::resetiosflags(std::ios::right) <<
@@ -555,9 +557,10 @@ void ListScheduler::DumpDelay() const {
   LogInfo::MapleLogger() << "     --------------------------------------------------------\n";
   for (auto depNode : commonSchedInfo->GetCandidates()) {
     Insn *insn = depNode->GetInsn();
-    ASSERT(insn != nullptr, "get insn from depNode failed");
+    ASSERT_NOT_NULL(insn);
     uint32 predSize = depNode->GetValidPredsSize();
     uint32 delay = depNode->GetDelay();
+    ASSERT_NOT_NULL(mad);
     ASSERT_NOT_NULL(mad->FindReservation(*insn));
     int latency = mad->FindReservation(*insn)->GetLatency();
     LogInfo::MapleLogger() << "      " <<
@@ -570,7 +573,7 @@ void ListScheduler::DumpDelay() const {
     DumpReservation(*depNode);
     LogInfo::MapleLogger() << std::resetiosflags(std::ios::right) << "\n";
   }
-  LogInfo::MapleLogger() << "     --------------------------------------------------------\n";
+  LogInfo::MapleLogger() << "     --------------------------------------------------------\n\n";
 }
 
 void ListScheduler::DumpEStartLStartOfAllNodes() {
@@ -579,6 +582,7 @@ void ListScheduler::DumpEStartLStartOfAllNodes() {
   LogInfo::MapleLogger() << "    >> max EStart: " << maxEStart << "\n\n";
   LogInfo::MapleLogger() << "              >> CP priority of readyList in bb_" << curBB->GetId() << "\n";
   LogInfo::MapleLogger() << "     --------------------------------------------------------------------------\n";
+  (void)LogInfo::MapleLogger().fill(' ');
   LogInfo::MapleLogger() << "      " <<
       std::setiosflags(std::ios::left) << std::setw(8) << "insn" << std::resetiosflags(std::ios::left) <<
       std::setiosflags(std::ios::right) << std::setw(4) << "bb" << std::resetiosflags(std::ios::right) <<
@@ -605,6 +609,7 @@ void ListScheduler::DumpDepNodeInfo(const BB &curBB, MapleVector<DepNode*> &node
     uint32 lStart = depNode->GetLStart();
     ASSERT_NOT_NULL(mad->FindReservation(*insn));
     int latency = mad->FindReservation(*insn)->GetLatency();
+    (void)LogInfo::MapleLogger().fill(' ');
     LogInfo::MapleLogger() << "      " <<
         std::setiosflags(std::ios::left) << std::setw(8) << insn->GetId() << std::resetiosflags(std::ios::left) <<
         std::setiosflags(std::ios::right) << std::setw(4) << curBB.GetId() << std::resetiosflags(std::ios::right) <<
@@ -725,4 +730,4 @@ void ListScheduler::DumpReservation(const DepNode &depNode) const {
     }
   }
 }
-} /* namespace maplebe */
+} // namespace maplebe

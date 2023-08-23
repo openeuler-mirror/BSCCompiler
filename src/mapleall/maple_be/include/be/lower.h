@@ -171,8 +171,8 @@ class CGLowerer {
   BaseNode *LowerArray(ArrayNode &array, const BaseNode &parent);
   BaseNode *LowerCArray(ArrayNode &array);
 
-  DassignNode *SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID, StmtNode *&beforeStmt);
-  BaseNode *NeedRetypeWhenLowerCallAssigned(PrimType pType, StmtNode *&beforeStmt);
+  DassignNode *SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID);
+  BaseNode *NeedRetypeWhenLowerCallAssigned(PrimType pType);
   void LowerCallStmt(StmtNode &stmt, StmtNode *&nextStmt, BlockNode &newBlk, MIRType *retty = nullptr,
                      bool uselvar = false, bool isIntrinAssign = false);
   BlockNode *LowerIntrinsiccallAassignedToAssignStmt(IntrinsiccallNode &intrinsicCall);
@@ -346,6 +346,9 @@ class CGLowerer {
   BaseNode *GetClassInfoExprFromArrayClassCache(const std::string &classInfo);
   BaseNode *GetClassInfoExpr(const std::string &classInfo) const;
   BaseNode *GetBaseNodeFromCurFunc(MIRFunction &curFunc, bool isFromJarray);
+
+  BaseNode *LowerImplicitCvt(PrimType toType, BaseNode &expr);
+  void LowerImplicitCvt(BlockNode &block);
 
   OptionFlag options = 0;
   bool needBranchCleanup = false;

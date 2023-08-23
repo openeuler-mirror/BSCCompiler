@@ -118,7 +118,7 @@ export MAPLE_BUILD_OUTPUT=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}
 export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}/bin
 export TEST_BIN=${CASE_ROOT}/driver/script
 export PATH=$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
-
+export BISHENGC_GET_OS_VERSION="$(lsb_release -i | awk '{print $3}')"
 # Enable Autocompletion for maple driver
 if [ -f $MAPLE_ROOT/tools/maple_autocompletion.sh ]; then
   source ${MAPLE_ROOT}/tools/maple_autocompletion.sh

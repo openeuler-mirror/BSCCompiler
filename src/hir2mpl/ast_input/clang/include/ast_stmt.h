@@ -21,12 +21,6 @@
 namespace maple {
 class ASTDecl;
 
-enum class SafeSS {
-  kNoneSS,
-  kSafeSS,
-  kUnsafeSS,
-};
-
 class ASTStmt {
  public:
   explicit ASTStmt(MapleAllocator &allocatorIn, ASTStmtOp o = kASTStmtNone) : exprs(allocatorIn.Adapter()), op(o),
@@ -130,6 +124,14 @@ class ASTCompoundStmt : public ASTStmt {
 
   const Loc &GetEndLoc() const {
     return endLoc;
+  }
+
+  bool GetHasEmitted2MIRScope() const {
+    return hasEmitted2MIRScope;
+  }
+
+  void SetHasEmitted2MIRScope(bool val) const {
+    hasEmitted2MIRScope = val;
   }
 
  private:

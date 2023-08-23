@@ -2,9 +2,9 @@
 #include <pthread.h>
 
 struct Mpl_Lite_Pgo_ProfileInfoRoot __mpl_pgo_info_root __attribute__ ((__visibility__ ("hidden"))) = {0, 0, 0};
-extern uint32_t __mpl_pgo_sleep_time;
-extern char __mpl_pgo_wait_forks;
-extern char *__mpl_pgo_dump_filename;
+__attribute__((weak)) uint32_t __mpl_pgo_sleep_time = 0;
+__attribute__((weak)) char __mpl_pgo_wait_forks = 0;
+__attribute__((weak)) char *__mpl_pgo_dump_filename = "./";
 pthread_rwlock_t rwlock;
 
 static inline int CheckAllZero(const struct Mpl_Lite_Pgo_FuncInfo *funcPtr) {

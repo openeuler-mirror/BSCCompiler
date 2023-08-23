@@ -15,6 +15,7 @@
 #include "ipa_side_effect.h"
 #include "driver_options.h"
 #include "func_desc.h"
+#include "inline.h"
 #include "inline_analyzer.h"
 #include "me_ir.h"
 #include "opcodes.h"
@@ -44,7 +45,7 @@ const FuncDesc &IpaSideEffectAnalyzer::GetFuncDesc(MIRFunction &f) {
 }
 
 const std::map<std::string, FuncDesc> *IpaSideEffectAnalyzer::GetWhiteList() {
-  if (opts::oFnoBuiltin) {
+  if (opts::oFnoBuiltin.IsEnabledByUser()) {
     kFullWhiteList.erase(kFullWhiteList.begin(), kFullWhiteList.end());
     return &kFullWhiteList;
   }
@@ -511,6 +512,10 @@ bool SCCSideEffect::PhaseRun(SCCNode<CGNode> &scc) {
       }
       MeFunction *meFunc = func->GetMeFunc();
       if (meFunc == nullptr || meFunc->GetCfg()->NumBBs() == 0) {
+        continue;
+      }
+      if (MayBeOverwritten(*func)) {
+        func->InitFuncDescToWorst();
         continue;
       }
       auto *phase = map->GetVaildAnalysisPhase(meFunc->GetUniqueID(), &MEDominance::id);

@@ -985,7 +985,7 @@ bool MIRParser::SetDataForIntrinsiccallNode(IntrinsiccallNode &intrnCallNode, bo
     return false;
   }
   intrnCallNode.SetNOpnd(opndsVec);
-  intrnCallNode.SetNumOpnds(opndsVec.size());
+  intrnCallNode.SetNumOpnds(static_cast<uint8>(opndsVec.size()));
   if (isAssigned) {
     CallReturnVector retsVec(mod.CurFuncCodeMemPoolAllocator()->Adapter());
     if (!ParseCallReturns(retsVec)) {
@@ -1825,6 +1825,18 @@ bool MIRParser::ParseStatement(StmtNodePtr &stmt) {
     stmt->GetSrcPos().SetMplLineNum(mplNum);
     if (safeRegionFlag.top()) {
       stmt->SetInSafeRegion();
+    }
+    while (lexer.GetTokenKind() == TK_exclamation) {
+      auto pragmaIndex = static_cast<uint64>(lexer.theIntVal);
+      if (pragmaIndex >= GlobalTables::GetGPragmaTable().GetPragmaTable().size()) {
+        Error("expect defined pragma but get ");
+        return false;
+      }
+      auto *pragmas = stmt->GetPragmas();
+      if (pragmas) {
+        (void)pragmas->emplace(static_cast<uint32>(pragmaIndex));
+      }
+      (void)lexer.NextToken();
     }
   }
   return true;

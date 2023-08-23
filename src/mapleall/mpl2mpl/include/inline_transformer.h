@@ -54,7 +54,8 @@ enum class RealArgPropCandKind {
   kUnknown,
   kConst,
   kVar,
-  kPreg
+  kPreg,
+  kExpr,
 };
 
 // The candidate of real argument that can be propagated to callee's formal.
@@ -65,9 +66,10 @@ struct RealArgPropCand {
   union {
     MIRSymbol *symbol = nullptr;
     MIRConst *mirConst;
+    BaseNode *expr;
   } data;
 
-  void Parse(MIRFunction &caller, BaseNode &argExpr);
+  void Parse(MIRFunction &caller, bool calleeIsLikeMacro, BaseNode &argExpr);
 
   PrimType GetPrimType() const {
     if (kind == RealArgPropCandKind::kConst) {
@@ -76,6 +78,9 @@ struct RealArgPropCand {
     } else if (kind == RealArgPropCandKind::kVar || kind == RealArgPropCandKind::kPreg) {
       ASSERT_NOT_NULL(data.symbol);
       return data.symbol->GetType()->GetPrimType();
+    } else if (kind == RealArgPropCandKind::kExpr) {
+      ASSERT_NOT_NULL(data.expr);
+      return data.expr->GetPrimType();
     }
     return PTY_unknown;
   }
@@ -103,7 +108,7 @@ class InlineTransformer {
   }
 
   bool PerformInline(BlockNode &enclosingBlk);
-  bool PerformInline(std::vector<CallInfo*> *newCallInfo = nullptr);
+  bool PerformInline(CallInfo *callInfo = nullptr, std::vector<CallInfo*> *newCallInfo = nullptr);
   static void ReplaceSymbols(BaseNode *baseNode, uint32 stIdxOff, const std::vector<uint32> *oldStIdx2New);
   static void ConvertPStaticToFStatic(MIRFunction &func);
   void SetDumpDetail(bool value) {
@@ -120,7 +125,8 @@ class InlineTransformer {
   void ReplaceLabels(BaseNode &baseNode, uint32 labIdxOff) const;
   void ReplacePregs(BaseNode *baseNode, std::unordered_map<PregIdx, PregIdx> &pregOld2New) const;
   void UpdateEnclosingBlock(BlockNode &body) const;
-  void CollectNewCallInfo(BaseNode *node, std::vector<CallInfo*> *newCallInfo) const;
+  void CollectNewCallInfo(BaseNode *node, std::vector<CallInfo*> *newCallInfo,
+                          const std::map<uint32, uint32> &reverseCallIdMap) const;
   void AssignActualsToFormals(BlockNode &newBody, uint32 stIdxOff, uint32 regIdxOff);
   void AssignActualToFormal(BlockNode& newBody, uint32 stIdxOff, uint32 regIdxOff,
       BaseNode &oldActual, const MIRSymbol &formal);

@@ -754,7 +754,7 @@ MirTypeInfo MPISel::GetMirTypeInfoFromMirNode(const BaseNode &node) {
   return GetMirTypeInfoFormFieldIdAndMirType(fieldId, mirType);
 }
 
-void MPISel::SelectDassign(const DassignNode &stmt, Operand &opndRhs) {
+void MPISel::SelectDassign(DassignNode &stmt, Operand &opndRhs) {
   /* mirSymbol info */
   MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(stmt.GetStIdx());
   MirTypeInfo symbolInfo = GetMirTypeInfoFromMirNode(stmt);

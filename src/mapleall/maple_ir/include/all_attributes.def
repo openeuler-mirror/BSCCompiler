@@ -58,6 +58,9 @@
   ATTR(safed)
   ATTR(unsafed)
   ATTR(noreturn)
+  ATTR(like_macro)
+  ATTR(hot)
+  ATTR(cold)
 #endif
 #if defined(FUNC_ATTR) || defined(TYPE_ATTR)
   ATTR(abstract)
@@ -83,7 +86,6 @@
   ATTR(tls_static)
   ATTR(tls_dynamic)
   ATTR(packed)
-  ATTR(aligned)
 #endif
 #ifdef TYPE_ATTR
   ATTR(annotation)
@@ -98,6 +100,8 @@
   ATTR(initial_exec)
   ATTR(local_dynamic)
   ATTR(global_dynamic)
+  ATTR(shortcc)
+  ATTR(typedef)
 #endif
 #ifdef FUNC_ATTR
   ATTR(firstarg_return)
@@ -106,6 +110,7 @@
 #ifdef STMT_ATTR
   ATTR(insaferegion)
   ATTR(mayTailcall)
+  ATTR(ignore_cost)
 #endif
   ATTR(oneelem_simd)
   ATTR(nonnull)
@@ -118,4 +123,7 @@
 #endif
 #if (defined(TYPE_ATTR) || defined(FIELD_ATTR)) && !defined(NOCONTENT_ATTR)
   ATTR(pack)
+  ATTR(type_alias)
+  ATTR(type_align)
+  ATTR(aligned)
 #endif

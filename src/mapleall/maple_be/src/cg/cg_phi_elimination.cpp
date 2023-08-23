@@ -19,7 +19,6 @@
 namespace maplebe {
 void PhiEliminate::TranslateTSSAToCSSA() {
   FOR_ALL_BB(bb, cgFunc) {
-    eliminatedBB.emplace(bb->GetId());
     for (auto phiInsnIt : bb->GetPhiInsns()) {
       /* Method I create a temp move for phi-node */
       auto &destReg = static_cast<RegOperand&>(phiInsnIt.second->GetOperand(kInsnFirstOpnd));
@@ -50,7 +49,7 @@ void PhiEliminate::TranslateTSSAToCSSA() {
 
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {
-      CHECK_FATAL(eliminatedBB.count(bb->GetId()) != 0, "still have phi");
+      CHECK_FATAL(!insn->IsPhi(), "still have phi insn");
       if (!insn->IsMachineInstruction()) {
         continue;
       }

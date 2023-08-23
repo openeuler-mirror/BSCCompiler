@@ -73,6 +73,11 @@ class Operand {
   Operand(OperandType type, uint32 size) : opndKind(type), size(size) {}
   virtual ~Operand() = default;
 
+  // Custom deep copy
+  virtual Operand *CloneTree(MapleAllocator &allocator) const = 0;
+  // Default shallow copy
+  virtual Operand *Clone(MemPool &memPool) const = 0;
+
   uint32 GetSize() const {
     return size;
   }
@@ -157,12 +162,8 @@ class Operand {
     return false;
   }
 
-  virtual Operand *Clone(MemPool &memPool) const = 0;
-
-  /*
-   * A simple implementation here.
-   * Each subclass can elaborate on demand.
-   */
+  // A simple implementation here.
+  // Each subclass can elaborate on demand.
   virtual bool Equals(Operand &op) const {
     return BasicEquals(op) && (&op == this);
   }
@@ -171,9 +172,7 @@ class Operand {
     return opndKind == op.GetKind() && size == op.GetSize();
   }
 
-  /*
-   *  Operand hash content, ensuring uniqueness
-   */
+  //  Operand hash content, ensuring uniqueness
   virtual std::string GetHashContent() const {
     return std::to_string(opndKind) + std::to_string(size);
   }
@@ -221,6 +220,10 @@ class RegOperand : public OperandVisitable<RegOperand> {
 
   ~RegOperand() override = default;
   using OperandVisitable<RegOperand>::OperandVisitable;
+
+  RegOperand *CloneTree(MapleAllocator &allocator) const override {
+    return allocator.GetMemPool()->New<RegOperand>(*this);
+  }
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<RegOperand>(*this);
@@ -454,6 +457,11 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
   };
   using OperandVisitable<ImmOperand>::OperandVisitable;
 
+  ImmOperand *CloneTree(MapleAllocator &allocator) const override {
+    // const MIRSymbol is not changed in cg, so we can do shallow copy
+    return allocator.GetMemPool()->New<ImmOperand>(*this);
+  }
+
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<ImmOperand>(*this);
   }
@@ -644,11 +652,7 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     if (!operand.IsImmediate()) {
       return false;
     }
-    auto &op = static_cast<ImmOperand&>(operand);
-    if (&op == this) {
-      return true;
-    }
-    return (BasicEquals(op) && value == op.GetValue() && isSigned == op.IsSignedValue());
+    return ValueEquals(static_cast<const ImmOperand&>(operand));
   }
 
   std::string GetHashContent() const override {
@@ -701,6 +705,11 @@ class OfstOperand : public ImmOperand {
 
   ~OfstOperand() override {
     ofSymbol = nullptr;
+  }
+
+  OfstOperand *CloneTree(MapleAllocator &allocator) const override {
+    // const MIRSymbol is not changed in cg, so we can do shallow copy
+    return allocator.GetMemPool()->New<OfstOperand>(*this);
   }
 
   Operand *Clone(MemPool &memPool) const override {
@@ -789,6 +798,10 @@ class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
   ~ExtendShiftOperand() override = default;
   using OperandVisitable<ExtendShiftOperand>::OperandVisitable;
 
+  ExtendShiftOperand *CloneTree(MapleAllocator &allocator) const override {
+    return allocator.GetMemPool()->New<ExtendShiftOperand>(*this);
+  }
+
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<ExtendShiftOperand>(*this);
   }
@@ -858,6 +871,10 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
 
   ~BitShiftOperand() override = default;
   using OperandVisitable<BitShiftOperand>::OperandVisitable;
+
+  BitShiftOperand *CloneTree(MapleAllocator &allocator) const override {
+    return allocator.GetMemPool()->New<BitShiftOperand>(*this);
+  }
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<BitShiftOperand>(*this);
@@ -1051,6 +1068,26 @@ class MemOperand : public OperandVisitable<MemOperand> {
 
   ~MemOperand() override = default;
   using OperandVisitable<MemOperand>::OperandVisitable;
+
+  MemOperand *CloneTree(MapleAllocator &allocator) const override {
+    auto *memOpnd = allocator.GetMemPool()->New<MemOperand>(*this);
+    if (baseOpnd != nullptr) {
+      memOpnd->SetBaseRegister(*baseOpnd->CloneTree(allocator));
+    }
+    if (indexOpnd != nullptr) {
+      memOpnd->SetIndexRegister(*indexOpnd->CloneTree(allocator));
+    }
+    if (offsetOpnd != nullptr) {
+      memOpnd->SetOffsetOperand(*offsetOpnd->CloneTree(allocator));
+    }
+    if (exOpnd != nullptr) {
+      memOpnd->SetExtendOperand(exOpnd->CloneTree(allocator));
+    }
+    if (lsOpnd != nullptr) {
+      memOpnd->SetBitOperand(lsOpnd->CloneTree(allocator));
+    }
+    return memOpnd;
+  }
 
   MemOperand *Clone(MemPool &memPool) const override {
     return memPool.Clone<MemOperand>(*this);
@@ -1370,6 +1407,10 @@ class LabelOperand : public OperandVisitable<LabelOperand> {
   ~LabelOperand() override = default;
   using OperandVisitable<LabelOperand>::OperandVisitable;
 
+  LabelOperand *CloneTree(MapleAllocator &allocator) const override {
+    return allocator.GetMemPool()->New<LabelOperand>(*this);
+  }
+
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<LabelOperand>(*this);
   }
@@ -1443,6 +1484,14 @@ class ListOperand : public OperandVisitable<ListOperand> {
 
   using OperandVisitable<ListOperand>::OperandVisitable;
 
+  ListOperand *CloneTree(MapleAllocator &allocator) const override {
+    auto *listOpnd = allocator.GetMemPool()->New<ListOperand>(allocator);
+    for (auto regOpnd : opndList) {
+      listOpnd->PushOpnd(*regOpnd->CloneTree(allocator));
+    }
+    return listOpnd;
+  }
+
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<ListOperand>(*this);
   }
@@ -1499,6 +1548,11 @@ class StImmOperand : public OperandVisitable<StImmOperand> {
   }
 
   using OperandVisitable<StImmOperand>::OperandVisitable;
+
+  StImmOperand *CloneTree(MapleAllocator &allocator) const override {
+    // const MIRSymbol is not changed in cg, so we can do shallow copy
+    return allocator.GetMemPool()->New<StImmOperand>(*this);
+  }
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<StImmOperand>(*this);
@@ -1560,6 +1614,10 @@ class CommentOperand : public OperandVisitable<CommentOperand> {
     return comment;
   }
 
+  CommentOperand *CloneTree(MapleAllocator &allocator) const override {
+    return allocator.GetMemPool()->New<CommentOperand>(*this);
+  }
+
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<CommentOperand>(*this);
   }
@@ -1601,6 +1659,14 @@ class ListConstraintOperand : public OperandVisitable<ListConstraintOperand> {
     }
   }
 
+  ListConstraintOperand *CloneTree(MapleAllocator &allocator) const override {
+    auto *constraintOpnd = allocator.GetMemPool()->New<ListConstraintOperand>(allocator);
+    for (auto stringOpnd : stringList) {
+      (void)constraintOpnd->stringList.emplace_back(stringOpnd->CloneTree(allocator));
+    }
+    return constraintOpnd;
+  }
+
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<ListConstraintOperand>(*this);
   }
@@ -1627,6 +1693,14 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
 
   ~PhiOperand() override = default;
   using OperandVisitable<PhiOperand>::OperandVisitable;
+
+  PhiOperand *CloneTree(MapleAllocator &allocator) const override {
+    auto *phiOpnd = allocator.GetMemPool()->New<PhiOperand>(allocator);
+    for (auto phiPair : phiList) {
+      phiOpnd->InsertOpnd(phiPair.first, *phiPair.second->CloneTree(allocator));
+    }
+    return phiOpnd;
+  }
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<PhiOperand>(*this);
@@ -1691,6 +1765,15 @@ class FuncNameOperand : public OperandVisitable<FuncNameOperand> {
   }
   using OperandVisitable<FuncNameOperand>::OperandVisitable;
 
+  FuncNameOperand *CloneTree(MapleAllocator &allocator) const override {
+    // const MIRSymbol is not changed in cg, so we can do shallow copy
+    return allocator.GetMemPool()->New<FuncNameOperand>(*this);
+  }
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.New<FuncNameOperand>(*this);
+  }
+
   const std::string &GetName() const {
     return symbol->GetName();
   }
@@ -1705,10 +1788,6 @@ class FuncNameOperand : public OperandVisitable<FuncNameOperand> {
 
   void SetFunctionSymbol(const MIRSymbol &fsym) {
     symbol = &fsym;
-  }
-
-  Operand *Clone(MemPool &memPool) const override {
-    return memPool.New<FuncNameOperand>(*this);
   }
 
   bool Less(const Operand &right) const override {
@@ -1731,6 +1810,37 @@ class FuncNameOperand : public OperandVisitable<FuncNameOperand> {
 
  private:
   const MIRSymbol *symbol;
+};
+
+class CondOperand : public OperandVisitable<CondOperand> {
+ public:
+  explicit CondOperand(maplebe::ConditionCode cc) : OperandVisitable(Operand::kOpdCond, k4ByteSize), cc(cc) {}
+
+  ~CondOperand() override = default;
+  using OperandVisitable<CondOperand>::OperandVisitable;
+
+  CondOperand *CloneTree(MapleAllocator &allocator) const override {
+    return allocator.GetMemPool()->New<CondOperand>(*this);
+  }
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.New<CondOperand>(cc);
+  }
+
+  ConditionCode GetCode() const {
+    return cc;
+  }
+
+  bool Less(const Operand &right) const override;
+
+  void Dump() const override {
+    CHECK_FATAL_FALSE("dont run here");
+  }
+
+  static const char *ccStrs[kCcLast];
+
+ private:
+  ConditionCode cc;
 };
 
 namespace operand {
@@ -1834,33 +1944,6 @@ class OpndDesc {
   Operand::OperandType opndType;
   maple::uint64 property;
   maple::uint32 size;
-};
-
-class CondOperand : public OperandVisitable<CondOperand> {
- public:
-  explicit CondOperand(maplebe::ConditionCode cc) : OperandVisitable(Operand::kOpdCond, k4ByteSize), cc(cc) {}
-
-  ~CondOperand() override = default;
-  using OperandVisitable<CondOperand>::OperandVisitable;
-
-  Operand *Clone(MemPool &memPool) const override {
-    return memPool.New<CondOperand>(cc);
-  }
-
-  ConditionCode GetCode() const {
-    return cc;
-  }
-
-  bool Less(const Operand &right) const override;
-
-  void Dump() const override {
-    CHECK_FATAL_FALSE("dont run here");
-  }
-
-  static const char *ccStrs[kCcLast];
-
- private:
-  ConditionCode cc;
 };
 
 class OpndDumpVisitor : public OperandVisitorBase,

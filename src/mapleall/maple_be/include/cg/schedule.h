@@ -92,7 +92,7 @@ class ScheduleProcessInfo {
   void PushElemIntoScheduledNodes(DepNode *node) {
     node->SetState(kScheduled);
     node->SetSchedCycle(currCycle);
-    node->OccupyUnits();
+    node->OccupyRequiredUnits();
     scheduledNodes.emplace_back(node);
   }
 

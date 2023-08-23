@@ -346,6 +346,12 @@ class MIRFunction {
     return !funcAttrs.GetAttr(FUNCATTR_visibility_hidden) && !funcAttrs.GetAttr(FUNCATTR_visibility_protected);
   }
 
+  // for checking a function need PLT for relocation or can do no-plt
+  // if any functionality needs to check this usage,
+  // should use this function && check if option -fno-plt is enabled
+  // e.g.
+  //  if (CGOptions::IsNoPlt() && mirFunc && mirFunc->CanDoNoPlt(CGOptions::IsShlib(), CGOptions::IsPIE()))
+  //    ......
   bool CanDoNoPlt(bool isShlib, bool isPIE) const {
     if (IsDefaultVisibility() && ((isPIE && !GetBody()) || (isShlib && !IsStatic()))) {
       return true;
@@ -705,7 +711,12 @@ class MIRFunction {
   void SetFuncAttrs(const FuncAttrs &attrs) {
     funcAttrs = attrs;
   }
-  void SetFuncAttrs(uint64 attrFlag) {
+
+  // The template is to DISABLE any implicit type conversion to FuncAttrFlag (e.g. int64 to FuncAttrFlag).
+  // Type `T` must be FuncAttrFlag, otherwise the static_assert below will complain.
+  template <typename T>
+  void SetFuncAttrFlag(const T &attrFlag) {
+    static_assert(std::is_same<T, FuncAttrFlag>::value, "type mismatch");
     funcAttrs.SetAttrFlag(attrFlag);
   }
 
@@ -1262,6 +1273,10 @@ class MIRFunction {
 
   void InitFuncDescToBest() {
     funcDesc.InitToBest();
+  }
+
+  void InitFuncDescToWorst() {
+    funcDesc.InitToWorst();
   }
 
   const FuncDesc &GetFuncDesc() const {

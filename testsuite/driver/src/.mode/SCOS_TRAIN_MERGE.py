@@ -16,6 +16,20 @@ from api import *
 
 
 SCOS_TRAIN_MERGE = {
+    "c2o": [
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${TARGET}",
+            include_path=[
+                "${MAPLE_BUILD_OUTPUT}/lib/include",
+                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
+                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include"
+            ],
+            option="--Os --patch-long-branch -fPIC --no-pie -std=gnu99 -lm -L${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/",
+            extra_opt="${SPEC_PARAM}"
+        )
+    ],
     "compile": [
         MapleDriver(
             maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
@@ -36,7 +50,7 @@ SCOS_TRAIN_MERGE = {
             infiles=["${APP}"],
             outfile="${TARGET}",
             option="-std=gnu99 --no-pie -lm -L${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/",
-            extra_opt="--Os -fPIC -g --no-pie -flto ${SPEC_PARAM}"
+            extra_opt="-Os ${SPEC_PARAM}"
         )
     ],
     "cp_data":[

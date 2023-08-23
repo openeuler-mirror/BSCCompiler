@@ -85,6 +85,11 @@ set_target_properties(libmaple_driver PROPERTIES
 )
 
 set(src_libdriver_option
+  src/unsupport_bool.cpp
+  src/unsupport_bool2.cpp
+  src/unsupport_bool3.cpp
+  src/unsupport_string.cpp
+  src/warning_option.cpp
   src/driver_options.cpp
 )
 

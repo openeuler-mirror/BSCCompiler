@@ -104,12 +104,15 @@ bool MIRScope::IsSubScope(const MIRScope *scp) const {
 // s1 and s2 has join
 // (s1.low (s2.low s1.high] s2.high]
 // (s2.low (s1.low s2.high] s1.high]
+// Notice that the included macro stmt will lost its exact column,
+// so compound stmts could have the same line and the same column.
 bool MIRScope::HasJoinScope(const MIRScope *scp1, const MIRScope *scp2) const {
   auto &l1 = scp1->GetRangeLow();
   auto &h1 = scp1->GetRangeHigh();
   auto &l2 = scp2->GetRangeLow();
   auto &h2 = scp2->GetRangeHigh();
-  return (l1.IsBfOrEq(l2) && l2.IsBfOrEq(h1)) || (l2.IsBfOrEq(l1) && l1.IsBfOrEq(h2));
+  return (l1.IsEq(l2) && l1.IsBf(h1) && l2.IsBf(h2)) || (h1.IsEq(h2) && l1.IsBf(h1) && l2.IsBf(h2)) ||
+         (l1.IsBf(l2) && l2.IsBf(h1)) || (l2.IsBf(l1) && l1.IsBf(h2));
 }
 
 // scope range of s1 and s2 may be completly same when macro calling macro expand
@@ -155,11 +158,15 @@ SrcPosition MIRScope::GetScopeEndPos(const SrcPosition &pos) {
 
 bool MIRScope::AddScope(MIRScope *scope) {
   // check first if it is valid with parent scope and sibling sub scopes
-  CHECK_FATAL(IsSubScope(scope), "<%s %s> is not a subscope of scope <%s %s>",
-              scope->GetRangeLow().DumpLocWithColToString().c_str(),
-              scope->GetRangeHigh().DumpLocWithColToString().c_str(),
-              GetRangeLow().DumpLocWithColToString().c_str(),
-              GetRangeHigh().DumpLocWithColToString().c_str());
+  // if parent scope is a result of gnu line markers, we do not need to check.
+  // GDB testsuits do not cover this case for now.
+  if (GetRangeLow().FileNum() == GetRangeHigh().FileNum()) {
+    CHECK_FATAL(IsSubScope(scope), "<%s %s> is not a subscope of scope <%s %s>",
+                scope->GetRangeLow().DumpLocWithColToString().c_str(),
+                scope->GetRangeHigh().DumpLocWithColToString().c_str(),
+                GetRangeLow().DumpLocWithColToString().c_str(),
+                GetRangeHigh().DumpLocWithColToString().c_str());
+  }
   for (auto *s : subScopes) {
     if (!HasSameRange(s, scope) && HasJoinScope(s, scope)) {
       CHECK_FATAL(false, "<%s %s> has join range with another subscope <%s %s>",

@@ -30,17 +30,36 @@ class MemDefUse {
         useSet(allocator.Adapter()) {}
   ~MemDefUse();
 
+  const MemDefUseSet &GetDefSet() const {
+    return defSet;
+  }
+
   MemDefUseSet &GetDefSet() {
     return defSet;
+  }
+
+  const MemDefUseSet &GetUseSet() const {
+    return useSet;
   }
 
   MemDefUseSet &GetUseSet() {
     return useSet;
   }
 
+  void SetIndependent() {
+    isIndependent = true;
+  }
+
+  const bool IsIndependent() const {
+    return isIndependent;
+  }
+
  private:
   MemDefUseSet defSet;
   MemDefUseSet useSet;
+  // The field is set TRUE to indicate that the callee-save and callee-reload instructions do not
+  // conflict with any other memory access instructions.
+  bool isIndependent = false;
 };
 
 using MemDefUsePart = MapleUnorderedMap<BaseNode *, MemDefUse *>;

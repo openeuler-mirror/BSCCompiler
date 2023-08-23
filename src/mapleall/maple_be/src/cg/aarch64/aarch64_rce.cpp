@@ -269,9 +269,6 @@ bool AArch64RedundantComputeElim::DoOpt(BB *bb) {
       continue;
     }
     doOpt = true;
-    if (cgFunc->GetName() == "expand_shift" && insn->GetId() == 144) {
-      std::cout << "add logical shift!" << std::endl;
-    }
     auto iter = candidates.find(insn);
     if (iter != candidates.end()) {
       /* during iteration, avoid repeated processing of insn, which may access wrong duInsnInfo of ssaVersion */

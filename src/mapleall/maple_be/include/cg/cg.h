@@ -375,13 +375,11 @@ class CG {
     return funcWrapLabels.find(func) != funcWrapLabels.end();
   }
 
-  static void SetFuncWrapLabels(MIRFunction *func, const std::pair<LabelIdx, LabelIdx> labels) {
-    if (!IsInFuncWrapLabels(func)) {
-      funcWrapLabels[func] = labels;
-    }
+  static void SetFuncWrapLabels(const MIRFunction *func, const std::pair<LabelIdx, LabelIdx> labels) {
+    funcWrapLabels[func] = labels;
   }
 
-  static std::map<MIRFunction*, std::pair<LabelIdx, LabelIdx>> &GetFuncWrapLabels() {
+  static std::map<const MIRFunction*, std::pair<LabelIdx, LabelIdx>> &GetFuncWrapLabels() {
     return funcWrapLabels;
   }
   static void SetCurCGFunc(CGFunc &cgFunc) {
@@ -405,7 +403,7 @@ class CG {
   const MIRModule *GetMIRModule() const {
     return mirModule;
   }
-  
+
   protected:
   MemPool *memPool = nullptr;
   MapleAllocator allocator;
@@ -420,7 +418,7 @@ class CG {
   MIRSymbol *dbgTraceExit = nullptr;
   MIRSymbol *dbgFuncProfile = nullptr;
   MIRSymbol *fileGP;  /* for lmbc, one local %GP per file */
-  static std::map<MIRFunction *, std::pair<LabelIdx, LabelIdx>> funcWrapLabels;
+  static std::map<const MIRFunction*, std::pair<LabelIdx, LabelIdx>> funcWrapLabels;
   bool isLibcore = false;
   bool isLmbc = false;
 };  /* class CG */

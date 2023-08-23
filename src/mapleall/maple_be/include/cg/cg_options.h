@@ -20,10 +20,6 @@
 
 namespace opts::cg {
 
-extern maplecl::Option<bool> fpie;
-extern maplecl::Option<bool> fpic;
-extern maplecl::Option<bool> fPIE;
-extern maplecl::Option<bool> fPIC;
 extern maplecl::Option<bool> fnoSemanticInterposition;
 extern maplecl::Option<bool> verboseAsm;
 extern maplecl::Option<bool> verboseCg;
@@ -116,6 +112,7 @@ extern maplecl::Option<std::string> floatAbi;
 extern maplecl::Option<std::string> filetype;
 extern maplecl::Option<bool> longCalls;
 extern maplecl::Option<bool> functionSections;
+extern maplecl::Option<bool> dataSections;
 extern maplecl::Option<bool> omitFramePointer;
 extern maplecl::Option<bool> omitLeafFramePointer;
 extern maplecl::Option<bool> fastMath;
@@ -147,6 +144,7 @@ extern maplecl::Option<bool> pgoCodeAlign;
 extern maplecl::Option<uint32_t> alignThreshold;
 extern maplecl::Option<uint32_t> alignLoopIterations;
 extern maplecl::Option<uint32_t> dupFreqThreshold;
+extern maplecl::Option<bool> cgMemAlias;
 }
 
 #endif /* MAPLE_BE_INCLUDE_CG_OPTIONS_H */

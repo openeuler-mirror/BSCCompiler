@@ -617,8 +617,8 @@ void DebugInfo::BuildDebugInfoFunctions() {
     SetCurFunction(func);
     // function decl
     if (stridxDieIdMap.find(func->GetNameStrIdx().GetIdx()) == stridxDieIdMap.end()) {
-      DBGDie *funcDie = GetOrCreateFuncDeclDie(func);
       if (func->GetClassTyIdx().GetIdx() == 0 && func->GetBody()) {
+        DBGDie *funcDie = GetOrCreateFuncDeclDie(func);
         compUnit->AddSubVec(funcDie);
       }
     }
@@ -836,8 +836,10 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx) {
   die->AddAttr(DW_AT_decl_column, DW_FORM_data4, sym->GetSrcPosition().Column());
 
   bool isLocal = sym->IsLocal();
+  // TLS do not need normal DW_AT_location
+  bool isThreadLocal = sym->IsThreadLocal();
   if (isLocal) {
-    if (sym->IsPUStatic()) {
+    if (sym->IsPUStatic() && !isThreadLocal) {
       // Use actual internal sym by cg
       PUIdx pIdx = GetCurFunction()->GetPuidx();
       std::string ptrName = sym->GetName() + std::to_string(pIdx);
@@ -846,7 +848,7 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx) {
     } else {
       die->AddSimpLocAttr(DW_AT_location, DW_FORM_exprloc, DW_OP_fbreg, kDbgDefaultVal);
     }
-  } else {
+  } else if (!isThreadLocal) {
     // global var just use its name as address in .s
     uint64 idx = strIdx.GetIdx();
     if ((sym->IsReflectionClassInfo() && !sym->IsReflectionArrayClassInfo()) || sym->IsStatic()) {
@@ -1497,7 +1499,7 @@ DBGDie *DebugInfo::CreateStructTypeDie(const GStrIdx &strIdx, const MIRStructTyp
     die = idDieMap[id];
     ASSERT(die, "update type die not exist");
   } else {
-    DwTag tag = structType->GetKind() == kTypeStruct ? DW_TAG_structure_type : DW_TAG_union_type;
+    DwTag tag = structType->GetKind() == kTypeUnion ? DW_TAG_union_type : DW_TAG_structure_type;
     die = module->GetMemPool()->New<DBGDie>(module, tag);
     tyIdxDieIdMap[tid] = die->GetId();
   }
@@ -1511,11 +1513,16 @@ DBGDie *DebugInfo::CreateStructTypeDie(const GStrIdx &strIdx, const MIRStructTyp
 
   const std::string &name = GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx);
   bool keep = (name.find("unnamed.") == std::string::npos);
-
-  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, kStructDBGSize);
-  die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx(), keep);
-  die->AddAttr(DW_AT_byte_size, DW_FORM_data4, kDbgDefaultVal);
-  die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
+  if (structType->GetKind() == kTypeStructIncomplete) {
+    die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx(), keep);
+    die->AddAttr(DW_AT_declaration, DW_FORM_data4, 1);
+  } else {
+    die->AddAttr(DW_AT_decl_line, DW_FORM_data4, kStructDBGSize);
+    die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx(), keep);
+    die->AddAttr(DW_AT_byte_size, DW_FORM_data4, kDbgDefaultVal);
+    die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
+  }
+  
   // store tid for cg emitter
   die->AddAttr(DW_AT_type, DW_FORM_data4, tid, false);
 

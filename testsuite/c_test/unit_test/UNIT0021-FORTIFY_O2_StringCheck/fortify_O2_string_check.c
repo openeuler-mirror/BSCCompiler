@@ -9,6 +9,10 @@ int x;
 int test(int arg, ...) {
   char buf2[20];
   va_list ap;
+  vx = stpncpy (&buf2[18], "a", 2);
+  vx = stpncpy (&buf2[18], "a", 3); // CHECK:warning: ‘__builtin___stpncpy_chk’ will always overflow; destination buffer has size 2, but size argument is 3
+  vx = stpncpy (&buf2[18], "abc", 2);
+  vx = stpncpy (&buf2[18], "abc", 3); // CHECK:warning: ‘__builtin___stpncpy_chk’ will always overflow; destination buffer has size 2, but size argument is 3
   memcpy (&buf2[19], "ab", 1);
   memcpy (&buf2[19], "ab", 2); // CHECK:warning: ‘__builtin___memcpy_chk’ will always overflow; destination buffer has size 1, but size argument is 2
   vx = mempcpy (&buf2[19], "ab", 1);

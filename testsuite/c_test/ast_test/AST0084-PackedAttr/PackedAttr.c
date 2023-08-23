@@ -15,7 +15,7 @@
  #include <stdio.h>
 
 // CHECK: [[# FILENUM:]] "{{.*}}/PackedAttr.c"
-// CHECK: type {{.*}} <struct pack(2)
+// CHECK: type {{.*}} <struct typedef pack(2)
 #pragma pack(push, 2)
 typedef struct {
   char c1;
@@ -23,7 +23,7 @@ typedef struct {
   char c2;
 } FOO1;
 #pragma pack(pop)
-// CHECK: type {{.*}} <struct pack(4)
+// CHECK: type {{.*}} <struct typedef pack(4)
 #pragma pack(push, 1)
 #pragma pack(push, 4)
 typedef struct {
@@ -33,7 +33,7 @@ typedef struct {
 } FOO2;
 #pragma pack(pop)
 #pragma pack(pop)
-// CHECK: type {{.*}} <struct packed
+// CHECK: type {{.*}} <struct packed typedef
 typedef struct {
   char c1;
   int i;

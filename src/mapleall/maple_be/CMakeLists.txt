@@ -160,6 +160,7 @@ if(${TARGET} STREQUAL "aarch64" OR ${TARGET} STREQUAL "aarch64_ilp32")
         src/cg/local_schedule.cpp
         src/cg/list_scheduler.cpp
         src/cg/cg_aggressive_opt.cpp
+        src/cg/cg_sink.cpp
     )
 endif()
 

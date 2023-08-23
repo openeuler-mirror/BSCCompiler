@@ -41,6 +41,9 @@ static void CollectMemDefUseInfo(StmtNode &stmt, MeStmt &meStmt) {
       (void)memDefUse->GetDefSet().insert(pair.first);
     }
   }
+  if (meStmt.GetVarLHS()) {
+    (void)memDefUse->GetDefSet().insert(meStmt.GetVarLHS()->GetOstIdx());
+  }
 }
 
 static void CollectMemMu(IreadNode &iread, IvarMeExpr &ivar) {

@@ -22,6 +22,7 @@
 #include "inline_transformer.h"
 #include "inline_summary.h"
 #include "inline.h"
+#include "driver_options.h"
 
 namespace maple {
 static bool IsOrContainsAddrofLabel(const MIRConst &mirConst) {
@@ -476,12 +477,51 @@ bool InlineAnalyzer::SizeWillGrow(const CGNode &calleeNode, const CallGraph &cg)
   return EstimateGrowthIfInlinedToAllCallers(calleeNode, cg, nullptr).second > 0;
 }
 
+bool InlineAnalyzer::CheckPreferInline(const CallNode &callStmt, bool &status) {
+  if (callStmt.GetPragmas()->empty()) {
+    return false;
+  }
+  auto &pragmas = GlobalTables::GetGPragmaTable().GetPragmaTable();
+  for (auto pragmaId : *callStmt.GetPragmas()) {
+    auto *pragma = pragmas[pragmaId];
+    if (pragma->GetKind() != CPragmaKind::PRAGMA_prefer_inline) {
+      continue;
+    }
+    status = static_cast<PreferInlinePragma*>(pragma)->GetStatus();
+    return true;
+  }
+  return false;
+}
+
+// To be improved: Move more must inline scenarios from `CanInlineImpl` to here
+bool InlineAnalyzer::MustInline(const MIRFunction &caller, const MIRFunction &callee, uint32 depth, bool earlyInline) {
+  // "self-recursive always_inline" won't be performed
+  if (&callee == &caller) {
+    return false;
+  }
+
+  // func with always_inline & must be deleted, should do inline
+  if (callee.GetAttr(FUNCATTR_always_inline) && FuncMustBeDeleted(callee)) {
+    return true;
+  }
+
+  // kIfcExternGnuInlineCalleeDepth0 also should be inlined for improving performance
+  if (Options::O2 && IsExternGnuInline(callee) && earlyInline && depth == 0) {
+    return true;
+  }
+
+  return false;
+}
+
 std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const MIRFunction*, MIRFunction*> callPair,
     const CallNode &callStmt, const CallGraph &cg, uint32 depth, bool earlyInline) {
   const MIRFunction &caller = *callPair.first;
   MIRFunction &callee = *callPair.second;
   if (callee.GetBody() == nullptr) {
     return {false, kIfcEmptyCallee};
+  }
+  if (MayBeOverwritten(callee)) {
+    return {false, kIfcPreemptable};
   }
   GStrIdx calleeStrIdx = callee.GetNameStrIdx();
   GStrIdx callerStrIdx = caller.GetNameStrIdx();
@@ -587,6 +627,16 @@ std::pair<bool, InlineFailedCode> InlineAnalyzer::CanInlineImpl(std::pair<const 
   if (!IsSafeToInline(callee, callStmt)) {
     return {false, kIfcUnsafe};
   }
+  // pragma prefer_inline used here
+  bool checkRes = false;
+  if (!Options::ignorePreferInline && CheckPreferInline(callStmt, checkRes)) {
+    // apply pragma prefer_inline ON/OFF
+    if (checkRes) {
+      return {true, kIfcPreferInlineOn};
+    } else {
+      return {false, kIfcPreferInlineOff};
+    }
+  }
   if (callee.GetInlineSummary() != nullptr) {
     auto codeFromSummary = callee.GetInlineSummary()->GetInlineFailedCode();
     auto codeType = GetInlineFailedType(codeFromSummary);
@@ -625,12 +675,42 @@ bool InlineAnalyzer::CanInline(CallInfo &callInfo, const CallGraph &cg, uint32 d
   return canInline;
 }
 
-static bool ObviouselyNotInline(const MIRFunction &caller, const MIRFunction &callee) {
+bool IsUnlikelyCallsite(const CallInfo &callInfo) {
+  if (callInfo.GetCallTemp() == CGTemp::kCold) {
+    return true;
+  }
+  auto *callerSummary = callInfo.GetCaller()->GetInlineSummary();
+  if (callerSummary == nullptr) {
+    return false;
+  }
+  auto *edgeSummary = callerSummary->GetEdgeSummary(callInfo.GetCallStmt()->GetStmtID());
+  if (edgeSummary == nullptr) {
+    return false;
+  }
+  return edgeSummary->GetAttr(CallsiteAttrKind::kUnlikely);
+}
+
+static constexpr double bigFreq = 14.0;
+static constexpr uint32 callerThreshBigFreq = 800;
+static constexpr uint32 calleeThreshBigFreq = 65;
+
+static void MayAdjustThreshold(double freq, uint32 &callerThresh, uint32 &calleeThresh, uint32 &nonStaticThresh) {
+  if (freq <= bigFreq) {
+    return;
+  }
+  callerThresh = callerThreshBigFreq;
+  calleeThresh = calleeThreshBigFreq;
+  nonStaticThresh = calleeThresh;
+}
+
+static bool ObviouslyNotInline(const MIRFunction &caller, const MIRFunction &callee, double freq) {
   if (caller.IsInline() || &caller == &callee) {
     return true;
   }
-  constexpr int32 callerThresh = 170;
-  constexpr int32 calleeThresh = 40;
+  uint32 callerThresh = 170;
+  uint32 calleeThresh = 40;
+  uint32 nonStaticThresh = 10;
+  MayAdjustThreshold(freq, callerThresh, calleeThresh, nonStaticThresh);
   auto callerSize = GetFuncSize(caller);
   auto calleeSize = GetFuncSize(callee);
   if (!callerSize || callerSize > callerThresh) {
@@ -639,8 +719,7 @@ static bool ObviouselyNotInline(const MIRFunction &caller, const MIRFunction &ca
   if (!calleeSize || calleeSize > calleeThresh) {
     return true;
   }
-  constexpr int32 nonStaticThresh = 10;
-  if (!callee.IsStatic() && callerSize >= nonStaticThresh) {
+  if (!callee.IsStatic() && calleeSize >= nonStaticThresh) {
     return true;
   }
   // callee with big switch will introduce too many control dependencies
@@ -665,11 +744,22 @@ static int32 GetAllowedMaxScore(const BadnessInfo &badInfo) {
   return allowedMaxScore;
 }
 
+constexpr uint32 kCallerSizeNeverIgnoreGrow = 2000;  // Fine tuning is possible here
+
 // If input badInfo is null, badInfo will be recomputed
 bool IgnoreNonDeclaredInlineSizeGrow(CallInfo &callInfo, const CallGraph &cg, const BadnessInfo *inputBadInfo) {
   auto *caller = callInfo.GetCaller();
+  auto callerSize = GetFuncSize(*caller);
+  if (callerSize && callerSize > kCallerSizeNeverIgnoreGrow) {
+    // Never ignore size grow for so huge caller, even for callsites with hot temperature
+    return false;
+  }
+  if (callInfo.GetCallTemp() == CGTemp::kHot) {
+    return true;   // Ignore size grow for hot callsites
+  }
   auto *callee = callInfo.GetCallee();
-  if (ObviouselyNotInline(*caller, *callee)) {
+  auto freq = GetCallFreqPercent(callInfo);
+  if (ObviouslyNotInline(*caller, *callee, freq)) {
     return false;
   }
 
@@ -677,6 +767,7 @@ bool IgnoreNonDeclaredInlineSizeGrow(CallInfo &callInfo, const CallGraph &cg, co
   constexpr double bigSpeedup = 0.09;
   constexpr double maxAllowBadness = -1.0e-8;
   constexpr double freqLimit = 0.4;
+  constexpr double freqBonus = 10.0;
 
   // recompute badInfo if needed
   BadnessInfo tmpBadInfo;
@@ -688,8 +779,10 @@ bool IgnoreNonDeclaredInlineSizeGrow(CallInfo &callInfo, const CallGraph &cg, co
 
   int32 score = 0;  // the higher the score, the less inclined to inline
   int32 allowedMaxScore = GetAllowedMaxScore(*badInfo);
-  if (GetCallFreqPercent(callInfo) < freqLimit) {
+  if (freq < freqLimit) {
     ++score;
+  } else if (freq > freqBonus) {
+    --score;
   }
   if (badInfo->growth > growthLimit) {
     ++score;
@@ -823,22 +916,22 @@ std::optional<uint32> GetFuncSize(const MIRFunction &func) {
 }
 
 // called before performing inline
-bool CalleeCanBeRemovedIfInlined(const CallInfo &info, const CallGraph &cg) {
-  auto &callee = info.GetCallee();
-  auto *calleeNode = cg.GetCGNode(&callee);
+bool CalleeCanBeRemovedIfInlined(CallInfo &info, const CallGraph &cg) {
+  auto *callee = info.GetCallee();
+  auto *calleeNode = cg.GetCGNode(callee);
   CHECK_NULL_FATAL(calleeNode);
   bool calledOnce = calleeNode->NumberOfUses() == 1 && calleeNode->NumReferences() == 1 && !calleeNode->IsAddrTaken();
   if (!calledOnce) {
     return false;
   }
-  bool localAccess = callee.IsStatic() || (callee.IsInline() && !callee.IsExtern());
+  bool localAccess = callee->IsStatic() || (callee->IsInline() && !callee->IsExtern());
   return localAccess;
 }
 
 double ComputeUninlinedTimeCost(const CallInfo &callInfo, double callFreqPercent) {
   auto *callerSummary = callInfo.GetCaller()->GetInlineSummary();
   CHECK_NULL_FATAL(callerSummary);
-  auto *calleeSummary = callInfo.GetCallee().GetInlineSummary();
+  auto *calleeSummary = callInfo.GetCallee()->GetInlineSummary();
   CHECK_NULL_FATAL(calleeSummary);
   // `callerTime` includes time for preparing call
   const double callerTime = callerSummary->GetStaticCycles();
@@ -868,7 +961,7 @@ double ComputeInlinedTimeCost(CallInfo &callInfo, NumCycles inlinedCalleeTime) {
   }
   double result =
       callerTime + inlinedCalleeTime * CallFreqPercent(callFreq) - callStmtCycles * CallFreqPercent(callFreq);
-  CHECK_FATAL(result >= 0, "overflow?");
+  CHECK_FATAL(inlinedCalleeTime < callStmtCycles || result >= 0, "overflow?");
   return result;
 }
 
@@ -894,6 +987,26 @@ static int32 ComputeOverallFactor(int32 overallGrowth) {
     }
   }
   return overallFactor;
+}
+
+static inline double DoScaleBadness(double badness, uint32 factor, bool scaleDown) {
+  if (factor == 0) {
+    return badness;  // Avoid dividing badness by 0
+  }
+  if (scaleDown) {
+    badness = (badness > 0 ? badness / factor : badness * factor);
+  } else {
+    badness = (badness > 0 ? badness * factor : badness / factor);
+  }
+  return badness;
+}
+
+static inline double ScaleDownBadness(double badness, uint32 factor) {
+  return DoScaleBadness(badness, factor, true);
+}
+
+static inline double ScaleUpBadness(double badness, uint32 factor) {
+  return DoScaleBadness(badness, factor, false);
 }
 
 // + callee cost; - callstmt cost.
@@ -923,20 +1036,26 @@ void CalcBadnessImpl(CallInfo &info, const CallGraph &cg, BadnessInfo &outBadInf
   CHECK_FATAL(timeSaved >= 0, "should be");
   double scaledTimeSaved = ScaleTimeSaved(timeSaved);
 
-  auto *calleeNode = cg.GetCGNode(info.GetCallee());
+  MIRFunction *calleeFunc = info.GetCallee();
+  auto *calleeNode = cg.GetCGNode(calleeFunc);
   int32 overallGrowth = EstimateGrowthIfInlinedToAllCallers(*calleeNode, cg, nullptr).second;
   int32 overallFactor = ComputeOverallFactor(overallGrowth);
   auto badness = -scaledTimeSaved / (static_cast<double>(sizeGrowth) * combinedSize * overallFactor);
   badInfo->origBadness = badness;
   badInfo->overallGrowth = overallGrowth;
-  if (info.GetCallee()->GetAttr(FUNCATTR_inline)) {
-    // decrease badness for decalared_inline callee
-    constexpr int32 factor = 4;
-    if (badness > 0) {
-      badness /= factor;
-    } else {
-      badness *= factor;
-    }
+  if (calleeFunc->GetAttr(FUNCATTR_inline)) {
+    // Scale down badness for decalared_inline callee
+    constexpr uint32 factor = 4;
+    badness = ScaleDownBadness(badness, factor);
+  }
+  if (info.GetCallTemp() == CGTemp::kHot) {
+    // Scale down badness for hot callsites
+    constexpr uint32 factorForHot = 2000;  // Fine tuning for the threshold is possible
+    badness = ScaleDownBadness(badness, factorForHot);
+  }
+  if (IsUnlikelyCallsite(info)) {
+    constexpr uint32 factorForUnlikely = 10;
+    badness = ScaleUpBadness(badness, factorForUnlikely);
   }
   badInfo->badness = badness;
 }

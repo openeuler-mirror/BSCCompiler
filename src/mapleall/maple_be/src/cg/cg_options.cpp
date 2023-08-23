@@ -18,43 +18,21 @@
 
 namespace opts::cg {
 
-maplecl::Option<bool> fpie({"-fpie", "--fpie"},
-    "  --fpie                      \tGenerate position-independent executable in small mode.\n"
-    "  --no-pie/-fno-pie           \n",
-    {cgCategory, driverCategory, ldCategory},
-    maplecl::DisableEvery({"-fno-pie", "--no-pie"}));
-
-maplecl::Option<bool> fPIE({"-fPIE", "--fPIE"},
-    "  --fPIE                      \tGenerate position-independent executable in large mode.\n"
-    "  --no-pie/-fno-pie           \n",
-    {cgCategory, driverCategory, ldCategory});
-
-maplecl::Option<bool> fpic({"-fpic", "--fpic"},
-    "  --fpic                      \tGenerate position-independent shared library in small mode.\n"
-    "  --no-pic/-fno-pic           \n",
-    {cgCategory, driverCategory, ldCategory},
-    maplecl::DisableEvery({"-fno-pic", "--no-pic"}));
-
-maplecl::Option<bool> fPIC({"-fPIC", "--fPIC"},
-    "  --fPIC                      \tGenerate position-independent shared library in large mode.\n"
-    "  --no-pic/-fno-pic           \n",
-    {cgCategory, driverCategory, ldCategory});
-
 maplecl::Option<bool> fnoSemanticInterposition({"-fno-semantic-interposition"},
     "  --fno-semantic-interposition\tIf interposition happens for functions, the overwriting function "
     "will have precisely the same semantics (and side effects).\n"
     "  -fsemantic-interposition\n",
-    {cgCategory, driverCategory}, maplecl::DisableWith("-fsemantic-interposition"));
+    {cgCategory, driverCategory}, kOptCommon | kOptOptimization, maplecl::DisableWith("-fsemantic-interposition"));
 
 maplecl::Option<bool> verboseAsm({"--verbose-asm"},
     "  --verbose-asm               \tAdd comments to asm output\n"
     "  --no-verbose-asm            \n",
-    {driverCategory, cgCategory}, maplecl::DisableWith("--no-verbose-asm"));
+    {driverCategory, cgCategory}, kOptMaple, maplecl::DisableWith("--no-verbose-asm"));
 
 maplecl::Option<bool> verboseCg({"--verbose-cg"},
     "  --verbose-cg                \tAdd comments to cg output\n"
     "  --no-verbose-cg             \n",
-    {driverCategory, cgCategory}, maplecl::DisableWith("--no-verbose-cg"));
+    {driverCategory, cgCategory}, kOptMaple, maplecl::DisableWith("--no-verbose-cg"));
 
 maplecl::Option<bool> maplelinker({"--maplelinker"},
     "  --maplelinker               \tGenerate the MapleLinker .s format\n"
@@ -64,7 +42,7 @@ maplecl::Option<bool> maplelinker({"--maplelinker"},
 maplecl::Option<bool> quiet({"--quiet"},
     "  --quiet                     \tBe quiet (don't output debug messages)\n"
     "  --no-quiet                  \n",
-    {driverCategory, cgCategory}, maplecl::DisableWith("--no-quiet"));
+    {driverCategory, cgCategory}, kOptMaple, maplecl::DisableWith("--no-quiet"));
 
 maplecl::Option<bool> cg({"--cg"},
     "  --cg                        \tGenerate the output .s file\n"
@@ -255,7 +233,7 @@ maplecl::Option<bool> genGctibFile({"--gen-gctib-file"},
 maplecl::Option<bool> unwindTables({"--unwind-tables"},
     "  --unwind-tables             \tgenerate unwind tables for function \n"
     "  --no-unwind-tables          \n",
-    {cgCategory}, maplecl::DisableWith("--no-unwind-tables"));
+    {cgCategory, driverCategory}, kOptMaple, maplecl::DisableWith("--no-unwind-tables"));
 
 maplecl::Option<bool> debug({"-g", "--g"},
     "  -g                          \tGenerate debug information\n",
@@ -291,7 +269,7 @@ maplecl::Option<bool> withRaGraphColor({"--with-ra-graph-color"},
 
 maplecl::Option<bool> patchLongBranch({"--patch-long-branch"},
     "  --patch-long-branch         \tEnable patching long distance branch with jumping pad\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
 maplecl::Option<bool> constFold({"--const-fold"},
     "  --const-fold                \tEnable constant folding\n"
@@ -361,7 +339,7 @@ maplecl::Option<std::string> dumpPhases({"--dump-phases"},
 
 maplecl::Option<std::string> skipPhases({"--skip-phases"},
     "  --skip-phases=PHASENAME,... \tSkip the phases specified in the comma separated list\n",
-    {cgCategory, driverCategory});
+    {cgCategory, driverCategory}, kOptMaple);
 
 maplecl::Option<std::string> skipFrom({"--skip-from"},
     "  --skip-from=PHASENAME       \tSkip the rest phases from PHASENAME(included)\n",
@@ -416,7 +394,7 @@ maplecl::Option<std::string> cyclePatternList({"--cycle-pattern-list"},
 maplecl::Option<std::string> duplicateAsmList({"--duplicate_asm_list"},
     "  --duplicate_asm_list        \tDuplicate asm functions to delete plt call\n"
     "                              \t--duplicate_asm_list=list_file\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
 maplecl::Option<std::string> duplicateAsmList2({"--duplicate_asm_list2"},
     "  --duplicate_asm_list2       \tDuplicate more asm functions to delete plt call\n"
@@ -476,19 +454,28 @@ maplecl::Option<bool> longCalls({"--long-calls"},
     "  --no-long-calls             \n",
     {cgCategory}, maplecl::DisableWith("--no-long-calls"));
 
-maplecl::Option<bool> functionSections({"--function-sections", "-ffunction-sections"},
-    "  --function-sections         \t\n"
+maplecl::Option<bool> functionSections({"-ffunction-sections", "--function-sections"},
+    "  --function-sections         \tPlace each function item into its own section in the output file "
+    "if the target supports arbitrary sections.\n"
     "  --no-function-sections      \n",
-    {cgCategory, driverCategory}, maplecl::DisableWith("--no-function-sections"));
-maplecl::Option<bool> omitFramePointer({"--omit-frame-pointer", "-fomit-frame-pointer"},
+    {cgCategory, driverCategory}, kOptCommon, maplecl::DisableWith("--no-function-sections"));
+
+maplecl::Option<bool> dataSections({"-fdata-sections", "--data-sections"},
+    "  --data-sections             \tPlace each data item into its own section in the output file "
+    "if the target supports arbitrary sections.\n"
+    "  --no-data-sections          \n",
+    {cgCategory, driverCategory}, kOptCommon, maplecl::DisableWith("--no-data-sections"));
+
+maplecl::Option<bool> omitFramePointer({"-fomit-frame-pointer", "--omit-frame-pointer"},
     "  --omit-frame-pointer        \tDo not use frame pointer for non-leaf func\n"
     "  --no-omit-frame-pointer     \n",
-    {cgCategory, driverCategory}, maplecl::DisableEvery({"--no-omit-frame-pointer", "-fno-omit-frame-pointer"}));
+    {cgCategory, driverCategory}, kOptCommon | kOptOptimization,
+    maplecl::DisableEvery({"--no-omit-frame-pointer", "-fno-omit-frame-pointer"}));
 
-maplecl::Option<bool> omitLeafFramePointer({"--omit-leaf-frame-pointer", "-momit-leaf-frame-pointer"},
+maplecl::Option<bool> omitLeafFramePointer({"-momit-leaf-frame-pointer", "--omit-leaf-frame-pointer"},
     "  --omit-leaf-frame-pointer   \tDo not use frame pointer for leaf func\n"
     "  --no-omit-leaf-frame-pointer\n",
-    {cgCategory, driverCategory},
+    {cgCategory, driverCategory}, kOptCommon,
     maplecl::DisableEvery({"--no-omit-leaf-frame-pointer", "-mno-omit-leaf-frame-pointer"}));
 
 maplecl::Option<bool> fastMath({"--fast-math"},
@@ -499,7 +486,7 @@ maplecl::Option<bool> fastMath({"--fast-math"},
 maplecl::Option<bool> alignAnalysis({"--align-analysis"},
     "  --align-analysis            \tPerform alignanalysis\n"
     "  --no-align-analysis         \n",
-    {cgCategory}, maplecl::DisableWith("--no-align-analysis"));
+    {driverCategory, cgCategory}, kOptMaple, maplecl::DisableWith("--no-align-analysis"));
 
 maplecl::Option<bool> cgSsa({"--cg-ssa"},
     "  --cg-ssa                    \tPerform cg ssa\n"
@@ -521,15 +508,20 @@ maplecl::Option<bool> localSchedule({"--local-schedule"},
     "  --no-local-schedule         \n",
     {cgCategory}, maplecl::DisableWith("--no-local-schedule"));
 
+maplecl::Option<bool> cgMemAlias({"--cg-mem-alias"},
+    "  --cg-mem-alias              \tEnable cg mem alias\n"
+    "  --no-cg-mem-alias           \n",
+    {cgCategory}, maplecl::DisableWith("--no-cg-mem-alias"));
+
 maplecl::Option<bool> calleeEnsureParam({"--callee-ensure-param"},
     "  --callee-ensure-param       \tCallee ensure valid vb of params\n"
     "  --caller-ensure-param       \n",
     {cgCategory}, maplecl::DisableWith("--caller-ensure-param"));
 
-maplecl::Option<bool> common({"--common", "-fcommon"},
+maplecl::Option<bool> common({"-fcommon", "--common"},
     "  --common                    \t\n"
     "  --no-common                 \n",
-    {cgCategory, driverCategory}, maplecl::DisableEvery({"--no-common", "-fno-common"}));
+    {cgCategory, driverCategory}, kOptCommon, maplecl::DisableEvery({"--no-common", "-fno-common"}));
 
 maplecl::Option<bool> condbrAlign({"--condbr-align"},
     "  --condbr-align              \tPerform condbr align\n"
@@ -554,7 +546,7 @@ maplecl::Option<uint32_t> jumpAlignPow({"--jump-align-pow"},
 
 maplecl::Option<uint32_t> funcAlignPow({"--func-align-pow"},
     "  --func-align-pow=NUM        \tO2 func bb align pow (NUM == 0, no func-align)\n",
-    {cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
 maplecl::Option<uint32_t> coldPathThreshold({"--cold-path-threshold"},
     "  --cold-path-threshold=NUM   \tLayout cold path out of hot path\n",
@@ -563,27 +555,27 @@ maplecl::Option<uint32_t> coldPathThreshold({"--cold-path-threshold"},
 maplecl::Option<bool> litePgoGen({"--lite-pgo-gen"},
     "  --lite-pgo-gen              \tInstrumentation CG bb and generate bb-cnt info\n"
     "  --no-lite-pgo-gen           \n",
-    {driverCategory, cgCategory}, maplecl::DisableWith("--no-lite-pgo-gen"));
+    {driverCategory, cgCategory}, kOptMaple, maplecl::DisableWith("--no-lite-pgo-gen"));
 
 maplecl::Option<std::string> instrumentationDir ({"--instrumentation-dir"},
     "  --instrumentation-dir=directory\n"
     "                              \tInstrumentation file output directory\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
 maplecl::Option<std::string> litePgoWhiteList ({"--lite-pgo-white-list"},
     "  --lite-pgo-white-list=filepath\n"
     "                              \tInstrumentation function white list\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
 maplecl::Option<std::string> litePgoOutputFunc ({"--lite-pgo-output-func"},
     "  --lite-pgo-output-func=function name\n"
     "                              \tGenerate lite profile at the exit of the output "
     "function[default none]\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
 maplecl::Option<std::string> litePgoFile({"--lite-pgo-file"},
     "  --lite-pgo-file=filepath    \tLite pgo guide file\n",
-    {driverCategory, cgCategory});
+    {driverCategory, cgCategory}, kOptMaple);
 
 maplecl::Option<std::string> functionPriority({"--function-priority"},
     "  --function-priority=filepath \tWhen profile data is given, priority suffix is added to section "
@@ -591,31 +583,35 @@ maplecl::Option<std::string> functionPriority({"--function-priority"},
     {cgCategory});
 
 maplecl::Option<bool> litePgoVerify({"--lite-pgo-verify"},
-    "  --lite-pgo-verify             \tverify lite-pgo data strictly, abort when encountering mismatch "
+    "  --lite-pgo-verify           \tverify lite-pgo data strictly, abort when encountering mismatch "
     "data(default:skip).\n"
     "  --no-lite-pgo-verify\n",
-    {driverCategory, cgCategory},  maplecl::DisableWith("--no-lite-pgo-verify"));
+    {driverCategory, cgCategory}, kOptMaple,  maplecl::DisableWith("--no-lite-pgo-verify"));
 
 maplecl::Option<bool> optimizedFrameLayout({"--optimized-frame-layout"},
-    " --optimized-frame-layout       \tEnable optimized framelayout, put small local variables near sp, put "
+    " --optimized-frame-layout     \tEnable optimized framelayout, put small local variables near sp, put "
     "callee save region near sp\n",
     {cgCategory}, maplecl::DisableWith("--no-optimized-frame-layout"));
 
 maplecl::Option<bool> loopAlign({"--loop-align"},
-                                 "  --loop-align              \tPerform add nop for loop instead of insert .p2align\n"
-                                 "  --no-loop-align        \n",
-                                 {cgCategory}, maplecl::DisableWith("--no-loop-align"));
+    "  --loop-align                \tPerform add nop for loop instead of insert .p2align\n"
+    "  --no-loop-align        \n",
+    {cgCategory}, maplecl::DisableWith("--no-loop-align"));
+
 maplecl::Option<bool> pgoCodeAlign({"--pgo-code-align"},
-                                    " --pgo-code-align             \tuse the bb's frequency generated by pgo"
-                                    " to do the alignment analysis\n",
-                                   {cgCategory});
+    " --pgo-code-align             \tuse the bb's frequency generated by pgo"
+    " to do the alignment analysis\n",
+    {cgCategory});
+
 maplecl::Option<uint32_t> alignThreshold({"--align-threshold"},
-                                          " --align-threshold=NUM(1, 100)              \talign thresold, default 100",
-                                         {cgCategory});
+    " --align-threshold=NUM(1, 100)\talign thresold, default 100",
+    {cgCategory});
+
 maplecl::Option<uint32_t> alignLoopIterations({"--align-loop-Iterations"},
-                                               " --align-loop-Iterations=NUM(1, 4)              \tdefault 4",
-                                               {cgCategory});
+    " --align-loop-Iterations=NUM(1, 4) \tdefault 4",
+    {cgCategory});
+
 maplecl::Option<uint32_t> dupFreqThreshold({"--dup-threshold"},
-                                          " --dup-threshold=NUM(1, 100)              \tdup thresold, default 100",
-                                         {cgCategory});
+    " --dup-threshold=NUM(1, 100)  \tdup thresold, default 100",
+    {cgCategory});
 } // namespace opts::cg

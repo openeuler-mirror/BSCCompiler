@@ -29,8 +29,8 @@ void AArch64GenCfi::GenerateRegisterSaveDirective(BB &bb, Insn &stackDefInsn) {
     curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiOffsetInsn(stackBaseReg, -cfiOffset, k64BitSize));
   }
   int32 RLROffset = static_cast<AArch64CGFunc&>(cgFunc).GetStoreFP() ? kOffset8MemPos : 0;
-  curInsn = bb.InsertInsnAfter(*curInsn, aarchCGFunc.CreateCfiOffsetInsn(RLR, static_cast<int64>(-cfiOffset + RLROffset),
-                                                                      k64BitSize));
+  curInsn = bb.InsertInsnAfter(*curInsn,
+      aarchCGFunc.CreateCfiOffsetInsn(RLR, static_cast<int64>(-cfiOffset + RLROffset), k64BitSize));
 
   /* change CFA register and offset */
   if (useFP) {

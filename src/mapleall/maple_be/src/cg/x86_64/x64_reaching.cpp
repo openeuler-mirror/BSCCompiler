@@ -183,11 +183,6 @@ bool X64ReachingDefinition::KilledByCallBetweenInsnInSameBB(const Insn &startIns
   return false;
 }
 
-void X64ReachingDefinition::AddRetPseudoInsn(BB &bb) {
-  CHECK_FATAL(false, "x64_reaching analysis not implemented yet!");
-  return;
-}
-
 bool X64ReachingDefinition::IsCallerSavedReg(uint32 regNO) const {
   CHECK_FATAL(false, "x64_reaching analysis not implemented yet!");
   return false;
@@ -218,11 +213,6 @@ void X64ReachingDefinition::DFSFindDefForMemOpnd(const BB &startBB, uint32 offse
 int32 X64ReachingDefinition::GetStackSize() const {
   CHECK_FATAL(false, "x64_reaching analysis not implemented yet!");
   return 0;
-};
-
-void X64ReachingDefinition::AddRetPseudoInsns() {
-  CHECK_FATAL(false, "x64_reaching analysis not implemented yet!");
-  return;
 };
 
 /* reg killed killed by call insn */

@@ -18,7 +18,7 @@
 #include "mir_symbol.h"
 #include "mir_preg.h"
 #include "mpl_number.h"
-#include "class_hierarchy.h"
+#include "mir_function.h"
 
 // This file defines the data structure OriginalSt that represents a program
 // symbol occurring in the code of the program being optimized.

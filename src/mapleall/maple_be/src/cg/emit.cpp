@@ -292,6 +292,22 @@ void Emitter::EmitFileInfo(const std::string &fileName) {
 #endif /* TARGARM32 */
 }
 
+void Emitter::EmitDataSection(const std::string &sectionName, const std::string &symbolName, const std::string &sectionSuffix) {
+  // Remove the dot at the beginning of the symbolName
+  std::string tmpSymName = symbolName;
+  while (tmpSymName.size() > 1 && tmpSymName[0] == '.') {
+    tmpSymName = tmpSymName.substr(1);
+  }
+  CHECK_FATAL(tmpSymName[0] != '.', "invalid symbol name");
+  // e.g.
+  // asmInfo->GetSection(): "\t.section\t"
+  // sectionName: ".data"
+  // "."
+  // symbolName: "AI"
+  // sectionSuffix: ",\"aw\",@progbits\n"  ||  ",\"aw\","
+  (void)Emit(asmInfo->GetSection()).Emit(sectionName).Emit(".").Emit(tmpSymName).Emit(sectionSuffix);
+}
+
 void Emitter::EmitInlineAsmSection() {
   MapleVector<MapleString> &asmSections = cg->GetMIRModule()->GetAsmDecls();
   if (!asmSections.empty()) {
@@ -557,7 +573,7 @@ void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo, bool finished
   }
 }
 
-void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mirConst, const MIRType *nextType,
+void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mirConst, bool combineNextField,
                                    uint64 fieldOffset) {
   MIRType &mirType = mirConst.GetType();
   if (fieldOffset > structEmitInfo.GetNextFieldOffset()) {
@@ -598,7 +614,7 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
     structEmitInfo.SetCombineBitFieldValue((~(~0ULL << structEmitInfo.GetCombineBitFieldWidth())) &
                                            structEmitInfo.GetCombineBitFieldValue());
   }
-  if ((nextType == nullptr) || (nextType->GetKind() != kTypeBitField)) {
+  if (!combineNextField) {
     /* emit structEmitInfo->combineBitFieldValue */
     EmitCombineBfldValue(structEmitInfo, true);
   }
@@ -1790,52 +1806,42 @@ void Emitter::EmitVectorConstant(MIRConst &mirConst) {
 }
 
 void Emitter::EmitStructConstant(MIRConst &mirConst) {
-  uint32 subStructFieldCounts = 0;
-  EmitStructConstant(mirConst, subStructFieldCounts);
-}
-
-void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCounts) {
   StructEmitInfo *sEmitInfo = cg->GetMIRModule()->GetMemPool()->New<StructEmitInfo>();
   CHECK_FATAL(sEmitInfo != nullptr, "create a new struct emit info failed in Emitter::EmitStructConstant");
   MIRType &mirType = mirConst.GetType();
   MIRAggConst &structCt = static_cast<MIRAggConst&>(mirConst);
   MIRStructType &structType = static_cast<MIRStructType&>(mirType);
-  auto structPack = static_cast<uint8>(structType.GetTypeAttrs().GetPack());
-  /* all elements of struct. */
-  uint8 num;
+  // all elements of struct
+  uint32 num = (structType.GetKind() == kTypeUnion) ? 1 : static_cast<uint32>(structType.GetFieldsSize());
+  auto *beCommon = Globals::GetInstance()->GetBECommon();
+  FieldID fieldIdx = FieldID(1);
   if (structType.GetKind() == kTypeUnion) {
-    num = 1;
-  } else {
-    num = static_cast<uint8>(structType.GetFieldsSize());
-  }
-  BECommon *beCommon = Globals::GetInstance()->GetBECommon();
-  /* total size of emitted elements size. */
-  size_t size = structType.GetSize();
-  uint32 fieldIdx = 1;
-  if (structType.GetKind() == kTypeUnion) {
-    fieldIdx = structCt.GetFieldIdItem(0);
+    fieldIdx = static_cast<FieldID>(structCt.GetFieldIdItem(0));
   }
   for (uint32 i = 0; i < num; ++i) {
-    if (((i + 1) == num) && cg->GetMIRModule()->GetSrcLang() == kSrcLangC) {
+    if ((i + 1) == num && cg->GetMIRModule()->GetSrcLang() == kSrcLangC) {
       isFlexibleArray = beCommon->GetHasFlexibleArray(mirType.GetTypeIndex().GetIdx());
       arraySize = 0;
     }
     MIRConst *elemConst;
     if (structType.GetKind() == kTypeStruct) {
-      elemConst = structCt.GetAggConstElement(i + 1);
+      elemConst = structCt.GetAggConstElement(i + 1); // element start with 1
     } else {
-      elemConst = structCt.GetAggConstElement(fieldIdx);
+      elemConst = structCt.GetAggConstElement(static_cast<uint32>(fieldIdx));
     }
-    MIRType *elemType = structType.GetElemType(i);
+    auto *elemType = structType.GetElemType(i);
     if (structType.GetKind() == kTypeUnion) {
       elemType = &(elemConst->GetType());
     }
     MIRType *nextElemType = nullptr;
+    FieldID nextFieldIdx = FieldID(0);
     if (i != static_cast<uint32>(num - 1)) {
       nextElemType = structType.GetElemType(i + 1);
+      nextFieldIdx = static_cast<FieldID>(static_cast<uint32>(fieldIdx) + elemType->NumberOfFieldIDs() + 1);
     }
     uint64 elemSize = elemType->GetSize();
-    uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
+    const uint32 charBitWidth = GetPrimTypeBitSize(PTY_i8);
+    bool combineNextField = false;
     if (elemType->GetKind() == kTypeBitField) {
       if (elemConst == nullptr) {
         MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *elemType);
@@ -1844,7 +1850,11 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
       OffsetPair offsetPair = structType.GetFieldOffsetFromBaseAddr(static_cast<FieldID>(fieldIdx));
       uint64 fieldOffset = static_cast<uint32>(offsetPair.byteOffset) * static_cast<uint64>(charBitWidth) +
           static_cast<uint32>(offsetPair.bitOffset);
-      EmitBitFieldConstant(*sEmitInfo, *elemConst, nextElemType, fieldOffset);
+      if (nextElemType != nullptr && nextElemType->GetKind() == kTypeBitField &&
+          structType.GetFieldOffsetFromBaseAddr(static_cast<FieldID>(nextFieldIdx)).bitOffset != 0) {
+        combineNextField = true;
+      }
+      EmitBitFieldConstant(*sEmitInfo, *elemConst, combineNextField, fieldOffset);
     } else {
       if (elemConst != nullptr) {
         if (IsPrimitiveVector(elemType->GetPrimType())) {
@@ -1857,8 +1867,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
           }
         } else if ((elemType->GetKind() == kTypeStruct) || (elemType->GetKind() == kTypeClass) ||
                    (elemType->GetKind() == kTypeUnion)) {
-          EmitStructConstant(*elemConst, subStructFieldCounts);
-          fieldIdx += subStructFieldCounts;
+          EmitStructConstant(*elemConst);
         } else {
           ASSERT(false, "should not run here");
         }
@@ -1869,36 +1878,21 @@ void Emitter::EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCount
       sEmitInfo->SetNextFieldOffset(sEmitInfo->GetTotalSize() * charBitWidth);
     }
 
-    if (nextElemType != nullptr && nextElemType->GetKind() != kTypeBitField) {
-      ASSERT(i < static_cast<uint32>(num - 1), "NYI");
-      uint8 nextAlign = static_cast<uint8>(nextElemType->GetAlign());
-      auto fieldAttr = structType.GetFields()[i + 1].second.second;
-      nextAlign = std::max(nextAlign, static_cast<uint8>(fieldAttr.GetAlign()));
-      nextAlign = fieldAttr.IsPacked() ? 1 : std::min(nextAlign, structPack);
-      ASSERT(nextAlign != 0, "expect non-zero");
-      /* append size, append 0 when align need. */
-      uint64 totalSize = sEmitInfo->GetTotalSize();
-      uint64 psize = (totalSize % nextAlign == 0) ? 0 : (nextAlign - (totalSize % nextAlign));
-      if (psize != 0) {
+    if (nextElemType != nullptr) {
+      auto nextOffsetPair = structType.GetFieldOffsetFromBaseAddr(nextFieldIdx);
+      if (nextOffsetPair.byteOffset > sEmitInfo->GetTotalSize() && !combineNextField) {
+        uint64 psize = nextOffsetPair.byteOffset - sEmitInfo->GetTotalSize();
         EmitNullConstant(psize);
         sEmitInfo->IncreaseTotalSize(psize);
         sEmitInfo->SetNextFieldOffset(sEmitInfo->GetTotalSize() * charBitWidth);
       }
-      /* element is uninitialized, emit null constant. */
     }
-    fieldIdx++;
+    fieldIdx = nextFieldIdx;
   }
-  if (structType.GetKind() == kTypeStruct) {
-    /* The reason of subtracting one is that fieldIdx adds one at the end of the cycle. */
-    subStructFieldCounts = fieldIdx - 1;
-  } else if (structType.GetKind() == kTypeUnion) {
-    subStructFieldCounts = static_cast<uint32>(beCommon->GetStructFieldCount(structType.GetTypeIndex()));
-  }
-
   if (isFlexibleArray) {
     return;
   }
-  uint64 opSize = size - sEmitInfo->GetTotalSize();
+  uint64 opSize = structType.GetSize() - sEmitInfo->GetTotalSize();
   if (opSize != 0) {
     EmitNullConstant(opSize);
   }
@@ -2191,7 +2185,7 @@ void Emitter::EmitStringPointers() {
     }
     uint32 strId = idx.GetIdx();
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
-    bool isTermByZero = str[str.size() - 1] == '\0';
+    bool isTermByZero = str.find('\0') != std::string::npos;
     EmitStringSectionAndAlign(isTermByZero);
     (void)Emit(".LUstr_").Emit(strId).Emit(":\n");
     std::string mplstr(str);
@@ -2203,7 +2197,7 @@ void Emitter::EmitStringPointers() {
     }
     uint32 strId = idx.GetIdx();
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
-    bool isTermByZero = str[str.size() - 1] == '\0';
+    bool isTermByZero = str.find('\0') != std::string::npos;
     EmitStringSectionAndAlign(isTermByZero);
 #if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
     Emit(asmInfo->GetAlign());
@@ -2262,11 +2256,13 @@ void Emitter::EmitLocalVariable(const CGFunc &cgFunc) {
     /* [cgFunc.GetLSymSize(), lSymTab->GetSymbolTableSize()) -> cg created symbol */
     if (i < cgFunc.GetLSymSize()) {
       if (st->IsThreadLocal()) {
-        (void)Emit("\t.section\t.tdata,\"awT\",@progbits\n");
+        CGOptions::IsDataSections() ?
+            EmitDataSection(".tdata", st->GetName(), ",\"awT\",@progbits\n") :
+            (void)Emit("\t.section\t.tdata,\"awT\",@progbits\n");
       } else {
-        Emit(asmInfo->GetSection());
-        Emit(asmInfo->GetData());
-        Emit("\n");
+        CGOptions::IsDataSections() ?
+            EmitDataSection(".data", st->GetName(), ",\"aw\",@progbits\n") :
+            (void)Emit("\t.data\n");
       }
     } else {
       CHECK_FATAL(st->GetStorageClass() == kScPstatic && st->GetSKind() == kStConst, "cg should create constant!");
@@ -2371,9 +2367,10 @@ void Emitter::EmitGlobalVars(std::vector<std::pair<MIRSymbol*, bool>> &globalVar
 
 void Emitter::EmitUninitializedSymbolsWithPrefixSection(const MIRSymbol &symbol, const std::string &sectionName) {
   EmitAsmLabel(symbol, kAsmType);
-  Emit(asmInfo->GetSection());
   auto sectionConstrains = symbol.IsThreadLocal() ? ",\"awT\"," : ",\"aw\",";
-  (void)Emit(sectionName).Emit(sectionConstrains);
+  CGOptions::IsDataSections() ?
+      EmitDataSection(sectionName, symbol.GetName(), sectionConstrains) :
+      (void)Emit(asmInfo->GetSection()).Emit(sectionName).Emit(sectionConstrains);
   if (sectionName == ".bss" || StringUtils::StartsWith(sectionName, ".bss.") ||
       sectionName == ".tbss" || StringUtils::StartsWith(sectionName, ".tbss.")) {
     Emit("%nobits\n");
@@ -2689,20 +2686,29 @@ void Emitter::EmitGlobalVariable() {
         /* remove leading "__" in sec name. */
         secName.erase(0, 2);
         Emit("\t.section\t." + secName + ",\"a\",%progbits\n");
+      } else if (cg->GetMIRModule()->IsJavaModule()) {
+        (void)Emit("\t.section\t." + std::string(kMapleGlobalVariable) + ",\"aw\", @progbits\n");
       } else {
         bool isThreadLocal = mirSymbol->IsThreadLocal();
-        if (cg->GetMIRModule()->IsJavaModule()) {
-          (void)Emit("\t.section\t." + std::string(kMapleGlobalVariable) + ",\"aw\", @progbits\n");
-        } else if (mirSymbol->sectionAttr != UStrIdx(0)) {
-          auto &sectionName = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirSymbol->sectionAttr);
+        if (mirSymbol->sectionAttr != UStrIdx(0)) {
+          auto sectionName = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirSymbol->sectionAttr);
           auto sectionConstrains = isThreadLocal ? ",\"awT\"," : ",\"aw\",";
-          (void)Emit("\t.section\t" + sectionName + sectionConstrains + "@progbits\n");
+          CGOptions::IsDataSections() ?
+              EmitDataSection(sectionName, mirSymbol->GetName(), sectionConstrains) :
+              (void)Emit("\t.section\t").Emit(sectionName).Emit(sectionConstrains);
+          (void)Emit("@progbits\n");
         } else if (isThreadLocal) {
-          (void)Emit("\t.section\t.tdata,\"awT\",@progbits\n");
+          CGOptions::IsDataSections() ?
+              EmitDataSection(".tdata", mirSymbol->GetName(), ",\"awT\",@progbits\n") :
+              (void)Emit("\t.section\t.tdata,\"awT\",@progbits\n");
         } else if (mirSymbol->GetAttr(ATTR_const) && mirSymbol->IsConst()) {
-          (void)Emit("\t.section\t.rodata\n");
+          CGOptions::IsDataSections() ?
+              EmitDataSection(".rodata", mirSymbol->GetName(), ",\"a\",@progbits\n") :
+              (void)Emit("\t.section\t.rodata\n");
         } else {
-          (void)Emit("\t.data\n");
+          CGOptions::IsDataSections() ?
+              EmitDataSection(".data", mirSymbol->GetName(), ",\"aw\",@progbits\n") :
+              (void)Emit("\t.data\n");
         }
       }
       /* Emit size and align by type */
@@ -2774,7 +2780,9 @@ void Emitter::EmitGlobalVariable() {
         localStrPtr.push_back(strCt->GetValue());
       } else {
         EmitAsmLabel(*mirSymbol, kAsmType);
-        (void)Emit(asmInfo->GetSection()).Emit(asmInfo->GetRodata()).Emit("\n");
+        CGOptions::IsDataSections() ?
+            EmitDataSection(".rodata", mirSymbol->GetName(), ",\"a\",@progbits\n") :
+            (void)Emit(asmInfo->GetSection()).Emit(asmInfo->GetRodata()).Emit("\n");
         if (!CGOptions::OptimizeForSize()) {
           EmitAsmLabel(*mirSymbol, kAsmAlign);
         }
@@ -2783,9 +2791,9 @@ void Emitter::EmitGlobalVariable() {
       }
     } else if (mirSymbol->GetStorageClass() == kScPstatic) {
       EmitAsmLabel(*mirSymbol, kAsmType);
-      Emit(asmInfo->GetSection());
-      Emit(asmInfo->GetData());
-      Emit("\n");
+      CGOptions::IsDataSections() ?
+          EmitDataSection(".data", mirSymbol->GetName(), ",\"aw\",@progbits\n") :
+          (void)Emit(asmInfo->GetSection()).Emit(asmInfo->GetData()).Emit("\n");
       EmitAsmLabel(*mirSymbol, kAsmAlign);
       EmitAsmLabel(*mirSymbol, kAsmLocal);
       MIRConst *ct = mirSymbol->GetKonst();
@@ -2805,7 +2813,7 @@ void Emitter::EmitGlobalVariable() {
         CHECK_FATAL(0, "Unknown type in Global pstatic");
       }
     }
-  } /* end proccess all mirSymbols. */
+  } // end process all mirSymbols
   EmitTLSBlock(globalTlsDataVec, globalTlsBssVec);
   EmitStringPointers();
   /* emit global var */
@@ -3142,66 +3150,86 @@ void Emitter::EmitMethodFieldSequential(const MIRSymbol &mirSymbol,
   Emit(symbolName + "\n");
 }
 
+void Emitter::EmitTLSBlockTdata(const MapleVector<MIRSymbol*> &tdataVec) {
+  Emit("\t.section\t.tdata,\"awT\",@progbits\n");
+  Emit(asmInfo->GetAlign()).Emit(kOffsetAlignmentOf128Bit).Emit("\n");
+  if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
+    InsertAnchor("tls_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
+  } else {
+    InsertAnchor("tdata_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
+  }
+  for (const auto tdataSym : tdataVec) {
+    if (tdataSym->GetAttr(ATTR_weak)) {
+      EmitAsmLabel(*tdataSym, kAsmWeak);
+    } else {
+      EmitAsmLabel(*tdataSym, kAsmGlbl);
+    }
+    EmitAsmLabel(*tdataSym, kAsmAlign);
+    EmitAsmLabel(*tdataSym, kAsmSyname);
+    MIRConst *mirConst = tdataSym->GetKonst();
+    MIRType *mirType = tdataSym->GetType();
+    if (IsPrimitiveVector(mirType->GetPrimType())) {
+      EmitVectorConstant(*mirConst);
+    } else if (IsPrimitiveScalar(mirType->GetPrimType())) {
+      if (!CGOptions::IsArm64ilp32()) {
+        if (IsAddress(mirType->GetPrimType())) {
+          uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
+          CHECK_FATAL(sizeinbits == k64BitSize, "EmitGlobalVariable: pointer must be of size 8");
+        }
+      }
+      if (cg->GetMIRModule()->IsCModule()) {
+        EmitScalarConstant(*mirConst, true, false, true);
+      } else {
+        EmitScalarConstant(*mirConst);
+      }
+    } else if (mirType->GetKind() == kTypeArray) {
+      EmitArrayConstant(*mirConst);
+    } else if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+                mirType->GetKind() == kTypeUnion) {
+      EmitStructConstant(*mirConst);
+    } else {
+      ASSERT(false, "NYI");
+    }
+    EmitAsmLabel(*tdataSym, kAsmSize);
+  }
+}
+
+void Emitter::EmitTLSBlockTbss(const MapleVector<MIRSymbol*> &tbssVec, bool tdataExist) {
+  Emit("\t.section\t.tbss,\"awT\",@nobits\n");
+  Emit(asmInfo->GetAlign()).Emit(kOffsetAlignmentOf128Bit).Emit("\n");
+  if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
+    if (!tdataExist) {
+      InsertAnchor("tls_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
+    }
+  } else {
+    InsertAnchor("tbss_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
+  }
+
+  for (auto *tbssSym : tbssVec) {
+    if (tbssSym->GetAttr(ATTR_weak)) {
+      EmitAsmLabel(*tbssSym, kAsmWeak);
+    } else if (tbssSym->GetStorageClass() == kScGlobal) {
+      EmitAsmLabel(*tbssSym, kAsmGlbl);
+    }
+    EmitAsmLabel(*tbssSym, kAsmType);
+    EmitAsmLabel(*tbssSym, kAsmAlign);
+    EmitAsmLabel(*tbssSym, kAsmSyname);
+    EmitAsmLabel(*tbssSym, kAsmZero);
+    EmitAsmLabel(*tbssSym, kAsmSize);
+  }
+}
 // tdata anchor (tdata not implement yet)
 //  tdata symbols
 //  tbss anchor
 //  tbss symbols
 void Emitter::EmitTLSBlock(const MapleVector<MIRSymbol*> &tdataVec, const MapleVector<MIRSymbol*> &tbssVec) {
+  bool tdataExist = false;
   if (!tdataVec.empty()) {
-    Emit("\t.section\t.tdata,\"awT\",@progbits\n");
-    Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
-    InsertAnchor("tdata_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
-    for (const auto tdataSym : tdataVec) {
-      if (tdataSym->GetAttr(ATTR_weak)) {
-        EmitAsmLabel(*tdataSym, kAsmWeak);
-      } else {
-        EmitAsmLabel(*tdataSym, kAsmGlbl);
-      }
-      EmitAsmLabel(*tdataSym, kAsmAlign);
-      EmitAsmLabel(*tdataSym, kAsmSyname);
-      MIRConst *mirConst = tdataSym->GetKonst();
-      MIRType *mirType = tdataSym->GetType();
-      if (IsPrimitiveVector(mirType->GetPrimType())) {
-        EmitVectorConstant(*mirConst);
-      } else if (IsPrimitiveScalar(mirType->GetPrimType())) {
-        if (!CGOptions::IsArm64ilp32()) {
-          if (IsAddress(mirType->GetPrimType())) {
-            uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
-            CHECK_FATAL(sizeinbits == k64BitSize, "EmitGlobalVariable: pointer must be of size 8");
-          }
-        }
-        if (cg->GetMIRModule()->IsCModule()) {
-          EmitScalarConstant(*mirConst, true, false, true);
-        } else {
-          EmitScalarConstant(*mirConst);
-        }
-      } else if (mirType->GetKind() == kTypeArray) {
-        EmitArrayConstant(*mirConst);
-      } else if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
-                 mirType->GetKind() == kTypeUnion) {
-        EmitStructConstant(*mirConst);
-      } else {
-        ASSERT(false, "NYI");
-      }
-      EmitAsmLabel(*tdataSym, kAsmSize);
-    }
+    tdataExist = true;
+    EmitTLSBlockTdata(tdataVec);
   }
   if (!tbssVec.empty()) {
-    Emit("\t.section\t.tbss,\"awT\",@nobits\n");
-    Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
-    InsertAnchor("tbss_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
-    for (auto *tbssSym : tbssVec) {
-      if (tbssSym->GetAttr(ATTR_weak)) {
-        EmitAsmLabel(*tbssSym, kAsmWeak);
-      } else if (tbssSym->GetStorageClass() == kScGlobal) {
-        EmitAsmLabel(*tbssSym, kAsmGlbl);
-      }
-      EmitAsmLabel(*tbssSym, kAsmType);
-      EmitAsmLabel(*tbssSym, kAsmAlign);
-      EmitAsmLabel(*tbssSym, kAsmSyname);
-      EmitAsmLabel(*tbssSym, kAsmZero);
-      EmitAsmLabel(*tbssSym, kAsmSize);
-    }
+    EmitTLSBlockTbss(tbssVec, tdataExist);
   }
   return;
 }
@@ -3417,7 +3445,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
         } else if (tagName == DW_TAG_subprogram) {
           MIRFunction *mfunc = GetDwTagSubprogram(attrvec, *di);
           lastMIRFunc = mfunc;
-          MapleMap<MIRFunction*, std::pair<LabelIdx, LabelIdx> >::iterator it =
+          MapleMap<const MIRFunction*, std::pair<LabelIdx, LabelIdx> >::iterator it =
               CG::GetFuncWrapLabels().find(mfunc);
           if (it != CG::GetFuncWrapLabels().end()) {
             EmitLabelForFunc(mfunc, (*it).second.second);  /* end label */
@@ -3457,7 +3485,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
         } else if (tagName == DW_TAG_subprogram) {
           /* if decl, name should be found; if def, we try DW_AT_specification */
           MIRFunction *mfunc = GetDwTagSubprogram(attrvec, *di);
-          MapleMap<MIRFunction*, std::pair<LabelIdx, LabelIdx> >::iterator
+          MapleMap<const MIRFunction*, std::pair<LabelIdx, LabelIdx> >::iterator
               it = CG::GetFuncWrapLabels().find(mfunc);
           if (it != CG::GetFuncWrapLabels().end()) {
             EmitLabelForFunc(mfunc, (*it).second.first);  /* it is a <pair> */

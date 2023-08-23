@@ -196,8 +196,10 @@ class BB : public maple::BaseGraphNode {
       insn.SetNext(nullptr);
       insn.SetPrev(nullptr);
       insn.SetBB(this);
+      if (insn.IsMachineInstruction()) {
+        internalFlag1++;
+      }
     }
-    internalFlag1++;
   }
 
   void AppendOtherBBInsn(Insn &insn) {
@@ -218,7 +220,9 @@ class BB : public maple::BaseGraphNode {
       insn.SetNext(nullptr);
     }
     insn.SetBB(this);
-    internalFlag1++;
+    if (insn.IsMachineInstruction()) {
+      internalFlag1++;
+    }
   }
 
   void ReplaceInsn(Insn &insn, Insn &newInsn);
@@ -272,7 +276,7 @@ class BB : public maple::BaseGraphNode {
     CHECK_FATAL(false, "request to remove a non-existent element?");
   }
 
-  void RemoveFromSuccessorList(BB &bb) {
+  void RemoveFromSuccessorList(const BB &bb) {
     for (auto i = succs.begin(); i != succs.end(); ++i) {
       if (*i == &bb) {
         succs.erase(i);
@@ -564,7 +568,7 @@ class BB : public maple::BaseGraphNode {
     succsProb.erase(&bb);
   }
 
-  void ReplaceSucc(MapleList<BB*>::const_iterator it, BB &newBB) {
+  void ReplaceSucc(const MapleList<BB*>::const_iterator it, BB &newBB) {
     int prob = succsProb[*it];
     EraseSuccs(it);
     PushBackSuccs(newBB, prob);
@@ -856,8 +860,8 @@ class BB : public maple::BaseGraphNode {
   void SetCDGNode(CDGNode *node) {
     cdgNode = node;
   }
-  
-  MapleVector<uint64> &GetSuccsFreq() {
+
+  const MapleVector<uint64> &GetSuccsFreq() const {
     return succsFreq;
   }
 
@@ -989,7 +993,7 @@ class BB : public maple::BaseGraphNode {
   MapleList<BB*> succs;
   MapleList<BB*> ehPreds;
   MapleList<BB*> ehSuccs;
-  MapleMap<const BB*,int32> succsProb;
+  MapleMap<const BB*, int32> succsProb;
   MapleVector<uint64> succsFreq;
   MapleVector<FreqType> succsProfFreq;
   bool inColdSection = false; /* for bb splitting */
@@ -1039,7 +1043,8 @@ class BB : public maple::BaseGraphNode {
   MapleList<Insn*> callInsns;
   MapleVector<LabelIdx> rangeGotoLabelVec;
 
-  /* bb support for SSA analysis */
+  // bb support for SSA analysis
+  // before rename - key is origRegNO, after rename - key is phiDefRegNO
   MapleMap<regno_t, Insn*> phiInsnList;
 
   /* includes Built-in functions for atomic memory access */

@@ -889,6 +889,9 @@ class OptimizeBB {
   bool CanFoldCondBranch(BB &predBB, BB &succBB, ContinuousCondBrInfo &brInfo) const;
   bool FoldCondBranchWithAdjacentIread(BB &predBB, BB &succBB, ContinuousCondBrInfo &brInfo,
       MeExpr &foldExpr1, MeExpr &foldExpr2) const;
+  MeExpr *IsZeroConstMeExpr(MeExpr &opnd0, const MeExpr &opnd1) const;
+  MeExpr *GetMergedOpnd(MeExpr &opnd0, MeExpr &opnd1) const;
+  bool CanCompareWithDiffPrimConstant(const MeExpr &opnd0, const MeExpr &opnd1) const;
   bool FoldCondBranchWithSuccAdjacentIread();
   bool FoldCondBranchWithPredAdjacentIread();
   // for OptimizeUncondBB
@@ -1606,18 +1609,6 @@ bool OptimizeBB::CondBranchToSelect() {
     // we should create a new version
     resLHS = irmap->CreateRegOrVarMeExprVersion(ftLHS->GetOstIdx());
   }
-  // It is profitable for instruction selection if select opnd is a compare expression
-  // select condExpr, trueExpr, falseExpr => select cmpExpr, trueExpr, falseExpr
-  if (condExpr->IsScalar() && condExpr->GetPrimType() != PTY_u1) {
-    auto *scalarExpr = static_cast<ScalarMeExpr*>(condExpr);
-    if (scalarExpr->GetDefBy() == kDefByStmt) {
-      MeStmt *defStmt = scalarExpr->GetDefStmt();
-      MeExpr *rhs = defStmt->GetRHS();
-      if (rhs != nullptr && kOpcodeInfo.IsCompare(rhs->GetOp())) {
-        condExpr = rhs;
-      }
-    }
-  }
   MeExpr *selExpr = irmap->CreateMeExprSelect(resLHS->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
   MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
   AssignMeStmt *newAssStmt = irmap->CreateAssignMeStmt(*resLHS, *simplifiedSel, *currBB);
@@ -1782,6 +1773,41 @@ bool OptimizeBB::CanFoldCondBranch(BB &predBB, BB &succBB, ContinuousCondBrInfo 
   if (opMeExpr1->GetNumOpnds() != kOperandNumBinary) {
     return false;
   }
+  // Can not opt the pattern: if a == 0 || b == 0 then
+  //  predBB
+  // if a == 0
+  //    |    \
+  //    |     \
+  //  succBB   \
+  // if a == 0  \
+  //    |    \  |
+  //    |     \ |
+  //    |      \|
+  // falseBr  trueBr
+  // Can opt the pattern: if a == 0 then b == 0 then
+  //  predBB
+  // if a == 0
+  //    |    \
+  //    |     \
+  //  succBB   \
+  // if a == 0  \
+  //    |    \  |
+  //    |     \ |
+  //    |      \|
+  // trueBr  falseBr
+  if (currBB->GetLastMe() != nullptr && (IsZeroConstMeExpr(*opMeExpr1->GetOpnd(0), *opMeExpr2->GetOpnd(0)) ||
+      IsZeroConstMeExpr(*opMeExpr1->GetOpnd(1), *opMeExpr2->GetOpnd(1)))) {
+    Opcode op = currBB->GetLastMe()->GetOpnd(0)->GetOp();
+    if (op != OP_ne && op != OP_eq) {
+      return false;
+    }
+    if (op == OP_eq && (predBB.GetSucc(0) != &succBB)) {
+      return false;
+    }
+    if (op == OP_ne && predBB.GetSucc(1) != &succBB) {
+      return false;
+    }
+  }
   brInfo = ContinuousCondBrInfo(*stmt1, *stmt2, *opMeExpr1, *opMeExpr2);
   return true;
 }
@@ -1807,6 +1833,30 @@ bool OptimizeBB::FoldCondBranchWithAdjacentIread(BB &predBB, BB &succBB, Continu
   return true;
 }
 
+MeExpr *OptimizeBB::IsZeroConstMeExpr(MeExpr &opnd0, const MeExpr &opnd1) const {
+  if (!opnd0.IsIntZero() || !opnd1.IsIntZero()) {
+    return nullptr;
+  }
+  return &opnd0;
+}
+
+MeExpr *OptimizeBB::GetMergedOpnd(MeExpr &opnd0, MeExpr &opnd1) const {
+  auto foldExpr1 = irmap->MergeAdjacentIread(opnd0, opnd1);
+  if (foldExpr1 == nullptr) {
+    foldExpr1 = IsZeroConstMeExpr(opnd0, opnd1);
+  }
+  return foldExpr1;
+}
+
+bool OptimizeBB::CanCompareWithDiffPrimConstant(const MeExpr &opnd0, const MeExpr &opnd1) const {
+  if (opnd0.GetPrimType() == opnd1.GetPrimType()) {
+    return true;
+  }
+  // If compared with constant, the prim of constant is not equal, but the values of constant are equal
+  // under different prims, optimization can continue.
+  return opnd0.GetMeOp() == kMeOpConst || opnd1.GetMeOp() == kMeOpConst;
+}
+
 // fold 2 sequential condbranch if they are semantically logical and/or
 // cond1                cond1
 //   |   \                |\
@@ -1821,9 +1871,15 @@ bool OptimizeBB::FoldCondBranchWithSuccAdjacentIread() {
   if (!CanFoldCondBranch(*currBB, *currBB->GetSucc(0), brInfo)) {
     return false;
   }
-  auto foldExpr1 = irmap->MergeAdjacentIread(*brInfo.opMeExpr1->GetOpnd(0), *brInfo.opMeExpr2->GetOpnd(0));
-  auto foldExpr2 = irmap->MergeAdjacentIread(*brInfo.opMeExpr1->GetOpnd(1), *brInfo.opMeExpr2->GetOpnd(1));
-  if (foldExpr1 == nullptr || foldExpr2 == nullptr || foldExpr1->GetPrimType() != foldExpr2->GetPrimType()) {
+  if (brInfo.opMeExpr1 == nullptr || brInfo.opMeExpr2 == nullptr) {
+    return false;
+  }
+  auto foldExpr1 = GetMergedOpnd(*brInfo.opMeExpr1->GetOpnd(0), *brInfo.opMeExpr2->GetOpnd(0));
+  auto foldExpr2 = GetMergedOpnd(*brInfo.opMeExpr1->GetOpnd(1), *brInfo.opMeExpr2->GetOpnd(1));
+  if (foldExpr1 == nullptr || foldExpr2 == nullptr) {
+    return false;
+  }
+  if (!CanCompareWithDiffPrimConstant(*foldExpr1, *foldExpr2)) {
     return false;
   }
   FoldCondBranchWithAdjacentIread(*currBB, *succBB, brInfo, *foldExpr1, *foldExpr2);
@@ -1847,9 +1903,12 @@ bool OptimizeBB::FoldCondBranchWithPredAdjacentIread() {
   if (!CanFoldCondBranch(*predBB, *currBB, brInfo)) {
     return false;
   }
-  auto foldExpr1 = irmap->MergeAdjacentIread(*brInfo.opMeExpr1->GetOpnd(0), *brInfo.opMeExpr2->GetOpnd(0));
-  auto foldExpr2 = irmap->MergeAdjacentIread(*brInfo.opMeExpr1->GetOpnd(1), *brInfo.opMeExpr2->GetOpnd(1));
-  if (foldExpr1 == nullptr || foldExpr2 == nullptr || foldExpr1->GetPrimType() != foldExpr2->GetPrimType()) {
+  if (brInfo.opMeExpr1 == nullptr || brInfo.opMeExpr2 == nullptr) {
+    return false;
+  }
+  auto foldExpr1 = GetMergedOpnd(*brInfo.opMeExpr1->GetOpnd(0), *brInfo.opMeExpr2->GetOpnd(0));
+  auto foldExpr2 = GetMergedOpnd(*brInfo.opMeExpr1->GetOpnd(1), *brInfo.opMeExpr2->GetOpnd(1));
+  if (foldExpr1 == nullptr || foldExpr2 == nullptr || !CanCompareWithDiffPrimConstant(*foldExpr1, *foldExpr2)) {
     auto optBand1 = irmap->OptBandWithIread(*brInfo.opMeExpr1->GetOpnd(0), *brInfo.opMeExpr2->GetOpnd(0));
     auto optBand2 = irmap->OptBandWithIread(*brInfo.opMeExpr1->GetOpnd(1), *brInfo.opMeExpr2->GetOpnd(1));
     if (optBand1 == nullptr || optBand2 == nullptr || optBand1->GetPrimType() != optBand2->GetPrimType()) {

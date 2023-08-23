@@ -17,7 +17,10 @@
 
 #include "cast_opt.h"
 #include "me_expr_utils.h"
+#include "me_ir.h"
 #include "me_irmap_build.h"
+#include "mir_type.h"
+#include "opcodes.h"
 
 namespace maple {
 
@@ -177,10 +180,23 @@ bool IsEqualByTrunc(const IntVal &c, PrimType type) {
   return c.Trunc(type).GetZXTValue() == c.GetZXTValue();
 }
 
+bool IsCvtNeedTrunc(const OpMeExpr& expr) {
+  if (expr.GetOp() == OP_cvt) {
+    return GetPrimTypeActualBitSize(expr.GetPrimType()) < GetPrimTypeActualBitSize(expr.GetOpndType());
+  }
+  if (expr.GetOp() == OP_zext) {
+    return GetPrimTypeActualBitSize(expr.GetOpnd(0)->GetPrimType()) > expr.GetBitsSize();
+  }
+  return false;
+}
+
 // fold cmp(and(sh(a, c3), c2), c1)
 static MeExpr *FoldCmpAndShift(IRMap &irMap, Opcode cmpOp, const MeExpr &andOpnd0, IntVal c1, const IntVal &c2) {
   auto shiftOp = andOpnd0.GetOp();
   if (shiftOp == OP_cvt || shiftOp == OP_zext) {
+    if (IsCvtNeedTrunc(static_cast<const OpMeExpr&>(andOpnd0))) {
+      return nullptr;
+    }
     auto opnd0 = andOpnd0.GetOpnd(0);
     if (IsEqualByTrunc(c1, opnd0->GetPrimType()) && IsEqualByTrunc(c2, opnd0->GetPrimType())) {
       return FoldCmpAndShift(irMap, cmpOp, *opnd0, c1.Trunc(opnd0->GetPrimType()), c2.Trunc(opnd0->GetPrimType()));
@@ -259,6 +275,9 @@ MeExpr *ExprCombiner::FoldCmpBinOpWithConst(OpMeExpr &cmpExpr, const MeExpr &bin
   auto op = binOpExpr.GetOp();
   auto opnd0 = binOpExpr.GetOpnd(0);
   if (op == OP_cvt || op == OP_zext) {
+    if (IsCvtNeedTrunc(static_cast<const OpMeExpr&>(binOpExpr))) {
+      return nullptr;
+    }
     if (IsEqualByTrunc(c1, opnd0->GetPrimType())) {
       return FoldCmpBinOpWithConst(cmpExpr, *opnd0, c1.Trunc(opnd0->GetPrimType()));
     }

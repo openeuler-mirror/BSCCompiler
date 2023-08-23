@@ -130,8 +130,9 @@ bool Simplify::IsMathSqrt(const std::string funcName) {
 }
 
 bool Simplify::IsMathAbs(const std::string funcName) {
-  return (mirMod.IsCModule() && (strcmp(funcName.c_str(), kFuncNameOfMathAbs) == 0)) ||
-         (mirMod.IsJavaModule() && (strcmp(funcName.c_str(), kFuncNamePrefixOfMathAbs) == 0));
+  return !opts::oFnoBuiltin.IsEnabledByUser() &&
+         ((mirMod.IsCModule() && (strcmp(funcName.c_str(), kFuncNameOfMathAbs) == 0)) ||
+         (mirMod.IsJavaModule() && (strcmp(funcName.c_str(), kFuncNamePrefixOfMathAbs) == 0)));
 }
 
 bool Simplify::IsMathMax(const std::string funcName) {
@@ -459,6 +460,13 @@ StmtNode *Simplify::SimplifyBitFieldWrite(const IassignNode &iass) const {
   }
   CHECK_NULL_FATAL(bfe.extractType);
   auto *newIvarType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*bfe.extractType);
+  if (bfe.extractType->GetSize() != iass.GetLHSType()->GetSize()) {
+    auto tempType = MIRPtrType(bfe.extractType->GetTypeIndex(), bfe.extractType->GetPrimType());
+    tempType.SetTypeAttrs(bfe.extractType->GetTypeAttrs());
+    tempType.GetTypeAttrs().SetAttr(ATTR_may_alias);
+    auto newIvarTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&tempType);
+    newIvarType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(newIvarTyIdx);
+  }
   auto *base = iass.Opnd(0);
   MIRBuilder *mirBuiler = currFunc->GetModule()->GetMIRBuilder();
   if (bfe.byteOffset != 0) {
@@ -480,23 +488,64 @@ StmtNode *Simplify::SimplifyBitFieldWrite(const IassignNode &iass) const {
   return newIass;
 }
 
+IreadNode *GetUnsafeAnchor(MIRBuilder &mirBuilder) {
+  MIRType *addrsType = GlobalTables::GetTypeTable().GetUInt64();
+  MapleVector<BaseNode*> args0(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
+  IntrinsicopNode *threadPtr = nullptr;
+  threadPtr = mirBuilder.CreateExprIntrinsicop(INTRN_C___tls_get_thread_pointer, OP_intrinsicop, *addrsType, args0);
+  ConstvalNode *anchorOffset = mirBuilder.CreateIntConst(maplebe::offsetTbcReservedForX86, PTY_u64);
+  BinaryNode *subNode = mirBuilder.CreateExprBinary(OP_sub, PTY_u64, threadPtr, anchorOffset);
+  TypeCvtNode *cvtNode = mirBuilder.CreateExprTypeCvt(OP_cvt, PTY_ptr, PTY_u64, *subNode);
+  IreadNode *ireadNode = mirBuilder.CreateExprIread(
+      *addrsType, *(GlobalTables::GetTypeTable().GetOrCreatePointerType(*addrsType)), 0, cvtNode);
+  return ireadNode;
+}
+
+IreadNode *GetSafeAnchor(MIRBuilder &mirBuilder) {
+  TypeTable &tab = GlobalTables::GetTypeTable();
+  MIRType *addrsType = tab.GetUInt64();
+  MapleVector<BaseNode*> args0(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
+  IntrinsicopNode *threadPtr = nullptr;
+  threadPtr = mirBuilder.CreateExprIntrinsicop(INTRN_C___tls_get_thread_pointer, OP_intrinsicop, *addrsType, args0);
+  TypeCvtNode *cvtNode = mirBuilder.CreateExprTypeCvt(OP_cvt, PTY_ptr, PTY_u64, *threadPtr);
+  IreadNode *ireadNode = mirBuilder.CreateExprIread(
+      PTY_u64, tab.GetOrCreatePointerType(*addrsType)->GetTypeIndex(), 0, cvtNode);
+  ConstvalNode *anchorOffset = mirBuilder.CreateIntConst(maplebe::offsetManualAnchorSymbol, PTY_u64);
+  BinaryNode *addNode = mirBuilder.CreateExprBinary(OP_add, PTY_u64, ireadNode, anchorOffset);
+  TypeCvtNode *cvtNode1 = mirBuilder.CreateExprTypeCvt(OP_cvt, PTY_ptr, PTY_u64, *addNode);
+  IreadNode *ireadNode1 = mirBuilder.CreateExprIread(
+      *addrsType, *(tab.GetOrCreatePointerType(*addrsType)), 0, cvtNode1);
+  return ireadNode1;
+}
+
+
 uint64 GetTLSVarOffset(MIRModule &m, const MIRSymbol &st) {
   uint64 offset = 0;
-  if (!st.IsConst()) {
-    MapleMap<const MIRSymbol*, uint64> &tbssVarOffset = m.GetTbssVarOffset();
-    if (tbssVarOffset.find(&st) != tbssVarOffset.end()) {
-      offset = tbssVarOffset.at(&st);
+  if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
+    const MapleMap<const MIRSymbol*, uint64> &tlsVarOffset = m.GetTlsVarOffset();
+    if (tlsVarOffset.find(&st) != tlsVarOffset.end()) {
+      offset = tlsVarOffset.at(&st);
     } else {
-      CHECK_FATAL_FALSE("All uninitialized TLS should be in tbssVarOffset");
+      CHECK_FATAL_FALSE("All uninitialized TLS should be in tlsVarOffset");
     }
   } else {
-    MapleMap<const MIRSymbol*, uint64> &tdataVarOffset = m.GetTdataVarOffset();
-    if (tdataVarOffset.find(&st) != tdataVarOffset.end()) {
-      offset = tdataVarOffset.at(&st);
+    if (!st.IsConst()) {
+      MapleMap<const MIRSymbol*, uint64> &tbssVarOffset = m.GetTbssVarOffset();
+      if (tbssVarOffset.find(&st) != tbssVarOffset.end()) {
+        offset = tbssVarOffset.at(&st);
+      } else {
+        CHECK_FATAL_FALSE("All uninitialized TLS should be in tbssVarOffset");
+      }
     } else {
-      CHECK_FATAL_FALSE("All initialized TLS should be in tdataVarOffset");
+      MapleMap<const MIRSymbol*, uint64> &tdataVarOffset = m.GetTdataVarOffset();
+      if (tdataVarOffset.find(&st) != tdataVarOffset.end()) {
+        offset = tdataVarOffset.at(&st);
+      } else {
+        CHECK_FATAL_FALSE("All initialized TLS should be in tdataVarOffset");
+      }
     }
   }
+
   return offset;
 }
 
@@ -510,21 +559,35 @@ StmtNode *LocalDynamicTLSOptDassign(const DassignNode &dassign, BlockNode &block
   }
   MIRType *lhsPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsType);
   ConstvalNode *offset = mirBuilder->CreateIntConst(GetTLSVarOffset(*func.GetModule(), *lhsSymbol), PTY_u64);
-  MIRType *addrsType = GlobalTables::GetTypeTable().GetUInt64();
-
-  MapleVector<BaseNode*> args0(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-  IntrinsicopNode *tlsAnchor = nullptr;
-  if (!lhsSymbol->IsConst()) {
-    tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tbss_anchor, OP_intrinsicop, *addrsType, args0);
+  if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
+    IreadNode *ireadNode = nullptr;
+    if (opts::aggressiveTlsSafeAnchor) {
+      ireadNode = GetSafeAnchor(*mirBuilder);
+    } else {
+      ireadNode = GetUnsafeAnchor(*mirBuilder);
+    }
+    BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
+                                                                ireadNode, offset);
+    StmtNode *newAssign = nullptr;
+    newAssign = mirBuilder->CreateStmtIassign(*lhsPtrType, dassign.GetFieldID(), addTlsGlobalOffset, rhs);
+    block.ReplaceStmt1WithStmt2(&dassign, newAssign);
+    return newAssign;
   } else {
-    tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tdata_anchor, OP_intrinsicop, *addrsType, args0);
+    MIRType *addrsType = GlobalTables::GetTypeTable().GetUInt64();
+    MapleVector<BaseNode*> args0(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+    IntrinsicopNode *tlsAnchor = nullptr;
+    if (!lhsSymbol->IsConst()) {
+      tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tbss_anchor, OP_intrinsicop, *addrsType, args0);
+    } else {
+      tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tdata_anchor, OP_intrinsicop, *addrsType, args0);
+    }
+    BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
+                                                                tlsAnchor, offset);
+    StmtNode *newAssign = nullptr;
+    newAssign = mirBuilder->CreateStmtIassign(*lhsPtrType, dassign.GetFieldID(), addTlsGlobalOffset, rhs);
+    block.ReplaceStmt1WithStmt2(&dassign, newAssign);
+    return newAssign;
   }
-  BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
-                                                              tlsAnchor, offset);
-  StmtNode *newAssign = nullptr;
-  newAssign = mirBuilder->CreateStmtIassign(*lhsPtrType, dassign.GetFieldID(), addTlsGlobalOffset, rhs);
-  block.ReplaceStmt1WithStmt2(&dassign, newAssign);
-  return newAssign;
 }
 
 BaseNode *LocalDynamicTLSOptDread(const DreadNode &dread, MIRFunction &func) {
@@ -543,20 +606,33 @@ BaseNode *LocalDynamicTLSOptDread(const DreadNode &dread, MIRFunction &func) {
   MIRType *lhsPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsType);
 
   ConstvalNode *offset = mirBuilder->CreateIntConst(GetTLSVarOffset(*func.GetModule(), *lhsSymbol), PTY_u64);
-  MIRType *addrsType = GlobalTables::GetTypeTable().GetUInt64();
-
-  MapleVector<BaseNode*> args0(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-  IntrinsicopNode *tlsAnchor = nullptr;
-  if (!lhsSymbol->IsConst()) {
-    tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tbss_anchor, OP_intrinsicop, *addrsType, args0);
+  if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
+    IreadNode *ireadNode = nullptr;
+    if (opts::aggressiveTlsSafeAnchor) {
+      ireadNode = GetSafeAnchor(*mirBuilder);
+    } else {
+      ireadNode = GetUnsafeAnchor(*mirBuilder);
+    }
+    BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
+                                                                ireadNode, offset);
+    IreadNode *newRead = nullptr;
+    newRead = mirBuilder->CreateExprIread(*varType, *lhsPtrType, dread.GetFieldID(), addTlsGlobalOffset);
+    return newRead;
   } else {
-    tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tdata_anchor, OP_intrinsicop, *addrsType, args0);
+    MIRType *addrsType = GlobalTables::GetTypeTable().GetUInt64();
+    MapleVector<BaseNode*> args0(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+    IntrinsicopNode *tlsAnchor = nullptr;
+    if (!lhsSymbol->IsConst()) {
+      tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tbss_anchor, OP_intrinsicop, *addrsType, args0);
+    } else {
+      tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tdata_anchor, OP_intrinsicop, *addrsType, args0);
+    }
+    BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
+                                                                tlsAnchor, offset);
+    IreadNode *newRead = nullptr;
+    newRead = mirBuilder->CreateExprIread(*varType, *lhsPtrType, dread.GetFieldID(), addTlsGlobalOffset);
+    return newRead;
   }
-  BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
-                                                              tlsAnchor, offset);
-  IreadNode *newRead = nullptr;
-  newRead = mirBuilder->CreateExprIread(*varType, *lhsPtrType, dread.GetFieldID(), addTlsGlobalOffset);
-  return newRead;
 }
 
 BaseNode *LocalDynamicTLSOptAddrof(const AddrofNode &addrofNode, MIRFunction &func) {
@@ -570,19 +646,30 @@ BaseNode *LocalDynamicTLSOptAddrof(const AddrofNode &addrofNode, MIRFunction &fu
   }
   ConstvalNode *offset = mirBuilder->CreateIntConst(GetTLSVarOffset(*func.GetModule(), *lhsSymbol) + fieldOffset,
                                                     PTY_u64);
-  MIRType *addrsType = GlobalTables::GetTypeTable().GetUInt64();
-
-  MapleVector<BaseNode*> args0(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-  IntrinsicopNode *tlsAnchor = nullptr;
-  if (!lhsSymbol->IsConst()) {
-    tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tbss_anchor, OP_intrinsicop, *addrsType, args0);
+  if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
+    IreadNode *ireadNode = nullptr;
+    if (opts::aggressiveTlsSafeAnchor) {
+      ireadNode = GetSafeAnchor(*mirBuilder);
+    } else {
+      ireadNode = GetUnsafeAnchor(*mirBuilder);
+    }
+    BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
+                                                                ireadNode, offset);
+    return addTlsGlobalOffset;
   } else {
-    tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tdata_anchor, OP_intrinsicop, *addrsType, args0);
-  }
-  BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
-                                                              tlsAnchor, offset);
+    MIRType *addrsType = GlobalTables::GetTypeTable().GetUInt64();
 
-  return addTlsGlobalOffset;
+    MapleVector<BaseNode*> args0(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+    IntrinsicopNode *tlsAnchor = nullptr;
+    if (!lhsSymbol->IsConst()) {
+      tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tbss_anchor, OP_intrinsicop, *addrsType, args0);
+    } else {
+      tlsAnchor = mirBuilder->CreateExprIntrinsicop(INTRN_C___tls_get_tdata_anchor, OP_intrinsicop, *addrsType, args0);
+    }
+    BaseNode *addTlsGlobalOffset = mirBuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetPtr(),
+                                                                tlsAnchor, offset);
+    return addTlsGlobalOffset;
+  }
 }
 
 void Simplify::ProcessStmt(StmtNode &stmt) {
@@ -598,10 +685,12 @@ void Simplify::ProcessStmt(StmtNode &stmt) {
       break;
     }
     case OP_dassign: {
-      if (opts::aggressiveTlsLocalDynamicOpt || maplebe::CGOptions::IsShlib()) {
+      if (opts::aggressiveTlsLocalDynamicOpt || opts::aggressiveTlsLocalDynamicOptMultiThread ||
+          maplebe::CGOptions::IsShlib()) {
         MIRSymbol *symbol = currFunc->GetLocalOrGlobalSymbol(static_cast<DassignNode *>(&stmt)->GetStIdx());
         if (symbol && symbol->IsThreadLocal() && symbol->GetStorageClass() != kScExtern &&
-            (opts::aggressiveTlsLocalDynamicOpt || symbol->IsHiddenVisibility())) {
+            (opts::aggressiveTlsLocalDynamicOpt || opts::aggressiveTlsLocalDynamicOptMultiThread ||
+             symbol->IsHiddenVisibility())) {
           StmtNode *newStmtTLS = LocalDynamicTLSOptDassign(static_cast<DassignNode &>(stmt), *currBlock, *currFunc);
           ProcessStmt(*newStmtTLS);
         }
@@ -642,10 +731,13 @@ BaseNode *Simplify::SimplifyExpr(BaseNode &expr) {
     case OP_dread: {
       auto &dread = static_cast<DreadNode&>(expr);
       BaseNode &tmpNode = *ReplaceExprWithConst(dread);
-      if (tmpNode.GetOpCode() == OP_dread && (opts::aggressiveTlsLocalDynamicOpt || maplebe::CGOptions::IsShlib())) {
+      if (tmpNode.GetOpCode() == OP_dread &&
+          (opts::aggressiveTlsLocalDynamicOpt || opts::aggressiveTlsLocalDynamicOptMultiThread ||
+           maplebe::CGOptions::IsShlib())) {
         MIRSymbol *symbol = currFunc->GetLocalOrGlobalSymbol(static_cast<DreadNode &>(tmpNode).GetStIdx());
         if (symbol && symbol->IsThreadLocal() && symbol->GetStorageClass() != kScExtern &&
-            (opts::aggressiveTlsLocalDynamicOpt || symbol->IsHiddenVisibility())) {
+            (opts::aggressiveTlsLocalDynamicOpt || opts::aggressiveTlsLocalDynamicOptMultiThread ||
+             symbol->IsHiddenVisibility())) {
           BaseNode *newNode = LocalDynamicTLSOptDread(static_cast<DreadNode &>(tmpNode), *currFunc);
           return newNode;
         }
@@ -662,11 +754,13 @@ BaseNode *Simplify::SimplifyExpr(BaseNode &expr) {
       return tmpNode;
     }
     case OP_addrof: {
-      if (opts::aggressiveTlsLocalDynamicOpt || maplebe::CGOptions::IsShlib()) {
+      if (opts::aggressiveTlsLocalDynamicOpt || opts::aggressiveTlsLocalDynamicOptMultiThread ||
+          maplebe::CGOptions::IsShlib()) {
         AddrofNode &addrofNode = static_cast<AddrofNode &>(expr);
         MIRSymbol *symbol = currFunc->GetLocalOrGlobalSymbol(addrofNode.GetStIdx());
         if (symbol && symbol->IsThreadLocal() && symbol->GetStorageClass() != kScExtern &&
-            (opts::aggressiveTlsLocalDynamicOpt || symbol->IsHiddenVisibility())) {
+            (opts::aggressiveTlsLocalDynamicOpt || opts::aggressiveTlsLocalDynamicOptMultiThread ||
+             symbol->IsHiddenVisibility())) {
           BaseNode *newNode = LocalDynamicTLSOptAddrof(addrofNode, *currFunc);
           return newNode;
         }
@@ -2579,13 +2673,148 @@ static void CalculateLocalDynamicTLS(MIRModule &m) {
   }
 }
 
+static void CalculateWarmupLocalDynamicTlsSingleAnchor(MIRModule &m) {
+  size_t size = GlobalTables::GetGsymTable().GetSymbolTableSize();
+  MIRType *mirType = nullptr;
+  uint64 tlsOffset = 0;
+  bool tbssSectionAligned = false;
+
+  // tdata offset
+  for (auto it = m.GetFunctionList().cbegin(); it != m.GetFunctionList().cend(); ++it) {
+    const MIRFunction *mirFunc = *it;
+    if (mirFunc->GetBody() == nullptr) {
+      continue;
+    }
+    const MIRSymbolTable *lSymTab = mirFunc->GetSymTab();
+    if (lSymTab == nullptr) {
+      continue;
+    }
+    size_t lsize = lSymTab->GetSymbolTableSize();
+    for (size_t i = 0; i < lsize; i++) {
+      MIRSymbol *mirSymbol = lSymTab->GetSymbolFromStIdx(static_cast<uint32>(i));
+      if (mirSymbol == nullptr || mirSymbol->GetStorageClass() != kScPstatic) {
+        continue;
+      }
+      uint32 align = 0;
+      mirType = mirSymbol->GetType();
+      if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+          mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
+        align = std::max<uint32>(k8ByteSize, mirType->GetAlign());
+      } else {
+        align = mirType->GetAlign();
+      }
+      if (mirSymbol->IsThreadLocal()) {
+        mirSymbol->SetAccessByMem(true);
+        mirType = mirSymbol->GetType();
+        if (mirSymbol->IsConst()) {
+          tlsOffset = RoundUp(tlsOffset, align);
+          m.SetTlsVarOffset(mirSymbol, tlsOffset);
+          tlsOffset += mirType->GetSize();
+        }
+      }
+    }
+  }
+
+  for (size_t i = 0; i < size; ++i) {
+    MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
+    if (mirSymbol == nullptr || mirSymbol->GetStorageClass() == kScExtern) {
+      continue;
+    }
+    if (mirSymbol->IsThreadLocal() && (opts::aggressiveTlsLocalDynamicOptMultiThread)) {
+      mirSymbol->SetAccessByMem(true);
+      mirType = mirSymbol->GetType();
+      uint32 align = 0;
+      if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+          mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
+        align = std::max<uint32>(k8ByteSize, mirType->GetAlign());
+      } else {
+        align = mirType->GetAlign();
+      }
+      if (mirSymbol->IsConst()) {
+        tlsOffset = RoundUp(tlsOffset, align);
+        m.SetTlsVarOffset(mirSymbol, tlsOffset);
+        tlsOffset += mirType->GetSize();
+      }
+    }
+  }
+
+  // tbss data
+  for (auto it = m.GetFunctionList().cbegin(); it != m.GetFunctionList().cend(); ++it) {
+    const MIRFunction *mirFunc = *it;
+    if (mirFunc->GetBody() == nullptr) {
+      continue;
+    }
+    const MIRSymbolTable *lSymTab = mirFunc->GetSymTab();
+    if (lSymTab == nullptr) {
+      continue;
+    }
+    size_t lsize = lSymTab->GetSymbolTableSize();
+    for (size_t i = 0; i < lsize; i++) {
+      MIRSymbol *mirSymbol = lSymTab->GetSymbolFromStIdx(static_cast<uint32>(i));
+      if (mirSymbol == nullptr || mirSymbol->GetStorageClass() != kScPstatic) {
+        continue;
+      }
+      uint32 align = 0;
+      mirType = mirSymbol->GetType();
+      if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+          mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
+        align = std::max<uint32>(k8ByteSize, mirType->GetAlign());
+      } else {
+        align = mirType->GetAlign();
+      }
+      if (!tbssSectionAligned) {
+        tbssSectionAligned = true;
+        align = std::max<uint32>(k16ByteSize, align);
+      }
+      if (mirSymbol->IsThreadLocal()) {
+        mirSymbol->SetAccessByMem(true);
+        mirType = mirSymbol->GetType();
+        if (!mirSymbol->IsConst()) {
+          tlsOffset = RoundUp(tlsOffset, align);
+          m.SetTlsVarOffset(mirSymbol, tlsOffset);
+          tlsOffset += mirType->GetSize();
+        }
+      }
+    }
+  }
+
+  for (size_t i = 0; i < size; ++i) {
+    MIRSymbol *mirSymbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
+    if (mirSymbol == nullptr || mirSymbol->GetStorageClass() == kScExtern) {
+      continue;
+    }
+    if (mirSymbol->IsThreadLocal() && opts::aggressiveTlsLocalDynamicOptMultiThread) {
+      mirSymbol->SetAccessByMem(true);
+      mirType = mirSymbol->GetType();
+      uint32 align = 0;
+      if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+          mirType->GetKind() == kTypeArray || mirType->GetKind() == kTypeUnion) {
+        align = std::max<uint32>(k8ByteSize, mirType->GetAlign());
+      } else {
+        align = mirType->GetAlign();
+      }
+      if (!tbssSectionAligned) {
+        tbssSectionAligned = true;
+        align = std::max<uint32>(k16ByteSize, align);
+      }
+      if (!mirSymbol->IsConst()) {
+        tlsOffset = RoundUp(tlsOffset, align);
+        m.SetTlsVarOffset(mirSymbol, tlsOffset);
+        tlsOffset += mirType->GetSize();
+      }
+    }
+  }
+}
+
 bool M2MSimplify::PhaseRun(maple::MIRModule &m) {
   auto *kh = GET_ANALYSIS(M2MKlassHierarchy, m);
   ASSERT_NOT_NULL((kh));
   std::unique_ptr<FuncOptimizeImpl> funcOptImpl = std::make_unique<Simplify>(m, kh, *GetPhaseMemPool(),
                                                                              TRACE_MAPLE_PHASE);
   ASSERT_NOT_NULL(funcOptImpl);
-  if (opts::aggressiveTlsLocalDynamicOpt || maplebe::CGOptions::IsShlib()) {
+  if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
+    CalculateWarmupLocalDynamicTlsSingleAnchor(m);
+  } else if (opts::aggressiveTlsLocalDynamicOpt || maplebe::CGOptions::IsShlib()) {
     CalculateLocalDynamicTLS(m);
   }
   FuncOptimizeIterator opt(PhaseName(), std::move(funcOptImpl));

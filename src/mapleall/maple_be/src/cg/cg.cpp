@@ -40,7 +40,7 @@ const CG *Globals::GetTarget() const  {
 }
 
 CGFunc *CG::currentCGFunction = nullptr;
-std::map<MIRFunction*, std::pair<LabelIdx, LabelIdx>> CG::funcWrapLabels;
+std::map<const MIRFunction*, std::pair<LabelIdx, LabelIdx>> CG::funcWrapLabels;
 
 CG::~CG() {
   if (emitter != nullptr) {

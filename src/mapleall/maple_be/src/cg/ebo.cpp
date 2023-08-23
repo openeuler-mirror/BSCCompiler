@@ -176,7 +176,13 @@ bool Ebo::ForwardPropCheck(const Operand *opndReplace, const OpndInfo &opndInfo,
 }
 
 bool Ebo::RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndReplace, Operand &oldOpnd,
-                          const OpndInfo *tmpInfo) const {
+                          const uint32 oldOpndIndex, const OpndInfo *tmpInfo) const {
+  if (tmpInfo == nullptr) {
+    return false;
+  }
+  uint32 replacementOpndIndex = tmpInfo->replacementIndex;
+  Insn *replacementOpndInsn = tmpInfo->insn;
+
   if (IsConstantImmOrReg(opnd)) {
     return false;
   }
@@ -200,8 +206,10 @@ bool Ebo::RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndRe
     return false;
   }
 
-  return ((IsOfSameClass(oldOpnd, *opndReplace) && (oldOpnd.GetSize() <= opndReplace->GetSize())) ||
-          ((tmpInfo != nullptr) && IsMovToSIMDVmov(insn, *tmpInfo->insn)));
+  return (IsOfSameClass(oldOpnd, *opndReplace) &&
+          (insn.GetDesc()->GetOpndDes(oldOpndIndex)->GetSize() <=
+           replacementOpndInsn->GetDesc()->GetOpndDes(replacementOpndIndex)->GetSize())) ||
+         ((tmpInfo != nullptr) && IsMovToSIMDVmov(insn, *replacementOpndInsn));
 }
 
 /* For Memory Operand, its info was stored in a hash table, this function is to compute its hash value. */
@@ -598,7 +606,7 @@ bool Ebo::ForwardPropagateOpnd(Insn &insn, Operand *&opnd, uint32 opndIndex,
   }
 #endif
   /* forward prop for registers. */
-  if (!RegForwardCheck(insn, *opnd, opndReplace, *oldOpnd, origInfos.at(opndIndex))) {
+  if (!RegForwardCheck(insn, *opnd, opndReplace, *oldOpnd, opndIndex, origInfos.at(opndIndex))) {
     return false;
   }
   /* Copies to and from the same register are not needed. */
@@ -714,6 +722,7 @@ void Ebo::FindRedundantInsns(BB &bb, Insn *&insn, const Insn *prev, bool insnRep
         if (Globals::GetInstance()->GetTarget()->IsEffectiveCopy(*insn) && (opndInfo != nullptr) && !IsFmov(*insn)) {
           CHECK_FATAL(!opnds.empty(), "null container!");
           opndInfo->replacementOpnd = opnds[kInsnSecondOpnd];
+          opndInfo->replacementIndex = kInsnSecondOpnd;
           opndInfo->replacementInfo = opndInfos[kInsnSecondOpnd];
         } else if (insn->GetBothDefUseOpnd() != kInsnMaxOpnd && (opndInfo != nullptr)) {
           opndInfo->replacementOpnd = nullptr;

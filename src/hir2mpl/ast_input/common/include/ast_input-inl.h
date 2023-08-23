@@ -38,8 +38,8 @@ bool ASTInput<T>::ReadASTFile(MapleAllocator &allocatorIn, uint32 index, const s
   TRY_DO(parser->RetrieveStructs(allocatorIn));
   if (FEOptions::GetInstance().IsDbgFriendly()) {
     TRY_DO(parser->RetrieveEnums(allocatorIn));
-    TRY_DO(parser->RetrieveGlobalTypeDef(allocatorIn));
   }
+  TRY_DO(parser->RetrieveGlobalTypeDef(allocatorIn));
   TRY_DO(parser->RetrieveGlobalVars(allocatorIn));
   TRY_DO(parser->RetrieveFileScopeAsms(allocatorIn));
   TRY_DO(parser->Release(allocatorIn));

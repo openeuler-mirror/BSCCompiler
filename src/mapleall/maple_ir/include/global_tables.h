@@ -827,6 +827,33 @@ class GSymbolTable {
   std::vector<MIRSymbol*> symbolTable;  // map symbol idx to symbol node
 };
 
+class GPragmaTable {
+ public:
+  static CPragma *CreateCPragma(CPragmaKind k, uint32 id, const std::string &content);
+
+  GPragmaTable() {
+    pragmas.push_back(nullptr);
+  }
+
+  virtual ~GPragmaTable() = default;
+
+  std::vector<CPragma*> &GetPragmaTable() {
+    return pragmas;
+  }
+
+  CPragma *GetPragmaFromindex(uint32 idx) const {
+    CHECK_FATAL(idx < pragmas.size(), "Invalid index");
+    return pragmas.at(idx);
+  }
+
+  void SetPragmaItem(uint32 idx, CPragma *pragma) {
+    CHECK_FATAL(idx < pragmas.size(), "Invalid index");
+    pragmas[idx] = pragma;
+  }
+ private:
+  std::vector<CPragma*> pragmas;
+};
+
 class ConstPool {
  public:
   std::unordered_map<std::u16string, MIRSymbol*> &GetConstU16StringPool() {
@@ -889,6 +916,10 @@ class GlobalTables {
     return globalTables.functionTable;
   }
 
+  static GPragmaTable &GetGPragmaTable() {
+    return globalTables.gPragmaTable;
+  }
+
   static GSymbolTable &GetGsymTable() {
     return globalTables.gSymbolTable;
   }
@@ -924,6 +955,7 @@ class GlobalTables {
   STypeNameTable typeNameTable;
   FunctionTable functionTable;
   GSymbolTable gSymbolTable;
+  GPragmaTable gPragmaTable;
   ConstPool constPool;
   std::unique_ptr<FPConstTable> fpConstTablePtr;
   std::unique_ptr<IntConstTable> intConstTablePtr;

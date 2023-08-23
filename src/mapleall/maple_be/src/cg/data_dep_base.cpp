@@ -37,10 +37,12 @@ void DataDepBase::BuildDepsLastCallInsn(Insn &insn) {
   if (lastCallInsn != nullptr && lastCallInsn->GetMachineOpcode() != MOP_tls_desc_call) {
     AddDependence(*lastCallInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);
   }
-  curCDGNode->SetLastCallInsn(&insn);
+  if (insn.IsCall() || insn.IsTailCall()) {
+    curCDGNode->SetLastCallInsn(&insn);
+  }
 }
 
-/* Build dependency for may throw insn */
+// Build dependency for may throw insn
 void DataDepBase::BuildMayThrowInsnDependency(DepNode &depNode, Insn &insn, const Insn &locInsn) {
   if (!insn.MayThrow() || !cgFunc.GetMirModule().IsJavaModule()) {
     return;
@@ -84,11 +86,9 @@ void DataDepBase::BuildAmbiInsnDependency(Insn &insn) {
   }
 }
 
-/*
- * Build data dependence between control register and last call instruction.
- * insn : instruction that with control register operand.
- * isDest : if the control register operand is a destination operand.
- */
+// Build data dependence between control register and last call instruction.
+// insn : instruction that with control register operand.
+// isDest : if the control register operand is a destination operand.
 void DataDepBase::BuildDepsBetweenControlRegAndCall(Insn &insn, bool isDest) {
   Insn *lastCallInsn = curCDGNode->GetLastCallInsn();
   if (lastCallInsn == nullptr) {
@@ -101,29 +101,17 @@ void DataDepBase::BuildDepsBetweenControlRegAndCall(Insn &insn, bool isDest) {
   AddDependence(*lastCallInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeAnti);
 }
 
-/* Build control data dependence for branch/ret instructions */
+// Build control data dependence for branch/ret instructions
 void DataDepBase::BuildDepsControlAll(Insn &insn, const MapleVector<DepNode*> &nodes) {
   DepNode *depNode = insn.GetDepNode();
-  // For write/read mem instructions, we build output dependency between them and branch instructions
-  for (auto *heapDef : curCDGNode->GetHeapDefInsns()) {
-    AddDependence(*heapDef->GetDepNode(), *depNode, kDependenceTypeOutput);
-  }
-  for (auto *heapUse : curCDGNode->GetHeapUseInsns()) {
-    AddDependence(*heapUse->GetDepNode(), *depNode, kDependenceTypeOutput);
-  }
-  for (auto *stackDef : curCDGNode->GetStackDefInsns()) {
-    AddDependence(*stackDef->GetDepNode(), *depNode, kDependenceTypeOutput);
-  }
   // For rest instructions, we build control dependency
   for (auto *dataNode : nodes) {
     AddDependence(*dataNode, *depNode, kDependenceTypeControl);
   }
 }
 
-/*
- * Build data dependence of ambiguous instruction.
- * ambiguous instruction: instructions that can not across may throw instructions
- */
+// Build data dependence of ambiguous instruction.
+// ambiguous instruction: instructions that can not across may throw instructions
 void DataDepBase::BuildDepsAmbiInsn(Insn &insn) {
   if (!cgFunc.GetMirModule().IsJavaModule()) {
     return;
@@ -137,15 +125,13 @@ void DataDepBase::BuildDepsAmbiInsn(Insn &insn) {
   curCDGNode->AddAmbiguousInsn(&insn);
 }
 
-/* Build data dependence of destination register operand */
+// Build data dependence of destination register operand
 void DataDepBase::BuildDepsDefReg(Insn &insn, regno_t regNO) {
   DepNode *node = insn.GetDepNode();
   node->AddDefReg(regNO);
-  /*
-   * 1. For building intra-block data dependence, only require the data flow info of the curBB(cur CDGNode)
-   * 2. For building inter-block data dependence, require the data flow info of all BBs on the pred path in CFG
-   */
-  /* Build anti dependence */
+  // 1. For building intra-block data dependence, only require the data flow info of the curBB(cur CDGNode)
+  // 2. For building inter-block data dependence, require the data flow info of all BBs on the pred path in CFG
+  // Build anti dependence
   if (isIntra || curRegion->GetRegionNodeSize() == 1 || curRegion->GetRegionRoot() == curCDGNode) {
     RegList *regList = curCDGNode->GetUseInsnChain(regNO);
     while (regList != nullptr) {
@@ -157,7 +143,7 @@ void DataDepBase::BuildDepsDefReg(Insn &insn, regno_t regNO) {
     BuildInterBlockDefUseDependency(*node, regNO, kDependenceTypeAnti, false);
   }
 
-  /* Build output dependence */
+  // Build output dependence
   // Build intra block data dependence
   Insn *defInsn = curCDGNode->GetLatestDefInsn(regNO);
   if (defInsn != nullptr) {
@@ -168,7 +154,7 @@ void DataDepBase::BuildDepsDefReg(Insn &insn, regno_t regNO) {
   }
 }
 
-/* Build data dependence of source register operand */
+// Build data dependence of source register operand
 void DataDepBase::BuildDepsUseReg(Insn &insn, regno_t regNO) {
   DepNode *node = insn.GetDepNode();
   node->AddUseReg(regNO);
@@ -183,7 +169,7 @@ void DataDepBase::BuildDepsUseReg(Insn &insn, regno_t regNO) {
   }
 }
 
-/* For inter data dependence analysis */
+// For inter data dependence analysis
 void DataDepBase::BuildInterBlockDefUseDependency(DepNode &curDepNode, regno_t regNO, DepType depType,
                                                   bool isDef) {
   CHECK_FATAL(!isIntra, "must be inter block data dependence analysis");
@@ -270,13 +256,11 @@ void DataDepBase::BuildInterBlockSpecialDataInfoDependency(DepNode &curDepNode, 
   BuildPredPathSpecialDataInfoDependencyDFS(*curBB, visited, needCmp, curDepNode, depType, infoType);
 }
 
-/*
- * Generate a data depNode.
- * insn  : create depNode for the instruction.
- * nodes : a vector to store depNode.
- * nodeSum  : the new depNode's index.
- * comments : those comment insn between last no-comment's insn and insn.
- */
+// Generate a data depNode.
+// insn  : create depNode for the instruction.
+// nodes : a vector to store depNode.
+// nodeSum  : the new depNode's index.
+// comments : those comment insn between last no-comment's insn and insn.
 DepNode *DataDepBase::GenerateDepNode(Insn &insn, MapleVector<DepNode*> &nodes,
                                       uint32 &nodeSum, MapleVector<Insn*> &comments) {
   Reservation *rev = mad.FindReservation(insn);
@@ -407,14 +391,12 @@ void DataDepBase::BuildPredPathSpecialDataInfoDependencyDFS(BB &curBB, std::vect
   }
 }
 
-/*
- * Build data dependency edge from FromNode to ToNode:
- *  Two data dependency node has a unique edge.
- *  These two dependencies will set the latency on the dependency edge:
- *   1. True data dependency overwrites other dependency;
- *   2. Output data dependency overwrites other dependency except true dependency;
- *  The latency of the other dependencies is 0.
- */
+// Build data dependency edge from FromNode to ToNode:
+//  Two data dependency node has a unique edge.
+//  These two dependencies will set the latency on the dependency edge:
+//   1. True data dependency overwrites other dependency;
+//   2. Output data dependency overwrites other dependency except true dependency;
+//  The latency of the other dependencies is 0.
 void DataDepBase::AddDependence(DepNode &fromNode, DepNode &toNode, DepType depType) {
   // Can not build a self loop dependence
   if (&fromNode == &toNode) {
@@ -469,7 +451,7 @@ void DataDepBase::AddDependence4InsnInVectorByTypeAndCmp(MapleVector<Insn*> &ins
   }
 }
 
-/* Remove self data dependence (self loop) in data dependence graph. */
+// Remove self data dependence (self loop) in data dependence graph.
 void DataDepBase::RemoveSelfDeps(Insn &insn) {
   DepNode *node = insn.GetDepNode();
   ASSERT(node->GetSuccs().back()->GetTo().GetInsn() == &insn, "Is not a self dependence.");
@@ -478,7 +460,7 @@ void DataDepBase::RemoveSelfDeps(Insn &insn) {
   node->RemovePred();
 }
 
-/* Check if regNO is in ehInRegs. */
+// Check if regNO is in ehInRegs.
 bool DataDepBase::IfInAmbiRegs(regno_t regNO) const {
   if (!curCDGNode->HasAmbiRegs() || !cgFunc.GetMirModule().IsJavaModule()) {
     return false;
@@ -490,9 +472,9 @@ bool DataDepBase::IfInAmbiRegs(regno_t regNO) const {
   return false;
 }
 
-/* Return data dependence type name */
+// Return data dependence type name
 const std::string &DataDepBase::GetDepTypeName(DepType depType) const {
   ASSERT(depType <= kDependenceTypeNone, "array boundary check failed");
   return kDepTypeName[depType];
 }
-} /* namespace maplebe */
+} // namespace maplebe

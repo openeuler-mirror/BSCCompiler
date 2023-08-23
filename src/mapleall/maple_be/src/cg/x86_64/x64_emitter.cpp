@@ -175,9 +175,19 @@ void X64OpndEmitVisitor::Visit(maplebe::OfstOperand *v) {
   CHECK_FATAL(false, "do not run here");
 }
 
-void DumpTargetASM(Emitter &emitter, Insn &insn) {
+void X64Emitter::DumpTargetASM(Emitter &emitter, Insn &insn) {
   emitter.Emit("\t");
-  const InsnDesc &curMd = X64CG::kMd[insn.GetMachineOpcode()];
+  MOperator mOp = insn.GetMachineOpcode();
+  const InsnDesc &curMd = X64CG::kMd[mOp];
+
+  switch (mOp) {
+    case MOP_prefetch: {
+      EmitPrefetch(emitter, insn);
+      return;
+    }
+    default:
+      break;
+  }
 
   /* Get Operands Number */
   size_t size = 0;
@@ -268,6 +278,25 @@ void EmitJmpTable(Emitter &emitter, CGFunc &cgFunc) {
     }
     (void)emitter.Emit("\n");
   }
+}
+
+void X64Emitter::EmitPrefetch(Emitter &emitter, const Insn &insn) const {
+  constexpr int32 rwLimit = 2; // 2: the value of opnd1 cannot exceed 2
+  constexpr int32 localityLimit = 4; // 4: the value of opnd2 cannot exceed 4
+  static const std::string PRFOP[rwLimit][localityLimit] = {{"prefetchnta", "prefetcht2", "prefetcht1", "prefetcht0"},
+                                                            {"prefetchnta", "prefetcht2", "prefetcht1", "prefetcht0"}};
+  const InsnDesc *md = &X64CG::kMd[insn.GetMachineOpcode()];
+  auto *addr = &insn.GetOperand(kInsnFirstOpnd);
+  auto *rw = &insn.GetOperand(kInsnSecondOpnd);
+  auto *locality = &insn.GetOperand(kInsnThirdOpnd);
+  X64OpndEmitVisitor addrVisitor(emitter, md->opndMD[kInsnFirstOpnd]);
+  int64 rwConstVal = static_cast<ImmOperand*>(rw)->GetValue();
+  int64 localityConstVal = static_cast<ImmOperand*>(locality)->GetValue();
+  CHECK_FATAL((rwConstVal < rwLimit) && (rwConstVal >= 0) &&
+              (localityConstVal < localityLimit) && (localityConstVal >= 0), "wrong opnd");
+  (void)emitter.Emit(PRFOP[rwConstVal][localityConstVal]).Emit("\t(");
+  addr->Accept(addrVisitor);
+  (void)emitter.Emit(")\n");
 }
 
 void X64Emitter::Run(FuncEmitInfo &funcEmitInfo) {

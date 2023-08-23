@@ -41,8 +41,12 @@ bool Options::inlineWithProfile = false;
 bool Options::useInline = true;             // Enabled by default
 bool Options::enableGInline = true;
 bool Options::useCrossModuleInline = true;  // Enabled by default
+bool Options::importInlineMplt = false;  // Disabled by default
+bool Options::ignorePreferInline = false;  // Disabled by default
 std::string Options::noInlineFuncList = "";
+std::string Options::noIpaCloneFuncList = "";
 std::string Options::importFileList = "";
+std::string Options::inlineMpltDir = "";
 // These two thresholds will be scaled down if new cost module was used
 uint32 Options::inlineSmallFunctionThreshold = 80;  // Only for srcLangC, value will be reset later for other srcLang
 uint32 Options::inlineHotFunctionThreshold = 100;   // Only for srcLangC, value will be reset later for other srcLang
@@ -51,6 +55,8 @@ uint32 Options::inlineDepth = 8;
 uint32 Options::inlineModuleGrowth = 10;
 uint32 Options::inlineColdFunctionThreshold = 3;
 bool Options::respectAlwaysInline = true;
+bool Options::symbolInterposition = false;
+bool Options::ignoreHotAttr = false;
 bool Options::inlineToAllCallers = true;
 uint32 Options::ginlineMaxNondeclaredInlineCallee = 400;
 bool Options::ginlineAllowNondeclaredInlineSizeGrow = false;
@@ -206,7 +212,10 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(enableIPAClone, opts::mpl2mpl::ipaClone);
   maplecl::CopyIfEnabled(enableGInline, opts::mpl2mpl::ginlineOpt);
   maplecl::CopyIfEnabled(noInlineFuncList, opts::mpl2mpl::noInlineFunc);
+  maplecl::CopyIfEnabled(noIpaCloneFuncList, opts::mpl2mpl::noIpaCloneFunc);
   maplecl::CopyIfEnabled(importFileList, opts::mpl2mpl::importFileList);
+  maplecl::CopyIfEnabled(inlineMpltDir, opts::inlineMpltDir);
+  maplecl::CopyIfEnabled(ignorePreferInline, opts::mpl2mpl::ignorePreferInline);
   maplecl::CopyIfEnabled(numOfCloneVersions, opts::mpl2mpl::numOfCloneVersions);
   maplecl::CopyIfEnabled(numOfImpExprLowBound, opts::mpl2mpl::numOfImpExprLowBound);
   maplecl::CopyIfEnabled(numOfImpExprHighBound, opts::mpl2mpl::numOfImpExprHighBound);
@@ -214,6 +223,7 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(numOfCallSiteUpBound, opts::mpl2mpl::numOfCallSiteUpBound);
   maplecl::CopyIfEnabled(numOfConstpropValue, opts::mpl2mpl::numOfConstpropValue);
   maplecl::CopyIfEnabled(useCrossModuleInline, opts::mpl2mpl::crossModuleInline);
+  maplecl::CopyIfEnabled(importInlineMplt, opts::importMpltInline);
   maplecl::CopyIfEnabled(inlineSmallFunctionThreshold, opts::mpl2mpl::inlineSmallFunctionThreshold);
   maplecl::CopyIfEnabled(inlineHotFunctionThreshold, opts::mpl2mpl::inlineHotFunctionThreshold);
   maplecl::CopyIfEnabled(inlineRecursiveFunctionThreshold, opts::mpl2mpl::inlineRecursiveFunctionThreshold);
@@ -221,6 +231,8 @@ bool Options::SolveOptions(bool isDebug) const {
   maplecl::CopyIfEnabled(inlineModuleGrowth, opts::mpl2mpl::inlineModuleGrow);
   maplecl::CopyIfEnabled(inlineColdFunctionThreshold, opts::mpl2mpl::inlineColdFuncThresh);
   maplecl::CopyIfEnabled(respectAlwaysInline, opts::mpl2mpl::respectAlwaysInline);
+  maplecl::CopyIfEnabled(symbolInterposition, opts::mpl2mpl::symbolInterposition);
+  maplecl::CopyIfEnabled(ignoreHotAttr, opts::mpl2mpl::ignoreHotAttr);
 
   maplecl::CopyIfEnabled(inlineToAllCallers, opts::mpl2mpl::inlineToAllCallers);
   maplecl::CopyIfEnabled(ginlineMaxNondeclaredInlineCallee, opts::mpl2mpl::ginlineMaxNondeclaredInlineCallee);

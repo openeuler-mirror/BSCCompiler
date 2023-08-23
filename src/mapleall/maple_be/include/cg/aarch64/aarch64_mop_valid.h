@@ -29,22 +29,32 @@ inline bool StrLdr8Valid(Operand *o) {
 
 // Immediate verification for half word from/to memory. simm: -256 ~ 255; pimm: 0 ~ 8190, multiple of 2.
 inline bool StrLdr16Valid(Operand *o) {
-  if (static_cast<MemOperand*>(o)->GetAddrMode() == MemOperand::kLo12Li) {
-    return (static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o)) & static_cast<int64>(k1BitSize)) ==
-           static_cast<int64>(k0BitSize);
+  MemOperand *memOpnd = static_cast<MemOperand*>(o);
+  if (memOpnd->GetAddrMode() == MemOperand::kLo12Li) {
+    uint8 symAlign = 0;
+    const MIRSymbol *sym = memOpnd->GetSymbol();
+    if (sym && sym->IsConst() && !sym->NeedGOT(CGOptions::IsPIC(), CGOptions::IsPIE())) {
+      symAlign = 1U << sym->GetSymbolAlign(CGOptions::IsArm64ilp32());
+    }
+    return ((symAlign + static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o))) & static_cast<int64>(k1BitSize)) ==
+        static_cast<int64>(k0BitSize);
   }
-  return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k1ByteSize,
-                                   static_cast<MemOperand *>(o)->IsIntactIndexed());
+  return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k1ByteSize, memOpnd->IsIntactIndexed());
 }
 
 // Immediate verification for a word from/to memory. simm: -256 ~ 255; pimm: 0 ~ 16380, multiple of 4.
 inline bool StrLdr32Valid(Operand *o) {
-  if (static_cast<MemOperand*>(o)->GetAddrMode() == MemOperand::kLo12Li) {
-    return (static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o)) & static_cast<int64>(k3BitSize)) ==
-           static_cast<int64>(k0BitSize);
+  MemOperand *memOpnd = static_cast<MemOperand*>(o);
+  if (memOpnd->GetAddrMode() == MemOperand::kLo12Li) {
+    uint8 symAlign = 0;
+    const MIRSymbol *sym = memOpnd->GetSymbol();
+    if (sym && sym->IsConst() && !sym->NeedGOT(CGOptions::IsPIC(), CGOptions::IsPIE())) {
+      symAlign = 1U << sym->GetSymbolAlign(CGOptions::IsArm64ilp32());
+    }
+    return ((symAlign + static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o))) & static_cast<int64>(k3BitSize)) ==
+        static_cast<int64>(k0BitSize);
   }
-  return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k2ByteSize,
-                                   static_cast<MemOperand *>(o)->IsIntactIndexed());
+  return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k2ByteSize, memOpnd->IsIntactIndexed());
 }
 
 // Immediate verification: value range -256 ~ 252, multiple of 4.
@@ -58,12 +68,17 @@ inline bool StrLdr32PairValid(Operand *o) {
 
 // Immediate verification for 2 words from/to memory. simm: -256 ~ 255; pimm: 0 ~ 32760, multiple of 8.
 inline bool StrLdr64Valid(Operand *o) {
-  if (static_cast<MemOperand*>(o)->GetAddrMode() == MemOperand::kLo12Li) {
-    return (static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o)) & static_cast<int64>(k7BitSize)) ==
-           static_cast<int64>(k0BitSize);
+  MemOperand *memOpnd = static_cast<MemOperand*>(o);
+  if (memOpnd->GetAddrMode() == MemOperand::kLo12Li) {
+    uint8 symAlign = 0;
+    const MIRSymbol *sym = memOpnd->GetSymbol();
+    if (sym && sym->IsConst() && !sym->NeedGOT(CGOptions::IsPIC(), CGOptions::IsPIE())) {
+      symAlign = 1U << sym->GetSymbolAlign(CGOptions::IsArm64ilp32());
+    }
+    return ((symAlign + static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o))) & static_cast<int64>(k7BitSize)) ==
+        static_cast<int64>(k0BitSize);
   }
-  return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k3ByteSize,
-                                   static_cast<MemOperand *>(o)->IsIntactIndexed());
+  return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k3ByteSize, memOpnd->IsIntactIndexed());
 }
 
 // Immediate verification: value range -512 ~ 504, multiple of 8.
@@ -77,12 +92,17 @@ inline bool StrLdr64PairValid(Operand *o) {
 
 // Immediate verification for 4 words from/to memory. simm: -256 ~ 255; pimm: 0 ~ 65520, multiple of 16.
 inline bool StrLdr128Valid(Operand *o) {
-  if (static_cast<MemOperand*>(o)->GetAddrMode() == MemOperand::kLo12Li) {
-    return (static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o)) & static_cast<int64>(k15BitSize)) ==
-           static_cast<int64>(k0BitSize);
+  MemOperand *memOpnd = static_cast<MemOperand*>(o);
+  if (memOpnd->GetAddrMode() == MemOperand::kLo12Li) {
+    uint8 symAlign = 0;
+    const MIRSymbol *sym = memOpnd->GetSymbol();
+    if (sym && sym->IsConst() && !sym->NeedGOT(CGOptions::IsPIC(), CGOptions::IsPIE())) {
+      symAlign = 1U << sym->GetSymbolAlign(CGOptions::IsArm64ilp32());
+    }
+    return ((symAlign + static_cast<uint64>(AArch64isa::GetMemOpndOffsetValue(o))) & static_cast<int64>(k15BitSize)) ==
+        static_cast<int64>(k0BitSize);
   }
-  return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k4ByteSize,
-                                   static_cast<MemOperand *>(o)->IsIntactIndexed());
+  return StrLdrInsnSignedOfstValid(AArch64isa::GetMemOpndOffsetValue(o), k4ByteSize, memOpnd->IsIntactIndexed());
 }
 
 // Immediate verification: value range -1024 ~ 1008, multiple of 16.
@@ -441,6 +461,20 @@ inline bool MOP_xubfizrri6i6Valid(const MapleVector<Operand*> &opnds) {
       Lsb6BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
     bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ?
       Width6BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
+    return checkThird && checkFourth;
+  }
+}
+
+inline bool MOP_wsbfizrri5i5Valid(const MapleVector<Operand*> &opnds) {
+  if ((opnds[kInsnThirdOpnd] != nullptr) && (opnds[kInsnFourthOpnd] != nullptr)) {
+    int64 lsb = static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue();
+    int64 width = static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue();
+    return Lsb5BitValid(lsb) && Width5BitValid(width, lsb);
+  } else {
+    bool checkThird = (opnds[kInsnThirdOpnd] != nullptr) ?
+        Lsb5BitValid(static_cast<ImmOperand*>(opnds[kInsnThirdOpnd])->GetValue()) : true;
+    bool checkFourth = (opnds[kInsnFourthOpnd] != nullptr) ?
+        Width5BitOnlyValid(static_cast<ImmOperand*>(opnds[kInsnFourthOpnd])->GetValue()) : true;
     return checkThird && checkFourth;
   }
 }

@@ -502,6 +502,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt &meStmt, BaseNode *parent) {
       callnode->SetMeStmtID(callMeStmt->GetMeStmtId());
       preMeStmtExtensionMap[callnode->GetStmtID()] = pmeExt;
       callnode->SetEnclosingBlock(static_cast<BlockNode *>(parent));
+      callnode->CopyPragmas(callMeStmt->GetPragmas());
       return callnode;
     }
     case OP_icall:
@@ -897,7 +898,12 @@ uint32 PreMeEmitter::Raise2PreMeWhile(uint32 curJ, BlockNode *curBlk) {
   BlockNode *dobody = nullptr;
   StmtNode *loop = nullptr;
   ++curJ;
-  if (whileInfo->canConvertDoloop) {  // emit doloop
+  auto *lastMe = curbb->GetLastMe();
+  ASSERT_NOT_NULL(lastMe);
+  // Compare expr of doloop may be optimized into a const expr by Prop, resulting in validation of whileInfo.
+  // So we check condition expr here: only compare expr can be converted into a doloop.
+  bool isCondExprCmp = kOpcodeInfo.IsCompare(lastMe->GetOpnd(0)->GetOp());
+  if (whileInfo->canConvertDoloop && isCondExprCmp) {  // emit doloop
     auto *doloopNode = EmitPreMeDoloop(*curbb, *curBlk, *whileInfo);
     loop = doloopNode;
     dobody = doloopNode->GetDoBody();

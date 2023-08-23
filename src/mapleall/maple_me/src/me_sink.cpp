@@ -696,7 +696,7 @@ bool MeSink::ExprsHasSameValue(const MeExpr *exprA, const MeExpr *exprB) {
 }
 
 MeExpr *MeSink::ConstructExpr(MeExpr *expr, const BB *predBB, const BB *phiBB) {
-  if (expr == nullptr) {
+  if (expr == nullptr || expr->IsVolatile()) {
     return nullptr;
   }
 

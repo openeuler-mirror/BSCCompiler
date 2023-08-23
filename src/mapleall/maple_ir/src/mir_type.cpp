@@ -601,11 +601,17 @@ void TypeAttrs::DumpAttributes() const {
 #undef NOCONTENT_ATTR
 #undef TYPE_ATTR
 // dump attr with content
+  if (GetAttr(ATTR_type_alias) && GetTypeAlias() != "") {
+    LogInfo::MapleLogger() << " type_alias(" << GetTypeAlias() << ")";
+  }
   if (attrAlign != 0) {
     LogInfo::MapleLogger() << " align(" << GetAlign() << ")";
   }
   if (GetAttr(ATTR_pack) && GetPack() != 0) {
     LogInfo::MapleLogger() << " pack(" << GetPack() << ")";
+  }
+  if (attrTypeAlign != 0) {
+    LogInfo::MapleLogger() << " type_align(" << GetTypeAlign() << ")";
   }
 }
 
@@ -622,6 +628,9 @@ void FieldAttrs::DumpAttributes() const {
 #undef NOCONTENT_ATTR
 #undef FIELD_ATTR
 // dump attr with content
+  if (attrTypeAlign != 0) {
+    LogInfo::MapleLogger() << " type_align(" << GetTypeAlign() << ")";
+  }
   if (attrAlign != 0) {
     LogInfo::MapleLogger() << " align(" << GetAlign() << ")";
   }
@@ -839,6 +848,9 @@ size_t MIRArrayType::GetSize() const {
     numelems *= sizeArray[i];
   }
   size = elemsize * numelems;
+  if (GetElemType()->GetTypeAttrs().IsTypedef()) {
+    size = RoundUp(size, GetElemType()->GetAlign());
+  }
   return size;
 }
 
@@ -1585,6 +1597,10 @@ bool MIRType::EqualTo(const MIRType &mirType) const {
   return typeKind == mirType.typeKind && primType == mirType.primType;
 }
 
+bool MIRType::EqualToWithAttr(const MIRType &mirType) const {
+  return (EqualTo(mirType) &&
+         (typeAttrs.GetAttr(maple::AttrKind::ATTR_const) == mirType.typeAttrs.GetAttr(maple::AttrKind::ATTR_const)));
+}
 bool MIRPtrType::EqualTo(const MIRType &type) const {
   if (typeKind != type.GetKind() || GetPrimType() != type.GetPrimType()) {
     return false;
@@ -2380,9 +2396,8 @@ uint32 MIRStructType::NumberOfFieldIDs() const {
 
 TypeAttrs FieldAttrs::ConvertToTypeAttrs() const {
   TypeAttrs attr;
-  constexpr uint32 maxAttrNum = 64;
-  for (uint32 i = 0; i < maxAttrNum; ++i) {
-    if ((attrFlag & (1ULL << i)) == 0) {
+  for (uint32 i = 0; i < kFieldAttrNum; ++i) {
+    if (attrFlag[i] == 0) {
       continue;
     }
     auto attrKind = static_cast<FieldAttrKind>(i);
