@@ -108,11 +108,10 @@ maplecl::Option<bool> ubaa({"--ubaa"},
     "  --no-ubaa                   \tDisable UnionBased alias analysis\n",
     {meCategory}, maplecl::DisableWith("--no-ubaa"));
 
-maplecl::Option<bool> tbaa({"-fstrict-aliasing", "--tbaa"},
-    "  -fstrict-aliasing/--tbaa    \tEnable type-based alias analysis\n"
+maplecl::Option<bool> tbaa({"--tbaa"},
+    "  --tbaa                      \tEnable type-based alias analysis\n"
     "  --no-tbaa                   \tDisable type-based alias analysis\n",
-    {driverCategory, meCategory}, kOptCommon | kOptOptimization,
-    maplecl::DisableEvery({"-fno-strict-aliasing", "--no-tbaa"}));
+    {driverCategory, meCategory},  maplecl::DisableWith("--no-tbaa"), maplecl::DisableWith("-fno-strict-aliasing"));
 
 maplecl::Option<bool> ddaa({"--ddaa"},
     "  --ddaa                      \tEnable demand driven alias analysis\n"
@@ -341,7 +340,7 @@ maplecl::Option<bool> strengthreduction({"--strengthreduction"},
 maplecl::Option<bool> sradd({"--sradd"},
     "  --sradd                     \tPerform strength reduction for OP_add/sub\n"
     "  --no-sradd                  \tDisable strength reduction for OP_add/sub\n",
-    {driverCategory, meCategory}, kOptMaple, maplecl::DisableWith("--no-sradd"));
+    {driverCategory, meCategory},  maplecl::DisableWith("--no-sradd"));
 
 maplecl::Option<bool> lftr({"--lftr"},
     "  --lftr                      \tPerform linear function test replacement\n"

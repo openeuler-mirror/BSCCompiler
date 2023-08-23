@@ -101,10 +101,6 @@ bool X64InsnVisitor::IsCompareAndBranchInsn(const Insn &insn) const {
   return false;
 }
 
-bool X64InsnVisitor::IsTestAndBranchInsn(const Insn &insn) const {
-  return false;
-}
-
 bool X64InsnVisitor::IsAddOrSubInsn(const Insn &insn) const {
   switch (insn.GetMachineOpcode()) {
     case x64::MOP_addb_r_r:

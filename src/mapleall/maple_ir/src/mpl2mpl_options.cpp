@@ -70,25 +70,24 @@ maplecl::Option<bool> inlineWithProfile({"--inline-with-profile"},
 maplecl::Option<bool> inlineOpt({"--inline"},
     "  --inline                    \tEnable function inlining\n"
     "  --no-inline                 \tDisable function inlining\n",
-    {driverCategory, mpl2mplCategory}, kOptMaple, maplecl::DisableEvery({"-fno-inline", "--no-inline"}));
+    {driverCategory, mpl2mplCategory},
+                           maplecl::DisableEvery({"-fno-inline", "--no-inline"}));
 
 maplecl::Option<bool> ipaClone({"--ipa-clone"},
     "  --ipa-clone                 \tEnable ipa constant_prop and clone\n"
     "  --no-ipa-clone              \tDisable ipa constant_prop and clone\n",
-    {mpl2mplCategory},  maplecl::DisableWith("--no-ipa-clone"));
+    {mpl2mplCategory},
+                           maplecl::DisableWith("--no-ipa-clone"));
 
 maplecl::Option<bool> ginlineOpt({"--ginline"},
     "  --ginline                   \tEnable greedy inline\n"
     "  --no-ginline                \tDisable greedy inline\n",
-    {mpl2mplCategory},  maplecl::DisableWith("--no-ginline"));
+    {mpl2mplCategory},
+                           maplecl::DisableWith("--no-ginline"));
 
 maplecl::Option<std::string> noInlineFunc({"--no-inlinefunclist"},
     "  --no-inlinefunclist=list    \tDo not inline function in this list\n",
-    {mpl2mplCategory, driverCategory}, kOptMaple);
-
-maplecl::Option<std::string> noIpaCloneFunc({"--no-ipaclone-funclist"},
-    "  --no-ipaclone-funclist=list    \tDo not inline function in this list\n",
-    {mpl2mplCategory, driverCategory}, kOptMaple);
+    {mpl2mplCategory});
 
 maplecl::Option<std::string> importFileList({"--importfilelist"},
     "  --importfilelist=list       \tImport there files to do cross module analysis\n",
@@ -97,16 +96,8 @@ maplecl::Option<std::string> importFileList({"--importfilelist"},
 maplecl::Option<bool> crossModuleInline({"--cross-module-inline"},
     "  --cross-module-inline       \tEnable cross-module inlining\n"
     "  --no-cross-module-inline    \tDisable cross-module inlining\n",
-    {mpl2mplCategory}, maplecl::DisableWith("--no-cross-module-inline"));
-
-maplecl::Option<std::string> inlineMpltDir({"--inlinempltdir"},
-    "  --inlinempltdir=list       \tWhere to find the inline mplt files to do cross module inline\n",
-    {mpl2mplCategory});
-
-maplecl::Option<bool> importInlineMplt({"--importinlinemplt"},
-    "  --importinlinemplt       \tImport inline mplt files to do cross module inline\n"
-    "  --no-importinlinemplt    \tDo not import inline mply files\n",
-    {mpl2mplCategory}, maplecl::DisableWith("--no-importinlinemplt"));
+    {mpl2mplCategory},
+                                   maplecl::DisableWith("--no-cross-module-inline"));
 
 maplecl::Option<uint32_t> inlineSmallFunctionThreshold({"--inline-small-function-threshold"},
     "  --inline-small-function-threshold=15  \tThreshold for inlining small function\n",
@@ -136,12 +127,6 @@ maplecl::Option<bool> respectAlwaysInline({"--respect-always-inline"},
     "  --respect-always-inline     \tEnable always_inline\n"
     "  --no-respect-always-inline  \tDisable always_inline\n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-respect-always-inline"));
-
-maplecl::Option<bool> ignoreHotAttr({"--ignore-hot-attr"},
-    "  --ignore-hot-attr          \tIgnore source code hot attribute\n"
-    "  --no-ignore-hot-attr       \tDo not ignore source code hot attribute\n",
-    {mpl2mplCategory},
-                           maplecl::DisableWith("--no-ignore-hot-attr"));
 
 maplecl::Option<uint32_t> ginlineMaxNondeclaredInlineCallee({"--ginline-max-nondeclared-inline-callee"},
     ""
@@ -209,12 +194,14 @@ maplecl::Option<bool> nativeWrapper({"--nativewrapper"},
     {mpl2mplCategory}, maplecl::DisableWith("--no-nativewrapper"));
 
 maplecl::Option<bool> regNativeDynamicOnly({"--regnative-dynamic-only"},
-    "  --regnative-dynamic-only    \tOnly Generate dynamic register code, Report Fatal Msg if no implemented\n"
+    "  --regnative-dynamic-only    \tOnly Generate dynamic register code,"
+    " Report Fatal Msg if no implemented\n"
     "  --no-regnative-dynamic-only \tDisable regnative-dynamic-only\n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-regnative-dynamic-only"));
 
 maplecl::Option<std::string> staticBindingList({"--static-binding-list"},
-    "  --static-bindig-list        \tOnly Generate static binding function in file configure list\n"
+    "  --static-bindig-list        \tOnly Generate static binding"
+    " function in file configure list\n"
     "                              \t--static-bindig-list=file\n",
     {mpl2mplCategory});
 
@@ -251,7 +238,8 @@ maplecl::Option<bool> userc({"--userc"},
     {mpl2mplCategory}, maplecl::DisableWith("--no-userc"));
 
 maplecl::Option<bool> strictNaiveRc({"--strict-naiverc"},
-    "  --strict-naiverc            \tStrict Naive RC mode, assume no unsafe multi-thread read/write racing\n"
+    "  --strict-naiverc            \tStrict Naive RC mode,"
+    " assume no unsafe multi-thread read/write racing\n"
     "  --no-strict-naiverc         \tDisable strict-naiverc\n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-strict-naiverc"));
 
@@ -277,7 +265,7 @@ maplecl::Option<bool> os({"-Os", "--Os"},
     {mpl2mplCategory});
 
 maplecl::Option<std::string> criticalNative({"--CriticalNative"},
-    "  --CriticalNative            \tFor CriticalNative optimization.\n"
+    "  --CriticalNative            \tFor CriticalNative optimization\n"
     "                              \t--CriticalNative=list_file\n",
     {mpl2mplCategory});
 
@@ -317,11 +305,11 @@ maplecl::Option<bool> mapleLinkerNolocal({"--maplelinker-nolocal"},
     {mpl2mplCategory}, maplecl::DisableWith("--no-maplelinker-nolocal"));
 
 maplecl::Option<uint32_t> buildApp({"--build-app"},
-    "  --build-app[=0,1,2]         \tBuild the app dex 0:off, 1:method1, 2:method2, ignore:method1\n",
+    "  --build-app[=0,1,2]         \tbuild the app dex 0:off, 1:method1, 2:method2, ignore:method1\n",
     {mpl2mplCategory}, maplecl::kOptionalValue, maplecl::Init(1));
 
 maplecl::Option<bool> partialAot({"--partialAot"},
-    "  --partialAot                \tEnerate the detailed information for the partialAot\n",
+    "  --partialAot                \tenerate the detailed information for the partialAot\n",
     {mpl2mplCategory}, maplecl::kOptionalValue);
 
 maplecl::Option<uint32_t> decoupleInit({"--decouple-init"},
@@ -363,8 +351,8 @@ maplecl::Option<std::string> dumpDevirtual({"--dump-devirtual-list"},
     {mpl2mplCategory});
 
 maplecl::Option<std::string> readDevirtual({"--read-devirtual-list"},
-    "  --read-devirtual-list       \tRead in candidates of devirtualization from a specified file and "
-    "perform devirtualizatin\n"
+    "  --read-devirtual-list       \tRead in candidates of devirtualization from\n"
+    "                              \t a specified file and perform devirtualizatin\n"
     "                              \t--read-devirtual-list=\n",
     {mpl2mplCategory});
 
@@ -384,9 +372,9 @@ maplecl::Option<std::string> checkClInvocation({"--check_cl_invocation"},
     {mpl2mplCategory});
 
 maplecl::Option<bool> dumpClInvocation({"--dump_cl_invocation"},
-    "  --dump_cl_invocation        \tFor classloader invocation dumping. Work only if already "
-    "set --check_cl_invocation.\n"
-    "  --no-dump_cl_invocation     \tDisable dump_cl_invocation.\n",
+    "  --dump_cl_invocation        \tFor classloader invocation dumping.\n"
+    "                              \tWork only if already set --check_cl_invocation\n"
+    "  --no-dump_cl_invocation     \tDisable dump_cl_invocation\n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-dump_cl_invocation"));
 
 maplecl::Option<uint32_t> warning({"--warning"},
@@ -394,47 +382,47 @@ maplecl::Option<uint32_t> warning({"--warning"},
     {mpl2mplCategory});
 
 maplecl::Option<bool> lazyBinding({"--lazy-binding"},
-    "  --lazy-binding              \tBind class symbols lazily[default off].\n"
-    "  --no-lazy-binding           \tDon't bind class symbols lazily.\n",
+    "  --lazy-binding              \tBind class symbols lazily[default off]\n"
+    "  --no-lazy-binding           \tDon't bind class symbols lazily\n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-lazy-binding"));
 
 maplecl::Option<bool> hotFix({"--hot-fix"},
-    "  --hot-fix                   \tOpen for App hot fix[default off].\n"
-    "  --no-hot-fix                \tDon't open for App hot fix.\n",
+    "  --hot-fix                   \tOpen for App hot fix[default off]\n"
+    "  --no-hot-fix                \tDon't open for App hot fix\n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-hot-fix"));
 
 maplecl::Option<bool> compactMeta({"--compact-meta"},
-    "  --compact-meta              \tEnable compact method and field meta.\n"
-    "  --no-compact-meta           \tDisable compact method and field meta.\n",
+    "  --compact-meta              \tEnable compact method and field meta\n"
+    "  --no-compact-meta           \tDisable compact method and field meta\n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-compact-meta"));
 
 maplecl::Option<bool> genPGOReport({"--gen-pgo-report"},
-    "  --gen-pgo-report            \tDisplay pgo report.\n"
+    "  --gen-pgo-report            \tDisplay pgo report\n"
     "  --no-gen-pgo-report         \n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-gen-pgo-report"));
 
 maplecl::Option<uint32_t> inlineCache({"--inlineCache"},
-    "  --inlineCache               \tbuild inlineCache 0,1,2,3.\n",
+    "  --inlineCache               \tbuild inlineCache 0,1,2,3\n",
     {mpl2mplCategory}, maplecl::kOptionalValue, maplecl::Init(0));
 
 maplecl::Option<bool> noComment({"--no-comment"},
-    "  --no-comment                \tbuild inlineCache 0:off, 1:open.\n",
+    "  --no-comment                \tbuild inlineCache 0:off, 1:open\n",
     {mpl2mplCategory});
 
 maplecl::Option<bool> rmNouseFunc({"--rmnousefunc"},
-    "  --rmnousefunc               \tEnable remove no-used file-static function.\n"
-    "  --no-rmnousefunc            \tDisable remove no-used file-static function.\n",
+    "  --rmnousefunc               \tEnable remove no-used file-static function\n"
+    "  --no-rmnousefunc            \tDisable remove no-used file-static function\n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-rmnousefunc"));
 
 maplecl::Option<bool> sideEffect({"--side-effect"},
-    "  --side-effect               \tIPA: analysis side-effect.\n"
+    "  --side-effect               \tIPA: analysis side-effect\n"
     "  --no-side-effect            \n",
     {mpl2mplCategory}, maplecl::DisableWith("--no-side-effect"));
 
 maplecl::Option<bool> sideEffectWhiteList({"--side-effect-white-list"},
-    "  --side-effect-white-list    \tIPA side-effect: using function white list.\n"
+    "  --side-effect-white-list    \tIPA side-effect: using function white list\n"
     "  --side-effect-no-white-list \n",
-    {driverCategory, mpl2mplCategory}, kOptMaple, maplecl::DisableWith("--side-effect-no-white-list"));
+    {driverCategory, mpl2mplCategory}, maplecl::DisableWith("--side-effect-no-white-list"));
 
 maplecl::Option<bool> dumpIPA({"--dump-ipa"},
     "  --dump-ipa                  \tIPA: dump\n"

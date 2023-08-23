@@ -16,12 +16,10 @@
 #include <cstring>
 #include <climits>
 #include <fstream>
-#include <random>
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include "mpl_logging.h"
-#include "securec.h"
 #include "file_utils.h"
 
 #ifdef _WIN32
@@ -48,15 +46,6 @@ const std::string kFileSeperatorStr = kFileSeperatorWindowsStyleStr;
 const std::string kFileSeperatorStr = kFileSeperatorLinuxStyleStr;
 #endif
 
-const static TypeInfo kTypeInfos[] = {
-#define TYPE(ID, SUPPORT, ...) \
-  {InputFileType::kFileType##ID, SUPPORT,  {__VA_ARGS__}},
-#include "type.def"
-#undef TYPE
-};
-const char kWhitespaceChar = ' ';
-const std::string kWhitespaceStr = std::string(1, kWhitespaceChar);
-
 std::string FileUtils::SafeGetenv(const char *envVar) {
   const char *tmpEnvPtr = std::getenv(envVar);
   if (tmpEnvPtr == nullptr) {
@@ -64,20 +53,6 @@ std::string FileUtils::SafeGetenv(const char *envVar) {
   }
   std::string tmpStr(tmpEnvPtr);
   return tmpStr;
-}
-
-std::string FileUtils::ExecuteShell(const char *cmd, std::string workspace) {
-  if (!workspace.empty()) {
-    char buffer[PATH_MAX];
-    CHECK_FATAL(getcwd(buffer, sizeof(buffer)) != nullptr, "get current path failed");
-    CHECK_FATAL(chdir(workspace.c_str()) == 0, "change workspace failed");
-    workspace = buffer;
-  }
-  std::string result = ExecuteShell(cmd);
-  if (!workspace.empty()) {
-    CHECK_FATAL(chdir(workspace.c_str()) == 0, "change workspace failed");
-  }
-  return result;
 }
 
 std::string FileUtils::ExecuteShell(const char *cmd) {
@@ -132,45 +107,21 @@ std::string FileUtils::GetTmpFolderPath() const {
   std::string tmp = "\n";
   size_t index = path.find(tmp) == std::string::npos ? path.length() : path.find(tmp);
   path = path.substr(0, index);
-  return path + kFileSeperatorStr;
+  return path + "/";
 }
 
-void FileUtils::Mkdirs(const std::string &path, mode_t mode) {
-  size_t pos = 0;
-  while ((pos = path.find_first_of(kFileSeperatorStr, pos + 1)) != std::string::npos) {
-    std::string dir = path.substr(0, pos);
-    if (access(dir.c_str(), W_OK | R_OK) != 0) {
-      CHECK_FATAL(mkdir(dir.c_str(), mode) == 0, "Failed to create tmp folder");
-    }
-  }
-}
-
-std::string FileUtils::GetOutPutDirInTmp(const std::string &inputFile) {
-  std::string tmpDir = FileUtils::GetInstance().GetTmpFolder();
-  if (inputFile.find(kFileSeperatorStr) == std::string::npos) {
-    return tmpDir;
-  }
-  tmpDir.pop_back();
-  std::string realFilePath = FileUtils::GetRealPath(inputFile);
-  std::string fileDir = StringUtils::GetStrBeforeLast(realFilePath, kFileSeperatorStr, true) + kFileSeperatorStr;
-  std::string dirToMake = tmpDir + fileDir;
-  mode_t mode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
-  Mkdirs(dirToMake, mode);
-  return dirToMake;
-}
-
-std::string FileUtils::GetRealPath(const std::string &filePath, const bool isCheck) {
-  if (filePath.size() > PATH_MAX) {
-    CHECK_FATAL(false, "invalid file path");
-  }
+std::string FileUtils::GetRealPath(const std::string &filePath) {
 #ifdef _WIN32
   char *path = nullptr;
-  bool isReal = PathCanonicalize(path, filePath.c_str();
+  if (filePath.size() > PATH_MAX  || !PathCanonicalize(path, filePath.c_str())) {
+    CHECK_FATAL(false, "invalid file path");
+  }
 #else
   char path[PATH_MAX] = {0};
-  bool isReal = realpath(filePath.c_str(), path) != nullptr;
+  if (filePath.size() > PATH_MAX  || realpath(filePath.c_str(), path) == nullptr) {
+    CHECK_FATAL(false, "invalid file path");
+  }
 #endif
-  CHECK_FATAL(!(isCheck && !isReal), "invalid file path %s", filePath.c_str());
   std::string result(path, path + strlen(path));
   return result;
 }
@@ -191,39 +142,48 @@ std::string FileUtils::GetFileExtension(const std::string &filePath) {
   return fileExtension;
 }
 
-InputFileType FileUtils::GetFileTypeByExtension(const std::string &extensionName) {
-  for (auto item : kTypeInfos) {
-    for (auto ext : item.tmpSuffix) {
-      if (ext == extensionName) {
-        return item.fileType;
-      }
-    }
-  }
-  return InputFileType::kFileTypeNone;
-}
-
 InputFileType FileUtils::GetFileType(const std::string &filePath) {
+  InputFileType fileType = InputFileType::kFileTypeNone;
   std::string extensionName = GetFileExtension(filePath);
-  InputFileType type = GetFileTypeByExtension(extensionName);
-  if (type == InputFileType::kFileTypeObj) {
-    type = GetFileTypeByMagicNumber(filePath);
-  } else if (type == InputFileType::kFileTypeMpl || type == InputFileType::kFileTypeBpl) {
+  if (extensionName == "class") {
+    fileType = InputFileType::kFileTypeClass;
+  } else if (extensionName == "dex") {
+    fileType = InputFileType::kFileTypeDex;
+  } else if (extensionName == "c") {
+    fileType = InputFileType::kFileTypeC;
+  } else if (extensionName == "cpp") {
+    fileType = InputFileType::kFileTypeCpp;
+  } else if (extensionName == "ast") {
+    fileType = InputFileType::kFileTypeAst;
+  } else if (extensionName == "jar") {
+    fileType = InputFileType::kFileTypeJar;
+  } else if (extensionName == "mpl" || extensionName == "bpl") {
     if (filePath.find("VtableImpl") == std::string::npos) {
       if (filePath.find(".me.mpl") != std::string::npos) {
-        type = InputFileType::kFileTypeMeMpl;
+        fileType = InputFileType::kFileTypeMeMpl;
       } else {
-        type = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
+        fileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
       }
     } else {
-      type = InputFileType::kFileTypeVtableImplMpl;
+      fileType = InputFileType::kFileTypeVtableImplMpl;
     }
-  } else if (type == InputFileType::kFileTypeNone) {
-    std::string regexPattern = R"(\.(so|a)+((?:\.\d+)*)$)";
-    if (StringUtils::IsMatchAtEnd(filePath, regexPattern)) {
-      type = InputFileType::kFileTypeLib;
-    }
+  } else if (extensionName == "s" || extensionName == "S") {
+    fileType = InputFileType::kFileTypeS;
+  } else if (extensionName == "o") {
+    fileType = GetFileTypeByMagicNumber(filePath);
+  } else if (extensionName == "mbc") {
+    fileType = InputFileType::kFileTypeMbc;
+  } else if (extensionName == "lmbc") {
+    fileType = InputFileType::kFileTypeLmbc;
+  } else if (extensionName == "h") {
+    fileType = InputFileType::kFileTypeH;
+  } else if (extensionName == "i") {
+    fileType = InputFileType::kFileTypeI;
+  } else if (extensionName == "oast") {
+    fileType = InputFileType::kFileTypeOast;
   }
-  return type;
+
+  return fileType;
 }
 
 std::string FileUtils::GetExecutable() {
@@ -289,11 +249,8 @@ bool FileUtils::CreateFile(const std::string &file) {
   }
   std::ofstream fileCreate;
   fileCreate.open(file);
-  if (!fileCreate) {
-    return false;
-  }
   fileCreate.close();
-  return true;
+  return IsFileExists(file);
 }
 
 std::string FileUtils::AppendMapleRootIfNeeded(bool needRootPath, const std::string &path,
@@ -327,41 +284,8 @@ InputFileType FileUtils::GetFileTypeByMagicNumber(const std::string &pathName) {
   int length = static_cast<int>(sizeof(uint32));
   (void)file.read(reinterpret_cast<char*>(&magic), length);
   file.close();
-  switch (magic) {
-    case kMagicAST:
-      return InputFileType::kFileTypeOast;
-    case kMagicELF:
-      return InputFileType::kFileTypeObj;
-    default:
-      return InputFileType::kFileTypeNone;
-  }
-}
-
-bool FileUtils::IsSupportFileType(InputFileType type) {
-  for (auto item : kTypeInfos) {
-    if (item.fileType == type) {
-      return item.support;
-    }
-  }
-  return true;
-}
-
-void FileUtils::GetFileNames(const std::string path, std::vector<std::string> &filenames) {
-  DIR *pDir = nullptr;
-  struct dirent *ptr;
-  if (!(pDir = opendir(path.c_str()))) {
-    return;
-  }
-  struct stat s;
-  while ((ptr = readdir(pDir)) != nullptr) {
-    std::string filename = path + ptr->d_name;
-    if (stat(filename.c_str(), &s) == 0) {
-      if ((s.st_mode & S_IFREG) != 0) {
-        filenames.push_back(filename);
-      }
-    }
-  }
-  CHECK_FATAL(closedir(pDir) == 0, "close dir failed");
+  return magic == kMagicAST ? InputFileType::kFileTypeOast : magic == kMagicELF ? InputFileType::kFileTypeObj :
+                                                                                  InputFileType::kFileTypeNone;
 }
 
 bool FileUtils::GetAstFromLib(const std::string libPath, std::vector<std::string> &astInputs) {
@@ -377,18 +301,20 @@ bool FileUtils::GetAstFromLib(const std::string libPath, std::vector<std::string
     binAr = result;
   }
   std::string realLibPath = GetRealPath(libPath);
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::string tmpLibFolder = GetInstance().GetTmpFolder() + std::to_string(gen()) + kFileSeperatorStr;
-  mode_t mode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
-  Mkdirs(tmpLibFolder, mode);
-  cmd = binAr + " x " + realLibPath;
-  CHECK_FATAL(ExecuteShell(cmd.c_str(), tmpLibFolder) == "", "Failed to execute %s.", cmd.c_str());
-  std::vector<std::string> filenames;
-  GetFileNames(tmpLibFolder, filenames);
-  for (const auto &file : filenames) {
-    if (GetFileTypeByMagicNumber(file) == InputFileType::kFileTypeOast) {
-      astInputs.push_back(file);
+  cmd = binAr + " t " + realLibPath;
+  std::vector<std::string> astVec;
+  result = ExecuteShell(cmd.c_str());
+  StringUtils::Split(result, astVec, '\n');
+  for (auto tmp : astVec) {
+    if (tmp.empty()) {
+      continue;
+    }
+    cmd = binAr + " x " + realLibPath + " " + tmp;
+    CHECK_FATAL((ExecuteShell(cmd.c_str()) == ""), "Failed to execute %s.", cmd.c_str());
+    result = GetFileExtension(GetRealPath(tmp));
+    if (result == "o" && GetFileTypeByMagicNumber(GetRealPath(tmp)) == InputFileType::kFileTypeOast) {
+      cmd = binAr + " d " + realLibPath + " " + tmp;
+      astInputs.push_back(GetRealPath(tmp));
     } else {
       elfFlag = true;
     }
@@ -441,107 +367,6 @@ bool FileUtils::Rmdirs(const std::string &dirPath) {
     return false;
   }
   return true;
-}
-
-std::string FileUtils::GetCurDirPath() {
-  char *cwd = get_current_dir_name();
-  std::string path(cwd);
-  free(cwd);
-  cwd = nullptr;
-  return path;
-}
-
-static constexpr std::streamsize kASTHeaderSize = 4;
-static constexpr std::streamsize kBlockSize = 4;
-static constexpr std::streamsize kWordSize = 4;
-static constexpr std::streamsize koptStringIdSize = 3;
-static constexpr std::streamsize kmagicNumberSize = 4;
-static constexpr std::streamsize kControlBlockHeadSize = 8;
-static constexpr std::streamsize kOptStringHeader = 5;
-static constexpr std::streamsize kOptStringInfoSize = 4;
-static constexpr std::streamsize kOptStringId = 0x5442;
-static constexpr char kClangASTMagicNum[] = "CPCH";
-size_t FileUtils::GetIntegerFromMem(std::ifstream &fs, char *buffer, std::streamsize bufferSize,
-    bool isNeedChkOptStrId) {
-  (void)fs.read(buffer, bufferSize);
-  if (isNeedChkOptStrId) {
-    // we use optStringId first byte and second byte with last byte low 3bits(0x7U) to compare
-    buffer[bufferSize - 1] = static_cast<uint8_t>(buffer[bufferSize - 1]) & 0x7U;
-  }
-  size_t integerSize = 0;
-  errno_t ret = memcpy_s(&integerSize, sizeof(integerSize), buffer, static_cast<size_t>(bufferSize));
-  CHECK_FATAL(ret == EOK, "get Integer From Memory failed");
-  return integerSize;
-}
-
-void FileUtils::GetOptString(std::ifstream &fs, std::string &optString) {
-  (void)fs.seekg(kOptStringHeader, std::ios::cur);
-  char optStringInfo[kOptStringInfoSize];
-  std::streamsize index = kOptStringInfoSize;
-  while (index == kOptStringInfoSize) {
-    (void)fs.read(optStringInfo, static_cast<std::streamsize>(sizeof(optStringInfo)));
-    index = 0;
-    while (optStringInfo[index] != '\0' && index < kOptStringInfoSize) {
-      optString += optStringInfo[index];
-      index++;
-    }
-  }
-}
-
-std::string FileUtils::GetClangAstOptString(const std::string astFilePath) {
-  std::string optString;
-  std::ifstream fs(astFilePath);
-  if (!fs.is_open()) {
-    return "";
-  }
-  char magicNumber[kmagicNumberSize];
-  (void)fs.read(magicNumber, static_cast<std::streamsize>(sizeof(magicNumber)));
-  if (!memcmp(magicNumber, kClangASTMagicNum, sizeof(magicNumber))) {
-    (void)fs.seekg(kASTHeaderSize, std::ios::cur);
-    char blockInfoBlockSizeInfo[kBlockSize];
-    size_t blockInfoBlockSize = GetIntegerFromMem(fs, blockInfoBlockSizeInfo, kBlockSize, false);
-    (void)fs.seekg(static_cast<std::streamsize>(blockInfoBlockSize * kWordSize) + kControlBlockHeadSize, std::ios::cur);
-    char optStringId[koptStringIdSize];
-    std::streamsize optStringIdInfo =
-        static_cast<std::streamsize>(GetIntegerFromMem(fs, optStringId, koptStringIdSize, true));
-    if (optStringIdInfo == kOptStringId) {
-      GetOptString(fs, optString);
-    }
-  }
-
-  fs.close();
-  return optString;
-}
-
-// Just read a line from the file. It doesn't do anything more.
-// The reason for this wrapper function is to provide a single entry to
-// read file. Thus we can easily manipulate the line number, column number,
-// cursor, etc.
-// Returns true : if file is good()
-//        false : if file is not good()
-bool FileReader::ReadLine() {
-  (void)std::getline(mDefFile, mCurLine);
-  mLineNo++;
-  if (mDefFile.good()) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-std::string FileReader::GetLine(const std::string keyWord) {
-  while (ReadLine()) {
-    if (mCurLine.length() == 0) {
-      continue;
-    }
-    if (mCurLine.find(keyWord) != std::string::npos) {
-      return StringUtils::TrimWhitespace(mCurLine);
-    }
-    if (EndOfFile()) {
-      break;
-    }
-  }
-  return "";
 }
 
 }  // namespace maple

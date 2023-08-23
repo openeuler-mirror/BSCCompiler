@@ -73,15 +73,13 @@ class FilterIterator {
   }
 
   FilterIterator &operator++() {
-    while (!func(++iterator)) {
-    }
-    return *this;
+    ++iterator;
+    return func(iterator) ? *this : ++(*this);
   }
 
   FilterIterator &operator--() {
-    while (!func(--iterator)) {
-    }
-    return *this;
+    --iterator;
+    return func(iterator) ? *this : --(*this);
   }
 
   const FilterIterator operator++(int) {

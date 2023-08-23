@@ -238,20 +238,4 @@ void LogInfo::PrintUserErrorMessages() {
     userErrsMap.clear();
   }
 }
-
-std::string GetNthStr(size_t index) {
-  switch (index) {
-    case 0:
-      return "1st";
-    case 1:
-      return "2nd";
-    case 2:
-      return "3rd";
-    default: {
-      std::ostringstream oss;
-      oss << (index + 1) << "th";
-      return oss.str();
-    }
-  }
-}
 }  // namespace maple

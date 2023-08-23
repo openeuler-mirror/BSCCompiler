@@ -252,7 +252,6 @@ src_libcgphases = [
   "src/cg/list_scheduler.cpp",
   "src/cg/local_schedule.cpp",
   "src/cg/cg_aggressive_opt.cpp",
-  "src/cg/cg_sink.cpp",
 ]
 
 src_libcg = [

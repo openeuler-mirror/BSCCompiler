@@ -126,14 +126,11 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions, const Mp
     if (toolName == "maplecombwrp" && (opt->GetName() == "-o")) {
       continue;
     }
-    if (binName == kLdFlag) {
-      continue;
-    }
     for (const auto &val : opt->GetRawValues()) {
       std::string optName = "";
       if (opt->GetEqualType() == maplecl::EqualType::kWithEqual) {
-        optName = StringUtils::GetStrBeforeFirst(opt->rawKey, "=") == opt->GetName() ? opt->GetName() :
-            StringUtils::GetStrBeforeLast(opt->rawKey, "=");
+        optName = StringUtils::GetStrBeforeFirst(opt->rawKey, "=", true) == opt->GetName() ? opt->GetName() :
+          StringUtils::GetStrBeforeLast(opt->rawKey, "=", true);
         (void)finalOptions.emplace_back(optName + "=" + val, "");
       } else {
         optName = opt->GetName();

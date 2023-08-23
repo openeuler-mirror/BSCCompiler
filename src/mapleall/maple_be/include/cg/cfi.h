@@ -73,11 +73,6 @@ class CfiInsn : public maplebe::Insn {
 
   ~CfiInsn() override = default;
 
-  CfiInsn *CloneTree(MapleAllocator &allocator) const override {
-    // Use parent deep copy, as need
-    return static_cast<CfiInsn*>(Insn::CloneTree(allocator));
-  }
-
   bool IsMachineInstruction() const override {
     return false;
   }
@@ -122,11 +117,6 @@ class RegOperand : public maplebe::OperandVisitable<RegOperand> {
   uint32 GetRegisterNO() const {
     return regNO;
   }
-
-  RegOperand *CloneTree(MapleAllocator &allocator) const override {
-    return allocator.GetMemPool()->New<RegOperand>(*this);
-  }
-
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd = memPool.Clone<RegOperand>(*this);
     return opnd;
@@ -149,11 +139,6 @@ class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
 
   ~ImmOperand() override = default;
   using OperandVisitable<ImmOperand>::OperandVisitable;
-
-  ImmOperand *CloneTree(MapleAllocator &allocator) const override {
-    // const MIRSymbol is not changed in cg, so we can do shallow copy
-    return allocator.GetMemPool()->New<ImmOperand>(*this);
-  }
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd =  memPool.Clone<ImmOperand>(*this);
@@ -184,11 +169,6 @@ class SymbolOperand : public maplebe::OperandVisitable<SymbolOperand> {
   }
   using OperandVisitable<SymbolOperand>::OperandVisitable;
 
-  SymbolOperand *CloneTree(MapleAllocator &allocator) const override {
-    // const MIRSymbol is not changed in cg, so we can do shallow copy
-    return allocator.GetMemPool()->New<SymbolOperand>(*this);
-  }
-
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd =  memPool.Clone<SymbolOperand>(*this);
     return opnd;
@@ -213,10 +193,6 @@ class StrOperand : public maplebe::OperandVisitable<StrOperand> {
 
   ~StrOperand() override = default;
   using OperandVisitable<StrOperand>::OperandVisitable;
-
-  StrOperand *CloneTree(MapleAllocator &allocator) const override {
-    return allocator.GetMemPool()->New<StrOperand>(*this);
-  }
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd = memPool.Clone<StrOperand>(*this);
@@ -245,10 +221,6 @@ class LabelOperand : public maplebe::OperandVisitable<LabelOperand> {
 
   ~LabelOperand() override = default;
   using OperandVisitable<LabelOperand>::OperandVisitable;
-
-  LabelOperand *CloneTree(MapleAllocator &allocator) const override {
-    return allocator.GetMemPool()->New<LabelOperand>(*this);
-  }
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd = memPool.Clone<LabelOperand>(*this);

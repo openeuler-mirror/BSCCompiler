@@ -376,7 +376,9 @@ class CG {
   }
 
   static void SetFuncWrapLabels(MIRFunction *func, const std::pair<LabelIdx, LabelIdx> labels) {
-    funcWrapLabels[func] = labels;
+    if (!IsInFuncWrapLabels(func)) {
+      funcWrapLabels[func] = labels;
+    }
   }
 
   static std::map<MIRFunction*, std::pair<LabelIdx, LabelIdx>> &GetFuncWrapLabels() {
@@ -403,7 +405,7 @@ class CG {
   const MIRModule *GetMIRModule() const {
     return mirModule;
   }
-
+  
   protected:
   MemPool *memPool = nullptr;
   MapleAllocator allocator;

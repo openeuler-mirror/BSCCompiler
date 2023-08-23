@@ -136,7 +136,7 @@ void GenCfi::Run() {
 }
 
 bool CgGenCfi::PhaseRun(maplebe::CGFunc &f) {
-  if (CGOptions::DoLiteProfGen() || f.HasLaidOutByPgoUse()) {
+  if (CGOptions::DoLiteProfGen() || CGOptions::DoLiteProfUse()) {
     return true;
   }
 #if TARGAARCH64

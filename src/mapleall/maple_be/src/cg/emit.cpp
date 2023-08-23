@@ -2191,7 +2191,7 @@ void Emitter::EmitStringPointers() {
     }
     uint32 strId = idx.GetIdx();
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
-    bool isTermByZero = str.find('\0') != std::string::npos;
+    bool isTermByZero = str[str.size() - 1] == '\0';
     EmitStringSectionAndAlign(isTermByZero);
     (void)Emit(".LUstr_").Emit(strId).Emit(":\n");
     std::string mplstr(str);
@@ -2203,7 +2203,7 @@ void Emitter::EmitStringPointers() {
     }
     uint32 strId = idx.GetIdx();
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
-    bool isTermByZero = str.find('\0') != std::string::npos;
+    bool isTermByZero = str[str.size() - 1] == '\0';
     EmitStringSectionAndAlign(isTermByZero);
 #if (defined(TARGX86) && TARGX86) || (defined(TARGX86_64) && TARGX86_64)
     Emit(asmInfo->GetAlign());
@@ -3142,86 +3142,66 @@ void Emitter::EmitMethodFieldSequential(const MIRSymbol &mirSymbol,
   Emit(symbolName + "\n");
 }
 
-void Emitter::EmitTLSBlockTdata(const MapleVector<MIRSymbol*> &tdataVec) {
-  Emit("\t.section\t.tdata,\"awT\",@progbits\n");
-  Emit(asmInfo->GetAlign()).Emit(kOffsetAlignmentOf128Bit).Emit("\n");
-  if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
-    InsertAnchor("tls_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
-  } else {
-    InsertAnchor("tdata_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
-  }
-  for (const auto tdataSym : tdataVec) {
-    if (tdataSym->GetAttr(ATTR_weak)) {
-      EmitAsmLabel(*tdataSym, kAsmWeak);
-    } else {
-      EmitAsmLabel(*tdataSym, kAsmGlbl);
-    }
-    EmitAsmLabel(*tdataSym, kAsmAlign);
-    EmitAsmLabel(*tdataSym, kAsmSyname);
-    MIRConst *mirConst = tdataSym->GetKonst();
-    MIRType *mirType = tdataSym->GetType();
-    if (IsPrimitiveVector(mirType->GetPrimType())) {
-      EmitVectorConstant(*mirConst);
-    } else if (IsPrimitiveScalar(mirType->GetPrimType())) {
-      if (!CGOptions::IsArm64ilp32()) {
-        if (IsAddress(mirType->GetPrimType())) {
-          uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
-          CHECK_FATAL(sizeinbits == k64BitSize, "EmitGlobalVariable: pointer must be of size 8");
-        }
-      }
-      if (cg->GetMIRModule()->IsCModule()) {
-        EmitScalarConstant(*mirConst, true, false, true);
-      } else {
-        EmitScalarConstant(*mirConst);
-      }
-    } else if (mirType->GetKind() == kTypeArray) {
-      EmitArrayConstant(*mirConst);
-    } else if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
-                mirType->GetKind() == kTypeUnion) {
-      EmitStructConstant(*mirConst);
-    } else {
-      ASSERT(false, "NYI");
-    }
-    EmitAsmLabel(*tdataSym, kAsmSize);
-  }
-}
-
-void Emitter::EmitTLSBlockTbss(const MapleVector<MIRSymbol*> &tbssVec, bool tdataExist) {
-  Emit("\t.section\t.tbss,\"awT\",@nobits\n");
-  Emit(asmInfo->GetAlign()).Emit(kOffsetAlignmentOf128Bit).Emit("\n");
-  if (opts::aggressiveTlsLocalDynamicOptMultiThread) {
-    if (!tdataExist) {
-      InsertAnchor("tls_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
-    }
-  } else {
-    InsertAnchor("tbss_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
-  }
-
-  for (auto *tbssSym : tbssVec) {
-    if (tbssSym->GetAttr(ATTR_weak)) {
-      EmitAsmLabel(*tbssSym, kAsmWeak);
-    } else if (tbssSym->GetStorageClass() == kScGlobal) {
-      EmitAsmLabel(*tbssSym, kAsmGlbl);
-    }
-    EmitAsmLabel(*tbssSym, kAsmType);
-    EmitAsmLabel(*tbssSym, kAsmAlign);
-    EmitAsmLabel(*tbssSym, kAsmSyname);
-    EmitAsmLabel(*tbssSym, kAsmZero);
-    EmitAsmLabel(*tbssSym, kAsmSize);
-  }
-}
 // tdata anchor (tdata not implement yet)
 //  tdata symbols
 //  tbss anchor
 //  tbss symbols
 void Emitter::EmitTLSBlock(const MapleVector<MIRSymbol*> &tdataVec, const MapleVector<MIRSymbol*> &tbssVec) {
-  bool tdataExist = false;
   if (!tdataVec.empty()) {
-    tdataExist = true;
-    EmitTLSBlockTdata(tdataVec);
+    Emit("\t.section\t.tdata,\"awT\",@progbits\n");
+    Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
+    InsertAnchor("tdata_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
+    for (const auto tdataSym : tdataVec) {
+      if (tdataSym->GetAttr(ATTR_weak)) {
+        EmitAsmLabel(*tdataSym, kAsmWeak);
+      } else {
+        EmitAsmLabel(*tdataSym, kAsmGlbl);
+      }
+      EmitAsmLabel(*tdataSym, kAsmAlign);
+      EmitAsmLabel(*tdataSym, kAsmSyname);
+      MIRConst *mirConst = tdataSym->GetKonst();
+      MIRType *mirType = tdataSym->GetType();
+      if (IsPrimitiveVector(mirType->GetPrimType())) {
+        EmitVectorConstant(*mirConst);
+      } else if (IsPrimitiveScalar(mirType->GetPrimType())) {
+        if (!CGOptions::IsArm64ilp32()) {
+          if (IsAddress(mirType->GetPrimType())) {
+            uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
+            CHECK_FATAL(sizeinbits == k64BitSize, "EmitGlobalVariable: pointer must be of size 8");
+          }
+        }
+        if (cg->GetMIRModule()->IsCModule()) {
+          EmitScalarConstant(*mirConst, true, false, true);
+        } else {
+          EmitScalarConstant(*mirConst);
+        }
+      } else if (mirType->GetKind() == kTypeArray) {
+        EmitArrayConstant(*mirConst);
+      } else if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+                 mirType->GetKind() == kTypeUnion) {
+        EmitStructConstant(*mirConst);
+      } else {
+        ASSERT(false, "NYI");
+      }
+      EmitAsmLabel(*tdataSym, kAsmSize);
+    }
   }
   if (!tbssVec.empty()) {
-    EmitTLSBlockTbss(tbssVec, tdataExist);
+    Emit("\t.section\t.tbss,\"awT\",@nobits\n");
+    Emit(asmInfo->GetAlign()).Emit(4).Emit("\n");
+    InsertAnchor("tbss_start_" + GetCG()->GetMIRModule()->GetTlsAnchorHashString(), 0);
+    for (auto *tbssSym : tbssVec) {
+      if (tbssSym->GetAttr(ATTR_weak)) {
+        EmitAsmLabel(*tbssSym, kAsmWeak);
+      } else if (tbssSym->GetStorageClass() == kScGlobal) {
+        EmitAsmLabel(*tbssSym, kAsmGlbl);
+      }
+      EmitAsmLabel(*tbssSym, kAsmType);
+      EmitAsmLabel(*tbssSym, kAsmAlign);
+      EmitAsmLabel(*tbssSym, kAsmSyname);
+      EmitAsmLabel(*tbssSym, kAsmZero);
+      EmitAsmLabel(*tbssSym, kAsmSize);
+    }
   }
   return;
 }

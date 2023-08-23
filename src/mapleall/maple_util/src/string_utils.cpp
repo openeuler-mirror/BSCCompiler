@@ -53,7 +53,8 @@ std::string StringUtils::Append(const std::string &src, const std::string &targe
   return src + spliter + target;
 }
 
-std::string StringUtils::GetStrAfterLast(const std::string &src, const std::string &target, bool isReturnEmpty) {
+std::string StringUtils::GetStrAfterLast(const std::string &src, const std::string &target,
+                                         bool isReturnEmpty) {
   size_t pos = src.find_last_of(target);
   if (pos == std::string::npos) {
     return isReturnEmpty ? "" : src;
@@ -67,14 +68,6 @@ std::string StringUtils::GetStrBeforeLast(const std::string &src, const std::str
     return isReturnEmpty ? "" : src;
   }
   return src.substr(0, pos);
-}
-
-std::string StringUtils::GetStrAfterFirst(const std::string &src, const std::string &target, bool isReturnEmpty) {
-  size_t pos = src.find_first_of(target);
-  if (pos == std::string::npos) {
-    return isReturnEmpty ? "" : src;
-  }
-  return src.substr(pos + 1);
 }
 
 std::string StringUtils::GetStrBeforeFirst(const std::string &src, const std::string &target, bool isReturnEmpty) {

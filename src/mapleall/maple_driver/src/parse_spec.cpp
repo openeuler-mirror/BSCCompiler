@@ -20,10 +20,10 @@
 
 namespace maple {
 
-std::vector<std::string> ParseSpec::GetOpt(const std::vector<std::string> args) {
+std::vector<std::string> ParseSpec::GetOpt(const std::string &cmd, const std::string &args) {
   std::vector<std::string> res;
   std::string result = "";
-  ErrorCode ret = SafeExe::Exe(args, result);
+  ErrorCode ret = SafeExe::Exe(cmd, args, result);
   if (ret != kErrorNoError) {
     return res;
   }
@@ -39,51 +39,19 @@ std::vector<std::string> ParseSpec::GetOpt(const std::vector<std::string> args) 
 }
 
 bool IsMapleOptionOrInputFile(const std::string &opt, const MplOptions &mplOptions, bool &isNeedNext) {
+  std::vector<std::string> driverOptAndInputFile = {"--ignore-unknown-options", "--hir2mpl-opt=", "--mpl2mpl-opt=",
+      "-specs", "-specs=", "--save-temps", "-o", "--maple-phase", "-tmp-folder", "--me-opt=", "--mplcg-opt=",
+      "--static-libmplpgo", "--lite-pgo-verify", "--lite-pgo-gen", "--lite-pgo-file", "--lite-pgo-file=", "--run=",
+      "--option=", "--infile", "--quiet", "--lite-pgo-output-func=", "--lite-pgo-white-list=",
+      "--instrumentation-dir="};
   for (auto &inputFile : mplOptions.GetInputInfos()) {
-    if (inputFile->GetInputFile() == opt) {
-      return true;
-    }
+    driverOptAndInputFile.push_back(inputFile->GetInputFile());
   }
-  // --save-temps will make -E appear
-  if (opt == "--save-temps") {
-    return true;
-  }
-  if (StringUtils::StartsWith(opt, "-specs=")) {
-    return true;
-  } else if (StringUtils::StartsWith(opt, "-specs")) {
+  driverOptAndInputFile.push_back(opts::output.GetValue());
+  if (opt == "-o" || opt == "-tmp-folder" || opt == "-specs" || opt == "--infile" || opt == "--lite-pgo-file") {
     isNeedNext = false;
-    return true;
   }
-  maplecl::OptionInterface *option = nullptr;
-  maplecl::KeyArg keyArg(opt);
-  auto optMap = driverCategory.options;
-  auto pos = opt.find('=');
-  auto item = optMap.find(std::string(opt));
-  if (pos != std::string::npos) {
-    if (item == optMap.end()) {
-      item = optMap.find(std::string(opt.substr(0, pos + 1)));
-      if (item == optMap.end()) {
-        item = optMap.find(std::string(opt.substr(0, pos)));
-        if (item == optMap.end()) {
-          option = maplecl::CommandLine::GetCommandLine().CheckJoinedOptions(keyArg, driverCategory);
-        }
-      }
-    }
-  } else {
-    if (item == optMap.end()) {
-      option = maplecl::CommandLine::GetCommandLine().CheckJoinedOptions(keyArg, driverCategory);
-    }
-  }
-  if (option != nullptr) {
-    isNeedNext = opt.length() == option->GetOptName().length() ? false : true;
-    return (option->GetOptType() & opts::kOptMaple) != 0;
-  } else if (item != optMap.end()) {
-    if ((item->second->GetOptType() & opts::kOptMaple) != 0) {
-      isNeedNext = opt.length() > item->second->GetOptName().length() ? true : false;
-      return true;
-    }
-  }
-  return false;
+  return std::find(driverOptAndInputFile.begin(), driverOptAndInputFile.end(), opt) != driverOptAndInputFile.end();
 }
 
 ErrorCode ParseSpec::GetOptFromSpecsByGcc(int argc, char **argv, const MplOptions &mplOptions) {
@@ -94,34 +62,32 @@ ErrorCode ParseSpec::GetOptFromSpecsByGcc(int argc, char **argv, const MplOption
   if (!FileUtils::CreateFile(fileName)) {
     return kErrorCreateFile;
   }
-  std::vector<std::string> arg;
-  arg.emplace_back(FileUtils::GetGccBin());
-  arg.emplace_back("-c");
-  arg.emplace_back("-v");
-  arg.emplace_back(fileName);
-  arg.emplace_back("-o");
-  arg.emplace_back(FileUtils::GetInstance().GetTmpFolder() + "maple");
-  std::vector<std::string> defaultOptVec = GetOpt(arg);
+  std::string gccBin = FileUtils::GetGccBin();
+  std::string arg = "-v -S " + fileName + " -o " + FileUtils::GetInstance().GetTmpFolder() + "maple.s ";
+  std::vector<std::string> defaultOptVec = GetOpt(gccBin, arg);
   if (argc > 0) {
     --argc;
     ++argv;  // skip program name argv[0] if present
   }
   while (argc > 0 && *argv != nullptr) {
     std::string tmpOpt = *argv;
+    std::string opt = tmpOpt.find("=") != std::string::npos ? StringUtils::GetStrBeforeFirst(tmpOpt, "=") + "=" :
+                                                              tmpOpt;
     bool isNeedNext = true;
-    if (!IsMapleOptionOrInputFile(tmpOpt, mplOptions, isNeedNext)) {
-      arg.emplace_back(tmpOpt);
-    } else {
-      if (!isNeedNext) {
-        ++argv;
-        --argc;
-      }
+    if (!IsMapleOptionOrInputFile(opt, mplOptions, isNeedNext)) {
+      std::string optString = *argv;
+      arg += optString;
+      arg += " ";
+    }
+    if (!isNeedNext) {
+      ++argv;
+      --argc;
     }
     ++argv;
     --argc;
   }
-  arg.emplace_back("-specs=" + opts::specs.GetValue());
-  std::vector<std::string> cmdOptVec = GetOpt(arg);
+  arg = arg + "-specs=" + opts::specs.GetValue();
+  std::vector<std::string> cmdOptVec = GetOpt(gccBin, arg);
   if (cmdOptVec.size() == 0) {
     return kErrorInvalidParameter;
   }

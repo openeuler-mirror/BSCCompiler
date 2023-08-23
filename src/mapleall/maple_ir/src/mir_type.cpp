@@ -1585,10 +1585,6 @@ bool MIRType::EqualTo(const MIRType &mirType) const {
   return typeKind == mirType.typeKind && primType == mirType.primType;
 }
 
-bool MIRType::EqualToWithAttr(const MIRType &mirType) const {
-  return (EqualTo(mirType) &&
-         (typeAttrs.GetAttr(maple::AttrKind::ATTR_const) == mirType.typeAttrs.GetAttr(maple::AttrKind::ATTR_const)));
-}
 bool MIRPtrType::EqualTo(const MIRType &type) const {
   if (typeKind != type.GetKind() || GetPrimType() != type.GetPrimType()) {
     return false;
@@ -2384,8 +2380,9 @@ uint32 MIRStructType::NumberOfFieldIDs() const {
 
 TypeAttrs FieldAttrs::ConvertToTypeAttrs() const {
   TypeAttrs attr;
-  for (uint32 i = 0; i < kFieldAttrNum; ++i) {
-    if (attrFlag[i] == 0) {
+  constexpr uint32 maxAttrNum = 64;
+  for (uint32 i = 0; i < maxAttrNum; ++i) {
+    if ((attrFlag & (1ULL << i)) == 0) {
       continue;
     }
     auto attrKind = static_cast<FieldAttrKind>(i);

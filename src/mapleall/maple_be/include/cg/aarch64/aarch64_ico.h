@@ -36,12 +36,9 @@ class AArch64ICOPattern : public ICOPattern {
   ConditionCode Encode(MOperator mOp, bool inverse) const;
   Insn *BuildCmpInsn(const Insn &condBr) const;
   Insn *BuildCcmpInsn(ConditionCode ccCode, ConditionCode ccCode2, const Insn &cmpInsn, Insn *&moveInsn) const;
-  Insn *BuildCcmpInsn(ConditionCode ccCode, ConditionCode ccCode2, const Insn &branchInsn, const Insn &cmpInsn) const;
-  MOperator GetBranchCondOpcode(MOperator op) const;
   Insn *BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse) const;
   Insn *BuildCondSetMask(const Insn &branch, RegOperand &reg, bool inverse) const;
   Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2) const;
-  Insn *BuildTstInsn(const Insn &branch) const;
   static uint32 GetNZCV(ConditionCode ccCode, bool inverse);
   bool CheckMop(MOperator mOperator) const;
   bool CheckMopOfCmp(MOperator mOperator) const;
@@ -66,7 +63,7 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
   };
 
   explicit AArch64ICOIfThenElsePattern(CGFunc &func) : AArch64ICOPattern(func) {
-    patternName = "IfThenElsePattern";
+    patternName = "IfthenElsePattern";
   }
   ~AArch64ICOIfThenElsePattern() override {
     cmpBB = nullptr;
@@ -126,8 +123,6 @@ class AArch64ICOSameCondPattern : public AArch64ICOPattern {
   bool Optimize(BB &secondIfBB) override;
  protected:
   bool DoOpt(BB &firstIfBB, BB &secondIfBB) const;
-  bool CanConvertToSameCond(BB &firstIfBB, BB &secondIfBB) const;
-  Insn &ConvertCompBrInsnToCompInsn(const Insn &insn) const;
 };
 
 /* If-Then MorePreds pattern

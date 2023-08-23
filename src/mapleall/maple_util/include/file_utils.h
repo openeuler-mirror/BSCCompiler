@@ -21,23 +21,29 @@
 #include "string_utils.h"
 
 namespace maple {
-enum class InputFileType {
+  enum class InputFileType {
   kFileTypeNone,
-#define TYPE(ID, SUPPORT, ...) kFileType##ID,
-#include "type.def"
-#undef TYPE
-};
-
-struct TypeInfo {
-  InputFileType fileType;
-  bool support;
-  const std::unordered_set<std::string> tmpSuffix;
+  kFileTypeClass,
+  kFileTypeJar,
+  kFileTypeAst,
+  kFileTypeCpp,
+  kFileTypeC,
+  kFileTypeDex,
+  kFileTypeMpl,
+  kFileTypeVtableImplMpl,
+  kFileTypeS,
+  kFileTypeObj,
+  kFileTypeBpl,
+  kFileTypeMeMpl,
+  kFileTypeMbc,
+  kFileTypeLmbc,
+  kFileTypeH,
+  kFileTypeI,
+  kFileTypeOast,
 };
 
 extern const std::string kFileSeperatorStr;
 extern const char kFileSeperatorChar;
-extern const std::string kWhitespaceStr;
-extern const char kWhitespaceChar;
 // Use char[] since getenv receives char* as parameter
 constexpr char kMapleRoot[] = "MAPLE_ROOT";
 constexpr char kClangPath[] = "BiShengC_Clang_Path";
@@ -61,7 +67,7 @@ class FileUtils {
   static std::string SafeGetenv(const char *envVar);
   static std::string SafeGetPath(const char *envVar, const char *name);
   static void CheckGCCVersion(const char *cmd);
-  static std::string GetRealPath(const std::string &filePath, const bool isCheck = true);
+  static std::string GetRealPath(const std::string &filePath);
   static std::string GetFileName(const std::string &filePath, bool isWithExtension);
   static std::string GetFileExtension(const std::string &filePath);
   static std::string GetFileFolder(const std::string &filePath);
@@ -73,35 +79,10 @@ class FileUtils {
   static InputFileType GetFileType(const std::string &filePath);
   static InputFileType GetFileTypeByMagicNumber(const std::string &pathName);
   static std::string ExecuteShell(const char *cmd);
-  static std::string ExecuteShell(const char *cmd, std::string workspace);
-  static void GetFileNames(const std::string path, std::vector<std::string> &filenames);
   static bool GetAstFromLib(const std::string libPath, std::vector<std::string> &astInputs);
   static bool CreateFile(const std::string &file);
   static std::string GetGccBin();
   static bool Rmdirs(const std::string &dirPath);
-  static std::string GetOutPutDirInTmp(const std::string &inputFile);
-  static void Mkdirs(const std::string &path, mode_t mode);
-  static bool IsStaticLibOrDynamicLib(const std::string &pathName);
-  static InputFileType GetFileTypeByExtension(const std::string &extensionName);
-  static bool IsSupportFileType(InputFileType type);
-  static void RemoveFile(const std::string &pathName) {
-    auto path = GetRealPath(pathName);
-    CHECK_FATAL(std::remove(path.c_str()) == 0, "remove file failed, filename: %s.", path.c_str());
-  };
-  static std::string GetCurDirPath();
-  static std::string GetClangAstOptString(const std::string astFilePath);
-  static size_t GetIntegerFromMem(std::ifstream &fs, char *buffer, std::streamsize bufferSize,
-      bool isNeedChkOptStrId);
-  static void GetOptString(std::ifstream &fs, std::string &optString);
-
-  static std::string GetFileNameHashStr(const std::string &str) {
-    uint32 hash = 0;
-    uint32 seed = 211;
-    for (auto name : str) {
-      hash = hash * seed + static_cast<unsigned char>(name);
-    }
-    return std::to_string(hash);
-  }
 
   const std::string &GetTmpFolder() const {
     return tmpFolderPath;
@@ -120,32 +101,6 @@ class FileUtils {
   }
   static const uint32 kMagicAST = 0x48435043;
   static const uint32 kMagicELF = 0x464c457f;
-  static const uint32 kMagicStaicLib = 0x72613c21;
-};
-
-class FileReader {
- public:
-  explicit FileReader(const std::string &s) {
-    mName = s;
-    mDefFile.open(s.c_str(), std::ifstream::in);
-    if (!mDefFile.good()) {
-      ERR(kLncErr, "unable to read from file %s\n", s.c_str());
-    }
-  }
-  ~FileReader() noexcept {
-    mDefFile.close();
-  }
-  bool EndOfFile() const {
-    return mDefFile.eof();
-  }
- 
-  std::string GetLine(const std::string keyWord);
-  bool ReadLine();  // the single entry to directly read from file
- private:
-  std::string mName;
-  std::ifstream mDefFile;
-  std::string mCurLine = "";
-  unsigned mLineNo = 0;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_FILE_UTILS_H

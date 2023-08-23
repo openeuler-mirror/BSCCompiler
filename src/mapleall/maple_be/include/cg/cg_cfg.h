@@ -58,7 +58,6 @@ class InsnVisitor {
   virtual LabelIdx GetJumpLabel(const Insn &insn) const = 0;
   virtual bool IsCompareInsn(const Insn &insn) const = 0;
   virtual bool IsCompareAndBranchInsn(const Insn &insn) const = 0;
-  virtual bool IsTestAndBranchInsn(const Insn &insn) const = 0;
   virtual bool IsAddOrSubInsn(const Insn &insn) const = 0;
 
   virtual void ReTargetSuccBB(BB &bb, LabelIdx newTarget) const = 0;
@@ -120,7 +119,6 @@ class CGCFG {
   Insn *CloneInsn(Insn &originalInsn) const;
   static BB *GetTargetSuc(BB &curBB, bool branchOnly = false, bool isGotoIf = false);
   bool IsCompareAndBranchInsn(const Insn &insn) const;
-  bool IsTestAndBranchInsn(const Insn &insn) const;
   bool IsAddOrSubInsn(const Insn &insn) const;
 
   Insn *FindLastCondBrInsn(BB &bb) const;

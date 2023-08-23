@@ -50,7 +50,7 @@ SCOS_TEST_MERGE = {
             infiles=["${APP}"],
             outfile="${TARGET}",
             option="-std=gnu99 --no-pie -lm -L${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/",
-            extra_opt="-Os ${SPEC_PARAM}"
+            extra_opt="--Os -fPIC -g --no-pie -flto ${SPEC_PARAM}"
         )
     ],
     "cp_data":[

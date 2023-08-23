@@ -27,7 +27,6 @@ class AArch64DataDepBase : public DataDepBase {
 
   void InitCDGNodeDataInfo(MemPool &mp, MapleAllocator &alloc, CDGNode &cdgNode) override;
   bool IsFrameReg(const RegOperand &opnd) const override;
-  bool IsMemOffsetOverlap(const Insn &memInsn1, const Insn &memInsn2) const;
   bool NeedBuildDepsForStackMem(const Insn &memInsn1, const Insn &memInsn2) const;
   bool NeedBuildDepsForHeapMem(const Insn &memInsn1, const Insn &memInsn2) const;
 

@@ -125,7 +125,6 @@ class MPISel {
   virtual Operand *SelectCstrncmp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectCstrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectCstrrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
-  virtual void SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual void SelectAsm(AsmNode &node) = 0;
   virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &rOpnd, const DassignNode &s) = 0;
   Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);

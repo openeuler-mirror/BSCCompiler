@@ -52,7 +52,7 @@ class RaOptPattern {
 //                                      b BB_ret
 class LRSplitForSink : public RaOptPattern {
   struct RefsInfo {
-    explicit RefsInfo(MapleAllocator &alloc)
+    RefsInfo(MapleAllocator &alloc)
         : defInsns(alloc.Adapter()), useInsns(alloc.Adapter()), afterCallBBs(alloc.Adapter()) {}
     ~RefsInfo() = default;
 
@@ -69,7 +69,7 @@ class LRSplitForSink : public RaOptPattern {
         splitRegRefs(alloc.Adapter()),
         afterCallBBs(cgFunc.NumBBs(), false, alloc.Adapter()) {}
 
-  virtual ~LRSplitForSink() = default;
+  virtual ~LRSplitForSink() override = default;
 
   void Run() override;
  protected:
@@ -79,7 +79,6 @@ class LRSplitForSink : public RaOptPattern {
   MapleMap<regno_t, RefsInfo*> splitRegRefs;  // registers reference points
   MapleBitVector afterCallBBs;
 
- private:
   // collect registers which will be split
   virtual void CollectSplitRegs() = 0;
 

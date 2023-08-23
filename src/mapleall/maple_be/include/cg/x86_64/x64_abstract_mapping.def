@@ -108,7 +108,7 @@ DEFINE_MAPPING(abstract::MOP_zext_rr_64_8,      x64::MOP_movzbq_r_r)
 DEFINE_MAPPING(abstract::MOP_sext_rr_64_8,      x64::MOP_movsbq_r_r)
 DEFINE_MAPPING(abstract::MOP_zext_rr_64_16,     x64::MOP_movzwq_r_r)
 DEFINE_MAPPING(abstract::MOP_sext_rr_64_16,     x64::MOP_movswq_r_r)
-DEFINE_MAPPING(abstract::MOP_zext_rr_64_32,     x64::MOP_movzlq_r_r)
+DEFINE_MAPPING(abstract::MOP_zext_rr_64_32,     x64::MOP_movl_r_r)
 DEFINE_MAPPING(abstract::MOP_sext_rr_64_32,     x64::MOP_movslq_r_r)
 
 /* CvtOp truncate */

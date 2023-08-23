@@ -27,10 +27,7 @@ enum ErrorCode {
   kErrorCompileFail,
   kErrorNotImplement,
   kErrorUnKnownFileType,
-  kErrorCreateFile,
-  kErrorNeedLtoOption,
-  kErrorNoOptionFile,
-  kErrorLtoInvalidParameter
+  kErrorCreateFile
 };
 
 void PrintErrorMessage(int ret);

@@ -122,7 +122,6 @@ class BinaryMplImport {
   void ImportClassTypeData(MIRClassType &type);
   void ImportInterfaceTypeData(MIRInterfaceType &type);
   PUIdx ImportFunction();
-  void ImportFuncAttrFlag(FuncAttrFlag &attrFlag);
   MIRSymbol *InSymbol(MIRFunction *func);
   void ImportInfoVector(MIRInfoVector &infoVector, MapleVector<bool> &infoVectorIsString);
   void ImportLocalTypeNameTable(MIRTypeNameTable *typeNameTab);

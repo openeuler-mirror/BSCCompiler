@@ -122,16 +122,16 @@ class DepNode {
 
   virtual ~DepNode() = default;
 
-  // If the cpu units required by the reservation type of the instruction are idle,
-  // return true.
-  bool IsResourceIdle() const {
-    // The 'i' indicates cpu cycles, that 0 indicates the current cycle
-    uint32 cycles = reservation->GetUnitNum();
-    Unit * const *requiredUnits = reservation->GetUnit();
-    for (uint32 i = 0; i < cycles; ++i) {
-      Unit *unit = requiredUnits[i];
+  /*
+   * Old interface:
+   * If all unit of this node need when it is scheduled is free, this node can be scheduled,
+   * return true.
+   */
+  bool IsResourceFree() const {
+    for (uint32 i = 0; i < unitNum; ++i) {
+      Unit *unit = units[i];
       if (unit != nullptr) {
-        if (!unit->IsIdle(i)) {
+        if (!unit->IsFree(i)) {
           return false;
         }
       }
@@ -139,20 +139,53 @@ class DepNode {
     return true;
   }
 
-  // When an instruction is issued, occupy all units required in the specific cycle
-  void OccupyRequiredUnits() const {
-    // The 'i' indicates cpu cycles, that 0 indicates the current cycle
-    uint32 cycles = reservation->GetUnitNum();
-    Unit * const *requiredUnits = reservation->GetUnit();
-    for (uint32 i = 0; i < cycles; ++i) {
-      Unit *unit = requiredUnits[i];
+  /*
+   * Old interface:
+   * Mark those unit needed being occupied when an instruction is scheduled
+   */
+  void OccupyUnits() {
+    for (uint32 i = 0; i < unitNum; ++i) {
+      Unit *unit = units[i];
       if (unit != nullptr) {
-        unit->Occupy(i);
+        unit->Occupy(*insn, i);
       }
     }
   }
 
-  // Get unit kind of this node's units[0]
+  /*
+   * New interface using in list-scheduler:
+   * If all unit of this node need when it is scheduled is free, this node can be scheduled,
+   * return true.
+   */
+  bool IsResourceFree(uint32 cost) const {
+    for (uint32 i = 0; i < unitNum; ++i) {
+      const Unit *unit = units[i];
+      if (unit != nullptr) {
+        if (!unit->IsFree(cost)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /*
+   * New interface using in list-scheduler:
+   * Mark those unit needed being occupied when an instruction is scheduled
+   */
+  void OccupyUnits(uint32 cost) {
+    // Indicates whether the unit has been occupied by the current schedule insn
+    // and the index is unitId
+    std::vector<bool> visited(kUnitIdLast);
+    for (uint32 i = 0; i < unitNum; ++i) {
+      Unit *unit = units[i];
+      if (unit != nullptr && !visited[unit->GetUnitId()]) {
+        unit->Occupy(cost, visited);
+      }
+    }
+  }
+
+  /* Get unit kind of this node's units[0]. */
   uint32 GetUnitKind() const {
     uint32 retValue = 0;
     if ((units == nullptr) || (units[0] == nullptr)) {

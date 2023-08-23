@@ -89,7 +89,7 @@ class FlipBRPattern : public OptimizationPattern {
   virtual MOperator FlipConditionOp(MOperator flippedOp) = 0;
 };
 
-// This class represents the scenario that the BB is unreachable.
+/* This class represents the scenario that the BB is unreachable. */
 class UnreachBBPattern : public OptimizationPattern {
  public:
   explicit UnreachBBPattern(CGFunc &func) : OptimizationPattern(func) {
@@ -102,8 +102,10 @@ class UnreachBBPattern : public OptimizationPattern {
   bool Optimize(BB &curBB) override;
 };
 
-// This class represents the scenario that a common jump BB can be duplicated
-// to one of its another predecessor.
+/*
+ * This class represents the scenario that a common jump BB can be duplicated
+ * to one of its another predecessor.
+ */
 class DuplicateBBPattern : public OptimizationPattern {
  public:
   explicit DuplicateBBPattern(CGFunc &func) : OptimizationPattern(func) {
@@ -118,7 +120,9 @@ class DuplicateBBPattern : public OptimizationPattern {
   static constexpr int kThreshold = 10;
 };
 
-// This class represents the scenario that a BB contains nothing.
+/*
+ * This class represents the scenario that a BB contains nothing.
+ */
 class EmptyBBPattern : public OptimizationPattern {
  public:
   explicit EmptyBBPattern(CGFunc &func) : OptimizationPattern(func) {
@@ -157,6 +161,6 @@ MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPostCfgo, maplebe::CGFunc)
 OVERRIDE_DEPENDENCE
 MAPLE_FUNC_PHASE_DECLARE_END
-}  // namespace maplebe
+}  /* namespace maplebe */
 
-#endif  // MAPLEBE_INCLUDE_CG_CFGO_H
+#endif  /* MAPLEBE_INCLUDE_CG_CFGO_H */

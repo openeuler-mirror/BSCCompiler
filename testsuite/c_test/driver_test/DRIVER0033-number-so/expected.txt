@@ -1,3 +1,0 @@
-foo
-hello world!???(y/n)
-long double type size is 16 16

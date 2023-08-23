@@ -16,12 +16,12 @@ typedef void (*func)();
 
 // CHECK:     type $TypeC_MNO[[# IDX:]] <struct {
 // CHECK-NEXT:  @c i32
-// CHECK-NEXT:  @b <$TypeB_MNO[[# IDX:]]>}>
+// CHECK-NEXT:  @b <$TypeB_MNO[[# IDX:]]> asmattr}>
 // CHECK-NEXT:type $TypeB_MNO[[# IDX:]] <struct {
 // CHECK-NEXT:  @b i32
-// CHECK-NEXT:  @a <$TypeA_MNO[[# IDX:]]>}>
+// CHECK-NEXT:  @a <$TypeA_MNO[[# IDX:]]> asmattr}>
 // CHECK-NEXT:type $TypeA_MNO[[# IDX:]] <struct {
-// CHECK-NEXT:  @a i32}>
+// CHECK-NEXT:  @a i32 asmattr}>
 // CHECK: func &func5 public used noinline () void
 struct TypeA {
   int a;

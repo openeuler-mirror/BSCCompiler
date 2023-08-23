@@ -19,6 +19,7 @@
 #include "cg.h"
 #include "optimize_common.h"
 
+
 namespace maplebe {
 void LocalSchedule::Run() {
   FCDG *fcdg = cda.GetFCDG();
@@ -74,6 +75,9 @@ void LocalSchedule::DoLocalScheduleForRegion(CDGRegion &region) {
 }
 
 void LocalSchedule::DoLocalSchedule(CDGNode &cdgNode) {
+  if (LOCAL_SCHEDULE_DUMP || isUnitTest) {
+    DumpCDGNodeInfoBeforeSchedule(cdgNode);
+  }
   listScheduler = schedMP.New<ListScheduler>(schedMP, cgFunc, true, "localschedule");
   InitInCDGNode(cdgNode);
   listScheduler->SetCDGRegion(*cdgNode.GetRegion());
@@ -94,9 +98,17 @@ void LocalSchedule::InitInCDGNode(CDGNode &cdgNode) {
   }
   listScheduler->SetCommonSchedInfo(*commonSchedInfo);
 
-  InitMachineInsnNum(cdgNode);
+  uint32 insnNum = 0;
+  BB *curBB = cdgNode.GetBB();
+  CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
+  FOR_BB_INSNS_CONST(insn, curBB) {
+    if (insn->IsMachineInstruction()) {
+      insnNum++;
+    }
+  }
+  cdgNode.SetInsnNum(insnNum);
 
-  if (LOCAL_SCHEDULE_DUMP || isUnitTest) {
+  if (LOCAL_SCHEDULE_DUMP) {
     DumpCDGNodeInfoBeforeSchedule(cdgNode);
   }
 }

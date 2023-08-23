@@ -83,7 +83,6 @@ void MEBETopLevelManager::Run(maple::MIRModule &mod) {
   if (mod.IsJavaModule()) {
     Options::sideEffectWhiteList = true;
   }
-
   InitFuncDescWithWhiteList(mod);
   auto admMempool = AllocateMemPoolInPhaseManager("MEBETopLevelManager's Analysis Data Manager mempool");
   auto *serialADM = GetManagerMemPool()->New<AnalysisDataManager>(*(admMempool.get()));

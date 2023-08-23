@@ -2557,7 +2557,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   insn.GetBB()->InsertInsnBefore(insn, stInsn);
 }
 
-void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand &opnd, RegOperand &phyOpnd,
+void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand &opnd, bool isDef, RegOperand &phyOpnd,
                                                       uint32 spillIdx, bool needSpill) {
   if (!needSpill) {
     return;
@@ -2569,6 +2569,27 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
   bool isLastInsn = false;
   if (insn.GetBB()->GetKind() == BB::kBBIf && insn.GetBB()->IsLastInsn(&insn)) {
     isLastInsn = true;
+  }
+
+  if (lr->GetRematLevel() != kRematOff && !isDef) {
+    std::string comment = " REMATERIALIZE for spill vreg: " +
+                          std::to_string(regNO);
+    if (isLastInsn) {
+      for (auto tgtBB : insn.GetBB()->GetSuccs()) {
+        std::vector<Insn *> rematInsns = lr->Rematerialize(*cgFunc, phyOpnd);
+        for (auto &&remat : rematInsns) {
+          remat->SetComment(comment);
+          tgtBB->InsertInsnBegin(*remat);
+        }
+      }
+    } else {
+      std::vector<Insn *> rematInsns = lr->Rematerialize(*cgFunc, phyOpnd);
+      for (auto &&remat : rematInsns) {
+        remat->SetComment(comment);
+        insn.GetBB()->InsertInsnAfter(insn, *remat);
+      }
+    }
+    return;
   }
 
   MemOperand *spillMem = CreateSpillMem(spillIdx, regOpnd.GetRegisterType(), kSpillMemPost);
@@ -2893,7 +2914,7 @@ RegOperand *GraphColorRegAllocator::GetReplaceOpndForLRA(Insn &insn, const Opera
   SpillOperandForSpillPre(insn, regOpnd, phyOpnd, spillIdx, needSpillLr);
   Insn *spill = SpillOperand(insn, regOpnd, isDef, phyOpnd);
   if (spill != nullptr) {
-    SpillOperandForSpillPost(*spill, regOpnd, phyOpnd, spillIdx, needSpillLr);
+    SpillOperandForSpillPost(*spill, regOpnd, isDef, phyOpnd, spillIdx, needSpillLr);
   }
   ++spillIdx;
   return &phyOpnd;
@@ -2937,7 +2958,7 @@ RegOperand *GraphColorRegAllocator::GetReplaceUseDefOpndForLRA(Insn &insn, const
   SpillOperandForSpillPre(insn, regOpnd, phyOpnd, spillIdx, needSpillLr);
   Insn *defSpill = SpillOperand(insn, regOpnd, true, phyOpnd);
   if (defSpill != nullptr) {
-    SpillOperandForSpillPost(*defSpill, regOpnd, phyOpnd, spillIdx, needSpillLr);
+    SpillOperandForSpillPost(*defSpill, regOpnd, true, phyOpnd, spillIdx, needSpillLr);
   }
   (void)SpillOperand(insn, regOpnd, false, phyOpnd);
   ++spillIdx;
@@ -3146,20 +3167,20 @@ RegOperand *GraphColorRegAllocator::GetReplaceOpnd(Insn &insn, const Operand &op
   }
 
   bool needCallerSave = regInfo->IsCallerSavePartRegister(regNO, lr->GetSpillSize());
-  if ((lr->GetNumCall() > 0) && !isCalleeReg && !needCallerSave) {
+  if ((lr->GetNumCall() > 0) && !isCalleeReg) {
     if (isDef) {
-      needCallerSave = NeedCallerSave(insn, *lr, isDef) && lr->GetRematLevel() == kRematOff;
+      needCallerSave |= (NeedCallerSave(insn, *lr, isDef) && lr->GetRematLevel() == kRematOff);
     } else {
-      needCallerSave = !lr->GetProcessed();
+      needCallerSave |= (!lr->GetProcessed());
     }
   }
 
   if (lr->IsSpilled() || (isSplitPart && (lr->GetSplitLr()->GetNumCall() != 0)) || needCallerSave ||
       (!isSplitPart && !(lr->IsSpilled()) && lr->GetLiveUnitFromLuMap(insn.GetBB()->GetId())->NeedReload())) {
     SpillOperandForSpillPre(insn, regOpnd, phyOpnd, spillIdx, needSpillLr);
-    Insn *spill = SpillOperand(insn, regOpnd, isDef, phyOpnd);
+    Insn *spill = SpillOperand(insn, opnd, isDef, phyOpnd);
     if (spill != nullptr) {
-      SpillOperandForSpillPost(*spill, regOpnd, phyOpnd, spillIdx, needSpillLr);
+      SpillOperandForSpillPost(*spill, regOpnd, isDef, phyOpnd, spillIdx, needSpillLr);
     }
     ++spillIdx;
   }
@@ -3228,8 +3249,8 @@ RegOperand *GraphColorRegAllocator::GetReplaceUseDefOpnd(Insn &insn, const Opera
   }
 
   bool needCallerSave = regInfo->IsCallerSavePartRegister(regNO, lr->GetSpillSize());
-  if ((lr->GetNumCall() > 0) && !isCalleeReg && !needCallerSave) {
-    needCallerSave = NeedCallerSave(insn, *lr, true) && lr->GetRematLevel() == kRematOff;
+  if ((lr->GetNumCall() > 0) && !isCalleeReg) {
+    needCallerSave |= (NeedCallerSave(insn, *lr, true) && lr->GetRematLevel() == kRematOff);
   }
 
   if (lr->IsSpilled() || (isSplitPart && (lr->GetSplitLr()->GetNumCall() != 0)) || needCallerSave ||
@@ -3238,7 +3259,7 @@ RegOperand *GraphColorRegAllocator::GetReplaceUseDefOpnd(Insn &insn, const Opera
     SpillOperandForSpillPre(insn, regOpnd, phyOpnd, spillIdx, needSpillLr);
     Insn *defSpill = SpillOperand(insn, opnd, true, phyOpnd);
     if (defSpill != nullptr) {
-      SpillOperandForSpillPost(*defSpill, regOpnd, phyOpnd, spillIdx, needSpillLr);
+      SpillOperandForSpillPost(*defSpill, regOpnd, true, phyOpnd, spillIdx, needSpillLr);
     }
     (void)SpillOperand(insn, opnd, false, phyOpnd);
     ++spillIdx;
@@ -4128,7 +4149,7 @@ void GraphColorRegAllocator::OptCallerSave() {
 }
 
 void GraphColorRegAllocator::SplitVregAroundLoop(const LoopDesc &loop, const std::vector<LiveRange*> &lrs,
-                                                 BB &storeBB, BB &reloadBB, const std::set<regno_t> &cands) {
+                                                 BB &headerPred, BB &exitSucc, const std::set<regno_t> &cands) {
   size_t maxSplitCount = lrs.size() - intCalleeRegSet.size();
   maxSplitCount = maxSplitCount > kMaxSplitCount ? kMaxSplitCount : maxSplitCount;
   uint32 splitCount = 0;
@@ -4146,20 +4167,12 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const LoopDesc &loop, const std
       continue;
     }
     bool hasRef = false;
-
-    auto checkHasRefInBBs = [&hasRef, &lr](const MapleSet<BBID> &bbSet) {
-      for (auto bbId : bbSet) {
-        auto *lu = lr->GetLiveUnitFromLuMap(bbId);
-        if (lu != nullptr && (lu->GetDefNum() != 0 || lu->GetUseNum() != 0)) {
-          hasRef = true;
-          return;
-        }
+    for (auto bbId : loop.GetLoopBBs()) {
+      LiveUnit *lu = lr->GetLiveUnitFromLuMap(bbId);
+      if (lu != nullptr && (lu->GetDefNum() != 0 || lu->GetUseNum() != 0)) {
+        hasRef = true;
+        break;
       }
-    };
-    checkHasRefInBBs(loop.GetLoopBBs());
-    // reloadBB is not exitBB, need check lr has ref in exitBB
-    if (loop.GetExitBBs().count(reloadBB.GetId()) == 0) {
-      checkHasRefInBBs(loop.GetExitBBs());
     }
     if (!hasRef) {
       splitCount++;
@@ -4168,14 +4181,14 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const LoopDesc &loop, const std
       RegOperand &phyOpnd = cgFunc->GetOpndBuilder()->CreatePReg(lr->GetAssignedRegNO(),
           lr->GetSpillSize(), lr->GetRegType());
 
-      auto &storeCom = cgFunc->GetOpndBuilder()->CreateComment("split around loop begin");
-      storeBB.AppendInsn(cgFunc->GetInsnBuilder()->BuildCommentInsn(storeCom));
-      Insn *last = storeBB.GetLastInsn();
+      auto &headerCom = cgFunc->GetOpndBuilder()->CreateComment("split around loop begin");
+      headerPred.AppendInsn(cgFunc->GetInsnBuilder()->BuildCommentInsn(headerCom));
+      Insn *last = headerPred.GetLastInsn();
       (void)SpillOperand(*last, ropnd, true, static_cast<RegOperand&>(phyOpnd));
 
-      auto &reloadCom = cgFunc->GetOpndBuilder()->CreateComment("split around loop end");
-      reloadBB.InsertInsnBegin(cgFunc->GetInsnBuilder()->BuildCommentInsn(reloadCom));
-      Insn *first = reloadBB.GetFirstInsn();
+      auto &exitCom = cgFunc->GetOpndBuilder()->CreateComment("split around loop end");
+      exitSucc.InsertInsnBegin(cgFunc->GetInsnBuilder()->BuildCommentInsn(exitCom));
+      Insn *first = exitSucc.GetFirstInsn();
       (void)SpillOperand(*first, ropnd, false, static_cast<RegOperand&>(phyOpnd));
 
       LiveRange *replacedLr = lrMap[*it];
@@ -4302,58 +4315,46 @@ void GraphColorRegAllocator::AnalysisLoop(const LoopDesc &loop) {
     return;
   }
 
-  BB *storeBB = nullptr;  // unique loop entrance, which is used to generate storage insn
+  std::set<BB*> loopExitSuccs;
+  for (auto bbId: loop.GetExitBBs()) {
+    auto *bb = cgFunc->GetBBFromID(bbId);
+    for (auto &succ: bb->GetSuccs()) {
+      if (loop.GetLoopBBs().count(succ->GetId()) != 0) {
+        continue;
+      }
+      if (succ->IsSoloGoto() || succ->IsEmpty()) {
+        BB *realSucc = CGCFG::GetTargetSuc(*succ);
+        if (realSucc != nullptr) {
+          loopExitSuccs.insert(realSucc);
+        }
+      } else {
+        loopExitSuccs.insert(succ);
+      }
+    }
+  }
+  std::set<BB*> loopEntra;
   for (auto &pred: loop.GetHeader().GetPreds()) {
     if (loop.GetBackEdges().count(pred->GetId()) != 0) {
       continue;
     }
-    if (storeBB != nullptr) {
-      return;
-    }
-    storeBB = pred;
+    loopEntra.insert(pred);
   }
-  if (storeBB == nullptr || storeBB->GetKind() != BB::kBBFallthru) {
+  if (loopEntra.size() != 1 || loopExitSuccs.size() != 1) {
     return;
   }
-
-  // it is used to generate the reload insn.
-  //  1) when the loop has only one ExitBB, it is the ExitBB.
-  //  2) when there are multiple ExitBBs in the loop, it is the only common successor of ExitBBs.
-  BB *reloadBB = nullptr;
-  if (loop.GetExitBBs().size() == 1) {
-    reloadBB = cgFunc->GetBBFromID(*loop.GetExitBBs().begin());
-  } else {
-    std::set<BB*> loopExitSuccs;
-    for (auto bbId: loop.GetExitBBs()) {
-      for (auto &succ: cgFunc->GetBBFromID(bbId)->GetSuccs()) {
-        if (loop.GetLoopBBs().count(succ->GetId()) != 0) {
-          continue;
-        }
-        if (succ->IsSoloGoto() || succ->IsEmpty()) {
-          BB *realSucc = CGCFG::GetTargetSuc(*succ);
-          if (realSucc != nullptr) {
-            loopExitSuccs.insert(realSucc);
-          }
-        } else {
-          loopExitSuccs.insert(succ);
-        }
-      }
-    }
-    if (loopExitSuccs.size() != 1) {
+  BB *headerPred = *loopEntra.begin();
+  if (headerPred->GetKind() != BB::kBBFallthru) {
+    return;
+  }
+  BB *exitSucc = *loopExitSuccs.begin();
+  if (exitSucc->GetPreds().size() != loop.GetExitBBs().size()) {
+    return;
+  }
+  for (auto *pred : exitSucc->GetPreds()) {
+    if (loop.GetExitBBs().count(pred->GetId()) == 0) {
       return;
-    }
-    reloadBB = *loopExitSuccs.begin();
-    if (reloadBB->GetPreds().size() != loop.GetExitBBs().size()) {
-      return;
-    }
-    // check reloadBB is the only common successor of ExitBBs
-    for (auto *pred : reloadBB->GetPreds()) {
-      if (loop.GetExitBBs().count(pred->GetId()) == 0) {
-        return;
-      }
     }
   }
-
   std::set<regno_t> cands;
   if (!LoopNeedSplit(loop, cands)) {
     return;
@@ -4363,7 +4364,7 @@ void GraphColorRegAllocator::AnalysisLoop(const LoopDesc &loop) {
       return lr1->GetPriority() < lr2->GetPriority();
   };
   std::sort(lrs.begin(), lrs.end(), comparator);
-  SplitVregAroundLoop(loop, lrs, *storeBB, *reloadBB, cands);
+  SplitVregAroundLoop(loop, lrs, *headerPred, *exitSucc, cands);
 }
 
 void GraphColorRegAllocator::AnalysisLoopPressureAndSplit(const LoopDesc &loop) {

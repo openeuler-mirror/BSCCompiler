@@ -529,12 +529,6 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     }
   }
   std::string funcStName = funcSt->GetName();
-  std::string funcOriginName = funcStName;
-  // When entry bb is cold, hot bbs are set before entry bb.
-  // Function original name label should be set next to entry bb, so we name the label before hot bbs "func.hot".
-  if (cgFunc.IsEntryCold()) {
-    funcStName = funcOriginName + ".hot";
-  }
   MIRFunction *func = funcSt->GetFunction();
   if (func->GetAttr(FUNCATTR_weak)) {
     (void)emitter.Emit("\t.weak\t" + funcStName + "\n");
@@ -582,23 +576,9 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
 
   /* set hot-cold section boundary */
   BB *boundaryBB = nullptr;
-  BB *lastBB = nullptr;
   FOR_ALL_BB(bb, &aarchCGFunc) {
     if (bb->IsInColdSection() && boundaryBB == nullptr) {
       boundaryBB = bb;
-      // fix startlable and endlabe in splited funcs
-      CG *cg = cgFunc.GetCG();
-      if (cg->GetCGOptions().WithDwarf() && cgFunc.GetWithSrc()) {
-        LabelIdx endLblIdxHot = cgFunc.CreateLabel();
-        BB *newEndBB = cgFunc.CreateNewBB();
-        BB *firstBB = cgFunc.GetFirstBB();
-        newEndBB->AddLabel(endLblIdxHot);
-        lastBB->AppendBB(*newEndBB);
-        DebugInfo *di = cg->GetMIRModule()->GetDbgInfo();
-        DBGDie *fdie = di->GetFuncDie(func);
-        fdie->SetAttr(DW_AT_high_pc, endLblIdxHot);
-        CG::SetFuncWrapLabels(func, std::make_pair(firstBB->GetLabIdx(), endLblIdxHot));
-      }
     }
     if (boundaryBB && !bb->IsInColdSection()) {
       LogInfo::MapleLogger() << " ==== in Func " << aarchCGFunc.GetName() << " ====\n";
@@ -606,7 +586,6 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       bb->Dump();
       CHECK_FATAL_FALSE("cold section is not pure!");
     }
-    lastBB = bb;
   }
 
   /* emit instructions */
@@ -641,18 +620,10 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
           cgFunc.GetFunction().IsDefaultVisibility()) {
         EmitLocalAliasOfFuncName(emitter, funcStName);
       }
-      // When entry bb is cold, the func label before cold section should be function original name.
-      funcStName = cgFunc.IsEntryCold() ? funcOriginName : funcOriginName + ".cold";
-      std::string sectionName = ".text.unlikely." + funcStName;
+      std::string sectionName = ".text.unlikely." + funcStName + ".cold";
       (void)emitter.Emit("\t.section  " + sectionName + ",\"ax\"\n");
       (void)emitter.Emit("\t.align 5\n");
-      // Because entry bb will be called, so the label next to entry bb should be global for caller.
-      if (cgFunc.IsEntryCold()) {
-        (void)emitter.Emit("\t.globl\t").Emit(funcStName).Emit("\n");
-        (void)emitter.Emit("\t.type\t" + funcStName + ", %function\n");
-      }
-      (void)emitter.Emit(funcStName + ":\n");
-      funcStName = funcOriginName;
+      (void)emitter.Emit(funcStName + ".cold:\n");
     }
   }
   if (CGOptions::IsMapleLinker()) {
@@ -663,11 +634,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     EmitAArch64CfiInsn(emitter, cgFunc.GetInsnBuilder()->BuildCfiInsn(cfi::OP_CFI_endproc));
   }
   if (boundaryBB) {
-    if (cgFunc.IsEntryCold()) {
-      (void)emitter.Emit("\t.size\t" + funcStName + ", .-").Emit(funcStName + "\n");
-    } else {
-      (void)emitter.Emit("\t.size\t" + funcStName + ".cold, .-").Emit(funcStName + ".cold\n");
-    }
+    (void)emitter.Emit("\t.size\t" + funcStName + ".cold, .-").Emit(funcStName + ".cold\n");
   } else {
     (void)emitter.Emit("\t.size\t" + funcStName + ", .-").Emit(funcStName + "\n");
   }
@@ -860,10 +827,6 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
       EmitCTlsDescCall(emitter, insn);
       return;
     }
-    case MOP_tls_desc_call_warmup: {
-      EmitCTlsDescCallWarmup(emitter, insn);
-      return;
-    }
     case MOP_tls_desc_rel: {
       EmitCTlsDescRel(emitter, insn);
       return;
@@ -875,10 +838,6 @@ void AArch64AsmEmitter::EmitAArch64Insn(maplebe::Emitter &emitter, Insn &insn) c
     case MOP_sync_lock_test_setI:
     case MOP_sync_lock_test_setL: {
       EmitSyncLockTestSet(emitter, insn);
-      return;
-    }
-    case MOP_prefetch: {
-      EmitPrefetch(emitter, insn);
       return;
     }
     default:
@@ -2150,42 +2109,6 @@ void AArch64AsmEmitter::EmitCTlsDescCall(Emitter &emitter, const Insn &insn) con
   (void)emitter.Emit("\n");
 }
 
-void AArch64AsmEmitter::EmitCTlsDescCallWarmup(Emitter &emitter, const Insn &insn) const {
-  const InsnDesc *md = &AArch64CG::kMd[MOP_tls_desc_call_warmup];
-  Operand *result = &insn.GetOperand(kInsnFirstOpnd);
-  const OpndDesc *resultProp = md->opndMD[kInsnFirstOpnd];
-  Operand *reg = &insn.GetOperand(kInsnSecondOpnd);
-  const OpndDesc *regProp = md->opndMD[kInsnSecondOpnd];
-  Operand *symbol = &insn.GetOperand(kInsnThirdOpnd);
-  auto *stImmOpnd = static_cast<StImmOperand*>(symbol);
-  std::string symName = stImmOpnd->GetName();
-  symName += stImmOpnd->GetSymbol()->GetStorageClass() == kScPstatic ?
-      std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()) : "";
-  A64OpndEmitVisitor resultVisitor(emitter, resultProp);
-  A64OpndEmitVisitor regVisitor(emitter, regProp);
-  // adrp    result, :tlsdesc:symbol
-  (void)emitter.Emit("\t").Emit("adrp\t");
-  result->Accept(resultVisitor);
-  (void)emitter.Emit(", :tlsdesc:").Emit(symName).Emit("\n");
-  // ldr reg, [result, #tlsdesc_lo12:symbol]
-  (void)emitter.Emit("\t").Emit("ldr").Emit("\t");
-  reg->Accept(regVisitor);
-  (void)emitter.Emit(", [");
-  result->Accept(resultVisitor);
-  (void)emitter.Emit(", #:tlsdesc_lo12:").Emit(symName).Emit("]\n");
-  // add result ,#tlsdesc_lo12:symbol
-  (void)emitter.Emit("\t").Emit("add\t");
-  result->Accept(resultVisitor);
-  (void)emitter.Emit(", ");
-  result->Accept(resultVisitor);
-  (void)emitter.Emit(", :tlsdesc_lo12:").Emit(symName).Emit("\n");
-  // .tlsdesccall <symbolName>
-  (void)emitter.Emit("\t").Emit(".tlsdesccall").Emit("\t").Emit(symName).Emit("\n");
-  // placeholder
-  // may not be needed if TLS image is bigger than reserved space
-  (void)emitter.Emit("\t").Emit("nop").Emit("\n");
-}
-
 void AArch64AsmEmitter::EmitCTlsLoadTdata(Emitter &emitter, const Insn &insn) const {
   const InsnDesc *md = &AArch64CG::kMd[MOP_tlsload_tdata];
   Operand *result = &insn.GetOperand(kInsnFirstOpnd);
@@ -2432,25 +2355,6 @@ void AArch64AsmEmitter::EmitAArch64DbgInsn(FuncEmitInfo &funcEmitInfo, Emitter &
     }
   }
   (void)emitter.Emit("\n");
-}
-
-void AArch64AsmEmitter::EmitPrefetch(Emitter &emitter, const Insn &insn) const {
-  constexpr int32 rwLimit = 2; // 2: the value of opnd1 cannot exceed 2
-  constexpr int32 localityLimit = 4; // 4: the value of opnd2 cannot exceed 4
-  static const std::string PRFOP[rwLimit][localityLimit] = {{"pldl1strm", "pldl3keep", "pldl2keep", "pldl1keep"},
-                                                            {"pstl1strm", "pstl3keep", "pstl2keep", "pstl1keep"}};
-  const InsnDesc *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
-  auto *addr = &insn.GetOperand(kInsnFirstOpnd);
-  auto *rw = &insn.GetOperand(kInsnSecondOpnd);
-  auto *locality = &insn.GetOperand(kInsnThirdOpnd);
-  A64OpndEmitVisitor addrVisitor(emitter, md->opndMD[kInsnFirstOpnd]);
-  int64 rwConstVal = static_cast<ImmOperand*>(rw)->GetValue();
-  int64 localityConstVal = static_cast<ImmOperand*>(locality)->GetValue();
-  CHECK_FATAL(rwConstVal < rwLimit && localityConstVal < localityLimit, "wrong opnd");
-
-  (void)emitter.Emit("\tprfm\t").Emit(PRFOP[rwConstVal][localityConstVal]).Emit(", [");
-  addr->Accept(addrVisitor);
-  (void)emitter.Emit("]\n");
 }
 
 bool AArch64AsmEmitter::CheckInsnRefField(const Insn &insn, uint32 opndIndex) const {

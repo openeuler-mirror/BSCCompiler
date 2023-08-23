@@ -46,13 +46,13 @@ class OBJSize {
   void ComputeObjectSize(MeStmt &meStmt);
   void ERRWhenSizeTypeIsInvalid(const MeStmt &meStmt) const;
   void DealWithBuiltinObjectSize(BB &bb, MeStmt &meStmt);
-  size_t ComputeObjectSizeWithType(MeExpr &opnd, bool getSizeOfWholeVar, bool getMaxSizeOfObjs) const;
+  size_t ComputeObjectSizeWithType(MeExpr &opnd, int64 type) const;
   void ReplaceStmt(CallMeStmt &callMeStmt, const std::string &str);
   size_t DealWithSprintfAndVsprintf(const CallMeStmt &callMeStmt, const MIRFunction &calleeFunc);
-  size_t DealWithArray(const MeExpr &opnd, bool getSizeOfWholeVar, bool getMaxSizeOfObjs) const;
+  size_t DealWithArray(const MeExpr &opnd, int64 type) const;
   size_t DealWithAddrof(const MeExpr &opnd, bool getSizeOfWholeVar) const;
-  size_t DealWithDread(MeExpr &opnd, bool getSizeOfWholeVar, bool getMaxSizeOfObjs) const;
-  size_t DealWithIaddrof(const MeExpr &opnd, bool getSizeOfWholeVar, bool getMaxSizeOfObjs) const;
+  size_t DealWithDread(MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) const;
+  size_t DealWithIaddrof(const MeExpr &opnd, int64 type, bool getSizeOfWholeVar) const;
   bool DealWithOpnd(MeExpr &opnd, std::set<MePhiNode*> &visitedPhi) const;
   bool PhiOpndIsDefPointOfOtherPhi(MeExpr& expr, std::set<MePhiNode *>& visitedPhi) const;
 

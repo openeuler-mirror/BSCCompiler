@@ -29,7 +29,9 @@ class AArch64GlobalSchedule : public GlobalSchedule {
   void VerifyingSchedule(CDGRegion &region) override;
 
  protected:
+  void InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp) override;
   void FinishScheduling(CDGNode &cdgNode) override;
+  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override;
 };
 } /* namespace maplebe */
 

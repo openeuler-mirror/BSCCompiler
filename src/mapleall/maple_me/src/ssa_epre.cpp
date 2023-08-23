@@ -449,12 +449,6 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       MeExpr *base = ivarMeExpr->GetBase();
       if (!base->IsLeaf()) {
         BuildWorkListExpr(meStmt, seqStmt, *ivarMeExpr->GetBase(), isRebuild, tempVar, false, insertSorted);
-      } else if (base->GetOp() == OP_intrinsicop &&
-                 (static_cast<NaryMeExpr *>(base)->GetIntrinsic() == INTRN_C___tls_get_tbss_anchor ||
-                  static_cast<NaryMeExpr *>(base)->GetIntrinsic() == INTRN_C___tls_get_tdata_anchor ||
-                  static_cast<NaryMeExpr *>(base)->GetIntrinsic() == INTRN_C___tls_get_thread_pointer
-                  )) {
-        BuildWorkListExpr(meStmt, seqStmt, *ivarMeExpr->GetBase(), isRebuild, tempVar, false, insertSorted);
       } else if (meExpr.GetPrimType() == PTY_agg) {
         break;
       } else if (ivarMeExpr->IsVolatile()) {

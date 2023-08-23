@@ -18,6 +18,7 @@
  ADDTARGETPHASE("handlefunction", !CGOptions::UseNewCg());
  ADDTARGETPHASE("instructionselector", CGOptions::UseNewCg());
  ADDTARGETPHASE("handlecfg", CGOptions::UseNewCg());
+ ADDTARGETPHASE("patchlongbranch", CGOptions::UseNewCg() && CGOptions::DoFixLongBranch());
  ADDTARGETPHASE("cgprofuse", Options::profileUse);
  ADDTARGETPHASE("moveargs", true);
  ADDTARGETPHASE("instructionstandardize", CGOptions::UseNewCg());
@@ -62,12 +63,10 @@
  ADDTARGETPHASE("framefinalize", true);
  ADDTARGETPHASE("cfgo", GetMIRModule()->IsCModule() && CGOptions::DoCFGO());
  ADDTARGETPHASE("peephole0", CGOptions::DoPeephole());
- ADDTARGETPHASE("clearrdinfo", CGOptions::DoPeephole());
  ADDTARGETPHASE("ebo", CGOptions::DoEBO());
  ADDTARGETPHASE("postcfgo", CGOptions::DoCFGO());
  ADDTARGETPHASE("duptail", !CGOptions::DoLiteProfUse() && !CGOptions::DoLiteProfGen());
  ADDTARGETPHASE("cgpostpeephole", CGOptions::DoPeephole());
- ADDTARGETPHASE("postrasink", GetMIRModule()->IsCModule() && CGOptions::DoPostRASink());
  ADDTARGETPHASE("yieldpoint", GetMIRModule()->IsJavaModule() && CGOptions::IsInsertYieldPoint());
  ADDTARGETPHASE("localschedule", GetMIRModule()->IsCModule() && CGOptions::DoLocalSchedule());
  ADDTARGETPHASE("cgsplitcriticaledge", CGOptions::DoLiteProfGen());

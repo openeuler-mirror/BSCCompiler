@@ -66,8 +66,6 @@ class HIR2MPLOptions {
   // output control options
   bool ProcessOutputPath(const maplecl::OptionInterface &output) const;
   bool ProcessOutputName(const maplecl::OptionInterface &outputName) const;
-  bool ProcessInlineMpltDir(const maplecl::OptionInterface &inlineMpltDir) const;
-  bool ProcessExportInlineMplt(const maplecl::OptionInterface &) const;
   bool ProcessGenMpltOnly(const maplecl::OptionInterface &) const;
   bool ProcessGenAsciiMplt(const maplecl::OptionInterface &) const;
   bool ProcessDumpInstComment(const maplecl::OptionInterface &) const;
@@ -100,7 +98,6 @@ class HIR2MPLOptions {
   bool ProcessFuncInlineSize(const maplecl::OptionInterface &funcInliceSize) const;
   bool ProcessWPAA(const maplecl::OptionInterface &) const;
   bool ProcessFM(const maplecl::OptionInterface &fmOpt) const;
-  bool ProcessNoBuiltin(const maplecl::OptionInterface &) const;
 
   // ast compiler options
   bool ProcessUseSignedChar(const maplecl::OptionInterface &) const;

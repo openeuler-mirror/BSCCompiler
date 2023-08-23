@@ -46,10 +46,7 @@ void CriticalEdge::CollectCriticalEdges() {
 }
 
 bool CgCriticalEdge::PhaseRun(maplebe::CGFunc &f) {
-  // In O0 mode, only the critical edge before pgogen will be enabled.
-  // In O2 mode, all critical edge phases will be enabled.
-  if ((Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 || CGOptions::DoLiteProfGen()) &&
-      f.NumBBs() < kBBLimit) {
+  if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && f.NumBBs() < kBBLimit) {
     MemPool *memPool = GetPhaseMemPool();
     CriticalEdge *split = memPool->New<CriticalEdge>(f, *memPool);
     f.GetTheCFG()->InitInsnVisitor(f);

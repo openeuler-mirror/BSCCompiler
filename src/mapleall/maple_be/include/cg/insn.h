@@ -79,11 +79,11 @@ struct VectorRegSpec {
 class Insn {
  public:
   enum RetType : uint8 {
-    kRegNull,   // no return type
-    kRegFloat,  // return register is V0
-    kRegInt     // return register is R0
+    kRegNull,   /* no return type */
+    kRegFloat,  /* return register is V0 */
+    kRegInt     /* return register is R0 */
   };
-  // MCC_DecRefResetPair clear 2 stack position, MCC_ClearLocalStackRef clear 1 stack position
+  /* MCC_DecRefResetPair clear 2 stack position, MCC_ClearLocalStackRef clear 1 stack position */
   static constexpr uint8 kMaxStackOffsetSize = 2;
   static constexpr int32 kUnknownProb = -1;
 
@@ -120,19 +120,6 @@ class Insn {
     opnds.emplace_back(&opnd4);
   }
   virtual ~Insn() = default;
-
-  // Custom deep copy
-  virtual Insn *CloneTree(MapleAllocator &allocator) const {
-    auto *insn = allocator.GetMemPool()->New<Insn>(*this);
-    insn->opnds.clear();
-    for (auto opnd : opnds) {
-      (void)insn->opnds.emplace_back(opnd->CloneTree(allocator));
-    }
-    return insn;
-  }
-
-  // Default shallow copy
-  Insn *Clone(const MemPool /* &memPool */) const;
 
   MOperator GetMachineOpcode() const {
     return mOp;
@@ -587,6 +574,8 @@ class Insn {
     return isPhiMovInsn;
   }
 
+  Insn *Clone(const MemPool /* &memPool */) const;
+
   void SetInsnDescrption(const InsnDesc &newMD) {
     md = &newMD;
   }
@@ -637,7 +626,7 @@ class Insn {
   void ClearRegSpecList() {
     regSpecList.clear();
   }
-  int32 GetProb() const {
+  int32 GetProb() {
     return probability;
   }
   void SetProb(int prob) {
@@ -719,7 +708,7 @@ class Insn {
    */
   bool processRHS = false;
   // for jmp insn, probability is the prob for jumping
-  int32 probability = kUnknownProb;
+  int32 probability = kUnknownProb; 
 };
 
 struct InsnIdCmp {

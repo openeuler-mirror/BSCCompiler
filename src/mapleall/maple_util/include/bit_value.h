@@ -73,6 +73,7 @@ class BitValue {
   BitValue operator|(const BitValue &rhs) const;
   BitValue operator^(const BitValue &rhs) const;
 
+ public:
   IntVal zeroBits;
   IntVal oneBits;
 };

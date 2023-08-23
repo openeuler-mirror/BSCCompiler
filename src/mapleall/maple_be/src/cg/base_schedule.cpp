@@ -14,9 +14,6 @@
 */
 
 #include "base_schedule.h"
-#ifdef TARGAARCH64
-#include "aarch64_cg.h"
-#endif
 
 namespace maplebe {
 /*
@@ -41,18 +38,6 @@ void BaseSchedule::InitInsnIdAndLocInsn() {
       }
     }
   }
-}
-
-void BaseSchedule::InitMachineInsnNum(CDGNode &cdgNode) const {
-  uint32 insnNum = 0;
-  BB *curBB = cdgNode.GetBB();
-  CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
-  FOR_BB_INSNS_CONST(insn, curBB) {
-    if (insn->IsMachineInstruction()) {
-      insnNum++;
-    }
-  }
-  cdgNode.SetInsnNum(insnNum);
 }
 
 void BaseSchedule::InitInRegion(CDGRegion &region) const {
@@ -168,48 +153,5 @@ void BaseSchedule::DumpCDGNodeInfoAfterSchedule(CDGNode &cdgNode) const {
   LogInfo::MapleLogger() << "    sched total cycles: " << listScheduler->GetCurrCycle() << "\n\n";
   curBB->Dump();
   LogInfo::MapleLogger() << "  = = = = = = = = = = = = = = = = = = = = = = = = = = =\n\n\n";
-}
-
-void BaseSchedule::DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const {
-  // For print table log with unequal widths
-  int printWidth1 = 6;
-  int printWidth2 = 8;
-  int printWidth3 = 14;
-  LogInfo::MapleLogger() << "    ------------------------------------------------\n";
-  (void)LogInfo::MapleLogger().fill(' ');
-  LogInfo::MapleLogger() << "      " <<
-      std::setiosflags(std::ios::left) << std::setw(printWidth1) << "insn" << std::resetiosflags(std::ios::left) <<
-      std::setiosflags(std::ios::right) << std::setw(printWidth2) << "mop" << std::resetiosflags(std::ios::right) <<
-      std::setiosflags(std::ios::right) << std::setw(printWidth2) << "bb" << std::resetiosflags(std::ios::right) <<
-      std::setiosflags(std::ios::right) << std::setw(printWidth3) << "succs(latency)" <<
-      std::resetiosflags(std::ios::right) << "\n";
-  LogInfo::MapleLogger() << "    ------------------------------------------------\n";
-  BB *curBB = cdgNode.GetBB();
-  ASSERT(curBB != nullptr, "get bb from cdgNode failed");
-  FOR_BB_INSNS_CONST(insn, curBB) {
-    if (!insn->IsMachineInstruction()) {
-      continue;
-    }
-    LogInfo::MapleLogger() << "      " <<
-        std::setiosflags(std::ios::left) << std::setw(printWidth1) << insn->GetId() <<
-        std::resetiosflags(std::ios::left) << std::setiosflags(std::ios::right) << std::setw(printWidth2);
-    const InsnDesc *md = nullptr;
-#ifdef TARGAARCH64
-    md = &AArch64CG::kMd[insn->GetMachineOpcode()];
-#endif
-    CHECK_NULL_FATAL(md);
-    LogInfo::MapleLogger() << md->name << std::resetiosflags(std::ios::right) <<
-        std::setiosflags(std::ios::right) << std::setw(printWidth2) << curBB->GetId() <<
-        std::resetiosflags(std::ios::right) << std::setiosflags(std::ios::right) << std::setw(printWidth3);
-    const DepNode *depNode = insn->GetDepNode();
-    ASSERT(depNode != nullptr, "get depNode from insn failed");
-    for (auto succLink : depNode->GetSuccs()) {
-      DepNode &succNode = succLink->GetTo();
-      LogInfo::MapleLogger() << succNode.GetInsn()->GetId() << "(" << succLink->GetLatency() << "), ";
-    }
-    LogInfo::MapleLogger() << std::resetiosflags(std::ios::right) << "\n";
-  }
-  LogInfo::MapleLogger() << "    ------------------------------------------------\n";
-  LogInfo::MapleLogger() << "\n";
 }
 } /* namespace maplebe */

@@ -62,7 +62,6 @@ class JumpThreading {
   bool CanJumpThreadingWithCondGoto(BB &bb, MeExpr *opnd, ValueRange *vrOfOpnd0);
   void FindPathWhenDefPointInCurrBB(BB &defBB, BB &predBB, MeExpr &opnd0, MeExpr *opnd1 = nullptr);
   void FindPathWhenDefPointIsNotInCurrBB(BB &defBB, BB &useBB, MeExpr &opnd0, MeExpr *opnd1 = nullptr);
-  void FindPathWhenDefBBDomPredBB(BB &bb, BB &pred, CompareOpnds &cmpOpnds, const BB &defBB);
   void FindPathWhenDefByIsNotStmtAndPhi(BB &defBB, BB &predBB, CompareOpnds &cmpOpnds);
   void FindPathFromUse2DefWhenOneOpndIsDefByPhi(BB &bb, BB &pred, CompareOpnds &cmpOpnds,
                                                 size_t i, bool theFirstCmpOpndIsDefByPhi);
@@ -93,7 +92,6 @@ class JumpThreading {
   LoopDesc *currLoop = nullptr;
   static int64 codeSizeOfCopy;
   static size_t pathSize;
-  bool registPath = true;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MEJumpThreading, MeFunction)

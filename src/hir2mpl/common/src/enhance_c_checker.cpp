@@ -174,6 +174,22 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIR
   }
 }
 
+std::string ENCChecker::GetNthStr(size_t index) {
+  switch (index) {
+    case 0:
+      return "1st";
+    case 1:
+      return "2nd";
+    case 2:
+      return "3rd";
+    default: {
+      std::ostringstream oss;
+      oss << index + 1 << "th";
+      return oss.str();
+    }
+  }
+}
+
 std::string ENCChecker::PrintParamIdx(const std::list<size_t> &idxs) {
   std::ostringstream os;
   for (auto iter = idxs.begin(); iter != idxs.end(); ++iter) {
@@ -655,7 +671,7 @@ bool ASTParser::ProcessBoundaryFuncPtrAttrsByIndexForParams(T *attr, ASTDecl &as
   MIRType *lenType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typesVec[lenIdx]);
   if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
     FE_ERR(kLncErr, astDecl.GetSrcLoc(), "The boundary length var by the %s argument is not an integer type",
-           GetNthStr(lenIdx).c_str());
+           ENCChecker::GetNthStr(lenIdx).c_str());
     return isUpdated;
   }
   for (const clang::ParamIdx &paramIdx : attr->index()) {
@@ -788,7 +804,7 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
     qualType = funcDecl.getParamDecl(idx)->getType();
   } else {
     FE_ERR(kLncErr, lenExpr->GetSrcLoc(), "The parameter annotated boundary attr [the %s argument] is not found"
-           "in the function [%s]", GetNthStr(idx).c_str(), astFunc.GetName().c_str());
+           "in the function [%s]", ENCChecker::GetNthStr(idx).c_str(), astFunc.GetName().c_str());
     return;
   }
   // parameter stringLiteral -> real parameter decl
@@ -822,14 +838,14 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
                                              unsigned int idx, ASTFunc &astFunc, unsigned int lenIdx, bool isSize) {
   if (lenIdx > astFunc.GetParamDecls().size()) {
     FE_ERR(kLncErr, astFunc.GetSrcLoc(), "The %s parameter specified as boundary length var is not found "
-           "in the function [%s]", GetNthStr(lenIdx).c_str(), astFunc.GetName().c_str());
+           "in the function [%s]", ENCChecker::GetNthStr(lenIdx).c_str(), astFunc.GetName().c_str());
     return;
   }
   ASTDecl *lenDecl = astFunc.GetParamDecls()[lenIdx];
   MIRType *lenType = lenDecl->GetTypeDesc().front();
   if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
     FE_ERR(kLncErr, astFunc.GetSrcLoc(), "The %s parameter specified as boundary length var is not an integer type "
-           "in the function [%s]", GetNthStr(lenIdx).c_str(), astFunc.GetName().c_str());
+           "in the function [%s]", ENCChecker::GetNthStr(lenIdx).c_str(), astFunc.GetName().c_str());
     return;
   }
   ASTDeclRefExpr *lenRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
@@ -843,7 +859,7 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
     ptrDecl = astFunc.GetParamDecls()[idx];
   } else {
     FE_ERR(kLncErr, astFunc.GetSrcLoc(), "The %s parameter annotated boundary attr is not found in the function [%s]",
-           GetNthStr(idx).c_str(), astFunc.GetName().c_str());
+           ENCChecker::GetNthStr(idx).c_str(), astFunc.GetName().c_str());
     return;
   }
   ptrDecl->SetBoundaryLenParamIdx(static_cast<int8>(lenIdx));
@@ -1898,7 +1914,7 @@ void ENCChecker::ReplaceBoundaryErr(const MIRBuilder &mirBuilder, const FEIRStmt
     auto callAssert = static_cast<const FEIRStmtCallAssertBoundary*>(stmt);
     FE_ERR(kLncErr, stmt->GetSrcLoc(), "boundaryless pointer passed to %s that requires a boundary pointer for "
            "the %s argument", callAssert->GetFuncName().c_str(),
-           GetNthStr(callAssert->GetParamIndex()).c_str());
+           ENCChecker::GetNthStr(callAssert->GetParamIndex()).c_str());
   } else if (op == OP_returnassertle) {
     MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
     if (curFunction->GetName().find(kBoundsBuiltFunc) == std::string::npos) {

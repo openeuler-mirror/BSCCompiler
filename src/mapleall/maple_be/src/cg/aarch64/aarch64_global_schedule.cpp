@@ -24,7 +24,7 @@ void AArch64GlobalSchedule::VerifyingSchedule(CDGRegion &region) {
   for (auto cdgNode : region.GetRegionNodes()) {
     MemPool *cdgNodeMp = memPoolCtrler.NewMemPool("global-scheduler cdgNode memPool", true);
 
-    InitInCDGNode(region, *cdgNode, *cdgNodeMp);
+    InitInCDGNode(region, *cdgNode, cdgNodeMp);
     uint32 scheduledNodeNum = 0;
 
     /* Schedule independent instructions sequentially */
@@ -61,6 +61,53 @@ void AArch64GlobalSchedule::VerifyingSchedule(CDGRegion &region) {
     /* Reorder the instructions of BB based on the scheduling result */
     FinishScheduling(*cdgNode);
     ClearCDGNodeInfo(region, *cdgNode, cdgNodeMp);
+  }
+}
+
+void AArch64GlobalSchedule::InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp) {
+  commonSchedInfo = cdgNodeMp->New<CommonScheduleInfo>(*cdgNodeMp);
+  // 1. The instructions of the current node
+  MapleVector<DepNode*> &curDataNodes = cdgNode.GetAllDataNodes();
+  // For verify, the node is stored in reverse order and for global, the node is stored in sequence
+  for (auto depNode : curDataNodes) {
+    commonSchedInfo->AddCandidates(depNode);
+    depNode->SetState(kCandidate);
+  }
+  // 2. The instructions of the equivalent candidate nodes of the current node
+  std::vector<CDGNode*> equivalentNodes;
+  cda.GetEquivalentNodesInRegion(region, cdgNode, equivalentNodes);
+  for (auto equivNode : equivalentNodes) {
+    BB *equivBB = equivNode->GetBB();
+    ASSERT(equivBB != nullptr, "get bb from cdgNode failed");
+    if (equivBB->IsAtomicBuiltInBB()) {
+      continue;
+    }
+    for (auto depNode : equivNode->GetAllDataNodes()) {
+      Insn *insn = depNode->GetInsn();
+      CHECK_FATAL(insn != nullptr, "get insn from depNode failed");
+      // call & branch insns cannot be moved across BB
+      if (insn->IsBranch() || insn->IsCall()) {
+        continue;
+      }
+      commonSchedInfo->AddCandidates(depNode);
+      depNode->SetState(kCandidate);
+    }
+  }
+  listScheduler->SetCommonSchedInfo(*commonSchedInfo);
+
+  // Init insnNum of curCDGNode
+  uint32 insnNum = 0;
+  BB *curBB = cdgNode.GetBB();
+  CHECK_FATAL(curBB != nullptr, "get bb from cdgNode failed");
+  FOR_BB_INSNS_CONST(insn, curBB) {
+    if (insn->IsMachineInstruction()) {
+      insnNum++;
+    }
+  }
+  cdgNode.SetInsnNum(insnNum);
+
+  if (GLOBAL_SCHEDULE_DUMP) {
+    DumpCDGNodeInfoBeforeSchedule(cdgNode);
   }
 }
 
@@ -109,4 +156,39 @@ void AArch64GlobalSchedule::FinishScheduling(CDGNode &cdgNode) {
   ASSERT(curBB->NumInsn() >= static_cast<int32>(cdgNode.GetInsnNum()),
          "The number of instructions after global-scheduling is unexpected");
 }
-} /* namespace maplebe */
+
+void AArch64GlobalSchedule::DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const {
+  LogInfo::MapleLogger() << "    ------------------------------------------------\n";
+  LogInfo::MapleLogger() << "      " <<
+      // '6,8,14' Set the width for printing.
+      std::setiosflags(std::ios::left) << std::setw(6) << "insn" << std::resetiosflags(std::ios::left) <<
+      std::setiosflags(std::ios::right) << std::setw(8) << "mop" << std::resetiosflags(std::ios::right) <<
+      std::setiosflags(std::ios::right) << std::setw(6) << "bb" << std::resetiosflags(std::ios::right) <<
+      std::setiosflags(std::ios::right) << std::setw(14) << "succs(latency)" <<
+      std::resetiosflags(std::ios::right) << "\n";
+  LogInfo::MapleLogger() << "    ------------------------------------------------\n";
+  BB *curBB = cdgNode.GetBB();
+  ASSERT(curBB != nullptr, "get bb from cdgNode failed");
+  FOR_BB_INSNS_CONST(insn, curBB) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    LogInfo::MapleLogger() << "      " <<
+        std::setiosflags(std::ios::left) << std::setw(6) << insn->GetId() << std::resetiosflags(std::ios::left) <<
+        std::setiosflags(std::ios::right) << std::setw(8);
+    const InsnDesc *md = &AArch64CG::kMd[insn->GetMachineOpcode()];
+    LogInfo::MapleLogger() << md->name << std::resetiosflags(std::ios::right) <<
+        std::setiosflags(std::ios::right) << std::setw(6) << curBB->GetId() << std::resetiosflags(std::ios::right) <<
+        std::setiosflags(std::ios::right) << std::setw(14);
+    const DepNode *depNode = insn->GetDepNode();
+    ASSERT(depNode != nullptr, "get depNode from insn failed");
+    for (auto succLink : depNode->GetSuccs()) {
+      DepNode &succNode = succLink->GetTo();
+      LogInfo::MapleLogger() << succNode.GetInsn()->GetId() << "(" << succLink->GetLatency() << "), ";
+    }
+    LogInfo::MapleLogger() << std::resetiosflags(std::ios::right) << "\n";
+  }
+  LogInfo::MapleLogger() << "    ------------------------------------------------\n";
+  LogInfo::MapleLogger() << "\n";
+}
+}

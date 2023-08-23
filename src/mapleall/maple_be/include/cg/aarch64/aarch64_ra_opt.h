@@ -133,7 +133,7 @@ class VregRename : public RaOptPattern {
   VregRename(CGFunc &func, MemPool &pool, LoopAnalysis &loop, bool dump = false)
       : RaOptPattern(func, pool, dump), loopInfo(loop), renameInfo(alloc.Adapter()) {
     renameInfo.resize(cgFunc.GetMaxRegNum());
-    ccRegno = static_cast<RegOperand*>(&cgFunc.GetOrCreateRflag())->GetRegisterNumber();
+    ccRegno = static_cast<RegOperand *>(&cgFunc.GetOrCreateRflag())->GetRegisterNumber();
   }
   ~VregRename() override = default;
 

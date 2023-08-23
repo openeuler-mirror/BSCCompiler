@@ -44,8 +44,8 @@ bool IsUseNpeOption() {
 DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
                                                  const Action &action [[maybe_unused]]) const {
   uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
-  // 2 for option -p and -rootPath
-  uint32_t length = len + 2;
+  // 1 for option -p
+  uint32_t length = len + 1;
  
   if (options.GetIsAllAst()) {
     length += options.GetHirInputFiles().size();
@@ -86,12 +86,6 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options,
 
   defaultOptions.mplOptions[len].SetKey("--output");
   defaultOptions.mplOptions[len++].SetValue(action.GetOutputFolder());
-  defaultOptions.mplOptions[len].SetKey("-rootPath");
-  if (opts::saveTempOpt.IsEnabledByUser()) {
-    defaultOptions.mplOptions[len++].SetValue("./");
-  } else {
-    defaultOptions.mplOptions[len++].SetValue(FileUtils::GetInstance().GetTmpFolder());
-  }
   if (IsUseBoundaryOption()) {
     defaultOptions.mplOptions[len].SetKey("--boundary-check-dynamic");
     defaultOptions.mplOptions[len].SetValue("");

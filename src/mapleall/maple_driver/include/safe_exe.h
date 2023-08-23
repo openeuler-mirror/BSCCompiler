@@ -92,8 +92,8 @@ class SafeExe {
     return ret;
   }
 
-  static ErrorCode HandleCommand(const std::vector<std::string> vectorArgs, const std::string &cmd,
-                                 std::string &result) {
+  static ErrorCode HandleCommand(const std::string &cmd, const std::string &args, std::string &result) {
+    std::vector<std::string> vectorArgs = ParseArgsVector(cmd, args);
     // extra space for exe name and args
     char **argv = new char *[vectorArgs.size() + 1];
     // argv[0] is program name
@@ -118,7 +118,7 @@ class SafeExe {
       fflush(nullptr);
       (void)close(pipefd[0]);
       (void)dup2(pipefd[1], STDERR_FILENO);
-      if (execv(vectorArgs[0].c_str(), argv) < 0) {
+      if (execv(cmd.c_str(), argv) < 0) {
         for (size_t j = 0; j < vectorArgs.size(); ++j) {
           delete [] argv[j];
         }
@@ -144,7 +144,7 @@ class SafeExe {
       waitpid(pid, &status, 0);
       auto exitStatus = static_cast<uint32>(status);
       if (!WIFEXITED(exitStatus) || WEXITSTATUS(exitStatus) != 0) {
-        LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << '\n';
+        LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
         ret = kErrorCompileFail;
       }
     }
@@ -341,19 +341,15 @@ class SafeExe {
     return ret;
   }
 
-  static ErrorCode Exe(const std::vector<std::string> args, std::string &result) {
-    std::string cmd = "";
-    for (auto opt : args) {
-      cmd += opt + " ";
-    }
+  static ErrorCode Exe(const std::string &cmd, const std::string &args, std::string &result) {
     if (opts::debug) {
-      LogInfo::MapleLogger() << "Starting:" << cmd << '\n';
+      LogInfo::MapleLogger() << "Starting:" << cmd << " " << args << '\n';
     }
-    if (StringUtils::HasCommandInjectionChar(cmd)) {
-      LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << '\n';
+    if (StringUtils::HasCommandInjectionChar(cmd) || StringUtils::HasCommandInjectionChar(args)) {
+      LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: " << args << '\n';
       return kErrorCompileFail;
     }
-    ErrorCode ret = HandleCommand(args, cmd, result);
+    ErrorCode ret = HandleCommand(cmd, args, result);
     return ret;
   }
 

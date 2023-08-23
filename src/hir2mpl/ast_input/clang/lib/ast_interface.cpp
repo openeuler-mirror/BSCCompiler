@@ -372,12 +372,6 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, MapleGenericA
   if (decl.hasAttr<clang::GNUInlineAttr>()) {
     genAttrs.SetAttr(GENATTR_gnu_inline);
   }
-  if (decl.hasAttr<clang::HotAttr>()) {
-    genAttrs.SetAttr(GENATTR_hot);
-  }
-  if (decl.hasAttr<clang::ColdAttr>()) {
-    genAttrs.SetAttr(GENATTR_cold);
-  }
   if (decl.isDefaulted()) {
     genAttrs.SetAttr(GENATTR_default);
   }
@@ -453,10 +447,10 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, MapleGenericA
     }
   }
   SetAttrVisibility(decl, genAttrs);
-  VisitAllOfFuncAttrs(decl, genAttrs);
+  CheckUnsupportedFuncAttrs(decl);
 }
 
-void LibAstFile::VisitAllOfFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs) const {
+void LibAstFile::CheckUnsupportedFuncAttrs(const clang::FunctionDecl &decl) const {
   if (!decl.hasAttrs()) {
     return;
   }
@@ -464,9 +458,6 @@ void LibAstFile::VisitAllOfFuncAttrs(const clang::FunctionDecl &decl, GenericAtt
   const clang::AttrVec &funcAttrs = decl.getAttrs();
   for (const auto *attr : funcAttrs) {
     clang::attr::Kind attrKind = attr->getKind();
-    if (attrKind == clang::attr::FunctionLikeMacro) {
-      genAttrs.SetAttr(GENATTR_like_macro);
-    }
     auto iterator = kUnsupportedFuncAttrsMap.find(attrKind);
     if (iterator != kUnsupportedFuncAttrsMap.end()) {
       unsupportedFuncAttrs += iterator->second + " ";
@@ -648,7 +639,7 @@ const std::string LibAstFile::GetOrCreateMappedUnnamedName(const clang::Decl &de
   }
 
   uint32 uid;
-  if (FEOptions::GetInstance().NeedMangling() && !decl.getLocation().isMacroID()) {
+  if (FEOptions::GetInstance().GetFuncInlineSize() != 0 && !decl.getLocation().isMacroID()) {
     // use loc as key for wpaa mode
     Loc l = GetLOC(decl.getLocation());
     CHECK_FATAL(l.fileIdx != 0, "loc is invaild");
@@ -724,7 +715,7 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recordType, std::stringst
   } else {
     ss << GetOrCreateMappedUnnamedName(*recordDecl);
   }
-  if (FEOptions::GetInstance().NeedMangling()) {
+  if (FEOptions::GetInstance().GetFuncInlineSize() != 0 || FEOptions::GetInstance().GetWPAA()) {
     std::string layout = recordDecl->getDefinition() == nullptr ? "" : GetRecordLayoutString(*recordDecl);
     ss << FEUtils::GetFileNameHashStr(layout);
   }

@@ -60,7 +60,7 @@ void DealWithFuncType(const MIRType &type, std::string &str) {
     str += "_" + std::to_string(item.GetIdx());
   }
   for (auto &item : funcType.GetParamAttrsList()) {
-    str += "_" + item.GetAttrFlag().ToBitset().to_string() + std::to_string(item.GetAlignValue());
+    str += "_" + std::to_string(item.GetAttrFlag()) + std::to_string(item.GetAlignValue());
   }
 }
 
@@ -117,7 +117,7 @@ void GetAttrOfType(const MIRType &type, std::string &str) {
 void DealWithPoninterType(const MIRType &type, std::string &str) {
   auto ptrType = static_cast<const MIRPtrType&>(type);
   str += "_" + std::to_string(ptrType.GetTypeAttrs().GetAlignValue()) + "_" +
-         ptrType.GetTypeAttrs().GetAttrFlag().ToBitset().to_string();
+         std::to_string(ptrType.GetTypeAttrs().GetAttrFlag());
   GetAttrOfType(*ptrType.GetPointedType(), str);
 }
 

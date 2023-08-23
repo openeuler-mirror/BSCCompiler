@@ -41,8 +41,7 @@ class ASTParser {
         astFileScopeAsms(astFileScopeAsmsIn),
         astEnums(astEnumsIn),
         vlaSizeMap(allocatorIn.Adapter()),
-        structFileNameMap(allocatorIn.Adapter()),
-        constantPMap(allocatorIn.Adapter()) {}
+        structFileNameMap(allocatorIn.Adapter()) {}
   virtual ~ASTParser() = default;
   bool OpenFile(MapleAllocator &allocator);
   bool Release(MapleAllocator &allocator) const;
@@ -112,7 +111,6 @@ class ASTParser {
   ASTValue *TranslateExprEval(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
   bool HasLabelStmt(const clang::Stmt *expr);
-  bool HasCallConstantP(const clang::Stmt &expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
   void SaveVLASizeExpr(MapleAllocator &allocator, const clang::Type &type, MapleList<ASTExpr*> &vlaSizeExprs) {
     if (!type.isVariableArrayType()) {
@@ -292,9 +290,6 @@ class ASTParser {
   void CheckAtomicClearArg(const clang::CallExpr &expr) const;
   std::string GetFuncNameFromFuncDecl(const clang::FunctionDecl &funcDecl) const;
   bool IsMemberTypeHasMulAlignAttr(const clang::Expr &expr) const;
-  ASTExpr *ProcessBuiltinConstantP(const clang::Expr &expr, ASTIntegerLiteral *intExpr,
-      const llvm::APSInt intVal) const;
-  ASTExpr *ProcessFloatInEvaluateExpr(MapleAllocator &allocator, const clang::APValue constVal) const;
   ASTFunc *BuildAstFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                         std::list<ASTStmt*> &implicitStmts, bool needDefDeMangledVer, bool needBody);
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
@@ -350,7 +345,6 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   MapleMap<clang::Expr*, ASTExpr*> vlaSizeMap;
 
   MapleUnorderedMap<MapleString, MapleVector<MapleString>, MapleString::MapleStringHash> structFileNameMap;
-  MapleMap<int64_t, const clang::Stmt *> constantPMap;
 };
 }  // namespace maple
 #endif // HIR2MPL_AST_INPUT_INCLUDE_AST_PARSER_H

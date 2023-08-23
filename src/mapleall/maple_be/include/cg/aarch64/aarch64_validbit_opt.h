@@ -115,29 +115,33 @@ class ExtValidBitPattern : public PropPattern {
   MOperator newMop = MOP_undef;
 };
 
-// redundant uxtw/sxtw prop, and modify all useInsn form X mop to W mop
-// case1 - uxtw vreg preg, modify utxw to wmov, not prop
-//    uxtw  R101, R0      ==>   mov   R101, R0
-//    xcbz  R101, label2        wcbz  R101, label2
-// case2 - uxtw vreg vreg, prop src
-//    uxtw  R102, R101    ==>   wcbz  R101, label2
-//    xcbz  R102, label2
+// check uxtw Vreg Preg case
+// uxtw Vreg1 Preg0
+// if use of R1 is 32bit
+// ->
+// movx Vreg1 Preg0
+// make use of RA to delete redundant insn, if Vreg1 is allocated to R0
+// then the insn is removed.
 class RedundantExpandProp : public PropPattern {
  public:
-  RedundantExpandProp(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : PropPattern(cgFunc, info, ll) {};
-  ~RedundantExpandProp() override = default;
+  RedundantExpandProp(CGFunc &cgFunc, CGSSAInfo &info, LiveIntervalAnalysis &ll) : PropPattern(cgFunc, info, ll) {}
+  ~RedundantExpandProp() override {
+    newDstOpnd = nullptr;
+    newSrcOpnd = nullptr;
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
     return "RedundantExpandProp";
   }
- private:
-  bool CheckAllUseInsnCanUseMopW(const RegOperand &defOpnd, InsnSet &visitedInsn);
-  bool CheckInsnCanUseMopW(const RegOperand &defOpnd, DUInsnInfo &useInfo);
-  bool CheckOtherInsnUseMopW(const RegOperand &defOpnd, DUInsnInfo &useInfo);
-  void ModifyInsnUseMopW();
 
-  std::vector<Insn*> allUseInsns;
+ private:
+  RegOperand *newDstOpnd = nullptr;
+  RegOperand *newSrcOpnd = nullptr;
+  VRegVersion *destVersion = nullptr;
+  VRegVersion *srcVersion = nullptr;
 };
 
 /*
@@ -208,25 +212,6 @@ class CmpBranchesPattern : public ValidBitPattern {
   MOperator newMop = MOP_undef;
   bool isEqOrNe = false;
   bool is64Bit = false;
-};
-
-// when a register's valid bit < right shift bit, means it can only return 0
-// example:
-//   asr w0, w19, #31 (w19.vb < 31) => mov w0, #0
-class RSPattern : public ValidBitPattern {
- public:
-  RSPattern(CGFunc &cgFunc, CGSSAInfo &info) : ValidBitPattern(cgFunc, info) {}
-  ~RSPattern() override {}
-  void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override {
-    return "RSPattern";
-  };
-
- private:
-  MOperator newMop = MOP_undef;
-  uint32 oldImmSize = 0;
-  bool oldImmIsSigned = false;
 };
 } /* namespace maplebe */
 #endif  /* MAPLEBE_INCLUDE_CG_AARCH64_VALIDBIT_OPT_H */

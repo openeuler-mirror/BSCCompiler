@@ -617,8 +617,8 @@ void DebugInfo::BuildDebugInfoFunctions() {
     SetCurFunction(func);
     // function decl
     if (stridxDieIdMap.find(func->GetNameStrIdx().GetIdx()) == stridxDieIdMap.end()) {
+      DBGDie *funcDie = GetOrCreateFuncDeclDie(func);
       if (func->GetClassTyIdx().GetIdx() == 0 && func->GetBody()) {
-        DBGDie *funcDie = GetOrCreateFuncDeclDie(func);
         compUnit->AddSubVec(funcDie);
       }
     }
@@ -836,10 +836,8 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx) {
   die->AddAttr(DW_AT_decl_column, DW_FORM_data4, sym->GetSrcPosition().Column());
 
   bool isLocal = sym->IsLocal();
-  // TLS do not need normal DW_AT_location
-  bool isThreadLocal = sym->IsThreadLocal();
   if (isLocal) {
-    if (sym->IsPUStatic() && !isThreadLocal) {
+    if (sym->IsPUStatic()) {
       // Use actual internal sym by cg
       PUIdx pIdx = GetCurFunction()->GetPuidx();
       std::string ptrName = sym->GetName() + std::to_string(pIdx);
@@ -848,7 +846,7 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, const GStrIdx &strIdx) {
     } else {
       die->AddSimpLocAttr(DW_AT_location, DW_FORM_exprloc, DW_OP_fbreg, kDbgDefaultVal);
     }
-  } else if (!isThreadLocal) {
+  } else {
     // global var just use its name as address in .s
     uint64 idx = strIdx.GetIdx();
     if ((sym->IsReflectionClassInfo() && !sym->IsReflectionArrayClassInfo()) || sym->IsStatic()) {

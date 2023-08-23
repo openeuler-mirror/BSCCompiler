@@ -1911,23 +1911,6 @@ std::list<StmtNode*> FEIRStmtCallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder)
   } else {
     stmtCall = mirBuilder.CreateStmtCallAssigned(methodInfo.GetPuIdx(), std::move(args), retVarSym, mirOp);
   }
-  if (HasPragma() && stmtCall != nullptr) {
-    auto &pragmas = GlobalTables::GetGPragmaTable().GetPragmaTable();
-    CPragma *pragmaPI = nullptr;
-    if (GetPragmaPIStatus() == PreferInlinePI::kPreferInlinePI) {
-      pragmaPI = GPragmaTable::CreateCPragma(CPragmaKind::PRAGMA_prefer_inline,
-                                             static_cast<uint32>(pragmas.size()), "ON");
-    } else if (GetPragmaPIStatus() == PreferInlinePI::kPreferNoInlinePI) {
-      pragmaPI = GPragmaTable::CreateCPragma(CPragmaKind::PRAGMA_prefer_inline,
-                                             static_cast<uint32>(pragmas.size()), "OFF");
-    }
-    uint32 pragmaPIIndex = pragmaPI->GetIndex();
-    if (pragmaPIIndex >= pragmas.size()) {
-      pragmas.resize(pragmaPIIndex + 1);
-      GlobalTables::GetGPragmaTable().SetPragmaItem(pragmaPIIndex, pragmaPI);
-    }
-    (void)stmtCall->GetPragmas()->emplace(pragmaPIIndex);  // prefer_inline or prefer_no_inline global id
-  }
   ans.push_back(stmtCall);
   return ans;
 }
@@ -1957,7 +1940,7 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
   }
   if (ENCChecker::HasNullExpr(expr)) {
     FE_ERR(kLncErr, loc, "null passed to a callee that requires a nonnull argument[the %s argument]",
-           GetNthStr(index).c_str());
+           ENCChecker::GetNthStr(index).c_str());
     return;
   }
   if (expr->GetPrimType() == PTY_ptr) {
@@ -2077,7 +2060,7 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
     }
     if (ENCChecker::HasNullExpr(expr)) {
       FE_ERR(kLncErr, loc, "null passed to a callee that requires a nonnull argument[the %s argument]",
-             GetNthStr(idx).c_str());
+             ENCChecker::GetNthStr(idx).c_str());
       continue;
     }
     if (expr->GetPrimType() == PTY_ptr) {
@@ -2690,8 +2673,8 @@ BaseNode *FEIRExprIRead::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 FEIRExprAddrofConstArray::FEIRExprAddrofConstArray(const std::vector<uint32> &arrayIn, MIRType *typeIn,
                                                    const std::string &strIn)
     : FEIRExpr(FEIRNodeKind::kExprAddrof, FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
-      arrayName(FEOptions::GetInstance().NeedMangling() ? FEUtils::GetSequentialName("const_array_") +
-                FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileNameExceptRootPath()) :
+      arrayName(FEOptions::GetInstance().GetFuncInlineSize() != 0 ? FEUtils::GetSequentialName("const_array_") +
+                FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileName()) :
                 FEUtils::GetSequentialName("const_array_")),
       elemType(typeIn),
       str(strIn) {

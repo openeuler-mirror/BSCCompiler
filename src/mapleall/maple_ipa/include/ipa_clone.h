@@ -60,7 +60,6 @@ class IpaClone : public AnalysisResult {
   void ModifyParameterSideEffect(MIRFunction *newFunc, uint32 paramIndex) const;
 
  private:
-  std::set<std::string> InitNoIpaFuncList() const;
   MIRModule *mirModule;
   MapleAllocator allocator;
   MIRBuilder &mirBuilder;

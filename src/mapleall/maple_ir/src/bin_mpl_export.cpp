@@ -208,7 +208,7 @@ void OutputTypeFunction(const MIRType &ty, BinaryMplExport &mplExport) {
   mplExport.WriteNum(kBinKindTypeFunction);
   mplExport.OutputTypeBase(type);
   mplExport.OutputType(type.GetRetTyIdx());
-  mplExport.OutputFuncAttrFlag(type.funcAttrs.GetAttrFlag());
+  mplExport.WriteNum(static_cast<int64_t>(type.funcAttrs.GetAttrFlag()));
   size_t size = type.GetParamTypeList().size();
   mplExport.WriteNum(size);
   for (size_t i = 0; i < size; ++i) {
@@ -508,9 +508,7 @@ void BinaryMplExport::OutputFieldPair(const FieldPair &fp) {
   OutputStr(fp.first);          // GStrIdx
   OutputType(fp.second.first);  // TyIdx
   FieldAttrs fa = fp.second.second;
-  for (size_t i = 0; i < fa.GetAttrFlag().GetWordSize(); ++i) {
-    WriteNum(static_cast<int64>(fa.GetAttrFlag().GetWord(i)));
-  }
+  WriteNum(static_cast<int64>(fa.GetAttrFlag()));
   WriteNum(fa.GetAlignValue());
   if (fa.GetAttr(FLDATTR_static) && fa.GetAttr(FLDATTR_final) &&
       (fa.GetAttr(FLDATTR_public) || fa.GetAttr(FLDATTR_protected))) {
@@ -526,13 +524,13 @@ void BinaryMplExport::OutputFieldPair(const FieldPair &fp) {
   }
 }
 
-void BinaryMplExport::OutputMethodPair(const MethodPair &methodPair) {
+void BinaryMplExport::OutputMethodPair(const MethodPair &memPool) {
   // use GStrIdx instead, StIdx will be created by ImportMethodPair
-  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(methodPair.first.Idx());
+  MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(memPool.first.Idx());
   CHECK_FATAL(funcSt != nullptr, "Pointer funcSt is nullptr, can't get symbol! Check it!");
   WriteAsciiStr(GlobalTables::GetStrTable().GetStringFromStrIdx(funcSt->GetNameStrIdx()));
-  OutputType(methodPair.second.first);               // TyIdx
-  OutputFuncAttrFlag(methodPair.second.second.GetAttrFlag());  // FuncAttrs
+  OutputType(memPool.second.first);               // TyIdx
+  WriteNum(memPool.second.second.GetAttrFlag());  // FuncAttrs
 }
 
 void BinaryMplExport::OutputFieldsOfStruct(const FieldVector &fields) {
@@ -693,7 +691,7 @@ void BinaryMplExport::OutputFunction(PUIdx puIdx) {
   CHECK_FATAL(funcSt != nullptr, "Pointer funcSt is nullptr, cannot get symbol! Check it!");
   OutputSymbol(funcSt);
   OutputType(func->GetMIRFuncType()->GetTypeIndex());
-  OutputFuncAttrFlag(func->GetFuncAttrs().GetAttrFlag());
+  WriteNum(func->GetFuncAttrs().GetAttrFlag());
 
   auto &attributes = func->GetFuncAttrs();
   if (attributes.GetAttr(FUNCATTR_constructor_priority)) {
@@ -711,10 +709,7 @@ void BinaryMplExport::OutputFunction(PUIdx puIdx) {
   for (FormalDef formalDef : func->GetFormalDefVec()) {
     OutputStr(formalDef.formalStrIdx);
     OutputType(formalDef.formalTyIdx);
-    auto tmpTypeAttrFlag = formalDef.formalAttrs.GetAttrFlag();
-    for (size_t i = 0; i < tmpTypeAttrFlag.GetWordSize(); ++i) {
-      WriteNum(static_cast<int64>(tmpTypeAttrFlag.GetWord(i)));
-    }
+    WriteNum(static_cast<int64>(formalDef.formalAttrs.GetAttrFlag()));
   }
   //  store Side Effect for each func
   if (func2SEMap) {
@@ -742,13 +737,6 @@ void BinaryMplExport::OutputFunction(PUIdx puIdx) {
     }
   }
   mod.SetCurFunction(savedFunc);
-}
-
-void BinaryMplExport::OutputFuncAttrFlag(const FuncAttrFlag &attrFlag) {
-  for (uint32 i = 0; i < kNumU64InFuncAttr; ++i) {
-    uint64 flagItem = ExtractAttrFlagElement(attrFlag, i);
-    WriteNum(static_cast<int64>(flagItem));
-  }
 }
 
 void BinaryMplExport::WriteStrField(uint64 contentIdx) {
@@ -1312,10 +1300,7 @@ void BinaryMplExport::OutputTypePairs(const MIRInstantVectorType &type) {
 }
 
 void BinaryMplExport::OutputTypeAttrs(const TypeAttrs &ta) {
-  auto tmpTypeAttrFlag = ta.GetAttrFlag();
-  for (size_t i = 0; i < tmpTypeAttrFlag.GetWordSize(); ++i) {
-    WriteNum(static_cast<int64>(tmpTypeAttrFlag.GetWord(i)));
-  }
+  WriteNum(ta.GetAttrFlag());
   WriteNum(ta.GetAlignValue());
   WriteNum(ta.GetPack());
 }

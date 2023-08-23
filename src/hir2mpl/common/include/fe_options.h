@@ -183,22 +183,6 @@ class FEOptions {
     return outputName;
   }
 
-  void SetInlineMpltDir(const std::string &dir) {
-    inlineMpltDir = dir;
-  }
-
-  const std::string &GetInlineMpltDir() const {
-    return inlineMpltDir;
-  }
-
-  void SetExportInlineMplt() {
-    isExportInlineMplt = true;
-  }
-
-  bool IsExportInlineMplt() const {
-    return isExportInlineMplt;
-  }
-
   void EnableDumpInstComment() {
     isDumpInstComment = true;
   }
@@ -510,10 +494,6 @@ class FEOptions {
     return wpaa;
   }
 
-  bool NeedMangling() const {
-    return wpaa || isExportInlineMplt;
-  }
-
   void SetFuncMergeEnable(bool flag) {
     funcMerge = flag;
   }
@@ -522,13 +502,6 @@ class FEOptions {
     return funcMerge;
   }
 
-  void SetNoBuiltin(bool flag) {
-    noBuiltin = flag;
-  }
-
-  bool IsNoBuiltin() const {
-    return noBuiltin;
-  }
  private:
   static FEOptions options;
   // input control options
@@ -553,10 +526,8 @@ class FEOptions {
   bool isGenAsciiMplt;
   std::string outputPath;
   std::string outputName;
-  std::string inlineMpltDir;
   bool isDumpInstComment = false;
   bool isNoMplFile = false;
-  bool isExportInlineMplt = false;
 
   // debug info control options
   int dumpLevel;
@@ -611,7 +582,6 @@ class FEOptions {
   uint32 funcInlineSize = 0;
   bool wpaa = false;
   bool funcMerge = true;
-  bool noBuiltin = false;
   FEOptions();
   ~FEOptions() = default;
 };

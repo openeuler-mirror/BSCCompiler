@@ -44,13 +44,11 @@ class BaseSchedule {
 
  protected:
   void InitInsnIdAndLocInsn();
-  // Using total number of machine instructions to control the end of the scheduling process
-  void InitMachineInsnNum(CDGNode &cdgNode) const;
   uint32 CaculateOriginalCyclesOfBB(CDGNode &cdgNode) const;
   void DumpRegionInfoBeforeSchedule(CDGRegion &region) const;
   void DumpCDGNodeInfoBeforeSchedule(CDGNode &cdgNode) const;
   void DumpCDGNodeInfoAfterSchedule(CDGNode &cdgNode) const;
-  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const;
+  virtual void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const = 0;
 
   MemPool &schedMP;
   MapleAllocator schedAlloc;

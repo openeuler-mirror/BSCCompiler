@@ -120,9 +120,6 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
   if (opts::oMD.IsEnabledByUser() && (opts::compileWOLink.IsEnabledByUser() || opts::onlyCompile.IsEnabledByUser())) {
     additionalLen += 1;
   }
-  if (options.GetIsLto()) {
-    additionalLen += 1;
-  }
   opt = std::make_unique<MplOption[]>(additionalLen);
 
   auto setMplOption = [&opt](const std::string &key, const std::string &value, uint32_t index) {
@@ -157,10 +154,7 @@ static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
     } else {
       setMplOption("-o", "./" + action.GetOutputName() + ".o", index++);
     }
-    setMplOption("-emit-ast", "", index++);
-  }
-  if (options.GetIsLto()) {
-    setMplOption("-opt-string=" + options.GetOptString(), "", index);
+    setMplOption("-emit-ast", "", index);
   }
 
   return additionalLen;

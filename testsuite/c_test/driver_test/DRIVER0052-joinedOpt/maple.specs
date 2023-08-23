@@ -1,9 +1,0 @@
-%rename cpp_options old_cpp_options
-
-
-*cpp_options:
--nostdinc  %(old_cpp_options)
-
-*cc1:
-%(cc1_cpu) -nostdinc
-

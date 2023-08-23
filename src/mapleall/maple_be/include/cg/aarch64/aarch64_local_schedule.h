@@ -25,6 +25,7 @@ class AArch64LocalSchedule : public LocalSchedule {
   ~AArch64LocalSchedule() override = default;
 
   void FinishScheduling(CDGNode &cdgNode) override;
+  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override;
 };
 } /* namespace maplebe */
 

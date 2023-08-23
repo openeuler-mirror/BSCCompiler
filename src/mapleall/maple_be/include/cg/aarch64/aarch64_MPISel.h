@@ -87,7 +87,6 @@ class AArch64MPIsel : public MPISel {
   Operand *SelectCstrncmp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectCstrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectCstrrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
-  void SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) override;
   Operand *SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
   void SelectAsm(AsmNode &node) override;
  private:

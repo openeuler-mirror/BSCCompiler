@@ -94,9 +94,8 @@ bool DupPattern::Optimize(BB &curBB) {
   return false;
 }
 
-uint32 DupPattern::GetFreqThreshold() const {
-  // kFreqThresholdPgo， freqThresholdStatic ramge (0, 100]
-  if (cgFunc->HasLaidOutByPgoUse()) {
+uint32 DupPattern::GetFreqThreshold() {
+  if (LiteProfile::IsInWhiteList(cgFunc->GetName()) && CGOptions::DoLiteProfUse()) {
     return cgFunc->GetFirstBB()->GetFrequency() * kFreqThresholdPgo / 100;
   } else {
     uint32 freqThresholdStatic = CGOptions::GetDupFreqThreshold();

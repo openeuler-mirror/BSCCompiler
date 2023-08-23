@@ -35,7 +35,7 @@ class InlineMplt {
   // level: the max level that we export static function.
   // 1 means that if a small global function invokes a static leaf function
   // or a static function which never invoke other static fucntions, we will export this static function too.
-  bool CollectInlineInfo(uint32 inlineSize, uint32 level = 2);
+  bool CollectInlineInfo(uint32 inlineSize, uint32 level = 1);
   bool Forbidden(BaseNode *node, const std::pair<uint32, uint32> &inlineConditions,
                  std::vector<MIRFunction*> &staticFuncs, std::set<uint32_t> &globalSymbols);
   void CollectStructOrUnionTypes(const MIRType *baseType);

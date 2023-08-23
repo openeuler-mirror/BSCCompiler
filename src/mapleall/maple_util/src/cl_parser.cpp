@@ -36,32 +36,47 @@ void OptionCategory::ClearJoinedOpt() {
   }
 }
 
-void OptionCategory::ClearOpt() {
-  std::vector<OptionInterface*> enabledOptionsBak = enabledOptions;
-  for (size_t index = 0; index < enabledOptionsBak.size(); index++) {
-    enabledOptionsBak[index]->Clear();
-  }
-  maplecl::CommandLine::GetCommandLine().GetLinkOptions().clear();
-}
-
 CommandLine &CommandLine::GetCommandLine() {
   static CommandLine cl;
   return cl;
 }
 
-OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) const {
+OptionInterface *CommandLine::CheckJoinedOption(KeyArg &keyArg, OptionCategory &optCategory) {
   auto &str = keyArg.rawArg;
 
   for (auto joinedOption : optCategory.joinedOptions) {
     /* Joined Option (like -DMACRO) can be detected as substring (-D) in the option string */
     if (str.find(joinedOption.first) == 0) {
-      size_t keySize = joinedOption.first.size();
-      keyArg.key = str.substr(0, keySize);
-      keyArg.val = str.substr(keySize);
+      size_t keySize;
+      if (joinedOption.first != "-Wl" && joinedOption.first != "-l") {
+        keySize = joinedOption.first.size();
+        keyArg.key = str.substr(0, keySize);
+        keyArg.val = str.substr(keySize);
+      } else {
+        std::string tmp(str);
+        linkOptions.push_back(tmp);
+        keySize = 0;
+        if (joinedOption.first == "-Wl") {
+          keyArg.key = "-Wl";
+        } else {
+          keyArg.key = "-l";
+        }
+      }
+
       keyArg.isJoinedOpt = true;
       return joinedOption.second;
     }
   }
+  std::string tempStr(str);
+  std::string tmp = maple::StringUtils::GetStrAfterLast(tempStr, ".");
+  if (tmp == "a" || tmp == "so") {
+    if (maple::StringUtils::GetStrAfterLast(tempStr, "/") == "libmplpgo.so" ||
+        maple::StringUtils::GetStrAfterLast(tempStr, "/") == "libmplpgo.a") {
+      SetHasPgoLib(true);
+    }
+    linkOptions.push_back(tempStr);
+  }
+
   return nullptr;
 }
 
@@ -70,12 +85,12 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
                                        KeyArg &keyArg, OptionCategory &optCategory) {
   OptionInterface *option = CheckJoinedOption(keyArg, optCategory);
   if (option != nullptr) {
-    AddLinkOption(*option, keyArg);
-    if (keyArg.key != "-Wl") {
+    if (keyArg.key != "-Wl" && keyArg.key != "-l") {
       RetCode err = option->Parse(argsIndex, args, keyArg);
       if (err != RetCode::kNoError) {
         return err;
       }
+
       /* Set Option in all categories registering for this option */
       for (auto &category : option->optCategories) {
         category->AddEnabledOption(option);
@@ -84,6 +99,12 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
       argsIndex++;
     }
   } else {
+    std::string tempStr(keyArg.rawArg);
+    std::string tmp = maple::StringUtils::GetStrAfterLast(tempStr, ".");
+    if (tmp == "a" || tmp == "so") {
+      argsIndex++;
+      return RetCode::kNoError;
+    }
     return RetCode::kNotRegistered;
   }
 
@@ -92,19 +113,19 @@ RetCode CommandLine::ParseJoinedOption(size_t &argsIndex,
 
 void CommandLine::CloseOptimize(const OptionCategory &optCategory) const {
   if (optCategory.options.find("-O0") != optCategory.options.end()) {
-    optCategory.options.find("-O0")->second->Clear();
+    optCategory.options.find("-O0")->second->UnSetEnabledByUser();
   }
   if (optCategory.options.find("-O1") != optCategory.options.end()) {
-    optCategory.options.find("-O1")->second->Clear();
+    optCategory.options.find("-O1")->second->UnSetEnabledByUser();
   }
   if (optCategory.options.find("-O2") != optCategory.options.end()) {
-    optCategory.options.find("-O2")->second->Clear();
+    optCategory.options.find("-O2")->second->UnSetEnabledByUser();
   }
   if (optCategory.options.find("-O3") != optCategory.options.end()) {
-    optCategory.options.find("-O3")->second->Clear();
+    optCategory.options.find("-O3")->second->UnSetEnabledByUser();
   }
   if (optCategory.options.find("-Os") != optCategory.options.end()) {
-    optCategory.options.find("-Os")->second->Clear();
+    optCategory.options.find("-Os")->second->UnSetEnabledByUser();
   }
 }
 
@@ -144,7 +165,6 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
     DeleteEnabledOptions(argsIndex, args, optCategory);
   }
 
- // if fpie/fPIE entered before fpic/fPIC, fpie/fPIE should be disabled
   if (args[argsIndex] == "-fpic" || args[argsIndex] == "--fpic" ||
       args[argsIndex] == "-fPIC" || args[argsIndex] == "--fPIC") {
     auto item = optCategory.options.find("-fPIE");
@@ -152,14 +172,6 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
       item->second->UnSetEnabledByUser();
     }
     item = optCategory.options.find("-fpie");
-    if (item != optCategory.options.end()) {
-      item->second->UnSetEnabledByUser();
-    }
-  }
-
-  // if fPIE entered before fpie, fPIE should be disabled
-  if (args[argsIndex] == "-fpie" || args[argsIndex] == "--fpie") {
-    auto item = optCategory.options.find("-fPIE");
     if (item != optCategory.options.end()) {
       item->second->UnSetEnabledByUser();
     }
@@ -176,10 +188,14 @@ RetCode CommandLine::ParseOption(size_t &argsIndex,
     return err;
   }
 
-  AddLinkOption(opt, keyArg);
-  /* Set Option in all categories registering for this option */
-  for (auto &category : opt.optCategories) {
-    category->AddEnabledOption(&opt);
+  if (keyArg.rawArg == "-Xlinker") {
+    linkOptions.push_back(std::string(keyArg.rawArg));
+    linkOptions.push_back(std::string(keyArg.val));
+  } else {
+    /* Set Option in all categories registering for this option */
+    for (auto &category : opt.optCategories) {
+      category->AddEnabledOption(&opt);
+    }
   }
 
   return RetCode::kNoError;
@@ -271,27 +287,24 @@ RetCode CommandLine::HandleInputArgs(const std::deque<std::string_view> &args,
     if (pos != std::string::npos) {
       ASSERT(pos > 0, "CG internal error, composite unit with less than 2 unit elements.");
       err = ParseEqualOption(argsIndex, args, keyArg, optCategory, optCategory.options, pos);
+      if (err != RetCode::kNoError) {
+        (void)badCLArgs.emplace_back(args[argsIndex], err);
+        ++argsIndex;
+        wasError = true;
+      }
+      continue;
     }
 
     /* option like "--key value" or "--key" */
     else {
       err = ParseSimpleOption(argsIndex, args, keyArg, optCategory, optCategory.options);
-    }
-    if (err != RetCode::kNoError) {
-      std::string tmp = std::string(args[argsIndex]);
-      if (maple::FileUtils::GetFileType(tmp) == maple::InputFileType::kFileTypeLib) {
-        linkOptions.push_back(tmp);
-        if (maple::StringUtils::GetStrAfterLast(tmp, "/") == "libmplpgo.so" ||
-            maple::StringUtils::GetStrAfterLast(tmp, "/") == "libmplpgo.a") {
-          SetHasPgoLib(true);
-        }
-      } else {
+      if (err != RetCode::kNoError) {
         (void)badCLArgs.emplace_back(args[argsIndex], err);
+        ++argsIndex;
+        wasError = true;
       }
-      ++argsIndex;
-      wasError = true;
+      continue;
     }
-    continue;
   }
 
   if (&optCategory == &defaultCategory) {
@@ -395,25 +408,5 @@ void CommandLine::HelpPrinter(OptionCategory &optCategory) const {
     if (opt->IsVisibleOption()) {
       maple::LogInfo::MapleLogger() << opt->GetDescription() << '\n';
     }
-  }
-}
-
-void CommandLine::AddLinkOption(const OptionInterface &opt, const KeyArg &keyArg) {
-  if ((opt.GetOptType() & KOptLd) == 0) {
-    return;
-  }
-  if (keyArg.key == "-specs" && std::find(linkOptions.begin(), linkOptions.end(), keyArg.val) != linkOptions.end()) {
-    return;
-  }
-  if (keyArg.key != "-Wl" && (keyArg.isJoinedOpt || (!keyArg.key.empty() && !keyArg.val.empty())) &&
-      !keyArg.isEqualOpt) {
-    linkOptions.push_back(std::string(keyArg.key));
-    linkOptions.push_back(std::string(keyArg.val));
-  } else {
-    std::string optName = std::string(keyArg.rawArg);
-    if (opt.HasMultipleName()) {
-      optName = maple::StringUtils::Replace(optName, opt.rawKey, opt.GetName());
-    }
-    linkOptions.push_back(optName);
   }
 }

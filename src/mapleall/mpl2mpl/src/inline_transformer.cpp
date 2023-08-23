@@ -565,14 +565,6 @@ void DoReplaceConstFormal(const MIRFunction &caller, BaseNode &parent, uint32 op
     auto *constExpr =
         theMIRModule->CurFuncCodeMemPool()->New<ConstvalNode>(mirConst->GetType().GetPrimType(), mirConst);
     parent.SetOpnd(constExpr, opndIdx);
-  } else if (realArg.kind == RealArgPropCandKind::kExpr) {
-    if (expr.GetOpCode() == OP_addrof) {
-      auto &addrOf = static_cast<AddrofNode&>(expr);
-      auto stFullIdx = static_cast<AddrofNode*>(realArg.data.expr)->GetStIdx().FullIdx();
-      addrOf.SetStFullIdx(stFullIdx);
-    } else {
-      parent.SetOpnd(realArg.data.expr, opndIdx);
-    }
   }
 }
 
@@ -597,12 +589,6 @@ void InlineTransformer::TryReplaceConstFormalWithRealArg(BaseNode &parent, uint3
     if (regread.GetRegIdx() == newIdx) {
       DoReplaceConstFormal(caller, parent, opndIdx, expr, realArg);
     }
-  } else if (op == OP_addrof && formal.IsVar() && callee.GetAttr(FUNCATTR_like_macro)) {
-    auto &addrOf = static_cast<AddrofNode&>(expr);
-    uint32 newIdx = formal.GetStIndex() + stIdxOff;
-    if (addrOf.GetStIdx().Islocal() && addrOf.GetStIdx().Idx() == newIdx) {
-      DoReplaceConstFormal(caller, parent, opndIdx, expr, realArg);
-    }
   }
 }
 
@@ -623,26 +609,22 @@ void InlineTransformer::PropConstFormalInBlock(BlockNode &newBody, MIRSymbol &fo
   for (auto &stmt : newBody.GetStmtNodes()) {
     switch (stmt.GetOpCode()) {
       case OP_foreachelem: {
-        PropConstFormalInNode(stmt, formal, realArg, stIdxOff, regIdxOff);
         auto *subBody = static_cast<ForeachelemNode&>(stmt).GetLoopBody();
         PropConstFormalInBlock(*subBody, formal, realArg, stIdxOff, regIdxOff);
         break;
       }
       case OP_doloop: {
-        PropConstFormalInNode(stmt, formal, realArg, stIdxOff, regIdxOff);
         auto *subBody = static_cast<DoloopNode&>(stmt).GetDoBody();
         PropConstFormalInBlock(*subBody, formal, realArg, stIdxOff, regIdxOff);
         break;
       }
       case OP_dowhile:
       case OP_while: {
-        PropConstFormalInNode(stmt, formal, realArg, stIdxOff, regIdxOff);
         auto *subBody = static_cast<WhileStmtNode&>(stmt).GetBody();
         PropConstFormalInBlock(*subBody, formal, realArg, stIdxOff, regIdxOff);
         break;
       }
       case OP_if: {
-        PropConstFormalInNode(stmt, formal, realArg, stIdxOff, regIdxOff);
         IfStmtNode &ifStmt = static_cast<IfStmtNode&>(stmt);
         PropConstFormalInBlock(*ifStmt.GetThenPart(), formal, realArg, stIdxOff, regIdxOff);
         if (ifStmt.GetElsePart() != nullptr) {
@@ -698,13 +680,10 @@ void InlineTransformer::AssignActualToFormal(BlockNode &newBody, uint32 stIdxOff
 
 // The parameter `argExpr` is a real argument of a callStmt in the `caller`.
 // This function checks whether `argExpr` is a candidate of propagable argument.
-void RealArgPropCand::Parse(MIRFunction &caller, bool calleeIsLikeMacro, BaseNode &argExpr) {
+void RealArgPropCand::Parse(MIRFunction &caller, BaseNode &argExpr) {
   kind = RealArgPropCandKind::kUnknown;  // reset kind
   Opcode op = argExpr.GetOpCode();
-  if (calleeIsLikeMacro) {
-    kind = RealArgPropCandKind::kExpr;
-    data.expr = &argExpr;
-  } else if (op == OP_constval) {
+  if (op == OP_constval) {
     auto *constVal = static_cast<ConstvalNode&>(argExpr).GetConstVal();
     kind = RealArgPropCandKind::kConst;
     data.mirConst = constVal;
@@ -740,21 +719,13 @@ void InlineTransformer::AssignActualsToFormals(BlockNode &newBody, uint32 stIdxO
     CHECK_NULL_FATAL(formal);
     // Try to prop const value/symbol of real argument to const formal
     RealArgPropCand realArg;
-    bool calleeIsLikeMacro = callee.GetAttr(FUNCATTR_like_macro);
-    realArg.Parse(caller, calleeIsLikeMacro, *currBaseNode);
-    bool needSecondAssign = true;
-    if ((formal->GetAttr(ATTR_const) || calleeIsLikeMacro) &&
-        realArg.kind != RealArgPropCandKind::kUnknown &&
+    realArg.Parse(caller, *currBaseNode);
+    if (formal->GetAttr(ATTR_const) && realArg.kind != RealArgPropCandKind::kUnknown &&
         // Type consistency check can be relaxed further
         formal->GetType()->GetPrimType() == realArg.GetPrimType()) {
       PropConstFormalInBlock(newBody, *formal, realArg, stIdxOff, regIdxOff);
-    } else {
-      AssignActualToFormal(newBody, stIdxOff, regIdxOff, *currBaseNode, *formal);
-      needSecondAssign = false;
     }
-    if (needSecondAssign && !calleeIsLikeMacro) {
-      AssignActualToFormal(newBody, stIdxOff, regIdxOff, *currBaseNode, *formal);
-    }
+    AssignActualToFormal(newBody, stIdxOff, regIdxOff, *currBaseNode, *formal);
     if (updateFreq) {
       caller.GetFuncProfData()->CopyStmtFreq(newBody.GetFirst()->GetStmtID(), callStmt.GetStmtID());
     }
@@ -807,20 +778,6 @@ void InlineTransformer::HandleReturn(BlockNode &newBody) {
 void InlineTransformer::ReplaceCalleeBody(BlockNode &enclosingBlock, BlockNode &newBody) {
   // begin inlining function
   if (!Options::noComment) {
-    if (callee.GetAttr(FUNCATTR_like_macro) && callStmt.GetNext()->GetOpCode() == OP_dassign) {
-      DassignNode *dassignNode = static_cast<DassignNode *>(callStmt.GetNext());
-      if (dassignNode->GetRHS()->GetOpCode() == OP_dread) {
-        DreadNode *dreadNode = static_cast<DreadNode *>(dassignNode->GetRHS());
-        StIdx idx = dreadNode->GetStIdx();
-        if (idx.Islocal()) {
-          MIRSymbol *symbol = builder.GetMirModule().CurFunction()->GetLocalOrGlobalSymbol(idx);
-          CHECK_FATAL(symbol != nullptr, "symbol is nullptr.");
-          if (symbol->IsReturnVar()) {
-            callStmt.GetNext()->SetIgnoreCost();
-          }
-        }
-      }
-    }
     MapleString beginCmt(theMIRModule->CurFuncCodeMemPool());
     if (theMIRModule->firstInline) {
       beginCmt += kInlineBeginComment;
@@ -999,10 +956,6 @@ void InlineTransformer::CollectNewCallInfo(BaseNode *node, std::vector<CallInfo*
       CGNode *cgCallee = cg->GetCGNode(newCallee);
       CGNode *cgCaller = cg->GetCGNode(&caller);
       auto *callInfo = cg->AddCallsite(kCallTypeCall, *cgCaller, *cgCallee, *callNode);
-      // Update hot callsites
-      if (cgCaller->GetFuncTemp() == CGTemp::kHot && cgCallee->GetFuncTemp() == CGTemp::kHot) {
-        callInfo->SetCallTemp(CGTemp::kHot);
-      }
       if (newCallInfo != nullptr) {
         newCallInfo->push_back(callInfo);
       }

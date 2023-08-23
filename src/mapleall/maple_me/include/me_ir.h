@@ -2277,28 +2277,25 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
         AssignedPart(alloc),
         puIdx(static_cast<const CallNode*>(stt)->GetPUIdx()),
         stmtID(stt->GetStmtID()),
-        tyIdx(static_cast<const CallNode*>(stt)->GetTyIdx()),
-        pragmas(*static_cast<const CallNode*>(stt)->GetPragmas(), alloc->Adapter()) {}
+        tyIdx(static_cast<const CallNode*>(stt)->GetTyIdx()) {}
 
   CallMeStmt(MapleAllocator *alloc, Opcode op)
-      : NaryMeStmt(alloc, op), MuChiMePart(alloc), AssignedPart(alloc), pragmas(alloc->Adapter()) {}
+      : NaryMeStmt(alloc, op), MuChiMePart(alloc), AssignedPart(alloc) {}
 
   CallMeStmt(MapleAllocator *alloc, Opcode op, PUIdx idx)
-      : NaryMeStmt(alloc, op), MuChiMePart(alloc), AssignedPart(alloc), puIdx(idx), pragmas(alloc->Adapter()) {}
+      : NaryMeStmt(alloc, op), MuChiMePart(alloc), AssignedPart(alloc), puIdx(idx) {}
 
   CallMeStmt(MapleAllocator *alloc, const NaryMeStmt *cstmt, PUIdx idx)
       : NaryMeStmt(alloc, cstmt),
         MuChiMePart(alloc),
         AssignedPart(alloc),
-        puIdx(idx),
-        pragmas(alloc->Adapter()) {}
+        puIdx(idx) {}
 
   CallMeStmt(MapleAllocator *alloc, const CallMeStmt *cstmt)
       : NaryMeStmt(alloc, cstmt),
         MuChiMePart(alloc),
         AssignedPart(alloc, this, cstmt->mustDefList),
-        puIdx(cstmt->GetPUIdx()),
-        pragmas(cstmt->pragmas, alloc->Adapter()) {}
+        puIdx(cstmt->GetPUIdx()) {}
 
   ~CallMeStmt() override = default;
 
@@ -2402,10 +2399,6 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     needIncref = false;
   }
 
-  const MapleSet<uint32> &GetPragmas() const {
-    return pragmas;
-  }
-
   MIRType *GetReturnType() const override {
     MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
     return callee->GetReturnType();
@@ -2422,7 +2415,6 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   // Used in trim call graph
   uint32 stmtID = 0;
   TyIdx tyIdx;
-  MapleSet<uint32> pragmas;
 };
 
 class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {

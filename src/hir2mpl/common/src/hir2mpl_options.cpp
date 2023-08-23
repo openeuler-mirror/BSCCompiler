@@ -79,10 +79,6 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessDumpInstComment);
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::noMplFile,
                                          &HIR2MPLOptions::ProcessNoMplFile);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::inlineMpltDir,
-                                         &HIR2MPLOptions::ProcessInlineMpltDir);
-  RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::exportInlineMplt,
-                                         &HIR2MPLOptions::ProcessExportInlineMplt);
 
   // debug info control options
   RegisterFactoryFunction<OptionFactory>(&opts::hir2mpl::dumpLevel,
@@ -153,8 +149,7 @@ bool HIR2MPLOptions::InitFactory() {
                                          &HIR2MPLOptions::ProcessWPAA);
   RegisterFactoryFunction<OptionFactory>(&opts::fm,
                                          &HIR2MPLOptions::ProcessFM);
-  RegisterFactoryFunction<OptionFactory>(&opts::oFnoBuiltin,
-                                         &HIR2MPLOptions::ProcessNoBuiltin);
+
   return true;
 }
 
@@ -317,17 +312,6 @@ bool HIR2MPLOptions::ProcessOutputPath(const maplecl::OptionInterface &output) c
 bool HIR2MPLOptions::ProcessOutputName(const maplecl::OptionInterface &outputName) const {
   std::string arg = outputName.GetCommonValue();
   FEOptions::GetInstance().SetOutputName(arg);
-  return true;
-}
-
-bool HIR2MPLOptions::ProcessInlineMpltDir(const maplecl::OptionInterface &inlineMpltDir) const {
-  std::string arg = inlineMpltDir.GetCommonValue();
-  FEOptions::GetInstance().SetInlineMpltDir(arg);
-  return true;
-}
-
-bool HIR2MPLOptions::ProcessExportInlineMplt(const maplecl::OptionInterface &) const {
-  FEOptions::GetInstance().SetExportInlineMplt();
   return true;
 }
 
@@ -614,6 +598,7 @@ bool HIR2MPLOptions::ProcessFuncInlineSize(const maplecl::OptionInterface &funcI
 
 bool HIR2MPLOptions::ProcessWPAA(const maplecl::OptionInterface &) const {
   FEOptions::GetInstance().SetWPAA(true);
+  FEOptions::GetInstance().SetFuncInlineSize(UINT32_MAX);
   return true;
 }
 
@@ -623,11 +608,6 @@ bool HIR2MPLOptions::ProcessFM(const maplecl::OptionInterface &fmOpt) const {
   return true;
 }
 
-// no builtin
-bool HIR2MPLOptions::ProcessNoBuiltin(const maplecl::OptionInterface &) const {
-  FEOptions::GetInstance().SetNoBuiltin(true);
-  return true;
-}
 
 // AOT
 bool HIR2MPLOptions::ProcessAOT(const maplecl::OptionInterface &) const {

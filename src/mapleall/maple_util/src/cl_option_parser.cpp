@@ -74,7 +74,7 @@ std::pair<RetCode, size_t> ExtractValue(size_t argsIndex,
         RetCode::kValueEmpty : RetCode::kNoError;
       return {ret, 0};
     }
-    keyArg.key = keyArg.rawArg;
+
     keyArg.val = args[localArgsIndex];
     return {RetCode::kNoError, 1};
   }
@@ -92,7 +92,6 @@ template <> RetCode Option<bool>::ParseBool(size_t &argsIndex,
   auto disabledNames = GetDisabledName();
   auto it = std::find(disabledNames.begin(), disabledNames.end(), args[argsIndex]);
   SetValue(it == disabledNames.end());
-  SetExpectedVal(kDisallowedValue);
 
   ++argsIndex;
   return RetCode::kNoError;

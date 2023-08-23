@@ -1788,23 +1788,16 @@ bool ExtendShiftOptPattern::CheckCondition(Insn &insn) {
   if ((extendOp == ExtendShiftOperand::kUndef) && (shiftOp == BitShiftOperand::kUndef)) {
     return false;
   }
-  // If the size of the use point in cmp is greater than the size of the def point,
-  // optimization cannot be carried out, for example:
-  // sxtb   w6, w2
-  // cmp    x3, x6
-  // ==>
-  // cmp    x3, w2, SXTB (wrong)
-  //
-  // lsl    w6, w2, #2
-  // cmp    x3, x6
-  // ==>
-  // cmp    x2, x2, LSL #2 (wrong)
+  /* If the size of the use point in sxtb is greater than the size of the def point,
+   * optimization cannot be carried out, for example:
+   * sxtb   w6, w2
+   * cmp    x3, x6
+   * ==>
+   * cmp    x3, w2, SXTB
+   */
   if ((extendOp == ExtendShiftOperand::kSXTB ||
        extendOp == ExtendShiftOperand::kSXTH ||
-       extendOp == ExtendShiftOperand::kSXTW ||
-       shiftOp == BitShiftOperand::kShiftLSL ||
-       shiftOp == BitShiftOperand::kShiftLSR ||
-       shiftOp == BitShiftOperand::kShiftASR) &&
+       extendOp == ExtendShiftOperand::kSXTW) &&
       (defInsn->GetOperandSize(0) < insn.GetOperandSize(replaceIdx))) {
     return false;
   }

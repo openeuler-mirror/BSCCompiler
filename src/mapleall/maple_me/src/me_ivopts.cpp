@@ -1655,7 +1655,7 @@ void FindScalarFactor(MeExpr &expr, OpMeExpr *parentCvt, std::unordered_map<int3
     int64 multiplier, bool needSext, bool analysis) {
   switch (expr.GetMeOp()) {
     case kMeOpConst: {
-      if (parentCvt && GetPrimTypeSize(expr.GetPrimType()) < GetPrimTypeSize(parentCvt->GetOpndType())) {
+      if (parentCvt && GetPrimTypeSize(expr.GetPrimType()) < GetPrimTypeSize(parentCvt->GetPrimType())) {
         needSext = IsSignedInteger(expr.GetPrimType());
       }
       int64 constVal = needSext ? static_cast<ConstMeExpr&>(expr).GetSXTIntValue() :
@@ -1898,9 +1898,7 @@ static bool CheckOverflow(const MeExpr *opnd0, const MeExpr *opnd1, Opcode op, P
   }
   if (op == OP_sub) {
     if (IsUnsignedInteger(ptyp)) {
-      auto shiftNum = k64BitSize - GetPrimTypeBitSize(ptyp);
-      return (static_cast<uint64>(const0) << shiftNum) >> shiftNum <
-             (static_cast<uint64>(const1) << shiftNum) >> shiftNum;
+      return const0 < const1;
     }
     int64 res = static_cast<int64>(static_cast<uint64>(const0) - static_cast<uint64>(const1));
     auto rightShiftNumToGetSignFlag = GetPrimTypeBitSize(ptyp) - 1;
@@ -2418,7 +2416,8 @@ bool IVOptimizer::PrepareCompareUse(int64 &ratio, IVUse *use, IVCand *cand, cons
       if (data->realIterNum == static_cast<uint64>(-1)) {
         mayOverflow = true;
       } else {
-        mayOverflow = CheckOverflow(use->comparedExpr, extraExpr, OP_sub, opndType);
+        mayOverflow = CheckOverflow(use->comparedExpr, extraExpr, OP_sub,
+                                    extraExpr->GetPrimType());
         if (!mayOverflow) {
           auto *candBase = cand->iv->base;
           auto *candStep = cand->iv->step;

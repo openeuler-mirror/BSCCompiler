@@ -61,7 +61,6 @@ class MIRParser {
   bool ParseExprNaryOperand(MapleVector<BaseNode*> &opndVec);
   bool IsDelimitationTK(TokenKind tk) const;
   Opcode GetOpFromToken(TokenKind tk) const;
-  CPragmaKind GetCPragmaKindFromToken(TokenKind tk) const;
   bool IsStatement(TokenKind tk) const;
   PrimType GetPrimitiveType(TokenKind tk) const;
   MIRIntrinsicID GetIntrinsicID(TokenKind tk) const;
@@ -228,9 +227,6 @@ class MIRParser {
   bool ParseExprArray(BaseNodePtr &expr);
   bool ParseExprIntrinsicop(BaseNodePtr &expr);
   bool ParseNaryExpr(NaryStmtNode &stmtNode);
-
-  // Pragma Parser
-  bool ParseCPragma();
 
   // funcName and paramIndex is out parameter
   bool ParseCallAssertInfo(std::string &funcName, int *paramIndex, std::string &stmtFuncName);

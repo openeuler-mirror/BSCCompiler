@@ -52,11 +52,6 @@ class DbgInsn : public maplebe::Insn {
 
   ~DbgInsn() override = default;
 
-  DbgInsn *CloneTree(MapleAllocator &allocator) const override {
-    // Use parent deep copy, as need
-    return static_cast<DbgInsn*>(Insn::CloneTree(allocator));
-  }
-
   bool IsMachineInstruction() const override {
     return false;
   }
@@ -101,11 +96,6 @@ class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
 
   ~ImmOperand() override = default;
   using OperandVisitable<ImmOperand>::OperandVisitable;
-
-  ImmOperand *CloneTree(MapleAllocator &allocator) const override {
-    // const MIRSymbol is not changed in cg, so we can do shallow copy
-    return allocator.GetMemPool()->New<ImmOperand>(*this);
-  }
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd =  memPool.Clone<ImmOperand>(*this);

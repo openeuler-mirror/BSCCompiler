@@ -191,67 +191,54 @@ void BuildSCCDFS(T &rootNode, uint32 &visitIndex, MapleVector<SCCNode<T>*> &sccN
                  std::vector<T*> &nodes, std::vector<uint32> &visitedOrder,
                  std::vector<uint32> &lowestOrder, std::vector<bool> &inStack,
                  std::vector<uint32> &visitStack, uint32 &numOfSccs, MapleAllocator &cgAlloc) {
-  std::stack<T *> s;
-  std::stack<T *> parent;
-  s.push(&rootNode);
-  parent.push(nullptr);
-  // every node pushed in s should be visited twice, one is forward and another is backward
-  // we marked it to avoid visit the same node repeatly
-  std::vector<bool> secondTimeVisited(nodes.size(), false);
-  while (!s.empty()) {
-    auto node = s.top();
-    uint32 id = node->GetID();
-    if (visitedOrder.at(id) == 0) {
-      nodes.at(id) = node;
-      ++visitIndex;
-      visitedOrder.at(id) = visitIndex;
-      lowestOrder.at(id) = visitIndex;
-      std::vector<BaseGraphNode *> outNodes;
-      node->GetOutNodes(outNodes);
-      inStack[id] = true;
-      for (auto citer = outNodes.rbegin(); citer != outNodes.rend(); ++citer) {
-        auto succId = (*citer)->GetID();
-        // succ node already in stack, we can set parents's lowestOrder
-        if (inStack[succId]) {
-          lowestOrder.at(id) = std::min(lowestOrder.at(id), visitedOrder.at(succId));
-        } else if (visitedOrder.at(succId) == 0) {
-          s.push(static_cast<T *>(*citer));
-          parent.push(node);
-        }
-      }
-    } else {
-      auto parentNode = parent.top();
-      s.pop();
-      parent.pop();
-      if (secondTimeVisited[id]) {
-        continue;
-      }
-      secondTimeVisited[id] = true;
-      if (parentNode) {
-        auto parentId = parentNode->GetID();
-        lowestOrder.at(parentId) = std::min(lowestOrder.at(parentId), lowestOrder.at(id));
-      }
-      if (lowestOrder.at(id) == visitedOrder.at(id)) {
-        SCCNode<T> *sccNode = cgAlloc.GetMemPool()->New<SCCNode<T>>(numOfSccs++, cgAlloc);
-        node->SetSCCNode(sccNode);
-        sccNode->AddNode(node);
-        inStack[id] = false;
-        while (!visitStack.empty()) {
-          auto stackTopId = visitStack.back();
-          if (visitedOrder.at(stackTopId) < visitedOrder.at(id)) {
-            break;
-          }
-          inStack[stackTopId] = false;
-          visitStack.pop_back();
-          T *topNode = static_cast<T *>(nodes.at(stackTopId));
-          topNode->SetSCCNode(sccNode);
-          sccNode->AddNode(topNode);
-        }
-        sccNodes.push_back(sccNode);
-      } else {
-        visitStack.push_back(id);
-      }
+  uint32 id = rootNode.GetID();
+  nodes.at(id) = &rootNode;
+  visitedOrder.at(id) = visitIndex;
+  lowestOrder.at(id) = visitIndex;
+  ++visitIndex;
+  inStack.at(id) = true;
+
+  std::vector<BaseGraphNode*> outNodes;
+  rootNode.GetOutNodes(outNodes);
+  for (auto outIt : outNodes) {
+    auto outNode = static_cast<T*>(outIt);
+    if (outNode == nullptr) {
+      continue;
     }
+    uint32 outNodeId = outNode->GetID();
+    if (visitedOrder.at(outNodeId) == 0) {
+      // callee has not been processed yet
+      BuildSCCDFS(*outNode, visitIndex, sccNodes, nodes, visitedOrder, lowestOrder, inStack,
+                  visitStack, numOfSccs, cgAlloc);
+      if (lowestOrder.at(outNodeId) < lowestOrder.at(id)) {
+        lowestOrder.at(id) = lowestOrder.at(outNodeId);
+      }
+    } else if (inStack.at(outNodeId) && (visitedOrder.at(outNodeId) < lowestOrder.at(id))) {
+      // back edge
+      lowestOrder.at(id) = visitedOrder.at(outNodeId);
+    }
+  }
+
+  if (visitedOrder.at(id) == lowestOrder.at(id)) {
+    SCCNode<T> *sccNode = cgAlloc.GetMemPool()->New<SCCNode<T>>(numOfSccs++, cgAlloc);
+    inStack.at(id) = false;
+    T *node = nodes.at(id);
+    node->SetSCCNode(sccNode);
+    sccNode->AddNode(node);
+    while (!visitStack.empty()) {
+      auto stackTopId = visitStack.back();
+      if (visitedOrder.at(stackTopId) < visitedOrder.at(id)) {
+        break;
+      }
+      visitStack.pop_back();
+      inStack.at(stackTopId) = false;
+      T *topNode = nodes.at(stackTopId);
+      topNode->SetSCCNode(sccNode);
+      sccNode->AddNode(topNode);
+    }
+    sccNodes.push_back(sccNode);
+  } else {
+    visitStack.push_back(id);
   }
 }
 

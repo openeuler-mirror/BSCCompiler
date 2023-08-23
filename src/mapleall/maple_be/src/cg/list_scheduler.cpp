@@ -144,8 +144,7 @@ void ListScheduler::WaitingQueueToReadyList() {
     DepNode *waitingNode = *waitingIter;
     // Just check whether the current cycle is free, because
     // the rightmost bit of occupyTable always indicates curCycle
-    if (((cgFunc.IsAfterRegAlloc() && waitingNode->IsResourceIdle()) || !cgFunc.IsAfterRegAlloc()) &&
-        waitingNode->GetEStart() <= currCycle) {
+    if (waitingNode->IsResourceFree(1) && waitingNode->GetEStart() <= currCycle) {
       (void)readyList.emplace_back(waitingNode);
       waitingNode->SetState(kReady);
       waitingIter = EraseIterFromWaitingQueue(waitingIter);
@@ -212,7 +211,7 @@ void ListScheduler::UpdateInfoBeforeSelectNode() {
   while (advancedCycle > 0) {
     currCycle++;
     // Update the occupation of cpu units
-    mad->AdvanceOneCycleForAll();
+    mad->AdvanceCycle();
     advancedCycle--;
   }
   // Fall back to the waitingQueue if the depNode in readyList has resources conflict
@@ -257,9 +256,8 @@ void ListScheduler::UpdateEStart(DepNode &schedNode) {
 void ListScheduler::UpdateInfoAfterSelectNode(DepNode &schedNode) {
   schedNode.SetState(kScheduled);
   schedNode.SetSchedCycle(currCycle);
-  if (cgFunc.IsAfterRegAlloc()) {
-    schedNode.OccupyRequiredUnits();
-  }
+  auto cost = static_cast<uint32>(schedNode.GetReservation()->GetLatency());
+  schedNode.OccupyUnits(cost);
   schedNode.SetEStart(currCycle);
   commonSchedInfo->AddSchedResults(&schedNode);
   lastSchedInsnId = schedNode.GetInsn()->GetId();
@@ -289,9 +287,7 @@ void ListScheduler::UpdateInfoAfterSelectNode(DepNode &schedNode) {
   if (LIST_SCHEDULE_DUMP || isUnitTest) {
     LogInfo::MapleLogger() << "}\n\n";
     DumpScheduledResult();
-    LogInfo::MapleLogger() << "'' issue insn_" << schedNode.GetInsn()->GetId() << " [ ";
-    schedNode.GetInsn()->Dump();
-    LogInfo::MapleLogger() << " ] " << " at cycle " << currCycle << "\n\n";
+    LogInfo::MapleLogger() << "'' issue insn_" << schedNode.GetInsn()->GetId() << " at cycle " << currCycle << "\n\n";
   }
 
   // Add comment
@@ -309,12 +305,7 @@ void ListScheduler::UpdateNodesInReadyList() {
   while (readyIter != readyList.end()) {
     DepNode *readyNode = *readyIter;
     CHECK_NULL_FATAL(lastSchedNode);
-    // In globalSchedule before RA, we do not consider resource conflict in pipeline
-    if ((cgFunc.IsAfterRegAlloc() && !readyNode->IsResourceIdle()) || readyNode->GetEStart() > currCycle) {
-      if (LIST_SCHEDULE_DUMP || isUnitTest) {
-        LogInfo::MapleLogger() << "    >>  ReadyList -> WaitingQueue: insn_" << readyNode->GetInsn()->GetId() <<
-            " (resource conflict)\n\n";
-      }
+    if (!readyNode->IsResourceFree(1) || readyNode->GetEStart() > currCycle) {
       (void)waitingQueue.emplace_back(readyNode);
       readyNode->SetState(kWaiting);
       readyIter = EraseIterFromReadyList(readyIter);
@@ -553,7 +544,6 @@ void ListScheduler::DumpDelay() const {
   ASSERT(curBB != nullptr, "get bb from cdgNode failed");
   LogInfo::MapleLogger() << "        >> Delay priority of readyList in bb_" << curBB->GetId() << "\n";
   LogInfo::MapleLogger() << "     --------------------------------------------------------\n";
-  (void)LogInfo::MapleLogger().fill(' ');
   LogInfo::MapleLogger() << "      " <<
       std::setiosflags(std::ios::left) << std::setw(8) << "insn" << std::resetiosflags(std::ios::left) <<
       std::setiosflags(std::ios::right) << std::setw(4) << "bb" << std::resetiosflags(std::ios::right) <<
@@ -565,10 +555,9 @@ void ListScheduler::DumpDelay() const {
   LogInfo::MapleLogger() << "     --------------------------------------------------------\n";
   for (auto depNode : commonSchedInfo->GetCandidates()) {
     Insn *insn = depNode->GetInsn();
-    ASSERT_NOT_NULL(insn);
+    ASSERT(insn != nullptr, "get insn from depNode failed");
     uint32 predSize = depNode->GetValidPredsSize();
     uint32 delay = depNode->GetDelay();
-    ASSERT_NOT_NULL(mad);
     ASSERT_NOT_NULL(mad->FindReservation(*insn));
     int latency = mad->FindReservation(*insn)->GetLatency();
     LogInfo::MapleLogger() << "      " <<
@@ -581,7 +570,7 @@ void ListScheduler::DumpDelay() const {
     DumpReservation(*depNode);
     LogInfo::MapleLogger() << std::resetiosflags(std::ios::right) << "\n";
   }
-  LogInfo::MapleLogger() << "     --------------------------------------------------------\n\n";
+  LogInfo::MapleLogger() << "     --------------------------------------------------------\n";
 }
 
 void ListScheduler::DumpEStartLStartOfAllNodes() {
@@ -590,7 +579,6 @@ void ListScheduler::DumpEStartLStartOfAllNodes() {
   LogInfo::MapleLogger() << "    >> max EStart: " << maxEStart << "\n\n";
   LogInfo::MapleLogger() << "              >> CP priority of readyList in bb_" << curBB->GetId() << "\n";
   LogInfo::MapleLogger() << "     --------------------------------------------------------------------------\n";
-  (void)LogInfo::MapleLogger().fill(' ');
   LogInfo::MapleLogger() << "      " <<
       std::setiosflags(std::ios::left) << std::setw(8) << "insn" << std::resetiosflags(std::ios::left) <<
       std::setiosflags(std::ios::right) << std::setw(4) << "bb" << std::resetiosflags(std::ios::right) <<
@@ -617,7 +605,6 @@ void ListScheduler::DumpDepNodeInfo(const BB &curBB, MapleVector<DepNode*> &node
     uint32 lStart = depNode->GetLStart();
     ASSERT_NOT_NULL(mad->FindReservation(*insn));
     int latency = mad->FindReservation(*insn)->GetLatency();
-    (void)LogInfo::MapleLogger().fill(' ');
     LogInfo::MapleLogger() << "      " <<
         std::setiosflags(std::ios::left) << std::setw(8) << insn->GetId() << std::resetiosflags(std::ios::left) <<
         std::setiosflags(std::ios::right) << std::setw(4) << curBB.GetId() << std::resetiosflags(std::ios::right) <<

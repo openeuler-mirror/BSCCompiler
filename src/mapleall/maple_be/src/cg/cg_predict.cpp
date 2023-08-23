@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2023] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -49,14 +49,15 @@ bool CgPrediction::IsBackEdge(const Edge &edge) const {
   return false;
 }
 
-void CgPrediction::Verify() const {
+void CgPrediction::Verify() {
   for (auto *bb : cgFunc->GetAllBBs()) {
     if (bb == nullptr) {
       continue;
     }
     for (auto *it : bb->GetSuccs()) {
-      if (bb->GetEdgeProb(*it) < 0 || bb->GetEdgeProb(*it) > kProbAll) {
+      if (bb->GetEdgeProb(*it) < 0 || bb->GetEdgeProb(*it) > 10000) {
         CHECK_FATAL_FALSE("error prob");
+      } else {
       }
     }
   }
@@ -65,55 +66,55 @@ void CgPrediction::Verify() const {
 void CgPrediction::FixRedundantSuccsPreds() {
   BB *firstBB = cgFunc->GetFirstBB();
   for (BB *curBB = firstBB; curBB != nullptr; curBB = curBB->GetNext()) {
-    RemoveRedundantSuccsPreds(*curBB);
+    RemoveRedundantSuccsPreds(curBB);
   }
 }
 
-void CgPrediction::RemoveRedundantSuccsPreds(BB &bb) {
-  auto &succs = bb.GetSuccs();
+void CgPrediction::RemoveRedundantSuccsPreds(BB *bb) {
+  auto &succs = bb->GetSuccs();
   for (BB *succBB : succs) {
     int count = 0;
-    for (auto it = succs.begin(); it != succs.end(); ++it) {
+    for (auto it = succs.begin(); it != succs.end(); it++) {
       if (*it == succBB) {
         count++;
       }
     }
-    for (auto it = succs.begin(); it != succs.end(); ++it) {
+    for (auto it = succs.begin(); it != succs.end(); it++) {
       if (*it == succBB && count > 1) {
-        bb.EraseSuccs(it);
+        bb->EraseSuccs(it);
         count--;
       }
     }
   }
-  auto &preds = bb.GetPreds();
+  auto &preds = bb->GetPreds();
   for (BB *predBB : preds) {
     int count = 0;
-    for (auto it = preds.begin(); it != preds.end(); ++it) {
+    for (auto it = preds.begin(); it != preds.end(); it++) {
       if (*it == predBB) {
         count++;
       }
     }
-    for (auto it = preds.begin(); it != preds.end(); ++it) {
+    for (auto it = preds.begin(); it != preds.end(); it++) {
       if (*it == predBB && count > 1) {
-        bb.ErasePreds(it);
+        bb->ErasePreds(it);
         count--;
       }
     }
   }
 }
 
-void CgPrediction::NormallizeCFGProb() const {
-  BB *firstBB = cgFunc->GetFirstBB();
+void CgPrediction::NormallizeCFGProb() {
+  BB *firstBB = cgFunc->GetFirstBB();  
   for (BB *curBB = firstBB; curBB != nullptr; curBB = curBB->GetNext()) {
-    NormallizeBBProb(*curBB);
+    NormallizeBBProb(curBB);
   }
 }
 
-void CgPrediction::NormallizeBBProb(BB &bb) const {
+void CgPrediction::NormallizeBBProb(BB *bb) {
   std::vector<BB*> unknownProbBBs;
   int32 knownProbSum = 0;
-  for (BB *succBB : bb.GetSuccs()) {
-    int32 bbToSuccProb = bb.GetEdgeProb(*succBB);
+  for (BB *succBB : bb->GetSuccs()) {
+    int32 bbToSuccProb = bb->GetEdgeProb(*succBB);
     if (bbToSuccProb == BB::kUnknownProb) {
       unknownProbBBs.push_back(succBB);
     } else {
@@ -123,17 +124,16 @@ void CgPrediction::NormallizeBBProb(BB &bb) const {
   if (unknownProbBBs.size() == 0) {
     return;
   }
-  int32 probForUnknown = (kProbAll - knownProbSum) / static_cast<int32>(unknownProbBBs.size());
+  int32 probForUnknown = (kProbAll - knownProbSum) / unknownProbBBs.size();
   for (BB* unknownBB : unknownProbBBs) {
-    bb.SetEdgeProb(*unknownBB, probForUnknown);
+    bb->SetEdgeProb(*unknownBB, probForUnknown);
   }
 }
 
-void CgPrediction::VerifyFreq(const CGFunc &cgFunc) {
-  FOR_ALL_BB_CONST(bb, &cgFunc) {  // skip common entry and common exit
+void CgPrediction::VerifyFreq(CGFunc &cgFunc) {
+  FOR_ALL_BB(bb, &cgFunc) {  // skip common entry and common exit
     // cfi bb we can not prop to this bb
-    if (bb == nullptr || bb->GetKind() == BB::kBBReturn ||
-        bb->GetKind() == BB::kBBNoReturn || bb->GetSuccsSize() == 0) {
+    if (bb == nullptr || bb->GetKind() == BB::kBBReturn || bb->GetKind() == BB::kBBNoReturn || bb->GetSuccsSize() == 0) {
       continue;
     }
     // bb freq == sum(out edge freq)
@@ -188,7 +188,7 @@ bool CgPrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
       LogInfo::MapleLogger() << "Set Header Frequency BB" << bb.GetId() << ": " << bb.GetFrequency() << std::endl;
     }
   } else if (headers != nullptr && std::find(headers->begin(), headers->end(), &bb) != headers->end()) {
-    bb.SetFrequency(static_cast<uint32>(kFreqBase / headers->size()));
+    bb.SetFrequency(static_cast<FreqType>(kFreqBase / headers->size()));
     if (predictDebug) {
       LogInfo::MapleLogger() << "Set Header Frequency BB" << bb.GetId() << ": " << bb.GetFrequency() << std::endl;
     }
@@ -227,7 +227,7 @@ bool CgPrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
     LogInfo::MapleLogger() << "Estimate Frequency of BB" << bb.GetId() << "\n";
   }
   bbVisited[bb.GetId()] = true;
-  int32 tmp = 0;
+  uint32 tmp = 0;
   uint64 total = 0;
   Edge *bestEdge = nullptr;
   size_t i = 0;
@@ -243,7 +243,7 @@ bool CgPrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
         bestEdge = edge;
       }
     }
-    edge->frequency = static_cast<int64>(bb.GetFrequency() * 1.0 * edge->probability / kProbBase);
+    edge->frequency = bb.GetFrequency() * 1.0 * edge->probability / kProbBase;
     total += static_cast<uint64>(edge->frequency);
     bool isBackEdge = headers != nullptr ? std::find(headers->begin(), headers->end(), &edge->dest) != headers->end() :
                                            &edge->dest == head;
@@ -254,7 +254,7 @@ bool CgPrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb)
   }
   // To ensure that the sum of out edge frequency is equal to bb frequency
   if (bestEdge != nullptr && static_cast<int64_t>(total) != bb.GetFrequency()) {
-    bestEdge->frequency += static_cast<int64>(bb.GetFrequency()) - static_cast<int64>(total);
+    bestEdge->frequency += bb.GetFrequency() - static_cast<int64>(total);
   }
   return true;
 }
@@ -327,6 +327,13 @@ void Edge::Dump(bool dumpNext) const {
   }
 }
 
+void CgPrediction::PrintAllEdges() {
+  for (auto *edge : edges) {
+    if (edge == nullptr) continue;
+    edge->Dump(true);
+  }
+}
+
 void CgPrediction::SavePredictResultIntoCfg() {
   // Init bb succFreq if needed
   for (auto *bb : cgFunc->GetAllBBs()) {
@@ -342,7 +349,7 @@ void CgPrediction::SavePredictResultIntoCfg() {
     while (edge != nullptr) {
       BB &srcBB = edge->src;
       BB &destBB = edge->dest;
-      srcBB.SetEdgeFreq(destBB, static_cast<uint64>(edge->frequency));
+      srcBB.SetEdgeFreq(destBB, edge->frequency);
       edge = edge->next;
     }
   }
@@ -388,10 +395,10 @@ void CgPrediction::Run() {
     }
     return;
   }
-  // function has valid profile data, do not generate freq info.
-  if (cgFunc->HasLaidOutByPgoUse()) {
+  // do not generate freq info for white list function.
+  if (LiteProfile::IsInWhiteList(cgFunc->GetName()) && CGOptions::DoLiteProfUse()) {
     if (predictDebug) {
-      LogInfo::MapleLogger() << "function has valid profile data, do not run prediction" << std::endl;
+      LogInfo::MapleLogger() << "white list function, do not run prediction" << std::endl;
     }
     return;
   }
@@ -409,11 +416,12 @@ bool CgPredict::PhaseRun(maplebe::CGFunc &f) {
   CHECK_NULL_FATAL(pdomInfo);
   LoopAnalysis *loopInfo = GET_ANALYSIS(CgLoopAnalysis, f);
   CHECK_NULL_FATAL(loopInfo);
-
+  
   MemPool *cgPredMp = GetPhaseMemPool();
   auto *cgPredict = cgPredMp->New<CgPrediction>(*cgPredMp, *ApplyTempMemPool(), f, *domInfo, *pdomInfo, *loopInfo);
   cgPredict->Run();
-  if (!f.HasIrrScc() && f.GetAllBBs().size() <= kMaxNumBBToPredict && !f.HasLaidOutByPgoUse()) {
+  if (!f.HasIrrScc() && f.GetAllBBs().size() <= kMaxNumBBToPredict && 
+      !(LiteProfile::IsInWhiteList(f.GetName()) && CGOptions::DoLiteProfUse())) {
     CgPrediction::VerifyFreq(f);
   }
 

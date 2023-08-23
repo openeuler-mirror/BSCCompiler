@@ -59,13 +59,6 @@ bool IsBitmaskImmediate(uint64 val, uint32 bitLen);
 
 using namespace aarch64;
 inline bool IsSingleInstructionMovable32(int64 value) {
-  // When value & ffffffff00000000 is 0, all high 32-bits are 0.
-  // When value & ffffffff00000000 is ffffffff00000000, all high 32-bits are 1.
-  // High 32-bits should be all 0 or all 1, when it comes to mov w0, #imm.
-  if ((static_cast<uint64>(value) & 0xffffffff00000000ULL) != 0 &&
-      (static_cast<uint64>(value) & 0xffffffff00000000ULL) != 0xffffffff00000000ULL) {
-    return false;
-  }
   return (IsMoveWidableImmediateCopy(static_cast<uint64>(value), 32) ||
             IsMoveWidableImmediateCopy(~static_cast<uint64>(value), 32) ||
             IsBitmaskImmediate(static_cast<uint64>(value), 32));

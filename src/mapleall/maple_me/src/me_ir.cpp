@@ -867,12 +867,7 @@ MeExpr *NaryMeExpr::GetIdenticalExpr(MeExpr &expr, bool /* isConstructor */) con
   while (naryExpr != nullptr) {
     bool isPureIntrinsic =
         naryExpr->GetOp() == OP_intrinsicop && IntrinDesc::intrinTable[naryExpr->GetIntrinsic()].IsPure();
-    // temp implement since now there is no accurate attr for tls_anchor
-    bool isTlsAnchor = (naryExpr->GetOp() == OP_intrinsicop &&
-                        (naryExpr->GetIntrinsic() == INTRN_C___tls_get_tbss_anchor ||
-                         naryExpr->GetIntrinsic() == INTRN_C___tls_get_tdata_anchor ||
-                         naryExpr->GetIntrinsic() == INTRN_C___tls_get_thread_pointer));
-    if ((naryExpr->GetOp() == OP_array || isPureIntrinsic || isTlsAnchor) && IsIdentical(*naryExpr)) {
+    if ((naryExpr->GetOp() == OP_array || isPureIntrinsic) && IsIdentical(*naryExpr)) {
       return naryExpr;
     }
     naryExpr = static_cast<NaryMeExpr*>(naryExpr->GetNext());

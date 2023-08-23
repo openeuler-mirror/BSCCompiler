@@ -303,8 +303,9 @@ void BinaryMplImport::ImportMethodPair(MethodPair &memPool) {
   std::string funcName;
   ReadAsciiStr(funcName);
   TyIdx funcTyIdx = ImportType();
-  FuncAttrFlag attrFlag;
-  ImportFuncAttrFlag(attrFlag);
+  int64 x = ReadNum();
+  CHECK_FATAL(x >= 0, "ReadNum error, x: %d", x);
+  auto attrFlag = static_cast<uint64>(x);
 
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
   MIRSymbol *prevFuncSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
@@ -333,7 +334,7 @@ void BinaryMplImport::ImportMethodPair(MethodPair &memPool) {
     fn->SetMIRFuncType(funcType);
     fn->SetFileIndex(0);
     fn->SetBaseClassFuncNames(funcSt->GetNameStrIdx());
-    fn->SetFuncAttrFlag(attrFlag);
+    fn->SetFuncAttrs(attrFlag);
   }
   memPool.first.SetFullIdx(funcSt->GetStIdx().FullIdx());
   memPool.second.first.reset(funcTyIdx);
@@ -499,11 +500,7 @@ void BinaryMplImport::Reset() {
 
 TypeAttrs BinaryMplImport::ImportTypeAttrs() {
   TypeAttrs ta;
-  SimpleBitSet<kTypeAttrFlagNum> tmpTypeFlag;
-  for (size_t i = 0; i < ta.GetAttrFlag().GetWordSize(); ++i) {
-    tmpTypeFlag.SetWord(i, static_cast<uint64>(ReadNum()));
-  }
-  ta.SetAttrFlag(tmpTypeFlag);
+  ta.SetAttrFlag(static_cast<uint64>(ReadNum()));
   ta.SetAlignValue(static_cast<uint8>(ReadNum()));
   ta.SetPack(static_cast<uint32>(ReadNum()));
   return ta;
@@ -622,9 +619,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       size_t idx = typTab.size();
       typTab.push_back(TyIdx(0));
       type.SetRetTyIdx(ImportType());
-      FuncAttrFlag attrFlag;
-      ImportFuncAttrFlag(attrFlag);
-      type.funcAttrs.SetAttrFlag(attrFlag);
+      type.funcAttrs.SetAttrFlag(static_cast<uint64_t>(ReadNum()));
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         type.GetParamTypeList().push_back(ImportType());
@@ -784,9 +779,7 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
       MIRFuncType type(strIdx);
       type.SetNameIsLocal(nameIsLocal);
       type.SetRetTyIdx(ImportTypeNonJava());
-      FuncAttrFlag attrFlag;
-      ImportFuncAttrFlag(attrFlag);
-      type.funcAttrs.SetAttrFlag(attrFlag);
+      type.funcAttrs.SetAttrFlag(static_cast<uint64_t>(ReadNum()));
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         type.GetParamTypeList().push_back(ImportTypeNonJava());
@@ -1041,20 +1034,14 @@ PUIdx BinaryMplImport::ImportFunction() {
 
   func->SetStIdx(funcSt->GetStIdx());
   if (!inCG) {
-    FuncAttrFlag attrFlag;
-    ImportFuncAttrFlag(attrFlag);
-    func->SetFuncAttrFlag(attrFlag);  // merge side effect
+    func->SetFuncAttrs(ReadNum());  // merge side effect
   } else {
     if (!func->IsDirty()) {
       func->SetDirty(true);
-      FuncAttrFlag attrFlag;
-      ImportFuncAttrFlag(attrFlag);
-      func->SetFuncAttrFlag(attrFlag);  // merge side effect
+      func->SetFuncAttrs(ReadNum());  // merge side effect
     } else {
-      FuncAttrFlag attrFlag;
-      ImportFuncAttrFlag(attrFlag);
       FuncAttrs tmp;
-      tmp.SetAttrFlag(attrFlag);
+      tmp.SetAttrFlag(ReadNum());
       if (func->IsNoDefArgEffect() != tmp.GetAttr(FUNCATTR_nodefargeffect)) {
         tmp.SetAttr(FUNCATTR_nodefargeffect, true);
       }
@@ -1103,11 +1090,7 @@ PUIdx BinaryMplImport::ImportFunction() {
       GStrIdx strIdx = ImportStr();
       TyIdx tyIdx = mod.IsJavaModule() ? ImportType() : ImportTypeNonJava();
       FormalDef formalDef(strIdx, nullptr, tyIdx, TypeAttrs());
-      SimpleBitSet<kTypeAttrFlagNum> tmpTypeFlag;
-      for (size_t j = 0; j < formalDef.formalAttrs.GetAttrFlag().GetWordSize(); ++j) {
-        tmpTypeFlag.SetWord(j, static_cast<uint64>(ReadNum()));
-      }
-      formalDef.formalAttrs.SetAttrFlag(tmpTypeFlag);
+      formalDef.formalAttrs.SetAttrFlag(static_cast<uint64>(ReadNum()));
       func->GetFormalDefVec().push_back(formalDef);
     }
   } else {
@@ -1115,24 +1098,12 @@ PUIdx BinaryMplImport::ImportFunction() {
     for (size_t i = 0; i < size; i++) {
       func->GetFormalDefVec()[i].formalStrIdx = ImportStr();
       func->GetFormalDefVec()[i].formalTyIdx = mod.IsJavaModule() ? ImportType() : ImportTypeNonJava();
-      SimpleBitSet<kTypeAttrFlagNum> tmpTypeFlag;
-      for (size_t j = 0; j < func->GetFormalDefVec()[i].formalAttrs.GetAttrFlag().GetWordSize(); ++j) {
-        tmpTypeFlag.SetWord(j, static_cast<uint64>(ReadNum()));
-      }
-      func->GetFormalDefVec()[i].formalAttrs.SetAttrFlag(tmpTypeFlag);
+      func->GetFormalDefVec()[i].formalAttrs.SetAttrFlag(static_cast<uint64>(ReadNum()));
     }
   }
 
   mod.SetCurFunction(func);
   return func->GetPuidx();
-}
-
-void BinaryMplImport::ImportFuncAttrFlag(FuncAttrFlag &attrFlag) {
-  std::array<uint64, kNumU64InFuncAttr> dataArr;
-  for (uint32 i = 0; i < kNumU64InFuncAttr; ++i) {
-    dataArr[i] = static_cast<uint64>(ReadNum());
-  }
-  InitAttrFlag(attrFlag, dataArr);
 }
 
 inline void BinaryMplImport::SkipTotalSize() {

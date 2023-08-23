@@ -220,7 +220,7 @@ void GInline::PrintGInlineReport() const {
 }
 
 // We try to inline shallow small callee (especially with inline attr), ignoring overall growth limit
-bool GInline::CanIgnoreGrowthLimit(CallSiteNode &callSiteNode) const {
+bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) const {
   auto ifCode = callSiteNode.GetCallInfo()->GetInlineFailedCode();
   if (ifCode == kIfcInlineList || ifCode == kIfcInlineListCallsite || ifCode == kIfcHardCoded ||
       ifCode == kIfcProfileHotCallsite) {
@@ -233,12 +233,12 @@ bool GInline::CanIgnoreGrowthLimit(CallSiteNode &callSiteNode) const {
   if (depth > Options::ginlineMaxDepthIgnoreGrowthLimit) {
     return false;
   }
-  auto *callee = callSiteNode.GetCallInfo()->GetCallee();
+  auto &callee = callSiteNode.GetCallInfo()->GetCallee();
   uint32 thresholdSmallFunc = Options::ginlineSmallFunc;
   uint32 relaxThreshold = 1;
   if (CalleeCanBeRemovedIfInlined(*callSiteNode.GetCallInfo(), *cg)) {
     relaxThreshold = Options::ginlineRelaxSmallFuncCanbeRemoved;
-  } else if (callee->IsInline()) {
+  } else if (callee.IsInline()) {
     constexpr uint32 defaultRelaxForInlineNormalFreq = 2;
     relaxThreshold = callSiteNode.GetCallFreqPercent() >= 1 ?
         Options::ginlineRelaxSmallFuncDecalredInline : defaultRelaxForInlineNormalFreq;

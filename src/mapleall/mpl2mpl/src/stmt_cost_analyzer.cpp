@@ -401,7 +401,7 @@ MIRType *StmtCostAnalyzer::GetMIRTypeFromStIdxAndField(const StIdx idx, FieldID 
 }
 
 int64 StmtCostAnalyzer::GetStmtCost(StmtNode *stmt) {
-  if (stmt == nullptr || stmt->IsIgnoreCost()) {
+  if (stmt == nullptr) {
     return 0;
   }
   Opcode op = stmt->GetOpCode();

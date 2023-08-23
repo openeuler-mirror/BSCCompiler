@@ -119,18 +119,6 @@ Opcode MIRParser::GetOpFromToken(TokenKind tk) const {
   }
 }
 
-CPragmaKind MIRParser::GetCPragmaKindFromToken(TokenKind tk) const {
-  switch (tk) {
-#define PRAGMA(STR) \
-    case TK_##STR:  \
-      return CPragmaKind::PRAGMA_##STR;
-#include "all_pragmas.def"
-#undef PRAGMA
-    default:
-      return CPragmaKind::PRAGMA_undef;
-  }
-}
-
 static bool IsClassInterfaceTypeName(const std::string &nameStr) {
   return (!nameStr.empty() && nameStr.front() == 'L' && StringUtils::EndsWith(nameStr, "_3B"));
 }
@@ -1587,43 +1575,6 @@ void MIRParser::FixupForwardReferencedTypeByMap() {
   }
 }
 
-bool MIRParser::ParseCPragma() {
-  if (lexer.GetTokenKind() != TK_pragma) {
-    Error("expect type but get ");
-    return false;
-  }
-  TokenKind tokenKind = lexer.NextToken();
-  if (tokenKind != TK_exclamation) {
-    Error("expect pragma index but get ");
-    return false;
-  }
-  tokenKind = lexer.NextToken();
-  if (tokenKind != TK_intconst) {
-    Error("expect pragma index but get ");
-    return false;
-  }
-  auto index = static_cast<uint64>(lexer.theIntVal);
-  auto &pragmas = GlobalTables::GetGPragmaTable().GetPragmaTable();
-  if (index >= pragmas.size()) {
-    pragmas.resize(index + 1);
-  }
-  tokenKind = lexer.NextToken();
-  auto pragmakind = GetCPragmaKindFromToken(tokenKind);
-  if (pragmakind == CPragmaKind::PRAGMA_undef) {
-    Error("expect pragma kind but get ");
-    return false;
-  }
-  tokenKind = lexer.NextToken();
-  if (tokenKind != TK_string) {
-    Error("expect string content but get ");
-    return false;
-  }
-  auto *pragma = GPragmaTable::CreateCPragma(pragmakind, static_cast<uint32>(index), lexer.name);
-  pragmas[index] = pragma;
-  (void)lexer.NextToken();
-  return true;
-}
-
 bool MIRParser::ParseTypeDefine() {
   bool isLocal = paramParseLocalType;
   if (lexer.GetTokenKind() != TK_type) {
@@ -2965,7 +2916,6 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
   funcPtrMap[TK_SCOPE] = &MIRParser::ParseScope;
   funcPtrMap[TK_ENUMERATION] = &MIRParser::ParseEnumeration;
-  funcPtrMap[TK_pragma] = &MIRParser::ParseCPragma;
   return funcPtrMap;
 }
 

@@ -94,7 +94,8 @@ std::string LdCompiler::GetInputFileName(const MplOptions &options [[maybe_unuse
       } else {
         files += " ";
       }
-      files += file;
+
+      files += StringUtils::GetStrBeforeLast(file, ".") + ".o";
     }
     return files;
 }

@@ -96,7 +96,7 @@ DEF_MIR_INTRINSIC(C_va_start,\
                   "va_start", 10, INTRNISCBUILTIN | INTRNISPURE | INTRNISSPECIAL, kArgTyVoid,
                   { { kArgTyPtr, MemEffect::kStoreMemory } , kArgTyI32 })
 DEF_MIR_INTRINSIC(C_constant_p,\
-                  "constant_p", 0, INTRNISCBUILTIN | INTRNISPURE, kArgTyI32, { kArgTyDynany })
+                  "constant_p", 0, 0, kArgTyI32, { kArgTyDynany })
 DEF_MIR_INTRINSIC(C_clz32,\
                   "clz32", 1, INTRNISCBUILTIN | INTRNISPURE, kArgTyI32, { kArgTyU32 })
 DEF_MIR_INTRINSIC(C_clz64,\
@@ -350,12 +350,6 @@ DEF_MIR_INTRINSIC(C___builtin_object_size,\
 DEF_MIR_INTRINSIC(C___builtin_division_exception,\
                   "__builtin_division_exception", 0, INTRNISCBUILTIN | INTRNNOSIDEEFFECT | INTRNISPURE | INTRNISSPECIAL, kArgTyVoid,
                   { kArgTyI64 })
-DEF_MIR_INTRINSIC(C_alloca_with_align,\
-                  "alloca_with_align", 5, INTRNISCBUILTIN, kArgTyPtr, { kArgTyU64, kArgTyU64 })
-DEF_MIR_INTRINSIC(C_prefetch,\
-                  "prefetch", 1, INTRNISCBUILTIN | INTRNISSPECIAL, kArgTyVoid, { kArgTyPtr, kArgTyI32, kArgTyI32 })
-DEF_MIR_INTRINSIC(C___clear_cache,\
-                  "__clear_cache", 1, INTRNISCBUILTIN | INTRNISSPECIAL, kArgTyVoid, { kArgTyPtr, kArgTyPtr })
 // atomic
 DEF_MIR_INTRINSIC(C___atomic_load_n,\
                   "__atomic_load_n", 1, INTRNISCBUILTIN | INTRNATOMIC | INTRNMEMBARRIER, kArgTyDynany,
@@ -437,8 +431,6 @@ DEF_MIR_INTRINSIC(C___atomic_compare_exchange,\
                   { kArgTyPtr, kArgTyPtr, kArgTyPtr, kArgTyU1, kArgTyI32, kArgTyI32 })
 
 
-DEF_MIR_INTRINSIC(C___tls_get_thread_pointer,\
-                  "__tls_get_thread_pointer", DEFAULT_NUM_INSN, INTRNATOMIC , kArgTyU64)
 DEF_MIR_INTRINSIC(C___tls_get_tbss_anchor,\
                   "__tls_get_tbss_anchor", 5, INTRNISCBUILTIN | INTRNMEMBARRIER, { kArgTyU64, AliasLevelInfo::kAliasGlobal }, {})
 DEF_MIR_INTRINSIC(C___tls_get_tdata_anchor,\

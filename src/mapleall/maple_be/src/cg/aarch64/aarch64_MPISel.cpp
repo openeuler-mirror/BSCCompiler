@@ -371,10 +371,6 @@ void AArch64MPIsel::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
   if (intrinsic == INTRN_C_stack_save || intrinsic == INTRN_C_stack_restore) {
     return;
   }
-  if (intrinsic == INTRN_C_prefetch) {
-    SelectCprefetch(intrinsiccallNode);
-    return;
-  }
 
   CHECK_FATAL_FALSE("Intrinsic %d: %s not implemented by AArch64 isel CG.", intrinsic, GetIntrinsicName(intrinsic));
 }
@@ -733,10 +729,6 @@ Operand *AArch64MPIsel::SelectCstrchr(IntrinsicopNode &node, Operand &opnd0, con
 Operand *AArch64MPIsel::SelectCstrrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) {
   CHECK_FATAL_FALSE("NYI");
   return nullptr;
-}
-
-void AArch64MPIsel::SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) {
-  cgFunc->SelectCprefetch(intrinsiccallNode);
 }
 
 Operand *AArch64MPIsel::SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &parent) {

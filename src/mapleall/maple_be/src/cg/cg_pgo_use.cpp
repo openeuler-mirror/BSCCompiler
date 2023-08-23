@@ -255,9 +255,7 @@ void CGProfUse::LayoutBBwithProfile() {
   chainLayout.SetHasRealProfile(true);
   chainLayout.SetConsiderBetterPred(true);
   FOR_ALL_BB(bb, &f) {
-    // When it comes to infinite loop, the function will not run pgouse.
-    // The conditions back are won`t exit but are not infinite loops, so we exclude them.
-    if (bb->IsWontExit() && !(bb->GetPreds().empty() && bb->GetSuccs().empty()) && (bb->GetKind() != BB::kBBNoReturn)) {
+    if (bb->IsWontExit() && !(bb->GetPreds().empty() && bb->GetSuccs().empty())) {
       chainLayout.SetMarkNeverExe(false);
       break;
     }
@@ -328,11 +326,9 @@ void CGProfUse::LayoutBBwithProfile() {
 }
 
 bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
-  if (Globals::GetInstance()->GetOptimLevel() < CGOptions::kLevel2) {
-    return false;
-  }
   CHECK_FATAL(f.NumBBs() < LiteProfile::GetBBNoThreshold(), "stop ! bb out of range!");
   if (!LiteProfile::IsInWhiteList(f.GetName())) {
+    CGOptions::DisableLiteProfUse();
     return false;
   }
 
@@ -341,6 +337,7 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
    * Currently, If all the counters of the function are 0, the bbInfo will not be recorded in pgo data.
    * skip this case. However, it cannot distinguish which is not genereated correct. Need to be improved */
   if (!bbInfo) {
+    CGOptions::DisableLiteProfUse();
     return false;
   }
 
@@ -364,8 +361,10 @@ bool CgPgoUse::PhaseRun(maplebe::CGFunc &f) {
   const bool debug = CG_DEBUG_FUNC(f);
   CGProfUse pUse(f, *memPool, *domInfo, *loopInfo, newbbinsplit, debug);
   if (pUse.ApplyPGOData()) {
+    CGOptions::EnableLiteProfUse();
     pUse.LayoutBBwithProfile();
-    f.SetHasLaidOutByPgoUse();
+  } else {
+    CGOptions::DisableLiteProfUse();
   }
   uint64 count = 0;
   LogInfo::MapleLogger() << f.GetName() << " Final Layout : ";
@@ -392,10 +391,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgPgoUse, cgpgouse)
 
 void CGProfUse::AddBBProf(BB &bb) {
   if (layoutBBs.empty()) {
-    if (&bb != f.GetFirstBB()) {
-      f.SetFirstBB(bb);
-      f.SetIsEntryCold();
-    }
+    f.SetFirstBB(bb);
     AddBB(bb);
     return;
   }

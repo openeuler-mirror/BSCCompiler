@@ -87,11 +87,8 @@ class Options {
   static bool enableIPAClone;
   static bool enableGInline;
   static std::string noInlineFuncList;
-  static std::string noIpaCloneFuncList;
   static std::string importFileList;
   static bool useCrossModuleInline;
-  static std::string inlineMpltDir;
-  static bool importInlineMplt;
   static uint32 numOfCloneVersions;
   static uint32 numOfImpExprLowBound;
   static uint32 numOfImpExprHighBound;
@@ -105,7 +102,6 @@ class Options {
   static uint32 inlineModuleGrowth;
   static uint32 inlineColdFunctionThreshold;
   static bool respectAlwaysInline;
-  static bool ignoreHotAttr;
   static bool inlineToAllCallers;
   static uint32 ginlineMaxNondeclaredInlineCallee;
   static bool ginlineAllowNondeclaredInlineSizeGrow;

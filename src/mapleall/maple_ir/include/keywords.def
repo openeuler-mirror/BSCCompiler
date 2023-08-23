@@ -52,10 +52,6 @@
 #undef TYPE_ATTR
 #undef FIELD_ATTR
   KEYWORD(align)
-  // pragma kind keywords
-#define PRAGMA(X) KEYWORD(X)
-#include "all_pragmas.def"
-#undef PRAGMA
   // per-function declaration keywords
   KEYWORD(framesize)
   KEYWORD(upformalsize)

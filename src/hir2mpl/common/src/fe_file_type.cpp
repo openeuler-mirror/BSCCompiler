@@ -38,11 +38,7 @@ FEFileType::FileType FEFileType::GetFileTypeByExtName(const std::string &extName
 
 FEFileType::FileType FEFileType::GetFileTypeByPathName(const std::string &pathName) const {
   std::string extName = GetExtName(pathName);
-  FEFileType::FileType type = GetFileTypeByExtName(extName);
-  if (type == kUnknownType) {
-    type = GetFileTypeByMagicNumber(pathName);
-  }
-  return type;
+  return GetFileTypeByExtName(extName);
 }
 
 FEFileType::FileType FEFileType::GetFileTypeByMagicNumber(const std::string &pathName) const {

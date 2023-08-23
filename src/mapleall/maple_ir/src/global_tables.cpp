@@ -290,17 +290,6 @@ void TypeTable::AddFieldToStructType(MIRStructType &structType, const std::strin
   structType.GetFields().push_back(FieldPair(strIdx, TyIdxFieldAttrPair(fieldType.GetTypeIndex(), fieldAttrs)));
 }
 
-CPragma *GPragmaTable::CreateCPragma(CPragmaKind k, uint32 id, const std::string &content) {
-  switch (k) {
-    case CPragmaKind::PRAGMA_prefer_inline: {
-      return PreferInlinePragma::CreatePIP(id, content);
-    }
-    default: {
-      CHECK_FATAL_FALSE("Unsupported Pragma!");
-    }
-  }
-}
-
 void FPConstTable::PostInit() {
   MIRType &typeFloat = *GlobalTables::GetTypeTable().GetPrimType(PTY_f32);
   nanFloatConst = new MIRFloatConst(NAN, typeFloat);

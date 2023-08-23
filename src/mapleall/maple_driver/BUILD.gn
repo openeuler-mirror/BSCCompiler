@@ -92,14 +92,7 @@ static_library("libmaple_driver") {
 }
 
 static_library("libdriver_option") {
-  sources = [
-    "src/driver_options.cpp",
-    "src/unsupport_bool.cpp",
-    "src/unsupport_bool2.cpp",
-    "src/unsupport_bool3.cpp",
-    "src/unsupport_string.cpp",
-    "src/warning_option.cpp",
-  ]
+  sources = [ "src/driver_options.cpp" ]
 
   include_dirs = [ "${MAPLEALL_ROOT}/maple_driver/include",
                    "${MAPLEALL_ROOT}/maple_util/include"

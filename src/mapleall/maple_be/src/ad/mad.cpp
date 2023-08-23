@@ -49,65 +49,97 @@ Unit::Unit(enum UnitType theUnitType, enum UnitId theUnitId, int numOfUnits, ...
   MAD::AddUnit(*this);
 }
 
-// return name of unit
+/* return name of unit */
 std::string Unit::GetName() const {
   ASSERT(GetUnitId() <= kUnitIdLast, "Unexpected UnitID");
   return kUnitName[GetUnitId()];
 }
 
-// If the unit is idle in the CYCLE, return true
-bool Unit::IsIdle(uint32 cycle) const {
+/* Check whether the unit is free from the current cycle(bit 0) to the cost */
+bool Unit::IsFree(uint32 cost) const {
   if (unitType == kUnitTypeOr) {
-    // For 'or'-unit, if one of them is idle, return true
-    for (Unit *unit : compositeUnits) {
-      if (unit->IsIdle(cycle)) {
+    for (auto *unit : compositeUnits) {
+      if (unit->IsFree(cost)) {
         return true;
       }
     }
     return false;
   } else if (GetUnitType() == kUnitTypeAnd) {
-    // For 'and'-unit, if all of them are idle, return true
     for (auto *unit : compositeUnits) {
-      if (!unit->IsIdle(cycle)) {
+      if (!unit->IsFree(cost)) {
         return false;
       }
     }
     return true;
   }
-  return ((occupancyTable & std::bitset<kOccupyWidth>(1u << cycle)) == 0);
+  return ((occupancyTable & std::bitset<32>((1u << cost) - 1)) == 0);
 }
 
-// Occupy unit in the CYCLE
-void Unit::Occupy(uint32 cycle) {
+/*
+ * Old interface:
+ * Occupy unit for cost cycles
+ */
+void Unit::Occupy(const Insn &insn, uint32 cycle) {
   if (GetUnitType() == kUnitTypeOr) {
-    // For 'or'-unit, occupy the first idle unit
     for (auto unit : GetCompositeUnits()) {
-      if (unit->IsIdle(cycle)) {
-        unit->Occupy(cycle);
+      if (unit->IsFree(cycle)) {
+        unit->Occupy(insn, cycle);
         return;
       }
     }
-    // If there is no return before, there is an error.
-    CHECK_FATAL(false, "when the instruction issue, all units it required must be idle");
+
+    ASSERT(false, "CG internal error, should not be reach here.");
+    return;
   } else if (GetUnitType() == kUnitTypeAnd) {
-    // For 'and'-unit, occupy all the unit
     for (auto unit : GetCompositeUnits()) {
-      unit->Occupy(cycle);
+      unit->Occupy(insn, cycle);
     }
     return;
   }
   occupancyTable |= (1ULL << cycle);
 }
 
-// Advance one cpu cycle, and update the occupation status of all units
-void Unit::AdvanceOneCycle() {
+/*
+ * New interface for list-scheduler:
+ * Occupy unit for cost cycles
+ */
+void Unit::Occupy(uint32 cost, std::vector<bool> &visited) {
+  if (visited[unitId]) {
+    return;
+  }
+  visited[unitId] = true;
+  if (unitType == kUnitTypeOr) { // occupy any functional unit
+    for (auto *unit : compositeUnits) {
+      if (unit->IsFree(cost)) {
+        unit->Occupy(cost, visited);
+        return;
+      }
+    }
+    CHECK_FATAL(false, "Or-type units should have one free unit");
+  } else if (unitType == kUnitTypeAnd) { // occupy all functional units
+    for (auto *unit : compositeUnits) {
+      unit->Occupy(cost, visited);
+    }
+    return;
+  }
+  // Single unit
+  // For slot0 and slot1, only occupy one cycle
+  if (unitId == kUnitIdSlot0 || unitId == kUnitIdSlot1) {
+    occupancyTable |= 1;
+  } else {
+    occupancyTable |= ((1u << cost) - 1);
+  }
+}
+
+/* Advance all units one cycle */
+void Unit::AdvanceCycle() {
   if (GetUnitType() != kUnitTypePrimart) {
     return;
   }
   occupancyTable = (occupancyTable >> 1);
 }
 
-// Release all units
+/* Release all units. */
 void Unit::Release() {
   if (GetUnitType() != kUnitTypePrimart) {
     return;
@@ -131,7 +163,7 @@ void Unit::Dump(int indent) const {
   LogInfo::MapleLogger() << "occupancyTable = " << occupancyTable << '\n';
 }
 
-std::bitset<kOccupyWidth> Unit::GetOccupancyTable() const {
+std::bitset<32> Unit::GetOccupancyTable() const {
   return occupancyTable;
 }
 
@@ -171,7 +203,7 @@ void MAD::InitParallelism() const {
 #include "mplad_arch_define.def"
 }
 
-// Return the reservation by latencyType of the instruction
+/* according insn's insnType to get a reservation */
 Reservation *MAD::FindReservation(const Insn &insn) const {
   uint32 insnType = insn.GetLatencyType();
   for (auto reservation : allReservations) {
@@ -182,7 +214,7 @@ Reservation *MAD::FindReservation(const Insn &insn) const {
   return nullptr;
 }
 
-// Return latency from producer instruction to consumer instruction
+/* Get latency that is def insn to use insn */
 int MAD::GetLatency(const Insn &def, const Insn &use) const {
   int latency = BypassLatency(def, use);
   if (latency < 0) {
@@ -191,36 +223,27 @@ int MAD::GetLatency(const Insn &def, const Insn &use) const {
   return latency;
 }
 
-// Return latency according to latency from producer instruction to consumer instruction
+/* Get bypass latency that is  def insn to use insn */
 int MAD::BypassLatency(const Insn &def, const Insn &use) const {
   int latency = -1;
   ASSERT(def.GetLatencyType() < kLtLast, "out of range");
   ASSERT(use.GetLatencyType() < kLtLast, "out of range");
   BypassVector &bypassVec = bypassArrays[def.GetLatencyType()][use.GetLatencyType()];
   for (auto *bypass : bypassVec) {
-    if (bypass->CanBypass(def, use)) {
-      latency = bypass->GetLatency();
-      break;
-    }
+    latency = std::min(latency, bypass->GetLatency());
   }
   return latency;
 }
 
-// Return default cost of the instruction
+/* Get insn's default latency */
 int MAD::DefaultLatency(const Insn &insn) const {
   Reservation *res = insn.GetDepNode()->GetReservation();
   return res != nullptr ? res->GetLatency() : 0;
 }
 
-// In the dual-issue arch, if two slots are occupied in the current cycle,
-// return true
-bool MAD::IsFullIssued() const {
-  return !GetUnitByUnitId(kUnitIdSlot0)->IsIdle(0) && !GetUnitByUnitId(kUnitIdSlot1)->IsIdle(0);
-}
-
-void MAD::AdvanceOneCycleForAll() const {
+void MAD::AdvanceCycle() const {
   for (auto unit : allUnits) {
-    unit->AdvanceOneCycle();
+    unit->AdvanceCycle();
   }
 }
 
@@ -230,7 +253,7 @@ void MAD::ReleaseAllUnits() const {
   }
 }
 
-void MAD::SaveStates(std::vector<std::bitset<kOccupyWidth>> &occupyTable, int size) const {
+void MAD::SaveStates(std::vector<std::bitset<32>> &occupyTable, int size) const {
   int i = 0;
   for (auto unit : allUnits) {
     CHECK_FATAL(i < size, "unit number error");
@@ -242,13 +265,21 @@ void MAD::SaveStates(std::vector<std::bitset<kOccupyWidth>> &occupyTable, int si
 #define ADDBYPASS(DEFLTTY, USELTTY, LT) AddBypass(*(new Bypass(DEFLTTY, USELTTY, LT)))
 #define ADDALUSHIFTBYPASS(DEFLTTY, USELTTY, LT) AddBypass(*(new AluShiftBypass(DEFLTTY, USELTTY, LT)))
 #define ADDACCUMULATORBYPASS(DEFLTTY, USELTTY, LT) AddBypass(*(new AccumulatorBypass(DEFLTTY, USELTTY, LT)))
-#define ADDSTOREADDRBYPASS(DEFLTTY, USELTTY, LT) AddBypass(*(new StoreAddrBypass(DEFLTTY, USELTTY, LT)))
+#define ADDSTOREBYPASS(DEFLTTY, USELTTY, LT) AddBypass(*(new StoreBypass(DEFLTTY, USELTTY, LT)))
 
 void MAD::InitBypass() const {
 #include "mplad_bypass_define.def"
 }
 
-void MAD::RestoreStates(std::vector<std::bitset<kOccupyWidth>> &occupyTable, int size) const {
+/*
+ * check whether all slots are used,
+ * the bit 0 of occupyTable indicates the current cycle, so the cost(arg) is 1
+ */
+bool MAD::IsFullIssued() const {
+  return !GetUnitByUnitId(kUnitIdSlot0)->IsFree(1) && !GetUnitByUnitId(kUnitIdSlot1)->IsFree(1);
+}
+
+void MAD::RestoreStates(std::vector<std::bitset<32>> &occupyTable, int size) const {
   int i = 0;
   for (auto unit : allUnits) {
     CHECK_FATAL(i < size, "unit number error");
@@ -263,117 +294,58 @@ bool Bypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
   return true;
 }
 
-// Return true if the USEINSN is an arithmetic or logic or shift instruction,
-// and the defOpnd of DEFINSN is not used in shift operation of USEINSN.
-// e.g.
-// true: r3=r2+x1 -> r5=r4<<0x2+r3
-// false: r3=r2+x1 -> r5=r3<<0x2+r4
 bool AluShiftBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
-  RegOperand *productOpnd = nullptr;
-  uint32 defOpndNum = defInsn.GetOperandSize();
-  for (uint32 i = 0; i < defOpndNum; ++i) {
-    if (defInsn.OpndIsDef(i)) {
-      Operand &opnd = defInsn.GetOperand(i);
-      CHECK_FATAL(opnd.IsRegister(), "invalid producer insn of type alu-shift");
-      productOpnd = &static_cast<RegOperand&>(opnd);
-      break;
-    }
-  }
-  CHECK_NULL_FATAL(productOpnd);
-  uint32 useOpndNum = useInsn.GetOperandSize();
-  if (useOpndNum <= kInsnThirdOpnd) { // operand_size <= 2
-    return true;
-  }
-  Operand &lastUseOpnd = useInsn.GetOperand(useOpndNum - 1);
-  if (lastUseOpnd.GetKind() != Operand::kOpdShift && lastUseOpnd.GetKind() == Operand::kOpdExtend &&
-      lastUseOpnd.GetKind() == Operand::kOpdRegShift) {
-    return true;
-  }
-  Operand &shiftOpnd = useInsn.GetOperand(useOpndNum - 2);
-  if (shiftOpnd.GetKind() != Operand::kOpdRegister) {
-    return true;
-  }
-  if (static_cast<RegOperand&>(shiftOpnd).GetRegisterNumber() == productOpnd->GetRegisterNumber()) {
-    return false;
-  }
-  return true;
+  /*
+   * hook condition
+   * true: r1=r2+x1 -> r3=r2<<0x2+r1
+   * false:r1=r2+x1 -> r3=r1<<0x2+r2
+   */
+  return &(defInsn.GetOperand(kInsnFirstOpnd)) != &(useInsn.GetOperand(kInsnSecondOpnd));
 }
 
-// Return true if the defOpnd of DEFINSN is used in the accumulator operation(MLA-like) of USEINSN.
-// In aarch64, the MOPs are in {madd, msub, fmadd, fmsub, fnmadd, fnmsub}
-// e.g.
-// The USEINSN is {madd|msub} and the defOpnd is used in the following cases:
-// true: r98=x0*x1 -> x0=x2*x3+r98
-// false:r98=x0*x1 -> x0=x2*r98+x3
+/*
+ * AccumulatorBypass: from multiplier to summator
+ */
 bool AccumulatorBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
-  RegOperand *productOpnd = nullptr;
-  uint32 defOpndNum = defInsn.GetOperandSize();
-  for (uint32 i = 0; i < defOpndNum; ++i) {
-    if (defInsn.OpndIsDef(i)) {
-      Operand &opnd = defInsn.GetOperand(i);
-      CHECK_FATAL(opnd.IsRegister(), "invalid producer insn of type alu-shift");
-      productOpnd = &static_cast<RegOperand&>(opnd);
-      break;
-    }
-  }
-  CHECK_NULL_FATAL(productOpnd);
-  // Currently, the MOPs of valid USEINSN are in {madd, msub, fmadd, fmsub, fnmadd, fnmsub},
-  // that have four operands of LATENCYTYPE kLtMul and kLtFpmac.
-  uint32 useOpndNum = useInsn.GetOperandSize();
-  if (useOpndNum != kInsnFifthOpnd) { // operand_size != 4
-    return false;
-  }
-  // Get accumulator operand
-  Operand &accuOpnd = useInsn.GetOperand(useOpndNum - 1);
-  CHECK_FATAL(accuOpnd.IsRegister(), "invalid consumer insn of type mul");
-  if (static_cast<RegOperand&>(accuOpnd).GetRegisterNumber() == productOpnd->GetRegisterNumber()) {
-    return true;
-  }
-  return false;
+  /*
+   * hook condition
+   * true: r98=x0*x1 -> x0=x2*x3+r98
+   * false:r98=x0*x1 -> x0=x2*r98+x3
+   */
+  return (&(defInsn.GetOperand(kInsnFirstOpnd)) != &(useInsn.GetOperand(kInsnSecondOpnd)) &&
+          &(defInsn.GetOperand(kInsnFirstOpnd)) != &(useInsn.GetOperand(kInsnThirdOpnd)));
 }
 
-// Return true if the USEINSN(an integer store) does not use the defOpnd of DEFINSN to
-// calculate the write address.
-// e.g.
-// true: r96=r92+x2 -> str r96, [r92]
-// false: r96=r92+x2 -> str r92, [r96, #8]
-// false: r96=r92+x2 -> str r92, [r94, r96]
-bool StoreAddrBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
-  if (!useInsn.IsStore()) {
-    return false;
-  }
-  // Only for LATENCY-TYPE {kLtStore1, kLtStore2, kLtStore3plus}
-  if (useInsn.GetLatencyType() != kLtStore1 && useInsn.GetLatencyType() != kLtStore2 &&
-      useInsn.GetLatencyType() != kLtStore3plus) {
-    return false;
-  }
-  RegOperand *productOpnd = nullptr;
-  uint32 defOpndNum = defInsn.GetOperandSize();
-  for (uint32 i = 0; i < defOpndNum; ++i) {
-    if (defInsn.OpndIsDef(i)) {
-      Operand &opnd = defInsn.GetOperand(i);
-      CHECK_FATAL(opnd.IsRegister(), "invalid producer insn of type alu-shift");
-      productOpnd = &static_cast<RegOperand&>(opnd);
-      break;
+bool StoreBypass::CanBypass(const Insn &defInsn, const Insn &useInsn) const {
+  /*
+   * hook condition
+   * true: r96=r92+x2 -> str r96, [r92]
+   * false:r96=r92+x2 -> str r92, [r96]
+   * false:r96=r92+x2 -> str r92, [r94, r96]
+   */
+#if TARGAARCH64
+  switch (useInsn.GetMachineOpcode()) {
+    case MOP_wstrb:
+    case MOP_wstrh:
+    case MOP_wstr:
+    case MOP_xstr:
+    case MOP_sstr:
+    case MOP_dstr: {
+      auto &useMemOpnd = static_cast<MemOperand&>(useInsn.GetOperand(kInsnSecondOpnd));
+      return (&(defInsn.GetOperand(kInsnFirstOpnd)) != useMemOpnd.GetOffset() &&
+              &(defInsn.GetOperand(kInsnFirstOpnd)) != useMemOpnd.GetBaseRegister());
     }
-  }
-  CHECK_NULL_FATAL(productOpnd);
-  uint32 useOpndNum = useInsn.GetOperandSize();
-  for (uint32 i = 0; i < useOpndNum; ++i) {
-    Operand &opnd = useInsn.GetOperand(i);
-    if (opnd.GetKind() == Operand::kOpdMem) {
-      auto &memOpnd = static_cast<MemOperand&>(opnd);
-      RegOperand *baseOpnd = memOpnd.GetBaseRegister();
-      RegOperand *indexOpnd = memOpnd.GetIndexRegister();
-      if (baseOpnd != nullptr && baseOpnd->GetRegisterNumber() == productOpnd->GetRegisterNumber()) {
-        return false;
-      }
-      if (indexOpnd != nullptr && indexOpnd->GetRegisterNumber() == productOpnd->GetRegisterNumber()) {
-        return false;
-      }
-      break;
+    case MOP_wstp:
+    case MOP_xstp: {
+      auto &useMemOpnd = static_cast<MemOperand&>(useInsn.GetOperand(kInsnThirdOpnd));
+      return (&(defInsn.GetOperand(kInsnFirstOpnd)) != useMemOpnd.GetOffset() &&
+              &(defInsn.GetOperand(kInsnFirstOpnd)) != useMemOpnd.GetBaseRegister());
     }
+
+    default:
+      return false;
   }
+#endif
   return false;
 }
 

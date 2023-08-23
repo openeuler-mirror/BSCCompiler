@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ast_parser.h"
-#include <regex>
 #include "driver_options.h"
 #include "mpl_logging.h"
 #include "mir_module.h"
@@ -1056,78 +1055,13 @@ ASTValue *ASTParser::TranslateExprEval(MapleAllocator &allocator, const clang::E
     return astExpr;                                                                             \
   }
 
-bool ASTParser::HasCallConstantP(const clang::Stmt &expr) {
-  if (constantPMap.find(expr.getID(*astFile->GetNonConstAstContext())) != constantPMap.cend()) {
-    return true;
-  }
-  if (expr.getStmtClass() == clang::Stmt::CallExprClass) {
-    auto *callExpr = llvm::cast<clang::CallExpr>(&expr);
-    if (GetFuncNameFromFuncDecl(*callExpr->getDirectCallee()) == "__builtin_constant_p") {
-      (void)constantPMap.emplace(expr.getID(*astFile->GetNonConstAstContext()), &expr);
-      return true;
-    }
-  }
-  for (const clang::Stmt *subStmt : expr.children()) {
-    if (subStmt == nullptr) {
-      continue;
-    }
-    if (HasCallConstantP(*subStmt)) {
-      (void)constantPMap.emplace(expr.getID(*astFile->GetNonConstAstContext()), &expr);
-      return true;
-    }
-  }
-  return false;
-}
-
-ASTExpr *ASTParser::ProcessBuiltinConstantP(const clang::Expr &expr, ASTIntegerLiteral *intExpr,
-    const llvm::APSInt intVal) const {
-  if (expr.getStmtClass() == clang::Stmt::CallExprClass) {
-    auto *callExpr = llvm::cast<clang::CallExpr>(&expr);
-    // if callexpr __builtin_constant_p Evaluate result is 1 or arg has side effects, fold this expr as IntegerLiteral
-    if (GetFuncNameFromFuncDecl(*callExpr->getDirectCallee()) == "__builtin_constant_p" &&
-        (intVal == 1 || callExpr->getArg(0)->HasSideEffects(*astFile->GetNonConstAstContext()))) {
-      return intExpr;
-    }
-  }
-  return nullptr;
-}
-
-ASTExpr *ASTParser::ProcessFloatInEvaluateExpr(MapleAllocator &allocator, const clang::APValue constVal) const {
-  ASTFloatingLiteral *floatExpr = allocator.New<ASTFloatingLiteral>(allocator);
-  llvm::APFloat floatVal = constVal.getFloat();
-  const llvm::fltSemantics &fltSem = floatVal.getSemantics();
-  double val = 0;
-  if (&fltSem == &llvm::APFloat::IEEEsingle()) {
-    val = static_cast<double>(floatVal.convertToFloat());
-    floatExpr->SetKind(FloatKind::F32);
-    floatExpr->SetVal(val);
-  } else if (&fltSem == &llvm::APFloat::IEEEdouble()) {
-    val = static_cast<double>(floatVal.convertToDouble());
-    floatExpr->SetKind(FloatKind::F64);
-    floatExpr->SetVal(val);
-  } else if (&fltSem == &llvm::APFloat::IEEEquad() || &fltSem == &llvm::APFloat::x87DoubleExtended()) {
-    bool losesInfo;
-    (void)floatVal.convert(llvm::APFloat::IEEEquad(), llvm::APFloatBase::rmNearestTiesToAway, &losesInfo);
-    llvm::APInt intValue = floatVal.bitcastToAPInt();
-    floatExpr->SetKind(FloatKind::F128);
-    floatExpr->SetVal(intValue.getRawData());
-  } else {
-    return nullptr;
-  }
-  if (floatVal.isPosZero()) {
-    floatExpr->SetEvaluatedFlag(kEvaluatedAsZero);
-  } else {
-    floatExpr->SetEvaluatedFlag(kEvaluatedAsNonZero);
-  }
-  return floatExpr;
-}
-
 ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr) {
   ASSERT_NOT_NULL(expr);
   clang::Expr::EvalResult constResult;
   if (!expr->EvaluateAsConstantExpr(constResult, *astFile->GetNonConstAstContext())) {
     return nullptr;
   }
+
   // Supplement SideEffects for EvaluateAsConstantExpr,
   // If the expression contains a LabelStmt, the expression is unfoldable
   // e.g. int x = 0 && ({ a : 1; }); goto a;
@@ -1140,10 +1074,6 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
     ASTIntegerLiteral *intExpr = allocator.New<ASTIntegerLiteral>(allocator);
     llvm::APSInt intVal = constVal.getInt();
     intExpr->SetVal(IntVal(intVal.getRawData(), intVal.getBitWidth(), intVal.isSigned()));
-    bool hasCallConstantP = HasCallConstantP(*expr);
-    if (hasCallConstantP) {
-      return ProcessBuiltinConstantP(*expr, intExpr, intVal);
-    }
     if (intVal == 0) {
       intExpr->SetEvaluatedFlag(kEvaluatedAsZero);
     } else {
@@ -1165,11 +1095,34 @@ ASTExpr *ASTParser::EvaluateExprAsConst(MapleAllocator &allocator, const clang::
     }
     return intExpr;
   } else if (constVal.isFloat()) {
-    bool hasCallConstantP = HasCallConstantP(*expr);
-    if (hasCallConstantP) {
+    ASTFloatingLiteral *floatExpr = allocator.New<ASTFloatingLiteral>(allocator);
+    llvm::APFloat floatVal = constVal.getFloat();
+    const llvm::fltSemantics &fltSem = floatVal.getSemantics();
+    double val = 0;
+    if (&fltSem == &llvm::APFloat::IEEEsingle()) {
+      val = static_cast<double>(floatVal.convertToFloat());
+      floatExpr->SetKind(FloatKind::F32);
+      floatExpr->SetVal(val);
+    } else if (&fltSem == &llvm::APFloat::IEEEdouble()) {
+      val = static_cast<double>(floatVal.convertToDouble());
+      floatExpr->SetKind(FloatKind::F64);
+      floatExpr->SetVal(val);
+    } else if (&fltSem == &llvm::APFloat::IEEEquad() || &fltSem == &llvm::APFloat::x87DoubleExtended()) {
+      bool losesInfo;
+      (void)floatVal.convert(llvm::APFloat::IEEEquad(),
+                             llvm::APFloatBase::rmNearestTiesToAway, &losesInfo);
+      llvm::APInt intValue = floatVal.bitcastToAPInt();
+      floatExpr->SetKind(FloatKind::F128);
+      floatExpr->SetVal(intValue.getRawData());
+    } else {
       return nullptr;
     }
-    return ProcessFloatInEvaluateExpr(allocator, constVal);
+    if (floatVal.isPosZero()) {
+      floatExpr->SetEvaluatedFlag(kEvaluatedAsZero);
+    } else {
+      floatExpr->SetEvaluatedFlag(kEvaluatedAsNonZero);
+    }
+    return floatExpr;
   }
   return nullptr;
 }
@@ -2054,7 +2007,7 @@ ASTExpr *ASTParser::ProcessExprMemberExpr(MapleAllocator &allocator, const clang
   }
   auto *fieldDecl = llvm::dyn_cast<clang::FieldDecl>(expr.getMemberDecl());
   SetFieldLenNameInMemberExpr(allocator, *astMemberExpr, *fieldDecl);
-
+  
   astMemberExpr->SetMemberName(memberName);
   astMemberExpr->SetMemberType(astFile->CvtType(allocator, expr.getMemberDecl()->getType()));
   astMemberExpr->SetIsArrow(expr.isArrow());
@@ -2078,12 +2031,6 @@ ASTExpr *ASTParser::ProcessExprDesignatedInitUpdateExpr(MapleAllocator &allocato
   ASTExpr *updaterExpr = ProcessExpr(allocator, initListExpr);
   if (updaterExpr == nullptr) {
     return nullptr;
-  }
-  auto qualType = initListExpr->getType();
-  if (qualType->isConstantArrayType()) {
-    const auto *constArrayType = llvm::dyn_cast<clang::ConstantArrayType>(qualType);
-    ASSERT(constArrayType != nullptr, "initListExpr constArrayType is null pointer!");
-    astDesignatedInitUpdateExpr->SetConstArraySize(constArrayType->getSize().getSExtValue());
   }
   astDesignatedInitUpdateExpr->SetUpdaterExpr(updaterExpr);
   return astDesignatedInitUpdateExpr;
@@ -2280,18 +2227,6 @@ ASTExpr *ASTParser::ProcessExprCallExpr(MapleAllocator &allocator, const clang::
     }
   } else {
     astCallExpr->SetIcall(true);
-  }
-  switch (expr.getPreferInlineScopeSpecifier()) {
-    case clang::PI_None:
-      astCallExpr->SetPreferInlinePI(PreferInlinePI::kNonePI);
-      break;
-    case clang::PI_PreferInline:
-      astCallExpr->SetPreferInlinePI(PreferInlinePI::kPreferInlinePI);
-      break;
-    case clang::PI_PreferNoInline:
-      astCallExpr->SetPreferInlinePI(PreferInlinePI::kPreferNoInlinePI);
-      break;
-    default: break;
   }
   return astCallExpr;
 }
@@ -3077,9 +3012,8 @@ MapleGenericAttrs ASTParser::SolveFunctionAttributes(MapleAllocator &allocator, 
   astFile->CollectFuncAttrs(funcDecl, attrs, kPublic);
   // for inline optimize
   if ((attrs.GetAttr(GENATTR_static) || ASTUtil::IsFuncMustBeDeleted(attrs)) &&
-      FEOptions::GetInstance().NeedMangling()) {
-    if (FEOptions::GetInstance().GetWPAA() && FEOptions::GetInstance().IsEnableFuncMerge() &&
-        !FEOptions::GetInstance().IsExportInlineMplt()) {
+      FEOptions::GetInstance().GetFuncInlineSize() != 0) {
+    if (FEOptions::GetInstance().GetWPAA() && FEOptions::GetInstance().IsEnableFuncMerge()) {
       astFile->BuildStaticFunctionLayout(funcDecl, funcName);
     } else {
       funcName = funcName + astFile->GetAstFileNameHashStr();
@@ -3096,7 +3030,6 @@ MapleGenericAttrs ASTParser::SolveFunctionAttributes(MapleAllocator &allocator, 
 ASTStmt *ASTParser::SolveFunctionBody(MapleAllocator &allocator,
                                       const clang::FunctionDecl &funcDecl,
                                       ASTFunc &astFunc, const std::list<ASTStmt*> &stmts) {
-  constantPMap.clear();
   ASTStmt *astCompoundStmt = ProcessStmt(allocator, *llvm::cast<clang::CompoundStmt>(funcDecl.getBody()));
   if (astCompoundStmt != nullptr) {
     astFunc.SetCompoundStmt(astCompoundStmt);
@@ -3128,7 +3061,7 @@ ASTFunc *ASTParser::BuildAstFunc(MapleAllocator &allocator, const clang::Functio
     MapleVector<ASTDecl*> paramDecls = SolveFuncParameterDecls(allocator, funcDecl, typeDescIn,
                                                                implicitStmts, needBody);
     MapleGenericAttrs attrs = SolveFunctionAttributes(allocator, funcDecl, funcName);
-    bool isInlineDefinition = ASTUtil::IsFuncMustBeDeleted(attrs) && FEOptions::GetInstance().NeedMangling();
+    bool isInlineDefinition = ASTUtil::IsFuncMustBeDeleted(attrs) && FEOptions::GetInstance().GetFuncInlineSize() != 0;
     std::string originFuncName = GetFuncNameFromFuncDecl(funcDecl);
     if (needDefDeMangledVer && isInlineDefinition) {
       astFunc = ASTDeclsBuilder::GetInstance(allocator).ASTFuncBuilder(allocator, fileName, originFuncName,
@@ -3334,7 +3267,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   MapleGenericAttrs attrs(allocator);
   astFile->CollectVarAttrs(decl, attrs, kNone);
   // for inline optimize
-  if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().NeedMangling()) {
+  if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
     varName = varName + astFile->GetAstFileNameHashStr();
   }
   if (varType->IsMIRIncompleteStructType() && !attrs.GetAttr(GENATTR_extern)) {
@@ -3403,8 +3336,6 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
       parmName = FEUtils::GetSequentialName("arg|");
     }
   }
-  parmName = std::regex_match(parmName, FEUtils::kShortCircutPrefix) ?
-      FEUtils::GetSequentialName(parmName + "_") : parmName;
   MIRType *paramType = astFile->CvtType(allocator, parmQualType);
   if (paramType == nullptr) {
     return nullptr;

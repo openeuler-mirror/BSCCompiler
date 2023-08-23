@@ -13,8 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "driver_runner.h"
-#include <iostream>
-#include <dirent.h>
 #include "compiler.h"
 #include "mpl_timer.h"
 #include "mir_function.h"
@@ -130,7 +128,7 @@ static void TrimString(std::string &str) {
 void DriverRunner::SolveCrossModuleInJava(MIRParser &parser) const {
   if (MeOption::optLevel < kLevelO2 || Options::lazyBinding ||
       Options::skipPhase == "inline" || Options::buildApp != 0 ||
-      !Options::useInline || !Options::importInlineMplt) {
+      !Options::useInline || !Options::useCrossModuleInline) {
     return;
   }
   std::string originBaseName = baseName;
@@ -174,84 +172,37 @@ static std::string GetSingleFileName(const std::string input) {
   return input.substr(pos + 1);
 }
 
-static void GetFiles(const std::string &path, std::set<std::string> &fileSet) {
-  auto dir = opendir(path.c_str());
-  if (!dir) {
-    LogInfo::MapleLogger(kLlErr) << "Error: Cannot open inline mplt dir " << Options::inlineMpltDir << '\n';
-    CHECK_FATAL_FALSE("open dir failed!");
-  }
-  auto file = readdir(dir);
-  while (file) {
-    if (strcmp(file->d_name, ".") == 0 || strcmp(file->d_name, "..") == 0) {
-      file = readdir(dir);
-      continue;
-    }
-
-    auto fileName = path + kFileSeperatorChar + file->d_name;
-
-    if (file->d_type == DT_DIR) {
-      GetFiles(fileName, fileSet);
-    }
-
-    std::string keyWords = ".mplt_inline";
-    if (file->d_type == DT_REG && fileName.substr(fileName.size() - keyWords.size()) == keyWords) {
-      (void)fileSet.emplace(fileName);
-    }
-
-    file = readdir(dir);
-  }
-  if (closedir(dir) != 0) {
-    CHECK_FATAL_FALSE("close dir failed!");
-  }
-}
-
-static std::string GetPureName(const std::string &pathName) {
-  size_t pos = pathName.find_last_of('/');
-  std::string name = "";
-  if (pos != std::string::npos) {
-    name = pathName.substr(pos + 1);
-  } else {
-    name = pathName;
-  }
-  size_t posDot = name.find_last_of('.');
-  if (posDot != std::string::npos) {
-    return name.substr(0, posDot);
-  } else {
-    return name;
-  }
-}
-
 void DriverRunner::SolveCrossModuleInC(MIRParser &parser) const {
   if (MeOption::optLevel < kLevelO2 || !Options::useInline ||
-      !Options::importInlineMplt || Options::skipPhase == "inline" ||
-      Options::inlineMpltDir.empty()) {
+      !Options::useCrossModuleInline || Options::skipPhase == "inline" ||
+      Options::importFileList == "") {
     return;
   }
-
-  // find all inline mplt files from dir
-  std::set<std::string> files;
-  GetFiles(Options::inlineMpltDir, files);
-  std::string curPath = FileUtils::GetCurDirPath();
-  auto identPart = FileUtils::GetFileNameHashStr(curPath + kFileSeperatorChar + GetPureName(theModule->GetFileName()));
-
-  LogInfo::MapleLogger() << "[CROSS_MODULE] read inline mplt files from: " << Options::inlineMpltDir << '\n';
-  for (auto file : files) {
-    TrimString(file);
+  std::string fileName = GetSingleFileName(theModule->GetFileName());
+  std::ifstream infile(Options::importFileList);
+  if (!infile.is_open()) {
+    LogInfo::MapleLogger(kLlErr) << "Cannot open importfilelist file " << Options::importFileList << '\n';
+  }
+  LogInfo::MapleLogger() << "[CROSS_MODULE] read importfile from list: " << Options::importFileList << '\n';
+  std::string input;
+  while (getline(infile, input)) {
+    TrimString(input);
     // skip the mplt_inline file of this mirmodule to avoid duplicate definition.
-    if (file.empty() || GetSingleFileName(file).find(identPart) != std::string::npos) {
+    if (input.empty() || GetSingleFileName(input).find(fileName) != std::string::npos) {
       continue;
     }
-    std::ifstream optFile(file);
+    std::ifstream optFile(input);
     if (!optFile.is_open()) {
       abort();
     }
-    LogInfo::MapleLogger() << "Starting parse " << file << '\n';
+    LogInfo::MapleLogger() << "Starting parse " << input << '\n';
     bool parsed = parser.ParseInlineFuncBody(optFile);
     if (!parsed) {
       parser.EmitError(actualInput);
     }
     optFile.close();
   }
+  infile.close();
 }
 
 ErrorCode DriverRunner::ParseInput() const {

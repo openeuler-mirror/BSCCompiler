@@ -494,9 +494,9 @@ void AArch64Schedule::SelectNode(AArch64ScheduleProcessInfo &scheduleInfo) {
     }
   }
   /* The priority of free-reg node is higher than pipeline */
-  while (!targetNode->IsResourceIdle()) {
+  while (!targetNode->IsResourceFree()) {
     scheduleInfo.IncCurrCycle();
-    mad->AdvanceOneCycleForAll();
+    mad->AdvanceCycle();
   }
   if (GetConsiderRegPressure() && !scheduleInfo.IsFirstSeparator()) {
     UpdateLiveRegSet(scheduleInfo, *targetNode);
@@ -561,7 +561,7 @@ void AArch64Schedule::UpdateAdvanceCycle(AArch64ScheduleProcessInfo &scheduleInf
 void AArch64Schedule::UpdateScheduleProcessInfo(AArch64ScheduleProcessInfo &info) const {
   while (info.GetAdvanceCycle() > 0) {
     info.IncCurrCycle();
-    mad->AdvanceOneCycleForAll();
+    mad->AdvanceCycle();
     info.DecAdvanceCycle();
   }
   info.ClearAvailableReadyList();
@@ -576,7 +576,7 @@ bool AArch64Schedule::CheckSchedulable(AArch64ScheduleProcessInfo &info) const {
     if (GetConsiderRegPressure()) {
       info.PushElemIntoAvailableReadyList(node);
     } else {
-      if (node->IsResourceIdle() && node->GetEStart() <= info.GetCurrCycle()) {
+      if (node->IsResourceFree() && node->GetEStart() <= info.GetCurrCycle()) {
         info.PushElemIntoAvailableReadyList(node);
       }
     }
@@ -913,14 +913,14 @@ uint32 AArch64Schedule::SimulateOnly() {
   for (uint32 i = 0; i < nodes.size();) {
     while (advanceCycle > 0) {
       ++currCycle;
-      mad->AdvanceOneCycleForAll();
+      mad->AdvanceCycle();
       --advanceCycle;
     }
 
     DepNode *targetNode = nodes[i];
-    if ((currCycle >= targetNode->GetEStart()) && targetNode->IsResourceIdle()) {
+    if ((currCycle >= targetNode->GetEStart()) && targetNode->IsResourceFree()) {
       targetNode->SetSimulateCycle(currCycle);
-      targetNode->OccupyRequiredUnits();
+      targetNode->OccupyUnits();
 
       /* Update estart. */
       for (auto succLink : targetNode->GetSuccs()) {
@@ -1022,7 +1022,7 @@ void AArch64Schedule::IterateBruteForce(DepNode &targetNode, MapleVector<DepNode
 
   MapleVector<DepNode*> tempList = readyList;
   EraseNodeFromNodeList(targetNode, tempList);
-  targetNode.OccupyRequiredUnits();
+  targetNode.OccupyUnits();
 
   /* Update readyList. */
   UpdateReadyList(targetNode, tempList, true);
@@ -1060,7 +1060,7 @@ void AArch64Schedule::IterateBruteForce(DepNode &targetNode, MapleVector<DepNode
       std::vector<DepNode*> tempAvailableList;
       while (advanceCycle > 0) {
         ++currCycle;
-        mad->AdvanceOneCycleForAll();
+        mad->AdvanceCycle();
         --advanceCycle;
       }
       /* Check EStart. */
@@ -1078,7 +1078,7 @@ void AArch64Schedule::IterateBruteForce(DepNode &targetNode, MapleVector<DepNode
 
       /* Check if schedulable */
       for (auto node : tempAvailableList) {
-        if (node->IsResourceIdle()) {
+        if (node->IsResourceFree()) {
           availableReadyList.emplace_back(node);
         }
       }

@@ -44,7 +44,6 @@ set(src_mapleallUT
     int128_val_test.cpp
     int128_lexer.cpp
     float128_ut_test.cpp
-    simple_bit_set_utest.cpp
 )
 
 set(deps

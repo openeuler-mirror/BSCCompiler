@@ -88,7 +88,7 @@ void LRSplitForSink::ColletSplitRegRefs() {
     }
   }
   if (dumpInfo) {
-    for (const auto &[regno, refsInfo] : std::as_const(splitRegRefs)) {
+    for (const auto &[regno, refsInfo] : splitRegRefs) {
       LogInfo::MapleLogger() << "R" << regno << " : D" << refsInfo->defInsns.size() << "U" <<
           refsInfo->useInsns.size() << " After Call BB :";
       for (auto bb : refsInfo->afterCallBBs) {
@@ -157,9 +157,9 @@ BB *LRSplitForSink::SearchSplitBB(const RefsInfo &refsInfo) {
 
 void LRSplitForSink::TryToSplitLiveRanges() {
   ColletSplitRegRefs();
-  for (auto &[regno, refsInfo] : std::as_const(splitRegRefs)) {
+  for (auto &[regno, refsInfo] : splitRegRefs) {
     // def point more than 1 or not cross call, there's no need to split it
-    if (refsInfo->defInsns.size() > 1 || refsInfo->afterCallBBs.empty()) {
+    if (refsInfo->defInsns.size() > 1 || refsInfo->afterCallBBs.size() <= 0) {
       continue;
     }
     if (dumpInfo) {
@@ -216,7 +216,9 @@ bool CgRaOpt::PhaseRun(maplebe::CGFunc &f) {
   raOpt->InitializePatterns();
   raOpt->Run();
   // the live range info may changed, so invalid the info.
-  live->ClearInOutDataInfo();
+  if (live != nullptr) {
+    live->ClearInOutDataInfo();
+  }
   return false;
 }
 

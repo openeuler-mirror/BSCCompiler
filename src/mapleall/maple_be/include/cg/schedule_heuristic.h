@@ -17,14 +17,16 @@
 
 #include "deps.h"
 
-// Define a series of priority comparison function objects.
-// @ReturnValue:
-//    - positive: node1 has higher priority
-//    - negative: node2 has higher priority
-//    - zero: node1 == node2
-// And ensure the sort is stable.
+/*
+ * Define a series of priority comparison function objects.
+ * @ReturnValue:
+ *    - positive: node1 has higher priority
+ *    - negative: node2 has higher priority
+ *    - zero: node1 == node2
+ * And ensure the sort is stable.
+ */
 namespace maplebe {
-// Prefer max delay priority
+/* Prefer max delay priority */
 class CompareDelay {
  public:
   int operator() (const DepNode &node1, const DepNode &node2) const {
@@ -32,13 +34,12 @@ class CompareDelay {
   }
 };
 
-
-// To make better use of cpu cache prefetch:
-// (1) if both insns are memory operation and have same base address (same base register) and same access byte,
-//     prefer lowest offset;
-// the following (2) and (3) are not implemented currently, and can be optimized in the future:
-// (2) if one insn is store and the other is not memory operation, prefer non-memory-insn scheduled before store;
-// (3) if one insn is load and the other is not memory operation, prefer load scheduled before non-memory-insn.
+/*
+ * To make better use of cpu cache prefetch:
+ * 1. if both insns are memory operation and have same base address (same base register), prefer lowest offset
+ * 2. if one insn is store and the other is not memory operation, prefer non-memory-insn scheduled before store
+ * 3. if one insn is load and the other is not memory operation, prefer load scheduled before non-memory-insn
+ */
 class CompareDataCache {
  public:
   int operator() (const DepNode &node1, const DepNode &node2) {
@@ -50,11 +51,6 @@ class CompareDataCache {
     if (insn1->IsMemAccess() && insn2->IsMemAccess()) {
       auto *memOpnd1 = static_cast<MemOperand*>(insn1->GetMemOpnd());
       auto *memOpnd2 = static_cast<MemOperand*>(insn2->GetMemOpnd());
-      // Need the same access byte
-      if ((insn1->IsLoadStorePair() && !insn2->IsLoadStorePair()) ||
-          (!insn1->IsLoadStorePair() && insn2->IsLoadStorePair())) {
-        return 0;
-      }
       if (memOpnd1 != nullptr && memOpnd2 != nullptr) { // Exclude load address
         if (memOpnd1->GetAddrMode() == MemOperand::kBOI && memOpnd2->GetAddrMode() == MemOperand::kBOI) {
           RegOperand *baseOpnd1 = memOpnd1->GetBaseRegister();
@@ -83,22 +79,31 @@ class CompareDataCache {
           }
         }
       }
-    } else if (enableIrrelevant && insn1->IsMemAccess()) {
-      return (insn1->IsLoad() || insn1->IsLoadPair()) ? 1 : -1;
-    } else if (enableIrrelevant && insn2->IsMemAccess()) {
-      return (insn2->IsLoad() || insn2->IsLoadPair()) ? -1 : 1;
+    }
+    else if (insn1->IsMemAccess()) {
+      if (insn1->IsLoad() || insn1->IsLoadPair()) {
+        return 1;
+      } else {
+        return -1;
+      }
+    } else if (insn2->IsMemAccess()) {
+      if (insn2->IsLoad() || insn2->IsLoadPair()) {
+        return -1;
+      } else {
+        return 1;
+      }
     }
     return 0;
   }
-
-  bool enableIrrelevant = false;
 };
 
-// Prefer the class of the edges of two insn and last scheduled insn with the highest class number:
-// 1. true dependency
-// 2. anti/output dependency
-// 3. the rest of the dependency
-// 4. independent of last scheduled insn
+/*
+ * Prefer the class of the edges of two insn and last scheduled insn with the highest class number:
+ * 1. true dependency
+ * 2. anti/output dependency
+ * 3. the rest of the dependency
+ * 4. independent of last scheduled insn
+ */
 class CompareClassOfLastScheduledNode {
  public:
   explicit CompareClassOfLastScheduledNode(uint32 lsid) : lastSchedInsnId(lsid) {}
@@ -166,7 +171,7 @@ class CompareClassOfLastScheduledNode {
   uint32 lastSchedInsnId = 0;
 };
 
-// Prefer min eStart
+/* Prefer min eStart */
 class CompareEStart {
  public:
   int operator() (const DepNode &node1, const DepNode &node2) const {
@@ -174,7 +179,7 @@ class CompareEStart {
   }
 };
 
-// Prefer min lStart
+/* Prefer min lStart */
 class CompareLStart {
  public:
   int operator() (const DepNode &node1, const DepNode &node2) const {
@@ -182,7 +187,7 @@ class CompareLStart {
   }
 };
 
-// Prefer max cost of insn
+/* Prefer max cost of insn */
 class CompareCost {
  public:
   int operator() (const DepNode &node1, const DepNode &node2) {
@@ -190,7 +195,7 @@ class CompareCost {
   }
 };
 
-// Prefer using more unit kind
+/* Prefer using more unit kind */
 class CompareUnitKindNum {
  public:
   explicit CompareUnitKindNum(uint32 maxUnitIndex) : maxUnitIdx(maxUnitIndex) {}
@@ -208,7 +213,7 @@ class CompareUnitKindNum {
   }
 
  private:
-  // Check if a node use a specific unit kind
+  /* Check if a node use a specific unit kind */
   bool IsUseUnitKind(const DepNode &depNode) const {
     uint32 unitKind = depNode.GetUnitKind();
     auto idx = static_cast<uint32>(__builtin_ffs(static_cast<int>(unitKind)));
@@ -226,7 +231,7 @@ class CompareUnitKindNum {
   uint32 maxUnitIdx = 0;
 };
 
-// Prefer slot0
+/* Prefer slot0 */
 class CompareSlotType {
  public:
   int operator() (const DepNode &node1, const DepNode &node2) {
@@ -242,7 +247,7 @@ class CompareSlotType {
   }
 };
 
-// Prefer more succNodes
+/* Prefer more succNodes */
 class CompareSuccNodeSize {
  public:
   int operator() (const DepNode &node1, const DepNode &node2) const {
@@ -250,7 +255,7 @@ class CompareSuccNodeSize {
   }
 };
 
-// Default order
+/* Default order */
 class CompareInsnID {
  public:
   int operator() (const DepNode &node1, const DepNode &node2) {
@@ -261,5 +266,5 @@ class CompareInsnID {
     return static_cast<int>(insn2->GetId() - insn1->GetId());
   }
 };
-} // namespace maplebe
+} /* namespace maplebe */
 #endif  // MAPLEBE_INCLUDE_CG_SCHEDULE_HEURISTIC_H

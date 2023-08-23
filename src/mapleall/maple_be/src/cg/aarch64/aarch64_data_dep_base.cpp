@@ -44,34 +44,6 @@ void AArch64DataDepBase::InitCDGNodeDataInfo(MemPool &mp, MapleAllocator &alloc,
   cdgNode.InitDataDepInfo(mp, alloc, maxRegNum);
 }
 
-// Check whether the MEM offsets are overlap in kBOI mode,
-// before invoking the interface, ensure that the baseOpnd and indexOpnd are the same value.
-bool AArch64DataDepBase::IsMemOffsetOverlap(const Insn &memInsn1, const Insn &memInsn2) const {
-  auto *memOpnd1 = static_cast<MemOperand*>(memInsn1.GetMemOpnd());
-  auto *memOpnd2 = static_cast<MemOperand*>(memInsn2.GetMemOpnd());
-  ASSERT_NOT_NULL(memOpnd1);
-  ASSERT_NOT_NULL(memOpnd2);
-
-  OfstOperand *ofstOpnd1 = memOpnd1->GetOffsetImmediate();
-  OfstOperand *ofstOpnd2 = memOpnd2->GetOffsetImmediate();
-
-  uint32 memByteSize1 = memInsn1.GetMemoryByteSize();
-  uint32 memByteSize2 = memInsn2.GetMemoryByteSize();
-
-  int64 memByteBoundary1 = ofstOpnd1->GetOffsetValue() + static_cast<int64>(memByteSize1);
-  int64 memByteBoundary2 = ofstOpnd2->GetOffsetValue() + static_cast<int64>(memByteSize2);
-
-  // no overlap:
-  // base      ofst2               ofst1           ofst2--->
-  //  |________|__memsize2__|_____|___memsize1___|__________
-  if (ofstOpnd2->GetOffsetValue() >= memByteBoundary1 || memByteBoundary2 <= ofstOpnd1->GetOffsetValue() ||
-      ofstOpnd1->GetOffsetValue() >= memByteBoundary2 || memByteBoundary1 <= ofstOpnd2->GetOffsetValue()) {
-    return false;
-  }
-
-  return true;
-}
-
 // Simply distinguish irrelevant stack memory
 bool AArch64DataDepBase::NeedBuildDepsForStackMem(const Insn &memInsn1, const Insn &memInsn2) const {
   auto *memOpnd1 = static_cast<MemOperand*>(memInsn1.GetMemOpnd());
@@ -96,7 +68,22 @@ bool AArch64DataDepBase::NeedBuildDepsForStackMem(const Insn &memInsn1, const In
     return true;
   }
 
-  return IsMemOffsetOverlap(memInsn1, memInsn2);
+  OfstOperand *ofstOpnd1 = memOpnd1->GetOffsetImmediate();
+  OfstOperand *ofstOpnd2 = memOpnd2->GetOffsetImmediate();
+
+  uint32 memByteSize1 = memInsn1.GetMemoryByteSize();
+  uint32 memByteSize2 = memInsn2.GetMemoryByteSize();
+
+  int64 memByteBoundary1 = ofstOpnd1->GetOffsetValue() + static_cast<int64>(memByteSize1);
+  int64 memByteBoundary2 = ofstOpnd2->GetOffsetValue() + static_cast<int64>(memByteSize2);
+  // no overlap
+  // sp      ofst2               ofst1           ofst2--->
+  //  |________|__memsize2__|_____|___memsize1___|__________
+  if (ofstOpnd2->GetOffsetValue() >= memByteBoundary1 || memByteBoundary2 <= ofstOpnd1->GetOffsetValue() ||
+      ofstOpnd1->GetOffsetValue() >= memByteBoundary2 || memByteBoundary1 <= ofstOpnd2->GetOffsetValue()) {
+    return false;
+  }
+  return true;
 }
 
 // Simply distinguish irrelevant memory between global variable heap memory and stack memory
@@ -139,34 +126,19 @@ bool AArch64DataDepBase::NeedBuildDepsForHeapMem(const Insn &memInsn1, const Ins
   // e.g.
   // ldr (opnd0:  reg:V34 [F] Sz: [64]) (opnd1: Mem: size:64  isStack:0-0 literal: .LB_HppPacketLossStat3)
   RegOperand *baseOpnd1 = memOpnd1->GetBaseRegister();
-  Insn *baseDefInsn1 = (baseOpnd1 == nullptr ? nullptr : curCDGNode->GetLatestDefInsn(baseOpnd1->GetRegisterNumber()));
   RegOperand *baseOpnd2 = memOpnd2->GetBaseRegister();
-  Insn *baseDefInsn2 = (baseOpnd2 == nullptr ? nullptr : curCDGNode->GetLatestDefInsn(baseOpnd2->GetRegisterNumber()));
   if (memOpnd1->GetAddrMode() == MemOperand::kBOI && memOpnd2->GetAddrMode() == MemOperand::kLo12Li) {
+    Insn *baseDefInsn2 = curCDGNode->GetLatestDefInsn(baseOpnd2->GetRegisterNumber());
     if (baseOpnd1 != nullptr && (baseOpnd1->GetRegisterNumber() == RSP || baseOpnd1->GetRegisterNumber() == RFP) &&
         baseDefInsn2 != nullptr && baseDefInsn2->GetMachineOpcode() == MOP_xadrp) {
       return false;
     }
   } else if (memOpnd2->GetAddrMode() == MemOperand::kBOI && memOpnd1->GetAddrMode() == MemOperand::kLo12Li) {
+    Insn *baseDefInsn1 = curCDGNode->GetLatestDefInsn(baseOpnd1->GetRegisterNumber());
     if (baseOpnd2 != nullptr && (baseOpnd2->GetRegisterNumber() == RSP || baseOpnd2->GetRegisterNumber() == RFP) &&
         baseDefInsn1 != nullptr && baseDefInsn1->GetMachineOpcode() == MOP_xadrp) {
       return false;
     }
-  }
-
-  // If the defInsns of both baseRegister are the same in kBOI mode,
-  // we can check whether there is alias based on offset.
-  if (memOpnd1->GetAddrMode() != MemOperand::kBOI || memOpnd2->GetAddrMode() != MemOperand::kBOI) {
-    return true;
-  }
-  // Must check whether the baseRegs are same, and the define insn of baseRegs are same.
-  // e.g.
-  // stp x0, x1, [sp, #16]
-  // [x0, #0] and [x1, #4] may be alias.
-  if (baseOpnd1 != nullptr && baseOpnd2 != nullptr &&
-      baseOpnd1->GetRegisterNumber() == baseOpnd2->GetRegisterNumber() &&
-      baseDefInsn1 != nullptr && baseDefInsn2 != nullptr && baseDefInsn1 == baseDefInsn2) {
-    return IsMemOffsetOverlap(memInsn1, memInsn2);
   }
 
   return true;
@@ -589,7 +561,7 @@ void AArch64DataDepBase::BuildSpecialInsnDependency(Insn &insn, const MapleVecto
 }
 
 void AArch64DataDepBase::BuildAsmInsnDependency(Insn &insn) {
-  Insn *asmInsn = curCDGNode->GetLastInlineAsmInsn();
+  Insn *asmInsn = curCDGNode->GetInlineAsmInsn();
   if (asmInsn != nullptr) {
     // Due to the possible undefined behavior of users, we conservatively restrict
     // the instructions under the asm-insn to be moved above this instruction,
@@ -630,7 +602,7 @@ void AArch64DataDepBase::BuildAsmInsnDependency(Insn &insn) {
       }
       BuildDepsUseReg(insn, useOpnd->GetRegisterNumber());
     }
-    curCDGNode->SetLastInlineAsmInsn(&insn);
+    curCDGNode->SetInlineAsmInsn(&insn);
   }
 }
 

@@ -23,27 +23,16 @@
 namespace maplebe {
 constexpr uint32 kBBVectorInitialSize = 2;
 void DomAnalysis::PostOrderWalk(const BB &bb, int32 &pid, MapleVector<bool> &visitedMap) {
-  std::stack<const BB *> s;
-  s.push(&bb);
-  visitedMap[bb.GetID()] = true;
-  while (!s.empty()) {
-    auto node = s.top();
-    auto nodeId = node->GetID();
-    ASSERT(nodeId < visitedMap.size() && nodeId < postOrderIDVec.size(), "index out of range");
-    bool tail = true;
-    for (auto succ : node->GetAllSuccs()) {
-      if (!visitedMap[succ->GetID()]) {
-        tail = false;
-        visitedMap[succ->GetID()] = true;
-        s.push(succ);
-        break;
-      }
-    }
-    if (tail) {
-      s.pop();
-      postOrderIDVec[nodeId] = pid++;
-    }
+  ASSERT(bb.GetId() < visitedMap.size(), "index out of range in Dominance::PostOrderWalk");
+  if (visitedMap[bb.GetId()]) {
+    return;
   }
+  visitedMap[bb.GetId()] = true;
+  for (const auto *suc : bb.GetAllSuccs()) {
+    PostOrderWalk(*suc, pid, visitedMap);
+  }
+  ASSERT(bb.GetId() < postOrderIDVec.size(), "index out of range in Dominance::PostOrderWalk");
+  postOrderIDVec[bb.GetId()] = pid++;
 }
 
 void DomAnalysis::GenPostOrderID() {
@@ -271,31 +260,19 @@ void DomAnalysis::Dump() {
 
 /* ================= for PostDominance ================= */
 void PostDomAnalysis::PdomPostOrderWalk(const BB &bb, int32 &pid, MapleVector<bool> &visitedMap) {
-  std::stack<const BB *> s;
-  s.push(&bb);
-  visitedMap[bb.GetID()] = true;
-  while (!s.empty()) {
-    auto node = s.top();
-    auto nodeId = node->GetID();
-    if (bbVec[nodeId] == nullptr) {
-      s.pop();
-      continue;
-    }
-    ASSERT(nodeId < visitedMap.size() && nodeId < pdomPostOrderIDVec.size(), "index out of range");
-    bool tail = true;
-    for (auto pred : node->GetAllPreds()) {
-      if (!visitedMap[pred->GetID()]) {
-        tail = false;
-        visitedMap[pred->GetID()] = true;
-        s.push(pred);
-        break;
-      }
-    }
-    if (tail) {
-      s.pop();
-      pdomPostOrderIDVec[nodeId] = pid++;
-    }
+  ASSERT(bb.GetId() < visitedMap.size(), "index out of range in  Dominance::PdomPostOrderWalk");
+  if (bbVec[bb.GetId()] == nullptr) {
+    return;
   }
+  if (visitedMap[bb.GetId()]) {
+    return;
+  }
+  visitedMap[bb.GetId()] = true;
+  for (const auto *pre : bb.GetAllPreds()) {
+    PdomPostOrderWalk(*pre, pid, visitedMap);
+  }
+  ASSERT(bb.GetId() < pdomPostOrderIDVec.size(), "index out of range in  Dominance::PdomPostOrderWalk");
+  pdomPostOrderIDVec[bb.GetId()] = pid++;
 }
 
 void PostDomAnalysis::PdomGenPostOrderID() {
@@ -487,7 +464,7 @@ void PostDomAnalysis::GeneratePdomTreeDot() {
   (void)fileName.append(cgFunc.GetName());
   (void)fileName.append(".dot");
 
-  pdomFile.open(fileName.c_str(), std::ios::trunc);
+  pdomFile.open(fileName, std::ios::trunc);
   if (!pdomFile.is_open()) {
     LogInfo::MapleLogger(kLlWarn) << "fileName:" << fileName << " open failed.\n";
     return;
