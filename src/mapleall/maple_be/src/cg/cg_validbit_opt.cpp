@@ -73,30 +73,38 @@ void ValidBitPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn
   }
 }
 
-void ValidBitOpt::RectifyValidBitNum() {
+void ValidBitOpt::SetPhiInsnZeroValidBit() {
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {
-      if (!insn->IsMachineInstruction()) {
+      if (!insn->IsPhi()) {
         continue;
       }
-      SetValidBits(*insn);
+      for (uint32 i = 0; i < insn->GetOperandSize(); ++i) {
+        Operand &opnd = insn->GetOperand(i);
+        if (!opnd.IsRegister() || !insn->OpndIsDef(i)) {
+          continue;
+        }
+        static_cast<RegOperand&>(opnd).SetValidBitsNum(k0BitSize);
+      }
     }
   }
+}
+
+void ValidBitOpt::RectifyValidBitNum() {
+  // Set validbit of phiDef opnd to 0 and modify it in next
+  SetPhiInsnZeroValidBit();
+
   bool iterate;
-  /* Use reverse postorder to converge with minimal iterations */
+  // Use reverse postorder to converge with minimal iterations
   do {
     iterate = false;
     MapleVector<uint32> reversePostOrder = ssaInfo->GetReversePostOrder();
     for (uint32 bbId : reversePostOrder) {
       BB *bb = cgFunc->GetBBFromID(bbId);
       FOR_BB_INSNS(insn, bb) {
-        if (!insn->IsPhi()) {
-          continue;
-        }
-        bool change = SetPhiValidBits(*insn);
-        if (change) {
-          /* if vb changes once, iterate. */
-          iterate = true;
+        if ((insn->IsPhi() && SetPhiValidBits(*insn)) ||
+            (insn->IsMachineInstruction() && SetValidBits(*insn))) {
+          iterate = true;  // if vb changes once, iterate
         }
       }
     }

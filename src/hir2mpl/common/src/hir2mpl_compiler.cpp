@@ -14,6 +14,8 @@
  */
 #include "hir2mpl_compiler.h"
 #include <sstream>
+#include <dirent.h>
+#include "file_utils.h"
 #include "fe_manager.h"
 #include "fe_file_type.h"
 #include "fe_timer.h"
@@ -215,25 +217,32 @@ void HIR2MPLCompiler::ExportMpltFile() {
 }
 
 void HIR2MPLCompiler::ExportMplFile() {
-  if (!FEOptions::GetInstance().IsNoMplFile() && !FEOptions::GetInstance().IsGenMpltOnly()) {
-    FETimer timer;
-    timer.StartAndDump("Output mpl");
-    bool emitStructureType = false;
-    // Currently, struct types cannot be dumped to mplt.
-    // After mid-end interfaces are optimized, the judgment can be deleted.
-    if (srcLang == kSrcLangC) {
-      emitStructureType = true;
-    }
-    module.OutputAsciiMpl("", ".mpl", nullptr, emitStructureType, false);
-    if (FEOptions::GetInstance().GetFuncInlineSize() != 0 && !FEOptions::GetInstance().GetWPAA()) {
-      std::unique_ptr<InlineMplt> modInline = std::make_unique<InlineMplt>(module);
-      bool isInlineNeeded = modInline->CollectInlineInfo(FEOptions::GetInstance().GetFuncInlineSize());
-      if (isInlineNeeded) {
-        modInline->DumpInlineCandidateToFile(outNameWithoutType + ".mplt_inline");
-      }
-    }
-    timer.StopAndDumpTimeMS("Output mpl");
+  if (FEOptions::GetInstance().IsNoMplFile() || FEOptions::GetInstance().IsGenMpltOnly()) {
+    return;
   }
+  FETimer timer;
+  timer.StartAndDump("Output mpl");
+  bool emitStructureType = false;
+  // Currently, struct types cannot be dumped to mplt.
+  // After mid-end interfaces are optimized, the judgment can be deleted.
+  if (srcLang == kSrcLangC) {
+    emitStructureType = true;
+  }
+  module.OutputAsciiMpl("", ".mpl", nullptr, emitStructureType, false);
+  if (FEOptions::GetInstance().IsExportInlineMplt()) {
+    std::unique_ptr<InlineMplt> modInline = std::make_unique<InlineMplt>(module);
+    const uint32 kDefaultExportSize = FEOptions::GetInstance().GetFuncInlineSize() == 0 ?
+        50 : FEOptions::GetInstance().GetFuncInlineSize();
+    bool isInlineNeeded = modInline->CollectInlineInfo(kDefaultExportSize);
+    if (isInlineNeeded) {
+      std::string curPath = FileUtils::GetCurDirPath();
+      auto fileName = FEFileType::GetName(outNameWithoutType, false);
+      fileName = fileName + "_" +
+                 FileUtils::GetFileNameHashStr(curPath + kFileSeperatorChar + outNameWithoutType) + ".mplt_inline";
+      modInline->DumpInlineCandidateToFile(FEOptions::GetInstance().GetInlineMpltDir() + kFileSeperatorChar + fileName);
+    }
+  }
+  timer.StopAndDumpTimeMS("Output mpl");
 }
 
 void HIR2MPLCompiler::RegisterCompilerComponent(std::unique_ptr<HIR2MPLCompilerComponent> comp) {

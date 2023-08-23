@@ -41,7 +41,7 @@ class AArch64MPIsel : public MPISel {
   void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) override;
   void SelectAggIassign(IassignNode &stmt, Operand &addrOpnd, Operand &opndRhs) override;
   void SelectAggDassign(maplebe::MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRh,
-      const DassignNode &stmt) override;
+                        DassignNode &stmt) override;
   void SelectAggCopy(MemOperand &lhs, MemOperand &rhs, uint32 copySize) override;
   void SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOpnd) override;
   void SelectCondGoto(CondGotoNode &stmt, BaseNode &condNode) override;
@@ -87,6 +87,7 @@ class AArch64MPIsel : public MPISel {
   Operand *SelectCstrncmp(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectCstrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectCstrrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) override;
+  void SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) override;
   Operand *SelectAbs(UnaryNode &node, Operand &opnd0, const BaseNode &parent) override;
   void SelectAsm(AsmNode &node) override;
  private:

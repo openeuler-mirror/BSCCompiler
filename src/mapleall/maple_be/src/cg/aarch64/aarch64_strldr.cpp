@@ -671,14 +671,6 @@ bool AArch64StoreLoadOpt::ReplaceMemOpnd(Insn &insn, regno_t regNo, RegOperand &
   if (!CheckDefInsn(*regDefInsn, insn)) {
     return false;
   }
-  // this restriction is for 'ldr' insn whose second operand has wrong alignment
-  if (regDefInsn->GetOperandSize() > kInsnThirdOpnd && regDefInsn->GetOperand(kInsnThirdOpnd).IsStImmediate()) {
-    auto &stImm = static_cast<StImmOperand&>(regDefInsn->GetOperand(kInsnThirdOpnd));
-    if (stImm.GetSymbol() && stImm.GetSymbol()->IsConst() &&
-        stImm.GetSymbol()->GetSymbolAlign(CGOptions::IsArm64ilp32()) != kAlignOfU8) {
-      return false;
-    }
-  }
 
   MemOperand *newMemOpnd = SelectReplaceMem(*regDefInsn, insn, base, offset);
   if (newMemOpnd == nullptr) {

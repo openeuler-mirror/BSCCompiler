@@ -21,6 +21,7 @@
 #include "global_tables.h"
 #include "mpl_logging.h"
 #include "inline_summary.h"
+#include "inline_analyzer.h"
 
 namespace maple {
 // This phase replaces a function call site with the body of the called function.
@@ -39,6 +40,7 @@ namespace maple {
 struct CallStmtIdMap : public CallBackData {
   // we did not override CallBackData::Free() because callIdMap is managed by caller
   std::map<uint32, uint32> callIdMap;
+  std::map<uint32, uint32> reverseCallIdMap;
 };
 
 void RecordCallStmtIdMap(const BlockNode &oldBlock, BlockNode &newBlock, const StmtNode &oldStmt,
@@ -51,6 +53,8 @@ void RecordCallStmtIdMap(const BlockNode &oldBlock, BlockNode &newBlock, const S
   CHECK_NULL_FATAL(data);
   auto &callIdMap = static_cast<CallStmtIdMap*>(data)->callIdMap;
   (void)callIdMap.emplace(oldStmt.GetStmtID(), newStmt.GetStmtID());
+  auto &reverseCallIdMap = static_cast<CallStmtIdMap*>(data)->reverseCallIdMap;
+  (void)reverseCallIdMap.emplace(newStmt.GetStmtID(), oldStmt.GetStmtID());
 }
 
 void UpdateEnclosingBlockCallback(const BlockNode &oldBlock, BlockNode &newBlock, const StmtNode &oldStmt,
@@ -565,6 +569,14 @@ void DoReplaceConstFormal(const MIRFunction &caller, BaseNode &parent, uint32 op
     auto *constExpr =
         theMIRModule->CurFuncCodeMemPool()->New<ConstvalNode>(mirConst->GetType().GetPrimType(), mirConst);
     parent.SetOpnd(constExpr, opndIdx);
+  } else if (realArg.kind == RealArgPropCandKind::kExpr) {
+    if (expr.GetOpCode() == OP_addrof) {
+      auto &addrOf = static_cast<AddrofNode&>(expr);
+      auto stFullIdx = static_cast<AddrofNode*>(realArg.data.expr)->GetStIdx().FullIdx();
+      addrOf.SetStFullIdx(stFullIdx);
+    } else {
+      parent.SetOpnd(realArg.data.expr, opndIdx);
+    }
   }
 }
 
@@ -589,6 +601,12 @@ void InlineTransformer::TryReplaceConstFormalWithRealArg(BaseNode &parent, uint3
     if (regread.GetRegIdx() == newIdx) {
       DoReplaceConstFormal(caller, parent, opndIdx, expr, realArg);
     }
+  } else if (op == OP_addrof && formal.IsVar() && callee.GetAttr(FUNCATTR_like_macro)) {
+    auto &addrOf = static_cast<AddrofNode&>(expr);
+    uint32 newIdx = formal.GetStIndex() + stIdxOff;
+    if (addrOf.GetStIdx().Islocal() && addrOf.GetStIdx().Idx() == newIdx) {
+      DoReplaceConstFormal(caller, parent, opndIdx, expr, realArg);
+    }
   }
 }
 
@@ -609,22 +627,26 @@ void InlineTransformer::PropConstFormalInBlock(BlockNode &newBody, MIRSymbol &fo
   for (auto &stmt : newBody.GetStmtNodes()) {
     switch (stmt.GetOpCode()) {
       case OP_foreachelem: {
+        PropConstFormalInNode(stmt, formal, realArg, stIdxOff, regIdxOff);
         auto *subBody = static_cast<ForeachelemNode&>(stmt).GetLoopBody();
         PropConstFormalInBlock(*subBody, formal, realArg, stIdxOff, regIdxOff);
         break;
       }
       case OP_doloop: {
+        PropConstFormalInNode(stmt, formal, realArg, stIdxOff, regIdxOff);
         auto *subBody = static_cast<DoloopNode&>(stmt).GetDoBody();
         PropConstFormalInBlock(*subBody, formal, realArg, stIdxOff, regIdxOff);
         break;
       }
       case OP_dowhile:
       case OP_while: {
+        PropConstFormalInNode(stmt, formal, realArg, stIdxOff, regIdxOff);
         auto *subBody = static_cast<WhileStmtNode&>(stmt).GetBody();
         PropConstFormalInBlock(*subBody, formal, realArg, stIdxOff, regIdxOff);
         break;
       }
       case OP_if: {
+        PropConstFormalInNode(stmt, formal, realArg, stIdxOff, regIdxOff);
         IfStmtNode &ifStmt = static_cast<IfStmtNode&>(stmt);
         PropConstFormalInBlock(*ifStmt.GetThenPart(), formal, realArg, stIdxOff, regIdxOff);
         if (ifStmt.GetElsePart() != nullptr) {
@@ -680,10 +702,13 @@ void InlineTransformer::AssignActualToFormal(BlockNode &newBody, uint32 stIdxOff
 
 // The parameter `argExpr` is a real argument of a callStmt in the `caller`.
 // This function checks whether `argExpr` is a candidate of propagable argument.
-void RealArgPropCand::Parse(MIRFunction &caller, BaseNode &argExpr) {
+void RealArgPropCand::Parse(MIRFunction &caller, bool calleeIsLikeMacro, BaseNode &argExpr) {
   kind = RealArgPropCandKind::kUnknown;  // reset kind
   Opcode op = argExpr.GetOpCode();
-  if (op == OP_constval) {
+  if (calleeIsLikeMacro) {
+    kind = RealArgPropCandKind::kExpr;
+    data.expr = &argExpr;
+  } else if (op == OP_constval) {
     auto *constVal = static_cast<ConstvalNode&>(argExpr).GetConstVal();
     kind = RealArgPropCandKind::kConst;
     data.mirConst = constVal;
@@ -719,13 +744,21 @@ void InlineTransformer::AssignActualsToFormals(BlockNode &newBody, uint32 stIdxO
     CHECK_NULL_FATAL(formal);
     // Try to prop const value/symbol of real argument to const formal
     RealArgPropCand realArg;
-    realArg.Parse(caller, *currBaseNode);
-    if (formal->GetAttr(ATTR_const) && realArg.kind != RealArgPropCandKind::kUnknown &&
+    bool calleeIsLikeMacro = callee.GetAttr(FUNCATTR_like_macro);
+    realArg.Parse(caller, calleeIsLikeMacro, *currBaseNode);
+    bool needSecondAssign = true;
+    if ((formal->GetAttr(ATTR_const) || calleeIsLikeMacro) &&
+        realArg.kind != RealArgPropCandKind::kUnknown &&
         // Type consistency check can be relaxed further
         formal->GetType()->GetPrimType() == realArg.GetPrimType()) {
       PropConstFormalInBlock(newBody, *formal, realArg, stIdxOff, regIdxOff);
+    } else {
+      AssignActualToFormal(newBody, stIdxOff, regIdxOff, *currBaseNode, *formal);
+      needSecondAssign = false;
     }
-    AssignActualToFormal(newBody, stIdxOff, regIdxOff, *currBaseNode, *formal);
+    if (needSecondAssign && !calleeIsLikeMacro) {
+      AssignActualToFormal(newBody, stIdxOff, regIdxOff, *currBaseNode, *formal);
+    }
     if (updateFreq) {
       caller.GetFuncProfData()->CopyStmtFreq(newBody.GetFirst()->GetStmtID(), callStmt.GetStmtID());
     }
@@ -778,6 +811,20 @@ void InlineTransformer::HandleReturn(BlockNode &newBody) {
 void InlineTransformer::ReplaceCalleeBody(BlockNode &enclosingBlock, BlockNode &newBody) {
   // begin inlining function
   if (!Options::noComment) {
+    if (callee.GetAttr(FUNCATTR_like_macro) && callStmt.GetNext()->GetOpCode() == OP_dassign) {
+      DassignNode *dassignNode = static_cast<DassignNode *>(callStmt.GetNext());
+      if (dassignNode->GetRHS()->GetOpCode() == OP_dread) {
+        DreadNode *dreadNode = static_cast<DreadNode *>(dassignNode->GetRHS());
+        StIdx idx = dreadNode->GetStIdx();
+        if (idx.Islocal()) {
+          MIRSymbol *symbol = builder.GetMirModule().CurFunction()->GetLocalOrGlobalSymbol(idx);
+          CHECK_FATAL(symbol != nullptr, "symbol is nullptr.");
+          if (symbol->IsReturnVar()) {
+            callStmt.GetNext()->SetIgnoreCost();
+          }
+        }
+      }
+    }
     MapleString beginCmt(theMIRModule->CurFuncCodeMemPool());
     if (theMIRModule->firstInline) {
       beginCmt += kInlineBeginComment;
@@ -865,8 +912,23 @@ void RecordCallId(BaseNode &baseNode, std::map<uint32, uint32> &callMeStmtIdMap)
   }
 }
 
+void UpdateNewCallInfo(CallInfo *callInfo, std::vector<CallInfo*> *newCallInfo) {
+  if (newCallInfo == nullptr) {
+    return;
+  }
+  CHECK_NULL_FATAL(callInfo);
+  auto newDepth = callInfo->GetLoopDepth() + 1;
+  bool isOldEdgeUnlikely = IsUnlikelyCallsite(*callInfo);
+  for (auto *newInfo : *newCallInfo) {
+    if (isOldEdgeUnlikely) {
+      newInfo->SetCallTemp(CGTemp::kCold);
+    }
+    newInfo->SetLoopDepth(newDepth);
+  }
+}
+
 // Inline CALLEE into CALLER.
-bool InlineTransformer::PerformInline(std::vector<CallInfo*> *newCallInfo) {
+bool InlineTransformer::PerformInline(CallInfo *callInfo, std::vector<CallInfo*> *newCallInfo) {
   if (callee.IsEmpty()) {
     enclosingBlk.RemoveStmt(&callStmt);
     return false;
@@ -882,12 +944,14 @@ bool InlineTransformer::PerformInline(std::vector<CallInfo*> *newCallInfo) {
   // multiple definition for these static symbols
   ConvertPStaticToFStatic(callee);
   // Step 1: Clone CALLEE's body.
-  // Record callStmtId mapping from callee orig body to callee cloned body for merging inline summary
+  // callIdMap: mapping from callee orig body to callee cloned body for merging inline summary
+  // reverseCallIdMap: mapping from callee cloned body to callee orig body
   CallStmtIdMap mapWrapper;
   if (stage == kGreedyInline) {
     BlockCallBackMgr::AddCallBack(RecordCallStmtIdMap, &mapWrapper);
   }
   const std::map<uint32, uint32> &callIdMap = mapWrapper.callIdMap;
+  const std::map<uint32, uint32> &reverseCallIdMap = mapWrapper.reverseCallIdMap;
   BlockNode *newBody = GetClonedCalleeBody();
   CHECK_NULL_FATAL(newBody);
   if (stage == kGreedyInline) {
@@ -916,7 +980,8 @@ bool InlineTransformer::PerformInline(std::vector<CallInfo*> *newCallInfo) {
   UpdateEnclosingBlock(*newBody);
   if (stage == kGreedyInline) {
     // Create new edges
-    CollectNewCallInfo(newBody, newCallInfo);
+    CollectNewCallInfo(newBody, newCallInfo, reverseCallIdMap);
+    UpdateNewCallInfo(callInfo, newCallInfo);
     // and delete the inlined edge.
     auto *callerNode = cg->GetCGNode(&caller);
     CHECK_NULL_FATAL(callerNode);
@@ -940,14 +1005,15 @@ bool InlineTransformer::PerformInline(std::vector<CallInfo*> *newCallInfo) {
   return true;
 }
 
-void InlineTransformer::CollectNewCallInfo(BaseNode *node, std::vector<CallInfo*> *newCallInfo) const {
+void InlineTransformer::CollectNewCallInfo(BaseNode *node, std::vector<CallInfo*> *newCallInfo,
+                                           const std::map<uint32, uint32> &reverseCallIdMap) const {
   if (node == nullptr) {
     return;
   }
   if (node->GetOpCode() == OP_block) {
     auto *block = static_cast<BlockNode*>(node);
     for (auto &stmt : block->GetStmtNodes()) {
-      CollectNewCallInfo(&stmt, newCallInfo);
+      CollectNewCallInfo(&stmt, newCallInfo, reverseCallIdMap);
     }
   } else if (node->GetOpCode() == OP_callassigned || node->GetOpCode() == OP_call) {
     CallNode *callNode = static_cast<CallNode*>(node);
@@ -955,7 +1021,19 @@ void InlineTransformer::CollectNewCallInfo(BaseNode *node, std::vector<CallInfo*
       MIRFunction *newCallee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
       CGNode *cgCallee = cg->GetCGNode(newCallee);
       CGNode *cgCaller = cg->GetCGNode(&caller);
+      CGNode *oldCgCallee = cg->GetCGNode(&callee);
+      auto it = reverseCallIdMap.find(callNode->GetStmtID());
+      CHECK_FATAL(it != reverseCallIdMap.end(), "error map");
+      auto oldCallInfo = oldCgCallee->GetCallInfoByStmtId(it->second);
+      CHECK_NULL_FATAL(oldCallInfo);
       auto *callInfo = cg->AddCallsite(kCallTypeCall, *cgCaller, *cgCallee, *callNode);
+      if (IsUnlikelyCallsite(*oldCallInfo)) {
+        callInfo->SetCallTemp(CGTemp::kCold);
+      }
+      // Update hot callsites
+      if (cgCaller->GetFuncTemp() == CGTemp::kHot && cgCallee->GetFuncTemp() == CGTemp::kHot) {
+        callInfo->SetCallTemp(CGTemp::kHot);
+      }
       if (newCallInfo != nullptr) {
         newCallInfo->push_back(callInfo);
       }
@@ -963,7 +1041,7 @@ void InlineTransformer::CollectNewCallInfo(BaseNode *node, std::vector<CallInfo*
     }
   }
   for (size_t i = 0; i < node->NumOpnds(); ++i) {
-    CollectNewCallInfo(node->Opnd(i), newCallInfo);
+    CollectNewCallInfo(node->Opnd(i), newCallInfo, reverseCallIdMap);
   }
 }
 

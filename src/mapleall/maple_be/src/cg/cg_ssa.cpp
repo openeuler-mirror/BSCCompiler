@@ -150,13 +150,17 @@ void CGSSAInfo::RenameBB(BB &bb) {
 }
 
 void CGSSAInfo::RenamePhi(BB &bb) {
+  std::map<regno_t, Insn*> newPhiInsns;
   for (auto phiInsnIt : bb.GetPhiInsns()) {
     Insn *phiInsn = phiInsnIt.second;
     CHECK_FATAL(phiInsn != nullptr, "get phi insn failed");
     auto *phiDefOpnd = static_cast<RegOperand*>(&phiInsn->GetOperand(kInsnFirstOpnd));
     VRegVersion *newVst = CreateNewVersion(*phiDefOpnd, *phiInsn, kInsnFirstOpnd, true);
     phiInsn->SetOperand(kInsnFirstOpnd, *newVst->GetSSAvRegOpnd());
+    newPhiInsns.emplace(newVst->GetSSAvRegOpnd()->GetRegisterNumber(), phiInsn);
   }
+  bb.GetPhiInsns().clear();
+  bb.GetPhiInsns().insert(newPhiInsns.begin(), newPhiInsns.end());
 }
 
 void CGSSAInfo::RenameSuccPhiUse(const BB &bb) {

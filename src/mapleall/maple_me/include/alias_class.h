@@ -20,6 +20,8 @@
 #include "union_find.h"
 
 namespace maple {
+class Klass;
+class KlassHierarchy;
 constexpr int64 kBitsPerByte = 8;
 
 inline bool IsMemoryOverlap(OffsetType startA, int64 sizeA, OffsetType startB, int64 sizeB) {

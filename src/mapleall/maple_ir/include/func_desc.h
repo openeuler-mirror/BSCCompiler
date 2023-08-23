@@ -60,6 +60,14 @@ struct FuncDesc {
     }
   }
 
+  void InitToWorst() {
+    funcInfo = FI::kUnknown;
+    returnInfo = RI::kUnknown;
+    for (size_t idx = 0; idx < kMaxParamCount; ++idx) {
+      paramInfo[idx] = PI::kUnknown;
+    }
+  }
+
   bool Equals(const FuncDesc &desc) const {
     if (funcInfo != desc.funcInfo) {
       return false;

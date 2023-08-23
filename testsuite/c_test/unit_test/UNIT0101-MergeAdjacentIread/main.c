@@ -44,8 +44,8 @@ int func4(struct A *aa1, struct A *aa2) {
 
 __attribute__((noinline))
 int func5(struct A *aa1, struct A *aa2) {
-  // CHECK: and
-  // CHECK: cmp
+  // CHECK: eor
+  // CHECK: tst
   // CHECK-NOT: cmp
   return (aa1->b == aa2->b && aa1->c == aa2->c);
 }
@@ -60,8 +60,8 @@ int func6(struct A *aa1, struct A *aa2) {
 
 __attribute__((noinline))
 int func7(struct A *aa1, struct A *aa2) {
-  // CHECK: and
-  // CHECK: cmp
+  // CHECK: eor
+  // CHECK: tst
   // CHECK-NOT: cmp
   return (aa1->c == aa2->c && aa1->d == aa2->d && aa1->e == aa2->e);
 }

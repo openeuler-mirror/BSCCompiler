@@ -265,5 +265,74 @@ class MIRPragma {
   int32 paramNum = -1;  // paramNum th param in function, -1 not for param annotation
   MapleVector<MIRPragmaElement*> elementVec;
 };
+
+// compiler pragma design
+enum class CPragmaKind {
+#define PRAGMA(STR) PRAGMA_##STR,
+#include "all_pragmas.def"
+#undef PRAGMA
+  PRAGMA_undef
+};
+
+class CPragma {
+ public:
+  CPragma(CPragmaKind k, uint32 id) : kind(k), index(id) {}
+  virtual ~CPragma() = default;
+  virtual void Dump() {};
+
+  uint32 GetIndex() const {
+    return index;
+  }
+
+  CPragmaKind GetKind() const {
+    return kind;
+  }
+
+ private:
+  CPragmaKind kind;
+  uint32 index;
+};
+
+class PreferInlinePragma : public CPragma {
+ public:
+  static bool IsValid(const std::string &content) {
+    return (content == "ON" || content == "OFF");
+  }
+
+  static PreferInlinePragma *CreatePIP(uint32 id, const std::string &content) {
+    if (content == "ON") {
+      static PreferInlinePragma onVersion(id, true);
+      return &onVersion;
+    } else if (content == "OFF") {
+      static PreferInlinePragma offVersion(id, false);
+      return &offVersion;
+    } else {
+      CHECK_FATAL_FALSE("Invalid Parameter for Pragma prefer_inline");
+    }
+  }
+
+  PreferInlinePragma(uint32 id, bool cond) : CPragma(CPragmaKind::PRAGMA_prefer_inline, id) {
+    status = cond;
+  }
+
+  ~PreferInlinePragma() override = default;
+
+  // Syntax like ` pragma !1 prefer_inline "ON" `
+  void Dump() override {
+    LogInfo::MapleLogger() << "pragma !" << GetIndex() << " ";
+    LogInfo::MapleLogger() << "prefer_inline" << " ";
+    LogInfo::MapleLogger() << "\"";
+    LogInfo::MapleLogger() << (status ? "ON" : "OFF");
+    LogInfo::MapleLogger() << "\"";
+    LogInfo::MapleLogger() << "\n";
+  }
+
+  bool GetStatus() const {
+    return status;
+  }
+
+ private:
+  bool status = false;
+};
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_MIR_PRAGMA_H

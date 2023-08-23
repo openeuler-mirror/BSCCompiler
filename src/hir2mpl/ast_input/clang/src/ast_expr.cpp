@@ -12,7 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "ast_expr.h"
+#include <optional>
 #include "ast_decl.h"
 #include "ast_macros.h"
 #include "mpl_logging.h"
@@ -27,8 +27,7 @@
 #include "ror.h"
 #include "conditional_operator.h"
 #include "fe_macros.h"
-
-#include <optional>
+#include "ast_expr.h"
 
 namespace maple {
 
@@ -336,9 +335,6 @@ std::string ASTCallExpr::CvtBuiltInFuncName(std::string builtInName) const {
   }
 }
 
-std::unordered_map<std::string, ASTCallExpr::FuncPtrBuiltinFunc> ASTCallExpr::builtingFuncPtrMap =
-     ASTCallExpr::InitBuiltinFuncPtrMap();
-
 void ASTCallExpr::AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const {
   for (int32 i = (static_cast<int32>(args.size()) - 1); i >= 0; --i) {
     UniqueFEIRExpr expr = args[i]->Emit2FEExpr(stmts);
@@ -408,6 +404,10 @@ std::unique_ptr<FEIRStmtAssign> ASTCallExpr::GenCallStmt() const {
       op = OP_call;
     }
     callStmt = std::make_unique<FEIRStmtCallAssign>(*info, op, nullptr, false);
+    if (preferInlinePI != PreferInlinePI::kNonePI) {
+      callStmt->SetHasPragma(true);
+      callStmt->SetPragmaPIStatus(preferInlinePI);
+    }
   }
   return callStmt;
 }
@@ -1137,8 +1137,8 @@ UniqueFEIRExpr ASTCompoundLiteralExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
 MIRConst *ASTCompoundLiteralExpr::GenerateMIRPtrConst() const {
   CHECK_NULL_FATAL(compoundLiteralType);
   std::string tmpName = FEUtils::GetSequentialName("cle.");
-  if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
-    tmpName = tmpName + FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileName());
+  if (FEOptions::GetInstance().NeedMangling()) {
+    tmpName = tmpName + FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileNameExceptRootPath());
   }
   // If a var is pointer type, agg value cannot be directly assigned to it
   // Create a temporary symbol for addrof agg value
@@ -1392,11 +1392,20 @@ void ASTInitListExpr::ProcessDesignatedInitUpdater(
   auto designatedInitUpdateExpr = static_cast<ASTDesignatedInitUpdateExpr*>(expr);
   const ASTExpr *baseExpr = designatedInitUpdateExpr->GetBaseExpr();
   ASTExpr *updaterExpr = designatedInitUpdateExpr->GetUpdaterExpr();
+  int64_t constArraySize = designatedInitUpdateExpr->GetConstArraySize();
   auto feExpr = baseExpr->Emit2FEExpr(stmts);
   size_t stringLength = static_cast<const ASTStringLiteral*>(baseExpr)->GetLength();
   CHECK_FATAL(stringLength <= INT_MAX, "Too large length range");
   if (std::holds_alternative<UniqueFEIRExpr>(base)) {
     std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
+    argExprList->emplace_back(addrOfCharArray->Clone());
+    (void)argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(0));
+    (void)argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(static_cast<int32>(constArraySize)));
+    std::unique_ptr<FEIRStmtIntrinsicCallAssign> memsetStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
+        INTRN_C_memset, nullptr, nullptr, std::move(argExprList));
+    (void)stmts.emplace_back(std::move(memsetStmt));
+
+    argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
     argExprList->emplace_back(addrOfCharArray->Clone());
     argExprList->emplace_back(feExpr->Clone());
     argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(static_cast<int32>(stringLength)));
@@ -2506,7 +2515,9 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   uint32 rightCondLabelIdx = FEUtils::GetSequentialNumber();
   MIRType *tempVarType = GlobalTables::GetTypeTable().GetInt32();
   UniqueFEIRVar shortCircuit = FEIRBuilder::CreateVarNameForC(GetVarName(), *tempVarType);
-
+  StlGenericAttrs genAttrs;
+  genAttrs.SetAttr(GENATTR_shortcc);
+  shortCircuit->SetAttrs(genAttrs);
   // check short circuit boundary
   if (trueLabelIdx == 0) {
     trueLabelIdx = FEUtils::GetSequentialNumber();
@@ -3305,6 +3316,17 @@ UniqueFEIRExpr ASTAtomicExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
 UniqueFEIRExpr ASTExprStmtExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   CHECK_FATAL(cpdStmt->GetASTStmtOp() == kASTStmtCompound, "Invalid in ASTExprStmtExpr");
   const auto *lastCpdStmt = static_cast<ASTCompoundStmt *>(cpdStmt);
+  // Top mirscope should be pushed to stack first
+  bool hasEmitted2MIRScope = false;
+  FEFunction &feFunction = FEManager::GetCurrentFEFunction();
+  const ASTCompoundStmt* topLastCpdStmt = nullptr;
+  if (!lastCpdStmt->GetHasEmitted2MIRScope()) {
+    feFunction.PushStmtScope(FEUtils::CvtLoc2SrcPosition(lastCpdStmt->GetSrcLoc()),
+                             FEUtils::CvtLoc2SrcPosition(lastCpdStmt->GetEndLoc()));
+    lastCpdStmt->SetHasEmitted2MIRScope(true);
+    topLastCpdStmt = lastCpdStmt;
+    hasEmitted2MIRScope = true;
+  }
   while (lastCpdStmt->GetASTStmtList().back()->GetASTStmtOp() == kASTStmtStmtExpr) {
     auto bodyStmt = static_cast<ASTStmtExprStmt*>(lastCpdStmt->GetASTStmtList().back())->GetBodyStmt();
     lastCpdStmt = static_cast<const ASTCompoundStmt*>(bodyStmt);
@@ -3318,6 +3340,13 @@ UniqueFEIRExpr ASTExprStmtExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts
   stmts0 = cpdStmt->Emit2FEStmt();
   for (auto &stmt : stmts0) {
     stmts.emplace_back(std::move(stmt));
+  }
+  // Pop the mirscope emitted before
+  if (hasEmitted2MIRScope) {
+    UniqueFEIRScope scope = feFunction.PopTopScope();
+    if (scope) {
+      scope->ProcessVLAStack(stmts, IsCallAlloca(), topLastCpdStmt->GetEndLoc());
+    }
   }
   return feirExpr;
 }

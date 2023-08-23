@@ -1106,19 +1106,16 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
   newBlk->AddStatement(asmNode);
 }
 
-BaseNode *CGLowerer::NeedRetypeWhenLowerCallAssigned(PrimType pType, StmtNode *&beforeStmt) {
-  if (!IsPrimitiveInteger(pType) || GetPrimTypeBitSize(pType) >= k32BitSize) {
-    return mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
+BaseNode *CGLowerer::NeedRetypeWhenLowerCallAssigned(PrimType pType) {
+  BaseNode *retNode = mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
+  if (IsPrimitiveInteger(pType) && GetPrimTypeBitSize(pType) <= k32BitSize) {
+    auto newPty = IsPrimitiveUnsigned(pType) ? PTY_u64 : PTY_i64;
+    retNode = mirModule.GetMIRBuilder()->CreateExprTypeCvt(OP_cvt, newPty, pType, *retNode);
   }
-  auto newPTy = PTY_u32;
-  RegreadNode *retNode = mirModule.GetMIRBuilder()->CreateExprRegread(newPTy, -kSregRetval0);
-  auto pregIdx = GetCurrentFunc()->GetPregTab()->CreatePreg(newPTy);
-  beforeStmt = mirModule.GetMIRBuilder()->CreateStmtRegassign(newPTy, pregIdx, retNode);
-  RegreadNode *preg = mirModule.GetMIRBuilder()->CreateExprRegread(newPTy, pregIdx);
-  return mirModule.GetMIRBuilder()->CreateExprTypeCvt(OP_cvt, pType, newPTy, *preg);
+  return retNode;
 }
 
-DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID, StmtNode *&beforeStmt) {
+DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
   MIRSymbol *var;
   if (stIdx.IsGlobal()) {
     var = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
@@ -1132,7 +1129,7 @@ DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID, Stmt
   } else {
     pType = GlobalTables::GetTypeTable().GetTypeTable().at(var->GetTyIdx())->GetPrimType();
   }
-  auto *regRead = NeedRetypeWhenLowerCallAssigned(pType, beforeStmt);
+  auto *regRead = NeedRetypeWhenLowerCallAssigned(pType);
   return mirModule.GetMIRBuilder()->CreateStmtDassign(*var, fieldID, regRead);
 }
 
@@ -1299,7 +1296,6 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
   if (!handledAtLowerLevel) {
     CHECK_FATAL(p2nRets.size() <= 1, "make sure p2nRets size <= 1");
     /* Create DassignStmt to save kSregRetval0. */
-    StmtNode *beforeDStmt = nullptr;
     StmtNode *dStmt = nullptr;
     MIRType *retType = nullptr;
     if (p2nRets.size() == 1) {
@@ -1321,7 +1317,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
         RegFieldPair regFieldPair = p2nRets[0].second;
         if (!regFieldPair.IsReg()) {
           uint16 fieldID = static_cast<uint16>(regFieldPair.GetFieldID());
-          DassignNode *dn = SaveReturnValueInLocal(stIdx, fieldID, beforeDStmt);
+          DassignNode *dn = SaveReturnValueInLocal(stIdx, fieldID);
           CHECK_FATAL(dn->GetFieldID() == 0, "make sure dn's fieldID return 0");
           LowerDassign(*dn, *blk);
           CHECK_FATAL(&newCall == blk->GetLast() || newCall.GetNext() == blk->GetLast(), "");
@@ -1332,7 +1328,7 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
           MIRPreg *mirPreg = GetCurrentFunc()->GetPregTab()->PregFromPregIdx(pregIdx);
           bool is64x1vec = beCommon.CallIsOfAttr(FUNCATTR_oneelem_simd, &newCall);
           PrimType pType = is64x1vec ? PTY_f64 : mirPreg->GetPrimType();
-          auto regNode = NeedRetypeWhenLowerCallAssigned(pType, beforeDStmt);
+          auto regNode = NeedRetypeWhenLowerCallAssigned(pType);
           RegassignNode *regAssign;
           if (is64x1vec && IsPrimitiveInteger(mirPreg->GetPrimType())) {  // not f64
             MIRType *to;
@@ -1371,9 +1367,6 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
     LowerCallStmt(newCall, dStmt, *blk, retType, uselvar, opcode == OP_intrinsiccallassigned);
     if (!uselvar && dStmt != nullptr) {
       dStmt->SetSrcPos(newCall.GetSrcPos());
-      if (beforeDStmt != nullptr) {
-        blk->AddStatement(beforeDStmt);
-      }
       blk->AddStatement(dStmt);
     }
   }
@@ -1919,7 +1912,7 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
     beCommon.AddNewTypeAfterBecommon(oldTypeTableSize, newTypeTableSize);
   }
   StmtNode *callPrintf = mirBuilder->CreateStmtCall(printf->GetPuidx(), argsPrintf);
-  UnaryStmtNode *abortModeNode = mirBuilder->CreateStmtUnary(OP_abort, nullptr);
+  auto *abortModeNode = mirBuilder->CreateStmtNary(OP_abort, nullptr);
 
   brFalseNode->SetSrcPos(stmt.GetSrcPos());
   labelBC->SetSrcPos(stmt.GetSrcPos());
@@ -3810,18 +3803,24 @@ BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &i
   }
   if (intrnID == INTRN_C_constant_p) {
     BaseNode *opnd = intrinNode.Opnd(0);
-    int64 val = (opnd->op == OP_constval || opnd->op == OP_sizeoftype ||
-                 opnd->op == OP_conststr || opnd->op == OP_conststr16) ? 1 : 0;
+    PrimType pType = opnd->GetPrimType();
+    int64 val = ((opnd->op == OP_constval && pType != PTY_a64 && pType != PTY_a32 && pType != PTY_ptr) ||
+                  opnd->op == OP_sizeoftype || opnd->op == OP_conststr || opnd->op == OP_conststr16) ? 1 : 0;
     return mirModule.GetMIRBuilder()->CreateIntConst(static_cast<uint64>(val), PTY_i32);
   }
   if (intrnID == INTRN_C___builtin_expect) {
     return intrinNode.Opnd(0);
   }
+  if (intrnID == INTRN_C_alloca_with_align) {
+    GetCurrentFunc()->SetVlaOrAlloca(true);
+    return &intrinNode;
+  }
   if (intrinDesc.IsVectorOp() || intrinDesc.IsAtomic()) {
     return &intrinNode;
   }
 
-  if (intrnID == INTRN_C___tls_get_tbss_anchor || intrnID == INTRN_C___tls_get_tdata_anchor) {
+  if (intrnID == INTRN_C___tls_get_tbss_anchor || intrnID == INTRN_C___tls_get_tdata_anchor ||
+      intrnID == INTRN_C___tls_get_thread_pointer) {
     return &intrinNode;
   }
 
@@ -4445,6 +4444,130 @@ void CGLowerer::BuildLabel2FreqMap() {
   }
 }
 
+BaseNode *CGLowerer::LowerImplicitCvt(PrimType toType, BaseNode &expr) {
+  switch (expr.GetOpCode()) {
+    case OP_le:
+    case OP_ge:
+    case OP_gt:
+    case OP_lt:
+    case OP_ne:
+    case OP_eq:
+    case OP_cmp:
+    case OP_cmpl:
+    case OP_cmpg: { // cmp OP
+      auto &cmpNode = static_cast<CompareNode&>(expr);
+      cmpNode.SetBOpnd(LowerImplicitCvt(cmpNode.GetOpndType(), *cmpNode.GetBOpnd(kFirstOpnd)), kFirstOpnd);
+      cmpNode.SetBOpnd(LowerImplicitCvt(cmpNode.GetOpndType(), *cmpNode.GetBOpnd(kSecondOpnd)), kSecondOpnd);
+      break;
+    }
+    case OP_ceil:
+    case OP_floor:
+    case OP_retype:
+    case OP_cvt:
+    case OP_round:
+    case OP_trunc: { // cvt OP
+      auto &cvtNode = static_cast<TypeCvtNode&>(expr);
+      cvtNode.SetOpnd(LowerImplicitCvt(cvtNode.FromType(), *cvtNode.Opnd(kFirstOpnd)), kFirstOpnd);
+      break;
+    }
+    case OP_ashr:
+    case OP_lshr:
+    case OP_shl:
+    case OP_ror: {  // shift OP, only first opnd has implicit cvt
+      auto &shiftNode = static_cast<BinaryNode&>(expr);
+      shiftNode.SetBOpnd(LowerImplicitCvt(shiftNode.GetPrimType(), *shiftNode.GetBOpnd(kFirstOpnd)), kFirstOpnd);
+      break;
+    }
+    case OP_iread:
+    case OP_ireadoff:
+    case OP_CG_array_elem_add:
+    case OP_sext:
+    case OP_zext:
+    case OP_extractbits:
+    case OP_depositbits:
+    case OP_intrinsicop: {
+      for (size_t i = 0; i < expr.NumOpnds(); ++i) {
+        expr.SetOpnd(LowerImplicitCvt(expr.Opnd(i)->GetPrimType(), *expr.Opnd(i)), i);
+      }
+      break;
+    }
+    case OP_dread:
+    case OP_regread:
+    case OP_ireadfpoff:
+    case OP_addrof:
+    case OP_addrofoff:
+    case OP_addroffunc:
+    case OP_addroflabel:
+    case OP_constval:
+    case OP_conststr:
+    case OP_conststr16: { // leaf OP, no expr
+      break;
+    }
+    case OP_select: { // only second/third has implicit cvt
+      expr.SetOpnd(LowerImplicitCvt(expr.GetPrimType(), *expr.Opnd(kSecondOpnd)), kSecondOpnd);
+      expr.SetOpnd(LowerImplicitCvt(expr.GetPrimType(), *expr.Opnd(kThirdOpnd)), kThirdOpnd);
+      break;
+    }
+    case OP_add:
+    case OP_mul:
+    case OP_div:
+    case OP_rem:
+    case OP_sub:
+    case OP_band:
+    case OP_bior:
+    case OP_bxor:
+    case OP_abs:
+    case OP_bnot:
+    case OP_lnot:
+    case OP_land:
+    case OP_lior:
+    case OP_min:
+    case OP_max:
+    case OP_neg:
+    case OP_recip:
+    case OP_sqrt:   // use default
+    default: {
+      for (size_t i = 0; i < expr.NumOpnds(); ++i) {
+        expr.SetOpnd(LowerImplicitCvt(expr.GetPrimType(), *expr.Opnd(i)), i);
+      }
+      break;
+    }
+  }
+
+  auto *newExpr = &expr;
+  if (IsPrimitiveInteger(toType) && IsPrimitiveInteger(newExpr->GetPrimType()) &&
+      GetPrimTypeBitSize(toType) > GetPrimTypeBitSize(newExpr->GetPrimType())) {
+    newExpr = mirModule.GetMIRBuilder()->CreateExprTypeCvt(OP_cvt, toType, newExpr->GetPrimType(), expr);
+    if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
+      auto *simplified = MapleCastOpt::SimplifyCast(*mirBuilder, newExpr);
+      newExpr = (simplified != nullptr ? simplified : newExpr);
+    }
+  }
+  return newExpr;
+}
+
+void CGLowerer::LowerImplicitCvt(BlockNode &block) {
+  for (auto *stmt = block.GetFirst(); stmt != nullptr; stmt = stmt->GetNext()) {
+    switch (stmt->GetOpCode()) {
+      case OP_block: {
+        LowerImplicitCvt(static_cast<BlockNode&>(*stmt));
+        break;
+      }
+      case OP_regassign: {
+        auto &regassign = static_cast<RegassignNode&>(*stmt);
+        regassign.SetOpnd(LowerImplicitCvt(regassign.GetPrimType(), *regassign.Opnd(kFirstOpnd)), kFirstOpnd);
+        break;
+      }
+      default: {
+        for (size_t i = 0; i < stmt->NumOpnds(); ++i) {
+          stmt->SetOpnd(LowerImplicitCvt(stmt->Opnd(i)->GetPrimType(), *stmt->Opnd(i)), i);
+        }
+        break;
+      }
+    }
+  }
+}
+
 void CGLowerer::LowerFunc(MIRFunction &func) {
   labelIdx = 0;
   SetCurrentFunc(&func);
@@ -4472,6 +4595,8 @@ void CGLowerer::LowerFunc(MIRFunction &func) {
   // We do the simplify work here because now all the intrinsic calls and potential expansion work of memcpy or other
   // functions are handled well. So we can concentrate to do the replacement work.
   SimplifyBlock(*newBody);
+  // There may be implicit conversion to explicit conversion.
+  LowerImplicitCvt(*func.GetBody());
   uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   if (newTypeTableSize != oldTypeTableSize) {
     beCommon.AddNewTypeAfterBecommon(oldTypeTableSize, newTypeTableSize);

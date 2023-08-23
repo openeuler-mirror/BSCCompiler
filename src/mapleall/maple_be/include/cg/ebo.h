@@ -45,6 +45,7 @@ struct OpndInfo {
   int32 hashVal = 0;  /* Mem operand is placed in hash table, this is the hashVal of it, and otherwise -1. */
   Operand *opnd;  /* Operand */
   Operand *replacementOpnd = nullptr;  /* Rename opnd with this new name. */
+  uint32 replacementIndex = 0; // the index of replacementOpnd in Defining insn
   OpndInfo *replacementInfo = nullptr;  /* Rename opnd with this info. */
   BB *bb = nullptr;  /* The Definining bb. */
   Insn *insn = nullptr;  /* The Defining insn. */
@@ -148,8 +149,8 @@ class Ebo {
   bool OpndAvailableInBB(const BB &bb, OpndInfo *info) const;
   bool ForwardPropCheck(const Operand *opndReplace, const OpndInfo &opndInfo,
       const Operand &opnd, Insn &insn) const;
-  bool RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndReplace,
-      Operand &oldOpnd, const OpndInfo *tmpInfo) const;
+  bool RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndReplace, Operand &oldOpnd,
+                       const uint32 oldOpndIndex, const OpndInfo *tmpInfo) const;
   bool IsNotVisited(const BB &bb) {
     return !visitedBBs.at(bb.GetId());
   };

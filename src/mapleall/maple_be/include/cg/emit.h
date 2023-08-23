@@ -163,7 +163,7 @@ class Emitter {
                        bool withAddr, const std::string &addrName = "");
   void EmitNullConstant(uint64 size);
   void EmitCombineBfldValue(StructEmitInfo &structEmitInfo, bool finished);
-  void EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mirConst, const MIRType *nextType,
+  void EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mirConst, bool combineNextField,
                             uint64 fieldOffset);
   void EmitScalarConstant(MIRConst &mirConst, bool newLine = true, bool flag32 = false, bool isIndirect = false);
   void EmitStr(const std::string& mplStr, bool emitAscii = false, bool emitNewline = false);
@@ -200,7 +200,6 @@ class Emitter {
   void MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec) const;
   void EmitArrayConstant(MIRConst &mirConst);
   void EmitStructConstant(MIRConst &mirConst);
-  void EmitStructConstant(MIRConst &mirConst, uint32 &subStructFieldCounts);
   void EmitVectorConstant(MIRConst &mirConst);
   void EmitLocalVariable(const CGFunc &cgFunc);
   void EmitUninitializedSymbolsWithPrefixSection(const MIRSymbol &symbol, const std::string &sectionName);
@@ -267,6 +266,9 @@ class Emitter {
   void EmitDIFormSpecification(const DBGDieAttr *attr) {
     EmitDIFormSpecification(attr->GetDwForm());
   }
+
+  // Emit data section
+  void EmitDataSection(const std::string &sectionName, const std::string &symbolName, const std::string &sectionSuffix);
 
 #if 1 /* REQUIRE TO SEPERATE TARGAARCH64 TARGARM32 */
 /* Following code is under TARGAARCH64 condition */
@@ -359,6 +361,8 @@ class Emitter {
   void EmitAliasAndRef(const MIRSymbol &sym); // handle function symbol which has alias and weak ref
   // collect all global TLS together -- better perfomance for local dynamic
   void EmitTLSBlock(const MapleVector<MIRSymbol*> &tdataVec, const MapleVector<MIRSymbol*> &tbssVec);
+  void EmitTLSBlockTdata(const MapleVector<MIRSymbol*> &tdataVec);
+  void EmitTLSBlockTbss(const MapleVector<MIRSymbol*> &tbssVec, bool tdataExist);
 
   CG *cg;
   MOperator currentMop = UINT_MAX;

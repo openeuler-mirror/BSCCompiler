@@ -1019,7 +1019,9 @@ std::pair<BaseNode*, std::optional<IntVal>> ConstantFold::FoldUnary(UnaryNode *n
         } else {
           if (GetPrimTypeSize(newPtyp) != GetPrimTypeSize(origPtyp)) {
             // do not fold explicit cvt
-            return std::make_pair(node, std::nullopt);
+            result = NewUnaryNode(node, node->GetOpCode(), node->GetPrimType(),
+                PairToExpr(node->Opnd(0)->GetPrimType(), p));
+            return std::make_pair(result, std::nullopt);
           } else {
             result->SetPrimType(origPtyp);
           }

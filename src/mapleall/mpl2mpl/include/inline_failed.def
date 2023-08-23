@@ -26,6 +26,8 @@ DEF_IF(kIfcInlineList, kIFT_FinalOk, "[ok] callee is in the inline list")
 
 DEF_IF(kIfcInlineListCallsite, kIFT_FinalOk, "[ok] callsite is in the inline list")
 
+DEF_IF(kIfcPreferInlineOn, kIFT_FinalOk, "[ok] callsite is marked with '#pragma prefer_inline ON'")
+
 DEF_IF(kIfcProfileHotCallsite, kIFT_FinalOk, "[ok] profile shows this is a hot callsite")
 
 DEF_IF(kIfcExternGnuInlineCalleeDepth0, kIFT_FinalOk, "[ok] depth == 0 'extern gnu_inline' should always be inlined")
@@ -45,6 +47,8 @@ DEF_IF(kIfcOutOfGreedyInline, kIFT_Mutable, "greedy inlining is not responsible 
 
 // final fail
 DEF_IF(kIfcEmptyCallee, kIFT_FinalFail, "callee's body is not available")
+
+DEF_IF(kIfcPreemptable, kIFT_FinalFail, "callee's body may be replaced at link time")
 
 DEF_IF(kIfcProfileColdCallsite, kIFT_FinalFail, "profile shows this is a cold callsite")
 
@@ -84,6 +88,8 @@ DEF_IF(kIfcTooBigForGInline, kIFT_FinalFail, "callee is too big for greedy inlin
 DEF_IF(kIfcNoinlineList, kIFT_FinalFail, "callee is in the noinline list")
 
 DEF_IF(kIfcNoinlineListCallsite, kIFT_FinalFail, "callsite is in the noinline list")
+
+DEF_IF(kIfcPreferInlineOff, kIFT_FinalFail, "callsite is marked with '#pragma prefer_inline OFF'")
 
 DEF_IF(kIfcIndirectCall, kIFT_FinalFail, "inlining indirect call is not supported")
 

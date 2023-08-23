@@ -738,7 +738,6 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const ImmOperand &immOper
       val = static_cast<int64>(opndValue0 ^ opndValue1);
       break;
     case MOP_wandrri12:
-    case MOP_waddrri24:
     case MOP_wandrrr:
     case MOP_xandrri13:
     case MOP_xandrrr:
@@ -855,10 +854,24 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
     return false;
   }
   Insn *prevInsn = opndInfo->insn;
-  if (prevInsn == nullptr || (prevInsn->GetBB() != insn->GetBB() && prevInsn->GetBB()->GetSuccsSize() > 1)) {
+  if (prevInsn == nullptr) {
     return false;
   }
-
+  // prevInsn should not have other succs along to insn
+  // if bb:
+  //    ldr R1 (this should not be changed)
+  // bb1:
+  //    sxtb R2  R1
+  // bb2:
+  //    other use of R1
+  BB *bb = prevInsn->GetBB();
+  BB *curInsnBB = insn->GetBB();
+  while (bb != curInsnBB) {
+    if (bb->GetSuccsSize() > 1) {
+      return false;
+    }
+    bb = bb->GetSuccs().front();
+  }
   MOperator prevMop = prevInsn->GetMachineOpcode();
   ASSERT(prevMop != MOP_undef, "Invalid opcode of instruction!");
   PairMOperator *begin = &(extInsnPairTable[idx][0]);

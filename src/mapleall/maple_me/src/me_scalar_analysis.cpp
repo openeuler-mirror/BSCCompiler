@@ -1487,6 +1487,10 @@ bool LoopScalarAnalysisResult::CanComputeTripCountWithCvtOpnd(
   auto &cvtOpnd = static_cast<OpMeExpr&>(opnd);
   auto toType = cvtOpnd.GetPrimType();
   auto fromType = cvtOpnd.GetOpndType();
+  if (IsUnsignedInteger(toType) && IsUnsignedInteger(fromType) &&
+      GetPrimTypeBitSize(toType) > GetPrimTypeBitSize(fromType)) {
+    return true;
+  }
   if (!Bound(initConst, toType).IsEqual(Bound(initConst, fromType), toType) ||
       !Bound(strideConst, toType).IsEqual(Bound(strideConst, fromType), toType) ||
       !Bound(exitConst, toType).IsEqual(Bound(exitConst, fromType), toType) ||

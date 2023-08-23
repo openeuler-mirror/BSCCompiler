@@ -346,13 +346,25 @@ void BB::MoveAllSuccToPred(BB *newPred, BB *commonExit) {
   }
 }
 
-bool BB::IsImmediateUnlikelyBB() const {
-  if (pred.size() != 1 || pred[0]->GetKind() != kBBCondGoto) {
+bool BB::IsImmediateUnlikelyBB(const Dominance *dom) const {
+  if (pred.empty()) {
     return false;
   }
-  auto *condBB = pred[0];
-  auto *unlikelySucc = condBB->GetUnlikelySuccOfCondBB();
-  return unlikelySucc == this;
+  for (auto *curPred : pred) {
+    // Skip the predecessor dominated by current BB.
+    if (dom != nullptr && dom->Dominate(*this, *curPred)) {
+      continue;
+    }
+    if (curPred->GetKind() != kBBCondGoto) {
+      return false;
+    }
+    // Only all incoming edges are unlikely, the BB is unlikely.
+    auto *unlikelySucc = curPred->GetUnlikelySuccOfCondBB();
+    if (unlikelySucc != this) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool BB::IsImmediateLikelyBB() const {
@@ -404,9 +416,18 @@ void BB::FindReachableBBs(std::vector<bool> &visitedBBs) const {
   if (visitedBBs[GetBBId()]) {
     return;
   }
-  visitedBBs[GetBBId()] = true;
-  for (const BB *bb : succ) {
-    bb->FindReachableBBs(visitedBBs);
+  std::deque<const BB*> queue;
+  queue.push_back(this);
+  while (!queue.empty()) {
+    auto bb = queue.front();
+    queue.pop_front();
+    if (visitedBBs[bb->GetID()]) {
+      continue;
+    }
+    visitedBBs[bb->GetID()] = true;
+    for (const BB *succBB : bb->GetSucc()) {
+      queue.push_back(succBB);
+    }
   }
 }
 

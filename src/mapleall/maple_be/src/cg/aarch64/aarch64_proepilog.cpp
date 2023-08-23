@@ -103,6 +103,44 @@ bool AArch64GenProEpilog::NeedProEpilog() {
   return AArch64NeedProEpilog(cgFunc);
 }
 
+// find a idle register, default R30
+AArch64reg AArch64GenProEpilog::GetStackGuardRegister(const BB &bb) const {
+  if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel0) {
+    return R30;
+  }
+  for (regno_t reg = R9; reg < R29; ++reg) {
+    if (bb.GetLiveInRegNO().count(reg) == 0 && reg != R16) {
+      if (!AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg))) {
+        return static_cast<AArch64reg>(reg);
+      }
+    }
+  }
+  return R30;
+}
+
+// find two idle register, default R30 and R16
+std::pair<AArch64reg, AArch64reg> AArch64GenProEpilog::GetStackGuardCheckRegister(const BB &bb) const {
+  AArch64reg stGuardReg = R30;
+  AArch64reg stCheckReg = R16;
+  if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel0) {
+    return {stGuardReg, stCheckReg};
+  }
+  for (regno_t reg = R9; reg < R29; ++reg) {
+    if (bb.GetLiveOutRegNO().count(reg) == 0 && reg != R16) {
+      if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg))) {
+        continue;
+      }
+      if (stGuardReg == R30) {
+        stGuardReg = static_cast<AArch64reg>(reg);
+      } else {
+        stCheckReg = static_cast<AArch64reg>(reg);
+        break;
+      }
+    }
+  }
+  return {stGuardReg, stCheckReg};
+}
+
 // RealStackFrameSize - [GR,16] - [VR,16] - 8 (from fp to stack protect area)
 // We allocate 16 byte for stack protect area
 MemOperand *AArch64GenProEpilog::GetDownStack() {
@@ -126,12 +164,12 @@ MemOperand *AArch64GenProEpilog::GetDownStack() {
   MemOperand *downStk = aarchCGFunc.CreateStackMemOpnd(stackBaseReg, memSize, GetPointerBitSize());
   if (downStk->GetMemVaryType() == kNotVary &&
       aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
-    downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
+    downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R16);
   }
   return downStk;
 }
 
-void AArch64GenProEpilog::GenStackGuard() {
+RegOperand &AArch64GenProEpilog::GenStackGuard(AArch64reg regNO) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   aarchCGFunc.GetDummyBB()->ClearInsns();
 
@@ -141,7 +179,7 @@ void AArch64GenProEpilog::GenStackGuard() {
       GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_guard")));
   StImmOperand &stOpnd = aarchCGFunc.CreateStImmOperand(*stkGuardSym, 0, 0);
   RegOperand &stAddrOpnd =
-    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerBitSize(), kRegTyInt);
+    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(regNO, GetPointerBitSize(), kRegTyInt);
   aarchCGFunc.SelectAddrof(stAddrOpnd, stOpnd);
 
   MemOperand *guardMemOp = aarchCGFunc.CreateMemOperand(GetPointerBitSize(), stAddrOpnd,
@@ -150,6 +188,7 @@ void AArch64GenProEpilog::GenStackGuard() {
   Insn &insn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *guardMemOp);
   insn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(insn);
+  return stAddrOpnd;
 }
 
 void AArch64GenProEpilog::AddStackGuard(BB &bb) {
@@ -158,9 +197,7 @@ void AArch64GenProEpilog::AddStackGuard(BB &bb) {
   }
   BB *formerCurBB = cgFunc.GetCurBB();
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  GenStackGuard();
-  RegOperand &stAddrOpnd =
-    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerBitSize(), kRegTyInt);
+  auto &stAddrOpnd = GenStackGuard(GetStackGuardRegister(bb));
   auto mOp = aarchCGFunc.PickStInsn(GetPointerBitSize(), PTY_u64);
   Insn &tmpInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, stAddrOpnd, *GetDownStack());
   tmpInsn.SetDoNotRemove(true);
@@ -179,7 +216,7 @@ BB &AArch64GenProEpilog::GetOrGenStackGuardCheckFailBB(BB &bb) {
 
   // create new check fail BB
   auto failLable = aarchCGFunc.CreateLabel();
-  stackChkFailBB = aarchCGFunc.CreateNewBB(failLable, bb.IsUnreachable(), BB::kBBFallthru, bb.GetFrequency());
+  stackChkFailBB = aarchCGFunc.CreateNewBB(failLable, bb.IsUnreachable(), BB::kBBNoReturn, bb.GetFrequency());
   cgFunc.SetCurBB(*stackChkFailBB);
   MIRSymbol *failFunc = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_fail")));
@@ -200,11 +237,10 @@ void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
 
   BB *formerCurBB = cgFunc.GetCurBB();
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  GenStackGuard();
-  RegOperand &stAddrOpnd =
-    aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, GetPointerBitSize(), kRegTyInt);
+  auto [stGuardReg, stCheckReg] = GetStackGuardCheckRegister(bb);
+  auto &stAddrOpnd = GenStackGuard(stGuardReg);
   RegOperand &checkOp =
-      aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R10, GetPointerBitSize(), kRegTyInt);
+      aarchCGFunc.GetOrCreatePhysicalRegisterOperand(stCheckReg, GetPointerBitSize(), kRegTyInt);
   auto mOp = aarchCGFunc.PickLdInsn(GetPointerBitSize(), PTY_u64);
   Insn &newInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, checkOp, *GetDownStack());
   newInsn.SetDoNotRemove(true);
@@ -213,7 +249,8 @@ void AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   cgFunc.SelectBxor(stAddrOpnd, stAddrOpnd, checkOp, PTY_u64);
   auto &failBB = GetOrGenStackGuardCheckFailBB(bb);
   aarchCGFunc.SelectCondGoto(aarchCGFunc.GetOrCreateLabelOperand(failBB.GetLabIdx()), OP_brtrue, OP_ne,
-                             stAddrOpnd, aarchCGFunc.CreateImmOperand(0, k64BitSize, false), PTY_u64, false, BB::kUnknownProb);
+                             stAddrOpnd, aarchCGFunc.CreateImmOperand(0, k64BitSize, false),
+                             PTY_u64, false, BB::kUnknownProb);
 
   auto chkBB = cgFunc.CreateNewBB(bb.GetLabIdx(), bb.IsUnreachable(), BB::kBBIf, bb.GetFrequency());
   chkBB->AppendBBInsns(bb);
@@ -278,6 +315,10 @@ void AArch64GenProEpilog::AppendInstructionPushPair(CGFunc &cgFunc,
     o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc, *static_cast<MemOperand*>(o2), dataSize, R16);
   }
   Insn &pushInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
+  // Identify that the instruction is not alias with any other memory instructions.
+  auto *memDefUse = cgFunc.GetFuncScopeAllocator()->New<MemDefUse>(*cgFunc.GetFuncScopeAllocator());
+  memDefUse->SetIndependent();
+  pushInsn.SetReferenceOsts(memDefUse);
   std::string comment = "SAVE CALLEE REGISTER PAIR";
   pushInsn.SetComment(comment);
   AppendInstructionTo(pushInsn, cgFunc);
@@ -298,6 +339,10 @@ void AArch64GenProEpilog::AppendInstructionPushSingle(CGFunc &cgFunc,
   }
 
   Insn &pushInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, *o1);
+  // Identify that the instruction is not alias with any other memory instructions.
+  auto *memDefUse = cgFunc.GetFuncScopeAllocator()->New<MemDefUse>(*cgFunc.GetFuncScopeAllocator());
+  memDefUse->SetIndependent();
+  pushInsn.SetReferenceOsts(memDefUse);
   std::string comment = "SAVE CALLEE REGISTER";
   pushInsn.SetComment(comment);
   AppendInstructionTo(pushInsn, cgFunc);
@@ -872,6 +917,10 @@ void AArch64GenProEpilog::AppendInstructionPopSingle(CGFunc &cgFunc, AArch64reg 
   }
 
   Insn &popInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, *o1);
+  // Identify that the instruction is not alias with any other memory instructions.
+  auto *memDefUse = cgFunc.GetFuncScopeAllocator()->New<MemDefUse>(*cgFunc.GetFuncScopeAllocator());
+  memDefUse->SetIndependent();
+  popInsn.SetReferenceOsts(memDefUse);
   popInsn.SetComment("RESTORE");
   cgFunc.GetCurBB()->AppendInsn(popInsn);
 }
@@ -890,6 +939,10 @@ void AArch64GenProEpilog::AppendInstructionPopPair(CGFunc &cgFunc,
     o2 = SplitStpLdpOffsetForCalleeSavedWithAddInstruction(cgFunc, *static_cast<MemOperand*>(o2), dataSize, R16);
   }
   Insn &popInsn = cgFunc.GetInsnBuilder()->BuildInsn(mOp, o0, o1, *o2);
+  // Identify that the instruction is not alias with any other memory instructions.
+  auto *memDefUse = cgFunc.GetFuncScopeAllocator()->New<MemDefUse>(*cgFunc.GetFuncScopeAllocator());
+  memDefUse->SetIndependent();
+  popInsn.SetReferenceOsts(memDefUse);
   popInsn.SetComment("RESTORE RESTORE");
   cgFunc.GetCurBB()->AppendInsn(popInsn);
 }

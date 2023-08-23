@@ -57,6 +57,10 @@ class ASTDecl {
     return genAttrs;
   }
 
+  void SetGenericAttrs(MapleGenericAttrs newGenAttrs) {
+    genAttrs = newGenAttrs;
+  }
+
   void SetGlobal(bool isGlobal) {
     isGlobalDecl = isGlobal;
   }
@@ -91,6 +95,14 @@ class ASTDecl {
 
   uint32 GetAlign() const {
     return align;
+  }
+
+  void SetTypeAlign(uint32 n) {
+    typeAlign = n;
+  }
+
+  uint32 GetTypeAlign() const {
+    return typeAlign;
   }
 
   void SetAttr(GenericAttrKind attrKind) {
@@ -185,6 +197,10 @@ class ASTDecl {
     return isCallAlloca;
   }
 
+  void SetName(MapleString newName) {
+    name = newName;
+  }
+
  protected:
   virtual MIRConst *Translate2MIRConstImpl() const {
     CHECK_FATAL(false, "Maybe implemented for other ASTDecls");
@@ -194,6 +210,7 @@ class ASTDecl {
   bool isGlobalDecl;
   bool isParam = false;
   uint32 align = 0; // in byte
+  uint32 typeAlign = 0; // in byte
   const MapleString srcFileName;
 
   MapleString name;
@@ -323,11 +340,20 @@ class ASTStruct : public ASTDecl {
     return isPack;
   }
 
+  void SetTypedefAliasList(std::string str) {
+    typeAliasList = str;
+  }
+
+  std::string GetTypedefAliasList() const {
+    return typeAliasList;
+  }
+
  private:
   void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
 
   bool isUnion = false;
   bool isPack = false;
+  std::string typeAliasList;
   MapleList<ASTField*> fields;
   MapleList<ASTFunc*> methods;
 };
@@ -390,23 +416,19 @@ class ASTVar : public ASTDecl {
 
 class ASTFileScopeAsm : public ASTDecl {
  public:
-  ASTFileScopeAsm(MapleAllocator &allocatorIn, const MapleString &srcFile)
+  ASTFileScopeAsm(MapleAllocator &allocatorIn, const MapleString &srcFile, const MapleString &asmStrArg)
       : ASTDecl(allocatorIn, srcFile, MapleString("", allocatorIn.GetMemPool()),
-                MapleVector<MIRType*>(allocatorIn.Adapter())) {
+                MapleVector<MIRType*>(allocatorIn.Adapter())), asmStr(asmStrArg) {
     declKind = kASTFileScopeAsm;
   }
   ~ASTFileScopeAsm() override = default;
 
-  void SetAsmStr(const std::string &str) {
-    asmStr = str;
-  }
-
-  const std::string &GetAsmStr() const {
+  const MapleString &GetAsmStr() const {
     return asmStr;
   }
 
  private:
-  std::string asmStr;
+  MapleString asmStr;
 };
 
 class ASTEnumConstant : public ASTDecl {

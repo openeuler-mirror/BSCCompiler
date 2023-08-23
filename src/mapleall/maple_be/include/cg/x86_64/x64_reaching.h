@@ -44,9 +44,7 @@ class X64ReachingDefinition : public ReachingDefinition {
   void GenAllCallerSavedRegs(BB &bb, Insn &insn) final;
   bool IsRegKilledByCallInsn(const Insn &insn, regno_t regNO) const final;
   bool KilledByCallBetweenInsnInSameBB(const Insn &startInsn, const Insn &endInsn, regno_t regNO) const final;
-  void AddRetPseudoInsn(BB &bb) final;
-
-   void AddRetPseudoInsns() final; bool IsCallerSavedReg(uint32 regNO) const final;
+  bool IsCallerSavedReg(uint32 regNO) const final;
   void FindRegDefInBB(uint32 regNO, BB &bb, InsnSet &defInsnSet) const final;
   void FindMemDefInBB(uint32 offset, BB &bb, InsnSet &defInsnSet) const final;
   void DFSFindDefForRegOpnd(const BB &startBB, uint32 regNO, std::vector<VisitStatus> &visitedBB,

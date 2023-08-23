@@ -31,6 +31,8 @@ enum ThresholdType {
   kHotAndRecursiveFuncThreshold
 };
 
+bool MayBeOverwritten(const MIRFunction &func);
+
 class MInline {
  public:
   MInline(MIRModule &mod, MemPool *memPool, CallGraph *cg = nullptr, bool onlyAlwaysInline = false)
@@ -82,8 +84,10 @@ class MInline {
   void PostInline(MIRFunction &caller);
   void InlineCallsBlock(MIRFunction &func, BlockNode &enclosingBlk, BaseNode &baseNode, bool &changed,
       BaseNode &prevStmt);
-  void InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bool &changed);
+  void InlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bool &changed, BaseNode &prevStmt);
   void AlwaysInlineCallsBlockInternal(MIRFunction &func, BaseNode &baseNode, bool &changed);
+  void EndsInliningWithFailure(const std::string &failReason, const MIRFunction &caller,
+    const MIRFunction &callee, const CallNode &callStmt) const;
   GotoNode *UpdateReturnStmts(const MIRFunction&, BlockNode&, LabelIdx, const CallReturnVector&, int&) const;
   void ComputeTotalSize();
   void MarkSymbolUsed(const StIdx &symbolIdx) const;
@@ -102,6 +106,8 @@ class MInline {
   const bool performEarlyInline;  // open it only if ginline is enabled and srcLang is C
   uint32 maxRecursiveLevel = 4;  // for recursive function, allow inline 4 levels at most.
   uint32 currInlineDepth = 0;
+  bool isCurrCallerTooBig = false;  // If the caller is too big, we wont't inline callsites except the ones that
+                                    // must be inlined
 };
 
 MAPLE_MODULE_PHASE_DECLARE(M2MInline)

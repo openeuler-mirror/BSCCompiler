@@ -31,24 +31,22 @@ class GlobalSchedule : public BaseSchedule {
   }
   void Run() override;
   bool CheckCondition(CDGRegion &region);
-  /* Region-based global scheduling entry, using the list scheduling algorithm for scheduling insns in bb */
+  // Region-based global scheduling entry, using the list scheduling algorithm for scheduling insns in bb
   void DoGlobalSchedule(CDGRegion &region);
 
-  /* Verifying the Correctness of Global Scheduling */
+  // Verifying the Correctness of Global Scheduling
   virtual void VerifyingSchedule(CDGRegion &region) = 0;
 
  protected:
-  virtual void InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp) = 0;
+  void InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool &cdgNodeMp);
+  void PrepareCommonSchedInfo(CDGRegion &region, CDGNode &cdgNode, MemPool &cdgNodeMp);
   virtual void FinishScheduling(CDGNode &cdgNode) = 0;
   void ClearCDGNodeInfo(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp);
-  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override {
-    (void)cdgNode;
-  }
 
   DataDepAnalysis &interDDA;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgGlobalSchedule, maplebe::CGFunc)
-} /* namespace maplebe */
+} // namespace maplebe
 
 #endif  // MAPLEBE_INCLUDE_CG_GLOBAL_SCHEDULE_H

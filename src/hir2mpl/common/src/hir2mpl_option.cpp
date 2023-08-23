@@ -92,9 +92,10 @@ maplecl::Option<bool> noMplFile({"--no-mpl-file", "-no-mpl-file"},
 maplecl::Option<uint32_t> dumpLevel({"--dump-level", "-d"},
     "  -d, -dump-level xx    : debug info dump level\n"
     "    [0] disable\n"
-    "    [1] dump simple info\n"
-    "    [2] dump detail info\n"
-    "    [3] dump debug info",
+    "    [1] dump unsupported info"
+    "    [2] dump simple info\n"
+    "    [3] dump detail info\n"
+    "    [4] dump debug info",
     {hir2mplCategory});
 
 maplecl::Option<bool> dumpComment({"--dump-comment", "-dump-comment"},

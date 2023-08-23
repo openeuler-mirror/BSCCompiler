@@ -49,7 +49,7 @@ bool AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
       defInsn->GetBB()->RemoveInsn(*defInsn);
       if (defInsn->IsPhi()) {
         for (auto dv : defVersions) {
-          defInsn->GetBB()->RemovePhiInsn(dv->GetOriginalRegNO());
+          defInsn->GetBB()->RemovePhiInsn(dv->GetSSAvRegOpnd()->GetRegisterNumber());
         }
       }
       for (auto dv : defVersions) {

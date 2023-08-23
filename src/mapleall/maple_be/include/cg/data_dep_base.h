@@ -119,4 +119,4 @@ class DataDepBase {
 };
 }
 
-#endif  /* MAPLEBE_INCLUDE_CG_DATA_DEP_BASE_H */
+#endif  // MAPLEBE_INCLUDE_CG_DATA_DEP_BASE_H

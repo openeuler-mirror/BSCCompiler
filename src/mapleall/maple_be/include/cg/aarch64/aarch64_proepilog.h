@@ -67,8 +67,10 @@ class AArch64GenProEpilog : public GenProEpilog {
   static void AppendInstructionPopPair(CGFunc &cgFunc, AArch64reg reg0, AArch64reg reg1, RegType rty, int32 offset);
   void Run() override;
  private:
+  AArch64reg GetStackGuardRegister(const BB &bb) const;
+  std::pair<AArch64reg, AArch64reg> GetStackGuardCheckRegister(const BB &bb) const;
   MemOperand *GetDownStack();
-  void GenStackGuard();
+  RegOperand &GenStackGuard(AArch64reg regNO);
   void AddStackGuard(BB &bb);
   void GenStackGuardCheckInsn(BB &bb);
   BB &GetOrGenStackGuardCheckFailBB(BB &bb);

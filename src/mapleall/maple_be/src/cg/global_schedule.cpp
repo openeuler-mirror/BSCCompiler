@@ -62,15 +62,13 @@ bool GlobalSchedule::CheckCondition(CDGRegion &region) {
   return insnSum <= kMaxInsnNum;
 }
 
-/*
- * The entry of global scheduling
- */
+// The entry of global scheduling
 void GlobalSchedule::DoGlobalSchedule(CDGRegion &region) {
   if (GLOBAL_SCHEDULE_DUMP) {
     DumpRegionInfoBeforeSchedule(region);
   }
-  listScheduler = schedMP.New<ListScheduler>(schedMP, cgFunc, false, "globalschedule");
-  /* Process nodes in a region by the topology sequence */
+  listScheduler = schedMP.New<ListScheduler>(schedMP, cgFunc, true, "globalschedule");
+  // Process nodes in a region by the topology sequence
   for (auto cdgNode : region.GetRegionNodes()) {
     BB *bb = cdgNode->GetBB();
     ASSERT(bb != nullptr, "get bb from cdgNode failed");
@@ -85,15 +83,15 @@ void GlobalSchedule::DoGlobalSchedule(CDGRegion &region) {
     }
 
     MemPool *cdgNodeMp = memPoolCtrler.NewMemPool("global-scheduler cdgNode memPool", true);
-    /* Collect candidate instructions of current cdgNode */
-    InitInCDGNode(region, *cdgNode, cdgNodeMp);
+    // Collect candidate instructions of current cdgNode
+    InitInCDGNode(region, *cdgNode, *cdgNodeMp);
 
-    /* Execute list scheduling */
+    // Execute list scheduling
     listScheduler->SetCDGRegion(region);
     listScheduler->SetCDGNode(*cdgNode);
     listScheduler->DoListScheduling();
 
-    /* Reorder instructions in the current BB based on the scheduling result */
+    // Reorder instructions in the current BB based on the scheduling result
     FinishScheduling(*cdgNode);
 
     if (GLOBAL_SCHEDULE_DUMP) {
@@ -104,11 +102,54 @@ void GlobalSchedule::DoGlobalSchedule(CDGRegion &region) {
   }
 }
 
+void GlobalSchedule::InitInCDGNode(CDGRegion &region, CDGNode &cdgNode, MemPool &cdgNodeMp) {
+  PrepareCommonSchedInfo(region, cdgNode, cdgNodeMp);
+
+  // Init insnNum of curCDGNode
+  InitMachineInsnNum(cdgNode);
+
+  if (GLOBAL_SCHEDULE_DUMP) {
+    DumpCDGNodeInfoBeforeSchedule(cdgNode);
+  }
+}
+
+void GlobalSchedule::PrepareCommonSchedInfo(CDGRegion &region, CDGNode &cdgNode, MemPool &cdgNodeMp) {
+  commonSchedInfo = cdgNodeMp.New<CommonScheduleInfo>(cdgNodeMp);
+  // 1. The instructions of the current node
+  MapleVector<DepNode*> &curDataNodes = cdgNode.GetAllDataNodes();
+  // For verify, the node is stored in reverse order and for global, the node is stored in sequence
+  for (auto *depNode : curDataNodes) {
+    commonSchedInfo->AddCandidates(depNode);
+    depNode->SetState(kCandidate);
+  }
+  // 2. The instructions of the equivalent candidate nodes of the current node
+  std::vector<CDGNode*> equivalentNodes;
+  cda.GetEquivalentNodesInRegion(region, cdgNode, equivalentNodes);
+  for (auto *equivNode : equivalentNodes) {
+    BB *equivBB = equivNode->GetBB();
+    ASSERT(equivBB != nullptr, "get bb from cdgNode failed");
+    if (equivBB->IsAtomicBuiltInBB()) {
+      continue;
+    }
+    for (auto *depNode : equivNode->GetAllDataNodes()) {
+      Insn *insn = depNode->GetInsn();
+      CHECK_FATAL(insn != nullptr, "get insn from depNode failed");
+      // call & branch insns cannot be moved across BB
+      if (insn->IsBranch() || insn->IsCall()) {
+        continue;
+      }
+      commonSchedInfo->AddCandidates(depNode);
+      depNode->SetState(kCandidate);
+    }
+  }
+  listScheduler->SetCommonSchedInfo(*commonSchedInfo);
+}
+
 void GlobalSchedule::ClearCDGNodeInfo(CDGRegion &region, CDGNode &cdgNode, MemPool *cdgNodeMp) {
   std::vector<CDGNode*> equivalentNodes;
   cda.GetEquivalentNodesInRegion(region, cdgNode, equivalentNodes);
-  for (auto equivNode : equivalentNodes) {
-    for (auto depNode : equivNode->GetAllDataNodes()) {
+  for (auto *equivNode : equivalentNodes) {
+    for (auto *depNode : equivNode->GetAllDataNodes()) {
       ASSERT(depNode->GetState() != kScheduled, "update state of depNode failed in finishScheduling");
       depNode->SetState(kNormal);
     }
@@ -133,4 +174,4 @@ bool CgGlobalSchedule::PhaseRun(maplebe::CGFunc &f) {
   return true;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgGlobalSchedule, globalschedule)
-} /* namespace maplebe */
+} // namespace maplebe

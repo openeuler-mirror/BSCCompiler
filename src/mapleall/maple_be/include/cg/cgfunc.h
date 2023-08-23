@@ -189,6 +189,7 @@ class CGFunc {
   void GenerateInstruction();
   bool MemBarOpt(const StmtNode &membar);
   void UpdateCallBBFrequency();
+  void ClearUnreachableBB();
   void HandleFunction();
   void MakeupScopeLabels(BB &bb);
   void ProcessExitBBVec();
@@ -216,6 +217,8 @@ class CGFunc {
   void DumpBBInfo(const BB *bb) const;
   void DumpCGIR() const;
   Operand *HandleExpr(const BaseNode &parent, BaseNode &expr);
+  virtual void AddPseudoRetInsns(BB &bb) = 0;
+  virtual void AddPseudoRetInsnsInExitBBs() = 0;
   virtual void DetermineReturnTypeofCall() = 0;
   /* handle rc reset */
   virtual void HandleRCCall(bool begin, const MIRSymbol *retRef = nullptr) = 0;
@@ -227,7 +230,7 @@ class CGFunc {
   virtual void SelectAbort() = 0;
   virtual void SelectAssertNull(UnaryStmtNode &stmt) = 0;
   virtual void SelectAsm(AsmNode &node) = 0;
-  virtual void SelectAggDassign(const DassignNode &stmt) = 0;
+  virtual void SelectAggDassign(DassignNode &stmt) = 0;
   virtual void SelectIassign(IassignNode &stmt) = 0;
   virtual void SelectIassignoff(IassignoffNode &stmt) = 0;
   virtual void SelectIassignfpoff(IassignFPoffNode &stmt, Operand &opnd) = 0;
@@ -264,11 +267,14 @@ class CGFunc {
   virtual Operand *SelectCAtomicExchangeN(const IntrinsicopNode &intrinsicopNode) = 0;
   virtual Operand *SelectCAtomicFetch(IntrinsicopNode &intrinsicopNode, SyncAndAtomicOp op, bool fetchBefore) = 0;
   virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinsicopNode) = 0;
+  virtual Operand *SelectCAllocaWithAlign(IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectCAtomicExchange(const IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual Operand *SelectCAtomicCompareExchange(const IntrinsicopNode &intrinsicopNode,
                                                 bool isCompareExchangeN = false) = 0;
   virtual Operand *SelectCAtomicTestAndSet(const IntrinsicopNode &intrinsicopNode) = 0;
   virtual void SelectCAtomicClear(const IntrinsiccallNode &intrinsiccallNode) = 0;
+  virtual void SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) = 0;
+  virtual void SelectCclearCache(IntrinsiccallNode &intrinsicopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
   virtual void HandleCatch() = 0;
@@ -540,8 +546,6 @@ class CGFunc {
   }
 
   MIRSymbol *GetRetRefSymbol(BaseNode &expr);
-
-  void PatchLongBranch();
 
   void VerifyAllInsn();
 
@@ -918,10 +922,6 @@ class CGFunc {
     return funcScopeAllocator;
   }
 
-  const MapleAllocator *GetFuncScopeAllocator() const {
-    return funcScopeAllocator;
-  }
-
   const MapleMap<uint32, MIRSymbol*> GetEmitStVec() const {
     return emitStVec;
   }
@@ -1182,6 +1182,14 @@ class CGFunc {
     isAfterRegAlloc = true;
   }
 
+  bool IsEntryCold() {
+    return isEntryCold;
+  }
+
+  void SetIsEntryCold() {
+    isEntryCold = true;
+  }
+
   const MapleString &GetShortFuncName() const {
     return shortFuncName;
   }
@@ -1190,12 +1198,20 @@ class CGFunc {
     return lSymSize;
   }
 
-  bool HasTakenLabel() const{
+  bool HasTakenLabel() const {
     return hasTakenLabel;
   }
 
   void SetHasTakenLabel() {
     hasTakenLabel = true;
+  }
+
+  bool HasLaidOutByPgoUse() const {
+    return hasLaidOutByPgoUse;
+  }
+
+  void SetHasLaidOutByPgoUse() {
+    hasLaidOutByPgoUse = true;
   }
 
   virtual InsnVisitor *NewInsnModifier() = 0;
@@ -1342,7 +1358,9 @@ class CGFunc {
   bool isVolStore = false;
   bool isAfterRegAlloc = false;
   bool isAggParamInReg = false;
+  bool isEntryCold = false;
   bool hasTakenLabel = false;
+  bool hasLaidOutByPgoUse = false;
   bool withSrc = true;
   uint32 frequency = 0;
   DebugInfo *debugInfo = nullptr;  /* debugging info */

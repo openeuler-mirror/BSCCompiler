@@ -509,6 +509,7 @@ bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
 bool A64ConstProp::ReplaceCmpToCmnOrConstPropCmp(DUInsnInfo &useDUInfo, ImmOperand &constOpnd) {
   Insn *useInsn = useDUInfo.GetInsn();
   MOperator curMop = curInsn->GetMachineOpcode();
+  MOperator useMop = useInsn->GetMachineOpcode();
   if (useDUInfo.GetOperands().size() != 1) {
     return false;
   }
@@ -521,7 +522,7 @@ bool A64ConstProp::ReplaceCmpToCmnOrConstPropCmp(DUInsnInfo &useDUInfo, ImmOpera
                                          static_cast<int64>(constOpnd.GetValue());
   if (iVal < 0 && iVal >= kNegativeImmLowerLimit) {
     iVal = iVal * (-1);
-    MOperator newMop = curMop == MOP_wmovri32 ? MOP_wcmnri : MOP_xcmnri;
+    MOperator newMop = useMop == MOP_wcmprr ? MOP_wcmnri : MOP_xcmnri;
     ImmOperand &newOpnd = static_cast<AArch64CGFunc*>(cgFunc)->CreateImmOperand(iVal, constOpnd.GetSize(),
                                                                                 constOpnd.IsSignedValue());
     if (!static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &newOpnd, kInsnThirdOpnd)) {
@@ -537,7 +538,7 @@ bool A64ConstProp::ReplaceCmpToCmnOrConstPropCmp(DUInsnInfo &useDUInfo, ImmOpera
     ReplaceInsnAndUpdateSSA(*useInsn, *newInsn);
     return true;
   } else if (iVal > 0) {
-    MOperator newMop = curMop == MOP_wmovri32 ? MOP_wcmpri : MOP_xcmpri;
+    MOperator newMop = useMop == MOP_wcmprr ? MOP_wcmpri : MOP_xcmpri;
     if (!static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, static_cast<ImmOperand*>(&constOpnd),
                                                                 kInsnThirdOpnd)) {
       return false;
@@ -573,10 +574,11 @@ bool A64ConstProp::MovLslConstToMov(DUInsnInfo &useDUInfo, const ImmOperand &con
       if (curMop == MOP_wlslrri5 || curMop == MOP_xlslrri6) {
         val = static_cast<int64>(static_cast<uint64>(val) << shift);
       } else if (curMop == MOP_wlsrrri5 || curMop == MOP_xlsrrri6 ||
-                 ((curMop == MOP_wasrrri5 || curMop == MOP_xasrrri6) && ((val & (1ULL << k63Bits)) == 0))) {
+                 ((curMop == MOP_wasrrri5 || curMop == MOP_xasrrri6) &&
+                  ((static_cast<uint64>(val) & (1ULL << k63Bits)) == 0))) {
         val = static_cast<int64>(static_cast<uint64>(val) >> shift);
       } else if (((curMop == MOP_wasrrri5 || curMop == MOP_xasrrri6) &&
-                 ((val & (1ULL << k63Bits)) == (1ULL << k63Bits)))) {
+                 ((static_cast<uint64>(val) & (1ULL << k63Bits)) == (1ULL << k63Bits)))) {
         uint64 leadOnes = ~(ULLONG_MAX >> shift);
         val = static_cast<int64>((static_cast<uint64>(val) >> shift) | leadOnes);
       } else {
@@ -1022,11 +1024,6 @@ MemOperand *A64StrLdrProp::SelectReplaceMem(const MemOperand &currMemOpnd) {
         int64 val = ofstOpnd->GetValue();
         auto *offset1 = static_cast<StImmOperand*>(&defInsn->GetOperand(kInsnThirdOpnd));
         CHECK_FATAL(offset1 != nullptr, "offset1 is null!");
-        // this restriction is for 'ldr' insn whose second operand has wrong alignment
-        if (offset1->GetSymbol() && offset1->GetSymbol()->IsConst() &&
-            offset1->GetSymbol()->GetSymbolAlign(CGOptions::IsArm64ilp32()) != kAlignOfU8) {
-          break;
-        }
         val += offset1->GetOffset();
         OfstOperand *newOfsetOpnd = &static_cast<AArch64CGFunc*>(cgFunc)->CreateOfstOpnd(static_cast<uint64>(val),
             k32BitSize);
@@ -2688,10 +2685,7 @@ bool A64PregCopyPattern::HasValidDefInsnDependency() {
 bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
   std::unordered_map<uint32, bool> visited;
   std::vector<regno_t> visitedPhiDefs;
-  if (defInsn.IsPhi()) {
-    (void)visitedPhiDefs.emplace_back(
-        static_cast<RegOperand&>(defInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber());
-  }
+  visitedPhiDefs.emplace_back(static_cast<RegOperand&>(defInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber());
   if (!DFSFindValidDefInsns(&defInsn, visitedPhiDefs, visited)) {
     return false;
   }
@@ -2746,6 +2740,10 @@ bool A64PregCopyPattern::CheckPhiCaseCondition(Insn &defInsn) {
       }
     }
     if (differIdx <= 0) {
+      return false;
+    }
+    auto defRegNO = static_cast<RegOperand&>(defInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+    if (differOrigNO == optSsaInfo->FindSSAVersion(defRegNO)->GetOriginalRegNO()) {
       return false;
     }
   }
@@ -2879,8 +2877,8 @@ Insn &A64PregCopyPattern::CreateNewPhiInsn(std::unordered_map<uint32, RegOperand
   optSsaInfo->CreateNewInsnSSAInfo(phiInsn);
   BB *bb = curInsn->GetBB();
   (void)bb->InsertInsnBefore(*curInsn, phiInsn);
-  /* <phiDef-ssaRegNO, phiInsn> */
-  bb->AddPhiInsn(differOrigNO, phiInsn);
+  // phiDef-ssaRegNO, phiInsn
+  bb->AddPhiInsn(static_cast<RegOperand&>(phiInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber(), phiInsn);
   return phiInsn;
 }
 
@@ -2912,7 +2910,7 @@ RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vecto
     VRegVersion *version = optSsaInfo->FindSSAVersion(ssaRegNO);
     (void)validDifferOrigRegNOs.insert(version->GetOriginalRegNO());
   }
-  MapleMap<regno_t, Insn*> &phiInsns = phiInsn.GetBB()->GetPhiInsns();
+ auto &phiInsns = phiInsn.GetBB()->GetPhiInsns();
   for (auto &phiIt : as_const(phiInsns)) {
     auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
     VRegVersion *defVersion = optSsaInfo->FindSSAVersion(def.GetRegisterNumber());
@@ -3031,16 +3029,8 @@ void A64PregCopyPattern::Optimize(Insn &insn) {
       }
     }
   } else {
-    std::vector<regno_t> validDifferRegNOs;
-    for (Insn *vdInsn : validDefInsns) {
-      auto &vdOpnd = static_cast<RegOperand&>(vdInsn->GetOperand(static_cast<uint32>(differIdx)));
-      (void)validDifferRegNOs.emplace_back(vdOpnd.GetRegisterNumber());
-    }
-    RegOperand *differPhiDefOpnd = CheckAndGetExistPhiDef(*firstPhiInsn, validDifferRegNOs);
-    if (differPhiDefOpnd == nullptr) {
-      std::unordered_map<uint32, RegOperand*> visited;
-      differPhiDefOpnd = &DFSBuildPhiInsn(firstPhiInsn, visited);
-    }
+    std::unordered_map<uint32, RegOperand*> visited;
+    auto *differPhiDefOpnd = &DFSBuildPhiInsn(firstPhiInsn, visited);
     CHECK_FATAL(differPhiDefOpnd, "get differPhiDefOpnd failed");
     for (uint32 i = 0; i < opndNum; ++i) {
       if (defInsn->OpndIsDef(i)) {

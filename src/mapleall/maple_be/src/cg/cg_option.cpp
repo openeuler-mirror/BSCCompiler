@@ -103,6 +103,7 @@ bool CGOptions::doVregRename = false;
 bool CGOptions::doMultiPassColorRA = true;
 bool CGOptions::doPrePeephole = false;
 bool CGOptions::doPeephole = false;
+bool CGOptions::doPostRASink = false;
 bool CGOptions::doRetMerge = false;
 bool CGOptions::doSchedule = false;
 bool CGOptions::doWriteRefFieldOpt = false;
@@ -128,6 +129,7 @@ CGOptions::ABIType CGOptions::abiType = kABIHard;
 CGOptions::EmitFileType CGOptions::emitFileType = kAsm;
 bool CGOptions::genLongCalls = false;
 bool CGOptions::functionSections = false;
+bool CGOptions::dataSections = false;
 CGOptions::FramePointerType CGOptions::useFramePointer = kNoneFP;
 bool CGOptions::gcOnly = false;
 bool CGOptions::quiet = false;
@@ -157,6 +159,7 @@ bool CGOptions::doAggrOpt = false;
 CGOptions::VisibilityType CGOptions::visibilityType = kDefaultVisibility;
 CGOptions::TLSModel CGOptions::tlsModel = kDefaultTLSModel;
 bool CGOptions::noplt = false;
+bool CGOptions::doCGMemAlias = false;
 
 CGOptions &CGOptions::GetInstance() {
   static CGOptions instance;
@@ -224,30 +227,28 @@ bool CGOptions::SolveOptions(bool isDebug) {
     SetQuiet(false);
   }
 
-  if (opts::cg::fpie.IsEnabledByUser() || opts::cg::fPIE.IsEnabledByUser()) {
-    if (opts::cg::fPIE && opts::cg::fPIE.IsEnabledByUser()) {
-      SetPIEOptionHelper(kLargeMode);
-    } else if (opts::cg::fpie && opts::cg::fpie.IsEnabledByUser()) {
-      SetPIEOptionHelper(kSmallMode);
+  if (opts::fpie.IsEnabledByUser() || opts::fPIE.IsEnabledByUser()) {
+    if (opts::fPIE && opts::fPIE.IsEnabledByUser()) {
+      SetOption(CGOptions::kGenPie);
+      SetOption(CGOptions::kGenPic);
+    } else if (opts::fpie && opts::fpie.IsEnabledByUser()) {
+      SetOption(CGOptions::kGenPie);
+      SetOption(CGOptions::kGenPic);
     } else {
-      SetPIEMode(kClose);
       ClearOption(CGOptions::kGenPie);
     }
   }
 
-  if (opts::cg::fpic.IsEnabledByUser() || opts::cg::fPIC.IsEnabledByUser()) {
+  if (opts::fpic.IsEnabledByUser() || opts::fPIC.IsEnabledByUser()) {
     /* To avoid fpie mode being modified twice, need to ensure fpie is not opened. */
-    if (!opts::cg::fpie && !opts::cg::fpie.IsEnabledByUser() && !opts::cg::fPIE.IsEnabledByUser() && !opts::cg::fPIE) {
-      if (opts::cg::fPIC && opts::cg::fPIC.IsEnabledByUser()) {
-        SetPICOptionHelper(kLargeMode);
-        SetPIEMode(kClose);
+    if (!opts::fpie && !opts::fpie.IsEnabledByUser() && !opts::fPIE.IsEnabledByUser() && !opts::fPIE) {
+      if (opts::fPIC && opts::fPIC.IsEnabledByUser()) {
+        SetOption(CGOptions::kGenPic);
         ClearOption(CGOptions::kGenPie);
-      } else if (opts::cg::fpic && opts::cg::fpic.IsEnabledByUser()) {
-        SetPICOptionHelper(kSmallMode);
-        SetPIEMode(kClose);
+      } else if (opts::fpic && opts::fpic.IsEnabledByUser()) {
+        SetOption(CGOptions::kGenPic);
         ClearOption(CGOptions::kGenPie);
       } else {
-        SetPICMode(kClose);
         ClearOption(CGOptions::kGenPic);
       }
     }
@@ -629,7 +630,11 @@ bool CGOptions::SolveOptions(bool isDebug) {
   }
 
   if (opts::cg::unwindTables.IsEnabledByUser()) {
-    SetOption(kUseUnwindTables);
+    if (opts::cg::unwindTables) {
+      SetOption(kUseUnwindTables);
+    } else {
+      ClearOption(kUseUnwindTables);
+    }
   }
 
   if (opts::cg::nativeopt.IsEnabledByUser()) {
@@ -650,6 +655,10 @@ bool CGOptions::SolveOptions(bool isDebug) {
 
   if (opts::cg::functionSections.IsEnabledByUser()) {
     opts::cg::functionSections ? EnableFunctionSections() : DisableFunctionSections();
+  }
+
+  if (opts::cg::dataSections.IsEnabledByUser()) {
+    opts::cg::dataSections ? EnableDataSections() : DisableDataSections();
   }
 
   if (opts::cg::omitLeafFramePointer.IsEnabledByUser()) {
@@ -884,6 +893,7 @@ void CGOptions::EnableO0() {
   doICO = false;
   doPrePeephole = false;
   doPeephole = false;
+  doPostRASink = false;
   doStoreLoadOpt = false;
   doGlobalOpt = false;
   doPreRAOpt = false;
@@ -899,6 +909,7 @@ void CGOptions::EnableO0() {
   doCondBrAlign = false;
   doLoopAlign = false;
   doAggrOpt = false;
+  doCGMemAlias = false;
   SetOption(kUseUnwindTables);
   if (maple::Triple::GetTriple().GetEnvironment() == Triple::kGnuIlp32) {
     ClearOption(kUseStackProtectorStrong);
@@ -932,6 +943,7 @@ void CGOptions::EnableO2() {
   doICO = true;
   doPrePeephole = true;
   doPeephole = true;
+  doPostRASink = true;
   doStoreLoadOpt = true;
   doGlobalOpt = true;
   doPreSchedule = true;
@@ -941,6 +953,7 @@ void CGOptions::EnableO2() {
   doLoopAlign = true;
   doRetMerge = true;
   doAggrOpt = true;
+  doCGMemAlias = true;
   SetOption(kConstFold);
   SetOption(kUseUnwindTables);
   ClearOption(kUseStackProtectorStrong);
@@ -993,6 +1006,7 @@ void CGOptions::EnableLiteCG() {
   doAlignAnalysis = false;
   doCondBrAlign = false;
   doAggrOpt = false;
+  doCGMemAlias = false;
 
   ClearOption(kUseStackProtectorStrong);
   ClearOption(kUseStackProtectorAll);

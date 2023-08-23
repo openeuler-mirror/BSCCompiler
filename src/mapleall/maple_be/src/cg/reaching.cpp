@@ -556,10 +556,10 @@ void ReachingDefinition::InitRegAndMemInfo(const BB &bb) {
   }
 }
 
-/* insert pseudoInsns for function parameters, ehBB, and return R0/V0. init bb->gen, bb->use, bb->out */
+// Insert pseudoInsns for function parameters, ehBB, and return R0/V0. init bb->gen, bb->use, bb->out.
+// We already insert pseudo-ret-insns in exit BBs in handleFunction.
 void ReachingDefinition::Initialize() {
   InitDataSize();
-  AddRetPseudoInsns();
   FOR_ALL_BB(bb, cgFunc) {
     InitRegAndMemInfo(*bb);
   }

@@ -18,6 +18,7 @@
 #include "mempool_allocator.h"
 #include "ver_symbol.h"
 #include "ssa_mir_nodes.h"
+#include "maple_phase.h"
 
 namespace maple {
 

@@ -17,72 +17,31 @@
 from api import *
 
 CO2_PIE = {
-    "compile_main": [
-        C2ast(
-            clang="${ENHANCED_CLANG_PATH}/bin/clang",
-            include_path=[
-                "${MAPLE_BUILD_OUTPUT}/lib/include",
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
-                "../lib/include"
-            ],
-            option="--target=aarch64 -U __SIZEOF_INT128__ -Wno-error=int-conversion",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O2 --quiet",
-                "mpl2mpl": "-O2",
-                "mplcg": "-O2 --fPIC --fPIE --quiet"
-            },
-            global_option="",
-            infiles=["${APP}.mpl"]
-        )
-    ],
     "compile": [
-        C2ast(
-            clang="${ENHANCED_CLANG_PATH}/bin/clang",
+        MapleDriver(
+            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
+            infiles=["${APP}.c"],
+            outfile="${APP}.s",
             include_path=[
                 "${MAPLE_BUILD_OUTPUT}/lib/include",
                 "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
                 "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
-                "../lib/include"
+                "../lib/include",
+                "${MAPLE_ROOT}/testsuite/c_test/csmith_test/runtime_x86"
             ],
-            option="--target=aarch64 -U __SIZEOF_INT128__",
-            infile="${APP}.c",
-            outfile="${APP}.ast"
-        ),
-        Hir2mpl(
-            hir2mpl="${MAPLE_BUILD_OUTPUT}/bin/hir2mpl",
-            infile="${APP}.ast",
-            outfile="${APP}.mpl"
-        ),
-        Maple(
-            maple="${MAPLE_BUILD_OUTPUT}/bin/maple",
-            run=["me", "mpl2mpl", "mplcg"],
-            option={
-                "me": "-O2 --quiet",
-                "mpl2mpl": "-O2",
-                "mplcg": "-O2 --fPIC --fPIE --quiet"
-            },
-            global_option="",
-            infiles=["${APP}.mpl"]
-        ),
-        CLinker(
-            infiles=["main.s", "${APP}.s"],
-            front_option="-pie",
-            outfile="${APP}.out",
-            back_option="-lm"
+            option="-O2 -fPIC -fPIE -S -g -lpthread -lm --save-temps -Wno-error=int-conversion"
         )
     ],
+    "link": [
+        MapleDriver(
+            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
+            infiles=["${APP}"],
+            outfile="${TARGET}.out",
+            option="-std=gnu99 -lm -L${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib/",
+            extra_opt="-pie"
+         )
+    ],
+
     "run": [
         Shell(
             "${MAPLE_ROOT}/tools/bin/qemu-aarch64 -L ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc ${APP}.out > output.log 2>&1"
@@ -90,6 +49,6 @@ CO2_PIE = {
         CheckFileEqual(
             file1="output.log",
             file2="expected.txt"
-	)
+        )
     ]
 }

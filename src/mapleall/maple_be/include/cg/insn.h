@@ -19,13 +19,15 @@
 #include <string>
 #include <vector>
 #include <list>
+/* Maple CG headers */
 #include "operand.h"
-#include "mpl_logging.h"
 #include "isa.h"
-
-/* Maple IR header */
-#include "types_def.h"  /* for uint32 */
 #include "common_utils.h"
+/* Maple IR headers */
+#include "types_def.h"  /* for uint32 */
+/* Maple Util headers */
+#include "mpl_logging.h"
+#include "mem_reference_table.h" /* for alias */
 
 namespace maplebe {
 /* forward declaration */
@@ -79,11 +81,11 @@ struct VectorRegSpec {
 class Insn {
  public:
   enum RetType : uint8 {
-    kRegNull,   /* no return type */
-    kRegFloat,  /* return register is V0 */
-    kRegInt     /* return register is R0 */
+    kRegNull,   // no return type
+    kRegFloat,  // return register is V0
+    kRegInt     // return register is R0
   };
-  /* MCC_DecRefResetPair clear 2 stack position, MCC_ClearLocalStackRef clear 1 stack position */
+  // MCC_DecRefResetPair clear 2 stack position, MCC_ClearLocalStackRef clear 1 stack position
   static constexpr uint8 kMaxStackOffsetSize = 2;
   static constexpr int32 kUnknownProb = -1;
 
@@ -120,6 +122,19 @@ class Insn {
     opnds.emplace_back(&opnd4);
   }
   virtual ~Insn() = default;
+
+  // Custom deep copy
+  virtual Insn *CloneTree(MapleAllocator &allocator) const {
+    auto *insn = allocator.GetMemPool()->New<Insn>(*this);
+    insn->opnds.clear();
+    for (auto opnd : opnds) {
+      (void)insn->opnds.emplace_back(opnd->CloneTree(allocator));
+    }
+    return insn;
+  }
+
+  // Default shallow copy
+  Insn *Clone(const MemPool /* &memPool */) const;
 
   MOperator GetMachineOpcode() const {
     return mOp;
@@ -225,6 +240,7 @@ class Insn {
   bool IsStore() const;
   bool IsConversion() const;
   bool IsAtomic() const;
+  bool IsCondDef() const;
 
   bool IsLoadPair() const;
   bool IsStorePair() const;
@@ -281,14 +297,6 @@ class Insn {
   virtual ListOperand *GetCallArgumentOperand();
   bool IsAtomicStore() const {
     return IsStore() && IsAtomic();
-  }
-
-  void SetCondDef() {
-    flags |= kOpCondDef;
-  }
-
-  bool IsCondDef() const {
-    return flags & kOpCondDef;
   }
 
   bool AccessMem() const {
@@ -574,8 +582,6 @@ class Insn {
     return isPhiMovInsn;
   }
 
-  Insn *Clone(const MemPool /* &memPool */) const;
-
   void SetInsnDescrption(const InsnDesc &newMD) {
     md = &newMD;
   }
@@ -626,7 +632,7 @@ class Insn {
   void ClearRegSpecList() {
     regSpecList.clear();
   }
-  int32 GetProb() {
+  int32 GetProb() const {
     return probability;
   }
   void SetProb(int prob) {
@@ -655,6 +661,14 @@ class Insn {
     return *this;
   }
 
+  void SetReferenceOsts(MemDefUse *memDefUse) {
+    referenceOsts = memDefUse;
+  }
+
+  const MemDefUse *GetReferenceOsts() const {
+    return referenceOsts;
+  }
+
  protected:
   MOperator mOp;
   MapleAllocator localAlloc;
@@ -671,7 +685,6 @@ class Insn {
   MapleList<VectorRegSpec*> regSpecList;
   enum OpKind : uint32 {
     kOpUnknown = 0,
-    kOpCondDef = 0x1,
     kOpAccessRefField = (1ULL << 30),  /* load-from/store-into a ref flag-fieldGetMachineOpcode() */
     kOpDassignToSaveRetValToLocal = (1ULL << 31) /* save return value to local flag */
   };
@@ -708,7 +721,15 @@ class Insn {
    */
   bool processRHS = false;
   // for jmp insn, probability is the prob for jumping
-  int32 probability = kUnknownProb; 
+  int32 probability = kUnknownProb;
+
+  /*
+   * This field indicates the OstIdx list referenced by memory-related and call-related instructions,
+   * the alias information is transferred from ME.
+   * If the field is nullptr, the memory location referenced by the instruction is unknown,
+   * and needs to be processed conservatively.
+   */
+  MemDefUse *referenceOsts = nullptr;
 };
 
 struct InsnIdCmp {

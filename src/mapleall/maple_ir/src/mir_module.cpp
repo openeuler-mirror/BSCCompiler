@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mir_module.h"
+#include <algorithm>
 #include "mir_const.h"
 #include "mir_preg.h"
 #include "mir_function.h"
@@ -53,7 +54,8 @@ MIRModule::MIRModule(const std::string &fn)
       partO2FuncList(memPoolAllocator.Adapter()),
       safetyWarningMap(memPoolAllocator.Adapter()),
       tdataVarOffset(memPoolAllocator.Adapter()),
-      tbssVarOffset(memPoolAllocator.Adapter()) {
+      tbssVarOffset(memPoolAllocator.Adapter()),
+      tlsVarOffset(memPoolAllocator.Adapter()) {
   GlobalTables::GetGsymTable().SetModule(this);
   typeNameTab = memPool->New<MIRTypeNameTable>(memPoolAllocator);
   mirBuilder = memPool->New<MIRBuilder>(this);
@@ -61,6 +63,9 @@ MIRModule::MIRModule(const std::string &fn)
   scope = memPool->New<MIRScope>(this, nullptr);
   scope->SetIsLocal(false);
   IntrinDesc::InitMIRModule(this);
+  if (opts::aggressiveTlsWarmupFunction.IsEnabledByUser()) {
+    SetTlsWarmupFunction(opts::aggressiveTlsWarmupFunction.GetValue());
+  }
 }
 
 MIRModule::~MIRModule() {
@@ -304,6 +309,14 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
     }
     if (scope && !scope->IsEmpty()) {
       scope->Dump(0);
+    }
+  }
+  auto pragmaVector = GlobalTables::GetGPragmaTable().GetPragmaTable();
+  if (pragmaVector.size() != 0) {
+    for (CPragma *pragma : pragmaVector) {
+      if (pragma != nullptr) {
+        pragma->Dump();
+      }
     }
   }
 }
@@ -710,6 +723,16 @@ void MIRModule::OutputAsciiMpl(const char *phaseName, const char *suffix,
   }
   LogInfo::MapleLogger().rdbuf(backup);  // restore cout's buffer
   mplFile.close();
+}
+
+void MIRModule::SetFileName(const std::string &name) {
+  fileName = name;
+  fltoFileName = name;
+  std::string rootPath = opts::rootPath.GetValue();
+  uint8_t strNum = count(rootPath.begin(), rootPath.end(), '/');
+  if (strNum > 1) {
+    fltoFileName = fltoFileName.replace(0, rootPath.size(), "/");
+  }
 }
 
 uint32 MIRModule::GetFileinfo(GStrIdx strIdx) const {

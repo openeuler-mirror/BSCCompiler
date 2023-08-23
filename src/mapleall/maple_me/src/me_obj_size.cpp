@@ -29,6 +29,7 @@ const std::map<std::string, std::string> kReplacedFuncPairs {
     {"__memset_chk", "memset"},
     {"__strncpy_chk", "strncpy"},
     {"__strcpy_chk", "strcpy"},
+    {"__stpncpy_chk", "stpncpy"},
     {"__stpcpy_chk", "stpcpy"},
     {"__strcat_chk", "strcat"},
     {"__strncat_chk", "strncat"},
@@ -156,7 +157,13 @@ void OBJSize::DealWithBuiltinObjectSize(BB &bb, MeStmt &meStmt) {
     ERRWhenSizeTypeIsInvalid(meStmt);
   }
   auto *opnd0 = intrinsiccall.GetOpnd(0);
-  auto size = ComputeObjectSizeWithType(*opnd0, type);
+  // If the least significant bit is clear, objects are whole variables, if it is set,
+  // a closest surrounding subobject is considered the object a pointer points to.
+  bool getSizeOfWholeVar = (type == kTypeZero || type == kTypeTwo);
+  // If the pointer points to multiple objects at compile time,
+  // The second bit determines whether computes the maximum or minimum of the remaining byte counts in those objects.
+  bool getMaxSizeOfObjs = (type == kTypeZero || type == kTypeOne);
+  auto size = ComputeObjectSizeWithType(*opnd0, getSizeOfWholeVar, getMaxSizeOfObjs);
   if (IsInvalidSize(size)) {
     // __builtin_object_size
     // inputType = 0 or 1 return -1
@@ -208,7 +215,7 @@ size_t OBJSize::DealWithSprintfAndVsprintf(const CallMeStmt &callMeStmt, const M
     auto *src = callMeStmt.GetOpnd(4);
     src = GetStrMeExpr(*src);
     if (src != nullptr) {
-      return ComputeObjectSizeWithType(*src, 0);
+      return ComputeObjectSizeWithType(*src, true, true);
     }
   }
   return kInvalidDestSize;
@@ -270,8 +277,7 @@ void OBJSize::ComputeObjectSize(MeStmt &meStmt) {
   }
   auto *destSizeOpnd = callMeStmt.GetOpnd(itOfIndex->second.second);
   size_t destSize = 0;
-  int type = 0;
-  destSize = ComputeObjectSizeWithType(*destSizeOpnd, type);
+  destSize = ComputeObjectSizeWithType(*destSizeOpnd, true, true);
   if (destSize == 0 || destSize == kInvalidDestSize) {
     // The length information of dest is unknown during compilation.
     ReplaceStmt(callMeStmt, it->second);
@@ -282,7 +288,7 @@ void OBJSize::ComputeObjectSize(MeStmt &meStmt) {
     srcSize = DealWithSprintfAndVsprintf(callMeStmt, *calleeFunc);
   } else {
     MeExpr *srcSizeOpnd = callMeStmt.GetOpnd(itOfIndex->second.first);
-    srcSize = ComputeObjectSizeWithType(*srcSizeOpnd, 0);
+    srcSize = ComputeObjectSizeWithType(*srcSizeOpnd, true, true);
   }
   if (IsInvalidSize(srcSize)) {
     // The length information of src is unknown during compilation.
@@ -321,7 +327,7 @@ size_t OBJSize::DealWithAddrof(const MeExpr &opnd, bool getSizeOfWholeVar) const
   return structMIRType->GetSize() - static_cast<uint64>(offset / kBitsPerByte);
 }
 
-size_t OBJSize::DealWithIaddrof(const MeExpr &opnd, int64 type, bool getSizeOfWholeVar) const {
+size_t OBJSize::DealWithIaddrof(const MeExpr &opnd, bool getSizeOfWholeVar, bool getMaxSizeOfObjs) const {
   auto &iaddrofMeExpr = static_cast<const OpMeExpr&>(opnd);
   auto fieldIDOfIaddrof = iaddrofMeExpr.GetFieldID();
   auto *typeOfBase = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrofMeExpr.GetTyIdx());
@@ -331,14 +337,14 @@ size_t OBJSize::DealWithIaddrof(const MeExpr &opnd, int64 type, bool getSizeOfWh
   if (typeOfBase->GetKind() == kTypePointer) {
     typeOfBase = static_cast<MIRPtrType*>(typeOfBase)->GetPointedType();
   }
-  if (typeOfBase->GetKind() != kTypeStruct) {
+  if (typeOfBase->GetKind() != kTypeStruct && typeOfBase->GetKind() != kTypeUnion) {
     return kInvalidDestSize;
   }
   if (!getSizeOfWholeVar) {
     // When an array is the last field of a struct, when calculating the size,
     // you cannot only calculate the length of the array, but use the array as a pointer to calculate the size
     // between the start address of the array and the end address of the struct object.
-    if (fieldIDOfIaddrof != static_cast<FieldID>(static_cast<MIRStructType*>(typeOfBase)->GetFieldsSize()) ||
+    if (fieldIDOfIaddrof != static_cast<FieldID>(static_cast<MIRStructType*>(typeOfBase)->NumberOfFieldIDs()) ||
         static_cast<MIRStructType*>(typeOfBase)->GetFieldType(fieldIDOfIaddrof)->GetKind() != kTypeArray ||
         !iaddrofMeExpr.GetOpnd(0)->IsLeaf()) {
       return static_cast<MIRStructType*>(typeOfBase)->GetFieldType(fieldIDOfIaddrof)->GetSize();
@@ -348,7 +354,7 @@ size_t OBJSize::DealWithIaddrof(const MeExpr &opnd, int64 type, bool getSizeOfWh
     return kInvalidDestSize;
   }
   auto *iaddrofOpnd0 = iaddrofMeExpr.GetOpnd(0);
-  auto sizeOfIaddrofOpnd0 = ComputeObjectSizeWithType(*iaddrofOpnd0, type);
+  auto sizeOfIaddrofOpnd0 = ComputeObjectSizeWithType(*iaddrofOpnd0, true, getMaxSizeOfObjs);
   if (IsInvalidSize(sizeOfIaddrofOpnd0)) {
     return kInvalidDestSize;
   }
@@ -406,7 +412,7 @@ bool OBJSize::PhiOpndIsDefPointOfOtherPhi(MeExpr &expr, std::set<MePhiNode*> &vi
   return false;
 }
 
-size_t OBJSize::DealWithDread(MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) const {
+size_t OBJSize::DealWithDread(MeExpr &opnd, bool getSizeOfWholeVar, bool getMaxSizeOfObjs) const {
   if (!opnd.IsScalar()) {
     return kInvalidDestSize;
   }
@@ -419,8 +425,9 @@ size_t OBJSize::DealWithDread(MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) c
     auto &phi = scalarMeExpr.GetDefPhi();
     size_t size = getMaxSizeOfObjs ? 0 : std::numeric_limits<uint64_t>::max();
     for (size_t i = 0; i < phi.GetOpnds().size(); ++i) {
-      size = getMaxSizeOfObjs ? std::max(ComputeObjectSizeWithType(*phi.GetOpnd(i), type), size) :
-          std::min(ComputeObjectSizeWithType(*phi.GetOpnd(i), type), size);
+      size = getMaxSizeOfObjs ?
+          std::max(ComputeObjectSizeWithType(*phi.GetOpnd(i), getSizeOfWholeVar, getMaxSizeOfObjs), size) :
+          std::min(ComputeObjectSizeWithType(*phi.GetOpnd(i), getSizeOfWholeVar, getMaxSizeOfObjs), size);
     }
     return size;
   }
@@ -440,7 +447,7 @@ size_t OBJSize::DealWithDread(MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) c
     }
   }
   if (scalarMeExpr.GetDefBy() == kDefByStmt) {
-    return ComputeObjectSizeWithType(*scalarMeExpr.GetDefStmt()->GetRHS(), type);
+    return ComputeObjectSizeWithType(*scalarMeExpr.GetDefStmt()->GetRHS(), getSizeOfWholeVar, getMaxSizeOfObjs);
   }
   auto *mirType = scalarMeExpr.GetOst()->GetType();
   if (mirType->IsMIRPtrType()) {
@@ -455,7 +462,7 @@ size_t OBJSize::DealWithDread(MeExpr &opnd, int64 type, bool getMaxSizeOfObjs) c
   return size;
 }
 
-size_t OBJSize::DealWithArray(const MeExpr &opnd, int64 type) const {
+size_t OBJSize::DealWithArray(const MeExpr &opnd, bool getSizeOfWholeVar, bool getMaxSizeOfObjs) const {
   if (opnd.GetNumOpnds() != kNumOperands) {
     return kInvalidDestSize;
   }
@@ -465,8 +472,8 @@ size_t OBJSize::DealWithArray(const MeExpr &opnd, int64 type) const {
   if (elemType == nullptr) {
     return kInvalidDestSize;
   }
-  auto size1 = ComputeObjectSizeWithType(*opnd0, type);
-  auto size2 = ComputeObjectSizeWithType(*opnd1, type);
+  auto size1 = ComputeObjectSizeWithType(*opnd0, getSizeOfWholeVar, getMaxSizeOfObjs);
+  auto size2 = ComputeObjectSizeWithType(*opnd1, getSizeOfWholeVar, getMaxSizeOfObjs);
   if (IsInvalidSize(size1) || IsInvalidSize(size2)) {
     return kInvalidDestSize;
   }
@@ -476,38 +483,31 @@ size_t OBJSize::DealWithArray(const MeExpr &opnd, int64 type) const {
 // This function returns the size of object and
 // If it is not possible to determine which objects ptr points to at compile time,
 // should return (size_t) -1 for type 0 or 1 and (size_t) 0 for type 2 or 3.
-size_t OBJSize::ComputeObjectSizeWithType(MeExpr &opnd, int64 type) const {
-  // If the least significant bit is clear, objects are whole variables, if it is set,
-  // a closest surrounding subobject is considered the object a pointer points to.
-  bool getSizeOfWholeVar = (type == kTypeZero || type == kTypeTwo);
-  // If the pointer points to multiple objects at compile time,
-  // The second bit determines whether computes the maximum or minimum of the remaining byte counts in those objects.
-  bool getMaxSizeOfObjs = (type == kTypeZero || type == kTypeOne);
-
+size_t OBJSize::ComputeObjectSizeWithType(MeExpr &opnd, bool getSizeOfWholeVar, bool getMaxSizeOfObjs) const {
   switch (opnd.GetOp()) {
     case OP_addrof: {
       return DealWithAddrof(opnd, getSizeOfWholeVar);
     }
     case OP_iaddrof: {
-      return DealWithIaddrof(opnd, type, getSizeOfWholeVar);
+      return DealWithIaddrof(opnd, getSizeOfWholeVar, getMaxSizeOfObjs);
     }
     case OP_dread: {
-      return DealWithDread(opnd, type, getMaxSizeOfObjs);
+      return DealWithDread(opnd, getSizeOfWholeVar, getMaxSizeOfObjs);
     }
     case OP_add:
     case OP_sub: {
       if (opnd.GetNumOpnds() != kNumOperands) {
         return kInvalidDestSize;
       }
-      auto size1 = ComputeObjectSizeWithType(*opnd.GetOpnd(0), type);
-      auto size2 = ComputeObjectSizeWithType(*opnd.GetOpnd(1), type);
+      auto size1 = ComputeObjectSizeWithType(*opnd.GetOpnd(0), getSizeOfWholeVar, getMaxSizeOfObjs);
+      auto size2 = ComputeObjectSizeWithType(*opnd.GetOpnd(1), getSizeOfWholeVar, getMaxSizeOfObjs);
       if (IsInvalidSize(size1) || IsInvalidSize(size2)) {
         return kInvalidDestSize;
       }
       return (opnd.GetOp() == OP_add || opnd.GetOp() == OP_array) ? (size1 - size2) : (size1 + size2);
     }
     case OP_array: {
-      return DealWithArray(opnd, type);
+      return DealWithArray(opnd, getSizeOfWholeVar, getMaxSizeOfObjs);
     }
     case OP_constval: {
       auto &constMeExpr = static_cast<ConstMeExpr&>(opnd);

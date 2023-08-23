@@ -27,8 +27,7 @@ class AArch64DataDepBase : public DataDepBase {
 
   void InitCDGNodeDataInfo(MemPool &mp, MapleAllocator &alloc, CDGNode &cdgNode) override;
   bool IsFrameReg(const RegOperand &opnd) const override;
-  bool NeedBuildDepsForStackMem(const Insn &memInsn1, const Insn &memInsn2) const;
-  bool NeedBuildDepsForHeapMem(const Insn &memInsn1, const Insn &memInsn2) const;
+  Insn *GetMemBaseDefInsn(const Insn &memInsn) const;
 
   void AnalysisAmbiInsns(BB &bb) override;
 
@@ -60,4 +59,4 @@ class AArch64DataDepBase : public DataDepBase {
 };
 }
 
-#endif  /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_DATA_DEP_BASE_H */
+#endif  // MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_DATA_DEP_BASE_H

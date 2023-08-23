@@ -35,7 +35,7 @@ char *Foo (char *str)
 char *Foo1 (union tree_node * num_string)
 {
   // CHECK: LOC {{.*}} 39 16
-  // CHECK-NEXT:   dassign %anon.union.80 1 (iaddrof ptr <* <$tree_node_MNO2304581391>> 2 (dread ptr %__t_40_63))
+  // CHECK-NEXT:   dassign %anon.union.80 1 (iaddrof ptr <* <$tree_node{{.*}}>> 2 (dread ptr %__t_40_63))
   char *str = ((union {const char * _q; char * _nq;})
                ((const char *)(({ __typeof (num_string) const __t
                                      = num_string;  __t; })

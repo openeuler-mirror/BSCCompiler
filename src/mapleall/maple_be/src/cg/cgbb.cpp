@@ -56,7 +56,9 @@ Insn *BB::InsertInsnAfter(Insn &existing, Insn &newInsn) {
     newInsn.GetNext()->SetPrev(&newInsn);
   }
   newInsn.SetBB(this);
-  internalFlag1++;
+  if (newInsn.IsMachineInstruction()) {
+    internalFlag1++;
+  }
   return &newInsn;
 }
 

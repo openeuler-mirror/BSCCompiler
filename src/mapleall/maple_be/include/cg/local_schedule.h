@@ -38,15 +38,12 @@ class LocalSchedule : public BaseSchedule {
  protected:
   void InitInCDGNode(CDGNode &cdgNode);
   virtual void FinishScheduling(CDGNode &cdgNode) = 0;
-  void DumpInsnInfoByScheduledOrder(CDGNode &cdgNode) const override {
-      (void)cdgNode;
-  }
 
   DataDepAnalysis &intraDDA;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLocalSchedule, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
-} /* namespace maplebe */
+} // namespace maplebe
 
 #endif  // MAPLEBE_INCLUDE_CG_LOCAL_SCHEDULE_H

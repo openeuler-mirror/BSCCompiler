@@ -220,7 +220,7 @@ void GInline::PrintGInlineReport() const {
 }
 
 // We try to inline shallow small callee (especially with inline attr), ignoring overall growth limit
-bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) const {
+bool GInline::CanIgnoreGrowthLimit(CallSiteNode &callSiteNode) const {
   auto ifCode = callSiteNode.GetCallInfo()->GetInlineFailedCode();
   if (ifCode == kIfcInlineList || ifCode == kIfcInlineListCallsite || ifCode == kIfcHardCoded ||
       ifCode == kIfcProfileHotCallsite) {
@@ -233,12 +233,12 @@ bool GInline::CanIgnoreGrowthLimit(const CallSiteNode &callSiteNode) const {
   if (depth > Options::ginlineMaxDepthIgnoreGrowthLimit) {
     return false;
   }
-  auto &callee = callSiteNode.GetCallInfo()->GetCallee();
+  auto *callee = callSiteNode.GetCallInfo()->GetCallee();
   uint32 thresholdSmallFunc = Options::ginlineSmallFunc;
   uint32 relaxThreshold = 1;
   if (CalleeCanBeRemovedIfInlined(*callSiteNode.GetCallInfo(), *cg)) {
     relaxThreshold = Options::ginlineRelaxSmallFuncCanbeRemoved;
-  } else if (callee.IsInline()) {
+  } else if (callee->IsInline()) {
     constexpr uint32 defaultRelaxForInlineNormalFreq = 2;
     relaxThreshold = callSiteNode.GetCallFreqPercent() >= 1 ?
         Options::ginlineRelaxSmallFuncDecalredInline : defaultRelaxForInlineNormalFreq;
@@ -259,11 +259,15 @@ void GInline::PrepareCallsiteSet() {
   for (auto it = cg->CBegin(); it != cg->CEnd(); ++it) {
     CGNode *node = it->second;
     for (auto edgeIter = node->GetCallee().cbegin(); edgeIter != node->GetCallee().cend(); ++edgeIter) {
+      auto numCalleeCands = edgeIter->second->size();
+      if (numCalleeCands == 0) {
+        continue;
+      }
       CallInfo *info = edgeIter->first;
       if (!ConsiderInlineCallsite(*info, 0)) {
         continue;
       }
-      CHECK_FATAL(edgeIter->second->size() == 1, "Call stmt has only one candidate.");
+      CHECK_FATAL(numCalleeCands == 1, "Call stmt has only one candidate.");
       InsertNewCallSite(*info, 0);
     }
   }
@@ -334,7 +338,7 @@ void GInline::InlineCallsiteSet() {
     }
     auto *transformer = alloc.New<InlineTransformer>(kGreedyInline, *caller, *callee, *callNode, dumpDetail, cg);
     std::vector<CallInfo*> newCallInfo;
-    bool inlined = transformer->PerformInline(&newCallInfo);
+    bool inlined = transformer->PerformInline(callsite, &newCallInfo);
     if (dumpDetail && !newCallInfo.empty()) {
       LogInfo::MapleLogger() << "new call info:" << std::endl;
       for (auto *callInfo : newCallInfo) {
@@ -353,6 +357,9 @@ void GInline::Inline() {
     LogInfo::MapleLogger() << "===== ginline begin =====" << std::endl;
   }
   BlockCallBackMgr::AddCallBack(UpdateEnclosingBlockCallback, nullptr);
+  if (!Options::ignoreHotAttr) {
+    RunExpandStage();
+  }
   initSize = ComputeTotalSize();
   curSize = initSize;
   maxSize = ComputeMaxSize();
@@ -367,6 +374,123 @@ void GInline::Inline() {
   // for debug
   if (Options::dumpPhase == "ginline") {
     Options::dumpPhase = "";
+  }
+}
+
+static constexpr uint32 kMaxExpandDepth = 5;
+static constexpr uint32 kMaxCallerSize = 6000;
+
+uint32 GetThreshCalleeSize(uint32 depth) {
+  constexpr int32 maxThresh = 400;
+  constexpr int32 minThresh = 200;
+  constexpr int32 step = 100;
+  int32 adjusted = maxThresh - static_cast<int32>(depth) * step;
+  if (adjusted < minThresh) {
+    adjusted = minThresh;
+  }
+  return static_cast<uint32>(adjusted);
+}
+
+void PrintIndent(uint32 depth) {
+  uint32 indent = 2;
+  for (uint32 i = 0; i < depth * indent; ++i) {
+    LogInfo::MapleLogger() << ' ';
+  }
+}
+
+void GInline::DoExpandFunc(MIRFunction &origCaller, const std::vector<CallInfo*> &infoVec, uint32 curDepth,
+                           std::unordered_set<MIRFunction*> &context) {
+  if (curDepth > kMaxExpandDepth) {
+    if (dumpDetail) {
+      LogInfo::MapleLogger() << "== reach max depth ==" << std::endl;
+    }
+    return;
+  }
+  if (infoVec.empty()) {
+    return;
+  }
+  (void)context.insert(&origCaller);
+  for (auto *callInfo : infoVec) {
+    auto *caller = callInfo->GetCaller();
+    auto *callee = callInfo->GetCallee();
+    if (dumpDetail) {
+      PrintIndent(curDepth);
+      callInfo->Dump();
+      LogInfo::MapleLogger() << ", depth: " << curDepth;
+    }
+    auto calleeSize = GetFunctionStaticInsns(*callee);
+    auto maxCalleeSize = GetThreshCalleeSize(curDepth);
+    if (calleeSize > maxCalleeSize) {
+      if (dumpDetail) {
+        LogInfo::MapleLogger() << " [callee too big, size > " << maxCalleeSize << "]" << std::endl;
+      }
+      continue;
+    }
+    auto callerSize = GetFunctionStaticInsns(*caller);
+    if (callerSize > kMaxCallerSize) {
+      if (dumpDetail) {
+        LogInfo::MapleLogger() << " [caller too big, size > " << kMaxCallerSize << "]" << std::endl;
+      }
+      continue;
+    }
+    if (context.find(callee) != context.end()) {
+      // found cycle
+      if (dumpDetail) {
+        LogInfo::MapleLogger() << " [cycle]" << std::endl;
+      }
+      continue;
+    }
+    bool isUnlikelyCall = IsUnlikelyCallsite(*callInfo);
+    if (isUnlikelyCall) {
+      if (dumpDetail) {
+        LogInfo::MapleLogger() << " [unlikely]" << std::endl;
+      }
+      continue;
+    }
+    bool canInline = InlineAnalyzer::CanInline(*callInfo, *cg, 0);
+    if (!canInline) {
+      if (dumpDetail) {
+        const char *failedStr = GetInlineFailedStr(callInfo->GetInlineFailedCode());
+        LogInfo::MapleLogger() << " [can not inline] " << failedStr << std::endl;
+      }
+      continue;
+    }
+    if (dumpDetail) {
+      LogInfo::MapleLogger() << " [OK]" << std::endl;
+    }
+    CallNode *callNode = static_cast<CallNode*>(callInfo->GetCallStmt());
+    InlineTransformer transformer(kGreedyInline, *caller, *callee, *callNode, true, cg);
+    std::vector<CallInfo*> newCallInfos;
+    (void)transformer.PerformInline(callInfo, &newCallInfos);
+    DoExpandFunc(*callee, newCallInfos, curDepth + 1, context);
+  }
+  (void)context.erase(&origCaller);
+}
+
+void GInline::ExpandFunc(MIRFunction &func) {
+  if (dumpDetail) {
+    LogInfo::MapleLogger() << "Expand func " << func.GetName() << std::endl;
+  }
+  CGNode *node = cg->GetCGNode(&func);
+  CHECK_NULL_FATAL(node);
+  std::vector<CallInfo*> infoVec;
+  for (const auto &pair : node->GetCallee()) {
+    infoVec.push_back(pair.first);
+  }
+  std::unordered_set<MIRFunction*> context;
+  DoExpandFunc(func, infoVec, 0, context);
+}
+
+void GInline::RunExpandStage() {
+  const MapleVector<SCCNode<CGNode>*> &topVec = cg->GetSCCTopVec();
+  for (auto it = topVec.begin(); it != topVec.end(); ++it) {
+    for (CGNode *node : (*it)->GetNodes()) {
+      auto *func = node->GetMIRFunction();
+      if (!func->GetAttr(FUNCATTR_hot)) {
+        continue;
+      }
+      ExpandFunc(*func);
+    }
   }
 }
 
@@ -399,7 +523,7 @@ void GInline::TryInlineToAllCallers(const CGNode &calleeCgNode) {
     CallNode *callNode = static_cast<CallNode*>(callInfo->GetCallStmt());
     auto *transformer = alloc.New<InlineTransformer>(kGreedyInline, *caller, *callee, *callNode, true, cg);
     std::vector<CallInfo*> newCallInfos;
-    (void)transformer->PerformInline(&newCallInfos);
+    (void)transformer->PerformInline(callInfo, &newCallInfos);
   }
 }
 

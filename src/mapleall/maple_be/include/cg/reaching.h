@@ -117,8 +117,6 @@ class ReachingDefinition : public AnalysisResult {
   virtual void GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) = 0;
   virtual void GenAllAsmUseRegs(BB &bb, Insn &insn, uint32 index) = 0;
   virtual void GenAllCallerSavedRegs(BB &bb, Insn &insn) = 0;
-  virtual void AddRetPseudoInsn(BB &bb) = 0;
-  virtual void AddRetPseudoInsns() = 0;
   virtual int32 GetStackSize() const = 0;
   virtual bool IsCallerSavedReg(uint32 regNO) const = 0;
   virtual void FindRegDefInBB(uint32 regNO, BB &bb, InsnSet &defInsnSet) const = 0;

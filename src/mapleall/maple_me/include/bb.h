@@ -327,8 +327,9 @@ class BB : public BaseGraphNode {
     return kind == kBBReturn && !stmtNodeList.empty() && stmtNodeList.back().GetOpCode() == OP_return;
   }
 
-  // Whether the BB is the first BB of UNLIKELY path (inferred from __builtin_expect) and it has only 1 predecessor.
-  bool IsImmediateUnlikelyBB() const;
+  // Whether the BB is the first BB of UNLIKELY path (inferred from __builtin_expect).
+  // If dom is provided, more accurate information will be obtained.
+  bool IsImmediateUnlikelyBB(const Dominance *dom = nullptr) const;
   // Whether the BB is the first BB of LIKELY path (inferred from __builtin_expect) and it has only 1 predecessor.
   bool IsImmediateLikelyBB() const;
 

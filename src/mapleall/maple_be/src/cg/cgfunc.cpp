@@ -791,10 +791,11 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectCAtomicCompareExchange(intrinsicopNode);
     case INTRN_C___atomic_test_and_set:
       return cgFunc.SelectCAtomicTestAndSet(intrinsicopNode);
-
     case INTRN_C__builtin_return_address:
     case INTRN_C__builtin_extract_return_addr:
       return cgFunc.SelectCReturnAddress(intrinsicopNode);
+    case INTRN_C_alloca_with_align:
+      return cgFunc.SelectCAllocaWithAlign(intrinsicopNode);
 
     case INTRN_vector_abs_v8i8: case INTRN_vector_abs_v4i16:
     case INTRN_vector_abs_v2i32: case INTRN_vector_abs_v1i64:
@@ -982,7 +983,9 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_mov_narrow_v8i16: case INTRN_vector_mov_narrow_v8u16:
       return HandleVectorMovNarrow(intrinsicopNode, cgFunc);
 
-    case INTRN_C___tls_get_tbss_anchor: case INTRN_C___tls_get_tdata_anchor:
+    case INTRN_C___tls_get_tbss_anchor:
+    case INTRN_C___tls_get_tdata_anchor:
+    case INTRN_C___tls_get_thread_pointer:
       return cgFunc.SelectIntrinsicOpLoadTlsAnchor(intrinsicopNode, parent);
 
     default: {
@@ -1241,7 +1244,7 @@ void HandleDassign(StmtNode &stmt, CGFunc &cgFunc) {
   BaseNode *rhs = dassignNode.GetRHS();
   ASSERT(rhs != nullptr, "get rhs of dassignNode failed");
   if (rhs->GetOpCode() == OP_malloc || rhs->GetOpCode() == OP_alloca) {
-    UnaryStmtNode &uNode = static_cast<UnaryStmtNode &>(stmt);
+    auto &uNode = static_cast<UnaryStmtNode&>(stmt);
     Operand *opnd0 = cgFunc.HandleExpr(dassignNode, *(uNode.Opnd()));
     cgFunc.SelectDassign(dassignNode, *opnd0);
     return;
@@ -2098,9 +2101,19 @@ void CGFunc::UpdateCallBBFrequency() {
   }
 }
 
+void CGFunc::ClearUnreachableBB() {
+  FOR_ALL_BB(bb, this) {
+    if (bb->IsUnreachable()) {
+      bb->ClearInsns();
+      bb->SetKind(BB::kBBFallthru);
+    }
+  }
+}
+
 void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
+  ClearUnreachableBB();
   ProcessExitBBVec();
   LmbcGenSaveSpForAlloca();
 
@@ -2126,11 +2139,9 @@ void CGFunc::HandleFunction() {
   if (mirModule.GetSrcLang() == kSrcLangC) {
     theCFG->WontExitAnalysis();
   }
+  AddPseudoRetInsnsInExitBBs();
   if (CGOptions::IsLazyBinding() && !GetCG()->IsLibcore()) {
     ProcessLazyBinding();
-  }
-  if (GetCG()->DoPatchLongBranch()) {
-    PatchLongBranch();
   }
   NeedStackProtect();
 }
@@ -2263,28 +2274,6 @@ void CGFunc::DumpCFGToDot(const std::string &fileNamePrefix) {
   file << "}" << std::endl;
 }
 
-void CGFunc::PatchLongBranch() {
-  for (BB *bb = firstBB->GetNext(); bb != nullptr; bb = bb->GetNext()) {
-    bb->SetInternalFlag1(bb->GetInternalFlag1() + bb->GetPrev()->GetInternalFlag1());
-  }
-  BB *next = nullptr;
-  for (BB *bb = firstBB; bb != nullptr; bb = next) {
-    next = bb->GetNext();
-    if (bb->GetKind() != BB::kBBIf && bb->GetKind() != BB::kBBGoto) {
-      continue;
-    }
-    Insn *insn = bb->GetLastMachineInsn();
-    while (insn->IsImmaterialInsn()) {
-      insn = insn->GetPrev();
-    }
-    BB *tbb = GetBBFromLab2BBMap(GetLabelInInsn(*insn));
-    if ((tbb->GetInternalFlag1() - bb->GetInternalFlag1()) < MaxCondBranchDistance()) {
-      continue;
-    }
-    InsertJumpPad(insn);
-  }
-}
-
 // Cgirverify phase function: all insns will be verified before cgemit.
 void CGFunc::VerifyAllInsn() {
   FOR_ALL_BB(bb, this) {
@@ -2346,15 +2335,6 @@ bool CgHandleFunction::PhaseRun(maplebe::CGFunc &f) {
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleFunction, handlefunction)
-
-bool CgPatchLongBranch::PhaseRun(maplebe::CGFunc &f) {
-  f.PatchLongBranch();
-  if (!f.GetCG()->GetCGOptions().DoEmitCode() || f.GetCG()->GetCGOptions().DoDumpCFG()) {
-    f.DumpCFG();
-  }
-  return false;
-}
-MAPLE_TRANSFORM_PHASE_REGISTER(CgPatchLongBranch, patchlongbranch)
 
 bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
   if (f.GetCG()->GetCGOptions().WithDwarf() && f.GetWithSrc()) {

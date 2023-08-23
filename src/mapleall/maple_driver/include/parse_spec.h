@@ -23,7 +23,7 @@ class ParseSpec {
   ParseSpec() {}
   ~ParseSpec() = default;
 
-  static std::vector<std::string> GetOpt(const std::string &cmd, const std::string &args);
+  static std::vector<std::string> GetOpt(const std::vector<std::string> args);
   static ErrorCode GetOptFromSpecsByGcc(int argc, char **argv, const MplOptions &mplOptions);
 };
 

@@ -21,6 +21,7 @@
 #include "mir_builder.h"
 #include "ipa_side_effect.h"
 #include "type_based_alias_analysis.h"
+#include "class_hierarchy.h"
 
 namespace {
 using namespace maple;

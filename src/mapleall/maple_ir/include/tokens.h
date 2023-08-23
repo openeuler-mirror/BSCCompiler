@@ -56,6 +56,7 @@ enum TokenKind {
   TK_dotdotdot,  // ...
   TK_colon,      // :
   TK_asterisk,   // *
+  TK_exclamation, // !
   TK_string,     // a literal string enclosed between "
   TK_eof
 };

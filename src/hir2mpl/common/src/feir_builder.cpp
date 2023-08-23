@@ -269,18 +269,13 @@ UniqueFEIRExpr FEIRBuilder::CreateExprMathUnary(Opcode op, UniqueFEIRExpr expr) 
 }
 
 UniqueFEIRExpr FEIRBuilder::CreateExprZeroCompare(Opcode op, UniqueFEIRExpr expr) {
-  CHECK_FATAL(op == OP_ne || op == OP_eq, "Unsupported op in CreateExprZeroCompare.");
+  auto checkEquality = op == OP_ne || op == OP_eq;
   if (op == OP_ne && expr->GetKind() == kExprBinary && static_cast<FEIRExprBinary*>(expr.get())->IsComparative()) {
     return expr;
   }
-  if (expr->GetKind() == kExprConst) {
+  if (expr->GetKind() == kExprConst && checkEquality) {
     FEIRExprConst *constExpr = static_cast<FEIRExprConst*>(expr.get());
-    int64 val;
-    if (op == OP_ne) {
-      val = constExpr->GetValue().u64 == 0 ? 0 : 1;
-    } else {
-      val = constExpr->GetValue().u64 == 0 ? 1 : 0;
-    }
+    auto val = static_cast<int64>((constExpr->GetValue().u64 == 0) != (op == OP_ne));
     return std::make_unique<FEIRExprConst>(val, PTY_u1);
   }
   UniqueFEIRExpr zeroExpr =

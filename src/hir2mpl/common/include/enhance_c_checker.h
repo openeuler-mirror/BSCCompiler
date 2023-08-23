@@ -33,7 +33,6 @@ class ENCChecker {
   static void CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *initExpr);
   static void CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIRExpr &initFEExpr,
                                        std::list<UniqueFEIRStmt> &stmts);
-  static std::string GetNthStr(size_t index);
   static std::string PrintParamIdx(const std::list<size_t> &idxs);
   static void CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr, const Loc &loc);
   static bool HasNonnullFieldInStruct(const MIRType &mirType);

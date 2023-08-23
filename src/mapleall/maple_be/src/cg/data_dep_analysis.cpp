@@ -74,7 +74,7 @@ void DataDepAnalysis::InitInfoInCDGNode(MemPool &regionMp, MapleAllocator &regio
   ddb.SetCDGNode(&cdgNode);
   ddb.InitCDGNodeDataInfo(regionMp, regionAlloc, cdgNode);
   if (cgFunc.GetMirModule().IsJavaModule()) {
-    /* Analysis live-in registers in catch BB */
+    // Analysis live-in registers in catch BB
     ddb.AnalysisAmbiInsns(bb);
   }
 }
@@ -132,7 +132,7 @@ void DataDepAnalysis::UpdateRegUseAndDef(Insn &insn, const DepNode &depNode, CDG
   // Update reg def
   const auto &defRegNos = depNode.GetDefRegnos();
   for (const auto regNO : defRegNos) {
-    /* Update reg def for cur depInfo */
+    // Update reg def for cur depInfo
     cdgNode.SetLatestDefInsn(regNO, &insn);
     cdgNode.ClearUseInsnChain(regNO);
   }
@@ -146,7 +146,7 @@ void DataDepAnalysis::UpdateReadyNodesInfo(CDGNode &cdgNode, const CDGNode &root
     CHECK_FATAL(succNode != nullptr, "get cdgNode from bb failed");
     if (succNode != &root && succNode->GetRegion() == cdgNode.GetRegion()) {
       succNode->SetNodeSum(std::max(cdgNode.GetNodeSum(), succNode->GetNodeSum()));
-      /* Successor nodes in region record nodeIds that have been visited in topology order */
+      // Successor nodes in region record nodeIds that have been visited in topology order
       for (const auto &nodeId : cdgNode.GetTopoPredInRegion()) {
         succNode->InsertVisitedTopoPredInRegion(nodeId);
       }
@@ -171,7 +171,7 @@ void DataDepAnalysis::GenerateDataDepGraphDotOfRegion(CDGRegion &region) {
   std::streambuf *fileBuf = iddgFile.rdbuf();
   (void)std::cout.rdbuf(fileBuf);
 
-  /* Define the output file name */
+  // Define the output file name
   std::string fileName;
   (void)fileName.append("interDDG_");
   (void)fileName.append(cgFunc.GetName());
@@ -191,7 +191,7 @@ void DataDepAnalysis::GenerateDataDepGraphDotOfRegion(CDGRegion &region) {
   iddgFile << "  node [shape=box];\n\n";
 
   for (auto cdgNode : region.GetRegionNodes()) {
-    /* Dump nodes style */
+    // Dump nodes style
     for (auto depNode : cdgNode->GetAllDataNodes()) {
       ddb.DumpNodeStyleInDot(iddgFile, *depNode);
     }
@@ -240,7 +240,7 @@ void DataDepAnalysis::GenerateDataDepGraphDotOfRegion(CDGRegion &region) {
     }
     iddgFile << "\n";
 
-    /* Dump BB cluster */
+    // Dump BB cluster
     BB *bb = cdgNode->GetBB();
     CHECK_FATAL(bb != nullptr, "get bb from cdgNode failed");
     iddgFile << "  subgraph cluster_" << bb->GetId() << " {\n";
@@ -257,4 +257,4 @@ void DataDepAnalysis::GenerateDataDepGraphDotOfRegion(CDGRegion &region) {
   iddgFile.close();
   (void)std::cout.rdbuf(coutBuf);
 }
-} /* namespace maplebe */
+} // namespace maplebe

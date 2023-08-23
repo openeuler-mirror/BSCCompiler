@@ -150,6 +150,16 @@ void MergeStmts::MergeIassigns(VOffsetStmt& iassignCandidates) {
       firstIassignStmt->SetRHS(newVal);
       firstIassignStmt->SetEmitIassignoff(true);
       firstIassignStmt->SetOmitEmit(false);
+      // Merge the chiList of the to be removed iassignStmts into firstIassignStmt
+      for (size_t canIdx = startCandidate + 1; canIdx <= endIdx; canIdx++) {
+        IassignMeStmt *removedIassignStmt = static_cast<IassignMeStmt*>(iassignCandidates[canIdx].second);
+        auto *chiList = removedIassignStmt->GetChiList();
+        if (chiList != nullptr) {
+          for (const auto &chiPair : *std::as_const(chiList)) {
+            (void)firstIassignStmt->GetChiList()->emplace(chiPair.first, chiPair.second);
+          }
+        }
+      }
       // Mark deletion on the rest of merged stmts
       BB *bb = firstIassignStmt->GetBB();
       for (size_t canIdx = startCandidate + 1; canIdx <= endIdx; canIdx++) {
@@ -260,6 +270,16 @@ void MergeStmts::MergeDassigns(VOffsetStmt& dassignCandidates) {
       firstDassignStmt->SetRHS(newVal);
       firstDassignStmt->SetEmitDassignoff(true);
       firstDassignStmt->SetOmitEmit(false);
+      // Merge the chiList of the to be removed dassignStmts into firstDassignStmt
+      for (size_t canIdx = startCandidate + 1; canIdx <= endIdx; canIdx++) {
+        DassignMeStmt *removedDassignStmt = static_cast<DassignMeStmt*>(dassignCandidates[canIdx].second);
+        auto *chiList = removedDassignStmt->GetChiList();
+        if (chiList != nullptr) {
+          for (const auto &chiPair : *std::as_const(chiList)) {
+            (void)firstDassignStmt->GetChiList()->emplace(chiPair.first, chiPair.second);
+          }
+        }
+      }
       // Mark deletion on the rest of merged stmts
       BB *bb = firstDassignStmt->GetBB();
       for (size_t canIdx = startCandidate + 1; canIdx <= endIdx; canIdx++) {

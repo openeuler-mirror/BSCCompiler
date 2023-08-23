@@ -126,10 +126,8 @@ void DefaultO0RegAllocator::CheckLiveAndReleaseReg(regno_t preg, regno_t vreg, c
   /* record defined register number in this insn */
   multiDefForInsn.emplace(preg);
   uint32 id = GetRegLivenessId(vreg);
-  if (!cInsn.IsCondDef()) {
-    if (id != 0 && id <= cInsn.GetId()) {
-      ReleaseReg(preg);
-    }
+  if (id != 0 && id <= cInsn.GetId()) {
+    ReleaseReg(preg);
   }
 }
 

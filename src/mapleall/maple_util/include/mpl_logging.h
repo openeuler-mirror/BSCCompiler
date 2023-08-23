@@ -121,6 +121,8 @@
 // developer to print stack trace and peruse the program environment at the point
 // of the assertion.
 namespace maple {
+std::string GetNthStr(size_t index);
+
 extern class LogInfo logInfo;
 extern class LogInfo &log;
 

@@ -308,6 +308,7 @@ void CGCFG::InitInsnVisitor(CGFunc &func) const {
   insnVisitor = func.NewInsnModifier();
 }
 
+// Do custom deep copy
 Insn *CGCFG::CloneInsn(Insn &originalInsn) const {
   cgFunc->IncTotalNumberOfInstructions();
   return insnVisitor->CloneInsn(originalInsn);
@@ -761,6 +762,10 @@ bool CGCFG::InSwitchTable(LabelIdx label, const CGFunc &func) {
 
 bool CGCFG::IsCompareAndBranchInsn(const Insn &insn) const {
   return insnVisitor->IsCompareAndBranchInsn(insn);
+}
+
+bool CGCFG::IsTestAndBranchInsn(const Insn &insn) const {
+  return insnVisitor->IsTestAndBranchInsn(insn);
 }
 
 bool CGCFG::IsAddOrSubInsn(const Insn &insn) const {

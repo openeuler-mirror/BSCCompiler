@@ -435,6 +435,10 @@ TokenKind MIRLexer::GetTokenWithPrefixExclamation() {
     GenName();
     return TK_typeparam;
   }
+  if (utils::IsDigit(c)) {
+    (void)GetConstVal();
+    return TK_exclamation;
+  }
   // for error reporting.
   const uint32 printLength = 2;
   name = line.substr(curIdx - 1, printLength);
@@ -660,6 +664,9 @@ TokenKind MIRLexer::LexToken() {
     case '^':
       return GetTokenWithPrefixAtOrCircumflex(curChar);
     case '!':
+      if (kind == TK_pragma) {
+        return TK_exclamation;
+      }
       return GetTokenWithPrefixExclamation();
     case '\'':
       return GetTokenWithPrefixQuotation();

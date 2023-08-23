@@ -17,6 +17,7 @@
 #include <vector>
 #include <string>
 #include <list>
+#include <regex>
 #include "mpl_logging.h"
 #include "prim_types.h"
 #include "mir_type.h"
@@ -103,6 +104,7 @@ class FEUtils {
   static const std::string kMCCStaticFieldSetObject;
 
   static const std::string kCondGoToStmtLabelNamePrefix;
+  static const std::regex kShortCircutPrefix;
 
   static inline MemPool *NewMempool(const std::string &name, bool isLocalPool) {
     return memPoolCtrler.NewMemPool(name, isLocalPool);

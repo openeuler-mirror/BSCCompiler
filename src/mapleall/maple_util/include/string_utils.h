@@ -65,12 +65,10 @@ class StringUtils {
   static std::string TrimWhitespace(const std::string &src);
   static std::string Replace(const std::string &src, const std::string &target, const std::string &replacement);
   static std::string Append(const std::string &src, const std::string &target, const std::string &spliter);
-  static std::string GetStrAfterLast(const std::string &src, const std::string &target,
-                                     bool isReturnEmpty = false);
-  static std::string GetStrBeforeLast(const std::string &src, const std::string &target,
-                                      bool isReturnEmpty = false);
-  static std::string GetStrBeforeFirst(const std::string &src, const std::string &target,
-                                       bool isReturnEmpty = false);
+  static std::string GetStrAfterLast(const std::string &src, const std::string &target, bool isReturnEmpty = false);
+  static std::string GetStrBeforeLast(const std::string &src, const std::string &target, bool isReturnEmpty = false);
+  static std::string GetStrBeforeFirst(const std::string &src, const std::string &target, bool isReturnEmpty = false);
+  static std::string GetStrAfterFirst(const std::string &src, const std::string &target, bool isReturnEmpty = false);
   static bool HasCommandInjectionChar(const std::string &s) {
     return std::regex_search(s, kCommandInjectionRegex);
   }
@@ -91,6 +89,10 @@ class StringUtils {
     return std::equal(start.cbegin(), start.cend(), str.cbegin());
   }
 
+  static bool IsMatchAtEnd(const std::string &str, const std::string &pattern) {
+    std::regex regex(pattern);
+    return std::regex_search(str, regex);
+  }
  private:
   static std::regex kCommandInjectionRegex;
 };

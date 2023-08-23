@@ -61,6 +61,9 @@ TypeAttrs ASTStruct2FEHelper::GetStructAttributeFromInputImpl() const {
   if (astStruct.GetAlign() != 0) {
     typeAttrs.SetAlign(astStruct.GetAlign());
   }
+  if (typeAttrs.GetAttr(ATTR_type_alias)) {
+    typeAttrs.SetTypeAlias(astStruct.GetTypedefAliasList());
+  }
   return typeAttrs;
 }
 
@@ -100,6 +103,9 @@ MIRStructType *ASTStruct2FEHelper::CreateMIRStructTypeImpl(bool &error) const {
   if (name.empty()) {
     error = true;
     ERR(kLncErr, "class name is empty");
+    return nullptr;
+  }
+  if (FEOptions::GetInstance().IsDbgFriendly() && astStruct.GetGenericAttrs().GetAttr(GENATTR_typedef)) {
     return nullptr;
   }
   MIRStructType *type = FEManager::GetTypeManager().GetOrCreateStructType(astStruct.GenerateUniqueVarName());
@@ -144,6 +150,7 @@ bool ASTStructField2FEHelper::ProcessDeclWithContainerImpl(MapleAllocator &alloc
   GStrIdx idx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fieldName);
   FieldAttrs attrs = field.GetGenericAttrs().ConvertToFieldAttrs();
   attrs.SetAlign(field.GetAlign());
+  attrs.SetTypeAlign(field.GetTypeAlign());
   MIRType *fieldType = field.GetTypeDesc().front();
   ASSERT(fieldType != nullptr, "nullptr check for fieldType");
   ENCChecker::InsertBoundaryInAtts(attrs, field.GetBoundaryInfo());
@@ -173,9 +180,11 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   TypeAttrs typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
   ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
   MIRSymbol *mirSymbol = FEManager::GetMIRBuilder().GetGlobalDecl(varName);
+  bool isExtern = false;
   if (mirSymbol != nullptr) {
     // do not allow extern var override global var
     if (mirSymbol->GetStorageClass() != MIRStorageClass::kScExtern && typeAttrs.GetAttr(ATTR_extern)) {
+      isExtern = true;
       typeAttrs.ResetAttr(ATTR_extern);
     } else if (mirSymbol->GetStorageClass() == MIRStorageClass::kScExtern && !typeAttrs.GetAttr(ATTR_extern)) {
       mirSymbol->SetStorageClass(MIRStorageClass::kScGlobal);
@@ -188,7 +197,7 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   // Set the type here in case a previous declaration had an incomplete
   // array type and the definition has the complete type.
-  if (mirSymbol->GetType()->GetTypeIndex() != type->GetTypeIndex()) {
+  if (mirSymbol->GetType()->GetTypeIndex() != type->GetTypeIndex() && !isExtern) {
     mirSymbol->SetTyIdx(type->GetTypeIndex());
   }
   if (mirSymbol->GetSrcPosition().LineNum() == 0) {
@@ -202,8 +211,13 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   } else {
     mirSymbol->SetStorageClass(MIRStorageClass::kScGlobal);
   }
-  typeAttrs.SetAlign(astVar.GetAlign());
+  if (astVar.GetAlign() != 0) {
+    typeAttrs.SetAttr(ATTR_aligned);
+  }
   mirSymbol->AddAttrs(typeAttrs);
+  if (mirSymbol->GetAttr(ATTR_aligned)) {
+    mirSymbol->GetAttrs().SetAlign(astVar.GetAlign());
+  }
   if (!astVar.GetSectionAttr().empty()) {
     mirSymbol->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(astVar.GetSectionAttr());
   }
