@@ -96,12 +96,14 @@ endif()
 # -----------------------CMAKE FLAGS---------------------------------
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fno-common")
 if(${CMAKE_BUILD_TYPE} STREQUAL "RELEASE")
+    add_definitions("-DLLVM_BISHENGCLANGUAGE=1")
     set(CMAKE_CXX_FLAGS
         "${CMAKE_CXX_FLAGS} -O2 -fno-strict-aliasing -D_FORTIFY_SOURCE=2")
     set(CMAKE_C_FLAGS
         "${CMAKE_C_FLAGS} -O2 -fno-strict-aliasing -D_FORTIFY_SOURCE=2")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "DEBUG")
     add_definitions("-DDEBUG")
+    add_definitions("-DLLVM_BISHENGCLANGUAGE=1")
     set(CMAKE_CXX_FLAGS_DEBUG "-g3 -gdwarf-4")
     set(CMAKE_C_FLAGS_DEBUG "-g3 -gdwarf-4")
     set(CMAKE_CXX_FLAGS
@@ -125,6 +127,11 @@ set(CMAKE_C_FLAGS
     "${CMAKE_C_FLAGS} -Wall -fstack-protector-strong -fPIC -fPIE -pipe -Werror -Wdate-time -Wfloat-equal ${DESIGNATOR}")
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} -Wall -fstack-protector-strong -fPIC -fPIE -pipe -Wno-c99-designator -Wno-range-loop-construct -Werror -Wdate-time -Wfloat-equal ${DESIGNATOR} -DMIR_FEATURE_FULL=1")
+
+if($ENV{BISHENGC_GET_OS_VERSION} STREQUAL "SUSE")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --gcc-toolchain=/opt/buildtools/gcc-7.3.0/")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --gcc-toolchain=/opt/buildtools/gcc-7.3.0/")
+endif()
 
 if(HOST_ARCH STREQUAL 64)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64")
