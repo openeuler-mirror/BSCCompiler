@@ -680,96 +680,22 @@ void MPISel::SelectBasicOp(Operand &resOpnd, Operand &opnd0, Operand &opnd1, MOp
   cgFunc->GetCurBB()->AppendInsn(insn);
 }
 
-std::pair<FieldID, MIRType*> MPISel::GetFieldIdAndMirTypeFromMirNode(const BaseNode &node) {
-  FieldID fieldId = 0;
-  MIRType *mirType = nullptr;
-  if (node.GetOpCode() == maple::OP_iread) {
-    /* mirType stored in an addr. */
-    auto &iread = static_cast<const IreadNode&>(node);
-    fieldId = iread.GetFieldID();
-    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread.GetTyIdx());
-    MIRPtrType *pointerType = static_cast<MIRPtrType*>(type);
-    ASSERT(pointerType != nullptr, "expect a pointer type at iread node");
-    mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerType->GetPointedTyIdx());
-    if (mirType->GetKind() == kTypeArray) {
-      MIRArrayType *arrayType = static_cast<MIRArrayType*>(mirType);
-      mirType =  GlobalTables::GetTypeTable().GetTypeFromTyIdx(arrayType->GetElemTyIdx());
-    }
-  } else if (node.GetOpCode() == maple::OP_dassign) {
-    /* mirSymbol */
-    auto &dassign = static_cast<const DassignNode&>(node);
-    fieldId = dassign.GetFieldID();
-    MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(dassign.GetStIdx());
-    ASSERT(symbol != nullptr, "nullptr check");
-    mirType = symbol->GetType();
-  } else if (node.GetOpCode() == maple::OP_dread) {
-    /* mirSymbol */
-    auto &dread = static_cast<const AddrofNode&>(node);
-    fieldId = dread.GetFieldID();
-    MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(dread.GetStIdx());
-    CHECK_FATAL(symbol != nullptr, "symbol should not be nullptr");
-    mirType = symbol->GetType();
-  } else if (node.GetOpCode() == maple::OP_iassign) {
-    auto &iassign = static_cast<const IassignNode&>(node);
-    fieldId = iassign.GetFieldID();
-    AddrofNode &addrofNode = static_cast<AddrofNode&>(iassign.GetAddrExprBase());
-    MIRType *iassignMirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassign.GetTyIdx());
-    MIRPtrType *pointerType = nullptr;
-    if (iassignMirType->GetPrimType() == PTY_agg) {
-      MIRSymbol *addrSym = cgFunc->GetMirModule().CurFunction()->GetLocalOrGlobalSymbol(addrofNode.GetStIdx());
-      MIRType *addrMirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(addrSym->GetTyIdx());
-      addrMirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(addrMirType->GetTypeIndex());
-      ASSERT(addrMirType->GetKind() == kTypePointer, "non-pointer");
-      pointerType = static_cast<MIRPtrType*>(addrMirType);
-    } else {
-      ASSERT(iassignMirType->GetKind() == kTypePointer, "non-pointer");
-      pointerType = static_cast<MIRPtrType*>(iassignMirType);
-    }
-    mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerType->GetPointedTyIdx());
-  } else {
-    CHECK_FATAL(false, "unsupported OpCode");
-  }
-  return {fieldId, mirType};
-}
-
-MirTypeInfo MPISel::GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType *mirType) const {
-  MirTypeInfo mirTypeInfo;
-  /* fixup primType and offset */
-  if (fieldId != 0) {
-    ASSERT((mirType->IsMIRStructType() || mirType->IsMIRUnionType()), "non-structure");
-    MIRStructType *structType = static_cast<MIRStructType*>(mirType);
-    mirType = structType->GetFieldType(fieldId);
-    mirTypeInfo.offset = static_cast<int32>(structType->GetFieldOffsetFromBaseAddr(fieldId).byteOffset);
-  }
-  mirTypeInfo.primType = mirType->GetPrimType();
-  // aggSize for AggType
-  if (mirTypeInfo.primType == maple::PTY_agg) {
-    mirTypeInfo.size = static_cast<uint32>(mirType->GetSize());
-  }
-  return mirTypeInfo;
-}
-
-MirTypeInfo MPISel::GetMirTypeInfoFromMirNode(const BaseNode &node) {
-  auto [fieldId, mirType] = GetFieldIdAndMirTypeFromMirNode(node);
-  return GetMirTypeInfoFormFieldIdAndMirType(fieldId, mirType);
-}
-
 void MPISel::SelectDassign(DassignNode &stmt, Operand &opndRhs) {
-  /* mirSymbol info */
-  MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(stmt.GetStIdx());
-  MirTypeInfo symbolInfo = GetMirTypeInfoFromMirNode(stmt);
+  // mirSymbol info
+  MemRWNodeHelper memHelper(stmt, cgFunc->GetFunction(), cgFunc->GetBecommon());
+  auto *symbol = memHelper.GetSymbol();
   CHECK_NULL_FATAL(symbol);
-  /* Get symbol location */
+  // Get symbol location
   MemOperand &symbolMem = GetOrCreateMemOpndFromSymbol(*symbol, stmt.GetFieldID());
   /* rhs mirType info */
   PrimType rhsType = stmt.GetRHS()->GetPrimType();
   /* Generate Insn */
   if (rhsType == PTY_agg) {
     /* Agg Type */
-    SelectAggDassign(symbolInfo, symbolMem, opndRhs, stmt);
+    SelectAggDassign(memHelper, symbolMem, opndRhs, stmt);
     return;
   }
-  PrimType memType = symbolInfo.primType;
+  PrimType memType = memHelper.GetPrimType();
   if (memType == PTY_agg) {
     memType = PTY_a64;
   }
@@ -794,15 +720,15 @@ void MPISel::SelectDassignoff(const DassignoffNode &stmt, Operand &opnd0) {
 }
 
 void MPISel::SelectIassign(const IassignNode &stmt, Operand &opndAddr, Operand &opndRhs) {
-  /* mirSymbol info */
-  MirTypeInfo symbolInfo = GetMirTypeInfoFromMirNode(stmt);
-  /* handle Lhs, generate (%Rxx) via Rxx */
-  PrimType memType = symbolInfo.primType;
+  // mirSymbol info
+  MemRWNodeHelper memHelper(stmt, cgFunc->GetFunction(), cgFunc->GetBecommon());
+  // handle Lhs, generate (%Rxx) via Rxx
+  PrimType memType = memHelper.GetPrimType();
   if (memType == PTY_agg) {
     memType = PTY_a64;
   }
   RegOperand &lhsBaseOpnd = SelectCopy2Reg(opndAddr, stmt.Opnd(0)->GetPrimType());
-  MemOperand &lhsMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(lhsBaseOpnd, symbolInfo.offset,
+  MemOperand &lhsMemOpnd = cgFunc->GetOpndBuilder()->CreateMem(lhsBaseOpnd, memHelper.GetByteOffset(),
       GetPrimTypeBitSize(memType));
   /* handle Rhs, get R## from Rhs */
   PrimType rhsType = stmt.GetRHS()->GetPrimType();
@@ -914,11 +840,11 @@ RegOperand *MPISel::SelectRegread(RegreadNode &expr) {
 }
 
 Operand *MPISel::SelectDread(const BaseNode &parent [[maybe_unused]], const AddrofNode &expr) {
-  /* get mirSymbol info*/
-  MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(expr.GetStIdx());
-  MirTypeInfo symbolInfo = GetMirTypeInfoFromMirNode(expr);
-  PrimType symbolType = symbolInfo.primType;
-  /* Get symbol location */
+  // get mirSymbol info
+  MemRWNodeHelper memHelper(expr, cgFunc->GetFunction(), cgFunc->GetBecommon());
+  auto symbolType = memHelper.GetPrimType();
+  auto *symbol = memHelper.GetSymbol();
+  // Get symbol location
   MemOperand &symbolMem = GetOrCreateMemOpndFromSymbol(*symbol, expr.GetFieldID());
   PrimType primType = expr.GetPrimType();
   /* for AggType, return it's location in stack. */
@@ -1314,12 +1240,13 @@ MemOperand *MPISel::GetOrCreateMemOpndFromIreadNode(const IreadNode &expr, PrimT
 }
 
 Operand *MPISel::SelectIread(const BaseNode &parent [[maybe_unused]], const IreadNode &expr, int extraOffset) {
-  /* get lhs mirType info */
-  MirTypeInfo lhsInfo = GetMirTypeInfoFromMirNode(expr);
+  // get lhs mirType info
+  MemRWNodeHelper memHelper(expr, cgFunc->GetFunction(), cgFunc->GetBecommon());
   /* get memOpnd */
-  MemOperand &memOpnd = *GetOrCreateMemOpndFromIreadNode(expr, lhsInfo.primType, lhsInfo.offset + extraOffset);
+  MemOperand &memOpnd = *GetOrCreateMemOpndFromIreadNode(expr, memHelper.GetPrimType(),
+      memHelper.GetByteOffset() + extraOffset);
   /* for AggType, return addr it self. */
-  if (lhsInfo.primType == PTY_agg) {
+  if (memHelper.GetPrimType() == PTY_agg) {
     return &memOpnd;
   }
   /* for BasicType, load val in addr to register. */
@@ -1327,7 +1254,7 @@ Operand *MPISel::SelectIread(const BaseNode &parent [[maybe_unused]], const Irea
   PTY128MOD(primType);
   RegOperand &result = cgFunc->GetOpndBuilder()->CreateVReg(GetPrimTypeBitSize(primType),
       cgFunc->GetRegTyFromPrimTy(primType));
-  SelectCopy(result, memOpnd, primType, lhsInfo.primType);
+  SelectCopy(result, memOpnd, primType, memHelper.GetPrimType());
   return &result;
 }
 

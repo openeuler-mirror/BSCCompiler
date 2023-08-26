@@ -50,7 +50,8 @@ class MIRBuilder {
 
   explicit MIRBuilder(MIRModule *module)
       : mirModule(module),
-        incompleteTypeRefedSet(mirModule->GetMPAllocator().Adapter()) {}
+        incompleteTypeRefedSet(mirModule->GetMPAllocator().Adapter()),
+        extraFieldsTuples(mirModule->GetMPAllocator().Adapter()) {}
 
   virtual ~MIRBuilder() = default;
 
@@ -79,7 +80,7 @@ class MIRBuilder {
     return incompleteTypeRefedSet;
   }
 
-  std::vector<std::tuple<uint32, uint32, uint32, uint32>> &GetExtraFieldsTuples() {
+  MapleVector<std::tuple<uint32, uint32, uint32, uint32>> &GetExtraFieldsTuples() {
     return extraFieldsTuples;
   }
 
@@ -337,7 +338,7 @@ class MIRBuilder {
   MIRModule *mirModule;
   MapleSet<TyIdx> incompleteTypeRefedSet;
   // <className strIdx, fieldname strIdx, typename strIdx, attr list strIdx>
-  std::vector<std::tuple<uint32, uint32, uint32, uint32>> extraFieldsTuples;
+  MapleVector<std::tuple<uint32, uint32, uint32, uint32>> extraFieldsTuples;
   unsigned int lineNum = 0;
 };
 

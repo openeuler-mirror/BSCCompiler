@@ -219,20 +219,20 @@ bool MeSSI::ExistedPhiNode(BB &bb, const VarMeExpr &rhs) const {
 }
 
 bool MeSSI::ExistedPiNode(BB &bb, BB &parentBB, const VarMeExpr &rhs) const {
-  MapleMap<BB*, std::vector<PiassignMeStmt*>> &piList = bb.GetPiList();
+  auto &piList = bb.GetPiList();
   auto it = std::as_const(piList).find(&parentBB);
   if (it == piList.cend()) {
     return false;
   }
-  const std::vector<PiassignMeStmt*> &piStmts = it->second;
-  CHECK_FATAL(!piStmts.empty(), "should not be empty");
-  CHECK_FATAL(piStmts.size() <= kPiStmtUpperBound, "must be");
-  PiassignMeStmt *pi1 = piStmts.at(0);
+  auto &piStmts = it->second;
+  CHECK_FATAL(!piStmts->empty(), "should not be empty");
+  CHECK_FATAL(piStmts->size() <= kPiStmtUpperBound, "must be");
+  PiassignMeStmt *pi1 = piStmts->at(0);
   if (pi1->GetLHS()->GetOst() == rhs.GetOst()) {
     return true;
   }
-  if (piStmts.size() == kPiStmtUpperBound) {
-    PiassignMeStmt *pi2 = piStmts.at(1);
+  if (piStmts->size() == kPiStmtUpperBound) {
+    PiassignMeStmt *pi2 = piStmts->at(1);
     if (pi2->GetLHS()->GetOst() == rhs.GetOst()) {
       return true;
     }
@@ -353,20 +353,20 @@ void MeSSI::RenameStartPhi(DefPoint &newDefPoint) {
 
 void MeSSI::ReplacePiPhiInSuccs(BB &bb, VarMeExpr &newVar) {
   for (BB *succBB : bb.GetSucc()) {
-    MapleMap<BB*, std::vector<PiassignMeStmt*>> &piList = succBB->GetPiList();
+    auto &piList = succBB->GetPiList();
     auto it1 = piList.find(&bb);
     if (it1 != piList.end()) {
-      std::vector<PiassignMeStmt*> &piStmts = it1->second;
+      auto piStmts = it1->second;
       // the size of pi statements must be 1 or 2
-      CHECK_FATAL(!piStmts.empty(), "should not be empty");
-      CHECK_FATAL(piStmts.size() <= kPiStmtUpperBound, "must be");
-      PiassignMeStmt *pi1 = piStmts.at(0);
+      CHECK_FATAL(!piStmts->empty(), "should not be empty");
+      CHECK_FATAL(piStmts->size() <= kPiStmtUpperBound, "must be");
+      PiassignMeStmt *pi1 = piStmts->at(0);
       if (pi1->GetLHS()->GetOst() == newVar.GetOst()) {
         pi1->SetRHS(newVar);
         continue;
       }
-      if (piStmts.size() == kPiStmtUpperBound) {
-        PiassignMeStmt *pi2 = piStmts.at(1);
+      if (piStmts->size() == kPiStmtUpperBound) {
+        PiassignMeStmt *pi2 = piStmts->at(1);
         if (pi2->GetLHS()->GetOst() == newVar.GetOst()) {
           pi2->SetRHS(newVar);
           continue;

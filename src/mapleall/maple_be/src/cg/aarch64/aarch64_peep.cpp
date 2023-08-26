@@ -1236,7 +1236,7 @@ void AndCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool AndAndCmpBranchesToTstPattern::CheckAndSelectPattern(const Insn &currInsn) {
+bool AndAndCmpBranchesToTstPattern::CheckAndSelectPattern() {
   MOperator prevAndMop = prevAndInsn->GetMachineOpcode();
   MOperator prevPrevAndMop = prevPrevAndInsn->GetMachineOpcode();
   if (prevAndMop != prevPrevAndMop) {
@@ -1257,7 +1257,7 @@ bool AndAndCmpBranchesToTstPattern::CheckAndSelectPattern(const Insn &currInsn) 
   return false;
 }
 
-bool AndAndCmpBranchesToTstPattern::CheckCondInsn(Insn &insn) {
+bool AndAndCmpBranchesToTstPattern::CheckCondInsn(const Insn &insn) {
   if (insn.GetMachineOpcode() == MOP_bne || insn.GetMachineOpcode() == MOP_beq) {
     ccReg = static_cast<RegOperand*>(&insn.GetOperand(kInsnFirstOpnd));
     return true;
@@ -1319,7 +1319,7 @@ bool AndAndCmpBranchesToTstPattern::CheckCondition(Insn &insn) {
   if (prevPrevAndInsn == nullptr) {
     return false;
   }
-  if (!CheckAndSelectPattern(insn)) {
+  if (!CheckAndSelectPattern()) {
     return false;
   }
   return true;

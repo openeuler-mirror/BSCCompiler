@@ -282,8 +282,8 @@ BlockNode *BlockNode::CloneTreeWithSrcPosition(const MIRModule &mod, const GStrI
 }
 
 BlockNode *BlockNode::CloneTreeWithFreqs(MapleAllocator &allocator,
-    std::unordered_map<uint32_t, FreqType>& toFreqs,
-    std::unordered_map<uint32_t, FreqType>& fromFreqs,
+    MapleUnorderedMap<uint32_t, FreqType>& toFreqs,
+    MapleUnorderedMap<uint32_t, FreqType>& fromFreqs,
     FreqType numer, FreqType denom, uint32_t updateOp) {
   auto *nnode = allocator.GetMemPool()->New<BlockNode>();
   nnode->SetStmtID(stmtIDNext++);

@@ -181,6 +181,9 @@ class MapleString {
   }
 
   MapleString &operator+=(const std::string &str) {
+    if (str.empty()) {
+      return *this;
+    }
     size_t size = str.length();
     size_t oldSize = ((data == nullptr) ? 0 : (dataLength + 1));
     CHECK_FATAL(size <= UINT_MAX - oldSize, "str too large");

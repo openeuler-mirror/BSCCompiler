@@ -732,7 +732,6 @@ class CallGraph : public AnalysisResult {
   CGNode *callExternal = nullptr;  // Auxiliary node used in icall/intrinsic call
   uint32 numOfNodes;
   uint32 numOfSccs;
-  std::unordered_set<uint64> callsiteHash;
 };
 
 class IPODevirtulize {

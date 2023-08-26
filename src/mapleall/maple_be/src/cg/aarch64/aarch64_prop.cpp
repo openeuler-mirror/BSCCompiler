@@ -2910,7 +2910,7 @@ RegOperand *A64PregCopyPattern::CheckAndGetExistPhiDef(Insn &phiInsn, std::vecto
     VRegVersion *version = optSsaInfo->FindSSAVersion(ssaRegNO);
     (void)validDifferOrigRegNOs.insert(version->GetOriginalRegNO());
   }
- auto &phiInsns = phiInsn.GetBB()->GetPhiInsns();
+  auto &phiInsns = phiInsn.GetBB()->GetPhiInsns();
   for (auto &phiIt : as_const(phiInsns)) {
     auto &def = static_cast<RegOperand&>(phiIt.second->GetOperand(kInsnFirstOpnd));
     VRegVersion *defVersion = optSsaInfo->FindSSAVersion(def.GetRegisterNumber());

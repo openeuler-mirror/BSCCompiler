@@ -170,13 +170,16 @@ class Bound {
     if (fromType == toType) {
       return true;
     }
-    if (IsPrimTypeUint64(fromType)) {
-      return constant == GetRealValue(constant, toType);
-    } else if (IsPrimTypeUint64(toType)) {
-      return constant == GetRealValue(constant, fromType);
-    } else {
-      return GetRealValue(constant, fromType) == GetRealValue(constant, toType);
+    if (IsSignedInteger(fromType) && IsUnsignedInteger(toType) && constant < 0) {
+      return false;
     }
+    if (IsUnsignedInteger(fromType) && IsSignedInteger(toType)) {
+      if (GetPrimTypeSize(fromType) < GetPrimTypeSize(toType)) {
+        return true;
+      }
+      return (static_cast<uint64>(constant) <= GetMaxNumber(toType));
+    }
+    return GetRealValue(constant, fromType) == GetRealValue(constant, toType);
   }
 
   bool IsEqualToMax(PrimType pType) const {

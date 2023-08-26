@@ -2492,8 +2492,8 @@ class BlockNode : public StmtNode {
   BlockNode *CloneTreeWithSrcPosition(const MIRModule &mod, const GStrIdx &idx = GStrIdx(), bool setInlinedPos = false,
                                       const SrcPosition &inlinedPosition = SrcPosition());
 
-  BlockNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
+  BlockNode *CloneTreeWithFreqs(MapleAllocator &allocator, MapleUnorderedMap<uint32_t, FreqType> &toFreqs,
+                                MapleUnorderedMap<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
                                 uint32_t updateOp);
 
   bool IsEmpty() const {
@@ -2635,8 +2635,8 @@ class IfStmtNode : public UnaryStmtNode {
     return node;
   }
 
-  IfStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                 std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
+  IfStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator, MapleUnorderedMap<uint32_t, FreqType> &toFreqs,
+                                 MapleUnorderedMap<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
                                  uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<IfStmtNode>(*this);
     node->SetStmtID(stmtIDNext++);
@@ -2720,8 +2720,8 @@ class WhileStmtNode : public UnaryStmtNode {
     return node;
   }
 
-  WhileStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                    std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
+  WhileStmtNode *CloneTreeWithFreqs(MapleAllocator &allocator, MapleUnorderedMap<uint32_t, FreqType> &toFreqs,
+                                    MapleUnorderedMap<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
                                     uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<WhileStmtNode>(*this);
     node->SetStmtID(stmtIDNext++);
@@ -2791,8 +2791,8 @@ class DoloopNode : public StmtNode {
     return node;
   }
 
-  DoloopNode *CloneTreeWithFreqs(MapleAllocator &allocator, std::unordered_map<uint32_t, FreqType> &toFreqs,
-                                 std::unordered_map<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
+  DoloopNode *CloneTreeWithFreqs(MapleAllocator &allocator, MapleUnorderedMap<uint32_t, FreqType> &toFreqs,
+                                 MapleUnorderedMap<uint32_t, FreqType> &fromFreqs, FreqType numer, FreqType denom,
                                  uint32_t updateOp) {
     auto *node = allocator.GetMemPool()->New<DoloopNode>(*this);
     node->SetStmtID(stmtIDNext++);

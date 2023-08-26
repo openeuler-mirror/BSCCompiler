@@ -115,8 +115,10 @@ class ReflectionAnalysis : public AnalysisResult {
         klassH(kh),
         mirBuilder(builder),
         classTab(allocator.Adapter()),
+        mapMethodSignature(allocator.Adapter()),
         isLibcore(false),
-        isLazyBindingOrDecouple(false) {
+        isLazyBindingOrDecouple(false),
+        reflectionMuidStr(allocator.GetMemPool()) {
     Klass *objectKlass = kh->GetKlassFromLiteral(namemangler::kJavaLangObjectStr);
     if (objectKlass != nullptr && objectKlass->GetMIRStructType()->IsLocal()) {
       isLibcore = true;
@@ -269,10 +271,10 @@ class ReflectionAnalysis : public AnalysisResult {
   KlassHierarchy *klassH;
   MIRBuilder &mirBuilder;
   MapleVector<MIRSymbol*> classTab;
-  std::map<std::string, MIRSymbol*>mapMethodSignature;
+  MapleMap<MapleString, MIRSymbol*> mapMethodSignature;
   bool isLibcore;
   bool isLazyBindingOrDecouple;
-  std::string reflectionMuidStr;
+  MapleString reflectionMuidStr;
   static const char *klassPtrName;
   static TyIdx classMetadataTyIdx;
   static TyIdx classMetadataRoTyIdx;

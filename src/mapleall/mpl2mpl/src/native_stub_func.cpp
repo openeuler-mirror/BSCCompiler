@@ -502,7 +502,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
   }
   // Without native wrapper
   auto *icall = func.GetCodeMempool()->New<IcallNode>(GetMIRModule(), OP_icallassigned);
-  icall->SetNumOpnds(args.size() + 1);
+  icall->SetNumOpnds(args.size() + 1UL);
   icall->GetNopnd().resize(icall->GetNumOpnds());
   icall->SetReturnVec(nrets);
   for (size_t i = 1; i < icall->GetNopndSize(); ++i) {

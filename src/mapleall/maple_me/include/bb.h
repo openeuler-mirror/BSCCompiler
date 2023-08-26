@@ -67,6 +67,7 @@ class BB : public BaseGraphNode {
 
   BB(MapleAllocator *alloc, MapleAllocator *versAlloc, BBId id)
       : BaseGraphNode(id.GetIdx()),
+        bbAlloc(*alloc),
         pred(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succ(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succFreq(alloc->Adapter()),
@@ -82,6 +83,7 @@ class BB : public BaseGraphNode {
 
   BB(MapleAllocator *alloc, MapleAllocator *versAlloc, BBId id, StmtNode *firstStmt, StmtNode *lastStmt)
       : BaseGraphNode(id.GetIdx()),
+        bbAlloc(*alloc),
         pred(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succ(kBBVectorInitialSize, nullptr, alloc->Adapter()),
         succFreq(alloc->Adapter()),
@@ -309,13 +311,12 @@ class BB : public BaseGraphNode {
 
   void InsertPi(BB &bb, PiassignMeStmt &s) {
     if (meVarPiList.find(&bb) == meVarPiList.end()) {
-      std::vector<PiassignMeStmt*> tmp;
-      meVarPiList[&bb] = tmp;
+      meVarPiList[&bb] = bbAlloc.New<MapleVector<PiassignMeStmt*>>(bbAlloc.Adapter());
     }
-    meVarPiList[&bb].push_back(&s);
+    meVarPiList[&bb]->emplace_back(&s);
   }
 
-  MapleMap<BB*, std::vector<PiassignMeStmt*>> &GetPiList() {
+  MapleMap<BB*, MapleVector<PiassignMeStmt*>*> &GetPiList() {
     return meVarPiList;
   }
 
@@ -595,6 +596,7 @@ class BB : public BaseGraphNode {
   bool IsInList(const MapleVector<BB*> &bbList) const;
   int RemoveBBFromVector(MapleVector<BB*> &bbVec) const;
 
+  MapleAllocator &bbAlloc;
   LabelIdx bbLabel = 0;    // the BB's label
   MapleVector<BB*> pred;  // predecessor list
   MapleVector<BB*> succ;  // successor list
@@ -602,7 +604,7 @@ class BB : public BaseGraphNode {
   MapleVector<FreqType> succFreq;
   MapleMap<OStIdx, PhiNode> phiList;
   MapleMap<OStIdx, MePhiNode*> mePhiList;
-  MapleMap<BB*, std::vector<PiassignMeStmt*>> meVarPiList;
+  MapleMap<BB*, MapleVector<PiassignMeStmt*>*> meVarPiList;
   FreqType frequency = 0;
   BBKind kind = kBBUnknown;
   uint32 attributes = 0;

@@ -173,22 +173,19 @@ void X64MPIsel::CreateCallStructParamPassByReg(const MemOperand &memOpnd, regno_
 }
 
 std::tuple<Operand*, size_t, MIRType*> X64MPIsel::GetMemOpndInfoFromAggregateNode(BaseNode &argExpr) {
-  /* get mirType info */
-  auto [fieldId, mirType] = GetFieldIdAndMirTypeFromMirNode(argExpr);
-  MirTypeInfo symInfo = GetMirTypeInfoFormFieldIdAndMirType(fieldId, mirType);
-  /* get symbol memOpnd info */
+  // memHelper
+  MemRWNodeHelper memHelper(argExpr, cgFunc->GetFunction(), cgFunc->GetBecommon());
+  // get symbol memOpnd info
   MemOperand *symMemOpnd = nullptr;
   if (argExpr.GetOpCode() == OP_dread) {
-    AddrofNode &dread = static_cast<AddrofNode&>(argExpr);
-    MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(dread.GetStIdx());
-    symMemOpnd = &GetOrCreateMemOpndFromSymbol(*symbol, dread.GetFieldID());
+    symMemOpnd = &GetOrCreateMemOpndFromSymbol(*memHelper.GetSymbol(), memHelper.GetFieldID());
   } else if (argExpr.GetOpCode() == OP_iread) {
     IreadNode &iread = static_cast<IreadNode&>(argExpr);
-    symMemOpnd = GetOrCreateMemOpndFromIreadNode(iread, symInfo.primType, symInfo.offset);
+    symMemOpnd = GetOrCreateMemOpndFromIreadNode(iread, memHelper.GetPrimType(), memHelper.GetByteOffset());
   } else {
     CHECK_FATAL(false, "unsupported opcode");
   }
-  return {symMemOpnd, symInfo.size, mirType};
+  return {symMemOpnd, memHelper.GetMemSize(), memHelper.GetMIRType()};
 }
 
 void X64MPIsel::SelectParmListForAggregate(BaseNode &argExpr, X64CallConvImpl &parmLocator, bool isArgUnused) {
@@ -492,22 +489,22 @@ RegOperand *X64MPIsel::PrepareMemcpyParm(uint64 copySize) {
   return &regResult;
 }
 
-void X64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRhs, DassignNode &stmt) {
+void X64MPIsel::SelectAggDassign(MemRWNodeHelper &lhsInfo, MemOperand &symbolMem, Operand &opndRhs, DassignNode &stmt) {
   (void)stmt;
   /* rhs is Func Return, it must be from Regread */
   if (opndRhs.IsRegister()) {
-    SelectIntAggCopyReturn(symbolMem, lhsInfo.size);
+    SelectIntAggCopyReturn(symbolMem, lhsInfo.GetMemSize());
     return;
   }
   /* In generally, rhs is from Dread/Iread */
   CHECK_FATAL(opndRhs.IsMemoryAccessOperand(), "Aggregate Type RHS must be mem");
   MemOperand &memRhs = static_cast<MemOperand&>(opndRhs);
-  SelectAggCopy(symbolMem, memRhs, lhsInfo.size);
+  SelectAggCopy(symbolMem, memRhs, lhsInfo.GetMemSize());
 }
 
 void X64MPIsel::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd, Operand &opndRhs) {
-  /* mirSymbol info */
-  MirTypeInfo symbolInfo = GetMirTypeInfoFromMirNode(stmt);
+  // mirSymbol info
+  MemRWNodeHelper memHelper(stmt, cgFunc->GetFunction(), cgFunc->GetBecommon());
   MIRType *stmtMirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(stmt.GetTyIdx());
 
   /* In generally, RHS is from Dread/Iread */
@@ -519,8 +516,8 @@ void X64MPIsel::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd, Operand &
   if (stmtMirType->GetPrimType() == PTY_agg) {
     /* generate move to regs for agg return */
     RegOperand *result[kFourRegister] = { nullptr }; /* up to 2 int or 4 fp */
-    uint32 numRegs = (symbolInfo.size <= k8ByteSize) ? kOneRegister : kTwoRegister;
-    PrimType retPrimType = (symbolInfo.size <= k4ByteSize) ? PTY_u32 : PTY_u64;
+    uint32 numRegs = (memHelper.GetMemSize() <= k8ByteSize) ? kOneRegister : kTwoRegister;
+    PrimType retPrimType = (memHelper.GetMemSize() <= k4ByteSize) ? PTY_u32 : PTY_u64;
     for (int i = 0; i < numRegs; i++) {
       ImmOperand &newStOfstSrc = static_cast<ImmOperand&>(*stOfstSrc->Clone(*cgFunc->GetMemoryPool()));
       newStOfstSrc.SetValue(newStOfstSrc.GetValue() + i * k8ByteSize);
@@ -533,9 +530,9 @@ void X64MPIsel::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd, Operand &
     }
   } else {
     RegOperand *lhsAddrOpnd = &SelectCopy2Reg(AddrOpnd, stmt.Opnd(0)->GetPrimType());
-    MemOperand &symbolMem = cgFunc->GetOpndBuilder()->CreateMem(*lhsAddrOpnd, symbolInfo.offset,
+    MemOperand &symbolMem = cgFunc->GetOpndBuilder()->CreateMem(*lhsAddrOpnd, memHelper.GetByteOffset(),
         GetPrimTypeBitSize(PTY_u64));
-    SelectAggCopy(symbolMem, memRhs, symbolInfo.size);
+    SelectAggCopy(symbolMem, memRhs, memHelper.GetMemSize());
   }
 }
 

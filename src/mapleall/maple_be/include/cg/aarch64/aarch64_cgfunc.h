@@ -103,7 +103,7 @@ class AArch64CGFunc : public CGFunc {
   bool GenRetCleanup(const IntrinsiccallNode *cleanupNode, bool forEA = false);
   void HandleRetCleanup(NaryStmtNode &retNode) override;
   void MergeReturn() override;
-  RegOperand *ExtractNewMemBase(const MemOperand &memOpnd);
+  RegOperand *ExtractMemBaseAddr(const MemOperand &memOpnd);
   Operand *AArchHandleExpr(const BaseNode &parent, BaseNode &expr);
   void SelectDassign(DassignNode &stmt, Operand &opnd0) override;
   void SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) override;
@@ -111,10 +111,11 @@ class AArch64CGFunc : public CGFunc {
   void SelectAbort() override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
   void SelectAsm(AsmNode &node) override;
-  MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 align, int64 offset,
-                                       bool needLow12 = false);
+  MemOperand *GenFormalMemOpndWithSymbol(const MIRSymbol &sym, int64 offset);
   MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
+  MemOperand *SelectRhsMemOpnd(BaseNode &rhsStmt, bool &isRefField);
+  MemOperand *SelectRhsMemOpnd(BaseNode &rhsStmt);
   uint32 LmbcFindTotalStkUsed(std::vector<TyIdx> &paramList);
   uint32 LmbcTotalRegsUsed();
   bool LmbcSmallAggForRet(const BaseNode &bNode, const Operand &src, int32 offset = 0,
@@ -129,8 +130,6 @@ class AArch64CGFunc : public CGFunc {
   void SelectIassignspoff(PrimType pTy, int32 offset, Operand &opnd) override;
   void SelectBlkassignoff(BlkassignoffNode &bNode, Operand &src) override;
   void SelectAggIassign(IassignNode &stmt, Operand &addrOpnd) override;
-  void GenLdStForAggIassign(IassignNode &stmt, uint64 ofst, uint32 rhsOffset, uint32 lhsOffset, RegOperand &rhsAddrOpnd,
-                            Operand &lhsAddrOpnd, uint32 memOpndSize, regno_t vRegNO, bool isRefField);
   void SelectReturnSendOfStructInRegs(BaseNode *x) override;
   void SelectReturn(Operand *opnd0) override;
   void SelectIgoto(Operand *opnd0) override;
@@ -339,7 +338,6 @@ class AArch64CGFunc : public CGFunc {
   const LabelOperand *GetLabelOperand(LabelIdx labIdx) const override;
   LabelOperand &GetOrCreateLabelOperand(LabelIdx labIdx) override;
   LabelOperand &GetOrCreateLabelOperand(BB &bb) override;
-  uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
   RegOperand *SelectVectorAddLong(PrimType rType, Operand *o1, Operand *o2, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorAddWiden(Operand *o1, PrimType otyp1, Operand *o2, PrimType otyp2, bool isLow) override;
   RegOperand *SelectVectorAbs(PrimType rType, Operand *o1) override;
@@ -911,20 +909,11 @@ class AArch64CGFunc : public CGFunc {
 
   bool MarkParmListCall(BaseNode &expr);
 
-  struct AggregateDesc {
-    MIRType *mirType = nullptr;
-    MIRSymbol *sym = nullptr;
-    uint32 offset = 0;
-    bool isRefField = false;
-  };
-
   struct ParamDesc {
-    ParamDesc(MIRType *type, BaseNode *expr, MIRSymbol *symbol = nullptr,
-              uint32 ofst = 0, bool copyed = false)
-        : mirType(type), argExpr(expr), sym(symbol), offset(ofst), preCopyed(copyed) {}
+    ParamDesc(MIRType *type, BaseNode *expr, uint32 ofst = 0, bool copyed = false)
+        : mirType(type), argExpr(expr), offset(ofst), preCopyed(copyed) {}
     MIRType *mirType = nullptr;
     BaseNode *argExpr = nullptr;  // expr node
-    MIRSymbol *sym = nullptr;     // agg sym
     uint32 offset = 0;            // agg offset, for preCopyed struct, RSP-based offset
     bool preCopyed = false;       // for large struct, pre copyed to strack
     bool isSpecialArg = false;    // such as : tls
@@ -932,14 +921,9 @@ class AArch64CGFunc : public CGFunc {
 
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
   std::pair<MIRFunction*, MIRFuncType*> GetCalleeFunction(StmtNode &naryNode) const;
-  Operand *GetSymbolAddressOpnd(const MIRSymbol &sym, int32 offset, bool useMem);
   void SelectStructMemcpy(RegOperand &destOpnd, RegOperand &srcOpnd, uint32 structSize);
-  void SelectStructCopy(MemOperand &destOpnd, const MemOperand &srcOpnd, uint32 structSize);
-  Operand *GetAddrOpndWithBaseNode(const BaseNode &argExpr, const MIRSymbol &sym, uint32 offset,
-                                   bool useMem = true);
-  void GetAggregateDescFromAggregateNode(BaseNode &argExpr, AggregateDesc &aggDesc);
-  void SelectParamPreCopy(const BaseNode &argExpr, const AggregateDesc &aggDesc, uint32 mirSize,
-                          int32 structCopyOffset, bool isArgUnused);
+  void SelectMemCopy(const MemOperand &destOpnd, const MemOperand &srcOpnd, uint32 size, bool isRefField = false,
+                     BaseNode *destNode = nullptr, BaseNode *srcNode = nullptr);
   void SelectParmListPreprocessForAggregate(BaseNode &argExpr, int32 &structCopyOffset,
                                             std::vector<ParamDesc> &argsDesc, bool isArgUnused);
   bool SelectParmListPreprocess(StmtNode &naryNode, size_t start, std::vector<ParamDesc> &argsDesc,
@@ -991,7 +975,6 @@ class AArch64CGFunc : public CGFunc {
 
   Operand *GetOpndWithOneParam(const IntrinsicopNode &intrnNode);
   Operand *GetOpndFromIntrnNode(const IntrinsicopNode &intrnNode);
-  bool IslhsSizeAligned(uint64 lhsSizeCovered, uint32 newAlignUsed, uint64 lhsSize) const;
   RegOperand &GetRegOpnd(bool isAfterRegAlloc, PrimType primType);
   Operand *SelectAArch64CAtomicFetch(const IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore);
   Operand *SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode, SyncAndAtomicOp op, bool fetchBefore);
@@ -1029,11 +1012,8 @@ class AArch64CGFunc : public CGFunc {
                                           AArch64isa::MemoryOrdering memOrd);
   MemOperand &CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset);
   std::string GenerateMemOpndVerbose(const Operand &src) const;
-  RegOperand *PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal,
-                                     RegOperand &baseReg, VaryType varyType);
   RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd, VaryType varyType);
   RegOperand *PrepareMemcpyParamOpnd(uint64 copySize, PrimType dType);
-  Insn *AggtStrLdrInsert(bool bothUnion, Insn *lastStrLdr, Insn &newStrLdr);
   MemOperand &CreateMemOpndForStatic(const MIRSymbol &symbol, int64 offset, uint32 size, bool needLow12,
                                      RegOperand *regOp);
   Operand *DoAlloca(const BaseNode &expr, Operand &opnd0, size_t extraAlignment);

@@ -196,19 +196,19 @@ bool MeABC::BuildBrMeStmtInGraph(MeStmt &meStmt) {
   BB *brTarget = brBB->GetSucc(1);
   BB *brFallThru = brBB->GetSucc(0);
   CHECK_FATAL(brMeStmt->GetOffset() == brTarget->GetBBLabel(), "must be");
-  MapleMap<BB*, std::vector<PiassignMeStmt*>> &brTargetPiBBList = brTarget->GetPiList();
-  MapleMap<BB*, std::vector<PiassignMeStmt*>> &brFallThruPiBBList = brFallThru->GetPiList();
+  auto &brTargetPiBBList = brTarget->GetPiList();
+  auto &brFallThruPiBBList = brFallThru->GetPiList();
   if (brTargetPiBBList.find(brBB) == brTargetPiBBList.end()) {
     return false;
   }
-  for (PiassignMeStmt* piMeStmt : brTargetPiBBList[brBB]) {
+  for (PiassignMeStmt* piMeStmt : *brTargetPiBBList[brBB]) {
     BuildSoloPiInGraph(*piMeStmt);
   }
-  for (PiassignMeStmt* piMeStmt : brFallThruPiBBList[brBB]) {
+  for (PiassignMeStmt* piMeStmt : *brFallThruPiBBList[brBB]) {
     BuildSoloPiInGraph(*piMeStmt);
   }
-  std::vector<PiassignMeStmt*> &brTargetPiList = brTargetPiBBList[brBB];
-  std::vector<PiassignMeStmt*> &brFallThruPiList = brFallThruPiBBList[brBB];
+  auto &brTargetPiList = brTargetPiBBList[brBB];
+  auto &brFallThruPiList = brFallThruPiBBList[brBB];
   ESSABaseNode *brTargetOpnd1 = nullptr;
   ESSABaseNode *brTargetOpnd2 = nullptr;
   ESSABaseNode *brFallThruOpnd1 = nullptr;
@@ -216,23 +216,23 @@ bool MeABC::BuildBrMeStmtInGraph(MeStmt &meStmt) {
   auto *opMeExpr = static_cast<OpMeExpr*>(brMeStmt->GetOpnd());
   MeExpr *opOpnd1 = opMeExpr->GetOpnd(0);
   MeExpr *opOpnd2 = opMeExpr->GetOpnd(1);
-  if (brTargetPiList.size() == kPiListSize) {
-    brTargetOpnd1 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList[0]->GetLHS());
-    brTargetOpnd2 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList[1]->GetLHS());
-    brFallThruOpnd1 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList.at(0)->GetLHS());
-    brFallThruOpnd2 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList.at(1)->GetLHS());
+  if (brTargetPiList->size() == kPiListSize) {
+    brTargetOpnd1 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList->at(0)->GetLHS());
+    brTargetOpnd2 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList->at(1)->GetLHS());
+    brFallThruOpnd1 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList->at(0)->GetLHS());
+    brFallThruOpnd2 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList->at(1)->GetLHS());
     AddUseDef(*opOpnd1);
     AddUseDef(*opOpnd2);
   } else if (opOpnd1->GetMeOp() == kMeOpConst) {
     brTargetOpnd1 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd1)->GetExtIntValue());
-    brTargetOpnd2 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList[0]->GetLHS());
+    brTargetOpnd2 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList->at(0)->GetLHS());
     brFallThruOpnd1 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd1)->GetExtIntValue());
-    brFallThruOpnd2 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList.at(0)->GetLHS());
+    brFallThruOpnd2 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList->at(0)->GetLHS());
     AddUseDef(*opOpnd2);
   } else if (opOpnd2->GetMeOp() == kMeOpConst) {
-    brTargetOpnd1 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList[0]->GetLHS());
+    brTargetOpnd1 = inequalityGraph->GetOrCreateVarNode(*brTargetPiList->at(0)->GetLHS());
     brTargetOpnd2 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd2)->GetExtIntValue());
-    brFallThruOpnd1 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList.at(0)->GetLHS());
+    brFallThruOpnd1 = inequalityGraph->GetOrCreateVarNode(*brFallThruPiList->at(0)->GetLHS());
     brFallThruOpnd2 = inequalityGraph->GetOrCreateConstNode(static_cast<ConstMeExpr*>(opOpnd2)->GetExtIntValue());
     AddUseDef(*opOpnd1);
   } else {
@@ -970,8 +970,8 @@ void MeABC::InitNewStartPoint(MeStmt &meStmt, MeExpr &opnd1, MeExpr &opnd2, bool
   BB *curBB = meStmt.GetBB();
   if (curBB->GetPiList().size() != 0) {
     for (const auto &pair : std::as_const(curBB->GetPiList())) {
-      CHECK_FATAL(pair.second.size() >= 1, "must be");
-      PiassignMeStmt *pi = pair.second[0];
+      CHECK_FATAL(pair.second->size() >= 1, "must be");
+      PiassignMeStmt *pi = pair.second->at(0);
       AddUseDef(*pi->GetLHS());
     }
   }

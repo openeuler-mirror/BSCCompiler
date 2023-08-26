@@ -128,22 +128,19 @@ void AArch64MPIsel::CreateCallStructParamPassByReg(const MemOperand &memOpnd, re
 }
 
 std::tuple<Operand*, size_t, MIRType*> AArch64MPIsel::GetMemOpndInfoFromAggregateNode(BaseNode &argExpr) {
-  /* get mirType info */
-  auto [fieldId, mirType] = GetFieldIdAndMirTypeFromMirNode(argExpr);
-  MirTypeInfo symInfo = GetMirTypeInfoFormFieldIdAndMirType(fieldId, mirType);
-  /* get symbol memOpnd info */
+  // get mirType info
+  MemRWNodeHelper memHelper(argExpr, cgFunc->GetFunction(), cgFunc->GetBecommon());
+  // get symbol memOpnd info
   MemOperand *symMemOpnd = nullptr;
   if (argExpr.GetOpCode() == OP_dread) {
-    AddrofNode &dread = static_cast<AddrofNode&>(argExpr);
-    MIRSymbol *symbol = cgFunc->GetFunction().GetLocalOrGlobalSymbol(dread.GetStIdx());
-    symMemOpnd = &GetOrCreateMemOpndFromSymbol(*symbol, dread.GetFieldID());
+    symMemOpnd = &GetOrCreateMemOpndFromSymbol(*memHelper.GetSymbol(), memHelper.GetFieldID());
   } else if (argExpr.GetOpCode() == OP_iread) {
     IreadNode &iread = static_cast<IreadNode&>(argExpr);
-    symMemOpnd = GetOrCreateMemOpndFromIreadNode(iread, symInfo.primType, symInfo.offset);
+    symMemOpnd = GetOrCreateMemOpndFromIreadNode(iread, memHelper.GetPrimType(), memHelper.GetByteOffset());
   } else {
     CHECK_FATAL_FALSE("unsupported opcode");
   }
-  return {symMemOpnd, symInfo.size, mirType};
+  return {symMemOpnd, memHelper.GetMemSize(), memHelper.GetMIRType()};
 }
 
 void AArch64MPIsel::SelectParmListForAggregate(BaseNode &argExpr, AArch64CallConvImpl &parmLocator, bool isArgUnused) {
@@ -287,8 +284,9 @@ RegOperand *AArch64MPIsel::PrepareMemcpyParm(uint64 copySize) {
   return &regResult;
 }
 
-void AArch64MPIsel::SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &opndRh, DassignNode &stmt) {
-  (void)lhsInfo;
+void AArch64MPIsel::SelectAggDassign(MemRWNodeHelper &memHelper, MemOperand &symbolMem, Operand &opndRh,
+                                     DassignNode &stmt) {
+  (void)memHelper;
   (void)symbolMem;
   (void)opndRh;
   cgFunc->SelectAggDassign(stmt);

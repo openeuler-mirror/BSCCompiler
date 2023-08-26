@@ -1482,9 +1482,9 @@ class AndAndCmpBranchesToTstPattern : public CGPeepPattern {
     return "AndAndCmpBranchesToCsetPattern";
   }
  private:
-  bool CheckCondInsn(Insn &insn);
+  bool CheckCondInsn(const Insn &insn);
   Insn *CheckAndGetPrevAndDefInsn(const RegOperand &regOpnd) const;
-  bool CheckAndSelectPattern(const Insn &currInsn);
+  bool CheckAndSelectPattern();
   RegOperand *ccReg = nullptr;
   Insn *prevPrevAndInsn = nullptr;
   Insn *prevAndInsn = nullptr;

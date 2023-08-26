@@ -127,9 +127,11 @@ class CongruenceClass {
     }
   };
 
-  CongruenceClass() : id(kVnNum++) {}
+  explicit CongruenceClass(MapleAllocator &alloc)
+      : id(kVnNum++), exprList(alloc.Adapter()), leaderList(alloc.Adapter()) {}
 
-  explicit CongruenceClass(MeExpr &expr) : id(kVnNum++) {
+  CongruenceClass(MeExpr &expr, MapleAllocator &alloc)
+      : id(kVnNum++), exprList(alloc.Adapter()), leaderList(alloc.Adapter()) {
     exprList.insert(&expr);
   }
 
@@ -150,11 +152,11 @@ class CongruenceClass {
   size_t GetID() const {
     return id;
   }
-  std::set<MeExpr *, MeExprCmp> &GetMeExprList() {
+  MapleSet<MeExpr *, MeExprCmp> &GetMeExprList() {
     return exprList;
   }
 
-  std::vector<MeExpr *> &GetLeaderList() {
+  MapleVector<MeExpr *> &GetLeaderList() {
     return leaderList;
   }
 
@@ -169,8 +171,8 @@ class CongruenceClass {
 
  private:
   size_t id; // vn num
-  std::set<MeExpr *, MeExprCmp> exprList;
-  std::vector<MeExpr *> leaderList;
+  MapleSet<MeExpr *, MeExprCmp> exprList;
+  MapleVector<MeExpr *> leaderList;
 };
 
 void CongruenceClass::Dump(size_t indent) const {
@@ -253,10 +255,12 @@ class VnExpr {
 
 class PhiVnExpr : public VnExpr {
  public:
-  explicit PhiVnExpr(const BB &bb) : VnExpr(VnKind::kVnPhi), defBB(bb) {}
+  PhiVnExpr(const BB &bb, MapleAllocator &alloc)
+      : VnExpr(VnKind::kVnPhi), defBB(bb), opnds(alloc.Adapter()) {}
   ~PhiVnExpr() override = default;
 
-  PhiVnExpr(size_t vnExprID, const PhiVnExpr &phiVnExpr) : VnExpr(VnKind::kVnPhi, vnExprID), defBB(phiVnExpr.defBB) {
+  PhiVnExpr(size_t vnExprID, const PhiVnExpr &phiVnExpr, MapleAllocator &alloc)
+      : VnExpr(VnKind::kVnPhi, vnExprID), defBB(phiVnExpr.defBB), opnds(alloc.Adapter()) {
     opnds.insert(opnds.end(), phiVnExpr.opnds.begin(), phiVnExpr.opnds.end());
   }
 
@@ -283,7 +287,7 @@ class PhiVnExpr : public VnExpr {
           return opnd == first;
         });
   }
-  const std::vector<const MeExpr *> &GetOpnds() const {
+  const MapleVector<const MeExpr *> &GetOpnds() const {
     return opnds;
   }
 
@@ -303,7 +307,7 @@ class PhiVnExpr : public VnExpr {
 
  private:
   const BB &defBB;
-  std::vector<const MeExpr *> opnds;
+  MapleVector<const MeExpr *> opnds;
 };
 
 class IvarVnExpr : public VnExpr {
@@ -368,19 +372,21 @@ class IvarVnExpr : public VnExpr {
 
 class NaryVnExpr : public VnExpr {
  public:
-  explicit NaryVnExpr(const NaryMeExpr &nary)
+  NaryVnExpr(const NaryMeExpr &nary, MapleAllocator &alloc)
       : VnExpr(VnKind::kVnNary),
         op(nary.GetOp()),
         tyIdx(nary.GetTyIdx()),
         intrinsic(nary.GetIntrinsic()),
-        boundCheck(nary.GetBoundCheck()) {}
+        boundCheck(nary.GetBoundCheck()),
+        opnds(alloc.Adapter()) {}
 
-  NaryVnExpr(size_t vnExprID, const NaryVnExpr &naryVnExpr)
+  NaryVnExpr(size_t vnExprID, const NaryVnExpr &naryVnExpr, MapleAllocator &alloc)
       : VnExpr(VnKind::kVnNary, vnExprID),
         op(naryVnExpr.op),
         tyIdx(naryVnExpr.tyIdx),
         intrinsic(naryVnExpr.intrinsic),
-        boundCheck(naryVnExpr.boundCheck) {
+        boundCheck(naryVnExpr.boundCheck),
+        opnds(alloc.Adapter()) {
     opnds.insert(opnds.end(), naryVnExpr.opnds.begin(), naryVnExpr.opnds.end());
   }
 
@@ -417,12 +423,12 @@ class NaryVnExpr : public VnExpr {
   TyIdx tyIdx { 0 };
   MIRIntrinsicID intrinsic;
   bool boundCheck = false;
-  std::vector<const CongruenceClass *> opnds;
+  MapleVector<const CongruenceClass*> opnds;
 };
 
 class OpVnExpr : public VnExpr {
  public:
-  explicit OpVnExpr(const OpMeExpr &opExpr)
+  OpVnExpr(const OpMeExpr &opExpr, MapleAllocator &alloc)
       : VnExpr(VnKind::kVnOp),
         op(opExpr.GetOp()),
         resType(opExpr.GetPrimType()),
@@ -430,9 +436,10 @@ class OpVnExpr : public VnExpr {
         bitsOffset(opExpr.GetBitsOffSet()),
         bitsSize(opExpr.GetBitsSize()),
         tyIdx(opExpr.GetTyIdx()),
-        fieldID(opExpr.GetFieldID()) {}
+        fieldID(opExpr.GetFieldID()),
+        opnds(alloc.Adapter()) {}
 
-  OpVnExpr(size_t vnExprID, const OpVnExpr &opVnExpr)
+  OpVnExpr(size_t vnExprID, const OpVnExpr &opVnExpr, MapleAllocator &alloc)
       : VnExpr(VnKind::kVnOp, vnExprID),
         op(opVnExpr.op),
         resType(opVnExpr.resType),
@@ -440,7 +447,8 @@ class OpVnExpr : public VnExpr {
         bitsOffset(opVnExpr.bitsOffset),
         bitsSize(opVnExpr.bitsSize),
         tyIdx(opVnExpr.tyIdx),
-        fieldID(opVnExpr.fieldID) {
+        fieldID(opVnExpr.fieldID),
+        opnds(alloc.Adapter()) {
     opnds.insert(opnds.end(), opVnExpr.opnds.begin(), opVnExpr.opnds.end());
   }
 
@@ -482,7 +490,7 @@ class OpVnExpr : public VnExpr {
   uint8 bitsSize = 0;
   TyIdx tyIdx { 0 };
   FieldID fieldID = 0;
-  std::vector<const CongruenceClass *> opnds;
+  MapleVector<const CongruenceClass *> opnds;
 };
 
 size_t PhiVnExpr::GetHashedIndex() {
@@ -882,7 +890,7 @@ CongruenceClass *GVN::GetOrCreateVnForHashedVnExpr(const VnExpr &hashedVnExpr) {
     return vn;
   }
   vnExpr2Vn.resize(vnExprID + 1, nullptr);
-  CongruenceClass *newVn = tmpMP.New<CongruenceClass>();
+  CongruenceClass *newVn = tmpMP.New<CongruenceClass>(alloc);
   DEBUG_LOG() << "Create new vn <vn" << newVn->GetID() << "> for vnexpr <vx" << vnExprID << ">\n";
   vnExpr2Vn[vnExprID] = newVn;
   AddToVnVector(*newVn);
@@ -897,7 +905,7 @@ CongruenceClass *GVN::GetVnOfMeExpr(const MeExpr &expr) {
 }
 
 CongruenceClass *GVN::CreateVnForMeExpr(MeExpr &expr) {
-  CongruenceClass *vn = tmpMP.New<CongruenceClass>(expr);
+  CongruenceClass *vn = tmpMP.New<CongruenceClass>(expr, alloc);
   DEBUG_LOG() << "Create new vn <vn" << vn->GetID() << "> for expr <mx" << expr.GetExprID() << ">\n";
   SetVnForExpr(expr, *vn);
   AddToVnVector(*vn);
@@ -944,7 +952,7 @@ VnExpr *GVN::TransformExprToVnExpr(MeExpr &expr) {
       return HashVnExpr(vnExpr);
     }
     case kMeOpOp: {
-      OpVnExpr vnExpr(static_cast<OpMeExpr &>(expr));
+      OpVnExpr vnExpr(static_cast<OpMeExpr &>(expr), alloc);
       for (size_t i = 0; i < expr.GetNumOpnds(); ++i) {
         MeExpr *opnd = expr.GetOpnd(i);
         CongruenceClass *opndVn = GetVnOfMeExpr(*opnd);
@@ -953,7 +961,7 @@ VnExpr *GVN::TransformExprToVnExpr(MeExpr &expr) {
       return HashVnExpr(vnExpr);
     }
     case kMeOpNary: {
-      NaryVnExpr vnExpr(static_cast<NaryMeExpr &>(expr));
+      NaryVnExpr vnExpr(static_cast<NaryMeExpr &>(expr), alloc);
       for (size_t i = 0; i < expr.GetNumOpnds(); ++i) {
         MeExpr *opnd = expr.GetOpnd(i);
         CongruenceClass *opndVn = GetVnOfMeExpr(*opnd);
@@ -1054,15 +1062,15 @@ VnExpr *GVN::HashVnExpr(VnExpr &vnExpr) {
       break;
     }
     case VnKind::kVnPhi: {
-      res = tmpMP.New<PhiVnExpr>(kVnExprNum, static_cast<PhiVnExpr &>(vnExpr));
+      res = tmpMP.New<PhiVnExpr>(kVnExprNum, static_cast<PhiVnExpr &>(vnExpr), alloc);
       break;
     }
     case VnKind::kVnNary: {
-      res = tmpMP.New<NaryVnExpr>(kVnExprNum, static_cast<NaryVnExpr &>(vnExpr));
+      res = tmpMP.New<NaryVnExpr>(kVnExprNum, static_cast<NaryVnExpr &>(vnExpr), alloc);
       break;
     }
     case VnKind::kVnOp: {
-      res = tmpMP.New<OpVnExpr>(kVnExprNum, static_cast<OpVnExpr &>(vnExpr));
+      res = tmpMP.New<OpVnExpr>(kVnExprNum, static_cast<OpVnExpr &>(vnExpr), alloc);
       break;
     }
     default:
@@ -1078,7 +1086,7 @@ VnExpr *GVN::HashVnExpr(VnExpr &vnExpr) {
 }
 
 CongruenceClass *GVN::GetOrCreateVnForPhi(const MePhiNode &phi, const BB &bb) {
-  PhiVnExpr phiVn(bb);
+  PhiVnExpr phiVn(bb, alloc);
   for (ScalarMeExpr *opnd : phi.GetOpnds()) {
     CongruenceClass *opndVn = nullptr;
     // We should generate vn for formal/init symbol when we meet it at first time.

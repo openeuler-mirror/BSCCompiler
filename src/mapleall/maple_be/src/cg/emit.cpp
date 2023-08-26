@@ -292,7 +292,8 @@ void Emitter::EmitFileInfo(const std::string &fileName) {
 #endif /* TARGARM32 */
 }
 
-void Emitter::EmitDataSection(const std::string &sectionName, const std::string &symbolName, const std::string &sectionSuffix) {
+void Emitter::EmitDataSection(const std::string &sectionName, const std::string &symbolName,
+                              const std::string &sectionSuffix) {
   // Remove the dot at the beginning of the symbolName
   std::string tmpSymName = symbolName;
   while (tmpSymName.size() > 1 && tmpSymName[0] == '.') {

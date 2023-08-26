@@ -296,7 +296,12 @@ bool CgPgoGen::PhaseRun(maplebe::CGFunc &f) {
   if (!LiteProfile::IsInWhiteList(f.GetName()) && f.GetName() != CGOptions::GetLitePgoOutputFunction()) {
     return false;
   }
-  CHECK_FATAL(f.NumBBs() < LiteProfile::GetBBNoThreshold(), "stop ! bb out of range!");
+  if (f.NumBBs() > LiteProfile::GetBBNoThreshold()) {
+    LogInfo::MapleLogger() << "Oops! The total number of BBs(" << f.NumBBs() << ") of [" << f.GetName() <<
+        "] exceeds the limit(" << LiteProfile::GetBBNoThreshold() << "), " <<
+        "we can not currently support instrumentation\n";
+    return false;
+  }
 
   auto *live = GET_ANALYSIS(CgLiveAnalysis, f);
   /* revert liveanalysis result container. */

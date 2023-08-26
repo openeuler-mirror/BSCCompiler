@@ -927,8 +927,9 @@ MIRSymbol *ReflectionAnalysis::GetParameterTypesSymbol(uint32 size, uint32 index
 }
 
 MIRSymbol *ReflectionAnalysis::GetMethodSignatureSymbol(std::string signature) {
-  if (mapMethodSignature.find(signature) != mapMethodSignature.end()) {
-    return mapMethodSignature[signature];
+  MapleString str(signature, allocator.GetMemPool());
+  if (mapMethodSignature.find(str) != mapMethodSignature.end()) {
+    return mapMethodSignature[str];
   }
 
   std::vector<std::string> typeNames;
@@ -950,7 +951,7 @@ MIRSymbol *ReflectionAnalysis::GetMethodSignatureSymbol(std::string signature) {
                         methodSignatureType.GetTypeIndex(), true);
   methodSignatureSt->SetStorageClass(kScFstatic);
   methodSignatureSt->SetKonst(newConst);
-  mapMethodSignature[signature] = methodSignatureSt;
+  mapMethodSignature[str] = methodSignatureSt;
   return methodSignatureSt;
 }
 
@@ -2240,12 +2241,12 @@ void ReflectionAnalysis::Run() {
   for (Klass *klass : klasses) {
     GenClassMetaData(*klass);
     // Collect the full information about the classmetadata.
-    reflectionMuidStr = GetMUID(reflectionMuidStr).ToStr();
+    reflectionMuidStr = reflectionMuidStr.empty() ? GetMUID("").ToStr() :
+        GetMUID(reflectionMuidStr.c_str()).ToStr();
   }
   reflectionMuidStr += MUIDReplacement::GetMplMd5().ToStr();
-  MUIDReplacement::SetMplMd5(GetMUID(reflectionMuidStr));
+  MUIDReplacement::SetMplMd5(GetMUID(reflectionMuidStr.c_str()));
   reflectionMuidStr.clear();
-  reflectionMuidStr.shrink_to_fit();
   GenClassHashMetaData();
 }
 

@@ -19,11 +19,6 @@
 #include "cgfunc.h"
 
 namespace maplebe {
-struct MirTypeInfo {
-  PrimType primType;
-  int32 offset = 0;
-  uint32 size = 0;  /* for aggType */
-};
 /* macro expansion instruction selection */
 class MPISel {
  public:
@@ -127,7 +122,7 @@ class MPISel {
   virtual Operand *SelectCstrrchr(IntrinsicopNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual void SelectCprefetch(IntrinsiccallNode &intrinsiccallNode) = 0;
   virtual void SelectAsm(AsmNode &node) = 0;
-  virtual void SelectAggDassign(MirTypeInfo &lhsInfo, MemOperand &symbolMem, Operand &rOpnd, DassignNode &s) = 0;
+  virtual void SelectAggDassign(MemRWNodeHelper &memHelper, MemOperand &symbolMem, Operand &rOpnd, DassignNode &s) = 0;
   Operand *SelectBnot(const UnaryNode &node, Operand &opnd0, const BaseNode &parent);
   Operand *SelectMin(const BinaryNode &node, Operand &opnd0, Operand &opnd1);
   Operand *SelectMax(const BinaryNode &node, Operand &opnd0, Operand &opnd1);
@@ -165,9 +160,6 @@ class MPISel {
   void SelectFloatCvt(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
   void SelectCvtFloat2Int(RegOperand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
   PrimType GetIntegerPrimTypeFromSize(bool isSigned, uint32 bitSize) const;
-  std::pair<FieldID, MIRType*> GetFieldIdAndMirTypeFromMirNode(const BaseNode &node);
-  MirTypeInfo GetMirTypeInfoFormFieldIdAndMirType(FieldID fieldId, MIRType *mirType) const;
-  MirTypeInfo GetMirTypeInfoFromMirNode(const BaseNode &node);
   MemOperand *GetOrCreateMemOpndFromIreadNode(const IreadNode &expr, PrimType primType, int offset);
 
   virtual void SelectCvtFloat2Float(Operand &resOpnd, Operand &srcOpnd, PrimType fromType, PrimType toType) {

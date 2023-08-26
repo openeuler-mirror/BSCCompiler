@@ -167,7 +167,7 @@ struct BaseNodeT {  // 4B
   Opcode op;
   PrimType ptyp;
   uint8 typeFlag;  // a flag to speed up type related operations in the VM
-  uint32 numOpnds;  // only used for N-ary operators, switch and rangegoto
+  size_t numOpnds;  // only used for N-ary operators, switch and rangegoto
   // operands immediately before each node
   virtual size_t NumOpnds() const {
     if (op == OP_switch || op == OP_rangegoto) {
@@ -176,10 +176,10 @@ struct BaseNodeT {  // 4B
     return numOpnds;
   }
 
-  virtual uint8 GetNumOpnds() const {
+  virtual size_t GetNumOpnds() const {
     return numOpnds;
   }
-  virtual void SetNumOpnds(uint32 num) {
+  virtual void SetNumOpnds(size_t num) {
     numOpnds = num;
   }
 
@@ -271,7 +271,7 @@ inline PrimType GetPrimType(const BaseNodeT &nodePtr) {
   return nodePtr.ptyp;
 }
 
-inline uint32 GetOperandsNum(const BaseNodeT &nodePtr) {
+inline size_t GetOperandsNum(const BaseNodeT &nodePtr) {
   return nodePtr.numOpnds;
 }
 

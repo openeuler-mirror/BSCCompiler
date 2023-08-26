@@ -103,7 +103,8 @@ class FuncProfInfo {
         linenoChecksum(linenoCs),
         cfgChecksum(cfgCs),
         edgeCounts(countnum),
-        counts(alloc->Adapter()){};
+        counts(alloc->Adapter()),
+        stmtFreqs(alloc->Adapter()){};
   ~FuncProfInfo() = default;
 
   FreqType GetFuncFrequency() const {
@@ -121,7 +122,7 @@ class FuncProfInfo {
     realEntryfreq = freq;
   }
 
-  std::unordered_map<uint32_t, FreqType> &GetStmtFreqs() {
+  MapleUnorderedMap<uint32_t, FreqType> &GetStmtFreqs() {
     return stmtFreqs;
   }
 
@@ -170,7 +171,7 @@ class FuncProfInfo {
   unsigned edgeCounts;
   MapleVector<FreqType> counts;
   FreqType entryFreq = 0;                            // record entry bb frequence
-  std::unordered_map<uint32_t, FreqType> stmtFreqs;  // stmt_id is key, counter value
+  MapleUnorderedMap<uint32_t, FreqType> stmtFreqs;  // stmt_id is key, counter value
   FreqType realEntryfreq = 0;                        // function prof data may be modified after clone/inline
 };
 

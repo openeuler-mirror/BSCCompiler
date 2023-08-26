@@ -535,7 +535,7 @@ void BB::DumpMeVarPiList(const IRMap *irMap) {
   for (const auto &pair : meVarPiList) {
     BB *bb = pair.first;
     std::cout << "Frome BB : " << bb->GetBBId() << '\n';
-    for (const auto *stmt : pair.second) {
+    for (const auto *stmt : *pair.second) {
       stmt->Dump(irMap);
     }
   }
